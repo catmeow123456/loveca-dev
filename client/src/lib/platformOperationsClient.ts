@@ -26,13 +26,12 @@ export async function applyReplayRetention(confirmation: string): Promise<Replay
   if (!response.data) throw new Error(response.error?.message ?? '清理回放数据失败');
   return response.data;
 }
-export async function generateRankedVolatilityReport(
-  seasonId?: string
-): Promise<{ report: unknown; markdown: string }> {
-  const response = await apiClient.post<{ report: unknown; markdown: string }>(
-    '/api/admin/platform-operations/ranked-volatility-report',
-    seasonId ? { seasonId } : {}
+export async function exportRankedAnalysis(seasonId: string): Promise<Blob> {
+  const response = await apiClient.postBlob(
+    '/api/admin/platform-operations/ranked-analysis-export',
+    { seasonId },
+    120_000
   );
-  if (!response.data) throw new Error(response.error?.message ?? '生成赛季报告失败');
+  if (!response.data) throw new Error(response.error?.message ?? '生成赛季分析数据失败');
   return response.data;
 }

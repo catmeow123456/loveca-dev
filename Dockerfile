@@ -17,7 +17,6 @@ RUN corepack enable && pnpm install --frozen-lockfile --prod
 
 COPY --from=build /app/dist ./dist
 COPY assets/decks ./assets/decks
-COPY scripts/generate-ranked-volatility-report.mjs ./scripts/generate-ranked-volatility-report.mjs
 
 EXPOSE 3007
 

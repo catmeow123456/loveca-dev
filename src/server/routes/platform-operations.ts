@@ -22,11 +22,9 @@ platformOperationsRouter.post(
   validate(z.object({ confirmation: z.string().max(40) })),
   async (req, res) => {
     try {
+      const { confirmation } = req.body as { confirmation: string };
       res.json({
-        data: await platformOperationsService.applyReplayRetention(
-          req.body.confirmation,
-          req.user!.id
-        ),
+        data: await platformOperationsService.applyReplayRetention(confirmation, req.user!.id),
         error: null,
       });
     } catch (error) {
@@ -35,16 +33,18 @@ platformOperationsRouter.post(
   }
 );
 platformOperationsRouter.post(
-  '/ranked-volatility-report',
-  validate(z.object({ seasonId: z.string().uuid().optional() })),
+  '/ranked-analysis-export',
+  validate(z.object({ seasonId: z.string().uuid() })),
   async (req, res) => {
     try {
-      res.json({
-        data: await platformOperationsService.generateRankedVolatilityReport(req.body.seasonId),
-        error: null,
-      });
+      const { seasonId } = req.body as { seasonId: string };
+      const exported = await platformOperationsService.exportRankedAnalysis(seasonId, req.user!.id);
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${exported.filename}"`);
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(exported.buffer);
     } catch (error) {
-      respond(res, error, '生成赛季报告失败');
+      respond(res, error, '生成赛季分析数据失败');
     }
   }
 );

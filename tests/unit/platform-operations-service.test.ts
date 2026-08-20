@@ -4,10 +4,15 @@ const mocks = vi.hoisted(() => ({
   connect: vi.fn(),
   query: vi.fn(),
   release: vi.fn(),
+  createRankedAnalysisZip: vi.fn(),
 }));
 
 vi.mock('../../src/server/db/pool.js', () => ({
   pool: { connect: mocks.connect },
+}));
+
+vi.mock('../../src/server/services/ranked-analysis-export.js', () => ({
+  createRankedAnalysisZip: mocks.createRankedAnalysisZip,
 }));
 
 import {
@@ -29,7 +34,7 @@ describe('platformOperationsService', () => {
   });
 
   it('previews the same ten-day retention policy used by the maintenance script', async () => {
-    mocks.query.mockImplementation(async (sql: string) => {
+    mocks.query.mockImplementation((sql: string) => {
       if (sql.includes('SELECT record.match_id,')) {
         return {
           rows: [
@@ -73,7 +78,7 @@ describe('platformOperationsService', () => {
   });
 
   it('blocks deletion when a ranked candidate lacks both long-term deck observations', async () => {
-    mocks.query.mockImplementation(async (sql: string) => {
+    mocks.query.mockImplementation((sql: string) => {
       if (sql.includes('SELECT record.match_id,')) return { rows: [] };
       if (sql.includes('JOIN ranked_matches AS ranked_match')) return { rows: [{ count: 2 }] };
       throw new Error(`unexpected query: ${sql}`);
@@ -95,7 +100,7 @@ describe('platformOperationsService', () => {
 
   it('purges eligible records in locked batches and releases the client', async () => {
     let purgedBatch = false;
-    mocks.query.mockImplementation(async (sql: string) => {
+    mocks.query.mockImplementation((sql: string) => {
       if (sql.includes('SELECT record.match_id,')) return { rows: [] };
       if (sql.includes('JOIN ranked_matches AS ranked_match')) return { rows: [{ count: 0 }] };
       if (sql === 'BEGIN' || sql === 'COMMIT') return { rows: [] };
@@ -121,15 +126,85 @@ describe('platformOperationsService', () => {
     expect(mocks.release).toHaveBeenCalledOnce();
   });
 
-  it('does not expose internal report failures to the client', async () => {
+  it('exports ranked analysis only from normalized ranked tables', async () => {
+    mocks.createRankedAnalysisZip.mockResolvedValue({
+      filename: 'ranked-analysis.zip',
+      buffer: Buffer.from('zip'),
+    });
+    mocks.query.mockImplementation((sql: string) => {
+      if (sql.startsWith('BEGIN') || sql.startsWith('SET LOCAL') || sql === 'COMMIT') {
+        return { rows: [] };
+      }
+      if (sql.includes('ranked-analysis:season')) {
+        return {
+          rows: [
+            {
+              season_key: 'ranked-2026-08',
+              name: '八月排位',
+              lifecycle: 'ACTIVE',
+              starts_at: '2026-08-01T00:00:00.000Z',
+              scheduled_ends_at: '2026-09-01T00:00:00.000Z',
+              closed_at: null,
+              rules_version: 'rules-v1',
+              card_catalog_version: 'cards-v1',
+              card_catalog_hash: `sha256:${'a'.repeat(64)}`,
+              deck_policy_version: 'deck-v1',
+              rating_algorithm_version: 'rating-v1',
+              rating_config: {},
+              leaderboard_minimum_match_count: 10,
+              ledger_revision: 1,
+            },
+          ],
+        };
+      }
+      if (sql.includes('ranked-analysis:matches')) return { rows: [{ match_id: 'match-1' }] };
+      if (sql.includes('ranked-analysis:deck-observations')) {
+        return { rows: [{ match_id: 'match-1', seat: 'FIRST' }] };
+      }
+      if (sql.includes('ranked-analysis:')) return { rows: [] };
+      throw new Error(`unexpected query: ${sql}`);
+    });
+
+    const result = await platformOperationsService.exportRankedAnalysis(
+      '11111111-1111-4111-8111-111111111111',
+      'admin-1',
+      new Date('2026-08-20T00:00:00.000Z')
+    );
+
+    expect(result.filename).toBe('ranked-analysis.zip');
+    const statements = mocks.query.mock.calls.map(([sql]) => String(sql));
+    expect(statements.join('\n')).not.toMatch(
+      /match_records|match_checkpoints|match_(?:public|private)_events|match_decision_records|match_chat_messages/
+    );
+    const zipInput: unknown = mocks.createRankedAnalysisZip.mock.calls[0]?.[0];
+    expect(zipInput).toMatchObject({
+      season: { season_key: 'ranked-2026-08' },
+      matches: [{ match_id: 'match-1' }],
+      deckObservations: [{ match_id: 'match-1', seat: 'FIRST' }],
+    });
+    expect(mocks.createRankedAnalysisZip.mock.calls[0]?.[1]).toEqual(
+      new Date('2026-08-20T00:00:00.000Z')
+    );
+    expect(console.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"ranked-analysis-exported"')
+    );
+    expect(mocks.release).toHaveBeenCalledOnce();
+  });
+
+  it('does not expose internal analysis export failures to the client', async () => {
     mocks.query.mockRejectedValue(new Error('relation private_internal_table does not exist'));
 
-    await expect(platformOperationsService.generateRankedVolatilityReport()).rejects.toMatchObject({
-      code: 'REPORT_UNAVAILABLE',
-      message: '生成赛季报告失败，请稍后重试',
+    await expect(
+      platformOperationsService.exportRankedAnalysis(
+        '11111111-1111-4111-8111-111111111111',
+        'admin-1'
+      )
+    ).rejects.toMatchObject({
+      code: 'ANALYSIS_EXPORT_UNAVAILABLE',
+      message: '生成赛季分析数据失败，请稍后重试',
     } satisfies Partial<PlatformOperationsServiceError>);
     expect(console.error).toHaveBeenCalledWith(
-      '[PlatformOperations] Ranked volatility report failed:',
+      '[PlatformOperations] Ranked analysis export failed:',
       expect.any(Error)
     );
     expect(mocks.release).toHaveBeenCalledOnce();

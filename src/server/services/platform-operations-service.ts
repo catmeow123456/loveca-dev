@@ -1,9 +1,20 @@
+import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
 import {
   ReplayRetentionError,
   runReplayRetention,
   type ReplayRetentionReport,
 } from './replay-retention.js';
+import {
+  createRankedAnalysisZip,
+  type RankedAnalysisDeckObservationRow,
+  type RankedAnalysisMatchRow,
+  type RankedAnalysisProjectionRow,
+  type RankedAnalysisRatingEventRow,
+  type RankedAnalysisRatingStepRow,
+  type RankedAnalysisSeasonRow,
+  type RankedAnalysisSeedRow,
+} from './ranked-analysis-export.js';
 
 const RETENTION_DAYS = 10;
 const RETENTION_BATCH_SIZE = 100;
@@ -13,7 +24,8 @@ export type { ReplayRetentionReport } from './replay-retention.js';
 
 export class PlatformOperationsServiceError extends Error {
   constructor(
-    readonly code: 'CONFIRMATION_REQUIRED' | 'RANKED_OBSERVATION_BLOCKED' | 'REPORT_UNAVAILABLE',
+    readonly code:
+      'CONFIRMATION_REQUIRED' | 'RANKED_OBSERVATION_BLOCKED' | 'ANALYSIS_EXPORT_UNAVAILABLE',
     message: string
   ) {
     super(message);
@@ -78,40 +90,136 @@ export class PlatformOperationsService {
       client.release();
     }
   }
-  async generateRankedVolatilityReport(
-    seasonId?: string
-  ): Promise<{ report: unknown; markdown: string }> {
+  async exportRankedAnalysis(
+    seasonId: string,
+    adminUserId: string,
+    now = new Date()
+  ): Promise<{ readonly filename: string; readonly buffer: Buffer }> {
+    let client: PoolClient | null = null;
+    let transactionOpen = false;
     try {
-      const module = (await import(
-        new URL('../../../scripts/generate-ranked-volatility-report.mjs', import.meta.url).href
-      )) as {
-        RANKED_VOLATILITY_REPORT_SQL: string;
-        buildRankedVolatilityReport(payload: unknown, now?: Date): unknown;
-        formatRankedVolatilityReportMarkdown(report: unknown): string;
-      };
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
-        await client.query("SET LOCAL statement_timeout TO '60000ms'");
-        await client.query("SET LOCAL lock_timeout TO '2000ms'");
-        const payload = (
-          await client.query(module.RANKED_VOLATILITY_REPORT_SQL, [seasonId ?? null])
-        ).rows[0];
-        await client.query('COMMIT');
-        const report = module.buildRankedVolatilityReport(payload, new Date());
-        return { report, markdown: module.formatRankedVolatilityReportMarkdown(report) };
-      } catch (error) {
-        await client.query('ROLLBACK').catch(() => undefined);
-        throw error;
-      } finally {
-        client.release();
-      }
-    } catch (error) {
-      console.error('[PlatformOperations] Ranked volatility report failed:', error);
-      throw new PlatformOperationsServiceError(
-        'REPORT_UNAVAILABLE',
-        '生成赛季报告失败，请稍后重试'
+      client = await pool.connect();
+      await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      transactionOpen = true;
+      await client.query("SET LOCAL statement_timeout TO '60000ms'");
+      await client.query("SET LOCAL lock_timeout TO '2000ms'");
+      const season = (
+        await client.query<RankedAnalysisSeasonRow>(
+          `/* ranked-analysis:season */
+           SELECT
+             season_key, name, lifecycle, starts_at, scheduled_ends_at, closed_at,
+             rules_version, card_catalog_version, card_catalog_hash, deck_policy_version,
+             rating_algorithm_version, rating_config, leaderboard_minimum_match_count,
+             ledger_revision
+           FROM ranked_seasons
+           WHERE id = $1`,
+          [seasonId]
+        )
+      ).rows[0];
+      if (!season) throw new Error('ranked season not found');
+
+      const matches = await client.query<RankedAnalysisMatchRow>(
+        `/* ranked-analysis:matches */
+         SELECT
+           match_id, first_user_id, second_user_id, rating_status, winner_seat, result_type,
+           used_free, rules_version, card_catalog_version, card_catalog_hash,
+           deck_policy_version, rating_algorithm_version, ended_at, settled_at, created_at
+         FROM ranked_matches
+         WHERE season_id = $1
+         ORDER BY created_at ASC, match_id ASC`,
+        [seasonId]
       );
+      const ratingEvents = await client.query<RankedAnalysisRatingEventRow>(
+        `/* ranked-analysis:rating-events */
+         SELECT
+           id, event_sequence, event_type, match_id, target_event_id, first_user_id,
+           second_user_id, winner_seat, result_type, rated_at, algorithm_version, created_at
+         FROM ranked_rating_events
+         WHERE season_id = $1
+         ORDER BY event_sequence ASC, id ASC`,
+        [seasonId]
+      );
+      const ratingSteps = await client.query<RankedAnalysisRatingStepRow>(
+        `/* ranked-analysis:rating-steps */
+         SELECT
+           step.event_id, step.step_index, step.source_result_event_id, step.match_id,
+           step.first_user_id, step.second_user_id, step.winner_seat, step.rated_at,
+           step.first_before_rating, step.first_before_deviation, step.first_before_match_count,
+           step.first_before_last_rated_at, step.first_after_rating, step.first_after_deviation,
+           step.first_after_match_count, step.first_after_last_rated_at,
+           step.second_before_rating, step.second_before_deviation, step.second_before_match_count,
+           step.second_before_last_rated_at, step.second_after_rating, step.second_after_deviation,
+           step.second_after_match_count, step.second_after_last_rated_at, step.created_at
+         FROM ranked_rating_event_steps AS step
+         JOIN ranked_rating_events AS event ON event.id = step.event_id
+         WHERE event.season_id = $1
+         ORDER BY event.event_sequence ASC, step.step_index ASC`,
+        [seasonId]
+      );
+      const seeds = await client.query<RankedAnalysisSeedRow>(
+        `/* ranked-analysis:seeds */
+         SELECT
+           seed.user_id, source.season_key AS source_season_key, seed.rating,
+           seed.rating_deviation, seed.created_at
+         FROM ranked_player_seeds AS seed
+         LEFT JOIN ranked_seasons AS source ON source.id = seed.source_season_id
+         WHERE seed.season_id = $1
+         ORDER BY seed.user_id ASC`,
+        [seasonId]
+      );
+      const projections = await client.query<RankedAnalysisProjectionRow>(
+        `/* ranked-analysis:projections */
+         SELECT
+           user_id, rating, rating_deviation, rated_match_count, last_rated_at,
+           ledger_revision, updated_at
+         FROM ranked_player_ratings
+         WHERE season_id = $1
+         ORDER BY user_id ASC`,
+        [seasonId]
+      );
+      const deckObservations = await client.query<RankedAnalysisDeckObservationRow>(
+        `/* ranked-analysis:deck-observations */
+         SELECT
+           match_id, seat, user_id, deck_fingerprint, main_deck_cards, observed_at
+         FROM ranked_deck_observations
+         WHERE season_id = $1
+         ORDER BY match_id ASC, seat ASC`,
+        [seasonId]
+      );
+      await client.query('COMMIT');
+      transactionOpen = false;
+
+      const result = await createRankedAnalysisZip(
+        {
+          season,
+          matches: matches.rows,
+          ratingEvents: ratingEvents.rows,
+          ratingSteps: ratingSteps.rows,
+          seeds: seeds.rows,
+          projections: projections.rows,
+          deckObservations: deckObservations.rows,
+        },
+        now
+      );
+      console.info(
+        JSON.stringify({
+          event: 'ranked-analysis-exported',
+          adminUserId,
+          seasonKey: season.season_key,
+          matchCount: matches.rows.length,
+          deckObservationCount: deckObservations.rows.length,
+        })
+      );
+      return result;
+    } catch (error) {
+      if (client && transactionOpen) await client.query('ROLLBACK').catch(() => undefined);
+      console.error('[PlatformOperations] Ranked analysis export failed:', error);
+      throw new PlatformOperationsServiceError(
+        'ANALYSIS_EXPORT_UNAVAILABLE',
+        '生成赛季分析数据失败，请稍后重试'
+      );
+    } finally {
+      client?.release();
     }
   }
 }

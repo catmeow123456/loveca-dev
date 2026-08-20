@@ -1,20 +1,33 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Database, Download, FileText, RefreshCw, ShieldAlert } from 'lucide-react';
 import { AdminPageHeader } from './AdminPageHeader';
-import { ActionButton, TextInput } from '@/components/common';
+import { ActionButton, SelectMenu, TextInput } from '@/components/common';
 import {
   applyReplayRetention,
-  generateRankedVolatilityReport,
+  exportRankedAnalysis,
   previewReplayRetention,
   type ReplayRetentionReport,
 } from '@/lib/platformOperationsClient';
+import { fetchRankedSeasons, type RankedAdminSeason } from '@/lib/rankedAdminClient';
 
 export function PlatformOperationsPage({ onBack }: { onBack: () => void }) {
   const [preview, setPreview] = useState<ReplayRetentionReport | null>(null);
   const [confirmation, setConfirmation] = useState('');
   const [seasonId, setSeasonId] = useState('');
-  const [working, setWorking] = useState<'preview' | 'purge' | 'report' | null>(null);
+  const [seasons, setSeasons] = useState<RankedAdminSeason[]>([]);
+  const [seasonsLoading, setSeasonsLoading] = useState(true);
+  const [seasonsError, setSeasonsError] = useState<string | null>(null);
+  const [working, setWorking] = useState<'preview' | 'purge' | 'export' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const seasonOptions = useMemo(
+    () =>
+      seasons.map((season) => ({
+        value: season.id,
+        label: `${season.name} · ${lifecycleLabel(season.lifecycle)}`,
+        description: season.seasonKey,
+      })),
+    [seasons]
+  );
   const refresh = useCallback(async () => {
     setWorking('preview');
     try {
@@ -26,9 +39,28 @@ export function PlatformOperationsPage({ onBack }: { onBack: () => void }) {
       setWorking(null);
     }
   }, []);
+  const loadSeasons = useCallback(async () => {
+    setSeasonsLoading(true);
+    setSeasonsError(null);
+    try {
+      const result = await fetchRankedSeasons();
+      setSeasons(result);
+      setSeasonId((current) =>
+        result.some((season) => season.id === current) ? current : preferredSeasonId(result)
+      );
+    } catch (error) {
+      setSeasonsError(error instanceof Error ? error.message : '读取排位赛季失败');
+    } finally {
+      setSeasonsLoading(false);
+    }
+  }, []);
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    const timeoutId = window.setTimeout(() => {
+      void refresh();
+      void loadSeasons();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [loadSeasons, refresh]);
   const purge = async () => {
     setWorking('purge');
     try {
@@ -51,20 +83,17 @@ export function PlatformOperationsPage({ onBack }: { onBack: () => void }) {
       setWorking(null);
     }
   };
-  const report = async () => {
-    setWorking('report');
+  const exportAnalysis = async () => {
+    if (!seasonId) return;
+    setWorking('export');
     try {
-      const result = await generateRankedVolatilityReport(seasonId.trim() || undefined);
-      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      download(
-        `loveca-ranked-volatility-${stamp}.json`,
-        JSON.stringify(result.report, null, 2),
-        'application/json'
-      );
-      download(`loveca-ranked-volatility-${stamp}.md`, result.markdown, 'text/markdown');
-      setMessage('赛季积分波动报告已下载。');
+      const blob = await exportRankedAnalysis(seasonId);
+      const seasonKey = seasons.find((season) => season.id === seasonId)?.seasonKey ?? 'season';
+      const stamp = new Date().toISOString().replace(/[-:.]/g, '');
+      downloadBlob(`loveca-ranked-analysis-${safeFilenamePart(seasonKey)}-${stamp}.zip`, blob);
+      setMessage('赛季原始分析数据包已下载。');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '生成报告失败');
+      setMessage(error instanceof Error ? error.message : '生成分析数据失败');
     } finally {
       setWorking(null);
     }
@@ -114,7 +143,7 @@ export function PlatformOperationsPage({ onBack }: { onBack: () => void }) {
           </div>
           <div className="mt-4 border-t border-[var(--border-subtle)] pt-4">
             <div className="flex items-start gap-2 text-xs text-[var(--text-secondary)]">
-              <ShieldAlert size={15} className="mt-0.5 text-[var(--status-warning)]" />
+              <ShieldAlert size={15} className="mt-0.5 text-[var(--semantic-warning)]" />
               <span>
                 确认已完成必要维护准备后，输入“清理10天前回放数据”执行。若存在排位观察缺失，服务器会拒绝操作。
               </span>
@@ -142,30 +171,62 @@ export function PlatformOperationsPage({ onBack }: { onBack: () => void }) {
           <div className="mb-3 flex items-start gap-3">
             <FileText size={18} className="mt-0.5 text-[var(--accent-primary)]" />
             <div>
-              <h3 className="text-sm font-bold text-[var(--text-primary)]">赛季积分波动报告</h3>
+              <h3 className="text-sm font-bold text-[var(--text-primary)]">赛季原始分析数据</h3>
               <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
-                以只读一致性事务生成 JSON 与 Markdown，下载到当前浏览器；留空时使用唯一的 ACTIVE 或
-                FINALIZING 赛季。
+                选择一个排位赛季，以只读一致性事务生成匿名化 ZIP。包内是可直接分析的 CSV
+                原始表，不预先生成积分波动结论。
+              </p>
+            </div>
+          </div>
+          <div className="mb-3 grid gap-2 sm:grid-cols-2">
+            <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
+              <div className="text-xs font-bold text-[var(--text-primary)]">包含</div>
+              <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                排位结果、积分事件与逐步前后值、玩家种子与当前投影、长期卡组观察及主卡组卡牌明细。
+              </p>
+            </div>
+            <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
+              <div className="text-xs font-bold text-[var(--text-primary)]">明确排除</div>
+              <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                checkpoint、完整对局记录、原始对局卡组快照、timeline、游戏事件、聊天与回放。
               </p>
             </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <TextInput
+            <SelectMenu
+              label="选择导出赛季"
               value={seasonId}
-              onChange={(event) => setSeasonId(event.target.value)}
-              aria-label="赛季 UUID"
-              placeholder="可选：赛季 UUID"
+              options={seasonOptions}
+              onChange={setSeasonId}
+              loading={seasonsLoading}
+              className="w-full sm:flex-1"
+              menuMinWidth={320}
             />
             <ActionButton
               variant="primary"
               size="compact"
-              onClick={() => void report()}
-              disabled={working !== null}
+              onClick={() => void exportAnalysis()}
+              disabled={working !== null || seasonsLoading || !seasonId}
             >
               <Download size={14} />
-              导出报告
+              导出 ZIP
             </ActionButton>
           </div>
+          {seasonsError ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--semantic-error)]">
+              <span>{seasonsError}</span>
+              <ActionButton
+                variant="secondary"
+                size="compact"
+                onClick={() => void loadSeasons()}
+                disabled={seasonsLoading || working !== null}
+              >
+                重新读取赛季
+              </ActionButton>
+            </div>
+          ) : !seasonsLoading && seasons.length === 0 ? (
+            <p className="mt-2 text-xs text-[var(--text-muted)]">当前没有可导出的排位赛季。</p>
+          ) : null}
         </section>
         {message ? (
           <p
@@ -179,12 +240,34 @@ export function PlatformOperationsPage({ onBack }: { onBack: () => void }) {
     </div>
   );
 }
-function download(filename: string, content: string, type: string) {
-  const blob = new Blob([content], { type: `${type};charset=utf-8` });
+function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function safeFilenamePart(value: string): string {
+  return (
+    value
+      .trim()
+      .replace(/[^a-z0-9._-]+/gi, '-')
+      .replace(/^-+|-+$/g, '') || 'season'
+  );
+}
+
+function lifecycleLabel(value: RankedAdminSeason['lifecycle']): string {
+  return { DRAFT: '未开始', ACTIVE: '开放中', FINALIZING: '结算中', CLOSED: '已结束' }[value];
+}
+
+function preferredSeasonId(seasons: readonly RankedAdminSeason[]): string {
+  return (
+    seasons.find((season) => season.lifecycle === 'ACTIVE')?.id ??
+    seasons.find((season) => season.lifecycle === 'FINALIZING')?.id ??
+    seasons.find((season) => season.lifecycle === 'CLOSED')?.id ??
+    seasons[0]?.id ??
+    ''
+  );
 }

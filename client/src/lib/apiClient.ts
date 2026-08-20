@@ -272,10 +272,11 @@ export function redactSensitiveApiPath(path: string): string {
 async function sendApiRequest(
   path: string,
   options: RequestInit,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  timeoutMs = REQUEST_TIMEOUT
 ): Promise<Response> {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     return await fetch(buildApiUrl(path), {
@@ -356,19 +357,28 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<Api
   }
 }
 
-async function apiFetchBlob(path: string): Promise<ApiResponse<Blob>> {
-  const headers: Record<string, string> = {};
+async function apiFetchBlob(
+  path: string,
+  options: RequestInit = { method: 'GET' },
+  timeoutMs = REQUEST_TIMEOUT
+): Promise<ApiResponse<Blob>> {
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+  if (options.body !== undefined && !(options.body instanceof FormData)) {
+    headers['Content-Type'] = headers['Content-Type'] ?? 'application/json';
+  }
   if (accessToken) {
     headers['Authorization'] = `Bearer ${accessToken}`;
   }
 
   try {
-    let response = await sendApiRequest(path, { method: 'GET', cache: 'default' }, headers);
+    let response = await sendApiRequest(path, options, headers, timeoutMs);
     if (response.status === 401 && shouldAttemptTokenRefresh(path)) {
       const refreshed = await tryRefreshToken();
       if (refreshed && accessToken) {
         headers['Authorization'] = `Bearer ${accessToken}`;
-        response = await sendApiRequest(path, { method: 'GET', cache: 'default' }, headers);
+        response = await sendApiRequest(path, options, headers, timeoutMs);
       } else {
         accessToken = null;
       }
@@ -449,7 +459,19 @@ export const apiClient = {
   },
 
   getBlob(path: string): Promise<ApiResponse<Blob>> {
-    return apiFetchBlob(path);
+    return apiFetchBlob(path, { method: 'GET', cache: 'default' });
+  },
+
+  postBlob(path: string, body?: unknown, timeoutMs?: number): Promise<ApiResponse<Blob>> {
+    return apiFetchBlob(
+      path,
+      {
+        method: 'POST',
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        cache: 'no-store',
+      },
+      timeoutMs
+    );
   },
 
   post<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {

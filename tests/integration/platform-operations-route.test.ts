@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   poolQuery: vi.fn(),
   previewReplayRetention: vi.fn(),
   applyReplayRetention: vi.fn(),
-  generateRankedVolatilityReport: vi.fn(),
+  exportRankedAnalysis: vi.fn(),
 }));
 
 vi.mock('../../src/server/db/pool.js', () => ({
@@ -24,7 +24,7 @@ vi.mock('../../src/server/services/platform-operations-service.js', () => ({
   platformOperationsService: {
     previewReplayRetention: mocks.previewReplayRetention,
     applyReplayRetention: mocks.applyReplayRetention,
-    generateRankedVolatilityReport: mocks.generateRankedVolatilityReport,
+    exportRankedAnalysis: mocks.exportRankedAnalysis,
   },
 }));
 
@@ -45,6 +45,7 @@ function createResponse() {
   return {
     statusCode: 200,
     body: null as unknown,
+    headers: {} as Record<string, string>,
     status(code: number) {
       this.statusCode = code;
       return this;
@@ -53,8 +54,17 @@ function createResponse() {
       this.body = payload;
       return this;
     },
+    setHeader(name: string, value: string) {
+      this.headers[name] = value;
+      return this;
+    },
+    send(payload: unknown) {
+      this.body = payload;
+      return this;
+    },
   } as Response & {
     statusCode: number;
+    headers: Record<string, string>;
     body: { data?: unknown; error?: { code?: string } | null } | null;
   };
 }
@@ -135,12 +145,35 @@ describe('platformOperationsRouter', () => {
     expect(response.body).toMatchObject({ data: { metadataRowsUpdated: 2 }, error: null });
   });
 
-  it('rejects an invalid season identifier before generating a report', async () => {
-    const response = await invoke('/ranked-volatility-report', 'post', {
+  it('rejects an invalid season identifier before generating an analysis export', async () => {
+    const response = await invoke('/ranked-analysis-export', 'post', {
       body: { seasonId: 'not-a-uuid' },
     });
 
     expect(response.statusCode).toBe(400);
-    expect(mocks.generateRankedVolatilityReport).not.toHaveBeenCalled();
+    expect(mocks.exportRankedAnalysis).not.toHaveBeenCalled();
+  });
+
+  it('returns a private ZIP download for the selected season', async () => {
+    const buffer = Buffer.from('zip-data');
+    mocks.exportRankedAnalysis.mockResolvedValue({
+      filename: 'loveca-ranked-analysis-ranked-2026-08.zip',
+      buffer,
+    });
+
+    const response = await invoke('/ranked-analysis-export', 'post', {
+      body: { seasonId: '11111111-1111-4111-8111-111111111111' },
+    });
+
+    expect(mocks.exportRankedAnalysis).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111',
+      '11111111-1111-4111-8111-111111111111'
+    );
+    expect(response.body).toBe(buffer);
+    expect(response.headers).toMatchObject({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': 'attachment; filename="loveca-ranked-analysis-ranked-2026-08.zip"',
+      'Cache-Control': 'no-store',
+    });
   });
 });
