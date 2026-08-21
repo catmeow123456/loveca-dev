@@ -222,6 +222,7 @@ load_env_file() {
   export AI_EFFECT_EXTRACTION_ENCRYPTION_KEY="${AI_EFFECT_EXTRACTION_ENCRYPTION_KEY:-1111111111111111111111111111111111111111111111111111111111111111}"
   export AI_EFFECT_EXTRACTION_ALLOWED_HOSTS="${AI_EFFECT_EXTRACTION_ALLOWED_HOSTS:-api.example.com}"
   export FRONTEND_URL="${FRONTEND_URL:-http://localhost:${FRONTEND_PORT}}"
+  export PUBLIC_SITE_STATUS_SNAPSHOT_PATH="${PUBLIC_SITE_STATUS_SNAPSHOT_PATH:-${ROOT_DIR}/runtime/site-status/site-status.json}"
 }
 
 validate_env() {
@@ -577,7 +578,7 @@ NODE
 }
 
 api_command() {
-  printf 'cd %q && env PORT=%q NODE_ENV=%q DATABASE_URL=%q JWT_SECRET=%q JWT_REFRESH_SECRET=%q MINIO_ENDPOINT=%q MINIO_PORT=%q MINIO_ACCESS_KEY=%q MINIO_SECRET_KEY=%q MINIO_BUCKET=%q MINIO_USE_SSL=%q AI_EFFECT_EXTRACTION_ENCRYPTION_KEY=%q AI_EFFECT_EXTRACTION_ALLOWED_HOSTS=%q FRONTEND_URL=%q node --watch dist/server/index.js' \
+  printf 'cd %q && env PORT=%q NODE_ENV=%q DATABASE_URL=%q JWT_SECRET=%q JWT_REFRESH_SECRET=%q MINIO_ENDPOINT=%q MINIO_PORT=%q MINIO_ACCESS_KEY=%q MINIO_SECRET_KEY=%q MINIO_BUCKET=%q MINIO_USE_SSL=%q AI_EFFECT_EXTRACTION_ENCRYPTION_KEY=%q AI_EFFECT_EXTRACTION_ALLOWED_HOSTS=%q FRONTEND_URL=%q PUBLIC_SITE_STATUS_SNAPSHOT_PATH=%q node --watch dist/server/index.js' \
     "$ROOT_DIR" \
     "$PORT" \
     "$NODE_ENV" \
@@ -592,16 +593,18 @@ api_command() {
     "$MINIO_USE_SSL" \
     "$AI_EFFECT_EXTRACTION_ENCRYPTION_KEY" \
     "$AI_EFFECT_EXTRACTION_ALLOWED_HOSTS" \
-    "$FRONTEND_URL"
+    "$FRONTEND_URL" \
+    "$PUBLIC_SITE_STATUS_SNAPSHOT_PATH"
 }
 
 client_command() {
-  printf 'cd %q && env MINIO_ENDPOINT=%q MINIO_PORT=%q MINIO_BUCKET=%q MINIO_USE_SSL=%q pnpm dev --host 0.0.0.0 --port %q' \
+  printf 'cd %q && env MINIO_ENDPOINT=%q MINIO_PORT=%q MINIO_BUCKET=%q MINIO_USE_SSL=%q PUBLIC_SITE_STATUS_SNAPSHOT_PATH=%q pnpm dev --host 0.0.0.0 --port %q' \
     "$ROOT_DIR/client" \
     "$MINIO_ENDPOINT" \
     "$MINIO_PORT" \
     "$MINIO_BUCKET" \
     "$MINIO_USE_SSL" \
+    "$PUBLIC_SITE_STATUS_SNAPSHOT_PATH" \
     "$FRONTEND_PORT"
 }
 
@@ -629,6 +632,9 @@ start_tmux_environment() {
 
   log "running database migrations"
   pnpm db:migrate
+
+  log "initializing public site status snapshot"
+  pnpm site-status:snapshot --status=OPEN --path="$PUBLIC_SITE_STATUS_SNAPSHOT_PATH"
 
   initialize_card_data
 

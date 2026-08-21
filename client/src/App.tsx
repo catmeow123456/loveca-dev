@@ -25,6 +25,7 @@ import {
 } from '@/components/common';
 import { HomePage } from '@/components/pages/HomePage';
 import { PublicHomePage } from '@/components/pages/PublicHomePage';
+import { ServiceStatusPage } from '@/components/pages/ServiceStatusPage';
 import {
   LoginPage,
   RegisterPage,
@@ -64,6 +65,10 @@ import { RankedGlobalLayer } from '@/components/ranked/RankedGlobalLayer';
 import { ThemeTableGlobalLayer } from '@/components/theme-table/ThemeTableGlobalLayer';
 import { hasAnyManagementPermission, hasPermission } from '@game/shared/auth/permissions';
 import { AUTHORIZATION_STALE_EVENT } from '@/lib/apiClient';
+import {
+  loadPublicSiteStatusSnapshot,
+  type PublicSiteStatusSnapshotResult,
+} from '@/lib/publicSiteStatusSnapshot';
 
 const GameBoard = lazy(() => import('@/components/game/GameBoard'));
 const DeckManager = lazy(() =>
@@ -301,6 +306,9 @@ function App() {
   const [authPage, setAuthPage] = useState<AuthPage>(initialAuthRequest.page);
   const [authToken, setAuthToken] = useState<string | null>(initialAuthRequest.token);
   const [currentPage, setCurrentPage] = useState<AppPage>(getInitialPage);
+  const maintenanceAdminRequested =
+    new URLSearchParams(window.location.search).get('maintenanceAdmin') === '1' &&
+    currentPage === 'announcement-admin';
   const [deckManagerReturnPage, setDeckManagerReturnPage] = useState<'home' | 'game-setup'>('home');
   const openDeckManager = useCallback((returnPage: 'home' | 'game-setup' = 'home') => {
     setDeckManagerReturnPage(returnPage);
@@ -317,6 +325,8 @@ function App() {
   }, []);
   const [appConfig, setAppConfig] = useState<PublicAppConfig>(DEFAULT_APP_CONFIG);
   const [configInitialized, setConfigInitialized] = useState(false);
+  const [configLoadFailed, setConfigLoadFailed] = useState(false);
+  const [publicSnapshot, setPublicSnapshot] = useState<PublicSiteStatusSnapshotResult | null>(null);
   const appConfigRenderKeyRef = useRef(buildPublicAppConfigRenderKey(DEFAULT_APP_CONFIG));
   const publicConfigRefreshInFlightRef = useRef<Promise<boolean> | null>(null);
   const publicConfigLastAttemptAtRef = useRef<number | null>(null);
@@ -362,7 +372,11 @@ function App() {
   }, [setAppConfigIfChanged]);
 
   const refreshAppConfig = useCallback(async () => {
-    await refreshPublicConfigInBackground();
+    const [, snapshot] = await Promise.all([
+      refreshPublicConfigInBackground(),
+      loadPublicSiteStatusSnapshot(),
+    ]);
+    setPublicSnapshot(snapshot);
   }, [refreshPublicConfigInBackground]);
 
   // 防止 React 19 Strict Mode 下重复初始化
@@ -432,12 +446,16 @@ function App() {
     loadPublicAppConfig()
       .then((config) => {
         if (!cancelled) {
+          setConfigLoadFailed(false);
           setAppConfigIfChanged(config);
         }
       })
       .catch((configError) => {
+        if (!cancelled) {
+          setConfigLoadFailed(true);
+        }
         if (import.meta.env.DEV) {
-          console.warn('[App] 公开配置加载失败，使用默认配置:', configError);
+          console.warn('[App] 公开配置加载失败:', configError);
         }
       })
       .finally(() => {
@@ -450,6 +468,16 @@ function App() {
       cancelled = true;
     };
   }, [setAppConfigIfChanged]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadPublicSiteStatusSnapshot().then((result) => {
+      if (!cancelled) setPublicSnapshot(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!configInitialized) {
@@ -519,11 +547,25 @@ function App() {
   }, [configInitialized, refreshPublicConfigInBackground]);
 
   useEffect(() => {
-    if (!configInitialized || authInitRef.current) return;
+    if (!configInitialized || !publicSnapshot || authInitRef.current) return;
+    if (configLoadFailed || publicSnapshot.kind !== 'VALID') return;
+
+    const maintenanceDetected =
+      publicSnapshot.snapshot.availability === 'MAINTENANCE' ||
+      appConfig.siteStatus.lifecycle === 'MAINTENANCE';
+    if (maintenanceDetected && !maintenanceAdminRequested) return;
+
     authInitRef.current = true;
 
     initializeAuth();
-  }, [configInitialized, initializeAuth]);
+  }, [
+    appConfig.siteStatus.lifecycle,
+    configInitialized,
+    configLoadFailed,
+    initializeAuth,
+    maintenanceAdminRequested,
+    publicSnapshot,
+  ]);
 
   // 只在需要构筑或对局卡池的页面初始化卡牌数据。管理页使用自己的分页接口，
   // 不应被完整 PUBLISHED 卡池阻塞。
@@ -719,8 +761,36 @@ function App() {
     user,
   ]);
 
-  // 等待认证初始化
-  if (!configInitialized || !authInitialized) {
+  const maintenanceRecoveryAllowed =
+    maintenanceAdminRequested &&
+    (!authInitialized ||
+      !isAuthenticated ||
+      Boolean(profile && hasPermission(profile.role, 'platform.manage')));
+  const snapshotMaintenance =
+    publicSnapshot?.kind === 'VALID' && publicSnapshot.snapshot.availability === 'MAINTENANCE'
+      ? publicSnapshot.snapshot.maintenance
+      : null;
+  const apiMaintenance =
+    configInitialized && appConfig.siteStatus.lifecycle === 'MAINTENANCE'
+      ? appConfig.siteStatus.maintenance
+      : null;
+
+  if (!maintenanceRecoveryAllowed && (snapshotMaintenance || apiMaintenance)) {
+    return (
+      <ServiceStatusPage kind="MAINTENANCE" maintenance={snapshotMaintenance ?? apiMaintenance} />
+    );
+  }
+
+  if (
+    configInitialized &&
+    publicSnapshot &&
+    (configLoadFailed || publicSnapshot.kind !== 'VALID')
+  ) {
+    return <ServiceStatusPage kind="UNAVAILABLE" />;
+  }
+
+  // 等待独立公开快照、公开配置与认证初始化。维护快照一旦读取成功会在上方立即接管页面。
+  if (!publicSnapshot || !configInitialized || !authInitialized) {
     return (
       <div className="app-shell h-screen flex items-center justify-center px-4">
         <div className="text-center">
@@ -1345,14 +1415,11 @@ function App() {
   );
 }
 
-function StartupErrorPage({ error, siteStatus }: { error: string; siteStatus: PublicSiteStatus }) {
-  const errorLines = error.split('\n');
+function StartupErrorPage({ siteStatus }: { error: string; siteStatus: PublicSiteStatus }) {
   const maintenance = siteStatus.maintenance;
   const visibleMaintenance =
     maintenance &&
-    (siteStatus.lifecycle === 'MAINTENANCE' ||
-      siteStatus.lifecycle === 'RESTRICTING_NEW_GAMES' ||
-      siteStatus.lifecycle === 'SCHEDULED')
+    (siteStatus.lifecycle === 'MAINTENANCE' || siteStatus.lifecycle === 'RESTRICTING_NEW_GAMES')
       ? maintenance
       : null;
 
@@ -1381,19 +1448,9 @@ function StartupErrorPage({ error, siteStatus }: { error: string; siteStatus: Pu
         ) : null}
 
         <h2 className="mb-4 text-xl font-bold text-[var(--semantic-error)]">服务暂时不可用</h2>
-        <div className="mb-4 max-h-96 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
-          {errorLines.length > 1 ? (
-            <ul className="space-y-2 text-left text-sm text-[var(--semantic-error)]">
-              {errorLines.map((line, index) => (
-                <li key={index} className="break-all">
-                  • {line}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-[var(--semantic-error)]">{error}</p>
-          )}
-        </div>
+        <p className="mb-4 text-sm leading-6 text-[var(--text-secondary)]">
+          当前无法完成页面初始化。请稍后重新加载；如果问题持续，请查看平台公告。
+        </p>
         <button onClick={() => window.location.reload()} className="button-primary px-4 py-2">
           重新加载
         </button>
@@ -1404,12 +1461,8 @@ function StartupErrorPage({ error, siteStatus }: { error: string; siteStatus: Pu
 
 const SITE_STATUS_LABELS: Record<SiteStatusLifecycle, string> = {
   NORMAL: '正常',
-  SCHEDULED: '计划维护',
   RESTRICTING_NEW_GAMES: '限制新开局',
   MAINTENANCE: '维护中',
-  COMPLETED: '已完成',
-  POSTPONED: '已延期',
-  CANCELLED: '已取消',
 };
 
 function formatStartupDateTime(value: string): string {

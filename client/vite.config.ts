@@ -70,6 +70,35 @@ function localImagesFallbackPlugin(): Plugin {
   };
 }
 
+function localPublicSiteStatusPlugin(snapshotPath: string | undefined): Plugin {
+  return {
+    name: 'loveca-local-public-site-status',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (new URL(req.url ?? '/', 'http://localhost').pathname !== '/site-status.json') {
+          next();
+          return;
+        }
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store, max-age=0');
+        if (snapshotPath && existsSync(snapshotPath)) {
+          res.end(readFileSync(snapshotPath, 'utf8'));
+          return;
+        }
+        res.end(
+          JSON.stringify({
+            schemaVersion: 1,
+            availability: 'OPEN',
+            generatedAt: new Date().toISOString(),
+            maintenance: null,
+          })
+        );
+      });
+    },
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   // 从根目录部署环境读取本地对象存储开发代理配置。
@@ -80,6 +109,13 @@ export default defineConfig(({ mode }) => {
   const minioPort = process.env.MINIO_PORT || rootEnv.MINIO_PORT || '9000';
   const minioBucket = process.env.MINIO_BUCKET || rootEnv.MINIO_BUCKET || 'loveca-cards';
   const minioTarget = `${minioProtocol}://${minioEndpoint}:${minioPort}/${minioBucket}`;
+  const configuredPublicSiteStatusSnapshotPath =
+    process.env.PUBLIC_SITE_STATUS_SNAPSHOT_PATH || rootEnv.PUBLIC_SITE_STATUS_SNAPSHOT_PATH;
+  const publicSiteStatusSnapshotPath = configuredPublicSiteStatusSnapshotPath
+    ? path.isAbsolute(configuredPublicSiteStatusSnapshotPath)
+      ? configuredPublicSiteStatusSnapshotPath
+      : path.resolve(__dirname, '..', configuredPublicSiteStatusSnapshotPath)
+    : undefined;
 
   return {
     define: {
@@ -98,6 +134,7 @@ export default defineConfig(({ mode }) => {
         },
       },
       localImagesFallbackPlugin(),
+      localPublicSiteStatusPlugin(publicSiteStatusSnapshotPath),
       react(),
       tailwindcss(),
       VitePWA({

@@ -17,10 +17,13 @@ import {
   createAdminSiteAnnouncement,
   deleteAdminSiteAnnouncement,
   fetchAdminSiteAnnouncements,
+  fetchAdminSiteStatus,
   publishAdminSiteAnnouncement,
   updateAdminSiteStatusConfig,
   updateAdminSiteAnnouncement,
   type AdminSiteAnnouncement,
+  type AdminSiteStatusView,
+  type PublicSnapshotInspection,
   type SiteAnnouncementInput,
   type SiteStatusConfigInput,
 } from '@/lib/siteAnnouncementClient';
@@ -28,12 +31,8 @@ import { useKeyedState } from '@/hooks/useKeyedState';
 
 const SITE_STATUS_LABELS: Record<SiteStatusLifecycle, string> = {
   NORMAL: '正常',
-  SCHEDULED: '计划维护',
   RESTRICTING_NEW_GAMES: '限制新开局',
   MAINTENANCE: '维护中',
-  COMPLETED: '已完成',
-  POSTPONED: '已延期',
-  CANCELLED: '已取消',
 };
 
 const ANNOUNCEMENT_TYPE_LABELS: Record<SiteAnnouncementType, string> = {
@@ -46,6 +45,36 @@ const ANNOUNCEMENT_TYPE_OPTIONS: readonly SiteAnnouncementType[] = [
   'MAINTENANCE',
   'UPDATE',
   'NEWS',
+];
+
+const SITE_STATUS_OPTIONS: readonly {
+  value: SiteStatusLifecycle;
+  label: string;
+  description: string;
+  defaultTitle: string;
+  defaultSummary: string;
+}[] = [
+  {
+    value: 'NORMAL',
+    label: '正常运行',
+    description: '普通页面和新对局均可使用。',
+    defaultTitle: '',
+    defaultSummary: '',
+  },
+  {
+    value: 'RESTRICTING_NEW_GAMES',
+    label: '限制新对局',
+    description: '非对局页面可用；拒绝创建、加入、开局和重开，存量对局可收尾。',
+    defaultTitle: '维护准备中',
+    defaultSummary: '平台正在为维护排空对局，暂时不能开始新的对局。',
+  },
+  {
+    value: 'MAINTENANCE',
+    label: '整站维护',
+    description: '普通用户只看到维护页；进入前应确认存量对局已经排空。',
+    defaultTitle: '舞台正在整备',
+    defaultSummary: '稍后再见，下一场 LIVE 很快开始。',
+  },
 ];
 
 interface AnnouncementFormState {
@@ -71,7 +100,7 @@ const EMPTY_ANNOUNCEMENT_FORM: AnnouncementFormState = {
 };
 
 interface SiteStatusFormState {
-  maintenanceEnabled: boolean;
+  lifecycle: SiteStatusLifecycle;
   title: string;
   summary: string;
   detail: string;
@@ -101,13 +130,15 @@ export function SiteAnnouncementsAdminPage({
   const [announcementError, setAnnouncementError] = useState<string | null>(null);
   const [editingAnnouncementId, setEditingAnnouncementId] = useState<string | null>(null);
   const [form, setForm] = useState<AnnouncementFormState>(EMPTY_ANNOUNCEMENT_FORM);
+  const [adminSiteStatus, setAdminSiteStatus] = useState<AdminSiteStatusView | null>(null);
+  const effectiveSiteStatus = adminSiteStatus?.siteStatus ?? siteStatus;
   const [siteStatusForm, setSiteStatusForm] = useKeyedState<SiteStatusFormState>(
-    JSON.stringify(siteStatus),
-    buildSiteStatusForm(siteStatus)
+    JSON.stringify(effectiveSiteStatus),
+    buildSiteStatusForm(effectiveSiteStatus)
   );
   const [isSavingSiteStatus, setIsSavingSiteStatus] = useState(false);
   const [siteStatusError, setSiteStatusError] = useState<string | null>(null);
-  const maintenance = siteStatus.maintenance;
+  const maintenance = effectiveSiteStatus.maintenance;
   const editingAnnouncement =
     editingAnnouncementId !== null
       ? announcements.find((announcement) => announcement.id === editingAnnouncementId)
@@ -130,23 +161,38 @@ export function SiteAnnouncementsAdminPage({
   }, [onSiteStatusChanged]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void loadAnnouncements(), 0);
+    const timer = window.setTimeout(() => {
+      void loadAnnouncements();
+      void fetchAdminSiteStatus()
+        .then(setAdminSiteStatus)
+        .catch((error) =>
+          setSiteStatusError(error instanceof Error ? error.message : '读取平台状态失败')
+        );
+    }, 0);
     return () => window.clearTimeout(timer);
   }, [loadAnnouncements]);
 
   const saveSiteStatus = useCallback(async () => {
     const input = buildSiteStatusConfigInput(siteStatusForm);
+    if (
+      input.lifecycle === 'MAINTENANCE' &&
+      effectiveSiteStatus.lifecycle !== 'MAINTENANCE' &&
+      !window.confirm('进入整站维护后，普通用户将只能看到系统维护页。确认继续吗？')
+    ) {
+      return;
+    }
+    input.maintenanceConfirmed = input.lifecycle === 'MAINTENANCE';
     setIsSavingSiteStatus(true);
     setSiteStatusError(null);
     try {
-      await updateAdminSiteStatusConfig(input);
+      setAdminSiteStatus(await updateAdminSiteStatusConfig(input));
       await refreshPublicStatus();
     } catch (error) {
       setSiteStatusError(error instanceof Error ? error.message : '保存平台状态失败');
     } finally {
       setIsSavingSiteStatus(false);
     }
-  }, [refreshPublicStatus, siteStatusForm]);
+  }, [effectiveSiteStatus.lifecycle, refreshPublicStatus, siteStatusForm]);
 
   const resetForm = useCallback(() => {
     setEditingAnnouncementId(null);
@@ -241,7 +287,8 @@ export function SiteAnnouncementsAdminPage({
 
       <main className="product-page-main flex flex-col gap-4">
         <SiteStatusControlPanel
-          siteStatus={siteStatus}
+          siteStatus={effectiveSiteStatus}
+          publicSnapshot={adminSiteStatus?.publicSnapshot ?? null}
           maintenanceSummary={maintenance?.summary ?? null}
           form={siteStatusForm}
           error={siteStatusError}
@@ -329,6 +376,7 @@ export function SiteAnnouncementsAdminPage({
 
 function SiteStatusControlPanel({
   siteStatus,
+  publicSnapshot,
   maintenanceSummary,
   form,
   error,
@@ -337,6 +385,7 @@ function SiteStatusControlPanel({
   onSave,
 }: {
   siteStatus: PublicSiteStatus;
+  publicSnapshot: PublicSnapshotInspection | null;
   maintenanceSummary: string | null;
   form: SiteStatusFormState;
   error: string | null;
@@ -360,7 +409,7 @@ function SiteStatusControlPanel({
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-bold text-[var(--text-primary)]">维护开关</h2>
+              <h2 className="text-base font-bold text-[var(--text-primary)]">平台状态</h2>
               <span
                 className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
                   isRestricted
@@ -376,6 +425,9 @@ function SiteStatusControlPanel({
             </div>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--text-muted)]">
               <span>首页已发布公告 {siteStatus.announcements.length} 条</span>
+              <span>
+                公开快照：{publicSnapshot ? formatSnapshotStatus(publicSnapshot) : '正在核验'}
+              </span>
               {siteStatus.maintenance?.startsAt ? (
                 <span>开始 {formatSiteStatusDateTime(siteStatus.maintenance.startsAt)}</span>
               ) : null}
@@ -399,47 +451,56 @@ function SiteStatusControlPanel({
         </button>
       </div>
 
-      {error ? (
+      {error || (publicSnapshot && publicSnapshot.status !== 'SYNCED') ? (
         <div className="mb-3 rounded-lg border border-[color:var(--semantic-error)]/40 bg-[color:var(--semantic-error)]/10 px-3 py-2 text-sm text-[var(--semantic-error)]">
-          {error}
+          {error ?? publicSnapshot?.error ?? '公开维护快照无法核验，请检查持久目录与代理接线。'}
         </div>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
-        <label
-          className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${
-            form.maintenanceEnabled
-              ? 'border-[color:var(--semantic-warning)]/45 bg-[color:var(--semantic-warning)]/10'
-              : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]'
-          }`}
-        >
-          <input
-            type="checkbox"
-            checked={form.maintenanceEnabled}
-            onChange={(event) =>
-              onFormChange({
-                ...form,
-                maintenanceEnabled: event.target.checked,
-                title: event.target.checked && !form.title ? '维护中' : form.title,
-                summary:
-                  event.target.checked && !form.summary
-                    ? '服务正在维护，暂时限制新的对局。'
-                    : form.summary,
-                action: event.target.checked && !form.action ? '请稍后再开始对局' : form.action,
-              })
-            }
-            className="mt-1 h-5 w-5 accent-[var(--semantic-warning)]"
-          />
-          <span className="min-w-0">
-            <span className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)]">
-              <Power size={15} className="text-[var(--semantic-warning)]" />
-              开启维护并限制新对局
-            </span>
-            <span className="mt-1 block text-xs leading-5 text-[var(--text-secondary)]">
-              生效后会拦截新建房间、加入房间、锁定卡组、准备开局、开局流程和对墙打创建。
-            </span>
-          </span>
-        </label>
+        <fieldset className="grid gap-2">
+          <legend className="mb-1 text-xs font-semibold text-[var(--text-secondary)]">
+            平台运行状态
+          </legend>
+          {SITE_STATUS_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${
+                form.lifecycle === option.value
+                  ? 'border-[color:var(--semantic-warning)]/45 bg-[color:var(--semantic-warning)]/10'
+                  : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]'
+              }`}
+            >
+              <input
+                type="radio"
+                name="site-lifecycle"
+                checked={form.lifecycle === option.value}
+                onChange={() =>
+                  onFormChange({
+                    ...form,
+                    lifecycle: option.value,
+                    title:
+                      option.value !== 'NORMAL' && !form.title ? option.defaultTitle : form.title,
+                    summary:
+                      option.value !== 'NORMAL' && !form.summary
+                        ? option.defaultSummary
+                        : form.summary,
+                  })
+                }
+                className="mt-1 h-4 w-4 accent-[var(--semantic-warning)]"
+              />
+              <span>
+                <span className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)]">
+                  <Power size={14} />
+                  {option.label}
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-[var(--text-secondary)]">
+                  {option.description}
+                </span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
 
         <div className="grid gap-3">
           <div className="grid gap-3 md:grid-cols-2">
@@ -460,7 +521,7 @@ function SiteStatusControlPanel({
                 onChange={(event) => onFormChange({ ...form, action: event.target.value })}
                 maxLength={120}
                 className="input-field h-10 text-sm"
-                placeholder="例如：请稍后再开始对局"
+                placeholder="例如：准备完成后，回来看看吧"
               />
             </label>
           </div>
@@ -805,11 +866,9 @@ function AdminAnnouncementRow({
 
 function buildSiteStatusForm(siteStatus: PublicSiteStatus): SiteStatusFormState {
   const maintenance = siteStatus.maintenance;
-  const maintenanceEnabled =
-    siteStatus.lifecycle === 'MAINTENANCE' || siteStatus.lifecycle === 'RESTRICTING_NEW_GAMES';
 
   return {
-    maintenanceEnabled,
+    lifecycle: siteStatus.lifecycle,
     title: maintenance?.title ?? '',
     summary: maintenance?.summary ?? '',
     detail: maintenance?.detail ?? '',
@@ -824,7 +883,7 @@ function buildSiteStatusForm(siteStatus: PublicSiteStatus): SiteStatusFormState 
 
 function buildSiteStatusConfigInput(form: SiteStatusFormState): SiteStatusConfigInput {
   return {
-    lifecycle: form.maintenanceEnabled ? 'MAINTENANCE' : 'NORMAL',
+    lifecycle: form.lifecycle,
     title: form.title.trim() || null,
     summary: form.summary.trim() || null,
     detail: form.detail.trim() || null,
@@ -909,4 +968,12 @@ function formatSiteStatusDateTime(value: string): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(timestamp));
+}
+
+function formatSnapshotStatus(snapshot: PublicSnapshotInspection): string {
+  if (snapshot.status === 'SYNCED') {
+    return snapshot.availability === 'MAINTENANCE' ? '已同步（维护）' : '已同步（开放）';
+  }
+  if (snapshot.status === 'FAILED') return '同步失败';
+  return '无法核验';
 }

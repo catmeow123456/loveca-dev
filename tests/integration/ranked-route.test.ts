@@ -36,6 +36,12 @@ vi.mock('../../src/server/services/ranked-environment-service.js', () => ({
   },
 }));
 
+vi.mock('../../src/server/services/site-announcement-service.js', () => ({
+  siteAnnouncementService: {
+    getGameplayRestriction: vi.fn(),
+  },
+}));
+
 import { rankedRouter } from '../../src/server/routes/ranked';
 import { rankedEnvironmentService } from '../../src/server/services/ranked-environment-service';
 import { rankedPlayerService } from '../../src/server/services/ranked-player-service';

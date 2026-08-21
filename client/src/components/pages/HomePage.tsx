@@ -50,12 +50,8 @@ const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
 
 const LIFECYCLE_LABELS: Record<SiteStatusLifecycle, string> = {
   NORMAL: '正常',
-  SCHEDULED: '计划维护',
   RESTRICTING_NEW_GAMES: '限制新开局',
   MAINTENANCE: '维护中',
-  COMPLETED: '已完成',
-  POSTPONED: '已延期',
-  CANCELLED: '已取消',
 };
 
 interface HomePageProps {
@@ -512,11 +508,7 @@ function MaintenanceMeta({
 }
 
 function shouldHighlightSiteStatus(lifecycle: SiteStatusLifecycle): boolean {
-  return (
-    lifecycle === 'SCHEDULED' ||
-    lifecycle === 'RESTRICTING_NEW_GAMES' ||
-    lifecycle === 'MAINTENANCE'
-  );
+  return lifecycle === 'RESTRICTING_NEW_GAMES' || lifecycle === 'MAINTENANCE';
 }
 
 function formatStatusDateTime(value: string): string {

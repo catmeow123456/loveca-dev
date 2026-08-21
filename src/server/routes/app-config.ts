@@ -9,7 +9,7 @@ appConfigRouter.get('/', async (_req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   const emailEnabled = config.isEmailFeatureEnabled;
   const [siteStatus, matchEmotes, battleEntries] = await Promise.all([
-    siteAnnouncementService.getPublicSiteStatus(process.env),
+    siteAnnouncementService.getPublicSiteStatus(),
     matchEmoteCatalogService.getPublicCatalog(),
     siteAnnouncementService.getPlayerBattleEntryVisibility(),
   ]);

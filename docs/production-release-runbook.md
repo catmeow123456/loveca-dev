@@ -13,7 +13,8 @@
 - 当前生产 API 镜像平台固定为 `linux/amd64`，这是部署契约而不是示例值。未来如需改变架构，必须先同步修改本 runbook 和发布 skill，并在展示新旧平台差异后取得单独明确授权。
 - 前端 `client/dist` 需要部署到独立静态服务或 Nginx 管理的目录。
 - 生产图片访问应由 Nginx 或其他反向代理将 `/images/*` 转发到外部 MinIO / S3 兼容对象存储；生产 API 不直接提供 `/images` 静态兜底。
-- `/api/health` 当前只表示 API 进程可响应。数据库、对象存储和必要函数的 ready check 尚未独立落地。
+- `/api/health` 只表示 API 进程可响应；`/api/ready` 进一步检查数据库连接和当前版本必需的 `cards`、`profiles`、`site_status_config` 表。对象存储与邮件不是当前普通页面开放的硬门禁。
+- 整站维护公开快照保存在 `PUBLIC_SITE_STATUS_SNAPSHOT_DIR` 对应的宿主持久目录，独立于 `client/dist`；反向代理负责把同一文件作为 `/site-status.json` 禁止缓存地提供。
 - `pnpm db:migrate` 需要在有源码、devDependencies 和生产 `DATABASE_URL` 的发布环境中执行；不要假设 API runtime 镜像内可以执行 Drizzle CLI。
 
 ## 2. 版本与 tag
@@ -89,6 +90,7 @@
    - `MINIO_WALLPAPER_BUCKET`（必须与公开 `MINIO_BUCKET` 不同，且不得允许匿名读取）
    - `MINIO_USE_SSL`
    - `FRONTEND_URL`
+   - `PUBLIC_SITE_STATUS_SNAPSHOT_DIR`（宿主持久目录；必须与反向代理 `/site-status.json` 使用同一文件）
 
    玩家壁纸处理参数 `PLAYER_WALLPAPER_PROCESSING_CONCURRENCY`、
    `PLAYER_WALLPAPER_PROCESSING_TIMEOUT_SECONDS` 与
@@ -208,6 +210,10 @@ docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:
 
 ## 5. 数据库迁移
 
+包含停机迁移或 API 中断的发布，先按 [平台状态、整站维护与公告](platform-operations/site-status-and-announcements.md) 进入维护：提前发布公告，将平台切到 `RESTRICTING_NEW_GAMES`，确认新候场、房间、开局、重开和服务端对墙打均被拒绝，等待存量对局与必要后台写入收束，再由管理员切到 `MAINTENANCE`。停止 API 前必须从未登录窗口确认 `/site-status.json` 为维护状态且刷新任意深链显示维护页。
+
+首次部署三态维护协议时，旧版本不能完成上述完整闭环。应先配置独立持久目录和反向代理映射，用新版本离线工具写入维护快照并验证，再停止旧 API；具体数据转换见 `drizzle/migration-notes/maintenance-mode-three-state.md`。
+
 在生产数据库连接确认无误后执行：
 
 ```bash
@@ -263,6 +269,7 @@ DATABASE_URL='postgres://...' pnpm db:migrate
    - `/`：前端静态资源。
    - `/api/`：转发到 API 的 `127.0.0.1:3007` 或对应内网地址。
    - `/images/`：转发到对象存储或图片代理，并设置适合静态图片的缓存策略。
+   - `/site-status.json`：直接读取 `PUBLIC_SITE_STATUS_SNAPSHOT_DIR` 中的持久快照，设置 `Cache-Control: no-store, max-age=0`，不得回退到前端版本目录、API 或 SPA index。
    - `/.well-known/assetlinks.json`：如发布 Android TWA，必须指向当前签名对应的文件。
 
 4. 确认 TLS、Host、上传体积限制和代理超时符合生产域名配置。
@@ -276,18 +283,22 @@ DATABASE_URL='postgres://...' pnpm db:migrate
    docker compose logs --tail=120 api
    ```
 
-2. 检查 API health：
+2. 检查 API health 与 readiness；`/api/ready` 未返回成功时不得解除整站维护：
 
    ```bash
    curl -fsS https://<domain>/api/health
+   curl -fsS https://<domain>/api/ready
    ```
 
-3. 检查前端和核心静态资源：
+3. 保持数据库与公开快照处于维护状态，检查前端、维护快照和核心静态资源：
 
    ```bash
    curl -fsS https://<domain>/
+   curl -fsS -D - "https://<domain>/site-status.json?t=$(date +%s)"
    curl -fsS https://<domain>/manifest.webmanifest
    ```
+
+   确认维护快照响应禁止缓存，且普通、无痕和已安装 PWA 均仍显示维护页。随后通过维护页的“运营入口”将平台保存为 `NORMAL`，确认平台配置页显示公开快照“已同步（开放）”，再继续普通页面 smoke。不得先用离线脚本写 `OPEN` 来绕过数据库恢复流程。
 
 4. 检查图片代理：
 
@@ -335,7 +346,7 @@ DATABASE_URL='postgres://...' pnpm db:migrate
 
 ## 9. 后续改进
 
-- 增加 `/api/ready`，检查 DB、必要数据库函数、对象存储和关键配置。
+- 按实际硬依赖变化扩展 `/api/ready`，并为其补生产 compose healthcheck。
 - 为生产 compose 增加 API healthcheck 和可选 migration job。
 - 固化 Nginx 示例或部署 overlay。
 - 补 Postgres / MinIO 备份恢复脚本或独立运维 runbook。

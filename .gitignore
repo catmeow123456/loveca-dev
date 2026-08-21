@@ -72,5 +72,6 @@ data/**/*.sql.gz
 !data/**/*.normalized.sql.gz
 data/**/*.replay.json
 test-results
+runtime/site-status/
 
 debug.log

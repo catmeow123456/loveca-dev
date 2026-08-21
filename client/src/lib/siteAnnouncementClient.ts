@@ -45,6 +45,7 @@ export interface SiteAnnouncementInput {
 
 export interface SiteStatusConfigInput {
   lifecycle: SiteStatusLifecycle;
+  maintenanceConfirmed?: boolean;
   title?: string | null;
   summary?: string | null;
   detail?: string | null;
@@ -56,10 +57,32 @@ export interface SiteStatusConfigInput {
   action?: string | null;
 }
 
+export interface PublicSnapshotInspection {
+  status: 'SYNCED' | 'FAILED' | 'UNVERIFIED';
+  availability: 'OPEN' | 'MAINTENANCE' | null;
+  generatedAt: string | null;
+  error: string | null;
+}
+
+export interface AdminSiteStatusView {
+  siteStatus: PublicSiteStatus;
+  publicSnapshot: PublicSnapshotInspection;
+}
+
+export async function fetchAdminSiteStatus(): Promise<AdminSiteStatusView> {
+  const response = await apiClient.get<AdminSiteStatusView>(
+    '/api/site-announcements/admin/site-status'
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取平台状态失败');
+  }
+  return response.data;
+}
+
 export async function updateAdminSiteStatusConfig(
   input: SiteStatusConfigInput
-): Promise<PublicSiteStatus> {
-  const response = await apiClient.put<PublicSiteStatus>(
+): Promise<AdminSiteStatusView> {
+  const response = await apiClient.put<AdminSiteStatusView>(
     '/api/site-announcements/admin/site-status',
     input
   );

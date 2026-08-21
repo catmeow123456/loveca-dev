@@ -1,14 +1,7 @@
 import { apiClient } from './apiClient';
 import type { OnlineMatchEmoteCatalog, OnlineMatchEmoteDefinition } from '@game/online';
 
-export type SiteStatusLifecycle =
-  | 'NORMAL'
-  | 'SCHEDULED'
-  | 'RESTRICTING_NEW_GAMES'
-  | 'MAINTENANCE'
-  | 'COMPLETED'
-  | 'POSTPONED'
-  | 'CANCELLED';
+export type SiteStatusLifecycle = 'NORMAL' | 'RESTRICTING_NEW_GAMES' | 'MAINTENANCE';
 
 export type SiteAnnouncementType = 'MAINTENANCE' | 'UPDATE' | 'NEWS';
 
@@ -64,10 +57,6 @@ export interface PlayerBattleEntryVisibility {
   readonly themeTable: boolean;
 }
 
-interface LoadPublicAppConfigOptions {
-  fallbackOnFailure?: boolean;
-}
-
 const DEFAULT_SITE_STATUS: PublicSiteStatus = {
   lifecycle: 'NORMAL',
   generatedAt: null,
@@ -91,15 +80,7 @@ export const DEFAULT_APP_CONFIG: PublicAppConfig = {
   matchEmotes: null,
 };
 
-const SITE_STATUS_LIFECYCLES = new Set<string>([
-  'NORMAL',
-  'SCHEDULED',
-  'RESTRICTING_NEW_GAMES',
-  'MAINTENANCE',
-  'COMPLETED',
-  'POSTPONED',
-  'CANCELLED',
-]);
+const SITE_STATUS_LIFECYCLES = new Set<string>(['NORMAL', 'RESTRICTING_NEW_GAMES', 'MAINTENANCE']);
 
 const SITE_ANNOUNCEMENT_TYPES = new Set<string>(['MAINTENANCE', 'UPDATE', 'NEWS']);
 
@@ -126,33 +107,41 @@ export function normalizeAppConfig(
   };
 }
 
-export async function loadPublicAppConfig(
-  options: LoadPublicAppConfigOptions = {}
-): Promise<PublicAppConfig> {
-  const fallbackOnFailure = options.fallbackOnFailure ?? true;
+export async function loadPublicAppConfig(): Promise<PublicAppConfig> {
   const result = await apiClient.get<PublicAppConfig>('/api/config');
 
   if (!result.data) {
     const errorMessage = result.error?.message ?? '公开配置响应缺少 data';
-    if (!fallbackOnFailure) {
-      throw new Error(errorMessage);
-    }
+    throw new Error(errorMessage);
+  }
 
-    if (result.error) {
-      console.warn('[AppConfig] Failed to load public config:', result.error.message);
-    }
-    return {
-      ...DEFAULT_APP_CONFIG,
-      siteStatus: await loadStaticSiteStatusFallback(),
-    };
+  if (!hasValidPlatformStatus(result.data.siteStatus)) {
+    throw new Error('公开配置中的平台状态无效');
   }
 
   return normalizeAppConfig(result.data);
 }
 
+function hasValidPlatformStatus(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.lifecycle !== 'string' ||
+    !SITE_STATUS_LIFECYCLES.has(record.lifecycle) ||
+    typeof record.generatedAt !== 'string' ||
+    !Number.isFinite(Date.parse(record.generatedAt))
+  ) {
+    return false;
+  }
+  const normalized = normalizeSiteStatus(value);
+  return record.lifecycle === 'NORMAL'
+    ? record.maintenance === null
+    : normalized.maintenance !== null;
+}
+
 export async function refreshPublicAppConfigStrict(): Promise<PublicAppConfig | null> {
   try {
-    return await loadPublicAppConfig({ fallbackOnFailure: false });
+    return await loadPublicAppConfig();
   } catch (error) {
     if (import.meta.env.DEV) {
       console.warn('[AppConfig] Background public config refresh failed:', error);
@@ -454,22 +443,4 @@ function readSortableTime(announcement: PublicSiteAnnouncement): number {
 
   const parsed = Date.parse(raw);
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-async function loadStaticSiteStatusFallback(): Promise<PublicSiteStatus> {
-  try {
-    const response = await fetch('/site-status.json', { cache: 'no-store' });
-    if (!response.ok) {
-      return DEFAULT_SITE_STATUS;
-    }
-
-    const payload = (await response.json()) as unknown;
-    if (payload && typeof payload === 'object' && 'siteStatus' in payload) {
-      return normalizeSiteStatus((payload as { siteStatus?: unknown }).siteStatus);
-    }
-
-    return normalizeSiteStatus(payload);
-  } catch {
-    return DEFAULT_SITE_STATUS;
-  }
 }

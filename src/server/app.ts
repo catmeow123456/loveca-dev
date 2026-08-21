@@ -29,6 +29,7 @@ import { themeTableRouter } from './routes/theme-table.js';
 import { themeTableAdminRouter } from './routes/theme-table-admin.js';
 import { adminUsersRouter } from './routes/admin-users.js';
 import { platformOperationsRouter } from './routes/platform-operations.js';
+import { checkApplicationReadiness } from './services/readiness-service.js';
 
 export function createApp(): express.Express {
   const app = express();
@@ -109,6 +110,15 @@ export function createApp(): express.Express {
   // Health check
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
+  });
+
+  app.get('/api/ready', async (_req, res) => {
+    const readiness = await checkApplicationReadiness();
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.status(readiness.ready ? 200 : 503).json({
+      status: readiness.ready ? 'ready' : 'not_ready',
+      checkedAt: readiness.checkedAt,
+    });
   });
 
   // Error handler (must be last)

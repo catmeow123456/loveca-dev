@@ -19,6 +19,7 @@ vi.mock('../../src/server/services/site-announcement-service.js', () => ({
   },
   siteAnnouncementService: {
     listAdminAnnouncements: vi.fn(),
+    getAdminSiteStatus: vi.fn(),
     getConfiguredSiteStatus: vi.fn(),
     updateSiteStatusConfig: vi.fn(),
     updatePlayerBattleEntryVisibility: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('../../src/server/services/site-announcement-service.js', () => ({
 
 import { siteAnnouncementsRouter } from '../../src/server/routes/site-announcements';
 import { siteAnnouncementService } from '../../src/server/services/site-announcement-service';
+import type { PublicSiteStatus } from '../../src/server/site-status';
 
 type RouteMethod = 'get' | 'post' | 'put' | 'delete';
 
@@ -166,7 +168,7 @@ describe('siteAnnouncementsRouter', () => {
   });
 
   it('updates site maintenance status for the current admin', async () => {
-    vi.mocked(siteAnnouncementService.updateSiteStatusConfig).mockResolvedValue({
+    const siteStatus: PublicSiteStatus = {
       lifecycle: 'MAINTENANCE',
       generatedAt: '2026-07-08T08:00:00.000Z',
       maintenance: {
@@ -183,11 +185,22 @@ describe('siteAnnouncementsRouter', () => {
         updatedAt: '2026-07-08T08:00:00.000Z',
       },
       announcements: [],
+    };
+    vi.mocked(siteAnnouncementService.updateSiteStatusConfig).mockResolvedValue(siteStatus);
+    vi.mocked(siteAnnouncementService.getAdminSiteStatus).mockResolvedValue({
+      siteStatus,
+      publicSnapshot: {
+        status: 'SYNCED',
+        availability: 'MAINTENANCE',
+        generatedAt: '2026-07-08T08:00:00.000Z',
+        error: null,
+      },
     });
 
     const response = await invokeRoute('/admin/site-status', 'put', {
       body: {
         lifecycle: 'MAINTENANCE',
+        maintenanceConfirmed: true,
         title: '今晚维护',
         summary: '维护期间限制新对局。',
         startsAt: '2026-07-08T13:00:00.000Z',
@@ -203,12 +216,16 @@ describe('siteAnnouncementsRouter', () => {
       expect.objectContaining({
         lifecycle: 'MAINTENANCE',
         title: '今晚维护',
+        maintenanceConfirmed: true,
       }),
       '22222222-2222-4222-8222-222222222222'
     );
     expect(response.body?.data).toMatchObject({
-      lifecycle: 'MAINTENANCE',
-      maintenance: { title: '今晚维护' },
+      siteStatus: {
+        lifecycle: 'MAINTENANCE',
+        maintenance: { title: '今晚维护' },
+      },
+      publicSnapshot: { status: 'SYNCED', availability: 'MAINTENANCE' },
     });
   });
 

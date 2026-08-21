@@ -6,7 +6,26 @@ vi.mock('../../src/server/db/pool.js', () => ({
   },
 }));
 
+vi.mock('../../src/server/services/public-site-status-snapshot-service.js', () => ({
+  publicSiteStatusSnapshotService: {
+    write: vi.fn().mockResolvedValue(undefined),
+    inspect: vi.fn().mockResolvedValue({
+      status: 'SYNCED',
+      availability: 'OPEN',
+      generatedAt: '2026-07-08T08:00:00.000Z',
+      error: null,
+    }),
+  },
+}));
+
+vi.mock('../../src/server/services/readiness-service.js', () => ({
+  assertApplicationReady: vi.fn().mockResolvedValue(undefined),
+  ApplicationReadinessError: class ApplicationReadinessError extends Error {},
+}));
+
 import { pool } from '../../src/server/db/pool';
+import { publicSiteStatusSnapshotService } from '../../src/server/services/public-site-status-snapshot-service';
+import { assertApplicationReady } from '../../src/server/services/readiness-service';
 import { siteAnnouncementService } from '../../src/server/services/site-announcement-service';
 
 describe('siteAnnouncementService', () => {
@@ -40,16 +59,6 @@ describe('siteAnnouncementService', () => {
       } as never);
 
     const status = await siteAnnouncementService.getPublicSiteStatus(
-      {
-        SITE_STATUS_ANNOUNCEMENTS_JSON: JSON.stringify([
-          {
-            id: 'env-announcement',
-            type: 'NEWS',
-            title: '环境变量公告',
-            summary: '数据库可用时不展示。',
-          },
-        ]),
-      },
       new Date('2026-07-08T08:00:00.000Z')
     );
 
@@ -67,35 +76,15 @@ describe('siteAnnouncementService', () => {
     ]);
   });
 
-  it('falls back to env announcements when the database query fails', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    vi.mocked(pool.query)
-      .mockRejectedValueOnce(new Error('relation missing'))
-      .mockRejectedValueOnce(new Error('relation missing'));
+  it('does not infer a normal status when the status database query fails', async () => {
+    vi.mocked(pool.query).mockRejectedValueOnce(new Error('relation missing'));
 
-    const status = await siteAnnouncementService.getPublicSiteStatus(
-      {
-        SITE_STATUS_ANNOUNCEMENTS_JSON: JSON.stringify([
-          {
-            id: 'env-announcement',
-            type: 'MAINTENANCE',
-            title: '维护公告',
-            summary: '数据库不可用时使用环境变量兜底。',
-            priority: 3,
-          },
-        ]),
-      },
-      new Date('2026-07-08T08:00:00.000Z')
-    );
-
-    expect(status.announcements.map((announcement) => announcement.id)).toEqual([
-      'env-announcement',
-    ]);
-    expect(warnSpy).toHaveBeenCalled();
-    warnSpy.mockRestore();
+    await expect(
+      siteAnnouncementService.getPublicSiteStatus(new Date('2026-07-08T08:00:00.000Z'))
+    ).rejects.toThrow('relation missing');
   });
 
-  it('uses database site status config ahead of environment status', async () => {
+  it('uses database site status config as the authority', async () => {
     vi.mocked(pool.query).mockResolvedValueOnce({
       rows: [
         {
@@ -118,9 +107,6 @@ describe('siteAnnouncementService', () => {
     } as never);
 
     const status = await siteAnnouncementService.getConfiguredSiteStatus(
-      {
-        SITE_STATUS_LIFECYCLE: 'NORMAL',
-      },
       new Date('2026-07-08T08:45:00.000Z')
     );
 
@@ -135,30 +121,33 @@ describe('siteAnnouncementService', () => {
   });
 
   it('updates the database maintenance switch and returns public site status', async () => {
-    vi.mocked(pool.query).mockResolvedValueOnce({
-      rows: [
-        {
-          id: 'default',
-          lifecycle: 'MAINTENANCE',
-          title: '今晚维护',
-          summary: '维护期间限制新对局。',
-          detail: null,
-          starts_at: new Date('2026-07-08T13:00:00.000Z'),
-          estimated_ends_at: new Date('2026-07-08T14:00:00.000Z'),
-          restricts_new_games_at: null,
-          impact_scopes: ['正式联机'],
-          restrictions: ['限制新对局'],
-          action: '请稍后再开始对局',
-          updated_by: '22222222-2222-4222-8222-222222222222',
-          created_at: new Date('2026-07-08T08:00:00.000Z'),
-          updated_at: new Date('2026-07-08T08:30:00.000Z'),
-        },
-      ],
-    } as never);
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({ rows: [] } as never)
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'default',
+            lifecycle: 'MAINTENANCE',
+            title: '今晚维护',
+            summary: '维护期间限制新对局。',
+            detail: null,
+            starts_at: new Date('2026-07-08T13:00:00.000Z'),
+            estimated_ends_at: new Date('2026-07-08T14:00:00.000Z'),
+            restricts_new_games_at: null,
+            impact_scopes: ['正式联机'],
+            restrictions: ['限制新对局'],
+            action: '请稍后再开始对局',
+            updated_by: '22222222-2222-4222-8222-222222222222',
+            created_at: new Date('2026-07-08T08:00:00.000Z'),
+            updated_at: new Date('2026-07-08T08:30:00.000Z'),
+          },
+        ],
+      } as never);
 
     const status = await siteAnnouncementService.updateSiteStatusConfig(
       {
         lifecycle: 'MAINTENANCE',
+        maintenanceConfirmed: true,
         title: ' 今晚维护 ',
         summary: '维护期间限制新对局。',
         startsAt: '2026-07-08T13:00:00.000Z',
@@ -173,7 +162,7 @@ describe('siteAnnouncementService', () => {
 
     expect(status.lifecycle).toBe('MAINTENANCE');
     expect(status.maintenance?.title).toBe('今晚维护');
-    expect(vi.mocked(pool.query).mock.calls[0]?.[1]).toEqual([
+    expect(vi.mocked(pool.query).mock.calls[1]?.[1]).toEqual([
       'MAINTENANCE',
       '今晚维护',
       '维护期间限制新对局。',
@@ -186,6 +175,132 @@ describe('siteAnnouncementService', () => {
       '请稍后再开始对局',
       '22222222-2222-4222-8222-222222222222',
     ]);
+    expect(vi.mocked(publicSiteStatusSnapshotService.write)).toHaveBeenCalledTimes(2);
+  });
+
+  it('requires an explicit confirmation before entering whole-site maintenance', async () => {
+    await expect(
+      siteAnnouncementService.updateSiteStatusConfig(
+        { lifecycle: 'MAINTENANCE', title: '维护', summary: '暂停访问' },
+        '22222222-2222-4222-8222-222222222222'
+      )
+    ).rejects.toMatchObject({ code: 'MAINTENANCE_CONFIRMATION_REQUIRED', statusCode: 400 });
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it('checks application readiness before reopening from maintenance', async () => {
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'default',
+            lifecycle: 'MAINTENANCE',
+            title: '维护中',
+            summary: '暂停访问',
+            detail: null,
+            starts_at: null,
+            estimated_ends_at: null,
+            restricts_new_games_at: null,
+            impact_scopes: [],
+            restrictions: [],
+            action: null,
+            updated_by: null,
+            created_at: new Date('2026-08-21T12:00:00.000Z'),
+            updated_at: new Date('2026-08-21T12:00:00.000Z'),
+          },
+        ],
+      } as never)
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'default',
+            lifecycle: 'NORMAL',
+            title: null,
+            summary: null,
+            detail: null,
+            starts_at: null,
+            estimated_ends_at: null,
+            restricts_new_games_at: null,
+            impact_scopes: [],
+            restrictions: [],
+            action: null,
+            updated_by: '22222222-2222-4222-8222-222222222222',
+            created_at: new Date('2026-08-21T12:00:00.000Z'),
+            updated_at: new Date('2026-08-21T12:30:00.000Z'),
+          },
+        ],
+      } as never);
+
+    await expect(
+      siteAnnouncementService.updateSiteStatusConfig(
+        { lifecycle: 'NORMAL' },
+        '22222222-2222-4222-8222-222222222222'
+      )
+    ).resolves.toMatchObject({ lifecycle: 'NORMAL', maintenance: null });
+    expect(assertApplicationReady).toHaveBeenCalledOnce();
+    expect(publicSiteStatusSnapshotService.write).toHaveBeenCalledWith(
+      'OPEN',
+      null,
+      expect.any(Date)
+    );
+  });
+
+  it('checks application readiness before reopening an offline maintenance snapshot', async () => {
+    vi.mocked(publicSiteStatusSnapshotService.inspect).mockResolvedValueOnce({
+      status: 'SYNCED',
+      availability: 'MAINTENANCE',
+      generatedAt: '2026-08-21T12:00:00.000Z',
+      error: null,
+    });
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'default',
+            lifecycle: 'NORMAL',
+            title: null,
+            summary: null,
+            detail: null,
+            starts_at: null,
+            estimated_ends_at: null,
+            restricts_new_games_at: null,
+            impact_scopes: [],
+            restrictions: [],
+            action: null,
+            updated_by: null,
+            created_at: new Date('2026-08-21T12:00:00.000Z'),
+            updated_at: new Date('2026-08-21T12:00:00.000Z'),
+          },
+        ],
+      } as never)
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'default',
+            lifecycle: 'NORMAL',
+            title: null,
+            summary: null,
+            detail: null,
+            starts_at: null,
+            estimated_ends_at: null,
+            restricts_new_games_at: null,
+            impact_scopes: [],
+            restrictions: [],
+            action: null,
+            updated_by: '22222222-2222-4222-8222-222222222222',
+            created_at: new Date('2026-08-21T12:00:00.000Z'),
+            updated_at: new Date('2026-08-21T12:30:00.000Z'),
+          },
+        ],
+      } as never);
+
+    await expect(
+      siteAnnouncementService.updateSiteStatusConfig(
+        { lifecycle: 'NORMAL' },
+        '22222222-2222-4222-8222-222222222222'
+      )
+    ).resolves.toMatchObject({ lifecycle: 'NORMAL', maintenance: null });
+    expect(assertApplicationReady).toHaveBeenCalledOnce();
   });
 
   it('reads player battle entry visibility and defaults a missing config row to visible', async () => {
@@ -249,13 +364,12 @@ describe('siteAnnouncementService', () => {
     } as never);
 
     const restriction = await siteAnnouncementService.getGameplayRestriction(
-      {},
       new Date('2026-07-08T08:30:00.000Z')
     );
 
     expect(restriction).toMatchObject({
-      title: '维护中',
-      summary: '服务正在维护，暂时限制新的对局。',
+      title: '舞台正在整备',
+      summary: '稍后再见，下一场 LIVE 很快开始。',
     });
   });
 

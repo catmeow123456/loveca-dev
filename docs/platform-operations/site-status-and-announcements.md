@@ -1,142 +1,109 @@
-# 平台状态、维护开关与公告
+# 平台状态、整站维护与公告
 
 > 文档类型：需求与设计现状
-> 适用范围：平台维护开关、公开站点状态、首页公告、管理员公告管理、维护期间新对局限制
-> 当前状态：2026-07-08 已落地；数据库配置优先，环境变量仅作为兜底
+> 适用范围：平台运行状态、公开维护快照、维护页、公告、对局排空和恢复
+> 当前状态：2026-08-21 三态模型与应用级维护门禁已落地；生产反向代理仍需按本文接线
 
-本文档是平台状态与公告能力的权威事实来源。该能力的目标是让管理员可以直接在平台内发布公告、打开维护开关，并在维护期间限制新的对局入口，同时让玩家在首页清楚看到公告与维护状态。
+本文档是平台状态与公告能力的权威事实来源。平台运行状态只描述用户当前允许做什么；维护计划、延期、取消、完成和版本说明由公告表达，二者不共用生命周期。
 
-## 需求目标
+## 平台运行状态
 
-- 管理员可以在平台内管理公告，支持编辑、发布、删除，不依赖部署人员改环境变量。
-- 公告管理属于平台配置能力，不属于联机房间监控；房间监控只保留房间、对局、观战和回放相关操作。
-- 公告类型只保留“维护 / 更新 / 动态”，对应数据枚举 `MAINTENANCE`、`UPDATE`、`NEWS`；旧的“卡效数据”“卡牌自动化”等细分类型不再兼容。
-- 首页需要展示最近公告和维护状态；移动端顶栏提供公告入口，未看过当前公告集合时自动弹出公告抽屉。
-- 管理员打开维护开关后，服务端必须限制新的对局流程，不能只依赖前端禁用按钮。
-- 维护开关的当前语义是“限制新增对局，允许存量对局自然收尾”，不会主动中断已经进行中的对局。
+运行状态固定为三个值：
 
-## 角色与入口
+| 状态                    | 普通页面               | 新对局                                                     | 已开始对局     |
+| ----------------------- | ---------------------- | ---------------------------------------------------------- | -------------- |
+| `NORMAL`                | 正常访问               | 允许                                                       | 正常进行       |
+| `RESTRICTING_NEW_GAMES` | 正常访问并显示维护提示 | 服务端拒绝创建、加入、锁定卡组、准备、开局、重开和候场确认 | 允许自然收尾   |
+| `MAINTENANCE`           | 统一显示系统维护页     | 不可用                                                     | 进入前应已排空 |
 
-| 角色     | 入口                                             | 当前能力                                                                                 |
-| -------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| 管理员   | 首页管理工具的“平台配置”                         | 配置维护开关、维护说明、时间窗口、影响范围、限制说明、行动提示；管理公告草稿、发布和删除 |
-| 普通玩家 | 首页顶栏“公告栏”、桌面端首页公告摘要、维护提示条 | 查看维护、更新和动态公告；移动端未读公告集合会自动弹出一次                               |
-| 服务端   | `/api/config` 返回的 `siteStatus`                | 为前端提供公开站点状态、维护信息和公告列表                                               |
+常规转换为 `NORMAL → RESTRICTING_NEW_GAMES → MAINTENANCE → NORMAL`。紧急情况下允许从 `NORMAL` 直接进入 `MAINTENANCE`，管理员仍必须二次确认普通用户将只能看到维护页。状态不会按预计时间自动切换。
 
-当前前端内部仍复用 `announcement-admin` 页面标识，并提供 `platform-config` 别名入口。用户可见文案以“平台配置”为准。
+迁移 `0029_maintenance_mode_three_state.sql` 会把旧 `SCHEDULED`、`COMPLETED`、`POSTPONED`、`CANCELLED` 状态转换为 `NORMAL` 并清空旧维护字段；运行时不读取或映射旧值。
 
-## 数据来源与优先级
+## 公告边界
 
-公开站点状态由 `siteAnnouncementService.getPublicSiteStatus` 组装，当前优先级如下：
+公告类型固定为 `MAINTENANCE`、`UPDATE`、`NEWS`，状态为 `DRAFT` 或 `PUBLISHED`。计划维护时平台可保持 `NORMAL` 并发布维护公告；延期、取消和完成通过修改、撤下或重新发布公告表达。
 
-1. `site_status_config` 表：维护生命周期、维护文案、时间窗口、影响范围和限制说明的首选来源。
-2. `site_announcements` 表：公开首页公告的首选来源，只读取已发布且未过期的公告，按优先级和发布时间排序，最多返回 10 条。
-3. `SITE_STATUS_*` 与 `SITE_STATUS_ANNOUNCEMENTS_JSON` 环境变量：仅作为迁移未执行、数据库不可用或表不存在时的兜底。
-4. `assets/site-status.json`：前端配置接口加载失败时的静态兜底说明，不作为管理员配置主路径。
+公开首页只读取已发布且未过期的最近 10 条公告，按优先级和发布时间排序。公告已读指纹只保存在浏览器 `localStorage`，不跨设备同步，也不承担平台访问控制。
 
-`site_status_config` 是单行配置表，固定 `id = 'default'`。`site_announcements` 保存公告生命周期，状态为 `DRAFT` 或 `PUBLISHED`。
+## 独立公开维护快照
 
-## 维护生命周期
+整站门禁使用独立于 API 和数据库的公开 JSON 快照。快照协议版本为 `1`，只表达访问门禁所需的二态：
 
-公开状态契约支持以下生命周期：
+- `OPEN`：独立门禁允许继续检查 API；最终仍以 API 的三态状态为准。
+- `MAINTENANCE`：普通用户立即进入维护页，并使用快照中的标题、摘要、时间与影响范围。
 
-| 生命周期                | 含义                     | 当前限制新对局 |
-| ----------------------- | ------------------------ | -------------- |
-| `NORMAL`                | 正常运行                 | 否             |
-| `SCHEDULED`             | 已计划维护，提前通知     | 否             |
-| `RESTRICTING_NEW_GAMES` | 维护临近，开始限制新对局 | 是             |
-| `MAINTENANCE`           | 维护中                   | 是             |
-| `COMPLETED`             | 维护完成公告             | 否             |
-| `POSTPONED`             | 维护延期公告             | 否             |
-| `CANCELLED`             | 维护取消公告             | 否             |
+快照由 API 通过 `PUBLIC_SITE_STATUS_SNAPSHOT_PATH` 原子写入。生产 compose 将宿主机 `PUBLIC_SITE_STATUS_SNAPSHOT_DIR` 挂载到 API 容器；该目录必须独立于 `client/dist`，前端替换不能覆盖它。反向代理必须把同一文件作为 `/site-status.json` 提供，并设置 `Cache-Control: no-store, max-age=0`。Service Worker 不预缓存 JSON，客户端请求也附带时间参数并使用 `no-store`。
 
-当前管理员界面的维护开关是简化操作：
+客户端冷启动先读取快照，同时请求 `/api/config`：
 
-- 开启：保存为 `MAINTENANCE`，并发布维护标题、摘要、详情、开始时间、预计结束时间、影响范围、限制说明和行动提示。
-- 关闭：保存为 `NORMAL`，并清空维护字段。
+- 快照或 API 任一明确为 `MAINTENANCE`，显示维护页。
+- 快照为 `OPEN`、API 可用且返回 `NORMAL` 或 `RESTRICTING_NEW_GAMES`，进入普通应用。
+- 快照缺失、不可解析或不可达，且 API 没有明确返回 `MAINTENANCE`，显示“暂时无法入场”。
+- API 不可达而快照为 `OPEN`，显示“暂时无法入场”，不得宣称计划维护。
 
-如果后续需要“今晚 23:00 先公告，22:50 开始限制新开局，23:00 进入维护中”的精细流程，应在平台配置中显式增加生命周期或计划维护表单，而不是重新使用环境变量。
+维护页不依赖认证、卡牌数据、卡图、对象存储或远程字体，保留当前 URL。解除维护后，用户检查状态或重新加载即可回到原目标；停机前未完成的写操作不会自动重放。
 
-## 维护期间限制范围
+## 一致性与恢复
 
-维护闸门由服务端 `requireGameplayAvailable` 执行。当前只有 `RESTRICTING_NEW_GAMES` 与 `MAINTENANCE` 会触发限制，接口返回 503，错误码为 `SITE_MAINTENANCE`。
+管理员进入 `MAINTENANCE` 时先写维护快照，再更新数据库，数据库成功后再以数据库返回值刷新快照。任一步骤失败都不会向管理员报告成功；失败边界保持维护或更严格的一侧。
 
-当前会被拦截的入口：
+从 `MAINTENANCE` 恢复到 `NORMAL` 或 `RESTRICTING_NEW_GAMES` 前，服务端先调用应用就绪检查。当前 `/api/ready` 检查数据库连接与当前版本必需的 `cards`、`profiles`、`site_status_config` 表；仅 `/api/health` 进程存活不足以开放。数据库更新后才写 `OPEN` 快照，因此快照写入失败时普通用户仍被旧维护快照挡住，可在修复路径后重试相同状态。
 
-- 新建联机房间：`POST /api/online/rooms`
-- 加入联机房间：`POST /api/online/rooms/:roomCode/join`
-- 锁定或更换准备阶段卡组：`POST /api/online/rooms/:roomCode/deck`
-- 准备开始：`POST /api/online/rooms/:roomCode/ready-start`
-- 开局猜拳与重猜：`POST /api/online/rooms/:roomCode/opening-rps`、`POST /api/online/rooms/:roomCode/opening-rps/replay`
-- 选择先后手：`POST /api/online/rooms/:roomCode/opening-turn-order`
-- 请求重开与接受重开：`POST /api/online/rooms/:roomCode/restart-request`、`POST /api/online/rooms/:roomCode/restart-request/:requestId/accept`
-- 创建服务端对墙打：`POST /api/battle/solitaire-matches`
+API 无法启动时，运维人员可直接写公开快照：
 
-当前不会主动拦截的入口：
+```bash
+pnpm site-status:snapshot \
+  --status=MAINTENANCE \
+  --path=/srv/loveca/site-status/site-status.json \
+  --title='舞台正在整备' \
+  --summary='稍后再见，下一场 LIVE 很快开始。'
+```
 
-- 已经开始的正式联机对局快照、public-events、命令、阶段推进、撤销与撤销协商。
-- 已经创建的服务端对墙打快照、public-events、命令、阶段推进、撤销和离开。
-- 观战、历史记录、回放、管理员房间监控读取。
-- 离开房间、拒绝重开等收尾操作。
+恢复开放快照：
 
-这个边界是有意设计：维护开关用于避免维护窗口继续产生新局和新开局流程，不用于强制冻结、强制结束或回滚正在进行的对局。若未来需要“硬维护”模式，应作为新的独立策略设计，并明确对进行中对局、撤销、回放落库和用户提示的影响。
+```bash
+pnpm site-status:snapshot \
+  --status=OPEN \
+  --path=/srv/loveca/site-status/site-status.json
+```
 
-## 首页与移动端展示
+离线命令只操作公开门禁快照，不替代数据库状态变更。常规恢复必须先启动 API、通过 `/api/ready`、使用管理员恢复入口把数据库状态恢复为 `NORMAL`，并确认公开快照显示“已同步（开放）”。
 
-首页消费 `/api/config` 中的 `siteStatus`：
+## 管理员与运行记录
 
-- 维护状态为 `SCHEDULED`、`RESTRICTING_NEW_GAMES` 或 `MAINTENANCE` 时展示维护提示条。
-- 桌面端首页保留右侧公告摘要。
-- 移动端首页顶栏提供“公告栏”按钮，避免首屏被公告摘要挤占；公告详情以底部抽屉展示。
-- 本机未看过当前公告集合时，移动端和桌面端都会自动打开公告抽屉一次。
-- 应用启动后会在页面可见时后台刷新 `/api/config`：周期刷新带少量抖动，失败后逐步退避；窗口重新获得焦点时会节流触发刷新。后台刷新失败保留旧配置，不使用静态 fallback 覆盖当前页面状态。
+平台配置页提供三态单选，逐项说明普通页面、新对局和存量对局的影响。进入整站维护需要二次确认。页面核验公开快照并区分已同步、同步失败和无法核验。
 
-已读状态存储在浏览器 `localStorage`，key 为 `loveca.home.announcements.seen.v1`。已读指纹由维护状态、维护详情、影响范围、限制说明、行动提示，以及公开公告的 id、类型、标题、摘要、详情、时间与影响范围生成；公告优先级只影响展示顺序，不单独制造未读。公告内容变化后会重新视为未读。当前没有服务端级别的已读状态，也没有推送通道；已经停留在页面内的用户依赖后台刷新看到最新公开状态。
+维护页的“运营入口”按钮先检查 `/api/ready`，就绪后只进入登录与平台配置恢复流程。特殊查询参数只负责前端体验；服务端仍由认证与平台管理员权限控制。非管理员认证后不能借此绕过维护门禁。
 
-## 管理员公告管理
+`site_status_config.updated_by / updated_at` 保留最后修改人和时间；状态切换及快照同步成功或失败写入结构化服务日志。当前单一运维人员、单一平台管理员的规模不设置专用状态审计表。玩家页面不显示快照路径、接口地址、数据库状态或内部错误细节。
 
-公告管理支持：
+## 对局限制
 
-- 创建草稿或直接发布。
-- 编辑标题、摘要、详情、开始时间、结束时间、优先级和影响范围。
-- 发布草稿。
-- 删除公告。
+`RESTRICTING_NEW_GAMES` 与 `MAINTENANCE` 均由 `requireGameplayAvailable` 在服务端返回 503 和稳定错误码 `SITE_MAINTENANCE`。闸门覆盖联机房间创建/加入、准备阶段卡组锁定、准备与开局、猜拳与先后手、重开、公共/排位/主题候场加入与确认，以及服务端对墙打创建和重开。
 
-公开首页只展示 `PUBLISHED` 且未过期的公告。公告类型固定为：
+`RESTRICTING_NEW_GAMES` 不拦截已经开始的正式联机或对墙打命令、快照、事件同步、合法离开、认输、撤销协商和收尾。`MAINTENANCE` 不承诺普通业务 API 可用，发布流程可以在排空后停止 API。
 
-| 类型          | 中文展示 | 使用场景                                 |
-| ------------- | -------- | ---------------------------------------- |
-| `MAINTENANCE` | 维护     | 维护窗口、停机、限制开局、服务不可用说明 |
-| `UPDATE`      | 更新     | 版本更新、功能发布、规则或体验调整       |
-| `NEWS`        | 动态     | 普通站点动态、活动或非维护类通知         |
+## 关键实现
 
-后台不保留旧类型映射，不做历史类型兼容。旧数据若使用不再支持的类型，应在迁移或清理时改写为上述三类之一。
+| 范围                 | 路径                                                         |
+| -------------------- | ------------------------------------------------------------ |
+| 三态与公开状态契约   | `src/server/site-status.ts`                                  |
+| 状态、公告与快照协调 | `src/server/services/site-announcement-service.ts`           |
+| 独立快照原子写入     | `src/server/services/public-site-status-snapshot-service.ts` |
+| 就绪检查             | `src/server/services/readiness-service.ts`                   |
+| 管理 API             | `src/server/routes/site-announcements.ts`                    |
+| 新对局服务端闸门     | `src/server/middleware/require-gameplay-available.ts`        |
+| 前端快照校验         | `client/src/lib/publicSiteStatusSnapshot.ts`                 |
+| 应用级门禁           | `client/src/App.tsx`                                         |
+| 维护与故障页         | `client/src/components/pages/ServiceStatusPage.tsx`          |
+| 管理员三态控制       | `client/src/components/admin/SiteAnnouncementsAdminPage.tsx` |
+| 离线快照工具         | `scripts/manage-public-site-status-snapshot.mjs`             |
+| 数据迁移             | `drizzle/0029_maintenance_mode_three_state.sql`              |
 
-## 关键代码路径
+## 生产接线与剩余验收
 
-| 范围                           | 代码路径                                                     |
-| ------------------------------ | ------------------------------------------------------------ |
-| 公开站点状态契约与环境变量兜底 | `src/server/site-status.ts`                                  |
-| 公告与维护配置服务             | `src/server/services/site-announcement-service.ts`           |
-| 管理员公告和维护配置 API       | `src/server/routes/site-announcements.ts`                    |
-| 对局入口维护闸门               | `src/server/middleware/require-gameplay-available.ts`        |
-| 公开配置 API                   | `src/server/routes/app-config.ts`                            |
-| 联机房间限制接入               | `src/server/routes/online.ts`                                |
-| 服务端对墙打限制接入           | `src/server/routes/battle.ts`                                |
-| 数据库 schema                  | `src/server/db/schema.ts`                                    |
-| 管理员平台配置页               | `client/src/components/admin/SiteAnnouncementsAdminPage.tsx` |
-| 公开配置加载与指纹             | `client/src/lib/appConfig.ts`                                |
-| 公开配置后台刷新调度           | `client/src/lib/publicConfigRefresh.ts`                      |
-| 首页公告与维护提示             | `client/src/components/pages/HomePage.tsx`                   |
-| 前端公告管理客户端             | `client/src/lib/siteAnnouncementClient.ts`                   |
-
-相关迁移文件为 `drizzle/0006_add_site_announcements.sql` 与 `drizzle/0007_add_site_status_config.sql`。生产环境需要先执行数据库迁移，管理员平台配置才能正常写入数据库。迁移未完成时，公开配置仍可能通过环境变量兜底展示，但这不是常规运维路径。
-
-## 已知边界
-
-- 维护开关不会影响正在进行的正式联机或服务端对墙打对局；它只限制新对局和正式开局前流程。
-- 当前管理员界面只提供立即维护开关，不提供计划维护、限制新开局、完成、延期和取消的完整状态编辑控件。
-- 公告已读是浏览器本地状态，不跨设备同步。
-- 当前没有对在线用户的实时推送；公开状态在应用加载或配置刷新后生效。
-- 当前只有最近 10 条公开公告进入首页配置；长期公告归档、筛选和分页不在本能力范围内。
-- 管理员操作审计仅记录 `created_by`、`updated_by` 与时间字段，未提供独立审计日志。
+- 生产反向代理配置不在仓库中；部署前必须确认 `/site-status.json` 指向持久快照目录，而不是前端版本目录，并验证禁止缓存响应头。
+- 首次部署本协议前必须先用离线命令创建 `OPEN` 快照，否则新前端会按故障安全策略显示“暂时无法入场”。
+- 仍需在真实生产拓扑完成未登录、已登录、无痕窗口、已安装 PWA、API 停止、数据库未就绪、快照冲突、日夜主题和移动端的完整 smoke/E2E。
+- 公告仍无实时推送和跨设备已读同步；页面内状态依赖后台配置刷新，停机访问门禁依赖冷启动或手动检查。

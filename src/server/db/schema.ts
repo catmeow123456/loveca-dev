@@ -64,14 +64,7 @@ export type DeckPointTableAuditAction =
   | 'MANUALLY_DISCARDED'
   | 'ACTIVATED_AS_REPLACEMENT'
   | 'ROLLBACK_DRAFT_CREATED';
-export type SiteStatusLifecycle =
-  | 'NORMAL'
-  | 'SCHEDULED'
-  | 'RESTRICTING_NEW_GAMES'
-  | 'MAINTENANCE'
-  | 'COMPLETED'
-  | 'POSTPONED'
-  | 'CANCELLED';
+export type SiteStatusLifecycle = 'NORMAL' | 'RESTRICTING_NEW_GAMES' | 'MAINTENANCE';
 export type SiteAnnouncementType = 'MAINTENANCE' | 'UPDATE' | 'NEWS';
 export type SiteAnnouncementStatus = 'DRAFT' | 'PUBLISHED';
 export type AiEffectExtractionAuditAction = 'CONFIG_UPDATED';
@@ -872,7 +865,7 @@ export const siteStatusConfig = pgTable(
     index('idx_site_status_config_lifecycle').on(table.lifecycle),
     check(
       'site_status_config_lifecycle_check',
-      sql`${table.lifecycle} IN ('NORMAL', 'SCHEDULED', 'RESTRICTING_NEW_GAMES', 'MAINTENANCE', 'COMPLETED', 'POSTPONED', 'CANCELLED')`
+      sql`${table.lifecycle} IN ('NORMAL', 'RESTRICTING_NEW_GAMES', 'MAINTENANCE')`
     ),
     check('site_status_config_id_check', sql`${table.id} = 'default'`),
   ]

@@ -15,12 +15,8 @@ const ANNOUNCEMENT_SEEN_EVENT = 'loveca:announcement-seen';
 
 const LIFECYCLE_LABELS: Record<SiteStatusLifecycle, string> = {
   NORMAL: '正常',
-  SCHEDULED: '计划维护',
   RESTRICTING_NEW_GAMES: '限制新开局',
   MAINTENANCE: '维护中',
-  COMPLETED: '已完成',
-  POSTPONED: '已延期',
-  CANCELLED: '已取消',
 };
 
 const ANNOUNCEMENT_TYPE_LABELS: Record<SiteAnnouncementType, string> = {

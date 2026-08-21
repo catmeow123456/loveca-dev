@@ -204,6 +204,13 @@
       "when": 1787217407586,
       "tag": "0028_add_season_admin_role",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1787328385771,
+      "tag": "0029_maintenance_mode_three_state",
+      "breakpoints": true
     }
   ]
 }

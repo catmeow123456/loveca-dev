@@ -1,6 +1,5 @@
 import { pool } from '../db/pool.js';
 import {
-  buildPublicSiteStatusFromEnv,
   SITE_ANNOUNCEMENT_TYPES,
   SITE_STATUS_LIFECYCLES,
   sortPublicSiteAnnouncements,
@@ -10,6 +9,11 @@ import {
   type SiteAnnouncementType,
   type SiteStatusLifecycle,
 } from '../site-status.js';
+import {
+  publicSiteStatusSnapshotService,
+  type PublicSnapshotInspection,
+} from './public-site-status-snapshot-service.js';
+import { assertApplicationReady, ApplicationReadinessError } from './readiness-service.js';
 
 export type SiteAnnouncementStatus = 'DRAFT' | 'PUBLISHED';
 
@@ -36,6 +40,7 @@ export interface SiteAnnouncementInput {
 
 export interface SiteStatusConfigInput {
   lifecycle: SiteStatusLifecycle;
+  maintenanceConfirmed?: boolean;
   title?: string | null;
   summary?: string | null;
   detail?: string | null;
@@ -45,6 +50,11 @@ export interface SiteStatusConfigInput {
   impactScopes?: readonly string[];
   restrictions?: readonly string[];
   action?: string | null;
+}
+
+export interface AdminSiteStatusView {
+  readonly siteStatus: PublicSiteStatus;
+  readonly publicSnapshot: PublicSnapshotInspection;
 }
 
 export interface PlayerBattleEntryVisibility {
@@ -89,8 +99,6 @@ interface SiteStatusConfigRow {
   updated_at: Date | string;
 }
 
-type EnvLike = Record<string, string | undefined>;
-
 const PUBLIC_ANNOUNCEMENT_LIMIT = 10;
 const SITE_STATUS_CONFIG_ID = 'default';
 const ANNOUNCEMENT_TYPE_SET = new Set<string>(SITE_ANNOUNCEMENT_TYPES);
@@ -108,11 +116,8 @@ export class SiteAnnouncementServiceError extends Error {
 }
 
 export class SiteAnnouncementService {
-  async getPublicSiteStatus(
-    env: EnvLike = process.env,
-    now: Date = new Date()
-  ): Promise<PublicSiteStatus> {
-    const configuredStatus = await this.getConfiguredSiteStatus(env, now);
+  async getPublicSiteStatus(now: Date = new Date()): Promise<PublicSiteStatus> {
+    const configuredStatus = await this.getConfiguredSiteStatus(now);
     try {
       const announcements = await this.listPublicAnnouncements(now);
       return {
@@ -128,19 +133,28 @@ export class SiteAnnouncementService {
     }
   }
 
-  async getConfiguredSiteStatus(
-    env: EnvLike = process.env,
-    now: Date = new Date()
-  ): Promise<PublicSiteStatus> {
-    const envStatus = buildPublicSiteStatusFromEnv(env, now);
+  async getConfiguredSiteStatus(now: Date = new Date()): Promise<PublicSiteStatus> {
+    const row = await this.getSiteStatusConfigRow();
+    return row ? mapSiteStatusConfigRow(row, now) : buildNormalSiteStatus(now);
+  }
 
-    try {
-      const row = await this.getSiteStatusConfigRow();
-      return row ? mapSiteStatusConfigRow(row, now) : envStatus;
-    } catch (error) {
-      console.warn('[SiteAnnouncements] Falling back to env site status:', error);
-      return envStatus;
-    }
+  async getAdminSiteStatus(now: Date = new Date()): Promise<AdminSiteStatusView> {
+    const [siteStatus, publicSnapshot] = await Promise.all([
+      this.getPublicSiteStatus(now),
+      publicSiteStatusSnapshotService.inspect(),
+    ]);
+    const expectedAvailability = siteStatus.lifecycle === 'MAINTENANCE' ? 'MAINTENANCE' : 'OPEN';
+    return {
+      siteStatus,
+      publicSnapshot:
+        publicSnapshot.status === 'SYNCED' && publicSnapshot.availability !== expectedAvailability
+          ? {
+              ...publicSnapshot,
+              status: 'FAILED',
+              error: `公开快照与数据库状态不一致，预期 ${expectedAvailability}`,
+            }
+          : publicSnapshot,
+    };
   }
 
   async updateSiteStatusConfig(
@@ -148,7 +162,60 @@ export class SiteAnnouncementService {
     adminUserId: string,
     now: Date = new Date()
   ): Promise<PublicSiteStatus> {
-    const normalized = normalizeSiteStatusConfigInput(input, now);
+    const normalized = normalizeSiteStatusConfigInput(input);
+    if (normalized.lifecycle === 'MAINTENANCE' && input.maintenanceConfirmed !== true) {
+      throw new SiteAnnouncementServiceError(
+        'MAINTENANCE_CONFIRMATION_REQUIRED',
+        '进入整站维护前必须确认普通用户将只能看到系统维护页',
+        400
+      );
+    }
+
+    const previousRow = await this.getSiteStatusConfigRow();
+    const previousStatus = previousRow
+      ? mapSiteStatusConfigRow(previousRow, now)
+      : buildNormalSiteStatus(now);
+    const previousPublicSnapshot = await publicSiteStatusSnapshotService.inspect();
+    const isLeavingMaintenance =
+      normalized.lifecycle !== 'MAINTENANCE' &&
+      (previousStatus.lifecycle === 'MAINTENANCE' ||
+        previousPublicSnapshot.status !== 'SYNCED' ||
+        previousPublicSnapshot.availability !== 'OPEN');
+    if (isLeavingMaintenance) {
+      try {
+        await assertApplicationReady();
+      } catch (error) {
+        if (error instanceof ApplicationReadinessError) {
+          throw new SiteAnnouncementServiceError('APPLICATION_NOT_READY', error.message, 409);
+        }
+        throw error;
+      }
+    }
+
+    if (normalized.lifecycle === 'MAINTENANCE') {
+      try {
+        await publicSiteStatusSnapshotService.write(
+          'MAINTENANCE',
+          buildMaintenanceFromNormalized(normalized, now),
+          now
+        );
+      } catch (error) {
+        logSiteStatusTransition({
+          event: 'SITE_STATUS_UPDATE_REJECTED',
+          adminUserId,
+          previousLifecycle: previousStatus.lifecycle,
+          nextLifecycle: normalized.lifecycle,
+          snapshotAvailability: 'MAINTENANCE',
+          error: readErrorMessage(error),
+        });
+        throw new SiteAnnouncementServiceError(
+          'PUBLIC_SNAPSHOT_SYNC_FAILED',
+          `${readErrorMessage(error)}；数据库状态尚未改变`,
+          503
+        );
+      }
+    }
+
     const result = await pool.query<SiteStatusConfigRow>(
       `INSERT INTO site_status_config (
          id,
@@ -199,8 +266,38 @@ export class SiteAnnouncementService {
     if (!row) {
       throw new SiteAnnouncementServiceError('SITE_STATUS_UPDATE_FAILED', '站点状态保存失败', 500);
     }
+    const status = mapSiteStatusConfigRow(row, now);
+    try {
+      await publicSiteStatusSnapshotService.write(
+        normalized.lifecycle === 'MAINTENANCE' ? 'MAINTENANCE' : 'OPEN',
+        status.maintenance,
+        now
+      );
+    } catch (error) {
+      logSiteStatusTransition({
+        event: 'SITE_STATUS_SNAPSHOT_SYNC_FAILED',
+        adminUserId,
+        previousLifecycle: previousStatus.lifecycle,
+        nextLifecycle: normalized.lifecycle,
+        snapshotAvailability: normalized.lifecycle === 'MAINTENANCE' ? 'MAINTENANCE' : 'OPEN',
+        error: readErrorMessage(error),
+      });
+      throw new SiteAnnouncementServiceError(
+        'PUBLIC_SNAPSHOT_SYNC_FAILED',
+        `${readErrorMessage(error)}；公开访问仍保持在限制侧，请修复快照后重试当前状态`,
+        503
+      );
+    }
 
-    return mapSiteStatusConfigRow(row, now);
+    logSiteStatusTransition({
+      event: 'SITE_STATUS_UPDATED',
+      adminUserId,
+      previousLifecycle: previousStatus.lifecycle,
+      nextLifecycle: normalized.lifecycle,
+      snapshotAvailability: normalized.lifecycle === 'MAINTENANCE' ? 'MAINTENANCE' : 'OPEN',
+      error: null,
+    });
+    return status;
   }
 
   async getPlayerBattleEntryVisibility(): Promise<PlayerBattleEntryVisibility> {
@@ -259,10 +356,9 @@ export class SiteAnnouncementService {
   }
 
   async getGameplayRestriction(
-    env: EnvLike = process.env,
     now: Date = new Date()
   ): Promise<PublicSiteMaintenanceStatus | null> {
-    const status = await this.getConfiguredSiteStatus(env, now);
+    const status = await this.getConfiguredSiteStatus(now);
     if (!isGameplayRestrictedLifecycle(status.lifecycle)) {
       return null;
     }
@@ -305,10 +401,10 @@ export class SiteAnnouncementService {
     adminUserId: string,
     now: Date = new Date()
   ): Promise<AdminSiteAnnouncement> {
-    const normalized = normalizeAnnouncementInput(input, now);
+    const normalized = normalizeAnnouncementInput(input);
     const status: SiteAnnouncementStatus = input.publish === true ? 'PUBLISHED' : 'DRAFT';
     const publishedAt =
-      status === 'PUBLISHED' ? (normalizeOptionalDate(input.publishedAt, now) ?? now) : null;
+      status === 'PUBLISHED' ? (normalizeOptionalDate(input.publishedAt) ?? now) : null;
 
     const result = await pool.query<SiteAnnouncementRow>(
       `INSERT INTO site_announcements (
@@ -349,10 +445,9 @@ export class SiteAnnouncementService {
   async updateAnnouncement(
     id: string,
     input: SiteAnnouncementInput,
-    adminUserId: string,
-    now: Date = new Date()
+    adminUserId: string
   ): Promise<AdminSiteAnnouncement | null> {
-    const normalized = normalizeAnnouncementInput(input, now);
+    const normalized = normalizeAnnouncementInput(input);
     const result = await pool.query<SiteAnnouncementRow>(
       `UPDATE site_announcements
        SET
@@ -433,7 +528,7 @@ function isGameplayRestrictedLifecycle(lifecycle: SiteStatusLifecycle): boolean 
   return lifecycle === 'RESTRICTING_NEW_GAMES' || lifecycle === 'MAINTENANCE';
 }
 
-function normalizeSiteStatusConfigInput(input: SiteStatusConfigInput, now: Date) {
+function normalizeSiteStatusConfigInput(input: SiteStatusConfigInput) {
   const lifecycle = normalizeSiteStatusLifecycle(input.lifecycle);
 
   if (lifecycle === 'NORMAL') {
@@ -451,9 +546,9 @@ function normalizeSiteStatusConfigInput(input: SiteStatusConfigInput, now: Date)
     };
   }
 
-  const startsAt = normalizeOptionalDate(input.startsAt, now);
-  const estimatedEndsAt = normalizeOptionalDate(input.estimatedEndsAt, now);
-  const restrictsNewGamesAt = normalizeOptionalDate(input.restrictsNewGamesAt, now);
+  const startsAt = normalizeOptionalDate(input.startsAt);
+  const estimatedEndsAt = normalizeOptionalDate(input.estimatedEndsAt);
+  const restrictsNewGamesAt = normalizeOptionalDate(input.restrictsNewGamesAt);
 
   if (startsAt && estimatedEndsAt && estimatedEndsAt.getTime() <= startsAt.getTime()) {
     throw new SiteAnnouncementServiceError(
@@ -486,13 +581,13 @@ function normalizeSiteStatusLifecycle(lifecycle: string): SiteStatusLifecycle {
   return normalized as SiteStatusLifecycle;
 }
 
-function normalizeAnnouncementInput(input: SiteAnnouncementInput, now: Date) {
+function normalizeAnnouncementInput(input: SiteAnnouncementInput) {
   const type = normalizeAnnouncementType(input.type);
   const title = normalizeRequiredText(input.title, '标题');
   const summary = normalizeRequiredText(input.summary, '摘要');
   const detail = normalizeOptionalText(input.detail);
-  const startsAt = normalizeOptionalDate(input.startsAt, now);
-  const endsAt = normalizeOptionalDate(input.endsAt, now);
+  const startsAt = normalizeOptionalDate(input.startsAt);
+  const endsAt = normalizeOptionalDate(input.endsAt);
   const priority =
     typeof input.priority === 'number' && Number.isFinite(input.priority)
       ? Math.trunc(input.priority)
@@ -542,7 +637,7 @@ function normalizeOptionalText(value: string | null | undefined): string | null 
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function normalizeOptionalDate(value: string | null | undefined, _now: Date): Date | null {
+function normalizeOptionalDate(value: string | null | undefined): Date | null {
   const cleaned = normalizeOptionalText(value);
   if (!cleaned) {
     return null;
@@ -557,7 +652,7 @@ function normalizeOptionalDate(value: string | null | undefined, _now: Date): Da
 }
 
 function normalizeImpactScopes(scopes: readonly string[] | undefined): readonly string[] {
-  if (!Array.isArray(scopes)) {
+  if (!scopes) {
     return [];
   }
 
@@ -593,20 +688,40 @@ function mapSiteStatusConfigRow(row: SiteStatusConfigRow, now: Date): PublicSite
   };
 }
 
+function buildNormalSiteStatus(now: Date): PublicSiteStatus {
+  return {
+    lifecycle: 'NORMAL',
+    generatedAt: now.toISOString(),
+    maintenance: null,
+    announcements: [],
+  };
+}
+
+function buildMaintenanceFromNormalized(
+  normalized: ReturnType<typeof normalizeSiteStatusConfigInput>,
+  now: Date
+): PublicSiteMaintenanceStatus {
+  return {
+    id: SITE_STATUS_CONFIG_ID,
+    title: normalized.title ?? defaultMaintenanceTitle(normalized.lifecycle),
+    summary: normalized.summary ?? defaultMaintenanceSummary(normalized.lifecycle),
+    detail: normalized.detail,
+    startsAt: normalized.startsAt?.toISOString() ?? null,
+    estimatedEndsAt: normalized.estimatedEndsAt?.toISOString() ?? null,
+    restrictsNewGamesAt: normalized.restrictsNewGamesAt?.toISOString() ?? null,
+    impactScopes: normalized.impactScopes,
+    restrictions: normalized.restrictions,
+    action: normalized.action,
+    updatedAt: now.toISOString(),
+  };
+}
+
 function defaultMaintenanceTitle(lifecycle: SiteStatusLifecycle): string {
   switch (lifecycle) {
-    case 'SCHEDULED':
-      return '计划维护';
     case 'RESTRICTING_NEW_GAMES':
       return '限制新开局';
     case 'MAINTENANCE':
-      return '维护中';
-    case 'COMPLETED':
-      return '维护已完成';
-    case 'POSTPONED':
-      return '维护已延期';
-    case 'CANCELLED':
-      return '维护已取消';
+      return '舞台正在整备';
     case 'NORMAL':
       return '站点状态';
   }
@@ -614,20 +729,39 @@ function defaultMaintenanceTitle(lifecycle: SiteStatusLifecycle): string {
 
 function defaultMaintenanceSummary(lifecycle: SiteStatusLifecycle): string {
   switch (lifecycle) {
-    case 'SCHEDULED':
-      return '已发布计划维护通知。';
     case 'RESTRICTING_NEW_GAMES':
       return '维护窗口临近，正在限制新的正式联机开局。';
     case 'MAINTENANCE':
-      return '服务正在维护，暂时限制新的对局。';
-    case 'COMPLETED':
-      return '本次维护已完成。';
-    case 'POSTPONED':
-      return '本次维护已延期，后续时间以最新通知为准。';
-    case 'CANCELLED':
-      return '本次维护已取消。';
+      return '稍后再见，下一场 LIVE 很快开始。';
     case 'NORMAL':
       return '站点运行正常。';
+  }
+}
+
+function readErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : '未知错误';
+}
+
+interface SiteStatusTransitionLog {
+  readonly event:
+    'SITE_STATUS_UPDATE_REJECTED' | 'SITE_STATUS_SNAPSHOT_SYNC_FAILED' | 'SITE_STATUS_UPDATED';
+  readonly adminUserId: string;
+  readonly previousLifecycle: SiteStatusLifecycle;
+  readonly nextLifecycle: SiteStatusLifecycle;
+  readonly snapshotAvailability: 'OPEN' | 'MAINTENANCE';
+  readonly error: string | null;
+}
+
+function logSiteStatusTransition(entry: SiteStatusTransitionLog): void {
+  const payload = JSON.stringify({
+    scope: 'site_status',
+    occurredAt: new Date().toISOString(),
+    ...entry,
+  });
+  if (entry.error) {
+    console.error(payload);
+  } else {
+    console.info(payload);
   }
 }
 

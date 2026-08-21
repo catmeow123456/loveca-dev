@@ -121,7 +121,7 @@ export class PublicTableService {
   async getSummary(
     context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT
   ): Promise<PublicTableSummaryView> {
-    const restriction = await siteAnnouncementService.getGameplayRestriction(process.env);
+    const restriction = await siteAnnouncementService.getGameplayRestriction();
     if (restriction) {
       return {
         open: false,
@@ -168,7 +168,7 @@ export class PublicTableService {
     if (current.state !== 'IDLE') {
       return current;
     }
-    const restriction = await siteAnnouncementService.getGameplayRestriction(process.env);
+    const restriction = await siteAnnouncementService.getGameplayRestriction();
     if (restriction) {
       throw new PublicTableServiceError(
         'PUBLIC_TABLE_UNAVAILABLE',
@@ -179,11 +179,7 @@ export class PublicTableService {
 
     const deck =
       context.queueKind === 'THEME'
-        ? await loadThemeQueuePlaceholder(
-            userId,
-            deckId,
-            await this.getCurrentPointTableRules()
-          )
+        ? await loadThemeQueuePlaceholder(userId, deckId, await this.getCurrentPointTableRules())
         : await loadPlayerQueueDeck(userId, deckId);
     const now = this.now();
     const ticketId = randomUUID();

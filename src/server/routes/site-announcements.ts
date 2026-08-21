@@ -29,6 +29,7 @@ const siteAnnouncementInputSchema = z.object({
 
 const siteStatusConfigInputSchema = z.object({
   lifecycle: z.enum(SITE_STATUS_LIFECYCLES),
+  maintenanceConfirmed: z.boolean().optional(),
   title: z.string().trim().max(120).nullable().optional(),
   summary: z.string().trim().max(280).nullable().optional(),
   detail: z.string().trim().max(4000).nullable().optional(),
@@ -56,8 +57,7 @@ siteAnnouncementsRouter.get('/admin', requireAuth, requireAdmin, async (_req, re
 
 siteAnnouncementsRouter.get('/admin/site-status', requireAuth, requireAdmin, async (_req, res) => {
   try {
-    const siteStatus = await siteAnnouncementService.getConfiguredSiteStatus(process.env);
-    res.json({ data: siteStatus, error: null });
+    res.json({ data: await siteAnnouncementService.getAdminSiteStatus(), error: null });
   } catch (error) {
     respondSiteAnnouncementError(res, error);
   }
@@ -74,7 +74,13 @@ siteAnnouncementsRouter.put(
         req.body as SiteStatusConfigInput,
         req.user!.id
       );
-      res.json({ data: siteStatus, error: null });
+      res.json({
+        data: {
+          siteStatus,
+          publicSnapshot: (await siteAnnouncementService.getAdminSiteStatus()).publicSnapshot,
+        },
+        error: null,
+      });
     } catch (error) {
       respondSiteAnnouncementError(res, error);
     }
@@ -89,7 +95,7 @@ siteAnnouncementsRouter.put(
   async (req, res) => {
     try {
       const visibility = await siteAnnouncementService.updatePlayerBattleEntryVisibility(
-        req.body,
+        req.body as { ranked: boolean; themeTable: boolean },
         req.user!.id
       );
       res.json({ data: visibility, error: null });

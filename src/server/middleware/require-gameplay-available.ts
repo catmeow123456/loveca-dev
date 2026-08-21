@@ -7,7 +7,7 @@ export async function requireGameplayAvailable(
   next: NextFunction
 ): Promise<void> {
   try {
-    const maintenance = await siteAnnouncementService.getGameplayRestriction(process.env);
+    const maintenance = await siteAnnouncementService.getGameplayRestriction();
     if (!maintenance) {
       next();
       return;
