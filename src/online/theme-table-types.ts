@@ -23,6 +23,15 @@ export interface ThemePrebuiltDeckView {
   readonly energyDeck: readonly ThemeDeckListEntryView[];
 }
 
+export interface ThemeMatchupStatisticsView {
+  readonly firstDeckVersionId: string;
+  readonly secondDeckVersionId: string;
+  readonly completedMatches: number;
+  readonly firstDeckWins: number;
+  readonly secondDeckWins: number;
+  readonly draws: number;
+}
+
 export interface ThemeTableEventView {
   readonly id: string;
   readonly versionKey: string;
@@ -34,6 +43,7 @@ export interface ThemeTableEventView {
   readonly endsAt: number;
   readonly allocationAlgorithmVersion: string;
   readonly prebuiltDecks: readonly ThemePrebuiltDeckView[];
+  readonly matchupStatistics: readonly ThemeMatchupStatisticsView[];
 }
 
 export interface ThemeTablePlayerSeasonView {

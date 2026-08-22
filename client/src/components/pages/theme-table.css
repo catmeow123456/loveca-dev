@@ -128,6 +128,95 @@
   color: var(--text-muted);
   text-align: center;
 }
+.theme-matchup-graph {
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+}
+.theme-matchup-graph:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent-primary) 46%, transparent);
+  outline-offset: 2px;
+}
+.theme-matchup-graph__canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 280px;
+}
+.theme-matchup-graph__edge line {
+  opacity: 0.68;
+  vector-effect: non-scaling-stroke;
+}
+.theme-matchup-graph__edge {
+  cursor: pointer;
+  outline: none;
+}
+.theme-matchup-graph__edge-hit-area {
+  stroke: transparent;
+  stroke-width: 18;
+  pointer-events: stroke;
+}
+.theme-matchup-graph__edge:focus-visible .theme-matchup-graph__edge-hit-area {
+  stroke: color-mix(in srgb, var(--accent-primary) 28%, transparent);
+}
+.theme-matchup-graph__edge-label-bg {
+  fill: var(--bg-surface);
+  stroke: var(--border-default);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+.theme-matchup-graph__edge-label {
+  fill: var(--text-primary);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+.theme-matchup-graph__edge.is-active .theme-matchup-graph__edge-label-bg,
+.theme-matchup-graph__edge.is-active .theme-matchup-graph__edge-label {
+  opacity: 1;
+}
+.theme-matchup-graph__edge-label-first {
+  fill: var(--accent-primary);
+}
+.theme-matchup-graph__edge-label-second {
+  fill: var(--accent-secondary);
+}
+.theme-matchup-graph__edge-label-separator {
+  fill: var(--text-muted);
+}
+.theme-matchup-graph__node {
+  cursor: default;
+}
+.theme-matchup-graph__node-inner {
+  fill: var(--bg-surface);
+}
+.theme-matchup-graph__node-index {
+  fill: var(--text-primary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.theme-matchup-graph__node-name {
+  fill: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+@media (max-width: 620px) {
+  .theme-matchup-graph__canvas {
+    min-width: 620px;
+  }
+  .theme-matchup-graph {
+    overflow-x: auto;
+  }
+}
 .theme-deck-browser__selector {
   display: flex;
   flex-direction: column;

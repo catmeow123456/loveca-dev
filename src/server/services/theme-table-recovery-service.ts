@@ -208,7 +208,7 @@ async function recoverWithClient(
       [ticket.userId, nextTicketId, ticket.ticketId, new Date(input.now), input.roomGeneration]
     );
     if (participation.rowCount !== 1) {
-      throw new Error('主题牌桌无过错恢复时玩家占用状态已经变化');
+      throw new Error('娱乐模式无过错恢复时玩家占用状态已经变化');
     }
     requeued.push({
       userId: ticket.userId,

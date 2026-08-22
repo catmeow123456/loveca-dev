@@ -857,6 +857,8 @@ export const siteStatusConfig = pgTable(
     action: text('action'),
     rankedEntryVisible: boolean('ranked_entry_visible').notNull().default(true),
     themeTableEntryVisible: boolean('theme_table_entry_visible').notNull().default(true),
+    playerActionTimeoutSeconds: integer('player_action_timeout_seconds').notNull().default(180),
+    reconnectGracePeriodSeconds: integer('reconnect_grace_period_seconds').notNull().default(60),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -868,6 +870,14 @@ export const siteStatusConfig = pgTable(
       sql`${table.lifecycle} IN ('NORMAL', 'RESTRICTING_NEW_GAMES', 'MAINTENANCE')`
     ),
     check('site_status_config_id_check', sql`${table.id} = 'default'`),
+    check(
+      'site_status_config_player_action_timeout_check',
+      sql`${table.playerActionTimeoutSeconds} BETWEEN 60 AND 900`
+    ),
+    check(
+      'site_status_config_reconnect_grace_period_check',
+      sql`${table.reconnectGracePeriodSeconds} BETWEEN 15 AND 300`
+    ),
   ]
 );
 

@@ -179,6 +179,18 @@ export async function leaveOnlineRoom(roomCode: string): Promise<{ room: OnlineR
   return response.data;
 }
 
+export async function endOnlineThemeRoom(
+  roomCode: string
+): Promise<{ room: OnlineRoomView | null }> {
+  const response = await apiClient.post<{ room: OnlineRoomView | null }>(
+    `/api/online/rooms/${encodeURIComponent(roomCode)}/end-theme`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '结束娱乐模式房间失败');
+  }
+  return response.data;
+}
+
 export async function requestOnlineRoomRestart(roomCode: string): Promise<OnlineRoomView> {
   const response = await apiClient.post<OnlineRoomView>(
     `/api/online/rooms/${encodeURIComponent(roomCode)}/restart-request`

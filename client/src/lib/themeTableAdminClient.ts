@@ -73,37 +73,37 @@ async function requireData<T>(
 export const fetchThemeAdminEnvironment = () =>
   requireData<ThemeAdminEnvironmentPreview>(
     apiClient.get('/api/admin/theme-table/environment'),
-    '读取主题活动环境失败'
+    '读取娱乐模式环境失败'
   );
 
 export const fetchThemeAdminEvents = () =>
   requireData<ThemeAdminEventView[]>(
     apiClient.get('/api/admin/theme-table/events'),
-    '读取主题活动失败'
+    '读取娱乐模式失败'
   );
 
 export const createThemeAdminDraft = (payload: ThemeAdminDraftPayload) =>
   requireData<ThemeAdminEventView>(
     apiClient.post('/api/admin/theme-table/events', payload),
-    '创建主题活动草稿失败'
+    '创建娱乐模式草稿失败'
   );
 
 export const updateThemeAdminDraft = (themeId: string, payload: ThemeAdminDraftPayload) =>
   requireData<ThemeAdminEventView>(
     apiClient.put(`/api/admin/theme-table/events/${themeId}/draft`, payload),
-    '更新主题活动草稿失败'
+    '更新娱乐模式草稿失败'
   );
 
 export const updateThemeAdminOperations = (themeId: string, payload: ThemeAdminOperationsPayload) =>
   requireData<ThemeAdminEventView>(
     apiClient.put(`/api/admin/theme-table/events/${themeId}/operations`, payload),
-    '更新主题赛季信息失败'
+    '更新娱乐模式信息失败'
   );
 
 export const addThemeAdminDeck = (themeId: string, payload: ThemeAdminDeckPayload) =>
   requireData<ThemeAdminDeckView>(
     apiClient.post(`/api/admin/theme-table/events/${themeId}/decks`, payload),
-    '冻结主题预组失败'
+    '冻结娱乐模式预组失败'
   );
 
 export const updateThemeAdminDeck = (
@@ -113,13 +113,13 @@ export const updateThemeAdminDeck = (
 ) =>
   requireData<ThemeAdminDeckView>(
     apiClient.put(`/api/admin/theme-table/events/${themeId}/decks/${deckId}`, payload),
-    '更新主题预组失败'
+    '更新娱乐模式预组失败'
   );
 
 export const deleteThemeAdminDeck = (themeId: string, deckId: string) =>
   requireData<{ id: string; disabledMatchupCount: number }>(
     apiClient.delete(`/api/admin/theme-table/events/${themeId}/decks/${deckId}`),
-    '删除主题预组失败'
+    '删除娱乐模式预组失败'
   );
 
 export const addThemeAdminMatchup = (themeId: string, payload: ThemeAdminMatchupPayload) =>
@@ -133,7 +133,7 @@ export const setThemeAdminMatchupEnabled = (themeId: string, matchupId: string, 
     apiClient.put(`/api/admin/theme-table/events/${themeId}/matchups/${matchupId}/enabled`, {
       enabled,
     }),
-    '更新主题组合失败'
+    '更新娱乐模式组合失败'
   );
 
 export const runThemeAdminLifecycleAction = (
@@ -142,5 +142,5 @@ export const runThemeAdminLifecycleAction = (
 ) =>
   requireData<ThemeAdminEventView>(
     apiClient.post(`/api/admin/theme-table/events/${themeId}/${action}`),
-    '更新主题活动状态失败'
+    '更新娱乐模式状态失败'
   );

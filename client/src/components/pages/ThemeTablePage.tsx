@@ -8,10 +8,14 @@ import {
   Sparkles,
   TicketCheck,
 } from 'lucide-react';
-import type { ThemeDeckListEntryView, ThemePrebuiltDeckView } from '@game/online/theme-table-types';
-import { isLiveCardData, isMemberCardData, type AnyCardData } from '@game/domain/entities/card';
+import type {
+  ThemeMatchupStatisticsView,
+  ThemePrebuiltDeckView,
+} from '@game/online/theme-table-types';
+import type { AnyCardData } from '@game/domain/entities/card';
 import { ActionButton, PageHeader, Panel, StatusBadge } from '@/components/common';
 import { CardDetailDrawer } from '@/components/deck-editor/CardDetailDrawer';
+import { ThemeDeckGallery } from '@/components/theme-table/ThemeDeckGallery';
 import { getCardImageUrl, resolveCardImagePath } from '@/lib/imageService';
 import { useThemeTableStore } from '@/store/themeTableStore';
 import { useGameStore } from '@/store/gameStore';
@@ -30,11 +34,11 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
   if (!overview?.event) {
     return (
       <div className="app-shell min-h-screen">
-        <PageHeader title="轮换主题牌桌" onBack={onBack} backLabel="返回大厅" />
+        <PageHeader title="娱乐模式" onBack={onBack} backLabel="返回大厅" />
         <main className="mx-auto max-w-lg px-4 py-16">
           <Panel padding="spacious" className="text-center">
             <Sparkles className="mx-auto text-[var(--accent-primary)]" />
-            <h1 className="mt-3 text-xl font-semibold">下一期主题正在编排</h1>
+            <h1 className="mt-3 text-xl font-semibold">下一期娱乐模式正在编排</h1>
             <p className="mt-2 text-sm text-[var(--text-secondary)]">
               当前没有公开活动。你仍可前往公共牌桌使用自己的卡组对战。
             </p>
@@ -47,7 +51,7 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
   const activeQueue = queue.state !== 'IDLE';
   return (
     <div className="app-shell theme-table-page min-h-screen">
-      <PageHeader title="轮换主题牌桌" onBack={onBack} backLabel="返回大厅" />
+      <PageHeader title="娱乐模式" onBack={onBack} backLabel="返回大厅" />
       <main className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 sm:py-8">
         <section className="theme-table-hero">
           <div className="theme-table-hero__copy">
@@ -107,7 +111,7 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
             ) : (
               <ActionButton disabled={!availability.canJoin || loading} onClick={() => void join()}>
                 {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                加入主题牌桌
+                加入娱乐模式
               </ActionButton>
             )}
           </div>
@@ -145,13 +149,298 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
             onViewCard={setSelectedCard}
           />
         </section>
-        <Panel padding="compact" className="mt-8 text-sm leading-6 text-[var(--text-secondary)]">
-          <strong className="text-[var(--text-primary)]">本期说明：</strong> {event.announcement}
-        </Panel>
+        <section className="mt-8" aria-labelledby="theme-matchup-graph-title">
+          <div className="mb-3">
+            <p className="text-xs font-semibold text-[var(--accent-primary)]">本期对阵数据</p>
+            <h2
+              id="theme-matchup-graph-title"
+              className="mt-1 text-xl font-semibold text-[var(--text-primary)]"
+            >
+              卡组对阵胜负
+            </h2>
+          </div>
+          <ThemeMatchupGraph decks={event.prebuiltDecks} statistics={event.matchupStatistics} />
+        </section>
       </main>
       <CardDetailDrawer card={selectedCard} onClose={() => setSelectedCard(null)} />
     </div>
   );
+}
+
+function ThemeMatchupGraph({
+  decks,
+  statistics,
+}: {
+  decks: readonly ThemePrebuiltDeckView[];
+  statistics: readonly ThemeMatchupStatisticsView[];
+}) {
+  const graph = useMemo(() => buildMatchupGraph(decks, statistics), [decks, statistics]);
+  const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null);
+  const [selectedEdgeKey, setSelectedEdgeKey] = useState<string | null>(null);
+  const visibleEdgeKey = selectedEdgeKey ?? hoveredEdgeKey;
+  return (
+    <div className="theme-matchup-graph" role="region" tabIndex={0} aria-label="卡组对阵关系图">
+      <svg
+        className="theme-matchup-graph__canvas"
+        viewBox={`0 0 ${graph.width} ${graph.height}`}
+        role="group"
+        aria-label="卡组之间的对阵胜负关系图"
+      >
+        <title>卡组对阵胜负关系图</title>
+        <desc>
+          {graph.edges.length > 0
+            ? graph.edges
+                .map(
+                  (edge) =>
+                    `${edge.first.deck.displayName} 对 ${edge.second.deck.displayName}：${edge.firstWins} 比 ${edge.secondWins}`
+                )
+                .join('；')
+            : '当前暂无不同卡组之间的已完成对局'}
+        </desc>
+        {graph.edges.map((edge) => (
+          <MatchupGraphEdge
+            key={edge.key}
+            edge={edge}
+            active={visibleEdgeKey === edge.key}
+            onHoverChange={(isHovered) => setHoveredEdgeKey(isHovered ? edge.key : null)}
+            onToggle={() =>
+              setSelectedEdgeKey((current) => (current === edge.key ? null : edge.key))
+            }
+          />
+        ))}
+        {graph.nodes.map((node) => (
+          <MatchupGraphNode key={node.deck.id} node={node} />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+interface MatchupGraphNodeData {
+  readonly deck: ThemePrebuiltDeckView;
+  readonly index: number;
+  readonly x: number;
+  readonly y: number;
+  readonly color: string;
+}
+
+interface MatchupGraphEdgeData {
+  readonly key: string;
+  readonly first: MatchupGraphNodeData;
+  readonly second: MatchupGraphNodeData;
+  readonly completedMatches: number;
+  readonly firstWins: number;
+  readonly secondWins: number;
+  readonly draws: number;
+}
+
+interface MatchupGraphData {
+  readonly width: number;
+  readonly height: number;
+  readonly nodes: readonly MatchupGraphNodeData[];
+  readonly edges: readonly MatchupGraphEdgeData[];
+}
+
+function MatchupGraphEdge({
+  edge,
+  active,
+  onHoverChange,
+  onToggle,
+}: {
+  edge: MatchupGraphEdgeData;
+  active: boolean;
+  onHoverChange: (isHovered: boolean) => void;
+  onToggle: () => void;
+}) {
+  const totalMatches = Math.max(
+    edge.completedMatches,
+    edge.firstWins + edge.secondWins + edge.draws,
+    1
+  );
+  const firstWinEnd = pointAlongEdge(edge, edge.firstWins / totalMatches);
+  const drawEnd = pointAlongEdge(edge, (edge.firstWins + edge.draws) / totalMatches);
+  const labelPoint = pointAlongEdge(edge, 0.5);
+  const label = `${edge.firstWins} : ${edge.secondWins}`;
+  const labelWidth = 58;
+  return (
+    <g
+      className={`theme-matchup-graph__edge ${active ? 'is-active' : ''}`}
+      data-edge-key={edge.key}
+      role="button"
+      tabIndex={0}
+      aria-pressed={active}
+      aria-label={`${edge.first.deck.displayName} 对 ${edge.second.deck.displayName}，第一套卡组 ${edge.firstWins} 胜，第二套卡组 ${edge.secondWins} 胜${edge.draws > 0 ? `，${edge.draws} 平` : ''}`}
+      onMouseEnter={() => onHoverChange(true)}
+      onMouseLeave={() => onHoverChange(false)}
+      onFocus={() => onHoverChange(true)}
+      onBlur={() => onHoverChange(false)}
+      onClick={onToggle}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onToggle();
+        }
+      }}
+    >
+      <title>
+        {edge.first.deck.displayName} 对 {edge.second.deck.displayName}：{label}
+        {edge.draws > 0 ? `，${edge.draws} 平` : ''}
+      </title>
+      <line
+        x1={edge.first.x}
+        y1={edge.first.y}
+        x2={edge.second.x}
+        y2={edge.second.y}
+        className="theme-matchup-graph__edge-hit-area"
+        aria-hidden="true"
+      />
+      <line
+        x1={edge.first.x}
+        y1={edge.first.y}
+        x2={firstWinEnd.x}
+        y2={firstWinEnd.y}
+        stroke={edge.first.color}
+        strokeWidth="3"
+        pointerEvents="none"
+      />
+      {edge.draws > 0 ? (
+        <line
+          x1={firstWinEnd.x}
+          y1={firstWinEnd.y}
+          x2={drawEnd.x}
+          y2={drawEnd.y}
+          stroke="var(--text-muted)"
+          strokeWidth="3"
+          pointerEvents="none"
+        />
+      ) : null}
+      <line
+        x1={drawEnd.x}
+        y1={drawEnd.y}
+        x2={edge.second.x}
+        y2={edge.second.y}
+        stroke={edge.second.color}
+        strokeWidth="3"
+        pointerEvents="none"
+      />
+      <rect
+        x={labelPoint.x - labelWidth / 2}
+        y={labelPoint.y - 15}
+        width={labelWidth}
+        height="30"
+        rx="15"
+        className="theme-matchup-graph__edge-label-bg"
+      />
+      <text
+        x={labelPoint.x}
+        y={labelPoint.y + 6}
+        textAnchor="middle"
+        className="theme-matchup-graph__edge-label"
+      >
+        <tspan className="theme-matchup-graph__edge-label-first" style={{ fill: edge.first.color }}>
+          {edge.firstWins}
+        </tspan>
+        <tspan className="theme-matchup-graph__edge-label-separator"> : </tspan>
+        <tspan
+          className="theme-matchup-graph__edge-label-second"
+          style={{ fill: edge.second.color }}
+        >
+          {edge.secondWins}
+        </tspan>
+      </text>
+    </g>
+  );
+}
+
+function pointAlongEdge(edge: Pick<MatchupGraphEdgeData, 'first' | 'second'>, ratio: number) {
+  const clampedRatio = Math.max(0, Math.min(1, ratio));
+  return {
+    x: edge.first.x + (edge.second.x - edge.first.x) * clampedRatio,
+    y: edge.first.y + (edge.second.y - edge.first.y) * clampedRatio,
+  };
+}
+
+function MatchupGraphNode({ node }: { node: MatchupGraphNodeData }) {
+  return (
+    <g className="theme-matchup-graph__node" role="img" aria-label={node.deck.displayName}>
+      <title>{node.deck.displayName}</title>
+      <circle cx={node.x} cy={node.y} r="24" fill={node.color} />
+      <circle cx={node.x} cy={node.y} r="20" className="theme-matchup-graph__node-inner" />
+      <text
+        x={node.x}
+        y={node.y + 6}
+        textAnchor="middle"
+        className="theme-matchup-graph__node-index"
+      >
+        {String(node.index + 1).padStart(2, '0')}
+      </text>
+      <text
+        x={node.x}
+        y={node.y + 48}
+        textAnchor="middle"
+        className="theme-matchup-graph__node-name"
+      >
+        {node.deck.displayName}
+      </text>
+    </g>
+  );
+}
+
+function buildMatchupGraph(
+  decks: readonly ThemePrebuiltDeckView[],
+  statistics: readonly ThemeMatchupStatisticsView[]
+): MatchupGraphData {
+  const width = 760;
+  const height = Math.max(380, Math.min(560, 220 + decks.length * 34));
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const radius = Math.max(118, Math.min(width / 2 - 105, height / 2 - 78));
+  const nodes = decks.map((deck, index) => {
+    const angle = -Math.PI / 2 + (index * Math.PI * 2) / Math.max(decks.length, 1);
+    return {
+      deck,
+      index,
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius,
+      color: deckColor(index),
+    };
+  });
+  const nodesById = new Map(nodes.map((node) => [node.deck.id, node]));
+  const edges = statistics.flatMap((statistic) => {
+    if (
+      statistic.firstDeckVersionId === statistic.secondDeckVersionId ||
+      statistic.completedMatches === 0
+    ) {
+      return [];
+    }
+    const first = nodesById.get(statistic.firstDeckVersionId);
+    const second = nodesById.get(statistic.secondDeckVersionId);
+    if (!first || !second) return [];
+    return [
+      {
+        key: `${statistic.firstDeckVersionId}:${statistic.secondDeckVersionId}`,
+        first,
+        second,
+        completedMatches: statistic.completedMatches,
+        firstWins: statistic.firstDeckWins,
+        secondWins: statistic.secondDeckWins,
+        draws: statistic.draws,
+      },
+    ];
+  });
+  return { width, height, nodes, edges };
+}
+
+function deckColor(index: number) {
+  const palette = [
+    'var(--accent-primary)',
+    'var(--accent-secondary)',
+    'var(--semantic-info)',
+    'var(--semantic-success)',
+    'var(--semantic-warning)',
+    'var(--semantic-error)',
+  ];
+  return palette[index % palette.length];
 }
 
 function ThemeDeckBrowser({
@@ -253,149 +542,6 @@ function ThemeDeckBrowser({
       </article>
     </div>
   );
-}
-
-function ThemeDeckGallery({
-  deck,
-  onViewCard,
-}: {
-  deck: ThemePrebuiltDeckView;
-  onViewCard: (card: AnyCardData) => void;
-}) {
-  const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
-  const sections = useMemo(() => {
-    const members: ThemeDeckListEntryView[] = [];
-    const lives: ThemeDeckListEntryView[] = [];
-    const otherMain: ThemeDeckListEntryView[] = [];
-
-    deck.mainDeck.forEach((entry) => {
-      const card = cardDataRegistry.get(entry.cardCode);
-      if (card && isMemberCardData(card)) members.push(entry);
-      else if (card && isLiveCardData(card)) lives.push(entry);
-      else otherMain.push(entry);
-    });
-
-    return [
-      {
-        key: 'members',
-        title: '成员',
-        entries: sortDeckEntries(members, (cardCode) => cardDataRegistry.get(cardCode)),
-      },
-      {
-        key: 'lives',
-        title: 'LIVE',
-        entries: sortDeckEntries(lives, (cardCode) => cardDataRegistry.get(cardCode)),
-      },
-      ...(otherMain.length > 0
-        ? [{ key: 'other', title: '其他主卡组卡牌', entries: otherMain }]
-        : []),
-      { key: 'energy', title: '能量', entries: deck.energyDeck },
-    ].filter((section) => section.entries.length > 0);
-  }, [cardDataRegistry, deck]);
-
-  return (
-    <div className="theme-deck-gallery">
-      {sections.map((section) => (
-        <ThemeDeckGallerySection
-          key={section.key}
-          title={section.title}
-          entries={section.entries}
-          onViewCard={onViewCard}
-        />
-      ))}
-    </div>
-  );
-}
-
-function ThemeDeckGallerySection({
-  title,
-  entries,
-  onViewCard,
-}: {
-  title: string;
-  entries: readonly ThemeDeckListEntryView[];
-  onViewCard: (card: AnyCardData) => void;
-}) {
-  const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
-  const totalCards = entries.reduce((total, entry) => total + entry.count, 0);
-
-  return (
-    <section className="theme-deck-gallery__section">
-      <div className="theme-deck-gallery__heading">
-        <h4>{title}</h4>
-        <span>
-          {totalCards} 张 · {entries.length} 种
-        </span>
-      </div>
-      <div className="theme-deck-gallery__grid">
-        {entries.map((entry) => {
-          const card = cardDataRegistry.get(entry.cardCode);
-          const displayName = card?.nameCn?.trim() || card?.name?.trim() || entry.cardCode;
-          const image = (
-            <span className="theme-deck-gallery-card__image">
-              <img
-                src={
-                  card
-                    ? resolveCardImagePath(card, 'thumb')
-                    : getCardImageUrl(entry.cardCode, 'thumb')
-                }
-                alt=""
-                loading="lazy"
-                decoding="async"
-              />
-              <strong aria-label={`${entry.count} 张`}>×{entry.count}</strong>
-            </span>
-          );
-
-          if (!card) {
-            return (
-              <div key={entry.cardCode} className="theme-deck-gallery-card is-unavailable">
-                {image}
-                <span title={entry.cardCode}>{entry.cardCode}</span>
-              </div>
-            );
-          }
-
-          return (
-            <button
-              key={entry.cardCode}
-              type="button"
-              className="theme-deck-gallery-card"
-              aria-label={`查看${displayName}，${entry.count} 张`}
-              title={`${displayName} · ${entry.cardCode}`}
-              onClick={() => onViewCard(card)}
-            >
-              {image}
-              <span>{displayName}</span>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function sortDeckEntries(
-  entries: readonly ThemeDeckListEntryView[],
-  getCardData: (cardCode: string) => AnyCardData | undefined
-): ThemeDeckListEntryView[] {
-  return [...entries].sort((left, right) => {
-    const leftCard = getCardData(left.cardCode);
-    const rightCard = getCardData(right.cardCode);
-    const leftValue =
-      leftCard && isMemberCardData(leftCard)
-        ? leftCard.cost
-        : leftCard && isLiveCardData(leftCard)
-          ? leftCard.score
-          : Number.MAX_SAFE_INTEGER;
-    const rightValue =
-      rightCard && isMemberCardData(rightCard)
-        ? rightCard.cost
-        : rightCard && isLiveCardData(rightCard)
-          ? rightCard.score
-          : Number.MAX_SAFE_INTEGER;
-    return leftValue - rightValue || left.cardCode.localeCompare(right.cardCode);
-  });
 }
 
 function CenteredState({ icon, title }: { icon: ReactNode; title: string }) {

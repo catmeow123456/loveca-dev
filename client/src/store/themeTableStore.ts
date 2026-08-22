@@ -50,7 +50,7 @@ export const useThemeTableStore = create<ThemeTableStoreState>((set) => {
       } catch (error) {
         set({
           loading: false,
-          error: error instanceof Error ? error.message : '读取主题牌桌失败',
+          error: error instanceof Error ? error.message : '读取娱乐模式失败',
         });
         throw error;
       }

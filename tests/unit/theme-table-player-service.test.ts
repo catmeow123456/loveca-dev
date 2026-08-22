@@ -52,6 +52,20 @@ describe('ThemeTablePlayerService', () => {
     mocks.publicGetStatus.mockResolvedValue({ state: 'IDLE' });
     mocks.poolQuery.mockImplementation(async (text: string) => {
       if (text.includes("lifecycle IN ('ACTIVE', 'PAUSED')")) return { rows: [THEME] };
+      if (text.includes('AS first_deck_wins')) {
+        return {
+          rows: [
+            {
+              first_deck_version_id: 'deck-a',
+              second_deck_version_id: 'deck-b',
+              completed_matches: '6',
+              first_deck_wins: '4',
+              second_deck_wins: '1',
+              draws: '1',
+            },
+          ],
+        };
+      }
       if (text.includes('AS completed_matches')) {
         return { rows: [{ completed_matches: '6', wins: '3', losses: '2', draws: '1' }] };
       }
@@ -99,6 +113,25 @@ describe('ThemeTablePlayerService', () => {
       draws: 1,
       winRate: 0.5,
     });
+    expect(overview.event?.matchupStatistics).toEqual([
+      {
+        firstDeckVersionId: 'deck-a',
+        secondDeckVersionId: 'deck-b',
+        completedMatches: 6,
+        firstDeckWins: 4,
+        secondDeckWins: 1,
+        draws: 1,
+      },
+    ]);
+    const matchupQuery = mocks.poolQuery.mock.calls.find(([text]) =>
+      String(text).includes('AS first_deck_wins')
+    );
+    expect(String(matchupQuery?.[0])).toMatch(
+      /first_ticket_deck_version_id = pair\.first_deck_version_id[\s\S]+winner_seat = 'FIRST'/
+    );
+    expect(String(matchupQuery?.[0])).toMatch(
+      /second_ticket_deck_version_id = pair\.first_deck_version_id[\s\S]+winner_seat = 'SECOND'/
+    );
     expect(mocks.poolQuery).toHaveBeenCalledWith(
       expect.stringMatching(
         /record\.status IN \('COMPLETED', 'SURRENDERED'\)[\s\S]+FROM theme_table_assignments/

@@ -30,8 +30,25 @@ vi.mock('../../src/server/services/site-announcement-service.js', () => ({
   },
 }));
 
+vi.mock('../../src/server/services/battle-timeout-config-service.js', () => ({
+  BattleTimeoutConfigServiceError: class BattleTimeoutConfigServiceError extends Error {
+    constructor(
+      public readonly code: string,
+      message: string,
+      public readonly statusCode: number
+    ) {
+      super(message);
+    }
+  },
+  battleTimeoutConfigService: {
+    getConfig: vi.fn(),
+    updateConfig: vi.fn(),
+  },
+}));
+
 import { siteAnnouncementsRouter } from '../../src/server/routes/site-announcements';
 import { siteAnnouncementService } from '../../src/server/services/site-announcement-service';
+import { battleTimeoutConfigService } from '../../src/server/services/battle-timeout-config-service';
 import type { PublicSiteStatus } from '../../src/server/site-status';
 
 type RouteMethod = 'get' | 'post' | 'put' | 'delete';
@@ -126,6 +143,8 @@ describe('siteAnnouncementsRouter', () => {
       ['/admin', 'get'],
       ['/admin/site-status', 'get'],
       ['/admin/site-status', 'put'],
+      ['/admin/battle-timeouts', 'get'],
+      ['/admin/battle-timeouts', 'put'],
       ['/admin', 'post'],
       ['/admin/:id', 'put'],
       ['/admin/:id/publish', 'post'],
@@ -279,5 +298,40 @@ describe('siteAnnouncementsRouter', () => {
       '22222222-2222-4222-8222-222222222222'
     );
     expect(response.body?.data).toEqual({ ranked: false, themeTable: true });
+  });
+
+  it('reads and updates the global battle timeout config', async () => {
+    vi.mocked(battleTimeoutConfigService.getConfig).mockResolvedValue({
+      playerActionTimeoutSeconds: 180,
+      reconnectGracePeriodSeconds: 60,
+    });
+    vi.mocked(battleTimeoutConfigService.updateConfig).mockResolvedValue({
+      playerActionTimeoutSeconds: 240,
+      reconnectGracePeriodSeconds: 90,
+    });
+
+    const readResponse = await invokeRoute('/admin/battle-timeouts', 'get');
+    const updateResponse = await invokeRoute('/admin/battle-timeouts', 'put', {
+      body: {
+        playerActionTimeoutSeconds: 240,
+        reconnectGracePeriodSeconds: 90,
+      },
+    });
+
+    expect(readResponse.body?.data).toEqual({
+      playerActionTimeoutSeconds: 180,
+      reconnectGracePeriodSeconds: 60,
+    });
+    expect(battleTimeoutConfigService.updateConfig).toHaveBeenCalledWith(
+      {
+        playerActionTimeoutSeconds: 240,
+        reconnectGracePeriodSeconds: 90,
+      },
+      '22222222-2222-4222-8222-222222222222'
+    );
+    expect(updateResponse.body?.data).toEqual({
+      playerActionTimeoutSeconds: 240,
+      reconnectGracePeriodSeconds: 90,
+    });
   });
 });

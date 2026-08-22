@@ -72,13 +72,13 @@ export async function freezeThemeTableAssignment(
   if (result.rows.length === 0) {
     throw new ThemeTableAllocationError(
       'THEME_MATCHUP_POOL_EMPTY',
-      '本期主题暂时没有可分配的对局组合'
+      '本期娱乐模式暂时没有可分配的对局组合'
     );
   }
 
   const totalWeight = result.rows.reduce((sum, pair) => sum + pair.weight, 0);
   if (!Number.isSafeInteger(totalWeight) || totalWeight <= 0) {
-    throw new ThemeTableAllocationError('THEME_MATCHUP_WEIGHT_INVALID', '本期主题组合权重无效');
+    throw new ThemeTableAllocationError('THEME_MATCHUP_WEIGHT_INVALID', '本期对局组合权重无效');
   }
   const entropy = randomBytes(32);
   const pairRoll = entropy.readUInt32BE(0) % totalWeight;
@@ -179,7 +179,7 @@ async function updateTicketDeck(
   if (updated.rowCount !== 1) {
     throw new ThemeTableAllocationError(
       'THEME_TICKET_ASSIGNMENT_CONFLICT',
-      '主题牌桌候场状态已经变化'
+      '娱乐模式候场状态已经变化'
     );
   }
 }

@@ -194,7 +194,7 @@ themeTableAdminRouter.post('/events/:themeId/:action', async (req, res) => {
 function parseId(res: Response, value: string | undefined): string | null {
   const result = idSchema.safeParse(value);
   if (!result.success) {
-    invalid(res, '主题牌桌参数无效');
+    invalid(res, '娱乐模式参数无效');
     return null;
   }
   return result.data;
@@ -231,7 +231,7 @@ async function respond(res: Response, operation: () => Promise<unknown>, status 
     console.error('theme table admin request failed', error);
     res.status(500).json({
       data: null,
-      error: { code: 'THEME_TABLE_ADMIN_INTERNAL_ERROR', message: '主题牌桌管理服务暂时不可用' },
+      error: { code: 'THEME_TABLE_ADMIN_INTERNAL_ERROR', message: '娱乐模式管理服务暂时不可用' },
     });
   }
 }

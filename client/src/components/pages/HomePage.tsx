@@ -293,7 +293,7 @@ export function HomePage({
 
   if (battleEntryVisibility.themeTable) {
     secondaryActions.push({
-      title: '主题赛季',
+      title: '娱乐模式',
       icon: Sparkles,
       onClick: onNavigateToThemeTable,
       disabled: !canUseOnlineRoom,
@@ -404,7 +404,7 @@ export function HomePage({
                   title={profile.role === 'season_admin' ? '赛季运营中心' : '运营管理中心'}
                   description={
                     profile.role === 'season_admin'
-                      ? '管理排位、主题赛季与玩家入口。'
+                      ? '管理排位、娱乐模式与玩家入口。'
                       : '统一进入内容、卡牌规则、用户权限、联机房间与赛季管理。'
                   }
                   icon={ShieldAlert}

@@ -1,0 +1,4 @@
+ALTER TABLE "site_status_config" ADD COLUMN "player_action_timeout_seconds" integer DEFAULT 180 NOT NULL;--> statement-breakpoint
+ALTER TABLE "site_status_config" ADD COLUMN "reconnect_grace_period_seconds" integer DEFAULT 60 NOT NULL;--> statement-breakpoint
+ALTER TABLE "site_status_config" ADD CONSTRAINT "site_status_config_player_action_timeout_check" CHECK ("site_status_config"."player_action_timeout_seconds" BETWEEN 60 AND 900);--> statement-breakpoint
+ALTER TABLE "site_status_config" ADD CONSTRAINT "site_status_config_reconnect_grace_period_check" CHECK ("site_status_config"."reconnect_grace_period_seconds" BETWEEN 15 AND 300);

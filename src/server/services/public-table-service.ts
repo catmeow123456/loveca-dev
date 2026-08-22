@@ -190,7 +190,7 @@ export class PublicTableService {
       if (!(await isQueueContextOpen(client, context, now))) {
         throw new PublicTableServiceError(
           context.queueKind === 'THEME' ? 'THEME_TABLE_CLOSED' : 'RANKED_QUEUE_CLOSED',
-          context.queueKind === 'THEME' ? '当前不在主题牌桌开放时段' : '当前排位赛季不在开放时段',
+          context.queueKind === 'THEME' ? '当前不在娱乐模式开放时段' : '当前排位赛季不在开放时段',
           409
         );
       }
@@ -504,7 +504,7 @@ export class PublicTableService {
           if (!context.themeTableVersionId) {
             throw new PublicTableServiceError(
               'THEME_TABLE_CONTEXT_INVALID',
-              '主题牌桌版本信息缺失',
+              '娱乐模式版本信息缺失',
               409
             );
           }
@@ -1020,7 +1020,7 @@ export class PublicTableService {
         row.queue_kind === 'RANKED'
           ? '赛季排位'
           : row.queue_kind === 'THEME'
-            ? `轮换主题牌桌 · ${row.theme_name ?? '主题活动'}`
+            ? `娱乐模式 · ${row.theme_name ?? '本期活动'}`
             : '公共牌桌',
       rankedSeasonId: row.season_id,
       themeTableVersionId: row.theme_table_version_id,
@@ -1363,7 +1363,7 @@ async function loadThemeQueuePlaceholder(
   if (deckId !== null) {
     throw new PublicTableServiceError(
       'THEME_TABLE_PERSONAL_DECK_FORBIDDEN',
-      '主题牌桌不使用个人卡组'
+      '娱乐模式不使用个人卡组'
     );
   }
   await loadUserProfileForOnlineMatch(userId);

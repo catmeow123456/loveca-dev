@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Bell,
+  Clock3,
   Megaphone,
   Pencil,
   Plus,
@@ -17,9 +18,11 @@ import {
   createAdminSiteAnnouncement,
   deleteAdminSiteAnnouncement,
   fetchAdminSiteAnnouncements,
+  fetchAdminBattleTimeoutConfig,
   fetchAdminSiteStatus,
   publishAdminSiteAnnouncement,
   updateAdminSiteStatusConfig,
+  updateAdminBattleTimeoutConfig,
   updateAdminSiteAnnouncement,
   type AdminSiteAnnouncement,
   type AdminSiteStatusView,
@@ -28,6 +31,7 @@ import {
   type SiteStatusConfigInput,
 } from '@/lib/siteAnnouncementClient';
 import { useKeyedState } from '@/hooks/useKeyedState';
+import { DEFAULT_BATTLE_TIMEOUT_CONFIG, type BattleTimeoutConfig } from '@game/online';
 
 const SITE_STATUS_LABELS: Record<SiteStatusLifecycle, string> = {
   NORMAL: '正常',
@@ -138,6 +142,15 @@ export function SiteAnnouncementsAdminPage({
   );
   const [isSavingSiteStatus, setIsSavingSiteStatus] = useState(false);
   const [siteStatusError, setSiteStatusError] = useState<string | null>(null);
+  const [battleTimeouts, setBattleTimeouts] = useState<BattleTimeoutConfig>(
+    DEFAULT_BATTLE_TIMEOUT_CONFIG
+  );
+  const [battleTimeoutDraft, setBattleTimeoutDraft] = useState<BattleTimeoutConfig>(
+    DEFAULT_BATTLE_TIMEOUT_CONFIG
+  );
+  const [isLoadingBattleTimeouts, setIsLoadingBattleTimeouts] = useState(true);
+  const [isSavingBattleTimeouts, setIsSavingBattleTimeouts] = useState(false);
+  const [battleTimeoutError, setBattleTimeoutError] = useState<string | null>(null);
   const maintenance = effectiveSiteStatus.maintenance;
   const editingAnnouncement =
     editingAnnouncementId !== null
@@ -168,9 +181,33 @@ export function SiteAnnouncementsAdminPage({
         .catch((error) =>
           setSiteStatusError(error instanceof Error ? error.message : '读取平台状态失败')
         );
+      void fetchAdminBattleTimeoutConfig()
+        .then((config) => {
+          setBattleTimeouts(config);
+          setBattleTimeoutDraft(config);
+        })
+        .catch((error) =>
+          setBattleTimeoutError(error instanceof Error ? error.message : '读取对战时限配置失败')
+        )
+        .finally(() => setIsLoadingBattleTimeouts(false));
     }, 0);
     return () => window.clearTimeout(timer);
   }, [loadAnnouncements]);
+
+  const saveBattleTimeouts = useCallback(async () => {
+    setIsSavingBattleTimeouts(true);
+    setBattleTimeoutError(null);
+    try {
+      const saved = await updateAdminBattleTimeoutConfig(battleTimeoutDraft);
+      setBattleTimeouts(saved);
+      setBattleTimeoutDraft(saved);
+      await onSiteStatusChanged?.();
+    } catch (error) {
+      setBattleTimeoutError(error instanceof Error ? error.message : '保存对战时限配置失败');
+    } finally {
+      setIsSavingBattleTimeouts(false);
+    }
+  }, [battleTimeoutDraft, onSiteStatusChanged]);
 
   const saveSiteStatus = useCallback(async () => {
     const input = buildSiteStatusConfigInput(siteStatusForm);
@@ -297,6 +334,16 @@ export function SiteAnnouncementsAdminPage({
           onSave={() => void saveSiteStatus()}
         />
 
+        <BattleTimeoutControlPanel
+          value={battleTimeoutDraft}
+          savedValue={battleTimeouts}
+          loading={isLoadingBattleTimeouts}
+          saving={isSavingBattleTimeouts}
+          error={battleTimeoutError}
+          onChange={setBattleTimeoutDraft}
+          onSave={() => void saveBattleTimeouts()}
+        />
+
         <section className="product-workbench p-4">
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
@@ -371,6 +418,144 @@ export function SiteAnnouncementsAdminPage({
         </section>
       </main>
     </div>
+  );
+}
+
+function BattleTimeoutControlPanel({
+  value,
+  savedValue,
+  loading,
+  saving,
+  error,
+  onChange,
+  onSave,
+}: {
+  value: BattleTimeoutConfig;
+  savedValue: BattleTimeoutConfig;
+  loading: boolean;
+  saving: boolean;
+  error: string | null;
+  onChange: (value: BattleTimeoutConfig) => void;
+  onSave: () => void;
+}) {
+  const hasChanges =
+    value.playerActionTimeoutSeconds !== savedValue.playerActionTimeoutSeconds ||
+    value.reconnectGracePeriodSeconds !== savedValue.reconnectGracePeriodSeconds;
+  const isValid =
+    Number.isInteger(value.playerActionTimeoutSeconds) &&
+    value.playerActionTimeoutSeconds >= 60 &&
+    value.playerActionTimeoutSeconds <= 900 &&
+    Number.isInteger(value.reconnectGracePeriodSeconds) &&
+    value.reconnectGracePeriodSeconds >= 15 &&
+    value.reconnectGracePeriodSeconds <= 300;
+
+  return (
+    <section className="product-workbench overflow-hidden" aria-labelledby="battle-timeout-title">
+      <header className="flex flex-col gap-3 border-b border-[var(--border-subtle)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--accent-primary)]">
+            <Clock3 size={18} />
+          </div>
+          <div>
+            <h2
+              id="battle-timeout-title"
+              className="text-base font-bold text-[var(--text-primary)]"
+            >
+              对战时限
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+              全局统一设置，不随赛季或活动分别配置；保存后仅影响之后开始的对局。
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={loading || saving || !hasChanges || !isValid}
+          className="button-primary inline-flex h-10 shrink-0 items-center justify-center gap-1.5 px-3 text-sm disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          {saving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+          {saving ? '保存中' : '保存对战时限'}
+        </button>
+      </header>
+
+      {error ? (
+        <div className="mx-4 mt-4 rounded-lg border border-[color:var(--semantic-error)]/40 bg-[color:var(--semantic-error)]/10 px-3 py-2 text-sm text-[var(--semantic-error)]">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="grid divide-y divide-[var(--border-subtle)] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+        <TimeoutNumberField
+          label="玩家操作超时"
+          detail="已启用操作超时裁定的模式中，轮到单一玩家处理时使用。"
+          value={value.playerActionTimeoutSeconds}
+          min={60}
+          max={900}
+          step={30}
+          disabled={loading || saving}
+          onChange={(playerActionTimeoutSeconds) =>
+            onChange({ ...value, playerActionTimeoutSeconds })
+          }
+        />
+        <TimeoutNumberField
+          label="断线重连期限"
+          detail="已启用断线裁定的模式中，玩家离线后可返回原对局的期限。"
+          value={value.reconnectGracePeriodSeconds}
+          min={15}
+          max={300}
+          step={15}
+          disabled={loading || saving}
+          onChange={(reconnectGracePeriodSeconds) =>
+            onChange({ ...value, reconnectGracePeriodSeconds })
+          }
+        />
+      </div>
+    </section>
+  );
+}
+
+function TimeoutNumberField({
+  label,
+  detail,
+  value,
+  min,
+  max,
+  step,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  detail: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  disabled: boolean;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="grid gap-2 px-4 py-4 sm:px-5">
+      <span className="text-sm font-semibold text-[var(--text-primary)]">{label}</span>
+      <span className="text-xs leading-5 text-[var(--text-muted)]">{detail}</span>
+      <span className="mt-1 flex max-w-56 items-center gap-2">
+        <input
+          type="number"
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          disabled={disabled}
+          aria-invalid={!Number.isInteger(value) || value < min || value > max}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className="input-field h-10 min-w-0 flex-1 text-sm tabular-nums"
+        />
+        <span className="text-xs font-semibold text-[var(--text-secondary)]">秒</span>
+      </span>
+      <span className="text-[11px] text-[var(--text-muted)]">
+        可设置 {min}–{max} 秒
+      </span>
+    </label>
   );
 }
 

@@ -19,8 +19,9 @@ import type {
 } from '../../online/release-types.js';
 import type { MatchOriginKind } from '../../online/replay-types.js';
 import {
+  DEFAULT_BATTLE_TIMEOUT_CONFIG,
   RANKED_DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_MS,
-  RANKED_RECONNECT_GRACE_PERIOD_MS,
+  type BattleTimeoutConfig,
 } from '../../online/ranked-policy.js';
 import type { Seat } from '../../online/types.js';
 import { pool } from '../db/pool.js';
@@ -48,6 +49,7 @@ import type {
 import { deckPointTableService } from './deck-point-table-service.js';
 import { revalidateRuntimeDeckPointSnapshot } from './deck-point-snapshot-validation.js';
 import { recoverNoFaultThemeOpeningPlayers } from './theme-table-recovery-service.js';
+import { battleTimeoutConfigService } from './battle-timeout-config-service.js';
 
 const MEMBER_PRESENCE_STALE_MS = 15 * 1000;
 const ROOM_DESTROY_AFTER_ALL_ABSENT_MS = 60 * 1000;
@@ -100,6 +102,7 @@ interface OnlineRoomState {
   openingArrivalExpiresAt: number | null;
   endInfo: OnlineRoomEndView | null;
   matchStartBlocked: boolean;
+  battleTimeouts: BattleTimeoutConfig;
   updatedAt: number;
 }
 
@@ -123,6 +126,7 @@ interface OnlineRoomServiceDeps {
   readonly loadOwnedDeck?: (userId: string, deckId: string) => Promise<OwnedDeckSummary>;
   readonly getCurrentPointTableRules?: () => Promise<DeckPointTableRules>;
   readonly participationService?: GameplayParticipationPort | null;
+  readonly loadBattleTimeoutConfig?: () => Promise<BattleTimeoutConfig>;
 }
 
 export interface PublicTableRoomMemberInput {
@@ -176,6 +180,7 @@ export class OnlineRoomService {
   private readonly loadOwnedDeck: (userId: string, deckId: string) => Promise<OwnedDeckSummary>;
   private readonly getCurrentPointTableRules: () => Promise<DeckPointTableRules>;
   private readonly participationService: GameplayParticipationPort | null;
+  private readonly loadBattleTimeoutConfig: () => Promise<BattleTimeoutConfig>;
 
   constructor(deps: OnlineRoomServiceDeps = {}) {
     this.now = deps.now ?? (() => Date.now());
@@ -185,6 +190,8 @@ export class OnlineRoomService {
     this.getCurrentPointTableRules =
       deps.getCurrentPointTableRules ?? (() => deckPointTableService.getCurrentRules());
     this.participationService = deps.participationService ?? null;
+    this.loadBattleTimeoutConfig =
+      deps.loadBattleTimeoutConfig ?? (() => Promise.resolve(DEFAULT_BATTLE_TIMEOUT_CONFIG));
   }
 
   async createRoom(roomCodeInput: string, userId: string): Promise<OnlineRoomView> {
@@ -262,6 +269,7 @@ export class OnlineRoomService {
       openingArrivalExpiresAt: null,
       endInfo: null,
       matchStartBlocked: false,
+      battleTimeouts: DEFAULT_BATTLE_TIMEOUT_CONFIG,
       updatedAt: now,
     };
 
@@ -391,6 +399,7 @@ export class OnlineRoomService {
       openingArrivalExpiresAt: now + 60_000,
       endInfo: null,
       matchStartBlocked: false,
+      battleTimeouts: DEFAULT_BATTLE_TIMEOUT_CONFIG,
       updatedAt: now,
     };
     this.rooms.set(roomCode, room);
@@ -942,6 +951,81 @@ export class OnlineRoomService {
     };
   }
 
+  async endThemeRoomNoContest(
+    roomCodeInput: string,
+    userId: string
+  ): Promise<{ room: OnlineRoomView | null }> {
+    await this.cleanupExpiredState();
+
+    const room = this.getRoomState(roomCodeInput);
+    this.requireMember(room, userId);
+    if (!room.themeTableVersionId) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_THEME_ROOM_END_FORBIDDEN',
+        '只有娱乐模式房间可以无胜负结束',
+        409
+      );
+    }
+    if (room.status !== 'OPENING') {
+      throw new OnlineRoomServiceError(
+        'ONLINE_THEME_ROOM_END_FORBIDDEN',
+        '只有娱乐模式开局流程可以无胜负结束房间',
+        409
+      );
+    }
+
+    const now = this.now();
+    const matchId = room.matchId;
+
+    if (room.publicTableReservationId) {
+      await pool.query(
+        `WITH released_reservation AS (
+           UPDATE public_table_reservations
+           SET state = 'RELEASED',
+               failure_reason = $2,
+               updated_at = $4
+           WHERE id = $1
+             AND state = 'MATCHED'
+             AND room_generation = $3
+           RETURNING id
+         )
+         UPDATE public_table_tickets
+         SET state = 'CANCELED',
+             terminal_reason = $2,
+             updated_at = $4
+         WHERE reservation_id IN (SELECT id FROM released_reservation)
+           AND state = 'MATCHED'`,
+        [
+          room.publicTableReservationId,
+          'THEME_ROOM_ENDED_NO_CONTEST',
+          room.roomGeneration,
+          new Date(now),
+        ]
+      );
+      logPublicTableLifecycleEvent({
+        eventType: 'MATCH_INTERRUPTED',
+        eventKey: `${room.publicTableReservationId}:THEME_ROOM_ENDED_NO_CONTEST`,
+        reservationId: room.publicTableReservationId,
+        roomGeneration: room.roomGeneration,
+        matchId: matchId ?? undefined,
+        detail: { reason: 'THEME_ROOM_ENDED_NO_CONTEST' },
+      });
+    }
+
+    this.matchService.terminateRoomCodeSpectators(
+      room.roomCode,
+      room.roomGeneration,
+      'ROOM_CLOSED',
+      now
+    );
+    this.rooms.delete(room.roomCode);
+    await this.participationService?.releaseOnlineRoom(
+      room.members.map((member) => member.userId),
+      room.roomGeneration
+    );
+    return { room: null };
+  }
+
   async abandonRoomForLocalGame(
     roomCodeInput: string,
     userId: string
@@ -1273,6 +1357,7 @@ export class OnlineRoomService {
     return {
       roomCode: room.roomCode,
       originKind: room.originKind,
+      battleTimeouts: room.battleTimeouts,
       ...(room.themeTableVersionId ? { themeTableVersionId: room.themeTableVersionId } : {}),
       ...(room.themeTableVersionId
         ? { themeDeckAssignment: buildThemeDeckAssignmentView(room, viewer) }
@@ -1428,10 +1513,12 @@ export class OnlineRoomService {
       throw new OnlineRoomServiceError('ONLINE_MATCH_GONE', '房间状态异常，无法开始对局', 409);
     }
     const secondMember = firstMember.userId === host.userId ? guest : host;
+    const battleTimeouts = await this.loadBattleTimeoutConfig();
 
     const params: CreateOnlineMatchParams = {
       roomCode: room.roomCode,
       startedAt: this.now(),
+      battleTimeouts,
       first: {
         userId: firstMember.userId,
         displayName: firstMember.displayName,
@@ -1586,6 +1673,7 @@ export class OnlineRoomService {
       }
 
       room.matchId = match.matchId;
+      room.battleTimeouts = match.battleTimeouts ?? DEFAULT_BATTLE_TIMEOUT_CONFIG;
       room.seatAssignments = {
         FIRST: match.participants.FIRST.userId,
         SECOND: match.participants.SECOND.userId,
@@ -1761,8 +1849,9 @@ export class OnlineRoomService {
           room.matchId &&
           !this.matchService.isMatchCompleted(room.matchId)
         ) {
+          const reconnectGracePeriodMs = room.battleTimeouts.reconnectGracePeriodSeconds * 1000;
           const overdueMembers = [...room.members]
-            .filter((member) => now - member.lastSeenAt >= RANKED_RECONNECT_GRACE_PERIOD_MS)
+            .filter((member) => now - member.lastSeenAt >= reconnectGracePeriodMs)
             .sort(
               (first, second) =>
                 first.lastSeenAt - second.lastSeenAt || first.userId.localeCompare(second.userId)
@@ -1788,7 +1877,7 @@ export class OnlineRoomService {
               [room.matchId, new Date(now)]
             );
             if ((voided.rowCount ?? 0) > 0) {
-              if (!isPresenceSnapshotCurrent(room, presenceSnapshot, now)) {
+              if (!isPresenceSnapshotCurrent(room, presenceSnapshot, now, reconnectGracePeriodMs)) {
                 await restorePendingNoContest(room.matchId);
                 continue;
               }
@@ -1841,7 +1930,7 @@ export class OnlineRoomService {
             if ((claimed.rowCount ?? 0) === 0) {
               continue;
             }
-            if (!isPresenceSnapshotCurrent(room, presenceSnapshot, now)) {
+            if (!isPresenceSnapshotCurrent(room, presenceSnapshot, now, reconnectGracePeriodMs)) {
               await clearPendingDisconnectForfeit(room.matchId);
               continue;
             }
@@ -2320,7 +2409,7 @@ export class OnlineRoomService {
     if (room.themeTableVersionId) {
       throw new OnlineRoomServiceError(
         'THEME_RESTART_FORBIDDEN',
-        '主题牌桌每局都会重新分配卡组，请返回主题牌桌再次候场',
+        '娱乐模式每局都会重新分配卡组，请返回娱乐模式再次候场',
         409
       );
     }
@@ -2395,6 +2484,7 @@ export class OnlineRoomService {
 
 export const onlineRoomService = new OnlineRoomService({
   participationService: gameplayParticipationService,
+  loadBattleTimeoutConfig: () => battleTimeoutConfigService.getConfig(),
 });
 
 function buildPublicTableMember(
@@ -2440,7 +2530,8 @@ function capturePresenceSnapshot(members: readonly OnlineRoomMemberState[]): Pre
 function isPresenceSnapshotCurrent(
   room: OnlineRoomState,
   snapshot: PresenceSnapshot,
-  adjudicatedAt: number
+  adjudicatedAt: number,
+  reconnectGracePeriodMs: number
 ): boolean {
   return [...snapshot].every(([userId, expected]) => {
     const member = findMember(room, userId);
@@ -2448,7 +2539,7 @@ function isPresenceSnapshotCurrent(
       member !== undefined &&
       member.lastSeenAt === expected.lastSeenAt &&
       member.presenceGeneration === expected.presenceGeneration &&
-      adjudicatedAt - member.lastSeenAt >= RANKED_RECONNECT_GRACE_PERIOD_MS
+      adjudicatedAt - member.lastSeenAt >= reconnectGracePeriodMs
     );
   });
 }

@@ -570,6 +570,15 @@ select {
   align-items: flex-start;
 }
 
+.online-opening-stage-scroll {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
 .online-opening-stage-player-grid {
   order: 3;
 }

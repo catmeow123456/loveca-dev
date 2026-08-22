@@ -1,6 +1,7 @@
 import type { Seat } from './types.js';
 import type { RemoteCommandResult, RemoteMatchSnapshot } from './remote-match-types.js';
 import type { MatchOriginKind } from './replay-types.js';
+import type { BattleTimeoutConfig } from './ranked-policy.js';
 
 export type OnlineRoomStatus = 'PREPARING' | 'READY' | 'OPENING' | 'IN_GAME' | 'ENDED';
 export type OnlineRoomMemberRole = 'HOST' | 'GUEST';
@@ -65,6 +66,8 @@ export interface OnlineRoomEndView {
 export interface OnlineRoomView {
   readonly roomCode: string;
   readonly originKind: MatchOriginKind;
+  /** 本房间当前对局开局时冻结的全局时限配置。 */
+  readonly battleTimeouts: BattleTimeoutConfig;
   /** 仅主题牌桌房间存在，用于开局前故障恢复后的客户端状态回收。 */
   readonly themeTableVersionId?: string | null;
   /** 仅主题牌桌当前参与者可见的本人卡组揭示信息。 */

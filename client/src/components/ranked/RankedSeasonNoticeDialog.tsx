@@ -4,8 +4,10 @@ import { motion } from 'framer-motion';
 import { BookOpen, Clock3, X } from 'lucide-react';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import {
+  buildRankedSeasonDisconnectNotice,
+  DEFAULT_BATTLE_TIMEOUT_CONFIG,
   RANKED_RATING_ALGORITHM_NOTICE,
-  RANKED_SEASON_DISCONNECT_NOTICE,
+  type BattleTimeoutConfig,
 } from '@game/online/ranked-policy';
 
 interface RankedSeasonNoticeDialogProps {
@@ -13,6 +15,7 @@ interface RankedSeasonNoticeDialogProps {
   readonly seasonName?: string | null;
   readonly announcement?: string | null;
   readonly leaderboardMatchCount?: number | null;
+  readonly battleTimeouts?: BattleTimeoutConfig;
   readonly onClose: () => void;
 }
 
@@ -21,6 +24,7 @@ export const RankedSeasonNoticeDialog = memo(function RankedSeasonNoticeDialog({
   seasonName,
   announcement,
   leaderboardMatchCount,
+  battleTimeouts = DEFAULT_BATTLE_TIMEOUT_CONFIG,
   onClose,
 }: RankedSeasonNoticeDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -35,6 +39,8 @@ export const RankedSeasonNoticeDialog = memo(function RankedSeasonNoticeDialog({
   if (!isOpen) {
     return null;
   }
+
+  const disconnectNotice = buildRankedSeasonDisconnectNotice(battleTimeouts);
 
   const dialog = (
     <>
@@ -123,10 +129,10 @@ export const RankedSeasonNoticeDialog = memo(function RankedSeasonNoticeDialog({
             <section className="mt-4 border-t border-[var(--border-subtle)] pt-4">
               <div className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)]">
                 <Clock3 size={15} className="text-[var(--accent-primary)]" />
-                {RANKED_SEASON_DISCONNECT_NOTICE.title}
+                {disconnectNotice.title}
               </div>
               <p className="mt-1.5 text-sm leading-6 text-[var(--text-secondary)]">
-                {RANKED_SEASON_DISCONNECT_NOTICE.summary}
+                {disconnectNotice.summary}
               </p>
             </section>
           </div>

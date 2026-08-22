@@ -1,4 +1,5 @@
 import type {
+  ThemeMatchupStatisticsView,
   ThemePrebuiltDeckView,
   ThemeTableAvailabilityState,
   ThemeTableEventView,
@@ -60,6 +61,15 @@ interface PlayerSeasonRow {
   readonly draws: string;
 }
 
+interface MatchupStatisticsRow {
+  readonly first_deck_version_id: string;
+  readonly second_deck_version_id: string;
+  readonly completed_matches: string;
+  readonly first_deck_wins: string;
+  readonly second_deck_wins: string;
+  readonly draws: string;
+}
+
 interface ThemeQueueContext extends MatchmakingQueueContext {
   readonly queueKind: 'THEME';
   readonly participationKind: 'THEME_QUEUE';
@@ -90,17 +100,18 @@ export class ThemeTablePlayerService {
     if (!event) {
       return {
         event: null,
-        availability: { state: 'NO_EVENT', canJoin: false, message: '当前没有公开的主题活动' },
+        availability: { state: 'NO_EVENT', canJoin: false, message: '当前没有开放的娱乐模式' },
         player: null,
         queue,
       };
     }
-    const [decks, availability, player] = await Promise.all([
+    const [decks, matchupStatistics, availability, player] = await Promise.all([
       this.loadDecks(event.id),
+      this.loadMatchupStatistics(event.id),
       this.getAvailability(event),
       this.loadPlayerSeason(event.id, userId),
     ]);
-    return { event: mapEvent(event, decks), availability, player, queue };
+    return { event: mapEvent(event, decks, matchupStatistics), availability, player, queue };
   }
 
   async join(userId: string) {
@@ -153,7 +164,7 @@ export class ThemeTablePlayerService {
       themeId,
     ]);
     const theme = result.rows[0];
-    if (!theme) throw playerError('THEME_TABLE_NOT_FOUND', '主题活动不存在', 404);
+    if (!theme) throw playerError('THEME_TABLE_NOT_FOUND', '娱乐模式不存在', 404);
     return theme;
   }
 
@@ -227,9 +238,58 @@ export class ThemeTablePlayerService {
     };
   }
 
+  private async loadMatchupStatistics(themeId: string): Promise<ThemeMatchupStatisticsView[]> {
+    const result = await pool.query<MatchupStatisticsRow>(
+      `SELECT pair.first_deck_version_id, pair.second_deck_version_id,
+         COUNT(record.match_id) FILTER (
+           WHERE (record.status IN ('COMPLETED', 'SURRENDERED')
+               AND record.winner_seat IN ('FIRST', 'SECOND'))
+             OR (record.status = 'COMPLETED' AND record.winner_seat IS NULL)
+         )::text AS completed_matches,
+         COUNT(record.match_id) FILTER (
+           WHERE record.status IN ('COMPLETED', 'SURRENDERED')
+             AND ((assignment.first_ticket_deck_version_id = pair.first_deck_version_id
+                   AND record.winner_seat = 'FIRST')
+               OR (assignment.second_ticket_deck_version_id = pair.first_deck_version_id
+                   AND record.winner_seat = 'SECOND'))
+         )::text AS first_deck_wins,
+         COUNT(record.match_id) FILTER (
+           WHERE record.status IN ('COMPLETED', 'SURRENDERED')
+             AND ((assignment.first_ticket_deck_version_id = pair.second_deck_version_id
+                   AND record.winner_seat = 'FIRST')
+               OR (assignment.second_ticket_deck_version_id = pair.second_deck_version_id
+                   AND record.winner_seat = 'SECOND'))
+         )::text AS second_deck_wins,
+         COUNT(record.match_id) FILTER (
+           WHERE record.status = 'COMPLETED' AND record.winner_seat IS NULL
+         )::text AS draws
+       FROM theme_matchup_pair_versions AS pair
+       JOIN theme_prebuilt_deck_versions AS first_deck
+         ON first_deck.id = pair.first_deck_version_id AND first_deck.retired_at IS NULL
+       JOIN theme_prebuilt_deck_versions AS second_deck
+         ON second_deck.id = pair.second_deck_version_id AND second_deck.retired_at IS NULL
+       LEFT JOIN theme_table_assignments AS assignment
+         ON assignment.matchup_pair_version_id = pair.id
+       LEFT JOIN match_records AS record ON record.match_id = assignment.match_id
+       WHERE pair.theme_table_version_id = $1
+         AND pair.enabled = TRUE
+       GROUP BY pair.id, pair.first_deck_version_id, pair.second_deck_version_id
+       ORDER BY pair.created_at, pair.id`,
+      [themeId]
+    );
+    return result.rows.map((row) => ({
+      firstDeckVersionId: row.first_deck_version_id,
+      secondDeckVersionId: row.second_deck_version_id,
+      completedMatches: Number(row.completed_matches),
+      firstDeckWins: Number(row.first_deck_wins),
+      secondDeckWins: Number(row.second_deck_wins),
+      draws: Number(row.draws),
+    }));
+  }
+
   private async requireJoinableTheme(): Promise<ThemeRow> {
     const event = await this.loadVisibleTheme();
-    if (!event) throw playerError('THEME_TABLE_NOT_FOUND', '当前没有公开的主题活动', 404);
+    if (!event) throw playerError('THEME_TABLE_NOT_FOUND', '当前没有开放的娱乐模式', 404);
     const availability = await this.getAvailability(event);
     if (!availability.canJoin) {
       throw playerError('THEME_TABLE_CLOSED', availability.message, 409);
@@ -244,16 +304,16 @@ export class ThemeTablePlayerService {
   }> {
     const now = this.now();
     if (theme.lifecycle === 'PAUSED') {
-      return { state: 'PAUSED', canJoin: false, message: '本期主题牌桌暂时停止入场' };
+      return { state: 'PAUSED', canJoin: false, message: '本期娱乐模式暂时停止入场' };
     }
     if (theme.lifecycle === 'CLOSED' || now >= new Date(theme.ends_at).getTime()) {
-      return { state: 'CLOSED', canJoin: false, message: '本期主题牌桌已经结束' };
+      return { state: 'CLOSED', canJoin: false, message: '本期娱乐模式已经结束' };
     }
     if (now < new Date(theme.starts_at).getTime()) {
-      return { state: 'UPCOMING', canJoin: false, message: '本期主题牌桌尚未开始' };
+      return { state: 'UPCOMING', canJoin: false, message: '本期娱乐模式尚未开始' };
     }
     if (theme.lifecycle !== 'ACTIVE') {
-      return { state: 'PAUSED', canJoin: false, message: '本期主题牌桌暂不开放' };
+      return { state: 'PAUSED', canJoin: false, message: '本期娱乐模式暂不开放' };
     }
     const timing = getRankedQueueWindowTiming(
       new Date(now),
@@ -290,7 +350,7 @@ export class ThemeTablePlayerService {
     if (Number(pairs.rows[0]?.count ?? 0) === 0) {
       return { state: 'PAUSED', canJoin: false, message: '本期对局组合正在调整' };
     }
-    return { state: 'OPEN', canJoin: true, message: '可以加入主题牌桌' };
+    return { state: 'OPEN', canJoin: true, message: '可以加入娱乐模式' };
   }
 
   private async loadUserQueueContext(userId: string): Promise<ThemeQueueContext | null> {
@@ -318,7 +378,7 @@ export class ThemeTablePlayerService {
 
   private async requireUserQueueContext(userId: string): Promise<ThemeQueueContext> {
     const context = await this.loadUserQueueContext(userId);
-    if (!context) throw playerError('THEME_QUEUE_TICKET_NOT_FOUND', '当前没有主题牌桌候场', 404);
+    if (!context) throw playerError('THEME_QUEUE_TICKET_NOT_FOUND', '当前没有娱乐模式候场', 404);
     return context;
   }
 }
@@ -343,7 +403,11 @@ function noThemeContext(): MatchmakingQueueContext {
   };
 }
 
-function mapEvent(theme: ThemeRow, decks: readonly ThemePrebuiltDeckView[]): ThemeTableEventView {
+function mapEvent(
+  theme: ThemeRow,
+  decks: readonly ThemePrebuiltDeckView[],
+  matchupStatistics: readonly ThemeMatchupStatisticsView[]
+): ThemeTableEventView {
   return {
     id: theme.id,
     versionKey: theme.version_key,
@@ -355,6 +419,7 @@ function mapEvent(theme: ThemeRow, decks: readonly ThemePrebuiltDeckView[]): The
     endsAt: new Date(theme.ends_at).getTime(),
     allocationAlgorithmVersion: theme.allocation_algorithm_version,
     prebuiltDecks: decks,
+    matchupStatistics,
   };
 }
 

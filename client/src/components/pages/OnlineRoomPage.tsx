@@ -47,6 +47,7 @@ import {
   acceptOnlineRoomRestart,
   cancelOnlineRoomRestart,
   createOnlineRoom,
+  endOnlineThemeRoom,
   fetchOnlineMatchSnapshot,
   fetchOnlineRoom,
   joinOnlineRoom,
@@ -80,7 +81,7 @@ import {
 } from '@/lib/onlineRoomPostMatch';
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { ApiClientError } from '@/lib/apiClient';
-import { RANKED_RECONNECT_GRACE_PERIOD_LABEL } from '@game/online/ranked-policy';
+import { formatBattleTimeoutSeconds, type BattleTimeoutConfig } from '@game/online/ranked-policy';
 import type { ThemeTableEventView } from '@game/online/theme-table-types';
 import { GamePhase } from '@game/shared/types/enums';
 import type {
@@ -94,7 +95,6 @@ import type {
 const ROOM_POLL_INTERVAL_MS = 1200;
 const MATCH_POLL_INTERVAL_MS = 800;
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
-const RANKED_RETURN_TO_LOBBY_CONFIRM_MESSAGE = `返回大厅后可在 ${RANKED_RECONNECT_GRACE_PERIOD_LABEL}内回到对局；超时未返回将判负。`;
 
 type OpeningRpsChoiceView = NonNullable<OnlineRoomView['openingRps']>['choices'][number];
 type LobbyPrimaryAction = {
@@ -120,6 +120,7 @@ interface OnlineRoomPageProps {
   onBackToThemeTable: () => void;
   onImmersiveModeChange?: (immersive: boolean) => void;
   emoteCatalog: import('@game/online').OnlineMatchEmoteCatalog | null;
+  battleTimeouts: BattleTimeoutConfig;
   onEmoteCatalogStale?: () => void | Promise<void>;
 }
 
@@ -128,6 +129,7 @@ export function OnlineRoomPage({
   onBackToThemeTable,
   onImmersiveModeChange,
   emoteCatalog,
+  battleTimeouts,
   onEmoteCatalogStale,
 }: OnlineRoomPageProps) {
   const pointTable = useDeckPointTableRules();
@@ -156,7 +158,6 @@ export function OnlineRoomPage({
     rankedOverview?.player?.placementRequired ??
     rankedOverview?.season?.placementMatchCount ??
     null;
-
   const validDecks = useMemo(
     () =>
       cloudDecks.filter((deck) =>
@@ -167,6 +168,10 @@ export function OnlineRoomPage({
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [joinedRoomCode, setJoinedRoomCode] = useState<string | null>(null);
   const [room, setRoom] = useState<OnlineRoomView | null>(null);
+  const effectiveBattleTimeouts = room?.status === 'IN_GAME' ? room.battleTimeouts : battleTimeouts;
+  const rankedReturnToLobbyConfirmMessage = `返回大厅后可在 ${formatBattleTimeoutSeconds(
+    effectiveBattleTimeouts.reconnectGracePeriodSeconds
+  )}内回到对局；超时未返回将判负。`;
   const [selectedDeck, setSelectedDeck] = useState<DeckDisplayItem | null>(null);
   const [hasManualSelectedDeck, setHasManualSelectedDeck] = useState(false);
   const [lastUsedDeckId, setLastUsedDeckId] = useState(() =>
@@ -175,6 +180,7 @@ export function OnlineRoomPage({
   const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
   const [isRankedReturnConfirmOpen, setIsRankedReturnConfirmOpen] = useState(false);
   const [isSurrenderConfirmOpen, setIsSurrenderConfirmOpen] = useState(false);
+  const [isThemeEndConfirmOpen, setIsThemeEndConfirmOpen] = useState(false);
   const [shouldLeaveAfterSurrender, setShouldLeaveAfterSurrender] = useState(false);
   const [isOpeningTransitionPending, setIsOpeningTransitionPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -290,6 +296,9 @@ export function OnlineRoomPage({
             setRoomCodeInput('');
             if (shouldRefreshThemeQueue) {
               await refreshThemeTable().catch(() => undefined);
+              if (!cancelled) {
+                onBackToThemeTable();
+              }
             }
             if (!cancelled) {
               setError(
@@ -317,7 +326,7 @@ export function OnlineRoomPage({
       cancelled = true;
       scheduler.dispose();
     };
-  }, [disconnectRemoteSession, joinedRoomCode, refreshThemeTable]);
+  }, [disconnectRemoteSession, joinedRoomCode, onBackToThemeTable, refreshThemeTable]);
 
   useEffect(() => {
     if (room?.status !== 'ENDED' || !room.themeTableVersionId) return;
@@ -491,6 +500,7 @@ export function OnlineRoomPage({
   const canSurrender = Boolean(
     room?.status === 'IN_GAME' && remoteSession?.source === 'ONLINE' && !isMatchCompleted
   );
+  const canEndThemeRoom = Boolean(room?.themeTableVersionId && room.status === 'OPENING');
   const spectatorPresence = room?.spectatorPresence ?? { total: 0, viewers: [] };
   const mySpectatorRoomEntry =
     room?.spectatorRoomEntry?.seats.find((seat) => seat.seat === room.currentUserSeat) ?? null;
@@ -541,7 +551,7 @@ export function OnlineRoomPage({
   const roomEndMessage = !room?.endInfo
     ? null
     : room.themeTableVersionId && themeQueueState === 'WAITING'
-      ? '本次配对未能开始；你没有造成中断，已保留原候场顺序并自动返回主题牌桌队列。'
+      ? '本次配对未能开始；你没有造成中断，已保留原候场顺序并自动返回娱乐模式队列。'
       : '等待 60 秒后仍未等到对手进入房间，本次配对已取消。';
 
   const handleCreateRoom = async () => {
@@ -710,6 +720,45 @@ export function OnlineRoomPage({
     if (result.success || result.pending) {
       setIsSurrenderConfirmOpen(false);
       setShouldLeaveAfterSurrender(true);
+    }
+  };
+
+  const handleConfirmThemeEnd = async () => {
+    if (!room?.themeTableVersionId) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await endOnlineThemeRoom(room.roomCode);
+      setIsThemeEndConfirmOpen(false);
+      clearOnlineRoomRecovery();
+      disconnectRemoteSession();
+      setRoom(null);
+      setJoinedRoomCode(null);
+      setSelectedDeck(null);
+      setHasManualSelectedDeck(false);
+      setRoomCodeInput('');
+      await refreshThemeTable().catch(() => undefined);
+      onBackToThemeTable();
+    } catch (endError) {
+      if (endError instanceof ApiClientError && endError.code === 'ONLINE_ROOM_NOT_FOUND') {
+        setIsThemeEndConfirmOpen(false);
+        clearOnlineRoomRecovery();
+        disconnectRemoteSession();
+        setRoom(null);
+        setJoinedRoomCode(null);
+        setSelectedDeck(null);
+        setHasManualSelectedDeck(false);
+        setRoomCodeInput('');
+        await refreshThemeTable().catch(() => undefined);
+        onBackToThemeTable();
+        return;
+      }
+      setError(endError instanceof Error ? endError.message : '结束娱乐模式房间失败');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1021,6 +1070,7 @@ export function OnlineRoomPage({
               restartRequest={restartRequest}
               isRestartRequester={isRestartRequester}
               isRankedRoom={activeBattleContext.room.originKind === 'RANKED'}
+              isThemeRoom={Boolean(activeBattleContext.room.themeTableVersionId)}
               isReplayableRoom={activeBattleContext.room.originKind !== 'RANKED'}
               onToggleSpectatorRoomEntry={handleToggleSpectatorRoomEntry}
               onOpenRankedNotice={() => setIsRankedNoticeOpen(true)}
@@ -1164,12 +1214,13 @@ export function OnlineRoomPage({
           seasonName={rankedSeasonName}
           announcement={rankedSeasonAnnouncement}
           leaderboardMatchCount={rankedLeaderboardMatchCount}
+          battleTimeouts={effectiveBattleTimeouts}
           onClose={() => setIsRankedNoticeOpen(false)}
         />
         <ConfirmDialog
           isOpen={isRankedReturnConfirmOpen}
           title="返回大厅？"
-          message={RANKED_RETURN_TO_LOBBY_CONFIRM_MESSAGE}
+          message={rankedReturnToLobbyConfirmMessage}
           confirmLabel="返回大厅"
           onCancel={() => setIsRankedReturnConfirmOpen(false)}
           onConfirm={() => {
@@ -1204,16 +1255,29 @@ export function OnlineRoomPage({
 
   if (room && (room.status === 'OPENING' || isOpeningTransitionPending)) {
     return (
-      <OnlineOpeningStage
-        key={`${room.roomCode}:${room.themeDeckAssignment?.presentationId ?? 'opening'}`}
-        room={room}
-        themeEvent={themeEvent}
-        error={error}
-        isSubmitting={isSubmitting}
-        onSubmitRps={handleSubmitOpeningRps}
-        onReplayRps={handleReplayOpeningRps}
-        onChooseTurnOrder={handleChooseOpeningTurnOrder}
-      />
+      <>
+        <OnlineOpeningStage
+          key={`${room.roomCode}:${room.themeDeckAssignment?.presentationId ?? 'opening'}`}
+          room={room}
+          themeEvent={themeEvent}
+          error={error}
+          isSubmitting={isSubmitting}
+          canEndThemeRoom={canEndThemeRoom}
+          onSubmitRps={handleSubmitOpeningRps}
+          onReplayRps={handleReplayOpeningRps}
+          onChooseTurnOrder={handleChooseOpeningTurnOrder}
+          onEndThemeRoom={() => setIsThemeEndConfirmOpen(true)}
+        />
+        <ConfirmDialog
+          isOpen={isThemeEndConfirmOpen}
+          title="结束娱乐模式房间？"
+          message="本次配对将立即取消，双方不分胜负、不计入统计，也无法再回到这个房间。"
+          confirmLabel="结束房间"
+          isConfirming={isSubmitting}
+          onCancel={() => setIsThemeEndConfirmOpen(false)}
+          onConfirm={() => void handleConfirmThemeEnd()}
+        />
+      </>
     );
   }
 
@@ -1274,12 +1338,13 @@ export function OnlineRoomPage({
           seasonName={rankedSeasonName}
           announcement={rankedSeasonAnnouncement}
           leaderboardMatchCount={rankedLeaderboardMatchCount}
+          battleTimeouts={effectiveBattleTimeouts}
           onClose={() => setIsRankedNoticeOpen(false)}
         />
         <ConfirmDialog
           isOpen={isRankedReturnConfirmOpen}
           title="返回大厅？"
-          message={RANKED_RETURN_TO_LOBBY_CONFIRM_MESSAGE}
+          message={rankedReturnToLobbyConfirmMessage}
           confirmLabel="返回大厅"
           onCancel={() => setIsRankedReturnConfirmOpen(false)}
           onConfirm={() => {
@@ -1729,17 +1794,21 @@ function OnlineOpeningStage({
   themeEvent,
   error,
   isSubmitting,
+  canEndThemeRoom,
   onSubmitRps,
   onReplayRps,
   onChooseTurnOrder,
+  onEndThemeRoom,
 }: {
   room: OnlineRoomView;
   themeEvent: ThemeTableEventView | null;
   error: string | null;
   isSubmitting: boolean;
+  canEndThemeRoom: boolean;
   onSubmitRps: (gesture: OpeningRpsGesture) => void;
   onReplayRps: () => void;
   onChooseTurnOrder: (choice: OpeningTurnOrderChoice) => void;
+  onEndThemeRoom: () => void;
 }) {
   const opening = room.openingRps;
   const myMember = room.members.find((member) => member.userId === room.currentUserId) ?? null;
@@ -1784,6 +1853,13 @@ function OnlineOpeningStage({
         : [],
     [room.themeTableVersionId, themeEvent]
   );
+  const assignedThemeDeck = useMemo(
+    () =>
+      themeAssignment && themeEvent && themeEvent.id === room.themeTableVersionId
+        ? (themeEvent.prebuiltDecks.find((deck) => deck.id === myMember?.lockedDeckId) ?? null)
+        : null,
+    [myMember?.lockedDeckId, room.themeTableVersionId, themeAssignment, themeEvent]
+  );
   const completeThemeAssignmentIntro = useCallback(() => {
     if (!themePresentationId) return;
     if (themePresentationStorageKey) {
@@ -1806,7 +1882,7 @@ function OnlineOpeningStage({
       });
 
   return (
-    <div className="min-h-full">
+    <div className="online-opening-stage-scroll">
       <div className="relative z-10 flex min-h-full flex-col px-3 py-3 sm:px-6 sm:py-5">
         <main className="online-opening-stage-main flex flex-1 justify-center lg:py-2">
           <section className="relative w-full max-w-6xl overflow-hidden rounded-2xl border border-[color:color-mix(in_srgb,var(--accent-primary)_28%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-surface)_90%,transparent)] shadow-[var(--shadow-lg)]">
@@ -1821,6 +1897,8 @@ function OnlineOpeningStage({
                 eventName={
                   themeEvent && themeEvent.id === room.themeTableVersionId ? themeEvent.name : null
                 }
+                assignedDeck={assignedThemeDeck}
+                openingExpiresAt={room.openingExpiresAt ?? null}
                 poolPreviewCardCodes={themePoolPreviewCardCodes}
                 reduceMotion={Boolean(reduceMotion)}
                 onComplete={completeThemeAssignmentIntro}
@@ -1900,6 +1978,17 @@ function OnlineOpeningStage({
                     <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] px-4 py-3 text-sm text-[var(--semantic-error)]">
                       {error}
                     </div>
+                  )}
+                  {canEndThemeRoom && (
+                    <button
+                      type="button"
+                      onClick={onEndThemeRoom}
+                      disabled={isSubmitting}
+                      className="button-ghost inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,var(--border-default))] px-3 text-sm text-[var(--semantic-warning)]"
+                    >
+                      <DoorOpen size={16} />
+                      结束房间
+                    </button>
                   )}
                 </div>
               </div>
@@ -2613,7 +2702,7 @@ function OnlineMatchEndPanel({
               ) : (
                 <ArrowLeft size={16} />
               )}
-              {actionState.kind === 'THEME_ROOM' ? '返回主题牌桌' : '返回大厅'}
+              {actionState.kind === 'THEME_ROOM' ? '返回娱乐模式' : '返回大厅'}
             </button>
           </div>
         )}
@@ -2634,6 +2723,7 @@ function RoomActionPanel({
   restartRequest,
   isRestartRequester,
   isRankedRoom,
+  isThemeRoom,
   isReplayableRoom,
   onToggleSpectatorRoomEntry,
   onOpenRankedNotice,
@@ -2653,6 +2743,7 @@ function RoomActionPanel({
   restartRequest: OnlineRoomView['restartRequest'];
   isRestartRequester: boolean;
   isRankedRoom: boolean;
+  isThemeRoom: boolean;
   isReplayableRoom: boolean;
   onToggleSpectatorRoomEntry: () => void;
   onOpenRankedNotice: () => void;
@@ -2666,7 +2757,7 @@ function RoomActionPanel({
       <div className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] pb-3">
         <div>
           <div className="text-[11px] uppercase text-[var(--text-muted)]">
-            {isRankedRoom ? '赛季排位房间' : '正式联机房间'}
+            {isRankedRoom ? '赛季排位房间' : isThemeRoom ? '娱乐模式房间' : '正式联机房间'}
           </div>
           <div className="mt-1 font-semibold">Room {roomCode}</div>
         </div>

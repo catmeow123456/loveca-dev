@@ -230,6 +230,83 @@
   background: linear-gradient(180deg, transparent, var(--border-default), transparent);
 }
 
+.theme-assignment-intro__deck-preview {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-overlay) 86%, transparent);
+  padding: 10px 12px;
+}
+
+.theme-assignment-intro__deck-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.theme-assignment-intro__deck-preview-header h2 {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.theme-assignment-intro__deck-preview-header p {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.theme-assignment-intro__deck-preview-toggle {
+  display: inline-flex;
+  min-height: 34px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
+  background: var(--bg-surface);
+  padding: 0 10px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  transition:
+    border-color var(--duration-fast) ease,
+    color var(--duration-fast) ease,
+    background-color var(--duration-fast) ease;
+}
+
+.theme-assignment-intro__deck-preview-toggle:hover,
+.theme-assignment-intro__deck-preview-toggle:focus-visible {
+  border-color: var(--border-active);
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+}
+
+.theme-assignment-intro__deck-preview-toggle:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent-primary) 38%, transparent);
+  outline-offset: 2px;
+}
+
+.theme-assignment-intro__deck-preview-content {
+  margin-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 10px;
+}
+
+.theme-assignment-intro__deck-preview-content .theme-deck-gallery {
+  gap: 16px;
+  padding-top: 0;
+}
+
+.theme-assignment-intro__deck-preview-content .theme-deck-gallery__grid {
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+  gap: 10px 8px;
+}
+
+.theme-assignment-intro__deck-preview-content .theme-deck-gallery-card > span:last-child {
+  font-size: 10px;
+}
+
 .theme-assignment-intro__next {
   display: flex;
   min-height: 42px;
@@ -238,6 +315,15 @@
   gap: 12px;
   opacity: 0;
   animation: theme-assignment-next 260ms ease-out 1.5s both;
+}
+
+.theme-assignment-intro__countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  color: var(--semantic-warning);
+  font-variant-numeric: tabular-nums;
 }
 
 .theme-assignment-intro__continue {

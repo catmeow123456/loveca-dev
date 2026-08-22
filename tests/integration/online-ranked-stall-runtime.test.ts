@@ -67,13 +67,18 @@ function createDeck(prefix: string): DeckConfig {
 
 async function createMatch(
   service: OnlineMatchService,
-  originKind: MatchOriginKind = 'RANKED'
+  originKind: MatchOriginKind = 'RANKED',
+  battleTimeouts?: {
+    readonly playerActionTimeoutSeconds: number;
+    readonly reconnectGracePeriodSeconds: number;
+  }
 ): Promise<OnlineMatchState> {
   return service.createMatch({
     roomCode: `stall-${originKind}`,
     matchMode: 'ONLINE',
     originKind,
     originLabel: originKind === 'RANKED' ? '赛季排位' : '普通联机房间',
+    battleTimeouts,
     first: {
       userId: FIRST_USER_ID,
       displayName: '先攻玩家',
@@ -143,6 +148,7 @@ describe('排位单一责任玩家停滞运行态', () => {
     const secondSnapshot = await readFullSnapshot(service, match, SECOND_USER_ID);
     expect(firstSnapshot.playerViewState.match.rankedStall).toEqual({
       responsibleSeat: 'FIRST',
+      startedAt: 10_000,
       deadlineAt: 190_000,
     });
     expect(secondSnapshot.playerViewState.match.rankedStall).toEqual(
@@ -164,6 +170,27 @@ describe('排位单一责任玩家停滞运行态', () => {
     expect(
       (await readFullSnapshot(service, match)).playerViewState.match.rankedStall?.deadlineAt
     ).toBe(190_000);
+  });
+
+  it('按对局创建时快照的全局配置计算操作截止时间', async () => {
+    const service = new OnlineMatchService({ now: () => 15_000, recorder: null });
+    const match = await createMatch(service, 'RANKED', {
+      playerActionTimeoutSeconds: 90,
+      reconnectGracePeriodSeconds: 30,
+    });
+    forceMainPhase(match, 'FIRST');
+
+    const snapshot = await readFullSnapshot(service, match);
+
+    expect(match.battleTimeouts).toEqual({
+      playerActionTimeoutSeconds: 90,
+      reconnectGracePeriodSeconds: 30,
+    });
+    expect(snapshot.playerViewState.match.rankedStall).toEqual({
+      responsibleSeat: 'FIRST',
+      startedAt: 15_000,
+      deadlineAt: 105_000,
+    });
   });
 
   it('责任玩家每次被接受的命令都会取得完整新期限并提升代际', async () => {

@@ -524,6 +524,18 @@ onlineRouter.post('/rooms/:roomCode/leave', requireAuth, async (req, res) => {
   }
 });
 
+onlineRouter.post('/rooms/:roomCode/end-theme', requireAuth, async (req, res) => {
+  try {
+    const result = await onlineRoomService.endThemeRoomNoContest(
+      readPathParam(req.params.roomCode),
+      req.user!.id
+    );
+    res.json({ data: result, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
 onlineRouter.post('/rooms/:roomCode/abandon-for-local-game', requireAuth, async (req, res) => {
   try {
     const result = await onlineRoomService.abandonRoomForLocalGame(

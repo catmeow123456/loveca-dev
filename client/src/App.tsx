@@ -1178,6 +1178,7 @@ function App() {
         onBackToThemeTable={() => setCurrentPage('theme-table')}
         onImmersiveModeChange={setIsOnlineRoomImmersive}
         emoteCatalog={appConfig.matchEmotes}
+        battleTimeouts={appConfig.features.battleTimeouts}
         onEmoteCatalogStale={refreshAppConfig}
       />,
       'battle',
@@ -1198,7 +1199,11 @@ function App() {
 
   if (effectivePage === 'ranked') {
     return withProductFrame(
-      <RankedPage onBack={() => setCurrentPage('home')} onEnterRoom={enterOnlineRoom} />,
+      <RankedPage
+        onBack={() => setCurrentPage('home')}
+        onEnterRoom={enterOnlineRoom}
+        battleTimeouts={appConfig.features.battleTimeouts}
+      />,
       'battle'
     );
   }
@@ -1348,7 +1353,10 @@ function App() {
     hasPermission(profile.role, 'season.ranked.manage')
   ) {
     return withProductFrame(
-      <RankedAdminPage onBack={() => setCurrentPage('admin-center')} />,
+      <RankedAdminPage
+        onBack={() => setCurrentPage('admin-center')}
+        battleTimeouts={appConfig.features.battleTimeouts}
+      />,
       null
     );
   }

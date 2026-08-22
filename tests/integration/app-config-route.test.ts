@@ -14,9 +14,16 @@ vi.mock('../../src/server/services/match-emote-catalog-service.js', () => ({
   },
 }));
 
+vi.mock('../../src/server/services/battle-timeout-config-service.js', () => ({
+  battleTimeoutConfigService: {
+    getConfig: vi.fn(),
+  },
+}));
+
 import { appConfigRouter } from '../../src/server/routes/app-config';
 import { siteAnnouncementService } from '../../src/server/services/site-announcement-service';
 import { matchEmoteCatalogService } from '../../src/server/services/match-emote-catalog-service';
+import { battleTimeoutConfigService } from '../../src/server/services/battle-timeout-config-service';
 
 function createMockResponse() {
   const headers = new Map<string, string>();
@@ -91,6 +98,10 @@ describe('appConfigRouter', () => {
       ranked: true,
       themeTable: false,
     });
+    vi.mocked(battleTimeoutConfigService.getConfig).mockResolvedValue({
+      playerActionTimeoutSeconds: 240,
+      reconnectGracePeriodSeconds: 90,
+    });
 
     const response = await invokeRoute('/', 'get');
 
@@ -110,6 +121,10 @@ describe('appConfigRouter', () => {
         battleEntries: {
           ranked: true,
           themeTable: false,
+        },
+        battleTimeouts: {
+          playerActionTimeoutSeconds: 240,
+          reconnectGracePeriodSeconds: 90,
         },
       },
     });

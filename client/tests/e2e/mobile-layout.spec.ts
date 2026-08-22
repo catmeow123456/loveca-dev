@@ -238,7 +238,7 @@ const THEME_TABLE_OVERVIEW: ThemeTableOverviewView = {
   event: {
     id: 'e2e-theme-season',
     versionKey: 'e2e-theme-season-v1',
-    name: 'E2E 轮换主题赛季',
+    name: 'E2E 娱乐模式',
     summary: '用公开预组直接体验不同的卡组节奏。',
     announcement: '完整卡表公开，本期只记录胜负。',
     scheduleLabel: '每周六 19:00—22:00',
@@ -283,11 +283,37 @@ const THEME_TABLE_OVERVIEW: ThemeTableOverviewView = {
         energyDeck: [{ cardCode: ENERGY_CARD.card_code, count: 12 }],
       },
     ],
+    matchupStatistics: [
+      {
+        firstDeckVersionId: 'e2e-theme-deck-one',
+        secondDeckVersionId: 'e2e-theme-deck-one',
+        completedMatches: 2,
+        firstDeckWins: 1,
+        secondDeckWins: 1,
+        draws: 0,
+      },
+      {
+        firstDeckVersionId: 'e2e-theme-deck-one',
+        secondDeckVersionId: 'e2e-theme-deck-two',
+        completedMatches: 8,
+        firstDeckWins: 5,
+        secondDeckWins: 2,
+        draws: 1,
+      },
+      {
+        firstDeckVersionId: 'e2e-theme-deck-two',
+        secondDeckVersionId: 'e2e-theme-deck-two',
+        completedMatches: 0,
+        firstDeckWins: 0,
+        secondDeckWins: 0,
+        draws: 0,
+      },
+    ],
   },
   availability: {
     state: 'OPEN',
     canJoin: true,
-    message: '本期主题牌桌正在开放',
+    message: '本期娱乐模式正在开放',
   },
   player: {
     completedMatches: 3,
@@ -423,6 +449,19 @@ async function installApiMocks(
   }
 ) {
   let currentBattleEntryVisibility = { ...battleEntryVisibility };
+
+  await page.route('**/site-status.json*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        schemaVersion: 1,
+        availability: 'OPEN',
+        generatedAt: new Date(NOW).toISOString(),
+        maintenance: null,
+      }),
+    });
+  });
 
   await page.route('**/images/**', async (route) => {
     await route.fulfill({
@@ -1501,13 +1540,13 @@ test.describe('mobile layout baseline', () => {
     await expect(page.getByRole('heading', { name: 'Loveca 在线对战' })).toBeVisible();
   });
 
-  test('登录后开始对战包含赛季排位和主题赛季入口', async ({ page }, testInfo) => {
+  test('登录后开始对战包含赛季排位和娱乐模式入口', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile-390x844', '入口回归只需执行一次');
 
     await installApiMocks(page, true, CARD_RECORDS, undefined, THEME_TABLE_OVERVIEW);
     await page.goto('/?page=game-setup');
     await expect(page.getByText('选择对战方式', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: /主题赛季/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /娱乐模式/ })).toBeVisible();
     await waitForStableApp(page);
     await attachScreenshot(page, testInfo, 'game-setup-season-entries');
 
@@ -1516,9 +1555,10 @@ test.describe('mobile layout baseline', () => {
     await expect(page.getByText('赛季排位', { exact: true }).first()).toBeVisible();
 
     await page.goto('/?page=game-setup');
-    await page.getByRole('button', { name: /主题赛季/ }).click();
-    await page.getByRole('button', { name: '查看本期主题' }).click();
-    await expect(page.getByText('E2E 轮换主题赛季', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: /娱乐模式/ }).click();
+    await page.getByRole('button', { name: '进入娱乐模式' }).click();
+    await expect(page.getByText('E2E 娱乐模式', { exact: true })).toBeVisible();
+    await expect(page.locator('.theme-matchup-graph__canvas')).toBeVisible();
   });
 
   test('关闭赛季入口后大厅和对局准备页均不展示', async ({ page }, testInfo) => {
@@ -1531,11 +1571,11 @@ test.describe('mobile layout baseline', () => {
     await page.goto('/');
 
     await expect(page.getByRole('button', { name: /赛季排位/ })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /主题赛季/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /娱乐模式/ })).toHaveCount(0);
     await page.getByRole('button', { name: '开始对战', exact: true }).click();
     await expect(page.getByRole('button', { name: /公共牌桌/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /赛季排位/ })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /主题赛季/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /娱乐模式/ })).toHaveCount(0);
   });
 
   test('运营管理中心可保存玩家赛季入口', async ({ page }, testInfo) => {
@@ -1544,7 +1584,7 @@ test.describe('mobile layout baseline', () => {
     await installApiMocks(page, true);
     await page.goto('/?page=admin-center');
 
-    const themeEntrySwitch = page.getByRole('switch', { name: '主题赛季玩家入口' });
+    const themeEntrySwitch = page.getByRole('switch', { name: '娱乐模式玩家入口' });
     await expect(themeEntrySwitch).toHaveAttribute('aria-checked', 'true');
     await waitForStableApp(page);
     await attachScreenshot(page, testInfo, 'admin-center-player-battle-entries');
@@ -1553,7 +1593,7 @@ test.describe('mobile layout baseline', () => {
     await expect(page.getByText('入口设置已保存', { exact: true })).toBeVisible();
 
     await page.goto('/');
-    await expect(page.getByRole('button', { name: /主题赛季/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /娱乐模式/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /赛季排位/ })).toBeVisible();
   });
 
@@ -1787,7 +1827,39 @@ test.describe('mobile layout baseline', () => {
     await attachScreenshot(page, testInfo, 'theme-table-mobile-deck-gallery');
   });
 
-  test('主题牌桌先揭示本人卡组再进入猜拳且不显示对手卡组身份', async ({ page }, testInfo) => {
+  test('娱乐模式对阵关系图显示卡组比分', async ({ page }, testInfo) => {
+    test.skip(
+      !['mobile-390x844', 'tablet-1024x768'].includes(testInfo.project.name),
+      '对阵关系图覆盖手机与桌面视口'
+    );
+
+    await installApiMocks(page, true, CARD_RECORDS, undefined, THEME_TABLE_OVERVIEW);
+    await page.goto('/?page=theme-table');
+
+    const graph = page.locator('.theme-matchup-graph__canvas');
+    await expect(graph).toBeVisible();
+    const firstEdge = page.locator('.theme-matchup-graph__edge').first();
+    const scoreLabel = page.locator('.theme-matchup-graph__edge-label').first();
+    await expect(scoreLabel).toHaveCSS('opacity', '0');
+    if (testInfo.project.name === 'mobile-390x844') {
+      await firstEdge.click();
+    } else {
+      await firstEdge.hover();
+    }
+    await expect(scoreLabel).toHaveCSS('opacity', '1');
+    await expect(page.getByText('镜像对局', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('样本较少', { exact: true })).toHaveCount(0);
+    await expectNoGlobalHorizontalOverflow(page, 'entertainment matchup matrix');
+
+    const scrollState = await page.locator('.theme-matchup-graph').evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    }));
+    expect(scrollState.scrollWidth).toBeGreaterThanOrEqual(scrollState.clientWidth);
+    await graph.scrollIntoViewIfNeeded();
+  });
+
+  test('娱乐模式先揭示本人卡组再进入猜拳且不显示对手卡组身份', async ({ page }, testInfo) => {
     test.skip(
       !['mobile-390x844', 'tablet-1024x768'].includes(testInfo.project.name),
       '主题开局揭示覆盖手机与桌面视口'
@@ -1869,7 +1941,7 @@ test.describe('mobile layout baseline', () => {
     });
 
     await page.goto('/?page=online-room');
-    await expect(page.getByRole('heading', { name: '本局主题卡组' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '本局卡组' })).toBeVisible();
     await expect(page.getByRole('heading', { name: '开局猜拳' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '立即查看' })).toBeVisible();
     await attachScreenshot(page, testInfo, 'theme-assignment-intro-dealing');
@@ -1877,6 +1949,12 @@ test.describe('mobile layout baseline', () => {
     await expect(page.getByText('本局节目单已确定', { exact: true })).toBeVisible();
     await expect(page.getByText('第一套主题卡组', { exact: true })).toBeVisible();
     await expect(page.getByText('对手卡组已就绪', { exact: true })).toBeVisible();
+    const deckPreviewToggle = page.getByRole('button', { name: '查看卡组构成' });
+    await expect(deckPreviewToggle).toBeVisible();
+    await deckPreviewToggle.click();
+    await expect(page.getByRole('heading', { name: '本局卡组构成' })).toBeVisible();
+    await expect(page.locator('.theme-assignment-intro__deck-preview-content')).toBeVisible();
+    await page.getByRole('button', { name: '收起预览' }).click();
     await expect(page.getByRole('button', { name: '进入猜拳' })).toBeEnabled();
     await expect(page.getByRole('button', { name: '石头' })).toHaveCount(0);
     await expect(page.getByText('第二套主题卡组', { exact: true })).toHaveCount(0);
@@ -1889,23 +1967,23 @@ test.describe('mobile layout baseline', () => {
     await attachScreenshot(page, testInfo, 'theme-assignment-intro');
 
     await page.waitForTimeout(1_000);
-    await expect(page.getByRole('heading', { name: '本局主题卡组' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '本局卡组' })).toBeVisible();
     openingReady = true;
     await page.waitForTimeout(1_400);
-    await expect(page.getByRole('heading', { name: '本局主题卡组' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '本局卡组' })).toBeVisible();
     await page.getByRole('button', { name: '进入猜拳' }).click();
     await expect(page.getByRole('heading', { name: '开局猜拳' })).toBeVisible();
     await expect(page.getByRole('button', { name: '石头' })).toBeVisible();
 
     await page.reload();
     await expect(page.getByRole('heading', { name: '开局猜拳' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: '本局主题卡组' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: '本局卡组' })).toHaveCount(0);
 
     themeOpeningRoom.themeDeckAssignment.presentationId = 'theme-room-generation-reduced';
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.reload();
 
-    await expect(page.getByRole('heading', { name: '本局主题卡组' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '本局卡组' })).toBeVisible();
     await expect(page.getByRole('button', { name: '立即查看' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '进入猜拳' })).toBeEnabled();
     await expect(page.getByText('第一套主题卡组', { exact: true })).toBeVisible();
@@ -1916,7 +1994,7 @@ test.describe('mobile layout baseline', () => {
     await expect(page.locator('.theme-assignment-intro__result--self')).toHaveCSS('opacity', '1');
     await attachScreenshot(page, testInfo, 'theme-assignment-intro-reduced-motion');
     await page.waitForTimeout(1_000);
-    await expect(page.getByRole('heading', { name: '本局主题卡组' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '本局卡组' })).toBeVisible();
     await page.getByRole('button', { name: '进入猜拳' }).click();
     await expect(page.getByRole('heading', { name: '开局猜拳' })).toBeVisible();
   });

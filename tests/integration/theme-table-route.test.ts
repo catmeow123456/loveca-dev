@@ -74,7 +74,7 @@ describe('themeTableRouter', () => {
   it('returns the event, full prebuilt deck list and player queue together', async () => {
     const overview = {
       event: { id: 'theme-1', prebuiltDecks: [{ id: 'deck-1', mainDeck: [], energyDeck: [] }] },
-      availability: { state: 'OPEN', canJoin: true, message: '可以加入主题牌桌' },
+      availability: { state: 'OPEN', canJoin: true, message: '可以加入娱乐模式' },
       player: { completedMatches: 3, wins: 2, losses: 1, draws: 0, winRate: 2 / 3 },
       queue: { state: 'IDLE' },
     } as never;

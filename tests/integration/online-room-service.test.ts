@@ -3340,6 +3340,112 @@ describe('OnlineRoomService', () => {
     );
   });
 
+  it('娱乐模式开局流程中结束房间时应直接取消配对并释放占用', async () => {
+    const releaseOnlineRoom = vi.fn(() => Promise.resolve());
+    const service = new OnlineRoomService({
+      now: () => 15_000,
+      matchService: createInMemoryMatchService(),
+      loadUserProfile: (userId) => Promise.resolve({ userId, displayName: userId }),
+      participationService: { releaseOnlineRoom },
+    });
+    const reservationId = '29292929-2222-4333-8444-555555555555';
+    const room = await service.createPublicTableRoom({
+      reservationId,
+      originKind: 'PUBLIC_TABLE',
+      originLabel: '娱乐模式',
+      rankedSeasonId: null,
+      themeTableVersionId: '28282828-2222-4333-8444-555555555555',
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'deck-a',
+        deckName: '卡组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('theme-opening-end-a')),
+        lockedAt: 15_000,
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'deck-b',
+        deckName: '卡组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('theme-opening-end-b')),
+        lockedAt: 15_000,
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      openingExpiresAt: 195_000,
+    });
+
+    const result = await service.endThemeRoomNoContest(room.roomCode, 'u1');
+
+    expect(result.room).toBeNull();
+    await expect(service.getRoomIfPresent(room.roomCode)).resolves.toBeNull();
+    expect(releaseOnlineRoom).toHaveBeenCalledWith(['u1', 'u2'], room.roomGeneration);
+    expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
+      expect.stringMatching(/SET state = 'RELEASED'[\s\S]*SET state = 'CANCELED'/),
+      [reservationId, 'THEME_ROOM_ENDED_NO_CONTEST', room.roomGeneration, new Date(15_000)]
+    );
+  });
+
+  it('娱乐模式正式开局后拒绝由单方无胜负结束房间', async () => {
+    let now = 20_000;
+    const matchService = createInMemoryMatchService({ now: () => now });
+    const releaseOnlineRoom = vi.fn(async () => undefined);
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: (userId) => Promise.resolve({ userId, displayName: userId }),
+      participationService: {
+        markOnlineMatch: async () => undefined,
+        releaseOnlineRoom,
+      },
+    });
+    const reservationId = '30303030-2222-4333-8444-555555555555';
+    const room = await service.createPublicTableRoom({
+      reservationId,
+      originKind: 'PUBLIC_TABLE',
+      originLabel: '娱乐模式',
+      rankedSeasonId: null,
+      themeTableVersionId: '31313131-2222-4333-8444-555555555555',
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'deck-a',
+        deckName: '卡组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('theme-end-a')),
+        lockedAt: now,
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'deck-b',
+        deckName: '卡组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('theme-end-b')),
+        lockedAt: now,
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      openingExpiresAt: now + 180_000,
+    });
+    await service.getRoomView(room.roomCode, 'u1');
+    await service.getRoomView(room.roomCode, 'u2');
+    await service.submitOpeningRps(room.roomCode, 'u1', 'ROCK');
+    await service.submitOpeningRps(room.roomCode, 'u2', 'SCISSORS');
+    const started = await service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST');
+
+    await expect(service.endThemeRoomNoContest(room.roomCode, 'u2')).rejects.toMatchObject({
+      code: 'ONLINE_THEME_ROOM_END_FORBIDDEN',
+      statusCode: 409,
+    });
+
+    await expect(service.getRoomIfPresent(room.roomCode)).resolves.toMatchObject({
+      status: 'IN_GAME',
+      matchId: started.matchId,
+    });
+    expect(matchService.getMatch(started.matchId!)).not.toBeNull();
+    expect(releaseOnlineRoom).not.toHaveBeenCalled();
+  });
+
   it('主题牌桌正式开局后禁止原房重开以保证每局重新分配卡组', async () => {
     const service = new OnlineRoomService({
       now: () => 10_000,
@@ -3380,7 +3486,7 @@ describe('OnlineRoomService', () => {
 
     await expect(service.requestRestart(room.roomCode, 'u1')).rejects.toMatchObject({
       code: 'THEME_RESTART_FORBIDDEN',
-      message: '主题牌桌每局都会重新分配卡组，请返回主题牌桌再次候场',
+      message: '娱乐模式每局都会重新分配卡组，请返回娱乐模式再次候场',
     });
   });
 
@@ -3530,13 +3636,18 @@ describe('OnlineRoomService', () => {
     });
   });
 
-  it('排位对局仅单方超过重连期限时应由服务端权威判负', async () => {
+  it('排位对局按开局时的全局重连期限快照裁定单方断线', async () => {
     let now = 20_000;
     const matchService = createInMemoryMatchService();
     const service = new OnlineRoomService({
       now: () => now,
       matchService,
       loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadBattleTimeoutConfig: () =>
+        Promise.resolve({
+          playerActionTimeoutSeconds: 120,
+          reconnectGracePeriodSeconds: 30,
+        }),
     });
     const room = await service.createPublicTableRoom({
       reservationId: '77777777-2222-4333-8444-555555555555',
@@ -3569,7 +3680,17 @@ describe('OnlineRoomService', () => {
     await service.submitOpeningRps(room.roomCode, 'u2', 'SCISSORS');
     const started = await service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST');
 
-    now += 50_000;
+    const match = matchService.getMatch(started.matchId!);
+    expect(match?.battleTimeouts).toEqual({
+      playerActionTimeoutSeconds: 120,
+      reconnectGracePeriodSeconds: 30,
+    });
+    expect(started.battleTimeouts).toEqual({
+      playerActionTimeoutSeconds: 120,
+      reconnectGracePeriodSeconds: 30,
+    });
+
+    now += 20_000;
     service.touchInGameMemberByMatch(started.matchId!, 'u2');
     now += 11_000;
     const summary = await service.cleanupExpiredRuntimeState();

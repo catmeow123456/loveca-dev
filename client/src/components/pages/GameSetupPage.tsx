@@ -598,7 +598,7 @@ export function GameSetupPage({
         return validDecks.length > 0 ? '进入赛季排位' : '需要符合规则的卡组';
       }
       if (isThemeTableMode) {
-        return canUseOnlineRoom ? '查看本期主题' : '主题赛季暂不可用';
+        return canUseOnlineRoom ? '进入娱乐模式' : '娱乐模式暂不可用';
       }
       if (gameMode === GameMode.SOLITAIRE) return '下一步：选择己方卡组';
       return '下一步：选择 P1 卡组';
@@ -678,7 +678,7 @@ export function GameSetupPage({
                           id="season-match-title"
                           className="mb-2 px-1 text-xs font-semibold tracking-wide text-[var(--text-muted)]"
                         >
-                          赛季活动
+                          活动对战
                         </h2>
                         <div className="grid gap-2 sm:grid-cols-2">
                           {battleEntryVisibility.ranked && (
@@ -696,8 +696,8 @@ export function GameSetupPage({
                           {battleEntryVisibility.themeTable && (
                             <ModeChoice
                               mode="THEME_TABLE"
-                              title="主题赛季"
-                              description="本期平台预组 · 记录胜负"
+                              title="娱乐模式"
+                              description="随机分配一副娱乐模式卡组"
                               icon={WandSparkles}
                               toneClass="[--mode-accent:var(--accent-secondary)]"
                               selected={setupMode === 'THEME_TABLE'}

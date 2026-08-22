@@ -15,7 +15,10 @@ import type { DeckConfig } from '../../application/game-service.js';
 import type { AnyCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
 import type { DeckPointValidationFacts } from '../../domain/rules/deck-point-table.js';
-import { RANKED_STALL_TIMEOUT_MS } from '../../online/ranked-policy.js';
+import {
+  DEFAULT_BATTLE_TIMEOUT_CONFIG,
+  type BattleTimeoutConfig,
+} from '../../online/ranked-policy.js';
 import { describeRankedSinglePlayerWait } from '../../online/ranked-stall.js';
 import type {
   MatchRecordCompleteness,
@@ -120,6 +123,7 @@ export interface CreateOnlineMatchParams {
   readonly originKind?: MatchOriginKind;
   readonly originLabel?: string;
   readonly startedAt?: number;
+  readonly battleTimeouts?: BattleTimeoutConfig;
   readonly first: CreateOnlineMatchPlayerParams;
   readonly second: CreateOnlineMatchPlayerParams;
 }
@@ -174,6 +178,7 @@ export interface OnlineMatchState {
   readonly participants: Readonly<Record<Seat, OnlineMatchParticipant>>;
   readonly deckSnapshots: Readonly<Record<Seat, OnlineMatchDeckSnapshot>>;
   readonly startedAt: number;
+  readonly battleTimeouts?: BattleTimeoutConfig;
   remoteRevision: number;
   recordBranchId: string;
   recordCaptureCursor: UndoRuntimeCaptureCursor;
@@ -470,6 +475,7 @@ export class OnlineMatchService {
         SECOND: createRuntimeDeckSnapshot('SECOND', params.second),
       },
       startedAt: now,
+      battleTimeouts: params.battleTimeouts ?? DEFAULT_BATTLE_TIMEOUT_CONFIG,
       remoteRevision: 0,
       recordBranchId: `${matchId}:branch:0`,
       recordCaptureCursor: {
@@ -1685,7 +1691,11 @@ export class OnlineMatchService {
       playerId: wait.playerId,
       generation,
       startedAt: now,
-      deadlineAt: now + RANKED_STALL_TIMEOUT_MS,
+      deadlineAt:
+        now +
+        (match.battleTimeouts?.playerActionTimeoutSeconds ??
+          DEFAULT_BATTLE_TIMEOUT_CONFIG.playerActionTimeoutSeconds) *
+          1000,
     };
     return match.rankedStallRuntime;
   }
@@ -3436,14 +3446,17 @@ function buildManualOperationModeView(match: OnlineMatchState): ManualOperationM
   };
 }
 
-function buildRankedStallView(
-  match: OnlineMatchState
-): { readonly responsibleSeat: Seat; readonly deadlineAt: number } | null {
+function buildRankedStallView(match: OnlineMatchState): {
+  readonly responsibleSeat: Seat;
+  readonly startedAt: number;
+  readonly deadlineAt: number;
+} | null {
   const runtime = match.rankedStallRuntime ?? null;
   const responsibleSeat = getSeatByPlayerId(match, runtime?.playerId);
   return runtime && responsibleSeat
     ? {
         responsibleSeat,
+        startedAt: runtime.startedAt,
         deadlineAt: runtime.deadlineAt,
       }
     : null;

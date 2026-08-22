@@ -11,6 +11,10 @@ import {
   type SiteAnnouncementInput,
   type SiteStatusConfigInput,
 } from '../services/site-announcement-service.js';
+import {
+  BattleTimeoutConfigServiceError,
+  battleTimeoutConfigService,
+} from '../services/battle-timeout-config-service.js';
 
 export const siteAnnouncementsRouter = Router();
 
@@ -44,6 +48,11 @@ const siteStatusConfigInputSchema = z.object({
 const playerBattleEntryVisibilityInputSchema = z.object({
   ranked: z.boolean(),
   themeTable: z.boolean(),
+});
+
+const battleTimeoutConfigInputSchema = z.object({
+  playerActionTimeoutSeconds: z.number().int().min(60).max(900),
+  reconnectGracePeriodSeconds: z.number().int().min(15).max(300),
 });
 
 siteAnnouncementsRouter.get('/admin', requireAuth, requireAdmin, async (_req, res) => {
@@ -81,6 +90,37 @@ siteAnnouncementsRouter.put(
         },
         error: null,
       });
+    } catch (error) {
+      respondSiteAnnouncementError(res, error);
+    }
+  }
+);
+
+siteAnnouncementsRouter.get(
+  '/admin/battle-timeouts',
+  requireAuth,
+  requireAdmin,
+  async (_req, res) => {
+    try {
+      res.json({ data: await battleTimeoutConfigService.getConfig(), error: null });
+    } catch (error) {
+      respondSiteAnnouncementError(res, error);
+    }
+  }
+);
+
+siteAnnouncementsRouter.put(
+  '/admin/battle-timeouts',
+  requireAuth,
+  requireAdmin,
+  validate(battleTimeoutConfigInputSchema),
+  async (req, res) => {
+    try {
+      const config = await battleTimeoutConfigService.updateConfig(
+        req.body as z.infer<typeof battleTimeoutConfigInputSchema>,
+        req.user!.id
+      );
+      res.json({ data: config, error: null });
     } catch (error) {
       respondSiteAnnouncementError(res, error);
     }
@@ -222,6 +262,13 @@ function respondAnnouncementNotFound(res: Response): void {
 }
 
 function respondSiteAnnouncementError(res: Response, error: unknown): void {
+  if (error instanceof BattleTimeoutConfigServiceError) {
+    res.status(error.statusCode).json({
+      data: null,
+      error: { code: error.code, message: error.message },
+    });
+    return;
+  }
   if (error instanceof SiteAnnouncementServiceError) {
     res.status(error.statusCode).json({
       data: null,

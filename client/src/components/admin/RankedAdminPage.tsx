@@ -74,7 +74,13 @@ const SOFT_RESET_MODE_OPTIONS: readonly SelectMenuOption<
   { value: 'RETAIN_TOWARD_CENTER', label: '向中心值保留' },
 ];
 
-export function RankedAdminPage({ onBack }: { onBack: () => void }) {
+export function RankedAdminPage({
+  onBack,
+  battleTimeouts,
+}: {
+  onBack: () => void;
+  battleTimeouts: import('@game/online/ranked-policy').BattleTimeoutConfig;
+}) {
   const [tab, setTab] = useState<Tab>('overview');
   const [seasons, setSeasons] = useState<RankedAdminSeason[]>([]);
   const [overview, setOverview] = useState<RankedAdminOverview | null>(null);
@@ -437,6 +443,7 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
         seasonName={noticeSeason?.name}
         announcement={noticeSeason?.announcement}
         leaderboardMatchCount={noticeSeason?.leaderboardMinimumMatchCount}
+        battleTimeouts={battleTimeouts}
         onClose={() => setNoticeSeason(null)}
       />
       {ratingRevisionSeason ? (

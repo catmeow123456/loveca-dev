@@ -90,6 +90,8 @@ export interface ManualOperationModeView {
 export interface RankedStallView {
   /** 当前唯一负责推进对局的席位。 */
   readonly responsibleSeat: Seat;
+  /** 当前责任窗口开始时间，Unix 毫秒。 */
+  readonly startedAt: number;
   /** 服务端权威操作超时截止时间，Unix 毫秒。 */
   readonly deadlineAt: number;
 }

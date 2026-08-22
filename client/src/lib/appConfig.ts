@@ -1,5 +1,10 @@
 import { apiClient } from './apiClient';
-import type { OnlineMatchEmoteCatalog, OnlineMatchEmoteDefinition } from '@game/online';
+import {
+  DEFAULT_BATTLE_TIMEOUT_CONFIG,
+  type BattleTimeoutConfig,
+  type OnlineMatchEmoteCatalog,
+  type OnlineMatchEmoteDefinition,
+} from '@game/online';
 
 export type SiteStatusLifecycle = 'NORMAL' | 'RESTRICTING_NEW_GAMES' | 'MAINTENANCE';
 
@@ -47,6 +52,7 @@ export interface PublicAppConfig {
       passwordResetEnabled: boolean;
     };
     battleEntries: PlayerBattleEntryVisibility;
+    battleTimeouts: BattleTimeoutConfig;
   };
   siteStatus: PublicSiteStatus;
   matchEmotes: OnlineMatchEmoteCatalog | null;
@@ -75,6 +81,7 @@ export const DEFAULT_APP_CONFIG: PublicAppConfig = {
       ranked: false,
       themeTable: false,
     },
+    battleTimeouts: DEFAULT_BATTLE_TIMEOUT_CONFIG,
   },
   siteStatus: DEFAULT_SITE_STATUS,
   matchEmotes: null,
@@ -84,11 +91,16 @@ const SITE_STATUS_LIFECYCLES = new Set<string>(['NORMAL', 'RESTRICTING_NEW_GAMES
 
 const SITE_ANNOUNCEMENT_TYPES = new Set<string>(['MAINTENANCE', 'UPDATE', 'NEWS']);
 
+function normalizePositiveInteger(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
 export function normalizeAppConfig(
   config: Partial<PublicAppConfig> | null | undefined
 ): PublicAppConfig {
   const email = config?.features?.email;
   const battleEntries = config?.features?.battleEntries;
+  const battleTimeouts = config?.features?.battleTimeouts;
 
   return {
     features: {
@@ -100,6 +112,16 @@ export function normalizeAppConfig(
       battleEntries: {
         ranked: battleEntries?.ranked === true,
         themeTable: battleEntries?.themeTable === true,
+      },
+      battleTimeouts: {
+        playerActionTimeoutSeconds: normalizePositiveInteger(
+          battleTimeouts?.playerActionTimeoutSeconds,
+          DEFAULT_BATTLE_TIMEOUT_CONFIG.playerActionTimeoutSeconds
+        ),
+        reconnectGracePeriodSeconds: normalizePositiveInteger(
+          battleTimeouts?.reconnectGracePeriodSeconds,
+          DEFAULT_BATTLE_TIMEOUT_CONFIG.reconnectGracePeriodSeconds
+        ),
       },
     },
     siteStatus: normalizeSiteStatus(config?.siteStatus),
@@ -160,6 +182,7 @@ export function buildPublicAppConfigRenderKey(config: PublicAppConfig): string {
         passwordResetEnabled: normalized.features.email.passwordResetEnabled,
       },
       battleEntries: normalized.features.battleEntries,
+      battleTimeouts: normalized.features.battleTimeouts,
     },
     siteStatus: {
       lifecycle: normalized.siteStatus.lifecycle,

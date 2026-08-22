@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildRankedSeasonDisconnectNotice,
   RANKED_DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_MS,
   RANKED_RATING_ALGORITHM_NOTICE,
   RANKED_RECONNECT_GRACE_PERIOD_MS,
@@ -21,5 +22,20 @@ describe('排位断线政策', () => {
     expect(RANKED_SEASON_DISCONNECT_NOTICE.summary).toBe(
       '断线后可在 1 分钟内重连。单方断线超时由超时方判负；双方都超时，最后在线相差不超过 5 秒时本局无结果、不计胜者与积分，超过 5 秒时较早离线方判负。对局明确等待一名玩家操作时，连续 3 分钟没有成功操作也会判负。'
     );
+  });
+
+  it('按全局配置生成当前赛季公告时限', () => {
+    expect(
+      buildRankedSeasonDisconnectNotice({
+        playerActionTimeoutSeconds: 90,
+        reconnectGracePeriodSeconds: 30,
+      }).summary
+    ).toContain('断线后可在 30 秒内重连');
+    expect(
+      buildRankedSeasonDisconnectNotice({
+        playerActionTimeoutSeconds: 90,
+        reconnectGracePeriodSeconds: 30,
+      }).summary
+    ).toContain('连续 90 秒没有成功操作');
   });
 });

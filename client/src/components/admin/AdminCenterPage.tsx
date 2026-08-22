@@ -159,7 +159,7 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           permission: 'season.ranked.manage',
         },
         {
-          title: '主题赛季',
+          title: '娱乐模式',
           description: '管理开放时段与平台卡组池',
           icon: Sparkles,
           onOpen: props.onOpenThemeTable,
@@ -195,7 +195,7 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
     <div className="app-shell min-h-screen">
       <PageHeader
         title={isSeasonAdmin ? '赛季运营中心' : '运营管理中心'}
-        description={isSeasonAdmin ? '排位、主题赛季与玩家入口' : '选择一项工作'}
+        description={isSeasonAdmin ? '排位、娱乐模式与玩家入口' : '选择一项工作'}
         onBack={props.onBack}
         backLabel="返回大厅"
       />
@@ -245,8 +245,8 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
                   }}
                 />
                 <BattleEntrySwitch
-                  title="主题赛季"
-                  detail="使用本期平台预组，记录赛季胜负"
+                  title="娱乐模式"
+                  detail="随机分配一副娱乐模式卡组"
                   checked={entryVisibility.themeTable}
                   onChange={(checked) => {
                     setEntryVisibility((current) => ({ ...current, themeTable: checked }));
@@ -256,7 +256,7 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
               </div>
 
               <footer className="flex flex-col gap-1 border-t border-[var(--border-subtle)] px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                <span className="text-[var(--text-muted)]">暂停匹配请前往对应赛季管理。</span>
+                <span className="text-[var(--text-muted)]">暂停匹配请前往对应模式管理。</span>
                 {entryVisibilityMessage ? (
                   <span
                     role="status"
@@ -276,7 +276,7 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           <div className="mb-4 flex items-center justify-between gap-4 px-1">
             <p className="text-sm text-[var(--text-secondary)]">
               {isSeasonAdmin
-                ? '管理本期排位、主题活动和玩家入口。'
+                ? '管理本期排位、娱乐模式和玩家入口。'
                 : '管理公开内容、卡牌规则、用户权限与联机运营。'}
             </p>
             <span className="shrink-0 text-xs tabular-nums text-[var(--text-muted)]">

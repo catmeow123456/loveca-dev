@@ -6,6 +6,7 @@ import type {
   SiteAnnouncementType,
   SiteStatusLifecycle,
 } from '@/lib/appConfig';
+import type { BattleTimeoutConfig } from '@game/online';
 
 export type SiteAnnouncementStatus = 'DRAFT' | 'PUBLISHED';
 
@@ -26,6 +27,29 @@ export async function updatePlayerBattleEntryVisibility(
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '保存玩家对战入口失败');
+  }
+  return response.data;
+}
+
+export async function fetchAdminBattleTimeoutConfig(): Promise<BattleTimeoutConfig> {
+  const response = await apiClient.get<BattleTimeoutConfig>(
+    '/api/site-announcements/admin/battle-timeouts'
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取对战时限配置失败');
+  }
+  return response.data;
+}
+
+export async function updateAdminBattleTimeoutConfig(
+  input: BattleTimeoutConfig
+): Promise<BattleTimeoutConfig> {
+  const response = await apiClient.put<BattleTimeoutConfig>(
+    '/api/site-announcements/admin/battle-timeouts',
+    input
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '保存对战时限配置失败');
   }
   return response.data;
 }

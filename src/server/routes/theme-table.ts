@@ -65,6 +65,6 @@ function respondError(res: Response, error: unknown): void {
   console.error('theme table request failed', error);
   res.status(500).json({
     data: null,
-    error: { code: 'THEME_TABLE_INTERNAL_ERROR', message: '主题牌桌服务暂时不可用' },
+    error: { code: 'THEME_TABLE_INTERNAL_ERROR', message: '娱乐模式服务暂时不可用' },
   });
 }

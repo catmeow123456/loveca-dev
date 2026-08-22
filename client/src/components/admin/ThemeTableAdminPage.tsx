@@ -64,7 +64,7 @@ interface ThemeDeckEditorState {
 
 const TABS = [
   { value: 'overview', label: '概览' },
-  { value: 'seasons', label: '主题赛季' },
+  { value: 'seasons', label: '娱乐模式' },
 ] as const;
 
 export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
@@ -159,7 +159,7 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
   return (
     <div className="app-shell flex min-h-screen flex-col">
       <AdminPageHeader
-        title="主题赛季管理"
+        title="娱乐模式管理"
         category="对局与赛季"
         onBack={onBack}
         actions={
@@ -171,7 +171,7 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
 
       <main className="product-page-main flex-1">
         <div className="mx-auto w-full max-w-5xl">
-          <AdminViewTabs label="主题赛季管理视图" value={tab} tabs={TABS} onChange={setTab} />
+          <AdminViewTabs label="娱乐模式管理视图" value={tab} tabs={TABS} onChange={setTab} />
 
           {error ? (
             <p className="mb-4 rounded-xl bg-[var(--semantic-error)]/10 px-3 py-2 text-sm text-[var(--semantic-error)]">
@@ -238,7 +238,7 @@ function OverviewPanel({
       <div className="product-workbench grid min-h-72 place-items-center p-8 text-center">
         <div>
           <Layers3 className="mx-auto mb-3 text-[var(--text-muted)]" size={28} />
-          <p className="text-sm text-[var(--text-muted)]">还没有主题赛季</p>
+          <p className="text-sm text-[var(--text-muted)]">还没有娱乐模式活动</p>
         </div>
       </div>
     );
@@ -253,9 +253,9 @@ function OverviewPanel({
       <section className="product-workbench p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="grid gap-1 text-sm text-[var(--text-secondary)]">
-            <span>查看主题赛季</span>
+            <span>查看娱乐模式</span>
             <SelectMenu
-              label="查看主题赛季"
+              label="查看娱乐模式"
               value={selected.id}
               options={events.map((event) => ({ value: event.id, label: event.name }))}
               onChange={onSelect}
@@ -382,7 +382,7 @@ function SeasonPanel({
       <div className="flex justify-end">
         <button className="button-secondary px-4 py-2 text-sm" onClick={onOpenCreate}>
           <span className="inline-flex items-center gap-1.5">
-            <Plus size={15} /> 新建主题赛季
+            <Plus size={15} /> 新建娱乐模式
           </span>
         </button>
       </div>
@@ -445,7 +445,7 @@ function SeasonPanel({
         </div>
       ) : editorMode === 'closed' ? (
         <div className="product-workbench p-8 text-center text-sm text-[var(--text-muted)]">
-          还没有主题赛季
+          还没有娱乐模式活动
         </div>
       ) : null}
     </div>
@@ -473,9 +473,9 @@ function SeasonActions({
   const runAction = (action: 'activate' | 'pause' | 'resume' | 'close') => {
     const warning =
       action === 'activate'
-        ? '确定开始主题赛季吗？'
+        ? '确定开始娱乐模式吗？'
         : action === 'close'
-          ? '结束后不能恢复，确定结束本期主题赛季吗？'
+          ? '结束后不能恢复，确定结束本期娱乐模式吗？'
           : null;
     if (warning && !window.confirm(warning)) return;
     void onLifecycle(event, action);
@@ -488,7 +488,7 @@ function SeasonActions({
       </button>
       {event.lifecycle !== 'CLOSED' ? (
         <button className="button-secondary px-3 py-2 text-sm" disabled={busy} onClick={onEdit}>
-          编辑赛季
+          编辑活动
         </button>
       ) : null}
       {event.lifecycle === 'DRAFT' ? (
@@ -498,7 +498,7 @@ function SeasonActions({
             disabled={busy || event.decks.length < 1 || enabledMatchupCount(event) === 0}
             onClick={() => runAction('activate')}
           >
-            <ShieldCheck size={15} /> 开始赛季
+            <ShieldCheck size={15} /> 开始活动
           </button>
         </>
       ) : null}
@@ -522,7 +522,7 @@ function SeasonActions({
       ) : null}
       {event.lifecycle === 'ACTIVE' || event.lifecycle === 'PAUSED' ? (
         <button className="theme-danger-button" disabled={busy} onClick={() => runAction('close')}>
-          结束赛季
+          结束活动
         </button>
       ) : null}
     </div>
@@ -755,12 +755,12 @@ function DeckPoolPanel({
     <div className="mt-4 rounded-xl bg-[var(--bg-overlay)] p-4">
       <div className="theme-season-readiness">
         <div>
-          <span>主题赛季</span>
+          <span>娱乐模式</span>
           <strong>信息已保存</strong>
         </div>
         <div data-ready={poolReady}>
           <span>卡组池</span>
-          <strong>{poolReady ? '可以开始赛季' : '还需加入 1 副'}</strong>
+          <strong>{poolReady ? '可以开始活动' : '还需加入 1 副'}</strong>
         </div>
       </div>
 
@@ -895,9 +895,9 @@ function DeckPoolAddForm({
         displayName: deck.name,
         playStyleTags: [],
         difficulty: 'INTERMEDIATE',
-        sourceLabel: '主题赛季卡组池',
+        sourceLabel: '娱乐模式卡组池',
         sourceUrl: null,
-        reviewNote: '加入主题赛季卡组池时审核',
+        reviewNote: '加入娱乐模式卡组池时审核',
       })
     );
   };
@@ -926,7 +926,7 @@ function DeckPoolAddForm({
             difficulty: 'INTERMEDIATE',
             sourceLabel: `YAML · ${file.name}`,
             sourceUrl: null,
-            reviewNote: '由管理员直接导入主题赛季卡组池',
+            reviewNote: '由管理员直接导入娱乐模式卡组池',
           })
         );
       } catch (error) {
@@ -1010,26 +1010,26 @@ function ThemeSeasonForm({
           openWindows: prepareRankedOpenWindowsForApi(draft.openWindows),
           scheduleLabel: formatRankedOpenWindows(draft.openWindows),
           summary: description,
-          announcement: `本主题季不计入排位，双方将从本期卡组池获得平台分配的预组。\n\n${description}`,
+          announcement: `本娱乐模式不计入排位，双方将从本期卡组池获得平台分配的预组。\n\n${description}`,
           evaluationPolicy: event?.evaluationPolicy ?? defaultEvaluationPolicy(),
         });
       }}
     >
       <div className="sm:col-span-2">
         <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-          {event ? '编辑主题赛季' : '新建主题赛季'}
+          {event ? '编辑娱乐模式' : '新建娱乐模式'}
         </h2>
         <p className="mt-1 text-xs text-[var(--text-muted)]">
           {event && event.lifecycle !== 'DRAFT'
-            ? '调整玩家看到的赛季名称、时间和说明。'
-            : '与排位赛季使用相同的时间框架；保存后只需加入卡组池。'}
+            ? '调整玩家看到的活动名称、时间和说明。'
+            : '设置活动时间后，再加入供系统分配的卡组池。'}
         </p>
       </div>
-      <Field label="赛季名称">
+      <Field label="活动名称">
         <input
           className="input-field"
           value={draft.name}
-          placeholder="例如：夏日组合主题季"
+          placeholder="例如：夏日组合挑战"
           onChange={(changeEvent) => setDraft({ ...draft, name: changeEvent.target.value })}
           required
         />
@@ -1058,7 +1058,7 @@ function ThemeSeasonForm({
           <textarea
             className="input-field min-h-24 resize-y"
             value={draft.description}
-            placeholder="说明本期主题、适合体验的玩法和注意事项"
+            placeholder="说明本期娱乐模式、适合体验的玩法和注意事项"
             onChange={(changeEvent) =>
               setDraft({ ...draft, description: changeEvent.target.value })
             }
@@ -1078,7 +1078,7 @@ function ThemeSeasonForm({
           className="button-primary min-h-11 px-5"
           disabled={busy || Boolean(openWindowsError)}
         >
-          {busy ? <Loader2 size={16} className="animate-spin" /> : event ? '保存' : '创建赛季'}
+          {busy ? <Loader2 size={16} className="animate-spin" /> : event ? '保存' : '创建活动'}
         </button>
       </div>
     </form>
@@ -1210,5 +1210,5 @@ function formatPercent(value: number) {
 }
 
 function readError(error: unknown) {
-  return error instanceof Error ? error.message : '主题赛季管理操作失败';
+  return error instanceof Error ? error.message : '娱乐模式管理操作失败';
 }

@@ -69,7 +69,7 @@ export function ThemeTableGlobalLayer({
       <div className="fixed inset-x-3 bottom-3 z-[94] mx-auto flex max-w-3xl items-center justify-between gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 py-3 shadow-xl">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
-            <Clock3 size={16} /> 主题牌桌候场中
+            <Clock3 size={16} /> 娱乐模式候场中
           </div>
           <div className="mt-1 truncate text-xs text-[var(--text-muted)]">
             {overview?.event?.name} · 卡组将在双方确认后分配
@@ -93,7 +93,7 @@ export function ThemeTableGlobalLayer({
           <Check size={24} />
         </div>
         <h2 className="text-xl font-bold text-[var(--text-primary)]">
-          {creating ? '正在抽取本局卡组' : '主题对手已就位'}
+          {creating ? '正在抽取本局卡组' : '对手已就位'}
         </h2>
         <p className="mt-2 text-sm text-[var(--text-secondary)]">
           {creating

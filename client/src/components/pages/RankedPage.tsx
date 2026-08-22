@@ -33,6 +33,7 @@ import type {
   RankedSeasonEnvironmentView,
   RankedSeasonPublicView,
 } from '@game/online/ranked-types';
+import type { BattleTimeoutConfig } from '@game/online/ranked-policy';
 
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
 
@@ -46,9 +47,11 @@ interface RankedEnvironmentState {
 export function RankedPage({
   onBack,
   onEnterRoom,
+  battleTimeouts,
 }: {
   onBack: () => void;
   onEnterRoom: () => void;
+  battleTimeouts: BattleTimeoutConfig;
 }) {
   const pointTable = useDeckPointTableRules();
   const currentUserId = useAuthStore((state) => state.user?.id ?? null);
@@ -298,6 +301,7 @@ export function RankedPage({
           displayedOverview?.player?.placementRequired ??
           displayedOverview?.season?.placementMatchCount
         }
+        battleTimeouts={battleTimeouts}
         onClose={() => setIsSeasonNoticeOpen(false)}
       />
     </div>

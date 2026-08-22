@@ -1,13 +1,12 @@
 import { memo, useEffect, useState } from 'react';
 import type { RankedStallView, Seat } from '@game/online';
-import { RANKED_STALL_NOTICE_AFTER_MS, RANKED_STALL_TIMEOUT_MS } from '@game/online/ranked-policy';
 
 interface RankedStallNoticeProps {
   readonly stall: RankedStallView | null;
   readonly viewerSeat: Seat | null;
 }
 
-const NOTICE_REMAINING_MS = RANKED_STALL_TIMEOUT_MS - RANKED_STALL_NOTICE_AFTER_MS;
+const MAX_NOTICE_REMAINING_MS = 60 * 1000;
 
 export const RankedStallNotice = memo(function RankedStallNotice({
   stall,
@@ -21,7 +20,11 @@ export const RankedStallNotice = memo(function RankedStallNotice({
     }
 
     let intervalId: ReturnType<typeof setInterval> | null = null;
-    const warningAt = stall.deadlineAt - NOTICE_REMAINING_MS;
+    const noticeRemainingMs = Math.min(
+      MAX_NOTICE_REMAINING_MS,
+      Math.max(0, stall.deadlineAt - stall.startedAt)
+    );
+    const warningAt = stall.deadlineAt - noticeRemainingMs;
     const startTicking = () => {
       setNow(Date.now());
       intervalId = setInterval(() => setNow(Date.now()), 1_000);
@@ -42,7 +45,11 @@ export const RankedStallNotice = memo(function RankedStallNotice({
   }
 
   const remainingMs = Math.max(0, stall.deadlineAt - now);
-  if (remainingMs > NOTICE_REMAINING_MS) {
+  const noticeRemainingMs = Math.min(
+    MAX_NOTICE_REMAINING_MS,
+    Math.max(0, stall.deadlineAt - stall.startedAt)
+  );
+  if (remainingMs > noticeRemainingMs) {
     return null;
   }
 
@@ -51,9 +58,7 @@ export const RankedStallNotice = memo(function RankedStallNotice({
   const visibleMessage = isResponsiblePlayer
     ? `该你操作了，还剩 ${remainingSeconds} 秒`
     : `等待对手操作，还剩 ${remainingSeconds} 秒`;
-  const accessibleMessage = isResponsiblePlayer
-    ? '该你操作了'
-    : '正在等待对手操作';
+  const accessibleMessage = isResponsiblePlayer ? '该你操作了' : '正在等待对手操作';
 
   return (
     <div

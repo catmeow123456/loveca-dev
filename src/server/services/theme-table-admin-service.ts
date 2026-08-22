@@ -308,8 +308,8 @@ export class ThemeTableAdminService {
       throw adminError(
         'THEME_OPERATIONS_NOT_EDITABLE',
         theme.lifecycle === 'CLOSED'
-          ? '已结束的主题赛季不能编辑'
-          : '只有已开始的主题赛季可以这样编辑',
+          ? '已结束的娱乐模式不能编辑'
+          : '只有已开始的娱乐模式可以这样编辑',
         409
       );
     }
@@ -658,7 +658,7 @@ export class ThemeTableAdminService {
       [themeId, matchupId, enabled, this.now()]
     );
     const row = result.rows[0];
-    if (!row) throw adminError('THEME_MATCHUP_NOT_FOUND', '主题组合不存在', 404);
+    if (!row) throw adminError('THEME_MATCHUP_NOT_FOUND', '对局组合不存在', 404);
     audit(enabled ? 'THEME_MATCHUP_ENABLED' : 'THEME_MATCHUP_DISABLED', adminUserId, themeId, {
       matchupId,
     });
@@ -757,7 +757,7 @@ export class ThemeTableAdminService {
   private async requireDeckPoolEditable(themeId: string) {
     const theme = await this.requireTheme(themeId);
     if (theme.lifecycle === 'CLOSED') {
-      throw adminError('THEME_DECK_POOL_CLOSED', '已结束的主题赛季不能修改卡组池', 409);
+      throw adminError('THEME_DECK_POOL_CLOSED', '已结束的娱乐模式不能修改卡组池', 409);
     }
     return theme;
   }
@@ -785,7 +785,7 @@ export class ThemeTableAdminService {
       }
     } catch (error) {
       if (isPostgresUniqueViolation(error)) {
-        throw adminError('THEME_ACTIVE_VERSION_CONFLICT', '已有其他主题活动处于开放状态', 409);
+        throw adminError('THEME_ACTIVE_VERSION_CONFLICT', '已有其他娱乐模式处于开放状态', 409);
       }
       throw error;
     }
@@ -796,7 +796,7 @@ export class ThemeTableAdminService {
       themeId,
     ]);
     const row = result.rows[0];
-    if (!row) throw adminError('THEME_EVENT_NOT_FOUND', '主题活动不存在', 404);
+    if (!row) throw adminError('THEME_EVENT_NOT_FOUND', '娱乐模式不存在', 404);
     return row;
   }
 
@@ -999,7 +999,7 @@ function assertDraftInput(input: ThemeAdminDraftInput) {
 
 function assertOperationsInput(input: ThemeAdminOperationsInput) {
   if (input.name.trim().length === 0 || input.name.trim().length > 100) {
-    throw adminError('THEME_NAME_INVALID', '主题赛季名称不能为空且不能超过 100 个字符');
+    throw adminError('THEME_NAME_INVALID', '娱乐模式名称不能为空且不能超过 100 个字符');
   }
   if (
     !Number.isFinite(input.startsAt.getTime()) ||
@@ -1118,7 +1118,7 @@ function hashEnvironment(value: unknown): string {
 }
 
 function requireRow<T>(row: T | undefined, code: string): T {
-  if (!row) throw adminError(code, '主题牌桌数据写入失败', 500);
+  if (!row) throw adminError(code, '娱乐模式数据写入失败', 500);
   return row;
 }
 
