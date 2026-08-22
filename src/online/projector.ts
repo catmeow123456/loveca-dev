@@ -15,6 +15,7 @@ import {
 } from '../application/manual-operation-mode.js';
 import { isPlayerCommandAllowedByPolicy } from '../application/player-command-policy.js';
 import { getActivatedAbilityUiConfigs } from '../application/card-effects/runtime/activated-ability-ui.js';
+import { hasRemainingLimitedActivatedAbilityForStageMember } from '../application/card-effects/runtime/limited-activated-ability-status.js';
 import { getMemberPlayOptionsByHandCardId } from '../application/member-play-options.js';
 import { getSpecialMemberPlayPendingUiConfig } from '../application/special-member-play-procedures.js';
 import { CardAbilitySourceZone } from '../application/card-effects/ability-definition-types.js';
@@ -802,6 +803,10 @@ function addMemberSlotZones(
               }
             )
           : [];
+        const hasRemainingLimitedActivatedAbility =
+          ownerSeat === viewerSeat &&
+          isMemberCardData(occupant.data) &&
+          hasRemainingLimitedActivatedAbilityForStageMember(game, playerId, occupantId);
         upsertViewObject(objects, occupant, ownerSeat, 'FRONT', state?.orientation, state?.face, {
           enteredStageThisTurn: movedToStageThisTurn.includes(occupantId),
           frontInfo: isMemberCardData(occupant.data)
@@ -810,6 +815,7 @@ function addMemberSlotZones(
           activatedAbilityUiConfig: activatedAbilityUiConfigs[0],
           activatedAbilityUiConfigs:
             activatedAbilityUiConfigs.length > 0 ? activatedAbilityUiConfigs : undefined,
+          hasRemainingLimitedActivatedAbility: hasRemainingLimitedActivatedAbility || undefined,
         });
       }
     }
@@ -995,6 +1001,7 @@ function upsertViewObject(
     | 'frontInfo'
     | 'activatedAbilityUiConfig'
     | 'activatedAbilityUiConfigs'
+    | 'hasRemainingLimitedActivatedAbility'
   > & {
     readonly knownCardType?: ViewCardObject['cardType'];
   }
@@ -1015,6 +1022,8 @@ function upsertViewObject(
     activatedAbilityUiConfig: surface === 'FRONT' ? metadata?.activatedAbilityUiConfig : undefined,
     activatedAbilityUiConfigs:
       surface === 'FRONT' ? metadata?.activatedAbilityUiConfigs : undefined,
+    hasRemainingLimitedActivatedAbility:
+      surface === 'FRONT' ? metadata?.hasRemainingLimitedActivatedAbility : undefined,
   };
 }
 

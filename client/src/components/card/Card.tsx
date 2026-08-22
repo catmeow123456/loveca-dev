@@ -44,6 +44,8 @@ export interface CardProps {
   count?: number;
   /** 对局中的卡效自动化视觉状态 */
   effectVisualState?: CardEffectVisualState;
+  /** 己方主要阶段仍有剩余次数的每回合受限起动效果提示 */
+  limitedActivatedHighlight?: boolean;
   /** 点击事件 */
   onClick?: () => void;
   /** 双击事件 */
@@ -237,6 +239,7 @@ export const Card = memo(function Card({
   showInfoOverlay = true,
   count = undefined,
   effectVisualState = 'none',
+  limitedActivatedHighlight = false,
   onClick,
   onDoubleClick,
   onMouseEnter,
@@ -270,6 +273,7 @@ export const Card = memo(function Card({
         'shadow-lg transition-[rotate,scale,translate,transform,box-shadow,filter] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:duration-75',
         sizeClasses[size],
         selected &&
+          !limitedActivatedHighlight &&
           effectVisualState !== 'actionable' &&
           'ring-2 ring-yellow-400 ring-offset-2 ring-offset-slate-900',
         isResting && 'rotate-90',
@@ -299,6 +303,7 @@ export const Card = memo(function Card({
       layout={enableLayoutAnimation}
       data-card-id={instanceId}
       data-object-id={instanceId ? `obj_${instanceId}` : undefined}
+      data-limited-activated-highlight={limitedActivatedHighlight ? 'true' : undefined}
     >
       <AnimatePresence mode="wait">
         {faceUp ? (
@@ -366,13 +371,17 @@ export const Card = memo(function Card({
       </AnimatePresence>
 
       {effectVisualState !== 'none' && <CardEffectMarker state={effectVisualState} />}
-      {effectVisualState !== 'none' && (
+      {(limitedActivatedHighlight || effectVisualState !== 'none') && (
         <div
           className={cn(
-            'pointer-events-none absolute -inset-[1px] z-20 rounded-[12px] border',
-            effectVisualState === 'actionable'
-              ? 'border-sky-100 shadow-[0_0_0_1px_rgba(14,165,233,0.95),0_0_14px_rgba(56,189,248,0.95)]'
-              : 'border-sky-300/95 shadow-[0_0_0_1px_rgba(15,23,42,0.82),0_0_8px_rgba(56,189,248,0.68)]'
+            'pointer-events-none absolute z-20 rounded-[12px] border',
+            limitedActivatedHighlight
+              ? '-inset-[2px] border-2 border-fuchsia-50 shadow-[0_0_0_2px_rgba(255,0,230,1),0_0_8px_2px_rgba(255,255,255,0.9),0_0_24px_5px_rgba(255,0,180,0.9)] motion-safe:animate-pulse'
+              : '-inset-[1px]',
+            !limitedActivatedHighlight &&
+              (effectVisualState === 'actionable'
+                ? 'border-sky-100 shadow-[0_0_0_1px_rgba(14,165,233,0.95),0_0_14px_rgba(56,189,248,0.95)]'
+                : 'border-sky-300/95 shadow-[0_0_0_1px_rgba(15,23,42,0.82),0_0_8px_rgba(56,189,248,0.68)]')
           )}
         />
       )}
@@ -387,7 +396,7 @@ export const Card = memo(function Card({
       )}
 
       {/* 选中高亮 */}
-      {selected && effectVisualState !== 'actionable' && (
+      {selected && (effectVisualState !== 'actionable' || limitedActivatedHighlight) && (
         <motion.div
           className="absolute inset-0 rounded-lg bg-yellow-400/20 pointer-events-none"
           initial={{ opacity: 0 }}

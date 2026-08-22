@@ -248,6 +248,8 @@ export interface ViewCardObject {
   readonly frontInfo?: ViewFrontCardInfo;
   readonly activatedAbilityUiConfig?: ActivatedAbilityUiConfig;
   readonly activatedAbilityUiConfigs?: readonly ActivatedAbilityUiConfig[];
+  /** Viewer-owned stage member still has at least one currently available per-turn activated use. */
+  readonly hasRemainingLimitedActivatedAbility?: boolean;
 }
 
 export interface ViewCommandScope {

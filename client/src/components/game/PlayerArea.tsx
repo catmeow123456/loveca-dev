@@ -34,6 +34,7 @@ import {
   type CardEffectVisualState,
 } from '@/lib/cardEffectAutomationVisuals';
 import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
+import { shouldShowLimitedActivatedAbilityHighlight } from '@/lib/limitedActivatedAbilityVisuals';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import {
   getEnergyBelowCardZIndex,
@@ -944,6 +945,18 @@ export const PlayerArea = memo(function PlayerArea({
       !isOpponent &&
       viewerSeat === playerSeat &&
       canActivateAbilityCommand;
+    const limitedActivatedHighlight = shouldShowLimitedActivatedAbilityHighlight({
+      hasRemainingLimitedActivatedAbility:
+        cardViewObject?.hasRemainingLimitedActivatedAbility === true,
+      isOpponent,
+      viewerSeat,
+      playerSeat,
+      activeSeat: matchView?.activeSeat ?? null,
+      currentPhase,
+      currentSubPhase,
+      canActivateAbilityCommand,
+      hasActiveEffect: activeEffect !== null,
+    });
     const isActiveEffectSlotTarget =
       !isOpponent && viewerSeat === playerSeat && activeEffectSelectableSlotSet.has(position);
     const selectedSlotAction = findEnabledBattleActionSlotTarget(
@@ -1138,6 +1151,7 @@ export const PlayerArea = memo(function PlayerArea({
                     effectVisualState={getEffectVisualState(card, {
                       isActionableNow: canActivateAbility,
                     })}
+                    limitedActivatedHighlight={limitedActivatedHighlight}
                     className={getActiveEffectTaskCardClass(card.instanceId)}
                     onClick={() => {
                       if (confirmActiveEffectCardFromTable(card.instanceId)) {
