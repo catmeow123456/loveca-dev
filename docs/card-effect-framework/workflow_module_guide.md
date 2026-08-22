@@ -94,6 +94,16 @@ FREE 只放宽这次登场的能量支付与目标槽位限制：卡面规定的
 BLADE +2，离场来源无需仍在舞台；事件或目标 stale 时消费 pending 并 no-op。手动确认使用
 实时条件/结果文案，ordered batch 直接结算。
 
+`relay-replacement-activate-energy.ts` 由旧 `PL!HS-sd1-001` 在 `PL!-pb2-009` 成为第二个
+真实样本时晋升。两张卡稳定共享“来源因符合条件成员换手而离场，活跃至多2张待机能量”的
+结算形状；差异只通过 definition 的结构化团体与最低印刷费用表达（莲之空>=10、μ's>=15）。
+runner 的通用 `ON_LEAVE_STAGE` filter 与 workflow 结算均绑定同一个精确
+`LeaveStageEvent.replacingCardId` 重验，不按卡牌原始 owner 收窄控制者已发生的换手事实；普通离场、
+错团体和费用不足在入队前过滤。能量变更复用通用精确选择与特殊能量规则，0/1张待机能量按
+实际数量结算；手动 confirm-only 追加实时结果说明，ordered batch 不打开额外窗口。该 family
+只配置 abilityId、基础编号、替换成员团体/最低印刷费用、活跃数量和稳定 action step，不扩成
+任意离场条件或能量效果 DSL。
+
 `look-top-ten-minus-hand-take-two.ts` 是 `PL!HS-PR-039` 与 `PL!SP-PR-028` 的窄动态检视
 family。唯一动态轴是在结算开始按当前手牌锁定 `max(0, 10-handCount)`；检视、0～2张私密
 入手、余牌成组进入休息室及 continuation 全部委托既有 `look-top-select-to-hand` core。
@@ -110,7 +120,7 @@ deadline 恢复后整体重验，并调用统一 waiting-room-to-main-deck 事�
 
 费用 9「ミア・テイラー」`PL!N-bp1-011` 保持 `workflows/cards/n-bp1-011-mia-taylor.ts` 单卡 ownership。它只与上述 family 共享可选弃手和底层区域动作；完整流程是逐张公开至服务端确定的首张 LIVE、通过 Public Reveal Dwell 展示完整公开结果、展示结束后一次移动，不存在玩家自由选择命中目标，因此不接 public-card-selection confirmation deadline。
 
-`self-sacrifice-waiting-room-to-hand.ts` 承接“来源成员自送休息室后，从自己的休息室公开确认回收卡牌”的稳定 family。回收后的能量恢复只允许有限条件联合：成功 LIVE 区有效分数总计，或本次实际回收 LIVE 自身的结构化团体与印刷分数；不接受任意 callback。`PL!-PR-017` 与 `PL!S-bp3-008` 是两个真实条件样本。
+`self-sacrifice-waiting-room-to-hand.ts` 承接“来源成员自送休息室后，从自己的休息室公开确认回收卡牌”的稳定 family。回收后的能量恢复只允许有限条件联合：成功 LIVE 区有效分数总计、本次实际回收 LIVE 自身的结构化团体与印刷分数，或自己成功区中自己持有的结构化团体卡牌数；不接受任意 callback。`PL!-PR-017`、`PL!S-bp3-008` 与 `PL!-pb2-007` 是三个真实后处理样本。无回收目标时仍保留已支付的自送费用；不依赖“实际回收卡”的后处理继续结算。
 
 `live-start-discard-gain-blade.ts` 承接 LIVE_START queued 的“可选弃手，来源成员获得 BLADE”稳定 family。当前配置轴仅为 abilityId、弃置 min/max、`PER_DISCARD / FIXED_TOTAL` 两种有限奖励，以及“弃置 LIVE 后抽1”的窄后处理；不接受任意 callback、奖励公式、任意弃牌后处理或步骤 DSL。`PL!S-bp3-003` 证明0至2张与每张+2，`PL!SP-PR-009/011/012` 保留 exactly 1、+1与弃 LIVE 抽1，`PL!SP-sd1-003` 证明恰好2张与支付成功后固定+5。弃手统一走 trigger-safe wrapper，modifier 绑定来源成员实例，并通过统一 pending continuation 返回检查时点；手牌不足配置下限时直接消费 pending，不建立非法选择窗口。
 

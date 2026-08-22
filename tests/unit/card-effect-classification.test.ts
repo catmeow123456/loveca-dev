@@ -108,7 +108,15 @@ import {
   PL_BP3_007_LIVE_START_DISCARD_TWO_PARTITION_TOP_THREE_ABILITY_ID,
   PL_BP3_008_ACTIVATED_WAIT_SELF_RECOVER_MUSE_LIVE_ABILITY_ID,
   PL_BP3_008_LIVE_START_OPTIONAL_WAIT_MUSE_MEMBER_GAIN_YELLOW_HEART_ABILITY_ID,
+  PL_PB2_000_CONTINUOUS_PLAY_DOUBLE_RELAY_ABILITY_ID,
   PL_PB2_000_ON_ENTER_DOUBLE_MUSE_RELAY_RECOVER_LIVE_GAIN_SCORE_ABILITY_ID,
+  PL_PB2_002_CONTINUOUS_FACING_LOW_ORIGINAL_HEART_MEMBER_ENTERS_WAITING_ABILITY_ID,
+  PL_PB2_004_AUTO_ON_CHEER_MUSE_SCORE_ADDITIONAL_CHEER_ABILITY_ID,
+  PL_PB2_004_CONTINUOUS_SUCCESS_MUSE_SCORE_GAIN_BLADE_ABILITY_ID,
+  PL_PB2_006_ACTIVATED_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID,
+  PL_PB2_006_LIVE_START_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID,
+  PL_PB2_007_ACTIVATED_SELF_SACRIFICE_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
+  PL_PB2_009_AUTO_RELAY_REPLACED_BY_HIGH_COST_MUSE_ACTIVATE_ENERGY_ABILITY_ID,
   PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID,
   PL_BP3_009_ON_ENTER_COST_THIRTEEN_DRAW_ONE_ABILITY_ID,
   PL_N_PB1_016_ON_ENTER_LOOK_TOP_TWO_KARIN_MEMBER_ABILITY_ID,
@@ -333,6 +341,7 @@ import {
   PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID,
   PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
   PR_018_ON_ENTER_RECOVER_HIGH_SCORE_LIVE_ABILITY_ID,
+  PL_PB2_003_LIVE_START_SUPPRESS_OPPONENT_MEMBER_LIVE_SUCCESS_GAIN_YELLOW_HEART_ABILITY_ID,
   SP_BP2_001_ON_ENTER_SUPPRESS_LIELLA_MEMBER_LIVE_START_RECOVER_LIELLA_CARD_ABILITY_ID,
   SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID,
   SP_BP2_005_ON_ENTER_PAY_TWO_ENERGY_LOOK_TOP_SEVEN_LIELLA_CARD_ABILITY_ID,
@@ -4424,7 +4433,21 @@ describe('card effect classification registry', () => {
     }
 
     for (const cardCode of ['PL!-pb2-000-DUO', 'PL!-pb2-000-P']) {
-      const rinHanayoOnEnter = getCardAbilityDefinitions(cardCode).find(
+      const rinHanayoDefinitions = getCardAbilityDefinitions(cardCode);
+      const rinHanayoContinuous = rinHanayoDefinitions.find(
+        (ability) => ability.abilityId === PL_PB2_000_CONTINUOUS_PLAY_DOUBLE_RELAY_ABILITY_ID
+      );
+      expect(rinHanayoContinuous).toMatchObject({
+        abilityId: PL_PB2_000_CONTINUOUS_PLAY_DOUBLE_RELAY_ABILITY_ID,
+        baseCardCodes: ['PL!-pb2-000'],
+        category: CardAbilityCategory.CONTINUOUS,
+        sourceZone: CardAbilitySourceZone.HAND,
+        queued: false,
+        implemented: true,
+        effectText: '【常时】打出此卡时，可以与2名成员进行换手。',
+      });
+
+      const rinHanayoOnEnter = rinHanayoDefinitions.find(
         (ability) =>
           ability.abilityId ===
           PL_PB2_000_ON_ENTER_DOUBLE_MUSE_RELAY_RECOVER_LIVE_GAIN_SCORE_ABILITY_ID
@@ -4437,7 +4460,131 @@ describe('card effect classification registry', () => {
         triggerCondition: TriggerCondition.ON_ENTER_STAGE,
         queued: true,
         implemented: true,
+        effectText:
+          '【登场】从2名『μ’s』的成员换手登场的场合，从自己的休息室将1张『μ’s』的LIVE卡加入手牌，接着，那2名成员的费用合计为15的场合，LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。',
       });
+    }
+
+    for (const cardCode of ['PL!-pb2-002-PP', 'PL!-pb2-002-R', 'PL!-pb2-002-UNSEEN']) {
+      const eliContinuous = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          PL_PB2_002_CONTINUOUS_FACING_LOW_ORIGINAL_HEART_MEMBER_ENTERS_WAITING_ABILITY_ID
+      );
+      expect(eliContinuous).toMatchObject({
+        abilityId: PL_PB2_002_CONTINUOUS_FACING_LOW_ORIGINAL_HEART_MEMBER_ENTERS_WAITING_ABILITY_ID,
+        baseCardCodes: ['PL!-pb2-002'],
+        category: CardAbilityCategory.CONTINUOUS,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        effectText:
+          '【常时】原本持有的HEART数量小于等于4的成员登场至此成员正面的区域时，以待机状态登场。',
+      });
+      expect(eliContinuous?.cardCodes).toBeUndefined();
+      expect(eliContinuous?.triggerCondition).toBeUndefined();
+    }
+
+    for (const cardCode of ['PL!-pb2-004-PP', 'PL!-pb2-004-R', 'PL!-pb2-004-UNSEEN']) {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(definitions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            abilityId: PL_PB2_004_CONTINUOUS_SUCCESS_MUSE_SCORE_GAIN_BLADE_ABILITY_ID,
+            baseCardCodes: ['PL!-pb2-004'],
+            category: CardAbilityCategory.CONTINUOUS,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            queued: false,
+            implemented: true,
+          }),
+          expect.objectContaining({
+            abilityId: PL_PB2_004_AUTO_ON_CHEER_MUSE_SCORE_ADDITIONAL_CHEER_ABILITY_ID,
+            baseCardCodes: ['PL!-pb2-004'],
+            category: CardAbilityCategory.AUTO,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            triggerCondition: TriggerCondition.ON_CHEER,
+            queued: true,
+            implemented: true,
+            perTurnLimit: 1,
+          }),
+        ])
+      );
+      expect(definitions.every((definition) => definition.cardCodes === undefined)).toBe(true);
+    }
+
+    for (const cardCode of ['PL!-pb2-006-PP', 'PL!-pb2-006-R', 'PL!-pb2-006-UNSEEN']) {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(definitions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            abilityId:
+              PL_PB2_006_ACTIVATED_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID,
+            baseCardCodes: ['PL!-pb2-006'],
+            category: CardAbilityCategory.ACTIVATED,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            queued: false,
+            implemented: true,
+            perTurnLimit: 1,
+            requiredSourceOrientation: OrientationState.ACTIVE,
+          }),
+          expect.objectContaining({
+            abilityId:
+              PL_PB2_006_LIVE_START_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID,
+            baseCardCodes: ['PL!-pb2-006'],
+            category: CardAbilityCategory.LIVE_START,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            triggerCondition: TriggerCondition.ON_LIVE_START,
+            queued: true,
+            implemented: true,
+          }),
+        ])
+      );
+      expect(definitions).toHaveLength(2);
+      expect(definitions.every((definition) => definition.cardCodes === undefined)).toBe(true);
+    }
+
+    for (const cardCode of ['PL!-pb2-007-PP', 'PL!-pb2-007-R', 'PL!-pb2-007-UNSEEN']) {
+      const nozomiActivated = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          PL_PB2_007_ACTIVATED_SELF_SACRIFICE_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID
+      );
+      expect(nozomiActivated).toMatchObject({
+        abilityId: PL_PB2_007_ACTIVATED_SELF_SACRIFICE_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
+        baseCardCodes: ['PL!-pb2-007'],
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+      });
+      expect(nozomiActivated?.cardCodes).toBeUndefined();
+    }
+
+    for (const cardCode of ['PL!-pb2-009-PP', 'PL!-pb2-009-R', 'PL!-pb2-009-UNSEEN']) {
+      const nicoAuto = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          PL_PB2_009_AUTO_RELAY_REPLACED_BY_HIGH_COST_MUSE_ACTIVATE_ENERGY_ABILITY_ID
+      );
+      expect(nicoAuto).toMatchObject({
+        abilityId: PL_PB2_009_AUTO_RELAY_REPLACED_BY_HIGH_COST_MUSE_ACTIVATE_ENERGY_ABILITY_ID,
+        baseCardCodes: ['PL!-pb2-009'],
+        category: CardAbilityCategory.AUTO,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+        triggerToZones: [ZoneType.WAITING_ROOM],
+        onLeaveStageTriggerFilter: {
+          relayReplacementMember: {
+            groupAliases: ["μ's"],
+            minPrintedCost: 15,
+          },
+        },
+        queued: true,
+        implemented: true,
+        effectText:
+          '【自动】此成员从舞台被放置入休息室时，此成员与费用大于等于15的『μ’s』的成员换手的场合，将2张能量变为活跃状态。',
+      });
+      expect(nicoAuto?.cardCodes).toBeUndefined();
     }
 
     for (const cardCode of ['PL!SP-pb1-001-PR', 'PL!SP-pb1-001-R', 'PL!SP-pb1-001-P＋']) {
@@ -5852,6 +5999,22 @@ describe('card effect classification registry', () => {
         category: CardAbilityCategory.ON_ENTER,
         sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
         triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+    for (const cardCode of ['PL!-pb2-003-PP', 'PL!-pb2-003-R']) {
+      const plPb2Kotori = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          PL_PB2_003_LIVE_START_SUPPRESS_OPPONENT_MEMBER_LIVE_SUCCESS_GAIN_YELLOW_HEART_ABILITY_ID
+      );
+      expect(plPb2Kotori).toMatchObject({
+        baseCardCodes: ['PL!-pb2-003'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
         queued: true,
         implemented: true,
       });
@@ -9692,12 +9855,26 @@ describe('card effect classification registry', () => {
       (ability) => ability.abilityId === HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID
     );
     expect(relayKahoAuto).toMatchObject({
+      baseCardCodes: ['PL!HS-sd1-001'],
       category: CardAbilityCategory.AUTO,
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+      triggerToZones: [ZoneType.WAITING_ROOM],
+      onLeaveStageTriggerFilter: {
+        relayReplacementMember: {
+          groupAliases: ['蓮ノ空'],
+          minPrintedCost: 10,
+        },
+      },
       queued: true,
       implemented: true,
     });
+    expect(relayKahoAuto?.cardCodes).toBeUndefined();
+    expect(
+      getCardAbilityDefinitions('PL!HS-sd1-001-UNSEEN').some(
+        (ability) => ability.abilityId === HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID
+      )
+    ).toBe(true);
 
     const hsPb1GinkoOnEnter = getCardAbilityDefinitions('PL!HS-pb1-020-N').find(
       (ability) =>

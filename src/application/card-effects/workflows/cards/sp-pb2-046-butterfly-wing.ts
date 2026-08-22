@@ -8,16 +8,12 @@ import {
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import {
-  CardAbilityCategory,
-  CardAbilitySourceZone,
-  type CardAbilityDefinition,
-} from '../../ability-definition-types.js';
+import { CardAbilityCategory, CardAbilitySourceZone } from '../../ability-definition-types.js';
 import {
   SP_PB2_046_CONTINUOUS_PREVENT_STAGE_MEMBER_LIVE_START_ABILITY_ID,
   SP_PB2_046_LIVE_SUCCESS_STAGE_MEMBER_LIVE_START_THIS_LIVE_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { getCardAbilityDefinitionsForCardCode } from '../../definitions/lookup.js';
+import { getImplementedQueuedAbilityDefinitionsForCardCode } from '../../definitions/lookup.js';
 import { registerLiveStartSuppressionGate } from '../../runtime/live-start-suppression-gates.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import {
@@ -151,9 +147,12 @@ function getStageLiveStartMemberChecks(
     const memberCard = memberCardId ? getCardById(game, memberCardId) : null;
     const liveStartAbilityIds =
       memberCard && memberCard.ownerId === player.id
-        ? getStageMemberLiveStartAbilityDefinitions(memberCard.data.cardCode, slot).map(
-            (definition) => definition.abilityId
-          )
+        ? getImplementedQueuedAbilityDefinitionsForCardCode(memberCard.data.cardCode, {
+            category: CardAbilityCategory.LIVE_START,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            triggerCondition: TriggerCondition.ON_LIVE_START,
+            sourceSlot: slot,
+          }).map((definition) => definition.abilityId)
         : [];
     return {
       slot,
@@ -162,32 +161,6 @@ function getStageLiveStartMemberChecks(
       hasLiveStartAbility: liveStartAbilityIds.length > 0,
     };
   });
-}
-
-function getStageMemberLiveStartAbilityDefinitions(
-  cardCode: string,
-  sourceSlot: SlotPosition
-): readonly CardAbilityDefinition[] {
-  return getCardAbilityDefinitionsForCardCode(cardCode).filter(
-    (definition) =>
-      definition.category === CardAbilityCategory.LIVE_START &&
-      definition.sourceZone === CardAbilitySourceZone.STAGE_MEMBER &&
-      definition.triggerCondition === TriggerCondition.ON_LIVE_START &&
-      definition.queued &&
-      definition.implemented &&
-      doesSourceSlotSatisfyAbility(definition, sourceSlot)
-  );
-}
-
-function doesSourceSlotSatisfyAbility(
-  ability: CardAbilityDefinition,
-  sourceSlot: SlotPosition
-): boolean {
-  return (
-    ability.requiredSourceSlots === undefined ||
-    ability.requiredSourceSlots.length === 0 ||
-    ability.requiredSourceSlots.includes(sourceSlot)
-  );
 }
 
 function refreshPlayerScoreDraft(game: GameState, playerId: string, scoreBonus: number): GameState {

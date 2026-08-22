@@ -18,6 +18,7 @@ import {
 } from '../../../effects/zone-selection.js';
 import { PL_PB2_000_ON_ENTER_DOUBLE_MUSE_RELAY_RECOVER_LIVE_GAIN_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
+import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -131,10 +132,10 @@ function startPlPb2000RinHanayoOnEnter(
         controllerId: ability.controllerId,
         effectText: getAbilityEffectText(ability.abilityId),
         stepId: SELECT_MUSE_LIVE_STEP_ID,
-        stepText: "请选择自己休息室中1张『μ's』LIVE卡加入手牌。",
+        stepText: '请选择自己休息室中1张『μ’s』LIVE卡加入手牌。',
         awaitingPlayerId: player.id,
         selectableCardIds,
-        selectionLabel: "选择要加入手牌的『μ's』LIVE卡",
+        selectionLabel: '选择要加入手牌的『μ’s』LIVE卡',
         confirmSelectionLabel: '加入手牌',
         canSkipSelection: false,
         metadata: {
@@ -179,7 +180,9 @@ function finishPlPb2000RinHanayoRecovery(
     effect.selectableCardIds?.includes(selectedCardId) !== true ||
     !currentCandidates.includes(selectedCardId)
   ) {
-    return game;
+    return wasRestoredAfterPublicCardSelectionConfirmation(effect)
+      ? finishStaleRecovery(game, effect, player.id, selectedCardId, continuePendingCardEffects)
+      : game;
   }
 
   const relayReplacements = parseRelayReplacementSnapshots(effect.metadata?.relayReplacements);
@@ -199,7 +202,9 @@ function finishPlPb2000RinHanayoRecovery(
     exactCount: 1,
   });
   if (!recovery) {
-    return game;
+    return wasRestoredAfterPublicCardSelectionConfirmation(effect)
+      ? finishStaleRecovery(game, effect, player.id, selectedCardId, continuePendingCardEffects)
+      : game;
   }
 
   const stateWithoutEffect = { ...recovery.gameState, activeEffect: null };
@@ -221,6 +226,49 @@ function finishPlPb2000RinHanayoRecovery(
       selectedCardId: recovery.movedCardIds[0] ?? null,
       relayReplacements,
       relayEffectiveCostTotal,
+      scoreGranted,
+    }),
+    effect.metadata?.orderedResolution === true
+  );
+}
+
+function finishStaleRecovery(
+  game: GameState,
+  effect: ActiveEffectState,
+  playerId: string,
+  selectedCardId: string,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const relayReplacements = parseRelayReplacementSnapshots(effect.metadata?.relayReplacements);
+  const relayEffectiveCostTotal = numberValue(effect.metadata?.relayEffectiveCostTotal);
+  const relaySnapshotValid =
+    validateDoubleMuseRelay(game, playerId, relayReplacements).ok &&
+    relayEffectiveCostTotal !== null &&
+    relayEffectiveCostTotal ===
+      relayReplacements.reduce((total, replacement) => total + replacement.effectiveCost, 0);
+  const stateWithoutEffect = { ...game, activeEffect: null };
+  const stateAfterGrant = relaySnapshotValid
+    ? grantTemporaryScoreIfEligible(
+        stateWithoutEffect,
+        playerId,
+        effect.sourceCardId,
+        relayEffectiveCostTotal
+      )
+    : stateWithoutEffect;
+  const scoreGranted =
+    stateAfterGrant.liveResolution.liveModifiers.length >
+    stateWithoutEffect.liveResolution.liveModifiers.length;
+  return continuePendingCardEffects(
+    addAction(stateAfterGrant, 'RESOLVE_ABILITY', playerId, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'SELECTED_MUSE_LIVE_LEFT_WAITING_ROOM',
+      selectedCardId,
+      movedCardIds: [],
+      relayReplacements,
+      relayEffectiveCostTotal,
+      relaySnapshotValid,
       scoreGranted,
     }),
     effect.metadata?.orderedResolution === true

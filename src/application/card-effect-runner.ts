@@ -317,10 +317,7 @@ import { registerSPb1002RikoWorkflowHandlers } from './card-effects/workflows/ca
 import { registerSPb1003KananWorkflowHandlers } from './card-effects/workflows/cards/s-pb1-003-kanan.js';
 import { registerSPb1019GenkiZenkaiDayDayDayWorkflowHandlers } from './card-effects/workflows/cards/s-pb1-019-genki-zenkai-day-day-day.js';
 import { registerSPb1022MobiusLoopWorkflowHandlers } from './card-effects/workflows/cards/s-pb1-022-mobius-loop.js';
-import {
-  isHsSd1001HighCostHasunosoraRelayReplacement,
-  registerHsSd1001KahoWorkflowHandlers,
-} from './card-effects/workflows/cards/hs-sd1-001-kaho.js';
+import { registerRelayReplacementActivateEnergyWorkflowHandlers } from './card-effects/workflows/shared/relay-replacement-activate-energy.js';
 import { registerHsSd1002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-002-sayaka.js';
 import { registerHsSd1003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-003-rurino.js';
 import { registerHsBp6011RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-011-rurino.js';
@@ -501,6 +498,9 @@ import { registerSpPr024SumireWorkflowHandlers } from './card-effects/workflows/
 import { registerSpPb2000ChisatoNatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-000-chisato-natsumi.js';
 import { registerPlPb2000RinHanayoWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-000-rin-hanayo.js';
 import { registerPlPb2001HonokaWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-001-honoka.js';
+import { registerPlPb2003KotoriWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-003-kotori.js';
+import { registerPlPb2004UmiWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-004-umi.js';
+import { registerPlPb2006MakiWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-006-maki.js';
 import { registerPlPb2039BokutachiWaHitotsuNoHikariWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-039-bokutachi-wa-hitotsu-no-hikari.js';
 import { registerPlBp8005RinWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-005-rin.js';
 import { registerSpPb2045ZettaiLoverWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-045-zettai-lover.js';
@@ -600,7 +600,6 @@ import type {
 } from '../domain/events/game-events.js';
 import {
   BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
-  HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID,
   HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID,
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
   PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID,
@@ -618,6 +617,7 @@ import {
   getCardAbilityDefinitionsForCardCode,
 } from './card-effects/definitions/lookup.js';
 import { doesMemberSlotMovedEventMatchAbilityDefinition } from './card-effects/runtime/member-slot-moved-triggers.js';
+import { doesOnLeaveStageSourceMatchAbilityDefinition } from './card-effects/runtime/on-leave-stage-trigger-filter.js';
 
 export * from './card-effects/ability-ids.js';
 export * from './card-effects/ability-definition-types.js';
@@ -972,7 +972,7 @@ registerHsBp6025TsubasaLaLiberteWorkflowHandlers({ enqueueTriggeredCardEffects }
 registerHsBp6029ProofWorkflowHandlers();
 registerHsCl1002SayakaWorkflowHandlers();
 registerOnEnterSourceMemberGainLiveModifierWorkflowHandlers();
-registerHsSd1001KahoWorkflowHandlers();
+registerRelayReplacementActivateEnergyWorkflowHandlers();
 registerHsSd1002SayakaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsSd1003RurinoWorkflowHandlers();
 registerHsSd1006HimeWorkflowHandlers();
@@ -1341,6 +1341,9 @@ registerSpPr024SumireWorkflowHandlers();
 registerSpPb2000ChisatoNatsumiWorkflowHandlers();
 registerPlPb2000RinHanayoWorkflowHandlers();
 registerPlPb2001HonokaWorkflowHandlers();
+registerPlPb2003KotoriWorkflowHandlers();
+registerPlPb2004UmiWorkflowHandlers();
+registerPlPb2006MakiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb2039BokutachiWaHitotsuNoHikariWorkflowHandlers();
 registerPlBp8005RinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpPb2045ZettaiLoverWorkflowHandlers();
@@ -2164,13 +2167,6 @@ function createOnLeaveStageAbilitySourcesFromEvents(
   }));
 }
 
-function isHighCostHasunosoraRelayReplacement(
-  game: GameState,
-  source: OnLeaveStageAbilitySource
-): boolean {
-  return isHsSd1001HighCostHasunosoraRelayReplacement(game, source.replacingCardId);
-}
-
 function enqueueSingleOnLeaveStageCardEffect(
   game: GameState,
   source: OnLeaveStageAbilitySource
@@ -2193,10 +2189,7 @@ function enqueueSingleOnLeaveStageCardEffect(
   let state = game;
   for (const abilityDefinition of abilityDefinitions) {
     const abilityId = abilityDefinition.abilityId;
-    if (
-      abilityId === HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID &&
-      !isHighCostHasunosoraRelayReplacement(state, source)
-    ) {
+    if (!doesOnLeaveStageSourceMatchAbilityDefinition(state, abilityDefinition, source)) {
       continue;
     }
 

@@ -10,7 +10,7 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import { CardType, GamePhase, OrientationState } from '../../../../shared/types/enums.js';
+import { CardType, GamePhase, OrientationState, ZoneType } from '../../../../shared/types/enums.js';
 import {
   BP4_003_ACTIVATED_ABILITY_ID,
   ELI_ACTIVATED_ABILITY_ID,
@@ -18,6 +18,7 @@ import {
   N_BP7_015_ACTIVATED_SELF_SACRIFICE_RECOVER_MEMBER_ABILITY_ID,
   N_BP7_021_ACTIVATED_SELF_SACRIFICE_RECOVER_LIVE_ABILITY_ID,
   PB1_019_ACTIVATED_ABILITY_ID,
+  PL_PB2_007_ACTIVATED_SELF_SACRIFICE_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
   PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
   RIN_ACTIVATED_ABILITY_ID,
   S_BP3_008_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
@@ -41,7 +42,11 @@ import {
   type EnqueueTriggeredCardEffectsForLeaveStage,
 } from '../../runtime/leave-stage-triggers.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
-import { successLiveScoreAtLeast, sumSuccessfulLiveScore } from '../../../effects/conditions.js';
+import {
+  countCardsInZoneMatching,
+  successLiveScoreAtLeast,
+  sumSuccessfulLiveScore,
+} from '../../../effects/conditions.js';
 import { getEnergyCardIdsByOrientation } from '../../../effects/energy.js';
 import { clearPreviousStageMemberInstanceState } from '../../../effects/member-state.js';
 import {
@@ -90,6 +95,11 @@ interface SelfSacrificeWaitingRoomToHandWorkflowConfig {
         readonly threshold: number;
         readonly activateCount: number;
         readonly finishStep: string;
+      }
+    | {
+        readonly kind: 'OWN_SUCCESS_ZONE_OWNED_GROUP_CARD_COUNT';
+        readonly groupAlias: string;
+        readonly finishStep: string;
       };
 }
 
@@ -122,6 +132,21 @@ const SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly SelfSacrificeWaiti
         threshold: 6,
         activateCount: 4,
         finishStep: 'RECOVER_LIVE_ACTIVATE_ENERGY_IF_AQOURS_SCORE',
+      },
+    },
+    {
+      abilityId: PL_PB2_007_ACTIVATED_SELF_SACRIFICE_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!-pb2-007'],
+      stepId: 'PL_PB2_007_SELECT_WAITING_ROOM_MUSE_LIVE',
+      selectablePredicate: and(typeIs(CardType.LIVE), groupAliasIs("μ's")),
+      selectionRequiredWhenHasTargets: true,
+      stepText: '请选择自己的休息室中1张『μ’s』LIVE卡加入手牌。',
+      selectionLabel: '选择要加入手牌的『μ’s』LIVE卡',
+      confirmSelectionLabel: '加入手牌',
+      postRecovery: {
+        kind: 'OWN_SUCCESS_ZONE_OWNED_GROUP_CARD_COUNT',
+        groupAlias: "μ's",
+        finishStep: 'RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_PER_SUCCESS_MUSE_CARD',
       },
     },
     {
@@ -313,6 +338,9 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
   if (!player) {
     return game;
   }
+  const config = SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS.find(
+    (item) => item.abilityId === effect.abilityId
+  );
 
   const orderedSelections =
     Array.isArray(selectedCardIds) && selectedCardIds.length > 0 ? selectedCardIds : [];
@@ -335,6 +363,12 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
   );
   if (!recoveryResult) {
     if (!wasRestoredAfterPublicCardSelectionConfirmation(effect)) return game;
+    if (
+      config?.postRecovery?.kind === 'OWN_SUCCESS_ZONE_OWNED_GROUP_CARD_COUNT' ||
+      config?.postRecovery?.kind === 'SUCCESS_LIVE_EFFECTIVE_SCORE_AT_LEAST'
+    ) {
+      return finishPostRecovery(game, player.id, effect, config, [], continuePendingCardEffects);
+    }
     return continuePendingCardEffects(
       addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
         pendingAbilityId: effect.id,
@@ -350,22 +384,33 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
     );
   }
 
-  const config = SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS.find(
-    (item) => item.abilityId === effect.abilityId
+  return finishPostRecovery(
+    recoveryResult.gameState,
+    player.id,
+    effect,
+    config,
+    recoveryResult.movedCardIds,
+    continuePendingCardEffects
   );
+}
+
+function finishPostRecovery(
+  game: GameState,
+  playerId: string,
+  effect: NonNullable<GameState['activeEffect']>,
+  config: SelfSacrificeWaitingRoomToHandWorkflowConfig | undefined,
+  recoveredCardIds: readonly string[],
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
   const recoveredCard =
-    recoveryResult.movedCardIds.length === 1
-      ? getCardById(recoveryResult.gameState, recoveryResult.movedCardIds[0])
-      : null;
+    recoveredCardIds.length === 1 ? getCardById(game, recoveredCardIds[0]) : null;
   let conditionMet = false;
   let conditionValue: number | null = null;
+  let requestedActivationCount = 0;
   if (config?.postRecovery?.kind === 'SUCCESS_LIVE_EFFECTIVE_SCORE_AT_LEAST') {
-    conditionValue = sumSuccessfulLiveScore(recoveryResult.gameState, player.id);
-    conditionMet = successLiveScoreAtLeast(
-      recoveryResult.gameState,
-      player.id,
-      config.postRecovery.threshold
-    );
+    conditionValue = sumSuccessfulLiveScore(game, playerId);
+    conditionMet = successLiveScoreAtLeast(game, playerId, config.postRecovery.threshold);
+    requestedActivationCount = config.postRecovery.activateCount;
   } else if (config?.postRecovery?.kind === 'RECOVERED_AQOURS_LIVE_PRINTED_SCORE_AT_LEAST') {
     conditionValue =
       recoveredCard && isLiveCardData(recoveredCard.data) ? recoveredCard.data.score : null;
@@ -374,24 +419,35 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
       isLiveCardData(recoveredCard.data) &&
       groupAliasIs('Aqours')(recoveredCard) &&
       (recoveredCard.data.score ?? 0) >= config.postRecovery.threshold;
+    requestedActivationCount = config.postRecovery.activateCount;
+  } else if (config?.postRecovery?.kind === 'OWN_SUCCESS_ZONE_OWNED_GROUP_CARD_COUNT') {
+    const groupSelector = groupAliasIs(config.postRecovery.groupAlias);
+    conditionValue = countCardsInZoneMatching(
+      game,
+      playerId,
+      ZoneType.SUCCESS_ZONE,
+      (card) => card.ownerId === playerId && groupSelector(card)
+    );
+    conditionMet = conditionValue > 0;
+    requestedActivationCount = conditionValue;
   }
   const waitingEnergyCount = getEnergyCardIdsByOrientation(
-    recoveryResult.gameState,
-    player.id,
+    game,
+    playerId,
     OrientationState.WAITING
   ).length;
   const activationCount =
     conditionMet && config?.postRecovery
-      ? Math.min(config.postRecovery.activateCount, waitingEnergyCount)
+      ? Math.min(requestedActivationCount, waitingEnergyCount)
       : 0;
   const orientationChange =
     conditionMet && activationCount > 0
-      ? activateWaitingEnergyCardsForPlayer(recoveryResult.gameState, player.id, activationCount)
+      ? activateWaitingEnergyCardsForPlayer(game, playerId, activationCount)
       : null;
   if (conditionMet && activationCount > 0 && !orientationChange) {
     return game;
   }
-  const stateAfterEnergy = orientationChange?.gameState ?? recoveryResult.gameState;
+  const stateAfterEnergy = orientationChange?.gameState ?? game;
 
   const state = {
     ...stateAfterEnergy,
@@ -399,21 +455,24 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
   };
 
   return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
+    addAction(state, 'RESOLVE_ABILITY', playerId, {
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: config?.postRecovery?.finishStep ?? 'FINISH',
-      selectedCardId: recoveryResult.movedCardIds[0] ?? null,
-      selectedCardIds: recoveryResult.movedCardIds,
+      selectedCardId: recoveredCardIds[0] ?? null,
+      selectedCardIds: recoveredCardIds,
       publicEffectSummary: {
         effectKind: 'SELF_SACRIFICE_RECOVER_FROM_WAITING_ROOM',
-        recoveredCardIds: recoveryResult.movedCardIds,
-        noRecoveredCards: recoveryResult.movedCardIds.length === 0,
+        recoveredCardIds,
+        noRecoveredCards: recoveredCardIds.length === 0,
       },
       conditionValue,
       ...(config?.postRecovery?.kind === 'SUCCESS_LIVE_EFFECTIVE_SCORE_AT_LEAST'
         ? { successLiveScore: conditionValue }
+        : {}),
+      ...(config?.postRecovery?.kind === 'OWN_SUCCESS_ZONE_OWNED_GROUP_CARD_COUNT'
+        ? { successGroupCardCount: conditionValue }
         : {}),
       conditionMet,
       activatedEnergyCardIds: orientationChange?.activatedEnergyCardIds ?? [],

@@ -214,6 +214,8 @@ const BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
 const PL_BP4_020_CONTINUOUS_SUCCESS_ZONE_CENTER_MUSE_GAIN_BLADE_ABILITY_ID =
   'PL!-bp4-020:continuous-success-zone-center-muse-gain-blade';
+const PL_PB2_004_CONTINUOUS_SUCCESS_MUSE_SCORE_GAIN_BLADE_ABILITY_ID =
+  'PL!-pb2-004:continuous-success-muse-score-gain-blade';
 const PL_N_BP4_007_CONTINUOUS_TOTAL_ENERGY_FIFTEEN_GAIN_TWO_RED_HEART_ABILITY_ID =
   'PL!N-bp4-007:continuous-total-energy-fifteen-gain-two-red-heart';
 const PL_N_BP4_012_CONTINUOUS_OPPONENT_SUCCESS_SCORE_SIX_LIVE_SCORE_ABILITY_ID =
@@ -628,6 +630,28 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
             },
           ]
         : [],
+  },
+  {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    baseCardCodes: ['PL!-pb2-004'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!isSourceMainStageMember(game, playerId, sourceCardId)) {
+        return [];
+      }
+      const scoreMuseCardCount = countSuccessfulMuseCardsWithScoreBladeHeart(game, playerId);
+      return scoreMuseCardCount > 0
+        ? [
+            {
+              kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
+              playerId,
+              countDelta: scoreMuseCardCount,
+              sourceCardId,
+              abilityId: PL_PB2_004_CONTINUOUS_SUCCESS_MUSE_SCORE_GAIN_BLADE_ABILITY_ID,
+            },
+          ]
+        : [];
+    },
   },
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
@@ -2134,6 +2158,24 @@ function countTotalSuccessLiveCards(game: GameState, playerId: string): number {
   const player = game.players.find((candidate) => candidate.id === playerId);
   const opponent = game.players.find((candidate) => candidate.id !== playerId);
   return (player?.successZone.cardIds.length ?? 0) + (opponent?.successZone.cardIds.length ?? 0);
+}
+
+function countSuccessfulMuseCardsWithScoreBladeHeart(game: GameState, playerId: string): number {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return 0;
+  }
+  return player.successZone.cardIds.filter((cardId) => {
+    const card = getCardById(game, cardId);
+    return (
+      card !== null &&
+      card.ownerId === player.id &&
+      cardBelongsToGroup(card.data, "μ's") &&
+      (card.data as { readonly bladeHearts?: readonly BladeHeartItem[] }).bladeHearts?.some(
+        (bladeHeart) => bladeHeart.effect === BladeHeartEffect.SCORE
+      ) === true
+    );
+  }).length;
 }
 
 function hasLiellaLiveWithRequirementTotalAtLeast(

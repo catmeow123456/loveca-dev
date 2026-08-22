@@ -131,6 +131,8 @@ Rules:
 
 ## 有限成员登场选项与卡定义特殊登场边界
 
+成员的“以某姿态登场”替换规则属于纯 domain entry rule，统一放在 `domain/rules/member-entry-orientation.ts`。规则只读取登场前 `GameState`、进场成员印刷信息、目标槽位与顶层舞台来源，返回最终 orientation；不移动卡、不创建 pending/事件，不依赖 application workflow。普通手牌登场与所有会真实产生 `ON_ENTER_STAGE` 的卡效放置 helper 必须在写入 member state 前调用同一 resolver；舞台内站位移动不是登场，不调用它。当前真实样本为 `PL!-pb2-002` 费用4「绚濑绘里」。
+
 手牌成员的额外登场方式统一由 `application/member-play-options.ts` 投影为 `MemberPlayOption`。`DOUBLE_RELAY` 是普通登场命令的有限换手选项，仍提交 `PLAY_MEMBER_TO_SLOT + relayMode=DOUBLE`；只有 `CARD_DEFINED` 进入服务端权威 `BEGIN/CONFIRM_SPECIAL_MEMBER_PLAY`。客户端只渲染服务端给出的 option id、玩家文案、合法槽位与选择描述，不维护基础编号白名单，不自行计算费用或推导程序动作。
 
 `application/special-member-play-procedures.ts` 是显式 procedure registry。当前真实模式包括：
