@@ -14,7 +14,7 @@
 2. [卡牌数据同步需求](./requirements.md)：维护同步需求、风险、验收边界和正式运行前后的检查项。
 3. [llocg_db 卡牌同步](./llocg-db-requirements.md)：维护 `llocg_db` JP/CN JSON 的合并规则和结构化规则字段边界。
 4. [llocg_db 与 Loveca Excel 格式差异调查](./llocg-vs-xlsx-format-audit-20260626.md)：历史调查和字段差异背景；当前职责边界以设计文档为准。
-5. [CloudBase 新卡同步脚本](./cloudbase-new-card-sync.md)：描述 `sync-cards-cloudbase-new.ts` 如何从 CloudBase 导入 DB 不存在的新卡并处理卡图。
+5. [CloudBase 新卡同步与管理员任务](./cloudbase-new-card-sync.md)：描述共享脚本与运营管理中心如何从 CloudBase 导入 DB 不存在的新卡、处理卡图并记录任务。
 
 ## 当前职责边界
 
@@ -23,6 +23,8 @@
 `src/scripts/sync-cards-loveca-excel.ts` 是 Loveca 卡牌数据补强脚本，默认从本地 Excel 读取。`--source=cloudbase` 会先把腾讯云 CloudBase `loveca` 集合导出为 `docs/card-data-sync/sources/loveca_YYYYMMDDHHMMSS.xlsx`，再从该文件进入与 `--source=xlsx` 相同的解析、比较和写入链路。卡牌类型以来源为权威：Excel 使用 `カードタイプ` 列，CloudBase `loveca` 集合导出时由 `type` 字段生成该列；其值合法时会同步更新 `cards.card_type`，并在报告中列出修正。缺失或非法类型行会跳过。其他同步范围为中日名称、中日效果、真实团体、真实小队、成员费用与 BLADE、LIVE 分数、成员持有 Heart、BLADE Heart、LIVE 必要 Heart、商品编号、图片来源 URI 和外部来源标识；不插入 source-only 新卡，不删除 DB-only 卡。规则数值为空或解析失败时保留数据库现值。
 
 `src/scripts/sync-cards-cloudbase-new.ts` 是 CloudBase-only 新卡导入脚本。它只插入 DB 不存在的新卡，默认新卡状态为 `DRAFT`，不更新已有卡；正式运行必须显式选择 `--upload-images` 或 `--skip-images`，图片失败、字段缺失、重复卡号和图片 basename 冲突都会写入报告。
+
+运营管理中心“上游新卡同步”复用同一脚本的可导入核心，但固定为 `loveca`、`DRAFT`、上传图片、不允许缺图、不覆盖图片且只新增。管理员先创建有时效的差异预览，再二次确认创建持久化任务；已有卡永远跳过，不调用 `sync-cards-loveca-excel.ts` 的已有卡覆盖更新或图片缓存刷新模式。
 
 `src/scripts/audit-loveca-effect-placeholders.ts` 是 Loveca Excel 卡效占位符只读调查脚本。它复用同类 XLSX XML 读取方式扫描 `多行日文效果` / `多行中文效果`，汇总 `【...】` 与 `[...]` token，并按时点、次数限制、站位、Heart、BLADE、费用、分数等类别标记已知 token；未知 token 会作为疑似数据问题输出。
 

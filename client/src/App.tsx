@@ -124,6 +124,11 @@ const AccountCenterPage = lazy(() =>
   }))
 );
 const CardAdminPage = lazy(() => import('@/components/admin/CardAdminPage'));
+const CardSyncAdminPage = lazy(() =>
+  import('@/components/admin/CardSyncAdminPage').then((module) => ({
+    default: module.CardSyncAdminPage,
+  }))
+);
 const OnlineRoomsAdminPage = lazy(() =>
   import('@/components/admin/OnlineRoomsAdminPage').then((module) => ({
     default: module.OnlineRoomsAdminPage,
@@ -198,6 +203,7 @@ type AppPage =
   | 'game'
   | 'admin-center'
   | 'card-admin'
+  | 'card-sync-admin'
   | 'ai-effect-admin'
   | 'online-admin'
   | 'announcement-admin'
@@ -211,6 +217,7 @@ type AppPage =
 const CARD_DATA_INDEPENDENT_PAGES = new Set<AppPage>([
   'admin-center',
   'card-admin',
+  'card-sync-admin',
   'ai-effect-admin',
   'online-admin',
   'announcement-admin',
@@ -278,6 +285,7 @@ function getInitialPage(): AppPage {
     page === 'game' ||
     page === 'admin-center' ||
     page === 'card-admin' ||
+    page === 'card-sync-admin' ||
     page === 'ai-effect-admin' ||
     page === 'online-admin' ||
     page === 'announcement-admin' ||
@@ -1271,6 +1279,7 @@ function App() {
         onOpenMatchEmotes={() => setCurrentPage('match-emotes-admin')}
         onOpenAnnouncements={() => setCurrentPage('announcement-admin')}
         onOpenCards={() => setCurrentPage('card-admin')}
+        onOpenCardSync={() => setCurrentPage('card-sync-admin')}
         onOpenAiExtraction={() => setCurrentPage('ai-effect-admin')}
         onOpenDeckPoints={() => setCurrentPage('deck-point-admin')}
         onOpenOnlineRooms={() => setCurrentPage('online-admin')}
@@ -1292,6 +1301,13 @@ function App() {
         onBack={() => setCurrentPage('admin-center')}
         onOpenAiConfig={() => setCurrentPage('ai-effect-admin')}
       />,
+      null
+    );
+  }
+
+  if (effectivePage === 'card-sync-admin' && profile && hasPermission(profile.role, 'cards.sync')) {
+    return withProductFrame(
+      <CardSyncAdminPage onBack={() => setCurrentPage('admin-center')} />,
       null
     );
   }

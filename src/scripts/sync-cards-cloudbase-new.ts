@@ -16,6 +16,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { createRequire } from 'node:module';
+import { isIP } from 'node:net';
+import { pathToFileURL } from 'node:url';
 import * as readline from 'node:readline/promises';
 import { parse as parseDotenv } from 'dotenv';
 import * as Minio from 'minio';
@@ -30,8 +32,8 @@ const cloudbaseSDK = require('@cloudbase/node-sdk') as {
   init(config: { env: string; secretId: string; secretKey: string }): CloudBaseApp;
 };
 
-type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
-type CardStatus = 'DRAFT' | 'PUBLISHED';
+export type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
+export type CardStatus = 'DRAFT' | 'PUBLISHED';
 type HeartColor =
   'PINK' | 'RED' | 'YELLOW' | 'GREEN' | 'BLUE' | 'PURPLE' | 'ORANGE' | 'GRAY' | 'RAINBOW';
 type BladeHeartEffect = 'HEART' | 'DRAW' | 'SCORE';
@@ -52,7 +54,7 @@ interface Args {
   readonly reportPath: string | null;
 }
 
-interface CloudBaseApp {
+export interface CloudBaseApp {
   database(): {
     collection(name: string): CloudBaseCollection;
   };
@@ -69,7 +71,8 @@ interface CloudBaseApp {
   }>;
 }
 
-interface CloudBaseCollection {
+export interface CloudBaseCollection {
+  orderBy?(field: string, direction: 'asc' | 'desc'): CloudBaseCollection;
   skip(offset: number): {
     limit(limit: number): {
       get(): Promise<{ data?: unknown[] }>;
@@ -77,30 +80,30 @@ interface CloudBaseCollection {
   };
 }
 
-interface SourceRow {
+export interface SourceRow {
   readonly rowNumber: number;
   readonly document: Record<string, unknown>;
   readonly cardCode: string;
   readonly sourceId: string | null;
 }
 
-interface InvalidSourceRow {
+export interface InvalidSourceRow {
   readonly rowNumber: number;
   readonly sourceId: string | null;
   readonly reason: string;
 }
 
-interface HeartItem {
+export interface HeartItem {
   readonly color: HeartColor;
   readonly count: number;
 }
 
-interface BladeHeartItem {
+export interface BladeHeartItem {
   readonly effect: BladeHeartEffect;
   readonly heartColor?: HeartColor;
 }
 
-interface SourceFlags {
+export interface SourceFlags {
   readonly cloudbaseOnly?: boolean;
   readonly importedBy?: string;
   readonly missingRuleFields?: readonly string[];
@@ -113,7 +116,7 @@ interface SourceFlags {
   readonly [key: string]: unknown;
 }
 
-interface CardInsertRecord {
+export interface CardInsertRecord {
   readonly card_code: string;
   readonly card_type: CardType;
   readonly name_jp: string | null;
@@ -140,14 +143,14 @@ interface CardInsertRecord {
   readonly status: CardStatus;
 }
 
-interface ImagePlan {
+export interface ImagePlan {
   readonly sourceUri: string | null;
   readonly imageFilename: string | null;
   readonly imageBaseName: string | null;
   readonly objectKeys: readonly string[];
 }
 
-interface TransformResult {
+export interface TransformResult {
   readonly row: SourceRow;
   readonly record: CardInsertRecord | null;
   readonly imagePlan: ImagePlan;
@@ -155,24 +158,24 @@ interface TransformResult {
   readonly errors: readonly string[];
 }
 
-interface ExistingCardRow {
+export interface ExistingCardRow {
   readonly card_code: string;
   readonly image_filename: string | null;
 }
 
-interface PreparedCandidate {
+export interface PreparedCandidate {
   readonly transform: TransformResult;
   readonly record: CardInsertRecord;
   readonly imagePlan: ImagePlan;
 }
 
-interface SkippedCandidate {
+export interface SkippedCandidate {
   readonly cardCode: string;
   readonly reason: string;
   readonly detail?: string;
 }
 
-interface ImageProcessResult {
+export interface ImageProcessResult {
   readonly cardCode: string;
   readonly ok: boolean;
   readonly uploadedKeys: readonly string[];
@@ -181,20 +184,62 @@ interface ImageProcessResult {
   readonly sourceFlag?: ImageFailureSourceFlag;
 }
 
-interface InsertResult {
+export interface CardImageProcessingOptions {
+  readonly overwriteImages: boolean;
+}
+
+export interface InsertResult {
   readonly cardCode: string;
   readonly inserted: boolean;
   readonly error?: string;
 }
 
-const DEFAULT_CLOUDBASE_COLLECTION = 'loveca';
-const DEFAULT_CLOUDBASE_BATCH_SIZE = 100;
+export interface CloudbaseCardSnapshot {
+  readonly documents: readonly Record<string, unknown>[];
+  readonly invalidRows: readonly InvalidSourceRow[];
+  readonly sourceRows: readonly SourceRow[];
+  readonly duplicateRows: Map<string, SourceRow[]>;
+  readonly transforms: readonly TransformResult[];
+}
+
+export interface CardExportRecord {
+  readonly cardCode: string;
+  readonly cardType: CardType;
+  readonly nameJp: string | null;
+  readonly nameCn: string | null;
+  readonly workNames: string[] | null;
+  readonly groupNames: string[] | null;
+  readonly unitName: string | null;
+  readonly unitNameRaw: string | null;
+  readonly cost: number | null;
+  readonly blade: number | null;
+  readonly hearts: readonly HeartItem[] | null;
+  readonly bladeHearts: readonly BladeHeartItem[] | null;
+  readonly score: number | null;
+  readonly requirements: readonly HeartItem[] | null;
+  readonly cardTextJp: string | null;
+  readonly cardTextCn: string | null;
+  readonly imageFilename: string | null;
+  readonly imageSourceUri: string | null;
+  readonly rare: string | null;
+  readonly product: string | null;
+  readonly productCode: string | null;
+  readonly sourceExternalId: string | null;
+  readonly sourceFlags: SourceFlags | null;
+  readonly status: CardStatus;
+}
+
+export const DEFAULT_CLOUDBASE_COLLECTION = 'loveca';
+export const DEFAULT_CLOUDBASE_BATCH_SIZE = 100;
 const SCRIPT_NAME = 'sync-cards-cloudbase-new';
 const IMAGE_SIZES = {
   thumb: { width: 100, quality: 75 },
   medium: { width: 300, quality: 80 },
   large: { width: 600, quality: 85 },
 } as const;
+const IMAGE_DOWNLOAD_TIMEOUT_MS = 20_000;
+const IMAGE_DOWNLOAD_MAX_BYTES = 20 * 1024 * 1024;
+const IMAGE_MAX_INPUT_PIXELS = 32 * 1024 * 1024;
 
 const FIELD_ALIASES = {
   cardCode: ['カード番号', 'card_code', 'cardCode', 'code', 'card_no', 'cardNo', 'card_number'],
@@ -514,7 +559,7 @@ function readDotenvValues(): Record<string, string> {
   } catch {
     dotenvValues = {};
   }
-  return dotenvValues;
+  return dotenvValues ?? {};
 }
 
 function readEnvValue(name: string): string | null {
@@ -575,21 +620,36 @@ function getScalarField(
   return stringifyFieldValue(getField(document, aliases));
 }
 
-function createCloudbaseApp(): CloudBaseApp {
+export interface CloudbaseCredentials {
+  readonly envId: string;
+  readonly secretId: string;
+  readonly secretKey: string;
+}
+
+export function createCloudbaseAppWithCredentials(credentials: CloudbaseCredentials): CloudBaseApp {
   return cloudbaseSDK.init({
-    env: requiredEnv('CLOUDBASE_ENV_ID'),
+    env: credentials.envId,
+    secretId: credentials.secretId,
+    secretKey: credentials.secretKey,
+  });
+}
+
+function createCloudbaseApp(): CloudBaseApp {
+  return createCloudbaseAppWithCredentials({
+    envId: requiredEnv('CLOUDBASE_ENV_ID'),
     secretId: requiredEnv('CLOUDBASE_SECRET_ID', 'CLOUDBASE_SECRETID'),
     secretKey: requiredEnv('CLOUDBASE_SECRET_KEY', 'CLOUDBASE_SECRETKEY'),
   });
 }
 
-async function readCloudbaseDocuments(
+export async function readCloudbaseDocuments(
   collection: CloudBaseCollection,
   limit: number | null,
   batchSize: number
 ): Promise<Record<string, unknown>[]> {
   const documents: Record<string, unknown>[] = [];
   let offset = 0;
+  const query = collection.orderBy ? collection.orderBy('_id', 'asc') : collection;
 
   while (limit === null || documents.length < limit) {
     const remaining = limit === null ? batchSize : limit - documents.length;
@@ -598,7 +658,7 @@ async function readCloudbaseDocuments(
       break;
     }
 
-    const response = await collection.skip(offset).limit(pageSize).get();
+    const response = await query.skip(offset).limit(pageSize).get();
     const page = response.data ?? [];
     documents.push(...page.filter(isRecord));
     offset += page.length;
@@ -611,7 +671,7 @@ async function readCloudbaseDocuments(
   return documents;
 }
 
-function cloudbaseDocumentToRow(
+export function cloudbaseDocumentToRow(
   document: Record<string, unknown>,
   rowNumber: number
 ): SourceRow | InvalidSourceRow {
@@ -633,7 +693,7 @@ function cloudbaseDocumentToRow(
   };
 }
 
-function summarizeDuplicateRows(rows: readonly SourceRow[]): Map<string, SourceRow[]> {
+export function summarizeDuplicateRows(rows: readonly SourceRow[]): Map<string, SourceRow[]> {
   const byCode = new Map<string, SourceRow[]>();
   for (const row of rows) {
     const list = byCode.get(row.cardCode) ?? [];
@@ -641,6 +701,52 @@ function summarizeDuplicateRows(rows: readonly SourceRow[]): Map<string, SourceR
     byCode.set(row.cardCode, list);
   }
   return new Map([...byCode.entries()].filter(([, list]) => list.length > 1));
+}
+
+export function buildCloudbaseCardSnapshot(
+  documents: readonly Record<string, unknown>[],
+  status: CardStatus = 'DRAFT'
+): CloudbaseCardSnapshot {
+  const parsedRows = documents.map((document, index) =>
+    cloudbaseDocumentToRow(document, index + 1)
+  );
+  const invalidRows = parsedRows.filter((row): row is InvalidSourceRow => !('document' in row));
+  const sourceRows = parsedRows.filter((row): row is SourceRow => 'document' in row);
+  const duplicateRows = summarizeDuplicateRows(sourceRows);
+  const duplicateCodes = new Set(duplicateRows.keys());
+  const transforms = sourceRows
+    .filter((row) => !duplicateCodes.has(row.cardCode))
+    .map((row) => transformRow(row, status));
+  return { documents, invalidRows, sourceRows, duplicateRows, transforms };
+}
+
+export function mapCardInsertRecordToExport(record: CardInsertRecord): CardExportRecord {
+  return {
+    cardCode: record.card_code,
+    cardType: record.card_type,
+    nameJp: record.name_jp,
+    nameCn: record.name_cn,
+    workNames: record.work_names,
+    groupNames: record.group_names,
+    unitName: record.unit_name,
+    unitNameRaw: record.unit_name_raw,
+    cost: record.cost,
+    blade: record.blade,
+    hearts: record.hearts,
+    bladeHearts: record.blade_hearts,
+    score: record.score,
+    requirements: record.requirements,
+    cardTextJp: record.card_text_jp,
+    cardTextCn: record.card_text_cn,
+    imageFilename: record.image_filename,
+    imageSourceUri: record.image_source_uri,
+    rare: record.rare,
+    product: record.product,
+    productCode: record.product_code,
+    sourceExternalId: record.source_external_id,
+    sourceFlags: record.source_flags,
+    status: record.status,
+  };
 }
 
 function normalizeTypeToken(value: string): string {
@@ -751,7 +857,7 @@ function normalizeHeartToken(value: string): string {
   return value
     .trim()
     .toLowerCase()
-    .replace(/[［\[\]］【】「」]/g, '')
+    .replace(/[［[\]］【】「」]/g, '')
     .replace(/ハート|heart/g, 'heart')
     .replace(/\s+/g, '');
 }
@@ -793,8 +899,11 @@ function parseHeartItems(value: unknown, context: string, warnings: string[]): H
     return null;
   }
 
+  const trimmedValue = typeof value === 'string' ? value.trim() : '';
   const input =
-    typeof value === 'string' && /^[\[{]/.test(value.trim()) ? tryParseJson(value) : value;
+    typeof value === 'string' && (trimmedValue.startsWith('[') || trimmedValue.startsWith('{'))
+      ? tryParseJson(value)
+      : value;
   const result: HeartItem[] = [];
   let hasError = false;
 
@@ -879,8 +988,11 @@ function parseBladeHeartCollection(
     return null;
   }
 
+  const trimmedValue = typeof value === 'string' ? value.trim() : '';
   const input =
-    typeof value === 'string' && /^[\[{]/.test(value.trim()) ? tryParseJson(value) : value;
+    typeof value === 'string' && (trimmedValue.startsWith('[') || trimmedValue.startsWith('{'))
+      ? tryParseJson(value)
+      : value;
   const result: BladeHeartItem[] = [];
   let hasError = false;
 
@@ -1113,7 +1225,7 @@ function buildSourceFlags(
   };
 }
 
-function transformRow(row: SourceRow, status: CardStatus): TransformResult {
+export function transformRow(row: SourceRow, status: CardStatus): TransformResult {
   const warnings: string[] = [];
   const errors: string[] = [];
   const document = row.document;
@@ -1269,8 +1381,50 @@ async function objectExists(
   try {
     await client.statObject(bucket, objectKey);
     return true;
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === 'NotFound' || code === 'NoSuchKey' || code === 'NoSuchObject') {
+      return false;
+    }
+    throw error;
+  }
+}
+
+function isPrivateImageHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  const ipVersion = isIP(host);
+  if (ipVersion === 4) {
+    const parts = host.split('.').map(Number);
+    return (
+      parts[0] === 10 ||
+      parts[0] === 127 ||
+      (parts[0] === 169 && parts[1] === 254) ||
+      (parts[0] === 172 && parts[1]! >= 16 && parts[1]! <= 31) ||
+      (parts[0] === 192 && parts[1] === 168) ||
+      parts[0] === 0
+    );
+  }
+  if (ipVersion === 6) {
+    return host === '::1' || host === '::' || /^f[cd]/u.test(host) || /^fe[89ab]/u.test(host);
+  }
+  return false;
+}
+
+function assertSafeImageUrl(value: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
   } catch {
-    return false;
+    throw new Error('download failed: invalid image URL');
+  }
+  if (
+    parsed.protocol !== 'https:' ||
+    parsed.username ||
+    parsed.password ||
+    isPrivateImageHost(parsed.hostname)
+  ) {
+    throw new Error('download failed: unsafe image URL');
   }
 }
 
@@ -1287,17 +1441,44 @@ async function downloadImageBuffer(cloudbase: CloudBaseApp, sourceUri: string): 
     url = item.tempFileURL;
   }
 
-  const response = await fetch(url);
+  assertSafeImageUrl(url);
+  const response = await globalThis.fetch(url, {
+    redirect: 'error',
+    signal: AbortSignal.timeout(IMAGE_DOWNLOAD_TIMEOUT_MS),
+  });
   if (!response.ok) {
     throw new Error(`download failed: HTTP ${response.status}`);
   }
-  return Buffer.from(await response.arrayBuffer());
+  const declaredLength = Number(response.headers.get('content-length') ?? 0);
+  if (Number.isFinite(declaredLength) && declaredLength > IMAGE_DOWNLOAD_MAX_BYTES) {
+    throw new Error('download failed: image exceeds size limit');
+  }
+  if (!response.body) {
+    throw new Error('download failed: empty response body');
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > IMAGE_DOWNLOAD_MAX_BYTES) {
+      await reader.cancel();
+      throw new Error('download failed: image exceeds size limit');
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(
+    chunks.map((chunk) => Buffer.from(chunk)),
+    total
+  );
 }
 
 async function compressImageBuffers(
   input: Buffer
 ): Promise<Record<keyof typeof IMAGE_SIZES, Buffer>> {
-  const metadata = await sharp(input).metadata();
+  const metadata = await sharp(input, { limitInputPixels: IMAGE_MAX_INPUT_PIXELS }).metadata();
   const isLandscape =
     metadata.width != null && metadata.height != null && metadata.width > metadata.height;
   const result = {} as Record<keyof typeof IMAGE_SIZES, Buffer>;
@@ -1305,7 +1486,7 @@ async function compressImageBuffers(
   for (const [sizeName, sizeConfig] of Object.entries(IMAGE_SIZES) as Array<
     [keyof typeof IMAGE_SIZES, (typeof IMAGE_SIZES)[keyof typeof IMAGE_SIZES]]
   >) {
-    let pipeline = sharp(input);
+    let pipeline = sharp(input, { limitInputPixels: IMAGE_MAX_INPUT_PIXELS });
     if (isLandscape) {
       pipeline = pipeline.rotate(90);
     }
@@ -1318,11 +1499,11 @@ async function compressImageBuffers(
   return result;
 }
 
-async function processCandidateImage(
+export async function processCandidateImage(
   candidate: PreparedCandidate,
   cloudbase: CloudBaseApp,
   minio: { client: Minio.Client; bucket: string },
-  args: Args
+  args: CardImageProcessingOptions
 ): Promise<ImageProcessResult> {
   const { imagePlan, record } = candidate;
   if (!imagePlan.sourceUri || !imagePlan.imageBaseName) {
@@ -1512,7 +1693,7 @@ function imageBaseNameForExisting(row: ExistingCardRow): string | null {
   return imageBaseNameFromFilename(row.image_filename);
 }
 
-function buildPreparedCandidates(
+export function buildPreparedCandidates(
   transforms: readonly TransformResult[],
   existingRows: readonly ExistingCardRow[]
 ): {
@@ -1716,15 +1897,8 @@ async function main(): Promise<void> {
     args.cloudbaseLimit,
     args.cloudbaseBatchSize
   );
-  const parsedRows = documents.map((document, index) =>
-    cloudbaseDocumentToRow(document, index + 1)
-  );
-  const invalidRows = parsedRows.filter((row): row is InvalidSourceRow => !('document' in row));
-  const sourceRows = parsedRows.filter((row): row is SourceRow => 'document' in row);
-  const duplicateRows = summarizeDuplicateRows(sourceRows);
-  const duplicateCodes = new Set(duplicateRows.keys());
-  const usableRows = sourceRows.filter((row) => !duplicateCodes.has(row.cardCode));
-  const transforms = usableRows.map((row) => transformRow(row, args.status));
+  const snapshot = buildCloudbaseCardSnapshot(documents, args.status);
+  const { invalidRows, duplicateRows, transforms } = snapshot;
 
   let existingRows: ExistingCardRow[] = [];
   let prepared: PreparedCandidate[] = [];
@@ -1861,7 +2035,13 @@ async function main(): Promise<void> {
   writeReport(args.reportPath, report);
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+const directEntry = process.argv[1]
+  ? pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url
+  : false;
+
+if (directEntry) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}

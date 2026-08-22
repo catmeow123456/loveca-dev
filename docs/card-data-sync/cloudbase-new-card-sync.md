@@ -1,8 +1,8 @@
-# CloudBase 新卡同步脚本
+# CloudBase 新卡同步与管理员任务
 
-> 更新时间: 2026-07-22
+> 更新时间: 2026-08-22
 > 文档类型: 专题说明
-> 适用范围: `src/scripts/sync-cards-cloudbase-new.ts` 的输入、写入和图片处理边界
+> 适用范围: `src/scripts/sync-cards-cloudbase-new.ts` 与运营管理中心“上游新卡同步”的输入、写入和图片处理边界
 > 当前状态: 当前实现说明；同步管线整体职责以 [卡牌数据同步管线](./design.md) 为准
 
 本文档说明 CloudBase-only 新卡导入脚本的关键规则，不维护完整命令清单、终端输出或外部服务账号配置。
@@ -19,6 +19,8 @@
 - 不改变前端图片访问协议。
 
 新卡默认写入 `DRAFT`，用于先完成字段、卡图和规则风险审核。只有显式传入 `--status=PUBLISHED` 时才会直接发布。
+
+运营管理中心的“上游新卡同步”复用该脚本抽出的读取、字段转换、候选规划与图片处理函数，不通过 shell 启动 TypeScript 脚本。管理入口的策略固定为：集合 `loveca`、只新增、状态 `DRAFT`、必须上传卡图、图片缺失或处理失败时阻断该卡、不覆盖既有图片。该入口不能切换为发布、跳过图片、覆盖图片、更新或删除已有卡牌。
 
 ## 2. 输入和去重
 
@@ -80,11 +82,25 @@ dry-run 和 report 用于正式导入前审核：
 
 正式导入后，新卡仍需要通过卡牌管理、规则字段检查、卡图显示检查和必要的卡效登记流程确认，才能发布给普通玩家。
 
+### 管理员任务边界
+
+- 接口使用独立权限 `cards.sync`，当前只授予平台 `admin`，不授予 `season_admin`。
+- “检查新卡”只读取 CloudBase 与 PostgreSQL 现有卡号并生成 15 分钟有效的持久化预览；正式同步需要再次确认。
+- 执行前会重新读取上游并核对来源 SHA-256 与候选卡号；预览后发生变化时任务失败，管理员需重新检查。
+- 同一时刻只允许一个正式同步任务。任务和逐卡结果写入 `card_sync_runs` / `card_sync_run_items`，但不保存 CloudBase 原始文档、临时签名 URL 或凭据。
+- Worker 执行中会更新心跳；超过两分钟没有心跳的 `RUNNING` 任务会被标记为中断失败，解除后续任务互斥。中断前已插入的草稿不会自动回滚，重新预览时会按已有卡跳过。
+- CloudBase 代码路径只调用集合查询和临时文件 URL 获取，不调用集合新增、更新、删除或云函数写入能力。数据库侧只对不存在的卡号执行 `INSERT ... ON CONFLICT DO NOTHING`，并记录 `updated_by`；不会更新或删除已有卡。
+- 浏览器只收到配置是否就绪、候选摘要与脱敏结果。CloudBase 环境 ID、Secret ID、Secret Key 仅由 API 进程环境读取。
+
 ## 6. 相关代码路径
 
 | 路径                                      | 说明                                  |
 | ----------------------------------------- | ------------------------------------- |
 | `src/scripts/sync-cards-cloudbase-new.ts` | CloudBase-only 新卡导入与卡图上传入口 |
+| `src/server/routes/card-sync.ts` | 管理员预览、执行和任务状态 API |
+| `src/server/services/card-sync-service.ts` | 预览、幂等、互斥与持久化任务记录 |
+| `src/server/services/cloudbase-card-sync-engine.ts` | 固定策略的新卡计划与逐卡应用 |
+| `client/src/components/admin/CardSyncAdminPage.tsx` | 运营管理中心预览与二次确认页面 |
 | `src/shared/utils/card-code.ts`           | 卡牌编号标准化                        |
 | `src/server/db/schema.ts`                 | `cards` 表 schema                     |
 | `client/src/lib/imageService.ts`          | 前端卡图路径解析                      |

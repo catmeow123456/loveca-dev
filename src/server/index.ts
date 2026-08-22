@@ -7,6 +7,7 @@ import { onlineRoomService } from './services/online-room-service.js';
 import { publicTableService } from './services/public-table-service.js';
 import { rankedRuntimeService } from './services/ranked-runtime-service.js';
 import { playerWallpaperService } from './services/player-wallpaper-service.js';
+import { cardSyncWorker } from './services/card-sync-runtime.js';
 
 const TOKEN_CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
 const RUNTIME_CLEANUP_INTERVAL = readPositiveIntEnv('API_RUNTIME_CLEANUP_INTERVAL_MS', 10 * 1000);
@@ -91,12 +92,14 @@ async function main() {
   setInterval(() => void cleanupExpiredTokens(), TOKEN_CLEANUP_INTERVAL).unref();
   setInterval(() => void cleanupExpiredRuntimeState(), RUNTIME_CLEANUP_INTERVAL).unref();
   setInterval(logRuntimeStats, RUNTIME_STATS_LOG_INTERVAL).unref();
+  cardSyncWorker.start();
 
   const app = createApp();
 
-  app.listen(config.port, () => {
+  const server = app.listen(config.port, () => {
     console.log(`API server listening on port ${config.port} (${config.nodeEnv})`);
   });
+  server.on('close', () => cardSyncWorker.stop());
 }
 
 function readPositiveIntEnv(name: string, fallback: number): number {

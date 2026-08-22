@@ -50,6 +50,11 @@ import type { UserRole } from '../../shared/auth/permissions.js';
 export type { UserRole } from '../../shared/auth/permissions.js';
 export type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
 export type CardStatus = 'DRAFT' | 'PUBLISHED';
+export type CardSyncRunKind = 'PREVIEW' | 'APPLY';
+export type CardSyncRunStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED';
+export type CardSyncRunItemKind = 'CANDIDATE' | 'BLOCKED' | 'APPLY_RESULT';
+export type CardSyncRunItemResult =
+  'READY' | 'BLOCKED' | 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'SKIPPED' | 'FAILED';
 export type DeckPointTableLifecycle = 'DRAFT' | 'SCHEDULED' | 'ACTIVE' | 'RETIRED';
 export type DeckPointTableRetirementReason =
   'REPLACED' | 'SCHEDULE_CANCELLED' | 'MANUALLY_DISCARDED';
@@ -708,6 +713,94 @@ export const cards = pgTable(
       sql`(${table.nameJp} IS NOT NULL AND btrim(${table.nameJp}) <> '') OR (${table.nameCn} IS NOT NULL AND btrim(${table.nameCn}) <> '')`
     ),
     check('cards_status_check', sql`${table.status} IN ('DRAFT', 'PUBLISHED')`),
+  ]
+);
+
+export const cardSyncRuns = pgTable(
+  'card_sync_runs',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    kind: text('kind').$type<CardSyncRunKind>().notNull(),
+    status: text('status').$type<CardSyncRunStatus>().notNull(),
+    actorUserId: uuid('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
+    requestId: text('request_id').notNull(),
+    idempotencyKey: text('idempotency_key').notNull(),
+    previewRunId: uuid('preview_run_id').references((): AnyPgColumn => cardSyncRuns.id, {
+      onDelete: 'restrict',
+    }),
+    sourceCollection: text('source_collection').notNull().default('loveca'),
+    sourceHash: text('source_hash'),
+    sourceSummary: jsonb('source_summary').$type<Record<string, unknown> | null>(),
+    resultSummary: jsonb('result_summary').$type<Record<string, unknown> | null>(),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    previewExpiresAt: timestamp('preview_expires_at', { withTimezone: true }),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('uq_card_sync_runs_actor_kind_idempotency').on(
+      table.actorUserId,
+      table.kind,
+      table.idempotencyKey
+    ),
+    uniqueIndex('uq_card_sync_runs_active_apply')
+      .on(sql`(true)`)
+      .where(sql`${table.kind} = 'APPLY' AND ${table.status} IN ('QUEUED', 'RUNNING')`),
+    index('idx_card_sync_runs_created_at').on(table.createdAt),
+    index('idx_card_sync_runs_preview_run').on(table.previewRunId),
+    check('card_sync_runs_kind_check', sql`${table.kind} IN ('PREVIEW', 'APPLY')`),
+    check(
+      'card_sync_runs_status_check',
+      sql`${table.status} IN ('QUEUED', 'RUNNING', 'SUCCEEDED', 'PARTIAL', 'FAILED')`
+    ),
+    check('card_sync_runs_request_id_check', sql`btrim(${table.requestId}) <> ''`),
+    check('card_sync_runs_idempotency_key_check', sql`btrim(${table.idempotencyKey}) <> ''`),
+    check('card_sync_runs_source_collection_check', sql`${table.sourceCollection} = 'loveca'`),
+    check(
+      'card_sync_runs_shape_check',
+      sql`(${table.kind} = 'PREVIEW' AND ${table.previewRunId} IS NULL) OR (${table.kind} = 'APPLY' AND ${table.previewRunId} IS NOT NULL)`
+    ),
+  ]
+);
+
+export const cardSyncRunItems = pgTable(
+  'card_sync_run_items',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => cardSyncRuns.id, { onDelete: 'cascade' }),
+    ordinal: integer('ordinal').notNull(),
+    kind: text('kind').$type<CardSyncRunItemKind>().notNull(),
+    cardCode: text('card_code'),
+    result: text('result').$type<CardSyncRunItemResult>().notNull(),
+    summary: jsonb('summary').$type<Record<string, unknown> | null>(),
+    message: text('message'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('uq_card_sync_run_items_ordinal').on(table.runId, table.ordinal),
+    index('idx_card_sync_run_items_run_result').on(table.runId, table.result),
+    index('idx_card_sync_run_items_card_code').on(table.cardCode),
+    check('card_sync_run_items_ordinal_check', sql`${table.ordinal} >= 0`),
+    check(
+      'card_sync_run_items_kind_check',
+      sql`${table.kind} IN ('CANDIDATE', 'BLOCKED', 'APPLY_RESULT')`
+    ),
+    check(
+      'card_sync_run_items_result_check',
+      sql`${table.result} IN ('READY', 'BLOCKED', 'PENDING', 'RUNNING', 'SUCCEEDED', 'SKIPPED', 'FAILED')`
+    ),
   ]
 );
 

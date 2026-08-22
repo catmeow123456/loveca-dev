@@ -291,7 +291,11 @@ async function sendApiRequest(
   }
 }
 
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+async function apiFetch<T>(
+  path: string,
+  options: RequestInit = {},
+  timeoutMs = REQUEST_TIMEOUT
+): Promise<ApiResponse<T>> {
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   };
@@ -309,11 +313,11 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<Api
   try {
     let response: Response;
     try {
-      response = await sendApiRequest(path, options, headers);
+      response = await sendApiRequest(path, options, headers, timeoutMs);
     } catch (err) {
       if (!isAbortError(err) && isSafeMethod(options.method)) {
         await wait(NETWORK_RETRY_DELAY);
-        response = await sendApiRequest(path, options, headers);
+        response = await sendApiRequest(path, options, headers, timeoutMs);
       } else {
         throw err;
       }
@@ -332,7 +336,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<Api
         } else {
           delete headers['Authorization'];
         }
-        const retryResponse = await sendApiRequest(path, options, headers);
+        const retryResponse = await sendApiRequest(path, options, headers, timeoutMs);
         return observeAuthorizationBoundary(await safeResponseJson<T>(retryResponse));
       }
       // Refresh failed — clear token
@@ -474,12 +478,16 @@ export const apiClient = {
     );
   },
 
-  post<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
+  post<T>(path: string, body?: unknown, timeoutMs?: number): Promise<ApiResponse<T>> {
     const isFormData = body instanceof FormData;
-    return apiFetch<T>(path, {
-      method: 'POST',
-      body: isFormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    return apiFetch<T>(
+      path,
+      {
+        method: 'POST',
+        body: isFormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
+      },
+      timeoutMs
+    );
   },
 
   put<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {

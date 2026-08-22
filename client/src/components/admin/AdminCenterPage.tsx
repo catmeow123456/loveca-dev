@@ -3,6 +3,7 @@ import {
   Bell,
   Bot,
   ChevronRight,
+  CloudDownload,
   Loader2,
   Medal,
   MonitorCog,
@@ -29,6 +30,7 @@ interface AdminCenterPageProps {
   readonly onOpenMatchEmotes: () => void;
   readonly onOpenAnnouncements: () => void;
   readonly onOpenCards: () => void;
+  readonly onOpenCardSync: () => void;
   readonly onOpenAiExtraction: () => void;
   readonly onOpenDeckPoints: () => void;
   readonly onOpenOnlineRooms: () => void;
@@ -122,6 +124,13 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           icon: Settings,
           onOpen: props.onOpenCards,
           permission: 'cards.manage',
+        },
+        {
+          title: '上游新卡同步',
+          description: '检查小能苗并将生产库缺失的新卡导入为草稿',
+          icon: CloudDownload,
+          onOpen: props.onOpenCardSync,
+          permission: 'cards.sync',
         },
         {
           title: '卡牌效果 AI 提取',

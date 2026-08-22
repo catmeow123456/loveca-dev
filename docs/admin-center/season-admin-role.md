@@ -27,6 +27,7 @@
 | `season.entry_visibility.manage` | 否 | 是 | 是 |
 | `platform.manage` | 否 | 否 | 是 |
 | `cards.manage` | 否 | 否 | 是 |
+| `cards.sync` | 否 | 否 | 是 |
 | `rules.manage` | 否 | 否 | 是 |
 | `users.list` | 否 | 否 | 是 |
 | `users.roles.manage` | 否 | 否 | 是 |

@@ -8,6 +8,7 @@ export const MANAGEMENT_PERMISSIONS = [
   'season.entry_visibility.manage',
   'platform.manage',
   'cards.manage',
+  'cards.sync',
   'rules.manage',
   'users.list',
   'users.roles.manage',

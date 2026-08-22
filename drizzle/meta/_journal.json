@@ -218,6 +218,13 @@
       "when": 1787380708523,
       "tag": "0030_add_global_battle_timeout_config",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787404090922,
+      "tag": "0031_add_card_sync_jobs",
+      "breakpoints": true
     }
   ]
 }
