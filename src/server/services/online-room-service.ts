@@ -1864,64 +1864,60 @@ export class OnlineRoomService {
           if (hasIndistinguishableDoubleDisconnect) {
             const presenceSnapshot = capturePresenceSnapshot(overdueMembers);
             const matchId = room.matchId;
-            const voided = await pool.query(
-              `UPDATE ranked_matches
-               SET rating_status = 'VOIDED',
-                   winner_seat = NULL,
-                   result_type = 'PLATFORM_NO_CONTEST',
-                   ended_at = $2,
-                   settled_at = $2,
-                   updated_at = $2
-               WHERE match_id = $1
-                 AND rating_status = 'PENDING'
-               RETURNING match_id`,
-              [matchId, new Date(now)]
-            );
-            if ((voided.rowCount ?? 0) > 0) {
-              if (!isPresenceSnapshotCurrent(room, presenceSnapshot, now, reconnectGracePeriodMs)) {
-                await restorePendingNoContest(matchId);
-                continue;
-              }
-              const deleted = await this.matchService.deleteMatch(matchId, {
-                reason: 'RANKED_BOTH_DISCONNECTED_TIMEOUT',
-                now,
-                validateAtExecution: () =>
-                  this.rooms.get(roomCode) === room &&
-                  room.status === 'IN_GAME' &&
-                  room.matchId === matchId &&
-                  !this.matchService.isMatchCompleted(matchId) &&
-                  isPresenceSnapshotCurrent(
-                    room,
-                    presenceSnapshot,
-                    this.now(),
-                    reconnectGracePeriodMs
-                  ),
-              });
-              if (!deleted) {
-                await restorePendingNoContest(matchId);
-              } else {
-                this.matchService.terminateRoomCodeSpectators(
-                  room.roomCode,
-                  room.roomGeneration,
-                  'ROOM_CLOSED',
-                  now
+            const deleted = await this.matchService.deleteMatch(matchId, {
+              reason: 'RANKED_BOTH_DISCONNECTED_TIMEOUT',
+              now,
+              validateAtExecution: () =>
+                this.rooms.get(roomCode) === room &&
+                room.status === 'IN_GAME' &&
+                room.matchId === matchId &&
+                !this.matchService.isMatchCompleted(matchId) &&
+                isPresenceSnapshotCurrent(
+                  room,
+                  presenceSnapshot,
+                  this.now(),
+                  reconnectGracePeriodMs
+                ),
+              claimAtExecution: async () => {
+                const voided = await pool.query(
+                  `UPDATE ranked_matches
+                   SET rating_status = 'VOIDED',
+                       winner_seat = NULL,
+                       result_type = 'PLATFORM_NO_CONTEST',
+                       ended_at = $2,
+                       settled_at = $2,
+                       updated_at = $2
+                   WHERE match_id = $1
+                     AND rating_status = 'PENDING'
+                   RETURNING match_id`,
+                  [matchId, new Date(now)]
                 );
-                this.rooms.delete(roomCode);
-                await this.participationService?.releaseOnlineRoom(
-                  room.members.map((member) => member.userId),
-                  room.roomGeneration
-                );
-                destroyedRoomCount += 1;
-                rankedPlatformNoContestCount += 1;
-                console.warn(
-                  JSON.stringify({
-                    scope: 'ranked_match',
-                    event: 'RANKED_BOTH_DISCONNECTED_NO_CONTEST',
-                    matchId,
-                  })
-                );
-                continue;
-              }
+                return (voided.rowCount ?? 0) > 0;
+              },
+              rollbackClaimAtExecution: () => restorePendingNoContest(matchId),
+            });
+            if (deleted) {
+              this.matchService.terminateRoomCodeSpectators(
+                room.roomCode,
+                room.roomGeneration,
+                'ROOM_CLOSED',
+                now
+              );
+              this.rooms.delete(roomCode);
+              await this.participationService?.releaseOnlineRoom(
+                room.members.map((member) => member.userId),
+                room.roomGeneration
+              );
+              destroyedRoomCount += 1;
+              rankedPlatformNoContestCount += 1;
+              console.warn(
+                JSON.stringify({
+                  scope: 'ranked_match',
+                  event: 'RANKED_BOTH_DISCONNECTED_NO_CONTEST',
+                  matchId,
+                })
+              );
+              continue;
             }
           }
           const forfeitingMember = hasIndistinguishableDoubleDisconnect
@@ -1930,25 +1926,7 @@ export class OnlineRoomService {
           if (forfeitingMember) {
             const presenceSnapshot = capturePresenceSnapshot([forfeitingMember]);
             const matchId = room.matchId;
-            const claimed = await pool.query(
-              `UPDATE ranked_matches
-               SET result_type = 'DISCONNECT_FORFEIT',
-                   updated_at = NOW()
-               WHERE match_id = $1
-                 AND rating_status = 'PENDING'
-                 AND result_type IS NULL
-               RETURNING match_id`,
-              [matchId]
-            );
-            if ((claimed.rowCount ?? 0) === 0) {
-              continue;
-            }
-            if (!isPresenceSnapshotCurrent(room, presenceSnapshot, now, reconnectGracePeriodMs)) {
-              await clearPendingDisconnectForfeit(matchId);
-              continue;
-            }
             let result;
-            let commandFailed = false;
             try {
               result = await this.matchService.executeRankedForfeitCommand(
                 matchId,
@@ -1971,11 +1949,23 @@ export class OnlineRoomService {
                       this.now(),
                       reconnectGracePeriodMs
                     ),
+                  claimAtExecution: async () => {
+                    const claimed = await pool.query(
+                      `UPDATE ranked_matches
+                       SET result_type = 'DISCONNECT_FORFEIT',
+                           updated_at = NOW()
+                       WHERE match_id = $1
+                         AND rating_status = 'PENDING'
+                         AND result_type IS NULL
+                       RETURNING match_id`,
+                      [matchId]
+                    );
+                    return (claimed.rowCount ?? 0) > 0;
+                  },
+                  rollbackClaimAtExecution: () => clearPendingDisconnectForfeit(matchId),
                 }
               );
             } catch (error) {
-              commandFailed = true;
-              await clearPendingDisconnectForfeit(matchId);
               console.error(
                 JSON.stringify({
                   scope: 'ranked_match',
@@ -1997,8 +1987,6 @@ export class OnlineRoomService {
                   forfeitingUserId: forfeitingMember.userId,
                 })
               );
-            } else if (!commandFailed) {
-              await clearPendingDisconnectForfeit(matchId);
             }
           }
           if (
@@ -2078,32 +2066,9 @@ export class OnlineRoomService {
       return false;
     }
 
-    const claimed = await pool.query(
-      `UPDATE ranked_matches
-       SET result_type = 'DISCONNECT_FORFEIT',
-           updated_at = NOW()
-       WHERE match_id = $1
-         AND rating_status = 'PENDING'
-         AND result_type IS NULL
-       RETURNING match_id`,
-      [matchId]
-    );
-    if ((claimed.rowCount ?? 0) === 0) {
-      console.warn(
-        JSON.stringify({
-          scope: 'ranked_match',
-          event: 'RANKED_STALL_FORFEIT_CLAIM_SKIPPED',
-          matchId,
-          responsibleUserId: candidate.userId,
-          waitKey: candidate.waitKey,
-          generation: candidate.generation,
-        })
-      );
-      return false;
-    }
-
     const adjudicatedAt = this.now();
     let revokedAtExecution = false;
+    let claimSkipped = false;
     try {
       const result = await this.matchService.executeRankedForfeitCommand(
         matchId,
@@ -2123,14 +2088,41 @@ export class OnlineRoomService {
             revokedAtExecution = !current;
             return current;
           },
+          claimAtExecution: async () => {
+            const claimed = await pool.query(
+              `UPDATE ranked_matches
+               SET result_type = 'DISCONNECT_FORFEIT',
+                   updated_at = NOW()
+               WHERE match_id = $1
+                 AND rating_status = 'PENDING'
+                 AND result_type IS NULL
+               RETURNING match_id`,
+              [matchId]
+            );
+            claimSkipped = (claimed.rowCount ?? 0) === 0;
+            return !claimSkipped;
+          },
+          rollbackClaimAtExecution: () => clearPendingDisconnectForfeit(matchId),
         }
       );
       if (revokedAtExecution) {
-        await clearPendingDisconnectForfeit(matchId);
         console.info(
           JSON.stringify({
             scope: 'ranked_match',
             event: 'RANKED_STALL_FORFEIT_REVOKED',
+            matchId,
+            responsibleUserId: candidate.userId,
+            waitKey: candidate.waitKey,
+            generation: candidate.generation,
+          })
+        );
+        return false;
+      }
+      if (claimSkipped) {
+        console.warn(
+          JSON.stringify({
+            scope: 'ranked_match',
+            event: 'RANKED_STALL_FORFEIT_CLAIM_SKIPPED',
             matchId,
             responsibleUserId: candidate.userId,
             waitKey: candidate.waitKey,
@@ -2156,7 +2148,6 @@ export class OnlineRoomService {
         return true;
       }
 
-      await clearPendingDisconnectForfeit(matchId);
       console.error(
         JSON.stringify({
           scope: 'ranked_match',
@@ -2171,7 +2162,6 @@ export class OnlineRoomService {
       );
       return false;
     } catch (error) {
-      await clearPendingDisconnectForfeit(matchId);
       console.error(
         JSON.stringify({
           scope: 'ranked_match',

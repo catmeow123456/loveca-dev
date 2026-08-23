@@ -363,18 +363,30 @@ interface OnlineMatchServiceDeps {
   readonly emoteCatalog?: Pick<MatchEmoteCatalogService, 'resolveActiveEmote'>;
 }
 
-export interface DeleteOnlineMatchOptions {
+type SerializedAdjudicationClaimOptions =
+  | {
+      readonly claimAtExecution?: undefined;
+      readonly rollbackClaimAtExecution?: undefined;
+    }
+  | {
+      /** 在单场串行队列内认领数据库裁定；返回 false 时不执行后续终局操作。 */
+      readonly claimAtExecution: () => Promise<boolean>;
+      /** 已认领裁定失效或终局操作失败时，在释放单场队列前回滚。 */
+      readonly rollbackClaimAtExecution: () => Promise<void>;
+    };
+
+export type DeleteOnlineMatchOptions = {
   readonly reason?: string;
   readonly now?: number;
   readonly preserveRoomCodeSpectators?: boolean;
   /** 在该删除进入单场串行队列后同步复核；返回 false 时不封存或移除对局。 */
   readonly validateAtExecution?: () => boolean;
-}
+} & SerializedAdjudicationClaimOptions;
 
-export interface RankedForfeitCommandOptions {
+export type RankedForfeitCommandOptions = {
   /** 在该判负进入单场串行队列后同步复核；返回 false 时不执行认输。 */
   readonly validateAtExecution?: () => boolean;
-}
+} & SerializedAdjudicationClaimOptions;
 
 export class OnlineMatchServiceError extends Error {
   readonly code: string;
@@ -1600,17 +1612,41 @@ export class OnlineMatchService {
         return null;
       }
 
-      match.rankedForfeitCause = cause;
+      let claimAcquired = false;
+      const rollbackClaim = async (): Promise<void> => {
+        if (!claimAcquired || !options.rollbackClaimAtExecution) {
+          return;
+        }
+        await options.rollbackClaimAtExecution();
+        claimAcquired = false;
+      };
+
       try {
+        if (options.claimAtExecution) {
+          claimAcquired = await options.claimAtExecution();
+          if (!claimAcquired) {
+            return null;
+          }
+          if (options.validateAtExecution && !options.validateAtExecution()) {
+            await rollbackClaim();
+            return null;
+          }
+        }
+
+        match.rankedForfeitCause = cause;
         const result = await this.executeCommandUnserialized(matchId, userId, command);
         if (!result?.success && match.rankedForfeitCause === cause) {
           match.rankedForfeitCause = null;
+        }
+        if (!result?.success) {
+          await rollbackClaim();
         }
         return result;
       } catch (error) {
         if (!this.isMatchCompleted(matchId) && match.rankedForfeitCause === cause) {
           match.rankedForfeitCause = null;
         }
+        await rollbackClaim();
         throw error;
       }
     });
@@ -2623,32 +2659,58 @@ export class OnlineMatchService {
       return false;
     }
 
-    const sealed = await this.sealMatchForRemoval(
-      match,
-      options.reason ?? 'MATCH_DELETED',
-      options.now ?? this.now()
-    );
-    if (!sealed) {
-      return false;
-    }
+    let claimAcquired = false;
+    const rollbackClaim = async (): Promise<void> => {
+      if (!claimAcquired || !options.rollbackClaimAtExecution) {
+        return;
+      }
+      await options.rollbackClaimAtExecution();
+      claimAcquired = false;
+    };
 
-    const now = options.now ?? this.now();
-    this.matches.delete(matchId);
-    for (const [token, link] of this.spectatorLinks) {
-      if (link.matchId === matchId) {
-        if (options.preserveRoomCodeSpectators && link.source === 'ROOM_CODE') {
-          this.detachRoomCodeSpectatorLink(link, matchId);
-        } else if (link.source === 'ROOM_CODE') {
-          this.terminateRoomCodeSpectatorLink(link, 'ROOM_CLOSED', now);
-        } else {
-          this.spectatorLinks.delete(token);
-          this.deleteSpectatorSessionsForToken(token);
+    try {
+      if (options.claimAtExecution) {
+        claimAcquired = await options.claimAtExecution();
+        if (!claimAcquired) {
+          return false;
+        }
+        if (options.validateAtExecution && !options.validateAtExecution()) {
+          await rollbackClaim();
+          return false;
         }
       }
+
+      const sealed = await this.sealMatchForRemoval(
+        match,
+        options.reason ?? 'MATCH_DELETED',
+        options.now ?? this.now()
+      );
+      if (!sealed) {
+        await rollbackClaim();
+        return false;
+      }
+
+      const now = options.now ?? this.now();
+      this.matches.delete(matchId);
+      for (const [token, link] of this.spectatorLinks) {
+        if (link.matchId === matchId) {
+          if (options.preserveRoomCodeSpectators && link.source === 'ROOM_CODE') {
+            this.detachRoomCodeSpectatorLink(link, matchId);
+          } else if (link.source === 'ROOM_CODE') {
+            this.terminateRoomCodeSpectatorLink(link, 'ROOM_CLOSED', now);
+          } else {
+            this.spectatorLinks.delete(token);
+            this.deleteSpectatorSessionsForToken(token);
+          }
+        }
+      }
+      this.sealedMatchIds.delete(matchId);
+      this.partialRecordMatchIds.delete(matchId);
+      return true;
+    } catch (error) {
+      await rollbackClaim();
+      throw error;
     }
-    this.sealedMatchIds.delete(matchId);
-    this.partialRecordMatchIds.delete(matchId);
-    return true;
   }
 
   attachRoomCodeSpectators(

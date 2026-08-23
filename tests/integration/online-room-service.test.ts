@@ -2703,6 +2703,45 @@ describe('OnlineRoomService', () => {
     );
   });
 
+  it('带数据库裁定 claim 的删除封存失败时应先回滚再释放单场队列', async () => {
+    const recorder = createTestRecorder({
+      sealMatch: vi.fn(() => Promise.reject(new Error('seal failed'))),
+    });
+    const matchService = new OnlineMatchService({ recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'CLAIMDEL',
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+    });
+    const lifecycle: string[] = [];
+
+    const deleted = await matchService.deleteMatch(match.matchId, {
+      reason: 'TEST_CLAIMED_DELETE',
+      claimAtExecution: () => {
+        lifecycle.push('claim');
+        return Promise.resolve(true);
+      },
+      rollbackClaimAtExecution: () => {
+        lifecycle.push('rollback');
+        return Promise.resolve();
+      },
+    });
+
+    expect(deleted).toBe(false);
+    expect(lifecycle).toEqual(['claim', 'rollback']);
+    expect(matchService.getMatch(match.matchId)).toBe(match);
+  });
+
   it('GAME_END match 删除时应封存为 COMPLETED/FULL 并记录胜者座位', async () => {
     let now = 8_000_000;
     const recorder = createTestRecorder();
@@ -2802,6 +2841,53 @@ describe('OnlineRoomService', () => {
         endReason: GameEndReason.OPPONENT_SURRENDER,
       })
     );
+  });
+
+  it('排位自动判负命令未到达参与者时应回滚已取得的数据库 claim', async () => {
+    const matchService = new OnlineMatchService({ recorder: createTestRecorder() });
+    const match = await matchService.createMatch({
+      roomCode: 'CLAIMFORFEIT',
+      originKind: 'RANKED',
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+    });
+    const lifecycle: string[] = [];
+
+    const result = await matchService.executeRankedForfeitCommand(
+      match.matchId,
+      'missing-user',
+      'DISCONNECT_TIMEOUT',
+      createSurrenderCommand('ignored-client-player-id'),
+      {
+        validateAtExecution: () => {
+          lifecycle.push('validate');
+          return true;
+        },
+        claimAtExecution: () => {
+          lifecycle.push('claim');
+          return Promise.resolve(true);
+        },
+        rollbackClaimAtExecution: () => {
+          lifecycle.push('rollback');
+          return Promise.resolve();
+        },
+      }
+    );
+
+    expect(result).toBeNull();
+    expect(lifecycle).toEqual(['validate', 'claim', 'validate', 'rollback']);
+    expect(match.rankedForfeitCause).toBeNull();
+    expect(matchService.isMatchCompleted(match.matchId)).toBe(false);
   });
 
   it('同一对局的命令应串行落盘，避免相邻命令共用终局事件并重复封存', async () => {
@@ -3317,7 +3403,7 @@ describe('OnlineRoomService', () => {
     const service = new OnlineRoomService({
       now: () => now,
       matchService,
-      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadUserProfile: (userId) => Promise.resolve({ userId, displayName: userId }),
       loadOwnedDeck: async (_userId, deckId) => ({
         deckId,
         deckName: deckId,
@@ -4147,6 +4233,10 @@ describe('OnlineRoomService', () => {
     const forfeitSpy = vi.spyOn(matchService, 'executeRankedForfeitCommand');
     const cleanupPromise = service.cleanupExpiredRuntimeState();
     await vi.waitFor(() => expect(forfeitSpy).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining("SET result_type = 'DISCONNECT_FORFEIT'"),
+      [match.matchId]
+    );
 
     expect(service.touchInGameMemberByMatch(match.matchId, 'u1')).toBe(true);
     releaseAppend();
@@ -4156,8 +4246,85 @@ describe('OnlineRoomService', () => {
     expect(summary.rankedDisconnectForfeitCount).toBe(0);
     expect(matchService.isMatchCompleted(match.matchId)).toBe(false);
     expect(recorder.sealMatch).not.toHaveBeenCalled();
-    expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
-      expect.stringContaining('SET result_type = NULL'),
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining("SET result_type = 'DISCONNECT_FORFEIT'"),
+      [match.matchId]
+    );
+  });
+
+  it('断线裁定排在正常认输终局之后时不得提前污染正式结算', async () => {
+    let now = 23_000;
+    const { recorder, appendStarted, releaseAppend } = createBlockingAppendRecorder();
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const started = await startRankedPublicTableRoom(
+      service,
+      'afafafaf-2222-4333-8444-555555555555',
+      'cfcfcfcf-2222-4333-8444-555555555555',
+      'terminal-before-disconnect-forfeit',
+      now
+    );
+    const match = matchService.getMatch(started.matchId!);
+    if (!match) throw new Error('missing ranked match');
+    forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
+
+    let disconnectClaimActive = false;
+    let settlementSawDisconnectClaim = false;
+    vi.mocked(pool.query).mockImplementation((text) => {
+      if (text.includes("SET result_type = 'DISCONNECT_FORFEIT'")) {
+        disconnectClaimActive = true;
+        return Promise.resolve({ rows: [{ match_id: match.matchId }], rowCount: 1 } as never);
+      }
+      if (text.includes('SET result_type = NULL')) {
+        disconnectClaimActive = false;
+        return Promise.resolve({ rows: [{ match_id: match.matchId }], rowCount: 1 } as never);
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 } as never);
+    });
+    vi.mocked(rankedRatingService.settleMatch).mockImplementationOnce(() => {
+      settlementSawDisconnectClaim = disconnectClaimActive;
+      return Promise.resolve({} as never);
+    });
+
+    now += 50_000;
+    service.touchInGameMemberByMatch(match.matchId, 'u2');
+    now += 11_000;
+    const blockerPromise = matchService.executeCommand(
+      match.matchId,
+      'u2',
+      createDrawCardToHandCommand('ignored')
+    );
+    await appendStarted;
+    const surrenderPromise = matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createSurrenderCommand('ignored-client-player-id')
+    );
+    const forfeitSpy = vi.spyOn(matchService, 'executeRankedForfeitCommand');
+    const cleanupPromise = service.cleanupExpiredRuntimeState();
+    await vi.waitFor(() => expect(forfeitSpy).toHaveBeenCalledTimes(1));
+
+    expect(disconnectClaimActive).toBe(false);
+    releaseAppend();
+    const [blockerResult, surrenderResult, summary] = await Promise.all([
+      blockerPromise,
+      surrenderPromise,
+      cleanupPromise,
+    ]);
+
+    expect(blockerResult?.success).toBe(true);
+    expect(surrenderResult?.success).toBe(true);
+    expect(summary.rankedDisconnectForfeitCount).toBe(0);
+    expect(matchService.isMatchCompleted(match.matchId)).toBe(true);
+    expect(vi.mocked(rankedRatingService.settleMatch).mock.calls).toContainEqual([match.matchId]);
+    expect(settlementSawDisconnectClaim).toBe(false);
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining("SET result_type = 'DISCONNECT_FORFEIT'"),
       [match.matchId]
     );
   });
@@ -4186,6 +4353,10 @@ describe('OnlineRoomService', () => {
 
     expect(summary.rankedDisconnectForfeitCount).toBe(0);
     expect(matchService.isMatchCompleted(started.matchId!)).toBe(false);
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining('SET result_type = NULL'),
+      [started.matchId]
+    );
   });
 
   it('排位检视效果责任方持续在线轮询但三分钟无成功操作时仍应判负', async () => {
@@ -4254,7 +4425,7 @@ describe('OnlineRoomService', () => {
     );
   });
 
-  it('操作超时 CAS 等待期间责任玩家成功操作时应撤销旧代际裁定', async () => {
+  it('操作超时 claim 等待期间后续责任玩家命令不得越过裁定', async () => {
     let now = 35_000;
     const matchService = createInMemoryMatchService({ now: () => now });
     const service = new OnlineRoomService({
@@ -4275,35 +4446,52 @@ describe('OnlineRoomService', () => {
     (match.session.state as unknown as { manualOperationMode: 'FREE' }).manualOperationMode =
       'FREE';
     await matchService.getMatchSnapshot(match.matchId, 'u1');
-    const expiredGeneration = match.rankedStallRuntime?.generation;
     const deadlineAt = match.rankedStallRuntime?.deadlineAt;
 
     now = deadlineAt! + 1;
     service.touchInGameMemberByMatch(match.matchId, 'u1');
     service.touchInGameMemberByMatch(match.matchId, 'u2');
+    let notifyClaimStarted!: () => void;
+    const claimStarted = new Promise<void>((resolve) => {
+      notifyClaimStarted = resolve;
+    });
+    let releaseClaim!: () => void;
+    const claimGate = new Promise<void>((resolve) => {
+      releaseClaim = resolve;
+    });
     vi.mocked(pool.query).mockImplementation(async (text) => {
       if (text.includes("SET result_type = 'DISCONNECT_FORFEIT'")) {
-        const accepted = await matchService.executeCommand(
-          match.matchId,
-          'u1',
-          createDrawCardToHandCommand('ignored')
-        );
-        expect(accepted?.success).toBe(true);
+        notifyClaimStarted();
+        await claimGate;
         return { rows: [{ match_id: match.matchId }], rowCount: 1 } as never;
       }
       return { rows: [], rowCount: 0 } as never;
     });
 
-    const summary = await service.cleanupExpiredRuntimeState();
-
-    expect(summary.rankedStallForfeitCount).toBe(0);
-    expect(matchService.isMatchCompleted(match.matchId)).toBe(false);
-    expect(match.rankedStallRuntime?.generation).toBeGreaterThan(expiredGeneration ?? 0);
-    expect(match.rankedStallRuntime?.deadlineAt).toBe(now + 180_000);
-    expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
-      expect.stringContaining('SET result_type = NULL'),
-      [match.matchId]
+    const cleanupPromise = service.cleanupExpiredRuntimeState();
+    await claimStarted;
+    const responsibleCommandPromise = matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createDrawCardToHandCommand('ignored')
     );
+    releaseClaim();
+    const [summary, responsibleResult] = await Promise.all([
+      cleanupPromise,
+      responsibleCommandPromise,
+    ]);
+
+    expect(summary.rankedStallForfeitCount).toBe(1);
+    expect(matchService.isMatchCompleted(match.matchId)).toBe(true);
+    expect(responsibleResult?.success).toBe(false);
+    expect(match.session.state?.endInfo).toMatchObject({
+      loserId: match.participants.FIRST.playerId,
+      reason: GameEndReason.OPPONENT_SURRENDER,
+    });
+    const loserSnapshot = await matchService.getMatchSnapshot(match.matchId, 'u1');
+    expect(loserSnapshot?.playerViewState.match.endInfo).toMatchObject({
+      rankedForfeitCause: 'STALL_TIMEOUT',
+    });
   });
 
   it('操作超时裁定排在责任玩家命令之后时应在执行点撤销旧代际', async () => {
@@ -4347,6 +4535,10 @@ describe('OnlineRoomService', () => {
     const forfeitSpy = vi.spyOn(matchService, 'executeRankedForfeitCommand');
     const cleanupPromise = service.cleanupExpiredRuntimeState();
     await vi.waitFor(() => expect(forfeitSpy).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining("SET result_type = 'DISCONNECT_FORFEIT'"),
+      [match.matchId]
+    );
 
     releaseAppend();
     const [blockerResult, responsibleResult, summary] = await Promise.all([
@@ -4362,8 +4554,8 @@ describe('OnlineRoomService', () => {
     expect(match.rankedStallRuntime?.generation).toBeGreaterThan(expiredGeneration ?? 0);
     expect(match.rankedStallRuntime?.deadlineAt).toBe(now + 180_000);
     expect(recorder.sealMatch).not.toHaveBeenCalled();
-    expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
-      expect.stringContaining('SET result_type = NULL'),
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining("SET result_type = 'DISCONNECT_FORFEIT'"),
       [match.matchId]
     );
   });
@@ -4465,6 +4657,10 @@ describe('OnlineRoomService', () => {
     const deleteSpy = vi.spyOn(matchService, 'deleteMatch');
     const cleanupPromise = service.cleanupExpiredRuntimeState();
     await vi.waitFor(() => expect(deleteSpy).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining("SET rating_status = 'VOIDED'"),
+      [match.matchId, new Date(now)]
+    );
 
     expect(service.touchInGameMemberByMatch(match.matchId, 'u1')).toBe(true);
     releaseAppend();
@@ -4477,9 +4673,9 @@ describe('OnlineRoomService', () => {
     expect(matchService.isMatchCompleted(match.matchId)).toBe(false);
     expect(recorder.sealMatch).not.toHaveBeenCalled();
     expect(service.touchInGameMemberByMatch(match.matchId, 'u2')).toBe(true);
-    expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
-      expect.stringContaining("SET rating_status = 'PENDING'"),
-      [match.matchId]
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining("SET rating_status = 'VOIDED'"),
+      [match.matchId, new Date(now)]
     );
   });
 
