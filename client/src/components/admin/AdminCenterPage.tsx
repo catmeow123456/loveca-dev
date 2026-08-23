@@ -7,6 +7,7 @@ import {
   Loader2,
   Medal,
   MonitorCog,
+  PieChart,
   Save,
   Scale,
   Settings,
@@ -36,6 +37,7 @@ interface AdminCenterPageProps {
   readonly onOpenOnlineRooms: () => void;
   readonly onOpenPlatformOperations: () => void;
   readonly onOpenRanked: () => void;
+  readonly onOpenDeckClassifier: () => void;
   readonly onOpenThemeTable: () => void;
   readonly onOpenUsers: () => void;
   readonly battleEntryVisibility: PlayerBattleEntryVisibility;
@@ -166,6 +168,13 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           icon: Medal,
           onOpen: props.onOpenRanked,
           permission: 'season.ranked.manage',
+        },
+        {
+          title: '卡组分类',
+          description: '维护分类名称、样板、规则、发布版本与重分类',
+          icon: PieChart,
+          onOpen: props.onOpenDeckClassifier,
+          permission: 'season.deck_classifier.manage',
         },
         {
           title: '娱乐模式',

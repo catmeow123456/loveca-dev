@@ -16,6 +16,7 @@
 4. [赛季排位管理员 API](./RANKED_ADMIN_API.md)：赛季运营、环境预览、异常结算、更正预览/执行与安全门禁。
 5. [首版实现与验收说明](./RANKED_INITIAL_IMPLEMENTATION.md)：玩家/管理员入口、运行时边界、迁移顺序和测试结果。
 6. [平台产品发展路线草案](./PRODUCT_DEVELOPMENT_ROADMAP_DRAFT.md)：影子评级、赛季运营前置、固定时段排位 Beta 与常驻评估的先后关系。
+7. [赛季排位卡组分类与环境饼图](./RANKED_DECK_CLASSIFIER.md)：分类算法、发布快照、运营工作流、玩家展示口径与初始种子边界。
 
 ## 卡组环境与轮换主题牌桌
 

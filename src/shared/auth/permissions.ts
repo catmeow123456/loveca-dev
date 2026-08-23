@@ -4,6 +4,7 @@ export type UserRole = (typeof USER_ROLES)[number];
 
 export const MANAGEMENT_PERMISSIONS = [
   'season.ranked.manage',
+  'season.deck_classifier.manage',
   'season.theme.manage',
   'season.entry_visibility.manage',
   'platform.manage',
@@ -18,7 +19,12 @@ export type ManagementPermission = (typeof MANAGEMENT_PERMISSIONS)[number];
 
 const ROLE_PERMISSIONS: Readonly<Record<UserRole, readonly ManagementPermission[]>> = {
   user: [],
-  season_admin: ['season.ranked.manage', 'season.theme.manage', 'season.entry_visibility.manage'],
+  season_admin: [
+    'season.ranked.manage',
+    'season.deck_classifier.manage',
+    'season.theme.manage',
+    'season.entry_visibility.manage',
+  ],
   admin: MANAGEMENT_PERMISSIONS,
 };
 

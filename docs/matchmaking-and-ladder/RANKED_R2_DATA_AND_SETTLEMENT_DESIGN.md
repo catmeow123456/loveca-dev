@@ -171,6 +171,8 @@ competitiveEnvironmentId = sha256(
 
 已变为 `VOIDED`、平台无结果、仍为 `PENDING`，或只有单席观察的对局不进入榜单。历史回填的完整性和 10 天清理保护按 `drizzle/migration-notes/ranked-season-environment.md` 执行；如果早期卡组已经不可恢复，页面必须通过覆盖率如实表现，不得伪造观察事实。
 
+在同一长期观察之上的卡组分类、玩家/对局双口径、胜者构成、发布快照和人工复核工作流见[赛季排位卡组分类与环境饼图](./RANKED_DECK_CLASSIFIER.md)。分类结果是可重建派生数据，不替代或修改长期观察事实。
+
 ## 5. 事务与幂等
 
 所有赛季状态变化和积分写入使用 PostgreSQL `SERIALIZABLE` 事务。

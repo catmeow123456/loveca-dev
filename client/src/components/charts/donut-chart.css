@@ -1,0 +1,206 @@
+.donut-chart {
+  container: donut-chart / inline-size;
+  min-inline-size: 0;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.donut-chart__title {
+  margin-block-end: var(--space-3);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.donut-chart__body {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.donut-chart__plot {
+  inline-size: 100%;
+  max-inline-size: 220px;
+  margin-inline: auto;
+  aspect-ratio: 1;
+}
+
+.donut-chart--deck-environment .donut-chart__body {
+  grid-template-columns: minmax(0, 11fr) minmax(220px, 9fr);
+  gap: clamp(var(--space-4), 3cqi, var(--space-8));
+}
+
+.donut-chart--deck-environment .donut-chart__plot {
+  max-inline-size: 520px;
+}
+
+.donut-chart--deck-environment .donut-chart__legend-item {
+  font-size: 0.8125rem;
+}
+
+.donut-chart__svg {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  overflow: visible;
+}
+
+.donut-chart__track,
+.donut-chart__segment {
+  fill: none;
+  stroke-width: 18;
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+
+.donut-chart__track {
+  stroke: var(--border-subtle);
+}
+
+.donut-chart__segment {
+  transition: opacity var(--duration-fast) ease;
+}
+
+.donut-chart__segment:hover {
+  opacity: 0.82;
+}
+
+.donut-chart__pie-track {
+  fill: var(--border-subtle);
+}
+
+.donut-chart__pie-segment {
+  transition: opacity var(--duration-fast) ease;
+}
+
+.donut-chart__pie-segment:hover {
+  opacity: 0.84;
+}
+
+.donut-chart__pie-image {
+  pointer-events: none;
+}
+
+.donut-chart__pie-boundary {
+  fill: none;
+  stroke: var(--bg-surface);
+  stroke-linejoin: round;
+  stroke-width: 0.9;
+}
+
+.donut-chart__pie-outline {
+  fill: none;
+  stroke: var(--border-default);
+  stroke-width: 0.8;
+}
+
+.donut-chart__center-value,
+.donut-chart__center-label {
+  fill: currentColor;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.donut-chart__center-value {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.donut-chart__center-label {
+  fill: var(--text-muted);
+  font-size: 0.55rem;
+  font-weight: 600;
+}
+
+.donut-chart__legend {
+  display: grid;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.donut-chart__legend-item {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.donut-chart__legend-swatch {
+  inline-size: 10px;
+  block-size: 10px;
+  border-radius: var(--radius-full);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+}
+
+.donut-chart__legend-label {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+}
+
+.donut-chart__legend-metric {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.donut-chart__legend-percentage {
+  min-inline-size: 3.25rem;
+  color: var(--text-muted);
+  text-align: end;
+}
+
+.donut-chart__empty {
+  display: grid;
+  min-block-size: 180px;
+  place-items: center;
+  padding: var(--space-4);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-panel);
+  background: var(--bg-overlay);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+@container donut-chart (max-width: 440px) {
+  .donut-chart__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .donut-chart__plot {
+    max-inline-size: 200px;
+  }
+
+  .donut-chart--deck-environment .donut-chart__plot {
+    max-inline-size: min(100%, 320px);
+  }
+}
+
+@container donut-chart (min-width: 441px) and (max-width: 760px) {
+  .donut-chart--deck-environment .donut-chart__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .donut-chart--deck-environment .donut-chart__plot {
+    max-inline-size: 420px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .donut-chart__segment,
+  .donut-chart__pie-segment {
+    transition: none;
+  }
+}

@@ -77,9 +77,16 @@ const SOFT_RESET_MODE_OPTIONS: readonly SelectMenuOption<
 export function RankedAdminPage({
   onBack,
   battleTimeouts,
+  onOpenDeckClassifier,
 }: {
   onBack: () => void;
   battleTimeouts: import('@game/online/ranked-policy').BattleTimeoutConfig;
+  onOpenDeckClassifier: (source: {
+    readonly matchId: string;
+    readonly seat: 'FIRST' | 'SECOND';
+    readonly name: string;
+    readonly note: string;
+  }) => void;
 }) {
   const [tab, setTab] = useState<Tab>('overview');
   const [seasons, setSeasons] = useState<RankedAdminSeason[]>([]);
@@ -409,6 +416,7 @@ export function RankedAdminPage({
               }}
               onSettle={(match) => run(() => settleRankedMatch(match.matchId))}
               onCorrection={startCorrection}
+              onOpenDeckClassifier={onOpenDeckClassifier}
             />
           )}
         </div>
@@ -1596,6 +1604,7 @@ function MatchesPanel({
   onPageChange,
   onSettle,
   onCorrection,
+  onOpenDeckClassifier,
 }: {
   seasons: RankedAdminSeason[];
   matches: RankedAdminMatch[];
@@ -1616,6 +1625,12 @@ function MatchesPanel({
     action: 'VOID' | 'REPLACE',
     replacementWinnerSeat?: 'FIRST' | 'SECOND'
   ) => Promise<void>;
+  onOpenDeckClassifier: (source: {
+    readonly matchId: string;
+    readonly seat: 'FIRST' | 'SECOND';
+    readonly name: string;
+    readonly note: string;
+  }) => void;
 }) {
   const [searchInput, setSearchInput] = useState(userQuery);
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
@@ -1800,6 +1815,7 @@ function MatchesPanel({
                     });
                     void loadMatchDetail(match.matchId);
                   }}
+                  onOpenDeckClassifier={onOpenDeckClassifier}
                 />
               ) : null}
             </section>
@@ -1846,12 +1862,19 @@ function MatchDeckDetails({
   loading,
   error,
   onRetry,
+  onOpenDeckClassifier,
 }: {
   match: RankedAdminMatch;
   detail?: RankedAdminMatchDetail;
   loading: boolean;
   error?: string;
   onRetry: () => void;
+  onOpenDeckClassifier: (source: {
+    readonly matchId: string;
+    readonly seat: 'FIRST' | 'SECOND';
+    readonly name: string;
+    readonly note: string;
+  }) => void;
 }) {
   if (loading) {
     return (
@@ -1885,14 +1908,18 @@ function MatchDeckDetails({
       </div>
       <div className="grid gap-3 xl:grid-cols-2">
         <MatchDeckPanel
+          matchId={match.matchId}
           seatLabel="先攻"
           playerName={playerName(match.firstPlayer)}
           deck={firstDeck}
+          onOpenDeckClassifier={onOpenDeckClassifier}
         />
         <MatchDeckPanel
+          matchId={match.matchId}
           seatLabel="后攻"
           playerName={playerName(match.secondPlayer)}
           deck={secondDeck}
+          onOpenDeckClassifier={onOpenDeckClassifier}
         />
       </div>
     </div>
@@ -1900,13 +1927,22 @@ function MatchDeckDetails({
 }
 
 function MatchDeckPanel({
+  matchId,
   seatLabel,
   playerName: name,
   deck,
+  onOpenDeckClassifier,
 }: {
+  matchId: string;
   seatLabel: string;
   playerName: string;
   deck?: RankedAdminMatchDeck;
+  onOpenDeckClassifier: (source: {
+    readonly matchId: string;
+    readonly seat: 'FIRST' | 'SECOND';
+    readonly name: string;
+    readonly note: string;
+  }) => void;
 }) {
   if (!deck) {
     return (
@@ -1934,9 +1970,25 @@ function MatchDeckPanel({
             {deck.sourceDeckName || '未记录卡组名称'}
           </p>
         </div>
-        <span className="rounded-full bg-[var(--bg-surface)] px-2.5 py-1 text-xs tabular-nums text-[var(--text-muted)]">
-          {total} 张
-        </span>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <span className="rounded-full bg-[var(--bg-surface)] px-2.5 py-1 text-xs tabular-nums text-[var(--text-muted)]">
+            {total} 张
+          </span>
+          <button
+            type="button"
+            className="button-secondary px-2.5 py-1.5 text-xs"
+            onClick={() =>
+              onOpenDeckClassifier({
+                matchId,
+                seat: deck.seat,
+                name: deck.sourceDeckName?.trim() || `对局 ${matchId.slice(0, 8)} · ${deck.seat}`,
+                note: `从赛季排位管理导入；对局 ${matchId}；席位 ${deck.seat}`,
+              })
+            }
+          >
+            导入为分类样板
+          </button>
+        </div>
       </div>
       <DeckCardGroup
         title={`成员卡 · ${members.reduce((sum, card) => sum + card.count, 0)} 张`}

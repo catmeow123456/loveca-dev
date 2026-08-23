@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   doublePrecision,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -10,6 +11,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
@@ -93,6 +95,16 @@ export type RankedMatchRatingStatus = 'PENDING' | 'SETTLED' | 'VOIDED';
 export type RankedMatchResultType =
   'NORMAL' | 'SURRENDER' | 'DISCONNECT_FORFEIT' | 'PLATFORM_NO_CONTEST';
 export type RankedRatingEventType = 'SETTLEMENT' | 'VOID' | 'REPLACEMENT';
+export type DeckArchetypeLifecycle = 'ACTIVE' | 'ARCHIVED';
+export type DeckClassifierDisplayMode = 'HIDDEN' | 'PLAYER_EQUAL' | 'MATCH_EQUAL' | 'BOTH';
+export type DeckClassifierReleaseStatus = 'BUILDING' | 'ACTIVE' | 'SUPERSEDED' | 'FAILED';
+export type DeckClassificationRunStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+export type DeckClassificationRunTrigger =
+  'RELEASE_PUBLISHED' | 'MANUAL_RECLASSIFY' | 'MANUAL_OVERRIDE' | 'AUTO_NEW_OBSERVATIONS';
+export type DeckClassificationStatus =
+  'CLASSIFIED' | 'UNKNOWN' | 'AMBIGUOUS' | 'INVALID' | 'EXCLUDED';
+export type DeckClassificationMethod =
+  'MANUAL' | 'EXACT' | 'RULE' | 'SIMILARITY' | 'UNKNOWN' | 'AMBIGUOUS' | 'INVALID';
 export type ThemeTableLifecycle = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'CLOSED';
 export type ThemeDeckDifficulty = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 export type PlayerWallpaperAssetKind = 'MASTER' | 'WIDE_DISPLAY' | 'COMPACT_DISPLAY';
@@ -298,7 +310,7 @@ export const managementAuditLogs = pgTable(
     ),
     check(
       'management_audit_scope_check',
-      sql`${table.scope} IN ('RANKED', 'THEME_TABLE', 'SEASON_ENTRY_VISIBILITY')`
+      sql`${table.scope} IN ('RANKED', 'DECK_CLASSIFIER', 'THEME_TABLE', 'SEASON_ENTRY_VISIBILITY')`
     ),
     check('management_audit_action_check', sql`btrim(${table.action}) <> ''`),
     check('management_audit_target_type_check', sql`btrim(${table.targetType}) <> ''`),
@@ -1984,6 +1996,10 @@ export const rankedDeckObservations = pgTable(
       table.seasonId,
       table.deckFingerprint
     ),
+    index('idx_ranked_deck_observations_fingerprint_observed').on(
+      table.deckFingerprint,
+      table.observedAt
+    ),
     check('ranked_deck_observations_seat_check', sql`${table.seat} IN ('FIRST', 'SECOND')`),
     check(
       'ranked_deck_observations_fingerprint_check',
@@ -1992,6 +2008,381 @@ export const rankedDeckObservations = pgTable(
     check(
       'ranked_deck_observations_main_deck_check',
       sql`jsonb_typeof(${table.mainDeckCards}) = 'array' AND jsonb_array_length(${table.mainDeckCards}) > 0`
+    ),
+  ]
+);
+
+/**
+ * Mutable classifier draft entities. Published player-facing behavior never reads these rows
+ * directly; a release freezes their complete configuration in snapshot_json.
+ */
+export const deckArchetypes = pgTable(
+  'deck_archetypes',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    archetypeKey: text('archetype_key').notNull().unique(),
+    name: text('name').notNull(),
+    groupName: text('group_name').notNull().default('其他'),
+    description: text('description').notNull().default(''),
+    colorKey: text('color_key').notNull(),
+    representativeCardCode: text('representative_card_code').references(() => cards.cardCode, {
+      onDelete: 'set null',
+    }),
+    sortOrder: integer('sort_order').notNull().default(0),
+    lifecycle: text('lifecycle').$type<DeckArchetypeLifecycle>().notNull().default('ACTIVE'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_deck_archetypes_lifecycle_order').on(table.lifecycle, table.sortOrder),
+    check('deck_archetypes_key_check', sql`${table.archetypeKey} ~ '^[a-z0-9][a-z0-9_-]{1,63}$'`),
+    check('deck_archetypes_name_check', sql`btrim(${table.name}) <> ''`),
+    check('deck_archetypes_group_check', sql`btrim(${table.groupName}) <> ''`),
+    check('deck_archetypes_color_check', sql`${table.colorKey} ~ '^#[0-9A-Fa-f]{6}$'`),
+    check('deck_archetypes_lifecycle_check', sql`${table.lifecycle} IN ('ACTIVE', 'ARCHIVED')`),
+  ]
+);
+
+export const deckArchetypeTemplates = pgTable(
+  'deck_archetype_templates',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    archetypeId: uuid('archetype_id')
+      .notNull()
+      .references(() => deckArchetypes.id, { onDelete: 'restrict' }),
+    name: text('name').notNull(),
+    deckFingerprint: text('deck_fingerprint').notNull(),
+    cards: jsonb('cards').$type<readonly Record<string, unknown>[]>().notNull(),
+    sourceKind: text('source_kind').notNull(),
+    sourceMatchId: text('source_match_id'),
+    sourceSeat: text('source_seat').$type<'FIRST' | 'SECOND'>(),
+    sourceNote: text('source_note').notNull().default(''),
+    enabled: boolean('enabled').notNull().default(true),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('uq_deck_archetype_templates_active_fingerprint')
+      .on(table.deckFingerprint)
+      .where(sql`${table.enabled} = true`),
+    index('idx_deck_archetype_templates_archetype').on(table.archetypeId, table.enabled),
+    index('idx_deck_archetype_templates_source_match').on(table.sourceMatchId, table.sourceSeat),
+    foreignKey({
+      columns: [table.sourceMatchId, table.sourceSeat],
+      foreignColumns: [rankedDeckObservations.matchId, rankedDeckObservations.seat],
+      name: 'deck_archetype_templates_source_observation_fk',
+    }).onDelete('set null'),
+    check('deck_archetype_templates_name_check', sql`btrim(${table.name}) <> ''`),
+    check(
+      'deck_archetype_templates_fingerprint_check',
+      sql`${table.deckFingerprint} ~ '^sha256:[0-9a-f]{64}$'`
+    ),
+    check(
+      'deck_archetype_templates_cards_check',
+      sql`jsonb_typeof(${table.cards}) = 'array' AND jsonb_array_length(${table.cards}) > 0`
+    ),
+    check(
+      'deck_archetype_templates_source_kind_check',
+      sql`${table.sourceKind} IN ('MATCH_OBSERVATION', 'SEED_PACKAGE', 'MANUAL')`
+    ),
+    check(
+      'deck_archetype_templates_source_seat_check',
+      sql`${table.sourceSeat} IS NULL OR ${table.sourceSeat} IN ('FIRST', 'SECOND')`
+    ),
+    check(
+      'deck_archetype_templates_source_shape_check',
+      sql`(${table.sourceKind} = 'MATCH_OBSERVATION' AND ((${table.sourceMatchId} IS NOT NULL AND ${table.sourceSeat} IS NOT NULL) OR (${table.sourceMatchId} IS NULL AND ${table.sourceSeat} IS NULL))) OR (${table.sourceKind} <> 'MATCH_OBSERVATION' AND ${table.sourceMatchId} IS NULL AND ${table.sourceSeat} IS NULL)`
+    ),
+  ]
+);
+
+export const deckArchetypeRules = pgTable(
+  'deck_archetype_rules',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    archetypeId: uuid('archetype_id')
+      .notNull()
+      .references(() => deckArchetypes.id, { onDelete: 'restrict' }),
+    name: text('name').notNull(),
+    priority: integer('priority').notNull().default(100),
+    definition: jsonb('definition').$type<Record<string, unknown>>().notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_deck_archetype_rules_archetype').on(
+      table.archetypeId,
+      table.enabled,
+      table.priority
+    ),
+    check('deck_archetype_rules_name_check', sql`btrim(${table.name}) <> ''`),
+    check(
+      'deck_archetype_rules_definition_check',
+      sql`jsonb_typeof(${table.definition}) = 'object'`
+    ),
+    check('deck_archetype_rules_priority_check', sql`${table.priority} >= 0`),
+  ]
+);
+
+export const deckClassifierReleases = pgTable(
+  'deck_classifier_releases',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    version: integer('version').notNull().unique(),
+    status: text('status').$type<DeckClassifierReleaseStatus>().notNull(),
+    snapshotJson: jsonb('snapshot_json').$type<Record<string, unknown>>().notNull(),
+    configHash: text('config_hash').notNull(),
+    reason: text('reason').notNull(),
+    publishedBy: uuid('published_by').references(() => users.id, { onDelete: 'set null' }),
+    publishedAt: timestamp('published_at', { withTimezone: true }).notNull().defaultNow(),
+    activatedAt: timestamp('activated_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('uq_deck_classifier_releases_active')
+      .on(sql`(true)`)
+      .where(sql`${table.status} = 'ACTIVE'`),
+    uniqueIndex('uq_deck_classifier_releases_building')
+      .on(sql`(true)`)
+      .where(sql`${table.status} = 'BUILDING'`),
+    index('idx_deck_classifier_releases_published_at').on(table.publishedAt),
+    check('deck_classifier_releases_version_check', sql`${table.version} > 0`),
+    check(
+      'deck_classifier_releases_status_check',
+      sql`${table.status} IN ('BUILDING', 'ACTIVE', 'SUPERSEDED', 'FAILED')`
+    ),
+    check(
+      'deck_classifier_releases_snapshot_check',
+      sql`jsonb_typeof(${table.snapshotJson}) = 'object'`
+    ),
+    check(
+      'deck_classifier_releases_hash_check',
+      sql`${table.configHash} ~ '^sha256:[0-9a-f]{64}$'`
+    ),
+    check('deck_classifier_releases_reason_check', sql`btrim(${table.reason}) <> ''`),
+    check(
+      'deck_classifier_releases_activation_check',
+      sql`(${table.status} IN ('BUILDING', 'FAILED') AND ${table.activatedAt} IS NULL) OR (${table.status} IN ('ACTIVE', 'SUPERSEDED') AND ${table.activatedAt} IS NOT NULL)`
+    ),
+  ]
+);
+
+export const deckClassifierSettings = pgTable(
+  'deck_classifier_settings',
+  {
+    id: integer('id').primaryKey().default(1),
+    displayMode: text('display_mode').$type<DeckClassifierDisplayMode>().notNull().default('BOTH'),
+    showUsage: boolean('show_usage').notNull().default(true),
+    showWinner: boolean('show_winner').notNull().default(true),
+    showTopRanked: boolean('show_top_ranked').notNull().default(false),
+    topRankedPlayerCount: integer('top_ranked_player_count').notNull().default(30),
+    draftRevision: integer('draft_revision').notNull().default(0),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('deck_classifier_settings_singleton_check', sql`${table.id} = 1`),
+    check('deck_classifier_settings_draft_revision_check', sql`${table.draftRevision} >= 0`),
+    check(
+      'deck_classifier_settings_display_mode_check',
+      sql`${table.displayMode} IN ('HIDDEN', 'PLAYER_EQUAL', 'MATCH_EQUAL', 'BOTH')`
+    ),
+    check(
+      'deck_classifier_settings_top_ranked_player_count_check',
+      sql`${table.topRankedPlayerCount} BETWEEN 10 AND 100`
+    ),
+    check(
+      'deck_classifier_settings_visibility_check',
+      sql`(${table.displayMode} = 'HIDDEN') = (NOT ${table.showUsage} AND NOT ${table.showWinner} AND NOT ${table.showTopRanked})`
+    ),
+  ]
+);
+
+export const deckClassificationRuns = pgTable(
+  'deck_classification_runs',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    releaseId: uuid('release_id')
+      .notNull()
+      .references(() => deckClassifierReleases.id, { onDelete: 'restrict' }),
+    status: text('status').$type<DeckClassificationRunStatus>().notNull().default('QUEUED'),
+    trigger: text('trigger').$type<DeckClassificationRunTrigger>().notNull(),
+    scopeSeasonId: uuid('scope_season_id').references(() => rankedSeasons.id, {
+      onDelete: 'restrict',
+    }),
+    requestedBy: uuid('requested_by').references(() => users.id, { onDelete: 'set null' }),
+    requestId: text('request_id').notNull(),
+    idempotencyKey: text('idempotency_key').notNull().unique(),
+    reason: text('reason').notNull(),
+    totalCount: integer('total_count').notNull().default(0),
+    processedCount: integer('processed_count').notNull().default(0),
+    classifiedCount: integer('classified_count').notNull().default(0),
+    unknownCount: integer('unknown_count').notNull().default(0),
+    ambiguousCount: integer('ambiguous_count').notNull().default(0),
+    invalidCount: integer('invalid_count').notNull().default(0),
+    excludedCount: integer('excluded_count').notNull().default(0),
+    changedCount: integer('changed_count').notNull().default(0),
+    errorMessage: text('error_message'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('uq_deck_classification_runs_active')
+      .on(sql`(true)`)
+      .where(sql`${table.status} = 'RUNNING'`),
+    unique('uq_deck_classification_runs_id_release').on(table.id, table.releaseId),
+    index('idx_deck_classification_runs_release_created').on(table.releaseId, table.createdAt),
+    index('idx_deck_classification_runs_scope_season').on(table.scopeSeasonId, table.createdAt),
+    check(
+      'deck_classification_runs_status_check',
+      sql`${table.status} IN ('QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED')`
+    ),
+    check(
+      'deck_classification_runs_trigger_check',
+      sql`${table.trigger} IN ('RELEASE_PUBLISHED', 'MANUAL_RECLASSIFY', 'MANUAL_OVERRIDE', 'AUTO_NEW_OBSERVATIONS')`
+    ),
+    check('deck_classification_runs_request_id_check', sql`btrim(${table.requestId}) <> ''`),
+    check(
+      'deck_classification_runs_idempotency_key_check',
+      sql`btrim(${table.idempotencyKey}) <> ''`
+    ),
+    check('deck_classification_runs_reason_check', sql`btrim(${table.reason}) <> ''`),
+    check(
+      'deck_classification_runs_counts_check',
+      sql`${table.totalCount} >= 0 AND ${table.processedCount} >= 0 AND ${table.processedCount} <= ${table.totalCount} AND ${table.classifiedCount} >= 0 AND ${table.unknownCount} >= 0 AND ${table.ambiguousCount} >= 0 AND ${table.invalidCount} >= 0 AND ${table.excludedCount} >= 0 AND ${table.changedCount} >= 0 AND (${table.classifiedCount} + ${table.unknownCount} + ${table.ambiguousCount} + ${table.invalidCount} + ${table.excludedCount}) <= ${table.processedCount}`
+    ),
+  ]
+);
+
+export const deckClassificationOverrides = pgTable(
+  'deck_classification_overrides',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    deckFingerprint: text('deck_fingerprint').notNull(),
+    archetypeId: uuid('archetype_id').references(() => deckArchetypes.id, {
+      onDelete: 'restrict',
+    }),
+    targetStatus: text('target_status').$type<'CLASSIFIED' | 'UNKNOWN' | 'EXCLUDED'>().notNull(),
+    reason: text('reason').notNull(),
+    appliesToFutureReleases: boolean('applies_to_future_releases').notNull().default(true),
+    releaseId: uuid('release_id').references(() => deckClassifierReleases.id, {
+      onDelete: 'restrict',
+    }),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    requestId: text('request_id').notNull().unique(),
+    idempotencyKey: text('idempotency_key').notNull().unique(),
+    revokedBy: uuid('revoked_by').references(() => users.id, { onDelete: 'set null' }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('uq_deck_classification_overrides_active_global')
+      .on(table.deckFingerprint)
+      .where(sql`${table.revokedAt} IS NULL AND ${table.appliesToFutureReleases} = true`),
+    uniqueIndex('uq_deck_classification_overrides_active_release')
+      .on(table.deckFingerprint, table.releaseId)
+      .where(sql`${table.revokedAt} IS NULL AND ${table.appliesToFutureReleases} = false`),
+    index('idx_deck_classification_overrides_archetype').on(table.archetypeId, table.createdAt),
+    check(
+      'deck_classification_overrides_fingerprint_check',
+      sql`${table.deckFingerprint} ~ '^sha256:[0-9a-f]{64}$'`
+    ),
+    check(
+      'deck_classification_overrides_target_status_check',
+      sql`${table.targetStatus} IN ('CLASSIFIED', 'UNKNOWN', 'EXCLUDED')`
+    ),
+    check('deck_classification_overrides_reason_check', sql`btrim(${table.reason}) <> ''`),
+    check('deck_classification_overrides_request_id_check', sql`btrim(${table.requestId}) <> ''`),
+    check(
+      'deck_classification_overrides_idempotency_key_check',
+      sql`btrim(${table.idempotencyKey}) <> ''`
+    ),
+    check(
+      'deck_classification_overrides_shape_check',
+      sql`(${table.targetStatus} = 'CLASSIFIED' AND ${table.archetypeId} IS NOT NULL) OR (${table.targetStatus} <> 'CLASSIFIED' AND ${table.archetypeId} IS NULL)`
+    ),
+    check(
+      'deck_classification_overrides_scope_check',
+      sql`(${table.appliesToFutureReleases} = true AND ${table.releaseId} IS NULL) OR (${table.appliesToFutureReleases} = false AND ${table.releaseId} IS NOT NULL)`
+    ),
+  ]
+);
+
+export const deckClassificationAssignments = pgTable(
+  'deck_classification_assignments',
+  {
+    matchId: text('match_id').notNull(),
+    seat: text('seat').$type<'FIRST' | 'SECOND'>().notNull(),
+    releaseId: uuid('release_id')
+      .notNull()
+      .references(() => deckClassifierReleases.id, { onDelete: 'restrict' }),
+    runId: uuid('run_id').notNull(),
+    archetypeId: uuid('archetype_id').references(() => deckArchetypes.id, {
+      onDelete: 'restrict',
+    }),
+    status: text('status').$type<DeckClassificationStatus>().notNull(),
+    method: text('method').$type<DeckClassificationMethod>().notNull(),
+    bestDistance: doublePrecision('best_distance'),
+    secondDistance: doublePrecision('second_distance'),
+    margin: doublePrecision('margin'),
+    evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull(),
+    classifiedAt: timestamp('classified_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.matchId, table.seat, table.releaseId],
+      name: 'deck_classification_assignments_pk',
+    }),
+    foreignKey({
+      columns: [table.matchId, table.seat],
+      foreignColumns: [rankedDeckObservations.matchId, rankedDeckObservations.seat],
+      name: 'deck_classification_assignments_observation_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.runId, table.releaseId],
+      foreignColumns: [deckClassificationRuns.id, deckClassificationRuns.releaseId],
+      name: 'deck_classification_assignments_run_release_fk',
+    }).onDelete('restrict'),
+    index('idx_deck_classification_assignments_release_status').on(
+      table.releaseId,
+      table.status,
+      table.archetypeId
+    ),
+    index('idx_deck_classification_assignments_run').on(table.runId),
+    check('deck_classification_assignments_seat_check', sql`${table.seat} IN ('FIRST', 'SECOND')`),
+    check(
+      'deck_classification_assignments_status_check',
+      sql`${table.status} IN ('CLASSIFIED', 'UNKNOWN', 'AMBIGUOUS', 'INVALID', 'EXCLUDED')`
+    ),
+    check(
+      'deck_classification_assignments_method_check',
+      sql`${table.method} IN ('MANUAL', 'EXACT', 'RULE', 'SIMILARITY', 'UNKNOWN', 'AMBIGUOUS', 'INVALID')`
+    ),
+    check(
+      'deck_classification_assignments_shape_check',
+      sql`(${table.status} = 'CLASSIFIED' AND ${table.archetypeId} IS NOT NULL) OR (${table.status} <> 'CLASSIFIED' AND ${table.archetypeId} IS NULL)`
     ),
   ]
 );

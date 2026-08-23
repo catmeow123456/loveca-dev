@@ -18,6 +18,7 @@
 - 在对局只等待本人或对手推进且进入最后 1 分钟时看到操作超时提示；
 - 查看最近排位对局和达到参榜场次门槛的排行榜；
 - 查看当前或历史赛季按玩家等权计算的卡牌使用率 Top 30，以及有效样本量和数据覆盖率；
+- 按运营选择查看玩家等权、对局等权或两者并列的卡组使用占比与胜者构成饼图，并查看胜率和非镜像胜率；
 - 在首届赛季达到 3 场有效计分对局后获得定级纪念徽章，并在个人中心查看。
 
 页面只突出赛季状态、当前积分、参榜进度、卡组和一个主要操作。没有数据时不渲染空
@@ -25,15 +26,16 @@
 
 玩家 API：
 
-| 方法   | 路径                          | 用途                                         |
-| ------ | ----------------------------- | -------------------------------------------- |
-| `GET`  | `/api/ranked/seasons`         | 读取可见赛季                                 |
-| `GET`  | `/api/ranked/overview`        | 读取赛季、个人、候场、最近对局和排行榜       |
-| `GET`  | `/api/ranked/environment`     | 按 `seasonId` 读取赛季卡牌使用率与样本覆盖率 |
-| `POST` | `/api/ranked/queue/join`      | 以合法云端卡组加入排位候场                   |
-| `POST` | `/api/ranked/queue/heartbeat` | 维持票据并读取最新状态                       |
-| `POST` | `/api/ranked/queue/confirm`   | 确认配对                                     |
-| `POST` | `/api/ranked/queue/cancel`    | 取消候场或放弃尚未开局的配对                 |
+| 方法   | 路径                            | 用途                                         |
+| ------ | ------------------------------- | -------------------------------------------- |
+| `GET`  | `/api/ranked/seasons`           | 读取可见赛季                                 |
+| `GET`  | `/api/ranked/overview`          | 读取赛季、个人、候场、最近对局和排行榜       |
+| `GET`  | `/api/ranked/environment`       | 按 `seasonId` 读取赛季卡牌使用率与样本覆盖率 |
+| `GET`  | `/api/ranked/environment/decks` | 按 `seasonId` 读取已发布的卡组分类环境       |
+| `POST` | `/api/ranked/queue/join`        | 以合法云端卡组加入排位候场                   |
+| `POST` | `/api/ranked/queue/heartbeat`   | 维持票据并读取最新状态                       |
+| `POST` | `/api/ranked/queue/confirm`     | 确认配对                                     |
+| `POST` | `/api/ranked/queue/cancel`      | 取消候场或放弃尚未开局的配对                 |
 
 首届排位纪念徽章不作为排行榜字段暴露；登录玩家通过 `GET /api/player-badges/me` 只读取自己的徽章，当前不提供查看其他玩家徽章或写入徽章的接口。
 
