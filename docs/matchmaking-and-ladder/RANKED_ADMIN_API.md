@@ -39,7 +39,7 @@
 | `POST`   | `/seasons/:seasonId/rating-revisions/apply`   | 在暂停且无 blocker 时原子应用已签名预览的全量回算 |
 | `GET`    | `/overview?seasonId=<uuid>`                   | 查看指定赛季运行健康、经营统计及玩家分布          |
 | `GET`    | `/players/search`                             | 按赛季搜索已有有效计分记录的玩家                  |
-| `GET`    | `/players/:userId/context`                    | 查看玩家评分、进度及公开榜单上下文                |
+| `GET`    | `/players/:userId/context`                    | 查看玩家评分、进度及带胜负/最常用卡组的榜单上下文 |
 | `GET`    | `/matches`                                    | 分页查看排位对局并按赛季、结算状态或用户搜索      |
 | `GET`    | `/matches/:matchId`                           | 查看对局评分事件及双方长期主卡组                  |
 | `POST`   | `/matches/:matchId/settle`                    | 幂等重试权威结果结算                              |
@@ -93,7 +93,7 @@ lifecycle == ACTIVE
 冻结配置、`ledgerRevision`、目标玩家评分投影和榜单窗口，返回 rating、RD、有效计分场数、
 `placementRequired`、`leaderboardMinimumMatchCount`、定级完成与参榜资格两个独立布尔值，
 以及接口生成时间。玩家满足参榜门槛时，再按玩家端相同的
-`rating DESC, userId ASC` 稳定顺序返回目标名次和上下各最多 3 名；榜首或榜尾不补齐。
+`rating DESC, userId ASC` 稳定顺序返回目标名次和上下各最多 3 名；榜首或榜尾不补齐。返回的每一行都包含胜场、负场和当前 `ACTIVE` 分类口径下的最常用卡组分类及覆盖状态。
 V1–V3 的两个门槛可以独立配置，因此仍在定级的玩家若已经满足较低的参榜门槛，也必须
 返回真实公开名次；状态标签不能替代这两个独立判断。该接口是管理员只读查询，不提供
 批量导出，也不能直接改写任何 rating、RD、场次或名次。

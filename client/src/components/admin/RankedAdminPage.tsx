@@ -904,6 +904,23 @@ function LookupError({
 
 function RankedPlayerContextCard({ context }: { context: RankedAdminPlayerContext }) {
   const { player } = context;
+  const contextRows: RankedAdminPlayerRankRow[] = player.leaderboardEligible
+    ? context.neighbors.rows
+    : [
+        {
+          userId: player.userId,
+          username: player.username,
+          displayName: player.displayName,
+          rating: player.rating,
+          ratingDeviation: player.ratingDeviation,
+          ratedMatchCount: player.ratedMatchCount,
+          wins: player.wins,
+          losses: player.losses,
+          deckClassification: player.deckClassification,
+          rank: null,
+          isTarget: true,
+        },
+      ];
   return (
     <div className="mt-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-3 sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -938,9 +955,7 @@ function RankedPlayerContextCard({ context }: { context: RankedAdminPlayerContex
 
       <RankedPlayerStatusNote context={context} />
 
-      {player.leaderboardEligible ? (
-        <RankedPlayerNeighborTable rows={context.neighbors.rows} />
-      ) : null}
+      <RankedPlayerNeighborTable rows={contextRows} />
     </div>
   );
 }
@@ -966,6 +981,28 @@ function PlayerScoreMetric({
       </div>
     </div>
   );
+}
+
+function playerDeckClassificationDisplay(
+  classification: RankedAdminPlayerContext['player']['deckClassification'],
+  ratedMatchCount: number
+): { value: string; detail: string; partial: boolean } {
+  const leaderNames = classification.leaders.map((leader) => leader.name).join('、');
+  const value = !classification.release
+    ? '尚未发布分类'
+    : classification.leaders.length === 0
+      ? classification.observedMatchCount === 0
+        ? '暂无卡组观察'
+        : '暂无已识别分类'
+      : `${leaderNames}${classification.isTied ? '（并列）' : ''}`;
+  const leadingMatchCount = classification.leaders[0]?.matchCount ?? 0;
+  const coverage = `${classification.classifiedMatchCount}/${ratedMatchCount} 场已分类`;
+  const detail = !classification.release
+    ? '发布卡组分类后显示映射名称'
+    : classification.leaders.length === 0
+      ? coverage
+      : `${classification.isTied ? '各' : ''}使用 ${leadingMatchCount} 场 · ${coverage}`;
+  return { value, detail, partial: classification.coverageStatus === 'PARTIAL' };
 }
 
 function RankedPlayerStatusNote({ context }: { context: RankedAdminPlayerContext }) {
@@ -1005,38 +1042,65 @@ function RankedPlayerNeighborTable({ rows }: { rows: RankedAdminPlayerRankRow[] 
             <th className="px-3 py-2 text-right font-medium">评分</th>
             <th className="px-3 py-2 text-right font-medium">RD</th>
             <th className="px-3 py-2 text-right font-medium">场数</th>
+            <th className="px-3 py-2 text-right font-medium">胜利</th>
+            <th className="px-3 py-2 text-right font-medium">失败</th>
+            <th className="min-w-56 px-3 py-2 font-medium">最常用卡组</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr
-              key={row.userId}
-              className={
-                row.isTarget
-                  ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] font-semibold text-[var(--text-primary)]'
-                  : 'border-t border-[var(--border-subtle)] text-[var(--text-secondary)]'
-              }
-            >
-              <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">
-                {row.rank === null ? '—' : `#${row.rank}`}
-              </td>
-              <td className="max-w-56 px-3 py-2.5">
-                <div className="truncate">{row.displayName || row.username}</div>
-                <div className="truncate text-xs font-normal text-[var(--text-muted)]">
-                  @{row.username}
-                </div>
-              </td>
-              <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
-                {formatPlayerRating(row.rating)}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
-                {formatPlayerRating(row.ratingDeviation)}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
-                {row.ratedMatchCount}
-              </td>
-            </tr>
-          ))}
+          {rows.map((row) => {
+            const classification = playerDeckClassificationDisplay(
+              row.deckClassification,
+              row.ratedMatchCount
+            );
+            return (
+              <tr
+                key={row.userId}
+                className={
+                  row.isTarget
+                    ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] font-semibold text-[var(--text-primary)]'
+                    : 'border-t border-[var(--border-subtle)] text-[var(--text-secondary)]'
+                }
+              >
+                <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">
+                  {row.rank === null ? '—' : `#${row.rank}`}
+                </td>
+                <td className="max-w-56 px-3 py-2.5">
+                  <div className="truncate">{row.displayName || row.username}</div>
+                  <div className="truncate text-xs font-normal text-[var(--text-muted)]">
+                    @{row.username}
+                  </div>
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                  {formatPlayerRating(row.rating)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                  {formatPlayerRating(row.ratingDeviation)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                  {row.ratedMatchCount}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                  {row.wins}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                  {row.losses}
+                </td>
+                <td className="min-w-56 px-3 py-2.5">
+                  <div className="break-words">{classification.value}</div>
+                  <div
+                    className={`mt-0.5 text-xs font-normal ${
+                      classification.partial
+                        ? 'text-[var(--semantic-warning)]'
+                        : 'text-[var(--text-muted)]'
+                    }`}
+                  >
+                    {classification.detail}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

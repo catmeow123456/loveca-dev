@@ -238,10 +238,24 @@ export interface RankedAdminPlayerSummary {
   rating: number;
   ratingDeviation: number;
   ratedMatchCount: number;
+  wins: number;
+  losses: number;
   placementCompleted: boolean;
   leaderboardEligible: boolean;
   status: RankedAdminPlayerStatus;
   rank: number | null;
+  deckClassification: {
+    release: { id: string; version: number } | null;
+    observedMatchCount: number;
+    classifiedMatchCount: number;
+    coverageStatus: 'NONE' | 'PARTIAL' | 'COMPLETE';
+    isTied: boolean;
+    leaders: {
+      archetypeId: string;
+      name: string;
+      matchCount: number;
+    }[];
+  };
 }
 
 export interface RankedAdminPlayerRankRow {
@@ -251,7 +265,10 @@ export interface RankedAdminPlayerRankRow {
   rating: number;
   ratingDeviation: number;
   ratedMatchCount: number;
-  rank: number;
+  wins: number;
+  losses: number;
+  deckClassification: RankedAdminPlayerSummary['deckClassification'];
+  rank: number | null;
   isTarget: boolean;
 }
 

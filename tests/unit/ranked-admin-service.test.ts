@@ -9,6 +9,10 @@ import {
   type Glicko1Config,
 } from '../../src/server/rating/glicko';
 import { GLICKO1_PER_MATCH_V4 } from '../../src/server/rating/ranked-rating';
+import {
+  buildDeckClassifierSnapshot,
+  hashDeckClassifierSnapshot,
+} from '../../src/server/services/deck-classifier-release';
 import { RankedAdminService } from '../../src/server/services/ranked-admin-service';
 
 vi.mock('../../src/server/db/pool.js', () => ({
@@ -28,6 +32,52 @@ const CATALOG = {
   cardCatalogHash: `sha256:${'a'.repeat(64)}`,
   publishedCardCount: 100,
 };
+
+const ARCHETYPE_A_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const ARCHETYPE_B_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+function playerContextClassifierSnapshot() {
+  return buildDeckClassifierSnapshot({
+    releaseVersion: 3,
+    archetypes: [
+      {
+        id: ARCHETYPE_A_ID,
+        archetype_key: 'archetype_a',
+        name: '卡组分类 A',
+        group_name: '测试',
+        description: '',
+        sort_order: 2,
+      },
+      {
+        id: ARCHETYPE_B_ID,
+        archetype_key: 'archetype_b',
+        name: '卡组分类 B',
+        group_name: '测试',
+        description: '',
+        sort_order: 1,
+      },
+    ],
+    templates: [
+      {
+        id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        archetype_id: ARCHETYPE_A_ID,
+        cards: [
+          ...Array.from({ length: 12 }, (_, index) => ({
+            baseCardCode: `M-${index + 1}`,
+            cardType: 'MEMBER' as const,
+            count: 4,
+          })),
+          ...Array.from({ length: 3 }, (_, index) => ({
+            baseCardCode: `L-${index + 1}`,
+            cardType: 'LIVE' as const,
+            count: 4,
+          })),
+        ],
+      },
+    ],
+    rules: [],
+  });
+}
 
 describe('RankedAdminService', () => {
   it('lists all ranked matches with user search, stable pagination, and a separate total', async () => {
@@ -386,9 +436,13 @@ describe('RankedAdminService', () => {
 
   it('returns one-snapshot ranked player context with the target and three neighbors per side', async () => {
     const generatedAt = new Date('2026-08-12T02:00:00.000Z');
+    const classifierSnapshot = playerContextClassifierSnapshot();
     const players = Array.from({ length: 7 }, (_, index) => {
       const rank = index + 1;
       const isTarget = rank === 4;
+      const neighborRatedMatchCount = isTarget ? 18 : 20 - rank;
+      const neighborWins = isTarget ? 11 : Math.ceil(neighborRatedMatchCount / 2);
+      const neighborLosses = neighborRatedMatchCount - neighborWins;
       return {
         season_id: 'season-1',
         rating_algorithm_version: FORMAL_CONFIG.algorithmVersion,
@@ -401,13 +455,31 @@ describe('RankedAdminService', () => {
         target_rating: 1700.25,
         target_rating_deviation: 105.5,
         target_rated_match_count: 18,
+        target_wins: 11,
+        target_losses: 7,
+        active_release_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        active_release_version: 3,
+        active_release_snapshot_json: classifierSnapshot,
+        active_release_config_hash: hashDeckClassifierSnapshot(classifierSnapshot),
+        observed_deck_match_count: 17,
+        classified_deck_match_count: 15,
+        leading_deck_match_count: 6,
+        leading_archetype_ids: [ARCHETYPE_A_ID, ARCHETYPE_B_ID],
         target_rank: 4,
         neighbor_user_id: `00000000-0000-4000-8000-${String(rank).padStart(12, '0')}`,
         neighbor_username: isTarget ? 'target' : `player-${rank}`,
         neighbor_display_name: isTarget ? '目标玩家' : `玩家 ${rank}`,
         neighbor_rating: rank <= 2 ? 1800 : 1800 - rank * 25,
         neighbor_rating_deviation: 100 + rank,
-        neighbor_rated_match_count: 20 - rank,
+        neighbor_rated_match_count: neighborRatedMatchCount,
+        neighbor_wins: neighborWins,
+        neighbor_losses: neighborLosses,
+        neighbor_observed_deck_match_count: isTarget ? 17 : neighborRatedMatchCount,
+        neighbor_classified_deck_match_count: isTarget ? 15 : neighborRatedMatchCount,
+        neighbor_leading_deck_match_count: isTarget ? 6 : neighborRatedMatchCount,
+        neighbor_leading_archetype_ids: isTarget
+          ? [ARCHETYPE_A_ID, ARCHETYPE_B_ID]
+          : [ARCHETYPE_A_ID],
         neighbor_rank: rank,
       };
     });
@@ -434,22 +506,215 @@ describe('RankedAdminService', () => {
         rating: 1700.25,
         ratingDeviation: 105.5,
         ratedMatchCount: 18,
+        wins: 11,
+        losses: 7,
         placementCompleted: true,
         leaderboardEligible: true,
         status: 'RANKED',
         rank: 4,
+        deckClassification: {
+          release: { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', version: 3 },
+          observedMatchCount: 17,
+          classifiedMatchCount: 15,
+          coverageStatus: 'PARTIAL',
+          isTied: true,
+          leaders: [
+            { archetypeId: ARCHETYPE_B_ID, name: '卡组分类 B', matchCount: 6 },
+            { archetypeId: ARCHETYPE_A_ID, name: '卡组分类 A', matchCount: 6 },
+          ],
+        },
       },
     });
     expect(context.neighbors.rows).toHaveLength(7);
     expect(context.neighbors.rows.map((row) => row.rank)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(context.neighbors.rows.filter((row) => row.isTarget)).toEqual([
-      expect.objectContaining({ rank: 4, username: 'target' }),
+      expect.objectContaining({
+        rank: 4,
+        username: 'target',
+        wins: 11,
+        losses: 7,
+        deckClassification: expect.objectContaining({
+          isTied: true,
+          leaders: [
+            { archetypeId: ARCHETYPE_B_ID, name: '卡组分类 B', matchCount: 6 },
+            { archetypeId: ARCHETYPE_A_ID, name: '卡组分类 A', matchCount: 6 },
+          ],
+        }),
+      }),
     ]);
+    expect(context.neighbors.rows[0]).toMatchObject({
+      wins: 10,
+      losses: 9,
+      deckClassification: {
+        coverageStatus: 'COMPLETE',
+        leaders: [{ archetypeId: ARCHETYPE_A_ID, name: '卡组分类 A', matchCount: 19 }],
+      },
+    });
     expect(query).toHaveBeenCalledTimes(1);
     expect(query.mock.calls[0]?.[0]).toContain('ORDER BY rating.rating DESC, rating.user_id ASC');
     expect(query.mock.calls[0]?.[0]).toContain(
       'neighbor.rank BETWEEN context.target_rank - 3 AND context.target_rank + 3'
     );
+    expect(query.mock.calls[0]?.[0]).toContain("ranked_match.rating_status = 'SETTLED'");
+    expect(query.mock.calls[0]?.[0]).toContain("assignment.status = 'CLASSIFIED'");
+    expect(query.mock.calls[0]?.[0]).toContain("WHERE status = 'ACTIVE'");
+  });
+
+  it('reports complete single-leader deck classification from the verified active snapshot', async () => {
+    const classifierSnapshot = playerContextClassifierSnapshot();
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          season_id: 'season-1',
+          rating_algorithm_version: FORMAL_CONFIG.algorithmVersion,
+          rating_config: FORMAL_CONFIG,
+          leaderboard_minimum_match_count: 5,
+          ledger_revision: 8,
+          target_user_id: '11111111-1111-4111-8111-111111111111',
+          target_username: 'player_one',
+          target_display_name: '玩家一',
+          target_rating: 1600,
+          target_rating_deviation: 120,
+          target_rated_match_count: 5,
+          target_wins: 3,
+          target_losses: 2,
+          active_release_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          active_release_version: 3,
+          active_release_snapshot_json: classifierSnapshot,
+          active_release_config_hash: hashDeckClassifierSnapshot(classifierSnapshot),
+          observed_deck_match_count: 5,
+          classified_deck_match_count: 5,
+          leading_deck_match_count: 4,
+          leading_archetype_ids: [ARCHETYPE_A_ID],
+          target_rank: 1,
+          neighbor_user_id: '11111111-1111-4111-8111-111111111111',
+          neighbor_username: 'player_one',
+          neighbor_display_name: '玩家一',
+          neighbor_rating: 1600,
+          neighbor_rating_deviation: 120,
+          neighbor_rated_match_count: 5,
+          neighbor_wins: 3,
+          neighbor_losses: 2,
+          neighbor_observed_deck_match_count: 5,
+          neighbor_classified_deck_match_count: 5,
+          neighbor_leading_deck_match_count: 4,
+          neighbor_leading_archetype_ids: [ARCHETYPE_A_ID],
+          neighbor_rank: 1,
+        },
+      ],
+    });
+
+    const result = await new RankedAdminService({ query, audit: vi.fn() }).getPlayerContext(
+      'season-1',
+      '11111111-1111-4111-8111-111111111111'
+    );
+
+    expect(result.player).toMatchObject({
+      wins: 3,
+      losses: 2,
+      deckClassification: {
+        coverageStatus: 'COMPLETE',
+        isTied: false,
+        leaders: [{ archetypeId: ARCHETYPE_A_ID, name: '卡组分类 A', matchCount: 4 }],
+      },
+    });
+  });
+
+  it('rejects player context whose win and loss totals disagree with the rating projection', async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          season_id: 'season-1',
+          rating_algorithm_version: FORMAL_CONFIG.algorithmVersion,
+          rating_config: FORMAL_CONFIG,
+          leaderboard_minimum_match_count: 5,
+          ledger_revision: 8,
+          target_user_id: '11111111-1111-4111-8111-111111111111',
+          target_username: 'player_one',
+          target_display_name: null,
+          target_rating: 1600,
+          target_rating_deviation: 120,
+          target_rated_match_count: 5,
+          target_wins: 3,
+          target_losses: 1,
+          active_release_id: null,
+          active_release_version: null,
+          active_release_snapshot_json: null,
+          active_release_config_hash: null,
+          observed_deck_match_count: 0,
+          classified_deck_match_count: 0,
+          leading_deck_match_count: 0,
+          leading_archetype_ids: [],
+          target_rank: 1,
+          neighbor_user_id: null,
+          neighbor_username: null,
+          neighbor_display_name: null,
+          neighbor_rating: null,
+          neighbor_rating_deviation: null,
+          neighbor_rated_match_count: null,
+          neighbor_rank: null,
+        },
+      ],
+    });
+
+    await expect(
+      new RankedAdminService({ query, audit: vi.fn() }).getPlayerContext(
+        'season-1',
+        '11111111-1111-4111-8111-111111111111'
+      )
+    ).rejects.toMatchObject({
+      code: 'RANKED_PLAYER_CONTEXT_INVALID',
+      statusCode: 500,
+    });
+  });
+
+  it('rejects player deck classification whose active snapshot hash is invalid', async () => {
+    const classifierSnapshot = playerContextClassifierSnapshot();
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          season_id: 'season-1',
+          rating_algorithm_version: FORMAL_CONFIG.algorithmVersion,
+          rating_config: FORMAL_CONFIG,
+          leaderboard_minimum_match_count: 5,
+          ledger_revision: 8,
+          target_user_id: '11111111-1111-4111-8111-111111111111',
+          target_username: 'player_one',
+          target_display_name: null,
+          target_rating: 1600,
+          target_rating_deviation: 120,
+          target_rated_match_count: 5,
+          target_wins: 3,
+          target_losses: 2,
+          active_release_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          active_release_version: 3,
+          active_release_snapshot_json: classifierSnapshot,
+          active_release_config_hash: `sha256:${'0'.repeat(64)}`,
+          observed_deck_match_count: 5,
+          classified_deck_match_count: 5,
+          leading_deck_match_count: 4,
+          leading_archetype_ids: [ARCHETYPE_A_ID],
+          target_rank: 1,
+          neighbor_user_id: null,
+          neighbor_username: null,
+          neighbor_display_name: null,
+          neighbor_rating: null,
+          neighbor_rating_deviation: null,
+          neighbor_rated_match_count: null,
+          neighbor_rank: null,
+        },
+      ],
+    });
+
+    await expect(
+      new RankedAdminService({ query, audit: vi.fn() }).getPlayerContext(
+        'season-1',
+        '11111111-1111-4111-8111-111111111111'
+      )
+    ).rejects.toMatchObject({
+      code: 'RANKED_PLAYER_DECK_CLASSIFICATION_INVALID',
+      statusCode: 500,
+    });
   });
 
   it('keeps placement and leaderboard eligibility independent when historical thresholds reverse', async () => {
@@ -465,13 +730,29 @@ describe('RankedAdminService', () => {
       target_rating: 1550,
       target_rating_deviation: 140,
       target_rated_match_count: ratedMatchCount,
+      target_wins: Math.ceil(ratedMatchCount / 2),
+      target_losses: Math.floor(ratedMatchCount / 2),
+      active_release_id: null,
+      active_release_version: null,
+      active_release_snapshot_json: null,
+      active_release_config_hash: null,
+      observed_deck_match_count: 0,
+      classified_deck_match_count: 0,
+      leading_deck_match_count: 0,
+      leading_archetype_ids: [],
       target_rank: ratedMatchCount >= leaderboardMinimumMatchCount ? 2 : null,
       neighbor_user_id: '11111111-1111-4111-8111-111111111111',
       neighbor_username: 'player_one',
       neighbor_display_name: null,
       neighbor_rating: 1600,
       neighbor_rating_deviation: 120,
-      neighbor_rated_match_count: 20,
+      neighbor_rated_match_count: ratedMatchCount,
+      neighbor_wins: Math.ceil(ratedMatchCount / 2),
+      neighbor_losses: Math.floor(ratedMatchCount / 2),
+      neighbor_observed_deck_match_count: 0,
+      neighbor_classified_deck_match_count: 0,
+      neighbor_leading_deck_match_count: 0,
+      neighbor_leading_archetype_ids: [],
       neighbor_rank: ratedMatchCount >= leaderboardMinimumMatchCount ? 2 : null,
     });
     const query = vi
@@ -490,10 +771,18 @@ describe('RankedAdminService', () => {
     );
 
     expect(placement.player).toMatchObject({
+      wins: 2,
+      losses: 2,
       placementCompleted: false,
       leaderboardEligible: true,
       status: 'PLACEMENT',
       rank: 2,
+      deckClassification: {
+        release: null,
+        coverageStatus: 'NONE',
+        isTied: false,
+        leaders: [],
+      },
     });
     expect(placement.neighbors.rows).toEqual([
       expect.objectContaining({ rank: 2, isTarget: true }),

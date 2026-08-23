@@ -48,7 +48,7 @@ import { AdminViewTabs } from './AdminViewTabs';
 type Tab = 'overview' | 'archetypes' | 'templates' | 'rules' | 'review';
 
 const TABS = [
-  { value: 'overview', label: '发布与口径' },
+  { value: 'overview', label: '发布与展示口径' },
   { value: 'archetypes', label: '分类名称' },
   { value: 'templates', label: '样板库' },
   { value: 'rules', label: '识别规则' },
@@ -400,7 +400,7 @@ export function DeckClassifierAdminPage({
 
               {tab === 'overview' ? (
                 <OverviewTab
-                  key={`${overview.displayMode}:${overview.visibleSections.join(',')}:${overview.topRankedPlayerCount}`}
+                  key={`${overview.displayMode}:${overview.visibleSections.join(',')}:${overview.cardDisplayMode}:${overview.cardVisibleSections.join(',')}:${overview.topRankedPlayerCount}`}
                   overview={overview}
                   preview={preview}
                   busy={busy}
@@ -662,6 +662,8 @@ function OverviewTab({
   onDisplaySettings: (settings: {
     readonly displayMode: Exclude<DeckClassifierOverviewView['displayMode'], 'HIDDEN'>;
     readonly visibleSections: readonly DeckEnvironmentSection[];
+    readonly cardDisplayMode: Exclude<DeckClassifierOverviewView['cardDisplayMode'], 'HIDDEN'>;
+    readonly cardVisibleSections: readonly DeckEnvironmentSection[];
     readonly topRankedPlayerCount: number;
   }) => Promise<boolean>;
   onPublish: () => Promise<boolean>;
@@ -674,6 +676,12 @@ function OverviewTab({
   const [displayMode, setDisplayMode] = useState<
     Exclude<DeckClassifierOverviewView['displayMode'], 'HIDDEN'>
   >(overview.displayMode === 'HIDDEN' ? 'BOTH' : overview.displayMode);
+  const [cardVisibleSections, setCardVisibleSections] = useState<readonly DeckEnvironmentSection[]>(
+    overview.cardVisibleSections
+  );
+  const [cardDisplayMode, setCardDisplayMode] = useState<
+    Exclude<DeckClassifierOverviewView['cardDisplayMode'], 'HIDDEN'>
+  >(overview.cardDisplayMode === 'HIDDEN' ? 'PLAYER_EQUAL' : overview.cardDisplayMode);
   const [topRankedPlayerCount, setTopRankedPlayerCount] = useState(
     String(overview.topRankedPlayerCount)
   );
@@ -682,87 +690,47 @@ function OverviewTab({
     Number.isInteger(parsedTopRankedPlayerCount) &&
     parsedTopRankedPlayerCount >= 10 &&
     parsedTopRankedPlayerCount <= 100;
-  const displaySummary =
-    visibleSections.length === 0
-      ? '完全不展示'
-      : DISPLAY_SECTION_OPTIONS.filter((option) => visibleSections.includes(option.value))
-          .map((option) => option.label)
-          .join('、');
+  const showsTopRanked =
+    visibleSections.includes('TOP_RANKED') || cardVisibleSections.includes('TOP_RANKED');
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-      <Panel padding="compact">
-        <h2 className="text-base font-semibold">玩家展示口径</h2>
+      <Panel padding="compact" className="lg:col-span-2">
+        <h2 className="text-base font-semibold">玩家环境展示</h2>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          展示内容可以任意组合；全部取消会即时隐藏整块卡组环境。高排名玩家构成固定采用玩家等权，不受基础计权方式影响。
+          卡组环境和卡牌使用率分别控制；任一块全部取消只会隐藏对应模块。高排名玩家固定采用玩家等权，两块共享同一个前
+          N 名范围。
         </p>
-        <div className="mt-4 space-y-3">
-          <label className="block text-sm font-semibold text-[var(--text-secondary)]">
-            展示内容
-            <details className="relative mt-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)]">
-              <summary className="flex h-11 cursor-pointer list-none items-center px-3 text-sm font-normal text-[var(--text-primary)]">
-                <span className="truncate">{displaySummary}</span>
-                <span className="ml-auto text-[var(--text-muted)]">⌄</span>
-              </summary>
-              <div className="absolute z-20 mt-1 w-full space-y-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-2 shadow-lg">
-                {DISPLAY_SECTION_OPTIONS.map((option) => (
-                  <label
-                    key={option.value}
-                    className="flex min-h-10 cursor-pointer items-center gap-2 rounded px-2 py-1.5 font-normal hover:bg-[var(--bg-overlay)]"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={visibleSections.includes(option.value)}
-                      disabled={busy}
-                      onChange={(event) =>
-                        setVisibleSections((current) =>
-                          event.target.checked
-                            ? [...current, option.value]
-                            : current.filter((section) => section !== option.value)
-                        )
-                      }
-                    />
-                    <span>{option.label}</span>
-                  </label>
-                ))}
-                <button
-                  type="button"
-                  className="min-h-9 w-full rounded px-2 text-left text-xs text-[var(--text-muted)] hover:bg-[var(--bg-overlay)]"
-                  disabled={busy || visibleSections.length === 0}
-                  onClick={() => setVisibleSections([])}
-                >
-                  全部取消（完全不展示）
-                </button>
-              </div>
-            </details>
-          </label>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <EnvironmentDisplaySettingsCard
+            title="赛季卡组环境"
+            description="依赖当前已发布的卡组分类版本；饼图与分类统计表使用此处设置。"
+            visibleSections={visibleSections}
+            displayMode={displayMode}
+            busy={busy}
+            onVisibleSectionsChange={setVisibleSections}
+            onDisplayModeChange={setDisplayMode}
+          />
+          <EnvironmentDisplaySettingsCard
+            title="赛季卡牌使用率"
+            description="直接统计长期卡组观察，不依赖是否已经发布卡组分类版本。"
+            visibleSections={cardVisibleSections}
+            displayMode={cardDisplayMode}
+            busy={busy}
+            onVisibleSectionsChange={setCardVisibleSections}
+            onDisplayModeChange={setCardDisplayMode}
+          />
+        </div>
 
+        <div className="mt-4 grid items-end gap-3 sm:grid-cols-[minmax(0,18rem)_auto]">
           <label className="block text-sm font-semibold text-[var(--text-secondary)]">
-            使用占比／胜者构成的基础计权
-            <select
-              className={`${CLASSIFIER_SELECT_CLASS} mt-2 w-full`}
-              value={displayMode}
-              disabled={busy}
-              onChange={(event) =>
-                setDisplayMode(
-                  event.target.value as Exclude<DeckClassifierOverviewView['displayMode'], 'HIDDEN'>
-                )
-              }
-            >
-              <option value="PLAYER_EQUAL">仅玩家等权</option>
-              <option value="MATCH_EQUAL">仅对局等权</option>
-              <option value="BOTH">两者均显示</option>
-            </select>
-          </label>
-
-          <label className="block text-sm font-semibold text-[var(--text-secondary)]">
-            高排名人数
+            共享高排名人数
             <TextInput
               className="mt-2 w-full"
               type="number"
               min={10}
               max={100}
               value={topRankedPlayerCount}
-              disabled={busy || !visibleSections.includes('TOP_RANKED')}
+              disabled={busy || !showsTopRanked}
               invalid={!displaySettingsValid}
               onChange={(event) => setTopRankedPlayerCount(event.target.value)}
             />
@@ -775,6 +743,8 @@ function OverviewTab({
               void onDisplaySettings({
                 displayMode,
                 visibleSections,
+                cardDisplayMode,
+                cardVisibleSections,
                 topRankedPlayerCount: parsedTopRankedPlayerCount,
               })
             }
@@ -784,7 +754,7 @@ function OverviewTab({
         </div>
       </Panel>
 
-      <Panel padding="compact">
+      <Panel padding="compact" className="lg:col-span-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold">当前发布版本</h2>
@@ -823,13 +793,13 @@ function OverviewTab({
           <h2 className="text-base font-semibold">草稿全量预览</h2>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
             <Metric label="唯一构筑" value={preview.uniqueFingerprintCount} />
-            <Metric label="观察席位" value={preview.observationCount} />
+            <Metric label="卡组观察场次" value={preview.observationCount} />
             <Metric label="已识别" value={preview.classifiedCount} />
             <Metric label="未识别" value={preview.unknownCount} />
             <Metric label="冲突" value={preview.ambiguousCount} />
             <Metric label="非法" value={preview.invalidCount} />
             <Metric label="人工排除" value={preview.excludedCount} />
-            <Metric label="变化席位" value={preview.changedCount} />
+            <Metric label="变化场次" value={preview.changedCount} />
           </div>
           <p className="mt-3 text-xs text-[var(--text-muted)]">
             识别覆盖 {(preview.coverageRate * 100).toFixed(1)}
@@ -862,6 +832,99 @@ function OverviewTab({
         </div>
       </Panel>
     </div>
+  );
+}
+
+function EnvironmentDisplaySettingsCard({
+  title,
+  description,
+  visibleSections,
+  displayMode,
+  busy,
+  onVisibleSectionsChange,
+  onDisplayModeChange,
+}: {
+  title: string;
+  description: string;
+  visibleSections: readonly DeckEnvironmentSection[];
+  displayMode: Exclude<DeckClassifierOverviewView['displayMode'], 'HIDDEN'>;
+  busy: boolean;
+  onVisibleSectionsChange: (sections: readonly DeckEnvironmentSection[]) => void;
+  onDisplayModeChange: (
+    displayMode: Exclude<DeckClassifierOverviewView['displayMode'], 'HIDDEN'>
+  ) => void;
+}) {
+  const displaySummary =
+    visibleSections.length === 0
+      ? '完全不展示'
+      : DISPLAY_SECTION_OPTIONS.filter((option) => visibleSections.includes(option.value))
+          .map((option) => option.label)
+          .join('、');
+
+  return (
+    <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] p-3 sm:p-4">
+      <h3 className="text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
+      <p className="mt-1 min-h-10 text-xs leading-5 text-[var(--text-muted)]">{description}</p>
+      <div className="mt-3 space-y-3">
+        <label className="block text-sm font-semibold text-[var(--text-secondary)]">
+          展示内容
+          <details className="relative mt-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+            <summary className="flex h-11 cursor-pointer list-none items-center px-3 text-sm font-normal text-[var(--text-primary)]">
+              <span className="truncate">{displaySummary}</span>
+              <span className="ml-auto text-[var(--text-muted)]">⌄</span>
+            </summary>
+            <div className="absolute z-20 mt-1 w-full space-y-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-2 shadow-lg">
+              {DISPLAY_SECTION_OPTIONS.map((option) => (
+                <label
+                  key={option.value}
+                  className="flex min-h-10 cursor-pointer items-center gap-2 rounded px-2 py-1.5 font-normal hover:bg-[var(--bg-overlay)]"
+                >
+                  <input
+                    type="checkbox"
+                    checked={visibleSections.includes(option.value)}
+                    disabled={busy}
+                    onChange={(event) =>
+                      onVisibleSectionsChange(
+                        event.target.checked
+                          ? [...visibleSections, option.value]
+                          : visibleSections.filter((section) => section !== option.value)
+                      )
+                    }
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+              <button
+                type="button"
+                className="min-h-9 w-full rounded px-2 text-left text-xs text-[var(--text-muted)] hover:bg-[var(--bg-overlay)]"
+                disabled={busy || visibleSections.length === 0}
+                onClick={() => onVisibleSectionsChange([])}
+              >
+                全部取消（完全不展示）
+              </button>
+            </div>
+          </details>
+        </label>
+
+        <label className="block text-sm font-semibold text-[var(--text-secondary)]">
+          使用占比／胜者构成的基础计权
+          <select
+            className={`${CLASSIFIER_SELECT_CLASS} mt-2 w-full`}
+            value={displayMode}
+            disabled={busy}
+            onChange={(event) =>
+              onDisplayModeChange(
+                event.target.value as Exclude<DeckClassifierOverviewView['displayMode'], 'HIDDEN'>
+              )
+            }
+          >
+            <option value="PLAYER_EQUAL">仅玩家等权</option>
+            <option value="MATCH_EQUAL">仅对局等权</option>
+            <option value="BOTH">两者均显示</option>
+          </select>
+        </label>
+      </div>
+    </section>
   );
 }
 

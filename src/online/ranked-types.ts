@@ -1,4 +1,5 @@
 import type { PublicTableStatusView } from './public-table-types.js';
+import type { DeckClassifierDisplayMode, DeckEnvironmentSection } from './deck-classifier-types.js';
 
 export type RankedAvailabilityState =
   | 'NO_SEASON'
@@ -70,6 +71,14 @@ export interface RankedSeasonEnvironmentSampleView {
   readonly analyzedMatchCount: number;
   readonly deckObservationCount: number;
   readonly playerCount: number;
+  /** 至少有一个胜方卡组观察的玩家数；未展示胜者构成时为 0。 */
+  readonly winningPlayerCount: number;
+  /** 当前排行榜前 N 中实际满足排行榜门槛的人数；未展示高排名玩家时为 0。 */
+  readonly topRankedEligiblePlayerCount: number;
+  /** 上述玩家中至少有一个可分析卡组观察的人数；未展示高排名玩家时为 0。 */
+  readonly topRankedAnalyzedPlayerCount: number;
+  /** 上述可分析高排名玩家贡献的卡组观察席位数；未展示高排名玩家时为 0。 */
+  readonly topRankedDeckObservationCount: number;
   /** analyzedMatchCount / settledMatchCount，无已结算对局时为 0。 */
   readonly coverageRate: number;
 }
@@ -82,19 +91,28 @@ export interface RankedSeasonCardUsageView {
   readonly name: string;
   readonly cardType: 'MEMBER' | 'LIVE';
   readonly imageFilename: string | null;
-  /** 玩家等权的卡组采用率，取值为 0..1。 */
-  readonly usageRate: number;
-  /** 不做玩家权重修正的原始卡组搭载率，取值为 0..1。 */
-  readonly deckInclusionRate: number;
+  /** 当前分区与计权口径下的卡组采用率，取值为 0..1。 */
+  readonly adoptionRate: number;
   readonly playerCount: number;
   readonly deckCount: number;
   readonly averageCopies: number;
 }
 
+export type RankedSeasonCardEnvironmentWeighting = 'PLAYER_EQUAL' | 'MATCH_EQUAL';
+
+export interface RankedSeasonCardRankingView {
+  readonly section: DeckEnvironmentSection;
+  readonly weighting: RankedSeasonCardEnvironmentWeighting;
+  readonly cards: readonly RankedSeasonCardUsageView[];
+}
+
 export interface RankedSeasonEnvironmentView {
   readonly seasonId: string;
+  readonly displayMode: DeckClassifierDisplayMode;
+  readonly visibleSections: readonly DeckEnvironmentSection[];
+  readonly topRankedPlayerCount: number;
   readonly sample: RankedSeasonEnvironmentSampleView;
-  readonly cardUsage: readonly RankedSeasonCardUsageView[];
+  readonly rankings: readonly RankedSeasonCardRankingView[];
 }
 
 export interface RankedOverviewView {

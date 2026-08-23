@@ -70,6 +70,8 @@ export interface DeckClassifierArchetypeDisplayInput {
 export interface DeckClassifierDisplaySettingsInput {
   readonly displayMode: Exclude<DeckClassifierDisplayMode, 'HIDDEN'>;
   readonly visibleSections: readonly DeckEnvironmentSection[];
+  readonly cardDisplayMode: Exclude<DeckClassifierDisplayMode, 'HIDDEN'>;
+  readonly cardVisibleSections: readonly DeckEnvironmentSection[];
   readonly topRankedPlayerCount: number;
   readonly reason: string;
 }
@@ -248,10 +250,16 @@ export class DeckClassifierAdminService {
           show_usage: boolean;
           show_winner: boolean;
           show_top_ranked: boolean;
+          card_display_mode: DeckClassifierDisplayMode;
+          card_show_usage: boolean;
+          card_show_winner: boolean;
+          card_show_top_ranked: boolean;
           top_ranked_player_count: number;
           draft_revision: number;
         }>(
           `SELECT display_mode, show_usage, show_winner, show_top_ranked,
+                  card_display_mode, card_show_usage, card_show_winner,
+                  card_show_top_ranked,
                   top_ranked_player_count, draft_revision
            FROM deck_classifier_settings WHERE id = 1`
         ),
@@ -296,6 +304,8 @@ export class DeckClassifierAdminService {
     return {
       displayMode: currentSettings?.display_mode ?? 'BOTH',
       visibleSections: currentSettings ? readVisibleSections(currentSettings) : ['USAGE', 'WINNER'],
+      cardDisplayMode: currentSettings?.card_display_mode ?? 'PLAYER_EQUAL',
+      cardVisibleSections: currentSettings ? readCardVisibleSections(currentSettings) : ['USAGE'],
       topRankedPlayerCount: currentSettings?.top_ranked_player_count ?? 30,
       draftRevision: settings.rows[0]?.draft_revision ?? 0,
       activeRelease: releaseViews.find((release) => release.status === 'ACTIVE') ?? null,
@@ -363,6 +373,8 @@ export class DeckClassifierAdminService {
   ): Promise<{
     readonly displayMode: DeckClassifierDisplayMode;
     readonly visibleSections: readonly DeckEnvironmentSection[];
+    readonly cardDisplayMode: DeckClassifierDisplayMode;
+    readonly cardVisibleSections: readonly DeckEnvironmentSection[];
     readonly topRankedPlayerCount: number;
   }> {
     return withTransaction(async (client) => {
@@ -372,22 +384,35 @@ export class DeckClassifierAdminService {
       const showTopRanked = visibleSections.includes('TOP_RANKED');
       const displayMode: DeckClassifierDisplayMode =
         visibleSections.length === 0 ? 'HIDDEN' : input.displayMode;
+      const cardVisibleSections = [...new Set(input.cardVisibleSections)];
+      const cardShowUsage = cardVisibleSections.includes('USAGE');
+      const cardShowWinner = cardVisibleSections.includes('WINNER');
+      const cardShowTopRanked = cardVisibleSections.includes('TOP_RANKED');
+      const cardDisplayMode: DeckClassifierDisplayMode =
+        cardVisibleSections.length === 0 ? 'HIDDEN' : input.cardDisplayMode;
       const before = await client.query(
         `SELECT display_mode, show_usage, show_winner, show_top_ranked,
+                card_display_mode, card_show_usage, card_show_winner, card_show_top_ranked,
                 top_ranked_player_count
          FROM deck_classifier_settings WHERE id = 1 FOR UPDATE`
       );
       await client.query(
         `UPDATE deck_classifier_settings
             SET display_mode = $1, show_usage = $2, show_winner = $3,
-                show_top_ranked = $4, top_ranked_player_count = $5,
-                updated_by = $6, updated_at = NOW()
+                show_top_ranked = $4, card_display_mode = $5,
+                card_show_usage = $6, card_show_winner = $7,
+                card_show_top_ranked = $8, top_ranked_player_count = $9,
+                updated_by = $10, updated_at = NOW()
           WHERE id = 1`,
         [
           displayMode,
           showUsage,
           showWinner,
           showTopRanked,
+          cardDisplayMode,
+          cardShowUsage,
+          cardShowWinner,
+          cardShowTopRanked,
           input.topRankedPlayerCount,
           operator.actorUserId,
         ]
@@ -398,9 +423,21 @@ export class DeckClassifierAdminService {
         targetId: 'global',
         reason: input.reason,
         before: before.rows[0] ?? null,
-        after: { displayMode, visibleSections, topRankedPlayerCount: input.topRankedPlayerCount },
+        after: {
+          displayMode,
+          visibleSections,
+          cardDisplayMode,
+          cardVisibleSections,
+          topRankedPlayerCount: input.topRankedPlayerCount,
+        },
       });
-      return { displayMode, visibleSections, topRankedPlayerCount: input.topRankedPlayerCount };
+      return {
+        displayMode,
+        visibleSections,
+        cardDisplayMode,
+        cardVisibleSections,
+        topRankedPlayerCount: input.topRankedPlayerCount,
+      };
     });
   }
 
@@ -1776,6 +1813,18 @@ function readVisibleSections(row: {
   if (row.show_usage) sections.push('USAGE');
   if (row.show_winner) sections.push('WINNER');
   if (row.show_top_ranked) sections.push('TOP_RANKED');
+  return sections;
+}
+
+function readCardVisibleSections(row: {
+  readonly card_show_usage: boolean;
+  readonly card_show_winner: boolean;
+  readonly card_show_top_ranked: boolean;
+}): readonly DeckEnvironmentSection[] {
+  const sections: DeckEnvironmentSection[] = [];
+  if (row.card_show_usage) sections.push('USAGE');
+  if (row.card_show_winner) sections.push('WINNER');
+  if (row.card_show_top_ranked) sections.push('TOP_RANKED');
   return sections;
 }
 

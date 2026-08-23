@@ -43,11 +43,16 @@ export interface DeckClassifierRulePayload {
   readonly reason: string;
 }
 
-export const fetchDeckClassifierOverview = () =>
-  requireData<DeckClassifierOverviewView>(
+export const fetchDeckClassifierOverview = async () => {
+  const overview = await requireData<DeckClassifierOverviewView>(
     apiClient.get('/api/admin/deck-classifier/overview'),
     '读取卡组分类管理数据失败'
   );
+  if (!overview.cardDisplayMode || !Array.isArray(overview.cardVisibleSections)) {
+    throw new Error('卡组分类服务端版本过旧，请重新构建并启动本地 API');
+  }
+  return overview;
+};
 
 export const fetchDeckClassificationRun = (runId: string) =>
   requireData<DeckClassificationRunView>(
@@ -78,12 +83,16 @@ export async function waitForDeckClassificationRun(
 export const updateDeckClassifierDisplaySettings = (payload: {
   readonly displayMode: Exclude<DeckClassifierDisplayMode, 'HIDDEN'>;
   readonly visibleSections: readonly DeckEnvironmentSection[];
+  readonly cardDisplayMode: Exclude<DeckClassifierDisplayMode, 'HIDDEN'>;
+  readonly cardVisibleSections: readonly DeckEnvironmentSection[];
   readonly topRankedPlayerCount: number;
   readonly reason: string;
 }) =>
   requireData<{
     readonly displayMode: DeckClassifierDisplayMode;
     readonly visibleSections: readonly DeckEnvironmentSection[];
+    readonly cardDisplayMode: DeckClassifierDisplayMode;
+    readonly cardVisibleSections: readonly DeckEnvironmentSection[];
     readonly topRankedPlayerCount: number;
   }>(apiClient.put('/api/admin/deck-classifier/settings', payload), '保存玩家展示设置失败');
 

@@ -2476,6 +2476,34 @@
           "notNull": true,
           "default": false
         },
+        "card_display_mode": {
+          "name": "card_display_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PLAYER_EQUAL'"
+        },
+        "card_show_usage": {
+          "name": "card_show_usage",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "card_show_winner": {
+          "name": "card_show_winner",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "card_show_top_ranked": {
+          "name": "card_show_top_ranked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "top_ranked_player_count": {
           "name": "top_ranked_player_count",
           "type": "integer",
@@ -2543,6 +2571,14 @@
         "deck_classifier_settings_visibility_check": {
           "name": "deck_classifier_settings_visibility_check",
           "value": "(\"deck_classifier_settings\".\"display_mode\" = 'HIDDEN') = (NOT \"deck_classifier_settings\".\"show_usage\" AND NOT \"deck_classifier_settings\".\"show_winner\" AND NOT \"deck_classifier_settings\".\"show_top_ranked\")"
+        },
+        "deck_classifier_settings_card_display_mode_check": {
+          "name": "deck_classifier_settings_card_display_mode_check",
+          "value": "\"deck_classifier_settings\".\"card_display_mode\" IN ('HIDDEN', 'PLAYER_EQUAL', 'MATCH_EQUAL', 'BOTH')"
+        },
+        "deck_classifier_settings_card_visibility_check": {
+          "name": "deck_classifier_settings_card_visibility_check",
+          "value": "(\"deck_classifier_settings\".\"card_display_mode\" = 'HIDDEN') = (NOT \"deck_classifier_settings\".\"card_show_usage\" AND NOT \"deck_classifier_settings\".\"card_show_winner\" AND NOT \"deck_classifier_settings\".\"card_show_top_ranked\")"
         }
       },
       "isRLSEnabled": false

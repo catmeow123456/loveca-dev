@@ -164,6 +164,10 @@ CREATE TABLE "deck_classifier_settings" (
 	"show_usage" boolean DEFAULT true NOT NULL,
 	"show_winner" boolean DEFAULT true NOT NULL,
 	"show_top_ranked" boolean DEFAULT false NOT NULL,
+	"card_display_mode" text DEFAULT 'PLAYER_EQUAL' NOT NULL,
+	"card_show_usage" boolean DEFAULT true NOT NULL,
+	"card_show_winner" boolean DEFAULT false NOT NULL,
+	"card_show_top_ranked" boolean DEFAULT false NOT NULL,
 	"top_ranked_player_count" integer DEFAULT 30 NOT NULL,
 	"draft_revision" integer DEFAULT 0 NOT NULL,
 	"updated_by" uuid,
@@ -172,13 +176,17 @@ CREATE TABLE "deck_classifier_settings" (
 	CONSTRAINT "deck_classifier_settings_draft_revision_check" CHECK ("deck_classifier_settings"."draft_revision" >= 0),
 	CONSTRAINT "deck_classifier_settings_display_mode_check" CHECK ("deck_classifier_settings"."display_mode" IN ('HIDDEN', 'PLAYER_EQUAL', 'MATCH_EQUAL', 'BOTH')),
 	CONSTRAINT "deck_classifier_settings_top_ranked_player_count_check" CHECK ("deck_classifier_settings"."top_ranked_player_count" BETWEEN 10 AND 100),
-	CONSTRAINT "deck_classifier_settings_visibility_check" CHECK (("deck_classifier_settings"."display_mode" = 'HIDDEN') = (NOT "deck_classifier_settings"."show_usage" AND NOT "deck_classifier_settings"."show_winner" AND NOT "deck_classifier_settings"."show_top_ranked"))
+	CONSTRAINT "deck_classifier_settings_visibility_check" CHECK (("deck_classifier_settings"."display_mode" = 'HIDDEN') = (NOT "deck_classifier_settings"."show_usage" AND NOT "deck_classifier_settings"."show_winner" AND NOT "deck_classifier_settings"."show_top_ranked")),
+	CONSTRAINT "deck_classifier_settings_card_display_mode_check" CHECK ("deck_classifier_settings"."card_display_mode" IN ('HIDDEN', 'PLAYER_EQUAL', 'MATCH_EQUAL', 'BOTH')),
+	CONSTRAINT "deck_classifier_settings_card_visibility_check" CHECK (("deck_classifier_settings"."card_display_mode" = 'HIDDEN') = (NOT "deck_classifier_settings"."card_show_usage" AND NOT "deck_classifier_settings"."card_show_winner" AND NOT "deck_classifier_settings"."card_show_top_ranked"))
 );
 --> statement-breakpoint
 INSERT INTO "deck_classifier_settings" (
-	"id", "display_mode", "show_usage", "show_winner", "show_top_ranked", "draft_revision"
+	"id", "display_mode", "show_usage", "show_winner", "show_top_ranked",
+	"card_display_mode", "card_show_usage", "card_show_winner", "card_show_top_ranked",
+	"draft_revision"
 )
-VALUES (1, 'HIDDEN', false, false, false, 0)
+VALUES (1, 'HIDDEN', false, false, false, 'PLAYER_EQUAL', true, false, false, 0)
 ON CONFLICT ("id") DO NOTHING;
 --> statement-breakpoint
 ALTER TABLE "management_audit_logs" DROP CONSTRAINT "management_audit_scope_check";--> statement-breakpoint

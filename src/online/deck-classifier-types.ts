@@ -193,6 +193,8 @@ export interface DeckClassifierOverrideView {
 export interface DeckClassifierOverviewView {
   readonly displayMode: DeckClassifierDisplayMode;
   readonly visibleSections: readonly DeckEnvironmentSection[];
+  readonly cardDisplayMode: DeckClassifierDisplayMode;
+  readonly cardVisibleSections: readonly DeckEnvironmentSection[];
   readonly topRankedPlayerCount: number;
   readonly draftRevision: number;
   readonly activeRelease: DeckClassifierReleaseView | null;

@@ -23,7 +23,9 @@ describe('deck classifier migration', () => {
     expect(sql).toContain('"idempotency_key" text NOT NULL');
     expect(sql).toContain('"excluded_count" integer DEFAULT 0 NOT NULL');
     expect(sql).toContain("'RANKED', 'DECK_CLASSIFIER', 'THEME_TABLE'");
-    expect(sql).toContain("VALUES (1, 'HIDDEN', false, false, false, 0)");
+    expect(sql).toContain(
+      "VALUES (1, 'HIDDEN', false, false, false, 'PLAYER_EQUAL', true, false, false, 0)"
+    );
     expect(sql).toContain("'HIDDEN', 'PLAYER_EQUAL', 'MATCH_EQUAL', 'BOTH'");
     expect(sql).toContain('"show_usage" boolean DEFAULT true NOT NULL');
     expect(sql).toContain('"show_winner" boolean DEFAULT true NOT NULL');
@@ -31,5 +33,11 @@ describe('deck classifier migration', () => {
     expect(sql).toContain('"top_ranked_player_count" integer DEFAULT 30 NOT NULL');
     expect(sql).toContain('BETWEEN 10 AND 100');
     expect(sql).toContain('deck_classifier_settings_visibility_check');
+    expect(sql).toContain('"card_display_mode" text DEFAULT \'PLAYER_EQUAL\' NOT NULL');
+    expect(sql).toContain('"card_show_usage" boolean DEFAULT true NOT NULL');
+    expect(sql).toContain('"card_show_winner" boolean DEFAULT false NOT NULL');
+    expect(sql).toContain('"card_show_top_ranked" boolean DEFAULT false NOT NULL');
+    expect(sql).toContain('deck_classifier_settings_card_display_mode_check');
+    expect(sql).toContain('deck_classifier_settings_card_visibility_check');
   });
 });

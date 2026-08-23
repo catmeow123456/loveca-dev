@@ -204,11 +204,15 @@ describe('deckClassifierAdminRouter', () => {
     mocks.updateDisplaySettings.mockResolvedValue({
       displayMode: 'PLAYER_EQUAL',
       visibleSections: ['USAGE', 'TOP_RANKED'],
+      cardDisplayMode: 'MATCH_EQUAL',
+      cardVisibleSections: ['WINNER'],
       topRankedPlayerCount: 40,
     });
     const body = {
       displayMode: 'PLAYER_EQUAL',
       visibleSections: ['USAGE', 'TOP_RANKED'],
+      cardDisplayMode: 'MATCH_EQUAL',
+      cardVisibleSections: ['WINNER'],
       topRankedPlayerCount: 40,
       reason: '公开使用率和高排名玩家卡组构成',
     };

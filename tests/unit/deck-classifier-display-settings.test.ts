@@ -53,6 +53,10 @@ describe('deck classifier live display settings', () => {
               show_usage: true,
               show_winner: true,
               show_top_ranked: false,
+              card_display_mode: 'PLAYER_EQUAL',
+              card_show_usage: true,
+              card_show_winner: false,
+              card_show_top_ranked: false,
               top_ranked_player_count: 30,
             },
           ],
@@ -118,6 +122,8 @@ describe('deck classifier live display settings', () => {
       {
         displayMode: 'PLAYER_EQUAL',
         visibleSections: ['USAGE', 'TOP_RANKED'],
+        cardDisplayMode: 'MATCH_EQUAL',
+        cardVisibleSections: ['WINNER'],
         topRankedPlayerCount: 40,
         reason: '调整玩家端卡组环境展示内容',
       },
@@ -131,6 +137,8 @@ describe('deck classifier live display settings', () => {
     expect(result).toEqual({
       displayMode: 'PLAYER_EQUAL',
       visibleSections: ['USAGE', 'TOP_RANKED'],
+      cardDisplayMode: 'MATCH_EQUAL',
+      cardVisibleSections: ['WINNER'],
       topRankedPlayerCount: 40,
     });
     expect(
@@ -138,7 +146,8 @@ describe('deck classifier live display settings', () => {
         (call) =>
           String(call[0]).includes('UPDATE deck_classifier_settings') &&
           Array.isArray(call[1]) &&
-          call[1].slice(0, 5).join(',') === 'PLAYER_EQUAL,true,false,true,40'
+          call[1].slice(0, 9).join(',') ===
+            'PLAYER_EQUAL,true,false,true,MATCH_EQUAL,false,true,false,40'
       )
     ).toBe(true);
     const sql = mocks.query.mock.calls.map((call) => String(call[0])).join('\n');
@@ -151,6 +160,8 @@ describe('deck classifier live display settings', () => {
       {
         displayMode: 'BOTH',
         visibleSections: [],
+        cardDisplayMode: 'BOTH',
+        cardVisibleSections: [],
         topRankedPlayerCount: 30,
         reason: '临时隐藏玩家端全部卡组环境',
       },
@@ -164,6 +175,8 @@ describe('deck classifier live display settings', () => {
     expect(result).toEqual({
       displayMode: 'HIDDEN',
       visibleSections: [],
+      cardDisplayMode: 'HIDDEN',
+      cardVisibleSections: [],
       topRankedPlayerCount: 30,
     });
     expect(
@@ -171,7 +184,7 @@ describe('deck classifier live display settings', () => {
         (call) =>
           String(call[0]).includes('UPDATE deck_classifier_settings') &&
           Array.isArray(call[1]) &&
-          call[1].slice(0, 5).join(',') === 'HIDDEN,false,false,false,30'
+          call[1].slice(0, 9).join(',') === 'HIDDEN,false,false,false,HIDDEN,false,false,false,30'
       )
     ).toBe(true);
   });

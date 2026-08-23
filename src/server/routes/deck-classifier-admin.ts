@@ -175,6 +175,13 @@ const settingsSchema = z
       .refine((sections) => new Set(sections).size === sections.length, {
         message: '玩家展示内容不能重复',
       }),
+    cardDisplayMode: z.enum(['PLAYER_EQUAL', 'MATCH_EQUAL', 'BOTH']),
+    cardVisibleSections: z
+      .array(z.enum(['USAGE', 'WINNER', 'TOP_RANKED']))
+      .max(3)
+      .refine((sections) => new Set(sections).size === sections.length, {
+        message: '卡牌展示内容不能重复',
+      }),
     topRankedPlayerCount: z.number().int().min(10).max(100),
     reason: reasonSchema,
   })

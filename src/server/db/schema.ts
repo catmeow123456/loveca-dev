@@ -2190,6 +2190,13 @@ export const deckClassifierSettings = pgTable(
     showUsage: boolean('show_usage').notNull().default(true),
     showWinner: boolean('show_winner').notNull().default(true),
     showTopRanked: boolean('show_top_ranked').notNull().default(false),
+    cardDisplayMode: text('card_display_mode')
+      .$type<DeckClassifierDisplayMode>()
+      .notNull()
+      .default('PLAYER_EQUAL'),
+    cardShowUsage: boolean('card_show_usage').notNull().default(true),
+    cardShowWinner: boolean('card_show_winner').notNull().default(false),
+    cardShowTopRanked: boolean('card_show_top_ranked').notNull().default(false),
     topRankedPlayerCount: integer('top_ranked_player_count').notNull().default(30),
     draftRevision: integer('draft_revision').notNull().default(0),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
@@ -2209,6 +2216,14 @@ export const deckClassifierSettings = pgTable(
     check(
       'deck_classifier_settings_visibility_check',
       sql`(${table.displayMode} = 'HIDDEN') = (NOT ${table.showUsage} AND NOT ${table.showWinner} AND NOT ${table.showTopRanked})`
+    ),
+    check(
+      'deck_classifier_settings_card_display_mode_check',
+      sql`${table.cardDisplayMode} IN ('HIDDEN', 'PLAYER_EQUAL', 'MATCH_EQUAL', 'BOTH')`
+    ),
+    check(
+      'deck_classifier_settings_card_visibility_check',
+      sql`(${table.cardDisplayMode} = 'HIDDEN') = (NOT ${table.cardShowUsage} AND NOT ${table.cardShowWinner} AND NOT ${table.cardShowTopRanked})`
     ),
   ]
 );

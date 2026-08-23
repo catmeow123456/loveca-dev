@@ -10,6 +10,13 @@ interface LoginResult {
   accessToken: string;
 }
 
+interface CardEnvironmentSettingsSnapshot {
+  cardDisplayMode: string;
+  cardShowUsage: boolean;
+  cardShowWinner: boolean;
+  cardShowTopRanked: boolean;
+}
+
 function assertLocalDatabase(): void {
   const parsed = new URL(DATABASE_URL);
   if (
@@ -87,6 +94,58 @@ async function cleanupFixtures(): Promise<void> {
       await client.query(`DELETE FROM ranked_seasons WHERE id = $1`, [seasonId]);
     }
     await client.query(`DELETE FROM decks WHERE name LIKE $1`, [`${DECK_NAME_PREFIX}%`]);
+  });
+}
+
+async function enableAllCardEnvironmentSections(): Promise<CardEnvironmentSettingsSnapshot> {
+  return withDatabase(async (client) => {
+    const current = await client.query<{
+      card_display_mode: string;
+      card_show_usage: boolean;
+      card_show_winner: boolean;
+      card_show_top_ranked: boolean;
+    }>(
+      `SELECT card_display_mode, card_show_usage, card_show_winner, card_show_top_ranked
+       FROM deck_classifier_settings
+       WHERE id = 1`
+    );
+    const row = current.rows[0];
+    if (!row) throw new Error('缺少卡组分类展示设置单例');
+    await client.query(
+      `UPDATE deck_classifier_settings
+          SET card_display_mode = 'PLAYER_EQUAL',
+              card_show_usage = true,
+              card_show_winner = true,
+              card_show_top_ranked = true
+        WHERE id = 1`
+    );
+    return {
+      cardDisplayMode: row.card_display_mode,
+      cardShowUsage: row.card_show_usage,
+      cardShowWinner: row.card_show_winner,
+      cardShowTopRanked: row.card_show_top_ranked,
+    };
+  });
+}
+
+async function restoreCardEnvironmentSettings(
+  snapshot: CardEnvironmentSettingsSnapshot
+): Promise<void> {
+  await withDatabase(async (client) => {
+    await client.query(
+      `UPDATE deck_classifier_settings
+          SET card_display_mode = $1,
+              card_show_usage = $2,
+              card_show_winner = $3,
+              card_show_top_ranked = $4
+        WHERE id = 1`,
+      [
+        snapshot.cardDisplayMode,
+        snapshot.cardShowUsage,
+        snapshot.cardShowWinner,
+        snapshot.cardShowTopRanked,
+      ]
+    );
   });
 }
 
@@ -181,7 +240,9 @@ test.describe('赛季排位玩家闭环', () => {
 
   test('双账号从匹配到权威计分，并在玩家页显示积分结果', async ({ request, browser }) => {
     await cleanupFixtures();
+    let cardEnvironmentSettings: CardEnvironmentSettingsSnapshot | null = null;
     try {
+      cardEnvironmentSettings = await enableAllCardEnvironmentSections();
       const deckIds = await seedPlayerDecks();
       const admin = await login(request, 'test_admin', 'test_admin_password');
       const player1 = await login(request, 'test_player_1', 'test_password_1');
@@ -330,38 +391,60 @@ test.describe('赛季排位玩家闭环', () => {
       expect(ratedOverview.recentMatches[0]?.ratingDelta).toEqual(expect.any(Number));
 
       const environment = await apiData<{
+        displayMode: string;
+        visibleSections: string[];
         sample: {
           settledMatchCount: number;
           analyzedMatchCount: number;
           deckObservationCount: number;
           playerCount: number;
+          winningPlayerCount: number;
           coverageRate: number;
         };
-        cardUsage: { name: string; usageRate: number }[];
+        rankings: {
+          section: string;
+          weighting: string;
+          cards: { name: string; adoptionRate: number }[];
+        }[];
       }>(
         await request.get(`/api/ranked/environment?seasonId=${encodeURIComponent(seasonId)}`, {
           headers: player1Headers,
         })
       );
-      expect(environment.sample).toEqual({
+      expect(environment).toMatchObject({
+        displayMode: 'PLAYER_EQUAL',
+        visibleSections: ['USAGE', 'WINNER', 'TOP_RANKED'],
+      });
+      expect(environment.sample).toMatchObject({
         settledMatchCount: 1,
         analyzedMatchCount: 1,
         deckObservationCount: 2,
         playerCount: 2,
+        winningPlayerCount: 1,
         coverageRate: 1,
       });
-      expect(environment.cardUsage.length).toBeGreaterThan(0);
-      expect(environment.cardUsage[0]?.usageRate).toBe(1);
+      const usageRanking = environment.rankings.find(
+        (ranking) => ranking.section === 'USAGE' && ranking.weighting === 'PLAYER_EQUAL'
+      );
+      const winnerRanking = environment.rankings.find(
+        (ranking) => ranking.section === 'WINNER' && ranking.weighting === 'PLAYER_EQUAL'
+      );
+      expect(usageRanking?.cards.length).toBeGreaterThan(0);
+      expect(usageRanking?.cards[0]?.adoptionRate).toBe(1);
+      expect(winnerRanking?.cards.length).toBeGreaterThan(0);
 
       await verifyPlayerPage(
         browser,
         ratedOverview.player.rating!,
         ratedOverview.recentMatches[0]!.opponentDisplayName,
         ratedOverview.recentMatches[0]!.ratingDelta!,
-        environment.cardUsage[0]!.name
+        usageRanking!.cards[0]!.name
       );
       await verifyCorrectionDialog(browser);
     } finally {
+      if (cardEnvironmentSettings) {
+        await restoreCardEnvironmentSettings(cardEnvironmentSettings);
+      }
       await cleanupFixtures();
     }
   });
@@ -410,7 +493,14 @@ async function verifyPlayerPage(
       page.getByText(`${ratingDelta >= 0 ? '+' : ''}${ratingDelta}`, { exact: false })
     ).toBeVisible();
     await expect(page.getByRole('heading', { name: '赛季卡牌使用率' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: '使用占比' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: '胜者构成' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: '高排名玩家' })).toBeVisible();
     await expect(page.getByText(topCardName, { exact: true }).first()).toBeVisible();
+    await page.getByRole('tab', { name: '胜者构成' }).click();
+    await expect(page.getByText(topCardName, { exact: true }).first()).toBeVisible();
+    await page.getByRole('tab', { name: '高排名玩家' }).click();
+    await expect(page.getByText('当前高排名玩家还没有可分析的卡组观察')).toBeVisible();
     await page.screenshot({ path: '/tmp/loveca-ranked-player.png', fullPage: true });
   } finally {
     await context.close();
