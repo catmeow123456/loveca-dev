@@ -4,7 +4,8 @@ import type { OnlineRoomView } from '@game/online';
 import type { ThemePrebuiltDeckView } from '@game/online/theme-table-types';
 import type { AnyCardData } from '@game/domain/entities/card';
 import { CardDetailDrawer } from '@/components/deck-editor/CardDetailDrawer';
-import { getCardBackUrl, getCardImageUrl } from '@/lib/imageService';
+import { getCardBackUrl, resolveRegistryCardImagePath } from '@/lib/imageService';
+import { useGameStore } from '@/store/gameStore';
 import { ThemeDeckGallery } from './ThemeDeckGallery';
 import './theme-deck-assignment-intro.css';
 
@@ -36,6 +37,7 @@ export function ThemeDeckAssignmentIntro({
   const [showDeckPreview, setShowDeckPreview] = useState(false);
   const [selectedCard, setSelectedCard] = useState<AnyCardData | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
   const completedRef = useRef(false);
   const resultReady = reduceMotion || showFinalImmediately || animationCompleted;
   const finish = useCallback(() => {
@@ -113,7 +115,11 @@ export function ThemeDeckAssignmentIntro({
           {poolCards.map((cardCode, index) => (
             <img
               key={cardCode ?? `deck-back-${index}`}
-              src={cardCode ? getCardImageUrl(cardCode, 'medium') : cardBackUrl}
+              src={
+                cardCode
+                  ? resolveRegistryCardImagePath(cardCode, cardDataRegistry, 'medium')
+                  : cardBackUrl
+              }
               alt=""
               style={{ '--theme-pool-index': index } as CSSProperties}
               onError={(event) => {
@@ -154,7 +160,7 @@ export function ThemeDeckAssignmentIntro({
                   ownPreviewCards.map((cardCode, index) => (
                     <img
                       key={cardCode}
-                      src={getCardImageUrl(cardCode, 'medium')}
+                      src={resolveRegistryCardImagePath(cardCode, cardDataRegistry, 'medium')}
                       alt=""
                       style={{ '--theme-card-index': index } as CSSProperties}
                       onError={(event) => {

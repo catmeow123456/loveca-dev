@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   buildCloudbaseCardSnapshot,
   buildPreparedCandidates,
+  insertCard,
   mapCardInsertRecordToExport,
   processCandidateImage,
   readCloudbaseDocuments,
+  reconcileCardImageReference,
   resolvePublicImageAddresses,
   type CloudBaseCollection,
 } from '../../src/scripts/sync-cards-cloudbase-new';
@@ -105,6 +107,154 @@ describe('CloudBase card sync shared core', () => {
     expect(result.prepared.map((candidate) => candidate.record.card_code)).toEqual([
       'PL!N-bp1-003-N',
     ]);
+  });
+
+  it('compares an existing versioned image by its original basename', () => {
+    const snapshot = buildCloudbaseCardSnapshot([
+      {
+        _id: 'source-image-conflict',
+        card_code: 'PL!N-bp1-008-N',
+        type: 'ENERGY',
+        name_jp: 'Conflicting image',
+        image_source_uri: 'cloud://example/shared-image.png',
+        image_filename: 'shared-image.png',
+      },
+    ]);
+
+    const result = buildPreparedCandidates(snapshot.transforms, [
+      {
+        card_code: 'PL!N-bp1-009-N',
+        image_filename: 'shared-image-0123456789abcdef01234567.webp',
+      },
+    ]);
+
+    expect(result.prepared).toEqual([]);
+    expect(result.skipped).toEqual([
+      {
+        cardCode: 'PL!N-bp1-008-N',
+        reason: 'imageBaseNameAlreadyUsed',
+        detail: 'shared-image used by PL!N-bp1-009-N',
+      },
+    ]);
+  });
+
+  it('reconciles an ambiguous commit by the exact stored image filename', async () => {
+    const exactQuery = vi.fn().mockResolvedValue({
+      rows: [{ image_filename: 'card-version.webp' }],
+    });
+    await expect(
+      reconcileCardImageReference(
+        { query: exactQuery } as never,
+        'PL!N-bp1-010-N',
+        'card-version.webp'
+      )
+    ).resolves.toEqual({ status: 'REFERENCED' });
+
+    const differentQuery = vi.fn().mockResolvedValue({
+      rows: [{ image_filename: 'another-version.webp' }],
+    });
+    await expect(
+      reconcileCardImageReference(
+        { query: differentQuery } as never,
+        'PL!N-bp1-010-N',
+        'card-version.webp'
+      )
+    ).resolves.toEqual({ status: 'NOT_REFERENCED' });
+
+    const failedQuery = vi.fn().mockRejectedValue(new Error('database unavailable'));
+    await expect(
+      reconcileCardImageReference(
+        { query: failedQuery } as never,
+        'PL!N-bp1-010-N',
+        'card-version.webp'
+      )
+    ).resolves.toEqual({ status: 'UNKNOWN', error: 'database unavailable' });
+  });
+
+  it('preserves a CLI upload when a failed COMMIT is confirmed to have inserted the card', async () => {
+    const snapshot = buildCloudbaseCardSnapshot([
+      {
+        _id: 'ambiguous-commit',
+        card_code: 'PL!N-bp1-011-N',
+        type: 'ENERGY',
+        name_jp: 'Ambiguous commit',
+        image_source_uri: 'cloud://example/ambiguous.png',
+        image_filename: 'ambiguous.png',
+      },
+    ]);
+    const record = {
+      ...snapshot.transforms[0]!.record!,
+      image_filename: 'ambiguous-0123456789abcdef01234567.webp',
+    };
+    const client = {
+      query: vi.fn((text: string) => {
+        if (text.includes('INSERT INTO cards')) {
+          return Promise.resolve({ rows: [{ card_code: record.card_code }], rowCount: 1 });
+        }
+        if (text === 'COMMIT') {
+          return Promise.reject(new Error('connection lost after commit'));
+        }
+        return Promise.resolve({ rows: [], rowCount: null });
+      }),
+      release: vi.fn(),
+    };
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+      query: vi.fn().mockResolvedValue({ rows: [{ image_filename: record.image_filename }] }),
+    };
+
+    await expect(insertCard(pool as never, record)).resolves.toEqual({
+      cardCode: record.card_code,
+      inserted: true,
+      preserveUploadedImages: true,
+    });
+    expect(pool.query).toHaveBeenCalledWith(
+      'SELECT image_filename FROM cards WHERE card_code = $1',
+      [record.card_code]
+    );
+    expect(client.release).toHaveBeenCalledOnce();
+  });
+
+  it('preserves a CLI upload when reconciliation after a failed COMMIT is unavailable', async () => {
+    const snapshot = buildCloudbaseCardSnapshot([
+      {
+        _id: 'unknown-commit',
+        card_code: 'PL!N-bp1-012-N',
+        type: 'ENERGY',
+        name_jp: 'Unknown commit',
+        image_source_uri: 'cloud://example/unknown.png',
+        image_filename: 'unknown.png',
+      },
+    ]);
+    const record = {
+      ...snapshot.transforms[0]!.record!,
+      image_filename: 'unknown-0123456789abcdef01234567.webp',
+    };
+    const client = {
+      query: vi.fn((text: string) => {
+        if (text.includes('INSERT INTO cards')) {
+          return Promise.resolve({ rows: [{ card_code: record.card_code }], rowCount: 1 });
+        }
+        if (text === 'COMMIT') {
+          return Promise.reject(new Error('connection lost after commit'));
+        }
+        return Promise.resolve({ rows: [], rowCount: null });
+      }),
+      release: vi.fn(),
+    };
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+      query: vi.fn().mockRejectedValue(new Error('database unavailable')),
+    };
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(insertCard(pool as never, record)).resolves.toEqual({
+      cardCode: record.card_code,
+      inserted: false,
+      preserveUploadedImages: true,
+      error: 'card insert commit outcome is unknown; uploaded images were preserved',
+    });
+    consoleError.mockRestore();
   });
 
   it('rejects non-HTTPS or private image addresses before any network or storage call', async () => {

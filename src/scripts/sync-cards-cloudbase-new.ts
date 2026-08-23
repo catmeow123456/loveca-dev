@@ -24,7 +24,7 @@ import { pathToFileURL } from 'node:url';
 import * as readline from 'node:readline/promises';
 import { parse as parseDotenv } from 'dotenv';
 import * as Minio from 'minio';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import sharp from 'sharp';
 import { normalizeCardCode, validateCardCode } from '../shared/utils/card-code.js';
 import { appendDoubleGrayBladeHearts } from './card-sync-double-heart.js';
@@ -205,6 +205,15 @@ export interface CardImageProcessingOptions {
 export interface InsertResult {
   readonly cardCode: string;
   readonly inserted: boolean;
+  /** Keep task-versioned image objects when the database commit outcome cannot be disproved. */
+  readonly preserveUploadedImages?: boolean;
+  readonly error?: string;
+}
+
+export type CardImageReferenceStatus = 'REFERENCED' | 'NOT_REFERENCED' | 'UNKNOWN';
+
+export interface CardImageReferenceResult {
+  readonly status: CardImageReferenceStatus;
   readonly error?: string;
 }
 
@@ -1899,11 +1908,13 @@ async function cleanupUploadedImagesForFailedInserts(
     return [];
   }
   const failures: ImageCleanupFailure[] = [];
-  const failedCardCodes = new Set(
-    insertResults.filter((result) => !result.inserted).map((result) => result.cardCode)
+  const cleanupCardCodes = new Set(
+    insertResults
+      .filter((result) => !result.inserted && !result.preserveUploadedImages)
+      .map((result) => result.cardCode)
   );
   for (const imageResult of imageResults) {
-    if (!failedCardCodes.has(imageResult.cardCode)) {
+    if (!cleanupCardCodes.has(imageResult.cardCode)) {
       continue;
     }
     for (const objectKey of imageResult.uploadedKeys) {
@@ -1934,8 +1945,40 @@ function withSourceFlag(
   };
 }
 
-async function insertCard(pool: Pool, record: CardInsertRecord): Promise<InsertResult> {
+export async function reconcileCardImageReference(
+  pool: Pick<Pool, 'query'>,
+  cardCode: string,
+  expectedImageFilename: string | null
+): Promise<CardImageReferenceResult> {
+  try {
+    const result = await pool.query<{ image_filename: string | null }>(
+      'SELECT image_filename FROM cards WHERE card_code = $1',
+      [cardCode]
+    );
+    return {
+      status:
+        result.rows[0]?.image_filename === expectedImageFilename ? 'REFERENCED' : 'NOT_REFERENCED',
+    };
+  } catch (error) {
+    return {
+      status: 'UNKNOWN',
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function rollbackQuietly(client: PoolClient): Promise<void> {
+  try {
+    await client.query('ROLLBACK');
+  } catch {
+    // A separate connection performs the authoritative commit reconciliation below.
+  }
+}
+
+export async function insertCard(pool: Pool, record: CardInsertRecord): Promise<InsertResult> {
   const client = await pool.connect();
+  let insertSucceeded = false;
+  let commitAttempted = false;
   try {
     await client.query('BEGIN');
     const result = await client.query<{ card_code: string }>(
@@ -1983,10 +2026,39 @@ async function insertCard(pool: Pool, record: CardInsertRecord): Promise<InsertR
         record.status,
       ]
     );
+    insertSucceeded = result.rowCount === 1;
+    commitAttempted = true;
     await client.query('COMMIT');
-    return { cardCode: record.card_code, inserted: result.rowCount === 1 };
+    return { cardCode: record.card_code, inserted: insertSucceeded };
   } catch (error) {
-    await client.query('ROLLBACK');
+    await rollbackQuietly(client);
+    if (commitAttempted) {
+      const reference = await reconcileCardImageReference(
+        pool,
+        record.card_code,
+        record.image_filename
+      );
+      if (reference.status === 'REFERENCED') {
+        return {
+          cardCode: record.card_code,
+          inserted: insertSucceeded,
+          preserveUploadedImages: true,
+        };
+      }
+      if (reference.status === 'UNKNOWN') {
+        console.error('Card insert commit outcome is unknown; uploaded images were preserved', {
+          cardCode: record.card_code,
+          imageFilename: record.image_filename,
+          message: reference.error,
+        });
+        return {
+          cardCode: record.card_code,
+          inserted: false,
+          preserveUploadedImages: true,
+          error: 'card insert commit outcome is unknown; uploaded images were preserved',
+        };
+      }
+    }
     return {
       cardCode: record.card_code,
       inserted: false,
@@ -1998,7 +2070,7 @@ async function insertCard(pool: Pool, record: CardInsertRecord): Promise<InsertR
 }
 
 function imageBaseNameForExisting(row: ExistingCardRow): string | null {
-  return imageBaseNameFromFilename(row.image_filename);
+  return imageBaseNameFromFilename(row.image_filename)?.replace(/-[0-9a-f]{24}$/iu, '') ?? null;
 }
 
 export function buildPreparedCandidates(

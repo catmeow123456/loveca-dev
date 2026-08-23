@@ -24,6 +24,7 @@ import {
   createCloudbaseAppWithCredentials,
   processCandidateImage,
   readCloudbaseDocuments,
+  reconcileCardImageReference,
   type CardInsertRecord,
   type CloudBaseApp,
   type ExistingCardRow,
@@ -286,6 +287,14 @@ async function cleanupUploadedKeys(
   return failures;
 }
 
+async function rollbackQuietly(client: PoolClient): Promise<void> {
+  try {
+    await client.query('ROLLBACK');
+  } catch {
+    // COMMIT ambiguity is reconciled through a separate pooled connection below.
+  }
+}
+
 async function applyCandidate(
   candidate: PreparedCandidate,
   cloudbase: CloudBaseApp,
@@ -329,10 +338,13 @@ async function applyCandidate(
   const record = { ...candidate.record, image_filename: image.imageFilename };
 
   const client = await pool.connect();
+  let inserted = false;
+  let commitAttempted = false;
   try {
     await client.query('BEGIN');
     await lockAndRenewCardSyncLease(client, leaseIdentity(input.runId, input.execution));
-    const inserted = await insertCard(client, record, actorUserId);
+    inserted = await insertCard(client, record, actorUserId);
+    commitAttempted = true;
     await client.query('COMMIT');
     if (!inserted) {
       const cleanupFailures = await cleanupUploadedKeys(image.uploadedKeys, {
@@ -350,7 +362,28 @@ async function applyCandidate(
     }
     return { cardCode, result: 'SUCCEEDED', message: null };
   } catch (error) {
-    await client.query('ROLLBACK');
+    await rollbackQuietly(client);
+    if (commitAttempted) {
+      const reference = await reconcileCardImageReference(pool, cardCode, image.imageFilename);
+      if (reference.status === 'REFERENCED') {
+        return inserted
+          ? { cardCode, result: 'SUCCEEDED', message: null }
+          : { cardCode, result: 'SKIPPED', message: '卡牌已存在，未覆盖现有数据' };
+      }
+      if (reference.status === 'UNKNOWN') {
+        console.error('[CardSync] Card commit outcome is unknown; task images were preserved', {
+          runId: input.runId,
+          cardCode,
+          imageFilename: image.imageFilename,
+          message: reference.error,
+        });
+        return {
+          cardCode,
+          result: 'FAILED',
+          message: '数据库提交结果无法确认；已保留本任务卡图，需要人工检查',
+        };
+      }
+    }
     const cleanupFailures = await cleanupUploadedKeys(image.uploadedKeys, {
       runId: input.runId,
       cardCode,
