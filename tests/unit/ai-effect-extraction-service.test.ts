@@ -68,7 +68,7 @@ describe('AiEffectExtractionService', () => {
     expect(database.audit).toEqual([]);
   });
 
-  it('loads the trusted card image by card code and returns text without changing card data', async () => {
+  it('loads the trusted card image by authoritative filename and returns text without changing card data', async () => {
     const database = new FakeDatabase();
     const fetchImpl = vi.fn((_input: string | URL | Request, init?: RequestInit) => {
       const body = typeof init?.body === 'string' ? init.body : '';
@@ -79,7 +79,7 @@ describe('AiEffectExtractionService', () => {
       return Promise.resolve(completionResponse('【登场】抽1张牌。'));
     });
     const loadObject = vi.fn((key: string) => {
-      expect(key).toBe('large/PL!-test-001.webp');
+      expect(key).toBe('large/trusted-versioned-0123456789abcdef01234567.webp');
       return Promise.resolve(Readable.from([Buffer.from('card-image')]));
     });
     const service = createService(database, fetchImpl, loadObject);
@@ -272,7 +272,7 @@ class FakeDatabase {
         rows: [
           {
             card_code: values[0],
-            image_filename: 'trusted.webp',
+            image_filename: 'trusted-versioned-0123456789abcdef01234567.webp',
           },
         ],
       });

@@ -97,6 +97,7 @@ CloudBase 新卡导入的写入规则：
 - CloudBase 输入内部标准化卡号重复时，整组跳过并报告。
 - 正式运行必须显式选择 `--upload-images` 或 `--skip-images`。
 - 图片对象默认不覆盖；图片 basename 与候选内部或 DB 已有记录冲突时必须跳过。
+- 每次正式导入必须使用任务独立的版本化对象名；只有仍持有有效租约的数据库事务可以把该版本写入 `image_filename`，失租 worker 的延迟上传不得覆盖后续任务引用的图片。
 - `--upload-images` 模式下图片失败默认不插入该卡；只有显式 `--allow-missing-images` 时才允许插入并写入 source flag。
 - `--skip-images` 模式下不得写入 `image_filename`，只保留 `image_source_uri` 和 `source_flags.imageSkipped`。
 

@@ -68,7 +68,7 @@ CloudBase 新卡 dry-run 可运行：
 pnpm exec tsx src/scripts/sync-cards-cloudbase-new.ts --cloudbase-collection=loveca --cloudbase-limit=5 --dry-run
 ```
 
-当前已确认 `loveca` 是可读取的 CloudBase 卡牌集合，`real_card` 不存在。正式导入新卡前应先确认报告，再选择图片策略：`--upload-images` 会下载 CloudBase 图片、压缩为 `thumb/medium/large` WebP 并上传 MinIO；`--skip-images` 只插入资料、保留 `image_source_uri`、清空 `image_filename` 并写入 `source_flags.imageSkipped`，适合 DRAFT 审核流。
+当前已确认 `loveca` 是可读取的 CloudBase 卡牌集合，`real_card` 不存在。正式导入新卡前应先确认报告，再选择图片策略：`--upload-images` 会下载 CloudBase 图片、压缩为 `thumb/medium/large` WebP，并以本次执行独立的版本化文件名上传 MinIO；系统 worker 只由持有有效租约的数据库事务写入最终 `image_filename`。`--skip-images` 只插入资料、保留 `image_source_uri`、清空 `image_filename` 并写入 `source_flags.imageSkipped`，适合 DRAFT 审核流。
 
 截至 `docs/card-data-sync/sources/loveca_20260629130944.xlsx`，调查结果为：2303 行中 1382 行含卡效占位符，共 44 种原始 token；41 种已归类，3 种未知或疑似数据问题。高频 token 包括 `[ブレード]` 1053 次、`[E]` 714 次、`【登场】` 564 次、`【登場】` 561 次、`【LIVE开始时】` 459 次、`【ライブ開始時】` 457 次、`[赤ハート]` 199 次、`[紫ハート]` 170 次。未知项为 `[Aqours]`、一条缺失右括号导致的长 token、以及 `[ターン1回]`。
 

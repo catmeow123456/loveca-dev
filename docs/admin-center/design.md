@@ -56,7 +56,7 @@ sequenceDiagram
     participant Model as Allowed model host
     UI->>API: cardCode
     API->>DB: current config + trusted card record
-    API->>Obj: large/cardCode.webp
+    API->>Obj: large/{image_filename basename}.webp
     API->>API: decrypt key, validate URL/DNS/limits
     API->>Model: image data + reviewed prompt
     Model-->>API: compatible chat completion

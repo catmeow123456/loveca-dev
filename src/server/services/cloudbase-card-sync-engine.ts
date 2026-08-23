@@ -300,19 +300,11 @@ async function applyCandidate(
     { client: minioClient, bucket: config.minio.bucket },
     {
       overwriteImages: CARD_SYNC_POLICY.overwriteImages,
+      imageObjectVersion: `${input.runId}:${input.execution.token}:${input.execution.generation}`,
       signal: input.execution.signal,
       assertCurrent: input.execution.assertCurrent,
-      preserveUploadedKeysOnError: (error) =>
-        input.execution.signal.aborted || error instanceof CardSyncLeaseLostError,
     }
   );
-  if (image.preservedKeys.length > 0) {
-    console.warn('[CardSync] Preserved content-validated image objects after execution fencing', {
-      runId: input.runId,
-      cardCode,
-      objectKeys: image.preservedKeys,
-    });
-  }
   if (image.cleanupFailures.length > 0) {
     console.error('[CardSync] Image upload rollback was incomplete', {
       runId: input.runId,
@@ -331,27 +323,39 @@ async function applyCandidate(
           : '卡图下载、处理或上传失败',
     };
   }
+  if (!image.imageFilename) {
+    throw new CardSyncEngineError('IMAGE_RESULT_INVALID', '卡图处理结果缺少版本化文件名');
+  }
+  const record = { ...candidate.record, image_filename: image.imageFilename };
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     await lockAndRenewCardSyncLease(client, leaseIdentity(input.runId, input.execution));
-    const inserted = await insertCard(client, candidate.record, actorUserId);
+    const inserted = await insertCard(client, record, actorUserId);
     await client.query('COMMIT');
     if (!inserted) {
-      // A concurrent importer may now own these immutable card image keys. Keep them intact.
-      return { cardCode, result: 'SKIPPED', message: '卡牌已存在，未覆盖现有数据' };
+      const cleanupFailures = await cleanupUploadedKeys(image.uploadedKeys, {
+        runId: input.runId,
+        cardCode,
+      });
+      return {
+        cardCode,
+        result: 'SKIPPED',
+        message:
+          cleanupFailures.length > 0
+            ? '卡牌已存在；本任务未引用卡图清理失败，需要人工检查'
+            : '卡牌已存在，未覆盖现有数据',
+      };
     }
     return { cardCode, result: 'SUCCEEDED', message: null };
   } catch (error) {
     await client.query('ROLLBACK');
-    // A successor run may already be reusing these digest-validated immutable objects.
-    // Never let a fenced worker delete them after the global run mutex has been released.
-    if (error instanceof CardSyncLeaseLostError) throw error;
     const cleanupFailures = await cleanupUploadedKeys(image.uploadedKeys, {
       runId: input.runId,
       cardCode,
     });
+    if (error instanceof CardSyncLeaseLostError) throw error;
     return {
       cardCode,
       result: 'FAILED',

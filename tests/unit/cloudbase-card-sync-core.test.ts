@@ -124,7 +124,7 @@ describe('CloudBase card sync shared core', () => {
         candidate,
         {} as never,
         { client: {} as never, bucket: 'unused' },
-        { overwriteImages: false }
+        { overwriteImages: false, imageObjectVersion: 'unsafe-image-test' }
       )
     ).resolves.toMatchObject({
       cardCode: 'PL!N-bp1-004-N',
@@ -236,10 +236,21 @@ describe('CloudBase card sync shared core', () => {
       candidate,
       {} as never,
       { client: firstClient as never, bucket: 'cards' },
-      { overwriteImages: false, imageLoader: () => Promise.resolve(svg) }
+      {
+        overwriteImages: false,
+        imageObjectVersion: 'digest-reuse-test',
+        imageLoader: () => Promise.resolve(svg),
+      }
     );
     expect(first).toMatchObject({ ok: true, reusedKeys: [] });
     expect(first.uploadedKeys).toHaveLength(3);
+    expect(first.imageFilename).toMatch(/^PL!N-bp1-005-N-[0-9a-f]{24}\.webp$/u);
+    const versionedBaseName = first.imageFilename!.replace(/\.webp$/u, '');
+    expect(first.uploadedKeys).toEqual([
+      `thumb/${versionedBaseName}.webp`,
+      `medium/${versionedBaseName}.webp`,
+      `large/${versionedBaseName}.webp`,
+    ]);
 
     const secondClient = {
       statObject: vi.fn((_bucket: string, objectKey: string) =>
@@ -252,7 +263,11 @@ describe('CloudBase card sync shared core', () => {
       candidate,
       {} as never,
       { client: secondClient as never, bucket: 'cards' },
-      { overwriteImages: false, imageLoader: () => Promise.resolve(svg) }
+      {
+        overwriteImages: false,
+        imageObjectVersion: 'digest-reuse-test',
+        imageLoader: () => Promise.resolve(svg),
+      }
     );
     expect(second).toMatchObject({ ok: true, uploadedKeys: [] });
     expect(second.reusedKeys).toHaveLength(3);
@@ -265,7 +280,11 @@ describe('CloudBase card sync shared core', () => {
       candidate,
       {} as never,
       { client: secondClient as never, bucket: 'cards' },
-      { overwriteImages: false, imageLoader: () => Promise.resolve(changedSvg) }
+      {
+        overwriteImages: false,
+        imageObjectVersion: 'digest-reuse-test',
+        imageLoader: () => Promise.resolve(changedSvg),
+      }
     );
     expect(changed).toMatchObject({
       ok: false,
@@ -308,18 +327,21 @@ describe('CloudBase card sync shared core', () => {
       candidate,
       {} as never,
       { client: client as never, bucket: 'cards' },
-      { overwriteImages: false, imageLoader: () => Promise.resolve(svg) }
+      {
+        overwriteImages: false,
+        imageObjectVersion: 'cleanup-test',
+        imageLoader: () => Promise.resolve(svg),
+      }
     );
 
-    expect(result).toMatchObject({
-      ok: false,
-      uploadedKeys: ['thumb/PL!N-bp1-006-N.webp', 'medium/PL!N-bp1-006-N.webp'],
-      cleanupFailures: ['medium/PL!N-bp1-006-N.webp'],
-      sourceFlag: 'imageUploadFailed',
-    });
+    expect(result).toMatchObject({ ok: false, sourceFlag: 'imageUploadFailed' });
+    expect(result.uploadedKeys).toHaveLength(2);
+    expect(result.uploadedKeys[0]).toMatch(/^thumb\/PL!N-bp1-006-N-[0-9a-f]{24}\.webp$/u);
+    expect(result.uploadedKeys[1]).toMatch(/^medium\/PL!N-bp1-006-N-[0-9a-f]{24}\.webp$/u);
+    expect(result.cleanupFailures).toEqual([result.uploadedKeys[1]]);
   });
 
-  it('does not let a fenced worker delete digest-validated objects a successor may reuse', async () => {
+  it('isolates a successor image from an older upload that completes after lease loss', async () => {
     const snapshot = buildCloudbaseCardSnapshot([
       {
         _id: 'fenced-card',
@@ -332,38 +354,117 @@ describe('CloudBase card sync shared core', () => {
     ]);
     const candidate = buildPreparedCandidates(snapshot.transforms, []).prepared[0]!;
     const leaseLost = new Error('lease lost');
-    let fenced = false;
-    const client = {
-      statObject: vi.fn(() =>
-        Promise.reject(Object.assign(new Error('missing'), { code: 'NoSuchKey' }))
+    const objects = new Map<string, { buffer: Buffer; metadata: Record<string, string> }>();
+    const statObject = vi.fn((_bucket: string, objectKey: string) => {
+      const stored = objects.get(objectKey);
+      return stored
+        ? Promise.resolve({ metaData: stored.metadata })
+        : Promise.reject(Object.assign(new Error('missing'), { code: 'NoSuchKey' }));
+    });
+    let releaseOldUpload!: () => void;
+    const oldUploadGate = new Promise<void>((resolve) => {
+      releaseOldUpload = resolve;
+    });
+    let markOldUploadStarted!: () => void;
+    const oldUploadStarted = new Promise<void>((resolve) => {
+      markOldUploadStarted = resolve;
+    });
+    let oldLeaseCurrent = true;
+    let oldUploadCount = 0;
+    const oldClient = {
+      statObject,
+      putObject: vi.fn(
+        async (
+          _bucket: string,
+          objectKey: string,
+          buffer: Buffer,
+          _length: number,
+          metadata: Record<string, string>
+        ) => {
+          oldUploadCount += 1;
+          if (oldUploadCount === 1) {
+            markOldUploadStarted();
+            await oldUploadGate;
+          }
+          objects.set(objectKey, { buffer, metadata });
+        }
       ),
-      putObject: vi.fn(() => {
-        fenced = true;
+      removeObject: vi.fn((_bucket: string, objectKey: string) => {
+        objects.delete(objectKey);
         return Promise.resolve();
       }),
-      removeObject: vi.fn(() => Promise.resolve()),
     };
-    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"/>');
-
-    const result = await processCandidateImage(
-      candidate,
-      {} as never,
-      { client: client as never, bucket: 'cards' },
-      {
-        overwriteImages: false,
-        imageLoader: () => Promise.resolve(svg),
-        assertCurrent: () => (fenced ? Promise.reject(leaseLost) : Promise.resolve()),
-        preserveUploadedKeysOnError: (error) => error === leaseLost,
-      }
+    const successorClient = {
+      statObject,
+      putObject: vi.fn(
+        (
+          _bucket: string,
+          objectKey: string,
+          buffer: Buffer,
+          _length: number,
+          metadata: Record<string, string>
+        ) => {
+          objects.set(objectKey, { buffer, metadata });
+          return Promise.resolve();
+        }
+      ),
+      removeObject: vi.fn((_bucket: string, objectKey: string) => {
+        objects.delete(objectKey);
+        return Promise.resolve();
+      }),
+    };
+    const oldSvg = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="red"/></svg>'
+    );
+    const successorSvg = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="blue"/></svg>'
     );
 
-    expect(result).toMatchObject({
+    const oldResultPromise = processCandidateImage(
+      candidate,
+      {} as never,
+      { client: oldClient as never, bucket: 'cards' },
+      {
+        overwriteImages: false,
+        imageObjectVersion: 'old-run:token-1:1',
+        imageLoader: () => Promise.resolve(oldSvg),
+        assertCurrent: () => (oldLeaseCurrent ? Promise.resolve() : Promise.reject(leaseLost)),
+      }
+    );
+    await oldUploadStarted;
+
+    const successorResult = await processCandidateImage(
+      candidate,
+      {} as never,
+      { client: successorClient as never, bucket: 'cards' },
+      {
+        overwriteImages: false,
+        imageObjectVersion: 'successor-run:token-2:1',
+        imageLoader: () => Promise.resolve(successorSvg),
+      }
+    );
+    expect(successorResult.ok).toBe(true);
+    expect(successorResult.imageFilename).toMatch(/^PL!N-bp1-007-N-[0-9a-f]{24}\.webp$/u);
+    const successorKeys = [...successorResult.uploadedKeys];
+    expect(successorKeys).toHaveLength(3);
+    const successorObjectsBeforeOldCompletion = successorKeys.map(
+      (key) => objects.get(key)?.buffer
+    );
+
+    oldLeaseCurrent = false;
+    releaseOldUpload();
+    const oldResult = await oldResultPromise;
+
+    expect(oldResult).toMatchObject({
       ok: false,
-      uploadedKeys: ['thumb/PL!N-bp1-007-N.webp'],
-      preservedKeys: ['thumb/PL!N-bp1-007-N.webp'],
-      cleanupFailures: [],
+      imageFilename: null,
       sourceFlag: 'imageUploadFailed',
     });
-    expect(client.removeObject).not.toHaveBeenCalled();
+    expect(oldResult.uploadedKeys).toHaveLength(1);
+    expect(oldClient.removeObject).toHaveBeenCalledWith('cards', oldResult.uploadedKeys[0]);
+    expect(oldResult.uploadedKeys.some((key) => successorKeys.includes(key))).toBe(false);
+    expect(successorKeys.map((key) => objects.get(key)?.buffer)).toEqual(
+      successorObjectsBeforeOldCompletion
+    );
   });
 });

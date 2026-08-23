@@ -284,7 +284,7 @@ export class AiEffectExtractionService {
       throw serviceError('AI_EFFECT_CARD_IMAGE_REQUIRED', '当前卡牌没有可用于提取的图片', 422);
     }
 
-    const image = await this.readTrustedCardImage(card.card_code);
+    const image = await this.readTrustedCardImage(card.image_filename);
     const content = await this.invokeCompatibleModel(
       effective,
       [
@@ -492,10 +492,17 @@ export class AiEffectExtractionService {
     return parsed;
   }
 
-  private async readTrustedCardImage(cardCode: string): Promise<Buffer> {
+  private async readTrustedCardImage(imageFilename: string): Promise<Buffer> {
+    const imageBaseName = imageFilename
+      .replace(/^.*[\\/]/u, '')
+      .replace(/\.(?:jpe?g|png|webp)$/iu, '')
+      .trim();
+    if (!imageBaseName || imageBaseName.includes('/') || imageBaseName.includes('\\')) {
+      throw serviceError('AI_EFFECT_CARD_IMAGE_UNAVAILABLE', '无法读取当前卡牌图片', 422);
+    }
     let stream: Awaited<ReturnType<typeof getObject>>;
     try {
-      stream = await this.loadObject(`large/${encodeURIComponent(cardCode)}.webp`);
+      stream = await this.loadObject(`large/${imageBaseName}.webp`);
     } catch {
       throw serviceError('AI_EFFECT_CARD_IMAGE_UNAVAILABLE', '无法读取当前卡牌图片', 422);
     }

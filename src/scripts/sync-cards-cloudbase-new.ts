@@ -13,7 +13,7 @@
  * pnpm exec tsx src/scripts/sync-cards-cloudbase-new.ts --cloudbase-collection=loveca --upload-images --yes
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { lookup as dnsLookup } from 'node:dns/promises';
 import * as fs from 'node:fs';
 import { request as httpsRequest } from 'node:https';
@@ -150,7 +150,6 @@ export interface ImagePlan {
   readonly sourceUri: string | null;
   readonly imageFilename: string | null;
   readonly imageBaseName: string | null;
-  readonly objectKeys: readonly string[];
 }
 
 export interface TransformResult {
@@ -181,10 +180,10 @@ export interface SkippedCandidate {
 export interface ImageProcessResult {
   readonly cardCode: string;
   readonly ok: boolean;
+  /** Versioned filename that may be committed only by the task holding the current DB lease. */
+  readonly imageFilename: string | null;
   readonly uploadedKeys: readonly string[];
   readonly reusedKeys: readonly string[];
-  /** Content-validated objects deliberately kept after execution fencing for a later run to reuse. */
-  readonly preservedKeys: readonly string[];
   readonly cleanupFailures: readonly string[];
   readonly error?: string;
   readonly sourceFlag?: ImageFailureSourceFlag;
@@ -192,6 +191,8 @@ export interface ImageProcessResult {
 
 export interface CardImageProcessingOptions {
   readonly overwriteImages: boolean;
+  /** Unique per import execution; hashed before it becomes part of an object key. */
+  readonly imageObjectVersion: string;
   readonly signal?: AbortSignal;
   readonly assertCurrent?: () => Promise<void>;
   readonly imageLoader?: (
@@ -199,7 +200,6 @@ export interface CardImageProcessingOptions {
     sourceUri: string,
     signal?: AbortSignal
   ) => Promise<Buffer>;
-  readonly preserveUploadedKeysOnError?: (error: unknown) => boolean;
 }
 
 export interface InsertResult {
@@ -1243,15 +1243,10 @@ function buildImagePlan(document: Record<string, unknown>, cardCode: string): Im
   }
 
   const imageBaseName = imageBaseNameFromFilename(imageFilename);
-  const objectKeys = imageBaseName
-    ? Object.keys(IMAGE_SIZES).map((size) => `${size}/${imageBaseName}.webp`)
-    : [];
-
   return {
     sourceUri: imageSourceUri,
     imageFilename,
     imageBaseName,
-    objectKeys,
   };
 }
 
@@ -1744,6 +1739,15 @@ async function compressImageBuffers(
   return result;
 }
 
+function buildVersionedImageBaseName(imageBaseName: string, objectVersion: string): string {
+  const normalizedVersion = objectVersion.trim();
+  if (!normalizedVersion) {
+    throw new Error('image object version is required');
+  }
+  const suffix = createHash('sha256').update(normalizedVersion).digest('hex').slice(0, 24);
+  return `${imageBaseName}-${suffix}`;
+}
+
 export async function processCandidateImage(
   candidate: PreparedCandidate,
   cloudbase: CloudBaseApp,
@@ -1755,14 +1759,34 @@ export async function processCandidateImage(
     return {
       cardCode: record.card_code,
       ok: false,
+      imageFilename: null,
       uploadedKeys: [],
       reusedKeys: [],
-      preservedKeys: [],
       cleanupFailures: [],
       error: 'missing image source',
       sourceFlag: 'missingImage',
     };
   }
+
+  let versionedImageBaseName: string;
+  try {
+    versionedImageBaseName = buildVersionedImageBaseName(
+      imagePlan.imageBaseName,
+      args.imageObjectVersion
+    );
+  } catch (error) {
+    return {
+      cardCode: record.card_code,
+      ok: false,
+      imageFilename: null,
+      uploadedKeys: [],
+      reusedKeys: [],
+      cleanupFailures: [],
+      error: error instanceof Error ? error.message : String(error),
+      sourceFlag: 'imageProcessFailed',
+    };
+  }
+  const versionedImageFilename = `${versionedImageBaseName}.webp`;
 
   let input: Buffer;
   try {
@@ -1777,9 +1801,9 @@ export async function processCandidateImage(
     return {
       cardCode: record.card_code,
       ok: false,
+      imageFilename: null,
       uploadedKeys: [],
       reusedKeys: [],
-      preservedKeys: [],
       cleanupFailures: [],
       error: error instanceof Error ? error.message : String(error),
       sourceFlag: 'imageDownloadFailed',
@@ -1794,9 +1818,9 @@ export async function processCandidateImage(
     return {
       cardCode: record.card_code,
       ok: false,
+      imageFilename: null,
       uploadedKeys: [],
       reusedKeys: [],
-      preservedKeys: [],
       cleanupFailures: [],
       error: error instanceof Error ? error.message : String(error),
       sourceFlag: 'imageProcessFailed',
@@ -1810,7 +1834,7 @@ export async function processCandidateImage(
       [keyof typeof IMAGE_SIZES, Buffer]
     >) {
       await args.assertCurrent?.();
-      const objectKey = `${sizeName}/${imagePlan.imageBaseName}.webp`;
+      const objectKey = `${sizeName}/${versionedImageBaseName}.webp`;
       const digest = createHash('sha256').update(buffer).digest('hex');
       const stored = await readStoredImageObject(minio.client, minio.bucket, objectKey);
       if (!args.overwriteImages && stored.exists) {
@@ -1828,16 +1852,13 @@ export async function processCandidateImage(
       await args.assertCurrent?.();
     }
   } catch (error) {
-    const preserveUploadedKeys = args.preserveUploadedKeysOnError?.(error) ?? false;
-    const cleanupFailures = preserveUploadedKeys
-      ? []
-      : await cleanupObjectKeys(uploadedKeys, minio);
+    const cleanupFailures = await cleanupObjectKeys(uploadedKeys, minio);
     return {
       cardCode: record.card_code,
       ok: false,
+      imageFilename: null,
       uploadedKeys,
       reusedKeys,
-      preservedKeys: preserveUploadedKeys ? [...uploadedKeys] : [],
       cleanupFailures,
       error: error instanceof Error ? error.message : String(error),
       sourceFlag: 'imageUploadFailed',
@@ -1847,9 +1868,9 @@ export async function processCandidateImage(
   return {
     cardCode: record.card_code,
     ok: true,
+    imageFilename: versionedImageFilename,
     uploadedKeys,
     reusedKeys,
-    preservedKeys: [],
     cleanupFailures: [],
   };
 }
@@ -2238,14 +2259,24 @@ async function main(): Promise<void> {
           const minio = createMinioClient();
           minioForCleanup = minio;
           await ensureBucketExists(minio.client, minio.bucket);
+          const imageObjectVersion = randomUUID();
 
           const recordsAfterImage: CardInsertRecord[] = [];
           for (const candidate of prepared) {
-            const imageResult = await processCandidateImage(candidate, cloudbase, minio, args);
+            const imageResult = await processCandidateImage(candidate, cloudbase, minio, {
+              ...args,
+              imageObjectVersion,
+            });
             imageResults.push(imageResult);
 
             if (imageResult.ok) {
-              recordsAfterImage.push(candidate.record);
+              if (!imageResult.imageFilename) {
+                throw new Error(`${candidate.record.card_code}: image result has no filename`);
+              }
+              recordsAfterImage.push({
+                ...candidate.record,
+                image_filename: imageResult.imageFilename,
+              });
             } else if (args.allowMissingImages && imageResult.sourceFlag) {
               recordsAfterImage.push(withSourceFlag(candidate.record, imageResult.sourceFlag));
             } else {

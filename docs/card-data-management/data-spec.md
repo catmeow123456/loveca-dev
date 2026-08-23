@@ -271,7 +271,7 @@ llocg_db 日文数据使用全角 `＋`（如 `LL-bp1-001-R＋`），中文数�
 ## 14. image_filename（图片文件名）
 
 - 类型: TEXT, nullable
-- 格式: 文件名（不含路径），如 `PL!-sd1-001-SD.png`
+- 格式: 文件名（不含路径），如 `PL!-sd1-001-SD.png`；CloudBase 新卡同步使用任务版本后缀，如 `PL!-sd1-001-SD-<24位版本摘要>.webp`
 - 对应 Minio 中的图片文件
 - 图片管线会生成三种尺寸：thumb(100px) / medium(300px) / large(600px)
 - 如果同步流程只保留远端原图来源但尚未上传对象存储，应保持 `image_filename = null`，并通过 `image_source_uri` / `source_flags` 记录来源或失败状态。
