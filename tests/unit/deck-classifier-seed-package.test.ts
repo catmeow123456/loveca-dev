@@ -56,9 +56,9 @@ describe('deck classifier seed package', () => {
             enabled: true,
             scope: { cardType: 'LIVE' },
             conditions: {
-              all: [{ baseCardCode: 'PL!N-bp1-101', minCount: 2 }],
+              all: [{ baseCardCode: 'PL!N-bp1-101-L', minCount: 2 }],
               sumAtLeast: {
-                baseCardCodes: ['PL!N-bp1-101', 'PL!N-bp1-102'],
+                baseCardCodes: ['PL!N-bp1-101-L', 'PL!N-bp1-102-SEC'],
                 minCount: 6,
               },
             },

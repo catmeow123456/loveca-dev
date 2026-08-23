@@ -100,5 +100,40 @@ describe('deck classifier release snapshot', () => {
         countSums: [{ baseCardCodes: ['LIVE-1', 'LIVE-1'], minCount: 2 }],
       })
     ).toThrow('包含重复卡号');
+
+    expect(() =>
+      readRuleConditions({
+        countSums: [
+          {
+            baseCardCodes: ['PL!N-bp1-001-P', 'PL!N-bp1-001-SEC'],
+            minCount: 2,
+          },
+        ],
+      })
+    ).toThrow('包含重复卡号');
+  });
+
+  it('stores rule card references as canonical base card codes', () => {
+    expect(
+      readRuleConditions({
+        includeAll: [{ baseCardCode: 'PL!N-bp1-001-P', cardType: 'MEMBER', minCount: 2 }],
+        countSums: [
+          {
+            baseCardCodes: ['PL!N-bp1-101-L', 'PL!N-bp1-102-SEC'],
+            cardType: 'LIVE',
+            minCount: 6,
+          },
+        ],
+      })
+    ).toMatchObject({
+      includeAll: [{ baseCardCode: 'PL!N-bp1-001', cardType: 'MEMBER', minCount: 2 }],
+      countSums: [
+        {
+          baseCardCodes: ['PL!N-bp1-101', 'PL!N-bp1-102'],
+          cardType: 'LIVE',
+          minCount: 6,
+        },
+      ],
+    });
   });
 });

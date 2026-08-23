@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import type { DeckArchetypeRuleConditions, DeckCardInput } from './deck-classifier-engine.js';
 import { fingerprintNormalizedDeck, normalizeDeck } from './deck-classifier-engine.js';
+import { readRuleConditions } from './deck-classifier-release.js';
 
 export interface DeckClassifierSeedArchetype {
   readonly archetypeKey: string;
@@ -173,7 +174,7 @@ export async function readDeckClassifierSeedPackage(
         archetypeKey,
         name: `[seed:${sourceKey}] ${requireText(row.displayName, `rules[${index}].displayName`)}`,
         priority: 100,
-        definition: { includeAll, ...(countSums ? { countSums } : {}) },
+        definition: readRuleConditions({ includeAll, ...(countSums ? { countSums } : {}) }),
         enabled: row.enabled === true,
       };
     }

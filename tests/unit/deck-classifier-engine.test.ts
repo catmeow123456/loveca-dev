@@ -266,6 +266,32 @@ describe('deck classifier precedence and structured rules', () => {
     ]);
   });
 
+  it('运行时不会把同一基础编号的不同罕度重复计入合计条件', () => {
+    const result = classifyDeck(
+      baseDeck(),
+      snapshot({
+        rules: [
+          {
+            ruleId: 'malformed-alias-sum',
+            archetypeId: 'wrong-archetype',
+            conditions: {
+              countSums: [
+                {
+                  baseCardCodes: ['BASE-live-001-P', 'BASE-live-001-SEC'],
+                  cardType: 'LIVE',
+                  minCount: 8,
+                },
+              ],
+            },
+          },
+        ],
+      })
+    );
+
+    expect(result).not.toMatchObject({ method: 'RULE', archetypeId: 'wrong-archetype' });
+    expect(result.evidence.matchedRules).toEqual([]);
+  });
+
   it('只在数字最小的最高优先级命中组内判断规则冲突', () => {
     const result = classifyDeck(
       baseDeck(),

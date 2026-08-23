@@ -817,7 +817,7 @@ export class DeckClassifierAdminService {
           input.archetypeId,
           input.name,
           input.priority,
-          stableJsonStringify(input.definition),
+          stableJsonStringify(conditions),
           input.enabled,
           operator.actorUserId,
         ]
@@ -856,7 +856,7 @@ export class DeckClassifierAdminService {
           input.archetypeId,
           input.name,
           input.priority,
-          stableJsonStringify(input.definition),
+          stableJsonStringify(conditions),
           input.enabled,
           operator.actorUserId,
         ]

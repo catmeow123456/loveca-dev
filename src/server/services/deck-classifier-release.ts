@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { getBaseCardCode } from '../../shared/utils/card-code.js';
 import type {
   DeckArchetypeRule,
   DeckArchetypeRuleConditions,
@@ -259,7 +260,7 @@ function readOptionalConstraints(value: unknown, label: string) {
       throw new Error(`${label}第 ${index + 1} 项最少数量不能大于最多数量`);
     }
     return {
-      baseCardCode: requireString(entry.baseCardCode, `${label}第 ${index + 1} 项卡号`),
+      baseCardCode: readRuleBaseCardCode(entry.baseCardCode, `${label}第 ${index + 1} 项卡号`),
       ...(cardType ? { cardType } : {}),
       ...(minCount === undefined ? {} : { minCount }),
       ...(maxCount === undefined ? {} : { maxCount }),
@@ -288,7 +289,7 @@ function readOptionalCountSums(value: unknown) {
       throw new Error(`合计数量第 ${index + 1} 项最少数量不能大于最多数量`);
     }
     const baseCardCodes = entry.baseCardCodes.map((cardCode, cardIndex) =>
-      requireString(cardCode, `合计数量第 ${index + 1} 项第 ${cardIndex + 1} 个卡号`)
+      readRuleBaseCardCode(cardCode, `合计数量第 ${index + 1} 项第 ${cardIndex + 1} 个卡号`)
     );
     if (new Set(baseCardCodes).size !== baseCardCodes.length) {
       throw new Error(`合计数量第 ${index + 1} 项包含重复卡号`);
@@ -300,6 +301,10 @@ function readOptionalCountSums(value: unknown) {
       ...(maxCount === undefined ? {} : { maxCount }),
     };
   });
+}
+
+function readRuleBaseCardCode(value: unknown, label: string): string {
+  return getBaseCardCode(requireString(value, label));
 }
 
 function readOptionalCardType(value: unknown, label: string): 'MEMBER' | 'LIVE' | undefined {

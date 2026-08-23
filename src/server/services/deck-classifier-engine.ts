@@ -624,10 +624,15 @@ function matchesCardConstraint(deck: NormalizedDeck, constraint: DeckRuleCardCon
 }
 
 function matchesCountSum(deck: NormalizedDeck, constraint: DeckRuleCountSumConstraint): boolean {
-  const count = constraint.baseCardCodes.reduce((sum, cardCode) => {
-    const baseCardCode = normalizeBaseCardCode(cardCode);
-    return sum + (baseCardCode ? cardCount(deck, baseCardCode, constraint.cardType) : 0);
-  }, 0);
+  const uniqueBaseCardCodes = new Set(
+    constraint.baseCardCodes
+      .map((cardCode) => normalizeBaseCardCode(cardCode))
+      .filter((baseCardCode): baseCardCode is string => baseCardCode !== null)
+  );
+  const count = [...uniqueBaseCardCodes].reduce(
+    (sum, baseCardCode) => sum + cardCount(deck, baseCardCode, constraint.cardType),
+    0
+  );
   const minCount = constraint.minCount ?? 0;
   return count >= minCount && (constraint.maxCount === undefined || count <= constraint.maxCount);
 }
