@@ -419,6 +419,8 @@ export class OnlineMatchService {
   private readonly emoteCatalog: Pick<MatchEmoteCatalogService, 'resolveActiveEmote'>;
   private readonly sealedMatchIds = new Set<string>();
   private readonly partialRecordMatchIds = new Set<string>();
+  private readonly matchMutationQueueTails = new Map<string, Promise<void>>();
+  private readonly sealMatchPromises = new Map<string, Promise<boolean>>();
   private serviceRejectedAttemptSeq = 0;
 
   constructor(deps: OnlineMatchServiceDeps = {}) {
@@ -631,6 +633,12 @@ export class OnlineMatchService {
   }
 
   async restoreMatch(match: OnlineMatchState): Promise<OnlineMatchState> {
+    return this.runSerializedMatchMutation(match.matchId, () =>
+      this.restoreMatchUnserialized(match)
+    );
+  }
+
+  private async restoreMatchUnserialized(match: OnlineMatchState): Promise<OnlineMatchState> {
     const existing = this.matches.get(match.matchId);
     if (existing) {
       return existing;
@@ -740,6 +748,16 @@ export class OnlineMatchService {
     userId: string,
     options: { readonly sinceSeq?: number } = {}
   ): Promise<OnlineMatchSnapshotResponse | null> {
+    return this.runSerializedMatchMutation(matchId, () =>
+      this.getMatchSnapshotUnserialized(matchId, userId, options)
+    );
+  }
+
+  private async getMatchSnapshotUnserialized(
+    matchId: string,
+    userId: string,
+    options: { readonly sinceSeq?: number }
+  ): Promise<OnlineMatchSnapshotResponse | null> {
     const match = this.matches.get(matchId);
     if (!match) {
       return null;
@@ -777,6 +795,16 @@ export class OnlineMatchService {
     matchId: string,
     userId: string,
     options: { readonly afterSeq?: number } = {}
+  ): Promise<PublicEventsResponse | null> {
+    return this.runSerializedMatchMutation(matchId, () =>
+      this.getMatchPublicEventsUnserialized(matchId, userId, options)
+    );
+  }
+
+  private async getMatchPublicEventsUnserialized(
+    matchId: string,
+    userId: string,
+    options: { readonly afterSeq?: number }
   ): Promise<PublicEventsResponse | null> {
     const match = this.matches.get(matchId);
     if (!match) {
@@ -1212,29 +1240,36 @@ export class OnlineMatchService {
       return buildSpectatorWaitingView(link, session);
     }
 
-    await this.expirePendingUndoRequestIfNeeded(match);
-    await this.expirePendingManualOperationModeRequestIfNeeded(match);
-    await this.expireActiveUndoGrantIfNeeded(match);
-    touchMatch(match);
+    return this.runSerializedMatchMutation(match.matchId, async () => {
+      const currentMatch = this.matches.get(match.matchId);
+      if (!currentMatch) {
+        return buildSpectatorWaitingView(link, session);
+      }
 
-    const currentSeq = match.remoteRevision;
-    if (
-      options.sinceSeq !== undefined &&
-      options.sinceSeq >= currentSeq &&
-      options.sinceViewVersion === session.viewVersion &&
-      (options.expectedAttachmentGeneration === undefined ||
-        options.expectedAttachmentGeneration === session.attachmentGeneration)
-    ) {
-      return {
-        matchId: match.matchId,
-        seq: currentSeq,
-        currentPublicSeq: match.session.getCurrentPublicEventSeq(),
-        modified: false,
-        spectatorView: buildSpectatorViewState(link, session),
-      };
-    }
+      await this.expirePendingUndoRequestIfNeeded(currentMatch);
+      await this.expirePendingManualOperationModeRequestIfNeeded(currentMatch);
+      await this.expireActiveUndoGrantIfNeeded(currentMatch);
+      touchMatch(currentMatch);
 
-    return buildReadonlySpectatorSnapshot(match, link, session);
+      const currentSeq = currentMatch.remoteRevision;
+      if (
+        options.sinceSeq !== undefined &&
+        options.sinceSeq >= currentSeq &&
+        options.sinceViewVersion === session.viewVersion &&
+        (options.expectedAttachmentGeneration === undefined ||
+          options.expectedAttachmentGeneration === session.attachmentGeneration)
+      ) {
+        return {
+          matchId: currentMatch.matchId,
+          seq: currentSeq,
+          currentPublicSeq: currentMatch.session.getCurrentPublicEventSeq(),
+          modified: false,
+          spectatorView: buildSpectatorViewState(link, session),
+        };
+      }
+
+      return buildReadonlySpectatorSnapshot(currentMatch, link, session);
+    });
   }
 
   async switchSpectatorView(
@@ -1310,12 +1345,22 @@ export class OnlineMatchService {
       );
     }
 
-    await this.expirePendingUndoRequestIfNeeded(match);
-    await this.expirePendingManualOperationModeRequestIfNeeded(match);
-    await this.expireActiveUndoGrantIfNeeded(match);
-    touchMatch(match);
-    const afterSeq = normalizePublicEventCursor(options.afterSeq);
-    return buildPublicEventsResponse(match, afterSeq, 'SPECTATOR');
+    return this.runSerializedMatchMutation(match.matchId, async () => {
+      const currentMatch = this.matches.get(match.matchId);
+      if (!currentMatch) {
+        throw new OnlineSpectatorServiceError(
+          'ONLINE_SPECTATOR_WAITING_NEXT_MATCH',
+          '房间正在准备下一局，当前没有可读取的单局公开日志',
+          409
+        );
+      }
+      await this.expirePendingUndoRequestIfNeeded(currentMatch);
+      await this.expirePendingManualOperationModeRequestIfNeeded(currentMatch);
+      await this.expireActiveUndoGrantIfNeeded(currentMatch);
+      touchMatch(currentMatch);
+      const afterSeq = normalizePublicEventCursor(options.afterSeq);
+      return buildPublicEventsResponse(currentMatch, afterSeq, 'SPECTATOR');
+    });
   }
 
   getSpectatorChatMessages(
@@ -1425,6 +1470,16 @@ export class OnlineMatchService {
     userId: string,
     command: GameCommand
   ): Promise<OnlineCommandResult | null> {
+    return this.runSerializedMatchMutation(matchId, () =>
+      this.executeCommandUnserialized(matchId, userId, command)
+    );
+  }
+
+  private async executeCommandUnserialized(
+    matchId: string,
+    userId: string,
+    command: GameCommand
+  ): Promise<OnlineCommandResult | null> {
     const match = this.matches.get(matchId);
     if (!match) {
       return null;
@@ -1528,27 +1583,61 @@ export class OnlineMatchService {
     cause: RankedForfeitCause,
     command: SurrenderCommand
   ): Promise<OnlineCommandResult | null> {
-    const match = this.matches.get(matchId);
-    if (!match || match.originKind !== 'RANKED') {
-      return null;
-    }
+    return this.runSerializedMatchMutation(matchId, async () => {
+      const match = this.matches.get(matchId);
+      if (!match || match.originKind !== 'RANKED') {
+        return null;
+      }
 
-    match.rankedForfeitCause = cause;
+      match.rankedForfeitCause = cause;
+      try {
+        const result = await this.executeCommandUnserialized(matchId, userId, command);
+        if (!result?.success && match.rankedForfeitCause === cause) {
+          match.rankedForfeitCause = null;
+        }
+        return result;
+      } catch (error) {
+        if (!this.isMatchCompleted(matchId) && match.rankedForfeitCause === cause) {
+          match.rankedForfeitCause = null;
+        }
+        throw error;
+      }
+    });
+  }
+
+  private async runSerializedMatchMutation<T>(
+    matchId: string,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    const previousTail = this.matchMutationQueueTails.get(matchId) ?? Promise.resolve();
+    let releaseCurrent!: () => void;
+    const currentGate = new Promise<void>((resolve) => {
+      releaseCurrent = resolve;
+    });
+    const currentTail = previousTail.catch(() => undefined).then(() => currentGate);
+    this.matchMutationQueueTails.set(matchId, currentTail);
+
+    await previousTail.catch(() => undefined);
     try {
-      const result = await this.executeCommand(matchId, userId, command);
-      if (!result?.success && match.rankedForfeitCause === cause) {
-        match.rankedForfeitCause = null;
+      return await operation();
+    } finally {
+      releaseCurrent();
+      if (this.matchMutationQueueTails.get(matchId) === currentTail) {
+        this.matchMutationQueueTails.delete(matchId);
       }
-      return result;
-    } catch (error) {
-      if (!this.isMatchCompleted(matchId) && match.rankedForfeitCause === cause) {
-        match.rankedForfeitCause = null;
-      }
-      throw error;
     }
   }
 
   async advancePhase(matchId: string, userId: string): Promise<OnlineCommandResult | null> {
+    return this.runSerializedMatchMutation(matchId, () =>
+      this.advancePhaseUnserialized(matchId, userId)
+    );
+  }
+
+  private async advancePhaseUnserialized(
+    matchId: string,
+    userId: string
+  ): Promise<OnlineCommandResult | null> {
     const match = this.matches.get(matchId);
     if (!match) {
       return null;
@@ -1582,7 +1671,7 @@ export class OnlineMatchService {
       state.currentPhase === GamePhase.MAIN_PHASE && state.currentSubPhase === SubPhase.NONE
         ? createEndPhaseCommand(participant.playerId)
         : createConfirmStepCommand(participant.playerId, state.currentSubPhase);
-    return this.executeCommand(matchId, userId, command);
+    return this.executeCommandUnserialized(matchId, userId, command);
   }
 
   private getPhaseCompletionGateError(
@@ -1722,6 +1811,16 @@ export class OnlineMatchService {
     userId: string,
     input: RemoteUndoInput
   ): Promise<OnlineCommandResult | null> {
+    return this.runSerializedMatchMutation(matchId, () =>
+      this.undoLatestUnserialized(matchId, userId, input)
+    );
+  }
+
+  private async undoLatestUnserialized(
+    matchId: string,
+    userId: string,
+    input: RemoteUndoInput
+  ): Promise<OnlineCommandResult | null> {
     const match = this.matches.get(matchId);
     if (!match) {
       return null;
@@ -1822,6 +1921,16 @@ export class OnlineMatchService {
   }
 
   async createUndoRequest(
+    matchId: string,
+    userId: string,
+    input: CreateUndoRequestInput
+  ): Promise<OnlineCommandResult | null> {
+    return this.runSerializedMatchMutation(matchId, () =>
+      this.createUndoRequestUnserialized(matchId, userId, input)
+    );
+  }
+
+  private async createUndoRequestUnserialized(
     matchId: string,
     userId: string,
     input: CreateUndoRequestInput
@@ -1937,6 +2046,17 @@ export class OnlineMatchService {
   }
 
   async acceptUndoRequest(
+    matchId: string,
+    userId: string,
+    requestId: string,
+    input: RespondUndoRequestInput
+  ): Promise<OnlineCommandResult | null> {
+    return this.runSerializedMatchMutation(matchId, () =>
+      this.acceptUndoRequestUnserialized(matchId, userId, requestId, input)
+    );
+  }
+
+  private async acceptUndoRequestUnserialized(
     matchId: string,
     userId: string,
     requestId: string,
@@ -2078,6 +2198,17 @@ export class OnlineMatchService {
     requestId: string,
     input: RespondUndoRequestInput
   ): Promise<OnlineCommandResult | null> {
+    return this.runSerializedMatchMutation(matchId, () =>
+      this.rejectUndoRequestUnserialized(matchId, userId, requestId, input)
+    );
+  }
+
+  private async rejectUndoRequestUnserialized(
+    matchId: string,
+    userId: string,
+    requestId: string,
+    input: RespondUndoRequestInput
+  ): Promise<OnlineCommandResult | null> {
     const match = this.matches.get(matchId);
     if (!match) {
       return null;
@@ -2145,6 +2276,16 @@ export class OnlineMatchService {
   }
 
   async changeManualOperationMode(
+    matchId: string,
+    userId: string,
+    input: ChangeManualOperationModeInput
+  ): Promise<OnlineCommandResult | null> {
+    return this.runSerializedMatchMutation(matchId, () =>
+      this.changeManualOperationModeUnserialized(matchId, userId, input)
+    );
+  }
+
+  private async changeManualOperationModeUnserialized(
     matchId: string,
     userId: string,
     input: ChangeManualOperationModeInput
@@ -2283,6 +2424,17 @@ export class OnlineMatchService {
     requestId: string,
     input: RespondManualOperationModeRequestInput
   ): Promise<OnlineCommandResult | null> {
+    return this.runSerializedMatchMutation(matchId, () =>
+      this.acceptManualOperationModeRequestUnserialized(matchId, userId, requestId, input)
+    );
+  }
+
+  private async acceptManualOperationModeRequestUnserialized(
+    matchId: string,
+    userId: string,
+    requestId: string,
+    input: RespondManualOperationModeRequestInput
+  ): Promise<OnlineCommandResult | null> {
     const match = this.matches.get(matchId);
     if (!match) {
       return null;
@@ -2356,7 +2508,9 @@ export class OnlineMatchService {
     requestId: string,
     input: RespondManualOperationModeRequestInput
   ): Promise<OnlineCommandResult | null> {
-    return this.settleManualOperationModeRequest(matchId, userId, requestId, input, 'REJECT');
+    return this.runSerializedMatchMutation(matchId, () =>
+      this.settleManualOperationModeRequest(matchId, userId, requestId, input, 'REJECT')
+    );
   }
 
   async cancelManualOperationModeRequest(
@@ -2365,7 +2519,9 @@ export class OnlineMatchService {
     requestId: string,
     input: RespondManualOperationModeRequestInput
   ): Promise<OnlineCommandResult | null> {
-    return this.settleManualOperationModeRequest(matchId, userId, requestId, input, 'CANCEL');
+    return this.runSerializedMatchMutation(matchId, () =>
+      this.settleManualOperationModeRequest(matchId, userId, requestId, input, 'CANCEL')
+    );
   }
 
   private async settleManualOperationModeRequest(
@@ -2439,6 +2595,15 @@ export class OnlineMatchService {
   }
 
   async deleteMatch(matchId: string, options: DeleteOnlineMatchOptions = {}): Promise<boolean> {
+    return this.runSerializedMatchMutation(matchId, () =>
+      this.deleteMatchUnserialized(matchId, options)
+    );
+  }
+
+  private async deleteMatchUnserialized(
+    matchId: string,
+    options: DeleteOnlineMatchOptions
+  ): Promise<boolean> {
     const match = this.matches.get(matchId);
     if (!match) {
       return true;
@@ -2671,6 +2836,8 @@ export class OnlineMatchService {
     this.spectatorRequestWindows.clear();
     this.sealedMatchIds.clear();
     this.partialRecordMatchIds.clear();
+    this.matchMutationQueueTails.clear();
+    this.sealMatchPromises.clear();
   }
 
   private requireActiveSpectatorLink(
@@ -3032,6 +3199,36 @@ export class OnlineMatchService {
   }
 
   private async sealMatchRecord(
+    match: OnlineMatchState,
+    input: {
+      readonly status: Exclude<MatchRecordStatus, 'IN_PROGRESS'>;
+      readonly completeness: MatchRecordCompleteness;
+      readonly endReason: string;
+      readonly now: number;
+      readonly authorityState: GameState | null;
+    }
+  ): Promise<boolean> {
+    if (!this.recorder || this.sealedMatchIds.has(match.matchId)) {
+      return true;
+    }
+
+    const existingSeal = this.sealMatchPromises.get(match.matchId);
+    if (existingSeal) {
+      return existingSeal;
+    }
+
+    const sealPromise = this.performSealMatchRecord(match, input);
+    this.sealMatchPromises.set(match.matchId, sealPromise);
+    try {
+      return await sealPromise;
+    } finally {
+      if (this.sealMatchPromises.get(match.matchId) === sealPromise) {
+        this.sealMatchPromises.delete(match.matchId);
+      }
+    }
+  }
+
+  private async performSealMatchRecord(
     match: OnlineMatchState,
     input: {
       readonly status: Exclude<MatchRecordStatus, 'IN_PROGRESS'>;

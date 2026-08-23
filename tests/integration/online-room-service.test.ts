@@ -33,7 +33,10 @@ import {
 import { pool } from '../../src/server/db/pool';
 import { rankedRatingService } from '../../src/server/services/ranked-rating-service';
 import { recoverNoFaultThemeOpeningPlayers } from '../../src/server/services/theme-table-recovery-service';
-import type { MatchRecorderService } from '../../src/server/services/match-recorder-service';
+import type {
+  AppendMatchRecordFrameInput,
+  MatchRecorderService,
+} from '../../src/server/services/match-recorder-service';
 import { toDeckPointTableRules } from '../../src/domain/rules/deck-point-table';
 
 const TEST_POINT_TABLE = toDeckPointTableRules({
@@ -1996,7 +1999,7 @@ describe('OnlineRoomService', () => {
     let initialDeckCount = 0;
     let acceptedFrameObserved = false;
     const recorder = createTestRecorder({
-      appendMatchRecordFrame: vi.fn(async (input) => {
+      appendMatchRecordFrame: vi.fn(async (input: AppendMatchRecordFrameInput) => {
         if (input.frameType === 'UNDO_ACCEPTED') {
           acceptedFrameObserved = true;
           expect(match?.pendingUndoRequest).toBeNull();
@@ -2765,6 +2768,334 @@ describe('OnlineRoomService', () => {
         endReason: GameEndReason.OPPONENT_SURRENDER,
       })
     );
+  });
+
+  it('同一对局的命令应串行落盘，避免相邻命令共用终局事件并重复封存', async () => {
+    let notifyFirstAppendStarted!: () => void;
+    const firstAppendStarted = new Promise<void>((resolve) => {
+      notifyFirstAppendStarted = resolve;
+    });
+    let releaseFirstAppend!: () => void;
+    const firstAppendGate = new Promise<void>((resolve) => {
+      releaseFirstAppend = resolve;
+    });
+    let appendCallCount = 0;
+    const recorder = createTestRecorder({
+      appendMatchRecordFrame: vi.fn(async (input: AppendMatchRecordFrameInput) => {
+        appendCallCount += 1;
+        if (appendCallCount === 1) {
+          notifyFirstAppendStarted();
+          await firstAppendGate;
+        }
+        return {
+          matchId: input.matchId,
+          timelineSeq: appendCallCount + 1,
+          checkpointSeq: input.writeAuthorityCheckpoint === false ? null : appendCallCount + 1,
+          payloadHash:
+            input.writeAuthorityCheckpoint === false ? null : `sha256:test-${appendCallCount}`,
+        };
+      }),
+    });
+    const matchService = new OnlineMatchService({ recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'SERIAL1',
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+    });
+    forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
+
+    const drawPromise = matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createDrawCardToHandCommand('ignored-client-player-id')
+    );
+    await firstAppendStarted;
+    const surrenderPromise = matchService.executeCommand(
+      match.matchId,
+      'u2',
+      createSurrenderCommand('ignored-client-player-id')
+    );
+
+    expect(recorder.appendMatchRecordFrame).toHaveBeenCalledTimes(1);
+    expect(match.session.state?.currentPhase).toBe(GamePhase.MAIN_PHASE);
+
+    releaseFirstAppend();
+    const [drawResult, surrenderResult] = await Promise.all([drawPromise, surrenderPromise]);
+
+    expect(drawResult?.success).toBe(true);
+    expect(surrenderResult?.success).toBe(true);
+    expect(recorder.appendMatchRecordFrame).toHaveBeenCalledTimes(2);
+    expect(recorder.sealMatch).toHaveBeenCalledTimes(1);
+    expect(recorder.markPartial).not.toHaveBeenCalled();
+    const appendInputs = vi
+      .mocked(recorder.appendMatchRecordFrame)
+      .mock.calls.map(([input]) => input);
+    expect(
+      appendInputs[0]?.publicEvents?.some(
+        (event) => event.type === 'PlayerDeclared' && event.declarationType === 'SURRENDER'
+      )
+    ).toBe(false);
+    expect(
+      appendInputs[1]?.publicEvents?.some(
+        (event) => event.type === 'PlayerDeclared' && event.declarationType === 'SURRENDER'
+      )
+    ).toBe(true);
+  });
+
+  it('接受撤销落盘期间的投降应等待整个撤销写操作完成', async () => {
+    let notifyUndoAcceptedStarted!: () => void;
+    const undoAcceptedStarted = new Promise<void>((resolve) => {
+      notifyUndoAcceptedStarted = resolve;
+    });
+    let releaseUndoAccepted!: () => void;
+    const undoAcceptedGate = new Promise<void>((resolve) => {
+      releaseUndoAccepted = resolve;
+    });
+    let timelineSeq = 1;
+    const recorder = createTestRecorder({
+      appendMatchRecordFrame: vi.fn(async (input: AppendMatchRecordFrameInput) => {
+        if (input.frameType === 'UNDO_ACCEPTED') {
+          notifyUndoAcceptedStarted();
+          await undoAcceptedGate;
+        }
+        timelineSeq += 1;
+        return {
+          matchId: input.matchId,
+          timelineSeq,
+          checkpointSeq: input.writeAuthorityCheckpoint === false ? null : timelineSeq,
+          payloadHash:
+            input.writeAuthorityCheckpoint === false ? null : `sha256:test-${timelineSeq}`,
+        };
+      }),
+    });
+    const matchService = new OnlineMatchService({ recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'SERUNDO',
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+    });
+    forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
+
+    const commandResult = await matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createDrawCardToHandCommand('ignored-client-player-id')
+    );
+    const undoEntry = commandResult?.snapshot?.playerViewState.match.undo?.entry;
+    expect(commandResult?.success).toBe(true);
+    expect(undoEntry).toBeTruthy();
+
+    const requestResult = await matchService.createUndoRequest(match.matchId, 'u1', {
+      expectedRevision: commandResult!.snapshot!.seq,
+      undoEntryId: undoEntry!.undoEntryId,
+      idempotencyKey: 'serialized-undo-request',
+    });
+    const requestId =
+      requestResult?.snapshot?.playerViewState.match.undo?.pendingRequest?.requestId;
+    expect(requestResult?.success).toBe(true);
+    expect(requestId).toBeTruthy();
+
+    const acceptPromise = matchService.acceptUndoRequest(match.matchId, 'u2', requestId!, {
+      expectedRevision: requestResult!.snapshot!.seq,
+      idempotencyKey: 'serialized-undo-accept',
+    });
+    await undoAcceptedStarted;
+    const surrenderPromise = matchService.executeCommand(
+      match.matchId,
+      'u2',
+      createSurrenderCommand('ignored-client-player-id')
+    );
+
+    expect(match.session.state?.currentPhase).toBe(GamePhase.MAIN_PHASE);
+    expect(
+      vi
+        .mocked(recorder.appendMatchRecordFrame)
+        .mock.calls.some(([input]) =>
+          input.publicEvents?.some(
+            (event) => event.type === 'PlayerDeclared' && event.declarationType === 'SURRENDER'
+          )
+        )
+    ).toBe(false);
+
+    releaseUndoAccepted();
+    const [acceptResult, surrenderResult] = await Promise.all([acceptPromise, surrenderPromise]);
+
+    expect(acceptResult?.success).toBe(true);
+    expect(surrenderResult?.success).toBe(true);
+    const tailFrameTypes = vi
+      .mocked(recorder.appendMatchRecordFrame)
+      .mock.calls.map(([input]) => input.frameType)
+      .slice(-3);
+    expect(tailFrameTypes).toEqual(['UNDO_ACCEPTED', 'UNDO_APPLIED', 'COMMAND_ACCEPTED']);
+    expect(recorder.sealMatch).toHaveBeenCalledTimes(1);
+    expect(recorder.markPartial).not.toHaveBeenCalled();
+  });
+
+  it('投降命令尚未落盘时删除对局应等待终局记录和封存完成', async () => {
+    let notifySurrenderAppendStarted!: () => void;
+    const surrenderAppendStarted = new Promise<void>((resolve) => {
+      notifySurrenderAppendStarted = resolve;
+    });
+    let releaseSurrenderAppend!: () => void;
+    const surrenderAppendGate = new Promise<void>((resolve) => {
+      releaseSurrenderAppend = resolve;
+    });
+    const recorder = createTestRecorder({
+      appendMatchRecordFrame: vi.fn(async (input: AppendMatchRecordFrameInput) => {
+        const containsSurrender = input.publicEvents?.some(
+          (event) => event.type === 'PlayerDeclared' && event.declarationType === 'SURRENDER'
+        );
+        if (containsSurrender) {
+          notifySurrenderAppendStarted();
+          await surrenderAppendGate;
+        }
+        return {
+          matchId: input.matchId,
+          timelineSeq: 2,
+          checkpointSeq: input.writeAuthorityCheckpoint === false ? null : 2,
+          payloadHash: input.writeAuthorityCheckpoint === false ? null : 'sha256:test',
+        };
+      }),
+    });
+    const matchService = new OnlineMatchService({ recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'SERDEL',
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+    });
+
+    const surrenderPromise = matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createSurrenderCommand('ignored-client-player-id')
+    );
+    await surrenderAppendStarted;
+    const deletePromise = matchService.deleteMatch(match.matchId, {
+      reason: 'ROOM_DESTROYED_ALL_ABSENT',
+    });
+
+    expect(recorder.sealMatch).not.toHaveBeenCalled();
+    expect(matchService.getMatch(match.matchId)).toBe(match);
+
+    releaseSurrenderAppend();
+    const [surrenderResult, deleted] = await Promise.all([surrenderPromise, deletePromise]);
+
+    expect(surrenderResult?.success).toBe(true);
+    expect(deleted).toBe(true);
+    expect(recorder.sealMatch).toHaveBeenCalledTimes(1);
+    expect(recorder.sealMatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'SURRENDERED',
+        completeness: 'FULL',
+        endReason: GameEndReason.OPPONENT_SURRENDER,
+      })
+    );
+    expect(recorder.markPartial).not.toHaveBeenCalled();
+    expect(matchService.getMatch(match.matchId)).toBeNull();
+  });
+
+  it('并发封存请求应共用同一个进行中的 recorder 操作', async () => {
+    let notifySealStarted!: () => void;
+    const sealStarted = new Promise<void>((resolve) => {
+      notifySealStarted = resolve;
+    });
+    let releaseSeal!: () => void;
+    const sealGate = new Promise<void>((resolve) => {
+      releaseSeal = resolve;
+    });
+    const recorder = createTestRecorder({
+      sealMatch: vi.fn(async (input) => {
+        notifySealStarted();
+        await sealGate;
+        return {
+          matchId: input.matchId,
+          timelineSeq: 2,
+          status: input.status,
+          completeness: input.completeness ?? 'PARTIAL',
+        };
+      }),
+    });
+    const matchService = new OnlineMatchService({ recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'SEALCO',
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+    });
+    const state = match.session.state as {
+      currentPhase: GamePhase;
+      isEnded: boolean;
+      endInfo: {
+        reason: GameEndReason;
+        winnerId: string | null;
+        loserId: string | null;
+        isDraw: boolean;
+        endTimestamp: number;
+        finalTurnCount: number;
+      };
+      turnCount: number;
+    };
+    state.currentPhase = GamePhase.GAME_END;
+    state.isEnded = true;
+    state.endInfo = {
+      reason: GameEndReason.OPPONENT_SURRENDER,
+      winnerId: match.participants.FIRST.playerId,
+      loserId: match.participants.SECOND.playerId,
+      isDraw: false,
+      endTimestamp: 8_200_000,
+      finalTurnCount: state.turnCount,
+    };
+
+    const firstDelete = matchService.deleteMatch(match.matchId, { reason: 'TEST_DELETE' });
+    await sealStarted;
+    const secondDelete = matchService.deleteMatch(match.matchId, { reason: 'TEST_DELETE' });
+
+    expect(recorder.sealMatch).toHaveBeenCalledTimes(1);
+    releaseSeal();
+    await expect(Promise.all([firstDelete, secondDelete])).resolves.toEqual([true, true]);
+    expect(recorder.sealMatch).toHaveBeenCalledTimes(1);
+    expect(recorder.markPartial).not.toHaveBeenCalled();
   });
 
   it('同一用户重复加入同一房间时应复用原成员槽位', async () => {
