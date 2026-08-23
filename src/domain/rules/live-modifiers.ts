@@ -38,6 +38,7 @@ import { getMemberEffectiveCost } from './member-effective-cost.js';
 import { applyHeartRequirementModifiers } from './live-requirement-modifiers.js';
 import { hasLiveWithoutLiveStartOrSuccessAbility } from './live-zone-ability.js';
 import { sumSuccessfulLiveScore, successLiveScoreAtLeast } from './success-live-score.js';
+import { getOwnedSuccessfulGroupScoreCardIds } from './success-zone-card-queries.js';
 
 type ScoreModifierState = Extract<LiveModifierState, { readonly kind: 'SCORE' }>;
 type HeartModifierState = Extract<LiveModifierState, { readonly kind: 'HEART' }>;
@@ -216,6 +217,8 @@ const PL_BP4_020_CONTINUOUS_SUCCESS_ZONE_CENTER_MUSE_GAIN_BLADE_ABILITY_ID =
   'PL!-bp4-020:continuous-success-zone-center-muse-gain-blade';
 const PL_PB2_004_CONTINUOUS_SUCCESS_MUSE_SCORE_GAIN_BLADE_ABILITY_ID =
   'PL!-pb2-004:continuous-success-muse-score-gain-blade';
+const PL_PB2_005_ON_ENTER_GAIN_MUSE_STAGE_BLADE_AURA_ABILITY_ID =
+  'PL!-pb2-005:on-enter-gain-muse-stage-blade-aura';
 const PL_N_BP4_007_CONTINUOUS_TOTAL_ENERGY_FIFTEEN_GAIN_TWO_RED_HEART_ABILITY_ID =
   'PL!N-bp4-007:continuous-total-energy-fifteen-gain-two-red-heart';
 const PL_N_BP4_012_CONTINUOUS_OPPONENT_SUCCESS_SCORE_SIX_LIVE_SCORE_ABILITY_ID =
@@ -638,7 +641,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       if (!isSourceMainStageMember(game, playerId, sourceCardId)) {
         return [];
       }
-      const scoreMuseCardCount = countSuccessfulMuseCardsWithScoreBladeHeart(game, playerId);
+      const scoreMuseCardCount = getOwnedSuccessfulGroupScoreCardIds(game, playerId, "μ's").length;
       return scoreMuseCardCount > 0
         ? [
             {
@@ -651,6 +654,54 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
             },
           ]
         : [];
+    },
+  },
+  {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    baseCardCodes: ['PL!-pb2-005'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!isSourceMainStageMember(game, playerId, sourceCardId)) {
+        return [];
+      }
+      const auraWasGranted = game.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.target === 'SOURCE_MEMBER' &&
+          modifier.playerId === playerId &&
+          modifier.sourceCardId === sourceCardId &&
+          modifier.abilityId === PL_PB2_005_ON_ENTER_GAIN_MUSE_STAGE_BLADE_AURA_ABILITY_ID &&
+          modifier.countDelta === 1
+      );
+      if (!auraWasGranted) {
+        return [];
+      }
+      const player = getPlayerById(game, playerId);
+      if (!player) {
+        return [];
+      }
+
+      return getAllMemberCardIds(player.memberSlots).flatMap((targetMemberCardId) => {
+        if (targetMemberCardId === sourceCardId) {
+          return [];
+        }
+        const targetMember = getCardById(game, targetMemberCardId);
+        if (
+          !targetMember ||
+          targetMember.ownerId !== playerId ||
+          !isMemberCardData(targetMember.data) ||
+          !cardBelongsToGroup(targetMember.data, "μ's")
+        ) {
+          return [];
+        }
+        const modifier = createBladeLiveModifierForTargetMember(game, {
+          playerId,
+          targetMemberCardId,
+          sourceCardId,
+          abilityId: PL_PB2_005_ON_ENTER_GAIN_MUSE_STAGE_BLADE_AURA_ABILITY_ID,
+          countDelta: 1,
+        });
+        return modifier ? [modifier] : [];
+      });
     },
   },
   {
@@ -2158,24 +2209,6 @@ function countTotalSuccessLiveCards(game: GameState, playerId: string): number {
   const player = game.players.find((candidate) => candidate.id === playerId);
   const opponent = game.players.find((candidate) => candidate.id !== playerId);
   return (player?.successZone.cardIds.length ?? 0) + (opponent?.successZone.cardIds.length ?? 0);
-}
-
-function countSuccessfulMuseCardsWithScoreBladeHeart(game: GameState, playerId: string): number {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return 0;
-  }
-  return player.successZone.cardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return (
-      card !== null &&
-      card.ownerId === player.id &&
-      cardBelongsToGroup(card.data, "μ's") &&
-      (card.data as { readonly bladeHearts?: readonly BladeHeartItem[] }).bladeHearts?.some(
-        (bladeHeart) => bladeHeart.effect === BladeHeartEffect.SCORE
-      ) === true
-    );
-  }).length;
 }
 
 function hasLiellaLiveWithRequirementTotalAtLeast(

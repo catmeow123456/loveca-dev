@@ -500,6 +500,7 @@ import { registerPlPb2000RinHanayoWorkflowHandlers } from './card-effects/workfl
 import { registerPlPb2001HonokaWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-001-honoka.js';
 import { registerPlPb2003KotoriWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-003-kotori.js';
 import { registerPlPb2004UmiWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-004-umi.js';
+import { registerPlPb2005RinWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-005-rin.js';
 import { registerPlPb2006MakiWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-006-maki.js';
 import { registerPlPb2039BokutachiWaHitotsuNoHikariWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-039-bokutachi-wa-hitotsu-no-hikari.js';
 import { registerPlBp8005RinWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-005-rin.js';
@@ -1343,6 +1344,7 @@ registerPlPb2000RinHanayoWorkflowHandlers();
 registerPlPb2001HonokaWorkflowHandlers();
 registerPlPb2003KotoriWorkflowHandlers();
 registerPlPb2004UmiWorkflowHandlers();
+registerPlPb2005RinWorkflowHandlers();
 registerPlPb2006MakiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb2039BokutachiWaHitotsuNoHikariWorkflowHandlers();
 registerPlBp8005RinWorkflowHandlers({ enqueueTriggeredCardEffects });

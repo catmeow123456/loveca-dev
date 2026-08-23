@@ -113,9 +113,11 @@ import {
   PL_PB2_002_CONTINUOUS_FACING_LOW_ORIGINAL_HEART_MEMBER_ENTERS_WAITING_ABILITY_ID,
   PL_PB2_004_AUTO_ON_CHEER_MUSE_SCORE_ADDITIONAL_CHEER_ABILITY_ID,
   PL_PB2_004_CONTINUOUS_SUCCESS_MUSE_SCORE_GAIN_BLADE_ABILITY_ID,
+  PL_PB2_005_ON_ENTER_GAIN_MUSE_STAGE_BLADE_AURA_ABILITY_ID,
   PL_PB2_006_ACTIVATED_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID,
   PL_PB2_006_LIVE_START_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID,
   PL_PB2_007_ACTIVATED_SELF_SACRIFICE_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
+  PL_PB2_008_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_MUSE_LIVE_ABILITY_ID,
   PL_PB2_009_AUTO_RELAY_REPLACED_BY_HIGH_COST_MUSE_ACTIVATE_ENERGY_ABILITY_ID,
   PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID,
   PL_BP3_009_ON_ENTER_COST_THIRTEEN_DRAW_ONE_ABILITY_ID,
@@ -4512,6 +4514,23 @@ describe('card effect classification registry', () => {
       expect(definitions.every((definition) => definition.cardCodes === undefined)).toBe(true);
     }
 
+    for (const cardCode of ['PL!-pb2-005-PP', 'PL!-pb2-005-R', 'PL!-pb2-005-UNSEEN']) {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([
+        expect.objectContaining({
+          abilityId: PL_PB2_005_ON_ENTER_GAIN_MUSE_STAGE_BLADE_AURA_ABILITY_ID,
+          baseCardCodes: ['PL!-pb2-005'],
+          category: CardAbilityCategory.ON_ENTER,
+          sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+          triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+          queued: true,
+          implemented: true,
+          effectText:
+            '【登场】自己的成功LIVE卡区存在持有[スコア]的『μ’s』的卡片的场合，LIVE结束时为止，获得『【常时】存在于自己的舞台的『μ’s』的成员，获得[ブレード]。』。',
+        }),
+      ]);
+      expect(getCardAbilityDefinitions(cardCode)[0]?.cardCodes).toBeUndefined();
+    }
+
     for (const cardCode of ['PL!-pb2-006-PP', 'PL!-pb2-006-R', 'PL!-pb2-006-UNSEEN']) {
       const definitions = getCardAbilityDefinitions(cardCode);
       expect(definitions).toEqual(
@@ -4558,6 +4577,30 @@ describe('card effect classification registry', () => {
         implemented: true,
       });
       expect(nozomiActivated?.cardCodes).toBeUndefined();
+    }
+
+    for (const cardCode of ['PL!-pb2-008-PP', 'PL!-pb2-008-R', 'PL!-pb2-008-UNSEEN']) {
+      const hanayoOnEnter = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          PL_PB2_008_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_MUSE_LIVE_ABILITY_ID
+      );
+      expect(hanayoOnEnter).toMatchObject({
+        abilityId: PL_PB2_008_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_MUSE_LIVE_ABILITY_ID,
+        baseCardCodes: ['PL!-pb2-008'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【登场】可以将此成员变为待机状态：检视自己的卡组顶的4张卡片。可以将其中的1张需求HEART的合计大于等于8的『μ’s』的LIVE卡公开并加入手牌。其余的放置入休息室。',
+        delegatedOnEnterFromWaitingRoomPolicy: {
+          decision: 'DENY',
+          reason: 'SOURCE_MEMBER_COST_UNPAYABLE',
+        },
+      });
+      expect(hanayoOnEnter?.cardCodes).toBeUndefined();
     }
 
     for (const cardCode of ['PL!-pb2-009-PP', 'PL!-pb2-009-R', 'PL!-pb2-009-UNSEEN']) {

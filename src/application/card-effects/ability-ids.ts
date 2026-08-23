@@ -1761,12 +1761,16 @@ export const PL_PB2_004_CONTINUOUS_SUCCESS_MUSE_SCORE_GAIN_BLADE_ABILITY_ID =
   'PL!-pb2-004:continuous-success-muse-score-gain-blade';
 export const PL_PB2_004_AUTO_ON_CHEER_MUSE_SCORE_ADDITIONAL_CHEER_ABILITY_ID =
   'PL!-pb2-004:auto-on-cheer-muse-score-additional-cheer';
+export const PL_PB2_005_ON_ENTER_GAIN_MUSE_STAGE_BLADE_AURA_ABILITY_ID =
+  'PL!-pb2-005:on-enter-gain-muse-stage-blade-aura';
 export const PL_PB2_006_ACTIVATED_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID =
   'PL!-pb2-006:activated-wait-self-discard-wait-low-original-heart-opponent';
 export const PL_PB2_006_LIVE_START_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID =
   'PL!-pb2-006:live-start-wait-self-discard-wait-low-original-heart-opponent';
 export const PL_PB2_007_ACTIVATED_SELF_SACRIFICE_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID =
   'PL!-pb2-007:activated-self-sacrifice-recover-muse-live-activate-energy';
+export const PL_PB2_008_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_MUSE_LIVE_ABILITY_ID =
+  'PL!-pb2-008:on-enter-wait-look-top-four-take-high-requirement-muse-live';
 export const PL_PB2_009_AUTO_RELAY_REPLACED_BY_HIGH_COST_MUSE_ACTIVATE_ENERGY_ABILITY_ID =
   'PL!-pb2-009:auto-relay-replaced-by-high-cost-muse-activate-energy';
 export const PL_PB2_039_LIVE_START_SUCCESS_MUSE_TWO_CHEER_TEN_ABILITY_ID =

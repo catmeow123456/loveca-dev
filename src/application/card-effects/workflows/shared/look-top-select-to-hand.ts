@@ -25,6 +25,7 @@ import {
   PL_N_PB1_024_ON_ENTER_LOOK_TOP_TWO_LANZHU_MEMBER_ABILITY_ID,
   N_SD1_001_ON_ENTER_LOOK_TOP_NIJIGASAKI_LIVE_ABILITY_ID,
   N_SD2_009_ON_ENTER_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID,
+  PL_PB2_008_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_MUSE_LIVE_ABILITY_ID,
   S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID,
   S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID,
   SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID,
@@ -178,6 +179,9 @@ const SP_BP4_002_OPTION_STEP_ID = 'SP_BP4_002_WAIT_OPTION';
 const SP_BP4_002_SELECT_LIELLA_LIVE_STEP_ID = 'SP_BP4_002_SELECT_HIGH_REQUIREMENT_LIELLA_LIVE';
 const SP_BP4_002_REVEAL_LIELLA_LIVE_STEP_ID =
   'SP_BP4_002_REVEAL_SELECTED_HIGH_REQUIREMENT_LIELLA_LIVE';
+const PL_PB2_008_OPTION_STEP_ID = 'PL_PB2_008_WAIT_OPTION';
+const PL_PB2_008_SELECT_MUSE_LIVE_STEP_ID = 'PL_PB2_008_SELECT_HIGH_REQUIREMENT_MUSE_LIVE';
+const PL_PB2_008_REVEAL_MUSE_LIVE_STEP_ID = 'PL_PB2_008_REVEAL_SELECTED_HIGH_REQUIREMENT_MUSE_LIVE';
 const N_PB1_016_SELECT_KARIN_MEMBER_STEP_ID = 'N_PB1_016_SELECT_KARIN_MEMBER_FROM_TOP_TWO';
 const N_PB1_016_REVEAL_KARIN_MEMBER_STEP_ID = 'N_PB1_016_REVEAL_SELECTED_KARIN_MEMBER';
 const N_PB1_018_SELECT_KANATA_MEMBER_STEP_ID = 'N_PB1_018_SELECT_KANATA_MEMBER_FROM_TOP_TWO';
@@ -351,6 +355,33 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
     skipSelectionLabel: '不加入',
     revealStepText: '选择的LIVE卡已公开。确认后加入手牌，其余卡片放置入休息室。',
     revealActionStep: 'REVEAL_SELECTED_HIGH_REQUIREMENT_LIELLA_LIVE',
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 4,
+      sourceOrientationCost: 'WAITING',
+    },
+  },
+  {
+    abilityId: PL_PB2_008_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_MUSE_LIVE_ABILITY_ID,
+    topCount: 4,
+    selector: and(typeIs(CardType.LIVE), groupAliasIs("μ's"), liveTotalRequiredHeartGte(8)),
+    countRule: { minCount: 0, maxCount: 1 },
+    revealSelectedBeforeHand: true,
+    optionStepId: PL_PB2_008_OPTION_STEP_ID,
+    optionalSourceOrientationCost: 'WAITING',
+    selectStepId: PL_PB2_008_SELECT_MUSE_LIVE_STEP_ID,
+    revealStepId: PL_PB2_008_REVEAL_MUSE_LIVE_STEP_ID,
+    selectStepText: '请选择要公开并加入手牌的必要Heart合计大于等于8的『μ’s』LIVE卡。',
+    noTargetStepText:
+      '没有可公开并加入手牌的必要Heart合计大于等于8的『μ’s』LIVE卡。确认后将全部检视牌放置入休息室。',
+    selectionLabel: '选择要公开并加入手牌的『μ’s』LIVE卡',
+    confirmSelectionLabel: '公开并加入手牌',
+    skipSelectionLabel: '全部放置入休息室',
+    revealStepText: '已公开选择的LIVE卡。展示结束后加入手牌，其余检视牌放置入休息室。',
+    revealActionStep: 'REVEAL_SELECTED_HIGH_REQUIREMENT_MUSE_LIVE',
+    includeInspectedCardIdsInFinishAction: true,
     publicEffectSummaryContext: {
       effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
       sourceActionLabel: '登场',
@@ -646,7 +677,7 @@ function startOptionalSourceOrientationLookTopWorkflow(
   const canPay =
     config.optionalSourceOrientationCost === 'WAITING' &&
     sourceSlot !== null &&
-    sourceState?.orientation !== OrientationState.WAITING;
+    sourceState?.orientation === OrientationState.ACTIVE;
   const optionStepId = config.optionStepId;
   if (!player || !optionStepId) {
     return game;
@@ -663,15 +694,12 @@ function startOptionalSourceOrientationLookTopWorkflow(
       effectText: config.effectText,
       stepId: optionStepId,
       stepText: canPay
-        ? '可以将此成员变为待机状态：检视卡组顶4张。'
+        ? '可以将此成员变为待机状态以发动此能力。'
         : '当前无法支付“将此成员变为待机状态”的费用，可以不发动。',
       awaitingPlayerId: player.id,
-      selectableOptions: canPay
-        ? [
-            { id: 'activate', label: '发动' },
-            { id: 'decline', label: '不发动' },
-          ]
-        : [{ id: 'decline', label: '不发动' }],
+      selectableOptions: canPay ? [{ id: 'activate', label: '发动' }] : [],
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
       metadata: {
         orderedResolution,
       },
@@ -705,8 +733,11 @@ function finishOptionalSourceOrientationLookTopWorkflow(
   }
 
   const sourceSlot = findMemberSlot(player, effect.sourceCardId);
-  if (!sourceSlot) {
-    return game;
+  const sourceOrientation = player.memberSlots.cardStates.get(effect.sourceCardId)?.orientation;
+  if (sourceSlot === null || sourceOrientation !== OrientationState.ACTIVE) {
+    return finishSkippedActiveEffect(game, options.continuePendingCardEffects, {
+      step: 'SOURCE_NOT_ACTIVE_OWN_STAGE_MEMBER_AFTER_SELECTION',
+    });
   }
   const waitResult = setMemberOrientation(
     game,
@@ -718,10 +749,13 @@ function finishOptionalSourceOrientationLookTopWorkflow(
       playerId: player.id,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
     }
   );
-  if (!waitResult || waitResult.previousOrientation === OrientationState.WAITING) {
-    return game;
+  if (!waitResult || waitResult.previousOrientation !== OrientationState.ACTIVE) {
+    return finishSkippedActiveEffect(game, options.continuePendingCardEffects, {
+      step: 'SOURCE_ORIENTATION_COST_NOT_PAID',
+    });
   }
 
   const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(

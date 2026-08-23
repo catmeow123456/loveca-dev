@@ -72,9 +72,11 @@ import {
   PL_PB2_003_LIVE_START_SUPPRESS_OPPONENT_MEMBER_LIVE_SUCCESS_GAIN_YELLOW_HEART_ABILITY_ID,
   PL_PB2_004_AUTO_ON_CHEER_MUSE_SCORE_ADDITIONAL_CHEER_ABILITY_ID,
   PL_PB2_004_CONTINUOUS_SUCCESS_MUSE_SCORE_GAIN_BLADE_ABILITY_ID,
+  PL_PB2_005_ON_ENTER_GAIN_MUSE_STAGE_BLADE_AURA_ABILITY_ID,
   PL_PB2_006_ACTIVATED_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID,
   PL_PB2_006_LIVE_START_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID,
   PL_PB2_007_ACTIVATED_SELF_SACRIFICE_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
+  PL_PB2_008_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_MUSE_LIVE_ABILITY_ID,
   PL_PB2_009_AUTO_RELAY_REPLACED_BY_HIGH_COST_MUSE_ACTIVATE_ENERGY_ABILITY_ID,
   PL_PB2_039_LIVE_START_SUCCESS_MUSE_TWO_CHEER_TEN_ABILITY_ID,
   PL_PB2_039_LIVE_SUCCESS_DISTINCT_MUSE_STAGE_CHEER_SCORE_ABILITY_ID,
@@ -1582,6 +1584,8 @@ const PL_PB2_006_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】将此成员变为待机状态，将1张手牌放置入休息室：将存在于对方的舞台的1名原本持有的HEART的数量小于等于1的成员变为待机状态。';
 const PL_PB2_007_ACTIVATED_EFFECT_TEXT =
   '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张『μ’s』的LIVE卡加入手牌。此后，存在于自己的成功LIVE卡区的『μ’s』的卡片每有1张，将1张能量变为活跃状态。';
+const PL_PB2_008_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将此成员变为待机状态：检视自己的卡组顶的4张卡片。可以将其中的1张需求HEART的合计大于等于8的『μ’s』的LIVE卡公开并加入手牌。其余的放置入休息室。';
 const SP_BP4_021_CONTINUOUS_MORE_ENERGY_GAIN_PURPLE_HEART_EFFECT_TEXT =
   '【常时】只要自己的能量多于对方，获得[紫ハート]。';
 const SP_BP4_028_LIVE_START_ACTIVE_ENERGY_SCORE_EFFECT_TEXT =
@@ -14348,6 +14352,19 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '单卡 ON_CHEER workflow `pl-pb2-004-umi.ts`；只读 pending eventIds 对应的自己非 additional CheerEvent.revealedCardIds 历史事实，按自己持有的结构化 μ’s 且印刷 SCORE BLADE HEART 卡片计数，通过标准 additional cheer 入口追加等量声援。0匹配也消费本次 turn1；来源失效或非自己普通声援安全消费 pending 但不记录使用。单个或手动选择的 pending 先显示实时计数确认，ordered batch 自动结算。',
   },
   {
+    abilityId: PL_PB2_005_ON_ENTER_GAIN_MUSE_STAGE_BLADE_AURA_ABILITY_ID,
+    baseCardCodes: ['PL!-pb2-005'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【登场】自己的成功LIVE卡区存在持有[スコア]的『μ’s』的卡片的场合，LIVE结束时为止，获得『【常时】存在于自己的舞台的『μ’s』的成员，获得[ブレード]。』。',
+    notes:
+      '单卡 ON_ENTER workflow `pl-pb2-005-rin.ts`；结算时一次性检查自己成功区中自己持有的结构化 μ’s 且印刷 BLADE HEART 含 SCORE 的卡片。满足时写入来源自身的 SOURCE_MEMBER BLADE +1，continuous registry 以该真实 modifier 为已获 aura 事实，动态向其他己方顶层 μ’s 成员投影 TARGET_MEMBER BLADE +1。来源待机仍有效，来源离场或 LIVE 结束后失效，后续登场的符合成员也受益。条件查询与 004 共用 domain success-zone query。',
+  },
+  {
     abilityId: PL_PB2_006_ACTIVATED_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID,
     baseCardCodes: ['PL!-pb2-006'],
     category: CardAbilityCategory.ACTIVATED,
@@ -14392,6 +14409,22 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     },
     notes:
       '扩展 shared `self-sacrifice-waiting-room-to-hand.ts`；自送成本先经离场事件 wrapper 支付，再从当前休息室强制公开回收1张结构化 μ’s LIVE。无回收目标也保留费用，并按自己成功区中自己持有的结构化 μ’s 卡片数复用通用能量选择/活跃底座。',
+  },
+  {
+    abilityId: PL_PB2_008_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_MUSE_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!-pb2-008'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB2_008_ON_ENTER_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'DENY',
+      reason: 'SOURCE_MEMBER_COST_UNPAYABLE',
+    },
+    notes:
+      '扩展 shared `look-top-select-to-hand.ts` 的可选来源 WAITING 费用 family；支付后检视顶4张，可公开并加入手牌1张必要 Heart 合计>=8的结构化 μ’s LIVE，其余检视牌通过 inspection-to-waiting wrapper 分组放置入休息室。effectText 对 2026-08-23 DRAFT JSON 中“大于等于8『μ’s』”的疑似漏字窄补“的”。',
   },
   {
     abilityId: PL_PB2_009_AUTO_RELAY_REPLACED_BY_HIGH_COST_MUSE_ACTIVATE_ENERGY_ABILITY_ID,
