@@ -1863,6 +1863,7 @@ export class OnlineRoomService {
               RANKED_DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_MS;
           if (hasIndistinguishableDoubleDisconnect) {
             const presenceSnapshot = capturePresenceSnapshot(overdueMembers);
+            const matchId = room.matchId;
             const voided = await pool.query(
               `UPDATE ranked_matches
                SET rating_status = 'VOIDED',
@@ -1874,19 +1875,30 @@ export class OnlineRoomService {
                WHERE match_id = $1
                  AND rating_status = 'PENDING'
                RETURNING match_id`,
-              [room.matchId, new Date(now)]
+              [matchId, new Date(now)]
             );
             if ((voided.rowCount ?? 0) > 0) {
               if (!isPresenceSnapshotCurrent(room, presenceSnapshot, now, reconnectGracePeriodMs)) {
-                await restorePendingNoContest(room.matchId);
+                await restorePendingNoContest(matchId);
                 continue;
               }
-              const deleted = await this.matchService.deleteMatch(room.matchId, {
+              const deleted = await this.matchService.deleteMatch(matchId, {
                 reason: 'RANKED_BOTH_DISCONNECTED_TIMEOUT',
                 now,
+                validateAtExecution: () =>
+                  this.rooms.get(roomCode) === room &&
+                  room.status === 'IN_GAME' &&
+                  room.matchId === matchId &&
+                  !this.matchService.isMatchCompleted(matchId) &&
+                  isPresenceSnapshotCurrent(
+                    room,
+                    presenceSnapshot,
+                    this.now(),
+                    reconnectGracePeriodMs
+                  ),
               });
               if (!deleted) {
-                await restorePendingNoContest(room.matchId);
+                await restorePendingNoContest(matchId);
               } else {
                 this.matchService.terminateRoomCodeSpectators(
                   room.roomCode,
@@ -1905,7 +1917,7 @@ export class OnlineRoomService {
                   JSON.stringify({
                     scope: 'ranked_match',
                     event: 'RANKED_BOTH_DISCONNECTED_NO_CONTEST',
-                    matchId: room.matchId,
+                    matchId,
                   })
                 );
                 continue;
@@ -1917,6 +1929,7 @@ export class OnlineRoomService {
             : overdueMembers[0];
           if (forfeitingMember) {
             const presenceSnapshot = capturePresenceSnapshot([forfeitingMember]);
+            const matchId = room.matchId;
             const claimed = await pool.query(
               `UPDATE ranked_matches
                SET result_type = 'DISCONNECT_FORFEIT',
@@ -1925,36 +1938,49 @@ export class OnlineRoomService {
                  AND rating_status = 'PENDING'
                  AND result_type IS NULL
                RETURNING match_id`,
-              [room.matchId]
+              [matchId]
             );
             if ((claimed.rowCount ?? 0) === 0) {
               continue;
             }
             if (!isPresenceSnapshotCurrent(room, presenceSnapshot, now, reconnectGracePeriodMs)) {
-              await clearPendingDisconnectForfeit(room.matchId);
+              await clearPendingDisconnectForfeit(matchId);
               continue;
             }
             let result;
             let commandFailed = false;
             try {
               result = await this.matchService.executeRankedForfeitCommand(
-                room.matchId,
+                matchId,
                 forfeitingMember.userId,
                 'DISCONNECT_TIMEOUT',
                 {
                   ...createSurrenderCommand(forfeitingMember.userId),
                   timestamp: now,
-                  idempotencyKey: `ranked-disconnect-forfeit:${room.matchId}:${forfeitingMember.userId}`,
+                  idempotencyKey: `ranked-disconnect-forfeit:${matchId}:${forfeitingMember.userId}`,
+                },
+                {
+                  validateAtExecution: () =>
+                    this.rooms.get(roomCode) === room &&
+                    room.status === 'IN_GAME' &&
+                    room.matchId === matchId &&
+                    !this.matchService.isMatchCompleted(matchId) &&
+                    isPresenceSnapshotCurrent(
+                      room,
+                      presenceSnapshot,
+                      this.now(),
+                      reconnectGracePeriodMs
+                    ),
                 }
               );
             } catch (error) {
               commandFailed = true;
-              await clearPendingDisconnectForfeit(room.matchId);
+              await clearPendingDisconnectForfeit(matchId);
               console.error(
                 JSON.stringify({
                   scope: 'ranked_match',
                   event: 'RANKED_DISCONNECT_FORFEIT_DEFERRED',
-                  matchId: room.matchId,
+                  matchId,
                   forfeitingUserId: forfeitingMember.userId,
                   message: readErrorMessage(error),
                 })
@@ -1967,12 +1993,12 @@ export class OnlineRoomService {
                 JSON.stringify({
                   scope: 'ranked_match',
                   event: 'RANKED_DISCONNECT_FORFEIT',
-                  matchId: room.matchId,
+                  matchId,
                   forfeitingUserId: forfeitingMember.userId,
                 })
               );
             } else if (!commandFailed) {
-              await clearPendingDisconnectForfeit(room.matchId);
+              await clearPendingDisconnectForfeit(matchId);
             }
           }
           if (
@@ -2077,21 +2103,7 @@ export class OnlineRoomService {
     }
 
     const adjudicatedAt = this.now();
-    if (!this.matchService.isRankedStallTimeoutCandidateCurrent(candidate, adjudicatedAt)) {
-      await clearPendingDisconnectForfeit(matchId);
-      console.info(
-        JSON.stringify({
-          scope: 'ranked_match',
-          event: 'RANKED_STALL_FORFEIT_REVOKED',
-          matchId,
-          responsibleUserId: candidate.userId,
-          waitKey: candidate.waitKey,
-          generation: candidate.generation,
-        })
-      );
-      return false;
-    }
-
+    let revokedAtExecution = false;
     try {
       const result = await this.matchService.executeRankedForfeitCommand(
         matchId,
@@ -2101,8 +2113,32 @@ export class OnlineRoomService {
           ...createSurrenderCommand(candidate.playerId),
           timestamp: adjudicatedAt,
           idempotencyKey: `ranked-stall-forfeit:${matchId}:${candidate.playerId}:${candidate.generation}`,
+        },
+        {
+          validateAtExecution: () => {
+            const current = this.matchService.isRankedStallTimeoutCandidateCurrent(
+              candidate,
+              this.now()
+            );
+            revokedAtExecution = !current;
+            return current;
+          },
         }
       );
+      if (revokedAtExecution) {
+        await clearPendingDisconnectForfeit(matchId);
+        console.info(
+          JSON.stringify({
+            scope: 'ranked_match',
+            event: 'RANKED_STALL_FORFEIT_REVOKED',
+            matchId,
+            responsibleUserId: candidate.userId,
+            waitKey: candidate.waitKey,
+            generation: candidate.generation,
+          })
+        );
+        return false;
+      }
       if (result?.success) {
         console.info(
           JSON.stringify({

@@ -367,6 +367,13 @@ export interface DeleteOnlineMatchOptions {
   readonly reason?: string;
   readonly now?: number;
   readonly preserveRoomCodeSpectators?: boolean;
+  /** 在该删除进入单场串行队列后同步复核；返回 false 时不封存或移除对局。 */
+  readonly validateAtExecution?: () => boolean;
+}
+
+export interface RankedForfeitCommandOptions {
+  /** 在该判负进入单场串行队列后同步复核；返回 false 时不执行认输。 */
+  readonly validateAtExecution?: () => boolean;
 }
 
 export class OnlineMatchServiceError extends Error {
@@ -1581,11 +1588,15 @@ export class OnlineMatchService {
     matchId: string,
     userId: string,
     cause: RankedForfeitCause,
-    command: SurrenderCommand
+    command: SurrenderCommand,
+    options: RankedForfeitCommandOptions = {}
   ): Promise<OnlineCommandResult | null> {
     return this.runSerializedMatchMutation(matchId, async () => {
       const match = this.matches.get(matchId);
       if (!match || match.originKind !== 'RANKED') {
+        return null;
+      }
+      if (options.validateAtExecution && !options.validateAtExecution()) {
         return null;
       }
 
@@ -2607,6 +2618,9 @@ export class OnlineMatchService {
     const match = this.matches.get(matchId);
     if (!match) {
       return true;
+    }
+    if (options.validateAtExecution && !options.validateAtExecution()) {
+      return false;
     }
 
     const sealed = await this.sealMatchForRemoval(
