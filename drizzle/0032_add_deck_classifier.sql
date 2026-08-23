@@ -160,9 +160,9 @@ CREATE TABLE "deck_classifier_releases" (
 --> statement-breakpoint
 CREATE TABLE "deck_classifier_settings" (
 	"id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
-	"display_mode" text DEFAULT 'BOTH' NOT NULL,
-	"show_usage" boolean DEFAULT true NOT NULL,
-	"show_winner" boolean DEFAULT true NOT NULL,
+	"display_mode" text DEFAULT 'HIDDEN' NOT NULL,
+	"show_usage" boolean DEFAULT false NOT NULL,
+	"show_winner" boolean DEFAULT false NOT NULL,
 	"show_top_ranked" boolean DEFAULT false NOT NULL,
 	"card_display_mode" text DEFAULT 'PLAYER_EQUAL' NOT NULL,
 	"card_show_usage" boolean DEFAULT true NOT NULL,

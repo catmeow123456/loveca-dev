@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import type { Pool, PoolClient } from 'pg';
+import {
+  assertRuleConditionsInCatalog,
+  assertTemplateCardsInCatalog,
+  loadDeckClassifierCardCatalog,
+} from '../src/server/services/deck-classifier-card-catalog.js';
 import { readDeckClassifierSeedPackage } from '../src/server/services/deck-classifier-seed-package.js';
 import { stableJsonStringify } from '../src/server/services/replay-payload-serialization.js';
 
@@ -44,6 +49,13 @@ async function main(): Promise<void> {
       [options.actorUserId]
     );
     if (!actor.rows[0]) throw new Error('操作人不存在或不是管理员/赛季管理员');
+    const cardCatalog = await loadDeckClassifierCardCatalog(client);
+    for (const template of seed.templates) {
+      assertTemplateCardsInCatalog(template.cards, cardCatalog, `种子样板“${template.name}”`);
+    }
+    for (const rule of seed.rules) {
+      assertRuleConditionsInCatalog(rule.definition, cardCatalog, `种子规则“${rule.name}”`);
+    }
     const archetypeIds = new Map<string, string>();
     for (const archetype of seed.archetypes) {
       const saved = await client.query<{ id: string }>(

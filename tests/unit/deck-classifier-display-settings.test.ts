@@ -188,4 +188,18 @@ describe('deck classifier live display settings', () => {
       )
     ).toBe(true);
   });
+
+  it('falls back to a fully hidden deck environment if the singleton row is missing', async () => {
+    mocks.query.mockResolvedValue({ rows: [] });
+
+    const result = await new DeckClassifierAdminService().getOverview();
+
+    expect(result).toMatchObject({
+      displayMode: 'HIDDEN',
+      visibleSections: [],
+      cardDisplayMode: 'PLAYER_EQUAL',
+      cardVisibleSections: ['USAGE'],
+      topRankedPlayerCount: 30,
+    });
+  });
 });

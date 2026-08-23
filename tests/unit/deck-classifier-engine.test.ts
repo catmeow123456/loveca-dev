@@ -139,6 +139,23 @@ describe('deck classifier normalization and fingerprint protocol', () => {
       'INVALID_DECK_TOTAL',
     ]);
   });
+
+  it('拒绝同一基础编号超过四张的卡组', () => {
+    const cards = baseDeck();
+    cards[0] = { ...cards[0]!, count: 5 };
+    cards[1] = { ...cards[1]!, count: 3 };
+
+    const result = normalizeDeck(cards);
+
+    expect(result.valid).toBe(false);
+    if (result.valid) return;
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'CARD_COUNT_EXCEEDED',
+        baseCardCode: 'BASE-member-001',
+      })
+    );
+  });
 });
 
 describe('deck classifier precedence and structured rules', () => {
@@ -292,10 +309,10 @@ describe('deck classifier weighted multi-template similarity', () => {
     const archetypeAFirst = replaceCopies(query, 'MEMBER', 'BASE-member-001', 'A-member-tech', 2);
     const archetypeASecond = replaceCopies(query, 'LIVE', 'BASE-live-001', 'A-live-tech', 1);
     const archetypeB = replaceCopies(
-      replaceCopies(query, 'MEMBER', 'BASE-member-002', 'B-member-tech-1', 4),
+      replaceCopies(query, 'MEMBER', 'BASE-member-002', 'B-tech-001', 4),
       'MEMBER',
       'BASE-member-003',
-      'B-member-tech-2',
+      'B-tech-002',
       1
     );
 

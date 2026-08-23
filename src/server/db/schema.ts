@@ -2197,9 +2197,12 @@ export const deckClassifierSettings = pgTable(
   'deck_classifier_settings',
   {
     id: integer('id').primaryKey().default(1),
-    displayMode: text('display_mode').$type<DeckClassifierDisplayMode>().notNull().default('BOTH'),
-    showUsage: boolean('show_usage').notNull().default(true),
-    showWinner: boolean('show_winner').notNull().default(true),
+    displayMode: text('display_mode')
+      .$type<DeckClassifierDisplayMode>()
+      .notNull()
+      .default('HIDDEN'),
+    showUsage: boolean('show_usage').notNull().default(false),
+    showWinner: boolean('show_winner').notNull().default(false),
     showTopRanked: boolean('show_top_ranked').notNull().default(false),
     cardDisplayMode: text('card_display_mode')
       .$type<DeckClassifierDisplayMode>()

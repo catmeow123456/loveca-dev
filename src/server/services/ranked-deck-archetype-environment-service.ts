@@ -48,8 +48,8 @@ interface EffectiveDisplaySettings {
 }
 
 const DEFAULT_DISPLAY_SETTINGS: EffectiveDisplaySettings = {
-  displayMode: 'BOTH',
-  visibleSections: ['USAGE', 'WINNER'],
+  displayMode: 'HIDDEN',
+  visibleSections: [],
   topRankedPlayerCount: 30,
 };
 

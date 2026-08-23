@@ -17,6 +17,11 @@ import type {
 import type { UserRole } from '../../shared/auth/permissions.js';
 import { pool } from '../db/pool.js';
 import {
+  assertRuleConditionsInCatalog,
+  assertTemplateCardsInCatalog,
+  loadDeckClassifierCardCatalog,
+} from './deck-classifier-card-catalog.js';
+import {
   classifyDeck,
   fingerprintNormalizedDeck,
   normalizeDeck,
@@ -302,8 +307,8 @@ export class DeckClassifierAdminService {
     const releaseViews = releases.rows.map(toReleaseView);
     const currentSettings = settings.rows[0];
     return {
-      displayMode: currentSettings?.display_mode ?? 'BOTH',
-      visibleSections: currentSettings ? readVisibleSections(currentSettings) : ['USAGE', 'WINNER'],
+      displayMode: currentSettings?.display_mode ?? 'HIDDEN',
+      visibleSections: currentSettings ? readVisibleSections(currentSettings) : [],
       cardDisplayMode: currentSettings?.card_display_mode ?? 'PLAYER_EQUAL',
       cardVisibleSections: currentSettings ? readCardVisibleSections(currentSettings) : ['USAGE'],
       topRankedPlayerCount: currentSettings?.top_ranked_player_count ?? 30,
@@ -614,6 +619,7 @@ export class DeckClassifierAdminService {
         404
       );
       const cards = readObservationCards(fact.main_deck_cards);
+      await validateTemplateCardsAgainstCatalog(client, cards, `样板“${input.name}”`);
       const inserted = await client.query<TemplateRow>(
         `INSERT INTO deck_archetype_templates (
            archetype_id, name, deck_fingerprint, cards, source_kind, source_match_id,
@@ -690,6 +696,7 @@ export class DeckClassifierAdminService {
         );
       }
       const cards = readObservationCards(fact.main_deck_cards);
+      await validateTemplateCardsAgainstCatalog(client, cards, `样板“${input.name}”`);
       const inserted = await client.query<TemplateRow>(
         `INSERT INTO deck_archetype_templates (
            archetype_id, name, deck_fingerprint, cards, source_kind,
@@ -739,6 +746,7 @@ export class DeckClassifierAdminService {
     return withTransaction(async (client) => {
       await assertAndBumpDraftRevision(client, input.expectedDraftRevision);
       await requireActiveArchetype(client, input.archetypeId);
+      await validateTemplateCardsAgainstCatalog(client, cards, `样板“${input.name}”`);
       const before = await loadTemplateForUpdate(client, templateId);
       const updated = await client.query<TemplateRow>(
         `UPDATE deck_archetype_templates
@@ -794,10 +802,11 @@ export class DeckClassifierAdminService {
     input: DeckClassifierRuleInput,
     operator: DeckClassifierOperator
   ): Promise<DeckClassifierRuleView> {
-    readRuleConditions(input.definition);
+    const conditions = readRuleConditions(input.definition);
     return withTransaction(async (client) => {
       await assertAndBumpDraftRevision(client, input.expectedDraftRevision);
       await requireActiveArchetype(client, input.archetypeId);
+      await validateRuleConditionsAgainstCatalog(client, conditions, `规则“${input.name}”`);
       const inserted = await client.query<RuleRow>(
         `INSERT INTO deck_archetype_rules (
            archetype_id, name, priority, definition, enabled, created_by, updated_by
@@ -830,10 +839,11 @@ export class DeckClassifierAdminService {
     input: DeckClassifierRuleInput,
     operator: DeckClassifierOperator
   ): Promise<DeckClassifierRuleView> {
-    readRuleConditions(input.definition);
+    const conditions = readRuleConditions(input.definition);
     return withTransaction(async (client) => {
       await assertAndBumpDraftRevision(client, input.expectedDraftRevision);
       await requireActiveArchetype(client, input.archetypeId);
+      await validateRuleConditionsAgainstCatalog(client, conditions, `规则“${input.name}”`);
       const before = await loadRuleForUpdate(client, ruleId);
       const updated = await client.query<RuleRow>(
         `UPDATE deck_archetype_rules
@@ -1264,7 +1274,7 @@ async function loadDraftSnapshot(
   client: Pick<PoolClient, 'query'>,
   releaseVersion: number
 ): Promise<StoredDeckClassifierSnapshot> {
-  const [archetypes, templates, rules] = await Promise.all([
+  const [archetypes, templates, rules, cardCatalog] = await Promise.all([
     client.query<DraftArchetypeRow>(
       `SELECT archetype.id, archetype.archetype_key, archetype.name, archetype.group_name,
               archetype.description, archetype.sort_order
@@ -1286,8 +1296,23 @@ async function loadDraftSnapshot(
        WHERE rule.enabled = true AND archetype.lifecycle = 'ACTIVE'
        ORDER BY rule.priority ASC, rule.id ASC`
     ),
+    loadDeckClassifierCardCatalog(client),
   ]);
   try {
+    for (const template of templates.rows) {
+      assertTemplateCardsInCatalog(
+        readTemplateCards(template.cards),
+        cardCatalog,
+        `样板 ${template.id}`
+      );
+    }
+    for (const rule of rules.rows) {
+      assertRuleConditionsInCatalog(
+        readRuleConditions(rule.definition),
+        cardCatalog,
+        `规则 ${rule.id}`
+      );
+    }
     return buildDeckClassifierSnapshot({
       releaseVersion,
       archetypes: archetypes.rows,
@@ -1732,6 +1757,48 @@ function readObservationCards(value: unknown): readonly DeckClassifierTemplateCa
     cardType: card.cardType,
     count: card.count,
   }));
+}
+
+async function validateTemplateCardsAgainstCatalog(
+  client: Pick<PoolClient, 'query'>,
+  cards: readonly DeckClassifierTemplateCardView[],
+  label: string
+): Promise<void> {
+  const normalized = normalizeDeck(cards);
+  if (!normalized.valid) {
+    throw classifierError(
+      'DECK_TEMPLATE_INVALID',
+      normalized.issues.map((issue) => issue.message).join('；'),
+      400
+    );
+  }
+  const catalog = await loadDeckClassifierCardCatalog(client);
+  try {
+    assertTemplateCardsInCatalog(cards, catalog, label);
+  } catch (error) {
+    throw classifierError(
+      'DECK_TEMPLATE_CARD_INVALID',
+      error instanceof Error ? error.message : `${label}包含无效卡号`,
+      400
+    );
+  }
+}
+
+async function validateRuleConditionsAgainstCatalog(
+  client: Pick<PoolClient, 'query'>,
+  conditions: ReturnType<typeof readRuleConditions>,
+  label: string
+): Promise<void> {
+  const catalog = await loadDeckClassifierCardCatalog(client);
+  try {
+    assertRuleConditionsInCatalog(conditions, catalog, label);
+  } catch (error) {
+    throw classifierError(
+      'DECK_RULE_CARD_INVALID',
+      error instanceof Error ? error.message : `${label}包含无效卡号`,
+      400
+    );
+  }
 }
 
 async function writeClassifierAudit(

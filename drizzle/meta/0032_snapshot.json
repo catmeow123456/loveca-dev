@@ -2453,21 +2453,21 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'BOTH'"
+          "default": "'HIDDEN'"
         },
         "show_usage": {
           "name": "show_usage",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
-          "default": true
+          "default": false
         },
         "show_winner": {
           "name": "show_winner",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
-          "default": true
+          "default": false
         },
         "show_top_ranked": {
           "name": "show_top_ranked",

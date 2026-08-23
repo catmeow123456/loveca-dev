@@ -27,8 +27,9 @@ describe('deck classifier migration', () => {
       "VALUES (1, 'HIDDEN', false, false, false, 'PLAYER_EQUAL', true, false, false, 0)"
     );
     expect(sql).toContain("'HIDDEN', 'PLAYER_EQUAL', 'MATCH_EQUAL', 'BOTH'");
-    expect(sql).toContain('"show_usage" boolean DEFAULT true NOT NULL');
-    expect(sql).toContain('"show_winner" boolean DEFAULT true NOT NULL');
+    expect(sql).toContain('"display_mode" text DEFAULT \'HIDDEN\' NOT NULL');
+    expect(sql).toContain('"show_usage" boolean DEFAULT false NOT NULL');
+    expect(sql).toContain('"show_winner" boolean DEFAULT false NOT NULL');
     expect(sql).toContain('"show_top_ranked" boolean DEFAULT false NOT NULL');
     expect(sql).toContain('"top_ranked_player_count" integer DEFAULT 30 NOT NULL');
     expect(sql).toContain('BETWEEN 10 AND 100');

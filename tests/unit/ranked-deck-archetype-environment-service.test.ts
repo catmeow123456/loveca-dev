@@ -277,6 +277,36 @@ describe('RankedDeckArchetypeEnvironmentService', () => {
     expect(queries).toHaveLength(2);
   });
 
+  it('defaults to a fully hidden environment if the settings singleton is missing', async () => {
+    const queries: string[] = [];
+    const client: DeckArchetypeEnvironmentQueryClient = {
+      async query<T>(text: string) {
+        await Promise.resolve();
+        queries.push(text);
+        if (text.includes('SELECT id FROM ranked_seasons')) {
+          return { rows: [{ id: 'season-1' }] as T[] };
+        }
+        if (text.includes('FROM deck_classifier_settings')) {
+          return { rows: [] as T[] };
+        }
+        throw new Error(`missing settings unexpectedly queried: ${text}`);
+      },
+    };
+
+    const result = await new RankedDeckArchetypeEnvironmentService(client).getSeasonEnvironment(
+      'season-1'
+    );
+
+    expect(result).toMatchObject({
+      available: false,
+      displayMode: 'HIDDEN',
+      visibleSections: [],
+      release: null,
+      archetypes: [],
+    });
+    expect(queries).toHaveLength(2);
+  });
+
   it('rejects a published snapshot whose content no longer matches its hash', async () => {
     const snapshot = storedSnapshot();
     const client: DeckArchetypeEnvironmentQueryClient = {

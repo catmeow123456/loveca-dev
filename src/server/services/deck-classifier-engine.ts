@@ -35,6 +35,7 @@ export type DeckValidationIssueCode =
   | 'INVALID_CARD_TYPE'
   | 'INVALID_CARD_COUNT'
   | 'CARD_TYPE_CONFLICT'
+  | 'CARD_COUNT_EXCEEDED'
   | 'INVALID_MEMBER_TOTAL'
   | 'INVALID_LIVE_TOTAL'
   | 'INVALID_DECK_TOTAL';
@@ -255,6 +256,15 @@ export function normalizeDeck(cards: readonly DeckCardInput[]): DeckNormalizatio
 
   const members = toNormalizedEntries(countsByType.MEMBER);
   const lives = toNormalizedEntries(countsByType.LIVE);
+  for (const card of [...members, ...lives]) {
+    if (card.count > 4) {
+      issues.push({
+        code: 'CARD_COUNT_EXCEEDED',
+        message: `基础编号 ${card.baseCardCode} 最多允许 4 张，实际为 ${card.count} 张`,
+        baseCardCode: card.baseCardCode,
+      });
+    }
+  }
   const memberTotal = sumCounts(members);
   const liveTotal = sumCounts(lives);
   const deckTotal = memberTotal + liveTotal;

@@ -23,13 +23,23 @@ const ARCHETYPE_ID = '11111111-1111-4111-8111-111111111111';
 const TEMPLATE_ID = '33333333-3333-4333-8333-333333333333';
 const FINGERPRINT = `sha256:${'a'.repeat(64)}`;
 const CARDS = [
-  { baseCardCode: 'PL!-bp1-001', cardType: 'MEMBER', count: 48 },
-  { baseCardCode: 'PL!-bp1-101', cardType: 'LIVE', count: 12 },
+  ...Array.from({ length: 12 }, (_, index) => ({
+    baseCardCode: `PL!N-bp1-${String(index + 1).padStart(3, '0')}`,
+    cardType: 'MEMBER' as const,
+    count: 4,
+  })),
+  ...Array.from({ length: 3 }, (_, index) => ({
+    baseCardCode: `PL!N-bp1-${String(index + 101).padStart(3, '0')}`,
+    cardType: 'LIVE' as const,
+    count: 4,
+  })),
 ];
+let authoritativeLiveType: 'MEMBER' | 'LIVE';
 
 describe('deck classifier template creation from review queue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authoritativeLiveType = 'LIVE';
     mocks.query.mockImplementation((text: string) => {
       if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') {
         return Promise.resolve({ rows: [] });
@@ -50,6 +60,14 @@ describe('deck classifier template creation from review queue', () => {
       }
       if (text.includes('SELECT id FROM deck_archetype_templates')) {
         return Promise.resolve({ rows: [] });
+      }
+      if (text.includes('SELECT card_code, card_type') && text.includes('FROM cards')) {
+        return Promise.resolve({
+          rows: CARDS.map((card) => ({
+            card_code: `${card.baseCardCode}-P`,
+            card_type: card.cardType === 'LIVE' ? authoritativeLiveType : card.cardType,
+          })),
+        });
       }
       if (text.includes('INSERT INTO deck_archetype_templates')) {
         return Promise.resolve({
@@ -113,5 +131,35 @@ describe('deck classifier template creation from review queue', () => {
       )
     ).toBe(true);
     expect(mocks.release).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a pending observation whose declared type disagrees with the card catalog', async () => {
+    authoritativeLiveType = 'MEMBER';
+
+    await expect(
+      new DeckClassifierAdminService().createTemplateFromReview(
+        {
+          expectedDraftRevision: 4,
+          archetypeId: ARCHETYPE_ID,
+          deckFingerprint: FINGERPRINT,
+          name: '类型错误样板',
+          sourceNote: '',
+          reason: '验证权威卡牌类型',
+        },
+        {
+          actorUserId: '22222222-2222-4222-8222-222222222222',
+          actorRole: 'season_admin',
+          requestId: 'request-review-template-invalid-type',
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'DECK_TEMPLATE_CARD_INVALID',
+      statusCode: 400,
+    });
+    expect(
+      mocks.query.mock.calls.some((call) =>
+        String(call[0]).includes('INSERT INTO deck_archetype_templates')
+      )
+    ).toBe(false);
   });
 });
