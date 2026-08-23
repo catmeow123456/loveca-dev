@@ -721,10 +721,17 @@ export const cards = pgTable(
     index('idx_cards_status').on(table.status),
     check('cards_card_type_check', sql`${table.cardType} IN ('MEMBER', 'LIVE', 'ENERGY')`),
     check(
+      'cards_card_code_format_check',
+      sql`${table.cardCode} ~ '^(PL!|PL!S|PL!N|PL!SP|PL!HS|PL!SIM|LL|IKZL|PYHN)-((sd|bp|cl|pb)[0-9]+|PR|E)-([0-9]{3}|E[0-9]{2,})-(SD|SD2|N|R|R[+]|P|P[+]|AR|CL|L|L[+]|SEC|SEC[+]|SECL|SECE|SECS|PR|PR[+]|PP|DUO|SRL|PE|PE[+]|RE|SRE|RM|LLE)$'`
+    ),
+    check(
       'cards_name_language_check',
       sql`(${table.nameJp} IS NOT NULL AND btrim(${table.nameJp}) <> '') OR (${table.nameCn} IS NOT NULL AND btrim(${table.nameCn}) <> '')`
     ),
     check('cards_status_check', sql`${table.status} IN ('DRAFT', 'PUBLISHED')`),
+    check('cards_cost_non_negative_check', sql`${table.cost} IS NULL OR ${table.cost} >= 0`),
+    check('cards_blade_non_negative_check', sql`${table.blade} IS NULL OR ${table.blade} >= 0`),
+    check('cards_score_non_negative_check', sql`${table.score} IS NULL OR ${table.score} >= 0`),
   ]
 );
 
@@ -749,6 +756,9 @@ export const cardSyncRuns = pgTable(
     errorCode: text('error_code'),
     errorMessage: text('error_message'),
     previewExpiresAt: timestamp('preview_expires_at', { withTimezone: true }),
+    leaseGeneration: integer('lease_generation').notNull().default(0),
+    leaseToken: uuid('lease_token'),
+    leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
     startedAt: timestamp('started_at', { withTimezone: true }),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -773,6 +783,7 @@ export const cardSyncRuns = pgTable(
     check('card_sync_runs_request_id_check', sql`btrim(${table.requestId}) <> ''`),
     check('card_sync_runs_idempotency_key_check', sql`btrim(${table.idempotencyKey}) <> ''`),
     check('card_sync_runs_source_collection_check', sql`${table.sourceCollection} = 'loveca'`),
+    check('card_sync_runs_lease_generation_check', sql`${table.leaseGeneration} >= 0`),
     check(
       'card_sync_runs_shape_check',
       sql`(${table.kind} = 'PREVIEW' AND ${table.previewRunId} IS NULL) OR (${table.kind} = 'APPLY' AND ${table.previewRunId} IS NOT NULL)`

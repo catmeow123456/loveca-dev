@@ -1,10 +1,19 @@
+import { randomUUID } from 'node:crypto';
 import { pool } from '../db/pool.js';
 import {
   CardSyncEngineError,
+  CardSyncLeaseLostError,
   CardSyncPreviewStaleError,
   type CardSyncEngine,
   type CardSyncEngineApplyItem,
 } from './card-sync-engine.js';
+import {
+  CARD_SYNC_LEASE_DURATION_SECONDS,
+  assertCardSyncLease,
+  leaseIdentity,
+  lockAndRenewCardSyncLease,
+  renewCardSyncLease,
+} from './card-sync-lease.js';
 import { sanitizeDiagnostic, type CardSyncRunStatus } from './card-sync-service.js';
 
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
@@ -16,10 +25,13 @@ interface ClaimedApplyRun {
   readonly requestId: string;
   readonly sourceHash: string;
   readonly cardCodes: readonly string[];
+  readonly leaseToken: string;
+  readonly leaseGeneration: number;
 }
 
 export class CardSyncWorker {
   private timer: ReturnType<typeof setInterval> | null = null;
+  private activeController: AbortController | null = null;
   private working = false;
 
   constructor(
@@ -37,6 +49,7 @@ export class CardSyncWorker {
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    this.activeController?.abort(new CardSyncLeaseLostError('同步服务正在停止'));
   }
 
   notify(): void {
@@ -64,21 +77,39 @@ export class CardSyncWorker {
   }
 
   private async execute(run: ClaimedApplyRun): Promise<void> {
+    const controller = new AbortController();
+    this.activeController = controller;
+    const identity = leaseIdentity(run.id, {
+      token: run.leaseToken,
+      generation: run.leaseGeneration,
+    });
+    const loseLease = (error: unknown): void => {
+      if (!controller.signal.aborted) {
+        controller.abort(
+          error instanceof CardSyncLeaseLostError ? error : new CardSyncLeaseLostError()
+        );
+      }
+    };
+    let heartbeatActive = true;
     const heartbeat = setInterval(() => {
-      void pool
-        .query(
-          `UPDATE card_sync_runs SET updated_at = NOW()
-            WHERE id = $1 AND kind = 'APPLY' AND status = 'RUNNING'`,
-          [run.id]
-        )
-        .catch((error) => {
-          console.error('[CardSync] Run heartbeat failed', {
-            runId: run.id,
-            ...safeErrorForLog(error),
-          });
+      void renewCardSyncLease(pool, identity).catch((error) => {
+        if (!heartbeatActive) return;
+        loseLease(error);
+        console.error('[CardSync] Run heartbeat failed; execution fenced', {
+          runId: run.id,
+          ...safeErrorForLog(error),
         });
+      });
     }, RUN_HEARTBEAT_INTERVAL_MS);
     heartbeat.unref();
+    const stopHeartbeat = (): void => {
+      if (!heartbeatActive) return;
+      heartbeatActive = false;
+      clearInterval(heartbeat);
+    };
+    const assertCurrent = async (): Promise<void> => {
+      await assertCardSyncLease(pool, identity, controller.signal);
+    };
     try {
       const result = await this.engine.apply({
         runId: run.id,
@@ -86,15 +117,25 @@ export class CardSyncWorker {
         requestId: run.requestId,
         expectedSourceHash: run.sourceHash,
         expectedCandidateCardCodes: run.cardCodes,
+        execution: {
+          token: run.leaseToken,
+          generation: run.leaseGeneration,
+          signal: controller.signal,
+          assertCurrent,
+        },
       });
+      await assertCurrent();
       if (result.sourceHash !== run.sourceHash) {
         throw new CardSyncPreviewStaleError();
       }
+      stopHeartbeat();
       await persistApplyResult(run, result.items);
     } catch (error) {
+      stopHeartbeat();
       await persistApplyFailure(run, error);
     } finally {
-      clearInterval(heartbeat);
+      stopHeartbeat();
+      if (this.activeController === controller) this.activeController = null;
     }
   }
 }
@@ -107,7 +148,7 @@ export async function recoverInterruptedApplyRuns(): Promise<number> {
       `SELECT id
          FROM card_sync_runs
         WHERE kind = 'APPLY' AND status = 'RUNNING'
-          AND updated_at < NOW() - INTERVAL '2 minutes'
+          AND (lease_expires_at IS NULL OR lease_expires_at <= NOW())
         FOR UPDATE`
     );
     const runIds = interrupted.rows.map((row) => row.id);
@@ -126,6 +167,8 @@ export async function recoverInterruptedApplyRuns(): Promise<number> {
     await client.query(
       `UPDATE card_sync_runs AS run
           SET status = 'FAILED', error_code = 'WORKER_INTERRUPTED', error_message = $2,
+              lease_generation = lease_generation + 1,
+              lease_token = NULL, lease_expires_at = NULL,
               result_summary = jsonb_build_object(
                 'succeeded', 0,
                 'skipped', 0,
@@ -157,8 +200,9 @@ async function claimNextApplyRun(): Promise<ClaimedApplyRun | null> {
       actor_user_id: string | null;
       request_id: string;
       source_hash: string | null;
+      lease_generation: number;
     }>(
-      `SELECT id, actor_user_id, request_id, source_hash
+      `SELECT id, actor_user_id, request_id, source_hash, lease_generation
          FROM card_sync_runs
         WHERE kind = 'APPLY' AND status = 'QUEUED'
         ORDER BY created_at ASC, id ASC
@@ -202,12 +246,18 @@ async function claimNextApplyRun(): Promise<ClaimedApplyRun | null> {
       await client.query('COMMIT');
       return null;
     }
-    await client.query(
+    const leaseToken = randomUUID();
+    const leaseGeneration = (row.lease_generation ?? 0) + 1;
+    const claimed = await client.query(
       `UPDATE card_sync_runs
-          SET status = 'RUNNING', started_at = NOW(), updated_at = NOW()
-        WHERE id = $1 AND status = 'QUEUED'`,
-      [row.id]
+          SET status = 'RUNNING', started_at = NOW(), updated_at = NOW(),
+              lease_token = $2, lease_generation = $3,
+              lease_expires_at = NOW() + ($4 * INTERVAL '1 second')
+        WHERE id = $1 AND status = 'QUEUED'
+        RETURNING id`,
+      [row.id, leaseToken, leaseGeneration, CARD_SYNC_LEASE_DURATION_SECONDS]
     );
+    if (claimed.rowCount !== 1) throw new CardSyncLeaseLostError('同步任务认领失败');
     await client.query(
       `UPDATE card_sync_run_items
           SET result = 'RUNNING', started_at = NOW(), updated_at = NOW()
@@ -221,6 +271,8 @@ async function claimNextApplyRun(): Promise<ClaimedApplyRun | null> {
       requestId: row.request_id,
       sourceHash: row.source_hash,
       cardCodes,
+      leaseToken,
+      leaseGeneration,
     };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
@@ -260,20 +312,31 @@ async function persistApplyResult(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await lockAndRenewCardSyncLease(
+      client,
+      leaseIdentity(run.id, { token: run.leaseToken, generation: run.leaseGeneration })
+    );
     for (const item of normalized) {
-      await client.query(
+      const updated = await client.query(
         `UPDATE card_sync_run_items
             SET result = $3, message = $4, finished_at = NOW(), updated_at = NOW()
-          WHERE run_id = $1 AND card_code = $2 AND kind = 'APPLY_RESULT'`,
+          WHERE run_id = $1 AND card_code = $2 AND kind = 'APPLY_RESULT'
+            AND result = 'RUNNING'`,
         [run.id, item.cardCode, item.result, item.message ? sanitizeDiagnostic(item.message) : null]
       );
+      if (updated.rowCount !== 1) {
+        throw new CardSyncEngineError('RUN_ITEM_STATE_INVALID', '同步任务逐卡状态已经变化');
+      }
     }
-    await client.query(
+    const finalized = await client.query(
       `UPDATE card_sync_runs
-          SET status = $2, result_summary = $3, finished_at = NOW(), updated_at = NOW()
-        WHERE id = $1 AND status = 'RUNNING'`,
-      [run.id, status, counts]
+          SET status = $2, result_summary = $3, finished_at = NOW(), updated_at = NOW(),
+              lease_token = NULL, lease_expires_at = NULL
+        WHERE id = $1 AND status = 'RUNNING'
+          AND lease_token = $4 AND lease_generation = $5`,
+      [run.id, status, counts, run.leaseToken, run.leaseGeneration]
     );
+    if (finalized.rowCount !== 1) throw new CardSyncLeaseLostError();
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
@@ -299,22 +362,37 @@ async function persistApplyFailure(run: ClaimedApplyRun, error: unknown): Promis
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await lockAndRenewCardSyncLease(
+      client,
+      leaseIdentity(run.id, { token: run.leaseToken, generation: run.leaseGeneration })
+    );
     await client.query(
       `UPDATE card_sync_run_items
           SET result = 'FAILED', message = $2, finished_at = NOW(), updated_at = NOW()
         WHERE run_id = $1 AND kind = 'APPLY_RESULT' AND result = 'RUNNING'`,
       [run.id, safeMessage]
     );
-    await client.query(
+    const finalized = await client.query(
       `UPDATE card_sync_runs
           SET status = 'FAILED', error_code = $2, error_message = $3,
-              result_summary = $4, finished_at = NOW(), updated_at = NOW()
-        WHERE id = $1 AND status = 'RUNNING'`,
-      [run.id, safeCode, safeMessage, { succeeded: 0, skipped: 0, failed: run.cardCodes.length }]
+              result_summary = $4, finished_at = NOW(), updated_at = NOW(),
+              lease_token = NULL, lease_expires_at = NULL
+        WHERE id = $1 AND status = 'RUNNING'
+          AND lease_token = $5 AND lease_generation = $6`,
+      [
+        run.id,
+        safeCode,
+        safeMessage,
+        { succeeded: 0, skipped: 0, failed: run.cardCodes.length },
+        run.leaseToken,
+        run.leaseGeneration,
+      ]
     );
+    if (finalized.rowCount !== 1) throw new CardSyncLeaseLostError();
     await client.query('COMMIT');
   } catch (persistError) {
     await client.query('ROLLBACK').catch(() => undefined);
+    if (persistError instanceof CardSyncLeaseLostError) return;
     console.error('[CardSync] Failed to persist apply failure', {
       runId: run.id,
       ...safeErrorForLog(persistError),

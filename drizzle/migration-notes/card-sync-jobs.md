@@ -2,6 +2,8 @@
 
 > 适用范围：`0031_add_card_sync_jobs.sql`、运营管理中心“上游新卡同步”
 
+> 后续 lease fencing、卡号/非负字段约束与 `0033_harden_card_sync.sql` 发布步骤见 [上游新卡同步加固迁移说明](card-sync-hardening.md)。
+
 ## 迁移内容
 
 迁移新增 `card_sync_runs` 与 `card_sync_run_items`，只保存预览/执行的安全摘要、状态、操作者、request ID、幂等键和逐卡结果。迁移本身不会连接 CloudBase、不会执行同步、不会新增或修改 `cards` 数据，也不会保存 CloudBase 凭据、原始文档或临时签名图片 URL。

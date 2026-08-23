@@ -47,6 +47,14 @@ export interface CardSyncEngineApplyInput {
   readonly requestId: string;
   readonly expectedSourceHash: string;
   readonly expectedCandidateCardCodes: readonly string[];
+  readonly execution: CardSyncExecutionLease;
+}
+
+export interface CardSyncExecutionLease {
+  readonly token: string;
+  readonly generation: number;
+  readonly signal: AbortSignal;
+  readonly assertCurrent: () => Promise<void>;
 }
 
 export interface CardSyncEngineApplyResult {
@@ -77,5 +85,11 @@ export class CardSyncEngineError extends Error {
 export class CardSyncPreviewStaleError extends CardSyncEngineError {
   constructor(message = '上游数据或待同步卡牌已变化，请重新检查') {
     super('PREVIEW_STALE', message);
+  }
+}
+
+export class CardSyncLeaseLostError extends CardSyncEngineError {
+  constructor(message = '同步任务执行租约已失效') {
+    super('LEASE_LOST', message);
   }
 }

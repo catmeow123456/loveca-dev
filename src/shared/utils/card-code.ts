@@ -28,23 +28,11 @@ export const VALID_PREFIXES = [
   'PYHN',
 ] as const;
 
-/** 有效的商品代号 */
-export const VALID_PRODUCTS = [
-  'sd1',
-  'sd2',
-  'bp1',
-  'bp2',
-  'bp3',
-  'bp4',
-  'bp5',
-  'bp6',
-  'bp7',
-  'cl1',
-  'pb1',
-  'pb2',
-  'PR',
-  'E',
-] as const;
+/** 新的数字编号商品无需逐个登记，固定代号仍显式限定。 */
+export const NUMBERED_PRODUCT_PREFIXES = ['sd', 'bp', 'cl', 'pb'] as const;
+export const FIXED_PRODUCTS = ['PR', 'E'] as const;
+
+const NUMBERED_PRODUCT_PATTERN = new RegExp(`^(?:${NUMBERED_PRODUCT_PREFIXES.join('|')})\\d+$`);
 
 /** 有效的稀有度 */
 export const VALID_RARITIES = [
@@ -165,7 +153,7 @@ export function parseCardCode(cardCode: string): {
  * 1. 不含全角 ＋
  * 2. 格式为 4 段连字符分隔
  * 3. 系列前缀在有效列表中
- * 4. 商品代号在有效列表中
+ * 4. 商品代号是数字编号系列，或在固定代号列表中
  * 5. 序号为 3 位数字
  * 6. 稀有度在有效列表中
  *
@@ -195,9 +183,12 @@ export function validateCardCode(cardCode: string): CardCodeValidationResult {
     errors.push(`未知系列前缀: "${parsed.prefix}"`);
   }
 
-  // 4. 商品代号
-  if (!(VALID_PRODUCTS as readonly string[]).includes(parsed.product)) {
-    errors.push(`未知商品代号: "${parsed.product}"`);
+  // 4. 商品代号：数字编号系列自动接受新商品，其余只接受固定代号。
+  if (
+    !NUMBERED_PRODUCT_PATTERN.test(parsed.product) &&
+    !(FIXED_PRODUCTS as readonly string[]).includes(parsed.product)
+  ) {
+    errors.push(`商品代号格式不正确: "${parsed.product}"`);
   }
 
   // 5. 序号格式：3位纯数字（如 001）或 E+数字（如 E01，能量卡变体）

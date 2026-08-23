@@ -6,6 +6,7 @@ import { minioClient } from './minio-service.js';
 import {
   CARD_SYNC_POLICY,
   CardSyncEngineError,
+  CardSyncLeaseLostError,
   CardSyncPreviewStaleError,
   type CardSyncEngine,
   type CardSyncEngineApplyInput,
@@ -15,6 +16,7 @@ import {
   type CardSyncEngineConfigurationStatus,
   type CardSyncEnginePreview,
 } from './card-sync-engine.js';
+import { leaseIdentity, lockAndRenewCardSyncLease } from './card-sync-lease.js';
 import {
   DEFAULT_CLOUDBASE_BATCH_SIZE,
   buildCloudbaseCardSnapshot,
@@ -44,32 +46,32 @@ interface SyncPlan {
   readonly blocked: readonly CardSyncEngineBlockedItem[];
 }
 
-function readCredential(primary: string, legacy?: string): string | null {
-  const value = process.env[primary]?.trim() || (legacy ? process.env[legacy]?.trim() : '');
+function readCredential(primary: string): string | null {
+  const value = process.env[primary]?.trim();
   return value || null;
 }
 
-function configurationStatus(): CardSyncEngineConfigurationStatus {
+export function getCloudbaseCardSyncConfigurationStatus(): CardSyncEngineConfigurationStatus {
   const missing: string[] = [];
   if (!readCredential('CLOUDBASE_ENV_ID')) missing.push(CONFIGURATION_KEYS[0]);
-  if (!readCredential('CLOUDBASE_SECRET_ID', 'CLOUDBASE_SECRETID')) {
+  if (!readCredential('CLOUDBASE_SECRET_ID')) {
     missing.push(CONFIGURATION_KEYS[1]);
   }
-  if (!readCredential('CLOUDBASE_SECRET_KEY', 'CLOUDBASE_SECRETKEY')) {
+  if (!readCredential('CLOUDBASE_SECRET_KEY')) {
     missing.push(CONFIGURATION_KEYS[2]);
   }
   return { configured: missing.length === 0, missing };
 }
 
 function createConfiguredCloudbase(): CloudBaseApp {
-  const status = configurationStatus();
+  const status = getCloudbaseCardSyncConfigurationStatus();
   if (!status.configured) {
     throw new CardSyncEngineError('NOT_CONFIGURED', `缺少服务端配置：${status.missing.join('、')}`);
   }
   return createCloudbaseAppWithCredentials({
     envId: readCredential('CLOUDBASE_ENV_ID')!,
-    secretId: readCredential('CLOUDBASE_SECRET_ID', 'CLOUDBASE_SECRETID')!,
-    secretKey: readCredential('CLOUDBASE_SECRET_KEY', 'CLOUDBASE_SECRETKEY')!,
+    secretId: readCredential('CLOUDBASE_SECRET_ID')!,
+    secretKey: readCredential('CLOUDBASE_SECRET_KEY')!,
   });
 }
 
@@ -103,8 +105,11 @@ function blockedFromSnapshot(
 ): CardSyncEngineBlockedItem[] {
   const blocked: CardSyncEngineBlockedItem[] = snapshot.invalidRows.map((row) => ({
     cardCode: null,
-    code: 'INVALID_SOURCE_ROW',
-    message: `上游第 ${row.rowNumber} 条记录缺少卡牌编号`,
+    code: row.reason === 'missing card_code' ? 'MISSING_CARD_CODE' : 'INVALID_CARD_CODE',
+    message:
+      row.reason === 'missing card_code'
+        ? `上游第 ${row.rowNumber} 条记录缺少卡牌编号`
+        : `上游第 ${row.rowNumber} 条记录的卡牌编号不符合规范`,
   }));
 
   for (const [cardCode] of snapshot.duplicateRows) {
@@ -199,8 +204,8 @@ function messageForFailure(error: unknown, fallback: string): string {
   const withoutUrls = error.message.replace(/(?:cloud|https?):\/\/\S+/giu, '[已隐藏地址]');
   let withoutSecrets = withoutUrls;
   for (const secret of [
-    readCredential('CLOUDBASE_SECRET_ID', 'CLOUDBASE_SECRETID'),
-    readCredential('CLOUDBASE_SECRET_KEY', 'CLOUDBASE_SECRETKEY'),
+    readCredential('CLOUDBASE_SECRET_ID'),
+    readCredential('CLOUDBASE_SECRET_KEY'),
   ]) {
     if (secret) withoutSecrets = withoutSecrets.split(secret).join('[已隐藏凭据]');
   }
@@ -261,35 +266,76 @@ async function insertCard(
   return result.rowCount === 1;
 }
 
-async function cleanupUploadedKeys(keys: readonly string[]): Promise<void> {
+async function cleanupUploadedKeys(
+  keys: readonly string[],
+  context: { readonly runId: string; readonly cardCode: string }
+): Promise<string[]> {
+  const failures: string[] = [];
   for (const key of keys) {
     try {
       await minioClient.removeObject(config.minio.bucket, key);
-    } catch {
-      // Best effort only. Failure details must not expose storage configuration.
+    } catch (error) {
+      failures.push(key);
+      console.error('[CardSync] Image cleanup failed', {
+        ...context,
+        objectKey: key,
+        message: messageForFailure(error, '对象删除失败'),
+      });
     }
   }
+  return failures;
 }
 
 async function applyCandidate(
   candidate: PreparedCandidate,
   cloudbase: CloudBaseApp,
-  actorUserId: string
+  actorUserId: string,
+  input: CardSyncEngineApplyInput
 ): Promise<CardSyncEngineApplyItem> {
   const cardCode = candidate.record.card_code;
+  await input.execution.assertCurrent();
   const image = await processCandidateImage(
     candidate,
     cloudbase,
     { client: minioClient, bucket: config.minio.bucket },
-    { overwriteImages: CARD_SYNC_POLICY.overwriteImages }
+    {
+      overwriteImages: CARD_SYNC_POLICY.overwriteImages,
+      signal: input.execution.signal,
+      assertCurrent: input.execution.assertCurrent,
+      preserveUploadedKeysOnError: (error) =>
+        input.execution.signal.aborted || error instanceof CardSyncLeaseLostError,
+    }
   );
+  if (image.preservedKeys.length > 0) {
+    console.warn('[CardSync] Preserved content-validated image objects after execution fencing', {
+      runId: input.runId,
+      cardCode,
+      objectKeys: image.preservedKeys,
+    });
+  }
+  if (image.cleanupFailures.length > 0) {
+    console.error('[CardSync] Image upload rollback was incomplete', {
+      runId: input.runId,
+      cardCode,
+      objectKeys: image.cleanupFailures,
+    });
+  }
+  await input.execution.assertCurrent();
   if (!image.ok) {
-    return { cardCode, result: 'FAILED', message: '卡图下载、处理或上传失败' };
+    return {
+      cardCode,
+      result: 'FAILED',
+      message:
+        image.cleanupFailures.length > 0
+          ? '卡图处理失败，且部分对象清理失败，需要人工检查'
+          : '卡图下载、处理或上传失败',
+    };
   }
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await lockAndRenewCardSyncLease(client, leaseIdentity(input.runId, input.execution));
     const inserted = await insertCard(client, candidate.record, actorUserId);
     await client.query('COMMIT');
     if (!inserted) {
@@ -299,15 +345,28 @@ async function applyCandidate(
     return { cardCode, result: 'SUCCEEDED', message: null };
   } catch (error) {
     await client.query('ROLLBACK');
-    await cleanupUploadedKeys(image.uploadedKeys);
-    return { cardCode, result: 'FAILED', message: messageForFailure(error, '写入卡牌失败') };
+    // A successor run may already be reusing these digest-validated immutable objects.
+    // Never let a fenced worker delete them after the global run mutex has been released.
+    if (error instanceof CardSyncLeaseLostError) throw error;
+    const cleanupFailures = await cleanupUploadedKeys(image.uploadedKeys, {
+      runId: input.runId,
+      cardCode,
+    });
+    return {
+      cardCode,
+      result: 'FAILED',
+      message:
+        cleanupFailures.length > 0
+          ? '写入卡牌失败，且部分卡图清理失败，需要人工检查'
+          : messageForFailure(error, '写入卡牌失败'),
+    };
   } finally {
     client.release();
   }
 }
 
 export const cloudbaseCardSyncEngine: CardSyncEngine = {
-  getConfigurationStatus: configurationStatus,
+  getConfigurationStatus: getCloudbaseCardSyncConfigurationStatus,
 
   async preview(): Promise<CardSyncEnginePreview> {
     const plan = await buildSyncPlan();
@@ -345,7 +404,8 @@ export const cloudbaseCardSyncEngine: CardSyncEngine = {
 
     const items: CardSyncEngineApplyItem[] = [];
     for (const candidate of plan.candidates) {
-      items.push(await applyCandidate(candidate, plan.cloudbase, input.actorUserId));
+      await input.execution.assertCurrent();
+      items.push(await applyCandidate(candidate, plan.cloudbase, input.actorUserId, input));
     }
     return { sourceHash: plan.sourceHash, items };
   },

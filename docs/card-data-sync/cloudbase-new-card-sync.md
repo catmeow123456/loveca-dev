@@ -28,7 +28,7 @@
 
 输入至少需要提供：
 
-- 可标准化的卡牌编号。
+- 可标准化且通过 `validateCardCode()` 的卡牌编号；非规范前缀、商品段、序号或稀有度会阻断该条记录。
 - CloudBase 文档的 `type`（语义为卡牌类型 / `カードタイプ`）。
 - `name_jp` / `name_cn` 中至少一个名称字段。
 
@@ -59,6 +59,10 @@ PostgreSQL `cards.card_type`：
 
 规则字段缺失不会阻止插入，但会写入 `source_flags.missingRuleFields`。这类卡默认保持 `DRAFT`，由维护者在管理端或后续同步流程中补齐。
 
+`cost`、`blade` 和 `score` 只接受安全的非负整数。负数不再作为 warning 降级为 `null`，而是直接阻断候选；PostgreSQL `cards` 表也使用 CHECK 作为最后写入边界。
+
+卡号仍校验四段结构、系列前缀、序号和稀有度，但商品代号不使用逐个白名单：`sd` / `bp` / `cl` / `pb` 后接数字即可，所以未来 `bp9`、`bp10` 等无需提前登记。非法结构仍会在预览中列为阻断项，不会直接写入。
+
 CloudBase 新卡可以从 `作品名` / `work_names` / `series` 写入 `work_names`。这与 Loveca Excel 同步不同，因为本脚本只插入 DB 不存在的新记录，不会覆盖已有主记录的作品归属。
 
 ## 4. 图片策略
@@ -69,6 +73,10 @@ CloudBase 新卡可以从 `作品名` / `work_names` / `series` 写入 `work_nam
 - `--skip-images`：不处理图片，不写入 `image_filename`，只保留 `image_source_uri` 并写入 `source_flags.imageSkipped`。
 
 `--upload-images` 默认不覆盖已有对象。下载、压缩或上传失败时，该卡默认不插入；只有显式传入 `--allow-missing-images` 时才允许插入，并清空 `image_filename`，同时写入对应失败 flag。
+
+下载链路会先解析主机的全部 A/AAAA 结果，任一结果属于回环、链路本地、内网或保留地址时都拒绝；HTTPS 连接使用已校验地址的 pinned lookup，不再在请求时二次自由解析，也不跟随重定向。
+
+生成的每个 WebP 对象都在元数据中写入 SHA-256。重试只会复用同键且哈希与当前生成内容完全相同的对象；旧对象没有哈希或图片已变化时作为冲突阻断，避免把旧尺寸与新尺寸混合绑定。上传或插卡回滚时的对象清理失败会记录卡号和对象键；失去执行租约时保留已写入的哈希对象，防止旧 worker 删除后续任务已复用的对象。
 
 ## 5. 审核边界
 
@@ -88,22 +96,23 @@ dry-run 和 report 用于正式导入前审核：
 - “检查新卡”只读取 CloudBase 与 PostgreSQL 现有卡号并生成 15 分钟有效的持久化预览；正式同步需要再次确认。
 - 执行前会重新读取上游并核对来源 SHA-256 与候选卡号；预览后发生变化时任务失败，管理员需重新检查。
 - 同一时刻只允许一个正式同步任务。任务和逐卡结果写入 `card_sync_runs` / `card_sync_run_items`，但不保存 CloudBase 原始文档、临时签名 URL 或凭据。
-- Worker 执行中会更新心跳；超过两分钟没有心跳的 `RUNNING` 任务会被标记为中断失败，解除后续任务互斥。中断前已插入的草稿不会自动回滚，重新预览时会按已有卡跳过。
+- Worker 认领任务时生成随机 lease token 并递增 generation，心跳只能续租当前代。超过两分钟没有成功续租的 `RUNNING` 任务会被标记为中断失败、递增 generation 并解除后续任务互斥。旧 worker 后续的图片步骤、卡牌事务、逐卡结果和最终任务状态都必须校验 token/generation；失去租约后不再有权写入。中断前在有效租约内已插入的草稿不会自动回滚，重新预览时会按已有卡跳过。
 - CloudBase 代码路径只调用集合查询和临时文件 URL 获取，不调用集合新增、更新、删除或云函数写入能力。数据库侧只对不存在的卡号执行 `INSERT ... ON CONFLICT DO NOTHING`，并记录 `updated_by`；不会更新或删除已有卡。
 - 浏览器只收到配置是否就绪、候选摘要与脱敏结果。CloudBase 环境 ID、Secret ID、Secret Key 仅由 API 进程环境读取。
 
 ## 6. 相关代码路径
 
-| 路径                                      | 说明                                  |
-| ----------------------------------------- | ------------------------------------- |
-| `src/scripts/sync-cards-cloudbase-new.ts` | CloudBase-only 新卡导入与卡图上传入口 |
-| `src/server/routes/card-sync.ts` | 管理员预览、执行和任务状态 API |
-| `src/server/services/card-sync-service.ts` | 预览、幂等、互斥与持久化任务记录 |
-| `src/server/services/cloudbase-card-sync-engine.ts` | 固定策略的新卡计划与逐卡应用 |
-| `client/src/components/admin/CardSyncAdminPage.tsx` | 运营管理中心预览与二次确认页面 |
-| `src/shared/utils/card-code.ts`           | 卡牌编号标准化                        |
-| `src/server/db/schema.ts`                 | `cards` 表 schema                     |
-| `client/src/lib/imageService.ts`          | 前端卡图路径解析                      |
+| 路径                                                | 说明                                  |
+| --------------------------------------------------- | ------------------------------------- |
+| `src/scripts/sync-cards-cloudbase-new.ts`           | CloudBase-only 新卡导入与卡图上传入口 |
+| `src/server/routes/card-sync.ts`                    | 管理员预览、执行和任务状态 API        |
+| `src/server/services/card-sync-service.ts`          | 预览、幂等、互斥与持久化任务记录      |
+| `src/server/services/card-sync-lease.ts`            | 执行租约的校验、续租与 fencing        |
+| `src/server/services/cloudbase-card-sync-engine.ts` | 固定策略的新卡计划与逐卡应用          |
+| `client/src/components/admin/CardSyncAdminPage.tsx` | 运营管理中心预览与二次确认页面        |
+| `src/shared/utils/card-code.ts`                     | 卡牌编号标准化                        |
+| `src/server/db/schema.ts`                           | `cards` 表 schema                     |
+| `client/src/lib/imageService.ts`                    | 前端卡图路径解析                      |
 
 ## 7. 相关文档
 

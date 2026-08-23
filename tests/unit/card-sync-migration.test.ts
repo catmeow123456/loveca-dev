@@ -17,4 +17,20 @@ describe('card sync job migration', () => {
       'WHERE "card_sync_runs"."kind" = \'APPLY\' AND "card_sync_runs"."status" IN (\'QUEUED\', \'RUNNING\')'
     );
   });
+
+  it('adds execution fencing and enforces safe new-card fields without rewriting legacy rows', () => {
+    const sql = readFileSync('drizzle/0033_harden_card_sync.sql', 'utf8');
+
+    expect(sql).toContain('ADD COLUMN "lease_generation" integer DEFAULT 0 NOT NULL');
+    expect(sql).toContain('ADD COLUMN "lease_token" uuid');
+    expect(sql).toContain('ADD COLUMN "lease_expires_at" timestamp with time zone');
+    expect(sql).toContain('"card_sync_runs"."lease_generation" >= 0');
+    expect(sql).toContain('cards_card_code_format_check');
+    expect(sql).toContain('(sd|bp|cl|pb)[0-9]+');
+    expect(sql).not.toContain('|bp8|');
+    expect(sql).toContain('cards_cost_non_negative_check');
+    expect(sql).toContain('cards_blade_non_negative_check');
+    expect(sql).toContain('cards_score_non_negative_check');
+    expect(sql.match(/NOT VALID/g)).toHaveLength(4);
+  });
 });
