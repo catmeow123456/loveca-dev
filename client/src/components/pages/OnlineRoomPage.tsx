@@ -37,6 +37,8 @@ import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import { ThemeDeckAssignmentIntro } from '@/components/theme-table/ThemeDeckAssignmentIntro';
+import { ThemeDeckGallery } from '@/components/theme-table/ThemeDeckGallery';
+import { CardDetailDrawer } from '@/components/deck-editor/CardDetailDrawer';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { usePublicTableStore } from '@/store/publicTableStore';
@@ -82,7 +84,11 @@ import {
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { ApiClientError } from '@/lib/apiClient';
 import { formatBattleTimeoutSeconds, type BattleTimeoutConfig } from '@game/online/ranked-policy';
-import type { ThemeTableEventView } from '@game/online/theme-table-types';
+import type {
+  ThemePrebuiltDeckView,
+  ThemeTableEventView,
+} from '@game/online/theme-table-types';
+import type { AnyCardData } from '@game/domain/entities/card';
 import { GamePhase } from '@game/shared/types/enums';
 import type {
   MatchEndView,
@@ -1957,6 +1963,8 @@ function OnlineOpeningStage({
                   />
                 </div>
 
+                {assignedThemeDeck ? <ThemeOpeningDeckPreview deck={assignedThemeDeck} /> : null}
+
                 <div className="online-opening-stage-controls grid gap-3">
                   {isAwaitingOpponentArrival ? (
                     <OpeningArrivalGate expiresAt={room.openingArrivalExpiresAt!} />
@@ -1997,6 +2005,48 @@ function OnlineOpeningStage({
         </main>
       </div>
     </div>
+  );
+}
+
+function ThemeOpeningDeckPreview({ deck }: { deck: ThemePrebuiltDeckView }) {
+  const [expanded, setExpanded] = useState(false);
+  const [selectedCard, setSelectedCard] = useState<AnyCardData | null>(null);
+  const mainDeckCount = deck.mainDeck.reduce((total, entry) => total + entry.count, 0);
+  const energyDeckCount = deck.energyDeck.reduce((total, entry) => total + entry.count, 0);
+
+  return (
+    <section
+      className="theme-assignment-intro__deck-preview"
+      aria-labelledby="theme-opening-deck-preview-title"
+    >
+      <div className="theme-assignment-intro__deck-preview-header">
+        <div>
+          <h2 id="theme-opening-deck-preview-title">我的本局卡组</h2>
+          <p>
+            {deck.displayName} · {mainDeckCount} 张主卡组 · {energyDeckCount} 张能量
+          </p>
+        </div>
+        <button
+          type="button"
+          className="theme-assignment-intro__deck-preview-toggle"
+          aria-expanded={expanded}
+          aria-controls="theme-opening-deck-preview-content"
+          onClick={() => setExpanded((visible) => !visible)}
+        >
+          <Eye size={15} aria-hidden="true" />
+          {expanded ? '收起卡组' : '查看卡组构成'}
+        </button>
+      </div>
+      {expanded ? (
+        <div
+          id="theme-opening-deck-preview-content"
+          className="theme-assignment-intro__deck-preview-content"
+        >
+          <ThemeDeckGallery deck={deck} onViewCard={setSelectedCard} />
+        </div>
+      ) : null}
+      <CardDetailDrawer card={selectedCard} onClose={() => setSelectedCard(null)} />
+    </section>
   );
 }
 

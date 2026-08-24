@@ -1,5 +1,7 @@
 import { memo, useEffect, useState } from 'react';
+import { Clock3 } from 'lucide-react';
 import type { RankedStallView, Seat } from '@game/online';
+import { cn } from '@/lib/utils';
 
 interface RankedStallNoticeProps {
   readonly stall: RankedStallView | null;
@@ -55,19 +57,54 @@ export const RankedStallNotice = memo(function RankedStallNotice({
 
   const remainingSeconds = Math.ceil(remainingMs / 1_000);
   const isResponsiblePlayer = viewerSeat === stall.responsibleSeat;
-  const visibleMessage = isResponsiblePlayer
-    ? `该你操作了，还剩 ${remainingSeconds} 秒`
-    : `等待对手操作，还剩 ${remainingSeconds} 秒`;
-  const accessibleMessage = isResponsiblePlayer ? '该你操作了' : '正在等待对手操作';
+  const isCritical = remainingSeconds <= 10;
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = remainingSeconds % 60;
+  const countdown = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  const visibleMessage = isResponsiblePlayer ? '轮到你操作' : '等待对手操作';
 
   return (
     <div
-      role="status"
-      aria-live="polite"
-      aria-label={accessibleMessage}
-      className="pointer-events-none fixed left-1/2 top-[calc(env(safe-area-inset-top)+4rem)] z-[90] w-[min(calc(100vw-1.5rem),36rem)] -translate-x-1/2 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_58%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,var(--semantic-warning))] px-3 py-2 text-center text-xs font-semibold text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl md:top-4 md:text-sm"
+      className={cn(
+        'pointer-events-none fixed left-1/2 top-[calc(env(safe-area-inset-top)+4rem)] z-[90] flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-2 rounded-lg border bg-[var(--bg-frosted)] px-2.5 py-2 text-xs font-semibold text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl md:text-sm',
+        isCritical
+          ? 'border-[color:color-mix(in_srgb,var(--semantic-error)_70%,var(--border-default))]'
+          : isResponsiblePlayer
+            ? 'border-[color:color-mix(in_srgb,var(--semantic-warning)_58%,var(--border-default))]'
+            : 'border-[color:color-mix(in_srgb,var(--semantic-info)_42%,var(--border-default))]'
+      )}
     >
-      <span aria-hidden="true">{visibleMessage}</span>
+      <Clock3
+        size={16}
+        aria-hidden="true"
+        className={cn(
+          'shrink-0',
+          isCritical
+            ? 'text-[var(--semantic-error)]'
+            : isResponsiblePlayer
+              ? 'text-[var(--semantic-warning)]'
+              : 'text-[var(--semantic-info)]'
+        )}
+      />
+      <span role="status" aria-live="polite" className="whitespace-nowrap">
+        {visibleMessage}
+      </span>
+      <time
+        role="timer"
+        aria-live="off"
+        aria-label={`剩余 ${remainingSeconds} 秒`}
+        dateTime={`PT${remainingSeconds}S`}
+        className={cn(
+          'inline-flex min-w-[5.25ch] justify-center rounded-md border px-1.5 py-0.5 font-mono text-xs font-bold leading-none tabular-nums md:text-sm',
+          isCritical
+            ? 'border-[color:color-mix(in_srgb,var(--semantic-error)_36%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_14%,transparent)] text-[var(--semantic-error)]'
+            : isResponsiblePlayer
+              ? 'border-[color:color-mix(in_srgb,var(--semantic-warning)_32%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_12%,transparent)]'
+              : 'border-[color:color-mix(in_srgb,var(--semantic-info)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-info)_10%,transparent)]'
+        )}
+      >
+        {countdown}
+      </time>
     </div>
   );
 });
