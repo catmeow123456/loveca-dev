@@ -575,14 +575,21 @@ async function installApiMocks(
     if (url.pathname === '/api/ranked/environment' && method === 'GET' && rankedOverview?.season) {
       await fulfillApi(route, {
         seasonId: rankedOverview.season.id,
+        displayMode: 'PLAYER_EQUAL',
+        visibleSections: ['USAGE'],
+        topRankedPlayerCount: 30,
         sample: {
           settledMatchCount: 0,
           analyzedMatchCount: 0,
           deckObservationCount: 0,
           playerCount: 0,
+          winningPlayerCount: 0,
+          topRankedEligiblePlayerCount: 0,
+          topRankedAnalyzedPlayerCount: 0,
+          topRankedDeckObservationCount: 0,
           coverageRate: 0,
         },
-        cardUsage: [],
+        rankings: [{ section: 'USAGE', weighting: 'PLAYER_EQUAL', cards: [] }],
       });
       return;
     }

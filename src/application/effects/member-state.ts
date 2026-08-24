@@ -13,6 +13,7 @@ import type { MemberStateChangeCause } from '../../domain/events/game-events.js'
 import { FaceState, OrientationState, SlotPosition, ZoneType } from '../../shared/types/enums.js';
 import { isMemberEffectActivationProhibited } from '../../domain/rules/member-effect-activation-prohibitions.js';
 import { isMemberWaitProtectedFromChange } from '../../domain/rules/member-wait-protections.js';
+import { resolveMemberEntryOrientation } from '../../domain/rules/member-entry-orientation.js';
 
 export interface SetMemberOrientationResult {
   readonly gameState: GameState;
@@ -724,7 +725,16 @@ export function playMembersFromWaitingRoomToEmptySlots(
     for (const placement of placements) {
       waitingRoom = removeCardFromZone(waitingRoom, placement.cardId);
       slots[placement.toSlot] = placement.cardId;
-      cardStates.set(placement.cardId, { orientation, face: FaceState.FACE_UP });
+      cardStates.set(placement.cardId, {
+        orientation: resolveMemberEntryOrientation(
+          game,
+          playerId,
+          placement.cardId,
+          placement.toSlot,
+          orientation
+        ),
+        face: FaceState.FACE_UP,
+      });
     }
 
     return {
@@ -841,7 +851,13 @@ export function playMemberBelowCardToEmptySlot(
     };
     const cardStates = new Map(currentPlayer.memberSlots.cardStates);
     cardStates.set(options.cardId, {
-      orientation: OrientationState.ACTIVE,
+      orientation: resolveMemberEntryOrientation(
+        game,
+        playerId,
+        options.cardId,
+        options.toSlot,
+        OrientationState.ACTIVE
+      ),
       face: FaceState.FACE_UP,
     });
 

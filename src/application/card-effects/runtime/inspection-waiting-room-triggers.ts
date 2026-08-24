@@ -6,6 +6,7 @@ import {
   type GameState,
 } from '../../../domain/entities/game.js';
 import { addCardToZone, placeCardInSlot } from '../../../domain/entities/zone.js';
+import { resolveMemberEntryOrientation } from '../../../domain/rules/member-entry-orientation.js';
 import {
   type CardEffectCause,
   createEnterWaitingRoomEvent,
@@ -480,7 +481,13 @@ export function moveInspectedSelectionToStageRestToWaitingRoomAndEnqueueTriggers
       cardIds: [...currentPlayer.waitingRoom.cardIds, ...waitingRoomCardIds],
     },
     memberSlots: placeCardInSlot(currentPlayer.memberSlots, selectedSlot, selectedCardId, {
-      orientation: OrientationState.ACTIVE,
+      orientation: resolveMemberEntryOrientation(
+        game,
+        player.id,
+        selectedCardId,
+        selectedSlot,
+        OrientationState.ACTIVE
+      ),
       face: FaceState.FACE_UP,
     }),
     movedToStageThisTurn: [...currentPlayer.movedToStageThisTurn, selectedCardId],

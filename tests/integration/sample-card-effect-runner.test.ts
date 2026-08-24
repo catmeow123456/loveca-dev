@@ -30,7 +30,11 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { createCheerEvent, createLiveSuccessEvent } from '../../src/domain/events/game-events';
+import {
+  createCheerEvent,
+  createLeaveStageEvent,
+  createLiveSuccessEvent,
+} from '../../src/domain/events/game-events';
 import {
   addLiveModifier,
   getMemberEffectiveBladeCount,
@@ -15634,6 +15638,15 @@ describe('sample card effect runner', () => {
           ]),
         },
       }));
+      const leaveStageEvent = createLeaveStageEvent(
+        kahoCardId!,
+        SlotPosition.CENTER,
+        ZoneType.WAITING_ROOM,
+        PLAYER1,
+        PLAYER1,
+        highCostHasunosoraCardId
+      );
+      const stateWithLeaveEvent = emitGameEvent(preparedState, leaveStageEvent);
       const pendingAbility: PendingAbilityState = {
         id: `test-hs-sd1-001-${waitingEnergyCount}-waiting-energy`,
         abilityId: HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID,
@@ -15641,14 +15654,14 @@ describe('sample card effect runner', () => {
         controllerId: PLAYER1,
         mandatory: true,
         timingId: TriggerCondition.ON_LEAVE_STAGE,
-        eventIds: [`test-leave-stage-event-${waitingEnergyCount}`],
+        eventIds: [leaveStageEvent.eventId],
         metadata: {
           replacingCardId: highCostHasunosoraCardId,
         },
       };
       const resultState = resolvePendingAbilityStarterWithRegistry(
         {
-          ...preparedState,
+          ...stateWithLeaveEvent,
           pendingAbilities: [pendingAbility],
         },
         pendingAbility,
@@ -15715,6 +15728,15 @@ describe('sample card effect runner', () => {
     const kahoCardId = ownedP1CardIds.find(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!HS-sd1-001-SD'
     );
+    const leaveStageEvent = createLeaveStageEvent(
+      kahoCardId!,
+      SlotPosition.CENTER,
+      ZoneType.WAITING_ROOM,
+      PLAYER1,
+      PLAYER1,
+      lowCostHasunosoraMember.instanceId
+    );
+    const stateWithLeaveEvent = emitGameEvent(state, leaveStageEvent);
     const pendingAbility: PendingAbilityState = {
       id: 'test-hs-sd1-001-condition-not-met',
       abilityId: HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID,
@@ -15722,7 +15744,7 @@ describe('sample card effect runner', () => {
       controllerId: PLAYER1,
       mandatory: true,
       timingId: TriggerCondition.ON_LEAVE_STAGE,
-      eventIds: ['test-leave-stage-event'],
+      eventIds: [leaveStageEvent.eventId],
       metadata: {
         replacingCardId: lowCostHasunosoraMember.instanceId,
       },
@@ -15730,7 +15752,7 @@ describe('sample card effect runner', () => {
 
     const resultState = resolvePendingAbilityStarterWithRegistry(
       {
-        ...state,
+        ...stateWithLeaveEvent,
         pendingAbilities: [pendingAbility],
       },
       pendingAbility,

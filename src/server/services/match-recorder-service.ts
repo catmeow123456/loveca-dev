@@ -679,11 +679,21 @@ export class MatchRecorderService {
   async sealMatch(input: SealMatchRecordInput): Promise<SealMatchRecordResult> {
     return this.transaction(async (client) => {
       const cursor = await lockRecordCursor(client, input.matchId);
+      const completeness =
+        input.completeness ?? (input.status === 'COMPLETED' ? 'FULL' : 'PARTIAL');
+      const dedupeKey = `match-sealed:${input.status}`;
+      const existingFrame = await findTimelineFrameByDedupeKey(client, input.matchId, dedupeKey);
+      if (existingFrame) {
+        return {
+          matchId: input.matchId,
+          timelineSeq: existingFrame.timelineSeq,
+          status: input.status,
+          completeness,
+        };
+      }
       const timelineSeq = cursor.lastTimelineSeq + 1;
       const sealedAt = input.sealedAt ?? this.now();
       const endedAt = input.endedAt ?? sealedAt;
-      const completeness =
-        input.completeness ?? (input.status === 'COMPLETED' ? 'FULL' : 'PARTIAL');
 
       await insertTimelineFrame(client, {
         matchId: input.matchId,
@@ -698,7 +708,7 @@ export class MatchRecorderService {
         relatedCommandSeq: null,
         relatedGameEventSeq: null,
         relatedDecisionId: null,
-        dedupeKey: `match-sealed:${input.status}`,
+        dedupeKey,
         turnCount: input.turnCount ?? cursor.turnCount,
         phase: input.phase ?? 'UNKNOWN',
         subPhase: input.subPhase ?? 'UNKNOWN',

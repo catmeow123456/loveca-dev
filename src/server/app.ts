@@ -29,6 +29,8 @@ import { themeTableRouter } from './routes/theme-table.js';
 import { themeTableAdminRouter } from './routes/theme-table-admin.js';
 import { adminUsersRouter } from './routes/admin-users.js';
 import { platformOperationsRouter } from './routes/platform-operations.js';
+import { cardSyncRouter } from './routes/card-sync.js';
+import { deckClassifierAdminRouter } from './routes/deck-classifier-admin.js';
 import { checkApplicationReadiness } from './services/readiness-service.js';
 
 export function createApp(): express.Express {
@@ -99,9 +101,11 @@ export function createApp(): express.Express {
   app.use('/api/theme-table', themeTableRouter);
   app.use('/api/admin/theme-table', themeTableAdminRouter);
   app.use('/api/admin/ranked', rankedAdminRouter);
+  app.use('/api/admin/deck-classifier', deckClassifierAdminRouter);
   app.use('/api/admin/deck-point-tables', deckPointTablesAdminRouter);
   app.use('/api/admin/users', adminUsersRouter);
   app.use('/api/admin/platform-operations', platformOperationsRouter);
+  app.use('/api/admin/card-sync', cardSyncRouter);
   if (config.isDev) {
     app.use('/images', publicImagesRouter);
     app.use('/api/debug', debugOnlineRouter);

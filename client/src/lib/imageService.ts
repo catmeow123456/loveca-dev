@@ -340,3 +340,12 @@ export function resolveCardImagePath(
   }
   return `/card/${cardData.cardCode}.jpg`;
 }
+
+/** Resolve a card code through the authoritative runtime registry before falling back to the code. */
+export function resolveRegistryCardImagePath(
+  cardCode: string,
+  cardDataRegistry: ReadonlyMap<string, AnyCardData>,
+  size: ImageSize = 'medium'
+): string {
+  return resolveCardImagePath(cardDataRegistry.get(cardCode) ?? { cardCode }, size);
+}

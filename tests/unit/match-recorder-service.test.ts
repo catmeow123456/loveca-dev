@@ -807,6 +807,50 @@ describe('MatchRecorderService P0a', () => {
     expect(recordUpdate?.values[9]).toBeNull();
   });
 
+  it('sealMatch 命中既有封存 dedupeKey 时直接返回，不重复写入或覆盖根记录', async () => {
+    const { service, calls } = createRecorderHarness(
+      {
+        status: 'SURRENDERED',
+        completeness: 'FULL',
+        last_timeline_seq: 259,
+      },
+      {
+        existingTimelineFrame: {
+          dedupeKey: 'match-sealed:SURRENDERED',
+          row: {
+            timeline_seq: 259,
+            related_checkpoint_seq: null,
+            payload_hash: null,
+          },
+        },
+      }
+    );
+
+    const result = await service.sealMatch({
+      matchId: 'match-recorder-1',
+      status: 'SURRENDERED',
+      completeness: 'FULL',
+      endedAt: 4_000,
+      sealedAt: 4_000,
+      winnerSeat: 'FIRST',
+      endReason: 'OPPONENT_SURRENDER',
+      turnCount: 6,
+      phase: 'GAME_END',
+      subPhase: 'RESULT_SCORE_CONFIRM',
+    });
+
+    expect(result).toEqual({
+      matchId: 'match-recorder-1',
+      timelineSeq: 259,
+      status: 'SURRENDERED',
+      completeness: 'FULL',
+    });
+    expect(calls.some((call) => call.text.includes('INSERT INTO match_timeline_entries'))).toBe(
+      false
+    );
+    expect(calls.some((call) => call.text.includes('UPDATE match_records'))).toBe(false);
+  });
+
   it('从当前 OnlineMatchState 构造 P0a 输入时保留锁卡元数据与卡牌展示摘要', async () => {
     const matchService = new OnlineMatchService({ recorder: null });
     const match = await matchService.createMatch({

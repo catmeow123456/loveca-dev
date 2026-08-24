@@ -67,6 +67,17 @@ export interface MemberStateChangedTriggerFilter {
   readonly nextOrientation?: OrientationState;
 }
 
+export interface OnLeaveStageTriggerFilter {
+  /**
+   * Require the member that replaced this source through relay to match this
+   * structured identity and printed-cost boundary.
+   */
+  readonly relayReplacementMember?: {
+    readonly groupAliases: readonly string[];
+    readonly minPrintedCost: number;
+  };
+}
+
 export interface RemainingHeartAllocationPreferenceDefinition {
   readonly color: HeartColor;
   readonly minCount: number;
@@ -107,6 +118,7 @@ export interface CardAbilityDefinition {
   readonly playedMemberOnEnterTriggerFilter?: PlayedMemberOnEnterTriggerFilter;
   readonly onEnterStageTriggerFilter?: OnEnterStageTriggerFilter;
   readonly memberStateChangedTriggerFilter?: MemberStateChangedTriggerFilter;
+  readonly onLeaveStageTriggerFilter?: OnLeaveStageTriggerFilter;
   readonly energyPlacementCause?: 'ANY_CARD_EFFECT' | 'OWN_CARD_EFFECT';
   readonly perTurnLimit?: number;
   readonly countPendingAsTurnUse?: boolean;

@@ -3,9 +3,11 @@ import {
   Bell,
   Bot,
   ChevronRight,
+  CloudDownload,
   Loader2,
   Medal,
   MonitorCog,
+  PieChart,
   Save,
   Scale,
   Settings,
@@ -29,11 +31,13 @@ interface AdminCenterPageProps {
   readonly onOpenMatchEmotes: () => void;
   readonly onOpenAnnouncements: () => void;
   readonly onOpenCards: () => void;
+  readonly onOpenCardSync: () => void;
   readonly onOpenAiExtraction: () => void;
   readonly onOpenDeckPoints: () => void;
   readonly onOpenOnlineRooms: () => void;
   readonly onOpenPlatformOperations: () => void;
   readonly onOpenRanked: () => void;
+  readonly onOpenDeckClassifier: () => void;
   readonly onOpenThemeTable: () => void;
   readonly onOpenUsers: () => void;
   readonly battleEntryVisibility: PlayerBattleEntryVisibility;
@@ -124,6 +128,13 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           permission: 'cards.manage',
         },
         {
+          title: '上游新卡同步',
+          description: '检查小能苗并将生产库缺失的新卡导入为草稿',
+          icon: CloudDownload,
+          onOpen: props.onOpenCardSync,
+          permission: 'cards.sync',
+        },
+        {
           title: '卡牌效果 AI 提取',
           description: '配置提取服务、模型和私密凭据',
           icon: Bot,
@@ -157,6 +168,13 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           icon: Medal,
           onOpen: props.onOpenRanked,
           permission: 'season.ranked.manage',
+        },
+        {
+          title: '卡组分类',
+          description: '维护分类名称、样板、规则、发布版本与重分类',
+          icon: PieChart,
+          onOpen: props.onOpenDeckClassifier,
+          permission: 'season.deck_classifier.manage',
         },
         {
           title: '娱乐模式',

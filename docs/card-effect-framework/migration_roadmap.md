@@ -131,7 +131,7 @@ Current migrated workflow modules:
 - `workflows/shared/wait-discard-look-top-select-to-hand.ts`
 - `workflows/shared/mill-top-gain-live-modifier.ts`
 - `workflows/cards/hs-pb1-009-kaho.ts`
-- `workflows/cards/hs-sd1-001-kaho.ts`
+- `workflows/shared/relay-replacement-activate-energy.ts`
 - `workflows/cards/hs-sd1-006-hime.ts`
 - `workflows/shared/self-sacrifice-waiting-room-to-hand.ts`（含 `PL!-PR-017` / `PL!S-bp3-008` 有限后处理条件）
 - `workflows/shared/play-waiting-room-member-to-source-slot.ts`
@@ -726,9 +726,9 @@ Later follow-up:
 
 ## R-4Q-a HS_SD1_001 Relay-Replaced Energy Outcome 2026-06-18
 
-R-4Q-a migrated `HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID` into `src/application/card-effects/workflows/cards/hs-sd1-001-kaho.ts`.
+R-4Q-a originally migrated `HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID` into a single-card workflow. The later `PL!-pb2-009` sample proved the same stable resolution shape, so current ownership is `src/application/card-effects/workflows/shared/relay-replacement-activate-energy.ts` and both cards use base-card coverage.
 
-The runner still owns the `ON_LEAVE_STAGE` enqueue lifecycle and high-cost Hasunosora replacement prefilter, but the pending starter now lives in the workflow. The workflow rechecks the replacement condition at resolve time, preserves `CONDITION_NOT_MET` and `ACTIVATE_TWO_ENERGY_AFTER_RELAY` payload fields, and uses `activateWaitingEnergyCardsForPlayer` with an up-to-two waiting-energy count so 0, 1, or 2 waiting energy cards all resolve.
+The runner still owns the generic `ON_LEAVE_STAGE` enqueue lifecycle, but no longer owns an HS ability/card-specific prefilter. A definition-driven runtime filter applies the exact destination plus structured replacement group and minimum printed cost at enqueue, while the shared workflow rechecks the same bound `LeaveStageEvent.replacingCardId` at resolve time. The two configurations are Hasunosora cost>=10 and μ's cost>=15; owner is not an additional gate because the leave-stage event records the controller's relay fact. The workflow preserves the old HS `CONDITION_NOT_MET` and `ACTIVATE_TWO_ENERGY_AFTER_RELAY` payloads, uses the standard energy-selection operation for special-energy excess, and activates at most the real 0/1/2 waiting-energy count.
 
 `runtime/active-effect.ts` now also provides `startConfirmOnlyPendingAbilityEffect` and `finishConfirmOnlyPendingAbilityEffect`. This bridge is for manual ordered pending selection: it installs a confirm-only `activeEffect` without removing the pending ability, then resumes the starter through a callback with `skipManualConfirmation`. It is distinct from `startConfirmOnlyActiveEffect`, which removes pending and writes a start action.
 
@@ -807,7 +807,7 @@ Tests now cover existing success paths plus HS_BP6_017 empty-hand skip, HS_PB1_0
 - On-enter source-member modifier family: `PL!HS-PR-038` added a purple Heart config to `on-enter-source-member-gain-live-modifier.ts`; the new non-HAND boundary is expressed by definition `triggerFromZones`, not a card-code branch in the workflow or runner.
 - Fixed pay-energy gain-BLADE family: R-4K migrated `HS_SD1_006`, `BP4_010`, and `HS_PR_001` into `src/application/card-effects/workflows/shared/pay-energy-gain-blade.ts`. The config axes are energy cost count and fixed BLADE bonus. `recordPayCostAction` now lives in `runtime/workflow-helpers.ts` and is also used by `workflows/cards/hs-bp5-001-kaho.ts`.
 - Arrange deck-edge family: R-4L migrated `START_DASH` and `HS_BP6_001` into `src/application/card-effects/workflows/shared/arrange-inspected-deck-edge.ts`, with `PL_BP3_014` handled by the thin wrapper `src/application/card-effects/workflows/shared/on-enter-wait-look-top-two-arrange.ts`. The shared core owns inspection, ordered deck-edge return, unselected waiting-room movement, and inspection cleanup; the wrapper owns only the source-wait option and PAY_COST action before entering the shared core. The 2026-07-23 public-print sample `PL!S-bp7-004-P` 费用13「黑泽黛雅」added the bounded `BOTTOM` axis while preserving existing `TOP` identities and summaries; registration covers base code `PL!S-bp7-004`.
-- Activation energy helper cleanup: R-4Q-a migrated `HS_SD1_001` into a single-card workflow, R-4Q-b migrated `SHIKI`, and R-4Q-c migrated `CHISATO` / `EMMA`. Do not retroactively collapse them into a shared activation-energy family unless another stable repeated axis appears.
+- Activation energy helper cleanup: R-4Q-a originally migrated `HS_SD1_001` into a single-card workflow; `PL!-pb2-009` later supplied the second real sample for the narrow relay-replacement family, now promoted to `shared/relay-replacement-activate-energy.ts`. R-4Q-b `SHIKI` and R-4Q-c `CHISATO` / `EMMA` remain separate because their trigger and resolution shapes do not match this family; sharing only the energy operation is not sufficient reason to collapse them.
 
 ## R-5 Special Workflow Candidates
 

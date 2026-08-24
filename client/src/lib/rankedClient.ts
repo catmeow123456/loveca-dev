@@ -5,6 +5,7 @@ import type {
   RankedSeasonEnvironmentView,
   RankedSeasonPublicView,
 } from '@game/online/ranked-types';
+import type { DeckArchetypeEnvironmentView } from '@game/online/deck-classifier-types';
 
 async function requireData<T>(
   request: Promise<{ data: T | null; error: { message: string } | null }>,
@@ -29,6 +30,16 @@ export function fetchRankedSeasons(): Promise<RankedSeasonPublicView[]> {
 export function fetchRankedEnvironment(seasonId: string): Promise<RankedSeasonEnvironmentView> {
   const query = `?seasonId=${encodeURIComponent(seasonId)}`;
   return requireData(apiClient.get(`/api/ranked/environment${query}`), '读取赛季卡牌使用率失败');
+}
+
+export function fetchRankedDeckArchetypeEnvironment(
+  seasonId: string
+): Promise<DeckArchetypeEnvironmentView> {
+  const query = `?seasonId=${encodeURIComponent(seasonId)}`;
+  return requireData(
+    apiClient.get(`/api/ranked/environment/decks${query}`),
+    '读取赛季卡组环境失败'
+  );
 }
 
 export function joinRankedQueue(deckId: string): Promise<PublicTableStatusView> {

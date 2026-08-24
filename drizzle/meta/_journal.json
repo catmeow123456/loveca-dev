@@ -218,6 +218,27 @@
       "when": 1787380708523,
       "tag": "0030_add_global_battle_timeout_config",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787404090922,
+      "tag": "0031_add_card_sync_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1787451559237,
+      "tag": "0032_add_deck_classifier",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1787499889348,
+      "tag": "0033_harden_card_sync",
+      "breakpoints": true
     }
   ]
 }

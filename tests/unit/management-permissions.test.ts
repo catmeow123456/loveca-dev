@@ -10,10 +10,12 @@ describe('management permission matrix', () => {
     expect(USER_ROLES).toEqual(['user', 'season_admin', 'admin']);
     expect(MANAGEMENT_PERMISSIONS).toEqual([
       'season.ranked.manage',
+      'season.deck_classifier.manage',
       'season.theme.manage',
       'season.entry_visibility.manage',
       'platform.manage',
       'cards.manage',
+      'cards.sync',
       'rules.manage',
       'users.list',
       'users.roles.manage',
@@ -26,6 +28,11 @@ describe('management permission matrix', () => {
 
     expect(
       MANAGEMENT_PERMISSIONS.filter((permission) => hasPermission('season_admin', permission))
-    ).toEqual(['season.ranked.manage', 'season.theme.manage', 'season.entry_visibility.manage']);
+    ).toEqual([
+      'season.ranked.manage',
+      'season.deck_classifier.manage',
+      'season.theme.manage',
+      'season.entry_visibility.manage',
+    ]);
   });
 });

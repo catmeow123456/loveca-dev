@@ -94,6 +94,16 @@ FREE 只放宽这次登场的能量支付与目标槽位限制：卡面规定的
 BLADE +2，离场来源无需仍在舞台；事件或目标 stale 时消费 pending 并 no-op。手动确认使用
 实时条件/结果文案，ordered batch 直接结算。
 
+`relay-replacement-activate-energy.ts` 由旧 `PL!HS-sd1-001` 在 `PL!-pb2-009` 成为第二个
+真实样本时晋升。两张卡稳定共享“来源因符合条件成员换手而离场，活跃至多2张待机能量”的
+结算形状；差异只通过 definition 的结构化团体与最低印刷费用表达（莲之空>=10、μ's>=15）。
+runner 的通用 `ON_LEAVE_STAGE` filter 与 workflow 结算均绑定同一个精确
+`LeaveStageEvent.replacingCardId` 重验，不按卡牌原始 owner 收窄控制者已发生的换手事实；普通离场、
+错团体和费用不足在入队前过滤。能量变更复用通用精确选择与特殊能量规则，0/1张待机能量按
+实际数量结算；手动 confirm-only 追加实时结果说明，ordered batch 不打开额外窗口。该 family
+只配置 abilityId、基础编号、替换成员团体/最低印刷费用、活跃数量和稳定 action step，不扩成
+任意离场条件或能量效果 DSL。
+
 `look-top-ten-minus-hand-take-two.ts` 是 `PL!HS-PR-039` 与 `PL!SP-PR-028` 的窄动态检视
 family。唯一动态轴是在结算开始按当前手牌锁定 `max(0, 10-handCount)`；检视、0～2张私密
 入手、余牌成组进入休息室及 continuation 全部委托既有 `look-top-select-to-hand` core。
@@ -110,7 +120,7 @@ deadline 恢复后整体重验，并调用统一 waiting-room-to-main-deck 事�
 
 费用 9「ミア・テイラー」`PL!N-bp1-011` 保持 `workflows/cards/n-bp1-011-mia-taylor.ts` 单卡 ownership。它只与上述 family 共享可选弃手和底层区域动作；完整流程是逐张公开至服务端确定的首张 LIVE、通过 Public Reveal Dwell 展示完整公开结果、展示结束后一次移动，不存在玩家自由选择命中目标，因此不接 public-card-selection confirmation deadline。
 
-`self-sacrifice-waiting-room-to-hand.ts` 承接“来源成员自送休息室后，从自己的休息室公开确认回收卡牌”的稳定 family。回收后的能量恢复只允许有限条件联合：成功 LIVE 区有效分数总计，或本次实际回收 LIVE 自身的结构化团体与印刷分数；不接受任意 callback。`PL!-PR-017` 与 `PL!S-bp3-008` 是两个真实条件样本。
+`self-sacrifice-waiting-room-to-hand.ts` 承接“来源成员自送休息室后，从自己的休息室公开确认回收卡牌”的稳定 family。回收后的能量恢复只允许有限条件联合：成功 LIVE 区有效分数总计、本次实际回收 LIVE 自身的结构化团体与印刷分数，或自己成功区中自己持有的结构化团体卡牌数；不接受任意 callback。`PL!-PR-017`、`PL!S-bp3-008` 与 `PL!-pb2-007` 是三个真实后处理样本。无回收目标时仍保留已支付的自送费用；不依赖“实际回收卡”的后处理继续结算。
 
 `live-start-discard-gain-blade.ts` 承接 LIVE_START queued 的“可选弃手，来源成员获得 BLADE”稳定 family。当前配置轴仅为 abilityId、弃置 min/max、`PER_DISCARD / FIXED_TOTAL` 两种有限奖励，以及“弃置 LIVE 后抽1”的窄后处理；不接受任意 callback、奖励公式、任意弃牌后处理或步骤 DSL。`PL!S-bp3-003` 证明0至2张与每张+2，`PL!SP-PR-009/011/012` 保留 exactly 1、+1与弃 LIVE 抽1，`PL!SP-sd1-003` 证明恰好2张与支付成功后固定+5。弃手统一走 trigger-safe wrapper，modifier 绑定来源成员实例，并通过统一 pending continuation 返回检查时点；手牌不足配置下限时直接消费 pending，不建立非法选择窗口。
 
@@ -214,6 +224,8 @@ Draw-then-discard may also carry a narrow `requiredSourceSlot` axis for real sid
 Discard-look-top-select-to-hand may combine an alias selector with `memberOnly` when the real text says "named group/unit member card". Keep the discard cost on `discardOneHandCardToWaitingRoomAndEnqueueTriggers`, then build the reveal selector as `typeIs(CardType.MEMBER)` plus the alias predicate so LIVE cards from the same group remain in the inspected remainder.
 
 `look-top-select-to-hand.ts` may use the finite `minSuccessfulLiveScore` axis when the printed effect gates the existing inspection flow on the controller's successful-LIVE effective score. The starter must call `sumSuccessfulLiveScore` before `inspectTopCards`; a failed threshold consumes only the current pending, records a player-readable condition result, creates no inspection or active effect, and returns through unified continuation. `PL!-bp4-006` is the proving sample with threshold 3, top 5, and `typeIs(MEMBER) + groupAliasIs("μ's")`. This axis is not an arbitrary condition callback, predicate DSL, or generic zone-movement condition.
+
+The same shared workflow owns the narrow optional source-orientation cost family proven by `PL!SP-bp4-002` and `PL!-pb2-008`: the source must still be the controller's top-level ACTIVE stage member, choosing the only positive `发动` option pays ACTIVE→WAITING through the member-state event wrapper, and `不发动` is expressed by `canSkipSelection` rather than a second decline option. An unpayable source exposes no positive option but remains skippable. Confirmation must revalidate the source; one that has left the stage or is already WAITING consumes the current effect and resumes the unified continuation instead of leaving a locked window. State-change observers enqueue behind the still-active inspection and cannot interrupt look-top, public reveal dwell, hand movement, or grouped remainder-to-waiting-room completion. Payment remains paid when the deck is short or the post-cost selector has no target.
 
 Opponent wait target is a shared family when the operation is "choose one opponent stage member and change it to WAITING". Keep selector differences, action step, step text, selection/confirmation copy, and proven finite source-side preconditions in config. `PL!N-sd2-013` adds only the resolve-time condition that every occupied own top-level stage slot is a member of one configured group; `PL!N-sd2-019/021` add the printed-cost-at-most selector while retaining the same single-target operation. `PL!HS-PR-038` proves one bounded post-change axis: after a real orientation change, register one `memberActivePhaseSkips` marker for that opponent member before passing the resulting state to the standard member-state event wrapper. No target, stale target, waiting protection, or any `changed=false` result must not write the marker; only this config consumes such a stale selection as a no-op so the mandatory pending chain can continue. A queued no-target branch may opt into the narrow `confirmNoTargetWithRealtimeText` axis when the real card has no interaction after target absence; the appended text must describe the current target count and actual no-op result, and real target selection windows must not receive an extra confirm-only wrapper. Do not merge this family into activation-energy or other orientation-changing workflows unless their event timing, target side, and payload fields are identical.
 
@@ -540,3 +552,7 @@ family 的有限配置轴仅为 `abilityId` / `baseCardCode`、可选的团体+�
 - `activated-self-position-change.ts` 仅持有强制自身站位变换窗口、来源／恋授予资格复核、标准 slot-moved wrapper 与 stale-after-cost continuation。它不知道能量费用种类；旧 `activated-pay-energy-self-position-change.ts` 与新 `PL!SP-bp7-022` 分别在开窗前支付活跃能量 `[E]` 费用或返回能量费用。
 - `runtime/public-card-selection-confirmation.ts` 的 `distinctGroupAssignment` 是显式 opt-in：开启时，一张实体卡即使具有多小队身份也只能贡献一个 selection group，通过小型回溯查找可行一对一分配。缺省关闭，不改变旧 grouped-recovery 语义；当前只有 `PL!SP-bp7-012` 使用。
 - `PL!S-bp7-011` 的“来源 WAIT 费用 + 底2 + 再活跃 + BLADE”与 `PL!SP-bp7-012` 的“三小队各1张置底后抽1”保持卡牌专属 workflow；只复用事件 wrapper、公开停留、选择确认和统一 continuation，不为本批构造任意步骤 DSL。
+
+# 登场获得动态舞台 aura 边界（2026-08-23）
+
+`PL!-pb2-005` 的内层「常时」是登场成功后来源成员获得、直到 LIVE 结束的 aura，不是从卡牌原始文本恒常发生的第二条独立能力。workflow 在登场结算时一次性检查成功区条件，成立时写入来源自身的真实 `SOURCE_MEMBER BLADE +1` modifier；continuous registry 仅在该 exact source + ability modifier 仍存在时，向其他己方顶层 μ’s 成员动态投影 `TARGET_MEMBER BLADE +1`。这保持后续登场成员、来源 WAITING、来源离场与多来源叠加语义，并明确排除来源自身的 TARGET 投影以防双算。该窄边界不扩展 `on-enter-source-member-gain-live-modifier.ts` 的固定来源自身修正 family，也不是任意 aura callback DSL。

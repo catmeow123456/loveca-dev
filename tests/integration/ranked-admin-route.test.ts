@@ -521,7 +521,27 @@ describe('rankedAdminRouter', () => {
     const userId = '22222222-2222-4222-8222-222222222222';
     vi.mocked(rankedAdminService.getPlayerContext).mockResolvedValue({
       seasonId,
-      player: { userId, status: 'RANKED', rank: 7 },
+      player: {
+        userId,
+        status: 'RANKED',
+        rank: 7,
+        wins: 8,
+        losses: 4,
+        deckClassification: {
+          release: { id: '33333333-3333-4333-8333-333333333333', version: 3 },
+          observedMatchCount: 12,
+          classifiedMatchCount: 10,
+          coverageStatus: 'PARTIAL',
+          isTied: false,
+          leaders: [
+            {
+              archetypeId: '44444444-4444-4444-8444-444444444444',
+              name: '测试分类',
+              matchCount: 6,
+            },
+          ],
+        },
+      },
       neighbors: { rows: [] },
     } as never);
 
@@ -531,6 +551,18 @@ describe('rankedAdminRouter', () => {
     });
     expect(response.statusCode).toBe(200);
     expect(rankedAdminService.getPlayerContext).toHaveBeenCalledWith(seasonId, userId);
+    expect(response.body).toMatchObject({
+      data: {
+        player: {
+          wins: 8,
+          losses: 4,
+          deckClassification: {
+            coverageStatus: 'PARTIAL',
+            leaders: [{ name: '测试分类', matchCount: 6 }],
+          },
+        },
+      },
+    });
 
     const invalidUser = await invokeRoute('/players/:userId/context', 'get', {
       params: { userId: 'not-a-uuid' },

@@ -28,6 +28,7 @@ import {
 } from '../../../domain/entities/zone.js';
 import { returnEnergyBelowMemberToEnergyDeckForPlayer } from '../../effects/energy-below.js';
 import { RuleActionType } from '../../../domain/rules/rule-actions.js';
+import { resolveMemberEntryOrientation } from '../../../domain/rules/member-entry-orientation.js';
 import {
   FaceState,
   OrientationState,
@@ -136,6 +137,13 @@ export function playMemberFromZoneToStageSlotWithReplacement(
     });
   }
 
+  const entryOrientation = resolveMemberEntryOrientation(
+    game,
+    player.id,
+    options.cardId,
+    options.toSlot,
+    options.orientation ?? OrientationState.ACTIVE
+  );
   state = updatePlayer(state, player.id, (currentPlayer) => ({
     ...currentPlayer,
     hand:
@@ -147,7 +155,7 @@ export function playMemberFromZoneToStageSlotWithReplacement(
         ? removeCardFromZone(currentPlayer.waitingRoom, options.cardId)
         : currentPlayer.waitingRoom,
     memberSlots: placeCardInSlot(currentPlayer.memberSlots, options.toSlot, options.cardId, {
-      orientation: options.orientation ?? OrientationState.ACTIVE,
+      orientation: entryOrientation,
       face: FaceState.FACE_UP,
     }),
     movedToStageThisTurn: [...currentPlayer.movedToStageThisTurn, options.cardId],
@@ -286,13 +294,21 @@ export function playMemberFromZoneToEmptySlot(
     return null;
   }
 
+  const entryOrientation = resolveMemberEntryOrientation(
+    game,
+    player.id,
+    options.cardId,
+    options.toSlot,
+    options.orientation ?? OrientationState.ACTIVE
+  );
+
   let state =
     options.sourceZone === ZoneType.HAND
       ? updatePlayer(game, player.id, (currentPlayer) => ({
           ...currentPlayer,
           hand: removeCardFromZone(currentPlayer.hand, options.cardId),
           memberSlots: placeCardInSlot(currentPlayer.memberSlots, options.toSlot, options.cardId, {
-            orientation: options.orientation ?? OrientationState.ACTIVE,
+            orientation: entryOrientation,
             face: FaceState.FACE_UP,
           }),
           movedToStageThisTurn: [...currentPlayer.movedToStageThisTurn, options.cardId],
@@ -305,7 +321,7 @@ export function playMemberFromZoneToEmptySlot(
               options.toSlot,
               options.cardId,
               {
-                orientation: options.orientation ?? OrientationState.ACTIVE,
+                orientation: entryOrientation,
                 face: FaceState.FACE_UP,
               }
             ),

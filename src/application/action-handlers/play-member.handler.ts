@@ -8,7 +8,13 @@ import type { GameState } from '../../domain/entities/game.js';
 import type { PlayMemberAction } from '../actions.js';
 import type { ActionHandler, ActionHandlerContext } from './types.js';
 import { success, failure } from './types.js';
-import { SlotPosition, TriggerCondition, ZoneType } from '../../shared/types/enums.js';
+import {
+  FaceState,
+  OrientationState,
+  SlotPosition,
+  TriggerCondition,
+  ZoneType,
+} from '../../shared/types/enums.js';
 import { isMemberCardData, type MemberCardData } from '../../domain/entities/card.js';
 import { addAction, emitGameEvent, updatePlayer } from '../../domain/entities/game.js';
 import {
@@ -30,6 +36,7 @@ import { getMemberEffectiveCost } from '../effects/conditions.js';
 import { returnEnergyBelowMemberToEnergyDeckForPlayer } from '../effects/energy-below.js';
 import { canUseDoubleRelay } from '../../shared/rules/double-relay.js';
 import { RuleActionType } from '../../domain/rules/rule-actions.js';
+import { resolveMemberEntryOrientation } from '../../domain/rules/member-entry-orientation.js';
 
 interface RelayReplacementExecution {
   readonly cardId: string;
@@ -139,9 +146,19 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   }
 
   // 执行：从手牌移除并放置到舞台
+  const entryOrientation = resolveMemberEntryOrientation(
+    game,
+    playerId,
+    cardId,
+    targetSlot,
+    OrientationState.ACTIVE
+  );
   state = updatePlayer(state, playerId, (p) => {
     const newHand = removeCardFromZone(p.hand, cardId);
-    const newSlots = placeCardInSlot(p.memberSlots, targetSlot, cardId);
+    const newSlots = placeCardInSlot(p.memberSlots, targetSlot, cardId, {
+      orientation: entryOrientation,
+      face: FaceState.FACE_UP,
+    });
     return {
       ...p,
       hand: newHand,

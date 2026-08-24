@@ -33,7 +33,10 @@ import {
 import { pool } from '../../src/server/db/pool';
 import { rankedRatingService } from '../../src/server/services/ranked-rating-service';
 import { recoverNoFaultThemeOpeningPlayers } from '../../src/server/services/theme-table-recovery-service';
-import type { MatchRecorderService } from '../../src/server/services/match-recorder-service';
+import type {
+  AppendMatchRecordFrameInput,
+  MatchRecorderService,
+} from '../../src/server/services/match-recorder-service';
 import { toDeckPointTableRules } from '../../src/domain/rules/deck-point-table';
 
 const TEST_POINT_TABLE = toDeckPointTableRules({
@@ -351,6 +354,40 @@ function createTestRecorder(overrides: Partial<TestRecorder> = {}): TestRecorder
     })),
     ...overrides,
   };
+}
+
+function createBlockingAppendRecorder(): {
+  readonly recorder: TestRecorder;
+  readonly appendStarted: Promise<void>;
+  readonly releaseAppend: () => void;
+} {
+  let notifyAppendStarted!: () => void;
+  const appendStarted = new Promise<void>((resolve) => {
+    notifyAppendStarted = resolve;
+  });
+  let releaseAppend!: () => void;
+  const appendGate = new Promise<void>((resolve) => {
+    releaseAppend = resolve;
+  });
+  let shouldBlock = true;
+  let timelineSeq = 1;
+  const recorder = createTestRecorder({
+    appendMatchRecordFrame: vi.fn(async (input: AppendMatchRecordFrameInput) => {
+      if (shouldBlock) {
+        shouldBlock = false;
+        notifyAppendStarted();
+        await appendGate;
+      }
+      timelineSeq += 1;
+      return {
+        matchId: input.matchId,
+        timelineSeq,
+        checkpointSeq: input.writeAuthorityCheckpoint === false ? null : timelineSeq,
+        payloadHash: input.writeAuthorityCheckpoint === false ? null : `sha256:test-${timelineSeq}`,
+      };
+    }),
+  });
+  return { recorder, appendStarted, releaseAppend };
 }
 
 describe('OnlineRoomService', () => {
@@ -1996,7 +2033,7 @@ describe('OnlineRoomService', () => {
     let initialDeckCount = 0;
     let acceptedFrameObserved = false;
     const recorder = createTestRecorder({
-      appendMatchRecordFrame: vi.fn(async (input) => {
+      appendMatchRecordFrame: vi.fn(async (input: AppendMatchRecordFrameInput) => {
         if (input.frameType === 'UNDO_ACCEPTED') {
           acceptedFrameObserved = true;
           expect(match?.pendingUndoRequest).toBeNull();
@@ -2666,6 +2703,45 @@ describe('OnlineRoomService', () => {
     );
   });
 
+  it('带数据库裁定 claim 的删除封存失败时应先回滚再释放单场队列', async () => {
+    const recorder = createTestRecorder({
+      sealMatch: vi.fn(() => Promise.reject(new Error('seal failed'))),
+    });
+    const matchService = new OnlineMatchService({ recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'CLAIMDEL',
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+    });
+    const lifecycle: string[] = [];
+
+    const deleted = await matchService.deleteMatch(match.matchId, {
+      reason: 'TEST_CLAIMED_DELETE',
+      claimAtExecution: () => {
+        lifecycle.push('claim');
+        return Promise.resolve(true);
+      },
+      rollbackClaimAtExecution: () => {
+        lifecycle.push('rollback');
+        return Promise.resolve();
+      },
+    });
+
+    expect(deleted).toBe(false);
+    expect(lifecycle).toEqual(['claim', 'rollback']);
+    expect(matchService.getMatch(match.matchId)).toBe(match);
+  });
+
   it('GAME_END match 删除时应封存为 COMPLETED/FULL 并记录胜者座位', async () => {
     let now = 8_000_000;
     const recorder = createTestRecorder();
@@ -2765,6 +2841,381 @@ describe('OnlineRoomService', () => {
         endReason: GameEndReason.OPPONENT_SURRENDER,
       })
     );
+  });
+
+  it('排位自动判负命令未到达参与者时应回滚已取得的数据库 claim', async () => {
+    const matchService = new OnlineMatchService({ recorder: createTestRecorder() });
+    const match = await matchService.createMatch({
+      roomCode: 'CLAIMFORFEIT',
+      originKind: 'RANKED',
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+    });
+    const lifecycle: string[] = [];
+
+    const result = await matchService.executeRankedForfeitCommand(
+      match.matchId,
+      'missing-user',
+      'DISCONNECT_TIMEOUT',
+      createSurrenderCommand('ignored-client-player-id'),
+      {
+        validateAtExecution: () => {
+          lifecycle.push('validate');
+          return true;
+        },
+        claimAtExecution: () => {
+          lifecycle.push('claim');
+          return Promise.resolve(true);
+        },
+        rollbackClaimAtExecution: () => {
+          lifecycle.push('rollback');
+          return Promise.resolve();
+        },
+      }
+    );
+
+    expect(result).toBeNull();
+    expect(lifecycle).toEqual(['validate', 'claim', 'validate', 'rollback']);
+    expect(match.rankedForfeitCause).toBeNull();
+    expect(matchService.isMatchCompleted(match.matchId)).toBe(false);
+  });
+
+  it('同一对局的命令应串行落盘，避免相邻命令共用终局事件并重复封存', async () => {
+    let notifyFirstAppendStarted!: () => void;
+    const firstAppendStarted = new Promise<void>((resolve) => {
+      notifyFirstAppendStarted = resolve;
+    });
+    let releaseFirstAppend!: () => void;
+    const firstAppendGate = new Promise<void>((resolve) => {
+      releaseFirstAppend = resolve;
+    });
+    let appendCallCount = 0;
+    const recorder = createTestRecorder({
+      appendMatchRecordFrame: vi.fn(async (input: AppendMatchRecordFrameInput) => {
+        appendCallCount += 1;
+        if (appendCallCount === 1) {
+          notifyFirstAppendStarted();
+          await firstAppendGate;
+        }
+        return {
+          matchId: input.matchId,
+          timelineSeq: appendCallCount + 1,
+          checkpointSeq: input.writeAuthorityCheckpoint === false ? null : appendCallCount + 1,
+          payloadHash:
+            input.writeAuthorityCheckpoint === false ? null : `sha256:test-${appendCallCount}`,
+        };
+      }),
+    });
+    const matchService = new OnlineMatchService({ recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'SERIAL1',
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+    });
+    forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
+
+    const drawPromise = matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createDrawCardToHandCommand('ignored-client-player-id')
+    );
+    await firstAppendStarted;
+    const surrenderPromise = matchService.executeCommand(
+      match.matchId,
+      'u2',
+      createSurrenderCommand('ignored-client-player-id')
+    );
+
+    expect(recorder.appendMatchRecordFrame).toHaveBeenCalledTimes(1);
+    expect(match.session.state?.currentPhase).toBe(GamePhase.MAIN_PHASE);
+
+    releaseFirstAppend();
+    const [drawResult, surrenderResult] = await Promise.all([drawPromise, surrenderPromise]);
+
+    expect(drawResult?.success).toBe(true);
+    expect(surrenderResult?.success).toBe(true);
+    expect(recorder.appendMatchRecordFrame).toHaveBeenCalledTimes(2);
+    expect(recorder.sealMatch).toHaveBeenCalledTimes(1);
+    expect(recorder.markPartial).not.toHaveBeenCalled();
+    const appendInputs = vi
+      .mocked(recorder.appendMatchRecordFrame)
+      .mock.calls.map(([input]) => input);
+    expect(
+      appendInputs[0]?.publicEvents?.some(
+        (event) => event.type === 'PlayerDeclared' && event.declarationType === 'SURRENDER'
+      )
+    ).toBe(false);
+    expect(
+      appendInputs[1]?.publicEvents?.some(
+        (event) => event.type === 'PlayerDeclared' && event.declarationType === 'SURRENDER'
+      )
+    ).toBe(true);
+  });
+
+  it('接受撤销落盘期间的投降应等待整个撤销写操作完成', async () => {
+    let notifyUndoAcceptedStarted!: () => void;
+    const undoAcceptedStarted = new Promise<void>((resolve) => {
+      notifyUndoAcceptedStarted = resolve;
+    });
+    let releaseUndoAccepted!: () => void;
+    const undoAcceptedGate = new Promise<void>((resolve) => {
+      releaseUndoAccepted = resolve;
+    });
+    let timelineSeq = 1;
+    const recorder = createTestRecorder({
+      appendMatchRecordFrame: vi.fn(async (input: AppendMatchRecordFrameInput) => {
+        if (input.frameType === 'UNDO_ACCEPTED') {
+          notifyUndoAcceptedStarted();
+          await undoAcceptedGate;
+        }
+        timelineSeq += 1;
+        return {
+          matchId: input.matchId,
+          timelineSeq,
+          checkpointSeq: input.writeAuthorityCheckpoint === false ? null : timelineSeq,
+          payloadHash:
+            input.writeAuthorityCheckpoint === false ? null : `sha256:test-${timelineSeq}`,
+        };
+      }),
+    });
+    const matchService = new OnlineMatchService({ recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'SERUNDO',
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+    });
+    forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
+
+    const commandResult = await matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createDrawCardToHandCommand('ignored-client-player-id')
+    );
+    const undoEntry = commandResult?.snapshot?.playerViewState.match.undo?.entry;
+    expect(commandResult?.success).toBe(true);
+    expect(undoEntry).toBeTruthy();
+
+    const requestResult = await matchService.createUndoRequest(match.matchId, 'u1', {
+      expectedRevision: commandResult!.snapshot!.seq,
+      undoEntryId: undoEntry!.undoEntryId,
+      idempotencyKey: 'serialized-undo-request',
+    });
+    const requestId =
+      requestResult?.snapshot?.playerViewState.match.undo?.pendingRequest?.requestId;
+    expect(requestResult?.success).toBe(true);
+    expect(requestId).toBeTruthy();
+
+    const acceptPromise = matchService.acceptUndoRequest(match.matchId, 'u2', requestId!, {
+      expectedRevision: requestResult!.snapshot!.seq,
+      idempotencyKey: 'serialized-undo-accept',
+    });
+    await undoAcceptedStarted;
+    const surrenderPromise = matchService.executeCommand(
+      match.matchId,
+      'u2',
+      createSurrenderCommand('ignored-client-player-id')
+    );
+
+    expect(match.session.state?.currentPhase).toBe(GamePhase.MAIN_PHASE);
+    expect(
+      vi
+        .mocked(recorder.appendMatchRecordFrame)
+        .mock.calls.some(([input]) =>
+          input.publicEvents?.some(
+            (event) => event.type === 'PlayerDeclared' && event.declarationType === 'SURRENDER'
+          )
+        )
+    ).toBe(false);
+
+    releaseUndoAccepted();
+    const [acceptResult, surrenderResult] = await Promise.all([acceptPromise, surrenderPromise]);
+
+    expect(acceptResult?.success).toBe(true);
+    expect(surrenderResult?.success).toBe(true);
+    const tailFrameTypes = vi
+      .mocked(recorder.appendMatchRecordFrame)
+      .mock.calls.map(([input]) => input.frameType)
+      .slice(-3);
+    expect(tailFrameTypes).toEqual(['UNDO_ACCEPTED', 'UNDO_APPLIED', 'COMMAND_ACCEPTED']);
+    expect(recorder.sealMatch).toHaveBeenCalledTimes(1);
+    expect(recorder.markPartial).not.toHaveBeenCalled();
+  });
+
+  it('投降命令尚未落盘时删除对局应等待终局记录和封存完成', async () => {
+    let notifySurrenderAppendStarted!: () => void;
+    const surrenderAppendStarted = new Promise<void>((resolve) => {
+      notifySurrenderAppendStarted = resolve;
+    });
+    let releaseSurrenderAppend!: () => void;
+    const surrenderAppendGate = new Promise<void>((resolve) => {
+      releaseSurrenderAppend = resolve;
+    });
+    const recorder = createTestRecorder({
+      appendMatchRecordFrame: vi.fn(async (input: AppendMatchRecordFrameInput) => {
+        const containsSurrender = input.publicEvents?.some(
+          (event) => event.type === 'PlayerDeclared' && event.declarationType === 'SURRENDER'
+        );
+        if (containsSurrender) {
+          notifySurrenderAppendStarted();
+          await surrenderAppendGate;
+        }
+        return {
+          matchId: input.matchId,
+          timelineSeq: 2,
+          checkpointSeq: input.writeAuthorityCheckpoint === false ? null : 2,
+          payloadHash: input.writeAuthorityCheckpoint === false ? null : 'sha256:test',
+        };
+      }),
+    });
+    const matchService = new OnlineMatchService({ recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'SERDEL',
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+    });
+
+    const surrenderPromise = matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createSurrenderCommand('ignored-client-player-id')
+    );
+    await surrenderAppendStarted;
+    const deletePromise = matchService.deleteMatch(match.matchId, {
+      reason: 'ROOM_DESTROYED_ALL_ABSENT',
+    });
+
+    expect(recorder.sealMatch).not.toHaveBeenCalled();
+    expect(matchService.getMatch(match.matchId)).toBe(match);
+
+    releaseSurrenderAppend();
+    const [surrenderResult, deleted] = await Promise.all([surrenderPromise, deletePromise]);
+
+    expect(surrenderResult?.success).toBe(true);
+    expect(deleted).toBe(true);
+    expect(recorder.sealMatch).toHaveBeenCalledTimes(1);
+    expect(recorder.sealMatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'SURRENDERED',
+        completeness: 'FULL',
+        endReason: GameEndReason.OPPONENT_SURRENDER,
+      })
+    );
+    expect(recorder.markPartial).not.toHaveBeenCalled();
+    expect(matchService.getMatch(match.matchId)).toBeNull();
+  });
+
+  it('并发封存请求应共用同一个进行中的 recorder 操作', async () => {
+    let notifySealStarted!: () => void;
+    const sealStarted = new Promise<void>((resolve) => {
+      notifySealStarted = resolve;
+    });
+    let releaseSeal!: () => void;
+    const sealGate = new Promise<void>((resolve) => {
+      releaseSeal = resolve;
+    });
+    const recorder = createTestRecorder({
+      sealMatch: vi.fn(async (input) => {
+        notifySealStarted();
+        await sealGate;
+        return {
+          matchId: input.matchId,
+          timelineSeq: 2,
+          status: input.status,
+          completeness: input.completeness ?? 'PARTIAL',
+        };
+      }),
+    });
+    const matchService = new OnlineMatchService({ recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'SEALCO',
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+    });
+    const state = match.session.state as {
+      currentPhase: GamePhase;
+      isEnded: boolean;
+      endInfo: {
+        reason: GameEndReason;
+        winnerId: string | null;
+        loserId: string | null;
+        isDraw: boolean;
+        endTimestamp: number;
+        finalTurnCount: number;
+      };
+      turnCount: number;
+    };
+    state.currentPhase = GamePhase.GAME_END;
+    state.isEnded = true;
+    state.endInfo = {
+      reason: GameEndReason.OPPONENT_SURRENDER,
+      winnerId: match.participants.FIRST.playerId,
+      loserId: match.participants.SECOND.playerId,
+      isDraw: false,
+      endTimestamp: 8_200_000,
+      finalTurnCount: state.turnCount,
+    };
+
+    const firstDelete = matchService.deleteMatch(match.matchId, { reason: 'TEST_DELETE' });
+    await sealStarted;
+    const secondDelete = matchService.deleteMatch(match.matchId, { reason: 'TEST_DELETE' });
+
+    expect(recorder.sealMatch).toHaveBeenCalledTimes(1);
+    releaseSeal();
+    await expect(Promise.all([firstDelete, secondDelete])).resolves.toEqual([true, true]);
+    expect(recorder.sealMatch).toHaveBeenCalledTimes(1);
+    expect(recorder.markPartial).not.toHaveBeenCalled();
   });
 
   it('同一用户重复加入同一房间时应复用原成员槽位', async () => {
@@ -2952,7 +3403,7 @@ describe('OnlineRoomService', () => {
     const service = new OnlineRoomService({
       now: () => now,
       matchService,
-      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadUserProfile: (userId) => Promise.resolve({ userId, displayName: userId }),
       loadOwnedDeck: async (_userId, deckId) => ({
         deckId,
         deckName: deckId,
@@ -3749,6 +4200,135 @@ describe('OnlineRoomService', () => {
     );
   });
 
+  it('断线判负等待单场队列期间玩家重连时应在执行点撤销裁定', async () => {
+    let now = 22_000;
+    const { recorder, appendStarted, releaseAppend } = createBlockingAppendRecorder();
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const started = await startRankedPublicTableRoom(
+      service,
+      'adadadad-2222-4333-8444-555555555555',
+      'cececece-2222-4333-8444-555555555555',
+      'reconnect-serialized-race',
+      now
+    );
+    const match = matchService.getMatch(started.matchId!);
+    if (!match) throw new Error('missing ranked match');
+    forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
+
+    now += 50_000;
+    service.touchInGameMemberByMatch(match.matchId, 'u2');
+    now += 11_000;
+    const blockerPromise = matchService.executeCommand(
+      match.matchId,
+      'u2',
+      createDrawCardToHandCommand('ignored')
+    );
+    await appendStarted;
+    const forfeitSpy = vi.spyOn(matchService, 'executeRankedForfeitCommand');
+    const cleanupPromise = service.cleanupExpiredRuntimeState();
+    await vi.waitFor(() => expect(forfeitSpy).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining("SET result_type = 'DISCONNECT_FORFEIT'"),
+      [match.matchId]
+    );
+
+    expect(service.touchInGameMemberByMatch(match.matchId, 'u1')).toBe(true);
+    releaseAppend();
+    const [blockerResult, summary] = await Promise.all([blockerPromise, cleanupPromise]);
+
+    expect(blockerResult?.success).toBe(true);
+    expect(summary.rankedDisconnectForfeitCount).toBe(0);
+    expect(matchService.isMatchCompleted(match.matchId)).toBe(false);
+    expect(recorder.sealMatch).not.toHaveBeenCalled();
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining("SET result_type = 'DISCONNECT_FORFEIT'"),
+      [match.matchId]
+    );
+  });
+
+  it('断线裁定排在正常认输终局之后时不得提前污染正式结算', async () => {
+    let now = 23_000;
+    const { recorder, appendStarted, releaseAppend } = createBlockingAppendRecorder();
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const started = await startRankedPublicTableRoom(
+      service,
+      'afafafaf-2222-4333-8444-555555555555',
+      'cfcfcfcf-2222-4333-8444-555555555555',
+      'terminal-before-disconnect-forfeit',
+      now
+    );
+    const match = matchService.getMatch(started.matchId!);
+    if (!match) throw new Error('missing ranked match');
+    forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
+
+    let disconnectClaimActive = false;
+    let settlementSawDisconnectClaim = false;
+    vi.mocked(pool.query).mockImplementation((text) => {
+      if (text.includes("SET result_type = 'DISCONNECT_FORFEIT'")) {
+        disconnectClaimActive = true;
+        return Promise.resolve({ rows: [{ match_id: match.matchId }], rowCount: 1 } as never);
+      }
+      if (text.includes('SET result_type = NULL')) {
+        disconnectClaimActive = false;
+        return Promise.resolve({ rows: [{ match_id: match.matchId }], rowCount: 1 } as never);
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 } as never);
+    });
+    vi.mocked(rankedRatingService.settleMatch).mockImplementationOnce(() => {
+      settlementSawDisconnectClaim = disconnectClaimActive;
+      return Promise.resolve({} as never);
+    });
+
+    now += 50_000;
+    service.touchInGameMemberByMatch(match.matchId, 'u2');
+    now += 11_000;
+    const blockerPromise = matchService.executeCommand(
+      match.matchId,
+      'u2',
+      createDrawCardToHandCommand('ignored')
+    );
+    await appendStarted;
+    const surrenderPromise = matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createSurrenderCommand('ignored-client-player-id')
+    );
+    const forfeitSpy = vi.spyOn(matchService, 'executeRankedForfeitCommand');
+    const cleanupPromise = service.cleanupExpiredRuntimeState();
+    await vi.waitFor(() => expect(forfeitSpy).toHaveBeenCalledTimes(1));
+
+    expect(disconnectClaimActive).toBe(false);
+    releaseAppend();
+    const [blockerResult, surrenderResult, summary] = await Promise.all([
+      blockerPromise,
+      surrenderPromise,
+      cleanupPromise,
+    ]);
+
+    expect(blockerResult?.success).toBe(true);
+    expect(surrenderResult?.success).toBe(true);
+    expect(summary.rankedDisconnectForfeitCount).toBe(0);
+    expect(matchService.isMatchCompleted(match.matchId)).toBe(true);
+    expect(vi.mocked(rankedRatingService.settleMatch).mock.calls).toContainEqual([match.matchId]);
+    expect(settlementSawDisconnectClaim).toBe(false);
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining("SET result_type = 'DISCONNECT_FORFEIT'"),
+      [match.matchId]
+    );
+  });
+
   it('断线判负 CAS 未取得 PENDING 对局时不得执行认输', async () => {
     let now = 20_000;
     const matchService = createInMemoryMatchService();
@@ -3773,6 +4353,10 @@ describe('OnlineRoomService', () => {
 
     expect(summary.rankedDisconnectForfeitCount).toBe(0);
     expect(matchService.isMatchCompleted(started.matchId!)).toBe(false);
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining('SET result_type = NULL'),
+      [started.matchId]
+    );
   });
 
   it('排位检视效果责任方持续在线轮询但三分钟无成功操作时仍应判负', async () => {
@@ -3841,7 +4425,7 @@ describe('OnlineRoomService', () => {
     );
   });
 
-  it('操作超时 CAS 等待期间责任玩家成功操作时应撤销旧代际裁定', async () => {
+  it('操作超时 claim 等待期间后续责任玩家命令不得越过裁定', async () => {
     let now = 35_000;
     const matchService = createInMemoryMatchService({ now: () => now });
     const service = new OnlineRoomService({
@@ -3862,33 +4446,116 @@ describe('OnlineRoomService', () => {
     (match.session.state as unknown as { manualOperationMode: 'FREE' }).manualOperationMode =
       'FREE';
     await matchService.getMatchSnapshot(match.matchId, 'u1');
+    const deadlineAt = match.rankedStallRuntime?.deadlineAt;
+
+    now = deadlineAt! + 1;
+    service.touchInGameMemberByMatch(match.matchId, 'u1');
+    service.touchInGameMemberByMatch(match.matchId, 'u2');
+    let notifyClaimStarted!: () => void;
+    const claimStarted = new Promise<void>((resolve) => {
+      notifyClaimStarted = resolve;
+    });
+    let releaseClaim!: () => void;
+    const claimGate = new Promise<void>((resolve) => {
+      releaseClaim = resolve;
+    });
+    vi.mocked(pool.query).mockImplementation(async (text) => {
+      if (text.includes("SET result_type = 'DISCONNECT_FORFEIT'")) {
+        notifyClaimStarted();
+        await claimGate;
+        return { rows: [{ match_id: match.matchId }], rowCount: 1 } as never;
+      }
+      return { rows: [], rowCount: 0 } as never;
+    });
+
+    const cleanupPromise = service.cleanupExpiredRuntimeState();
+    await claimStarted;
+    const responsibleCommandPromise = matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createDrawCardToHandCommand('ignored')
+    );
+    releaseClaim();
+    const [summary, responsibleResult] = await Promise.all([
+      cleanupPromise,
+      responsibleCommandPromise,
+    ]);
+
+    expect(summary.rankedStallForfeitCount).toBe(1);
+    expect(matchService.isMatchCompleted(match.matchId)).toBe(true);
+    expect(responsibleResult?.success).toBe(false);
+    expect(match.session.state?.endInfo).toMatchObject({
+      loserId: match.participants.FIRST.playerId,
+      reason: GameEndReason.OPPONENT_SURRENDER,
+    });
+    const loserSnapshot = await matchService.getMatchSnapshot(match.matchId, 'u1');
+    expect(loserSnapshot?.playerViewState.match.endInfo).toMatchObject({
+      rankedForfeitCause: 'STALL_TIMEOUT',
+    });
+  });
+
+  it('操作超时裁定排在责任玩家命令之后时应在执行点撤销旧代际', async () => {
+    let now = 36_000;
+    const { recorder, appendStarted, releaseAppend } = createBlockingAppendRecorder();
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const started = await startRankedPublicTableRoom(
+      service,
+      '17171717-3333-4333-8444-555555555555',
+      '18181818-3333-4333-8444-555555555555',
+      'stall-serialized-race',
+      now
+    );
+    const match = matchService.getMatch(started.matchId!);
+    if (!match) throw new Error('missing ranked match');
+    forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
+    await matchService.getMatchSnapshot(match.matchId, 'u1');
     const expiredGeneration = match.rankedStallRuntime?.generation;
     const deadlineAt = match.rankedStallRuntime?.deadlineAt;
 
     now = deadlineAt! + 1;
     service.touchInGameMemberByMatch(match.matchId, 'u1');
     service.touchInGameMemberByMatch(match.matchId, 'u2');
-    vi.mocked(pool.query).mockImplementation(async (text) => {
-      if (text.includes("SET result_type = 'DISCONNECT_FORFEIT'")) {
-        const accepted = await matchService.executeCommand(
-          match.matchId,
-          'u1',
-          createDrawCardToHandCommand('ignored')
-        );
-        expect(accepted?.success).toBe(true);
-        return { rows: [{ match_id: match.matchId }], rowCount: 1 } as never;
-      }
-      return { rows: [], rowCount: 0 } as never;
-    });
+    const blockerPromise = matchService.executeCommand(
+      match.matchId,
+      'u2',
+      createDrawCardToHandCommand('ignored')
+    );
+    await appendStarted;
+    const responsibleCommandPromise = matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createDrawCardToHandCommand('ignored')
+    );
+    const forfeitSpy = vi.spyOn(matchService, 'executeRankedForfeitCommand');
+    const cleanupPromise = service.cleanupExpiredRuntimeState();
+    await vi.waitFor(() => expect(forfeitSpy).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining("SET result_type = 'DISCONNECT_FORFEIT'"),
+      [match.matchId]
+    );
 
-    const summary = await service.cleanupExpiredRuntimeState();
+    releaseAppend();
+    const [blockerResult, responsibleResult, summary] = await Promise.all([
+      blockerPromise,
+      responsibleCommandPromise,
+      cleanupPromise,
+    ]);
 
+    expect(blockerResult?.success).toBe(true);
+    expect(responsibleResult?.success).toBe(true);
     expect(summary.rankedStallForfeitCount).toBe(0);
     expect(matchService.isMatchCompleted(match.matchId)).toBe(false);
     expect(match.rankedStallRuntime?.generation).toBeGreaterThan(expiredGeneration ?? 0);
     expect(match.rankedStallRuntime?.deadlineAt).toBe(now + 180_000);
-    expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
-      expect.stringContaining('SET result_type = NULL'),
+    expect(recorder.sealMatch).not.toHaveBeenCalled();
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining("SET result_type = 'DISCONNECT_FORFEIT'"),
       [match.matchId]
     );
   });
@@ -3956,6 +4623,59 @@ describe('OnlineRoomService', () => {
     expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
       expect.stringContaining("result_type = 'PLATFORM_NO_CONTEST'"),
       [started.matchId, new Date(now)]
+    );
+  });
+
+  it('双断线无结果删除等待单场队列期间玩家重连时应撤销删除', async () => {
+    let now = 32_000;
+    const { recorder, appendStarted, releaseAppend } = createBlockingAppendRecorder();
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const started = await startRankedPublicTableRoom(
+      service,
+      'abababab-3333-4333-8444-555555555555',
+      'cdcdcdcd-3333-4333-8444-555555555555',
+      'double-disconnect-serialized-race',
+      now
+    );
+    const match = matchService.getMatch(started.matchId!);
+    if (!match) throw new Error('missing ranked match');
+    forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
+
+    now += 61_000;
+    const blockerPromise = matchService.executeCommand(
+      match.matchId,
+      'u2',
+      createDrawCardToHandCommand('ignored')
+    );
+    await appendStarted;
+    const deleteSpy = vi.spyOn(matchService, 'deleteMatch');
+    const cleanupPromise = service.cleanupExpiredRuntimeState();
+    await vi.waitFor(() => expect(deleteSpy).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining("SET rating_status = 'VOIDED'"),
+      [match.matchId, new Date(now)]
+    );
+
+    expect(service.touchInGameMemberByMatch(match.matchId, 'u1')).toBe(true);
+    releaseAppend();
+    const [blockerResult, summary] = await Promise.all([blockerPromise, cleanupPromise]);
+
+    expect(blockerResult?.success).toBe(true);
+    expect(summary.rankedPlatformNoContestCount).toBe(0);
+    expect(summary.destroyedRoomCount).toBe(0);
+    expect(matchService.getMatch(match.matchId)).toBe(match);
+    expect(matchService.isMatchCompleted(match.matchId)).toBe(false);
+    expect(recorder.sealMatch).not.toHaveBeenCalled();
+    expect(service.touchInGameMemberByMatch(match.matchId, 'u2')).toBe(true);
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringContaining("SET rating_status = 'VOIDED'"),
+      [match.matchId, new Date(now)]
     );
   });
 

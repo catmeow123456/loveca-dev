@@ -11,13 +11,9 @@ import { addMemberLiveStartSuppressionUntilLiveEnd } from '../../../../domain/ru
 import { SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { selectWaitingRoomCardIds } from '../../../effects/zone-selection.js';
-import {
-  CardAbilityCategory,
-  CardAbilitySourceZone,
-  type CardAbilityDefinition,
-} from '../../ability-definition-types.js';
+import { CardAbilityCategory, CardAbilitySourceZone } from '../../ability-definition-types.js';
 import { SP_BP2_001_ON_ENTER_SUPPRESS_LIELLA_MEMBER_LIVE_START_RECOVER_LIELLA_CARD_ABILITY_ID } from '../../ability-ids.js';
-import { getCardAbilityDefinitionsForCardCode } from '../../definitions/lookup.js';
+import { getImplementedQueuedAbilityDefinitionsForCardCode } from '../../definitions/lookup.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import {
@@ -42,12 +38,7 @@ export function registerSpBp2001KanonWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_BP2_001_ON_ENTER_SUPPRESS_LIELLA_MEMBER_LIVE_START_RECOVER_LIELLA_CARD_ABILITY_ID,
     (game, ability, options, context) =>
-      startSpBp2001KanonOnEnter(
-        game,
-        ability,
-        options,
-        context.continuePendingCardEffects
-      )
+      startSpBp2001KanonOnEnter(game, ability, options, context.continuePendingCardEffects)
   );
   registerActiveEffectStepHandler(
     SP_BP2_001_ON_ENTER_SUPPRESS_LIELLA_MEMBER_LIVE_START_RECOVER_LIELLA_CARD_ABILITY_ID,
@@ -352,40 +343,19 @@ function getSuppressibleLiellaStageMembers(
       return [];
     }
 
-    const liveStartAbilityIds = getStageMemberLiveStartAbilityDefinitions(
+    const liveStartAbilityIds = getImplementedQueuedAbilityDefinitionsForCardCode(
       card.data.cardCode,
-      slot
+      {
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        sourceSlot: slot,
+      }
     ).map((definition) => definition.abilityId);
     return liveStartAbilityIds.length > 0
       ? [{ cardId: memberCardId, slot, liveStartAbilityIds }]
       : [];
   });
-}
-
-function getStageMemberLiveStartAbilityDefinitions(
-  cardCode: string,
-  sourceSlot: SlotPosition
-): readonly CardAbilityDefinition[] {
-  return getCardAbilityDefinitionsForCardCode(cardCode).filter(
-    (definition) =>
-      definition.category === CardAbilityCategory.LIVE_START &&
-      definition.sourceZone === CardAbilitySourceZone.STAGE_MEMBER &&
-      definition.triggerCondition === TriggerCondition.ON_LIVE_START &&
-      definition.queued &&
-      definition.implemented &&
-      doesSourceSlotSatisfyAbility(definition, sourceSlot)
-  );
-}
-
-function doesSourceSlotSatisfyAbility(
-  ability: CardAbilityDefinition,
-  sourceSlot: SlotPosition
-): boolean {
-  return (
-    ability.requiredSourceSlots === undefined ||
-    ability.requiredSourceSlots.length === 0 ||
-    ability.requiredSourceSlots.includes(sourceSlot)
-  );
 }
 
 function getLiellaWaitingRoomCardIds(game: GameState, playerId: string): readonly string[] {

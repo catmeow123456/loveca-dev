@@ -42,6 +42,7 @@ const E2E_SEASON_ID = '99999999-9999-4999-8999-999999999999';
 const E2E_SECOND_SEASON_ID = '99999999-9999-4999-8999-999999999998';
 const E2E_UI_SEASON_KEY = 'season-e2e-ui-draft';
 const RANKED_ADMIN_DB_PROJECT = 'tablet-1024x768';
+const E2E_RANKED_OPPONENT_ID = '88888888-0000-4000-8000-000000000099';
 const E2E_RANKED_PLAYER_FIXTURES = [
   { id: '88888888-0000-4000-8000-000000000001', rating: 1900, ratedMatchCount: 12 },
   { id: '88888888-0000-4000-8000-000000000002', rating: 1800, ratedMatchCount: 12 },
@@ -82,6 +83,125 @@ async function withLocalTestDatabase<T>(
   }
 }
 
+async function removeRankedMatchFacts(
+  client: pg.PoolClient,
+  seasonIds: readonly string[]
+): Promise<void> {
+  const deletedMatches = await client.query<{ match_id: string }>(
+    `DELETE FROM ranked_matches
+     WHERE season_id = ANY($1::uuid[])
+     RETURNING match_id`,
+    [seasonIds]
+  );
+  if (deletedMatches.rowCount) {
+    await client.query('DELETE FROM match_records WHERE match_id = ANY($1::text[])', [
+      deletedMatches.rows.map((row) => row.match_id),
+    ]);
+  }
+}
+
+async function seedSettledRankedMatches(
+  client: pg.PoolClient,
+  input: {
+    readonly seasonId: string;
+    readonly playerId: string;
+    readonly matchCount: number;
+    readonly matchIdPrefix: string;
+  }
+): Promise<void> {
+  await client.query(
+    `INSERT INTO match_records (
+       match_id,
+       room_code,
+       match_mode,
+       automation_game_mode,
+       origin_kind,
+       origin_label,
+       status,
+       completeness,
+       started_at,
+       ended_at,
+       sealed_at,
+       first_user_id,
+       second_user_id,
+       winner_seat,
+       end_reason,
+       rules_version,
+       card_data_version,
+       card_data_hash
+     )
+     SELECT
+       $1 || '-' || match_ordinal::text,
+       'ranked-admin-e2e',
+       'ONLINE',
+       'DEBUG',
+       'RANKED',
+       '排位管理 E2E',
+       'COMPLETED',
+       'METADATA_ONLY',
+       NOW(),
+       NOW(),
+       NOW(),
+       $2,
+       $3,
+       CASE WHEN match_ordinal % 2 = 0 THEN 'FIRST' ELSE 'SECOND' END,
+       'NORMAL',
+       'E2E_RULES_V1',
+       'E2E_CATALOG_V1',
+       $4
+     FROM generate_series(1, $5::integer) AS match_ordinal`,
+    [
+      input.matchIdPrefix,
+      input.playerId,
+      E2E_RANKED_OPPONENT_ID,
+      `sha256:${'c'.repeat(64)}`,
+      input.matchCount,
+    ]
+  );
+  await client.query(
+    `INSERT INTO ranked_matches (
+       match_id,
+       season_id,
+       first_user_id,
+       second_user_id,
+       rating_status,
+       winner_seat,
+       result_type,
+       rules_version,
+       card_catalog_version,
+       card_catalog_hash,
+       deck_policy_version,
+       rating_algorithm_version,
+       ended_at,
+       settled_at
+     )
+     SELECT
+       $1 || '-' || match_ordinal::text,
+       $2,
+       $3,
+       $4,
+       'SETTLED',
+       CASE WHEN match_ordinal % 2 = 0 THEN 'FIRST' ELSE 'SECOND' END,
+       'NORMAL',
+       'E2E_RULES_V1',
+       'E2E_CATALOG_V1',
+       $5,
+       'E2E_DECK_POLICY_V1',
+       'GLICKO1_PER_MATCH_E2E_V1',
+       NOW(),
+       NOW()
+     FROM generate_series(1, $6::integer) AS match_ordinal`,
+    [
+      input.matchIdPrefix,
+      input.seasonId,
+      input.playerId,
+      E2E_RANKED_OPPONENT_ID,
+      `sha256:${'c'.repeat(64)}`,
+      input.matchCount,
+    ]
+  );
+}
+
 async function seedE2eSeason(
   lifecycle: 'DRAFT' | 'ACTIVE' = 'ACTIVE',
   options: {
@@ -116,6 +236,7 @@ async function seedE2eSeason(
     softResetMinimumDeviation: 200,
   };
   await withLocalTestDatabase(async (client) => {
+    await removeRankedMatchFacts(client, [seasonId]);
     await client.query('DELETE FROM ranked_seasons WHERE id = $1', [seasonId]);
     await client.query(
       `INSERT INTO ranked_seasons (
@@ -181,6 +302,7 @@ async function seedE2eSeason(
 
 async function removeE2eSeason(): Promise<void> {
   await withLocalTestDatabase(async (client) => {
+    await removeRankedMatchFacts(client, [E2E_SEASON_ID]);
     await client.query('DELETE FROM ranked_seasons WHERE id = $1', [E2E_SEASON_ID]);
   });
 }
@@ -190,8 +312,18 @@ async function seedE2eRankedPlayerRatings(): Promise<void> {
     await client.query('BEGIN');
     try {
       await client.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [
-        E2E_RANKED_PLAYER_FIXTURES.map((fixture) => fixture.id),
+        [...E2E_RANKED_PLAYER_FIXTURES.map((fixture) => fixture.id), E2E_RANKED_OPPONENT_ID],
       ]);
+      await client.query(
+        `INSERT INTO users (id, email, password_hash, email_verified)
+         VALUES ($1, 'ranked-context-e2e-opponent@example.invalid', 'unused-ranked-e2e-password', TRUE)`,
+        [E2E_RANKED_OPPONENT_ID]
+      );
+      await client.query(
+        `INSERT INTO profiles (id, username, display_name)
+         VALUES ($1, 'ranked_context_e2e_opponent', '排位上下文对手')`,
+        [E2E_RANKED_OPPONENT_ID]
+      );
       for (const [index, fixture] of E2E_RANKED_PLAYER_FIXTURES.entries()) {
         const ordinal = index + 1;
         await client.query(
@@ -221,6 +353,12 @@ async function seedE2eRankedPlayerRatings(): Promise<void> {
              ) VALUES ($1, $2, $3, 80, $4, NOW(), 0)`,
             [E2E_SEASON_ID, fixture.id, fixture.rating, fixture.ratedMatchCount]
           );
+          await seedSettledRankedMatches(client, {
+            seasonId: E2E_SEASON_ID,
+            playerId: fixture.id,
+            matchCount: fixture.ratedMatchCount,
+            matchIdPrefix: `ranked-admin-e2e-primary-${index + 1}`,
+          });
         }
       }
       const secondSeasonPlayer = E2E_RANKED_PLAYER_FIXTURES[9];
@@ -236,6 +374,12 @@ async function seedE2eRankedPlayerRatings(): Promise<void> {
          ) VALUES ($1, $2, $3, 80, 12, NOW(), 0)`,
         [E2E_SECOND_SEASON_ID, secondSeasonPlayer.id, secondSeasonPlayer.rating]
       );
+      await seedSettledRankedMatches(client, {
+        seasonId: E2E_SECOND_SEASON_ID,
+        playerId: secondSeasonPlayer.id,
+        matchCount: 12,
+        matchIdPrefix: 'ranked-admin-e2e-secondary-10',
+      });
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -246,11 +390,12 @@ async function seedE2eRankedPlayerRatings(): Promise<void> {
 
 async function removeE2eRankedPlayerFixtures(): Promise<void> {
   await withLocalTestDatabase(async (client) => {
+    await removeRankedMatchFacts(client, [E2E_SEASON_ID, E2E_SECOND_SEASON_ID]);
     await client.query('DELETE FROM ranked_seasons WHERE id = ANY($1::uuid[])', [
       [E2E_SEASON_ID, E2E_SECOND_SEASON_ID],
     ]);
     await client.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [
-      E2E_RANKED_PLAYER_FIXTURES.map((fixture) => fixture.id),
+      [...E2E_RANKED_PLAYER_FIXTURES.map((fixture) => fixture.id), E2E_RANKED_OPPONENT_ID],
     ]);
   });
 }
@@ -577,6 +722,8 @@ test.describe('赛季排位管理员 API', () => {
             userId: string;
             rating: number;
             ratedMatchCount: number;
+            wins: number;
+            losses: number;
             placementCompleted: boolean;
             leaderboardEligible: boolean;
             status: string;
@@ -597,6 +744,8 @@ test.describe('赛季排位管理员 API', () => {
           userId: E2E_RANKED_TARGET_ID,
           rating: 1700,
           ratedMatchCount: 12,
+          wins: 6,
+          losses: 6,
           placementCompleted: true,
           leaderboardEligible: true,
           status: 'RANKED',
@@ -627,6 +776,8 @@ test.describe('赛季排位管理员 API', () => {
           player: {
             userId: E2E_RANKED_PLACEMENT_ELIGIBLE_ID,
             ratedMatchCount: 7,
+            wins: 3,
+            losses: 4,
             placementCompleted: false,
             leaderboardEligible: true,
             status: 'PLACEMENT',
@@ -653,6 +804,8 @@ test.describe('赛季排位管理员 API', () => {
           player: {
             userId: E2E_RANKED_PLACEMENT_INELIGIBLE_ID,
             ratedMatchCount: 4,
+            wins: 2,
+            losses: 2,
             placementCompleted: false,
             leaderboardEligible: false,
             status: 'PLACEMENT',

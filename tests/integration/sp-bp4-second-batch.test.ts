@@ -13,7 +13,11 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import {
+  addCardToStatefulZone,
+  placeCardInSlot,
+  removeCardFromSlot,
+} from '../../src/domain/entities/zone';
 import {
   createActivateAbilityCommand,
   createConfirmEffectStepCommand,
@@ -34,7 +38,6 @@ import {
   SlotPosition,
   SubPhase,
   TriggerCondition,
-  TurnType,
 } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
@@ -118,7 +121,6 @@ function baseGame(): GameState {
     ...createGameState('sp-bp4-second-batch', PLAYER1, 'P1', PLAYER2, 'P2'),
     currentPhase: GamePhase.MAIN_PHASE,
     currentSubPhase: SubPhase.NONE,
-    currentTurnType: TurnType.NORMAL,
     activePlayerIndex: 0,
     waitingPlayerId: null,
   };
@@ -144,7 +146,14 @@ describe('PL!SP-bp4 second batch effects', () => {
     );
     const member = createCardInstance(createMember('PL!SP-member-liella'), PLAYER1, 'member');
     const bottom = createCardInstance(createMember('PL!SP-bottom'), PLAYER1, 'bottom');
-    let game = registerCards(baseGame(), [source, target, lowRequirement, nonLiella, member, bottom]);
+    let game = registerCards(baseGame(), [
+      source,
+      target,
+      lowRequirement,
+      nonLiella,
+      member,
+      bottom,
+    ]);
     game = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
       mainDeck: {
@@ -177,18 +186,18 @@ describe('PL!SP-bp4 second batch effects', () => {
       resolvePendingCardEffects(game).gameState,
       'bp4-002-decline'
     );
-    expect(declineSession.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'activate', label: '发动' },
-      { id: 'decline', label: '不发动' },
-    ]);
+    expect(declineSession.state?.activeEffect).toMatchObject({
+      selectableOptions: [{ id: 'activate', label: '发动' }],
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
+    });
     const decline = declineSession.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
         declineSession.state!.activeEffect!.id,
         undefined,
         undefined,
-        undefined,
-        'decline'
+        undefined
       )
     );
     expect(decline.success, decline.error).toBe(true);
@@ -215,9 +224,9 @@ describe('PL!SP-bp4 second batch effects', () => {
       )
     );
     expect(activate.success, activate.error).toBe(true);
-    expect(session.state?.players[0].memberSlots.cardStates.get(source.instanceId)?.orientation).toBe(
-      OrientationState.WAITING
-    );
+    expect(
+      session.state?.players[0].memberSlots.cardStates.get(source.instanceId)?.orientation
+    ).toBe(OrientationState.WAITING);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([target.instanceId]);
     expect(session.state?.activeEffect?.inspectionCardIds).toEqual([
       target.instanceId,
@@ -242,8 +251,136 @@ describe('PL!SP-bp4 second batch effects', () => {
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([bottom.instanceId]);
   });
 
+  it('PL!SP-bp4-002 offers only skip when WAITING and continues after a once-payable source leaves or becomes WAITING', () => {
+    const first = createCardInstance(
+      createMember('PL!SP-bp4-002-P', '唐 可可'),
+      PLAYER1,
+      '002-first'
+    );
+    const second = createCardInstance(
+      createMember('PL!SP-bp4-002-R', '唐 可可'),
+      PLAYER1,
+      '002-second'
+    );
+    let game = registerCards(baseGame(), [first, second]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, first.instanceId, {
+          orientation: OrientationState.WAITING,
+          face: FaceState.FACE_UP,
+        }),
+        SlotPosition.LEFT,
+        second.instanceId,
+        { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }
+      ),
+    }));
+    game = {
+      ...game,
+      pendingAbilities: [
+        createPendingAbility(
+          SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID,
+          first.instanceId,
+          TriggerCondition.ON_ENTER_STAGE
+        ),
+      ],
+    };
+    const unpayableSession = createSessionFromGame(
+      resolvePendingCardEffects(game).gameState,
+      'bp4-002-unpayable'
+    );
+    expect(unpayableSession.state?.activeEffect).toMatchObject({
+      selectableOptions: [],
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
+    });
+    const skipped = unpayableSession.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        unpayableSession.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined
+      )
+    );
+    expect(skipped.success, skipped.error).toBe(true);
+    expect(unpayableSession.state?.activeEffect).toBeNull();
+
+    const nextPending = createPendingAbility(
+      SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID,
+      second.instanceId,
+      TriggerCondition.ON_ENTER_STAGE
+    );
+    for (const staleMode of ['LEFT_STAGE', 'ALREADY_WAITING'] as const) {
+      let payable = updatePlayer(game, PLAYER1, (player) => ({
+        ...player,
+        memberSlots: {
+          ...player.memberSlots,
+          cardStates: new Map(player.memberSlots.cardStates).set(first.instanceId, {
+            orientation: OrientationState.ACTIVE,
+            face: FaceState.FACE_UP,
+          }),
+        },
+      }));
+      payable = {
+        ...payable,
+        pendingAbilities: [
+          createPendingAbility(
+            SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID,
+            first.instanceId,
+            TriggerCondition.ON_ENTER_STAGE
+          ),
+        ],
+      };
+      let started = resolvePendingCardEffects(payable).gameState;
+      started = updatePlayer(started, PLAYER1, (player) => ({
+        ...player,
+        memberSlots:
+          staleMode === 'LEFT_STAGE'
+            ? removeCardFromSlot(player.memberSlots, SlotPosition.CENTER)
+            : {
+                ...player.memberSlots,
+                cardStates: new Map(player.memberSlots.cardStates).set(first.instanceId, {
+                  orientation: OrientationState.WAITING,
+                  face: FaceState.FACE_UP,
+                }),
+              },
+      }));
+      started = { ...started, pendingAbilities: [nextPending] };
+      const session = createSessionFromGame(started, `bp4-002-stale-${staleMode}`);
+      const activate = session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          undefined,
+          undefined,
+          undefined,
+          'activate'
+        )
+      );
+      expect(activate.success, activate.error).toBe(true);
+      expect(session.state?.activeEffect).toMatchObject({
+        id: nextPending.id,
+        abilityId: SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID,
+        selectableOptions: [{ id: 'activate', label: '发动' }],
+      });
+      expect(
+        session.state?.actionHistory.some(
+          (action) =>
+            action.payload.abilityId ===
+              SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID &&
+            action.payload.step === 'SOURCE_NOT_ACTIVE_OWN_STAGE_MEMBER_AFTER_SELECTION'
+        )
+      ).toBe(true);
+    }
+  });
+
   it('PL!SP-bp4-018 pays self-sacrifice first, then can recover the source Liella! card', () => {
-    const source = createCardInstance(createMember('PL!SP-bp4-018-N', '米女メイ', 4), PLAYER1, '018');
+    const source = createCardInstance(
+      createMember('PL!SP-bp4-018-N', '米女メイ', 4),
+      PLAYER1,
+      '018'
+    );
     const liellaLive = createCardInstance(createLive('PL!SP-liella-live'), PLAYER1, 'liella-live');
     const nonLiella = createCardInstance(
       createOtherMember('PL!S-other-member', 'Other'),
@@ -253,7 +390,10 @@ describe('PL!SP-bp4 second batch effects', () => {
     let game = registerCards(baseGame(), [source, liellaLive, nonLiella]);
     game = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
-      waitingRoom: { ...player.waitingRoom, cardIds: [liellaLive.instanceId, nonLiella.instanceId] },
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: [liellaLive.instanceId, nonLiella.instanceId],
+      },
       memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
         orientation: OrientationState.ACTIVE,
         face: FaceState.FACE_UP,
@@ -282,11 +422,18 @@ describe('PL!SP-bp4 second batch effects', () => {
     expect(recover.success, recover.error).toBe(true);
     confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toEqual([source.instanceId]);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([liellaLive.instanceId, nonLiella.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
+      liellaLive.instanceId,
+      nonLiella.instanceId,
+    ]);
   });
 
   it('PL!SP-bp4-022 pays up to two active energy and gains matching BLADE', () => {
-    const source = createCardInstance(createMember('PL!SP-bp4-022-N', '鬼塚冬毬', 10), PLAYER1, '022');
+    const source = createCardInstance(
+      createMember('PL!SP-bp4-022-N', '鬼塚冬毬', 10),
+      PLAYER1,
+      '022'
+    );
     const energies = [0, 1].map((index) =>
       createCardInstance(createEnergy(`energy-${index}`), PLAYER1, `energy-${index}`)
     );
@@ -335,9 +482,9 @@ describe('PL!SP-bp4 second batch effects', () => {
     );
     expect(payTwo.success, payTwo.error).toBe(true);
     for (const energy of energies) {
-      expect(session.state?.players[0].energyZone.cardStates.get(energy.instanceId)?.orientation).toBe(
-        OrientationState.WAITING
-      );
+      expect(
+        session.state?.players[0].energyZone.cardStates.get(energy.instanceId)?.orientation
+      ).toBe(OrientationState.WAITING);
     }
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',

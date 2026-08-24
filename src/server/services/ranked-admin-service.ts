@@ -34,6 +34,10 @@ import {
   type RankedSeasonOpenWindow,
   type RankedSeasonRecord,
 } from './ranked-season-service.js';
+import {
+  hashDeckClassifierSnapshot,
+  readDeckClassifierSnapshot,
+} from './deck-classifier-release.js';
 import { stableJsonStringify } from './replay-payload-serialization.js';
 
 export interface RankedAdminSeasonDraftInput {
@@ -133,16 +137,37 @@ export interface RankedAdminPlayerContextPlayer extends RankedAdminPlayerSearchC
   readonly rating: number;
   readonly ratingDeviation: number;
   readonly ratedMatchCount: number;
+  readonly wins: number;
+  readonly losses: number;
   readonly placementCompleted: boolean;
   readonly leaderboardEligible: boolean;
   readonly status: RankedAdminPlayerStatus;
   readonly rank: number | null;
+  readonly deckClassification: RankedAdminPlayerDeckClassification;
+}
+
+export type RankedAdminPlayerDeckClassificationCoverage = 'NONE' | 'PARTIAL' | 'COMPLETE';
+
+export interface RankedAdminPlayerDeckClassification {
+  readonly release: { readonly id: string; readonly version: number } | null;
+  readonly observedMatchCount: number;
+  readonly classifiedMatchCount: number;
+  readonly coverageStatus: RankedAdminPlayerDeckClassificationCoverage;
+  readonly isTied: boolean;
+  readonly leaders: readonly {
+    readonly archetypeId: string;
+    readonly name: string;
+    readonly matchCount: number;
+  }[];
 }
 
 export interface RankedAdminPlayerContextNeighbor extends RankedAdminPlayerSearchCandidate {
   readonly rating: number;
   readonly ratingDeviation: number;
   readonly ratedMatchCount: number;
+  readonly wins: number;
+  readonly losses: number;
+  readonly deckClassification: RankedAdminPlayerDeckClassification;
   readonly rank: number;
   readonly isTarget: boolean;
 }
@@ -289,6 +314,16 @@ interface RankedAdminPlayerContextRow {
   readonly target_rating: number | string | null;
   readonly target_rating_deviation: number | string | null;
   readonly target_rated_match_count: number | string | null;
+  readonly target_wins: number | string;
+  readonly target_losses: number | string;
+  readonly active_release_id: string | null;
+  readonly active_release_version: number | string | null;
+  readonly active_release_snapshot_json: unknown;
+  readonly active_release_config_hash: string | null;
+  readonly observed_deck_match_count: number | string;
+  readonly classified_deck_match_count: number | string;
+  readonly leading_deck_match_count: number | string;
+  readonly leading_archetype_ids: readonly string[] | null;
   readonly target_rank: number | string | null;
   readonly neighbor_user_id: string | null;
   readonly neighbor_username: string | null;
@@ -296,7 +331,24 @@ interface RankedAdminPlayerContextRow {
   readonly neighbor_rating: number | string | null;
   readonly neighbor_rating_deviation: number | string | null;
   readonly neighbor_rated_match_count: number | string | null;
+  readonly neighbor_wins: number | string | null;
+  readonly neighbor_losses: number | string | null;
+  readonly neighbor_observed_deck_match_count: number | string | null;
+  readonly neighbor_classified_deck_match_count: number | string | null;
+  readonly neighbor_leading_deck_match_count: number | string | null;
+  readonly neighbor_leading_archetype_ids: readonly string[] | null;
   readonly neighbor_rank: number | string | null;
+}
+
+interface PlayerDeckClassificationSummaryRow {
+  readonly active_release_id: string | null;
+  readonly active_release_version: number | string | null;
+  readonly active_release_snapshot_json: unknown;
+  readonly active_release_config_hash: string | null;
+  readonly observed_deck_match_count: number | string;
+  readonly classified_deck_match_count: number | string;
+  readonly leading_deck_match_count: number | string;
+  readonly leading_archetype_ids: readonly string[] | null;
 }
 
 interface RankedAdminEventRow {
@@ -804,7 +856,11 @@ export class RankedAdminService {
            ON rating.season_id = season.id
           AND rating.rated_match_count >= season.leaderboard_minimum_match_count
          JOIN profiles AS profile ON profile.id = rating.user_id
-       ), context AS (
+       ), active_release AS MATERIALIZED (
+         SELECT id, version, snapshot_json, config_hash
+         FROM deck_classifier_releases
+         WHERE status = 'ACTIVE'
+       ), target_context AS MATERIALIZED (
          SELECT season.id AS season_id,
                 season.rating_algorithm_version, season.rating_config,
                 season.leaderboard_minimum_match_count, season.ledger_revision,
@@ -818,19 +874,116 @@ export class RankedAdminService {
          FROM season
          LEFT JOIN target ON TRUE
          LEFT JOIN eligible ON eligible.user_id = target.user_id
+       ), neighbor_window AS MATERIALIZED (
+         SELECT neighbor.*
+         FROM target_context AS context
+         JOIN eligible AS neighbor
+           ON context.target_rank IS NOT NULL
+          AND neighbor.rank BETWEEN context.target_rank - 3 AND context.target_rank + 3
+       ), context_users AS MATERIALIZED (
+         SELECT target_user_id AS user_id
+         FROM target_context
+         WHERE target_user_id IS NOT NULL
+         UNION
+         SELECT user_id FROM neighbor_window
+       ), player_results AS MATERIALIZED (
+         SELECT ranked_match.first_user_id AS user_id,
+                ranked_match.match_id, 'FIRST'::text AS seat, ranked_match.winner_seat
+         FROM ranked_matches AS ranked_match
+         JOIN context_users AS context_user ON context_user.user_id = ranked_match.first_user_id
+         WHERE ranked_match.season_id = $1
+           AND ranked_match.rating_status = 'SETTLED'
+         UNION ALL
+         SELECT ranked_match.second_user_id AS user_id,
+                ranked_match.match_id, 'SECOND'::text AS seat, ranked_match.winner_seat
+         FROM ranked_matches AS ranked_match
+         JOIN context_users AS context_user ON context_user.user_id = ranked_match.second_user_id
+         WHERE ranked_match.season_id = $1
+           AND ranked_match.rating_status = 'SETTLED'
+       ), record_summaries AS MATERIALIZED (
+         SELECT context_user.user_id,
+                COUNT(result.match_id) FILTER (WHERE result.seat = result.winner_seat) AS wins,
+                COUNT(result.match_id) FILTER (WHERE result.seat <> result.winner_seat) AS losses
+         FROM context_users AS context_user
+         LEFT JOIN player_results AS result ON result.user_id = context_user.user_id
+         GROUP BY context_user.user_id
+       ), player_observations AS MATERIALIZED (
+         SELECT result.user_id, result.match_id, result.seat
+         FROM player_results AS result
+         JOIN ranked_deck_observations AS observation
+           ON observation.match_id = result.match_id
+          AND observation.seat = result.seat
+          AND observation.season_id = $1
+          AND observation.user_id = result.user_id
+       ), classification_counts AS MATERIALIZED (
+         SELECT observation.user_id, assignment.archetype_id, COUNT(*) AS match_count
+         FROM player_observations AS observation
+         CROSS JOIN active_release AS release
+         JOIN deck_classification_assignments AS assignment
+           ON assignment.match_id = observation.match_id
+          AND assignment.seat = observation.seat
+          AND assignment.release_id = release.id
+          AND assignment.status = 'CLASSIFIED'
+         GROUP BY observation.user_id, assignment.archetype_id
+       ), deck_summaries AS MATERIALIZED (
+         SELECT
+           context_user.user_id,
+           (SELECT COUNT(*) FROM player_observations AS observation
+            WHERE observation.user_id = context_user.user_id) AS observed_match_count,
+           COALESCE((SELECT SUM(match_count) FROM classification_counts AS count
+                     WHERE count.user_id = context_user.user_id), 0)
+             AS classified_match_count,
+           COALESCE((SELECT MAX(match_count) FROM classification_counts AS count
+                     WHERE count.user_id = context_user.user_id), 0)
+             AS leading_match_count,
+           COALESCE(
+             (SELECT ARRAY_AGG(count.archetype_id ORDER BY count.archetype_id)
+              FROM classification_counts AS count
+              WHERE count.user_id = context_user.user_id
+                AND count.match_count = (
+                  SELECT MAX(inner_count.match_count)
+                  FROM classification_counts AS inner_count
+                  WHERE inner_count.user_id = context_user.user_id
+                )),
+             ARRAY[]::uuid[]
+           ) AS leading_archetype_ids
+         FROM context_users AS context_user
        )
        SELECT context.*,
+              target_record.wins AS target_wins,
+              target_record.losses AS target_losses,
+              active_release.id AS active_release_id,
+              active_release.version AS active_release_version,
+              active_release.snapshot_json AS active_release_snapshot_json,
+              active_release.config_hash AS active_release_config_hash,
+              target_deck.observed_match_count AS observed_deck_match_count,
+              target_deck.classified_match_count AS classified_deck_match_count,
+              target_deck.leading_match_count AS leading_deck_match_count,
+              target_deck.leading_archetype_ids,
               neighbor.user_id AS neighbor_user_id,
               neighbor.username AS neighbor_username,
               neighbor.display_name AS neighbor_display_name,
               neighbor.rating AS neighbor_rating,
               neighbor.rating_deviation AS neighbor_rating_deviation,
               neighbor.rated_match_count AS neighbor_rated_match_count,
+              neighbor_record.wins AS neighbor_wins,
+              neighbor_record.losses AS neighbor_losses,
+              neighbor_deck.observed_match_count AS neighbor_observed_deck_match_count,
+              neighbor_deck.classified_match_count AS neighbor_classified_deck_match_count,
+              neighbor_deck.leading_match_count AS neighbor_leading_deck_match_count,
+              neighbor_deck.leading_archetype_ids AS neighbor_leading_archetype_ids,
               neighbor.rank AS neighbor_rank
-       FROM context
-       LEFT JOIN eligible AS neighbor
-         ON context.target_rank IS NOT NULL
-        AND neighbor.rank BETWEEN context.target_rank - 3 AND context.target_rank + 3
+       FROM target_context AS context
+       LEFT JOIN record_summaries AS target_record
+         ON target_record.user_id = context.target_user_id
+       LEFT JOIN deck_summaries AS target_deck
+         ON target_deck.user_id = context.target_user_id
+       LEFT JOIN active_release ON TRUE
+       LEFT JOIN neighbor_window AS neighbor ON TRUE
+       LEFT JOIN record_summaries AS neighbor_record
+         ON neighbor_record.user_id = neighbor.user_id
+       LEFT JOIN deck_summaries AS neighbor_deck
+         ON neighbor_deck.user_id = neighbor.user_id
        ORDER BY neighbor.rank ASC NULLS LAST`,
       [seasonId, userId]
     );
@@ -852,6 +1005,16 @@ export class RankedAdminService {
 
     const ratingConfig = readPersistentConfig(first.rating_algorithm_version, first.rating_config);
     const ratedMatchCount = Number(first.target_rated_match_count);
+    const wins = readNonNegativeSafeInteger(first.target_wins, '玩家胜场数');
+    const losses = readNonNegativeSafeInteger(first.target_losses, '玩家负场数');
+    if (wins + losses !== ratedMatchCount) {
+      throw adminError(
+        'RANKED_PLAYER_CONTEXT_INVALID',
+        '玩家胜负场数与评分投影的已计分场数不一致',
+        500
+      );
+    }
+    const deckClassification = readPlayerDeckClassification(first, wins + losses);
     const placementRequired = ratingConfig.placementMatchCount;
     const leaderboardMinimumMatchCount = first.leaderboard_minimum_match_count;
     const placementCompleted = ratedMatchCount >= placementRequired;
@@ -874,10 +1037,44 @@ export class RankedAdminService {
             row.neighbor_rating === null ||
             row.neighbor_rating_deviation === null ||
             row.neighbor_rated_match_count === null ||
+            row.neighbor_wins === null ||
+            row.neighbor_losses === null ||
+            row.neighbor_observed_deck_match_count === null ||
+            row.neighbor_classified_deck_match_count === null ||
+            row.neighbor_leading_deck_match_count === null ||
             row.neighbor_rank === null
           ) {
             return [];
           }
+          const neighborRatedMatchCount = readNonNegativeSafeInteger(
+            row.neighbor_rated_match_count,
+            '上下文玩家已计分场数'
+          );
+          const neighborWins = readNonNegativeSafeInteger(row.neighbor_wins, '上下文玩家胜场数');
+          const neighborLosses = readNonNegativeSafeInteger(
+            row.neighbor_losses,
+            '上下文玩家负场数'
+          );
+          if (neighborWins + neighborLosses !== neighborRatedMatchCount) {
+            throw adminError(
+              'RANKED_PLAYER_CONTEXT_INVALID',
+              '上下文玩家胜负场数与评分投影的已计分场数不一致',
+              500
+            );
+          }
+          const neighborDeckClassification = readPlayerDeckClassification(
+            {
+              active_release_id: row.active_release_id,
+              active_release_version: row.active_release_version,
+              active_release_snapshot_json: row.active_release_snapshot_json,
+              active_release_config_hash: row.active_release_config_hash,
+              observed_deck_match_count: row.neighbor_observed_deck_match_count,
+              classified_deck_match_count: row.neighbor_classified_deck_match_count,
+              leading_deck_match_count: row.neighbor_leading_deck_match_count,
+              leading_archetype_ids: row.neighbor_leading_archetype_ids,
+            },
+            neighborRatedMatchCount
+          );
           return [
             {
               userId: row.neighbor_user_id,
@@ -885,7 +1082,10 @@ export class RankedAdminService {
               displayName: row.neighbor_display_name,
               rating: Number(row.neighbor_rating),
               ratingDeviation: Number(row.neighbor_rating_deviation),
-              ratedMatchCount: Number(row.neighbor_rated_match_count),
+              ratedMatchCount: neighborRatedMatchCount,
+              wins: neighborWins,
+              losses: neighborLosses,
+              deckClassification: neighborDeckClassification,
               rank: Number(row.neighbor_rank),
               isTarget: row.neighbor_user_id === first.target_user_id,
             },
@@ -906,10 +1106,13 @@ export class RankedAdminService {
         rating: Number(first.target_rating),
         ratingDeviation: Number(first.target_rating_deviation),
         ratedMatchCount,
+        wins,
+        losses,
         placementCompleted,
         leaderboardEligible,
         status,
         rank,
+        deckClassification,
       },
       neighbors: { rows: neighbors },
     };
@@ -1511,6 +1714,131 @@ function readAdminDeckCards(value: unknown): RankedAdminDeckCard[] {
 
 function readRequiredDeckString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function readPlayerDeckClassification(
+  row: PlayerDeckClassificationSummaryRow,
+  completedMatchCount: number
+): RankedAdminPlayerDeckClassification {
+  const observedMatchCount = readNonNegativeSafeInteger(
+    row.observed_deck_match_count,
+    '玩家卡组观察场数'
+  );
+  const classifiedMatchCount = readNonNegativeSafeInteger(
+    row.classified_deck_match_count,
+    '玩家已分类场数'
+  );
+  const leadingMatchCount = readNonNegativeSafeInteger(
+    row.leading_deck_match_count,
+    '玩家最常用卡组场数'
+  );
+  const leadingArchetypeIds = row.leading_archetype_ids ?? [];
+  if (
+    observedMatchCount > completedMatchCount ||
+    classifiedMatchCount > observedMatchCount ||
+    !Array.isArray(leadingArchetypeIds) ||
+    leadingArchetypeIds.some((id) => typeof id !== 'string' || id.trim().length === 0) ||
+    new Set(leadingArchetypeIds).size !== leadingArchetypeIds.length
+  ) {
+    throw adminError('RANKED_PLAYER_DECK_CLASSIFICATION_INVALID', '玩家卡组分类统计数据无效', 500);
+  }
+
+  if (row.active_release_id === null) {
+    if (
+      row.active_release_version !== null ||
+      row.active_release_snapshot_json != null ||
+      row.active_release_config_hash !== null ||
+      classifiedMatchCount !== 0 ||
+      leadingMatchCount !== 0 ||
+      leadingArchetypeIds.length !== 0
+    ) {
+      throw adminError(
+        'RANKED_PLAYER_DECK_CLASSIFICATION_INVALID',
+        '玩家卡组分类发布状态无效',
+        500
+      );
+    }
+    return {
+      release: null,
+      observedMatchCount,
+      classifiedMatchCount,
+      coverageStatus: 'NONE',
+      isTied: false,
+      leaders: [],
+    };
+  }
+
+  const releaseVersion = Number(row.active_release_version);
+  if (
+    !Number.isSafeInteger(releaseVersion) ||
+    releaseVersion <= 0 ||
+    !row.active_release_config_hash
+  ) {
+    throw adminError('RANKED_PLAYER_DECK_CLASSIFICATION_INVALID', '玩家卡组分类发布状态无效', 500);
+  }
+  let snapshot: ReturnType<typeof readDeckClassifierSnapshot>;
+  try {
+    snapshot = readDeckClassifierSnapshot(row.active_release_snapshot_json);
+  } catch {
+    throw adminError('RANKED_PLAYER_DECK_CLASSIFICATION_INVALID', '玩家卡组分类发布快照无效', 500);
+  }
+  if (
+    snapshot.releaseVersion !== releaseVersion ||
+    hashDeckClassifierSnapshot(snapshot) !== row.active_release_config_hash
+  ) {
+    throw adminError(
+      'RANKED_PLAYER_DECK_CLASSIFICATION_INVALID',
+      '玩家卡组分类发布快照完整性校验失败',
+      500
+    );
+  }
+  if (
+    (classifiedMatchCount === 0 && (leadingMatchCount !== 0 || leadingArchetypeIds.length !== 0)) ||
+    (classifiedMatchCount > 0 && (leadingMatchCount <= 0 || leadingArchetypeIds.length === 0))
+  ) {
+    throw adminError(
+      'RANKED_PLAYER_DECK_CLASSIFICATION_INVALID',
+      '玩家最常用卡组统计数据无效',
+      500
+    );
+  }
+
+  const leadingIds = new Set(leadingArchetypeIds);
+  const leaders = snapshot.archetypes
+    .filter((archetype) => leadingIds.has(archetype.id))
+    .map((archetype) => ({
+      archetypeId: archetype.id,
+      name: archetype.name,
+      matchCount: leadingMatchCount,
+    }));
+  if (leaders.length !== leadingArchetypeIds.length) {
+    throw adminError(
+      'RANKED_PLAYER_DECK_CLASSIFICATION_INVALID',
+      '玩家最常用卡组不在当前发布快照中',
+      500
+    );
+  }
+  return {
+    release: { id: row.active_release_id, version: releaseVersion },
+    observedMatchCount,
+    classifiedMatchCount,
+    coverageStatus:
+      classifiedMatchCount === 0
+        ? 'NONE'
+        : classifiedMatchCount === completedMatchCount
+          ? 'COMPLETE'
+          : 'PARTIAL',
+    isTied: leaders.length > 1,
+    leaders,
+  };
+}
+
+function readNonNegativeSafeInteger(value: number | string, label: string): number {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw adminError('RANKED_PLAYER_CONTEXT_INVALID', `${label}无效`, 500);
+  }
+  return parsed;
 }
 
 function validatePreviewInput(input: RankedAdminCorrectionPreviewInput): void {

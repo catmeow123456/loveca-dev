@@ -16,13 +16,14 @@ import type { AnyCardData } from '@game/domain/entities/card';
 import { ActionButton, PageHeader, Panel, StatusBadge } from '@/components/common';
 import { CardDetailDrawer } from '@/components/deck-editor/CardDetailDrawer';
 import { ThemeDeckGallery } from '@/components/theme-table/ThemeDeckGallery';
-import { getCardImageUrl, resolveCardImagePath } from '@/lib/imageService';
+import { resolveCardImagePath, resolveRegistryCardImagePath } from '@/lib/imageService';
 import { useThemeTableStore } from '@/store/themeTableStore';
 import { useGameStore } from '@/store/gameStore';
 import './theme-table.css';
 
 export function ThemeTablePage({ onBack }: { onBack: () => void }) {
   const { overview, loading, error, refresh, join, cancel } = useThemeTableStore();
+  const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [selectedCard, setSelectedCard] = useState<AnyCardData | null>(null);
   useEffect(() => {
@@ -78,7 +79,11 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
             {event.prebuiltDecks.slice(0, 3).map((deck, index) => (
               <img
                 key={deck.id}
-                src={getCardImageUrl(deck.mainDeck[0]?.cardCode ?? 'back', 'medium')}
+                src={resolveRegistryCardImagePath(
+                  deck.mainDeck[0]?.cardCode ?? 'back',
+                  cardDataRegistry,
+                  'medium'
+                )}
                 alt=""
                 style={{ '--draw-index': index } as CSSProperties}
               />

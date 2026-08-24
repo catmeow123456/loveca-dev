@@ -8,6 +8,10 @@ import {
   rankedEnvironmentService,
 } from '../services/ranked-environment-service.js';
 import {
+  RankedDeckArchetypeEnvironmentServiceError,
+  rankedDeckArchetypeEnvironmentService,
+} from '../services/ranked-deck-archetype-environment-service.js';
+import {
   RankedPlayerServiceError,
   rankedPlayerService,
 } from '../services/ranked-player-service.js';
@@ -55,6 +59,25 @@ rankedRouter.get('/environment', async (req, res) => {
   }
   try {
     respondData(res, await rankedEnvironmentService.getSeasonEnvironment(parsed.data.seasonId));
+  } catch (error) {
+    respondRankedError(res, error);
+  }
+});
+
+rankedRouter.get('/environment/decks', async (req, res) => {
+  const parsed = z.object({ seasonId: z.string().uuid() }).safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({
+      data: null,
+      error: { code: 'INVALID_REQUEST', message: '赛季参数无效' },
+    });
+    return;
+  }
+  try {
+    respondData(
+      res,
+      await rankedDeckArchetypeEnvironmentService.getSeasonEnvironment(parsed.data.seasonId)
+    );
   } catch (error) {
     respondRankedError(res, error);
   }
@@ -109,6 +132,7 @@ function respondRankedError(res: Response, error: unknown): void {
   if (
     error instanceof RankedPlayerServiceError ||
     error instanceof RankedEnvironmentServiceError ||
+    error instanceof RankedDeckArchetypeEnvironmentServiceError ||
     error instanceof PublicTableServiceError
   ) {
     res.status(error.statusCode).json({

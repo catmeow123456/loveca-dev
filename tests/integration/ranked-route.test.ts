@@ -150,14 +150,21 @@ describe('rankedRouter', () => {
     const seasonId = '22222222-2222-4222-8222-222222222222';
     vi.mocked(rankedEnvironmentService.getSeasonEnvironment).mockResolvedValue({
       seasonId,
+      displayMode: 'PLAYER_EQUAL',
+      visibleSections: ['USAGE'],
+      topRankedPlayerCount: 30,
       sample: {
         settledMatchCount: 1,
         analyzedMatchCount: 1,
         deckObservationCount: 2,
         playerCount: 2,
+        winningPlayerCount: 0,
+        topRankedEligiblePlayerCount: 0,
+        topRankedAnalyzedPlayerCount: 0,
+        topRankedDeckObservationCount: 0,
         coverageRate: 1,
       },
-      cardUsage: [],
+      rankings: [{ section: 'USAGE', weighting: 'PLAYER_EQUAL', cards: [] }],
     });
 
     const response = await invoke('/environment', 'get', undefined, { seasonId });

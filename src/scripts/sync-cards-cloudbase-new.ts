@@ -13,15 +13,26 @@
  * pnpm exec tsx src/scripts/sync-cards-cloudbase-new.ts --cloudbase-collection=loveca --upload-images --yes
  */
 
+import { createHash, randomUUID } from 'node:crypto';
+import { lookup as dnsLookup } from 'node:dns/promises';
 import * as fs from 'node:fs';
+import { request as httpsRequest } from 'node:https';
 import * as path from 'node:path';
 import { createRequire } from 'node:module';
+import { isIP, type LookupFunction } from 'node:net';
+import { pathToFileURL } from 'node:url';
 import * as readline from 'node:readline/promises';
 import { parse as parseDotenv } from 'dotenv';
 import * as Minio from 'minio';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import sharp from 'sharp';
-import { normalizeCardCode } from '../shared/utils/card-code.js';
+import {
+  clearCardImageVersionMetadata,
+  hasCardImageVersionMetadata,
+  inspectCardImageVersionMetadata,
+  setCardImageVersionMetadata,
+} from '../shared/card-image-version-metadata.js';
+import { normalizeCardCode, validateCardCode } from '../shared/utils/card-code.js';
 import { appendDoubleGrayBladeHearts } from './card-sync-double-heart.js';
 import { normalizeCardSyncGroupNames } from './card-sync-group-names.js';
 
@@ -30,8 +41,8 @@ const cloudbaseSDK = require('@cloudbase/node-sdk') as {
   init(config: { env: string; secretId: string; secretKey: string }): CloudBaseApp;
 };
 
-type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
-type CardStatus = 'DRAFT' | 'PUBLISHED';
+export type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
+export type CardStatus = 'DRAFT' | 'PUBLISHED';
 type HeartColor =
   'PINK' | 'RED' | 'YELLOW' | 'GREEN' | 'BLUE' | 'PURPLE' | 'ORANGE' | 'GRAY' | 'RAINBOW';
 type BladeHeartEffect = 'HEART' | 'DRAW' | 'SCORE';
@@ -52,7 +63,7 @@ interface Args {
   readonly reportPath: string | null;
 }
 
-interface CloudBaseApp {
+export interface CloudBaseApp {
   database(): {
     collection(name: string): CloudBaseCollection;
   };
@@ -69,7 +80,8 @@ interface CloudBaseApp {
   }>;
 }
 
-interface CloudBaseCollection {
+export interface CloudBaseCollection {
+  orderBy?(field: string, direction: 'asc' | 'desc'): CloudBaseCollection;
   skip(offset: number): {
     limit(limit: number): {
       get(): Promise<{ data?: unknown[] }>;
@@ -77,30 +89,30 @@ interface CloudBaseCollection {
   };
 }
 
-interface SourceRow {
+export interface SourceRow {
   readonly rowNumber: number;
   readonly document: Record<string, unknown>;
   readonly cardCode: string;
   readonly sourceId: string | null;
 }
 
-interface InvalidSourceRow {
+export interface InvalidSourceRow {
   readonly rowNumber: number;
   readonly sourceId: string | null;
   readonly reason: string;
 }
 
-interface HeartItem {
+export interface HeartItem {
   readonly color: HeartColor;
   readonly count: number;
 }
 
-interface BladeHeartItem {
+export interface BladeHeartItem {
   readonly effect: BladeHeartEffect;
   readonly heartColor?: HeartColor;
 }
 
-interface SourceFlags {
+export interface SourceFlags {
   readonly cloudbaseOnly?: boolean;
   readonly importedBy?: string;
   readonly missingRuleFields?: readonly string[];
@@ -110,10 +122,12 @@ interface SourceFlags {
   readonly imageDownloadFailed?: boolean;
   readonly imageProcessFailed?: boolean;
   readonly imageUploadFailed?: boolean;
+  readonly imageObjectVersioned?: boolean;
+  readonly imageOriginalBaseName?: string;
   readonly [key: string]: unknown;
 }
 
-interface CardInsertRecord {
+export interface CardInsertRecord {
   readonly card_code: string;
   readonly card_type: CardType;
   readonly name_jp: string | null;
@@ -140,14 +154,13 @@ interface CardInsertRecord {
   readonly status: CardStatus;
 }
 
-interface ImagePlan {
+export interface ImagePlan {
   readonly sourceUri: string | null;
   readonly imageFilename: string | null;
   readonly imageBaseName: string | null;
-  readonly objectKeys: readonly string[];
 }
 
-interface TransformResult {
+export interface TransformResult {
   readonly row: SourceRow;
   readonly record: CardInsertRecord | null;
   readonly imagePlan: ImagePlan;
@@ -155,46 +168,130 @@ interface TransformResult {
   readonly errors: readonly string[];
 }
 
-interface ExistingCardRow {
+export interface ExistingCardRow {
   readonly card_code: string;
   readonly image_filename: string | null;
+  readonly source_flags?: SourceFlags | null;
 }
 
-interface PreparedCandidate {
+export interface ExistingImageMetadataIssue {
+  readonly cardCode: string;
+  readonly imageFilename: string | null;
+  readonly reason: string;
+}
+
+export interface PreparedCandidate {
   readonly transform: TransformResult;
   readonly record: CardInsertRecord;
   readonly imagePlan: ImagePlan;
 }
 
-interface SkippedCandidate {
+export interface SkippedCandidate {
   readonly cardCode: string;
   readonly reason: string;
   readonly detail?: string;
 }
 
-interface ImageProcessResult {
+export interface ImageProcessResult {
   readonly cardCode: string;
   readonly ok: boolean;
+  /** Versioned filename that may be committed only by the task holding the current DB lease. */
+  readonly imageFilename: string | null;
   readonly uploadedKeys: readonly string[];
   readonly reusedKeys: readonly string[];
+  readonly cleanupFailures: readonly string[];
   readonly error?: string;
   readonly sourceFlag?: ImageFailureSourceFlag;
 }
 
-interface InsertResult {
+export interface CardImageProcessingOptions {
+  readonly overwriteImages: boolean;
+  /** Unique per import execution; hashed before it becomes part of an object key. */
+  readonly imageObjectVersion: string;
+  readonly signal?: AbortSignal;
+  readonly assertCurrent?: () => Promise<void>;
+  readonly imageLoader?: (
+    cloudbase: CloudBaseApp,
+    sourceUri: string,
+    signal?: AbortSignal
+  ) => Promise<Buffer>;
+}
+
+export interface InsertResult {
   readonly cardCode: string;
   readonly inserted: boolean;
+  /** Keep task-versioned image objects when the database commit outcome cannot be disproved. */
+  readonly preserveUploadedImages?: boolean;
   readonly error?: string;
 }
 
-const DEFAULT_CLOUDBASE_COLLECTION = 'loveca';
-const DEFAULT_CLOUDBASE_BATCH_SIZE = 100;
+export type CardImageReferenceStatus = 'REFERENCED' | 'NOT_REFERENCED' | 'UNKNOWN';
+
+export interface CardImageReferenceResult {
+  readonly status: CardImageReferenceStatus;
+  readonly error?: string;
+}
+
+export interface CloudbaseCardSnapshot {
+  readonly documents: readonly Record<string, unknown>[];
+  readonly invalidRows: readonly InvalidSourceRow[];
+  readonly sourceRows: readonly SourceRow[];
+  readonly duplicateRows: Map<string, SourceRow[]>;
+  readonly transforms: readonly TransformResult[];
+}
+
+export interface CardExportRecord {
+  readonly cardCode: string;
+  readonly cardType: CardType;
+  readonly nameJp: string | null;
+  readonly nameCn: string | null;
+  readonly workNames: string[] | null;
+  readonly groupNames: string[] | null;
+  readonly unitName: string | null;
+  readonly unitNameRaw: string | null;
+  readonly cost: number | null;
+  readonly blade: number | null;
+  readonly hearts: readonly HeartItem[] | null;
+  readonly bladeHearts: readonly BladeHeartItem[] | null;
+  readonly score: number | null;
+  readonly requirements: readonly HeartItem[] | null;
+  readonly cardTextJp: string | null;
+  readonly cardTextCn: string | null;
+  readonly imageFilename: string | null;
+  readonly imageSourceUri: string | null;
+  readonly rare: string | null;
+  readonly product: string | null;
+  readonly productCode: string | null;
+  readonly sourceExternalId: string | null;
+  readonly sourceFlags: SourceFlags | null;
+  readonly status: CardStatus;
+}
+
+export const DEFAULT_CLOUDBASE_COLLECTION = 'loveca';
+export const DEFAULT_CLOUDBASE_BATCH_SIZE = 100;
 const SCRIPT_NAME = 'sync-cards-cloudbase-new';
 const IMAGE_SIZES = {
   thumb: { width: 100, quality: 75 },
   medium: { width: 300, quality: 80 },
   large: { width: 600, quality: 85 },
 } as const;
+const IMAGE_DOWNLOAD_TIMEOUT_MS = 20_000;
+const IMAGE_DOWNLOAD_MAX_BYTES = 20 * 1024 * 1024;
+const IMAGE_MAX_INPUT_PIXELS = 32 * 1024 * 1024;
+const IMAGE_DIGEST_METADATA_KEY = 'loveca-sha256';
+
+export interface ResolvedImageAddress {
+  readonly address: string;
+  readonly family: 4 | 6;
+}
+
+export type ImageHostResolver = (hostname: string) => Promise<readonly ResolvedImageAddress[]>;
+
+interface ImageCleanupFailure {
+  readonly cardCode: string;
+  readonly objectKey: string;
+  readonly message: string;
+}
 
 const FIELD_ALIASES = {
   cardCode: ['カード番号', 'card_code', 'cardCode', 'code', 'card_no', 'cardNo', 'card_number'],
@@ -514,21 +611,17 @@ function readDotenvValues(): Record<string, string> {
   } catch {
     dotenvValues = {};
   }
-  return dotenvValues;
+  return dotenvValues ?? {};
 }
 
 function readEnvValue(name: string): string | null {
   return cleanString(process.env[name]) ?? cleanString(readDotenvValues()[name]);
 }
 
-function requiredEnv(name: string, fallbackName?: string): string {
-  const value = readEnvValue(name) ?? (fallbackName ? readEnvValue(fallbackName) : null);
+function requiredEnv(name: string): string {
+  const value = readEnvValue(name);
   if (!value) {
-    throw new Error(
-      fallbackName
-        ? `Missing required environment variable: ${name} or ${fallbackName}`
-        : `Missing required environment variable: ${name}`
-    );
+    throw new Error(`Missing required environment variable: ${name}`);
   }
   return value;
 }
@@ -575,21 +668,36 @@ function getScalarField(
   return stringifyFieldValue(getField(document, aliases));
 }
 
-function createCloudbaseApp(): CloudBaseApp {
+export interface CloudbaseCredentials {
+  readonly envId: string;
+  readonly secretId: string;
+  readonly secretKey: string;
+}
+
+export function createCloudbaseAppWithCredentials(credentials: CloudbaseCredentials): CloudBaseApp {
   return cloudbaseSDK.init({
-    env: requiredEnv('CLOUDBASE_ENV_ID'),
-    secretId: requiredEnv('CLOUDBASE_SECRET_ID', 'CLOUDBASE_SECRETID'),
-    secretKey: requiredEnv('CLOUDBASE_SECRET_KEY', 'CLOUDBASE_SECRETKEY'),
+    env: credentials.envId,
+    secretId: credentials.secretId,
+    secretKey: credentials.secretKey,
   });
 }
 
-async function readCloudbaseDocuments(
+function createCloudbaseApp(): CloudBaseApp {
+  return createCloudbaseAppWithCredentials({
+    envId: requiredEnv('CLOUDBASE_ENV_ID'),
+    secretId: requiredEnv('CLOUDBASE_SECRET_ID'),
+    secretKey: requiredEnv('CLOUDBASE_SECRET_KEY'),
+  });
+}
+
+export async function readCloudbaseDocuments(
   collection: CloudBaseCollection,
   limit: number | null,
   batchSize: number
 ): Promise<Record<string, unknown>[]> {
   const documents: Record<string, unknown>[] = [];
   let offset = 0;
+  const query = collection.orderBy ? collection.orderBy('_id', 'asc') : collection;
 
   while (limit === null || documents.length < limit) {
     const remaining = limit === null ? batchSize : limit - documents.length;
@@ -598,7 +706,7 @@ async function readCloudbaseDocuments(
       break;
     }
 
-    const response = await collection.skip(offset).limit(pageSize).get();
+    const response = await query.skip(offset).limit(pageSize).get();
     const page = response.data ?? [];
     documents.push(...page.filter(isRecord));
     offset += page.length;
@@ -611,7 +719,7 @@ async function readCloudbaseDocuments(
   return documents;
 }
 
-function cloudbaseDocumentToRow(
+export function cloudbaseDocumentToRow(
   document: Record<string, unknown>,
   rowNumber: number
 ): SourceRow | InvalidSourceRow {
@@ -625,15 +733,25 @@ function cloudbaseDocumentToRow(
     };
   }
 
+  const cardCode = normalizeCardCode(rawCode);
+  const validation = validateCardCode(cardCode);
+  if (!validation.valid) {
+    return {
+      rowNumber,
+      sourceId,
+      reason: `invalid card_code: ${validation.errors.join('; ')}`,
+    };
+  }
+
   return {
     rowNumber,
     document,
-    cardCode: normalizeCardCode(rawCode),
+    cardCode,
     sourceId,
   };
 }
 
-function summarizeDuplicateRows(rows: readonly SourceRow[]): Map<string, SourceRow[]> {
+export function summarizeDuplicateRows(rows: readonly SourceRow[]): Map<string, SourceRow[]> {
   const byCode = new Map<string, SourceRow[]>();
   for (const row of rows) {
     const list = byCode.get(row.cardCode) ?? [];
@@ -641,6 +759,52 @@ function summarizeDuplicateRows(rows: readonly SourceRow[]): Map<string, SourceR
     byCode.set(row.cardCode, list);
   }
   return new Map([...byCode.entries()].filter(([, list]) => list.length > 1));
+}
+
+export function buildCloudbaseCardSnapshot(
+  documents: readonly Record<string, unknown>[],
+  status: CardStatus = 'DRAFT'
+): CloudbaseCardSnapshot {
+  const parsedRows = documents.map((document, index) =>
+    cloudbaseDocumentToRow(document, index + 1)
+  );
+  const invalidRows = parsedRows.filter((row): row is InvalidSourceRow => !('document' in row));
+  const sourceRows = parsedRows.filter((row): row is SourceRow => 'document' in row);
+  const duplicateRows = summarizeDuplicateRows(sourceRows);
+  const duplicateCodes = new Set(duplicateRows.keys());
+  const transforms = sourceRows
+    .filter((row) => !duplicateCodes.has(row.cardCode))
+    .map((row) => transformRow(row, status));
+  return { documents, invalidRows, sourceRows, duplicateRows, transforms };
+}
+
+export function mapCardInsertRecordToExport(record: CardInsertRecord): CardExportRecord {
+  return {
+    cardCode: record.card_code,
+    cardType: record.card_type,
+    nameJp: record.name_jp,
+    nameCn: record.name_cn,
+    workNames: record.work_names,
+    groupNames: record.group_names,
+    unitName: record.unit_name,
+    unitNameRaw: record.unit_name_raw,
+    cost: record.cost,
+    blade: record.blade,
+    hearts: record.hearts,
+    bladeHearts: record.blade_hearts,
+    score: record.score,
+    requirements: record.requirements,
+    cardTextJp: record.card_text_jp,
+    cardTextCn: record.card_text_cn,
+    imageFilename: record.image_filename,
+    imageSourceUri: record.image_source_uri,
+    rare: record.rare,
+    product: record.product,
+    productCode: record.product_code,
+    sourceExternalId: record.source_external_id,
+    sourceFlags: record.source_flags,
+    status: record.status,
+  };
 }
 
 function normalizeTypeToken(value: string): string {
@@ -662,18 +826,28 @@ function parseCardType(value: unknown): CardType | null {
   return TYPE_MAP.get(normalizeTypeToken(raw)) ?? null;
 }
 
-function parseIntegerField(value: unknown, context: string, warnings: string[]): number | null {
+function parseIntegerField(
+  value: unknown,
+  context: string,
+  warnings: string[],
+  errors: string[]
+): number | null {
   if (value == null || cleanString(value) == null) {
     return null;
   }
   if (typeof value === 'number' && Number.isInteger(value)) {
-    return value;
+    if (Number.isSafeInteger(value) && value >= 0) return value;
+    if (value < 0) errors.push(`${context}: expected a non-negative integer`);
+    else warnings.push(`${context}: invalid integer ${JSON.stringify(value)}`);
+    return null;
   }
   const raw = cleanString(value);
   if (raw && /^-?\d+$/.test(raw)) {
     const parsed = Number(raw);
     if (Number.isSafeInteger(parsed)) {
-      return parsed;
+      if (parsed >= 0) return parsed;
+      errors.push(`${context}: expected a non-negative integer`);
+      return null;
     }
   }
   warnings.push(`${context}: invalid integer ${JSON.stringify(value)}`);
@@ -751,7 +925,7 @@ function normalizeHeartToken(value: string): string {
   return value
     .trim()
     .toLowerCase()
-    .replace(/[［\[\]］【】「」]/g, '')
+    .replace(/[［[\]］【】「」]/g, '')
     .replace(/ハート|heart/g, 'heart')
     .replace(/\s+/g, '');
 }
@@ -793,8 +967,11 @@ function parseHeartItems(value: unknown, context: string, warnings: string[]): H
     return null;
   }
 
+  const trimmedValue = typeof value === 'string' ? value.trim() : '';
   const input =
-    typeof value === 'string' && /^[\[{]/.test(value.trim()) ? tryParseJson(value) : value;
+    typeof value === 'string' && (trimmedValue.startsWith('[') || trimmedValue.startsWith('{'))
+      ? tryParseJson(value)
+      : value;
   const result: HeartItem[] = [];
   let hasError = false;
 
@@ -879,8 +1056,11 @@ function parseBladeHeartCollection(
     return null;
   }
 
+  const trimmedValue = typeof value === 'string' ? value.trim() : '';
   const input =
-    typeof value === 'string' && /^[\[{]/.test(value.trim()) ? tryParseJson(value) : value;
+    typeof value === 'string' && (trimmedValue.startsWith('[') || trimmedValue.startsWith('{'))
+      ? tryParseJson(value)
+      : value;
   const result: BladeHeartItem[] = [];
   let hasError = false;
 
@@ -1087,15 +1267,10 @@ function buildImagePlan(document: Record<string, unknown>, cardCode: string): Im
   }
 
   const imageBaseName = imageBaseNameFromFilename(imageFilename);
-  const objectKeys = imageBaseName
-    ? Object.keys(IMAGE_SIZES).map((size) => `${size}/${imageBaseName}.webp`)
-    : [];
-
   return {
     sourceUri: imageSourceUri,
     imageFilename,
     imageBaseName,
-    objectKeys,
   };
 }
 
@@ -1113,7 +1288,7 @@ function buildSourceFlags(
   };
 }
 
-function transformRow(row: SourceRow, status: CardStatus): TransformResult {
+export function transformRow(row: SourceRow, status: CardStatus): TransformResult {
   const warnings: string[] = [];
   const errors: string[] = [];
   const document = row.document;
@@ -1142,11 +1317,15 @@ function transformRow(row: SourceRow, status: CardStatus): TransformResult {
   const groupNames = parsedGroupNames ? normalizeCardSyncGroupNames(parsedGroupNames) : null;
   const unitNameRaw = getScalarField(document, FIELD_ALIASES.unitName);
   const unitName = normalizeUnitName(unitNameRaw);
-  const sourceFlags = parseSourceFlags(
+  const parsedSourceFlags = parseSourceFlags(
     getField(document, FIELD_ALIASES.sourceFlags),
     `${context} source_flags`,
     warnings
   );
+  if (hasCardImageVersionMetadata(parsedSourceFlags)) {
+    warnings.push(`${context}: reserved image version source_flags were ignored`);
+  }
+  const sourceFlags = clearCardImageVersionMetadata(parsedSourceFlags) as SourceFlags | null;
   const imagePlan = buildImagePlan(document, row.cardCode);
 
   if (errors.length > 0 || !cardType) {
@@ -1161,15 +1340,30 @@ function transformRow(row: SourceRow, status: CardStatus): TransformResult {
 
   const cost =
     cardType === 'MEMBER'
-      ? parseIntegerField(getField(document, FIELD_ALIASES.cost), `${context} cost`, warnings)
+      ? parseIntegerField(
+          getField(document, FIELD_ALIASES.cost),
+          `${context} cost`,
+          warnings,
+          errors
+        )
       : null;
   const blade =
     cardType === 'MEMBER'
-      ? parseIntegerField(getField(document, FIELD_ALIASES.blade), `${context} blade`, warnings)
+      ? parseIntegerField(
+          getField(document, FIELD_ALIASES.blade),
+          `${context} blade`,
+          warnings,
+          errors
+        )
       : null;
   const score =
     cardType === 'LIVE'
-      ? parseIntegerField(getField(document, FIELD_ALIASES.score), `${context} score`, warnings)
+      ? parseIntegerField(
+          getField(document, FIELD_ALIASES.score),
+          `${context} score`,
+          warnings,
+          errors
+        )
       : null;
   const hearts =
     cardType === 'MEMBER'
@@ -1189,6 +1383,16 @@ function transformRow(row: SourceRow, status: CardStatus): TransformResult {
     context,
     warnings
   );
+
+  if (errors.length > 0) {
+    return {
+      row,
+      record: null,
+      imagePlan,
+      warnings,
+      errors,
+    };
+  }
 
   const missingRuleFields: string[] = [];
   if (cardType === 'MEMBER') {
@@ -1261,20 +1465,267 @@ async function ensureBucketExists(client: Minio.Client, bucket: string): Promise
   }
 }
 
-async function objectExists(
+interface StoredImageObject {
+  readonly exists: boolean;
+  readonly digest: string | null;
+}
+
+function metadataValue(metadata: Record<string, string>, key: string): string | null {
+  const normalizedKey = key.toLowerCase();
+  for (const [candidate, value] of Object.entries(metadata)) {
+    const normalizedCandidate = candidate.toLowerCase().replace(/^x-amz-meta-/u, '');
+    if (normalizedCandidate === normalizedKey && value.trim()) return value.trim().toLowerCase();
+  }
+  return null;
+}
+
+async function readStoredImageObject(
   client: Minio.Client,
   bucket: string,
   objectKey: string
-): Promise<boolean> {
+): Promise<StoredImageObject> {
   try {
-    await client.statObject(bucket, objectKey);
-    return true;
-  } catch {
-    return false;
+    const stat = await client.statObject(bucket, objectKey);
+    return {
+      exists: true,
+      digest: metadataValue(
+        (stat.metaData ?? {}) as Record<string, string>,
+        IMAGE_DIGEST_METADATA_KEY
+      ),
+    };
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === 'NotFound' || code === 'NoSuchKey' || code === 'NoSuchObject') {
+      return { exists: false, digest: null };
+    }
+    throw error;
   }
 }
 
-async function downloadImageBuffer(cloudbase: CloudBaseApp, sourceUri: string): Promise<Buffer> {
+function isPublicIpv4(address: string): boolean {
+  const parts = address.split('.').map(Number);
+  if (
+    parts.length !== 4 ||
+    parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
+    return false;
+  }
+  const [a, b, c] = parts as [number, number, number, number];
+  if (a === 0 || a === 10 || a === 127 || a >= 224) return false;
+  if (a === 100 && b >= 64 && b <= 127) return false;
+  if (a === 169 && b === 254) return false;
+  if (a === 172 && b >= 16 && b <= 31) return false;
+  if (a === 192 && b === 168) return false;
+  if (a === 192 && (b === 0 || (b === 88 && c === 99))) return false;
+  if (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) return false;
+  if (a === 203 && b === 0 && c === 113) return false;
+  return true;
+}
+
+function parseIpv6Bytes(address: string): Uint8Array | null {
+  const zoneIndex = address.indexOf('%');
+  const withoutZone = zoneIndex >= 0 ? address.slice(0, zoneIndex) : address;
+  const normalized = withoutZone.toLowerCase();
+  const embeddedIpv4Match = normalized.match(/(?:^|:)(\d+\.\d+\.\d+\.\d+)$/u);
+  let expanded = normalized;
+  if (embeddedIpv4Match) {
+    const ipv4 = embeddedIpv4Match[1]!;
+    const octets = ipv4.split('.').map(Number);
+    if (octets.length !== 4 || octets.some((part) => part < 0 || part > 255)) return null;
+    const high = ((octets[0]! << 8) | octets[1]!).toString(16);
+    const low = ((octets[2]! << 8) | octets[3]!).toString(16);
+    expanded = normalized.slice(0, -ipv4.length) + `${high}:${low}`;
+  }
+  const halves = expanded.split('::');
+  if (halves.length > 2) return null;
+  const left = halves[0] ? halves[0]!.split(':') : [];
+  const right = halves.length === 2 && halves[1] ? halves[1]!.split(':') : [];
+  const missing = 8 - left.length - right.length;
+  if ((halves.length === 1 && missing !== 0) || (halves.length === 2 && missing < 1)) return null;
+  const groups = [...left, ...Array.from({ length: Math.max(0, missing) }, () => '0'), ...right];
+  if (groups.length !== 8 || groups.some((group) => !/^[0-9a-f]{1,4}$/u.test(group))) return null;
+  const bytes = new Uint8Array(16);
+  groups.forEach((group, index) => {
+    const value = Number.parseInt(group, 16);
+    bytes[index * 2] = value >> 8;
+    bytes[index * 2 + 1] = value & 0xff;
+  });
+  return bytes;
+}
+
+function hasIpv6Prefix(bytes: Uint8Array, prefix: readonly number[], bits: number): boolean {
+  const fullBytes = Math.floor(bits / 8);
+  const remainingBits = bits % 8;
+  for (let index = 0; index < fullBytes; index += 1) {
+    if (bytes[index] !== prefix[index]) return false;
+  }
+  if (remainingBits === 0) return true;
+  const mask = (0xff << (8 - remainingBits)) & 0xff;
+  return (bytes[fullBytes]! & mask) === (prefix[fullBytes]! & mask);
+}
+
+function isPublicIpv6(address: string): boolean {
+  const bytes = parseIpv6Bytes(address);
+  if (!bytes) return false;
+  const allZero = bytes.every((byte) => byte === 0);
+  const loopback = bytes.slice(0, 15).every((byte) => byte === 0) && bytes[15] === 1;
+  if (allZero || loopback) return false;
+  if (
+    hasIpv6Prefix(
+      bytes,
+      [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff],
+      96
+    )
+  ) {
+    return false; // IPv4-mapped; use the separately validated IPv4 DNS answer instead
+  }
+  if (bytes.slice(0, 12).every((byte) => byte === 0)) return false; // IPv4-compatible
+  if (hasIpv6Prefix(bytes, [0xfc], 7)) return false; // unique local
+  if (hasIpv6Prefix(bytes, [0xfe, 0x80], 10)) return false; // link local
+  if (hasIpv6Prefix(bytes, [0xfe, 0xc0], 10)) return false; // deprecated site local
+  if (hasIpv6Prefix(bytes, [0xff], 8)) return false; // multicast
+  if (!hasIpv6Prefix(bytes, [0x20], 3)) return false; // normal global unicast only
+  if (hasIpv6Prefix(bytes, [0x20, 0x01, 0x00, 0x00], 32)) return false; // Teredo
+  if (hasIpv6Prefix(bytes, [0x20, 0x01, 0x00, 0x02, 0x00, 0x00], 48)) return false; // benchmark
+  if (hasIpv6Prefix(bytes, [0x20, 0x01, 0x00, 0x10], 28)) return false; // ORCHID
+  if (hasIpv6Prefix(bytes, [0x20, 0x01, 0x00, 0x20], 28)) return false; // ORCHIDv2
+  if (hasIpv6Prefix(bytes, [0x20, 0x01, 0x0d, 0xb8], 32)) return false; // documentation
+  if (hasIpv6Prefix(bytes, [0x20, 0x02], 16)) return false; // 6to4 embeds IPv4
+  if (hasIpv6Prefix(bytes, [0x3f, 0xff, 0x00], 20)) return false; // documentation
+  return true;
+}
+
+function isPublicImageAddress(address: string): boolean {
+  const family = isIP(address);
+  if (family === 4) return isPublicIpv4(address);
+  if (family === 6) return isPublicIpv6(address);
+  return false;
+}
+
+export async function resolvePublicImageAddresses(
+  hostname: string,
+  resolver: ImageHostResolver = async (host) => {
+    const addresses = await dnsLookup(host, { all: true, verbatim: true });
+    return addresses.map(({ address, family }) => ({
+      address,
+      family: family === 6 ? 6 : 4,
+    }));
+  }
+): Promise<readonly ResolvedImageAddress[]> {
+  const host = hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/u, '');
+  if (!host || host === 'localhost' || host.endsWith('.localhost')) {
+    throw new Error('download failed: unsafe image URL');
+  }
+  const literalFamily = isIP(host);
+  const addresses = literalFamily
+    ? [{ address: host, family: literalFamily as 4 | 6 }]
+    : await resolver(host);
+  if (addresses.length === 0 || addresses.some(({ address }) => !isPublicImageAddress(address))) {
+    throw new Error('download failed: image host resolves to a private or reserved address');
+  }
+  return addresses;
+}
+
+function parseSafeImageUrl(value: string): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error('download failed: invalid image URL');
+  }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.hash) {
+    throw new Error('download failed: unsafe image URL');
+  }
+  return parsed;
+}
+
+function createPinnedLookup(addresses: readonly ResolvedImageAddress[]): LookupFunction {
+  return (_hostname, options, callback) => {
+    const requestedFamily = options.family === 4 || options.family === 6 ? options.family : null;
+    const eligible = requestedFamily
+      ? addresses.filter(({ family }) => family === requestedFamily)
+      : addresses;
+    if (eligible.length === 0) {
+      callback(
+        Object.assign(new Error('no approved address for requested family'), { code: 'ENOTFOUND' }),
+        '',
+        0
+      );
+      return;
+    }
+    if (options.all) {
+      callback(
+        null,
+        eligible.map(({ address, family }) => ({ address, family }))
+      );
+      return;
+    }
+    const selected = eligible[0]!;
+    callback(null, selected.address, selected.family);
+  };
+}
+
+async function readPinnedHttpsImage(
+  url: URL,
+  addresses: readonly ResolvedImageAddress[],
+  signal?: AbortSignal
+): Promise<Buffer> {
+  const boundedSignal = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(IMAGE_DOWNLOAD_TIMEOUT_MS)])
+    : AbortSignal.timeout(IMAGE_DOWNLOAD_TIMEOUT_MS);
+  return new Promise<Buffer>((resolve, reject) => {
+    const request = httpsRequest(
+      url,
+      {
+        method: 'GET',
+        lookup: createPinnedLookup(addresses),
+        signal: boundedSignal,
+        headers: { Accept: 'image/*' },
+      },
+      (response) => {
+        const status = response.statusCode ?? 0;
+        if (status < 200 || status >= 300) {
+          response.resume();
+          reject(new Error(`download failed: HTTP ${status}`));
+          return;
+        }
+        const declaredLength = Number(response.headers['content-length'] ?? 0);
+        if (Number.isFinite(declaredLength) && declaredLength > IMAGE_DOWNLOAD_MAX_BYTES) {
+          response.destroy();
+          reject(new Error('download failed: image exceeds size limit'));
+          return;
+        }
+        const chunks: Buffer[] = [];
+        let total = 0;
+        response.on('data', (chunk: Buffer | Uint8Array | string) => {
+          const buffer = Buffer.from(chunk);
+          total += buffer.length;
+          if (total > IMAGE_DOWNLOAD_MAX_BYTES) {
+            response.destroy(new Error('download failed: image exceeds size limit'));
+            return;
+          }
+          chunks.push(buffer);
+        });
+        response.on('end', () => {
+          if (total === 0) reject(new Error('download failed: empty response body'));
+          else resolve(Buffer.concat(chunks, total));
+        });
+        response.on('error', reject);
+      }
+    );
+    request.on('error', reject);
+    request.end();
+  });
+}
+
+async function downloadImageBuffer(
+  cloudbase: CloudBaseApp,
+  sourceUri: string,
+  signal?: AbortSignal
+): Promise<Buffer> {
   let url = sourceUri;
   if (!/^https?:\/\//i.test(sourceUri)) {
     const response = await cloudbase.getTempFileURL({
@@ -1287,17 +1738,15 @@ async function downloadImageBuffer(cloudbase: CloudBaseApp, sourceUri: string): 
     url = item.tempFileURL;
   }
 
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`download failed: HTTP ${response.status}`);
-  }
-  return Buffer.from(await response.arrayBuffer());
+  const parsed = parseSafeImageUrl(url);
+  const addresses = await resolvePublicImageAddresses(parsed.hostname);
+  return readPinnedHttpsImage(parsed, addresses, signal);
 }
 
 async function compressImageBuffers(
   input: Buffer
 ): Promise<Record<keyof typeof IMAGE_SIZES, Buffer>> {
-  const metadata = await sharp(input).metadata();
+  const metadata = await sharp(input, { limitInputPixels: IMAGE_MAX_INPUT_PIXELS }).metadata();
   const isLandscape =
     metadata.width != null && metadata.height != null && metadata.width > metadata.height;
   const result = {} as Record<keyof typeof IMAGE_SIZES, Buffer>;
@@ -1305,7 +1754,7 @@ async function compressImageBuffers(
   for (const [sizeName, sizeConfig] of Object.entries(IMAGE_SIZES) as Array<
     [keyof typeof IMAGE_SIZES, (typeof IMAGE_SIZES)[keyof typeof IMAGE_SIZES]]
   >) {
-    let pipeline = sharp(input);
+    let pipeline = sharp(input, { limitInputPixels: IMAGE_MAX_INPUT_PIXELS });
     if (isLandscape) {
       pipeline = pipeline.rotate(90);
     }
@@ -1318,33 +1767,72 @@ async function compressImageBuffers(
   return result;
 }
 
-async function processCandidateImage(
+function buildVersionedImageBaseName(imageBaseName: string, objectVersion: string): string {
+  const normalizedVersion = objectVersion.trim();
+  if (!normalizedVersion) {
+    throw new Error('image object version is required');
+  }
+  const suffix = createHash('sha256').update(normalizedVersion).digest('hex').slice(0, 24);
+  return `${imageBaseName}-${suffix}`;
+}
+
+export async function processCandidateImage(
   candidate: PreparedCandidate,
   cloudbase: CloudBaseApp,
   minio: { client: Minio.Client; bucket: string },
-  args: Args
+  args: CardImageProcessingOptions
 ): Promise<ImageProcessResult> {
   const { imagePlan, record } = candidate;
   if (!imagePlan.sourceUri || !imagePlan.imageBaseName) {
     return {
       cardCode: record.card_code,
       ok: false,
+      imageFilename: null,
       uploadedKeys: [],
       reusedKeys: [],
+      cleanupFailures: [],
       error: 'missing image source',
       sourceFlag: 'missingImage',
     };
   }
 
-  let input: Buffer;
+  let versionedImageBaseName: string;
   try {
-    input = await downloadImageBuffer(cloudbase, imagePlan.sourceUri);
+    versionedImageBaseName = buildVersionedImageBaseName(
+      imagePlan.imageBaseName,
+      args.imageObjectVersion
+    );
   } catch (error) {
     return {
       cardCode: record.card_code,
       ok: false,
+      imageFilename: null,
       uploadedKeys: [],
       reusedKeys: [],
+      cleanupFailures: [],
+      error: error instanceof Error ? error.message : String(error),
+      sourceFlag: 'imageProcessFailed',
+    };
+  }
+  const versionedImageFilename = `${versionedImageBaseName}.webp`;
+
+  let input: Buffer;
+  try {
+    await args.assertCurrent?.();
+    input = await (args.imageLoader ?? downloadImageBuffer)(
+      cloudbase,
+      imagePlan.sourceUri,
+      args.signal
+    );
+    await args.assertCurrent?.();
+  } catch (error) {
+    return {
+      cardCode: record.card_code,
+      ok: false,
+      imageFilename: null,
+      uploadedKeys: [],
+      reusedKeys: [],
+      cleanupFailures: [],
       error: error instanceof Error ? error.message : String(error),
       sourceFlag: 'imageDownloadFailed',
     };
@@ -1353,12 +1841,15 @@ async function processCandidateImage(
   let compressed: Record<keyof typeof IMAGE_SIZES, Buffer>;
   try {
     compressed = await compressImageBuffers(input);
+    await args.assertCurrent?.();
   } catch (error) {
     return {
       cardCode: record.card_code,
       ok: false,
+      imageFilename: null,
       uploadedKeys: [],
       reusedKeys: [],
+      cleanupFailures: [],
       error: error instanceof Error ? error.message : String(error),
       sourceFlag: 'imageProcessFailed',
     };
@@ -1370,29 +1861,33 @@ async function processCandidateImage(
     for (const [sizeName, buffer] of Object.entries(compressed) as Array<
       [keyof typeof IMAGE_SIZES, Buffer]
     >) {
-      const objectKey = `${sizeName}/${imagePlan.imageBaseName}.webp`;
-      if (!args.overwriteImages && (await objectExists(minio.client, minio.bucket, objectKey))) {
+      await args.assertCurrent?.();
+      const objectKey = `${sizeName}/${versionedImageBaseName}.webp`;
+      const digest = createHash('sha256').update(buffer).digest('hex');
+      const stored = await readStoredImageObject(minio.client, minio.bucket, objectKey);
+      if (!args.overwriteImages && stored.exists) {
+        if (stored.digest !== digest) {
+          throw new Error(`image object conflict: ${objectKey}`);
+        }
         reusedKeys.push(objectKey);
-        continue;
+      } else {
+        await minio.client.putObject(minio.bucket, objectKey, buffer, buffer.length, {
+          'Content-Type': 'image/webp',
+          'X-Amz-Meta-Loveca-Sha256': digest,
+        });
+        if (!stored.exists) uploadedKeys.push(objectKey);
       }
-      await minio.client.putObject(minio.bucket, objectKey, buffer, buffer.length, {
-        'Content-Type': 'image/webp',
-      });
-      uploadedKeys.push(objectKey);
+      await args.assertCurrent?.();
     }
   } catch (error) {
-    for (const objectKey of uploadedKeys) {
-      try {
-        await minio.client.removeObject(minio.bucket, objectKey);
-      } catch {
-        // Best-effort cleanup; the report keeps the original failure.
-      }
-    }
+    const cleanupFailures = await cleanupObjectKeys(uploadedKeys, minio);
     return {
       cardCode: record.card_code,
       ok: false,
+      imageFilename: null,
       uploadedKeys,
       reusedKeys,
+      cleanupFailures,
       error: error instanceof Error ? error.message : String(error),
       sourceFlag: 'imageUploadFailed',
     };
@@ -1401,37 +1896,61 @@ async function processCandidateImage(
   return {
     cardCode: record.card_code,
     ok: true,
+    imageFilename: versionedImageFilename,
     uploadedKeys,
     reusedKeys,
+    cleanupFailures: [],
   };
+}
+
+async function cleanupObjectKeys(
+  objectKeys: readonly string[],
+  minio: { client: Minio.Client; bucket: string }
+): Promise<string[]> {
+  const failures: string[] = [];
+  for (const objectKey of objectKeys) {
+    try {
+      await minio.client.removeObject(minio.bucket, objectKey);
+    } catch {
+      failures.push(objectKey);
+    }
+  }
+  return failures;
 }
 
 async function cleanupUploadedImagesForFailedInserts(
   insertResults: readonly InsertResult[],
   imageResults: readonly ImageProcessResult[],
   minio: { client: Minio.Client; bucket: string } | null
-): Promise<void> {
+): Promise<ImageCleanupFailure[]> {
   if (!minio) {
-    return;
+    return [];
   }
-  const failedCardCodes = new Set(
-    insertResults.filter((result) => !result.inserted).map((result) => result.cardCode)
+  const failures: ImageCleanupFailure[] = [];
+  const cleanupCardCodes = new Set(
+    insertResults
+      .filter((result) => !result.inserted && !result.preserveUploadedImages)
+      .map((result) => result.cardCode)
   );
   for (const imageResult of imageResults) {
-    if (!failedCardCodes.has(imageResult.cardCode)) {
+    if (!cleanupCardCodes.has(imageResult.cardCode)) {
       continue;
     }
     for (const objectKey of imageResult.uploadedKeys) {
-      try {
-        await minio.client.removeObject(minio.bucket, objectKey);
-      } catch {
-        // Best-effort cleanup; insertResults and imageResults keep the audit trail.
+      const failedKeys = await cleanupObjectKeys([objectKey], minio);
+      if (failedKeys.length > 0) {
+        failures.push({
+          cardCode: imageResult.cardCode,
+          objectKey,
+          message: 'failed to remove uploaded image after card insert failure',
+        });
       }
     }
   }
+  return failures;
 }
 
-function withSourceFlag(
+export function withSourceFlag(
   record: CardInsertRecord,
   flag: ImageFailureSourceFlag | 'imageSkipped'
 ): CardInsertRecord {
@@ -1439,14 +1958,49 @@ function withSourceFlag(
     ...record,
     image_filename: null,
     source_flags: {
-      ...(record.source_flags ?? {}),
+      ...(clearCardImageVersionMetadata(record.source_flags) ?? {}),
       [flag]: true,
     },
   };
 }
 
-async function insertCard(pool: Pool, record: CardInsertRecord): Promise<InsertResult> {
+export async function reconcileCardImageReference(
+  pool: Pick<Pool, 'query'>,
+  cardCode: string,
+  expectedImageFilename: string | null,
+  originalTransactionEnded: boolean
+): Promise<CardImageReferenceResult> {
+  try {
+    const result = await pool.query<{ image_filename: string | null }>(
+      'SELECT image_filename FROM cards WHERE card_code = $1',
+      [cardCode]
+    );
+    if (result.rows[0]?.image_filename === expectedImageFilename) {
+      return { status: 'REFERENCED' };
+    }
+    return { status: originalTransactionEnded ? 'NOT_REFERENCED' : 'UNKNOWN' };
+  } catch (error) {
+    return {
+      status: 'UNKNOWN',
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function rollbackTransaction(client: PoolClient): Promise<boolean> {
+  try {
+    await client.query('ROLLBACK');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function insertCard(pool: Pool, record: CardInsertRecord): Promise<InsertResult> {
   const client = await pool.connect();
+  let insertSucceeded = false;
+  let commitAttempted = false;
+  let destroyClient = false;
   try {
     await client.query('BEGIN');
     const result = await client.query<{ card_code: string }>(
@@ -1494,38 +2048,116 @@ async function insertCard(pool: Pool, record: CardInsertRecord): Promise<InsertR
         record.status,
       ]
     );
+    insertSucceeded = result.rowCount === 1;
+    commitAttempted = true;
     await client.query('COMMIT');
-    return { cardCode: record.card_code, inserted: result.rowCount === 1 };
+    return { cardCode: record.card_code, inserted: insertSucceeded };
   } catch (error) {
-    await client.query('ROLLBACK');
+    const rollbackConfirmed = await rollbackTransaction(client);
+    destroyClient = !rollbackConfirmed;
+    if (commitAttempted) {
+      const reference = await reconcileCardImageReference(
+        pool,
+        record.card_code,
+        record.image_filename,
+        rollbackConfirmed
+      );
+      if (reference.status === 'REFERENCED') {
+        return {
+          cardCode: record.card_code,
+          inserted: insertSucceeded,
+          preserveUploadedImages: true,
+        };
+      }
+      if (reference.status === 'UNKNOWN') {
+        console.error('Card insert commit outcome is unknown; uploaded images were preserved', {
+          cardCode: record.card_code,
+          imageFilename: record.image_filename,
+          rollbackConfirmed,
+          message: reference.error ?? (error instanceof Error ? error.message : String(error)),
+        });
+        return {
+          cardCode: record.card_code,
+          inserted: false,
+          preserveUploadedImages: true,
+          error: 'card insert commit outcome is unknown; uploaded images were preserved',
+        };
+      }
+    }
     return {
       cardCode: record.card_code,
       inserted: false,
       error: error instanceof Error ? error.message : String(error),
     };
   } finally {
-    client.release();
+    client.release(destroyClient);
   }
 }
 
-function imageBaseNameForExisting(row: ExistingCardRow): string | null {
-  return imageBaseNameFromFilename(row.image_filename);
+function imageBaseNameForExisting(row: ExistingCardRow): {
+  readonly imageBaseName: string | null;
+  readonly issue: ExistingImageMetadataIssue | null;
+} {
+  const metadata = inspectCardImageVersionMetadata(row.image_filename, row.source_flags);
+  if (metadata.status === 'INVALID') {
+    return {
+      imageBaseName: null,
+      issue: {
+        cardCode: row.card_code,
+        imageFilename: row.image_filename,
+        reason: metadata.reason,
+      },
+    };
+  }
+  return {
+    imageBaseName:
+      metadata.status === 'VALID'
+        ? metadata.originalBaseName
+        : imageBaseNameFromFilename(row.image_filename),
+    issue: null,
+  };
 }
 
-function buildPreparedCandidates(
+export function withVersionedImageReference(
+  record: CardInsertRecord,
+  imageFilename: string,
+  originalBaseName: string
+): CardInsertRecord {
+  try {
+    return {
+      ...record,
+      image_filename: imageFilename,
+      source_flags: setCardImageVersionMetadata(
+        record.source_flags,
+        imageFilename,
+        originalBaseName
+      ),
+    };
+  } catch (error) {
+    throw new Error(
+      `${record.card_code}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+export function buildPreparedCandidates(
   transforms: readonly TransformResult[],
   existingRows: readonly ExistingCardRow[]
 ): {
   readonly prepared: PreparedCandidate[];
   readonly skipped: SkippedCandidate[];
   readonly existingSkipped: SkippedCandidate[];
+  readonly existingImageMetadataIssues: ExistingImageMetadataIssue[];
 } {
   const existingCodes = new Set(existingRows.map((row) => row.card_code));
   const existingImageBases = new Map<string, string>();
+  const existingImageMetadataIssues: ExistingImageMetadataIssue[] = [];
   for (const row of existingRows) {
-    const baseName = imageBaseNameForExisting(row);
-    if (baseName) {
-      existingImageBases.set(baseName, row.card_code);
+    const resolved = imageBaseNameForExisting(row);
+    if (resolved.issue) {
+      existingImageMetadataIssues.push(resolved.issue);
+    } else if (resolved.imageBaseName) {
+      existingImageBases.set(resolved.imageBaseName, row.card_code);
     }
   }
 
@@ -1587,7 +2219,12 @@ function buildPreparedCandidates(
     });
   }
 
-  return { prepared, skipped, existingSkipped };
+  return {
+    prepared: existingImageMetadataIssues.length > 0 ? [] : prepared,
+    skipped,
+    existingSkipped,
+    existingImageMetadataIssues,
+  };
 }
 
 function printSummary(
@@ -1598,7 +2235,8 @@ function printSummary(
   transforms: readonly TransformResult[],
   prepared: readonly PreparedCandidate[],
   skipped: readonly SkippedCandidate[],
-  existingSkipped: readonly SkippedCandidate[]
+  existingSkipped: readonly SkippedCandidate[],
+  existingImageMetadataIssues: readonly ExistingImageMetadataIssue[]
 ): void {
   const transformInvalid = transforms.filter((item) => !item.record).length;
   const transformWarnings = transforms.reduce((sum, item) => sum + item.warnings.length, 0);
@@ -1618,6 +2256,7 @@ function printSummary(
   console.log(`  Transform warnings: ${transformWarnings}`);
   console.log(`  Cards with missing rule fields: ${missingRuleFieldCards}`);
   console.log(`  Existing DB cards skipped: ${existingSkipped.length}`);
+  console.log(`  Invalid existing image metadata: ${existingImageMetadataIssues.length}`);
   console.log(`  New candidates skipped: ${skipped.length}`);
   console.log(`  Ready new candidates: ${prepared.length}`);
 
@@ -1643,6 +2282,16 @@ function printSummary(
     }
     if (skipped.length > 30) {
       console.log(`  ... and ${skipped.length - 30} more`);
+    }
+  }
+
+  if (existingImageMetadataIssues.length > 0) {
+    console.log('\nBlocking existing image metadata issues:');
+    for (const issue of existingImageMetadataIssues.slice(0, 30)) {
+      console.log(`  ${issue.cardCode}: ${issue.reason}`);
+    }
+    if (existingImageMetadataIssues.length > 30) {
+      console.log(`  ... and ${existingImageMetadataIssues.length - 30} more`);
     }
   }
 }
@@ -1716,23 +2365,18 @@ async function main(): Promise<void> {
     args.cloudbaseLimit,
     args.cloudbaseBatchSize
   );
-  const parsedRows = documents.map((document, index) =>
-    cloudbaseDocumentToRow(document, index + 1)
-  );
-  const invalidRows = parsedRows.filter((row): row is InvalidSourceRow => !('document' in row));
-  const sourceRows = parsedRows.filter((row): row is SourceRow => 'document' in row);
-  const duplicateRows = summarizeDuplicateRows(sourceRows);
-  const duplicateCodes = new Set(duplicateRows.keys());
-  const usableRows = sourceRows.filter((row) => !duplicateCodes.has(row.cardCode));
-  const transforms = usableRows.map((row) => transformRow(row, args.status));
+  const snapshot = buildCloudbaseCardSnapshot(documents, args.status);
+  const { invalidRows, duplicateRows, transforms } = snapshot;
 
   let existingRows: ExistingCardRow[] = [];
   let prepared: PreparedCandidate[] = [];
   let candidateSkipped: SkippedCandidate[] = [];
   let existingSkipped: SkippedCandidate[] = [];
+  let existingImageMetadataIssues: ExistingImageMetadataIssue[] = [];
   let parseOnly = false;
   let imageResults: ImageProcessResult[] = [];
   let insertResults: InsertResult[] = [];
+  let imageCleanupFailures: ImageCleanupFailure[] = [];
 
   const databaseUrl = readEnvValue('DATABASE_URL');
   if (!databaseUrl) {
@@ -1745,11 +2389,12 @@ async function main(): Promise<void> {
     const pool = new Pool({ connectionString: databaseUrl });
     try {
       const response = await pool.query<ExistingCardRow>(
-        'SELECT card_code, image_filename FROM cards ORDER BY card_code'
+        'SELECT card_code, image_filename, source_flags FROM cards ORDER BY card_code'
       );
       existingRows = response.rows;
       const built = buildPreparedCandidates(transforms, existingRows);
-      prepared = built.prepared;
+      existingImageMetadataIssues = built.existingImageMetadataIssues;
+      prepared = existingImageMetadataIssues.length > 0 ? [] : built.prepared;
       candidateSkipped = built.skipped;
       existingSkipped = built.existingSkipped;
 
@@ -1761,11 +2406,16 @@ async function main(): Promise<void> {
         transforms,
         prepared,
         candidateSkipped,
-        existingSkipped
+        existingSkipped,
+        existingImageMetadataIssues
       );
 
       if (args.dryRun) {
         console.log('\nDry run finished. No DB changes or image uploads applied.');
+      } else if (existingImageMetadataIssues.length > 0) {
+        throw new Error(
+          `Formal import blocked by ${existingImageMetadataIssues.length} invalid existing image metadata record(s)`
+        );
       } else if (await confirmFormalImport(prepared.length, args)) {
         let recordsToInsert = prepared.map((candidate) => candidate.record);
         let minioForCleanup: { client: Minio.Client; bucket: string } | null = null;
@@ -1776,14 +2426,32 @@ async function main(): Promise<void> {
           const minio = createMinioClient();
           minioForCleanup = minio;
           await ensureBucketExists(minio.client, minio.bucket);
+          const imageObjectVersion = randomUUID();
 
           const recordsAfterImage: CardInsertRecord[] = [];
           for (const candidate of prepared) {
-            const imageResult = await processCandidateImage(candidate, cloudbase, minio, args);
+            const imageResult = await processCandidateImage(candidate, cloudbase, minio, {
+              ...args,
+              imageObjectVersion,
+            });
             imageResults.push(imageResult);
 
             if (imageResult.ok) {
-              recordsAfterImage.push(candidate.record);
+              if (!imageResult.imageFilename) {
+                throw new Error(`${candidate.record.card_code}: image result has no filename`);
+              }
+              if (!candidate.imagePlan.imageBaseName) {
+                throw new Error(
+                  `${candidate.record.card_code}: image plan has no original basename`
+                );
+              }
+              recordsAfterImage.push(
+                withVersionedImageReference(
+                  candidate.record,
+                  imageResult.imageFilename,
+                  candidate.imagePlan.imageBaseName
+                )
+              );
             } else if (args.allowMissingImages && imageResult.sourceFlag) {
               recordsAfterImage.push(withSourceFlag(candidate.record, imageResult.sourceFlag));
             } else {
@@ -1800,7 +2468,11 @@ async function main(): Promise<void> {
         for (const record of recordsToInsert) {
           insertResults.push(await insertCard(pool, record));
         }
-        await cleanupUploadedImagesForFailedInserts(insertResults, imageResults, minioForCleanup);
+        imageCleanupFailures = await cleanupUploadedImagesForFailedInserts(
+          insertResults,
+          imageResults,
+          minioForCleanup
+        );
 
         const insertedCount = insertResults.filter((result) => result.inserted).length;
         const failedCount = insertResults.filter((result) => result.error).length;
@@ -1820,7 +2492,7 @@ async function main(): Promise<void> {
   }
 
   if (parseOnly) {
-    printSummary(args, documents, invalidRows, duplicateRows, transforms, [], [], []);
+    printSummary(args, documents, invalidRows, duplicateRows, transforms, [], [], [], []);
     console.log(
       '\nParse-only dry run finished. Provide DATABASE_URL to compare DB-only/new cards.'
     );
@@ -1851,17 +2523,25 @@ async function main(): Promise<void> {
       compared: !parseOnly,
       existingCards: existingRows.length,
       existingSkipped,
+      existingImageMetadataIssues,
     },
     transforms: transforms.map(reportTransform),
     readyCandidates: prepared.map((candidate) => candidate.record.card_code),
     skippedCandidates: candidateSkipped,
     imageResults,
+    imageCleanupFailures,
     insertResults,
   };
   writeReport(args.reportPath, report);
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+const directEntry = process.argv[1]
+  ? pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url
+  : false;
+
+if (directEntry) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}

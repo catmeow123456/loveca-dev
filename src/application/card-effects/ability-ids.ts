@@ -1733,6 +1733,12 @@ export const N_BP7_011_LIVE_SUCCESS_NIJIGASAKI_WAITING_CARD_TO_DECK_TOP_ABILITY_
   'PL!N-bp7-011:live-success-nijigasaki-waiting-card-to-deck-top';
 export const PL_PB2_000_ON_ENTER_DOUBLE_MUSE_RELAY_RECOVER_LIVE_GAIN_SCORE_ABILITY_ID =
   'PL!-pb2-000:on-enter-double-muse-relay-recover-live-gain-score';
+export const PL_PB2_000_CONTINUOUS_PLAY_DOUBLE_RELAY_ABILITY_ID =
+  'PL!-pb2-000:continuous-play-double-relay';
+export const PL_PB2_002_CONTINUOUS_FACING_LOW_ORIGINAL_HEART_MEMBER_ENTERS_WAITING_ABILITY_ID =
+  'PL!-pb2-002:continuous-facing-low-original-heart-member-enters-waiting';
+export const PL_PB2_003_LIVE_START_SUPPRESS_OPPONENT_MEMBER_LIVE_SUCCESS_GAIN_YELLOW_HEART_ABILITY_ID =
+  'PL!-pb2-003:live-start-suppress-opponent-member-live-success-gain-yellow-heart';
 export const S_BP7_007_ON_ENTER_RECOVER_LOW_COST_MEMBER_OPTIONAL_PLAY_ABILITY_ID =
   'PL!S-bp7-007:on-enter-recover-low-cost-member-optional-play';
 export const S_BP7_007_LIVE_START_BOTTOM_AQOURS_MEMBERS_GAIN_BLADE_ABILITY_ID =
@@ -1751,6 +1757,22 @@ export const PL_BP8_005_LIVE_START_CHEER_HEART_COLORS_TO_YELLOW_ABILITY_ID =
   'PL!-bp8-005:live-start-cheer-heart-colors-to-yellow';
 export const PL_PB2_001_LIVE_START_SUCCESS_MUSE_ICON_REWARDS_ABILITY_ID =
   'PL!-pb2-001:live-start-success-muse-icon-rewards';
+export const PL_PB2_004_CONTINUOUS_SUCCESS_MUSE_SCORE_GAIN_BLADE_ABILITY_ID =
+  'PL!-pb2-004:continuous-success-muse-score-gain-blade';
+export const PL_PB2_004_AUTO_ON_CHEER_MUSE_SCORE_ADDITIONAL_CHEER_ABILITY_ID =
+  'PL!-pb2-004:auto-on-cheer-muse-score-additional-cheer';
+export const PL_PB2_005_ON_ENTER_GAIN_MUSE_STAGE_BLADE_AURA_ABILITY_ID =
+  'PL!-pb2-005:on-enter-gain-muse-stage-blade-aura';
+export const PL_PB2_006_ACTIVATED_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID =
+  'PL!-pb2-006:activated-wait-self-discard-wait-low-original-heart-opponent';
+export const PL_PB2_006_LIVE_START_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID =
+  'PL!-pb2-006:live-start-wait-self-discard-wait-low-original-heart-opponent';
+export const PL_PB2_007_ACTIVATED_SELF_SACRIFICE_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID =
+  'PL!-pb2-007:activated-self-sacrifice-recover-muse-live-activate-energy';
+export const PL_PB2_008_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_MUSE_LIVE_ABILITY_ID =
+  'PL!-pb2-008:on-enter-wait-look-top-four-take-high-requirement-muse-live';
+export const PL_PB2_009_AUTO_RELAY_REPLACED_BY_HIGH_COST_MUSE_ACTIVATE_ENERGY_ABILITY_ID =
+  'PL!-pb2-009:auto-relay-replaced-by-high-cost-muse-activate-energy';
 export const PL_PB2_039_LIVE_START_SUCCESS_MUSE_TWO_CHEER_TEN_ABILITY_ID =
   'PL!-pb2-039:live-start-success-muse-two-cheer-ten';
 export const PL_PB2_039_LIVE_SUCCESS_DISTINCT_MUSE_STAGE_CHEER_SCORE_ABILITY_ID =

@@ -64,6 +64,7 @@ import { PublicTableGlobalLayer } from '@/components/public-table/PublicTableGlo
 import { RankedGlobalLayer } from '@/components/ranked/RankedGlobalLayer';
 import { ThemeTableGlobalLayer } from '@/components/theme-table/ThemeTableGlobalLayer';
 import { hasAnyManagementPermission, hasPermission } from '@game/shared/auth/permissions';
+import type { DeckClassifierTemplateImportSource } from '@/components/admin/DeckClassifierAdminPage';
 import { AUTHORIZATION_STALE_EVENT } from '@/lib/apiClient';
 import {
   loadPublicSiteStatusSnapshot,
@@ -124,6 +125,11 @@ const AccountCenterPage = lazy(() =>
   }))
 );
 const CardAdminPage = lazy(() => import('@/components/admin/CardAdminPage'));
+const CardSyncAdminPage = lazy(() =>
+  import('@/components/admin/CardSyncAdminPage').then((module) => ({
+    default: module.CardSyncAdminPage,
+  }))
+);
 const OnlineRoomsAdminPage = lazy(() =>
   import('@/components/admin/OnlineRoomsAdminPage').then((module) => ({
     default: module.OnlineRoomsAdminPage,
@@ -137,6 +143,11 @@ const SiteAnnouncementsAdminPage = lazy(() =>
 const RankedAdminPage = lazy(() =>
   import('@/components/admin/RankedAdminPage').then((module) => ({
     default: module.RankedAdminPage,
+  }))
+);
+const DeckClassifierAdminPage = lazy(() =>
+  import('@/components/admin/DeckClassifierAdminPage').then((module) => ({
+    default: module.DeckClassifierAdminPage,
   }))
 );
 const DeckPointTablesAdminPage = lazy(() =>
@@ -198,10 +209,12 @@ type AppPage =
   | 'game'
   | 'admin-center'
   | 'card-admin'
+  | 'card-sync-admin'
   | 'ai-effect-admin'
   | 'online-admin'
   | 'announcement-admin'
   | 'ranked-admin'
+  | 'deck-classifier-admin'
   | 'deck-point-admin'
   | 'match-emotes-admin'
   | 'theme-table-admin'
@@ -211,10 +224,12 @@ type AppPage =
 const CARD_DATA_INDEPENDENT_PAGES = new Set<AppPage>([
   'admin-center',
   'card-admin',
+  'card-sync-admin',
   'ai-effect-admin',
   'online-admin',
   'announcement-admin',
   'ranked-admin',
+  'deck-classifier-admin',
   'deck-point-admin',
   'match-emotes-admin',
   'users-admin',
@@ -278,10 +293,12 @@ function getInitialPage(): AppPage {
     page === 'game' ||
     page === 'admin-center' ||
     page === 'card-admin' ||
+    page === 'card-sync-admin' ||
     page === 'ai-effect-admin' ||
     page === 'online-admin' ||
     page === 'announcement-admin' ||
     page === 'ranked-admin' ||
+    page === 'deck-classifier-admin' ||
     page === 'deck-point-admin' ||
     page === 'match-emotes-admin' ||
     page === 'theme-table-admin' ||
@@ -306,6 +323,8 @@ function App() {
   const [authPage, setAuthPage] = useState<AuthPage>(initialAuthRequest.page);
   const [authToken, setAuthToken] = useState<string | null>(initialAuthRequest.token);
   const [currentPage, setCurrentPage] = useState<AppPage>(getInitialPage);
+  const [deckClassifierTemplateImport, setDeckClassifierTemplateImport] =
+    useState<DeckClassifierTemplateImportSource | null>(null);
   const maintenanceAdminRequested =
     new URLSearchParams(window.location.search).get('maintenanceAdmin') === '1' &&
     currentPage === 'announcement-admin';
@@ -1271,11 +1290,13 @@ function App() {
         onOpenMatchEmotes={() => setCurrentPage('match-emotes-admin')}
         onOpenAnnouncements={() => setCurrentPage('announcement-admin')}
         onOpenCards={() => setCurrentPage('card-admin')}
+        onOpenCardSync={() => setCurrentPage('card-sync-admin')}
         onOpenAiExtraction={() => setCurrentPage('ai-effect-admin')}
         onOpenDeckPoints={() => setCurrentPage('deck-point-admin')}
         onOpenOnlineRooms={() => setCurrentPage('online-admin')}
         onOpenPlatformOperations={() => setCurrentPage('platform-operations-admin')}
         onOpenRanked={() => setCurrentPage('ranked-admin')}
+        onOpenDeckClassifier={() => setCurrentPage('deck-classifier-admin')}
         onOpenThemeTable={() => setCurrentPage('theme-table-admin')}
         onOpenUsers={() => setCurrentPage('users-admin')}
         battleEntryVisibility={appConfig.features.battleEntries}
@@ -1292,6 +1313,13 @@ function App() {
         onBack={() => setCurrentPage('admin-center')}
         onOpenAiConfig={() => setCurrentPage('ai-effect-admin')}
       />,
+      null
+    );
+  }
+
+  if (effectivePage === 'card-sync-admin' && profile && hasPermission(profile.role, 'cards.sync')) {
+    return withProductFrame(
+      <CardSyncAdminPage onBack={() => setCurrentPage('admin-center')} />,
       null
     );
   }
@@ -1356,6 +1384,28 @@ function App() {
       <RankedAdminPage
         onBack={() => setCurrentPage('admin-center')}
         battleTimeouts={appConfig.features.battleTimeouts}
+        onOpenDeckClassifier={(source) => {
+          setDeckClassifierTemplateImport(source);
+          setCurrentPage('deck-classifier-admin');
+        }}
+      />,
+      null
+    );
+  }
+
+  if (
+    effectivePage === 'deck-classifier-admin' &&
+    profile &&
+    hasPermission(profile.role, 'season.deck_classifier.manage')
+  ) {
+    return withProductFrame(
+      <DeckClassifierAdminPage
+        onBack={() => {
+          const returnPage = deckClassifierTemplateImport ? 'ranked-admin' : 'admin-center';
+          setDeckClassifierTemplateImport(null);
+          setCurrentPage(returnPage);
+        }}
+        initialTemplateImport={deckClassifierTemplateImport}
       />,
       null
     );

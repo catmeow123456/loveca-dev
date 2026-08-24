@@ -831,7 +831,15 @@ async function updateImageFilenames(
     await client.query('BEGIN');
     for (const [cardCode, imageFilename] of imageFilenames) {
       const result = await client.query(
-        'UPDATE cards SET image_filename = $2, updated_at = now() WHERE card_code = $1',
+        `UPDATE cards
+            SET source_flags = CASE
+                  WHEN image_filename IS DISTINCT FROM $2
+                    THEN source_flags - 'imageObjectVersioned' - 'imageOriginalBaseName'
+                  ELSE source_flags
+                END,
+                image_filename = $2,
+                updated_at = now()
+          WHERE card_code = $1`,
         [cardCode, imageFilename]
       );
       if (result.rowCount !== 1) {

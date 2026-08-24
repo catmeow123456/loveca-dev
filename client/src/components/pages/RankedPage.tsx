@@ -8,6 +8,7 @@ import {
   SelectMenu,
   type DeckDisplayItem,
 } from '@/components/common';
+import { DonutChart, type DonutChartItem } from '@/components/charts/DonutChart';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import { buildDeckDisplayItems } from '@/lib/deckDisplay';
 import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
@@ -20,6 +21,7 @@ import {
 import { createDeckRecordCardTypeResolver } from '@/lib/deckRecordUtils';
 import { resolveCardImagePath } from '@/lib/imageService';
 import {
+  fetchRankedDeckArchetypeEnvironment,
   fetchRankedEnvironment,
   fetchRankedOverview,
   fetchRankedSeasons,
@@ -33,13 +35,25 @@ import type {
   RankedSeasonEnvironmentView,
   RankedSeasonPublicView,
 } from '@game/online/ranked-types';
+import type {
+  DeckArchetypeEnvironmentEntryView,
+  DeckArchetypeEnvironmentView,
+} from '@game/online/deck-classifier-types';
 import type { BattleTimeoutConfig } from '@game/online/ranked-policy';
+import type { AnyCardData } from '@game/domain/entities/card';
 
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
 
 interface RankedEnvironmentState {
   readonly seasonId: string | null;
   readonly data: RankedSeasonEnvironmentView | null;
+  readonly loading: boolean;
+  readonly error: string | null;
+}
+
+interface RankedDeckEnvironmentState {
+  readonly seasonId: string | null;
+  readonly data: DeckArchetypeEnvironmentView | null;
   readonly loading: boolean;
   readonly error: string | null;
 }
@@ -81,6 +95,13 @@ export function RankedPage({
     error: null,
   });
   const [environmentReloadKey, setEnvironmentReloadKey] = useState(0);
+  const [deckEnvironmentState, setDeckEnvironmentState] = useState<RankedDeckEnvironmentState>({
+    seasonId: null,
+    data: null,
+    loading: false,
+    error: null,
+  });
+  const [deckEnvironmentReloadKey, setDeckEnvironmentReloadKey] = useState(0);
   const [isSeasonNoticeOpen, setIsSeasonNoticeOpen] = useState(false);
   const resolveDeckRecordCardType = useMemo(
     () => createDeckRecordCardTypeResolver(cardDataRegistry),
@@ -109,6 +130,13 @@ export function RankedPage({
     (environmentState.seasonId !== displayedSeasonId || environmentState.loading);
   const environmentError =
     environmentState.seasonId === displayedSeasonId ? environmentState.error : null;
+  const displayedDeckEnvironment =
+    deckEnvironmentState.seasonId === displayedSeasonId ? deckEnvironmentState.data : null;
+  const isDeckEnvironmentLoading =
+    displayedSeasonId !== null &&
+    (deckEnvironmentState.seasonId !== displayedSeasonId || deckEnvironmentState.loading);
+  const deckEnvironmentError =
+    deckEnvironmentState.seasonId === displayedSeasonId ? deckEnvironmentState.error : null;
 
   useEffect(() => {
     void fetchCloudDecks();
@@ -158,6 +186,33 @@ export function RankedPage({
       cancelled = true;
     };
   }, [active, displayedSeasonId, environmentReloadKey]);
+
+  useEffect(() => {
+    if (active || !displayedSeasonId) return;
+    let cancelled = false;
+    void fetchRankedDeckArchetypeEnvironment(displayedSeasonId)
+      .then((data) => {
+        if (cancelled) return;
+        setDeckEnvironmentState({
+          seasonId: displayedSeasonId,
+          data,
+          loading: false,
+          error: null,
+        });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setDeckEnvironmentState({
+          seasonId: displayedSeasonId,
+          data: null,
+          loading: false,
+          error: error instanceof Error ? error.message : '读取赛季卡组环境失败',
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [active, deckEnvironmentReloadKey, displayedSeasonId]);
 
   const handleJoin = async () => {
     if (!selectedDeck?.cloudDeck) return;
@@ -274,20 +329,36 @@ export function RankedPage({
               ) : null}
               <SeasonLists overview={displayedOverview} currentUserId={currentUserId} />
               {displayedSeasonId ? (
-                <SeasonCardUsage
-                  environment={displayedEnvironment}
-                  loading={isEnvironmentLoading}
-                  error={environmentError}
-                  onRetry={() => {
-                    setEnvironmentState({
-                      seasonId: displayedSeasonId,
-                      data: null,
-                      loading: true,
-                      error: null,
-                    });
-                    setEnvironmentReloadKey((key) => key + 1);
-                  }}
-                />
+                <>
+                  <SeasonDeckArchetypeUsage
+                    environment={displayedDeckEnvironment}
+                    loading={isDeckEnvironmentLoading}
+                    error={deckEnvironmentError}
+                    onRetry={() => {
+                      setDeckEnvironmentState({
+                        seasonId: displayedSeasonId,
+                        data: null,
+                        loading: true,
+                        error: null,
+                      });
+                      setDeckEnvironmentReloadKey((key) => key + 1);
+                    }}
+                  />
+                  <SeasonCardUsage
+                    environment={displayedEnvironment}
+                    loading={isEnvironmentLoading}
+                    error={environmentError}
+                    onRetry={() => {
+                      setEnvironmentState({
+                        seasonId: displayedSeasonId,
+                        data: null,
+                        loading: true,
+                        error: null,
+                      });
+                      setEnvironmentReloadKey((key) => key + 1);
+                    }}
+                  />
+                </>
               ) : null}
             </>
           )}
@@ -304,6 +375,379 @@ export function RankedPage({
         battleTimeouts={battleTimeouts}
         onClose={() => setIsSeasonNoticeOpen(false)}
       />
+    </div>
+  );
+}
+
+type DeckEnvironmentRateKey =
+  | 'playerEqualUsageRate'
+  | 'playerEqualWinnerRate'
+  | 'matchEqualUsageRate'
+  | 'matchEqualWinnerRate'
+  | 'topRankedPlayerEqualUsageRate';
+type RankedEnvironmentTab = 'USAGE' | 'WINNER' | 'TOP_RANKED';
+
+function SeasonDeckArchetypeUsage({
+  environment,
+  loading,
+  error,
+  onRetry,
+}: {
+  environment: DeckArchetypeEnvironmentView | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+}) {
+  const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
+  const [chartTab, setChartTab] = useState<RankedEnvironmentTab>('USAGE');
+  if (environment?.visibleSections.length === 0) return null;
+  const standardCharts =
+    environment?.displayMode === 'PLAYER_EQUAL'
+      ? PLAYER_EQUAL_CHARTS
+      : environment?.displayMode === 'MATCH_EQUAL'
+        ? MATCH_EQUAL_CHARTS
+        : [...PLAYER_EQUAL_CHARTS, ...MATCH_EQUAL_CHARTS];
+  const availableCharts: readonly {
+    title: string;
+    description: string;
+    metric: DeckEnvironmentRateKey;
+    tab: RankedEnvironmentTab;
+  }[] = [
+    ...standardCharts,
+    ...(environment
+      ? [
+          {
+            tab: 'TOP_RANKED' as const,
+            title: `前 ${environment.topRankedPlayerCount} 名玩家·使用构成`,
+            description: `从当前排行榜前 ${environment.topRankedPlayerCount} 名中，按每名有可分析卡组的玩家等权统计其赛季使用分布。`,
+            metric: 'topRankedPlayerEqualUsageRate' as const,
+          },
+        ]
+      : []),
+  ];
+  const enabledTabs = RANKED_ENVIRONMENT_TABS.filter((tab) =>
+    environment?.visibleSections.includes(tab.value)
+  );
+  const activeChartTab = enabledTabs.some((tab) => tab.value === chartTab)
+    ? chartTab
+    : (enabledTabs[0]?.value ?? 'USAGE');
+  const charts = availableCharts.filter((chart) => chart.tab === activeChartTab);
+
+  return (
+    <Panel as="section" padding="compact" className="mt-4">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+        <div>
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">赛季卡组环境</h2>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            使用占比表示卡组在环境中的构成；胜者构成表示获胜者使用了什么，不是胜率。
+          </p>
+        </div>
+        {environment?.available && environment.release ? (
+          <p className="text-xs text-[var(--text-muted)]">
+            分类版本 v{environment.release.version} · {environment.sample.playerCount} 名玩家、
+            {environment.sample.analyzedMatchCount} 场可分析对局
+          </p>
+        ) : null}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-8 text-sm text-[var(--text-muted)]">
+          <Loader2 size={16} className="animate-spin" />
+          正在读取卡组环境…
+        </div>
+      ) : error ? (
+        <div className="py-6 text-center">
+          <p className="text-sm text-[var(--semantic-error)]">{error}</p>
+          <ActionButton variant="ghost" size="compact" className="mt-3" onClick={onRetry}>
+            重新读取
+          </ActionButton>
+        </div>
+      ) : !environment?.available ? (
+        <p className="py-8 text-center text-sm text-[var(--text-muted)]">
+          卡组分类版本尚未发布，发布并完成首次分类后将在这里展示。
+        </p>
+      ) : environment.sample.analyzedMatchCount === 0 ? (
+        <p className="py-8 text-center text-sm text-[var(--text-muted)]">
+          暂无可统计的有效排位对局
+        </p>
+      ) : (
+        <>
+          {enabledTabs.length > 1 ? (
+            <RankedEnvironmentTabs
+              ariaLabel="卡组环境图表"
+              panelId="ranked-deck-environment-chart-panel"
+              tabs={enabledTabs}
+              activeTab={activeChartTab}
+              onChange={setChartTab}
+            />
+          ) : null}
+
+          <div
+            id="ranked-deck-environment-chart-panel"
+            className="mt-4 space-y-4"
+            role={enabledTabs.length > 1 ? 'tabpanel' : undefined}
+            aria-labelledby={
+              enabledTabs.length > 1
+                ? `ranked-deck-environment-chart-panel-tab-${activeChartTab}`
+                : undefined
+            }
+          >
+            {charts.map((chart) => {
+              const series = buildDeckChartSeries(
+                environment.archetypes,
+                chart.metric,
+                cardDataRegistry
+              );
+              return (
+                <div
+                  key={chart.metric}
+                  className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-3 sm:p-4"
+                >
+                  {series.length === 0 ? (
+                    <div className="py-12 text-center text-sm text-[var(--text-muted)]">
+                      {chart.tab === 'TOP_RANKED'
+                        ? '当前高排名玩家还没有可分析的卡组观察'
+                        : '当前还没有可展示的卡组统计'}
+                    </div>
+                  ) : (
+                    <DonutChart
+                      className="donut-chart--deck-environment"
+                      title={chart.title}
+                      ariaLabel={`赛季${chart.title}`}
+                      data={series}
+                      variant="pie"
+                      showNormalizedPercentage={false}
+                      formatValue={formatPercentage}
+                    />
+                  )}
+                  <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">
+                    {chart.description}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--text-muted)]">
+            <span>对局观测覆盖 {formatPercentage(environment.sample.observationCoverageRate)}</span>
+            <span>
+              分类结果覆盖 {formatPercentage(environment.sample.classificationCoverageRate)}
+            </span>
+            <span>
+              已识别 {environment.sample.recognizedDeckObservationCount} /{' '}
+              {environment.sample.deckObservationCount} 场
+            </span>
+            {environment.visibleSections.includes('TOP_RANKED') ? (
+              <span>
+                排行榜前 {environment.topRankedPlayerCount}：符合门槛{' '}
+                {environment.sample.topRankedEligiblePlayerCount} 人，其中{' '}
+                {environment.sample.topRankedAnalyzedPlayerCount} 人有可分析卡组
+              </span>
+            ) : null}
+          </div>
+
+          <DeckArchetypeStatsTable environment={environment} />
+        </>
+      )}
+    </Panel>
+  );
+}
+
+const PLAYER_EQUAL_CHARTS = [
+  {
+    tab: 'USAGE',
+    title: '玩家等权·使用占比',
+    description: '每名玩家先按自己的使用对局归一化，再让每名玩家权重相同。',
+    metric: 'playerEqualUsageRate',
+  },
+  {
+    tab: 'WINNER',
+    title: '玩家等权·胜者构成',
+    description: '每名有胜场的玩家先归一化其胜方卡组，再对玩家等权。',
+    metric: 'playerEqualWinnerRate',
+  },
+] as const;
+
+const MATCH_EQUAL_CHARTS = [
+  {
+    tab: 'USAGE',
+    title: '对局等权·使用占比',
+    description: '每名玩家每场对局的卡组记录权重相同，频繁参赛玩家会按其实际场次计入。',
+    metric: 'matchEqualUsageRate',
+  },
+  {
+    tab: 'WINNER',
+    title: '对局等权·胜者构成',
+    description: '每场可分析对局的胜者权重相同，展示所有胜方卡组的构成。',
+    metric: 'matchEqualWinnerRate',
+  },
+] as const;
+
+const RANKED_ENVIRONMENT_TABS = [
+  { value: 'USAGE', label: '使用占比' },
+  { value: 'WINNER', label: '胜者构成' },
+  { value: 'TOP_RANKED', label: '高排名玩家' },
+] as const;
+
+function RankedEnvironmentTabs({
+  ariaLabel,
+  panelId,
+  tabs,
+  activeTab,
+  onChange,
+}: {
+  ariaLabel: string;
+  panelId: string;
+  tabs: readonly (typeof RANKED_ENVIRONMENT_TABS)[number][];
+  activeTab: RankedEnvironmentTab;
+  onChange: (tab: RankedEnvironmentTab) => void;
+}) {
+  return (
+    <div
+      className="mt-4 flex gap-1 border-b border-[var(--border-subtle)] pb-1"
+      role="tablist"
+      aria-label={ariaLabel}
+    >
+      {tabs.map((tab) => (
+        <button
+          id={`${panelId}-tab-${tab.value}`}
+          key={tab.value}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === tab.value}
+          aria-controls={panelId}
+          className={`min-h-10 flex-1 rounded-lg px-2 py-2 text-sm font-semibold transition-colors duration-150 sm:px-4 ${
+            activeTab === tab.value
+              ? 'bg-[var(--bg-overlay)] text-[var(--text-primary)]'
+              : 'text-[var(--text-muted)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]'
+          }`}
+          onClick={() => onChange(tab.value)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function buildDeckChartSeries(
+  entries: readonly DeckArchetypeEnvironmentEntryView[],
+  metric: DeckEnvironmentRateKey,
+  cardDataRegistry: ReadonlyMap<string, AnyCardData>
+): DonutChartItem[] {
+  const special = entries.filter((entry) => entry.classificationStatus !== 'CLASSIFIED');
+  const classified = entries
+    .filter((entry) => entry.classificationStatus === 'CLASSIFIED')
+    .sort((left, right) => right[metric] - left[metric] || left.sortOrder - right.sortOrder);
+  const visible = classified.slice(0, 8);
+  const remainder = classified.slice(8).reduce((sum, entry) => sum + entry[metric], 0);
+  const series: DonutChartItem[] = visible.map((entry) => ({
+    id: entry.archetypeId,
+    label: entry.name,
+    value: entry[metric],
+    color: entry.color,
+    ...(entry.representativeCardCode
+      ? {
+          imageUrl: resolveCardImagePath(
+            {
+              cardCode: entry.representativeCardCode,
+              imageFilename: entry.representativeImageFilename,
+            },
+            'medium'
+          ),
+          imageCrop:
+            cardDataRegistry.get(entry.representativeCardCode)?.cardType === 'LIVE'
+              ? 'live'
+              : 'portrait',
+        }
+      : {}),
+  }));
+  if (remainder > 0) {
+    series.push({
+      id: 'visual:other-recognized',
+      label: '其他已识别卡组',
+      value: remainder,
+      color: '#CBD5E1',
+    });
+  }
+  series.push(
+    ...special
+      .filter((entry) => entry[metric] > 0)
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((entry) => ({
+        id: entry.archetypeId,
+        label: entry.name,
+        value: entry[metric],
+        color: entry.color,
+      }))
+  );
+  return series;
+}
+
+function DeckArchetypeStatsTable({ environment }: { environment: DeckArchetypeEnvironmentView }) {
+  const showUsage = environment.visibleSections.includes('USAGE');
+  const showPlayer = showUsage && environment.displayMode !== 'MATCH_EQUAL';
+  const showMatch = showUsage && environment.displayMode !== 'PLAYER_EQUAL';
+  const showTopRanked = environment.visibleSections.includes('TOP_RANKED');
+  return (
+    <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
+      <table className="min-w-full text-left text-xs">
+        <thead className="bg-[var(--bg-overlay)] text-[var(--text-muted)]">
+          <tr>
+            <th className="px-3 py-2 font-semibold">卡组分类</th>
+            {showPlayer ? <th className="px-3 py-2 text-right font-semibold">玩家等权</th> : null}
+            {showMatch ? <th className="px-3 py-2 text-right font-semibold">对局等权</th> : null}
+            {showTopRanked ? (
+              <th className="px-3 py-2 text-right font-semibold">
+                前 {environment.topRankedPlayerCount} 玩家
+              </th>
+            ) : null}
+            <th className="px-3 py-2 text-right font-semibold">出场</th>
+            <th className="px-3 py-2 text-right font-semibold">胜率</th>
+            <th className="px-3 py-2 text-right font-semibold">非镜像胜率</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--border-subtle)]">
+          {environment.archetypes.map((entry) => (
+            <tr key={entry.archetypeId}>
+              <td className="whitespace-nowrap px-3 py-2 font-semibold text-[var(--text-primary)]">
+                <span
+                  className="mr-2 inline-block h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: entry.color }}
+                  aria-hidden="true"
+                />
+                {entry.name}
+              </td>
+              {showPlayer ? (
+                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[var(--text-secondary)]">
+                  {formatPercentage(entry.playerEqualUsageRate)}
+                </td>
+              ) : null}
+              {showMatch ? (
+                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[var(--text-secondary)]">
+                  {formatPercentage(entry.matchEqualUsageRate)}
+                </td>
+              ) : null}
+              {showTopRanked ? (
+                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[var(--text-secondary)]">
+                  {formatPercentage(entry.topRankedPlayerEqualUsageRate)}
+                </td>
+              ) : null}
+              <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[var(--text-secondary)]">
+                {entry.appearanceCount} 场
+              </td>
+              <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[var(--text-secondary)]">
+                {entry.winRate === null ? '—' : formatPercentage(entry.winRate)}
+              </td>
+              <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[var(--text-secondary)]">
+                {entry.nonMirrorWinRate === null
+                  ? '—'
+                  : `${formatPercentage(entry.nonMirrorWinRate)}（${entry.nonMirrorAppearanceCount} 场）`}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -490,18 +934,31 @@ function SeasonCardUsage({
   error: string | null;
   onRetry: () => void;
 }) {
-  const cards = environment?.cardUsage.slice(0, 30) ?? [];
-  const columns = [cards.slice(0, 15), cards.slice(15, 30)];
+  const [chartTab, setChartTab] = useState<RankedEnvironmentTab>('USAGE');
+  if (environment?.visibleSections.length === 0) return null;
+  const enabledTabs = RANKED_ENVIRONMENT_TABS.filter((tab) =>
+    environment?.visibleSections.includes(tab.value)
+  );
+  const activeChartTab = enabledTabs.some((tab) => tab.value === chartTab)
+    ? chartTab
+    : (enabledTabs[0]?.value ?? 'USAGE');
+  const rankings =
+    environment?.rankings.filter((ranking) => ranking.section === activeChartTab) ?? [];
+  const hasCards = rankings.some((ranking) => ranking.cards.length > 0);
 
   return (
     <Panel as="section" padding="compact" className="mt-4">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
-        <h2 className="text-sm font-semibold text-[var(--text-primary)]">赛季卡牌使用率</h2>
+        <div>
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">赛季卡牌使用率</h2>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            展示各卡被卡组采用的比例；胜者构成不是单卡胜率，各卡比例也不要求合计为 100%。
+          </p>
+        </div>
         {environment ? (
           <p className="text-xs text-[var(--text-muted)]">
-            按玩家等权统计 · {environment.sample.playerCount} 名玩家、
-            {environment.sample.analyzedMatchCount} 场有效对局 · 数据覆盖{' '}
-            {formatPercentage(environment.sample.coverageRate)}
+            {environment.sample.playerCount} 名玩家、{environment.sample.analyzedMatchCount}
+            场可分析对局 · 数据覆盖 {formatPercentage(environment.sample.coverageRate)}
           </p>
         ) : null}
       </div>
@@ -518,67 +975,162 @@ function SeasonCardUsage({
             重新读取
           </ActionButton>
         </div>
-      ) : cards.length === 0 ? (
+      ) : !environment || environment.sample.analyzedMatchCount === 0 ? (
         <p className="py-8 text-center text-sm text-[var(--text-muted)]">
           暂无可统计的有效排位对局
         </p>
       ) : (
-        <div className="mt-3 grid gap-x-5 md:grid-cols-2">
-          {columns.map((column, columnIndex) => (
-            <ol
-              key={columnIndex}
-              start={columnIndex === 0 ? 1 : 16}
-              className="divide-y divide-[var(--border-subtle)]"
-            >
-              {column.map((card) => {
-                const percentage = formatPercentage(card.usageRate);
-                const width = Math.max(0, Math.min(1, card.usageRate)) * 100;
-                return (
-                  <li
-                    key={card.baseCardCode}
-                    value={card.rank}
-                    className="grid grid-cols-[2rem_2.5rem_minmax(0,1fr)_auto] items-center gap-2 py-2"
-                  >
-                    <span className="text-center text-sm tabular-nums text-[var(--text-muted)]">
-                      {card.rank}
-                    </span>
-                    <img
-                      src={resolveCardImagePath(
-                        {
-                          cardCode: card.cardCode,
-                          imageFilename: card.imageFilename,
-                        },
-                        'thumb'
-                      )}
-                      alt=""
-                      loading="lazy"
-                      className="h-14 w-10 rounded object-cover object-top shadow-[var(--shadow-sm)]"
-                    />
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
-                        {card.name}
-                      </div>
-                      <div className="mt-0.5 truncate text-xs text-[var(--text-muted)]">
-                        {card.baseCardCode}
-                      </div>
-                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--bg-overlay)]">
-                        <div
-                          className="h-full rounded-full bg-[var(--accent-primary)]"
-                          style={{ width: `${width}%` }}
-                        />
-                      </div>
-                    </div>
-                    <span className="text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-                      {percentage}
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-          ))}
-        </div>
+        <>
+          {enabledTabs.length > 1 ? (
+            <RankedEnvironmentTabs
+              ariaLabel="卡牌使用率图表"
+              panelId="ranked-card-environment-chart-panel"
+              tabs={enabledTabs}
+              activeTab={activeChartTab}
+              onChange={setChartTab}
+            />
+          ) : null}
+
+          <div
+            id="ranked-card-environment-chart-panel"
+            className="mt-4 space-y-4"
+            role={enabledTabs.length > 1 ? 'tabpanel' : undefined}
+            aria-labelledby={
+              enabledTabs.length > 1
+                ? `ranked-card-environment-chart-panel-tab-${activeChartTab}`
+                : undefined
+            }
+          >
+            {!hasCards ? (
+              <p className="py-8 text-center text-sm text-[var(--text-muted)]">
+                {activeChartTab === 'TOP_RANKED'
+                  ? '当前高排名玩家还没有可分析的卡组观察'
+                  : '当前还没有可展示的卡牌统计'}
+              </p>
+            ) : (
+              rankings.map((ranking) => (
+                <CardUsageRanking
+                  key={`${ranking.section}:${ranking.weighting}`}
+                  ranking={ranking}
+                  topRankedPlayerCount={environment.topRankedPlayerCount}
+                />
+              ))
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--text-muted)]">
+            {activeChartTab === 'USAGE' ? (
+              <span>
+                全部样本：{environment.sample.playerCount} 名玩家、
+                {environment.sample.deckObservationCount} 场卡组记录
+              </span>
+            ) : activeChartTab === 'WINNER' ? (
+              <span>
+                胜方样本：{environment.sample.winningPlayerCount} 名获胜玩家、
+                {environment.sample.analyzedMatchCount} 场对局
+              </span>
+            ) : (
+              <span>
+                排行榜前 {environment.topRankedPlayerCount}：符合门槛{' '}
+                {environment.sample.topRankedEligiblePlayerCount} 人，其中{' '}
+                {environment.sample.topRankedAnalyzedPlayerCount} 人有可分析卡组，共{' '}
+                {environment.sample.topRankedDeckObservationCount} 场卡组记录
+              </span>
+            )}
+          </div>
+        </>
       )}
     </Panel>
+  );
+}
+
+type RankedCardUsageRanking = RankedSeasonEnvironmentView['rankings'][number];
+
+function CardUsageRanking({
+  ranking,
+  topRankedPlayerCount,
+}: {
+  ranking: RankedCardUsageRanking;
+  topRankedPlayerCount: number;
+}) {
+  const title =
+    ranking.section === 'TOP_RANKED'
+      ? `前 ${topRankedPlayerCount} 名玩家·使用占比`
+      : `${ranking.weighting === 'PLAYER_EQUAL' ? '玩家等权' : '对局等权'}·${
+          ranking.section === 'USAGE' ? '使用占比' : '胜者构成'
+        }`;
+  const description =
+    ranking.section === 'TOP_RANKED'
+      ? `从当前排行榜前 ${topRankedPlayerCount} 名中，对有可分析卡组的玩家先分别归一化，再按玩家等权统计。`
+      : ranking.weighting === 'PLAYER_EQUAL'
+        ? ranking.section === 'USAGE'
+          ? '每名玩家先按自己的赛季卡组采用情况归一化，再让每名玩家权重相同。'
+          : '每名有胜场的玩家先按自己的胜方卡组归一化，再让每名获胜玩家权重相同。'
+        : ranking.section === 'USAGE'
+          ? '每名玩家每场对局的卡组记录权重相同，频繁参赛玩家会按实际场次计入。'
+          : '每场可分析对局的胜方卡组权重相同，展示所有胜方卡组采用了哪些卡。';
+  const cards = ranking.cards.slice(0, 30);
+  const columns = [cards.slice(0, 15), cards.slice(15, 30)].filter((column) => column.length > 0);
+
+  return (
+    <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-3 sm:p-4">
+      <h3 className="text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
+      <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">{description}</p>
+      <div className={`mt-3 grid gap-x-5 ${columns.length > 1 ? 'md:grid-cols-2' : ''}`}>
+        {columns.map((column, columnIndex) => (
+          <ol
+            key={columnIndex}
+            start={column[0]?.rank ?? 1}
+            className="divide-y divide-[var(--border-subtle)]"
+          >
+            {column.map((card) => {
+              const percentage = formatPercentage(card.adoptionRate);
+              const width = Math.max(0, Math.min(1, card.adoptionRate)) * 100;
+              return (
+                <li
+                  key={card.baseCardCode}
+                  value={card.rank}
+                  className="grid grid-cols-[2rem_2.5rem_minmax(0,1fr)_auto] items-center gap-2 py-2"
+                >
+                  <span className="text-center text-sm tabular-nums text-[var(--text-muted)]">
+                    {card.rank}
+                  </span>
+                  <img
+                    src={resolveCardImagePath(
+                      {
+                        cardCode: card.cardCode,
+                        imageFilename: card.imageFilename,
+                      },
+                      'thumb'
+                    )}
+                    alt=""
+                    loading="lazy"
+                    className="h-14 w-10 rounded object-cover object-top shadow-[var(--shadow-sm)]"
+                  />
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
+                      {card.name}
+                    </div>
+                    <div className="mt-0.5 truncate text-xs text-[var(--text-muted)]">
+                      {card.baseCardCode} · {card.playerCount} 人 / {card.deckCount} 场
+                    </div>
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--bg-base)]">
+                      <div
+                        className="h-full rounded-full bg-[var(--accent-primary)]"
+                        style={{ width: `${width}%` }}
+                      />
+                    </div>
+                  </div>
+                  <span className="text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+                    {percentage}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        ))}
+      </div>
+    </section>
   );
 }
 

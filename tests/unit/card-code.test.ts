@@ -92,6 +92,12 @@ describe('validateCardCode', () => {
       'PL!SP-bp7-005-SEC',
       'PL!SP-bp7-006-SEC',
       'PL!SP-bp7-007-SEC',
+      'PL!HS-bp8-001-P',
+      'LL-bp9-001-N',
+      'LL-bp10-001-N',
+      'PL!-sd3-001-SD',
+      'PL!HS-cl2-001-L',
+      'PL!SP-pb3-001-P',
     ];
     for (const code of cases) {
       const result = validateCardCode(code);
@@ -120,8 +126,8 @@ describe('validateCardCode', () => {
     expect(result.errors.some((e) => e.includes('前缀'))).toBe(true);
   });
 
-  it('未知商品代号不通过', () => {
-    const result = validateCardCode('LL-bp99-001-N');
+  it('非数字编号且非固定值的商品代号不通过', () => {
+    const result = validateCardCode('LL-bpx-001-N');
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes('商品代号'))).toBe(true);
   });

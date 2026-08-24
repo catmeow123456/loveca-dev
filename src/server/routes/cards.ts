@@ -1,10 +1,16 @@
 import { Router } from 'express';
+import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { readCurrentAuthorizedRole, requirePermission } from '../middleware/require-permission.js';
 import { validate } from '../middleware/validate.js';
 import { inheritMissingBladeHeartsByBase } from '../../domain/card-data/blade-heart-inheritance.js';
+import {
+  clearCardImageVersionMetadata,
+  inspectCardImageVersionMetadata,
+  setCardImageVersionMetadata,
+} from '../../shared/card-image-version-metadata.js';
 import { getBaseCardCode } from '../../shared/utils/card-code.js';
 
 export const cardsRouter = Router();
@@ -415,6 +421,93 @@ const updateCardSchema = cardInputSchema.omit({ card_code: true }).partial();
 type CreateCardInput = z.infer<typeof createCardSchema>;
 type UpdateCardInput = z.infer<typeof updateCardSchema>;
 
+interface ExistingCardUpdateRow {
+  readonly name_jp: string | null;
+  readonly name_cn: string | null;
+  readonly image_filename: string | null;
+  readonly source_flags: Record<string, unknown> | null;
+}
+
+interface ExistingCardImageRow {
+  readonly image_filename: string | null;
+  readonly source_flags: Record<string, unknown> | null;
+}
+
+async function runCardMutationTransaction<T>(
+  operation: (client: PoolClient) => Promise<T>
+): Promise<T> {
+  const client = await pool.connect();
+  let transactionActive = false;
+  let destroyClient = true;
+  try {
+    await client.query('BEGIN');
+    transactionActive = true;
+    destroyClient = false;
+    const result = await operation(client);
+    await client.query('COMMIT');
+    transactionActive = false;
+    return result;
+  } catch (error) {
+    if (transactionActive) {
+      try {
+        await client.query('ROLLBACK');
+        transactionActive = false;
+      } catch (rollbackError) {
+        destroyClient = true;
+        console.error('[Cards] Failed to roll back card mutation transaction', {
+          error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+        });
+      }
+    }
+    throw error;
+  } finally {
+    client.release(destroyClient);
+  }
+}
+
+function sourceFlagsForExternalImageWrite(
+  nextImageFilename: string | null,
+  externalSourceFlags: Record<string, unknown> | null | undefined,
+  existing: ExistingCardImageRow | null
+): Record<string, unknown> | null {
+  const nextExternalFlags = clearCardImageVersionMetadata(externalSourceFlags);
+  if (!existing || nextImageFilename !== existing.image_filename) {
+    return nextExternalFlags;
+  }
+
+  const existingMetadata = inspectCardImageVersionMetadata(
+    existing.image_filename,
+    existing.source_flags
+  );
+  return existingMetadata.status === 'VALID'
+    ? setCardImageVersionMetadata(
+        nextExternalFlags,
+        existing.image_filename!,
+        existingMetadata.originalBaseName
+      )
+    : nextExternalFlags;
+}
+
+function normalizeExternalCardImageUpdate(
+  updates: UpdateCardInput,
+  existing: ExistingCardUpdateRow
+): UpdateCardInput {
+  const imageFilenameProvided = Object.prototype.hasOwnProperty.call(updates, 'image_filename');
+  const sourceFlagsProvided = Object.prototype.hasOwnProperty.call(updates, 'source_flags');
+  if (!imageFilenameProvided && !sourceFlagsProvided) return updates;
+
+  const nextImageFilename = imageFilenameProvided
+    ? (updates.image_filename ?? null)
+    : existing.image_filename;
+  const nextSourceFlags = sourceFlagsForExternalImageWrite(
+    nextImageFilename,
+    sourceFlagsProvided ? updates.source_flags : existing.source_flags,
+    existing
+  );
+
+  return { ...updates, source_flags: nextSourceFlags };
+}
+
 cardsRouter.post(
   '/',
   requireAuth,
@@ -423,6 +516,7 @@ cardsRouter.post(
   async (req, res, next) => {
     try {
       const b = req.body as CreateCardInput;
+      const sourceFlags = clearCardImageVersionMetadata(b.source_flags);
       const { rows } = await pool.query(
         `INSERT INTO cards (
         card_code, card_type, name_jp, name_cn,
@@ -456,7 +550,7 @@ cardsRouter.post(
           b.product ?? null,
           b.product_code ?? null,
           b.source_external_id ?? null,
-          b.source_flags == null ? null : JSON.stringify(b.source_flags),
+          sourceFlags == null ? null : JSON.stringify(sourceFlags),
           b.status ?? 'DRAFT',
           req.user!.id,
         ]
@@ -479,106 +573,108 @@ cardsRouter.put(
   validate(updateCardSchema),
   async (req, res, next) => {
     try {
-      const updates = req.body as UpdateCardInput;
-      const fields: string[] = [];
-      const values: unknown[] = [];
-      let idx = 1;
+      const result = await runCardMutationTransaction(async (client) => {
+        const { rows: existingRows } = await client.query<ExistingCardUpdateRow>(
+          `SELECT name_jp, name_cn, image_filename, source_flags
+             FROM cards
+            WHERE card_code = $1
+            FOR UPDATE`,
+          [req.params.code]
+        );
+        const existing = existingRows[0];
+        if (!existing) return { status: 'NOT_FOUND' as const };
 
-      // Dynamically build SET clause from provided fields
-      const allowedFields: Array<keyof UpdateCardInput> = [
-        'card_type',
-        'name_jp',
-        'name_cn',
-        'work_names',
-        'group_names',
-        'unit_name',
-        'unit_name_raw',
-        'cost',
-        'blade',
-        'hearts',
-        'blade_hearts',
-        'score',
-        'requirements',
-        'card_text_jp',
-        'card_text_cn',
-        'image_filename',
-        'image_source_uri',
-        'rare',
-        'product',
-        'product_code',
-        'source_external_id',
-        'source_flags',
-        'status',
-      ];
+        const updates = normalizeExternalCardImageUpdate(req.body as UpdateCardInput, existing);
+        const fields: string[] = [];
+        const values: unknown[] = [];
+        let idx = 1;
 
-      for (const field of allowedFields) {
-        if (field in updates) {
-          const rawVal = updates[field];
-          const val =
-            field === 'name_jp' || field === 'name_cn'
-              ? normalizeOptionalText(rawVal as string | null | undefined)
-              : rawVal;
-          fields.push(`${field} = $${idx}`);
-          values.push(typeof val === 'object' && val !== null ? JSON.stringify(val) : val);
-          idx++;
-        }
-      }
+        const allowedFields: Array<keyof UpdateCardInput> = [
+          'card_type',
+          'name_jp',
+          'name_cn',
+          'work_names',
+          'group_names',
+          'unit_name',
+          'unit_name_raw',
+          'cost',
+          'blade',
+          'hearts',
+          'blade_hearts',
+          'score',
+          'requirements',
+          'card_text_jp',
+          'card_text_cn',
+          'image_filename',
+          'image_source_uri',
+          'rare',
+          'product',
+          'product_code',
+          'source_external_id',
+          'source_flags',
+          'status',
+        ];
 
-      if (fields.length === 0) {
-        res.status(400).json({
-          data: null,
-          error: { code: 'NO_FIELDS', message: '没有需要更新的字段' },
-        });
-        return;
-      }
-
-      if ('name_jp' in updates || 'name_cn' in updates) {
-        const { rows: existingNameRows } = await pool.query<{
-          name_jp: string | null;
-          name_cn: string | null;
-        }>('SELECT name_jp, name_cn FROM cards WHERE card_code = $1', [req.params.code]);
-
-        if (existingNameRows.length === 0) {
-          res.status(404).json({
-            data: null,
-            error: { code: 'NOT_FOUND', message: '卡牌不存在' },
-          });
-          return;
+        for (const field of allowedFields) {
+          if (field in updates) {
+            const rawVal = updates[field];
+            const val =
+              field === 'name_jp' || field === 'name_cn'
+                ? normalizeOptionalText(rawVal as string | null | undefined)
+                : rawVal;
+            fields.push(`${field} = $${idx}`);
+            values.push(typeof val === 'object' && val !== null ? JSON.stringify(val) : val);
+            idx++;
+          }
         }
 
-        const existingNames = existingNameRows[0];
-        const nextNameJp = resolveNextName(updates, 'name_jp', existingNames.name_jp);
-        const nextNameCn = resolveNextName(updates, 'name_cn', existingNames.name_cn);
+        if (fields.length === 0) return { status: 'NO_FIELDS' as const };
 
-        if (!hasLanguageName({ name_jp: nextNameJp, name_cn: nextNameCn })) {
-          res.status(400).json({
-            data: null,
-            error: { code: 'VALIDATION_ERROR', message: 'name_jp 或 name_cn 至少需要一个' },
-          });
-          return;
+        if ('name_jp' in updates || 'name_cn' in updates) {
+          const nextNameJp = resolveNextName(updates, 'name_jp', existing.name_jp);
+          const nextNameCn = resolveNextName(updates, 'name_cn', existing.name_cn);
+          if (!hasLanguageName({ name_jp: nextNameJp, name_cn: nextNameCn })) {
+            return { status: 'INVALID_NAMES' as const };
+          }
         }
-      }
 
-      // Add updated_by
-      fields.push(`updated_by = $${idx}`);
-      values.push(req.user!.id);
-      idx++;
+        fields.push(`updated_by = $${idx}`);
+        values.push(req.user!.id);
+        idx++;
 
-      values.push(req.params.code);
-      const { rows } = await pool.query(
-        `UPDATE cards SET ${fields.join(', ')} WHERE card_code = $${idx} RETURNING *`,
-        values
-      );
+        values.push(req.params.code);
+        const { rows } = await client.query(
+          `UPDATE cards SET ${fields.join(', ')} WHERE card_code = $${idx} RETURNING *`,
+          values
+        );
+        return rows[0]
+          ? { status: 'UPDATED' as const, card: rows[0] }
+          : { status: 'NOT_FOUND' as const };
+      });
 
-      if (rows.length === 0) {
+      if (result.status === 'NOT_FOUND') {
         res.status(404).json({
           data: null,
           error: { code: 'NOT_FOUND', message: '卡牌不存在' },
         });
         return;
       }
+      if (result.status === 'NO_FIELDS') {
+        res.status(400).json({
+          data: null,
+          error: { code: 'NO_FIELDS', message: '没有需要更新的字段' },
+        });
+        return;
+      }
+      if (result.status === 'INVALID_NAMES') {
+        res.status(400).json({
+          data: null,
+          error: { code: 'VALIDATION_ERROR', message: 'name_jp 或 name_cn 至少需要一个' },
+        });
+        return;
+      }
 
-      res.json({ data: rows[0], error: null });
+      res.json({ data: result.card, error: null });
     } catch (err) {
       next(err);
     }
@@ -649,6 +745,8 @@ const importSchema = z.object({
   ),
 });
 
+type ImportCardsInput = z.infer<typeof importSchema>;
+
 cardsRouter.post(
   '/import',
   requireAuth,
@@ -656,46 +754,28 @@ cardsRouter.post(
   validate(importSchema),
   async (req, res, next) => {
     try {
-      const { cards } = req.body;
+      const { cards } = req.body as ImportCardsInput;
       let imported = 0;
       let failed = 0;
       const errors: string[] = [];
 
       for (const card of cards) {
         try {
-          await pool.query(
-            `INSERT INTO cards (
-            card_code, card_type, name_jp, name_cn,
-            work_names, group_names, unit_name, unit_name_raw,
-            cost, blade, hearts, blade_hearts, score, requirements,
-            card_text_jp, card_text_cn, image_filename, image_source_uri,
-            rare, product, product_code, source_external_id, source_flags, status, updated_by
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
-          ON CONFLICT (card_code) DO UPDATE SET
-            card_type = EXCLUDED.card_type,
-            name_jp = EXCLUDED.name_jp,
-            name_cn = EXCLUDED.name_cn,
-            work_names = EXCLUDED.work_names,
-            group_names = EXCLUDED.group_names,
-            unit_name = EXCLUDED.unit_name,
-            unit_name_raw = EXCLUDED.unit_name_raw,
-            cost = EXCLUDED.cost,
-            blade = EXCLUDED.blade,
-            hearts = EXCLUDED.hearts,
-            blade_hearts = EXCLUDED.blade_hearts,
-            score = EXCLUDED.score,
-            requirements = EXCLUDED.requirements,
-            card_text_jp = EXCLUDED.card_text_jp,
-            card_text_cn = EXCLUDED.card_text_cn,
-            image_filename = EXCLUDED.image_filename,
-            image_source_uri = EXCLUDED.image_source_uri,
-            rare = EXCLUDED.rare,
-            product = EXCLUDED.product,
-            product_code = EXCLUDED.product_code,
-            source_external_id = EXCLUDED.source_external_id,
-            source_flags = EXCLUDED.source_flags,
-            status = EXCLUDED.status`,
-            [
+          await runCardMutationTransaction(async (client) => {
+            const { rows: existingRows } = await client.query<ExistingCardImageRow>(
+              `SELECT image_filename, source_flags
+                 FROM cards
+                WHERE card_code = $1
+                FOR UPDATE`,
+              [card.cardCode]
+            );
+            const imageFilename = card.imageFilename ?? null;
+            const sourceFlags = sourceFlagsForExternalImageWrite(
+              imageFilename,
+              card.sourceFlags,
+              existingRows[0] ?? null
+            );
+            const values = [
               card.cardCode,
               card.cardType,
               card.nameJp ?? null,
@@ -712,17 +792,87 @@ cardsRouter.post(
               JSON.stringify(card.requirements ?? []),
               card.cardTextJp ?? null,
               card.cardTextCn ?? null,
-              card.imageFilename ?? null,
+              imageFilename,
               card.imageSourceUri ?? null,
               card.rare ?? null,
               card.product ?? null,
               card.productCode ?? null,
               card.sourceExternalId ?? null,
-              card.sourceFlags == null ? null : JSON.stringify(card.sourceFlags),
+              sourceFlags == null ? null : JSON.stringify(sourceFlags),
               card.status ?? 'DRAFT',
               req.user!.id,
-            ]
-          );
+            ];
+            const updateExistingCard = async () => {
+              await client.query(
+                `UPDATE cards SET
+                   card_type = $2,
+                   name_jp = $3,
+                   name_cn = $4,
+                   work_names = $5,
+                   group_names = $6,
+                   unit_name = $7,
+                   unit_name_raw = $8,
+                   cost = $9,
+                   blade = $10,
+                   hearts = $11,
+                   blade_hearts = $12,
+                   score = $13,
+                   requirements = $14,
+                   card_text_jp = $15,
+                   card_text_cn = $16,
+                   image_filename = $17,
+                   image_source_uri = $18,
+                   rare = $19,
+                   product = $20,
+                   product_code = $21,
+                   source_external_id = $22,
+                   source_flags = $23,
+                   status = $24,
+                   updated_by = $25,
+                   updated_at = now()
+                 WHERE card_code = $1`,
+                values
+              );
+            };
+
+            if (existingRows[0]) {
+              await updateExistingCard();
+            } else {
+              const { rows: insertedRows } = await client.query<{ card_code: string }>(
+                `INSERT INTO cards (
+                  card_code, card_type, name_jp, name_cn,
+                  work_names, group_names, unit_name, unit_name_raw,
+                  cost, blade, hearts, blade_hearts, score, requirements,
+                  card_text_jp, card_text_cn, image_filename, image_source_uri,
+                  rare, product, product_code, source_external_id, source_flags, status, updated_by
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+                ON CONFLICT (card_code) DO NOTHING
+                RETURNING card_code`,
+                values
+              );
+              if (insertedRows.length === 0) {
+                const { rows: concurrentRows } = await client.query<ExistingCardImageRow>(
+                  `SELECT image_filename, source_flags
+                     FROM cards
+                    WHERE card_code = $1
+                    FOR UPDATE`,
+                  [card.cardCode]
+                );
+                const concurrentExisting = concurrentRows[0];
+                if (!concurrentExisting) {
+                  throw new Error(`${card.cardCode}: concurrent import target disappeared`);
+                }
+                const concurrentSourceFlags = sourceFlagsForExternalImageWrite(
+                  imageFilename,
+                  card.sourceFlags,
+                  concurrentExisting
+                );
+                values[22] =
+                  concurrentSourceFlags == null ? null : JSON.stringify(concurrentSourceFlags);
+                await updateExistingCard();
+              }
+            }
+          });
           imported++;
         } catch (err) {
           failed++;

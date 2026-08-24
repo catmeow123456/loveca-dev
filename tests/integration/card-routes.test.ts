@@ -1,9 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
 
 vi.mock('../../src/server/db/pool.js', () => ({
   pool: {
     query: vi.fn(),
+    connect: vi.fn(),
   },
 }));
 
@@ -26,6 +27,18 @@ import { pool } from '../../src/server/db/pool';
 // pool.query relies on its owning Pool at runtime; the test mock itself is safe to retain.
 // eslint-disable-next-line @typescript-eslint/unbound-method
 const poolQueryMock = vi.mocked(pool.query);
+// eslint-disable-next-line @typescript-eslint/unbound-method
+const poolConnectMock = vi.mocked(pool.connect);
+const clientQueryMock = vi.fn();
+const clientReleaseMock = vi.fn();
+
+function mockCardTransaction(...operationResults: unknown[]) {
+  clientQueryMock.mockResolvedValueOnce({});
+  for (const result of operationResults) {
+    clientQueryMock.mockResolvedValueOnce(result);
+  }
+  clientQueryMock.mockResolvedValueOnce({});
+}
 
 function createMockResponse() {
   const response = {
@@ -50,7 +63,7 @@ function createMockResponse() {
   };
 }
 
-type RouteMethod = 'get' | 'put';
+type RouteMethod = 'get' | 'post' | 'put';
 
 interface TestRouteLayer {
   readonly route?: {
@@ -115,6 +128,17 @@ async function invokeRoute(path: string, method: RouteMethod, options: Partial<R
 }
 
 describe('cardsRouter', () => {
+  beforeEach(() => {
+    poolQueryMock.mockReset();
+    poolConnectMock.mockReset();
+    clientQueryMock.mockReset();
+    clientReleaseMock.mockReset();
+    poolConnectMock.mockResolvedValue({
+      query: clientQueryMock,
+      release: clientReleaseMock,
+    } as never);
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
   });
@@ -267,12 +291,13 @@ describe('cardsRouter', () => {
     expect(inheritanceValues).toEqual(['MEMBER', 'PL!_-sd1-007', 'PL!\\_-sd1-007-%']);
   });
 
-  it('更新卡牌时允许清空一个名称字段，只要另一个名称仍存在', async () => {
-    poolQueryMock
-      .mockResolvedValueOnce({ rows: [{ name_jp: '日文名', name_cn: '中文名' }] } as never)
-      .mockResolvedValueOnce({
+  it('更新卡牌时在同一事务锁行，并允许清空一个名称字段', async () => {
+    mockCardTransaction(
+      { rows: [{ name_jp: '日文名', name_cn: '中文名' }] },
+      {
         rows: [{ card_code: 'CARD-1', name_jp: '日文名', name_cn: null }],
-      } as never);
+      }
+    );
 
     const response = await invokeRoute('/:code', 'put', {
       params: { code: 'CARD-1' },
@@ -280,14 +305,20 @@ describe('cardsRouter', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(poolQueryMock).toHaveBeenCalledTimes(2);
-    expect(poolQueryMock.mock.calls[1]?.[1]).toEqual([null, 'admin-1', 'CARD-1']);
+    expect(clientQueryMock).toHaveBeenCalledTimes(4);
+    expect(clientQueryMock.mock.calls[1]?.[0]).toContain('FOR UPDATE');
+    expect(clientQueryMock.mock.calls[2]?.[1]).toEqual([null, 'admin-1', 'CARD-1']);
+    expect(clientQueryMock.mock.calls.map(([sql]) => sql)).toEqual([
+      'BEGIN',
+      expect.stringContaining('SELECT name_jp'),
+      expect.stringContaining('UPDATE cards SET'),
+      'COMMIT',
+    ]);
+    expect(clientReleaseMock).toHaveBeenCalledWith(false);
   });
 
   it('更新卡牌时拒绝同时清空日文名和中文名', async () => {
-    poolQueryMock.mockResolvedValueOnce({
-      rows: [{ name_jp: '日文名', name_cn: '中文名' }],
-    } as never);
+    mockCardTransaction({ rows: [{ name_jp: '日文名', name_cn: '中文名' }] });
 
     const response = await invokeRoute('/:code', 'put', {
       params: { code: 'CARD-1' },
@@ -299,6 +330,329 @@ describe('cardsRouter', () => {
       data: null,
       error: { code: 'VALIDATION_ERROR', message: 'name_jp 或 name_cn 至少需要一个' },
     });
-    expect(poolQueryMock).toHaveBeenCalledTimes(1);
+    expect(clientQueryMock.mock.calls.map(([sql]) => sql)).toEqual([
+      'BEGIN',
+      expect.stringContaining('FOR UPDATE'),
+      'COMMIT',
+    ]);
+  });
+
+  it('管理中心换图时清除与新图不再对应的版本化标记', async () => {
+    mockCardTransaction(
+      {
+        rows: [
+          {
+            name_jp: '日文名',
+            name_cn: '中文名',
+            image_filename: 'source-abcdefabcdefabcdefabcdef.webp',
+            source_flags: {
+              imageObjectVersioned: true,
+              imageOriginalBaseName: 'source',
+              fieldConflict: true,
+            },
+          },
+        ],
+      },
+      {
+        rows: [{ card_code: 'CARD-1', image_filename: 'CARD-1.webp' }],
+      }
+    );
+
+    const response = await invokeRoute('/:code', 'put', {
+      params: { code: 'CARD-1' },
+      body: {
+        image_filename: 'CARD-1.webp',
+        source_flags: {
+          imageObjectVersioned: true,
+          imageOriginalBaseName: 'source',
+          fieldConflict: true,
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const [sql, values] = clientQueryMock.mock.calls[2] ?? [];
+    expect(sql).toContain('image_filename = $1');
+    expect(sql).toContain('source_flags = $2');
+    expect(values).toEqual([
+      'CARD-1.webp',
+      JSON.stringify({ fieldConflict: true }),
+      'admin-1',
+      'CARD-1',
+    ]);
+  });
+
+  it('管理中心未换图时保留与当前图片一致的服务端版本化标记', async () => {
+    mockCardTransaction(
+      {
+        rows: [
+          {
+            name_jp: '日文名',
+            name_cn: '中文名',
+            image_filename: 'source-abcdefabcdefabcdefabcdef.webp',
+            source_flags: {
+              imageObjectVersioned: true,
+              imageOriginalBaseName: 'source',
+              fieldConflict: true,
+            },
+          },
+        ],
+      },
+      { rows: [{ card_code: 'CARD-1' }] }
+    );
+
+    const response = await invokeRoute('/:code', 'put', {
+      params: { code: 'CARD-1' },
+      body: {
+        source_flags: {
+          imageObjectVersioned: false,
+          imageOriginalBaseName: 'spoofed',
+          upstreamNote: 'keep',
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const [sql, values] = clientQueryMock.mock.calls[2] ?? [];
+    expect(sql).toContain('source_flags = $1');
+    expect(values).toEqual([
+      JSON.stringify({
+        upstreamNote: 'keep',
+        imageObjectVersioned: true,
+        imageOriginalBaseName: 'source',
+      }),
+      'admin-1',
+      'CARD-1',
+    ]);
+  });
+
+  it('卡牌创建 API 不接受外部伪造的内部图片版本标记', async () => {
+    poolQueryMock.mockResolvedValueOnce({
+      rows: [{ card_code: 'CARD-2', name_jp: '日文名' }],
+    } as never);
+
+    const response = await invokeRoute('/', 'post', {
+      body: {
+        card_code: 'CARD-2',
+        card_type: 'ENERGY',
+        name_jp: '日文名',
+        source_flags: {
+          imageObjectVersioned: true,
+          imageOriginalBaseName: 'spoofed',
+          upstreamNote: 'keep',
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    const [, values] = poolQueryMock.mock.calls[0] ?? [];
+    expect(values?.[22]).toBe(JSON.stringify({ upstreamNote: 'keep' }));
+  });
+
+  it('批量回导相同版本图时保留数据库可信标记并忽略外部伪造值', async () => {
+    mockCardTransaction(
+      {
+        rows: [
+          {
+            image_filename: 'source-abcdefabcdefabcdefabcdef.webp',
+            source_flags: {
+              imageObjectVersioned: true,
+              imageOriginalBaseName: 'source',
+              fieldConflict: true,
+            },
+          },
+        ],
+      },
+      { rowCount: 1 }
+    );
+
+    const response = await invokeRoute('/import', 'post', {
+      body: {
+        cards: [
+          {
+            cardCode: 'CARD-1',
+            cardType: 'ENERGY',
+            nameJp: '日文名',
+            imageFilename: 'source-abcdefabcdefabcdefabcdef.webp',
+            sourceFlags: {
+              imageObjectVersioned: true,
+              imageOriginalBaseName: 'spoofed',
+              upstreamNote: 'keep',
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual({
+      data: { success: true, imported: 1, failed: 0, errors: [] },
+      error: null,
+    });
+    expect(clientQueryMock.mock.calls[1]?.[0]).toContain('FOR UPDATE');
+    const [sql, values] = clientQueryMock.mock.calls[2] ?? [];
+    expect(sql).toContain('UPDATE cards SET');
+    expect(sql).not.toContain('ON CONFLICT');
+    expect(values?.[22]).toBe(
+      JSON.stringify({
+        upstreamNote: 'keep',
+        imageObjectVersioned: true,
+        imageOriginalBaseName: 'source',
+      })
+    );
+  });
+
+  it('批量导入换图时清除数据库旧版本标记', async () => {
+    mockCardTransaction(
+      {
+        rows: [
+          {
+            image_filename: 'source-abcdefabcdefabcdefabcdef.webp',
+            source_flags: {
+              imageObjectVersioned: true,
+              imageOriginalBaseName: 'source',
+            },
+          },
+        ],
+      },
+      { rowCount: 1 }
+    );
+
+    const response = await invokeRoute('/import', 'post', {
+      body: {
+        cards: [
+          {
+            cardCode: 'CARD-1',
+            cardType: 'ENERGY',
+            nameJp: '日文名',
+            imageFilename: 'CARD-1.webp',
+            sourceFlags: {
+              imageObjectVersioned: true,
+              imageOriginalBaseName: 'source',
+              upstreamNote: 'keep',
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const [, values] = clientQueryMock.mock.calls[2] ?? [];
+    expect(values?.[16]).toBe('CARD-1.webp');
+    expect(values?.[22]).toBe(JSON.stringify({ upstreamNote: 'keep' }));
+  });
+
+  it('批量导入新卡时走 INSERT 并剥离外部版本标记', async () => {
+    mockCardTransaction({ rows: [] }, { rows: [{ card_code: 'CARD-NEW' }] });
+
+    const response = await invokeRoute('/import', 'post', {
+      body: {
+        cards: [
+          {
+            cardCode: 'CARD-NEW',
+            cardType: 'ENERGY',
+            nameJp: '新卡',
+            imageFilename: 'CARD-NEW.webp',
+            sourceFlags: {
+              imageObjectVersioned: true,
+              imageOriginalBaseName: 'spoofed',
+              upstreamNote: 'keep',
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const [sql, values] = clientQueryMock.mock.calls[2] ?? [];
+    expect(sql).toContain('INSERT INTO cards');
+    expect(sql).toContain('ON CONFLICT (card_code) DO NOTHING');
+    expect(values?.[22]).toBe(JSON.stringify({ upstreamNote: 'keep' }));
+  });
+
+  it('批量导入新卡遇并发插入时重新锁行并按当前可信标记更新', async () => {
+    mockCardTransaction(
+      { rows: [] },
+      { rows: [] },
+      {
+        rows: [
+          {
+            image_filename: 'source-abcdefabcdefabcdefabcdef.webp',
+            source_flags: {
+              imageObjectVersioned: true,
+              imageOriginalBaseName: 'source',
+            },
+          },
+        ],
+      },
+      { rowCount: 1 }
+    );
+
+    const response = await invokeRoute('/import', 'post', {
+      body: {
+        cards: [
+          {
+            cardCode: 'CARD-RACE',
+            cardType: 'ENERGY',
+            nameJp: '并发卡',
+            imageFilename: 'source-abcdefabcdefabcdefabcdef.webp',
+            sourceFlags: {
+              imageObjectVersioned: true,
+              imageOriginalBaseName: 'spoofed',
+              upstreamNote: 'keep',
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(clientQueryMock.mock.calls[3]?.[0]).toContain('FOR UPDATE');
+    const [sql, values] = clientQueryMock.mock.calls[4] ?? [];
+    expect(sql).toContain('UPDATE cards SET');
+    expect(values?.[22]).toBe(
+      JSON.stringify({
+        upstreamNote: 'keep',
+        imageObjectVersioned: true,
+        imageOriginalBaseName: 'source',
+      })
+    );
+  });
+
+  it('批量导入事务回滚失败时销毁连接并记录单卡失败', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    clientQueryMock
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error('database unavailable'))
+      .mockRejectedValueOnce(new Error('rollback unavailable'));
+
+    const response = await invokeRoute('/import', 'post', {
+      body: {
+        cards: [
+          {
+            cardCode: 'CARD-FAIL',
+            cardType: 'ENERGY',
+            nameJp: '失败卡',
+          },
+        ],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        success: true,
+        imported: 0,
+        failed: 1,
+        errors: ['CARD-FAIL: database unavailable'],
+      },
+      error: null,
+    });
+    expect(clientReleaseMock).toHaveBeenCalledWith(true);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[Cards] Failed to roll back card mutation transaction',
+      { error: 'rollback unavailable' }
+    );
+    consoleErrorSpy.mockRestore();
   });
 });

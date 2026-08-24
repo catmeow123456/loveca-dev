@@ -275,6 +275,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 成员卡横置/等待使用 `orientation` 传给通用 `Card`。
 - 桌面端撤销按钮位于右下角阶段工具条，不放在成功 Live 卡区或左上角；不可撤销时仍保留入口并展示规则层禁用原因。
 - 对局桌面可显示“已自动化卡效”的轻量卡面标记：只在前端对局组件中给正面卡牌加卡顶中间约 4px 小点和 1px 圆角外描边，当前可处理/可发动时点和描边变亮；不写入卡牌数据库、不影响后端规则。当前实现入口为 `client/src/lib/cardEffectAutomationVisuals.ts`，通用卡牌组件只接收可选 `effectVisualState` prop。默认开启；构建时可设置 `VITE_CARD_EFFECT_VISUAL_MARKERS=false` / `0` / `off` 关闭。若后续所有卡效都已完成并决定剥离，删除该 helper、`CardEffectMarker`、`Card.effectVisualState` prop 以及 `PlayerArea` 中的传参即可，不应影响权威规则状态。
+- 自己的主要阶段中，己方舞台成员若仍有可用的“1回合 N 次”起动效果次数，使用独立紫色高亮描边并覆盖自动化卡效蓝色描边；卡顶自动化小点保留。卡效处理窗口中暂停该提示，优先展示现有的效果来源、合法目标和选择状态；窗口结束后如仍有剩余次数则恢复。
 - 新增卡效接入自动化标记时，优先通过能力定义的 `implemented: true` 自动进入标记系统；只有没有 queued/activated ability definition 的 cost-calculator-only 效果，才需要补到 `client/src/lib/cardEffectAutomationVisuals.ts` 的 supplemental set。
 
 ## 推荐验证命令
