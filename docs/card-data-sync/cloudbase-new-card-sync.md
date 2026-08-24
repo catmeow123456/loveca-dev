@@ -51,7 +51,7 @@ PostgreSQL `cards.card_type`：
 - CloudBase 输入内部标准化卡号重复时，整组跳过并报告。
 - DB 已存在卡号跳过，不做 update。
 - 候选内部图片 basename 冲突时跳过。
-- 候选图片 basename 与 DB 已有 `image_filename` 冲突时跳过；DB 文件名属于本流程的版本化格式时，先剥离末尾 24 位版本摘要再比较原始 basename。
+- 候选图片 basename 与 DB 已有 `image_filename` 冲突时跳过；本流程生成版本化文件名时会同时在 `source_flags.imageObjectVersioned` 和 `source_flags.imageOriginalBaseName` 保存明确标记。后续只按该元数据读取原始 basename，未标记文件名保持完整比较，不通过正则推断后缀。
 
 ## 3. 字段转换
 
@@ -76,7 +76,7 @@ CloudBase 新卡可以从 `作品名` / `work_names` / `series` 写入 `work_nam
 
 下载链路会先解析主机的全部 A/AAAA 结果，任一结果属于回环、链路本地、内网或保留地址时都拒绝；HTTPS 连接使用已校验地址的 pinned lookup，不再在请求时二次自由解析，也不跟随重定向。
 
-每次正式执行都从任务身份派生独立的版本后缀，三个 WebP 尺寸写入 `${size}/${sourceBase}-${version}.webp`，并在元数据中保留各自的 SHA-256。同一执行只会复用同键且哈希与当前内容完全相同的对象；不同任务不共享可变键。只有仍持有有效 token/generation 的数据库事务会把本任务的版本化文件名写入 `cards.image_filename`；失租旧 worker 即使延迟上传最后完成，也只会写入它自己的旧任务键，不会覆盖后续任务已绑定的卡图。数据库 `COMMIT` 返回异常时会通过另一连接核对该卡是否已经引用本任务文件名：已引用则保留，确认未引用才清理，无法完成对账时保守保留并报告结果不确定。上传或插卡回滚时的对象清理失败仍会记录卡号和对象键。
+每次正式执行都从任务身份派生独立的版本后缀，三个 WebP 尺寸写入 `${size}/${sourceBase}-${version}.webp`，并在元数据中保留各自的 SHA-256。同一执行只会复用同键且哈希与当前内容完全相同的对象；不同任务不共享可变键。只有仍持有有效 token/generation 的数据库事务会把本任务的版本化文件名写入 `cards.image_filename`，并把原始 basename 与版本化标记写入 `source_flags`；失租旧 worker 即使延迟上传最后完成，也只会写入它自己的旧任务键，不会覆盖后续任务已绑定的卡图。数据库 `COMMIT` 返回异常时会尝试结束原事务，再通过另一连接核对该卡是否已经引用本任务文件名：已引用则保留；只有回滚已确认且未引用才清理；回滚失败或无法完成对账时保守保留、销毁原连接并报告结果不确定。上传或插卡回滚时的对象清理失败仍会记录卡号和对象键。
 
 ## 5. 审核边界
 

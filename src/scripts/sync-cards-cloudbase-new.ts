@@ -116,6 +116,8 @@ export interface SourceFlags {
   readonly imageDownloadFailed?: boolean;
   readonly imageProcessFailed?: boolean;
   readonly imageUploadFailed?: boolean;
+  readonly imageObjectVersioned?: boolean;
+  readonly imageOriginalBaseName?: string;
   readonly [key: string]: unknown;
 }
 
@@ -163,6 +165,7 @@ export interface TransformResult {
 export interface ExistingCardRow {
   readonly card_code: string;
   readonly image_filename: string | null;
+  readonly source_flags?: SourceFlags | null;
 }
 
 export interface PreparedCandidate {
@@ -1948,17 +1951,18 @@ function withSourceFlag(
 export async function reconcileCardImageReference(
   pool: Pick<Pool, 'query'>,
   cardCode: string,
-  expectedImageFilename: string | null
+  expectedImageFilename: string | null,
+  originalTransactionEnded: boolean
 ): Promise<CardImageReferenceResult> {
   try {
     const result = await pool.query<{ image_filename: string | null }>(
       'SELECT image_filename FROM cards WHERE card_code = $1',
       [cardCode]
     );
-    return {
-      status:
-        result.rows[0]?.image_filename === expectedImageFilename ? 'REFERENCED' : 'NOT_REFERENCED',
-    };
+    if (result.rows[0]?.image_filename === expectedImageFilename) {
+      return { status: 'REFERENCED' };
+    }
+    return { status: originalTransactionEnded ? 'NOT_REFERENCED' : 'UNKNOWN' };
   } catch (error) {
     return {
       status: 'UNKNOWN',
@@ -1967,11 +1971,12 @@ export async function reconcileCardImageReference(
   }
 }
 
-async function rollbackQuietly(client: PoolClient): Promise<void> {
+async function rollbackTransaction(client: PoolClient): Promise<boolean> {
   try {
     await client.query('ROLLBACK');
+    return true;
   } catch {
-    // A separate connection performs the authoritative commit reconciliation below.
+    return false;
   }
 }
 
@@ -1979,6 +1984,7 @@ export async function insertCard(pool: Pool, record: CardInsertRecord): Promise<
   const client = await pool.connect();
   let insertSucceeded = false;
   let commitAttempted = false;
+  let destroyClient = false;
   try {
     await client.query('BEGIN');
     const result = await client.query<{ card_code: string }>(
@@ -2031,12 +2037,14 @@ export async function insertCard(pool: Pool, record: CardInsertRecord): Promise<
     await client.query('COMMIT');
     return { cardCode: record.card_code, inserted: insertSucceeded };
   } catch (error) {
-    await rollbackQuietly(client);
+    const rollbackConfirmed = await rollbackTransaction(client);
+    destroyClient = !rollbackConfirmed;
     if (commitAttempted) {
       const reference = await reconcileCardImageReference(
         pool,
         record.card_code,
-        record.image_filename
+        record.image_filename,
+        rollbackConfirmed
       );
       if (reference.status === 'REFERENCED') {
         return {
@@ -2049,7 +2057,8 @@ export async function insertCard(pool: Pool, record: CardInsertRecord): Promise<
         console.error('Card insert commit outcome is unknown; uploaded images were preserved', {
           cardCode: record.card_code,
           imageFilename: record.image_filename,
-          message: reference.error,
+          rollbackConfirmed,
+          message: reference.error ?? (error instanceof Error ? error.message : String(error)),
         });
         return {
           cardCode: record.card_code,
@@ -2065,12 +2074,47 @@ export async function insertCard(pool: Pool, record: CardInsertRecord): Promise<
       error: error instanceof Error ? error.message : String(error),
     };
   } finally {
-    client.release();
+    client.release(destroyClient);
   }
 }
 
 function imageBaseNameForExisting(row: ExistingCardRow): string | null {
-  return imageBaseNameFromFilename(row.image_filename)?.replace(/-[0-9a-f]{24}$/iu, '') ?? null;
+  const explicitOriginalBaseName =
+    row.source_flags?.imageObjectVersioned === true
+      ? cleanString(row.source_flags.imageOriginalBaseName)
+      : null;
+  if (
+    explicitOriginalBaseName &&
+    !explicitOriginalBaseName.includes('/') &&
+    !explicitOriginalBaseName.includes('\\')
+  ) {
+    return explicitOriginalBaseName;
+  }
+  return imageBaseNameFromFilename(row.image_filename);
+}
+
+export function withVersionedImageReference(
+  record: CardInsertRecord,
+  imageFilename: string,
+  originalBaseName: string
+): CardInsertRecord {
+  const normalizedOriginalBaseName = cleanString(originalBaseName);
+  if (
+    !normalizedOriginalBaseName ||
+    normalizedOriginalBaseName.includes('/') ||
+    normalizedOriginalBaseName.includes('\\')
+  ) {
+    throw new Error(`${record.card_code}: invalid original image basename`);
+  }
+  return {
+    ...record,
+    image_filename: imageFilename,
+    source_flags: {
+      ...(record.source_flags ?? {}),
+      imageObjectVersioned: true,
+      imageOriginalBaseName: normalizedOriginalBaseName,
+    },
+  };
 }
 
 export function buildPreparedCandidates(
@@ -2300,7 +2344,7 @@ async function main(): Promise<void> {
     const pool = new Pool({ connectionString: databaseUrl });
     try {
       const response = await pool.query<ExistingCardRow>(
-        'SELECT card_code, image_filename FROM cards ORDER BY card_code'
+        'SELECT card_code, image_filename, source_flags FROM cards ORDER BY card_code'
       );
       existingRows = response.rows;
       const built = buildPreparedCandidates(transforms, existingRows);
@@ -2345,10 +2389,18 @@ async function main(): Promise<void> {
               if (!imageResult.imageFilename) {
                 throw new Error(`${candidate.record.card_code}: image result has no filename`);
               }
-              recordsAfterImage.push({
-                ...candidate.record,
-                image_filename: imageResult.imageFilename,
-              });
+              if (!candidate.imagePlan.imageBaseName) {
+                throw new Error(
+                  `${candidate.record.card_code}: image plan has no original basename`
+                );
+              }
+              recordsAfterImage.push(
+                withVersionedImageReference(
+                  candidate.record,
+                  imageResult.imageFilename,
+                  candidate.imagePlan.imageBaseName
+                )
+              );
             } else if (args.allowMissingImages && imageResult.sourceFlag) {
               recordsAfterImage.push(withSourceFlag(candidate.record, imageResult.sourceFlag));
             } else {

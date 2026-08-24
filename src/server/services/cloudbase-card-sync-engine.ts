@@ -25,6 +25,7 @@ import {
   processCandidateImage,
   readCloudbaseDocuments,
   reconcileCardImageReference,
+  withVersionedImageReference,
   type CardInsertRecord,
   type CloudBaseApp,
   type ExistingCardRow,
@@ -160,7 +161,7 @@ async function buildSyncPlan(): Promise<SyncPlan> {
   );
   const snapshot = buildCloudbaseCardSnapshot(documents, CARD_SYNC_POLICY.status);
   const existingResult = await pool.query<ExistingCardRow>(
-    'SELECT card_code, image_filename FROM cards ORDER BY card_code'
+    'SELECT card_code, image_filename, source_flags FROM cards ORDER BY card_code'
   );
   const planned = buildPreparedCandidates(snapshot.transforms, existingResult.rows);
   const blocked = blockedFromSnapshot(snapshot, planned.skipped);
@@ -287,11 +288,12 @@ async function cleanupUploadedKeys(
   return failures;
 }
 
-async function rollbackQuietly(client: PoolClient): Promise<void> {
+async function rollbackTransaction(client: PoolClient): Promise<boolean> {
   try {
     await client.query('ROLLBACK');
+    return true;
   } catch {
-    // COMMIT ambiguity is reconciled through a separate pooled connection below.
+    return false;
   }
 }
 
@@ -335,11 +337,19 @@ async function applyCandidate(
   if (!image.imageFilename) {
     throw new CardSyncEngineError('IMAGE_RESULT_INVALID', '卡图处理结果缺少版本化文件名');
   }
-  const record = { ...candidate.record, image_filename: image.imageFilename };
+  if (!candidate.imagePlan.imageBaseName) {
+    throw new CardSyncEngineError('IMAGE_PLAN_INVALID', '卡图计划缺少原始文件名');
+  }
+  const record = withVersionedImageReference(
+    candidate.record,
+    image.imageFilename,
+    candidate.imagePlan.imageBaseName
+  );
 
   const client = await pool.connect();
   let inserted = false;
   let commitAttempted = false;
+  let destroyClient = false;
   try {
     await client.query('BEGIN');
     await lockAndRenewCardSyncLease(client, leaseIdentity(input.runId, input.execution));
@@ -362,9 +372,15 @@ async function applyCandidate(
     }
     return { cardCode, result: 'SUCCEEDED', message: null };
   } catch (error) {
-    await rollbackQuietly(client);
+    const rollbackConfirmed = await rollbackTransaction(client);
+    destroyClient = !rollbackConfirmed;
     if (commitAttempted) {
-      const reference = await reconcileCardImageReference(pool, cardCode, image.imageFilename);
+      const reference = await reconcileCardImageReference(
+        pool,
+        cardCode,
+        image.imageFilename,
+        rollbackConfirmed
+      );
       if (reference.status === 'REFERENCED') {
         return inserted
           ? { cardCode, result: 'SUCCEEDED', message: null }
@@ -375,7 +391,8 @@ async function applyCandidate(
           runId: input.runId,
           cardCode,
           imageFilename: image.imageFilename,
-          message: reference.error,
+          rollbackConfirmed,
+          message: reference.error ?? messageForFailure(error, '数据库提交结果无法确认'),
         });
         return {
           cardCode,
@@ -398,7 +415,7 @@ async function applyCandidate(
           : messageForFailure(error, '写入卡牌失败'),
     };
   } finally {
-    client.release();
+    client.release(destroyClient);
   }
 }
 

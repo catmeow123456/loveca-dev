@@ -8,6 +8,7 @@ import {
   readCloudbaseDocuments,
   reconcileCardImageReference,
   resolvePublicImageAddresses,
+  withVersionedImageReference,
   type CloudBaseCollection,
 } from '../../src/scripts/sync-cards-cloudbase-new';
 
@@ -125,6 +126,10 @@ describe('CloudBase card sync shared core', () => {
       {
         card_code: 'PL!N-bp1-009-N',
         image_filename: 'shared-image-0123456789abcdef01234567.webp',
+        source_flags: {
+          imageObjectVersioned: true,
+          imageOriginalBaseName: 'shared-image',
+        },
       },
     ]);
 
@@ -138,6 +143,63 @@ describe('CloudBase card sync shared core', () => {
     ]);
   });
 
+  it('does not mistake a legitimate 24-hex original basename for a version suffix', () => {
+    const originalBaseName = 'shared-image-0123456789abcdef01234567';
+    const snapshot = buildCloudbaseCardSnapshot([
+      {
+        _id: 'hex-original-conflict',
+        card_code: 'PL!N-bp1-098-N',
+        type: 'ENERGY',
+        name_jp: 'Hex original conflict',
+        image_source_uri: `cloud://example/${originalBaseName}.png`,
+        image_filename: `${originalBaseName}.png`,
+      },
+    ]);
+
+    const result = buildPreparedCandidates(snapshot.transforms, [
+      {
+        card_code: 'PL!N-bp1-099-N',
+        image_filename: `${originalBaseName}.png`,
+      },
+    ]);
+
+    expect(result.prepared).toEqual([]);
+    expect(result.skipped).toEqual([
+      {
+        cardCode: 'PL!N-bp1-098-N',
+        reason: 'imageBaseNameAlreadyUsed',
+        detail: `${originalBaseName} used by PL!N-bp1-099-N`,
+      },
+    ]);
+  });
+
+  it('persists explicit original basename metadata with a versioned image reference', () => {
+    const snapshot = buildCloudbaseCardSnapshot([
+      {
+        _id: 'version-metadata',
+        card_code: 'PL!N-bp1-097-N',
+        type: 'ENERGY',
+        name_jp: 'Version metadata',
+        image_source_uri: 'cloud://example/source-name.png',
+        image_filename: 'source-name.png',
+      },
+    ]);
+
+    expect(
+      withVersionedImageReference(
+        snapshot.transforms[0]!.record!,
+        'source-name-abcdefabcdefabcdefabcdef.webp',
+        'source-name'
+      )
+    ).toMatchObject({
+      image_filename: 'source-name-abcdefabcdefabcdefabcdef.webp',
+      source_flags: {
+        imageObjectVersioned: true,
+        imageOriginalBaseName: 'source-name',
+      },
+    });
+  });
+
   it('reconciles an ambiguous commit by the exact stored image filename', async () => {
     const exactQuery = vi.fn().mockResolvedValue({
       rows: [{ image_filename: 'card-version.webp' }],
@@ -146,7 +208,8 @@ describe('CloudBase card sync shared core', () => {
       reconcileCardImageReference(
         { query: exactQuery } as never,
         'PL!N-bp1-010-N',
-        'card-version.webp'
+        'card-version.webp',
+        true
       )
     ).resolves.toEqual({ status: 'REFERENCED' });
 
@@ -157,16 +220,28 @@ describe('CloudBase card sync shared core', () => {
       reconcileCardImageReference(
         { query: differentQuery } as never,
         'PL!N-bp1-010-N',
-        'card-version.webp'
+        'card-version.webp',
+        true
       )
     ).resolves.toEqual({ status: 'NOT_REFERENCED' });
+
+    const emptyQueryBeforeTransactionEnds = vi.fn().mockResolvedValue({ rows: [] });
+    await expect(
+      reconcileCardImageReference(
+        { query: emptyQueryBeforeTransactionEnds } as never,
+        'PL!N-bp1-010-N',
+        'card-version.webp',
+        false
+      )
+    ).resolves.toEqual({ status: 'UNKNOWN' });
 
     const failedQuery = vi.fn().mockRejectedValue(new Error('database unavailable'));
     await expect(
       reconcileCardImageReference(
         { query: failedQuery } as never,
         'PL!N-bp1-010-N',
-        'card-version.webp'
+        'card-version.webp',
+        true
       )
     ).resolves.toEqual({ status: 'UNKNOWN', error: 'database unavailable' });
   });
@@ -213,6 +288,50 @@ describe('CloudBase card sync shared core', () => {
       [record.card_code]
     );
     expect(client.release).toHaveBeenCalledOnce();
+  });
+
+  it('preserves a CLI upload when COMMIT and ROLLBACK fail before an empty reconciliation read', async () => {
+    const snapshot = buildCloudbaseCardSnapshot([
+      {
+        _id: 'delayed-commit',
+        card_code: 'PL!N-bp1-013-N',
+        type: 'ENERGY',
+        name_jp: 'Delayed commit',
+        image_source_uri: 'cloud://example/delayed.png',
+        image_filename: 'delayed.png',
+      },
+    ]);
+    const record = withVersionedImageReference(
+      snapshot.transforms[0]!.record!,
+      'delayed-0123456789abcdef01234567.webp',
+      'delayed'
+    );
+    const client = {
+      query: vi.fn((text: string) => {
+        if (text.includes('INSERT INTO cards')) {
+          return Promise.resolve({ rows: [{ card_code: record.card_code }], rowCount: 1 });
+        }
+        if (text === 'COMMIT' || text === 'ROLLBACK') {
+          return Promise.reject(new Error('connection lost'));
+        }
+        return Promise.resolve({ rows: [], rowCount: null });
+      }),
+      release: vi.fn(),
+    };
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+    };
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(insertCard(pool as never, record)).resolves.toEqual({
+      cardCode: record.card_code,
+      inserted: false,
+      preserveUploadedImages: true,
+      error: 'card insert commit outcome is unknown; uploaded images were preserved',
+    });
+    expect(client.release).toHaveBeenCalledWith(true);
+    consoleError.mockRestore();
   });
 
   it('preserves a CLI upload when reconciliation after a failed COMMIT is unavailable', async () => {

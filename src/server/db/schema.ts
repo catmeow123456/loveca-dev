@@ -164,6 +164,8 @@ export type CardSourceFlags = {
   imageDownloadFailed?: boolean;
   imageProcessFailed?: boolean;
   imageUploadFailed?: boolean;
+  imageObjectVersioned?: boolean;
+  imageOriginalBaseName?: string;
   [key: string]: unknown;
 };
 
