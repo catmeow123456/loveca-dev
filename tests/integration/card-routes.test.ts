@@ -50,7 +50,7 @@ function createMockResponse() {
   };
 }
 
-type RouteMethod = 'get' | 'put';
+type RouteMethod = 'get' | 'post' | 'put';
 
 interface TestRouteLayer {
   readonly route?: {
@@ -300,5 +300,115 @@ describe('cardsRouter', () => {
       error: { code: 'VALIDATION_ERROR', message: 'name_jp 或 name_cn 至少需要一个' },
     });
     expect(poolQueryMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('管理中心换图时清除与新图不再对应的版本化标记', async () => {
+    poolQueryMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            name_jp: '日文名',
+            name_cn: '中文名',
+            image_filename: 'source-abcdefabcdefabcdefabcdef.webp',
+            source_flags: {
+              imageObjectVersioned: true,
+              imageOriginalBaseName: 'source',
+              fieldConflict: true,
+            },
+          },
+        ],
+      } as never)
+      .mockResolvedValueOnce({
+        rows: [{ card_code: 'CARD-1', image_filename: 'CARD-1.webp' }],
+      } as never);
+
+    const response = await invokeRoute('/:code', 'put', {
+      params: { code: 'CARD-1' },
+      body: {
+        image_filename: 'CARD-1.webp',
+        source_flags: {
+          imageObjectVersioned: true,
+          imageOriginalBaseName: 'source',
+          fieldConflict: true,
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const [sql, values] = poolQueryMock.mock.calls[1] ?? [];
+    expect(sql).toContain('image_filename = $1');
+    expect(sql).toContain('source_flags = $2');
+    expect(values).toEqual([
+      'CARD-1.webp',
+      JSON.stringify({ fieldConflict: true }),
+      'admin-1',
+      'CARD-1',
+    ]);
+  });
+
+  it('管理中心未换图时保留与当前图片一致的服务端版本化标记', async () => {
+    poolQueryMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            name_jp: '日文名',
+            name_cn: '中文名',
+            image_filename: 'source-abcdefabcdefabcdefabcdef.webp',
+            source_flags: {
+              imageObjectVersioned: true,
+              imageOriginalBaseName: 'source',
+              fieldConflict: true,
+            },
+          },
+        ],
+      } as never)
+      .mockResolvedValueOnce({ rows: [{ card_code: 'CARD-1' }] } as never);
+
+    const response = await invokeRoute('/:code', 'put', {
+      params: { code: 'CARD-1' },
+      body: {
+        source_flags: {
+          imageObjectVersioned: false,
+          imageOriginalBaseName: 'spoofed',
+          upstreamNote: 'keep',
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const [sql, values] = poolQueryMock.mock.calls[1] ?? [];
+    expect(sql).toContain('source_flags = $1');
+    expect(values).toEqual([
+      JSON.stringify({
+        upstreamNote: 'keep',
+        imageObjectVersioned: true,
+        imageOriginalBaseName: 'source',
+      }),
+      'admin-1',
+      'CARD-1',
+    ]);
+  });
+
+  it('卡牌创建 API 不接受外部伪造的内部图片版本标记', async () => {
+    poolQueryMock.mockResolvedValueOnce({
+      rows: [{ card_code: 'CARD-2', name_jp: '日文名' }],
+    } as never);
+
+    const response = await invokeRoute('/', 'post', {
+      body: {
+        card_code: 'CARD-2',
+        card_type: 'ENERGY',
+        name_jp: '日文名',
+        source_flags: {
+          imageObjectVersioned: true,
+          imageOriginalBaseName: 'spoofed',
+          upstreamNote: 'keep',
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    const [, values] = poolQueryMock.mock.calls[0] ?? [];
+    expect(values?.[22]).toBe(JSON.stringify({ upstreamNote: 'keep' }));
   });
 });

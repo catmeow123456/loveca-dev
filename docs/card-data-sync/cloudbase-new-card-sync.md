@@ -51,7 +51,7 @@ PostgreSQL `cards.card_type`：
 - CloudBase 输入内部标准化卡号重复时，整组跳过并报告。
 - DB 已存在卡号跳过，不做 update。
 - 候选内部图片 basename 冲突时跳过。
-- 候选图片 basename 与 DB 已有 `image_filename` 冲突时跳过；本流程生成版本化文件名时会同时在 `source_flags.imageObjectVersioned` 和 `source_flags.imageOriginalBaseName` 保存明确标记。后续只按该元数据读取原始 basename，未标记文件名保持完整比较，不通过正则推断后缀。
+- 候选图片 basename 与 DB 已有 `image_filename` 冲突时跳过；本流程生成版本化文件名时会同时在 `source_flags.imageObjectVersioned` 和 `source_flags.imageOriginalBaseName` 保存明确标记。两个键必须同时存在，且当前文件名必须严格匹配 `${imageOriginalBaseName}-<24 hex>.webp`；空图片名、部分标记或对应不一致会作为现有卡牌数据异常阻断全部候选。后续只按通过校验的元数据读取原始 basename，未标记文件名保持完整比较，不通过正则推断后缀。
 
 ## 3. 字段转换
 
@@ -70,9 +70,9 @@ CloudBase 新卡可以从 `作品名` / `work_names` / `series` 写入 `work_nam
 正式运行必须显式选择图片策略：
 
 - `--upload-images`：从 CloudBase fileID 或 HTTPS URL 下载原图，使用 `sharp` 生成 `thumb` / `medium` / `large` WebP，并上传 MinIO / S3。
-- `--skip-images`：不处理图片，不写入 `image_filename`，只保留 `image_source_uri` 并写入 `source_flags.imageSkipped`。
+- `--skip-images`：不处理图片，不写入 `image_filename`，只保留 `image_source_uri` 并写入 `source_flags.imageSkipped`，同时清除任何版本化图片标记。
 
-`--upload-images` 默认不覆盖已有对象。下载、压缩或上传失败时，该卡默认不插入；只有显式传入 `--allow-missing-images` 时才允许插入，并清空 `image_filename`，同时写入对应失败 flag。
+`--upload-images` 默认不覆盖已有对象。下载、压缩或上传失败时，该卡默认不插入；只有显式传入 `--allow-missing-images` 时才允许插入，并清空 `image_filename`、清除版本化图片标记，同时写入对应失败 flag。CloudBase 文档中的同名版本化标记属于不可信外部输入，转换时会剔除并产生 warning；只有本次图片上传成功后才会重新派生。
 
 下载链路会先解析主机的全部 A/AAAA 结果，任一结果属于回环、链路本地、内网或保留地址时都拒绝；HTTPS 连接使用已校验地址的 pinned lookup，不再在请求时二次自由解析，也不跟随重定向。
 

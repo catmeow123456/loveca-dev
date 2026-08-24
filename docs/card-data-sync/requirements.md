@@ -96,11 +96,12 @@ CloudBase 新卡导入的写入规则：
 - DB 已存在卡号必须跳过，不更新已有卡。
 - CloudBase 输入内部标准化卡号重复时，整组跳过并报告。
 - 正式运行必须显式选择 `--upload-images` 或 `--skip-images`。
-- 图片对象默认不覆盖；图片 basename 与候选内部或 DB 已有记录冲突时必须跳过。版本化图片必须在 `source_flags` 中显式保存原始 basename；与 DB 比较时只读取该明确元数据，不得通过文件名正则猜测版本后缀。
+- 图片对象默认不覆盖；图片 basename 与候选内部或 DB 已有记录冲突时必须跳过。版本化图片必须在 `source_flags` 中显式保存原始 basename，并与当前 `image_filename` 严格对应；部分标记、空图片名或对应不一致必须阻断整个新卡同步预览并报告现有卡号。与 DB 比较时只读取通过校验的明确元数据，不得通过文件名正则猜测版本后缀。
 - 每次正式导入必须使用任务独立的版本化对象名；只有仍持有有效租约的数据库事务可以把该版本写入 `image_filename`，失租 worker 的延迟上传不得覆盖后续任务引用的图片。
-- 卡牌事务 `COMMIT` 返回异常时，必须尝试结束原事务并换用独立连接按 `card_code + image_filename` 对账；数据库已经引用该版本时保留图片。只有原事务已确认结束且数据库未引用时才清理；原事务回滚失败或对账失败时保守保留、销毁原连接并报告结果不确定。
-- `--upload-images` 模式下图片失败默认不插入该卡；只有显式 `--allow-missing-images` 时才允许插入并写入 source flag。
-- `--skip-images` 模式下不得写入 `image_filename`，只保留 `image_source_uri` 和 `source_flags.imageSkipped`。
+- 卡牌事务 `COMMIT` 返回异常时，必须尝试结束原事务并换用独立连接按 `card_code + image_filename` 对账；数据库已经引用该版本时保留图片。只有原事务已确认结束且数据库未引用时才清理；原事务回滚失败或结果不确定时保守保留并销毁原连接，独立对账失败时保留图片并告警但不销毁已确认健康的原连接。
+- `imageObjectVersioned` 与 `imageOriginalBaseName` 是内部保留键；CloudBase 上游、卡牌管理 API 和批量导入中的同名键必须被剔除或拒绝，不得成为冲突检查的权威输入。
+- `--upload-images` 模式下图片失败默认不插入该卡；只有显式 `--allow-missing-images` 时才允许插入并写入 source flag，同时必须清除版本化图片标记。
+- `--skip-images` 模式下不得写入 `image_filename`，只保留 `image_source_uri` 和 `source_flags.imageSkipped`，并必须清除版本化图片标记。
 
 ## 6. 发布状态风险
 

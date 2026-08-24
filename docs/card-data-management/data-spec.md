@@ -280,7 +280,7 @@ llocg_db 日文数据使用全角 `＋`（如 `LL-bp1-001-R＋`），中文数�
 
 - 类型: JSONB, nullable
 - 用于记录同步来源、字段冲突、派生、缺规则字段、图片跳过或图片失败等非规则状态。
-- CloudBase 新卡同步生成版本化对象名时写入 `imageObjectVersioned: true` 与 `imageOriginalBaseName`；跨任务图片冲突检查只信任这组显式元数据，不从 `image_filename` 猜测版本后缀。
+- CloudBase 新卡同步生成版本化对象名时写入 `imageObjectVersioned: true` 与 `imageOriginalBaseName`；两个字段是内部派生状态，必须同时存在，且 `image_filename` 必须精确等于 `${imageOriginalBaseName}-<24 位小写十六进制摘要>.webp`。跳过图片、图片失败或普通换图时必须清除这组状态；外部 API 和上游 `source_flags` 不得伪造。跨任务图片冲突检查只信任通过一致性校验的显式元数据，不从 `image_filename` 猜测版本后缀。
 - 该字段不参与对局规则计算；普通对局和构筑不应依赖它判断卡牌行为。
 
 ## 16. 各类型卡牌必填字段

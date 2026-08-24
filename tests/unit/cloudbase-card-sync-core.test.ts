@@ -8,6 +8,7 @@ import {
   readCloudbaseDocuments,
   reconcileCardImageReference,
   resolvePublicImageAddresses,
+  withSourceFlag,
   withVersionedImageReference,
   type CloudBaseCollection,
 } from '../../src/scripts/sync-cards-cloudbase-new';
@@ -76,6 +77,34 @@ describe('CloudBase card sync shared core', () => {
       nameJp: 'テスト',
       status: 'DRAFT',
     });
+  });
+
+  it('strips reserved image version metadata supplied by CloudBase', () => {
+    const snapshot = buildCloudbaseCardSnapshot([
+      {
+        _id: 'reserved-source-flags',
+        card_code: 'PL!N-bp1-096-N',
+        type: 'ENERGY',
+        name_jp: 'Reserved flags',
+        source_flags: {
+          imageObjectVersioned: true,
+          imageOriginalBaseName: 'spoofed-name',
+          upstreamNote: 'keep',
+        },
+      },
+    ]);
+
+    expect(snapshot.transforms[0]!.record!.source_flags).toMatchObject({
+      upstreamNote: 'keep',
+      cloudbaseOnly: true,
+    });
+    expect(snapshot.transforms[0]!.record!.source_flags).not.toHaveProperty('imageObjectVersioned');
+    expect(snapshot.transforms[0]!.record!.source_flags).not.toHaveProperty(
+      'imageOriginalBaseName'
+    );
+    expect(snapshot.transforms[0]!.warnings).toContain(
+      'PL!N-bp1-096-N row 1: reserved image version source_flags were ignored'
+    );
   });
 
   it('excludes duplicate source card codes and never proposes an existing database card', () => {
@@ -198,6 +227,83 @@ describe('CloudBase card sync shared core', () => {
         imageOriginalBaseName: 'source-name',
       },
     });
+
+    expect(() =>
+      withVersionedImageReference(
+        snapshot.transforms[0]!.record!,
+        'different-name-abcdefabcdefabcdefabcdef.webp',
+        'source-name'
+      )
+    ).toThrow('image_filename 必须与原始 basename 及 24 位版本摘要完全对应');
+  });
+
+  it('clears version metadata when images are skipped or allowed to remain missing', () => {
+    const snapshot = buildCloudbaseCardSnapshot([
+      {
+        _id: 'missing-versioned-image',
+        card_code: 'PL!N-bp1-095-N',
+        type: 'ENERGY',
+        name_jp: 'Missing image',
+      },
+    ]);
+    const versioned = withVersionedImageReference(
+      snapshot.transforms[0]!.record!,
+      'missing-image-abcdefabcdefabcdefabcdef.webp',
+      'missing-image'
+    );
+
+    for (const record of [
+      withSourceFlag(versioned, 'imageSkipped'),
+      withSourceFlag(versioned, 'imageUploadFailed'),
+    ]) {
+      expect(record.image_filename).toBeNull();
+      expect(record.source_flags).not.toHaveProperty('imageObjectVersioned');
+      expect(record.source_flags).not.toHaveProperty('imageOriginalBaseName');
+    }
+  });
+
+  it('blocks all candidates when existing image version metadata is incomplete or stale', () => {
+    const snapshot = buildCloudbaseCardSnapshot([
+      {
+        _id: 'metadata-blocked-candidate',
+        card_code: 'PL!N-bp1-094-N',
+        type: 'ENERGY',
+        name_jp: 'Blocked candidate',
+        image_source_uri: 'cloud://example/replacement.png',
+        image_filename: 'replacement.png',
+      },
+    ]);
+
+    const result = buildPreparedCandidates(snapshot.transforms, [
+      {
+        card_code: 'EMPTY-IMAGE',
+        image_filename: null,
+        source_flags: {
+          imageObjectVersioned: true,
+          imageOriginalBaseName: 'old-base',
+        },
+      },
+      {
+        card_code: 'REPLACED-IMAGE',
+        image_filename: 'replacement.webp',
+        source_flags: {
+          imageObjectVersioned: true,
+          imageOriginalBaseName: 'old-base',
+        },
+      },
+      {
+        card_code: 'PARTIAL-METADATA',
+        image_filename: 'partial-abcdefabcdefabcdefabcdef.webp',
+        source_flags: { imageObjectVersioned: true },
+      },
+    ]);
+
+    expect(result.prepared).toEqual([]);
+    expect(result.existingImageMetadataIssues.map((issue) => issue.cardCode)).toEqual([
+      'EMPTY-IMAGE',
+      'REPLACED-IMAGE',
+      'PARTIAL-METADATA',
+    ]);
   });
 
   it('reconciles an ambiguous commit by the exact stored image filename', async () => {

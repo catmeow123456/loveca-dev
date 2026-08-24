@@ -714,7 +714,13 @@ async function main() {
                 card_type = $2, image_filename = $3, cost = $4, blade = $5,
                 hearts = $6, blade_hearts = $7, score = $8, requirements = $9,
                 unit_name = $10, work_names = $11, rare = $12,
-                status = $13, updated_at = now()
+                status = $13,
+                source_flags = CASE
+                  WHEN image_filename IS DISTINCT FROM $3
+                    THEN source_flags - 'imageObjectVersioned' - 'imageOriginalBaseName'
+                  ELSE source_flags
+                END,
+                updated_at = now()
               WHERE card_code = $1
             `,
               [

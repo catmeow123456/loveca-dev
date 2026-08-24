@@ -22,7 +22,7 @@
 
 `src/scripts/sync-cards-loveca-excel.ts` 是 Loveca 卡牌数据补强脚本，默认从本地 Excel 读取。`--source=cloudbase` 会先把腾讯云 CloudBase `loveca` 集合导出为 `docs/card-data-sync/sources/loveca_YYYYMMDDHHMMSS.xlsx`，再从该文件进入与 `--source=xlsx` 相同的解析、比较和写入链路。卡牌类型以来源为权威：Excel 使用 `カードタイプ` 列，CloudBase `loveca` 集合导出时由 `type` 字段生成该列；其值合法时会同步更新 `cards.card_type`，并在报告中列出修正。缺失或非法类型行会跳过。其他同步范围为中日名称、中日效果、真实团体、真实小队、成员费用与 BLADE、LIVE 分数、成员持有 Heart、BLADE Heart、LIVE 必要 Heart、商品编号、图片来源 URI 和外部来源标识；不插入 source-only 新卡，不删除 DB-only 卡。规则数值为空或解析失败时保留数据库现值。
 
-`src/scripts/sync-cards-cloudbase-new.ts` 是 CloudBase-only 新卡导入脚本。它只插入 DB 不存在的新卡，默认新卡状态为 `DRAFT`，不更新已有卡；正式运行必须显式选择 `--upload-images` 或 `--skip-images`，图片失败、字段缺失、重复卡号和图片 basename 冲突都会写入报告。
+`src/scripts/sync-cards-cloudbase-new.ts` 是 CloudBase-only 新卡导入脚本。它只插入 DB 不存在的新卡，默认新卡状态为 `DRAFT`，不更新已有卡；正式运行必须显式选择 `--upload-images` 或 `--skip-images`，图片失败、字段缺失、重复卡号、图片 basename 冲突和现有版本化图片元数据异常都会写入报告，元数据异常会阻断全部候选。
 
 运营管理中心“上游新卡同步”复用同一脚本的可导入核心，但固定为 `loveca`、`DRAFT`、上传图片、不允许缺图、不覆盖图片且只新增。管理员先创建有时效的差异预览，再二次确认创建持久化任务；已有卡永远跳过，不调用 `sync-cards-loveca-excel.ts` 的已有卡覆盖更新或图片缓存刷新模式。
 
@@ -68,7 +68,7 @@ CloudBase 新卡 dry-run 可运行：
 pnpm exec tsx src/scripts/sync-cards-cloudbase-new.ts --cloudbase-collection=loveca --cloudbase-limit=5 --dry-run
 ```
 
-当前已确认 `loveca` 是可读取的 CloudBase 卡牌集合，`real_card` 不存在。正式导入新卡前应先确认报告，再选择图片策略：`--upload-images` 会下载 CloudBase 图片、压缩为 `thumb/medium/large` WebP，并以本次执行独立的版本化文件名上传 MinIO；系统 worker 只由持有有效租约的数据库事务写入最终 `image_filename`。`--skip-images` 只插入资料、保留 `image_source_uri`、清空 `image_filename` 并写入 `source_flags.imageSkipped`，适合 DRAFT 审核流。
+当前已确认 `loveca` 是可读取的 CloudBase 卡牌集合，`real_card` 不存在。正式导入新卡前应先确认报告，再选择图片策略：`--upload-images` 会下载 CloudBase 图片、压缩为 `thumb/medium/large` WebP，并以本次执行独立的版本化文件名上传 MinIO；系统 worker 只由持有有效租约的数据库事务写入最终 `image_filename` 和对应的内部版本标记。CloudBase 输入中的同名标记会被剔除。`--skip-images` 只插入资料、保留 `image_source_uri`、清空 `image_filename` 并写入 `source_flags.imageSkipped`，同时清除版本化图片标记，适合 DRAFT 审核流。
 
 截至 `docs/card-data-sync/sources/loveca_20260629130944.xlsx`，调查结果为：2303 行中 1382 行含卡效占位符，共 44 种原始 token；41 种已归类，3 种未知或疑似数据问题。高频 token 包括 `[ブレード]` 1053 次、`[E]` 714 次、`【登场】` 564 次、`【登場】` 561 次、`【LIVE开始时】` 459 次、`【ライブ開始時】` 457 次、`[赤ハート]` 199 次、`[紫ハート]` 170 次。未知项为 `[Aqours]`、一条缺失右括号导致的长 token、以及 `[ターン1回]`。
 

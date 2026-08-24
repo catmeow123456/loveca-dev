@@ -26,6 +26,12 @@ import { parse as parseDotenv } from 'dotenv';
 import * as Minio from 'minio';
 import { Pool, type PoolClient } from 'pg';
 import sharp from 'sharp';
+import {
+  clearCardImageVersionMetadata,
+  hasCardImageVersionMetadata,
+  inspectCardImageVersionMetadata,
+  setCardImageVersionMetadata,
+} from '../shared/card-image-version-metadata.js';
 import { normalizeCardCode, validateCardCode } from '../shared/utils/card-code.js';
 import { appendDoubleGrayBladeHearts } from './card-sync-double-heart.js';
 import { normalizeCardSyncGroupNames } from './card-sync-group-names.js';
@@ -166,6 +172,12 @@ export interface ExistingCardRow {
   readonly card_code: string;
   readonly image_filename: string | null;
   readonly source_flags?: SourceFlags | null;
+}
+
+export interface ExistingImageMetadataIssue {
+  readonly cardCode: string;
+  readonly imageFilename: string | null;
+  readonly reason: string;
 }
 
 export interface PreparedCandidate {
@@ -1305,11 +1317,15 @@ export function transformRow(row: SourceRow, status: CardStatus): TransformResul
   const groupNames = parsedGroupNames ? normalizeCardSyncGroupNames(parsedGroupNames) : null;
   const unitNameRaw = getScalarField(document, FIELD_ALIASES.unitName);
   const unitName = normalizeUnitName(unitNameRaw);
-  const sourceFlags = parseSourceFlags(
+  const parsedSourceFlags = parseSourceFlags(
     getField(document, FIELD_ALIASES.sourceFlags),
     `${context} source_flags`,
     warnings
   );
+  if (hasCardImageVersionMetadata(parsedSourceFlags)) {
+    warnings.push(`${context}: reserved image version source_flags were ignored`);
+  }
+  const sourceFlags = clearCardImageVersionMetadata(parsedSourceFlags) as SourceFlags | null;
   const imagePlan = buildImagePlan(document, row.cardCode);
 
   if (errors.length > 0 || !cardType) {
@@ -1934,7 +1950,7 @@ async function cleanupUploadedImagesForFailedInserts(
   return failures;
 }
 
-function withSourceFlag(
+export function withSourceFlag(
   record: CardInsertRecord,
   flag: ImageFailureSourceFlag | 'imageSkipped'
 ): CardInsertRecord {
@@ -1942,7 +1958,7 @@ function withSourceFlag(
     ...record,
     image_filename: null,
     source_flags: {
-      ...(record.source_flags ?? {}),
+      ...(clearCardImageVersionMetadata(record.source_flags) ?? {}),
       [flag]: true,
     },
   };
@@ -2078,19 +2094,28 @@ export async function insertCard(pool: Pool, record: CardInsertRecord): Promise<
   }
 }
 
-function imageBaseNameForExisting(row: ExistingCardRow): string | null {
-  const explicitOriginalBaseName =
-    row.source_flags?.imageObjectVersioned === true
-      ? cleanString(row.source_flags.imageOriginalBaseName)
-      : null;
-  if (
-    explicitOriginalBaseName &&
-    !explicitOriginalBaseName.includes('/') &&
-    !explicitOriginalBaseName.includes('\\')
-  ) {
-    return explicitOriginalBaseName;
+function imageBaseNameForExisting(row: ExistingCardRow): {
+  readonly imageBaseName: string | null;
+  readonly issue: ExistingImageMetadataIssue | null;
+} {
+  const metadata = inspectCardImageVersionMetadata(row.image_filename, row.source_flags);
+  if (metadata.status === 'INVALID') {
+    return {
+      imageBaseName: null,
+      issue: {
+        cardCode: row.card_code,
+        imageFilename: row.image_filename,
+        reason: metadata.reason,
+      },
+    };
   }
-  return imageBaseNameFromFilename(row.image_filename);
+  return {
+    imageBaseName:
+      metadata.status === 'VALID'
+        ? metadata.originalBaseName
+        : imageBaseNameFromFilename(row.image_filename),
+    issue: null,
+  };
 }
 
 export function withVersionedImageReference(
@@ -2098,23 +2123,21 @@ export function withVersionedImageReference(
   imageFilename: string,
   originalBaseName: string
 ): CardInsertRecord {
-  const normalizedOriginalBaseName = cleanString(originalBaseName);
-  if (
-    !normalizedOriginalBaseName ||
-    normalizedOriginalBaseName.includes('/') ||
-    normalizedOriginalBaseName.includes('\\')
-  ) {
-    throw new Error(`${record.card_code}: invalid original image basename`);
+  try {
+    return {
+      ...record,
+      image_filename: imageFilename,
+      source_flags: setCardImageVersionMetadata(
+        record.source_flags,
+        imageFilename,
+        originalBaseName
+      ),
+    };
+  } catch (error) {
+    throw new Error(
+      `${record.card_code}: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
-  return {
-    ...record,
-    image_filename: imageFilename,
-    source_flags: {
-      ...(record.source_flags ?? {}),
-      imageObjectVersioned: true,
-      imageOriginalBaseName: normalizedOriginalBaseName,
-    },
-  };
 }
 
 export function buildPreparedCandidates(
@@ -2124,13 +2147,17 @@ export function buildPreparedCandidates(
   readonly prepared: PreparedCandidate[];
   readonly skipped: SkippedCandidate[];
   readonly existingSkipped: SkippedCandidate[];
+  readonly existingImageMetadataIssues: ExistingImageMetadataIssue[];
 } {
   const existingCodes = new Set(existingRows.map((row) => row.card_code));
   const existingImageBases = new Map<string, string>();
+  const existingImageMetadataIssues: ExistingImageMetadataIssue[] = [];
   for (const row of existingRows) {
-    const baseName = imageBaseNameForExisting(row);
-    if (baseName) {
-      existingImageBases.set(baseName, row.card_code);
+    const resolved = imageBaseNameForExisting(row);
+    if (resolved.issue) {
+      existingImageMetadataIssues.push(resolved.issue);
+    } else if (resolved.imageBaseName) {
+      existingImageBases.set(resolved.imageBaseName, row.card_code);
     }
   }
 
@@ -2192,7 +2219,12 @@ export function buildPreparedCandidates(
     });
   }
 
-  return { prepared, skipped, existingSkipped };
+  return {
+    prepared: existingImageMetadataIssues.length > 0 ? [] : prepared,
+    skipped,
+    existingSkipped,
+    existingImageMetadataIssues,
+  };
 }
 
 function printSummary(
@@ -2203,7 +2235,8 @@ function printSummary(
   transforms: readonly TransformResult[],
   prepared: readonly PreparedCandidate[],
   skipped: readonly SkippedCandidate[],
-  existingSkipped: readonly SkippedCandidate[]
+  existingSkipped: readonly SkippedCandidate[],
+  existingImageMetadataIssues: readonly ExistingImageMetadataIssue[]
 ): void {
   const transformInvalid = transforms.filter((item) => !item.record).length;
   const transformWarnings = transforms.reduce((sum, item) => sum + item.warnings.length, 0);
@@ -2223,6 +2256,7 @@ function printSummary(
   console.log(`  Transform warnings: ${transformWarnings}`);
   console.log(`  Cards with missing rule fields: ${missingRuleFieldCards}`);
   console.log(`  Existing DB cards skipped: ${existingSkipped.length}`);
+  console.log(`  Invalid existing image metadata: ${existingImageMetadataIssues.length}`);
   console.log(`  New candidates skipped: ${skipped.length}`);
   console.log(`  Ready new candidates: ${prepared.length}`);
 
@@ -2248,6 +2282,16 @@ function printSummary(
     }
     if (skipped.length > 30) {
       console.log(`  ... and ${skipped.length - 30} more`);
+    }
+  }
+
+  if (existingImageMetadataIssues.length > 0) {
+    console.log('\nBlocking existing image metadata issues:');
+    for (const issue of existingImageMetadataIssues.slice(0, 30)) {
+      console.log(`  ${issue.cardCode}: ${issue.reason}`);
+    }
+    if (existingImageMetadataIssues.length > 30) {
+      console.log(`  ... and ${existingImageMetadataIssues.length - 30} more`);
     }
   }
 }
@@ -2328,6 +2372,7 @@ async function main(): Promise<void> {
   let prepared: PreparedCandidate[] = [];
   let candidateSkipped: SkippedCandidate[] = [];
   let existingSkipped: SkippedCandidate[] = [];
+  let existingImageMetadataIssues: ExistingImageMetadataIssue[] = [];
   let parseOnly = false;
   let imageResults: ImageProcessResult[] = [];
   let insertResults: InsertResult[] = [];
@@ -2348,7 +2393,8 @@ async function main(): Promise<void> {
       );
       existingRows = response.rows;
       const built = buildPreparedCandidates(transforms, existingRows);
-      prepared = built.prepared;
+      existingImageMetadataIssues = built.existingImageMetadataIssues;
+      prepared = existingImageMetadataIssues.length > 0 ? [] : built.prepared;
       candidateSkipped = built.skipped;
       existingSkipped = built.existingSkipped;
 
@@ -2360,11 +2406,16 @@ async function main(): Promise<void> {
         transforms,
         prepared,
         candidateSkipped,
-        existingSkipped
+        existingSkipped,
+        existingImageMetadataIssues
       );
 
       if (args.dryRun) {
         console.log('\nDry run finished. No DB changes or image uploads applied.');
+      } else if (existingImageMetadataIssues.length > 0) {
+        throw new Error(
+          `Formal import blocked by ${existingImageMetadataIssues.length} invalid existing image metadata record(s)`
+        );
       } else if (await confirmFormalImport(prepared.length, args)) {
         let recordsToInsert = prepared.map((candidate) => candidate.record);
         let minioForCleanup: { client: Minio.Client; bucket: string } | null = null;
@@ -2441,7 +2492,7 @@ async function main(): Promise<void> {
   }
 
   if (parseOnly) {
-    printSummary(args, documents, invalidRows, duplicateRows, transforms, [], [], []);
+    printSummary(args, documents, invalidRows, duplicateRows, transforms, [], [], [], []);
     console.log(
       '\nParse-only dry run finished. Provide DATABASE_URL to compare DB-only/new cards.'
     );
@@ -2472,6 +2523,7 @@ async function main(): Promise<void> {
       compared: !parseOnly,
       existingCards: existingRows.length,
       existingSkipped,
+      existingImageMetadataIssues,
     },
     transforms: transforms.map(reportTransform),
     readyCandidates: prepared.map((candidate) => candidate.record.card_code),

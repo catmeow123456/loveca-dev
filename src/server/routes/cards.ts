@@ -5,6 +5,11 @@ import { requireAuth } from '../middleware/require-auth.js';
 import { readCurrentAuthorizedRole, requirePermission } from '../middleware/require-permission.js';
 import { validate } from '../middleware/validate.js';
 import { inheritMissingBladeHeartsByBase } from '../../domain/card-data/blade-heart-inheritance.js';
+import {
+  clearCardImageVersionMetadata,
+  inspectCardImageVersionMetadata,
+  setCardImageVersionMetadata,
+} from '../../shared/card-image-version-metadata.js';
 import { getBaseCardCode } from '../../shared/utils/card-code.js';
 
 export const cardsRouter = Router();
@@ -415,6 +420,43 @@ const updateCardSchema = cardInputSchema.omit({ card_code: true }).partial();
 type CreateCardInput = z.infer<typeof createCardSchema>;
 type UpdateCardInput = z.infer<typeof updateCardSchema>;
 
+interface ExistingCardUpdateRow {
+  readonly name_jp: string | null;
+  readonly name_cn: string | null;
+  readonly image_filename: string | null;
+  readonly source_flags: Record<string, unknown> | null;
+}
+
+function normalizeExternalCardImageUpdate(
+  updates: UpdateCardInput,
+  existing: ExistingCardUpdateRow
+): UpdateCardInput {
+  const imageFilenameProvided = Object.prototype.hasOwnProperty.call(updates, 'image_filename');
+  const sourceFlagsProvided = Object.prototype.hasOwnProperty.call(updates, 'source_flags');
+  if (!imageFilenameProvided && !sourceFlagsProvided) return updates;
+
+  const nextImageFilename = imageFilenameProvided
+    ? (updates.image_filename ?? null)
+    : existing.image_filename;
+  const nextExternalFlags = clearCardImageVersionMetadata(
+    sourceFlagsProvided ? updates.source_flags : existing.source_flags
+  );
+  const existingMetadata = inspectCardImageVersionMetadata(
+    existing.image_filename,
+    existing.source_flags
+  );
+  const nextSourceFlags =
+    nextImageFilename === existing.image_filename && existingMetadata.status === 'VALID'
+      ? setCardImageVersionMetadata(
+          nextExternalFlags,
+          existing.image_filename!,
+          existingMetadata.originalBaseName
+        )
+      : nextExternalFlags;
+
+  return { ...updates, source_flags: nextSourceFlags };
+}
+
 cardsRouter.post(
   '/',
   requireAuth,
@@ -423,6 +465,7 @@ cardsRouter.post(
   async (req, res, next) => {
     try {
       const b = req.body as CreateCardInput;
+      const sourceFlags = clearCardImageVersionMetadata(b.source_flags);
       const { rows } = await pool.query(
         `INSERT INTO cards (
         card_code, card_type, name_jp, name_cn,
@@ -456,7 +499,7 @@ cardsRouter.post(
           b.product ?? null,
           b.product_code ?? null,
           b.source_external_id ?? null,
-          b.source_flags == null ? null : JSON.stringify(b.source_flags),
+          sourceFlags == null ? null : JSON.stringify(sourceFlags),
           b.status ?? 'DRAFT',
           req.user!.id,
         ]
@@ -479,7 +522,21 @@ cardsRouter.put(
   validate(updateCardSchema),
   async (req, res, next) => {
     try {
-      const updates = req.body as UpdateCardInput;
+      const { rows: existingRows } = await pool.query<ExistingCardUpdateRow>(
+        `SELECT name_jp, name_cn, image_filename, source_flags
+           FROM cards
+          WHERE card_code = $1`,
+        [req.params.code]
+      );
+      const existing = existingRows[0];
+      if (!existing) {
+        res.status(404).json({
+          data: null,
+          error: { code: 'NOT_FOUND', message: '卡牌不存在' },
+        });
+        return;
+      }
+      const updates = normalizeExternalCardImageUpdate(req.body as UpdateCardInput, existing);
       const fields: string[] = [];
       const values: unknown[] = [];
       let idx = 1;
@@ -533,22 +590,8 @@ cardsRouter.put(
       }
 
       if ('name_jp' in updates || 'name_cn' in updates) {
-        const { rows: existingNameRows } = await pool.query<{
-          name_jp: string | null;
-          name_cn: string | null;
-        }>('SELECT name_jp, name_cn FROM cards WHERE card_code = $1', [req.params.code]);
-
-        if (existingNameRows.length === 0) {
-          res.status(404).json({
-            data: null,
-            error: { code: 'NOT_FOUND', message: '卡牌不存在' },
-          });
-          return;
-        }
-
-        const existingNames = existingNameRows[0];
-        const nextNameJp = resolveNextName(updates, 'name_jp', existingNames.name_jp);
-        const nextNameCn = resolveNextName(updates, 'name_cn', existingNames.name_cn);
+        const nextNameJp = resolveNextName(updates, 'name_jp', existing.name_jp);
+        const nextNameCn = resolveNextName(updates, 'name_cn', existing.name_cn);
 
         if (!hasLanguageName({ name_jp: nextNameJp, name_cn: nextNameCn })) {
           res.status(400).json({
@@ -649,6 +692,8 @@ const importSchema = z.object({
   ),
 });
 
+type ImportCardsInput = z.infer<typeof importSchema>;
+
 cardsRouter.post(
   '/import',
   requireAuth,
@@ -656,13 +701,14 @@ cardsRouter.post(
   validate(importSchema),
   async (req, res, next) => {
     try {
-      const { cards } = req.body;
+      const { cards } = req.body as ImportCardsInput;
       let imported = 0;
       let failed = 0;
       const errors: string[] = [];
 
       for (const card of cards) {
         try {
+          const sourceFlags = clearCardImageVersionMetadata(card.sourceFlags);
           await pool.query(
             `INSERT INTO cards (
             card_code, card_type, name_jp, name_cn,
@@ -718,7 +764,7 @@ cardsRouter.post(
               card.product ?? null,
               card.productCode ?? null,
               card.sourceExternalId ?? null,
-              card.sourceFlags == null ? null : JSON.stringify(card.sourceFlags),
+              sourceFlags == null ? null : JSON.stringify(sourceFlags),
               card.status ?? 'DRAFT',
               req.user!.id,
             ]

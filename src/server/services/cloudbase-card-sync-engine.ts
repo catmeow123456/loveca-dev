@@ -29,6 +29,7 @@ import {
   type CardInsertRecord,
   type CloudBaseApp,
   type ExistingCardRow,
+  type ExistingImageMetadataIssue,
   type PreparedCandidate,
   type TransformResult,
 } from '../../scripts/sync-cards-cloudbase-new.js';
@@ -103,7 +104,8 @@ function nameFor(transform: TransformResult): string | null {
 
 function blockedFromSnapshot(
   snapshot: ReturnType<typeof buildCloudbaseCardSnapshot>,
-  candidatesSkipped: ReturnType<typeof buildPreparedCandidates>['skipped']
+  candidatesSkipped: ReturnType<typeof buildPreparedCandidates>['skipped'],
+  existingImageMetadataIssues: readonly ExistingImageMetadataIssue[]
 ): CardSyncEngineBlockedItem[] {
   const blocked: CardSyncEngineBlockedItem[] = snapshot.invalidRows.map((row) => ({
     cardCode: null,
@@ -149,6 +151,13 @@ function blockedFromSnapshot(
             : '该卡牌暂不能同步',
     });
   }
+  for (const issue of existingImageMetadataIssues) {
+    blocked.push({
+      cardCode: issue.cardCode,
+      code: 'EXISTING_IMAGE_METADATA_INVALID',
+      message: `现有卡牌的版本化图片标记无效：${issue.reason}`,
+    });
+  }
   return blocked;
 }
 
@@ -164,10 +173,14 @@ async function buildSyncPlan(): Promise<SyncPlan> {
     'SELECT card_code, image_filename, source_flags FROM cards ORDER BY card_code'
   );
   const planned = buildPreparedCandidates(snapshot.transforms, existingResult.rows);
-  const blocked = blockedFromSnapshot(snapshot, planned.skipped);
+  const blocked = blockedFromSnapshot(
+    snapshot,
+    planned.skipped,
+    planned.existingImageMetadataIssues
+  );
   const candidates: PreparedCandidate[] = [];
 
-  for (const candidate of planned.prepared) {
+  for (const candidate of planned.existingImageMetadataIssues.length > 0 ? [] : planned.prepared) {
     if (!candidate.imagePlan.sourceUri || !candidate.imagePlan.imageBaseName) {
       blocked.push({
         cardCode: candidate.record.card_code,
