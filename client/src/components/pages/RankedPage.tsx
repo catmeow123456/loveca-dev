@@ -8,7 +8,7 @@ import {
   SelectMenu,
   type DeckDisplayItem,
 } from '@/components/common';
-import { DonutChart, type DonutChartItem } from '@/components/charts/DonutChart';
+import { DonutChart } from '@/components/charts/DonutChart';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import { ActivityCoverHero } from '@/components/activity-cover/ActivityCoverHero';
 import { buildDeckDisplayItems } from '@/lib/deckDisplay';
@@ -21,6 +21,10 @@ import {
 } from '@/lib/deckSelectionPreferences';
 import { createDeckRecordCardTypeResolver } from '@/lib/deckRecordUtils';
 import { resolveCardImagePath } from '@/lib/imageService';
+import {
+  buildRankedDeckChartSeries,
+  type DeckEnvironmentRateKey,
+} from '@/lib/rankedDeckChartSeries';
 import {
   fetchRankedDeckArchetypeEnvironment,
   fetchRankedEnvironment,
@@ -37,12 +41,8 @@ import type {
   RankedSeasonEnvironmentView,
   RankedSeasonPublicView,
 } from '@game/online/ranked-types';
-import type {
-  DeckArchetypeEnvironmentEntryView,
-  DeckArchetypeEnvironmentView,
-} from '@game/online/deck-classifier-types';
+import type { DeckArchetypeEnvironmentView } from '@game/online/deck-classifier-types';
 import type { BattleTimeoutConfig } from '@game/online/ranked-policy';
-import type { AnyCardData } from '@game/domain/entities/card';
 
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
 
@@ -385,12 +385,6 @@ export function RankedPage({
   );
 }
 
-type DeckEnvironmentRateKey =
-  | 'playerEqualUsageRate'
-  | 'playerEqualWinnerRate'
-  | 'matchEqualUsageRate'
-  | 'matchEqualWinnerRate'
-  | 'topRankedPlayerEqualUsageRate';
 type RankedEnvironmentTab = 'USAGE' | 'WINNER' | 'TOP_RANKED';
 
 function SeasonDeckArchetypeUsage({
@@ -499,7 +493,7 @@ function SeasonDeckArchetypeUsage({
             }
           >
             {charts.map((chart) => {
-              const series = buildDeckChartSeries(
+              const series = buildRankedDeckChartSeries(
                 environment.archetypes,
                 chart.metric,
                 cardDataRegistry
@@ -634,60 +628,6 @@ function RankedEnvironmentTabs({
       ))}
     </div>
   );
-}
-
-function buildDeckChartSeries(
-  entries: readonly DeckArchetypeEnvironmentEntryView[],
-  metric: DeckEnvironmentRateKey,
-  cardDataRegistry: ReadonlyMap<string, AnyCardData>
-): DonutChartItem[] {
-  const special = entries.filter((entry) => entry.classificationStatus !== 'CLASSIFIED');
-  const classified = entries
-    .filter((entry) => entry.classificationStatus === 'CLASSIFIED')
-    .sort((left, right) => right[metric] - left[metric] || left.sortOrder - right.sortOrder);
-  const visible = classified.slice(0, 8);
-  const remainder = classified.slice(8).reduce((sum, entry) => sum + entry[metric], 0);
-  const series: DonutChartItem[] = visible.map((entry) => ({
-    id: entry.archetypeId,
-    label: entry.name,
-    value: entry[metric],
-    color: entry.color,
-    ...(entry.representativeCardCode
-      ? {
-          imageUrl: resolveCardImagePath(
-            {
-              cardCode: entry.representativeCardCode,
-              imageFilename: entry.representativeImageFilename,
-            },
-            'medium'
-          ),
-          imageCrop:
-            cardDataRegistry.get(entry.representativeCardCode)?.cardType === 'LIVE'
-              ? 'live'
-              : 'portrait',
-        }
-      : {}),
-  }));
-  if (remainder > 0) {
-    series.push({
-      id: 'visual:other-recognized',
-      label: '其他已识别卡组',
-      value: remainder,
-      color: '#CBD5E1',
-    });
-  }
-  series.push(
-    ...special
-      .filter((entry) => entry[metric] > 0)
-      .sort((left, right) => left.sortOrder - right.sortOrder)
-      .map((entry) => ({
-        id: entry.archetypeId,
-        label: entry.name,
-        value: entry[metric],
-        color: entry.color,
-      }))
-  );
-  return series;
 }
 
 function DeckArchetypeStatsTable({ environment }: { environment: DeckArchetypeEnvironmentView }) {
