@@ -34,9 +34,12 @@ export function PublicTablePage({
   onEnterRoom: () => void;
 }) {
   const cloudDecks = useDeckStore((state) => state.cloudDecks);
-  const isLoadingCloud = useDeckStore((state) => state.isLoadingCloud);
+  const cloudDeckLoadState = useDeckStore((state) => state.cloudDeckLoadState);
   const cloudError = useDeckStore((state) => state.cloudError);
-  const fetchCloudDecks = useDeckStore((state) => state.fetchCloudDecks);
+  const ensureCloudDecks = useDeckStore((state) => state.ensureCloudDecks);
+  const refreshCloudDecks = useDeckStore((state) => state.refreshCloudDecks);
+  const isLoadingCloud = cloudDeckLoadState === 'LOADING';
+  const isRefreshingCloud = cloudDeckLoadState === 'REFRESHING';
   const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
   const pointTable = useDeckPointTableRules();
   const status = usePublicTableStore((state) => state.status);
@@ -99,8 +102,8 @@ export function PublicTablePage({
   };
 
   useEffect(() => {
-    void fetchCloudDecks();
-  }, [fetchCloudDecks]);
+    void ensureCloudDecks();
+  }, [ensureCloudDecks]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -373,8 +376,9 @@ export function PublicTablePage({
                   selectedId={selectedDeck?.id}
                   onSelect={handleSelectDeck}
                   isLoading={isLoadingCloud}
+                  isRefreshing={isRefreshingCloud}
                   error={cloudError}
-                  onRefresh={fetchCloudDecks}
+                  onRefresh={refreshCloudDecks}
                   title="选择卡组"
                   emptyText="还没有可用卡组，请先到卡组管理创建一副。"
                   density="compact"

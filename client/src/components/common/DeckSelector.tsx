@@ -19,6 +19,7 @@ interface DeckSelectorProps {
   selectedId?: string | null;
   onSelect: (deck: DeckDisplayItem) => void;
   isLoading?: boolean;
+  isRefreshing?: boolean;
   error?: string | null;
   onRefresh?: () => void;
   title?: string;
@@ -36,6 +37,7 @@ export function DeckSelector({
   selectedId,
   onSelect,
   isLoading = false,
+  isRefreshing = false,
   error = null,
   onRefresh,
   title = '选择卡组',
@@ -98,11 +100,11 @@ export function DeckSelector({
           <button
             type="button"
             onClick={onRefresh}
-            disabled={isLoading}
+            disabled={isLoading || isRefreshing}
             className="button-icon h-9 w-9 shrink-0 disabled:opacity-50"
             aria-label="刷新卡组"
           >
-            <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+            <RefreshCw size={16} className={isLoading || isRefreshing ? 'animate-spin' : ''} />
           </button>
         )}
       </div>
@@ -125,7 +127,7 @@ export function DeckSelector({
           </div>
         )}
 
-        {!isLoading && selectableDecks.length === 0 && (
+        {!isLoading && !error && selectableDecks.length === 0 && (
           <div className="flex items-center justify-center py-12 text-center">
             <div>
               <Database size={32} className="mx-auto mb-3 text-[var(--text-muted)]" />

@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:e2e:mobile": "playwright test --config playwright.config.ts tests/e2e/mobile-layout.spec.ts",
+    "test:e2e:stability": "playwright test --config playwright.config.ts tests/e2e/app-stability.spec.ts",
     "test:e2e:visual": "playwright test --config playwright.visual.config.ts",
     "test:e2e:visual:update": "playwright test --config playwright.visual.config.ts --update-snapshots=all"
   },
@@ -28,6 +29,7 @@
     "react-dom": "^19.2.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.18",
+    "workbox-window": "^7.4.1",
     "yaml": "^2.8.2",
     "zustand": "^5.0.9"
   },

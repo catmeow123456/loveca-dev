@@ -49,9 +49,12 @@ interface OnlineDebugPageProps {
 export function OnlineDebugPage({ onBack, onImmersiveModeChange }: OnlineDebugPageProps) {
   const pointTable = useDeckPointTableRules();
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
-  const isLoadingCloud = useDeckStore((s) => s.isLoadingCloud);
+  const cloudDeckLoadState = useDeckStore((s) => s.cloudDeckLoadState);
   const cloudError = useDeckStore((s) => s.cloudError);
-  const fetchCloudDecks = useDeckStore((s) => s.fetchCloudDecks);
+  const ensureCloudDecks = useDeckStore((s) => s.ensureCloudDecks);
+  const refreshCloudDecks = useDeckStore((s) => s.refreshCloudDecks);
+  const isLoadingCloud = cloudDeckLoadState === 'LOADING';
+  const isRefreshingCloud = cloudDeckLoadState === 'REFRESHING';
 
   const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
   const connectRemoteDebugSession = useGameStore((s) => s.connectRemoteDebugSession);
@@ -115,8 +118,8 @@ export function OnlineDebugPage({ onBack, onImmersiveModeChange }: OnlineDebugPa
     : profile?.display_name || profile?.username || DEBUG_SERVICE_NAME;
 
   useEffect(() => {
-    fetchCloudDecks();
-  }, [fetchCloudDecks]);
+    void ensureCloudDecks();
+  }, [ensureCloudDecks]);
 
   useEffect(() => {
     if (!selectedDeck) {
@@ -358,8 +361,9 @@ export function OnlineDebugPage({ onBack, onImmersiveModeChange }: OnlineDebugPa
                 selectedId={selectedDeck?.id}
                 onSelect={handleSelectDeck}
                 isLoading={isLoadingCloud}
+                isRefreshing={isRefreshingCloud}
                 error={cloudError}
-                onRefresh={fetchCloudDecks}
+                onRefresh={refreshCloudDecks}
                 title="选择卡组"
                 emptyText="还没有可用卡组。"
                 density="compact"

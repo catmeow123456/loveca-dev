@@ -117,10 +117,12 @@ export function HomePage({
 }: HomePageProps) {
   const { profile, offlineMode, offlineUser } = useAuthStore();
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
+  const cloudDecksLoadedAt = useDeckStore((s) => s.cloudDecksLoadedAt);
   const localDecks = useDeckStore((s) => s.localDecks);
-  const isLoadingCloud = useDeckStore((s) => s.isLoadingCloud);
+  const cloudDeckLoadState = useDeckStore((s) => s.cloudDeckLoadState);
   const cloudError = useDeckStore((s) => s.cloudError);
-  const fetchCloudDecks = useDeckStore((s) => s.fetchCloudDecks);
+  const ensureCloudDecks = useDeckStore((s) => s.ensureCloudDecks);
+  const refreshCloudDecks = useDeckStore((s) => s.refreshCloudDecks);
   const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
   const pointTable = useDeckPointTableRules();
   const [savedRoomCode] = useState(() => window.sessionStorage.getItem(ONLINE_ROOM_STORAGE_KEY));
@@ -142,8 +144,8 @@ export function HomePage({
       return;
     }
 
-    void fetchCloudDecks();
-  }, [canUseCloudDecks, fetchCloudDecks]);
+    void ensureCloudDecks();
+  }, [canUseCloudDecks, ensureCloudDecks]);
 
   const displayUsername = offlineMode
     ? offlineUser?.displayName || 'Guest'
@@ -181,7 +183,8 @@ export function HomePage({
 
   const latestDeck = deckItems[0] ?? null;
   const hasLegalDeck = validDeckItems.length > 0;
-  const isInitialDeckLoading = canUseCloudDecks && isLoadingCloud && cloudDecks.length === 0;
+  const isInitialDeckLoading = canUseCloudDecks && cloudDeckLoadState === 'LOADING';
+  const isRefreshingDecks = canUseCloudDecks && cloudDeckLoadState === 'REFRESHING';
 
   const handleAbandonSavedRoomForLocalGame = async () => {
     setIsAbandoningSavedRoom(true);
@@ -252,27 +255,36 @@ export function HomePage({
                 icon: RefreshCw,
                 onClick: onNavigateToGameSetup,
               }
-            : hasLegalDeck
+            : cloudDeckLoadState === 'ERROR' && cloudDecksLoadedAt === null
               ? {
-                  state: 'ready' as PrimaryActionState,
-                  title: '开始对战',
-                  description: '选择本局的对战方式并完成准备。',
-                  cta: '开始对战',
-                  icon: Gamepad2,
-                  onClick: onNavigateToGameSetup,
+                  state: 'source-unavailable' as PrimaryActionState,
+                  title: '暂时无法读取卡组',
+                  description: '首次读取云端卡组失败，请重试后再开始对战。',
+                  cta: '重新读取',
+                  icon: RefreshCw,
+                  onClick: () => void refreshCloudDecks(),
                 }
-              : {
-                  state: 'needs-deck' as PrimaryActionState,
-                  title: '构筑卡组',
-                  description: '还没有符合构筑规则的卡组。请先创建或调整一副卡组。',
-                  cta: '去卡组管理',
-                  icon: BookOpen,
-                  onClick: onNavigateToDeckManager,
-                  supportAction: {
-                    label: '进入准备页',
+              : hasLegalDeck
+                ? {
+                    state: 'ready' as PrimaryActionState,
+                    title: '开始对战',
+                    description: '选择本局的对战方式并完成准备。',
+                    cta: '开始对战',
+                    icon: Gamepad2,
                     onClick: onNavigateToGameSetup,
-                  },
-                };
+                  }
+                : {
+                    state: 'needs-deck' as PrimaryActionState,
+                    title: '构筑卡组',
+                    description: '还没有符合构筑规则的卡组。请先创建或调整一副卡组。',
+                    cta: '去卡组管理',
+                    icon: BookOpen,
+                    onClick: onNavigateToDeckManager,
+                    supportAction: {
+                      label: '进入准备页',
+                      onClick: onNavigateToGameSetup,
+                    },
+                  };
 
   const secondaryActions: ActionTileProps[] = [];
 
@@ -383,10 +395,11 @@ export function HomePage({
               latestDeck={latestDeck}
               validDecks={validDeckItems.slice(0, 5)}
               recentDecks={deckItems.slice(0, 3)}
-              isLoading={isLoadingCloud}
+              isLoading={isInitialDeckLoading}
+              isRefreshing={isRefreshingDecks}
               hasError={Boolean(canUseCloudDecks && cloudError)}
               deckSourceStatus={deckSourceStatus}
-              onRefresh={fetchCloudDecks}
+              onRefresh={refreshCloudDecks}
               onManageDecks={onNavigateToDeckManager}
             />
 
@@ -611,6 +624,7 @@ function DeckWorkspacePanel({
   validDecks,
   recentDecks,
   isLoading,
+  isRefreshing,
   hasError,
   deckSourceStatus,
   onRefresh,
@@ -622,6 +636,7 @@ function DeckWorkspacePanel({
   validDecks: DeckDisplayItem[];
   recentDecks: DeckDisplayItem[];
   isLoading: boolean;
+  isRefreshing: boolean;
   hasError: boolean;
   deckSourceStatus: DeckSourceStatus;
   onRefresh: () => void;
@@ -712,16 +727,26 @@ function DeckWorkspacePanel({
           <button
             type="button"
             onClick={onRefresh}
-            disabled={!isOnline || isLoading}
+            disabled={!isOnline || isLoading || isRefreshing}
             className="button-icon h-10 w-10 disabled:cursor-not-allowed disabled:opacity-45"
             title="刷新卡组"
           >
-            <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
+            <RefreshCw size={15} className={isLoading || isRefreshing ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
 
       <div className="mt-4 grid gap-3">
+        {hasError && hasVisibleValidDecks && (
+          <div
+            role="status"
+            className="flex items-start gap-2 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_32%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_8%,transparent)] px-3 py-2 text-xs leading-5 text-[var(--text-secondary)]"
+          >
+            <TriangleAlert size={15} className="mt-0.5 shrink-0 text-[var(--semantic-warning)]" />
+            后台更新失败，当前卡组列表仍可继续使用。
+          </div>
+        )}
+
         {hasVisibleValidDecks ? (
           <div className="grid gap-2">
             {validDecks.map((deck) => (

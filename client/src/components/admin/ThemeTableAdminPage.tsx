@@ -76,18 +76,22 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cloudDecks = useDeckStore((state) => state.cloudDecks);
-  const fetchCloudDecks = useDeckStore((state) => state.fetchCloudDecks);
+  const ensureCloudDecks = useDeckStore((state) => state.ensureCloudDecks);
+  const refreshCloudDecks = useDeckStore((state) => state.refreshCloudDecks);
 
   const selected = useMemo(
     () => events.find((event) => event.id === selectedId) ?? events[0] ?? null,
     [events, selectedId]
   );
 
-  const load = async () => {
+  const load = async (forceDeckRefresh = false) => {
     setBusy(true);
     setError(null);
     try {
-      const [nextEvents] = await Promise.all([fetchThemeAdminEvents(), fetchCloudDecks()]);
+      const [nextEvents] = await Promise.all([
+        fetchThemeAdminEvents(),
+        forceDeckRefresh ? refreshCloudDecks() : ensureCloudDecks(),
+      ]);
       setEvents(nextEvents);
       if (nextEvents.length === 0) setTab('seasons');
       setSelectedId((current) =>
@@ -163,7 +167,7 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
         category="对局与赛季"
         onBack={onBack}
         actions={
-          <button className="button-icon" onClick={() => void load()} aria-label="刷新">
+          <button className="button-icon" onClick={() => void load(true)} aria-label="刷新">
             <RefreshCw size={16} className={busy ? 'animate-spin' : ''} />
           </button>
         }

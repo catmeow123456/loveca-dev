@@ -3,7 +3,7 @@
 > 文档类型：设计文档  
 > 适用范围：Loveca 当前代码架构与关键流程设计（基于现状实现）  
 > 当前状态：现行系统设计；字段级 schema 以 `src/server/db/schema.ts` 和 `drizzle/` 增量迁移为准，初始化函数与触发器以 `docker/init.sql` 为准
-> 最后更新：2026-08-23
+> 最后更新：2026-08-26
 
 ---
 
@@ -322,6 +322,10 @@ graph TB
     App[App.tsx] --> Auth[authStore]
     App --> Deck[deckStore]
     App --> Game[gameStore]
+    App --> Update[UpdateCoordinator]
+
+    Update --> Manifest[version.json]
+    Update --> SW[Service Worker registration]
 
     Game --> SetupPage[GameSetupPage]
     Game --> Board[GameBoard]
@@ -335,10 +339,11 @@ graph TB
 职责划分：
 
 - `gameStore`：对局状态桥接与动作封装
-- `deckStore`：卡组编辑、浏览器本地卡组持久化与云端卡组管理
+- `deckStore`：卡组编辑、浏览器本地卡组持久化与云端卡组管理；云端列表按登录用户隔离当前会话快照，以 30 秒 freshness 区分 `ensureCloudDecks` 的按需读取和 `refreshCloudDecks` 的强制确认读取，同用户并发请求共享同一 Promise，后台刷新失败时继续保留旧快照
 - `authStore`：认证、会话恢复、个人资料与凭据更新、离线模式
 - `rankedStore`：赛季总览与跨页面排位候场、确认和取消状态
 - `themeTableStore`：主题活动总览与跨页面候场、确认、分配和开局前恢复状态
+- `UpdateCoordinator`：在应用渲染后统一接收 `version.json` 与 prompt 型 Service Worker 的更新信号；版本发现只产生非阻断提示，进行中的本地/远程对局不提供更新入口，玩家在安全页面确认后才激活 waiting worker 并执行单次刷新
 - `GameBoard`：拖拽与对局主交互容器
 
 代码路径：
@@ -348,6 +353,9 @@ graph TB
 - `client/src/store/authStore.ts`
 - `client/src/store/rankedStore.ts`
 - `client/src/store/themeTableStore.ts`
+- `client/src/lib/appUpdateCoordinator.ts`
+- `client/src/lib/appUpdateRegistration.ts`
+- `client/src/components/common/AppUpdateNotice.tsx`
 - `client/src/components/pages/ThemeTablePage.tsx`
 - `client/src/components/theme-table/ThemeTableGlobalLayer.tsx`
 - `client/src/components/pages/AccountCenterPage.tsx`

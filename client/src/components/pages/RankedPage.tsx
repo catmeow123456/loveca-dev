@@ -70,9 +70,12 @@ export function RankedPage({
   const pointTable = useDeckPointTableRules();
   const currentUserId = useAuthStore((state) => state.user?.id ?? null);
   const cloudDecks = useDeckStore((state) => state.cloudDecks);
-  const isLoadingCloud = useDeckStore((state) => state.isLoadingCloud);
+  const cloudDeckLoadState = useDeckStore((state) => state.cloudDeckLoadState);
   const cloudError = useDeckStore((state) => state.cloudError);
-  const fetchCloudDecks = useDeckStore((state) => state.fetchCloudDecks);
+  const ensureCloudDecks = useDeckStore((state) => state.ensureCloudDecks);
+  const refreshCloudDecks = useDeckStore((state) => state.refreshCloudDecks);
+  const isLoadingCloud = cloudDeckLoadState === 'LOADING';
+  const isRefreshingCloud = cloudDeckLoadState === 'REFRESHING';
   const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
   const overview = useRankedStore((state) => state.overview);
   const loading = useRankedStore((state) => state.loading);
@@ -139,12 +142,12 @@ export function RankedPage({
     deckEnvironmentState.seasonId === displayedSeasonId ? deckEnvironmentState.error : null;
 
   useEffect(() => {
-    void fetchCloudDecks();
+    void ensureCloudDecks();
     void refresh().catch(() => undefined);
     void fetchRankedSeasons()
       .then(setSeasonOptions)
       .catch(() => undefined);
-  }, [fetchCloudDecks, refresh]);
+  }, [ensureCloudDecks, refresh]);
 
   useEffect(() => {
     if (selectedDeck || hasChosenDeck || !preferredDeck.deck) return;
@@ -296,8 +299,9 @@ export function RankedPage({
                         setSelectedDeck(deck);
                       }}
                       isLoading={isLoadingCloud}
+                      isRefreshing={isRefreshingCloud}
                       error={cloudError}
-                      onRefresh={fetchCloudDecks}
+                      onRefresh={refreshCloudDecks}
                       title="选择卡组"
                       emptyText="还没有可用卡组，请先到卡组管理创建一副。"
                       density="compact"

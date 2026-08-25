@@ -208,9 +208,12 @@ export function GameSetupPage({
 
   // Deck store
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
-  const isLoadingCloud = useDeckStore((s) => s.isLoadingCloud);
+  const cloudDeckLoadState = useDeckStore((s) => s.cloudDeckLoadState);
   const cloudError = useDeckStore((s) => s.cloudError);
-  const fetchCloudDecks = useDeckStore((s) => s.fetchCloudDecks);
+  const ensureCloudDecks = useDeckStore((s) => s.ensureCloudDecks);
+  const refreshCloudDecks = useDeckStore((s) => s.refreshCloudDecks);
+  const isLoadingCloud = cloudDeckLoadState === 'LOADING';
+  const isRefreshingCloud = cloudDeckLoadState === 'REFRESHING';
   const localDecks = useDeckStore((s) => s.localDecks);
 
   // Game store
@@ -223,8 +226,8 @@ export function GameSetupPage({
 
   // 加载云端卡组
   useEffect(() => {
-    fetchCloudDecks();
-  }, [fetchCloudDecks]);
+    void ensureCloudDecks();
+  }, [ensureCloudDecks]);
 
   useEffect(() => {
     const selectedEntryWasHidden =
@@ -774,8 +777,9 @@ export function GameSetupPage({
                     selectedId={selectedP1Deck?.id}
                     onSelect={handleSelectP1}
                     isLoading={!offlineMode && isLoadingCloud}
+                    isRefreshing={!offlineMode && isRefreshingCloud}
                     error={offlineMode ? null : cloudError}
-                    onRefresh={offlineMode ? undefined : fetchCloudDecks}
+                    onRefresh={offlineMode ? undefined : refreshCloudDecks}
                     title="可用卡组"
                     emptyText={
                       offlineMode
@@ -811,8 +815,9 @@ export function GameSetupPage({
                     selectedId={selectedP2Deck?.id}
                     onSelect={handleSelectP2}
                     isLoading={!offlineMode && isLoadingCloud}
+                    isRefreshing={!offlineMode && isRefreshingCloud}
                     error={offlineMode ? null : cloudError}
-                    onRefresh={offlineMode ? undefined : fetchCloudDecks}
+                    onRefresh={offlineMode ? undefined : refreshCloudDecks}
                     title="可用卡组"
                     emptyText={
                       offlineMode

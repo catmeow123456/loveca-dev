@@ -84,10 +84,7 @@ import {
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { ApiClientError } from '@/lib/apiClient';
 import { formatBattleTimeoutSeconds, type BattleTimeoutConfig } from '@game/online/ranked-policy';
-import type {
-  ThemePrebuiltDeckView,
-  ThemeTableEventView,
-} from '@game/online/theme-table-types';
+import type { ThemePrebuiltDeckView, ThemeTableEventView } from '@game/online/theme-table-types';
 import type { AnyCardData } from '@game/domain/entities/card';
 import { GamePhase } from '@game/shared/types/enums';
 import type {
@@ -140,9 +137,12 @@ export function OnlineRoomPage({
 }: OnlineRoomPageProps) {
   const pointTable = useDeckPointTableRules();
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
-  const isLoadingCloud = useDeckStore((s) => s.isLoadingCloud);
+  const cloudDeckLoadState = useDeckStore((s) => s.cloudDeckLoadState);
   const cloudError = useDeckStore((s) => s.cloudError);
-  const fetchCloudDecks = useDeckStore((s) => s.fetchCloudDecks);
+  const ensureCloudDecks = useDeckStore((s) => s.ensureCloudDecks);
+  const refreshCloudDecks = useDeckStore((s) => s.refreshCloudDecks);
+  const isLoadingCloud = cloudDeckLoadState === 'LOADING';
+  const isRefreshingCloud = cloudDeckLoadState === 'REFRESHING';
 
   const connectRemoteSession = useGameStore((s) => s.connectRemoteSession);
   const applyRemoteSnapshot = useGameStore((s) => s.applyRemoteSnapshot);
@@ -232,8 +232,8 @@ export function OnlineRoomPage({
   }, [room?.matchId]);
 
   useEffect(() => {
-    fetchCloudDecks();
-  }, [fetchCloudDecks]);
+    void ensureCloudDecks();
+  }, [ensureCloudDecks]);
 
   useEffect(() => {
     if (!selectedDeck) {
@@ -1461,8 +1461,9 @@ export function OnlineRoomPage({
                   selectedId={selectedDeck?.id}
                   onSelect={handleSelectDeck}
                   isLoading={isLoadingCloud}
+                  isRefreshing={isRefreshingCloud}
                   error={cloudError}
-                  onRefresh={fetchCloudDecks}
+                  onRefresh={refreshCloudDecks}
                   title="选择卡组"
                   emptyText="还没有可用卡组。"
                   density="compact"
@@ -1497,8 +1498,9 @@ export function OnlineRoomPage({
                 selectedId={selectedDeck?.id}
                 onSelect={handleSelectDeck}
                 isLoading={isLoadingCloud}
+                isRefreshing={isRefreshingCloud}
                 error={cloudError}
-                onRefresh={fetchCloudDecks}
+                onRefresh={refreshCloudDecks}
                 title="选择卡组"
                 emptyText="还没有可用卡组。"
                 density="compact"

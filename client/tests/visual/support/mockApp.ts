@@ -169,7 +169,7 @@ export async function installVisualApiMocks(page: Page, authenticated: boolean) 
           username: 'visual_player',
           display_name: '视觉验收玩家',
           avatar_url: null,
-          role: 'player',
+          role: 'user',
           deck_count: 1,
           created_at: NOW,
           updated_at: NOW,

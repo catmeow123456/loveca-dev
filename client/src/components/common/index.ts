@@ -19,6 +19,7 @@ export { ProductHeader } from './ProductHeader';
 export { ThemeToggle } from './ThemeToggle';
 export { AppCredits } from './AppCredits';
 export { AnnouncementCenterButton } from './AnnouncementCenterButton';
+export { AppUpdateNotice } from './AppUpdateNotice';
 export {
   ActionButton,
   Panel,

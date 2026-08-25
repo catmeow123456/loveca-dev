@@ -134,9 +134,10 @@ export function DeckManager({
 
   // Deck store
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
-  const isLoadingCloud = useDeckStore((s) => s.isLoadingCloud);
+  const cloudDeckLoadState = useDeckStore((s) => s.cloudDeckLoadState);
   const cloudError = useDeckStore((s) => s.cloudError);
-  const fetchCloudDecks = useDeckStore((s) => s.fetchCloudDecks);
+  const ensureCloudDecks = useDeckStore((s) => s.ensureCloudDecks);
+  const refreshCloudDecks = useDeckStore((s) => s.refreshCloudDecks);
   const saveToCloud = useDeckStore((s) => s.saveToCloud);
   const deleteCloudDeck = useDeckStore((s) => s.deleteCloudDeck);
   const localDecks = useDeckStore((s) => s.localDecks);
@@ -187,12 +188,15 @@ export function DeckManager({
       `${deck.name} ${deck.description ?? ''}`.toLocaleLowerCase('zh-CN').includes(query)
     );
   }, [deckSearchQuery, managedDecks]);
-  const isLoadingDecks = !offlineMode && isLoadingCloud;
+  const isLoadingDecks = !offlineMode && cloudDeckLoadState === 'LOADING';
+  const isRefreshingDecks = !offlineMode && cloudDeckLoadState === 'REFRESHING';
   const deckSourceError = offlineMode ? null : cloudError;
+  const showEmptyDeckState =
+    !isLoadingDecks && (!deckSourceError || offlineMode) && managedDecks.length === 0;
 
   useEffect(() => {
-    if (!offlineMode) void fetchCloudDecks();
-  }, [fetchCloudDecks, offlineMode]);
+    if (!offlineMode) void ensureCloudDecks();
+  }, [ensureCloudDecks, offlineMode]);
 
   useEffect(() => {
     if (!showDecklogDialog && !showImportSheet) return;
@@ -325,7 +329,7 @@ export function DeckManager({
         return;
       }
 
-      await fetchCloudDecks();
+      await refreshCloudDecks();
       const copiedConfig = deckRecordToConfig(result.data, {
         resolveCardType: resolveDeckRecordCardType,
       });
@@ -362,7 +366,7 @@ export function DeckManager({
         return;
       }
 
-      await fetchCloudDecks();
+      await refreshCloudDecks();
 
       try {
         await navigator.clipboard.writeText(getShareUrl(result.data));
@@ -390,7 +394,7 @@ export function DeckManager({
         setSaveError(result.error.message);
         return;
       }
-      await fetchCloudDecks();
+      await refreshCloudDecks();
       showToast('已关闭分享');
     } finally {
       setSharingDeckId(null);
@@ -475,7 +479,9 @@ export function DeckManager({
         }
       }
 
-      if (!offlineMode) await fetchCloudDecks();
+      // saveToCloud already confirms a newly created deck with a refresh. Existing
+      // deck edits use the direct API client and need an explicit confirmation read.
+      if (!offlineMode && editingDeckId) await refreshCloudDecks();
       setViewMode('list');
       setEditingDeck(null);
       setEditingDeckId(null);
@@ -785,6 +791,16 @@ export function DeckManager({
                   </div>
                 )}
 
+                {isRefreshingDecks && (
+                  <div
+                    role="status"
+                    className="mb-4 flex items-center gap-2 text-xs text-[var(--text-secondary)]"
+                  >
+                    <Loader2 size={13} className="animate-spin text-[var(--accent-primary)]" />
+                    正在后台更新卡组，现有列表仍可使用。
+                  </div>
+                )}
+
                 {isLoadingDecks && managedDecks.length === 0 && (
                   <div className="flex items-center justify-center py-20">
                     <div className="text-center">
@@ -803,7 +819,7 @@ export function DeckManager({
                       <AlertTriangle size={14} />
                       <span>{deckSourceError}</span>
                       <button
-                        onClick={fetchCloudDecks}
+                        onClick={refreshCloudDecks}
                         className="ml-auto text-sm underline underline-offset-2"
                       >
                         重试
@@ -822,7 +838,7 @@ export function DeckManager({
                 )}
 
                 {/* Empty State with Presets */}
-                {!isLoadingDecks && managedDecks.length === 0 && (
+                {showEmptyDeckState && (
                   <div className="py-8">
                     <div className="text-center mb-6">
                       <div className="mb-1 text-base text-[var(--text-secondary)]">还没有卡组</div>

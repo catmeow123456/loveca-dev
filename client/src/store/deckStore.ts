@@ -25,6 +25,16 @@ import {
 } from '@/lib/localDeckStorage';
 
 const cloudDeckRequestGate = new LatestRequestGate();
+export const CLOUD_DECK_FRESHNESS_MS = 30_000;
+
+export type CloudDeckLoadState = 'IDLE' | 'LOADING' | 'READY' | 'REFRESHING' | 'ERROR';
+
+interface CloudDeckInFlight {
+  readonly ownerId: string;
+  readonly promise: Promise<void>;
+}
+
+let cloudDeckInFlight: CloudDeckInFlight | null = null;
 
 interface DeckState {
   player1Deck: DeckConfig | null;
@@ -34,7 +44,9 @@ interface DeckState {
 
   // 云端卡组列表
   cloudDecks: DeckRecord[];
-  isLoadingCloud: boolean;
+  cloudDeckOwnerId: string | null;
+  cloudDecksLoadedAt: number | null;
+  cloudDeckLoadState: CloudDeckLoadState;
   cloudError: string | null;
 
   // 离线卡组列表（仅保存在当前浏览器）
@@ -51,7 +63,9 @@ interface DeckState {
   resetDeck: () => void;
 
   // 云端卡组 Actions
-  fetchCloudDecks: () => Promise<void>;
+  ensureCloudDecks: () => Promise<void>;
+  refreshCloudDecks: () => Promise<void>;
+  invalidateCloudDecks: (nextOwnerId?: string | null) => void;
   saveToCloud: (
     player: 'player1' | 'player2',
     name: string,
@@ -75,6 +89,107 @@ interface DeckState {
 }
 
 export const useDeckStore = create<DeckState>((set, get) => {
+  const invalidateCloudDecks = (nextOwnerId: string | null = null): void => {
+    cloudDeckRequestGate.invalidate();
+    cloudDeckInFlight = null;
+    set({
+      cloudDecks: [],
+      cloudDeckOwnerId: nextOwnerId,
+      cloudDecksLoadedAt: null,
+      cloudDeckLoadState: 'IDLE',
+      cloudError: null,
+    });
+  };
+
+  const loadCloudDecks = (forceRefresh: boolean): Promise<void> => {
+    const ownerId = getCloudDeckOwnerId();
+    if (!ownerId) {
+      const state = get();
+      if (
+        state.cloudDeckOwnerId !== null ||
+        state.cloudDecksLoadedAt !== null ||
+        state.cloudDecks.length > 0
+      ) {
+        invalidateCloudDecks();
+      }
+      return Promise.resolve();
+    }
+
+    let state = get();
+    if (state.cloudDeckOwnerId !== ownerId) {
+      invalidateCloudDecks(ownerId);
+      state = get();
+    }
+
+    if (cloudDeckInFlight?.ownerId === ownerId) {
+      return cloudDeckInFlight.promise;
+    }
+
+    const hasSnapshot = state.cloudDecksLoadedAt !== null;
+    const isFresh = hasSnapshot && Date.now() - state.cloudDecksLoadedAt! < CLOUD_DECK_FRESHNESS_MS;
+    if (!forceRefresh && isFresh) {
+      return Promise.resolve();
+    }
+
+    const requestGeneration = cloudDeckRequestGate.begin();
+    set({
+      cloudDeckLoadState: hasSnapshot ? 'REFRESHING' : 'LOADING',
+      cloudError: null,
+    });
+
+    // Start both independent reads before awaiting either one. The PT store owns its
+    // own freshness and resolves immediately when it has already initialized.
+    const pointTablePromise = useDeckPointTableStore.getState().ensureLoaded();
+    const deckRequestPromise = apiClient.get<DeckRecord[]>('/api/decks');
+    const operation = (async () => {
+      try {
+        const [, result] = await Promise.all([pointTablePromise, deckRequestPromise]);
+        if (
+          !cloudDeckRequestGate.isCurrent(requestGeneration) ||
+          getCloudDeckOwnerId() !== ownerId ||
+          get().cloudDeckOwnerId !== ownerId
+        ) {
+          return;
+        }
+
+        if (result.error) {
+          set({ cloudDeckLoadState: 'ERROR', cloudError: result.error.message });
+          return;
+        }
+
+        set({
+          cloudDecks: result.data ?? [],
+          cloudDeckOwnerId: ownerId,
+          cloudDecksLoadedAt: Date.now(),
+          cloudDeckLoadState: 'READY',
+          cloudError: null,
+        });
+      } catch (error) {
+        if (
+          !cloudDeckRequestGate.isCurrent(requestGeneration) ||
+          getCloudDeckOwnerId() !== ownerId ||
+          get().cloudDeckOwnerId !== ownerId
+        ) {
+          return;
+        }
+        set({
+          cloudDeckLoadState: 'ERROR',
+          cloudError: error instanceof Error ? error.message : '获取卡组失败',
+        });
+      } finally {
+        if (
+          cloudDeckRequestGate.isCurrent(requestGeneration) &&
+          cloudDeckInFlight?.ownerId === ownerId
+        ) {
+          cloudDeckInFlight = null;
+        }
+      }
+    })();
+
+    cloudDeckInFlight = { ownerId, promise: operation };
+    return operation;
+  };
+
   return {
     player1Deck: null,
     player2Deck: null,
@@ -83,7 +198,9 @@ export const useDeckStore = create<DeckState>((set, get) => {
 
     // 云端卡组状态
     cloudDecks: [],
-    isLoadingCloud: false,
+    cloudDeckOwnerId: null,
+    cloudDecksLoadedAt: null,
+    cloudDeckLoadState: 'IDLE',
     cloudError: null,
     localDecks: [],
     localDecksInitialized: false,
@@ -236,52 +353,9 @@ export const useDeckStore = create<DeckState>((set, get) => {
     },
 
     // 云端卡组方法
-    fetchCloudDecks: async () => {
-      const requestGeneration = cloudDeckRequestGate.begin();
-      if (useAuthStore.getState().offlineMode) {
-        set({
-          cloudDecks: [],
-          isLoadingCloud: false,
-          cloudError: null,
-        });
-        return;
-      }
-
-      if (!isApiConfigured) {
-        set({ cloudError: '服务器未配置' });
-        return;
-      }
-
-      set({ isLoadingCloud: true, cloudError: null });
-
-      try {
-        // Load the public rules contract before publishing cloud decks to consumers, so
-        // deck lists do not briefly validate against a stale built-in snapshot online.
-        await useDeckPointTableStore.getState().refresh();
-        if (!cloudDeckRequestGate.isCurrent(requestGeneration)) {
-          return;
-        }
-        const result = await apiClient.get<DeckRecord[]>('/api/decks');
-        if (!cloudDeckRequestGate.isCurrent(requestGeneration)) {
-          return;
-        }
-
-        if (result.error) {
-          set({ isLoadingCloud: false, cloudError: result.error.message });
-          return;
-        }
-
-        set({ cloudDecks: result.data ?? [], isLoadingCloud: false });
-      } catch (err) {
-        if (!cloudDeckRequestGate.isCurrent(requestGeneration)) {
-          return;
-        }
-        set({
-          isLoadingCloud: false,
-          cloudError: err instanceof Error ? err.message : '获取卡组失败',
-        });
-      }
-    },
+    ensureCloudDecks: () => loadCloudDecks(false),
+    refreshCloudDecks: () => loadCloudDecks(true),
+    invalidateCloudDecks,
 
     saveToCloud: async (player, name, description) => {
       if (useAuthStore.getState().offlineMode) {
@@ -313,7 +387,7 @@ export const useDeckStore = create<DeckState>((set, get) => {
           return { success: false, error: result.error.message };
         }
 
-        await get().fetchCloudDecks();
+        await get().refreshCloudDecks();
 
         return { success: true };
       } catch (err) {
@@ -450,9 +524,22 @@ declare global {
 }
 
 // 开发/测试模式下暴露 store 以便 E2E 测试可以注入数据
-if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
+if (typeof window !== 'undefined' && (import.meta.env.DEV || import.meta.env.MODE === 'test')) {
   window.__DECK_STORE__ = useDeckStore;
 }
+
+function getCloudDeckOwnerId(): string | null {
+  const authState = useAuthStore.getState();
+  return authState.offlineMode ? null : (authState.user?.id ?? null);
+}
+
+let observedCloudDeckOwnerId = getCloudDeckOwnerId();
+useAuthStore.subscribe((state) => {
+  const nextOwnerId = state.offlineMode ? null : (state.user?.id ?? null);
+  if (nextOwnerId === observedCloudDeckOwnerId) return;
+  observedCloudDeckOwnerId = nextOwnerId;
+  useDeckStore.getState().invalidateCloudDecks(nextOwnerId);
+});
 
 function createEmptyDeck(playerName: string): DeckConfig {
   return createNewDeckConfig(playerName, 'New Deck');

@@ -138,7 +138,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       VitePWA({
-        registerType: 'autoUpdate',
+        registerType: 'prompt',
         includeAssets: [
           'back.jpg',
           'deck.png',
@@ -287,9 +287,6 @@ export default defineConfig(({ mode }) => {
           ],
           // 预缓存静态资源
           globPatterns: ['**/*.{js,css,html,ico,svg}'],
-          // 跳过等待，立即激活新 Service Worker
-          skipWaiting: true,
-          clientsClaim: true,
         },
       }),
     ],

@@ -95,11 +95,13 @@ client/src/
 ├── components/       # React components (game/, card/, deck/, admin/, pages/)
 ├── store/            # Zustand stores
 │   ├── gameStore.ts  # Game state + GameSession instance
-│   ├── deckStore.ts  # Deck management (browser-local persistence + cloud API)
+│   ├── deckStore.ts  # Deck management (local persistence + owner-scoped cloud cache)
 │   ├── authStore.ts  # JWT auth via self-hosted API
 │   └── rankedStore.ts # Ranked overview and cross-page queue state
 └── lib/
     ├── apiClient.ts  # HTTP client with JWT auth, auto-refresh, offline detection
+    ├── appUpdateCoordinator.ts # Prompt-only app update state and single-reload control
+    ├── appUpdateRegistration.ts # Service Worker/version manifest update registration
     ├── appConfig.ts  # Public feature flags loaded from /api/config
     ├── cardService.ts # Card data CRUD via API
     ├── deckRecordUtils.ts # Shared DeckRecord <-> DeckConfig conversion helpers
