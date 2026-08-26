@@ -1,30 +1,37 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
-import type { GameCommand } from '../../application/game-commands.js';
-import { fromTransport, toTransport } from '../../online/serde.js';
+import { toTransport } from '../../online/serde.js';
 import { TUTORIAL_CHECKPOINT_IDS, type TutorialCheckpointId } from '../../online/tutorial-types.js';
 import {
   BASIC_LIVE_TUTORIAL_ID,
   BASIC_LIVE_TUTORIAL_VERSION,
 } from '../services/basic-live-tutorial-scenario.js';
 import { getTutorialSessionService } from '../services/tutorial-runtime-service.js';
+import { parseTutorialGameCommand } from '../services/tutorial-command-validation.js';
+import {
+  TutorialAdmissionController,
+  TutorialMutationRateLimiter,
+  type TutorialAdmissionReservation,
+} from '../services/tutorial-request-limits.js';
 import { TutorialSessionServiceError } from '../services/tutorial-session-service.js';
 
 const CREATE_WINDOW_MS = 10 * 60 * 1000;
 const MAX_CREATES_PER_WINDOW = 8;
 const MAX_ACTIVE_SESSIONS_PER_IP = 3;
+const MUTATION_WINDOW_MS = 60 * 1000;
+const MAX_MUTATIONS_PER_RUN = 120;
+const MAX_MUTATIONS_PER_IP = 240;
 
-interface TutorialAdmissionRecord {
-  readonly createdAt: number;
-}
-
-interface ActiveTutorialRecord {
-  readonly ip: string;
-  expiresAt: number;
-}
-
-const admissionByIp = new Map<string, TutorialAdmissionRecord[]>();
-const activeRuns = new Map<string, ActiveTutorialRecord>();
+const admissionController = new TutorialAdmissionController({
+  createWindowMs: CREATE_WINDOW_MS,
+  maxCreatesPerWindow: MAX_CREATES_PER_WINDOW,
+  maxActiveSessionsPerIp: MAX_ACTIVE_SESSIONS_PER_IP,
+});
+const mutationRateLimiter = new TutorialMutationRateLimiter({
+  windowMs: MUTATION_WINDOW_MS,
+  maxRequestsPerRun: MAX_MUTATIONS_PER_RUN,
+  maxRequestsPerIp: MAX_MUTATIONS_PER_IP,
+});
 
 export const tutorialRouter = Router();
 
@@ -34,10 +41,8 @@ tutorialRouter.use((_req, res, next) => {
 });
 
 tutorialRouter.post('/sessions', async (req, res) => {
+  let reservation: TutorialAdmissionReservation | null = null;
   try {
-    const now = Date.now();
-    const ip = normalizeIp(req);
-    assertAdmissionAvailable(ip, now);
     const body = req.body as
       | Partial<{
           readonly scenarioId: string;
@@ -65,6 +70,8 @@ tutorialRouter.post('/sessions', async (req, res) => {
       );
     }
 
+    const now = Date.now();
+    reservation = admissionController.reserve(normalizeIp(req), now);
     const accessToken = randomBytes(24).toString('base64url');
     const participantKey = hashAccessToken(accessToken);
     const service = await getTutorialSessionService();
@@ -74,10 +81,11 @@ tutorialRouter.post('/sessions', async (req, res) => {
       scenarioVersion,
       checkpointId,
     });
-    recordAdmission(ip, now);
-    activeRuns.set(snapshot.runId, { ip, expiresAt: snapshot.expiresAt });
+    admissionController.commit(reservation, snapshot.runId, snapshot.expiresAt);
+    reservation = null;
     respondData(res, { accessToken, snapshot });
   } catch (error) {
+    if (reservation) admissionController.cancel(reservation);
     respondTutorialError(res, error);
   }
 });
@@ -88,7 +96,7 @@ tutorialRouter.get('/sessions/:runId', async (req, res) => {
     const participantKey = readParticipantKey(req);
     const service = await getTutorialSessionService();
     const snapshot = service.getSnapshot(runId, participantKey);
-    touchActiveRun(snapshot.runId, snapshot.expiresAt);
+    admissionController.touch(snapshot.runId, snapshot.expiresAt);
     respondData(res, snapshot);
   } catch (error) {
     respondTutorialError(res, error);
@@ -97,19 +105,27 @@ tutorialRouter.get('/sessions/:runId', async (req, res) => {
 
 tutorialRouter.post('/sessions/:runId/commands', async (req, res) => {
   try {
+    const runId = readRunId(req);
+    mutationRateLimiter.consume(normalizeIp(req), runId, Date.now());
     const body = req.body as
       Partial<{ readonly expectedSeq: number; readonly command: unknown }> | undefined;
-    if (!Number.isSafeInteger(body?.expectedSeq) || body?.command === undefined) {
+    if (
+      !Number.isSafeInteger(body?.expectedSeq) ||
+      (body?.expectedSeq ?? -1) < 0 ||
+      body?.command === undefined
+    ) {
       throw new TutorialSessionServiceError('TUTORIAL_INVALID_INPUT', '教程命令参数非法');
     }
+    const command = parseTutorialGameCommand(body.command);
+    const participantKey = readParticipantKey(req);
     const service = await getTutorialSessionService();
     const result = service.executePlayerCommand({
-      runId: readRunId(req),
-      participantKey: readParticipantKey(req),
+      runId,
+      participantKey,
       expectedSeq: body!.expectedSeq!,
-      command: fromTransport<GameCommand>(body!.command),
+      command,
     });
-    touchActiveRun(result.snapshot.runId, result.snapshot.expiresAt);
+    admissionController.touch(result.snapshot.runId, result.snapshot.expiresAt);
     respondData(res, result);
   } catch (error) {
     respondTutorialError(res, error);
@@ -118,17 +134,20 @@ tutorialRouter.post('/sessions/:runId/commands', async (req, res) => {
 
 tutorialRouter.post('/sessions/:runId/script/advance', async (req, res) => {
   try {
+    const runId = readRunId(req);
+    mutationRateLimiter.consume(normalizeIp(req), runId, Date.now());
     const body = req.body as Partial<{ readonly expectedSeq: number }> | undefined;
-    if (!Number.isSafeInteger(body?.expectedSeq)) {
+    if (!Number.isSafeInteger(body?.expectedSeq) || (body?.expectedSeq ?? -1) < 0) {
       throw new TutorialSessionServiceError('TUTORIAL_INVALID_INPUT', '教程脚本 revision 非法');
     }
+    const participantKey = readParticipantKey(req);
     const service = await getTutorialSessionService();
     const result = service.advanceScript({
-      runId: readRunId(req),
-      participantKey: readParticipantKey(req),
+      runId,
+      participantKey,
       expectedSeq: body!.expectedSeq!,
     });
-    touchActiveRun(result.snapshot.runId, result.snapshot.expiresAt);
+    admissionController.touch(result.snapshot.runId, result.snapshot.expiresAt);
     respondData(res, result);
   } catch (error) {
     respondTutorialError(res, error);
@@ -138,9 +157,10 @@ tutorialRouter.post('/sessions/:runId/script/advance', async (req, res) => {
 tutorialRouter.delete('/sessions/:runId', async (req, res) => {
   try {
     const runId = readRunId(req);
+    const participantKey = readParticipantKey(req);
     const service = await getTutorialSessionService();
-    service.deleteSession(runId, readParticipantKey(req));
-    activeRuns.delete(runId);
+    service.deleteSession(runId, participantKey);
+    admissionController.remove(runId);
     respondData(res, { deleted: true });
   } catch (error) {
     respondTutorialError(res, error);
@@ -149,47 +169,6 @@ tutorialRouter.delete('/sessions/:runId', async (req, res) => {
 
 function normalizeIp(req: Request): string {
   return req.ip?.trim() || req.socket.remoteAddress?.trim() || 'unknown';
-}
-
-function pruneAdmissionState(now: number): void {
-  for (const [ip, records] of admissionByIp) {
-    const retained = records.filter((record) => record.createdAt + CREATE_WINDOW_MS > now);
-    if (retained.length > 0) admissionByIp.set(ip, retained);
-    else admissionByIp.delete(ip);
-  }
-  for (const [runId, record] of activeRuns) {
-    if (record.expiresAt <= now) activeRuns.delete(runId);
-  }
-}
-
-function assertAdmissionAvailable(ip: string, now: number): void {
-  pruneAdmissionState(now);
-  const recentCreates = admissionByIp.get(ip) ?? [];
-  if (recentCreates.length >= MAX_CREATES_PER_WINDOW) {
-    throw new TutorialSessionServiceError(
-      'TUTORIAL_CREATE_RATE_LIMITED',
-      '教程创建过于频繁，请稍后再试',
-      429
-    );
-  }
-  const activeCount = [...activeRuns.values()].filter((record) => record.ip === ip).length;
-  if (activeCount >= MAX_ACTIVE_SESSIONS_PER_IP) {
-    throw new TutorialSessionServiceError(
-      'TUTORIAL_ACTIVE_SESSION_LIMIT',
-      '当前设备已有多个教程会话，请先关闭旧教程',
-      429
-    );
-  }
-}
-
-function recordAdmission(ip: string, now: number): void {
-  const records = admissionByIp.get(ip) ?? [];
-  admissionByIp.set(ip, [...records, { createdAt: now }]);
-}
-
-function touchActiveRun(runId: string, expiresAt: number): void {
-  const active = activeRuns.get(runId);
-  if (active) active.expiresAt = expiresAt;
 }
 
 function hashAccessToken(accessToken: string): string {

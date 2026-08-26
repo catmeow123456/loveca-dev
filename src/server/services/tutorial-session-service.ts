@@ -13,12 +13,17 @@ import type {
   TutorialSessionStatus,
 } from '../../online/tutorial-types.js';
 import { createPublicObjectId } from '../../online/projector.js';
+import { toTransport } from '../../online/serde.js';
 import type { PlayerViewState, Seat } from '../../online/types.js';
 import { DecisionTapeRandomSource } from '../../shared/random-source.js';
 import { GameMode } from '../../shared/types/enums.js';
 
 const DEFAULT_IDLE_TTL_MS = 30 * 60 * 1000;
+const DEFAULT_MAX_SESSIONS = 256;
 const MAX_ACCEPTED_COMMAND_RECEIPTS = 64;
+const MAX_PLAYER_IDEMPOTENCY_RECEIPTS = 64;
+const MAX_PLAYER_COMMAND_ATTEMPTS = 256;
+export const MAX_TUTORIAL_IDEMPOTENCY_KEY_LENGTH = 128;
 
 export interface TutorialRoleBindingDefinition {
   readonly ownerSeat: Seat;
@@ -102,6 +107,8 @@ interface TutorialSessionRecord {
   readonly opponentId: string;
   readonly roleCardIds: Readonly<Record<string, string>>;
   readonly completedScriptActionIds: Set<string>;
+  readonly playerIdempotencyReceipts: Map<string, string>;
+  playerCommandAttemptCount: number;
   status: TutorialSessionStatus;
   publicError?: string;
   expiresAt: number;
@@ -112,6 +119,7 @@ export interface TutorialSessionServiceDeps {
   readonly now?: () => number;
   readonly idGenerator?: () => string;
   readonly idleTtlMs?: number;
+  readonly maxSessions?: number;
 }
 
 export interface CreateTutorialSessionInput {
@@ -157,13 +165,18 @@ export class TutorialSessionService {
   private readonly now: () => number;
   private readonly idGenerator: () => string;
   private readonly idleTtlMs: number;
+  private readonly maxSessions: number;
 
   constructor(deps: TutorialSessionServiceDeps) {
     this.now = deps.now ?? (() => Date.now());
     this.idGenerator = deps.idGenerator ?? randomUUID;
     this.idleTtlMs = deps.idleTtlMs ?? DEFAULT_IDLE_TTL_MS;
+    this.maxSessions = deps.maxSessions ?? DEFAULT_MAX_SESSIONS;
     if (!Number.isSafeInteger(this.idleTtlMs) || this.idleTtlMs <= 0) {
       throw new Error('教程会话空闲 TTL 必须是正安全整数');
+    }
+    if (!Number.isSafeInteger(this.maxSessions) || this.maxSessions <= 0) {
+      throw new Error('教程会话全局容量必须是正安全整数');
     }
 
     for (const scenario of deps.scenarios) {
@@ -177,6 +190,15 @@ export class TutorialSessionService {
   }
 
   createSession(input: CreateTutorialSessionInput): TutorialSessionSnapshot {
+    this.cleanupExpiredSessions();
+    if (this.sessions.size >= this.maxSessions) {
+      throw new TutorialSessionServiceError(
+        'TUTORIAL_CAPACITY_REACHED',
+        '当前教程使用人数较多，请稍后再试',
+        503
+      );
+    }
+
     const participantKey = normalizeRequired(input.participantKey, '教程参与者标识');
     const scenario = this.scenarios.get(scenarioKey(input.scenarioId, input.scenarioVersion));
     if (!scenario) {
@@ -246,6 +268,8 @@ export class TutorialSessionService {
       opponentId,
       roleCardIds,
       completedScriptActionIds: new Set(),
+      playerIdempotencyReceipts: new Map(),
+      playerCommandAttemptCount: 0,
       status: 'ACTIVE',
       expiresAt: this.now() + this.idleTtlMs,
     };
@@ -295,13 +319,32 @@ export class TutorialSessionService {
   }
 
   executePlayerCommand(input: ExecuteTutorialCommandInput): TutorialCommandResult {
-    const record = this.getAuthorizedActiveRecord(input.runId, input.participantKey);
-    this.assertExpectedSeq(record, input.expectedSeq);
-
+    const record = this.getAuthorizedRecord(input.runId, input.participantKey);
     const command = {
       ...input.command,
       playerId: record.playerId,
     } as GameCommand;
+    const idempotencyKey = this.validatePlayerIdempotencyKey(record, command.idempotencyKey);
+    const comparablePayload = createComparableTutorialCommandPayload(command);
+    if (idempotencyKey) {
+      const existingPayload = record.playerIdempotencyReceipts.get(idempotencyKey);
+      if (existingPayload !== undefined) {
+        if (existingPayload !== comparablePayload) {
+          throw new TutorialSessionServiceError(
+            'TUTORIAL_IDEMPOTENCY_CONFLICT',
+            '同一幂等键对应的教程命令不一致',
+            409
+          );
+        }
+        this.touch(record);
+        return { success: true, snapshot: this.buildSnapshot(record) };
+      }
+    }
+
+    this.assertActiveRecord(record);
+    this.assertExpectedSeq(record, input.expectedSeq);
+    this.consumePlayerCommandAttempt(record);
+
     const blockedReason = record.scenario.validatePlayerCommand(
       createScenarioContext(record),
       command
@@ -319,6 +362,14 @@ export class TutorialSessionService {
       );
     }
 
+    if (idempotencyKey) {
+      rememberBoundedReceipt(
+        record.playerIdempotencyReceipts,
+        idempotencyKey,
+        comparablePayload,
+        MAX_PLAYER_IDEMPOTENCY_RECEIPTS
+      );
+    }
     this.touch(record);
     this.updateCompletionStatus(record);
     return { success: true, snapshot: this.buildSnapshot(record) };
@@ -368,6 +419,11 @@ export class TutorialSessionService {
 
   private getAuthorizedActiveRecord(runId: string, participantKey: string): TutorialSessionRecord {
     const record = this.getAuthorizedRecord(runId, participantKey);
+    this.assertActiveRecord(record);
+    return record;
+  }
+
+  private assertActiveRecord(record: TutorialSessionRecord): void {
     if (record.status !== 'ACTIVE') {
       throw new TutorialSessionServiceError(
         'TUTORIAL_SESSION_NOT_ACTIVE',
@@ -375,7 +431,33 @@ export class TutorialSessionService {
         409
       );
     }
-    return record;
+  }
+
+  private validatePlayerIdempotencyKey(
+    record: TutorialSessionRecord,
+    idempotencyKey: string | undefined
+  ): string | null {
+    if (idempotencyKey === undefined) return null;
+    if (
+      typeof idempotencyKey !== 'string' ||
+      idempotencyKey.length === 0 ||
+      idempotencyKey.length > MAX_TUTORIAL_IDEMPOTENCY_KEY_LENGTH ||
+      idempotencyKey.startsWith(`${record.runId}:`)
+    ) {
+      throw new TutorialSessionServiceError('TUTORIAL_INVALID_INPUT', '教程命令幂等键非法', 400);
+    }
+    return idempotencyKey;
+  }
+
+  private consumePlayerCommandAttempt(record: TutorialSessionRecord): void {
+    if (record.playerCommandAttemptCount >= MAX_PLAYER_COMMAND_ATTEMPTS) {
+      throw new TutorialSessionServiceError(
+        'TUTORIAL_COMMAND_LIMIT_REACHED',
+        '本次教程操作次数过多，请重新开始教程',
+        429
+      );
+    }
+    record.playerCommandAttemptCount += 1;
   }
 
   private assertExpectedSeq(record: TutorialSessionRecord, expectedSeq: number): void {
@@ -632,4 +714,24 @@ function collectAcceptedPlayerCommands(
       resultingSeq: commandRecord.resultingPublicSeq,
       command: commandRecord.payload as GameCommand,
     }));
+}
+
+function createComparableTutorialCommandPayload(command: GameCommand): string {
+  const payload = { ...command } as Record<string, unknown>;
+  delete payload.timestamp;
+  delete payload.idempotencyKey;
+  return JSON.stringify(toTransport(payload));
+}
+
+function rememberBoundedReceipt(
+  receipts: Map<string, string>,
+  key: string,
+  payload: string,
+  maxSize: number
+): void {
+  if (!receipts.has(key) && receipts.size >= maxSize) {
+    const oldestKey = receipts.keys().next().value;
+    if (oldestKey !== undefined) receipts.delete(oldestKey);
+  }
+  receipts.set(key, payload);
 }
