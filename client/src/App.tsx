@@ -59,6 +59,7 @@ import { usePublicTableStore } from '@/store/publicTableStore';
 import { useRankedStore } from '@/store/rankedStore';
 import { usePlayerWallpaperStore } from '@/store/playerWallpaperStore';
 import { useThemeTableStore } from '@/store/themeTableStore';
+import { useTutorialStore } from '@/store/tutorialStore';
 import { cardService } from '@/lib/cardService';
 import { PublicTableGlobalLayer } from '@/components/public-table/PublicTableGlobalLayer';
 import { RankedGlobalLayer } from '@/components/ranked/RankedGlobalLayer';
@@ -72,6 +73,7 @@ import {
   loadPublicSiteStatusSnapshot,
   type PublicSiteStatusSnapshotResult,
 } from '@/lib/publicSiteStatusSnapshot';
+import { resolveTutorialHistoryTransition } from '@/lib/tutorialNavigation';
 
 const GameBoard = lazy(() => import('@/components/game/GameBoard'));
 const TutorialPage = lazy(() =>
@@ -374,6 +376,22 @@ function App() {
     window.history.replaceState(null, '', '/');
     setCurrentPage('home');
     setAuthPage('landing');
+  }, [setCurrentPage]);
+  useEffect(() => {
+    const handlePopState = () => {
+      const nextPage = getInitialPage();
+      const transition = resolveTutorialHistoryTransition(currentPageRef.current, nextPage);
+      if (!transition) return;
+      if (transition === 'EXIT') {
+        void useTutorialStore.getState().stop();
+        useGameStore.getState().disconnectRemoteSession();
+        setAuthPage('landing');
+      }
+      setCurrentPage(nextPage);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, [setCurrentPage]);
   const enterOnlineRoom = useCallback(async () => {
     // 匹配期间允许玩家继续进行对墙打。真人房间就绪后，先结束这个

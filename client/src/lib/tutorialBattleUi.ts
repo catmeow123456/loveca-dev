@@ -10,6 +10,30 @@ export interface TutorialMulliganUiPolicy {
   readonly selectableCardIds: readonly string[] | null;
 }
 
+export function normalizeTutorialMulliganSelection(
+  selectedCardIds: readonly string[],
+  selectableCardIds: readonly string[] | null
+): readonly string[] {
+  const uniqueSelection = [...new Set(selectedCardIds)];
+  if (selectableCardIds === null) return uniqueSelection;
+  const selectableCardIdSet = new Set(selectableCardIds);
+  return uniqueSelection.filter((cardId) => selectableCardIdSet.has(cardId));
+}
+
+export function canConfirmTutorialMulliganSelection(
+  selectedCardIds: readonly string[],
+  selectableCardIds: readonly string[] | null
+): boolean {
+  const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
+  if (selectableCardIds === null) return uniqueSelectedCardIds.length > 0;
+
+  const exactSelectableCardIds = [...new Set(selectableCardIds)];
+  if (exactSelectableCardIds.length === 0) return false;
+  if (uniqueSelectedCardIds.length !== exactSelectableCardIds.length) return false;
+  const selectedCardIdSet = new Set(uniqueSelectedCardIds);
+  return exactSelectableCardIds.every((cardId) => selectedCardIdSet.has(cardId));
+}
+
 const DEFAULT_SCRIPT_ADVANCE_DELAY_MS = 900;
 const REDUCED_MOTION_SCRIPT_ADVANCE_DELAY_MS = 300;
 const OPENING_SETTLE_DELAY_MS = 1_500;
@@ -53,8 +77,13 @@ export function resolveTutorialMulliganUiPolicy(
 
   return {
     panelVisible: explainsMulliganPanel || mulliganRule !== undefined,
-    selectableCardIds:
-      exactRoles !== undefined && boundCardIds?.length === exactRoles.length ? boundCardIds : null,
+    selectableCardIds: explainsMulliganPanel
+      ? []
+      : exactRoles !== undefined
+        ? boundCardIds?.length === exactRoles.length
+          ? boundCardIds
+          : []
+        : null,
   };
 }
 
@@ -62,10 +91,18 @@ export function resolveTutorialMulliganTargetOverride(
   step: TutorialStepDefinition | null,
   selectedCardIds: readonly string[]
 ): TutorialGuidanceTarget | undefined {
-  const isMulliganAction = step?.allowedCommands?.some(
+  const mulliganRule = step?.allowedCommands?.find(
     (rule) => rule.commandType === GameCommandType.MULLIGAN
   );
-  if (!isMulliganAction || selectedCardIds.length === 0) return undefined;
+  const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
+  const exactSelectionCount = mulliganRule?.exactObjectRoles?.length;
+  if (
+    !mulliganRule ||
+    uniqueSelectedCardIds.length === 0 ||
+    (exactSelectionCount !== undefined && uniqueSelectedCardIds.length !== exactSelectionCount)
+  ) {
+    return undefined;
+  }
   return {
     kind: 'ANCHOR',
     anchor: BATTLE_UI_ANCHORS.MULLIGAN_CONFIRM,

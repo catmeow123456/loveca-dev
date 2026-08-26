@@ -54,6 +54,31 @@ export interface TutorialCalloutLayout {
   readonly placement: Exclude<TutorialCalloutPlacement, 'AUTO'>;
 }
 
+export function intersectTutorialRects(
+  rect: TutorialRect,
+  clip: TutorialRect
+): TutorialRect | null {
+  const left = Math.max(rect.left, clip.left);
+  const top = Math.max(rect.top, clip.top);
+  const right = Math.min(rect.left + rect.width, clip.left + clip.width);
+  const bottom = Math.min(rect.top + rect.height, clip.top + clip.height);
+  if (right - left < 1 || bottom - top < 1) return null;
+  return { left, top, width: right - left, height: bottom - top };
+}
+
+export function translateTutorialRect(
+  rect: TutorialRect,
+  offsetLeft: number,
+  offsetTop: number
+): TutorialRect {
+  return {
+    left: rect.left - offsetLeft,
+    top: rect.top - offsetTop,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
 const VIEWPORT_MARGIN = 12;
 const TARGET_CALLOUT_GAP = 16;
 const PRIMARY_TARGET_OVERLAP_WEIGHT = 1_000_000;

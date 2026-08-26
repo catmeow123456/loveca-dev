@@ -16,6 +16,10 @@ import { Card } from '@/components/card/Card';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { BATTLE_UI_ANCHORS } from '@/lib/battleUiAnchors';
 import {
+  canConfirmTutorialMulliganSelection,
+  normalizeTutorialMulliganSelection,
+} from '@/lib/tutorialBattleUi';
+import {
   hasBattleViewportSignatureChanged,
   readBattleViewportSignature,
   subscribeToBattleViewportChanges,
@@ -70,27 +74,6 @@ export const MulliganPanel = memo(function MulliganPanel({
     }))
   );
 
-  // 选中要换的卡牌 ID
-  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
-  const longPressTimerRef = useRef<number | null>(null);
-  const longPressViewportStartRef = useRef<BattleViewportSignature | null>(null);
-  const longPressViewportInvalidatedRef = useRef(false);
-  const longPressTriggeredRef = useRef(false);
-  const suppressNextClickRef = useRef(false);
-
-  useEffect(() => {
-    onSelectionChange?.(Array.from(selectedCardIds));
-  }, [onSelectionChange, selectedCardIds]);
-
-  useEffect(
-    () => () => {
-      onSelectionChange?.([]);
-    },
-    [onSelectionChange]
-  );
-
-  // 检查是否已完成换牌
-  // 检查当前是否轮到该玩家换牌
   const isMyMulliganTurn = useMemo(() => {
     return (
       (currentSubPhase === SubPhase.MULLIGAN_FIRST_PLAYER ||
@@ -99,26 +82,61 @@ export const MulliganPanel = memo(function MulliganPanel({
     );
   }, [canMulligan, currentSubPhase]);
 
-  // 切换卡牌选中状态
-  const toggleCardSelection = useCallback((cardId: string) => {
-    setSelectedCardIds((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(cardId)) {
-        newSet.delete(cardId);
-      } else {
-        newSet.add(cardId);
+  // 选中要换的卡牌 ID
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
+  const selectableCardIdSet = useMemo(
+    () => (selectableCardIds === null ? null : new Set(selectableCardIds)),
+    [selectableCardIds]
+  );
+  const canConfirmSelection =
+    isMyMulliganTurn &&
+    canConfirmTutorialMulliganSelection(Array.from(selectedCardIds), selectableCardIds);
+  const isGuidedPreview = selectableCardIds !== null && selectableCardIds.length === 0;
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressViewportStartRef = useRef<BattleViewportSignature | null>(null);
+  const longPressViewportInvalidatedRef = useRef(false);
+  const longPressTriggeredRef = useRef(false);
+  const suppressNextClickRef = useRef(false);
+
+  useEffect(() => {
+    setSelectedCardIds((current) => {
+      const normalized = normalizeTutorialMulliganSelection(Array.from(current), selectableCardIds);
+      if (normalized.length === current.size && normalized.every((cardId) => current.has(cardId))) {
+        return current;
       }
-      return newSet;
+      return new Set(normalized);
     });
-  }, []);
+  }, [selectableCardIds]);
+
+  useEffect(() => {
+    onSelectionChange?.(
+      normalizeTutorialMulliganSelection(Array.from(selectedCardIds), selectableCardIds)
+    );
+  }, [onSelectionChange, selectableCardIds, selectedCardIds]);
+
+  useEffect(
+    () => () => {
+      onSelectionChange?.([]);
+    },
+    [onSelectionChange]
+  );
 
   const activateCard = useCallback(
     (cardId: string) => {
       if (!isMyMulliganTurn) return;
-      if (selectableCardIds && !selectableCardIds.includes(cardId)) return;
-      toggleCardSelection(cardId);
+      setSelectedCardIds((current) => {
+        if (current.has(cardId)) {
+          const next = new Set(current);
+          next.delete(cardId);
+          return next;
+        }
+        if (selectableCardIdSet && !selectableCardIdSet.has(cardId)) return current;
+        const next = new Set(current);
+        next.add(cardId);
+        return next;
+      });
     },
-    [isMyMulliganTurn, selectableCardIds, toggleCardSelection]
+    [isMyMulliganTurn, selectableCardIdSet]
   );
 
   const clearLongPressTimer = useCallback(() => {
@@ -196,10 +214,11 @@ export const MulliganPanel = memo(function MulliganPanel({
 
   // 确认换牌
   const handleConfirm = useCallback(() => {
+    if (!canConfirmSelection) return;
     const cardIds = Array.from(selectedCardIds);
     mulligan(cardIds);
     setSelectedCardIds(new Set()); // 重置选择
-  }, [mulligan, selectedCardIds]);
+  }, [canConfirmSelection, mulligan, selectedCardIds]);
 
   // 不换牌（直接确认）
   const handleSkip = useCallback(() => {
@@ -270,9 +289,11 @@ export const MulliganPanel = memo(function MulliganPanel({
 
                 <div className="shrink-0 border-b border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--accent-secondary)_8%,transparent)] px-4 py-3 sm:px-6">
                   <p className="text-sm text-[var(--text-secondary)]">
-                    {selectableCardIds
-                      ? '先点击高亮卡牌将它选中，再点击下方“换 1 张”确认；确认后规则会先补牌，再将换掉的牌放回主卡组并洗牌'
-                      : '点击选择要换掉的卡牌（可选 0-6 张），确认后先抽取相同数量的牌，再将换掉的牌放回主卡组并洗牌'}
+                    {isGuidedPreview
+                      ? '先了解换牌流程；点击教程的“下一步”后，面板才会开放本次要换的指定卡牌'
+                      : selectableCardIds
+                        ? '先点击高亮卡牌将它选中，再点击下方“换 1 张”确认；确认后规则会先补牌，再将换掉的牌放回主卡组并洗牌'
+                        : '点击选择要换掉的卡牌（可选 0-6 张），确认后先抽取相同数量的牌，再将换掉的牌放回主卡组并洗牌'}
                   </p>
                 </div>
 
@@ -297,7 +318,9 @@ export const MulliganPanel = memo(function MulliganPanel({
                       const isSelected = selectedCardIds.has(cardId);
                       const isSelectable =
                         isMyMulliganTurn &&
-                        (!selectableCardIds || selectableCardIds.includes(cardId));
+                        (isSelected ||
+                          selectableCardIdSet === null ||
+                          selectableCardIdSet.has(cardId));
                       const cardData = card.cardData;
                       const imagePath = card.imagePath;
 
@@ -428,16 +451,16 @@ export const MulliganPanel = memo(function MulliganPanel({
                       <motion.button
                         data-battle-ui-anchor={BATTLE_UI_ANCHORS.MULLIGAN_CONFIRM}
                         whileHover={{
-                          scale: isMyMulliganTurn && selectedCardIds.size > 0 ? 1.01 : 1,
+                          scale: canConfirmSelection ? 1.01 : 1,
                         }}
                         whileTap={{
-                          scale: isMyMulliganTurn && selectedCardIds.size > 0 ? 0.98 : 1,
+                          scale: canConfirmSelection ? 0.98 : 1,
                         }}
                         onClick={handleConfirm}
-                        disabled={!isMyMulliganTurn || selectedCardIds.size === 0}
+                        disabled={!canConfirmSelection}
                         className={cn(
                           'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-bold transition-colors',
-                          isMyMulliganTurn && selectedCardIds.size > 0
+                          canConfirmSelection
                             ? 'button-gold'
                             : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
                         )}
