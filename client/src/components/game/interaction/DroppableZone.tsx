@@ -12,6 +12,7 @@ import { useDndContext, useDroppable } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 import type { CSSProperties, MouseEventHandler, ReactNode } from 'react';
 import { useGameStore } from '@/store/gameStore';
+import type { BattleUiAnchorId } from '@/lib/battleUiAnchors';
 
 export interface DroppableZoneProps {
   /** 唯一标识符 (如槽位 ID) */
@@ -20,6 +21,8 @@ export interface DroppableZoneProps {
   domId?: string;
   /** 逻辑区域 ID，用于测试和语义标记 */
   zoneId?: string;
+  /** 稳定的共享牌桌语义锚点，供教程和自动化定位。 */
+  battleUiAnchor?: BattleUiAnchorId;
   /** 可选的数据 */
   data?: Record<string, unknown>;
   /** 是否禁用放置 */
@@ -78,6 +81,7 @@ function DroppableZoneBase({
   id,
   domId,
   zoneId,
+  battleUiAnchor,
   data,
   disabled = false,
   children,
@@ -117,6 +121,7 @@ function DroppableZoneBase({
       ref={setNodeRef}
       id={domId ?? id}
       data-zone-id={zoneId ?? domId ?? id}
+      data-battle-ui-anchor={battleUiAnchor}
       title={title}
       aria-label={ariaLabel}
       onClick={onClick}

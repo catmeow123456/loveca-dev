@@ -10,6 +10,7 @@ import type { CardInstance } from '../../domain/entities/card.js';
 import type { GameOperationResult } from '../game-service.js';
 import type { GameAction } from '../actions.js';
 import type { RuleActionResult } from '../../domain/rules/rule-actions.js';
+import type { RandomIntegerSource } from '../../shared/random-source.js';
 
 // ============================================
 // 处理器上下文
@@ -20,6 +21,9 @@ import type { RuleActionResult } from '../../domain/rules/rule-actions.js';
  * 提供处理器所需的游戏状态操作方法
  */
 export interface ActionHandlerContext {
+  /** 当前权威会话的随机整数来源。 */
+  randomInt: RandomIntegerSource;
+
   /** 根据 ID 获取玩家状态 */
   getPlayerById: (game: GameState, playerId: string) => PlayerState | undefined;
 

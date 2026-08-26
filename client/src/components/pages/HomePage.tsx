@@ -20,6 +20,7 @@ import {
   Sparkles,
   ShieldAlert,
   Swords,
+  School,
   TriangleAlert,
   WifiOff,
 } from 'lucide-react';
@@ -68,6 +69,7 @@ interface HomePageProps {
   onNavigateToMatchRecords: () => void;
   onNavigateToOnlineDebug: () => void;
   onNavigateToAdminCenter: () => void;
+  onNavigateToTutorial: () => void;
   battleEntryVisibility: PlayerBattleEntryVisibility;
   siteStatus: PublicSiteStatus;
 }
@@ -112,6 +114,7 @@ export function HomePage({
   onNavigateToMatchRecords,
   onNavigateToOnlineDebug,
   onNavigateToAdminCenter,
+  onNavigateToTutorial,
   battleEntryVisibility,
   siteStatus,
 }: HomePageProps) {
@@ -286,7 +289,15 @@ export function HomePage({
                     },
                   };
 
-  const secondaryActions: ActionTileProps[] = [];
+  const secondaryActions: ActionTileProps[] = [
+    {
+      title: '新手教程',
+      icon: School,
+      onClick: onNavigateToTutorial,
+      status: '无需卡组 · 约 5 分钟',
+      tone: 'blue',
+    },
+  ];
 
   if (battleEntryVisibility.ranked) {
     secondaryActions.push({

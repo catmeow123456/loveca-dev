@@ -178,6 +178,8 @@ function getBattleSurfaceLabel(surface: BattleSurfaceKind): string {
       return '对墙打';
     case 'REMOTE_DEBUG':
       return '远程调试';
+    case 'TUTORIAL':
+      return '新手教程';
     case 'ONLINE':
     default:
       return '联机';

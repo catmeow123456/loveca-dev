@@ -7,6 +7,7 @@ export type BattleSurfaceKind =
   | 'LOCAL_DEBUG'
   | 'SOLITAIRE'
   | 'ONLINE'
+  | 'TUTORIAL'
   | 'REMOTE_DEBUG'
   | 'SPECTATOR_READONLY'
   | 'REPLAY_READONLY';
@@ -15,7 +16,7 @@ export type FreePlayPolicy = 'SESSION_GLOBAL' | 'COMMAND_FLAG';
 
 export type ScoreConfirmPresentation = 'DEBUG_PASSTHROUGH' | 'STANDARD_MODAL';
 
-export type RemoteBattleSessionSource = 'DEBUG' | 'ONLINE' | 'SOLITAIRE' | 'SPECTATOR';
+export type RemoteBattleSessionSource = 'DEBUG' | 'ONLINE' | 'SOLITAIRE' | 'SPECTATOR' | 'TUTORIAL';
 
 export interface BattleSurfaceCapabilities {
   readonly authority: BattleAuthority;
@@ -65,6 +66,7 @@ export function deriveBattleSurfaceCapabilities(
   const surface = deriveBattleSurfaceKind(input);
   const undoPolicy = deriveUndoPolicy(authority, surface);
   const isSpectatorReadonly = surface === 'SPECTATOR_READONLY';
+  const isTutorial = surface === 'TUTORIAL';
 
   return {
     authority,
@@ -75,7 +77,7 @@ export function deriveBattleSurfaceCapabilities(
     canRestart: surface === 'LOCAL_DEBUG' || surface === 'SOLITAIRE',
     canUndo: undoPolicy !== 'NONE',
     undoPolicy,
-    showFreePlayControl: !isSpectatorReadonly,
+    showFreePlayControl: !isSpectatorReadonly && !isTutorial,
     freePlayPolicy: authority === 'LOCAL' ? 'SESSION_GLOBAL' : 'COMMAND_FLAG',
     isSolitairePresentation: surface === 'SOLITAIRE',
     scoreConfirmPresentation: surface === 'LOCAL_DEBUG' ? 'DEBUG_PASSTHROUGH' : 'STANDARD_MODAL',
@@ -105,6 +107,9 @@ function deriveBattleSurfaceKind(input: BattleSurfaceCapabilityInput): BattleSur
   }
   if (input.remoteSessionSource === 'SOLITAIRE') {
     return 'SOLITAIRE';
+  }
+  if (input.remoteSessionSource === 'TUTORIAL') {
+    return 'TUTORIAL';
   }
   if (input.remoteSessionSource === 'SPECTATOR') {
     return 'SPECTATOR_READONLY';

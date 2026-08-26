@@ -114,6 +114,30 @@ describe('battle surface capabilities', () => {
     );
   });
 
+  it('派生独立教程桌面能力', () => {
+    expectCapabilities(
+      deriveBattleSurfaceCapabilities({
+        gameMode: GameMode.DEBUG,
+        remoteSessionSource: 'TUTORIAL',
+      }),
+      {
+        authority: 'REMOTE',
+        surface: 'TUTORIAL',
+        canSwitchPerspective: false,
+        canSwitchLocalMode: false,
+        canShowDebugLog: false,
+        canRestart: false,
+        canUndo: false,
+        undoPolicy: 'NONE',
+        showFreePlayControl: false,
+        freePlayPolicy: 'COMMAND_FLAG',
+        isSolitairePresentation: false,
+        scoreConfirmPresentation: 'STANDARD_MODAL',
+        isReadOnly: false,
+      }
+    );
+  });
+
   it('派生玩家视角观战只读桌面能力', () => {
     expectCapabilities(
       deriveBattleSurfaceCapabilities({

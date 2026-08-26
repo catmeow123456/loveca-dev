@@ -54,6 +54,7 @@ import {
 } from '@game/shared/types/enums';
 import { isSuccessEffectSubPhase } from '@game/shared/phase-config';
 import { useGameStore } from '@/store/gameStore';
+import { BATTLE_UI_ANCHORS } from '@/lib/battleUiAnchors';
 import { DroppableZone } from './interaction';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
 import {
@@ -204,37 +205,6 @@ function getPreviewStatusClass(status: LiveJudgmentPreviewStatus): string {
     case 'UNKNOWN':
       return 'border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_13%,transparent)] text-[var(--semantic-warning)]';
   }
-}
-
-function getJudgmentPanelHint({
-  isPerformanceJudgment,
-  isResultScoreConfirm,
-  isResultAnimation,
-  isResultSettlement,
-  isLiveSuccessWindow,
-}: {
-  isPerformanceJudgment: boolean;
-  isResultScoreConfirm: boolean;
-  isResultAnimation: boolean;
-  isResultSettlement: boolean;
-  isLiveSuccessWindow: boolean;
-}): string {
-  if (isPerformanceJudgment) {
-    return '可调整判定区卡牌后接受自动判定。';
-  }
-  if (isResultScoreConfirm) {
-    return '分数最终确认在中央弹窗处理。';
-  }
-  if (isResultAnimation) {
-    return '当前正在播放本轮 Live 胜者动画。';
-  }
-  if (isResultSettlement) {
-    return '成功 Live 结算在中央弹窗处理。';
-  }
-  if (isLiveSuccessWindow) {
-    return '可继续查看和操作判定区卡牌。';
-  }
-  return '当前面板可用于查看和操作判定区卡牌。';
 }
 
 // ============================================
@@ -871,18 +841,9 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   const previewStatusLabel = getPreviewStatusLabel(liveJudgmentPreview.status);
   const previewScoreText =
     liveJudgmentPreview.totalScore === null ? '--' : String(liveJudgmentPreview.totalScore);
-  const judgmentPanelHint = isViewingActiveSeat
-    ? getJudgmentPanelHint({
-        isPerformanceJudgment,
-        isResultScoreConfirm,
-        isResultAnimation,
-        isResultSettlement,
-        isLiveSuccessWindow,
-      })
-    : '当前显示非行动方的判定信息，仅供查看；切回当前行动方后可继续操作。';
-
   return (
     <motion.aside
+      data-battle-ui-anchor={BATTLE_UI_ANCHORS.JUDGMENT_PANEL}
       className="safe-bottom safe-top pointer-events-auto fixed inset-0 z-[var(--z-battle-modal)] h-[var(--battle-viewport-height)] w-full max-w-none overflow-hidden border-[var(--border-default)] bg-[var(--bg-frosted)] p-3 shadow-[var(--shadow-lg)] backdrop-blur-xl md:left-0 md:top-0 md:h-full md:max-w-[420px] md:overflow-visible md:border-r md:p-4"
       role="dialog"
       aria-modal={isMobilePanel}
@@ -932,7 +893,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       </div>
 
       <div className="cute-scrollbar touch-scroll h-[calc(100%-4rem)] overflow-y-auto pr-1">
-        <div className="mb-4">
+        <div data-battle-ui-anchor={BATTLE_UI_ANCHORS.JUDGMENT_CHEER_CARDS} className="mb-4">
           <div className="mb-2 flex min-w-0 items-center justify-between gap-2 border-b border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] pb-2">
             <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-[var(--accent-secondary)]">
               <Mic size={15} className="shrink-0" />
@@ -1100,7 +1061,10 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
         </div>
 
         {/* ======== 下方：Live 判定区 ======== */}
-        <div className="border-t border-[var(--border-subtle)] pt-3">
+        <div
+          data-battle-ui-anchor={BATTLE_UI_ANCHORS.JUDGMENT_SUMMARY}
+          className="border-t border-[var(--border-subtle)] pt-3"
+        >
           <div className="space-y-3">
             <JudgmentInfoBlock
               title="判定 Heart"
@@ -1191,12 +1155,6 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
                 )}
               </div>
             </JudgmentInfoBlock>
-
-            <JudgmentInfoBlock title="提示">
-              <div className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
-                {judgmentPanelHint}
-              </div>
-            </JudgmentInfoBlock>
           </div>
         </div>
 
@@ -1209,6 +1167,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
             )}
           >
             <button
+              data-battle-ui-anchor={BATTLE_UI_ANCHORS.AUTOMATIC_JUDGMENT_CONFIRM}
               onClick={handleAcceptAutoJudgment}
               disabled={!canSubmitViewedJudgment}
               className={cn(

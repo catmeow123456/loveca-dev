@@ -1928,7 +1928,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         publicBattleLog: { ...EMPTY_PUBLIC_BATTLE_LOG, matchId: session.matchId },
         ui: clearTransientBattleUi(state.ui),
       }));
-      if (session.source !== 'SPECTATOR') {
+      if (session.source !== 'SPECTATOR' && session.source !== 'TUTORIAL') {
         void get().syncPublicBattleLog();
       }
     },
@@ -1978,8 +1978,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
       const isSpectator = get().remoteSession?.source === 'SPECTATOR';
+      const isTutorial = get().remoteSession?.source === 'TUTORIAL';
       applyRemoteSnapshotThenPreload(snapshot, set, 'store.applyRemoteSnapshot', {
-        syncPublicBattleLog: !isSpectator,
+        syncPublicBattleLog: !isSpectator && !isTutorial,
       });
       if (isSpectator) {
         await syncPublicBattleLogIfNeeded(snapshot.matchId, snapshot.currentPublicSeq);
@@ -2079,7 +2080,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
 
       applyRemoteSnapshotThenPreload(snapshotResult.snapshot, set, 'syncRemoteState', {
-        syncPublicBattleLog: remoteSession.source !== 'SPECTATOR',
+        syncPublicBattleLog:
+          remoteSession.source !== 'SPECTATOR' && remoteSession.source !== 'TUTORIAL',
       });
       if (remoteSession.source === 'SPECTATOR') {
         await syncPublicBattleLogIfNeeded(

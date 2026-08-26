@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, ShieldCheck } from 'lucide-react';
 import { GameCommandType } from '@game/application/game-commands';
 import { useGameStore } from '@/store/gameStore';
+import { BATTLE_UI_ANCHORS } from '@/lib/battleUiAnchors';
 import { GamePhase, SubPhase } from '@game/shared/types/enums';
 import { useKeyedState } from '@/hooks/useKeyedState';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
@@ -71,6 +72,7 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
         exit={{ opacity: 0 }}
       >
         <motion.div
+          data-battle-ui-anchor={BATTLE_UI_ANCHORS.SCORE_CONFIRM}
           ref={dialogRef}
           role="dialog"
           aria-modal="true"
@@ -137,6 +139,7 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
           )}
 
           <button
+            data-battle-ui-anchor={BATTLE_UI_ANCHORS.SCORE_CONFIRM_ACTION}
             type="button"
             onClick={() => confirmScore(canAdjustScore ? adjustedScore : undefined)}
             disabled={!canConfirm}

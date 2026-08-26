@@ -34,7 +34,7 @@
 graph TB
     subgraph Client[前端应用]
         UI[页面与组件]
-        GS[gameStore/deckStore/authStore/rankedStore/themeTableStore]
+        GS[gameStore/deckStore/authStore/rankedStore/themeTableStore/tutorialStore]
         APIClient[API 客户端]
     end
 
@@ -49,11 +49,12 @@ graph TB
 
     subgraph Server[服务端 API]
         App[Express App]
-        Routes[Auth/Cards/Decks/Profiles/Images/Online/Battle/Ranked/Theme Table/Admin Users]
+        Routes[Auth/Cards/Decks/Profiles/Images/Online/Battle/Tutorial/Ranked/Theme Table/Admin Users]
         Middleware[鉴权、Permission 与校验中间件]
         OnlineSvc[OnlineRoomService + OnlineMatchService + SolitaireMatchService]
         RankedSvc[Ranked Season/Queue/Rating/Admin Services]
         ThemeSvc[Theme Table Player/Admin/Allocation/Recovery Services]
+        TutorialSvc[Tutorial Session/Scenario Services]
     end
 
     subgraph Infra[基础设施]
@@ -77,6 +78,7 @@ graph TB
     Routes --> OnlineSvc
     Routes --> RankedSvc
     Routes --> ThemeSvc
+    Routes --> TutorialSvc
     Routes --> PG
     Routes --> MinIO
 ```
@@ -346,9 +348,11 @@ graph TB
 - `authStore`：认证、会话恢复、个人资料与凭据更新、离线模式
 - `rankedStore`：赛季总览与跨页面排位候场、确认和取消状态
 - `themeTableStore`：主题活动总览与跨页面候场、确认、分配和开局前恢复状态
+- `tutorialStore`：只在当前页面生命周期内持有教程访问令牌、玩家投影和公开命令回执，并通过 `remoteMatchClient` 把教程会话接入共享 `gameStore` 桌面；现有本地或远程对局占用会阻止教程接管牌桌
 - `MatchmakingAudioLayer`：统一订阅公共牌桌、赛季排位和娱乐模式候场状态；候场时由 `MatchmakingAudioPlayer` 随机循环一首等待音乐，形成配对后按预留身份只播放一次提示音。音频在用户加入候场的操作中主动启动，以满足浏览器播放授权；候场音乐自动播放被拒绝时只等待后续用户操作重试，任何音频失败都不改变候场、确认或进房状态
 - `UpdateCoordinator`：在应用渲染后统一接收 `version.json` 与 prompt 型 Service Worker 的更新信号；版本发现只产生非阻断提示，进行中的本地/远程对局不提供更新入口，玩家在安全页面确认后才激活 waiting worker 并执行单次刷新
 - `GameBoard`：拖拽与对局主交互容器
+- `TutorialPage` / `TutorialBattleSurface`：组合共享牌桌、公开步骤控制器和独立聚焦层；聚焦层只读取稳定语义锚点与当前玩家可见对象，不直接提交或模拟规则结果
 
 代码路径：
 
@@ -357,12 +361,16 @@ graph TB
 - `client/src/store/authStore.ts`
 - `client/src/store/rankedStore.ts`
 - `client/src/store/themeTableStore.ts`
+- `client/src/store/tutorialStore.ts`
 - `client/src/lib/matchmakingAudio.ts`
 - `client/src/components/matchmaking/MatchmakingAudioLayer.tsx`
 - `client/src/lib/appUpdateCoordinator.ts`
 - `client/src/lib/appUpdateRegistration.ts`
 - `client/src/components/common/AppUpdateNotice.tsx`
 - `client/src/components/pages/ThemeTablePage.tsx`
+- `client/src/components/pages/TutorialPage.tsx`
+- `client/src/components/tutorial/`
+- `client/src/lib/tutorialScenario.ts`
 - `client/src/components/theme-table/ThemeTableGlobalLayer.tsx`
 - `client/src/components/pages/AccountCenterPage.tsx`
 - `client/src/components/game/`
@@ -385,6 +393,7 @@ graph LR
     App --> SiteAnnouncementsR[Site Announcements Route]
     App --> OnlineR[Online Route]
     App --> BattleR[Battle Route]
+    App --> TutorialR[Tutorial Route]
     App --> RankedR[Ranked Route]
     App --> RankedAdminR[Ranked Admin Route]
     App --> PlayerBadgesR[Player Badges Route]
@@ -399,6 +408,7 @@ graph LR
     SiteAnnouncementsR --> OpsSvc
     OnlineR --> OnlineSvc[online-room-service + online-match-service]
     BattleR --> OnlineSvc
+    TutorialR --> TutorialSvc[tutorial-session-service + basic-live-tutorial-scenario]
     RankedR --> RankedSvc[ranked-player-service + ranked-runtime-service]
     RankedAdminR --> RankedAdminSvc[ranked-admin-service + ranked-season-service + ranked-rating-service]
     PlayerBadgesR --> PlayerBadgeSvc[player-badge-service]
@@ -421,6 +431,7 @@ graph LR
 - `src/server/routes/site-announcements.ts`
 - `src/server/routes/online.ts`
 - `src/server/routes/battle.ts`
+- `src/server/routes/tutorial.ts`
 - `src/server/routes/ranked.ts`
 - `src/server/routes/ranked-admin.ts`
 - `src/server/routes/player-badges.ts`
@@ -436,6 +447,8 @@ graph LR
 - `src/server/middleware/require-permission.ts`
 - `src/server/middleware/require-gameplay-available.ts`
 - `src/server/services/`
+- `src/server/services/tutorial-session-service.ts`
+- `src/server/services/basic-live-tutorial-scenario.ts`
 
 认证与会话链路：
 
@@ -573,6 +586,7 @@ graph TD
 - 配置化阶段/子阶段驱动的主流程
 - 动作处理器体系与规则动作校正链路
 - Live 结算主流程、手动判定确认与分数确认链路
+- 四章新手教程：`TutorialSessionService` 使用真实 `GameSession`、确定性随机决策带和正式命令建立临时权威会话，HTTP transport 只返回教程玩家投影、公开对象绑定及本人命令回执；前端以 `TutorialBattleSurface` 复用共享牌桌，并由独立引导层处理步骤、聚焦、响应式和 reduced-motion。教程会话不写正式对局记录，进程内 TTL、访客限流与现有牌桌占用保护构成当前运行边界
 - 本地双人调试模式与对墙打模式：`client/src/components/pages/GameSetupPage.tsx` 按快速匹配、活动对战和其他对战组织公共牌桌、赛季排位、娱乐模式、房间联机、对墙打和双人调试入口，并保留本地模式的分步选组；`client/src/lib/debugPerspective.ts` 与 `client/src/store/gameStore.ts` 在本地双人调试的 `RULES` 模式下按玩家视图权限自动跟随当前操作方，`client/src/components/game/GameBoard.tsx` 同时为桌面和移动端保留显式视角切换与确认式重开入口
 - 认证、卡组、卡牌、图片管理 API
 - 版本化 PT 限制表：`src/domain/rules/deck-point-table.ts` 定义显式规则快照，`src/server/services/deck-point-table-service.ts` 以 PostgreSQL 事务维护 `DRAFT / SCHEDULED / ACTIVE / RETIRED` 状态、revision 乐观锁和审计日志。定时版本以 `Asia/Shanghai` 解析精确到秒的本地时间；排期改到当前/过去、立即发布及 ACTIVE 废弃替换都在单事务中切换，且任何成功操作提交前强制校验有且仅有一张 ACTIVE 表。`/api/deck-point-tables/current` 仅暴露玩家校验所需字段，卡组保存和对局准入始终以服务端 ACTIVE 表为权威；`client/src/store/deckPointTableStore.ts` 只将内置的已确认表用作离线/启动失败展示回退。管理员通过 `DeckPointTablesAdminPage` 完成任意状态表的编辑、差异预览、发布、取消排期、废弃/替换、删除已退役表和历史复制。

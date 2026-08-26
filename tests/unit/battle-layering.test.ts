@@ -4,11 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 const INDEX_CSS_PATH = path.resolve('client/src/index.css');
 const PLAYER_AREA_PATH = path.resolve('client/src/components/game/PlayerArea.tsx');
-const MATCH_RECORDS_PAGE_PATH = path.resolve(
-  'client/src/components/pages/MatchRecordsPage.tsx'
-);
-const CARD_DETAIL_OVERLAY_PATH = path.resolve(
-  'client/src/components/game/CardDetailOverlay.tsx'
+const MATCH_RECORDS_PAGE_PATH = path.resolve('client/src/components/pages/MatchRecordsPage.tsx');
+const CARD_DETAIL_OVERLAY_PATH = path.resolve('client/src/components/game/CardDetailOverlay.tsx');
+const TUTORIAL_GUIDANCE_LAYER_PATH = path.resolve(
+  'client/src/components/tutorial/TutorialGuidanceLayer.tsx'
 );
 
 function readZIndexToken(css: string, token: string): number {
@@ -29,6 +28,7 @@ describe('battle overlay layering', () => {
     const modalActionMenu = readZIndexToken(css, 'z-battle-modal-action-menu');
     const cardDetailBackdrop = readZIndexToken(css, 'z-card-detail-backdrop');
     const cardDetail = readZIndexToken(css, 'z-card-detail');
+    const tutorialGuidance = readZIndexToken(css, 'z-tutorial-guidance');
 
     expect(replaySurface).toBeLessThan(ordinaryActionMenu);
     expect(ordinaryActionMenu).toBeLessThan(modalBackdrop);
@@ -36,6 +36,7 @@ describe('battle overlay layering', () => {
     expect(modal).toBeLessThan(modalActionMenu);
     expect(modalActionMenu).toBeLessThan(cardDetailBackdrop);
     expect(cardDetailBackdrop).toBeLessThan(cardDetail);
+    expect(cardDetail).toBeLessThan(tutorialGuidance);
   });
 
   it('uses the modal action-menu layer for waiting-room activated abilities', () => {
@@ -54,5 +55,12 @@ describe('battle overlay layering', () => {
     expect(source.match(/z-\[var\(--z-card-detail\)\]/g)).toHaveLength(2);
     expect(source).toContain('z-[var(--z-card-detail-backdrop)]');
     expect(source).not.toMatch(/z-\[(119|120|200)\]/);
+  });
+
+  it('keeps tutorial guidance above modal surfaces while passing through board interaction', () => {
+    const source = fs.readFileSync(TUTORIAL_GUIDANCE_LAYER_PATH, 'utf8');
+    expect(source).toContain('pointer-events-none fixed z-[var(--z-tutorial-guidance)]');
+    expect(source).toContain('pointer-events-auto absolute flex flex-col');
+    expect(source).not.toContain('fixed inset-0 z-[120]');
   });
 });

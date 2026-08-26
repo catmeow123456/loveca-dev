@@ -59,6 +59,7 @@ import { usePublicTableStore } from '@/store/publicTableStore';
 import { useRankedStore } from '@/store/rankedStore';
 import { usePlayerWallpaperStore } from '@/store/playerWallpaperStore';
 import { useThemeTableStore } from '@/store/themeTableStore';
+import { useTutorialStore } from '@/store/tutorialStore';
 import { cardService } from '@/lib/cardService';
 import { PublicTableGlobalLayer } from '@/components/public-table/PublicTableGlobalLayer';
 import { RankedGlobalLayer } from '@/components/ranked/RankedGlobalLayer';
@@ -72,8 +73,12 @@ import {
   loadPublicSiteStatusSnapshot,
   type PublicSiteStatusSnapshotResult,
 } from '@/lib/publicSiteStatusSnapshot';
+import { resolveTutorialHistoryTransition } from '@/lib/tutorialNavigation';
 
 const GameBoard = lazy(() => import('@/components/game/GameBoard'));
+const TutorialPage = lazy(() =>
+  import('@/components/pages/TutorialPage').then((module) => ({ default: module.TutorialPage }))
+);
 const DeckManager = lazy(() =>
   import('@/components/deck/DeckManager').then((module) => ({ default: module.DeckManager }))
 );
@@ -198,6 +203,7 @@ type AuthPage =
   | 'verify-email-change';
 type AppPage =
   | 'home'
+  | 'tutorial'
   | 'account'
   | 'deck-manager'
   | 'game-setup'
@@ -224,6 +230,7 @@ type AppPage =
   | 'platform-operations-admin';
 
 const CARD_DATA_INDEPENDENT_PAGES = new Set<AppPage>([
+  'tutorial',
   'admin-center',
   'card-admin',
   'card-sync-admin',
@@ -280,8 +287,11 @@ function getInitialAuthRequest(): InitialAuthRequest {
 }
 
 function getInitialPage(): AppPage {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  if (path === '/tutorial') return 'tutorial';
   const page = new URLSearchParams(window.location.search).get('page');
   if (
+    page === 'tutorial' ||
     page === 'deck-manager' ||
     page === 'account' ||
     page === 'game-setup' ||
@@ -358,6 +368,31 @@ function App() {
     },
     [setCurrentPage]
   );
+  const openTutorial = useCallback(() => {
+    window.history.pushState(null, '', '/tutorial');
+    setCurrentPage('tutorial');
+  }, [setCurrentPage]);
+  const exitTutorial = useCallback(() => {
+    window.history.replaceState(null, '', '/');
+    setCurrentPage('home');
+    setAuthPage('landing');
+  }, [setCurrentPage]);
+  useEffect(() => {
+    const handlePopState = () => {
+      const nextPage = getInitialPage();
+      const transition = resolveTutorialHistoryTransition(currentPageRef.current, nextPage);
+      if (!transition) return;
+      if (transition === 'EXIT') {
+        void useTutorialStore.getState().stop();
+        useGameStore.getState().disconnectRemoteSession();
+        setAuthPage('landing');
+      }
+      setCurrentPage(nextPage);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [setCurrentPage]);
   const enterOnlineRoom = useCallback(async () => {
     // 匹配期间允许玩家继续进行对墙打。真人房间就绪后，先结束这个
     // 可恢复的对墙打会话，避免旧远程桌面和新房间同时占用当前视图。
@@ -937,6 +972,15 @@ function App() {
     );
   }
 
+  if (effectivePage === 'tutorial') {
+    return (
+      <>
+        <AppSurfaceTiming surface="tutorial" dataSource="tutorial-session" />
+        <TutorialPage onExit={exitTutorial} />
+      </>
+    );
+  }
+
   if (!isAuthenticated) {
     const visibleAuthPage = shareLoginRequested && authPage === 'landing' ? 'login' : authPage;
     const loginSubtitle =
@@ -975,6 +1019,7 @@ function App() {
               onSpectate={() => {
                 window.location.href = '/online/spectate';
               }}
+              onTutorial={openTutorial}
               onTryOffline={() => {
                 setCurrentPage('game-setup');
                 setError(null);
@@ -1504,6 +1549,7 @@ function App() {
         onNavigateToMatchRecords={() => setCurrentPage('match-records')}
         onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
         onNavigateToAdminCenter={() => setCurrentPage('admin-center')}
+        onNavigateToTutorial={openTutorial}
         battleEntryVisibility={appConfig.features.battleEntries}
         siteStatus={appConfig.siteStatus}
       />

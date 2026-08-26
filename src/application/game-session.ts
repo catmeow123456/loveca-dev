@@ -10,6 +10,7 @@
  */
 
 import { GameService, type DeckConfig, type GameOperationResult } from './game-service.js';
+import { PhaseManager } from './phase-manager.js';
 import {
   isOwnDeskFreeDragCommand,
   isOwnDeskFreeDragWindow,
@@ -39,6 +40,7 @@ import {
   ZoneType,
 } from '../shared/types/enums.js';
 import type { ManualOperationMode } from '../shared/types/manual-operation-mode.js';
+import type { RandomIntegerSource } from '../shared/random-source.js';
 import { resolveBlindCardSelectionToken } from '../shared/utils/blind-card-selection.js';
 import type {
   GameEventLogEntry,
@@ -287,6 +289,8 @@ export interface GameSessionOptions {
   onEvent?: (event: GameSessionEvent) => void;
   /** 权威时钟；仅供服务端 deadline 与确定性测试使用。 */
   now?: () => number;
+  /** 受信任场景与确定性测试的随机边界；普通会话不得由客户端提供。 */
+  randomInt?: RandomIntegerSource;
   /**
    * 只允许历史测试夹具直接提交旧式 GameAction。
    *
@@ -419,7 +423,7 @@ export class GameSession {
   private publicRevealGenerationEpoch = 0;
 
   constructor(options: GameSessionOptions = {}) {
-    this.gameService = new GameService();
+    this.gameService = new GameService(new PhaseManager(), options.randomInt);
     this._gameMode = options.gameMode ?? GameMode.DEBUG;
     this.options = options;
   }
@@ -1197,11 +1201,7 @@ export class GameSession {
       iterations < MAX_MODE_AUTOMATION_ITERATIONS &&
       this.authorityState.currentPhase !== GamePhase.GAME_END
     ) {
-      const automation = policy.getNextAutomation(
-        this.authorityState,
-        triggerPlayerId,
-        this.now()
-      );
+      const automation = policy.getNextAutomation(this.authorityState, triggerPlayerId, this.now());
       if (!automation) {
         break;
       }
@@ -1282,8 +1282,7 @@ export class GameSession {
       this.recordCommand(recordedCommand, 'REJECTED', validated);
       this.appendSealedAuditRecord(this.authorityState, {
         type: 'COMMAND_REJECTED',
-        actorSeat:
-          getSeatForPlayer(this.authorityState, recordedCommand.playerId) ?? undefined,
+        actorSeat: getSeatForPlayer(this.authorityState, recordedCommand.playerId) ?? undefined,
         payload: {
           commandType: recordedCommand.type,
           playerId: recordedCommand.playerId,
@@ -1291,11 +1290,7 @@ export class GameSession {
           error: validated,
         },
       });
-      console.warn(
-        '[GameSession] 模式自动化命令校验失败:',
-        recordedCommand.type,
-        validated
-      );
+      console.warn('[GameSession] 模式自动化命令校验失败:', recordedCommand.type, validated);
       return false;
     }
 
@@ -1304,8 +1299,7 @@ export class GameSession {
       this.recordCommand(recordedCommand, 'REJECTED', result.error);
       this.appendSealedAuditRecord(this.authorityState, {
         type: 'COMMAND_REJECTED',
-        actorSeat:
-          getSeatForPlayer(this.authorityState, recordedCommand.playerId) ?? undefined,
+        actorSeat: getSeatForPlayer(this.authorityState, recordedCommand.playerId) ?? undefined,
         payload: {
           commandType: recordedCommand.type,
           playerId: recordedCommand.playerId,
@@ -1313,11 +1307,7 @@ export class GameSession {
           error: result.error ?? '命令执行失败',
         },
       });
-      console.warn(
-        '[GameSession] 模式自动化命令执行失败:',
-        recordedCommand.type,
-        result.error
-      );
+      console.warn('[GameSession] 模式自动化命令执行失败:', recordedCommand.type, result.error);
       return false;
     }
 
@@ -2834,7 +2824,10 @@ export class GameSession {
     }
   }
 
-  private applySurrenderCommand(state: GameState, command: SurrenderCommand): CommandExecutionResult {
+  private applySurrenderCommand(
+    state: GameState,
+    command: SurrenderCommand
+  ): CommandExecutionResult {
     const winnerId = state.players.find((player) => player.id !== command.playerId)?.id ?? null;
     if (!winnerId) {
       return { success: false, gameState: state, error: '无法确定对手玩家' };
@@ -4460,12 +4453,7 @@ export class GameSession {
         from: buildZoneRefForMove(state, command.playerId, command.cardId, command.fromZone, {
           slot: sourceSlot,
         }),
-        to: buildZoneRefForMove(
-          result.gameState,
-          command.playerId,
-          command.cardId,
-          ZoneType.HAND
-        ),
+        to: buildZoneRefForMove(result.gameState, command.playerId, command.cardId, ZoneType.HAND),
       }),
     ];
 

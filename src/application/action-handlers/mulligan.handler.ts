@@ -76,10 +76,13 @@ export const handleMulligan: ActionHandler<MulliganAction> = (
     // 3. 将暂放的牌放回主卡组，然后洗牌
     state = updatePlayer(state, playerId, (p) => ({
       ...p,
-      mainDeck: shuffleZone({
-        ...p.mainDeck,
-        cardIds: [...p.mainDeck.cardIds, ...cardIdsToMulligan],
-      }),
+      mainDeck: shuffleZone(
+        {
+          ...p.mainDeck,
+          cardIds: [...p.mainDeck.cardIds, ...cardIdsToMulligan],
+        },
+        ctx.randomInt
+      ),
     }));
 
     // 记录换牌动作
