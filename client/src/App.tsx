@@ -66,6 +66,7 @@ import { ThemeTableGlobalLayer } from '@/components/theme-table/ThemeTableGlobal
 import { hasAnyManagementPermission, hasPermission } from '@game/shared/auth/permissions';
 import type { DeckClassifierTemplateImportSource } from '@/components/admin/DeckClassifierAdminPage';
 import { AUTHORIZATION_STALE_EVENT } from '@/lib/apiClient';
+import { markAppDataReady, markAppSurfaceReady, startAppNavigation } from '@/lib/appPerformance';
 import {
   loadPublicSiteStatusSnapshot,
   type PublicSiteStatusSnapshotResult,
@@ -311,6 +312,17 @@ function getInitialPage(): AppPage {
   return 'home';
 }
 
+function AppSurfaceTiming({ surface, dataSource }: { surface: string; dataSource?: string }) {
+  useEffect(() => {
+    markAppSurfaceReady(surface);
+    if (dataSource) {
+      markAppDataReady(dataSource, 'cold', { surface });
+    }
+  }, [dataSource, surface]);
+
+  return null;
+}
+
 function App() {
   const [initialAuthRequest] = useState<InitialAuthRequest>(() => getInitialAuthRequest());
   const isInitialAuthActionPage =
@@ -322,17 +334,29 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [authPage, setAuthPage] = useState<AuthPage>(initialAuthRequest.page);
   const [authToken, setAuthToken] = useState<string | null>(initialAuthRequest.token);
-  const [currentPage, setCurrentPage] = useState<AppPage>(getInitialPage);
+  const [currentPage, setCurrentPageState] = useState<AppPage>(getInitialPage);
+  const currentPageRef = useRef(currentPage);
+  const setCurrentPage = useCallback((nextPage: AppPage) => {
+    const previousPage = currentPageRef.current;
+    if (previousPage !== nextPage) {
+      startAppNavigation(previousPage, nextPage);
+      currentPageRef.current = nextPage;
+    }
+    setCurrentPageState(nextPage);
+  }, []);
   const [deckClassifierTemplateImport, setDeckClassifierTemplateImport] =
     useState<DeckClassifierTemplateImportSource | null>(null);
   const maintenanceAdminRequested =
     new URLSearchParams(window.location.search).get('maintenanceAdmin') === '1' &&
     currentPage === 'announcement-admin';
   const [deckManagerReturnPage, setDeckManagerReturnPage] = useState<'home' | 'game-setup'>('home');
-  const openDeckManager = useCallback((returnPage: 'home' | 'game-setup' = 'home') => {
-    setDeckManagerReturnPage(returnPage);
-    setCurrentPage('deck-manager');
-  }, []);
+  const openDeckManager = useCallback(
+    (returnPage: 'home' | 'game-setup' = 'home') => {
+      setDeckManagerReturnPage(returnPage);
+      setCurrentPage('deck-manager');
+    },
+    [setCurrentPage]
+  );
   const enterOnlineRoom = useCallback(async () => {
     // 匹配期间允许玩家继续进行对墙打。真人房间就绪后，先结束这个
     // 可恢复的对墙打会话，避免旧远程桌面和新房间同时占用当前视图。
@@ -341,7 +365,7 @@ function App() {
       await currentGame.leaveCurrentGame();
     }
     setCurrentPage('online-room');
-  }, []);
+  }, [setCurrentPage]);
   const [appConfig, setAppConfig] = useState<PublicAppConfig>(DEFAULT_APP_CONFIG);
   const [configInitialized, setConfigInitialized] = useState(false);
   const [configLoadFailed, setConfigLoadFailed] = useState(false);
@@ -433,7 +457,7 @@ function App() {
     };
     window.addEventListener(AUTHORIZATION_STALE_EVENT, handleAuthorizationStale);
     return () => window.removeEventListener(AUTHORIZATION_STALE_EVENT, handleAuthorizationStale);
-  }, [invalidateSession]);
+  }, [invalidateSession, setCurrentPage]);
 
   useLayoutEffect(() => {
     setPublicTableSessionUser(publicTableSessionUserId);
@@ -776,6 +800,7 @@ function App() {
     offlineMode,
     profile,
     shareId,
+    setCurrentPage,
     spectatorToken,
     user,
   ]);
@@ -927,34 +952,37 @@ function App() {
     switch (visibleAuthPage) {
       case 'landing':
         return (
-          <PublicHomePage
-            onLogin={() => {
-              setCurrentPage('home');
-              setAuthPage('login');
-            }}
-            onRegister={() => {
-              setCurrentPage('home');
-              setAuthPage('register');
-            }}
-            onManageDecks={() => {
-              openDeckManager('home');
-              setAuthPage('login');
-            }}
-            onStartGame={() => {
-              setCurrentPage('game-setup');
-              setAuthPage('login');
-            }}
-            onSpectate={() => {
-              window.location.href = '/online/spectate';
-            }}
-            onTryOffline={() => {
-              setCurrentPage('game-setup');
-              setError(null);
-              enterOfflineMode('Guest');
-            }}
-            serviceAvailable={!error}
-            siteStatus={appConfig.siteStatus}
-          />
+          <>
+            <AppSurfaceTiming surface="public-home" />
+            <PublicHomePage
+              onLogin={() => {
+                setCurrentPage('home');
+                setAuthPage('login');
+              }}
+              onRegister={() => {
+                setCurrentPage('home');
+                setAuthPage('register');
+              }}
+              onManageDecks={() => {
+                openDeckManager('home');
+                setAuthPage('login');
+              }}
+              onStartGame={() => {
+                setCurrentPage('game-setup');
+                setAuthPage('login');
+              }}
+              onSpectate={() => {
+                window.location.href = '/online/spectate';
+              }}
+              onTryOffline={() => {
+                setCurrentPage('game-setup');
+                setError(null);
+                enterOfflineMode('Guest');
+              }}
+              serviceAvailable={!error}
+              siteStatus={appConfig.siteStatus}
+            />
+          </>
         );
       case 'register':
         return (
@@ -1094,6 +1122,7 @@ function App() {
         mobileMenuActions={authenticatedMobileMenuActions}
         immersive={immersive}
       >
+        <AppSurfaceTiming surface={effectivePage} />
         {content}
       </ProductFrame>
     );
@@ -1104,6 +1133,7 @@ function App() {
 
     return withPublicTableLayer(
       <BattleViewportShell>
+        <AppSurfaceTiming surface="game" dataSource="battle-view" />
         <GameBoard
           onRestartGame={
             currentGameRestartCopy
@@ -1174,19 +1204,22 @@ function App() {
   // 对局准备页面
   if (effectivePage === 'game-setup') {
     return withPublicTableLayer(
-      <GameSetupPage
-        navigation={productNavigation}
-        headerActions={authenticatedHeaderActions}
-        mobileMenuActions={authenticatedMobileMenuActions}
-        onBack={() => setCurrentPage('home')}
-        onGameStart={() => setCurrentPage('game')}
-        onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
-        onNavigateToPublicTable={() => setCurrentPage('public-table')}
-        onNavigateToRanked={() => setCurrentPage('ranked')}
-        onNavigateToThemeTable={() => setCurrentPage('theme-table')}
-        onManageDecks={() => openDeckManager('game-setup')}
-        battleEntryVisibility={appConfig.features.battleEntries}
-      />
+      <>
+        <AppSurfaceTiming surface="game-setup" />
+        <GameSetupPage
+          navigation={productNavigation}
+          headerActions={authenticatedHeaderActions}
+          mobileMenuActions={authenticatedMobileMenuActions}
+          onBack={() => setCurrentPage('home')}
+          onGameStart={() => setCurrentPage('game')}
+          onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
+          onNavigateToPublicTable={() => setCurrentPage('public-table')}
+          onNavigateToRanked={() => setCurrentPage('ranked')}
+          onNavigateToThemeTable={() => setCurrentPage('theme-table')}
+          onManageDecks={() => openDeckManager('game-setup')}
+          battleEntryVisibility={appConfig.features.battleEntries}
+        />
+      </>
     );
   }
 
@@ -1453,23 +1486,26 @@ function App() {
 
   // 主页
   return withPublicTableLayer(
-    <HomePage
-      navigation={productNavigation}
-      headerActions={authenticatedHeaderActions}
-      mobileMenuActions={authenticatedMobileMenuActions}
-      onNavigateToDeckManager={() => openDeckManager('home')}
-      onNavigateToGameSetup={() => setCurrentPage('game-setup')}
-      onAbandonSavedRoomForLocalGame={handleAbandonSavedRoomForLocalGame}
-      onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
-      onNavigateToRanked={() => setCurrentPage('ranked')}
-      onNavigateToThemeTable={() => setCurrentPage('theme-table')}
-      onNavigateToOnlineSpectator={() => setCurrentPage('online-spectator')}
-      onNavigateToMatchRecords={() => setCurrentPage('match-records')}
-      onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
-      onNavigateToAdminCenter={() => setCurrentPage('admin-center')}
-      battleEntryVisibility={appConfig.features.battleEntries}
-      siteStatus={appConfig.siteStatus}
-    />
+    <>
+      <AppSurfaceTiming surface="home" />
+      <HomePage
+        navigation={productNavigation}
+        headerActions={authenticatedHeaderActions}
+        mobileMenuActions={authenticatedMobileMenuActions}
+        onNavigateToDeckManager={() => openDeckManager('home')}
+        onNavigateToGameSetup={() => setCurrentPage('game-setup')}
+        onAbandonSavedRoomForLocalGame={handleAbandonSavedRoomForLocalGame}
+        onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
+        onNavigateToRanked={() => setCurrentPage('ranked')}
+        onNavigateToThemeTable={() => setCurrentPage('theme-table')}
+        onNavigateToOnlineSpectator={() => setCurrentPage('online-spectator')}
+        onNavigateToMatchRecords={() => setCurrentPage('match-records')}
+        onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
+        onNavigateToAdminCenter={() => setCurrentPage('admin-center')}
+        battleEntryVisibility={appConfig.features.battleEntries}
+        siteStatus={appConfig.siteStatus}
+      />
+    </>
   );
 }
 

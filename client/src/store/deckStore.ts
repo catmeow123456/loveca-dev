@@ -23,6 +23,11 @@ import {
   writeLocalDecks,
   type LocalDeck,
 } from '@/lib/localDeckStorage';
+import {
+  markAppBackgroundRefreshComplete,
+  markAppDataReady,
+  markAppDataRequestStart,
+} from '@/lib/appPerformance';
 
 const cloudDeckRequestGate = new LatestRequestGate();
 export const CLOUD_DECK_FRESHNESS_MS = 30_000;
@@ -128,10 +133,17 @@ export const useDeckStore = create<DeckState>((set, get) => {
     const hasSnapshot = state.cloudDecksLoadedAt !== null;
     const isFresh = hasSnapshot && Date.now() - state.cloudDecksLoadedAt! < CLOUD_DECK_FRESHNESS_MS;
     if (!forceRefresh && isFresh) {
+      markAppDataReady('cloud-decks', 'cache-fresh', { count: state.cloudDecks.length });
       return Promise.resolve();
     }
 
+    if (hasSnapshot) {
+      markAppDataReady('cloud-decks', 'cache-stale', { count: state.cloudDecks.length });
+    }
+
     const requestGeneration = cloudDeckRequestGate.begin();
+    const requestMode = hasSnapshot ? 'background' : 'cold';
+    markAppDataRequestStart('cloud-decks', requestMode, { forced: forceRefresh });
     set({
       cloudDeckLoadState: hasSnapshot ? 'REFRESHING' : 'LOADING',
       cloudError: null,
@@ -154,16 +166,24 @@ export const useDeckStore = create<DeckState>((set, get) => {
 
         if (result.error) {
           set({ cloudDeckLoadState: 'ERROR', cloudError: result.error.message });
+          if (hasSnapshot) {
+            markAppBackgroundRefreshComplete('cloud-decks', 'error');
+          }
           return;
         }
 
+        const decks = result.data ?? [];
         set({
-          cloudDecks: result.data ?? [],
+          cloudDecks: decks,
           cloudDeckOwnerId: ownerId,
           cloudDecksLoadedAt: Date.now(),
           cloudDeckLoadState: 'READY',
           cloudError: null,
         });
+        markAppDataReady('cloud-decks', requestMode, { count: decks.length });
+        if (hasSnapshot) {
+          markAppBackgroundRefreshComplete('cloud-decks', 'success', { count: decks.length });
+        }
       } catch (error) {
         if (
           !cloudDeckRequestGate.isCurrent(requestGeneration) ||
@@ -176,6 +196,9 @@ export const useDeckStore = create<DeckState>((set, get) => {
           cloudDeckLoadState: 'ERROR',
           cloudError: error instanceof Error ? error.message : '获取卡组失败',
         });
+        if (hasSnapshot) {
+          markAppBackgroundRefreshComplete('cloud-decks', 'error');
+        }
       } finally {
         if (
           cloudDeckRequestGate.isCurrent(requestGeneration) &&

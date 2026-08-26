@@ -6,8 +6,10 @@ import { applyTheme, readTheme } from '@/lib/theme';
 import { MotionConfig } from 'framer-motion';
 import { AppUpdateNotice } from '@/components/common/AppUpdateNotice';
 import { startAppUpdateChecks } from '@/lib/appUpdateRegistration';
+import { startDocumentNavigation } from '@/lib/appPerformance';
 import { useGameStore } from '@/store/gameStore';
 
+startDocumentNavigation(`${window.location.pathname}${window.location.search}`);
 applyTheme(readTheme());
 
 function AppRoot() {

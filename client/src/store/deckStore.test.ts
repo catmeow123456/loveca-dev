@@ -35,6 +35,9 @@ const mocks = vi.hoisted(() => {
     apiGet: vi.fn(),
     apiPost: vi.fn(),
     apiDelete: vi.fn(),
+    markAppBackgroundRefreshComplete: vi.fn(),
+    markAppDataReady: vi.fn(),
+    markAppDataRequestStart: vi.fn(),
     authStore,
     pointTableState,
     pointTableStore,
@@ -69,6 +72,12 @@ vi.mock('@/lib/localDeckStorage', () => ({
   createLocalDeckId: () => 'local-deck',
   readLocalDecks: () => [],
   writeLocalDecks: () => undefined,
+}));
+
+vi.mock('@/lib/appPerformance', () => ({
+  markAppBackgroundRefreshComplete: mocks.markAppBackgroundRefreshComplete,
+  markAppDataReady: mocks.markAppDataReady,
+  markAppDataRequestStart: mocks.markAppDataRequestStart,
 }));
 
 import { CLOUD_DECK_FRESHNESS_MS, useDeckStore } from './deckStore';
@@ -120,6 +129,9 @@ describe('deckStore cloud deck cache', () => {
     mocks.apiGet.mockReset();
     mocks.apiPost.mockReset();
     mocks.apiDelete.mockReset();
+    mocks.markAppBackgroundRefreshComplete.mockReset();
+    mocks.markAppDataReady.mockReset();
+    mocks.markAppDataRequestStart.mockReset();
     mocks.pointTableState.ensureLoaded.mockReset();
     mocks.pointTableState.ensureLoaded.mockResolvedValue(undefined);
     mocks.pointTableState.refresh.mockReset();
@@ -154,6 +166,10 @@ describe('deckStore cloud deck cache', () => {
       cloudDecks: [expect.objectContaining({ id: 'deck-a' })],
     });
     expect(mocks.pointTableState.refresh).not.toHaveBeenCalled();
+    expect(mocks.markAppDataRequestStart).toHaveBeenCalledWith('cloud-decks', 'cold', {
+      forced: false,
+    });
+    expect(mocks.markAppDataReady).toHaveBeenCalledWith('cloud-decks', 'cold', { count: 1 });
   });
 
   it('reuses one in-flight request for the same owner', async () => {
@@ -214,6 +230,7 @@ describe('deckStore cloud deck cache', () => {
       cloudError: '读取失败',
       cloudDecks: [existingDeck],
     });
+    expect(mocks.markAppBackgroundRefreshComplete).toHaveBeenCalledWith('cloud-decks', 'error');
   });
 
   it('keeps a cold failure distinct from a successful empty snapshot', async () => {
@@ -252,6 +269,9 @@ describe('deckStore cloud deck cache', () => {
 
     decks.resolve({ data: [], error: null });
     await first;
+    expect(mocks.markAppBackgroundRefreshComplete).toHaveBeenCalledWith('cloud-decks', 'success', {
+      count: 0,
+    });
   });
 
   it('rejects an old owner response after switching users', async () => {
