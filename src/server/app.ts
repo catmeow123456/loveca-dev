@@ -33,6 +33,7 @@ import { cardSyncRouter } from './routes/card-sync.js';
 import { deckClassifierAdminRouter } from './routes/deck-classifier-admin.js';
 import { activityCoverAdminRouter } from './routes/activity-covers.js';
 import { activityBadgeAdminRouter } from './routes/activity-badges.js';
+import { tutorialRouter } from './routes/tutorial.js';
 import { checkApplicationReadiness } from './services/readiness-service.js';
 
 export function createApp(): express.Express {
@@ -94,6 +95,7 @@ export function createApp(): express.Express {
   app.use('/api/site-announcements', siteAnnouncementsRouter);
   app.use('/api/online', onlineRouter);
   app.use('/api/battle', battleRouter);
+  app.use('/api/tutorial', tutorialRouter);
   app.use('/api/public-table', publicTableRouter);
   app.use('/api/ranked', rankedRouter);
   app.use('/api/player-badges', playerBadgesRouter);

@@ -47,6 +47,16 @@ import {
   hasWaitingRoomJudgmentStats,
 } from '@/lib/waitingRoomJudgmentStats';
 import { createScopedZoneId, createZoneId } from '@/lib/zoneUtils';
+import {
+  getBattleDeckAnchor,
+  getBattleEnergyZoneAnchor,
+  getBattleHandAnchor,
+  getBattleLiveZoneAnchor,
+  getBattlePlayerAreaAnchor,
+  getBattleStageAnchor,
+  getBattleSuccessLiveZoneAnchor,
+  getBattleWaitingRoomAnchor,
+} from '@/lib/battleUiAnchors';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useGameStore } from '@/store/gameStore';
 import { GameCommandType } from '@game/application/game-commands';
@@ -365,6 +375,7 @@ export const PlayerArea = memo(function PlayerArea({
   suppressSelectedHandCardActionMenu = false,
   onSelectedHandCardAction,
 }: PlayerAreaProps) {
+  const battlePlayerSide = isOpponent ? 'opponent' : 'self';
   const playerIdentity = useGameStore((s) => s.getPlayerIdentityForSeat(playerSeat));
   const viewerSeat = useGameStore((s) => s.getViewerSeat());
   const matchView = useGameStore((s) => s.getMatchView());
@@ -982,7 +993,18 @@ export const PlayerArea = memo(function PlayerArea({
 
     return (
       // 外层容器：包含成员卡和重叠的能量卡
-      <div key={position} className="relative flex flex-col items-center">
+      <div
+        key={position}
+        data-battle-ui-anchor={getBattleStageAnchor(
+          battlePlayerSide,
+          position === SlotPosition.LEFT
+            ? 'left'
+            : position === SlotPosition.CENTER
+              ? 'center'
+              : 'right'
+        )}
+        className="relative flex flex-col items-center"
+      >
         {/* 卡牌堆叠容器 - 使用 relative 定位实现重叠效果 */}
         <div className="relative aspect-[5/7] w-[clamp(56px,17vw,78px)] md:w-[clamp(80px,10vw,140px)]">
           {/* 能量卡层 - 在成员卡下方（Z-index 较低） */}
@@ -1300,6 +1322,7 @@ export const PlayerArea = memo(function PlayerArea({
       <DroppableZone
         id={getDroppableId(ZoneType.ENERGY_ZONE)}
         zoneId={createZoneId(ZoneType.ENERGY_ZONE)}
+        battleUiAnchor={getBattleEnergyZoneAnchor(battlePlayerSide)}
         disabled={!allowGeneralOwnZoneInteraction}
         disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
         className="flex flex-col items-start gap-0.5"
@@ -1435,6 +1458,7 @@ export const PlayerArea = memo(function PlayerArea({
       <DroppableZone
         id={deckDroppableId}
         zoneId={zoneId}
+        battleUiAnchor={getBattleDeckAnchor(battlePlayerSide, deckType)}
         disabled={!allowGeneralOwnZoneInteraction && !(isMainDeck && canReceiveInspectionDrop)}
         disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
         className="flex flex-col items-center gap-0.5"
@@ -1522,6 +1546,7 @@ export const PlayerArea = memo(function PlayerArea({
       <DroppableZone
         id={waitingRoomDroppableId}
         zoneId={createZoneId(ZoneType.WAITING_ROOM)}
+        battleUiAnchor={getBattleWaitingRoomAnchor(battlePlayerSide)}
         disabled={!allowGeneralOwnZoneInteraction && !canReceiveInspectionDrop}
         disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
         className="relative flex flex-col items-center gap-0.5"
@@ -1817,6 +1842,7 @@ export const PlayerArea = memo(function PlayerArea({
       <DroppableZone
         id={getDroppableId(ZoneType.SUCCESS_ZONE)}
         zoneId={createZoneId(ZoneType.SUCCESS_ZONE)}
+        battleUiAnchor={getBattleSuccessLiveZoneAnchor(battlePlayerSide)}
         disabled={isReadOnly || isOpponent}
         disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
         className="flex flex-col items-center gap-1 relative"
@@ -1893,6 +1919,7 @@ export const PlayerArea = memo(function PlayerArea({
       <DroppableZone
         id={getDroppableId(ZoneType.SUCCESS_ZONE)}
         zoneId={createZoneId(ZoneType.SUCCESS_ZONE)}
+        battleUiAnchor={getBattleSuccessLiveZoneAnchor(battlePlayerSide)}
         disabled={isReadOnly || isOpponent}
         disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
         className="flex h-[92px] w-full flex-col items-center justify-start gap-1 overflow-hidden"
@@ -2024,6 +2051,7 @@ export const PlayerArea = memo(function PlayerArea({
       <DroppableZone
         id={getDroppableId(ZoneType.ENERGY_ZONE)}
         zoneId={createZoneId(ZoneType.ENERGY_ZONE)}
+        battleUiAnchor={getBattleEnergyZoneAnchor(battlePlayerSide)}
         disabled={!allowGeneralOwnZoneInteraction}
         disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
         className={cn(
@@ -2284,6 +2312,7 @@ export const PlayerArea = memo(function PlayerArea({
         <DroppableZone
           id={getDroppableId(ZoneType.LIVE_ZONE)}
           zoneId={createZoneId(ZoneType.LIVE_ZONE)}
+          battleUiAnchor={getBattleLiveZoneAnchor(battlePlayerSide)}
           disabled={!canDropToLiveZone || liveZoneIsFull}
           disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
           className={cn(
@@ -2318,6 +2347,7 @@ export const PlayerArea = memo(function PlayerArea({
     // 对手 Live 区只显示
     return (
       <div
+        data-battle-ui-anchor={getBattleLiveZoneAnchor(battlePlayerSide)}
         className={cn(
           'rounded-lg px-1 py-2',
           isMobileBoard
@@ -2760,6 +2790,7 @@ export const PlayerArea = memo(function PlayerArea({
       return (
         <div
           data-animation-zone-id={getDroppableId(ZoneType.HAND)}
+          data-battle-ui-anchor={getBattleHandAnchor(battlePlayerSide)}
           className="relative h-[88px] w-full overflow-visible py-1 md:h-[104px]"
         >
           {Array.from({ length: visibleBackCount }, (_, idx) => (
@@ -2823,6 +2854,7 @@ export const PlayerArea = memo(function PlayerArea({
       <DroppableZone
         id={getDroppableId(ZoneType.HAND)}
         zoneId={createZoneId(ZoneType.HAND)}
+        battleUiAnchor={getBattleHandAnchor(battlePlayerSide)}
         disabled={!allowGeneralOwnZoneInteraction && !canReceiveInspectionDrop}
         disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
         className="relative h-[118px] w-full overflow-visible px-3 py-2 md:h-[138px] md:px-4 md:pr-72"
@@ -2983,6 +3015,7 @@ export const PlayerArea = memo(function PlayerArea({
     if (isOpponent) {
       return (
         <div
+          data-battle-ui-anchor={getBattlePlayerAreaAnchor(battlePlayerSide)}
           className={cn(
             'relative h-full min-h-0 overflow-hidden p-2 transition-colors',
             isActive && 'bg-rose-500/[0.06]',
@@ -3016,6 +3049,7 @@ export const PlayerArea = memo(function PlayerArea({
 
     return (
       <div
+        data-battle-ui-anchor={getBattlePlayerAreaAnchor(battlePlayerSide)}
         className={cn(
           'relative h-full min-h-0 overflow-hidden p-2 transition-colors',
           isActive && 'bg-rose-500/[0.06]',
@@ -3055,6 +3089,7 @@ export const PlayerArea = memo(function PlayerArea({
   if (isOpponent) {
     return (
       <div
+        data-battle-ui-anchor={getBattlePlayerAreaAnchor(battlePlayerSide)}
         className={cn(
           'relative h-full flex flex-col p-2 transition-colors',
           isActive && 'bg-rose-500/10',
@@ -3118,6 +3153,7 @@ export const PlayerArea = memo(function PlayerArea({
   // 己方区域：成员槽和Live区在顶部（靠近中央分隔线），手牌在底部
   return (
     <div
+      data-battle-ui-anchor={getBattlePlayerAreaAnchor(battlePlayerSide)}
       className={cn(
         'relative h-full flex flex-col p-2 transition-colors overflow-x-hidden',
         isActive && 'bg-rose-500/10',

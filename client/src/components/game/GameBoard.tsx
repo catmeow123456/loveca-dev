@@ -99,6 +99,7 @@ import {
   toggleEffectChoiceSelection,
 } from '@/lib/effectChoiceUi';
 import { cn } from '@/lib/utils';
+import { BATTLE_UI_ANCHORS } from '@/lib/battleUiAnchors';
 import { getMemberPlayOptions, type MemberPlayOptionView } from '@/lib/memberPlayOptions';
 import { isJudgmentPanelAvailable } from '@/lib/judgmentPanelAvailability';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -299,11 +300,19 @@ function didObjectMoveIntoMemberSlot(
   );
 }
 
-interface GameBoardProps {
+export interface GameBoardProps {
   onLeaveLocalGame?: () => void;
   onRestartGame?: () => void;
   showDesktopPublicBattleLogButton?: boolean;
   mobileHeaderActions?: ReactNode;
+  /** 默认保持现有自动继续；教程可关闭，让玩家亲自确认正式结果窗口。 */
+  resultAnimationAutoComplete?: boolean;
+  /** 默认按规则阶段显示；教程说明区位时可暂时隐藏换牌弹窗。 */
+  mulliganPanelVisible?: boolean;
+  /** 教学等受控流程可限制换牌候选；普通牌桌仍允许选择任意起手牌。 */
+  mulliganSelectableCardIds?: readonly string[] | null;
+  /** 教程可据此移动聚焦框；不会改变正式换牌规则。 */
+  onMulliganSelectionChange?: (selectedCardIds: readonly string[]) => void;
 }
 
 export const GameBoard = memo(function GameBoard({
@@ -311,6 +320,10 @@ export const GameBoard = memo(function GameBoard({
   onRestartGame,
   showDesktopPublicBattleLogButton = true,
   mobileHeaderActions,
+  resultAnimationAutoComplete = true,
+  mulliganPanelVisible = true,
+  mulliganSelectableCardIds = null,
+  onMulliganSelectionChange,
 }: GameBoardProps) {
   // 配置拖拽传感器：需要移动 5px 才开始拖拽，避免与双击冲突
   const sensors = useSensors(
@@ -399,7 +412,8 @@ export const GameBoard = memo(function GameBoard({
   const tableWallpaper = usePlayerTableWallpaper(isMobileBattlefield);
   const prefersReducedMotion = useReducedMotion() === true;
   const canShowDebugLog = capabilities.canShowDebugLog;
-  const canShowPublicBattleLog = capabilities.authority === 'REMOTE';
+  const canShowPublicBattleLog =
+    capabilities.authority === 'REMOTE' && capabilities.surface !== 'TUTORIAL';
   const canShowDesktopPublicBattleLogButton =
     canShowPublicBattleLog && showDesktopPublicBattleLogButton;
   const isReadOnly = capabilities.isReadOnly;
@@ -2262,15 +2276,18 @@ export const GameBoard = memo(function GameBoard({
   const canShowBattleLeaveButton =
     capabilities.surface === 'LOCAL_DEBUG' ||
     capabilities.surface === 'SOLITAIRE' ||
-    capabilities.surface === 'REMOTE_DEBUG';
+    capabilities.surface === 'REMOTE_DEBUG' ||
+    capabilities.surface === 'TUTORIAL';
   const showLeaveLocalGameButton = canShowBattleLeaveButton && Boolean(onLeaveLocalGame);
   const showRestartGameButton = capabilities.canRestart && Boolean(onRestartGame);
   const leaveLocalGameButtonTitle =
-    capabilities.surface === 'REMOTE_DEBUG'
-      ? '退出联机调试房间'
-      : isSolitaire
-        ? '退出对墙打房间'
-        : '退出调试房间';
+    capabilities.surface === 'TUTORIAL'
+      ? '退出新手教程'
+      : capabilities.surface === 'REMOTE_DEBUG'
+        ? '退出联机调试房间'
+        : isSolitaire
+          ? '退出对墙打房间'
+          : '退出调试房间';
   const selfIdentity = getPlayerIdentityForSeat(selfSeat);
   const opponentIdentity = getPlayerIdentityForSeat(opponentSeat);
   const selfHandCount = playerViewState.table.zones[`${selfSeat}_HAND`]?.count ?? 0;
@@ -2340,6 +2357,7 @@ export const GameBoard = memo(function GameBoard({
       onDragCancel={clearDragInteractionState}
     >
       <div
+        data-battle-ui-anchor={BATTLE_UI_ANCHORS.BOARD}
         className="isolate h-full flex flex-col relative overflow-hidden bg-[var(--board-wallpaper-base)]"
         onClick={handleBattlefieldBackgroundClick}
       >
@@ -2941,6 +2959,7 @@ export const GameBoard = memo(function GameBoard({
         {showSuccessLiveSelectionModal && successLiveSelectionCollapsed && (
           <div
             data-battle-animation-ignore="true"
+            data-battle-ui-anchor={BATTLE_UI_ANCHORS.SUCCESS_LIVE_SELECTION}
             className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[94] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]"
           >
             <div className="flex items-center gap-3">
@@ -2970,6 +2989,7 @@ export const GameBoard = memo(function GameBoard({
         {showSuccessLiveSelectionModal && !successLiveSelectionCollapsed && (
           <div
             data-battle-animation-ignore="true"
+            data-battle-ui-anchor={BATTLE_UI_ANCHORS.SUCCESS_LIVE_SELECTION}
             className="pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(94vw,760px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
           >
             <div className="mb-3 flex items-start justify-between gap-3">
@@ -2988,7 +3008,10 @@ export const GameBoard = memo(function GameBoard({
                 隐藏
               </button>
             </div>
-            <div className="grid max-h-[var(--battle-viewport-height-52)] grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3">
+            <div
+              data-battle-ui-anchor={BATTLE_UI_ANCHORS.SUCCESS_LIVE_CANDIDATES}
+              className="grid max-h-[var(--battle-viewport-height-52)] grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3"
+            >
               {successLiveSelectionCardIds.map((cardId) => {
                 const presentation = getVisibleCardPresentation(cardId);
                 const cardData = presentation?.cardData;
@@ -2998,6 +3021,7 @@ export const GameBoard = memo(function GameBoard({
                 return (
                   <button
                     key={cardId}
+                    data-battle-ui-object-id={cardId}
                     type="button"
                     disabled={!presentation}
                     onClick={() => {
@@ -3090,6 +3114,7 @@ export const GameBoard = memo(function GameBoard({
             className="pointer-events-auto fixed inset-x-2 bottom-[max(0.75rem,env(safe-area-inset-bottom))] top-[max(0.75rem,env(safe-area-inset-top))] z-[95] flex items-end justify-center sm:inset-x-4 md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-[min(94vw,900px)] md:-translate-x-1/2 md:-translate-y-1/2"
           >
             <motion.div
+              data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_PANEL}
               className="flex max-h-[calc(var(--battle-viewport-height)_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_1.5rem)] w-full flex-col overflow-hidden rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl md:max-h-[88vh] md:p-4"
               initial={{ opacity: 0, y: 12, scale: 0.985 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -3476,6 +3501,7 @@ export const GameBoard = memo(function GameBoard({
                       </span>
                     </div>
                     <div
+                      data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_SELECTION}
                       className={cn(
                         'grid gap-2 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-2 md:max-h-[46vh] md:gap-3 md:overflow-y-auto md:p-3',
                         activeEffectHasEnergyCandidates
@@ -3682,6 +3708,7 @@ export const GameBoard = memo(function GameBoard({
                 )}
               </div>
               <div
+                data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_CONFIRM}
                 className={cn(
                   'flex shrink-0 gap-2 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 md:mt-4 md:border-t-0 md:bg-transparent md:p-0',
                   isActiveEffectOrderSelectionWindow
@@ -4138,6 +4165,7 @@ export const GameBoard = memo(function GameBoard({
               : null
           }
           animationKey={liveResultAnimationKey}
+          autoComplete={resultAnimationAutoComplete}
           onComplete={handleLiveAnimationComplete}
         />
 
@@ -4151,7 +4179,11 @@ export const GameBoard = memo(function GameBoard({
         {!isReadOnly && <ScoreConfirmModal />}
 
         {/* 换牌面板 */}
-        <MulliganPanel isOpen={!isReadOnly && mulliganPanelOpen} />
+        <MulliganPanel
+          isOpen={!isReadOnly && mulliganPanelOpen && mulliganPanelVisible}
+          selectableCardIds={mulliganSelectableCardIds}
+          onSelectionChange={onMulliganSelectionChange}
+        />
 
         {!isReadOnly && pendingUndoRequest && (
           <div className="pointer-events-auto fixed inset-0 z-[110] flex items-center justify-center px-4">

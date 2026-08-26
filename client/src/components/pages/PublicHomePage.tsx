@@ -8,6 +8,7 @@ import {
   Gamepad2,
   LogIn,
   Play,
+  School,
   Sparkles,
   WifiOff,
 } from 'lucide-react';
@@ -24,6 +25,7 @@ interface PublicHomePageProps {
   onStartGame: () => void;
   onSpectate: () => void;
   onTryOffline: () => void;
+  onTutorial: () => void;
   serviceAvailable: boolean;
   siteStatus: PublicSiteStatus;
 }
@@ -36,6 +38,14 @@ const TABLE_CARDS = [
 ] as const;
 
 const PRODUCT_PATHS = [
+  {
+    label: '教程',
+    title: '第一次玩？从这里开始',
+    detail: '完成换牌、登场、LIVE 判定与结算',
+    note: '无需登录',
+    icon: School,
+    action: 'tutorial' as const,
+  },
   {
     label: '对战',
     title: '开始对战',
@@ -118,6 +128,7 @@ export function PublicHomePage({
   onStartGame,
   onSpectate,
   onTryOffline,
+  onTutorial,
   serviceAvailable,
   siteStatus,
 }: PublicHomePageProps) {
@@ -149,6 +160,9 @@ export function PublicHomePage({
             </button>
             <button type="button" className="product-nav-item" onClick={onSpectate}>
               观战
+            </button>
+            <button type="button" className="product-nav-item" onClick={onTutorial}>
+              新手教程
             </button>
             <a className="product-nav-item" href="#latest-products">
               最新商品
@@ -196,6 +210,9 @@ export function PublicHomePage({
               </button>
               <button type="button" className="product-mobile-nav-item" onClick={onSpectate}>
                 观战
+              </button>
+              <button type="button" className="product-mobile-nav-item" onClick={onTutorial}>
+                新手教程
               </button>
               <a className="product-mobile-nav-item" href="#latest-products">
                 最新商品
@@ -311,11 +328,13 @@ export function PublicHomePage({
           {PRODUCT_PATHS.map((path) => {
             const Icon = path.icon;
             const onClick =
-              path.action === 'game'
-                ? onStartGame
-                : path.action === 'deck'
-                  ? onManageDecks
-                  : onSpectate;
+              path.action === 'tutorial'
+                ? onTutorial
+                : path.action === 'game'
+                  ? onStartGame
+                  : path.action === 'deck'
+                    ? onManageDecks
+                    : onSpectate;
 
             return (
               <button type="button" onClick={onClick} key={path.label}>

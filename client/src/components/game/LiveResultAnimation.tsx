@@ -7,6 +7,7 @@ import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { BATTLE_UI_ANCHORS } from '@/lib/battleUiAnchors';
 
 /**
  * Live 分数信息
@@ -37,6 +38,8 @@ interface LiveResultAnimationProps {
   animationKey?: string | number | null;
   /** 动画持续时间 (ms) */
   duration?: number;
+  /** 是否允许展示时间结束后自动继续；教程等场景可要求玩家使用正式按钮确认。 */
+  autoComplete?: boolean;
 }
 
 const BEAM_STREAKS = [
@@ -53,6 +56,7 @@ export const LiveResultAnimation = memo(function LiveResultAnimation({
   onComplete,
   animationKey,
   duration = 2800,
+  autoComplete = true,
 }: LiveResultAnimationProps) {
   const reduceMotion = useReducedMotion();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,7 +79,7 @@ export const LiveResultAnimation = memo(function LiveResultAnimation({
       timerRef.current = null;
     }
 
-    if (visible) {
+    if (visible && autoComplete) {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
       }
@@ -90,7 +94,7 @@ export const LiveResultAnimation = memo(function LiveResultAnimation({
         timerRef.current = null;
       }
     };
-  }, [animationKey, completeAnimation, duration, visible]);
+  }, [animationKey, autoComplete, completeAnimation, duration, visible]);
 
   const title = scoreInfo?.isDraw ? 'DOUBLE VICTORY' : 'LIVE VICTORY';
   const subtitle = scoreInfo?.isDraw ? '双方 Live 成功' : '本轮 Live 胜利';
@@ -99,6 +103,7 @@ export const LiveResultAnimation = memo(function LiveResultAnimation({
     <AnimatePresence>
       {visible && isViewerWinner && (
         <motion.div
+          data-battle-ui-anchor={BATTLE_UI_ANCHORS.RESULT_ANIMATION}
           className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center overflow-hidden px-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -233,6 +238,7 @@ export const LiveResultAnimation = memo(function LiveResultAnimation({
 
             {onComplete && (
               <motion.button
+                data-battle-ui-anchor={BATTLE_UI_ANCHORS.RESULT_ANIMATION_CONFIRM}
                 type="button"
                 onClick={completeAnimation}
                 className="pointer-events-auto mt-6 inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md border border-[color:color-mix(in_srgb,var(--semantic-info)_42%,white)] bg-[color:color-mix(in_srgb,var(--bg-surface)_78%,white)] px-4 text-sm font-semibold text-[var(--text-primary)] shadow-[0_10px_24px_rgba(80,100,130,0.24)] transition-colors hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,var(--bg-surface))]"

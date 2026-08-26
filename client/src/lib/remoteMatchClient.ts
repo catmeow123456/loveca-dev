@@ -39,8 +39,10 @@ import {
   undoSolitaireMatch,
   changeSolitaireManualOperationMode,
 } from './solitaireMatchClient';
+import { tutorialCommandResultToRemote, tutorialSnapshotToRemote } from './tutorialClient';
+import { useTutorialStore } from '@/store/tutorialStore';
 
-export type RemoteSessionSource = 'DEBUG' | 'ONLINE' | 'SOLITAIRE' | 'SPECTATOR';
+export type RemoteSessionSource = 'DEBUG' | 'ONLINE' | 'SOLITAIRE' | 'SPECTATOR' | 'TUTORIAL';
 export type RemoteSnapshot = DebugMatchSnapshot | OnlineMatchSnapshot;
 export type RemoteCommandExecutionResult = DebugCommandResult | OnlineCommandResult;
 
@@ -89,6 +91,10 @@ export async function fetchRemoteSnapshot(
     }
     return isSnapshotNotModified(response) ? null : response;
   }
+  if (source === 'TUTORIAL') {
+    const snapshot = await useTutorialStore.getState().refresh();
+    return tutorialSnapshotToRemote(snapshot);
+  }
 
   return fetchOnlineMatchSnapshot(matchId, sinceSeq);
 }
@@ -114,6 +120,17 @@ export async function fetchRemoteSnapshotSyncResult(
       seq: snapshot.seq,
       currentPublicSeq: snapshot.currentPublicSeq,
       snapshot,
+    };
+  }
+
+  if (source === 'TUTORIAL') {
+    const snapshot = await useTutorialStore.getState().refresh();
+    const remote = tutorialSnapshotToRemote(snapshot);
+    return {
+      matchId: remote.matchId,
+      seq: remote.seq,
+      currentPublicSeq: remote.currentPublicSeq,
+      snapshot: remote,
     };
   }
 
@@ -199,6 +216,9 @@ export async function fetchRemotePublicEvents(
       spectatorAttachmentGeneration
     );
   }
+  if (source === 'TUTORIAL') {
+    return { matchId, currentPublicSeq: afterSeq ?? 0, publicEvents: [] };
+  }
 
   return fetchOnlineMatchPublicEvents(matchId, afterSeq);
 }
@@ -217,6 +237,12 @@ export async function executeRemoteCommand(
   }
   if (source === 'SOLITAIRE') {
     return executeSolitaireMatchCommand(matchId, command);
+  }
+  if (source === 'TUTORIAL') {
+    const result = await useTutorialStore.getState().execute(command);
+    return result.success
+      ? tutorialCommandResultToRemote(result)
+      : { success: false, error: result.error };
   }
   if (source === 'SPECTATOR') {
     throw new Error('观战模式为只读，不能提交操作');
@@ -238,6 +264,9 @@ export async function advanceRemotePhase(
   }
   if (source === 'SOLITAIRE') {
     return advanceSolitaireMatchPhase(matchId);
+  }
+  if (source === 'TUTORIAL') {
+    throw new Error('教程阶段只能通过当前教学动作推进');
   }
   if (source === 'SPECTATOR') {
     throw new Error('观战模式为只读，不能推进阶段');

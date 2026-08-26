@@ -74,12 +74,14 @@ src/
 │   ├── db/schema.ts         # Drizzle table definitions; keep migrations and init-only DB objects aligned
 │   ├── middleware/           # authenticate, require-auth, require-admin, validate, error-handler
 │   ├── routes/              # app-config, auth, cards, decks, profiles, images, site-announcements,
-│   │                        # online, battle, ranked, ranked-admin, platform-operations, debug-online(dev)
+│   │                        # online, battle, tutorial, ranked, ranked-admin, platform-operations,
+│   │                        # debug-online(dev)
 │   └── services/            # auth-service, mail-service, minio-service,
 │                            # online-room-service, online-match-service, debug-match-service,
 │                            # ranked player/season/rating/runtime/admin services,
 │                            # online-match-chat-runtime (single-match in-memory text/emote communication),
 │                            # card-registry-service (published-cards cache for online decks),
+│                            # tutorial-session/scenario services (ephemeral authoritative tutorial),
 │                            # deck-storage-service (cloud deck normalization + validation),
 │                            # site-announcement-service (public site status + admin announcements),
 │                            # match-recorder/read/debug-replay and replay-retention services
@@ -97,7 +99,8 @@ client/src/
 │   ├── gameStore.ts  # Game state + GameSession instance
 │   ├── deckStore.ts  # Deck management (local persistence + owner-scoped cloud cache)
 │   ├── authStore.ts  # JWT auth via self-hosted API
-│   └── rankedStore.ts # Ranked overview and cross-page queue state
+│   ├── rankedStore.ts # Ranked overview and cross-page queue state
+│   └── tutorialStore.ts # Ephemeral tutorial session bridged into the shared board
 └── lib/
     ├── apiClient.ts  # HTTP client with JWT auth, auto-refresh, offline detection
     ├── appUpdateCoordinator.ts # Prompt-only app update state and single-reload control

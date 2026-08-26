@@ -462,6 +462,10 @@ export const apiClient = {
     return apiFetch<T>(path, { method: 'GET' });
   },
 
+  getWithHeaders<T>(path: string, headers: Record<string, string>): Promise<ApiResponse<T>> {
+    return apiFetch<T>(path, { method: 'GET', headers });
+  },
+
   getBlob(path: string): Promise<ApiResponse<Blob>> {
     return apiFetchBlob(path, { method: 'GET', cache: 'default' });
   },
@@ -490,6 +494,23 @@ export const apiClient = {
     );
   },
 
+  postWithHeaders<T>(
+    path: string,
+    body: unknown,
+    headers: Record<string, string>,
+    timeoutMs?: number
+  ): Promise<ApiResponse<T>> {
+    return apiFetch<T>(
+      path,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers,
+      },
+      timeoutMs
+    );
+  },
+
   put<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
     return apiFetch<T>(path, {
       method: 'PUT',
@@ -502,6 +523,10 @@ export const apiClient = {
       method: 'DELETE',
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
+  },
+
+  deleteWithHeaders<T>(path: string, headers: Record<string, string>): Promise<ApiResponse<T>> {
+    return apiFetch<T>(path, { method: 'DELETE', headers });
   },
 
   /** Try to restore session from refresh token cookie */

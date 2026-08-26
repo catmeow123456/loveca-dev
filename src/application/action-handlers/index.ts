@@ -9,6 +9,7 @@ import type { PlayerState } from '../../domain/entities/player.js';
 import type { CardInstance } from '../../domain/entities/card.js';
 import { GameActionType, type GameAction } from '../actions.js';
 import type { ActionHandler, ActionHandlerContext } from './types.js';
+import type { RandomIntegerSource } from '../../shared/random-source.js';
 
 // 导入各处理器
 import { handleMulligan } from './mulligan.handler.js';
@@ -122,6 +123,7 @@ export function hasActionHandler(type: GameActionType): boolean {
  * @returns 处理器上下文
  */
 export function createHandlerContext(options: {
+  randomInt: RandomIntegerSource;
   getPlayerById: (game: GameState, playerId: string) => PlayerState | undefined;
   getCardById: (game: GameState, cardId: string) => CardInstance | null;
   updatePlayer: (

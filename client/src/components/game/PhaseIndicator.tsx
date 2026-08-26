@@ -12,6 +12,7 @@ import { GameCommandType } from '@game/application/game-commands';
 import type { ViewCommandHint } from '@game/online/types';
 import { GamePhase, SubPhase } from '@game/shared/types/enums';
 import { useGameStore } from '@/store/gameStore';
+import { BATTLE_UI_ANCHORS } from '@/lib/battleUiAnchors';
 import {
   createPhaseCompletionTimeGateDeadline,
   dispatchPhaseAction,
@@ -19,11 +20,7 @@ import {
   getPhaseCompletionTimeGateRemainingMs,
   isPhaseCompletionTimeGateHint,
 } from '@/lib/phaseCompletionTimeGate';
-import {
-  getPhaseConfig,
-  getSubPhaseConfig,
-  isUserActionRequired,
-} from '@game/shared/phase-config';
+import { getPhaseConfig, getSubPhaseConfig, isUserActionRequired } from '@game/shared/phase-config';
 
 interface PhaseIndicatorProps {
   phase: GamePhase;
@@ -96,10 +93,7 @@ function getPhaseActionConfig(
 } | null {
   // 根据子阶段决定按钮
   if (subPhase && subPhase !== SubPhase.NONE) {
-    if (
-      subPhase === SubPhase.RESULT_SCORE_CONFIRM ||
-      subPhase === SubPhase.RESULT_ANIMATION
-    ) {
+    if (subPhase === SubPhase.RESULT_SCORE_CONFIRM || subPhase === SubPhase.RESULT_ANIMATION) {
       return null;
     }
 
@@ -241,7 +235,8 @@ export const PhaseIndicator = memo(function PhaseIndicator({
 
   // 从配置中获取阶段和子阶段信息
   const phaseConfig = getPhaseConfig(phase);
-  const subPhaseConfig = currentSubPhase !== SubPhase.NONE ? getSubPhaseConfig(currentSubPhase) : null;
+  const subPhaseConfig =
+    currentSubPhase !== SubPhase.NONE ? getSubPhaseConfig(currentSubPhase) : null;
 
   const info = phaseConfig?.display ?? { name: phase, colorClass: 'bg-slate-500' };
   const actionConfig = getPhaseActionConfig(phase, currentSubPhase, isFirstPlayerTurn);
@@ -288,15 +283,17 @@ export const PhaseIndicator = memo(function PhaseIndicator({
     (phaseActionEnabled || hasPhaseCompletionTimeGate);
 
   const mainButtonIcon =
-    currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT
-        ? <BarChart3 size={16} />
-        : currentSubPhase && currentSubPhase !== SubPhase.NONE
-          ? <Check size={16} />
-        : phase === GamePhase.MAIN_PHASE
-          ? <Sparkles size={16} />
-          : phase === GamePhase.PERFORMANCE_PHASE
-            ? <Mic size={16} />
-            : <Check size={16} />;
+    currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT ? (
+      <BarChart3 size={16} />
+    ) : currentSubPhase && currentSubPhase !== SubPhase.NONE ? (
+      <Check size={16} />
+    ) : phase === GamePhase.MAIN_PHASE ? (
+      <Sparkles size={16} />
+    ) : phase === GamePhase.PERFORMANCE_PHASE ? (
+      <Mic size={16} />
+    ) : (
+      <Check size={16} />
+    );
 
   // 处理主按钮点击
   const handleAction = () => {
@@ -329,7 +326,10 @@ export const PhaseIndicator = memo(function PhaseIndicator({
   };
 
   return (
-    <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] left-1/2 z-[var(--z-phase-indicator)] w-[calc(100vw-1rem)] max-w-[360px] -translate-x-1/2 md:bottom-4 md:left-auto md:right-4 md:top-auto md:w-auto md:max-w-[calc(100vw-2rem)] md:translate-x-0 md:translate-y-0">
+    <div
+      data-battle-ui-anchor={BATTLE_UI_ANCHORS.PHASE_CONTROLS}
+      className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] left-1/2 z-[var(--z-phase-indicator)] w-[calc(100vw-1rem)] max-w-[360px] -translate-x-1/2 md:bottom-4 md:left-auto md:right-4 md:top-auto md:w-auto md:max-w-[calc(100vw-2rem)] md:translate-x-0 md:translate-y-0"
+    >
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -358,6 +358,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
             </div>
             {showActionButton ? (
               <motion.button
+                data-battle-ui-anchor={BATTLE_UI_ANCHORS.PHASE_PRIMARY_ACTION}
                 whileTap={isPhaseCompletionTimeGateLocked ? undefined : { scale: 0.98 }}
                 onClick={handleAction}
                 disabled={isPhaseCompletionTimeGateLocked}
@@ -397,7 +398,11 @@ export const PhaseIndicator = memo(function PhaseIndicator({
                     ? 'text-[var(--semantic-success)]'
                     : 'bg-[var(--bg-overlay)] text-[var(--text-muted)]'
                 )}
-                style={isMyTurn ? { background: 'color-mix(in srgb, var(--semantic-success) 16%, transparent)' } : undefined}
+                style={
+                  isMyTurn
+                    ? { background: 'color-mix(in srgb, var(--semantic-success) 16%, transparent)' }
+                    : undefined
+                }
               >
                 {isReadOnly ? '回放' : isInspectionWindow ? '检视' : isMyTurn ? '我方' : '对手'}
               </span>
@@ -456,6 +461,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
 
         {showActionButton && (
           <motion.button
+            data-battle-ui-anchor={BATTLE_UI_ANCHORS.PHASE_PRIMARY_ACTION}
             whileHover={isPhaseCompletionTimeGateLocked ? undefined : { scale: 1.015 }}
             whileTap={isPhaseCompletionTimeGateLocked ? undefined : { scale: 0.98 }}
             onClick={handleAction}
