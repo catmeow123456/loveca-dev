@@ -63,6 +63,7 @@ import { cardService } from '@/lib/cardService';
 import { PublicTableGlobalLayer } from '@/components/public-table/PublicTableGlobalLayer';
 import { RankedGlobalLayer } from '@/components/ranked/RankedGlobalLayer';
 import { ThemeTableGlobalLayer } from '@/components/theme-table/ThemeTableGlobalLayer';
+import { MatchmakingAudioLayer } from '@/components/matchmaking/MatchmakingAudioLayer';
 import { hasAnyManagementPermission, hasPermission } from '@game/shared/auth/permissions';
 import type { DeckClassifierTemplateImportSource } from '@/components/admin/DeckClassifierAdminPage';
 import { AUTHORIZATION_STALE_EVENT } from '@/lib/apiClient';
@@ -1020,6 +1021,7 @@ function App() {
   const withPublicTableLayer = (content: ReactNode) => (
     <>
       {content}
+      <MatchmakingAudioLayer enabled={Boolean(user && profile && !offlineMode)} />
       <PublicTableGlobalLayer
         enabled={Boolean(user && profile && !offlineMode)}
         userId={publicTableSessionUserId}

@@ -323,9 +323,12 @@ graph TB
     App --> Deck[deckStore]
     App --> Game[gameStore]
     App --> Update[UpdateCoordinator]
+    App --> MatchAudio[MatchmakingAudioLayer]
 
     Update --> Manifest[version.json]
     Update --> SW[Service Worker registration]
+
+    MatchAudio --> DeckQueue[Public/Ranked/Theme queue stores]
 
     Game --> SetupPage[GameSetupPage]
     Game --> Board[GameBoard]
@@ -343,6 +346,7 @@ graph TB
 - `authStore`：认证、会话恢复、个人资料与凭据更新、离线模式
 - `rankedStore`：赛季总览与跨页面排位候场、确认和取消状态
 - `themeTableStore`：主题活动总览与跨页面候场、确认、分配和开局前恢复状态
+- `MatchmakingAudioLayer`：统一订阅公共牌桌、赛季排位和娱乐模式候场状态；候场时由 `MatchmakingAudioPlayer` 随机循环一首等待音乐，形成配对后按预留身份只播放一次提示音。音频在用户加入候场的操作中主动启动，以满足浏览器播放授权；候场音乐自动播放被拒绝时只等待后续用户操作重试，任何音频失败都不改变候场、确认或进房状态
 - `UpdateCoordinator`：在应用渲染后统一接收 `version.json` 与 prompt 型 Service Worker 的更新信号；版本发现只产生非阻断提示，进行中的本地/远程对局不提供更新入口，玩家在安全页面确认后才激活 waiting worker 并执行单次刷新
 - `GameBoard`：拖拽与对局主交互容器
 
@@ -353,6 +357,8 @@ graph TB
 - `client/src/store/authStore.ts`
 - `client/src/store/rankedStore.ts`
 - `client/src/store/themeTableStore.ts`
+- `client/src/lib/matchmakingAudio.ts`
+- `client/src/components/matchmaking/MatchmakingAudioLayer.tsx`
 - `client/src/lib/appUpdateCoordinator.ts`
 - `client/src/lib/appUpdateRegistration.ts`
 - `client/src/components/common/AppUpdateNotice.tsx`

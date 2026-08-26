@@ -20,6 +20,7 @@ import {
 } from '@/lib/deckSelectionPreferences';
 import { createDeckRecordCardTypeResolver } from '@/lib/deckRecordUtils';
 import { resolveCardImagePath } from '@/lib/imageService';
+import { matchmakingAudioPlayer } from '@/lib/matchmakingAudio';
 import {
   fetchRankedDeckArchetypeEnvironment,
   fetchRankedEnvironment,
@@ -219,11 +220,13 @@ export function RankedPage({
 
   const handleJoin = async () => {
     if (!selectedDeck?.cloudDeck) return;
+    matchmakingAudioPlayer.startWaitingMusic();
     try {
       await join(selectedDeck.cloudDeck.id);
       writeLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.ranked, selectedDeck.cloudDeck.id);
       setLastUsedDeckId(selectedDeck.cloudDeck.id);
     } catch {
+      matchmakingAudioPlayer.stopWaitingMusic();
       // Store error is rendered with the primary action.
     }
   };

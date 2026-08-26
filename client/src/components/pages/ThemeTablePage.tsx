@@ -17,6 +17,7 @@ import { ActionButton, PageHeader, Panel, StatusBadge } from '@/components/commo
 import { CardDetailDrawer } from '@/components/deck-editor/CardDetailDrawer';
 import { ThemeDeckGallery } from '@/components/theme-table/ThemeDeckGallery';
 import { resolveCardImagePath, resolveRegistryCardImagePath } from '@/lib/imageService';
+import { matchmakingAudioPlayer } from '@/lib/matchmakingAudio';
 import { useThemeTableStore } from '@/store/themeTableStore';
 import { useGameStore } from '@/store/gameStore';
 import './theme-table.css';
@@ -50,6 +51,14 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
   }
   const { event, availability, player, queue } = overview;
   const activeQueue = queue.state !== 'IDLE';
+  const handleJoin = async () => {
+    matchmakingAudioPlayer.startWaitingMusic();
+    try {
+      await join();
+    } catch {
+      matchmakingAudioPlayer.stopWaitingMusic();
+    }
+  };
   return (
     <div className="app-shell theme-table-page min-h-screen">
       <PageHeader title="娱乐模式" onBack={onBack} backLabel="返回大厅" />
@@ -114,7 +123,10 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
                 退出候场
               </ActionButton>
             ) : (
-              <ActionButton disabled={!availability.canJoin || loading} onClick={() => void join()}>
+              <ActionButton
+                disabled={!availability.canJoin || loading}
+                onClick={() => void handleJoin()}
+              >
                 {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                 加入娱乐模式
               </ActionButton>
