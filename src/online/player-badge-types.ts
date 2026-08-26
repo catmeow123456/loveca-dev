@@ -1,6 +1,9 @@
-export interface PlayerBadgeSourceSeasonView {
+import type { ActivityBadgeActivityType } from './activity-badge-types.js';
+
+export interface PlayerBadgeSourceActivityView {
+  readonly type: ActivityBadgeActivityType;
   readonly id: string;
-  readonly seasonKey: string;
+  readonly key: string;
   readonly name: string;
 }
 
@@ -8,7 +11,7 @@ export interface PlayerBadgeView {
   readonly key: string;
   readonly name: string;
   readonly description: string;
-  readonly imagePath: string;
+  readonly imageUrl: string;
   readonly awardedAt: number;
-  readonly sourceSeason: PlayerBadgeSourceSeasonView | null;
+  readonly sourceActivity: PlayerBadgeSourceActivityView;
 }

@@ -431,7 +431,7 @@ describe('RankedRatingService settlement', () => {
       '11111111-1111-4111-8111-111111111111',
       '22222222-2222-4222-8222-222222222222',
     ]);
-    expect(calls[badgeAwardIndex]?.values[4]).toBe(3);
+    expect(calls[badgeAwardIndex]?.text).toContain('rule.minimum_value');
   });
 
   it('applies V4 growth to the real-time settlement projection after placement', async () => {

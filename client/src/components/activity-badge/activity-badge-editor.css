@@ -1,0 +1,168 @@
+.activity-badge-editor {
+  overflow: hidden;
+}
+
+.activity-badge-editor__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0.9rem 1rem;
+  color: var(--accent-gold);
+}
+
+.activity-badge-editor__loading {
+  display: flex;
+  min-height: 12rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.activity-badge-editor__body {
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.8fr) minmax(18rem, 1.2fr);
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.activity-badge-editor__preview-stage {
+  display: grid;
+  min-height: 14rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent-gold) 22%, var(--border-subtle));
+  border-radius: 10px;
+  background:
+    radial-gradient(
+      circle at 50% 44%,
+      color-mix(in srgb, var(--accent-gold) 12%, transparent),
+      transparent 48%
+    ),
+    var(--bg-overlay);
+}
+
+.activity-badge-editor__preview-card {
+  display: flex;
+  max-width: 17rem;
+  align-items: center;
+  gap: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--accent-gold) 34%, var(--border-subtle));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent-gold) 7%, var(--bg-surface));
+  padding: 0.85rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.activity-badge-editor__preview-image {
+  display: grid;
+  width: 88px;
+  height: 88px;
+  flex: 0 0 88px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent-gold) 24%, var(--border-subtle));
+  border-radius: 12px;
+  background: var(--brand-card-white);
+  padding: 0.375rem;
+  color: color-mix(in srgb, var(--accent-gold) 46%, var(--text-muted));
+}
+
+.activity-badge-editor__preview-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.activity-badge-editor__preview-card strong,
+.activity-badge-editor__preview-card span {
+  display: block;
+}
+
+.activity-badge-editor__preview-card strong {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.activity-badge-editor__preview-card span {
+  margin-top: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.activity-badge-editor__controls {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.activity-badge-editor__rule {
+  border-left: 3px solid var(--accent-gold);
+  padding-left: 0.85rem;
+}
+
+.activity-badge-editor__rule span,
+.activity-badge-editor__rule strong {
+  display: block;
+}
+
+.activity-badge-editor__rule span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.activity-badge-editor__rule strong {
+  margin-top: 0.2rem;
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.activity-badge-editor__rule p,
+.activity-badge-editor__hint,
+.activity-badge-editor__selection,
+.activity-badge-editor__error,
+.activity-badge-editor__notice {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.activity-badge-editor__rule p,
+.activity-badge-editor__hint {
+  color: var(--text-secondary);
+}
+
+.activity-badge-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.activity-badge-editor__selection {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.activity-badge-editor__error {
+  color: var(--semantic-error);
+}
+
+.activity-badge-editor__notice {
+  color: var(--semantic-success);
+}
+
+@media (max-width: 719px) {
+  .activity-badge-editor__body {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-badge-editor__preview-stage {
+    min-height: 11rem;
+  }
+}

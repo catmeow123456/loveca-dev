@@ -10,12 +10,11 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
-import { awardEligibleFirstRankedSeasonBadges } from '../../src/server/player-badges/award.js';
 import {
   FIRST_RANKED_SEASON_BADGE_CRITERIA_VERSION,
   FIRST_RANKED_SEASON_BADGE_KEY,
   FIRST_RANKED_SEASON_MINIMUM_RATED_MATCH_COUNT,
-} from '../../src/server/player-badges/catalog.js';
+} from '../../src/server/player-badges/legacy-first-ranked-badge.js';
 
 type MigrationMode = 'dry-run' | 'apply';
 
@@ -171,7 +170,7 @@ export async function runFirstRankedSeasonBadgeBackfill(
     if (ruleBlocker) {
       throw new Error(ruleBlocker);
     }
-    const awardedUserIds = await awardEligibleFirstRankedSeasonBadges(client, {
+    const awardedUserIds = await awardEligibleHistoricalFirstRankedSeasonBadges(client, {
       seasonId: preview.season!.id,
     });
     const postcondition = await inspectBackfill(client, args, awardedUserIds.length, true);
@@ -191,6 +190,69 @@ export async function runFirstRankedSeasonBadgeBackfill(
     await client.query('ROLLBACK');
     throw error;
   }
+}
+
+async function awardEligibleHistoricalFirstRankedSeasonBadges(
+  client: FirstRankedSeasonBadgeBackfillQueryClient,
+  input: { readonly seasonId: string }
+): Promise<readonly string[]> {
+  const result = await client.query<{ readonly user_id: string }>(
+    `INSERT INTO player_badges (
+       user_id,
+       badge_key,
+       source_season_id,
+       criteria_version,
+       evidence,
+       awarded_at
+     )
+     SELECT
+       rating.user_id,
+       $2,
+       rating.season_id,
+       $3,
+       jsonb_build_object(
+         'qualification', 'RANKED_RATED_MATCH_COUNT',
+         'minimumRatedMatchCount', $4::integer,
+         'observedRatedMatchCount', rating.rated_match_count,
+         'seasonLedgerRevision', season.ledger_revision,
+         'qualificationMatchId', qualification_match.match_id
+       ),
+       qualification_match.ended_at
+     FROM ranked_player_ratings AS rating
+     JOIN ranked_seasons AS season ON season.id = rating.season_id
+     JOIN player_badge_rules AS rule
+       ON rule.badge_key = $2
+      AND rule.source_season_id = rating.season_id
+     JOIN LATERAL (
+       SELECT ranked_match.match_id, ranked_match.ended_at
+       FROM ranked_matches AS ranked_match
+       WHERE ranked_match.season_id = rating.season_id
+         AND ranked_match.rating_status = 'SETTLED'
+         AND ranked_match.ended_at IS NOT NULL
+         AND (
+           ranked_match.first_user_id = rating.user_id
+           OR ranked_match.second_user_id = rating.user_id
+         )
+       ORDER BY ranked_match.ended_at ASC, ranked_match.match_id ASC
+       OFFSET ($4::integer - 1)
+       LIMIT 1
+     ) AS qualification_match ON TRUE
+     WHERE rating.season_id = $1
+       AND rule.criteria_type = 'RANKED_RATED_MATCH_COUNT'
+       AND rule.minimum_value = $4
+       AND rule.criteria_version = $3
+       AND rating.rated_match_count >= rule.minimum_value
+       AND season.lifecycle IN ('ACTIVE', 'FINALIZING', 'CLOSED')
+     ON CONFLICT (user_id, badge_key) DO NOTHING
+     RETURNING user_id`,
+    [
+      input.seasonId,
+      FIRST_RANKED_SEASON_BADGE_KEY,
+      FIRST_RANKED_SEASON_BADGE_CRITERIA_VERSION,
+      FIRST_RANKED_SEASON_MINIMUM_RATED_MATCH_COUNT,
+    ]
+  );
+  return result.rows.map((row) => row.user_id);
 }
 
 async function inspectBackfill(

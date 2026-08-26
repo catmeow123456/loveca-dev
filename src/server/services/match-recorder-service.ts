@@ -21,6 +21,7 @@ import type {
   ReplayRecordFrameType,
   ReplayVisibilityScope,
 } from '../../online/replay-types.js';
+import { awardEligibleThemeActivityBadgesForMatch } from '../player-badges/award.js';
 import type { PrivateEvent, PublicEvent, Seat } from '../../online/types.js';
 import type { OnlineMatchState } from './online-match-service.js';
 import {
@@ -741,6 +742,10 @@ export class MatchRecorderService {
           timelineSeq,
         ]
       );
+
+      if (input.status === 'COMPLETED' || input.status === 'SURRENDERED') {
+        await awardEligibleThemeActivityBadgesForMatch(client, input.matchId);
+      }
 
       return {
         matchId: input.matchId,

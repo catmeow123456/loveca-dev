@@ -851,6 +851,30 @@ describe('MatchRecorderService P0a', () => {
     expect(calls.some((call) => call.text.includes('UPDATE match_records'))).toBe(false);
   });
 
+  it('sealMatch 先写入终局事实，再检查娱乐模式活动徽章资格', async () => {
+    const { service, calls } = createRecorderHarness();
+
+    await service.sealMatch({
+      matchId: 'match-recorder-1',
+      status: 'COMPLETED',
+      completeness: 'FULL',
+      endedAt: 4_000,
+      sealedAt: 4_000,
+      winnerSeat: 'FIRST',
+      endReason: 'NORMAL',
+      turnCount: 6,
+      phase: 'GAME_END',
+      subPhase: 'RESULT_SCORE_CONFIRM',
+    });
+
+    const recordUpdateIndex = calls.findIndex((call) => call.text.includes('UPDATE match_records'));
+    const badgeCheckIndex = calls.findIndex((call) =>
+      call.text.includes('FROM theme_table_assignments AS assignment')
+    );
+    expect(recordUpdateIndex).toBeGreaterThanOrEqual(0);
+    expect(badgeCheckIndex).toBeGreaterThan(recordUpdateIndex);
+  });
+
   it('从当前 OnlineMatchState 构造 P0a 输入时保留锁卡元数据与卡牌展示摘要', async () => {
     const matchService = new OnlineMatchService({ recorder: null });
     const match = await matchService.createMatch({

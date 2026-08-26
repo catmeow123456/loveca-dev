@@ -15,7 +15,7 @@ import {
   type RankedResultType,
   type RankedWinnerSeat,
 } from '../rating/ranked-ledger.js';
-import { awardEligibleFirstRankedSeasonBadges } from '../player-badges/award.js';
+import { awardEligibleRankedActivityBadges } from '../player-badges/award.js';
 import { captureRankedDeckObservations } from './ranked-deck-observation-service.js';
 import { stableJsonStringify } from './replay-payload-serialization.js';
 
@@ -365,7 +365,7 @@ export class RankedRatingService {
           context.used_free
         );
         await setSeasonLedgerRevision(client, context.season_id, revision);
-        await awardEligibleFirstRankedSeasonBadges(client, {
+        await awardEligibleRankedActivityBadges(client, {
           seasonId: context.season_id,
           userIds: [...materialization.players.keys()],
         });
@@ -440,7 +440,7 @@ export class RankedRatingService {
         context.used_free
       );
       await setSeasonLedgerRevision(client, context.season_id, revision);
-      await awardEligibleFirstRankedSeasonBadges(client, {
+      await awardEligibleRankedActivityBadges(client, {
         seasonId: context.season_id,
         userIds: [context.first_user_id, context.second_user_id],
       });
@@ -585,7 +585,7 @@ export class RankedRatingService {
         ]
       );
       await setSeasonLedgerRevision(client, input.seasonId, revision);
-      await awardEligibleFirstRankedSeasonBadges(client, {
+      await awardEligibleRankedActivityBadges(client, {
         seasonId: input.seasonId,
         userIds: [...materialization.players.keys()],
       });

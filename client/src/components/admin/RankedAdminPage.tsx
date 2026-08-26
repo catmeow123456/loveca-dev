@@ -8,6 +8,7 @@ import {
   Search,
   SlidersHorizontal,
   ImageIcon,
+  Award,
 } from 'lucide-react';
 import { AdminPageHeader } from './AdminPageHeader';
 import { AdminViewTabs } from './AdminViewTabs';
@@ -15,6 +16,7 @@ import { SeasonOpenWindowsFields } from './SeasonOpenWindowsFields';
 import { ConfirmDialog, SelectMenu, type SelectMenuOption } from '@/components/common';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import { ActivityCoverEditor } from '@/components/activity-cover/ActivityCoverEditor';
+import { ActivityBadgeEditor } from '@/components/activity-badge/ActivityBadgeEditor';
 import {
   createRankedSeason,
   deleteRankedSeasonDraft,
@@ -133,6 +135,7 @@ export function RankedAdminPage({
   const [deletingSeason, setDeletingSeason] = useState<RankedAdminSeason | null>(null);
   const [noticeSeason, setNoticeSeason] = useState<RankedAdminSeason | null>(null);
   const [coverSeason, setCoverSeason] = useState<RankedAdminSeason | null>(null);
+  const [badgeSeason, setBadgeSeason] = useState<RankedAdminSeason | null>(null);
   const [ratingRevisionSeason, setRatingRevisionSeason] = useState<RankedAdminSeason | null>(null);
   const [correction, setCorrection] = useState<{
     match: RankedAdminMatch;
@@ -357,6 +360,15 @@ export function RankedAdminPage({
                   onPublished={load}
                 />
               ) : null}
+              {badgeSeason ? (
+                <ActivityBadgeEditor
+                  key={badgeSeason.id}
+                  activityType="RANKED"
+                  activityId={badgeSeason.id}
+                  activityName={badgeSeason.name}
+                  onClose={() => setBadgeSeason(null)}
+                />
+              ) : null}
               <SeasonPanel
                 seasons={seasons}
                 formalAlgorithm={formalAlgorithm}
@@ -396,7 +408,14 @@ export function RankedAdminPage({
                   run(() => setRankedAdmission(season.id, admission))
                 }
                 onOpenSeasonNotice={setNoticeSeason}
-                onOpenCover={setCoverSeason}
+                onOpenCover={(season) => {
+                  setBadgeSeason(null);
+                  setCoverSeason(season);
+                }}
+                onOpenBadge={(season) => {
+                  setCoverSeason(null);
+                  setBadgeSeason(season);
+                }}
                 onOpenRatingRevision={setRatingRevisionSeason}
               />
             </div>
@@ -1203,6 +1222,7 @@ function SeasonPanel({
   onAdmission,
   onOpenSeasonNotice,
   onOpenCover,
+  onOpenBadge,
   onOpenRatingRevision,
 }: {
   seasons: RankedAdminSeason[];
@@ -1228,6 +1248,7 @@ function SeasonPanel({
   onAdmission: (season: RankedAdminSeason, admission: 'OPEN' | 'PAUSED') => Promise<unknown>;
   onOpenSeasonNotice: (season: RankedAdminSeason) => void;
   onOpenCover: (season: RankedAdminSeason) => void;
+  onOpenBadge: (season: RankedAdminSeason) => void;
   onOpenRatingRevision: (season: RankedAdminSeason) => void;
 }) {
   return (
@@ -1291,6 +1312,13 @@ function SeasonPanel({
                   >
                     <ImageIcon size={15} />
                     活动封面
+                  </button>
+                  <button
+                    className="button-secondary inline-flex items-center gap-1.5 px-3 py-2 text-sm"
+                    onClick={() => onOpenBadge(season)}
+                  >
+                    <Award size={15} />
+                    赛季徽章
                   </button>
                   {season.lifecycle === 'DRAFT' ? (
                     <>

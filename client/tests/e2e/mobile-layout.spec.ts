@@ -770,13 +770,14 @@ async function installApiMocks(
       await fulfillApi(route, [
         {
           key: 'ranked-first-season-qualified',
-          name: '首届排位·定级纪念',
-          description: '完成 Loveca 首届赛季排位定级，感谢你见证排位启程。',
-          imagePath: '/badges/first-ranked-season.png',
+          name: '第一赛季纪念徽章',
+          description: '完成该赛季 3 场有效排位对局，留下属于你的赛季纪念。',
+          imageUrl: '/images/activity-badges/11111111-1111-4111-8111-111111111111/badge.webp',
           awardedAt: Date.parse('2026-08-03T12:00:00.000Z'),
-          sourceSeason: {
+          sourceActivity: {
+            type: 'RANKED',
             id: 'ranked-season-one',
-            seasonKey: 'ranked-season-one',
+            key: 'ranked-season-one',
             name: '第一赛季',
           },
         },

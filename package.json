@@ -49,6 +49,7 @@
     "deck-classifier:import-seed": "tsx scripts/import-deck-classifier-seed.ts",
     "deck-classifier:seed-test-fixtures": "tsx scripts/seed-local-deck-classifier-fixtures.ts",
     "badges:first-ranked:backfill": "tsx drizzle/data-migrations/award-first-ranked-season-badge.ts",
+    "badges:activity-assets:seed": "tsx scripts/seed-activity-badge-assets.ts",
     "emotes:generate-seed-assets": "node scripts/generate-seed-match-emotes.mjs",
     "emotes:seed-assets": "node scripts/seed-match-emote-assets.mjs",
     "build:client": "cd client && pnpm build",

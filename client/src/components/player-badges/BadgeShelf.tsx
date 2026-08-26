@@ -47,9 +47,7 @@ export function BadgeShelf({ badges, loading, error, onRetry }: BadgeShelfProps)
 
 function BadgeCard({ badge }: { badge: PlayerBadgeView }) {
   const dateLabel = formatBadgeDate(badge.awardedAt);
-  const sourceLabel = badge.sourceSeason?.name
-    ? `${badge.sourceSeason.name} · ${dateLabel}`
-    : dateLabel;
+  const sourceLabel = `${badge.sourceActivity.name} · ${dateLabel}`;
 
   return (
     <article className="relative overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--accent-gold)_36%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--accent-gold)_7%,var(--bg-surface))] p-3.5">
@@ -62,7 +60,7 @@ function BadgeCard({ badge }: { badge: PlayerBadgeView }) {
         <div className="flex h-[88px] w-[88px] shrink-0 items-center justify-center rounded-xl border border-[color:color-mix(in_srgb,var(--accent-gold)_24%,var(--border-subtle))] bg-[var(--brand-card-white)] p-1.5 shadow-[var(--shadow-sm)]">
           <img
             className="h-full w-full object-contain"
-            src={badge.imagePath}
+            src={badge.imageUrl}
             alt=""
             aria-hidden="true"
             loading="lazy"

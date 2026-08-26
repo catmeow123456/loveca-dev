@@ -32,6 +32,7 @@ import { platformOperationsRouter } from './routes/platform-operations.js';
 import { cardSyncRouter } from './routes/card-sync.js';
 import { deckClassifierAdminRouter } from './routes/deck-classifier-admin.js';
 import { activityCoverAdminRouter } from './routes/activity-covers.js';
+import { activityBadgeAdminRouter } from './routes/activity-badges.js';
 import { checkApplicationReadiness } from './services/readiness-service.js';
 
 export function createApp(): express.Express {
@@ -108,6 +109,7 @@ export function createApp(): express.Express {
   app.use('/api/admin/platform-operations', platformOperationsRouter);
   app.use('/api/admin/card-sync', cardSyncRouter);
   app.use('/api/admin/activity-covers', activityCoverAdminRouter);
+  app.use('/api/admin/activity-badges', activityBadgeAdminRouter);
   if (config.isDev) {
     app.use('/images', publicImagesRouter);
     app.use('/api/debug', debugOnlineRouter);

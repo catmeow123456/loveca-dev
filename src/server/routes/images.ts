@@ -62,6 +62,35 @@ publicImagesRouter.get('/activity-covers/:pathId/:fileName', async (req, res, ne
   }
 });
 
+publicImagesRouter.get('/activity-badges/:pathId/badge.webp', async (req, res, next) => {
+  try {
+    const pathId = req.params.pathId as string;
+    if (!/^[0-9a-f-]{36}$/u.test(pathId)) {
+      res.status(404).json({
+        data: null,
+        error: { code: 'IMAGE_NOT_FOUND', message: '图片不存在' },
+      });
+      return;
+    }
+    const stream = await getObject(`activity-badges/${pathId}/badge.webp`);
+    res.setHeader('Content-Type', 'image/webp');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    stream.on('error', next);
+    stream.pipe(res);
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === 'NoSuchKey' || code === 'NotFound') {
+      res.status(404).json({
+        data: null,
+        error: { code: 'IMAGE_NOT_FOUND', message: '图片不存在' },
+      });
+      return;
+    }
+    next(err);
+  }
+});
+
 publicImagesRouter.get('/:folder/:fileName', async (req, res, next) => {
   try {
     const folder = req.params.folder as string;

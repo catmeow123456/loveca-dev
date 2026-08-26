@@ -127,13 +127,20 @@ export interface RankedDeckObservationCard {
   readonly imageFilename?: string;
 }
 
-export interface PlayerBadgeEvidence {
-  readonly qualification: 'RANKED_RATED_MATCH_COUNT';
-  readonly minimumRatedMatchCount: number;
-  readonly observedRatedMatchCount: number;
-  readonly seasonLedgerRevision: number;
-  readonly qualificationMatchId: string;
-}
+export type PlayerBadgeEvidence =
+  | {
+      readonly qualification: 'RANKED_RATED_MATCH_COUNT';
+      readonly minimumRatedMatchCount: number;
+      readonly observedRatedMatchCount: number;
+      readonly seasonLedgerRevision: number;
+      readonly qualificationMatchId: string;
+    }
+  | {
+      readonly qualification: 'THEME_COMPLETED_MATCH_COUNT';
+      readonly minimumCompletedMatchCount: number;
+      readonly observedCompletedMatchCount: number;
+      readonly qualificationMatchId: string;
+    };
 
 export interface RankedSeasonOpenWindow {
   readonly weekdays: readonly number[];
@@ -672,23 +679,59 @@ export const playerBadgeRules = pgTable(
   'player_badge_rules',
   {
     badgeKey: text('badge_key').primaryKey(),
-    sourceSeasonId: uuid('source_season_id')
-      .notNull()
-      .references(() => rankedSeasons.id, { onDelete: 'restrict' }),
+    sourceSeasonId: uuid('source_season_id').references(() => rankedSeasons.id, {
+      onDelete: 'restrict',
+    }),
+    sourceThemeTableVersionId: uuid('source_theme_table_version_id').references(
+      () => themeTableVersions.id,
+      { onDelete: 'restrict' }
+    ),
     criteriaType: text('criteria_type').notNull(),
     minimumValue: integer('minimum_value').notNull(),
     criteriaVersion: text('criteria_version').notNull(),
+    imageObjectKey: text('image_object_key').notNull(),
+    imageSha256: text('image_sha256').notNull(),
+    revision: integer('revision').notNull(),
+    lastIdempotencyKey: text('last_idempotency_key').notNull(),
+    lastRequestFingerprint: text('last_request_fingerprint').notNull(),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('idx_player_badge_rules_source_season').on(table.sourceSeasonId),
+    index('idx_player_badge_rules_source_theme').on(table.sourceThemeTableVersionId),
+    uniqueIndex('uq_player_badge_rules_source_season')
+      .on(table.sourceSeasonId)
+      .where(sql`${table.sourceSeasonId} IS NOT NULL`),
+    uniqueIndex('uq_player_badge_rules_source_theme')
+      .on(table.sourceThemeTableVersionId)
+      .where(sql`${table.sourceThemeTableVersionId} IS NOT NULL`),
     check('player_badge_rules_key_check', sql`btrim(${table.badgeKey}) <> ''`),
     check(
       'player_badge_rules_criteria_type_check',
-      sql`${table.criteriaType} IN ('RANKED_RATED_MATCH_COUNT')`
+      sql`${table.criteriaType} IN ('RANKED_RATED_MATCH_COUNT', 'THEME_COMPLETED_MATCH_COUNT')`
     ),
     check('player_badge_rules_minimum_value_check', sql`${table.minimumValue} > 0`),
     check('player_badge_rules_criteria_version_check', sql`btrim(${table.criteriaVersion}) <> ''`),
+    check(
+      'player_badge_rules_source_check',
+      sql`(${table.sourceSeasonId} IS NOT NULL)::integer + (${table.sourceThemeTableVersionId} IS NOT NULL)::integer = 1`
+    ),
+    check(
+      'player_badge_rules_object_key_check',
+      sql`${table.imageObjectKey} ~ '^activity-badges/[0-9a-f-]{36}/badge[.]webp$'`
+    ),
+    check('player_badge_rules_image_hash_check', sql`${table.imageSha256} ~ '^[0-9a-f]{64}$'`),
+    check('player_badge_rules_revision_check', sql`${table.revision} > 0`),
+    check(
+      'player_badge_rules_idempotency_key_check',
+      sql`char_length(${table.lastIdempotencyKey}) BETWEEN 8 AND 160`
+    ),
+    check(
+      'player_badge_rules_request_fingerprint_check',
+      sql`${table.lastRequestFingerprint} ~ '^[0-9a-f]{64}$'`
+    ),
   ]
 );
 
@@ -707,6 +750,10 @@ export const playerBadges = pgTable(
     sourceSeasonId: uuid('source_season_id').references(() => rankedSeasons.id, {
       onDelete: 'restrict',
     }),
+    sourceThemeTableVersionId: uuid('source_theme_table_version_id').references(
+      () => themeTableVersions.id,
+      { onDelete: 'restrict' }
+    ),
     criteriaVersion: text('criteria_version').notNull(),
     evidence: jsonb('evidence').$type<PlayerBadgeEvidence>().notNull(),
     awardedAt: timestamp('awarded_at', { withTimezone: true }).notNull().defaultNow(),
@@ -715,8 +762,13 @@ export const playerBadges = pgTable(
     uniqueIndex('uq_player_badges_user_badge').on(table.userId, table.badgeKey),
     index('idx_player_badges_user_awarded_at').on(table.userId, table.awardedAt),
     index('idx_player_badges_source_season').on(table.sourceSeasonId),
+    index('idx_player_badges_source_theme').on(table.sourceThemeTableVersionId),
     check('player_badges_key_check', sql`btrim(${table.badgeKey}) <> ''`),
     check('player_badges_criteria_version_check', sql`btrim(${table.criteriaVersion}) <> ''`),
+    check(
+      'player_badges_source_check',
+      sql`(${table.sourceSeasonId} IS NOT NULL)::integer + (${table.sourceThemeTableVersionId} IS NOT NULL)::integer = 1`
+    ),
   ]
 );
 

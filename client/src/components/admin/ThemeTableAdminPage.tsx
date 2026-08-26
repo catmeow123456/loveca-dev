@@ -19,6 +19,7 @@ import {
   Trash2,
   Upload,
   ImageIcon,
+  Award,
 } from 'lucide-react';
 import * as yaml from 'yaml';
 import { DeckConfigSchema, type DeckConfig } from '@game/domain/card-data/deck-loader';
@@ -29,6 +30,7 @@ import { AdminViewTabs } from './AdminViewTabs';
 import { SeasonOpenWindowsFields } from './SeasonOpenWindowsFields';
 import { CardEditor } from '@/components/deck-editor';
 import { ActivityCoverEditor } from '@/components/activity-cover/ActivityCoverEditor';
+import { ActivityBadgeEditor } from '@/components/activity-badge/ActivityBadgeEditor';
 import { SelectMenu } from '@/components/common';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
@@ -76,6 +78,7 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
   const [editorMode, setEditorMode] = useState<EditorMode>('closed');
   const [deckEditor, setDeckEditor] = useState<ThemeDeckEditorState | null>(null);
   const [coverEvent, setCoverEvent] = useState<ThemeAdminEventView | null>(null);
+  const [badgeEvent, setBadgeEvent] = useState<ThemeAdminEventView | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cloudDecks = useDeckStore((state) => state.cloudDecks);
@@ -200,6 +203,15 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
                   onPublished={load}
                 />
               ) : null}
+              {badgeEvent ? (
+                <ActivityBadgeEditor
+                  key={badgeEvent.id}
+                  activityType="THEME"
+                  activityId={badgeEvent.id}
+                  activityName={badgeEvent.name}
+                  onClose={() => setBadgeEvent(null)}
+                />
+              ) : null}
               <SeasonPanel
                 events={events}
                 selected={selected}
@@ -215,7 +227,14 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
                   setSelectedId(event.id);
                   setEditorMode('edit');
                 }}
-                onOpenCover={setCoverEvent}
+                onOpenCover={(event) => {
+                  setBadgeEvent(null);
+                  setCoverEvent(event);
+                }}
+                onOpenBadge={(event) => {
+                  setCoverEvent(null);
+                  setBadgeEvent(event);
+                }}
                 onCloseEditor={() => setEditorMode('closed')}
                 onSubmitSeason={(event, payload) =>
                   run(() => {
@@ -380,6 +399,7 @@ function SeasonPanel({
   onOpenCreate,
   onOpenEdit,
   onOpenCover,
+  onOpenBadge,
   onCloseEditor,
   onSubmitSeason,
   onLifecycle,
@@ -395,6 +415,7 @@ function SeasonPanel({
   onOpenCreate: () => void;
   onOpenEdit: (event: ThemeAdminEventView) => void;
   onOpenCover: (event: ThemeAdminEventView) => void;
+  onOpenBadge: (event: ThemeAdminEventView) => void;
   onCloseEditor: () => void;
   onSubmitSeason: (
     event: ThemeAdminEventView | null,
@@ -455,6 +476,7 @@ function SeasonPanel({
                     }}
                     onEdit={() => onOpenEdit(event)}
                     onOpenCover={() => onOpenCover(event)}
+                    onOpenBadge={() => onOpenBadge(event)}
                     onLifecycle={onLifecycle}
                   />
                 </div>
@@ -492,6 +514,7 @@ function SeasonActions({
   onManage,
   onEdit,
   onOpenCover,
+  onOpenBadge,
   onLifecycle,
 }: {
   event: ThemeAdminEventView;
@@ -500,6 +523,7 @@ function SeasonActions({
   onManage: () => void;
   onEdit: () => void;
   onOpenCover: () => void;
+  onOpenBadge: () => void;
   onLifecycle: (
     event: ThemeAdminEventView,
     action: 'activate' | 'pause' | 'resume' | 'close'
@@ -527,6 +551,13 @@ function SeasonActions({
         onClick={onOpenCover}
       >
         <ImageIcon size={15} /> 活动封面
+      </button>
+      <button
+        className="button-secondary inline-flex items-center gap-1.5 px-3 py-2 text-sm"
+        disabled={busy}
+        onClick={onOpenBadge}
+      >
+        <Award size={15} /> 活动徽章
       </button>
       {event.lifecycle !== 'CLOSED' ? (
         <button className="button-secondary px-3 py-2 text-sm" disabled={busy} onClick={onEdit}>
