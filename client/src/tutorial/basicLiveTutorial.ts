@@ -184,7 +184,7 @@ const SELECT_FINAL_SUCCESS_LIVE_RULE: TutorialCommandRule = {
 export const BASIC_LIVE_TUTORIAL: TutorialScenarioDefinition = {
   id: BASIC_LIVE_TUTORIAL_ID,
   version: BASIC_LIVE_TUTORIAL_VERSION,
-  contentVersion: 15,
+  contentVersion: 16,
   objectRoles: Object.values(BASIC_LIVE_TUTORIAL_OBJECT_ROLES),
   steps: [
     {
@@ -1242,11 +1242,11 @@ export const BASIC_LIVE_TUTORIAL: TutorialScenarioDefinition = {
     },
     {
       id: 'activate-recovery-member',
-      contentVersion: 1,
+      contentVersion: 2,
       kind: 'ACTION',
       chapter: '第三回合 · 资源回收',
       title: '发动费用 2 成员的回收能力',
-      body: '点击高亮成员的能力按钮。规则会先把她从舞台放置入休息室，再打开合法回收目标的卡图选择。',
+      body: '先点击高亮成员，再点击出现的【起动】能力按钮。规则会先把她从舞台放置入休息室，再打开合法回收目标的卡图选择。',
       statusText: '等待回收能力发动',
       target: {
         kind: 'OBJECT_ROLE',

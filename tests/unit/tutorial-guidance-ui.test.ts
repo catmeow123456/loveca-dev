@@ -21,6 +21,7 @@ import {
   getTutorialScriptAdvanceDelayMs,
   isTutorialEntryBlockedByExistingBattle,
   normalizeTutorialMulliganSelection,
+  resolveTutorialActivatedAbilityTargetOverride,
   resolveTutorialMulliganTargetOverride,
   resolveTutorialMulliganUiPolicy,
   shouldPauseTutorialScript,
@@ -266,7 +267,7 @@ describe('tutorial spotlight geometry', () => {
   });
 });
 
-describe('tutorial mulligan presentation', () => {
+describe('tutorial guided interaction presentation', () => {
   const findStep = (stepId: string) =>
     BASIC_LIVE_TUTORIAL.steps.find((step) => step.id === stepId) ?? null;
 
@@ -309,6 +310,25 @@ describe('tutorial mulligan presentation', () => {
     expect(resolveTutorialMulliganTargetOverride(step, ['card-mulligan'])).toEqual({
       kind: 'ANCHOR',
       anchor: BATTLE_UI_ANCHORS.MULLIGAN_CONFIRM,
+      placement: 'TOP',
+    });
+  });
+
+  it('moves the spotlight from the guided member to its activated ability menu', () => {
+    const step = findStep('activate-recovery-member');
+    const bindings = {
+      [BASIC_LIVE_TUTORIAL_OBJECT_ROLES.RECOVERY_MEMBER]: 'obj_recovery-member',
+    };
+
+    expect(resolveTutorialActivatedAbilityTargetOverride(step, null, bindings)).toBeUndefined();
+    expect(
+      resolveTutorialActivatedAbilityTargetOverride(step, 'wrong-member', bindings)
+    ).toBeUndefined();
+    expect(
+      resolveTutorialActivatedAbilityTargetOverride(step, 'recovery-member', bindings)
+    ).toEqual({
+      kind: 'ANCHOR',
+      anchor: BATTLE_UI_ANCHORS.ACTIVATED_ABILITY_MENU,
       placement: 'TOP',
     });
   });

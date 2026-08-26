@@ -110,6 +110,29 @@ export function resolveTutorialMulliganTargetOverride(
   };
 }
 
+export function resolveTutorialActivatedAbilityTargetOverride(
+  step: TutorialStepDefinition | null,
+  selectedCardId: string | null,
+  objectBindings: TutorialObjectBindings
+): TutorialGuidanceTarget | undefined {
+  if (!selectedCardId) return undefined;
+
+  const activatedAbilityRule = step?.allowedCommands?.find(
+    (rule) => rule.commandType === GameCommandType.ACTIVATE_ABILITY
+  );
+  const sourceRole = activatedAbilityRule?.objectRole;
+  const sourceObjectId = sourceRole ? objectBindings[sourceRole] : undefined;
+  if (!sourceObjectId || normalizeObjectId(sourceObjectId) !== normalizeObjectId(selectedCardId)) {
+    return undefined;
+  }
+
+  return {
+    kind: 'ANCHOR',
+    anchor: BATTLE_UI_ANCHORS.ACTIVATED_ABILITY_MENU,
+    placement: 'TOP',
+  };
+}
+
 /** Gives rule animations time to settle without making progress depend on a timer. */
 export function getTutorialScriptAdvanceDelayMs(
   match: { readonly phase: string; readonly subPhase: string },

@@ -2,6 +2,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { GameBoard, type GameBoardProps } from '@/components/game/GameBoard';
 import {
+  resolveTutorialActivatedAbilityTargetOverride,
   resolveTutorialMulliganTargetOverride,
   resolveTutorialMulliganUiPolicy,
 } from '@/lib/tutorialBattleUi';
@@ -52,6 +53,7 @@ export const TutorialBattleSurface = memo(function TutorialBattleSurface({
   onTargetUnavailable,
 }: TutorialBattleSurfaceProps) {
   const playerViewState = useGameStore((state) => state.playerViewState);
+  const selectedCardId = useGameStore((state) => state.ui.selectedCardId);
   const [progress, setProgress] = useState<TutorialProgressState>(
     () =>
       resumeProgress ??
@@ -66,6 +68,11 @@ export const TutorialBattleSurface = memo(function TutorialBattleSurface({
   const mulliganTargetOverride = useMemo(
     () => resolveTutorialMulliganTargetOverride(currentStep, mulliganSelection),
     [currentStep, mulliganSelection]
+  );
+  const activatedAbilityTargetOverride = useMemo(
+    () =>
+      resolveTutorialActivatedAbilityTargetOverride(currentStep, selectedCardId, objectBindings),
+    [currentStep, objectBindings, selectedCardId]
   );
   const handleProgressChange = useCallback(
     (nextProgress: TutorialProgressState) => {
@@ -90,7 +97,7 @@ export const TutorialBattleSurface = memo(function TutorialBattleSurface({
         objectBindings={objectBindings}
         acceptedCommands={acceptedCommands}
         initialProgress={progress}
-        targetOverride={mulliganTargetOverride}
+        targetOverride={activatedAbilityTargetOverride ?? mulliganTargetOverride}
         onProgressChange={handleProgressChange}
         onCommandPolicyChange={onCommandPolicyChange}
         onCompleted={onCompleted}

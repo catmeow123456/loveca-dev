@@ -8,7 +8,7 @@ import {
 const CURRENT_TUTORIAL = {
   scenarioId: 'basic-live-loop',
   scenarioVersion: '1.1.5',
-  contentVersion: 15,
+  contentVersion: 16,
 } as const;
 
 describe('tutorial completion marker', () => {
@@ -27,7 +27,7 @@ describe('tutorial completion marker', () => {
     expect(readTutorialCompletion(storage, { ...CURRENT_TUTORIAL, scenarioVersion: '1.1.6' })).toBe(
       false
     );
-    expect(readTutorialCompletion(storage, { ...CURRENT_TUTORIAL, contentVersion: 16 })).toBe(
+    expect(readTutorialCompletion(storage, { ...CURRENT_TUTORIAL, contentVersion: 17 })).toBe(
       false
     );
     expect(JSON.parse(values.get(TUTORIAL_COMPLETION_STORAGE_KEY) ?? '')).toMatchObject({

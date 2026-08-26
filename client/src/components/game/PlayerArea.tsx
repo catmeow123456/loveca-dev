@@ -48,6 +48,7 @@ import {
 } from '@/lib/waitingRoomJudgmentStats';
 import { createScopedZoneId, createZoneId } from '@/lib/zoneUtils';
 import {
+  BATTLE_UI_ANCHORS,
   getBattleDeckAnchor,
   getBattleEnergyZoneAnchor,
   getBattleHandAnchor,
@@ -56,6 +57,7 @@ import {
   getBattleStageAnchor,
   getBattleSuccessLiveZoneAnchor,
   getBattleWaitingRoomAnchor,
+  type BattleUiAnchorId,
 } from '@/lib/battleUiAnchors';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useGameStore } from '@/store/gameStore';
@@ -138,10 +140,12 @@ const CardActionMenu = memo(function CardActionMenu({
   items,
   placement = 'above',
   layer = 'battle',
+  anchor,
 }: {
   readonly items: readonly CardActionMenuItem[];
   readonly placement?: 'above' | 'below';
   readonly layer?: 'battle' | 'modal';
+  readonly anchor?: BattleUiAnchorId;
 }) {
   const preferredWidth = Math.min(
     420,
@@ -221,6 +225,7 @@ const CardActionMenu = memo(function CardActionMenu({
         createPortal(
           <div
             data-battle-animation-ignore="true"
+            data-battle-ui-anchor={anchor}
             className={cn(
               'fixed flex flex-col gap-1 overflow-y-auto overscroll-contain',
               layer === 'modal'
@@ -1203,6 +1208,7 @@ export const PlayerArea = memo(function PlayerArea({
             {card && <CardModifierBadgeStack modifierDelta={card.modifierDelta} />}
             {card && canActivateAbility && (
               <CardActionMenu
+                anchor={BATTLE_UI_ANCHORS.ACTIVATED_ABILITY_MENU}
                 items={activatedAbilityConfigs.map((config) => ({
                   id: config.abilityInstanceId ?? config.abilityId,
                   text: config.text,

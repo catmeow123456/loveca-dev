@@ -43,6 +43,7 @@ export const BATTLE_UI_ANCHORS = {
   ACTIVE_EFFECT_PANEL: 'active-effect-panel',
   ACTIVE_EFFECT_SELECTION: 'active-effect-selection',
   ACTIVE_EFFECT_CONFIRM: 'active-effect-confirm',
+  ACTIVATED_ABILITY_MENU: 'activated-ability-menu',
 } as const;
 
 export type BattleUiAnchorId = (typeof BATTLE_UI_ANCHORS)[keyof typeof BATTLE_UI_ANCHORS];
