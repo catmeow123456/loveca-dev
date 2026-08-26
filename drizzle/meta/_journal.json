@@ -239,6 +239,13 @@
       "when": 1787499889348,
       "tag": "0033_harden_card_sync",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1787732438704,
+      "tag": "0034_add_activity_covers",
+      "breakpoints": true
     }
   ]
 }

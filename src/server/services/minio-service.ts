@@ -129,6 +129,26 @@ export async function getObject(path: string): Promise<Readable> {
   return minioClient.getObject(BUCKET, path);
 }
 
+export async function uploadPublicImmutableObject(
+  path: string,
+  buffer: Buffer,
+  contentType = 'image/webp'
+): Promise<void> {
+  await minioClient.putObject(BUCKET, path, buffer, buffer.length, {
+    'Content-Type': contentType,
+    'Cache-Control': 'public, max-age=31536000, immutable',
+  });
+  const stored = await minioClient.statObject(BUCKET, path);
+  if (stored.size !== buffer.length) {
+    throw new Error('Public immutable object verification failed');
+  }
+}
+
+export async function deletePublicObjects(paths: readonly string[]): Promise<void> {
+  if (paths.length === 0) return;
+  await minioClient.removeObjects(BUCKET, [...paths]);
+}
+
 export async function uploadWallpaperObject(
   path: string,
   buffer: Buffer,

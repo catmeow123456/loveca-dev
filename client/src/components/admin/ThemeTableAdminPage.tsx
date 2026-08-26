@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Trash2,
   Upload,
+  ImageIcon,
 } from 'lucide-react';
 import * as yaml from 'yaml';
 import { DeckConfigSchema, type DeckConfig } from '@game/domain/card-data/deck-loader';
@@ -27,6 +28,7 @@ import { AdminPageHeader } from './AdminPageHeader';
 import { AdminViewTabs } from './AdminViewTabs';
 import { SeasonOpenWindowsFields } from './SeasonOpenWindowsFields';
 import { CardEditor } from '@/components/deck-editor';
+import { ActivityCoverEditor } from '@/components/activity-cover/ActivityCoverEditor';
 import { SelectMenu } from '@/components/common';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
@@ -73,6 +75,7 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
   const [selectedId, setSelectedId] = useState('');
   const [editorMode, setEditorMode] = useState<EditorMode>('closed');
   const [deckEditor, setDeckEditor] = useState<ThemeDeckEditorState | null>(null);
+  const [coverEvent, setCoverEvent] = useState<ThemeAdminEventView | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cloudDecks = useDeckStore((state) => state.cloudDecks);
@@ -186,41 +189,57 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
           {tab === 'overview' ? (
             <OverviewPanel events={events} selected={selected} onSelect={selectSeason} />
           ) : (
-            <SeasonPanel
-              events={events}
-              selected={selected}
-              cloudDecks={cloudDecks}
-              editorMode={editorMode}
-              busy={busy}
-              onSelect={selectSeason}
-              onOpenCreate={() => {
-                setSelectedId('');
-                setEditorMode('create');
-              }}
-              onOpenEdit={(event) => {
-                setSelectedId(event.id);
-                setEditorMode('edit');
-              }}
-              onCloseEditor={() => setEditorMode('closed')}
-              onSubmitSeason={(event, payload) =>
-                run(() => {
-                  if (!event) return createThemeAdminDraft(payload);
-                  if (event.lifecycle === 'DRAFT') {
-                    return updateThemeAdminDraft(event.id, payload);
-                  }
-                  return updateThemeAdminOperations(event.id, operationsPayloadFromDraft(payload));
-                }).then((completed) => {
-                  if (completed) setEditorMode('closed');
-                })
-              }
-              onLifecycle={(event, action) =>
-                run(() => runThemeAdminLifecycleAction(event.id, action))
-              }
-              onRun={run}
-              onEditDeck={(event, deck) =>
-                setDeckEditor({ eventId: event.id, eventName: event.name, deck })
-              }
-            />
+            <div className="space-y-4">
+              {coverEvent ? (
+                <ActivityCoverEditor
+                  key={coverEvent.id}
+                  activityType="THEME"
+                  activityId={coverEvent.id}
+                  activityName={coverEvent.name}
+                  onClose={() => setCoverEvent(null)}
+                  onPublished={load}
+                />
+              ) : null}
+              <SeasonPanel
+                events={events}
+                selected={selected}
+                cloudDecks={cloudDecks}
+                editorMode={editorMode}
+                busy={busy}
+                onSelect={selectSeason}
+                onOpenCreate={() => {
+                  setSelectedId('');
+                  setEditorMode('create');
+                }}
+                onOpenEdit={(event) => {
+                  setSelectedId(event.id);
+                  setEditorMode('edit');
+                }}
+                onOpenCover={setCoverEvent}
+                onCloseEditor={() => setEditorMode('closed')}
+                onSubmitSeason={(event, payload) =>
+                  run(() => {
+                    if (!event) return createThemeAdminDraft(payload);
+                    if (event.lifecycle === 'DRAFT') {
+                      return updateThemeAdminDraft(event.id, payload);
+                    }
+                    return updateThemeAdminOperations(
+                      event.id,
+                      operationsPayloadFromDraft(payload)
+                    );
+                  }).then((completed) => {
+                    if (completed) setEditorMode('closed');
+                  })
+                }
+                onLifecycle={(event, action) =>
+                  run(() => runThemeAdminLifecycleAction(event.id, action))
+                }
+                onRun={run}
+                onEditDeck={(event, deck) =>
+                  setDeckEditor({ eventId: event.id, eventName: event.name, deck })
+                }
+              />
+            </div>
           )}
         </div>
       </main>
@@ -360,6 +379,7 @@ function SeasonPanel({
   onSelect,
   onOpenCreate,
   onOpenEdit,
+  onOpenCover,
   onCloseEditor,
   onSubmitSeason,
   onLifecycle,
@@ -374,6 +394,7 @@ function SeasonPanel({
   onSelect: (id: string) => void;
   onOpenCreate: () => void;
   onOpenEdit: (event: ThemeAdminEventView) => void;
+  onOpenCover: (event: ThemeAdminEventView) => void;
   onCloseEditor: () => void;
   onSubmitSeason: (
     event: ThemeAdminEventView | null,
@@ -433,6 +454,7 @@ function SeasonPanel({
                       setManagedSeasonId(expanded ? null : event.id);
                     }}
                     onEdit={() => onOpenEdit(event)}
+                    onOpenCover={() => onOpenCover(event)}
                     onLifecycle={onLifecycle}
                   />
                 </div>
@@ -469,6 +491,7 @@ function SeasonActions({
   expanded,
   onManage,
   onEdit,
+  onOpenCover,
   onLifecycle,
 }: {
   event: ThemeAdminEventView;
@@ -476,6 +499,7 @@ function SeasonActions({
   expanded: boolean;
   onManage: () => void;
   onEdit: () => void;
+  onOpenCover: () => void;
   onLifecycle: (
     event: ThemeAdminEventView,
     action: 'activate' | 'pause' | 'resume' | 'close'
@@ -496,6 +520,13 @@ function SeasonActions({
     <div className="flex flex-wrap gap-2">
       <button className="button-secondary px-3 py-2 text-sm" onClick={onManage}>
         {expanded ? '收起卡组池' : '管理卡组池'}
+      </button>
+      <button
+        className="button-secondary inline-flex items-center gap-1.5 px-3 py-2 text-sm"
+        disabled={busy}
+        onClick={onOpenCover}
+      >
+        <ImageIcon size={15} /> 活动封面
       </button>
       {event.lifecycle !== 'CLOSED' ? (
         <button className="button-secondary px-3 py-2 text-sm" disabled={busy} onClick={onEdit}>

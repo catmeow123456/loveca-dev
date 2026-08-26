@@ -13,6 +13,7 @@ import {
   getRankedQueueWindowTiming,
   type RankedSeasonOpenWindow,
 } from './ranked-season-service.js';
+import { activityCoverService } from './activity-cover-service.js';
 
 interface PublicSeasonRow {
   readonly id: string;
@@ -123,13 +124,14 @@ export class RankedPlayerService {
 
     readRatingConfig(season.rating_config);
     const availability = this.buildAvailability(season);
-    const [player, recentMatches, leaderboard] = await Promise.all([
+    const [player, recentMatches, leaderboard, cover] = await Promise.all([
       this.loadPlayerSeason(season.id, userId, season.leaderboard_minimum_match_count),
       this.loadRecentMatches(season.id, userId),
       this.loadLeaderboard(season.id, season.leaderboard_minimum_match_count),
+      activityCoverService.getPublic('RANKED', season.id),
     ]);
     return {
-      season: mapSeason(season),
+      season: mapSeason(season, cover),
       availability,
       player,
       queue,
@@ -147,9 +149,13 @@ export class RankedPlayerService {
          CASE lifecycle WHEN 'ACTIVE' THEN 0 WHEN 'FINALIZING' THEN 1 ELSE 2 END,
          starts_at DESC`
     );
+    const covers = await activityCoverService.getPublicMany(
+      'RANKED',
+      result.rows.map((season) => season.id)
+    );
     return result.rows.map((season) => {
       readRatingConfig(season.rating_config);
-      return mapSeason(season);
+      return mapSeason(season, covers.get(season.id) ?? defaultCover());
     });
   }
 
@@ -533,7 +539,10 @@ function readRatingConfig(value: unknown): RankedRatingConfig {
   return config;
 }
 
-function mapSeason(season: PublicSeasonRow): RankedSeasonPublicView {
+function mapSeason(
+  season: PublicSeasonRow,
+  cover: RankedSeasonPublicView['cover']
+): RankedSeasonPublicView {
   if (season.lifecycle === 'DRAFT') {
     throw playerError('RANKED_SEASON_NOT_PUBLIC', '排位赛季尚未公开', 404);
   }
@@ -549,6 +558,17 @@ function mapSeason(season: PublicSeasonRow): RankedSeasonPublicView {
     closedAt: season.closed_at === null ? null : new Date(season.closed_at).getTime(),
     ratingAlgorithmVersion: season.rating_algorithm_version,
     placementMatchCount: season.leaderboard_minimum_match_count,
+    cover,
+  };
+}
+
+function defaultCover(): RankedSeasonPublicView['cover'] {
+  return {
+    mode: 'DEFAULT',
+    revision: 0,
+    maskLevel: 'STANDARD',
+    wide: null,
+    compact: null,
   };
 }
 

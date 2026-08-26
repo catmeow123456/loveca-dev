@@ -1,0 +1,333 @@
+.activity-cover-editor {
+  overflow: hidden;
+}
+
+.activity-cover-editor__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 16px;
+}
+
+.activity-cover-editor__body {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.activity-cover-editor__toolbar,
+.activity-cover-editor__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.activity-cover-editor__footer {
+  justify-content: space-between;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 14px;
+}
+
+.activity-cover-editor__theme-toggle {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 9px;
+}
+
+.activity-cover-editor__theme-toggle button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: transparent;
+  padding: 0 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.activity-cover-editor__theme-toggle button[aria-pressed='true'] {
+  background: var(--accent-primary);
+  color: white;
+}
+
+.activity-cover-editor__previews {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(220px, 0.75fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.activity-cover-layout-editor {
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.activity-cover-layout-editor > legend {
+  padding: 0 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.activity-cover-crop-preview {
+  --activity-cover-preview-mask-horizontal: linear-gradient(
+    90deg,
+    rgb(19 12 27 / 82%) 0%,
+    rgb(19 12 27 / 48%) 58%,
+    rgb(19 12 27 / 22%) 100%
+  );
+  --activity-cover-preview-mask-vertical: linear-gradient(
+    0deg,
+    rgb(19 12 27 / 52%) 0%,
+    transparent 58%
+  );
+  --activity-cover-preview-mask-compact: linear-gradient(
+    0deg,
+    rgb(16 10 23 / 88%) 0%,
+    rgb(16 10 23 / 48%) 72%,
+    rgb(16 10 23 / 28%) 100%
+  );
+
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #201527;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 16%);
+}
+
+.activity-cover-crop-preview > img {
+  position: absolute;
+  max-width: none;
+  object-fit: fill;
+}
+
+.activity-cover-crop-preview__mask {
+  position: absolute;
+  inset: 0;
+  background:
+    var(--activity-cover-preview-mask-horizontal), var(--activity-cover-preview-mask-vertical);
+}
+
+.activity-cover-crop-preview.is-compact .activity-cover-crop-preview__mask {
+  background: var(--activity-cover-preview-mask-compact);
+}
+
+.activity-cover-crop-preview.is-strong {
+  --activity-cover-preview-mask-horizontal: linear-gradient(
+    90deg,
+    rgb(14 9 22 / 91%) 0%,
+    rgb(14 9 22 / 66%) 62%,
+    rgb(14 9 22 / 38%) 100%
+  );
+  --activity-cover-preview-mask-vertical: linear-gradient(
+    0deg,
+    rgb(14 9 22 / 66%) 0%,
+    rgb(14 9 22 / 10%) 72%
+  );
+  --activity-cover-preview-mask-compact: linear-gradient(
+    0deg,
+    rgb(14 9 22 / 94%) 0%,
+    rgb(14 9 22 / 64%) 72%,
+    rgb(14 9 22 / 38%) 100%
+  );
+}
+
+.activity-cover-crop-preview.is-light {
+  --activity-cover-preview-mask-horizontal: linear-gradient(
+    90deg,
+    rgb(49 25 43 / 72%) 0%,
+    rgb(104 52 72 / 40%) 58%,
+    rgb(154 82 97 / 18%) 100%
+  );
+  --activity-cover-preview-mask-vertical: linear-gradient(
+    0deg,
+    rgb(49 25 43 / 42%) 0%,
+    transparent 58%
+  );
+  --activity-cover-preview-mask-compact: linear-gradient(
+    0deg,
+    rgb(49 25 43 / 82%) 0%,
+    rgb(104 52 72 / 42%) 72%,
+    rgb(154 82 97 / 18%) 100%
+  );
+}
+
+.activity-cover-crop-preview.is-light.is-strong {
+  --activity-cover-preview-mask-horizontal: linear-gradient(
+    90deg,
+    rgb(42 20 38 / 86%) 0%,
+    rgb(92 42 65 / 58%) 62%,
+    rgb(133 63 82 / 30%) 100%
+  );
+  --activity-cover-preview-mask-vertical: linear-gradient(
+    0deg,
+    rgb(42 20 38 / 60%) 0%,
+    rgb(42 20 38 / 8%) 72%
+  );
+  --activity-cover-preview-mask-compact: linear-gradient(
+    0deg,
+    rgb(42 20 38 / 91%) 0%,
+    rgb(92 42 65 / 58%) 72%,
+    rgb(133 63 82 / 30%) 100%
+  );
+}
+
+.activity-cover-crop-preview__copy {
+  position: absolute;
+  inset: auto 7% 12%;
+  display: grid;
+  gap: 3px;
+  color: white;
+}
+
+.activity-cover-crop-preview__copy span,
+.activity-cover-crop-preview__copy small {
+  color: rgb(255 255 255 / 66%);
+  font-size: 9px;
+}
+
+.activity-cover-crop-preview__copy strong {
+  font-size: clamp(13px, 2vw, 20px);
+}
+
+.activity-cover-crop-preview__focus {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgb(255 255 255 / 88%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgb(0 0 0 / 22%);
+}
+
+.activity-cover-crop-preview__focus::before,
+.activity-cover-crop-preview__focus::after {
+  position: absolute;
+  background: rgb(255 255 255 / 88%);
+  content: '';
+}
+
+.activity-cover-crop-preview__focus::before {
+  top: 8px;
+  left: -4px;
+  width: 24px;
+  height: 1px;
+}
+
+.activity-cover-crop-preview__focus::after {
+  top: -4px;
+  left: 8px;
+  width: 1px;
+  height: 24px;
+}
+
+.activity-cover-layout-editor__controls {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.activity-cover-layout-editor__controls label {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.activity-cover-layout-editor__controls output {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-cover-editor__mask-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+}
+
+.activity-cover-editor__mask-options legend {
+  float: left;
+  margin-right: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.activity-cover-editor__mask-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.activity-cover-editor__empty {
+  display: grid;
+  min-height: 190px;
+  place-items: center;
+  align-content: center;
+  gap: 7px;
+  border: 1px dashed var(--border-default);
+  border-radius: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.activity-cover-editor__empty strong {
+  color: var(--text-primary);
+}
+
+.activity-cover-editor__empty span {
+  max-width: 430px;
+  font-size: 12px;
+}
+
+.activity-cover-editor__error,
+.activity-cover-editor__remove {
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--semantic-error) 9%, transparent);
+  padding: 10px 12px;
+  color: var(--semantic-error);
+  font-size: 12px;
+}
+
+.activity-cover-editor__remove {
+  display: grid;
+  gap: 10px;
+}
+
+.activity-cover-editor__danger {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--semantic-error) 42%, var(--border-default));
+  border-radius: 9px;
+  background: transparent;
+  padding: 0 12px;
+  color: var(--semantic-error);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.activity-cover-editor__danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (max-width: 760px) {
+  .activity-cover-editor__previews {
+    grid-template-columns: 1fr;
+  }
+}

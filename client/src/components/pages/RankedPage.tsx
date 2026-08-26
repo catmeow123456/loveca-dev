@@ -10,6 +10,7 @@ import {
 } from '@/components/common';
 import { DonutChart, type DonutChartItem } from '@/components/charts/DonutChart';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
+import { ActivityCoverHero } from '@/components/activity-cover/ActivityCoverHero';
 import { buildDeckDisplayItems } from '@/lib/deckDisplay';
 import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 import {
@@ -770,14 +771,29 @@ function SeasonSummary({
     return <Panel className="text-sm text-[var(--text-muted)]">正在读取赛季…</Panel>;
   }
   const player = overview.player;
+  const cover = overview.season?.cover ?? {
+    mode: 'DEFAULT' as const,
+    revision: 0,
+    maskLevel: 'STANDARD' as const,
+    wide: null,
+    compact: null,
+  };
   return (
-    <Panel as="section">
+    <ActivityCoverHero
+      activityKey={overview.season?.id ?? 'no-ranked-season'}
+      cover={cover}
+      variant="ranked"
+      className="p-6 sm:p-8"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-[var(--text-primary)]">
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-white/65">
+            赛季排位
+          </div>
+          <div className="mt-3 text-2xl font-bold tracking-[-0.025em] text-white sm:text-4xl">
             {overview.season?.name ?? '暂无赛季'}
           </div>
-          <div className="mt-1 text-sm text-[var(--text-muted)]">
+          <div className="mt-3 text-sm text-white/72">
             {overview.availability.message}
             {overview.availability.currentWindowEndsAt
               ? ` · 开放至 ${formatShortTime(overview.availability.currentWindowEndsAt)}`
@@ -790,17 +806,15 @@ function SeasonSummary({
           <button
             type="button"
             onClick={onOpenSeasonNotice}
-            className="button-ghost inline-flex min-h-9 items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-xs font-semibold"
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-white/25 bg-black/15 px-3 text-xs font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             <BookOpen size={14} />
             赛季公告
           </button>
           {player ? (
             <div className="text-right">
-              <div className="text-xl font-bold text-[var(--text-primary)]">
-                {player.rating ?? '—'}
-              </div>
-              <div className="text-xs text-[var(--text-muted)]">
+              <div className="text-2xl font-bold text-white">{player.rating ?? '—'}</div>
+              <div className="text-xs text-white/65">
                 {player.placement
                   ? `${player.placementCompleted} / ${player.placementRequired} 场 · 满 ${player.placementRequired} 场进入排行榜`
                   : player.rank !== null
@@ -812,19 +826,19 @@ function SeasonSummary({
         </div>
       </div>
       {player ? (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-[var(--border-subtle)] pt-3 text-sm">
-          <div className="flex items-center gap-3 text-[var(--text-secondary)]">
-            <span className="text-[var(--text-muted)]">战绩</span>
+        <div className="mt-12 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-white/16 pt-3 text-sm sm:mt-16">
+          <div className="flex items-center gap-3 text-white/82">
+            <span className="text-white/55">战绩</span>
             <span>{player.completedMatches} 场</span>
             <span>{player.wins} 胜</span>
             <span>{player.losses} 负</span>
           </div>
           {overview.season ? (
-            <div className="flex items-center gap-2 text-[var(--text-muted)]">
+            <div className="flex items-center gap-2 text-white/55">
               <span>赛季结束</span>
               <time
                 dateTime={new Date(overview.season.scheduledEndsAt).toISOString()}
-                className="text-[var(--text-secondary)]"
+                className="text-white/82"
               >
                 {formatShortDate(overview.season.scheduledEndsAt)}
               </time>
@@ -832,7 +846,7 @@ function SeasonSummary({
           ) : null}
         </div>
       ) : null}
-    </Panel>
+    </ActivityCoverHero>
   );
 }
 

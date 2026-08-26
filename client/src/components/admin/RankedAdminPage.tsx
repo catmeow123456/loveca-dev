@@ -7,12 +7,14 @@ import {
   RefreshCw,
   Search,
   SlidersHorizontal,
+  ImageIcon,
 } from 'lucide-react';
 import { AdminPageHeader } from './AdminPageHeader';
 import { AdminViewTabs } from './AdminViewTabs';
 import { SeasonOpenWindowsFields } from './SeasonOpenWindowsFields';
 import { ConfirmDialog, SelectMenu, type SelectMenuOption } from '@/components/common';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
+import { ActivityCoverEditor } from '@/components/activity-cover/ActivityCoverEditor';
 import {
   createRankedSeason,
   deleteRankedSeasonDraft,
@@ -130,6 +132,7 @@ export function RankedAdminPage({
   const [editingSeason, setEditingSeason] = useState<RankedAdminSeason | null>(null);
   const [deletingSeason, setDeletingSeason] = useState<RankedAdminSeason | null>(null);
   const [noticeSeason, setNoticeSeason] = useState<RankedAdminSeason | null>(null);
+  const [coverSeason, setCoverSeason] = useState<RankedAdminSeason | null>(null);
   const [ratingRevisionSeason, setRatingRevisionSeason] = useState<RankedAdminSeason | null>(null);
   const [correction, setCorrection] = useState<{
     match: RankedAdminMatch;
@@ -343,47 +346,60 @@ export function RankedAdminPage({
               }}
             />
           ) : tab === 'season' ? (
-            <SeasonPanel
-              seasons={seasons}
-              formalAlgorithm={formalAlgorithm}
-              formalRatingConfig={formalRatingConfig}
-              creating={creating}
-              editingSeason={editingSeason}
-              busy={busy || matchBusy}
-              onToggleCreate={() => {
-                setEditingSeason(null);
-                setCreating((value) => !value);
-              }}
-              onEdit={(season) => {
-                setCreating(false);
-                setEditingSeason(season);
-              }}
-              onCancelEdit={() => setEditingSeason(null)}
-              onCreate={(payload) =>
-                run(() => createRankedSeason(payload)).then((created) => {
-                  if (created) setCreating(false);
-                })
-              }
-              onUpdate={(season, payload) =>
-                run(() => updateRankedSeason(season.id, payload)).then((updated) => {
-                  if (updated) setEditingSeason(null);
-                })
-              }
-              onUpdateActive={(season, payload) =>
-                run(() => updateActiveRankedSeasonOperations(season.id, payload)).then(
-                  (updated) => {
+            <div className="space-y-4">
+              {coverSeason ? (
+                <ActivityCoverEditor
+                  key={coverSeason.id}
+                  activityType="RANKED"
+                  activityId={coverSeason.id}
+                  activityName={coverSeason.name}
+                  onClose={() => setCoverSeason(null)}
+                  onPublished={load}
+                />
+              ) : null}
+              <SeasonPanel
+                seasons={seasons}
+                formalAlgorithm={formalAlgorithm}
+                formalRatingConfig={formalRatingConfig}
+                creating={creating}
+                editingSeason={editingSeason}
+                busy={busy || matchBusy}
+                onToggleCreate={() => {
+                  setEditingSeason(null);
+                  setCreating((value) => !value);
+                }}
+                onEdit={(season) => {
+                  setCreating(false);
+                  setEditingSeason(season);
+                }}
+                onCancelEdit={() => setEditingSeason(null)}
+                onCreate={(payload) =>
+                  run(() => createRankedSeason(payload)).then((created) => {
+                    if (created) setCreating(false);
+                  })
+                }
+                onUpdate={(season, payload) =>
+                  run(() => updateRankedSeason(season.id, payload)).then((updated) => {
                     if (updated) setEditingSeason(null);
-                  }
-                )
-              }
-              onAction={(season, action) => run(() => runRankedSeasonAction(season.id, action))}
-              onDelete={setDeletingSeason}
-              onAdmission={(season, admission) =>
-                run(() => setRankedAdmission(season.id, admission))
-              }
-              onOpenSeasonNotice={setNoticeSeason}
-              onOpenRatingRevision={setRatingRevisionSeason}
-            />
+                  })
+                }
+                onUpdateActive={(season, payload) =>
+                  run(() => updateActiveRankedSeasonOperations(season.id, payload)).then(
+                    (updated) => {
+                      if (updated) setEditingSeason(null);
+                    }
+                  )
+                }
+                onAction={(season, action) => run(() => runRankedSeasonAction(season.id, action))}
+                onDelete={setDeletingSeason}
+                onAdmission={(season, admission) =>
+                  run(() => setRankedAdmission(season.id, admission))
+                }
+                onOpenSeasonNotice={setNoticeSeason}
+                onOpenCover={setCoverSeason}
+                onOpenRatingRevision={setRatingRevisionSeason}
+              />
+            </div>
           ) : (
             <MatchesPanel
               seasons={seasons}
@@ -1186,6 +1202,7 @@ function SeasonPanel({
   onDelete,
   onAdmission,
   onOpenSeasonNotice,
+  onOpenCover,
   onOpenRatingRevision,
 }: {
   seasons: RankedAdminSeason[];
@@ -1210,6 +1227,7 @@ function SeasonPanel({
   onDelete: (season: RankedAdminSeason) => void;
   onAdmission: (season: RankedAdminSeason, admission: 'OPEN' | 'PAUSED') => Promise<unknown>;
   onOpenSeasonNotice: (season: RankedAdminSeason) => void;
+  onOpenCover: (season: RankedAdminSeason) => void;
   onOpenRatingRevision: (season: RankedAdminSeason) => void;
 }) {
   return (
@@ -1266,6 +1284,13 @@ function SeasonPanel({
                   >
                     <BookOpen size={15} />
                     查看公告
+                  </button>
+                  <button
+                    className="button-secondary inline-flex items-center gap-1.5 px-3 py-2 text-sm"
+                    onClick={() => onOpenCover(season)}
+                  >
+                    <ImageIcon size={15} />
+                    活动封面
                   </button>
                   {season.lifecycle === 'DRAFT' ? (
                     <>

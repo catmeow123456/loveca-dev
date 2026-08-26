@@ -1,5 +1,6 @@
 import type { PublicTableStatusView } from './public-table-types.js';
 import type { DeckClassifierDisplayMode, DeckEnvironmentSection } from './deck-classifier-types.js';
+import type { ActivityCoverPublicView } from './activity-cover-types.js';
 
 export type RankedAvailabilityState =
   | 'NO_SEASON'
@@ -23,6 +24,7 @@ export interface RankedSeasonPublicView {
   readonly closedAt: number | null;
   readonly ratingAlgorithmVersion: string;
   readonly placementMatchCount: number;
+  readonly cover: ActivityCoverPublicView;
 }
 
 export interface RankedAvailabilityView {

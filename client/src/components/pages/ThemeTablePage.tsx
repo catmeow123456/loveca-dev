@@ -16,6 +16,7 @@ import type { AnyCardData } from '@game/domain/entities/card';
 import { ActionButton, PageHeader, Panel, StatusBadge } from '@/components/common';
 import { CardDetailDrawer } from '@/components/deck-editor/CardDetailDrawer';
 import { ThemeDeckGallery } from '@/components/theme-table/ThemeDeckGallery';
+import { ActivityCoverHero } from '@/components/activity-cover/ActivityCoverHero';
 import { resolveCardImagePath, resolveRegistryCardImagePath } from '@/lib/imageService';
 import { matchmakingAudioPlayer } from '@/lib/matchmakingAudio';
 import { useThemeTableStore } from '@/store/themeTableStore';
@@ -63,7 +64,12 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
     <div className="app-shell theme-table-page min-h-screen">
       <PageHeader title="娱乐模式" onBack={onBack} backLabel="返回大厅" />
       <main className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 sm:py-8">
-        <section className="theme-table-hero">
+        <ActivityCoverHero
+          activityKey={event.id}
+          cover={event.cover}
+          variant="theme"
+          className="theme-table-hero"
+        >
           <div className="theme-table-hero__copy">
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge tone={availability.canJoin ? 'success' : 'neutral'}>
@@ -101,7 +107,7 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
               <span>随机分配</span>
             </div>
           </div>
-        </section>
+        </ActivityCoverHero>
 
         <Panel padding="compact" className="theme-table-entry-panel mt-4">
           <div className="theme-table-entry-panel__main">

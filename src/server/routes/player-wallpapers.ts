@@ -6,6 +6,10 @@ import { config } from '../config.js';
 import { requireAdmin } from '../middleware/require-admin.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import {
+  enforceImageUploadAttemptLimit,
+  enforceImageUploadedByteLimit,
+} from '../middleware/image-upload-rate-limit.js';
+import {
   PlayerWallpaperServiceError,
   playerWallpaperService,
 } from '../services/player-wallpaper-service.js';
@@ -72,15 +76,6 @@ const receiveWallpaperFiles = upload.fields([
   { name: 'compact', maxCount: 1 },
 ]);
 
-const attempts = new Map<string, number[]>();
-const ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
-const USER_ATTEMPT_LIMIT = 12;
-const ADDRESS_ATTEMPT_LIMIT = 30;
-const USER_BYTE_LIMIT = 48 * 1024 * 1024;
-const ADDRESS_BYTE_LIMIT = 120 * 1024 * 1024;
-const uploadedBytes = new Map<string, Array<{ timestamp: number; bytes: number }>>();
-let lastRateLimitPruneAt = 0;
-
 playerWallpapersRouter.get('/', requireAuth, async (req, res, next) => {
   try {
     const includeSources = req.query.includeSources === 'true';
@@ -114,9 +109,9 @@ playerWallpapersRouter.get('/assets/:assetId', requireAuth, async (req, res, nex
 playerWallpapersRouter.post(
   '/',
   requireAuth,
-  enforceUploadAttemptLimit,
+  enforceImageUploadAttemptLimit,
   receiveWallpaperUpload,
-  enforceUploadedByteLimit,
+  enforceImageUploadedByteLimit,
   async (req, res, next) => {
     try {
       const rawConfig = readMultipartConfig(req.body);
@@ -228,91 +223,6 @@ function readMultipartConfig(body: unknown): unknown {
   } catch {
     return null;
   }
-}
-
-function enforceUploadAttemptLimit(req: Request, res: Response, next: NextFunction): void {
-  const now = Date.now();
-  pruneRateLimitMaps(now);
-  const userAllowed = recordAttempt(`user:${req.user!.id}`, USER_ATTEMPT_LIMIT, now);
-  const addressAllowed = recordAttempt(`ip:${req.ip}`, ADDRESS_ATTEMPT_LIMIT, now);
-  if (userAllowed && addressAllowed) {
-    next();
-    return;
-  }
-  res.setHeader('Retry-After', Math.ceil(ATTEMPT_WINDOW_MS / 1000));
-  res.status(429).json({
-    data: null,
-    error: {
-      code: 'WALLPAPER_UPLOAD_RATE_LIMIT',
-      message: '壁纸上传尝试过于频繁，请稍后再试。',
-      retryAfterMs: ATTEMPT_WINDOW_MS,
-    },
-  });
-}
-
-function pruneRateLimitMaps(now: number): void {
-  if (now - lastRateLimitPruneAt < 60_000) return;
-  lastRateLimitPruneAt = now;
-  const threshold = now - ATTEMPT_WINDOW_MS;
-  for (const [key, timestamps] of attempts) {
-    const recent = timestamps.filter((timestamp) => timestamp > threshold);
-    if (recent.length > 0) attempts.set(key, recent);
-    else attempts.delete(key);
-  }
-  for (const [key, entries] of uploadedBytes) {
-    const recent = entries.filter((entry) => entry.timestamp > threshold);
-    if (recent.length > 0) uploadedBytes.set(key, recent);
-    else uploadedBytes.delete(key);
-  }
-}
-
-function enforceUploadedByteLimit(req: Request, res: Response, next: NextFunction): void {
-  const files = (req.files ?? {}) as UploadedFiles;
-  const bytes = [...(files.wide ?? []), ...(files.compact ?? [])].reduce(
-    (total, file) => total + file.size,
-    0
-  );
-  const now = Date.now();
-  const userAllowed = recordUploadedBytes(`user:${req.user!.id}`, USER_BYTE_LIMIT, bytes, now);
-  const addressAllowed = recordUploadedBytes(`ip:${req.ip}`, ADDRESS_BYTE_LIMIT, bytes, now);
-  if (userAllowed && addressAllowed) {
-    next();
-    return;
-  }
-  res.setHeader('Retry-After', Math.ceil(ATTEMPT_WINDOW_MS / 1000));
-  res.status(429).json({
-    data: null,
-    error: {
-      code: 'WALLPAPER_UPLOAD_BYTE_LIMIT',
-      message: '短时间内上传的图片总量过大，请稍后再试。',
-      retryAfterMs: ATTEMPT_WINDOW_MS,
-    },
-  });
-}
-
-function recordAttempt(key: string, limit: number, now: number): boolean {
-  const threshold = now - ATTEMPT_WINDOW_MS;
-  const recent = (attempts.get(key) ?? []).filter((timestamp) => timestamp > threshold);
-  if (recent.length >= limit) {
-    attempts.set(key, recent);
-    return false;
-  }
-  recent.push(now);
-  attempts.set(key, recent);
-  return true;
-}
-
-function recordUploadedBytes(key: string, limit: number, bytes: number, now: number): boolean {
-  const threshold = now - ATTEMPT_WINDOW_MS;
-  const recent = (uploadedBytes.get(key) ?? []).filter((entry) => entry.timestamp > threshold);
-  const total = recent.reduce((sum, entry) => sum + entry.bytes, 0);
-  if (total + bytes > limit) {
-    uploadedBytes.set(key, recent);
-    return false;
-  }
-  recent.push({ timestamp: now, bytes });
-  uploadedBytes.set(key, recent);
-  return true;
 }
 
 function respondOrNext(error: unknown, res: Response, next: NextFunction): void {

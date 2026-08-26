@@ -5,7 +5,7 @@ import { stableJsonStringify } from './replay-payload-serialization.js';
 export interface ManagementAuditInput {
   readonly actorUserId: string | null;
   readonly actorRole: UserRole;
-  readonly scope: 'DECK_CLASSIFIER';
+  readonly scope: 'RANKED' | 'DECK_CLASSIFIER' | 'THEME_TABLE' | 'SEASON_ENTRY_VISIBILITY';
   readonly action: string;
   readonly targetType: string;
   readonly targetId: string;

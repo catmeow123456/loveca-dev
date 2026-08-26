@@ -332,6 +332,15 @@ export class RankedSeasonService {
         );
       }
 
+      // Activity covers are mutable presentation data rather than ranked facts.
+      // Detach the current reference in the same transaction; immutable objects are
+      // reclaimed later by the activity-cover orphan scan.
+      await client.query(
+        `DELETE FROM activity_cover_configs
+         WHERE activity_type = 'RANKED' AND activity_id = $1`,
+        [seasonId]
+      );
+
       const deleted = await client.query<{ readonly id: string }>(
         `DELETE FROM ranked_seasons
          WHERE id = $1

@@ -18,6 +18,7 @@ import {
   getRankedQueueWindowTiming,
   type RankedSeasonOpenWindow,
 } from './ranked-season-service.js';
+import { activityCoverService } from './activity-cover-service.js';
 
 interface ThemeRow {
   readonly id: string;
@@ -105,13 +106,19 @@ export class ThemeTablePlayerService {
         queue,
       };
     }
-    const [decks, matchupStatistics, availability, player] = await Promise.all([
+    const [decks, matchupStatistics, availability, player, cover] = await Promise.all([
       this.loadDecks(event.id),
       this.loadMatchupStatistics(event.id),
       this.getAvailability(event),
       this.loadPlayerSeason(event.id, userId),
+      activityCoverService.getPublic('THEME', event.id),
     ]);
-    return { event: mapEvent(event, decks, matchupStatistics), availability, player, queue };
+    return {
+      event: mapEvent(event, decks, matchupStatistics, cover),
+      availability,
+      player,
+      queue,
+    };
   }
 
   async join(userId: string) {
@@ -406,7 +413,8 @@ function noThemeContext(): MatchmakingQueueContext {
 function mapEvent(
   theme: ThemeRow,
   decks: readonly ThemePrebuiltDeckView[],
-  matchupStatistics: readonly ThemeMatchupStatisticsView[]
+  matchupStatistics: readonly ThemeMatchupStatisticsView[],
+  cover: ThemeTableEventView['cover']
 ): ThemeTableEventView {
   return {
     id: theme.id,
@@ -418,6 +426,7 @@ function mapEvent(
     startsAt: new Date(theme.starts_at).getTime(),
     endsAt: new Date(theme.ends_at).getTime(),
     allocationAlgorithmVersion: theme.allocation_algorithm_version,
+    cover,
     prebuiltDecks: decks,
     matchupStatistics,
   };

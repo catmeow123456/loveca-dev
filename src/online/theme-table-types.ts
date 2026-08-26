@@ -1,4 +1,5 @@
 import type { PublicTableStatusView } from './public-table-types.js';
+import type { ActivityCoverPublicView } from './activity-cover-types.js';
 
 export type ThemeTableAvailabilityState =
   'OPEN' | 'UPCOMING' | 'PAUSED' | 'ENVIRONMENT_CHANGED' | 'CLOSED' | 'NO_EVENT';
@@ -42,6 +43,7 @@ export interface ThemeTableEventView {
   readonly startsAt: number;
   readonly endsAt: number;
   readonly allocationAlgorithmVersion: string;
+  readonly cover: ActivityCoverPublicView;
   readonly prebuiltDecks: readonly ThemePrebuiltDeckView[];
   readonly matchupStatistics: readonly ThemeMatchupStatisticsView[];
 }

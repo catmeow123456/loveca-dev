@@ -31,6 +31,7 @@ import { adminUsersRouter } from './routes/admin-users.js';
 import { platformOperationsRouter } from './routes/platform-operations.js';
 import { cardSyncRouter } from './routes/card-sync.js';
 import { deckClassifierAdminRouter } from './routes/deck-classifier-admin.js';
+import { activityCoverAdminRouter } from './routes/activity-covers.js';
 import { checkApplicationReadiness } from './services/readiness-service.js';
 
 export function createApp(): express.Express {
@@ -106,6 +107,7 @@ export function createApp(): express.Express {
   app.use('/api/admin/users', adminUsersRouter);
   app.use('/api/admin/platform-operations', platformOperationsRouter);
   app.use('/api/admin/card-sync', cardSyncRouter);
+  app.use('/api/admin/activity-covers', activityCoverAdminRouter);
   if (config.isDev) {
     app.use('/images', publicImagesRouter);
     app.use('/api/debug', debugOnlineRouter);

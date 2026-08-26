@@ -47,6 +47,13 @@ import type {
   WallpaperFocus,
   WideWallpaperMode,
 } from '../../online/player-wallpaper-types.js';
+import type {
+  ActivityCoverActivityType,
+  ActivityCoverCrop,
+  ActivityCoverFocus,
+  ActivityCoverMaskLevel,
+  ActivityCoverMode,
+} from '../../online/activity-cover-types.js';
 import type { UserRole } from '../../shared/auth/permissions.js';
 
 export type { UserRole } from '../../shared/auth/permissions.js';
@@ -319,6 +326,93 @@ export const managementAuditLogs = pgTable(
     check('management_audit_target_id_check', sql`btrim(${table.targetId}) <> ''`),
     check('management_audit_request_id_check', sql`btrim(${table.requestId}) <> ''`),
     check('management_audit_result_check', sql`${table.result} IN ('SUCCEEDED', 'FAILED')`),
+  ]
+);
+
+export const activityCoverConfigs = pgTable(
+  'activity_cover_configs',
+  {
+    activityType: text('activity_type').$type<ActivityCoverActivityType>().notNull(),
+    activityId: uuid('activity_id').notNull(),
+    mode: text('mode').$type<ActivityCoverMode>().notNull(),
+    revision: integer('revision').notNull(),
+    maskLevel: text('mask_level').$type<ActivityCoverMaskLevel>().notNull(),
+    masterObjectKey: text('master_object_key'),
+    masterWidth: integer('master_width'),
+    masterHeight: integer('master_height'),
+    masterSha256: text('master_sha256'),
+    wideObjectKey: text('wide_object_key'),
+    wideCrop: jsonb('wide_crop').$type<ActivityCoverCrop>(),
+    wideFocus: jsonb('wide_focus').$type<ActivityCoverFocus>(),
+    compactObjectKey: text('compact_object_key'),
+    compactCrop: jsonb('compact_crop').$type<ActivityCoverCrop>(),
+    compactFocus: jsonb('compact_focus').$type<ActivityCoverFocus>(),
+    lastIdempotencyKey: text('last_idempotency_key').notNull(),
+    lastRequestFingerprint: text('last_request_fingerprint').notNull(),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.activityType, table.activityId],
+      name: 'activity_cover_configs_pk',
+    }),
+    check(
+      'activity_cover_configs_activity_type_check',
+      sql`${table.activityType} IN ('RANKED', 'THEME')`
+    ),
+    check('activity_cover_configs_mode_check', sql`${table.mode} IN ('DEFAULT', 'CUSTOM')`),
+    check('activity_cover_configs_revision_check', sql`${table.revision} > 0`),
+    check('activity_cover_configs_mask_check', sql`${table.maskLevel} IN ('STANDARD', 'STRONG')`),
+    check(
+      'activity_cover_configs_object_key_check',
+      sql`(
+        ${table.masterObjectKey} IS NULL OR
+        ${table.masterObjectKey} ~ '^activity-covers/[0-9a-f-]{36}/master[.]webp$'
+      ) AND (
+        ${table.wideObjectKey} IS NULL OR
+        ${table.wideObjectKey} ~ '^activity-covers/[0-9a-f-]{36}/wide[.]webp$'
+      ) AND (
+        ${table.compactObjectKey} IS NULL OR
+        ${table.compactObjectKey} ~ '^activity-covers/[0-9a-f-]{36}/compact[.]webp$'
+      )`
+    ),
+    check(
+      'activity_cover_configs_fingerprint_check',
+      sql`${table.lastRequestFingerprint} ~ '^[0-9a-f]{64}$'`
+    ),
+    check(
+      'activity_cover_configs_idempotency_key_check',
+      sql`char_length(${table.lastIdempotencyKey}) BETWEEN 8 AND 160`
+    ),
+    check(
+      'activity_cover_configs_shape_check',
+      sql`(
+        ${table.mode} = 'DEFAULT'
+        AND ${table.masterObjectKey} IS NULL
+        AND ${table.masterWidth} IS NULL
+        AND ${table.masterHeight} IS NULL
+        AND ${table.masterSha256} IS NULL
+        AND ${table.wideObjectKey} IS NULL
+        AND ${table.wideCrop} IS NULL
+        AND ${table.wideFocus} IS NULL
+        AND ${table.compactObjectKey} IS NULL
+        AND ${table.compactCrop} IS NULL
+        AND ${table.compactFocus} IS NULL
+      ) OR (
+        ${table.mode} = 'CUSTOM'
+        AND ${table.masterObjectKey} IS NOT NULL
+        AND ${table.masterWidth} > 0
+        AND ${table.masterHeight} > 0
+        AND ${table.masterSha256} ~ '^[0-9a-f]{64}$'
+        AND ${table.wideObjectKey} IS NOT NULL
+        AND ${table.wideCrop} IS NOT NULL
+        AND ${table.wideFocus} IS NOT NULL
+        AND ${table.compactObjectKey} IS NOT NULL
+        AND ${table.compactCrop} IS NOT NULL
+        AND ${table.compactFocus} IS NOT NULL
+      )`
+    ),
   ]
 );
 

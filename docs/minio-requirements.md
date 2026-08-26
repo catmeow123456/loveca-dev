@@ -2,10 +2,10 @@
 
 > 版本: 1.1.0
 > 创建日期: 2026-03-13
-> 最后更新: 2026-06-12
+> 最后更新: 2026-08-26
 > 文档类型: 设计文档
 > 适用范围: 生产外部 MinIO、开发环境本地 MinIO、服务端图片上传/访问
-> 当前状态: 服务端通过 `MINIO_*` 环境变量连接对象存储；公开卡图与玩家私有壁纸使用不同 bucket；生产环境不由主应用 compose 启动 MinIO，开发环境提供本地 MinIO
+> 当前状态: 服务端通过 `MINIO_*` 环境变量连接对象存储；公开卡图、静态资源和赛季活动封面与玩家私有壁纸使用不同 bucket；生产环境不由主应用 compose 启动 MinIO，开发环境提供本地 MinIO
 
 本文档说明 Loveca 图片对象存储的设计边界、路径约定和部署职责，不维护具体命令、脚本调用示例或 Nginx 配置片段。
 
@@ -130,6 +130,8 @@ API Server 通过 `MINIO_*` 环境变量连接对象存储：
 | `client/src/lib/apiClient.ts` | API base URL 与图片源辅助 |
 | `src/server/routes/images.ts` | 图片上传/删除 API |
 | `src/server/services/minio-service.ts` | 对象存储访问封装 |
+| `src/server/services/activity-cover-service.ts` | 赛季活动封面的公开不可变对象与当前引用生命周期 |
+| `src/server/services/static-image-processing-service.ts` | 壁纸与活动封面共用的静态图片处理底座 |
 | `src/server/services/player-wallpaper-service.ts` | 玩家私有壁纸对象生命周期与鉴权读取 |
 | `src/scripts/upload-to-minio.ts` | 批量上传卡牌图片脚本 |
 | `src/scripts/upload-static-assets.ts` | 上传静态资源脚本 |
