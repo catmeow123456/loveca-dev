@@ -11,6 +11,7 @@ import {
   isTutorialEntryBlockedByExistingBattle,
   shouldPauseTutorialScript,
 } from '@/lib/tutorialBattleUi';
+import { readTutorialCompletion, writeTutorialCompletion } from '@/lib/tutorialCompletion';
 import { TUTORIAL_PORTRAIT_ASSETS, TUTORIAL_STICKER_ASSETS } from '@/lib/tutorialMascotAssets';
 import type { TutorialProgressState } from '@/lib/tutorialScenario';
 import {
@@ -23,6 +24,21 @@ import { useTutorialStore } from '@/store/tutorialStore';
 
 export interface TutorialPageProps {
   readonly onExit: () => void;
+}
+
+const BASIC_LIVE_TUTORIAL_COMPLETION_IDENTITY = {
+  scenarioId: BASIC_LIVE_TUTORIAL.id,
+  scenarioVersion: BASIC_LIVE_TUTORIAL.version,
+  contentVersion: BASIC_LIVE_TUTORIAL.contentVersion,
+} as const;
+
+function getTutorialCompletionStorage(): Storage | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
 }
 
 function getTutorialLoadingPortrait(checkpointId: TutorialCheckpointId | null): string {
@@ -57,6 +73,9 @@ export function TutorialPage({ onExit }: TutorialPageProps) {
     runtime?.snapshot.checkpointId ?? null
   );
   const [completed, setCompleted] = useState(false);
+  const [hasCompletedCurrentVersion, setHasCompletedCurrentVersion] = useState(() =>
+    readTutorialCompletion(getTutorialCompletionStorage(), BASIC_LIVE_TUTORIAL_COMPLETION_IDENTITY)
+  );
   const [restarting, setRestarting] = useState(false);
   const [progressRecord, setProgressRecord] = useState<{
     readonly runId: string;
@@ -181,6 +200,15 @@ export function TutorialPage({ onExit }: TutorialPageProps) {
     void stop();
   }, [disconnectRemoteSession, stop]);
 
+  const handleCompleted = useCallback(() => {
+    setCompleted(true);
+    setHasCompletedCurrentVersion(true);
+    writeTutorialCompletion(
+      getTutorialCompletionStorage(),
+      BASIC_LIVE_TUTORIAL_COMPLETION_IDENTITY
+    );
+  }, []);
+
   if (tutorialEntryBlocked) {
     return <TutorialBattleConflictState onExit={onExit} />;
   }
@@ -189,6 +217,7 @@ export function TutorialPage({ onExit }: TutorialPageProps) {
     return (
       <TutorialChapterSelection
         checkpoints={BASIC_LIVE_TUTORIAL_CHECKPOINTS}
+        completed={hasCompletedCurrentVersion}
         onSelect={handleStartCheckpoint}
         onExit={onExit}
       />
@@ -242,7 +271,7 @@ export function TutorialPage({ onExit }: TutorialPageProps) {
         }
         onProgressChange={handleProgressChange}
         onCommandPolicyChange={handlePolicyChange}
-        onCompleted={() => setCompleted(true)}
+        onCompleted={handleCompleted}
         gameBoardProps={{
           onLeaveLocalGame: handleExit,
           onRestartGame: handleRestart,
@@ -340,10 +369,12 @@ function TutorialCompletionState({
 
 function TutorialChapterSelection({
   checkpoints,
+  completed,
   onSelect,
   onExit,
 }: {
   checkpoints: readonly BasicLiveTutorialCheckpointOption[];
+  completed: boolean;
   onSelect: (checkpointId: TutorialCheckpointId) => void;
   onExit: () => void;
 }) {
@@ -351,13 +382,21 @@ function TutorialChapterSelection({
     <div className="app-shell min-h-dvh overflow-x-hidden">
       <PageHeader
         title="新手教程"
-        description="选择本次要练习的章节"
+        description="从所选章节继续练到教程结束，可随时退出"
         icon={<School className="h-5 w-5" aria-hidden="true" />}
         onBack={onExit}
         backLabel="返回首页"
       />
 
       <main className="mx-auto w-full max-w-3xl px-4 py-7 sm:px-6 sm:py-10">
+        {completed ? (
+          <p className="mb-3 text-sm text-[var(--text-secondary)]">
+            <span className="mr-2 inline-flex rounded-full bg-[color:color-mix(in_srgb,var(--semantic-success)_14%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--semantic-success)]">
+              已完成
+            </span>
+            当前教程版本已完成，仍可选择任意章节重新练习。
+          </p>
+        ) : null}
         <div aria-label="教程章节">
           <ol className="overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)] divide-y divide-[var(--border-subtle)]">
             {checkpoints.map((checkpoint, index) => (
@@ -387,10 +426,14 @@ function TutorialChapterSelection({
                     </div>
                     <p
                       id={`tutorial-checkpoint-${checkpoint.id}-description`}
-                      className="mt-1 truncate text-sm text-[var(--text-secondary)]"
+                      className="mt-1 text-sm leading-5 text-[var(--text-secondary)]"
                     >
                       {checkpoint.summary}
                     </p>
+                    <span className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-[var(--text-muted)] sm:hidden">
+                      <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
+                      {checkpoint.durationLabel}
+                    </span>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <span className="hidden items-center gap-1.5 text-xs text-[var(--text-muted)] sm:inline-flex">
