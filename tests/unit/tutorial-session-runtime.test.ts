@@ -326,6 +326,80 @@ describe('教程临时会话运行时', () => {
     );
   });
 
+  it('应在 revision 校验前无副作用恢复已接受的玩家幂等命令', () => {
+    const service = new TutorialSessionService({
+      scenarios: [buildScenario()],
+      idGenerator: () => 'run-idempotent',
+    });
+    const initial = service.createSession({
+      participantKey: 'guest-idempotent',
+      scenarioId: 'runtime-foundation',
+      scenarioVersion: '1.0.0',
+      checkpointId: TUTORIAL_CHECKPOINT_IDS.FOUNDATIONS,
+    });
+    const mulliganCardId = initial.objectBindings['opening-mulligan-card']?.replace(/^obj_/, '');
+    expect(mulliganCardId).toBeDefined();
+    const command = {
+      ...createMulliganCommand('untrusted-player-id', [mulliganCardId as string]),
+      idempotencyKey: 'cmd:tutorial-retry',
+    };
+
+    const first = service.executePlayerCommand({
+      runId: initial.runId,
+      participantKey: 'guest-idempotent',
+      expectedSeq: initial.playerViewState.match.seq,
+      command,
+    });
+    const firstResultSeq = first.snapshot.playerViewState.match.seq;
+    expect(first.snapshot.acceptedCommands).toHaveLength(1);
+    const sessionRecord = (
+      service as unknown as {
+        readonly sessions: ReadonlyMap<
+          string,
+          { readonly session: ReturnType<typeof createGameSession> }
+        >;
+      }
+    ).sessions.get(initial.runId);
+    expect(sessionRecord).toBeDefined();
+    const runtimeBeforeRetry = sessionRecord?.session.getRuntimeStats();
+
+    const retry = service.executePlayerCommand({
+      runId: initial.runId,
+      participantKey: 'guest-idempotent',
+      expectedSeq: initial.playerViewState.match.seq,
+      command: { ...command, timestamp: command.timestamp + 1 },
+    });
+    expect(retry.snapshot.playerViewState.match.seq).toBe(firstResultSeq);
+    expect(retry.snapshot.acceptedCommands).toHaveLength(1);
+    expect(sessionRecord?.session.getRuntimeStats()).toMatchObject({
+      commandLogCount: runtimeBeforeRetry?.commandLogCount,
+      sealedAuditRecordCount: runtimeBeforeRetry?.sealedAuditRecordCount,
+      currentCommandSeq: runtimeBeforeRetry?.currentCommandSeq,
+      currentAuditSeq: runtimeBeforeRetry?.currentAuditSeq,
+    });
+
+    expectTutorialServiceError(
+      () =>
+        service.executePlayerCommand({
+          runId: initial.runId,
+          participantKey: 'guest-idempotent',
+          expectedSeq: initial.playerViewState.match.seq,
+          command: { ...command, cardIdsToMulligan: [] },
+        }),
+      'TUTORIAL_IDEMPOTENCY_CONFLICT'
+    );
+    expectTutorialServiceError(
+      () =>
+        service.executePlayerCommand({
+          runId: initial.runId,
+          participantKey: 'guest-idempotent',
+          expectedSeq: firstResultSeq,
+          command: { ...command, idempotencyKey: 'x'.repeat(129) },
+        }),
+      'TUTORIAL_INVALID_INPUT'
+    );
+  });
+
   it('应按空闲 TTL 回收临时会话', () => {
     let now = 5_000;
     const service = new TutorialSessionService({
@@ -347,5 +421,30 @@ describe('教程临时会话运行时', () => {
       () => service.getSnapshot(initial.runId, 'guest-ttl'),
       'TUTORIAL_SESSION_NOT_FOUND'
     );
+  });
+
+  it('应在创建前回收过期会话并限制全局容量', () => {
+    let now = 10_000;
+    const runIds = ['run-capacity-1', 'run-capacity-2'];
+    const service = new TutorialSessionService({
+      scenarios: [buildScenario()],
+      idGenerator: () => runIds.shift() ?? 'unexpected-run',
+      now: () => now,
+      idleTtlMs: 1_000,
+      maxSessions: 1,
+    });
+    const create = (participantKey: string) =>
+      service.createSession({
+        participantKey,
+        scenarioId: 'runtime-foundation',
+        scenarioVersion: '1.0.0',
+        checkpointId: TUTORIAL_CHECKPOINT_IDS.FOUNDATIONS,
+      });
+
+    expect(create('guest-capacity-1').runId).toBe('run-capacity-1');
+    expectTutorialServiceError(() => create('guest-capacity-blocked'), 'TUTORIAL_CAPACITY_REACHED');
+
+    now = 11_000;
+    expect(create('guest-capacity-2').runId).toBe('run-capacity-2');
   });
 });

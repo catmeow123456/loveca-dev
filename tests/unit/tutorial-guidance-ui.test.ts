@@ -12,17 +12,23 @@ import {
 } from '../../client/src/lib/battleUiAnchors';
 import {
   expandTutorialTargetRect,
+  intersectTutorialRects,
   placeTutorialCallout,
+  translateTutorialRect,
 } from '../../client/src/lib/tutorialGuidance';
 import {
+  canConfirmTutorialMulliganSelection,
   getTutorialScriptAdvanceDelayMs,
   isTutorialEntryBlockedByExistingBattle,
+  normalizeTutorialMulliganSelection,
   resolveTutorialMulliganTargetOverride,
   resolveTutorialMulliganUiPolicy,
   shouldPauseTutorialScript,
 } from '../../client/src/lib/tutorialBattleUi';
+import { resolveTutorialHistoryTransition } from '../../client/src/lib/tutorialNavigation';
 import {
   BASIC_LIVE_TUTORIAL,
+  BASIC_LIVE_TUTORIAL_CHECKPOINTS,
   BASIC_LIVE_TUTORIAL_OBJECT_ROLES,
 } from '../../client/src/tutorial/basicLiveTutorial';
 import { GamePhase, SubPhase, ZoneType } from '../../src/shared/types/enums';
@@ -56,7 +62,113 @@ describe('tutorial battle occupancy', () => {
   });
 });
 
+describe('tutorial browser history', () => {
+  it('enters and exits the tutorial when browser history changes the routed page', () => {
+    expect(resolveTutorialHistoryTransition('home', 'tutorial')).toBe('ENTER');
+    expect(resolveTutorialHistoryTransition('tutorial', 'home')).toBe('EXIT');
+    expect(resolveTutorialHistoryTransition('tutorial', 'tutorial')).toBeNull();
+    expect(resolveTutorialHistoryTransition('home', 'deck-manager')).toBeNull();
+  });
+});
+
+describe('tutorial player-facing rules copy', () => {
+  it('presents four cumulative chapter starting points with cumulative duration estimates', () => {
+    expect(
+      BASIC_LIVE_TUTORIAL_CHECKPOINTS.map(({ title, summary, durationLabel }) => ({
+        title,
+        summary,
+        durationLabel,
+      }))
+    ).toEqual([
+      {
+        title: '基础规则与首轮 LIVE',
+        summary: '从开局准备练到三回合终局',
+        durationLabel: '约 10 分钟',
+      },
+      {
+        title: '换手与触发能力',
+        summary: '从换手减费与登场能力练到终局',
+        durationLabel: '约 8 分钟',
+      },
+      {
+        title: '起动能力与资源循环',
+        summary: '从起动回收与剩余能量练到终局',
+        durationLabel: '约 6 分钟',
+      },
+      {
+        title: '场攻估算与 LIVE 配置',
+        summary: '估算场攻、评估风险并配置制胜 LIVE',
+        durationLabel: '约 4 分钟',
+      },
+    ]);
+  });
+
+  it('teaches the formal opening, settlement ties, and next-round first player', () => {
+    const opening = BASIC_LIVE_TUTORIAL.steps.find((step) => step.id === 'mulligan-explain');
+    const settlement = BASIC_LIVE_TUTORIAL.steps.find((step) => step.id === 'confirm-settlement');
+
+    expect(opening?.body).toContain('6 张起始手牌');
+    expect(opening?.body).toContain('3 张初始能量');
+    expect(opening?.body).toContain('猜拳的胜者选择先攻或后攻');
+    expect(opening?.body).toContain('固定由你先攻');
+    expect(settlement?.body).toContain('分数平分');
+    expect(settlement?.body).toContain('整局平局');
+    expect(settlement?.body).toContain('该方成为下回合先攻');
+    expect(settlement?.body).toContain('先攻不变');
+  });
+
+  it('uses current terminology and distinguishes estimates from guaranteed Heart', () => {
+    const playerFacingCopy = BASIC_LIVE_TUTORIAL.steps
+      .flatMap((step) => [step.chapter, step.title, step.body, step.statusText ?? ''])
+      .join('\n');
+    const phases = BASIC_LIVE_TUTORIAL.steps.find((step) => step.id === 'turn-phases');
+    const reveal = BASIC_LIVE_TUTORIAL.steps.find((step) => step.id === 'confirm-effect-live-set');
+    const remainingEnergy = BASIC_LIVE_TUTORIAL.steps.find(
+      (step) => step.id === 'recovery-energy-window'
+    );
+    const finalEstimate = BASIC_LIVE_TUTORIAL.steps.find(
+      (step) => step.id === 'count-final-stage-hearts'
+    );
+
+    expect(playerFacingCopy).not.toContain('声援');
+    expect(playerFacingCopy).not.toContain('等待状态');
+    expect(playerFacingCopy).not.toContain('自动能力');
+    expect(playerFacingCopy).toContain('应援');
+    expect(playerFacingCopy).toContain('待机状态');
+    expect(playerFacingCopy).toContain('登场能力');
+    expect(phases?.title).toContain('通常阶段');
+    expect(reveal?.body).toContain('先公开并表演先攻的 LIVE');
+    expect(remainingEnergy?.title).toContain('剩余能量可以继续');
+    expect(finalEstimate?.title).toContain('只是场攻估算');
+    expect(finalEstimate?.body).toContain('不保证每张都有 Heart');
+  });
+});
+
 describe('tutorial spotlight geometry', () => {
+  it('uses only the portion of a target that survives viewport and scroll clipping', () => {
+    expect(
+      intersectTutorialRects(
+        { left: 24, top: 580, width: 120, height: 100 },
+        { left: 0, top: 0, width: 390, height: 640 }
+      )
+    ).toEqual({ left: 24, top: 580, width: 120, height: 60 });
+    expect(
+      intersectTutorialRects(
+        { left: 24, top: 680, width: 120, height: 100 },
+        { left: 0, top: 0, width: 390, height: 640 }
+      )
+    ).toBeNull();
+  });
+
+  it('normalizes layout-viewport target coordinates into the visual viewport', () => {
+    expect(translateTutorialRect({ left: 72, top: 144, width: 100, height: 80 }, 20, 44)).toEqual({
+      left: 52,
+      top: 100,
+      width: 100,
+      height: 80,
+    });
+  });
+
   it('expands a target while keeping the spotlight inside the viewport', () => {
     expect(
       expandTutorialTargetRect({ left: 4, top: 6, width: 50, height: 70 }, 12, {
@@ -168,7 +280,7 @@ describe('tutorial mulligan presentation', () => {
   it('shows the modal for its explanation without enabling automatic submission', () => {
     expect(resolveTutorialMulliganUiPolicy(findStep('mulligan-explain'), {})).toEqual({
       panelVisible: true,
-      selectableCardIds: null,
+      selectableCardIds: [],
     });
   });
 
@@ -183,14 +295,36 @@ describe('tutorial mulligan presentation', () => {
     });
   });
 
+  it('fails closed while the guided card binding is unavailable', () => {
+    expect(resolveTutorialMulliganUiPolicy(findStep('mulligan-card'), {})).toEqual({
+      panelVisible: true,
+      selectableCardIds: [],
+    });
+  });
+
   it('moves the spotlight to formal confirmation after the guided card is selected', () => {
     const step = findStep('mulligan-card');
     expect(resolveTutorialMulliganTargetOverride(step, [])).toBeUndefined();
+    expect(resolveTutorialMulliganTargetOverride(step, ['wrong', 'card-mulligan'])).toBeUndefined();
     expect(resolveTutorialMulliganTargetOverride(step, ['card-mulligan'])).toEqual({
       kind: 'ANCHOR',
       anchor: BATTLE_UI_ANCHORS.MULLIGAN_CONFIRM,
       placement: 'TOP',
     });
+  });
+
+  it('clears stale choices and confirms only the exact guided set', () => {
+    expect(normalizeTutorialMulliganSelection(['old', 'guided'], ['guided'])).toEqual(['guided']);
+    expect(canConfirmTutorialMulliganSelection([], [])).toBe(false);
+    expect(canConfirmTutorialMulliganSelection(['old'], ['guided'])).toBe(false);
+    expect(canConfirmTutorialMulliganSelection(['guided', 'extra'], ['guided'])).toBe(false);
+    expect(canConfirmTutorialMulliganSelection(['guided'], ['guided'])).toBe(true);
+    expect(canConfirmTutorialMulliganSelection(['a', 'b'], ['b', 'a'])).toBe(true);
+  });
+
+  it('keeps ordinary mulligan confirmation independent from tutorial whitelists', () => {
+    expect(canConfirmTutorialMulliganSelection([], null)).toBe(false);
+    expect(canConfirmTutorialMulliganSelection(['any-card'], null)).toBe(true);
   });
 });
 
