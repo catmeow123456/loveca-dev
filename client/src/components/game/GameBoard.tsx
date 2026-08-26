@@ -320,6 +320,8 @@ export interface GameBoardProps {
   onMulliganSelectionChange?: (selectedCardIds: readonly string[]) => void;
   /** 教程等受控展示可在步骤切换时聚焦己方或对手战场；玩家仍可随后手动关闭。 */
   mobileBattlefieldFocusRequest?: MobileBattlefieldFocusRequest;
+  /** 教程等受控展示可在移动端步骤切换时收起判定面板；普通牌桌不传时保持原行为。 */
+  mobileJudgmentPanelCloseRequestKey?: string;
 }
 
 export const GameBoard = memo(function GameBoard({
@@ -332,6 +334,7 @@ export const GameBoard = memo(function GameBoard({
   mulliganSelectableCardIds = null,
   onMulliganSelectionChange,
   mobileBattlefieldFocusRequest,
+  mobileJudgmentPanelCloseRequestKey,
 }: GameBoardProps) {
   const mobileBattlefieldFocusKey = mobileBattlefieldFocusRequest?.key;
   const mobileBattlefieldFocusTarget = mobileBattlefieldFocusRequest?.target;
@@ -1381,6 +1384,12 @@ export const GameBoard = memo(function GameBoard({
       return () => window.clearTimeout(timer);
     }
   }, [isJudgmentPanelRelevant, judgmentPanelOpen]);
+
+  useEffect(() => {
+    if (!isMobileBattlefield || !mobileJudgmentPanelCloseRequestKey) return;
+    const timer = window.setTimeout(() => setJudgmentPanelOpen(false), 0);
+    return () => window.clearTimeout(timer);
+  }, [isMobileBattlefield, mobileJudgmentPanelCloseRequestKey]);
 
   useEffect(() => {
     if (!isMobileBattlefield && mobilePanel) {

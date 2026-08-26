@@ -26,6 +26,11 @@ const OPPONENT_BATTLEFIELD_ANCHORS = new Set<BattleUiAnchorId>([
   BATTLE_UI_ANCHORS.OPPONENT_SUCCESS_LIVE_ZONE,
 ]);
 
+const SCORE_CONFIRM_ANCHORS = new Set<BattleUiAnchorId>([
+  BATTLE_UI_ANCHORS.SCORE_CONFIRM,
+  BATTLE_UI_ANCHORS.SCORE_CONFIRM_ACTION,
+]);
+
 export function resolveTutorialMobileBattlefieldFocus(
   step: TutorialStepDefinition | null,
   opponentIsActing = false
@@ -37,6 +42,15 @@ export function resolveTutorialMobileBattlefieldFocus(
   )
     ? 'OPPONENT'
     : 'SELF';
+}
+
+export function shouldCloseTutorialMobileJudgmentPanel(
+  step: TutorialStepDefinition | null
+): boolean {
+  const targets = step ? [step.target, ...(step.secondaryTargets ?? [])] : [];
+  return targets.some(
+    (target) => target?.kind === 'ANCHOR' && SCORE_CONFIRM_ANCHORS.has(target.anchor)
+  );
 }
 
 export function normalizeTutorialMulliganSelection(

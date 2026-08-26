@@ -6,6 +6,7 @@ import {
   resolveTutorialMobileBattlefieldFocus,
   resolveTutorialMulliganTargetOverride,
   resolveTutorialMulliganUiPolicy,
+  shouldCloseTutorialMobileJudgmentPanel,
 } from '@/lib/tutorialBattleUi';
 import type {
   TutorialAcceptedCommand,
@@ -29,6 +30,7 @@ export interface TutorialBattleSurfaceProps {
     | 'mulliganSelectableCardIds'
     | 'onMulliganSelectionChange'
     | 'mobileBattlefieldFocusRequest'
+    | 'mobileJudgmentPanelCloseRequestKey'
   >;
   readonly onProgressChange?: (progress: TutorialProgressState) => void;
   /** The future tutorial transport installs this policy before sending player commands. */
@@ -89,6 +91,9 @@ export const TutorialBattleSurface = memo(function TutorialBattleSurface({
         : undefined,
     [currentStep, playerViewState?.match.activeSeat, playerViewState?.match.viewerSeat]
   );
+  const mobileJudgmentPanelCloseRequestKey = shouldCloseTutorialMobileJudgmentPanel(currentStep)
+    ? currentStep?.id
+    : undefined;
   const handleProgressChange = useCallback(
     (nextProgress: TutorialProgressState) => {
       setProgress(nextProgress);
@@ -106,6 +111,7 @@ export const TutorialBattleSurface = memo(function TutorialBattleSurface({
         mulliganSelectableCardIds={mulliganUiPolicy.selectableCardIds}
         onMulliganSelectionChange={setMulliganSelection}
         mobileBattlefieldFocusRequest={mobileBattlefieldFocusRequest}
+        mobileJudgmentPanelCloseRequestKey={mobileJudgmentPanelCloseRequestKey}
       />
       <TutorialBattleGuidance
         scenario={scenario}

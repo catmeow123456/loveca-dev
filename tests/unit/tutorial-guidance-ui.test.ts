@@ -26,6 +26,7 @@ import {
   resolveTutorialMulliganTargetOverride,
   resolveTutorialMulliganUiPolicy,
   shouldPauseTutorialScript,
+  shouldCloseTutorialMobileJudgmentPanel,
 } from '../../client/src/lib/tutorialBattleUi';
 import { resolveTutorialHistoryTransition } from '../../client/src/lib/tutorialNavigation';
 import {
@@ -414,6 +415,19 @@ describe('tutorial mobile battlefield focus', () => {
     expect(resolveTutorialMobileBattlefieldFocus(findStep('end-main-phase'), true)).toBe(
       'OPPONENT'
     );
+  });
+});
+
+describe('tutorial mobile judgment panel', () => {
+  const findStep = (stepId: string) =>
+    BASIC_LIVE_TUTORIAL.steps.find((step) => step.id === stepId) ?? null;
+
+  it('closes the judgment panel before both score confirmation actions', () => {
+    expect(shouldCloseTutorialMobileJudgmentPanel(findStep('wait-score'))).toBe(false);
+    expect(shouldCloseTutorialMobileJudgmentPanel(findStep('confirm-score'))).toBe(true);
+    expect(shouldCloseTutorialMobileJudgmentPanel(findStep('wait-final-score'))).toBe(true);
+    expect(shouldCloseTutorialMobileJudgmentPanel(findStep('confirm-final-score'))).toBe(true);
+    expect(shouldCloseTutorialMobileJudgmentPanel(findStep('read-final-judgment'))).toBe(false);
   });
 });
 
