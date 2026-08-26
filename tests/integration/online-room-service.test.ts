@@ -3766,6 +3766,16 @@ describe('OnlineRoomService', () => {
         ],
       },
     });
+    expect(secondPlayerView.themeDeckAssignment?.mainDeck).toHaveLength(60);
+    expect(secondPlayerView.themeDeckAssignment?.energyDeck).toHaveLength(12);
+    expect(secondPlayerView.themeDeckAssignment?.mainDeck[0]).toEqual({
+      cardCode: 'theme-abandon-b-LIVE-0',
+      count: 1,
+    });
+    expect(secondPlayerView.themeDeckAssignment?.energyDeck[0]).toEqual({
+      cardCode: 'theme-abandon-b-ENE-0',
+      count: 1,
+    });
     expect(secondPlayerView.members.find((member) => member.userId === 'u1')).toMatchObject({
       lockedDeckId: null,
       lockedDeckName: null,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -12,10 +13,11 @@ import {
   LockKeyhole,
   MousePointerClick,
   RefreshCw,
+  Search,
   ShieldCheck,
   X,
 } from 'lucide-react';
-import { PageHeader } from '@/components/common';
+import { ActionButton, PageHeader, SelectMenu } from '@/components/common';
 import { GameBoard } from '@/components/game';
 import {
   exportAdminMatchRecordBundle,
@@ -32,6 +34,8 @@ import {
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
+import { fetchRankedSeasons } from '@/lib/rankedAdminClient';
+import { fetchThemeAdminEvents } from '@/lib/themeTableAdminClient';
 import type {
   MatchRecordDetailView,
   MatchRecordDecisionView,
@@ -50,6 +54,11 @@ interface MatchRecordsPageProps {
   onBack: () => void;
 }
 
+interface AdminActivityFilterOption {
+  readonly value: string;
+  readonly label: string;
+}
+
 export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   const [records, setRecords] = useState<readonly MatchRecordSummaryView[]>([]);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
@@ -63,16 +72,24 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   const [adminUserQuery, setAdminUserQuery] = useState('');
   const [adminDateFrom, setAdminDateFrom] = useState('');
   const [adminDateTo, setAdminDateTo] = useState('');
+  const [adminActivity, setAdminActivity] = useState('');
+  const [adminActivityOptions, setAdminActivityOptions] = useState<
+    readonly AdminActivityFilterOption[]
+  >([]);
+  const [adminActivityOptionsError, setAdminActivityOptionsError] = useState<string | null>(null);
   const [adminFilters, setAdminFilters] = useState<AdminMatchRecordFilters>({});
   const [debugDetailsOpen, setDebugDetailsOpen] = useState(false);
   const [adminViewerSeat, setAdminViewerSeat] = useState<Seat>('FIRST');
   const [replayBoardOpen, setReplayBoardOpen] = useState(false);
   const profile = useAuthStore((s) => s.profile);
-  const isAdmin = profile ? hasPermission(profile.role, 'platform.manage') : false;
+  const hasManagementHistoryAccess = profile
+    ? hasPermission(profile.role, 'season.ranked.manage')
+    : false;
+  const canExport = profile ? hasPermission(profile.role, 'platform.manage') : false;
   const latestReplayRequestRef = useRef(0);
   const replayBoardOpenRef = useRef(false);
   const lastViewerSeatReloadKeyRef = useRef<string | null>(null);
-  const isAdminRef = useRef(isAdmin);
+  const hasManagementHistoryAccessRef = useRef(hasManagementHistoryAccess);
   const adminViewerSeatRef = useRef(adminViewerSeat);
   const enterReadonlyReplay = useGameStore((s) => s.enterReadonlyReplay);
   const leaveReadonlyReplay = useGameStore((s) => s.leaveReadonlyReplay);
@@ -81,18 +98,49 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     records.find((candidate) => candidate.matchId === selectedMatchId) ?? records[0] ?? null;
 
   useEffect(() => {
-    isAdminRef.current = isAdmin;
-  }, [isAdmin]);
+    hasManagementHistoryAccessRef.current = hasManagementHistoryAccess;
+  }, [hasManagementHistoryAccess]);
 
   useEffect(() => {
     adminViewerSeatRef.current = adminViewerSeat;
   }, [adminViewerSeat]);
 
+  useEffect(() => {
+    if (!hasManagementHistoryAccess) {
+      return;
+    }
+    let cancelled = false;
+    void Promise.all([fetchRankedSeasons(), fetchThemeAdminEvents()])
+      .then(([seasons, themeEvents]) => {
+        if (cancelled) return;
+        setAdminActivityOptions([
+          ...seasons.map((season) => ({
+            value: `ranked:${season.id}`,
+            label: `排位 · ${season.name}`,
+          })),
+          ...themeEvents.map((event) => ({
+            value: `theme:${event.id}`,
+            label: `娱乐模式 · ${event.name}`,
+          })),
+        ]);
+      })
+      .catch((loadError) => {
+        if (cancelled) return;
+        setAdminActivityOptions([]);
+        setAdminActivityOptionsError(
+          loadError instanceof Error ? loadError.message : '读取赛季活动筛选项失败'
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasManagementHistoryAccess]);
+
   const loadRecords = useCallback(async () => {
     setIsLoadingRecords(true);
     setError(null);
     try {
-      const nextRecords = isAdmin
+      const nextRecords = hasManagementHistoryAccess
         ? await fetchAdminMatchRecords(adminFilters)
         : await fetchMatchRecords();
       setRecords(nextRecords);
@@ -106,7 +154,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     } finally {
       setIsLoadingRecords(false);
     }
-  }, [adminFilters, isAdmin]);
+  }, [adminFilters, hasManagementHistoryAccess]);
 
   const loadMatchNode = useCallback(
     async (matchId: string, checkpointSeq?: number) => {
@@ -115,7 +163,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
       setError(null);
       try {
         const adminSeat = adminViewerSeatRef.current;
-        const nextDetail = isAdminRef.current
+        const nextDetail = hasManagementHistoryAccessRef.current
           ? await fetchAdminMatchRecordDetail(matchId)
           : await fetchMatchRecordDetail(matchId);
         if (requestId !== latestReplayRequestRef.current) {
@@ -130,7 +178,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
           leaveReadonlyReplay();
           return;
         }
-        const [nextTimeline, nextReplay] = isAdminRef.current
+        const [nextTimeline, nextReplay] = hasManagementHistoryAccessRef.current
           ? await Promise.all([
               fetchAdminMatchRecordTimeline(matchId, adminSeat),
               fetchAdminMatchRecordReplay(matchId, { checkpointSeq, viewerSeat: adminSeat }),
@@ -192,7 +240,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
         return;
       }
 
-      const reloadKey = `${selectedMatchId}:${isAdmin ? adminViewerSeat : 'participant'}`;
+      const reloadKey = `${selectedMatchId}:${hasManagementHistoryAccess ? adminViewerSeat : 'participant'}`;
       if (lastViewerSeatReloadKeyRef.current === reloadKey) {
         return;
       }
@@ -208,7 +256,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     return () => window.clearTimeout(timer);
   }, [
     adminViewerSeat,
-    isAdmin,
+    hasManagementHistoryAccess,
     leaveReadonlyReplay,
     loadMatchNode,
     replay?.replayPosition.checkpointSeq,
@@ -312,6 +360,8 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
       userQuery?: string;
       startedFrom?: number;
       startedTo?: number;
+      rankedSeasonId?: string;
+      themeTableVersionId?: string;
     } = {};
     const query = adminUserQuery.trim();
     if (query) {
@@ -325,18 +375,24 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     if (to !== null) {
       nextFilters.startedTo = to;
     }
+    if (adminActivity.startsWith('ranked:')) {
+      nextFilters.rankedSeasonId = adminActivity.slice('ranked:'.length);
+    } else if (adminActivity.startsWith('theme:')) {
+      nextFilters.themeTableVersionId = adminActivity.slice('theme:'.length);
+    }
     setAdminFilters(nextFilters);
-  }, [adminDateFrom, adminDateTo, adminUserQuery]);
+  }, [adminActivity, adminDateFrom, adminDateTo, adminUserQuery]);
 
   const handleResetAdminFilters = useCallback(() => {
     setAdminUserQuery('');
     setAdminDateFrom('');
     setAdminDateTo('');
+    setAdminActivity('');
     setAdminFilters({});
   }, []);
 
   const handleExportSelectedRecord = useCallback(async () => {
-    if (!selectedRecord || !isAdmin) {
+    if (!selectedRecord || !canExport) {
       return;
     }
     setIsExporting(true);
@@ -352,7 +408,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     } finally {
       setIsExporting(false);
     }
-  }, [isAdmin, selectedRecord]);
+  }, [canExport, selectedRecord]);
 
   return (
     <div className="app-shell flex min-h-screen flex-col overflow-x-hidden">
@@ -386,14 +442,19 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
               detail={`${records.length} 条`}
             />
 
-            {isAdmin ? (
+            {hasManagementHistoryAccess ? (
               <AdminMatchRecordFiltersPanel
                 userQuery={adminUserQuery}
                 dateFrom={adminDateFrom}
                 dateTo={adminDateTo}
+                activity={adminActivity}
+                activityOptions={adminActivityOptions}
+                activityOptionsError={adminActivityOptionsError}
+                appliedFilterCount={Object.keys(adminFilters).length}
                 onUserQueryChange={setAdminUserQuery}
                 onDateFromChange={setAdminDateFrom}
                 onDateToChange={setAdminDateTo}
+                onActivityChange={setAdminActivity}
                 onApply={handleApplyAdminFilters}
                 onReset={handleResetAdminFilters}
                 disabled={isLoadingRecords}
@@ -434,23 +495,25 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                     selectedRecord ? formatDateTime(selectedRecord.startedAt) : '请选择一条记录'
                   }
                 />
-                {isAdmin && selectedRecord ? (
+                {hasManagementHistoryAccess && selectedRecord ? (
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
                     <SeatSegmentedControl value={adminViewerSeat} onChange={setAdminViewerSeat} />
-                    <button
-                      type="button"
-                      onClick={() => void handleExportSelectedRecord()}
-                      disabled={isExporting || selectedRecord.completeness === 'METADATA_ONLY'}
-                      className="button-ghost inline-flex h-9 items-center justify-center gap-1.5 border border-[var(--border-default)] px-3 text-xs font-semibold disabled:opacity-50"
-                      title={
-                        selectedRecord.completeness === 'METADATA_ONLY'
-                          ? '该记录的回放数据已清理'
-                          : '导出回放'
-                      }
-                    >
-                      <Download size={14} />
-                      导出
-                    </button>
+                    {canExport ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleExportSelectedRecord()}
+                        disabled={isExporting || selectedRecord.completeness === 'METADATA_ONLY'}
+                        className="button-ghost inline-flex h-9 items-center justify-center gap-1.5 border border-[var(--border-default)] px-3 text-xs font-semibold disabled:opacity-50"
+                        title={
+                          selectedRecord.completeness === 'METADATA_ONLY'
+                            ? '该记录的回放数据已清理'
+                            : '导出回放'
+                        }
+                      >
+                        <Download size={14} />
+                        导出
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -461,6 +524,9 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                 <MatchRecordSummary
                   detail={detail}
                   record={selectedRecord}
+                  viewerSeat={
+                    hasManagementHistoryAccess ? adminViewerSeat : selectedRecord.viewerSeat
+                  }
                   loading={isLoadingNode}
                 />
               ) : (
@@ -472,8 +538,8 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
               <div className="surface-panel rounded-lg p-4">
                 <PanelTitle
                   icon={<Eye size={16} />}
-                  title="回放节点"
-                  detail={replay ? `CP ${replay.replayPosition.checkpointSeq}` : '未载入'}
+                  title="桌面回放"
+                  detail={replay ? formatSeatPerspective(replay.viewerSeat) : '未载入'}
                 />
 
                 {isLoadingNode && !replay ? (
@@ -500,8 +566,6 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                     {replay.partialReasonSummary ? (
                       <PartialRecordNotice detail={replay.partialReasonSummary} compact />
                     ) : null}
-                    <ReplayStagePanel replay={replay} />
-                    <ReplayMetricGrid replay={replay} />
                   </div>
                 ) : (
                   <EmptyPanel
@@ -522,8 +586,8 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
               <div className="surface-panel rounded-lg p-4">
                 <PanelTitle
                   icon={<ListTree size={16} />}
-                  title="时间线"
-                  detail={timeline.length > 0 ? `${timeline.length} 节点` : '无节点'}
+                  title="对局进程"
+                  detail={timeline.length > 0 ? `${timeline.length} 条` : '无记录'}
                 />
                 {isLoadingNode && timeline.length === 0 ? (
                   <LoadingPanel label="读取 timeline" />
@@ -541,7 +605,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                     }
                   />
                 ) : (
-                  <div className="mt-3 grid max-h-[560px] gap-2 overflow-x-hidden overflow-y-auto pr-1">
+                  <div className="mt-3 max-h-[560px] overflow-x-hidden overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
                     {timeline.map((entry) => (
                       <TimelineRow
                         key={entry.timelineSeq}
@@ -577,6 +641,8 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                 </button>
                 {debugDetailsOpen ? (
                   <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <ReplayStagePanel replay={replay} />
+                    <ReplayMetricGrid replay={replay} />
                     <VisibleEventList events={replay.visibleEvents} />
                     <PrivateEventList events={replay.visiblePrivateEvents} />
                     <DecisionRecordList decisions={replay.visibleDecisions} />
@@ -584,18 +650,9 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                     <FrontCardList cards={visibleFrontCards} />
                   </div>
                 ) : (
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--text-muted)]">
-                    <span className="chip-badge px-2 py-1">
-                      公开事件 {replay.visibleEvents.length}
-                    </span>
-                    <span className="chip-badge px-2 py-1">
-                      私密事件 {replay.visiblePrivateEvents.length}
-                    </span>
-                    <span className="chip-badge px-2 py-1">
-                      决策 {replay.visibleDecisions.length}
-                    </span>
-                    <span className="chip-badge px-2 py-1">区域 {visibleZones.length}</span>
-                  </div>
+                  <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">
+                    按需查看阶段、事件、决策与卡牌投影等审计信息。
+                  </p>
                 )}
               </section>
             ) : null}
@@ -608,25 +665,28 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
           <div className="h-full w-full">
             <GameBoard />
           </div>
-          <div className="pointer-events-auto fixed left-4 right-4 top-4 z-[230] flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-2 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
-            <div className="min-w-0">
-              <div className="truncate text-sm font-bold">
-                {formatMatchModeLabel(replay.sourceMatchMode)}桌面回放
+          <div className="pointer-events-auto fixed left-2 top-[calc(env(safe-area-inset-top)+0.5rem)] z-[230] max-w-[calc(100vw-1rem)] md:left-4 md:top-4">
+            <div className="inline-flex h-11 max-w-full items-center overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
+              <div className="flex min-w-0 items-center gap-2 px-3 text-sm font-semibold">
+                <History
+                  size={15}
+                  aria-hidden="true"
+                  className="shrink-0 text-[var(--accent-primary)]"
+                />
+                <span className="hidden sm:inline">历史回放</span>
+                <span className="whitespace-nowrap font-mono text-xs text-[var(--text-secondary)]">
+                  {currentCheckpointIndex >= 0 ? currentCheckpointIndex + 1 : 0}/
+                  {checkpointEntries.length}
+                </span>
               </div>
-              <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
-                <span>checkpoint {replay.replayPosition.checkpointSeq}</span>
-                <span>timeline {replay.replayPosition.timelineSeq}</span>
-                <span>{replay.recordCompleteness}</span>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
+              <span className="h-5 w-px shrink-0 bg-[var(--border-default)]" />
               <button
                 type="button"
                 onClick={() => handleStepCheckpoint(-1)}
                 disabled={!canGoPreviousCheckpoint || isLoadingNode}
-                className="button-icon h-9 w-9 disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="上一个 checkpoint"
-                title="上一个 checkpoint"
+                className="button-ghost grid h-10 w-10 shrink-0 place-items-center rounded-none p-0 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="上一个回放节点"
+                title="上一个回放节点"
               >
                 <ChevronLeft size={16} />
               </button>
@@ -634,16 +694,17 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                 type="button"
                 onClick={() => handleStepCheckpoint(1)}
                 disabled={!canGoNextCheckpoint || isLoadingNode}
-                className="button-icon h-9 w-9 disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="下一个 checkpoint"
-                title="下一个 checkpoint"
+                className="button-ghost grid h-10 w-10 shrink-0 place-items-center rounded-none p-0 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="下一个回放节点"
+                title="下一个回放节点"
               >
                 <ChevronRight size={16} />
               </button>
+              <span className="h-5 w-px shrink-0 bg-[var(--border-default)]" />
               <button
                 type="button"
                 onClick={handleCloseReplayBoard}
-                className="button-icon h-9 w-9"
+                className="button-ghost grid h-10 w-10 shrink-0 place-items-center rounded-none p-0"
                 aria-label="关闭桌面回放"
                 title="关闭桌面回放"
               >
@@ -735,9 +796,14 @@ function AdminMatchRecordFiltersPanel({
   userQuery,
   dateFrom,
   dateTo,
+  activity,
+  activityOptions,
+  activityOptionsError,
+  appliedFilterCount,
   onUserQueryChange,
   onDateFromChange,
   onDateToChange,
+  onActivityChange,
   onApply,
   onReset,
   disabled,
@@ -745,62 +811,129 @@ function AdminMatchRecordFiltersPanel({
   userQuery: string;
   dateFrom: string;
   dateTo: string;
+  activity: string;
+  activityOptions: readonly AdminActivityFilterOption[];
+  activityOptionsError: string | null;
+  appliedFilterCount: number;
   onUserQueryChange: (value: string) => void;
   onDateFromChange: (value: string) => void;
   onDateToChange: (value: string) => void;
+  onActivityChange: (value: string) => void;
   onApply: () => void;
   onReset: () => void;
   disabled: boolean;
 }) {
+  const hasFilterValue = Boolean(
+    activity || userQuery.trim() || dateFrom || dateTo || appliedFilterCount > 0
+  );
+
   return (
-    <div className="mt-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-3">
-      <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)]">
-        <Filter size={13} className="text-[var(--accent-primary)]" />
-        管理筛选
+    <form
+      className="-mx-3 mt-3 border-y border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_52%,var(--bg-surface))] px-3 py-3 sm:-mx-4 sm:px-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!disabled) onApply();
+      }}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2 text-[var(--text-primary)]">
+          <Filter size={14} aria-hidden="true" className="shrink-0 text-[var(--accent-primary)]" />
+          <h3 className="truncate text-xs font-semibold">筛选对局</h3>
+        </div>
+        <span
+          className={`shrink-0 text-[11px] font-medium ${
+            appliedFilterCount > 0 ? 'text-[var(--accent-primary)]' : 'text-[var(--text-muted)]'
+          }`}
+        >
+          {appliedFilterCount > 0 ? `${appliedFilterCount} 项生效` : '全部记录'}
+        </span>
       </div>
-      <div className="grid gap-2">
-        <input
-          value={userQuery}
-          onChange={(event) => onUserQueryChange(event.target.value)}
-          className="h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--border-active)]"
-          placeholder="用户、房间、match id"
+
+      <div className="mt-2.5 grid gap-2.5">
+        <SelectMenu
+          label="按所属活动筛选"
+          value={activity}
+          options={[{ value: '', label: '全部活动' }, ...activityOptions]}
+          onChange={onActivityChange}
+          disabled={disabled}
+          className="w-full shadow-none"
         />
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            value={dateFrom}
-            onChange={(event) => onDateFromChange(event.target.value)}
-            type="date"
-            className="h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--border-active)]"
-            aria-label="开始日期"
+
+        {activityOptionsError ? (
+          <p
+            className="flex items-start gap-1.5 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_25%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--semantic-warning)_7%,transparent)] px-2.5 py-2 text-[11px] leading-4 text-[var(--semantic-warning)]"
+            role="status"
+          >
+            <AlertTriangle size={13} aria-hidden="true" className="mt-0.5 shrink-0" />
+            <span>{activityOptionsError}</span>
+          </p>
+        ) : null}
+
+        <label className="relative block">
+          <span className="sr-only">搜索参与者或对局</span>
+          <Search
+            size={14}
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
           />
           <input
-            value={dateTo}
-            onChange={(event) => onDateToChange(event.target.value)}
-            type="date"
-            className="h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--border-active)]"
-            aria-label="结束日期"
+            value={userQuery}
+            onChange={(event) => onUserQueryChange(event.target.value)}
+            type="search"
+            autoComplete="off"
+            maxLength={120}
+            className="input-field h-10 pl-9 pr-3 text-sm"
+            placeholder="用户名、房间号或对局 ID"
           />
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={onApply}
-            disabled={disabled}
-            className="button-primary h-9 px-3 text-xs font-semibold disabled:opacity-50"
-          >
-            筛选
-          </button>
-          <button
-            type="button"
-            onClick={onReset}
-            disabled={disabled}
-            className="button-ghost h-9 border border-[var(--border-default)] px-3 text-xs font-semibold disabled:opacity-50"
-          >
-            清空
-          </button>
-        </div>
+        </label>
+
+        <fieldset className="grid gap-1.5">
+          <legend className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)]">
+            <CalendarDays size={13} aria-hidden="true" />
+            开局日期
+          </legend>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="grid min-w-0 gap-1 text-[10px] text-[var(--text-muted)]">
+              开始
+              <input
+                value={dateFrom}
+                onChange={(event) => onDateFromChange(event.target.value)}
+                type="date"
+                max={dateTo || undefined}
+                className="input-field h-10 min-w-0 px-2 text-[11px]"
+              />
+            </label>
+            <label className="grid min-w-0 gap-1 text-[10px] text-[var(--text-muted)]">
+              结束
+              <input
+                value={dateTo}
+                onChange={(event) => onDateToChange(event.target.value)}
+                type="date"
+                min={dateFrom || undefined}
+                className="input-field h-10 min-w-0 px-2 text-[11px]"
+              />
+            </label>
+          </div>
+        </fieldset>
       </div>
-    </div>
+
+      <div className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-2">
+        <ActionButton
+          type="button"
+          variant="ghost"
+          size="compact"
+          onClick={onReset}
+          disabled={disabled || !hasFilterValue}
+          className="border border-[var(--border-default)]"
+        >
+          清空
+        </ActionButton>
+        <ActionButton type="submit" size="compact" disabled={disabled}>
+          <Search size={14} aria-hidden="true" />
+          查询
+        </ActionButton>
+      </div>
+    </form>
   );
 }
 
@@ -812,7 +945,11 @@ function SeatSegmentedControl({
   onChange: (seat: Seat) => void;
 }) {
   return (
-    <div className="inline-flex rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-1">
+    <div
+      role="group"
+      className="inline-flex rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-1"
+      aria-label="选择回放视角"
+    >
       {(['FIRST', 'SECOND'] as const).map((seat) => (
         <button
           key={seat}
@@ -824,7 +961,7 @@ function SeatSegmentedControl({
               : 'text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)]'
           }`}
         >
-          {seat}
+          {seat === 'FIRST' ? '先攻视角' : '后攻视角'}
         </button>
       ))}
     </div>
@@ -834,41 +971,49 @@ function SeatSegmentedControl({
 function MatchRecordSummary({
   detail,
   record,
+  viewerSeat,
   loading,
 }: {
   detail: MatchRecordDetailView | null;
   record: MatchRecordSummaryView;
+  viewerSeat: Seat;
   loading: boolean;
 }) {
   const first = detail?.participants.find((participant) => participant.seat === 'FIRST');
   const second = detail?.participants.find((participant) => participant.seat === 'SECOND');
-  const viewerDeck = detail?.deckSnapshots.find((snapshot) => snapshot.seat === record.viewerSeat);
+  const winner =
+    record.winnerSeat === 'FIRST' ? first : record.winnerSeat === 'SECOND' ? second : null;
+  const loser =
+    record.winnerSeat === 'FIRST' ? second : record.winnerSeat === 'SECOND' ? first : null;
+  const viewerDeck = detail?.deckSnapshots.find((snapshot) => snapshot.seat === viewerSeat);
+  const endReasonSummary =
+    record.endReason === 'OPPONENT_SURRENDER' && loser
+      ? `${loser.displayName} 认输`
+      : formatMatchEndReason(record.endReason);
   const resultSummary =
     record.status === 'IN_PROGRESS'
       ? '进行中'
-      : `${record.winnerSeat ? `胜者 ${record.winnerSeat}` : '无胜者'}${
-          record.endReason ? ` · ${record.endReason}` : ''
-        }`;
+      : winner
+        ? `${winner.displayName} 获胜${record.endReason ? ` · ${endReasonSummary}` : ''}`
+        : endReasonSummary;
   const deckSummary = viewerDeck
-    ? `${viewerDeck.mainDeckCount}+${viewerDeck.energyDeckCount} · ${
-        viewerDeck.sourceDeckName ?? viewerDeck.source
-      }`
+    ? `${viewerDeck.sourceDeckName ?? '未命名卡组'} · ${viewerDeck.mainDeckCount}+${viewerDeck.energyDeckCount}`
     : loading
       ? '读取中'
-      : '-';
+      : null;
 
   return (
-    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-      <InfoTile
-        label="对局"
-        value={`${formatMatchModeLabel(record.matchMode)} · ${formatRecordStatus(record)}`}
-      />
-      <InfoTile
-        label="玩家"
-        value={`FIRST ${first?.displayName ?? '-'} / SECOND ${second?.displayName ?? '-'}`}
-      />
-      <InfoTile label="结果" value={resultSummary} />
-      <InfoTile label="卡组" value={deckSummary} />
+    <div className="mt-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <ModePill mode={record.matchMode} />
+        <span className="text-sm font-semibold text-[var(--text-primary)]">{resultSummary}</span>
+      </div>
+      {deckSummary ? (
+        <div className="mt-2 border-t border-[var(--border-subtle)] pt-2 text-xs text-[var(--text-muted)]">
+          {formatSeatPerspective(viewerSeat)}卡组：
+          <span className="font-medium text-[var(--text-secondary)]">{deckSummary}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -888,31 +1033,28 @@ function TimelineRow({
       type="button"
       onClick={onClick}
       disabled={!hasCheckpoint}
-      className={`grid min-h-20 w-full grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-lg border px-3 py-2 text-left transition ${
+      title={entry.summary}
+      className={`grid min-h-14 w-full grid-cols-[1.75rem_minmax(0,1fr)] items-center gap-2.5 border-b border-[var(--border-subtle)] px-3 py-2 text-left transition last:border-b-0 ${
         selected
-          ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,var(--bg-surface))]'
-          : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-default)] hover:bg-[var(--bg-overlay)]'
+          ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-surface))]'
+          : 'bg-transparent hover:bg-[var(--bg-overlay)]'
       } disabled:cursor-default disabled:opacity-70`}
     >
-      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--bg-overlay)] font-mono text-xs font-bold text-[var(--accent-primary)]">
+      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--bg-overlay)] font-mono text-[10px] font-semibold text-[var(--accent-primary)]">
         {entry.timelineSeq}
       </div>
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="truncate text-sm font-semibold text-[var(--text-primary)]">
-            {entry.summary}
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate text-xs font-semibold text-[var(--text-primary)]">
+            {formatFrameTypeLabel(entry.frameType)}
           </span>
           {hasCheckpoint ? (
-            <span className="rounded-full border border-[var(--border-subtle)] px-2 py-0.5 text-[10px] text-[var(--text-muted)]">
-              CP {entry.relatedCheckpointSeq}
+            <span className="shrink-0 text-[10px] font-medium text-[var(--accent-primary)]">
+              节点 {entry.relatedCheckpointSeq}
             </span>
           ) : null}
         </div>
-        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
-          <span>T{entry.turnCount}</span>
-          <span>{formatDateTime(entry.createdAt)}</span>
-          <span>{formatFrameTypeLabel(entry.frameType)}</span>
-        </div>
+        <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">第 {entry.turnCount} 回合</div>
       </div>
     </button>
   );
@@ -942,13 +1084,13 @@ function CheckpointNavigator({
         onClick={onPrevious}
         disabled={!canPrevious}
         className="button-icon h-9 w-9 disabled:cursor-default disabled:opacity-40"
-        aria-label="上一个 checkpoint"
-        title="上一个 checkpoint"
+        aria-label="上一个回放节点"
+        title="上一个回放节点"
       >
         <ChevronLeft size={16} />
       </button>
       <div className="min-w-0 text-center">
-        <div className="text-xs text-[var(--text-muted)]">checkpoint</div>
+        <div className="text-xs text-[var(--text-muted)]">回放节点</div>
         <div className="mt-0.5 truncate font-mono text-sm font-bold text-[var(--text-primary)]">
           {label}
         </div>
@@ -958,8 +1100,8 @@ function CheckpointNavigator({
         onClick={onNext}
         disabled={!canNext}
         className="button-icon h-9 w-9 disabled:cursor-default disabled:opacity-40"
-        aria-label="下一个 checkpoint"
-        title="下一个 checkpoint"
+        aria-label="下一个回放节点"
+        title="下一个回放节点"
       >
         <ChevronRight size={16} />
       </button>
@@ -1244,15 +1386,6 @@ function PanelTitle({
   );
 }
 
-function InfoTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)] items-center gap-2 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1.5">
-      <div className="text-[11px] font-medium text-[var(--text-muted)]">{label}</div>
-      <div className="truncate text-sm font-semibold text-[var(--text-primary)]">{value}</div>
-    </div>
-  );
-}
-
 function MiniMetric({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="min-w-0 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2">
@@ -1295,7 +1428,7 @@ function StatusPill({
         : 'border-[var(--border-subtle)] text-[var(--text-muted)]';
   return (
     <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tone}`}>
-      {completeness === 'METADATA_ONLY' ? '仅元信息' : status}
+      {formatRecordStatus({ status, completeness })}
     </span>
   );
 }
@@ -1383,6 +1516,29 @@ function formatMatchModeLabel(mode: MatchRecordSummaryView['matchMode']): string
   return mode === 'SOLITAIRE' ? '对墙打' : '正式联机';
 }
 
+function formatSeatPerspective(seat: Seat): string {
+  return seat === 'FIRST' ? '先攻视角' : '后攻视角';
+}
+
+function formatMatchEndReason(reason: string | null): string {
+  switch (reason) {
+    case 'VICTORY_CONDITION':
+      return '达成胜利条件';
+    case 'OPPONENT_SURRENDER':
+      return '认输结束';
+    case 'DRAW':
+      return '平局';
+    case 'CARD_EFFECT':
+      return '卡牌效果结束对局';
+    case 'INFINITE_LOOP':
+      return '无限循环判定';
+    case null:
+      return '对局结束';
+    default:
+      return '对局结束';
+  }
+}
+
 function formatRecordStatus(
   record: Pick<MatchRecordSummaryView, 'status' | 'completeness'>
 ): string {
@@ -1435,13 +1591,20 @@ function formatFrameTypeLabel(frameType: MatchRecordTimelineEntryView['frameType
       return '公开事件';
     case 'PRIVATE_EVENT':
       return '私密事件';
+    case 'SEALED_AUDIT':
+      return '封存审计';
+    case 'GAME_EVENT':
+      return '游戏事件';
     case 'DECISION_OPENED':
+      return '等待玩家决定';
     case 'DECISION_SUBMITTED':
-      return '决策';
+      return '玩家已决定';
     case 'CHECKPOINT_WRITTEN':
-      return '检查点';
+      return '保存回放节点';
     case 'MATCH_SEALED':
-      return '封存';
+      return '对局结束';
+    case 'RANDOMNESS_RECORDED':
+      return '记录随机结果';
     default:
       return frameType;
   }

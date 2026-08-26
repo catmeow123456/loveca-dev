@@ -293,6 +293,8 @@ interface AdminMatchRecordListOptions {
   readonly userId?: string;
   readonly startedFrom?: number;
   readonly startedTo?: number;
+  readonly rankedSeasonId?: string;
+  readonly themeTableVersionId?: string;
 }
 
 export class MatchReplayReadServiceError extends Error {
@@ -2102,6 +2104,26 @@ function buildAdminRecordListWhere(options: AdminMatchRecordListOptions): {
   if (typeof options.startedTo === 'number') {
     values.push(toDate(options.startedTo));
     conditions.push(`record.started_at <= $${values.length}`);
+  }
+
+  if (options.rankedSeasonId?.trim()) {
+    values.push(options.rankedSeasonId.trim());
+    conditions.push(`EXISTS (
+      SELECT 1
+      FROM ranked_matches ranked_match
+      WHERE ranked_match.match_id = record.match_id
+        AND ranked_match.season_id = $${values.length}
+    )`);
+  }
+
+  if (options.themeTableVersionId?.trim()) {
+    values.push(options.themeTableVersionId.trim());
+    conditions.push(`EXISTS (
+      SELECT 1
+      FROM theme_table_assignments theme_assignment
+      WHERE theme_assignment.match_id = record.match_id
+        AND theme_assignment.theme_table_version_id = $${values.length}
+    )`);
   }
 
   return {

@@ -9,7 +9,7 @@ export function ThemeDeckGallery({
   deck,
   onViewCard,
 }: {
-  deck: ThemePrebuiltDeckView;
+  deck: Pick<ThemePrebuiltDeckView, 'mainDeck' | 'energyDeck'>;
   onViewCard: (card: AnyCardData) => void;
 }) {
   const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);

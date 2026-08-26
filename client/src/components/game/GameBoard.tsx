@@ -343,7 +343,6 @@ export const GameBoard = memo(function GameBoard({
   const isLiveDraw = useGameStore((s) => s.isLiveDraw);
   const freePlayEnabled = useGameStore((s) => s.freePlayEnabled);
   const capabilities = useGameStore(useShallow((s) => s.getBattleSurfaceCapabilities()));
-  const replaySession = useGameStore((s) => s.replaySession);
   const canConfirmEffectCommand = useGameStore((s) =>
     s.canUseAction(GameCommandType.CONFIRM_EFFECT_STEP)
   );
@@ -2348,18 +2347,6 @@ export const GameBoard = memo(function GameBoard({
         <BattleAnimationLayer />
         <BattleActionFeedbackLayer />
         {!isReadOnly && <RankedStallNotice stall={rankedStall} viewerSeat={viewerSeat} />}
-
-        {isReadOnly && replaySession && (
-          <div className="pointer-events-none fixed left-4 top-4 z-[130] max-w-[calc(100vw-2rem)] rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
-            <span className="text-[var(--accent-primary)]">
-              {replaySession.sourceMatchMode === 'SOLITAIRE' ? '对墙打回放' : '历史回放'}
-            </span>
-            <span className="mx-1.5 text-[var(--text-muted)]">·</span>
-            <span>checkpoint {replaySession.checkpointSeq}</span>
-            <span className="mx-1.5 text-[var(--text-muted)]">·</span>
-            <span className="text-[var(--text-muted)]">只读</span>
-          </div>
-        )}
 
         {isMobileBattlefield ? (
           <div className="relative z-10 flex h-full min-h-0 flex-col overflow-hidden md:hidden">

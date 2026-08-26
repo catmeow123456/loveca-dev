@@ -733,6 +733,8 @@ describe('MatchReplayReadService P1b', () => {
       userQuery: 'Alpha',
       startedFrom: 1_000,
       startedTo: 9_000,
+      rankedSeasonId: '11111111-1111-4111-8111-111111111111',
+      themeTableVersionId: '22222222-2222-4222-8222-222222222222',
     });
 
     expect(records).toHaveLength(1);
@@ -741,7 +743,17 @@ describe('MatchReplayReadService P1b', () => {
       expect.objectContaining({ seat: 'SECOND', displayName: 'Beta' }),
     ]);
     const listCall = calls.find((call) => call.text.includes('ILIKE'));
-    expect(listCall?.values).toEqual(['%Alpha%', new Date(1_000), new Date(9_000), 50, 0]);
+    expect(listCall?.text).toContain('FROM ranked_matches ranked_match');
+    expect(listCall?.text).toContain('FROM theme_table_assignments theme_assignment');
+    expect(listCall?.values).toEqual([
+      '%Alpha%',
+      new Date(1_000),
+      new Date(9_000),
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      50,
+      0,
+    ]);
   });
 
   it('管理员可导出历史对局 replay bundle，并可重新导入读取 checkpoint 投影', () => {

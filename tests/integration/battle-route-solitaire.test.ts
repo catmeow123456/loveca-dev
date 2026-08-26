@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Request, Response } from 'express';
 
+const permissionMocks = vi.hoisted(() => ({ poolQuery: vi.fn() }));
+
+vi.mock('../../src/server/db/pool.js', () => ({
+  pool: { query: permissionMocks.poolQuery },
+}));
+
 vi.mock('../../src/server/services/solitaire-match-service.js', () => ({
   SolitaireMatchServiceError: class SolitaireMatchServiceError extends Error {
     code = 'SOLITAIRE_MATCH_ERROR';
@@ -36,6 +42,7 @@ vi.mock('../../src/server/services/match-replay-read-service.js', () => ({
 }));
 
 import { battleRouter } from '../../src/server/routes/battle';
+import { matchReplayReadService } from '../../src/server/services/match-replay-read-service';
 import { solitaireMatchService } from '../../src/server/services/solitaire-match-service';
 
 function createMockResponse() {
@@ -214,30 +221,87 @@ describe('battleRouter solitaire match routes', () => {
     expect(response.body?.data).toMatchObject({ matchId: 'match-2' });
   });
 
-  it('管理员历史对局路由全部要求 admin 角色', () => {
-    const adminRoutes = [
+  it('管理员历史只读路由允许当前赛季管理员，导出仍只允许平台管理员', async () => {
+    permissionMocks.poolQuery.mockResolvedValue({
+      rows: [{ role: 'season_admin' }],
+      rowCount: 1,
+    });
+    const readRoutes = [
       '/admin/match-records',
       '/admin/match-records/:matchId/timeline',
       '/admin/match-records/:matchId/replay',
-      '/admin/match-records/:matchId/export',
       '/admin/match-records/:matchId',
     ];
 
-    for (const path of adminRoutes) {
+    for (const path of readRoutes) {
       const route = findRoute(path, 'get');
-      const requireAdmin = route.stack.at(1)?.handle as (
+      const requireSeasonPermission = route.stack.at(1)?.handle as (
         req: Request,
         res: Response,
         next: () => void
-      ) => void;
+      ) => Promise<void>;
       const response = createMockResponse();
       const next = vi.fn();
 
-      requireAdmin({ user: { id: 'u1', role: 'user' } } as Request, response, next);
+      await requireSeasonPermission(
+        { user: { id: 'season-admin-1', role: 'season_admin' } } as Request,
+        response,
+        next
+      );
 
-      expect(response.statusCode, path).toBe(403);
-      expect(response.body?.error?.code, path).toBe('FORBIDDEN');
-      expect(next, path).not.toHaveBeenCalled();
+      expect(next, path).toHaveBeenCalledOnce();
+      expect(response.body, path).toBeNull();
+
+      const userResponse = createMockResponse();
+      const userNext = vi.fn();
+      await requireSeasonPermission(
+        { user: { id: 'user-1', role: 'user' } } as Request,
+        userResponse,
+        userNext
+      );
+      expect(userResponse.statusCode, path).toBe(403);
+      expect(userResponse.body?.error?.code, path).toBe('FORBIDDEN');
+      expect(userNext, path).not.toHaveBeenCalled();
     }
+
+    const exportRoute = findRoute('/admin/match-records/:matchId/export', 'get');
+    const requirePlatformAdmin = exportRoute.stack.at(1)?.handle as (
+      req: Request,
+      res: Response,
+      next: () => void
+    ) => void;
+    const exportResponse = createMockResponse();
+    const exportNext = vi.fn();
+
+    requirePlatformAdmin(
+      { user: { id: 'season-admin-1', role: 'season_admin' } } as Request,
+      exportResponse,
+      exportNext
+    );
+
+    expect(exportResponse.statusCode).toBe(403);
+    expect(exportResponse.body?.error?.code).toBe('FORBIDDEN');
+    expect(exportNext).not.toHaveBeenCalled();
+  });
+
+  it('管理员历史列表透传排位赛季和娱乐模式活动筛选', async () => {
+    const listMatchRecords = vi
+      .spyOn(matchReplayReadService, 'listMatchRecordsForAdmin')
+      .mockResolvedValue([]);
+
+    const response = await invokeRoute('/admin/match-records', 'get', {
+      query: {
+        rankedSeasonId: '11111111-1111-4111-8111-111111111111',
+        themeTableVersionId: '22222222-2222-4222-8222-222222222222',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(listMatchRecords).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rankedSeasonId: '11111111-1111-4111-8111-111111111111',
+        themeTableVersionId: '22222222-2222-4222-8222-222222222222',
+      })
+    );
   });
 });

@@ -41,12 +41,19 @@ export interface OnlineRoomMemberView {
   readonly seat?: Seat;
 }
 
+export interface OnlineThemeDeckListEntryView {
+  readonly cardCode: string;
+  readonly count: number;
+}
+
 export interface OnlineThemeDeckAssignmentView {
   /** 只用于控制同一房间内的本地揭示动画是否已经播放。 */
   readonly presentationId: string;
   readonly deckName: string;
-  /** 只包含当前查看者自己的主卡组预览，不携带对手卡组身份。 */
+  /** 以下内容只属于当前查看者自己的冻结卡组，不携带对手卡组身份。 */
   readonly previewCardCodes: readonly string[];
+  readonly mainDeck: readonly OnlineThemeDeckListEntryView[];
+  readonly energyDeck: readonly OnlineThemeDeckListEntryView[];
 }
 
 export interface OnlineRestartRequestView {

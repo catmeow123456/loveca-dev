@@ -1274,7 +1274,7 @@ function SeasonPanel({
                         disabled={busy}
                         onClick={() => onEdit(season)}
                       >
-                        编辑
+                        编辑赛季与公告
                       </button>
                       <button
                         className="button-primary px-3 py-2 text-sm"
@@ -1309,7 +1309,7 @@ function SeasonPanel({
                         disabled={busy}
                         onClick={() => onEdit(season)}
                       >
-                        编辑
+                        编辑赛季与公告
                       </button>
                       <button
                         className="button-secondary px-3 py-2 text-sm"

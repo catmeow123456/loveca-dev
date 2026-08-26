@@ -2783,7 +2783,21 @@ function buildThemeDeckAssignmentView(
     presentationId: room.roomGeneration,
     deckName: viewer.lockedDeckName ?? '本局主题预组',
     previewCardCodes,
+    mainDeck: countThemeAssignmentCards(viewer.resolvedDeckConfig?.mainDeck ?? []),
+    energyDeck: countThemeAssignmentCards(viewer.resolvedDeckConfig?.energyDeck ?? []),
   };
+}
+
+function countThemeAssignmentCards(
+  cards: RuntimeDeckConfig['mainDeck']
+): OnlineThemeDeckAssignmentView['mainDeck'] {
+  const counts = new Map<string, number>();
+  for (const card of cards) {
+    counts.set(card.cardCode, (counts.get(card.cardCode) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([cardCode, count]) => ({ cardCode, count }));
 }
 
 function ensureOpeningRpsRoom(room: OnlineRoomState): void {

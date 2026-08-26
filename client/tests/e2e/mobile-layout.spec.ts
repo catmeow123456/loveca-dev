@@ -1897,6 +1897,8 @@ test.describe('mobile layout baseline', () => {
         presentationId: 'theme-room-generation-1',
         deckName: '第一套主题卡组',
         previewCardCodes: MEMBER_CARDS.slice(0, 3).map((card) => card.card_code),
+        mainDeck: THEME_TABLE_OVERVIEW.event?.prebuiltDecks[0]?.mainDeck ?? [],
+        energyDeck: THEME_TABLE_OVERVIEW.event?.prebuiltDecks[0]?.energyDeck ?? [],
       },
       status: 'OPENING',
       ownerUserId: 'e2e-user',

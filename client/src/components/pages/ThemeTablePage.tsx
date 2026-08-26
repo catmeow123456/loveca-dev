@@ -69,7 +69,6 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
               <StatusBadge tone={availability.canJoin ? 'success' : 'neutral'}>
                 {availability.canJoin ? '正在开放' : availability.message}
               </StatusBadge>
-              <span className="text-xs font-semibold text-white/60">记录胜负 · 不计分</span>
             </div>
             <h1>{event.name}</h1>
             <p>{event.summary}</p>
@@ -110,9 +109,6 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
               <div className="font-semibold text-[var(--text-primary)]">
                 {activeQueue ? (queue.deckName ?? '卡组尚未揭晓') : availability.message}
               </div>
-              <p className="mt-1 text-sm text-[var(--text-muted)]">
-                不使用个人卡组；系统从本期卡组池为双方分配，可能出现同卡组对局。
-              </p>
             </div>
             {activeQueue ? (
               <ActionButton

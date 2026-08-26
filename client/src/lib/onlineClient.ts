@@ -703,6 +703,8 @@ export interface AdminMatchRecordFilters {
   readonly userId?: string;
   readonly startedFrom?: number;
   readonly startedTo?: number;
+  readonly rankedSeasonId?: string;
+  readonly themeTableVersionId?: string;
 }
 
 export async function fetchAdminMatchRecords(
@@ -825,6 +827,12 @@ function buildAdminMatchRecordSearch(filters: AdminMatchRecordFilters): string {
   }
   if (typeof filters.startedTo === 'number' && Number.isFinite(filters.startedTo)) {
     params.set('startedTo', String(filters.startedTo));
+  }
+  if (filters.rankedSeasonId?.trim()) {
+    params.set('rankedSeasonId', filters.rankedSeasonId.trim());
+  }
+  if (filters.themeTableVersionId?.trim()) {
+    params.set('themeTableVersionId', filters.themeTableVersionId.trim());
   }
   const search = params.toString();
   return search ? `?${search}` : '';

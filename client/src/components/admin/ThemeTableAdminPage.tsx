@@ -299,6 +299,13 @@ function OverviewPanel({
       </section>
 
       <section className="product-workbench p-4">
+        <h2 className="font-semibold text-[var(--text-primary)]">娱乐模式公告</h2>
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--text-secondary)]">
+          {selected.announcement}
+        </p>
+      </section>
+
+      <section className="product-workbench p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-semibold text-[var(--text-primary)]">本期卡组池</h2>
@@ -492,7 +499,7 @@ function SeasonActions({
       </button>
       {event.lifecycle !== 'CLOSED' ? (
         <button className="button-secondary px-3 py-2 text-sm" disabled={busy} onClick={onEdit}>
-          编辑活动
+          编辑活动与公告
         </button>
       ) : null}
       {event.lifecycle === 'DRAFT' ? (
@@ -1004,7 +1011,6 @@ function ThemeSeasonForm({
       onSubmit={(submitEvent) => {
         submitEvent.preventDefault();
         if (openWindowsError) return;
-        const description = draft.description.trim();
         void onSubmit({
           versionKey: draft.versionKey,
           name: draft.name,
@@ -1013,8 +1019,8 @@ function ThemeSeasonForm({
           endsAt: new Date(draft.endsAt).toISOString(),
           openWindows: prepareRankedOpenWindowsForApi(draft.openWindows),
           scheduleLabel: formatRankedOpenWindows(draft.openWindows),
-          summary: description,
-          announcement: `本娱乐模式不计入排位，双方将从本期卡组池获得平台分配的预组。\n\n${description}`,
+          summary: draft.description.trim(),
+          announcement: draft.announcement.trim(),
           evaluationPolicy: event?.evaluationPolicy ?? defaultEvaluationPolicy(),
         });
       }}
@@ -1065,6 +1071,20 @@ function ThemeSeasonForm({
             placeholder="说明本期娱乐模式、适合体验的玩法和注意事项"
             onChange={(changeEvent) =>
               setDraft({ ...draft, description: changeEvent.target.value })
+            }
+            required
+          />
+        </Field>
+      </div>
+      <div className="sm:col-span-2">
+        <Field label={`娱乐模式公告（${draft.announcement.length}/3000）`}>
+          <textarea
+            className="input-field min-h-28 resize-y"
+            value={draft.announcement}
+            maxLength={3000}
+            placeholder="向玩家说明活动规则、开放安排和注意事项"
+            onChange={(changeEvent) =>
+              setDraft({ ...draft, announcement: changeEvent.target.value })
             }
             required
           />
@@ -1123,6 +1143,7 @@ function seasonDraftFromEvent(event: ThemeAdminEventView | null): {
   startsAt: string;
   endsAt: string;
   description: string;
+  announcement: string;
   openWindows: EditableRankedOpenWindow[];
 } {
   const now = new Date();
@@ -1133,6 +1154,8 @@ function seasonDraftFromEvent(event: ThemeAdminEventView | null): {
     startsAt: toLocalDateTime(event?.startsAt ?? now.getTime()),
     endsAt: toLocalDateTime(event?.endsAt ?? later.getTime()),
     description: event?.summary ?? '',
+    announcement:
+      event?.announcement ?? '本娱乐模式不计入排位，双方将从本期卡组池获得平台分配的预组。',
     openWindows: prepareRankedOpenWindowsForForm(
       event?.openWindows ?? [{ weekdays: [6, 7], startMinute: 1140, endMinute: 1380 }]
     ),

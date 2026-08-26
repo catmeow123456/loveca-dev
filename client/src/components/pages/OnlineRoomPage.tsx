@@ -84,7 +84,7 @@ import {
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { ApiClientError } from '@/lib/apiClient';
 import { formatBattleTimeoutSeconds, type BattleTimeoutConfig } from '@game/online/ranked-policy';
-import type { ThemePrebuiltDeckView, ThemeTableEventView } from '@game/online/theme-table-types';
+import type { ThemeTableEventView } from '@game/online/theme-table-types';
 import type { AnyCardData } from '@game/domain/entities/card';
 import { GamePhase } from '@game/shared/types/enums';
 import type {
@@ -301,19 +301,10 @@ export function OnlineRoomPage({
             setJoinedRoomCode(null);
             setRoomCodeInput('');
             if (shouldRefreshThemeQueue) {
-              await refreshThemeTable().catch(() => undefined);
-              if (!cancelled) {
-                onBackToThemeTable();
-              }
-            }
-            if (!cancelled) {
-              setError(
-                shouldRefreshThemeQueue
-                  ? null
-                  : pollError instanceof Error
-                    ? pollError.message
-                    : '读取房间状态失败'
-              );
+              onBackToThemeTable();
+              void refreshThemeTable().catch(() => undefined);
+            } else {
+              setError(pollError instanceof Error ? pollError.message : '读取房间状态失败');
             }
             return;
           }
@@ -1863,10 +1854,14 @@ function OnlineOpeningStage({
   );
   const assignedThemeDeck = useMemo(
     () =>
-      themeAssignment && themeEvent && themeEvent.id === room.themeTableVersionId
-        ? (themeEvent.prebuiltDecks.find((deck) => deck.id === myMember?.lockedDeckId) ?? null)
+      themeAssignment
+        ? {
+            displayName: themeAssignment.deckName,
+            mainDeck: themeAssignment.mainDeck,
+            energyDeck: themeAssignment.energyDeck,
+          }
         : null,
-    [myMember?.lockedDeckId, room.themeTableVersionId, themeAssignment, themeEvent]
+    [themeAssignment]
   );
   const completeThemeAssignmentIntro = useCallback(() => {
     if (!themePresentationId) return;
@@ -2010,7 +2005,15 @@ function OnlineOpeningStage({
   );
 }
 
-function ThemeOpeningDeckPreview({ deck }: { deck: ThemePrebuiltDeckView }) {
+function ThemeOpeningDeckPreview({
+  deck,
+}: {
+  deck: {
+    readonly displayName: string;
+    readonly mainDeck: NonNullable<OnlineRoomView['themeDeckAssignment']>['mainDeck'];
+    readonly energyDeck: NonNullable<OnlineRoomView['themeDeckAssignment']>['energyDeck'];
+  };
+}) {
   const [expanded, setExpanded] = useState(false);
   const [selectedCard, setSelectedCard] = useState<AnyCardData | null>(null);
   const mainDeckCount = deck.mainDeck.reduce((total, entry) => total + entry.count, 0);

@@ -26,7 +26,7 @@ export function ThemeDeckAssignmentIntro({
   playerName: string;
   opponentName: string;
   eventName: string | null;
-  assignedDeck: ThemePrebuiltDeckView | null;
+  assignedDeck: Pick<ThemePrebuiltDeckView, 'mainDeck' | 'energyDeck'> | null;
   openingExpiresAt: number | null;
   poolPreviewCardCodes: readonly string[];
   reduceMotion: boolean;

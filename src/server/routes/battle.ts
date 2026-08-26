@@ -4,6 +4,7 @@ import type { GameCommand } from '../../application/game-commands.js';
 import { fromTransport } from '../../online/serde.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { requireGameplayAvailable } from '../middleware/require-gameplay-available.js';
+import { requirePermission } from '../middleware/require-permission.js';
 import {
   MatchReplayReadServiceError,
   matchReplayReadService,
@@ -255,26 +256,33 @@ battleRouter.get('/match-records', requireAuth, async (req, res) => {
   }
 });
 
-battleRouter.get('/admin/match-records', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const records = await matchReplayReadService.listMatchRecordsForAdmin({
-      limit: readOptionalPositiveInt(req.query?.limit),
-      offset: readOptionalPositiveInt(req.query?.offset),
-      userQuery: readOptionalString(req.query?.userQuery),
-      userId: readOptionalString(req.query?.userId),
-      startedFrom: readOptionalTimestamp(req.query?.startedFrom),
-      startedTo: readOptionalTimestamp(req.query?.startedTo),
-    });
-    res.json({ data: records, total: records.length, error: null });
-  } catch (error) {
-    respondBattleError(res, error);
+battleRouter.get(
+  '/admin/match-records',
+  requireAuth,
+  requirePermission('season.ranked.manage'),
+  async (req, res) => {
+    try {
+      const records = await matchReplayReadService.listMatchRecordsForAdmin({
+        limit: readOptionalPositiveInt(req.query?.limit),
+        offset: readOptionalPositiveInt(req.query?.offset),
+        userQuery: readOptionalString(req.query?.userQuery),
+        userId: readOptionalString(req.query?.userId),
+        startedFrom: readOptionalTimestamp(req.query?.startedFrom),
+        startedTo: readOptionalTimestamp(req.query?.startedTo),
+        rankedSeasonId: readOptionalString(req.query?.rankedSeasonId),
+        themeTableVersionId: readOptionalString(req.query?.themeTableVersionId),
+      });
+      res.json({ data: records, total: records.length, error: null });
+    } catch (error) {
+      respondBattleError(res, error);
+    }
   }
-});
+);
 
 battleRouter.get(
   '/admin/match-records/:matchId/timeline',
   requireAuth,
-  requireAdmin,
+  requirePermission('season.ranked.manage'),
   async (req, res) => {
     try {
       const timeline = await matchReplayReadService.getMatchRecordTimelineForAdmin(
@@ -295,7 +303,7 @@ battleRouter.get(
 battleRouter.get(
   '/admin/match-records/:matchId/replay',
   requireAuth,
-  requireAdmin,
+  requirePermission('season.ranked.manage'),
   async (req, res) => {
     try {
       const replay = await matchReplayReadService.getMatchRecordReplayForAdmin(
@@ -334,20 +342,25 @@ battleRouter.get(
   }
 );
 
-battleRouter.get('/admin/match-records/:matchId', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const detail = await matchReplayReadService.getMatchRecordDetailForAdmin(
-      readPathParam(req.params.matchId)
-    );
-    if (!detail) {
-      respondMatchRecordNotFound(res);
-      return;
+battleRouter.get(
+  '/admin/match-records/:matchId',
+  requireAuth,
+  requirePermission('season.ranked.manage'),
+  async (req, res) => {
+    try {
+      const detail = await matchReplayReadService.getMatchRecordDetailForAdmin(
+        readPathParam(req.params.matchId)
+      );
+      if (!detail) {
+        respondMatchRecordNotFound(res);
+        return;
+      }
+      res.json({ data: detail, error: null });
+    } catch (error) {
+      respondBattleError(res, error);
     }
-    res.json({ data: detail, error: null });
-  } catch (error) {
-    respondBattleError(res, error);
   }
-});
+);
 
 battleRouter.get('/match-records/:matchId/timeline', requireAuth, async (req, res) => {
   try {
