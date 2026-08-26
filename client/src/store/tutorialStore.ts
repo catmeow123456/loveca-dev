@@ -3,6 +3,7 @@ import type { GameCommand } from '@game/application/game-commands';
 import type { TutorialCheckpointId, TutorialSessionSnapshot } from '@game/online';
 import type { TutorialCommandResult } from '@game/online';
 import type { TutorialCommandPolicy } from '@/components/tutorial/TutorialBattleGuidance';
+import type { TutorialProgressState } from '@/lib/tutorialScenario';
 import {
   advanceTutorialScript,
   createTutorialSession,
@@ -10,11 +11,14 @@ import {
   executeTutorialCommand,
   fetchTutorialSession,
 } from '@/lib/tutorialClient';
+import {
+  clearTutorialRuntime,
+  readTutorialRuntime,
+  writeTutorialRuntime,
+  type PersistedTutorialRuntime,
+} from '@/lib/tutorialRuntimeStorage';
 
-export interface TutorialRuntimeState {
-  readonly accessToken: string;
-  readonly snapshot: TutorialSessionSnapshot;
-}
+export type TutorialRuntimeState = PersistedTutorialRuntime;
 
 interface TutorialStoreState {
   readonly runtime: TutorialRuntimeState | null;
@@ -32,23 +36,27 @@ interface TutorialStoreState {
     scenarioVersion: string,
     checkpointId: TutorialCheckpointId
   ) => Promise<TutorialRuntimeState>;
+  resume: () => Promise<TutorialRuntimeState | null>;
   refresh: () => Promise<TutorialSessionSnapshot>;
   execute: (
     command: GameCommand
   ) => Promise<TutorialCommandResult | { readonly success: false; readonly error: string }>;
   advanceScript: () => Promise<{ advanced: boolean; snapshot: TutorialSessionSnapshot }>;
   acceptSnapshot: (snapshot: TutorialSessionSnapshot) => void;
+  setProgress: (progress: TutorialProgressState) => void;
   setCommandPolicy: (policy: TutorialCommandPolicy | null) => void;
   stop: () => Promise<void>;
 }
 
 let startPromise: Promise<TutorialRuntimeState> | null = null;
+let resumePromise: Promise<TutorialRuntimeState | null> | null = null;
 let lifecycleGeneration = 0;
+const recoveredRuntime = readTutorialRuntime();
 
 export const useTutorialStore = create<TutorialStoreState>((set, get) => ({
-  runtime: null,
+  runtime: recoveredRuntime,
   commandPolicy: null,
-  loadState: 'IDLE',
+  loadState: recoveredRuntime ? 'LOADING' : 'IDLE',
   error: null,
   scriptAdvancing: false,
 
@@ -76,6 +84,7 @@ export const useTutorialStore = create<TutorialStoreState>((set, get) => ({
           throw new Error('教程创建已取消');
         }
         const runtime = { accessToken: created.accessToken, snapshot: created.snapshot };
+        writeTutorialRuntime(runtime);
         set({ runtime, loadState: 'READY', error: null });
         return runtime;
       })
@@ -90,6 +99,34 @@ export const useTutorialStore = create<TutorialStoreState>((set, get) => ({
         if (startPromise === request) startPromise = null;
       });
     startPromise = request;
+    return request;
+  },
+
+  resume: async () => {
+    const existing = get().runtime;
+    if (!existing || get().loadState !== 'LOADING') return existing;
+    if (resumePromise) return resumePromise;
+
+    const requestGeneration = lifecycleGeneration;
+    const request = fetchTutorialSession(existing.snapshot.runId, existing.accessToken)
+      .then((snapshot) => {
+        if (requestGeneration !== lifecycleGeneration) return null;
+        const runtime = { ...existing, snapshot };
+        writeTutorialRuntime(runtime);
+        set({ runtime, loadState: 'READY', error: null });
+        return runtime;
+      })
+      .catch((error) => {
+        if (requestGeneration === lifecycleGeneration) {
+          const message = error instanceof Error ? error.message : '恢复教程失败';
+          set({ loadState: 'ERROR', error: message });
+        }
+        throw error;
+      })
+      .finally(() => {
+        if (resumePromise === request) resumePromise = null;
+      });
+    resumePromise = request;
     return request;
   },
 
@@ -148,14 +185,29 @@ export const useTutorialStore = create<TutorialStoreState>((set, get) => ({
   },
 
   acceptSnapshot: (snapshot) => {
-    set((state) => {
-      if (!state.runtime || state.runtime.snapshot.runId !== snapshot.runId) return state;
-      return {
-        runtime: { ...state.runtime, snapshot },
-        loadState: 'READY',
-        error: snapshot.error ?? null,
-      };
+    const runtime = get().runtime;
+    if (!runtime || runtime.snapshot.runId !== snapshot.runId) return;
+    const nextRuntime = { ...runtime, snapshot };
+    writeTutorialRuntime(nextRuntime);
+    set({
+      runtime: nextRuntime,
+      loadState: 'READY',
+      error: snapshot.error ?? null,
     });
+  },
+
+  setProgress: (progress) => {
+    const runtime = get().runtime;
+    if (
+      !runtime ||
+      runtime.snapshot.scenarioId !== progress.scenarioId ||
+      runtime.snapshot.scenarioVersion !== progress.scenarioVersion
+    ) {
+      return;
+    }
+    const nextRuntime = { ...runtime, progress };
+    writeTutorialRuntime(nextRuntime);
+    set({ runtime: nextRuntime });
   },
 
   setCommandPolicy: (commandPolicy) => set({ commandPolicy }),
@@ -163,7 +215,9 @@ export const useTutorialStore = create<TutorialStoreState>((set, get) => ({
   stop: async () => {
     lifecycleGeneration += 1;
     startPromise = null;
+    resumePromise = null;
     const runtime = get().runtime;
+    clearTutorialRuntime();
     set({
       runtime: null,
       commandPolicy: null,

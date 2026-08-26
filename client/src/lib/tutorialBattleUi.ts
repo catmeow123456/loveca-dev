@@ -1,6 +1,6 @@
 import { GameCommandType } from '@game/application/game-commands';
 import { GamePhase, SubPhase } from '@game/shared/types/enums';
-import { BATTLE_UI_ANCHORS } from './battleUiAnchors';
+import { BATTLE_UI_ANCHORS, type BattleUiAnchorId } from './battleUiAnchors';
 import type { RemoteSessionSource } from './remoteMatchClient';
 import type { TutorialGuidanceTarget } from './tutorialGuidance';
 import type { TutorialObjectBindings, TutorialStepDefinition } from './tutorialScenario';
@@ -8,6 +8,35 @@ import type { TutorialObjectBindings, TutorialStepDefinition } from './tutorialS
 export interface TutorialMulliganUiPolicy {
   readonly panelVisible: boolean;
   readonly selectableCardIds: readonly string[] | null;
+}
+
+export type TutorialMobileBattlefieldFocus = 'SELF' | 'OPPONENT';
+
+const OPPONENT_BATTLEFIELD_ANCHORS = new Set<BattleUiAnchorId>([
+  BATTLE_UI_ANCHORS.OPPONENT_AREA,
+  BATTLE_UI_ANCHORS.OPPONENT_HAND,
+  BATTLE_UI_ANCHORS.OPPONENT_MAIN_DECK,
+  BATTLE_UI_ANCHORS.OPPONENT_ENERGY_DECK,
+  BATTLE_UI_ANCHORS.OPPONENT_ENERGY_ZONE,
+  BATTLE_UI_ANCHORS.OPPONENT_WAITING_ROOM,
+  BATTLE_UI_ANCHORS.OPPONENT_STAGE_LEFT,
+  BATTLE_UI_ANCHORS.OPPONENT_STAGE_CENTER,
+  BATTLE_UI_ANCHORS.OPPONENT_STAGE_RIGHT,
+  BATTLE_UI_ANCHORS.OPPONENT_LIVE_ZONE,
+  BATTLE_UI_ANCHORS.OPPONENT_SUCCESS_LIVE_ZONE,
+]);
+
+export function resolveTutorialMobileBattlefieldFocus(
+  step: TutorialStepDefinition | null,
+  opponentIsActing = false
+): TutorialMobileBattlefieldFocus {
+  if (opponentIsActing) return 'OPPONENT';
+  const targets = step ? [step.target, ...(step.secondaryTargets ?? [])] : [];
+  return targets.some(
+    (target) => target?.kind === 'ANCHOR' && OPPONENT_BATTLEFIELD_ANCHORS.has(target.anchor)
+  )
+    ? 'OPPONENT'
+    : 'SELF';
 }
 
 export function normalizeTutorialMulliganSelection(

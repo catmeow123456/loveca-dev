@@ -166,6 +166,11 @@ function formatCardCompactLabel(cardData: AnyCardData): string {
 
 type MobileBattlePanel = 'opponent' | 'log' | 'publicLog';
 
+export interface MobileBattlefieldFocusRequest {
+  readonly key: string;
+  readonly target: 'SELF' | 'OPPONENT';
+}
+
 function getMobilePlayerStatusStateClass(isViewed: boolean, isActive: boolean): string {
   if (isActive) {
     return 'border-[color:color-mix(in_srgb,var(--accent-primary)_58%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--accent-primary)_20%,transparent)] text-[var(--text-primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent-primary)_16%,transparent)]';
@@ -313,6 +318,8 @@ export interface GameBoardProps {
   mulliganSelectableCardIds?: readonly string[] | null;
   /** 教程可据此移动聚焦框；不会改变正式换牌规则。 */
   onMulliganSelectionChange?: (selectedCardIds: readonly string[]) => void;
+  /** 教程等受控展示可在步骤切换时聚焦己方或对手战场；玩家仍可随后手动关闭。 */
+  mobileBattlefieldFocusRequest?: MobileBattlefieldFocusRequest;
 }
 
 export const GameBoard = memo(function GameBoard({
@@ -324,7 +331,11 @@ export const GameBoard = memo(function GameBoard({
   mulliganPanelVisible = true,
   mulliganSelectableCardIds = null,
   onMulliganSelectionChange,
+  mobileBattlefieldFocusRequest,
 }: GameBoardProps) {
+  const mobileBattlefieldFocusKey = mobileBattlefieldFocusRequest?.key;
+  const mobileBattlefieldFocusTarget = mobileBattlefieldFocusRequest?.target;
+
   // 配置拖拽传感器：需要移动 5px 才开始拖拽，避免与双击冲突
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1377,6 +1388,15 @@ export const GameBoard = memo(function GameBoard({
       return () => window.clearTimeout(timer);
     }
   }, [isMobileBattlefield, mobilePanel]);
+
+  useEffect(() => {
+    if (!isMobileBattlefield || !mobileBattlefieldFocusTarget) return;
+    const timer = window.setTimeout(
+      () => setMobilePanel(mobileBattlefieldFocusTarget === 'OPPONENT' ? 'opponent' : null),
+      0
+    );
+    return () => window.clearTimeout(timer);
+  }, [isMobileBattlefield, mobileBattlefieldFocusKey, mobileBattlefieldFocusTarget]);
 
   useEffect(() => {
     if (!canShowDebugLog && mobilePanel === 'log') {

@@ -60,8 +60,10 @@ export function TutorialPage({ onExit }: TutorialPageProps) {
   const error = useTutorialStore((state) => state.error);
   const start = useTutorialStore((state) => state.start);
   const restart = useTutorialStore((state) => state.restart);
+  const resume = useTutorialStore((state) => state.resume);
   const stop = useTutorialStore((state) => state.stop);
   const advanceScript = useTutorialStore((state) => state.advanceScript);
+  const setProgress = useTutorialStore((state) => state.setProgress);
   const setCommandPolicy = useTutorialStore((state) => state.setCommandPolicy);
   const connectRemoteSession = useGameStore((state) => state.connectRemoteSession);
   const applyRemoteSnapshot = useGameStore((state) => state.applyRemoteSnapshot);
@@ -77,13 +79,8 @@ export function TutorialPage({ onExit }: TutorialPageProps) {
     readTutorialCompletion(getTutorialCompletionStorage(), BASIC_LIVE_TUTORIAL_COMPLETION_IDENTITY)
   );
   const [restarting, setRestarting] = useState(false);
-  const [progressRecord, setProgressRecord] = useState<{
-    readonly runId: string;
-    readonly progress: TutorialProgressState;
-  } | null>(null);
   const lastScriptProbeSeqRef = useRef<number | null>(null);
-  const activeProgress =
-    runtime && progressRecord?.runId === runtime.snapshot.runId ? progressRecord.progress : null;
+  const activeProgress = runtime?.progress ?? null;
   const activeStep = activeProgress ? scenario.steps[activeProgress.currentStepIndex] : undefined;
   const pauseScript = shouldPauseTutorialScript(
     activeStep,
@@ -95,8 +92,13 @@ export function TutorialPage({ onExit }: TutorialPageProps) {
   );
 
   useEffect(() => {
-    if (!runtime || tutorialEntryBlocked) return;
-    const remote = tutorialSnapshotToRemote(runtime.snapshot);
+    void resume().catch(() => undefined);
+  }, [resume]);
+
+  useEffect(() => {
+    const snapshot = runtime?.snapshot;
+    if (!snapshot || tutorialEntryBlocked) return;
+    const remote = tutorialSnapshotToRemote(snapshot);
     if (remoteSession?.source !== 'TUTORIAL' || remoteSession.matchId !== remote.matchId) {
       connectRemoteSession({
         source: 'TUTORIAL',
@@ -111,7 +113,7 @@ export function TutorialPage({ onExit }: TutorialPageProps) {
     connectRemoteSession,
     remoteSession?.matchId,
     remoteSession?.source,
-    runtime,
+    runtime?.snapshot,
     tutorialEntryBlocked,
   ]);
 
@@ -143,11 +145,8 @@ export function TutorialPage({ onExit }: TutorialPageProps) {
   );
 
   const handleProgressChange = useCallback(
-    (progress: TutorialProgressState) => {
-      const runId = runtime?.snapshot.runId;
-      if (runId) setProgressRecord({ runId, progress });
-    },
-    [runtime?.snapshot.runId]
+    (progress: TutorialProgressState) => setProgress(progress),
+    [setProgress]
   );
 
   const handleExit = useCallback(() => {
@@ -162,7 +161,6 @@ export function TutorialPage({ onExit }: TutorialPageProps) {
       if (tutorialEntryBlocked) return;
       setRequestedCheckpointId(checkpointId);
       setCompleted(false);
-      setProgressRecord(null);
       lastScriptProbeSeqRef.current = null;
       void start(scenario.id, scenario.version, checkpointId).catch(() => undefined);
     },
@@ -175,7 +173,6 @@ export function TutorialPage({ onExit }: TutorialPageProps) {
     if (!checkpointId) return;
     setRestarting(true);
     setCompleted(false);
-    setProgressRecord(null);
     lastScriptProbeSeqRef.current = null;
     disconnectRemoteSession();
     void restart(scenario.id, scenario.version, checkpointId).finally(() => {
@@ -193,7 +190,6 @@ export function TutorialPage({ onExit }: TutorialPageProps) {
 
   const handleChooseChapter = useCallback(() => {
     setCompleted(false);
-    setProgressRecord(null);
     setRequestedCheckpointId(null);
     lastScriptProbeSeqRef.current = null;
     disconnectRemoteSession();
@@ -266,9 +262,7 @@ export function TutorialPage({ onExit }: TutorialPageProps) {
         entryStepId={runtime.snapshot.entryStepId}
         objectBindings={runtime.snapshot.objectBindings}
         acceptedCommands={runtime.snapshot.acceptedCommands}
-        resumeProgress={
-          progressRecord?.runId === runtime.snapshot.runId ? progressRecord.progress : undefined
-        }
+        resumeProgress={runtime.progress}
         onProgressChange={handleProgressChange}
         onCommandPolicyChange={handlePolicyChange}
         onCompleted={handleCompleted}

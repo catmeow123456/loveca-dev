@@ -22,6 +22,7 @@ import {
   isTutorialEntryBlockedByExistingBattle,
   normalizeTutorialMulliganSelection,
   resolveTutorialActivatedAbilityTargetOverride,
+  resolveTutorialMobileBattlefieldFocus,
   resolveTutorialMulliganTargetOverride,
   resolveTutorialMulliganUiPolicy,
   shouldPauseTutorialScript,
@@ -386,6 +387,33 @@ describe('tutorial script pacing', () => {
 
     expect(shouldPauseTutorialScript(step, undefined)).toBe(false);
     expect(shouldPauseTutorialScript(step, 20_000)).toBe(true);
+  });
+});
+
+describe('tutorial mobile battlefield focus', () => {
+  const findStep = (stepId: string) =>
+    BASIC_LIVE_TUTORIAL.steps.find((step) => step.id === stepId) ?? null;
+
+  it('opens the opponent battlefield for opponent stage and LIVE observations', () => {
+    expect(resolveTutorialMobileBattlefieldFocus(findStep('opponent-turn'))).toBe('OPPONENT');
+    expect(resolveTutorialMobileBattlefieldFocus(findStep('opponent-second-relay'))).toBe(
+      'OPPONENT'
+    );
+    expect(
+      resolveTutorialMobileBattlefieldFocus(findStep('observe-opponent-final-performance'))
+    ).toBe('OPPONENT');
+  });
+
+  it('returns to the self battlefield before the next player-facing step', () => {
+    expect(resolveTutorialMobileBattlefieldFocus(findStep('play-member'))).toBe('SELF');
+    expect(resolveTutorialMobileBattlefieldFocus(findStep('set-effect-live'))).toBe('SELF');
+    expect(resolveTutorialMobileBattlefieldFocus(null)).toBe('SELF');
+  });
+
+  it('opens the opponent battlefield as soon as the opponent starts acting', () => {
+    expect(resolveTutorialMobileBattlefieldFocus(findStep('end-main-phase'), true)).toBe(
+      'OPPONENT'
+    );
   });
 });
 

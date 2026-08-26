@@ -3,6 +3,7 @@ import { useGameStore } from '@/store/gameStore';
 import { GameBoard, type GameBoardProps } from '@/components/game/GameBoard';
 import {
   resolveTutorialActivatedAbilityTargetOverride,
+  resolveTutorialMobileBattlefieldFocus,
   resolveTutorialMulliganTargetOverride,
   resolveTutorialMulliganUiPolicy,
 } from '@/lib/tutorialBattleUi';
@@ -27,6 +28,7 @@ export interface TutorialBattleSurfaceProps {
     | 'mulliganPanelVisible'
     | 'mulliganSelectableCardIds'
     | 'onMulliganSelectionChange'
+    | 'mobileBattlefieldFocusRequest'
   >;
   readonly onProgressChange?: (progress: TutorialProgressState) => void;
   /** The future tutorial transport installs this policy before sending player commands. */
@@ -74,6 +76,19 @@ export const TutorialBattleSurface = memo(function TutorialBattleSurface({
       resolveTutorialActivatedAbilityTargetOverride(currentStep, selectedCardId, objectBindings),
     [currentStep, objectBindings, selectedCardId]
   );
+  const mobileBattlefieldFocusRequest = useMemo(
+    () =>
+      currentStep
+        ? {
+            key: currentStep.id,
+            target: resolveTutorialMobileBattlefieldFocus(
+              currentStep,
+              playerViewState?.match.activeSeat !== playerViewState?.match.viewerSeat
+            ),
+          }
+        : undefined,
+    [currentStep, playerViewState?.match.activeSeat, playerViewState?.match.viewerSeat]
+  );
   const handleProgressChange = useCallback(
     (nextProgress: TutorialProgressState) => {
       setProgress(nextProgress);
@@ -90,6 +105,7 @@ export const TutorialBattleSurface = memo(function TutorialBattleSurface({
         mulliganPanelVisible={mulliganUiPolicy.panelVisible}
         mulliganSelectableCardIds={mulliganUiPolicy.selectableCardIds}
         onMulliganSelectionChange={setMulliganSelection}
+        mobileBattlefieldFocusRequest={mobileBattlefieldFocusRequest}
       />
       <TutorialBattleGuidance
         scenario={scenario}
