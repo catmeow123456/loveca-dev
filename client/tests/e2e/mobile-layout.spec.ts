@@ -1455,6 +1455,49 @@ test.describe('focused browser regressions', () => {
     await expect(cardDetailDrawer).toHaveCount(0);
   });
 
+  test('分享卡组查看卡牌详情不会重置页面滚动位置', async ({ page }, testInfo) => {
+    test.skip(
+      !['mobile-390x844', 'tablet-1024x768'].includes(testInfo.project.name),
+      '分享卡组滚动回归只需执行手机与桌面代表视口'
+    );
+
+    await installApiMocks(page, true);
+    await page.goto('/decks/share/e2e-share');
+    await expect(page.getByRole('heading', { name: '共享卡组' })).toBeVisible();
+
+    const card = page.getByAltText('移动验收能量').first();
+    await expect(card).toBeVisible();
+
+    await card.scrollIntoViewIfNeeded();
+    const scrollBefore = await page.evaluate(() => ({
+      documentScrollTop: document.scrollingElement?.scrollTop ?? 0,
+      windowScrollY: window.scrollY,
+      bodyScrollTop: document.body.scrollTop,
+    }));
+    const cardTopBefore = await card.evaluate((element) => element.getBoundingClientRect().top);
+    expect(Math.max(...Object.values(scrollBefore))).toBeGreaterThan(0);
+
+    await card.locator('xpath=ancestor::div[contains(@class, "cursor-pointer")][2]').click();
+    const cardDetailDrawer = page.getByRole('dialog', { name: '卡牌详情' });
+    await expect(cardDetailDrawer).toBeVisible();
+
+    await expect
+      .poll(() => card.evaluate((element) => element.getBoundingClientRect().top))
+      .toBeCloseTo(cardTopBefore, 0);
+
+    await cardDetailDrawer.getByRole('button', { name: '关闭卡牌详情' }).click();
+    await expect(cardDetailDrawer).toHaveCount(0);
+    await expect
+      .poll(() =>
+        page.evaluate(() => ({
+          documentScrollTop: document.scrollingElement?.scrollTop ?? 0,
+          windowScrollY: window.scrollY,
+          bodyScrollTop: document.body.scrollTop,
+        }))
+      )
+      .toEqual(scrollBefore);
+  });
+
   test('桌面缩放等效短视口中联机猜拳操作保持可达', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'tablet-1024x768', '桌面短视口回归只需执行一次');
 

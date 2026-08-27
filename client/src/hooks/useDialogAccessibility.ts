@@ -11,11 +11,22 @@ const FOCUSABLE_SELECTOR = [
 
 let bodyScrollLockCount = 0;
 let bodyOverflowBeforeLock = '';
+let bodyPositionBeforeLock = '';
+let bodyTopBeforeLock = '';
+let bodyWidthBeforeLock = '';
+let bodyScrollPosition = { x: 0, y: 0 };
 const openDialogStack: symbol[] = [];
 
 function lockBodyScroll(): () => void {
   if (bodyScrollLockCount === 0) {
     bodyOverflowBeforeLock = document.body.style.overflow;
+    bodyPositionBeforeLock = document.body.style.position;
+    bodyTopBeforeLock = document.body.style.top;
+    bodyWidthBeforeLock = document.body.style.width;
+    bodyScrollPosition = { x: window.scrollX, y: window.scrollY };
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${bodyScrollPosition.y}px`;
+    document.body.style.width = '100%';
     document.body.style.overflow = 'hidden';
   }
   bodyScrollLockCount += 1;
@@ -24,6 +35,10 @@ function lockBodyScroll(): () => void {
     bodyScrollLockCount = Math.max(0, bodyScrollLockCount - 1);
     if (bodyScrollLockCount === 0) {
       document.body.style.overflow = bodyOverflowBeforeLock;
+      document.body.style.position = bodyPositionBeforeLock;
+      document.body.style.top = bodyTopBeforeLock;
+      document.body.style.width = bodyWidthBeforeLock;
+      window.scrollTo(bodyScrollPosition.x, bodyScrollPosition.y);
     }
   };
 }
@@ -32,6 +47,10 @@ function getFocusableElements(dialog: HTMLElement): HTMLElement[] {
   return Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
     (element) => !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true'
   );
+}
+
+function focusWithoutScrolling(element: HTMLElement | null): void {
+  element?.focus({ preventScroll: true });
 }
 
 interface UseDialogAccessibilityOptions {
@@ -68,8 +87,9 @@ export function useDialogAccessibility({
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const unlockBodyScroll = lockBodyScroll();
     const dialog = dialogRef.current;
-    const focusTarget = initialFocusRef?.current ?? (dialog ? getFocusableElements(dialog)[0] : null);
-    (focusTarget ?? dialog)?.focus();
+    const focusTarget =
+      initialFocusRef?.current ?? (dialog ? getFocusableElements(dialog)[0] : null);
+    focusWithoutScrolling(focusTarget ?? dialog);
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (openDialogStack.at(-1) !== dialogToken) {
@@ -94,22 +114,25 @@ export function useDialogAccessibility({
       const focusableElements = getFocusableElements(currentDialog);
       if (focusableElements.length === 0) {
         event.preventDefault();
-        currentDialog.focus();
+        focusWithoutScrolling(currentDialog);
         return;
       }
 
       const firstElement = focusableElements[0];
       const lastElement = focusableElements[focusableElements.length - 1];
       const activeElement = document.activeElement;
-      if (event.shiftKey && (activeElement === firstElement || !currentDialog.contains(activeElement))) {
+      if (
+        event.shiftKey &&
+        (activeElement === firstElement || !currentDialog.contains(activeElement))
+      ) {
         event.preventDefault();
-        lastElement.focus();
+        focusWithoutScrolling(lastElement);
       } else if (
         !event.shiftKey &&
         (activeElement === lastElement || !currentDialog.contains(activeElement))
       ) {
         event.preventDefault();
-        firstElement.focus();
+        focusWithoutScrolling(firstElement);
       }
     };
 
@@ -123,7 +146,7 @@ export function useDialogAccessibility({
       }
       unlockBodyScroll();
       if (wasTopDialog && previouslyFocused?.isConnected) {
-        previouslyFocused.focus();
+        focusWithoutScrolling(previouslyFocused);
       }
     };
   }, [dialogRef, initialFocusRef, isOpen]);
