@@ -5,7 +5,7 @@ import { BATTLE_UI_ANCHORS } from '@/lib/battleUiAnchors';
 import type { TutorialCommandRule, TutorialScenarioDefinition } from '@/lib/tutorialScenario';
 
 export const BASIC_LIVE_TUTORIAL_ID = 'basic-live-loop';
-export const BASIC_LIVE_TUTORIAL_VERSION = '1.1.5';
+export const BASIC_LIVE_TUTORIAL_VERSION = '1.1.6';
 
 export interface BasicLiveTutorialCheckpointOption {
   readonly id: TutorialCheckpointId;
@@ -184,7 +184,7 @@ const SELECT_FINAL_SUCCESS_LIVE_RULE: TutorialCommandRule = {
 export const BASIC_LIVE_TUTORIAL: TutorialScenarioDefinition = {
   id: BASIC_LIVE_TUTORIAL_ID,
   version: BASIC_LIVE_TUTORIAL_VERSION,
-  contentVersion: 16,
+  contentVersion: 17,
   objectRoles: Object.values(BASIC_LIVE_TUTORIAL_OBJECT_ROLES),
   steps: [
     {
@@ -371,18 +371,19 @@ export const BASIC_LIVE_TUTORIAL: TutorialScenarioDefinition = {
       title: '让成员登场到中央',
       body: '把手牌中的费用 4「桂城 泉」拖到蓝色高亮的中央舞台；也可以先选中费用 4「桂城 泉」，再点击蓝色高亮的中央区域。两种方式都会提交同一个正式登场命令，并由规则校验位置、自动支付费用。',
       statusText: '等待指定成员合法登场到中央',
-      target: {
-        kind: 'ANCHOR',
-        anchor: BATTLE_UI_ANCHORS.SELF_STAGE_CENTER,
-        placement: 'TOP',
-      },
-      secondaryTargets: [
-        {
+      interaction: {
+        kind: 'TRANSFER',
+        source: {
           kind: 'OBJECT_ROLE',
           role: BASIC_LIVE_TUTORIAL_OBJECT_ROLES.MEMBER_CARD,
           padding: 8,
         },
-      ],
+        destination: {
+          kind: 'ANCHOR',
+          anchor: BATTLE_UI_ANCHORS.SELF_STAGE_CENTER,
+          placement: 'TOP',
+        },
+      },
       allowedCommands: [PLAY_MEMBER_RULE],
       completion: {
         kind: 'ACCEPTED_COMMAND',
@@ -456,10 +457,17 @@ export const BASIC_LIVE_TUTORIAL: TutorialScenarioDefinition = {
       title: '设置这张 LIVE',
       body: '把高亮 LIVE 放入自己的 LIVE 区。它会先保持盖放，不向对手泄露正面信息。',
       statusText: '等待指定 LIVE 合法进入 LIVE 区',
-      target: {
-        kind: 'OBJECT_ROLE',
-        role: BASIC_LIVE_TUTORIAL_OBJECT_ROLES.LIVE_CARD,
-        placement: 'TOP',
+      interaction: {
+        kind: 'TRANSFER',
+        source: {
+          kind: 'OBJECT_ROLE',
+          role: BASIC_LIVE_TUTORIAL_OBJECT_ROLES.LIVE_CARD,
+        },
+        destination: {
+          kind: 'ANCHOR',
+          anchor: BATTLE_UI_ANCHORS.SELF_LIVE_ZONE,
+          placement: 'TOP',
+        },
       },
       allowedCommands: [SET_LIVE_RULE],
       completion: {
@@ -728,18 +736,19 @@ export const BASIC_LIVE_TUTORIAL: TutorialScenarioDefinition = {
       title: '把费用 9 成员换手登场到中央',
       body: '先选中高亮手牌，再点击高亮的中央舞台；也可以直接拖到中央。规则会把原成员送入休息室，并按换手减免自动支付 5 点能量。',
       statusText: '等待费用 9「钟岚珠」换手登场到中央',
-      target: {
-        kind: 'ANCHOR',
-        anchor: BATTLE_UI_ANCHORS.SELF_STAGE_CENTER,
-        placement: 'TOP',
-      },
-      secondaryTargets: [
-        {
+      interaction: {
+        kind: 'TRANSFER',
+        source: {
           kind: 'OBJECT_ROLE',
           role: BASIC_LIVE_TUTORIAL_OBJECT_ROLES.RELAY_MEMBER,
           padding: 8,
         },
-      ],
+        destination: {
+          kind: 'ANCHOR',
+          anchor: BATTLE_UI_ANCHORS.SELF_STAGE_CENTER,
+          placement: 'TOP',
+        },
+      },
       allowedCommands: [RELAY_MEMBER_RULE],
       completion: { kind: 'ACCEPTED_COMMAND', command: RELAY_MEMBER_RULE },
     },
@@ -770,13 +779,7 @@ export const BASIC_LIVE_TUTORIAL: TutorialScenarioDefinition = {
         anchor: BATTLE_UI_ANCHORS.ACTIVE_EFFECT_SELECTION,
         placement: 'TOP',
       },
-      secondaryTargets: [
-        { kind: 'ANCHOR', anchor: BATTLE_UI_ANCHORS.ACTIVE_EFFECT_CONFIRM },
-        {
-          kind: 'OBJECT_ROLE',
-          role: BASIC_LIVE_TUTORIAL_OBJECT_ROLES.EFFECT_LIVE_CARD,
-        },
-      ],
+      secondaryTargets: [{ kind: 'ANCHOR', anchor: BATTLE_UI_ANCHORS.ACTIVE_EFFECT_CONFIRM }],
       allowedCommands: [RESOLVE_EFFECT_RULE],
       completion: { kind: 'ACCEPTED_COMMAND', command: RESOLVE_EFFECT_RULE },
     },
@@ -864,10 +867,17 @@ export const BASIC_LIVE_TUTORIAL: TutorialScenarioDefinition = {
       title: '设置带【LIVE开始时】能力的 LIVE',
       body: '把高亮 LIVE 放入自己的 LIVE 区。它仍会先以里侧状态盖放，确认设置后才会在表演阶段公开。',
       statusText: '等待特殊 LIVE 进入 LIVE 区',
-      target: {
-        kind: 'OBJECT_ROLE',
-        role: BASIC_LIVE_TUTORIAL_OBJECT_ROLES.EFFECT_LIVE_CARD,
-        placement: 'TOP',
+      interaction: {
+        kind: 'TRANSFER',
+        source: {
+          kind: 'OBJECT_ROLE',
+          role: BASIC_LIVE_TUTORIAL_OBJECT_ROLES.EFFECT_LIVE_CARD,
+        },
+        destination: {
+          kind: 'ANCHOR',
+          anchor: BATTLE_UI_ANCHORS.SELF_LIVE_ZONE,
+          placement: 'TOP',
+        },
       },
       allowedCommands: [SET_EFFECT_LIVE_RULE],
       completion: {
@@ -1202,17 +1212,18 @@ export const BASIC_LIVE_TUTORIAL: TutorialScenarioDefinition = {
       title: '让费用 2 成员登场到左侧',
       body: '把高亮成员拖到左侧舞台，或先选中她再点击高亮左侧区域。中央的费用 9 成员会保留。',
       statusText: '等待费用 2「绚濑绘里」登场到左侧',
-      target: {
-        kind: 'ANCHOR',
-        anchor: BATTLE_UI_ANCHORS.SELF_STAGE_LEFT,
-        placement: 'TOP',
-      },
-      secondaryTargets: [
-        {
+      interaction: {
+        kind: 'TRANSFER',
+        source: {
           kind: 'OBJECT_ROLE',
           role: BASIC_LIVE_TUTORIAL_OBJECT_ROLES.RECOVERY_MEMBER,
         },
-      ],
+        destination: {
+          kind: 'ANCHOR',
+          anchor: BATTLE_UI_ANCHORS.SELF_STAGE_LEFT,
+          placement: 'TOP',
+        },
+      },
       allowedCommands: [PLAY_RECOVERY_MEMBER_RULE],
       completion: {
         kind: 'ACCEPTED_COMMAND',
@@ -1344,19 +1355,20 @@ export const BASIC_LIVE_TUTORIAL: TutorialScenarioDefinition = {
       title: '用剩余 4 点能量让桂城 泉再次登场',
       body: '先选中高亮的费用 4「桂城 泉」，再点击左侧舞台；也可以直接拖到高亮区域。规则会把剩余 4 点活跃能量全部用于支付。',
       statusText: '等待费用 4「桂城 泉」重新登场到左侧',
-      target: {
-        kind: 'ANCHOR',
-        anchor: BATTLE_UI_ANCHORS.SELF_STAGE_LEFT,
-        placement: 'TOP',
-      },
-      secondaryTargets: [
-        {
+      interaction: {
+        kind: 'TRANSFER',
+        source: {
           kind: 'OBJECT_ROLE',
           role: BASIC_LIVE_TUTORIAL_OBJECT_ROLES.MEMBER_CARD,
           padding: 8,
         },
-        { kind: 'ANCHOR', anchor: BATTLE_UI_ANCHORS.SELF_ENERGY_ZONE },
-      ],
+        destination: {
+          kind: 'ANCHOR',
+          anchor: BATTLE_UI_ANCHORS.SELF_STAGE_LEFT,
+          placement: 'TOP',
+        },
+      },
+      secondaryTargets: [{ kind: 'ANCHOR', anchor: BATTLE_UI_ANCHORS.SELF_ENERGY_ZONE }],
       allowedCommands: [REPLAY_RECOVERED_MEMBER_RULE],
       completion: {
         kind: 'ACCEPTED_COMMAND',
@@ -1501,12 +1513,18 @@ export const BASIC_LIVE_TUTORIAL: TutorialScenarioDefinition = {
       title: '先设置需要 4 Heart 的分数 1 LIVE',
       body: '把高亮的分数 1 LIVE 盖到 LIVE 区。它的必要 Heart 合计为 4，会计入本轮所有已设置 LIVE 的合并需求。',
       statusText: '等待分数 1 LIVE 进入 LIVE 区',
-      target: {
-        kind: 'OBJECT_ROLE',
-        role: BASIC_LIVE_TUTORIAL_OBJECT_ROLES.FINAL_LIVE_ONE,
-        placement: 'TOP',
+      interaction: {
+        kind: 'TRANSFER',
+        source: {
+          kind: 'OBJECT_ROLE',
+          role: BASIC_LIVE_TUTORIAL_OBJECT_ROLES.FINAL_LIVE_ONE,
+        },
+        destination: {
+          kind: 'ANCHOR',
+          anchor: BATTLE_UI_ANCHORS.SELF_LIVE_ZONE,
+          placement: 'TOP',
+        },
       },
-      secondaryTargets: [{ kind: 'ANCHOR', anchor: BATTLE_UI_ANCHORS.SELF_LIVE_ZONE }],
       allowedCommands: [SET_FINAL_LIVE_ONE_RULE],
       completion: {
         kind: 'ACCEPTED_COMMAND',
@@ -1527,12 +1545,18 @@ export const BASIC_LIVE_TUTORIAL: TutorialScenarioDefinition = {
       title: '再设置需要 5 Heart 的分数 2 LIVE',
       body: '继续把高亮的分数 2 LIVE 盖到 LIVE 区。两张 LIVE 的合计需求来到 9，等于 5 个成员 Heart 加 4 判的估算值；实际能否满足，仍取决于公开的判心。',
       statusText: '等待分数 2 LIVE 进入 LIVE 区',
-      target: {
-        kind: 'OBJECT_ROLE',
-        role: BASIC_LIVE_TUTORIAL_OBJECT_ROLES.FINAL_LIVE_TWO,
-        placement: 'TOP',
+      interaction: {
+        kind: 'TRANSFER',
+        source: {
+          kind: 'OBJECT_ROLE',
+          role: BASIC_LIVE_TUTORIAL_OBJECT_ROLES.FINAL_LIVE_TWO,
+        },
+        destination: {
+          kind: 'ANCHOR',
+          anchor: BATTLE_UI_ANCHORS.SELF_LIVE_ZONE,
+          placement: 'TOP',
+        },
       },
-      secondaryTargets: [{ kind: 'ANCHOR', anchor: BATTLE_UI_ANCHORS.SELF_LIVE_ZONE }],
       allowedCommands: [SET_FINAL_LIVE_TWO_RULE],
       completion: {
         kind: 'ACCEPTED_COMMAND',

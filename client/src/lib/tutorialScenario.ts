@@ -9,6 +9,7 @@ import type {
   TutorialGuidanceTarget,
   TutorialMascotExpression,
   TutorialStepKind,
+  TutorialTransferGuidance,
 } from './tutorialGuidance';
 
 export type TutorialObjectRole = string;
@@ -32,6 +33,12 @@ export type TutorialPublicTarget =
 
 export interface TutorialObjectBindings {
   readonly [role: TutorialObjectRole]: string | undefined;
+}
+
+export interface TutorialTransferInteraction {
+  readonly kind: 'TRANSFER';
+  readonly source: TutorialPublicTarget;
+  readonly destination: TutorialPublicTarget;
 }
 
 export type TutorialViewCondition =
@@ -128,6 +135,8 @@ export interface TutorialStepDefinition {
   readonly target?: TutorialPublicTarget | null;
   /** Secondary targets stay visible while the callout follows the primary target. */
   readonly secondaryTargets?: readonly TutorialPublicTarget[];
+  /** Explicit A -> B interaction. Both targets must remain visible and unobstructed. */
+  readonly interaction?: TutorialTransferInteraction;
   /** Commands permitted before the request reaches the authoritative session. */
   readonly allowedCommands?: readonly TutorialCommandRule[];
   readonly completion: TutorialCompletion;
@@ -472,6 +481,26 @@ export function validateTutorialScenarioDefinition(
       errors.push(`${context} 使用了未知步骤类型 ${String(step.kind)}`);
     }
     if (step.target) validatePublicTarget(step.target, knownRoles, context, errors);
+    if (step.interaction) {
+      if (step.kind !== 'ACTION') {
+        errors.push(`${context} 的 interaction 只支持动作步骤`);
+      }
+      if (step.target) {
+        errors.push(`${context} 的 interaction 不应再重复声明 target`);
+      }
+      validatePublicTarget(
+        step.interaction.source,
+        knownRoles,
+        `${context}.interaction.source`,
+        errors
+      );
+      validatePublicTarget(
+        step.interaction.destination,
+        knownRoles,
+        `${context}.interaction.destination`,
+        errors
+      );
+    }
     for (const [targetIndex, target] of (step.secondaryTargets ?? []).entries()) {
       validatePublicTarget(
         target,
@@ -744,11 +773,19 @@ export function resolveTutorialStepPresentation(
   const resolvedPrimaryTarget = step.target
     ? resolvePublicTutorialTarget(step.target, bindings)
     : { target: null };
+  const resolvedInteractionSource = step.interaction
+    ? resolvePublicTutorialTarget(step.interaction.source, bindings)
+    : null;
+  const resolvedInteractionDestination = step.interaction
+    ? resolvePublicTutorialTarget(step.interaction.destination, bindings)
+    : null;
   const resolvedSecondaryTargets = (step.secondaryTargets ?? []).map((target) =>
     resolvePublicTutorialTarget(target, bindings)
   );
   const missingObjectRole =
     resolvedPrimaryTarget.missingObjectRole ??
+    resolvedInteractionSource?.missingObjectRole ??
+    resolvedInteractionDestination?.missingObjectRole ??
     resolvedSecondaryTargets.find((target) => target.missingObjectRole)?.missingObjectRole;
   if (missingObjectRole) {
     return {
@@ -767,6 +804,15 @@ export function resolveTutorialStepPresentation(
     };
   }
 
+  const resolvedInteraction: TutorialTransferGuidance | undefined =
+    resolvedInteractionSource?.target && resolvedInteractionDestination?.target
+      ? {
+          kind: 'TRANSFER',
+          source: resolvedInteractionSource.target,
+          destination: resolvedInteractionDestination.target,
+        }
+      : undefined;
+
   return {
     presentation: {
       stepId: step.id,
@@ -777,10 +823,12 @@ export function resolveTutorialStepPresentation(
       mascot: step.mascot,
       currentStep: progress.currentStepIndex + 1,
       totalSteps: scenario.steps.length,
-      target: resolvedPrimaryTarget.target,
-      secondaryTargets: resolvedSecondaryTargets.flatMap((target) =>
-        target.target ? [target.target] : []
-      ),
+      target: resolvedInteraction?.destination ?? resolvedPrimaryTarget.target,
+      secondaryTargets: [
+        ...(resolvedInteraction ? [resolvedInteraction.source] : []),
+        ...resolvedSecondaryTargets.flatMap((target) => (target.target ? [target.target] : [])),
+      ],
+      interaction: resolvedInteraction,
       statusText:
         progress.viewConditionSatisfiedAtMs !== undefined
           ? (step.completionDwellStatusText ?? step.statusText)

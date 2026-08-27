@@ -346,7 +346,11 @@ export const TutorialGuidanceLayer = memo(function TutorialGuidanceLayer({
         }
       }
       setTargetRects((current) => (sameRects(current, nextRects) ? current : nextRects));
-      reportTargetVisibility(nextRects[0] !== null);
+      reportTargetVisibility(
+        presentation?.interaction
+          ? nextRects[0] !== null && nextRects[1] !== null
+          : nextRects[0] !== null
+      );
       setViewport((current) => (sameViewport(current, nextViewport) ? current : nextViewport));
     };
 
@@ -380,7 +384,14 @@ export const TutorialGuidanceLayer = memo(function TutorialGuidanceLayer({
       unsubscribeViewport();
       window.removeEventListener('scroll', scheduleUpdate, true);
     };
-  }, [presentation?.kind, presentation?.stepId, reduceMotion, reportTargetVisibility, targets]);
+  }, [
+    presentation?.interaction,
+    presentation?.kind,
+    presentation?.stepId,
+    reduceMotion,
+    reportTargetVisibility,
+    targets,
+  ]);
 
   useEffect(() => {
     const callout = calloutRef.current;
@@ -411,6 +422,7 @@ export const TutorialGuidanceLayer = memo(function TutorialGuidanceLayer({
   const visibleSpotlightRects = spotlightRects.filter(
     (rect): rect is TutorialRect => rect !== null
   );
+  const isCompactTransfer = presentation?.interaction?.kind === 'TRANSFER' && viewport.width < 768;
   const calloutLayout = useMemo(
     () =>
       placeTutorialCallout(
@@ -432,14 +444,19 @@ export const TutorialGuidanceLayer = memo(function TutorialGuidanceLayer({
   const safeRightMargin = 'max(12px, env(safe-area-inset-right))';
   const safeTopMargin = 'max(12px, env(safe-area-inset-top))';
   const safeBottomMargin = 'max(12px, env(safe-area-inset-bottom))';
-  const calloutWidth = `min(360px, calc(100% - ${safeLeftMargin} - ${safeRightMargin}))`;
-  const calloutMaxHeight = `calc(100% - ${safeTopMargin} - ${safeBottomMargin})`;
+  const calloutWidth = `min(${isCompactTransfer ? '300px' : '360px'}, calc(100% - ${safeLeftMargin} - ${safeRightMargin}))`;
+  const calloutMaxHeight = isCompactTransfer
+    ? `min(96px, calc(100% - ${safeTopMargin} - ${safeBottomMargin}))`
+    : `calc(100% - ${safeTopMargin} - ${safeBottomMargin})`;
   const renderedCalloutHeight = `min(${calloutSize.height}px, ${calloutMaxHeight})`;
+  const hideTransferCallout =
+    presentation?.interaction?.kind === 'TRANSFER' && calloutLayout.overlapsProtectedTarget;
   const calloutStyle = {
     left: `clamp(${safeLeftMargin}, ${calloutLayout.left}px, calc(100% - ${safeRightMargin} - ${calloutWidth}))`,
     top: `clamp(${safeTopMargin}, ${calloutLayout.top}px, calc(100% - ${safeBottomMargin} - ${renderedCalloutHeight}))`,
     width: calloutWidth,
     maxHeight: calloutMaxHeight,
+    visibility: hideTransferCallout ? 'hidden' : 'visible',
   } as const;
 
   if (typeof document === 'undefined') return null;
@@ -493,6 +510,22 @@ export const TutorialGuidanceLayer = memo(function TutorialGuidanceLayer({
                 <motion.div
                   key={`${presentation.stepId}:spotlight:${index}`}
                   aria-hidden="true"
+                  data-tutorial-interaction-target={
+                    presentation.interaction
+                      ? index === 0
+                        ? 'destination'
+                        : index === 1
+                          ? 'source'
+                          : 'context'
+                      : undefined
+                  }
+                  data-tutorial-spotlight-index={index}
+                  data-tutorial-target-anchor={
+                    targets[index]?.kind === 'ANCHOR' ? targets[index].anchor : undefined
+                  }
+                  data-tutorial-target-object-id={
+                    targets[index]?.kind === 'OBJECT' ? targets[index].objectId : undefined
+                  }
                   className="absolute rounded-xl border-2 border-[color:color-mix(in_srgb,var(--accent-gold)_86%,white)] shadow-[0_0_30px_color-mix(in_srgb,var(--accent-gold)_54%,transparent)]"
                   initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97 }}
                   animate={{
@@ -542,7 +575,14 @@ export const TutorialGuidanceLayer = memo(function TutorialGuidanceLayer({
             ref={calloutRef}
             aria-live="polite"
             aria-labelledby="tutorial-guidance-title"
-            className="pointer-events-auto absolute flex flex-col overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--accent-gold)_42%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+            data-tutorial-callout="true"
+            data-tutorial-callout-mode={
+              hideTransferCallout ? 'HIDDEN_NO_SPACE' : isCompactTransfer ? 'COMPACT' : 'FULL'
+            }
+            className={cn(
+              'absolute flex flex-col overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--accent-gold)_42%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl',
+              isCompactTransfer ? 'pointer-events-none' : 'pointer-events-auto'
+            )}
             style={calloutStyle}
             initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.985 }}
             animate={{
@@ -553,80 +593,115 @@ export const TutorialGuidanceLayer = memo(function TutorialGuidanceLayer({
             exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.99 }}
             transition={{ duration: reduceMotion ? 0.08 : 0.18, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="cute-scrollbar touch-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4">
-              <div className="flex items-start gap-3">
-                <div className="min-w-0">
-                  <div className="text-[11px] font-semibold text-[var(--accent-gold)]">
-                    {presentation.chapter} · {presentation.currentStep}/{presentation.totalSteps}
-                  </div>
-                  <h2
-                    id="tutorial-guidance-title"
-                    className="mt-1 text-base font-bold leading-snug"
-                  >
-                    {presentation.title}
-                  </h2>
-                </div>
-                {presentation.mascot ? (
-                  <img
-                    src={TUTORIAL_STICKER_ASSETS[presentation.mascot]}
-                    alt=""
-                    aria-hidden="true"
-                    className="-mb-2 -mr-1 -mt-2 ml-auto h-16 w-16 shrink-0 object-contain"
-                  />
-                ) : null}
-              </div>
-
-              <CardEffectText
-                text={presentation.body}
-                className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]"
-              />
-
-              {presentation.statusText && (
-                <div
-                  className={cn(
-                    'mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium',
-                    presentation.kind === 'OBSERVE'
-                      ? 'border-[color:color-mix(in_srgb,var(--semantic-info)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-info)_10%,transparent)] text-[var(--semantic-info)]'
-                      : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-[var(--text-secondary)]'
-                  )}
-                  role="status"
-                >
-                  {presentation.kind === 'OBSERVE' ? (
-                    <Eye className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  ) : (
-                    <MousePointer2 className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  )}
-                  <span>{presentation.statusText}</span>
-                </div>
-              )}
-              <div className="h-4 shrink-0" aria-hidden="true" />
-            </div>
-
-            {(onBack || (presentation.kind === 'INFO' && onContinue)) && (
-              <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_98%,transparent)] px-4 py-3">
+            {isCompactTransfer ? (
+              <div className="flex min-h-0 items-center gap-2.5 px-3 py-2.5">
                 {onBack ? (
                   <button
                     type="button"
                     onClick={onBack}
-                    className="button-ghost inline-flex min-h-10 items-center justify-center gap-1.5 border border-[var(--border-default)] px-3 text-sm font-semibold"
+                    className="button-ghost pointer-events-auto inline-flex h-9 w-9 shrink-0 items-center justify-center border border-[var(--border-default)] p-0"
+                    aria-label="上一步"
+                    title="上一步"
                   >
                     <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                    上一步
                   </button>
                 ) : (
-                  <span />
+                  <MousePointer2
+                    className="h-5 w-5 shrink-0 text-[var(--accent-gold)]"
+                    aria-hidden="true"
+                  />
                 )}
-                {presentation.kind === 'INFO' && onContinue && (
-                  <button
-                    type="button"
-                    onClick={onContinue}
-                    className="button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold"
+                <div className="min-w-0">
+                  <h2
+                    id="tutorial-guidance-title"
+                    className="line-clamp-1 text-sm font-bold leading-tight"
                   >
-                    {presentation.continueLabel ?? '下一步'}
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                )}
+                    {presentation.title}
+                  </h2>
+                  <p className="mt-1 line-clamp-1 text-[11px] font-medium leading-tight text-[var(--text-secondary)]">
+                    {presentation.statusText ?? presentation.body}
+                  </p>
+                </div>
               </div>
+            ) : (
+              <>
+                <div className="cute-scrollbar touch-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4">
+                  <div className="flex items-start gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-semibold text-[var(--accent-gold)]">
+                        {presentation.chapter} · {presentation.currentStep}/
+                        {presentation.totalSteps}
+                      </div>
+                      <h2
+                        id="tutorial-guidance-title"
+                        className="mt-1 text-base font-bold leading-snug"
+                      >
+                        {presentation.title}
+                      </h2>
+                    </div>
+                    {presentation.mascot ? (
+                      <img
+                        src={TUTORIAL_STICKER_ASSETS[presentation.mascot]}
+                        alt=""
+                        aria-hidden="true"
+                        className="-mb-2 -mr-1 -mt-2 ml-auto h-16 w-16 shrink-0 object-contain"
+                      />
+                    ) : null}
+                  </div>
+
+                  <CardEffectText
+                    text={presentation.body}
+                    className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]"
+                  />
+
+                  {presentation.statusText && (
+                    <div
+                      className={cn(
+                        'mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium',
+                        presentation.kind === 'OBSERVE'
+                          ? 'border-[color:color-mix(in_srgb,var(--semantic-info)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-info)_10%,transparent)] text-[var(--semantic-info)]'
+                          : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-[var(--text-secondary)]'
+                      )}
+                      role="status"
+                    >
+                      {presentation.kind === 'OBSERVE' ? (
+                        <Eye className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      ) : (
+                        <MousePointer2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      )}
+                      <span>{presentation.statusText}</span>
+                    </div>
+                  )}
+                  <div className="h-4 shrink-0" aria-hidden="true" />
+                </div>
+
+                {(onBack || (presentation.kind === 'INFO' && onContinue)) && (
+                  <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_98%,transparent)] px-4 py-3">
+                    {onBack ? (
+                      <button
+                        type="button"
+                        onClick={onBack}
+                        className="button-ghost inline-flex min-h-10 items-center justify-center gap-1.5 border border-[var(--border-default)] px-3 text-sm font-semibold"
+                      >
+                        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                        上一步
+                      </button>
+                    ) : (
+                      <span />
+                    )}
+                    {presentation.kind === 'INFO' && onContinue && (
+                      <button
+                        type="button"
+                        onClick={onContinue}
+                        className="button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold"
+                      >
+                        {presentation.continueLabel ?? '下一步'}
+                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </motion.section>
         </div>

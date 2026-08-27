@@ -19,6 +19,12 @@ export type TutorialGuidanceTarget =
       readonly placement?: TutorialCalloutPlacement;
     };
 
+export interface TutorialTransferGuidance {
+  readonly kind: 'TRANSFER';
+  readonly source: TutorialGuidanceTarget;
+  readonly destination: TutorialGuidanceTarget;
+}
+
 export interface TutorialGuidancePresentation {
   readonly stepId: string;
   readonly kind: TutorialStepKind;
@@ -31,6 +37,8 @@ export interface TutorialGuidancePresentation {
   readonly target?: TutorialGuidanceTarget | null;
   /** Additional visible targets share the spotlight but do not position the callout. */
   readonly secondaryTargets?: readonly TutorialGuidanceTarget[];
+  /** A and B are both protected interaction targets; the callout follows B. */
+  readonly interaction?: TutorialTransferGuidance;
   /** Used for an observation status or a concise instruction, never for private card data. */
   readonly statusText?: string;
   readonly continueLabel?: string;
@@ -52,6 +60,7 @@ export interface TutorialCalloutLayout {
   readonly left: number;
   readonly top: number;
   readonly placement: Exclude<TutorialCalloutPlacement, 'AUTO'>;
+  readonly overlapsProtectedTarget: boolean;
 }
 
 export function intersectTutorialRects(
@@ -178,6 +187,92 @@ function getRectOverlapArea(left: TutorialRect, right: TutorialRect): number {
   return overlapWidth * overlapHeight;
 }
 
+function hasProtectedTargetOverlap(
+  callout: TutorialRect,
+  protectedTargets: readonly TutorialRect[]
+): boolean {
+  return protectedTargets.some((target) => getRectOverlapArea(callout, target) > 0);
+}
+
+interface TutorialCalloutCandidate {
+  readonly placement: Exclude<TutorialCalloutPlacement, 'AUTO'>;
+  readonly position: Pick<TutorialCalloutLayout, 'left' | 'top'>;
+  readonly preferenceOrder: number;
+}
+
+function getCalloutCandidates(
+  target: TutorialRect,
+  callout: TutorialRect,
+  viewport: TutorialViewport,
+  preferred: TutorialCalloutPlacement,
+  protectedTargets: readonly TutorialRect[]
+): readonly TutorialCalloutCandidate[] {
+  const maximumLeft = viewport.width - VIEWPORT_MARGIN - callout.width;
+  const maximumTop = viewport.height - VIEWPORT_MARGIN - callout.height;
+  const placementOrder = getPlacementOrder(preferred);
+  const candidates: TutorialCalloutCandidate[] = [];
+  const seen = new Set<string>();
+
+  const addCandidate = (
+    placement: Exclude<TutorialCalloutPlacement, 'AUTO'>,
+    left: number,
+    top: number,
+    preferenceOrder = placementOrder.indexOf(placement)
+  ) => {
+    const position = {
+      left: clamp(left, VIEWPORT_MARGIN, maximumLeft),
+      top: clamp(top, VIEWPORT_MARGIN, maximumTop),
+    };
+    const key = `${Math.round(position.left * 10)}:${Math.round(position.top * 10)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    candidates.push({ placement, position, preferenceOrder });
+  };
+
+  placementOrder.forEach((placement, order) => {
+    const position = getUnclampedCalloutPosition(placement, target, callout);
+    addCandidate(placement, position.left, position.top, order);
+  });
+
+  for (const protectedTarget of protectedTargets) {
+    const centerX = protectedTarget.left + protectedTarget.width / 2;
+    const centerY = protectedTarget.top + protectedTarget.height / 2;
+    addCandidate(
+      'TOP',
+      centerX - callout.width / 2,
+      protectedTarget.top - TARGET_CALLOUT_GAP - callout.height
+    );
+    addCandidate(
+      'BOTTOM',
+      centerX - callout.width / 2,
+      protectedTarget.top + protectedTarget.height + TARGET_CALLOUT_GAP
+    );
+    addCandidate(
+      'LEFT',
+      protectedTarget.left - TARGET_CALLOUT_GAP - callout.width,
+      centerY - callout.height / 2
+    );
+    addCandidate(
+      'RIGHT',
+      protectedTarget.left + protectedTarget.width + TARGET_CALLOUT_GAP,
+      centerY - callout.height / 2
+    );
+  }
+
+  const centeredLeft = (viewport.width - callout.width) / 2;
+  const centeredTop = (viewport.height - callout.height) / 2;
+  addCandidate('TOP', centeredLeft, VIEWPORT_MARGIN);
+  addCandidate('BOTTOM', centeredLeft, maximumTop);
+  addCandidate('LEFT', VIEWPORT_MARGIN, centeredTop);
+  addCandidate('RIGHT', maximumLeft, centeredTop);
+  addCandidate('TOP', VIEWPORT_MARGIN, VIEWPORT_MARGIN);
+  addCandidate('TOP', maximumLeft, VIEWPORT_MARGIN);
+  addCandidate('BOTTOM', VIEWPORT_MARGIN, maximumTop);
+  addCandidate('BOTTOM', maximumLeft, maximumTop);
+
+  return candidates;
+}
+
 export function placeTutorialCallout(
   target: TutorialRect | null,
   callout: Pick<TutorialRect, 'width' | 'height'>,
@@ -208,23 +303,19 @@ export function placeTutorialCallout(
         viewport.height - VIEWPORT_MARGIN - safeCallout.height
       ),
       placement: 'BOTTOM',
+      overlapsProtectedTarget: false,
     };
   }
 
-  const candidates = getPlacementOrder(preferred).map((placement, order) => {
+  const candidates = getCalloutCandidates(
+    target,
+    safeCallout,
+    viewport,
+    preferred,
+    protectedTargets
+  ).map((candidate) => {
+    const { placement, position, preferenceOrder } = candidate;
     const unclampedPosition = getUnclampedCalloutPosition(placement, target, safeCallout);
-    const position = {
-      left: clamp(
-        unclampedPosition.left,
-        VIEWPORT_MARGIN,
-        viewport.width - VIEWPORT_MARGIN - safeCallout.width
-      ),
-      top: clamp(
-        unclampedPosition.top,
-        VIEWPORT_MARGIN,
-        viewport.height - VIEWPORT_MARGIN - safeCallout.height
-      ),
-    };
     const positionedCallout: TutorialRect = { ...safeCallout, ...position };
     const primaryTargetOverlap = protectedTargets[0]
       ? getRectOverlapArea(positionedCallout, protectedTargets[0])
@@ -238,16 +329,22 @@ export function placeTutorialCallout(
     return {
       placement,
       position,
+      overlapsProtectedTarget: hasProtectedTargetOverlap(positionedCallout, protectedTargets),
       // The primary target is the current interaction. It must remain usable even when
       // a large secondary teaching region makes every candidate overlap something.
       score:
         primaryTargetOverlap * PRIMARY_TARGET_OVERLAP_WEIGHT +
         secondaryTargetOverlap * SECONDARY_TARGET_OVERLAP_WEIGHT +
         getViewportOverflow(unclampedPosition, safeCallout, viewport) * 10 +
-        order,
+        preferenceOrder,
     };
   });
-  const selected = candidates.reduce((best, candidate) =>
+  const nonOverlappingCandidates = candidates.filter(
+    (candidate) => !candidate.overlapsProtectedTarget
+  );
+  const selectableCandidates =
+    nonOverlappingCandidates.length > 0 ? nonOverlappingCandidates : candidates;
+  const selected = selectableCandidates.reduce((best, candidate) =>
     candidate.score < best.score ? candidate : best
   );
 
@@ -255,5 +352,6 @@ export function placeTutorialCallout(
     left: selected.position.left,
     top: selected.position.top,
     placement: selected.placement,
+    overlapsProtectedTarget: selected.overlapsProtectedTarget,
   };
 }

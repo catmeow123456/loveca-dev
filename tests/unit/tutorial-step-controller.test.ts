@@ -181,6 +181,30 @@ describe('basic LIVE tutorial public definition', () => {
     expect(serialized).not.toContain('opponenthand');
   });
 
+  it('declares both endpoints for every guided card transfer', () => {
+    const transferSteps = BASIC_LIVE_TUTORIAL.steps.filter((step) => step.interaction);
+
+    expect(transferSteps.map((step) => step.id)).toEqual([
+      'play-member',
+      'set-live-card',
+      'relay-to-center',
+      'set-effect-live',
+      'play-recovery-member',
+      'replay-recovered-member',
+      'set-final-live-one',
+      'set-final-live-two',
+    ]);
+    expect(
+      transferSteps.every(
+        (step) =>
+          step.kind === 'ACTION' &&
+          step.interaction?.kind === 'TRANSFER' &&
+          step.interaction.source.kind === 'OBJECT_ROLE' &&
+          step.interaction.destination.kind === 'ANCHOR'
+      )
+    ).toBe(true);
+  });
+
   it('uses mascot stickers only at sparse information beats', () => {
     const mascotSteps = BASIC_LIVE_TUTORIAL.steps.filter((step) => step.mascot);
 
@@ -599,6 +623,21 @@ describe('tutorial presentation resolution', () => {
         placement: undefined,
       },
     ]);
+    expect(presentation?.interaction).toEqual({
+      kind: 'TRANSFER',
+      source: {
+        kind: 'OBJECT',
+        objectId: `obj_${MEMBER_ID}`,
+        padding: 8,
+        placement: undefined,
+      },
+      destination: {
+        kind: 'ANCHOR',
+        anchor: BATTLE_UI_ANCHORS.SELF_STAGE_CENTER,
+        padding: undefined,
+        placement: 'TOP',
+      },
+    });
   });
 
   it('shows a blocking diagnostic instead of guessing or skipping a missing object binding', () => {

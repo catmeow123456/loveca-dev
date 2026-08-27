@@ -189,7 +189,12 @@ describe('tutorial spotlight geometry', () => {
       'BOTTOM'
     );
 
-    expect(layout).toEqual({ left: 300, top: 256, placement: 'BOTTOM' });
+    expect(layout).toEqual({
+      left: 300,
+      top: 256,
+      placement: 'BOTTOM',
+      overlapsProtectedTarget: false,
+    });
   });
 
   it('falls back above a bottom-edge target instead of covering the target', () => {
@@ -211,7 +216,12 @@ describe('tutorial spotlight geometry', () => {
       { width: 390, height: 844 }
     );
 
-    expect(layout).toEqual({ left: 15, top: 612, placement: 'BOTTOM' });
+    expect(layout).toEqual({
+      left: 15,
+      top: 612,
+      placement: 'BOTTOM',
+      overlapsProtectedTarget: false,
+    });
   });
 
   it('clamps an oversized callout on a narrow viewport', () => {
@@ -240,6 +250,62 @@ describe('tutorial spotlight geometry', () => {
 
     expect(layout.placement).toBe('TOP');
     expect(layout.top + 180).toBeLessThan(sourceCard.top);
+    expect(layout.overlapsProtectedTarget).toBe(false);
+  });
+
+  it.each([
+    [320, 568],
+    [360, 640],
+    [360, 740],
+    [375, 667],
+    [390, 844],
+    [412, 915],
+    [430, 932],
+  ])('keeps both transfer endpoints clear at %ix%i', (width, height) => {
+    const destination = {
+      left: width / 2 - 54,
+      top: height * 0.42,
+      width: 108,
+      height: 64,
+    };
+    const source = {
+      left: width / 2 - 40,
+      top: height - 132,
+      width: 80,
+      height: 112,
+    };
+    const layout = placeTutorialCallout(
+      destination,
+      { width: Math.min(300, width - 24), height: 64 },
+      { width, height },
+      'TOP',
+      [destination, source]
+    );
+    const callout = {
+      left: layout.left,
+      top: layout.top,
+      width: Math.min(300, width - 24),
+      height: 64,
+    };
+
+    expect(layout.overlapsProtectedTarget).toBe(false);
+    expect(intersectTutorialRects(callout, destination)).toBeNull();
+    expect(intersectTutorialRects(callout, source)).toBeNull();
+  });
+
+  it('reports when no overlay rectangle can preserve every protected target', () => {
+    const layout = placeTutorialCallout(
+      { left: 0, top: 0, width: 390, height: 400 },
+      { width: 300, height: 80 },
+      { width: 390, height: 640 },
+      'TOP',
+      [
+        { left: 0, top: 0, width: 390, height: 400 },
+        { left: 0, top: 400, width: 390, height: 240 },
+      ]
+    );
+
+    expect(layout.overlapsProtectedTarget).toBe(true);
   });
 
   it('never sacrifices the actionable primary target to protect a large secondary region', () => {
@@ -432,37 +498,39 @@ describe('tutorial mobile judgment panel', () => {
 });
 
 describe('tutorial judgment walkthrough', () => {
-  it('keeps the relay destination primary and the fee-9 hand card secondary', () => {
+  it('models the relay as an explicit source-to-destination interaction', () => {
     const step = BASIC_LIVE_TUTORIAL.steps.find((candidate) => candidate.id === 'relay-to-center');
 
     expect(step).toMatchObject({
       kind: 'ACTION',
-      target: { kind: 'ANCHOR', anchor: BATTLE_UI_ANCHORS.SELF_STAGE_CENTER },
-      secondaryTargets: [
-        {
+      interaction: {
+        kind: 'TRANSFER',
+        source: {
           kind: 'OBJECT_ROLE',
           role: BASIC_LIVE_TUTORIAL_OBJECT_ROLES.RELAY_MEMBER,
         },
-      ],
+        destination: {
+          kind: 'ANCHOR',
+          anchor: BATTLE_UI_ANCHORS.SELF_STAGE_CENTER,
+        },
+      },
     });
   });
 
-  it('keeps relay-effect card selection primary while leaving confirmation visible', () => {
+  it('keeps relay-effect selection and confirmation visible without highlighting the saved LIVE', () => {
     const step = BASIC_LIVE_TUTORIAL.steps.find(
       (candidate) => candidate.id === 'resolve-relay-discard'
     );
 
-    expect(step).toMatchObject({
-      kind: 'ACTION',
-      target: { kind: 'ANCHOR', anchor: BATTLE_UI_ANCHORS.ACTIVE_EFFECT_SELECTION },
-      secondaryTargets: [
-        { kind: 'ANCHOR', anchor: BATTLE_UI_ANCHORS.ACTIVE_EFFECT_CONFIRM },
-        {
-          kind: 'OBJECT_ROLE',
-          role: BASIC_LIVE_TUTORIAL_OBJECT_ROLES.EFFECT_LIVE_CARD,
-        },
-      ],
+    expect(step?.kind).toBe('ACTION');
+    expect(step?.target).toEqual({
+      kind: 'ANCHOR',
+      anchor: BATTLE_UI_ANCHORS.ACTIVE_EFFECT_SELECTION,
+      placement: 'TOP',
     });
+    expect(step?.secondaryTargets).toEqual([
+      { kind: 'ANCHOR', anchor: BATTLE_UI_ANCHORS.ACTIVE_EFFECT_CONFIRM },
+    ]);
   });
 
   it('targets the selection grid for the auto-submitted LIVE-start discard', () => {

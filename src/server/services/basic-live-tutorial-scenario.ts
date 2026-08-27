@@ -29,7 +29,7 @@ import type {
 import { TUTORIAL_CHECKPOINT_IDS } from '../../online/tutorial-types.js';
 
 export const BASIC_LIVE_TUTORIAL_ID = 'basic-live-loop';
-export const BASIC_LIVE_TUTORIAL_VERSION = '1.1.5';
+export const BASIC_LIVE_TUTORIAL_VERSION = '1.1.6';
 
 export const BASIC_LIVE_TUTORIAL_ROLES = {
   MULLIGAN_CARD: 'opening-mulligan-card',
