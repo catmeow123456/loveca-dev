@@ -26,7 +26,7 @@ import './theme-table.css';
 export function ThemeTablePage({ onBack }: { onBack: () => void }) {
   const { overview, loading, error, refresh, join, cancel } = useThemeTableStore();
   const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
-  const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
+  const [browsedDeckId, setBrowsedDeckId] = useState<string | null>(null);
   const [selectedCard, setSelectedCard] = useState<AnyCardData | null>(null);
   useEffect(() => {
     void refresh().catch(() => undefined);
@@ -85,11 +85,13 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
               </span>
               <span className="inline-flex items-center gap-2">
                 <Shuffle size={15} />
-                确认后随机分配双方位置
+                {event.deckChoiceCount === 1
+                  ? '匹配后随机分配本局卡组'
+                  : `匹配后随机 ${event.deckChoiceCount} 选 1`}
               </span>
             </div>
           </div>
-          <div className="theme-table-draw" aria-label="从已验证组合中抽取本局双方卡组">
+          <div className="theme-table-draw" aria-label="从卡组池中随机生成本局候选卡组">
             {event.prebuiltDecks.slice(0, 3).map((deck, index) => (
               <img
                 key={deck.id}
@@ -104,7 +106,9 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
             ))}
             <div>
               <TicketCheck size={18} />
-              <span>随机分配</span>
+              <span>
+                {event.deckChoiceCount === 1 ? '随机分配' : `${event.deckChoiceCount} 选 1`}
+              </span>
             </div>
           </div>
         </ActivityCoverHero>
@@ -113,18 +117,18 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
           <div className="theme-table-entry-panel__main">
             <div>
               <div className="font-semibold text-[var(--text-primary)]">
-                {activeQueue ? (queue.deckName ?? '卡组尚未揭晓') : availability.message}
+                {activeQueue
+                  ? queue.state === 'WAITING'
+                    ? '卡组尚未揭晓'
+                    : (queue.deckName ?? '卡组尚未揭晓')
+                  : availability.message}
               </div>
             </div>
-            {activeQueue ? (
-              <ActionButton
-                variant="secondary"
-                disabled={loading || queue.state === 'CREATING_ROOM'}
-                onClick={() => void cancel()}
-              >
+            {queue.state === 'WAITING' ? (
+              <ActionButton variant="secondary" disabled={loading} onClick={() => void cancel()}>
                 退出候场
               </ActionButton>
-            ) : (
+            ) : !activeQueue ? (
               <ActionButton
                 disabled={!availability.canJoin || loading}
                 onClick={() => void handleJoin()}
@@ -132,7 +136,7 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
                 {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                 加入娱乐模式
               </ActionButton>
-            )}
+            ) : null}
           </div>
           <div
             className="theme-table-season-record"
@@ -152,7 +156,7 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
         {error ? <p className="mt-3 text-sm text-[var(--semantic-error)]">{error}</p> : null}
 
         <section className="mt-8">
-          <div className="mb-3 flex items-end justify-between gap-4">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-xs font-semibold text-[var(--accent-primary)]">本期预组池</p>
               <h2 className="mt-1 text-xl font-semibold text-[var(--text-primary)]">
@@ -163,8 +167,8 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
           </div>
           <ThemeDeckBrowser
             decks={event.prebuiltDecks}
-            selectedDeckId={selectedDeckId}
-            onSelectDeck={setSelectedDeckId}
+            selectedDeckId={browsedDeckId}
+            onSelectDeck={setBrowsedDeckId}
             onViewCard={setSelectedCard}
           />
         </section>

@@ -43,6 +43,7 @@ export interface ThemeTableEventView {
   readonly startsAt: number;
   readonly endsAt: number;
   readonly allocationAlgorithmVersion: string;
+  readonly deckChoiceCount: number;
   readonly cover: ActivityCoverPublicView;
   readonly prebuiltDecks: readonly ThemePrebuiltDeckView[];
   readonly matchupStatistics: readonly ThemeMatchupStatisticsView[];
@@ -56,6 +57,12 @@ export interface ThemeTablePlayerSeasonView {
   readonly winRate: number | null;
 }
 
+export interface ThemeDeckChoiceView {
+  readonly reservationId: string;
+  readonly candidates: readonly ThemePrebuiltDeckView[];
+  readonly selectedDeckVersionId: string | null;
+}
+
 export interface ThemeTableOverviewView {
   readonly event: ThemeTableEventView | null;
   readonly availability: {
@@ -65,6 +72,7 @@ export interface ThemeTableOverviewView {
   };
   readonly player: ThemeTablePlayerSeasonView | null;
   readonly queue: PublicTableStatusView;
+  readonly deckChoice: ThemeDeckChoiceView | null;
 }
 
 export interface ThemeTableEvaluationPolicy {
@@ -105,9 +113,7 @@ export interface ThemeAdminMetricsView {
     readonly deckVersionId: string;
     readonly displayName: string;
     readonly assignmentCount: number;
-    readonly expectedShare: number;
     readonly actualShare: number;
-    readonly deviation: number;
   }[];
 }
 
@@ -120,6 +126,7 @@ export interface ThemeAdminEventView {
   readonly rulesEnvironmentId: string;
   readonly cardCatalogHash: string;
   readonly allocationAlgorithmVersion: string;
+  readonly deckChoiceCount: number;
   readonly platformTimeZone: string;
   readonly openWindows: readonly {
     readonly weekdays: readonly number[];

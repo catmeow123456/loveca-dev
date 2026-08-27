@@ -29,9 +29,9 @@ export const heartbeatThemeTable = () =>
     '更新娱乐模式候场状态失败'
   );
 
-export const confirmThemeTable = () =>
+export const confirmThemeTable = (deckVersionId?: string) =>
   requireData<PublicTableStatusView>(
-    apiClient.post('/api/theme-table/queue/confirm'),
+    apiClient.post('/api/theme-table/queue/confirm', deckVersionId ? { deckVersionId } : {}),
     '确认娱乐模式对局失败'
   );
 

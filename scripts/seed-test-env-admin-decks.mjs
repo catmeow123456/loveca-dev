@@ -414,6 +414,7 @@ function createThemeSeasonPayload() {
     scheduleLabel: '每天全天开放（测试环境）',
     summary: '使用四副 DeckLog 示例预组进行主题对战。',
     announcement: '本主题季使用平台提供的示例预组，记录本期胜负，不计入赛季排位。',
+    deckChoiceCount: 3,
     evaluationPolicy: {
       minimumCompletedMatchesPerPair: 20,
       minimumCompletionRate: 0.8,

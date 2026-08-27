@@ -1289,6 +1289,7 @@ export const themeTableVersions = pgTable(
     rulesEnvironmentId: text('rules_environment_id').notNull(),
     cardCatalogHash: text('card_catalog_hash').notNull(),
     allocationAlgorithmVersion: text('allocation_algorithm_version').notNull(),
+    deckChoiceCount: integer('deck_choice_count').notNull().default(1),
     platformTimeZone: text('platform_time_zone').notNull().default('Asia/Shanghai'),
     openWindows: jsonb('open_windows').$type<RankedSeasonOpenWindow[]>().notNull(),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
@@ -1316,6 +1317,7 @@ export const themeTableVersions = pgTable(
       sql`${table.lifecycle} IN ('DRAFT', 'ACTIVE', 'PAUSED', 'CLOSED')`
     ),
     check('theme_table_versions_window_check', sql`${table.endsAt} > ${table.startsAt}`),
+    check('theme_table_versions_deck_choice_count_check', sql`${table.deckChoiceCount} > 0`),
   ]
 );
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Clock3, X } from 'lucide-react';
+import { Check, Clock3 } from 'lucide-react';
 import { useThemeTableStore } from '@/store/themeTableStore';
+import { ThemeDeckChoiceDialog } from './ThemeDeckChoiceDialog';
 
 const HEARTBEAT_MS = 15_000;
 const POLL_MS = 2_500;
@@ -72,7 +73,10 @@ export function ThemeTableGlobalLayer({
             <Clock3 size={16} /> 娱乐模式候场中
           </div>
           <div className="mt-1 truncate text-xs text-[var(--text-muted)]">
-            {overview?.event?.name} · 卡组将在双方确认后分配
+            {overview?.event?.name} ·{' '}
+            {overview?.event?.deckChoiceCount === 1
+              ? '匹配成功后随机分配卡组'
+              : `匹配成功后抽取 ${overview?.event?.deckChoiceCount ?? 'X'} 选 1`}
           </div>
         </div>
         <button
@@ -85,6 +89,26 @@ export function ThemeTableGlobalLayer({
       </div>
     );
   }
+  if (state === 'PENDING_CONFIRMATION' && (overview?.event?.deckChoiceCount ?? 1) > 1) {
+    if (overview?.deckChoice) {
+      return (
+        <ThemeDeckChoiceDialog
+          choice={overview.deckChoice}
+          remainingSeconds={remaining}
+          loading={loading}
+          error={error}
+          onConfirm={(deckVersionId) => void confirm(deckVersionId)}
+        />
+      );
+    }
+    return (
+      <div className="fixed inset-0 z-[114] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
+        <div className="surface-panel w-full max-w-md p-6 text-center text-[var(--text-secondary)]">
+          正在抽取本次匹配的候选卡组……
+        </div>
+      </div>
+    );
+  }
   const creating = state === 'CREATING_ROOM';
   return (
     <div className="fixed inset-0 z-[114] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
@@ -93,27 +117,20 @@ export function ThemeTableGlobalLayer({
           <Check size={24} />
         </div>
         <h2 className="text-xl font-bold text-[var(--text-primary)]">
-          {creating ? '正在抽取本局卡组' : '对手已就位'}
+          {creating ? '正在创建娱乐模式房间' : '对手已就位'}
         </h2>
         <p className="mt-2 text-sm text-[var(--text-secondary)]">
           {creating
-            ? `已从审核组合中分配卡组：${status.deckName ?? '正在揭晓'}`
+            ? `本局卡组：${status.deckName ?? '正在读取'}`
             : status.confirmed
-              ? '你已确认，等待对方。卡组会在双方确认后揭晓。'
+              ? `你已确认，等待对方。本局使用 ${status.deckName ?? '已选择卡组'}。`
               : `请在 ${remaining ?? '—'} 秒内确认参加本局。`}
         </p>
         {error ? <p className="mt-3 text-sm text-[var(--semantic-error)]">{error}</p> : null}
         {!creating ? (
-          <div className="mt-5 grid grid-cols-2 gap-3">
+          <div className="mt-5">
             <button
-              className="button-secondary py-3"
-              disabled={loading}
-              onClick={() => void cancel()}
-            >
-              <X className="mr-1 inline" size={16} /> 退出
-            </button>
-            <button
-              className="button-primary py-3"
+              className="button-primary w-full py-3"
               disabled={loading || status.confirmed}
               onClick={() => void confirm()}
             >

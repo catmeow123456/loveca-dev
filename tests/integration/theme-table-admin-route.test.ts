@@ -110,6 +110,7 @@ const validDraft = {
     winRateUpperBound: 0.65,
     baselineWindowLabel: '前两周同窗口',
   },
+  deckChoiceCount: 3,
 };
 
 const validOperations = {

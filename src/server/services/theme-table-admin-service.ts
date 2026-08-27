@@ -21,7 +21,7 @@ import { encodePublicTableRuntimeDeck } from './public-table-deck-snapshot.js';
 import { REPLAY_RULES_VERSION } from './replay-constants.js';
 import type { RankedSeasonOpenWindow } from './ranked-season-service.js';
 
-export const THEME_ALLOCATION_ALGORITHM_VERSION = 'THEME_WEIGHTED_PAIR_V1';
+export const THEME_ALLOCATION_ALGORITHM_VERSION = 'THEME_DECK_CHOICE_V2';
 
 interface QueryResult<T> {
   readonly rows: T[];
@@ -41,6 +41,7 @@ interface ThemeRow {
   readonly rules_environment_id: string;
   readonly card_catalog_hash: string;
   readonly allocation_algorithm_version: string;
+  readonly deck_choice_count: number;
   readonly platform_time_zone: string;
   readonly open_windows: RankedSeasonOpenWindow[];
   readonly starts_at: Date | string;
@@ -88,6 +89,7 @@ export interface ThemeAdminDraftInput {
   readonly summary: string;
   readonly announcement: string;
   readonly evaluationPolicy: ThemeTableEvaluationPolicy;
+  readonly deckChoiceCount: number;
 }
 
 export interface ThemeAdminOperationsInput {
@@ -208,10 +210,10 @@ export class ThemeTableAdminService {
          id, version_key, name, lifecycle, environment_id, rules_environment_id,
          card_catalog_hash, allocation_algorithm_version, platform_time_zone,
          open_windows, starts_at, ends_at, schedule_label, summary, announcement,
-         evaluation_policy, created_at, updated_at
+         evaluation_policy, deck_choice_count, created_at, updated_at
        ) VALUES (
          $1, $2, $3, 'DRAFT', $4, $5, $6, $7, $8,
-         $9::jsonb, $10, $11, $12, $13, $14, $15::jsonb, $16, $16
+         $9::jsonb, $10, $11, $12, $13, $14, $15::jsonb, $16, $17, $17
        ) RETURNING *`,
       [
         id,
@@ -229,6 +231,7 @@ export class ThemeTableAdminService {
         input.summary,
         input.announcement,
         JSON.stringify(input.evaluationPolicy),
+        input.deckChoiceCount,
         this.now(),
       ]
     );
@@ -253,7 +256,8 @@ export class ThemeTableAdminService {
            summary = $8,
            announcement = $9,
            evaluation_policy = $10::jsonb,
-           updated_at = $11
+           deck_choice_count = $11,
+           updated_at = $12
        WHERE id = $1 AND lifecycle = 'DRAFT'
        RETURNING *`,
       [
@@ -267,6 +271,7 @@ export class ThemeTableAdminService {
         input.summary,
         input.announcement,
         JSON.stringify(input.evaluationPolicy),
+        input.deckChoiceCount,
         this.now(),
       ]
     );
@@ -871,6 +876,7 @@ export class ThemeTableAdminService {
       rulesEnvironmentId: theme.rules_environment_id,
       cardCatalogHash: theme.card_catalog_hash,
       allocationAlgorithmVersion: theme.allocation_algorithm_version,
+      deckChoiceCount: theme.deck_choice_count,
       platformTimeZone: theme.platform_time_zone,
       openWindows: theme.open_windows,
       startsAt: new Date(theme.starts_at).getTime(),
@@ -910,11 +916,9 @@ export class ThemeTableAdminService {
         deck_version_id: string;
         display_name: string;
         assignment_count: string;
-        expected_assignment_count: string;
       }>(
         `WITH theme_assignments AS (
-           SELECT id, first_ticket_deck_version_id, second_ticket_deck_version_id,
-                  allocation_proof
+           SELECT id, first_ticket_deck_version_id, second_ticket_deck_version_id
            FROM theme_table_assignments
            WHERE theme_table_version_id = $1
          ), actual_exposure AS (
@@ -925,30 +929,11 @@ export class ThemeTableAdminService {
              SELECT second_ticket_deck_version_id AS deck_version_id FROM theme_assignments
            ) AS assigned
            GROUP BY assigned.deck_version_id
-         ), expected_exposure AS (
-           SELECT slot.deck_version_id,
-                  SUM(
-                    (snapshot.value->>'weight')::numeric /
-                    NULLIF((assignment.allocation_proof->>'totalWeight')::numeric, 0)
-                  ) AS expected_assignment_count
-           FROM theme_assignments AS assignment
-           CROSS JOIN LATERAL jsonb_array_elements(
-             assignment.allocation_proof->'eligiblePairSnapshot'
-           ) AS snapshot(value)
-           CROSS JOIN LATERAL (
-             VALUES
-               ((snapshot.value->>'firstDeckId')::uuid),
-               ((snapshot.value->>'secondDeckId')::uuid)
-           ) AS slot(deck_version_id)
-           GROUP BY slot.deck_version_id
          )
          SELECT deck.id AS deck_version_id, deck.display_name,
-                COALESCE(actual.assignment_count, 0)::text AS assignment_count,
-                COALESCE(expected.expected_assignment_count, 0)::text
-                  AS expected_assignment_count
+                COALESCE(actual.assignment_count, 0)::text AS assignment_count
          FROM theme_prebuilt_deck_versions AS deck
          LEFT JOIN actual_exposure AS actual ON actual.deck_version_id = deck.id
-         LEFT JOIN expected_exposure AS expected ON expected.deck_version_id = deck.id
          WHERE deck.theme_table_version_id = $1
          ORDER BY deck.deck_key, deck.id`,
         [themeId]
@@ -964,16 +949,12 @@ export class ThemeTableAdminService {
       deckExposure: exposure.rows.map((entry) => {
         const assignmentCount = Number(entry.assignment_count);
         const actualDenominator = Number(row?.assignment_count ?? 0) * 2;
-        const expectedShare =
-          actualDenominator > 0 ? Number(entry.expected_assignment_count) / actualDenominator : 0;
         const actualShare = actualDenominator > 0 ? assignmentCount / actualDenominator : 0;
         return {
           deckVersionId: entry.deck_version_id,
           displayName: entry.display_name,
           assignmentCount,
-          expectedShare,
           actualShare,
-          deviation: actualShare - expectedShare,
         };
       }),
     };
@@ -981,6 +962,9 @@ export class ThemeTableAdminService {
 }
 
 function assertDraftInput(input: ThemeAdminDraftInput) {
+  if (!Number.isInteger(input.deckChoiceCount) || input.deckChoiceCount < 1) {
+    throw adminError('THEME_DECK_CHOICE_COUNT_INVALID', '候选卡组数量必须是正整数');
+  }
   if (input.endsAt.getTime() <= input.startsAt.getTime()) {
     throw adminError('THEME_WINDOW_INVALID', '活动结束时间必须晚于开始时间');
   }

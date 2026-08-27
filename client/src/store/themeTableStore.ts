@@ -16,7 +16,7 @@ interface ThemeTableStoreState {
   refresh: () => Promise<void>;
   join: () => Promise<void>;
   heartbeat: () => Promise<void>;
-  confirm: () => Promise<void>;
+  confirm: (deckVersionId?: string) => Promise<void>;
   cancel: () => Promise<void>;
 }
 
@@ -57,7 +57,7 @@ export const useThemeTableStore = create<ThemeTableStoreState>((set) => {
     },
     join: () => runQueue(joinThemeTable),
     heartbeat: () => runQueue(heartbeatThemeTable),
-    confirm: () => runQueue(confirmThemeTable),
+    confirm: (deckVersionId) => runQueue(() => confirmThemeTable(deckVersionId)),
     cancel: () => runQueue(cancelThemeTable),
   };
 });

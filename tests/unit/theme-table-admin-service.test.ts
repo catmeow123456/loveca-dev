@@ -10,7 +10,8 @@ const THEME = {
   environment_id: 'sha256:environment',
   rules_environment_id: 'LOVECABATTLE_RULES_V1',
   card_catalog_hash: 'sha256:catalog',
-  allocation_algorithm_version: 'THEME_WEIGHTED_PAIR_V1',
+  allocation_algorithm_version: 'THEME_DECK_CHOICE_V2',
+  deck_choice_count: 3,
   platform_time_zone: 'Asia/Shanghai',
   open_windows: [{ weekdays: [7], startMinute: 0, endMinute: 1440 }],
   starts_at: new Date('2026-08-01T00:00:00.000Z'),
@@ -427,7 +428,7 @@ describe('ThemeTableAdminService', () => {
     expect(query).toHaveBeenCalledTimes(2);
   });
 
-  it('derives cumulative exposure targets from each assignment frozen pair snapshot', async () => {
+  it('reports actual selected-deck exposure from frozen assignments', async () => {
     const calls: string[] = [];
     const query = vi.fn(async (text: string) => {
       await Promise.resolve();
@@ -449,14 +450,13 @@ describe('ThemeTableAdminService', () => {
           rowCount: 1,
         };
       }
-      if (text.includes('expected_exposure AS')) {
+      if (text.includes('actual_exposure AS')) {
         return {
           rows: [
             {
               deck_version_id: 'deck-version-1',
               display_name: 'Liella! 节奏',
               assignment_count: '6',
-              expected_assignment_count: '5',
             },
           ],
           rowCount: 1,
@@ -471,13 +471,11 @@ describe('ThemeTableAdminService', () => {
     expect(event?.metrics.deckExposure[0]).toMatchObject({
       deckVersionId: 'deck-version-1',
       assignmentCount: 6,
-      expectedShare: 0.25,
       actualShare: 0.3,
     });
-    expect(event?.metrics.deckExposure[0]?.deviation).toBeCloseTo(0.05);
-    const exposureQuery = calls.find((text) => text.includes('expected_exposure AS'));
-    expect(exposureQuery).toContain("allocation_proof->'eligiblePairSnapshot'");
-    expect(exposureQuery).toContain("allocation_proof->>'totalWeight'");
+    const exposureQuery = calls.find((text) => text.includes('actual_exposure AS'));
+    expect(exposureQuery).toContain('first_ticket_deck_version_id');
+    expect(exposureQuery).toContain('second_ticket_deck_version_id');
     expect(exposureQuery).not.toContain('pair.enabled = TRUE');
   });
 });

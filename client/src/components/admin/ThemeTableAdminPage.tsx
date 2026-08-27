@@ -348,7 +348,8 @@ function OverviewPanel({
           <div>
             <h2 className="font-semibold text-[var(--text-primary)]">本期卡组池</h2>
             <p className="mt-1 text-xs text-[var(--text-muted)]">
-              玩家不选卡组，系统从池内组合中为双方分配。
+              每名玩家随机获得至多 {selected.deckChoiceCount} 副候选并选择 1 副；设为 1
+              时自动进入候场。
             </p>
           </div>
           <span className="text-sm text-[var(--text-secondary)]">
@@ -378,7 +379,7 @@ function OverviewPanel({
                 <div key={item.deckVersionId}>
                   <span>{item.displayName}</span>
                   <strong>{formatPercent(item.actualShare)}</strong>
-                  <small>累计目标 {formatPercent(item.expectedShare)}</small>
+                  <small>{item.assignmentCount} 次实际选用</small>
                 </div>
               ))}
             </div>
@@ -484,6 +485,7 @@ function SeasonPanel({
                   <span>{formatRankedOpenWindows(event.openWindows)}</span>
                   <span>结束：{formatDate(event.endsAt)}</span>
                   <span>{enabledMatchupCount(event)} 个可分配组合</span>
+                  <span>{event.deckChoiceCount} 选 1</span>
                 </div>
                 {expanded ? (
                   <DeckPoolPanel
@@ -1084,6 +1086,7 @@ function ThemeSeasonForm({
           summary: draft.description.trim(),
           announcement: draft.announcement.trim(),
           evaluationPolicy: event?.evaluationPolicy ?? defaultEvaluationPolicy(),
+          deckChoiceCount: draft.deckChoiceCount,
         });
       }}
     >
@@ -1105,6 +1108,24 @@ function ThemeSeasonForm({
           onChange={(changeEvent) => setDraft({ ...draft, name: changeEvent.target.value })}
           required
         />
+      </Field>
+      <div className="hidden sm:block" aria-hidden="true" />
+      <Field label="每名玩家的候选卡组数">
+        <input
+          className="input-field"
+          type="number"
+          min={1}
+          step={1}
+          value={draft.deckChoiceCount}
+          disabled={Boolean(event && event.lifecycle !== 'DRAFT')}
+          onChange={(changeEvent) =>
+            setDraft({ ...draft, deckChoiceCount: Number(changeEvent.target.value) })
+          }
+          required
+        />
+        <span className="text-xs leading-5 text-[var(--text-muted)]">
+          设为 1 时玩家不会看到选择步骤；候选数大于当前卡组池时会展示全部可用卡组。
+        </span>
       </Field>
       <div className="hidden sm:block" aria-hidden="true" />
       <Field label="开始">
@@ -1206,6 +1227,7 @@ function seasonDraftFromEvent(event: ThemeAdminEventView | null): {
   endsAt: string;
   description: string;
   announcement: string;
+  deckChoiceCount: number;
   openWindows: EditableRankedOpenWindow[];
 } {
   const now = new Date();
@@ -1217,7 +1239,8 @@ function seasonDraftFromEvent(event: ThemeAdminEventView | null): {
     endsAt: toLocalDateTime(event?.endsAt ?? later.getTime()),
     description: event?.summary ?? '',
     announcement:
-      event?.announcement ?? '本娱乐模式不计入排位，双方将从本期卡组池获得平台分配的预组。',
+      event?.announcement ?? '本娱乐模式不计入排位，玩家将从平台随机给出的候选卡组中选择本局预组。',
+    deckChoiceCount: event?.deckChoiceCount ?? 1,
     openWindows: prepareRankedOpenWindowsForForm(
       event?.openWindows ?? [{ weekdays: [6, 7], startMinute: 1140, endMinute: 1380 }]
     ),

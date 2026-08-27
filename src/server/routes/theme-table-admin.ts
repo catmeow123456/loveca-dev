@@ -53,6 +53,7 @@ const draftSchema = z
     summary: z.string().trim().min(1).max(1000),
     announcement: z.string().trim().min(1).max(3000),
     evaluationPolicy: evaluationPolicySchema,
+    deckChoiceCount: z.number().int().positive(),
   })
   .strict();
 const operationsSchema = z

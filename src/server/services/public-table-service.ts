@@ -558,6 +558,14 @@ export class PublicTableService {
         await client.query('COMMIT');
         return;
       }
+      const commonValues = [
+        context.environmentId,
+        new Date(now - HEARTBEAT_GRACE_MS),
+        new Date(now),
+        context.queueKind,
+        context.seasonId,
+        context.themeTableVersionId ?? null,
+      ];
       const result = await client.query<{ id: string }>(
         `SELECT id
          FROM public_table_tickets
@@ -571,20 +579,13 @@ export class PublicTableService {
          ORDER BY joined_at ASC, id ASC
          FOR UPDATE SKIP LOCKED
          LIMIT 2`,
-        [
-          context.environmentId,
-          new Date(now - HEARTBEAT_GRACE_MS),
-          new Date(now),
-          context.queueKind,
-          context.seasonId,
-          context.themeTableVersionId ?? null,
-        ]
+        commonValues
       );
-      if (result.rows.length < 2) {
+      const [first, second] = result.rows;
+      if (!first || !second) {
         await client.query('COMMIT');
         return;
       }
-      const [first, second] = result.rows;
       const reservationId = randomUUID();
       await client.query(
         `INSERT INTO public_table_reservations (
@@ -1360,16 +1361,13 @@ async function loadThemeQueuePlaceholder(
   deckId: string | null,
   pointTable: DeckPointTableRules
 ) {
-  if (deckId !== null) {
-    throw new PublicTableServiceError(
-      'THEME_TABLE_PERSONAL_DECK_FORBIDDEN',
-      '娱乐模式不使用个人卡组'
-    );
+  if (deckId) {
+    throw new PublicTableServiceError('THEME_PERSONAL_DECK_NOT_ALLOWED', '娱乐模式不使用个人卡组');
   }
   await loadUserProfileForOnlineMatch(userId);
   return {
     deckId: null,
-    deckName: '确认后随机分配',
+    deckName: '匹配成功后抽取',
     runtimeDeck: { mainDeck: [], energyDeck: [] },
     pointValidation: {
       pointTableVersion: pointTable.version,

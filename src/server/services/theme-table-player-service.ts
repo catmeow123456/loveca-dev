@@ -1,4 +1,5 @@
 import type {
+  ThemeDeckChoiceView,
   ThemeMatchupStatisticsView,
   ThemePrebuiltDeckView,
   ThemeTableAvailabilityState,
@@ -19,6 +20,7 @@ import {
   type RankedSeasonOpenWindow,
 } from './ranked-season-service.js';
 import { activityCoverService } from './activity-cover-service.js';
+import { buildThemeDeckCandidateIds } from './theme-table-deck-choice.js';
 
 interface ThemeRow {
   readonly id: string;
@@ -31,6 +33,7 @@ interface ThemeRow {
   readonly platform_time_zone: string;
   readonly open_windows: RankedSeasonOpenWindow[];
   readonly allocation_algorithm_version: string;
+  readonly deck_choice_count: number;
   readonly starts_at: Date | string;
   readonly ends_at: Date | string;
   readonly schedule_label: string;
@@ -53,6 +56,13 @@ interface DeckRow {
 interface QueueContextRow {
   readonly theme_table_version_id: string;
   readonly environment_id: string;
+}
+
+interface ThemeReservationSeatRow {
+  readonly ticket_id: string;
+  readonly first_ticket_id: string;
+  readonly source_deck_name: string;
+  readonly deck_content_hash: string;
 }
 
 interface PlayerSeasonRow {
@@ -104,6 +114,7 @@ export class ThemeTablePlayerService {
         availability: { state: 'NO_EVENT', canJoin: false, message: '当前没有开放的娱乐模式' },
         player: null,
         queue,
+        deckChoice: null,
       };
     }
     const [decks, matchupStatistics, availability, player, cover] = await Promise.all([
@@ -113,17 +124,32 @@ export class ThemeTablePlayerService {
       this.loadPlayerSeason(event.id, userId),
       activityCoverService.getPublic('THEME', event.id),
     ]);
+    const eventView = mapEvent(event, decks, matchupStatistics, cover);
+    const deckChoice =
+      queue.state === 'PENDING_CONFIRMATION' && queue.reservationId
+        ? await this.loadDeckChoice(
+            userId,
+            event,
+            eventView.prebuiltDecks,
+            eventView.matchupStatistics,
+            queue.reservationId
+          )
+        : null;
     return {
-      event: mapEvent(event, decks, matchupStatistics, cover),
+      event: eventView,
       availability,
       player,
       queue,
+      deckChoice,
     };
   }
 
   async join(userId: string) {
     const event = await this.requireJoinableTheme();
-    return publicTableService.join(userId, null, 'DIRECT', toQueueContext(event));
+    const context = toQueueContext(event);
+    const current = await publicTableService.getStatus(userId, context);
+    if (current.state !== 'IDLE') return current;
+    return publicTableService.join(userId, null, 'DIRECT', context);
   }
 
   async heartbeat(userId: string) {
@@ -138,8 +164,56 @@ export class ThemeTablePlayerService {
     return publicTableService.heartbeat(userId, context);
   }
 
-  async confirm(userId: string) {
-    return publicTableService.confirm(userId, await this.requireUserQueueContext(userId));
+  async confirm(userId: string, requestedDeckVersionId?: string) {
+    const context = await this.requireUserQueueContext(userId);
+    const status = await publicTableService.getStatus(userId, context);
+    if (status.state !== 'PENDING_CONFIRMATION' || !status.reservationId) {
+      return publicTableService.confirm(userId, context);
+    }
+    const event = await this.loadThemeById(context.themeTableVersionId);
+    const [decks, matchups] = await Promise.all([
+      this.loadDecks(event.id),
+      this.loadEnabledMatchups(event.id),
+    ]);
+    const choice = await this.loadDeckChoice(userId, event, decks, matchups, status.reservationId);
+    const selectedDeckId =
+      event.deck_choice_count === 1 ? choice?.candidates[0]?.id : requestedDeckVersionId;
+    if (!selectedDeckId || !choice?.candidates.some((deck) => deck.id === selectedDeckId)) {
+      throw playerError(
+        'THEME_DECK_CHOICE_INVALID',
+        event.deck_choice_count === 1 ? '本次匹配没有可用卡组' : '请选择本次匹配抽到的一副卡组',
+        409
+      );
+    }
+    const locked = await pool.query<{ ticket_id: string }>(
+      `UPDATE public_table_tickets AS ticket
+       SET source_deck_name = deck.display_name,
+           runtime_deck = deck.runtime_deck,
+           deck_content_hash = deck.content_hash,
+           deck_locked_at = $4,
+           updated_at = $4
+       FROM gameplay_participations AS participation,
+            public_table_reservations AS reservation,
+            theme_prebuilt_deck_versions AS deck
+       WHERE participation.user_id = $1
+         AND participation.kind = 'THEME_QUEUE'
+         AND participation.ticket_id = ticket.id
+         AND ticket.reservation_id = $2
+         AND ticket.state = 'RESERVED'
+         AND reservation.id = ticket.reservation_id
+         AND reservation.state = 'PENDING_CONFIRMATION'
+         AND ((reservation.first_ticket_id = ticket.id AND reservation.first_confirmed_at IS NULL)
+           OR (reservation.second_ticket_id = ticket.id AND reservation.second_confirmed_at IS NULL))
+         AND deck.id = $3
+         AND deck.theme_table_version_id = ticket.theme_table_version_id
+         AND deck.retired_at IS NULL
+       RETURNING ticket.id AS ticket_id`,
+      [userId, status.reservationId, selectedDeckId, new Date(this.now())]
+    );
+    if (!locked.rows[0]) {
+      throw playerError('THEME_DECK_CHOICE_STALE', '本次匹配或候选卡组已经失效', 409);
+    }
+    return publicTableService.confirm(userId, context);
   }
 
   async cancel(userId: string) {
@@ -200,6 +274,80 @@ export class ThemeTablePlayerService {
       [themeId]
     );
     return result.rows.map(mapDeck);
+  }
+
+  private async loadEnabledMatchups(themeId: string): Promise<ThemeMatchupStatisticsView[]> {
+    const result = await pool.query<{
+      first_deck_version_id: string;
+      second_deck_version_id: string;
+    }>(
+      `SELECT pair.first_deck_version_id, pair.second_deck_version_id
+       FROM theme_matchup_pair_versions AS pair
+       JOIN theme_prebuilt_deck_versions AS first_deck
+         ON first_deck.id = pair.first_deck_version_id AND first_deck.retired_at IS NULL
+       JOIN theme_prebuilt_deck_versions AS second_deck
+         ON second_deck.id = pair.second_deck_version_id AND second_deck.retired_at IS NULL
+       WHERE pair.theme_table_version_id = $1
+         AND pair.enabled = TRUE
+       ORDER BY pair.id`,
+      [themeId]
+    );
+    return result.rows.map((row) => ({
+      firstDeckVersionId: row.first_deck_version_id,
+      secondDeckVersionId: row.second_deck_version_id,
+      completedMatches: 0,
+      firstDeckWins: 0,
+      secondDeckWins: 0,
+      draws: 0,
+    }));
+  }
+
+  private async loadDeckChoice(
+    userId: string,
+    theme: ThemeRow,
+    decks: readonly ThemePrebuiltDeckView[],
+    matchups: readonly ThemeMatchupStatisticsView[],
+    reservationId: string
+  ): Promise<ThemeDeckChoiceView | null> {
+    const seat = await pool.query<ThemeReservationSeatRow>(
+      `SELECT ticket.id AS ticket_id,
+              reservation.first_ticket_id,
+              ticket.source_deck_name,
+              ticket.deck_content_hash
+       FROM gameplay_participations AS participation
+       JOIN public_table_tickets AS ticket ON ticket.id = participation.ticket_id
+       JOIN public_table_reservations AS reservation ON reservation.id = ticket.reservation_id
+       WHERE participation.user_id = $1
+         AND participation.kind = 'THEME_QUEUE'
+         AND ticket.theme_table_version_id = $2
+         AND ticket.reservation_id = $3
+         AND ticket.state = 'RESERVED'
+         AND reservation.state = 'PENDING_CONFIRMATION'
+       LIMIT 1`,
+      [userId, theme.id, reservationId]
+    );
+    const row = seat.rows[0];
+    if (!row) return null;
+    const candidateIds = buildThemeDeckCandidateIds(
+      reservationId,
+      theme.deck_choice_count,
+      matchups
+    );
+    const ownIds = row.ticket_id === row.first_ticket_id ? candidateIds.first : candidateIds.second;
+    const decksById = new Map(decks.map((deck) => [deck.id, deck]));
+    const candidates = ownIds.flatMap((deckId) => {
+      const deck = decksById.get(deckId);
+      return deck ? [deck] : [];
+    });
+    const selectedDeckVersionId =
+      row.source_deck_name !== '匹配成功后抽取'
+        ? (candidates.find((deck) => deck.contentHash === row.deck_content_hash)?.id ?? null)
+        : null;
+    return {
+      reservationId,
+      candidates,
+      selectedDeckVersionId,
+    };
   }
 
   private async loadPlayerSeason(
@@ -426,6 +574,7 @@ function mapEvent(
     startsAt: new Date(theme.starts_at).getTime(),
     endsAt: new Date(theme.ends_at).getTime(),
     allocationAlgorithmVersion: theme.allocation_algorithm_version,
+    deckChoiceCount: theme.deck_choice_count,
     cover,
     prebuiltDecks: decks,
     matchupStatistics,

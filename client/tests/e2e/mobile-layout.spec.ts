@@ -251,7 +251,8 @@ const THEME_TABLE_OVERVIEW: ThemeTableOverviewView = {
     scheduleLabel: '每周六 19:00—22:00',
     startsAt: Date.parse('2026-08-01T00:00:00.000Z'),
     endsAt: Date.parse('2026-09-01T00:00:00.000Z'),
-    allocationAlgorithmVersion: 'THEME_PAIR_V1',
+    allocationAlgorithmVersion: 'THEME_DECK_CHOICE_V2',
+    deckChoiceCount: 3,
     cover: {
       mode: 'DEFAULT',
       revision: 0,
@@ -337,6 +338,28 @@ const THEME_TABLE_OVERVIEW: ThemeTableOverviewView = {
     winRate: 2 / 3,
   },
   queue: RANKED_QUEUE_IDLE,
+  deckChoice: null,
+};
+
+const THEME_TABLE_CHOICE_OVERVIEW: ThemeTableOverviewView = {
+  ...THEME_TABLE_OVERVIEW,
+  queue: {
+    state: 'PENDING_CONFIRMATION',
+    ticketId: 'e2e-theme-ticket',
+    joinedAt: Date.now() - 5_000,
+    deckName: '匹配成功后抽取',
+    reservationId: 'e2e-theme-reservation',
+    confirmationExpiresAt: Date.now() + 60_000,
+    confirmed: false,
+    roomCode: null,
+    roomGeneration: null,
+    message: null,
+  },
+  deckChoice: {
+    reservationId: 'e2e-theme-reservation',
+    candidates: THEME_TABLE_OVERVIEW.event!.prebuiltDecks,
+    selectedDeckVersionId: null,
+  },
 };
 
 const DECK_RECORD: DeckRecord = {
@@ -1186,6 +1209,24 @@ test.describe('focused browser regressions', () => {
     await page.getByRole('button', { name: '进入娱乐模式' }).click();
     await expect(page.getByText('E2E 娱乐模式', { exact: true })).toBeVisible();
     await expect(page.locator('.theme-matchup-graph__canvas')).toBeVisible();
+  });
+
+  test('娱乐模式匹配后只保留选组与卡表查询', async ({ page }, testInfo) => {
+    test.skip(
+      !['mobile-390x844', 'tablet-1024x768'].includes(testInfo.project.name),
+      '覆盖窄屏和宽屏即可'
+    );
+
+    await installApiMocks(page, true, CARD_RECORDS, undefined, THEME_TABLE_CHOICE_OVERVIEW);
+    await page.goto('/?page=theme-table');
+
+    const dialog = page.getByRole('dialog', { name: '选择本局卡组' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: '退出', exact: true })).toHaveCount(0);
+    await dialog.getByRole('button', { name: /第二套主题卡组/ }).click();
+    await expect(dialog.getByRole('heading', { name: '第二套主题卡组 · 卡表' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: '确认这副卡组' })).toBeVisible();
+    await attachScreenshot(page, testInfo, 'theme-table-post-match-deck-choice');
   });
 
   test('关闭赛季入口后大厅和对局准备页均不展示', async ({ page }, testInfo) => {

@@ -1,10 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
-import { encodePublicTableRuntimeDeck } from './public-table-deck-snapshot.js';
 import { isRankedQueueWindowOpen, type RankedSeasonOpenWindow } from './ranked-season-service.js';
-
-const PLACEHOLDER_DECK = encodePublicTableRuntimeDeck({ mainDeck: [], energyDeck: [] });
 
 interface ThemeOpeningTicketRow {
   readonly queue_kind: 'CASUAL' | 'RANKED' | 'THEME';
@@ -18,11 +15,17 @@ interface ThemeOpeningTicketRow {
   readonly first_ticket_id: string;
   readonly first_user_id: string;
   readonly first_joined_at: Date;
+  readonly first_source_deck_name: string;
+  readonly first_runtime_deck: unknown;
+  readonly first_deck_content_hash: string;
   readonly first_point_table_version: string;
   readonly first_point_limit: number;
   readonly second_ticket_id: string;
   readonly second_user_id: string;
   readonly second_joined_at: Date;
+  readonly second_source_deck_name: string;
+  readonly second_runtime_deck: unknown;
+  readonly second_deck_content_hash: string;
   readonly second_point_table_version: string;
   readonly second_point_limit: number;
 }
@@ -80,11 +83,17 @@ async function recoverWithClient(
        first_ticket.id AS first_ticket_id,
        first_ticket.user_id AS first_user_id,
        first_ticket.joined_at AS first_joined_at,
+       first_ticket.source_deck_name AS first_source_deck_name,
+       first_ticket.runtime_deck AS first_runtime_deck,
+       first_ticket.deck_content_hash AS first_deck_content_hash,
        first_ticket.point_table_version AS first_point_table_version,
        first_ticket.point_limit AS first_point_limit,
        second_ticket.id AS second_ticket_id,
        second_ticket.user_id AS second_user_id,
        second_ticket.joined_at AS second_joined_at,
+       second_ticket.source_deck_name AS second_source_deck_name,
+       second_ticket.runtime_deck AS second_runtime_deck,
+       second_ticket.deck_content_hash AS second_deck_content_hash,
        second_ticket.point_table_version AS second_point_table_version,
        second_ticket.point_limit AS second_point_limit
      FROM public_table_reservations AS reservation
@@ -129,6 +138,9 @@ async function recoverWithClient(
       ticketId: row.first_ticket_id,
       userId: row.first_user_id,
       joinedAt: row.first_joined_at,
+      sourceDeckName: row.first_source_deck_name,
+      runtimeDeck: row.first_runtime_deck,
+      deckContentHash: row.first_deck_content_hash,
       pointTableVersion: row.first_point_table_version,
       pointLimit: row.first_point_limit,
     },
@@ -136,6 +148,9 @@ async function recoverWithClient(
       ticketId: row.second_ticket_id,
       userId: row.second_user_id,
       joinedAt: row.second_joined_at,
+      sourceDeckName: row.second_source_deck_name,
+      runtimeDeck: row.second_runtime_deck,
+      deckContentHash: row.second_deck_content_hash,
       pointTableVersion: row.second_point_table_version,
       pointLimit: row.second_point_limit,
     },
@@ -176,17 +191,18 @@ async function recoverWithClient(
          requeued_from_ticket_id, created_at, updated_at
        ) VALUES (
          $1, $2, 'THEME', NULL, $3, $4,
-         NULL, '确认后随机分配', $5::jsonb, $6, $7, 0, $8, $9,
-         'WAITING', $10, $9, $9, 'NO_FAULT_RECOVERY',
-         $11, $9, $9
+         NULL, $5, $6::jsonb, $7, $8, 0, $9, $10,
+         'WAITING', $11, $10, $10, 'NO_FAULT_RECOVERY',
+         $12, $10, $10
        )`,
       [
         nextTicketId,
         ticket.userId,
         row.theme_table_version_id,
         row.environment_id,
-        PLACEHOLDER_DECK.json,
-        PLACEHOLDER_DECK.contentHash,
+        ticket.sourceDeckName,
+        JSON.stringify(ticket.runtimeDeck),
+        ticket.deckContentHash,
         ticket.pointTableVersion,
         ticket.pointLimit,
         new Date(input.now),

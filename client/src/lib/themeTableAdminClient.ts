@@ -26,6 +26,7 @@ export interface ThemeAdminDraftPayload {
   summary: string;
   announcement: string;
   evaluationPolicy: ThemeTableEvaluationPolicy;
+  deckChoiceCount: number;
 }
 
 export interface ThemeAdminOperationsPayload {

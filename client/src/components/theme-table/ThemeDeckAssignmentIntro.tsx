@@ -96,7 +96,7 @@ export function ThemeDeckAssignmentIntro({
             本局卡组
           </h1>
           <p className="mt-1 text-xs font-semibold text-[var(--text-secondary)] sm:mt-2 sm:text-sm">
-            {resultReady ? '本局节目单已确定' : '正在分配本局节目单'}
+            {resultReady ? '准备就绪' : '正在抽取'}
           </p>
         </div>
         {!resultReady ? (
@@ -256,7 +256,7 @@ export function ThemeDeckAssignmentIntro({
         <p className="text-center text-xs font-semibold text-[var(--text-secondary)] sm:text-sm">
           {resultReady ? (
             <>
-              分配完成，确认后进入猜拳
+              接下来进入猜拳
               {remainingSeconds !== null ? (
                 <span className="theme-assignment-intro__countdown">
                   <Clock3 size={13} aria-hidden="true" />
@@ -265,7 +265,7 @@ export function ThemeDeckAssignmentIntro({
               ) : null}
             </>
           ) : (
-            '正在从本期卡组池分配'
+            '正在抽取卡组'
           )}
         </p>
         <button

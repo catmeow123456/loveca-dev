@@ -28,11 +28,17 @@ const baseRow = {
   first_ticket_id: '21111111-1111-4111-8111-111111111111',
   first_user_id: '31111111-1111-4111-8111-111111111111',
   first_joined_at: new Date('2026-08-02T11:55:00.000Z'),
+  first_source_deck_name: '甲组',
+  first_runtime_deck: { mainDeck: [{ cardCode: 'deck-a' }], energyDeck: [] },
+  first_deck_content_hash: 'hash-a',
   first_point_table_version: 'pt-2026-08',
   first_point_limit: 9,
   second_ticket_id: '41111111-1111-4111-8111-111111111111',
   second_user_id: '51111111-1111-4111-8111-111111111111',
   second_joined_at: new Date('2026-08-02T11:56:00.000Z'),
+  second_source_deck_name: '乙组',
+  second_runtime_deck: { mainDeck: [{ cardCode: 'deck-b' }], energyDeck: [] },
+  second_deck_content_hash: 'hash-b',
   second_point_table_version: 'pt-2026-08',
   second_point_limit: 9,
 } as const;
@@ -70,12 +76,16 @@ describe('recoverNoFaultThemeOpeningPlayers', () => {
     const insert = mocks.query.mock.calls.find(([text]) =>
       String(text).includes('INSERT INTO public_table_tickets')
     );
-    expect(insert?.[1]?.[6]).toBe(baseRow.second_point_table_version);
-    expect(insert?.[1]?.[7]).toBe(baseRow.second_point_limit);
-    expect(insert?.[1]?.[9]).toEqual(baseRow.second_joined_at);
-    expect(insert?.[1]?.[10]).toBe(baseRow.second_ticket_id);
+    expect(insert?.[1]?.[4]).toBe(baseRow.second_source_deck_name);
+    expect(insert?.[1]?.[5]).toEqual(JSON.stringify(baseRow.second_runtime_deck));
+    expect(insert?.[1]?.[6]).toBe(baseRow.second_deck_content_hash);
+    expect(insert?.[1]?.[7]).toBe(baseRow.second_point_table_version);
+    expect(insert?.[1]?.[8]).toBe(baseRow.second_point_limit);
+    expect(insert?.[1]?.[9]).toEqual(new Date(NOW));
+    expect(insert?.[1]?.[10]).toEqual(baseRow.second_joined_at);
+    expect(insert?.[1]?.[11]).toBe(baseRow.second_ticket_id);
     expect(String(insert?.[0])).toContain("'NO_FAULT_RECOVERY'");
-    expect(String(insert?.[0])).toContain('$7, 0, $8');
+    expect(String(insert?.[0])).toContain('$8, 0, $9');
 
     const participation = mocks.query.mock.calls.find(([text]) =>
       String(text).includes("SET kind = 'THEME_QUEUE'")
