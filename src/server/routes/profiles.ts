@@ -19,6 +19,8 @@ const updateProfileSchema = z
       .optional(),
     display_name: z.string().trim().min(1).max(50).optional(),
     avatar_url: z.string().trim().url().max(2048).nullable().optional(),
+    matchmaking_bgm_enabled: z.boolean().optional(),
+    matchmaking_match_sound_enabled: z.boolean().optional(),
   })
   .strict();
 
@@ -31,6 +33,8 @@ interface ProfileRow {
   avatar_url: string | null;
   role: UserRole;
   deck_count: number;
+  matchmaking_bgm_enabled: boolean;
+  matchmaking_match_sound_enabled: boolean;
   created_at: Date;
   updated_at?: Date;
 }
@@ -42,7 +46,7 @@ interface ProfileRow {
 profilesRouter.get('/:id', async (req, res, next) => {
   try {
     const { rows } = await pool.query<ProfileRow>(
-      'SELECT id, username, display_name, avatar_url, role, deck_count, created_at FROM profiles WHERE id = $1',
+      'SELECT id, username, display_name, avatar_url, role, deck_count, matchmaking_bgm_enabled, matchmaking_match_sound_enabled, created_at FROM profiles WHERE id = $1',
       [req.params.id]
     );
 
@@ -92,6 +96,8 @@ profilesRouter.put('/:id', requireAuth, validate(updateProfileSchema), async (re
       'username',
       'display_name',
       'avatar_url',
+      'matchmaking_bgm_enabled',
+      'matchmaking_match_sound_enabled',
     ];
 
     for (const field of allowedFields) {

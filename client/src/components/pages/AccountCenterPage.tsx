@@ -13,6 +13,7 @@ import {
   Send,
   ShieldCheck,
   UserRound,
+  Volume2,
 } from 'lucide-react';
 import {
   ActionButton,
@@ -34,7 +35,7 @@ interface AccountCenterPageProps {
 }
 
 type Feedback = { tone: 'success' | 'error'; message: string } | null;
-type AccountSection = 'profile' | 'security' | 'appearance' | 'badges';
+type AccountSection = 'profile' | 'security' | 'sound' | 'appearance' | 'badges';
 
 const ACCOUNT_SECTIONS: ReadonlyArray<{
   key: AccountSection;
@@ -43,6 +44,7 @@ const ACCOUNT_SECTIONS: ReadonlyArray<{
 }> = [
   { key: 'profile', label: '个人资料', icon: <AtSign size={17} /> },
   { key: 'security', label: '账号与安全', icon: <ShieldCheck size={17} /> },
+  { key: 'sound', label: '声音设置', icon: <Volume2 size={17} /> },
   { key: 'appearance', label: '游戏桌外观', icon: <Palette size={17} /> },
   { key: 'badges', label: '徽章展示', icon: <Award size={17} /> },
 ];
@@ -58,6 +60,13 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
   const [username, setUsername] = useState(profile?.username ?? '');
   const [displayName, setDisplayName] = useState(profile?.display_name ?? profile?.username ?? '');
   const [profileFeedback, setProfileFeedback] = useState<Feedback>(null);
+  const [waitingMusicEnabled, setWaitingMusicEnabled] = useState(
+    profile?.matchmaking_bgm_enabled ?? true
+  );
+  const [matchFoundSoundEnabled, setMatchFoundSoundEnabled] = useState(
+    profile?.matchmaking_match_sound_enabled ?? true
+  );
+  const [soundFeedback, setSoundFeedback] = useState<Feedback>(null);
 
   const [newEmail, setNewEmail] = useState('');
   const [emailPassword, setEmailPassword] = useState('');
@@ -73,6 +82,11 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
   const [badgeRequestVersion, setBadgeRequestVersion] = useState(0);
   const [activeSection, setActiveSection] = useState<AccountSection>(readAccountSection);
   const authenticatedUserId = user?.id;
+
+  useEffect(() => {
+    setWaitingMusicEnabled(profile?.matchmaking_bgm_enabled ?? true);
+    setMatchFoundSoundEnabled(profile?.matchmaking_match_sound_enabled ?? true);
+  }, [profile?.matchmaking_bgm_enabled, profile?.matchmaking_match_sound_enabled]);
 
   useEffect(() => {
     const handlePopState = () => setActiveSection(readAccountSection());
@@ -373,6 +387,46 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
               </>
             ) : null}
 
+            {activeSection === 'sound' ? (
+              <SettingsSection icon={<Volume2 size={18} />} title="声音设置">
+                <form
+                  className="grid gap-4"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    setSoundFeedback(null);
+                    const result = await updateProfile({
+                      matchmaking_bgm_enabled: waitingMusicEnabled,
+                      matchmaking_match_sound_enabled: matchFoundSoundEnabled,
+                    });
+                    setSoundFeedback(
+                      result.success
+                        ? { tone: 'success', message: '声音设置已保存。' }
+                        : { tone: 'error', message: result.error ?? '保存声音设置失败。' }
+                    );
+                  }}
+                >
+                  <SoundToggle
+                    label="候场时播放背景音乐"
+                    checked={waitingMusicEnabled}
+                    onChange={setWaitingMusicEnabled}
+                  />
+                  <SoundToggle
+                    label="匹配成功时播放提示音"
+                    checked={matchFoundSoundEnabled}
+                    onChange={setMatchFoundSoundEnabled}
+                  />
+                  <FormFooter feedback={soundFeedback}>
+                    <SubmitButton
+                      loading={isLoading}
+                      idleLabel="保存声音设置"
+                      loadingLabel="保存中"
+                      icon={<Save size={16} />}
+                    />
+                  </FormFooter>
+                </form>
+              </SettingsSection>
+            ) : null}
+
             {activeSection === 'appearance' ? <WallpaperSettings /> : null}
 
             {activeSection === 'badges' ? (
@@ -478,9 +532,34 @@ function IdentityPass({
 
 function readAccountSection(): AccountSection {
   const section = new URLSearchParams(window.location.search).get('section');
-  return section === 'security' || section === 'appearance' || section === 'badges'
+  return section === 'security' ||
+    section === 'sound' ||
+    section === 'appearance' ||
+    section === 'badges'
     ? section
     : 'profile';
+}
+
+function SoundToggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-3 py-3">
+      <span className="text-sm font-semibold text-[var(--text-primary)]">{label}</span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-4 w-4 accent-[var(--accent-primary)]"
+      />
+    </label>
+  );
 }
 
 function accountSectionHref(section: AccountSection): string {

@@ -8,7 +8,15 @@ import { usePublicTableStore } from '@/store/publicTableStore';
 import { useRankedStore } from '@/store/rankedStore';
 import { useThemeTableStore } from '@/store/themeTableStore';
 
-export function MatchmakingAudioLayer({ enabled }: { enabled: boolean }) {
+export function MatchmakingAudioLayer({
+  enabled,
+  waitingMusicEnabled,
+  matchFoundSoundEnabled,
+}: {
+  enabled: boolean;
+  waitingMusicEnabled: boolean;
+  matchFoundSoundEnabled: boolean;
+}) {
   const publicTableStatus = usePublicTableStore((state) => (state.hydrated ? state.status : null));
   const rankedStatus = useRankedStore((state) => state.overview?.queue ?? null);
   const themeTableStatus = useThemeTableStore((state) => state.overview?.queue ?? null);
@@ -26,18 +34,22 @@ export function MatchmakingAudioLayer({ enabled }: { enabled: boolean }) {
       return;
     }
     if (matchIdentity) {
-      matchmakingAudioPlayer.announceMatch(matchIdentity);
+      if (matchFoundSoundEnabled) {
+        matchmakingAudioPlayer.announceMatch(matchIdentity);
+      } else {
+        matchmakingAudioPlayer.reset();
+      }
       return;
     }
-    if (waiting) {
+    if (waiting && waitingMusicEnabled) {
       matchmakingAudioPlayer.startWaitingMusic();
       return;
     }
     matchmakingAudioPlayer.stopWaitingMusic();
-  }, [enabled, matchIdentity, waiting]);
+  }, [enabled, matchIdentity, waiting, waitingMusicEnabled, matchFoundSoundEnabled]);
 
   useEffect(() => {
-    if (!enabled || !waiting) return;
+    if (!enabled || !waiting || !waitingMusicEnabled) return;
     const resumePlayback = () => matchmakingAudioPlayer.startWaitingMusic();
     window.addEventListener('pointerdown', resumePlayback, true);
     window.addEventListener('keydown', resumePlayback, true);
@@ -45,7 +57,7 @@ export function MatchmakingAudioLayer({ enabled }: { enabled: boolean }) {
       window.removeEventListener('pointerdown', resumePlayback, true);
       window.removeEventListener('keydown', resumePlayback, true);
     };
-  }, [enabled, waiting]);
+  }, [enabled, waiting, waitingMusicEnabled]);
 
   useEffect(() => () => matchmakingAudioPlayer.reset(), []);
 

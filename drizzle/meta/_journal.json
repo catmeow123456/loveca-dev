@@ -260,6 +260,13 @@
       "when": 1787765477008,
       "tag": "0036_add_theme_deck_choice",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1787820000000,
+      "tag": "0037_add_matchmaking_audio_preferences",
+      "breakpoints": true
     }
   ]
 }

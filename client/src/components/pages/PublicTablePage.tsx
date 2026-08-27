@@ -20,7 +20,6 @@ import {
   readLastUsedDeckId,
   writeLastUsedDeckId,
 } from '@/lib/deckSelectionPreferences';
-import { matchmakingAudioPlayer } from '@/lib/matchmakingAudio';
 
 type ShareFeedback = 'idle' | 'done' | 'error';
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
@@ -179,13 +178,11 @@ export function PublicTablePage({
     if (!selectedDeck?.cloudDeck) {
       return;
     }
-    matchmakingAudioPlayer.startWaitingMusic();
     try {
       await join(selectedDeck.cloudDeck.id, entrySource);
       writeLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.publicTable, selectedDeck.cloudDeck.id);
       setLastUsedDeckId(selectedDeck.cloudDeck.id);
     } catch {
-      matchmakingAudioPlayer.stopWaitingMusic();
       // Store error is shown beside the action.
     }
   };

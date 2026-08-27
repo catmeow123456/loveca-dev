@@ -55,6 +55,8 @@ export interface Profile {
   avatar_url: string | null;
   role: UserRole;
   deck_count: number;
+  matchmaking_bgm_enabled: boolean;
+  matchmaking_match_sound_enabled: boolean;
   created_at: string;
   updated_at: string;
 }

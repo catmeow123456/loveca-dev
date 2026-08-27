@@ -18,7 +18,6 @@ import { CardDetailDrawer } from '@/components/deck-editor/CardDetailDrawer';
 import { ThemeDeckGallery } from '@/components/theme-table/ThemeDeckGallery';
 import { ActivityCoverHero } from '@/components/activity-cover/ActivityCoverHero';
 import { resolveCardImagePath, resolveRegistryCardImagePath } from '@/lib/imageService';
-import { matchmakingAudioPlayer } from '@/lib/matchmakingAudio';
 import { useThemeTableStore } from '@/store/themeTableStore';
 import { useGameStore } from '@/store/gameStore';
 import './theme-table.css';
@@ -53,12 +52,9 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
   const { event, availability, player, queue } = overview;
   const activeQueue = queue.state !== 'IDLE';
   const handleJoin = async () => {
-    matchmakingAudioPlayer.startWaitingMusic();
     try {
       await join();
-    } catch {
-      matchmakingAudioPlayer.stopWaitingMusic();
-    }
+    } catch {}
   };
   return (
     <div className="app-shell theme-table-page min-h-screen">

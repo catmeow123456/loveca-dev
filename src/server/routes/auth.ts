@@ -134,6 +134,8 @@ interface AuthSessionRow {
   avatar_url: string | null;
   role: UserRole;
   deck_count: number;
+  matchmaking_bgm_enabled: boolean;
+  matchmaking_match_sound_enabled: boolean;
 }
 
 interface ParsedRefreshCookie {
@@ -331,7 +333,8 @@ authRouter.post('/login', validate(loginSchema), loginRateLimit, async (req, res
     const { usernameOrEmail, password } = req.body as LoginBody;
     const result = await pool.query<AuthSessionRow>(
       `SELECT u.id, u.email, u.password_hash, u.email_verified,
-              p.username, p.display_name, p.avatar_url, p.role, p.deck_count
+              p.username, p.display_name, p.avatar_url, p.role, p.deck_count,
+              p.matchmaking_bgm_enabled, p.matchmaking_match_sound_enabled
        FROM users u
        JOIN profiles p ON u.id = p.id
        WHERE lower(u.email) = lower($1) OR p.username = $1`,
@@ -410,7 +413,8 @@ authRouter.post('/refresh', refreshRateLimit, async (req, res, next) => {
 
     const result = await pool.query<AuthSessionRow>(
       `SELECT u.id, u.email, u.email_verified,
-              p.username, p.display_name, p.avatar_url, p.role, p.deck_count
+              p.username, p.display_name, p.avatar_url, p.role, p.deck_count,
+              p.matchmaking_bgm_enabled, p.matchmaking_match_sound_enabled
        FROM users u
        JOIN profiles p ON u.id = p.id
        WHERE u.id = $1`,
@@ -472,7 +476,8 @@ authRouter.get('/session', requireAuth, async (req, res, next) => {
   try {
     const result = await pool.query<AuthSessionRow>(
       `SELECT u.id, u.email, u.email_verified,
-              p.username, p.display_name, p.avatar_url, p.role, p.deck_count
+              p.username, p.display_name, p.avatar_url, p.role, p.deck_count,
+              p.matchmaking_bgm_enabled, p.matchmaking_match_sound_enabled
        FROM users u
        JOIN profiles p ON u.id = p.id
        WHERE u.id = $1`,
@@ -877,6 +882,8 @@ function respondWithSession(
         avatar_url: user.avatar_url,
         role: user.role,
         deck_count: user.deck_count,
+        matchmaking_bgm_enabled: user.matchmaking_bgm_enabled,
+        matchmaking_match_sound_enabled: user.matchmaking_match_sound_enabled,
       },
     },
     error: null,

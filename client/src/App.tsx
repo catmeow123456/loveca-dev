@@ -1066,7 +1066,11 @@ function App() {
   const withPublicTableLayer = (content: ReactNode) => (
     <>
       {content}
-      <MatchmakingAudioLayer enabled={Boolean(user && profile && !offlineMode)} />
+      <MatchmakingAudioLayer
+        enabled={Boolean(user && profile && !offlineMode)}
+        waitingMusicEnabled={profile?.matchmaking_bgm_enabled ?? true}
+        matchFoundSoundEnabled={profile?.matchmaking_match_sound_enabled ?? true}
+      />
       <PublicTableGlobalLayer
         enabled={Boolean(user && profile && !offlineMode)}
         userId={publicTableSessionUserId}
