@@ -9,7 +9,8 @@ export interface PublicDiscardRevealMove {
   readonly eventId: string;
   readonly matchId: string;
   readonly seq: number;
-  readonly timestamp: number;
+  /** Client monotonic time when this event first entered the presentation queue. */
+  readonly receivedAt: number;
   readonly movementBatchId: string;
   readonly ownerSeat: Seat;
   readonly card: PublicCardInfo;
@@ -22,7 +23,8 @@ export interface PublicDiscardRevealBatch {
   readonly cards: readonly PublicCardInfo[];
   readonly firstSeq: number;
   readonly lastSeq: number;
-  readonly timestamp: number;
+  /** Earliest client monotonic receipt time among events in this batch. */
+  readonly receivedAt: number;
 }
 
 export interface PublicDiscardRevealQueueState {
@@ -47,8 +49,8 @@ export interface UpdatePublicDiscardRevealQueueInput {
   readonly presentationEpoch: number;
   readonly currentPublicSeq: number;
   readonly publicEvents: readonly PublicEvent[];
+  /** Client monotonic clock value; never compared with PublicEvent.timestamp. */
   readonly now: number;
-  readonly maxAgeMs?: number;
 }
 
 export interface DequeuePublicDiscardRevealResult {
@@ -82,7 +84,10 @@ export function createPublicDiscardRevealQueueState(): PublicDiscardRevealQueueS
  * moves to other zones, count-only events, and legacy events without a batch
  * identity are intentionally ignored.
  */
-export function parsePublicDiscardRevealMove(event: PublicEvent): PublicDiscardRevealMove | null {
+export function parsePublicDiscardRevealMove(
+  event: PublicEvent,
+  receivedAt: number
+): PublicDiscardRevealMove | null {
   if (event.type !== 'CardMovedPublic' && event.type !== 'CardRevealedAndMoved') {
     return null;
   }
@@ -103,7 +108,7 @@ export function parsePublicDiscardRevealMove(event: PublicEvent): PublicDiscardR
     eventId: event.eventId,
     matchId: event.matchId,
     seq: event.seq,
-    timestamp: event.timestamp,
+    receivedAt,
     movementBatchId,
     ownerSeat: event.to.ownerSeat,
     card: event.card,
@@ -126,7 +131,7 @@ export function groupPublicDiscardRevealMoves(
         cards: [move.card],
         firstSeq: move.seq,
         lastSeq: move.seq,
-        timestamp: move.timestamp,
+        receivedAt: move.receivedAt,
       });
       continue;
     }
@@ -163,7 +168,6 @@ export function updatePublicDiscardRevealQueue(
     return createInitializedState(input.matchId, currentPublicSeq, input.presentationEpoch);
   }
 
-  const maxAgeMs = input.maxAgeMs ?? PUBLIC_DISCARD_REVEAL_MAX_AGE_MS;
   const seenEventIds = new Set(state.seenEventIds);
   const completedBatchIds = new Set(state.completedMovementBatchIds);
   const acceptedMoves: PublicDiscardRevealMove[] = [];
@@ -178,16 +182,13 @@ export function updatePublicDiscardRevealQueue(
       continue;
     }
 
-    const move = parsePublicDiscardRevealMove(event);
+    const move = parsePublicDiscardRevealMove(event, input.now);
     if (!move) {
       continue;
     }
 
     seenEventIds.add(move.eventId);
-    if (
-      completedBatchIds.has(move.movementBatchId) ||
-      isOlderThan(move.timestamp, input.now, maxAgeMs)
-    ) {
+    if (completedBatchIds.has(move.movementBatchId)) {
       continue;
     }
     acceptedMoves.push(move);
@@ -265,7 +266,9 @@ export function pruneExpiredPublicDiscardRevealBatches(
   now: number,
   maxAgeMs = PUBLIC_DISCARD_REVEAL_MAX_AGE_MS
 ): PruneExpiredPublicDiscardRevealBatchesResult {
-  const expiredBatches = state.queue.filter((batch) => isOlderThan(batch.timestamp, now, maxAgeMs));
+  const expiredBatches = state.queue.filter((batch) =>
+    isOlderThan(batch.receivedAt, now, maxAgeMs)
+  );
   if (expiredBatches.length === 0) {
     return { state, expiredBatches };
   }
@@ -321,7 +324,7 @@ function mergeMoveIntoBatch(
     cards,
     firstSeq: Math.min(batch.firstSeq, move.seq),
     lastSeq: Math.max(batch.lastSeq, move.seq),
-    timestamp: Math.min(batch.timestamp, move.timestamp),
+    receivedAt: Math.min(batch.receivedAt, move.receivedAt),
   };
 }
 
@@ -347,7 +350,7 @@ function mergePublicDiscardRevealBatches(
     ],
     firstSeq: Math.min(existing.firstSeq, incoming.firstSeq),
     lastSeq: Math.max(existing.lastSeq, incoming.lastSeq),
-    timestamp: Math.min(existing.timestamp, incoming.timestamp),
+    receivedAt: Math.min(existing.receivedAt, incoming.receivedAt),
   };
 }
 
@@ -365,8 +368,8 @@ function compareBatches(left: PublicDiscardRevealBatch, right: PublicDiscardReve
   );
 }
 
-function isOlderThan(timestamp: number, now: number, maxAgeMs: number): boolean {
-  return now - timestamp > Math.max(0, maxAgeMs);
+function isOlderThan(receivedAt: number, now: number, maxAgeMs: number): boolean {
+  return now - receivedAt > Math.max(0, maxAgeMs);
 }
 
 function normalizePublicSeq(value: number): number {

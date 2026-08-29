@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createPublicDiscardPresentationEvent,
   DiscardPresentationBatch,
+  getNextViewDiffGeneration,
   getPublicDiscardPresentationOcclusions,
 } from '../../client/src/components/game/BattleAnimationLayer';
 import type {
@@ -59,7 +60,7 @@ describe('discard presentation batch UI', () => {
       cards: [{ publicObjectId: 'obj_discarded', cardCode: 'CARD-DISCARDED' }],
       firstSeq: 10,
       lastSeq: 10,
-      timestamp: 1_000,
+      receivedAt: 1_000,
     };
     const recentSourceAnchors = new Map([
       ['obj_discarded', { matchId: 'match-1', rect: ownCardRect, capturedAt: 1_000 }],
@@ -130,7 +131,7 @@ describe('discard presentation batch UI', () => {
       ],
       firstSeq: 20,
       lastSeq: 21,
-      timestamp: 1_000,
+      receivedAt: 1_000,
     };
 
     expect(getPublicDiscardPresentationOcclusions(batch)).toEqual([
@@ -143,5 +144,15 @@ describe('discard presentation batch UI', () => {
         objectId: 'obj_second',
       },
     ]);
+  });
+
+  it('keeps delayed view-diff schedules valid across public-log and discard-pump rerenders', () => {
+    const scheduledGeneration = getNextViewDiffGeneration(7, true);
+    const afterPublicLogUpdate = getNextViewDiffGeneration(scheduledGeneration, false);
+    const afterDiscardPumpUpdate = getNextViewDiffGeneration(afterPublicLogUpdate, false);
+
+    expect(afterPublicLogUpdate).toBe(scheduledGeneration);
+    expect(afterDiscardPumpUpdate).toBe(scheduledGeneration);
+    expect(getNextViewDiffGeneration(afterDiscardPumpUpdate, true)).toBe(scheduledGeneration + 1);
   });
 });

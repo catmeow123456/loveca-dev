@@ -64,9 +64,10 @@ function discardEvent(
 
 describe('public discard reveal queue', () => {
   it('recognizes only card-bearing batched hand-to-waiting-room public moves', () => {
-    expect(parsePublicDiscardRevealMove(discardEvent(1))).toMatchObject({
+    expect(parsePublicDiscardRevealMove(discardEvent(1), NOW)).toMatchObject({
       movementBatchId: 'batch-1',
       ownerSeat: 'FIRST',
+      receivedAt: NOW,
       card: { publicObjectId: 'obj_card-1', cardCode: 'CARD-1' },
     });
     expect(
@@ -75,17 +76,18 @@ describe('public discard reveal queue', () => {
           type: 'CardRevealedAndMoved',
           ownerSeat: 'SECOND',
           movementBatchId: 'batch-2',
-        })
+        }),
+        NOW
       )
     ).toMatchObject({ movementBatchId: 'batch-2', ownerSeat: 'SECOND' });
 
-    expect(parsePublicDiscardRevealMove(discardEvent(3, { includeCard: false }))).toBeNull();
-    expect(parsePublicDiscardRevealMove(discardEvent(4, { movementBatchId: '' }))).toBeNull();
+    expect(parsePublicDiscardRevealMove(discardEvent(3, { includeCard: false }), NOW)).toBeNull();
+    expect(parsePublicDiscardRevealMove(discardEvent(4, { movementBatchId: '' }), NOW)).toBeNull();
     expect(
-      parsePublicDiscardRevealMove(discardEvent(5, { fromZone: ZoneType.MAIN_DECK }))
+      parsePublicDiscardRevealMove(discardEvent(5, { fromZone: ZoneType.MAIN_DECK }), NOW)
     ).toBeNull();
     expect(
-      parsePublicDiscardRevealMove(discardEvent(6, { toZone: ZoneType.EXILE_ZONE }))
+      parsePublicDiscardRevealMove(discardEvent(6, { toZone: ZoneType.EXILE_ZONE }), NOW)
     ).toBeNull();
   });
 
@@ -100,7 +102,7 @@ describe('public discard reveal queue', () => {
       discardEvent(2, { movementBatchId: 'batch-a', cardObjectId: 'obj_same' }),
       discardEvent(1, { movementBatchId: 'batch-a', cardObjectId: 'obj_first' }),
     ].flatMap((event) => {
-      const move = parsePublicDiscardRevealMove(event);
+      const move = parsePublicDiscardRevealMove(event, NOW);
       return move ? [move] : [];
     });
 
@@ -115,7 +117,7 @@ describe('public discard reveal queue', () => {
         ],
         firstSeq: 1,
         lastSeq: 3,
-        timestamp: NOW,
+        receivedAt: NOW,
       },
       expect.objectContaining({
         movementBatchId: 'batch-b',
@@ -204,9 +206,10 @@ describe('public discard reveal queue', () => {
       publicEvents: [
         discardEvent(2, { movementBatchId: 'batch-late-card', cardObjectId: 'obj_b' }),
       ],
-      now: NOW,
+      now: NOW + 4_000,
     });
     expect(state.queue[0]?.cards.map((card) => card.publicObjectId)).toEqual(['obj_a', 'obj_b']);
+    expect(state.queue[0]?.receivedAt).toBe(NOW);
 
     const dequeued = dequeuePublicDiscardRevealBatch(state);
     expect(dequeued.batch?.movementBatchId).toBe('batch-late-card');
@@ -376,7 +379,7 @@ describe('public discard reveal queue', () => {
     expect(state.completedMovementBatchIds.at(-1)).toBe(`batch-${eventCount}`);
   });
 
-  it('drops events older than five seconds while accepting the exact boundary', () => {
+  it('ignores server clock skew and expires batches from their client receipt time', () => {
     let state = updatePublicDiscardRevealQueue(createPublicDiscardRevealQueueState(), {
       matchId: MATCH_ID,
       presentationEpoch: PRESENTATION_EPOCH,
@@ -390,19 +393,35 @@ describe('public discard reveal queue', () => {
       currentPublicSeq: 2,
       publicEvents: [
         discardEvent(1, {
-          movementBatchId: 'stale',
-          timestamp: NOW - PUBLIC_DISCARD_REVEAL_MAX_AGE_MS - 1,
+          movementBatchId: 'server-clock-far-behind',
+          timestamp: NOW - 86_400_000,
         }),
         discardEvent(2, {
-          movementBatchId: 'boundary',
-          timestamp: NOW - PUBLIC_DISCARD_REVEAL_MAX_AGE_MS,
+          movementBatchId: 'server-clock-far-ahead',
+          timestamp: NOW + 86_400_000,
         }),
       ],
       now: NOW,
     });
 
-    expect(state.queue.map((batch) => batch.movementBatchId)).toEqual(['boundary']);
+    expect(state.queue.map((batch) => batch.movementBatchId)).toEqual([
+      'server-clock-far-behind',
+      'server-clock-far-ahead',
+    ]);
+    expect(state.queue.every((batch) => batch.receivedAt === NOW)).toBe(true);
     expect(state.seenEventIds).toEqual([`${MATCH_ID}:1`, `${MATCH_ID}:2`]);
+
+    const atBoundary = pruneExpiredPublicDiscardRevealBatches(
+      state,
+      NOW + PUBLIC_DISCARD_REVEAL_MAX_AGE_MS
+    );
+    expect(atBoundary.expiredBatches).toEqual([]);
+    const afterBoundary = pruneExpiredPublicDiscardRevealBatches(
+      atBoundary.state,
+      NOW + PUBLIC_DISCARD_REVEAL_MAX_AGE_MS + 1
+    );
+    expect(afterBoundary.expiredBatches).toHaveLength(2);
+    expect(afterBoundary.state.queue).toEqual([]);
   });
 
   it('drops a batch that becomes stale while queued and prevents a split late event from reviving it', () => {

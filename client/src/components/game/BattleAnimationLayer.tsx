@@ -98,9 +98,13 @@ export function BattleAnimationLayer() {
   }, [removeBattleAnimationOcclusion]);
 
   useLayoutEffect(() => {
-    const viewDiffGeneration = viewDiffGenerationRef.current + 1;
-    viewDiffGenerationRef.current = viewDiffGeneration;
     const previousViewState = previousViewRef.current;
+    const playerViewChanged = previousViewState !== playerViewState;
+    const viewDiffGeneration = getNextViewDiffGeneration(
+      viewDiffGenerationRef.current,
+      playerViewChanged
+    );
+    viewDiffGenerationRef.current = viewDiffGeneration;
     const previousAnchors = previousAnchorsRef.current;
     if (previousViewState?.match.matchId !== playerViewState?.match.matchId) {
       renderedEventIdsRef.current.clear();
@@ -115,7 +119,7 @@ export function BattleAnimationLayer() {
       });
     }
 
-    if (playerViewState && previousViewState && !isReadOnly) {
+    if (playerViewChanged && playerViewState && previousViewState && !isReadOnly) {
       prepareBattleAnimationLayoutForViewDiff({
         previousViewState,
         nextViewState: playerViewState,
@@ -125,7 +129,13 @@ export function BattleAnimationLayer() {
     const nextAnchors = collectBattleAnimationAnchors();
     const nextEvents: BattleAnimationEvent[] = [];
 
-    if (playerViewState && previousViewState && previousAnchors && !isReadOnly) {
+    if (
+      playerViewChanged &&
+      playerViewState &&
+      previousViewState &&
+      previousAnchors &&
+      !isReadOnly
+    ) {
       rememberVisibleDiscardSourceAnchors({
         previousViewState,
         nextViewState: playerViewState,
@@ -156,12 +166,13 @@ export function BattleAnimationLayer() {
           (previousQueue.matchId !== publicBattleLog.matchId ||
             previousQueue.presentationEpoch !== publicBattleLog.presentationEpoch ||
             publicBattleLog.currentPublicSeq < previousQueue.latestPublicSeq));
+      const discardClockNow = getDiscardPresentationMonotonicNow();
       const queueInput = {
         matchId: publicBattleLog.matchId,
         presentationEpoch: publicBattleLog.presentationEpoch,
         currentPublicSeq: publicBattleLog.currentPublicSeq,
         publicEvents: publicBattleLog.events,
-        now: Date.now(),
+        now: discardClockNow,
       };
       discardQueueRef.current = updatePublicDiscardRevealQueue(
         isReadOnly ? createPublicDiscardRevealQueueState() : previousQueue,
@@ -389,6 +400,19 @@ export function BattleAnimationLayer() {
       </AnimatePresence>
     </div>
   );
+}
+
+/** Public-log and discard-pump rerenders must not invalidate delayed view-diff animations. */
+export function getNextViewDiffGeneration(
+  currentGeneration: number,
+  playerViewChanged: boolean
+): number {
+  return playerViewChanged ? currentGeneration + 1 : currentGeneration;
+}
+
+/** TTLs use one client monotonic clock and never compare browser time with server timestamps. */
+export function getDiscardPresentationMonotonicNow(): number {
+  return globalThis.performance?.now() ?? Date.now();
 }
 
 function rememberRenderedEventId(renderedEventIds: Set<string>, eventId: string): void {
