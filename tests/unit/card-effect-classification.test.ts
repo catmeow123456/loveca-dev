@@ -119,6 +119,11 @@ import {
   PL_PB2_007_ACTIVATED_SELF_SACRIFICE_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
   PL_PB2_008_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_MUSE_LIVE_ABILITY_ID,
   PL_PB2_009_AUTO_RELAY_REPLACED_BY_HIGH_COST_MUSE_ACTIVATE_ENERGY_ABILITY_ID,
+  PL_PB2_019_LIVE_START_WAIT_SELF_DISCARD_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
+  PL_PB2_020_CONTINUOUS_SUCCESS_SCORE_NINE_PINK_YELLOW_HEART_ABILITY_ID,
+  PL_PB2_030_CONTINUOUS_SUCCESS_SCORE_PER_FIVE_GAIN_BLADE_ABILITY_ID,
+  PL_PB2_033_LIVE_START_WAIT_OPPONENT_ORIGINAL_HEART_THREE_ABILITY_ID,
+  PL_PB2_033_ON_ENTER_WAIT_OPPONENT_ORIGINAL_HEART_THREE_ABILITY_ID,
   PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID,
   PL_BP3_009_ON_ENTER_COST_THIRTEEN_DRAW_ONE_ABILITY_ID,
   PL_N_PB1_016_ON_ENTER_LOOK_TOP_TWO_KARIN_MEMBER_ABILITY_ID,
@@ -927,8 +932,10 @@ import {
 } from '../../src/application/card-effects/ability-ids';
 
 const PB1_019_LIKE_MEMBER_ACTIVATION_CARD_CODES = [
+  'PL!-sd1-002-SD',
   'PL!-pb1-019-N',
   'PL!-pb1-025-N',
+  'PL!-pb2-022-N',
   'PL!HS-PR-014-PR',
   'PL!HS-pb1-019-N',
   'PL!HS-sd1-015-SD',
@@ -8156,15 +8163,18 @@ describe('card effect classification registry', () => {
       expect(getActivatedAbilityUiConfig(cardCode)?.abilityId).toBe(RIN_ACTIVATED_ABILITY_ID);
     }
 
-    const bp4Activated = getCardAbilityDefinitions('PL!-bp4-003-P').find(
-      (ability) => ability.abilityId === BP4_003_ACTIVATED_ABILITY_ID
+    const bp4Definitions = getCardAbilityDefinitions('PL!-bp4-003-P');
+    const bp4Activated = bp4Definitions.find(
+      (ability) => ability.abilityId === RIN_ACTIVATED_ABILITY_ID
     );
     expect(bp4Activated).toMatchObject({
+      baseCardCodes: expect.arrayContaining(['PL!-bp4-003']),
       category: CardAbilityCategory.ACTIVATED,
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       queued: false,
       implemented: true,
     });
+    expect(bp4Definitions).toHaveLength(1);
 
     const bokuima = CARD_ABILITY_DEFINITIONS.find(
       (ability) => ability.abilityId === BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID
@@ -12602,7 +12612,20 @@ describe('card effect classification registry', () => {
 
   it('uses the registry as the source of truth for activated abilities', () => {
     expect(getActivatedAbilityUiConfig('PL!-sd1-002-SD')?.abilityId).toBe(
-      'PL!-sd1-002-SD:activated-send-self-to-waiting-room-add-member'
+      PB1_019_ACTIVATED_ABILITY_ID
+    );
+    expect(isSupportedActivatedAbilityForCard(PB1_019_ACTIVATED_ABILITY_ID, 'PL!-sd1-002-SD')).toBe(
+      true
+    );
+    expect(
+      isSupportedActivatedAbilityForCard(
+        'PL!-sd1-002-SD:activated-send-self-to-waiting-room-add-member',
+        'PL!-sd1-002-SD'
+      )
+    ).toBe(false);
+    expect(getCardAbilityDefinitions('PL!-sd1-002-SD')).toHaveLength(1);
+    expect(getCardAbilityDefinitions('PL!-sd1-002-SD')[0]?.abilityId).toBe(
+      PB1_019_ACTIVATED_ABILITY_ID
     );
     expect(
       isSupportedActivatedAbilityForCard(
@@ -12619,15 +12642,15 @@ describe('card effect classification registry', () => {
     expect(getActivatedAbilityUiConfig('PL!-pb1-019-N')?.abilityId).toBe(
       PB1_019_ACTIVATED_ABILITY_ID
     );
-    expect(getActivatedAbilityUiConfig('PL!-bp4-003-P')?.abilityId).toBe(
-      BP4_003_ACTIVATED_ABILITY_ID
-    );
-    expect(getActivatedAbilityUiConfig('PL!-bp4-003-R')?.abilityId).toBe(
-      BP4_003_ACTIVATED_ABILITY_ID
-    );
-    expect(isSupportedActivatedAbilityForCard(BP4_003_ACTIVATED_ABILITY_ID, 'PL!-bp4-003-R')).toBe(
+    expect(getActivatedAbilityUiConfig('PL!-bp4-003-P')?.abilityId).toBe(RIN_ACTIVATED_ABILITY_ID);
+    expect(getActivatedAbilityUiConfig('PL!-bp4-003-R')?.abilityId).toBe(RIN_ACTIVATED_ABILITY_ID);
+    expect(isSupportedActivatedAbilityForCard(RIN_ACTIVATED_ABILITY_ID, 'PL!-bp4-003-R')).toBe(
       true
     );
+    expect(isSupportedActivatedAbilityForCard(BP4_003_ACTIVATED_ABILITY_ID, 'PL!-bp4-003-R')).toBe(
+      false
+    );
+    expect(getCardAbilityDefinitions('PL!-bp4-003-R')).toHaveLength(1);
     expect(getActivatedAbilityUiConfig('PL!HS-bp1-003-SEC')?.abilityId).toBe(
       HS_BP1_003_ACTIVATED_RECOVER_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID
     );
@@ -12732,6 +12755,8 @@ describe('card effect classification registry', () => {
     for (const cardCode of [
       'PL!-sd1-005-SD',
       'PL!-sd1-005-RM',
+      'PL!-bp4-003-P',
+      'PL!-bp4-003-R',
       'PL!-pb1-024-N',
       'PL!HS-PR-026-PR',
       'PL!HS-bp2-004-R',
@@ -16848,6 +16873,114 @@ describe('PR entertainment card base-scoped definitions', () => {
         }),
       ]);
       expect(getCardAbilityDefinitions(cardCode)[0]?.cardCodes).toBeUndefined();
+    }
+  );
+});
+
+describe('PL!-pb2-019 LIVE-start optional compound-cost definition', () => {
+  it.each(['PL!-pb2-019-N', 'PL!-pb2-019-UNSEEN'])(
+    'registers %s as one base-scoped queued LIVE_START ability with corrected player text',
+    (cardCode) => {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([
+        expect.objectContaining({
+          abilityId: PL_PB2_019_LIVE_START_WAIT_SELF_DISCARD_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
+          baseCardCodes: ['PL!-pb2-019'],
+          category: CardAbilityCategory.LIVE_START,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          triggerCondition: TriggerCondition.ON_LIVE_START,
+          queued: true,
+          implemented: true,
+          effectText:
+            '【LIVE开始时】可以将此成员变为待机状态，并将1张手牌放置入休息室：LIVE结束时为止，存在于自己的中央区域的『μ’s』的成员，获得[ブレード]。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）',
+        }),
+      ]);
+      expect(getCardAbilityDefinitions(cardCode)[0]?.cardCodes).toBeUndefined();
+    }
+  );
+});
+
+describe('PL!-pb2 successful-LIVE score continuous definitions', () => {
+  it.each([
+    [
+      'PL!-pb2-020-N',
+      PL_PB2_020_CONTINUOUS_SUCCESS_SCORE_NINE_PINK_YELLOW_HEART_ABILITY_ID,
+      'PL!-pb2-020',
+      '【常时】只要存在于自己的成功LIVE卡区的卡片的分数合计大于等于9，获得[桃ハート][黄ハート]。',
+    ],
+    [
+      'PL!-pb2-020-UNSEEN',
+      PL_PB2_020_CONTINUOUS_SUCCESS_SCORE_NINE_PINK_YELLOW_HEART_ABILITY_ID,
+      'PL!-pb2-020',
+      '【常时】只要存在于自己的成功LIVE卡区的卡片的分数合计大于等于9，获得[桃ハート][黄ハート]。',
+    ],
+    [
+      'PL!-pb2-030-N',
+      PL_PB2_030_CONTINUOUS_SUCCESS_SCORE_PER_FIVE_GAIN_BLADE_ABILITY_ID,
+      'PL!-pb2-030',
+      '【常时】存在于自己的成功LIVE卡区的卡片的分数合计每有5，获得[ブレード]。',
+    ],
+    [
+      'PL!-pb2-030-UNSEEN',
+      PL_PB2_030_CONTINUOUS_SUCCESS_SCORE_PER_FIVE_GAIN_BLADE_ABILITY_ID,
+      'PL!-pb2-030',
+      '【常时】存在于自己的成功LIVE卡区的卡片的分数合计每有5，获得[ブレード]。',
+    ],
+  ] as const)(
+    'registers %s as a base-scoped STAGE_MEMBER continuous ability with exact exported text',
+    (cardCode, abilityId, baseCardCode, effectText) => {
+      const definition = getCardAbilityDefinitions(cardCode).find(
+        (ability) => ability.abilityId === abilityId
+      );
+      expect(definition).toMatchObject({
+        abilityId,
+        baseCardCodes: [baseCardCode],
+        category: CardAbilityCategory.CONTINUOUS,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        effectText,
+      });
+      expect(definition?.cardCodes).toBeUndefined();
+    }
+  );
+});
+
+describe('PL!-pb2-033 opponent printed-HEART wait definitions', () => {
+  it.each(['PL!-pb2-033-N', 'PL!-pb2-033-UNSEEN'])(
+    'registers two base-scoped queued abilities for %s with exact exported text',
+    (cardCode) => {
+      const effectText =
+        '【登场】/【LIVE开始时】将存在于对方的舞台的1名原本持有的HEART的数量小于等于3的成员变为待机状态。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）';
+      expect(getCardAbilityDefinitions(cardCode)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            abilityId: PL_PB2_033_ON_ENTER_WAIT_OPPONENT_ORIGINAL_HEART_THREE_ABILITY_ID,
+            baseCardCodes: ['PL!-pb2-033'],
+            category: CardAbilityCategory.ON_ENTER,
+            sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+            triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+            queued: true,
+            implemented: true,
+            effectText,
+          }),
+          expect.objectContaining({
+            abilityId: PL_PB2_033_LIVE_START_WAIT_OPPONENT_ORIGINAL_HEART_THREE_ABILITY_ID,
+            baseCardCodes: ['PL!-pb2-033'],
+            category: CardAbilityCategory.LIVE_START,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            triggerCondition: TriggerCondition.ON_LIVE_START,
+            queued: true,
+            implemented: true,
+            effectText,
+          }),
+        ])
+      );
+      expect(getCardAbilityDefinitions(cardCode)).toHaveLength(2);
+      expect(
+        getCardAbilityDefinitions(cardCode).every(
+          (definition) => definition.cardCodes === undefined
+        )
+      ).toBe(true);
     }
   );
 });

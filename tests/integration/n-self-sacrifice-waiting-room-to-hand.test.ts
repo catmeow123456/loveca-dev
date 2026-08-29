@@ -12,10 +12,13 @@ import {
   createConfirmEffectStepCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { activateCardAbility } from '../../src/application/card-effect-runner';
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { getCardAbilityDefinitionsForCardCode as getCardAbilityDefinitions } from '../../src/application/card-effects/definitions/lookup';
 import { getActivatedAbilityUiConfig } from '../../src/application/card-effects/runtime/activated-ability-ui';
 import {
+  BP4_003_ACTIVATED_ABILITY_ID,
+  ELI_ACTIVATED_ABILITY_ID,
   PB1_019_ACTIVATED_ABILITY_ID,
   RIN_ACTIVATED_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
@@ -204,6 +207,12 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
       expect(session.state?.activeEffect?.abilityId).toBe(PB1_019_ACTIVATED_ABILITY_ID);
       expect(session.state?.activeEffect?.selectableCardIds).toEqual([sourceId]);
       expect(session.state?.activeEffect?.selectableCardIds).not.toContain(waitingLiveId);
+      expect(session.state?.activeEffect?.canSkipSelection).toBe(false);
+      expect(session.state?.activeEffect?.metadata?.zoneSelection).toMatchObject({
+        minCount: 1,
+        maxCount: 1,
+        optional: false,
+      });
       expect(
         session.state?.eventLog.some(
           (entry) =>
@@ -262,6 +271,12 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([waitingLiveId]);
     expect(session.state?.activeEffect?.selectableCardIds).not.toContain(sourceId);
     expect(session.state?.activeEffect?.selectableCardIds).not.toContain(waitingMemberId);
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(false);
+    expect(session.state?.activeEffect?.metadata?.zoneSelection).toMatchObject({
+      minCount: 1,
+      maxCount: 1,
+      optional: false,
+    });
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, waitingLiveId)
@@ -302,6 +317,12 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
 
     expect(activateResult.success, activateResult.error).toBe(true);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([]);
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(true);
+    expect(session.state?.activeEffect?.metadata?.zoneSelection).toMatchObject({
+      minCount: 0,
+      maxCount: 1,
+      optional: true,
+    });
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
       expect.arrayContaining([waitingMemberId!, sourceId])
     );
@@ -329,6 +350,91 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
       expect(summary.noRecoveredCards).toBe(true);
     }
   });
+
+  it.each([
+    {
+      label: 'ELI member recovery',
+      sourceCardCode: 'PL!-sd1-002-SD',
+      sourceName: '绚濑绘里',
+      legacyAbilityId: ELI_ACTIVATED_ABILITY_ID,
+      includeWaitingMember: true,
+      includeWaitingLive: false,
+      effectText: '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。',
+    },
+    {
+      label: 'BP4 Kotori LIVE recovery',
+      sourceCardCode: 'PL!-bp4-003-P',
+      sourceName: '南琴梨',
+      legacyAbilityId: BP4_003_ACTIVATED_ABILITY_ID,
+      includeWaitingMember: false,
+      includeWaitingLive: true,
+      effectText: '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。',
+    },
+  ] as const)(
+    'keeps the $label legacy resolver and step payload compatible without exposing a legacy definition',
+    ({
+      sourceCardCode,
+      sourceName,
+      legacyAbilityId,
+      includeWaitingMember,
+      includeWaitingLive,
+      effectText,
+    }) => {
+      const { session, sourceId, waitingMemberId, waitingLiveId } = setupScenario({
+        sourceCardCode,
+        sourceName,
+        includeWaitingMember,
+        includeWaitingLive,
+      });
+      const targetId = includeWaitingMember ? waitingMemberId : waitingLiveId;
+      expect(targetId).not.toBeNull();
+
+      const legacyState = activateCardAbility(session.state!, PLAYER1, sourceId, legacyAbilityId);
+      setAuthorityState(session, legacyState);
+
+      expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBeNull();
+      expect(session.state?.players[0].waitingRoom.cardIds).toContain(sourceId);
+      expect(session.state?.activeEffect).toMatchObject({
+        abilityId: legacyAbilityId,
+        effectText,
+        canSkipSelection: false,
+        metadata: {
+          zoneSelection: {
+            minCount: 1,
+            maxCount: 1,
+            optional: false,
+          },
+        },
+      });
+      expect(session.state?.activeEffect?.selectableCardIds).toContain(targetId);
+      const effectId = session.state!.activeEffect!.id;
+
+      const skipResult = session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, effectId, null)
+      );
+      expect(skipResult.success).toBe(false);
+      expect(session.state?.activeEffect?.id).toBe(effectId);
+      expect(session.state?.players[0].waitingRoom.cardIds).toContain(sourceId);
+
+      const confirmResult = session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, effectId, targetId)
+      );
+      expect(confirmResult.success, confirmResult.error).toBe(true);
+      confirmPublicSelectionIfNeeded(session);
+
+      expect(session.state?.activeEffect).toBeNull();
+      expect(session.state?.pendingCardEffects ?? []).toEqual([]);
+      expect(session.state?.players[0].hand.cardIds).toContain(targetId);
+      expect(
+        session.state?.actionHistory.some(
+          (action) =>
+            action.type === 'RESOLVE_ABILITY' &&
+            action.payload.abilityId === legacyAbilityId &&
+            action.payload.step === 'FINISH'
+        )
+      ).toBe(true);
+    }
+  );
 
   it('rejects activation outside the main phase without paying the source cost', () => {
     const { session, sourceId } = setupScenario({

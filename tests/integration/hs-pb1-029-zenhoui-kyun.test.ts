@@ -32,7 +32,7 @@ function createMiraCraMember(cardCode: string, heartCount = 1): MemberCardData {
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,
-    hearts: [createHeartIcon(HeartColor.PINK, heartCount)],
+    hearts: heartCount > 0 ? [createHeartIcon(HeartColor.PINK, heartCount)] : [],
   };
 }
 
@@ -53,12 +53,24 @@ function createLive(cardCode = 'PL!HS-pb1-029-L'): LiveCardData {
   };
 }
 
-function runLiveStart(extraHeartMemberIndexes: readonly number[], printedRich = false) {
+function runLiveStart(
+  extraHeartMemberIndexes: readonly number[],
+  printedRich = false,
+  originalHeartReplacementMemberIndexes: readonly number[] = []
+) {
   const live = createCardInstance(createLive(), PLAYER1, 'zenhoui-live');
   const drawCard = createCardInstance(createMiraCraMember('DRAW-CARD'), PLAYER1, 'draw-card');
   const members = [
-    createCardInstance(createMiraCraMember('MIRACRA-1'), PLAYER1, 'miracra-1'),
-    createCardInstance(createMiraCraMember('MIRACRA-2'), PLAYER1, 'miracra-2'),
+    createCardInstance(
+      createMiraCraMember('MIRACRA-1', originalHeartReplacementMemberIndexes.includes(0) ? 0 : 1),
+      PLAYER1,
+      'miracra-1'
+    ),
+    createCardInstance(
+      createMiraCraMember('MIRACRA-2', originalHeartReplacementMemberIndexes.includes(1) ? 0 : 1),
+      PLAYER1,
+      'miracra-2'
+    ),
     createCardInstance(createMiraCraMember('MIRACRA-PRINTED-RICH', 3), PLAYER1, 'miracra-rich'),
   ];
   const stageMembers = printedRich ? members : members.slice(0, 2);
@@ -89,6 +101,18 @@ function runLiveStart(extraHeartMemberIndexes: readonly number[], printedRich = 
       memberSlots,
     };
   });
+
+  for (const index of originalHeartReplacementMemberIndexes) {
+    const member = members[index];
+    game = addLiveModifier(game, {
+      kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT',
+      playerId: PLAYER1,
+      memberCardId: member.instanceId,
+      hearts: [createHeartIcon(HeartColor.PINK, 4)],
+      sourceCardId: 'original-heart-replacement-source',
+      abilityId: 'original-heart-replacement',
+    });
+  }
 
   for (const index of extraHeartMemberIndexes) {
     const member = members[index];
@@ -166,5 +190,25 @@ describe('HS-pb1-029 全方位キュン♡ workflow', () => {
           !action.payload.extraHeartMiraCraMemberIds.includes(members[2].instanceId)
       )
     ).toBe(true);
+  });
+
+  it('does not count a printed-0 to original-4 replacement as extra Heart by itself', () => {
+    const replacementOnly = runLiveStart([], false, [0]);
+    expect(replacementOnly.state.players[0].hand.cardIds).toEqual([]);
+    expect(replacementOnly.state.players[0].mainDeck.cardIds).toEqual([
+      replacementOnly.drawCard.instanceId,
+    ]);
+
+    const withOrdinaryHeart = runLiveStart([0], false, [0]);
+    expect(withOrdinaryHeart.state.players[0].hand.cardIds).toEqual([
+      withOrdinaryHeart.drawCard.instanceId,
+    ]);
+    expect(withOrdinaryHeart.state.liveResolution.liveModifiers).not.toContainEqual(
+      expect.objectContaining({
+        kind: 'REQUIREMENT',
+        sourceCardId: withOrdinaryHeart.live.instanceId,
+        abilityId: HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID,
+      })
+    );
   });
 });

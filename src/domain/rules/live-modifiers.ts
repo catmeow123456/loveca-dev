@@ -126,6 +126,13 @@ interface EnergyThresholdHeartContinuousDefinition {
   readonly abilityId: string;
 }
 
+interface SuccessScoreThresholdHeartContinuousDefinition {
+  readonly baseCardCode: string;
+  readonly minScore: number;
+  readonly hearts: readonly HeartIcon[];
+  readonly abilityId: string;
+}
+
 interface EnergyComparisonContinuousDefinition {
   readonly baseCardCode: string;
   readonly comparison: 'SELF_MORE' | 'OPPONENT_MORE';
@@ -704,18 +711,36 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       });
     },
   },
+  ...createSuccessScoreThresholdHeartContinuousDefinitions([
+    {
+      baseCardCode: 'PL!-bp5-008',
+      minScore: 6,
+      hearts: [{ color: HeartColor.YELLOW, count: 2 }],
+      abilityId: 'PL!-bp5-008:continuous-success-score-yellow-heart',
+    },
+    {
+      baseCardCode: 'PL!-pb2-020',
+      minScore: 9,
+      hearts: [
+        { color: HeartColor.PINK, count: 1 },
+        { color: HeartColor.YELLOW, count: 1 },
+      ],
+      abilityId: 'PL!-pb2-020:continuous-success-score-nine-pink-yellow-heart',
+    },
+  ]),
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
-    baseCardCodes: ['PL!-bp5-008'],
+    baseCardCodes: ['PL!-pb2-030'],
     collect: ({ game, playerId, sourceCardId }) => {
-      if (!successLiveScoreAtLeast(game, playerId, 6)) {
+      const countDelta = Math.floor(sumSuccessfulLiveScore(game, playerId) / 5);
+      if (countDelta <= 0) {
         return [];
       }
-      const modifier = createHeartLiveModifierForSourceMember(game, {
+      const modifier = createBladeLiveModifierForSourceMember(game, {
         playerId,
         sourceCardId,
-        abilityId: BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
-        hearts: [{ color: HeartColor.YELLOW, count: 2 }],
+        abilityId: PL_PB2_030_CONTINUOUS_SUCCESS_SCORE_PER_FIVE_GAIN_BLADE_ABILITY_ID,
+        countDelta,
       });
       return modifier ? [modifier] : [];
     },
@@ -1795,8 +1820,8 @@ const MEMBER_SLOT_ORDER: readonly SlotPosition[] = [
 ];
 const HS_BP1_003_CONTINUOUS_SCORE_ABILITY_ID =
   'PL!HS-bp1-003-SEC:continuous-three-different-hasunosora-score';
-const BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID =
-  'PL!-bp5-008:continuous-success-score-yellow-heart';
+const PL_PB2_030_CONTINUOUS_SUCCESS_SCORE_PER_FIVE_GAIN_BLADE_ABILITY_ID =
+  'PL!-pb2-030:continuous-success-score-per-five-gain-blade';
 const PL_BP5_111_CONTINUOUS_OTHER_ARISE_BLUE_HEART_ABILITY_ID =
   'PL!-bp5-111:continuous-other-arise-blue-heart';
 const PL_BP5_333_CONTINUOUS_WAITING_BLUE_HEART_ABILITY_ID =
@@ -2311,6 +2336,27 @@ function createEnergyThresholdHeartContinuousDefinitions(
         sourceCardId,
         abilityId: definition.abilityId,
         hearts: [{ color: definition.heartColor, count: heartCount }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  }));
+}
+
+function createSuccessScoreThresholdHeartContinuousDefinitions(
+  definitions: readonly SuccessScoreThresholdHeartContinuousDefinition[]
+): readonly ContinuousLiveModifierDefinition[] {
+  return definitions.map((definition) => ({
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    baseCardCodes: [definition.baseCardCode],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!successLiveScoreAtLeast(game, playerId, definition.minScore)) {
+        return [];
+      }
+      const modifier = createHeartLiveModifierForSourceMember(game, {
+        playerId,
+        sourceCardId,
+        abilityId: definition.abilityId,
+        hearts: definition.hearts,
       });
       return modifier ? [modifier] : [];
     },
@@ -3942,18 +3988,7 @@ export function getMemberEffectiveHeartIcons(
     return [];
   }
 
-  const replacement = getLatestMemberOriginalHeartReplacementModifier(
-    playerId,
-    sourceCardId,
-    liveModifiers
-  );
-  const baseHearts = replacement
-    ? replacement.hearts
-      ? replacement.hearts.map((heart) => ({ ...heart }))
-      : replacement.color
-        ? replaceOriginalHeartColor(sourceCard.data.hearts, replacement.color)
-        : sourceCard.data.hearts
-    : sourceCard.data.hearts;
+  const originalHearts = getMemberOriginalHeartIcons(game, playerId, sourceCardId, liveModifiers);
   const modifierHearts = liveModifiers
     .filter(
       (modifier): modifier is HeartModifierState =>
@@ -3964,10 +3999,49 @@ export function getMemberEffectiveHeartIcons(
     )
     .flatMap((modifier) => modifier.hearts);
 
-  return [...baseHearts, ...modifierHearts];
+  return [...originalHearts, ...modifierHearts];
 }
 
-export function memberHasMoreEffectiveHeartsThanPrinted(
+/**
+ * Returns the member's current original Heart vector after applying the latest
+ * original-Heart replacement. Ordinary Heart modifiers are intentionally excluded.
+ */
+export function getMemberOriginalHeartIcons(
+  game: GameState,
+  playerId: string,
+  memberCardId: string,
+  liveModifiers: readonly LiveModifierState[] = game.liveResolution.liveModifiers
+): readonly HeartIcon[] {
+  const memberCard = getCardById(game, memberCardId);
+  if (!memberCard || !isMemberCardData(memberCard.data)) {
+    return [];
+  }
+
+  const replacement = getLatestMemberOriginalHeartReplacementModifier(
+    playerId,
+    memberCardId,
+    liveModifiers
+  );
+  if (replacement?.hearts !== undefined) {
+    return replacement.hearts.map((heart) => ({ ...heart }));
+  }
+  if (replacement?.color !== undefined) {
+    return replaceOriginalHeartColor(memberCard.data.hearts, replacement.color);
+  }
+  return memberCard.data.hearts.map((heart) => ({ ...heart }));
+}
+
+/** Returns the total count of the member's current original Heart icons. */
+export function getMemberOriginalHeartCount(
+  game: GameState,
+  playerId: string,
+  memberCardId: string,
+  liveModifiers: readonly LiveModifierState[] = game.liveResolution.liveModifiers
+): number {
+  return countHeartIcons(getMemberOriginalHeartIcons(game, playerId, memberCardId, liveModifiers));
+}
+
+export function memberHasMoreEffectiveHeartsThanOriginal(
   game: GameState,
   playerId: string,
   memberCardId: string,
@@ -3985,12 +4059,20 @@ export function memberHasMoreEffectiveHeartsThanPrinted(
     return false;
   }
 
-  const countHearts = (hearts: readonly HeartIcon[]): number =>
-    hearts.reduce((total, heart) => total + heart.count, 0);
   return (
-    countHearts(getMemberEffectiveHeartIcons(game, playerId, memberCardId, liveModifiers)) >
-    countHearts(card.data.hearts)
+    countHeartIcons(getMemberEffectiveHeartIcons(game, playerId, memberCardId, liveModifiers)) >
+    getMemberOriginalHeartCount(game, playerId, memberCardId, liveModifiers)
   );
+}
+
+/** @deprecated Use memberHasMoreEffectiveHeartsThanOriginal. */
+export function memberHasMoreEffectiveHeartsThanPrinted(
+  game: GameState,
+  playerId: string,
+  memberCardId: string,
+  liveModifiers: readonly LiveModifierState[] = collectLiveModifiers(game)
+): boolean {
+  return memberHasMoreEffectiveHeartsThanOriginal(game, playerId, memberCardId, liveModifiers);
 }
 
 export function getCheerCardEffectiveBladeHearts(
@@ -4078,8 +4160,12 @@ function replaceOriginalHeartColor(
   printedHearts: readonly HeartIcon[],
   color: HeartColor
 ): readonly HeartIcon[] {
-  const total = printedHearts.reduce((sum, heart) => sum + heart.count, 0);
+  const total = countHeartIcons(printedHearts);
   return total > 0 ? [{ color, count: total }] : [];
+}
+
+function countHeartIcons(hearts: readonly HeartIcon[]): number {
+  return hearts.reduce((total, heart) => total + heart.count, 0);
 }
 
 export function getLiveCardRequirementModifiers(

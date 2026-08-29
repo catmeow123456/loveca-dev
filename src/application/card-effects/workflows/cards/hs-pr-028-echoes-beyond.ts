@@ -8,7 +8,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import {
   collectLiveModifiers,
-  memberHasMoreEffectiveHeartsThanPrinted,
+  memberHasMoreEffectiveHeartsThanOriginal,
 } from '../../../../domain/rules/live-modifiers.js';
 import { SlotPosition } from '../../../../shared/types/enums.js';
 import { HS_PR_028_LIVE_SUCCESS_EXTRA_EFFECTIVE_HEART_MEMBER_DRAW_ONE_ABILITY_ID } from '../../ability-ids.js';
@@ -99,8 +99,7 @@ function evaluateDrawCondition(
     matchingMemberIds,
     conditionMet,
     canDraw:
-      conditionMet &&
-      isCurrentOwnedLiveSource(game, ability.controllerId, ability.sourceCardId),
+      conditionMet && isCurrentOwnedLiveSource(game, ability.controllerId, ability.sourceCardId),
   };
 }
 
@@ -112,7 +111,10 @@ function getMatchingMemberIds(game: GameState, playerId: string): readonly strin
   const liveModifiers = collectLiveModifiers(game);
   return STAGE_SLOTS.flatMap((slot) => {
     const cardId = player.memberSlots.slots[slot];
-    return cardId && memberHasMoreEffectiveHeartsThanPrinted(game, playerId, cardId, liveModifiers)
+    if (!cardId) {
+      return [];
+    }
+    return memberHasMoreEffectiveHeartsThanOriginal(game, playerId, cardId, liveModifiers)
       ? [cardId]
       : [];
   });
@@ -127,9 +129,9 @@ function isCurrentOwnedLiveSource(
   const sourceCard = getCardById(game, sourceCardId);
   return Boolean(
     player &&
-      sourceCard &&
-      sourceCard.ownerId === playerId &&
-      isLiveCardData(sourceCard.data) &&
-      player.liveZone.cardIds.includes(sourceCardId)
+    sourceCard &&
+    sourceCard.ownerId === playerId &&
+    isLiveCardData(sourceCard.data) &&
+    player.liveZone.cardIds.includes(sourceCardId)
   );
 }

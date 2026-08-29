@@ -72,7 +72,6 @@ import {
   BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID,
   CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID,
   EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID,
-  ELI_ACTIVATED_ABILITY_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
   LL_BP1_001_ON_ENTER_RECOVER_MEMBER_ABILITY_ID,
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
@@ -94,7 +93,6 @@ import {
   HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID,
   HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID,
   HANAYO_ACTIVATED_ABILITY_ID,
-  BP4_003_ACTIVATED_ABILITY_ID,
   HONOKA_ON_ENTER_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
@@ -205,6 +203,7 @@ const RIN_LIKE_MEMBER_ACTIVATION_TEST_CASES = [
 const PB1_019_LIKE_MEMBER_ACTIVATION_TEST_CASES = [
   { cardCode: 'PL!-pb1-019-N', name: '高坂 穂乃果' },
   { cardCode: 'PL!-pb1-025-N', name: '東條 希' },
+  { cardCode: 'PL!-pb2-022-N', name: '园田海未' },
   { cardCode: 'PL!HS-PR-014-PR', name: '日野下 花帆' },
   { cardCode: 'PL!HS-pb1-019-N', name: '大沢 瑠璃乃' },
   { cardCode: 'PL!HS-sd1-015-SD', name: 'セラス 柳田 リリエンフェルト' },
@@ -1799,17 +1798,17 @@ describe('sample card effect runner', () => {
     p1.waitingRoom.cardIds = [targetMemberCardId!];
 
     const activateResult = session.executeCommand(
-      createActivateAbilityCommand(PLAYER1, eliCardId!, ELI_ACTIVATED_ABILITY_ID)
+      createActivateAbilityCommand(PLAYER1, eliCardId!, PB1_019_ACTIVATED_ABILITY_ID)
     );
 
     expect(activateResult.success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(ELI_ACTIVATED_ABILITY_ID);
+    expect(session.state?.activeEffect?.abilityId).toBe(PB1_019_ACTIVATED_ABILITY_ID);
     expect(session.state?.activeEffect?.metadata?.zoneSelection).toEqual({
       source: 'WAITING_ROOM',
       destination: 'HAND',
-      minCount: 0,
+      minCount: 1,
       maxCount: 1,
-      optional: true,
+      optional: false,
     });
     expect(session.state?.players[0].waitingRoom.cardIds).toContain(eliCardId);
     expect(session.state?.activeEffect?.selectableCardIds).toContain(targetMemberCardId);
@@ -2099,9 +2098,9 @@ describe('sample card effect runner', () => {
       expect(session.state?.activeEffect?.metadata?.zoneSelection).toEqual({
         source: 'WAITING_ROOM',
         destination: 'HAND',
-        minCount: 0,
+        minCount: 1,
         maxCount: 1,
-        optional: true,
+        optional: false,
       });
       expect(session.state?.players[0].waitingRoom.cardIds).toContain(rinCardId);
       expect(session.state?.activeEffect?.selectableCardIds).toEqual([targetLiveCardId]);
@@ -3640,9 +3639,9 @@ describe('sample card effect runner', () => {
       expect(session.state?.activeEffect?.metadata?.zoneSelection).toEqual({
         source: 'WAITING_ROOM',
         destination: 'HAND',
-        minCount: 0,
+        minCount: 1,
         maxCount: 1,
-        optional: true,
+        optional: false,
       });
       expect(session.state?.players[0].waitingRoom.cardIds).toContain(pb1CardId);
       expect(session.state?.activeEffect?.selectableCardIds).toContain(pb1CardId);
@@ -3726,17 +3725,17 @@ describe('sample card effect runner', () => {
     ]);
 
     const activateResult = session.executeCommand(
-      createActivateAbilityCommand(PLAYER1, kotoriCardId!, BP4_003_ACTIVATED_ABILITY_ID)
+      createActivateAbilityCommand(PLAYER1, kotoriCardId!, RIN_ACTIVATED_ABILITY_ID)
     );
 
     expect(activateResult.success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(BP4_003_ACTIVATED_ABILITY_ID);
+    expect(session.state?.activeEffect?.abilityId).toBe(RIN_ACTIVATED_ABILITY_ID);
     expect(session.state?.activeEffect?.metadata?.zoneSelection).toEqual({
       source: 'WAITING_ROOM',
       destination: 'HAND',
-      minCount: 0,
+      minCount: 1,
       maxCount: 1,
-      optional: true,
+      optional: false,
     });
     expect(session.state?.players[0].waitingRoom.cardIds).toContain(kotoriCardId);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([targetLiveCardId]);
@@ -3756,7 +3755,7 @@ describe('sample card effect runner', () => {
       session.state?.actionHistory.some(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
-          action.payload.abilityId === BP4_003_ACTIVATED_ABILITY_ID &&
+          action.payload.abilityId === RIN_ACTIVATED_ABILITY_ID &&
           action.payload.step === 'FINISH' &&
           action.payload.selectedCardId === targetLiveCardId
       )

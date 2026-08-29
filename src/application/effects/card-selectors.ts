@@ -1,5 +1,9 @@
 import type { CardInstance } from '../../domain/entities/card.js';
-import { isLiveCardData, isMemberCardData } from '../../domain/entities/card.js';
+import {
+  calculateTotalHearts,
+  isLiveCardData,
+  isMemberCardData,
+} from '../../domain/entities/card.js';
 import { BladeHeartEffect, HeartColor, type CardType } from '../../shared/types/enums.js';
 import {
   cardBelongsToGroup,
@@ -159,6 +163,10 @@ export function hasStrictNoAbility(): CardSelector {
 
 export function memberPrintedBladeLte(maxBlade: number): CardSelector {
   return (card) => isMemberCardData(card.data) && card.data.blade <= maxBlade;
+}
+
+export function memberPrintedHeartLte(maxHeart: number): CardSelector {
+  return (card) => isMemberCardData(card.data) && calculateTotalHearts(card.data) <= maxHeart;
 }
 
 export function memberPrintedBladeEquals(bladeCount: number): CardSelector {

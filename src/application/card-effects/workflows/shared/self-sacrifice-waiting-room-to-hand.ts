@@ -76,6 +76,8 @@ export interface SelfSacrificeWaitingRoomToHandWorkflowDependencies {
 
 interface SelfSacrificeWaitingRoomToHandWorkflowConfig {
   readonly abilityId: string;
+  /** Canonical definition used for player-visible text by legacy resolver-only ability IDs. */
+  readonly effectTextAbilityId?: string;
   readonly expectedBaseCardCodes: readonly string[];
   readonly stepId: string;
   readonly selectablePredicate: (card: CardInstance) => boolean;
@@ -150,28 +152,36 @@ const SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly SelfSacrificeWaiti
       },
     },
     {
+      // Legacy resolver/step compatibility only; PL!-sd1-002 is defined by the PB1_019 family.
       abilityId: ELI_ACTIVATED_ABILITY_ID,
+      effectTextAbilityId: PB1_019_ACTIVATED_ABILITY_ID,
       expectedBaseCardCodes: ['PL!-sd1-002'],
       stepId: ELI_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
       selectablePredicate: typeIs(CardType.MEMBER),
+      selectionRequiredWhenHasTargets: true,
     },
     {
       abilityId: RIN_ACTIVATED_ABILITY_ID,
       expectedBaseCardCodes: getCardAbilityBaseCardCodes(RIN_ACTIVATED_ABILITY_ID),
       stepId: RIN_SELECT_WAITING_ROOM_LIVE_STEP_ID,
       selectablePredicate: typeIs(CardType.LIVE),
+      selectionRequiredWhenHasTargets: true,
     },
     {
       abilityId: PB1_019_ACTIVATED_ABILITY_ID,
       expectedBaseCardCodes: getCardAbilityBaseCardCodes(PB1_019_ACTIVATED_ABILITY_ID),
       stepId: PB1_019_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
       selectablePredicate: typeIs(CardType.MEMBER),
+      selectionRequiredWhenHasTargets: true,
     },
     {
+      // Legacy resolver/step compatibility only; PL!-bp4-003 is defined by the RIN family.
       abilityId: BP4_003_ACTIVATED_ABILITY_ID,
+      effectTextAbilityId: RIN_ACTIVATED_ABILITY_ID,
       expectedBaseCardCodes: ['PL!-bp4-003'],
       stepId: BP4_003_SELECT_WAITING_ROOM_LIVE_STEP_ID,
       selectablePredicate: typeIs(CardType.LIVE),
+      selectionRequiredWhenHasTargets: true,
     },
     {
       abilityId: HS_CL1_008_ACTIVATED_SELF_SACRIFICE_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
@@ -299,7 +309,7 @@ function startSelfSacrificeWaitingRoomToHandWorkflow(
       abilityId: config.abilityId,
       sourceCardId: cardId,
       controllerId: player.id,
-      effectText: getAbilityEffectText(config.abilityId),
+      effectText: getAbilityEffectText(config.effectTextAbilityId ?? config.abilityId),
       stepId: config.stepId,
       stepText: config.stepText,
       awaitingPlayerId: player.id,

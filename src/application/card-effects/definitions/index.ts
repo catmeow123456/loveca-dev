@@ -78,6 +78,11 @@ import {
   PL_PB2_007_ACTIVATED_SELF_SACRIFICE_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
   PL_PB2_008_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_MUSE_LIVE_ABILITY_ID,
   PL_PB2_009_AUTO_RELAY_REPLACED_BY_HIGH_COST_MUSE_ACTIVATE_ENERGY_ABILITY_ID,
+  PL_PB2_019_LIVE_START_WAIT_SELF_DISCARD_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
+  PL_PB2_020_CONTINUOUS_SUCCESS_SCORE_NINE_PINK_YELLOW_HEART_ABILITY_ID,
+  PL_PB2_030_CONTINUOUS_SUCCESS_SCORE_PER_FIVE_GAIN_BLADE_ABILITY_ID,
+  PL_PB2_033_LIVE_START_WAIT_OPPONENT_ORIGINAL_HEART_THREE_ABILITY_ID,
+  PL_PB2_033_ON_ENTER_WAIT_OPPONENT_ORIGINAL_HEART_THREE_ABILITY_ID,
   PL_PB2_039_LIVE_START_SUCCESS_MUSE_TWO_CHEER_TEN_ABILITY_ID,
   PL_PB2_039_LIVE_SUCCESS_DISTINCT_MUSE_STAGE_CHEER_SCORE_ABILITY_ID,
   S_BP7_001_ON_ENTER_DISCARD_RECOVER_HIGH_COST_MEMBER_GAIN_BLADE_ABILITY_ID,
@@ -740,14 +745,12 @@ import {
   HS_PB1_016_ON_ENTER_TARGET_PURPLE_HEART_MEMBER_GAIN_PURPLE_HEART_ABILITY_ID,
   HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
   HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
-  ELI_ACTIVATED_ABILITY_ID,
   RIN_ACTIVATED_ABILITY_ID,
   PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
   PL_PR_003_ACTIVATED_DISCARD_TWO_RECOVER_YELLOW_THREE_LIVE_ABILITY_ID,
   PL_PR_004_ACTIVATED_DISCARD_TWO_RECOVER_PINK_THREE_LIVE_ABILITY_ID,
   BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
   BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID,
-  BP4_003_ACTIVATED_ABILITY_ID,
   PL_BP4_007_ON_ENTER_SUCCESS_LIVE_EXISTS_SCORE_AT_MOST_ONE_GAIN_SCORE_ABILITY_ID,
   PL_BP4_013_LIVE_START_DISCARD_TARGET_OTHER_MEMBER_GAIN_PINK_HEART_ABILITY_ID,
   PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
@@ -995,7 +998,7 @@ import {
 } from '../ability-definition-types.js';
 import {
   PB1_019_LIKE_SELF_SACRIFICE_MEMBER_BASE_CARD_CODES,
-  RIN_LIKE_SELF_SACRIFICE_MEMBER_BASE_CARD_CODES,
+  RIN_LIKE_SELF_SACRIFICE_LIVE_BASE_CARD_CODES,
 } from './shared-abilities.js';
 
 const NOZOMI_EFFECT_TEXT = '【登场】将自己卡组顶的5张卡放置入休息室。其中有LIVE卡的场合，抽1张卡。';
@@ -1586,6 +1589,14 @@ const PL_PB2_007_ACTIVATED_EFFECT_TEXT =
   '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张『μ’s』的LIVE卡加入手牌。此后，存在于自己的成功LIVE卡区的『μ’s』的卡片每有1张，将1张能量变为活跃状态。';
 const PL_PB2_008_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将此成员变为待机状态：检视自己的卡组顶的4张卡片。可以将其中的1张需求HEART的合计大于等于8的『μ’s』的LIVE卡公开并加入手牌。其余的放置入休息室。';
+const PL_PB2_019_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将此成员变为待机状态，并将1张手牌放置入休息室：LIVE结束时为止，存在于自己的中央区域的『μ’s』的成员，获得[ブレード]。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）';
+const PL_PB2_020_CONTINUOUS_EFFECT_TEXT =
+  '【常时】只要存在于自己的成功LIVE卡区的卡片的分数合计大于等于9，获得[桃ハート][黄ハート]。';
+const PL_PB2_030_CONTINUOUS_EFFECT_TEXT =
+  '【常时】存在于自己的成功LIVE卡区的卡片的分数合计每有5，获得[ブレード]。';
+const PL_PB2_033_OPPONENT_WAIT_EFFECT_TEXT =
+  '【登场】/【LIVE开始时】将存在于对方的舞台的1名原本持有的HEART的数量小于等于3的成员变为待机状态。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）';
 const SP_BP4_021_CONTINUOUS_MORE_ENERGY_GAIN_PURPLE_HEART_EFFECT_TEXT =
   '【常时】只要自己的能量多于对方，获得[紫ハート]。';
 const SP_BP4_028_LIVE_START_ACTIVE_ENERGY_SCORE_EFFECT_TEXT =
@@ -2156,7 +2167,6 @@ const HS_BP5_016_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将1张手牌放置入休息室：将对方舞台上至多2名费用小于等于4的成员变为待机状态。';
 const HS_BP5_016_CONTINUOUS_EFFECT_TEXT =
   '【常时】只要对方舞台上待机状态的成员大于等于2人，此成员获得[紫ハート]。';
-const ELI_EFFECT_TEXT = '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。';
 const RIN_EFFECT_TEXT = '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。';
 const PR_017_ACTIVATED_EFFECT_TEXT =
   "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张『μ's』的LIVE卡加入手牌。自己的成功LIVE卡区中的卡片的分数合计大于等于9的场合，将2张能量变为活跃状态。";
@@ -2170,8 +2180,6 @@ const BP4_002_ACTIVATED_EFFECT_TEXT =
   "【起动】【1回合1次】将2张手牌放置入休息室：从自己的休息室将1张『μ's』的LIVE卡加入手牌。此能力仅可在存在于自己的成功LIVE卡区的卡片的分数合计大于等于6的场合起动。";
 const BP4_002_CONTINUOUS_EFFECT_TEXT =
   '【常时】自己的LIVE中的LIVE卡中只要存在不持有【LIVE开始时】能力与【LIVE成功时】能力的卡片，获得[紫ハート][紫ハート]。';
-const BP4_003_EFFECT_TEXT =
-  '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。';
 const BP5_003_ACTIVATED_EFFECT_TEXT =
   "【起动】【1回合1次】[E][E]将1张手牌放置入休息室：因此放置入休息室的卡片为『μ's』的卡片的场合，检视自己卡组顶的4张卡。从其中将2张卡片加入手牌。其余的卡片放置入休息室。『μ's』的卡片以外的场合，从自己的休息室将1张LIVE卡加入手牌。";
 const BP5_003_CONTINUOUS_EFFECT_TEXT =
@@ -3020,20 +3028,6 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: HONOKA_ON_ENTER_EFFECT_TEXT,
   },
   {
-    abilityId: ELI_ACTIVATED_ABILITY_ID,
-    cardCodes: ['PL!-sd1-002-SD'],
-    category: CardAbilityCategory.ACTIVATED,
-    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
-    queued: false,
-    implemented: true,
-    effectText: ELI_EFFECT_TEXT,
-    activatedUi: {
-      abilityId: ELI_ACTIVATED_ABILITY_ID,
-      text: ELI_EFFECT_TEXT,
-      title: '将此成员从舞台放置入休息室，从自己的休息室将1张成员卡加入手牌',
-    },
-  },
-  {
     abilityId: KOTORI_ON_ENTER_ABILITY_ID,
     cardCodes: ['PL!-sd1-003-SD'],
     category: CardAbilityCategory.ON_ENTER,
@@ -3065,7 +3059,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: RIN_ACTIVATED_ABILITY_ID,
-    baseCardCodes: RIN_LIKE_SELF_SACRIFICE_MEMBER_BASE_CARD_CODES,
+    baseCardCodes: RIN_LIKE_SELF_SACRIFICE_LIVE_BASE_CARD_CODES,
     category: CardAbilityCategory.ACTIVATED,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
@@ -3171,20 +3165,6 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: BP4_002_CONTINUOUS_EFFECT_TEXT,
     notes:
       '持续修正不进队列；自己的 LIVE 中存在不持有 LIVE 开始/成功能力的 LIVE 时，由 continuous modifier registry 动态收集为 SOURCE_MEMBER 紫 Heart +2。',
-  },
-  {
-    abilityId: BP4_003_ACTIVATED_ABILITY_ID,
-    baseCardCodes: ['PL!-bp4-003'],
-    category: CardAbilityCategory.ACTIVATED,
-    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
-    queued: false,
-    implemented: true,
-    effectText: BP4_003_EFFECT_TEXT,
-    activatedUi: {
-      abilityId: BP4_003_ACTIVATED_ABILITY_ID,
-      text: BP4_003_EFFECT_TEXT,
-      title: '将此成员从舞台放置入休息室，从自己的休息室将1张LIVE卡加入手牌',
-    },
   },
   {
     abilityId: HS_CL1_008_ACTIVATED_SELF_SACRIFICE_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
@@ -10895,7 +10875,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: HS_PB1_029_LIVE_START_EFFECT_TEXT,
     notes:
-      'LIVE 开始时比较 Mira-Cra 舞台成员有效 Heart 数与印刷 Heart 数；满足1名抽1，满足2名以上以 liveModifiers 写入 REQUIREMENT 無Heart -2。',
+      'LIVE 开始时复用 memberHasMoreEffectiveHeartsThanOriginal，比较 Mira-Cra 舞台成员的有效 Heart 与当前原本 Heart 数；原本 Heart replacement 本身只替换比较基线，普通 Heart modifier 超过该基线才成立。满足1名抽1，满足2名以上以 liveModifiers 写入 REQUIREMENT 無Heart -2。',
   },
   {
     abilityId: HS_PB1_030_LIVE_START_EDELNOTE_MEMBER_BLADE_DIFFERENT_NAME_PURPLE_HEART_ABILITY_ID,
@@ -11252,7 +11232,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: HS_PR_028_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      '单卡 LIVE_SUCCESS workflow `hs-pr-028-echoes-beyond.ts`；结算时重查来源 LIVE 与己方舞台，通过纯 query 判断有效 Heart 总数高于印刷总数并条件抽1。单 pending confirm-only 显示实时条件，顺序发动自动连续。',
+      '单卡 LIVE_SUCCESS workflow `hs-pr-028-echoes-beyond.ts`；结算时重查来源 LIVE 与己方舞台，复用 memberHasMoreEffectiveHeartsThanOriginal 判断有效 Heart 总数高于当前原本总数并条件抽1；原本 Heart replacement 本身不计为额外 Heart。单 pending confirm-only 显示实时条件，顺序发动自动连续。',
   },
   {
     abilityId: SP_BP4_003_ON_ENTER_SIDE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
@@ -14380,7 +14360,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       text: PL_PB2_006_ACTIVATED_EFFECT_TEXT,
     },
     notes:
-      '单卡 workflow `pl-pb2-006-maki.ts`；先将来源 ACTIVE→WAITING，再通过私密手牌窗口强制弃1张，两项费用均完成后才记录起动 turn1。费用完成后重扫对方顶层非 WAITING 且印刷 Heart 合计<=1的成员；无目标不回滚费用。',
+      '单卡 workflow `pl-pb2-006-maki.ts`；先将来源 ACTIVE→WAITING，再通过私密手牌窗口强制弃1张，两项费用均完成后才记录起动 turn1。费用完成后重扫对方顶层非 WAITING 且当前原本 Heart 合计<=1的成员；原本 Heart replacement 会改变该门槛基线，普通 Heart modifier 不会。无目标不回滚费用。',
   },
   {
     abilityId: PL_PB2_006_LIVE_START_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID,
@@ -14392,7 +14372,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_PB2_006_LIVE_START_EFFECT_TEXT,
     notes:
-      '与同卡起动段共用卡内窄 core；先开固定来源的“发动 / 不发动”真实交互窗口，确认时重验来源 ACTIVE 与至少1张手牌。支付与目标状态变化分别走标准事件 wrapper，并只通过统一 continuation 恢复检查时点。',
+      '与同卡起动段共用卡内窄 core 和当前原本 Heart<=1 状态查询；先开固定来源的“发动 / 不发动”真实交互窗口，确认时重验来源 ACTIVE 与至少1张手牌。支付与目标状态变化分别走标准事件 wrapper，并只通过统一 continuation 恢复检查时点。',
   },
   {
     abilityId: PL_PB2_007_ACTIVATED_SELF_SACRIFICE_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
@@ -14445,6 +14425,64 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '【自动】此成员从舞台被放置入休息室时，此成员与费用大于等于15的『μ’s』的成员换手的场合，将2张能量变为活跃状态。',
     notes:
       '复用 shared `relay-replacement-activate-energy.ts`；definition 的通用 ON_LEAVE_STAGE filter 只在被费用>=15的结构化 μ’s 成员换手替换且进入休息室时入队，workflow 从 pending 绑定离场事件重验并复用通用能量选择/活跃底座处理至多2张待机能量。',
+  },
+  {
+    abilityId: PL_PB2_019_LIVE_START_WAIT_SELF_DISCARD_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!-pb2-019'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB2_019_LIVE_START_EFFECT_TEXT,
+    notes:
+      '扩展 shared `live-start-wait-self-center-muse-gain-blade.ts` 的窄复合费用轴；发动前及确认时重验来源 ACTIVE 与至少1张手牌，依次通过成员状态与进入休息室事件 wrapper 支付待机与弃1手。费用完成后重读自己中央的结构化 μ’s 成员并写 TARGET_MEMBER BLADE +1；目标不存在不回滚费用。effectText 依日文规则语义窄补中文导出漏掉的“可以”。',
+  },
+  {
+    abilityId: PL_PB2_020_CONTINUOUS_SUCCESS_SCORE_NINE_PINK_YELLOW_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!-pb2-020'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: PL_PB2_020_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      '按基础编号覆盖全部罕度；continuous live modifier registry 按自己成功 LIVE 卡区有效分数合计动态判断，达到9时为来源成员收集 SOURCE_MEMBER 桃、黄 Heart 各1。来源离场或分数不足时动态失效。',
+  },
+  {
+    abilityId: PL_PB2_030_CONTINUOUS_SUCCESS_SCORE_PER_FIVE_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!-pb2-030'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: PL_PB2_030_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      '按基础编号覆盖全部罕度；continuous live modifier registry 复用成功 LIVE 有效分数 query，按 floor(合计/5) 为来源成员动态收集 SOURCE_MEMBER BLADE。非 LIVE 卡、来源离场及余数均不计入。',
+  },
+  {
+    abilityId: PL_PB2_033_ON_ENTER_WAIT_OPPONENT_ORIGINAL_HEART_THREE_ABILITY_ID,
+    baseCardCodes: ['PL!-pb2-033'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB2_033_OPPONENT_WAIT_EFFECT_TEXT,
+    notes:
+      '复用 shared `opponent-wait-target.ts`；目标为对方舞台顶层、当前非 WAITING 且当前原本 Heart 合计<=3的成员；原本 Heart replacement 会改变门槛基线，普通 Heart modifier 不会。成功变 WAITING 后通过标准成员状态事件 wrapper 回到统一 continuation。',
+  },
+  {
+    abilityId: PL_PB2_033_LIVE_START_WAIT_OPPONENT_ORIGINAL_HEART_THREE_ABILITY_ID,
+    baseCardCodes: ['PL!-pb2-033'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB2_033_OPPONENT_WAIT_EFFECT_TEXT,
+    notes:
+      '与同卡登场段共用完整玩家卡文、opponent-wait shared workflow 与当前原本 Heart<=3 状态查询；拆分 abilityId 以保持 LIVE_START 独立入队与待机结算。',
   },
   {
     abilityId: PL_PB2_039_LIVE_START_SUCCESS_MUSE_TWO_CHEER_TEN_ABILITY_ID,

@@ -8,11 +8,8 @@ import type { MemberStateChangeCause } from '../../domain/events/game-events.js'
 import { isMemberWaitProtectedFromChange } from '../../domain/rules/member-wait-protections.js';
 import { OrientationState } from '../../shared/types/enums.js';
 import type { CardSelector } from './card-selectors.js';
-import {
-  setMemberOrientation,
-  type SetMemberOrientationResult,
-} from './member-state.js';
-import { getStageMemberCardIdsMatching } from './stage-targets.js';
+import { setMemberOrientation, type SetMemberOrientationResult } from './member-state.js';
+import { getStageMemberCardIdsMatching, type StageMemberStatePredicate } from './stage-targets.js';
 
 export interface StageMemberOrientationTargetSelectionConfig {
   readonly ability: PendingAbilityState;
@@ -22,6 +19,7 @@ export interface StageMemberOrientationTargetSelectionConfig {
   readonly awaitingPlayerId: string;
   readonly targetPlayerId: string;
   readonly selector: CardSelector;
+  readonly statePredicate?: StageMemberStatePredicate;
   readonly targetOrientation: OrientationState;
   readonly selectionLabel: string;
   readonly confirmSelectionLabel?: string;
@@ -43,7 +41,8 @@ export function createStageMemberOrientationTargetSelection(
   const selectableCardIds = getStageMemberCardIdsMatching(
     game,
     config.targetPlayerId,
-    config.selector
+    config.selector,
+    config.statePredicate
   ).filter(
     (cardId) =>
       targetPlayer?.memberSlots.cardStates.get(cardId)?.orientation !== config.targetOrientation &&

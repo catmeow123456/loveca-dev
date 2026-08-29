@@ -229,6 +229,16 @@ describe('parseCardEffectText', () => {
     ]);
   });
 
+  it('maps every token in the PL!-pb2-020 and PL!-pb2-030 exported texts', () => {
+    const heartText =
+      '【常时】只要存在于自己的成功LIVE卡区的卡片的分数合计大于等于9，获得[桃ハート][黄ハート]。';
+    const bladeText = '【常时】存在于自己的成功LIVE卡区的卡片的分数合计每有5，获得[ブレード]。';
+
+    expect([heartText, bladeText].map(getUnknownCardEffectPlaceholders)).toEqual([[], []]);
+    expect(parseCardEffectText(heartText).filter((part) => part.kind === 'heart')).toHaveLength(2);
+    expect(parseCardEffectText(bladeText).filter((part) => part.kind === 'blade')).toHaveLength(1);
+  });
+
   it('reports unknown placeholders for governance checks', () => {
     expect(
       getUnknownCardEffectPlaceholders('获得[BLADE][桃ハート]，但不要写[桃Heart]或[blade]。')

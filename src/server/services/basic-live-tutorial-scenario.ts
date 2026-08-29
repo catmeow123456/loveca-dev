@@ -12,9 +12,9 @@ import {
   type GameCommand,
 } from '../../application/game-commands.js';
 import {
-  ELI_ACTIVATED_ABILITY_ID,
   HS_BP6_030_LIVE_START_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+  PB1_019_ACTIVATED_ABILITY_ID,
 } from '../../application/card-effects/ability-ids.js';
 import type { DeckConfig } from '../../application/game-service.js';
 import type { CardDataRegistry } from '../../domain/card-data/loader.js';
@@ -357,7 +357,7 @@ function commandMatchesPlayerMilestone(
     );
   }
   if (
-    state.activeEffect?.abilityId === ELI_ACTIVATED_ABILITY_ID &&
+    state.activeEffect?.abilityId === PB1_019_ACTIVATED_ABILITY_ID &&
     command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
     command.effectId === state.activeEffect.id
   ) {
@@ -400,7 +400,7 @@ function commandMatchesPlayerMilestone(
         return (
           command.type === GameCommandType.ACTIVATE_ABILITY &&
           command.cardId === recoveryMemberId &&
-          command.abilityId === ELI_ACTIVATED_ABILITY_ID &&
+          command.abilityId === PB1_019_ACTIVATED_ABILITY_ID &&
           command.abilityInstanceId === undefined
         );
       }
@@ -546,7 +546,7 @@ function describeExpectedPlayerAction(context: TutorialScenarioContext): string 
   if (state.activeEffect?.abilityId === HS_BP6_030_LIVE_START_DRAW_ONE_DISCARD_ONE_ABILITY_ID) {
     return '请处理 LIVE 开始时能力，保留 LIVE 并选择 1 张成员卡放入休息室';
   }
-  if (state.activeEffect?.abilityId === ELI_ACTIVATED_ABILITY_ID) {
+  if (state.activeEffect?.abilityId === PB1_019_ACTIVATED_ABILITY_ID) {
     return '请从休息室选择费用 4「桂城 泉」加入手牌';
   }
   if (state.currentPhase === GamePhase.MULLIGAN_PHASE) return '请换掉教程指定的卡牌';
