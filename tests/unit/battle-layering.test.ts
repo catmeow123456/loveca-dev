@@ -60,7 +60,7 @@ describe('battle overlay layering', () => {
   it('keeps tutorial guidance above modal surfaces while passing through board interaction', () => {
     const source = fs.readFileSync(TUTORIAL_GUIDANCE_LAYER_PATH, 'utf8');
     expect(source).toContain('pointer-events-none fixed z-[var(--z-tutorial-guidance)]');
-    expect(source).toContain('absolute flex flex-col');
+    expect(source).toContain('absolute flex flex-col overflow-hidden');
     expect(source).toContain("isCompactTransfer ? 'pointer-events-none' : 'pointer-events-auto'");
     expect(source).not.toContain('fixed inset-0 z-[120]');
   });

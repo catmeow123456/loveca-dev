@@ -128,6 +128,7 @@ export function BattleAnimationLayer() {
 
     const nextAnchors = collectBattleAnimationAnchors();
     const nextEvents: BattleAnimationEvent[] = [];
+    const discardClockNow = getDiscardPresentationMonotonicNow();
 
     if (
       playerViewChanged &&
@@ -141,7 +142,7 @@ export function BattleAnimationLayer() {
         nextViewState: playerViewState,
         previousAnchors,
         anchors: recentDiscardSourceAnchorsRef.current,
-        now: Date.now(),
+        now: discardClockNow,
       });
       nextEvents.push(
         ...createBattleAnimationEventsFromViewDiff({
@@ -166,7 +167,6 @@ export function BattleAnimationLayer() {
           (previousQueue.matchId !== publicBattleLog.matchId ||
             previousQueue.presentationEpoch !== publicBattleLog.presentationEpoch ||
             publicBattleLog.currentPublicSeq < previousQueue.latestPublicSeq));
-      const discardClockNow = getDiscardPresentationMonotonicNow();
       const queueInput = {
         matchId: publicBattleLog.matchId,
         presentationEpoch: publicBattleLog.presentationEpoch,
