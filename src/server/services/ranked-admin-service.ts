@@ -978,6 +978,7 @@ export class RankedAdminService {
       pattern,
       limit,
       offset,
+      normalizedQuery || null,
     ]);
     const first = result.rows[0];
     if (!first) {
@@ -2110,9 +2111,16 @@ const RANKED_ADMIN_PLAYER_LIST_QUERY = `WITH season AS MATERIALIZED (
     OR COALESCE(player.display_name, '') ILIKE $2 ESCAPE '\\'
   )
 ), paged AS MATERIALIZED (
-  SELECT *
-  FROM filtered_players
-  ORDER BY list_position ASC
+  SELECT player.*,
+    CASE
+      WHEN $5::text IS NULL THEN 3
+      WHEN LOWER(player.user_id::text) = LOWER($5::text) THEN 0
+      WHEN LOWER(player.username) = LOWER($5::text) THEN 1
+      WHEN LOWER(COALESCE(player.display_name, '')) = LOWER($5::text) THEN 2
+      ELSE 3
+    END AS search_priority
+  FROM filtered_players AS player
+  ORDER BY search_priority ASC, list_position ASC
   LIMIT $3 OFFSET $4
 ), totals AS (
   SELECT COUNT(*) AS total_count FROM filtered_players
@@ -2136,7 +2144,7 @@ FROM season
 LEFT JOIN active_release ON TRUE
 CROSS JOIN totals
 LEFT JOIN paged ON TRUE
-ORDER BY paged.list_position ASC NULLS LAST`;
+ORDER BY paged.search_priority ASC NULLS LAST, paged.list_position ASC NULLS LAST`;
 
 function readInsightsRelease(
   season: RankedAdminInsightsSeasonRow

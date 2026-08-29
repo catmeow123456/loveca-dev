@@ -819,13 +819,16 @@ describe('RankedAdminService', () => {
     expect(query).toHaveBeenCalledTimes(2);
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining('ROW_NUMBER() OVER (ORDER BY participant.rating DESC'),
-      ['season-1', '%player\\_100\\%%', 50, 0]
+      ['season-1', '%player\\_100\\%%', 50, 0, 'player_100%']
     );
-    expect(query).toHaveBeenLastCalledWith(expect.any(String), ['season-1', null, 50, 50]);
+    expect(query).toHaveBeenLastCalledWith(expect.any(String), ['season-1', null, 50, 50, null]);
     expect(query.mock.calls[0]?.[0]).toContain('ROW_NUMBER() OVER (');
     expect(query.mock.calls[0]?.[0]).toContain(') AS list_position');
     expect(query.mock.calls[0]?.[0]).toContain('FROM ordered_players AS player');
-    expect(query.mock.calls[0]?.[0]).toContain('ORDER BY list_position ASC');
+    expect(query.mock.calls[0]?.[0]).toContain(
+      'WHEN LOWER(player.username) = LOWER($5::text) THEN 1'
+    );
+    expect(query.mock.calls[0]?.[0]).toContain('list_position ASC');
     expect(query.mock.calls[0]?.[0]).toContain('LEFT JOIN active_release ON TRUE');
     expect(query.mock.calls[0]?.[0]).toContain('LIMIT $3 OFFSET $4');
   });

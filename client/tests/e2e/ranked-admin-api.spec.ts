@@ -336,7 +336,7 @@ async function seedE2eRankedPlayerRatings(): Promise<void> {
            VALUES ($1, $2, $3)`,
           [
             fixture.id,
-            `ranked_context_e2e_${ordinal}`,
+            ordinal === 4 ? 'ranked_context_e2e' : `ranked_context_e2e_${ordinal}`,
             ordinal === 4 ? '排位上下文目标%_' : `排位上下文玩家 ${ordinal}`,
           ]
         );
@@ -787,19 +787,25 @@ test.describe('赛季排位管理员 API', () => {
 
       const rankedTargetQuery = new URLSearchParams({
         seasonId: E2E_SEASON_ID,
-        q: 'ranked_context_e2e_4',
+        q: 'ranked_context_e2e',
+        limit: '3',
       });
       const filteredPlayersResponse = await request.get(
         `/api/admin/ranked/players?${rankedTargetQuery.toString()}`,
         { headers }
       );
       expect(filteredPlayersResponse.ok()).toBe(true);
-      await expect(filteredPlayersResponse.json()).resolves.toMatchObject({
-        data: {
-          total: 1,
-          query: 'ranked_context_e2e_4',
-          players: [{ userId: E2E_RANKED_TARGET_ID, listPosition: 4, rank: 4 }],
-        },
+      const filteredPlayersPayload =
+        (await filteredPlayersResponse.json()) as typeof firstPagePayload;
+      expect(filteredPlayersPayload.data).toMatchObject({
+        total: E2E_RANKED_PLAYER_FIXTURES.length - 1,
+        query: 'ranked_context_e2e',
+      });
+      expect(filteredPlayersPayload.data.players).toHaveLength(3);
+      expect(filteredPlayersPayload.data.players[0]).toMatchObject({
+        userId: E2E_RANKED_TARGET_ID,
+        listPosition: 4,
+        rank: 4,
       });
 
       const literalWildcardQuery = new URLSearchParams({
@@ -861,7 +867,7 @@ test.describe('赛季排位管理员 API', () => {
       expect(searchPayload.data).toHaveLength(E2E_RANKED_PLAYER_FIXTURES.length - 1);
       expect(searchPayload.data).toContainEqual({
         userId: E2E_RANKED_TARGET_ID,
-        username: 'ranked_context_e2e_4',
+        username: 'ranked_context_e2e',
         displayName: '排位上下文目标%_',
       });
       expect(searchPayload.data).not.toContainEqual(
