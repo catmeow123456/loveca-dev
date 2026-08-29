@@ -99,6 +99,7 @@ const SECOND_SEASON_PLAYERS = PLAYERS.slice(0, 2).map((player, index) => ({
 
 interface MockState {
   readonly mismatchOnFirstAppend?: boolean;
+  readonly advanceRevisionOnEveryPlayerRequest?: boolean;
   readonly includeSecondSeason?: boolean;
   readonly delayFirstSeasonPlayersMs?: number;
   mismatchSeen: boolean;
@@ -114,12 +115,14 @@ interface MockState {
 function createMockState(
   input: {
     mismatchOnFirstAppend?: boolean;
+    advanceRevisionOnEveryPlayerRequest?: boolean;
     includeSecondSeason?: boolean;
     delayFirstSeasonPlayersMs?: number;
   } = {}
 ): MockState {
   return {
     mismatchOnFirstAppend: input.mismatchOnFirstAppend,
+    advanceRevisionOnEveryPlayerRequest: input.advanceRevisionOnEveryPlayerRequest,
     includeSecondSeason: input.includeSecondSeason,
     delayFirstSeasonPlayersMs: input.delayFirstSeasonPlayersMs,
     mismatchSeen: false,
@@ -314,7 +317,11 @@ async function installRankedInsightsMocks(page: Page, state: MockState): Promise
       if (state.mismatchOnFirstAppend && offset > 0 && !state.mismatchSeen) {
         state.mismatchSeen = true;
       }
-      const revision = state.mismatchSeen ? 2 : 1;
+      const revision = state.advanceRevisionOnEveryPlayerRequest
+        ? state.playerRequests.length + 1
+        : state.mismatchSeen
+          ? 2
+          : 1;
       state.playerRequests.push({ query, limit, offset, revision });
       const baseSeasonPlayers =
         requestedSeasonId === SECOND_SEASON_ID ? SECOND_SEASON_PLAYERS : PLAYERS;
@@ -510,6 +517,26 @@ test.describe('排位管理员洞察页面', () => {
     await candidates.getByRole('button', { name: '定位 @insight_player_097' }).click();
     const playerTable = page.getByRole('table', { name: '全部参赛玩家' });
     await expect(playerTable.locator('tbody tr').nth(3)).toContainText('@insight_player_097');
+  });
+
+  test('定位期间快照持续变化时只自动重试一次', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'tablet-1024x768', '定位竞态仅在桌面代表视口执行');
+    const state = createMockState({ advanceRevisionOnEveryPlayerRequest: true });
+    await openRankedInsights(page, state);
+
+    await page.getByLabel('定位排位玩家').fill('@insight_player_097');
+    await page.getByRole('button', { name: '定位', exact: true }).click();
+
+    await expect(page.getByText('定位期间排位数据持续变化，请稍后重试')).toBeVisible();
+    await expect.poll(() => state.playerRequests.length).toBe(4);
+    await page.waitForTimeout(300);
+    expect(state.playerRequests).toHaveLength(4);
+    expect(state.playerRequests).toEqual([
+      { query: 'insight_player_097', limit: 10, offset: 0, revision: 1 },
+      { query: '', limit: 7, offset: 93, revision: 2 },
+      { query: 'insight_player_097', limit: 10, offset: 0, revision: 3 },
+      { query: '', limit: 7, offset: 93, revision: 4 },
+    ]);
   });
 
   test('追加页快照变化时丢弃旧分页并重新读取首屏', async ({ page }, testInfo) => {

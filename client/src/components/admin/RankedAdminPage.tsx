@@ -72,6 +72,7 @@ const MATCH_PAGE_SIZE = 20;
 const RANKED_PLAYER_PAGE_SIZE = 50;
 const RANKED_PLAYER_LOCATE_WINDOW_SIZE = 7;
 const RANKED_PLAYER_SEARCH_LIMIT = 10;
+const RANKED_PLAYER_LOCATE_MAX_SNAPSHOT_RETRIES = 1;
 const DECK_CATEGORY_PREVIEW_COUNT = 3;
 const MATCH_RATING_STATUS_OPTIONS: readonly SelectMenuOption<MatchRatingStatus>[] = [
   { value: '', label: '全部计分状态' },
@@ -1132,7 +1133,8 @@ function RankedPlayersTable({ seasonId }: { seasonId: string }) {
     target: RankedAdminPlayerListItem,
     searchSnapshot: RankedAdminPlayerPage,
     sequence: number,
-    normalizedQuery: string
+    normalizedQuery: string,
+    snapshotRetryCount: number
   ) {
     setExpanded(true);
     setPlayers([]);
@@ -1151,7 +1153,11 @@ function RankedPlayersTable({ seasonId }: { seasonId: string }) {
       rankedAdminPlayerSnapshotKey(result) !== rankedAdminPlayerSnapshotKey(searchSnapshot) ||
       !result.players.some((player) => player.userId === target.userId)
     ) {
-      void locatePlayer(normalizedQuery);
+      if (snapshotRetryCount < RANKED_PLAYER_LOCATE_MAX_SNAPSHOT_RETRIES) {
+        void locatePlayer(normalizedQuery, snapshotRetryCount + 1);
+      } else {
+        setSearchError('定位期间排位数据持续变化，请稍后重试');
+      }
       return;
     }
     setPlayers(result.players);
@@ -1162,7 +1168,7 @@ function RankedPlayersTable({ seasonId }: { seasonId: string }) {
     setCandidatePage(null);
   }
 
-  async function locatePlayer(nextQuery: string) {
+  async function locatePlayer(nextQuery: string, snapshotRetryCount = 0) {
     const normalizedQuery = nextQuery.trim().replace(/^@/u, '');
     if (!normalizedQuery) {
       setQuery('');
@@ -1202,7 +1208,7 @@ function RankedPlayersTable({ seasonId }: { seasonId: string }) {
         setCandidatePage(result);
         return;
       }
-      await loadLocatedWindow(target, result, sequence, normalizedQuery);
+      await loadLocatedWindow(target, result, sequence, normalizedQuery, snapshotRetryCount);
     } catch (loadError) {
       if (requestSequence.current === sequence) setSearchError(readError(loadError));
     } finally {
@@ -1221,7 +1227,7 @@ function RankedPlayersTable({ seasonId }: { seasonId: string }) {
     setSearchBusy(true);
     setSearchError(null);
     try {
-      await loadLocatedWindow(target, candidatePage, sequence, query.trim().replace(/^@/u, ''));
+      await loadLocatedWindow(target, candidatePage, sequence, query.trim().replace(/^@/u, ''), 0);
     } catch (loadError) {
       if (requestSequence.current === sequence) setSearchError(readError(loadError));
     } finally {
