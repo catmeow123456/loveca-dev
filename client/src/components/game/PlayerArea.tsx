@@ -82,8 +82,10 @@ import {
   ArrowUpToLine,
   BarChart3,
   Check,
+  EyeOff,
   Hand,
   Layers3,
+  Maximize2,
   Megaphone,
   Trash2,
   X,
@@ -111,6 +113,8 @@ interface PlayerAreaProps {
   isOpponent: boolean;
   isActive: boolean;
   suppressActiveEffectVisuals?: boolean;
+  isInspectionZoneCollapsed: boolean;
+  onInspectionZoneCollapsedChange: (collapsed: boolean) => void;
   selectedHandCardActionCardId?: string | null;
   selectedHandCardActions?: readonly SelectedHandCardAction[];
   suppressSelectedHandCardActionMenu?: boolean;
@@ -375,6 +379,8 @@ export const PlayerArea = memo(function PlayerArea({
   isOpponent,
   isActive,
   suppressActiveEffectVisuals = false,
+  isInspectionZoneCollapsed,
+  onInspectionZoneCollapsedChange,
   selectedHandCardActionCardId = null,
   selectedHandCardActions = [],
   suppressSelectedHandCardActionMenu = false,
@@ -2496,6 +2502,7 @@ export const PlayerArea = memo(function PlayerArea({
     };
 
     const inspectionSurfacePositionClass = isOpponent ? 'bottom-[88px]' : 'top-[88px]';
+    const inspectionZoneDomId = getDroppableId(ZoneType.INSPECTION_ZONE);
 
     return (
       <>
@@ -2518,219 +2525,275 @@ export const PlayerArea = memo(function PlayerArea({
             inspectionSurfacePositionClass
           )}
         >
-          <div className="flex w-[min(92vw,780px)] flex-col gap-2.5 overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--accent-primary)_30%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-2.5 shadow-[var(--shadow-lg)] backdrop-blur-xl sm:w-[min(82vw,780px)]">
-            <DroppableZone
-              id={`${INSPECTION_TARGET_IDS.blocker}-header`}
-              className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-              activeClassName=""
+          {isInspectionZoneCollapsed ? (
+            <div
+              id={inspectionZoneDomId}
+              data-animation-zone-id={inspectionZoneDomId}
+              data-inspection-zone-collapsed="true"
+              className="flex w-[min(92vw,360px)] items-center justify-between gap-3 overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--accent-primary)_30%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-2.5 shadow-[var(--shadow-lg)] backdrop-blur-xl sm:w-[min(82vw,360px)]"
             >
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-[var(--text-secondary)]">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="truncate text-[11px] font-semibold text-[var(--text-secondary)]">
                   检视区
                 </span>
-                <div className="rounded-full border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_88%,transparent)] px-2 py-1 text-[11px] font-semibold text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">
+                <div className="shrink-0 rounded-full border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_88%,transparent)] px-2 py-1 text-[11px] font-semibold text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">
                   {inspectionZoneView?.count ?? inspectionCardIds.length}
                 </div>
               </div>
-              {canUseInspectionActions ? (
-                <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
+              <button
+                type="button"
+                aria-label="展开检视区"
+                aria-expanded={false}
+                aria-controls={inspectionZoneDomId}
+                onClick={() => onInspectionZoneCollapsedChange(false)}
+                className="button-primary inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
+              >
+                <Maximize2 className="h-4 w-4" aria-hidden="true" />
+                展开检视区
+              </button>
+            </div>
+          ) : (
+            <div
+              data-inspection-zone-collapsed="false"
+              className="flex w-[min(92vw,780px)] flex-col gap-2.5 overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--accent-primary)_30%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-2.5 shadow-[var(--shadow-lg)] backdrop-blur-xl sm:w-[min(82vw,780px)]"
+            >
+              <DroppableZone
+                id={`${INSPECTION_TARGET_IDS.blocker}-header`}
+                className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                activeClassName=""
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-[var(--text-secondary)]">
+                    检视区
+                  </span>
+                  <div className="rounded-full border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_88%,transparent)] px-2 py-1 text-[11px] font-semibold text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">
+                    {inspectionZoneView?.count ?? inspectionCardIds.length}
+                  </div>
+                </div>
+                <div
+                  className={cn(
+                    'grid w-full gap-2 sm:flex sm:w-auto sm:items-center',
+                    canUseInspectionActions ? 'grid-cols-3' : 'grid-cols-1'
+                  )}
+                >
+                  {canUseInspectionActions ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={
+                          !canBatchArrangeInspection ||
+                          !canUseInspectionActions ||
+                          inspectionCardIds.length === 0 ||
+                          inspectionBatchAction !== null
+                        }
+                        onClick={moveAllInspectionCardsToWaitingRoom}
+                        className={cn(
+                          'inline-flex min-h-8 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded px-2 py-1 text-[11px] font-medium text-white',
+                          canBatchArrangeInspection &&
+                            canUseInspectionActions &&
+                            inspectionCardIds.length > 0 &&
+                            inspectionBatchAction === null
+                            ? 'bg-slate-700 hover:bg-slate-600'
+                            : 'cursor-not-allowed bg-slate-600'
+                        )}
+                        title="将检视区全部移入休息室"
+                      >
+                        <Trash2 size={12} />
+                        全放休息室
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canCloseInspection}
+                        onClick={closeInspectionByReturningCardsToTop}
+                        className={cn(
+                          'inline-flex min-h-8 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded px-2 py-1 text-[11px] font-medium text-white',
+                          canCloseInspection
+                            ? 'bg-emerald-600 hover:bg-emerald-500'
+                            : 'cursor-not-allowed bg-slate-600'
+                        )}
+                        title="关闭检视区并按当前顺序把牌放回主卡组顶"
+                      >
+                        <Check size={12} />
+                        关闭回顶
+                      </button>
+                    </>
+                  ) : null}
                   <button
                     type="button"
-                    disabled={
-                      !canBatchArrangeInspection ||
-                      !canUseInspectionActions ||
-                      inspectionCardIds.length === 0 ||
-                      inspectionBatchAction !== null
-                    }
-                    onClick={moveAllInspectionCardsToWaitingRoom}
-                    className={cn(
-                      'inline-flex min-h-8 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded px-2 py-1 text-[11px] font-medium text-white',
-                      canBatchArrangeInspection &&
-                        canUseInspectionActions &&
-                        inspectionCardIds.length > 0 &&
-                        inspectionBatchAction === null
-                        ? 'bg-slate-700 hover:bg-slate-600'
-                        : 'cursor-not-allowed bg-slate-600'
-                    )}
-                    title="将检视区全部移入休息室"
+                    aria-label="隐藏检视区"
+                    aria-expanded={true}
+                    aria-controls={inspectionZoneDomId}
+                    onClick={() => {
+                      setHoveredCard(null);
+                      onInspectionZoneCollapsedChange(true);
+                    }}
+                    className="button-secondary inline-flex min-h-8 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap px-2 text-[11px] font-semibold"
                   >
-                    <Trash2 size={12} />
-                    全放休息室
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!canCloseInspection}
-                    onClick={closeInspectionByReturningCardsToTop}
-                    className={cn(
-                      'inline-flex min-h-8 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded px-2 py-1 text-[11px] font-medium text-white',
-                      canCloseInspection
-                        ? 'bg-emerald-600 hover:bg-emerald-500'
-                        : 'cursor-not-allowed bg-slate-600'
-                    )}
-                    title="关闭检视区并按当前顺序把牌放回主卡组顶"
-                  >
-                    <Check size={12} />
-                    关闭回顶
+                    <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+                    隐藏
                   </button>
                 </div>
-              ) : null}
-            </DroppableZone>
-
-            {hasVisibleInspectionCards ? (
-              <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(0,1fr)_3.75rem]">
-                <SortableContext items={inspectionCardIds} strategy={horizontalListSortingStrategy}>
-                  <DroppableZone
-                    id={getDroppableId(ZoneType.INSPECTION_ZONE)}
-                    zoneId={createZoneId(ZoneType.INSPECTION_ZONE)}
-                    disabled={!canUseInspectionActions}
-                    className="relative min-h-[112px] min-w-0 overflow-x-auto rounded-xl border border-dashed border-[color:color-mix(in_srgb,var(--accent-primary)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_22%,transparent)] px-2 py-2 sm:min-h-[124px]"
-                    activeClassName="outline outline-2 outline-purple-400 bg-purple-500/15"
-                    dropTargetClassName="outline outline-2 outline-dashed outline-purple-400/80 bg-purple-500/10"
-                  >
-                    <div
-                      data-animation-zone-id={getDroppableId(ZoneType.INSPECTION_ZONE)}
-                      className="pointer-events-none absolute left-2 top-2 h-[84px] w-[60px] rounded-lg opacity-0 sm:h-[96px] sm:w-[68px]"
-                    />
-                    <div className="flex w-max min-w-full items-start gap-3">
-                      {inspectionCardIds.map((cardId, index) => {
-                        const viewObject = getCardViewObject(cardId);
-                        const card = getVisibleCardPresentation(cardId);
-                        const showFront = viewObject?.surface === 'FRONT' && !!card;
-                        const imagePath = showFront && card ? card.imagePath : '/back.jpg';
-
-                        return (
-                          <CardDetailPressTarget
-                            key={cardId}
-                            cardId={showFront && card ? card.instanceId : null}
-                            disabled={!showFront || !card}
-                            className="shrink-0"
-                          >
-                            <SortableInspectionCard
-                              cardId={cardId}
-                              imagePath={imagePath}
-                              containerClassName={getBattleAnimationOcclusionClass(cardId)}
-                              className={cn(
-                                getActiveEffectTaskCardClass(cardId),
-                                selectedCardId === cardId &&
-                                  'ring-2 ring-cyan-300 ring-offset-2 ring-offset-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.68)]'
-                              )}
-                              disabled={!canUseInspectionActions || !canDragInspectionCard}
-                              showActions={canUseInspectionActions}
-                              canReveal={canUseInspectionActions && canRevealInspectedCard}
-                              isRevealed={isInspectionCardPubliclyRevealed(cardId)}
-                              revealIndex={index}
-                              onReveal={(targetCardId) => {
-                                revealInspectedCard(targetCardId);
-                              }}
-                              onClick={() => {
-                                if (confirmActiveEffectCardFromTable(cardId)) {
-                                  return;
-                                }
-                                if (canUseInspectionActions) {
-                                  toggleSelectedCard(cardId);
-                                }
-                              }}
-                            />
-                          </CardDetailPressTarget>
-                        );
-                      })}
-                    </div>
-                  </DroppableZone>
-                </SortableContext>
-
-                {canUseInspectionActions ? (
-                  <div
-                    className={cn(
-                      'grid grid-cols-4 gap-1 md:grid-cols-1',
-                      isDragging ? 'opacity-100' : 'opacity-70'
-                    )}
-                  >
-                    <DroppableZone
-                      id={INSPECTION_TARGET_IDS.hand}
-                      disabled={!canMoveInspectedToZone}
-                      title={inspectionHandTarget?.target.label ?? '加入手牌'}
-                      ariaLabel="加入手牌"
-                      onClick={() => executeInspectionTarget(inspectionHandTarget)}
-                      className={cn(
-                        'flex min-h-9 items-center justify-center gap-1 rounded-md border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_38%,transparent)] px-1 text-[10px] font-semibold text-[var(--text-secondary)] md:h-9 md:px-1',
-                        inspectionHandTarget &&
-                          'cursor-pointer border-cyan-300 bg-cyan-500/15 text-cyan-50 shadow-[0_0_14px_rgba(34,211,238,0.24)]'
-                      )}
-                      activeClassName="ring-2 ring-inset ring-cyan-300 bg-cyan-500/15 text-cyan-50"
-                      dropTargetClassName="ring-2 ring-inset ring-cyan-300/80 bg-cyan-500/10 text-cyan-50"
-                    >
-                      <Layers3 size={13} className="shrink-0" />
-                      <span className="whitespace-nowrap leading-none">手牌</span>
-                    </DroppableZone>
-                    <DroppableZone
-                      id={INSPECTION_TARGET_IDS.waitingRoom}
-                      disabled={!canMoveInspectedToZone}
-                      title={inspectionWaitingRoomTarget?.target.label ?? '放入休息室'}
-                      ariaLabel="放入休息室"
-                      onClick={() => executeInspectionTarget(inspectionWaitingRoomTarget)}
-                      className={cn(
-                        'flex min-h-9 items-center justify-center gap-1 rounded-md border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_38%,transparent)] px-1 text-[10px] font-semibold text-[var(--text-secondary)] md:h-9 md:px-1',
-                        inspectionWaitingRoomTarget &&
-                          'cursor-pointer border-slate-200 bg-slate-500/15 text-slate-50 shadow-[0_0_14px_rgba(226,232,240,0.18)]'
-                      )}
-                      activeClassName="ring-2 ring-inset ring-[color:color-mix(in_srgb,var(--text-secondary)_70%,white)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_58%,transparent)] text-[var(--text-primary)]"
-                      dropTargetClassName="ring-2 ring-inset ring-[color:color-mix(in_srgb,var(--text-secondary)_65%,white)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_48%,transparent)] text-[var(--text-primary)]"
-                    >
-                      <Trash2 size={13} className="shrink-0" />
-                      <span className="whitespace-nowrap leading-none">休息</span>
-                    </DroppableZone>
-                    <DroppableZone
-                      id={INSPECTION_TARGET_IDS.mainDeckTop}
-                      disabled={!canMoveInspectedToTop}
-                      title={inspectionMainDeckTopTarget?.target.label ?? '回卡组顶'}
-                      ariaLabel="回卡组顶"
-                      onClick={() => executeInspectionTarget(inspectionMainDeckTopTarget)}
-                      className={cn(
-                        'flex min-h-9 items-center justify-center gap-1 rounded-md border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_38%,transparent)] px-1 text-[10px] font-semibold text-[var(--text-secondary)] md:h-9 md:px-1',
-                        inspectionMainDeckTopTarget &&
-                          'cursor-pointer border-amber-300 bg-amber-500/15 text-amber-50 shadow-[0_0_14px_rgba(251,191,36,0.22)]'
-                      )}
-                      activeClassName="ring-2 ring-inset ring-amber-300 bg-amber-500/15 text-amber-50"
-                      dropTargetClassName="ring-2 ring-inset ring-amber-300/80 bg-amber-500/10 text-amber-50"
-                    >
-                      <ArrowUpToLine size={13} className="shrink-0" />
-                      <span className="whitespace-nowrap leading-none">顶</span>
-                    </DroppableZone>
-                    <DroppableZone
-                      id={INSPECTION_TARGET_IDS.mainDeckBottom}
-                      disabled={!canMoveInspectedToBottom}
-                      title={inspectionMainDeckBottomTarget?.target.label ?? '放卡组底'}
-                      ariaLabel="放卡组底"
-                      onClick={() => executeInspectionTarget(inspectionMainDeckBottomTarget)}
-                      className={cn(
-                        'flex min-h-9 items-center justify-center gap-1 rounded-md border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_38%,transparent)] px-1 text-[10px] font-semibold text-[var(--text-secondary)] md:h-9 md:px-1',
-                        inspectionMainDeckBottomTarget &&
-                          'cursor-pointer border-[var(--accent-gold)] bg-[color:color-mix(in_srgb,var(--accent-gold)_16%,transparent)] text-[var(--accent-gold-light)] shadow-[0_0_14px_color-mix(in_srgb,var(--accent-gold)_18%,transparent)]'
-                      )}
-                      activeClassName="ring-2 ring-inset ring-[var(--accent-gold)] bg-[color:color-mix(in_srgb,var(--accent-gold)_16%,transparent)] text-[var(--accent-gold-light)]"
-                      dropTargetClassName="ring-2 ring-inset ring-[var(--accent-gold)] bg-[color:color-mix(in_srgb,var(--accent-gold)_10%,transparent)] text-[var(--accent-gold-light)]"
-                    >
-                      <ArrowDownToLine size={13} className="shrink-0" />
-                      <span className="whitespace-nowrap leading-none">底</span>
-                    </DroppableZone>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <DroppableZone
-                id={getDroppableId(ZoneType.INSPECTION_ZONE)}
-                zoneId={createZoneId(ZoneType.INSPECTION_ZONE)}
-                disabled={!canUseInspectionActions}
-                className="rounded-lg border border-dashed border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_36%,transparent)] px-4 py-3 text-center text-xs text-[var(--text-muted)]"
-                activeClassName="outline outline-2 outline-purple-400 bg-purple-500/15"
-                dropTargetClassName="outline outline-2 outline-dashed outline-purple-400/80 bg-purple-500/10"
-              >
-                {canUseInspectionActions
-                  ? '拖到这里移入检视区。检视区已清空时，也可直接关闭。'
-                  : '当前检视区暂无可见卡牌。'}
               </DroppableZone>
-            )}
-          </div>
+
+              {hasVisibleInspectionCards ? (
+                <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(0,1fr)_3.75rem]">
+                  <SortableContext
+                    items={inspectionCardIds}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    <DroppableZone
+                      id={inspectionZoneDomId}
+                      zoneId={createZoneId(ZoneType.INSPECTION_ZONE)}
+                      disabled={!canUseInspectionActions}
+                      className="relative min-h-[112px] min-w-0 overflow-x-auto rounded-xl border border-dashed border-[color:color-mix(in_srgb,var(--accent-primary)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_22%,transparent)] px-2 py-2 sm:min-h-[124px]"
+                      activeClassName="outline outline-2 outline-purple-400 bg-purple-500/15"
+                      dropTargetClassName="outline outline-2 outline-dashed outline-purple-400/80 bg-purple-500/10"
+                    >
+                      <div
+                        data-animation-zone-id={getDroppableId(ZoneType.INSPECTION_ZONE)}
+                        className="pointer-events-none absolute left-2 top-2 h-[84px] w-[60px] rounded-lg opacity-0 sm:h-[96px] sm:w-[68px]"
+                      />
+                      <div className="flex w-max min-w-full items-start gap-3">
+                        {inspectionCardIds.map((cardId, index) => {
+                          const viewObject = getCardViewObject(cardId);
+                          const card = getVisibleCardPresentation(cardId);
+                          const showFront = viewObject?.surface === 'FRONT' && !!card;
+                          const imagePath = showFront && card ? card.imagePath : '/back.jpg';
+
+                          return (
+                            <CardDetailPressTarget
+                              key={cardId}
+                              cardId={showFront && card ? card.instanceId : null}
+                              disabled={!showFront || !card}
+                              className="shrink-0"
+                            >
+                              <SortableInspectionCard
+                                cardId={cardId}
+                                imagePath={imagePath}
+                                containerClassName={getBattleAnimationOcclusionClass(cardId)}
+                                className={cn(
+                                  getActiveEffectTaskCardClass(cardId),
+                                  selectedCardId === cardId &&
+                                    'ring-2 ring-cyan-300 ring-offset-2 ring-offset-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.68)]'
+                                )}
+                                disabled={!canUseInspectionActions || !canDragInspectionCard}
+                                showActions={canUseInspectionActions}
+                                canReveal={canUseInspectionActions && canRevealInspectedCard}
+                                isRevealed={isInspectionCardPubliclyRevealed(cardId)}
+                                revealIndex={index}
+                                onReveal={(targetCardId) => {
+                                  revealInspectedCard(targetCardId);
+                                }}
+                                onClick={() => {
+                                  if (confirmActiveEffectCardFromTable(cardId)) {
+                                    return;
+                                  }
+                                  if (canUseInspectionActions) {
+                                    toggleSelectedCard(cardId);
+                                  }
+                                }}
+                              />
+                            </CardDetailPressTarget>
+                          );
+                        })}
+                      </div>
+                    </DroppableZone>
+                  </SortableContext>
+
+                  {canUseInspectionActions ? (
+                    <div
+                      className={cn(
+                        'grid grid-cols-4 gap-1 md:grid-cols-1',
+                        isDragging ? 'opacity-100' : 'opacity-70'
+                      )}
+                    >
+                      <DroppableZone
+                        id={INSPECTION_TARGET_IDS.hand}
+                        disabled={!canMoveInspectedToZone}
+                        title={inspectionHandTarget?.target.label ?? '加入手牌'}
+                        ariaLabel="加入手牌"
+                        onClick={() => executeInspectionTarget(inspectionHandTarget)}
+                        className={cn(
+                          'flex min-h-9 items-center justify-center gap-1 rounded-md border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_38%,transparent)] px-1 text-[10px] font-semibold text-[var(--text-secondary)] md:h-9 md:px-1',
+                          inspectionHandTarget &&
+                            'cursor-pointer border-cyan-300 bg-cyan-500/15 text-cyan-50 shadow-[0_0_14px_rgba(34,211,238,0.24)]'
+                        )}
+                        activeClassName="ring-2 ring-inset ring-cyan-300 bg-cyan-500/15 text-cyan-50"
+                        dropTargetClassName="ring-2 ring-inset ring-cyan-300/80 bg-cyan-500/10 text-cyan-50"
+                      >
+                        <Layers3 size={13} className="shrink-0" />
+                        <span className="whitespace-nowrap leading-none">手牌</span>
+                      </DroppableZone>
+                      <DroppableZone
+                        id={INSPECTION_TARGET_IDS.waitingRoom}
+                        disabled={!canMoveInspectedToZone}
+                        title={inspectionWaitingRoomTarget?.target.label ?? '放入休息室'}
+                        ariaLabel="放入休息室"
+                        onClick={() => executeInspectionTarget(inspectionWaitingRoomTarget)}
+                        className={cn(
+                          'flex min-h-9 items-center justify-center gap-1 rounded-md border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_38%,transparent)] px-1 text-[10px] font-semibold text-[var(--text-secondary)] md:h-9 md:px-1',
+                          inspectionWaitingRoomTarget &&
+                            'cursor-pointer border-slate-200 bg-slate-500/15 text-slate-50 shadow-[0_0_14px_rgba(226,232,240,0.18)]'
+                        )}
+                        activeClassName="ring-2 ring-inset ring-[color:color-mix(in_srgb,var(--text-secondary)_70%,white)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_58%,transparent)] text-[var(--text-primary)]"
+                        dropTargetClassName="ring-2 ring-inset ring-[color:color-mix(in_srgb,var(--text-secondary)_65%,white)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_48%,transparent)] text-[var(--text-primary)]"
+                      >
+                        <Trash2 size={13} className="shrink-0" />
+                        <span className="whitespace-nowrap leading-none">休息</span>
+                      </DroppableZone>
+                      <DroppableZone
+                        id={INSPECTION_TARGET_IDS.mainDeckTop}
+                        disabled={!canMoveInspectedToTop}
+                        title={inspectionMainDeckTopTarget?.target.label ?? '回卡组顶'}
+                        ariaLabel="回卡组顶"
+                        onClick={() => executeInspectionTarget(inspectionMainDeckTopTarget)}
+                        className={cn(
+                          'flex min-h-9 items-center justify-center gap-1 rounded-md border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_38%,transparent)] px-1 text-[10px] font-semibold text-[var(--text-secondary)] md:h-9 md:px-1',
+                          inspectionMainDeckTopTarget &&
+                            'cursor-pointer border-amber-300 bg-amber-500/15 text-amber-50 shadow-[0_0_14px_rgba(251,191,36,0.22)]'
+                        )}
+                        activeClassName="ring-2 ring-inset ring-amber-300 bg-amber-500/15 text-amber-50"
+                        dropTargetClassName="ring-2 ring-inset ring-amber-300/80 bg-amber-500/10 text-amber-50"
+                      >
+                        <ArrowUpToLine size={13} className="shrink-0" />
+                        <span className="whitespace-nowrap leading-none">顶</span>
+                      </DroppableZone>
+                      <DroppableZone
+                        id={INSPECTION_TARGET_IDS.mainDeckBottom}
+                        disabled={!canMoveInspectedToBottom}
+                        title={inspectionMainDeckBottomTarget?.target.label ?? '放卡组底'}
+                        ariaLabel="放卡组底"
+                        onClick={() => executeInspectionTarget(inspectionMainDeckBottomTarget)}
+                        className={cn(
+                          'flex min-h-9 items-center justify-center gap-1 rounded-md border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_38%,transparent)] px-1 text-[10px] font-semibold text-[var(--text-secondary)] md:h-9 md:px-1',
+                          inspectionMainDeckBottomTarget &&
+                            'cursor-pointer border-[var(--accent-gold)] bg-[color:color-mix(in_srgb,var(--accent-gold)_16%,transparent)] text-[var(--accent-gold-light)] shadow-[0_0_14px_color-mix(in_srgb,var(--accent-gold)_18%,transparent)]'
+                        )}
+                        activeClassName="ring-2 ring-inset ring-[var(--accent-gold)] bg-[color:color-mix(in_srgb,var(--accent-gold)_16%,transparent)] text-[var(--accent-gold-light)]"
+                        dropTargetClassName="ring-2 ring-inset ring-[var(--accent-gold)] bg-[color:color-mix(in_srgb,var(--accent-gold)_10%,transparent)] text-[var(--accent-gold-light)]"
+                      >
+                        <ArrowDownToLine size={13} className="shrink-0" />
+                        <span className="whitespace-nowrap leading-none">底</span>
+                      </DroppableZone>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <DroppableZone
+                  id={inspectionZoneDomId}
+                  zoneId={createZoneId(ZoneType.INSPECTION_ZONE)}
+                  disabled={!canUseInspectionActions}
+                  className="rounded-lg border border-dashed border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_36%,transparent)] px-4 py-3 text-center text-xs text-[var(--text-muted)]"
+                  activeClassName="outline outline-2 outline-purple-400 bg-purple-500/15"
+                  dropTargetClassName="outline outline-2 outline-dashed outline-purple-400/80 bg-purple-500/10"
+                >
+                  {canUseInspectionActions
+                    ? '拖到这里移入检视区。检视区已清空时，也可直接关闭。'
+                    : '当前检视区暂无可见卡牌。'}
+                </DroppableZone>
+              )}
+            </div>
+          )}
         </div>
       </>
     );
