@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen,
   ChevronLeft,
@@ -22,7 +22,8 @@ import {
   deleteRankedSeasonDraft,
   applyRankedRatingRevision,
   executeRankedCorrection,
-  fetchRankedAdminPlayerContext,
+  fetchRankedAdminDeckStatistics,
+  fetchRankedAdminPlayers,
   fetchRankedEnvironment,
   fetchRankedMatch,
   fetchRankedMatches,
@@ -31,8 +32,8 @@ import {
   fetchRankedSeasons,
   previewRankedRatingRevision,
   previewRankedCorrection,
+  rankedAdminPlayerSnapshotKey,
   runRankedSeasonAction,
-  searchRankedAdminPlayers,
   setRankedAdmission,
   settleRankedMatch,
   updateActiveRankedSeasonOperations,
@@ -43,9 +44,12 @@ import {
   type RankedAdminMatchDeckCard,
   type RankedAdminMatchDetail,
   type RankedAdminOverview,
-  type RankedAdminPlayerContext,
-  type RankedAdminPlayerRankRow,
-  type RankedAdminPlayerSearchResult,
+  type RankedAdminDeckStatistics as RankedAdminDeckStatisticsData,
+  type RankedAdminDeckStatisticsCategory,
+  type RankedAdminPlayerListItem,
+  type RankedAdminPlayerPage,
+  type RankedAdminPlayerStatus,
+  type RankedAdminPlayerSummary,
   type RankedAdminSeason,
   type RankedCorrectionPreview,
   type RankedRatingConfig,
@@ -65,6 +69,10 @@ import {
 type Tab = 'overview' | 'season' | 'matches';
 type MatchRatingStatus = RankedAdminMatch['ratingStatus'] | '';
 const MATCH_PAGE_SIZE = 20;
+const RANKED_PLAYER_PAGE_SIZE = 50;
+const RANKED_PLAYER_LOCATE_WINDOW_SIZE = 7;
+const RANKED_PLAYER_SEARCH_LIMIT = 10;
+const DECK_CATEGORY_PREVIEW_COUNT = 3;
 const MATCH_RATING_STATUS_OPTIONS: readonly SelectMenuOption<MatchRatingStatus>[] = [
   { value: '', label: '全部计分状态' },
   { value: 'PENDING', label: '等待计分' },
@@ -97,6 +105,7 @@ export function RankedAdminPage({
   const [overview, setOverview] = useState<RankedAdminOverview | null>(null);
   const [overviewSeasonId, setOverviewSeasonId] = useState('');
   const [overviewBusy, setOverviewBusy] = useState(false);
+  const [insightsRefreshRevision, setInsightsRefreshRevision] = useState(0);
   const overviewRequestSequence = useRef(0);
   const matchRequestSequence = useRef(0);
   const [matches, setMatches] = useState<RankedAdminMatch[]>([]);
@@ -217,6 +226,7 @@ export function RankedAdminPage({
   };
 
   const load = async () => {
+    setInsightsRefreshRevision((current) => current + 1);
     setBusy(true);
     setError(null);
     try {
@@ -342,6 +352,7 @@ export function RankedAdminPage({
               selectedSeasonId={overviewSeasonId}
               overview={overview}
               busy={overviewBusy}
+              insightsRefreshRevision={insightsRefreshRevision}
               onSelectSeason={(seasonId) => {
                 setOverviewSeasonId(seasonId);
                 setOverview(null);
@@ -530,12 +541,14 @@ function OverviewPanel({
   selectedSeasonId,
   overview,
   busy,
+  insightsRefreshRevision,
   onSelectSeason,
 }: {
   seasons: RankedAdminSeason[];
   selectedSeasonId: string;
   overview: RankedAdminOverview | null;
   busy: boolean;
+  insightsRefreshRevision: number;
   onSelectSeason: (seasonId: string) => void;
 }) {
   const season = seasons.find((item) => item.id === selectedSeasonId) ?? null;
@@ -711,7 +724,15 @@ function OverviewPanel({
         </div>
       </section>
 
-      <RankedPlayerLookup key={selectedSeasonId} seasonId={selectedSeasonId} />
+      <RankedDeckStatistics
+        key={`deck-statistics:${selectedSeasonId}:${insightsRefreshRevision}`}
+        seasonId={selectedSeasonId}
+      />
+
+      <RankedPlayersTable
+        key={`players:${selectedSeasonId}:${insightsRefreshRevision}`}
+        seasonId={selectedSeasonId}
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <DistributionPanel
@@ -733,184 +754,835 @@ function OverviewPanel({
   );
 }
 
-function RankedPlayerLookup({ seasonId }: { seasonId: string }) {
-  const [query, setQuery] = useState('');
-  const [candidates, setCandidates] = useState<RankedAdminPlayerSearchResult[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [context, setContext] = useState<RankedAdminPlayerContext | null>(null);
-  const [searchBusy, setSearchBusy] = useState(false);
-  const [contextBusy, setContextBusy] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [contextError, setContextError] = useState<string | null>(null);
-  const searchRequestSequence = useRef(0);
-  const contextRequestSequence = useRef(0);
+function RankedDeckStatistics({ seasonId }: { seasonId: string }) {
+  const [statistics, setStatistics] = useState<RankedAdminDeckStatisticsData | null>(null);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [categoryQuery, setCategoryQuery] = useState('');
+  const [showAllCategories, setShowAllCategories] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set());
+  const requestSequence = useRef(0);
 
-  const searchPlayers = async () => {
-    const normalizedQuery = query.trim();
-    if (!normalizedQuery) {
-      searchRequestSequence.current += 1;
-      contextRequestSequence.current += 1;
-      setCandidates([]);
-      setSelectedUserId(null);
-      setContext(null);
-      setSearchBusy(false);
-      setContextBusy(false);
-      setHasSearched(false);
-      setSearchError('请输入用户名、显示名称或用户 ID');
-      setContextError(null);
-      return;
-    }
-    const requestSequence = ++searchRequestSequence.current;
-    const requestSeasonId = seasonId;
-    contextRequestSequence.current += 1;
-    setSearchBusy(true);
-    setHasSearched(false);
-    setSearchError(null);
-    setContextError(null);
-    setCandidates([]);
-    setSelectedUserId(null);
-    setContext(null);
-    setContextBusy(false);
+  async function loadStatistics() {
+    const sequence = ++requestSequence.current;
+    setBusy(true);
+    setError(null);
     try {
-      const result = await searchRankedAdminPlayers(requestSeasonId, normalizedQuery, 10);
-      if (searchRequestSequence.current !== requestSequence) {
-        return;
-      }
-      setCandidates(result);
-      setHasSearched(true);
+      const result = await fetchRankedAdminDeckStatistics(seasonId);
+      if (requestSequence.current !== sequence) return;
+      setStatistics(result);
     } catch (loadError) {
-      if (searchRequestSequence.current === requestSequence) {
-        setSearchError(readError(loadError));
-      }
+      if (requestSequence.current === sequence) setError(readError(loadError));
     } finally {
-      if (searchRequestSequence.current === requestSequence) {
-        setSearchBusy(false);
-      }
+      if (requestSequence.current === sequence) setBusy(false);
     }
+  }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadStatistics(), 0);
+    return () => {
+      window.clearTimeout(timer);
+      requestSequence.current += 1;
+    };
+    // This component is remounted when the selected season changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const toggleCategory = (archetypeId: string) => {
+    setExpandedCategories((current) => {
+      const next = new Set(current);
+      if (next.has(archetypeId)) next.delete(archetypeId);
+      else next.add(archetypeId);
+      return next;
+    });
   };
 
-  const loadPlayerContext = async (userId: string) => {
-    const requestSequence = ++contextRequestSequence.current;
-    const requestSeasonId = seasonId;
-    setSelectedUserId(userId);
-    setContext(null);
-    setContextBusy(true);
-    setContextError(null);
+  const normalizedCategoryQuery = categoryQuery.trim().toLocaleLowerCase();
+  const matchingCategories = useMemo(() => {
+    if (!statistics?.available) return [];
+    if (!normalizedCategoryQuery) return statistics.categories;
+    return statistics.categories.filter((category) =>
+      [category.name, category.groupName, category.categoryKey].some((value) =>
+        value.toLocaleLowerCase().includes(normalizedCategoryQuery)
+      )
+    );
+  }, [normalizedCategoryQuery, statistics]);
+  const visibleCategories = normalizedCategoryQuery
+    ? matchingCategories
+    : showAllCategories
+      ? matchingCategories
+      : matchingCategories.slice(0, DECK_CATEGORY_PREVIEW_COUNT);
+
+  return (
+    <section className="product-workbench p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="font-semibold text-[var(--text-primary)]">卡组分类统计</h2>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            场数按双方卡组席位计数；展开分类可查看各玩家的使用次数与胜率
+          </p>
+        </div>
+        {statistics?.release ? (
+          <span className="rounded-full bg-[var(--bg-overlay)] px-2.5 py-1 text-xs text-[var(--text-muted)]">
+            分类版本 v{statistics.release.version}
+          </span>
+        ) : null}
+      </div>
+
+      {busy ? (
+        <div className="flex items-center justify-center gap-2 py-8 text-sm text-[var(--text-muted)]">
+          <Loader2 size={16} className="animate-spin" />
+          正在读取分类统计…
+        </div>
+      ) : null}
+      {!busy && error ? (
+        <div className="mt-3">
+          <LookupError
+            message={error}
+            retryLabel="重试读取"
+            onRetry={() => void loadStatistics()}
+          />
+        </div>
+      ) : null}
+      {!busy && !error && statistics && !statistics.available ? (
+        <div className="mt-3 rounded-xl bg-[var(--bg-overlay)] px-3 py-6 text-center text-sm text-[var(--text-muted)]">
+          当前没有可用的卡组分类发布
+        </div>
+      ) : null}
+      {!busy && !error && statistics?.available ? (
+        <>
+          <DeckStatisticsSample data={statistics} />
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                size={15}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
+              />
+              <input
+                className="input-field min-h-10 w-full pl-9"
+                value={categoryQuery}
+                aria-label="搜索卡组分类"
+                placeholder="搜索分类名称、分组或分类键"
+                autoComplete="off"
+                onChange={(event) => setCategoryQuery(event.target.value)}
+              />
+            </div>
+            {!normalizedCategoryQuery &&
+            statistics.categories.length > DECK_CATEGORY_PREVIEW_COUNT ? (
+              <button
+                type="button"
+                className="button-secondary min-h-10 px-4 text-sm"
+                aria-expanded={showAllCategories}
+                onClick={() => setShowAllCategories((current) => !current)}
+              >
+                {showAllCategories
+                  ? `收起至前 ${DECK_CATEGORY_PREVIEW_COUNT} 类`
+                  : `展开全部 ${statistics.categories.length} 类`}
+              </button>
+            ) : null}
+          </div>
+          {normalizedCategoryQuery && matchingCategories.length === 0 ? (
+            <div className="mt-3 rounded-xl bg-[var(--bg-overlay)] px-3 py-6 text-center text-sm text-[var(--text-muted)]">
+              没有找到匹配的卡组分类
+            </div>
+          ) : null}
+          {visibleCategories.length > 0 ? (
+            <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
+              <table className="min-w-[56rem] w-full text-left text-sm" aria-label="卡组分类统计">
+                <thead className="bg-[var(--bg-elevated)] text-xs text-[var(--text-muted)]">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">卡组分类</th>
+                    <th className="px-3 py-2 text-center font-medium">使用场数</th>
+                    <th className="px-3 py-2 text-center font-medium">玩家数</th>
+                    <th className="px-3 py-2 text-center font-medium">胜利</th>
+                    <th className="px-3 py-2 text-center font-medium">失败</th>
+                    <th className="px-3 py-2 text-center font-medium">胜率</th>
+                    <th className="min-w-44 px-3 py-2 text-center font-medium">最常使用者</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleCategories.map((category) => {
+                    const expanded = expandedCategories.has(category.archetypeId);
+                    return (
+                      <Fragment key={category.archetypeId}>
+                        <tr className="border-t border-[var(--border-subtle)] text-[var(--text-secondary)]">
+                          <td className="px-3 py-2.5">
+                            <button
+                              type="button"
+                              className="flex w-full min-w-0 items-center gap-2 text-left"
+                              aria-expanded={expanded}
+                              onClick={() => toggleCategory(category.archetypeId)}
+                            >
+                              <ChevronRight
+                                size={15}
+                                className={`shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
+                              />
+                              <span
+                                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                style={{ backgroundColor: category.color }}
+                              />
+                              <span className="min-w-0">
+                                <span className="block truncate font-semibold text-[var(--text-primary)]">
+                                  {category.name}
+                                </span>
+                                {category.groupName ? (
+                                  <span className="block truncate text-xs text-[var(--text-muted)]">
+                                    {category.groupName}
+                                  </span>
+                                ) : null}
+                              </span>
+                            </button>
+                          </td>
+                          <DeckStatisticsNumber value={category.appearanceCount} align="center" />
+                          <DeckStatisticsNumber value={category.playerCount} align="center" />
+                          <DeckStatisticsNumber value={category.winnerCount} align="center" />
+                          <DeckStatisticsNumber value={category.lossCount} align="center" />
+                          <td className="whitespace-nowrap px-3 py-2.5 text-center tabular-nums">
+                            {formatRate(category.winRate)}
+                          </td>
+                          <DeckStatisticsTopPlayers category={category} />
+                        </tr>
+                        {expanded ? <DeckStatisticsPlayerRows category={category} /> : null}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function DeckStatisticsSample({ data }: { data: RankedAdminDeckStatisticsData }) {
+  const { sample } = data;
+  return (
+    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 rounded-xl bg-[var(--bg-overlay)] px-3 py-2 text-xs text-[var(--text-muted)]">
+      <span>
+        严格样本 {sample.analyzedMatchCount}/{sample.settledMatchCount} 局
+      </span>
+      <span>长期观察覆盖 {formatRate(sample.observationCoverageRate)}</span>
+      <span>分类覆盖 {formatRate(sample.classificationCoverageRate)}</span>
+      {sample.invalidDeckObservationCount + sample.excludedDeckObservationCount > 0 ? (
+        <span>
+          未计入样本 {sample.invalidDeckObservationCount + sample.excludedDeckObservationCount} 席
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function DeckStatisticsNumber({
+  value,
+  align = 'right',
+}: {
+  value: number;
+  align?: 'center' | 'right';
+}) {
+  return (
+    <td
+      className={`whitespace-nowrap px-3 py-2.5 tabular-nums ${
+        align === 'center' ? 'text-center' : 'text-right'
+      }`}
+    >
+      {value.toLocaleString('zh-CN')}
+    </td>
+  );
+}
+
+function DeckStatisticsTopPlayers({ category }: { category: RankedAdminDeckStatisticsCategory }) {
+  const maximumAppearanceCount = category.players[0]?.appearanceCount ?? 0;
+  const leaders = category.players.filter(
+    (player) => player.appearanceCount === maximumAppearanceCount
+  );
+  if (leaders.length === 0) {
+    return (
+      <td className="min-w-44 px-3 py-2.5 text-center text-[var(--text-muted)]">
+        <div>—</div>
+        <div className="mt-0.5 text-xs">暂无使用记录</div>
+      </td>
+    );
+  }
+  const fullNames = leaders
+    .map((player) => `${player.displayName || player.username}（@${player.username}）`)
+    .join('、');
+  return (
+    <td className="min-w-44 px-3 py-2.5 text-center" title={fullNames}>
+      <div className="break-words font-medium text-[var(--text-primary)]">
+        {leaders.map((player) => player.displayName || player.username).join('、')}
+      </div>
+      <div className="mt-0.5 text-xs text-[var(--text-muted)]">
+        {leaders.length === 1
+          ? `@${leaders[0]!.username} · ${maximumAppearanceCount} 场`
+          : `${leaders.length} 人并列 · 各 ${maximumAppearanceCount} 场`}
+      </div>
+    </td>
+  );
+}
+
+function DeckStatisticsPlayerRows({ category }: { category: RankedAdminDeckStatisticsCategory }) {
+  return (
+    <tr className="border-t border-[var(--border-subtle)] bg-[var(--bg-overlay)]">
+      <td colSpan={7} className="p-3">
+        {category.players.length > 0 ? (
+          <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+            <table
+              className="min-w-[32rem] w-full text-left text-xs"
+              aria-label={`${category.name}玩家明细`}
+            >
+              <thead className="bg-[var(--bg-elevated)] text-[var(--text-muted)]">
+                <tr>
+                  <th className="px-3 py-2 font-medium">玩家</th>
+                  <th className="px-3 py-2 text-center font-medium">使用场数</th>
+                  <th className="px-3 py-2 text-center font-medium">胜利</th>
+                  <th className="px-3 py-2 text-center font-medium">失败</th>
+                  <th className="px-3 py-2 text-center font-medium">胜率</th>
+                </tr>
+              </thead>
+              <tbody>
+                {category.players.map((player) => (
+                  <tr
+                    key={player.userId}
+                    className="border-t border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                  >
+                    <td className="max-w-64 px-3 py-2">
+                      <div className="truncate font-medium text-[var(--text-primary)]">
+                        {player.displayName || player.username}
+                      </div>
+                      <div className="truncate text-[var(--text-muted)]">@{player.username}</div>
+                    </td>
+                    <DeckStatisticsNumber value={player.appearanceCount} align="center" />
+                    <DeckStatisticsNumber value={player.winnerCount} align="center" />
+                    <DeckStatisticsNumber value={player.lossCount} align="center" />
+                    <td className="whitespace-nowrap px-3 py-2 text-center tabular-nums">
+                      {formatRate(player.winRate)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="py-3 text-center text-xs text-[var(--text-muted)]">暂无玩家使用记录</div>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function RankedPlayersTable({ seasonId }: { seasonId: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [query, setQuery] = useState('');
+  const [players, setPlayers] = useState<RankedAdminPlayerListItem[]>([]);
+  const [page, setPage] = useState<RankedAdminPlayerPage | null>(null);
+  const [loadedOffset, setLoadedOffset] = useState(0);
+  const [highlightedUserId, setHighlightedUserId] = useState<string | null>(null);
+  const [locatedQuery, setLocatedQuery] = useState('');
+  const [candidatePage, setCandidatePage] = useState<RankedAdminPlayerPage | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [searchBusy, setSearchBusy] = useState(false);
+  const [loadingDirection, setLoadingDirection] = useState<'previous' | 'next' | null>(null);
+  const [failedDirection, setFailedDirection] = useState<'previous' | 'next' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [autoLoadReady, setAutoLoadReady] = useState(false);
+  const requestSequence = useRef(0);
+  const loadingRef = useRef(false);
+  const loadMoreTargetRef = useRef<HTMLDivElement>(null);
+
+  async function loadFirstPage() {
+    const sequence = ++requestSequence.current;
+    loadingRef.current = true;
+    setExpanded(true);
+    setPlayers([]);
+    setPage(null);
+    setLoadedOffset(0);
+    setHighlightedUserId(null);
+    setLocatedQuery('');
+    setCandidatePage(null);
+    setBusy(true);
+    setLoadingDirection(null);
+    setFailedDirection(null);
+    setError(null);
+    setSearchError(null);
+    setAutoLoadReady(false);
     try {
-      const result = await fetchRankedAdminPlayerContext(requestSeasonId, userId);
-      if (contextRequestSequence.current !== requestSequence) {
-        return;
-      }
-      setContext(result);
+      const result = await fetchRankedAdminPlayers({
+        seasonId,
+        limit: RANKED_PLAYER_PAGE_SIZE,
+        offset: 0,
+      });
+      if (requestSequence.current !== sequence) return;
+      setPlayers(result.players);
+      setPage(result);
+      setLoadedOffset(result.offset);
     } catch (loadError) {
-      if (contextRequestSequence.current === requestSequence) {
-        setContextError(readError(loadError));
-      }
+      if (requestSequence.current === sequence) setError(readError(loadError));
     } finally {
-      if (contextRequestSequence.current === requestSequence) {
-        setContextBusy(false);
+      if (requestSequence.current === sequence) {
+        loadingRef.current = false;
+        setBusy(false);
       }
     }
+  }
+
+  async function loadLocatedWindow(
+    target: RankedAdminPlayerListItem,
+    searchSnapshot: RankedAdminPlayerPage,
+    sequence: number,
+    normalizedQuery: string
+  ) {
+    setExpanded(true);
+    setPlayers([]);
+    setPage(null);
+    setBusy(true);
+    setError(null);
+    setFailedDirection(null);
+    setAutoLoadReady(false);
+    const result = await fetchRankedAdminPlayers({
+      seasonId,
+      limit: RANKED_PLAYER_LOCATE_WINDOW_SIZE,
+      offset: Math.max(0, target.listPosition - 4),
+    });
+    if (requestSequence.current !== sequence) return;
+    if (
+      rankedAdminPlayerSnapshotKey(result) !== rankedAdminPlayerSnapshotKey(searchSnapshot) ||
+      !result.players.some((player) => player.userId === target.userId)
+    ) {
+      void locatePlayer(normalizedQuery);
+      return;
+    }
+    setPlayers(result.players);
+    setPage(result);
+    setLoadedOffset(result.offset);
+    setHighlightedUserId(target.userId);
+    setLocatedQuery(normalizedQuery);
+    setCandidatePage(null);
+  }
+
+  async function locatePlayer(nextQuery: string) {
+    const normalizedQuery = nextQuery.trim().replace(/^@/u, '');
+    if (!normalizedQuery) {
+      setQuery('');
+      void loadFirstPage();
+      return;
+    }
+    const sequence = ++requestSequence.current;
+    loadingRef.current = true;
+    setSearchBusy(true);
+    setSearchError(null);
+    setCandidatePage(null);
+    try {
+      const result = await fetchRankedAdminPlayers({
+        seasonId,
+        query: normalizedQuery,
+        limit: RANKED_PLAYER_SEARCH_LIMIT,
+        offset: 0,
+      });
+      if (requestSequence.current !== sequence) return;
+      if (result.total === 0 || result.players.length === 0) {
+        setSearchError('本赛季没有找到匹配的计分玩家');
+        return;
+      }
+      const needle = normalizedQuery.toLocaleLowerCase();
+      const exactMatches = result.players.filter((player) =>
+        [player.userId, player.username, player.displayName].some(
+          (value) => value?.toLocaleLowerCase() === needle
+        )
+      );
+      const target =
+        exactMatches.length === 1
+          ? exactMatches[0]!
+          : result.total === 1
+            ? result.players[0]!
+            : null;
+      if (!target) {
+        setCandidatePage(result);
+        return;
+      }
+      await loadLocatedWindow(target, result, sequence, normalizedQuery);
+    } catch (loadError) {
+      if (requestSequence.current === sequence) setSearchError(readError(loadError));
+    } finally {
+      if (requestSequence.current === sequence) {
+        loadingRef.current = false;
+        setSearchBusy(false);
+        setBusy(false);
+      }
+    }
+  }
+
+  async function locateCandidate(target: RankedAdminPlayerListItem) {
+    if (!candidatePage) return;
+    const sequence = ++requestSequence.current;
+    loadingRef.current = true;
+    setSearchBusy(true);
+    setSearchError(null);
+    try {
+      await loadLocatedWindow(target, candidatePage, sequence, query.trim().replace(/^@/u, ''));
+    } catch (loadError) {
+      if (requestSequence.current === sequence) setSearchError(readError(loadError));
+    } finally {
+      if (requestSequence.current === sequence) {
+        loadingRef.current = false;
+        setSearchBusy(false);
+        setBusy(false);
+      }
+    }
+  }
+
+  function reloadCurrentViewAfterSnapshotChange() {
+    if (locatedQuery) void locatePlayer(locatedQuery);
+    else void loadFirstPage();
+  }
+
+  async function loadPreviousPage() {
+    if (loadingRef.current || !page || loadedOffset === 0) return;
+    const nextOffset = Math.max(0, loadedOffset - RANKED_PLAYER_PAGE_SIZE);
+    const sequence = ++requestSequence.current;
+    loadingRef.current = true;
+    setLoadingDirection('previous');
+    setFailedDirection(null);
+    setError(null);
+    try {
+      const result = await fetchRankedAdminPlayers({
+        seasonId,
+        limit: loadedOffset - nextOffset,
+        offset: nextOffset,
+      });
+      if (requestSequence.current !== sequence) return;
+      if (rankedAdminPlayerSnapshotKey(result) !== rankedAdminPlayerSnapshotKey(page)) {
+        reloadCurrentViewAfterSnapshotChange();
+        return;
+      }
+      setPlayers((current) => [...result.players, ...current]);
+      setPage(result);
+      setLoadedOffset(result.offset);
+    } catch (loadError) {
+      if (requestSequence.current === sequence) {
+        setError(readError(loadError));
+        setFailedDirection('previous');
+      }
+    } finally {
+      if (requestSequence.current === sequence) {
+        loadingRef.current = false;
+        setLoadingDirection(null);
+      }
+    }
+  }
+
+  async function loadNextPage() {
+    if (loadingRef.current || !page || loadedOffset + players.length >= page.total) return;
+    const sequence = ++requestSequence.current;
+    loadingRef.current = true;
+    setLoadingDirection('next');
+    setFailedDirection(null);
+    setError(null);
+    try {
+      const result = await fetchRankedAdminPlayers({
+        seasonId,
+        limit: RANKED_PLAYER_PAGE_SIZE,
+        offset: loadedOffset + players.length,
+      });
+      if (requestSequence.current !== sequence) return;
+      if (rankedAdminPlayerSnapshotKey(result) !== rankedAdminPlayerSnapshotKey(page)) {
+        reloadCurrentViewAfterSnapshotChange();
+        return;
+      }
+      setPlayers((current) => [...current, ...result.players]);
+      setPage(result);
+    } catch (loadError) {
+      if (requestSequence.current === sequence) {
+        setError(readError(loadError));
+        setFailedDirection('next');
+      }
+    } finally {
+      if (requestSequence.current === sequence) {
+        loadingRef.current = false;
+        setLoadingDirection(null);
+      }
+    }
+  }
+
+  useEffect(
+    () => () => {
+      requestSequence.current += 1;
+      loadingRef.current = false;
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!highlightedUserId) return;
+    const timer = window.setTimeout(() => {
+      document
+        .getElementById(`ranked-player-${highlightedUserId}`)
+        ?.scrollIntoView({ block: 'center' });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [highlightedUserId]);
+
+  const hasPrevious = page !== null && loadedOffset > 0;
+  const hasNext = page !== null && loadedOffset + players.length < page.total;
+
+  useEffect(() => {
+    if (!expanded || !page || !hasNext || autoLoadReady) return;
+    const container = loadMoreTargetRef.current?.closest('.product-frame-content');
+    if (!container) return;
+    const enableAutoLoad = () => setAutoLoadReady(true);
+    const enableAutoLoadFromKey = (event: KeyboardEvent) => {
+      if (['ArrowDown', 'End', 'PageDown', ' '].includes(event.key)) enableAutoLoad();
+    };
+    container.addEventListener('wheel', enableAutoLoad, { passive: true });
+    container.addEventListener('touchmove', enableAutoLoad, { passive: true });
+    container.addEventListener('pointerdown', enableAutoLoad, { passive: true });
+    window.addEventListener('keydown', enableAutoLoadFromKey);
+    return () => {
+      container.removeEventListener('wheel', enableAutoLoad);
+      container.removeEventListener('touchmove', enableAutoLoad);
+      container.removeEventListener('pointerdown', enableAutoLoad);
+      window.removeEventListener('keydown', enableAutoLoadFromKey);
+    };
+  }, [autoLoadReady, expanded, hasNext, page]);
+
+  useEffect(() => {
+    const target = loadMoreTargetRef.current;
+    if (
+      !target ||
+      !expanded ||
+      !autoLoadReady ||
+      !hasNext ||
+      busy ||
+      loadingDirection !== null ||
+      error ||
+      typeof IntersectionObserver === 'undefined'
+    ) {
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) void loadNextPage();
+      },
+      { rootMargin: '240px 0px', threshold: 0 }
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+    // Reconnect with the latest page snapshot after each append.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoLoadReady, expanded, hasNext, busy, loadingDirection, error, page, players.length]);
+
+  const toggleExpanded = () => {
+    if (expanded) {
+      requestSequence.current += 1;
+      loadingRef.current = false;
+      setExpanded(false);
+      setBusy(false);
+      setSearchBusy(false);
+      setLoadingDirection(null);
+      return;
+    }
+    setExpanded(true);
+    if (!page) void loadFirstPage();
+  };
+
+  const clearSearch = () => {
+    setQuery('');
+    setCandidatePage(null);
+    setSearchError(null);
+    void loadFirstPage();
   };
 
   return (
     <section className="product-workbench p-4">
-      <div>
-        <h2 className="font-semibold text-[var(--text-primary)]">玩家积分查询</h2>
-        <p className="mt-1 text-xs text-[var(--text-muted)]">
-          查看玩家当前积分、定级进度与排行榜上下文
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-[var(--text-primary)]">全部参赛玩家</h2>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            默认收起列表；可搜索并定位某位玩家，再向前或向后继续查看完整名单
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {page ? (
+            <div className="text-right text-xs text-[var(--text-muted)]">
+              <div>流水修订 {page.ledgerRevision}</div>
+              <div className="mt-1">
+                {page.total === 0
+                  ? '已显示 0/0 人'
+                  : `已显示 ${loadedOffset + 1}–${loadedOffset + players.length}/${page.total} 人`}
+              </div>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className="button-secondary min-h-9 px-4 text-sm"
+            aria-expanded={expanded}
+            onClick={toggleExpanded}
+          >
+            {expanded ? '收起玩家列表' : '展开玩家列表'}
+          </button>
+        </div>
       </div>
+
       <form
-        className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"
+        className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
         onSubmit={(event) => {
           event.preventDefault();
-          void searchPlayers();
+          void locatePlayer(query);
         }}
       >
         <input
           className="input-field"
           value={query}
-          aria-label="搜索排位玩家"
+          aria-label="定位排位玩家"
           placeholder="输入用户名、显示名称或用户 ID"
           autoComplete="off"
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setCandidatePage(null);
+            setSearchError(null);
+          }}
         />
         <button
           className="button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm"
           disabled={searchBusy}
         >
           {searchBusy ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
-          搜索玩家
+          定位
         </button>
+        {query || locatedQuery || candidatePage ? (
+          <button
+            type="button"
+            className="button-secondary min-h-10 px-4 text-sm"
+            disabled={searchBusy}
+            onClick={clearSearch}
+          >
+            清空
+          </button>
+        ) : null}
       </form>
 
-      <div className="mt-3" aria-live="polite">
-        {searchError ? (
-          <LookupError
-            message={searchError}
-            retryLabel="重试搜索"
-            onRetry={query.trim() ? () => void searchPlayers() : undefined}
-          />
-        ) : null}
-        {!searchError && searchBusy ? (
-          <div className="flex items-center justify-center gap-2 py-5 text-sm text-[var(--text-muted)]">
-            <Loader2 size={16} className="animate-spin" />
-            正在搜索玩家…
+      {searchError ? (
+        <div className="mt-3 rounded-xl bg-[var(--bg-overlay)] px-3 py-3 text-sm text-[var(--text-muted)]">
+          {searchError}
+        </div>
+      ) : null}
+      {candidatePage ? (
+        <div className="mt-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-3">
+          <div className="text-xs text-[var(--text-muted)]">
+            找到 {candidatePage.total} 名匹配玩家，请选择要定位的人
+            {candidatePage.total > candidatePage.players.length
+              ? `（仅显示前 ${candidatePage.players.length} 名）`
+              : ''}
           </div>
-        ) : null}
-        {!searchBusy && !searchError && hasSearched && candidates.length === 0 ? (
-          <div className="rounded-xl bg-[var(--bg-overlay)] px-3 py-5 text-center text-sm text-[var(--text-muted)]">
-            本赛季没有找到匹配的计分玩家
-          </div>
-        ) : null}
-        {!searchBusy && candidates.length > 0 ? (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {candidates.map((candidate) => (
+          <div className="mt-2 grid gap-2 sm:grid-cols-2" aria-label="玩家定位候选">
+            {candidatePage.players.map((candidate) => (
               <button
                 key={candidate.userId}
                 type="button"
-                className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${
-                  candidate.userId === selectedUserId
-                    ? 'border-[var(--accent-primary)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)]'
-                    : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] hover:border-[var(--border-default)]'
-                }`}
-                aria-pressed={candidate.userId === selectedUserId}
-                onClick={() => void loadPlayerContext(candidate.userId)}
+                className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-left hover:border-[var(--border-strong)]"
+                disabled={searchBusy}
+                aria-label={`定位 @${candidate.username}`}
+                onClick={() => void locateCandidate(candidate)}
               >
-                <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
-                  {candidate.displayName || candidate.username}
-                </div>
-                <div className="mt-0.5 truncate text-xs text-[var(--text-muted)]">
-                  @{candidate.username} · {candidate.userId}
-                </div>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-[var(--text-primary)]">
+                    {candidate.displayName || candidate.username}
+                  </span>
+                  <span className="block truncate text-xs text-[var(--text-muted)]">
+                    @{candidate.username}
+                  </span>
+                </span>
+                <span className="shrink-0 text-xs tabular-nums text-[var(--text-muted)]">
+                  列表第 {candidate.listPosition} 位
+                </span>
               </button>
             ))}
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
-      {contextBusy ? (
-        <div
-          className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-[var(--bg-overlay)] py-7 text-sm text-[var(--text-muted)]"
-          aria-live="polite"
-        >
-          <Loader2 size={16} className="animate-spin" />
-          正在读取玩家积分…
-        </div>
-      ) : null}
-      {!contextBusy && contextError ? (
-        <div className="mt-3">
-          <LookupError
-            message={contextError}
-            retryLabel="重试读取"
-            onRetry={selectedUserId ? () => void loadPlayerContext(selectedUserId) : undefined}
-          />
-        </div>
-      ) : null}
-      {!contextBusy && !contextError && context ? (
-        <RankedPlayerContextCard context={context} />
+      {expanded ? (
+        <>
+          {busy ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-[var(--text-muted)]">
+              <Loader2 size={16} className="animate-spin" />
+              正在读取参赛玩家…
+            </div>
+          ) : null}
+          {!busy && error && players.length === 0 ? (
+            <div className="mt-3">
+              <LookupError
+                message={error}
+                retryLabel="重试读取"
+                onRetry={() =>
+                  locatedQuery ? void locatePlayer(locatedQuery) : void loadFirstPage()
+                }
+              />
+            </div>
+          ) : null}
+          {!busy && !error && page?.total === 0 ? (
+            <div className="mt-3 rounded-xl bg-[var(--bg-overlay)] px-3 py-6 text-center text-sm text-[var(--text-muted)]">
+              本赛季暂无参赛玩家
+            </div>
+          ) : null}
+          {!busy && players.length > 0 && page ? (
+            <>
+              {hasPrevious ? (
+                <div className="mt-3 flex justify-center">
+                  <button
+                    type="button"
+                    className="button-secondary inline-flex min-h-9 items-center justify-center gap-1.5 px-4 text-sm"
+                    disabled={loadingDirection !== null}
+                    onClick={() => void loadPreviousPage()}
+                  >
+                    {loadingDirection === 'previous' ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : null}
+                    {loadingDirection === 'previous' ? '加载中…' : '加载更高名次玩家'}
+                  </button>
+                </div>
+              ) : null}
+              <RankedPlayerListTable
+                players={players}
+                page={page}
+                highlightedUserId={highlightedUserId}
+              />
+              <div className="mt-3 flex flex-col items-center gap-2">
+                {error ? (
+                  <div className="w-full">
+                    <LookupError
+                      message={error}
+                      retryLabel="重试加载"
+                      onRetry={() =>
+                        failedDirection === 'previous'
+                          ? void loadPreviousPage()
+                          : void loadNextPage()
+                      }
+                    />
+                  </div>
+                ) : null}
+                {hasNext ? (
+                  <button
+                    type="button"
+                    className="button-secondary inline-flex min-h-9 items-center justify-center gap-1.5 px-4 text-sm"
+                    disabled={loadingDirection !== null}
+                    onClick={() => void loadNextPage()}
+                  >
+                    {loadingDirection === 'next' ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : null}
+                    {loadingDirection === 'next' ? '加载中…' : '加载更低名次玩家'}
+                  </button>
+                ) : (
+                  <span className="text-xs text-[var(--text-muted)]">已到达本赛季玩家列表末尾</span>
+                )}
+                <div ref={loadMoreTargetRef} className="h-px w-full" aria-hidden="true" />
+              </div>
+            </>
+          ) : null}
+        </>
       ) : null}
     </section>
   );
@@ -937,89 +1609,8 @@ function LookupError({
   );
 }
 
-function RankedPlayerContextCard({ context }: { context: RankedAdminPlayerContext }) {
-  const { player } = context;
-  const contextRows: RankedAdminPlayerRankRow[] = player.leaderboardEligible
-    ? context.neighbors.rows
-    : [
-        {
-          userId: player.userId,
-          username: player.username,
-          displayName: player.displayName,
-          rating: player.rating,
-          ratingDeviation: player.ratingDeviation,
-          ratedMatchCount: player.ratedMatchCount,
-          wins: player.wins,
-          losses: player.losses,
-          deckClassification: player.deckClassification,
-          rank: null,
-          isTarget: true,
-        },
-      ];
-  return (
-    <div className="mt-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-3 sm:p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate font-semibold text-[var(--text-primary)]">
-              {player.displayName || player.username}
-            </h3>
-            <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 text-xs font-semibold text-[var(--text-secondary)]">
-              {rankedPlayerStatusLabel(player.status)}
-            </span>
-          </div>
-          <p className="mt-1 break-all text-xs text-[var(--text-muted)]">
-            @{player.username} · {player.userId}
-          </p>
-        </div>
-        <div className="text-right text-xs text-[var(--text-muted)]">
-          <div>流水修订 {context.ledgerRevision}</div>
-          <div className="mt-1">更新于 {formatDate(context.generatedAt)}</div>
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <PlayerScoreMetric label="当前评分" value={formatPlayerRating(player.rating)} prominent />
-        <PlayerScoreMetric label="RD" value={formatPlayerRating(player.ratingDeviation)} />
-        <PlayerScoreMetric label="已计分场数" value={`${player.ratedMatchCount}`} />
-        <PlayerScoreMetric
-          label="当前排名"
-          value={player.rank === null ? '—' : `#${player.rank}`}
-        />
-      </div>
-
-      <RankedPlayerStatusNote context={context} />
-
-      <RankedPlayerNeighborTable rows={contextRows} />
-    </div>
-  );
-}
-
-function PlayerScoreMetric({
-  label,
-  value,
-  prominent = false,
-}: {
-  label: string;
-  value: string;
-  prominent?: boolean;
-}) {
-  return (
-    <div className="rounded-xl bg-[var(--bg-elevated)] px-3 py-2.5">
-      <div className="text-xs text-[var(--text-muted)]">{label}</div>
-      <div
-        className={`mt-1 font-semibold tabular-nums text-[var(--text-primary)] ${
-          prominent ? 'text-2xl' : 'text-lg'
-        }`}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
 function playerDeckClassificationDisplay(
-  classification: RankedAdminPlayerContext['player']['deckClassification'],
+  classification: RankedAdminPlayerSummary['deckClassification'],
   ratedMatchCount: number
 ): { value: string; detail: string; partial: boolean } {
   const leaderNames = classification.leaders.map((leader) => leader.name).join('、');
@@ -1040,62 +1631,48 @@ function playerDeckClassificationDisplay(
   return { value, detail, partial: classification.coverageStatus === 'PARTIAL' };
 }
 
-function RankedPlayerStatusNote({ context }: { context: RankedAdminPlayerContext }) {
-  const { player } = context;
-  if (player.status === 'PLACEMENT') {
-    return (
-      <p className="mt-3 rounded-lg bg-[color:color-mix(in_srgb,var(--semantic-warning)_10%,transparent)] px-3 py-2 text-sm text-[var(--text-secondary)]">
-        定级进度 {Math.min(player.ratedMatchCount, context.placementRequired)}/
-        {context.placementRequired}。尚未完成定级，当前评分不代表最终定位。
-        {player.leaderboardEligible ? '已达到当前排行榜门槛。' : ''}
-      </p>
-    );
-  }
-  if (player.status === 'PLACED_NOT_ELIGIBLE') {
-    return (
-      <p className="mt-3 rounded-lg bg-[var(--bg-elevated)] px-3 py-2 text-sm text-[var(--text-secondary)]">
-        已完成定级，当前 {player.ratedMatchCount}/{context.leaderboardMinimumMatchCount}{' '}
-        场，尚未达到排行榜门槛。
-      </p>
-    );
-  }
-  return (
-    <p className="mt-3 text-xs text-[var(--text-muted)]">
-      排名与玩家端榜单一致；下方展示该玩家上下各最多 3 名。
-    </p>
-  );
-}
-
-function RankedPlayerNeighborTable({ rows }: { rows: RankedAdminPlayerRankRow[] }) {
+function RankedPlayerListTable({
+  players,
+  page,
+  highlightedUserId,
+}: {
+  players: RankedAdminPlayerListItem[];
+  page: RankedAdminPlayerPage;
+  highlightedUserId: string | null;
+}) {
   return (
     <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
-      <table className="min-w-full text-left text-sm" aria-label="玩家排名上下文">
+      <table className="min-w-[64rem] w-full text-left text-sm" aria-label="全部参赛玩家">
         <thead className="bg-[var(--bg-elevated)] text-xs text-[var(--text-muted)]">
           <tr>
             <th className="px-3 py-2 font-medium">排名</th>
             <th className="px-3 py-2 font-medium">玩家</th>
-            <th className="px-3 py-2 text-right font-medium">评分</th>
-            <th className="px-3 py-2 text-right font-medium">RD</th>
-            <th className="px-3 py-2 text-right font-medium">场数</th>
-            <th className="px-3 py-2 text-right font-medium">胜利</th>
-            <th className="px-3 py-2 text-right font-medium">失败</th>
-            <th className="min-w-56 px-3 py-2 font-medium">最常用卡组</th>
+            <th className="px-3 py-2 text-center font-medium">状态</th>
+            <th className="px-3 py-2 text-center font-medium">评分</th>
+            <th className="px-3 py-2 text-center font-medium">RD</th>
+            <th className="px-3 py-2 text-center font-medium">场数</th>
+            <th className="px-3 py-2 text-center font-medium">胜利</th>
+            <th className="px-3 py-2 text-center font-medium">失败</th>
+            <th className="min-w-56 px-3 py-2 text-center font-medium">最常用卡组</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
+          {players.map((row) => {
             const classification = playerDeckClassificationDisplay(
               row.deckClassification,
               row.ratedMatchCount
             );
+            const statusProgress = rankedPlayerStatusProgress(row, page);
             return (
               <tr
                 key={row.userId}
-                className={
-                  row.isTarget
-                    ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] font-semibold text-[var(--text-primary)]'
-                    : 'border-t border-[var(--border-subtle)] text-[var(--text-secondary)]'
-                }
+                id={`ranked-player-${row.userId}`}
+                aria-current={row.userId === highlightedUserId ? 'true' : undefined}
+                className={`border-t border-[var(--border-subtle)] text-[var(--text-secondary)] ${
+                  row.userId === highlightedUserId
+                    ? 'bg-[color:color-mix(in_srgb,var(--semantic-info)_14%,transparent)] outline outline-1 -outline-offset-1 outline-[var(--semantic-info)]'
+                    : ''
+                }`}
               >
                 <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">
                   {row.rank === null ? '—' : `#${row.rank}`}
@@ -1106,22 +1683,30 @@ function RankedPlayerNeighborTable({ rows }: { rows: RankedAdminPlayerRankRow[] 
                     @{row.username}
                   </div>
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                <td className="whitespace-nowrap px-3 py-2.5 text-center">
+                  <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-1 text-xs font-semibold text-[var(--text-secondary)]">
+                    {rankedPlayerStatusLabel(row.status)}
+                  </span>
+                  {statusProgress ? (
+                    <div className="mt-1 text-xs text-[var(--text-muted)]">{statusProgress}</div>
+                  ) : null}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-center tabular-nums">
                   {formatPlayerRating(row.rating)}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                <td className="whitespace-nowrap px-3 py-2.5 text-center tabular-nums">
                   {formatPlayerRating(row.ratingDeviation)}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                <td className="whitespace-nowrap px-3 py-2.5 text-center tabular-nums">
                   {row.ratedMatchCount}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                <td className="whitespace-nowrap px-3 py-2.5 text-center tabular-nums">
                   {row.wins}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                <td className="whitespace-nowrap px-3 py-2.5 text-center tabular-nums">
                   {row.losses}
                 </td>
-                <td className="min-w-56 px-3 py-2.5">
+                <td className="min-w-56 px-3 py-2.5 text-center">
                   <div className="break-words">{classification.value}</div>
                   <div
                     className={`mt-0.5 text-xs font-normal ${
@@ -1140,6 +1725,19 @@ function RankedPlayerNeighborTable({ rows }: { rows: RankedAdminPlayerRankRow[] 
       </table>
     </div>
   );
+}
+
+function rankedPlayerStatusProgress(
+  player: RankedAdminPlayerSummary,
+  page: RankedAdminPlayerPage
+): string | null {
+  if (player.status === 'PLACEMENT') {
+    return `${Math.min(player.ratedMatchCount, page.placementRequired)}/${page.placementRequired} 场定级`;
+  }
+  if (player.status === 'PLACED_NOT_ELIGIBLE') {
+    return `${player.ratedMatchCount}/${page.leaderboardMinimumMatchCount} 场参榜`;
+  }
+  return null;
 }
 
 function OverviewStatus({ label, value }: { label: string; value: string }) {
@@ -2860,6 +3458,11 @@ function formatOverviewInteger(value: number | undefined): string {
   return value === undefined ? '—' : Math.round(value).toLocaleString('zh-CN');
 }
 
+function formatRate(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return '—';
+  return `${(value * 100).toFixed(1)}%`;
+}
+
 function formatRatingBoundary(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
@@ -2868,7 +3471,7 @@ function formatPlayerRating(value: number): string {
   return Math.round(value).toLocaleString('zh-CN');
 }
 
-function rankedPlayerStatusLabel(status: RankedAdminPlayerContext['player']['status']): string {
+function rankedPlayerStatusLabel(status: RankedAdminPlayerStatus): string {
   return {
     PLACEMENT: '定级中',
     PLACED_NOT_ELIGIBLE: '已定级',

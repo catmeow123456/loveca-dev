@@ -323,6 +323,48 @@ rankedAdminRouter.get('/overview', async (req, res) => {
   }
 });
 
+rankedAdminRouter.get('/deck-statistics', async (req, res) => {
+  const parsed = z.object({ seasonId: z.string().uuid() }).strict().safeParse(req.query);
+  if (!parsed.success) {
+    respondValidationError(res, parsed.error);
+    return;
+  }
+  try {
+    respondData(res, await rankedAdminService.getDeckStatistics(parsed.data.seasonId));
+  } catch (error) {
+    respondRankedAdminError(res, error);
+  }
+});
+
+rankedAdminRouter.get('/players', async (req, res) => {
+  const parsed = z
+    .object({
+      seasonId: z.string().uuid(),
+      q: z.string().trim().min(1).max(100).optional(),
+      limit: z.coerce.number().int().min(1).max(100).default(50),
+      offset: z.coerce.number().int().min(0).default(0),
+    })
+    .strict()
+    .safeParse(req.query);
+  if (!parsed.success) {
+    respondValidationError(res, parsed.error);
+    return;
+  }
+  try {
+    respondData(
+      res,
+      await rankedAdminService.listPlayers(
+        parsed.data.seasonId,
+        parsed.data.q,
+        parsed.data.limit,
+        parsed.data.offset
+      )
+    );
+  } catch (error) {
+    respondRankedAdminError(res, error);
+  }
+});
+
 rankedAdminRouter.get('/players/search', async (req, res) => {
   const parsed = z
     .object({
