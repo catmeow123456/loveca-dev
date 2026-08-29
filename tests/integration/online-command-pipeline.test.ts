@@ -17,7 +17,7 @@ import type {
   MemberCardData,
 } from '../../src/domain/entities/card';
 import type { ActiveEffectState, PendingAbilityState } from '../../src/domain/entities/game';
-import { emitGameEvent } from '../../src/domain/entities/game';
+import { emitGameEvent, updatePlayer } from '../../src/domain/entities/game';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { createEnterWaitingRoomEvent } from '../../src/domain/events/game-events';
 import { addCardToStatefulZone, removeCardFromZone } from '../../src/domain/entities/zone';
@@ -1406,6 +1406,104 @@ describe('GameSession command pipeline', () => {
     expect(result.success).toBe(true);
     expect(session.state?.players[0].mainDeck.cardIds).not.toContain(cardId);
     expect(session.state?.players[0].hand.cardIds).toContain(cardId);
+  });
+
+  it('FREE 手动弃手会按权威提交分批，其他移动不会误带批次', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-discard-movement-batches',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
+
+    const [firstDiscardCardId, secondDiscardCardId, otherMoveCardId] =
+      session.state?.players[0].hand.cardIds ?? [];
+    expect(firstDiscardCardId).toBeTruthy();
+    expect(secondDiscardCardId).toBeTruthy();
+    expect(otherMoveCardId).toBeTruthy();
+
+    const executeMove = (cardId: string, toZone: ZoneType) => {
+      const beforeSeq = session.getCurrentPublicEventSeq();
+      const result = session.executeCommand(
+        createMoveOwnedCardToZoneCommand(PLAYER1, cardId, ZoneType.HAND, toZone)
+      );
+      expect(result.success, result.error).toBe(true);
+      return session
+        .getPublicEventsSince(beforeSeq)
+        .find(
+          (event) =>
+            event.type === 'CardMovedPublic' &&
+            event.card?.publicObjectId === createPublicObjectId(cardId)
+        );
+    };
+
+    const firstDiscardMove = executeMove(firstDiscardCardId!, ZoneType.WAITING_ROOM);
+    const secondDiscardMove = executeMove(secondDiscardCardId!, ZoneType.WAITING_ROOM);
+    const otherMove = executeMove(otherMoveCardId!, ZoneType.MAIN_DECK);
+
+    expect(firstDiscardMove?.movementBatchId).toBeTruthy();
+    expect(secondDiscardMove?.movementBatchId).toBeTruthy();
+    expect(secondDiscardMove?.movementBatchId).not.toBe(firstDiscardMove?.movementBatchId);
+    expect(otherMove?.movementBatchId).toBeUndefined();
+  });
+
+  it('同一权威提交内不同归属玩家的弃手使用不同移动批次', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-owner-scoped-discard-batches',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+
+    const player1CardId = session.state?.players[0].hand.cardIds[0];
+    const player2CardId = session.state?.players[1].hand.cardIds[0];
+    expect(player1CardId).toBeTruthy();
+    expect(player2CardId).toBeTruthy();
+
+    let nextState = updatePlayer(session.state!, PLAYER1, (player) => ({
+      ...player,
+      hand: removeCardFromZone(player.hand, player1CardId!),
+      waitingRoom: addCardToStatefulZone(player.waitingRoom, player1CardId!),
+    }));
+    nextState = updatePlayer(nextState, PLAYER2, (player) => ({
+      ...player,
+      hand: removeCardFromZone(player.hand, player2CardId!),
+      waitingRoom: addCardToStatefulZone(player.waitingRoom, player2CardId!),
+    }));
+
+    const beforeSeq = session.getCurrentPublicEventSeq();
+    (
+      session as unknown as {
+        setAuthorityState: (
+          state: NonNullable<typeof session.state>,
+          options: { source: 'SYSTEM' }
+        ) => void;
+      }
+    ).setAuthorityState(nextState, { source: 'SYSTEM' });
+
+    const discardMoves = session
+      .getPublicEventsSince(beforeSeq)
+      .filter(
+        (event) =>
+          event.type === 'CardMovedPublic' &&
+          event.from?.zone === ZoneType.HAND &&
+          event.to?.zone === ZoneType.WAITING_ROOM
+      );
+    expect(discardMoves).toHaveLength(2);
+    expect(discardMoves.every((event) => Boolean(event.movementBatchId))).toBe(true);
+    expect(discardMoves[1]?.movementBatchId).not.toBe(discardMoves[0]?.movementBatchId);
   });
 
   it('表演开始时效果窗口允许把己方 Live 回手调整', () => {

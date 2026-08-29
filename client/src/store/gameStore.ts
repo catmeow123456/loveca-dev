@@ -138,6 +138,7 @@ const EMPTY_PUBLIC_BATTLE_LOG: PublicBattleLogState = {
   events: [],
   cursorSeq: 0,
   currentPublicSeq: 0,
+  presentationEpoch: 0,
   lastReadSeq: 0,
   unreadCount: 0,
   isPanelOpen: false,
@@ -198,6 +199,8 @@ export interface PublicBattleLogState {
   readonly events: readonly PublicEvent[];
   readonly cursorSeq: number;
   readonly currentPublicSeq: number;
+  /** 重连、截断或公共序号回退时递增，使临时事件展示跳过恢复历史。 */
+  readonly presentationEpoch: number;
   readonly lastReadSeq: number;
   readonly unreadCount: number;
   readonly isPanelOpen: boolean;
@@ -2141,6 +2144,8 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       const nextPlayerViewState = gameSession.getPlayerViewState(viewingPlayerId);
       const normalizedPlayerViewState = normalizePlayerViewState(nextPlayerViewState);
+      const currentPublicSeq = gameSession.getCurrentPublicEventSeq();
+      const matchId = normalizedPlayerViewState?.match.matchId ?? null;
 
       set((state) => ({
         playerViewState: normalizedPlayerViewState,
@@ -2152,6 +2157,18 @@ export const useGameStore = create<GameStore>((set, get) => {
           hoveredCardId: resolveHoveredCardId(state.ui.hoveredCardId, normalizedPlayerViewState),
           cardDetail: resolveSelectedCardDetail(state.ui.cardDetail, normalizedPlayerViewState),
         },
+        publicBattleLog:
+          matchId === null
+            ? EMPTY_PUBLIC_BATTLE_LOG
+            : mergePublicBattleLogResponse(state.publicBattleLog, {
+                matchId,
+                currentPublicSeq,
+                publicEvents: gameSession.getPublicEventsSince(
+                  state.publicBattleLog.matchId === matchId
+                    ? Math.min(state.publicBattleLog.cursorSeq, currentPublicSeq)
+                    : 0
+                ),
+              }),
       }));
     },
 
@@ -3091,18 +3108,20 @@ function applyRemoteSnapshotThenPreload(
 }
 
 function mergePublicEventsFromSnapshot(snapshot: RemoteSnapshot): void {
-  if (!('publicEvents' in snapshot)) {
-    return;
-  }
-
   useGameStore.setState((state) => ({
-    publicBattleLog: mergePublicBattleLogResponse(state.publicBattleLog, {
-      matchId: snapshot.matchId,
-      currentPublicSeq: snapshot.currentPublicSeq,
-      publicEvents: snapshot.publicEvents ?? [],
-      truncated: snapshot.truncated,
-      droppedEventCount: snapshot.droppedEventCount,
-    }),
+    publicBattleLog: mergePublicBattleLogResponse(
+      state.publicBattleLog,
+      {
+        matchId: snapshot.matchId,
+        currentPublicSeq: snapshot.currentPublicSeq,
+        publicEvents: 'publicEvents' in snapshot ? (snapshot.publicEvents ?? []) : [],
+        truncated: snapshot.truncated,
+        droppedEventCount: snapshot.droppedEventCount,
+      },
+      {
+        advanceCursorToCurrentPublicSeq: false,
+      }
+    ),
   }));
 }
 
@@ -3111,6 +3130,7 @@ function resetPublicBattleLogForRecoveredSnapshot(matchId: string): void {
     publicBattleLog: {
       ...EMPTY_PUBLIC_BATTLE_LOG,
       matchId,
+      presentationEpoch: state.publicBattleLog.presentationEpoch + 1,
       isPanelOpen: state.publicBattleLog.matchId === matchId && state.publicBattleLog.isPanelOpen,
     },
   }));
@@ -3183,12 +3203,15 @@ function settleStalePublicBattleLogLoad(
 
 function mergePublicBattleLogResponse(
   previous: PublicBattleLogState,
-  response: PublicEventsResponse
+  response: PublicEventsResponse,
+  options: { readonly advanceCursorToCurrentPublicSeq?: boolean } = {}
 ): PublicBattleLogState {
   const base =
     previous.matchId === response.matchId
       ? previous
       : { ...EMPTY_PUBLIC_BATTLE_LOG, matchId: response.matchId };
+  const shouldResetPresentation =
+    response.truncated === true || response.currentPublicSeq < base.currentPublicSeq;
   const retainedEvents = response.truncated
     ? []
     : base.events.filter((event) => event.seq <= response.currentPublicSeq);
@@ -3202,7 +3225,10 @@ function mergePublicBattleLogResponse(
     }
   }
   const events = [...bySeq.values()].sort((left, right) => left.seq - right.seq);
-  const cursorSeq = Math.max(response.currentPublicSeq, events.at(-1)?.seq ?? 0);
+  const cursorSeq =
+    options.advanceCursorToCurrentPublicSeq === false
+      ? Math.max(Math.min(base.cursorSeq, response.currentPublicSeq), events.at(-1)?.seq ?? 0)
+      : Math.max(response.currentPublicSeq, events.at(-1)?.seq ?? 0);
   const lastReadSeq = base.isPanelOpen
     ? Math.max(base.lastReadSeq, cursorSeq)
     : Math.min(base.lastReadSeq, cursorSeq);
@@ -3212,6 +3238,9 @@ function mergePublicBattleLogResponse(
     events,
     cursorSeq,
     currentPublicSeq: response.currentPublicSeq,
+    presentationEpoch: shouldResetPresentation
+      ? base.presentationEpoch + 1
+      : base.presentationEpoch,
     lastReadSeq,
     unreadCount: base.isPanelOpen ? 0 : countUnreadPublicEvents(events, lastReadSeq),
     loadState: 'idle',

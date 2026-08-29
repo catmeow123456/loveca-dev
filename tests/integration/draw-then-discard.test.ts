@@ -210,9 +210,26 @@ describe('draw-then-discard shared workflow', () => {
       drawnCards[1]!.instanceId,
     ]);
     const publicEvents = session.getPublicEventsSince(beforeDiscardSeq);
+    const discardMoveEvents = publicEvents.filter(
+      (event) =>
+        event.type === 'CardMovedPublic' &&
+        selectedDiscardIds.some(
+          (cardId) => event.card?.publicObjectId === createPublicObjectId(cardId)
+        ) &&
+        event.from?.zone === ZoneType.HAND &&
+        event.to?.zone === ZoneType.WAITING_ROOM
+    );
+    expect(discardMoveEvents).toHaveLength(2);
+    expect(discardMoveEvents[0]?.movementBatchId).toBeTruthy();
+    expect(discardMoveEvents[1]?.movementBatchId).toBe(discardMoveEvents[0]?.movementBatchId);
+    const opponentView = session.getPlayerViewState(PLAYER2);
+    expect(opponentView?.table.zones.FIRST_HAND?.objectIds).toBeUndefined();
     for (const cardId of selectedDiscardIds) {
       const cardCode = session.state?.cardRegistry.get(cardId)?.data.cardCode;
       expect(cardCode).toBeTruthy();
+      expect(opponentView?.objects[createPublicObjectId(cardId)]?.frontInfo?.cardCode).toBe(
+        cardCode
+      );
       expect(
         publicEvents.some(
           (event) =>
@@ -339,7 +356,13 @@ describe('draw-then-discard shared workflow', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('hs-bp6-030-live-start-draw-discard', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'hs-bp6-030-live-start-draw-discard',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
 
     const sourceLive = createCardInstance(
@@ -402,7 +425,11 @@ describe('draw-then-discard shared workflow', () => {
 
     expect(
       session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, handCard.instanceId)
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          handCard.instanceId
+        )
       ).success
     ).toBe(true);
 
@@ -529,15 +556,14 @@ describe('draw-then-discard shared workflow', () => {
       )
     ).toBe(true);
     const publicEvents = session.getPublicEventsSince(beforeDiscardSeq);
-    expect(
-      publicEvents.some(
-        (event) =>
-          event.type === 'CardMovedPublic' &&
-          event.card?.publicObjectId === createPublicObjectId(handCard.instanceId) &&
-          event.from?.zone === ZoneType.HAND &&
-          event.to?.zone === ZoneType.WAITING_ROOM
-      )
-    ).toBe(true);
+    const discardMoveEvent = publicEvents.find(
+      (event) =>
+        event.type === 'CardMovedPublic' &&
+        event.card?.publicObjectId === createPublicObjectId(handCard.instanceId) &&
+        event.from?.zone === ZoneType.HAND &&
+        event.to?.zone === ZoneType.WAITING_ROOM
+    );
+    expect(discardMoveEvent?.movementBatchId).toBeTruthy();
     expect(
       session.state?.actionHistory.filter(
         (action) =>
@@ -635,7 +661,13 @@ describe('draw-then-discard shared workflow', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('s-pb1-024-live-success-draw-two-discard-two', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      's-pb1-024-live-success-draw-two-discard-two',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
 
     const sourceLive = createCardInstance(
@@ -766,7 +798,13 @@ describe('draw-then-discard shared workflow', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('s-pb1-024-live-success-one-card-edge', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      's-pb1-024-live-success-one-card-edge',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
 
     const sourceLive = createCardInstance(

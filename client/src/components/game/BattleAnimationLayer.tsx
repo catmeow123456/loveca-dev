@@ -5,39 +5,65 @@ import { cn } from '@/lib/utils';
 import { getDeckBackUrl } from '@/lib/imageService';
 import {
   collectBattleAnimationAnchors,
+  collectBattleObjectLocations,
   createBattleAnimationEventsFromViewDiff,
+  createDiscardPresentationBatchEvent,
+  getDiscardPresentationBatchLayout,
   prepareBattleAnimationLayoutForViewDiff,
   type BattleAnimationAnchorMaps,
+  type BattleAnimationCardRender,
   type BattleAnimationEvent,
   type BattleAnimationRect,
+  type DiscardPresentationBatchEvent,
 } from '@/lib/battleAnimationEvents';
 import {
   BATTLE_CARD_MOVE_DURATION_MS,
   BATTLE_CARD_MOVE_SETTLE_BUFFER_MS,
   BATTLE_PULSE_DURATION_MS,
   createSequencedBattleAnimationEvents,
+  DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS,
+  DISCARD_PRESENTATION_REDUCED_MOTION_FADE_MS,
   getBattleAnimationEventDurationMs,
   WAITING_ROOM_REVEAL_DURATION_MS,
   WAITING_ROOM_REVEAL_HOLD_DURATION_MS,
   WAITING_ROOM_REVEAL_MOVE_DURATION_MS,
   type ScheduledBattleAnimationEvent,
 } from '@/lib/battleAnimationSequencing';
+import {
+  createPublicDiscardRevealQueueState,
+  dequeuePublicDiscardRevealBatch,
+  pruneExpiredPublicDiscardRevealBatches,
+  PUBLIC_DISCARD_REVEAL_MAX_AGE_MS,
+  updatePublicDiscardRevealQueue,
+  type PublicDiscardRevealBatch,
+  type PublicDiscardRevealQueueState,
+} from '@/lib/publicDiscardRevealQueue';
 import { useGameStore } from '@/store/gameStore';
 import { ZoneType } from '@game/shared/types/enums';
 import type { PlayerViewState } from '@game/online';
 
 const MAX_RENDERED_EVENT_IDS = 200;
 const RETAINED_RENDERED_EVENT_IDS = 150;
+const MAX_DISCARD_SOURCE_ANCHORS = 32;
+
+export interface RecentDiscardSourceAnchor {
+  readonly matchId: string;
+  readonly rect: BattleAnimationRect;
+  readonly capturedAt: number;
+}
 
 export function BattleAnimationLayer() {
   const reduceMotion = useReducedMotion();
-  const { playerViewState, isReadOnly, getCardImagePath } = useGameStore(
-    useShallow((s) => ({
-      playerViewState: s.playerViewState,
-      isReadOnly: s.getBattleSurfaceCapabilities().isReadOnly,
-      getCardImagePath: s.getCardImagePath,
-    }))
-  );
+  const { playerViewState, publicBattleLog, remoteSessionSource, isReadOnly, getCardImagePath } =
+    useGameStore(
+      useShallow((s) => ({
+        playerViewState: s.playerViewState,
+        publicBattleLog: s.publicBattleLog,
+        remoteSessionSource: s.remoteSession?.source ?? null,
+        isReadOnly: s.getBattleSurfaceCapabilities().isReadOnly,
+        getCardImagePath: s.getCardImagePath,
+      }))
+    );
   const { addBattleAnimationOcclusions, removeBattleAnimationOcclusion } = useGameStore(
     useShallow((s) => ({
       addBattleAnimationOcclusions: s.addBattleAnimationOcclusions,
@@ -45,12 +71,18 @@ export function BattleAnimationLayer() {
     }))
   );
   const [events, setEvents] = useState<BattleAnimationEvent[]>([]);
+  const [discardPumpGeneration, setDiscardPumpGeneration] = useState(0);
   const previousViewRef = useRef<PlayerViewState | null>(null);
   const previousAnchorsRef = useRef<BattleAnimationAnchorMaps | null>(null);
   const renderedEventIdsRef = useRef(new Set<string>());
   const scheduledEventTimeoutsRef = useRef(new Set<number>());
   const activeOcclusionEventIdsRef = useRef(new Set<string>());
   const viewDiffGenerationRef = useRef(0);
+  const discardQueueRef = useRef<PublicDiscardRevealQueueState>(
+    createPublicDiscardRevealQueueState()
+  );
+  const activeDiscardEventIdRef = useRef<string | null>(null);
+  const recentDiscardSourceAnchorsRef = useRef(new Map<string, RecentDiscardSourceAnchor>());
 
   useEffect(() => {
     const scheduledEventTimeouts = scheduledEventTimeoutsRef.current;
@@ -72,6 +104,9 @@ export function BattleAnimationLayer() {
     const previousAnchors = previousAnchorsRef.current;
     if (previousViewState?.match.matchId !== playerViewState?.match.matchId) {
       renderedEventIdsRef.current.clear();
+      recentDiscardSourceAnchorsRef.current.clear();
+      activeDiscardEventIdRef.current = null;
+      discardQueueRef.current = createPublicDiscardRevealQueueState();
       setEvents([]);
       clearPendingBattleAnimations({
         scheduledEventTimeouts: scheduledEventTimeoutsRef.current,
@@ -88,83 +123,194 @@ export function BattleAnimationLayer() {
     }
 
     const nextAnchors = collectBattleAnimationAnchors();
+    const nextEvents: BattleAnimationEvent[] = [];
 
     if (playerViewState && previousViewState && previousAnchors && !isReadOnly) {
-      const nextEvents = createBattleAnimationEventsFromViewDiff({
+      rememberVisibleDiscardSourceAnchors({
         previousViewState,
         nextViewState: playerViewState,
         previousAnchors,
-        nextAnchors,
-      }).filter((event) => !renderedEventIdsRef.current.has(event.id));
+        anchors: recentDiscardSourceAnchorsRef.current,
+        now: Date.now(),
+      });
+      nextEvents.push(
+        ...createBattleAnimationEventsFromViewDiff({
+          previousViewState,
+          nextViewState: playerViewState,
+          previousAnchors,
+          nextAnchors,
+          enableWaitingRoomRevealFallback: remoteSessionSource === 'TUTORIAL',
+        }).filter((event) => !renderedEventIdsRef.current.has(event.id))
+      );
+    }
 
-      if (nextEvents.length > 0) {
-        for (const event of nextEvents) {
-          rememberRenderedEventId(renderedEventIdsRef.current, event.id);
-        }
-        const scheduledEvents = reduceMotion
-          ? nextEvents.map((event) => ({ event, delayMs: 0 }))
-          : createSequencedBattleAnimationEvents(nextEvents);
-        const moveOcclusions = reduceMotion
-          ? []
-          : scheduledEvents
-              .filter(
-                (
-                  scheduledEvent
-                ): scheduledEvent is {
-                  readonly event: Extract<BattleAnimationEvent, { kind: 'CARD_MOVE' }>;
-                  readonly delayMs: number;
-                } => scheduledEvent.event.kind === 'CARD_MOVE'
-              )
-              .map((scheduledEvent) => ({
-                eventId: scheduledEvent.event.id,
-                objectId: scheduledEvent.event.render.objectId,
-                delayMs: scheduledEvent.delayMs,
-                durationMs: getBattleAnimationEventDurationMs(scheduledEvent.event),
-              }));
-        addBattleAnimationOcclusions(
-          moveOcclusions.map((occlusion) => ({
-            eventId: occlusion.eventId,
-            objectId: occlusion.objectId,
-          }))
+    if (
+      playerViewState &&
+      publicBattleLog.matchId === playerViewState.match.matchId &&
+      remoteSessionSource !== 'TUTORIAL'
+    ) {
+      const previousQueue = discardQueueRef.current;
+      const shouldResetActivePresentation =
+        (isReadOnly && activeDiscardEventIdRef.current !== null) ||
+        (previousQueue.matchId !== null &&
+          (previousQueue.matchId !== publicBattleLog.matchId ||
+            previousQueue.presentationEpoch !== publicBattleLog.presentationEpoch ||
+            publicBattleLog.currentPublicSeq < previousQueue.latestPublicSeq));
+      const queueInput = {
+        matchId: publicBattleLog.matchId,
+        presentationEpoch: publicBattleLog.presentationEpoch,
+        currentPublicSeq: publicBattleLog.currentPublicSeq,
+        publicEvents: publicBattleLog.events,
+        now: Date.now(),
+      };
+      discardQueueRef.current = updatePublicDiscardRevealQueue(
+        isReadOnly ? createPublicDiscardRevealQueueState() : previousQueue,
+        queueInput
+      );
+
+      if (shouldResetActivePresentation) {
+        activeDiscardEventIdRef.current = null;
+        setEvents((current) =>
+          current.filter((event) => event.kind !== 'DISCARD_PRESENTATION_BATCH')
         );
-        for (const occlusion of moveOcclusions) {
-          activeOcclusionEventIdsRef.current.add(occlusion.eventId);
+        clearPendingBattleAnimations({
+          scheduledEventTimeouts: scheduledEventTimeoutsRef.current,
+          activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
+          removeBattleAnimationOcclusion,
+        });
+      }
+
+      const prunedQueue = pruneExpiredPublicDiscardRevealBatches(
+        discardQueueRef.current,
+        queueInput.now
+      );
+      discardQueueRef.current = prunedQueue.state;
+      removeDiscardPresentationBatchOcclusions({
+        batches: prunedQueue.expiredBatches,
+        activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
+        removeBattleAnimationOcclusion,
+      });
+
+      if (!isReadOnly) {
+        addDiscardPresentationBatchOcclusions({
+          batches: discardQueueRef.current.queue,
+          activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
+          addBattleAnimationOcclusions,
+        });
+      }
+
+      if (
+        !isReadOnly &&
+        !activeDiscardEventIdRef.current &&
+        publicBattleLog.cursorSeq >= publicBattleLog.currentPublicSeq
+      ) {
+        let pendingBatch = discardQueueRef.current.queue[0];
+        let discardEvent: DiscardPresentationBatchEvent | null = null;
+        while (pendingBatch && !discardEvent) {
+          discardEvent = createPublicDiscardPresentationEvent({
+            batch: pendingBatch,
+            matchId: playerViewState.match.matchId,
+            viewerSeat: playerViewState.match.viewerSeat,
+            nextAnchors,
+            previousAnchors,
+            recentSourceAnchors: recentDiscardSourceAnchorsRef.current,
+          });
+          if (!discardEvent) {
+            const skipped = dequeuePublicDiscardRevealBatch(discardQueueRef.current);
+            discardQueueRef.current = skipped.state;
+            removeDiscardPresentationBatchOcclusions({
+              batches: skipped.batch ? [skipped.batch] : [],
+              activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
+              removeBattleAnimationOcclusion,
+            });
+            pendingBatch = discardQueueRef.current.queue[0];
+          }
         }
-        for (const occlusion of moveOcclusions) {
-          const timeout = window.setTimeout(
-            () => {
-              scheduledEventTimeoutsRef.current.delete(timeout);
-              activeOcclusionEventIdsRef.current.delete(occlusion.eventId);
-              removeBattleAnimationOcclusion(occlusion.eventId);
+        if (discardEvent) {
+          discardQueueRef.current = dequeuePublicDiscardRevealBatch(discardQueueRef.current).state;
+          activeDiscardEventIdRef.current = discardEvent.id;
+          nextEvents.push(discardEvent);
+        }
+      }
+    }
+
+    if (nextEvents.length > 0) {
+      for (const event of nextEvents) {
+        rememberRenderedEventId(renderedEventIdsRef.current, event.id);
+      }
+      const scheduledEvents = reduceMotion
+        ? nextEvents.map((event) => ({ event, delayMs: 0 }))
+        : createSequencedBattleAnimationEvents(nextEvents);
+      const moveOcclusions = scheduledEvents.flatMap((scheduledEvent) => {
+        if (scheduledEvent.event.kind === 'CARD_MOVE') {
+          if (reduceMotion) {
+            return [];
+          }
+          return [
+            {
+              eventId: scheduledEvent.event.id,
+              objectId: scheduledEvent.event.render.objectId,
+              delayMs: scheduledEvent.delayMs,
+              durationMs: getBattleAnimationEventDurationMs(scheduledEvent.event),
             },
-            occlusion.delayMs + occlusion.durationMs + BATTLE_CARD_MOVE_SETTLE_BUFFER_MS
-          );
-          scheduledEventTimeoutsRef.current.add(timeout);
+          ];
         }
-
-        const immediateEvents = scheduledEvents
-          .filter((scheduledEvent) => scheduledEvent.delayMs === 0)
-          .map((scheduledEvent) => scheduledEvent.event);
-        if (immediateEvents.length > 0) {
-          setEvents((current) => [...current.slice(-12), ...immediateEvents]);
+        if (scheduledEvent.event.kind === 'DISCARD_PRESENTATION_BATCH') {
+          return scheduledEvent.event.cards.map((card) => ({
+            eventId: `${scheduledEvent.event.id}:${card.render.objectId}`,
+            objectId: card.render.objectId,
+            delayMs: scheduledEvent.delayMs,
+            durationMs: getBattleAnimationEventDurationMs(
+              scheduledEvent.event,
+              Boolean(reduceMotion)
+            ),
+          }));
         }
-
-        const delayedEventGroups = groupDelayedEventsByDelay(scheduledEvents);
-        for (const [delayMs, delayedEvents] of delayedEventGroups) {
-          const timeout = window.setTimeout(() => {
+        return [];
+      });
+      addBattleAnimationOcclusions(
+        moveOcclusions.map((occlusion) => ({
+          eventId: occlusion.eventId,
+          objectId: occlusion.objectId,
+        }))
+      );
+      for (const occlusion of moveOcclusions) {
+        activeOcclusionEventIdsRef.current.add(occlusion.eventId);
+      }
+      for (const occlusion of moveOcclusions) {
+        const timeout = window.setTimeout(
+          () => {
             scheduledEventTimeoutsRef.current.delete(timeout);
-            if (viewDiffGenerationRef.current !== viewDiffGeneration) {
-              removeOcclusionsForAnimationEvents({
-                events: delayedEvents,
-                activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
-                removeBattleAnimationOcclusion,
-              });
-              return;
-            }
-            setEvents((current) => [...current.slice(-12), ...delayedEvents]);
-          }, delayMs);
-          scheduledEventTimeoutsRef.current.add(timeout);
-        }
+            activeOcclusionEventIdsRef.current.delete(occlusion.eventId);
+            removeBattleAnimationOcclusion(occlusion.eventId);
+          },
+          occlusion.delayMs + occlusion.durationMs + BATTLE_CARD_MOVE_SETTLE_BUFFER_MS
+        );
+        scheduledEventTimeoutsRef.current.add(timeout);
+      }
+
+      const immediateEvents = scheduledEvents
+        .filter((scheduledEvent) => scheduledEvent.delayMs === 0)
+        .map((scheduledEvent) => scheduledEvent.event);
+      if (immediateEvents.length > 0) {
+        setEvents((current) => [...current.slice(-12), ...immediateEvents]);
+      }
+
+      const delayedEventGroups = groupDelayedEventsByDelay(scheduledEvents);
+      for (const [delayMs, delayedEvents] of delayedEventGroups) {
+        const timeout = window.setTimeout(() => {
+          scheduledEventTimeoutsRef.current.delete(timeout);
+          if (viewDiffGenerationRef.current !== viewDiffGeneration) {
+            removeOcclusionsForAnimationEvents({
+              events: delayedEvents,
+              activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
+              removeBattleAnimationOcclusion,
+            });
+            return;
+          }
+          setEvents((current) => [...current.slice(-12), ...delayedEvents]);
+        }, delayMs);
+        scheduledEventTimeoutsRef.current.add(timeout);
       }
     }
 
@@ -172,22 +318,46 @@ export function BattleAnimationLayer() {
     previousAnchorsRef.current = nextAnchors;
   }, [
     addBattleAnimationOcclusions,
+    discardPumpGeneration,
     isReadOnly,
     playerViewState,
+    publicBattleLog,
     reduceMotion,
+    remoteSessionSource,
     removeBattleAnimationOcclusion,
   ]);
 
-  const removeEvent = (eventId: string) => {
-    activeOcclusionEventIdsRef.current.delete(eventId);
-    removeBattleAnimationOcclusion(eventId);
-    setEvents((current) => current.filter((event) => event.id !== eventId));
+  const removeEvent = (event: BattleAnimationEvent) => {
+    removeOcclusionsForAnimationEvents({
+      events: [event],
+      activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
+      removeBattleAnimationOcclusion,
+    });
+    setEvents((current) => current.filter((candidate) => candidate.id !== event.id));
+    if (
+      event.kind === 'DISCARD_PRESENTATION_BATCH' &&
+      activeDiscardEventIdRef.current === event.id
+    ) {
+      activeDiscardEventIdRef.current = null;
+      setDiscardPumpGeneration((current) => current + 1);
+    }
   };
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[96]">
       <AnimatePresence>
         {events.map((event) => {
+          if (event.kind === 'DISCARD_PRESENTATION_BATCH') {
+            return (
+              <DiscardPresentationBatch
+                key={event.id}
+                event={event}
+                getCardImagePath={getCardImagePath}
+                reduceMotion={reduceMotion}
+                onDone={() => removeEvent(event)}
+              />
+            );
+          }
           if (event.kind === 'CARD_MOVE') {
             const imagePath =
               (event.render.surface === 'FRONT' ? event.render.imageSrc : undefined) ??
@@ -195,18 +365,6 @@ export function BattleAnimationLayer() {
                 ? getCardImagePath(event.render.cardCode)
                 : getDeckBackUrl());
             const imageAlt = event.render.surface === 'FRONT' ? (event.render.name ?? '') : '';
-            if (event.presentation === 'WAITING_ROOM_REVEAL') {
-              return (
-                <WaitingRoomRevealMovingCard
-                  key={event.id}
-                  event={event}
-                  imagePath={imagePath}
-                  imageAlt={imageAlt}
-                  reduceMotion={reduceMotion}
-                  onDone={() => removeEvent(event.id)}
-                />
-              );
-            }
             return (
               <MovingCard
                 key={event.id}
@@ -214,7 +372,7 @@ export function BattleAnimationLayer() {
                 imagePath={imagePath}
                 imageAlt={imageAlt}
                 reduceMotion={reduceMotion}
-                onDone={() => removeEvent(event.id)}
+                onDone={() => removeEvent(event)}
               />
             );
           }
@@ -224,7 +382,7 @@ export function BattleAnimationLayer() {
               key={event.id}
               event={event}
               reduceMotion={reduceMotion}
-              onDone={() => removeEvent(event.id)}
+              onDone={() => removeEvent(event)}
             />
           );
         })}
@@ -243,6 +401,172 @@ function rememberRenderedEventId(renderedEventIds: Set<string>, eventId: string)
   renderedEventIds.clear();
   for (const retainedEventId of retainedEventIds) {
     renderedEventIds.add(retainedEventId);
+  }
+}
+
+function rememberVisibleDiscardSourceAnchors({
+  previousViewState,
+  nextViewState,
+  previousAnchors,
+  anchors,
+  now,
+}: {
+  readonly previousViewState: PlayerViewState;
+  readonly nextViewState: PlayerViewState;
+  readonly previousAnchors: BattleAnimationAnchorMaps;
+  readonly anchors: Map<string, RecentDiscardSourceAnchor>;
+  readonly now: number;
+}): void {
+  const previousLocations = collectBattleObjectLocations(previousViewState);
+  const nextLocations = collectBattleObjectLocations(nextViewState);
+  const viewerSeat = previousViewState.match.viewerSeat;
+
+  for (const [objectId, previousLocation] of previousLocations) {
+    const nextLocation = nextLocations.get(objectId);
+    const previousObject = previousViewState.objects[objectId];
+    if (
+      previousLocation.zoneType !== ZoneType.HAND ||
+      nextLocation?.zoneType !== ZoneType.WAITING_ROOM ||
+      previousObject?.ownerSeat !== viewerSeat
+    ) {
+      continue;
+    }
+
+    const rect =
+      previousAnchors.cards.get(objectId) ??
+      previousAnchors.zones.get(`seat-${previousObject.ownerSeat}::hand`);
+    if (!rect) {
+      continue;
+    }
+    anchors.set(objectId, {
+      matchId: previousViewState.match.matchId,
+      rect,
+      capturedAt: now,
+    });
+  }
+
+  for (const [objectId, anchor] of anchors) {
+    if (
+      anchor.matchId !== nextViewState.match.matchId ||
+      now - anchor.capturedAt > PUBLIC_DISCARD_REVEAL_MAX_AGE_MS
+    ) {
+      anchors.delete(objectId);
+    }
+  }
+  while (anchors.size > MAX_DISCARD_SOURCE_ANCHORS) {
+    const oldestObjectId = anchors.keys().next().value as string | undefined;
+    if (!oldestObjectId) {
+      break;
+    }
+    anchors.delete(oldestObjectId);
+  }
+}
+
+export function createPublicDiscardPresentationEvent({
+  batch,
+  matchId,
+  viewerSeat,
+  nextAnchors,
+  previousAnchors,
+  recentSourceAnchors,
+}: {
+  readonly batch: PublicDiscardRevealBatch;
+  readonly matchId: string;
+  readonly viewerSeat: PlayerViewState['match']['viewerSeat'];
+  readonly nextAnchors: BattleAnimationAnchorMaps;
+  readonly previousAnchors: BattleAnimationAnchorMaps | null;
+  readonly recentSourceAnchors: ReadonlyMap<string, RecentDiscardSourceAnchor>;
+}): DiscardPresentationBatchEvent | null {
+  const handAnchorKey = `seat-${batch.ownerSeat}::hand`;
+  const waitingRoomAnchorKey = `seat-${batch.ownerSeat}::waiting-room`;
+  const anonymousHandRect =
+    nextAnchors.zones.get(handAnchorKey) ?? previousAnchors?.zones.get(handAnchorKey);
+  const waitingRoomRect =
+    nextAnchors.zones.get(waitingRoomAnchorKey) ?? previousAnchors?.zones.get(waitingRoomAnchorKey);
+  if (!anonymousHandRect || !waitingRoomRect) {
+    return null;
+  }
+
+  return createDiscardPresentationBatchEvent({
+    id: getPublicDiscardPresentationEventId(batch),
+    toSeat: batch.ownerSeat,
+    toZoneKey: `${batch.ownerSeat}_WAITING_ROOM`,
+    toRect: waitingRoomRect,
+    cards: batch.cards.map((card) => {
+      const recentSourceAnchor = recentSourceAnchors.get(card.publicObjectId);
+      const canUseIndividualSource =
+        batch.ownerSeat === viewerSeat && recentSourceAnchor?.matchId === matchId;
+      return {
+        render: {
+          objectId: card.publicObjectId,
+          cardId: card.publicObjectId.startsWith('obj_')
+            ? card.publicObjectId.slice(4)
+            : card.publicObjectId,
+          fromSurface: batch.ownerSeat === viewerSeat ? 'FRONT' : 'BACK',
+          toSurface: 'FRONT',
+          surface: 'FRONT',
+          cardCode: card.cardCode,
+        },
+        fromRect:
+          canUseIndividualSource && recentSourceAnchor
+            ? recentSourceAnchor.rect
+            : anonymousHandRect,
+      };
+    }),
+  });
+}
+
+export function getPublicDiscardPresentationEventId(batch: PublicDiscardRevealBatch): string {
+  return `public-discard:${batch.movementBatchId}`;
+}
+
+export function getPublicDiscardPresentationOcclusions(
+  batch: PublicDiscardRevealBatch
+): readonly { readonly eventId: string; readonly objectId: string }[] {
+  const eventId = getPublicDiscardPresentationEventId(batch);
+  return batch.cards.map((card) => ({
+    eventId: `${eventId}:${card.publicObjectId}`,
+    objectId: card.publicObjectId,
+  }));
+}
+
+function addDiscardPresentationBatchOcclusions({
+  batches,
+  activeOcclusionEventIds,
+  addBattleAnimationOcclusions,
+}: {
+  readonly batches: readonly PublicDiscardRevealBatch[];
+  readonly activeOcclusionEventIds: Set<string>;
+  readonly addBattleAnimationOcclusions: (
+    occlusions: readonly { readonly eventId: string; readonly objectId: string }[]
+  ) => void;
+}): void {
+  const newOcclusions = batches
+    .flatMap(getPublicDiscardPresentationOcclusions)
+    .filter((occlusion) => !activeOcclusionEventIds.has(occlusion.eventId));
+  if (newOcclusions.length === 0) {
+    return;
+  }
+  addBattleAnimationOcclusions(newOcclusions);
+  for (const occlusion of newOcclusions) {
+    activeOcclusionEventIds.add(occlusion.eventId);
+  }
+}
+
+function removeDiscardPresentationBatchOcclusions({
+  batches,
+  activeOcclusionEventIds,
+  removeBattleAnimationOcclusion,
+}: {
+  readonly batches: readonly PublicDiscardRevealBatch[];
+  readonly activeOcclusionEventIds: Set<string>;
+  readonly removeBattleAnimationOcclusion: (eventId: string) => void;
+}): void {
+  for (const occlusion of batches.flatMap(getPublicDiscardPresentationOcclusions)) {
+    if (!activeOcclusionEventIds.delete(occlusion.eventId)) {
+      continue;
+    }
+    removeBattleAnimationOcclusion(occlusion.eventId);
   }
 }
 
@@ -293,12 +617,24 @@ function removeOcclusionsForAnimationEvents({
   readonly removeBattleAnimationOcclusion: (eventId: string) => void;
 }): void {
   for (const event of events) {
-    if (event.kind !== 'CARD_MOVE' || !activeOcclusionEventIds.has(event.id)) {
-      continue;
+    for (const eventId of getAnimationOcclusionEventIds(event)) {
+      if (!activeOcclusionEventIds.has(eventId)) {
+        continue;
+      }
+      activeOcclusionEventIds.delete(eventId);
+      removeBattleAnimationOcclusion(eventId);
     }
-    activeOcclusionEventIds.delete(event.id);
-    removeBattleAnimationOcclusion(event.id);
   }
+}
+
+function getAnimationOcclusionEventIds(event: BattleAnimationEvent): readonly string[] {
+  if (event.kind === 'CARD_MOVE') {
+    return [event.id];
+  }
+  if (event.kind === 'DISCARD_PRESENTATION_BATCH') {
+    return event.cards.map((card) => `${event.id}:${card.render.objectId}`);
+  }
+  return [];
 }
 
 function MovingCard({
@@ -379,94 +715,204 @@ function MovingCard({
   );
 }
 
-function WaitingRoomRevealMovingCard({
+export function DiscardPresentationBatch({
   event,
-  imagePath,
-  imageAlt,
+  getCardImagePath,
   reduceMotion,
   onDone,
 }: {
-  readonly event: Extract<BattleAnimationEvent, { kind: 'CARD_MOVE' }>;
-  readonly imagePath: string;
-  readonly imageAlt: string;
+  readonly event: DiscardPresentationBatchEvent;
+  readonly getCardImagePath: (cardCode: string) => string;
   readonly reduceMotion: boolean | null;
   readonly onDone: () => void;
 }) {
-  const fromCenter = getRectCenter(event.fromRect);
-  const toCenter = getRectCenter(event.toRect);
-  const fromRect = normalizeCardMoveRect(event, event.fromRect, 'from');
-  const toRect = normalizeCardMoveRect(event, event.toRect, 'to');
-  const revealRect = getWaitingRoomRevealRect({
-    fromRect,
-    toRect,
+  const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth;
+  const viewportHeight = typeof window === 'undefined' ? 720 : window.innerHeight;
+  const layout = getDiscardPresentationBatchLayout({
+    count: event.cards.length,
+    toRect: event.toRect,
     toSeat: event.toSeat,
+    viewportWidth,
+    viewportHeight,
   });
-  const startWidth = clamp(fromRect.width || toRect.width, 12, 140);
-  const startHeight = clamp(fromRect.height || toRect.height, 16, 196);
-  const endWidth = clamp(toRect.width || fromRect.width, 12, 140);
-  const endHeight = clamp(toRect.height || fromRect.height, 16, 196);
-  const startLeft = fromCenter.x - startWidth / 2;
-  const startTop = fromCenter.y - startHeight / 2;
-  const revealLeft = revealRect.left;
-  const revealTop = revealRect.top;
-  const endLeft = toCenter.x - endWidth / 2;
-  const endTop = toCenter.y - endHeight / 2;
+  const toRect = normalizePortraitCardRect(event.toRect);
   const firstKeyframeTime = WAITING_ROOM_REVEAL_MOVE_DURATION_MS / WAITING_ROOM_REVEAL_DURATION_MS;
   const secondKeyframeTime =
     (WAITING_ROOM_REVEAL_MOVE_DURATION_MS + WAITING_ROOM_REVEAL_HOLD_DURATION_MS) /
     WAITING_ROOM_REVEAL_DURATION_MS;
+  const labelTop = clamp(
+    layout.bounds.top >= 34 ? layout.bounds.top - 26 : layout.bounds.top + 4,
+    8,
+    Math.max(8, viewportHeight - 28)
+  );
 
   if (reduceMotion) {
+    const fadeTime =
+      DISCARD_PRESENTATION_REDUCED_MOTION_FADE_MS / DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS;
     return (
-      <PulseFrame
-        event={{ id: event.id, kind: 'ZONE_PULSE', rect: event.toRect }}
-        reduceMotion={reduceMotion}
-        onDone={onDone}
-      />
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: [0, 1, 1, 0] }}
+        transition={{
+          duration: DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS / 1000,
+          times: [0, fadeTime, 1 - fadeTime, 1],
+          ease: 'linear',
+        }}
+        onAnimationComplete={onDone}
+      >
+        <DiscardPresentationLabel
+          count={event.cards.length}
+          left={layout.bounds.left + layout.bounds.width / 2}
+          top={labelTop}
+        />
+        {event.cards.map((card, index) => {
+          const cardLayout = layout.cards[index];
+          if (!cardLayout) return null;
+          return (
+            <DiscardPresentationCardFace
+              key={card.render.objectId}
+              render={card.render}
+              imagePath={resolveDiscardPresentationImagePath(card.render, getCardImagePath)}
+              rect={cardLayout}
+              rotation={cardLayout.rotation}
+            />
+          );
+        })}
+      </motion.div>
     );
   }
 
   return (
-    <motion.div
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0">
+      <motion.div
+        className="fixed"
+        style={{ left: layout.bounds.left + layout.bounds.width / 2, top: labelTop }}
+        initial={{ opacity: 0, y: 2 }}
+        animate={{ opacity: [0, 1, 1, 0], y: [2, 0, 0, -1] }}
+        transition={{
+          duration: WAITING_ROOM_REVEAL_DURATION_MS / 1000,
+          times: [0, firstKeyframeTime, secondKeyframeTime, 1],
+          ease: 'linear',
+        }}
+      >
+        <DiscardPresentationLabel count={event.cards.length} />
+      </motion.div>
+      {event.cards.map((card, index) => {
+        const revealRect = layout.cards[index];
+        if (!revealRect) return null;
+        const fromRect = normalizePortraitCardRect(card.fromRect);
+        const fromCenter = getRectCenter(fromRect);
+        const toCenter = getRectCenter(toRect);
+        const startWidth = clamp(fromRect.width || revealRect.width, 12, 140);
+        const startHeight = clamp(fromRect.height || revealRect.height, 16, 196);
+        const endWidth = clamp(toRect.width || revealRect.width, 12, 140);
+        const endHeight = clamp(toRect.height || revealRect.height, 16, 196);
+        const startLeft = fromCenter.x - startWidth / 2;
+        const startTop = fromCenter.y - startHeight / 2;
+        const endLeft = toCenter.x - endWidth / 2;
+        const endTop = toCenter.y - endHeight / 2;
+
+        return (
+          <motion.div
+            key={card.render.objectId}
+            className="fixed overflow-hidden rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_82%,white)] bg-[var(--bg-overlay)] shadow-[0_16px_36px_rgba(0,0,0,0.42),0_1px_0_rgba(255,255,255,0.08)_inset]"
+            style={{
+              width: startWidth,
+              height: startHeight,
+              left: startLeft,
+              top: startTop,
+              transformOrigin: 'center center',
+              willChange: 'transform, width, height, opacity',
+            }}
+            initial={{ opacity: 0.94, x: 0, y: 0, rotate: 0 }}
+            animate={{
+              x: [0, revealRect.left - startLeft, revealRect.left - startLeft, endLeft - startLeft],
+              y: [0, revealRect.top - startTop, revealRect.top - startTop, endTop - startTop],
+              rotate: [0, revealRect.rotation, revealRect.rotation, 0],
+              width: [startWidth, revealRect.width, revealRect.width, endWidth],
+              height: [startHeight, revealRect.height, revealRect.height, endHeight],
+              opacity: [0.94, 1, 1, 1],
+              scale: [0.985, 1, 1, 1],
+            }}
+            exit={{ opacity: 0, scale: 0.995, transition: { duration: 0.05 } }}
+            transition={{
+              duration: WAITING_ROOM_REVEAL_DURATION_MS / 1000,
+              times: [0, firstKeyframeTime, secondKeyframeTime, 1],
+              ease: ['easeOut', 'linear', 'easeInOut'],
+            }}
+            onAnimationComplete={index === 0 ? onDone : undefined}
+          >
+            <img
+              src={resolveDiscardPresentationImagePath(card.render, getCardImagePath)}
+              alt=""
+              className="h-full w-full object-cover"
+              draggable={false}
+            />
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DiscardPresentationLabel({
+  count,
+  left,
+  top,
+}: {
+  readonly count: number;
+  readonly left?: number;
+  readonly top?: number;
+}) {
+  return (
+    <div
+      className={cn(
+        '-translate-x-1/2 whitespace-nowrap rounded-full border border-[color:color-mix(in_srgb,var(--border-default)_82%,white)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_90%,transparent)] px-2 py-1 text-[10px] font-semibold leading-none text-[var(--text-primary)] shadow-[0_6px_18px_rgba(0,0,0,0.3)] backdrop-blur-md',
+        left !== undefined && top !== undefined && 'fixed'
+      )}
+      style={{ left, top }}
+    >
+      放置入休息室 ×{count}
+    </div>
+  );
+}
+
+function DiscardPresentationCardFace({
+  render,
+  imagePath,
+  rect,
+  rotation,
+}: {
+  readonly render: BattleAnimationCardRender;
+  readonly imagePath: string;
+  readonly rect: BattleAnimationRect;
+  readonly rotation: number;
+}) {
+  return (
+    <div
+      data-discard-presentation-object-id={render.objectId}
       className="fixed overflow-hidden rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_82%,white)] bg-[var(--bg-overlay)] shadow-[0_16px_36px_rgba(0,0,0,0.42),0_1px_0_rgba(255,255,255,0.08)_inset]"
       style={{
-        width: startWidth,
-        height: startHeight,
-        left: startLeft,
-        top: startTop,
-        transformOrigin: 'center center',
-        willChange: 'transform, width, height, opacity',
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+        transform: `rotate(${rotation}deg)`,
       }}
-      initial={{ opacity: 0.94, x: 0, y: 0, rotate: getCardMoveRotation(event.fromZoneType) }}
-      animate={{
-        x: [0, revealLeft - startLeft, revealLeft - startLeft, endLeft - startLeft],
-        y: [0, revealTop - startTop, revealTop - startTop, endTop - startTop],
-        rotate: [
-          getCardMoveRotation(event.fromZoneType),
-          0,
-          0,
-          getCardMoveRotation(event.toZoneType),
-        ],
-        width: [startWidth, revealRect.width, revealRect.width, endWidth],
-        height: [startHeight, revealRect.height, revealRect.height, endHeight],
-        opacity: [0.94, 1, 1, 1],
-        scale: [0.985, 1, 1, 1],
-      }}
-      exit={{ opacity: 0, scale: 0.995, transition: { duration: 0.05 } }}
-      transition={{
-        duration: WAITING_ROOM_REVEAL_DURATION_MS / 1000,
-        times: [0, firstKeyframeTime, secondKeyframeTime, 1],
-        ease: ['easeOut', 'linear', 'easeInOut'],
-      }}
-      onAnimationComplete={onDone}
     >
-      <img
-        src={imagePath}
-        alt={imageAlt}
-        className="h-full w-full object-cover"
-        draggable={false}
-      />
-    </motion.div>
+      <img src={imagePath} alt="" className="h-full w-full object-cover" draggable={false} />
+    </div>
+  );
+}
+
+function resolveDiscardPresentationImagePath(
+  render: BattleAnimationCardRender,
+  getCardImagePath: (cardCode: string) => string
+): string {
+  return (
+    render.imageSrc ?? (render.cardCode ? getCardImagePath(render.cardCode) : getDeckBackUrl())
   );
 }
 
@@ -475,7 +921,10 @@ function PulseFrame({
   reduceMotion,
   onDone,
 }: {
-  readonly event: Exclude<BattleAnimationEvent, { kind: 'CARD_MOVE' }>;
+  readonly event: Exclude<
+    BattleAnimationEvent,
+    { kind: 'CARD_MOVE' } | { kind: 'DISCARD_PRESENTATION_BATCH' }
+  >;
   readonly reduceMotion: boolean | null;
   readonly onDone: () => void;
 }) {
@@ -520,43 +969,6 @@ function getRectCenter(rect: BattleAnimationRect): { readonly x: number; readonl
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
-}
-
-function getWaitingRoomRevealRect({
-  fromRect,
-  toRect,
-  toSeat,
-}: {
-  readonly fromRect: BattleAnimationRect;
-  readonly toRect: BattleAnimationRect;
-  readonly toSeat?: 'FIRST' | 'SECOND';
-}): BattleAnimationRect {
-  const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth;
-  const viewportHeight = typeof window === 'undefined' ? 720 : window.innerHeight;
-  const isNarrow = viewportWidth < 640;
-  const maxWidth = Math.max(56, Math.min(isNarrow ? 82 : 96, viewportWidth * 0.24));
-  let width = clamp(Math.max(fromRect.width, isNarrow ? 70 : 88), 56, maxWidth);
-  let height = width * (7 / 5);
-  const maxHeight = Math.max(82, viewportHeight * 0.34);
-  if (height > maxHeight) {
-    height = maxHeight;
-    width = height * (5 / 7);
-  }
-
-  const toCenter = getRectCenter(toRect);
-  const verticalGap = isNarrow ? 10 : 18;
-  const revealTop =
-    toSeat === 'SECOND'
-      ? toRect.top + toRect.height + verticalGap
-      : toRect.top - height - verticalGap;
-  const revealLeft = toCenter.x - width / 2;
-
-  return {
-    left: clamp(revealLeft, 8, Math.max(8, viewportWidth - width - 8)),
-    top: clamp(revealTop, 8, Math.max(8, viewportHeight - height - 8)),
-    width,
-    height,
-  };
 }
 
 function normalizeCardMoveRect(

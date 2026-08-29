@@ -5,12 +5,14 @@ export const BATTLE_CARD_MOVE_DURATION_MS = 360;
 export const BATTLE_CARD_MOVE_SETTLE_BUFFER_MS = 120;
 export const BATTLE_PULSE_DURATION_MS = 260;
 export const WAITING_ROOM_REVEAL_MOVE_DURATION_MS = 300;
-export const WAITING_ROOM_REVEAL_HOLD_DURATION_MS = 520;
+export const WAITING_ROOM_REVEAL_HOLD_DURATION_MS = 720;
 export const WAITING_ROOM_REVEAL_COLLECT_DURATION_MS = 160;
 export const WAITING_ROOM_REVEAL_DURATION_MS =
   WAITING_ROOM_REVEAL_MOVE_DURATION_MS +
   WAITING_ROOM_REVEAL_HOLD_DURATION_MS +
   WAITING_ROOM_REVEAL_COLLECT_DURATION_MS;
+export const DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS = 800;
+export const DISCARD_PRESENTATION_REDUCED_MOTION_FADE_MS = 80;
 export const ENTER_EFFECT_SURFACE_SUSPEND_MS =
   BATTLE_CARD_MOVE_DURATION_MS + BATTLE_CARD_MOVE_SETTLE_BUFFER_MS;
 
@@ -42,7 +44,16 @@ export function createSequencedBattleAnimationEvents(
   }));
 }
 
-export function getBattleAnimationEventDurationMs(event: BattleAnimationEvent): number {
+export function getBattleAnimationEventDurationMs(
+  event: BattleAnimationEvent,
+  prefersReducedMotion = false
+): number {
+  if (event.kind === 'DISCARD_PRESENTATION_BATCH') {
+    return prefersReducedMotion
+      ? DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS
+      : WAITING_ROOM_REVEAL_DURATION_MS;
+  }
+
   if (event.kind === 'CARD_MOVE' && event.presentation === 'WAITING_ROOM_REVEAL') {
     return WAITING_ROOM_REVEAL_DURATION_MS;
   }
