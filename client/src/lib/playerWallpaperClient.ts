@@ -1,4 +1,4 @@
-import { apiClient, toApiClientError } from './apiClient';
+import { ApiClientError, apiClient, toApiClientError } from './apiClient';
 import type {
   CompactWallpaperMode,
   PlayerWallpaperSolidPreset,
@@ -28,6 +28,8 @@ export interface PublishPlayerWallpaperSubmission {
   readonly wideFile?: File;
   readonly compactFile?: File;
 }
+
+const PLAYER_WALLPAPER_UPLOAD_TIMEOUT_MS = 90_000;
 
 export async function fetchPlayerWallpaper(includeSources = false): Promise<PlayerWallpaperView> {
   const query = includeSources ? '?includeSources=true' : '';
@@ -60,12 +62,30 @@ export async function publishPlayerWallpaper(
 
   const response = await apiClient.post<PlayerWallpaperPublishResult>(
     '/api/player-wallpapers',
-    formData
+    formData,
+    PLAYER_WALLPAPER_UPLOAD_TIMEOUT_MS
   );
   if (!response.data || response.error) {
     throw toApiClientError(response, '保存壁纸失败');
   }
   return response.data;
+}
+
+export function getPlayerWallpaperErrorMessage(error: unknown, fallbackMessage: string): string {
+  if (!(error instanceof ApiClientError)) {
+    return error instanceof Error ? error.message : fallbackMessage;
+  }
+
+  if (error.code === 'WALLPAPER_PIXELS_TOO_SMALL' || error.code === 'WALLPAPER_CROP_TOO_SMALL') {
+    return '图片分辨率不足，请换一张尺寸更大的图片。';
+  }
+  if (error.code === 'TIMEOUT') {
+    return '壁纸处理超时，请稍后重试，也可以先压缩图片。';
+  }
+  if (error.code === 'INVALID_RESPONSE' || (error.status !== undefined && error.status >= 500)) {
+    return '服务器暂时无法处理壁纸，请稍后重试。';
+  }
+  return error.message || fallbackMessage;
 }
 
 export async function resetPlayerWallpaper(

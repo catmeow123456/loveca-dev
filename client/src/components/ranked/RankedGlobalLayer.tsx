@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Clock3, X } from 'lucide-react';
+import { MatchmakingAudioHint } from '@/components/matchmaking/MatchmakingAudioHint';
 import { useRankedStore } from '@/store/rankedStore';
 
 const HEARTBEAT_MS = 15_000;
@@ -85,6 +86,7 @@ export function RankedGlobalLayer({
             排位候场中
           </div>
           <div className="mt-1 truncate text-xs text-[var(--text-muted)]">{status.deckName}</div>
+          <MatchmakingAudioHint className="mt-1" />
         </div>
         <button
           className="button-secondary px-3 py-2 text-sm"

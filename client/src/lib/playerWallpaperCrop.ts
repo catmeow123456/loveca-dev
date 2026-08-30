@@ -9,6 +9,12 @@ const LAYOUT_ASPECT: Record<WallpaperLayout, number> = {
   COMPACT: 9 / 16,
 };
 
+const LAYOUT_MINIMUM = {
+  WIDE: { width: 1280, height: 720 },
+  COMPACT: { width: 720, height: 1280 },
+  INHERITED_COMPACT: { width: 540, height: 960 },
+} as const;
+
 export function computeWallpaperCrop(
   sourceWidth: number,
   sourceHeight: number,
@@ -42,6 +48,28 @@ export function computeWallpaperCrop(
     width: 1,
     height,
   };
+}
+
+export function getWallpaperResolutionError(
+  sourceWidth: number,
+  sourceHeight: number,
+  layout: WallpaperLayout,
+  inheritedWideSource = false
+): string | null {
+  const crop = computeWallpaperCrop(sourceWidth, sourceHeight, layout, { x: 0.5, y: 0.5 });
+  const minimum =
+    layout === 'WIDE'
+      ? LAYOUT_MINIMUM.WIDE
+      : inheritedWideSource
+        ? LAYOUT_MINIMUM.INHERITED_COMPACT
+        : LAYOUT_MINIMUM.COMPACT;
+  const cropWidth = crop.width * sourceWidth;
+  const cropHeight = crop.height * sourceHeight;
+  if (cropWidth >= minimum.width && cropHeight >= minimum.height) {
+    return null;
+  }
+  const target = layout === 'WIDE' ? 'PC 壁纸' : '手机壁纸';
+  return `图片分辨率不足，${target}至少需要可裁切出 ${minimum.width}×${minimum.height}。`;
 }
 
 function clamp01(value: number): number {

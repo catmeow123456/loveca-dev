@@ -20,8 +20,9 @@ import {
   SectionHeading,
   StatusBadge,
 } from '@/components/common';
-import { computeWallpaperCrop } from '@/lib/playerWallpaperCrop';
+import { computeWallpaperCrop, getWallpaperResolutionError } from '@/lib/playerWallpaperCrop';
 import {
+  getPlayerWallpaperErrorMessage,
   publishPlayerWallpaper,
   resetPlayerWallpaper,
   type WallpaperLayoutSubmission,
@@ -182,9 +183,12 @@ export function WallpaperSettings() {
     localObjectUrlsRef.current.add(localUrl);
     try {
       const dimensions = await readImageDimensions(localUrl);
-      if (Math.min(dimensions.width, dimensions.height) < 720) {
-        throw new Error('图片分辨率过低，无法生成清晰的游戏桌壁纸。');
-      }
+      const resolutionError = getWallpaperResolutionError(
+        dimensions.width,
+        dimensions.height,
+        slot
+      );
+      if (resolutionError) throw new Error(resolutionError);
       const next: SlotDraft = {
         source: 'UPLOAD',
         currentAsset: null,
@@ -318,7 +322,7 @@ export function WallpaperSettings() {
     } catch (error) {
       setFeedback({
         tone: 'error',
-        message: error instanceof Error ? error.message : '保存壁纸失败。',
+        message: getPlayerWallpaperErrorMessage(error, '保存壁纸失败。'),
       });
     } finally {
       setIsSaving(false);
@@ -780,17 +784,13 @@ function buildSubmission(
 ): WallpaperLayoutSubmission {
   if (!draft) throw new Error('请选择要使用的壁纸图片。');
   const crop = computeWallpaperCrop(draft.width, draft.height, layout, draft.focus);
-  const cropWidth = crop.width * draft.width;
-  const cropHeight = crop.height * draft.height;
-  const minimum =
-    layout === 'WIDE'
-      ? { width: 1280, height: 720 }
-      : inheritedWideSource
-        ? { width: 540, height: 960 }
-        : { width: 720, height: 1280 };
-  if (cropWidth < minimum.width || cropHeight < minimum.height) {
-    throw new Error('图片分辨率过低，无法生成清晰的游戏桌壁纸。');
-  }
+  const resolutionError = getWallpaperResolutionError(
+    draft.width,
+    draft.height,
+    layout,
+    inheritedWideSource
+  );
+  if (resolutionError) throw new Error(resolutionError);
   return {
     ...(layout === 'WIDE' || !inheritedWideSource ? { source: draft.source } : {}),
     crop,

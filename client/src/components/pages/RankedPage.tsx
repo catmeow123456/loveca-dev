@@ -31,6 +31,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { useRankedStore } from '@/store/rankedStore';
+import { MatchmakingAudioHint } from '@/components/matchmaking/MatchmakingAudioHint';
 import type {
   RankedOverviewView,
   RankedSeasonEnvironmentView,
@@ -1200,6 +1201,7 @@ function QueueState({
               ? `房间 ${status.roomCode}`
               : '请确认开局'}
       </p>
+      {waiting ? <MatchmakingAudioHint className="mt-2 justify-center" /> : null}
       <button
         type="button"
         onClick={onOpenSeasonNotice}

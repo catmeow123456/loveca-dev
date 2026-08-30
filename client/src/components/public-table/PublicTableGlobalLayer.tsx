@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Check, Clock3, X } from 'lucide-react';
+import { MatchmakingAudioHint } from '@/components/matchmaking/MatchmakingAudioHint';
 import { usePublicTableStore } from '@/store/publicTableStore';
 
 const HEARTBEAT_MS = 15_000;
@@ -99,6 +100,7 @@ export function PublicTableGlobalLayer({
           <div className="mt-1 truncate text-xs text-[var(--text-muted)]">
             已等待 {formatDuration(waitingSeconds)} · {visibleStatus.deckName}
           </div>
+          <MatchmakingAudioHint className="mt-1" />
         </div>
         <button
           className="button-secondary px-3 py-2 text-sm"

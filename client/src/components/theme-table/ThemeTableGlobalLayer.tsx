@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Clock3 } from 'lucide-react';
+import { MatchmakingAudioHint } from '@/components/matchmaking/MatchmakingAudioHint';
 import { useThemeTableStore } from '@/store/themeTableStore';
 import { ThemeDeckChoiceDialog } from './ThemeDeckChoiceDialog';
 
@@ -78,6 +79,7 @@ export function ThemeTableGlobalLayer({
               ? '匹配成功后随机分配卡组'
               : `匹配成功后抽取 ${overview?.event?.deckChoiceCount ?? 'X'} 选 1`}
           </div>
+          <MatchmakingAudioHint className="mt-1" />
         </div>
         <button
           className="button-secondary px-3 py-2 text-sm"

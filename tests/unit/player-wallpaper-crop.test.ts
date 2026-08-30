@@ -1,4 +1,7 @@
-import { computeWallpaperCrop } from '../../client/src/lib/playerWallpaperCrop';
+import {
+  computeWallpaperCrop,
+  getWallpaperResolutionError,
+} from '../../client/src/lib/playerWallpaperCrop';
 import { describe, expect, it } from 'vitest';
 
 describe('player wallpaper crop projection', () => {
@@ -27,5 +30,16 @@ describe('player wallpaper crop projection', () => {
     expect(top.y).toBe(0);
     expect(bottom.y).toBeCloseTo(1 - bottom.height, 8);
     expect((top.width * 1080) / (top.height * 1920)).toBeCloseTo(16 / 9, 8);
+  });
+
+  it('reports a player-facing error when the actual crop is below the layout minimum', () => {
+    expect(getWallpaperResolutionError(720, 720, 'WIDE')).toBe(
+      '图片分辨率不足，PC 壁纸至少需要可裁切出 1280×720。'
+    );
+    expect(getWallpaperResolutionError(1920, 1080, 'WIDE')).toBeNull();
+    expect(getWallpaperResolutionError(1920, 1080, 'COMPACT', true)).toBeNull();
+    expect(getWallpaperResolutionError(1280, 720, 'COMPACT', true)).toBe(
+      '图片分辨率不足，手机壁纸至少需要可裁切出 540×960。'
+    );
   });
 });

@@ -88,6 +88,24 @@ describe('player wallpaper image service', () => {
     });
   });
 
+  it('returns a typed low-resolution error instead of a server failure', async () => {
+    const input = await sharp({
+      create: {
+        width: 640,
+        height: 640,
+        channels: 3,
+        background: { r: 40, g: 30, b: 50 },
+      },
+    })
+      .jpeg()
+      .toBuffer();
+
+    await expect(normalizeWallpaperSource(input)).rejects.toMatchObject({
+      code: 'WALLPAPER_PIXELS_TOO_SMALL',
+      message: '图片分辨率过低，无法生成清晰的游戏桌壁纸。',
+    });
+  });
+
   it('rejects crops with the wrong aspect or insufficient pixels', () => {
     expect(() =>
       validateNormalizedCrop({ x: 0, y: 0, width: 1, height: 1 }, 1920, 1080, 'COMPACT')

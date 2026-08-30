@@ -77,8 +77,8 @@ export const config = {
     processingConcurrency: parsePositiveIntegerEnv('PLAYER_WALLPAPER_PROCESSING_CONCURRENCY', 2, 8),
     processingTimeoutSeconds: parsePositiveIntegerEnv(
       'PLAYER_WALLPAPER_PROCESSING_TIMEOUT_SECONDS',
-      15,
-      60
+      30,
+      120
     ),
     retiredAssetRetentionHours: parsePositiveIntegerEnv(
       'PLAYER_WALLPAPER_RETIRED_RETENTION_HOURS',

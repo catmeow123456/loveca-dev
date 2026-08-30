@@ -17,6 +17,7 @@ import { ActionButton, PageHeader, Panel, StatusBadge } from '@/components/commo
 import { CardDetailDrawer } from '@/components/deck-editor/CardDetailDrawer';
 import { ThemeDeckGallery } from '@/components/theme-table/ThemeDeckGallery';
 import { ActivityCoverHero } from '@/components/activity-cover/ActivityCoverHero';
+import { MatchmakingAudioHint } from '@/components/matchmaking/MatchmakingAudioHint';
 import { resolveCardImagePath, resolveRegistryCardImagePath } from '@/lib/imageService';
 import { useThemeTableStore } from '@/store/themeTableStore';
 import { useGameStore } from '@/store/gameStore';
@@ -119,6 +120,7 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
                     : (queue.deckName ?? '卡组尚未揭晓')
                   : availability.message}
               </div>
+              {queue.state === 'WAITING' ? <MatchmakingAudioHint className="mt-1" /> : null}
             </div>
             {queue.state === 'WAITING' ? (
               <ActionButton variant="secondary" disabled={loading} onClick={() => void cancel()}>
