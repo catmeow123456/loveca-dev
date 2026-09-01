@@ -6,6 +6,7 @@ import {
   CloudDownload,
   Loader2,
   Medal,
+  Music2,
   MonitorCog,
   PieChart,
   Save,
@@ -29,6 +30,7 @@ interface AdminCenterPageProps {
   readonly role: UserRole;
   readonly onBack: () => void;
   readonly onOpenMatchEmotes: () => void;
+  readonly onOpenMatchmakingBgm: () => void;
   readonly onOpenAnnouncements: () => void;
   readonly onOpenCards: () => void;
   readonly onOpenCardSync: () => void;
@@ -97,6 +99,13 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           description: '编辑对局表情、显示顺序和发送状态',
           icon: SmilePlus,
           onOpen: props.onOpenMatchEmotes,
+          permission: 'platform.manage',
+        },
+        {
+          title: '候场 BGM',
+          description: '管理候场曲库与平台默认播放子集',
+          icon: Music2,
+          onOpen: props.onOpenMatchmakingBgm,
           permission: 'platform.manage',
         },
         {

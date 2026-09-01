@@ -34,6 +34,7 @@ import { deckClassifierAdminRouter } from './routes/deck-classifier-admin.js';
 import { activityCoverAdminRouter } from './routes/activity-covers.js';
 import { activityBadgeAdminRouter } from './routes/activity-badges.js';
 import { tutorialRouter } from './routes/tutorial.js';
+import { matchmakingBgmRouter } from './routes/matchmaking-bgm.js';
 import { checkApplicationReadiness } from './services/readiness-service.js';
 
 export function createApp(): express.Express {
@@ -101,6 +102,7 @@ export function createApp(): express.Express {
   app.use('/api/player-badges', playerBadgesRouter);
   app.use('/api/player-wallpapers', playerWallpapersRouter);
   app.use('/api/match-emotes', matchEmotesRouter);
+  app.use('/api/matchmaking-bgm', matchmakingBgmRouter);
   app.use('/api/ai-effect-extraction', aiEffectExtractionRouter);
   app.use('/api/theme-table', themeTableRouter);
   app.use('/api/admin/theme-table', themeTableAdminRouter);

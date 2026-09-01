@@ -267,6 +267,13 @@
       "when": 1787820000000,
       "tag": "0037_add_matchmaking_audio_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1788220800000,
+      "tag": "0038_add_matchmaking_bgm_library",
+      "breakpoints": true
     }
   ]
 }

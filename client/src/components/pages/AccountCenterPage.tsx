@@ -8,6 +8,7 @@ import {
   Loader2,
   LockKeyhole,
   Mail,
+  Music2,
   Palette,
   Save,
   Send,
@@ -25,7 +26,9 @@ import {
 } from '@/components/common';
 import { BadgeShelf } from '@/components/player-badges/BadgeShelf';
 import { WallpaperSettings } from '@/components/player-wallpaper/WallpaperSettings';
+import { useKeyedState } from '@/hooks/useKeyedState';
 import { fetchMyPlayerBadges } from '@/lib/playerBadgeClient';
+import { fetchMatchmakingBgmLibrary, type MatchmakingBgmTrack } from '@/lib/matchmakingBgmClient';
 import { useAuthStore } from '@/store/authStore';
 import type { PlayerBadgeView } from '@game/online/player-badge-types';
 
@@ -56,17 +59,40 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
   const updateProfile = useAuthStore((state) => state.updateProfile);
   const requestEmailChange = useAuthStore((state) => state.requestEmailChange);
   const updatePassword = useAuthStore((state) => state.updatePassword);
+  const soundPreferenceKey = profile
+    ? [
+        profile.id,
+        profile.matchmaking_bgm_enabled,
+        profile.matchmaking_match_sound_enabled,
+        profile.matchmaking_bgm_track_ids === null
+          ? 'default'
+          : profile.matchmaking_bgm_track_ids.join(','),
+      ].join(':')
+    : null;
 
   const [username, setUsername] = useState(profile?.username ?? '');
   const [displayName, setDisplayName] = useState(profile?.display_name ?? profile?.username ?? '');
   const [profileFeedback, setProfileFeedback] = useState<Feedback>(null);
-  const [waitingMusicEnabled, setWaitingMusicEnabled] = useState(
+  const [waitingMusicEnabled, setWaitingMusicEnabled] = useKeyedState(
+    soundPreferenceKey,
     profile?.matchmaking_bgm_enabled ?? true
   );
-  const [matchFoundSoundEnabled, setMatchFoundSoundEnabled] = useState(
+  const [matchFoundSoundEnabled, setMatchFoundSoundEnabled] = useKeyedState(
+    soundPreferenceKey,
     profile?.matchmaking_match_sound_enabled ?? true
   );
   const [soundFeedback, setSoundFeedback] = useState<Feedback>(null);
+  const [bgmLibrary, setBgmLibrary] = useState<readonly MatchmakingBgmTrack[]>([]);
+  const [bgmLibraryLoading, setBgmLibraryLoading] = useState(true);
+  const [bgmLibraryError, setBgmLibraryError] = useState<string | null>(null);
+  const [useDefaultBgmSelection, setUseDefaultBgmSelection] = useKeyedState(
+    soundPreferenceKey,
+    profile?.matchmaking_bgm_track_ids === null
+  );
+  const [selectedBgmTrackIds, setSelectedBgmTrackIds] = useKeyedState<readonly string[]>(
+    soundPreferenceKey,
+    profile?.matchmaking_bgm_track_ids ?? []
+  );
 
   const [newEmail, setNewEmail] = useState('');
   const [emailPassword, setEmailPassword] = useState('');
@@ -84,9 +110,36 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
   const authenticatedUserId = user?.id;
 
   useEffect(() => {
-    setWaitingMusicEnabled(profile?.matchmaking_bgm_enabled ?? true);
-    setMatchFoundSoundEnabled(profile?.matchmaking_match_sound_enabled ?? true);
-  }, [profile?.matchmaking_bgm_enabled, profile?.matchmaking_match_sound_enabled]);
+    if (activeSection !== 'sound' || !authenticatedUserId) return;
+    let active = true;
+    void fetchMatchmakingBgmLibrary()
+      .then((tracks) => {
+        if (!active) return;
+        setBgmLibraryError(null);
+        setBgmLibrary(tracks);
+        if (profile?.matchmaking_bgm_track_ids === null) {
+          setSelectedBgmTrackIds(
+            tracks.filter((track) => track.defaultSelected).map((track) => track.id)
+          );
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setBgmLibraryError(error instanceof Error ? error.message : '读取候场曲库失败');
+        }
+      })
+      .finally(() => {
+        if (active) setBgmLibraryLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    activeSection,
+    authenticatedUserId,
+    profile?.matchmaking_bgm_track_ids,
+    setSelectedBgmTrackIds,
+  ]);
 
   useEffect(() => {
     const handlePopState = () => setActiveSection(readAccountSection());
@@ -397,6 +450,11 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
                     const result = await updateProfile({
                       matchmaking_bgm_enabled: waitingMusicEnabled,
                       matchmaking_match_sound_enabled: matchFoundSoundEnabled,
+                      matchmaking_bgm_track_ids: useDefaultBgmSelection
+                        ? null
+                        : selectedBgmTrackIds.filter((trackId) =>
+                            bgmLibrary.some((track) => track.id === trackId)
+                          ),
                     });
                     setSoundFeedback(
                       result.success
@@ -410,6 +468,15 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
                     checked={waitingMusicEnabled}
                     onChange={setWaitingMusicEnabled}
                   />
+                  <BgmSelectionPanel
+                    tracks={bgmLibrary}
+                    loading={bgmLibraryLoading}
+                    error={bgmLibraryError}
+                    useDefault={useDefaultBgmSelection}
+                    selectedTrackIds={selectedBgmTrackIds}
+                    onUseDefaultChange={setUseDefaultBgmSelection}
+                    onSelectionChange={setSelectedBgmTrackIds}
+                  />
                   <SoundToggle
                     label="匹配成功时播放提示音"
                     checked={matchFoundSoundEnabled}
@@ -418,6 +485,9 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
                   <FormFooter feedback={soundFeedback}>
                     <SubmitButton
                       loading={isLoading}
+                      disabled={
+                        !useDefaultBgmSelection && (bgmLibraryLoading || bgmLibraryError !== null)
+                      }
                       idleLabel="保存声音设置"
                       loadingLabel="保存中"
                       icon={<Save size={16} />}
@@ -562,6 +632,133 @@ function SoundToggle({
   );
 }
 
+function BgmSelectionPanel({
+  tracks,
+  loading,
+  error,
+  useDefault,
+  selectedTrackIds,
+  onUseDefaultChange,
+  onSelectionChange,
+}: {
+  tracks: readonly MatchmakingBgmTrack[];
+  loading: boolean;
+  error: string | null;
+  useDefault: boolean;
+  selectedTrackIds: readonly string[];
+  onUseDefaultChange: (useDefault: boolean) => void;
+  onSelectionChange: (trackIds: readonly string[]) => void;
+}) {
+  const defaultCount = tracks.filter((track) => track.defaultSelected).length;
+  const selectedCount = tracks.filter((track) => selectedTrackIds.includes(track.id)).length;
+
+  const toggleTrack = (trackId: string, checked: boolean) => {
+    onSelectionChange(
+      checked
+        ? [...selectedTrackIds, trackId]
+        : selectedTrackIds.filter((selectedId) => selectedId !== trackId)
+    );
+  };
+
+  return (
+    <fieldset className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)]">
+      <legend className="sr-only">候场曲目</legend>
+      <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] px-3 py-3 sm:px-4">
+        <Music2 size={16} className="shrink-0 text-[var(--accent-primary)]" aria-hidden="true" />
+        <span className="text-sm font-semibold text-[var(--text-primary)]">候场曲目</span>
+      </div>
+
+      <div className="divide-y divide-[var(--border-subtle)]">
+        <label
+          className={`flex min-h-12 cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors sm:px-4 ${
+            useDefault
+              ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_9%,var(--bg-surface))]'
+              : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-overlay)]'
+          }`}
+        >
+          <input
+            type="radio"
+            name="matchmaking-bgm-selection-mode"
+            checked={useDefault}
+            onChange={() => onUseDefaultChange(true)}
+            className="h-4 w-4 accent-[var(--accent-primary)]"
+          />
+          <span className="min-w-0 flex-1 text-sm font-semibold text-[var(--text-primary)]">
+            默认曲目
+          </span>
+          <span className="shrink-0 text-xs tabular-nums text-[var(--text-muted)]">
+            {defaultCount} 首
+          </span>
+        </label>
+        <label
+          className={`flex min-h-12 cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors sm:px-4 ${
+            !useDefault
+              ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_9%,var(--bg-surface))]'
+              : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-overlay)]'
+          }`}
+        >
+          <input
+            type="radio"
+            name="matchmaking-bgm-selection-mode"
+            checked={!useDefault}
+            onChange={() => onUseDefaultChange(false)}
+            className="h-4 w-4 accent-[var(--accent-primary)]"
+          />
+          <span className="min-w-0 flex-1 text-sm font-semibold text-[var(--text-primary)]">
+            自选曲目
+          </span>
+          <span className="shrink-0 text-xs tabular-nums text-[var(--text-muted)]">
+            {selectedCount} 首
+          </span>
+        </label>
+      </div>
+
+      {!useDefault ? (
+        <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+          {loading ? (
+            <div className="flex min-h-24 items-center justify-center gap-2 text-xs text-[var(--text-muted)]">
+              <Loader2 size={15} className="animate-spin" aria-hidden="true" />
+              正在读取曲库
+            </div>
+          ) : error ? (
+            <p className="px-3 py-4 text-xs text-[var(--semantic-error)]">{error}</p>
+          ) : tracks.length === 0 ? (
+            <p className="px-3 py-4 text-xs text-[var(--text-muted)]">平台曲库暂时为空。</p>
+          ) : (
+            <div className="max-h-64 overflow-y-auto">
+              {tracks.map((track, index) => (
+                <label
+                  key={track.id}
+                  className="flex cursor-pointer items-center gap-3 border-b border-[var(--border-subtle)] px-3 py-2.5 last:border-b-0 hover:bg-[var(--bg-overlay)]"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedTrackIds.includes(track.id)}
+                    onChange={(event) => toggleTrack(track.id, event.target.checked)}
+                    className="h-4 w-4 shrink-0 accent-[var(--accent-primary)]"
+                  />
+                  <Music2 size={15} className="shrink-0 text-[var(--accent-primary)]" />
+                  <span className="min-w-0 flex-1 truncate text-sm text-[var(--text-primary)]">
+                    {track.title}
+                  </span>
+                  <span className="text-[11px] tabular-nums text-[var(--text-muted)]">
+                    {String(index + 1).padStart(2, '0')}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+          {!loading && !error && tracks.length > 0 && selectedCount === 0 ? (
+            <p className="border-t border-[var(--border-subtle)] px-3 py-2 text-xs text-[var(--text-muted)]">
+              未选择曲目；保存后，候场将保持静音。
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </fieldset>
+  );
+}
+
 function accountSectionHref(section: AccountSection): string {
   const url = new URL(window.location.href);
   url.searchParams.set('page', 'account');
@@ -648,17 +845,19 @@ function FormFooter({ feedback, children }: { feedback: Feedback; children: Reac
 
 function SubmitButton({
   loading,
+  disabled = false,
   idleLabel,
   loadingLabel,
   icon,
 }: {
   loading: boolean;
+  disabled?: boolean;
   idleLabel: string;
   loadingLabel: string;
   icon: ReactNode;
 }) {
   return (
-    <ActionButton type="submit" disabled={loading} className="disabled:opacity-55">
+    <ActionButton type="submit" disabled={loading || disabled} className="disabled:opacity-55">
       {loading ? <Loader2 size={16} className="animate-spin" /> : icon}
       {loading ? loadingLabel : idleLabel}
     </ActionButton>

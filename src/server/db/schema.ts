@@ -282,6 +282,11 @@ export const profiles = pgTable(
     avatarUrl: text('avatar_url'),
     role: text('role').$type<UserRole>().notNull().default('user'),
     deckCount: integer('deck_count').notNull().default(0),
+    matchmakingBgmEnabled: boolean('matchmaking_bgm_enabled').notNull().default(true),
+    matchmakingMatchSoundEnabled: boolean('matchmaking_match_sound_enabled')
+      .notNull()
+      .default(true),
+    matchmakingBgmTrackIds: uuid('matchmaking_bgm_track_ids').array(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1225,6 +1230,34 @@ export const matchEmoteCatalogConfig = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [check('match_emote_catalog_config_id_check', sql`${table.id} = 'default'`)]
+);
+
+export const matchmakingBgmTracks = pgTable(
+  'matchmaking_bgm_tracks',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    title: text('title').notNull(),
+    storageKey: text('storage_key').notNull().unique(),
+    byteSize: integer('byte_size').notNull(),
+    isDefault: boolean('is_default').notNull().default(false),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_matchmaking_bgm_tracks_created_at').on(table.createdAt),
+    check(
+      'matchmaking_bgm_tracks_title_check',
+      sql`btrim(${table.title}) <> '' AND char_length(${table.title}) <= 100`
+    ),
+    check(
+      'matchmaking_bgm_tracks_storage_key_check',
+      sql`${table.storageKey} ~ '^music/[a-z0-9][a-z0-9._-]*[.]mp3$'
+        OR ${table.storageKey} ~ '^matchmaking-bgm/[0-9a-f]{64}[.]mp3$'`
+    ),
+    check('matchmaking_bgm_tracks_byte_size_check', sql`${table.byteSize} > 0`),
+  ]
 );
 
 export const aiEffectExtractionConfig = pgTable(

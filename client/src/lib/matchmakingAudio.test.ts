@@ -1,15 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   MATCH_FOUND_SOUND,
-  MATCHMAKING_MUSIC_TRACKS,
   MatchmakingAudioPlayer,
   resolveMatchmakingAudioState,
+  resolveMatchmakingTrackUrls,
   type MatchmakingQueueKind,
 } from './matchmakingAudio';
 import type {
   PublicTablePlayerState,
   PublicTableStatusView,
 } from '@game/online/public-table-types';
+
+const TEST_TRACKS = ['/music/first.mp3', '/music/second.mp3', '/music/third.mp3'] as const;
 
 class FakeAudio {
   currentTime = 12;
@@ -36,6 +38,23 @@ function createPlayer(random = 0) {
 }
 
 describe('MatchmakingAudioPlayer', () => {
+  it('uses the administrator default subset when the user inherits defaults', () => {
+    expect(resolveMatchmakingTrackUrls(selectionTracks(), null)).toEqual([
+      '/music/first.mp3',
+      '/music/third.mp3',
+    ]);
+  });
+
+  it('uses only current tracks from a user custom subset', () => {
+    expect(resolveMatchmakingTrackUrls(selectionTracks(), ['track-2', 'deleted-track'])).toEqual([
+      '/music/second.mp3',
+    ]);
+  });
+
+  it('keeps waiting silent for an explicitly empty custom subset', () => {
+    expect(resolveMatchmakingTrackUrls(selectionTracks(), [])).toEqual([]);
+  });
+
   it.each<MatchmakingQueueKind>(['public-table', 'ranked', 'theme-table'])(
     'recognizes %s as a waiting queue',
     (kind) => {
@@ -63,12 +82,12 @@ describe('MatchmakingAudioPlayer', () => {
   it('loops one of the waiting tracks without creating overlapping channels', () => {
     const { channels, player } = createPlayer(0.5);
 
-    player.startWaitingMusic();
-    player.startWaitingMusic();
+    player.startWaitingMusic(TEST_TRACKS);
+    player.startWaitingMusic(TEST_TRACKS);
 
     expect(channels).toHaveLength(1);
     expect(channels[0]).toMatchObject({
-      source: MATCHMAKING_MUSIC_TRACKS[1],
+      source: TEST_TRACKS[1],
       loop: true,
       preload: 'auto',
       volume: 0.32,
@@ -78,7 +97,7 @@ describe('MatchmakingAudioPlayer', () => {
 
   it('stops waiting music and announces each reservation only once', () => {
     const { channels, player } = createPlayer();
-    player.startWaitingMusic();
+    player.startWaitingMusic(TEST_TRACKS);
 
     player.announceMatch('ranked:reservation-1');
     player.announceMatch('ranked:reservation-1');
@@ -97,7 +116,7 @@ describe('MatchmakingAudioPlayer', () => {
 
   it('cleans up both channels and allows a later match to be announced again', () => {
     const { channels, player } = createPlayer();
-    player.startWaitingMusic();
+    player.startWaitingMusic(TEST_TRACKS);
     player.announceMatch('theme-table:reservation-1');
 
     player.reset();
@@ -122,10 +141,26 @@ describe('MatchmakingAudioPlayer', () => {
       }),
     });
 
-    expect(() => player.startWaitingMusic()).not.toThrow();
+    expect(() => player.startWaitingMusic(TEST_TRACKS)).not.toThrow();
     await rejection.catch(() => undefined);
   });
+
+  it('stays silent when the managed library is empty', () => {
+    const { channels, player } = createPlayer();
+
+    player.startWaitingMusic([]);
+
+    expect(channels).toHaveLength(0);
+  });
 });
+
+function selectionTracks() {
+  return [
+    { id: 'track-1', audioUrl: '/music/first.mp3', defaultSelected: true },
+    { id: 'track-2', audioUrl: '/music/second.mp3', defaultSelected: false },
+    { id: 'track-3', audioUrl: '/music/third.mp3', defaultSelected: true },
+  ] as const;
+}
 
 function createQueueStatus(
   state: PublicTablePlayerState,

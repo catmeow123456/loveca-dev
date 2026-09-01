@@ -1,11 +1,5 @@
 import type { PublicTableStatusView } from '@game/online/public-table-types';
 
-export const MATCHMAKING_MUSIC_TRACKS = [
-  '/music/event-2-theme.mp3',
-  '/music/event-menu-theme.mp3',
-  '/music/intro-theme.mp3',
-] as const;
-
 export const MATCH_FOUND_SOUND = '/music/music-start.mp3';
 
 const WAITING_MUSIC_VOLUME = 0.32;
@@ -22,6 +16,24 @@ export interface MatchmakingQueueStatus {
 export interface MatchmakingAudioState {
   readonly waiting: boolean;
   readonly matchIdentity: string | null;
+}
+
+export interface MatchmakingBgmSelectionTrack {
+  readonly id: string;
+  readonly audioUrl: string;
+  readonly defaultSelected: boolean;
+}
+
+export function resolveMatchmakingTrackUrls(
+  tracks: readonly MatchmakingBgmSelectionTrack[],
+  preferredTrackIds: readonly string[] | null
+): readonly string[] {
+  if (preferredTrackIds === null) {
+    return tracks.filter((track) => track.defaultSelected).map((track) => track.audioUrl);
+  }
+
+  const selectedTrackIds = new Set(preferredTrackIds);
+  return tracks.filter((track) => selectedTrackIds.has(track.id)).map((track) => track.audioUrl);
 }
 
 interface MatchmakingAudioChannel {
@@ -67,14 +79,18 @@ export class MatchmakingAudioPlayer {
     this.random = options.random ?? Math.random;
   }
 
-  startWaitingMusic(): void {
+  startWaitingMusic(tracks: readonly string[]): void {
+    if (tracks.length === 0) {
+      this.stopWaitingMusic();
+      return;
+    }
     if (!this.waitingMusic) {
       this.stopMatchFoundSound();
       const trackIndex = Math.min(
-        MATCHMAKING_MUSIC_TRACKS.length - 1,
-        Math.max(0, Math.floor(this.random() * MATCHMAKING_MUSIC_TRACKS.length))
+        tracks.length - 1,
+        Math.max(0, Math.floor(this.random() * tracks.length))
       );
-      const audio = this.createAudio(MATCHMAKING_MUSIC_TRACKS[trackIndex]);
+      const audio = this.createAudio(tracks[trackIndex]!);
       audio.loop = true;
       audio.preload = 'auto';
       audio.volume = WAITING_MUSIC_VOLUME;
