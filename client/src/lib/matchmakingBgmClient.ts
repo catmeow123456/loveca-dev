@@ -22,14 +22,6 @@ export async function fetchMatchmakingBgmLibrary(): Promise<readonly Matchmaking
   return response.data.tracks;
 }
 
-export async function fetchAdminMatchmakingBgmLibrary(): Promise<readonly MatchmakingBgmTrack[]> {
-  const response = await apiClient.get<MatchmakingBgmLibrary>('/api/matchmaking-bgm/admin');
-  if (!response.data) {
-    throw toApiClientError(response, '读取候场 BGM 曲库失败');
-  }
-  return response.data.tracks;
-}
-
 export async function uploadAdminMatchmakingBgm(input: {
   readonly file: File;
   readonly title: string;

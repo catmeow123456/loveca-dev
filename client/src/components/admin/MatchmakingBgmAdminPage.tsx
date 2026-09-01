@@ -10,7 +10,7 @@ import {
 import { Library, Loader2, Music2, RefreshCw, Save, Trash2, Upload } from 'lucide-react';
 import {
   deleteAdminMatchmakingBgm,
-  fetchAdminMatchmakingBgmLibrary,
+  fetchMatchmakingBgmLibrary,
   saveAdminDefaultMatchmakingBgmTracks,
   uploadAdminMatchmakingBgm,
   type MatchmakingBgmTrack,
@@ -52,7 +52,7 @@ export function MatchmakingBgmAdminPage({ onBack }: MatchmakingBgmAdminPageProps
     setIsLoading(true);
     setError(null);
     try {
-      replaceTracks(await fetchAdminMatchmakingBgmLibrary());
+      replaceTracks(await fetchMatchmakingBgmLibrary());
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : '读取候场 BGM 曲库失败');
     } finally {
@@ -62,7 +62,7 @@ export function MatchmakingBgmAdminPage({ onBack }: MatchmakingBgmAdminPageProps
 
   useEffect(() => {
     let active = true;
-    void fetchAdminMatchmakingBgmLibrary()
+    void fetchMatchmakingBgmLibrary()
       .then((nextTracks) => {
         if (active) replaceTracks(nextTracks);
       })

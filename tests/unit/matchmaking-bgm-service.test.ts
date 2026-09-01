@@ -78,8 +78,26 @@ describe('MatchmakingBgmService', () => {
     expect(mocks.uploadObject).not.toHaveBeenCalled();
   });
 
+  it('rejects an ID3 marker without consecutive MPEG audio frames', async () => {
+    await expect(
+      new MatchmakingBgmService().uploadTrack({
+        file: Buffer.from('ID3audio'),
+        title: '损坏文件',
+        adminUserId: ADMIN_ID,
+      })
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<MatchmakingBgmServiceError>>({
+        code: 'MATCHMAKING_BGM_FORMAT_INVALID',
+        statusCode: 422,
+      })
+    );
+
+    expect(mocks.poolQuery).not.toHaveBeenCalled();
+    expect(mocks.uploadObject).not.toHaveBeenCalled();
+  });
+
   it('uploads a content-addressed MP3 and persists its library entry', async () => {
-    const file = Buffer.concat([Buffer.from('ID3'), Buffer.alloc(24, 7)]);
+    const file = createTestMp3();
     const objectKey = `matchmaking-bgm/${createHash('sha256').update(file).digest('hex')}.mp3`;
     mocks.poolQuery.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({
       rows: [
@@ -185,4 +203,15 @@ function trackRow(
     created_at: new Date('2026-09-01T00:00:00.000Z'),
     ...overrides,
   };
+}
+
+function createTestMp3(): Buffer {
+  // MPEG-1 Layer III, 128 kbps, 44.1 kHz: each frame is 417 bytes.
+  const frameLength = 417;
+  const audio = Buffer.alloc(frameLength * 2);
+  const header = Buffer.from([0xff, 0xfb, 0x90, 0x00]);
+  header.copy(audio, 0);
+  header.copy(audio, frameLength);
+  const emptyId3v24Tag = Buffer.from([0x49, 0x44, 0x33, 0x04, 0x00, 0x00, 0, 0, 0, 0]);
+  return Buffer.concat([emptyId3v24Tag, audio]);
 }

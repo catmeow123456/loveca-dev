@@ -3,6 +3,7 @@ import multer from 'multer';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/require-auth.js';
 import { requireAdmin } from '../middleware/require-admin.js';
+import { createUploadRateLimitMiddleware } from '../middleware/upload-rate-limit.js';
 import {
   MatchmakingBgmServiceError,
   matchmakingBgmService,
@@ -20,15 +21,33 @@ const defaultTracksSchema = z
 const uploadFieldsSchema = z.object({ title: z.string() }).passthrough();
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { files: 1, fileSize: 20 * 1024 * 1024, fields: 1 },
+  limits: { files: 1, fileSize: 20 * 1024 * 1024, fields: 1, parts: 3 },
+});
+const matchmakingBgmUploadRateLimit = createUploadRateLimitMiddleware({
+  windowMs: 10 * 60 * 1000,
+  userAttemptLimit: 6,
+  addressAttemptLimit: 12,
+  userByteLimit: 60 * 1024 * 1024,
+  addressByteLimit: 120 * 1024 * 1024,
+  attemptErrorCode: 'MATCHMAKING_BGM_UPLOAD_RATE_LIMIT',
+  byteErrorCode: 'MATCHMAKING_BGM_UPLOAD_BYTE_LIMIT',
+  attemptErrorMessage: 'BGM 上传尝试过于频繁，请稍后再试。',
+  byteErrorMessage: '短时间内上传的 BGM 总量过大，请稍后再试。',
 });
 
 function receiveTrack(req: Request, res: Response, next: NextFunction): void {
   upload.single('file')(req, res, (error: unknown) => {
-    if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
-      res.status(413).json({
+    if (error instanceof multer.MulterError) {
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        res.status(413).json({
+          data: null,
+          error: { code: 'MATCHMAKING_BGM_TOO_LARGE', message: 'BGM 文件必须小于 20 MB' },
+        });
+        return;
+      }
+      res.status(400).json({
         data: null,
-        error: { code: 'MATCHMAKING_BGM_TOO_LARGE', message: 'BGM 文件必须小于 20 MB' },
+        error: { code: 'MATCHMAKING_BGM_MULTIPART_INVALID', message: 'BGM 上传参数非法' },
       });
       return;
     }
@@ -49,37 +68,37 @@ matchmakingBgmRouter.get('/', async (_req, res) => {
   }
 });
 
-matchmakingBgmRouter.get('/admin', requireAuth, requireAdmin, async (_req, res) => {
-  try {
-    res.json({ data: { tracks: await matchmakingBgmService.listTracks() }, error: null });
-  } catch (error) {
-    respondMatchmakingBgmError(res, error);
+matchmakingBgmRouter.post(
+  '/admin',
+  requireAuth,
+  requireAdmin,
+  matchmakingBgmUploadRateLimit.enforceAttemptLimit,
+  receiveTrack,
+  matchmakingBgmUploadRateLimit.enforceUploadedByteLimit,
+  async (req, res) => {
+    if (!req.file?.buffer) {
+      res.status(400).json({
+        data: null,
+        error: { code: 'MATCHMAKING_BGM_REQUIRED', message: '请选择要上传的 MP3 文件' },
+      });
+      return;
+    }
+    const parsedFields = uploadFieldsSchema.safeParse(req.body as unknown);
+    const title = parsedFields.success
+      ? parsedFields.data.title
+      : titleFromFilename(req.file.originalname);
+    try {
+      const track = await matchmakingBgmService.uploadTrack({
+        file: req.file.buffer,
+        title,
+        adminUserId: req.user!.id,
+      });
+      res.status(201).json({ data: track, error: null });
+    } catch (error) {
+      respondMatchmakingBgmError(res, error);
+    }
   }
-});
-
-matchmakingBgmRouter.post('/admin', requireAuth, requireAdmin, receiveTrack, async (req, res) => {
-  if (!req.file?.buffer) {
-    res.status(400).json({
-      data: null,
-      error: { code: 'MATCHMAKING_BGM_REQUIRED', message: '请选择要上传的 MP3 文件' },
-    });
-    return;
-  }
-  const parsedFields = uploadFieldsSchema.safeParse(req.body as unknown);
-  const title = parsedFields.success
-    ? parsedFields.data.title
-    : titleFromFilename(req.file.originalname);
-  try {
-    const track = await matchmakingBgmService.uploadTrack({
-      file: req.file.buffer,
-      title,
-      adminUserId: req.user!.id,
-    });
-    res.status(201).json({ data: track, error: null });
-  } catch (error) {
-    respondMatchmakingBgmError(res, error);
-  }
-});
+);
 
 matchmakingBgmRouter.put('/admin/default', requireAuth, requireAdmin, async (req, res) => {
   const parsed = defaultTracksSchema.safeParse(req.body as unknown);

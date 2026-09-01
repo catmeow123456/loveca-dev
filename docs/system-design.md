@@ -349,7 +349,7 @@ graph TB
 - `rankedStore`：赛季总览与跨页面排位候场、确认和取消状态
 - `themeTableStore`：主题活动总览与跨页面候场、确认、分配和开局前恢复状态
 - `tutorialStore`：只在当前页面生命周期内持有教程访问令牌、玩家投影和公开命令回执，并通过 `remoteMatchClient` 把教程会话接入共享 `gameStore` 桌面；现有本地或远程对局占用会阻止教程接管牌桌
-- `MatchmakingAudioLayer`：统一订阅公共牌桌、赛季排位和娱乐模式候场状态；通过 `client/src/lib/matchmakingBgmClient.ts` 读取公共曲库，并由 `MatchmakingAudioPlayer` 从用户当前有效子集随机循环一首等待音乐，形成配对后按预留身份只播放一次独立提示音。`src/server/services/matchmaking-bgm-service.ts` 与 `src/server/routes/matchmaking-bgm.ts` 管理曲库、平台默认子集及内容寻址的公共 MP3；对象沿用 `/images/` 公共资源链路读取，`src/server/routes/images.ts` 同步提供受限开发 fallback。`profiles.matchmaking_bgm_track_ids` 为 `NULL` 时实时跟随平台默认值，非空数组保存用户自选集合，空数组表示候场静音；播放时始终与当前曲库取交集。音频在用户加入候场的操作中主动启动，以满足浏览器播放授权；自动播放、曲库读取或音频加载失败都不改变候场、确认或进房状态。账户中心继续分别保存候场背景音乐与匹配成功提示音开关，`authStore` 的当前 profile 将开关和曲目偏好注入该层
+- `MatchmakingAudioLayer`：统一订阅公共牌桌、赛季排位和娱乐模式候场状态；只在实际进入候场时通过 `client/src/lib/matchmakingBgmClient.ts` 刷新公共曲库，离开候场不会重复读取，并由 `MatchmakingAudioPlayer` 从用户当前有效子集随机循环一首等待音乐，形成配对后按预留身份只播放一次独立提示音。`src/server/services/matchmaking-bgm-service.ts` 与 `src/server/routes/matchmaking-bgm.ts` 管理曲库、平台默认子集及内容寻址的公共 MP3；对象沿用 `/images/` 公共资源链路读取，`src/server/routes/images.ts` 同步提供受限开发 fallback。管理员上传在进入内存解析前按用户与来源地址限制尝试次数，解析后再限制窗口累计字节；服务层跳过合法 ID3v2 标签后要求至少两个连续且参数一致的 MPEG 音频帧，不再只按文件头接受内容。`profiles.matchmaking_bgm_track_ids` 为 `NULL` 时实时跟随平台默认值，非空数组保存用户自选集合，空数组表示候场静音；播放时始终与当前曲库取交集。音频在用户加入候场的操作中主动启动，以满足浏览器播放授权；自动播放、曲库读取或音频加载失败都不改变候场、确认或进房状态。账户中心继续分别保存候场背景音乐与匹配成功提示音开关，`authStore` 的当前 profile 将开关和曲目偏好注入该层
 - `UpdateCoordinator`：在应用渲染后统一接收 `version.json` 与 prompt 型 Service Worker 的更新信号；版本发现只产生非阻断提示，进行中的本地/远程对局不提供更新入口，玩家在安全页面确认后才激活 waiting worker 并执行单次刷新
 - `GameBoard`：拖拽与对局主交互容器
 - `TutorialPage` / `TutorialBattleSurface`：组合共享牌桌、公开步骤控制器和独立聚焦层；聚焦层只读取稳定语义锚点与当前玩家可见对象，不直接提交或模拟规则结果

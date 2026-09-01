@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { QueryResultRow } from 'pg';
 import { pool } from '../db/pool.js';
+import { isStructurallyValidMp3 } from './mp3-validation.js';
 import { deleteObject, objectExists, uploadPublicImmutableObject } from './minio-service.js';
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -70,7 +71,7 @@ export class MatchmakingBgmService {
     if (input.file.length === 0 || input.file.length > MAX_UPLOAD_BYTES) {
       throw serviceError('MATCHMAKING_BGM_TOO_LARGE', 'BGM 文件必须小于 20 MB', 413);
     }
-    if (!isMp3(input.file)) {
+    if (!isStructurallyValidMp3(input.file)) {
       throw serviceError('MATCHMAKING_BGM_FORMAT_INVALID', 'BGM 只接受有效的 MP3 文件', 422);
     }
 
@@ -206,12 +207,6 @@ function containsControlCharacter(value: string): boolean {
       codePoint !== undefined && (codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f))
     );
   });
-}
-
-function isMp3(value: Buffer): boolean {
-  if (value.length < 3) return false;
-  if (value.subarray(0, 3).toString('ascii') === 'ID3') return true;
-  return value[0] === 0xff && (value[1]! & 0xe0) === 0xe0;
 }
 
 function isUniqueViolation(error: unknown): boolean {

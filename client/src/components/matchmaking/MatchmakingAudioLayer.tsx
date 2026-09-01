@@ -38,7 +38,7 @@ export function MatchmakingAudioLayer({
   );
 
   useEffect(() => {
-    if (!enabled || !waitingMusicEnabled) return;
+    if (!enabled || !waiting || !waitingMusicEnabled) return;
     let active = true;
     void fetchMatchmakingBgmLibrary()
       .then((tracks) => {

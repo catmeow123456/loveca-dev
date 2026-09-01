@@ -72,6 +72,22 @@ describe('matchmakingBgmRouter', () => {
     });
   });
 
+  it('rejects multipart uploads with undeclared extra fields', async () => {
+    mocks.poolQuery.mockResolvedValue({ rows: [{ role: 'admin' }], rowCount: 1 });
+    const form = new FormData();
+    form.append('title', '上传曲目');
+    form.append('unexpected', 'extra');
+    form.append('file', new Blob(['ID3audio'], { type: 'audio/mpeg' }), 'waiting.mp3');
+
+    const response = await request('/admin', { method: 'POST', body: form }, true);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'MATCHMAKING_BGM_MULTIPART_INVALID' },
+    });
+    expect(mocks.uploadTrack).not.toHaveBeenCalled();
+  });
+
   it('rejects stale authority before deleting a track', async () => {
     mocks.poolQuery.mockResolvedValue({ rows: [{ role: 'user' }], rowCount: 1 });
 
