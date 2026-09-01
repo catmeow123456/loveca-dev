@@ -913,6 +913,8 @@ Deck 范围保护：`tests/unit/ten-axis-muse-deck-coverage.test.ts` 固定核�
 
 `LL-bp7-001`（当前公开版本 `R+`）按基础编号覆盖，是首个窄特殊成员登场权威样本。指定姓名支付复用 shared identity 最大一对一分配；grouped 手牌入休息室、普通单换手、费用修正/能量支付和登场事件仍走现有管线。`10` 只是这一次 play 的服务端基准，登场后印刷/有效费用仍为15。该 mode 现登记于 `application/special-member-play-procedures.ts` 的有限 procedure registry，并由 `application/member-play-options.ts` 向客户端投影玩家文案与合法槽位；客户端不再识别基础编号。FREE 仍支付指定三名成员的卡面程序成本，但不支付登场能量且三个成员区均可选；RULES 保持原费用与同回合槽位限制。登场回收LIVE与LIVE成功回收成员只扩展 `workflows/shared/waiting-room-to-hand.ts` 及 shared public confirmation。不表示通用替代费用、任意指定姓名支付或特殊登场 DSL 已完成。
 
+邮件 FAQ 的常时能力顺序组合已覆盖：先使本卡本次登场费用变为10后，舞台上的 `PL!SP-bp5-003` 费用17「岚 千砂都」按当前 play 基准识别为费用10的 Liella! 成员并再减2，最终支付8；无该舞台来源时仍支付10，普通登场仍按印刷费用15，登场后的有效费用也保持15。focused tests 位于 `tests/unit/cost-calculator.test.ts` 与 `tests/integration/ll-bp7-001-hanamaru-setsuna-chisato.test.ts`。
+
 ## 2026-07-22 规则模式收紧相关登场语义补充
 
 - `playMembersFromWaitingRoomToEmptySlots` 现统一将所有实际登场的 placement cardId 记入 `movedToStageThisTurn`。这一现行边界适用于本表所有休息室到空成员区的调用，并替代 `PL!S-sd1-006` 旧行中“不记录特殊 `movedToStageThisTurn`”的过期描述。`PL!SP-pb1-011` 在清理旧舞台实例轨迹后，同一 cardId 重新登场时会由该 helper 重新建立当回合 marker。

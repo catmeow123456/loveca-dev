@@ -266,11 +266,14 @@ export class CostCalculator {
   /** 计算实际从手牌登场时的支付费用修正。 */
   calculatePlayCostModifiers(
     memberData: MemberCardData,
-    resources: AvailableResources
+    resources: AvailableResources,
+    playBaseCost: number = this.calculateBaseCost(memberData)
   ): PlayCostModifierApplication[] {
     const modifiers = this.calculateCurrentHandCostModifiers(memberData, resources);
     modifiers.push(...this.collectSuccessLiveSourcePlayCostModifiers(memberData, resources));
-    modifiers.push(...this.collectStageSourcePlayCostModifiers(memberData, resources));
+    modifiers.push(
+      ...this.collectStageSourcePlayCostModifiers(memberData, resources, playBaseCost)
+    );
     return modifiers;
   }
 
@@ -301,16 +304,20 @@ export class CostCalculator {
 
   private collectStageSourcePlayCostModifiers(
     memberData: MemberCardData,
-    resources: AvailableResources
+    resources: AvailableResources,
+    playBaseCost: number
   ): PlayCostModifierApplication[] {
     const modifiers: PlayCostModifierApplication[] = [];
 
     for (const stageMember of resources.stageMembers) {
-      if (isBp5ChisatoCostReducer(stageMember.data) && isCost10LiellaMember(memberData)) {
+      if (
+        isBp5ChisatoCostReducer(stageMember.data) &&
+        isCost10LiellaMember(memberData, playBaseCost)
+      ) {
         modifiers.push({
           id: `${stageMember.data.cardCode}:stage-source-cost-minus-cost10-liella`,
           label: '舞台上的岚 千砂都使10费Liella!成员登场费用减少2',
-          amount: Math.min(memberData.cost, 2),
+          amount: Math.min(playBaseCost, 2),
           sourceCardId: stageMember.cardId,
         });
       }
@@ -367,7 +374,7 @@ export class CostCalculator {
     readonly modifierAmount: number;
   } {
     const baseCost = options.specialPlayBaseCost ?? this.calculateBaseCost(memberData);
-    const modifiers = this.calculatePlayCostModifiers(memberData, resources);
+    const modifiers = this.calculatePlayCostModifiers(memberData, resources, baseCost);
     const modifierAmount = modifiers.reduce((sum, modifier) => sum + modifier.amount, 0);
     const modifiedCost = Math.max(0, baseCost - modifierAmount);
 
@@ -734,8 +741,8 @@ function isBp5ChisatoCostReducer(memberData: MemberCardData): boolean {
   return cardCodeMatchesBase(memberData.cardCode, 'PL!SP-bp5-003');
 }
 
-function isCost10LiellaMember(memberData: MemberCardData): boolean {
-  return memberData.cost === 10 && isLiellaMember(memberData);
+function isCost10LiellaMember(memberData: MemberCardData, playBaseCost: number): boolean {
+  return playBaseCost === 10 && isLiellaMember(memberData);
 }
 
 function isLiellaMember(memberData: MemberCardData): boolean {

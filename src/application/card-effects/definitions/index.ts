@@ -13096,7 +13096,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText:
       '【常时】打出此卡时，可以从自己的手牌将「国木田花丸」和「优木雪菜」和「岚千砂都」的成员卡各1张放置入休息室。如此做时，此卡的费用变为10。',
     notes:
-      '按基础编号覆盖同卡全部罕度；首个窄特殊成员登场样本。费用10只作为本次 play 的费用基准，登场后仍为印刷费用15；不建立 modifier、replacement、通用指定姓名支付或特殊登场 DSL。',
+      '按基础编号覆盖同卡全部罕度；首个窄特殊成员登场样本。费用10只作为本次 play 的费用基准，且会作为后续登场费用修正的适用条件；邮件 FAQ 场景中，舞台上的 PL!SP-bp5-003 费用17「岚 千砂都」后适用时再减2，最终支付8。登场后仍为印刷费用15；不建立 modifier、replacement、通用指定姓名支付或特殊登场 DSL。',
   },
   {
     abilityId: LL_BP7_001_ON_ENTER_RECOVER_LIVE_ABILITY_ID,
