@@ -19,6 +19,7 @@ import {
   liveRequiresHeartColor,
   memberHasHeartColor,
   memberPrintedBladeLte,
+  memberPrintedHeartLte,
   not,
   or,
   typeIs,
@@ -544,6 +545,22 @@ describe('card selectors', () => {
     expect(printedBladeLte3(lowBladeMember)).toBe(true);
     expect(printedBladeLte3(highBladeMember)).toBe(false);
     expect(printedBladeLte3(live)).toBe(false);
+  });
+
+  it('matches member printed HEART total at or below a threshold', () => {
+    const lowHeartMember = memberCard('low-heart-member', {
+      hearts: [createHeartIcon(HeartColor.PINK, 1), createHeartIcon(HeartColor.YELLOW, 2)],
+    });
+    const highHeartMember = memberCard('high-heart-member', {
+      hearts: [createHeartIcon(HeartColor.PINK, 2), createHeartIcon(HeartColor.YELLOW, 2)],
+    });
+    const live = liveCard('heart-live');
+
+    const printedHeartLte3 = memberPrintedHeartLte(3);
+
+    expect(printedHeartLte3(lowHeartMember)).toBe(true);
+    expect(printedHeartLte3(highHeartMember)).toBe(false);
+    expect(printedHeartLte3(live)).toBe(false);
   });
 
   it('matches current character name aliases across Japanese and Chinese names', () => {

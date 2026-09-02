@@ -12,9 +12,9 @@ import {
   createSubmitScoreCommand,
 } from '../../src/application/game-commands';
 import {
-  ELI_ACTIVATED_ABILITY_ID,
   HS_BP6_030_LIVE_START_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+  PB1_019_ACTIVATED_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { CardDataRegistry } from '../../src/domain/card-data/loader';
 import type {
@@ -453,9 +453,9 @@ describe('三回合连续新手教程私密场景', () => {
 
     playerCommand(createPlayMemberToSlotCommand(playerId, recoveryMemberId, SlotPosition.LEFT));
     playerCommand(
-      createActivateAbilityCommand(playerId, recoveryMemberId, ELI_ACTIVATED_ABILITY_ID)
+      createActivateAbilityCommand(playerId, recoveryMemberId, PB1_019_ACTIVATED_ABILITY_ID)
     );
-    expect(state().activeEffect?.abilityId).toBe(ELI_ACTIVATED_ABILITY_ID);
+    expect(state().activeEffect?.abilityId).toBe(PB1_019_ACTIVATED_ABILITY_ID);
     expect(state().activeEffect?.selectableCardIds).toContain(memberId);
 
     playerCommand(createConfirmEffectStepCommand(playerId, state().activeEffect!.id, memberId));

@@ -1,7 +1,8 @@
 import type { PlayerViewState, ViewCardObject, ViewZoneKey } from '@game/online';
 import { OrientationState, ZoneType } from '@game/shared/types/enums';
 
-export type BattleAnimationKind = 'CARD_MOVE' | 'CARD_FLIP' | 'ORIENTATION_CHANGE' | 'ZONE_PULSE';
+export type BattleAnimationKind =
+  'CARD_MOVE' | 'DISCARD_PRESENTATION_BATCH' | 'CARD_FLIP' | 'ORIENTATION_CHANGE' | 'ZONE_PULSE';
 
 export interface BattleAnimationRect {
   readonly left: number;
@@ -37,6 +38,42 @@ function getFrontInfoDisplayName(
 export type BattleAnimationPresentation = 'DEFAULT' | 'WAITING_ROOM_REVEAL';
 export type BattleAnimationSeat = 'FIRST' | 'SECOND';
 
+export interface DiscardPresentationCard {
+  readonly render: BattleAnimationCardRender;
+  /**
+   * 可见己方手牌可传逐卡矩形；对手隐藏手牌传匿名手牌区矩形即可。
+   * 展示层只消费该几何信息，不要求来源对象仍存在于投影中。
+   */
+  readonly fromRect: BattleAnimationRect;
+}
+
+export interface DiscardPresentationBatchEvent {
+  readonly id: string;
+  readonly kind: 'DISCARD_PRESENTATION_BATCH';
+  readonly cards: readonly DiscardPresentationCard[];
+  readonly toSeat: BattleAnimationSeat;
+  readonly toZoneKey?: ViewZoneKey;
+  readonly toRect: BattleAnimationRect;
+}
+
+export interface CreateDiscardPresentationBatchEventOptions {
+  readonly id: string;
+  readonly cards: readonly DiscardPresentationCard[];
+  readonly toSeat: BattleAnimationSeat;
+  readonly toZoneKey?: ViewZoneKey;
+  readonly toRect: BattleAnimationRect;
+}
+
+export interface DiscardPresentationCardLayout extends BattleAnimationRect {
+  readonly rotation: number;
+}
+
+export interface DiscardPresentationBatchLayout {
+  readonly mode: 'SINGLE' | 'FAN' | 'GRID';
+  readonly bounds: BattleAnimationRect;
+  readonly cards: readonly DiscardPresentationCardLayout[];
+}
+
 export type BattleAnimationEvent =
   | {
       readonly id: string;
@@ -50,6 +87,7 @@ export type BattleAnimationEvent =
       readonly fromRect: BattleAnimationRect;
       readonly toRect: BattleAnimationRect;
     }
+  | DiscardPresentationBatchEvent
   | {
       readonly id: string;
       readonly kind: 'CARD_FLIP';
@@ -84,6 +122,156 @@ export interface BattleObjectLocation {
 
 const MAX_INDIVIDUAL_MOVES = 8;
 const IGNORED_ANIMATION_ANCHOR_SELECTOR = '[data-battle-animation-ignore="true"]';
+
+/**
+ * 构造一个与 store / PublicEvent 类型无关的弃牌展示批次。
+ *
+ * 公共事件接入方应只传已经公开、可安全携带 cardCode 的正面卡牌。本函数会去重并
+ * 丢弃不完整的候选，避免展示层自行猜测隐藏信息。
+ */
+export function createDiscardPresentationBatchEvent(
+  options: CreateDiscardPresentationBatchEventOptions
+): DiscardPresentationBatchEvent | null {
+  const seenObjectIds = new Set<string>();
+  const cards = options.cards.filter(({ render }) => {
+    if (render.surface !== 'FRONT' || !render.cardCode || seenObjectIds.has(render.objectId)) {
+      return false;
+    }
+    seenObjectIds.add(render.objectId);
+    return true;
+  });
+  if (cards.length === 0) {
+    return null;
+  }
+
+  return {
+    id: options.id,
+    kind: 'DISCARD_PRESENTATION_BATCH',
+    cards,
+    toSeat: options.toSeat,
+    ...(options.toZoneKey ? { toZoneKey: options.toZoneKey } : {}),
+    toRect: options.toRect,
+  };
+}
+
+/**
+ * 休息室邻近展示布局：单张正常尺寸，2-4 张扇形，5 张以上紧凑多行。
+ * 所有坐标均为 fixed viewport 坐标，便于 view-diff 与公共事件入口共同复用。
+ */
+export function getDiscardPresentationBatchLayout({
+  count,
+  toRect,
+  toSeat,
+  viewportWidth,
+  viewportHeight,
+}: {
+  readonly count: number;
+  readonly toRect: BattleAnimationRect;
+  readonly toSeat: BattleAnimationSeat;
+  readonly viewportWidth: number;
+  readonly viewportHeight: number;
+}): DiscardPresentationBatchLayout {
+  const safeCount = Math.max(1, Math.floor(count));
+  const safeViewportWidth = Math.max(1, viewportWidth);
+  const safeViewportHeight = Math.max(1, viewportHeight);
+  const edge = 8;
+  const isNarrow = safeViewportWidth < 640;
+  const cardAspect = 5 / 7;
+  const destinationCenterX = toRect.left + toRect.width / 2;
+  const verticalGap = isNarrow ? 10 : 18;
+
+  let mode: DiscardPresentationBatchLayout['mode'];
+  let cardWidth: number;
+  let cardHeight: number;
+  let groupWidth: number;
+  let groupHeight: number;
+  let cardOffsets: readonly {
+    readonly left: number;
+    readonly top: number;
+    readonly rotation: number;
+  }[];
+
+  if (safeCount === 1) {
+    mode = 'SINGLE';
+    cardWidth = clampNumber(isNarrow ? 76 : 92, 56, safeViewportWidth * 0.24);
+    cardHeight = cardWidth / cardAspect;
+    groupWidth = cardWidth;
+    groupHeight = cardHeight;
+    cardOffsets = [{ left: 0, top: 0, rotation: 0 }];
+  } else if (safeCount <= 4) {
+    mode = 'FAN';
+    cardWidth = clampNumber(isNarrow ? 62 : 78, 48, safeViewportWidth * 0.2);
+    cardHeight = cardWidth / cardAspect;
+    const step = cardWidth * (isNarrow ? 0.54 : 0.58);
+    groupWidth = cardWidth + step * (safeCount - 1);
+    groupHeight = cardHeight + (isNarrow ? 8 : 10);
+    cardOffsets = Array.from({ length: safeCount }, (_, index) => ({
+      left: step * index,
+      top: Math.abs(index - (safeCount - 1) / 2) * (isNarrow ? 2 : 3),
+      rotation: (index - (safeCount - 1) / 2) * (isNarrow ? 2.5 : 3),
+    }));
+  } else {
+    mode = 'GRID';
+    const columns = Math.min(isNarrow ? 3 : 4, safeCount);
+    const rows = Math.ceil(safeCount / columns);
+    const gap = isNarrow ? 3 : 5;
+    const maxGroupWidth = Math.min(
+      safeViewportWidth - edge * 2,
+      isNarrow ? safeViewportWidth * 0.72 : 360
+    );
+    cardWidth = clampNumber(
+      (maxGroupWidth - gap * (columns - 1)) / columns,
+      isNarrow ? 42 : 48,
+      isNarrow ? 58 : 68
+    );
+    cardHeight = cardWidth / cardAspect;
+    groupWidth = cardWidth * columns + gap * (columns - 1);
+    groupHeight = cardHeight * rows + gap * (rows - 1);
+    cardOffsets = Array.from({ length: safeCount }, (_, index) => ({
+      left: (index % columns) * (cardWidth + gap),
+      top: Math.floor(index / columns) * (cardHeight + gap),
+      rotation: 0,
+    }));
+  }
+
+  const maxHeight = Math.max(82, safeViewportHeight * (isNarrow ? 0.38 : 0.42));
+  if (groupHeight > maxHeight) {
+    const scale = maxHeight / groupHeight;
+    cardWidth *= scale;
+    cardHeight *= scale;
+    groupWidth *= scale;
+    groupHeight *= scale;
+    cardOffsets = cardOffsets.map((offset) => ({
+      left: offset.left * scale,
+      top: offset.top * scale,
+      rotation: offset.rotation,
+    }));
+  }
+
+  const desiredLeft = destinationCenterX - groupWidth / 2;
+  const desiredTop =
+    toSeat === 'SECOND'
+      ? toRect.top + toRect.height + verticalGap
+      : toRect.top - groupHeight - verticalGap;
+  const bounds: BattleAnimationRect = {
+    left: clampNumber(desiredLeft, edge, Math.max(edge, safeViewportWidth - groupWidth - edge)),
+    top: clampNumber(desiredTop, edge, Math.max(edge, safeViewportHeight - groupHeight - edge)),
+    width: groupWidth,
+    height: groupHeight,
+  };
+
+  return {
+    mode,
+    bounds,
+    cards: cardOffsets.map((offset) => ({
+      left: bounds.left + offset.left,
+      top: bounds.top + offset.top,
+      width: cardWidth,
+      height: cardHeight,
+      rotation: offset.rotation,
+    })),
+  };
+}
 
 export function collectBattleAnimationAnchors(): BattleAnimationAnchorMaps {
   const cards = new Map<string, BattleAnimationCardAnchor>();
@@ -182,11 +370,14 @@ export function createBattleAnimationEventsFromViewDiff({
   nextViewState,
   previousAnchors,
   nextAnchors,
+  enableWaitingRoomRevealFallback = false,
 }: {
   readonly previousViewState: PlayerViewState;
   readonly nextViewState: PlayerViewState;
   readonly previousAnchors: BattleAnimationAnchorMaps;
   readonly nextAnchors: BattleAnimationAnchorMaps;
+  /** 仅供没有公共事件队列的教程/离线壳使用，正式对局保持关闭以免重复播放。 */
+  readonly enableWaitingRoomRevealFallback?: boolean;
 }): BattleAnimationEvent[] {
   if (previousViewState.match.matchId !== nextViewState.match.matchId) {
     return [];
@@ -259,19 +450,22 @@ export function createBattleAnimationEventsFromViewDiff({
           previousAnchors,
           nextAnchors,
         });
+        const isPublicWaitingRoomDiscard = shouldUseWaitingRoomRevealPresentation({
+          previousLocation,
+          nextLocation,
+          render,
+        });
+        // 正式对局由公共事件批次展示弃牌；view-diff 不再同时生成普通飞牌。
+        if (isPublicWaitingRoomDiscard && !enableWaitingRoomRevealFallback) {
+          continue;
+        }
         moveCandidates.push({
           id: `move:${nextViewState.match.seq}:${objectId}:${previousLocation.key}->${nextLocation.key}`,
           kind: 'CARD_MOVE',
           render,
           fromZoneType: previousLocation.zoneType,
           toZoneType: nextLocation.zoneType,
-          presentation: shouldUseWaitingRoomRevealPresentation({
-            previousLocation,
-            nextLocation,
-            render,
-          })
-            ? 'WAITING_ROOM_REVEAL'
-            : undefined,
+          presentation: isPublicWaitingRoomDiscard ? 'WAITING_ROOM_REVEAL' : undefined,
           toSeat: getSeatFromZoneKey(nextLocation.zoneKey) ?? undefined,
           toZoneKey: nextLocation.zoneKey,
           fromRect,
@@ -314,11 +508,16 @@ export function createBattleAnimationEventsFromViewDiff({
     }
   }
 
-  if (moveCandidates.length > MAX_INDIVIDUAL_MOVES) {
-    return createZonePulseEventsForLargeDiff(nextViewState, nextAnchors, moveCandidates);
-  }
+  const discardPresentationBatches = createDiscardPresentationBatches(moveCandidates);
+  const ordinaryMoveCandidates = moveCandidates.filter(
+    (event) => event.kind === 'CARD_MOVE' && event.presentation !== 'WAITING_ROOM_REVEAL'
+  );
+  const ordinaryMoveEvents =
+    ordinaryMoveCandidates.length > MAX_INDIVIDUAL_MOVES
+      ? createZonePulseEventsForLargeDiff(nextViewState, nextAnchors, ordinaryMoveCandidates)
+      : ordinaryMoveCandidates;
 
-  return [...normalizeWaitingRoomRevealCandidates(moveCandidates), ...otherEvents].slice(0, 16);
+  return [...discardPresentationBatches, ...ordinaryMoveEvents, ...otherEvents].slice(0, 16);
 }
 
 export function collectBattleObjectLocations(
@@ -534,23 +733,45 @@ function shouldPreferDestinationZoneAnchor(location: BattleObjectLocation): bool
   );
 }
 
-function normalizeWaitingRoomRevealCandidates(
+function createDiscardPresentationBatches(
   moveCandidates: readonly BattleAnimationEvent[]
-): BattleAnimationEvent[] {
+): DiscardPresentationBatchEvent[] {
   const revealCandidates = moveCandidates.filter(
-    (event) => event.kind === 'CARD_MOVE' && event.presentation === 'WAITING_ROOM_REVEAL'
+    (
+      event
+    ): event is Extract<BattleAnimationEvent, { kind: 'CARD_MOVE' }> & {
+      readonly presentation: 'WAITING_ROOM_REVEAL';
+      readonly toSeat: BattleAnimationSeat;
+    } =>
+      event.kind === 'CARD_MOVE' &&
+      event.presentation === 'WAITING_ROOM_REVEAL' &&
+      event.toSeat !== undefined
   );
-  if (revealCandidates.length <= 1) {
-    return [...moveCandidates];
+  const groupedCandidates = new Map<string, typeof revealCandidates>();
+  for (const candidate of revealCandidates) {
+    const key = candidate.toZoneKey ?? `${candidate.toSeat}:waiting-room`;
+    const current = groupedCandidates.get(key);
+    if (current) {
+      current.push(candidate);
+    } else {
+      groupedCandidates.set(key, [candidate]);
+    }
   }
 
-  return moveCandidates.map((event) => {
-    if (event.kind !== 'CARD_MOVE' || event.presentation !== 'WAITING_ROOM_REVEAL') {
-      return event;
-    }
-    const defaultMoveEvent = { ...event };
-    delete defaultMoveEvent.presentation;
-    return defaultMoveEvent;
+  return [...groupedCandidates.entries()].flatMap(([groupKey, candidates]) => {
+    const first = candidates[0];
+    if (!first) return [];
+    const batch = createDiscardPresentationBatchEvent({
+      id: `discard:${first.id}:${groupKey}:${candidates.map((candidate) => candidate.render.objectId).join(',')}`,
+      cards: candidates.map((candidate) => ({
+        render: candidate.render,
+        fromRect: candidate.fromRect,
+      })),
+      toSeat: first.toSeat,
+      toZoneKey: first.toZoneKey,
+      toRect: first.toRect,
+    });
+    return batch ? [batch] : [];
   });
 }
 
@@ -712,4 +933,8 @@ function sameRect(first: BattleAnimationRect, second: BattleAnimationRect): bool
     Math.abs(first.width - second.width) < 1 &&
     Math.abs(first.height - second.height) < 1
   );
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }

@@ -31,6 +31,8 @@ vi.mock('../../src/server/services/ranked-admin-service.js', () => ({
     beginFinalizing: vi.fn(),
     closeSeason: vi.fn(),
     getOverview: vi.fn(),
+    getDeckStatistics: vi.fn(),
+    listPlayers: vi.fn(),
     searchPlayers: vi.fn(),
     getPlayerContext: vi.fn(),
     listMatches: vi.fn(),
@@ -473,6 +475,76 @@ describe('rankedAdminRouter', () => {
       data: { seasonId },
       error: null,
     });
+  });
+
+  it('validates and returns deck statistics for one season', async () => {
+    const seasonId = '11111111-1111-4111-8111-111111111111';
+    vi.mocked(rankedAdminService.getDeckStatistics).mockResolvedValue({
+      seasonId,
+      available: true,
+      release: { id: '22222222-2222-4222-8222-222222222222', version: 3 },
+      categories: [],
+    } as never);
+
+    const response = await invokeRoute('/deck-statistics', 'get', {
+      query: { seasonId },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(rankedAdminService.getDeckStatistics).toHaveBeenCalledWith(seasonId);
+    expect(response.body).toMatchObject({
+      data: { seasonId, available: true, categories: [] },
+      error: null,
+    });
+
+    for (const query of [{}, { seasonId: 'not-a-uuid' }, { seasonId, unexpected: 'field' }]) {
+      const invalid = await invokeRoute('/deck-statistics', 'get', { query });
+      expect(invalid.statusCode).toBe(400);
+      expect(invalid.body?.error?.code).toBe('VALIDATION_ERROR');
+    }
+  });
+
+  it('validates and forwards the complete ranked-player page query', async () => {
+    const seasonId = '11111111-1111-4111-8111-111111111111';
+    vi.mocked(rankedAdminService.listPlayers).mockResolvedValue({
+      seasonId,
+      ledgerRevision: 17,
+      total: 120,
+      limit: 50,
+      offset: 50,
+      players: [{ listPosition: 54 }],
+    } as never);
+
+    const response = await invokeRoute('/players', 'get', {
+      query: { seasonId, q: ' player_100% ', limit: '50', offset: '50' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(rankedAdminService.listPlayers).toHaveBeenCalledWith(seasonId, 'player_100%', 50, 50);
+    expect(response.body).toMatchObject({
+      data: { seasonId, ledgerRevision: 17, total: 120, players: [{ listPosition: 54 }] },
+      error: null,
+    });
+
+    const defaults = await invokeRoute('/players', 'get', { query: { seasonId } });
+    expect(defaults.statusCode).toBe(200);
+    expect(rankedAdminService.listPlayers).toHaveBeenLastCalledWith(seasonId, undefined, 50, 0);
+  });
+
+  it('rejects invalid or extra complete-player page query fields', async () => {
+    const seasonId = '11111111-1111-4111-8111-111111111111';
+    for (const query of [
+      { seasonId, q: '' },
+      { seasonId, q: 'x'.repeat(101) },
+      { seasonId, limit: '0' },
+      { seasonId, limit: '101' },
+      { seasonId, offset: '-1' },
+      { seasonId, unexpected: 'field' },
+    ]) {
+      const response = await invokeRoute('/players', 'get', { query });
+      expect(response.statusCode).toBe(400);
+      expect(response.body?.error?.code).toBe('VALIDATION_ERROR');
+    }
   });
 
   it('validates and forwards bounded season player search', async () => {

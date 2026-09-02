@@ -3,7 +3,9 @@ import {
   collectBattleAnimationAnchors,
   collectBattleObjectLocations,
   createBattleAnimationEventsFromViewDiff,
+  createDiscardPresentationBatchEvent,
   findBattleObjectLocation,
+  getDiscardPresentationBatchLayout,
   prepareBattleAnimationLayoutForViewDiff,
   type BattleAnimationEvent,
   type BattleAnimationAnchorMaps,
@@ -12,8 +14,12 @@ import {
 import {
   BATTLE_CARD_MOVE_DURATION_MS,
   createSequencedBattleAnimationEvents,
+  DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS,
   getBattleAnimationEventDurationMs,
+  WAITING_ROOM_REVEAL_COLLECT_DURATION_MS,
   WAITING_ROOM_REVEAL_DURATION_MS,
+  WAITING_ROOM_REVEAL_HOLD_DURATION_MS,
+  WAITING_ROOM_REVEAL_MOVE_DURATION_MS,
 } from '../../client/src/lib/battleAnimationSequencing';
 import type {
   PlayerViewState,
@@ -131,9 +137,7 @@ function fakeAnchorElement({
     getBoundingClientRect: () => ({ left, top, width: 50, height: 70 }),
     matches: () => false,
     closest: (selector: string) =>
-      ignored && selector === '[data-battle-animation-ignore="true"]'
-        ? ({} as Element)
-        : null,
+      ignored && selector === '[data-battle-animation-ignore="true"]' ? ({} as Element) : null,
     querySelector: () => (imageSrc ? { currentSrc: imageSrc, src: imageSrc } : null),
   } as unknown as HTMLElement;
 }
@@ -156,9 +160,7 @@ function fakeZoneElement({
     id: zoneId ?? animationZoneId ?? '',
     getBoundingClientRect: () => ({ left, top, width: 50, height: 70 }),
     closest: (selector: string) =>
-      ignored && selector === '[data-battle-animation-ignore="true"]'
-        ? ({} as Element)
-        : null,
+      ignored && selector === '[data-battle-animation-ignore="true"]' ? ({} as Element) : null,
   } as unknown as HTMLElement;
 }
 
@@ -594,7 +596,7 @@ describe('battle animation events', () => {
     const previous = viewState({
       zones: {
         FIRST_HAND: zone(ZoneType.HAND, { objectIds }),
-        FIRST_WAITING_ROOM: zone(ZoneType.WAITING_ROOM, { objectIds: [] }),
+        FIRST_ENERGY_ZONE: zone(ZoneType.ENERGY_ZONE, { objectIds: [] }),
       } as Record<ViewZoneKey, ViewZoneState>,
       objects,
     });
@@ -602,7 +604,7 @@ describe('battle animation events', () => {
       seq: 3,
       zones: {
         FIRST_HAND: zone(ZoneType.HAND, { objectIds: [] }),
-        FIRST_WAITING_ROOM: zone(ZoneType.WAITING_ROOM, { objectIds }),
+        FIRST_ENERGY_ZONE: zone(ZoneType.ENERGY_ZONE, { objectIds }),
       } as Record<ViewZoneKey, ViewZoneState>,
       objects,
     });
@@ -647,20 +649,96 @@ describe('battle animation events', () => {
         cards: new Map([['obj_a', rect(400, 80)]]),
         zones: new Map([['seat-FIRST::waiting-room', rect(400, 80)]]),
       },
+      enableWaitingRoomRevealFallback: true,
     });
 
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
-      kind: 'CARD_MOVE',
-      presentation: 'WAITING_ROOM_REVEAL',
+      kind: 'DISCARD_PRESENTATION_BATCH',
       toSeat: 'FIRST',
       toZoneKey: 'FIRST_WAITING_ROOM',
-      render: {
-        surface: 'FRONT',
-        cardCode: 'CARD-obj_a',
-        name: 'obj_a',
+      cards: [
+        {
+          render: {
+            surface: 'FRONT',
+            cardCode: 'CARD-obj_a',
+            name: 'obj_a',
+          },
+        },
+      ],
+    });
+  });
+
+  it('leaves public hand discards to the public-event queue when fallback is disabled', () => {
+    const previous = viewState({
+      seq: 3,
+      zones: {
+        FIRST_HAND: zone(ZoneType.HAND, { objectIds: ['obj_a'] }),
+        FIRST_WAITING_ROOM: zone(ZoneType.WAITING_ROOM, { objectIds: [] }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects: { obj_a: cardObject('obj_a') },
+    });
+    const next = viewState({
+      seq: 4,
+      zones: {
+        FIRST_HAND: zone(ZoneType.HAND, { objectIds: [] }),
+        FIRST_WAITING_ROOM: zone(ZoneType.WAITING_ROOM, { objectIds: ['obj_a'] }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects: { obj_a: cardObject('obj_a') },
+    });
+
+    const events = createBattleAnimationEventsFromViewDiff({
+      previousViewState: previous,
+      nextViewState: next,
+      previousAnchors: anchors([['obj_a', rect(0, 0)]]),
+      nextAnchors: {
+        cards: new Map([['obj_a', rect(400, 80)]]),
+        zones: new Map([['seat-FIRST::waiting-room', rect(400, 80)]]),
       },
     });
+
+    expect(events).toEqual([]);
+  });
+
+  it('keeps multiple hand discards in one presentation batch instead of degrading them', () => {
+    const objectIds = ['obj_a', 'obj_b', 'obj_c'];
+    const objects = Object.fromEntries(
+      objectIds.map((objectId) => [objectId, cardObject(objectId)])
+    );
+    const previous = viewState({
+      seq: 5,
+      zones: {
+        FIRST_HAND: zone(ZoneType.HAND, { objectIds }),
+        FIRST_WAITING_ROOM: zone(ZoneType.WAITING_ROOM, { objectIds: [] }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects,
+    });
+    const next = viewState({
+      seq: 6,
+      zones: {
+        FIRST_HAND: zone(ZoneType.HAND, { objectIds: [] }),
+        FIRST_WAITING_ROOM: zone(ZoneType.WAITING_ROOM, { objectIds }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects,
+    });
+
+    const events = createBattleAnimationEventsFromViewDiff({
+      previousViewState: previous,
+      nextViewState: next,
+      previousAnchors: anchors(objectIds.map((objectId, index) => [objectId, rect(index * 60, 0)])),
+      nextAnchors: {
+        cards: new Map(objectIds.map((objectId) => [objectId, rect(400, 80)])),
+        zones: new Map([['seat-FIRST::waiting-room', rect(400, 80)]]),
+      },
+      enableWaitingRoomRevealFallback: true,
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      kind: 'DISCARD_PRESENTATION_BATCH',
+      toSeat: 'FIRST',
+    });
+    expect(events[0]?.kind === 'DISCARD_PRESENTATION_BATCH' && events[0].cards).toHaveLength(3);
   });
 
   it('does not reveal hidden card metadata when a back object moves to waiting room', () => {
@@ -692,6 +770,7 @@ describe('battle animation events', () => {
         cards: new Map([['obj_hidden', { ...rect(400, 80), imageSrc: '/cards/secret.webp' }]]),
         zones: new Map([['seat-FIRST::waiting-room', rect(400, 80)]]),
       },
+      enableWaitingRoomRevealFallback: true,
     });
 
     expect(events).toHaveLength(1);
@@ -705,6 +784,96 @@ describe('battle animation events', () => {
       },
     });
     expect(events[0]).not.toMatchObject({ presentation: 'WAITING_ROOM_REVEAL' });
+  });
+
+  it('builds a public-event-ready batch and rejects hidden or duplicate candidates', () => {
+    const batch = createDiscardPresentationBatchEvent({
+      id: 'discard:event-10',
+      toSeat: 'SECOND',
+      toZoneKey: 'SECOND_WAITING_ROOM',
+      toRect: rect(420, 40),
+      cards: [
+        {
+          render: {
+            objectId: 'obj_public',
+            cardId: 'public',
+            fromSurface: 'BACK',
+            toSurface: 'FRONT',
+            surface: 'FRONT',
+            cardCode: 'CARD-PUBLIC',
+          },
+          fromRect: rect(120, 20),
+        },
+        {
+          render: {
+            objectId: 'obj_public',
+            cardId: 'public',
+            fromSurface: 'BACK',
+            toSurface: 'FRONT',
+            surface: 'FRONT',
+            cardCode: 'CARD-PUBLIC',
+          },
+          fromRect: rect(120, 20),
+        },
+        {
+          render: {
+            objectId: 'obj_hidden',
+            cardId: 'hidden',
+            fromSurface: 'BACK',
+            toSurface: 'BACK',
+            surface: 'BACK',
+          },
+          fromRect: rect(120, 20),
+        },
+      ],
+    });
+
+    expect(batch).toMatchObject({
+      id: 'discard:event-10',
+      kind: 'DISCARD_PRESENTATION_BATCH',
+      toSeat: 'SECOND',
+      cards: [{ render: { objectId: 'obj_public', cardCode: 'CARD-PUBLIC' } }],
+    });
+  });
+
+  it('uses single, fan, and compact grid layouts within the viewport', () => {
+    const toRect = rect(330, 620);
+    const single = getDiscardPresentationBatchLayout({
+      count: 1,
+      toRect,
+      toSeat: 'FIRST',
+      viewportWidth: 390,
+      viewportHeight: 844,
+    });
+    const fan = getDiscardPresentationBatchLayout({
+      count: 4,
+      toRect,
+      toSeat: 'FIRST',
+      viewportWidth: 390,
+      viewportHeight: 844,
+    });
+    const grid = getDiscardPresentationBatchLayout({
+      count: 7,
+      toRect,
+      toSeat: 'FIRST',
+      viewportWidth: 390,
+      viewportHeight: 844,
+    });
+
+    expect(single.mode).toBe('SINGLE');
+    expect(fan.mode).toBe('FAN');
+    expect(grid.mode).toBe('GRID');
+    expect(single.cards).toHaveLength(1);
+    expect(fan.cards).toHaveLength(4);
+    expect(grid.cards).toHaveLength(7);
+    for (const layout of [single, fan, grid]) {
+      expect(layout.bounds.left).toBeGreaterThanOrEqual(8);
+      expect(layout.bounds.top).toBeGreaterThanOrEqual(8);
+      expect(layout.bounds.left + layout.bounds.width).toBeLessThanOrEqual(382);
+      expect(layout.bounds.top + layout.bounds.height).toBeLessThanOrEqual(836);
+    }
+    expect(new Set(fan.cards.map((card) => card.rotation)).size).toBeGreaterThan(1);
+    expect(grid.cards.every((card) => card.rotation === 0)).toBe(true);
   });
 
   it('does not create long-distance card move events for main deck inspection', () => {
@@ -882,6 +1051,12 @@ describe('battle animation events', () => {
   });
 
   it('uses longer duration for waiting room reveal moves', () => {
+    expect(WAITING_ROOM_REVEAL_MOVE_DURATION_MS).toBe(300);
+    expect(WAITING_ROOM_REVEAL_HOLD_DURATION_MS).toBe(720);
+    expect(WAITING_ROOM_REVEAL_COLLECT_DURATION_MS).toBe(160);
+    expect(WAITING_ROOM_REVEAL_DURATION_MS).toBe(1_180);
+    expect(DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS).toBe(800);
+
     const defaultMove = moveEvent('obj_default', ZoneType.HAND, ZoneType.WAITING_ROOM);
     const revealMove: Extract<BattleAnimationEvent, { kind: 'CARD_MOVE' }> = {
       ...defaultMove,
@@ -895,6 +1070,30 @@ describe('battle animation events', () => {
     expect(getBattleAnimationEventDurationMs(revealMove)).toBe(WAITING_ROOM_REVEAL_DURATION_MS);
     expect(getBattleAnimationEventDurationMs(revealMove)).toBeGreaterThan(
       getBattleAnimationEventDurationMs(defaultMove)
+    );
+
+    const batch = createDiscardPresentationBatchEvent({
+      id: 'discard:duration',
+      toSeat: 'FIRST',
+      toRect: rect(100, 100),
+      cards: [
+        {
+          render: {
+            objectId: 'obj_discard',
+            cardId: 'discard',
+            fromSurface: 'FRONT',
+            toSurface: 'FRONT',
+            surface: 'FRONT',
+            cardCode: 'CARD-DISCARD',
+          },
+          fromRect: rect(0, 0),
+        },
+      ],
+    });
+    expect(batch).not.toBeNull();
+    expect(getBattleAnimationEventDurationMs(batch!)).toBe(WAITING_ROOM_REVEAL_DURATION_MS);
+    expect(getBattleAnimationEventDurationMs(batch!, true)).toBe(
+      DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS
     );
   });
 });

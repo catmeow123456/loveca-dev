@@ -519,6 +519,8 @@ export interface PlayerDeclaredPublicEvent extends BasePublicEvent {
 
 export interface CardMovedPublicEvent extends BasePublicEvent {
   readonly type: 'CardMovedPublic';
+  /** 同一权威状态提交内，同归属玩家的手牌进休息室移动共享。 */
+  readonly movementBatchId?: string;
   readonly card?: PublicCardInfo;
   readonly from?: PublicZoneRef;
   readonly to?: PublicZoneRef;
@@ -542,6 +544,8 @@ export interface CardRevealedPublicEvent extends BasePublicEvent {
 
 export interface CardRevealedAndMovedPublicEvent extends BasePublicEvent {
   readonly type: 'CardRevealedAndMoved';
+  /** 同一权威状态提交内，同归属玩家的手牌进休息室移动共享。 */
+  readonly movementBatchId?: string;
   readonly card: PublicCardInfo;
   readonly from?: PublicZoneRef;
   readonly to?: PublicZoneRef;

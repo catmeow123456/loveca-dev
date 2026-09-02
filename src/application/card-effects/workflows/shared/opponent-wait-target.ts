@@ -24,6 +24,8 @@ import {
   N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
   N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_FOUR_MEMBER_ABILITY_ID,
   PB1_011_ON_ENTER_DIFFERENT_BIBI_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+  PL_PB2_033_LIVE_START_WAIT_OPPONENT_ORIGINAL_HEART_THREE_ABILITY_ID,
+  PL_PB2_033_ON_ENTER_WAIT_OPPONENT_ORIGINAL_HEART_THREE_ABILITY_ID,
   PL_PB1_009_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_ONE_ABILITY_ID,
   PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
   S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
@@ -64,7 +66,11 @@ import {
   getStageMemberOrientationTargetMetadata,
   resolveStageMemberOrientationTargetSelection,
 } from '../../../effects/stage-member-target-selection.js';
-import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
+import {
+  getStageMemberCardIdsMatching,
+  memberOriginalHeartLte,
+  type StageMemberStatePredicate,
+} from '../../../effects/stage-targets.js';
 
 const HS_BP6_004_SELECT_OPPONENT_MEMBER_STEP_ID = 'HS_BP6_004_SELECT_OPPONENT_MEMBER_TO_WAIT';
 const PL_BP5_013_SELECT_OPPONENT_MEMBER_STEP_ID = 'PL_BP5_013_SELECT_OPPONENT_MEMBER_TO_WAIT';
@@ -88,6 +94,8 @@ const N_SD2_021_SELECT_OPPONENT_COST_FOUR_MEMBER_STEP_ID =
   'N_SD2_021_SELECT_OPPONENT_COST_FOUR_MEMBER_TO_WAIT';
 const HS_PR_038_SELECT_OPPONENT_COST_FOUR_MEMBER_STEP_ID =
   'HS_PR_038_SELECT_OPPONENT_COST_FOUR_MEMBER_TO_WAIT';
+const PL_PB2_033_SELECT_OPPONENT_ORIGINAL_HEART_THREE_MEMBER_STEP_ID =
+  'PL_PB2_033_SELECT_OPPONENT_ORIGINAL_HEART_THREE_MEMBER_TO_WAIT';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
@@ -99,6 +107,7 @@ interface OpponentWaitTargetWorkflowConfig {
   readonly stepText: string;
   readonly selectionLabel: string;
   readonly selector: CardSelector;
+  readonly statePredicate?: StageMemberStatePredicate;
   readonly startActionStep: string;
   readonly minOwnStageHeartTotal?: number;
   readonly minOwnStageDifferentBiBiMemberNameCount?: number;
@@ -119,6 +128,23 @@ const lowBladeNonDollchestraOpponentMemberSelector = and(
 );
 
 const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[] = [
+  ...[
+    PL_PB2_033_ON_ENTER_WAIT_OPPONENT_ORIGINAL_HEART_THREE_ABILITY_ID,
+    PL_PB2_033_LIVE_START_WAIT_OPPONENT_ORIGINAL_HEART_THREE_ABILITY_ID,
+  ].map(
+    (abilityId) =>
+      ({
+        abilityId,
+        effectTextAbilityId: abilityId,
+        stepId: PL_PB2_033_SELECT_OPPONENT_ORIGINAL_HEART_THREE_MEMBER_STEP_ID,
+        stepText: '请选择对方舞台上1名原本持有的HEART数量小于等于3的成员变为待机状态。',
+        selectionLabel: '选择要变为待机状态的成员',
+        selector: typeIs(CardType.MEMBER),
+        statePredicate: memberOriginalHeartLte(3),
+        startActionStep: 'START_SELECT_OPPONENT_ORIGINAL_HEART_THREE_MEMBER',
+        consumeStaleSelectionAsNoOp: true,
+      }) satisfies OpponentWaitTargetWorkflowConfig
+  ),
   {
     abilityId: PL_PB1_009_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_ONE_ABILITY_ID,
     effectTextAbilityId: PL_PB1_009_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_ONE_ABILITY_ID,
@@ -399,7 +425,12 @@ function startOpponentWaitTargetWorkflow(
           and(typeIs(CardType.MEMBER), costGte(config.minOwnStagePrintedCost))
         ).length;
   if (config.minOwnStagePrintedCost !== undefined && ownStageHighPrintedCostMemberCount === 0) {
-    const selectableTargetCount = getOpponentWaitTargetCount(game, opponent.id, config.selector);
+    const selectableTargetCount = getOpponentWaitTargetCount(
+      game,
+      opponent.id,
+      config.selector,
+      config.statePredicate
+    );
     const confirmation =
       config.confirmNoTargetWithRealtimeText === true
         ? maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
@@ -492,6 +523,7 @@ function startOpponentWaitTargetWorkflow(
     awaitingPlayerId: player.id,
     targetPlayerId: opponent.id,
     selector: config.selector,
+    statePredicate: config.statePredicate,
     targetOrientation: OrientationState.WAITING,
     selectionLabel: config.selectionLabel,
     confirmSelectionLabel: '变为待机状态',
@@ -580,7 +612,8 @@ function finishOpponentWaitTargetWorkflow(
   const currentMatchingTargetIds = getStageMemberCardIdsMatching(
     game,
     targetMetadata.targetPlayerId,
-    config.selector
+    config.selector,
+    config.statePredicate
   );
   const currentSelectionIsLegal =
     currentTargetState !== undefined &&
@@ -693,10 +726,11 @@ function getOwnStageDifferentBiBiMemberNameCount(game: GameState, playerId: stri
 function getOpponentWaitTargetCount(
   game: GameState,
   opponentId: string,
-  selector: CardSelector
+  selector: CardSelector,
+  statePredicate?: StageMemberStatePredicate
 ): number {
   const opponent = getPlayerById(game, opponentId);
-  return getStageMemberCardIdsMatching(game, opponentId, selector).filter(
+  return getStageMemberCardIdsMatching(game, opponentId, selector, statePredicate).filter(
     (cardId) =>
       opponent?.memberSlots.cardStates.get(cardId)?.orientation !== OrientationState.WAITING
   ).length;

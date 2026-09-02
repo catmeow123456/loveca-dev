@@ -146,6 +146,10 @@ export interface RankedAdminPlayerContextPlayer extends RankedAdminPlayerSearchC
   readonly deckClassification: RankedAdminPlayerDeckClassification;
 }
 
+export interface RankedAdminPlayerListItem extends RankedAdminPlayerContextPlayer {
+  readonly listPosition: number;
+}
+
 export type RankedAdminPlayerDeckClassificationCoverage = 'NONE' | 'PARTIAL' | 'COMPLETE';
 
 export interface RankedAdminPlayerDeckClassification {
@@ -182,6 +186,67 @@ export interface RankedAdminPlayerContext {
   readonly neighbors: {
     readonly rows: readonly RankedAdminPlayerContextNeighbor[];
   };
+}
+
+export interface RankedAdminDeckStatisticsPlayer extends RankedAdminPlayerSearchCandidate {
+  readonly appearanceCount: number;
+  readonly winnerCount: number;
+  readonly lossCount: number;
+  readonly winRate: number;
+}
+
+export interface RankedAdminDeckStatisticsCategory {
+  readonly archetypeId: string;
+  readonly categoryKey: string;
+  readonly name: string;
+  readonly groupName: string;
+  readonly color: string;
+  readonly sortOrder: number;
+  readonly classificationStatus: 'CLASSIFIED' | 'UNKNOWN' | 'AMBIGUOUS';
+  readonly appearanceCount: number;
+  readonly winnerCount: number;
+  readonly lossCount: number;
+  readonly playerCount: number;
+  readonly winRate: number | null;
+  readonly players: readonly RankedAdminDeckStatisticsPlayer[];
+}
+
+export interface RankedAdminDeckStatistics {
+  readonly seasonId: string;
+  readonly generatedAt: Date;
+  readonly available: boolean;
+  readonly release: {
+    readonly id: string;
+    readonly version: number;
+    readonly publishedAt: number;
+  } | null;
+  readonly sample: {
+    readonly settledMatchCount: number;
+    readonly observedMatchCount: number;
+    readonly analyzedMatchCount: number;
+    readonly deckObservationCount: number;
+    readonly assignedDeckObservationCount: number;
+    readonly recognizedDeckObservationCount: number;
+    readonly invalidDeckObservationCount: number;
+    readonly excludedDeckObservationCount: number;
+    readonly observationCoverageRate: number;
+    readonly classificationCoverageRate: number;
+  };
+  readonly categories: readonly RankedAdminDeckStatisticsCategory[];
+}
+
+export interface RankedAdminPlayerListPage {
+  readonly seasonId: string;
+  readonly generatedAt: Date;
+  readonly ledgerRevision: number;
+  readonly placementRequired: number;
+  readonly leaderboardMinimumMatchCount: number;
+  readonly classificationRelease: { readonly id: string; readonly version: number } | null;
+  readonly query: string;
+  readonly limit: number;
+  readonly offset: number;
+  readonly total: number;
+  readonly players: readonly RankedAdminPlayerListItem[];
 }
 
 interface RankedAdminQueryResult<T> {
@@ -338,6 +403,71 @@ interface RankedAdminPlayerContextRow {
   readonly neighbor_leading_deck_match_count: number | string | null;
   readonly neighbor_leading_archetype_ids: readonly string[] | null;
   readonly neighbor_rank: number | string | null;
+}
+
+interface RankedAdminInsightsSeasonRow {
+  readonly season_id: string;
+  readonly rating_algorithm_version: string;
+  readonly rating_config: unknown;
+  readonly leaderboard_minimum_match_count: number;
+  readonly ledger_revision: number;
+  readonly active_release_id: string | null;
+  readonly active_release_version: number | string | null;
+  readonly active_release_snapshot_json: unknown;
+  readonly active_release_config_hash: string | null;
+  readonly active_release_published_at: Date | string | null;
+  readonly active_release_activated_at: Date | string | null;
+}
+
+interface RankedAdminDeckStatisticsDisplayRow {
+  readonly id: string;
+  readonly color_key: string;
+}
+
+interface RankedAdminDeckStatisticsRow {
+  readonly settled_match_count: number | string;
+  readonly observed_match_count: number | string;
+  readonly assigned_observation_count: number | string;
+  readonly recognized_observation_count: number | string;
+  readonly invalid_observation_count: number | string;
+  readonly excluded_observation_count: number | string;
+  readonly match_id: string | null;
+  readonly seat: 'FIRST' | 'SECOND' | null;
+  readonly user_id: string | null;
+  readonly username: string | null;
+  readonly display_name: string | null;
+  readonly winner_seat: RankedWinnerSeat | null;
+  readonly status: 'CLASSIFIED' | 'UNKNOWN' | 'AMBIGUOUS' | null;
+  readonly archetype_id: string | null;
+}
+
+interface RankedAdminPlayerListRow {
+  readonly season_id: string;
+  readonly rating_algorithm_version: string;
+  readonly rating_config: unknown;
+  readonly leaderboard_minimum_match_count: number;
+  readonly ledger_revision: number;
+  readonly active_release_id: string | null;
+  readonly active_release_version: number | string | null;
+  readonly active_release_snapshot_json: unknown;
+  readonly active_release_config_hash: string | null;
+  readonly active_release_published_at: Date | string | null;
+  readonly active_release_activated_at: Date | string | null;
+  readonly total_count: number | string;
+  readonly user_id: string | null;
+  readonly username: string | null;
+  readonly display_name: string | null;
+  readonly rating: number | string | null;
+  readonly rating_deviation: number | string | null;
+  readonly rated_match_count: number | string | null;
+  readonly wins: number | string | null;
+  readonly losses: number | string | null;
+  readonly rank: number | string | null;
+  readonly list_position: number | string | null;
+  readonly observed_deck_match_count: number | string | null;
+  readonly classified_deck_match_count: number | string | null;
+  readonly leading_deck_match_count: number | string | null;
+  readonly leading_archetype_ids: readonly string[] | null;
 }
 
 interface PlayerDeckClassificationSummaryRow {
@@ -780,6 +910,207 @@ export class RankedAdminService {
         playerCount: Number(row.player_count),
       })),
     };
+  }
+
+  async getDeckStatistics(seasonId: string): Promise<RankedAdminDeckStatistics> {
+    const generatedAt = this.now();
+    const season = await this.getInsightsSeason(seasonId);
+    const release = readInsightsRelease(season);
+    if (!release) {
+      const settledResult = await this.query<{ readonly count: number | string }>(
+        `SELECT COUNT(*) AS count
+         FROM ranked_matches
+         WHERE season_id = $1 AND rating_status = 'SETTLED'`,
+        [seasonId]
+      );
+      const settledMatchCount = readAdminCount(settledResult.rows[0]?.count ?? 0, '已结算对局数');
+      return {
+        seasonId,
+        generatedAt,
+        available: false,
+        release: null,
+        sample: {
+          settledMatchCount,
+          observedMatchCount: 0,
+          analyzedMatchCount: 0,
+          deckObservationCount: 0,
+          assignedDeckObservationCount: 0,
+          recognizedDeckObservationCount: 0,
+          invalidDeckObservationCount: 0,
+          excludedDeckObservationCount: 0,
+          observationCoverageRate: 0,
+          classificationCoverageRate: 0,
+        },
+        categories: [],
+      };
+    }
+
+    const displayResult = await this.query<RankedAdminDeckStatisticsDisplayRow>(
+      `SELECT id, color_key
+       FROM deck_archetypes
+       WHERE id = ANY($1::uuid[])`,
+      [release.snapshot.archetypes.map((archetype) => archetype.id)]
+    );
+    const statsResult = await this.query<RankedAdminDeckStatisticsRow>(
+      RANKED_ADMIN_DECK_STATISTICS_QUERY,
+      [seasonId, release.id]
+    );
+    return aggregateRankedAdminDeckStatistics({
+      seasonId,
+      generatedAt,
+      release,
+      displayRows: displayResult.rows,
+      rows: statsResult.rows,
+    });
+  }
+
+  async listPlayers(
+    seasonId: string,
+    queryText: string | undefined,
+    limit: number,
+    offset: number
+  ): Promise<RankedAdminPlayerListPage> {
+    const generatedAt = this.now();
+    const normalizedQuery = queryText?.trim() ?? '';
+    const pattern = normalizedQuery ? `%${escapeLikePattern(normalizedQuery)}%` : null;
+    const result = await this.query<RankedAdminPlayerListRow>(RANKED_ADMIN_PLAYER_LIST_QUERY, [
+      seasonId,
+      pattern,
+      limit,
+      offset,
+      normalizedQuery || null,
+    ]);
+    const first = result.rows[0];
+    if (!first) {
+      throw adminError('RANKED_SEASON_NOT_FOUND', '排位赛季不存在', 404);
+    }
+    const season: RankedAdminInsightsSeasonRow = {
+      season_id: first.season_id,
+      rating_algorithm_version: first.rating_algorithm_version,
+      rating_config: first.rating_config,
+      leaderboard_minimum_match_count: first.leaderboard_minimum_match_count,
+      ledger_revision: first.ledger_revision,
+      active_release_id: first.active_release_id,
+      active_release_version: first.active_release_version,
+      active_release_snapshot_json: first.active_release_snapshot_json,
+      active_release_config_hash: first.active_release_config_hash,
+      active_release_published_at: first.active_release_published_at,
+      active_release_activated_at: first.active_release_activated_at,
+    };
+    const ratingConfig = readPersistentConfig(
+      season.rating_algorithm_version,
+      season.rating_config
+    );
+    const release = readInsightsRelease(season);
+    const total = readAdminCount(first.total_count, '玩家总数');
+    const placementRequired = ratingConfig.placementMatchCount;
+    const leaderboardMinimumMatchCount = readPositiveAdminCount(
+      season.leaderboard_minimum_match_count,
+      '参榜门槛'
+    );
+    const ledgerRevision = readAdminCount(season.ledger_revision, 'ledger revision');
+    const players = result.rows.flatMap((row): RankedAdminPlayerListItem[] => {
+      if (
+        !row.user_id ||
+        !row.username ||
+        row.rating === null ||
+        row.rating_deviation === null ||
+        row.rated_match_count === null ||
+        row.wins === null ||
+        row.losses === null ||
+        row.list_position === null ||
+        row.observed_deck_match_count === null ||
+        row.classified_deck_match_count === null ||
+        row.leading_deck_match_count === null
+      ) {
+        return [];
+      }
+      const ratedMatchCount = readAdminCount(row.rated_match_count, '玩家已计分场数');
+      const wins = readAdminCount(row.wins, '玩家胜场数');
+      const losses = readAdminCount(row.losses, '玩家负场数');
+      if (wins + losses !== ratedMatchCount) {
+        throw adminError(
+          'RANKED_PLAYER_LIST_INVALID',
+          '玩家胜负场数与评分投影的已计分场数不一致',
+          500
+        );
+      }
+      const placementCompleted = ratedMatchCount >= placementRequired;
+      const leaderboardEligible = ratedMatchCount >= leaderboardMinimumMatchCount;
+      const rank = leaderboardEligible ? readPositiveRank(row.rank) : null;
+      return [
+        {
+          listPosition: readPositivePlayerListPosition(row.list_position),
+          userId: row.user_id,
+          username: row.username,
+          displayName: row.display_name,
+          rating: readFiniteNumber(row.rating, '玩家评分'),
+          ratingDeviation: readFiniteNumber(row.rating_deviation, '玩家 RD'),
+          ratedMatchCount,
+          wins,
+          losses,
+          placementCompleted,
+          leaderboardEligible,
+          status: !placementCompleted
+            ? 'PLACEMENT'
+            : leaderboardEligible
+              ? 'RANKED'
+              : 'PLACED_NOT_ELIGIBLE',
+          rank,
+          deckClassification: readPlayerDeckClassification(
+            {
+              active_release_id: release?.id ?? null,
+              active_release_version: release?.version ?? null,
+              active_release_snapshot_json: release?.snapshot ?? null,
+              active_release_config_hash: release?.configHash ?? null,
+              observed_deck_match_count: row.observed_deck_match_count,
+              classified_deck_match_count: row.classified_deck_match_count,
+              leading_deck_match_count: row.leading_deck_match_count,
+              leading_archetype_ids: row.leading_archetype_ids,
+            },
+            ratedMatchCount
+          ),
+        },
+      ];
+    });
+    if (players.length > limit || players.length > total) {
+      throw adminError('RANKED_PLAYER_LIST_INVALID', '排位玩家分页结果无效', 500);
+    }
+    return {
+      seasonId,
+      generatedAt,
+      ledgerRevision,
+      placementRequired,
+      leaderboardMinimumMatchCount,
+      classificationRelease: release ? { id: release.id, version: release.version } : null,
+      query: normalizedQuery,
+      limit,
+      offset,
+      total,
+      players,
+    };
+  }
+
+  private async getInsightsSeason(seasonId: string): Promise<RankedAdminInsightsSeasonRow> {
+    const result = await this.query<RankedAdminInsightsSeasonRow>(
+      `SELECT season.id AS season_id, season.rating_algorithm_version, season.rating_config,
+              season.leaderboard_minimum_match_count, season.ledger_revision,
+              release.id AS active_release_id,
+              release.version AS active_release_version,
+              release.snapshot_json AS active_release_snapshot_json,
+              release.config_hash AS active_release_config_hash,
+              release.published_at AS active_release_published_at,
+              release.activated_at AS active_release_activated_at
+       FROM ranked_seasons AS season
+       LEFT JOIN deck_classifier_releases AS release ON release.status = 'ACTIVE'
+       WHERE season.id = $1`,
+      [seasonId]
+    );
+    const season = result.rows[0];
+    if (!season) {
+      throw adminError('RANKED_SEASON_NOT_FOUND', '排位赛季不存在', 404);
+    }
+    return season;
   }
 
   async searchPlayers(
@@ -1566,6 +1897,576 @@ export class RankedAdminService {
       ])
     );
   }
+}
+
+interface RankedAdminInsightsRelease {
+  readonly id: string;
+  readonly version: number;
+  readonly snapshot: ReturnType<typeof readDeckClassifierSnapshot>;
+  readonly configHash: string;
+  readonly publishedAt: number;
+}
+
+interface MutableRankedAdminDeckCategory {
+  readonly archetypeId: string;
+  readonly categoryKey: string;
+  readonly name: string;
+  readonly groupName: string;
+  readonly color: string;
+  readonly sortOrder: number;
+  readonly classificationStatus: 'CLASSIFIED' | 'UNKNOWN' | 'AMBIGUOUS';
+  appearanceCount: number;
+  winnerCount: number;
+  readonly players: Map<
+    string,
+    {
+      readonly userId: string;
+      readonly username: string;
+      readonly displayName: string | null;
+      appearanceCount: number;
+      winnerCount: number;
+    }
+  >;
+}
+
+const UNKNOWN_ADMIN_DECK_CATEGORY = {
+  archetypeId: 'system:other_unknown',
+  categoryKey: 'other_unknown',
+  name: '其他／未识别',
+  groupName: '系统',
+  color: '#94A3B8',
+  sortOrder: 1_000_000,
+  classificationStatus: 'UNKNOWN' as const,
+};
+
+const AMBIGUOUS_ADMIN_DECK_CATEGORY = {
+  archetypeId: 'system:ambiguous',
+  categoryKey: 'ambiguous',
+  name: '分类冲突／待复核',
+  groupName: '系统',
+  color: '#F59E0B',
+  sortOrder: 1_000_001,
+  classificationStatus: 'AMBIGUOUS' as const,
+};
+
+const RANKED_ADMIN_DECK_STATISTICS_QUERY = `WITH settled_matches AS MATERIALIZED (
+  SELECT match_id, first_user_id, second_user_id, winner_seat
+  FROM ranked_matches
+  WHERE season_id = $1 AND rating_status = 'SETTLED'
+), observed_matches AS MATERIALIZED (
+  SELECT ranked_match.match_id
+  FROM settled_matches AS ranked_match
+  JOIN ranked_deck_observations AS observation
+    ON observation.match_id = ranked_match.match_id AND observation.season_id = $1
+  GROUP BY ranked_match.match_id, ranked_match.first_user_id, ranked_match.second_user_id
+  HAVING count(*) = 2
+    AND count(*) FILTER (WHERE observation.seat = 'FIRST') = 1
+    AND count(*) FILTER (WHERE observation.seat = 'SECOND') = 1
+    AND bool_and(observation.user_id = CASE observation.seat
+      WHEN 'FIRST' THEN ranked_match.first_user_id ELSE ranked_match.second_user_id END)
+), assigned_rows AS MATERIALIZED (
+  SELECT observation.match_id, observation.seat, observation.user_id,
+         ranked_match.winner_seat, assignment.status, assignment.archetype_id
+  FROM observed_matches
+  JOIN settled_matches AS ranked_match USING (match_id)
+  JOIN ranked_deck_observations AS observation
+    ON observation.match_id = ranked_match.match_id AND observation.season_id = $1
+  JOIN deck_classification_assignments AS assignment
+    ON assignment.match_id = observation.match_id
+   AND assignment.seat = observation.seat
+   AND assignment.release_id = $2
+), candidate_rows AS MATERIALIZED (
+  SELECT *
+  FROM assigned_rows
+  WHERE status IN ('CLASSIFIED', 'UNKNOWN', 'AMBIGUOUS')
+), analyzable_matches AS MATERIALIZED (
+  SELECT match_id
+  FROM candidate_rows
+  GROUP BY match_id
+  HAVING count(*) = 2
+    AND count(*) FILTER (WHERE seat = 'FIRST') = 1
+    AND count(*) FILTER (WHERE seat = 'SECOND') = 1
+), effective_rows AS MATERIALIZED (
+  SELECT candidate.*
+  FROM candidate_rows AS candidate
+  JOIN analyzable_matches USING (match_id)
+), totals AS (
+  SELECT
+    (SELECT count(*) FROM settled_matches) AS settled_match_count,
+    (SELECT count(*) FROM observed_matches) AS observed_match_count,
+    (SELECT count(*) FROM assigned_rows
+     WHERE status IN ('CLASSIFIED', 'UNKNOWN', 'AMBIGUOUS')) AS assigned_observation_count,
+    (SELECT count(*) FROM assigned_rows WHERE status = 'CLASSIFIED')
+      AS recognized_observation_count,
+    (SELECT count(*) FROM assigned_rows WHERE status = 'INVALID') AS invalid_observation_count,
+    (SELECT count(*) FROM assigned_rows WHERE status = 'EXCLUDED') AS excluded_observation_count
+)
+SELECT totals.*, effective.match_id, effective.seat, effective.user_id,
+       profile.username, profile.display_name, effective.winner_seat,
+       effective.status, effective.archetype_id
+FROM totals
+LEFT JOIN effective_rows AS effective ON TRUE
+LEFT JOIN profiles AS profile ON profile.id = effective.user_id
+ORDER BY effective.match_id ASC NULLS LAST, effective.seat ASC NULLS LAST`;
+
+const RANKED_ADMIN_PLAYER_LIST_QUERY = `WITH season AS MATERIALIZED (
+  SELECT id, rating_algorithm_version, rating_config,
+         leaderboard_minimum_match_count, ledger_revision
+  FROM ranked_seasons
+  WHERE id = $1
+), active_release AS MATERIALIZED (
+  SELECT id, version, snapshot_json, config_hash, published_at, activated_at
+  FROM deck_classifier_releases
+  WHERE status = 'ACTIVE'
+), participants AS MATERIALIZED (
+  SELECT rating.user_id, profile.username, profile.display_name,
+         rating.rating, rating.rating_deviation, rating.rated_match_count
+  FROM season
+  JOIN ranked_player_ratings AS rating
+    ON rating.season_id = season.id AND rating.rated_match_count > 0
+  JOIN profiles AS profile ON profile.id = rating.user_id
+), eligible AS MATERIALIZED (
+  SELECT participant.user_id,
+         ROW_NUMBER() OVER (ORDER BY participant.rating DESC, participant.user_id ASC) AS rank
+  FROM participants AS participant
+  CROSS JOIN season
+  WHERE participant.rated_match_count >= season.leaderboard_minimum_match_count
+), player_results AS MATERIALIZED (
+  SELECT ranked_match.first_user_id AS user_id, ranked_match.match_id,
+         'FIRST'::text AS seat, ranked_match.winner_seat
+  FROM ranked_matches AS ranked_match
+  WHERE ranked_match.season_id = $1 AND ranked_match.rating_status = 'SETTLED'
+  UNION ALL
+  SELECT ranked_match.second_user_id AS user_id, ranked_match.match_id,
+         'SECOND'::text AS seat, ranked_match.winner_seat
+  FROM ranked_matches AS ranked_match
+  WHERE ranked_match.season_id = $1 AND ranked_match.rating_status = 'SETTLED'
+), record_summaries AS MATERIALIZED (
+  SELECT participant.user_id,
+         COUNT(result.match_id) FILTER (WHERE result.seat = result.winner_seat) AS wins,
+         COUNT(result.match_id) FILTER (WHERE result.seat <> result.winner_seat) AS losses
+  FROM participants AS participant
+  LEFT JOIN player_results AS result ON result.user_id = participant.user_id
+  GROUP BY participant.user_id
+), player_observations AS MATERIALIZED (
+  SELECT result.user_id, result.match_id, result.seat
+  FROM player_results AS result
+  JOIN ranked_deck_observations AS observation
+    ON observation.match_id = result.match_id
+   AND observation.seat = result.seat
+   AND observation.season_id = $1
+   AND observation.user_id = result.user_id
+), classification_counts AS MATERIALIZED (
+  SELECT observation.user_id, assignment.archetype_id, COUNT(*) AS match_count
+  FROM player_observations AS observation
+  CROSS JOIN active_release AS release
+  JOIN deck_classification_assignments AS assignment
+    ON assignment.match_id = observation.match_id
+   AND assignment.seat = observation.seat
+   AND assignment.release_id = release.id
+   AND assignment.status = 'CLASSIFIED'
+  GROUP BY observation.user_id, assignment.archetype_id
+), deck_summaries AS MATERIALIZED (
+  SELECT participant.user_id,
+         (SELECT COUNT(*) FROM player_observations AS observation
+          WHERE observation.user_id = participant.user_id) AS observed_match_count,
+         COALESCE((SELECT SUM(match_count) FROM classification_counts AS count
+                   WHERE count.user_id = participant.user_id), 0) AS classified_match_count,
+         COALESCE((SELECT MAX(match_count) FROM classification_counts AS count
+                   WHERE count.user_id = participant.user_id), 0) AS leading_match_count,
+         COALESCE(
+           (SELECT ARRAY_AGG(count.archetype_id ORDER BY count.archetype_id)
+            FROM classification_counts AS count
+            WHERE count.user_id = participant.user_id
+              AND count.match_count = (
+                SELECT MAX(inner_count.match_count)
+                FROM classification_counts AS inner_count
+                WHERE inner_count.user_id = participant.user_id
+              )),
+           ARRAY[]::uuid[]
+         ) AS leading_archetype_ids
+  FROM participants AS participant
+), all_players AS MATERIALIZED (
+  SELECT participant.*, eligible.rank, record.wins, record.losses,
+         deck.observed_match_count, deck.classified_match_count,
+         deck.leading_match_count, deck.leading_archetype_ids,
+         eligible.rank IS NOT NULL AS leaderboard_eligible
+  FROM participants AS participant
+  LEFT JOIN eligible ON eligible.user_id = participant.user_id
+  JOIN record_summaries AS record ON record.user_id = participant.user_id
+  JOIN deck_summaries AS deck ON deck.user_id = participant.user_id
+), ordered_players AS MATERIALIZED (
+  SELECT player.*,
+         ROW_NUMBER() OVER (
+           ORDER BY player.leaderboard_eligible DESC, player.rank ASC NULLS LAST,
+                    player.rating DESC, player.user_id ASC
+         ) AS list_position
+  FROM all_players AS player
+), filtered_players AS MATERIALIZED (
+  SELECT *
+  FROM ordered_players AS player
+  WHERE $2::text IS NULL OR (
+    player.user_id::text ILIKE $2 ESCAPE '\\'
+    OR player.username ILIKE $2 ESCAPE '\\'
+    OR COALESCE(player.display_name, '') ILIKE $2 ESCAPE '\\'
+  )
+), paged AS MATERIALIZED (
+  SELECT player.*,
+    CASE
+      WHEN $5::text IS NULL THEN 3
+      WHEN LOWER(player.user_id::text) = LOWER($5::text) THEN 0
+      WHEN LOWER(player.username) = LOWER($5::text) THEN 1
+      WHEN LOWER(COALESCE(player.display_name, '')) = LOWER($5::text) THEN 2
+      ELSE 3
+    END AS search_priority
+  FROM filtered_players AS player
+  ORDER BY search_priority ASC, list_position ASC
+  LIMIT $3 OFFSET $4
+), totals AS (
+  SELECT COUNT(*) AS total_count FROM filtered_players
+)
+SELECT season.id AS season_id, season.rating_algorithm_version, season.rating_config,
+       season.leaderboard_minimum_match_count, season.ledger_revision,
+       active_release.id AS active_release_id,
+       active_release.version AS active_release_version,
+       active_release.snapshot_json AS active_release_snapshot_json,
+       active_release.config_hash AS active_release_config_hash,
+       active_release.published_at AS active_release_published_at,
+       active_release.activated_at AS active_release_activated_at,
+       totals.total_count, paged.user_id, paged.username, paged.display_name,
+       paged.rating, paged.rating_deviation, paged.rated_match_count,
+       paged.wins, paged.losses, paged.rank, paged.list_position,
+       paged.observed_match_count AS observed_deck_match_count,
+       paged.classified_match_count AS classified_deck_match_count,
+       paged.leading_match_count AS leading_deck_match_count,
+       paged.leading_archetype_ids
+FROM season
+LEFT JOIN active_release ON TRUE
+CROSS JOIN totals
+LEFT JOIN paged ON TRUE
+ORDER BY paged.search_priority ASC NULLS LAST, paged.list_position ASC NULLS LAST`;
+
+function readInsightsRelease(
+  season: RankedAdminInsightsSeasonRow
+): RankedAdminInsightsRelease | null {
+  if (season.active_release_id === null) {
+    if (
+      season.active_release_version !== null ||
+      season.active_release_snapshot_json != null ||
+      season.active_release_config_hash !== null ||
+      season.active_release_published_at !== null ||
+      season.active_release_activated_at !== null
+    ) {
+      throw adminError('RANKED_DECK_CLASSIFIER_RELEASE_INVALID', '卡组分类发布状态无效', 500);
+    }
+    return null;
+  }
+  const version = Number(season.active_release_version);
+  if (
+    !Number.isSafeInteger(version) ||
+    version <= 0 ||
+    !season.active_release_config_hash ||
+    season.active_release_published_at === null ||
+    season.active_release_activated_at === null
+  ) {
+    throw adminError('RANKED_DECK_CLASSIFIER_RELEASE_INVALID', '卡组分类发布状态无效', 500);
+  }
+  let snapshot: ReturnType<typeof readDeckClassifierSnapshot>;
+  try {
+    snapshot = readDeckClassifierSnapshot(season.active_release_snapshot_json);
+  } catch {
+    throw adminError('RANKED_DECK_CLASSIFIER_SNAPSHOT_INVALID', '卡组分类发布快照无效', 500);
+  }
+  if (
+    snapshot.releaseVersion !== version ||
+    hashDeckClassifierSnapshot(snapshot) !== season.active_release_config_hash
+  ) {
+    throw adminError(
+      'RANKED_DECK_CLASSIFIER_SNAPSHOT_INVALID',
+      '卡组分类发布快照完整性校验失败',
+      500
+    );
+  }
+  const publishedAt = new Date(season.active_release_published_at).getTime();
+  if (!Number.isFinite(publishedAt)) {
+    throw adminError('RANKED_DECK_CLASSIFIER_RELEASE_INVALID', '卡组分类发布时间无效', 500);
+  }
+  return {
+    id: season.active_release_id,
+    version,
+    snapshot,
+    configHash: season.active_release_config_hash,
+    publishedAt,
+  };
+}
+
+function aggregateRankedAdminDeckStatistics(input: {
+  readonly seasonId: string;
+  readonly generatedAt: Date;
+  readonly release: RankedAdminInsightsRelease;
+  readonly displayRows: readonly RankedAdminDeckStatisticsDisplayRow[];
+  readonly rows: readonly RankedAdminDeckStatisticsRow[];
+}): RankedAdminDeckStatistics {
+  const displayById = new Map(input.displayRows.map((row) => [row.id, row.color_key]));
+  if (displayById.size !== input.displayRows.length) {
+    throw adminError('RANKED_DECK_STATISTICS_INVALID', '卡组分类展示设置包含重复分类', 500);
+  }
+  const categories = new Map<string, MutableRankedAdminDeckCategory>();
+  for (const archetype of input.release.snapshot.archetypes) {
+    const color = displayById.get(archetype.id);
+    if (!color || !/^#[0-9a-f]{6}$/i.test(color)) {
+      throw adminError(
+        'RANKED_DECK_STATISTICS_INVALID',
+        `卡组分类 ${archetype.archetypeKey} 缺少有效展示颜色`,
+        500
+      );
+    }
+    categories.set(
+      archetype.id,
+      createMutableDeckCategory({
+        archetypeId: archetype.id,
+        categoryKey: archetype.archetypeKey,
+        name: archetype.name,
+        groupName: archetype.groupName,
+        color: color.toUpperCase(),
+        sortOrder: archetype.sortOrder,
+        classificationStatus: 'CLASSIFIED',
+      })
+    );
+  }
+  if (displayById.size !== input.release.snapshot.archetypes.length) {
+    throw adminError('RANKED_DECK_STATISTICS_INVALID', '卡组分类展示设置与发布快照不一致', 500);
+  }
+  const first = input.rows[0];
+  if (!first) {
+    throw adminError('RANKED_DECK_STATISTICS_INVALID', '卡组分类统计查询失败', 500);
+  }
+  const settledMatchCount = readAdminCount(first.settled_match_count, '已结算对局数');
+  const observedMatchCount = readAdminCount(first.observed_match_count, '完整观察对局数');
+  const assignedDeckObservationCount = readAdminCount(
+    first.assigned_observation_count,
+    '已分配观察数'
+  );
+  const recognizedDeckObservationCount = readAdminCount(
+    first.recognized_observation_count,
+    '已识别观察数'
+  );
+  const invalidDeckObservationCount = readAdminCount(first.invalid_observation_count, '非法观察数');
+  const excludedDeckObservationCount = readAdminCount(
+    first.excluded_observation_count,
+    '排除观察数'
+  );
+  const rowsByMatch = new Map<string, RankedAdminDeckStatisticsRow[]>();
+  for (const row of input.rows) {
+    if (!row.match_id) continue;
+    if (!row.seat || !row.user_id || !row.username || !row.winner_seat || !row.status) {
+      throw adminError('RANKED_DECK_STATISTICS_INVALID', '可分析卡组席位数据不完整', 500);
+    }
+    const category = resolveAdminDeckCategory(row, categories);
+    category.appearanceCount += 1;
+    const isWinner = row.seat === row.winner_seat;
+    if (isWinner) category.winnerCount += 1;
+    const player = category.players.get(row.user_id) ?? {
+      userId: row.user_id,
+      username: row.username,
+      displayName: row.display_name,
+      appearanceCount: 0,
+      winnerCount: 0,
+    };
+    if (player.username !== row.username || player.displayName !== row.display_name) {
+      throw adminError('RANKED_DECK_STATISTICS_INVALID', '卡组分类玩家身份不一致', 500);
+    }
+    player.appearanceCount += 1;
+    if (isWinner) player.winnerCount += 1;
+    category.players.set(row.user_id, player);
+    const matchRows = rowsByMatch.get(row.match_id) ?? [];
+    matchRows.push(row);
+    rowsByMatch.set(row.match_id, matchRows);
+  }
+  for (const rows of rowsByMatch.values()) {
+    if (
+      rows.length !== 2 ||
+      rows[0]?.seat === rows[1]?.seat ||
+      rows.filter((row) => row.seat === row.winner_seat).length !== 1
+    ) {
+      throw adminError(
+        'RANKED_DECK_STATISTICS_INVALID',
+        '可分析对局必须恰好包含两席且唯一胜方',
+        500
+      );
+    }
+  }
+  const deckObservationCount = observedMatchCount * 2;
+  const analyzedMatchCount = rowsByMatch.size;
+  if (
+    observedMatchCount > settledMatchCount ||
+    assignedDeckObservationCount > deckObservationCount ||
+    recognizedDeckObservationCount > assignedDeckObservationCount ||
+    assignedDeckObservationCount + invalidDeckObservationCount + excludedDeckObservationCount >
+      deckObservationCount ||
+    analyzedMatchCount * 2 > assignedDeckObservationCount ||
+    analyzedMatchCount > observedMatchCount
+  ) {
+    throw adminError('RANKED_DECK_STATISTICS_INVALID', '卡组分类样本覆盖数据不一致', 500);
+  }
+  return {
+    seasonId: input.seasonId,
+    generatedAt: input.generatedAt,
+    available: true,
+    release: {
+      id: input.release.id,
+      version: input.release.version,
+      publishedAt: input.release.publishedAt,
+    },
+    sample: {
+      settledMatchCount,
+      observedMatchCount,
+      analyzedMatchCount,
+      deckObservationCount,
+      assignedDeckObservationCount,
+      recognizedDeckObservationCount,
+      invalidDeckObservationCount,
+      excludedDeckObservationCount,
+      observationCoverageRate:
+        settledMatchCount === 0 ? 0 : clampAdminRate(observedMatchCount / settledMatchCount),
+      classificationCoverageRate:
+        deckObservationCount === 0
+          ? 0
+          : clampAdminRate(assignedDeckObservationCount / deckObservationCount),
+    },
+    categories: [...categories.values()]
+      .filter(
+        (category) => category.classificationStatus === 'CLASSIFIED' || category.appearanceCount > 0
+      )
+      .map(projectAdminDeckCategory)
+      .sort(
+        (left, right) =>
+          right.appearanceCount - left.appearanceCount ||
+          left.sortOrder - right.sortOrder ||
+          left.categoryKey.localeCompare(right.categoryKey)
+      ),
+  };
+}
+
+function createMutableDeckCategory(
+  metadata: Omit<MutableRankedAdminDeckCategory, 'appearanceCount' | 'winnerCount' | 'players'>
+): MutableRankedAdminDeckCategory {
+  return { ...metadata, appearanceCount: 0, winnerCount: 0, players: new Map() };
+}
+
+function resolveAdminDeckCategory(
+  row: RankedAdminDeckStatisticsRow,
+  categories: Map<string, MutableRankedAdminDeckCategory>
+): MutableRankedAdminDeckCategory {
+  if (row.status === 'UNKNOWN') {
+    return getSystemAdminDeckCategory(categories, UNKNOWN_ADMIN_DECK_CATEGORY);
+  }
+  if (row.status === 'AMBIGUOUS') {
+    return getSystemAdminDeckCategory(categories, AMBIGUOUS_ADMIN_DECK_CATEGORY);
+  }
+  if (row.status !== 'CLASSIFIED' || !row.archetype_id) {
+    throw adminError('RANKED_DECK_STATISTICS_INVALID', '卡组分类结果无效', 500);
+  }
+  const category = categories.get(row.archetype_id);
+  if (!category || category.classificationStatus !== 'CLASSIFIED') {
+    throw adminError('RANKED_DECK_STATISTICS_INVALID', '卡组分类结果不在当前发布快照中', 500);
+  }
+  return category;
+}
+
+function getSystemAdminDeckCategory(
+  categories: Map<string, MutableRankedAdminDeckCategory>,
+  metadata: typeof UNKNOWN_ADMIN_DECK_CATEGORY | typeof AMBIGUOUS_ADMIN_DECK_CATEGORY
+): MutableRankedAdminDeckCategory {
+  const existing = categories.get(metadata.archetypeId);
+  if (existing) return existing;
+  const created = createMutableDeckCategory(metadata);
+  categories.set(metadata.archetypeId, created);
+  return created;
+}
+
+function projectAdminDeckCategory(
+  category: MutableRankedAdminDeckCategory
+): RankedAdminDeckStatisticsCategory {
+  const players = [...category.players.values()]
+    .map((player): RankedAdminDeckStatisticsPlayer => ({
+      userId: player.userId,
+      username: player.username,
+      displayName: player.displayName,
+      appearanceCount: player.appearanceCount,
+      winnerCount: player.winnerCount,
+      lossCount: player.appearanceCount - player.winnerCount,
+      winRate: clampAdminRate(player.winnerCount / player.appearanceCount),
+    }))
+    .sort(
+      (left, right) =>
+        right.appearanceCount - left.appearanceCount ||
+        right.winnerCount - left.winnerCount ||
+        left.username.localeCompare(right.username) ||
+        left.userId.localeCompare(right.userId)
+    );
+  return {
+    archetypeId: category.archetypeId,
+    categoryKey: category.categoryKey,
+    name: category.name,
+    groupName: category.groupName,
+    color: category.color,
+    sortOrder: category.sortOrder,
+    classificationStatus: category.classificationStatus,
+    appearanceCount: category.appearanceCount,
+    winnerCount: category.winnerCount,
+    lossCount: category.appearanceCount - category.winnerCount,
+    playerCount: players.length,
+    winRate:
+      category.appearanceCount === 0
+        ? null
+        : clampAdminRate(category.winnerCount / category.appearanceCount),
+    players,
+  };
+}
+
+function readAdminCount(value: number | string, label: string): number {
+  const result = Number(value);
+  if (!Number.isSafeInteger(result) || result < 0) {
+    throw adminError('RANKED_ADMIN_INSIGHTS_INVALID', `${label}无效`, 500);
+  }
+  return result;
+}
+
+function readPositiveAdminCount(value: number | string, label: string): number {
+  const result = readAdminCount(value, label);
+  if (result === 0) {
+    throw adminError('RANKED_ADMIN_INSIGHTS_INVALID', `${label}无效`, 500);
+  }
+  return result;
+}
+
+function readPositiveRank(value: number | string | null): number {
+  const result = value === null ? 0 : Number(value);
+  if (!Number.isSafeInteger(result) || result <= 0) {
+    throw adminError('RANKED_PLAYER_LIST_INVALID', '玩家全局名次无效', 500);
+  }
+  return result;
+}
+
+function readPositivePlayerListPosition(value: number | string): number {
+  const result = Number(value);
+  if (!Number.isSafeInteger(result) || result <= 0) {
+    throw adminError('RANKED_PLAYER_LIST_INVALID', '玩家全局列表位置无效', 500);
+  }
+  return result;
+}
+
+function readFiniteNumber(value: number | string, label: string): number {
+  const result = Number(value);
+  if (!Number.isFinite(result)) {
+    throw adminError('RANKED_PLAYER_LIST_INVALID', `${label}无效`, 500);
+  }
+  return result;
+}
+
+function clampAdminRate(value: number): number {
+  return Math.min(1, Math.max(0, value));
 }
 
 function projectSeason(season: RankedSeasonRecord, now: Date): RankedAdminSeasonView {

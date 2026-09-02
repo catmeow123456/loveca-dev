@@ -1,8 +1,4 @@
-import {
-  calculateTotalHearts,
-  isMemberCardData,
-  type CardInstance,
-} from '../../../../domain/entities/card.js';
+import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
   getCardById,
@@ -12,13 +8,16 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { GamePhase, OrientationState } from '../../../../shared/types/enums.js';
+import { getMemberOriginalHeartCount } from '../../../../domain/rules/live-modifiers.js';
+import { CardType, GamePhase, OrientationState } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
+import { typeIs } from '../../../effects/card-selectors.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
 import {
   createStageMemberOrientationTargetSelection,
   resolveStageMemberOrientationTargetSelection,
 } from '../../../effects/stage-member-target-selection.js';
+import { memberOriginalHeartLte } from '../../../effects/stage-targets.js';
 import {
   PL_PB2_006_ACTIVATED_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID,
   PL_PB2_006_LIVE_START_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID,
@@ -47,8 +46,8 @@ const SELECT_OPPONENT_MEMBER_STEP_ID =
   'PL_PB2_006_SELECT_LOW_ORIGINAL_HEART_OPPONENT_MEMBER_TO_WAIT';
 const ACTIVATE_OPTION_ID = 'activate';
 
-const lowOriginalHeartMemberSelector = (card: CardInstance) =>
-  isMemberCardData(card.data) && calculateTotalHearts(card.data) <= 1;
+const lowOriginalHeartMemberSelector = typeIs(CardType.MEMBER);
+const lowOriginalHeartMemberStatePredicate = memberOriginalHeartLte(1);
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForEnterWaitingRoom &
@@ -545,7 +544,11 @@ function finishOpponentTarget(
           step: 'WAIT_OPPONENT_LOW_ORIGINAL_HEART_MEMBER',
           targetPlayerId,
           targetCardId: selectedCardId,
-          targetOriginalHeartCount: getOriginalHeartCount(game, selectedCardId),
+          targetOriginalHeartCount: getMemberOriginalHeartCount(
+            game,
+            targetPlayerId,
+            selectedCardId
+          ),
           discardedCardIds: effect.metadata?.discardedCardIds,
           enterWaitingRoomEventId: effect.metadata?.enterWaitingRoomEventId ?? null,
           previousOrientation: result.previousOrientation,
@@ -584,6 +587,7 @@ function createOpponentTargetSelection(
     awaitingPlayerId: effect.controllerId,
     targetPlayerId,
     selector: lowOriginalHeartMemberSelector,
+    statePredicate: lowOriginalHeartMemberStatePredicate,
     targetOrientation: OrientationState.WAITING,
     selectionLabel: '选择要变为待机状态的成员',
     confirmSelectionLabel: '变为待机状态',
@@ -628,11 +632,6 @@ function isSupportedAbilityId(abilityId: string): boolean {
     abilityId ===
       PL_PB2_006_LIVE_START_WAIT_SELF_DISCARD_WAIT_LOW_ORIGINAL_HEART_OPPONENT_ABILITY_ID
   );
-}
-
-function getOriginalHeartCount(game: GameState, cardId: string): number | null {
-  const card = getCardById(game, cardId);
-  return card && isMemberCardData(card.data) ? calculateTotalHearts(card.data) : null;
 }
 
 function getStringArray(value: unknown): readonly string[] {

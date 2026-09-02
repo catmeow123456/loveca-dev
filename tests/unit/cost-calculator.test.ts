@@ -931,6 +931,42 @@ describe('CostCalculator', () => {
       );
     });
 
+    it('应该让 PL!SP-bp5-003-AR 将特殊登场时变为10费的 LL-bp7-001 减到8费', () => {
+      const memberData = createMockMemberData(
+        15,
+        '国木田花丸&優木せつ菜&嵐千砂都',
+        'LL-bp7-001-R+',
+        { groupNames: ['Aqours', '虹ヶ咲', 'Liella!'] }
+      );
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 8 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('chisato-source', 17, SlotPosition.LEFT, {
+            cardCode: 'PL!SP-bp5-003-AR',
+            groupNames: ['Liella!'],
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const ordinary = calculator.calculateModifiedPlayCost(memberData, resources);
+      const special = calculator.calculateModifiedPlayCost(memberData, resources, {
+        specialPlayBaseCost: 10,
+      });
+
+      expect(ordinary).toMatchObject({ baseCost: 15, modifiedCost: 15, modifierAmount: 0 });
+      expect(special).toMatchObject({ baseCost: 10, modifiedCost: 8, modifierAmount: 2 });
+      expect(special.modifiers).toEqual([
+        {
+          id: 'PL!SP-bp5-003-AR:stage-source-cost-minus-cost10-liella',
+          label: '舞台上的岚 千砂都使10费Liella!成员登场费用减少2',
+          amount: 2,
+          sourceCardId: 'chisato-source',
+        },
+      ]);
+    });
+
     it('不应该用文本或 PL!SP- 卡号前缀识别10费 Liella! 目标成员', () => {
       const legacyIdentityTargets = [
         createMockMemberData(10, '10费Liella text成员', 'OTHER-LIELLA-TEXT', {

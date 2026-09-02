@@ -104,7 +104,7 @@ The Public Reveal Dwell runtime separately owns the timed display after hidden c
 Current migrated workflow modules:
 
 - `workflows/shared/activated-pay-energy-draw.ts`：由 `PL!SP-bp5-020` 起动段与 `PL!HS-bp1-007` 第二个真实样本证明；SP 的 LIVE_SUCCESS 段仍归单卡 workflow。
-- `domain/rules/live-modifiers.ts#memberHasMoreEffectiveHeartsThanPrinted`：`PL!HS-pb1-029` / `PL!HS-PR-028` 共用的有效 Heart 数量纯 query，不承载结算。
+- `domain/rules/live-modifiers.ts#memberHasMoreEffectiveHeartsThanOriginal`：`PL!HS-pb1-029` / `PL!HS-PR-028` 共用的有效 Heart 数量纯 query；它将应用最新原本 Heart replacement 后的当前原本 Heart 作为比较基线，不承载结算。
 
 - `workflows/shared/look-top-select-to-hand.ts`
 - `workflows/shared/discard-look-top-select-to-hand.ts`

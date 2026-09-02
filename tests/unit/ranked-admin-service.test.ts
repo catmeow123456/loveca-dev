@@ -434,6 +434,405 @@ describe('RankedAdminService', () => {
     expect(query.mock.calls[1]?.[0]).toContain("ESCAPE '\\'");
   });
 
+  it('aggregates strict deck-classification samples with mirror games and per-player records', async () => {
+    const generatedAt = new Date('2026-08-29T01:00:00.000Z');
+    const publishedAt = new Date('2026-08-20T01:00:00.000Z');
+    const snapshot = playerContextClassifierSnapshot();
+    const releaseRow = {
+      season_id: 'season-1',
+      rating_algorithm_version: FORMAL_CONFIG.algorithmVersion,
+      rating_config: FORMAL_CONFIG,
+      leaderboard_minimum_match_count: 10,
+      ledger_revision: 12,
+      active_release_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      active_release_version: 3,
+      active_release_snapshot_json: snapshot,
+      active_release_config_hash: hashDeckClassifierSnapshot(snapshot),
+      active_release_published_at: publishedAt,
+      active_release_activated_at: new Date('2026-08-21T01:00:00.000Z'),
+    };
+    const totals = {
+      settled_match_count: 3,
+      observed_match_count: 2,
+      assigned_observation_count: 4,
+      recognized_observation_count: 3,
+      invalid_observation_count: 0,
+      excluded_observation_count: 0,
+    };
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [releaseRow] })
+      .mockResolvedValueOnce({
+        rows: [
+          { id: ARCHETYPE_A_ID, color_key: '#112233' },
+          { id: ARCHETYPE_B_ID, color_key: '#abcdef' },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            ...totals,
+            match_id: 'match-mirror',
+            seat: 'FIRST',
+            user_id: 'user-1',
+            username: 'alpha',
+            display_name: '玩家甲',
+            winner_seat: 'FIRST',
+            status: 'CLASSIFIED',
+            archetype_id: ARCHETYPE_A_ID,
+          },
+          {
+            ...totals,
+            match_id: 'match-mirror',
+            seat: 'SECOND',
+            user_id: 'user-2',
+            username: 'beta',
+            display_name: '玩家乙',
+            winner_seat: 'FIRST',
+            status: 'CLASSIFIED',
+            archetype_id: ARCHETYPE_A_ID,
+          },
+          {
+            ...totals,
+            match_id: 'match-unknown',
+            seat: 'FIRST',
+            user_id: 'user-1',
+            username: 'alpha',
+            display_name: '玩家甲',
+            winner_seat: 'FIRST',
+            status: 'CLASSIFIED',
+            archetype_id: ARCHETYPE_A_ID,
+          },
+          {
+            ...totals,
+            match_id: 'match-unknown',
+            seat: 'SECOND',
+            user_id: 'user-3',
+            username: 'gamma',
+            display_name: null,
+            winner_seat: 'FIRST',
+            status: 'UNKNOWN',
+            archetype_id: null,
+          },
+        ],
+      });
+    const service = new RankedAdminService({
+      query,
+      now: () => generatedAt,
+      audit: vi.fn(),
+    });
+
+    const result = await service.getDeckStatistics('season-1');
+
+    expect(result).toMatchObject({
+      seasonId: 'season-1',
+      generatedAt,
+      available: true,
+      release: {
+        id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        version: 3,
+        publishedAt: publishedAt.getTime(),
+      },
+      sample: {
+        settledMatchCount: 3,
+        observedMatchCount: 2,
+        analyzedMatchCount: 2,
+        deckObservationCount: 4,
+        assignedDeckObservationCount: 4,
+        recognizedDeckObservationCount: 3,
+        observationCoverageRate: 2 / 3,
+        classificationCoverageRate: 1,
+      },
+    });
+    expect(result.categories).toEqual([
+      expect.objectContaining({
+        archetypeId: ARCHETYPE_A_ID,
+        categoryKey: 'archetype_a',
+        color: '#112233',
+        appearanceCount: 3,
+        winnerCount: 2,
+        lossCount: 1,
+        playerCount: 2,
+        winRate: 2 / 3,
+        players: [
+          expect.objectContaining({
+            userId: 'user-1',
+            appearanceCount: 2,
+            winnerCount: 2,
+            lossCount: 0,
+            winRate: 1,
+          }),
+          expect.objectContaining({
+            userId: 'user-2',
+            appearanceCount: 1,
+            winnerCount: 0,
+            lossCount: 1,
+            winRate: 0,
+          }),
+        ],
+      }),
+      expect.objectContaining({
+        categoryKey: 'other_unknown',
+        classificationStatus: 'UNKNOWN',
+        appearanceCount: 1,
+        winnerCount: 0,
+      }),
+      expect.objectContaining({
+        archetypeId: ARCHETYPE_B_ID,
+        categoryKey: 'archetype_b',
+        appearanceCount: 0,
+        winRate: null,
+        players: [],
+      }),
+    ]);
+    expect(query.mock.calls[2]?.[0]).toContain("rating_status = 'SETTLED'");
+    expect(query.mock.calls[2]?.[0]).toContain('HAVING count(*) = 2');
+    expect(query.mock.calls[2]?.[0]).toContain("status IN ('CLASSIFIED', 'UNKNOWN', 'AMBIGUOUS')");
+  });
+
+  it('returns an unavailable deck-statistics view when there is no active release', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            season_id: 'season-1',
+            rating_algorithm_version: FORMAL_CONFIG.algorithmVersion,
+            rating_config: FORMAL_CONFIG,
+            leaderboard_minimum_match_count: 10,
+            ledger_revision: 0,
+            active_release_id: null,
+            active_release_version: null,
+            active_release_snapshot_json: null,
+            active_release_config_hash: null,
+            active_release_published_at: null,
+            active_release_activated_at: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ count: '6' }] });
+
+    await expect(
+      new RankedAdminService({ query, audit: vi.fn() }).getDeckStatistics('season-1')
+    ).resolves.toMatchObject({
+      available: false,
+      release: null,
+      sample: { settledMatchCount: 6, analyzedMatchCount: 0 },
+      categories: [],
+    });
+    expect(query).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps invalid and excluded assignments out of classification coverage and categories', async () => {
+    const snapshot = playerContextClassifierSnapshot();
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            season_id: 'season-1',
+            rating_algorithm_version: FORMAL_CONFIG.algorithmVersion,
+            rating_config: FORMAL_CONFIG,
+            leaderboard_minimum_match_count: 10,
+            ledger_revision: 3,
+            active_release_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+            active_release_version: 3,
+            active_release_snapshot_json: snapshot,
+            active_release_config_hash: hashDeckClassifierSnapshot(snapshot),
+            active_release_published_at: new Date('2026-08-20T00:00:00Z'),
+            active_release_activated_at: new Date('2026-08-21T00:00:00Z'),
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          { id: ARCHETYPE_A_ID, color_key: '#112233' },
+          { id: ARCHETYPE_B_ID, color_key: '#abcdef' },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            settled_match_count: 1,
+            observed_match_count: 1,
+            assigned_observation_count: 0,
+            recognized_observation_count: 0,
+            invalid_observation_count: 1,
+            excluded_observation_count: 1,
+            match_id: null,
+            seat: null,
+            user_id: null,
+            username: null,
+            display_name: null,
+            winner_seat: null,
+            status: null,
+            archetype_id: null,
+          },
+        ],
+      });
+
+    const result = await new RankedAdminService({ query, audit: vi.fn() }).getDeckStatistics(
+      'season-1'
+    );
+
+    expect(result.sample).toMatchObject({
+      analyzedMatchCount: 0,
+      assignedDeckObservationCount: 0,
+      recognizedDeckObservationCount: 0,
+      invalidDeckObservationCount: 1,
+      excludedDeckObservationCount: 1,
+      classificationCoverageRate: 0,
+    });
+    expect(result.categories).toHaveLength(2);
+    expect(
+      result.categories.every((category) => category.classificationStatus === 'CLASSIFIED')
+    ).toBe(true);
+  });
+
+  it('lists all rated participants with global ranks, literal search, and snapshot metadata', async () => {
+    const generatedAt = new Date('2026-08-29T02:00:00.000Z');
+    const snapshot = playerContextClassifierSnapshot();
+    const releaseId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const snapshotMetadata = {
+      season_id: 'season-1',
+      rating_algorithm_version: FORMAL_CONFIG.algorithmVersion,
+      rating_config: FORMAL_CONFIG,
+      leaderboard_minimum_match_count: 15,
+      ledger_revision: 21,
+      active_release_id: releaseId,
+      active_release_version: 3,
+      active_release_snapshot_json: snapshot,
+      active_release_config_hash: hashDeckClassifierSnapshot(snapshot),
+      active_release_published_at: new Date('2026-08-20T00:00:00Z'),
+      active_release_activated_at: new Date('2026-08-21T00:00:00Z'),
+    };
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            ...snapshotMetadata,
+            total_count: 2,
+            user_id: 'user-ranked',
+            username: 'player_100%',
+            display_name: '参榜玩家',
+            rating: 1725.5,
+            rating_deviation: 101,
+            rated_match_count: 20,
+            wins: 12,
+            losses: 8,
+            rank: 7,
+            list_position: 7,
+            observed_deck_match_count: 19,
+            classified_deck_match_count: 18,
+            leading_deck_match_count: 10,
+            leading_archetype_ids: [ARCHETYPE_A_ID],
+          },
+          {
+            ...snapshotMetadata,
+            total_count: 2,
+            user_id: 'user-unranked',
+            username: 'player_other',
+            display_name: null,
+            rating: 1600,
+            rating_deviation: 150,
+            rated_match_count: 12,
+            wins: 7,
+            losses: 5,
+            rank: null,
+            list_position: 23,
+            observed_deck_match_count: 6,
+            classified_deck_match_count: 4,
+            leading_deck_match_count: 2,
+            leading_archetype_ids: [ARCHETYPE_A_ID, ARCHETYPE_B_ID],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            ...snapshotMetadata,
+            total_count: 2,
+            user_id: null,
+            username: null,
+            display_name: null,
+            rating: null,
+            rating_deviation: null,
+            rated_match_count: null,
+            wins: null,
+            losses: null,
+            rank: null,
+            list_position: null,
+            observed_deck_match_count: null,
+            classified_deck_match_count: null,
+            leading_deck_match_count: null,
+            leading_archetype_ids: null,
+          },
+        ],
+      });
+    const service = new RankedAdminService({
+      query,
+      now: () => generatedAt,
+      audit: vi.fn(),
+    });
+
+    const result = await service.listPlayers('season-1', ' player_100% ', 50, 0);
+
+    expect(result).toMatchObject({
+      seasonId: 'season-1',
+      generatedAt,
+      ledgerRevision: 21,
+      placementRequired: FORMAL_CONFIG.placementMatchCount,
+      leaderboardMinimumMatchCount: 15,
+      classificationRelease: { id: releaseId, version: 3 },
+      query: 'player_100%',
+      limit: 50,
+      offset: 0,
+      total: 2,
+    });
+    expect(result.players[0]).toMatchObject({
+      userId: 'user-ranked',
+      listPosition: 7,
+      rank: 7,
+      leaderboardEligible: true,
+      status: 'RANKED',
+      wins: 12,
+      losses: 8,
+      deckClassification: {
+        coverageStatus: 'PARTIAL',
+        leaders: [{ archetypeId: ARCHETYPE_A_ID, name: '卡组分类 A', matchCount: 10 }],
+      },
+    });
+    expect(result.players[1]).toMatchObject({
+      userId: 'user-unranked',
+      listPosition: 23,
+      rank: null,
+      leaderboardEligible: false,
+      status: 'PLACED_NOT_ELIGIBLE',
+      wins: 7,
+      losses: 5,
+      deckClassification: { isTied: true },
+    });
+    const emptyPage = await service.listPlayers('season-1', undefined, 50, 50);
+    expect(emptyPage).toMatchObject({ total: 2, offset: 50, players: [] });
+
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('ROW_NUMBER() OVER (ORDER BY participant.rating DESC'),
+      ['season-1', '%player\\_100\\%%', 50, 0, 'player_100%']
+    );
+    expect(query).toHaveBeenLastCalledWith(expect.any(String), ['season-1', null, 50, 50, null]);
+    expect(query.mock.calls[0]?.[0]).toContain('ROW_NUMBER() OVER (');
+    expect(query.mock.calls[0]?.[0]).toContain(') AS list_position');
+    expect(query.mock.calls[0]?.[0]).toContain('FROM ordered_players AS player');
+    expect(query.mock.calls[0]?.[0]).toContain(
+      'WHEN LOWER(player.username) = LOWER($5::text) THEN 1'
+    );
+    expect(query.mock.calls[0]?.[0]).toContain('list_position ASC');
+    expect(query.mock.calls[0]?.[0]).toContain('LEFT JOIN active_release ON TRUE');
+    expect(query.mock.calls[0]?.[0]).toContain('LIMIT $3 OFFSET $4');
+  });
+
   it('returns one-snapshot ranked player context with the target and three neighbors per side', async () => {
     const generatedAt = new Date('2026-08-12T02:00:00.000Z');
     const classifierSnapshot = playerContextClassifierSnapshot();

@@ -10,6 +10,10 @@ import {
 } from '../../src/domain/entities/game';
 import { placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
 import {
+  addHeartLiveModifierForSourceMember,
+  addLiveModifier,
+} from '../../src/domain/rules/live-modifiers';
+import {
   activateCardAbility,
   confirmActiveEffectStep,
   resolvePendingCardEffects,
@@ -78,12 +82,19 @@ function setup(
     readonly sourceOnStage?: boolean;
     readonly handCount?: number;
     readonly includeEligibleTarget?: boolean;
+    readonly lowHeartCount?: number;
+    readonly highHeartCount?: number;
   } = {}
 ): Scenario {
   const source = member(options.sourceCode ?? 'PL!-pb2-006-PP', 'source', P1);
   const hand = member('P1-HAND', 'hand', P1);
-  const lowHeartTarget = member('P2-LOW-HEART', 'low-heart-target', P2, 1);
-  const highHeartTarget = member('P2-HIGH-HEART', 'high-heart-target', P2, 2);
+  const lowHeartTarget = member('P2-LOW-HEART', 'low-heart-target', P2, options.lowHeartCount ?? 1);
+  const highHeartTarget = member(
+    'P2-HIGH-HEART',
+    'high-heart-target',
+    P2,
+    options.highHeartCount ?? 2
+  );
   const waitingLowHeartTarget = member('P2-WAITING-LOW-HEART', 'waiting-low-heart-target', P2, 0);
   let game = registerCards(createGameState('pl-pb2-006-maki', P1, 'P1', P2, 'P2'), [
     source,
@@ -162,6 +173,37 @@ function chooseCard(game: GameState, cardId: string): GameState {
 function orientation(game: GameState, playerId: string, cardId: string) {
   return game.players.find((player) => player.id === playerId)?.memberSlots.cardStates.get(cardId)
     ?.orientation;
+}
+
+function replaceOriginalHearts(
+  game: GameState,
+  cardId: string,
+  count: number,
+  abilityId: string
+): GameState {
+  return addLiveModifier(game, {
+    kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT',
+    playerId: P2,
+    memberCardId: cardId,
+    hearts: count > 0 ? [createHeartIcon(HeartColor.BLUE, count)] : [],
+    sourceCardId: cardId,
+    abilityId,
+  });
+}
+
+function openTargetWindow(
+  scenario: Scenario,
+  abilityId: typeof ACTIVATED_ABILITY_ID | typeof LIVE_START_ABILITY_ID
+): GameState {
+  if (abilityId === ACTIVATED_ABILITY_ID) {
+    return chooseCard(
+      activateCardAbility(scenario.game, P1, scenario.source.instanceId, ACTIVATED_ABILITY_ID),
+      scenario.hand.instanceId
+    );
+  }
+  const optionalWindow = resolvePendingCardEffects(queueLiveStart(scenario)).gameState;
+  const discardWindow = chooseOption(optionalWindow, 'activate');
+  return chooseCard(discardWindow, scenario.hand.instanceId);
 }
 
 describe('PL!-pb2-006 西木野真姬', () => {
@@ -265,6 +307,74 @@ describe('PL!-pb2-006 西木野真姬', () => {
       targetOriginalHeartCount: 1,
     });
   });
+
+  it.each([ACTIVATED_ABILITY_ID, LIVE_START_ABILITY_ID] as const)(
+    'uses replacement-aware original HEART targets for %s and ignores ordinary HEART bonuses',
+    (abilityId) => {
+      const scenario = setup({ lowHeartCount: 0, highHeartCount: 2 });
+      let game = replaceOriginalHearts(
+        scenario.game,
+        scenario.lowHeartTarget.instanceId,
+        4,
+        'test:replace-printed-zero-with-four'
+      );
+      game = replaceOriginalHearts(
+        game,
+        scenario.highHeartTarget.instanceId,
+        1,
+        'test:replace-printed-two-with-one'
+      );
+      const bonus = addHeartLiveModifierForSourceMember(game, {
+        playerId: P2,
+        sourceCardId: scenario.highHeartTarget.instanceId,
+        abilityId: 'test:ordinary-heart-bonus-does-not-change-original',
+        hearts: [createHeartIcon(HeartColor.PURPLE, 4)],
+      });
+      expect(bonus).not.toBeNull();
+
+      const targetWindow = openTargetWindow({ ...scenario, game: bonus!.gameState }, abilityId);
+      expect(targetWindow.activeEffect?.selectableCardIds).toEqual([
+        scenario.highHeartTarget.instanceId,
+      ]);
+      expect(targetWindow.activeEffect?.selectableCardIds).not.toContain(
+        scenario.lowHeartTarget.instanceId
+      );
+
+      const done = chooseCard(targetWindow, scenario.highHeartTarget.instanceId);
+      expect(orientation(done, P2, scenario.highHeartTarget.instanceId)).toBe(
+        OrientationState.WAITING
+      );
+      expect(done.actionHistory.at(-1)?.payload).toMatchObject({
+        step: 'WAIT_OPPONENT_LOW_ORIGINAL_HEART_MEMBER',
+        targetCardId: scenario.highHeartTarget.instanceId,
+        targetOriginalHeartCount: 1,
+      });
+    }
+  );
+
+  it.each([ACTIVATED_ABILITY_ID, LIVE_START_ABILITY_ID] as const)(
+    'revalidates a changed original HEART replacement at confirmation for %s',
+    (abilityId) => {
+      const scenario = setup();
+      const targetWindow = openTargetWindow(scenario, abilityId);
+      const stale = replaceOriginalHearts(
+        targetWindow,
+        scenario.lowHeartTarget.instanceId,
+        4,
+        'test:stale-original-heart-replacement'
+      );
+
+      const done = chooseCard(stale, scenario.lowHeartTarget.instanceId);
+      expect(done.activeEffect).toBeNull();
+      expect(orientation(done, P2, scenario.lowHeartTarget.instanceId)).toBe(
+        OrientationState.ACTIVE
+      );
+      expect(done.actionHistory.at(-1)?.payload).toMatchObject({
+        step: 'STALE_TARGET_NO_TARGET',
+        staleTargetCardId: scenario.lowHeartTarget.instanceId,
+      });
+    }
+  );
 
   it('does not activate without the complete costs and enforces once per turn after discard', () => {
     const noHand = setup({ handCount: 0 });

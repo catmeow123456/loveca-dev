@@ -336,8 +336,8 @@ async function seedE2eRankedPlayerRatings(): Promise<void> {
            VALUES ($1, $2, $3)`,
           [
             fixture.id,
-            `ranked_context_e2e_${ordinal}`,
-            ordinal === 4 ? '排位上下文目标' : `排位上下文玩家 ${ordinal}`,
+            ordinal === 4 ? 'ranked_context_e2e' : `ranked_context_e2e_${ordinal}`,
+            ordinal === 4 ? '排位上下文目标%_' : `排位上下文玩家 ${ordinal}`,
           ]
         );
         if (fixture.ratedMatchCount !== null) {
@@ -452,6 +452,17 @@ test.describe('赛季排位管理员 API', () => {
     await expect(forbidden.json()).resolves.toMatchObject({
       error: { code: 'FORBIDDEN' },
     });
+
+    const anonymousPlayers = await request.get(
+      `/api/admin/ranked/players?seasonId=${E2E_SEASON_ID}`
+    );
+    expect(anonymousPlayers.status()).toBe(401);
+
+    const forbiddenStatistics = await request.get(
+      `/api/admin/ranked/deck-statistics?seasonId=${E2E_SEASON_ID}`,
+      { headers: bearer(player.accessToken) }
+    );
+    expect(forbiddenStatistics.status()).toBe(403);
   });
 
   test('管理员可读取真实竞技环境并用正式算法创建赛季草稿', async ({ request }) => {
@@ -667,6 +678,172 @@ test.describe('赛季排位管理员 API', () => {
       await seedE2eRankedPlayerRatings();
       const headers = bearer(await getAdminAccessToken(request));
 
+      const invalidPlayerListRequests = [
+        `/api/admin/ranked/players?seasonId=not-a-uuid`,
+        `/api/admin/ranked/players?seasonId=${E2E_SEASON_ID}&q=%20`,
+        `/api/admin/ranked/players?seasonId=${E2E_SEASON_ID}&limit=0`,
+        `/api/admin/ranked/players?seasonId=${E2E_SEASON_ID}&limit=101`,
+        `/api/admin/ranked/players?seasonId=${E2E_SEASON_ID}&offset=-1`,
+        `/api/admin/ranked/players?seasonId=${E2E_SEASON_ID}&unexpected=true`,
+      ];
+      for (const path of invalidPlayerListRequests) {
+        const invalidResponse = await request.get(path, { headers });
+        expect(invalidResponse.status(), path).toBe(400);
+      }
+
+      const firstPageResponse = await request.get(
+        `/api/admin/ranked/players?seasonId=${E2E_SEASON_ID}&limit=3&offset=0`,
+        { headers }
+      );
+      expect(firstPageResponse.ok()).toBe(true);
+      const firstPagePayload = (await firstPageResponse.json()) as {
+        data: {
+          seasonId: string;
+          ledgerRevision: number;
+          placementRequired: number;
+          leaderboardMinimumMatchCount: number;
+          classificationRelease: { id: string; version: number } | null;
+          query: string;
+          limit: number;
+          offset: number;
+          total: number;
+          players: Array<{
+            userId: string;
+            listPosition: number;
+            rank: number | null;
+            leaderboardEligible: boolean;
+            ratedMatchCount: number;
+            wins: number;
+            losses: number;
+          }>;
+        };
+      };
+      expect(firstPagePayload.data).toMatchObject({
+        seasonId: E2E_SEASON_ID,
+        ledgerRevision: 0,
+        placementRequired: 10,
+        leaderboardMinimumMatchCount: 5,
+        query: '',
+        limit: 3,
+        offset: 0,
+        total: E2E_RANKED_PLAYER_FIXTURES.length - 1,
+      });
+      expect(
+        firstPagePayload.data.classificationRelease === null ||
+          (typeof firstPagePayload.data.classificationRelease.id === 'string' &&
+            Number.isSafeInteger(firstPagePayload.data.classificationRelease.version))
+      ).toBe(true);
+      expect(
+        firstPagePayload.data.players.map(({ userId, listPosition, rank }) => ({
+          userId,
+          listPosition,
+          rank,
+        }))
+      ).toEqual(
+        E2E_RANKED_PLAYER_FIXTURES.slice(0, 3).map((fixture, index) => ({
+          userId: fixture.id,
+          listPosition: index + 1,
+          rank: index + 1,
+        }))
+      );
+
+      const allPagedPlayers = [...firstPagePayload.data.players];
+      for (const offset of [3, 6]) {
+        const pageResponse = await request.get(
+          `/api/admin/ranked/players?seasonId=${E2E_SEASON_ID}&limit=3&offset=${offset}`,
+          { headers }
+        );
+        expect(pageResponse.ok()).toBe(true);
+        const pagePayload = (await pageResponse.json()) as typeof firstPagePayload;
+        expect(pagePayload.data.total).toBe(E2E_RANKED_PLAYER_FIXTURES.length - 1);
+        allPagedPlayers.push(...pagePayload.data.players);
+      }
+      expect(allPagedPlayers.map((player) => player.userId)).toEqual(
+        E2E_RANKED_PLAYER_FIXTURES.slice(0, 9).map((fixture) => fixture.id)
+      );
+      expect(new Set(allPagedPlayers.map((player) => player.userId)).size).toBe(
+        allPagedPlayers.length
+      );
+      expect(allPagedPlayers.map((player) => player.listPosition)).toEqual([
+        1, 2, 3, 4, 5, 6, 7, 8, 9,
+      ]);
+      for (const player of allPagedPlayers) {
+        expect(player.wins + player.losses).toBe(player.ratedMatchCount);
+      }
+      expect(allPagedPlayers.at(-1)).toMatchObject({
+        userId: E2E_RANKED_PLACEMENT_INELIGIBLE_ID,
+        leaderboardEligible: false,
+        rank: null,
+      });
+
+      const emptyPageResponse = await request.get(
+        `/api/admin/ranked/players?seasonId=${E2E_SEASON_ID}&limit=3&offset=9`,
+        { headers }
+      );
+      expect(emptyPageResponse.ok()).toBe(true);
+      await expect(emptyPageResponse.json()).resolves.toMatchObject({
+        data: { total: 9, offset: 9, players: [] },
+      });
+
+      const rankedTargetQuery = new URLSearchParams({
+        seasonId: E2E_SEASON_ID,
+        q: 'ranked_context_e2e',
+        limit: '3',
+      });
+      const filteredPlayersResponse = await request.get(
+        `/api/admin/ranked/players?${rankedTargetQuery.toString()}`,
+        { headers }
+      );
+      expect(filteredPlayersResponse.ok()).toBe(true);
+      const filteredPlayersPayload =
+        (await filteredPlayersResponse.json()) as typeof firstPagePayload;
+      expect(filteredPlayersPayload.data).toMatchObject({
+        total: E2E_RANKED_PLAYER_FIXTURES.length - 1,
+        query: 'ranked_context_e2e',
+      });
+      expect(filteredPlayersPayload.data.players).toHaveLength(3);
+      expect(filteredPlayersPayload.data.players[0]).toMatchObject({
+        userId: E2E_RANKED_TARGET_ID,
+        listPosition: 4,
+        rank: 4,
+      });
+
+      const literalWildcardQuery = new URLSearchParams({
+        seasonId: E2E_SEASON_ID,
+        q: '%_',
+      });
+      const literalWildcardResponse = await request.get(
+        `/api/admin/ranked/players?${literalWildcardQuery.toString()}`,
+        { headers }
+      );
+      expect(literalWildcardResponse.ok()).toBe(true);
+      await expect(literalWildcardResponse.json()).resolves.toMatchObject({
+        data: {
+          total: 1,
+          query: '%_',
+          players: [{ userId: E2E_RANKED_TARGET_ID, listPosition: 4, rank: 4 }],
+        },
+      });
+
+      const isolatedPlayerListResponse = await request.get(
+        `/api/admin/ranked/players?seasonId=${E2E_SECOND_SEASON_ID}`,
+        { headers }
+      );
+      expect(isolatedPlayerListResponse.ok()).toBe(true);
+      await expect(isolatedPlayerListResponse.json()).resolves.toMatchObject({
+        data: {
+          seasonId: E2E_SECOND_SEASON_ID,
+          total: 1,
+          players: [{ userId: E2E_RANKED_SECOND_SEASON_PLAYER_ID, listPosition: 1, rank: 1 }],
+        },
+      });
+
+      const missingSeasonResponse = await request.get(
+        '/api/admin/ranked/players?seasonId=77777777-7777-4777-8777-777777777777',
+        { headers }
+      );
+      expect(missingSeasonResponse.status()).toBe(404);
+
       const emptyQuery = await request.get(
         `/api/admin/ranked/players/search?seasonId=${E2E_SEASON_ID}&q=%20`,
         { headers }
@@ -690,8 +867,8 @@ test.describe('赛季排位管理员 API', () => {
       expect(searchPayload.data).toHaveLength(E2E_RANKED_PLAYER_FIXTURES.length - 1);
       expect(searchPayload.data).toContainEqual({
         userId: E2E_RANKED_TARGET_ID,
-        username: 'ranked_context_e2e_4',
-        displayName: '排位上下文目标',
+        username: 'ranked_context_e2e',
+        displayName: '排位上下文目标%_',
       });
       expect(searchPayload.data).not.toContainEqual(
         expect.objectContaining({ userId: E2E_RANKED_SECOND_SEASON_PLAYER_ID })

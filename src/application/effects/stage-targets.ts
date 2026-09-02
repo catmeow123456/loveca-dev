@@ -2,15 +2,28 @@ import type { CardInstance } from '../../domain/entities/card.js';
 import { isMemberCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
 import { getCardById, getPlayerById } from '../../domain/entities/game.js';
+import { getMemberOriginalHeartCount } from '../../domain/rules/live-modifiers.js';
 import { OrientationState, SlotPosition } from '../../shared/types/enums.js';
 import type { CardSelector } from './card-selectors.js';
 
 const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
 
+export type StageMemberStatePredicate = (
+  game: GameState,
+  playerId: string,
+  cardId: string
+) => boolean;
+
+export function memberOriginalHeartLte(maxHeart: number): StageMemberStatePredicate {
+  return (game, playerId, cardId) =>
+    getMemberOriginalHeartCount(game, playerId, cardId) <= maxHeart;
+}
+
 export function getStageMemberCardIdsMatching(
   game: GameState,
   playerId: string,
-  selector: CardSelector
+  selector: CardSelector,
+  statePredicate?: StageMemberStatePredicate
 ): string[] {
   const player = getPlayerById(game, playerId);
   if (!player) {
@@ -23,7 +36,10 @@ export function getStageMemberCardIdsMatching(
       return [];
     }
     const card = getCardById(game, cardId);
-    return isSelectableStageMember(card, selector) ? [cardId] : [];
+    return isSelectableStageMember(card, selector) &&
+      (statePredicate === undefined || statePredicate(game, playerId, cardId))
+      ? [cardId]
+      : [];
   });
 }
 

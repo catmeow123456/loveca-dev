@@ -102,6 +102,7 @@ import { cn } from '@/lib/utils';
 import { BATTLE_UI_ANCHORS } from '@/lib/battleUiAnchors';
 import { getMemberPlayOptions, type MemberPlayOptionView } from '@/lib/memberPlayOptions';
 import { isJudgmentPanelAvailable } from '@/lib/judgmentPanelAvailability';
+import { buildInspectionZoneInteractionKey } from '@/lib/inspectionZoneUi';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { usePlayerTableWallpaper } from '@/hooks/usePlayerTableWallpaper';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
@@ -587,6 +588,11 @@ export const GameBoard = memo(function GameBoard({
   );
   const [activeEffectCollapsed, setActiveEffectCollapsed] = useKeyedState(
     activeEffectInteractionKey,
+    false
+  );
+  const inspectionZoneInteractionKey = buildInspectionZoneInteractionKey(matchView, activeEffect);
+  const [isInspectionZoneCollapsed, setInspectionZoneCollapsed] = useKeyedState(
+    inspectionZoneInteractionKey,
     false
   );
   const [activeEffectOriginalTextExpanded, setActiveEffectOriginalTextExpanded] = useKeyedState(
@@ -2583,6 +2589,8 @@ export const GameBoard = memo(function GameBoard({
                     isOpponent={false}
                     isActive={resolvedActiveSeat === selfSeat}
                     suppressActiveEffectVisuals={isActiveEffectUiSuspended}
+                    isInspectionZoneCollapsed={isInspectionZoneCollapsed}
+                    onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
                     selectedHandCardActionCardId={selectedHandCardActionCardId}
                     selectedHandCardActions={selectedHandCardActions}
                     suppressSelectedHandCardActionMenu={!!activeMemberPlayOptionSelection}
@@ -2757,6 +2765,8 @@ export const GameBoard = memo(function GameBoard({
                             isOpponent={true}
                             isActive={resolvedActiveSeat === opponentSeat}
                             suppressActiveEffectVisuals={isActiveEffectUiSuspended}
+                            isInspectionZoneCollapsed={isInspectionZoneCollapsed}
+                            onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
                           />
                         </div>
                       </div>
@@ -2833,6 +2843,8 @@ export const GameBoard = memo(function GameBoard({
                 isOpponent={true}
                 isActive={resolvedActiveSeat === opponentSeat}
                 suppressActiveEffectVisuals={isActiveEffectUiSuspended}
+                isInspectionZoneCollapsed={isInspectionZoneCollapsed}
+                onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
               />
             </motion.div>
 
@@ -2878,6 +2890,8 @@ export const GameBoard = memo(function GameBoard({
                 isOpponent={false}
                 isActive={resolvedActiveSeat === selfSeat}
                 suppressActiveEffectVisuals={isActiveEffectUiSuspended}
+                isInspectionZoneCollapsed={isInspectionZoneCollapsed}
+                onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
                 selectedHandCardActionCardId={selectedHandCardActionCardId}
                 selectedHandCardActions={selectedHandCardActions}
                 suppressSelectedHandCardActionMenu={!!activeMemberPlayOptionSelection}

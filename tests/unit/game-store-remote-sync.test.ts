@@ -39,6 +39,7 @@ const EMPTY_PUBLIC_BATTLE_LOG = {
   events: [],
   cursorSeq: 0,
   currentPublicSeq: 0,
+  presentationEpoch: 0,
   lastReadSeq: 0,
   unreadCount: 0,
   isPanelOpen: false,
@@ -185,6 +186,40 @@ describe('gameStore remote snapshot sync', () => {
         cardDetail: null,
       },
     });
+  });
+
+  it('本地 syncState 会把 GameSession 公共事件增量接入同一日志状态', () => {
+    const session = useGameStore.getState().gameSession;
+    session.createGame('local-public-events', 'player-1', 'Player 1', 'player-2', 'Player 2');
+    const initialPublicSeq = session.getCurrentPublicEventSeq();
+    useGameStore.setState({
+      remoteSession: null,
+      replaySession: null,
+      viewingPlayerId: 'player-1',
+      publicBattleLog: {
+        ...EMPTY_PUBLIC_BATTLE_LOG,
+        matchId: 'local-public-events',
+        cursorSeq: initialPublicSeq,
+        currentPublicSeq: initialPublicSeq,
+      },
+    });
+    const incrementalEvent = createPublicEvent('local-public-events', initialPublicSeq + 1);
+    const currentSeqSpy = vi
+      .spyOn(session, 'getCurrentPublicEventSeq')
+      .mockReturnValue(initialPublicSeq + 1);
+    const eventsSpy = vi.spyOn(session, 'getPublicEventsSince').mockReturnValue([incrementalEvent]);
+
+    useGameStore.getState().syncState();
+
+    expect(eventsSpy).toHaveBeenCalledWith(initialPublicSeq);
+    expect(useGameStore.getState().publicBattleLog).toMatchObject({
+      matchId: 'local-public-events',
+      cursorSeq: initialPublicSeq + 1,
+      currentPublicSeq: initialPublicSeq + 1,
+      events: [incrementalEvent],
+    });
+    currentSeqSpy.mockRestore();
+    eventsSpy.mockRestore();
   });
 
   it('历史回放保留当时操作模式但始终禁止切换', async () => {
@@ -507,6 +542,48 @@ describe('gameStore remote snapshot sync', () => {
     expect(useGameStore.getState().publicBattleLog.currentPublicSeq).toBe(8);
   });
 
+  it('快照只带部分公共事件时不会把展示/补拉游标提前推进到公告水位', async () => {
+    setRemoteSession('match-partial-events');
+    useGameStore.setState({
+      publicBattleLog: {
+        ...EMPTY_PUBLIC_BATTLE_LOG,
+        matchId: 'match-partial-events',
+        events: [createPublicEvent('match-partial-events', 5)],
+        cursorSeq: 5,
+        currentPublicSeq: 5,
+      },
+    });
+    const pendingEvents = deferred<PublicEventsResponse | null>();
+    vi.mocked(fetchRemotePublicEvents).mockReturnValueOnce(pendingEvents.promise);
+
+    await useGameStore.getState().applyRemoteSnapshot(
+      createSnapshot('match-partial-events', 6, 8, {
+        publicEvents: [createPublicEvent('match-partial-events', 6)],
+      })
+    );
+
+    await vi.waitFor(() => {
+      expect(fetchRemotePublicEvents).toHaveBeenCalledWith(
+        'ONLINE',
+        'match-partial-events',
+        'FIRST',
+        6
+      );
+    });
+    expect(useGameStore.getState().publicBattleLog.cursorSeq).toBe(6);
+    pendingEvents.resolve(
+      createPublicEventsResponse('match-partial-events', 8, [
+        createPublicEvent('match-partial-events', 7),
+        createPublicEvent('match-partial-events', 8),
+      ])
+    );
+    await vi.waitFor(() => {
+      expect(useGameStore.getState().publicBattleLog.events.map((event) => event.seq)).toEqual([
+        5, 6, 7, 8,
+      ]);
+    });
+  });
+
   it('观战快照同步等待所需的公开日志增量完成后才结束本轮调度', async () => {
     useGameStore.setState({
       remoteSession: {
@@ -599,6 +676,7 @@ describe('gameStore remote snapshot sync', () => {
     expect(log.events.map((event) => event.seq)).toEqual([20]);
     expect(log.cursorSeq).toBe(20);
     expect(log.currentPublicSeq).toBe(20);
+    expect(log.presentationEpoch).toBe(1);
   });
 
   it('resets local public log from a recovery snapshot before merging restored events', async () => {
@@ -636,6 +714,7 @@ describe('gameStore remote snapshot sync', () => {
     expect(log.events.map((event) => event.seq)).toEqual([12]);
     expect(log.currentPublicSeq).toBe(12);
     expect(log.cursorSeq).toBe(12);
+    expect(log.presentationEpoch).toBeGreaterThan(0);
   });
 
   it('accepts a recovery snapshot even when its seq is not newer than the local view', async () => {

@@ -50,6 +50,9 @@ import {
   getCheerCardEffectiveBladeHearts,
   getMemberEffectiveBladeCount,
   getMemberEffectiveHeartIcons,
+  getMemberOriginalHeartCount,
+  getMemberOriginalHeartIcons,
+  memberHasMoreEffectiveHeartsThanOriginal,
   memberHasMoreEffectiveHeartsThanPrinted,
   getPlayerLiveBladeModifier,
   getPlayerLiveHeartModifiers,
@@ -899,6 +902,10 @@ describe('live modifier helpers', () => {
       abilityId: 'bonus-heart',
     });
 
+    expect(getMemberOriginalHeartIcons(game, 'p1', kasumi.instanceId)).toEqual([
+      createHeartIcon(HeartColor.GREEN, 2),
+    ]);
+    expect(getMemberOriginalHeartCount(game, 'p1', kasumi.instanceId)).toBe(2);
     expect(getMemberEffectiveHeartIcons(game, 'p1', kasumi.instanceId)).toEqual([
       createHeartIcon(HeartColor.GREEN, 2),
       createHeartIcon(HeartColor.BLUE, 1),
@@ -938,9 +945,67 @@ describe('live modifier helpers', () => {
       abilityId: 'second-replacement',
     });
 
+    expect(getMemberOriginalHeartIcons(game, 'p1', shioriko.instanceId)).toEqual([
+      createHeartIcon(HeartColor.BLUE, 1),
+    ]);
+    expect(getMemberOriginalHeartCount(game, 'p1', shioriko.instanceId)).toBe(1);
     expect(getMemberEffectiveHeartIcons(game, 'p1', shioriko.instanceId)).toEqual([
       createHeartIcon(HeartColor.BLUE, 1),
     ]);
+  });
+
+  it('treats a full-vector replacement as current original Hearts before ordinary bonuses', () => {
+    const member = createCardInstance(
+      {
+        cardCode: 'ZERO-PRINTED-HEART-MEMBER',
+        name: 'zero printed Heart member',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'zero-printed-heart-member'
+    );
+    let game = createGameState('full-vector-original-heart-replacement', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member]);
+    game = placeMemberOnStage(game, 'p1', SlotPosition.CENTER, member.instanceId);
+    game = addLiveModifier(game, {
+      kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT',
+      playerId: 'p1',
+      memberCardId: member.instanceId,
+      hearts: [createHeartIcon(HeartColor.PINK, 1), createHeartIcon(HeartColor.YELLOW, 3)],
+      sourceCardId: 'replacement-source',
+      abilityId: 'full-vector-replacement',
+    });
+
+    const replacementHearts = [
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.YELLOW, 3),
+    ];
+    expect(getMemberOriginalHeartIcons(game, 'p1', member.instanceId)).toEqual(replacementHearts);
+    expect(getMemberOriginalHeartCount(game, 'p1', member.instanceId)).toBe(4);
+    expect(getMemberEffectiveHeartIcons(game, 'p1', member.instanceId)).toEqual(replacementHearts);
+    expect(memberHasMoreEffectiveHeartsThanOriginal(game, 'p1', member.instanceId)).toBe(false);
+    expect(memberHasMoreEffectiveHeartsThanPrinted(game, 'p1', member.instanceId)).toBe(false);
+
+    game = addLiveModifier(game, {
+      kind: 'HEART',
+      target: 'TARGET_MEMBER',
+      playerId: 'p1',
+      targetMemberCardId: member.instanceId,
+      hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      sourceCardId: 'bonus-source',
+      abilityId: 'ordinary-heart-bonus',
+    });
+
+    expect(getMemberOriginalHeartIcons(game, 'p1', member.instanceId)).toEqual(replacementHearts);
+    expect(getMemberOriginalHeartCount(game, 'p1', member.instanceId)).toBe(4);
+    expect(getMemberEffectiveHeartIcons(game, 'p1', member.instanceId)).toEqual([
+      ...replacementHearts,
+      createHeartIcon(HeartColor.BLUE, 1),
+    ]);
+    expect(memberHasMoreEffectiveHeartsThanOriginal(game, 'p1', member.instanceId)).toBe(true);
   });
 
   it('replaces a member printed original BLADE count before appending BLADE modifiers', () => {
@@ -7946,7 +8011,7 @@ describe('PL!SP-bp2-004 continuous center-highest-cost yellow Heart', () => {
   });
 });
 
-describe('memberHasMoreEffectiveHeartsThanPrinted', () => {
+describe('memberHasMoreEffectiveHeartsThanOriginal', () => {
   it('compares summed effective Heart counts for the exact own stage member', () => {
     const member = createStageMember('QUERY-MEMBER', 'p1', 'query-member', 2);
     const other = createStageMember('QUERY-OTHER', 'p1', 'query-other', 1);
@@ -7957,7 +8022,7 @@ describe('memberHasMoreEffectiveHeartsThanPrinted', () => {
     game = placeMemberOnStage(game, 'p1', SlotPosition.LEFT, other.instanceId);
     game = placeMemberOnStage(game, 'p2', SlotPosition.CENTER, opponent.instanceId);
 
-    expect(memberHasMoreEffectiveHeartsThanPrinted(game, 'p1', member.instanceId)).toBe(false);
+    expect(memberHasMoreEffectiveHeartsThanOriginal(game, 'p1', member.instanceId)).toBe(false);
     game = addLiveModifier(game, {
       kind: 'HEART',
       target: 'SOURCE_MEMBER',
@@ -7966,7 +8031,7 @@ describe('memberHasMoreEffectiveHeartsThanPrinted', () => {
       abilityId: 'source-heart',
       hearts: [createHeartIcon(HeartColor.GREEN, 1)],
     });
-    expect(memberHasMoreEffectiveHeartsThanPrinted(game, 'p1', member.instanceId)).toBe(true);
+    expect(memberHasMoreEffectiveHeartsThanOriginal(game, 'p1', member.instanceId)).toBe(true);
 
     const onlyOtherModifiers = addLiveModifier(
       { ...game, liveResolution: { ...game.liveResolution, liveModifiers: [] } },
@@ -7981,13 +8046,13 @@ describe('memberHasMoreEffectiveHeartsThanPrinted', () => {
       }
     );
     expect(
-      memberHasMoreEffectiveHeartsThanPrinted(onlyOtherModifiers, 'p1', member.instanceId)
+      memberHasMoreEffectiveHeartsThanOriginal(onlyOtherModifiers, 'p1', member.instanceId)
     ).toBe(false);
-    expect(memberHasMoreEffectiveHeartsThanPrinted(game, 'p2', member.instanceId)).toBe(false);
-    expect(memberHasMoreEffectiveHeartsThanPrinted(game, 'p1', 'missing')).toBe(false);
+    expect(memberHasMoreEffectiveHeartsThanOriginal(game, 'p2', member.instanceId)).toBe(false);
+    expect(memberHasMoreEffectiveHeartsThanOriginal(game, 'p1', 'missing')).toBe(false);
   });
 
-  it('counts HeartIcon.count and ignores original-color replacement without a count increase', () => {
+  it('counts HeartIcon.count and compares bonuses against the current original replacement', () => {
     const member = createCardInstance(
       {
         cardCode: 'QUERY-MULTI',
@@ -8012,7 +8077,7 @@ describe('memberHasMoreEffectiveHeartsThanPrinted', () => {
       sourceCardId: 'replacement-source',
       abilityId: 'replacement',
     });
-    expect(memberHasMoreEffectiveHeartsThanPrinted(game, 'p1', member.instanceId)).toBe(false);
+    expect(memberHasMoreEffectiveHeartsThanOriginal(game, 'p1', member.instanceId)).toBe(false);
     game = addLiveModifier(game, {
       kind: 'HEART',
       target: 'TARGET_MEMBER',
@@ -8022,7 +8087,7 @@ describe('memberHasMoreEffectiveHeartsThanPrinted', () => {
       abilityId: 'target-heart',
       hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
     });
-    expect(memberHasMoreEffectiveHeartsThanPrinted(game, 'p1', member.instanceId)).toBe(true);
+    expect(memberHasMoreEffectiveHeartsThanOriginal(game, 'p1', member.instanceId)).toBe(true);
   });
 });
 

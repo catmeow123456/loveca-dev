@@ -79,6 +79,21 @@ const EXACT_ACTIVATED_CARD_TEXT_CASES = [
       '【起动】【1回合1次】[E][E]：对手在不查看的情况下，从自己的手牌中选出1张并公开。因此被公开的卡片为LIVE卡的场合，LIVE结束时为止，此成员获得「【常时】LIVE的合计分数+1。」。',
   },
   {
+    cardCode: 'PL!-pb2-022-N',
+    abilityId: 'PL!-pb1-019-N:activated-send-self-to-waiting-room-add-member',
+    expected: '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。',
+  },
+  {
+    cardCode: 'PL!-sd1-002-SD',
+    abilityId: 'PL!-pb1-019-N:activated-send-self-to-waiting-room-add-member',
+    expected: '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。',
+  },
+  {
+    cardCode: 'PL!-bp4-003-P',
+    abilityId: 'PL!-sd1-005-SD:activated-send-self-to-waiting-room-add-live',
+    expected: '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。',
+  },
+  {
     cardCode: 'PL!-PR-017-PR',
     abilityId: 'PL!-PR-017-PR:activated-send-self-recover-muse-live-activate-energy',
     expected:

@@ -258,6 +258,10 @@ export interface RankedAdminPlayerSummary {
   };
 }
 
+export interface RankedAdminPlayerListItem extends RankedAdminPlayerSummary {
+  listPosition: number;
+}
+
 export interface RankedAdminPlayerRankRow {
   userId: string;
   username: string;
@@ -280,6 +284,73 @@ export interface RankedAdminPlayerContext {
   leaderboardMinimumMatchCount: number;
   player: RankedAdminPlayerSummary;
   neighbors: { rows: RankedAdminPlayerRankRow[] };
+}
+
+export interface RankedAdminDeckStatisticsPlayer {
+  userId: string;
+  username: string;
+  displayName: string | null;
+  appearanceCount: number;
+  winnerCount: number;
+  lossCount: number;
+  winRate: number | null;
+}
+
+export interface RankedAdminDeckStatisticsCategory {
+  categoryKey: string;
+  archetypeId: string;
+  name: string;
+  groupName: string;
+  color: string;
+  sortOrder: number;
+  classificationStatus: 'CLASSIFIED' | 'UNKNOWN' | 'AMBIGUOUS';
+  appearanceCount: number;
+  winnerCount: number;
+  lossCount: number;
+  playerCount: number;
+  winRate: number | null;
+  players: RankedAdminDeckStatisticsPlayer[];
+}
+
+export interface RankedAdminDeckStatistics {
+  seasonId: string;
+  generatedAt: string;
+  available: boolean;
+  release: { id: string; version: number; publishedAt: number } | null;
+  sample: {
+    settledMatchCount: number;
+    observedMatchCount: number;
+    analyzedMatchCount: number;
+    deckObservationCount: number;
+    assignedDeckObservationCount: number;
+    recognizedDeckObservationCount: number;
+    invalidDeckObservationCount: number;
+    excludedDeckObservationCount: number;
+    observationCoverageRate: number;
+    classificationCoverageRate: number;
+  };
+  categories: RankedAdminDeckStatisticsCategory[];
+}
+
+export interface RankedAdminPlayerPage {
+  seasonId: string;
+  generatedAt: string;
+  ledgerRevision: number;
+  placementRequired: number;
+  leaderboardMinimumMatchCount: number;
+  classificationRelease: { id: string; version: number } | null;
+  query: string;
+  limit: number;
+  offset: number;
+  total: number;
+  players: RankedAdminPlayerListItem[];
+}
+
+export interface RankedAdminPlayerPageFilters {
+  seasonId: string;
+  query?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface RankedEnvironmentPreview {
@@ -347,6 +418,33 @@ export const fetchRankedOverview = (seasonId: string) =>
     apiClient.get(`/api/admin/ranked/overview?seasonId=${encodeURIComponent(seasonId)}`),
     '读取排位概览失败'
   );
+
+export const fetchRankedAdminDeckStatistics = (seasonId: string) =>
+  requireData<RankedAdminDeckStatistics>(
+    apiClient.get(`/api/admin/ranked/deck-statistics?seasonId=${encodeURIComponent(seasonId)}`),
+    '读取卡组分类统计失败'
+  );
+
+export const fetchRankedAdminPlayers = (filters: RankedAdminPlayerPageFilters) => {
+  const search = new URLSearchParams({
+    seasonId: filters.seasonId,
+    limit: String(filters.limit ?? 50),
+    offset: String(filters.offset ?? 0),
+  });
+  if (filters.query?.trim()) search.set('q', filters.query.trim());
+  return requireData<RankedAdminPlayerPage>(
+    apiClient.get(`/api/admin/ranked/players?${search.toString()}`),
+    '读取排位玩家列表失败'
+  );
+};
+
+export const rankedAdminPlayerSnapshotKey = (page: RankedAdminPlayerPage): string =>
+  JSON.stringify({
+    ledgerRevision: page.ledgerRevision,
+    placementRequired: page.placementRequired,
+    leaderboardMinimumMatchCount: page.leaderboardMinimumMatchCount,
+    classificationRelease: page.classificationRelease,
+  });
 
 export const searchRankedAdminPlayers = (seasonId: string, query: string, limit = 10) => {
   const search = new URLSearchParams({

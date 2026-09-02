@@ -46,10 +46,17 @@ import {
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
 
-function member(cardCode: string, name: string, cost = 2): MemberCardData {
+function member(
+  cardCode: string,
+  name: string,
+  cost = 2,
+  options: { readonly workNames?: readonly string[]; readonly groupNames?: readonly string[] } = {}
+): MemberCardData {
   return {
     cardCode,
     name,
+    workNames: options.workNames,
+    groupNames: options.groupNames,
     cardType: CardType.MEMBER,
     cost,
     blade: 1,
@@ -94,7 +101,16 @@ function setup(sourceCardCode = 'LL-bp7-001-R+') {
   const player = state.players[0];
   const [sourceId, hanamaruId, setsunaId, chisatoId] = player.hand.cardIds;
   const replacements: readonly [string, MemberCardData][] = [
-    [sourceId, member(sourceCardCode, '国木田花丸&優木せつ菜&嵐千砂都', 15)],
+    [
+      sourceId,
+      member(sourceCardCode, '国木田花丸&優木せつ菜&嵐千砂都', 15, {
+        workNames: [
+          'ラブライブ！サンシャイン!!',
+          'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+          'ラブライブ！スーパースター!!',
+        ],
+      }),
+    ],
     [hanamaruId, member('PAY-HANAMARU', '国木田花丸')],
     [setsunaId, member('PAY-SETSUNA', '優木せつ菜')],
     [chisatoId, member('PAY-CHISATO', '嵐千砂都')],
@@ -405,6 +421,60 @@ describe('LL-bp7-001-R+ special member play', () => {
       printedCost: 15,
       specialPlayCost: 10,
       paidEnergyCount: 10,
+    });
+  });
+
+  it('lets stage PL!SP-bp5-003 reduce the one-play base 10 to 8, then remains cost 15', () => {
+    const { session, sourceId, paymentIds, activeEnergyIds } = setup();
+    const state = session.state!;
+    const player = state.players[0];
+    const chisatoSourceId = player.hand.cardIds.find(
+      (cardId) => cardId !== sourceId && !paymentIds.includes(cardId)
+    )!;
+    const chisatoSource = state.cardRegistry.get(chisatoSourceId)!;
+    // Test setup installs the continuous cost-reduction source before commands begin.
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+    state.cardRegistry.set(chisatoSourceId, {
+      ...chisatoSource,
+      data: member('PL!SP-bp5-003-AR', '嵐 千砂都', 17, { groupNames: ['Liella!'] }),
+    });
+    player.hand.cardIds = player.hand.cardIds.filter((cardId) => cardId !== chisatoSourceId);
+    player.memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.LEFT, chisatoSourceId, {
+      orientation: OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    });
+    const payableEnergyIds = activeEnergyIds.slice(0, 8);
+    const returnedEnergyIds = activeEnergyIds.slice(8);
+    player.energyZone.cardIds = payableEnergyIds;
+    player.energyZone.cardStates = new Map(
+      payableEnergyIds.map((cardId) => [cardId, { orientation: OrientationState.ACTIVE }])
+    );
+    player.energyDeck.cardIds = [...player.energyDeck.cardIds, ...returnedEnergyIds];
+
+    expect(
+      session.executeCommand(
+        createBeginSpecialMemberPlayCommand(PLAYER1, sourceId, SlotPosition.CENTER)
+      ).success
+    ).toBe(true);
+    const pendingId = session.state!.pendingSpecialMemberPlay!.id;
+    const result = session.executeCommand(
+      createConfirmSpecialMemberPlayCommand(PLAYER1, pendingId, paymentIds)
+    );
+
+    expect(result.success, result.error).toBe(true);
+    expect(session.state!.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(sourceId);
+    expect(session.state!.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(chisatoSourceId);
+    for (const energyId of payableEnergyIds) {
+      expect(session.state!.players[0].energyZone.cardStates.get(energyId)?.orientation).toBe(
+        OrientationState.WAITING
+      );
+    }
+    expect(getMemberEffectiveCost(session.state!, PLAYER1, sourceId)).toBe(15);
+    expect(session.state!.actionHistory.at(-1)?.payload).toMatchObject({
+      sourceCardId: sourceId,
+      printedCost: 15,
+      specialPlayCost: 10,
+      paidEnergyCount: 8,
     });
   });
 

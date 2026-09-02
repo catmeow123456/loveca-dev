@@ -5274,6 +5274,15 @@ export class GameSession {
     options: StateTransitionOptions
   ): void {
     const source = options.source ?? 'SYSTEM';
+    const transitionStartPublicSeq = this.publicEventSeq + 1;
+    const movementBatchIdByOwnerSeat = new Map<Seat, string>();
+    const attachMovementBatchId = (event: PublicEventDraft): PublicEventDraft =>
+      attachDiscardMovementBatchId(
+        event,
+        nextState.gameId,
+        transitionStartPublicSeq,
+        movementBatchIdByOwnerSeat
+      );
     const actorSeat =
       options.actorPlayerId !== undefined
         ? getSeatForPlayer(nextState, options.actorPlayerId)
@@ -5295,12 +5304,12 @@ export class GameSession {
     );
 
     for (const event of explicitPublicEvents) {
-      this.appendPublicEvent(nextState, event);
+      this.appendPublicEvent(nextState, attachMovementBatchId(event));
     }
 
     if (previousState) {
       for (const event of buildDeckRefreshPublicEvents(previousState, nextState)) {
-        this.appendPublicEvent(nextState, event);
+        this.appendPublicEvent(nextState, attachMovementBatchId(event));
       }
     }
 
@@ -5354,7 +5363,7 @@ export class GameSession {
         if (moveKey && explicitPublicMoveKeys.has(moveKey)) {
           continue;
         }
-        this.appendPublicEvent(nextState, event);
+        this.appendPublicEvent(nextState, attachMovementBatchId(event));
       }
     }
   }
@@ -5520,6 +5529,7 @@ function buildCardMovedPublicEvent(
     to?: PublicZoneRef;
     source?: PublicEventSource;
     reason?: string;
+    movementBatchId?: string;
   }
 ): PublicEventDraft {
   const card = buildMovedPublicCardInfo(previousState, nextState, cardId, refs);
@@ -5530,6 +5540,7 @@ function buildCardMovedPublicEvent(
     ...(card ? { card } : { count: 1 }),
     from: refs.from,
     to: refs.to,
+    ...(refs.movementBatchId ? { movementBatchId: refs.movementBatchId } : {}),
     ...(refs.reason ? { reason: refs.reason } : {}),
   };
 }
@@ -5606,6 +5617,7 @@ function buildCardRevealedAndMovedPublicEvent(
     to?: PublicZoneRef;
     reason?: string;
     source?: PublicEventSource;
+    movementBatchId?: string;
   }
 ): PublicEventDraft {
   return {
@@ -5615,7 +5627,35 @@ function buildCardRevealedAndMovedPublicEvent(
     card: buildDetailedPublicCardInfo(state, cardId),
     from: options.from,
     to: options.to,
+    ...(options.movementBatchId ? { movementBatchId: options.movementBatchId } : {}),
     reason: options.reason,
+  };
+}
+
+function attachDiscardMovementBatchId(
+  event: PublicEventDraft,
+  gameId: string,
+  transitionStartPublicSeq: number,
+  movementBatchIdByOwnerSeat: Map<Seat, string>
+): PublicEventDraft {
+  if (
+    (event.type !== 'CardMovedPublic' && event.type !== 'CardRevealedAndMoved') ||
+    event.from?.zone !== ZoneType.HAND ||
+    event.to?.zone !== ZoneType.WAITING_ROOM ||
+    !event.to.ownerSeat
+  ) {
+    return event;
+  }
+
+  const ownerSeat = event.to.ownerSeat;
+  const movementBatchId =
+    movementBatchIdByOwnerSeat.get(ownerSeat) ??
+    `${gameId}:movement-batch:${transitionStartPublicSeq}:${ownerSeat}`;
+  movementBatchIdByOwnerSeat.set(ownerSeat, movementBatchId);
+
+  return {
+    ...event,
+    movementBatchId,
   };
 }
 
