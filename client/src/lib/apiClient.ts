@@ -192,7 +192,10 @@ async function safeResponseJson<T>(response: Response): Promise<ApiResponse<T>> 
       retryAfterMs:
         body.error?.retryAfterMs ?? readRetryAfterMs(response.headers.get('retry-after')),
     };
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     return {
       data: null,
       status: response.status,
@@ -230,11 +233,39 @@ function isSafeMethod(method: string | undefined): boolean {
 }
 
 function isAbortError(err: unknown): boolean {
-  return err instanceof DOMException && err.name === 'AbortError';
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'name' in err &&
+    (err as { readonly name?: unknown }).name === 'AbortError'
+  );
 }
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
+function createAbortError(): Error {
+  if (typeof DOMException !== 'undefined') {
+    return new DOMException('The operation was aborted', 'AbortError');
+  }
+  return Object.assign(new Error('The operation was aborted'), { name: 'AbortError' });
+}
+
+function wait(ms: number, signal?: AbortSignal | null): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(createAbortError());
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      signal?.removeEventListener('abort', handleAbort);
+      resolve();
+    }, ms);
+    const handleAbort = () => {
+      window.clearTimeout(timeout);
+      signal?.removeEventListener('abort', handleAbort);
+      reject(createAbortError());
+    };
+    signal?.addEventListener('abort', handleAbort, { once: true });
+  });
 }
 
 function withAuthRefreshLock<T>(signal: AbortSignal | undefined, request: () => Promise<T>) {
@@ -272,26 +303,82 @@ export function redactSensitiveApiPath(path: string): string {
     .replace(/([?&]sessionId=)[^&#]*/gi, '$1[redacted]');
 }
 
-async function sendApiRequest(
+async function sendApiRequest<T>(
   path: string,
   options: RequestInit,
   headers: Record<string, string>,
+  readResponse: (response: Response) => Promise<T>,
   timeoutMs = REQUEST_TIMEOUT
-): Promise<Response> {
+): Promise<{ readonly response: Response; readonly body: T }> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  const externalSignal = options.signal;
+  const handleExternalAbort = () => controller.abort();
+  if (externalSignal?.aborted) {
+    controller.abort();
+  } else {
+    externalSignal?.addEventListener('abort', handleExternalAbort, { once: true });
+  }
 
   try {
-    return await fetch(buildApiUrl(path), {
+    const response = await fetch(buildApiUrl(path), {
       ...options,
       headers,
       credentials: 'include', // Send httpOnly cookies
       cache: options.cache ?? (isSafeMethod(options.method) ? 'no-store' : undefined),
       signal: controller.signal,
     });
+    return { response, body: await readResponse(response) };
   } finally {
     window.clearTimeout(timeout);
+    externalSignal?.removeEventListener('abort', handleExternalAbort);
   }
+}
+
+function sendJsonApiRequest<T>(
+  path: string,
+  options: RequestInit,
+  headers: Record<string, string>,
+  timeoutMs = REQUEST_TIMEOUT
+): Promise<{ readonly response: Response; readonly body: ApiResponse<T> }> {
+  return sendApiRequest(path, options, headers, safeResponseJson<T>, timeoutMs);
+}
+
+async function readBlobApiResponse(response: Response): Promise<ApiResponse<Blob>> {
+  if (!response.ok) {
+    return safeResponseJson<Blob>(response);
+  }
+  return { data: await response.blob(), error: null, status: response.status };
+}
+
+function waitForRefreshOrAbort(
+  refresh: Promise<boolean>,
+  signal: AbortSignal | null | undefined
+): Promise<boolean> {
+  if (!signal) {
+    return refresh;
+  }
+  if (signal.aborted) {
+    return Promise.reject(createAbortError());
+  }
+
+  return new Promise<boolean>((resolve, reject) => {
+    const handleAbort = () => {
+      signal.removeEventListener('abort', handleAbort);
+      reject(createAbortError());
+    };
+    signal.addEventListener('abort', handleAbort, { once: true });
+    void refresh.then(
+      (refreshed) => {
+        signal.removeEventListener('abort', handleAbort);
+        resolve(refreshed);
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', handleAbort);
+        reject(error);
+      }
+    );
+  });
 }
 
 async function apiFetch<T>(
@@ -314,24 +401,27 @@ async function apiFetch<T>(
   }
 
   try {
-    let response: Response;
+    let result: { readonly response: Response; readonly body: ApiResponse<T> };
     try {
-      response = await sendApiRequest(path, options, headers, timeoutMs);
+      result = await sendJsonApiRequest<T>(path, options, headers, timeoutMs);
     } catch (err) {
+      if (options.signal?.aborted) {
+        throw err;
+      }
       if (!isAbortError(err) && isSafeMethod(options.method)) {
-        await wait(NETWORK_RETRY_DELAY);
-        response = await sendApiRequest(path, options, headers, timeoutMs);
+        await wait(NETWORK_RETRY_DELAY, options.signal);
+        result = await sendJsonApiRequest<T>(path, options, headers, timeoutMs);
       } else {
         throw err;
       }
     }
 
-    const body = observeAuthorizationBoundary(await safeResponseJson<T>(response));
+    const body = observeAuthorizationBoundary(result.body);
 
     // Auto-refresh protected API requests on 401. This also covers tab restores where
     // the in-memory access token was lost but the httpOnly refresh cookie still exists.
-    if (response.status === 401 && shouldAttemptTokenRefresh(path)) {
-      const refreshed = await tryRefreshToken();
+    if (result.response.status === 401 && shouldAttemptTokenRefresh(path)) {
+      const refreshed = await waitForRefreshOrAbort(tryRefreshToken(), options.signal);
       if (refreshed) {
         // Retry with new token
         if (accessToken) {
@@ -339,8 +429,8 @@ async function apiFetch<T>(
         } else {
           delete headers['Authorization'];
         }
-        const retryResponse = await sendApiRequest(path, options, headers, timeoutMs);
-        return observeAuthorizationBoundary(await safeResponseJson<T>(retryResponse));
+        const retryResult = await sendJsonApiRequest<T>(path, options, headers, timeoutMs);
+        return observeAuthorizationBoundary(retryResult.body);
       }
       // Refresh failed — clear token
       accessToken = null;
@@ -348,6 +438,12 @@ async function apiFetch<T>(
 
     return body;
   } catch (err) {
+    if (options.signal?.aborted) {
+      return {
+        data: null,
+        error: { code: 'ABORTED', message: '请求已取消' },
+      };
+    }
     if (isAbortError(err)) {
       return {
         data: null,
@@ -380,21 +476,24 @@ async function apiFetchBlob(
   }
 
   try {
-    let response = await sendApiRequest(path, options, headers, timeoutMs);
-    if (response.status === 401 && shouldAttemptTokenRefresh(path)) {
-      const refreshed = await tryRefreshToken();
+    let result = await sendApiRequest(path, options, headers, readBlobApiResponse, timeoutMs);
+    if (result.response.status === 401 && shouldAttemptTokenRefresh(path)) {
+      const refreshed = await waitForRefreshOrAbort(tryRefreshToken(), options.signal);
       if (refreshed && accessToken) {
         headers['Authorization'] = `Bearer ${accessToken}`;
-        response = await sendApiRequest(path, options, headers, timeoutMs);
+        result = await sendApiRequest(path, options, headers, readBlobApiResponse, timeoutMs);
       } else {
         accessToken = null;
       }
     }
-    if (!response.ok) {
-      return observeAuthorizationBoundary(await safeResponseJson<Blob>(response));
-    }
-    return { data: await response.blob(), error: null, status: response.status };
+    return observeAuthorizationBoundary(result.body);
   } catch (error) {
+    if (options.signal?.aborted) {
+      return {
+        data: null,
+        error: { code: 'ABORTED', message: '请求已取消' },
+      };
+    }
     return {
       data: null,
       error: {
@@ -461,8 +560,8 @@ function shouldAttemptTokenRefresh(path: string): boolean {
 // ============================================
 
 export const apiClient = {
-  get<T>(path: string): Promise<ApiResponse<T>> {
-    return apiFetch<T>(path, { method: 'GET' });
+  get<T>(path: string, options: { readonly signal?: AbortSignal } = {}): Promise<ApiResponse<T>> {
+    return apiFetch<T>(path, { method: 'GET', signal: options.signal });
   },
 
   getWithHeaders<T>(path: string, headers: Record<string, string>): Promise<ApiResponse<T>> {

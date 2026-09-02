@@ -8,17 +8,21 @@ import type {
   LiveCardData,
   MemberCardData,
 } from '../../src/domain/entities/card';
+import type { GameState } from '../../src/domain/entities/game';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { createPublicObjectId } from '../../src/online/projector';
 import { CardType, GameMode, HeartColor } from '../../src/shared/types/enums';
 import {
   MATCH_REPLAY_EXPORT_ROW_LIMIT,
   MATCH_REPLAY_TIMELINE_ROW_LIMIT,
-  MATCH_REPLAY_VISIBLE_ROW_LIMIT,
   MatchReplayReadService,
+  type MatchReplayNodeReadMetric,
   type MatchReplayReadQueryClient,
 } from '../../src/server/services/match-replay-read-service';
-import type { ReplaySerializedPayloadEnvelope } from '../../src/online/replay-types';
+import type {
+  MatchRecordReplayView,
+  ReplaySerializedPayloadEnvelope,
+} from '../../src/online/replay-types';
 import {
   GAME_STATE_SCHEMA_VERSION,
   LEGACY_GAME_STATE_SCHEMA_VERSION,
@@ -93,6 +97,11 @@ interface CreateHarnessOptions {
   readonly deckSnapshotOverrides?: Partial<
     Readonly<Record<'FIRST' | 'SECOND', Readonly<Record<string, unknown>>>>
   >;
+  readonly nodeCacheMaxEntries?: number;
+  readonly nodeCacheMaxEstimatedBytes?: number;
+  readonly replayNodeMetricSink?: (metric: MatchReplayNodeReadMetric) => void;
+  readonly replayNodeByteEstimator?: (view: MatchRecordReplayView) => number;
+  readonly mapAuthorityState?: (state: GameState) => GameState;
 }
 
 function createHarness(options: CreateHarnessOptions = {}) {
@@ -102,8 +111,9 @@ function createHarness(options: CreateHarnessOptions = {}) {
   const secondDeck = createRuntimeDeck('B');
   const initialized = session.initializeGame(firstDeck, secondDeck);
   expect(initialized.success).toBe(true);
-  const authorityState = session.getAuthoritySnapshotForRecord();
-  expect(authorityState).not.toBeNull();
+  const authoritySnapshot = session.getAuthoritySnapshotForRecord();
+  expect(authoritySnapshot).not.toBeNull();
+  const authorityState = options.mapAuthorityState?.(authoritySnapshot!) ?? authoritySnapshot;
   const cardDataHash = createCardDataHash({ FIRST: firstDeck, SECOND: secondDeck });
   const payload =
     options.mutatePayload?.(
@@ -464,7 +474,15 @@ function createHarness(options: CreateHarnessOptions = {}) {
 
   return {
     authorityState: authorityState!,
-    service: new MatchReplayReadService({ queryClient: client }),
+    accessRow,
+    checkpointRow,
+    service: new MatchReplayReadService({
+      queryClient: client,
+      nodeCacheMaxEntries: options.nodeCacheMaxEntries,
+      nodeCacheMaxEstimatedBytes: options.nodeCacheMaxEstimatedBytes,
+      replayNodeMetricSink: options.replayNodeMetricSink,
+      replayNodeByteEstimator: options.replayNodeByteEstimator,
+    }),
     calls,
   };
 }
@@ -618,11 +636,194 @@ describe('MatchReplayReadService P1b', () => {
     ).toBeUndefined();
   });
 
-  it('普通 timeline 与 replay 事件模型只暴露当前玩家可见事实', async () => {
+  it('封存节点重复读取命中有界缓存，命中路径不再读取 payload、卡组或 frame', async () => {
+    const metrics: MatchReplayNodeReadMetric[] = [];
+    const replayNodeByteEstimator = vi.fn(() => 1234);
+    const { service, calls } = createHarness({
+      accessOverrides: {
+        status: 'COMPLETED',
+        completeness: 'FULL',
+        ended_at: new Date(2_000),
+        sealed_at: new Date(2_100),
+      },
+      replayNodeMetricSink: (metric) => metrics.push(metric),
+      replayNodeByteEstimator,
+    });
+
+    const first = await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+    const second = await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+
+    expect(second).toBe(first);
+    const checkpointCalls = calls.filter((call) => call.text.includes('FROM match_checkpoints'));
+    expect(checkpointCalls).toHaveLength(3);
+    expect(checkpointCalls.filter((call) => call.text.includes('\n        payload,'))).toHaveLength(
+      1
+    );
+    expect(calls.filter((call) => call.text.includes('FROM match_deck_snapshots'))).toHaveLength(1);
+    expect(
+      calls.filter(
+        (call) =>
+          call.text.includes('FROM match_timeline_entries') &&
+          call.text.includes('timeline_seq = $2')
+      )
+    ).toHaveLength(1);
+    expect(service.getReplayNodeCacheStats()).toMatchObject({
+      hits: 1,
+      misses: 1,
+      entries: 1,
+      evictions: 0,
+      estimatedBytes: 1234,
+    });
+    expect(replayNodeByteEstimator).toHaveBeenCalledTimes(1);
+    expect(metrics.map((metric) => metric.cacheOutcome)).toEqual(['MISS', 'HIT']);
+    expect(metrics[0]).toMatchObject({
+      checkpointSeq: 1,
+    });
+    expect(typeof metrics[0]!.compressedBytes).toBe('number');
+    expect(typeof metrics[0]!.uncompressedBytes).toBe('number');
+    expect(typeof metrics[0]!.responseBytes).toBe('number');
+    expect(metrics[0]!.compressedBytes).toBeGreaterThan(0);
+    expect(metrics[0]!.uncompressedBytes).toBeGreaterThan(0);
+    expect(metrics[0]!.responseBytes).toBe(1234);
+  });
+
+  it('历史投影使用 checkpoint 时间计算自动展示剩余时长', async () => {
+    const { service } = createHarness({
+      accessOverrides: {
+        status: 'COMPLETED',
+        completeness: 'FULL',
+        ended_at: new Date(2_000),
+        sealed_at: new Date(2_100),
+      },
+      mapAuthorityState: (state) => ({
+        ...state,
+        activeEffect: {
+          id: 'historical-reveal',
+          abilityId: 'test:historical-reveal',
+          sourceCardId: state.players[0].hand.cardIds[0]!,
+          controllerId: 'p1',
+          effectText: '公开展示',
+          stepId: 'public-reveal',
+          stepText: '公开展示',
+          awaitingPlayerId: null,
+          publicRevealAutoAdvanceAt: 12_000,
+          publicRevealGeneration: 'historical-reveal-1',
+        },
+      }),
+    });
+
+    const replay = await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+
+    expect(replay?.checkpointInfo.createdAt).toBe(2_000);
+    expect(replay?.playerViewState.activeEffect?.publicRevealAutoAdvanceAfterMs).toBe(10_000);
+  });
+
+  it('进行中记录绕过节点缓存，重复读取仍重新验证并投影', async () => {
+    const metrics: MatchReplayNodeReadMetric[] = [];
+    const { service, calls } = createHarness({
+      replayNodeMetricSink: (metric) => metrics.push(metric),
+    });
+
+    await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+    await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+
+    expect(calls.filter((call) => call.text.includes('\n        payload,'))).toHaveLength(2);
+    expect(calls.filter((call) => call.text.includes('FROM match_deck_snapshots'))).toHaveLength(2);
+    expect(service.getReplayNodeCacheStats()).toMatchObject({ hits: 0, misses: 0, entries: 0 });
+    expect(metrics.map((metric) => metric.cacheOutcome)).toEqual(['BYPASS', 'BYPASS']);
+  });
+
+  it('默认探针关闭时不为绕过缓存的节点估算响应字节', async () => {
+    vi.stubEnv('MATCH_REPLAY_PERFORMANCE_PROBE', 'false');
+    const replayNodeByteEstimator = vi.fn(() => 1234);
+    try {
+      const { service } = createHarness({ replayNodeByteEstimator });
+
+      await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+
+      expect(replayNodeByteEstimator).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('管理员不同 viewer seat 不复用投影，重复同席位才命中缓存', async () => {
+    const { service } = createHarness({
+      accessOverrides: {
+        status: 'COMPLETED',
+        completeness: 'FULL',
+        ended_at: new Date(2_000),
+        sealed_at: new Date(2_100),
+      },
+    });
+
+    const first = await service.getMatchRecordReplayForAdmin('match-read-1', 'FIRST', 1);
+    const firstAgain = await service.getMatchRecordReplayForAdmin('match-read-1', 'FIRST', 1);
+    const second = await service.getMatchRecordReplayForAdmin('match-read-1', 'SECOND', 1);
+
+    expect(firstAgain).toBe(first);
+    expect(first?.playerViewState.match.viewerSeat).toBe('FIRST');
+    expect(second?.playerViewState.match.viewerSeat).toBe('SECOND');
+    expect(second).not.toBe(first);
+    expect(service.getReplayNodeCacheStats()).toMatchObject({ hits: 1, misses: 2, entries: 2 });
+  });
+
+  it('record.updated_at 变化后不会命中清理前的旧投影', async () => {
+    const { service, accessRow, calls } = createHarness({
+      accessOverrides: {
+        status: 'COMPLETED',
+        completeness: 'FULL',
+        ended_at: new Date(2_000),
+        sealed_at: new Date(2_100),
+      },
+    });
+
+    await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+    accessRow.updated_at = new Date(3_000);
+    await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+
+    expect(calls.filter((call) => call.text.includes('\n        payload,'))).toHaveLength(2);
+    expect(service.getReplayNodeCacheStats()).toMatchObject({ hits: 0, misses: 2, entries: 2 });
+  });
+
+  it('保留期清理为 METADATA_ONLY 后先拒绝读取，不会返回进程内旧投影', async () => {
+    const { service, accessRow } = createHarness({
+      accessOverrides: {
+        status: 'COMPLETED',
+        completeness: 'FULL',
+        ended_at: new Date(2_000),
+        sealed_at: new Date(2_100),
+      },
+    });
+
+    await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+    accessRow.completeness = 'METADATA_ONLY';
+    accessRow.updated_at = new Date(3_000);
+
+    await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).rejects.toMatchObject({
+      code: 'MATCH_RECORD_REPLAY_DATA_PURGED',
+      statusCode: 410,
+    });
+    expect(service.getReplayNodeCacheStats()).toMatchObject({ hits: 0, misses: 1 });
+  });
+
+  it('普通 replay 使用轻量 DTO，audit 分页只暴露当前玩家可见事实', async () => {
     const { service } = createHarness();
 
     const timeline = await service.getMatchRecordTimeline('match-read-1', 'u1');
     const replay = await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+    const publicAudit = await service.getMatchRecordAuditPage('match-read-1', 'u1', {
+      kind: 'PUBLIC_EVENTS',
+      timelineSeq: 2,
+    });
+    const privateAudit = await service.getMatchRecordAuditPage('match-read-1', 'u1', {
+      kind: 'PRIVATE_EVENTS',
+      timelineSeq: 2,
+    });
+    const decisionAudit = await service.getMatchRecordAuditPage('match-read-1', 'u1', {
+      kind: 'DECISIONS',
+      timelineSeq: 2,
+    });
 
     expect(timeline?.timelineSummary.map((entry) => entry.timelineSeq)).toEqual([1, 2]);
     expect(timeline?.timelineSummary[0]).toMatchObject({
@@ -637,7 +838,13 @@ describe('MatchReplayReadService P1b', () => {
     });
     expect(JSON.stringify(timeline)).not.toContain('初始化权威检查点');
     expect(JSON.stringify(timeline)).not.toContain('对手私有事件批次');
-    expect(replay?.visibleEvents).toEqual([
+    expect(replay?.recordFrame).toMatchObject({ timelineSeq: 2 });
+    expect(replay).not.toHaveProperty('timelineSummary');
+    expect(replay).not.toHaveProperty('visibleEvents');
+    expect(replay).not.toHaveProperty('visiblePrivateEvents');
+    expect(replay).not.toHaveProperty('visibleDecisions');
+    expect(publicAudit?.kind).toBe('PUBLIC_EVENTS');
+    expect(publicAudit?.items).toEqual([
       expect.objectContaining({
         timelineSeq: 2,
         eventSeq: 3,
@@ -645,8 +852,9 @@ describe('MatchReplayReadService P1b', () => {
         eventType: 'PhaseStarted',
       }),
     ]);
-    expect(replay?.visibleEvents[0]?.payload).toMatchObject({ phase: 'MAIN' });
-    expect(replay?.visiblePrivateEvents).toEqual([
+    expect(publicAudit?.items[0]?.payload).toMatchObject({ phase: 'MAIN' });
+    expect(privateAudit?.kind).toBe('PRIVATE_EVENTS');
+    expect(privateAudit?.items).toEqual([
       expect.objectContaining({
         timelineSeq: 2,
         eventSeq: 2,
@@ -654,10 +862,11 @@ describe('MatchReplayReadService P1b', () => {
         eventType: 'HandUpdated',
       }),
     ]);
-    expect(replay?.visiblePrivateEvents[0]?.payload).toMatchObject({
+    expect(privateAudit?.items[0]?.payload).toMatchObject({
       payload: { visibleHandObjectIds: ['self-card'] },
     });
-    expect(replay?.visibleDecisions).toEqual([
+    expect(decisionAudit?.kind).toBe('DECISIONS');
+    expect(decisionAudit?.items).toEqual([
       expect.objectContaining({
         decisionId: 'decision-opened-first',
         decisionType: 'ACTIVE_EFFECT_OPENED',
@@ -676,8 +885,8 @@ describe('MatchReplayReadService P1b', () => {
         ],
       }),
     ]);
-    expect(JSON.stringify(replay)).not.toContain('opponent-secret-card');
-    expect(JSON.stringify(replay)).not.toContain('opponent-secret-candidate');
+    expect(JSON.stringify(privateAudit)).not.toContain('opponent-secret-card');
+    expect(JSON.stringify(decisionAudit)).not.toContain('opponent-secret-candidate');
   });
 
   it('时间线记录过大时拒绝一次性读取', async () => {
@@ -700,24 +909,43 @@ describe('MatchReplayReadService P1b', () => {
     });
   });
 
-  it('回放节点过大时拒绝读取 checkpoint 之前的全部事件', async () => {
-    await withMutedReplayReadWarnings(async () => {
-      const { service, calls } = createHarness({
-        checkpointOverrides: { timeline_seq: MATCH_REPLAY_VISIBLE_ROW_LIMIT + 1 },
-      });
-
-      await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).rejects.toMatchObject({
-        code: 'MATCH_RECORD_REPLAY_WINDOW_TOO_LARGE',
-        statusCode: 413,
-      });
-      expect(calls.some((call) => call.text.includes('FROM match_record_public_events'))).toBe(
-        false
-      );
-      expect(calls.some((call) => call.text.includes('FROM match_record_private_events'))).toBe(
-        false
-      );
-      expect(calls.some((call) => call.text.includes('FROM match_decision_records'))).toBe(false);
+  it('长对局节点读取不再查询 checkpoint 之前的累计审计事实', async () => {
+    const { service, calls } = createHarness({
+      checkpointOverrides: { timeline_seq: 10_001 },
     });
+
+    const replay = await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+
+    expect(replay?.replayPosition.timelineSeq).toBe(10_001);
+    expect(calls.some((call) => call.text.includes('FROM match_record_public_events'))).toBe(false);
+    expect(calls.some((call) => call.text.includes('FROM match_record_private_events'))).toBe(
+      false
+    );
+    expect(calls.some((call) => call.text.includes('FROM match_decision_records'))).toBe(false);
+  });
+
+  it('audit 使用有界倒序游标且拒绝越过当前记录 timeline', async () => {
+    const { service, calls } = createHarness();
+
+    await service.getMatchRecordAuditPage('match-read-1', 'u1', {
+      kind: 'PUBLIC_EVENTS',
+      timelineSeq: 2,
+      limit: 25,
+      cursorTimelineSeq: 2,
+      cursorEventSeq: 3,
+    });
+
+    const auditCall = calls.find((call) => call.text.includes('FROM match_record_public_events'));
+    expect(auditCall?.text).toContain('(event.timeline_seq, event.event_seq) < ($3, $4)');
+    expect(auditCall?.text).toContain('ORDER BY event.timeline_seq DESC, event.event_seq DESC');
+    expect(auditCall?.text).toContain('LIMIT $5');
+    expect(auditCall?.values).toEqual(['match-read-1', 2, 2, 3, 26]);
+    await expect(
+      service.getMatchRecordAuditPage('match-read-1', 'u1', {
+        kind: 'PUBLIC_EVENTS',
+        timelineSeq: 3,
+      })
+    ).rejects.toMatchObject({ code: 'MATCH_RECORD_AUDIT_QUERY_INVALID', statusCode: 400 });
   });
 
   it('非参与者不能读取历史详情', async () => {

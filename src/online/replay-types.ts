@@ -482,11 +482,7 @@ export interface MatchRecordReplayView {
   readonly originLabel: string;
   readonly viewerSeat: Seat;
   readonly replayPosition: MatchRecordReplayPosition;
-  readonly timelineSummary: MatchRecordTimelineEntryView | null;
   readonly recordFrame: MatchRecordTimelineEntryView | null;
-  readonly visibleEvents: readonly MatchRecordVisibleEventView[];
-  readonly visiblePrivateEvents: readonly MatchRecordVisiblePrivateEventView[];
-  readonly visibleDecisions: readonly MatchRecordDecisionView[];
   readonly checkpointInfo: MatchRecordCheckpointInfo;
   readonly playerViewState: PlayerViewState;
   readonly recordStatus: MatchRecordStatus;
@@ -494,3 +490,44 @@ export interface MatchRecordReplayView {
   readonly replayLimitations: readonly ReplayLimitation[];
   readonly partialReasonSummary: string | null;
 }
+
+export type MatchRecordAuditKind = 'PUBLIC_EVENTS' | 'PRIVATE_EVENTS' | 'DECISIONS';
+
+export interface MatchRecordEventAuditCursor {
+  readonly timelineSeq: number;
+  readonly eventSeq: number;
+}
+
+export interface MatchRecordDecisionAuditCursor {
+  readonly timelineSeq: number;
+  readonly decisionId: string;
+}
+
+interface MatchRecordAuditPageBase {
+  readonly matchId: string;
+  readonly viewerSeat: Seat;
+  readonly timelineSeq: number;
+}
+
+export interface MatchRecordPublicEventAuditPageView extends MatchRecordAuditPageBase {
+  readonly kind: 'PUBLIC_EVENTS';
+  readonly items: readonly MatchRecordVisibleEventView[];
+  readonly nextCursor: MatchRecordEventAuditCursor | null;
+}
+
+export interface MatchRecordPrivateEventAuditPageView extends MatchRecordAuditPageBase {
+  readonly kind: 'PRIVATE_EVENTS';
+  readonly items: readonly MatchRecordVisiblePrivateEventView[];
+  readonly nextCursor: MatchRecordEventAuditCursor | null;
+}
+
+export interface MatchRecordDecisionAuditPageView extends MatchRecordAuditPageBase {
+  readonly kind: 'DECISIONS';
+  readonly items: readonly MatchRecordDecisionView[];
+  readonly nextCursor: MatchRecordDecisionAuditCursor | null;
+}
+
+export type MatchRecordAuditPageView =
+  | MatchRecordPublicEventAuditPageView
+  | MatchRecordPrivateEventAuditPageView
+  | MatchRecordDecisionAuditPageView;

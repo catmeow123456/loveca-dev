@@ -5,6 +5,7 @@ import type { GameCommand } from '../../application/game-commands.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { requireAdmin } from '../middleware/require-admin.js';
 import { requireGameplayAvailable } from '../middleware/require-gameplay-available.js';
+import { privateNoStore, setPrivateNoStoreHeaders } from '../middleware/private-no-store.js';
 import {
   DebugReplayServiceError,
   createDebugReplayBundle,
@@ -24,9 +25,12 @@ import {
 import {
   MatchReplayReadServiceError,
   matchReplayReadService,
+  type MatchRecordAuditPageOptions,
 } from '../services/match-replay-read-service.js';
 
 export const onlineRouter = Router();
+
+onlineRouter.use('/match-records', privateNoStore);
 
 const roomCodeSchema = z.object({
   roomCode: z.string().min(4).max(12),
@@ -279,6 +283,24 @@ onlineRouter.get('/match-records/:matchId/replay', requireAuth, async (req, res)
     }
 
     res.json({ data: replay, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.get('/match-records/:matchId/audit', requireAuth, async (req, res) => {
+  try {
+    const audit = await matchReplayReadService.getMatchRecordAuditPage(
+      readPathParam(req.params.matchId),
+      req.user!.id,
+      readMatchRecordAuditOptions(req.query)
+    );
+    if (!audit) {
+      respondMatchRecordNotFound(res);
+      return;
+    }
+
+    res.json({ data: audit, error: null });
   } catch (error) {
     respondOnlineError(res, error);
   }
@@ -1252,12 +1274,6 @@ function setSpectatorNoStoreHeaders(res: Response): void {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
 }
 
-function setPrivateNoStoreHeaders(res: Response): void {
-  res.setHeader('Cache-Control', 'private, no-store');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Referrer-Policy', 'no-referrer');
-}
-
 function readPathParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] : (value ?? '');
 }
@@ -1289,6 +1305,31 @@ function readReplayCheckpointSeqQuery(query: unknown): number | undefined {
 
   const params = query as { readonly checkpointSeq?: unknown; readonly cursor?: unknown };
   return readOptionalSeq(params.checkpointSeq) ?? readOptionalSeq(params.cursor);
+}
+
+function readMatchRecordAuditOptions(query: unknown): MatchRecordAuditPageOptions {
+  const params =
+    query && typeof query === 'object' ? (query as Partial<Record<string, unknown>>) : {};
+  const kind = readOptionalString(params.kind);
+  const timelineSeq = readOptionalSeq(params.timelineSeq);
+  if (
+    (kind !== 'PUBLIC_EVENTS' && kind !== 'PRIVATE_EVENTS' && kind !== 'DECISIONS') ||
+    timelineSeq === undefined
+  ) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_AUDIT_QUERY_INVALID',
+      '历史对局审计查询参数非法',
+      400
+    );
+  }
+  return {
+    kind,
+    timelineSeq,
+    limit: readOptionalSeq(params.limit),
+    cursorTimelineSeq: readOptionalSeq(params.cursorTimelineSeq),
+    cursorEventSeq: readOptionalSeq(params.cursorEventSeq),
+    cursorDecisionId: readOptionalString(params.cursorDecisionId) ?? undefined,
+  };
 }
 
 function readRequiredSeq(value: unknown): number | null {

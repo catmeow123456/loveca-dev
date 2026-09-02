@@ -3,7 +3,7 @@
 > 文档类型：设计文档
 > 适用范围：权威对局状态、命令处理、玩家视图投影、卡效队列、LIVE 判定、联机同步、对局记录与回放的运行时链路
 > 当前状态：当前实现基线；字段级 schema 以代码类型、`src/server/db/schema.ts` 和专题文档为准
-> 最后更新：2026-08-09
+> 最后更新：2026-09-02
 
 ## 1. 文档边界
 
@@ -172,6 +172,7 @@ LIVE 修正分两类：
 - 历史记录有独立 `timelineSeq` 和 `checkpointSeq`；不要用公共事件序号当长期回放主顺序。
 - 普通玩家读取 replay read model，不读取 sealed audit 或完整 authority checkpoint。
 - 当前 checkpoint 是稀疏策略：普通高频命令可只写 timeline/event/summary，每 5 帧或关键命令、系统转移、撤销、结算/阶段类命令写 authority checkpoint。
+- checkpoint 节点读取只返回当前 frame、checkpoint 元信息和玩家视角 `PlayerViewState`；节点之前的公共事件、该玩家私密事件和可见决策通过独立的有界倒序游标按需读取，不随每次 checkpoint 切换重复返回累计明细。
 
 ## 3. 主命令链路
 
@@ -345,8 +346,12 @@ flowchart TD
 读取策略：
 
 - 历史列表和详情读 summary / participant / deck snapshot。
-- timeline 读经过玩家视角过滤的 frame 摘要和事件。
+- timeline 读经过玩家视角过滤的 frame 摘要。
 - checkpoint 回放读取指定 frame 附近的 authority checkpoint，再投影成该玩家的 `PlayerViewState`。
+- 回放的事件与决策明细以当前 checkpoint 的 `timelineSeq` 为上界，按玩家 seat 过滤后使用稳定倒序游标分页；前端只在展开调试详情时首次读取，更早记录由用户继续加载。
+- 客户端 checkpoint key 固定为 `matchId + viewerSeat + checkpointSeq`；同 key 在途请求复用同一 Promise，少量完成节点进入页面内 LRU。切换对局、账号、权限或管理员查看 seat 时清空，避免跨视角复用投影。
+- 已封存、非进行中且未清理的完整记录可命中服务端进程内已验证 node LRU。每次读取仍先重新校验参与关系或管理权限、记录状态、completeness 和 checkpoint 身份；缓存键绑定记录版本/更新时间、规则与卡牌数据身份、checkpoint schema/payload hash 和 viewer seat，命中路径不读取大体积 authority payload。
+- 历史投影以 checkpoint `createdAt` 作为 projector 时间，使自动展示剩余时间等派生字段可复现；进行中、未封存、`METADATA_ONLY`、audit、权限结果、authority envelope 和失败结果不缓存。
 - 只读 `GameBoard` 使用回放投影，不重新执行运行中命令。
 
 ## 8. 性能热路径
@@ -360,6 +365,8 @@ flowchart TD
 - 客户端远程 snapshot 先写入 store，再后台 best-effort 预载新正面卡图。
 - 远程操作按 `source/matchId/seat` 串行入队，并补 `idempotencyKey`。
 - recorder 使用稀疏 authority checkpoint 和 `stateSummary`，避免普通高频命令都完整序列化权威状态。
+- 历史 checkpoint 切换先提交稳定化后的玩家视图，再在后台 best-effort 预载新出现的正面卡图；未变化的区域和对象引用保持稳定，timeline 列表使用定高虚拟化渲染。
+- 历史 context/node/audit 读取支持主动取消；主动取消不重试、不在 token refresh 后复发，也不显示成超时。服务端已验证 node LRU 同时受条目数和估算字节限制；User Timing 与结构化服务端探针覆盖请求、缓存、复水、投影、提交、下一帧和图片预载。相邻节点预取只在显式启用、浏览器空闲且网络条件允许时执行，默认关闭。
 - 检视关闭使用 `FINISH_INSPECTION_WITH_ARRANGEMENT` 批量命令，不再逐张提交远程移动命令。
 - 卡效定义查找通过 `definitions/lookup.ts` 索引，避免运行时线性扫描定义表。
 

@@ -35,6 +35,8 @@ vi.mock('../../src/server/services/match-replay-read-service.js', () => ({
     getMatchRecordTimelineForAdmin: vi.fn(),
     getMatchRecordReplay: vi.fn(),
     getMatchRecordReplayForAdmin: vi.fn(),
+    getMatchRecordAuditPage: vi.fn(),
+    getMatchRecordAuditPageForAdmin: vi.fn(),
     getMatchRecordDetail: vi.fn(),
     getMatchRecordDetailForAdmin: vi.fn(),
     exportMatchRecordBundleForAdmin: vi.fn(),
@@ -230,6 +232,7 @@ describe('battleRouter solitaire match routes', () => {
       '/admin/match-records',
       '/admin/match-records/:matchId/timeline',
       '/admin/match-records/:matchId/replay',
+      '/admin/match-records/:matchId/audit',
       '/admin/match-records/:matchId',
     ];
 
@@ -302,6 +305,42 @@ describe('battleRouter solitaire match routes', () => {
         rankedSeasonId: '11111111-1111-4111-8111-111111111111',
         themeTableVersionId: '22222222-2222-4222-8222-222222222222',
       })
+    );
+  });
+
+  it('普通历史审计路由传递玩家身份与有界游标', async () => {
+    vi.mocked(matchReplayReadService.getMatchRecordAuditPage).mockResolvedValue({
+      matchId: 'match-1',
+      viewerSeat: 'FIRST',
+      timelineSeq: 12,
+      kind: 'PUBLIC_EVENTS',
+      items: [],
+      nextCursor: null,
+    });
+
+    const response = await invokeRoute('/match-records/:matchId/audit', 'get', {
+      params: { matchId: 'match-1' },
+      query: {
+        kind: 'PUBLIC_EVENTS',
+        timelineSeq: '12',
+        limit: '25',
+        cursorTimelineSeq: '10',
+        cursorEventSeq: '8',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(matchReplayReadService.getMatchRecordAuditPage).toHaveBeenCalledWith(
+      'match-1',
+      'user-1',
+      {
+        kind: 'PUBLIC_EVENTS',
+        timelineSeq: 12,
+        limit: 25,
+        cursorTimelineSeq: 10,
+        cursorEventSeq: 8,
+        cursorDecisionId: undefined,
+      }
     );
   });
 });

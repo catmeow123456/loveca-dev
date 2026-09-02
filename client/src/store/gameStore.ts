@@ -97,6 +97,7 @@ import type { CardDefinedSpecialMemberPlayMode } from '@game/shared/rules/member
 import { getPhaseName } from '@game/shared/phase-config';
 import { preloadImage, resolveCardImagePath } from '@/lib/imageService';
 import { getDebugPerspectiveFollowTarget } from '@/lib/debugPerspective';
+import { recordReplayPerformanceEvent, replayPerformanceNow } from '@/lib/replayPerformance';
 import {
   createBattleFeedbackEvent,
   isBattleFeedbackEventExpired,
@@ -1844,20 +1845,18 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     enterReadonlyReplay: async (replay, options) => {
       const viewerPlayerId = getReadonlyReplayViewerPlayerId(replay);
-      const normalizedPlayerViewState = normalizeReadonlyReplayViewState(replay.playerViewState);
+      const previousPlayerViewState = get().playerViewState;
+      const normalizedPlayerViewState = stabilizePlayerViewState(
+        previousPlayerViewState,
+        normalizeReadonlyReplayViewState(replay.playerViewState)
+      )!;
 
-      await preloadFrontTransitions(
-        get().playerViewState,
-        normalizedPlayerViewState,
-        get().cardDataRegistry
-      );
-
-      // 卡图预加载是异步的，快速切换 checkpoint 时较早的请求可能在较新请求之后完成。
-      // 若调用方判定本次注入已过期，则放弃提交，避免旧 checkpoint 覆盖当前桌面视图。
       if (options?.shouldCommit && !options.shouldCommit()) {
         return;
       }
 
+      const cardDataRegistry = get().cardDataRegistry;
+      const commitStartedAt = replayPerformanceNow();
       set((state) => ({
         playerViewState: normalizedPlayerViewState,
         viewingPlayerId: viewerPlayerId,
@@ -1890,6 +1889,46 @@ export const useGameStore = create<GameStore>((set, get) => {
           inputRequestType: null,
         },
       }));
+      const commitCompletedAt = replayPerformanceNow();
+      recordReplayPerformanceEvent('NODE_STORE_COMMITTED', {
+        checkpointSeq: replay.replayPosition.checkpointSeq,
+        durationMs: commitCompletedAt - commitStartedAt,
+      });
+      const recordNextFrame = () => {
+        recordReplayPerformanceEvent('NODE_NEXT_FRAME', {
+          checkpointSeq: replay.replayPosition.checkpointSeq,
+          durationMs: replayPerformanceNow() - commitCompletedAt,
+        });
+      };
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(recordNextFrame);
+      } else {
+        setTimeout(recordNextFrame, 0);
+      }
+
+      const preloadStartedAt = replayPerformanceNow();
+      void preloadFrontTransitions(
+        previousPlayerViewState,
+        normalizedPlayerViewState,
+        cardDataRegistry
+      )
+        .then(() => {
+          recordReplayPerformanceEvent('IMAGE_PRELOAD_COMPLETED', {
+            checkpointSeq: replay.replayPosition.checkpointSeq,
+            durationMs: replayPerformanceNow() - preloadStartedAt,
+          });
+        })
+        .catch((error) => {
+          recordReplayPerformanceEvent('IMAGE_PRELOAD_FAILED', {
+            checkpointSeq: replay.replayPosition.checkpointSeq,
+            durationMs: replayPerformanceNow() - preloadStartedAt,
+          });
+          console.warn(
+            `[gameStore] 历史回放卡图后台预载失败: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+        });
     },
 
     leaveReadonlyReplay: () => {

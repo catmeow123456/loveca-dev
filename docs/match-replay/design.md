@@ -3,7 +3,7 @@
 > 文档类型：设计文档
 > 适用范围：说明对局记录、复盘、卡组快照、卡效决策日志和确定性重演需求如何纳入 Loveca 当前游戏框架
 > 当前状态：现行设计基线；正式联机与服务端可记录对墙打的记录式回放已落地，稀疏 authority checkpoint 策略已接入，完整确定性重演仍为后续目标
-> 最后更新：2026-07-24
+> 最后更新：2026-09-02
 
 ## 核心概念导读
 
@@ -823,7 +823,15 @@ P1e 起，公共事件和私密事件不再只靠 timeline 游标摘要展示：
 - 回放打开时读取该用户有权访问的参与者视角。
 - 前进、后退和跳转通过 `Timeline Entry` 定位。
 - 普通玩家节点展示优先读取玩家视角检查点；如果只保存权威检查点，则必须先经过投影层。
-- 事件说明从公共事件、私密事件和决策记录中按权限合成。
+- checkpoint 节点响应保持轻量，只携带当前 frame、checkpoint 元信息和玩家视角投影；不应在每次节点切换时重复读取该节点之前的全部明细。
+- 事件说明从公共事件、该视角私密事件和可见决策记录中按权限合成。三类明细使用当前 `timelineSeq` 为上界，分别通过有界倒序游标分页按需读取；普通玩家与管理员选定玩家视角时使用同一可见性过滤语义。
+- 单类明细的服务端最大页大小由 `MATCH_REPLAY_AUDIT_PAGE_LIMIT` 控制，默认为 100；客户端传入更大值时仍按该上限截断。
+- 客户端节点缓存只存在于当前页面，按 `matchId + viewerSeat + checkpointSeq` 隔离、复用同 key 在途请求并有界淘汰；切换账号、对局、权限或管理员查看 seat 时必须清空。新跳转会取消旧 context/node/audit 请求，请求序号继续作为最终提交保护。
+- 服务端只缓存已封存、非进行中、非 `METADATA_ONLY` 的完整已验证玩家视角 node；命中前必须重新执行权限、记录状态/completeness 与 checkpoint 身份校验。缓存身份绑定记录版本与更新时间、viewer seat、规则与卡牌数据身份、checkpoint schema/payload hash，并同时限制条目数与估算字节。
+- 缓存投影使用 checkpoint `createdAt` 作为历史 `now`，保证计时派生字段可复现。进行中记录、audit detail、权限结果、authority envelope 和失败结果不进入缓存；保留期清理切换 `METADATA_ONLY` 后不得命中旧投影。
+- 性能探针关闭时，客户端不得为指标急切序列化 context 或 replay node；服务端只保留节点 LRU 字节上限所必需的一次估算并复用于指标，绕过缓存的节点不为关闭的默认探针估算响应字节。显式注入指标 sink 时仍视为启用探针并提供完整指标。
+- 需要认证的历史列表、详情、timeline、replay node、audit 和管理员导出响应必须返回 `Cache-Control: private, no-store`；规范 `/api/battle` 路由与临时 `/api/online` alias 使用同一响应策略。该 HTTP 边界不改变服务端进程内已验证 node LRU 的权限复核与生命周期约束。
+- 相邻 checkpoint 预取必须晚于取消、在途复用和容量观测，且只允许显式 opt-in；默认逐节点按需读取，不用额外 cache miss 换取表面延迟下降。
 - 审计视角可以读取权威检查点、sealed audit、命令记录和随机记录，但必须走高权限入口。
 
 这条读取策略允许第一阶段先稳定展示历史事实，而不是依赖事件从头重算整局。后续确定性重演可以在同一记录基础上增加 command replay 和差异报告。
@@ -970,7 +978,7 @@ P1e 起，公共事件和私密事件不再只靠 timeline 游标摘要展示：
    对局开始创建 `Match Record`，保存参与者、座位、卡组快照、初始检查点和独立时间线游标；正常规则结束、异常中断或清理前写入最终状态。P0 应先拆成 schema/recorder 底座、开局写入闭环、封存闭环三个小步，避免一次性改动整个联机流程。投降状态在模型和封存 API 中预留；若当前版本已有或后续新增投降入口，该入口也必须写入最终状态。该阶段不要求完整回放 UI，但必须能确认历史根记录、卡组快照、初始检查点和结束状态已持久化。
 
 2. P1：时间线与玩家视角回放读取
-   持续追加 `Timeline Entry`、命令、公共事件、私密事件、审计摘要、随机结果摘要和检查点；历史详情页可以列出关键节点；普通玩家读取路径返回 `PlayerViewState + timeline explanation` 或等价对象，不返回权威检查点后交给前端隐藏。当前实现采用稀疏 authority checkpoint 策略：普通高频已接受命令可以只追加 timeline/event/summary，每 5 帧或遇到关键命令、系统转移、撤销、结算/阶段类命令时写 checkpoint；无 checkpoint 帧通过 `stateSummary` 保留回合、阶段和子阶段摘要。schema 和 envelope 仍必须保留压缩、采样或关键节点 checkpoint 策略入口；普通玩家 timeline 需要独立过滤，不能复用管理员调试 timeline 摘要。
+   持续追加 `Timeline Entry`、命令、公共事件、私密事件、审计摘要、随机结果摘要和检查点；历史详情页可以列出关键节点；普通玩家读取路径返回 `PlayerViewState + timeline explanation` 或等价对象，不返回权威检查点后交给前端隐藏。当前实现采用稀疏 authority checkpoint 策略：普通高频已接受命令可以只追加 timeline/event/summary，每 5 帧或遇到关键命令、系统转移、撤销、结算/阶段类命令时写 checkpoint；无 checkpoint 帧通过 `stateSummary` 保留回合、阶段和子阶段摘要。checkpoint DTO 不再捆绑累计公共/私密事件与决策，这些视角化明细以节点 `timelineSeq` 为上界独立分页读取。客户端已接入节点请求取消、同 key 在途复用与页面内 LRU；服务端对满足不可变条件的已验证视角 node 使用绑定 payload 身份的进程内双界限 LRU，并以 checkpoint 时间进行确定性投影。schema 和 envelope 仍必须保留压缩、采样或关键节点 checkpoint 策略入口；普通玩家 timeline 需要独立过滤，不能复用管理员调试 timeline 摘要。
 
 3. P2：决策说明与能力标记
    将卡效选择、手动处理、自由拖拽原因和 snapshot/audit 过渡段落转成可读说明；每局记录明确标记可摘要、可玩家视角回放、可审计读取、可调试导出、是否可确定性重演。最低完成标准是：卡效决策不只保存最终 cardId 或 optionId，还要保存当时选择窗口的可见候选摘要；自由拖拽和手动处理不只保存移动结果，还要保存原因或“原因未结构化”的明确标记。
