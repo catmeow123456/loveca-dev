@@ -167,6 +167,11 @@ const MatchEmotesAdminPage = lazy(() =>
     default: module.MatchEmotesAdminPage,
   }))
 );
+const MatchmakingBgmAdminPage = lazy(() =>
+  import('@/components/admin/MatchmakingBgmAdminPage').then((module) => ({
+    default: module.MatchmakingBgmAdminPage,
+  }))
+);
 const AdminCenterPage = lazy(() =>
   import('@/components/admin/AdminCenterPage').then((module) => ({
     default: module.AdminCenterPage,
@@ -225,6 +230,7 @@ type AppPage =
   | 'deck-classifier-admin'
   | 'deck-point-admin'
   | 'match-emotes-admin'
+  | 'matchmaking-bgm-admin'
   | 'theme-table-admin'
   | 'users-admin'
   | 'platform-operations-admin';
@@ -241,6 +247,7 @@ const CARD_DATA_INDEPENDENT_PAGES = new Set<AppPage>([
   'deck-classifier-admin',
   'deck-point-admin',
   'match-emotes-admin',
+  'matchmaking-bgm-admin',
   'users-admin',
   'platform-operations-admin',
 ]);
@@ -313,6 +320,7 @@ function getInitialPage(): AppPage {
     page === 'deck-classifier-admin' ||
     page === 'deck-point-admin' ||
     page === 'match-emotes-admin' ||
+    page === 'matchmaking-bgm-admin' ||
     page === 'theme-table-admin' ||
     page === 'users-admin' ||
     page === 'platform-operations-admin' ||
@@ -1070,6 +1078,7 @@ function App() {
         enabled={Boolean(user && profile && !offlineMode)}
         waitingMusicEnabled={profile?.matchmaking_bgm_enabled ?? true}
         matchFoundSoundEnabled={profile?.matchmaking_match_sound_enabled ?? true}
+        preferredTrackIds={profile?.matchmaking_bgm_track_ids ?? null}
       />
       <PublicTableGlobalLayer
         enabled={Boolean(user && profile && !offlineMode)}
@@ -1372,6 +1381,7 @@ function App() {
         role={profile.role}
         onBack={() => setCurrentPage('home')}
         onOpenMatchEmotes={() => setCurrentPage('match-emotes-admin')}
+        onOpenMatchmakingBgm={() => setCurrentPage('matchmaking-bgm-admin')}
         onOpenAnnouncements={() => setCurrentPage('announcement-admin')}
         onOpenCards={() => setCurrentPage('card-admin')}
         onOpenCardSync={() => setCurrentPage('card-sync-admin')}
@@ -1527,6 +1537,17 @@ function App() {
   ) {
     return withProductFrame(
       <ThemeTableAdminPage onBack={() => setCurrentPage('admin-center')} />,
+      null
+    );
+  }
+
+  if (
+    effectivePage === 'matchmaking-bgm-admin' &&
+    profile &&
+    hasPermission(profile.role, 'platform.manage')
+  ) {
+    return withProductFrame(
+      <MatchmakingBgmAdminPage onBack={() => setCurrentPage('admin-center')} />,
       null
     );
   }

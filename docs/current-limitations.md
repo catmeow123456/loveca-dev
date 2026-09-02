@@ -46,7 +46,7 @@
 
 ## 认证与会话
 
-当前认证限流使用 API 进程内的有界内存桶，适合当前单 API 进程部署，但存在以下边界：
+当前认证限流以及图片/BGM 上传的次数与累计字节限制使用 API 进程内的内存桶，适合当前单 API 进程部署，但存在以下边界：
 
 - 限流状态会在进程重启后清空，也不会在多个 API 实例间共享；横向扩容前需要迁移到共享限流存储或由可信反向代理统一执行等价限制。
 - 修改或重置密码、确认邮箱换绑会在同一事务中撤销刷新令牌，但已经签发的访问令牌不会进入服务端黑名单，最长仍可使用至 15 分钟自然过期。
@@ -56,7 +56,10 @@
 相关代码路径：
 
 - `src/server/middleware/auth-rate-limit.ts`
+- `src/server/middleware/upload-rate-limit.ts`
+- `src/server/middleware/image-upload-rate-limit.ts`
 - `src/server/routes/auth.ts`
+- `src/server/routes/matchmaking-bgm.ts`
 - `src/server/services/auth-service.ts`
 - `client/src/lib/apiClient.ts`
 - `drizzle/migration-notes/auth-v1-to-v2-credential-cutover.md`

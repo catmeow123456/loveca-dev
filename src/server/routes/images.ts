@@ -14,7 +14,7 @@ const upload = multer({
 });
 
 const SIZES = ['thumb', 'medium', 'large'] as const;
-const READ_FOLDERS = ['thumb', 'medium', 'large', 'static', 'emotes'] as const;
+const READ_FOLDERS = ['thumb', 'medium', 'large', 'static', 'emotes', 'matchmaking-bgm'] as const;
 type UploadedFiles = Record<string, Array<{ buffer: Buffer }>>;
 
 function getContentType(fileName: string): string {
@@ -22,6 +22,7 @@ function getContentType(fileName: string): string {
   if (fileName.endsWith('.png')) return 'image/png';
   if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) return 'image/jpeg';
   if (fileName.endsWith('.svg')) return 'image/svg+xml';
+  if (fileName.endsWith('.mp3')) return 'audio/mpeg';
   return 'application/octet-stream';
 }
 
@@ -96,7 +97,11 @@ publicImagesRouter.get('/:folder/:fileName', async (req, res, next) => {
     const folder = req.params.folder as string;
     const fileName = req.params.fileName as string;
 
-    if (!(READ_FOLDERS as readonly string[]).includes(folder) || fileName.includes('/')) {
+    if (
+      !(READ_FOLDERS as readonly string[]).includes(folder) ||
+      fileName.includes('/') ||
+      (folder === 'matchmaking-bgm' && !/^[0-9a-f]{64}[.]mp3$/u.test(fileName))
+    ) {
       res.status(404).json({
         data: null,
         error: { code: 'IMAGE_NOT_FOUND', message: '图片不存在' },
@@ -108,7 +113,13 @@ publicImagesRouter.get('/:folder/:fileName', async (req, res, next) => {
     const stream = await getObject(objectPath);
 
     res.setHeader('Content-Type', getContentType(fileName));
-    res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+    res.setHeader(
+      'Cache-Control',
+      folder === 'matchmaking-bgm'
+        ? 'public, max-age=31536000, immutable'
+        : 'public, max-age=2592000, immutable'
+    );
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     stream.on('error', next);
     stream.pipe(res);
   } catch (err) {

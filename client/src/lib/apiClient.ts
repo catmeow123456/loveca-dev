@@ -57,6 +57,7 @@ export interface Profile {
   deck_count: number;
   matchmaking_bgm_enabled: boolean;
   matchmaking_match_sound_enabled: boolean;
+  matchmaking_bgm_track_ids: string[] | null;
   created_at: string;
   updated_at: string;
 }

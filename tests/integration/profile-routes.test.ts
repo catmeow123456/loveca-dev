@@ -68,7 +68,7 @@ async function invokeProfileUpdate(body: unknown): Promise<MockResponse> {
       const complete = (error?: unknown) => {
         if (settled) return;
         settled = true;
-        if (error) reject(error);
+        if (error) reject(error instanceof Error ? error : new Error('Middleware failed'));
         else resolve();
       };
       const next: NextFunction = (error?: unknown) => complete(error);
@@ -145,5 +145,51 @@ describe('profilesRouter account updates', () => {
 
     expect(response.statusCode).toBe(409);
     expect(response.body?.error?.code).toBe('USERNAME_TAKEN');
+  });
+
+  it('stores an explicit user BGM subset and allows returning to platform defaults', async () => {
+    const firstTrackId = '22222222-2222-4222-8222-222222222222';
+    const secondTrackId = '33333333-3333-4333-8333-333333333333';
+    mocks.poolQuery.mockResolvedValue({
+      rows: [{ matchmaking_bgm_track_ids: [firstTrackId, secondTrackId] }],
+      rowCount: 1,
+    });
+
+    const customResponse = await invokeProfileUpdate({
+      matchmaking_bgm_track_ids: [firstTrackId, secondTrackId],
+    });
+
+    expect(customResponse.statusCode).toBe(200);
+    expect(mocks.poolQuery.mock.calls[0]?.[1]).toEqual([
+      [firstTrackId, secondTrackId],
+      '11111111-1111-4111-8111-111111111111',
+    ]);
+
+    mocks.poolQuery.mockResolvedValue({
+      rows: [{ matchmaking_bgm_track_ids: null }],
+      rowCount: 1,
+    });
+    const defaultResponse = await invokeProfileUpdate({ matchmaking_bgm_track_ids: null });
+
+    expect(defaultResponse.statusCode).toBe(200);
+    expect(mocks.poolQuery.mock.calls[1]?.[1]).toEqual([
+      null,
+      '11111111-1111-4111-8111-111111111111',
+    ]);
+  });
+
+  it('rejects invalid or duplicate BGM track ids before querying the database', async () => {
+    const duplicateId = '22222222-2222-4222-8222-222222222222';
+
+    const invalidResponse = await invokeProfileUpdate({
+      matchmaking_bgm_track_ids: ['not-a-uuid'],
+    });
+    const duplicateResponse = await invokeProfileUpdate({
+      matchmaking_bgm_track_ids: [duplicateId, duplicateId],
+    });
+
+    expect(invalidResponse.statusCode).toBe(400);
+    expect(duplicateResponse.statusCode).toBe(400);
+    expect(mocks.poolQuery).not.toHaveBeenCalled();
   });
 });
