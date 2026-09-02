@@ -5,6 +5,7 @@ import { fromTransport } from '../../online/serde.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { requireGameplayAvailable } from '../middleware/require-gameplay-available.js';
 import { requirePermission } from '../middleware/require-permission.js';
+import { privateNoStore } from '../middleware/private-no-store.js';
 import {
   MatchReplayReadServiceError,
   matchReplayReadService,
@@ -17,6 +18,8 @@ import {
 } from '../services/solitaire-match-service.js';
 
 export const battleRouter = Router();
+
+battleRouter.use(['/match-records', '/admin/match-records'], privateNoStore);
 
 const deckSelectionSchema = z.object({
   deckId: z.string().uuid(),

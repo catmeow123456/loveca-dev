@@ -97,6 +97,7 @@ import type { CardDefinedSpecialMemberPlayMode } from '@game/shared/rules/member
 import { getPhaseName } from '@game/shared/phase-config';
 import { preloadImage, resolveCardImagePath } from '@/lib/imageService';
 import { getDebugPerspectiveFollowTarget } from '@/lib/debugPerspective';
+import { recordReplayPerformanceEvent, replayPerformanceNow } from '@/lib/replayPerformance';
 import {
   createBattleFeedbackEvent,
   isBattleFeedbackEventExpired,
@@ -1855,6 +1856,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
 
       const cardDataRegistry = get().cardDataRegistry;
+      const commitStartedAt = replayPerformanceNow();
       set((state) => ({
         playerViewState: normalizedPlayerViewState,
         viewingPlayerId: viewerPlayerId,
@@ -1887,18 +1889,46 @@ export const useGameStore = create<GameStore>((set, get) => {
           inputRequestType: null,
         },
       }));
+      const commitCompletedAt = replayPerformanceNow();
+      recordReplayPerformanceEvent('NODE_STORE_COMMITTED', {
+        checkpointSeq: replay.replayPosition.checkpointSeq,
+        durationMs: commitCompletedAt - commitStartedAt,
+      });
+      const recordNextFrame = () => {
+        recordReplayPerformanceEvent('NODE_NEXT_FRAME', {
+          checkpointSeq: replay.replayPosition.checkpointSeq,
+          durationMs: replayPerformanceNow() - commitCompletedAt,
+        });
+      };
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(recordNextFrame);
+      } else {
+        setTimeout(recordNextFrame, 0);
+      }
 
+      const preloadStartedAt = replayPerformanceNow();
       void preloadFrontTransitions(
         previousPlayerViewState,
         normalizedPlayerViewState,
         cardDataRegistry
-      ).catch((error) => {
-        console.warn(
-          `[gameStore] 历史回放卡图后台预载失败: ${
-            error instanceof Error ? error.message : String(error)
-          }`
-        );
-      });
+      )
+        .then(() => {
+          recordReplayPerformanceEvent('IMAGE_PRELOAD_COMPLETED', {
+            checkpointSeq: replay.replayPosition.checkpointSeq,
+            durationMs: replayPerformanceNow() - preloadStartedAt,
+          });
+        })
+        .catch((error) => {
+          recordReplayPerformanceEvent('IMAGE_PRELOAD_FAILED', {
+            checkpointSeq: replay.replayPosition.checkpointSeq,
+            durationMs: replayPerformanceNow() - preloadStartedAt,
+          });
+          console.warn(
+            `[gameStore] 历史回放卡图后台预载失败: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+        });
     },
 
     leaveReadonlyReplay: () => {

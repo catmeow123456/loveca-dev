@@ -5,6 +5,7 @@ import type { GameCommand } from '../../application/game-commands.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { requireAdmin } from '../middleware/require-admin.js';
 import { requireGameplayAvailable } from '../middleware/require-gameplay-available.js';
+import { privateNoStore, setPrivateNoStoreHeaders } from '../middleware/private-no-store.js';
 import {
   DebugReplayServiceError,
   createDebugReplayBundle,
@@ -28,6 +29,8 @@ import {
 } from '../services/match-replay-read-service.js';
 
 export const onlineRouter = Router();
+
+onlineRouter.use('/match-records', privateNoStore);
 
 const roomCodeSchema = z.object({
   roomCode: z.string().min(4).max(12),
@@ -1269,12 +1272,6 @@ function respondOnlineError(res: Response, error: unknown): void {
 function setSpectatorNoStoreHeaders(res: Response): void {
   setPrivateNoStoreHeaders(res);
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
-}
-
-function setPrivateNoStoreHeaders(res: Response): void {
-  res.setHeader('Cache-Control', 'private, no-store');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Referrer-Policy', 'no-referrer');
 }
 
 function readPathParam(value: string | string[] | undefined): string {

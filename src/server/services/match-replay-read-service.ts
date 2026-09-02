@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import type { AnyCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
 import { projectPlayerViewState } from '../../online/projector.js';
@@ -56,6 +57,7 @@ import {
   stableJsonStringify,
   toReplayJsonValue,
 } from './replay-payload-serialization.js';
+import { BoundedLruCache, type BoundedLruCacheStats } from './bounded-lru-cache.js';
 
 const REPLAY_READ_SEATS: readonly Seat[] = ['FIRST', 'SECOND'];
 export const MATCH_REPLAY_HISTORY_RETENTION_DAYS = 10;
@@ -70,6 +72,14 @@ export const MATCH_REPLAY_AUDIT_PAGE_LIMIT = readPositiveIntEnv(
 export const MATCH_REPLAY_EXPORT_ROW_LIMIT = readPositiveIntEnv(
   'MATCH_REPLAY_EXPORT_ROW_LIMIT',
   25_000
+);
+export const MATCH_REPLAY_NODE_CACHE_MAX_ENTRIES = readPositiveIntEnv(
+  'MATCH_REPLAY_NODE_CACHE_MAX_ENTRIES',
+  128
+);
+export const MATCH_REPLAY_NODE_CACHE_MAX_BYTES = readPositiveIntEnv(
+  'MATCH_REPLAY_NODE_CACHE_MAX_BYTES',
+  64 * 1024 * 1024
 );
 
 interface MatchReplayReadQueryResult<T> {
@@ -86,6 +96,34 @@ export interface MatchReplayReadQueryClient {
 
 interface MatchReplayReadServiceDeps {
   readonly queryClient?: MatchReplayReadQueryClient;
+  readonly nodeCacheMaxEntries?: number;
+  readonly nodeCacheMaxEstimatedBytes?: number;
+  readonly replayNodeMetricSink?: (metric: MatchReplayNodeReadMetric) => void;
+  readonly replayNodeByteEstimator?: (view: MatchRecordReplayView) => number;
+}
+
+export interface MatchReplayNodeReadMetric {
+  readonly event: 'match-replay-node-read';
+  readonly viewerKind: 'USER' | 'ADMIN';
+  readonly viewerSeat: Seat;
+  readonly checkpointSeq: number;
+  readonly cacheOutcome: 'HIT' | 'MISS' | 'BYPASS';
+  readonly accessMs: number;
+  readonly checkpointIdentityMs: number;
+  readonly checkpointPayloadMs: number;
+  readonly rehydrateMs: number;
+  readonly cardDataValidationMs: number;
+  readonly projectionMs: number;
+  readonly frameMs: number;
+  readonly totalMs: number;
+  readonly compressedBytes: number;
+  readonly uncompressedBytes: number;
+  readonly responseBytes: number;
+  readonly cacheEntries: number;
+  readonly cacheEstimatedBytes: number;
+  readonly cacheHits: number;
+  readonly cacheMisses: number;
+  readonly cacheEvictions: number;
 }
 
 export interface MatchRecordAuditPageOptions {
@@ -220,6 +258,26 @@ interface CheckpointRow {
   readonly capabilities: unknown;
   readonly created_at: Date | string | number;
   readonly visibility_scope?: ReplayVisibilityScope;
+}
+
+type CheckpointIdentityRow = Omit<CheckpointRow, 'payload'>;
+
+interface ReplayNodeCacheValue {
+  readonly view: MatchRecordReplayView;
+  readonly compressedBytes: number;
+  readonly uncompressedBytes: number;
+  readonly responseBytes: number;
+}
+
+interface ReadReplayNodeInput {
+  readonly matchId: string;
+  readonly record: RecordAccessRow | AdminRecordRow;
+  readonly viewerKind: 'USER' | 'ADMIN';
+  readonly viewerSeat: Seat;
+  readonly viewerPlayerId: string;
+  readonly checkpointSeq?: number;
+  readonly requestStartedAt: number;
+  readonly accessMs: number;
 }
 
 interface DeckSnapshotCompatibilityRow {
@@ -456,9 +514,26 @@ function validateAuditPageOptions(
 
 export class MatchReplayReadService {
   private readonly queryClient: MatchReplayReadQueryClient;
+  private readonly replayNodeCache: BoundedLruCache<ReplayNodeCacheValue>;
+  private readonly replayNodeMetricSink: (metric: MatchReplayNodeReadMetric) => void;
+  private readonly replayNodeByteEstimator: (view: MatchRecordReplayView) => number;
+  private readonly shouldEmitReplayNodeMetric: () => boolean;
 
   constructor(deps: MatchReplayReadServiceDeps = {}) {
     this.queryClient = deps.queryClient ?? createDefaultQueryClient();
+    this.replayNodeByteEstimator = deps.replayNodeByteEstimator ?? estimateJsonBytes;
+    this.replayNodeCache = new BoundedLruCache(
+      deps.nodeCacheMaxEntries ?? MATCH_REPLAY_NODE_CACHE_MAX_ENTRIES,
+      deps.nodeCacheMaxEstimatedBytes ?? MATCH_REPLAY_NODE_CACHE_MAX_BYTES,
+      (entry) => entry.responseBytes
+    );
+    this.replayNodeMetricSink = deps.replayNodeMetricSink ?? logReplayNodeReadMetric;
+    this.shouldEmitReplayNodeMetric =
+      deps.replayNodeMetricSink !== undefined ? () => true : isReplayNodePerformanceProbeEnabled;
+  }
+
+  getReplayNodeCacheStats(): BoundedLruCacheStats {
+    return this.replayNodeCache.snapshotStats();
   }
 
   async listMatchRecordsForUser(
@@ -811,66 +886,23 @@ export class MatchReplayReadService {
     userId: string,
     checkpointSeq?: number
   ): Promise<MatchRecordReplayView | null> {
+    const requestStartedAt = performance.now();
     const access = await this.getRecordAccess(matchId, userId);
     if (!access) {
       return null;
     }
     assertReplayDataAvailable(access.completeness);
     validateRecordCompatibility(access);
-
-    const checkpoint = await this.getAuthorityCheckpoint(matchId, checkpointSeq);
-    if (!checkpoint) {
-      throw new MatchReplayReadServiceError(
-        'MATCH_RECORD_CHECKPOINT_NOT_FOUND',
-        '历史对局检查点不存在',
-        404
-      );
-    }
-    validateCheckpointStorageEnvelope(checkpoint);
-    validateCheckpointCompatibility(checkpoint);
-
-    const authorityState = rehydrateAuthorityCheckpoint(checkpoint);
-    validateCheckpointMatchesAuthorityState(matchId, checkpoint, authorityState);
-    await this.validateCardDataCompatibility(matchId, access, authorityState);
-    const playerViewState = projectPlayerViewState(authorityState, access.viewer_player_id, {
-      seq: checkpoint.related_public_seq ?? 0,
-      gameMode: toProjectorGameMode(access.automation_game_mode),
-    });
-    const frame = await this.getTimelineFrame(matchId, checkpoint.timeline_seq);
-    const mappedFrame = frame ? mapTimelineRow(frame, access.viewer_seat) : null;
-
-    return {
+    return this.readReplayNode({
       matchId,
-      sourceMatchMode: access.match_mode,
-      automationGameMode: access.automation_game_mode,
-      originKind: access.origin_kind,
-      originLabel: access.origin_label,
+      record: access,
+      viewerKind: 'USER',
       viewerSeat: access.viewer_seat,
-      replayPosition: {
-        timelineSeq: checkpoint.timeline_seq,
-        checkpointSeq: checkpoint.checkpoint_seq,
-      },
-      recordFrame: mappedFrame,
-      checkpointInfo: {
-        matchId,
-        checkpointSeq: checkpoint.checkpoint_seq,
-        timelineSeq: checkpoint.timeline_seq,
-        checkpointType: checkpoint.checkpoint_type,
-        relatedPublicSeq: checkpoint.related_public_seq,
-        relatedCommandSeq: checkpoint.related_command_seq,
-        relatedGameEventSeq: checkpoint.related_game_event_seq,
-        turnCount: checkpoint.turn_count,
-        phase: checkpoint.phase,
-        subPhase: checkpoint.sub_phase,
-        createdAt: dateToMs(checkpoint.created_at),
-        capabilities: readCapabilities(checkpoint.capabilities),
-      },
-      playerViewState,
-      recordStatus: access.status,
-      recordCompleteness: access.completeness,
-      replayLimitations: readLimitations(access.replay_limitations),
-      partialReasonSummary: sanitizePartialReason(access.partial_reason),
-    };
+      viewerPlayerId: access.viewer_player_id,
+      checkpointSeq,
+      requestStartedAt,
+      accessMs: performance.now() - requestStartedAt,
+    });
   }
 
   async getMatchRecordReplayForAdmin(
@@ -878,6 +910,7 @@ export class MatchReplayReadService {
     viewerSeat: Seat = 'FIRST',
     checkpointSeq?: number
   ): Promise<MatchRecordReplayView | null> {
+    const requestStartedAt = performance.now();
     const record = await this.getAdminRecord(matchId);
     if (!record) {
       return null;
@@ -900,42 +933,122 @@ export class MatchReplayReadService {
         400
       );
     }
+    return this.readReplayNode({
+      matchId,
+      record,
+      viewerKind: 'ADMIN',
+      viewerSeat,
+      viewerPlayerId: participant.player_id,
+      checkpointSeq,
+      requestStartedAt,
+      accessMs: performance.now() - requestStartedAt,
+    });
+  }
 
-    const checkpoint = await this.getAuthorityCheckpoint(matchId, checkpointSeq);
-    if (!checkpoint) {
-      throw new MatchReplayReadServiceError(
-        'MATCH_RECORD_CHECKPOINT_NOT_FOUND',
-        '历史对局检查点不存在',
-        404
+  private async readReplayNode(input: ReadReplayNodeInput): Promise<MatchRecordReplayView> {
+    let checkpointIdentityMs = 0;
+    let checkpointPayloadMs = 0;
+    let rehydrateMs = 0;
+    let cardDataValidationMs = 0;
+    let projectionMs = 0;
+    let frameMs = 0;
+    let cacheOutcome: MatchReplayNodeReadMetric['cacheOutcome'] = 'BYPASS';
+    let cacheKey: string | null = null;
+    let checkpoint: CheckpointRow | null = null;
+
+    if (isReplayNodeCacheEligible(input.record)) {
+      const identityStartedAt = performance.now();
+      const identity = await this.getAuthorityCheckpointIdentity(
+        input.matchId,
+        input.checkpointSeq
       );
+      checkpointIdentityMs = performance.now() - identityStartedAt;
+      if (!identity) {
+        throw createCheckpointNotFoundError();
+      }
+
+      cacheKey = createReplayNodeCacheKey(
+        input.record,
+        identity,
+        input.viewerSeat,
+        input.viewerPlayerId
+      );
+      const cached = this.replayNodeCache.get(cacheKey);
+      if (cached) {
+        cacheOutcome = 'HIT';
+        this.emitReplayNodeMetric(input, {
+          cacheOutcome,
+          checkpointSeq: identity.checkpoint_seq,
+          checkpointIdentityMs,
+          checkpointPayloadMs,
+          rehydrateMs,
+          cardDataValidationMs,
+          projectionMs,
+          frameMs,
+          compressedBytes: cached.compressedBytes,
+          uncompressedBytes: cached.uncompressedBytes,
+          responseBytes: cached.responseBytes,
+        });
+        return cached.view;
+      }
+
+      cacheOutcome = 'MISS';
+      const payloadStartedAt = performance.now();
+      checkpoint = await this.getAuthorityCheckpoint(input.matchId, identity.checkpoint_seq);
+      checkpointPayloadMs = performance.now() - payloadStartedAt;
+      if (!checkpoint) {
+        throw createCheckpointNotFoundError();
+      }
+      assertCheckpointIdentityUnchanged(identity, checkpoint);
+    } else {
+      const payloadStartedAt = performance.now();
+      checkpoint = await this.getAuthorityCheckpoint(input.matchId, input.checkpointSeq);
+      checkpointPayloadMs = performance.now() - payloadStartedAt;
+      if (!checkpoint) {
+        throw createCheckpointNotFoundError();
+      }
     }
+
     validateCheckpointStorageEnvelope(checkpoint);
     validateCheckpointCompatibility(checkpoint);
 
+    const rehydrateStartedAt = performance.now();
     const authorityState = rehydrateAuthorityCheckpoint(checkpoint);
-    validateCheckpointMatchesAuthorityState(matchId, checkpoint, authorityState);
-    await this.validateCardDataCompatibility(matchId, record, authorityState);
-    const playerViewState = projectPlayerViewState(authorityState, participant.player_id, {
-      seq: checkpoint.related_public_seq ?? 0,
-      gameMode: toProjectorGameMode(record.automation_game_mode),
-    });
-    const frame = await this.getTimelineFrame(matchId, checkpoint.timeline_seq);
-    const mappedFrame = frame ? mapTimelineRow(frame, viewerSeat) : null;
+    validateCheckpointMatchesAuthorityState(input.matchId, checkpoint, authorityState);
+    rehydrateMs = performance.now() - rehydrateStartedAt;
 
-    return {
-      matchId,
-      sourceMatchMode: record.match_mode,
-      automationGameMode: record.automation_game_mode,
-      originKind: record.origin_kind,
-      originLabel: record.origin_label,
-      viewerSeat,
+    const cardDataValidationStartedAt = performance.now();
+    await this.validateCardDataCompatibility(input.matchId, input.record, authorityState);
+    cardDataValidationMs = performance.now() - cardDataValidationStartedAt;
+
+    const checkpointCreatedAt = dateToMs(checkpoint.created_at);
+    const projectionStartedAt = performance.now();
+    const playerViewState = projectPlayerViewState(authorityState, input.viewerPlayerId, {
+      seq: checkpoint.related_public_seq ?? 0,
+      gameMode: toProjectorGameMode(input.record.automation_game_mode),
+      now: checkpointCreatedAt,
+    });
+    projectionMs = performance.now() - projectionStartedAt;
+
+    const frameStartedAt = performance.now();
+    const frame = await this.getTimelineFrame(input.matchId, checkpoint.timeline_seq);
+    const mappedFrame = frame ? mapTimelineRow(frame, input.viewerSeat) : null;
+    frameMs = performance.now() - frameStartedAt;
+
+    const view: MatchRecordReplayView = {
+      matchId: input.matchId,
+      sourceMatchMode: input.record.match_mode,
+      automationGameMode: input.record.automation_game_mode,
+      originKind: input.record.origin_kind,
+      originLabel: input.record.origin_label,
+      viewerSeat: input.viewerSeat,
       replayPosition: {
         timelineSeq: checkpoint.timeline_seq,
         checkpointSeq: checkpoint.checkpoint_seq,
       },
       recordFrame: mappedFrame,
       checkpointInfo: {
-        matchId,
+        matchId: input.matchId,
         checkpointSeq: checkpoint.checkpoint_seq,
         timelineSeq: checkpoint.timeline_seq,
         checkpointType: checkpoint.checkpoint_type,
@@ -945,15 +1058,83 @@ export class MatchReplayReadService {
         turnCount: checkpoint.turn_count,
         phase: checkpoint.phase,
         subPhase: checkpoint.sub_phase,
-        createdAt: dateToMs(checkpoint.created_at),
+        createdAt: checkpointCreatedAt,
         capabilities: readCapabilities(checkpoint.capabilities),
       },
       playerViewState,
-      recordStatus: record.status,
-      recordCompleteness: record.completeness,
-      replayLimitations: readLimitations(record.replay_limitations),
-      partialReasonSummary: sanitizePartialReason(record.partial_reason),
+      recordStatus: input.record.status,
+      recordCompleteness: input.record.completeness,
+      replayLimitations: readLimitations(input.record.replay_limitations),
+      partialReasonSummary: sanitizePartialReason(input.record.partial_reason),
     };
+    const responseBytes =
+      cacheKey !== null || this.shouldEmitReplayNodeMetric()
+        ? this.replayNodeByteEstimator(view)
+        : 0;
+    const compressedBytes = checkpoint.payload.compressedByteLength;
+    const uncompressedBytes = checkpoint.payload.uncompressedByteLength;
+    if (cacheKey) {
+      this.replayNodeCache.set(cacheKey, {
+        view,
+        compressedBytes,
+        uncompressedBytes,
+        responseBytes,
+      });
+    }
+
+    this.emitReplayNodeMetric(input, {
+      cacheOutcome,
+      checkpointSeq: checkpoint.checkpoint_seq,
+      checkpointIdentityMs,
+      checkpointPayloadMs,
+      rehydrateMs,
+      cardDataValidationMs,
+      projectionMs,
+      frameMs,
+      compressedBytes,
+      uncompressedBytes,
+      responseBytes,
+    });
+    return view;
+  }
+
+  private emitReplayNodeMetric(
+    input: ReadReplayNodeInput,
+    metric: Omit<
+      MatchReplayNodeReadMetric,
+      | 'event'
+      | 'viewerKind'
+      | 'viewerSeat'
+      | 'accessMs'
+      | 'totalMs'
+      | 'cacheEntries'
+      | 'cacheEstimatedBytes'
+      | 'cacheHits'
+      | 'cacheMisses'
+      | 'cacheEvictions'
+    >
+  ): void {
+    if (!this.shouldEmitReplayNodeMetric()) {
+      return;
+    }
+    const cacheStats = this.replayNodeCache.snapshotStats();
+    try {
+      this.replayNodeMetricSink({
+        event: 'match-replay-node-read',
+        viewerKind: input.viewerKind,
+        viewerSeat: input.viewerSeat,
+        ...metric,
+        accessMs: input.accessMs,
+        totalMs: performance.now() - input.requestStartedAt,
+        cacheEntries: cacheStats.entries,
+        cacheEstimatedBytes: cacheStats.estimatedBytes,
+        cacheHits: cacheStats.hits,
+        cacheMisses: cacheStats.misses,
+        cacheEvictions: cacheStats.evictions,
+      });
+    } catch {
+      // Performance instrumentation must never affect replay reads.
+    }
   }
 
   async getMatchRecordAuditPage(
@@ -1019,6 +1200,45 @@ export class MatchReplayReadService {
       LIMIT 1`,
       [matchId]
     );
+    return result.rows[0] ?? null;
+  }
+
+  private async getAuthorityCheckpointIdentity(
+    matchId: string,
+    checkpointSeq: number | undefined
+  ): Promise<CheckpointIdentityRow | null> {
+    const values: unknown[] = [matchId];
+    const checkpointFilter =
+      typeof checkpointSeq === 'number' && checkpointSeq > 0 ? 'AND checkpoint_seq = $2' : '';
+    if (checkpointFilter) {
+      values.push(checkpointSeq);
+    }
+
+    const result = await this.queryClient.query<CheckpointIdentityRow>(
+      `SELECT
+        checkpoint_seq,
+        timeline_seq,
+        checkpoint_type,
+        related_public_seq,
+        related_command_seq,
+        related_game_event_seq,
+        turn_count,
+        phase,
+        sub_phase,
+        schema_version,
+        payload_compression,
+        payload_hash,
+        capabilities,
+        created_at
+      FROM match_checkpoints
+      WHERE match_id = $1
+        AND checkpoint_type = 'AUTHORITY'
+        ${checkpointFilter}
+      ORDER BY checkpoint_seq DESC
+      LIMIT 1`,
+      values
+    );
+
     return result.rows[0] ?? null;
   }
 
@@ -1485,6 +1705,100 @@ export class MatchReplayReadService {
 
     return result.rows;
   }
+}
+
+function isReplayNodeCacheEligible(record: RecordAccessRow | AdminRecordRow): boolean {
+  return (
+    record.sealed_at !== null &&
+    record.status !== 'IN_PROGRESS' &&
+    record.completeness !== 'METADATA_ONLY'
+  );
+}
+
+function createReplayNodeCacheKey(
+  record: RecordAccessRow | AdminRecordRow,
+  checkpoint: CheckpointIdentityRow,
+  viewerSeat: Seat,
+  viewerPlayerId: string
+): string {
+  return JSON.stringify([
+    record.match_id,
+    checkpoint.checkpoint_seq,
+    viewerSeat,
+    viewerPlayerId,
+    record.record_version,
+    record.rules_version,
+    record.card_data_version,
+    record.card_data_hash,
+    checkpoint.schema_version,
+    checkpoint.payload_hash,
+    dateToMs(record.updated_at ?? record.started_at),
+  ]);
+}
+
+function assertCheckpointIdentityUnchanged(
+  identity: CheckpointIdentityRow,
+  checkpoint: CheckpointRow
+): void {
+  if (
+    checkpoint.checkpoint_seq !== identity.checkpoint_seq ||
+    checkpoint.timeline_seq !== identity.timeline_seq ||
+    checkpoint.schema_version !== identity.schema_version ||
+    checkpoint.payload_hash !== identity.payload_hash ||
+    checkpoint.payload_compression !== identity.payload_compression ||
+    dateToMs(checkpoint.created_at) !== dateToMs(identity.created_at)
+  ) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_CHECKPOINT_CORRUPTED',
+      '历史对局检查点身份在读取期间发生变化',
+      409
+    );
+  }
+}
+
+function createCheckpointNotFoundError(): MatchReplayReadServiceError {
+  return new MatchReplayReadServiceError(
+    'MATCH_RECORD_CHECKPOINT_NOT_FOUND',
+    '历史对局检查点不存在',
+    404
+  );
+}
+
+function estimateJsonBytes(value: unknown): number {
+  try {
+    return Buffer.byteLength(JSON.stringify(value), 'utf8');
+  } catch {
+    return 0;
+  }
+}
+
+function isReplayNodePerformanceProbeEnabled(): boolean {
+  const probe = process.env.MATCH_REPLAY_PERFORMANCE_PROBE?.trim().toLowerCase();
+  return probe === '1' || probe === 'true' || probe === 'on';
+}
+
+function logReplayNodeReadMetric(metric: MatchReplayNodeReadMetric): void {
+  console.info(JSON.stringify(roundReplayNodeMetricDurations(metric)));
+}
+
+function roundReplayNodeMetricDurations(
+  metric: MatchReplayNodeReadMetric
+): MatchReplayNodeReadMetric {
+  return {
+    ...metric,
+    accessMs: roundMetricMs(metric.accessMs),
+    checkpointIdentityMs: roundMetricMs(metric.checkpointIdentityMs),
+    checkpointPayloadMs: roundMetricMs(metric.checkpointPayloadMs),
+    rehydrateMs: roundMetricMs(metric.rehydrateMs),
+    cardDataValidationMs: roundMetricMs(metric.cardDataValidationMs),
+    projectionMs: roundMetricMs(metric.projectionMs),
+    frameMs: roundMetricMs(metric.frameMs),
+    totalMs: roundMetricMs(metric.totalMs),
+  };
+}
+
+function roundMetricMs(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 export const matchReplayReadService = new MatchReplayReadService();

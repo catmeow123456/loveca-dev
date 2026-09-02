@@ -722,52 +722,70 @@ export async function fetchAdminMatchRecords(
   return response.data;
 }
 
-export async function fetchMatchRecordDetail(matchId: string): Promise<MatchRecordDetailView> {
+interface ReplayReadRequestOptions {
+  readonly signal?: AbortSignal;
+}
+
+export async function fetchMatchRecordDetail(
+  matchId: string,
+  options: ReplayReadRequestOptions = {}
+): Promise<MatchRecordDetailView> {
   const response = await apiClient.get<MatchRecordDetailView>(
-    `/api/battle/match-records/${encodeURIComponent(matchId)}`
+    `/api/battle/match-records/${encodeURIComponent(matchId)}`,
+    { signal: options.signal }
   );
   if (!response.data) {
-    throw new Error(response.error?.message ?? '读取历史对局详情失败');
+    throw toApiClientError(response, '读取历史对局详情失败');
   }
   return response.data;
 }
 
-export async function fetchAdminMatchRecordDetail(matchId: string): Promise<MatchRecordDetailView> {
+export async function fetchAdminMatchRecordDetail(
+  matchId: string,
+  options: ReplayReadRequestOptions = {}
+): Promise<MatchRecordDetailView> {
   const response = await apiClient.get<MatchRecordDetailView>(
-    `/api/battle/admin/match-records/${encodeURIComponent(matchId)}`
+    `/api/battle/admin/match-records/${encodeURIComponent(matchId)}`,
+    { signal: options.signal }
   );
   if (!response.data) {
-    throw new Error(response.error?.message ?? '读取管理员历史对局详情失败');
+    throw toApiClientError(response, '读取管理员历史对局详情失败');
   }
   return response.data;
 }
 
-export async function fetchMatchRecordTimeline(matchId: string): Promise<MatchRecordTimelineView> {
+export async function fetchMatchRecordTimeline(
+  matchId: string,
+  options: ReplayReadRequestOptions = {}
+): Promise<MatchRecordTimelineView> {
   const response = await apiClient.get<MatchRecordTimelineView>(
-    `/api/battle/match-records/${encodeURIComponent(matchId)}/timeline`
+    `/api/battle/match-records/${encodeURIComponent(matchId)}/timeline`,
+    { signal: options.signal }
   );
   if (!response.data) {
-    throw new Error(response.error?.message ?? '读取历史对局时间线失败');
+    throw toApiClientError(response, '读取历史对局时间线失败');
   }
   return response.data;
 }
 
 export async function fetchAdminMatchRecordTimeline(
   matchId: string,
-  viewerSeat: 'FIRST' | 'SECOND' = 'FIRST'
+  viewerSeat: 'FIRST' | 'SECOND' = 'FIRST',
+  options: ReplayReadRequestOptions = {}
 ): Promise<MatchRecordTimelineView> {
   const response = await apiClient.get<MatchRecordTimelineView>(
-    `/api/battle/admin/match-records/${encodeURIComponent(matchId)}/timeline?viewerSeat=${viewerSeat}`
+    `/api/battle/admin/match-records/${encodeURIComponent(matchId)}/timeline?viewerSeat=${viewerSeat}`,
+    { signal: options.signal }
   );
   if (!response.data) {
-    throw new Error(response.error?.message ?? '读取管理员历史对局时间线失败');
+    throw toApiClientError(response, '读取管理员历史对局时间线失败');
   }
   return response.data;
 }
 
 export async function fetchMatchRecordReplay(
   matchId: string,
-  options: { readonly checkpointSeq?: number } = {}
+  options: { readonly checkpointSeq?: number; readonly signal?: AbortSignal } = {}
 ): Promise<MatchRecordReplayView> {
   const { checkpointSeq } = options;
   const search =
@@ -775,17 +793,22 @@ export async function fetchMatchRecordReplay(
       ? `?checkpointSeq=${checkpointSeq}`
       : '';
   const response = await apiClient.get<MatchRecordReplayView>(
-    `/api/battle/match-records/${encodeURIComponent(matchId)}/replay${search}`
+    `/api/battle/match-records/${encodeURIComponent(matchId)}/replay${search}`,
+    { signal: options.signal }
   );
   if (!response.data) {
-    throw new Error(response.error?.message ?? '读取历史对局回放节点失败');
+    throw toApiClientError(response, '读取历史对局回放节点失败');
   }
   return response.data;
 }
 
 export async function fetchAdminMatchRecordReplay(
   matchId: string,
-  options: { readonly checkpointSeq?: number; readonly viewerSeat?: 'FIRST' | 'SECOND' } = {}
+  options: {
+    readonly checkpointSeq?: number;
+    readonly viewerSeat?: 'FIRST' | 'SECOND';
+    readonly signal?: AbortSignal;
+  } = {}
 ): Promise<MatchRecordReplayView> {
   const searchParams = new URLSearchParams();
   if (
@@ -798,10 +821,11 @@ export async function fetchAdminMatchRecordReplay(
   searchParams.set('viewerSeat', options.viewerSeat ?? 'FIRST');
   const search = `?${searchParams.toString()}`;
   const response = await apiClient.get<MatchRecordReplayView>(
-    `/api/battle/admin/match-records/${encodeURIComponent(matchId)}/replay${search}`
+    `/api/battle/admin/match-records/${encodeURIComponent(matchId)}/replay${search}`,
+    { signal: options.signal }
   );
   if (!response.data) {
-    throw new Error(response.error?.message ?? '读取管理员历史对局回放节点失败');
+    throw toApiClientError(response, '读取管理员历史对局回放节点失败');
   }
   return response.data;
 }
@@ -813,6 +837,7 @@ export interface MatchRecordAuditPageRequest {
   readonly cursorTimelineSeq?: number;
   readonly cursorEventSeq?: number;
   readonly cursorDecisionId?: string;
+  readonly signal?: AbortSignal;
 }
 
 export async function fetchMatchRecordAuditPage(
@@ -858,10 +883,11 @@ async function fetchMatchRecordAuditPageFromPath(
   }
   if (viewerSeat !== undefined) searchParams.set('viewerSeat', viewerSeat);
   const response = await apiClient.get<MatchRecordAuditPageView>(
-    `${path}?${searchParams.toString()}`
+    `${path}?${searchParams.toString()}`,
+    { signal: options.signal }
   );
   if (!response.data) {
-    throw new Error(response.error?.message ?? '读取历史对局审计详情失败');
+    throw toApiClientError(response, '读取历史对局审计详情失败');
   }
   return response.data;
 }

@@ -36,6 +36,14 @@ import {
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
+import { ApiClientError } from '@/lib/apiClient';
+import { ReplayNodeRequestCache } from '@/lib/replayNodeRequestCache';
+import {
+  estimateUtf8Bytes,
+  isReplayAdjacentPrefetchEnabled,
+  recordReplayPerformanceEvent,
+  replayPerformanceNow,
+} from '@/lib/replayPerformance';
 import { fetchRankedSeasons } from '@/lib/rankedAdminClient';
 import { fetchThemeAdminEvents } from '@/lib/themeTableAdminClient';
 import type {
@@ -66,6 +74,11 @@ type MatchRecordAuditPages = Readonly<
   Partial<Record<'PUBLIC_EVENTS' | 'PRIVATE_EVENTS' | 'DECISIONS', MatchRecordAuditPageView>>
 >;
 
+interface FailedReplayNode {
+  readonly checkpointSeq: number;
+  readonly message: string;
+}
+
 export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   const [records, setRecords] = useState<readonly MatchRecordSummaryView[]>([]);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
@@ -77,6 +90,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   const [isLoadingNode, setIsLoadingNode] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failedReplayNode, setFailedReplayNode] = useState<FailedReplayNode | null>(null);
   const [adminUserQuery, setAdminUserQuery] = useState('');
   const [adminDateFrom, setAdminDateFrom] = useState('');
   const [adminDateTo, setAdminDateTo] = useState('');
@@ -102,12 +116,20 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   const canExport = profile ? hasPermission(profile.role, 'platform.manage') : false;
   const latestReplayRequestRef = useRef(0);
   const latestAuditRequestRef = useRef(0);
+  const replayContextAbortRef = useRef<AbortController | null>(null);
+  const replayAuditAbortRef = useRef<AbortController | null>(null);
+  const prefetchedNodeKeysRef = useRef(new Set<string>());
+  const prefetchInFlightNodeKeysRef = useRef(new Set<string>());
+  const consumedPrefetchNodeKeysRef = useRef(new Set<string>());
+  const currentViewerSeatRef = useRef<Seat | null>(null);
   const replayBoardOpenRef = useRef(false);
   const lastViewerSeatReloadKeyRef = useRef<string | null>(null);
   const hasManagementHistoryAccessRef = useRef(hasManagementHistoryAccess);
   const adminViewerSeatRef = useRef(adminViewerSeat);
   const enterReadonlyReplay = useGameStore((s) => s.enterReadonlyReplay);
   const leaveReadonlyReplay = useGameStore((s) => s.leaveReadonlyReplay);
+
+  const [replayNodeCache] = useState(() => new ReplayNodeRequestCache<MatchRecordReplayView>(12));
 
   const selectedRecord =
     records.find((candidate) => candidate.matchId === selectedMatchId) ?? records[0] ?? null;
@@ -119,6 +141,22 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   useEffect(() => {
     adminViewerSeatRef.current = adminViewerSeat;
   }, [adminViewerSeat]);
+
+  useEffect(() => {
+    replayNodeCache.setEventListener((cacheEvent) => {
+      if (cacheEvent.type === 'CACHE_HIT') {
+        recordReplayPerformanceEvent('NODE_CACHE_HIT');
+      } else if (cacheEvent.type === 'CACHE_EVICTED') {
+        recordReplayPerformanceEvent('NODE_CACHE_EVICTED');
+        if (prefetchedNodeKeysRef.current.delete(cacheEvent.key)) {
+          recordReplayPerformanceEvent('PREFETCH_UNUSED', { count: 1 });
+        }
+      } else if (cacheEvent.type === 'IN_FLIGHT_REUSED') {
+        recordReplayPerformanceEvent('NODE_IN_FLIGHT_REUSED');
+      }
+    });
+    return () => replayNodeCache.setEventListener();
+  }, [replayNodeCache]);
 
   useEffect(() => {
     if (!hasManagementHistoryAccess) {
@@ -173,9 +211,27 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
 
   const loadReplayNode = useCallback(
     async (matchId: string, checkpointSeq?: number) => {
+      const viewerSeat = currentViewerSeatRef.current;
+      if (!viewerSeat || checkpointSeq === undefined) {
+        return;
+      }
       const requestId = ++latestReplayRequestRef.current;
+      const nodeKey = createReplayNodeKey(matchId, viewerSeat, checkpointSeq);
+      const nodeCache = replayNodeCache;
+      const consumedCompletedPrefetch = prefetchedNodeKeysRef.current.delete(nodeKey);
+      const consumedInFlightPrefetch = prefetchInFlightNodeKeysRef.current.delete(nodeKey);
+      if (consumedInFlightPrefetch) {
+        consumedPrefetchNodeKeysRef.current.add(nodeKey);
+      }
+      if (consumedCompletedPrefetch || consumedInFlightPrefetch) {
+        recordReplayPerformanceEvent('PREFETCH_HIT', { checkpointSeq });
+      }
+      nodeCache.cancelInFlightExcept(nodeKey);
+      replayAuditAbortRef.current?.abort();
+      replayAuditAbortRef.current = null;
       setIsLoadingNode(true);
       setError(null);
+      setFailedReplayNode(null);
       setIsLoadingAudit(false);
       setLoadingMoreAuditKind(null);
       setAuditPages({});
@@ -183,12 +239,29 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
       latestAuditRequestRef.current += 1;
       try {
         const adminSeat = adminViewerSeatRef.current;
-        const nextReplay = hasManagementHistoryAccessRef.current
-          ? await fetchAdminMatchRecordReplay(matchId, {
+        const requestStartedAt = replayPerformanceNow();
+        const nodeLoad = nodeCache.getOrLoad(nodeKey, async (signal) => {
+          recordReplayPerformanceEvent('NODE_REQUEST_STARTED', { checkpointSeq });
+          try {
+            const nextReplay = hasManagementHistoryAccessRef.current
+              ? await fetchAdminMatchRecordReplay(matchId, {
+                  checkpointSeq,
+                  viewerSeat: adminSeat,
+                  signal,
+                })
+              : await fetchMatchRecordReplay(matchId, { checkpointSeq, signal });
+            recordReplayPerformanceEvent('NODE_REQUEST_COMPLETED', () => ({
               checkpointSeq,
-              viewerSeat: adminSeat,
-            })
-          : await fetchMatchRecordReplay(matchId, { checkpointSeq });
+              durationMs: replayPerformanceNow() - requestStartedAt,
+              responseBytes: estimateUtf8Bytes(nextReplay),
+            }));
+            return nextReplay;
+          } catch (loadError) {
+            recordReplayRequestFailure(loadError, checkpointSeq, requestStartedAt);
+            throw loadError;
+          }
+        });
+        const nextReplay = await nodeLoad.promise;
         if (requestId !== latestReplayRequestRef.current) {
           return;
         }
@@ -205,61 +278,121 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
         if (requestId !== latestReplayRequestRef.current) {
           return;
         }
-        setError(loadError instanceof Error ? loadError.message : '读取历史节点失败');
+        if (isAbortedReplayRequest(loadError)) {
+          return;
+        }
+        const message = loadError instanceof Error ? loadError.message : '读取历史节点失败';
+        setError(message);
+        setFailedReplayNode({ checkpointSeq, message });
       } finally {
         if (requestId === latestReplayRequestRef.current) {
           setIsLoadingNode(false);
         }
       }
     },
-    [enterReadonlyReplay]
+    [enterReadonlyReplay, replayNodeCache]
   );
 
-  const loadMatchContext = useCallback(async (matchId: string, checkpointSeq?: number) => {
-    const requestId = ++latestReplayRequestRef.current;
-    latestAuditRequestRef.current += 1;
-    setIsLoadingContext(true);
-    setIsLoadingNode(false);
-    setError(null);
-    setIsLoadingAudit(false);
-    setLoadingMoreAuditKind(null);
-    setAuditPages({});
-    setAuditError(null);
-    setDetail(null);
-    setTimeline([]);
-    setReplay(null);
-    try {
-      const adminSeat = adminViewerSeatRef.current;
-      const nextDetail = hasManagementHistoryAccessRef.current
-        ? await fetchAdminMatchRecordDetail(matchId)
-        : await fetchMatchRecordDetail(matchId);
-      if (requestId !== latestReplayRequestRef.current) return;
-      setDetail(nextDetail);
-      if (nextDetail.completeness === 'METADATA_ONLY') {
-        return;
-      }
+  const loadMatchContext = useCallback(
+    async (matchId: string, checkpointSeq?: number) => {
+      const requestId = ++latestReplayRequestRef.current;
+      const requestStartedAt = replayPerformanceNow();
+      recordReplayPerformanceEvent('CONTEXT_REQUEST_STARTED');
+      replayContextAbortRef.current?.abort();
+      replayAuditAbortRef.current?.abort();
+      recordUnusedReplayPrefetches(
+        prefetchedNodeKeysRef.current,
+        prefetchInFlightNodeKeysRef.current,
+        consumedPrefetchNodeKeysRef.current
+      );
+      replayNodeCache.clear();
+      const controller = new AbortController();
+      replayContextAbortRef.current = controller;
+      replayAuditAbortRef.current = null;
+      currentViewerSeatRef.current = null;
+      latestAuditRequestRef.current += 1;
+      setIsLoadingContext(true);
+      setIsLoadingNode(false);
+      setError(null);
+      setFailedReplayNode(null);
+      setIsLoadingAudit(false);
+      setLoadingMoreAuditKind(null);
+      setAuditPages({});
+      setAuditError(null);
+      setDetail(null);
+      setTimeline([]);
+      setReplay(null);
+      try {
+        const adminSeat = adminViewerSeatRef.current;
+        const nextDetail = hasManagementHistoryAccessRef.current
+          ? await fetchAdminMatchRecordDetail(matchId, { signal: controller.signal })
+          : await fetchMatchRecordDetail(matchId, { signal: controller.signal });
+        if (requestId !== latestReplayRequestRef.current) return;
+        const viewerSeat = hasManagementHistoryAccessRef.current
+          ? adminSeat
+          : nextDetail.viewerSeat;
+        currentViewerSeatRef.current = viewerSeat;
+        setDetail(nextDetail);
+        if (nextDetail.completeness === 'METADATA_ONLY') {
+          recordReplayPerformanceEvent('CONTEXT_REQUEST_COMPLETED', () => ({
+            durationMs: replayPerformanceNow() - requestStartedAt,
+            timelineRows: 0,
+            responseBytes: estimateUtf8Bytes(nextDetail),
+          }));
+          return;
+        }
 
-      const [nextTimeline, nextReplay] = hasManagementHistoryAccessRef.current
-        ? await Promise.all([
-            fetchAdminMatchRecordTimeline(matchId, adminSeat),
-            fetchAdminMatchRecordReplay(matchId, { checkpointSeq, viewerSeat: adminSeat }),
-          ])
-        : await Promise.all([
-            fetchMatchRecordTimeline(matchId),
-            fetchMatchRecordReplay(matchId, { checkpointSeq }),
-          ]);
-      if (requestId !== latestReplayRequestRef.current) return;
-      setTimeline(nextTimeline.timelineSummary);
-      setReplay(nextReplay);
-    } catch (loadError) {
-      if (requestId !== latestReplayRequestRef.current) return;
-      setError(loadError instanceof Error ? loadError.message : '读取历史对局上下文失败');
-    } finally {
-      if (requestId === latestReplayRequestRef.current) {
-        setIsLoadingContext(false);
+        const [nextTimeline, nextReplay] = hasManagementHistoryAccessRef.current
+          ? await Promise.all([
+              fetchAdminMatchRecordTimeline(matchId, adminSeat, { signal: controller.signal }),
+              fetchAdminMatchRecordReplay(matchId, {
+                checkpointSeq,
+                viewerSeat: adminSeat,
+                signal: controller.signal,
+              }),
+            ])
+          : await Promise.all([
+              fetchMatchRecordTimeline(matchId, { signal: controller.signal }),
+              fetchMatchRecordReplay(matchId, { checkpointSeq, signal: controller.signal }),
+            ]);
+        if (requestId !== latestReplayRequestRef.current) return;
+        replayNodeCache.set(
+          createReplayNodeKey(matchId, viewerSeat, nextReplay.replayPosition.checkpointSeq),
+          nextReplay
+        );
+        setTimeline(nextTimeline.timelineSummary);
+        setReplay(nextReplay);
+        recordReplayPerformanceEvent('CONTEXT_REQUEST_COMPLETED', () => ({
+          durationMs: replayPerformanceNow() - requestStartedAt,
+          timelineRows: nextTimeline.timelineSummary.length,
+          responseBytes: estimateUtf8Bytes([nextDetail, nextTimeline, nextReplay]),
+        }));
+      } catch (loadError) {
+        if (isAbortedReplayRequest(loadError)) {
+          recordReplayPerformanceEvent('CONTEXT_REQUEST_ABORTED', {
+            durationMs: replayPerformanceNow() - requestStartedAt,
+          });
+          return;
+        }
+        if (requestId !== latestReplayRequestRef.current) return;
+        recordReplayPerformanceEvent(
+          loadError instanceof ApiClientError && loadError.code === 'TIMEOUT'
+            ? 'CONTEXT_REQUEST_TIMEOUT'
+            : 'CONTEXT_REQUEST_FAILED',
+          { durationMs: replayPerformanceNow() - requestStartedAt }
+        );
+        setError(loadError instanceof Error ? loadError.message : '读取历史对局上下文失败');
+      } finally {
+        if (replayContextAbortRef.current === controller) {
+          replayContextAbortRef.current = null;
+        }
+        if (requestId === latestReplayRequestRef.current) {
+          setIsLoadingContext(false);
+        }
       }
-    }
-  }, []);
+    },
+    [replayNodeCache]
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadRecords(), 0);
@@ -270,22 +403,36 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     const timer = window.setTimeout(() => {
       if (!selectedMatchId) {
         latestReplayRequestRef.current += 1;
+        replayContextAbortRef.current?.abort();
+        replayContextAbortRef.current = null;
+        replayAuditAbortRef.current?.abort();
+        replayAuditAbortRef.current = null;
+        recordUnusedReplayPrefetches(
+          prefetchedNodeKeysRef.current,
+          prefetchInFlightNodeKeysRef.current,
+          consumedPrefetchNodeKeysRef.current
+        );
+        replayNodeCache.clear();
+        currentViewerSeatRef.current = null;
         replayBoardOpenRef.current = false;
         lastViewerSeatReloadKeyRef.current = null;
         setReplayBoardOpen(false);
         setDetail(null);
         setTimeline([]);
         setReplay(null);
+        setFailedReplayNode(null);
         leaveReadonlyReplay();
         return;
       }
 
-      const reloadKey = `${selectedMatchId}:${hasManagementHistoryAccess ? adminViewerSeat : 'participant'}`;
+      const authIdentity = profile?.id ?? 'anonymous';
+      const contextPrefix = `${authIdentity}:${selectedMatchId}:`;
+      const reloadKey = `${contextPrefix}${hasManagementHistoryAccess ? adminViewerSeat : 'participant'}`;
       if (lastViewerSeatReloadKeyRef.current === reloadKey) {
         return;
       }
       const isViewerSeatChange =
-        lastViewerSeatReloadKeyRef.current?.startsWith(`${selectedMatchId}:`) === true;
+        lastViewerSeatReloadKeyRef.current?.startsWith(contextPrefix) === true;
       const checkpoint = isViewerSeatChange ? replay?.replayPosition.checkpointSeq : undefined;
       replayBoardOpenRef.current = false;
       lastViewerSeatReloadKeyRef.current = reloadKey;
@@ -299,26 +446,45 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     hasManagementHistoryAccess,
     leaveReadonlyReplay,
     loadMatchContext,
+    profile?.id,
+    replayNodeCache,
     replay?.replayPosition.checkpointSeq,
     selectedMatchId,
   ]);
 
   useEffect(() => {
+    const prefetchedNodeKeys = prefetchedNodeKeysRef.current;
+    const prefetchInFlightNodeKeys = prefetchInFlightNodeKeysRef.current;
+    const consumedPrefetchNodeKeys = consumedPrefetchNodeKeysRef.current;
     return () => {
       latestReplayRequestRef.current += 1;
       latestAuditRequestRef.current += 1;
+      replayContextAbortRef.current?.abort();
+      replayAuditAbortRef.current?.abort();
+      recordUnusedReplayPrefetches(
+        prefetchedNodeKeys,
+        prefetchInFlightNodeKeys,
+        consumedPrefetchNodeKeys
+      );
+      replayNodeCache.clear();
+      currentViewerSeatRef.current = null;
       replayBoardOpenRef.current = false;
       leaveReadonlyReplay();
     };
-  }, [leaveReadonlyReplay]);
+  }, [leaveReadonlyReplay, replayNodeCache]);
 
   useEffect(() => {
     if (!debugDetailsOpen || !selectedMatchId || !replay) {
       latestAuditRequestRef.current += 1;
+      replayAuditAbortRef.current?.abort();
+      replayAuditAbortRef.current = null;
       return;
     }
 
     const requestId = ++latestAuditRequestRef.current;
+    replayAuditAbortRef.current?.abort();
+    const controller = new AbortController();
+    replayAuditAbortRef.current = controller;
     const timelineSeq = replay.replayPosition.timelineSeq;
     const viewerSeat = replay.viewerSeat;
     queueMicrotask(() => {
@@ -329,9 +495,17 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     });
     const loadPage = hasManagementHistoryAccess
       ? (kind: 'PUBLIC_EVENTS' | 'PRIVATE_EVENTS' | 'DECISIONS') =>
-          fetchAdminMatchRecordAuditPage(selectedMatchId, viewerSeat, { kind, timelineSeq })
+          fetchAdminMatchRecordAuditPage(selectedMatchId, viewerSeat, {
+            kind,
+            timelineSeq,
+            signal: controller.signal,
+          })
       : (kind: 'PUBLIC_EVENTS' | 'PRIVATE_EVENTS' | 'DECISIONS') =>
-          fetchMatchRecordAuditPage(selectedMatchId, { kind, timelineSeq });
+          fetchMatchRecordAuditPage(selectedMatchId, {
+            kind,
+            timelineSeq,
+            signal: controller.signal,
+          });
 
     void Promise.all([loadPage('PUBLIC_EVENTS'), loadPage('PRIVATE_EVENTS'), loadPage('DECISIONS')])
       .then((pages) => {
@@ -340,9 +514,13 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
       })
       .catch((loadError) => {
         if (requestId !== latestAuditRequestRef.current) return;
+        if (isAbortedReplayRequest(loadError)) return;
         setAuditError(loadError instanceof Error ? loadError.message : '读取历史对局审计详情失败');
       })
       .finally(() => {
+        if (replayAuditAbortRef.current === controller) {
+          replayAuditAbortRef.current = null;
+        }
         if (requestId === latestAuditRequestRef.current) setIsLoadingAudit(false);
       });
   }, [debugDetailsOpen, hasManagementHistoryAccess, replay, selectedMatchId]);
@@ -397,6 +575,96 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   const auditDecisions =
     auditPages.DECISIONS?.kind === 'DECISIONS' ? [...auditPages.DECISIONS.items].reverse() : [];
 
+  useEffect(() => {
+    if (
+      !isReplayAdjacentPrefetchEnabled() ||
+      !selectedMatchId ||
+      !replay ||
+      replay.recordStatus === 'IN_PROGRESS' ||
+      isLoadingContext ||
+      isLoadingNode ||
+      currentCheckpointIndex < 0 ||
+      !canPrefetchReplayOnCurrentNetwork()
+    ) {
+      return;
+    }
+
+    return scheduleReplayPrefetch(() => {
+      const viewerSeat = replay.viewerSeat;
+      const nodeCache = replayNodeCache;
+      if (currentViewerSeatRef.current !== viewerSeat) {
+        return;
+      }
+      const candidates = [
+        checkpointEntries[currentCheckpointIndex - 1],
+        checkpointEntries[currentCheckpointIndex + 1],
+      ];
+      for (const entry of candidates) {
+        const targetCheckpointSeq = entry?.relatedCheckpointSeq;
+        if (!targetCheckpointSeq) {
+          continue;
+        }
+        const nodeKey = createReplayNodeKey(selectedMatchId, viewerSeat, targetCheckpointSeq);
+        const prefetchStartedAt = replayPerformanceNow();
+        const load = nodeCache.getOrLoad(nodeKey, async (signal) => {
+          recordReplayPerformanceEvent('PREFETCH_STARTED', {
+            checkpointSeq: targetCheckpointSeq,
+          });
+          const prefetchedReplay = hasManagementHistoryAccessRef.current
+            ? await fetchAdminMatchRecordReplay(selectedMatchId, {
+                checkpointSeq: targetCheckpointSeq,
+                viewerSeat,
+                signal,
+              })
+            : await fetchMatchRecordReplay(selectedMatchId, {
+                checkpointSeq: targetCheckpointSeq,
+                signal,
+              });
+          recordReplayPerformanceEvent('PREFETCH_COMPLETED', () => ({
+            checkpointSeq: targetCheckpointSeq,
+            durationMs: replayPerformanceNow() - prefetchStartedAt,
+            responseBytes: estimateUtf8Bytes(prefetchedReplay),
+          }));
+          return prefetchedReplay;
+        });
+        if (load.source !== 'NETWORK') {
+          continue;
+        }
+        prefetchInFlightNodeKeysRef.current.add(nodeKey);
+        void load.promise.then(
+          () => {
+            prefetchInFlightNodeKeysRef.current.delete(nodeKey);
+            if (consumedPrefetchNodeKeysRef.current.delete(nodeKey)) {
+              return;
+            }
+            if (nodeCache.has(nodeKey)) {
+              prefetchedNodeKeysRef.current.add(nodeKey);
+            }
+          },
+          (prefetchError: unknown) => {
+            prefetchInFlightNodeKeysRef.current.delete(nodeKey);
+            consumedPrefetchNodeKeysRef.current.delete(nodeKey);
+            recordReplayPerformanceEvent(
+              isAbortedReplayRequest(prefetchError) ? 'PREFETCH_CANCELLED' : 'PREFETCH_FAILED',
+              {
+                checkpointSeq: targetCheckpointSeq,
+                durationMs: replayPerformanceNow() - prefetchStartedAt,
+              }
+            );
+          }
+        );
+      }
+    });
+  }, [
+    checkpointEntries,
+    currentCheckpointIndex,
+    isLoadingContext,
+    isLoadingNode,
+    replay,
+    replayNodeCache,
+    selectedMatchId,
+  ]);
+
   const handleSelectTimeline = (entry: MatchRecordTimelineEntryView) => {
     if (!selectedMatchId || entry.relatedCheckpointSeq === null) {
       return;
@@ -420,6 +688,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
       return;
     }
     setError(null);
+    setFailedReplayNode(null);
     replayBoardOpenRef.current = true;
     const requestId = latestReplayRequestRef.current;
     try {
@@ -441,9 +710,18 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     leaveReadonlyReplay();
   }, [leaveReadonlyReplay]);
 
+  const handleRetryReplayNode = useCallback(() => {
+    if (!selectedMatchId || !failedReplayNode) {
+      return;
+    }
+    void loadReplayNode(selectedMatchId, failedReplayNode.checkpointSeq);
+  }, [failedReplayNode, loadReplayNode, selectedMatchId]);
+
   const handleToggleDebugDetails = useCallback(() => {
     if (debugDetailsOpen) {
       latestAuditRequestRef.current += 1;
+      replayAuditAbortRef.current?.abort();
+      replayAuditAbortRef.current = null;
       setIsLoadingAudit(false);
       setLoadingMoreAuditKind(null);
       setAuditPages({});
@@ -458,6 +736,9 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
       const currentPage = auditPages[kind];
       if (!currentPage?.nextCursor) return;
       const requestId = latestAuditRequestRef.current;
+      replayAuditAbortRef.current?.abort();
+      const controller = new AbortController();
+      replayAuditAbortRef.current = controller;
       const cursor = currentPage.nextCursor;
       const request = {
         kind,
@@ -466,6 +747,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
         ...(kind === 'DECISIONS'
           ? { cursorDecisionId: 'decisionId' in cursor ? cursor.decisionId : undefined }
           : { cursorEventSeq: 'eventSeq' in cursor ? cursor.eventSeq : undefined }),
+        signal: controller.signal,
       };
       setLoadingMoreAuditKind(kind);
       setAuditError(null);
@@ -477,8 +759,12 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
         setAuditPages((current) => mergeAuditPages(current, nextPage));
       } catch (loadError) {
         if (requestId !== latestAuditRequestRef.current) return;
+        if (isAbortedReplayRequest(loadError)) return;
         setAuditError(loadError instanceof Error ? loadError.message : '读取更早的审计详情失败');
       } finally {
+        if (replayAuditAbortRef.current === controller) {
+          replayAuditAbortRef.current = null;
+        }
         if (requestId === latestAuditRequestRef.current) setLoadingMoreAuditKind(null);
       }
     },
@@ -549,7 +835,9 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
         canGoPrevious={canGoPreviousCheckpoint}
         canGoNext={canGoNextCheckpoint}
         isLoadingNode={isLoadingNode}
+        nodeLoadError={failedReplayNode?.message ?? null}
         onStep={handleStepCheckpoint}
+        onRetryNode={handleRetryReplayNode}
         onClose={handleCloseReplayBoard}
       />
     );
@@ -845,14 +1133,16 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   );
 }
 
-function ReplayBoardSurface({
+export function ReplayBoardSurface({
   replay,
   currentCheckpointIndex,
   checkpointCount,
   canGoPrevious,
   canGoNext,
   isLoadingNode,
+  nodeLoadError,
   onStep,
+  onRetryNode,
   onClose,
 }: {
   replay: MatchRecordReplayView;
@@ -861,7 +1151,9 @@ function ReplayBoardSurface({
   canGoPrevious: boolean;
   canGoNext: boolean;
   isLoadingNode: boolean;
+  nodeLoadError: string | null;
   onStep: (direction: -1 | 1) => void;
+  onRetryNode: () => void;
   onClose: () => void;
 }) {
   return (
@@ -916,6 +1208,29 @@ function ReplayBoardSurface({
             </button>
           </div>
         </div>
+        {nodeLoadError ? (
+          <div
+            role="alert"
+            className="pointer-events-auto fixed left-2 top-[calc(env(safe-area-inset-top)+4rem)] z-[230] flex w-[min(420px,calc(100vw-1rem))] items-center gap-3 rounded-lg border border-[color:var(--semantic-error)]/40 bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,var(--bg-frosted))] px-3 py-2.5 text-[var(--semantic-error)] shadow-[var(--shadow-md)] backdrop-blur-xl md:left-4 md:top-[4.5rem]"
+          >
+            <AlertTriangle size={17} aria-hidden="true" className="shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-bold">回放节点加载失败</div>
+              <div className="mt-0.5 break-words text-xs text-[var(--text-secondary)]">
+                {nodeLoadError}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onRetryNode}
+              disabled={isLoadingNode}
+              className="button-ghost inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[color:var(--semantic-error)]/30 px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RefreshCw size={14} aria-hidden="true" />
+              重试
+            </button>
+          </div>
+        ) : null}
         {replay.partialReasonSummary ? (
           <div className="pointer-events-none fixed bottom-4 left-4 right-4 z-[230] rounded-lg border border-[var(--semantic-warning)]/40 bg-[color:color-mix(in_srgb,var(--semantic-warning)_14%,var(--bg-frosted))] px-3 py-2 text-xs font-medium text-[var(--semantic-warning)] shadow-[var(--shadow-md)] backdrop-blur-xl md:left-auto md:w-[min(420px,calc(100vw-2rem))]">
             {replay.partialReasonSummary}
@@ -1969,6 +2284,77 @@ function parseDateInputEnd(value: string): number | null {
   }
   const parsed = new Date(`${value}T23:59:59.999`);
   return Number.isFinite(parsed.getTime()) ? parsed.getTime() : null;
+}
+
+function createReplayNodeKey(matchId: string, viewerSeat: Seat, checkpointSeq: number): string {
+  return `${matchId}:${viewerSeat}:${checkpointSeq}`;
+}
+
+function scheduleReplayPrefetch(run: () => void): () => void {
+  const idleWindow = window as typeof window & {
+    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
+  if (idleWindow.requestIdleCallback && idleWindow.cancelIdleCallback) {
+    const handle = idleWindow.requestIdleCallback(run, { timeout: 1_000 });
+    return () => idleWindow.cancelIdleCallback?.(handle);
+  }
+  const handle = window.setTimeout(run, 250);
+  return () => window.clearTimeout(handle);
+}
+
+function canPrefetchReplayOnCurrentNetwork(): boolean {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+  const connection = (
+    navigator as Navigator & {
+      readonly connection?: { readonly saveData?: boolean; readonly effectiveType?: string };
+    }
+  ).connection;
+  if (!connection) {
+    return true;
+  }
+  return (
+    connection.saveData !== true &&
+    connection.effectiveType !== 'slow-2g' &&
+    connection.effectiveType !== '2g'
+  );
+}
+
+function recordUnusedReplayPrefetches(
+  prefetchedNodeKeys: Set<string>,
+  prefetchInFlightNodeKeys: Set<string>,
+  consumedPrefetchNodeKeys: Set<string>
+): void {
+  const unusedCount = prefetchedNodeKeys.size + prefetchInFlightNodeKeys.size;
+  if (unusedCount > 0) {
+    recordReplayPerformanceEvent('PREFETCH_UNUSED', { count: unusedCount });
+  }
+  prefetchedNodeKeys.clear();
+  prefetchInFlightNodeKeys.clear();
+  consumedPrefetchNodeKeys.clear();
+}
+
+function isAbortedReplayRequest(error: unknown): boolean {
+  return error instanceof ApiClientError && error.code === 'ABORTED';
+}
+
+function recordReplayRequestFailure(
+  error: unknown,
+  checkpointSeq: number,
+  requestStartedAt: number
+): void {
+  const durationMs = replayPerformanceNow() - requestStartedAt;
+  if (isAbortedReplayRequest(error)) {
+    recordReplayPerformanceEvent('NODE_REQUEST_ABORTED', { checkpointSeq, durationMs });
+    return;
+  }
+  if (error instanceof ApiClientError && error.code === 'TIMEOUT') {
+    recordReplayPerformanceEvent('NODE_REQUEST_TIMEOUT', { checkpointSeq, durationMs });
+    return;
+  }
+  recordReplayPerformanceEvent('NODE_REQUEST_FAILED', { checkpointSeq, durationMs });
 }
 
 function downloadJson(filename: string, value: unknown): void {

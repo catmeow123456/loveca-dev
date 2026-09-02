@@ -8,6 +8,7 @@ import type {
   LiveCardData,
   MemberCardData,
 } from '../../src/domain/entities/card';
+import type { GameState } from '../../src/domain/entities/game';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { createPublicObjectId } from '../../src/online/projector';
 import { CardType, GameMode, HeartColor } from '../../src/shared/types/enums';
@@ -15,9 +16,13 @@ import {
   MATCH_REPLAY_EXPORT_ROW_LIMIT,
   MATCH_REPLAY_TIMELINE_ROW_LIMIT,
   MatchReplayReadService,
+  type MatchReplayNodeReadMetric,
   type MatchReplayReadQueryClient,
 } from '../../src/server/services/match-replay-read-service';
-import type { ReplaySerializedPayloadEnvelope } from '../../src/online/replay-types';
+import type {
+  MatchRecordReplayView,
+  ReplaySerializedPayloadEnvelope,
+} from '../../src/online/replay-types';
 import {
   GAME_STATE_SCHEMA_VERSION,
   LEGACY_GAME_STATE_SCHEMA_VERSION,
@@ -92,6 +97,11 @@ interface CreateHarnessOptions {
   readonly deckSnapshotOverrides?: Partial<
     Readonly<Record<'FIRST' | 'SECOND', Readonly<Record<string, unknown>>>>
   >;
+  readonly nodeCacheMaxEntries?: number;
+  readonly nodeCacheMaxEstimatedBytes?: number;
+  readonly replayNodeMetricSink?: (metric: MatchReplayNodeReadMetric) => void;
+  readonly replayNodeByteEstimator?: (view: MatchRecordReplayView) => number;
+  readonly mapAuthorityState?: (state: GameState) => GameState;
 }
 
 function createHarness(options: CreateHarnessOptions = {}) {
@@ -101,8 +111,9 @@ function createHarness(options: CreateHarnessOptions = {}) {
   const secondDeck = createRuntimeDeck('B');
   const initialized = session.initializeGame(firstDeck, secondDeck);
   expect(initialized.success).toBe(true);
-  const authorityState = session.getAuthoritySnapshotForRecord();
-  expect(authorityState).not.toBeNull();
+  const authoritySnapshot = session.getAuthoritySnapshotForRecord();
+  expect(authoritySnapshot).not.toBeNull();
+  const authorityState = options.mapAuthorityState?.(authoritySnapshot!) ?? authoritySnapshot;
   const cardDataHash = createCardDataHash({ FIRST: firstDeck, SECOND: secondDeck });
   const payload =
     options.mutatePayload?.(
@@ -463,7 +474,15 @@ function createHarness(options: CreateHarnessOptions = {}) {
 
   return {
     authorityState: authorityState!,
-    service: new MatchReplayReadService({ queryClient: client }),
+    accessRow,
+    checkpointRow,
+    service: new MatchReplayReadService({
+      queryClient: client,
+      nodeCacheMaxEntries: options.nodeCacheMaxEntries,
+      nodeCacheMaxEstimatedBytes: options.nodeCacheMaxEstimatedBytes,
+      replayNodeMetricSink: options.replayNodeMetricSink,
+      replayNodeByteEstimator: options.replayNodeByteEstimator,
+    }),
     calls,
   };
 }
@@ -615,6 +634,177 @@ describe('MatchReplayReadService P1b', () => {
     expect(
       (replay as unknown as { readonly timelineCursor?: unknown } | null)?.timelineCursor
     ).toBeUndefined();
+  });
+
+  it('封存节点重复读取命中有界缓存，命中路径不再读取 payload、卡组或 frame', async () => {
+    const metrics: MatchReplayNodeReadMetric[] = [];
+    const replayNodeByteEstimator = vi.fn(() => 1234);
+    const { service, calls } = createHarness({
+      accessOverrides: {
+        status: 'COMPLETED',
+        completeness: 'FULL',
+        ended_at: new Date(2_000),
+        sealed_at: new Date(2_100),
+      },
+      replayNodeMetricSink: (metric) => metrics.push(metric),
+      replayNodeByteEstimator,
+    });
+
+    const first = await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+    const second = await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+
+    expect(second).toBe(first);
+    const checkpointCalls = calls.filter((call) => call.text.includes('FROM match_checkpoints'));
+    expect(checkpointCalls).toHaveLength(3);
+    expect(checkpointCalls.filter((call) => call.text.includes('\n        payload,'))).toHaveLength(
+      1
+    );
+    expect(calls.filter((call) => call.text.includes('FROM match_deck_snapshots'))).toHaveLength(1);
+    expect(
+      calls.filter(
+        (call) =>
+          call.text.includes('FROM match_timeline_entries') &&
+          call.text.includes('timeline_seq = $2')
+      )
+    ).toHaveLength(1);
+    expect(service.getReplayNodeCacheStats()).toMatchObject({
+      hits: 1,
+      misses: 1,
+      entries: 1,
+      evictions: 0,
+      estimatedBytes: 1234,
+    });
+    expect(replayNodeByteEstimator).toHaveBeenCalledTimes(1);
+    expect(metrics.map((metric) => metric.cacheOutcome)).toEqual(['MISS', 'HIT']);
+    expect(metrics[0]).toMatchObject({
+      checkpointSeq: 1,
+    });
+    expect(typeof metrics[0]!.compressedBytes).toBe('number');
+    expect(typeof metrics[0]!.uncompressedBytes).toBe('number');
+    expect(typeof metrics[0]!.responseBytes).toBe('number');
+    expect(metrics[0]!.compressedBytes).toBeGreaterThan(0);
+    expect(metrics[0]!.uncompressedBytes).toBeGreaterThan(0);
+    expect(metrics[0]!.responseBytes).toBe(1234);
+  });
+
+  it('历史投影使用 checkpoint 时间计算自动展示剩余时长', async () => {
+    const { service } = createHarness({
+      accessOverrides: {
+        status: 'COMPLETED',
+        completeness: 'FULL',
+        ended_at: new Date(2_000),
+        sealed_at: new Date(2_100),
+      },
+      mapAuthorityState: (state) => ({
+        ...state,
+        activeEffect: {
+          id: 'historical-reveal',
+          abilityId: 'test:historical-reveal',
+          sourceCardId: state.players[0].hand.cardIds[0]!,
+          controllerId: 'p1',
+          effectText: '公开展示',
+          stepId: 'public-reveal',
+          stepText: '公开展示',
+          awaitingPlayerId: null,
+          publicRevealAutoAdvanceAt: 12_000,
+          publicRevealGeneration: 'historical-reveal-1',
+        },
+      }),
+    });
+
+    const replay = await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+
+    expect(replay?.checkpointInfo.createdAt).toBe(2_000);
+    expect(replay?.playerViewState.activeEffect?.publicRevealAutoAdvanceAfterMs).toBe(10_000);
+  });
+
+  it('进行中记录绕过节点缓存，重复读取仍重新验证并投影', async () => {
+    const metrics: MatchReplayNodeReadMetric[] = [];
+    const { service, calls } = createHarness({
+      replayNodeMetricSink: (metric) => metrics.push(metric),
+    });
+
+    await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+    await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+
+    expect(calls.filter((call) => call.text.includes('\n        payload,'))).toHaveLength(2);
+    expect(calls.filter((call) => call.text.includes('FROM match_deck_snapshots'))).toHaveLength(2);
+    expect(service.getReplayNodeCacheStats()).toMatchObject({ hits: 0, misses: 0, entries: 0 });
+    expect(metrics.map((metric) => metric.cacheOutcome)).toEqual(['BYPASS', 'BYPASS']);
+  });
+
+  it('默认探针关闭时不为绕过缓存的节点估算响应字节', async () => {
+    vi.stubEnv('MATCH_REPLAY_PERFORMANCE_PROBE', 'false');
+    const replayNodeByteEstimator = vi.fn(() => 1234);
+    try {
+      const { service } = createHarness({ replayNodeByteEstimator });
+
+      await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+
+      expect(replayNodeByteEstimator).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('管理员不同 viewer seat 不复用投影，重复同席位才命中缓存', async () => {
+    const { service } = createHarness({
+      accessOverrides: {
+        status: 'COMPLETED',
+        completeness: 'FULL',
+        ended_at: new Date(2_000),
+        sealed_at: new Date(2_100),
+      },
+    });
+
+    const first = await service.getMatchRecordReplayForAdmin('match-read-1', 'FIRST', 1);
+    const firstAgain = await service.getMatchRecordReplayForAdmin('match-read-1', 'FIRST', 1);
+    const second = await service.getMatchRecordReplayForAdmin('match-read-1', 'SECOND', 1);
+
+    expect(firstAgain).toBe(first);
+    expect(first?.playerViewState.match.viewerSeat).toBe('FIRST');
+    expect(second?.playerViewState.match.viewerSeat).toBe('SECOND');
+    expect(second).not.toBe(first);
+    expect(service.getReplayNodeCacheStats()).toMatchObject({ hits: 1, misses: 2, entries: 2 });
+  });
+
+  it('record.updated_at 变化后不会命中清理前的旧投影', async () => {
+    const { service, accessRow, calls } = createHarness({
+      accessOverrides: {
+        status: 'COMPLETED',
+        completeness: 'FULL',
+        ended_at: new Date(2_000),
+        sealed_at: new Date(2_100),
+      },
+    });
+
+    await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+    accessRow.updated_at = new Date(3_000);
+    await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+
+    expect(calls.filter((call) => call.text.includes('\n        payload,'))).toHaveLength(2);
+    expect(service.getReplayNodeCacheStats()).toMatchObject({ hits: 0, misses: 2, entries: 2 });
+  });
+
+  it('保留期清理为 METADATA_ONLY 后先拒绝读取，不会返回进程内旧投影', async () => {
+    const { service, accessRow } = createHarness({
+      accessOverrides: {
+        status: 'COMPLETED',
+        completeness: 'FULL',
+        ended_at: new Date(2_000),
+        sealed_at: new Date(2_100),
+      },
+    });
+
+    await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+    accessRow.completeness = 'METADATA_ONLY';
+    accessRow.updated_at = new Date(3_000);
+
+    await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).rejects.toMatchObject({
+      code: 'MATCH_RECORD_REPLAY_DATA_PURGED',
+      statusCode: 410,
+    });
+    expect(service.getReplayNodeCacheStats()).toMatchObject({ hits: 0, misses: 1 });
   });
 
   it('普通 replay 使用轻量 DTO，audit 分页只暴露当前玩家可见事实', async () => {

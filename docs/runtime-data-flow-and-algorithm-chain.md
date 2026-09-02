@@ -349,6 +349,9 @@ flowchart TD
 - timeline 读经过玩家视角过滤的 frame 摘要。
 - checkpoint 回放读取指定 frame 附近的 authority checkpoint，再投影成该玩家的 `PlayerViewState`。
 - 回放的事件与决策明细以当前 checkpoint 的 `timelineSeq` 为上界，按玩家 seat 过滤后使用稳定倒序游标分页；前端只在展开调试详情时首次读取，更早记录由用户继续加载。
+- 客户端 checkpoint key 固定为 `matchId + viewerSeat + checkpointSeq`；同 key 在途请求复用同一 Promise，少量完成节点进入页面内 LRU。切换对局、账号、权限或管理员查看 seat 时清空，避免跨视角复用投影。
+- 已封存、非进行中且未清理的完整记录可命中服务端进程内已验证 node LRU。每次读取仍先重新校验参与关系或管理权限、记录状态、completeness 和 checkpoint 身份；缓存键绑定记录版本/更新时间、规则与卡牌数据身份、checkpoint schema/payload hash 和 viewer seat，命中路径不读取大体积 authority payload。
+- 历史投影以 checkpoint `createdAt` 作为 projector 时间，使自动展示剩余时间等派生字段可复现；进行中、未封存、`METADATA_ONLY`、audit、权限结果、authority envelope 和失败结果不缓存。
 - 只读 `GameBoard` 使用回放投影，不重新执行运行中命令。
 
 ## 8. 性能热路径
@@ -363,6 +366,7 @@ flowchart TD
 - 远程操作按 `source/matchId/seat` 串行入队，并补 `idempotencyKey`。
 - recorder 使用稀疏 authority checkpoint 和 `stateSummary`，避免普通高频命令都完整序列化权威状态。
 - 历史 checkpoint 切换先提交稳定化后的玩家视图，再在后台 best-effort 预载新出现的正面卡图；未变化的区域和对象引用保持稳定，timeline 列表使用定高虚拟化渲染。
+- 历史 context/node/audit 读取支持主动取消；主动取消不重试、不在 token refresh 后复发，也不显示成超时。服务端已验证 node LRU 同时受条目数和估算字节限制；User Timing 与结构化服务端探针覆盖请求、缓存、复水、投影、提交、下一帧和图片预载。相邻节点预取只在显式启用、浏览器空闲且网络条件允许时执行，默认关闭。
 - 检视关闭使用 `FINISH_INSPECTION_WITH_ARRANGEMENT` 批量命令，不再逐张提交远程移动命令。
 - 卡效定义查找通过 `definitions/lookup.ts` 索引，避免运行时线性扫描定义表。
 
