@@ -6,6 +6,7 @@ import {
   ProductFrame,
   ProductHeader,
   SectionHeading,
+  SiteLegalFooter,
   StatusBadge,
   TextInput,
   ThemeToggle,
@@ -246,6 +247,7 @@ export function OnlineSpectatorLobbyPage({
         }
       />
       {pageContent}
+      <SiteLegalFooter />
     </div>
   );
 }

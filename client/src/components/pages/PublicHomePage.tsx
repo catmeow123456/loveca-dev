@@ -12,7 +12,12 @@ import {
   Sparkles,
   WifiOff,
 } from 'lucide-react';
-import { AnnouncementCenterButton, ProductHeader, ThemeToggle } from '@/components/common';
+import {
+  AnnouncementCenterButton,
+  LegalNotice,
+  ProductHeader,
+  ThemeToggle,
+} from '@/components/common';
 import type { PublicSiteAnnouncement, PublicSiteStatus } from '@/lib/appConfig';
 import { getCardBackUrl, getCardImageUrl } from '@/lib/imageService';
 import { useGameStore } from '@/store/gameStore';
@@ -496,7 +501,7 @@ export function PublicHomePage({
             <small>玩家制作的非官方卡组与对战工具</small>
           </span>
         </div>
-        <p>卡牌与作品版权归原权利方所有 · v{__APP_VERSION__}</p>
+        <LegalNotice className="public-home__legal-notice" version={__APP_VERSION__} />
         <button type="button" onClick={onTryOffline}>
           <Play size={13} aria-hidden="true" />
           体验离线对局

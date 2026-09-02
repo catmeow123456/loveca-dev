@@ -7,7 +7,7 @@ import {
   type DeckRecord,
   type SharedDeckRecord,
 } from '@/lib/apiClient';
-import { PageHeader, ProductHeader, ThemeToggle } from '@/components/common';
+import { PageHeader, ProductHeader, SiteLegalFooter, ThemeToggle } from '@/components/common';
 import { calculateDeckStats, DeckStatsRow } from '@/components/common/DeckStats';
 import { Card } from '@/components/card/Card';
 import { CardDetailDrawer } from '@/components/deck-editor/CardDetailDrawer';
@@ -437,6 +437,7 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
       </main>
 
       <CardDetailDrawer card={selectedCard} onClose={() => setSelectedCard(null)} />
+      <SiteLegalFooter />
     </div>
   );
 }

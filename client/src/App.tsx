@@ -26,6 +26,7 @@ import {
 import { HomePage } from '@/components/pages/HomePage';
 import { PublicHomePage } from '@/components/pages/PublicHomePage';
 import { ServiceStatusPage } from '@/components/pages/ServiceStatusPage';
+import { resolveLegalDocumentPath } from '@/lib/legalPages';
 import {
   LoginPage,
   RegisterPage,
@@ -197,6 +198,9 @@ const PlatformOperationsPage = lazy(() =>
     default: module.PlatformOperationsPage,
   }))
 );
+const LegalPage = lazy(() =>
+  import('@/components/pages/LegalPage').then((module) => ({ default: module.LegalPage }))
+);
 
 type AuthPage =
   | 'landing'
@@ -343,6 +347,7 @@ function AppSurfaceTiming({ surface, dataSource }: { surface: string; dataSource
 }
 
 function App() {
+  const requestedLegalDocument = resolveLegalDocumentPath(window.location.pathname);
   const [initialAuthRequest] = useState<InitialAuthRequest>(() => getInitialAuthRequest());
   const isInitialAuthActionPage =
     initialAuthRequest.page === 'reset-password' ||
@@ -659,6 +664,8 @@ function App() {
   useEffect(() => {
     if (!authInitialized) return;
 
+    if (requestedLegalDocument) return;
+
     if (
       authPage === 'reset-password' ||
       authPage === 'verify-email' ||
@@ -712,7 +719,15 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [authInitialized, authPage, cardDataInitialized, currentPage, loadCardData, initDeckStore]);
+  }, [
+    authInitialized,
+    authPage,
+    cardDataInitialized,
+    currentPage,
+    initDeckStore,
+    loadCardData,
+    requestedLegalDocument,
+  ]);
 
   // 计算实际显示的页面（游戏结束后自动回到首页）
   const effectivePage: AppPage = currentPage === 'game' && !matchView ? 'home' : currentPage;
@@ -854,6 +869,11 @@ function App() {
     (!authInitialized ||
       !isAuthenticated ||
       Boolean(profile && hasPermission(profile.role, 'platform.manage')));
+
+  if (requestedLegalDocument) {
+    return <LegalPage document={requestedLegalDocument} />;
+  }
+
   const snapshotMaintenance =
     publicSnapshot?.kind === 'VALID' && publicSnapshot.snapshot.availability === 'MAINTENANCE'
       ? publicSnapshot.snapshot.maintenance

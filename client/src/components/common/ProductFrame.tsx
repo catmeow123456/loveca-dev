@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { ProductHeader } from './ProductHeader';
 import { PageHeader } from './PageHeader';
+import { SiteLegalFooter } from './LegalNotice';
 
 export type ProductNavKey = 'home' | 'decks' | 'battle' | 'spectate' | 'history';
 
@@ -74,7 +75,10 @@ export function ProductFrame({
                   key={item.key}
                   type="button"
                   onClick={() => navigate(item.handler)}
-                  className={cn('product-nav-item', active === item.key && 'product-nav-item-active')}
+                  className={cn(
+                    'product-nav-item',
+                    active === item.key && 'product-nav-item-active'
+                  )}
                   aria-current={active === item.key ? 'page' : undefined}
                 >
                   {item.label}
@@ -129,7 +133,7 @@ export function ProductFrame({
         )}
       >
         {children}
-        {!immersive ? footer : null}
+        {!immersive ? footer === undefined ? <SiteLegalFooter /> : footer : null}
       </div>
     </div>
   );

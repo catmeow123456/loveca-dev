@@ -618,6 +618,7 @@ export function GameSetupPage({
       navigation={navigation}
       actions={headerActions}
       mobileMenuActions={mobileMenuActions}
+      footer={null}
       title="对局准备"
       description="选择对战方式和本次使用的卡组"
       backLabel="返回大厅"
