@@ -8,6 +8,7 @@ import { requirePermission } from '../middleware/require-permission.js';
 import {
   MatchReplayReadServiceError,
   matchReplayReadService,
+  type MatchRecordAuditPageOptions,
 } from '../services/match-replay-read-service.js';
 import { requireAdmin } from '../middleware/require-admin.js';
 import {
@@ -323,6 +324,28 @@ battleRouter.get(
 );
 
 battleRouter.get(
+  '/admin/match-records/:matchId/audit',
+  requireAuth,
+  requirePermission('season.ranked.manage'),
+  async (req, res) => {
+    try {
+      const audit = await matchReplayReadService.getMatchRecordAuditPageForAdmin(
+        readPathParam(req.params.matchId),
+        readSeatQuery(req.query?.viewerSeat) ?? 'FIRST',
+        readMatchRecordAuditOptions(req.query)
+      );
+      if (!audit) {
+        respondMatchRecordNotFound(res);
+        return;
+      }
+      res.json({ data: audit, error: null });
+    } catch (error) {
+      respondBattleError(res, error);
+    }
+  }
+);
+
+battleRouter.get(
   '/admin/match-records/:matchId/export',
   requireAuth,
   requireAdmin,
@@ -390,6 +413,23 @@ battleRouter.get('/match-records/:matchId/replay', requireAuth, async (req, res)
       return;
     }
     res.json({ data: replay, error: null });
+  } catch (error) {
+    respondBattleError(res, error);
+  }
+});
+
+battleRouter.get('/match-records/:matchId/audit', requireAuth, async (req, res) => {
+  try {
+    const audit = await matchReplayReadService.getMatchRecordAuditPage(
+      readPathParam(req.params.matchId),
+      req.user!.id,
+      readMatchRecordAuditOptions(req.query)
+    );
+    if (!audit) {
+      respondMatchRecordNotFound(res);
+      return;
+    }
+    res.json({ data: audit, error: null });
   } catch (error) {
     respondBattleError(res, error);
   }
@@ -496,4 +536,29 @@ function readReplayCheckpointSeqQuery(query: unknown): number | undefined {
   }
   const parsed = Number(checkpointSeq);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function readMatchRecordAuditOptions(query: unknown): MatchRecordAuditPageOptions {
+  const params =
+    query && typeof query === 'object' ? (query as Partial<Record<string, unknown>>) : {};
+  const kind = params.kind;
+  const timelineSeq = readOptionalPositiveInt(params.timelineSeq);
+  if (
+    (kind !== 'PUBLIC_EVENTS' && kind !== 'PRIVATE_EVENTS' && kind !== 'DECISIONS') ||
+    timelineSeq === undefined
+  ) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_AUDIT_QUERY_INVALID',
+      '历史对局审计查询参数非法',
+      400
+    );
+  }
+  return {
+    kind,
+    timelineSeq,
+    limit: readOptionalPositiveInt(params.limit),
+    cursorTimelineSeq: readOptionalPositiveInt(params.cursorTimelineSeq),
+    cursorEventSeq: readOptionalPositiveInt(params.cursorEventSeq),
+    cursorDecisionId: readOptionalString(params.cursorDecisionId),
+  };
 }

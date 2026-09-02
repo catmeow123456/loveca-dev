@@ -24,6 +24,7 @@ import {
 import {
   MatchReplayReadServiceError,
   matchReplayReadService,
+  type MatchRecordAuditPageOptions,
 } from '../services/match-replay-read-service.js';
 
 export const onlineRouter = Router();
@@ -279,6 +280,24 @@ onlineRouter.get('/match-records/:matchId/replay', requireAuth, async (req, res)
     }
 
     res.json({ data: replay, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.get('/match-records/:matchId/audit', requireAuth, async (req, res) => {
+  try {
+    const audit = await matchReplayReadService.getMatchRecordAuditPage(
+      readPathParam(req.params.matchId),
+      req.user!.id,
+      readMatchRecordAuditOptions(req.query)
+    );
+    if (!audit) {
+      respondMatchRecordNotFound(res);
+      return;
+    }
+
+    res.json({ data: audit, error: null });
   } catch (error) {
     respondOnlineError(res, error);
   }
@@ -1289,6 +1308,31 @@ function readReplayCheckpointSeqQuery(query: unknown): number | undefined {
 
   const params = query as { readonly checkpointSeq?: unknown; readonly cursor?: unknown };
   return readOptionalSeq(params.checkpointSeq) ?? readOptionalSeq(params.cursor);
+}
+
+function readMatchRecordAuditOptions(query: unknown): MatchRecordAuditPageOptions {
+  const params =
+    query && typeof query === 'object' ? (query as Partial<Record<string, unknown>>) : {};
+  const kind = readOptionalString(params.kind);
+  const timelineSeq = readOptionalSeq(params.timelineSeq);
+  if (
+    (kind !== 'PUBLIC_EVENTS' && kind !== 'PRIVATE_EVENTS' && kind !== 'DECISIONS') ||
+    timelineSeq === undefined
+  ) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_AUDIT_QUERY_INVALID',
+      '历史对局审计查询参数非法',
+      400
+    );
+  }
+  return {
+    kind,
+    timelineSeq,
+    limit: readOptionalSeq(params.limit),
+    cursorTimelineSeq: readOptionalSeq(params.cursorTimelineSeq),
+    cursorEventSeq: readOptionalSeq(params.cursorEventSeq),
+    cursorDecisionId: readOptionalString(params.cursorDecisionId) ?? undefined,
+  };
 }
 
 function readRequiredSeq(value: unknown): number | null {

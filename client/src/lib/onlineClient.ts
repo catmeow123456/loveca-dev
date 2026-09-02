@@ -5,6 +5,8 @@ import type {
   DebugReplayImportSummary,
   DebugReplayTimelineView,
   MatchRecordDetailView,
+  MatchRecordAuditKind,
+  MatchRecordAuditPageView,
   MatchRecordReplayView,
   MatchRecordSummaryView,
   MatchRecordTimelineView,
@@ -800,6 +802,66 @@ export async function fetchAdminMatchRecordReplay(
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取管理员历史对局回放节点失败');
+  }
+  return response.data;
+}
+
+export interface MatchRecordAuditPageRequest {
+  readonly kind: MatchRecordAuditKind;
+  readonly timelineSeq: number;
+  readonly limit?: number;
+  readonly cursorTimelineSeq?: number;
+  readonly cursorEventSeq?: number;
+  readonly cursorDecisionId?: string;
+}
+
+export async function fetchMatchRecordAuditPage(
+  matchId: string,
+  options: MatchRecordAuditPageRequest
+): Promise<MatchRecordAuditPageView> {
+  return fetchMatchRecordAuditPageFromPath(
+    `/api/battle/match-records/${encodeURIComponent(matchId)}/audit`,
+    options
+  );
+}
+
+export async function fetchAdminMatchRecordAuditPage(
+  matchId: string,
+  viewerSeat: 'FIRST' | 'SECOND',
+  options: MatchRecordAuditPageRequest
+): Promise<MatchRecordAuditPageView> {
+  return fetchMatchRecordAuditPageFromPath(
+    `/api/battle/admin/match-records/${encodeURIComponent(matchId)}/audit`,
+    options,
+    viewerSeat
+  );
+}
+
+async function fetchMatchRecordAuditPageFromPath(
+  path: string,
+  options: MatchRecordAuditPageRequest,
+  viewerSeat?: 'FIRST' | 'SECOND'
+): Promise<MatchRecordAuditPageView> {
+  const searchParams = new URLSearchParams({
+    kind: options.kind,
+    timelineSeq: String(options.timelineSeq),
+  });
+  if (options.limit !== undefined) searchParams.set('limit', String(options.limit));
+  if (options.cursorTimelineSeq !== undefined) {
+    searchParams.set('cursorTimelineSeq', String(options.cursorTimelineSeq));
+  }
+  if (options.cursorEventSeq !== undefined) {
+    searchParams.set('cursorEventSeq', String(options.cursorEventSeq));
+  }
+  if (options.cursorDecisionId !== undefined) {
+    searchParams.set('cursorDecisionId', options.cursorDecisionId);
+  }
+  if (viewerSeat !== undefined) searchParams.set('viewerSeat', viewerSeat);
+  const response = await apiClient.get<MatchRecordAuditPageView>(
+    `${path}?${searchParams.toString()}`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取历史对局审计详情失败');
   }
   return response.data;
 }

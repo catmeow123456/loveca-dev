@@ -1844,20 +1844,17 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     enterReadonlyReplay: async (replay, options) => {
       const viewerPlayerId = getReadonlyReplayViewerPlayerId(replay);
-      const normalizedPlayerViewState = normalizeReadonlyReplayViewState(replay.playerViewState);
+      const previousPlayerViewState = get().playerViewState;
+      const normalizedPlayerViewState = stabilizePlayerViewState(
+        previousPlayerViewState,
+        normalizeReadonlyReplayViewState(replay.playerViewState)
+      )!;
 
-      await preloadFrontTransitions(
-        get().playerViewState,
-        normalizedPlayerViewState,
-        get().cardDataRegistry
-      );
-
-      // 卡图预加载是异步的，快速切换 checkpoint 时较早的请求可能在较新请求之后完成。
-      // 若调用方判定本次注入已过期，则放弃提交，避免旧 checkpoint 覆盖当前桌面视图。
       if (options?.shouldCommit && !options.shouldCommit()) {
         return;
       }
 
+      const cardDataRegistry = get().cardDataRegistry;
       set((state) => ({
         playerViewState: normalizedPlayerViewState,
         viewingPlayerId: viewerPlayerId,
@@ -1890,6 +1887,18 @@ export const useGameStore = create<GameStore>((set, get) => {
           inputRequestType: null,
         },
       }));
+
+      void preloadFrontTransitions(
+        previousPlayerViewState,
+        normalizedPlayerViewState,
+        cardDataRegistry
+      ).catch((error) => {
+        console.warn(
+          `[gameStore] 历史回放卡图后台预载失败: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      });
     },
 
     leaveReadonlyReplay: () => {

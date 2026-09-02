@@ -21,11 +21,13 @@ import { ActionButton, PageHeader, SelectMenu } from '@/components/common';
 import { GameBoard } from '@/components/game';
 import {
   exportAdminMatchRecordBundle,
+  fetchAdminMatchRecordAuditPage,
   fetchAdminMatchRecordDetail,
   fetchAdminMatchRecordReplay,
   fetchAdminMatchRecords,
   fetchAdminMatchRecordTimeline,
   fetchMatchRecordDetail,
+  fetchMatchRecordAuditPage,
   fetchMatchRecords,
   fetchMatchRecordReplay,
   fetchMatchRecordTimeline,
@@ -38,6 +40,7 @@ import { fetchRankedSeasons } from '@/lib/rankedAdminClient';
 import { fetchThemeAdminEvents } from '@/lib/themeTableAdminClient';
 import type {
   MatchRecordDetailView,
+  MatchRecordAuditPageView,
   MatchRecordDecisionView,
   MatchRecordReplayView,
   MatchRecordSummaryView,
@@ -59,6 +62,10 @@ interface AdminActivityFilterOption {
   readonly label: string;
 }
 
+type MatchRecordAuditPages = Readonly<
+  Partial<Record<'PUBLIC_EVENTS' | 'PRIVATE_EVENTS' | 'DECISIONS', MatchRecordAuditPageView>>
+>;
+
 export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   const [records, setRecords] = useState<readonly MatchRecordSummaryView[]>([]);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
@@ -66,6 +73,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   const [timeline, setTimeline] = useState<readonly MatchRecordTimelineEntryView[]>([]);
   const [replay, setReplay] = useState<MatchRecordReplayView | null>(null);
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
+  const [isLoadingContext, setIsLoadingContext] = useState(false);
   const [isLoadingNode, setIsLoadingNode] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +87,12 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   const [adminActivityOptionsError, setAdminActivityOptionsError] = useState<string | null>(null);
   const [adminFilters, setAdminFilters] = useState<AdminMatchRecordFilters>({});
   const [debugDetailsOpen, setDebugDetailsOpen] = useState(false);
+  const [auditPages, setAuditPages] = useState<MatchRecordAuditPages>({});
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+  const [loadingMoreAuditKind, setLoadingMoreAuditKind] = useState<
+    'PUBLIC_EVENTS' | 'PRIVATE_EVENTS' | 'DECISIONS' | null
+  >(null);
+  const [auditError, setAuditError] = useState<string | null>(null);
   const [adminViewerSeat, setAdminViewerSeat] = useState<Seat>('FIRST');
   const [replayBoardOpen, setReplayBoardOpen] = useState(false);
   const profile = useAuthStore((s) => s.profile);
@@ -87,6 +101,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     : false;
   const canExport = profile ? hasPermission(profile.role, 'platform.manage') : false;
   const latestReplayRequestRef = useRef(0);
+  const latestAuditRequestRef = useRef(0);
   const replayBoardOpenRef = useRef(false);
   const lastViewerSeatReloadKeyRef = useRef<string | null>(null);
   const hasManagementHistoryAccessRef = useRef(hasManagementHistoryAccess);
@@ -156,37 +171,24 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     }
   }, [adminFilters, hasManagementHistoryAccess]);
 
-  const loadMatchNode = useCallback(
+  const loadReplayNode = useCallback(
     async (matchId: string, checkpointSeq?: number) => {
       const requestId = ++latestReplayRequestRef.current;
       setIsLoadingNode(true);
       setError(null);
+      setIsLoadingAudit(false);
+      setLoadingMoreAuditKind(null);
+      setAuditPages({});
+      setAuditError(null);
+      latestAuditRequestRef.current += 1;
       try {
         const adminSeat = adminViewerSeatRef.current;
-        const nextDetail = hasManagementHistoryAccessRef.current
-          ? await fetchAdminMatchRecordDetail(matchId)
-          : await fetchMatchRecordDetail(matchId);
-        if (requestId !== latestReplayRequestRef.current) {
-          return;
-        }
-        if (nextDetail.completeness === 'METADATA_ONLY') {
-          setDetail(nextDetail);
-          setTimeline([]);
-          setReplay(null);
-          replayBoardOpenRef.current = false;
-          setReplayBoardOpen(false);
-          leaveReadonlyReplay();
-          return;
-        }
-        const [nextTimeline, nextReplay] = hasManagementHistoryAccessRef.current
-          ? await Promise.all([
-              fetchAdminMatchRecordTimeline(matchId, adminSeat),
-              fetchAdminMatchRecordReplay(matchId, { checkpointSeq, viewerSeat: adminSeat }),
-            ])
-          : await Promise.all([
-              fetchMatchRecordTimeline(matchId),
-              fetchMatchRecordReplay(matchId, { checkpointSeq }),
-            ]);
+        const nextReplay = hasManagementHistoryAccessRef.current
+          ? await fetchAdminMatchRecordReplay(matchId, {
+              checkpointSeq,
+              viewerSeat: adminSeat,
+            })
+          : await fetchMatchRecordReplay(matchId, { checkpointSeq });
         if (requestId !== latestReplayRequestRef.current) {
           return;
         }
@@ -198,28 +200,66 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
         if (requestId !== latestReplayRequestRef.current) {
           return;
         }
-        setDetail(nextDetail);
-        setTimeline(nextTimeline.timelineSummary);
         setReplay(nextReplay);
       } catch (loadError) {
         if (requestId !== latestReplayRequestRef.current) {
           return;
         }
         setError(loadError instanceof Error ? loadError.message : '读取历史节点失败');
-        setDetail(null);
-        setTimeline([]);
-        setReplay(null);
-        replayBoardOpenRef.current = false;
-        setReplayBoardOpen(false);
-        leaveReadonlyReplay();
       } finally {
         if (requestId === latestReplayRequestRef.current) {
           setIsLoadingNode(false);
         }
       }
     },
-    [enterReadonlyReplay, leaveReadonlyReplay]
+    [enterReadonlyReplay]
   );
+
+  const loadMatchContext = useCallback(async (matchId: string, checkpointSeq?: number) => {
+    const requestId = ++latestReplayRequestRef.current;
+    latestAuditRequestRef.current += 1;
+    setIsLoadingContext(true);
+    setIsLoadingNode(false);
+    setError(null);
+    setIsLoadingAudit(false);
+    setLoadingMoreAuditKind(null);
+    setAuditPages({});
+    setAuditError(null);
+    setDetail(null);
+    setTimeline([]);
+    setReplay(null);
+    try {
+      const adminSeat = adminViewerSeatRef.current;
+      const nextDetail = hasManagementHistoryAccessRef.current
+        ? await fetchAdminMatchRecordDetail(matchId)
+        : await fetchMatchRecordDetail(matchId);
+      if (requestId !== latestReplayRequestRef.current) return;
+      setDetail(nextDetail);
+      if (nextDetail.completeness === 'METADATA_ONLY') {
+        return;
+      }
+
+      const [nextTimeline, nextReplay] = hasManagementHistoryAccessRef.current
+        ? await Promise.all([
+            fetchAdminMatchRecordTimeline(matchId, adminSeat),
+            fetchAdminMatchRecordReplay(matchId, { checkpointSeq, viewerSeat: adminSeat }),
+          ])
+        : await Promise.all([
+            fetchMatchRecordTimeline(matchId),
+            fetchMatchRecordReplay(matchId, { checkpointSeq }),
+          ]);
+      if (requestId !== latestReplayRequestRef.current) return;
+      setTimeline(nextTimeline.timelineSummary);
+      setReplay(nextReplay);
+    } catch (loadError) {
+      if (requestId !== latestReplayRequestRef.current) return;
+      setError(loadError instanceof Error ? loadError.message : '读取历史对局上下文失败');
+    } finally {
+      if (requestId === latestReplayRequestRef.current) {
+        setIsLoadingContext(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadRecords(), 0);
@@ -251,14 +291,14 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
       lastViewerSeatReloadKeyRef.current = reloadKey;
       setReplayBoardOpen(false);
       leaveReadonlyReplay();
-      void loadMatchNode(selectedMatchId, checkpoint);
+      void loadMatchContext(selectedMatchId, checkpoint);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [
     adminViewerSeat,
     hasManagementHistoryAccess,
     leaveReadonlyReplay,
-    loadMatchNode,
+    loadMatchContext,
     replay?.replayPosition.checkpointSeq,
     selectedMatchId,
   ]);
@@ -266,10 +306,46 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   useEffect(() => {
     return () => {
       latestReplayRequestRef.current += 1;
+      latestAuditRequestRef.current += 1;
       replayBoardOpenRef.current = false;
       leaveReadonlyReplay();
     };
   }, [leaveReadonlyReplay]);
+
+  useEffect(() => {
+    if (!debugDetailsOpen || !selectedMatchId || !replay) {
+      latestAuditRequestRef.current += 1;
+      return;
+    }
+
+    const requestId = ++latestAuditRequestRef.current;
+    const timelineSeq = replay.replayPosition.timelineSeq;
+    const viewerSeat = replay.viewerSeat;
+    queueMicrotask(() => {
+      if (requestId !== latestAuditRequestRef.current) return;
+      setIsLoadingAudit(true);
+      setAuditPages({});
+      setAuditError(null);
+    });
+    const loadPage = hasManagementHistoryAccess
+      ? (kind: 'PUBLIC_EVENTS' | 'PRIVATE_EVENTS' | 'DECISIONS') =>
+          fetchAdminMatchRecordAuditPage(selectedMatchId, viewerSeat, { kind, timelineSeq })
+      : (kind: 'PUBLIC_EVENTS' | 'PRIVATE_EVENTS' | 'DECISIONS') =>
+          fetchMatchRecordAuditPage(selectedMatchId, { kind, timelineSeq });
+
+    void Promise.all([loadPage('PUBLIC_EVENTS'), loadPage('PRIVATE_EVENTS'), loadPage('DECISIONS')])
+      .then((pages) => {
+        if (requestId !== latestAuditRequestRef.current) return;
+        setAuditPages(Object.fromEntries(pages.map((page) => [page.kind, page])));
+      })
+      .catch((loadError) => {
+        if (requestId !== latestAuditRequestRef.current) return;
+        setAuditError(loadError instanceof Error ? loadError.message : '读取历史对局审计详情失败');
+      })
+      .finally(() => {
+        if (requestId === latestAuditRequestRef.current) setIsLoadingAudit(false);
+      });
+  }, [debugDetailsOpen, hasManagementHistoryAccess, replay, selectedMatchId]);
 
   useEffect(() => {
     if (!replayBoardOpen) {
@@ -310,12 +386,22 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   const canGoPreviousCheckpoint = currentCheckpointIndex > 0;
   const canGoNextCheckpoint =
     currentCheckpointIndex >= 0 && currentCheckpointIndex < checkpointEntries.length - 1;
+  const auditPublicEvents =
+    auditPages.PUBLIC_EVENTS?.kind === 'PUBLIC_EVENTS'
+      ? [...auditPages.PUBLIC_EVENTS.items].reverse()
+      : [];
+  const auditPrivateEvents =
+    auditPages.PRIVATE_EVENTS?.kind === 'PRIVATE_EVENTS'
+      ? [...auditPages.PRIVATE_EVENTS.items].reverse()
+      : [];
+  const auditDecisions =
+    auditPages.DECISIONS?.kind === 'DECISIONS' ? [...auditPages.DECISIONS.items].reverse() : [];
 
   const handleSelectTimeline = (entry: MatchRecordTimelineEntryView) => {
     if (!selectedMatchId || entry.relatedCheckpointSeq === null) {
       return;
     }
-    void loadMatchNode(selectedMatchId, entry.relatedCheckpointSeq);
+    void loadReplayNode(selectedMatchId, entry.relatedCheckpointSeq);
   };
 
   const handleStepCheckpoint = (direction: -1 | 1) => {
@@ -326,7 +412,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     if (!nextEntry?.relatedCheckpointSeq) {
       return;
     }
-    void loadMatchNode(selectedMatchId, nextEntry.relatedCheckpointSeq);
+    void loadReplayNode(selectedMatchId, nextEntry.relatedCheckpointSeq);
   };
 
   const handleOpenReplayBoard = useCallback(async () => {
@@ -354,6 +440,50 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     setReplayBoardOpen(false);
     leaveReadonlyReplay();
   }, [leaveReadonlyReplay]);
+
+  const handleToggleDebugDetails = useCallback(() => {
+    if (debugDetailsOpen) {
+      latestAuditRequestRef.current += 1;
+      setIsLoadingAudit(false);
+      setLoadingMoreAuditKind(null);
+      setAuditPages({});
+      setAuditError(null);
+    }
+    setDebugDetailsOpen((open) => !open);
+  }, [debugDetailsOpen]);
+
+  const handleLoadMoreAudit = useCallback(
+    async (kind: 'PUBLIC_EVENTS' | 'PRIVATE_EVENTS' | 'DECISIONS') => {
+      if (!selectedMatchId || !replay || loadingMoreAuditKind !== null) return;
+      const currentPage = auditPages[kind];
+      if (!currentPage?.nextCursor) return;
+      const requestId = latestAuditRequestRef.current;
+      const cursor = currentPage.nextCursor;
+      const request = {
+        kind,
+        timelineSeq: replay.replayPosition.timelineSeq,
+        cursorTimelineSeq: cursor.timelineSeq,
+        ...(kind === 'DECISIONS'
+          ? { cursorDecisionId: 'decisionId' in cursor ? cursor.decisionId : undefined }
+          : { cursorEventSeq: 'eventSeq' in cursor ? cursor.eventSeq : undefined }),
+      };
+      setLoadingMoreAuditKind(kind);
+      setAuditError(null);
+      try {
+        const nextPage = hasManagementHistoryAccess
+          ? await fetchAdminMatchRecordAuditPage(selectedMatchId, replay.viewerSeat, request)
+          : await fetchMatchRecordAuditPage(selectedMatchId, request);
+        if (requestId !== latestAuditRequestRef.current) return;
+        setAuditPages((current) => mergeAuditPages(current, nextPage));
+      } catch (loadError) {
+        if (requestId !== latestAuditRequestRef.current) return;
+        setAuditError(loadError instanceof Error ? loadError.message : '读取更早的审计详情失败');
+      } finally {
+        if (requestId === latestAuditRequestRef.current) setLoadingMoreAuditKind(null);
+      }
+    },
+    [auditPages, hasManagementHistoryAccess, loadingMoreAuditKind, replay, selectedMatchId]
+  );
 
   const handleApplyAdminFilters = useCallback(() => {
     const nextFilters: {
@@ -409,6 +539,21 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
       setIsExporting(false);
     }
   }, [canExport, selectedRecord]);
+
+  if (replayBoardOpen && replay) {
+    return (
+      <ReplayBoardSurface
+        replay={replay}
+        currentCheckpointIndex={currentCheckpointIndex}
+        checkpointCount={checkpointEntries.length}
+        canGoPrevious={canGoPreviousCheckpoint}
+        canGoNext={canGoNextCheckpoint}
+        isLoadingNode={isLoadingNode}
+        onStep={handleStepCheckpoint}
+        onClose={handleCloseReplayBoard}
+      />
+    );
+  }
 
   return (
     <div className="app-shell flex min-h-screen flex-col overflow-x-hidden">
@@ -527,7 +672,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                   viewerSeat={
                     hasManagementHistoryAccess ? adminViewerSeat : selectedRecord.viewerSeat
                   }
-                  loading={isLoadingNode}
+                  loading={isLoadingContext}
                 />
               ) : (
                 <EmptyPanel title="未选择对局" detail="从左侧选择一条历史记录。" />
@@ -542,7 +687,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                   detail={replay ? formatSeatPerspective(replay.viewerSeat) : '未载入'}
                 />
 
-                {isLoadingNode && !replay ? (
+                {(isLoadingContext || isLoadingNode) && !replay ? (
                   <LoadingPanel label="读取 checkpoint" />
                 ) : replay ? (
                   <div className="mt-4 grid min-w-0 gap-3">
@@ -589,7 +734,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                   title="对局进程"
                   detail={timeline.length > 0 ? `${timeline.length} 条` : '无记录'}
                 />
-                {isLoadingNode && timeline.length === 0 ? (
+                {isLoadingContext && timeline.length === 0 ? (
                   <LoadingPanel label="读取 timeline" />
                 ) : timeline.length === 0 ? (
                   <EmptyPanel
@@ -605,19 +750,11 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                     }
                   />
                 ) : (
-                  <div className="mt-3 max-h-[560px] overflow-x-hidden overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-                    {timeline.map((entry) => (
-                      <TimelineRow
-                        key={entry.timelineSeq}
-                        entry={entry}
-                        selected={
-                          entry.relatedCheckpointSeq !== null &&
-                          entry.relatedCheckpointSeq === checkpointSeq
-                        }
-                        onClick={() => handleSelectTimeline(entry)}
-                      />
-                    ))}
-                  </div>
+                  <VirtualizedTimeline
+                    timeline={timeline}
+                    checkpointSeq={checkpointSeq}
+                    onSelect={handleSelectTimeline}
+                  />
                 )}
               </div>
             </section>
@@ -626,7 +763,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
               <section className="surface-panel rounded-lg p-4">
                 <button
                   type="button"
-                  onClick={() => setDebugDetailsOpen((open) => !open)}
+                  onClick={handleToggleDebugDetails}
                   className="flex w-full items-center justify-between gap-3 text-left"
                 >
                   <span className="flex min-w-0 items-center gap-2">
@@ -639,13 +776,34 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                     {debugDetailsOpen ? '收起' : '展开'}
                   </span>
                 </button>
-                {debugDetailsOpen ? (
+                {debugDetailsOpen && isLoadingAudit ? (
+                  <LoadingPanel label="读取审计详情" />
+                ) : debugDetailsOpen && auditError ? (
+                  <div className="mt-3 rounded-lg border border-[color:var(--semantic-error)]/40 bg-[color:var(--semantic-error)]/10 px-3 py-2 text-xs text-[var(--semantic-error)]">
+                    {auditError}
+                  </div>
+                ) : debugDetailsOpen ? (
                   <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
                     <ReplayStagePanel replay={replay} />
                     <ReplayMetricGrid replay={replay} />
-                    <VisibleEventList events={replay.visibleEvents} />
-                    <PrivateEventList events={replay.visiblePrivateEvents} />
-                    <DecisionRecordList decisions={replay.visibleDecisions} />
+                    <VisibleEventList
+                      events={auditPublicEvents}
+                      hasMore={Boolean(auditPages.PUBLIC_EVENTS?.nextCursor)}
+                      loadingMore={loadingMoreAuditKind === 'PUBLIC_EVENTS'}
+                      onLoadMore={() => void handleLoadMoreAudit('PUBLIC_EVENTS')}
+                    />
+                    <PrivateEventList
+                      events={auditPrivateEvents}
+                      hasMore={Boolean(auditPages.PRIVATE_EVENTS?.nextCursor)}
+                      loadingMore={loadingMoreAuditKind === 'PRIVATE_EVENTS'}
+                      onLoadMore={() => void handleLoadMoreAudit('PRIVATE_EVENTS')}
+                    />
+                    <DecisionRecordList
+                      decisions={auditDecisions}
+                      hasMore={Boolean(auditPages.DECISIONS?.nextCursor)}
+                      loadingMore={loadingMoreAuditKind === 'DECISIONS'}
+                      onLoadMore={() => void handleLoadMoreAudit('DECISIONS')}
+                    />
                     <ZoneList zones={visibleZones} />
                     <FrontCardList cards={visibleFrontCards} />
                   </div>
@@ -659,67 +817,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
           </section>
         </div>
       </main>
-
-      {replayBoardOpen && replay ? (
-        <div className="fixed inset-0 z-[var(--z-battle-replay-surface)] overflow-hidden bg-[var(--bg-surface)]">
-          <div className="h-full w-full">
-            <GameBoard />
-          </div>
-          <div className="pointer-events-auto fixed left-2 top-[calc(env(safe-area-inset-top)+0.5rem)] z-[230] max-w-[calc(100vw-1rem)] md:left-4 md:top-4">
-            <div className="inline-flex h-11 max-w-full items-center overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
-              <div className="flex min-w-0 items-center gap-2 px-3 text-sm font-semibold">
-                <History
-                  size={15}
-                  aria-hidden="true"
-                  className="shrink-0 text-[var(--accent-primary)]"
-                />
-                <span className="hidden sm:inline">历史回放</span>
-                <span className="whitespace-nowrap font-mono text-xs text-[var(--text-secondary)]">
-                  {currentCheckpointIndex >= 0 ? currentCheckpointIndex + 1 : 0}/
-                  {checkpointEntries.length}
-                </span>
-              </div>
-              <span className="h-5 w-px shrink-0 bg-[var(--border-default)]" />
-              <button
-                type="button"
-                onClick={() => handleStepCheckpoint(-1)}
-                disabled={!canGoPreviousCheckpoint || isLoadingNode}
-                className="button-ghost grid h-10 w-10 shrink-0 place-items-center rounded-none p-0 disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="上一个回放节点"
-                title="上一个回放节点"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleStepCheckpoint(1)}
-                disabled={!canGoNextCheckpoint || isLoadingNode}
-                className="button-ghost grid h-10 w-10 shrink-0 place-items-center rounded-none p-0 disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="下一个回放节点"
-                title="下一个回放节点"
-              >
-                <ChevronRight size={16} />
-              </button>
-              <span className="h-5 w-px shrink-0 bg-[var(--border-default)]" />
-              <button
-                type="button"
-                onClick={handleCloseReplayBoard}
-                className="button-ghost grid h-10 w-10 shrink-0 place-items-center rounded-none p-0"
-                aria-label="关闭桌面回放"
-                title="关闭桌面回放"
-              >
-                <X size={16} />
-              </button>
-            </div>
-          </div>
-          {replay.partialReasonSummary ? (
-            <div className="pointer-events-none fixed bottom-4 left-4 right-4 z-[230] rounded-lg border border-[var(--semantic-warning)]/40 bg-[color:color-mix(in_srgb,var(--semantic-warning)_14%,var(--bg-frosted))] px-3 py-2 text-xs font-medium text-[var(--semantic-warning)] shadow-[var(--shadow-md)] backdrop-blur-xl md:left-auto md:w-[min(420px,calc(100vw-2rem))]">
-              {replay.partialReasonSummary}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-      {!replayBoardOpen && replay ? (
+      {replay ? (
         <div className="fixed inset-x-3 bottom-3 z-[220] md:hidden">
           <div className="flex items-center gap-3 rounded-xl border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] px-3 py-2.5 shadow-[var(--shadow-lg)] backdrop-blur-xl">
             <div className="min-w-0 flex-1">
@@ -743,6 +841,87 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function ReplayBoardSurface({
+  replay,
+  currentCheckpointIndex,
+  checkpointCount,
+  canGoPrevious,
+  canGoNext,
+  isLoadingNode,
+  onStep,
+  onClose,
+}: {
+  replay: MatchRecordReplayView;
+  currentCheckpointIndex: number;
+  checkpointCount: number;
+  canGoPrevious: boolean;
+  canGoNext: boolean;
+  isLoadingNode: boolean;
+  onStep: (direction: -1 | 1) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="app-shell min-h-screen overflow-hidden bg-[var(--bg-surface)]">
+      <div className="fixed inset-0 z-[var(--z-battle-replay-surface)] overflow-hidden bg-[var(--bg-surface)]">
+        <div className="h-full w-full">
+          <GameBoard />
+        </div>
+        <div className="pointer-events-auto fixed left-2 top-[calc(env(safe-area-inset-top)+0.5rem)] z-[230] max-w-[calc(100vw-1rem)] md:left-4 md:top-4">
+          <div className="inline-flex h-11 max-w-full items-center overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
+            <div className="flex min-w-0 items-center gap-2 px-3 text-sm font-semibold">
+              <History
+                size={15}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--accent-primary)]"
+              />
+              <span className="hidden sm:inline">历史回放</span>
+              <span className="whitespace-nowrap font-mono text-xs text-[var(--text-secondary)]">
+                {currentCheckpointIndex >= 0 ? currentCheckpointIndex + 1 : 0}/{checkpointCount}
+              </span>
+            </div>
+            <span className="h-5 w-px shrink-0 bg-[var(--border-default)]" />
+            <button
+              type="button"
+              onClick={() => onStep(-1)}
+              disabled={!canGoPrevious || isLoadingNode}
+              className="button-ghost grid h-10 w-10 shrink-0 place-items-center rounded-none p-0 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="上一个回放节点"
+              title="上一个回放节点"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => onStep(1)}
+              disabled={!canGoNext || isLoadingNode}
+              className="button-ghost grid h-10 w-10 shrink-0 place-items-center rounded-none p-0 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="下一个回放节点"
+              title="下一个回放节点"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <span className="h-5 w-px shrink-0 bg-[var(--border-default)]" />
+            <button
+              type="button"
+              onClick={onClose}
+              className="button-ghost grid h-10 w-10 shrink-0 place-items-center rounded-none p-0"
+              aria-label="关闭桌面回放"
+              title="关闭桌面回放"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+        {replay.partialReasonSummary ? (
+          <div className="pointer-events-none fixed bottom-4 left-4 right-4 z-[230] rounded-lg border border-[var(--semantic-warning)]/40 bg-[color:color-mix(in_srgb,var(--semantic-warning)_14%,var(--bg-frosted))] px-3 py-2 text-xs font-medium text-[var(--semantic-warning)] shadow-[var(--shadow-md)] backdrop-blur-xl md:left-auto md:w-[min(420px,calc(100vw-2rem))]">
+            {replay.partialReasonSummary}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -1034,7 +1213,7 @@ function TimelineRow({
       onClick={onClick}
       disabled={!hasCheckpoint}
       title={entry.summary}
-      className={`grid min-h-14 w-full grid-cols-[1.75rem_minmax(0,1fr)] items-center gap-2.5 border-b border-[var(--border-subtle)] px-3 py-2 text-left transition last:border-b-0 ${
+      className={`grid h-14 w-full grid-cols-[1.75rem_minmax(0,1fr)] items-center gap-2.5 border-b border-[var(--border-subtle)] px-3 py-2 text-left transition last:border-b-0 ${
         selected
           ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-surface))]'
           : 'bg-transparent hover:bg-[var(--bg-overlay)]'
@@ -1057,6 +1236,79 @@ function TimelineRow({
         <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">第 {entry.turnCount} 回合</div>
       </div>
     </button>
+  );
+}
+
+const TIMELINE_ROW_HEIGHT = 56;
+const TIMELINE_VIEWPORT_HEIGHT = 560;
+const TIMELINE_OVERSCAN_ROWS = 6;
+
+function VirtualizedTimeline({
+  timeline,
+  checkpointSeq,
+  onSelect,
+}: {
+  timeline: readonly MatchRecordTimelineEntryView[];
+  checkpointSeq: number | null;
+  onSelect: (entry: MatchRecordTimelineEntryView) => void;
+}) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const viewportHeight = Math.min(
+    TIMELINE_VIEWPORT_HEIGHT,
+    Math.max(TIMELINE_ROW_HEIGHT, timeline.length * TIMELINE_ROW_HEIGHT)
+  );
+  const startIndex = Math.max(
+    0,
+    Math.floor(scrollTop / TIMELINE_ROW_HEIGHT) - TIMELINE_OVERSCAN_ROWS
+  );
+  const endIndex = Math.min(
+    timeline.length,
+    Math.ceil((scrollTop + viewportHeight) / TIMELINE_ROW_HEIGHT) + TIMELINE_OVERSCAN_ROWS
+  );
+
+  useEffect(() => {
+    if (checkpointSeq === null) return;
+    const selectedIndex = timeline.findIndex(
+      (entry) => entry.relatedCheckpointSeq === checkpointSeq
+    );
+    const viewport = viewportRef.current;
+    if (selectedIndex < 0 || !viewport) return;
+    const rowTop = selectedIndex * TIMELINE_ROW_HEIGHT;
+    const rowBottom = rowTop + TIMELINE_ROW_HEIGHT;
+    if (rowTop < viewport.scrollTop) {
+      viewport.scrollTo({ top: rowTop });
+    } else if (rowBottom > viewport.scrollTop + viewport.clientHeight) {
+      viewport.scrollTo({ top: rowBottom - viewport.clientHeight });
+    }
+  }, [checkpointSeq, timeline]);
+
+  return (
+    <div
+      ref={viewportRef}
+      className="mt-3 overflow-x-hidden overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]"
+      style={{ height: viewportHeight }}
+      onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      aria-label="对局进程时间线"
+    >
+      <div className="relative" style={{ height: timeline.length * TIMELINE_ROW_HEIGHT }}>
+        {timeline.slice(startIndex, endIndex).map((entry, visibleIndex) => (
+          <div
+            key={entry.timelineSeq}
+            className="absolute inset-x-0"
+            style={{ top: (startIndex + visibleIndex) * TIMELINE_ROW_HEIGHT }}
+          >
+            <TimelineRow
+              entry={entry}
+              selected={
+                entry.relatedCheckpointSeq !== null && entry.relatedCheckpointSeq === checkpointSeq
+              }
+              onClick={() => onSelect(entry)}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1125,7 +1377,55 @@ function ReplayMetricGrid({ replay }: { replay: MatchRecordReplayView }) {
   );
 }
 
-function VisibleEventList({ events }: { events: readonly MatchRecordVisibleEventView[] }) {
+function mergeAuditPages(
+  current: MatchRecordAuditPages,
+  nextPage: MatchRecordAuditPageView
+): MatchRecordAuditPages {
+  const existing = current[nextPage.kind];
+  if (!existing || existing.kind !== nextPage.kind) {
+    return { ...current, [nextPage.kind]: nextPage };
+  }
+  if (nextPage.kind === 'PUBLIC_EVENTS' && existing.kind === 'PUBLIC_EVENTS') {
+    return {
+      ...current,
+      PUBLIC_EVENTS: {
+        ...nextPage,
+        items: [...existing.items, ...nextPage.items],
+      },
+    };
+  }
+  if (nextPage.kind === 'PRIVATE_EVENTS' && existing.kind === 'PRIVATE_EVENTS') {
+    return {
+      ...current,
+      PRIVATE_EVENTS: {
+        ...nextPage,
+        items: [...existing.items, ...nextPage.items],
+      },
+    };
+  }
+  if (nextPage.kind === 'DECISIONS' && existing.kind === 'DECISIONS') {
+    return {
+      ...current,
+      DECISIONS: {
+        ...nextPage,
+        items: [...existing.items, ...nextPage.items],
+      },
+    };
+  }
+  return current;
+}
+
+function VisibleEventList({
+  events,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+}: {
+  events: readonly MatchRecordVisibleEventView[];
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+}) {
   return (
     <div className="min-w-0 overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
       <div className="flex items-center justify-between gap-2 border-b border-[var(--border-subtle)] px-3 py-2">
@@ -1139,7 +1439,7 @@ function VisibleEventList({ events }: { events: readonly MatchRecordVisibleEvent
         <div className="px-3 py-4 text-sm text-[var(--text-muted)]">暂无可见事件</div>
       ) : (
         <div className="grid max-h-52 min-w-0 divide-y divide-[var(--border-subtle)] overflow-x-hidden overflow-y-auto">
-          {events.slice(-8).map((event) => (
+          {events.map((event) => (
             <div key={event.eventId} className="min-w-0 px-3 py-2">
               <div className="flex min-w-0 items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -1162,11 +1462,22 @@ function VisibleEventList({ events }: { events: readonly MatchRecordVisibleEvent
           ))}
         </div>
       )}
+      <AuditLoadMoreButton hasMore={hasMore} loading={loadingMore} onClick={onLoadMore} />
     </div>
   );
 }
 
-function PrivateEventList({ events }: { events: readonly MatchRecordVisiblePrivateEventView[] }) {
+function PrivateEventList({
+  events,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+}: {
+  events: readonly MatchRecordVisiblePrivateEventView[];
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+}) {
   return (
     <div className="min-w-0 overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
       <div className="flex items-center justify-between gap-2 border-b border-[var(--border-subtle)] px-3 py-2">
@@ -1179,8 +1490,8 @@ function PrivateEventList({ events }: { events: readonly MatchRecordVisiblePriva
       {events.length === 0 ? (
         <div className="px-3 py-4 text-sm text-[var(--text-muted)]">暂无私密事件</div>
       ) : (
-        <div className="grid min-w-0 divide-y divide-[var(--border-subtle)]">
-          {events.slice(-5).map((event) => (
+        <div className="grid max-h-52 min-w-0 divide-y divide-[var(--border-subtle)] overflow-x-hidden overflow-y-auto">
+          {events.map((event) => (
             <div key={event.eventId} className="min-w-0 px-3 py-2">
               <div className="truncate text-sm font-medium text-[var(--text-primary)]">
                 {event.summary}
@@ -1196,11 +1507,22 @@ function PrivateEventList({ events }: { events: readonly MatchRecordVisiblePriva
           ))}
         </div>
       )}
+      <AuditLoadMoreButton hasMore={hasMore} loading={loadingMore} onClick={onLoadMore} />
     </div>
   );
 }
 
-function DecisionRecordList({ decisions }: { decisions: readonly MatchRecordDecisionView[] }) {
+function DecisionRecordList({
+  decisions,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+}: {
+  decisions: readonly MatchRecordDecisionView[];
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+}) {
   return (
     <div className="min-w-0 overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
       <div className="flex items-center justify-between gap-2 border-b border-[var(--border-subtle)] px-3 py-2">
@@ -1214,7 +1536,7 @@ function DecisionRecordList({ decisions }: { decisions: readonly MatchRecordDeci
         <div className="px-3 py-4 text-sm text-[var(--text-muted)]">暂无决策记录</div>
       ) : (
         <div className="grid max-h-52 min-w-0 divide-y divide-[var(--border-subtle)] overflow-x-hidden overflow-y-auto">
-          {decisions.slice(-8).map((decision) => (
+          {decisions.map((decision) => (
             <div key={decision.decisionId} className="min-w-0 px-3 py-2">
               <div className="flex min-w-0 items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -1237,7 +1559,30 @@ function DecisionRecordList({ decisions }: { decisions: readonly MatchRecordDeci
           ))}
         </div>
       )}
+      <AuditLoadMoreButton hasMore={hasMore} loading={loadingMore} onClick={onLoadMore} />
     </div>
+  );
+}
+
+function AuditLoadMoreButton({
+  hasMore,
+  loading,
+  onClick,
+}: {
+  hasMore: boolean;
+  loading: boolean;
+  onClick: () => void;
+}) {
+  if (!hasMore) return null;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loading}
+      className="button-ghost min-h-9 w-full rounded-none border-t border-[var(--border-subtle)] px-3 text-xs font-semibold disabled:opacity-50"
+    >
+      {loading ? '读取中…' : '加载更早记录'}
+    </button>
   );
 }
 

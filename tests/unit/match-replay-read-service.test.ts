@@ -14,7 +14,6 @@ import { CardType, GameMode, HeartColor } from '../../src/shared/types/enums';
 import {
   MATCH_REPLAY_EXPORT_ROW_LIMIT,
   MATCH_REPLAY_TIMELINE_ROW_LIMIT,
-  MATCH_REPLAY_VISIBLE_ROW_LIMIT,
   MatchReplayReadService,
   type MatchReplayReadQueryClient,
 } from '../../src/server/services/match-replay-read-service';
@@ -618,11 +617,23 @@ describe('MatchReplayReadService P1b', () => {
     ).toBeUndefined();
   });
 
-  it('普通 timeline 与 replay 事件模型只暴露当前玩家可见事实', async () => {
+  it('普通 replay 使用轻量 DTO，audit 分页只暴露当前玩家可见事实', async () => {
     const { service } = createHarness();
 
     const timeline = await service.getMatchRecordTimeline('match-read-1', 'u1');
     const replay = await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+    const publicAudit = await service.getMatchRecordAuditPage('match-read-1', 'u1', {
+      kind: 'PUBLIC_EVENTS',
+      timelineSeq: 2,
+    });
+    const privateAudit = await service.getMatchRecordAuditPage('match-read-1', 'u1', {
+      kind: 'PRIVATE_EVENTS',
+      timelineSeq: 2,
+    });
+    const decisionAudit = await service.getMatchRecordAuditPage('match-read-1', 'u1', {
+      kind: 'DECISIONS',
+      timelineSeq: 2,
+    });
 
     expect(timeline?.timelineSummary.map((entry) => entry.timelineSeq)).toEqual([1, 2]);
     expect(timeline?.timelineSummary[0]).toMatchObject({
@@ -637,7 +648,13 @@ describe('MatchReplayReadService P1b', () => {
     });
     expect(JSON.stringify(timeline)).not.toContain('初始化权威检查点');
     expect(JSON.stringify(timeline)).not.toContain('对手私有事件批次');
-    expect(replay?.visibleEvents).toEqual([
+    expect(replay?.recordFrame).toMatchObject({ timelineSeq: 2 });
+    expect(replay).not.toHaveProperty('timelineSummary');
+    expect(replay).not.toHaveProperty('visibleEvents');
+    expect(replay).not.toHaveProperty('visiblePrivateEvents');
+    expect(replay).not.toHaveProperty('visibleDecisions');
+    expect(publicAudit?.kind).toBe('PUBLIC_EVENTS');
+    expect(publicAudit?.items).toEqual([
       expect.objectContaining({
         timelineSeq: 2,
         eventSeq: 3,
@@ -645,8 +662,9 @@ describe('MatchReplayReadService P1b', () => {
         eventType: 'PhaseStarted',
       }),
     ]);
-    expect(replay?.visibleEvents[0]?.payload).toMatchObject({ phase: 'MAIN' });
-    expect(replay?.visiblePrivateEvents).toEqual([
+    expect(publicAudit?.items[0]?.payload).toMatchObject({ phase: 'MAIN' });
+    expect(privateAudit?.kind).toBe('PRIVATE_EVENTS');
+    expect(privateAudit?.items).toEqual([
       expect.objectContaining({
         timelineSeq: 2,
         eventSeq: 2,
@@ -654,10 +672,11 @@ describe('MatchReplayReadService P1b', () => {
         eventType: 'HandUpdated',
       }),
     ]);
-    expect(replay?.visiblePrivateEvents[0]?.payload).toMatchObject({
+    expect(privateAudit?.items[0]?.payload).toMatchObject({
       payload: { visibleHandObjectIds: ['self-card'] },
     });
-    expect(replay?.visibleDecisions).toEqual([
+    expect(decisionAudit?.kind).toBe('DECISIONS');
+    expect(decisionAudit?.items).toEqual([
       expect.objectContaining({
         decisionId: 'decision-opened-first',
         decisionType: 'ACTIVE_EFFECT_OPENED',
@@ -676,8 +695,8 @@ describe('MatchReplayReadService P1b', () => {
         ],
       }),
     ]);
-    expect(JSON.stringify(replay)).not.toContain('opponent-secret-card');
-    expect(JSON.stringify(replay)).not.toContain('opponent-secret-candidate');
+    expect(JSON.stringify(privateAudit)).not.toContain('opponent-secret-card');
+    expect(JSON.stringify(decisionAudit)).not.toContain('opponent-secret-candidate');
   });
 
   it('时间线记录过大时拒绝一次性读取', async () => {
@@ -700,24 +719,43 @@ describe('MatchReplayReadService P1b', () => {
     });
   });
 
-  it('回放节点过大时拒绝读取 checkpoint 之前的全部事件', async () => {
-    await withMutedReplayReadWarnings(async () => {
-      const { service, calls } = createHarness({
-        checkpointOverrides: { timeline_seq: MATCH_REPLAY_VISIBLE_ROW_LIMIT + 1 },
-      });
-
-      await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).rejects.toMatchObject({
-        code: 'MATCH_RECORD_REPLAY_WINDOW_TOO_LARGE',
-        statusCode: 413,
-      });
-      expect(calls.some((call) => call.text.includes('FROM match_record_public_events'))).toBe(
-        false
-      );
-      expect(calls.some((call) => call.text.includes('FROM match_record_private_events'))).toBe(
-        false
-      );
-      expect(calls.some((call) => call.text.includes('FROM match_decision_records'))).toBe(false);
+  it('长对局节点读取不再查询 checkpoint 之前的累计审计事实', async () => {
+    const { service, calls } = createHarness({
+      checkpointOverrides: { timeline_seq: 10_001 },
     });
+
+    const replay = await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+
+    expect(replay?.replayPosition.timelineSeq).toBe(10_001);
+    expect(calls.some((call) => call.text.includes('FROM match_record_public_events'))).toBe(false);
+    expect(calls.some((call) => call.text.includes('FROM match_record_private_events'))).toBe(
+      false
+    );
+    expect(calls.some((call) => call.text.includes('FROM match_decision_records'))).toBe(false);
+  });
+
+  it('audit 使用有界倒序游标且拒绝越过当前记录 timeline', async () => {
+    const { service, calls } = createHarness();
+
+    await service.getMatchRecordAuditPage('match-read-1', 'u1', {
+      kind: 'PUBLIC_EVENTS',
+      timelineSeq: 2,
+      limit: 25,
+      cursorTimelineSeq: 2,
+      cursorEventSeq: 3,
+    });
+
+    const auditCall = calls.find((call) => call.text.includes('FROM match_record_public_events'));
+    expect(auditCall?.text).toContain('(event.timeline_seq, event.event_seq) < ($3, $4)');
+    expect(auditCall?.text).toContain('ORDER BY event.timeline_seq DESC, event.event_seq DESC');
+    expect(auditCall?.text).toContain('LIMIT $5');
+    expect(auditCall?.values).toEqual(['match-read-1', 2, 2, 3, 26]);
+    await expect(
+      service.getMatchRecordAuditPage('match-read-1', 'u1', {
+        kind: 'PUBLIC_EVENTS',
+        timelineSeq: 3,
+      })
+    ).rejects.toMatchObject({ code: 'MATCH_RECORD_AUDIT_QUERY_INVALID', statusCode: 400 });
   });
 
   it('非参与者不能读取历史详情', async () => {

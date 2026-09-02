@@ -254,6 +254,70 @@ describe('gameStore remote snapshot sync', () => {
     expect(useGameStore.getState().freePlayEnabled).toBe(true);
   });
 
+  it('历史回放立即提交状态并复用未变化的区域与对象引用', async () => {
+    const firstView = {
+      ...createViewState('replay-stable', 1),
+      table: {
+        zones: {
+          FIRST_HAND: {
+            zone: 'HAND',
+            ownerSeat: 'FIRST',
+            count: 1,
+            ordered: true,
+            objectIds: ['obj-card-1'],
+          },
+        },
+      },
+      objects: {
+        'obj-card-1': {
+          publicObjectId: 'obj-card-1',
+          ownerSeat: 'FIRST',
+          controllerSeat: 'FIRST',
+          cardType: 'MEMBER',
+          surface: 'BACK',
+        },
+      },
+    } as unknown as PlayerViewState;
+    const replayBase = {
+      matchId: 'replay-stable',
+      sourceMatchMode: 'ONLINE',
+      viewerSeat: 'FIRST',
+      recordFrame: null,
+      recordStatus: 'COMPLETED',
+      recordCompleteness: 'COMPLETE',
+      replayLimitations: [],
+      partialReasonSummary: null,
+    } as const;
+
+    const firstCommit = useGameStore.getState().enterReadonlyReplay({
+      ...replayBase,
+      replayPosition: { timelineSeq: 1, checkpointSeq: 1 },
+      playerViewState: firstView,
+    } as unknown as MatchRecordReplayView);
+    expect(useGameStore.getState().playerViewState?.match.seq).toBe(1);
+    await firstCommit;
+
+    const previous = useGameStore.getState().playerViewState!;
+    const secondCommit = useGameStore.getState().enterReadonlyReplay({
+      ...replayBase,
+      replayPosition: { timelineSeq: 2, checkpointSeq: 2 },
+      playerViewState: {
+        ...firstView,
+        match: { ...firstView.match, seq: 2 },
+        table: { zones: { ...firstView.table.zones } },
+        objects: { ...firstView.objects },
+      },
+    } as unknown as MatchRecordReplayView);
+    const next = useGameStore.getState().playerViewState!;
+
+    expect(next.match.seq).toBe(2);
+    expect(next.table).toBe(previous.table);
+    expect(next.table.zones).toBe(previous.table.zones);
+    expect(next.objects).toBe(previous.objects);
+    expect(next.objects['obj-card-1']).toBe(previous.objects['obj-card-1']);
+    await secondCommit;
+  });
+
   it('拒绝缺少权威操作模式的当前玩家视图且不会开启自由模式', async () => {
     const malformedView = createViewState('missing-mode', 1) as PlayerViewState & {
       match: Partial<PlayerViewState['match']>;

@@ -13,6 +13,8 @@ import type {
   DebugReplayCardSummary,
   DebugReplayDeckSnapshot,
   MatchRecordDecisionView,
+  MatchRecordAuditKind,
+  MatchRecordAuditPageView,
   MatchRecordDeckSnapshotView,
   MatchDeckSnapshotSource,
   MatchDeckSnapshotValidationState,
@@ -61,9 +63,9 @@ export const MATCH_REPLAY_TIMELINE_ROW_LIMIT = readPositiveIntEnv(
   'MATCH_REPLAY_TIMELINE_ROW_LIMIT',
   10_000
 );
-export const MATCH_REPLAY_VISIBLE_ROW_LIMIT = readPositiveIntEnv(
-  'MATCH_REPLAY_VISIBLE_ROW_LIMIT',
-  10_000
+export const MATCH_REPLAY_AUDIT_PAGE_LIMIT = readPositiveIntEnv(
+  'MATCH_REPLAY_AUDIT_PAGE_LIMIT',
+  100
 );
 export const MATCH_REPLAY_EXPORT_ROW_LIMIT = readPositiveIntEnv(
   'MATCH_REPLAY_EXPORT_ROW_LIMIT',
@@ -84,6 +86,15 @@ export interface MatchReplayReadQueryClient {
 
 interface MatchReplayReadServiceDeps {
   readonly queryClient?: MatchReplayReadQueryClient;
+}
+
+export interface MatchRecordAuditPageOptions {
+  readonly kind: MatchRecordAuditKind;
+  readonly timelineSeq: number;
+  readonly limit?: number;
+  readonly cursorTimelineSeq?: number;
+  readonly cursorEventSeq?: number;
+  readonly cursorDecisionId?: string;
 }
 
 interface RecordAccessRow {
@@ -309,8 +320,7 @@ export class MatchReplayReadServiceError extends Error {
   }
 }
 
-type ReplayReadGuardOperation =
-  'USER_TIMELINE' | 'ADMIN_TIMELINE' | 'USER_REPLAY' | 'ADMIN_REPLAY' | 'ADMIN_EXPORT';
+type ReplayReadGuardOperation = 'USER_TIMELINE' | 'ADMIN_TIMELINE' | 'ADMIN_EXPORT';
 
 interface ReplayRecordSizeSource {
   readonly match_id: string;
@@ -338,29 +348,6 @@ function assertTimelineWithinLimit(
   throw new MatchReplayReadServiceError(
     'MATCH_RECORD_TIMELINE_TOO_LARGE',
     '历史对局时间线过大，请使用分页读取',
-    413
-  );
-}
-
-function assertReplayWindowWithinLimit(
-  matchId: string,
-  timelineSeq: number,
-  operation: ReplayReadGuardOperation
-): void {
-  const estimatedRowCount = normalizeReplayRowCount(timelineSeq);
-  if (estimatedRowCount <= MATCH_REPLAY_VISIBLE_ROW_LIMIT) {
-    return;
-  }
-
-  logReplayReadBlocked({
-    matchId,
-    operation,
-    estimatedRowCount,
-    limit: MATCH_REPLAY_VISIBLE_ROW_LIMIT,
-  });
-  throw new MatchReplayReadServiceError(
-    'MATCH_RECORD_REPLAY_WINDOW_TOO_LARGE',
-    '历史回放节点过大，请选择更近的检查点或分页读取',
     413
   );
 }
@@ -416,6 +403,55 @@ function logReplayReadBlocked(input: {
       limit: input.limit,
     })
   );
+}
+
+function validateAuditPageOptions(
+  options: MatchRecordAuditPageOptions,
+  lastTimelineSeq: number
+): void {
+  if (
+    !Number.isSafeInteger(options.timelineSeq) ||
+    options.timelineSeq < 0 ||
+    options.timelineSeq > lastTimelineSeq
+  ) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_AUDIT_QUERY_INVALID',
+      '历史对局审计上界非法',
+      400
+    );
+  }
+  if (options.limit !== undefined && (!Number.isSafeInteger(options.limit) || options.limit <= 0)) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_AUDIT_QUERY_INVALID',
+      '历史对局审计分页大小非法',
+      400
+    );
+  }
+
+  const hasCursorTimeline = options.cursorTimelineSeq !== undefined;
+  const hasEventCursor = options.cursorEventSeq !== undefined;
+  const hasDecisionCursor = options.cursorDecisionId !== undefined;
+  const cursorTimelineValid =
+    !hasCursorTimeline ||
+    (Number.isSafeInteger(options.cursorTimelineSeq) &&
+      options.cursorTimelineSeq! >= 0 &&
+      options.cursorTimelineSeq! <= options.timelineSeq);
+  const eventCursorValid =
+    !hasEventCursor ||
+    (Number.isSafeInteger(options.cursorEventSeq) && options.cursorEventSeq! >= 0);
+  const decisionCursorValid = !hasDecisionCursor || options.cursorDecisionId!.trim().length > 0;
+  const cursorShapeValid =
+    options.kind === 'DECISIONS'
+      ? hasCursorTimeline === hasDecisionCursor && !hasEventCursor
+      : hasCursorTimeline === hasEventCursor && !hasDecisionCursor;
+
+  if (!cursorTimelineValid || !eventCursorValid || !decisionCursorValid || !cursorShapeValid) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_AUDIT_QUERY_INVALID',
+      '历史对局审计游标非法',
+      400
+    );
+  }
 }
 
 export class MatchReplayReadService {
@@ -790,7 +826,6 @@ export class MatchReplayReadService {
         404
       );
     }
-    assertReplayWindowWithinLimit(matchId, checkpoint.timeline_seq, 'USER_REPLAY');
     validateCheckpointStorageEnvelope(checkpoint);
     validateCheckpointCompatibility(checkpoint);
 
@@ -803,11 +838,6 @@ export class MatchReplayReadService {
     });
     const frame = await this.getTimelineFrame(matchId, checkpoint.timeline_seq);
     const mappedFrame = frame ? mapTimelineRow(frame, access.viewer_seat) : null;
-    const [publicEvents, privateEvents, decisionRecords] = await Promise.all([
-      this.getPublicEventRowsThrough(matchId, checkpoint.timeline_seq),
-      this.getPrivateEventRowsThrough(matchId, access.viewer_seat, checkpoint.timeline_seq),
-      this.getDecisionRecordRowsThrough(matchId, access.viewer_seat, checkpoint.timeline_seq),
-    ]);
 
     return {
       matchId,
@@ -820,11 +850,7 @@ export class MatchReplayReadService {
         timelineSeq: checkpoint.timeline_seq,
         checkpointSeq: checkpoint.checkpoint_seq,
       },
-      timelineSummary: mappedFrame,
       recordFrame: mappedFrame,
-      visibleEvents: publicEvents.map(mapPublicEventRow),
-      visiblePrivateEvents: privateEvents.map(mapPrivateEventRow),
-      visibleDecisions: decisionRecords.map(mapDecisionRecordRow),
       checkpointInfo: {
         matchId,
         checkpointSeq: checkpoint.checkpoint_seq,
@@ -883,7 +909,6 @@ export class MatchReplayReadService {
         404
       );
     }
-    assertReplayWindowWithinLimit(matchId, checkpoint.timeline_seq, 'ADMIN_REPLAY');
     validateCheckpointStorageEnvelope(checkpoint);
     validateCheckpointCompatibility(checkpoint);
 
@@ -896,11 +921,6 @@ export class MatchReplayReadService {
     });
     const frame = await this.getTimelineFrame(matchId, checkpoint.timeline_seq);
     const mappedFrame = frame ? mapTimelineRow(frame, viewerSeat) : null;
-    const [publicEvents, privateEvents, decisionRecords] = await Promise.all([
-      this.getPublicEventRowsThrough(matchId, checkpoint.timeline_seq),
-      this.getPrivateEventRowsThrough(matchId, viewerSeat, checkpoint.timeline_seq),
-      this.getDecisionRecordRowsThrough(matchId, viewerSeat, checkpoint.timeline_seq),
-    ]);
 
     return {
       matchId,
@@ -913,11 +933,7 @@ export class MatchReplayReadService {
         timelineSeq: checkpoint.timeline_seq,
         checkpointSeq: checkpoint.checkpoint_seq,
       },
-      timelineSummary: mappedFrame,
       recordFrame: mappedFrame,
-      visibleEvents: publicEvents.map(mapPublicEventRow),
-      visiblePrivateEvents: privateEvents.map(mapPrivateEventRow),
-      visibleDecisions: decisionRecords.map(mapDecisionRecordRow),
       checkpointInfo: {
         matchId,
         checkpointSeq: checkpoint.checkpoint_seq,
@@ -938,6 +954,52 @@ export class MatchReplayReadService {
       replayLimitations: readLimitations(record.replay_limitations),
       partialReasonSummary: sanitizePartialReason(record.partial_reason),
     };
+  }
+
+  async getMatchRecordAuditPage(
+    matchId: string,
+    userId: string,
+    options: MatchRecordAuditPageOptions
+  ): Promise<MatchRecordAuditPageView | null> {
+    const access = await this.getRecordAccess(matchId, userId);
+    if (!access) {
+      return null;
+    }
+    assertReplayDataAvailable(access.completeness);
+    validateRecordCompatibility(access);
+    validateAuditPageOptions(options, access.last_timeline_seq);
+    return this.getAuditPage(matchId, access.viewer_seat, options);
+  }
+
+  async getMatchRecordAuditPageForAdmin(
+    matchId: string,
+    viewerSeat: Seat,
+    options: MatchRecordAuditPageOptions
+  ): Promise<MatchRecordAuditPageView | null> {
+    const record = await this.getAdminRecord(matchId);
+    if (!record) {
+      return null;
+    }
+    assertReplayDataAvailable(record.completeness);
+    validateAdminRecordCompatibility(record);
+    validateAuditPageOptions(options, record.last_timeline_seq);
+
+    const participants = await this.queryClient.query<Pick<ParticipantRow, 'seat'>>(
+      `SELECT seat
+      FROM match_participants
+      WHERE match_id = $1 AND seat = $2
+      LIMIT 1`,
+      [matchId, viewerSeat]
+    );
+    if (!participants.rows[0]) {
+      throw new MatchReplayReadServiceError(
+        'MATCH_RECORD_VIEWER_SEAT_INVALID',
+        '历史对局不存在该回放视角',
+        400
+      );
+    }
+
+    return this.getAuditPage(matchId, viewerSeat, options);
   }
 
   private async getRecordAccess(matchId: string, userId: string): Promise<RecordAccessRow | null> {
@@ -1050,10 +1112,69 @@ export class MatchReplayReadService {
     return result.rows[0] ?? null;
   }
 
-  private async getPublicEventRowsThrough(
+  private async getAuditPage(
     matchId: string,
-    timelineSeq: number
+    viewerSeat: Seat,
+    options: MatchRecordAuditPageOptions
+  ): Promise<MatchRecordAuditPageView> {
+    const limit = Math.min(
+      options.limit ?? MATCH_REPLAY_AUDIT_PAGE_LIMIT,
+      MATCH_REPLAY_AUDIT_PAGE_LIMIT
+    );
+    if (options.kind === 'PUBLIC_EVENTS') {
+      const rows = await this.getPublicEventAuditRows(matchId, options, limit + 1);
+      const hasNextPage = rows.length > limit;
+      const items = rows.slice(0, limit);
+      const last = items.at(-1);
+      return {
+        matchId,
+        viewerSeat,
+        timelineSeq: options.timelineSeq,
+        kind: 'PUBLIC_EVENTS',
+        items: items.map(mapPublicEventRow),
+        nextCursor:
+          hasNextPage && last ? { timelineSeq: last.timeline_seq, eventSeq: last.event_seq } : null,
+      };
+    }
+    if (options.kind === 'PRIVATE_EVENTS') {
+      const rows = await this.getPrivateEventAuditRows(matchId, viewerSeat, options, limit + 1);
+      const hasNextPage = rows.length > limit;
+      const items = rows.slice(0, limit);
+      const last = items.at(-1);
+      return {
+        matchId,
+        viewerSeat,
+        timelineSeq: options.timelineSeq,
+        kind: 'PRIVATE_EVENTS',
+        items: items.map(mapPrivateEventRow),
+        nextCursor:
+          hasNextPage && last ? { timelineSeq: last.timeline_seq, eventSeq: last.event_seq } : null,
+      };
+    }
+
+    const rows = await this.getDecisionAuditRows(matchId, viewerSeat, options, limit + 1);
+    const hasNextPage = rows.length > limit;
+    const items = rows.slice(0, limit);
+    const last = items.at(-1);
+    return {
+      matchId,
+      viewerSeat,
+      timelineSeq: options.timelineSeq,
+      kind: 'DECISIONS',
+      items: items.map(mapDecisionRecordRow),
+      nextCursor:
+        hasNextPage && last
+          ? { timelineSeq: last.timeline_seq, decisionId: last.decision_id }
+          : null,
+    };
+  }
+
+  private async getPublicEventAuditRows(
+    matchId: string,
+    options: MatchRecordAuditPageOptions,
+    queryLimit: number
   ): Promise<readonly PublicEventRow[]> {
+    const hasCursor = options.cursorTimelineSeq !== undefined;
     const result = await this.queryClient.query<PublicEventRow>(
       `SELECT
         event.timeline_seq,
@@ -1074,18 +1195,30 @@ export class MatchReplayReadService {
         AND frame.timeline_seq = event.timeline_seq
       WHERE event.match_id = $1
         AND event.timeline_seq <= $2
-      ORDER BY event.timeline_seq ASC, event.event_seq ASC`,
-      [matchId, timelineSeq]
+        ${hasCursor ? 'AND (event.timeline_seq, event.event_seq) < ($3, $4)' : ''}
+      ORDER BY event.timeline_seq DESC, event.event_seq DESC
+      LIMIT $${hasCursor ? 5 : 3}`,
+      hasCursor
+        ? [
+            matchId,
+            options.timelineSeq,
+            options.cursorTimelineSeq,
+            options.cursorEventSeq,
+            queryLimit,
+          ]
+        : [matchId, options.timelineSeq, queryLimit]
     );
 
     return result.rows;
   }
 
-  private async getPrivateEventRowsThrough(
+  private async getPrivateEventAuditRows(
     matchId: string,
     viewerSeat: Seat,
-    timelineSeq: number
+    options: MatchRecordAuditPageOptions,
+    queryLimit: number
   ): Promise<readonly PrivateEventRow[]> {
+    const hasCursor = options.cursorTimelineSeq !== undefined;
     const result = await this.queryClient.query<PrivateEventRow>(
       `SELECT
         event.timeline_seq,
@@ -1105,18 +1238,31 @@ export class MatchReplayReadService {
       WHERE event.match_id = $1
         AND event.seat = $2
         AND event.timeline_seq <= $3
-      ORDER BY event.timeline_seq ASC, event.event_seq ASC`,
-      [matchId, viewerSeat, timelineSeq]
+        ${hasCursor ? 'AND (event.timeline_seq, event.event_seq) < ($4, $5)' : ''}
+      ORDER BY event.timeline_seq DESC, event.event_seq DESC
+      LIMIT $${hasCursor ? 6 : 4}`,
+      hasCursor
+        ? [
+            matchId,
+            viewerSeat,
+            options.timelineSeq,
+            options.cursorTimelineSeq,
+            options.cursorEventSeq,
+            queryLimit,
+          ]
+        : [matchId, viewerSeat, options.timelineSeq, queryLimit]
     );
 
     return result.rows;
   }
 
-  private async getDecisionRecordRowsThrough(
+  private async getDecisionAuditRows(
     matchId: string,
     viewerSeat: Seat,
-    timelineSeq: number
+    options: MatchRecordAuditPageOptions,
+    queryLimit: number
   ): Promise<readonly DecisionRecordRow[]> {
+    const hasCursor = options.cursorTimelineSeq !== undefined;
     const result = await this.queryClient.query<DecisionRecordRow>(
       `SELECT
         decision_id,
@@ -1157,8 +1303,19 @@ export class MatchReplayReadService {
       WHERE match_id = $1
         AND timeline_seq <= $3
         AND (waiting_seat IS NULL OR waiting_seat = $2)
-      ORDER BY timeline_seq ASC, decision_id ASC`,
-      [matchId, viewerSeat, timelineSeq]
+        ${hasCursor ? 'AND (timeline_seq, decision_id) < ($4, $5)' : ''}
+      ORDER BY timeline_seq DESC, decision_id DESC
+      LIMIT $${hasCursor ? 6 : 4}`,
+      hasCursor
+        ? [
+            matchId,
+            viewerSeat,
+            options.timelineSeq,
+            options.cursorTimelineSeq,
+            options.cursorDecisionId,
+            queryLimit,
+          ]
+        : [matchId, viewerSeat, options.timelineSeq, queryLimit]
     );
 
     return result.rows;
