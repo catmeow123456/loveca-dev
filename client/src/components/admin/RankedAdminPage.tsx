@@ -1,19 +1,27 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CirclePause,
+  Eye,
   Loader2,
+  Pencil,
+  Play,
   RefreshCw,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
   ImageIcon,
   Award,
+  Trash2,
 } from 'lucide-react';
 import { AdminPageHeader } from './AdminPageHeader';
 import { AdminViewTabs } from './AdminViewTabs';
+import { RankedSeasonSettingsSnapshot } from './RankedSeasonSettingsSnapshot';
 import { SeasonOpenWindowsFields } from './SeasonOpenWindowsFields';
-import { ConfirmDialog, SelectMenu, type SelectMenuOption } from '@/components/common';
+import { ConfirmDialog, SelectMenu, StatusBadge, type SelectMenuOption } from '@/components/common';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import { ActivityCoverEditor } from '@/components/activity-cover/ActivityCoverEditor';
 import { ActivityBadgeEditor } from '@/components/activity-badge/ActivityBadgeEditor';
@@ -143,6 +151,7 @@ export function RankedAdminPage({
   const [creating, setCreating] = useState(false);
   const [editingSeason, setEditingSeason] = useState<RankedAdminSeason | null>(null);
   const [deletingSeason, setDeletingSeason] = useState<RankedAdminSeason | null>(null);
+  const [endingSeason, setEndingSeason] = useState<RankedAdminSeason | null>(null);
   const [noticeSeason, setNoticeSeason] = useState<RankedAdminSeason | null>(null);
   const [coverSeason, setCoverSeason] = useState<RankedAdminSeason | null>(null);
   const [badgeSeason, setBadgeSeason] = useState<RankedAdminSeason | null>(null);
@@ -416,6 +425,7 @@ export function RankedAdminPage({
                 }
                 onAction={(season, action) => run(() => runRankedSeasonAction(season.id, action))}
                 onDelete={setDeletingSeason}
+                onRequestFinalize={setEndingSeason}
                 onAdmission={(season, admission) =>
                   run(() => setRankedAdmission(season.id, admission))
                 }
@@ -511,6 +521,25 @@ export function RankedAdminPage({
           }}
         />
       ) : null}
+      <ConfirmDialog
+        isOpen={endingSeason !== null}
+        title="结束当前赛季？"
+        message={
+          endingSeason
+            ? `确认后，“${endingSeason.name}”将停止接受新匹配并进入结算状态，且不能恢复为进行中。已经形成的配对仍可继续开局和完成结算。`
+            : ''
+        }
+        confirmLabel="确认结束赛季"
+        isConfirming={busy}
+        onCancel={() => setEndingSeason(null)}
+        onConfirm={() => {
+          if (!endingSeason) return;
+          const target = endingSeason;
+          void run(() => runRankedSeasonAction(target.id, 'finalize')).then((finalized) => {
+            if (finalized) setEndingSeason(null);
+          });
+        }}
+      />
       <ConfirmDialog
         isOpen={deletingSeason !== null}
         title="删除未开始赛季？"
@@ -1808,7 +1837,7 @@ function DistributionPanel({
   );
 }
 
-function SeasonPanel({
+export function SeasonPanel({
   seasons,
   formalAlgorithm,
   formalRatingConfig,
@@ -1823,6 +1852,7 @@ function SeasonPanel({
   onUpdateActive,
   onAction,
   onDelete,
+  onRequestFinalize,
   onAdmission,
   onOpenSeasonNotice,
   onOpenCover,
@@ -1844,17 +1874,18 @@ function SeasonPanel({
     season: RankedAdminSeason,
     payload: RankedActiveSeasonOperationsPayload
   ) => Promise<unknown>;
-  onAction: (
-    season: RankedAdminSeason,
-    action: 'activate' | 'finalize' | 'close'
-  ) => Promise<unknown>;
+  onAction: (season: RankedAdminSeason, action: 'activate' | 'close') => Promise<unknown>;
   onDelete: (season: RankedAdminSeason) => void;
+  onRequestFinalize: (season: RankedAdminSeason) => void;
   onAdmission: (season: RankedAdminSeason, admission: 'OPEN' | 'PAUSED') => Promise<unknown>;
   onOpenSeasonNotice: (season: RankedAdminSeason) => void;
   onOpenCover: (season: RankedAdminSeason) => void;
   onOpenBadge: (season: RankedAdminSeason) => void;
   onOpenRatingRevision: (season: RankedAdminSeason) => void;
 }) {
+  const [expandedSettingsSeasonId, setExpandedSettingsSeasonId] = useState<string | null>(null);
+  const [expandedManagementSeasonId, setExpandedManagementSeasonId] = useState<string | null>(null);
+
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
@@ -1893,83 +1924,89 @@ function SeasonPanel({
       ) : null}
       {seasons.length > 0 ? (
         <div className="product-workbench">
-          {seasons.map((season) => (
-            <section key={season.id} className="product-list-row p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-semibold text-[var(--text-primary)]">{season.name}</h2>
-                  <p className="mt-1 text-xs text-[var(--text-muted)]">
-                    {season.seasonKey} · {lifecycleLabel(season.lifecycle)}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    className="button-secondary inline-flex items-center gap-1.5 px-3 py-2 text-sm"
-                    onClick={() => onOpenSeasonNotice(season)}
-                  >
-                    <BookOpen size={15} />
-                    查看公告
-                  </button>
-                  <button
-                    className="button-secondary inline-flex items-center gap-1.5 px-3 py-2 text-sm"
-                    onClick={() => onOpenCover(season)}
-                  >
-                    <ImageIcon size={15} />
-                    活动封面
-                  </button>
-                  <button
-                    className="button-secondary inline-flex items-center gap-1.5 px-3 py-2 text-sm"
-                    onClick={() => onOpenBadge(season)}
-                  >
-                    <Award size={15} />
-                    赛季徽章
-                  </button>
-                  {season.lifecycle === 'DRAFT' ? (
-                    <>
+          {seasons.map((season) => {
+            const settingsExpanded = expandedSettingsSeasonId === season.id;
+            const managementExpanded = expandedManagementSeasonId === season.id;
+            return (
+              <section key={season.id} className="product-list-row p-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="font-semibold text-[var(--text-primary)]">{season.name}</h2>
+                      <StatusBadge tone={seasonLifecycleTone(season.lifecycle)} dot>
+                        {lifecycleLabel(season.lifecycle)}
+                      </StatusBadge>
+                    </div>
+                    <p className="mt-1 font-mono text-xs text-[var(--text-muted)]">
+                      {season.seasonKey}
+                    </p>
+                  </div>
+                  <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
+                    <div className="flex max-w-full flex-wrap items-center gap-0.5 rounded-lg bg-[var(--bg-overlay)] p-1">
                       <button
-                        className="button-secondary px-3 py-2 text-sm"
-                        disabled={busy}
-                        onClick={() => onEdit(season)}
+                        type="button"
+                        className={`button-ghost inline-flex h-8 items-center gap-1.5 px-2.5 text-xs font-semibold ${
+                          settingsExpanded
+                            ? 'bg-[var(--bg-surface)] text-[var(--accent-primary)] shadow-sm'
+                            : ''
+                        }`}
+                        aria-expanded={settingsExpanded}
+                        aria-controls={`ranked-season-settings-${season.id}`}
+                        onClick={() => {
+                          setExpandedManagementSeasonId(null);
+                          setExpandedSettingsSeasonId(settingsExpanded ? null : season.id);
+                        }}
                       >
-                        编辑赛季与公告
+                        <Eye size={14} aria-hidden="true" />
+                        {settingsExpanded ? '收起设置' : '查看设置'}
                       </button>
                       <button
-                        className="button-primary px-3 py-2 text-sm"
+                        type="button"
+                        className="button-ghost inline-flex h-8 items-center gap-1.5 px-2.5 text-xs font-semibold"
+                        onClick={() => onOpenSeasonNotice(season)}
+                      >
+                        <BookOpen size={14} aria-hidden="true" />
+                        赛季公告
+                      </button>
+                      <button
+                        type="button"
+                        className={`button-ghost inline-flex h-8 items-center gap-1.5 px-2.5 text-xs font-semibold ${
+                          managementExpanded
+                            ? 'bg-[var(--bg-surface)] text-[var(--accent-primary)] shadow-sm'
+                            : ''
+                        }`}
+                        aria-expanded={managementExpanded}
+                        aria-controls={`ranked-season-management-${season.id}`}
+                        onClick={() => {
+                          setExpandedSettingsSeasonId(null);
+                          setExpandedManagementSeasonId(managementExpanded ? null : season.id);
+                        }}
+                      >
+                        管理
+                        <ChevronDown
+                          size={14}
+                          aria-hidden="true"
+                          className={`transition-transform ${managementExpanded ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+                    </div>
+                    {season.lifecycle === 'DRAFT' ? (
+                      <button
+                        type="button"
+                        className="button-primary inline-flex h-10 items-center gap-1.5 px-3.5 text-sm font-semibold"
                         disabled={busy}
                         onClick={() => void onAction(season, 'activate')}
                       >
+                        <Play size={15} aria-hidden="true" />
                         开始赛季
                       </button>
+                    ) : null}
+                    {season.lifecycle === 'ACTIVE' ? (
                       <button
-                        className="rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,var(--border-default))] px-3 py-2 text-sm text-[var(--semantic-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)]"
-                        disabled={busy}
-                        onClick={() => onDelete(season)}
-                      >
-                        删除赛季
-                      </button>
-                    </>
-                  ) : null}
-                  {season.lifecycle === 'ACTIVE' ? (
-                    <>
-                      {supportsRatingRevision(season) ? (
-                        <button
-                          className="button-secondary inline-flex items-center gap-1.5 px-3 py-2 text-sm"
-                          disabled={busy}
-                          onClick={() => onOpenRatingRevision(season)}
-                        >
-                          <SlidersHorizontal size={15} />
-                          调整积分参数
-                        </button>
-                      ) : null}
-                      <button
-                        className="button-secondary px-3 py-2 text-sm"
-                        disabled={busy}
-                        onClick={() => onEdit(season)}
-                      >
-                        编辑赛季与公告
-                      </button>
-                      <button
-                        className="button-secondary px-3 py-2 text-sm"
+                        type="button"
+                        className={`${
+                          season.queueAdmission === 'OPEN' ? 'button-secondary' : 'button-primary'
+                        } inline-flex h-10 items-center gap-1.5 px-3.5 text-sm font-semibold`}
                         disabled={busy}
                         onClick={() =>
                           void onAdmission(
@@ -1978,36 +2015,133 @@ function SeasonPanel({
                           )
                         }
                       >
+                        {season.queueAdmission === 'OPEN' ? (
+                          <CirclePause size={15} aria-hidden="true" />
+                        ) : (
+                          <Play size={15} aria-hidden="true" />
+                        )}
                         {season.queueAdmission === 'OPEN' ? '暂停匹配' : '开放匹配'}
                       </button>
+                    ) : null}
+                    {season.lifecycle === 'FINALIZING' ? (
                       <button
-                        className="rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_35%,var(--border-default))] px-3 py-2 text-sm text-[var(--semantic-warning)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-warning)_10%,transparent)]"
+                        type="button"
+                        className="button-primary inline-flex h-10 items-center gap-1.5 px-3.5 text-sm font-semibold"
                         disabled={busy}
-                        onClick={() => void onAction(season, 'finalize')}
+                        onClick={() => void onAction(season, 'close')}
                       >
-                        结束赛季
+                        <ShieldCheck size={15} aria-hidden="true" />
+                        完成结算
                       </button>
-                    </>
-                  ) : null}
-                  {season.lifecycle === 'FINALIZING' ? (
-                    <button
-                      className="button-primary px-3 py-2 text-sm"
-                      disabled={busy}
-                      onClick={() => void onAction(season, 'close')}
-                    >
-                      完成结算
-                    </button>
-                  ) : null}
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-muted)]">
-                <span>匹配：{season.queueAdmission === 'OPEN' ? '开放' : '暂停'}</span>
-                <span>排行榜：满 {season.leaderboardMinimumMatchCount} 场</span>
-                <span>{formatRankedOpenWindows(season.openWindows)}</span>
-                <span>结束：{formatDate(season.scheduledEndsAt)}</span>
-              </div>
-            </section>
-          ))}
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-muted)]">
+                  <span>匹配：{season.queueAdmission === 'OPEN' ? '开放' : '暂停'}</span>
+                  <span>排行榜：满 {season.leaderboardMinimumMatchCount} 场</span>
+                  <span>{formatRankedOpenWindows(season.openWindows)}</span>
+                  <span>结束：{formatDate(season.scheduledEndsAt)}</span>
+                </div>
+                {settingsExpanded ? <RankedSeasonSettingsSnapshot season={season} /> : null}
+                {managementExpanded ? (
+                  <section
+                    id={`ranked-season-management-${season.id}`}
+                    aria-label={`${season.name}管理操作`}
+                    className="mt-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] p-1.5"
+                  >
+                    <SeasonManagementGroup title="展示">
+                      <button
+                        type="button"
+                        className="button-ghost inline-flex h-7 min-h-0 items-center gap-1 px-2 text-[11px] font-semibold"
+                        onClick={() => {
+                          setExpandedManagementSeasonId(null);
+                          onOpenCover(season);
+                        }}
+                      >
+                        <ImageIcon size={13} aria-hidden="true" />
+                        活动封面
+                      </button>
+                      <button
+                        type="button"
+                        className="button-ghost inline-flex h-7 min-h-0 items-center gap-1 px-2 text-[11px] font-semibold"
+                        onClick={() => {
+                          setExpandedManagementSeasonId(null);
+                          onOpenBadge(season);
+                        }}
+                      >
+                        <Award size={13} aria-hidden="true" />
+                        赛季徽章
+                      </button>
+                    </SeasonManagementGroup>
+
+                    {season.lifecycle === 'DRAFT' || season.lifecycle === 'ACTIVE' ? (
+                      <SeasonManagementGroup title="设置">
+                        <button
+                          type="button"
+                          className="button-ghost inline-flex h-7 min-h-0 items-center gap-1 px-2 text-[11px] font-semibold"
+                          disabled={busy}
+                          onClick={() => {
+                            setExpandedManagementSeasonId(null);
+                            onEdit(season);
+                          }}
+                        >
+                          <Pencil size={13} aria-hidden="true" />
+                          编辑赛季与公告
+                        </button>
+                        {season.lifecycle === 'ACTIVE' && supportsRatingRevision(season) ? (
+                          <button
+                            type="button"
+                            className="button-ghost inline-flex h-7 min-h-0 items-center gap-1 px-2 text-[11px] font-semibold"
+                            disabled={busy}
+                            onClick={() => {
+                              setExpandedManagementSeasonId(null);
+                              onOpenRatingRevision(season);
+                            }}
+                          >
+                            <SlidersHorizontal size={13} aria-hidden="true" />
+                            调整积分参数
+                          </button>
+                        ) : null}
+                      </SeasonManagementGroup>
+                    ) : null}
+
+                    {season.lifecycle === 'DRAFT' || season.lifecycle === 'ACTIVE' ? (
+                      <SeasonManagementGroup title="生命周期">
+                        {season.lifecycle === 'DRAFT' ? (
+                          <button
+                            type="button"
+                            className="button-ghost inline-flex h-7 min-h-0 items-center gap-1 border border-[color:color-mix(in_srgb,var(--semantic-error)_28%,var(--border-default))] px-2 text-[11px] font-semibold text-[var(--semantic-error)]"
+                            disabled={busy}
+                            onClick={() => {
+                              setExpandedManagementSeasonId(null);
+                              onDelete(season);
+                            }}
+                          >
+                            <Trash2 size={13} aria-hidden="true" />
+                            删除赛季
+                          </button>
+                        ) : null}
+                        {season.lifecycle === 'ACTIVE' ? (
+                          <button
+                            type="button"
+                            className="button-ghost inline-flex h-7 min-h-0 items-center gap-1 border border-[color:color-mix(in_srgb,var(--semantic-warning)_32%,var(--border-default))] px-2 text-[11px] font-semibold text-[var(--semantic-warning)]"
+                            disabled={busy}
+                            onClick={() => {
+                              setExpandedManagementSeasonId(null);
+                              onRequestFinalize(season);
+                            }}
+                          >
+                            <CirclePause size={13} aria-hidden="true" />
+                            结束赛季
+                          </button>
+                        ) : null}
+                      </SeasonManagementGroup>
+                    ) : null}
+                  </section>
+                ) : null}
+              </section>
+            );
+          })}
         </div>
       ) : null}
       {seasons.length === 0 && !creating ? (
@@ -2015,6 +2149,24 @@ function SeasonPanel({
           还没有赛季
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function SeasonManagementGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div
+      role="group"
+      aria-label={title}
+      className="flex min-w-0 flex-wrap items-center gap-0.5 rounded-md bg-[var(--bg-surface)] p-1 pl-2"
+    >
+      <span
+        aria-hidden="true"
+        className="mr-0.5 text-[10px] font-semibold text-[var(--text-muted)]"
+      >
+        {title}
+      </span>
+      {children}
     </div>
   );
 }
@@ -3448,6 +3600,14 @@ function createDraftFromSeason(season: RankedAdminSeason) {
 
 function lifecycleLabel(value: RankedAdminSeason['lifecycle']) {
   return { DRAFT: '未开始', ACTIVE: '开放中', FINALIZING: '结算中', CLOSED: '已结束' }[value];
+}
+
+function seasonLifecycleTone(
+  value: RankedAdminSeason['lifecycle']
+): 'neutral' | 'success' | 'warning' {
+  if (value === 'ACTIVE') return 'success';
+  if (value === 'FINALIZING') return 'warning';
+  return 'neutral';
 }
 
 function preferredOverviewSeasonId(seasons: RankedAdminSeason[]): string {

@@ -38,12 +38,17 @@ const SEASON = {
   announcement: '',
   lifecycle: 'ACTIVE',
   queueAdmission: 'PAUSED',
+  competitiveEnvironmentId: 'sha256:ranked-insights-environment',
   platformTimeZone: 'Asia/Shanghai',
   openWindows: [{ weekdays: [1, 2, 3, 4, 5, 6, 7], startMinute: 0, endMinute: 1440 }],
   startsAt: '2026-08-01T00:00:00.000Z',
   scheduledEndsAt: '2026-09-01T00:00:00.000Z',
   finalizingDeadlineAt: '2026-09-03T00:00:00.000Z',
   closedAt: null,
+  rulesVersion: 'RULES_E2E',
+  cardCatalogVersion: 'CATALOG_E2E',
+  cardCatalogHash: 'sha256:ranked-insights-catalog',
+  deckPolicyVersion: 'DECK_POLICY_E2E',
   ratingAlgorithmVersion: RATING_CONFIG.algorithmVersion,
   ratingConfig: RATING_CONFIG,
   leaderboardMinimumMatchCount: 5,
@@ -110,6 +115,7 @@ interface MockState {
     revision: number;
   }>;
   readonly playerSeasonRequests: string[];
+  finalizeRequestCount: number;
 }
 
 function createMockState(
@@ -128,6 +134,7 @@ function createMockState(
     mismatchSeen: false,
     playerRequests: [],
     playerSeasonRequests: [],
+    finalizeRequestCount: 0,
   };
 }
 
@@ -210,6 +217,15 @@ async function installRankedInsightsMocks(page: Page, state: MockState): Promise
     if (url.pathname === '/api/admin/ranked/seasons') {
       const seasons = state.includeSecondSeason ? [SEASON, SECOND_SEASON] : [SEASON];
       await fulfillApi(route, seasons, seasons.length);
+      return;
+    }
+
+    if (
+      url.pathname === `/api/admin/ranked/seasons/${SEASON_ID}/finalize` &&
+      request.method() === 'POST'
+    ) {
+      state.finalizeRequestCount += 1;
+      await fulfillApi(route, { ...SEASON, lifecycle: 'FINALIZING', queueAdmission: 'PAUSED' });
       return;
     }
 
@@ -392,6 +408,41 @@ async function scrollProductPageToBottom(page: Page): Promise<void> {
 }
 
 test.describe('排位管理员洞察页面', () => {
+  test('赛季行默认只保留查看工具和当前主操作，管理项按用途展开', async ({ page }) => {
+    const state = createMockState();
+    await openRankedInsights(page, state);
+    await page.getByRole('tab', { name: '赛季' }).click();
+
+    const seasonCard = page
+      .getByRole('heading', { name: SEASON.name })
+      .locator('xpath=ancestor::section[1]');
+    await expect(seasonCard.getByRole('button', { name: '查看设置' })).toBeVisible();
+    await expect(seasonCard.getByRole('button', { name: '赛季公告' })).toBeVisible();
+    await expect(seasonCard.getByRole('button', { name: '管理', exact: true })).toBeVisible();
+    await expect(seasonCard.getByRole('button', { name: '开放匹配' })).toBeVisible();
+    await expect(seasonCard.getByRole('button', { name: '活动封面' })).toHaveCount(0);
+    await expect(seasonCard.getByRole('button', { name: '调整积分参数' })).toHaveCount(0);
+
+    await seasonCard.getByRole('button', { name: '管理', exact: true }).click();
+    await expect(seasonCard.getByRole('group', { name: '展示' })).toBeVisible();
+    await expect(seasonCard.getByRole('group', { name: '设置' })).toBeVisible();
+    await expect(seasonCard.getByRole('group', { name: '生命周期' })).toBeVisible();
+    await expect(seasonCard.getByRole('button', { name: '活动封面' })).toBeVisible();
+    await expect(seasonCard.getByRole('button', { name: '赛季徽章' })).toBeVisible();
+    await expect(seasonCard.getByRole('button', { name: '编辑赛季与公告' })).toBeVisible();
+    await expect(seasonCard.getByRole('button', { name: '调整积分参数' })).toBeVisible();
+    await expect(seasonCard.getByRole('button', { name: '结束赛季' })).toBeVisible();
+
+    await seasonCard.getByRole('button', { name: '结束赛季' }).click();
+    const endSeasonDialog = page.getByRole('dialog', { name: '结束当前赛季？' });
+    await expect(endSeasonDialog).toBeVisible();
+    expect(state.finalizeRequestCount).toBe(0);
+    await endSeasonDialog.getByRole('button', { name: '确认结束赛季' }).click();
+    await expect.poll(() => state.finalizeRequestCount).toBe(1);
+    await expect(endSeasonDialog).toHaveCount(0);
+    await expectNoGlobalHorizontalOverflow(page);
+  });
+
   test('卡组分类默认只显示前三类，可搜索、展开全部和展开玩家明细', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'tablet-1024x768', '完整交互仅在桌面代表视口执行');
     const state = createMockState();

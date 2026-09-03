@@ -123,12 +123,17 @@ export interface RankedAdminSeason {
   announcement: string;
   lifecycle: 'DRAFT' | 'ACTIVE' | 'FINALIZING' | 'CLOSED';
   queueAdmission: 'OPEN' | 'PAUSED';
+  competitiveEnvironmentId: string;
   platformTimeZone: string;
   openWindows: { weekdays: number[]; startMinute: number; endMinute: number }[];
   startsAt: string;
   scheduledEndsAt: string;
   finalizingDeadlineAt: string;
   closedAt: string | null;
+  rulesVersion: string;
+  cardCatalogVersion: string;
+  cardCatalogHash: string;
+  deckPolicyVersion: string;
   ratingAlgorithmVersion: string;
   ratingConfig: RankedRatingConfig;
   leaderboardMinimumMatchCount: number;

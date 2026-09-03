@@ -1111,10 +1111,9 @@ test.describe('赛季排位管理员 API', () => {
       await page.getByRole('tab', { name: '赛季' }).click();
       const seasonName = page.getByText('E2E 生命周期赛季', { exact: true });
       await expect(seasonName).toBeVisible();
-      await seasonName
-        .locator('xpath=ancestor::section')
-        .getByRole('button', { name: '编辑' })
-        .click();
+      const seasonCard = seasonName.locator('xpath=ancestor::section');
+      await seasonCard.getByRole('button', { name: '管理', exact: true }).click();
+      await seasonCard.getByRole('button', { name: '编辑' }).click();
 
       await page.getByLabel('名称').fill('E2E 晚间排位');
       await page.getByLabel('进入排行榜所需场次').fill('8');
@@ -1280,6 +1279,7 @@ test.describe('赛季排位管理员 API', () => {
       const createdSeason = page.getByText('E2E 页面草稿', { exact: true });
       await expect(page.getByText('每天 10:00–12:00 等 2 个时段', { exact: true })).toBeVisible();
       const seasonCard = createdSeason.locator('xpath=ancestor::section');
+      await seasonCard.getByRole('button', { name: '管理', exact: true }).click();
       await seasonCard.getByRole('button', { name: '编辑' }).click();
       await expect(page.getByRole('region', { name: /^开放时段 \d+$/ })).toHaveCount(2);
       const secondDraftWindow = page.getByRole('region', { name: '开放时段 2' });
@@ -1327,6 +1327,7 @@ test.describe('赛季排位管理员 API', () => {
 
       const editedSeason = page.getByText('E2E 页面草稿已编辑', { exact: true });
       const editedSeasonCard = editedSeason.locator('xpath=ancestor::section');
+      await editedSeasonCard.getByRole('button', { name: '管理', exact: true }).click();
       await editedSeasonCard.getByRole('button', { name: '删除赛季' }).click();
       const deleteDialog = page.getByRole('dialog', { name: '删除未开始赛季？' });
       await expect(deleteDialog).toBeVisible();
