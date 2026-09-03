@@ -171,12 +171,6 @@
   font-size: 0.75rem !important;
 }
 
-.legal-page__footer {
-  padding: 0.55rem 1rem max(0.55rem, env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-}
-
 @media (max-width: 767px) {
   .legal-page {
     background: var(--bg-deep);

@@ -24,6 +24,7 @@ import {
   type ProductNavKey,
 } from '@/components/common';
 import { HomePage } from '@/components/pages/HomePage';
+import { LegalPage } from '@/components/pages/LegalPage';
 import { PublicHomePage } from '@/components/pages/PublicHomePage';
 import { ServiceStatusPage } from '@/components/pages/ServiceStatusPage';
 import { resolveLegalDocumentPath } from '@/lib/legalPages';
@@ -198,10 +199,6 @@ const PlatformOperationsPage = lazy(() =>
     default: module.PlatformOperationsPage,
   }))
 );
-const LegalPage = lazy(() =>
-  import('@/components/pages/LegalPage').then((module) => ({ default: module.LegalPage }))
-);
-
 type AuthPage =
   | 'landing'
   | 'login'
@@ -347,7 +344,8 @@ function AppSurfaceTiming({ surface, dataSource }: { surface: string; dataSource
 }
 
 function App() {
-  const requestedLegalDocument = resolveLegalDocumentPath(window.location.pathname);
+  const [currentPathname, setCurrentPathname] = useState(() => window.location.pathname);
+  const requestedLegalDocument = resolveLegalDocumentPath(currentPathname);
   const [initialAuthRequest] = useState<InitialAuthRequest>(() => getInitialAuthRequest());
   const isInitialAuthActionPage =
     initialAuthRequest.page === 'reset-password' ||
@@ -392,6 +390,7 @@ function App() {
   }, [setCurrentPage]);
   useEffect(() => {
     const handlePopState = () => {
+      setCurrentPathname(window.location.pathname);
       const nextPage = getInitialPage();
       const transition = resolveTutorialHistoryTransition(currentPageRef.current, nextPage);
       if (!transition) return;
@@ -731,6 +730,10 @@ function App() {
 
   // 计算实际显示的页面（游戏结束后自动回到首页）
   const effectivePage: AppPage = currentPage === 'game' && !matchView ? 'home' : currentPage;
+  useLayoutEffect(() => {
+    if (!requestedLegalDocument) return;
+    window.scrollTo({ top: 0, left: 0 });
+  }, [requestedLegalDocument]);
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0 });
     document.querySelector<HTMLElement>('.product-frame-content')?.scrollTo({ top: 0, left: 0 });

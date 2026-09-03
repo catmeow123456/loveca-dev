@@ -1,10 +1,32 @@
 import { cn } from '@/lib/utils';
-import { LEGAL_DOCUMENT_LINKS, LEGAL_NOTICE_ZH } from '@/lib/legalPages';
+import {
+  handleLegalDocumentNavigation,
+  LEGAL_DOCUMENT_LINKS,
+  LEGAL_NOTICE_ZH,
+  type LegalDocumentKey,
+} from '@/lib/legalPages';
 import './legal-notice.css';
 
 interface LegalNoticeProps {
   readonly className?: string;
   readonly version?: string;
+}
+
+interface LegalDocumentLinkProps {
+  readonly document: (typeof LEGAL_DOCUMENT_LINKS)[number];
+  readonly currentDocument?: LegalDocumentKey;
+}
+
+export function LegalDocumentLink({ document, currentDocument }: LegalDocumentLinkProps) {
+  return (
+    <a
+      href={document.href}
+      aria-current={currentDocument === document.key ? 'page' : undefined}
+      onClick={(event) => handleLegalDocumentNavigation(event, document.href)}
+    >
+      {document.label}
+    </a>
+  );
 }
 
 export function LegalNotice({ className, version }: LegalNoticeProps) {
@@ -18,18 +40,10 @@ export function LegalNotice({ className, version }: LegalNoticeProps) {
         {LEGAL_DOCUMENT_LINKS.map((document, index) => (
           <span key={document.key}>
             {index > 0 ? <i aria-hidden="true">·</i> : null}
-            <a href={document.href}>{document.label}</a>
+            <LegalDocumentLink document={document} />
           </span>
         ))}
       </nav>
     </div>
-  );
-}
-
-export function SiteLegalFooter({ className }: { readonly className?: string }) {
-  return (
-    <footer className={cn('site-legal-footer', className)}>
-      <LegalNotice />
-    </footer>
   );
 }

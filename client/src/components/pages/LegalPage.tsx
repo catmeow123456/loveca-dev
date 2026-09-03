@@ -1,4 +1,4 @@
-import { LegalNotice, ProductHeader, ThemeToggle } from '@/components/common';
+import { LegalDocumentLink, ProductHeader, ThemeToggle } from '@/components/common';
 import {
   LEGAL_DISCLAIMER_EN,
   LEGAL_DOCUMENT_LINKS,
@@ -47,13 +47,7 @@ export function LegalPage({ document }: LegalPageProps) {
         <nav className="legal-page__nav" aria-label="法律文件">
           <span>CYBER LOVECA</span>
           {LEGAL_DOCUMENT_LINKS.map((item) => (
-            <a
-              key={item.key}
-              href={item.href}
-              aria-current={item.key === document ? 'page' : undefined}
-            >
-              {item.label}
-            </a>
+            <LegalDocumentLink key={item.key} document={item} currentDocument={document} />
           ))}
         </nav>
 
@@ -70,10 +64,6 @@ export function LegalPage({ document }: LegalPageProps) {
           {document === 'privacy' ? <PrivacyDocument /> : null}
         </article>
       </main>
-
-      <footer className="legal-page__footer">
-        <LegalNotice version={__APP_VERSION__} />
-      </footer>
     </div>
   );
 }

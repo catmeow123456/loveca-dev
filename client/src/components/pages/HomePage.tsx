@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import {
   AppCredits,
+  LegalNotice,
   ProductFrame,
   DeckStatsRow,
   formatRelativeTime,
@@ -369,6 +370,7 @@ export function HomePage({
       footer={
         <footer className="safe-bottom relative z-10 px-4 py-3">
           <AppCredits version={__APP_VERSION__} />
+          <LegalNotice className="pt-1" />
         </footer>
       }
     >

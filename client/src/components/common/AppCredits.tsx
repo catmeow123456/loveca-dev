@@ -1,5 +1,3 @@
-import { LegalNotice } from './LegalNotice';
-
 interface AppCreditsProps {
   version?: string;
   className?: string;
@@ -47,7 +45,6 @@ export function AppCredits({ version, className = '' }: AppCreditsProps) {
         <span className="text-[var(--text-secondary)]">鬼箱</span>
         <span> (小能苗)</span>
       </div>
-      <LegalNotice className="pt-1" />
     </div>
   );
 }

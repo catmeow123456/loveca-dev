@@ -63,13 +63,6 @@
   outline-offset: 0.15rem;
 }
 
-.site-legal-footer {
-  flex: 0 0 auto;
-  padding: 0.45rem 1rem max(0.45rem, env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border-subtle);
-  background: color-mix(in srgb, var(--bg-surface) 78%, transparent);
-}
-
 @media (max-width: 639px) {
   .legal-notice {
     row-gap: 0.25rem;

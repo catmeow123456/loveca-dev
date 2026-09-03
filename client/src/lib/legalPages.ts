@@ -1,5 +1,15 @@
 export type LegalDocumentKey = 'disclaimer' | 'takedown' | 'privacy';
 
+export interface LegalNavigationClickEvent {
+  readonly defaultPrevented: boolean;
+  readonly button: number;
+  readonly metaKey: boolean;
+  readonly ctrlKey: boolean;
+  readonly shiftKey: boolean;
+  readonly altKey: boolean;
+  preventDefault(): void;
+}
+
 export const LEGAL_NOTICE_ZH =
   'Cyber Loveca 是非官方 Love Live! 爱好者社区项目，与官方及相关权利方不存在隶属、认可或赞助关系。';
 
@@ -23,4 +33,28 @@ const LEGAL_DOCUMENT_PATHS = new Map(
 export function resolveLegalDocumentPath(pathname: string): LegalDocumentKey | null {
   const normalizedPath = pathname.replace(/\/+$/, '') || '/';
   return LEGAL_DOCUMENT_PATHS.get(normalizedPath) ?? null;
+}
+
+export function handleLegalDocumentNavigation(
+  event: LegalNavigationClickEvent,
+  href: string
+): boolean {
+  if (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  ) {
+    return false;
+  }
+
+  event.preventDefault();
+  const currentHref = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (currentHref !== href) {
+    window.history.pushState(null, '', href);
+    window.dispatchEvent(new Event('popstate'));
+  }
+  return true;
 }

@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { ProductHeader } from './ProductHeader';
 import { PageHeader } from './PageHeader';
-import { SiteLegalFooter } from './LegalNotice';
 
 export type ProductNavKey = 'home' | 'decks' | 'battle' | 'spectate' | 'history';
 
@@ -133,7 +132,7 @@ export function ProductFrame({
         )}
       >
         {children}
-        {!immersive ? footer === undefined ? <SiteLegalFooter /> : footer : null}
+        {!immersive ? footer : null}
       </div>
     </div>
   );
