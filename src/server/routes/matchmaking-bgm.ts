@@ -25,8 +25,8 @@ const upload = multer({
 });
 const matchmakingBgmUploadRateLimit = createUploadRateLimitMiddleware({
   windowMs: 10 * 60 * 1000,
-  userAttemptLimit: 6,
-  addressAttemptLimit: 12,
+  userAttemptLimit: 30,
+  addressAttemptLimit: 60,
   userByteLimit: 60 * 1024 * 1024,
   addressByteLimit: 120 * 1024 * 1024,
   attemptErrorCode: 'MATCHMAKING_BGM_UPLOAD_RATE_LIMIT',

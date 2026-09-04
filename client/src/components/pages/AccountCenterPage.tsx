@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import {
   AtSign,
   Award,
@@ -651,6 +651,54 @@ function BgmSelectionPanel({
 }) {
   const defaultCount = tracks.filter((track) => track.defaultSelected).length;
   const selectedCount = tracks.filter((track) => selectedTrackIds.includes(track.id)).length;
+  const previewAudioRef = useRef<HTMLAudioElement>(null);
+  const [previewTrackId, setPreviewTrackId] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const previewTrack = tracks.find((track) => track.id === previewTrackId) ?? null;
+
+  useEffect(() => {
+    const audio = previewAudioRef.current;
+    return () => {
+      if (!audio) return;
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+    };
+  }, [useDefault]);
+
+  const stopPreview = () => {
+    const audio = previewAudioRef.current;
+    if (audio) {
+      audio.pause();
+      try {
+        audio.currentTime = 0;
+      } catch {
+        // Metadata may not have loaded yet, so some browsers reject seeking here.
+      }
+      audio.removeAttribute('src');
+      audio.load();
+    }
+    setPreviewTrackId(null);
+    setPreviewError(null);
+  };
+
+  const previewSelectedTrack = (track: MatchmakingBgmTrack) => {
+    const audio = previewAudioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.src = track.audioUrl;
+    try {
+      audio.currentTime = 0;
+    } catch {
+      // The new source will start at the beginning once metadata is available.
+    }
+    audio.load();
+    setPreviewTrackId(track.id);
+    setPreviewError(null);
+    void audio.play().catch(() => {
+      setPreviewError('浏览器未能自动开始试听，请使用播放器开始播放。');
+    });
+  };
 
   const toggleTrack = (trackId: string, checked: boolean) => {
     onSelectionChange(
@@ -658,6 +706,10 @@ function BgmSelectionPanel({
         ? [...selectedTrackIds, trackId]
         : selectedTrackIds.filter((selectedId) => selectedId !== trackId)
     );
+    const track = tracks.find((item) => item.id === trackId);
+    if (checked && track) {
+      previewSelectedTrack(track);
+    }
   };
 
   return (
@@ -680,7 +732,10 @@ function BgmSelectionPanel({
             type="radio"
             name="matchmaking-bgm-selection-mode"
             checked={useDefault}
-            onChange={() => onUseDefaultChange(true)}
+            onChange={() => {
+              stopPreview();
+              onUseDefaultChange(true);
+            }}
             className="h-4 w-4 accent-[var(--accent-primary)]"
           />
           <span className="min-w-0 flex-1 text-sm font-semibold text-[var(--text-primary)]">
@@ -725,32 +780,75 @@ function BgmSelectionPanel({
           ) : tracks.length === 0 ? (
             <p className="px-3 py-4 text-xs text-[var(--text-muted)]">平台曲库暂时为空。</p>
           ) : (
-            <div className="max-h-64 overflow-y-auto">
+            <div className="max-h-64 overflow-y-auto" aria-label="可选候场曲目">
               {tracks.map((track, index) => (
-                <label
+                <div
                   key={track.id}
-                  className="flex cursor-pointer items-center gap-3 border-b border-[var(--border-subtle)] px-3 py-2.5 last:border-b-0 hover:bg-[var(--bg-overlay)]"
+                  className={`flex items-center gap-3 border-b border-[var(--border-subtle)] px-3 py-2 last:border-b-0 ${
+                    previewTrackId === track.id
+                      ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_7%,var(--bg-overlay))]'
+                      : 'hover:bg-[var(--bg-overlay)]'
+                  }`}
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedTrackIds.includes(track.id)}
-                    onChange={(event) => toggleTrack(track.id, event.target.checked)}
-                    className="h-4 w-4 shrink-0 accent-[var(--accent-primary)]"
-                  />
-                  <Music2 size={15} className="shrink-0 text-[var(--accent-primary)]" />
-                  <span className="min-w-0 flex-1 truncate text-sm text-[var(--text-primary)]">
-                    {track.title}
-                  </span>
-                  <span className="text-[11px] tabular-nums text-[var(--text-muted)]">
-                    {String(index + 1).padStart(2, '0')}
-                  </span>
-                </label>
+                  <label className="flex min-h-8 shrink-0 cursor-pointer items-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedTrackIds.includes(track.id)}
+                      onChange={(event) => toggleTrack(track.id, event.target.checked)}
+                      className="h-4 w-4 accent-[var(--accent-primary)]"
+                    />
+                    <span className="sr-only">选择 {track.title}</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => previewSelectedTrack(track)}
+                    className="flex min-h-9 min-w-0 flex-1 items-center gap-3 rounded-md px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+                    aria-label={`试听 ${track.title}`}
+                  >
+                    <Music2 size={15} className="shrink-0 text-[var(--accent-primary)]" />
+                    <span className="min-w-0 flex-1 truncate text-sm text-[var(--text-primary)]">
+                      {track.title}
+                    </span>
+                    <span className="text-[11px] tabular-nums text-[var(--text-muted)]">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                  </button>
+                </div>
               ))}
             </div>
           )}
+          <div
+            className={
+              previewTrack
+                ? 'border-t border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-3 py-3 sm:px-4'
+                : 'hidden'
+            }
+          >
+            <p className="mb-2 truncate text-xs font-semibold text-[var(--text-secondary)]">
+              {previewTrack ? `正在试听 · ${previewTrack.title}` : '试听候场曲目'}
+            </p>
+            <audio
+              ref={previewAudioRef}
+              controls
+              preload="metadata"
+              aria-label={previewTrack ? `正在试听 ${previewTrack.title}` : '试听候场曲目'}
+              onPlay={() => setPreviewError(null)}
+              onError={() => setPreviewError('曲目暂时无法加载，请稍后重试。')}
+              className="h-10 w-full"
+            />
+            {previewError ? (
+              <p className="mt-2 text-xs text-[var(--semantic-error)]" role="alert">
+                {previewError}
+              </p>
+            ) : null}
+          </div>
           {!loading && !error && tracks.length > 0 && selectedCount === 0 ? (
             <p className="border-t border-[var(--border-subtle)] px-3 py-2 text-xs text-[var(--text-muted)]">
               未选择曲目；保存后，候场将保持静音。
+            </p>
+          ) : !loading && !error && tracks.length > 0 ? (
+            <p className="border-t border-[var(--border-subtle)] px-3 py-2 text-xs text-[var(--text-muted)]">
+              勾选新曲目时会自动切换试听；试听不会影响已保存的设置。
             </p>
           ) : null}
         </div>

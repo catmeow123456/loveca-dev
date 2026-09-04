@@ -98,6 +98,12 @@ export interface ApiResponse<T = unknown> {
   retryAfterMs?: number;
 }
 
+export interface ApiUploadProgress {
+  readonly loaded: number;
+  readonly total: number | null;
+  readonly percent: number | null;
+}
+
 export class ApiClientError extends Error {
   readonly code: string;
   readonly status?: number;
@@ -506,6 +512,126 @@ async function apiFetchBlob(
   }
 }
 
+async function apiUploadFormData<T>(
+  path: string,
+  body: FormData,
+  options: {
+    readonly timeoutMs?: number;
+    readonly signal?: AbortSignal;
+    readonly onProgress?: (progress: ApiUploadProgress) => void;
+  } = {}
+): Promise<ApiResponse<T>> {
+  const send = () => sendFormDataWithProgress<T>(path, body, options);
+  let response = await send();
+
+  if (response.status === 401 && shouldAttemptTokenRefresh(path) && !options.signal?.aborted) {
+    const refreshed = await waitForRefreshOrAbort(tryRefreshToken(), options.signal);
+    if (refreshed) {
+      response = await send();
+    } else {
+      accessToken = null;
+    }
+  }
+
+  return observeAuthorizationBoundary(response);
+}
+
+function sendFormDataWithProgress<T>(
+  path: string,
+  body: FormData,
+  options: {
+    readonly timeoutMs?: number;
+    readonly signal?: AbortSignal;
+    readonly onProgress?: (progress: ApiUploadProgress) => void;
+  }
+): Promise<ApiResponse<T>> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    let settled = false;
+    const finish = (response: ApiResponse<T>) => {
+      if (settled) return;
+      settled = true;
+      options.signal?.removeEventListener('abort', handleExternalAbort);
+      resolve(response);
+    };
+    const handleExternalAbort = () => xhr.abort();
+
+    xhr.open('POST', buildApiUrl(path));
+    xhr.withCredentials = true;
+    xhr.timeout = options.timeoutMs ?? REQUEST_TIMEOUT;
+    if (accessToken) {
+      xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+    }
+
+    xhr.upload.addEventListener('progress', (event) => {
+      const total = event.lengthComputable && event.total > 0 ? event.total : null;
+      options.onProgress?.({
+        loaded: event.loaded,
+        total,
+        percent: total === null ? null : Math.min(100, Math.round((event.loaded / total) * 100)),
+      });
+    });
+    xhr.addEventListener('load', () => {
+      finish(parseXhrApiResponse<T>(xhr));
+    });
+    xhr.addEventListener('error', () => {
+      finish({
+        data: null,
+        status: xhr.status || undefined,
+        error: { code: 'NETWORK_ERROR', message: getNetworkErrorMessage(path, '上传连接失败') },
+      });
+    });
+    xhr.addEventListener('timeout', () => {
+      finish({
+        data: null,
+        status: xhr.status || undefined,
+        error: { code: 'TIMEOUT', message: '请求超时，请检查网络连接' },
+      });
+    });
+    xhr.addEventListener('abort', () => {
+      finish({ data: null, error: { code: 'ABORTED', message: '请求已取消' } });
+    });
+
+    if (options.signal?.aborted) {
+      finish({ data: null, error: { code: 'ABORTED', message: '请求已取消' } });
+      return;
+    }
+    options.signal?.addEventListener('abort', handleExternalAbort, { once: true });
+    xhr.send(body);
+  });
+}
+
+function parseXhrApiResponse<T>(xhr: XMLHttpRequest): ApiResponse<T> {
+  const contentType = xhr.getResponseHeader('content-type') ?? '';
+  const retryAfterMs = readRetryAfterMs(xhr.getResponseHeader('retry-after'));
+  if (!contentType.includes('json')) {
+    return {
+      data: null,
+      status: xhr.status,
+      retryAfterMs,
+      error: {
+        code: 'INVALID_RESPONSE',
+        message: `服务器返回了非预期的响应 (${xhr.status})`,
+      },
+    };
+  }
+  try {
+    const body = JSON.parse(xhr.responseText) as ApiResponse<T>;
+    return {
+      ...body,
+      status: xhr.status,
+      retryAfterMs: body.error?.retryAfterMs ?? retryAfterMs,
+    };
+  } catch {
+    return {
+      data: null,
+      status: xhr.status,
+      retryAfterMs,
+      error: { code: 'INVALID_RESPONSE', message: '服务器返回的 JSON 格式异常' },
+    };
+  }
+}
+
 // ============================================
 // Token refresh
 // ============================================
@@ -594,6 +720,18 @@ export const apiClient = {
       },
       timeoutMs
     );
+  },
+
+  upload<T>(
+    path: string,
+    body: FormData,
+    options: {
+      readonly timeoutMs?: number;
+      readonly signal?: AbortSignal;
+      readonly onProgress?: (progress: ApiUploadProgress) => void;
+    } = {}
+  ): Promise<ApiResponse<T>> {
+    return apiUploadFormData<T>(path, body, options);
   },
 
   postWithHeaders<T>(

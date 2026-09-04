@@ -25,15 +25,17 @@ export async function fetchMatchmakingBgmLibrary(): Promise<readonly Matchmaking
 export async function uploadAdminMatchmakingBgm(input: {
   readonly file: File;
   readonly title: string;
+  readonly onProgress?: (percent: number | null) => void;
+  readonly signal?: AbortSignal;
 }): Promise<MatchmakingBgmTrack> {
   const form = new FormData();
   form.append('title', input.title);
   form.append('file', input.file, input.file.name);
-  const response = await apiClient.post<MatchmakingBgmTrack>(
-    '/api/matchmaking-bgm/admin',
-    form,
-    60_000
-  );
+  const response = await apiClient.upload<MatchmakingBgmTrack>('/api/matchmaking-bgm/admin', form, {
+    timeoutMs: 60_000,
+    signal: input.signal,
+    onProgress: (progress) => input.onProgress?.(progress.percent),
+  });
   if (!response.data) {
     throw toApiClientError(response, '上传 BGM 失败');
   }

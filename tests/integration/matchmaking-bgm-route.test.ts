@@ -72,6 +72,23 @@ describe('matchmakingBgmRouter', () => {
     });
   });
 
+  it('permits an eight-track administrator batch within the upload limits', async () => {
+    mocks.poolQuery.mockResolvedValue({ rows: [{ role: 'admin' }], rowCount: 1 });
+    mocks.uploadTrack.mockImplementation(async ({ title }: { title: string }) => track({ title }));
+
+    for (let index = 0; index < 8; index += 1) {
+      const form = new FormData();
+      form.append('title', `批量曲目 ${index + 1}`);
+      form.append('file', new Blob(['ID3audio'], { type: 'audio/mpeg' }), `waiting-${index}.mp3`);
+
+      const response = await request('/admin', { method: 'POST', body: form }, true);
+
+      expect(response.status).toBe(201);
+    }
+
+    expect(mocks.uploadTrack).toHaveBeenCalledTimes(8);
+  });
+
   it('rejects multipart uploads with undeclared extra fields', async () => {
     mocks.poolQuery.mockResolvedValue({ rows: [{ role: 'admin' }], rowCount: 1 });
     const form = new FormData();
