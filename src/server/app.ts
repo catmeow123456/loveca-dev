@@ -35,6 +35,8 @@ import { activityCoverAdminRouter } from './routes/activity-covers.js';
 import { activityBadgeAdminRouter } from './routes/activity-badges.js';
 import { tutorialRouter } from './routes/tutorial.js';
 import { matchmakingBgmRouter } from './routes/matchmaking-bgm.js';
+import { createAiBattleRouter } from './routes/ai-battle.js';
+import { aiBattleService } from './ai-battle/service.js';
 import { checkApplicationReadiness } from './services/readiness-service.js';
 
 export function createApp(): express.Express {
@@ -114,6 +116,7 @@ export function createApp(): express.Express {
   app.use('/api/admin/card-sync', cardSyncRouter);
   app.use('/api/admin/activity-covers', activityCoverAdminRouter);
   app.use('/api/admin/activity-badges', activityBadgeAdminRouter);
+  app.use('/api/admin/ai-battle', createAiBattleRouter(aiBattleService));
   if (config.isDev) {
     app.use('/images', publicImagesRouter);
     app.use('/api/debug', debugOnlineRouter);

@@ -32,6 +32,10 @@ import {
   resolvePublicRevealDwellStep,
 } from './public-reveal-dwell.js';
 import type { DelegatePendingAbility, PendingAbilityStarterOptions } from './starter-registry.js';
+import {
+  isActiveEffectSelectionValid,
+  type ActiveEffectSelectionQuery,
+} from './selection-query.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -76,13 +80,27 @@ export type ActiveEffectStepHandler = (
 ) => GameState;
 
 const activeEffectStepHandlers = new Map<string, ActiveEffectStepHandler>();
+const activeEffectSelectionQueries = new Map<string, ActiveEffectSelectionQuery>();
 
 export function registerActiveEffectStepHandler(
   abilityId: string,
   stepId: string,
-  handler: ActiveEffectStepHandler
+  handler: ActiveEffectStepHandler,
+  querySelection?: ActiveEffectSelectionQuery
 ): void {
-  activeEffectStepHandlers.set(getActiveEffectStepHandlerKey(abilityId, stepId), handler);
+  const key = getActiveEffectStepHandlerKey(abilityId, stepId);
+  activeEffectStepHandlers.set(key, handler);
+  if (querySelection) activeEffectSelectionQueries.set(key, querySelection);
+  else activeEffectSelectionQueries.delete(key);
+}
+
+export function queryActiveEffectSelection(game: GameState) {
+  const effect = game.activeEffect;
+  return effect
+    ? activeEffectSelectionQueries.get(
+        getActiveEffectStepHandlerKey(effect.abilityId, effect.stepId)
+      )?.(game)
+    : undefined;
 }
 
 export function resolveActiveEffectStepWithRegistry(
@@ -144,6 +162,8 @@ export function resolveActiveEffectStepWithRegistry(
 
   const handler = getActiveEffectStepHandler(effect);
   if (!handler) return null;
+  const selection = queryActiveEffectSelection(game);
+  if (selection && !isActiveEffectSelectionValid(selection, input)) return game;
   const skipsStructuredEffectChoice =
     input.selectedEffectOptionIds === undefined &&
     input.selectedCardId === null &&

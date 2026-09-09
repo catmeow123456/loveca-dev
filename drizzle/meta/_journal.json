@@ -274,6 +274,13 @@
       "when": 1788220800000,
       "tag": "0038_add_matchmaking_bgm_library",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1788912000000,
+      "tag": "0039_add_ai_debug_match_origin",
+      "breakpoints": true
     }
   ]
 }

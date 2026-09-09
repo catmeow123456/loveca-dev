@@ -11,6 +11,10 @@
 
 本文件只记录“哪些通用模块覆盖了哪些效果碎片”。卡牌完成状态请看 `existing_module_map.md`，同构批量扩样本请看 `card_effect_batch_expansions.md`。
 
+起动候选查询新增窄覆盖：`activated-registry.ts` 可保存 workflow 的只读发动条件，`pl-sd1-008-hanayo.ts` 与 `self-sacrifice-waiting-room-to-hand.ts` 已提供，查询与实际 registry 执行共用。它不替代来源、时点、次数或费用结算；其余起动尚未声明查询覆盖。详见 [运行时边界](../card-effect-framework/active_effect_runtime.md#起动发动条件的只读查询)。
+
+步骤选择现在也支持 workflow 显式登记只读 query；正常 handler/公开确认前共用校验。候选、数量和顺序能够完整表达的步骤才使用普通选择查询，分组、盲选、数字和站位仍需单独补齐，详见 [步骤选择约束](../card-effect-framework/active_effect_runtime.md#步骤选择的只读约束)。
+
 ## Reusable Modules
 
 | module | covered fragments | current boundary | proving cards |

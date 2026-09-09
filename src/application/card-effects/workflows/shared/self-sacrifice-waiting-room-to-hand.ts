@@ -1,3 +1,4 @@
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   isLiveCardData,
   isMemberCardData,
@@ -228,16 +229,26 @@ export function registerSelfSacrificeWaitingRoomToHandWorkflowHandlers(
   dependencies: SelfSacrificeWaitingRoomToHandWorkflowDependencies
 ): void {
   for (const config of SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS) {
-    registerActivatedAbilityHandler(config.abilityId, (game, playerId, cardId) =>
-      startSelfSacrificeWaitingRoomToHandWorkflow(game, playerId, cardId, config, dependencies)
+    registerActivatedAbilityHandler(
+      config.abilityId,
+      (game, playerId, cardId) =>
+        startSelfSacrificeWaitingRoomToHandWorkflow(game, playerId, cardId, config, dependencies),
+      (game, playerId, cardId) => {
+        const player = getPlayerById(game, playerId);
+        return player !== null && findMemberSlot(player, cardId) !== null;
+      }
     );
-    registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) =>
-      finishSelfSacrificeWaitingRoomToHandWorkflow(
-        game,
-        input.selectedCardId ?? null,
-        input.selectedCardIds,
-        context.continuePendingCardEffects
-      )
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.stepId,
+      (game, input, context) =>
+        finishSelfSacrificeWaitingRoomToHandWorkflow(
+          game,
+          input.selectedCardId ?? null,
+          input.selectedCardIds,
+          context.continuePendingCardEffects
+        ),
+      queryCardSelection
     );
   }
 }

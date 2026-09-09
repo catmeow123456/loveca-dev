@@ -224,6 +224,8 @@ export interface ViewFrontCardInfo {
   readonly nameCn?: string;
   readonly cardType: CardType;
   readonly cost?: number;
+  /** Printed outside the stage; effective for a stage member, filtered for the viewer. */
+  readonly blade?: number;
   readonly score?: number;
   readonly requiredHearts?: ViewHeartRequirement;
   readonly hearts?: readonly ViewHeartIcon[];

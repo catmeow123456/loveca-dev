@@ -1,3 +1,4 @@
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   isLiveCardData,
   isMemberCardData,
@@ -215,7 +216,8 @@ export function registerDiscardLookTopSelectToHandWorkflowHandlers(deps: {
               context.continuePendingCardEffects,
               deps.enqueueTriggeredCardEffects
             )
-          : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+          : finishSkippedActiveEffect(game, context.continuePendingCardEffects),
+      queryCardSelection
     );
     registerActiveEffectStepHandler(
       abilityId,
@@ -229,7 +231,8 @@ export function registerDiscardLookTopSelectToHandWorkflowHandlers(deps: {
             continuePendingCardEffects: context.continuePendingCardEffects,
             enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
           }
-        )
+        ),
+      queryCardSelection
     );
     registerActiveEffectStepHandler(
       abilityId,

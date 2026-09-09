@@ -1690,7 +1690,7 @@ export const matchRecords = pgTable(
     ),
     check(
       'match_records_origin_kind_check',
-      sql`${table.originKind} IN ('ONLINE_ROOM', 'PUBLIC_TABLE', 'RANKED', 'SOLITAIRE')`
+      sql`${table.originKind} IN ('ONLINE_ROOM', 'PUBLIC_TABLE', 'RANKED', 'SOLITAIRE', 'AI_DEBUG')`
     ),
     check(
       'match_records_status_check',

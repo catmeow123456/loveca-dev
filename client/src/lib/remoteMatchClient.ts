@@ -41,8 +41,15 @@ import {
 } from './solitaireMatchClient';
 import { tutorialCommandResultToRemote, tutorialSnapshotToRemote } from './tutorialClient';
 import { useTutorialStore } from '@/store/tutorialStore';
+import {
+  advanceAiBattlePhase,
+  executeAiBattleCommand,
+  fetchAiBattlePublicEvents,
+  fetchAiBattleSnapshot,
+} from './aiBattleClient';
 
-export type RemoteSessionSource = 'DEBUG' | 'ONLINE' | 'SOLITAIRE' | 'SPECTATOR' | 'TUTORIAL';
+export type RemoteSessionSource =
+  'DEBUG' | 'ONLINE' | 'SOLITAIRE' | 'SPECTATOR' | 'TUTORIAL' | 'AI_DEBUG';
 export type RemoteSnapshot = DebugMatchSnapshot | OnlineMatchSnapshot;
 export type RemoteCommandExecutionResult = DebugCommandResult | OnlineCommandResult;
 
@@ -65,6 +72,10 @@ export async function fetchRemoteSnapshot(
   spectatorRoomGeneration?: string | null,
   spectatorAttachmentGeneration?: number
 ): Promise<RemoteSnapshot | null> {
+  if (source === 'AI_DEBUG') {
+    const snapshot = await fetchAiBattleSnapshot(matchId, sinceSeq);
+    return isSnapshotNotModified(snapshot) ? null : snapshot;
+  }
   if (source === 'DEBUG') {
     if (!seat) {
       throw new Error('调试联机会话缺少 seat');
@@ -135,18 +146,20 @@ export async function fetchRemoteSnapshotSyncResult(
   }
 
   const response =
-    source === 'SOLITAIRE'
-      ? await fetchSolitaireMatchSnapshotResponse(matchId, sinceSeq)
-      : source === 'SPECTATOR'
-        ? await fetchOnlineSpectatorSnapshotResponse(
-            requireSpectatorToken(spectatorToken),
-            spectatorSessionId,
-            sinceSeq,
-            spectatorViewVersion,
-            spectatorRoomGeneration,
-            spectatorAttachmentGeneration
-          )
-        : await fetchOnlineMatchSnapshotResponse(matchId, sinceSeq);
+    source === 'AI_DEBUG'
+      ? await fetchAiBattleSnapshot(matchId, sinceSeq)
+      : source === 'SOLITAIRE'
+        ? await fetchSolitaireMatchSnapshotResponse(matchId, sinceSeq)
+        : source === 'SPECTATOR'
+          ? await fetchOnlineSpectatorSnapshotResponse(
+              requireSpectatorToken(spectatorToken),
+              spectatorSessionId,
+              sinceSeq,
+              spectatorViewVersion,
+              spectatorRoomGeneration,
+              spectatorAttachmentGeneration
+            )
+          : await fetchOnlineMatchSnapshotResponse(matchId, sinceSeq);
   if (isSpectatorWaitingResponse(response)) {
     return {
       matchId: response.previousMatchId,
@@ -193,6 +206,7 @@ export async function fetchRemotePublicEvents(
   spectatorRoomGeneration?: string | null,
   spectatorAttachmentGeneration?: number
 ): Promise<PublicEventsResponse | null> {
+  if (source === 'AI_DEBUG') return fetchAiBattlePublicEvents(matchId, afterSeq);
   if (source === 'DEBUG') {
     if (!seat) {
       throw new Error('调试联机会话缺少 seat');
@@ -229,6 +243,7 @@ export async function executeRemoteCommand(
   command: GameCommand,
   seat?: DebugMatchSnapshot['seat']
 ): Promise<RemoteCommandExecutionResult> {
+  if (source === 'AI_DEBUG') return executeAiBattleCommand(matchId, command);
   if (source === 'DEBUG') {
     if (!seat) {
       throw new Error('调试联机会话缺少 seat');
@@ -256,6 +271,7 @@ export async function advanceRemotePhase(
   matchId: string,
   seat?: DebugMatchSnapshot['seat']
 ): Promise<RemoteCommandExecutionResult> {
+  if (source === 'AI_DEBUG') return advanceAiBattlePhase(matchId);
   if (source === 'DEBUG') {
     if (!seat) {
       throw new Error('调试联机会话缺少 seat');

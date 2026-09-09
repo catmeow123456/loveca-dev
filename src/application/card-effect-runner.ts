@@ -1,4 +1,8 @@
 import {
+  ABILITY_ORDER_SELECTION_ID,
+  queryPendingAbilityOrder,
+} from './card-effects/runtime/pending-order-query.js';
+import {
   CardType,
   GamePhase,
   HeartColor,
@@ -637,7 +641,7 @@ export {
 } from './card-effects/runtime/activated-ability-ui.js';
 export { isActivatedAbilityUiConfigAvailableForOrientation } from './card-effects/runtime/activated-ability-availability.js';
 export { CARD_ABILITY_DEFINITIONS } from './card-effects/definitions/index.js';
-export const ABILITY_ORDER_SELECTION_ID = 'system:select-pending-card-effect';
+export { ABILITY_ORDER_SELECTION_ID } from './card-effects/runtime/pending-order-query.js';
 const ORDERED_RESOLUTION_BATCH_ID_KEY = 'orderedResolutionBatchId';
 const DECLINE_OPTION_LABEL = '不发动';
 const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
@@ -3406,12 +3410,8 @@ function selectPendingAbilityOrder(
     return game;
   }
 
-  const pendingAbilityIds = Array.isArray(effect.metadata?.pendingAbilityIds)
-    ? effect.metadata.pendingAbilityIds.filter((id): id is string => typeof id === 'string')
-    : [];
-  const candidates = game.pendingAbilities.filter((ability) =>
-    pendingAbilityIds.includes(ability.id)
-  );
+  const candidates = queryPendingAbilityOrder(game) ?? [];
+  const pendingAbilityIds = candidates.map((ability) => ability.id);
   const selectedAbility = resolveInOrder
     ? candidates[0]
     : selectedOptionId

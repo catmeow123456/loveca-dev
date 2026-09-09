@@ -76,7 +76,7 @@ src/
 │   ├── db/schema.ts         # Drizzle table definitions; keep migrations and init-only DB objects aligned
 │   ├── middleware/           # authenticate, require-auth, require-admin, validate, error-handler
 │   ├── routes/              # app-config, auth, cards, decks, profiles, images, site-announcements,
-│   │                        # online, battle, tutorial, ranked, ranked-admin, platform-operations,
+│   │                        # online, battle, tutorial, ai-battle(admin), ranked, ranked-admin, platform-operations,
 │   │                        # debug-online(dev)
 │   └── services/            # auth-service, mail-service, minio-service,
 │                            # online-room-service, online-match-service, debug-match-service,
@@ -84,6 +84,7 @@ src/
 │                            # online-match-chat-runtime (single-match in-memory text/emote communication),
 │                            # card-registry-service (published-cards cache for online decks),
 │                            # tutorial-session/scenario services (ephemeral authoritative tutorial),
+│                            # ai-battle-service (owned administrator sessions; driver/model/trace modules in server/ai-battle),
 │                            # deck-storage-service (cloud deck normalization + validation),
 │                            # site-announcement-service (public site status + admin announcements),
 │                            # match-recorder/read/debug-replay and replay-retention services
@@ -114,6 +115,7 @@ client/src/
     ├── imageUploadService.ts # Browser-side compression + API upload
     ├── onlineClient.ts # Formal online room + match REST client
     ├── onlineDebugClient.ts # Dev-only debug-online REST client
+    ├── aiBattleClient.ts # Administrator AI sessions and read-only decision evidence
     ├── rankedClient.ts # Player ranked REST client
     ├── rankedAdminClient.ts # Admin season and settlement REST client
     └── remoteMatchClient.ts # Shared remote snapshot/command/public-event dispatch
@@ -180,6 +182,7 @@ The root Vitest coverage command enforces 80% for lines, functions, branches, an
 
 ## Key Documentation
 
+- `docs/ai-battle/runtime-and-observation.md` - Administrator AI battle authority, model input, permissions and bounded evidence
 - `detail_rules.md` - Official game rules (Chinese)
 - `docs/PROJECT_REQUIREMENTS.md` - Project requirements overview
 - `docs/coding-standard/` - Development spec

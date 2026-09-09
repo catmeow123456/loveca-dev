@@ -596,6 +596,7 @@ graph TD
 
 ### 10.1 已落地
 
+- 管理员 AI 对战调试：`src/server/services/ai-battle-service.ts` 管理本人会话，`src/server/ai-battle/` 提供可见输入、异步模型驱动和有界证据；采样与条件提交复用 `src/server/services/online-match-service.ts` 的单场命令队列。`src/server/routes/ai-battle.ts` 与 `client/src/components/admin/AiBattleAdminPage.tsx` 接入管理员权限和共享牌桌，观察入口为 `client/src/components/admin/AiBattleObservationPanel.tsx`。构筑、模型、失败和保留边界见 [AI 运行与观测说明](ai-battle/runtime-and-observation.md)。
 - 配置化阶段/子阶段驱动的主流程
 - 动作处理器体系与规则动作校正链路
 - Live 结算主流程、手动判定确认与分数确认链路

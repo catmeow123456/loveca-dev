@@ -1,0 +1,292 @@
+import { randomUUID } from 'node:crypto';
+import type { GameCommand } from '../../application/game-commands.js';
+import type {
+  CreateAiBattleInput,
+  AiBattleSessionView,
+  CreateAiBattleResult,
+} from '../../online/ai-battle-types.js';
+export type { CreateAiBattleInput, AiBattleSessionView } from '../../online/ai-battle-types.js';
+import { AiBattleDriver, type AiBattleModelClient } from '../ai-battle/driver.js';
+import { AiBattleTraceStore } from '../ai-battle/trace-store.js';
+import {
+  AiBattlePresetLoader,
+  AiBattleSetupError,
+  type AiFrozenKnowledge,
+} from '../ai-battle/presets.js';
+import { onlineMatchService, type OnlineMatchService } from './online-match-service.js';
+import { loadUserProfileForOnlineMatch } from './online-room-service.js';
+
+const MAX_AI_DEBUG_MATCHES = 4;
+const MAX_RETAINED_AI_SESSIONS = 32;
+const ENDED_SESSION_TTL_MS = 60 * 60 * 1000;
+
+interface AiOwnedSession {
+  readonly ownerUserId: string;
+  readonly matchId: string;
+  readonly input: CreateAiBattleInput;
+  readonly startedAt: number;
+  endedAt: number | null;
+  consecutiveFailures: number;
+  stoppedReason: string | null;
+}
+
+interface AiBattleServiceDeps {
+  /** Validates and freezes model configuration before a match can be registered. */
+  readonly createModel: (
+    knowledge: AiFrozenKnowledge,
+    traces: AiBattleTraceStore
+  ) => Promise<AiBattleModelClient>;
+  readonly traces?: AiBattleTraceStore;
+  readonly matchService?: OnlineMatchService;
+  readonly presets?: Pick<AiBattlePresetLoader, 'list' | 'load'>;
+  readonly driver?: Pick<AiBattleDriver, 'start'>;
+  readonly loadProfile?: typeof loadUserProfileForOnlineMatch;
+  readonly now?: () => number;
+}
+
+/** Administrator authorization is enforced by the router; all match access is additionally owned. */
+export class AiBattleService {
+  private readonly sessions = new Map<string, AiOwnedSession>();
+  private readonly creatingOwners = new Set<string>();
+  private readonly matches: OnlineMatchService;
+  private readonly presets: Pick<AiBattlePresetLoader, 'list' | 'load'>;
+  private readonly driver: Pick<AiBattleDriver, 'start'>;
+  private readonly loadProfile: typeof loadUserProfileForOnlineMatch;
+  private readonly now: () => number;
+  private readonly traces: AiBattleTraceStore;
+
+  constructor(private readonly deps: AiBattleServiceDeps) {
+    this.matches = deps.matchService ?? onlineMatchService;
+    this.presets = deps.presets ?? new AiBattlePresetLoader();
+    this.now = deps.now ?? Date.now;
+    this.traces = deps.traces ?? new AiBattleTraceStore(undefined, this.now);
+    this.driver = deps.driver ?? new AiBattleDriver(this.matches, this.now);
+    this.loadProfile = deps.loadProfile ?? loadUserProfileForOnlineMatch;
+  }
+
+  listPresets() {
+    return this.presets.list();
+  }
+
+  listSessions(userId: string): readonly AiBattleSessionView[] {
+    return [...this.sessions.values()]
+      .filter((entry) => entry.ownerUserId === userId && !this.expired(entry))
+      .map((entry) => this.view(entry));
+  }
+
+  async create(userId: string, input: CreateAiBattleInput): Promise<CreateAiBattleResult> {
+    this.cleanup();
+    const active = [...this.sessions.values()].filter((entry) => this.finishedAt(entry) === null);
+    if (this.creatingOwners.has(userId) || active.some((entry) => entry.ownerUserId === userId))
+      throw new AiBattleSetupError('AI_MATCH_ALREADY_ACTIVE', '请先结束当前 AI 调试对局', 409);
+    if (
+      active.length + this.creatingOwners.size >= MAX_AI_DEBUG_MATCHES ||
+      this.sessions.size + this.creatingOwners.size >= MAX_RETAINED_AI_SESSIONS
+    )
+      throw new AiBattleSetupError('AI_CAPACITY_FULL', 'AI 调试容量已满，请稍后重试', 503);
+    this.creatingOwners.add(userId);
+    try {
+      const [profile, setup] = await Promise.all([
+        this.loadProfile(userId),
+        this.presets.load(input),
+      ]);
+      const model = await this.deps.createModel(setup.knowledge, this.traces);
+      const startedAt = this.now();
+      const human = {
+        userId,
+        displayName: profile.displayName,
+        deck: setup.human.deck,
+        deckName: setup.human.name,
+        deckSource: 'PUBLISHED_CARDS_SNAPSHOT' as const,
+        pointValidation: setup.human.pointValidation,
+        lockedAt: startedAt,
+        participantKind: 'USER' as const,
+      };
+      const system = {
+        userId: `system:ai-battle:${randomUUID()}`,
+        displayName: 'AI',
+        deck: setup.ai.deck,
+        deckName: setup.ai.name,
+        deckSource: 'PUBLISHED_CARDS_SNAPSHOT' as const,
+        pointValidation: setup.ai.pointValidation,
+        lockedAt: startedAt,
+        participantKind: 'SYSTEM' as const,
+        ownerUserId: userId,
+      };
+      const match = await this.matches.createMatch({
+        roomCode: `AI-${randomUUID()}`,
+        originKind: 'AI_DEBUG',
+        originLabel: 'AI 调试',
+        matchMode: 'ONLINE',
+        automationGameMode: 'DEBUG',
+        startedAt,
+        first: input.humanSeat === 'FIRST' ? human : system,
+        second: input.humanSeat === 'FIRST' ? system : human,
+      });
+      const entry: AiOwnedSession = {
+        ownerUserId: userId,
+        matchId: match.matchId,
+        input: { ...input },
+        startedAt,
+        endedAt: null,
+        consecutiveFailures: 0,
+        stoppedReason: null,
+      };
+      this.sessions.set(match.matchId, entry);
+      try {
+        const knowledge = setup.knowledge;
+        if (
+          !this.traces.open(match.matchId, [
+            knowledge.rules,
+            knowledge.tutorial,
+            knowledge.handbook,
+            knowledge.ownDeck,
+            ...(model.configurationMaterial ? [model.configurationMaterial] : []),
+          ])
+        )
+          throw new AiBattleSetupError(
+            'AI_OBSERVATION_CAPACITY_FULL',
+            '观测存储容量不足，无法创建调试对局'
+          );
+        const snapshot = await this.matches.getMatchSnapshot(match.matchId, userId);
+        if (!snapshot || 'modified' in snapshot)
+          throw new AiBattleSetupError('AI_SNAPSHOT_FAILED', 'AI 对局初始快照读取失败');
+        await this.driver.start(match.matchId, model, this.traces.bind(match.matchId));
+        return { session: this.view(entry), snapshot };
+      } catch (error) {
+        const removed = await this.matches.deleteMatch(match.matchId, {
+          reason: 'AI_CREATE_FAILED',
+        });
+        if (removed) {
+          this.traces.end(match.matchId);
+          this.sessions.delete(match.matchId);
+        } else {
+          entry.stoppedReason = 'AI_CREATE_CLEANUP_FAILED';
+          throw new AiBattleSetupError(
+            'AI_CREATE_CLEANUP_FAILED',
+            '创建失败且封存未完成，请在会话列表重试结束'
+          );
+        }
+        throw error;
+      }
+    } finally {
+      this.creatingOwners.delete(userId);
+    }
+  }
+
+  getSession(userId: string, matchId: string): AiBattleSessionView {
+    return this.view(this.owned(userId, matchId));
+  }
+
+  listDecisions(userId: string, matchId: string) {
+    this.owned(userId, matchId);
+    const listing = this.traces.list(matchId);
+    if (!listing)
+      throw new AiBattleSetupError('AI_OBSERVATION_NOT_RETAINED', '观测材料已过期或未保留', 404);
+    return listing;
+  }
+
+  exportDecisions(userId: string, matchId: string, decisionId?: string) {
+    this.owned(userId, matchId);
+    const bundle = this.traces.export(matchId, decisionId);
+    if (!bundle)
+      throw new AiBattleSetupError(
+        'AI_OBSERVATION_NOT_RETAINED',
+        '指定决定或观测材料已过期或未保留',
+        404
+      );
+    return bundle;
+  }
+
+  async snapshot(userId: string, matchId: string, sinceSeq?: number) {
+    this.owned(userId, matchId);
+    return this.matches.getMatchSnapshot(matchId, userId, { sinceSeq });
+  }
+
+  async publicEvents(userId: string, matchId: string, afterSeq?: number) {
+    this.owned(userId, matchId);
+    return this.matches.getMatchPublicEvents(matchId, userId, { afterSeq });
+  }
+
+  async command(userId: string, matchId: string, command: GameCommand) {
+    const entry = this.owned(userId, matchId);
+    if (this.finishedAt(entry) !== null)
+      throw new AiBattleSetupError('AI_MATCH_ENDED', '调试对局已结束', 409);
+    return this.matches.executeCommand(matchId, userId, { ...command, timestamp: this.now() });
+  }
+
+  async advance(userId: string, matchId: string) {
+    const entry = this.owned(userId, matchId);
+    if (this.finishedAt(entry) !== null)
+      throw new AiBattleSetupError('AI_MATCH_ENDED', '调试对局已结束', 409);
+    return this.matches.advancePhase(matchId, userId);
+  }
+
+  async end(userId: string, matchId: string): Promise<AiBattleSessionView> {
+    const entry = this.owned(userId, matchId);
+    const result = await this.matches.endAiBattle(matchId);
+    if (result && !result.removed)
+      throw new AiBattleSetupError('AI_END_FAILED', '封存失败，请重试结束本局');
+    entry.endedAt ??= result?.endedAt ?? this.now();
+    this.traces.end(matchId, entry.endedAt);
+    if (result) {
+      entry.consecutiveFailures = result.consecutiveFailures;
+      entry.stoppedReason ??= result.stoppedReason;
+    }
+    return this.view(entry);
+  }
+
+  /** TTL removal only drops ended administrator metadata; it cannot execute game actions. */
+  cleanup(): void {
+    for (const [id, entry] of this.sessions) {
+      if (entry.endedAt === null && !this.matches.getMatch(id)) {
+        // The shared runtime cleanup may remove a match independently of this administrator API.
+        // This is the time its removal was observed, not an invented game-result timestamp.
+        entry.endedAt = this.now();
+        entry.stoppedReason ??= 'MATCH_RUNTIME_RELEASED';
+        this.traces.end(id, entry.endedAt);
+      }
+      if (this.expired(entry)) this.sessions.delete(id);
+    }
+    this.traces.cleanup();
+  }
+
+  private owned(userId: string, matchId: string): AiOwnedSession {
+    const entry = this.sessions.get(matchId);
+    const match = this.matches.getMatch(matchId);
+    if (
+      !entry ||
+      entry.ownerUserId !== userId ||
+      this.expired(entry) ||
+      (match && match.originKind !== 'AI_DEBUG')
+    )
+      throw new AiBattleSetupError('AI_SESSION_NOT_FOUND', '调试会话不存在', 404);
+    return entry;
+  }
+
+  private finishedAt(entry: AiOwnedSession): number | null {
+    const match = this.matches.getMatch(entry.matchId);
+    return entry.endedAt ?? match?.session.state?.endInfo?.endTimestamp ?? null;
+  }
+
+  private expired(entry: AiOwnedSession): boolean {
+    const endedAt = this.finishedAt(entry);
+    return endedAt !== null && this.now() - endedAt >= ENDED_SESSION_TTL_MS;
+  }
+
+  private view(entry: AiOwnedSession): AiBattleSessionView {
+    const status = this.matches.getAiBattleStatus(entry.matchId);
+    const endedAt = this.finishedAt(entry);
+    const stoppedReason = entry.stoppedReason ?? status?.stoppedReason ?? null;
+    return {
+      ...entry.input,
+      matchId: entry.matchId,
+      startedAt: entry.startedAt,
+      endedAt,
+      consecutiveFailures: status?.consecutiveFailures ?? entry.consecutiveFailures,
+      stoppedReason,
+      activity:
+        endedAt !== null ? 'ENDED' : stoppedReason ? 'STOPPED' : (status?.activity ?? 'WAITING'),
+    };
+  }
+}

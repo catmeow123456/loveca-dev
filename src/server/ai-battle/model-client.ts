@@ -1,0 +1,362 @@
+import { createHash } from 'node:crypto';
+import { z } from 'zod';
+import type { AiBattleModelClient, AiModelRequestContext } from './driver.js';
+import { AiBattleSetupError, type AiFrozenKnowledge, type AiKnowledgeMaterial } from './presets.js';
+import type { AiDecisionInput } from './protocol.js';
+import type { AiModelOutcome } from './runtime.js';
+import type { AiBattleTraceStore } from './trace-store.js';
+import { redactAiText } from './redaction.js';
+
+const MAX_REQUEST_BYTES = 512 * 1024;
+const MAX_RESPONSE_BYTES = 256 * 1024;
+
+export interface AiModelConfig {
+  readonly endpoint: string;
+  readonly model: string;
+  readonly apiKey: string;
+  readonly temperature: number;
+  readonly maxTokens: number;
+}
+
+/** Dedicated server configuration; extraction-service settings and developer credentials are unrelated. */
+export function readAiModelConfig(
+  env: Readonly<Record<string, string | undefined>> = process.env
+): AiModelConfig {
+  const parsed = z
+    .object({
+      baseUrl: z.string().url(),
+      model: z.string().trim().min(1).max(120),
+      apiKey: z
+        .string()
+        .min(1)
+        .max(1024)
+        .regex(/^[\x21-\x7E]+$/),
+      temperature: z.coerce.number().min(0).max(2).default(0.2),
+      maxTokens: z.coerce.number().int().min(128).max(4096).default(2048),
+    })
+    .safeParse({
+      baseUrl: env.AI_BATTLE_BASE_URL,
+      model: env.AI_BATTLE_MODEL,
+      apiKey: env.AI_BATTLE_API_KEY,
+      temperature: env.AI_BATTLE_TEMPERATURE,
+      maxTokens: env.AI_BATTLE_MAX_TOKENS,
+    });
+  if (!parsed.success)
+    throw new AiBattleSetupError(
+      'AI_MODEL_CONFIG_INVALID',
+      '请配置 AI 对战专用模型地址、模型标识与密钥'
+    );
+  const url = new URL(parsed.data.baseUrl);
+  if (
+    url.protocol !== 'https:' ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    !url.pathname.replace(/\/$/, '').endsWith('/compatible-mode/v1')
+  ) {
+    throw new AiBattleSetupError(
+      'AI_MODEL_CONFIG_INVALID',
+      'AI 模型地址须为不带凭据或查询参数的 HTTPS compatible-mode/v1 地址'
+    );
+  }
+  url.pathname = `${url.pathname.replace(/\/$/, '')}/chat/completions`;
+  return Object.freeze({
+    endpoint: url.toString(),
+    model: parsed.data.model,
+    apiKey: parsed.data.apiKey,
+    temperature: parsed.data.temperature,
+    maxTokens: parsed.data.maxTokens,
+  });
+}
+
+const envelope = z.object({
+  id: z.string().optional(),
+  choices: z
+    .array(
+      z.object({
+        message: z.object({ content: z.string().nullable() }),
+        finish_reason: z.string().nullable(),
+      })
+    )
+    .min(1),
+});
+
+const CONTROL =
+  '你参与 Loveca 规则模式对局。当前状态和候选引用是本次选择的边界，卡文和历史是规则资料。只输出符合当前 responseSchema 的 JSON；selection 必填，可选 tradeoff 最多 300 字。tradeoff 只需简述选择依据，不输出逐步推理。只选择当前候选，不发明卡牌、引用、命令或隐藏信息。';
+
+/** One HTTP attempt only. Retry/timeout/freshness remain in the existing driver and match queue. */
+export class DashScopeAiBattleClient implements AiBattleModelClient {
+  readonly configurationMaterial: AiKnowledgeMaterial;
+  private readonly config: AiModelConfig;
+  private readonly knowledge: AiFrozenKnowledge;
+
+  constructor(
+    config: AiModelConfig,
+    knowledge: AiFrozenKnowledge,
+    private readonly traces: Pick<AiBattleTraceStore, 'append' | 'reportCaptureFailure'>,
+    private readonly fetcher: typeof globalThis.fetch = globalThis.fetch,
+    private readonly now: () => number = Date.now
+  ) {
+    const knowledgeBytes = [
+      knowledge.rules,
+      knowledge.tutorial,
+      knowledge.handbook,
+      knowledge.ownDeck,
+    ].reduce((sum, source) => sum + Buffer.byteLength(source.content), 0);
+    if (knowledgeBytes > 256 * 1024)
+      throw new AiBattleSetupError(
+        'AI_KNOWLEDGE_TOO_LARGE',
+        '本局固定知识超过支持的大小，请缩减规则或手册材料'
+      );
+    this.config = Object.freeze({ ...config });
+    this.knowledge = globalThis.structuredClone(knowledge);
+    const content = JSON.stringify({
+      provider: 'DASHSCOPE_COMPATIBLE',
+      endpoint: config.endpoint,
+      model: config.model,
+      temperature: config.temperature,
+      max_tokens: config.maxTokens,
+      enable_thinking: false,
+      response_format: { type: 'json_object' },
+      stream: false,
+    });
+    this.configurationMaterial = Object.freeze({
+      id: 'model-configuration',
+      title: '本局模型配置',
+      source: 'server:AI_BATTLE_*',
+      content,
+      sha256: createHash('sha256').update(content).digest('hex'),
+    });
+  }
+
+  async decide(
+    input: AiDecisionInput,
+    signal: AbortSignal,
+    context: AiModelRequestContext
+  ): Promise<AiModelOutcome> {
+    const startedAt = this.now();
+    const sources = [
+      this.knowledge.rules,
+      this.knowledge.tutorial,
+      this.knowledge.handbook,
+      this.knowledge.ownDeck,
+    ];
+    const messages = [
+      { role: 'system', content: CONTROL },
+      ...sources.map((source) => ({ role: 'user', content: `${source.title}\n${source.content}` })),
+      { role: 'user', content: `本次决策；只使用本次引用\n${JSON.stringify(input)}` },
+    ];
+    const body = JSON.stringify({
+      model: this.config.model,
+      messages,
+      temperature: this.config.temperature,
+      max_tokens: this.config.maxTokens,
+      enable_thinking: false,
+      stream: false,
+      response_format: { type: 'json_object' },
+    });
+    const safeBody = redactAiText(body, [this.config.apiKey]);
+    if (Buffer.byteLength(safeBody.text) > MAX_REQUEST_BYTES) {
+      this.capture(context, 'ASSEMBLY_FAILED', {
+        reason: 'REQUEST_BYTES_EXCEEDED',
+        requestBytes: Buffer.byteLength(safeBody.text),
+        limit: MAX_REQUEST_BYTES,
+      });
+      return {
+        kind: 'ADAPTER_ERROR',
+        message: 'Request assembly exceeds the supported context size',
+      };
+    }
+    if (signal.aborted)
+      return { kind: 'SERVICE_ERROR', message: 'Request cancelled before send', retryable: false };
+    this.capture(
+      context,
+      'REQUEST',
+      {
+        startedAt,
+        endpoint: this.config.endpoint,
+        // This string is the exact transmitted body. Auth headers never enter a capture payload.
+        body: safeBody.text,
+        redactionCount: safeBody.count,
+        assembly: sources.map((source, index) => ({
+          sourceId: source.id,
+          sourceSha256: source.sha256,
+          messageIndex: index + 1,
+          selection: 'FULL',
+          trimming: null,
+        })),
+      },
+      { attemptStarted: context.attempt, status: 'REQUESTING' }
+    );
+    let response: Response;
+    try {
+      response = await this.fetcher(this.config.endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.config.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: safeBody.text,
+        signal,
+        redirect: 'error',
+      });
+    } catch (error) {
+      const detail = redactAiText(error instanceof Error ? error.message : String(error), [
+        this.config.apiKey,
+      ]);
+      this.capture(
+        context,
+        'TRANSPORT_ERROR',
+        {
+          startedAt,
+          endedAt: this.now(),
+          error: detail.text,
+          redactionCount: detail.count,
+          cancelled: signal.aborted,
+        },
+        { attemptFinished: context.attempt }
+      );
+      return {
+        kind: 'SERVICE_ERROR',
+        message: signal.aborted ? 'Request cancelled' : 'Model transport failed',
+        retryable: !signal.aborted,
+      };
+    }
+    let raw = '';
+    let truncated = false;
+    let readError: string | null = null;
+    // Incremental reads bound even an incorrect/malicious Content-Length. Cancelled requests may
+    // still return from a provider/mock; their raw response is captured on this original attempt.
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let bytes = 0;
+    try {
+      if (reader)
+        while (true) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          const accepted = chunk.value.subarray(0, Math.max(0, MAX_RESPONSE_BYTES - bytes));
+          raw += decoder.decode(accepted, { stream: true });
+          bytes += accepted.byteLength;
+          if (accepted.byteLength < chunk.value.byteLength) {
+            truncated = true;
+            // Do not await a misbehaving upstream's cancellation acknowledgement.
+            void reader.cancel().catch(() => undefined);
+            break;
+          }
+        }
+      if (!truncated) raw += decoder.decode();
+    } catch (error) {
+      readError = redactAiText(error instanceof Error ? error.message : String(error), [
+        this.config.apiKey,
+      ]).text;
+    } finally {
+      reader?.releaseLock();
+    }
+    const beforeTailRedaction = raw;
+    if (truncated || readError) raw = redactAiTruncatedTail(raw, this.config.apiKey);
+    const trailingCredentialRedacted = raw !== beforeTailRedaction;
+    const redacted = redactAiText(raw, [this.config.apiKey]);
+    const parsed = envelope.safeParse(parseJson(redacted.text));
+    const first = parsed.success ? parsed.data.choices[0]! : null;
+    this.capture(
+      context,
+      'RESPONSE',
+      {
+        startedAt,
+        endedAt: this.now(),
+        httpStatus: response.status,
+        requestId: redactAiText(
+          response.headers.get('x-request-id') ?? (parsed.success ? (parsed.data.id ?? '') : ''),
+          [this.config.apiKey]
+        ).text.slice(0, 256),
+        redactionCount: redacted.count,
+        trailingCredentialRedacted,
+        receivedBytes: bytes,
+        bodyReadLimitExceeded: truncated,
+        bodyReadError: readError,
+        finishReason: first?.finish_reason ?? null,
+        cancelled: signal.aborted,
+      },
+      { attemptFinished: context.attempt }
+    );
+    this.capture(context, 'RESPONSE_BODY', {
+      rawBody: redacted.text,
+      redactionCount: redacted.count,
+    });
+    if (truncated)
+      return {
+        kind: 'SERVICE_ERROR',
+        message: 'Model HTTP body exceeds the supported response size',
+        retryable: false,
+      };
+    if (readError)
+      return {
+        kind: 'SERVICE_ERROR',
+        message: 'Model response stream failed',
+        retryable: !signal.aborted,
+      };
+    if (!response.ok)
+      return {
+        kind: 'SERVICE_ERROR',
+        message: `Model HTTP ${response.status}`,
+        retryable: response.status === 408 || response.status === 429 || response.status >= 500,
+      };
+    if (!first)
+      return {
+        kind: 'SERVICE_ERROR',
+        message: 'Invalid model response envelope',
+        retryable: false,
+      };
+    // A missing/empty model answer is an output failure, not a service-retry prompt.
+    return {
+      kind: 'RESPONSE',
+      text: first.message.content ?? '',
+      truncated: first.finish_reason === 'length',
+    };
+  }
+
+  private capture(
+    context: AiModelRequestContext,
+    stage: string,
+    payload: Record<string, unknown>,
+    options?: Parameters<AiBattleTraceStore['append']>[4]
+  ): void {
+    // Capture errors cannot trigger another request or invalidate an accepted rule action.
+    try {
+      this.traces.append(
+        context.matchId,
+        context.taskId,
+        stage,
+        { attempt: context.attempt, ...payload },
+        options
+      );
+    } catch {
+      this.traces.reportCaptureFailure(context.matchId);
+    }
+  }
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+/** A byte cutoff must not retain the beginning of a known credential at the end of an error. */
+function redactAiTruncatedTail(text: string, secret: string): string {
+  for (const variant of new Set([
+    secret,
+    encodeURIComponent(secret),
+    JSON.stringify(secret).slice(1, -1),
+  ])) {
+    for (let length = variant.length - 1; length > 0; length--) {
+      if (text.endsWith(variant.slice(0, length)))
+        return `${text.slice(0, -length)}[REDACTED_PARTIAL]`;
+    }
+  }
+  return text;
+}

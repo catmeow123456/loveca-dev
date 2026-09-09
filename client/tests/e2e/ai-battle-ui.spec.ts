@@ -1,0 +1,276 @@
+import { expect, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import { aiBrowserFixture, CREATE_INPUT } from './ai-battle-fixture';
+
+test.describe('AI 管理员共享牌桌与只读观察', () => {
+  test.beforeEach(({ browser }, info) => {
+    void browser;
+    test.skip(info.project.name !== 'tablet-1024x768', '本文件显式覆盖宽屏与紧凑视口');
+  });
+
+  for (const theme of ['light', 'dark'] as const) {
+    for (const viewport of [
+      { width: 1600, height: 900 },
+      { width: 390, height: 844 },
+    ]) {
+      test(`${theme} ${viewport.width}：固定历史、迟到内容、全文导出与键盘焦点`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(viewport);
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+        await page.addInitScript((value) => localStorage.setItem('loveca-theme', value), theme);
+        const errors: string[] = [];
+        page.on('pageerror', (error) => errors.push(error.message));
+        const f = await aiBrowserFixture(page);
+        try {
+          const created = await f.create({ ...CREATE_INPUT, humanSeat: 'SECOND' });
+          const id = created.session.matchId;
+          await expect
+            .poll(() =>
+              f.service.listDecisions(f.owner, id).decisions.some((d) => d.status === 'ACCEPTED')
+            )
+            .toBe(true);
+          const accepted = f.service
+            .listDecisions(f.owner, id)
+            .decisions.find((d) => d.status === 'ACCEPTED')!;
+          await page.goto('/?page=ai-battle-admin');
+          await page.getByRole('button', { name: '观察材料', exact: true }).click();
+          const dialog = page.getByRole('dialog', { name: 'AI 决定观察', exact: true });
+          await expect(dialog).toBeVisible();
+          const row = dialog
+            .locator('.ai-decision-row')
+            .filter({ has: page.locator('.ai-decision-number', { hasText: accepted.id }) })
+            .first();
+          await row.click();
+          await expect(row).toHaveAttribute('aria-current', 'true');
+          const commandSeq = f.matches.getMatch(id)!.session.getRuntimeStats().currentCommandSeq;
+          const modelCalls = f.state.modelCalls;
+          const writeCount = f.state.writes.length;
+          const requestMaterial = dialog
+            .locator('.ai-material')
+            .filter({ has: page.locator('summary', { hasText: '实际模型请求' }) })
+            .first();
+          await requestMaterial.locator('> summary').click();
+          await expect(
+            requestMaterial.getByRole('list', { name: '实际发送的消息，按请求顺序' }).locator('li')
+          ).toHaveCount(6);
+          await page.screenshot({
+            path: `../output/playwright/ai-battle/request-${theme}-${viewport.width}.png`,
+          });
+          await requestMaterial.locator('> summary').click();
+          await dialog.locator('.ai-captured-view > summary').click();
+          await expect(
+            dialog
+              .locator('.ai-view-zones section')
+              .filter({ has: page.locator('h5', { hasText: '当时 AI 手牌' }) })
+              .locator('li')
+          ).toHaveCount(6);
+          await dialog.locator('.ai-captured-view > summary').click();
+
+          f.traces.begin(id, {
+            id: 'ui-late',
+            revision: 90,
+            windowKey: 'ui-fixture',
+            seat: 'FIRST',
+            purpose: 'MAIN',
+          });
+          f.traces.append(
+            id,
+            'ui-late',
+            'WAIT',
+            { reason: 'browser fixture' },
+            { status: 'WAITING' }
+          );
+          f.traces.append(id, accepted.id, 'RESPONSE_BODY', {
+            rawBody: 'late-response-body\n' + '保留正文'.repeat(2500),
+          });
+          await expect(dialog.locator('.ai-decision-number', { hasText: 'ui-late' })).toBeVisible();
+          await expect(row).toHaveAttribute('aria-current', 'true');
+          await dialog.getByLabel('查找当前材料', { exact: true }).fill('late-response-body');
+          await expect(dialog.locator('.ai-material')).toHaveCount(1);
+          await dialog.locator('.ai-material > summary').click();
+          await expect(dialog.locator('.ai-material > pre')).toContainText('late-response-body');
+          await dialog.getByRole('button', { name: '复制正文全文', exact: true }).click();
+          expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+            'late-response-body\n' + '保留正文'.repeat(2500)
+          );
+          await dialog.getByLabel('查找当前材料', { exact: true }).fill('');
+          await dialog.locator('.ai-material[open] > summary').click();
+
+          const downloadEvent = page.waitForEvent('download');
+          await dialog.getByRole('button', { name: '导出本决定', exact: true }).click();
+          const download = await downloadEvent;
+          const exported = JSON.parse(await readFile((await download.path())!, 'utf8'));
+          expect(exported.decisions).toHaveLength(1);
+          expect(exported.decisions[0].id).toBe(accepted.id);
+          expect(
+            exported.materials.some((m: { content: string }) =>
+              m.content?.includes('late-response-body')
+            )
+          ).toBe(true);
+          const ids = new Set(exported.materials.map((m: { id: string }) => m.id));
+          for (const event of exported.decisions[0].events)
+            expect(ids.has(event.materialId)).toBe(true);
+          expect(JSON.stringify(exported)).not.toContain('browser-fake-secret');
+
+          // The final summary must wrap forward; reverse Tab from the first control must land
+          // on that visible summary, never a copy button or pre inside closed details.
+          const lastSummary = dialog.locator('.ai-material > summary').last();
+          await lastSummary.focus();
+          await page.keyboard.press('Tab');
+          await expect(dialog.getByRole('button', { name: '导出会话', exact: true })).toBeFocused();
+          await page.keyboard.press('Shift+Tab');
+          await expect(lastSummary).toBeFocused();
+          await dialog.locator('.ai-decision-detail').evaluate((element) => {
+            element.scrollTop = 0;
+          });
+          await page.screenshot({
+            path: `../output/playwright/ai-battle/observation-${theme}-${viewport.width}.png`,
+          });
+          const bounds = await dialog.boundingBox();
+          expect(bounds!.x).toBeGreaterThanOrEqual(0);
+          expect(bounds!.width).toBeLessThanOrEqual(viewport.width);
+          expect(
+            await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
+          ).toBe(true);
+          await page.keyboard.press('Escape');
+          await expect(dialog).not.toBeVisible();
+          await expect(page.getByRole('button', { name: '观察材料', exact: true })).toBeFocused();
+          expect(f.state.writes).toHaveLength(writeCount);
+          expect(f.state.modelCalls).toBe(modelCalls);
+          expect(f.matches.getMatch(id)!.session.getRuntimeStats().currentCommandSeq).toBe(
+            commandSeq
+          );
+          expect(errors).toEqual([]);
+        } finally {
+          await f.close();
+        }
+      });
+    }
+  }
+
+  test('提交未完成、规则拒绝与历史淘汰不会显示为已执行或切换到别的旧详情', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    const f = await aiBrowserFixture(page);
+    try {
+      const { session } = await f.create();
+      const id = session.matchId;
+      f.traces.begin(id, {
+        id: 'ui-rejected',
+        revision: 80,
+        windowKey: 'ui-rejected',
+        seat: 'SECOND',
+        purpose: 'MAIN',
+      });
+      f.traces.append(id, 'ui-rejected', 'SUBMIT', {
+        selection: { source: 'FALLBACK' },
+        command: { type: 'END_PHASE' },
+      });
+      await page.goto('/?page=ai-battle-admin');
+      await page.getByRole('button', { name: '观察材料', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'AI 决定观察', exact: true });
+      await expect(dialog.locator('.ai-outcome')).toContainText('已提交，等待执行结果');
+      await dialog.locator('.ai-decision-row').filter({ hasText: 'ui-rejected' }).click();
+      f.traces.append(
+        id,
+        'ui-rejected',
+        'AUTHORITY_RESULT',
+        { success: false, error: '夹具规则拒绝' },
+        { status: 'STOPPED' }
+      );
+      await expect(dialog.locator('.ai-outcome')).toContainText('执行被拒绝');
+      await expect(dialog.locator('.ai-outcome')).not.toContainText('执行成功');
+      const downloadEvent = page.waitForEvent('download');
+      await dialog.getByRole('button', { name: '导出会话', exact: true }).click();
+      const downloaded = JSON.parse(await readFile((await (await downloadEvent).path())!, 'utf8'));
+      expect(downloaded).toMatchObject({ format: 'loveca-ai-observation-v1', matchId: id });
+      expect(
+        downloaded.decisions.some((decision: { id: string }) => decision.id === 'ui-rejected')
+      ).toBe(true);
+      for (let i = 0; i < 130; i++) {
+        f.traces.begin(id, {
+          id: `eviction-${i}`,
+          revision: 81 + i,
+          windowKey: `eviction-${i}`,
+          seat: 'SECOND',
+          purpose: 'MAIN',
+        });
+        f.traces.append(id, `eviction-${i}`, 'ACCEPTED', {}, { status: 'ACCEPTED' });
+      }
+      await expect(dialog.getByRole('alert')).toContainText('决定 ui-rejected');
+      await expect(dialog.locator('.ai-selected-heading')).toHaveCount(0);
+      await expect(dialog.getByRole('button', { name: '导出本决定', exact: true })).toHaveCount(0);
+      await dialog.getByRole('button', { name: '跟随最新', exact: true }).click();
+      await expect(dialog.locator('.ai-decision-row[aria-current="true"]')).toContainText(
+        'eviction-129'
+      );
+      await expect(dialog.locator('.ai-selected-heading')).toContainText('eviction-129');
+      await expect(dialog.getByRole('alert')).toHaveCount(0);
+      expect(f.state.writes).toEqual([]);
+      expect(f.state.modelCalls).toBe(0);
+      expect(f.matches.getMatch(id)!.session.getRuntimeStats().currentCommandSeq).toBe(0);
+    } finally {
+      await f.close();
+    }
+  });
+
+  test('创建、真实换牌命令、返回恢复、失败结束重试及再次创建', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    const f = await aiBrowserFixture(page);
+    try {
+      await page.goto('/?page=ai-battle-admin');
+      await expect(page.getByRole('button', { name: '创建调试对局', exact: true })).toBeEnabled();
+      await page.screenshot({ path: '../output/playwright/ai-battle/setup-1600.png' });
+      await page.getByRole('button', { name: '创建调试对局', exact: true }).click();
+      await expect.poll(() => f.service.listSessions(f.owner).length).toBe(1);
+      const id = f.service.listSessions(f.owner)[0]!.matchId;
+      await expect(page.locator('.ai-battle-toolbar')).toBeVisible();
+      await page.screenshot({ path: '../output/playwright/ai-battle/board-opening-1600.png' });
+      await page.getByRole('button', { name: '保留手牌', exact: true }).click();
+      await expect
+        .poll(
+          () =>
+            f.matches
+              .getMatch(id)!
+              .session.getCommandLogSince(0)
+              .filter((c) => c.commandType === 'MULLIGAN').length
+        )
+        .toBe(2);
+      await expect.poll(() => f.state.modelCalls).toBeGreaterThan(0);
+      expect(f.state.writes.filter((p) => p.endsWith('/command'))).toHaveLength(1);
+      const before = f.state.snapshots;
+      await page.getByRole('button', { name: '观察', exact: true }).click();
+      await expect.poll(() => f.state.snapshots).toBeGreaterThan(before);
+      await page.getByRole('button', { name: '关闭决定观察', exact: true }).click();
+      await page.getByRole('button', { name: '返回 AI 会话列表，保留对局' }).click();
+      expect(f.matches.getMatch(id)).not.toBeNull();
+      await page.reload();
+      await page.getByRole('button', { name: '继续对局', exact: true }).click();
+      await expect(page.locator('.ai-battle-toolbar')).toBeVisible();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.screenshot({ path: '../output/playwright/ai-battle/board-resumed-390.png' });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true
+      );
+      f.state.failNextEnd = true;
+      await page.getByRole('button', { name: '结束', exact: true }).click();
+      await page.getByRole('button', { name: '结束调试对局', exact: true }).click();
+      await expect(page.getByRole('alert')).toContainText('请重试结束');
+      expect(f.matches.getMatch(id)).not.toBeNull();
+      await page.screenshot({ path: '../output/playwright/ai-battle/end-failed-390.png' });
+      await page.getByRole('button', { name: '结束', exact: true }).click();
+      await page.getByRole('button', { name: '结束调试对局', exact: true }).click();
+      await expect.poll(() => f.matches.getMatch(id)).toBeNull();
+      await page.getByRole('button', { name: '创建调试对局', exact: true }).click();
+      await expect
+        .poll(() => f.service.listSessions(f.owner).filter((s) => s.endedAt === null).length)
+        .toBe(1);
+      expect(f.service.listSessions(f.owner).find((s) => s.endedAt === null)!.matchId).not.toBe(id);
+      expect(errors).toEqual([]);
+    } finally {
+      await f.close();
+    }
+  });
+});

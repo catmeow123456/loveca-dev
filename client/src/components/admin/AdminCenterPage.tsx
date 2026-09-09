@@ -35,6 +35,7 @@ interface AdminCenterPageProps {
   readonly onOpenCards: () => void;
   readonly onOpenCardSync: () => void;
   readonly onOpenAiExtraction: () => void;
+  readonly onOpenAiBattle: () => void;
   readonly onOpenDeckPoints: () => void;
   readonly onOpenOnlineRooms: () => void;
   readonly onOpenPlatformOperations: () => void;
@@ -164,6 +165,13 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
       title: '对局与赛季',
       description: '联机运行状态和竞技运营',
       modules: [
+        {
+          title: 'AI 对战调试',
+          description: '用精选构筑对战，查看 AI 决定与实际执行',
+          icon: Bot,
+          onOpen: props.onOpenAiBattle,
+          permission: 'rules.manage',
+        },
         {
           title: '联机房间',
           description: '查看在线玩家、等待房间和进行中对局',

@@ -6,6 +6,7 @@ import { requireAuth } from '../middleware/require-auth.js';
 import { requireAdmin } from '../middleware/require-admin.js';
 import { requireGameplayAvailable } from '../middleware/require-gameplay-available.js';
 import { privateNoStore, setPrivateNoStoreHeaders } from '../middleware/private-no-store.js';
+import { requirePermission } from '../middleware/require-permission.js';
 import {
   DebugReplayServiceError,
   createDebugReplayBundle,
@@ -29,6 +30,27 @@ import {
 } from '../services/match-replay-read-service.js';
 
 export const onlineRouter = Router();
+
+// AI participants cannot bypass the administrator role recheck through generic online endpoints.
+onlineRouter.use(['/matches/:matchId', '/admin/matches/:matchId'], (req, res, next) => {
+  const match = onlineMatchService.getMatch(readPathParam(req.params.matchId));
+  if (match?.originKind !== 'AI_DEBUG') return next();
+  setPrivateNoStoreHeaders(res);
+  return requireAuth(req, res, () =>
+    requirePermission('rules.manage')(req, res, () => {
+      if (
+        !Object.values(match.participants).some(
+          (participant) =>
+            participant.participantKind === 'USER' && participant.userId === req.user!.id
+        )
+      ) {
+        respondMatchNotFound(res);
+        return;
+      }
+      next();
+    })
+  );
+});
 
 onlineRouter.use('/match-records', privateNoStore);
 

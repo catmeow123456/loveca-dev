@@ -1,10 +1,14 @@
+import { queryCardSelection, queryOptionSelection } from '../../runtime/selection-query.js';
 import {
   addAction,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForSourceMember, addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
+import {
+  addHeartLiveModifierForSourceMember,
+  addHeartLiveModifierForTargetMember,
+} from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor } from '../../../../shared/types/enums.js';
 import { hasOtherStageMember } from '../../../effects/conditions.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
@@ -135,7 +139,8 @@ export function registerLiveStartDiscardGainHeartWorkflowHandlers(deps: {
           config,
           context.continuePendingCardEffects,
           deps.enqueueTriggeredCardEffects
-        )
+        ),
+      queryCardSelection
     );
     registerActiveEffectStepHandler(
       config.abilityId,
@@ -145,7 +150,8 @@ export function registerLiveStartDiscardGainHeartWorkflowHandlers(deps: {
           game,
           input.selectedCardId ?? null,
           context.continuePendingCardEffects
-        )
+        ),
+      queryCardSelection
     );
     registerActiveEffectStepHandler(
       config.abilityId,
@@ -155,7 +161,8 @@ export function registerLiveStartDiscardGainHeartWorkflowHandlers(deps: {
           game,
           input.selectedOptionId ?? null,
           context.continuePendingCardEffects
-        )
+        ),
+      queryOptionSelection
     );
   }
 }

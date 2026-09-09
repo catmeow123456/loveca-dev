@@ -1,0 +1,25 @@
+{
+  "rules": "assets/ai-battle/rules.md",
+  "tutorial": "assets/ai-battle/tutorial.md",
+  "presets": [
+    {
+      "id": "muse-starter",
+      "name": "μ's 原始预组",
+      "deckPath": "assets/decks/缪预组.yaml",
+      "deckSha256": "4a085d4710ec06b4a5046a8a8dc48bd5ff66aeb88fcbe1222ee1f52b737133cf",
+      "defaultHandbookId": "muse-balanced",
+      "handbooks": [
+        {
+          "id": "muse-balanced",
+          "name": "均衡发展",
+          "path": "assets/ai-battle/handbooks/muse-balanced.md"
+        },
+        {
+          "id": "muse-tempo",
+          "name": "积极争取 LIVE",
+          "path": "assets/ai-battle/handbooks/muse-tempo.md"
+        }
+      ]
+    }
+  ]
+}

@@ -3069,7 +3069,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: `${HONOKA_ON_ENTER_ABILITY_ID}:continuous-extra-blade`,
-    cardCodes: ['PL!-sd1-001-SD'],
+    baseCardCodes: ['PL!-sd1-001'],
     category: CardAbilityCategory.CONTINUOUS,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
@@ -3079,7 +3079,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HONOKA_ON_ENTER_ABILITY_ID,
-    cardCodes: ['PL!-sd1-001-SD'],
+    baseCardCodes: ['PL!-sd1-001'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -3089,7 +3089,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: KOTORI_ON_ENTER_ABILITY_ID,
-    cardCodes: ['PL!-sd1-003-SD'],
+    baseCardCodes: ['PL!-sd1-003'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -3099,7 +3099,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: KOTORI_LIVE_START_HEART_ABILITY_ID,
-    cardCodes: ['PL!-sd1-003-SD'],
+    baseCardCodes: ['PL!-sd1-003'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -3109,7 +3109,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: UMI_ON_ENTER_ABILITY_ID,
-    cardCodes: ['PL!-sd1-004-SD'],
+    baseCardCodes: ['PL!-sd1-004'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -3327,7 +3327,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: NOZOMI_ON_ENTER_ABILITY_ID,
-    cardCodes: ['PL!-sd1-007-SD'],
+    baseCardCodes: ['PL!-sd1-007'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -3337,7 +3337,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HANAYO_ACTIVATED_ABILITY_ID,
-    cardCodes: ['PL!-sd1-008-SD'],
+    baseCardCodes: ['PL!-sd1-008'],
     category: CardAbilityCategory.ACTIVATED,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
@@ -3352,7 +3352,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: NICO_LIVE_START_SCORE_ABILITY_ID,
-    cardCodes: ['PL!-sd1-009-SD'],
+    baseCardCodes: ['PL!-sd1-009'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -3414,7 +3414,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: START_DASH_LIVE_SUCCESS_ABILITY_ID,
-    cardCodes: ['PL!-sd1-019-SD'],
+    baseCardCodes: ['PL!-sd1-019'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -10279,7 +10279,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
-    cardCodes: ['PL!-sd1-022-SD'],
+    baseCardCodes: ['PL!-sd1-022'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,

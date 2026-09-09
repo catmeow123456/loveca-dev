@@ -24,12 +24,18 @@ activeEffect runtime 应统一处理：
 - 费用语义变更。
 - trigger matcher 接线。
 
+## 起动发动条件的只读查询
+
+`runtime/activated-registry.ts` 的 `registerActivatedAbilityHandler(abilityId, handler, canStart?)` 可在 workflow 注册时提供只读发动条件；`queryActivatedAbilityStart` 返回 `true / false / undefined`，其中 `undefined` 明确表示尚无查询，不能试执行 resolver 猜测可用性。registry 执行前也读取同一个已登记条件；时点、来源、授予实例和每回合限制仍由现有命令层校验，查询不支付费用、不写次数或推进 pending。
+
+当前仅 `pl-sd1-008-hanayo.ts` 费用 4「小泉花阳」提供至少两张活跃能量条件，`self-sacrifice-waiting-room-to-hand.ts` 提供当前来源仍在顶层舞台条件。没有声明全卡池起动查询覆盖，也没有新增卡效 DSL。AI 使用正常 UI/来源查询和 turn-limit 再消费此条件；未知 workflow 返回未覆盖。验证见 `tests/integration/ai-battle-decision.test.ts`，包括费用不足、次数耗尽、两份授予实例及实际自送结果。
+
 ## Step Handler Registry
 
 Current API shape:
 
 ```ts
-registerActiveEffectStepHandler(abilityId, stepId, handler);
+registerActiveEffectStepHandler(abilityId, stepId, handler, querySelection?);
 ```
 
 Current resolve shape:
@@ -47,6 +53,14 @@ Benefits:
 - `confirmActiveEffectStep` 不再有数百行 `if abilityId && stepId`。
 - workflow 拥有自己的 step handler。
 - 新卡不需要修改 runner 的大型分发函数。
+
+### 步骤选择的只读约束
+
+`runtime/selection-query.ts` 提供当前卡牌选择、选项选择与纯确认的窄契约；workflow 在注册 handler 时显式提供 `querySelection`。`queryActiveEffectSelection` 只读当前状态，未登记或不能表达的步骤返回 `undefined`。调用方不得把普通 activeEffect 字段当作任意 workflow 的完整合法输入，也不得试执行 handler 枚举候选。
+
+`queryCardSelection` 仅用于候选成员关系、数量和既有 ORDERED_MULTI 顺序能够完整表达的步骤；可选放弃独立于非空选择的最小数量，因此“可不发动，否则恰好弃二”不会变成“任选零至二”。`queryOptionSelection` 区分普通选项和结构化效果选项，后者保留原有 public confirmation。registry 在首次 handler/公开确认前共用 `isActiveEffectSelectionValid`，按命令 API 语义忽略未选中的 nullable 字段与 `resolveInOrder: false`，仍拒绝冲突选择、重复目标和不满足数量的输入；公开展示后仍走既有恢复输入和 workflow 的当前区域、selector、来源与费用校验。没有新增持久字段、步骤 DSL 或执行预览。
+
+当前接入检视取牌、弃手后检视取牌、普通及自送后休息室回收、弃手获 Heart、检视后排序和手中 LIVE 交换成功 LIVE 的相应步骤。分组/互斥选择、盲选、数字与站位尚未提供完整契约，不因通用注册存在而宣称覆盖。`runtime/pending-order-query.ts` 与 runner 共用待处理实例查询，保留同来源不同 pending 的身份。AI 侧只映射当前玩家投影允许的引用，验证见 `tests/integration/ai-battle-effect-decision.test.ts`。
 
 ### Public Zone-Selection Confirmation
 

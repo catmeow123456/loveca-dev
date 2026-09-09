@@ -193,20 +193,16 @@ import {
 import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/pl-bp6-024-sakkaku-crossroads.js';
 import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
-import { buildPlayMemberCostResources } from './effects/play-member-cost.js';
 import {
   createPendingSpecialMemberPlay,
   resolveSpecialMemberPlay,
   validateBeginSpecialMemberPlay,
   validateConfirmSpecialMemberPlay,
 } from './special-member-play-procedures.js';
+import { queryNormalMemberPlay } from './normal-member-play.js';
 import { isLiveCardData, isMemberCardData } from '../domain/entities/card.js';
 import { tapEnergy } from '../domain/entities/zone.js';
-import {
-  canMemberBeRelayedAway,
-  costCalculator,
-  type CostPaymentPlan,
-} from '../domain/rules/cost-calculator.js';
+import { canMemberBeRelayedAway, type CostPaymentPlan } from '../domain/rules/cost-calculator.js';
 import { getCheerDeckEdgeForPlayer } from '../domain/rules/cheer-direction.js';
 import { canPlayMemberInStageSlotThisTurn } from '../domain/rules/member-turn-state.js';
 import {
@@ -4199,39 +4195,11 @@ export class GameSession {
         readonly isRelay: boolean;
       }
     | { readonly success: false; readonly error: string } {
-    const player = state.players.find((candidate) => candidate.id === command.playerId);
-    if (!player) {
-      return { success: false, error: '玩家不存在' };
+    const query = queryNormalMemberPlay(state, command);
+    if (!query.ok) {
+      return { success: false, error: query.reason };
     }
-
-    const card = state.cardRegistry.get(command.cardId);
-    if (!card || !isMemberCardData(card.data)) {
-      return { success: false, error: '只有成员卡可以登场到成员区' };
-    }
-
-    const resources = buildPlayMemberCostResources(
-      state,
-      command.playerId,
-      command.cardId,
-      player.hand.cardIds
-    );
-    if (!resources) {
-      return { success: false, error: '无法计算成员卡的当前费用' };
-    }
-
-    const costCheck = costCalculator.checkCanPayCost(card.data, command.targetSlot, resources, {
-      relayMode: command.relayMode,
-      relayReplacementSlots: command.relayReplacementSlots,
-    });
-    const plan = costCalculator.selectOptimalPlan(costCheck.availablePlans);
-    if (!plan) {
-      return {
-        success: false,
-        error:
-          costCheck.reason ??
-          `费用不足：需要 ${card.data.cost}，可用活跃能量 ${resources.activeEnergyIds.length}`,
-      };
-    }
+    const { plan, payableEnergyCardIds } = query;
 
     if (plan.actualEnergyCost === 0) {
       return { success: true, pendingCostPayment: null, isRelay: plan.isRelay };
@@ -4251,7 +4219,7 @@ export class GameSession {
         relayDiscount: plan.relayDiscount,
         replacedMemberCardId: plan.memberToRelay,
         relayReplacements: plan.relayReplacements,
-        payableEnergyCardIds: resources.activeEnergyIds,
+        payableEnergyCardIds,
         explanation: this.formatPlayMemberCostExplanation(plan),
       },
     };
