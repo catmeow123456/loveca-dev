@@ -148,6 +148,17 @@ export function buildAiEffectDecision(
     max: selection.max,
     ordered: selection.mode === 'ORDERED_MULTI',
     canSkip: selection.canSkip,
+    ...(selection.groups
+      ? {
+          groups: selection.groups.map((group) => ({
+            cardRefs: [...cardIds]
+              .filter(([, id]) => group.cardIds.includes(id))
+              .map(([ref]) => ref),
+            min: group.min,
+            max: group.max,
+          })),
+        }
+      : {}),
     ...(selection.canSkip ? { skipDescription: visible.skipSelectionLabel ?? '不选择' } : {}),
   };
   return {

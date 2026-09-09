@@ -29,11 +29,13 @@ export interface AiTraceDecisionSummary {
   readonly createdAt: number;
   readonly updatedAt: number;
   readonly status: string;
+  /** Derived from the retained SUBMIT material; null when unavailable or not submitted. */
+  readonly submissionSource: 'MODEL' | 'MECHANICAL' | 'FALLBACK' | null;
   readonly pendingAttempts: readonly number[];
   readonly omittedEvents: number;
 }
 
-export interface AiTraceDecision extends AiTraceDecisionSummary {
+export interface AiTraceDecision extends Omit<AiTraceDecisionSummary, 'submissionSource'> {
   readonly sourceMaterialIds: readonly string[];
   readonly events: readonly AiTraceEvent[];
 }

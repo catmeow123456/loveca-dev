@@ -1,3 +1,4 @@
+import { queryOptionSelection } from '../../runtime/selection-query.js';
 import {
   addAction,
   getPlayerById,
@@ -24,10 +25,7 @@ import {
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import {
-  getAbilityEffectText,
-  recordPayCostAction,
-} from '../../runtime/workflow-helpers.js';
+import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
@@ -133,15 +131,19 @@ export function registerPayEnergyGainBladeWorkflowHandlers(): void {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
       startPayEnergyGainBladeWorkflow(game, ability, config, options.orderedResolution === true)
     );
-    registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) =>
-      isPayOption(input.selectedOptionId)
-        ? finishPayEnergyGainBladeWorkflow(
-            game,
-            config,
-            input.selectedOptionId,
-            context.continuePendingCardEffects
-          )
-        : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.stepId,
+      (game, input, context) =>
+        isPayOption(input.selectedOptionId)
+          ? finishPayEnergyGainBladeWorkflow(
+              game,
+              config,
+              input.selectedOptionId,
+              context.continuePendingCardEffects
+            )
+          : finishSkippedActiveEffect(game, context.continuePendingCardEffects),
+      queryOptionSelection
     );
   }
 }
@@ -157,11 +159,7 @@ function startPayEnergyGainBladeWorkflow(
     return game;
   }
 
-  const activeEnergyCardIds = getEnergySelectionCandidates(
-    game,
-    player.id,
-    'TAP_ACTIVE_ENERGY'
-  );
+  const activeEnergyCardIds = getEnergySelectionCandidates(game, player.id, 'TAP_ACTIVE_ENERGY');
   const paymentCounts = getSelectablePaymentCounts(config, activeEnergyCardIds.length);
   const canPay = paymentCounts.length > 0;
   const liveZoneCardCount = player.liveZone.cardIds.length;
@@ -179,9 +177,7 @@ function startPayEnergyGainBladeWorkflow(
       stepId: config.stepId,
       stepText: getStartStepText(config, canPay, paymentCounts, startBladeBonus),
       awaitingPlayerId: player.id,
-      selectableOptions: canPay
-        ? paymentCounts.map((count) => getPayOption(config, count))
-        : [],
+      selectableOptions: canPay ? paymentCounts.map((count) => getPayOption(config, count)) : [],
       canSkipSelection: true,
       skipSelectionLabel: DECLINE_OPTION_LABEL,
       metadata: {

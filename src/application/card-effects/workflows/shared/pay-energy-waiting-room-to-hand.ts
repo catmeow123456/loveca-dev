@@ -1,3 +1,4 @@
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   isLiveCardData,
   isMemberCardData,
@@ -175,16 +176,24 @@ const PAY_ENERGY_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly PayEnergyWaitingRoomTo
 
 export function registerPayEnergyWaitingRoomToHandWorkflowHandlers(): void {
   for (const config of PAY_ENERGY_WAITING_ROOM_TO_HAND_WORKFLOWS) {
-    registerActivatedAbilityHandler(config.abilityId, (game, playerId, cardId) =>
-      startPayEnergyWaitingRoomToHandWorkflow(game, playerId, cardId, config)
+    registerActivatedAbilityHandler(
+      config.abilityId,
+      (game, playerId, cardId) =>
+        startPayEnergyWaitingRoomToHandWorkflow(game, playerId, cardId, config),
+      (game, playerId, cardId) =>
+        getPayEnergyRecoveryActivation(game, playerId, cardId, config) !== null
     );
-    registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) =>
-      finishWaitingRoomToHandWorkflow(
-        game,
-        input.selectedCardId ?? null,
-        input.selectedCardIds,
-        context.continuePendingCardEffects
-      )
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.stepId,
+      (game, input, context) =>
+        finishWaitingRoomToHandWorkflow(
+          game,
+          input.selectedCardId ?? null,
+          input.selectedCardIds,
+          context.continuePendingCardEffects
+        ),
+      queryCardSelection
     );
   }
   registerSpSd1007OnEnterOptionalPaymentHandlers();
@@ -416,14 +425,14 @@ function selectSpSd1007WaitingRoomMemberCardIds(
   return selectWaitingRoomCardIds(game, playerId, SP_SD1_007_LIELLA_MEMBER_SELECTOR);
 }
 
-function startPayEnergyWaitingRoomToHandWorkflow(
+function getPayEnergyRecoveryActivation(
   game: GameState,
   playerId: string,
   cardId: string,
   config: PayEnergyWaitingRoomToHandWorkflowConfig
-): GameState {
+) {
   if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
-    return game;
+    return null;
   }
   const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
   const player = getPlayerById(game, playerId);
@@ -449,13 +458,28 @@ function startPayEnergyWaitingRoomToHandWorkflow(
     !isMemberCardData(sourceCard.data) ||
     !findMemberSlot(player, cardId)
   ) {
-    return game;
+    return null;
   }
 
   const initialSelectableCardIds = selectWaitingRoomCardIds(game, player.id, config.selector);
   if (initialSelectableCardIds.length === 0 && config.allowPaymentWithoutInitialTarget !== true) {
-    return game;
+    return null;
   }
+
+  if (getEnergySelectionCandidates(game, playerId, 'TAP_ACTIVE_ENERGY').length < config.energyCost)
+    return null;
+  return { player };
+}
+
+function startPayEnergyWaitingRoomToHandWorkflow(
+  game: GameState,
+  playerId: string,
+  cardId: string,
+  config: PayEnergyWaitingRoomToHandWorkflowConfig
+): GameState {
+  const activation = getPayEnergyRecoveryActivation(game, playerId, cardId, config);
+  if (!activation) return game;
+  const { player } = activation;
 
   let state = recordAbilityUseForContext(game, player.id, {
     abilityId: config.abilityId,

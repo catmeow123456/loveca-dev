@@ -1,9 +1,12 @@
+import { findAiCardSelection } from '../../src/server/ai-battle/protocol';
 import type { AiDecisionInput, AiSelection } from '../../src/server/ai-battle/protocol';
 
 // This strategy reads exactly the transmitted visible input, never authority or command closures.
 // Its purpose is exercising the full service/recording/UI flow, not evaluating model quality.
 export function chooseAiTestSelection({ space, state, purpose }: AiDecisionInput): AiSelection {
   if (space.kind === 'CARDS') {
+    if (space.groups)
+      return findAiCardSelection({ ...space, canSkip: false, min: Math.max(1, space.min) });
     const candidates =
       purpose === 'MULLIGAN'
         ? space.candidates.filter((c) => (state.objects[c.objectId!]?.frontInfo?.cost ?? 0) > 4)
@@ -29,7 +32,8 @@ export function chooseAiTestSelection({ space, state, purpose }: AiDecisionInput
         (state.objects[b.objectId!]?.frontInfo?.cost ?? 0) -
         (state.objects[a.objectId!]?.frontInfo?.cost ?? 0)
     );
-    const candidate = plays[0] ?? space.candidates.find((c) => c.description === '结束主要阶段');
+    const candidate =
+      plays[0] ?? space.candidates.find((c) => c.description.startsWith('结束主要阶段'));
     if (!candidate) throw new Error('P5 MAIN fixture expected play or end');
     return { kind: 'ACTION', actionRef: candidate.ref };
   }

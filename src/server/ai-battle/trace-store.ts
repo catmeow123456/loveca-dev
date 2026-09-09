@@ -318,6 +318,7 @@ export class AiBattleTraceStore {
           createdAt: value.createdAt,
           updatedAt: value.updatedAt,
           status: value.status,
+          submissionSource: this.submissionSource(session, value),
           pendingAttempts: value.pendingAttempts,
           omittedEvents: value.omittedEvents,
         };
@@ -337,6 +338,22 @@ export class AiBattleTraceStore {
       session.captureFailures++;
     }
     session.revision++;
+  }
+
+  private submissionSource(
+    session: TraceSession,
+    decision: AiTraceDecision
+  ): AiTraceDecisionSummary['submissionSource'] {
+    const event = decision.events.find((event) => event.stage === 'SUBMIT');
+    const material = event && session.materials.get(event.materialId);
+    if (!material || material.status !== 'COMPLETE' || material.content === null) return null;
+    try {
+      const payload = JSON.parse(material.content) as { selection?: { source?: unknown } } | null;
+      const source = payload?.selection?.source;
+      return source === 'MODEL' || source === 'MECHANICAL' || source === 'FALLBACK' ? source : null;
+    } catch {
+      return null;
+    }
   }
 
   private reserve(session: TraceSession, bytes: number): void {

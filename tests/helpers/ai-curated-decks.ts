@@ -23,9 +23,27 @@ interface RawCard {
   special_heart?: Record<string, number>;
 }
 
-/** Test-only reading of the original P0 asset, with a hash over every selected raw printing. */
 export function readFrozenMuseDeck() {
-  const yaml = readFileSync(new URL('../../assets/decks/缪预组.yaml', import.meta.url), 'utf8');
+  return readFrozenDeck(
+    '缪预组.yaml',
+    "μ's",
+    '4a085d4710ec06b4a5046a8a8dc48bd5ff66aeb88fcbe1222ee1f52b737133cf',
+    'f76355ee3e84cb6f31f2ea65f5a565970dce6bca3f6ef6ea6e20ae9d61fe7171'
+  );
+}
+
+export function readFrozenGreenHasunosoraDeck() {
+  return readFrozenDeck(
+    '绿莲-6弹ver.yaml',
+    '蓮ノ空',
+    '8bd34fe220c73043a30434276749f64ac2acca6ef1b83048aca59612cb4764bd',
+    'e48dd847c5da80295442ec590783f0f1f7f96068f6676214c50581290fddda67'
+  );
+}
+
+/** Test-only exact-printing facts; never a runtime card-source fallback. */
+function readFrozenDeck(file: string, group: string, expectedYaml: string, expectedFacts: string) {
+  const yaml = readFileSync(new URL(`../../assets/decks/${file}`, import.meta.url), 'utf8');
   const config = parse(yaml) as {
     main_deck: { members: Entry[]; lives: Entry[] };
     energy_deck: Entry[];
@@ -43,15 +61,12 @@ export function readFrozenMuseDeck() {
   const hash = (value: string) => createHash('sha256').update(value).digest('hex');
   const yamlHash = hash(yaml);
   const factsHash = hash(JSON.stringify(facts));
-  if (
-    yamlHash !== '4a085d4710ec06b4a5046a8a8dc48bd5ff66aeb88fcbe1222ee1f52b737133cf' ||
-    factsHash !== 'f76355ee3e84cb6f31f2ea65f5a565970dce6bca3f6ef6ea6e20ae9d61fe7171'
-  )
+  if (yamlHash !== expectedYaml || factsHash !== expectedFacts)
     throw new Error(
-      'The P0 Muse deck/facts changed; review the support matrix before accepting a new baseline'
+      `The ${file} deck/facts changed; review the support matrix before accepting a new baseline`
     );
   const registry = new CardDataRegistry();
-  registry.load(facts.map(([code, , card]) => convertCard(code, card)));
+  registry.load(facts.map(([code, , card]) => convertCard(code, card, group)));
   const loaded = loadDeckFromYamlString(yaml, registry);
   if (!loaded.success || !loaded.deck || loaded.warnings.length)
     throw new Error(JSON.stringify({ errors: loaded.errors, warnings: loaded.warnings }));
@@ -81,7 +96,7 @@ function hearts(raw: Record<string, number> = {}): HeartIcon[] {
     return { color, count };
   });
 }
-function convertCard(code: string, raw: RawCard): AnyCardData {
+function convertCard(code: string, raw: RawCard, group: string): AnyCardData {
   const bladeHearts: BladeHeartItem[] = [];
   for (const [key, count] of Object.entries(raw.blade_heart ?? {})) {
     const color = key === 'b_all' ? HeartColor.RAINBOW : colors[key.replace(/^b_/, '')];
@@ -102,7 +117,7 @@ function convertCard(code: string, raw: RawCard): AnyCardData {
     cardText: raw.ability,
     cardTextJp: raw.ability,
     workNames: [raw.series],
-    groupNames: ["μ's"],
+    groupNames: [group],
     unitName: raw.unit,
     bladeHearts,
   };

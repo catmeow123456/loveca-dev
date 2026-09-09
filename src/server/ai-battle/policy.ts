@@ -1,4 +1,5 @@
 import { GameCommandType } from '../../application/game-commands.js';
+import { findAiCardSelection } from './protocol.js';
 import { validateSelection, type AiDecision, type AiSelection } from './decision.js';
 
 /** Strategic phase completion remains a model decision even when no development is affordable. */
@@ -55,12 +56,7 @@ export function getAiFallbackSelection(decision: AiDecision): AiSelection {
   ) {
     const space = decision.input.space;
     if (space.kind === 'CARDS') {
-      const selection: AiSelection = {
-        kind: 'CARDS',
-        cardRefs: space.canSkip
-          ? []
-          : space.candidates.slice(0, space.min).map((candidate) => candidate.ref),
-      };
+      const selection = findAiCardSelection(space);
       validateSelection(space, selection);
       return selection;
     }

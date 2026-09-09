@@ -20,7 +20,7 @@ import {
   getAiFallbackSelection,
   getAiMechanicalSelection,
 } from '../../src/server/ai-battle/policy';
-import { readFrozenMuseDeck } from '../helpers/ai-muse-deck';
+import { readFrozenGreenHasunosoraDeck, readFrozenMuseDeck } from '../helpers/ai-curated-decks';
 import { placeEnergyFromDeckToZone } from '../../src/application/effects/energy';
 import { summarizeAiSelfResources } from '../../src/server/ai-battle/visible-resources';
 
@@ -177,10 +177,75 @@ describe('AI ordinary decisions through authoritative commands', () => {
       (c) => c.objectId === createPublicObjectId(id!) && c.targetSlot === SlotPosition.RIGHT
     )!;
     expect(action.energyCost).toBe(3);
+    expect(current.input.space.candidates.at(-1)!.description).toContain(
+      `${action.ref}（登场支付 3，剩余 0 能量）`
+    );
     submit(session, current, { kind: 'ACTION', actionRef: action.ref });
     expect(getActiveEnergyIds(session.state!.players[0].energyZone)).toHaveLength(0);
     expect(session.state!.players[0].memberSlots.slots.RIGHT).toBe(id);
   });
+
+  it.each(['PLAY', 'END'] as const)(
+    'quotes the green T4 development budget while preserving the legal %s choice',
+    (choice) => {
+      const { session, randomCalls } = setup();
+      const cards = readFrozenGreenHasunosoraDeck().deck.mainDeck;
+      const frozenMember = (code: string) => {
+        const card = cards.find((item) => item.cardCode === code)!;
+        if (card.cardType !== CardType.MEMBER) throw Error('Expected frozen member');
+        return card;
+      };
+      Object.assign(session.state!, { turnCount: 4 });
+      Object.assign(
+        session.state!,
+        placeEnergyFromDeckToZone(session.state!, P1, 4, OrientationState.ACTIVE)!.gameState
+      );
+      const [incomingId] = replaceHand(session, [frozenMember('PL!HS-sd1-012-SD')]);
+      stage(session, frozenMember('PL!HS-PR-014-RM'), SlotPosition.LEFT);
+      const center = stage(session, frozenMember('PL!HS-sd1-006-SD'), SlotPosition.CENTER);
+      Object.assign(session.state!.players[0], { movedToStageThisTurn: [center] });
+      const before = globalThis.structuredClone(session.state);
+      const calls = randomCalls();
+      const current = decision(session);
+      const plays = current.input.space.candidates.filter((c) => c.targetSlot);
+      expect(plays.map((c) => c.targetSlot)).toEqual([SlotPosition.LEFT, SlotPosition.RIGHT]);
+      const fill = plays.find((c) => c.targetSlot === SlotPosition.RIGHT)!;
+      const end = current.input.space.candidates.at(-1)!;
+      expect(fill.energyCost).toBe(4);
+      expect(fill.description).toContain('舞台顶层成员印刷总费用变化 +4');
+      expect(fill.description).toContain('能量 7→3');
+      expect(fill.description).toContain(
+        '成员数 2→3，印刷总费用 17→21，HEART 8→10，活跃 BLADE 6→7'
+      );
+      expect(plays[0]!.description).toContain(
+        '成员数 2→2，印刷总费用 17→19，HEART 8→9，活跃 BLADE 6→6'
+      );
+      expect(end.description).toContain(`${fill.ref}（登场支付 4，剩余 3 能量）`);
+      expect(end.description).toContain(`${plays[0]!.ref}（登场支付 2，剩余 5 能量）`);
+      expect(session.state).toEqual(before);
+      expect(randomCalls()).toBe(calls);
+      expect(getAiMechanicalSelection(current)).toBeNull();
+      const command = submit(session, current, {
+        kind: 'ACTION',
+        actionRef: choice === 'PLAY' ? fill.ref : end.ref,
+      });
+      const resources = summarizeAiSelfResources(session.getPlayerViewState(P1)!, 'FIRST');
+      expect(resources).toMatchObject({
+        activeEnergyCount: choice === 'PLAY' ? 3 : 7,
+        stageHeartTotal: choice === 'PLAY' ? 10 : 8,
+        activeMemberBladeTotal: choice === 'PLAY' ? 7 : 6,
+      });
+      expect(resources.stageMembers.reduce((total, m) => total + m.printedCost!, 0)).toBe(
+        choice === 'PLAY' ? 21 : 17
+      );
+      expect(session.state!.players[0].memberSlots.slots.RIGHT).toBe(
+        choice === 'PLAY' ? incomingId : null
+      );
+      expect(command.type).toBe(
+        choice === 'PLAY' ? GameCommandType.PLAY_MEMBER_TO_SLOT : GameCommandType.END_PHASE
+      );
+    }
+  );
 
   it('binds same-name member plays to their own frozen text and preserves zero-cost replacement consequences', () => {
     const { session } = setup();
@@ -274,6 +339,8 @@ describe('AI ordinary decisions through authoritative commands', () => {
       expect(plays.map((c) => c.targetSlot)).toEqual([SlotPosition.LEFT, SlotPosition.CENTER]);
       const action = plays.find((c) => c.targetSlot === slot)!;
       expect(action.description).toContain(delta);
+      expect(action.description).toContain(`能量 7→${7 - cost}`);
+      expect(action.description).toContain(`HEART 7→${hearts}，活跃 BLADE 4→${blades}`);
       expect(action.energyCost).toBe(cost);
       expect(action.replacedObjectIds).toEqual([
         createPublicObjectId(slot === SlotPosition.LEFT ? left : center),
@@ -293,6 +360,25 @@ describe('AI ordinary decisions through authoritative commands', () => {
       );
     }
   );
+
+  it('does not subtract a waiting replaced member from the active BLADE subtotal', () => {
+    const { session } = setup();
+    replaceHand(session, [member('INCOMING', 4)]);
+    const old = stage(session, { ...member('OLD', 9), blade: 3 }, SlotPosition.LEFT);
+    Object.assign(session.state!.players[0].memberSlots.cardStates.get(old)!, {
+      orientation: OrientationState.WAITING,
+    });
+    const current = decision(session);
+    const play = current.input.space.candidates.find((c) => c.targetSlot === SlotPosition.LEFT)!;
+    expect(play.description).toContain('活跃 BLADE 0→1');
+    expect(play.description).toContain('印刷总费用 9→4');
+    expect(play.energyCost).toBe(0);
+    submit(session, current, { kind: 'ACTION', actionRef: play.ref });
+    expect(summarizeAiSelfResources(session.getPlayerViewState(P1)!, 'FIRST')).toMatchObject({
+      activeMemberBladeTotal: 1,
+      activeEnergyCount: 3,
+    });
+  });
 
   it('executes self-sacrifice through the registered workflow and retains the target window', () => {
     const { session } = setup();

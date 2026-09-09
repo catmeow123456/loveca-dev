@@ -281,6 +281,26 @@
   margin-top: 8px;
   width: 100%;
 }
+.ai-record-filters {
+  padding: 4px 14px;
+}
+.ai-record-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.ai-record-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-primary);
+}
+.ai-record-toggle span {
+  color: var(--text-muted);
+}
 .ai-decision-list ol {
   list-style: none;
   padding: 0;
@@ -619,6 +639,16 @@
   .ai-list-tools button {
     width: auto;
     margin-top: 0;
+  }
+  .ai-record-filters {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 12px;
+    padding: 0 12px;
+  }
+  .ai-record-toggle {
+    gap: 4px;
+    font-size: 11px;
   }
   .ai-decision-list ol {
     display: flex;

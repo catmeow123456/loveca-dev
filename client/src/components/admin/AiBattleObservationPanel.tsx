@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { saveAs } from 'file-saver';
 import { ArrowDownToLine, Copy, X } from 'lucide-react';
 import type {
+  AiTraceDecisionSummary,
   AiTraceExport,
   AiTraceListing,
   AiTraceMaterial,
@@ -38,6 +39,20 @@ const statuses: Readonly<Record<string, string>> = {
   STOPPED: '已停止',
   ENDED: '已结束',
 };
+const isWaitingPurpose = (purpose: string) =>
+  purpose === 'WAITING_FOR_PLAYER' || purpose === 'WAITING_FOR_TIME';
+
+function isRecordVisible(
+  row: AiTraceDecisionSummary,
+  showWaiting: boolean,
+  showMechanical: boolean
+) {
+  return (
+    (showWaiting || !isWaitingPurpose(row.purpose)) &&
+    (showMechanical || row.submissionSource !== 'MECHANICAL')
+  );
+}
+
 const stages: Readonly<Record<string, string>> = {
   SAMPLE: '当时局面与完整候选',
   REQUEST: '实际模型请求',
@@ -78,10 +93,36 @@ export function AiBattleObservationPanel({
   const [detailError, setDetailError] = useState<{ id: string; message: string } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [showWaitingRecords, setShowWaitingRecords] = useState(false);
+  const [showMechanicalRecords, setShowMechanicalRecords] = useState(false);
   const [filter, setFilter] = useState('');
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search.trim().toLocaleLowerCase());
-  const currentId = selectedId ?? listing?.decisions.at(-1)?.id ?? null;
+  const rows = listing?.decisions ?? [];
+  const waitingCount = rows.filter((row) => isWaitingPurpose(row.purpose)).length;
+  const mechanicalCount = rows.filter((row) => row.submissionSource === 'MECHANICAL').length;
+  const displayRows = rows.filter((row) =>
+    isRecordVisible(row, showWaitingRecords, showMechanicalRecords)
+  );
+  const hiddenCount = rows.length - displayRows.length;
+  const selectedRow = rows.find((row) => row.id === selectedId);
+  // A sampled history row may later receive its SUBMIT source during polling.
+  // Evicted history stays selected so its existing unavailable-detail error remains visible.
+  const visibleSelectedId =
+    selectedRow && !isRecordVisible(selectedRow, showWaitingRecords, showMechanicalRecords)
+      ? null
+      : selectedId;
+  const currentId = visibleSelectedId ?? displayRows.at(-1)?.id ?? null;
+
+  const updateRecordVisibility = (showWaiting: boolean, showMechanical: boolean) => {
+    setShowWaitingRecords(showWaiting);
+    setShowMechanicalRecords(showMechanical);
+    setSelectedId(
+      selectedRow && !isRecordVisible(selectedRow, showWaiting, showMechanical)
+        ? null
+        : visibleSelectedId
+    );
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -128,14 +169,13 @@ export function AiBattleObservationPanel({
   const visibleDetail = detail?.decisions[0]?.id === currentId ? detail : null;
   const visibleError = detailError?.id === currentId ? detailError.message : null;
   const selected = visibleDetail?.decisions[0];
-  const visibleRows =
-    listing?.decisions.filter(
-      (row) =>
-        !filter ||
-        `${row.id} ${purposes[row.purpose] ?? row.purpose} ${statuses[row.status] ?? row.status}`.includes(
-          filter
-        )
-    ) ?? [];
+  const visibleRows = displayRows.filter(
+    (row) =>
+      !filter ||
+      `${row.id} ${purposes[row.purpose] ?? row.purpose} ${statuses[row.status] ?? row.status}`.includes(
+        filter
+      )
+  );
   const incomplete =
     listing &&
     listing.evictedDecisions +
@@ -239,9 +279,40 @@ export function AiBattleObservationPanel({
                 跟随最新
               </button>
             </div>
+            <div className="ai-record-filters">
+              <label className="ai-record-toggle">
+                <input
+                  type="checkbox"
+                  checked={showWaitingRecords}
+                  onChange={(event) =>
+                    updateRecordVisibility(event.target.checked, showMechanicalRecords)
+                  }
+                />
+                显示等待记录
+                <span aria-hidden="true">（{waitingCount}）</span>
+              </label>
+              <label className="ai-record-toggle">
+                <input
+                  type="checkbox"
+                  checked={showMechanicalRecords}
+                  onChange={(event) =>
+                    updateRecordVisibility(showWaitingRecords, event.target.checked)
+                  }
+                />
+                显示机械处理记录
+                <span aria-hidden="true">（{mechanicalCount}）</span>
+              </label>
+            </div>
             {!listing && !listError && <p className="ai-empty">正在读取决定…</p>}
             {listing && listing.decisions.length === 0 && (
               <p className="ai-empty">还没有保留的决定。等待 AI 获得操作时点。</p>
+            )}
+            {listing && listing.decisions.length > 0 && visibleRows.length === 0 && (
+              <p className="ai-empty">
+                {displayRows.length === 0
+                  ? `已隐藏 ${hiddenCount} 条记录，可勾选上方选项查看。`
+                  : '没有匹配的决定。'}
+              </p>
             )}
             <ol>
               {visibleRows.map((row) => (
@@ -269,6 +340,9 @@ export function AiBattleObservationPanel({
             aria-label="所选决定详情"
             aria-busy={Boolean(currentId && !visibleDetail && !visibleError)}
           >
+            {currentId === null && hiddenCount > 0 && (
+              <p className="ai-empty">当前记录均已隐藏。可显示等待记录或机械处理记录查看详情。</p>
+            )}
             {visibleError && (
               <p className="ai-error" role="alert">
                 决定 {currentId}：{visibleError}。所选历史保持原位置，可返回最新决定。
@@ -282,7 +356,7 @@ export function AiBattleObservationPanel({
                 <header className="ai-selected-heading">
                   <div>
                     <p>
-                      {selectedId === null ? '跟随最新' : '已选历史'} · 决定 {selected.id}
+                      {visibleSelectedId === null ? '跟随最新' : '已选历史'} · 决定 {selected.id}
                     </p>
                     <h3>{purposes[selected.purpose] ?? selected.purpose}</h3>
                     <small>

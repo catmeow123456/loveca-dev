@@ -7,6 +7,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { CardType, GamePhase, OrientationState, ZoneType } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
+import { queryCardSelection, queryConfirmSelection } from '../../runtime/selection-query.js';
 import {
   HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
   N_BP5_009_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
@@ -213,7 +214,8 @@ export function registerWaitDiscardLookTopSelectToHandWorkflowHandlers(deps: {
               context.continuePendingCardEffects,
               deps.enqueueTriggeredCardEffects
             )
-          : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+          : finishSkippedActiveEffect(game, context.continuePendingCardEffects),
+      queryCardSelection
     );
     registerActiveEffectStepHandler(
       config.abilityId,
@@ -227,7 +229,8 @@ export function registerWaitDiscardLookTopSelectToHandWorkflowHandlers(deps: {
             continuePendingCardEffects: context.continuePendingCardEffects,
             enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
           }
-        )
+        ),
+      queryCardSelection
     );
     registerActiveEffectStepHandler(
       config.abilityId,
@@ -236,7 +239,8 @@ export function registerWaitDiscardLookTopSelectToHandWorkflowHandlers(deps: {
         finishRevealedLookTopSelectToHandWorkflow(game, {
           continuePendingCardEffects: context.continuePendingCardEffects,
           enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
-        })
+        }),
+      queryConfirmSelection
     );
   }
 }

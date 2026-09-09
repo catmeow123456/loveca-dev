@@ -31,7 +31,7 @@
 | `X01,L01,L02,X13` | `src/application/effects/conditions.ts` + `card-selectors.ts` + application-local state queries | 第一版纯 query helper 已起步，提供区域计数、selector 计数/阈值、按 selector 返回 cardIds、区域 + selector 组合、成功 LIVE 数、成功 LIVE 分数合计、舞台成员数/存在性、其他舞台成员、LIVE 区排除来源卡计数、来源 BLADE 阈值、舞台成员有效费用查询、团体/姓名 alias selector，以及舞台成员/能量按朝向查询等。`PL!-bp4-008` 费用 4「小泉花阳」验证只读 effective cost 查询边界；现有 `costLte` / `costGte` 仍按印刷费用筛选。当前只替换低风险内联计数与 selector，不做 condition AST、typed formula builder 或 declarative steps；完整剩余清单见 `condition_query_remaining_inventory.md`。 |
 | same-base rarity sync | `CARD_ABILITY_DEFINITIONS.baseCardCodes` + `src/shared/utils/card-code.ts` | 卡效登记、continuous live modifier registry 与费用修正已支持基础编号匹配；`tests/unit/card-effect-rarity-sync.test.ts` 会防止 exact `cardCodes` 漏掉同基础编号其他罕度。`existing_module_map.md` 已按基础编号记录完成/部分/同型/partial 状态。 |
 
-AI 首批适配已从正常执行提取 `normal-member-play.ts` 的只读费用计划，并为两类起动 workflow 登记只读发动条件；这不代表 AI 对战完整落地。未登记的起动条件、activeEffect 分组/组合约束及旧 exact 罕度查询仍需按[支持矩阵](../ai-battle/support-matrix.md)的实际窗口补齐，不能用普通单选或试执行补缺。runner 没有新增卡牌判断。 当前首批卡牌/选项/排序步骤已通过显式 selection query 接入；分组、盲选、数字与站位仍缺完整契约。runner 只将 pending 实例筛选提取为共用查询，没有新增 resolver。
+AI 已复用普通登场只读费用计划，并为缪斯与绿莲涉及的起动、选牌/确认、精确弃二与分组回收提供只读契约；分组 min/max 在模型协议、完整合法兜底和正常命令入口共用约束。绿莲相关四个旧 exact definition 已按基础编号覆盖，其他起动条件、盲选、数字、站位及旧 exact 查询仍按[支持矩阵](../ai-battle/support-matrix.md)逐项验收，不代表全卡池 AI 支持。
 
 ## Remaining gaps
 

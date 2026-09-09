@@ -1,21 +1,12 @@
-import {
-  addAction,
-  getPlayerById,
-  type GameState,
-} from '../../../../domain/entities/game.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
+import { addAction, getPlayerById, type GameState } from '../../../../domain/entities/game.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import { HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID } from '../../ability-ids.js';
 import { activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import {
-  and,
-  cardNameAliasIs,
-  groupAliasIs,
-  or,
-  typeIs,
-} from '../../../effects/card-selectors.js';
+import { and, cardNameAliasIs, groupAliasIs, or, typeIs } from '../../../effects/card-selectors.js';
 import { hasStageMemberMatching } from '../../../effects/conditions.js';
 import { getEnergyCardIdsByOrientation } from '../../../effects/energy.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
@@ -49,7 +40,8 @@ export function registerHsSd1006HimeWorkflowHandlers(): void {
         input.selectedCardId ?? null,
         input.selectedCardIds,
         context.continuePendingCardEffects
-      )
+      ),
+    queryCardSelection
   );
 }
 
@@ -153,7 +145,9 @@ function startHsSd1HimeOnEnterActivateEnergyRecoverLive(
         abilityId: ability.abilityId,
         sourceCardId: ability.sourceCardId,
         controllerId: ability.controllerId,
-        effectText: getAbilityEffectText(HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID),
+        effectText: getAbilityEffectText(
+          HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID
+        ),
         stepId: HS_SD1_006_SELECT_WAITING_ROOM_LIVE_STEP_ID,
         stepText: '请选择自己的休息室中1张『莲之空』的LIVE卡加入手牌。',
         awaitingPlayerId: player.id,

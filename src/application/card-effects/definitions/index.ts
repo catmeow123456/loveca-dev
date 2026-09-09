@@ -5547,7 +5547,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID,
-    cardCodes: ['PL!HS-bp6-017-N'],
+    baseCardCodes: ['PL!HS-bp6-017'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
@@ -5578,7 +5578,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_PB1_020_ON_ENTER_DISCARD_TWO_RECOVER_CERISE_MEMBER_AND_HASUNOSORA_LIVE_ABILITY_ID,
-    cardCodes: ['PL!HS-pb1-020-N'],
+    baseCardCodes: ['PL!HS-pb1-020'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -11738,7 +11738,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
-    cardCodes: ['PL!HS-cl1-009-CL'],
+    baseCardCodes: ['PL!HS-cl1-009'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -12571,7 +12571,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
-    cardCodes: ['PL!HS-bp6-027-L'],
+    baseCardCodes: ['PL!HS-bp6-027'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_CHEER,

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { AiBattlePresetLoader } from '../../src/server/ai-battle/presets';
 import { CardDataRegistry } from '../../src/domain/card-data/loader';
 import type { DeckPointTableRules } from '../../src/domain/rules/deck-point-table';
-import { readFrozenMuseDeck } from '../helpers/ai-muse-deck';
+import { readFrozenMuseDeck, readFrozenGreenHasunosoraDeck } from '../helpers/ai-curated-decks';
 import { createGameSession } from '../../src/application/game-session';
 import { DecisionTapeRandomSource } from '../../src/shared/random-source';
 import { CardType, GameEndReason } from '../../src/shared/types/enums';
@@ -36,10 +36,12 @@ async function fixture() {
   await Promise.all([
     cp('assets/ai-battle', path.join(root, 'assets/ai-battle'), { recursive: true }),
     cp('assets/decks/缪预组.yaml', path.join(root, 'assets/decks/缪预组.yaml')),
+    cp('assets/decks/绿莲-6弹ver.yaml', path.join(root, 'assets/decks/绿莲-6弹ver.yaml')),
   ]);
   const registry = new CardDataRegistry();
   const deck = readFrozenMuseDeck().deck;
-  registry.load([...deck.mainDeck, ...deck.energyDeck]);
+  const green = readFrozenGreenHasunosoraDeck().deck;
+  registry.load([...deck.mainDeck, ...deck.energyDeck, ...green.mainDeck, ...green.energyDeck]);
   const loader = new AiBattlePresetLoader({
     root,
     getRegistry: () => Promise.resolve(registry),
@@ -141,6 +143,42 @@ describe('AI curated deck and frozen knowledge loading', () => {
       expect.arrayContaining(['MULLIGAN', 'MAIN', 'EFFECT', 'LIVE_SET', 'SUCCESS_LIVE'])
     );
   }, 30_000);
+
+  it.each(['human', 'ai', 'both'])(
+    'loads green Hasunosora for %s with its own frozen knowledge',
+    async (side) => {
+      const { loader } = await fixture();
+      const greenId = 'green-hasunosora-bp6';
+      const aiGreen = side !== 'human';
+      const loaded = await loader.load({
+        humanPresetId: side !== 'ai' ? greenId : 'muse-starter',
+        aiPresetId: aiGreen ? greenId : 'muse-starter',
+        handbookId: aiGreen ? 'green-hasunosora-recovery' : 'muse-balanced',
+      });
+      const expected = readFrozenGreenHasunosoraDeck().deck;
+      expect((side === 'ai' ? loaded.ai : loaded.human).deck).toEqual({
+        mainDeck: expected.mainDeck,
+        energyDeck: expected.energyDeck,
+      });
+      expect(loaded.ai.deck.mainDeck).toHaveLength(60);
+      expect(loaded.ai.deck.energyDeck).toHaveLength(12);
+      const reference = fromTransport<{ cards: { count: number; card: AnyCardData }[] }>(
+        JSON.parse(loaded.knowledge.ownDeck.content)
+      );
+      expect(reference.cards.reduce((sum, entry) => sum + entry.count, 0)).toBe(72);
+      expect(
+        reference.cards.every(({ card }) => card.cardCode.startsWith(aiGreen ? 'PL!HS-' : 'PL!-'))
+      ).toBe(true);
+      for (const { card } of reference.cards) {
+        if (card.cardType === CardType.LIVE)
+          expect(card.requirements.colorRequirements.size).toBeGreaterThan(0);
+      }
+      expect(loaded.knowledge.handbook.id).toBe(
+        aiGreen ? 'green-hasunosora-recovery' : 'muse-balanced'
+      );
+      expect((await loader.list()).map((preset) => preset.id)).toContain(greenId);
+    }
+  );
 
   it('loads the original 60/12 deck, current PT facts and complete per-card counts', async () => {
     const { loader } = await fixture();

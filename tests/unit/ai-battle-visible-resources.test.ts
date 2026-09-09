@@ -33,10 +33,12 @@ describe('AI visible resource subtotals', () => {
     const before = globalThis.structuredClone({ incoming, outgoing });
     const description = describeAiMemberPlay(incoming, outgoing);
     expect(description).toContain('HEART -2（PINK -1、PURPLE -1）／BLADE -2');
+    expect(description).toContain('舞台顶层成员印刷总费用变化 -5');
     expect(description).toContain('未预结算卡效、常时条件或朝向变化');
     expect(description).toContain(incoming.cardTextCn);
     expect({ incoming, outgoing }).toEqual(before);
     expect(describeAiMemberPlay(incoming)).toContain('HEART +2（PINK +2）／BLADE +1');
+    expect(describeAiMemberPlay(incoming)).toContain('舞台顶层成员印刷总费用变化 +4');
   });
 
   it('counts only own top-level stage and active energy, using effective hearts/blades once', () => {

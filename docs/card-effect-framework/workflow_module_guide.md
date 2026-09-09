@@ -46,9 +46,9 @@ workflow 是卡效流程的主要承载层。它可以是一类同型效果，�
 
 ## 起动只读条件
 
-workflow 可以在 activated handler 注册时提供 `canStart`；查询不持有 pending，不移动卡、不使用随机源，不尝试完整结算。已登记条件同时用于 registry 实际执行前检查。当前两类样本与验证范围见 [运行时说明](active_effect_runtime.md#起动发动条件的只读查询)，其他 workflow 未登记时仍保持原执行方式，AI 明确返回未覆盖。
+workflow 可以在 activated handler 注册时提供 `canStart`；查询不持有 pending，不移动卡、不使用随机源，不尝试完整结算。已登记条件同时用于 registry 实际执行前检查。当前样本与验证范围见 [运行时说明](active_effect_runtime.md#起动发动条件的只读查询)，其他 workflow 未登记时仍保持原执行方式，AI 明确返回未覆盖。
 
-步骤选择现在也支持 workflow 显式登记只读 query；正常 handler/公开确认前共用校验。候选、数量和顺序能够完整表达的步骤才使用普通选择查询，分组、盲选、数字和站位仍需单独补齐，详见 [步骤选择约束](active_effect_runtime.md#步骤选择的只读约束)。
+步骤选择现在也支持 workflow 显式登记只读 query；正常 handler/公开确认前共用校验。候选、数量和顺序能够完整表达的步骤才使用普通选择查询，分组回收由 workflow 通过相同 selector 与必选组事实补充各组候选/min/max，AI 与正常命令共用验证；盲选、数字和站位仍需单独补齐，详见 [步骤选择约束](active_effect_runtime.md#步骤选择的只读约束)。
 
 ## Public Reveal Dwell
 

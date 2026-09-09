@@ -19,6 +19,7 @@ import {
   describeAiCardIdentity,
   describeAiLiveSet,
   describeAiLiveSetCompletion,
+  describeAiMainPhaseEnd,
   describeAiMemberPlay,
   summarizeAiSelfResources,
 } from './visible-resources.js';
@@ -188,6 +189,7 @@ export function buildAiBattleDecision(
     space = { kind: 'CARDS', candidates, min: 0, max: candidates.length, ordered: false };
   } else if (game.currentPhase === GamePhase.MAIN_PHASE && enabled(GameCommandType.END_PHASE)) {
     purpose = 'MAIN';
+    const resources = summarizeAiSelfResources(view, view.match.viewerSeat);
     if (enabled(GameCommandType.PLAY_MEMBER_TO_SLOT)) {
       for (const cardId of player.hand.cardIds) {
         if (getMemberPlayOptionsForHandCard(game, playerId, cardId).length > 0) {
@@ -203,7 +205,12 @@ export function buildAiBattleDecision(
           {
             description: describeAiMemberPlay(
               cardFront(option.cardId),
-              replacedCardId ? cardFront(replacedCardId) : undefined
+              replacedCardId ? cardFront(replacedCardId) : undefined,
+              {
+                resources,
+                targetSlot: option.targetSlot,
+                energyCost: option.plan.actualEnergyCost,
+              }
             ),
             objectId: createPublicObjectId(option.cardId),
             targetSlot: option.targetSlot,
@@ -262,7 +269,12 @@ export function buildAiBattleDecision(
         }
       }
     }
-    addAction({ description: '结束主要阶段' }, { type: GameCommandType.END_PHASE });
+    addAction(
+      {
+        description: describeAiMainPhaseEnd(resources.activeEnergyCount, candidates),
+      },
+      { type: GameCommandType.END_PHASE }
+    );
     space = { kind: 'ACTION', candidates };
   } else if (
     game.currentPhase === GamePhase.LIVE_SET_PHASE &&

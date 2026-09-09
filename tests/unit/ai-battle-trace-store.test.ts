@@ -31,6 +31,45 @@ function referencesAreResolvable(bundle: AiTraceExport) {
 }
 
 describe('bounded AI observation evidence', () => {
+  it('projects submission sources from retained SUBMIT evidence without changing capture or export', () => {
+    const store = new AiBattleTraceStore(AI_TRACE_LIMITS, () => 100);
+    store.open('m', []);
+    for (const source of ['MODEL', 'MECHANICAL', 'FALLBACK', 'UNKNOWN']) {
+      store.begin('m', identity(source));
+      store.append('m', source, 'PREPARED', { source: 'MECHANICAL' });
+      expect(store.list('m')!.decisions.at(-1)!.submissionSource).toBeNull();
+      store.append('m', source, 'SUBMIT', { selection: { source } });
+      store.append('m', source, 'AUTHORITY_RESULT', { success: false }, { status: 'STOPPED' });
+      const usage = store.usage();
+      const before = store.export('m');
+      expect(store.list('m')!.decisions.at(-1)!.submissionSource).toBe(
+        source === 'UNKNOWN' ? null : source
+      );
+      expect(store.export('m')).toEqual(before);
+      expect(store.usage()).toEqual(usage);
+      expect(before!.decisions.at(-1)).not.toHaveProperty('submissionSource');
+    }
+  });
+
+  it('leaves source unknown when SUBMIT material is trimmed, missing or has no selection', () => {
+    for (const payload of [
+      { selection: { source: 'MECHANICAL' }, text: 'x'.repeat(500) },
+      {
+        toJSON() {
+          throw new Error('capture failed');
+        },
+      },
+      null,
+    ]) {
+      const store = new AiBattleTraceStore({ ...AI_TRACE_LIMITS, itemBytes: 100 });
+      store.open('m', []);
+      store.begin('m', { ...identity('1'), purpose: 'PUBLIC_DISPLAY' });
+      store.append('m', '1', 'SUBMIT', payload, { status: 'ACCEPTED' });
+      expect(store.list('m')!.decisions[0]!.submissionSource).toBeNull();
+      referencesAreResolvable(store.export('m')!);
+    }
+  });
+
   it('freezes sources, snapshots reads and includes actual referenced evidence in a standalone export', () => {
     const store = new AiBattleTraceStore();
     const mutableSource = { ...source };

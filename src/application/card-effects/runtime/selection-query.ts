@@ -10,6 +10,12 @@ export type ActiveEffectSelection =
       readonly min: number;
       readonly max: number;
       readonly canSkip: boolean;
+      /** Each selected card counts in every group it belongs to. */
+      readonly groups?: readonly {
+        readonly cardIds: readonly string[];
+        readonly min: number;
+        readonly max: number;
+      }[];
     }
   | {
       readonly kind: 'OPTIONS';
@@ -90,7 +96,13 @@ export function isActiveEffectSelectionValid(
         ? [input.selectedCardId]
         : []
       : (input.selectedCardIds ?? []);
-    return validSubset(selection.cardIds, ids, selection.min, selection.max);
+    return (
+      validSubset(selection.cardIds, ids, selection.min, selection.max) &&
+      (selection.groups ?? []).every((group) => {
+        const count = ids.filter((id) => group.cardIds.includes(id)).length;
+        return count >= group.min && count <= group.max;
+      })
+    );
   }
   const key = selection.structured ? 'selectedEffectOptionIds' : 'selectedOptionId';
   if (keys.length !== 1 || keys[0] !== key) return false;

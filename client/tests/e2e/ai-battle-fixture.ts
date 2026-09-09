@@ -5,7 +5,7 @@ import type { CreateAiBattleInput } from '../../../src/online/ai-battle-types';
 import type { AiDecisionInput } from '../../../src/server/ai-battle/protocol';
 import { CardDataRegistry } from '../../../src/domain/card-data/loader';
 import { toTransport, fromTransport } from '../../../src/online/serde';
-import { readFrozenMuseDeck } from '../../../tests/helpers/ai-muse-deck';
+import { readFrozenMuseDeck } from '../../../tests/helpers/ai-curated-decks';
 
 const OWNER = 'ai-ui-admin';
 const NOW = '2026-09-09T06:00:00.000Z';

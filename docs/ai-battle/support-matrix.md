@@ -2,7 +2,7 @@
 
 > 文档类型：专题说明
 > 适用范围：精选构筑、卡牌事实与 AI 可选择的规则窗口
-> 当前状态：原始 μ's 预组镜像为开发支持范围；绿莲仅为扩展候选
+> 当前状态：原始 μ's 预组与绿莲-6弹ver支持镜像及交叉对局；真实模型绿莲策略尚未验收
 
 应用已提供管理员 AI 对战与观察入口。目录、运行边界和权限由[运行与观测说明](runtime-and-observation.md)维护；卡效完成状态以[主登记册](../card-effect-reuse-audit/existing_module_map.md)为准。测试策略通局仅证明规则链路，模型强度与生产开放仍需独立验收。
 
@@ -56,6 +56,8 @@
 
 ### 绿莲-6弹ver
 
+目录 ID：`green-hasunosora-bp6`；策略手册：`green-hasunosora-recovery`。管理员可为真人或 AI 独立选择本构筑，沿用当前卡库/PT 校验与共享牌桌。
+
 - 来源：[assets/decks/绿莲-6弹ver.yaml](../../assets/decks/绿莲-6弹ver.yaml)
 - YAML：`8bd34fe220c73043a30434276749f64ac2acca6ef1b83048aca59612cb4764bd`
 - 卡牌：`e48dd847c5da80295442ec590783f0f1f7f96068f6676214c50581290fddda67`
@@ -91,13 +93,13 @@
 
 ## 真实输入窗口与权威路径
 
-两份候选构筑当前卡文没有直接要求对手弃手或替对手选择目标的段落；仍必须覆盖先后手、双方分数确认，以及任一参与者推进公共展示。以下“自己”始终指该能力控制者，不能硬编码当前回合玩家。
+两份构筑当前卡文没有直接要求对手弃手、盲选或替对手选择目标的段落；仍必须覆盖先后手、双方分数确认，以及任一参与者推进公共展示。以下“自己”始终指该能力控制者，不能硬编码当前回合玩家。
 
 | 窗口 | 输入责任 | 命令 | 约束来源 | 现有验证入口 / AI 待补 |
 | --- | --- | --- | --- | --- |
 | 换牌（任意手牌子集，含全保留） | 当前换牌席位 | MULLIGAN | GameSession + mulligan.handler | AI decision 测试；重复对象拒绝与真实换牌 |
 | 普通登场/换手 | 自己主要阶段 | PLAY_MEMBER_TO_SLOT | normal-member-play + cost-calculator + member-turn-state | AI decision 测试；实际支付/槽位/离场结果 |
-| 起动选择；同来源多能力 | 自己主要阶段 | ACTIVATE_ABILITY | activated UI/turn-limit/start query + workflow | 首批自送回收/支付两能量已提取查询；其他 workflow 无查询时明确未覆盖 |
+| 起动选择；同来源多能力 | 自己主要阶段 | ACTIVATE_ABILITY | activated UI/turn-limit/start query + workflow | 自送回收、支付能量回收、公开手中 LIVE 同名回收和原槽位登场已提供查询；其他 workflow 无查询时明确未覆盖 |
 | 结束主要阶段 | 当前主要阶段玩家 | END_PHASE | player-command-policy + GameSession | AI decision 测试 |
 | 盖下任意手牌、撤回本轮里侧牌、完成 | 当前 LIVE 设置席位 | SET/UNSET_LIVE_CARD、CONFIRM_STEP | getLiveSetCardCount/Limit/Ids + live-set.handler | AI decision 测试；不是仅 LIVE 类型可盖 |
 | pending 顺序/confirm-only | 实时检查时点的等待席位 | CONFIRM_EFFECT_STEP | pending runtime/order-selection | ai-battle-effect-decision；同来源不同 pending 独立映射、手动选择后 confirm-only 实际结算 |
@@ -110,14 +112,17 @@
 | 判定提交、确认判定/分数、成功 LIVE 入区 | 当前表演者/分数确认双方/成功结算席位 | SUBMIT_JUDGMENT、CONFIRM_STEP、SUBMIT_SCORE、SELECT_SUCCESS_LIVE | GameSession + live-judgment + live-settlement | ai-battle-flow；两席位经正常命令完成自动判定、双方分数确认、成功入区及自然终局 |
 | 公共选卡/选项展示，Public Reveal Dwell | 任一可推进参与者 | CONFIRM_EFFECT_STEP | 三种 public-* runtime | 三种真实 workflow 的候选映射已验证；ai-battle-service-runtime 额外覆盖真人控制展示由 AI 定时推进、无浏览器轮询或模型调用 |
 | 阶段完成 TIME_GATE | 服务层当前窗口责任席位 | 既有阶段命令 | OnlineMatchService | 同一时钟/队列；合法登场立即提交，选择阶段完成则保留当前选择到 deadline，等待不计失败 |
-| 绿莲追加：弃二、两组回收、重叠组 | 效果等待席位 | CONFIRM_EFFECT_STEP | grouped-recovery + grouped-selection | sample-card-effect-runner；P2 后扩展，不能取候选前 N 张 |
-| 绿莲追加：支付能量/公开手中 LIVE/按名称回收 | 效果等待席位 | CONFIRM_EFFECT_STEP | hs-bp5-001-kaho、pay-energy-waiting-room-to-hand | hs-bp5-001-kaho；起动 query 与多步约束待补 |
-| 绿莲追加：声援卡移动/追加声援/登场指定原槽位 | 效果等待席位 | CONFIRM_EFFECT_STEP | revealed-cheer-selection、play-waiting-room-member-to-source-slot | sample-card-effect-runner、cheer-blade-heart-ordering；实际可移动交集和重新观察 |
+| 绿莲追加：弃二、两组回收、重叠组 | 效果等待席位 | CONFIRM_EFFECT_STEP | grouped-recovery + grouped-selection | ai-battle-green-effects；精确弃二、各组 min/max、缺失分组、非法组合拒绝与完整合法兜底；重叠组由 ai-battle-grouped-selection 验证 |
+| 绿莲追加：支付能量/公开手中 LIVE/按名称回收 | 效果等待席位 | CONFIRM_EFFECT_STEP | hs-bp5-001-kaho、pay-energy-waiting-room-to-hand | ai-battle-green-effects；起动费用/目标只读查询、真实扣费、公开手中 LIVE 后同名回收及每回合次数 |
+| 绿莲追加：声援卡移动/追加声援/登场指定原槽位 | 效果等待席位 | CONFIRM_EFFECT_STEP | revealed-cheer-selection、play-waiting-room-member-to-source-slot | ai-battle-green-effects；0/1/3张追加声援、回顶/加入手牌的公开停留、原槽位登场后继续登场效果 |
 
 ## 覆盖与验证入口
 
-首批 22 个成员/LIVE 基础编号的效果登记按基础编号覆盖，未知罕度不需要增加 definition。测试中的罕度替换只验证这一领域不变量，不代表新增公开印刷构筑已经验收。精选 YAML 与卡牌事实哈希由 `tests/helpers/ai-muse-deck.ts` 核对；产品创建时仍使用当前发布卡库与 PT 规则。
+缪斯 22 个、绿莲 19 个成员/LIVE 基础编号的效果登记均按基础编号覆盖，未知罕度不需要增加 definition。测试中的罕度替换只验证这一领域不变量，不代表新增公开印刷构筑已经验收。精选 YAML 与卡牌事实哈希由 `tests/helpers/ai-curated-decks.ts` 核对；产品创建时仍使用当前发布卡库与 PT 规则。
 
+- `tests/integration/ai-battle-green-flow.test.ts`：原始绿莲与缪斯交叉先后手、绿莲镜像自然终局，另以未知罕度镜像锁定全部能力覆盖；使用确定性测试策略，不证明真实模型强度。
+- `tests/integration/ai-battle-green-effects.test.ts`：真实卡牌数据下的分组回收、起动资源/次数、私密检视、手中 LIVE 公开回收、声援移动/追加和原槽位登场的正常命令结果。
+- `tests/unit/ai-battle-grouped-selection.test.ts`：逐个枚举重叠组合法集合，核对模型协议与权威约束一致及合法兜底。
 - `tests/integration/ai-battle-decision.test.ts`：普通操作、登场费用、起动可用性、隐藏信息和选择协议。
 - `tests/integration/ai-battle-effect-decision.test.ts`：费用、强制/空目标、公开展示、颜色、pending 实例、有序选择及正常命令结果。
 - `tests/integration/ai-battle-flow.test.ts`：完整能力段数、罕度集合和原始构筑两席位的确定性自然终局。

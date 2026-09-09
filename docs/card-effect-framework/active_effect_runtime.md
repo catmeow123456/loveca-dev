@@ -28,7 +28,7 @@ activeEffect runtime 应统一处理：
 
 `runtime/activated-registry.ts` 的 `registerActivatedAbilityHandler(abilityId, handler, canStart?)` 可在 workflow 注册时提供只读发动条件；`queryActivatedAbilityStart` 返回 `true / false / undefined`，其中 `undefined` 明确表示尚无查询，不能试执行 resolver 猜测可用性。registry 执行前也读取同一个已登记条件；时点、来源、授予实例和每回合限制仍由现有命令层校验，查询不支付费用、不写次数或推进 pending。
 
-当前仅 `pl-sd1-008-hanayo.ts` 费用 4「小泉花阳」提供至少两张活跃能量条件，`self-sacrifice-waiting-room-to-hand.ts` 提供当前来源仍在顶层舞台条件。没有声明全卡池起动查询覆盖，也没有新增卡效 DSL。AI 使用正常 UI/来源查询和 turn-limit 再消费此条件；未知 workflow 返回未覆盖。验证见 `tests/integration/ai-battle-decision.test.ts`，包括费用不足、次数耗尽、两份授予实例及实际自送结果。
+当前 `pl-sd1-008-hanayo.ts` 费用 4「小泉花阳」提供至少两张活跃能量条件，`self-sacrifice-waiting-room-to-hand.ts` 提供当前来源仍在顶层舞台条件。绿莲适配另将 `pay-energy-waiting-room-to-hand.ts`、`play-waiting-room-member-to-source-slot.ts` 与 `hs-bp5-001-kaho.ts` 的启动条件提取为 workflow 内部纯查询，实际启动复用同一条件，包含能量、目标、来源与阶段。原槽位登场须考虑支付后来源自身也进入候选。没有声明全卡池起动查询覆盖，也没有新增卡效 DSL。AI 使用正常 UI/来源查询和 turn-limit 再消费此条件；未知 workflow 返回未覆盖。验证见 `tests/integration/ai-battle-decision.test.ts`，包括费用不足、次数耗尽、两份授予实例及实际自送结果。
 
 ## Step Handler Registry
 
@@ -60,7 +60,7 @@ Benefits:
 
 `queryCardSelection` 仅用于候选成员关系、数量和既有 ORDERED_MULTI 顺序能够完整表达的步骤；可选放弃独立于非空选择的最小数量，因此“可不发动，否则恰好弃二”不会变成“任选零至二”。`queryOptionSelection` 区分普通选项和结构化效果选项，后者保留原有 public confirmation。registry 在首次 handler/公开确认前共用 `isActiveEffectSelectionValid`，按命令 API 语义忽略未选中的 nullable 字段与 `resolveInOrder: false`，仍拒绝冲突选择、重复目标和不满足数量的输入；公开展示后仍走既有恢复输入和 workflow 的当前区域、selector、来源与费用校验。没有新增持久字段、步骤 DSL 或执行预览。
 
-当前接入检视取牌、弃手后检视取牌、普通及自送后休息室回收、弃手获 Heart、检视后排序和手中 LIVE 交换成功 LIVE 的相应步骤。分组/互斥选择、盲选、数字与站位尚未提供完整契约，不因通用注册存在而宣称覆盖。`runtime/pending-order-query.ts` 与 runner 共用待处理实例查询，保留同来源不同 pending 的身份。AI 侧只映射当前玩家投影允许的引用，验证见 `tests/integration/ai-battle-effect-decision.test.ts`。
+当前接入检视取牌、弃手后检视取牌、普通及自送后休息室回收、弃手获 Heart、检视后排序和手中 LIVE 交换成功 LIVE 的相应步骤。分组回收由 owning workflow 在 `CARDS.groups` 提供各组 cardIds/min/max；单张卡计入全部所属组，首次执行前共用校验，AI 只把合法可见的 cardIds 映射为临时引用，并按约束生成完整兜底。绿莲同时接入待机弃手检视、抽弃、付能量加 BLADE、声援移动及公开后确认步骤，见 `tests/integration/ai-battle-green-effects.test.ts`。盲选、数字、站位及任意互斥组合仍未提供完整契约，不因通用注册存在而宣称覆盖。`runtime/pending-order-query.ts` 与 runner 共用待处理实例查询，保留同来源不同 pending 的身份。AI 侧只映射当前玩家投影允许的引用，验证见 `tests/integration/ai-battle-effect-decision.test.ts`。
 
 ### Public Zone-Selection Confirmation
 

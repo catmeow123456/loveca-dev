@@ -33,14 +33,80 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
           const accepted = f.service
             .listDecisions(f.owner, id)
             .decisions.find((d) => d.status === 'ACCEPTED')!;
+          f.traces.begin(id, {
+            id: 'ui-display-wait',
+            revision: 89,
+            windowKey: 'ui-display-wait',
+            seat: 'FIRST',
+            purpose: 'WAITING_FOR_TIME',
+          });
+          f.traces.append(id, 'ui-display-wait', 'WAIT', {}, { status: 'WAITING' });
+          f.traces.begin(id, {
+            id: 'ui-mechanical',
+            revision: 90,
+            windowKey: 'ui-mechanical',
+            seat: 'FIRST',
+            purpose: 'RULE_CONFIRM',
+          });
+          f.traces.append(id, 'ui-mechanical', 'SUBMIT', {
+            selection: { source: 'MECHANICAL' },
+            command: { type: 'CONFIRM_RULE_ACTION' },
+          });
+          f.traces.append(
+            id,
+            'ui-mechanical',
+            'AUTHORITY_RESULT',
+            { success: true },
+            { status: 'ACCEPTED' }
+          );
           await page.goto('/?page=ai-battle-admin');
           await page.getByRole('button', { name: '观察材料', exact: true }).click();
           const dialog = page.getByRole('dialog', { name: 'AI 决定观察', exact: true });
           await expect(dialog).toBeVisible();
+          const showWaiting = dialog.getByRole('checkbox', { name: '显示等待记录', exact: true });
+          const showMechanical = dialog.getByRole('checkbox', {
+            name: '显示机械处理记录',
+            exact: true,
+          });
+          const mechanicalRow = dialog
+            .locator('.ai-decision-row')
+            .filter({ hasText: 'ui-mechanical' });
+          await expect(showMechanical).not.toBeChecked();
+          await expect(mechanicalRow).toHaveCount(0);
+          const waitingRow = dialog
+            .locator('.ai-decision-row')
+            .filter({ hasText: 'ui-display-wait' });
+          await expect(showWaiting).not.toBeChecked();
+          await expect(waitingRow).toHaveCount(0);
           const row = dialog
             .locator('.ai-decision-row')
             .filter({ has: page.locator('.ai-decision-number', { hasText: accepted.id }) })
             .first();
+          await expect(row).toHaveAttribute('aria-current', 'true');
+          await showWaiting.focus();
+          await page.keyboard.press('Space');
+          await expect(showWaiting).toBeChecked();
+          await expect(waitingRow).toHaveAttribute('aria-current', 'true');
+          await waitingRow.click();
+          await expect(dialog.locator('.ai-selected-heading')).toContainText('ui-display-wait');
+          await page.screenshot({
+            path: `../output/playwright/ai-battle/waiting-visible-${theme}-${viewport.width}.png`,
+          });
+          await showMechanical.check();
+          await expect(mechanicalRow).toBeVisible();
+          await expect(waitingRow).toHaveAttribute('aria-current', 'true');
+          await showWaiting.uncheck();
+          await expect(waitingRow).toHaveCount(0);
+          await expect(mechanicalRow).toHaveAttribute('aria-current', 'true');
+          await mechanicalRow.click();
+          await expect(dialog.locator('.ai-outcome')).toContainText('机械处理');
+          await page.screenshot({
+            path: `../output/playwright/ai-battle/mechanical-visible-${theme}-${viewport.width}.png`,
+          });
+          await showMechanical.uncheck();
+          await expect(mechanicalRow).toHaveCount(0);
+          await expect(row).toHaveAttribute('aria-current', 'true');
+          await expect(dialog.locator('.ai-selected-heading')).toContainText(`决定 ${accepted.id}`);
           await row.click();
           await expect(row).toHaveAttribute('aria-current', 'true');
           const commandSeq = f.matches.getMatch(id)!.session.getRuntimeStats().currentCommandSeq;
@@ -79,13 +145,23 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
             'ui-late',
             'WAIT',
             { reason: 'browser fixture' },
-            { status: 'WAITING' }
+            { status: 'WAITING_SELECTED' }
           );
           f.traces.append(id, accepted.id, 'RESPONSE_BODY', {
             rawBody: 'late-response-body\n' + '保留正文'.repeat(2500),
           });
           await expect(dialog.locator('.ai-decision-number', { hasText: 'ui-late' })).toBeVisible();
           await expect(row).toHaveAttribute('aria-current', 'true');
+          const lateRow = dialog.locator('.ai-decision-row').filter({ hasText: 'ui-late' });
+          await lateRow.click();
+          f.traces.append(id, 'ui-late', 'SUBMIT', { selection: { source: 'MECHANICAL' } });
+          await expect(lateRow).toHaveCount(0);
+          await expect(row).toHaveAttribute('aria-current', 'true');
+          await expect(dialog.locator('.ai-selected-heading')).toContainText(`决定 ${accepted.id}`);
+          await showMechanical.check();
+          await expect(lateRow).toHaveAttribute('aria-current', 'true');
+          await showMechanical.uncheck();
+          await row.click();
           await dialog.getByLabel('查找当前材料', { exact: true }).fill('late-response-body');
           await expect(dialog.locator('.ai-material')).toHaveCount(1);
           await dialog.locator('.ai-material > summary').click();
@@ -155,6 +231,48 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
     try {
       const { session } = await f.create();
       const id = session.matchId;
+      await expect
+        .poll(() => f.service.listDecisions(f.owner, id).decisions.length)
+        .toBeGreaterThan(0);
+      const waits = f.service.listDecisions(f.owner, id).decisions;
+      expect(waits.every((row) => row.purpose === 'WAITING_FOR_PLAYER')).toBe(true);
+      await page.goto('/?page=ai-battle-admin');
+      await page.getByRole('button', { name: '观察材料', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'AI 决定观察', exact: true });
+      const showWaiting = dialog.getByRole('checkbox', { name: '显示等待记录', exact: true });
+      await expect(showWaiting).not.toBeChecked();
+      await expect(dialog.locator('.ai-decision-row')).toHaveCount(0);
+      await expect(dialog.locator('.ai-selected-heading')).toHaveCount(0);
+      await showWaiting.check();
+      await expect(dialog.locator('.ai-decision-row')).toHaveCount(waits.length);
+      await dialog.locator('.ai-decision-row').last().click();
+      await showWaiting.uncheck();
+      await expect(dialog.locator('.ai-decision-row')).toHaveCount(0);
+      await expect(dialog.locator('.ai-selected-heading')).toHaveCount(0);
+      await page.screenshot({
+        path: '../output/playwright/ai-battle/waiting-only-hidden-1600.png',
+      });
+      f.traces.begin(id, {
+        id: 'only-mechanical',
+        revision: 79,
+        windowKey: 'only-mechanical',
+        seat: 'SECOND',
+        purpose: 'RULE_CONFIRM',
+      });
+      f.traces.append(id, 'only-mechanical', 'SUBMIT', { selection: { source: 'MECHANICAL' } });
+      const showMechanical = dialog.getByRole('checkbox', {
+        name: '显示机械处理记录',
+        exact: true,
+      });
+      await showMechanical.check();
+      const mechanicalRow = dialog
+        .locator('.ai-decision-row')
+        .filter({ hasText: 'only-mechanical' });
+      await expect(mechanicalRow).toHaveAttribute('aria-current', 'true');
+      await mechanicalRow.click();
+      await showMechanical.uncheck();
+      await expect(dialog.locator('.ai-decision-row')).toHaveCount(0);
+      await expect(dialog.locator('.ai-selected-heading')).toHaveCount(0);
       f.traces.begin(id, {
         id: 'ui-rejected',
         revision: 80,
@@ -166,9 +284,6 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
         selection: { source: 'FALLBACK' },
         command: { type: 'END_PHASE' },
       });
-      await page.goto('/?page=ai-battle-admin');
-      await page.getByRole('button', { name: '观察材料', exact: true }).click();
-      const dialog = page.getByRole('dialog', { name: 'AI 决定观察', exact: true });
       await expect(dialog.locator('.ai-outcome')).toContainText('已提交，等待执行结果');
       await dialog.locator('.ai-decision-row').filter({ hasText: 'ui-rejected' }).click();
       f.traces.append(
@@ -184,6 +299,14 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
       await dialog.getByRole('button', { name: '导出会话', exact: true }).click();
       const downloaded = JSON.parse(await readFile((await (await downloadEvent).path())!, 'utf8'));
       expect(downloaded).toMatchObject({ format: 'loveca-ai-observation-v1', matchId: id });
+      expect(
+        downloaded.decisions.some((decision: { id: string }) => decision.id === 'only-mechanical')
+      ).toBe(true);
+      for (const wait of waits) {
+        expect(
+          downloaded.decisions.some((decision: { id: string }) => decision.id === wait.id)
+        ).toBe(true);
+      }
       expect(
         downloaded.decisions.some((decision: { id: string }) => decision.id === 'ui-rejected')
       ).toBe(true);

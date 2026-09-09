@@ -28,6 +28,12 @@ export type AiDecisionSpace =
       readonly ordered: boolean;
       readonly canSkip?: boolean;
       readonly skipDescription?: string;
+      /** Overlapping membership counts toward every matching group's limits. */
+      readonly groups?: readonly {
+        readonly cardRefs: readonly string[];
+        readonly min: number;
+        readonly max: number;
+      }[];
     };
 
 export interface AiDecisionInput {
@@ -115,7 +121,51 @@ export function validateSelection(
       selected.some((ref: unknown) => typeof ref !== 'string' || !refs.has(ref))
     )
       throw new Error('Invalid card selection');
+    if (
+      !(space.canSkip && selected.length === 0) &&
+      space.groups?.some((group) => {
+        const count = selected.filter(
+          (ref: unknown) => typeof ref === 'string' && group.cardRefs.includes(ref)
+        ).length;
+        return count < group.min || count > group.max;
+      })
+    )
+      throw new Error('Invalid grouped card selection');
   }
+}
+
+/** Find a complete legal subset from visible constraints; never execute a candidate. */
+export function findAiCardSelection(
+  space: Extract<AiDecisionSpace, { kind: 'CARDS' }>
+): AiSelection {
+  if (space.canSkip) return { kind: 'CARDS', cardRefs: [] };
+  const refs = space.candidates.map((candidate) => candidate.ref);
+  const groups = space.groups ?? [];
+  const search = (selected: string[], start: number): string[] | null => {
+    if (
+      groups.some(
+        (group) => selected.filter((ref) => group.cardRefs.includes(ref)).length > group.max
+      )
+    )
+      return null;
+    if (
+      selected.length >= space.min &&
+      groups.every(
+        (group) => selected.filter((ref) => group.cardRefs.includes(ref)).length >= group.min
+      )
+    )
+      return selected;
+    if (selected.length >= space.max || selected.length + refs.length - start < space.min)
+      return null;
+    for (let i = start; i < refs.length; i++) {
+      const result = search([...selected, refs[i]!], i + 1);
+      if (result) return result;
+    }
+    return null;
+  };
+  const selected = search([], 0);
+  if (!selected) throw new Error('No complete legal card selection');
+  return { kind: 'CARDS', cardRefs: selected };
 }
 
 export function parseAiBattleResponse(
@@ -162,6 +212,22 @@ export function responseSchema(space: AiDecisionSpace): Readonly<Record<string, 
                     : {}),
                   maxItems: Math.min(space.max, refs.length),
                   items: { type: 'string', ...(refs.length ? { enum: refs } : {}) },
+                  ...(space.groups
+                    ? {
+                        allOf: [
+                          {
+                            if: { minItems: space.canSkip ? 1 : 0 },
+                            then: {
+                              allOf: space.groups.map((group) => ({
+                                contains: group.cardRefs.length ? { enum: group.cardRefs } : false,
+                                minContains: group.min,
+                                maxContains: group.max,
+                              })),
+                            },
+                          },
+                        ],
+                      }
+                    : {}),
                 },
               },
       },

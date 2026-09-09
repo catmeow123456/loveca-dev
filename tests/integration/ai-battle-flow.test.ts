@@ -12,7 +12,7 @@ import {
   type AiSelection,
 } from '../../src/server/ai-battle/decision';
 import { getAiMechanicalSelection } from '../../src/server/ai-battle/policy';
-import { readFrozenMuseDeck } from '../helpers/ai-muse-deck';
+import { readFrozenMuseDeck } from '../helpers/ai-curated-decks';
 
 /** Deterministic test strategy; reads the current visible input and never calls error fallback. */
 function choose(decision: AiDecision): AiSelection {

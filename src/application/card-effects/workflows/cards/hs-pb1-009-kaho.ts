@@ -1,3 +1,4 @@
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   addAction,
   getPlayerById,
@@ -64,7 +65,8 @@ export function registerHsPb1009KahoWorkflowHandlers(deps: {
         input.selectedCardIds,
         context.continuePendingCardEffects,
         deps.enqueueTriggeredCardEffects
-      )
+      ),
+    queryCardSelection
   );
 }
 
