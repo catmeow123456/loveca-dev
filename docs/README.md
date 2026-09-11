@@ -82,6 +82,8 @@ AI 专题入口：[支持矩阵](ai-battle/support-matrix.md)维护构筑与窗�
 
 AI 历史实验保留用于解释策略限制与输入设计，不能作为当前验收结论：[模型验证](ai-battle/model-validation.md)、[初次真人复盘](ai-battle/reviews/2026-09-09-d0f78580.md)、[提示修正复测](ai-battle/reviews/2026-09-09-d0f78580-retest.md)、[换手选择调查](ai-battle/reviews/2026-09-09-995a9195-77.md)、[中后期决策抽样](ai-battle/reviews/2026-09-09-316b7939.md)、[手牌规划复测](ai-battle/reviews/2026-09-09-hand-planning.md)、[绿莲费用衔接](ai-battle/reviews/2026-09-09-c530c1a3-28.md)、[绿莲补场取舍](ai-battle/reviews/2026-09-09-3a5522fa-73.md)、[绿莲资源顺序](ai-battle/reviews/2026-09-10-3d6b3a8c-58-69.md)。
 
+能力资源与回合规划的历史依据：[空费与回合规划复测](ai-battle/reviews/2026-09-10-f978-planning.md)、[回收腾位与空过调查](ai-battle/reviews/2026-09-10-188ba3ad-141.md)、[通用自送回收提示复测](ai-battle/reviews/2026-09-10-general-self-recovery-prompt.md)。这些记录保留当时的实验条件、策略失败与推断边界；当前实现仍以 AI 专题文档为准。
+
 | 文档                                                             | 当前用途                                                                       |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | [卡组分享功能方案](deck-management/share-plan.md)                | 历史方案与增强项参考；当前事实以卡组需求/设计文档为准                          |

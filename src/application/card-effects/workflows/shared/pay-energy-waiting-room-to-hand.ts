@@ -24,6 +24,7 @@ import {
   SP_SD1_007_ON_ENTER_PAY_TWO_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID,
 } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
+import { registerActivatedAbilityResourceQuery } from '../../runtime/ability-resource-query.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -183,6 +184,16 @@ export function registerPayEnergyWaitingRoomToHandWorkflowHandlers(): void {
       (game, playerId, cardId) =>
         getPayEnergyRecoveryActivation(game, playerId, cardId, config) !== null
     );
+    registerActivatedAbilityResourceQuery(config.abilityId, (game, playerId, cardId) => {
+      const activation = getPayEnergyRecoveryActivation(game, playerId, cardId, config);
+      return activation
+        ? {
+            costs: [{ kind: 'TAP_ACTIVE_ENERGY', count: config.energyCost }],
+            targetCardIds: activation.initialSelectableCardIds,
+            destination: 'HAND',
+          }
+        : undefined;
+    });
     registerActiveEffectStepHandler(
       config.abilityId,
       config.stepId,
@@ -468,7 +479,7 @@ function getPayEnergyRecoveryActivation(
 
   if (getEnergySelectionCandidates(game, playerId, 'TAP_ACTIVE_ENERGY').length < config.energyCost)
     return null;
-  return { player };
+  return { player, initialSelectableCardIds };
 }
 
 function startPayEnergyWaitingRoomToHandWorkflow(

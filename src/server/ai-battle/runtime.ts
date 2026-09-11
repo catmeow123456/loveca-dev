@@ -11,6 +11,7 @@ import {
 import { getAiFallbackSelection, getAiMechanicalSelection } from './policy.js';
 import type { AiBattleTraceObserver } from './trace-store.js';
 import type { PlayerViewState } from '../../online/types.js';
+import { AiDecisionContext, type AiPublicObservation } from './decision-context.js';
 
 export const AI_MODEL_TIMEOUT_MS = 30_000;
 export const AI_SERVICE_RETRY_LIMIT = 1;
@@ -44,6 +45,7 @@ export type AiBattleAdvanceResult =
 export interface AiPreparedSelection {
   readonly source: AiSelectionSource;
   readonly selection: AiSelection;
+  readonly tradeoff?: string;
 }
 
 export interface AiRuntimeTask extends AiTaskIdentity {
@@ -61,12 +63,19 @@ export class AiBattleRuntime {
   ended = false;
   private sequence = 0;
   private observationId: string | null = null;
+  private readonly context: AiDecisionContext;
 
   constructor(
     readonly seat: Seat,
     readonly wake: () => void,
     private readonly observer?: AiBattleTraceObserver
-  ) {}
+  ) {
+    this.context = new AiDecisionContext(seat);
+  }
+
+  get observedPublicSeq(): number {
+    return this.context.publicSeq;
+  }
 
   invalidate(reason: 'STALE' | 'ACCEPTED' | 'STOPPED' | 'ENDED' = 'STALE'): void {
     if (this.current && reason === 'STALE') this.record('INVALIDATED', { reason }, 'STALE');
@@ -104,11 +113,24 @@ export class AiBattleRuntime {
     revision: number,
     windowKey: string,
     query: AiDecisionQuery,
-    view?: PlayerViewState
+    view?: PlayerViewState,
+    publicObservation?: AiPublicObservation
   ): AiBattleAdvanceResult | null {
     if (this.ended) return { kind: 'ENDED' };
     if (this.stoppedReason) return { kind: 'STOPPED', reason: this.stoppedReason };
+    if (view) this.context.observe(view, publicObservation);
     if (this.current) return this.current.prepared ? null : { kind: 'BUSY' };
+    if (query.kind === 'DECISION')
+      query = {
+        ...query,
+        decision: {
+          ...query.decision,
+          input: {
+            ...query.decision.input,
+            context: this.context.input(query.decision.input.state.turn),
+          },
+        },
+      };
     const id = String(++this.sequence);
     this.observationId = id;
     this.capture(() =>
@@ -199,7 +221,7 @@ export class AiBattleRuntime {
       try {
         if (outcome.truncated) throw new Error('Upstream output truncated');
         const { selection, tradeoff } = parseAiBattleResponse(task.decision, outcome.text);
-        task.prepared = { source: 'MODEL', selection };
+        task.prepared = { source: 'MODEL', selection, ...(tradeoff ? { tradeoff } : {}) };
         this.record('MODEL_VALIDATION', { selection, tradeoff, validation: 'VALID' });
         return null;
       } catch (error) {
@@ -239,7 +261,17 @@ export class AiBattleRuntime {
     return task.decision.toCommand(task.prepared.selection, now);
   }
 
-  accepted(): void {
+  accepted(view?: PlayerViewState, publicObservation?: AiPublicObservation): void {
+    const task = this.current;
+    if (task?.prepared)
+      this.context.accepted(
+        task.decision.input,
+        task.prepared.selection,
+        task.prepared.source,
+        task.prepared.tradeoff,
+        view
+      );
+    if (view) this.context.observe(view, publicObservation);
     if (this.current?.prepared?.source === 'MODEL') this.consecutiveFailures = 0;
     this.record(
       'ACCEPTED',

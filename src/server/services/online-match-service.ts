@@ -756,7 +756,15 @@ export class OnlineMatchService {
             },
           };
         }
-        const result = runtime.observe(match.remoteRevision, frame.windowKey, query, frame.view);
+        const publicObservation = match.session.getPublicEventsSliceSince(
+          runtime.observedPublicSeq,
+          256
+        );
+        const result = runtime.observe(match.remoteRevision, frame.windowKey, query, frame.view, {
+          events: publicObservation.publicEvents,
+          throughPublicSeq: match.session.getCurrentPublicEventSeq(),
+          droppedEventCount: publicObservation.droppedEventCount,
+        });
         return result ?? this.submitPreparedAiSelection(match, runtime);
       } catch (error) {
         return runtime.stop(`ADAPTER_BUILD: ${readErrorMessage(error)}`);
@@ -888,7 +896,15 @@ export class OnlineMatchService {
       });
       if (!result?.success)
         return runtime.stop(`AUTHORITY_REJECTED: ${result?.error ?? 'match missing'}`);
-      runtime.accepted();
+      const publicObservation = match.session.getPublicEventsSliceSince(
+        runtime.observedPublicSeq,
+        256
+      );
+      runtime.accepted(this.sampleAiBattleFrame(match, runtime).view, {
+        events: publicObservation.publicEvents,
+        throughPublicSeq: match.session.getCurrentPublicEventSeq(),
+        droppedEventCount: publicObservation.droppedEventCount,
+      });
       return { kind: 'ACCEPTED' };
     } catch (error) {
       // A recorder fault may follow an accepted command. Never repeat this selection.

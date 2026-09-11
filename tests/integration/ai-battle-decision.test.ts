@@ -272,10 +272,10 @@ describe('AI ordinary decisions through authoritative commands', () => {
         candidate.targetSlot === SlotPosition.LEFT
     )!;
     expect(play.description).toContain(vanilla.cardCode);
-    expect(play.description).toContain('未提供，不得假设有登场能力');
+    expect(play.effectText).toBeUndefined();
     expect(play.description).not.toContain(searcher.cardTextJp!);
     expect(searchPlay.description).toContain(searcher.cardCode);
-    expect(searchPlay.description).toContain(searcher.cardTextJp!);
+    expect(searchPlay.effectText).toBe(searcher.cardTextJp);
     expect(play.energyCost).toBe(0);
     const energy = getActiveEnergyIds(session.state!.players[0].energyZone);
     submit(session, current, { kind: 'ACTION', actionRef: play.ref });

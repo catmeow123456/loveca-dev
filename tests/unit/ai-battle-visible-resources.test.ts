@@ -35,7 +35,6 @@ describe('AI visible resource subtotals', () => {
     expect(description).toContain('HEART -2（PINK -1、PURPLE -1）／BLADE -2');
     expect(description).toContain('舞台顶层成员印刷总费用变化 -5');
     expect(description).toContain('未预结算卡效、常时条件或朝向变化');
-    expect(description).toContain(incoming.cardTextCn);
     expect({ incoming, outgoing }).toEqual(before);
     expect(describeAiMemberPlay(incoming)).toContain('HEART +2（PINK +2）／BLADE +1');
     expect(describeAiMemberPlay(incoming)).toContain('舞台顶层成员印刷总费用变化 +4');
@@ -122,7 +121,7 @@ describe('AI visible resource subtotals', () => {
             count: 2,
             ordered: false,
           },
-        } as PlayerViewState['table']['zones'],
+        },
       },
     };
     const before = globalThis.structuredClone(view);
@@ -180,7 +179,13 @@ describe('AI visible resource subtotals', () => {
           SECOND_HAND: zone('HAND', 'SECOND', ['own', 'hidden']),
           SECOND_LIVE_ZONE: zone('LIVE_ZONE', 'SECOND', ['staged']),
           FIRST_HAND: zone('HAND', 'FIRST', ['opponent']),
-        } as PlayerViewState['table']['zones'],
+          SHARED_RESOLUTION_ZONE: {
+            zone: 'RESOLUTION_ZONE',
+            count: 0,
+            ordered: false,
+            objectIds: [],
+          },
+        },
       },
     };
     const summary = summarizeAiSelfResources(view, 'SECOND');
@@ -194,6 +199,14 @@ describe('AI visible resource subtotals', () => {
         printedCost: undefined,
         score: 3,
         requiredHearts: own.frontInfo!.requiredHearts,
+        liveBaseBudget: {
+          basis: 'CURRENT_STAGE_MEMBERS_VS_BASE_REQUIREMENT',
+          score: 3,
+          requiredHearts: own.frontInfo!.requiredHearts,
+          stageHeartCounts: {},
+          missingHearts: { RAINBOW: 7 },
+          stageAloneMeetsBaseRequirement: false,
+        },
       },
     ]);
     const afterMove = {

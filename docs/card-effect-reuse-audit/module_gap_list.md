@@ -9,6 +9,10 @@
 
 本文件基于 `loveca_effect_fragments_catalog.json` 回扫当前已实现卡牌。它只列 Stage 1A-1F 之后仍值得追踪的缺口；已经有主模块的片段不再作为 P0-now 抽象任务重复列出。
 
+## 能力资源查询的边界
+
+`card-effects/runtime/ability-resource-query.ts` 已让自送回手、支付能量回手、原槽登场三族共享当前费用/目标事实；费用 15「安养寺姬芽」复用实际 workflow 的同伴条件、回能上限与 LIVE 目标。该查询服务当前动作选择，不改变卡效完成状态；未覆盖其他能力收益、连锁 AUTO、常时重算、随机结果或多步计划求解。费用描述与 trigger-safe 支付共用 `getSourceMemberToWaitingRoomCosts`，仍不建立 condition AST 或任意模拟 DSL。
+
 ## Closed or substantially reduced by staged refactors
 
 | fragments | current module | status |

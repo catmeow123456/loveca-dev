@@ -1,6 +1,16 @@
 import type { GameCommand } from '../../application/game-commands.js';
 import type { PlayerViewState, PublicEvent } from '../../online/types.js';
-import type { AiSelfResources } from './visible-resources.js';
+import type { AiSelfResources, AiStageEntryBudget, AiLiveBaseBudget } from './visible-resources.js';
+import type { EffectCostDefinition } from '../../application/effects/effect-costs.js';
+import type { AiDecisionContextInput } from './decision-context.js';
+
+export interface AiMemberEntryResources {
+  readonly abilityId: string;
+  readonly conditionMet: boolean;
+  readonly conditionObjectIds: readonly string[];
+  readonly activateEnergyUpTo: number;
+  readonly recoverLiveObjectIds: readonly string[];
+}
 
 export type AiSelection =
   | { readonly kind: 'ACTION'; readonly actionRef: string }
@@ -14,6 +24,19 @@ export interface AiCandidate {
   readonly energyCost?: number;
   readonly replacedObjectIds?: readonly string[];
   readonly effectText?: string;
+  readonly liveBaseBudget?: AiLiveBaseBudget;
+  readonly entryResources?: readonly AiMemberEntryResources[];
+  readonly activation?: {
+    readonly costs: readonly EffectCostDefinition[];
+    readonly destination: 'HAND' | 'SOURCE_MEMBER_SLOT';
+    readonly sourceSlot?: string;
+    /** Visible targets after the stated source cost; all later choices revalidate normally. */
+    readonly targets: readonly {
+      readonly objectId: string;
+      readonly stageAfterEntry?: AiStageEntryBudget;
+      readonly entryResources?: readonly AiMemberEntryResources[];
+    }[];
+  };
   /** A selected phase-completion action waits until this server deadline. Other actions remain usable. */
   readonly availableAt?: number;
 }
@@ -37,6 +60,7 @@ export type AiDecisionSpace =
     };
 
 export interface AiDecisionInput {
+  readonly context?: AiDecisionContextInput;
   readonly history?: {
     readonly selection: 'LAST_12_PUBLIC_EVENTS';
     readonly throughPublicSeq: number;

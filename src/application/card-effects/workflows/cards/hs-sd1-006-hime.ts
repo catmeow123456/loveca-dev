@@ -7,7 +7,7 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import { and, cardNameAliasIs, groupAliasIs, or, typeIs } from '../../../effects/card-selectors.js';
-import { hasStageMemberMatching } from '../../../effects/conditions.js';
+import { registerMemberEntryResourceQuery } from '../../runtime/ability-resource-query.js';
 import { getEnergyCardIdsByOrientation } from '../../../effects/energy.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import {
@@ -21,6 +21,10 @@ const HS_SD1_006_SELECT_WAITING_ROOM_LIVE_STEP_ID =
   'HS_SD1_006_SELECT_HASUNOSORA_LIVE_FROM_WAITING_ROOM';
 
 export function registerHsSd1006HimeWorkflowHandlers(): void {
+  registerMemberEntryResourceQuery(
+    HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID,
+    queryHimeEntryResources
+  );
   registerPendingAbilityStarterHandler(
     HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID,
     (game, ability, options, context) =>
@@ -45,6 +49,28 @@ export function registerHsSd1006HimeWorkflowHandlers(): void {
   );
 }
 
+function queryHimeEntryResources(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string,
+  leavingCardIds: readonly string[] = []
+) {
+  const conditionCardIds = getStageMemberCardIdsMatching(
+    game,
+    playerId,
+    or(cardNameAliasIs('大沢瑠璃乃'), cardNameAliasIs('百生吟子'), cardNameAliasIs('徒町小鈴'))
+  ).filter((id) => id !== sourceCardId && !leavingCardIds.includes(id));
+  const conditionMet = conditionCardIds.length > 0;
+  return {
+    conditionMet,
+    conditionCardIds,
+    activateEnergyUpTo: conditionMet ? 1 : 0,
+    recoverLiveCardIds: conditionMet
+      ? selectWaitingRoomCardIds(game, playerId, and(typeIs(CardType.LIVE), groupAliasIs('蓮ノ空')))
+      : [],
+  };
+}
+
 function startHsSd1HimeOnEnterActivateEnergyRecoverLive(
   game: GameState,
   ability: {
@@ -61,14 +87,8 @@ function startHsSd1HimeOnEnterActivateEnergyRecoverLive(
     return game;
   }
 
-  const relatedMemberSelector = or(
-    cardNameAliasIs('大沢瑠璃乃'),
-    cardNameAliasIs('百生吟子'),
-    cardNameAliasIs('徒町小鈴')
-  );
-  const hasRelatedMember = hasStageMemberMatching(game, player.id, relatedMemberSelector, {
-    excludeCardId: ability.sourceCardId,
-  });
+  const resources = queryHimeEntryResources(game, player.id, ability.sourceCardId);
+  const hasRelatedMember = resources.conditionMet;
 
   if (!hasRelatedMember) {
     const state = {
@@ -86,11 +106,7 @@ function startHsSd1HimeOnEnterActivateEnergyRecoverLive(
     );
   }
 
-  const relatedMemberCardIds = getStageMemberCardIdsMatching(
-    game,
-    player.id,
-    relatedMemberSelector
-  ).filter((cardId) => cardId !== ability.sourceCardId);
+  const relatedMemberCardIds = resources.conditionCardIds;
 
   const waitingEnergyCount = getEnergyCardIdsByOrientation(
     game,
@@ -118,11 +134,7 @@ function startHsSd1HimeOnEnterActivateEnergyRecoverLive(
     pendingAbilities: state.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
   };
 
-  const selectableCardIds = selectWaitingRoomCardIds(
-    state,
-    player.id,
-    and(typeIs(CardType.LIVE), groupAliasIs('蓮ノ空'))
-  );
+  const selectableCardIds = resources.recoverLiveCardIds;
 
   if (selectableCardIds.length === 0) {
     return continuePendingCardEffects(

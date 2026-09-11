@@ -10,6 +10,7 @@ import { getNormalMemberPlayOptions } from '../../application/normal-member-play
 import { getMemberPlayOptionsForHandCard } from '../../application/member-play-options.js';
 import { canUseActivatedAbilityThisTurn } from '../../application/card-effects/runtime/ability-turn-limit.js';
 import { queryActivatedAbilityStart } from '../../application/card-effects/runtime/activated-registry.js';
+import { visibleActivationResources, visibleMemberEntryResources } from './ability-resources.js';
 import { createPublicObjectId, projectPlayerViewState } from '../../online/projector.js';
 import type { PlayerViewState } from '../../online/types.js';
 import { FaceState, GamePhase, SubPhase } from '../../shared/types/enums.js';
@@ -20,6 +21,7 @@ import {
   describeAiLiveSet,
   describeAiLiveSetCompletion,
   describeAiMainPhaseEnd,
+  summarizeAiLiveBaseBudget,
   describeAiMemberPlay,
   summarizeAiSelfResources,
 } from './visible-resources.js';
@@ -213,9 +215,20 @@ export function buildAiBattleDecision(
               }
             ),
             objectId: createPublicObjectId(option.cardId),
+            effectText:
+              cardFront(option.cardId).cardTextCn?.trim() ||
+              cardFront(option.cardId).cardTextJp?.trim(),
             targetSlot: option.targetSlot,
             energyCost: option.plan.actualEnergyCost,
             replacedObjectIds: replacedCardId ? [createPublicObjectId(replacedCardId)] : [],
+            entryResources: visibleMemberEntryResources(
+              game,
+              playerId,
+              option.cardId,
+              option.targetSlot,
+              replacedCardId ? [replacedCardId] : [],
+              view
+            ),
           },
           {
             type: GameCommandType.PLAY_MEMBER_TO_SLOT,
@@ -256,6 +269,7 @@ export function buildAiBattleDecision(
               description: `起动 ${cardName(cardId)}：${ability.title}`,
               objectId: createPublicObjectId(cardId),
               effectText: ability.text,
+              ...visibleActivationResources(game, playerId, cardId, ability.abilityId, view),
             },
             {
               type: GameCommandType.ACTIVATE_ABILITY,
@@ -396,6 +410,12 @@ function createDecisionInput(
   purpose: AiDecisionInput['purpose'],
   space: AiDecisionSpace
 ): AiDecisionInput {
+  const selfResources = summarizeAiSelfResources(view, view.match.viewerSeat);
+  const candidates = space.candidates.map((candidate) => {
+    const front = candidate.objectId ? view.objects[candidate.objectId]?.frontInfo : undefined;
+    const liveBaseBudget = front ? summarizeAiLiveBaseBudget(selfResources, front) : undefined;
+    return liveBaseBudget ? { ...candidate, liveBaseBudget } : candidate;
+  });
   return globalThis.structuredClone({
     state: {
       turn: game.turnCount,
@@ -404,7 +424,7 @@ function createDecisionInput(
       selfSeat: view.match.viewerSeat,
       firstSeat: view.match.firstSeat,
       activeSeat: view.match.activeSeat,
-      selfResources: summarizeAiSelfResources(view, view.match.viewerSeat),
+      selfResources,
       ...buildModelVisibleTable(view),
       ...(view.match.liveResult ? { liveResult: view.match.liveResult } : {}),
     },
@@ -422,7 +442,7 @@ function createDecisionInput(
           },
         }
       : {}),
-    space,
+    space: { ...space, candidates },
     responseSchema: responseSchema(space),
   });
 }

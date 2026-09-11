@@ -170,6 +170,38 @@ const response = (selection: unknown): AiModelOutcome => ({
 afterEach(() => vi.useRealTimers());
 
 describe('AI match authority queue and lifecycle', () => {
+  it('feeds only accepted model intentions and post-command resources into the next queued sample', async () => {
+    const f = await fixture({ main: true });
+    const task = await modelTask(f);
+    const play = task.input.space.candidates.find((candidate) => candidate.targetSlot)!;
+    const outcome = {
+      kind: 'RESPONSE' as const,
+      text: JSON.stringify({
+        selection: { kind: 'ACTION', actionRef: play.ref },
+        tradeoff: '先填补空位，再按实际资源重新比较。',
+      }),
+    };
+    expect(await f.service.completeAiBattleTask(f.match.matchId, task, outcome)).toEqual({
+      kind: 'ACCEPTED',
+    });
+    const next = await modelTask(f);
+    expect(next.input.context?.recentDecisions).toMatchObject([
+      {
+        source: 'MODEL',
+        modelIntent: '先填补空位，再按实际资源重新比较。',
+        selectedCards: [{ cardCode: 'TEST-MEMBER' }],
+        resourcesAfter: {
+          stageHeartTotal: next.input.state.selfResources.stageHeartTotal,
+          activeEnergyCount: next.input.state.selfResources.activeEnergyCount,
+        },
+      },
+    ]);
+    expect(await f.service.completeAiBattleTask(f.match.matchId, task, outcome)).toEqual({
+      kind: 'STALE',
+    });
+    expect(next.input.context?.recentDecisions).toHaveLength(1);
+  });
+
   it('uses a trusted random source for reproducible initial cards without exposing it as match input', async () => {
     const randomInt = vi.fn<RandomIntegerSource>((max) => max - 1);
     const a = await fixture({ randomInt, attach: false });

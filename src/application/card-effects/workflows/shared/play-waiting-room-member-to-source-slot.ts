@@ -21,8 +21,15 @@ import {
   S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
 } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
+import {
+  registerActivatedAbilityResourceQuery,
+  selectWaitingRoomTargetsAfterSourceCost,
+} from '../../runtime/ability-resource-query.js';
 import { getNewEnterStageEvents } from '../../runtime/events.js';
-import { paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../runtime/leave-stage-triggers.js';
+import {
+  getSourceMemberToWaitingRoomCosts,
+  paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers,
+} from '../../runtime/leave-stage-triggers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -92,6 +99,20 @@ export function registerPlayWaitingRoomMemberToSourceSlotWorkflowHandlers(
       (game, playerId, cardId) =>
         getPlayToSourceSlotActivation(game, playerId, cardId, config) !== null
     );
+    registerActivatedAbilityResourceQuery(config.abilityId, (game, playerId, cardId) => {
+      const activation = getPlayToSourceSlotActivation(game, playerId, cardId, config);
+      if (!activation) return undefined;
+      return {
+        costs: getSourceMemberToWaitingRoomCosts({
+          additionalCostsBeforeSourceMemberToWaitingRoom: [
+            { kind: 'TAP_ACTIVE_ENERGY', count: config.energyCost },
+          ],
+        }),
+        targetCardIds: activation.targetCardIds,
+        destination: 'SOURCE_MEMBER_SLOT',
+        sourceSlot: activation.sourceSlot,
+      };
+    });
     registerActiveEffectStepHandler(
       config.abilityId,
       config.selectStepId,
@@ -142,13 +163,9 @@ function getPlayToSourceSlotActivation(
     costLte(config.targetCostLte),
     groupAliasIs(config.targetGroupAlias)
   );
-  // Paying the source cost makes the source itself a legal recovery candidate.
-  if (
-    !selector(sourceCard) &&
-    getCardIdsInZoneMatching(game, playerId, ZoneType.WAITING_ROOM, selector).length === 0
-  )
-    return null;
-  return { player };
+  const targetCardIds = selectWaitingRoomTargetsAfterSourceCost(game, playerId, cardId, selector);
+  if (targetCardIds.length === 0) return null;
+  return { player, sourceSlot, targetCardIds };
 }
 
 function startActivatedPlayMemberToSourceSlot(

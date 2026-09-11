@@ -32,6 +32,10 @@ import {
   recoverCardsFromWaitingRoomToHandForPlayer,
 } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
+import {
+  registerActivatedAbilityResourceQuery,
+  selectWaitingRoomTargetsAfterSourceCost,
+} from '../../runtime/ability-resource-query.js';
 import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -40,6 +44,7 @@ import {
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
 import {
+  getSourceMemberToWaitingRoomCosts,
   paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers,
   type EnqueueTriggeredCardEffectsForLeaveStage,
 } from '../../runtime/leave-stage-triggers.js';
@@ -238,6 +243,16 @@ export function registerSelfSacrificeWaitingRoomToHandWorkflowHandlers(
         return player !== null && findMemberSlot(player, cardId) !== null;
       }
     );
+    registerActivatedAbilityResourceQuery(config.abilityId, (game, playerId, cardId) => ({
+      costs: getSourceMemberToWaitingRoomCosts(),
+      targetCardIds: selectWaitingRoomTargetsAfterSourceCost(
+        game,
+        playerId,
+        cardId,
+        config.selectablePredicate
+      ),
+      destination: 'HAND',
+    }));
     registerActiveEffectStepHandler(
       config.abilityId,
       config.stepId,
