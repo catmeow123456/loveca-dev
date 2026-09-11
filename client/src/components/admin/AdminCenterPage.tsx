@@ -145,8 +145,8 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           permission: 'cards.sync',
         },
         {
-          title: '卡牌效果 AI 提取',
-          description: '配置提取服务、模型和私密凭据',
+          title: 'AI 上游配置',
+          description: '配置 AI 对战与卡效提取共用的上游和私密凭据',
           icon: Bot,
           onOpen: props.onOpenAiExtraction,
           permission: 'cards.manage',

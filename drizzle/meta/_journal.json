@@ -281,6 +281,13 @@
       "when": 1788912000000,
       "tag": "0039_add_ai_debug_match_origin",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1789084800000,
+      "tag": "0040_add_ai_battle_billing",
+      "breakpoints": true
     }
   ]
 }

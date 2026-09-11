@@ -16,6 +16,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import type { AiBillingRecord } from '../../online/ai-battle-billing-types.js';
 import type {
   MatchAutomationGameMode,
   MatchDeckSnapshotSource,
@@ -1627,6 +1628,7 @@ export const gameplayParticipations = pgTable(
 export const matchRecords = pgTable(
   'match_records',
   {
+    aiBilling: jsonb('ai_billing').$type<AiBillingRecord>(),
     id: uuid('id')
       .default(sql`gen_random_uuid()`)
       .primaryKey(),
@@ -1679,6 +1681,10 @@ export const matchRecords = pgTable(
   },
   (table) => [
     index('idx_match_records_first_user_id').on(table.firstUserId),
+    check(
+      'match_records_ai_billing_origin_check',
+      sql`${table.aiBilling} IS NULL OR ${table.originKind} = 'AI_DEBUG'`
+    ),
     index('idx_match_records_second_user_id').on(table.secondUserId),
     index('idx_match_records_match_mode').on(table.matchMode),
     index('idx_match_records_status').on(table.status),

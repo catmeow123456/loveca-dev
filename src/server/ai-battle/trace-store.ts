@@ -8,6 +8,8 @@ import type {
 } from '../../online/ai-battle-observation-types.js';
 import type { AiKnowledgeMaterial } from './presets.js';
 import { redactAiText, serializeAiEvidence } from './redaction.js';
+import type { AiMatchBilling } from '../../online/ai-battle-billing-types.js';
+import { updateAiBillingSummary, type AiBillingDelta } from './billing.js';
 
 // The original starter's opening decision is ~10 KB and its full 72-card data ~78 KB.
 // These are evidence retention limits, never a game/turn/model-call budget.
@@ -29,6 +31,7 @@ interface StoredDecision {
   readonly reservedBytes: number;
 }
 interface TraceSession {
+  matchBilling: AiMatchBilling | null;
   readonly matchId: string;
   readonly decisions: Map<string, StoredDecision>;
   readonly materials: Map<string, AiTraceMaterial>;
@@ -104,6 +107,7 @@ export class AiBattleTraceStore {
     )
       return false;
     const session: TraceSession = {
+      matchBilling: null,
       matchId,
       decisions: new Map(),
       materials: new Map(),
@@ -143,6 +147,7 @@ export class AiBattleTraceStore {
       session.decisions.set(identity.id, {
         reservedBytes: DECISION_RESERVATION,
         value: {
+          decisionBilling: null,
           id: label(identity.id),
           revision: identity.revision,
           windowKey: label(identity.windowKey),
@@ -234,6 +239,30 @@ export class AiBattleTraceStore {
     });
   }
 
+  updateBilling(
+    matchId: string,
+    billing: AiMatchBilling,
+    decisionId?: string,
+    delta?: AiBillingDelta
+  ): void {
+    const session = this.retained(matchId);
+    if (!session) return;
+    session.matchBilling = globalThis.structuredClone(billing);
+    const record = decisionId === undefined ? undefined : session.decisions.get(decisionId);
+    if (record && delta) {
+      record.value = {
+        ...record.value,
+        decisionBilling: updateAiBillingSummary(
+          record.value.decisionBilling,
+          delta,
+          billing.prices
+        ),
+      };
+    }
+    // An evicted decision's late usage still changes the match total. Never resurrect its text.
+    session.revision++;
+  }
+
   end(matchId: string, endedAt = this.now()): void {
     const session = this.retained(matchId);
     if (!session || session.endedAt !== null) return;
@@ -306,10 +335,12 @@ export class AiBattleTraceStore {
 
   private listing(session: TraceSession): AiTraceListing {
     return {
+      matchBilling: session.matchBilling,
       revision: session.revision,
       endedAt: session.endedAt,
       decisions: [...session.decisions.values()].map(({ value }) => {
         const summary: AiTraceDecisionSummary = {
+          decisionBilling: value.decisionBilling,
           id: value.id,
           revision: value.revision,
           windowKey: value.windowKey,

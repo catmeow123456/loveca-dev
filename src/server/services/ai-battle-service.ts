@@ -15,12 +15,20 @@ import {
 } from '../ai-battle/presets.js';
 import { onlineMatchService, type OnlineMatchService } from './online-match-service.js';
 import { loadUserProfileForOnlineMatch } from './online-room-service.js';
+import { AI_BATTLE_MODELS, type AiBattleModel } from '../../online/ai-battle-billing-types.js';
+import {
+  AiBattleBilling,
+  projectAiBilling,
+  type AiBillingPersistence,
+} from '../ai-battle/billing.js';
+import { AiBillingRepository } from '../ai-battle/billing-repository.js';
 
 const MAX_AI_DEBUG_MATCHES = 4;
 const MAX_RETAINED_AI_SESSIONS = 32;
 const ENDED_SESSION_TTL_MS = 60 * 60 * 1000;
 
 interface AiOwnedSession {
+  readonly billing: AiBattleBilling;
   readonly ownerUserId: string;
   readonly matchId: string;
   readonly input: CreateAiBattleInput;
@@ -34,8 +42,11 @@ interface AiBattleServiceDeps {
   /** Validates and freezes model configuration before a match can be registered. */
   readonly createModel: (
     knowledge: AiFrozenKnowledge,
-    traces: AiBattleTraceStore
+    traces: AiBattleTraceStore,
+    model: AiBattleModel,
+    billing: AiBattleBilling
   ) => Promise<AiBattleModelClient>;
+  readonly billingPersistence?: AiBillingPersistence;
   readonly traces?: AiBattleTraceStore;
   readonly matchService?: OnlineMatchService;
   readonly presets?: Pick<AiBattlePresetLoader, 'list' | 'load'>;
@@ -54,6 +65,7 @@ export class AiBattleService {
   private readonly loadProfile: typeof loadUserProfileForOnlineMatch;
   private readonly now: () => number;
   private readonly traces: AiBattleTraceStore;
+  private readonly billingPersistence: AiBillingPersistence;
 
   constructor(private readonly deps: AiBattleServiceDeps) {
     this.matches = deps.matchService ?? onlineMatchService;
@@ -62,6 +74,7 @@ export class AiBattleService {
     this.traces = deps.traces ?? new AiBattleTraceStore(undefined, this.now);
     this.driver = deps.driver ?? new AiBattleDriver(this.matches, this.now);
     this.loadProfile = deps.loadProfile ?? loadUserProfileForOnlineMatch;
+    this.billingPersistence = deps.billingPersistence ?? new AiBillingRepository();
   }
 
   listPresets() {
@@ -75,6 +88,8 @@ export class AiBattleService {
   }
 
   async create(userId: string, input: CreateAiBattleInput): Promise<CreateAiBattleResult> {
+    if (!AI_BATTLE_MODELS.includes(input.model))
+      throw new AiBattleSetupError('AI_MODEL_UNSUPPORTED', '请选择支持的 AI 对战模型', 400);
     this.cleanup();
     const active = [...this.sessions.values()].filter((entry) => this.finishedAt(entry) === null);
     if (this.creatingOwners.has(userId) || active.some((entry) => entry.ownerUserId === userId))
@@ -90,7 +105,18 @@ export class AiBattleService {
         this.loadProfile(userId),
         this.presets.load(input),
       ]);
-      const model = await this.deps.createModel(setup.knowledge, this.traces);
+      const billing = new AiBattleBilling(
+        input.model,
+        this.billingPersistence,
+        (matchId, value, decisionId, delta) => {
+          try {
+            this.traces.updateBilling(matchId, value, decisionId, delta);
+          } catch {
+            this.traces.reportCaptureFailure(matchId);
+          }
+        }
+      );
+      const model = await this.deps.createModel(setup.knowledge, this.traces, input.model, billing);
       const startedAt = this.now();
       const human = {
         userId,
@@ -124,6 +150,7 @@ export class AiBattleService {
         second: input.humanSeat === 'FIRST' ? system : human,
       });
       const entry: AiOwnedSession = {
+        billing,
         ownerUserId: userId,
         matchId: match.matchId,
         input: { ...input },
@@ -148,6 +175,7 @@ export class AiBattleService {
             'AI_OBSERVATION_CAPACITY_FULL',
             '观测存储容量不足，无法创建调试对局'
           );
+        await billing.initialize(match.matchId);
         const snapshot = await this.matches.getMatchSnapshot(match.matchId, userId);
         if (!snapshot || 'modified' in snapshot)
           throw new AiBattleSetupError('AI_SNAPSHOT_FAILED', 'AI 对局初始快照读取失败');
@@ -176,6 +204,13 @@ export class AiBattleService {
 
   getSession(userId: string, matchId: string): AiBattleSessionView {
     return this.view(this.owned(userId, matchId));
+  }
+
+  async getRecordedBilling(userId: string, matchId: string) {
+    const record = await this.billingPersistence.readOwned(matchId, userId);
+    if (record === undefined)
+      throw new AiBattleSetupError('AI_SESSION_NOT_FOUND', '调试对局不存在', 404);
+    return { matchBilling: record === null ? null : projectAiBilling(record) };
   }
 
   listDecisions(userId: string, matchId: string) {
@@ -225,6 +260,7 @@ export class AiBattleService {
   async end(userId: string, matchId: string): Promise<AiBattleSessionView> {
     const entry = this.owned(userId, matchId);
     const result = await this.matches.endAiBattle(matchId);
+    await entry.billing.flush();
     if (result && !result.removed)
       throw new AiBattleSetupError('AI_END_FAILED', '封存失败，请重试结束本局');
     entry.endedAt ??= result?.endedAt ?? this.now();
@@ -280,6 +316,7 @@ export class AiBattleService {
     const stoppedReason = entry.stoppedReason ?? status?.stoppedReason ?? null;
     return {
       ...entry.input,
+      matchBilling: entry.billing.view(),
       matchId: entry.matchId,
       startedAt: entry.startedAt,
       endedAt,

@@ -11,7 +11,7 @@ import { getAiFallbackSelection } from '../../src/server/ai-battle/policy';
 import { AiBattleTraceStore } from '../../src/server/ai-battle/trace-store';
 import {
   DashScopeAiBattleClient,
-  readAiModelConfig,
+  createAiModelConfig,
 } from '../../src/server/ai-battle/model-client';
 import type { AiFrozenKnowledge } from '../../src/server/ai-battle/presets';
 import { GamePhase, SubPhase } from '../../src/shared/types/enums';
@@ -285,11 +285,13 @@ describe('AI match authority queue and lifecycle', () => {
     const network = deferred<Response>();
     const fetcher = vi.fn<typeof globalThis.fetch>(() => network.promise);
     const client = new DashScopeAiBattleClient(
-      readAiModelConfig({
-        AI_BATTLE_BASE_URL: 'https://test.example/compatible-mode/v1',
-        AI_BATTLE_MODEL: 'test',
-        AI_BATTLE_API_KEY: 'secret-test-only',
-      }),
+      createAiModelConfig(
+        {
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'secret-test-only',
+        },
+        'qwen3.8-max'
+      ),
       knowledge,
       traces,
       fetcher,

@@ -8,6 +8,7 @@ import { requirePermission } from '../middleware/require-permission.js';
 import { requireGameplayAvailable } from '../middleware/require-gameplay-available.js';
 import { AiBattleSetupError } from '../ai-battle/presets.js';
 import type { AiBattleService } from '../services/ai-battle-service.js';
+import { AI_BATTLE_MODELS } from '../../online/ai-battle-billing-types.js';
 
 const createSchema = z
   .object({
@@ -15,6 +16,7 @@ const createSchema = z
     aiPresetId: z.string().min(1).max(100),
     handbookId: z.string().min(1).max(100),
     humanSeat: z.enum(['FIRST', 'SECOND']),
+    model: z.enum(AI_BATTLE_MODELS),
   })
   .strict();
 const seqSchema = z.coerce.number().int().min(0).optional();
@@ -34,6 +36,16 @@ export function createAiBattleRouter(service: AiBattleService): Router {
   });
   router.get('/sessions', (req, res) => {
     res.json({ data: service.listSessions(req.user!.id), error: null });
+  });
+  router.get('/records/:matchId/billing', async (req, res, next) => {
+    try {
+      res.json({
+        data: await service.getRecordedBilling(req.user!.id, req.params.matchId),
+        error: null,
+      });
+    } catch (error) {
+      next(error);
+    }
   });
   router.post('/sessions', requireGameplayAvailable, async (req, res, next) => {
     const parsed = createSchema.safeParse(req.body);

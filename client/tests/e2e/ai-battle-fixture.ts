@@ -6,10 +6,12 @@ import type { AiDecisionInput } from '../../../src/server/ai-battle/protocol';
 import { CardDataRegistry } from '../../../src/domain/card-data/loader';
 import { toTransport, fromTransport } from '../../../src/online/serde';
 import { readFrozenMuseDeck } from '../../../tests/helpers/ai-curated-decks';
+import { createMemoryAiBilling } from '../../../tests/helpers/ai-battle-billing';
 
 const OWNER = 'ai-ui-admin';
 const NOW = '2026-09-09T06:00:00.000Z';
 export const CREATE_INPUT: CreateAiBattleInput = {
+  model: 'qwen3.8-max',
   humanPresetId: 'muse-starter',
   aiPresetId: 'muse-starter',
   handbookId: 'muse-balanced',
@@ -50,6 +52,7 @@ export async function aiBrowserFixture(page: Page) {
   const traces = new AiBattleTraceStore();
   const state = { modelCalls: 0, writes: [] as string[], snapshots: 0, failNextEnd: false };
   const service = new AiBattleService({
+    billingPersistence: createMemoryAiBilling(OWNER).persistence,
     matchService: matches,
     traces,
     loadProfile: (userId) => Promise.resolve({ userId, displayName: '调试管理员' }),
@@ -64,12 +67,12 @@ export async function aiBrowserFixture(page: Page) {
           entries: {},
         }),
     }),
-    createModel: (knowledge, store) =>
+    createModel: (knowledge, store, model, billing) =>
       Promise.resolve(
         new DashScopeAiBattleClient(
           {
             endpoint: 'https://fixture.example/compatible-mode/v1/chat/completions',
-            model: 'browser-fake-model',
+            model,
             apiKey: 'browser-fake-secret',
             temperature: 0.2,
             maxTokens: 2048,
@@ -96,6 +99,11 @@ export async function aiBrowserFixture(page: Page) {
             return Promise.resolve(
               new Response(
                 JSON.stringify({
+                  usage: {
+                    prompt_tokens: 47205,
+                    completion_tokens: 81,
+                    prompt_tokens_details: { cached_tokens: 17408 },
+                  },
                   choices: [
                     {
                       message: {
@@ -108,7 +116,9 @@ export async function aiBrowserFixture(page: Page) {
                 { status: 200, headers: { 'content-type': 'application/json' } }
               )
             );
-          }
+          },
+          Date.now,
+          billing
         )
       ),
   });
@@ -167,6 +177,8 @@ export async function aiBrowserFixture(page: Page) {
       const segments = path.split('/');
       const id = segments[5]!;
       const operation = segments[6];
+      if (segments[4] === 'records' && operation === 'billing')
+        return fulfill(route, await service.getRecordedBilling(OWNER, id));
       if (!operation) return fulfill(route, service.getSession(OWNER, id));
       if (operation === 'snapshot') {
         state.snapshots++;

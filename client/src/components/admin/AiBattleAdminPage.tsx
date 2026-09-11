@@ -15,6 +15,8 @@ import {
 } from '@/lib/aiBattleClient';
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { AiBattleObservationPanel } from './AiBattleObservationPanel';
+import { AI_BATTLE_MODELS, type AiBattleModel } from '@game/online/ai-battle-billing-types';
+import { AiBillingCost } from './AiBillingCost';
 import './ai-battle.css';
 
 const activityLabels = {
@@ -37,6 +39,7 @@ export function AiBattleAdminPage({
   const [aiPresetId, setAiPresetId] = useState('');
   const [handbookId, setHandbookId] = useState('');
   const [humanSeat, setHumanSeat] = useState<Seat>('FIRST');
+  const [model, setModel] = useState<AiBattleModel>('qwen3.8-flash');
   const [boardId, setBoardId] = useState<string | null>(null);
   const [observationId, setObservationId] = useState<string | null>(null);
   const [endingId, setEndingId] = useState<string | null>(null);
@@ -148,6 +151,7 @@ export function AiBattleAdminPage({
         aiPresetId: selectedAi.id,
         handbookId: selectedHandbook.id,
         humanSeat,
+        model,
       });
       await attach(result.session, result.snapshot, generation);
     } catch (cause) {
@@ -255,9 +259,14 @@ export function AiBattleAdminPage({
             <Bot size={17} />
             <div>
               <strong>AI 调试 · 真人视角</strong>
-              <small role="status">
-                {selectedSession ? activityLabels[selectedSession.activity] : '同步中'}
-              </small>
+              <div className="ai-heading-line">
+                <small role="status">
+                  {selectedSession ? activityLabels[selectedSession.activity] : '同步中'}
+                </small>
+                {selectedSession && (
+                  <AiBillingCost billing={selectedSession.matchBilling} label="本局" />
+                )}
+              </div>
             </div>
           </div>
           <div className="ai-actions">
@@ -297,7 +306,7 @@ export function AiBattleAdminPage({
     <div className="app-shell min-h-screen">
       <PageHeader
         title="AI 对战调试"
-        description="当前开放缪预组：选择先后手，与 AI 开始对战"
+        description="选择构筑、模型与先后手，与 AI 开始对战"
         onBack={onBack}
         backLabel="返回运营管理中心"
       />
@@ -322,6 +331,19 @@ export function AiBattleAdminPage({
             </header>
             <fieldset disabled={isBusy || isLoading || Boolean(active)}>
               <legend className="sr-only">构筑与先后手</legend>
+              <label>
+                AI 模型
+                <select
+                  value={model}
+                  onChange={(event) => setModel(event.target.value as AiBattleModel)}
+                >
+                  {AI_BATTLE_MODELS.map((id) => (
+                    <option key={id} value={id}>
+                      {id}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <div className="ai-deck-pair">
                 <label>
                   真人构筑
@@ -432,14 +454,19 @@ export function AiBattleAdminPage({
             {sessions.map((session) => (
               <li key={session.matchId}>
                 <div>
-                  <strong>
-                    {new Date(session.startedAt).toLocaleString('zh-CN', { hour12: false })}
-                  </strong>
+                  <div className="ai-heading-line">
+                    <strong>
+                      {new Date(session.startedAt).toLocaleString('zh-CN', { hour12: false })}
+                    </strong>
+                    <AiBillingCost billing={session.matchBilling} label="本局" />
+                  </div>
                   <p>
                     {session.humanSeat === 'FIRST' ? '真人先手' : '真人后手'} ·{' '}
                     {activityLabels[session.activity]} · 连续失败 {session.consecutiveFailures}
                   </p>
-                  <small>{session.handbookId}</small>
+                  <small>
+                    {session.handbookId} · {session.model}
+                  </small>
                 </div>
                 <div className="ai-actions">
                   {session.endedAt === null && (

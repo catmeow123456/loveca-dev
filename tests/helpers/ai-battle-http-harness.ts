@@ -22,7 +22,8 @@ const [
   { createAiBattleRouter },
   { authenticate },
   { attachRequestContext },
-  { DashScopeAiBattleClient, readAiModelConfig },
+  { DashScopeAiBattleClient },
+  { readAiModelConfig },
   { pool },
 ] = await Promise.all([
   import('../../src/server/app.js'),
@@ -31,17 +32,18 @@ const [
   import('../../src/server/middleware/authenticate.js'),
   import('../../src/server/middleware/request-context.js'),
   import('../../src/server/ai-battle/model-client.js'),
+  import('../../src/server/ai-battle/configuration.js'),
   import('../../src/server/db/pool.js'),
 ]);
-if (modelMode === 'REAL') readAiModelConfig();
+if (modelMode === 'REAL') await readAiModelConfig();
 
 const ai = new AiBattleService({
-  createModel: (knowledge, traces) =>
+  createModel: (knowledge, traces, model, billing) =>
     Promise.resolve(
       new DashScopeAiBattleClient(
         {
           endpoint: 'https://fixture.example/compatible-mode/v1/chat/completions',
-          model: 'p5-http-fixture',
+          model,
           apiKey: 'p5-http-fixture-secret',
           temperature: 0.2,
           maxTokens: 2048,
@@ -57,6 +59,11 @@ const ai = new AiBattleService({
           return Promise.resolve(
             new Response(
               JSON.stringify({
+                usage: {
+                  prompt_tokens: 47205,
+                  completion_tokens: 81,
+                  prompt_tokens_details: { cached_tokens: 17408 },
+                },
                 choices: [
                   {
                     message: {
@@ -72,7 +79,9 @@ const ai = new AiBattleService({
               { status: 200, headers: { 'content-type': 'application/json' } }
             )
           );
-        }
+        },
+        Date.now,
+        billing
       )
     ),
 });

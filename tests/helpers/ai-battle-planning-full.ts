@@ -6,6 +6,7 @@ import { buildAiBattleDecision } from '../../src/server/ai-battle/decision';
 import { getAiMechanicalSelection } from '../../src/server/ai-battle/policy';
 import { AiBattleRuntime } from '../../src/server/ai-battle/runtime';
 import { AiBattleTraceStore } from '../../src/server/ai-battle/trace-store';
+import { validateAiUpstream } from '../../src/server/ai-battle/configuration';
 import {
   DashScopeAiBattleClient,
   type AiModelConfig,
@@ -45,7 +46,15 @@ export async function evaluatePlanningFullGames(
       }
     }
     const traces = new Archive();
-    const model = new DashScopeAiBattleClient(config, knowledge, traces);
+    const model = new DashScopeAiBattleClient(
+      config,
+      knowledge,
+      traces,
+      globalThis.fetch,
+      Date.now,
+      undefined,
+      validateAiUpstream
+    );
     traces.open(matchId, [
       knowledge.rules,
       knowledge.tutorial,

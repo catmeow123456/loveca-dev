@@ -9,6 +9,74 @@ import type { MatchRecordDetailView } from '../../../src/online/replay-types';
 import { fromTransport } from '../../../src/online/serde';
 
 const api = process.env.AI_BATTLE_QA_API_URL;
+test('计费：Flash 创建、单次调用、结束后在历史详情读取同一费用', async ({ page }, info) => {
+  test.skip(!api || info.project.name !== 'tablet-1024x768', '需隔离数据库 HTTP harness');
+  if (!api || !['127.0.0.1', 'localhost'].includes(new URL(api).hostname))
+    throw Error('Expected local QA API');
+  const login = await page.context().request.post(`${api}/api/auth/login`, {
+    data: { usernameOrEmail: 'test_admin', password: 'test_admin_password' },
+  });
+  expect(login.status()).toBe(200);
+  const headers = { Authorization: `Bearer ${(await login.json()).data.accessToken}` };
+  await page.route('**/api/**', async (route) => {
+    const url = new URL(route.request().url());
+    await route.fulfill({
+      response: await route.fetch({ url: `${api}${url.pathname}${url.search}` }),
+    });
+  });
+  let matchId: string | undefined;
+  try {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await page.goto('/?page=ai-battle-admin');
+    await page
+      .getByRole('combobox', { name: 'AI 模型', exact: true })
+      .selectOption('qwen3.8-flash');
+    await page.getByRole('radio', { name: '真人后手', exact: true }).check();
+    const pendingCreate = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/admin/ai-battle/sessions') &&
+        response.request().method() === 'POST'
+    );
+    await page.getByRole('button', { name: '创建调试对局', exact: true }).click();
+    const created = await pendingCreate;
+    expect(created.status()).toBe(201);
+    matchId = (await created.json()).data.session.matchId;
+    await expect(page.locator('.ai-battle-toolbar [data-ai-billing="match"]')).toContainText(
+      '≈¥0.0258'
+    );
+    await page.getByRole('button', { name: '结束', exact: true }).click();
+    await page.getByRole('button', { name: '结束调试对局', exact: true }).click();
+    await expect(page.getByRole('button', { name: '创建调试对局', exact: true })).toBeEnabled();
+    const pendingHistory = page.waitForResponse((response) =>
+      response.url().endsWith(`/api/admin/ai-battle/records/${matchId}/billing`)
+    );
+    await page.getByRole('button', { name: '历史', exact: true }).click();
+    const history = await pendingHistory;
+    expect(history.status()).toBe(200);
+    expect((await history.json()).data.matchBilling).toMatchObject({
+      model: 'qwen3.8-flash',
+      estimatedCny: '0.02579710',
+      attempts: 1,
+      reportedAttempts: 1,
+    });
+    await expect(page.locator('.ai-billing-history [data-ai-billing="match"]')).toContainText(
+      '≈¥0.0258'
+    );
+    await page.screenshot({ path: '../output/playwright/ai-battle/billing-history-1600.png' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('.ai-billing-history [data-ai-billing="match"]').click();
+    await expect(page.getByRole('tooltip')).toContainText(
+      '输入 29,797 + 缓存输入 17,408 + 缓存创建 0 → 输出 81 token'
+    );
+    await page.screenshot({ path: '../output/playwright/ai-battle/billing-history-390.png' });
+  } finally {
+    if (matchId)
+      await page
+        .context()
+        .request.post(`${api}/api/admin/ai-battle/sessions/${matchId}/end`, { headers, data: {} });
+  }
+});
+
 test('P5 完整 HTTP 与 PostgreSQL：真人登场、效果、LIVE 和结束封存', async ({ page }, info) => {
   test.skip(!api || info.project.name !== 'tablet-1024x768', '需单独启动隔离数据库 HTTP harness');
   test.setTimeout(240_000);

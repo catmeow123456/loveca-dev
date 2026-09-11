@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext, type APIResponse } from '@playwright/test';
+import type { SaveAiEffectExtractionConfigInput } from '../../src/lib/aiService';
 
 interface LoginResult {
   readonly accessToken: string;
@@ -110,16 +111,17 @@ test.describe('运营管理中心与 AI 私密配置', () => {
       fullPage: true,
     });
 
-    await page.getByRole('button', { name: /卡牌效果 AI 提取/u }).click();
-    await expect(page.getByRole('heading', { name: '卡牌效果 AI 提取' })).toBeVisible();
-    await expect(
-      page.getByText(
-        original.apiKeyConfigured
-          ? '已有 Key 已加密保存，页面不会读取或显示原值。'
-          : '当前尚未配置 Key。'
-      )
-    ).toBeVisible();
-    await expect(page.locator('input[type="password"]')).toHaveCount(0);
+    await page.getByRole('button', { name: /AI 上游配置/u }).click();
+    await expect(page.getByRole('heading', { name: 'AI 上游配置' })).toBeVisible();
+    const replacement = page.getByLabel('API Key', { exact: true });
+    await expect(replacement).toHaveAttribute('type', 'password');
+    await expect(replacement).toHaveValue('');
+    await replacement.fill('unsaved-test-key');
+    await page.getByRole('button', { name: '显示 Key', exact: true }).click();
+    await expect(replacement).toHaveAttribute('type', 'text');
+    await page.getByRole('button', { name: '隐藏 Key', exact: true }).click();
+    await expect(replacement).toHaveAttribute('type', 'password');
+    await replacement.fill('');
 
     const baseUrlInput = page.getByRole('textbox', { name: /Base URL/u });
     await baseUrlInput.fill('https://candidate.example/v1');
@@ -129,9 +131,9 @@ test.describe('运营管理中心与 AI 私密配置', () => {
     });
     await Promise.all([
       leaveDialogPromise,
-      page.getByRole('button', { name: '打开卡牌数据' }).click(),
+      page.getByRole('button', { name: '卡牌数据', exact: true }).click(),
     ]);
-    await expect(page.getByRole('heading', { name: '卡牌效果 AI 提取' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'AI 上游配置' })).toBeVisible();
     await baseUrlInput.fill(original.baseUrl);
 
     await page.screenshot({
@@ -140,10 +142,72 @@ test.describe('运营管理中心与 AI 私密配置', () => {
     });
 
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: '../output/playwright/ai-effect-config-mobile.png',
+      fullPage: true,
+    });
     await page.getByRole('button', { name: '返回管理中心' }).click();
     await expect(page.getByRole('button', { name: /快捷表情/u })).toBeVisible();
     await expect(page.getByRole('combobox', { name: '选择管理分类' })).toHaveCount(0);
     await page.screenshot({ path: '../output/playwright/admin-center-mobile.png', fullPage: true });
+  });
+
+  test('密钥图标编辑保留、替换和清除操作，保存后恢复遮挡', async ({ page }) => {
+    await login(page.context().request, 'test_admin', 'test_admin_password');
+    let config: AiConfig = {
+      revision: 1,
+      enabled: false,
+      baseUrl: 'https://api.example.com/v1',
+      modelId: '',
+      apiKeyConfigured: true,
+      encryptionReady: true,
+      outboundPolicyReady: true,
+      runtimeReady: false,
+      updatedAt: '2026-09-12T00:00:00Z',
+    };
+    const saved: SaveAiEffectExtractionConfigInput[] = [];
+    await page.route('**/api/ai-effect-extraction/admin/config', async (route) => {
+      if (route.request().method() === 'PUT') {
+        const input = route.request().postDataJSON() as SaveAiEffectExtractionConfigInput;
+        saved.push(input);
+        config = {
+          ...config,
+          revision: config.revision + 1,
+          baseUrl: input.baseUrl,
+          modelId: input.modelId,
+          enabled: input.enabled,
+          apiKeyConfigured: input.apiKey.action !== 'CLEAR',
+        };
+      }
+      await route.fulfill({ json: { data: config, error: null } });
+    });
+    await page.goto('/?page=ai-effect-admin');
+    const key = page.getByLabel('API Key', { exact: true });
+    const save = page.getByRole('button', { name: '保存', exact: true });
+    await expect(key).toHaveValue('');
+    await expect(page.getByRole('button', { name: '显示 Key', exact: true })).toBeDisabled();
+
+    await page.getByLabel('Base URL', { exact: true }).fill('https://api.example.com/next/v1');
+    await save.click();
+    await expect(save).toBeDisabled();
+    expect(saved.at(-1)?.apiKey).toEqual({ action: 'KEEP' });
+
+    await key.fill('e2e-new-key');
+    await page.getByRole('button', { name: '显示 Key', exact: true }).click();
+    await expect(key).toHaveAttribute('type', 'text');
+    await save.click();
+    await expect(key).toHaveValue('');
+    await expect(key).toHaveAttribute('type', 'password');
+    expect(saved.at(-1)?.apiKey).toEqual({ action: 'REPLACE', value: 'e2e-new-key' });
+
+    await page.getByRole('button', { name: '清除 Key', exact: true }).click();
+    expect(saved).toHaveLength(2);
+    await save.click();
+    await expect(save).toBeDisabled();
+    expect(saved.at(-1)?.apiKey).toEqual({ action: 'CLEAR' });
+    await page.reload();
+    await expect(key).toHaveValue('');
+    await expect(page.getByRole('button', { name: '清除 Key', exact: true })).toBeDisabled();
   });
 });
 

@@ -11,6 +11,7 @@ import type {
   CreateAiBattleResult,
 } from '@game/online/ai-battle-types';
 import type { AiTraceExport, AiTraceListing } from '@game/online/ai-battle-observation-types';
+import type { AiRecordedBillingResponse } from '@game/online/ai-battle-billing-types';
 import { fromTransport, toTransport } from '@game/online/serde';
 import { apiClient, toApiClientError, type ApiResponse } from './apiClient';
 
@@ -26,6 +27,12 @@ export const fetchAiBattlePresets = () =>
   data(apiClient.get<readonly AiBattlePresetChoice[]>(`${ROOT}/presets`));
 export const fetchAiBattleSessions = () =>
   data(apiClient.get<readonly AiBattleSessionView[]>(`${ROOT}/sessions`));
+export const fetchAiRecordedBilling = (id: string, signal?: AbortSignal) =>
+  data(
+    apiClient.get<AiRecordedBillingResponse>(`${ROOT}/records/${encodeURIComponent(id)}/billing`, {
+      signal,
+    })
+  );
 export const createAiBattle = (input: CreateAiBattleInput) =>
   data(apiClient.post<CreateAiBattleResult>(`${ROOT}/sessions`, input));
 export const fetchAiBattleSession = (id: string) =>

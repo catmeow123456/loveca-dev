@@ -64,6 +64,7 @@ it.skipIf(!api || !databaseUrl)(
         aiPresetId: 'muse-starter',
         handbookId: 'muse-balanced',
         humanSeat: 'FIRST',
+        model: 'qwen3.8-max',
       });
       expect(created.status).toBe(201);
       const data = fromTransport<{ data: CreateAiBattleResult }>(await created.json()).data;
@@ -73,6 +74,7 @@ it.skipIf(!api || !databaseUrl)(
         [`${own}/snapshot`, undefined],
         [`${own}/decisions`, undefined],
         [`${own}/export`, undefined],
+        [`/api/admin/ai-battle/records/${matchId}/billing`, undefined],
         [`${own}/command`, { command: { type: 'MULLIGAN', cardIdsToMulligan: [] } }],
         [`${own}/advance`, {}],
         [`${own}/end`, {}],
@@ -131,6 +133,10 @@ it.skipIf(!api || !databaseUrl)(
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
+        // Test the origin enum separately from the new billing-only-on-AI invariant.
+        await client.query('UPDATE match_records SET ai_billing = NULL WHERE match_id = $1', [
+          matchId,
+        ]);
         for (const origin of ['ONLINE_ROOM', 'PUBLIC_TABLE', 'RANKED', 'SOLITAIRE', 'AI_DEBUG']) {
           // Use the actual migrated business table; all writes are rolled back below.
           await client.query('UPDATE match_records SET origin_kind = $1 WHERE match_id = $2', [

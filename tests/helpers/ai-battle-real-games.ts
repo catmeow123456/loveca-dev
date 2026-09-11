@@ -11,10 +11,8 @@ import { GameEndReason } from '../../src/shared/types/enums.js';
 import { OnlineMatchService } from '../../src/server/services/online-match-service.js';
 import { AiBattleService } from '../../src/server/services/ai-battle-service.js';
 import { AiBattleTraceStore } from '../../src/server/ai-battle/trace-store.js';
-import {
-  DashScopeAiBattleClient,
-  readAiModelConfig,
-} from '../../src/server/ai-battle/model-client.js';
+import { DashScopeAiBattleClient } from '../../src/server/ai-battle/model-client.js';
+import { readAiModelConfig, validateAiUpstream } from '../../src/server/ai-battle/configuration.js';
 import { buildAiBattleDecision } from '../../src/server/ai-battle/decision.js';
 import { getAiMechanicalSelection } from '../../src/server/ai-battle/policy.js';
 import { serializeAiEvidence, redactAiText } from '../../src/server/ai-battle/redaction.js';
@@ -48,7 +46,7 @@ if (
   throw new Error('Expected a subset of six games: --start 0..5 --games 1..6');
 const out = resolve(argument('--out', 'output/playwright/ai-battle/real-games'));
 mkdirSync(out, { recursive: true });
-const configuration = readAiModelConfig();
+const configuration = await readAiModelConfig();
 const { rows: owners } = await pool.query<{ user_id: string }>(
   "SELECT id AS user_id FROM profiles WHERE username = 'test_admin' AND role = 'admin'"
 );
@@ -121,11 +119,22 @@ async function play(index: number): Promise<void> {
   const ai = new AiBattleService({
     matchService: matches,
     traces,
-    createModel: (knowledge, store) =>
-      Promise.resolve(new DashScopeAiBattleClient(configuration, knowledge, store)),
+    createModel: (knowledge, store, model, billing) =>
+      Promise.resolve(
+        new DashScopeAiBattleClient(
+          { ...configuration, model },
+          knowledge,
+          store,
+          globalThis.fetch,
+          Date.now,
+          billing,
+          validateAiUpstream
+        )
+      ),
   });
   const startedAt = Date.now();
   const { session } = await ai.create(owner!, {
+    model: configuration.model,
     humanPresetId: 'muse-starter',
     aiPresetId: 'muse-starter',
     handbookId: 'muse-balanced',

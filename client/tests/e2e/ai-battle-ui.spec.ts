@@ -112,6 +112,26 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
           const commandSeq = f.matches.getMatch(id)!.session.getRuntimeStats().currentCommandSeq;
           const modelCalls = f.state.modelCalls;
           const writeCount = f.state.writes.length;
+          const cost = row.locator('..').locator('[data-ai-billing="decision"]');
+          await expect(cost).toContainText('≈¥0.3866');
+          if (viewport.width === 390) await cost.click();
+          else await cost.hover();
+          const tooltip = page.getByRole('tooltip');
+          await expect(tooltip).toHaveText(
+            '输入 29,797 + 缓存输入 17,408 + 缓存创建 0 → 输出 81 token'
+          );
+          const tooltipBounds = await tooltip.boundingBox();
+          expect(tooltipBounds!.x).toBeGreaterThanOrEqual(0);
+          expect(tooltipBounds!.x + tooltipBounds!.width).toBeLessThanOrEqual(viewport.width);
+          await page.screenshot({
+            path: `../output/playwright/ai-battle/billing-${theme}-${viewport.width}.png`,
+          });
+          await cost.focus();
+          await page.keyboard.press('Escape');
+          await expect(tooltip).not.toBeVisible();
+          await expect(dialog).toBeVisible();
+          const billing = await f.service.getRecordedBilling(f.owner, id);
+          expect(billing.matchBilling?.estimatedCny).toBe('0.38659200');
           const requestMaterial = dialog
             .locator('.ai-material')
             .filter({ has: page.locator('summary', { hasText: '实际模型请求' }) })
@@ -179,6 +199,8 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
           const exported = JSON.parse(await readFile((await download.path())!, 'utf8'));
           expect(exported.decisions).toHaveLength(1);
           expect(exported.decisions[0].id).toBe(accepted.id);
+          expect(exported.decisions[0].decisionBilling.estimatedCny).toBe('0.38659200');
+          expect(exported.matchBilling.estimatedCny).toBe('0.38659200');
           expect(
             exported.materials.some((m: { content: string }) =>
               m.content?.includes('late-response-body')
@@ -194,7 +216,7 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
           const lastSummary = dialog.locator('.ai-material > summary').last();
           await lastSummary.focus();
           await page.keyboard.press('Tab');
-          await expect(dialog.getByRole('button', { name: '导出会话', exact: true })).toBeFocused();
+          await expect(dialog.locator('[data-ai-billing="match"]').first()).toBeFocused();
           await page.keyboard.press('Shift+Tab');
           await expect(lastSummary).toBeFocused();
           await dialog.locator('.ai-decision-detail').evaluate((element) => {
@@ -345,10 +367,14 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
     try {
       await page.goto('/?page=ai-battle-admin');
       await expect(page.getByRole('button', { name: '创建调试对局', exact: true })).toBeEnabled();
+      const model = page.getByRole('combobox', { name: 'AI 模型', exact: true });
+      await expect(model.locator('option')).toHaveCount(2);
+      await expect(model).toHaveValue('qwen3.8-flash');
       await page.screenshot({ path: '../output/playwright/ai-battle/setup-1600.png' });
       await page.getByRole('button', { name: '创建调试对局', exact: true }).click();
       await expect.poll(() => f.service.listSessions(f.owner).length).toBe(1);
       const id = f.service.listSessions(f.owner)[0]!.matchId;
+      expect(f.service.getSession(f.owner, id).model).toBe('qwen3.8-flash');
       await expect(page.locator('.ai-battle-toolbar')).toBeVisible();
       await page.screenshot({ path: '../output/playwright/ai-battle/board-opening-1600.png' });
       await page.getByRole('button', { name: '保留手牌', exact: true }).click();
@@ -362,6 +388,10 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
         )
         .toBe(2);
       await expect.poll(() => f.state.modelCalls).toBeGreaterThan(0);
+      await expect
+        .poll(() => f.service.getSession(f.owner, id).matchBilling.reportedAttempts)
+        .toBeGreaterThan(0);
+      expect(f.service.getSession(f.owner, id).matchBilling.estimatedCny).toBe('0.02579710');
       expect(f.state.writes.filter((p) => p.endsWith('/command'))).toHaveLength(1);
       const before = f.state.snapshots;
       await page.getByRole('button', { name: '观察', exact: true }).click();

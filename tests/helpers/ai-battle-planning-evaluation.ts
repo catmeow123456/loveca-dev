@@ -1,4 +1,4 @@
-/** Explicit real-model QA against visible local fixtures. No production match/database is touched. */
+/** Explicit real-model QA against visible local fixtures. Reads platform credentials; no business data is written. */
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
@@ -10,10 +10,9 @@ import {
   type AiSelection,
 } from '../../src/server/ai-battle/decision';
 import { AiBattleRuntime } from '../../src/server/ai-battle/runtime';
-import {
-  DashScopeAiBattleClient,
-  readAiModelConfig,
-} from '../../src/server/ai-battle/model-client';
+import { DashScopeAiBattleClient } from '../../src/server/ai-battle/model-client';
+import { readAiModelConfig, validateAiUpstream } from '../../src/server/ai-battle/configuration';
+import { pool } from '../../src/server/db/pool';
 import { AiBattleTraceStore } from '../../src/server/ai-battle/trace-store';
 import type { AiFrozenKnowledge } from '../../src/server/ai-battle/presets';
 import { toTransport } from '../../src/online/serde';
@@ -52,7 +51,7 @@ const knowledge: AiFrozenKnowledge = {
     JSON.stringify(toTransport({ cards: [...counts.values()] }))
   ),
 };
-const config = readAiModelConfig();
+const config = await readAiModelConfig().finally(() => pool.end());
 const knowledgeMaterials = [
   knowledge.rules,
   knowledge.tutorial,
@@ -134,7 +133,15 @@ for (let repeat = 1; repeat <= (mode === 'fixed' ? 3 : 1); repeat++)
     const f = createPlanningFixture(id === '151-known-top' ? '149' : id);
     const matchId = `${id}-${repeat}`;
     const traces = new AiBattleTraceStore();
-    const model = new DashScopeAiBattleClient(config, knowledge, traces);
+    const model = new DashScopeAiBattleClient(
+      config,
+      knowledge,
+      traces,
+      globalThis.fetch,
+      Date.now,
+      undefined,
+      validateAiUpstream
+    );
     traces.open(matchId, [...knowledgeMaterials, model.configurationMaterial]);
     const runtime = new AiBattleRuntime('FIRST', () => {}, traces.bind(matchId));
     if (id === '151-known-top') {

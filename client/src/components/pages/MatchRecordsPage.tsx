@@ -62,6 +62,7 @@ import type {
   ViewZoneState,
 } from '@game/online';
 import { hasPermission } from '@game/shared/auth/permissions';
+import { AiRecordedBilling } from '@/components/admin/AiRecordedBilling';
 
 interface MatchRecordsPageProps {
   onBack: () => void;
@@ -960,6 +961,16 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
               {selectedRecord?.partialReasonSummary ? (
                 <PartialRecordNotice detail={selectedRecord.partialReasonSummary} />
               ) : null}
+              {selectedRecord?.originKind === 'AI_DEBUG' &&
+                profile &&
+                hasPermission(profile.role, 'rules.manage') &&
+                detail?.matchId === selectedRecord.matchId &&
+                detail.participants.some((participant) => participant.userId === profile.id) && (
+                  <AiRecordedBilling
+                    key={selectedRecord.matchId}
+                    matchId={selectedRecord.matchId}
+                  />
+                )}
               {selectedRecord ? (
                 <MatchRecordSummary
                   detail={detail}

@@ -12,6 +12,7 @@ import { fetchAiDecision, fetchAiDecisions, exportAiBattle } from '@/lib/aiBattl
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import './ai-battle.css';
+import { AiBillingCost } from './AiBillingCost';
 
 const purposes: Readonly<Record<string, string>> = {
   MULLIGAN: '换牌',
@@ -216,7 +217,12 @@ export function AiBattleObservationPanel({
       >
         <header className="ai-observation-header">
           <div>
-            <h2 id="ai-observation-title">AI 决定观察</h2>
+            <div className="ai-heading-line">
+              <h2 id="ai-observation-title">AI 决定观察</h2>
+              {listing?.matchBilling && (
+                <AiBillingCost billing={listing.matchBilling} label="本局" />
+              )}
+            </div>
             <p>历史 AI 视角 · 只读材料，当前真人牌桌继续运行</p>
           </div>
           <div className="ai-actions">
@@ -316,7 +322,7 @@ export function AiBattleObservationPanel({
             )}
             <ol>
               {visibleRows.map((row) => (
-                <li key={row.id}>
+                <li key={row.id} className="ai-decision-with-cost">
                   <button
                     type="button"
                     className="ai-decision-row"
@@ -324,13 +330,14 @@ export function AiBattleObservationPanel({
                     onClick={() => setSelectedId(row.id)}
                   >
                     <span className="ai-decision-number">{row.id}</span>
-                    <span>
+                    <span className="ai-decision-label">
                       <strong>{purposes[row.purpose] ?? row.purpose}</strong>
                       <small>
                         {statuses[row.status] ?? row.status} · {formatTime(row.updatedAt)}
                       </small>
                     </span>
                   </button>
+                  <AiBillingCost billing={row.decisionBilling} />
                 </li>
               ))}
             </ol>
@@ -358,7 +365,10 @@ export function AiBattleObservationPanel({
                     <p>
                       {visibleSelectedId === null ? '跟随最新' : '已选历史'} · 决定 {selected.id}
                     </p>
-                    <h3>{purposes[selected.purpose] ?? selected.purpose}</h3>
+                    <div className="ai-heading-line">
+                      <h3>{purposes[selected.purpose] ?? selected.purpose}</h3>
+                      <AiBillingCost billing={selected.decisionBilling} />
+                    </div>
                     <small>
                       当时版本 {selected.revision} · {selected.seat === 'FIRST' ? '先手' : '后手'}{' '}
                       AI · {statuses[selected.status] ?? selected.status}

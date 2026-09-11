@@ -4,6 +4,7 @@ import { isUserRole } from '../../src/shared/auth/permissions';
 import { fromTransport } from '../../src/online/serde';
 import { GameCommandType } from '../../src/application/game-commands';
 import { deck } from '../helpers/ai-battle-fixture';
+import { createMemoryAiBilling } from '../helpers/ai-battle-billing';
 
 const auth = vi.hoisted(() => ({ roles: new Map<string, string>() }));
 vi.mock('../../src/server/db/pool.js', () => ({
@@ -29,6 +30,7 @@ import type { AiBattleSessionView } from '../../src/server/services/ai-battle-se
 
 const servers: ReturnType<express.Express['listen']>[] = [];
 const input = {
+  model: 'qwen3.8-max' as const,
   humanPresetId: 'muse-starter',
   aiPresetId: 'muse-starter',
   handbookId: 'muse-balanced',
@@ -43,6 +45,7 @@ const material = {
 };
 
 function createService() {
+  const billing = createMemoryAiBilling();
   const matches = new OnlineMatchService({ recorder: null });
   const createModel = vi.fn(() =>
     Promise.resolve({ decide: () => Promise.resolve({ kind: 'RESPONSE' as const, text: '{}' }) })
@@ -56,6 +59,7 @@ function createService() {
     pointValidation: { pointTableVersion: 'test', pointTotal: 0, pointLimit: 9 },
   };
   const service = new AiBattleService({
+    billingPersistence: billing.persistence,
     matchService: matches,
     driver: { start },
     createModel,
@@ -83,7 +87,7 @@ function createService() {
         }),
     },
   });
-  return { service, matches, createModel, start };
+  return { service, matches, createModel, start, billing };
 }
 
 async function serverFixture() {
@@ -136,6 +140,56 @@ afterEach(async () => {
 });
 
 describe('AI administrator routes and ownership', () => {
+  it('requires an explicit supported model and passes the chosen model to the per-game client', async () => {
+    const f = await serverFixture();
+    auth.roles.set('owner', 'admin');
+    for (const model of [undefined, 'qwen3.8-max-0902', 'qwen-next']) {
+      expect(
+        (await f.request('/ai/sessions', { userId: 'owner', body: { ...input, model } })).status
+      ).toBe(400);
+    }
+    expect(f.createModel).not.toHaveBeenCalled();
+    const response = await f.request('/ai/sessions', {
+      userId: 'owner',
+      body: { ...input, model: 'qwen3.8-flash' },
+    });
+    expect(response.status).toBe(201);
+    const result = (await response.json()) as { data: { session: AiBattleSessionView } };
+    expect(result.data.session).toMatchObject({
+      model: 'qwen3.8-flash',
+      matchBilling: { model: 'qwen3.8-flash', attempts: 0 },
+    });
+    expect(f.createModel).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'qwen3.8-flash',
+      expect.anything()
+    );
+  });
+
+  it('reads persistent costs after the match runtime is gone and rechecks permissions', async () => {
+    const f = await serverFixture();
+    auth.roles.set('owner', 'admin');
+    auth.roles.set('other', 'admin');
+    const { session } = await f.service.create('owner', input);
+    await f.service.end('owner', session.matchId);
+    const path = `/ai/records/${session.matchId}/billing`;
+    const ownerResponse = await f.request(path, { userId: 'owner' });
+    expect(ownerResponse.status).toBe(200);
+    expect(await ownerResponse.json()).toMatchObject({
+      data: {
+        matchBilling: {
+          model: 'qwen3.8-max',
+          estimatedCny: '0.00000000',
+        },
+      },
+    });
+    expect((await f.request(path, { userId: 'other' })).status).toBe(404);
+    expect((await f.request(path)).status).toBe(401);
+    auth.roles.set('owner', 'user');
+    expect((await f.request(path, { userId: 'owner' })).status).toBe(403);
+    expect(f.start).toHaveBeenCalledTimes(1);
+  });
   it('serves retained observations without driving the game and scopes a decision to its own match', async () => {
     const f = await serverFixture();
     auth.roles.set('owner', 'admin');

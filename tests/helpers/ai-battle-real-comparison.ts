@@ -5,7 +5,8 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { z } from 'zod';
-import { readAiModelConfig } from '../../src/server/ai-battle/model-client.js';
+import { readAiModelConfig, validateAiUpstream } from '../../src/server/ai-battle/configuration.js';
+import { pool } from '../../src/server/db/pool.js';
 import {
   parseAiBattleResponse,
   type AiDecisionInput,
@@ -23,7 +24,7 @@ const plan = JSON.parse(planText) as ReturnType<typeof prepareAiEvaluation>;
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 if (plan.format !== 'loveca-ai-fixed-input-plan-v1' || plan.commandExecution !== 'NONE')
   throw new Error('Unsupported comparison plan');
-const configuration = readAiModelConfig();
+const configuration = await readAiModelConfig().finally(() => pool.end());
 const modelParameters = {
   model: configuration.model,
   temperature: configuration.temperature,
@@ -99,6 +100,7 @@ for (const sample of plan.samples) {
     let parsed: ReturnType<typeof parseAiBattleResponse> | null = null;
     let retryable = false;
     try {
+      await validateAiUpstream(configuration.endpoint);
       const response = await globalThis.fetch(configuration.endpoint, {
         method: 'POST',
         body,

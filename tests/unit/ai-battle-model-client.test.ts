@@ -1,21 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   DashScopeAiBattleClient,
-  readAiModelConfig,
+  createAiModelConfig,
 } from '../../src/server/ai-battle/model-client';
 import { AiBattleTraceStore } from '../../src/server/ai-battle/trace-store';
 import type { AiFrozenKnowledge } from '../../src/server/ai-battle/presets';
 import type { AiDecisionInput } from '../../src/server/ai-battle/protocol';
 import { redactAiText, serializeAiEvidence } from '../../src/server/ai-battle/redaction';
 import { fromTransport } from '../../src/online/serde';
+import { AiBattleBilling } from '../../src/server/ai-battle/billing';
+import { createMemoryAiBilling } from '../helpers/ai-battle-billing';
 
 const KEY = 'test-api-key-never-export';
 const config = () =>
-  readAiModelConfig({
-    AI_BATTLE_BASE_URL: 'https://workspace.example/compatible-mode/v1',
-    AI_BATTLE_MODEL: 'test-qwen',
-    AI_BATTLE_API_KEY: KEY,
-  });
+  createAiModelConfig(
+    {
+      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      apiKey: KEY,
+    },
+    'qwen3.8-max'
+  );
 const context = { matchId: 'm', taskId: '1', revision: 2, windowKey: 'MAIN', attempt: 0 };
 const input: AiDecisionInput = {
   purpose: 'MAIN',
@@ -80,25 +84,160 @@ function fixture(fetcher: typeof globalThis.fetch) {
   return { client, store, mutableConfig, knowledge };
 }
 
+async function billedFixture(fetcher: typeof globalThis.fetch) {
+  const f = fixture(fetcher);
+  const memory = createMemoryAiBilling();
+  const billing = new AiBattleBilling(
+    'qwen3.8-max',
+    memory.persistence,
+    (id, value, decision, delta) => f.store.updateBilling(id, value, decision, delta)
+  );
+  await billing.initialize('m');
+  const client = new DashScopeAiBattleClient(
+    config(),
+    f.knowledge,
+    f.store,
+    fetcher,
+    Date.now,
+    billing
+  );
+  return { ...f, client, billing, memory };
+}
+
+const meteredResponse = (choices: unknown = []) =>
+  new Response(
+    JSON.stringify({
+      usage: {
+        prompt_tokens: 47205,
+        completion_tokens: 81,
+        prompt_tokens_details: { cached_tokens: 17408 },
+      },
+      choices,
+    })
+  );
+
 describe('AI model HTTP boundary', () => {
-  it('uses only dedicated configuration, excludes URL credentials and validates behavior parameters', () => {
-    expect(() => readAiModelConfig({ DASHSCOPE_API_KEY: KEY })).toThrow('AI 对战专用');
+  it('restricts models while using the configured Chat Completions upstream', () => {
+    for (const model of ['qwen3.8-max', 'qwen3.8-flash'])
+      expect(
+        createAiModelConfig(
+          {
+            baseUrl: 'https://api.example.com/gateway/v1',
+            apiKey: KEY,
+          },
+          model
+        ).model
+      ).toBe(model);
+    for (const model of ['qwen3-max', 'qwen3.8-max-0902', 'gpt-test'])
+      expect(() =>
+        createAiModelConfig(
+          {
+            baseUrl: 'https://api.example.com/gateway/v1',
+            apiKey: KEY,
+          },
+          model
+        )
+      ).toThrow();
+    expect(
+      createAiModelConfig(
+        { baseUrl: 'https://api.example.com/gateway/v1/', apiKey: KEY },
+        'qwen3.8-flash'
+      ).endpoint
+    ).toBe('https://api.example.com/gateway/v1/chat/completions');
+  });
+
+  it('persists usage independently of invalid choice envelopes and failed diagnostic capture', async () => {
+    const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(meteredResponse());
+    const f = await billedFixture(fetcher);
+    vi.spyOn(f.store, 'append').mockImplementation(() => {
+      throw new Error('full diagnostics');
+    });
+    expect(await f.client.decide(input, new AbortController().signal, context)).toMatchObject({
+      kind: 'SERVICE_ERROR',
+      retryable: false,
+    });
+    expect(f.billing.view()).toMatchObject({
+      attempts: 1,
+      reportedAttempts: 1,
+      estimatedCny: '0.38659200',
+    });
+    expect(f.memory.records.get('m')!.reportedAttempts).toBe(1);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('retains late billable usage after abort and end without issuing another request', async () => {
+    let complete!: (value: Response) => void;
+    const fetcher = vi.fn<typeof globalThis.fetch>().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        })
+    );
+    const f = await billedFixture(fetcher);
+    const controller = new AbortController();
+    const waiting = f.client.decide(input, controller.signal, context);
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    controller.abort();
+    f.store.end('m');
+    expect(f.billing.view()).toMatchObject({
+      attempts: 1,
+      reportedAttempts: 0,
+      pendingAttempts: 0,
+    });
+    complete(meteredResponse([{ message: { content: '{}' }, finish_reason: 'length' }]));
+    await waiting;
+    expect(f.billing.view()).toMatchObject({
+      attempts: 1,
+      reportedAttempts: 1,
+      estimatedCny: '0.38659200',
+    });
+    expect(f.store.export('m')!.matchBilling?.estimatedCny).toBe('0.38659200');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a valid model answer when accounting writes fail and blocks the next HTTP request', async () => {
+    const fetcher = vi.fn<typeof globalThis.fetch>();
+    const f = await billedFixture(fetcher);
+    fetcher.mockImplementation(() => {
+      vi.spyOn(f.memory.persistence, 'save').mockRejectedValue(new Error('offline'));
+      return Promise.resolve(
+        meteredResponse([{ message: { content: '{}' }, finish_reason: 'stop' }])
+      );
+    });
+    expect(await f.client.decide(input, new AbortController().signal, context)).toMatchObject({
+      kind: 'RESPONSE',
+    });
+    expect(f.billing.view().saveFailed).toBe(true);
+    expect(
+      await f.client.decide(input, new AbortController().signal, { ...context, taskId: '2' })
+    ).toMatchObject({ kind: 'ADAPTER_ERROR' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it('requires explicit platform credentials, excludes URL credentials and validates behavior parameters', () => {
+    expect(() =>
+      createAiModelConfig({ baseUrl: '', apiKey: '' }, 'qwen3.8-flash', {
+        AI_BATTLE_BASE_URL: 'https://old.example/v1',
+        AI_BATTLE_API_KEY: KEY,
+      })
+    ).toThrow('平台 AI');
     for (const url of [
       'http://workspace.example/compatible-mode/v1',
       'https://user:pass@workspace.example/compatible-mode/v1',
       'https://workspace.example/compatible-mode/v1?key=x',
-      'https://workspace.example/v1',
+      'https://workspace.example/v1#fragment',
     ]) {
       expect(() =>
-        readAiModelConfig({
-          AI_BATTLE_BASE_URL: url,
-          AI_BATTLE_MODEL: 'test',
-          AI_BATTLE_API_KEY: KEY,
-        })
+        createAiModelConfig(
+          {
+            baseUrl: url,
+            apiKey: KEY,
+          },
+          'qwen3.8-max'
+        )
       ).toThrow();
     }
     expect(config()).toMatchObject({
-      endpoint: 'https://workspace.example/compatible-mode/v1/chat/completions',
+      endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
       temperature: 0.2,
       maxTokens: 2048,
     });
@@ -107,7 +246,7 @@ describe('AI model HTTP boundary', () => {
   it('captures the transmitted body and frozen sources/configuration, without authorization or prior responses', async () => {
     const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response());
     const { client, store, mutableConfig, knowledge } = fixture(fetcher);
-    mutableConfig.model = 'changed-model';
+    mutableConfig.model = 'qwen3.8-flash';
     Object.assign(knowledge.handbook, { content: 'new handbook' });
     const signal = new AbortController().signal;
     expect(await client.decide(input, signal, context)).toMatchObject({
@@ -129,7 +268,7 @@ describe('AI model HTTP boundary', () => {
       response_format: unknown;
       enable_thinking: boolean;
     };
-    expect(body.model).toBe('test-qwen');
+    expect(body.model).toBe('qwen3.8-max');
     expect(body.response_format).toEqual({ type: 'json_object' });
     expect(body.enable_thinking).toBe(false);
     expect(body.messages.map((message) => message.role)).toEqual([

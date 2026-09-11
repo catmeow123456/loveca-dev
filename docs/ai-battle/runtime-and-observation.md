@@ -36,19 +36,19 @@
 
 自送回收、腾位补同伴与跨位置换手属于通用教程，适用于所有构筑。模型应比较来源离场的损失、回收后的合法登场预算、条件收益，以及单/多 LIVE 的合计需求和分数竞争，再决定继续或结束主要阶段。教程区分成员回手再登场与直接回收 LIVE；控制提示同步强调完整路线和双方两张成功 LIVE 时的分数竞争。这些提示没有增加路线搜索器或策略校验；实际模型效果见[通用自送回收提示复测](reviews/2026-09-10-general-self-recovery-prompt.md)。
 
-模型客户端读取服务端独立配置；卡效提取服务配置、旧 DashScope 变量与开发者 Codex 凭据都不作为运行时 fallback。
+新对局通过 `src/server/ai-battle/configuration.ts` 读取平台 AI 配置中的 Base URL 和加密 API Key，复用 `aiEffectExtractionService.getUpstreamConfiguration()` 的数据库读取、解密和出站校验。平台“AI 上游配置”页面的 URL/Key 供对战与卡效提取共用；卡效模型及“启用效果提取”开关只控制卡效提取。对战模型由开局参数指定，默认 `qwen3.8-flash`，可手动选择 `qwen3.8-max`。
 
-| 环境变量 | 用途 |
-| --- | --- |
-| `AI_BATTLE_BASE_URL` | 必填，所用 DashScope 地域/工作空间的 HTTPS `compatible-mode/v1` 地址，不带 URL 凭据或查询参数 |
-| `AI_BATTLE_MODEL` | 必填，该账号/端点实际可调用的模型标识 |
-| `AI_BATTLE_API_KEY` | 必填，仅保留在服务端，不进入观测材料或普通应用日志 |
-| `AI_BATTLE_TEMPERATURE` | 默认 0.2，允许 0–2 |
-| `AI_BATTLE_MAX_TOKENS` | 单次输出长度参数，默认 2048，允许 128–4096；不建立计费或预算统计 |
+| 环境变量                              | 用途                                                           |
+| ------------------------------------- | -------------------------------------------------------------- |
+| `AI_EFFECT_EXTRACTION_ENCRYPTION_KEY` | 既有平台 AI Key 加密主密钥，仅在部署 Secret 配置               |
+| `AI_EFFECT_EXTRACTION_ALLOWED_HOSTS`  | 既有平台上游精确主机白名单；必须为公开 HTTPS 地址              |
+| `AI_BATTLE_MODEL`                     | 仅真实模型实验脚本的默认模型；网页以本局选择为准               |
+| `AI_BATTLE_TEMPERATURE`               | 默认 0.2，允许 0–2                                             |
+| `AI_BATTLE_MAX_TOKENS`                | 单次输出上限，默认 2048，允许 128–4096；不是实际用量或预算封顶 |
 
-应用使用 `src/server/ai-battle/service.ts` 的独立 `AiBattleService` 实例；其 `createModel(knowledge, traces)` 在创建每局时使用 `readAiModelConfig()` 与 `DashScopeAiBattleClient`，冻结配置后才注册和启动驱动。未配置专用变量时创建失败，浏览器不会提供密钥或上游地址。
+`src/server/ai-battle/service.ts` 使用 `createPlatformAiBattleClient` 在开局时冻结本局 URL、Key 与模型。配置中心保存成功后，新局无需重启服务即可使用更新值；已有局保持开局配置。创建及每次发送前都会重新检查白名单和 DNS，不能因冻结了 URL 而绕过后续出站限制。HTTP 继续使用现有 Chat Completions 协议，在 Base URL 后追加 `/chat/completions`；不增加其他协议适配。
 
-一键测试环境的 API 启动命令使用 `node --env-file-if-exists=.env` 读取根目录中的专用模型配置；已有显式测试环境覆盖仍优先。密钥不进入前端启动参数或新增的 tmux 命令文本。补充或修改配置后需重启 API。需要重启整套测试环境时使用 `pnpm test-env:start --no-db-rebuild` 保留现有数据。
+`AI_BATTLE_BASE_URL`、`AI_BATTLE_API_KEY`、旧 DashScope 变量与开发者凭据不再被读取。配置缺失、无法解密或不符合出站政策时，新局明确失败，不使用环境变量备用值。浏览器只读取非秘密配置和 Key 是否存在，不取得服务端明文 Key。主密钥或白名单属于部署配置，修改后需重启 API；配置中心的 URL/Key 修改只需保存。生产准备见[计费迁移说明](../../drizzle/migration-notes/ai-battle-billing.md)。
 
 当前客户端按 [DashScope 结构化输出文档](https://help.aliyun.com/zh/model-studio/qwen-structured-output) 使用 `response_format: {type: 'json_object'}`，提示中包含 JSON；`enable_thinking: false`，不请求逐步推理。字段与引用仍由本地闭合协议验证。接口结构参考 [Chat Completions 文档](https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions)。具体配置模型是否支持这些参数、取消是否及时和真实等待时间，必须在实际端点复测；HTTP `AbortSignal` 只取消客户端等待，不能替代队列内的过期校验，也不保证上游已经停止生成。
 
@@ -74,22 +74,23 @@ HTTP 输入通过 `model-input.ts` 无损提取完全相同的 `frontInfo` 至 `
 
 `createAiBattleRouter(service)` 挂在 `/api/admin/ai-battle`，整个路由树经过私密不缓存、登录与当前数据库 `rules.manage` 校验；服务再检查自身会话归属，包括已结束材料。通用 online 对局及管理员调试导出入口对 AI_DEBUG 同样检查当前权限和真人归属；AI_DEBUG 不生成管理员或房间号观战链接。
 
-| 相对路径 | 用途 |
-| --- | --- |
-| `GET /presets`、`GET /sessions` | 允许的构筑/手册及自己的会话 |
-| `POST /sessions` | 按构筑 ID、手册 ID、真人先后手创建 |
-| `GET /sessions/:matchId` | 会话状态 |
-| `GET /sessions/:matchId/snapshot`、`/public-events` | 真人正常可见桌面和公开事件 |
+| 相对路径                                              | 用途                                     |
+| ----------------------------------------------------- | ---------------------------------------- |
+| `GET /presets`、`GET /sessions`                       | 允许的构筑/手册及自己的会话              |
+| `POST /sessions`                                      | 按构筑 ID、手册 ID、真人先后手和模型创建 |
+| `GET /sessions/:matchId`                              | 会话状态和本局计费累计                   |
+| `GET /records/:matchId/billing`                       | 本人 AI 对局的持久费用，不依赖内存会话   |
+| `GET /sessions/:matchId/snapshot`、`/public-events`   | 真人正常可见桌面和公开事件               |
 | `POST /sessions/:matchId/command`、`/advance`、`/end` | 真人命令、普通阶段推进与可重试的结束封存 |
-| `GET /sessions/:matchId/decisions` | 有修订号的简短列表 |
-| `GET /sessions/:matchId/decisions/:decisionId` | 某决定及其引用材料 |
-| `GET /sessions/:matchId/export` | 可独立读取的当前保留会话 JSON |
+| `GET /sessions/:matchId/decisions`                    | 有修订号的简短列表                       |
+| `GET /sessions/:matchId/decisions/:decisionId`        | 某决定及其引用材料                       |
+| `GET /sessions/:matchId/export`                       | 可独立读取的当前保留会话 JSON            |
 
-观测读取只克隆保留证据，不读取新的权威快照、不执行命令、不唤醒 AI。完整验证范围见[支持矩阵](support-matrix.md)。数据库迁移只增加既有来源 CHECK 值，见[迁移说明](../../drizzle/migration-notes/ai-debug-match-origin.md)。
+观测读取只克隆保留证据，不读取新的权威快照、不执行命令、不唤醒 AI。完整验证范围见[支持矩阵](support-matrix.md)。数据库需要[来源迁移](../../drizzle/migration-notes/ai-debug-match-origin.md)与[计费字段迁移](../../drizzle/migration-notes/ai-battle-billing.md)。
 
 ## 管理员页面
 
-平台管理员从首页“运营工具 → AI 对战”直达；运营管理中心的“AI 对战调试”入口仍可使用，也可打开 `/?page=ai-battle-admin`。选择目录提供的真人构筑、AI 构筑、对应手册与真人先后手后创建。可选构筑由精选目录提供。已有活动对局时，可继续或结束该局；返回列表、离开页面或关闭观察框不会结束服务端对局。
+平台管理员从首页“运营工具 → AI 对战”直达；运营管理中心的“AI 对战调试”入口仍可使用，也可打开 `/?page=ai-battle-admin`。选择目录提供的真人构筑、AI 构筑、对应手册、模型与真人先后手后创建。可选构筑由精选目录提供。已有活动对局时，可继续或结束该局；返回列表、离开页面或关闭观察框不会结束服务端对局。
 
 牌桌继续复用 `GameBoard / PlayerArea`，通过 `AI_DEBUG` 远程传输接入正常真人命令与快照同步。能力配置禁止自由模式、切换视角、撤销和重开；外层工具栏显示等待、请求中、停止或结束状态。结束失败会保留牌桌与重试入口，成功后返回列表并允许新建。
 
@@ -100,3 +101,7 @@ HTTP 输入通过 `model-input.ts` 无损提取完全相同的 `frontInfo` 至 `
 模型选择、提交来源及权威执行结果分开显示；只有 `AUTHORITY_RESULT.success` 为真才显示执行成功。真实请求按原消息顺序展开 role/content，采集元数据仍保留来源映射；原始响应单独显示。材料支持查找、折叠、复制保留正文、导出本决定和保留会话。折叠不裁剪内容；采集层裁剪/缺失仍明确标示。内容仅作为文本渲染。
 
 浏览器夹具 `client/tests/e2e/ai-battle-ui.spec.ts` 覆盖宽屏／窄屏、日夜主题、键盘、观察导出、恢复和结束失败重试。完整数据库、HTTP、真实模型及截图的验证边界与复现步骤统一见[完整环境验证](full-environment-validation.md)。
+
+## 模型调用计费
+
+当前只支持北京人民币公开原价、两个精确型号与现有 Chat Completions usage 结构。每次实际请求独立计量，重试及失败响应的有效用量也计入；等待/机械处理不产生模型费用。决定旁的小金额可 hover、focus 或点击查看“输入 + 缓存输入 + 缓存创建 → 输出”；工具栏、会话列表和观察框显示本局累计。历史详情从 `match_records.ai_billing` 读取费用，日志淘汰与回放清理不削减累计。价格冻结、未知用量、保存失败和迟到响应边界见[计费说明](token-billing-proposal.md)。

@@ -7,61 +7,56 @@ import type { AiModelOutcome } from './runtime.js';
 import type { AiBattleTraceStore } from './trace-store.js';
 import { redactAiText } from './redaction.js';
 import { compactAiDecisionInput } from './model-input.js';
+import { AI_BATTLE_MODELS, type AiBattleModel } from '../../online/ai-battle-billing-types.js';
+import { parseAiTokenUsage, type AiBattleBilling } from './billing.js';
+import type { AiUpstreamConfiguration } from '../services/ai-effect-extraction-service.js';
 
 const MAX_REQUEST_BYTES = 512 * 1024;
 const MAX_RESPONSE_BYTES = 256 * 1024;
 
 export interface AiModelConfig {
   readonly endpoint: string;
-  readonly model: string;
+  readonly model: AiBattleModel;
   readonly apiKey: string;
   readonly temperature: number;
   readonly maxTokens: number;
 }
 
-/** Dedicated server configuration; extraction-service settings and developer credentials are unrelated. */
-export function readAiModelConfig(
+/** Compose the selected battle model with the platform's server-only upstream snapshot. */
+export function createAiModelConfig(
+  upstream: AiUpstreamConfiguration,
+  model: string,
   env: Readonly<Record<string, string | undefined>> = process.env
 ): AiModelConfig {
   const parsed = z
     .object({
       baseUrl: z.string().url(),
-      model: z.string().trim().min(1).max(120),
+      model: z.enum(AI_BATTLE_MODELS),
       apiKey: z
         .string()
         .min(1)
-        .max(1024)
+        .max(4096)
         .regex(/^[\x21-\x7E]+$/),
       temperature: z.coerce.number().min(0).max(2).default(0.2),
       maxTokens: z.coerce.number().int().min(128).max(4096).default(2048),
     })
     .safeParse({
-      baseUrl: env.AI_BATTLE_BASE_URL,
-      model: env.AI_BATTLE_MODEL,
-      apiKey: env.AI_BATTLE_API_KEY,
+      baseUrl: upstream.baseUrl,
+      model,
+      apiKey: upstream.apiKey,
       temperature: env.AI_BATTLE_TEMPERATURE,
       maxTokens: env.AI_BATTLE_MAX_TOKENS,
     });
   if (!parsed.success)
-    throw new AiBattleSetupError(
-      'AI_MODEL_CONFIG_INVALID',
-      '请配置 AI 对战专用模型地址、模型标识与密钥'
-    );
+    throw new AiBattleSetupError('AI_MODEL_CONFIG_INVALID', '请检查平台 AI 上游配置与对战模型参数');
   const url = new URL(parsed.data.baseUrl);
-  if (
-    url.protocol !== 'https:' ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash ||
-    !url.pathname.replace(/\/$/, '').endsWith('/compatible-mode/v1')
-  ) {
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
     throw new AiBattleSetupError(
       'AI_MODEL_CONFIG_INVALID',
-      'AI 模型地址须为不带凭据或查询参数的 HTTPS compatible-mode/v1 地址'
+      'AI 上游须为不带凭据或查询参数的 HTTPS Chat Completions Base URL'
     );
   }
-  url.pathname = `${url.pathname.replace(/\/$/, '')}/chat/completions`;
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}/chat/completions`;
   return Object.freeze({
     endpoint: url.toString(),
     model: parsed.data.model,
@@ -97,7 +92,9 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
     knowledge: AiFrozenKnowledge,
     private readonly traces: Pick<AiBattleTraceStore, 'append' | 'reportCaptureFailure'>,
     private readonly fetcher: typeof globalThis.fetch = globalThis.fetch,
-    private readonly now: () => number = Date.now
+    private readonly now: () => number = Date.now,
+    private readonly billing?: AiBattleBilling,
+    private readonly validateUpstream?: (endpoint: string) => Promise<unknown>
   ) {
     const knowledgeBytes = [
       knowledge.rules,
@@ -125,7 +122,7 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
     this.configurationMaterial = Object.freeze({
       id: 'model-configuration',
       title: '本局模型配置',
-      source: 'server:AI_BATTLE_*',
+      source: 'server:platform-ai-configuration',
       content,
       sha256: createHash('sha256').update(content).digest('hex'),
     });
@@ -174,6 +171,28 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
     }
     if (signal.aborted)
       return { kind: 'SERVICE_ERROR', message: 'Request cancelled before send', retryable: false };
+    try {
+      if (this.validateUpstream) await this.validateUpstream(this.config.endpoint);
+    } catch {
+      return {
+        kind: 'ADAPTER_ERROR',
+        message: '平台 AI 上游未通过出站校验，请检查上游配置与部署白名单',
+      };
+    }
+    if (signal.aborted)
+      return { kind: 'SERVICE_ERROR', message: 'Request cancelled before send', retryable: false };
+    let billingAttempt: Awaited<ReturnType<AiBattleBilling['begin']>> | undefined;
+    try {
+      if (this.billing) billingAttempt = await this.billing.begin(context.taskId);
+    } catch {
+      return { kind: 'ADAPTER_ERROR', message: 'AI 计费保存失败，已停止新请求' };
+    }
+    if (signal.aborted) {
+      await billingAttempt?.cancelBeforeSend();
+      return { kind: 'SERVICE_ERROR', message: 'Request cancelled before send', retryable: false };
+    }
+    const onAbort = () => billingAttempt?.interrupt();
+    signal.addEventListener('abort', onAbort, { once: true });
     this.capture(
       context,
       'REQUEST',
@@ -207,6 +226,8 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
         redirect: 'error',
       });
     } catch (error) {
+      signal.removeEventListener('abort', onAbort);
+      await billingAttempt?.finish(null);
       const detail = redactAiText(error instanceof Error ? error.message : String(error), [
         this.config.apiKey,
       ]);
@@ -263,7 +284,15 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
     if (truncated || readError) raw = redactAiTruncatedTail(raw, this.config.apiKey);
     const trailingCredentialRedacted = raw !== beforeTailRedaction;
     const redacted = redactAiText(raw, [this.config.apiKey]);
-    const parsed = envelope.safeParse(parseJson(redacted.text));
+    const responseValue = parseJson(redacted.text);
+    const parsed = envelope.safeParse(responseValue);
+    const usage =
+      !truncated && !readError && typeof responseValue === 'object' && responseValue !== null
+        ? parseAiTokenUsage((responseValue as Record<string, unknown>).usage)
+        : null;
+    // Count returned usage before choice validation, including cancelled and stale responses.
+    signal.removeEventListener('abort', onAbort);
+    await billingAttempt?.finish(usage);
     const first = parsed.success ? parsed.data.choices[0]! : null;
     this.capture(
       context,
@@ -283,6 +312,7 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
         bodyReadError: readError,
         finishReason: first?.finish_reason ?? null,
         cancelled: signal.aborted,
+        usage,
       },
       { attemptFinished: context.attempt }
     );

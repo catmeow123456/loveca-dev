@@ -1,5 +1,6 @@
 import type { OnlineMatchSnapshot } from './release-types.js';
 import type { Seat } from './types.js';
+import type { AiBattleModel, AiMatchBilling } from './ai-battle-billing-types.js';
 
 export interface AiBattlePresetChoice {
   readonly id: string;
@@ -16,9 +17,11 @@ export interface AiBattlePresetInput {
 
 export interface CreateAiBattleInput extends AiBattlePresetInput {
   readonly humanSeat: Seat;
+  readonly model: AiBattleModel;
 }
 
 export interface AiBattleSessionView extends CreateAiBattleInput {
+  readonly matchBilling: AiMatchBilling;
   readonly matchId: string;
   readonly startedAt: number;
   readonly endedAt: number | null;

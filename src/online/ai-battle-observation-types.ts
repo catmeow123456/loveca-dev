@@ -1,3 +1,5 @@
+import type { AiBillingSummary, AiMatchBilling } from './ai-battle-billing-types.js';
+
 /** Administrator-only diagnostic DTOs. These never enter the normal player snapshot. */
 export interface AiTraceMaterial {
   readonly id: string;
@@ -20,6 +22,7 @@ export interface AiTraceEvent {
 }
 
 export interface AiTraceDecisionSummary {
+  readonly decisionBilling: AiBillingSummary | null;
   readonly id: string;
   readonly revision: number;
   /** Compact display value; the complete sampled identity is in the SAMPLE material. */
@@ -41,6 +44,7 @@ export interface AiTraceDecision extends Omit<AiTraceDecisionSummary, 'submissio
 }
 
 export interface AiTraceListing {
+  readonly matchBilling: AiMatchBilling | null;
   readonly revision: number;
   readonly endedAt: number | null;
   readonly decisions: readonly AiTraceDecisionSummary[];
