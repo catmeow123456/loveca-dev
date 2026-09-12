@@ -138,7 +138,11 @@ describe('platform AI battle configuration', () => {
     vi.stubGlobal('fetch', fetcher);
     const f = await createClient();
     platform.validate.mockRejectedValue(
-      new AiEffectExtractionServiceError('AI_EFFECT_HOST_RESOLUTION_FAILED', '无法解析 AI 上游主机', 422)
+      new AiEffectExtractionServiceError(
+        'AI_EFFECT_HOST_RESOLUTION_FAILED',
+        '无法解析 AI 上游主机',
+        422
+      )
     );
     expect(await f.client.decide(input(), new AbortController().signal, context)).toMatchObject({
       kind: 'SERVICE_ERROR',
@@ -146,7 +150,11 @@ describe('platform AI battle configuration', () => {
     });
     // Policy rejections still fail closed.
     platform.validate.mockRejectedValue(
-      new AiEffectExtractionServiceError('AI_EFFECT_HOST_NOT_ALLOWED', '该 AI 上游主机不在部署白名单中', 422)
+      new AiEffectExtractionServiceError(
+        'AI_EFFECT_HOST_NOT_ALLOWED',
+        '该 AI 上游主机不在部署白名单中',
+        422
+      )
     );
     expect(await f.client.decide(input(), new AbortController().signal, context)).toMatchObject({
       kind: 'ADAPTER_ERROR',

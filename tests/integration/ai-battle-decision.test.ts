@@ -208,9 +208,7 @@ describe('AI ordinary decisions through authoritative commands', () => {
       ),
       'precondition: the special play option must actually be available'
     ).toBe(true);
-    expect(
-      buildAiBattleDecision(game, P1, special.session.getPlayerViewState(P1)!)
-    ).toMatchObject({
+    expect(buildAiBattleDecision(game, P1, special.session.getPlayerViewState(P1)!)).toMatchObject({
       kind: 'UNSUPPORTED',
       reason: 'Card-defined play is not yet adapted',
     });

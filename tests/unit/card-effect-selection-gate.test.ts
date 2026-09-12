@@ -12,7 +12,11 @@ import {
   type ActiveEffectStepHandlerInput,
 } from '../../src/application/card-effects/runtime/step-registry';
 import { PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-effect-choice-confirmation';
-import { createGameState, type ActiveEffectState, type GameState } from '../../src/domain/entities/game';
+import {
+  createGameState,
+  type ActiveEffectState,
+  type GameState,
+} from '../../src/domain/entities/game';
 
 const P1 = 'player1';
 
@@ -56,7 +60,11 @@ function unstructuredSingle(): Extract<ActiveEffectSelection, { kind: 'OPTIONS' 
   };
 }
 
-function cards(min: number, max: number, canSkip = false): Extract<ActiveEffectSelection, { kind: 'CARDS' }> {
+function cards(
+  min: number,
+  max: number,
+  canSkip = false
+): Extract<ActiveEffectSelection, { kind: 'CARDS' }> {
   return {
     kind: 'CARDS',
     cardIds: ['c1', 'c2', 'c3'],
@@ -72,14 +80,18 @@ describe('isActiveEffectSelectionValid option contract', () => {
   it('accepts the legacy selectedOptionId submission for an exact-one structured choice', () => {
     // game-session.ts normalizes selectedOptionId to [id] for SINGLE effectChoice;
     // the gate must accept the same shape instead of silently returning game.
-    expect(isActiveEffectSelectionValid(structuredSingle(), { selectedOptionId: 'draw' })).toBe(true);
+    expect(isActiveEffectSelectionValid(structuredSingle(), { selectedOptionId: 'draw' })).toBe(
+      true
+    );
     expect(
       isActiveEffectSelectionValid(structuredSingle(), {
         selectedCardId: null,
         selectedOptionId: 'draw',
       })
     ).toBe(true);
-    expect(isActiveEffectSelectionValid(structuredSingle(), { selectedOptionId: 'unknown' })).toBe(false);
+    expect(isActiveEffectSelectionValid(structuredSingle(), { selectedOptionId: 'unknown' })).toBe(
+      false
+    );
   });
 
   it('accepts the new structured shape and the card-option two-key shape', () => {
@@ -111,7 +123,9 @@ describe('isActiveEffectSelectionValid option contract', () => {
     ).toBe(false);
     // Over max / unknown ids / duplicates.
     expect(
-      isActiveEffectSelectionValid(structuredSingle(), { selectedEffectOptionIds: ['draw', 'score'] })
+      isActiveEffectSelectionValid(structuredSingle(), {
+        selectedEffectOptionIds: ['draw', 'score'],
+      })
     ).toBe(false);
     expect(
       isActiveEffectSelectionValid(structuredSingle(), { selectedEffectOptionIds: ['nope'] })
@@ -125,9 +139,9 @@ describe('isActiveEffectSelectionValid option contract', () => {
     expect(
       isActiveEffectSelectionValid(structuredMulti(), { selectedEffectOptionIds: ['a', 'b', 'c'] })
     ).toBe(false);
-    expect(isActiveEffectSelectionValid(structuredMulti(), { selectedEffectOptionIds: ['a', 'b'] })).toBe(
-      true
-    );
+    expect(
+      isActiveEffectSelectionValid(structuredMulti(), { selectedEffectOptionIds: ['a', 'b'] })
+    ).toBe(true);
     // Unstructured windows do not accept the structured key.
     expect(
       isActiveEffectSelectionValid(unstructuredSingle(), { selectedEffectOptionIds: ['pay'] })
@@ -137,23 +151,29 @@ describe('isActiveEffectSelectionValid option contract', () => {
   it('treats a legacy-only submission to a multi structured choice as the command layer decline', () => {
     // game-session.ts accepts {selectedCardId:null, selectedOptionId} on a MULTI choice
     // solely as a skip; the gate mirrors that instead of dead-ending the window.
-    expect(isActiveEffectSelectionValid(structuredMulti(true), { selectedOptionId: 'a' })).toBe(true);
-    expect(isActiveEffectSelectionValid(structuredMulti(false), { selectedOptionId: 'a' })).toBe(false);
+    expect(isActiveEffectSelectionValid(structuredMulti(true), { selectedOptionId: 'a' })).toBe(
+      true
+    );
+    expect(isActiveEffectSelectionValid(structuredMulti(false), { selectedOptionId: 'a' })).toBe(
+      false
+    );
   });
 
   it('keeps empty-input semantics aligned with the pre-gate behavior', () => {
     // Decline windows: empty input follows canSkip only.
     expect(isActiveEffectSelectionValid(structuredSingle(false), {})).toBe(false);
     expect(isActiveEffectSelectionValid(structuredSingle(true), {})).toBe(true);
-    expect(isActiveEffectSelectionValid(unstructuredSingle(), { selectedOptionId: null })).toBe(false);
+    expect(isActiveEffectSelectionValid(unstructuredSingle(), { selectedOptionId: null })).toBe(
+      false
+    );
     // min-0 ordered card windows historically accepted an omitted selection
     // (handler default `input.selectedCardIds ?? []`), e.g. arrange-inspected-deck-edge.
     expect(isActiveEffectSelectionValid(cards(0, 2, false), {})).toBe(true);
     // An explicit empty list is still checked against the group constraints.
     expect(isActiveEffectSelectionValid(cards(0, 2, false), { selectedCardIds: [] })).toBe(false);
-    expect(isActiveEffectSelectionValid({ ...cards(0, 2, false), groups: [] }, { selectedCardIds: [] })).toBe(
-      true
-    );
+    expect(
+      isActiveEffectSelectionValid({ ...cards(0, 2, false), groups: [] }, { selectedCardIds: [] })
+    ).toBe(true);
     expect(isActiveEffectSelectionValid(cards(1, 2, false), {})).toBe(false);
     expect(isActiveEffectSelectionValid(cards(1, 2, true), {})).toBe(true);
     expect(isActiveEffectSelectionValid({ kind: 'CONFIRM' }, {})).toBe(true);
@@ -162,12 +182,12 @@ describe('isActiveEffectSelectionValid option contract', () => {
 
   it('still rejects illegal card selections', () => {
     expect(isActiveEffectSelectionValid(cards(1, 2), { selectedCardIds: ['c9'] })).toBe(false);
-    expect(
-      isActiveEffectSelectionValid(cards(1, 2), { selectedCardIds: ['c2', 'c3'] })
-    ).toBe(false); // group {c1: min 1} unsatisfied
-    expect(
-      isActiveEffectSelectionValid(cards(1, 3), { selectedCardIds: ['c1', 'c1'] })
-    ).toBe(false);
+    expect(isActiveEffectSelectionValid(cards(1, 2), { selectedCardIds: ['c2', 'c3'] })).toBe(
+      false
+    ); // group {c1: min 1} unsatisfied
+    expect(isActiveEffectSelectionValid(cards(1, 3), { selectedCardIds: ['c1', 'c1'] })).toBe(
+      false
+    );
     expect(isActiveEffectSelectionValid(cards(1, 2), { selectedCardIds: ['c1', 'c2', 'c3'] })).toBe(
       false
     ); // over max
@@ -184,7 +204,10 @@ describe('active effect step gate progression', () => {
   };
 
   function gameWithEffect(effect: ActiveEffectState): GameState {
-    return { ...createGameState('selection-gate-game', P1, 'P1', 'player2', 'P2'), activeEffect: effect };
+    return {
+      ...createGameState('selection-gate-game', P1, 'P1', 'player2', 'P2'),
+      activeEffect: effect,
+    };
   }
 
   function choiceEffect(overrides: Partial<ActiveEffectState> = {}): ActiveEffectState {
@@ -228,7 +251,11 @@ describe('active effect step gate progression', () => {
     expect(seen[0]?.selectedOptionId).toBe('draw');
 
     // An illegal option is still refused without advancing the step.
-    const invalid = resolveActiveEffectStepWithRegistry(game, { selectedOptionId: 'nope' }, context);
+    const invalid = resolveActiveEffectStepWithRegistry(
+      game,
+      { selectedOptionId: 'nope' },
+      context
+    );
     expect(invalid).toBe(game);
     expect(seen).toHaveLength(1);
   });

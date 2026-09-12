@@ -32,7 +32,10 @@ export function getAiMechanicalSelection(decision: AiDecision): AiSelection | nu
       space.min === space.candidates.length &&
       (!space.ordered || space.candidates.length <= 1)
     ) {
-      return verified({ kind: 'CARDS', cardRefs: space.candidates.map((candidate) => candidate.ref) });
+      return verified({
+        kind: 'CARDS',
+        cardRefs: space.candidates.map((candidate) => candidate.ref),
+      });
     }
     return null;
   }

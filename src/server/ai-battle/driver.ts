@@ -83,7 +83,8 @@ export class AiBattleDriver {
     entry.dirty = true;
     // Terminal catch: the observe loop has an inner finally, but a rejection from the
     // serialized-queue wrapper itself must never become an unhandled rejection.
-    if (!entry.observing) void this.observe(entry).catch((error) => this.reportFault(entry, 'observe', error));
+    if (!entry.observing)
+      void this.observe(entry).catch((error) => this.reportFault(entry, 'observe', error));
   }
 
   private async observe(entry: DrivenMatch): Promise<void> {

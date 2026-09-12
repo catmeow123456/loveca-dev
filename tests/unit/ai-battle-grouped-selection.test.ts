@@ -129,9 +129,7 @@ describe('AI grouped subset constraints', () => {
   });
 
   it('verifies mechanical EFFECT shortcuts against grouped constraints', () => {
-    const effect = (
-      space: AiDecisionSpace
-    ): AiDecision =>
+    const effect = (space: AiDecisionSpace): AiDecision =>
       ({
         input: { purpose: 'EFFECT', space },
         toCommand: () => {

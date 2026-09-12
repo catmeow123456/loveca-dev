@@ -25,7 +25,7 @@
 | `PL!-sd1-003` | SD × 4 | 费用 13「南 ことり」 | ON_ENTER、LIVE_START | [live-start-discard-gain-heart.ts](../../src/application/card-effects/workflows/shared/live-start-discard-gain-heart.ts)、[waiting-room-to-hand.ts](../../src/application/card-effects/workflows/shared/waiting-room-to-hand.ts) |
 | `PL!-sd1-004` | SD × 4 | 费用 11「園田海未」 | ON_ENTER | [look-top-select-to-hand.ts](../../src/application/card-effects/workflows/shared/look-top-select-to-hand.ts) |
 | `PL!-sd1-005` | SD × 2 | 费用 2「星空 凛」 | ACTIVATED | [self-sacrifice-waiting-room-to-hand.ts](../../src/application/card-effects/workflows/shared/self-sacrifice-waiting-room-to-hand.ts) |
-| `PL!-sd1-006` | SD × 2 | 费用 9「西木野 真姫」 | ON_ENTER | [pl-sd1-006-maki.ts](../../src/application/card-effects/workflows/cards/pl-sd1-006-maki.ts) |
+| `PL!-sd1-006` | SD × 2 | 费用 9「西木野 真姫」 | ON_ENTER | [reveal-hand-live-swap-success-card.ts](../../src/application/card-effects/workflows/shared/reveal-hand-live-swap-success-card.ts) |
 | `PL!-sd1-007` | SD × 2 | 费用 7「東條 希」 | ON_ENTER | [pl-sd1-007-nozomi.ts](../../src/application/card-effects/workflows/cards/pl-sd1-007-nozomi.ts) |
 | `PL!-sd1-008` | SD × 2 | 费用 4「小泉 花陽」 | ACTIVATED | [pl-sd1-008-hanayo.ts](../../src/application/card-effects/workflows/cards/pl-sd1-008-hanayo.ts) |
 | `PL!-sd1-009` | SD × 2 | 费用 15「矢澤 にこ」 | LIVE_START | [conditional-live-modifier.ts](../../src/application/card-effects/workflows/shared/conditional-live-modifier.ts) |
