@@ -65,7 +65,7 @@
 | 对墙打模式     | [对墙打模式需求](solitaire-mode-requirements.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | 本地调试模式与对墙打模式边界                                                                                 |
 | 成员下方堆叠   | [成员下方堆叠](special-member-stacking.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `memberBelow` 的卡效创建、生命周期和投影边界                                                                 |
 
-AI 专题入口：[支持矩阵](ai-battle/support-matrix.md)维护构筑与窗口边界；[运行与观测说明](ai-battle/runtime-and-observation.md)维护实现、权限与证据契约；[完整环境验证](ai-battle/full-environment-validation.md)维护复现条件。
+AI 专题入口：[支持矩阵](ai-battle/support-matrix.md)维护构筑与窗口边界；[运行与观测说明](ai-battle/runtime-and-observation.md)维护实现、权限与证据契约；[token 计费与费用展示](ai-battle/token-billing-proposal.md)维护计费当前事实（北京 Max / Flash 价格、单步提示、整局持久累计与未知用量口径），部署需执行 [0040 迁移](../drizzle/migration-notes/ai-battle-billing.md)；[完整环境验证](ai-battle/full-environment-validation.md)维护复现条件。
 
 ## 编码标准
 
@@ -79,8 +79,6 @@ AI 专题入口：[支持矩阵](ai-battle/support-matrix.md)维护构筑与窗�
 ## 计划与历史参考
 
 这些文档可以解释背景或后续方向，但不应替代当前事实文档：
-
-AI 计费：[token 计费与费用展示](ai-battle/token-billing-proposal.md)记录北京 Max / Flash 价格、单步提示、整局持久累计与未知用量口径；部署需执行 [0040 迁移](../drizzle/migration-notes/ai-battle-billing.md)。
 
 AI 历史实验保留用于解释策略限制与输入设计，不能作为当前验收结论：[模型验证](ai-battle/model-validation.md)、[初次真人复盘](ai-battle/reviews/2026-09-09-d0f78580.md)、[提示修正复测](ai-battle/reviews/2026-09-09-d0f78580-retest.md)、[换手选择调查](ai-battle/reviews/2026-09-09-995a9195-77.md)、[中后期决策抽样](ai-battle/reviews/2026-09-09-316b7939.md)、[手牌规划复测](ai-battle/reviews/2026-09-09-hand-planning.md)、[绿莲费用衔接](ai-battle/reviews/2026-09-09-c530c1a3-28.md)、[绿莲补场取舍](ai-battle/reviews/2026-09-09-3a5522fa-73.md)、[绿莲资源顺序](ai-battle/reviews/2026-09-10-3d6b3a8c-58-69.md)。
 

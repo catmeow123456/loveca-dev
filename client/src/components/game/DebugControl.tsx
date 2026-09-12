@@ -180,6 +180,8 @@ function getBattleSurfaceLabel(surface: BattleSurfaceKind): string {
       return '远程调试';
     case 'TUTORIAL':
       return '新手教程';
+    case 'AI_DEBUG':
+      return 'AI 调试';
     case 'ONLINE':
     default:
       return '联机';

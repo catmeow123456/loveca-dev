@@ -57,6 +57,9 @@ export function AiBattleAdminPage({
   const liveMatchId = useGameStore((state) => state.playerViewState?.match.matchId ?? null);
   const mounted = useRef(true);
   const requestGeneration = useRef(0);
+  // Marks that the visible error came from board polling, so a later
+  // successful poll can clear it without touching errors from user actions.
+  const pollErrorActive = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -97,6 +100,10 @@ export function AiBattleAdminPage({
         try {
           const session = await fetchAiBattleSession(boardId);
           if (cancelled) return;
+          if (pollErrorActive.current) {
+            pollErrorActive.current = false;
+            setError(null);
+          }
           setSessions((current) =>
             current.map((entry) => (entry.matchId === boardId ? session : entry))
           );
@@ -104,7 +111,10 @@ export function AiBattleAdminPage({
           if (useGameStore.getState().remoteSession?.matchId === boardId)
             await useGameStore.getState().syncRemoteState();
         } catch (cause) {
-          if (!cancelled) setError(message(cause));
+          if (!cancelled) {
+            pollErrorActive.current = true;
+            setError(message(cause));
+          }
         }
       },
     });
@@ -155,7 +165,10 @@ export function AiBattleAdminPage({
       });
       await attach(result.session, result.snapshot, generation);
     } catch (cause) {
-      if (mounted.current) setError(message(cause));
+      if (mounted.current) {
+        pollErrorActive.current = false;
+        setError(message(cause));
+      }
     } finally {
       if (mounted.current) setIsBusy(false);
     }
@@ -169,7 +182,10 @@ export function AiBattleAdminPage({
       if ('modified' in snapshot) throw new Error('未取得完整桌面快照，请重试');
       await attach(session, snapshot, generation);
     } catch (cause) {
-      if (mounted.current) setError(message(cause));
+      if (mounted.current) {
+        pollErrorActive.current = false;
+        setError(message(cause));
+      }
     } finally {
       if (mounted.current) setIsBusy(false);
     }
@@ -184,7 +200,10 @@ export function AiBattleAdminPage({
         setSessions(list);
       }
     } catch (cause) {
-      if (mounted.current) setError(message(cause));
+      if (mounted.current) {
+        pollErrorActive.current = false;
+        setError(message(cause));
+      }
     } finally {
       if (mounted.current) setIsLoading(false);
     }
@@ -214,6 +233,7 @@ export function AiBattleAdminPage({
       setEndingId(null);
     } catch (cause) {
       if (mounted.current) {
+        pollErrorActive.current = false;
         setError(message(cause));
         setEndingId(null);
       }

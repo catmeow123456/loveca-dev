@@ -53,7 +53,12 @@ export function AiBillingCost({
   useEffect(() => {
     if (!anchor) return;
     const outside = (event: PointerEvent) => {
-      if (!trigger.current?.contains(event.target as Node)) setAnchor(null);
+      if (!trigger.current?.contains(event.target as Node)) {
+        // Reset the pinned state too: Safari does not move focus (no blur) when
+        // tapping a non-focusable area, which would otherwise leave the tooltip stuck.
+        pinned.current = false;
+        setAnchor(null);
+      }
     };
     const close = () => setAnchor(null);
     const scroll = () => {
