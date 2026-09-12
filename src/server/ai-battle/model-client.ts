@@ -8,8 +8,11 @@ import type { AiBattleTraceStore } from './trace-store.js';
 import { redactAiText } from './redaction.js';
 import { compactAiDecisionInput } from './model-input.js';
 import { AI_BATTLE_MODELS, type AiBattleModel } from '../../online/ai-battle-billing-types.js';
-import { parseAiTokenUsage, type AiBattleBilling } from './billing.js';
+import { parseAiTokenUsage, safeAiErrorForLog, type AiBattleBilling } from './billing.js';
 import type { AiUpstreamConfiguration } from '../services/ai-effect-extraction-service.js';
+
+/** An injected upstream validator throws this for transient infrastructure faults (e.g. DNS). */
+export class AiUpstreamTransientError extends Error {}
 
 const MAX_REQUEST_BYTES = 512 * 1024;
 const MAX_RESPONSE_BYTES = 256 * 1024;
@@ -173,11 +176,21 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
       return { kind: 'SERVICE_ERROR', message: 'Request cancelled before send', retryable: false };
     try {
       if (this.validateUpstream) await this.validateUpstream(this.config.endpoint);
-    } catch {
-      return {
-        kind: 'ADAPTER_ERROR',
-        message: '平台 AI 上游未通过出站校验，请检查上游配置与部署白名单',
-      };
+    } catch (error) {
+      // A transient infrastructure fault (e.g. host resolution) may succeed on the bounded
+      // service retry; allowlist/HTTPS/private-address rejections are deployment policy
+      // faults that must fail closed and permanently stop the session.
+      const transient = error instanceof AiUpstreamTransientError;
+      this.capture(context, 'VALIDATION_FAILED', {
+        transient,
+        ...safeAiErrorForLog(error),
+      });
+      return transient
+        ? { kind: 'SERVICE_ERROR', message: 'AI 上游主机暂时不可达，稍后重试', retryable: true }
+        : {
+            kind: 'ADAPTER_ERROR',
+            message: '平台 AI 上游未通过出站校验，请检查上游配置与部署白名单',
+          };
     }
     if (signal.aborted)
       return { kind: 'SERVICE_ERROR', message: 'Request cancelled before send', retryable: false };
@@ -185,7 +198,13 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
     try {
       if (this.billing) billingAttempt = await this.billing.begin(context.taskId);
     } catch {
-      return { kind: 'ADAPTER_ERROR', message: 'AI 计费保存失败，已停止新请求' };
+      // The counters were rolled back and nothing was sent, so a failed billing snapshot is a
+      // persistence fault to retry, not a misconfigured adapter to fail closed on.
+      return {
+        kind: 'SERVICE_ERROR',
+        message: 'AI 计费保存失败，本次请求未发送',
+        retryable: true,
+      };
     }
     if (signal.aborted) {
       await billingAttempt?.cancelBeforeSend();

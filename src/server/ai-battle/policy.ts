@@ -14,15 +14,25 @@ export function getAiMechanicalSelection(decision: AiDecision): AiSelection | nu
       return space.candidates.length === 1
         ? { kind: 'ACTION', actionRef: space.candidates[0]!.ref }
         : null;
+    // Shortcuts must satisfy the same grouped constraints as a model answer; an
+    // unverifiable shortcut defers to the fallback search instead of failing later.
+    const verified = (selection: AiSelection): AiSelection | null => {
+      try {
+        validateSelection(space, selection);
+        return selection;
+      } catch {
+        return null;
+      }
+    };
     if (space.candidates.length === 0 && (space.canSkip || space.min === 0))
-      return { kind: 'CARDS', cardRefs: [] };
+      return verified({ kind: 'CARDS', cardRefs: [] });
     if (space.canSkip) return null;
     if (
       space.min === space.max &&
       space.min === space.candidates.length &&
       (!space.ordered || space.candidates.length <= 1)
     ) {
-      return { kind: 'CARDS', cardRefs: space.candidates.map((candidate) => candidate.ref) };
+      return verified({ kind: 'CARDS', cardRefs: space.candidates.map((candidate) => candidate.ref) });
     }
     return null;
   }

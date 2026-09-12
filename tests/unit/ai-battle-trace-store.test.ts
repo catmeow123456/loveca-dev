@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { AI_TRACE_LIMITS, AiBattleTraceStore } from '../../src/server/ai-battle/trace-store';
+import {
+  AI_PENDING_ATTEMPT_STALE_MS,
+  AI_TRACE_LIMITS,
+  AiBattleTraceStore,
+} from '../../src/server/ai-battle/trace-store';
 import type { AiTraceExport } from '../../src/online/ai-battle-observation-types';
 
 const source = {
@@ -135,6 +139,69 @@ describe('bounded AI observation evidence', () => {
     store.begin('m', identity('5'));
     expect(store.list('m')!.decisions.map((decision) => decision.id)).toEqual(['3', '5']);
     referencesAreResolvable(store.export('m')!);
+  });
+
+  it('evicts a hung REQUESTING decision only after its pending attempt goes stale', () => {
+    let now = 0;
+    const store = new AiBattleTraceStore({ ...AI_TRACE_LIMITS, decisions: 2 }, () => now);
+    const ids = () => store.list('m')!.decisions.map((decision) => decision.id);
+    store.open('m', []);
+    store.begin('m', identity('1'));
+    // Half-open connection: attemptFinished never arrives and the decision stays pinned.
+    store.append('m', '1', 'REQUEST', {}, { attemptStarted: 0, status: 'REQUESTING' });
+    store.begin('m', identity('2'));
+    store.append('m', '2', 'SUBMIT', {}, { status: 'ACCEPTED' });
+    store.begin('m', identity('3'));
+    expect(ids()).toEqual(['1', '3']); // the terminal decision is the regular victim
+    store.begin('m', identity('x'));
+    expect(ids()).toEqual(['1', '3']); // fresh pending attempt: still never evicted
+    expect(store.list('m')!.omittedDecisions).toBe(1);
+    now = AI_PENDING_ATTEMPT_STALE_MS - 1;
+    store.begin('m', identity('y'));
+    expect(ids()).toEqual(['1', '3']); // protected up to the threshold
+    expect(store.list('m')!.omittedDecisions).toBe(2);
+    now = AI_PENDING_ATTEMPT_STALE_MS;
+    store.begin('m', identity('4'));
+    expect(ids()).toEqual(['3', '4']); // hung decision evicted as the forced last resort
+    expect(store.list('m')!.evictedDecisions).toBe(2);
+    // A late completion for the evicted decision is discarded, never resurrected.
+    store.append('m', '1', 'LATE_RESPONSE', {}, { attemptFinished: 0, status: 'STALE' });
+    expect(store.list('m')!.discardedLateUpdates).toBe(1);
+    referencesAreResolvable(store.export('m')!);
+  });
+
+  it('prefers terminal victims over stale hung pins when both are evictable', () => {
+    let now = 0;
+    const store = new AiBattleTraceStore({ ...AI_TRACE_LIMITS, decisions: 2 }, () => now);
+    const ids = () => store.list('m')!.decisions.map((decision) => decision.id);
+    store.open('m', []);
+    store.begin('m', identity('1'));
+    store.append('m', '1', 'REQUEST', {}, { attemptStarted: 0, status: 'REQUESTING' });
+    store.begin('m', identity('2'));
+    now = AI_PENDING_ATTEMPT_STALE_MS;
+    store.append('m', '2', 'SUBMIT', {}, { status: 'ACCEPTED' });
+    store.begin('m', identity('3'));
+    expect(ids()).toEqual(['1', '3']); // regular eviction order is unchanged
+    store.begin('m', identity('4'));
+    expect(ids()).toEqual(['3', '4']); // only now is the stale pin reclaimed
+    expect(store.list('m')!.evictedDecisions).toBe(2);
+  });
+
+  it('does not treat a retried attempt as stale while its replacement is in flight', () => {
+    let now = 0;
+    const store = new AiBattleTraceStore({ ...AI_TRACE_LIMITS, decisions: 1 }, () => now);
+    store.open('m', []);
+    store.begin('m', identity('1'));
+    store.append('m', '1', 'REQUEST', {}, { attemptStarted: 0, status: 'REQUESTING' });
+    now = AI_PENDING_ATTEMPT_STALE_MS;
+    // Attempt 0 completes and attempt 1 starts in flight; the decision must stay pinned.
+    store.append('m', '1', 'RETRY', {}, { attemptFinished: 0, attemptStarted: 1 });
+    store.begin('m', identity('2'));
+    expect(store.list('m')!.decisions.map((decision) => decision.id)).toEqual(['1']);
+    expect(store.list('m')!.omittedDecisions).toBe(1);
+    now = AI_PENDING_ATTEMPT_STALE_MS * 2;
+    store.begin('m', identity('3'));
+    expect(store.list('m')!.decisions.map((decision) => decision.id)).toEqual(['3']);
   });
 
   it('caps events, preserves terminal status, and reports serialization failures without throwing', () => {

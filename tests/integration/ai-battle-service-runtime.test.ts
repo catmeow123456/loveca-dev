@@ -498,18 +498,22 @@ describe('AI match authority queue and lifecycle', () => {
     }
   );
 
-  it('keeps a failed end retryable, invalidates its request first, and preserves a natural result', async () => {
+  it('keeps a failed end retryable and the match fully drivable, and preserves a natural result', async () => {
     const recorder = recorderFixture();
     const f = await fixture({ recorder });
     const task = await modelTask(f);
     recorder.sealMatch.mockRejectedValueOnce(new Error('seal unavailable'));
     expect(await f.service.deleteMatch(f.match.matchId, { reason: 'AI_DEBUG_ENDED' })).toBe(false);
-    expect(task.signal.aborted).toBe(true);
+    // A failed seal must leave no half-dead match: the runtime is not permanently stopped and
+    // the in-flight request is not aborted, because the match itself stays live and retryable.
+    expect(task.signal.aborted).toBe(false);
     expect(f.service.getMatch(f.match.matchId)).toBe(f.match);
-    expect((await f.service.advanceAiBattle(f.match.matchId)).kind).toBe('STOPPED');
+    expect((await f.service.advanceAiBattle(f.match.matchId)).kind).toBe('BUSY');
+    // The original request stays completable; an invalid answer goes through the normal
+    // output-failure fallback policy instead of being discarded as stale.
     expect(
       await f.service.completeAiBattleTask(f.match.matchId, task, { kind: 'RESPONSE', text: '{}' })
-    ).toEqual({ kind: 'STALE' });
+    ).toEqual({ kind: 'ACCEPTED' });
     expect(await f.service.deleteMatch(f.match.matchId, { reason: 'AI_DEBUG_ENDED' })).toBe(true);
     expect(await f.service.deleteMatch(f.match.matchId, { reason: 'AI_DEBUG_ENDED' })).toBe(true);
     expect(recorder.sealMatch).toHaveBeenCalledTimes(2);

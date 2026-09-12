@@ -158,6 +158,13 @@ export function validateSelection(
   }
 }
 
+/**
+ * Worst-case visited-node cap for the subset search. Legal windows are tiny in practice;
+ * overlapping group minimums can make feasibility undecidable by cheap prechecks, and the
+ * enumeration is exponential. The bound converts a pathological window into a bounded failure.
+ */
+const AI_CARD_SELECTION_SEARCH_NODE_BUDGET = 200_000;
+
 /** Find a complete legal subset from visible constraints; never execute a candidate. */
 export function findAiCardSelection(
   space: Extract<AiDecisionSpace, { kind: 'CARDS' }>
@@ -165,7 +172,17 @@ export function findAiCardSelection(
   if (space.canSkip) return { kind: 'CARDS', cardRefs: [] };
   const refs = space.candidates.map((candidate) => candidate.ref);
   const groups = space.groups ?? [];
+  // Per-group satisfiability precheck: a group whose available membership (capped by the
+  // overall selection limit) cannot reach its minimum has no legal completion at all.
+  for (const group of groups) {
+    const available = group.cardRefs.filter((ref) => refs.includes(ref)).length;
+    if (Math.min(group.max, available, space.max) < group.min)
+      throw new Error('No complete legal card selection');
+  }
+  let visitedNodes = 0;
   const search = (selected: string[], start: number): string[] | null => {
+    if (++visitedNodes > AI_CARD_SELECTION_SEARCH_NODE_BUDGET)
+      throw new Error('Card selection search exceeded the node budget');
     if (
       groups.some(
         (group) => selected.filter((ref) => group.cardRefs.includes(ref)).length > group.max

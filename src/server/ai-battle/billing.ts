@@ -116,10 +116,13 @@ export function updateAiBillingSummary(
     previous?.usage ?? emptyAiTokenUsage(),
     delta.usage ?? emptyAiTokenUsage()
   );
+  const attempts = (previous?.attempts ?? 0) + (delta.attempts ?? 0);
+  const reportedAttempts = (previous?.reportedAttempts ?? 0) + (delta.reportedAttempts ?? 0);
   return {
     usage,
-    attempts: (previous?.attempts ?? 0) + (delta.attempts ?? 0),
-    reportedAttempts: (previous?.reportedAttempts ?? 0) + (delta.reportedAttempts ?? 0),
+    attempts,
+    reportedAttempts,
+    unreportedAttempts: attempts - reportedAttempts,
     pendingAttempts: (previous?.pendingAttempts ?? 0) + (delta.pendingAttempts ?? 0),
     estimatedCny: calculateAiCost(usage, prices),
     saveFailed: false,
@@ -135,8 +138,25 @@ export function projectAiBilling(
     ...record,
     pendingAttempts,
     saveFailed,
+    // Derived from the two persisted counters; never stored in the jsonb record itself.
+    unreportedAttempts: record.attempts - record.reportedAttempts,
     estimatedCny: calculateAiCost(record.usage, record.prices),
   };
+}
+
+/**
+ * Log-safe error facts. Driver/DB messages can embed connection URLs; stack frames and
+ * query parameters must never reach logs. Mirrors the project `safeError` pattern.
+ */
+export function safeAiErrorForLog(error: unknown): {
+  readonly name: string;
+  readonly message: string;
+} {
+  const message = (error instanceof Error ? error.message : String(error)).replace(
+    /\b[a-z][a-z0-9+.-]*:\/\/[^\s'"]+/gi,
+    '[REDACTED_URL]'
+  );
+  return { name: error instanceof Error ? error.name : 'UnknownError', message };
 }
 
 export interface AiBillingPersistence {
@@ -241,8 +261,15 @@ export class AiBattleBilling {
           this.saveFailed = false;
           this.changed(matchId, this.view());
           return true;
-        } catch {
+        } catch (error) {
           this.saveFailed = true;
+          // Keep the degraded saveFailed path, but do not lose the reason: log sanitized
+          // facts only (no stack, no query parameters, connection URLs redacted).
+          console.warn('[AiBilling] 计费快照保存失败', {
+            matchId,
+            revision: snapshot.revision,
+            ...safeAiErrorForLog(error),
+          });
         }
       }
       this.changed(matchId, this.view());

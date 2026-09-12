@@ -24,11 +24,24 @@ export const AI_TRACE_LIMITS = {
   endedTtlMs: 60 * 60 * 1000,
 } as const;
 
+/**
+ * A pending attempt whose completion callback never arrives would pin its decision forever:
+ * on a half-open connection an abort may never settle `reader.read()`, so `attemptFinished`
+ * never comes. 4 × the 30 s per-decision model timeout (runtime.ts `AI_MODEL_TIMEOUT_MS`,
+ * one retry allowed) is ample grace for a live request; beyond it every pending attempt of a
+ * decision counts as hung, and forced new-decision admission may evict it as a last resort.
+ * Without this, hung decisions eventually fill the session budget and silently black out all
+ * further evidence (only `omittedDecisions` would grow).
+ */
+export const AI_PENDING_ATTEMPT_STALE_MS = 4 * 30_000;
+
 type Limits = { readonly [K in keyof typeof AI_TRACE_LIMITS]: number };
 interface StoredDecision {
   value: AiTraceDecision;
   /** Bounded metadata reservation, separate from retained text accounting. */
   readonly reservedBytes: number;
+  /** Internal staleness clock per pending attempt index; never exposed on the decision value. */
+  readonly pendingSince: Map<number, number>;
 }
 interface TraceSession {
   matchBilling: AiMatchBilling | null;
@@ -146,6 +159,7 @@ export class AiBattleTraceStore {
       this.reserve(session, DECISION_RESERVATION);
       session.decisions.set(identity.id, {
         reservedBytes: DECISION_RESERVATION,
+        pendingSince: new Map(),
         value: {
           decisionBilling: null,
           id: label(identity.id),
@@ -187,9 +201,15 @@ export class AiBattleTraceStore {
       const before = record.value;
       const pending = new Set(before.pendingAttempts);
       // The protocol permits two attempts. Arbitrary indices cannot grow a retention pin set.
-      if (options.attemptStarted === 0 || options.attemptStarted === 1)
+      if (options.attemptStarted === 0 || options.attemptStarted === 1) {
+        if (!pending.has(options.attemptStarted))
+          record.pendingSince.set(options.attemptStarted, this.now());
         pending.add(options.attemptStarted);
-      if (options.attemptFinished !== undefined) pending.delete(options.attemptFinished);
+      }
+      if (options.attemptFinished !== undefined) {
+        pending.delete(options.attemptFinished);
+        record.pendingSince.delete(options.attemptFinished);
+      }
       record.value = {
         ...before,
         updatedAt: this.now(),
@@ -404,12 +424,20 @@ export class AiBattleTraceStore {
       this.bytes + bytes <= this.limits.processBytes;
     while (!fits()) {
       // Keep active attempts and the current decision's mapping. Never resurrect evicted late updates.
-      const victim = [...session.decisions.entries()].find(
-        ([id, entry]) =>
-          id !== protectedId &&
-          entry.value.pendingAttempts.length === 0 &&
-          ['ACCEPTED', 'STALE', 'STOPPED', 'ENDED', 'WAITING'].includes(entry.value.status)
-      );
+      const entries = [...session.decisions.entries()];
+      const victim =
+        entries.find(
+          ([id, entry]) =>
+            id !== protectedId &&
+            entry.value.pendingAttempts.length === 0 &&
+            ['ACCEPTED', 'STALE', 'STOPPED', 'ENDED', 'WAITING'].includes(entry.value.status)
+        ) ??
+        // Forced-admission last resort: a hung pending attempt (AI_PENDING_ATTEMPT_STALE_MS)
+        // must not pin evidence forever. Map order is insertion order, so this picks the
+        // oldest stale-pinned decision; with no victim at all, omittedDecisions still counts.
+        (addingDecision
+          ? entries.find(([id, entry]) => id !== protectedId && this.pendingStale(entry))
+          : undefined);
       if (!victim) return false;
       const [id, record] = victim;
       for (const event of record.value.events) {
@@ -422,6 +450,17 @@ export class AiBattleTraceStore {
       session.evictedDecisions++;
     }
     return true;
+  }
+
+  /** True only when every pending attempt started long ago and never completed (hung). */
+  private pendingStale(record: StoredDecision): boolean {
+    const pending = record.value.pendingAttempts;
+    if (pending.length === 0) return false;
+    const now = this.now();
+    return pending.every((attempt) => {
+      const startedAt = record.pendingSince.get(attempt);
+      return startedAt !== undefined && now - startedAt >= AI_PENDING_ATTEMPT_STALE_MS;
+    });
   }
 
   private material(

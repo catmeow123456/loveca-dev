@@ -3,7 +3,11 @@ import {
   AiEffectExtractionServiceError,
 } from '../services/ai-effect-extraction-service.js';
 import { AiBattleSetupError, type AiFrozenKnowledge } from './presets.js';
-import { createAiModelConfig, DashScopeAiBattleClient } from './model-client.js';
+import {
+  AiUpstreamTransientError,
+  createAiModelConfig,
+  DashScopeAiBattleClient,
+} from './model-client.js';
 import type { AiBattleModel } from '../../online/ai-battle-billing-types.js';
 import type { AiBattleTraceStore } from './trace-store.js';
 import type { AiBattleBilling } from './billing.js';
@@ -26,8 +30,23 @@ export async function readAiModelConfig(
   }
 }
 
-export const validateAiUpstream = (endpoint: string) =>
-  aiEffectExtractionService.validateOutboundUrl(endpoint);
+/**
+ * Deployment allowlist/DNS recheck before every battle request. Host-resolution failure is
+ * classified as transient so the model client can bound-retry it instead of failing closed;
+ * every other rejection stays a permanent adapter fault.
+ */
+export const validateAiUpstream = async (endpoint: string): Promise<URL> => {
+  try {
+    return await aiEffectExtractionService.validateOutboundUrl(endpoint);
+  } catch (error) {
+    if (
+      error instanceof AiEffectExtractionServiceError &&
+      error.code === 'AI_EFFECT_HOST_RESOLUTION_FAILED'
+    )
+      throw new AiUpstreamTransientError(error.message);
+    throw error;
+  }
+};
 
 export async function createPlatformAiBattleClient(
   knowledge: AiFrozenKnowledge,

@@ -19,6 +19,7 @@ import { AI_BATTLE_MODELS, type AiBattleModel } from '../../online/ai-battle-bil
 import {
   AiBattleBilling,
   projectAiBilling,
+  safeAiErrorForLog,
   type AiBillingPersistence,
 } from '../ai-battle/billing.js';
 import { AiBillingRepository } from '../ai-battle/billing-repository.js';
@@ -190,10 +191,17 @@ export class AiBattleService {
           this.sessions.delete(match.matchId);
         } else {
           entry.stoppedReason = 'AI_CREATE_CLEANUP_FAILED';
-          throw new AiBattleSetupError(
+          console.error('[AiBattle] 创建失败且封存未完成', {
+            matchId: match.matchId,
+            ...safeAiErrorForLog(error),
+          });
+          const cleanupFailure = new AiBattleSetupError(
             'AI_CREATE_CLEANUP_FAILED',
             '创建失败且封存未完成，请在会话列表重试结束'
           );
+          // Preserve the original setup failure for diagnostics instead of discarding it.
+          cleanupFailure.cause = error;
+          throw cleanupFailure;
         }
         throw error;
       }

@@ -208,9 +208,11 @@ describe('AI model HTTP boundary', () => {
       kind: 'RESPONSE',
     });
     expect(f.billing.view().saveFailed).toBe(true);
+    // A failed billing snapshot is a retryable persistence fault, not a permanent adapter
+    // fault; the request is still never dispatched while accounting cannot be saved.
     expect(
       await f.client.decide(input, new AbortController().signal, { ...context, taskId: '2' })
-    ).toMatchObject({ kind: 'ADAPTER_ERROR' });
+    ).toMatchObject({ kind: 'SERVICE_ERROR', retryable: true });
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
   it('requires explicit platform credentials, excludes URL credentials and validates behavior parameters', () => {

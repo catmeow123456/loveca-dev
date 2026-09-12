@@ -85,7 +85,11 @@ export function isActiveEffectSelectionValid(
   });
   if (selection.kind === 'CONFIRM') return keys.length === 0;
   // Omitting the optional choice is also the normal command API's decline operation.
-  if (keys.length === 0) return selection.canSkip;
+  // An omitted card selection additionally defaults to the empty list inside the handlers
+  // of min-0 ordered windows, so empty input stays a valid zero-card selection there.
+  if (keys.length === 0) {
+    return selection.canSkip || (selection.kind === 'CARDS' && selection.min === 0);
+  }
   if (selection.kind === 'CARDS') {
     const key = selection.mode === 'ORDERED_MULTI' ? 'selectedCardIds' : 'selectedCardId';
     // Existing clients may submit the single object form to an exact-one multi step.
@@ -104,19 +108,43 @@ export function isActiveEffectSelectionValid(
       })
     );
   }
-  const key = selection.structured ? 'selectedEffectOptionIds' : 'selectedOptionId';
-  if (keys.length !== 1 || keys[0] !== key) return false;
-  const ids = selection.structured
-    ? (input.selectedEffectOptionIds ?? [])
-    : typeof input.selectedOptionId === 'string'
-      ? [input.selectedOptionId]
-      : [];
-  return validSubset(
-    selection.options.map((option) => option.id),
-    ids,
-    selection.min,
-    selection.max
-  );
+  // Card-option effect choices submit the chosen card token alongside the option
+  // selection (createConfirmEffectChoiceCommand); the command layer validates that
+  // membership itself, so only the choice keys are gated here.
+  const choiceKeys = keys.filter((key) => key !== 'selectedCardId');
+  const optionIds = selection.options.map((option) => option.id);
+  if (!selection.structured) {
+    if (choiceKeys.length !== 1 || choiceKeys[0] !== 'selectedOptionId') return false;
+    const ids = typeof input.selectedOptionId === 'string' ? [input.selectedOptionId] : [];
+    return validSubset(optionIds, ids, selection.min, selection.max);
+  }
+  // The command layer accepts the legacy single-option key for an exact-one structured
+  // choice and normalizes it to a one-element list (same as getStructuredEffectChoiceSelection).
+  const legacyOptionId =
+    selection.min === 1 &&
+    selection.max === 1 &&
+    input.selectedEffectOptionIds === undefined &&
+    input.selectedOptionId
+      ? input.selectedOptionId
+      : undefined;
+  if (legacyOptionId !== undefined) {
+    return (
+      choiceKeys.length === 1 &&
+      choiceKeys[0] === 'selectedOptionId' &&
+      validSubset(optionIds, [legacyOptionId], selection.min, selection.max)
+    );
+  }
+  if (choiceKeys.length !== 1 || choiceKeys[0] !== 'selectedEffectOptionIds') {
+    // A multi structured choice receiving only the legacy key carries no usable
+    // selection; the command layer accepts that submission solely as a decline.
+    return (
+      choiceKeys.length === 1 &&
+      choiceKeys[0] === 'selectedOptionId' &&
+      typeof input.selectedOptionId === 'string' &&
+      selection.canSkip
+    );
+  }
+  return validSubset(optionIds, input.selectedEffectOptionIds ?? [], selection.min, selection.max);
 }
 
 function validSubset(

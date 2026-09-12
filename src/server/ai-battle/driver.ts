@@ -8,6 +8,7 @@ import {
 import type { AiDecisionInput } from './protocol.js';
 import type { AiBattleTraceObserver } from './trace-store.js';
 import type { AiKnowledgeMaterial } from './presets.js';
+import { safeAiErrorForLog } from './billing.js';
 
 export interface AiBattleModelClient {
   readonly configurationMaterial?: AiKnowledgeMaterial;
@@ -80,7 +81,9 @@ export class AiBattleDriver {
     entry.timer = null;
     entry.wakeGeneration++;
     entry.dirty = true;
-    if (!entry.observing) void this.observe(entry);
+    // Terminal catch: the observe loop has an inner finally, but a rejection from the
+    // serialized-queue wrapper itself must never become an unhandled rejection.
+    if (!entry.observing) void this.observe(entry).catch((error) => this.reportFault(entry, 'observe', error));
   }
 
   private async observe(entry: DrivenMatch): Promise<void> {
@@ -104,7 +107,9 @@ export class AiBattleDriver {
         const key = `${result.task.taskId}:${result.task.attempt}`;
         if (result.task.signal.aborted || entry.requests.has(key)) return;
         entry.requests.add(key);
-        void this.request(entry, result.task).finally(() => entry.requests.delete(key));
+        void this.request(entry, result.task)
+          .catch((error) => this.reportFault(entry, 'request', error))
+          .finally(() => entry.requests.delete(key));
         return;
       }
       case 'WAIT':
@@ -153,6 +158,14 @@ export class AiBattleDriver {
     } catch {
       entry.observer?.reportFailure();
     }
+  }
+
+  /** Sanitized last-resort log; error text is URL-redacted and never reflects credentials. */
+  private reportFault(entry: DrivenMatch, stage: 'observe' | 'request', error: unknown): void {
+    console.error(`[AiBattleDriver] ${stage} failed`, {
+      matchId: entry.matchId,
+      ...safeAiErrorForLog(error),
+    });
   }
 }
 

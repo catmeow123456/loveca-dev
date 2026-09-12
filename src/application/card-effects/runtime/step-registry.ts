@@ -166,6 +166,9 @@ export function resolveActiveEffectStepWithRegistry(
   if (selection && !isActiveEffectSelectionValid(selection, input)) return game;
   const skipsStructuredEffectChoice =
     input.selectedEffectOptionIds === undefined &&
+    // The legacy single-option key carries a choice for an exact-one structured effect
+    // (getStructuredEffectChoiceSelection normalizes it), so it is never a decline.
+    !(effect.effectChoice?.mode === 'SINGLE' && input.selectedOptionId) &&
     input.selectedCardId === null &&
     effect.canSkipSelection === true;
   if (effect.effectChoice?.publicConfirmation === true && !skipsStructuredEffectChoice) {

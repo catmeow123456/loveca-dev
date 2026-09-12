@@ -3053,12 +3053,6 @@ export class OnlineMatchService {
         }
       }
 
-      // Cancel before awaiting seal; a failed seal keeps the match available for another end request.
-      const aiRuntime = this.aiRuntimes.get(matchId);
-      if (aiRuntime) {
-        aiRuntime.stop('MATCH_END_REQUESTED');
-        aiRuntime.wake();
-      }
       const sealed = await this.sealMatchForRemoval(
         match,
         options.reason ?? 'MATCH_DELETED',
@@ -3067,6 +3061,14 @@ export class OnlineMatchService {
       if (!sealed) {
         await rollbackClaim();
         return false;
+      }
+      // Stop only after the seal succeeds. This mutation holds the authority queue, so no AI
+      // command can interleave during the seal; stopping earlier would leave a failed seal
+      // with a permanently stopped runtime and a match that can never be driven again.
+      const aiRuntime = this.aiRuntimes.get(matchId);
+      if (aiRuntime) {
+        aiRuntime.stop('MATCH_END_REQUESTED');
+        aiRuntime.wake();
       }
 
       const now = options.now ?? this.now();

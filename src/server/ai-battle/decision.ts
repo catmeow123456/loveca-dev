@@ -194,10 +194,16 @@ export function buildAiBattleDecision(
     const resources = summarizeAiSelfResources(view, view.match.viewerSeat);
     if (enabled(GameCommandType.PLAY_MEMBER_TO_SLOT)) {
       for (const cardId of player.hand.cardIds) {
-        if (getMemberPlayOptionsForHandCard(game, playerId, cardId).length > 0) {
+        // Double relay is a generic mechanism the adapter simply does not offer; normal
+        // plays for the same card remain enumerable. Only card-defined special plays have
+        // no representable command shape and must fail closed.
+        const hasCardDefinedPlay = getMemberPlayOptionsForHandCard(game, playerId, cardId).some(
+          (option) => option.kind === 'CARD_DEFINED'
+        );
+        if (hasCardDefinedPlay) {
           return {
             kind: 'UNSUPPORTED',
-            reason: 'Card-defined/double-relay play is not yet adapted',
+            reason: 'Card-defined play is not yet adapted',
           };
         }
       }

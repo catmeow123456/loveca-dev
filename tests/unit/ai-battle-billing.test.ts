@@ -93,6 +93,53 @@ describe('AI Beijing token accounting', () => {
     ).toBe('0.00021600');
   });
 
+  it('exposes unconfirmed usage when the upstream omits prompt_tokens_details', async () => {
+    // OpenAI-compatible upstreams without cache details never parse; the attempt still costs.
+    const unparseable = { prompt_tokens: 47205, completion_tokens: 81 };
+    expect(parseAiTokenUsage(unparseable)).toBeNull();
+    const memory = createMemoryAiBilling();
+    const traces = new AiBattleTraceStore();
+    traces.open('m', []);
+    traces.begin('m', { id: '1', revision: 1, windowKey: 'MAIN', purpose: 'MAIN', seat: 'FIRST' });
+    const billing = new AiBattleBilling(
+      'qwen3.8-max',
+      memory.persistence,
+      (id, view, decision, delta) => traces.updateBilling(id, view, decision, delta)
+    );
+    await billing.initialize('m');
+    const attempt = await billing.begin('1');
+    await attempt.finish(parseAiTokenUsage(unparseable));
+    expect(billing.view()).toMatchObject({
+      attempts: 1,
+      reportedAttempts: 0,
+      unreportedAttempts: 1,
+      pendingAttempts: 0,
+      estimatedCny: '0.00000000',
+      saveFailed: false,
+    });
+    expect(traces.list('m')!.decisions[0]!.decisionBilling).toMatchObject({
+      attempts: 1,
+      reportedAttempts: 0,
+      unreportedAttempts: 1,
+    });
+    // The derived counter is projection-only: never written into the persisted jsonb record.
+    const persisted = memory.records.get('m')!;
+    expect(persisted).not.toHaveProperty('unreportedAttempts');
+    expect(projectAiBilling(persisted)).toMatchObject({
+      attempts: 1,
+      reportedAttempts: 0,
+      unreportedAttempts: 1,
+    });
+    // A later confirmed attempt clears the gap without restating the unknown usage as zero.
+    await (await billing.begin('1')).finish(usage);
+    expect(billing.view()).toMatchObject({
+      attempts: 2,
+      reportedAttempts: 1,
+      unreportedAttempts: 1,
+      estimatedCny: '0.38659200',
+    });
+  });
+
   it('counts retries, unknown transport and late responses even after decision eviction and end', async () => {
     const memory = createMemoryAiBilling();
     const traces = new AiBattleTraceStore({ ...AI_TRACE_LIMITS, decisions: 1 });

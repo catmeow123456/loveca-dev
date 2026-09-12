@@ -12,6 +12,7 @@ import {
   SubPhase,
 } from '../../src/shared/types/enums';
 import { createPublicObjectId } from '../../src/online/projector';
+import { getMemberPlayOptionsForHandCard } from '../../src/application/member-play-options';
 import {
   HANAYO_ACTIVATED_ABILITY_ID,
   PB1_019_ACTIVATED_ABILITY_ID,
@@ -164,6 +165,55 @@ describe('AI ordinary decisions through authoritative commands', () => {
         ).toBe(false);
       }
     }
+  });
+
+  it('enumerates normal plays while a double-relay card is in hand and fails closed only on card-defined plays', () => {
+    // Double relay is a generic mechanism the adapter simply does not offer: with two
+    // relayable occupants on stage the MAIN window must still enumerate normal plays.
+    const { session } = setup();
+    const [relayId] = replaceHand(session, [member('PL!-pb2-000-R', 2)]);
+    stage(session, member('RELAYABLE-A', 3), SlotPosition.LEFT);
+    stage(session, member('RELAYABLE-B', 3), SlotPosition.CENTER);
+    expect(
+      getMemberPlayOptionsForHandCard(session.state!, P1, relayId!).some(
+        (option) => option.kind === 'DOUBLE_RELAY'
+      ),
+      'precondition: the double-relay option must actually be available'
+    ).toBe(true);
+    const current = decision(session);
+    expect(current.input.purpose).toBe('MAIN');
+    const relayObjectId = createPublicObjectId(relayId!);
+    expect(
+      current.input.space.candidates.some(
+        (candidate) => candidate.objectId === relayObjectId && candidate.targetSlot
+      )
+    ).toBe(true);
+
+    // A card-defined special play has no representable command shape and stays fail-closed.
+    const special = setup();
+    replaceHand(special.session, [member('PL!N-bp7-011-R', 13)]);
+    const game = special.session.state!;
+    const player = game.players[0];
+    const waitingId = player.mainDeck.cardIds[0]!;
+    Object.assign(player.mainDeck, { cardIds: player.mainDeck.cardIds.slice(1) });
+    (game.cardRegistry as Map<string, CardInstance>).set(waitingId, {
+      ...game.cardRegistry.get(waitingId)!,
+      data: member('WAITING-MEMBER', 2),
+    });
+    Object.assign(player.waitingRoom, { cardIds: [...player.waitingRoom.cardIds, waitingId] });
+    const [specialId] = player.hand.cardIds;
+    expect(
+      getMemberPlayOptionsForHandCard(game, P1, specialId!).some(
+        (option) => option.kind === 'CARD_DEFINED'
+      ),
+      'precondition: the special play option must actually be available'
+    ).toBe(true);
+    expect(
+      buildAiBattleDecision(game, P1, special.session.getPlayerViewState(P1)!)
+    ).toMatchObject({
+      kind: 'UNSUPPORTED',
+      reason: 'Card-defined play is not yet adapted',
+    });
   });
 
   it('uses dynamic hand cost excluding the incoming card itself and current relay cost', () => {

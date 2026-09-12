@@ -132,4 +132,26 @@ describe('platform AI battle configuration', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(f.billing.view()).toMatchObject({ attempts: 1, reportedAttempts: 1 });
   });
+
+  it('classifies a host-resolution failure as a retryable service fault, not a permanent adapter fault', async () => {
+    const fetcher = vi.fn<typeof globalThis.fetch>(() => Promise.resolve(response()));
+    vi.stubGlobal('fetch', fetcher);
+    const f = await createClient();
+    platform.validate.mockRejectedValue(
+      new AiEffectExtractionServiceError('AI_EFFECT_HOST_RESOLUTION_FAILED', '无法解析 AI 上游主机', 422)
+    );
+    expect(await f.client.decide(input(), new AbortController().signal, context)).toMatchObject({
+      kind: 'SERVICE_ERROR',
+      retryable: true,
+    });
+    // Policy rejections still fail closed.
+    platform.validate.mockRejectedValue(
+      new AiEffectExtractionServiceError('AI_EFFECT_HOST_NOT_ALLOWED', '该 AI 上游主机不在部署白名单中', 422)
+    );
+    expect(await f.client.decide(input(), new AbortController().signal, context)).toMatchObject({
+      kind: 'ADAPTER_ERROR',
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(f.billing.view()).toMatchObject({ attempts: 0, reportedAttempts: 0 });
+  });
 });

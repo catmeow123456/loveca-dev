@@ -28,6 +28,12 @@ export interface AiBillingRecord extends AiBillingTotals {
 
 export interface AiBillingSummary extends AiBillingTotals {
   readonly pendingAttempts: number;
+  /**
+   * Derived: attempts − reportedAttempts. `> 0`（即 reportedAttempts < attempts）表示存在
+   * 未确认用量（其中 pendingAttempts 为仍在途的待统计尝试）。仅由投影/汇总计算，
+   * 从不写入 `match_records.ai_billing`，旧记录随时可由两个持久计数重算，保持向后兼容。
+   */
+  readonly unreportedAttempts: number;
   readonly estimatedCny: string;
   readonly saveFailed: boolean;
 }

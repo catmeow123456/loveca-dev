@@ -6,6 +6,8 @@ import {
   type AiDecisionSpace,
 } from '../../src/server/ai-battle/protocol';
 import { isActiveEffectSelectionValid } from '../../src/application/card-effects/runtime/selection-query';
+import { getAiMechanicalSelection } from '../../src/server/ai-battle/policy';
+import type { AiDecision } from '../../src/server/ai-battle/decision';
 
 function space(): Extract<AiDecisionSpace, { kind: 'CARDS' }> {
   return {
@@ -85,5 +87,94 @@ describe('AI grouped subset constraints', () => {
       findAiCardSelection({ ...input, candidates: input.candidates.slice(0, 2) })
     ).toThrow('No complete');
     expect(JSON.stringify(responseSchema(input))).toContain('minContains');
+  });
+
+  it('fails closed on infeasible overlapping groups instead of enumerating exponentially', () => {
+    const pool = (prefix: string, size: number) =>
+      Array.from({ length: size }, (_, i) => `${prefix}${i}`);
+    const cardsSpace = (
+      refs: string[],
+      min: number,
+      max: number,
+      groups: { cardRefs: string[]; min: number; max: number }[]
+    ): Extract<AiDecisionSpace, { kind: 'CARDS' }> => ({
+      kind: 'CARDS',
+      candidates: refs.map((ref) => ({ ref, description: ref })),
+      min,
+      max,
+      ordered: false,
+      groups,
+    });
+    // Small interaction-infeasible window: each disjoint pool demands 4 picks while the
+    // overall limit allows 6, so no completion exists; the search must finish and report it.
+    const poolA = pool('a', 6);
+    const poolB = pool('b', 6);
+    const small = cardsSpace([...poolA, ...poolB], 6, 6, [
+      { cardRefs: poolA, min: 4, max: 4 },
+      { cardRefs: poolB, min: 4, max: 4 },
+    ]);
+    expect(() => findAiCardSelection(small)).toThrow('No complete legal card selection');
+    // A group whose own membership cannot reach its minimum fails through the cheap precheck.
+    expect(() =>
+      findAiCardSelection(cardsSpace(['x', 'y'], 1, 2, [{ cardRefs: ['x'], min: 2, max: 2 }]))
+    ).toThrow('No complete legal card selection');
+    // Scaled-up infeasible interaction: the node budget must cut the search off quickly.
+    const bigA = pool('a', 16);
+    const bigB = pool('b', 16);
+    const big = cardsSpace([...bigA, ...bigB], 16, 16, [
+      { cardRefs: bigA, min: 9, max: 9 },
+      { cardRefs: bigB, min: 9, max: 9 },
+    ]);
+    expect(() => findAiCardSelection(big)).toThrow('node budget');
+  });
+
+  it('verifies mechanical EFFECT shortcuts against grouped constraints', () => {
+    const effect = (
+      space: AiDecisionSpace
+    ): AiDecision =>
+      ({
+        input: { purpose: 'EFFECT', space },
+        toCommand: () => {
+          throw new Error('not used');
+        },
+      }) as AiDecision;
+    const candidates = ['a', 'b', 'c'].map((ref) => ({ ref, description: ref }));
+    // min === max === all candidates, but the group caps the selection below the full set.
+    expect(
+      getAiMechanicalSelection(
+        effect({
+          kind: 'CARDS',
+          candidates,
+          min: 3,
+          max: 3,
+          ordered: false,
+          groups: [{ cardRefs: ['a', 'b', 'c'], min: 0, max: 2 }],
+        })
+      )
+    ).toBeNull();
+    // Empty-candidate shortcut must respect a group that demands at least one pick.
+    expect(
+      getAiMechanicalSelection(
+        effect({
+          kind: 'CARDS',
+          candidates: [],
+          min: 0,
+          max: 0,
+          ordered: false,
+          groups: [{ cardRefs: [], min: 1, max: 1 }],
+        })
+      )
+    ).toBeNull();
+    // Without conflicting groups both shortcuts still apply.
+    expect(
+      getAiMechanicalSelection(
+        effect({ kind: 'CARDS', candidates, min: 3, max: 3, ordered: false })
+      )
+    ).toEqual({ kind: 'CARDS', cardRefs: ['a', 'b', 'c'] });
+    expect(
+      getAiMechanicalSelection(
+        effect({ kind: 'CARDS', candidates: [], min: 0, max: 0, ordered: false })
+      )
+    ).toEqual({ kind: 'CARDS', cardRefs: [] });
   });
 });
