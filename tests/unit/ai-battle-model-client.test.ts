@@ -159,6 +159,7 @@ describe('AI model HTTP boundary', () => {
           stream: false,
           response_format: { type: 'json_object' },
         });
+        expect(body).not.toHaveProperty('max_tokens');
         expect(body).not.toHaveProperty('requestTimeoutMs');
         expect(f.client.requestTimeoutMs).toBe(enableThinking ? 120_000 : 30_000);
         expect(JSON.parse(f.client.configurationMaterial.content)).toMatchObject({
@@ -368,8 +369,16 @@ describe('AI model HTTP boundary', () => {
     expect(config()).toMatchObject({
       endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
       temperature: 0.2,
-      maxTokens: 2048,
     });
+    expect(config()).not.toHaveProperty('maxTokens');
+    expect(
+      createAiModelConfig(
+        { baseUrl: 'https://api.example.com/v1', apiKey: KEY },
+        'deepseek-v4.1-flash',
+        true,
+        { AI_BATTLE_MAX_TOKENS: '8192' }
+      ).maxTokens
+    ).toBe(8192);
   });
 
   it('captures the transmitted body and frozen sources/configuration, without authorization or prior responses', async () => {

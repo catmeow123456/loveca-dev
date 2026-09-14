@@ -46,19 +46,19 @@
 
 新对局通过 `src/server/ai-battle/configuration.ts` 读取平台 AI 配置中的 Base URL 和加密 API Key，复用 `aiEffectExtractionService.getUpstreamConfiguration()` 的数据库读取、解密和出站校验。平台“AI 上游配置”页面的 URL/Key 供对战与卡效提取共用；卡效模型及“启用效果提取”开关只控制卡效提取。对战模型由开局参数指定，默认 `qwen3.8-flash`，可手动选择 `qwen3.8-max`、`glm-5.2` 或 `deepseek-v4.1-flash`；北京公开价格与各模型核对日期见[计费说明](token-billing-proposal.md)。创建页提供“开启思考”开关，默认关闭，当前四个模型均可按局选择；开局接口要求显式布尔值 `enableThinking`，会话列表和冻结的模型配置均记录该选择。GLM-5.2 与 DeepSeek-V4.1-Flash 接入现有 Chat Completions、JSON 输出和隐式缓存链路；增加模型选项不代表已通过真实端点或对局强度验证。DeepSeek 费用沿用整局冻结公开价的估算方式，固定采用北京忙时价；创建页提示闲时实际费用可能更低，不按每次请求时段切价。[GLM 调用说明](https://help.aliyun.com/zh/model-studio/glm)、[DeepSeek 调用说明](https://help.aliyun.com/zh/model-studio/deepseek-api)
 
-| 环境变量                              | 用途                                                           |
-| ------------------------------------- | -------------------------------------------------------------- |
-| `AI_EFFECT_EXTRACTION_ENCRYPTION_KEY` | 既有平台 AI Key 加密主密钥，仅在部署 Secret 配置               |
-| `AI_EFFECT_EXTRACTION_ALLOWED_HOSTS`  | 既有平台上游精确主机白名单；必须为公开 HTTPS 地址              |
-| `AI_BATTLE_MODEL`                     | 仅真实模型实验脚本的默认模型；网页以本局选择为准               |
-| `AI_BATTLE_TEMPERATURE`               | 默认 0.2，允许 0–2                                             |
-| `AI_BATTLE_MAX_TOKENS`                | 单次输出上限，默认 2048，允许 128–4096；不是实际用量或预算封顶 |
+| 环境变量                              | 用途                                                               |
+| ------------------------------------- | ------------------------------------------------------------------ |
+| `AI_EFFECT_EXTRACTION_ENCRYPTION_KEY` | 既有平台 AI Key 加密主密钥，仅在部署 Secret 配置                   |
+| `AI_EFFECT_EXTRACTION_ALLOWED_HOSTS`  | 既有平台上游精确主机白名单；必须为公开 HTTPS 地址                  |
+| `AI_BATTLE_MODEL`                     | 仅真实模型实验脚本的默认模型；网页以本局选择为准                   |
+| `AI_BATTLE_TEMPERATURE`               | 默认 0.2，允许 0–2                                                 |
+| `AI_BATTLE_MAX_TOKENS`                | 可选的单次输出上限；默认不设置、不向上游发送；显式配置时至少为 128 |
 
 `src/server/ai-battle/service.ts` 使用 `createPlatformAiBattleClient` 在开局时冻结本局 URL、Key、模型与思考开关。配置中心保存成功后，新局无需重启服务即可使用更新值；已有局保持开局配置。创建及每次发送前都会重新检查白名单和 DNS，不能因冻结了 URL 而绕过后续出站限制。HTTP 继续使用现有 Chat Completions 协议，在 Base URL 后追加 `/chat/completions`；不增加其他协议适配。
 
 `AI_BATTLE_BASE_URL`、`AI_BATTLE_API_KEY`、旧 DashScope 变量与开发者凭据不再被读取。配置缺失、无法解密或不符合出站政策时，新局明确失败，不使用环境变量备用值。浏览器只读取非秘密配置和 Key 是否存在，不取得服务端明文 Key。主密钥或白名单属于部署配置，修改后需重启 API；配置中心的 URL/Key 修改只需保存。生产准备见[计费迁移说明](../../drizzle/migration-notes/ai-battle-billing.md)。
 
-当前客户端按 [DashScope 结构化输出文档](https://help.aliyun.com/zh/model-studio/qwen-structured-output) 使用 `response_format: {type: 'json_object'}`，提示中包含 JSON；`enable_thinking` 使用本局开关，默认 `false`。按[百炼深度思考说明](https://help.aliyun.com/zh/model-studio/deep-thinking)保留非流式请求；开启后仍只把最终 `message.content` 交给闭合选择协议，上游 `reasoning_content` 仅随原始响应留在观察材料，不作为选择或后续决策上下文。字段与引用仍由本地闭合协议验证。接口结构参考 [Chat Completions 文档](https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions)。具体配置模型是否支持这些参数、取消是否及时和真实等待时间，必须在实际端点复测；HTTP `AbortSignal` 只取消客户端等待，不能替代队列内的过期校验，也不保证上游已经停止生成。
+当前客户端按 [DashScope 结构化输出文档](https://help.aliyun.com/zh/model-studio/qwen-structured-output) 使用 `response_format: {type: 'json_object'}`，提示中包含 JSON；`enable_thinking` 使用本局开关，默认 `false`。按[百炼深度思考说明](https://help.aliyun.com/zh/model-studio/deep-thinking)保留非流式请求；开启后仍只把最终 `message.content` 交给闭合选择协议，上游 `reasoning_content` 仅随原始响应留在观察材料，不作为选择或后续决策上下文。默认请求不发送 `max_tokens`，避免思考模型在最终 JSON 前因应用侧额度提前触发 `finish_reason=length`；只有部署显式配置 `AI_BATTLE_MAX_TOKENS` 时才发送该字段。字段与引用仍由本地闭合协议验证。接口结构参考 [Chat Completions 文档](https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions)。具体配置模型是否支持这些参数、取消是否及时和真实等待时间，必须在实际端点复测；HTTP `AbortSignal` 只取消客户端等待，不能替代队列内的过期校验，也不保证上游已经停止生成。
 
 每次模型请求在关闭思考时超时 30 秒，开启时为 120 秒，等待上限随本局配置冻结并记录；可重试服务错误最多原输入再试一次。HTTP 408/429/5xx 与非取消网络故障可重试，鉴权/参数/响应协议错误不盲目重试。空模型输出、非法 JSON、错误引用及上游 `finish_reason=length` 进入输出失败政策。上下文超出支持大小作为适配错误停止，不计为一次模型选择失败。每次发送前的出站复查按同样边界分类：白名单、HTTPS 或私网地址拒绝属于部署策略错误，作为适配错误立即停止；上游主机 DNS 解析失败属于临时基础设施故障，按可重试服务错误处理。计费快照保存失败发生在请求发送前且计数已回滚，同样按可重试服务错误处理，而不是适配错误。连续失败三次停止，第三次不兜底；只有模型选择被权威接受才清零。
 

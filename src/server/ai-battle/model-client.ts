@@ -26,7 +26,7 @@ export interface AiModelConfig {
   readonly model: AiBattleModel;
   readonly apiKey: string;
   readonly temperature: number;
-  readonly maxTokens: number;
+  readonly maxTokens?: number;
   readonly enableThinking: boolean;
 }
 
@@ -48,7 +48,7 @@ export function createAiModelConfig(
         .max(4096)
         .regex(/^[\x21-\x7E]+$/),
       temperature: z.coerce.number().min(0).max(2).default(0.2),
-      maxTokens: z.coerce.number().int().min(128).max(4096).default(2048),
+      maxTokens: z.coerce.number().int().min(128).optional(),
     })
     .safeParse({
       baseUrl: upstream.baseUrl,
@@ -74,7 +74,7 @@ export function createAiModelConfig(
     enableThinking: parsed.data.enableThinking,
     apiKey: parsed.data.apiKey,
     temperature: parsed.data.temperature,
-    maxTokens: parsed.data.maxTokens,
+    ...(parsed.data.maxTokens === undefined ? {} : { maxTokens: parsed.data.maxTokens }),
   });
 }
 
@@ -154,7 +154,7 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
       endpoint: config.endpoint,
       model: config.model,
       temperature: config.temperature,
-      max_tokens: config.maxTokens,
+      ...(config.maxTokens === undefined ? {} : { max_tokens: config.maxTokens }),
       enable_thinking: config.enableThinking,
       requestTimeoutMs: this.requestTimeoutMs,
       response_format: { type: 'json_object' },
@@ -186,7 +186,7 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
       model: this.config.model,
       messages,
       temperature: this.config.temperature,
-      max_tokens: this.config.maxTokens,
+      ...(this.config.maxTokens === undefined ? {} : { max_tokens: this.config.maxTokens }),
       enable_thinking: this.config.enableThinking,
       stream: false,
       response_format: { type: 'json_object' },
