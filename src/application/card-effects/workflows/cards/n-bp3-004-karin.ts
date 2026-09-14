@@ -26,6 +26,7 @@ import {
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
 } from '../../runtime/member-state-changed-triggers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText, recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
 
@@ -43,7 +44,8 @@ export function registerNBp3004KarinWorkflowHandlers(deps: {
 }): void {
   registerActivatedAbilityHandler(
     PL_N_BP3_004_ACTIVATED_WAIT_SELF_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
-    (game, playerId, cardId) => start(game, playerId, cardId, deps)
+    (game, playerId, cardId) => start(game, playerId, cardId, deps),
+    (game, playerId, cardId) => getActivationSourceSlot(game, playerId, cardId) !== null
   );
   registerActiveEffectStepHandler(
     PL_N_BP3_004_ACTIVATED_WAIT_SELF_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
@@ -54,23 +56,24 @@ export function registerNBp3004KarinWorkflowHandlers(deps: {
         input.selectedCardId ?? null,
         deps,
         context.continuePendingCardEffects
-      )
+      ),
+    queryCardSelection
   );
   registerActiveEffectStepHandler(
     PL_N_BP3_004_ACTIVATED_WAIT_SELF_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
     RECOVER_STEP_ID,
     (game, input, context) =>
-      finishRecovery(game, input.selectedCardId ?? null, context.continuePendingCardEffects)
+      finishRecovery(game, input.selectedCardId ?? null, context.continuePendingCardEffects),
+    queryCardSelection
   );
 }
 
-function start(
+function getActivationSourceSlot(
   game: GameState,
   playerId: string,
-  cardId: string,
-  deps: { readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects }
-): GameState {
-  if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) return game;
+  cardId: string
+) {
+  if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) return null;
   const player = getPlayerById(game, playerId);
   const card = getCardById(game, cardId);
   const sourceSlot = getSourceMemberSlot(game, playerId, cardId);
@@ -85,7 +88,19 @@ function start(
     sourceSlot === null ||
     sourceState?.orientation !== OrientationState.ACTIVE ||
     player.hand.cardIds.length === 0
-  ) return game;
+  ) return null;
+
+  return sourceSlot;
+}
+
+function start(
+  game: GameState,
+  playerId: string,
+  cardId: string,
+  deps: { readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects }
+): GameState {
+  const sourceSlot = getActivationSourceSlot(game, playerId, cardId);
+  if (sourceSlot === null) return game;
 
   const waitResult = setMemberOrientation(game, playerId, cardId, OrientationState.WAITING, {
     kind: 'CARD_EFFECT', playerId, sourceCardId: cardId,

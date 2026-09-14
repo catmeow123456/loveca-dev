@@ -45,7 +45,8 @@ interface AiBattleServiceDeps {
     knowledge: AiFrozenKnowledge,
     traces: AiBattleTraceStore,
     model: AiBattleModel,
-    billing: AiBattleBilling
+    billing: AiBattleBilling,
+    enableThinking: boolean
   ) => Promise<AiBattleModelClient>;
   readonly billingPersistence?: AiBillingPersistence;
   readonly traces?: AiBattleTraceStore;
@@ -117,7 +118,13 @@ export class AiBattleService {
           }
         }
       );
-      const model = await this.deps.createModel(setup.knowledge, this.traces, input.model, billing);
+      const model = await this.deps.createModel(
+        setup.knowledge,
+        this.traces,
+        input.model,
+        billing,
+        input.enableThinking
+      );
       const startedAt = this.now();
       const human = {
         userId,

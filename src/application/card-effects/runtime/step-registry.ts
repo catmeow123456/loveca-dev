@@ -34,6 +34,7 @@ import {
 import type { DelegatePendingAbility, PendingAbilityStarterOptions } from './starter-registry.js';
 import {
   isActiveEffectSelectionValid,
+  queryCardSelection,
   type ActiveEffectSelectionQuery,
 } from './selection-query.js';
 
@@ -96,6 +97,9 @@ export function registerActiveEffectStepHandler(
 
 export function queryActiveEffectSelection(game: GameState) {
   const effect = game.activeEffect;
+  // This shared pre-step owns an exact-count energy selection, independent of the
+  // original workflow. Its resolver still rechecks the selected energy before resuming.
+  if (effect?.stepId === ENERGY_OPERATION_SELECTION_STEP_ID) return queryCardSelection(game);
   return effect
     ? activeEffectSelectionQueries.get(
         getActiveEffectStepHandlerKey(effect.abilityId, effect.stepId)

@@ -119,10 +119,10 @@ async function play(index: number): Promise<void> {
   const ai = new AiBattleService({
     matchService: matches,
     traces,
-    createModel: (knowledge, store, model, billing) =>
+    createModel: (knowledge, store, model, billing, enableThinking) =>
       Promise.resolve(
         new DashScopeAiBattleClient(
-          { ...configuration, model },
+          { ...configuration, model, enableThinking },
           knowledge,
           store,
           globalThis.fetch,
@@ -135,6 +135,7 @@ async function play(index: number): Promise<void> {
   const startedAt = Date.now();
   const { session } = await ai.create(owner!, {
     model: configuration.model,
+    enableThinking: configuration.enableThinking,
     humanPresetId: 'muse-starter',
     aiPresetId: 'muse-starter',
     handbookId: 'muse-balanced',

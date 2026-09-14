@@ -14,10 +14,10 @@ const rawUsage = {
   completion_tokens: 81,
   prompt_tokens_details: { cached_tokens: 17408 },
 };
-const usage = parseAiTokenUsage(rawUsage)!;
+const usage = parseAiTokenUsage(rawUsage, 'qwen3.8-max')!;
 
 describe('AI Beijing token accounting', () => {
-  it('uses disjoint input buckets and exact prices for both supported models', () => {
+  it('uses disjoint input buckets and exact prices for the Qwen models', () => {
     const max = createAiBillingRecord('qwen3.8-max');
     const flash = createAiBillingRecord('qwen3.8-flash');
     expect(usage).toEqual({
@@ -29,21 +29,66 @@ describe('AI Beijing token accounting', () => {
     });
     expect(calculateAiCost(usage, max.prices)).toBe('0.38659200');
     expect(calculateAiCost(usage, flash.prices)).toBe('0.02579710');
-    const explicit = parseAiTokenUsage({
-      prompt_tokens: 1600,
-      completion_tokens: 100,
-      prompt_tokens_details: {
-        cached_tokens: 1200,
-        cache_creation_input_tokens: 300,
-        cache_type: 'ephemeral',
+    const explicit = parseAiTokenUsage(
+      {
+        prompt_tokens: 1600,
+        completion_tokens: 100,
+        prompt_tokens_details: {
+          cached_tokens: 1200,
+          cache_creation_input_tokens: 300,
+          cache_type: 'ephemeral',
+        },
+        completion_tokens_details: { reasoning_tokens: 50 },
+        total_tokens: 1700,
       },
-      completion_tokens_details: { reasoning_tokens: 50 },
-      total_tokens: 1700,
-    })!;
+      'qwen3.8-max'
+    )!;
     expect(calculateAiCost(explicit, max.prices)).toBe('0.01050000');
     // Flash creation is 1.25 CNY/1M, not 0.8 * 125%.
     expect(calculateAiCost(explicit, flash.prices)).toBe('0.00084500');
   });
+
+  it('prices GLM input, implicit cache and output using its own dated snapshot', () => {
+    const record = createAiBillingRecord('glm-5.2');
+    expect(record).toMatchObject({
+      model: 'glm-5.2',
+      pricingDate: '2026-09-14',
+      prices: { inputTokens: 800, implicitCachedTokens: 200, outputTokens: 2800 },
+    });
+    expect(parseAiTokenUsage(rawUsage, 'glm-5.2')).toEqual(usage);
+    expect(calculateAiCost(usage, record.prices)).toBe('0.27546000');
+    expect(createAiBillingRecord('qwen3.8-max').pricingDate).toBe('2026-09-11');
+    expect(createAiBillingRecord('qwen3.8-flash').pricingDate).toBe('2026-09-11');
+  });
+
+  it('prices DeepSeek ordinary input, implicit cache and output at the Beijing peak rates', () => {
+    const record = createAiBillingRecord('deepseek-v4.1-flash');
+    expect(record).toMatchObject({
+      model: 'deepseek-v4.1-flash',
+      pricingDate: '2026-09-14',
+      prices: { inputTokens: 200, implicitCachedTokens: 20, outputTokens: 800 },
+    });
+    expect(parseAiTokenUsage(rawUsage, 'deepseek-v4.1-flash')).toEqual(usage);
+    expect(calculateAiCost(usage, record.prices)).toBe('0.06372360');
+  });
+
+  it.each(['glm-5.2', 'deepseek-v4.1-flash'] as const)(
+    'leaves unsupported %s explicit-cache usage unknown instead of charging zero',
+    (model) => {
+      const explicit = {
+        prompt_tokens: 1600,
+        completion_tokens: 100,
+        prompt_tokens_details: {
+          cached_tokens: 1200,
+          cache_creation_input_tokens: 300,
+          cache_type: 'ephemeral',
+        },
+      };
+      expect(parseAiTokenUsage(explicit, model)).toBeNull();
+      expect(parseAiTokenUsage(explicit, 'qwen3.8-max')).not.toBeNull();
+      expect(parseAiTokenUsage(explicit, 'qwen3.8-flash')).not.toBeNull();
+    }
+  );
 
   it.each([
     undefined,
@@ -64,18 +109,21 @@ describe('AI Beijing token accounting', () => {
     },
     { input_tokens: 47205, output_tokens: 81, cache_read_input_tokens: 17408 },
   ])('leaves missing, contradictory and other-protocol usage unknown: %j', (value) => {
-    expect(parseAiTokenUsage(value)).toBeNull();
+    expect(parseAiTokenUsage(value, 'qwen3.8-max')).toBeNull();
   });
 
   it('accumulates tiny costs before rounding and keeps the game price snapshot', async () => {
     const memory = createMemoryAiBilling();
     const billing = new AiBattleBilling('qwen3.8-flash', memory.persistence, () => {});
     await billing.initialize('m');
-    const tiny = parseAiTokenUsage({
-      prompt_tokens: 1,
-      completion_tokens: 1,
-      prompt_tokens_details: { cached_tokens: 0 },
-    })!;
+    const tiny = parseAiTokenUsage(
+      {
+        prompt_tokens: 1,
+        completion_tokens: 1,
+        prompt_tokens_details: { cached_tokens: 0 },
+      },
+      'qwen3.8-flash'
+    )!;
     for (let i = 0; i < 20; i++) await (await billing.begin(String(i))).finish(tiny);
     expect(billing.view()).toMatchObject({
       attempts: 20,
@@ -96,7 +144,7 @@ describe('AI Beijing token accounting', () => {
   it('exposes unconfirmed usage when the upstream omits prompt_tokens_details', async () => {
     // OpenAI-compatible upstreams without cache details never parse; the attempt still costs.
     const unparseable = { prompt_tokens: 47205, completion_tokens: 81 };
-    expect(parseAiTokenUsage(unparseable)).toBeNull();
+    expect(parseAiTokenUsage(unparseable, 'qwen3.8-max')).toBeNull();
     const memory = createMemoryAiBilling();
     const traces = new AiBattleTraceStore();
     traces.open('m', []);
@@ -108,7 +156,7 @@ describe('AI Beijing token accounting', () => {
     );
     await billing.initialize('m');
     const attempt = await billing.begin('1');
-    await attempt.finish(parseAiTokenUsage(unparseable));
+    await attempt.finish(parseAiTokenUsage(unparseable, 'qwen3.8-max'));
     expect(billing.view()).toMatchObject({
       attempts: 1,
       reportedAttempts: 0,

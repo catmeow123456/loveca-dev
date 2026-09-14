@@ -65,6 +65,7 @@ it.skipIf(!api || !databaseUrl)(
         handbookId: 'muse-balanced',
         humanSeat: 'FIRST',
         model: 'qwen3.8-max',
+        enableThinking: false,
       });
       expect(created.status).toBe(201);
       const data = fromTransport<{ data: CreateAiBattleResult }>(await created.json()).data;

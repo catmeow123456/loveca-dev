@@ -46,6 +46,7 @@ it.skipIf(!api || !databaseUrl)(
         aiPresetId: 'muse-starter',
         handbookId: 'muse-balanced',
         humanSeat: 'SECOND',
+        enableThinking: false,
       });
       expect(created.status).toBe(201);
       matchId = (await data<CreateAiBattleResult>(created)).session.matchId;

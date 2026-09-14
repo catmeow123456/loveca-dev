@@ -38,12 +38,13 @@ const [
 if (modelMode === 'REAL') await readAiModelConfig();
 
 const ai = new AiBattleService({
-  createModel: (knowledge, traces, model, billing) =>
+  createModel: (knowledge, traces, model, billing, enableThinking) =>
     Promise.resolve(
       new DashScopeAiBattleClient(
         {
           endpoint: 'https://fixture.example/compatible-mode/v1/chat/completions',
           model,
+          enableThinking,
           apiKey: 'p5-http-fixture-secret',
           temperature: 0.2,
           maxTokens: 2048,

@@ -3,7 +3,7 @@
 > 文档类型：专题说明
 > 适用范围：管理员 AI 对战的单步费用、整局费用记录与 DashScope 用量解析
 > 当前状态：已进入开发基线；北京价格、现有协议与定价结构固定，生产迁移另行执行
-> 调研日期：2026-09-11
+> 调研日期：Qwen 价格核对于 2026-09-11；GLM-5.2 与 DeepSeek-V4.1-Flash 追加核对于 2026-09-14
 > 本文保留价格调研并说明实际实现；运行边界见[运行与观测说明](runtime-and-observation.md)。
 
 ## 当前范围
@@ -26,12 +26,18 @@
 | --------------- | -------: | ---: | ---------------: | ---------------: | -----------: |
 | `qwen3.8-max`   |       12 |   36 |              1.5 |                1 |           15 |
 | `qwen3.8-flash` |      0.8 |  2.7 |              0.1 |              0.1 |         1.25 |
+| `glm-5.2`      |        8 |   28 |                2 |           不支持 |       不支持 |
+| `deepseek-v4.1-flash`（忙时估算） | 2 | 8 | 0.2 | 不支持 | 不支持 |
 
 价格分别取自 [Max 专属价表](https://help.aliyun.com/zh/model-studio/qwen3-8-max)和 [Flash 专属价表](https://help.aliyun.com/zh/model-studio/qwen3-8-flash)。截至调研日，两者在北京的输入长度 `0 < token ≤ 1M` 使用上述统一输入／输出单价；思考与非思考模式同价，输出计费包括思维链与回答。[百炼模型价格](https://help.aliyun.com/zh/model-studio/model-pricing)
 
-**Flash 创建价有文档差异：**其专属页明确为 1.25 元，而通用缓存页描述创建通常按输入价的 125% 计算；将当前 0.8 元乘 125% 会得到 1 元。方案采用专属价表的 **1.25 元**，不通过比例推导。真正接入 Flash 显式缓存前，再用对应账号控制台核对这一项。[Flash 价表](https://help.aliyun.com/zh/model-studio/qwen3-8-flash)、[缓存计费说明](https://help.aliyun.com/zh/model-studio/context-cache)
+`glm-5.2` 采用阿里云百炼部署、华北 2（北京）的公开原价：普通输入 8 元、输出 28 元，不区分输入长度阶梯；隐式缓存命中按普通输入的 25% 计费，即 2 元。它仅支持隐式缓存，显式缓存栏的“不支持”不是免费。若上游对该模型返回显式缓存用量，本次用量标为未确认，不按零元计为已统计；价格快照继续使用既有字段，不改变历史记录格式。[用户指定的模型页](https://bailian.console.aliyun.com/cn-beijing/model/market/detail/glm-5.2?serviceSite=asia-pacific-china)、[百炼价格](https://help.aliyun.com/zh/model-studio/model-pricing)、[缓存计费](https://help.aliyun.com/zh/model-studio/context-cache)、[GLM 功能支持](https://help.aliyun.com/zh/model-studio/glm)
 
-其他地域和国际站美元价表另有口径，不能直接混用或按汇率替换。本轮只支持北京人民币价格结构、`qwen3.8-max` 与 `qwen3.8-flash`。创建页默认选中 `qwen3.8-flash`，也可手动选择 Max，提交时必须指定其中一个精确模型；服务端拒绝其他模型。上游由平台 AI 配置提供，使用既有 HTTPS Chat Completions 协议；即使通过其他上游路由调用，金额仍按本文北京公开原价估算，不代表该上游的倍率、折扣或实际账单。Batch、PTU 和订阅套餐不属于当前在线请求方式。
+`deepseek-v4.1-flash` 的北京公开价分忙闲：忙时普通输入 2 元、输出 8 元，闲时分别为 1 元、4 元；隐式缓存命中按输入单价的 10% 计费，分别为 0.2 元、0.1 元。当前费用统计沿用每局冻结公开价的既有口径，统一使用忙时价估算，不根据请求时段切换价格；因此闲时实际费用可能更低，创建页会提示这一点。该模型不启用显式缓存，未支持的显式缓存用量与 GLM-5.2 一样标为未确认。[百炼模型价格](https://help.aliyun.com/zh/model-studio/model-pricing)、[缓存支持与计费](https://help.aliyun.com/zh/model-studio/context-cache)
+
+**Qwen Flash 创建价有文档差异：**其专属页明确为 1.25 元，而通用缓存页描述创建通常按输入价的 125% 计算；将当前 0.8 元乘 125% 会得到 1 元。方案采用专属价表的 **1.25 元**，不通过比例推导。真正接入 Flash 显式缓存前，再用对应账号控制台核对这一项。[Flash 价表](https://help.aliyun.com/zh/model-studio/qwen3-8-flash)、[缓存计费说明](https://help.aliyun.com/zh/model-studio/context-cache)
+
+其他地域和国际站美元价表另有口径，不能直接混用或按汇率替换。当前支持北京人民币价格结构的 `qwen3.8-max`、`qwen3.8-flash`、`glm-5.2` 与 `deepseek-v4.1-flash`。创建页默认选中 `qwen3.8-flash`，也可手动选择 Max、GLM-5.2 或 DeepSeek-V4.1-Flash，提交时必须指定其中一个精确模型；服务端拒绝其他模型，包括价格不同的 `glm-5.2-fast-preview` 与 `deepseek-v4-flash`。上游由平台 AI 配置提供，使用既有 HTTPS Chat Completions 协议；即使通过其他上游路由调用，金额仍按本文北京公开原价估算，不代表该上游的倍率、折扣或实际账单。Batch、PTU 和订阅套餐不属于当前在线请求方式。
 
 ### 缓存与输出的含义
 
@@ -197,7 +203,7 @@ AI 会话列表显示本局累计。超过当前会话的一小时保留期后�
 - `AiBillingCost`：列表、详情、牌桌工具栏与会话列表共用的小金额；hover、focus 与触屏点击展示同一统计。`AiRecordedBilling` 供本人 AI 历史详情读取。
 - [0040 迁移说明](../../drizzle/migration-notes/ai-battle-billing.md)：增加可空字段及仅 AI 来源可写入的 CHECK；旧局保持未记录。
 
-Focused tests 覆盖两模型价表、显式创建价、精度、异常用量、重试、取消后迟到、重复回调、并发保存、保存失败与日志淘汰。`tests/integration/ai-battle-billing-postgres.test.ts` 使用完整迁移的本地隔离库和固定模型 HTTP，核对实际回包到根记录、封存后更新、旧版本覆盖保护、重新连接读取及 METADATA_ONLY 根记录保留。
+Focused tests 覆盖四个模型的价表与缓存口径、Qwen 显式创建价、精度、异常用量、重试、取消后迟到、重复回调、并发保存、保存失败与日志淘汰。`tests/integration/ai-battle-billing-postgres.test.ts` 使用完整迁移的本地隔离库和固定模型 HTTP，核对实际回包到根记录、封存后更新、旧版本覆盖保护、重新连接读取及 METADATA_ONLY 根记录保留。
 
 浏览器验证使用现有 `ai-battle-ui.spec.ts` 的日夜 × 1600×900 / 390×844 矩阵；完整 HTTP 历史费用流在 `ai-battle-full-env.spec.ts` 的“计费”用例中。执行方式见[完整环境验证](full-environment-validation.md)。这些固定回包用例验证计费链路，不代表 Flash 策略质量或显式缓存在线行为已验收。
 

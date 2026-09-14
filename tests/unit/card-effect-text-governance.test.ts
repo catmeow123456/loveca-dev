@@ -127,6 +127,54 @@ function formatViolations(violations: readonly GovernanceViolation[]): string {
 }
 
 describe('card effect display text governance', () => {
+  it.each(['PL!-bp3-011', 'PL!-bp3-012', 'PL!-bp3-013'])(
+    'preserves the shared paragraph with the approved N/PR wording for %s',
+    (baseCardCode) => {
+      const definition = CARD_ABILITY_DEFINITIONS.find(
+        (ability) =>
+          ability.baseCardCodes?.includes(baseCardCode) && ability.category === 'LIVE_START'
+      );
+      expect(definition?.effectText).toBe(
+        '【LIVE开始时】选择[桃ハート]或[黄ハート]或[紫ハート]中的1种。LIVE结束时为止，每存在1张自己的成功LIVE卡区中的卡片，获得1个选择了的HEART。'
+      );
+    }
+  );
+
+  it.each([
+    [
+      'PL!N-bp4-029',
+      '【LIVE开始时】此局游戏的第1回合的LIVE阶段的场合，此卡的分数+1，LIVE结束时为止，存在于自己的舞台的1名『虹咲』的成员，获得[ブレード]。',
+    ],
+    [
+      'PL!N-sd1-004',
+      '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，获得[ブレード][ブレード]。',
+    ],
+    [
+      'PL!N-bp1-005',
+      '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，获得[ブレード]。',
+    ],
+    [
+      'PL!-bp5-011',
+      '【LIVE开始时】从[緑ハート]或[青ハート]或[紫ハート]中选择1项。LIVE结束时为止，每存在1张自己的成功LIVE卡区中的卡片，获得1个选择了的HEART。',
+    ],
+  ])('preserves the exported LIVE-start paragraph for %s', (baseCardCode, text) => {
+    const definition = CARD_ABILITY_DEFINITIONS.find(
+      (ability) =>
+        ability.baseCardCodes?.includes(baseCardCode) && ability.category === 'LIVE_START'
+    );
+    expect(definition?.effectText).toBe(text);
+  });
+
+  it('preserves the exported Daydream Mermaid LIVE-success paragraph', () => {
+    const definition = CARD_ABILITY_DEFINITIONS.find(
+      (ability) =>
+        ability.baseCardCodes?.includes('PL!N-bp4-030') && ability.category === 'LIVE_SUCCESS'
+    );
+    expect(definition?.effectText).toBe(
+      '【LIVE成功时】从以下选择1项。自己的成功LIVE卡区存在『虹咲』的卡片的场合，改为选择大于等于1项。\n\n ・从自己的能量卡组，将1张能量卡以待机状态放置入能量区。\n\n ・从自己的休息室将1张成员卡加入手牌。'
+    );
+  });
+
   it('uses the configured skip label for skippable effects without selectable inputs', () => {
     const gameBoardSource = readFileSync(
       join(process.cwd(), 'client/src/components/game/GameBoard.tsx'),

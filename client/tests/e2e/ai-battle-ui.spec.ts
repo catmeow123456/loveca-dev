@@ -368,13 +368,19 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
       await page.goto('/?page=ai-battle-admin');
       await expect(page.getByRole('button', { name: '创建调试对局', exact: true })).toBeEnabled();
       const model = page.getByRole('combobox', { name: 'AI 模型', exact: true });
-      await expect(model.locator('option')).toHaveCount(2);
+      await expect(model.locator('option')).toHaveCount(4);
       await expect(model).toHaveValue('qwen3.8-flash');
+      const thinking = page.getByRole('checkbox', { name: '开启思考', exact: true });
+      await expect(thinking).not.toBeChecked();
+      await thinking.focus();
+      await page.keyboard.press('Space');
+      await expect(thinking).toBeChecked();
       await page.screenshot({ path: '../output/playwright/ai-battle/setup-1600.png' });
       await page.getByRole('button', { name: '创建调试对局', exact: true }).click();
       await expect.poll(() => f.service.listSessions(f.owner).length).toBe(1);
       const id = f.service.listSessions(f.owner)[0]!.matchId;
       expect(f.service.getSession(f.owner, id).model).toBe('qwen3.8-flash');
+      expect(f.service.getSession(f.owner, id).enableThinking).toBe(true);
       await expect(page.locator('.ai-battle-toolbar')).toBeVisible();
       await page.screenshot({ path: '../output/playwright/ai-battle/board-opening-1600.png' });
       await page.getByRole('button', { name: '保留手牌', exact: true }).click();
@@ -388,6 +394,9 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
         )
         .toBe(2);
       await expect.poll(() => f.state.modelCalls).toBeGreaterThan(0);
+      const materials = f.service.exportDecisions(f.owner, id).materials;
+      const request = materials.find((material) => material.title === 'REQUEST')!;
+      expect(JSON.parse(JSON.parse(request.content!).body).enable_thinking).toBe(true);
       await expect
         .poll(() => f.service.getSession(f.owner, id).matchBilling.reportedAttempts)
         .toBeGreaterThan(0);
@@ -400,6 +409,7 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
       await page.getByRole('button', { name: '返回 AI 会话列表，保留对局' }).click();
       expect(f.matches.getMatch(id)).not.toBeNull();
       await page.reload();
+      await expect(page.locator('.ai-session-section')).toContainText('思考开启');
       await page.getByRole('button', { name: '继续对局', exact: true }).click();
       await expect(page.locator('.ai-battle-toolbar')).toBeVisible();
       await page.setViewportSize({ width: 390, height: 844 });
@@ -416,11 +426,15 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
       await page.getByRole('button', { name: '结束', exact: true }).click();
       await page.getByRole('button', { name: '结束调试对局', exact: true }).click();
       await expect.poll(() => f.matches.getMatch(id)).toBeNull();
+      await expect(thinking).not.toBeChecked();
       await page.getByRole('button', { name: '创建调试对局', exact: true }).click();
       await expect
         .poll(() => f.service.listSessions(f.owner).filter((s) => s.endedAt === null).length)
         .toBe(1);
       expect(f.service.listSessions(f.owner).find((s) => s.endedAt === null)!.matchId).not.toBe(id);
+      expect(f.service.listSessions(f.owner).find((s) => s.endedAt === null)!.enableThinking).toBe(
+        false
+      );
       expect(errors).toEqual([]);
     } finally {
       await f.close();

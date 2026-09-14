@@ -1,5 +1,10 @@
 /** Supported AI battle models. Extending this list also requires a reviewed Beijing price. */
-export const AI_BATTLE_MODELS = ['qwen3.8-flash', 'qwen3.8-max'] as const;
+export const AI_BATTLE_MODELS = [
+  'qwen3.8-flash',
+  'qwen3.8-max',
+  'glm-5.2',
+  'deepseek-v4.1-flash',
+] as const;
 export type AiBattleModel = (typeof AI_BATTLE_MODELS)[number];
 
 /** Mutually exclusive token buckets; inputTokens excludes cache reads and creation. */

@@ -12,6 +12,7 @@ import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import { PL_N_BP4_030_LIVE_SUCCESS_CHOOSE_ENERGY_OR_MEMBER_RECOVERY_ABILITY_ID } from '../../ability-ids.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
+import { queryCardSelection, queryOptionSelection } from '../../runtime/selection-query.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -45,7 +46,8 @@ export function registerNBp4030DaydreamMermaidWorkflowHandlers(): void {
         game,
         input.selectedEffectOptionIds ?? [],
         context.continuePendingCardEffects
-      )
+      ),
+    queryOptionSelection
   );
   registerActiveEffectStepHandler(
     PL_N_BP4_030_LIVE_SUCCESS_CHOOSE_ENERGY_OR_MEMBER_RECOVERY_ABILITY_ID,
@@ -55,7 +57,8 @@ export function registerNBp4030DaydreamMermaidWorkflowHandlers(): void {
         game,
         input.selectedCardId ?? null,
         context.continuePendingCardEffects
-      )
+      ),
+    queryCardSelection
   );
 }
 

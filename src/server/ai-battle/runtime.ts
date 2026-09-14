@@ -14,6 +14,7 @@ import type { PlayerViewState } from '../../online/types.js';
 import { AiDecisionContext, type AiPublicObservation } from './decision-context.js';
 
 export const AI_MODEL_TIMEOUT_MS = 30_000;
+export const AI_THINKING_MODEL_TIMEOUT_MS = 120_000;
 export const AI_SERVICE_RETRY_LIMIT = 1;
 export const AI_CONSECUTIVE_FAILURE_LIMIT = 3;
 
@@ -268,8 +269,8 @@ export class AiBattleRuntime {
         task.decision.input,
         task.prepared.selection,
         task.prepared.source,
-        task.prepared.tradeoff,
-        view
+        view,
+        publicObservation
       );
     if (view) this.context.observe(view, publicObservation);
     if (this.current?.prepared?.source === 'MODEL') this.consecutiveFailures = 0;

@@ -6,10 +6,19 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { AiBattlePresetLoader } from '../../src/server/ai-battle/presets';
 import { CardDataRegistry } from '../../src/domain/card-data/loader';
 import type { DeckPointTableRules } from '../../src/domain/rules/deck-point-table';
-import { readFrozenMuseDeck, readFrozenGreenHasunosoraDeck } from '../helpers/ai-curated-decks';
+import {
+  readFrozenBluePurpleDeck,
+  readFrozenGreenHasunosoraDeck,
+  readFrozenMuseDeck,
+} from '../helpers/ai-curated-decks';
 import { createGameSession } from '../../src/application/game-session';
 import { DecisionTapeRandomSource } from '../../src/shared/random-source';
-import { CardType, GameEndReason } from '../../src/shared/types/enums';
+import {
+  BladeHeartEffect,
+  CardType,
+  GameEndReason,
+  HeartColor,
+} from '../../src/shared/types/enums';
 import { fromTransport } from '../../src/online/serde';
 import type { AnyCardData } from '../../src/domain/entities/card';
 import { buildAiBattleDecision } from '../../src/server/ai-battle/decision';
@@ -37,11 +46,20 @@ async function fixture() {
     cp('assets/ai-battle', path.join(root, 'assets/ai-battle'), { recursive: true }),
     cp('assets/decks/缪预组.yaml', path.join(root, 'assets/decks/缪预组.yaml')),
     cp('assets/decks/绿莲-6弹ver.yaml', path.join(root, 'assets/decks/绿莲-6弹ver.yaml')),
+    cp('assets/decks/蓝紫.yaml', path.join(root, 'assets/decks/蓝紫.yaml')),
   ]);
   const registry = new CardDataRegistry();
   const deck = readFrozenMuseDeck().deck;
   const green = readFrozenGreenHasunosoraDeck().deck;
-  registry.load([...deck.mainDeck, ...deck.energyDeck, ...green.mainDeck, ...green.energyDeck]);
+  const bluePurple = readFrozenBluePurpleDeck().deck;
+  registry.load([
+    ...deck.mainDeck,
+    ...deck.energyDeck,
+    ...green.mainDeck,
+    ...green.energyDeck,
+    ...bluePurple.mainDeck,
+    ...bluePurple.energyDeck,
+  ]);
   const loader = new AiBattlePresetLoader({
     root,
     getRegistry: () => Promise.resolve(registry),
@@ -203,6 +221,93 @@ describe('AI curated deck and frozen knowledge loading', () => {
       'muse-tempo',
     ]);
     expect(JSON.stringify(await loader.list())).not.toContain('assets/');
+  });
+
+  it('offers the blue-purple deck only to AI and preserves its over-limit PT facts', async () => {
+    const { root, registry } = await fixture();
+    const loader = new AiBattlePresetLoader({
+      root,
+      getRegistry: () => Promise.resolve(registry),
+      getPointTable: () =>
+        Promise.resolve({
+          ...pointTable,
+          entries: {
+            'PL!N-bp1-003': 4,
+            'PL!N-bp4-030': 1,
+            'PL!SP-sd1-019': 1,
+          },
+        }),
+    });
+    const bluePurpleId = 'blue-purple-nijigasaki';
+    const catalog = await loader.list();
+    expect(catalog.find((preset) => preset.id === bluePurpleId)).toMatchObject({
+      name: '蓝紫',
+      humanSelectable: false,
+      defaultHandbookId: 'blue-purple-nijigasaki-tempo',
+    });
+
+    const loaded = await loader.load({
+      humanPresetId: 'muse-starter',
+      aiPresetId: bluePurpleId,
+      handbookId: 'blue-purple-nijigasaki-tempo',
+    });
+    const expected = readFrozenBluePurpleDeck().deck;
+    expect(loaded.ai.deck).toEqual({
+      mainDeck: expected.mainDeck,
+      energyDeck: expected.energyDeck,
+    });
+    expect(loaded.ai.pointValidation).toEqual({
+      pointTableVersion: pointTable.version,
+      pointTotal: 20,
+      pointLimit: 9,
+    });
+    const handbook = await readFile(
+      path.join(root, 'assets/ai-battle/handbooks/blue-purple-nijigasaki-tempo.md'),
+      'utf8'
+    );
+    expect(loaded.knowledge.handbook.content).toBe(handbook);
+    expect(loaded.knowledge.handbook.sha256).toBe(
+      createHash('sha256').update(handbook).digest('hex')
+    );
+    const memberCostDistribution = loaded.ai.deck.mainDeck.reduce<Record<number, number>>(
+      (counts, card) => {
+        if (card.cardType === CardType.MEMBER) counts[card.cost] = (counts[card.cost] ?? 0) + 1;
+        return counts;
+      },
+      {}
+    );
+    expect(memberCostDistribution).toEqual({ 2: 14, 4: 9, 10: 6, 11: 12, 13: 2, 15: 4, 20: 1 });
+    const bladeHeartDistribution = loaded.ai.deck.mainDeck
+      .flatMap((card) => card.bladeHearts ?? [])
+      .filter((item) => item.effect === BladeHeartEffect.HEART)
+      .reduce<Record<string, number>>((counts, item) => {
+        const key = item.heartColor ?? 'UNKNOWN';
+        counts[key] = (counts[key] ?? 0) + 1;
+        return counts;
+      }, {});
+    expect(bladeHeartDistribution).toEqual({
+      [HeartColor.BLUE]: 18,
+      [HeartColor.PURPLE]: 15,
+      [HeartColor.PINK]: 2,
+      [HeartColor.YELLOW]: 8,
+      [HeartColor.GREEN]: 4,
+      [HeartColor.RAINBOW]: 9,
+    });
+    expect(
+      loaded.ai.deck.mainDeck.filter(
+        (card) => !card.bladeHearts?.some((item) => item.effect === BladeHeartEffect.HEART)
+      )
+    ).toHaveLength(4);
+    const session = createGameSession();
+    session.createGame('blue-purple-ai', 'human', 'Human', 'ai', 'AI');
+    expect(session.initializeGame(loaded.human.deck, loaded.ai.deck).success).toBe(true);
+    await expect(
+      loader.load({
+        humanPresetId: bluePurpleId,
+        aiPresetId: 'muse-starter',
+        handbookId: 'muse-balanced',
+      })
+    ).rejects.toMatchObject({ code: 'AI_PRESET_AI_ONLY', statusCode: 400 });
   });
 
   it('preserves each LIVE colour requirement in the frozen model reference', async () => {

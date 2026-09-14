@@ -41,6 +41,15 @@ export function readFrozenGreenHasunosoraDeck() {
   );
 }
 
+export function readFrozenBluePurpleDeck() {
+  return readFrozenDeck(
+    '蓝紫.yaml',
+    '虹ヶ咲',
+    '040ba2258970d6804146985605088c926f12898d9a22736ec4164ff46c2d077e',
+    '0d61f31c84ee5757e4509a81d1fd0a9b197dd0bb159d0cbbb42b0b8826c76260'
+  );
+}
+
 /** Test-only exact-printing facts; never a runtime card-source fallback. */
 function readFrozenDeck(file: string, group: string, expectedYaml: string, expectedFacts: string) {
   const yaml = readFileSync(new URL(`../../assets/decks/${file}`, import.meta.url), 'utf8');

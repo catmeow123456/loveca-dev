@@ -31,6 +31,7 @@ import type { AiBattleSessionView } from '../../src/server/services/ai-battle-se
 const servers: ReturnType<express.Express['listen']>[] = [];
 const input = {
   model: 'qwen3.8-max' as const,
+  enableThinking: false,
   humanPresetId: 'muse-starter',
   aiPresetId: 'muse-starter',
   handbookId: 'muse-balanced',
@@ -140,32 +141,83 @@ afterEach(async () => {
 });
 
 describe('AI administrator routes and ownership', () => {
-  it('requires an explicit supported model and passes the chosen model to the per-game client', async () => {
-    const f = await serverFixture();
-    auth.roles.set('owner', 'admin');
-    for (const model of [undefined, 'qwen3.8-max-0902', 'qwen-next']) {
-      expect(
-        (await f.request('/ai/sessions', { userId: 'owner', body: { ...input, model } })).status
-      ).toBe(400);
+  it.each(['qwen3.8-flash', 'qwen3.8-max', 'glm-5.2', 'deepseek-v4.1-flash'] as const)(
+    'requires an explicit supported model and passes %s to the per-game client',
+    async (model) => {
+      const f = await serverFixture();
+      auth.roles.set('owner', 'admin');
+      for (const unsupportedModel of [
+        undefined,
+        'qwen3.8-max-0902',
+        'qwen-next',
+        'glm-5.2-fast-preview',
+        'deepseek-v4-flash',
+      ]) {
+        expect(
+          (
+            await f.request('/ai/sessions', {
+              userId: 'owner',
+              body: { ...input, model: unsupportedModel },
+            })
+          ).status
+        ).toBe(400);
+      }
+      expect(f.createModel).not.toHaveBeenCalled();
+      const response = await f.request('/ai/sessions', {
+        userId: 'owner',
+        body: { ...input, model },
+      });
+      expect(response.status).toBe(201);
+      const result = (await response.json()) as { data: { session: AiBattleSessionView } };
+      expect(result.data.session).toMatchObject({
+        model,
+        matchBilling: { model, attempts: 0 },
+      });
+      expect(f.createModel).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        model,
+        expect.anything(),
+        false
+      );
     }
-    expect(f.createModel).not.toHaveBeenCalled();
-    const response = await f.request('/ai/sessions', {
-      userId: 'owner',
-      body: { ...input, model: 'qwen3.8-flash' },
-    });
-    expect(response.status).toBe(201);
-    const result = (await response.json()) as { data: { session: AiBattleSessionView } };
-    expect(result.data.session).toMatchObject({
-      model: 'qwen3.8-flash',
-      matchBilling: { model: 'qwen3.8-flash', attempts: 0 },
-    });
-    expect(f.createModel).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      'qwen3.8-flash',
-      expect.anything()
-    );
-  });
+  );
+
+  it.each([true, false])(
+    'validates and freezes the thinking switch (%s) for the session',
+    async (enableThinking) => {
+      const f = await serverFixture();
+      auth.roles.set('owner', 'admin');
+      for (const invalid of [undefined, null, 'true', 'false', 0, 1]) {
+        expect(
+          (
+            await f.request('/ai/sessions', {
+              userId: 'owner',
+              body: { ...input, enableThinking: invalid },
+            })
+          ).status
+        ).toBe(400);
+      }
+      expect(f.createModel).not.toHaveBeenCalled();
+      const response = await f.request('/ai/sessions', {
+        userId: 'owner',
+        body: { ...input, enableThinking },
+      });
+      expect(response.status).toBe(201);
+      const result = (await response.json()) as { data: { session: AiBattleSessionView } };
+      expect(result.data.session.enableThinking).toBe(enableThinking);
+      expect(f.service.getSession('owner', result.data.session.matchId).enableThinking).toBe(
+        enableThinking
+      );
+      expect(f.createModel).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        input.model,
+        expect.anything(),
+        enableThinking
+      );
+    }
+  );
 
   it('reads persistent costs after the match runtime is gone and rechecks permissions', async () => {
     const f = await serverFixture();

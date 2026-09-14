@@ -17,6 +17,7 @@ const createSchema = z
     handbookId: z.string().min(1).max(100),
     humanSeat: z.enum(['FIRST', 'SECOND']),
     model: z.enum(AI_BATTLE_MODELS),
+    enableThinking: z.boolean(),
   })
   .strict();
 const seqSchema = z.coerce.number().int().min(0).optional();

@@ -191,9 +191,8 @@ describe('logged green planning regressions through shared rules', () => {
     if (task?.kind !== 'MODEL') throw new Error('Expected model');
     expect(task.task.input.context?.knownDeckTop?.frontInfo.cardCode).toBe('PL!HS-bp6-027-L');
     expect(task.task.input.context?.recentDecisions).toHaveLength(2);
-    expect(task.task.input.context?.recentDecisions[1]?.modelIntent).toContain(
-      '本次设置结束后不能再盖'
-    );
+    expect(task.task.input.context?.recentDecisions[1]?.resultSummary).toBeDefined();
+    expect(JSON.stringify(task.task.input.context)).not.toContain('本次设置结束后不能再盖');
     const topId = createPublicObjectId(f.session.state!.players[0].mainDeck.cardIds[0]!);
     expect(task.task.input.state.objects[topId]).toBeUndefined();
     expect(task.task.input.context?.lastAction?.selectedCards[0]?.cardCode).toBe('PL!HS-bp6-027-L');

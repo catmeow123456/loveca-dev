@@ -40,7 +40,9 @@ test('计费：Flash 创建、单次调用、结束后在历史详情读取同�
     await page.getByRole('button', { name: '创建调试对局', exact: true }).click();
     const created = await pendingCreate;
     expect(created.status()).toBe(201);
-    matchId = (await created.json()).data.session.matchId;
+    const createdSession = ((await created.json()) as { data: CreateAiBattleResult }).data.session;
+    matchId = createdSession.matchId;
+    expect(createdSession.enableThinking).toBe(false);
     await expect(page.locator('.ai-battle-toolbar [data-ai-billing="match"]')).toContainText(
       '≈¥0.0258'
     );

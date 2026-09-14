@@ -60,6 +60,14 @@ export type AiDecisionSpace =
     };
 
 export interface AiDecisionInput {
+  /** Current seat's authoritative setting allowance; queried only in its LIVE_SET window. */
+  readonly liveSet?: {
+    readonly setCardObjectIds: readonly string[];
+    readonly setCount: number;
+    readonly setLimit: number;
+    readonly remainingSetCount: number;
+    readonly drawCountOnConfirm: number;
+  };
   readonly context?: AiDecisionContextInput;
   readonly history?: {
     readonly selection: 'LAST_12_PUBLIC_EVENTS';
@@ -235,6 +243,7 @@ export function responseSchema(space: AiDecisionSpace): Readonly<Record<string, 
     additionalProperties: false,
     required: ['selection'],
     properties: {
+      tradeoff: { type: 'string', maxLength: 300 },
       selection: {
         type: 'object',
         additionalProperties: false,
@@ -272,7 +281,6 @@ export function responseSchema(space: AiDecisionSpace): Readonly<Record<string, 
                 },
               },
       },
-      tradeoff: { type: 'string', maxLength: 300 },
     },
   };
 }

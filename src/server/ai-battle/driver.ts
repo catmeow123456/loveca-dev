@@ -12,6 +12,7 @@ import { safeAiErrorForLog } from './billing.js';
 
 export interface AiBattleModelClient {
   readonly configurationMaterial?: AiKnowledgeMaterial;
+  readonly requestTimeoutMs?: number;
   decide(
     input: AiDecisionInput,
     signal: AbortSignal,
@@ -187,7 +188,7 @@ async function requestWithDeadline(
   const timer = setTimeout(() => {
     finishAbort({ kind: 'SERVICE_ERROR', message: 'Model request timed out', retryable: true });
     controller.abort();
-  }, AI_MODEL_TIMEOUT_MS);
+  }, model.requestTimeoutMs ?? AI_MODEL_TIMEOUT_MS);
   timer.unref?.();
   task.signal.addEventListener('abort', cancel, { once: true });
   try {

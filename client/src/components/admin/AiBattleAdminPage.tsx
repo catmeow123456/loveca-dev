@@ -40,6 +40,7 @@ export function AiBattleAdminPage({
   const [handbookId, setHandbookId] = useState('');
   const [humanSeat, setHumanSeat] = useState<Seat>('FIRST');
   const [model, setModel] = useState<AiBattleModel>('qwen3.8-flash');
+  const [enableThinking, setEnableThinking] = useState(false);
   const [boardId, setBoardId] = useState<string | null>(null);
   const [observationId, setObservationId] = useState<string | null>(null);
   const [endingId, setEndingId] = useState<string | null>(null);
@@ -49,7 +50,9 @@ export function AiBattleAdminPage({
   const [error, setError] = useState<string | null>(null);
   const active = sessions.find((session) => session.endedAt === null);
   const selectedSession = sessions.find((session) => session.matchId === boardId);
-  const selectedHuman = presets.find((preset) => preset.id === humanPresetId) ?? presets[0];
+  const humanPresets = presets.filter((preset) => preset.humanSelectable);
+  const selectedHuman =
+    humanPresets.find((preset) => preset.id === humanPresetId) ?? humanPresets[0];
   const selectedAi = presets.find((preset) => preset.id === aiPresetId) ?? presets[0];
   const selectedHandbook =
     selectedAi?.handbooks.find((book) => book.id === handbookId) ??
@@ -162,6 +165,7 @@ export function AiBattleAdminPage({
         handbookId: selectedHandbook.id,
         humanSeat,
         model,
+        enableThinking,
       });
       await attach(result.session, result.snapshot, generation);
     } catch (cause) {
@@ -350,7 +354,7 @@ export function AiBattleAdminPage({
               <p>真人与 AI 各控制一席。先完成规则操作，再对照决定材料复盘。</p>
             </header>
             <fieldset disabled={isBusy || isLoading || Boolean(active)}>
-              <legend className="sr-only">构筑与先后手</legend>
+              <legend className="sr-only">模型、构筑与先后手</legend>
               <label>
                 AI 模型
                 <select
@@ -364,6 +368,23 @@ export function AiBattleAdminPage({
                   ))}
                 </select>
               </label>
+              {model === 'deepseek-v4.1-flash' && (
+                <small>费用按北京忙时价预估，闲时实际费用可能更低。</small>
+              )}
+              <div>
+                <label className="ai-thinking-choice">
+                  <input
+                    type="checkbox"
+                    checked={enableThinking}
+                    onChange={(event) => setEnableThinking(event.target.checked)}
+                    aria-describedby="ai-thinking-help"
+                  />
+                  开启思考
+                </label>
+                <small id="ai-thinking-help">
+                  让模型先思考再作出选择，可能增加等待时间和费用。本局创建后固定。
+                </small>
+              </div>
               <div className="ai-deck-pair">
                 <label>
                   真人构筑
@@ -371,7 +392,7 @@ export function AiBattleAdminPage({
                     value={selectedHuman?.id ?? ''}
                     onChange={(event) => setHumanPresetId(event.target.value)}
                   >
-                    {presets.map((preset) => (
+                    {humanPresets.map((preset) => (
                       <option key={preset.id} value={preset.id}>
                         {preset.name}
                       </option>
@@ -485,7 +506,8 @@ export function AiBattleAdminPage({
                     {activityLabels[session.activity]} · 连续失败 {session.consecutiveFailures}
                   </p>
                   <small>
-                    {session.handbookId} · {session.model}
+                    {session.handbookId} · {session.model} ·{' '}
+                    {session.enableThinking ? '思考开启' : '思考关闭'}
                   </small>
                 </div>
                 <div className="ai-actions">

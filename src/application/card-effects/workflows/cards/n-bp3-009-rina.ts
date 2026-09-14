@@ -5,6 +5,7 @@ import { HeartColor } from '../../../../shared/types/enums.js';
 import { PL_N_BP3_009_LIVE_START_BOTTOM_TWO_WAITING_MEMBERS_COST_SUM_REWARD_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import { moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -15,7 +16,13 @@ type Continue = (game: GameState, ordered: boolean) => GameState;
 
 export function registerNBp3009RinaWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(PL_N_BP3_009_LIVE_START_BOTTOM_TWO_WAITING_MEMBERS_COST_SUM_REWARD_ABILITY_ID, (game, ability, options, context) => start(game, ability, options.orderedResolution === true, context.continuePendingCardEffects));
-  registerActiveEffectStepHandler(PL_N_BP3_009_LIVE_START_BOTTOM_TWO_WAITING_MEMBERS_COST_SUM_REWARD_ABILITY_ID, SELECT_STEP_ID, (game, input, context) => finish(game, input.selectedCardIds ?? [], context.continuePendingCardEffects));
+  registerActiveEffectStepHandler(
+    PL_N_BP3_009_LIVE_START_BOTTOM_TWO_WAITING_MEMBERS_COST_SUM_REWARD_ABILITY_ID,
+    SELECT_STEP_ID,
+    (game, input, context) =>
+      finish(game, input.selectedCardIds ?? [], context.continuePendingCardEffects),
+    queryCardSelection
+  );
 }
 
 function candidates(game: GameState, playerId: string): string[] {

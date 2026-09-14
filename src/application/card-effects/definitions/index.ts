@@ -1456,7 +1456,7 @@ const PL_BP4_006_ON_ENTER_EFFECT_TEXT =
 const BP3_006_LIVE_START_DISCARD_GAIN_BLADE_BY_SUCCESS_COUNT_EFFECT_TEXT =
   '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，自己的成功LIVE卡区每有1张卡片，获得[BLADE][BLADE]。';
 const BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_HEART_EFFECT_TEXT =
-  '【LIVE开始时】选择[桃ハート]或[黄ハート]或[紫ハート]中的1种。LIVE结束时为止，自己的成功LIVE卡区每有1张卡片，获得1个选择了的Heart。';
+  '【LIVE开始时】选择[桃ハート]或[黄ハート]或[紫ハート]中的1种。LIVE结束时为止，每存在1张自己的成功LIVE卡区中的卡片，获得1个选择了的HEART。';
 const PL_N_BP3_014_LIVE_START_REPLACE_ORIGINAL_HEART_EFFECT_TEXT =
   '【LIVE开始时】选择[桃ハート]或[黄ハート]或[緑ハート]中的1种。LIVE结束时为止，此成员原本持有的HEART变为选择的HEART。';
 const PL_N_BP3_015_LIVE_START_REPLACE_ORIGINAL_HEART_EFFECT_TEXT =
@@ -1852,9 +1852,9 @@ const PL_N_BP1_029_LIVE_START_EFFECT_TEXT =
 const PL_N_BP5_027_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己或对方成功LIVE卡区存在2张以上卡，且自己的舞台存在3名以上名称各不相同的成员的场合，此卡分数+1。';
 const PL_N_BP4_030_LIVE_SUCCESS_EFFECT_TEXT =
-  '【LIVE成功时】选择以下1项。自己的成功LIVE卡区存在『虹ヶ咲』卡的场合，改为选择1项以上。・从自己的能量卡组将1张能量卡以待机状态放置。・从自己的休息室将1张成员卡加入手牌。';
+  '【LIVE成功时】从以下选择1项。自己的成功LIVE卡区存在『虹咲』的卡片的场合，改为选择大于等于1项。\n\n ・从自己的能量卡组，将1张能量卡以待机状态放置入能量区。\n\n ・从自己的休息室将1张成员卡加入手牌。';
 const PL_N_BP4_029_LIVE_START_EFFECT_TEXT =
-  '【LIVE开始时】此游戏第1回合的LIVE阶段的场合，此卡分数+1，LIVE结束时为止，自己的舞台1名『虹ヶ咲』成员获得[BLADE]。';
+  '【LIVE开始时】此局游戏的第1回合的LIVE阶段的场合，此卡的分数+1，LIVE结束时为止，存在于自己的舞台的1名『虹咲』的成员，获得[ブレード]。';
 const PL_N_BP4_010_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将自己成功LIVE卡区1张『虹ヶ咲』LIVE放置入休息室。如此做时，将自己休息室1张『虹ヶ咲』LIVE放置入成功LIVE卡区。';
 const PL_N_BP4_010_LIVE_START_EFFECT_TEXT =
@@ -1948,9 +1948,9 @@ const SP_PR_LIVE_START_DISCARD_GAIN_BLADE_DRAW_IF_LIVE_EFFECT_TEXT =
 const N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_EFFECT_TEXT =
   '【起动】【1回合1次】公开所有手牌：自己的舞台上存在其他的成员，且因支付此费用公开的手牌中不存在LIVE卡的场合，检视自己卡组顶的5张卡。可以将1张其中的LIVE卡公开并加入手牌。其余的卡片放置入休息室。';
 const N_SD1_004_LIVE_START_EFFECT_TEXT =
-  '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，获得[BLADE][BLADE]。';
+  '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，获得[ブレード][ブレード]。';
 const N_BP1_005_LIVE_START_EFFECT_TEXT =
-  '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，获得[BLADE]。';
+  '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，获得[ブレード]。';
 const N_BP5_022_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将1张手牌放置入休息室：从自己的休息室将1张『虹咲』的LIVE卡加入手牌。';
 const N_PR_024_CONTINUOUS_EFFECT_TEXT =
@@ -2301,7 +2301,7 @@ const BP5_009_ACTIVATED_EFFECT_TEXT =
 const BP5_010_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将1张手牌放置入休息室：将自己卡组顶3张卡放置入休息室。之后，从自己的休息室将1张『A-RISE』成员卡加入手牌。';
 const BP5_011_LIVE_START_SUCCESS_COUNT_CHOOSE_HEART_EFFECT_TEXT =
-  '【LIVE开始时】选择[緑ハート]或[青ハート]或[紫ハート]中的1种。LIVE结束时为止，自己的成功LIVE卡区每有1张卡片，获得1个选择了的Heart。';
+  '【LIVE开始时】从[緑ハート]或[青ハート]或[紫ハート]中选择1项。LIVE结束时为止，每存在1张自己的成功LIVE卡区中的卡片，获得1个选择了的HEART。';
 const SP_BP5_012_CONTINUOUS_EFFECT_TEXT =
   '【常时】只要自己的LIVE卡区存在必要HEART的合计大于等于8的『Liella!』的LIVE卡，获得[黄ハート]。';
 const PL_BP5_013_ON_ENTER_EFFECT_TEXT = '【登场】将对方舞台上1名费用小于等于4的成员变为待机状态。';

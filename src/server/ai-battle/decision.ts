@@ -17,6 +17,7 @@ import { FaceState, GamePhase, SubPhase } from '../../shared/types/enums.js';
 import { getSuccessLiveSelectionCandidateIds } from '../../domain/rules/success-live-placement.js';
 import { buildAiEffectDecision } from './effect-decision.js';
 import {
+  describeAiActivationResources,
   describeAiCardIdentity,
   describeAiLiveSet,
   describeAiLiveSetCompletion,
@@ -270,12 +271,19 @@ export function buildAiBattleDecision(
               reason: `Missing activation query: ${ability.abilityId}`,
             };
           if (!canStart) continue;
+          const activationResources = visibleActivationResources(
+            game,
+            playerId,
+            cardId,
+            ability.abilityId,
+            view
+          );
           addAction(
             {
-              description: `起动 ${cardName(cardId)}：${ability.title}`,
+              description: `起动 ${cardName(cardId)}；${activationResources.activation ? `${describeAiActivationResources(activationResources.activation)}；` : ''}能力：${ability.title}`,
               objectId: createPublicObjectId(cardId),
               effectText: ability.text,
-              ...visibleActivationResources(game, playerId, cardId, ability.abilityId, view),
+              ...activationResources,
             },
             {
               type: GameCommandType.ACTIVATE_ABILITY,
@@ -422,6 +430,9 @@ function createDecisionInput(
     const liveBaseBudget = front ? summarizeAiLiveBaseBudget(selfResources, front) : undefined;
     return liveBaseBudget ? { ...candidate, liveBaseBudget } : candidate;
   });
+  const selfId = view.match.participants[view.match.viewerSeat].id;
+  const setCount = getLiveSetCardCountForPlayer(game, selfId);
+  const setLimit = getLiveSetCardLimitForPlayer(game, selfId);
   return globalThis.structuredClone({
     state: {
       turn: game.turnCount,
@@ -435,6 +446,19 @@ function createDecisionInput(
       ...(view.match.liveResult ? { liveResult: view.match.liveResult } : {}),
     },
     purpose,
+    ...(purpose === 'LIVE_SET'
+      ? {
+          liveSet: {
+            setCardObjectIds: getLiveSetCardIdsForPlayer(game, selfId)
+              .map(createPublicObjectId)
+              .filter((id) => view.objects[id]?.surface === 'FRONT'),
+            setCount,
+            setLimit,
+            remainingSetCount: Math.max(0, setLimit - setCount),
+            drawCountOnConfirm: setCount,
+          },
+        }
+      : {}),
     ...(view.activeEffect
       ? {
           effect: {

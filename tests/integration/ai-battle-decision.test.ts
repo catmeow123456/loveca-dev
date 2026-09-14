@@ -24,6 +24,9 @@ import {
 import { readFrozenGreenHasunosoraDeck, readFrozenMuseDeck } from '../helpers/ai-curated-decks';
 import { placeEnergyFromDeckToZone } from '../../src/application/effects/energy';
 import { summarizeAiSelfResources } from '../../src/server/ai-battle/visible-resources';
+import { AiBattleRuntime } from '../../src/server/ai-battle/runtime';
+import { compactAiDecisionInput } from '../../src/server/ai-battle/model-input';
+import { expandAiDecisionInput } from '../helpers/ai-model-input';
 
 import {
   P1,
@@ -129,7 +132,7 @@ describe('AI ordinary decisions through authoritative commands', () => {
 
   it('matches an independently enumerated finite play space and pays each quoted cost', () => {
     // Three active energy; left is an old cost-2 member, center entered this turn.
-    for (const cost of [1, 3, 5, 6]) {
+    for (const cost of [1, 2, 3, 5, 6]) {
       const { session } = setup();
       replaceHand(session, [member('ORDINARY', cost)]);
       stage(session, member('OLD', 2), SlotPosition.LEFT);
@@ -152,9 +155,11 @@ describe('AI ordinary decisions through authoritative commands', () => {
         Object.assign(copy.session.state!.players[0], { movedToStageThisTurn: [copyCenter] });
         const d = decision(copy.session);
         const action = d.input.space.candidates.find((c) => c.targetSlot === slot)!;
+        expect(action.description).toContain('手牌 1→0（打出 1 张，未计卡效）');
         const beforeEnergy = getActiveEnergyIds(copy.session.state!.players[0].energyZone);
         submit(copy.session, d, { kind: 'ACTION', actionRef: action.ref });
         const after = copy.session.state!.players[0];
+        expect(after.hand.cardIds).toHaveLength(0);
         expect(after.memberSlots.slots[slot]).toBe(copyId);
         expect(getActiveEnergyIds(after.energyZone)).toHaveLength(
           beforeEnergy.length - action.energyCost!
@@ -325,6 +330,12 @@ describe('AI ordinary decisions through authoritative commands', () => {
     expect(searchPlay.description).toContain(searcher.cardCode);
     expect(searchPlay.effectText).toBe(searcher.cardTextJp);
     expect(play.energyCost).toBe(0);
+    expect(play.description).toContain('手牌 2→1（打出 1 张，未计卡效）');
+    expect(searchPlay.description).toContain('手牌 2→1（打出 1 张，未计卡效）');
+    expect(expandAiDecisionInput(compactAiDecisionInput(current.input))).toHaveProperty(
+      ['space', 'candidates', current.input.space.candidates.indexOf(play), 'description'],
+      play.description
+    );
     const energy = getActiveEnergyIds(session.state!.players[0].energyZone);
     submit(session, current, { kind: 'ACTION', actionRef: play.ref });
     const player = session.state!.players[0];
@@ -450,6 +461,100 @@ describe('AI ordinary decisions through authoritative commands', () => {
     expect(() =>
       parseAiBattleResponse(target, JSON.stringify({ selection: { kind: 'CARDS', cardRefs: [] } }))
     ).toThrow();
+  });
+
+  it('reports both empty recoveries as real losses while preserving legal choices and the original model evidence', () => {
+    const { session } = setup();
+    Object.assign(session.state!, { turnCount: 2 });
+    replaceHand(session, [member('PL!SP-bp2-016-N', 4), member('PL!-bp3-012-N', 2)]);
+    const sources = [SlotPosition.LEFT, SlotPosition.CENTER].map((slot) =>
+      stage(session, member('PL!HS-bp2-004-P', 2), slot)
+    );
+    const player = session.state!.players[0];
+    // T2 waiting room contains members only; there is no LIVE to obtain before or after paying.
+    const waitingIds = player.mainDeck.cardIds.slice(0, 2);
+    Object.assign(player.mainDeck, { cardIds: player.mainDeck.cardIds.slice(2) });
+    Object.assign(player.waitingRoom, { cardIds: waitingIds });
+    expect(
+      waitingIds.every(
+        (id) => session.state!.cardRegistry.get(id)!.data.cardType === CardType.MEMBER
+      )
+    ).toBe(true);
+    const records: unknown[] = [];
+    const runtime = new AiBattleRuntime('FIRST', () => {}, {
+      begin: () => {},
+      end: () => {},
+      reportFailure: () => {},
+      append: (_, stage, payload) => {
+        records.push({ stage, payload });
+      },
+    });
+    const observation = () => ({
+      events: session.getPublicEventsSince(runtime.observedPublicSeq),
+      throughPublicSeq: session.getCurrentPublicEventSeq(),
+      droppedEventCount: 0,
+    });
+    let revision = 1;
+    const sample = () => {
+      const current = decision(session);
+      const task = runtime.observe(
+        revision++,
+        `empty-recovery-${revision}`,
+        { kind: 'DECISION', decision: current },
+        session.getPlayerViewState(P1)!,
+        observation()
+      );
+      return { current, task };
+    };
+    const execute = () => {
+      const result = session.executeCommand(runtime.command(1000));
+      expect(result.success, result.error).toBe(true);
+      runtime.accepted(session.getPlayerViewState(P1)!, observation());
+    };
+    const falseRationale = '获得了更宝贵的LIVE卡';
+    for (const [index, source] of sources.entries()) {
+      const { current, task } = sample();
+      expect(task?.kind).toBe('MODEL');
+      const action = current.input.space.candidates.find(
+        (candidate) => candidate.objectId === createPublicObjectId(source) && candidate.activation
+      )!;
+      expect(action.activation?.targets).toEqual([]);
+      expect(action.description).toContain('支付后可见回手目标 0 张');
+      expect(action.description).toContain('来源成员送入休息室');
+      expect(current.input.state.selfResources.waitingRoomSummary).toContain('LIVE 0 张');
+      runtime.resolve({
+        kind: 'RESPONSE',
+        text: JSON.stringify({
+          selection: { kind: 'ACTION', actionRef: action.ref },
+          tradeoff: falseRationale,
+        }),
+      });
+      execute();
+      const effect = sample();
+      expect(effect.current.input.space).toMatchObject({
+        kind: 'CARDS',
+        candidates: [],
+        canSkip: true,
+      });
+      expect(runtime.current?.prepared?.source).toBe('MECHANICAL');
+      execute();
+      const next = sample();
+      if (next.task?.kind !== 'MODEL') throw new Error('Expected next model request');
+      const input = next.task.task.input;
+      expect(input.state.selfResources.stageMembers).toHaveLength(1 - index);
+      expect(input.state.selfResources.handLiveCount).toBe(0);
+      expect(input.context?.lastAction?.resultSummary).toContain('回收结算完成：实际回手 0 张');
+      expect(input.context?.recentDecisions[index]?.resultSummary).toContain(
+        `舞台成员 ${2 - index}→${1 - index}`
+      );
+      const wire = JSON.stringify(compactAiDecisionInput(input));
+      expect(wire).toContain('回收结算完成：实际回手 0 张');
+      expect(wire).not.toContain(falseRationale);
+      expect(input.context?.recentDecisions[index]?.actions[0]).not.toContain('加入手牌');
+      runtime.invalidate();
+    }
+    expect(JSON.stringify(records)).toContain(falseRationale);
+    expect(player.hand.cardIds).toHaveLength(2);
   });
 
   it.each(['SD', 'FUTURE'])(

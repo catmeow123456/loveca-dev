@@ -5,6 +5,7 @@ import type { AiBattleModel, AiMatchBilling } from './ai-battle-billing-types.js
 export interface AiBattlePresetChoice {
   readonly id: string;
   readonly name: string;
+  readonly humanSelectable: boolean;
   readonly defaultHandbookId: string;
   readonly handbooks: readonly { readonly id: string; readonly name: string }[];
 }
@@ -18,6 +19,7 @@ export interface AiBattlePresetInput {
 export interface CreateAiBattleInput extends AiBattlePresetInput {
   readonly humanSeat: Seat;
   readonly model: AiBattleModel;
+  readonly enableThinking: boolean;
 }
 
 export interface AiBattleSessionView extends CreateAiBattleInput {

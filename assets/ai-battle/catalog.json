@@ -34,6 +34,21 @@
           "path": "assets/ai-battle/handbooks/green-hasunosora-recovery.md"
         }
       ]
+    },
+    {
+      "id": "blue-purple-nijigasaki",
+      "name": "蓝紫",
+      "aiOnly": true,
+      "deckPath": "assets/decks/蓝紫.yaml",
+      "deckSha256": "040ba2258970d6804146985605088c926f12898d9a22736ec4164ff46c2d077e",
+      "defaultHandbookId": "blue-purple-nijigasaki-tempo",
+      "handbooks": [
+        {
+          "id": "blue-purple-nijigasaki-tempo",
+          "name": "蓝紫节奏与回收",
+          "path": "assets/ai-battle/handbooks/blue-purple-nijigasaki-tempo.md"
+        }
+      ]
     }
   ]
 }

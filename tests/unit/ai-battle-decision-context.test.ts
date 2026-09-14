@@ -3,6 +3,7 @@ import { AiDecisionContext } from '../../src/server/ai-battle/decision-context';
 import type { PublicEvent } from '../../src/online/types';
 import { createPlanningFixture } from '../helpers/ai-battle-planning-fixture';
 import { buildAiBattleDecision } from '../../src/server/ai-battle/decision';
+import { decision, setup, submit, P1 } from '../helpers/ai-battle-fixture';
 
 function knownTop() {
   const f = createPlanningFixture('111');
@@ -27,6 +28,33 @@ function knownTop() {
 }
 
 describe('AI player knowledge boundaries', () => {
+  it.each([false, true])(
+    'labels mulligan history explicitly (keep all: %s) and stores identities only',
+    (keepAll) => {
+      const { session } = setup(false);
+      const current = decision(session);
+      const memory = new AiDecisionContext('FIRST');
+      const chosen = keepAll ? [] : current.input.space.candidates.slice(0, 2);
+      const selection = { kind: 'CARDS' as const, cardRefs: chosen.map((c) => c.ref) };
+      submit(session, current, selection);
+      memory.accepted(current.input, selection, 'MODEL', session.getPlayerViewState(P1)!);
+      const action = memory.input(current.input.state.turn).lastAction!;
+      expect(action.actions).toEqual(
+        keepAll ? ['起手换牌：全部保留'] : chosen.map((c) => `换回卡组：${c.description}`)
+      );
+      expect(action.selectedCards.map((card) => card.cardCode)).toEqual(
+        chosen.map((c) => current.input.state.objects[c.objectId!]!.frontInfo!.cardCode)
+      );
+      for (const card of action.selectedCards) {
+        expect(card).not.toHaveProperty('hearts');
+        expect(card).not.toHaveProperty('blade');
+        expect(card).not.toHaveProperty('cardTextJp');
+        expect(card).not.toHaveProperty('cardTextCn');
+      }
+      expect(action.resourcesAfter?.handCardCount).toBe(action.resourcesBefore.handCardCount);
+    }
+  );
+
   it('remembers ordered card choices in the accepted selection order', () => {
     const { f, view, memory } = knownTop();
     const q = buildAiBattleDecision(f.session.state!, 'ai', view);
@@ -44,7 +72,6 @@ describe('AI player knowledge boundaries', () => {
       },
       { kind: 'CARDS', cardRefs: ['c1', 'c0'] },
       'MODEL',
-      undefined,
       view
     );
     expect(memory.input(5).lastAction?.selectedCards.map((card) => card.cardCode)).toEqual([
@@ -107,35 +134,92 @@ describe('AI player knowledge boundaries', () => {
     }
   );
 
-  it('bounds accepted decisions, preserves intent through mechanical work, and clears the plan at turn changes', () => {
+  it('bounds accepted actions and observed results through mechanical work, then clears them at turn changes', () => {
     const { f, view, memory } = knownTop();
     const q = buildAiBattleDecision(f.session.state!, 'ai', view);
     if (q.kind !== 'DECISION') throw new Error('Expected decision');
     for (let i = 0; i < 7; i++)
       memory.accepted(
-        q.decision.input,
-        { kind: 'ACTION', actionRef: q.decision.input.space.candidates[0]!.ref },
+        {
+          ...q.decision.input,
+          space: {
+            kind: 'ACTION',
+            candidates: [{ ref: 'a1', description: `action-${i}` }],
+          },
+        },
+        { kind: 'ACTION', actionRef: 'a1' },
         'MODEL',
-        `plan-${i}`,
         view
       );
     memory.accepted(
       q.decision.input,
       { kind: 'ACTION', actionRef: q.decision.input.space.candidates.at(-1)!.ref },
       'MECHANICAL',
-      undefined,
       view
     );
-    expect(memory.input(5).recentDecisions.map((x) => x.modelIntent)).toEqual([
-      'plan-3',
-      'plan-4',
-      'plan-5',
-      'plan-6',
+    expect(memory.input(5).recentDecisions.map((x) => x.actions[0])).toEqual([
+      'action-3',
+      'action-4',
+      'action-5',
+      'action-6',
     ]);
+    expect(memory.input(5).recentDecisions.every((x) => x.resultSummary)).toBe(true);
     expect(memory.input(5).lastAction?.source).toBe('MECHANICAL');
     expect(memory.input(6).recentDecisions).toEqual([]);
     expect(memory.input(6).lastAction).toBeUndefined();
     // A turn counter alone does not imply a draw; the real public movement invalidates the top.
     expect(memory.input(6).knownDeckTop).toBeDefined();
+  });
+
+  it('only describes fresh own completed effects and does not invent results without an after-view', () => {
+    const { f, view, memory } = knownTop();
+    const q = buildAiBattleDecision(f.session.state!, 'ai', view);
+    if (q.kind !== 'DECISION') throw new Error('Expected decision');
+    const selection = {
+      kind: 'ACTION' as const,
+      actionRef: q.decision.input.space.candidates[0]!.ref,
+    };
+    const event = {
+      type: 'CardEffectSummary' as const,
+      source: 'PLAYER' as const,
+      actorSeat: 'FIRST' as const,
+      eventId: 'recovery',
+      matchId: view.match.matchId,
+      seq: 2,
+      timestamp: 2,
+      abilityId: 'recovery',
+      effectKind: 'SELF_SACRIFICE_RECOVER_FROM_WAITING_ROOM' as const,
+      summaryStatus: 'COMPLETED' as const,
+      recoveredCards: [],
+      hiddenRecoveredCardCount: 0,
+      noRecoveredCards: true,
+    };
+    const observation = {
+      events: [event],
+      throughPublicSeq: 2,
+      droppedEventCount: 0,
+    };
+    memory.accepted(q.decision.input, selection, 'MECHANICAL', view, observation);
+    expect(memory.input(5).lastAction?.resultSummary).toContain('回收结算完成：实际回手 0 张');
+    for (const ignored of [
+      { ...event, actorSeat: 'SECOND' as const },
+      { ...event, summaryStatus: 'STARTED' as const },
+      { ...event, seq: 1 },
+      { ...event, seq: 3 },
+    ]) {
+      memory.accepted(q.decision.input, selection, 'MECHANICAL', view, {
+        ...observation,
+        events: [ignored],
+      });
+      expect(memory.input(5).lastAction?.resultSummary).not.toContain('结算完成');
+    }
+    memory.accepted(q.decision.input, selection, 'MECHANICAL', view, {
+      ...observation,
+      droppedEventCount: 1,
+    });
+    expect(memory.input(5).lastAction?.resultSummary).not.toContain('结算完成');
+    memory.accepted(q.decision.input, selection, 'MODEL');
+    expect(memory.input(5).lastAction?.resourcesAfter).toBeUndefined();
+    expect(memory.input(5).lastAction?.resultSummary).toBeUndefined();
   });
 });

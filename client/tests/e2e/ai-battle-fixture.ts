@@ -12,6 +12,7 @@ const OWNER = 'ai-ui-admin';
 const NOW = '2026-09-09T06:00:00.000Z';
 export const CREATE_INPUT: CreateAiBattleInput = {
   model: 'qwen3.8-max',
+  enableThinking: false,
   humanPresetId: 'muse-starter',
   aiPresetId: 'muse-starter',
   handbookId: 'muse-balanced',
@@ -67,12 +68,13 @@ export async function aiBrowserFixture(page: Page) {
           entries: {},
         }),
     }),
-    createModel: (knowledge, store, model, billing) =>
+    createModel: (knowledge, store, model, billing, enableThinking) =>
       Promise.resolve(
         new DashScopeAiBattleClient(
           {
             endpoint: 'https://fixture.example/compatible-mode/v1/chat/completions',
             model,
+            enableThinking,
             apiKey: 'browser-fake-secret',
             temperature: 0.2,
             maxTokens: 2048,
