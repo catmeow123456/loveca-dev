@@ -18,7 +18,7 @@ description: Implement, review, or fix Loveca Battle card effects; audit card te
 ## 必要约束
 
 - 使用用户指定导出 JSON；路径先查任务上下文，仍不明确才询问。日文 `cardTextJp` 用于规则，中文 `cardTextCn` 用于展示，同记录核对类型、名称与费用/分数。不自动选择最新文件，不回退 API、旧卡库、Excel 或翻译。
-- 按基础编号读取该范围的全部印刷，并用 `baseCardCodes` 覆盖所有罕度；导出只含一个罕度不限制规则覆盖。文件/字段缺失、同编号冲突或能力段落映射不明时，停止相关卡牌或生成项并继续独立可完成部分。
+- 同一基础编号的所有罕度共享类型与完整卡效。按该编号读取范围内全部印刷，definition、workflow gate、continuous registry、费用及 modifier 查询均使用 `baseCardCodes` 覆盖全罕度，不能因导出只有某一罕度而改用 exact `cardCodes` 限制。文件/字段缺失、同编号冲突或能力段落映射不明时，停止相关卡牌或生成项并继续独立可完成部分。
 - `definition.effectText` 保留完整中文能力段落与 token，`activatedUi.text` 直接复用同一常量；标题可以概括。只规范化换行和段落首尾空白。token 缺映射时补前端映射与测试，不擅自改导出正文。
 - 按真实能力时点登记 definition；常时由计算层收集，诱发能力进统一 pending 调度，起动能力走合法时点/费用/次数校验。共享流程优先复用，单卡逻辑留在 workflow，runner 只做薄调度与注册。
 - 使用事件安全的动作 helper、统一 continuation 和玩家视图投影。不能在多步骤效果中插入新能力，不能用旧 pending 快照隔离新触发，也不能泄漏未公开卡牌。
@@ -39,6 +39,8 @@ description: Implement, review, or fix Loveca Battle card effects; audit card te
 
 查已有实现时，先在 [主登记册](../../../docs/card-effect-reuse-audit/existing_module_map.md) 按基础编号定位条目，再查 definition、workflow 与相关测试；不要全文读取大型登记册。需要框架设计依据时从 [框架导航](../../../docs/card-effect-framework/README.md) 进入具体主题，不把整个设计目录作为前置阅读。
 
+以下目录均相对 `src/application/card-effects/`：`definitions/index.ts` 是定义入口，`workflows/cards/` 承载单卡，`workflows/shared/` 承载稳定同型 family，`runtime/` 承载动作与生命周期 helper。runner 保留调度、生命周期和注册边界，不回填单卡结算，也不在 React 或 action handler 实现卡效。详细归属见“架构与复用”。
+
 普通新卡从目标卡文、现有实现及同型 workflow 入手；上表按实际费用、触发、公开和 modifier 形状补读。只起草提交说明通常只需“数据与工具”和指定 diff；只审查架构则无需读取未涉及的卡文/交互参考。
 
 ## 验证与文档
@@ -46,5 +48,5 @@ description: Implement, review, or fix Loveca Battle card effects; audit card te
 - 对本次行为变化运行 focused tests，覆盖适用的正常结算、可选不发动/跳过、无目标、非法或 stale 输入及 continuation。条件参考中的回归仅在触及对应契约时适用；普通卡效复用不要求重跑全部底座测试。
 - 涉及卡文或操作字段时，保留完整卡文/关键规则动作的精确契约断言，并运行 `tests/unit/card-effect-tokens.test.ts`、`tests/unit/card-effect-text-governance.test.ts`。不要为普通装饰文案添加重复测试。
 - 使用 `pnpm test:run <相关测试>`；必要时做根或 client TypeScript 检查，最后检查 `git diff --check`。不固定要求全量 build/E2E，检查通过后只因新变更、失败或未解决风险扩大验证。
-- 卡牌/效果段落地后更新主登记册的基础编号覆盖、完整/部分实现与测试。新增 helper、family 或事件边界只更新受影响的设计/覆盖/gap 章节；同构追加不触发全套文档刷新。进度文件仅反映当前基线、缺口与下一步。
+- 每张卡/效果段落地后更新唯一主登记册：基础编号、费用/分数、卡名、全罕度覆盖、完整/部分实现、复用模块与测试。新增 helper、family 或事件边界只更新受影响的设计/覆盖/gap 章节；同构追加不触发全套文档刷新。进度文件仅反映当前基线、缺口与下一步。
 - 交付聚焦请求的结果、验证和未解决项。卡号同时附费用/分数与卡名；引用实际代码或记录作为证据。不要以 runner 行数、shadow 结果或单卡成功宣称全局框架完成。
