@@ -9,7 +9,7 @@ description: Loveca battle interaction design guidance. Use when designing or ch
 
 Design interactions from the player's current legal choices back to the command model. The UI should make legal actions discoverable, illegal actions understandable, and rule outcomes auditable.
 
-Use this with `motion-system-design` when the interaction needs animation and with `frontend-design` when the change affects layout, controls, or information hierarchy.
+Use this with `motion-system-design` when the interaction needs animation. Use `frontend-design` for new pages or substantial visual redesign; small control, spacing, and copy changes should follow the existing design system without starting a new visual direction.
 
 ## Ground Rules
 
@@ -31,14 +31,15 @@ Use this with `motion-system-design` when the interaction needs animation and wi
 
 ## Loveca Interaction Patterns
 
+- Zone orientation: LIVE and successful LIVE cards are horizontal. Energy and members use `orientation` for active/waiting state; do not infer their rule state from CSS rotation.
 - Drag/drop: highlight legal zones before drop, keep drag preview readable, and reject illegal drops without moving authoritative state.
 - Manual tap/orientation: expose as a clear member interaction only in legal windows. Distinguish player action from rule or card-effect orientation changes in state/event flow.
-- Active effects: show source card, full effect text where practical, current step, candidate card grid, and the exact confirm/skip command.
+- Active effects: show source card, full activated effect text, current step, candidate card grid with hover details, and the exact confirm/skip command. Card text, automation markers, activation-count highlights, and button wording follow the [player-visible copy reference](../loveca-card-effect-governance/references/player-visible-action-copy.md) when those fields change.
 - Pending ability order: when multiple effects share timing, show each source/effect as a distinct option. If one source has multiple abilities, use effect text to disambiguate.
 - Confirm-only effects: require a deliberate "继续处理" style action before resolving when the player manually selects the pending ability.
 - Optional costs: the skip button is "不发动"; selection copy for hand discard is "请选择要放置入休息室的卡牌".
 - Inspection: prefer card art grids with hover detail. Do not replace card choices with text-only buttons unless no card art is available.
-- Undo: treat undo as local/debug broad one-step undo. Do not imply it is available for remote battles unless the remote agreement model exists.
+- Undo: use the lower-right phase toolbar and show the rule-layer reason when unavailable. Keep at most 50 steps within one operation window; clear history when phase, subphase, active player, or waiting player changes. Formal online undo requires the opponent's agreement and server validation; spectators and replays have no undo. Local/debug and formal modes share the board while respecting these command boundaries; see [battle modes](../../../docs/battle-mode-purpose-and-boundaries.md).
 - Test-only controls: keep them visually separate from player rules actions so testers do not mistake debug adjustments for legal play.
 
 ## Hidden Information Checklist
