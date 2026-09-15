@@ -45,6 +45,7 @@ import type {
   PublicSiteStatus,
   SiteStatusLifecycle,
 } from '@/lib/appConfig';
+import { HomeEntryPanel, type HomeEntryAction } from './HomeEntryPanel';
 import './home-page.css';
 import { hasAnyManagementPermission } from '@game/shared/auth/permissions';
 
@@ -290,72 +291,73 @@ export function HomePage({
                     },
                   };
 
-  const secondaryActions: ActionTileProps[] = [
+  const secondaryActions: HomeEntryAction[] = [
     {
+      id: 'tutorial',
       title: '新手教程',
       icon: School,
       onClick: onNavigateToTutorial,
-      status: '无需卡组 · 约 5 分钟',
       tone: 'blue',
     },
   ];
 
   if (battleEntryVisibility.ranked) {
     secondaryActions.push({
+      id: 'ranked',
       title: '赛季排位',
       icon: Medal,
       onClick: onNavigateToRanked,
       disabled: !canUseOnlineRoom || !hasLegalDeck,
-      status: !canUseOnlineRoom
+      disabledReason: !canUseOnlineRoom
         ? '连接后可用'
         : !hasLegalDeck
           ? '需要符合规则的卡组'
-          : '固定时段 · 计入积分',
+          : undefined,
       tone: canUseOnlineRoom && hasLegalDeck ? 'warning' : 'muted',
     });
   }
 
   if (battleEntryVisibility.themeTable) {
     secondaryActions.push({
+      id: 'theme-table',
       title: '娱乐模式',
       icon: Sparkles,
       onClick: onNavigateToThemeTable,
       disabled: !canUseOnlineRoom,
-      status: canUseOnlineRoom ? '平台预组 · 记录胜负' : '连接后可用',
+      disabledReason: canUseOnlineRoom ? undefined : '连接后可用',
       tone: canUseOnlineRoom ? 'blue' : 'muted',
     });
   }
 
   secondaryActions.push(
     {
+      id: 'spectator',
       title: '房间观战',
       icon: Eye,
       onClick: onNavigateToOnlineSpectator,
       disabled: !canUseOnlineRoom,
-      compact: !canUseOnlineRoom,
-      status: canUseOnlineRoom ? '输入房间号' : '连接后可用',
+      disabledReason: canUseOnlineRoom ? undefined : '连接后可用',
       tone: canUseOnlineRoom ? 'green' : 'muted',
     },
     {
+      id: 'match-records',
       title: '历史对局',
       icon: History,
       onClick: onNavigateToMatchRecords,
       disabled: !canUseCloudDecks,
-      compact: !canUseCloudDecks,
-      status: canUseCloudDecks ? '只读回放' : '连接后可用',
+      disabledReason: canUseCloudDecks ? undefined : '连接后可用',
       tone: canUseCloudDecks ? 'green' : 'muted',
     }
   );
 
   if (hasOnlineDebugEntry) {
     secondaryActions.push({
+      id: 'online-debug',
       title: '联机调试',
-      description: '固定 seat 的双端同步测试入口。',
       icon: Swords,
       onClick: onNavigateToOnlineDebug,
       disabled: !canUseOnlineRoom,
-      compact: !canUseOnlineRoom,
-      status: canUseOnlineRoom ? '调试入口' : '连接后可用',
+      disabledReason: canUseOnlineRoom ? undefined : '连接后可用',
       tone: canUseOnlineRoom ? 'warning' : 'muted',
     });
   }
@@ -378,7 +380,6 @@ export function HomePage({
         <div className="lobby-content">
           <header className="lobby-intro">
             <div>
-              <span className="lobby-intro__eyebrow">PLAYER LOBBY</span>
               <h1>欢迎回来，{displayUsername}</h1>
             </div>
             <div className={`lobby-connection ${connectionStatus.tone}`}>
@@ -416,7 +417,7 @@ export function HomePage({
               onManageDecks={onNavigateToDeckManager}
             />
 
-            <SecondaryEntryPanel actions={secondaryActions} />
+            <HomeEntryPanel actions={secondaryActions} />
           </section>
 
           {hasManagementAccess && profile ? (
@@ -560,21 +561,6 @@ function formatStatusDateTime(value: string): string {
   )}:${pad(date.getMinutes())} ${offset}`;
 }
 
-function SecondaryEntryPanel({ actions }: { actions: ActionTileProps[] }) {
-  return (
-    <aside className="lobby-entry-panel">
-      <div className="lobby-section-heading">
-        <h2>常用入口</h2>
-      </div>
-      <div className="lobby-entry-grid">
-        {actions.map((action) => (
-          <ActionTile key={action.title} {...action} compact />
-        ))}
-      </div>
-    </aside>
-  );
-}
-
 function HomeActionBar({
   title,
   description,
@@ -596,7 +582,6 @@ function HomeActionBar({
 }) {
   return (
     <div className="lobby-action-bar">
-      <span className="lobby-action-bar__label">NEXT ACTION</span>
       <div className="lobby-action-bar__content">
         <div className="lobby-action-bar__copy">
           <div className="lobby-action-bar__icon">
@@ -722,7 +707,7 @@ function DeckWorkspacePanel({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <BookOpen size={17} className="text-[var(--accent-primary)]" />
-            <h3 className="text-lg font-semibold text-[var(--text-primary)]">{workspaceTitle}</h3>
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">{workspaceTitle}</h2>
           </div>
           <div className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">{sourceSummary}</div>
         </div>

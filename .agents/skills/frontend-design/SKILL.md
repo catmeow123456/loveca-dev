@@ -42,6 +42,18 @@ Try to do a lot of this planning and iteration in your thinking, and only show i
 
 Spend your boldness in one place. Let the signature element be the one memorable thing, keep everything around it quiet and disciplined, and cut any decoration that does not serve the brief. Not taking a risk can be a risk itself! Build to a quality floor without announcing it: responsive down to mobile, visible keyboard focus, reduced motion respected. Critique your own work as you build, taking screenshots if your environment supports it – a picture is worth 1000 tokens. Consider Chanel's advice: before leaving the house, take a look in the mirror and remove one accessory. Human creators have memory and always try to do something new, so if you have a space to quickly jot down notes about what you've tried, it can help you in future passes.
 
+## Aesthetic and minimalist design (NN/g)
+
+[NN/g's heuristic](https://www.nngroup.com/articles/aesthetic-minimalist-design/) prioritizes information that supports the user's current task. Unnecessary content competes with useful information; visual simplicity alone does not establish usability.
+
+Apply that principle when designing and reviewing:
+
+- **Test relevance.** For each subtitle, badge, eyebrow, or helper line, identify the decision or action it helps. When a navigation label already explains its destination, omit a routine explanatory subtitle. Avoid text that merely narrates the design or fills space.
+- **Reveal details when needed.** Put instructions in the relevant editing or task flow. Do not keep guidance permanently visible when the control is already understandable.
+- **Keep essential feedback.** Preserve unavailable reasons, selection state, error recovery, and information needed before a consequential action. Keep controls discoverable and keyboard focus visible.
+- **Remove at the source.** When redundant copy is removed, delete its data, rendering branches, and unused styles within scope. Do not conceal it with CSS or retain it in accessible names. Reduce leftover spacing too.
+- **Respect the brief.** This is an information-priority principle, not a requirement for sparse layouts, muted colors, or removing useful detail. Retain visual identity and task-relevant content.
+
 ## More on writing in design
 
 Words appear in a design for one reason: to make it easier to understand, and therefore easier to use. They are design material, not decoration. Bring the same intentionality to copy that you would bring to spacing and color. Before writing anything, ask what the design needs to say, and how it can best be said to help the person navigate the experience.
