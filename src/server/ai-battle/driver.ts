@@ -1,3 +1,4 @@
+import type { CodexAiReasoningEffort } from '../../online/ai-battle-billing-types.js';
 import type { OnlineMatchService } from '../services/online-match-service.js';
 import {
   AI_MODEL_TIMEOUT_MS,
@@ -11,6 +12,11 @@ import type { AiKnowledgeMaterial } from './presets.js';
 import { safeAiErrorForLog } from './billing.js';
 
 export interface AiBattleModelClient {
+  dispose?(): Promise<void>;
+  readonly reasoningEffort?: CodexAiReasoningEffort;
+  /** Trusted provider deadline, bounded to 90 s; never read from model output. */
+  readonly timeoutMs?: number;
+  readonly stopOnTimeout?: boolean;
   readonly configurationMaterial?: AiKnowledgeMaterial;
   decide(
     input: AiDecisionInput,
@@ -70,8 +76,20 @@ export class AiBattleDriver {
     try {
       await this.service.attachAiBattle(matchId, () => this.wake(entry), observer);
     } catch (error) {
-      this.matches.delete(matchId);
+      await this.stop(matchId);
       throw error;
+    }
+  }
+
+  async stop(matchId: string): Promise<void> {
+    const entry = this.matches.get(matchId);
+    if (!entry) return;
+    this.matches.delete(matchId);
+    if (entry.timer) clearTimeout(entry.timer);
+    try {
+      await entry.model.dispose?.();
+    } catch (error) {
+      this.reportFault(entry, 'request', error);
     }
   }
 
@@ -126,13 +144,12 @@ export class AiBattleDriver {
         entry.timer.unref?.();
         return;
       case 'ENDED':
-        if (entry.timer) clearTimeout(entry.timer);
-        this.matches.delete(entry.matchId);
+      case 'STOPPED':
+        void this.stop(entry.matchId);
         return;
       case 'ACCEPTED':
         // Authority-change notification already schedules the next observation.
         return;
-      case 'STOPPED':
       case 'STALE':
       case 'IDLE':
       case 'BUSY':
@@ -184,10 +201,17 @@ async function requestWithDeadline(
     finishAbort({ kind: 'SERVICE_ERROR', message: 'Task superseded', retryable: false });
     controller.abort();
   };
-  const timer = setTimeout(() => {
-    finishAbort({ kind: 'SERVICE_ERROR', message: 'Model request timed out', retryable: true });
-    controller.abort();
-  }, AI_MODEL_TIMEOUT_MS);
+  const timer = setTimeout(
+    () => {
+      finishAbort(
+        model.stopOnTimeout
+          ? { kind: 'ADAPTER_ERROR', message: 'Model request timed out; provider requires stop' }
+          : { kind: 'SERVICE_ERROR', message: 'Model request timed out', retryable: true }
+      );
+      controller.abort();
+    },
+    Math.max(1, Math.min(model.timeoutMs ?? AI_MODEL_TIMEOUT_MS, 90_000))
+  );
   timer.unref?.();
   task.signal.addEventListener('abort', cancel, { once: true });
   try {

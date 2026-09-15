@@ -1,3 +1,4 @@
+import { isCodexAiBattleModel } from '../../../src/online/ai-battle-billing-types';
 import { fileURLToPath } from 'node:url';
 import type { Page, Route } from '@playwright/test';
 import type { GameCommand } from '../../../src/application/game-commands';
@@ -72,7 +73,11 @@ export async function aiBrowserFixture(page: Page) {
         new DashScopeAiBattleClient(
           {
             endpoint: 'https://fixture.example/compatible-mode/v1/chat/completions',
-            model,
+            model: isCodexAiBattleModel(model)
+              ? (() => {
+                  throw new Error('Qwen-only fixture');
+                })()
+              : model,
             apiKey: 'browser-fake-secret',
             temperature: 0.2,
             maxTokens: 2048,
@@ -166,6 +171,7 @@ export async function aiBrowserFixture(page: Page) {
     if (!path.startsWith('/api/admin/ai-battle')) return fulfill(route, null);
     if (request.method() !== 'GET') state.writes.push(path);
     try {
+      if (path.endsWith('/models')) return fulfill(route, service.listModels());
       if (path.endsWith('/presets')) return fulfill(route, await service.listPresets());
       if (path.endsWith('/sessions'))
         return fulfill(

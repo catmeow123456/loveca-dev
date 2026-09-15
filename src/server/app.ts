@@ -1,3 +1,4 @@
+import { readLocalCodexConfig, isLocalCodexRequest } from './ai-battle/local-codex-config.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -41,6 +42,30 @@ import { checkApplicationReadiness } from './services/readiness-service.js';
 
 export function createApp(): express.Express {
   const app = express();
+  const localCodex = readLocalCodexConfig();
+  if (localCodex) {
+    // Also cover shared online command routes that can wake an attached AI driver.
+    app.use('/api', (req, res, next) => {
+      if (
+        !isLocalCodexRequest(localCodex, {
+          remoteAddress: req.socket.remoteAddress,
+          host: req.get('host'),
+          origin: req.get('origin'),
+          forwarded: req.get('forwarded'),
+          forwardedFor: req.get('x-forwarded-for'),
+        })
+      ) {
+        res
+          .status(403)
+          .json({
+            data: null,
+            error: { code: 'AI_LOCAL_ONLY', message: '本地 Codex 模式仅接受本机请求' },
+          });
+        return;
+      }
+      next();
+    });
+  }
 
   if (!config.isDev) {
     // Production traffic is expected to arrive through the local reverse proxy.

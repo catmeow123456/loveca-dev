@@ -28,8 +28,10 @@ export function AiBillingCost({
     : 0;
   const count = (value: number) => value.toLocaleString('zh-CN');
   const usage = billing?.usage;
-  const text =
-    !billing || billing.attempts === 0
+  const subscription = billing?.estimatedCny === null;
+  const text = subscription
+    ? `ChatGPT 订阅${billing.attempts === 0 ? ' · 未调用' : billing.reportedAttempts === 0 ? ' · 用量未确认' : ''}`
+    : !billing || billing.attempts === 0
       ? label
         ? '≈¥0.0000'
         : '—'
@@ -37,7 +39,7 @@ export function AiBillingCost({
         ? billing.pendingAttempts > 0
           ? '统计中'
           : '用量未确认'
-        : `${unknown > 0 ? '已知 ' : ''}${amount(billing.estimatedCny)}${billing.pendingAttempts > 0 ? '…' : ''}`;
+        : `${unknown > 0 ? '已知 ' : ''}${amount(billing.estimatedCny!)}${billing.pendingAttempts > 0 ? '…' : ''}`;
   const breakdown =
     !billing || billing.attempts === 0
       ? '未调用模型'
@@ -46,7 +48,8 @@ export function AiBillingCost({
     billing && billing.attempts > 1 ? `${billing.attempts} 次调用合计` : '',
     billing?.pendingAttempts ? `${billing.pendingAttempts} 次待统计` : '',
     unknown ? `${unknown} 次用量未确认` : '',
-    billing?.saveFailed ? '费用保存失败' : '',
+    billing?.saveFailed ? '用量保存失败' : '',
+    subscription ? '使用 ChatGPT 套餐 Codex 额度；token 用量不等于剩余额度，不估算人民币费用' : '',
   ]
     .filter(Boolean)
     .join(' · ');

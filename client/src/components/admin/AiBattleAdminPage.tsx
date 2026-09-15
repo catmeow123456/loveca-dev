@@ -9,13 +9,20 @@ import {
   createAiBattle,
   endAiBattle,
   fetchAiBattlePresets,
+  fetchAiBattleModels,
   fetchAiBattleSession,
   fetchAiBattleSessions,
   fetchAiBattleSnapshot,
 } from '@/lib/aiBattleClient';
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { AiBattleObservationPanel } from './AiBattleObservationPanel';
-import { AI_BATTLE_MODELS, type AiBattleModel } from '@game/online/ai-battle-billing-types';
+import {
+  QWEN_AI_BATTLE_MODELS,
+  DEFAULT_CODEX_AI_BATTLE_MODEL,
+  isCodexAiBattleModel,
+  type AiBattleModel,
+  type CodexAiReasoningEffort,
+} from '@game/online/ai-battle-billing-types';
 import { AiBillingCost } from './AiBillingCost';
 import './ai-battle.css';
 
@@ -39,7 +46,9 @@ export function AiBattleAdminPage({
   const [aiPresetId, setAiPresetId] = useState('');
   const [handbookId, setHandbookId] = useState('');
   const [humanSeat, setHumanSeat] = useState<Seat>('FIRST');
+  const [models, setModels] = useState<readonly AiBattleModel[]>(QWEN_AI_BATTLE_MODELS);
   const [model, setModel] = useState<AiBattleModel>('qwen3.8-flash');
+  const [reasoningEffort, setReasoningEffort] = useState<CodexAiReasoningEffort>('low');
   const [boardId, setBoardId] = useState<string | null>(null);
   const [observationId, setObservationId] = useState<string | null>(null);
   const [endingId, setEndingId] = useState<string | null>(null);
@@ -72,10 +81,13 @@ export function AiBattleAdminPage({
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([fetchAiBattlePresets(), fetchAiBattleSessions()])
-      .then(([catalog, list]) => {
+    void Promise.all([fetchAiBattlePresets(), fetchAiBattleSessions(), fetchAiBattleModels()])
+      .then(([catalog, list, availableModels]) => {
         if (!cancelled) {
           setPresets(catalog);
+          setModels(availableModels);
+          if (availableModels.includes(DEFAULT_CODEX_AI_BATTLE_MODEL))
+            setModel(DEFAULT_CODEX_AI_BATTLE_MODEL);
           setSessions(list);
           setIsLoading(false);
         }
@@ -162,6 +174,7 @@ export function AiBattleAdminPage({
         handbookId: selectedHandbook.id,
         humanSeat,
         model,
+        ...(isCodexAiBattleModel(model) ? { reasoningEffort } : {}),
       });
       await attach(result.session, result.snapshot, generation);
     } catch (cause) {
@@ -194,7 +207,11 @@ export function AiBattleAdminPage({
     setIsLoading(true);
     setError(null);
     try {
-      const [catalog, list] = await Promise.all([fetchAiBattlePresets(), fetchAiBattleSessions()]);
+      const [catalog, list] = await Promise.all([
+        fetchAiBattlePresets(),
+        fetchAiBattleSessions(),
+        fetchAiBattleModels(),
+      ]);
       if (mounted.current) {
         setPresets(catalog);
         setSessions(list);
@@ -357,13 +374,28 @@ export function AiBattleAdminPage({
                   value={model}
                   onChange={(event) => setModel(event.target.value as AiBattleModel)}
                 >
-                  {AI_BATTLE_MODELS.map((id) => (
+                  {models.map((id) => (
                     <option key={id} value={id}>
-                      {id}
+                      {isCodexAiBattleModel(id) ? `${id.slice(6)} · ChatGPT 订阅（本地）` : id}
                     </option>
                   ))}
                 </select>
               </label>
+              {isCodexAiBattleModel(model) && (
+                <label>
+                  思考强度
+                  <select
+                    value={reasoningEffort}
+                    onChange={(event) =>
+                      setReasoningEffort(event.target.value as CodexAiReasoningEffort)
+                    }
+                  >
+                    <option value="low">轻度（low）</option>
+                    <option value="medium">中等（medium）</option>
+                  </select>
+                  <small>仅用于新建的本地 Codex 对局；轻度不减少发送的上下文。</small>
+                </label>
+              )}
               <div className="ai-deck-pair">
                 <label>
                   真人构筑
@@ -486,6 +518,8 @@ export function AiBattleAdminPage({
                   </p>
                   <small>
                     {session.handbookId} · {session.model}
+                    {session.reasoningEffort &&
+                      ` · ${session.reasoningEffort === 'low' ? '轻度' : '中等'}`}
                   </small>
                 </div>
                 <div className="ai-actions">

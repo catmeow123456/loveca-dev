@@ -1,3 +1,4 @@
+import { readLocalCodexConfig, isLocalCodexRequest } from '../ai-battle/local-codex-config.js';
 import { Router, type ErrorRequestHandler } from 'express';
 import { z } from 'zod';
 import { parseAiHumanCommand } from '../ai-battle/human-command.js';
@@ -8,7 +9,10 @@ import { requirePermission } from '../middleware/require-permission.js';
 import { requireGameplayAvailable } from '../middleware/require-gameplay-available.js';
 import { AiBattleSetupError } from '../ai-battle/presets.js';
 import type { AiBattleService } from '../services/ai-battle-service.js';
-import { AI_BATTLE_MODELS } from '../../online/ai-battle-billing-types.js';
+import {
+  AI_BATTLE_MODELS,
+  CODEX_AI_REASONING_EFFORTS,
+} from '../../online/ai-battle-billing-types.js';
 
 const createSchema = z
   .object({
@@ -17,6 +21,7 @@ const createSchema = z
     handbookId: z.string().min(1).max(100),
     humanSeat: z.enum(['FIRST', 'SECOND']),
     model: z.enum(AI_BATTLE_MODELS),
+    reasoningEffort: z.enum(CODEX_AI_REASONING_EFFORTS).optional(),
   })
   .strict();
 const seqSchema = z.coerce.number().int().min(0).optional();
@@ -27,6 +32,33 @@ const commandSchema = z
 export function createAiBattleRouter(service: AiBattleService): Router {
   const router = Router();
   router.use(privateNoStore, requireAuth, requirePermission('rules.manage'));
+  router.use((req, res, next) => {
+    try {
+      const local = readLocalCodexConfig();
+      if (
+        local &&
+        !isLocalCodexRequest(local, {
+          remoteAddress: req.socket.remoteAddress,
+          host: req.get('host'),
+          origin: req.get('origin'),
+          forwarded: req.get('forwarded'),
+          forwardedFor: req.get('x-forwarded-for'),
+        })
+      ) {
+        res.status(403).json({
+          data: null,
+          error: { code: 'AI_LOCAL_ONLY', message: 'Codex 测试仅允许本机页面和本机连接' },
+        });
+        return;
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.get('/models', (_req, res) => {
+    res.json({ data: service.listModels(), error: null });
+  });
   router.get('/presets', async (_req, res, next) => {
     try {
       res.json({ data: await service.listPresets(), error: null });

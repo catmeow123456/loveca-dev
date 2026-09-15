@@ -681,6 +681,33 @@ describe('AI match authority queue and lifecycle', () => {
     await f.service.deleteMatch(f.match.matchId);
   });
 
+  it('honors the bounded local provider deadline and stops without retry, fallback or late commands', async () => {
+    vi.useFakeTimers();
+    const f = await fixture({ attach: false });
+    const late = deferred<AiModelOutcome>();
+    const decide = vi.fn<AiBattleModelClient['decide']>(() => late.promise);
+    await new AiBattleDriver(f.service, f.now).start(f.match.matchId, {
+      decide,
+      timeoutMs: 90_000,
+      stopOnTimeout: true,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    const before = f.match.remoteRevision;
+    await vi.advanceTimersByTimeAsync(89_999);
+    expect(decide).toHaveBeenCalledTimes(1);
+    expect(decide.mock.calls[0]![1].aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(decide.mock.calls[0]![1].aborted).toBe(true);
+    expect(f.service.getAiBattleStatus(f.match.matchId)?.stoppedReason).toContain(
+      'provider requires stop'
+    );
+    late.resolve({ kind: 'RESPONSE', text: '{}' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.match.remoteRevision).toBe(before);
+    expect(decide).toHaveBeenCalledTimes(1);
+    await f.service.deleteMatch(f.match.matchId);
+  });
+
   it('retries a timed-out request once, ignores its late output, then falls back once', async () => {
     vi.useFakeTimers();
     const f = await fixture({ attach: false });

@@ -1,3 +1,9 @@
+import type { AiBattleModelClient } from '../../src/server/ai-battle/driver';
+import {
+  QWEN_AI_BATTLE_MODELS,
+  AI_BATTLE_MODELS,
+  type AiBattleModel,
+} from '../../src/online/ai-battle-billing-types';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isUserRole } from '../../src/shared/auth/permissions';
@@ -44,10 +50,10 @@ const material = {
   content: 'test knowledge',
 };
 
-function createService() {
+function createService(models: readonly AiBattleModel[] = QWEN_AI_BATTLE_MODELS) {
   const billing = createMemoryAiBilling();
   const matches = new OnlineMatchService({ recorder: null });
-  const createModel = vi.fn(() =>
+  const createModel = vi.fn((): Promise<AiBattleModelClient> =>
     Promise.resolve({ decide: () => Promise.resolve({ kind: 'RESPONSE' as const, text: '{}' }) })
   );
   const start = vi.fn(() => Promise.resolve());
@@ -59,9 +65,10 @@ function createService() {
     pointValidation: { pointTableVersion: 'test', pointTotal: 0, pointLimit: 9 },
   };
   const service = new AiBattleService({
+    availableModels: () => models,
     billingPersistence: billing.persistence,
     matchService: matches,
-    driver: { start },
+    driver: { start, stop: vi.fn(async () => {}) },
     createModel,
     loadProfile: (userId) => Promise.resolve({ userId, displayName: '管理员' }),
     presets: {
@@ -90,8 +97,8 @@ function createService() {
   return { service, matches, createModel, start, billing };
 }
 
-async function serverFixture() {
-  const f = createService();
+async function serverFixture(models?: readonly AiBattleModel[]) {
+  const f = createService(models);
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
@@ -109,12 +116,19 @@ async function serverFixture() {
   if (!address || typeof address === 'string') throw new Error('Missing test address');
   const request = (
     path: string,
-    options: { userId?: string; role?: string; body?: unknown; method?: string } = {}
+    options: {
+      userId?: string;
+      role?: string;
+      body?: unknown;
+      method?: string;
+      headers?: Record<string, string>;
+    } = {}
   ) =>
     globalThis.fetch(`http://127.0.0.1:${address.port}${path}`, {
       method: options.method ?? (options.body === undefined ? 'GET' : 'POST'),
       headers: {
         'content-type': 'application/json',
+        ...options.headers,
         ...(options.userId
           ? { 'x-test-user': options.userId, 'x-test-role': options.role ?? 'admin' }
           : {}),
@@ -126,6 +140,7 @@ async function serverFixture() {
 
 afterEach(async () => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   auth.roles.clear();
   await Promise.all(
     servers
@@ -140,6 +155,125 @@ afterEach(async () => {
 });
 
 describe('AI administrator routes and ownership', () => {
+  it('advertises only enabled models and rejects forged Codex selection before model creation', async () => {
+    const f = await serverFixture();
+    auth.roles.set('owner', 'admin');
+    expect((await (await f.request('/ai/models', { userId: 'owner' })).json()).data).toEqual(
+      QWEN_AI_BATTLE_MODELS
+    );
+    expect(
+      (
+        await f.request('/ai/sessions', {
+          userId: 'owner',
+          body: { ...input, model: 'codex:gpt-5.6-luna' },
+        })
+      ).status
+    ).toBe(400);
+    expect(f.createModel).not.toHaveBeenCalled();
+  });
+
+  it('creates a local subscription session with no Qwen prices and blocks remote origin/proxy access', async () => {
+    for (const [key, value] of Object.entries({
+      AI_BATTLE_LOCAL_CODEX: '1',
+      NODE_ENV: 'development',
+      API_HOST: '127.0.0.1',
+      DATABASE_URL: 'postgres://test:test@localhost/test',
+      FRONTEND_URL: 'http://localhost:5173',
+    }))
+      vi.stubEnv(key, value);
+    const f = await serverFixture(AI_BATTLE_MODELS);
+    auth.roles.set('owner', 'admin');
+    for (const headers of [
+      { origin: 'https://public.example' },
+      { 'x-forwarded-for': '192.168.1.2' },
+    ]) {
+      expect(
+        (
+          await f.request('/ai/sessions', {
+            userId: 'owner',
+            body: { ...input, model: 'codex:gpt-5.6-luna' },
+            headers,
+          })
+        ).status
+      ).toBe(403);
+    }
+    expect(f.createModel).not.toHaveBeenCalled();
+    const response = await f.request('/ai/sessions', {
+      userId: 'owner',
+      body: { ...input, model: 'codex:gpt-5.6-luna' },
+      headers: { origin: 'http://localhost:5173', 'x-forwarded-for': '127.0.0.1' },
+    });
+    expect(response.status).toBe(201);
+    const session = (await response.json()).data.session;
+    expect(session.matchBilling).toMatchObject({
+      model: 'codex:gpt-5.6-luna',
+      prices: null,
+      pricingDate: null,
+      estimatedCny: null,
+    });
+    expect(f.billing.records.get(session.matchId)).toMatchObject({ prices: null });
+  });
+
+  it.each(['low', 'medium'] as const)(
+    'passes per-game Codex effort %s and records the resolved value',
+    async (reasoningEffort) => {
+      const f = await serverFixture(AI_BATTLE_MODELS);
+      auth.roles.set('owner', 'admin');
+      f.createModel.mockResolvedValueOnce({
+        reasoningEffort,
+        decide: async () => ({ kind: 'RESPONSE', text: '{}' }),
+      });
+      const response = await f.request('/ai/sessions', {
+        userId: 'owner',
+        body: { ...input, model: 'codex:gpt-5.6-luna', reasoningEffort },
+      });
+      expect(response.status).toBe(201);
+      expect(f.createModel).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        'codex:gpt-5.6-luna',
+        expect.anything(),
+        reasoningEffort
+      );
+      expect((await response.json()).data.session.reasoningEffort).toBe(reasoningEffort);
+      expect(f.service.listSessions('owner')[0]!.reasoningEffort).toBe(reasoningEffort);
+    }
+  );
+
+  it('rejects invalid effort and Qwen effort before creating a model or match', async () => {
+    const f = await serverFixture(AI_BATTLE_MODELS);
+    auth.roles.set('owner', 'admin');
+    for (const body of [
+      { ...input, reasoningEffort: 'low' },
+      ...['none', 'high', 'ultra', '', 1].map((reasoningEffort) => ({
+        ...input,
+        model: 'codex:gpt-5.6-luna',
+        reasoningEffort,
+      })),
+    ])
+      expect((await f.request('/ai/sessions', { userId: 'owner', body })).status).toBe(400);
+    await expect(
+      f.service.create('owner', { ...input, reasoningEffort: 'medium' })
+    ).rejects.toThrow('思考强度仅支持');
+    expect(f.createModel).not.toHaveBeenCalled();
+    expect(f.service.listSessions('owner')).toEqual([]);
+  });
+
+  it('reports the effective server default for older Codex creation requests', async () => {
+    const f = await serverFixture(AI_BATTLE_MODELS);
+    auth.roles.set('owner', 'admin');
+    f.createModel.mockResolvedValueOnce({
+      reasoningEffort: 'medium',
+      decide: async () => ({ kind: 'RESPONSE', text: '{}' }),
+    });
+    const response = await f.request('/ai/sessions', {
+      userId: 'owner',
+      body: { ...input, model: 'codex:gpt-5.6-luna' },
+    });
+    expect(response.status).toBe(201);
+    expect((await response.json()).data.session.reasoningEffort).toBe('medium');
+  });
+
   it('requires an explicit supported model and passes the chosen model to the per-game client', async () => {
     const f = await serverFixture();
     auth.roles.set('owner', 'admin');
@@ -163,7 +297,8 @@ describe('AI administrator routes and ownership', () => {
       expect.anything(),
       expect.anything(),
       'qwen3.8-flash',
-      expect.anything()
+      expect.anything(),
+      undefined
     );
   });
 

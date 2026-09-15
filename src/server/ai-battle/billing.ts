@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+  isCodexAiBattleModel,
+  type QwenAiBattleModel,
+} from '../../online/ai-battle-billing-types.js';
 import type {
   AiBattleModel,
   AiBillingRecord,
@@ -11,7 +15,7 @@ import type {
 // Beijing list prices checked 2026-09-11. CNY cents / 1M tokens, not discount ratios.
 // https://help.aliyun.com/zh/model-studio/qwen3-8-max
 // https://help.aliyun.com/zh/model-studio/qwen3-8-flash
-const PRICES: Readonly<Record<AiBattleModel, AiTokenUsage>> = {
+const PRICES: Readonly<Record<QwenAiBattleModel, AiTokenUsage>> = {
   'qwen3.8-max': {
     inputTokens: 1200,
     implicitCachedTokens: 150,
@@ -40,8 +44,8 @@ export function createAiBillingRecord(model: AiBattleModel): AiBillingRecord {
   return {
     revision: 0,
     model,
-    pricingDate: '2026-09-11',
-    prices: { ...PRICES[model] },
+    pricingDate: isCodexAiBattleModel(model) ? null : '2026-09-11',
+    prices: isCodexAiBattleModel(model) ? null : { ...PRICES[model] },
     attempts: 0,
     reportedAttempts: 0,
     usage: emptyAiTokenUsage(),
@@ -58,7 +62,8 @@ export function addAiTokenUsage(a: AiTokenUsage, b: AiTokenUsage): AiTokenUsage 
   };
 }
 
-export function calculateAiCost(usage: AiTokenUsage, prices: AiTokenUsage): string {
+export function calculateAiCost(usage: AiTokenUsage, prices: AiTokenUsage | null): string | null {
+  if (prices === null) return null;
   let units = 0n;
   for (const key of Object.keys(usage) as (keyof AiTokenUsage)[])
     units += BigInt(usage[key]) * BigInt(prices[key]);
@@ -110,7 +115,7 @@ export interface AiBillingDelta {
 export function updateAiBillingSummary(
   previous: AiBillingSummary | null,
   delta: AiBillingDelta,
-  prices: AiTokenUsage
+  prices: AiTokenUsage | null
 ): AiBillingSummary {
   const usage = addAiTokenUsage(
     previous?.usage ?? emptyAiTokenUsage(),

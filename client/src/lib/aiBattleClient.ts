@@ -11,7 +11,10 @@ import type {
   CreateAiBattleResult,
 } from '@game/online/ai-battle-types';
 import type { AiTraceExport, AiTraceListing } from '@game/online/ai-battle-observation-types';
-import type { AiRecordedBillingResponse } from '@game/online/ai-battle-billing-types';
+import type {
+  AiRecordedBillingResponse,
+  AiBattleModel,
+} from '@game/online/ai-battle-billing-types';
 import { fromTransport, toTransport } from '@game/online/serde';
 import { apiClient, toApiClientError, type ApiResponse } from './apiClient';
 
@@ -23,6 +26,8 @@ async function data<T>(request: Promise<ApiResponse<T>>): Promise<T> {
   return fromTransport<T>(response.data);
 }
 
+export const fetchAiBattleModels = () =>
+  data(apiClient.get<readonly AiBattleModel[]>(`${ROOT}/models`));
 export const fetchAiBattlePresets = () =>
   data(apiClient.get<readonly AiBattlePresetChoice[]>(`${ROOT}/presets`));
 export const fetchAiBattleSessions = () =>

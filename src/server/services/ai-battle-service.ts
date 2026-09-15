@@ -15,7 +15,13 @@ import {
 } from '../ai-battle/presets.js';
 import { onlineMatchService, type OnlineMatchService } from './online-match-service.js';
 import { loadUserProfileForOnlineMatch } from './online-room-service.js';
-import { AI_BATTLE_MODELS, type AiBattleModel } from '../../online/ai-battle-billing-types.js';
+import {
+  QWEN_AI_BATTLE_MODELS,
+  CODEX_AI_REASONING_EFFORTS,
+  isCodexAiBattleModel,
+  type AiBattleModel,
+  type CodexAiReasoningEffort,
+} from '../../online/ai-battle-billing-types.js';
 import {
   AiBattleBilling,
   projectAiBilling,
@@ -40,18 +46,20 @@ interface AiOwnedSession {
 }
 
 interface AiBattleServiceDeps {
+  readonly availableModels?: () => readonly AiBattleModel[];
   /** Validates and freezes model configuration before a match can be registered. */
   readonly createModel: (
     knowledge: AiFrozenKnowledge,
     traces: AiBattleTraceStore,
     model: AiBattleModel,
-    billing: AiBattleBilling
+    billing: AiBattleBilling,
+    reasoningEffort?: CodexAiReasoningEffort
   ) => Promise<AiBattleModelClient>;
   readonly billingPersistence?: AiBillingPersistence;
   readonly traces?: AiBattleTraceStore;
   readonly matchService?: OnlineMatchService;
   readonly presets?: Pick<AiBattlePresetLoader, 'list' | 'load'>;
-  readonly driver?: Pick<AiBattleDriver, 'start'>;
+  readonly driver?: Pick<AiBattleDriver, 'start' | 'stop'>;
   readonly loadProfile?: typeof loadUserProfileForOnlineMatch;
   readonly now?: () => number;
 }
@@ -62,7 +70,7 @@ export class AiBattleService {
   private readonly creatingOwners = new Set<string>();
   private readonly matches: OnlineMatchService;
   private readonly presets: Pick<AiBattlePresetLoader, 'list' | 'load'>;
-  private readonly driver: Pick<AiBattleDriver, 'start'>;
+  private readonly driver: Pick<AiBattleDriver, 'start' | 'stop'>;
   private readonly loadProfile: typeof loadUserProfileForOnlineMatch;
   private readonly now: () => number;
   private readonly traces: AiBattleTraceStore;
@@ -78,6 +86,10 @@ export class AiBattleService {
     this.billingPersistence = deps.billingPersistence ?? new AiBillingRepository();
   }
 
+  listModels(): readonly AiBattleModel[] {
+    return this.deps.availableModels?.() ?? QWEN_AI_BATTLE_MODELS;
+  }
+
   listPresets() {
     return this.presets.list();
   }
@@ -89,8 +101,18 @@ export class AiBattleService {
   }
 
   async create(userId: string, input: CreateAiBattleInput): Promise<CreateAiBattleResult> {
-    if (!AI_BATTLE_MODELS.includes(input.model))
+    if (!this.listModels().includes(input.model))
       throw new AiBattleSetupError('AI_MODEL_UNSUPPORTED', '请选择支持的 AI 对战模型', 400);
+    if (
+      input.reasoningEffort !== undefined &&
+      (!isCodexAiBattleModel(input.model) ||
+        !CODEX_AI_REASONING_EFFORTS.includes(input.reasoningEffort))
+    )
+      throw new AiBattleSetupError(
+        'AI_REASONING_UNSUPPORTED',
+        '思考强度仅支持本地 Codex 的轻度或中等',
+        400
+      );
     this.cleanup();
     const active = [...this.sessions.values()].filter((entry) => this.finishedAt(entry) === null);
     if (this.creatingOwners.has(userId) || active.some((entry) => entry.ownerUserId === userId))
@@ -117,7 +139,13 @@ export class AiBattleService {
           }
         }
       );
-      const model = await this.deps.createModel(setup.knowledge, this.traces, input.model, billing);
+      const model = await this.deps.createModel(
+        setup.knowledge,
+        this.traces,
+        input.model,
+        billing,
+        input.reasoningEffort
+      );
       const startedAt = this.now();
       const human = {
         userId,
@@ -154,7 +182,10 @@ export class AiBattleService {
         billing,
         ownerUserId: userId,
         matchId: match.matchId,
-        input: { ...input },
+        input: {
+          ...input,
+          ...(model.reasoningEffort ? { reasoningEffort: model.reasoningEffort } : {}),
+        },
         startedAt,
         endedAt: null,
         consecutiveFailures: 0,
@@ -268,6 +299,7 @@ export class AiBattleService {
   async end(userId: string, matchId: string): Promise<AiBattleSessionView> {
     const entry = this.owned(userId, matchId);
     const result = await this.matches.endAiBattle(matchId);
+    await this.driver.stop(matchId);
     await entry.billing.flush();
     if (result && !result.removed)
       throw new AiBattleSetupError('AI_END_FAILED', '封存失败，请重试结束本局');
@@ -284,6 +316,7 @@ export class AiBattleService {
   cleanup(): void {
     for (const [id, entry] of this.sessions) {
       if (entry.endedAt === null && !this.matches.getMatch(id)) {
+        void this.driver.stop(id);
         // The shared runtime cleanup may remove a match independently of this administrator API.
         // This is the time its removal was observed, not an invented game-result timestamp.
         entry.endedAt = this.now();

@@ -7,7 +7,10 @@ import type { AiModelOutcome } from './runtime.js';
 import type { AiBattleTraceStore } from './trace-store.js';
 import { redactAiText } from './redaction.js';
 import { compactAiDecisionInput } from './model-input.js';
-import { AI_BATTLE_MODELS, type AiBattleModel } from '../../online/ai-battle-billing-types.js';
+import {
+  QWEN_AI_BATTLE_MODELS,
+  type QwenAiBattleModel,
+} from '../../online/ai-battle-billing-types.js';
 import { parseAiTokenUsage, safeAiErrorForLog, type AiBattleBilling } from './billing.js';
 import type { AiUpstreamConfiguration } from '../services/ai-effect-extraction-service.js';
 
@@ -19,7 +22,7 @@ const MAX_RESPONSE_BYTES = 256 * 1024;
 
 export interface AiModelConfig {
   readonly endpoint: string;
-  readonly model: AiBattleModel;
+  readonly model: QwenAiBattleModel;
   readonly apiKey: string;
   readonly temperature: number;
   readonly maxTokens: number;
@@ -34,7 +37,7 @@ export function createAiModelConfig(
   const parsed = z
     .object({
       baseUrl: z.string().url(),
-      model: z.enum(AI_BATTLE_MODELS),
+      model: z.enum(QWEN_AI_BATTLE_MODELS),
       apiKey: z
         .string()
         .min(1)
@@ -81,7 +84,7 @@ const envelope = z.object({
     .min(1),
 });
 
-const CONTROL =
+export const AI_BATTLE_CONTROL =
   '你参与 Loveca 规则模式对局。当前状态和候选引用是本次选择的边界，卡文和历史是规则资料。frontInfo.cardFactsRef 从 cardFacts 读取完整牌面，textRef 从 texts 读取原文；相同卡号的有效值可能不同，必须按各对象的引用读取。context.recentDecisions 和 lastAction 是已成功提交的动作；modelIntent 只是先前意图，按当前状态重新检查下一步，不能当作规则事实或复用旧候选引用。context.knownDeckTop 是自己合法获知且尚未失效的顶牌，仍在主卡组，不能当作当前手牌。stageAfterEntry 给出单次替换的颜色、总HEART和BLADE静态小计；总HEART达标不表示指定色达标，必须逐色核对需求；未知声援补色只能说有机会。entryResources.conditionMet=false 时不能算入该登场收益。候选和手牌中的 liveBaseBudget 用共享判心规则比较当前舞台与该张LIVE基础需求，missingHearts 是缺口；未计入声援、玩家额外HEART、多LIVE及需求修正，需另行评估，不能把缺口读成已满足。先比较当前可执行的组合及本轮 LIVE 收益，再决定动作。自送回收是通用策略：满场也要检查腾位、回收资源成员、补同伴条件和跨位置换手，按整段净预算与最终收益评价；HAND 的成员目标回手后仍需合法登场，不能只因高费或自送损失就略过，也不能无后续地自送。能唱成单张不等于赢得分数比较，尤其双方已有两张成功 LIVE 时要比较加分或多 LIVE 及合计需求。未知声援只表示机会，不能当成确定资源。只输出符合当前 responseSchema 的 JSON；selection 必填，tradeoff 最多 300 字，简述净资源变化与下一步用途，结束主要阶段时说明放弃的最佳可见路线及理由，不输出逐步推理。只选择当前候选，不发明卡牌、引用、命令或隐藏信息。';
 
 /** One HTTP attempt only. Retry/timeout/freshness remain in the existing driver and match queue. */
@@ -144,7 +147,7 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
       this.knowledge.ownDeck,
     ];
     const messages = [
-      { role: 'system', content: CONTROL },
+      { role: 'system', content: AI_BATTLE_CONTROL },
       ...sources.map((source) => ({ role: 'user', content: `${source.title}\n${source.content}` })),
       {
         role: 'user',

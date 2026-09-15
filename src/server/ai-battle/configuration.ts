@@ -1,4 +1,10 @@
 import {
+  isCodexAiBattleModel,
+  type CodexAiReasoningEffort,
+} from '../../online/ai-battle-billing-types.js';
+import { readLocalCodexConfig } from './local-codex-config.js';
+import { createLocalCodexClient } from './codex-model-client.js';
+import {
   aiEffectExtractionService,
   AiEffectExtractionServiceError,
 } from '../services/ai-effect-extraction-service.js';
@@ -52,8 +58,18 @@ export async function createPlatformAiBattleClient(
   knowledge: AiFrozenKnowledge,
   traces: AiBattleTraceStore,
   model: AiBattleModel,
-  billing: AiBattleBilling
+  billing: AiBattleBilling,
+  reasoningEffort?: CodexAiReasoningEffort
 ) {
+  if (isCodexAiBattleModel(model))
+    return createLocalCodexClient(
+      readLocalCodexConfig(),
+      model,
+      knowledge,
+      traces,
+      billing,
+      reasoningEffort
+    );
   return new DashScopeAiBattleClient(
     await readAiModelConfig(model),
     knowledge,

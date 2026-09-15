@@ -1,3 +1,4 @@
+import { isCodexAiBattleModel } from '../../src/online/ai-battle-billing-types';
 /** Standalone QA harness: full app + real PostgreSQL; fake HTTP by default, explicit REAL mode.
  * Start against an isolated local database named loveca_ai_qa_*. No test route exposes authority
  * or mutates rules. Browser requests use the normal administrator router and command validator.
@@ -43,7 +44,11 @@ const ai = new AiBattleService({
       new DashScopeAiBattleClient(
         {
           endpoint: 'https://fixture.example/compatible-mode/v1/chat/completions',
-          model,
+          model: isCodexAiBattleModel(model)
+            ? (() => {
+                throw new Error('Qwen-only fixture');
+              })()
+            : model,
           apiKey: 'p5-http-fixture-secret',
           temperature: 0.2,
           maxTokens: 2048,

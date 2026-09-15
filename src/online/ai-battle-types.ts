@@ -1,6 +1,10 @@
 import type { OnlineMatchSnapshot } from './release-types.js';
 import type { Seat } from './types.js';
-import type { AiBattleModel, AiMatchBilling } from './ai-battle-billing-types.js';
+import type {
+  AiBattleModel,
+  AiMatchBilling,
+  CodexAiReasoningEffort,
+} from './ai-battle-billing-types.js';
 
 export interface AiBattlePresetChoice {
   readonly id: string;
@@ -18,6 +22,8 @@ export interface AiBattlePresetInput {
 export interface CreateAiBattleInput extends AiBattlePresetInput {
   readonly humanSeat: Seat;
   readonly model: AiBattleModel;
+  /** Local Codex only; omitted requests use the server default. Frozen per game. */
+  readonly reasoningEffort?: CodexAiReasoningEffort;
 }
 
 export interface AiBattleSessionView extends CreateAiBattleInput {
