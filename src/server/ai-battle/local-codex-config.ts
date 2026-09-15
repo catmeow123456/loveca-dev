@@ -1,13 +1,16 @@
 import {
   CODEX_AI_REASONING_EFFORTS,
   type CodexAiReasoningEffort,
+  type CodexBattleBudget,
 } from '../../online/ai-battle-billing-types.js';
 import { AiBattleSetupError } from './presets.js';
 
 export interface LocalCodexConfig {
   readonly cliPath: string;
-  /** Experimental: real cache benefit is not established. Off by default. */
+  readonly budget?: CodexBattleBudget;
+  /** Experimental same-thread continuation; stop at the reported context watermark. Off by default. */
   readonly sessionReuse?: boolean;
+  readonly threadRotation?: boolean;
   readonly reasoningEffort: CodexAiReasoningEffort;
   readonly frontendOrigin: string;
 }
@@ -55,13 +58,33 @@ export function readLocalCodexConfig(
     throw fail();
   const reuse = env.AI_BATTLE_CODEX_SESSION_REUSE ?? '0';
   if (!['0', '1'].includes(reuse)) throw fail();
+  const rotation = env.AI_BATTLE_CODEX_THREAD_ROTATION ?? '0';
+  if (!['0', '1'].includes(rotation) || (rotation === '1' && reuse !== '1')) throw fail();
   const effort = env.AI_BATTLE_CODEX_REASONING ?? 'low';
   if (!(CODEX_AI_REASONING_EFFORTS as readonly string[]).includes(effort)) throw fail();
   const cliPath = env.AI_BATTLE_CODEX_PATH ?? '/Applications/ChatGPT.app/Contents/Resources/codex';
   if (!cliPath.startsWith('/')) throw fail();
+  const budgetValue = (key: string) => {
+    const raw = env[key];
+    if (raw === undefined) return undefined;
+    if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(Number(raw)))
+      throw new AiBattleSetupError('AI_CODEX_BUDGET_INVALID', `${key} 必须是正安全整数`, 503);
+    return Number(raw);
+  };
+  const values = {
+    maxCalls: budgetValue('AI_BATTLE_CODEX_MAX_CALLS'),
+    maxInputTokens: budgetValue('AI_BATTLE_CODEX_MAX_INPUT_TOKENS'),
+    maxUncachedInputTokens: budgetValue('AI_BATTLE_CODEX_MAX_UNCACHED_INPUT_TOKENS'),
+    maxOutputTokens: budgetValue('AI_BATTLE_CODEX_MAX_OUTPUT_TOKENS'),
+  };
+  const budget = Object.values(values).some((value) => value !== undefined)
+    ? Object.freeze(values)
+    : undefined;
   return Object.freeze({
+    ...(budget ? { budget } : {}),
     cliPath,
     sessionReuse: reuse === '1',
+    threadRotation: rotation === '1',
     reasoningEffort: effort as CodexAiReasoningEffort,
     frontendOrigin: frontend.origin,
   });

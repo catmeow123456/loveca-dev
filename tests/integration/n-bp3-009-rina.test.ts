@@ -21,7 +21,15 @@ describe('PL!N-bp3-009 天王寺璃奈',()=>{
  it('moves in submitted order and cost 6 only draws one',()=>{const s=setup([3,3]);const g=choose(start(s.game),['b','a']);expect(g.players[0].mainDeck.cardIds).toEqual(['b','a']);expect(g.players[0].hand.cardIds).toEqual(['c']);expect(g.liveResolution.liveModifiers).toEqual([]);});
  it('cost 8 writes only SOURCE_MEMBER rainbow Heart',()=>{const s=setup([3,5]);const g=choose(start(s.game),['a','b']);expect(g.liveResolution.liveModifiers).toContainEqual(expect.objectContaining({kind:'HEART',target:'SOURCE_MEMBER',sourceCardId:'rina',abilityId:ABILITY,hearts:[{color:HeartColor.RAINBOW,count:1}]}));});
  it('cost 25 writes player total SCORE without liveCardId and refreshes playerScores',()=>{const s=setup([12,13]);const g=choose(start(s.game),['a','b']);const m=g.liveResolution.liveModifiers.find(x=>x.kind==='SCORE');expect(m).toMatchObject({kind:'SCORE',sourceCardId:'rina',abilityId:ABILITY,countDelta:1});expect(m).not.toHaveProperty('liveCardId');expect(g.liveResolution.playerScores.get(P1)).toBe(1);});
- it('declines without moving or rewarding',()=>{const s=setup();const g=choose(start(s.game),[]);expect(g.players[0].waitingRoom.cardIds).toEqual(['a','b','live']);expect(g.liveResolution.liveModifiers).toEqual([]);expect(g.pendingAbilities).toEqual([]);});
+  it('declines without moving or rewarding', () => {
+    const s = setup();
+    const started = start(s.game);
+    const g = confirmActiveEffectStep(started, P1, started.activeEffect!.id, null);
+    expect(g.activeEffect).toBeNull();
+    expect(g.players[0].waitingRoom.cardIds).toEqual(['a', 'b', 'live']);
+    expect(g.liveResolution.liveModifiers).toEqual([]);
+    expect(g.pendingAbilities).toEqual([]);
+  });
  it('rejects non-member, opponent, duplicate, and one-card submissions',()=>{const s=setup();const opponent=member('opp','opp',2,P2);let game=registerCards(s.game,[opponent]);game=updatePlayer(game,P2,p=>({...p,waitingRoom:{...p.waitingRoom,cardIds:['opp']}}));const started=start(game);for(const ids of [['live','a'],['opp','a'],['a','a'],['a']]) expect(choose(started,ids)).toBe(started);});
  it('safely consumes when fewer than two own waiting-room members exist',()=>{const s=setup();const game=updatePlayer(s.game,P1,p=>({...p,waitingRoom:{...p.waitingRoom,cardIds:['a','live']}}));const done=start(game);expect(done.activeEffect).toBeNull();expect(done.pendingAbilities).toEqual([]);expect(done.players[0].waitingRoom.cardIds).toEqual(['a','live']);});
  it('moves other printed cost totals without rewards',()=>{const s=setup([4,5]);const done=choose(start(s.game),['a','b']);expect(done.players[0].mainDeck.cardIds).toEqual(['c','a','b']);expect(done.players[0].hand.cardIds).toEqual([]);expect(done.liveResolution.liveModifiers).toEqual([]);});

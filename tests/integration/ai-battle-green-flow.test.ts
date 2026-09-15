@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { createGameSession } from '../../src/application/game-session';
 import { GameCommandType } from '../../src/application/game-commands';
 import { getCardAbilityDefinitionsForCardCode } from '../../src/application/card-effects/definitions/lookup';
-import { buildAiBattleDecision, parseAiBattleResponse } from '../../src/server/ai-battle/decision';
+import {
+  buildAiBattleDecision,
+  materializeAiDecisionCommands,
+  parseAiBattleResponse,
+} from '../../src/server/ai-battle/decision';
 import { getAiMechanicalSelection } from '../../src/server/ai-battle/policy';
 import { GameEndReason } from '../../src/shared/types/enums';
 import { getBaseCardCode } from '../../src/shared/utils/card-code';
@@ -91,18 +95,19 @@ describe('frozen green Hasunosora AI support', () => {
         const selection =
           getAiMechanicalSelection(decision) ?? chooseAiTestSelection(decision.input);
         const parsed = parseAiBattleResponse(decision, JSON.stringify({ selection }));
-        const command = decision.toCommand(parsed.selection, now);
-        const result = session.executeCommand(command);
-        expect(
-          result.success,
-          JSON.stringify({
-            step,
-            command,
-            error: result.error,
-            effect: session.state!.activeEffect?.stepId,
-          })
-        ).toBe(true);
-        commands.add(command.type);
+        for (const command of materializeAiDecisionCommands(decision, parsed.selection, now)) {
+          const result = session.executeCommand(command);
+          expect(
+            result.success,
+            JSON.stringify({
+              step,
+              command,
+              error: result.error,
+              effect: session.state!.activeEffect?.stepId,
+            })
+          ).toBe(true);
+          commands.add(command.type);
+        }
         now += 10;
       }
       expect(

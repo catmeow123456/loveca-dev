@@ -39,7 +39,7 @@ const [
 if (modelMode === 'REAL') await readAiModelConfig();
 
 const ai = new AiBattleService({
-  createModel: (knowledge, traces, model, billing) =>
+  createModel: (knowledge, traces, model, billing, enableThinking) =>
     Promise.resolve(
       new DashScopeAiBattleClient(
         {
@@ -49,6 +49,7 @@ const ai = new AiBattleService({
                 throw new Error('Qwen-only fixture');
               })()
             : model,
+          enableThinking,
           apiKey: 'p5-http-fixture-secret',
           temperature: 0.2,
           maxTokens: 2048,

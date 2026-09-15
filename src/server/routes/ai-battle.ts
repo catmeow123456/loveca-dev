@@ -22,6 +22,7 @@ const createSchema = z
     humanSeat: z.enum(['FIRST', 'SECOND']),
     model: z.enum(AI_BATTLE_MODELS),
     reasoningEffort: z.enum(CODEX_AI_REASONING_EFFORTS).optional(),
+    enableThinking: z.boolean(),
   })
   .strict();
 const seqSchema = z.coerce.number().int().min(0).optional();

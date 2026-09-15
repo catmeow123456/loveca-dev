@@ -76,13 +76,15 @@
   font-weight: 600;
   color: var(--text-secondary);
 }
-.ai-seat-choice label {
+.ai-seat-choice label,
+.ai-create-form .ai-thinking-choice {
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: 32px;
 }
-.ai-seat-choice input {
+.ai-seat-choice input,
+.ai-thinking-choice input {
   accent-color: var(--accent-primary);
 }
 .ai-create-form footer {

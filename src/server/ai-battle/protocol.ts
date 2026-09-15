@@ -60,6 +60,14 @@ export type AiDecisionSpace =
     };
 
 export interface AiDecisionInput {
+  /** Current seat's authoritative setting allowance; queried only in its LIVE_SET window. */
+  readonly liveSet?: {
+    readonly selectionMode: 'FINAL_SET_AND_CONFIRM';
+    readonly setCardObjectIds: readonly string[];
+    readonly setCount: number;
+    readonly setLimit: number;
+    readonly drawCountRule: 'FINAL_SET_COUNT';
+  };
   readonly context?: AiDecisionContextInput;
   readonly history?: {
     readonly selection: 'LAST_12_PUBLIC_EVENTS';
@@ -103,6 +111,20 @@ export interface AiDecision {
   readonly input: AiDecisionInput;
   /** Server-only mapping, valid solely for the version sampled by the caller. */
   readonly toCommand: (selection: AiSelection, timestamp: number) => GameCommand;
+  /** Multi-command plans stay inside the same authority queue and represent one model decision. */
+  readonly toCommands?: (selection: AiSelection, timestamp: number) => readonly GameCommand[];
+}
+
+export function materializeAiDecisionCommands(
+  decision: AiDecision,
+  selection: AiSelection,
+  timestamp: number
+): readonly GameCommand[] {
+  const commands = decision.toCommands?.(selection, timestamp) ?? [
+    decision.toCommand(selection, timestamp),
+  ];
+  if (commands.length === 0) throw new Error('AI decision produced no commands');
+  return commands;
 }
 
 export type AiDecisionQuery =
@@ -228,6 +250,26 @@ export function parseAiBattleResponse(
   };
 }
 
+/**
+ * Lenient recovery of a CARDS answer from a response that failed strict parsing. Used only by
+ * the deterministic fallback repair: strict validation still decides acceptance, so an envelope
+ * violation can never become a MODEL selection through this path. Truncated or unparsable text
+ * is treated as untrusted and yields null.
+ */
+export function extractInvalidCardSelection(text: string): AiSelection | null {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (!record(parsed) || !record(parsed.selection) || parsed.selection.kind !== 'CARDS')
+      return null;
+    const cardRefs = parsed.selection.cardRefs;
+    if (!Array.isArray(cardRefs)) return null;
+    const refs = cardRefs.filter((ref): ref is string => typeof ref === 'string');
+    return refs.length > 0 ? { kind: 'CARDS', cardRefs: refs } : null;
+  } catch {
+    return null;
+  }
+}
+
 export function responseSchema(space: AiDecisionSpace): Readonly<Record<string, unknown>> {
   const refs = space.candidates.map((candidate) => candidate.ref);
   return {
@@ -235,6 +277,7 @@ export function responseSchema(space: AiDecisionSpace): Readonly<Record<string, 
     additionalProperties: false,
     required: ['selection'],
     properties: {
+      tradeoff: { type: 'string', maxLength: 300 },
       selection: {
         type: 'object',
         additionalProperties: false,
@@ -272,7 +315,6 @@ export function responseSchema(space: AiDecisionSpace): Readonly<Record<string, 
                 },
               },
       },
-      tradeoff: { type: 'string', maxLength: 300 },
     },
   };
 }

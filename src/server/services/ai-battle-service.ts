@@ -16,7 +16,7 @@ import {
 import { onlineMatchService, type OnlineMatchService } from './online-match-service.js';
 import { loadUserProfileForOnlineMatch } from './online-room-service.js';
 import {
-  QWEN_AI_BATTLE_MODELS,
+  API_AI_BATTLE_MODELS,
   CODEX_AI_REASONING_EFFORTS,
   isCodexAiBattleModel,
   type AiBattleModel,
@@ -36,6 +36,7 @@ const ENDED_SESSION_TTL_MS = 60 * 60 * 1000;
 
 interface AiOwnedSession {
   readonly billing: AiBattleBilling;
+  readonly codexBudget?: AiBattleSessionView['codexBudget'];
   readonly ownerUserId: string;
   readonly matchId: string;
   readonly input: CreateAiBattleInput;
@@ -53,6 +54,7 @@ interface AiBattleServiceDeps {
     traces: AiBattleTraceStore,
     model: AiBattleModel,
     billing: AiBattleBilling,
+    enableThinking: boolean,
     reasoningEffort?: CodexAiReasoningEffort
   ) => Promise<AiBattleModelClient>;
   readonly billingPersistence?: AiBillingPersistence;
@@ -68,6 +70,7 @@ interface AiBattleServiceDeps {
 export class AiBattleService {
   private readonly sessions = new Map<string, AiOwnedSession>();
   private readonly creatingOwners = new Set<string>();
+  private creatingCodex = false;
   private readonly matches: OnlineMatchService;
   private readonly presets: Pick<AiBattlePresetLoader, 'list' | 'load'>;
   private readonly driver: Pick<AiBattleDriver, 'start' | 'stop'>;
@@ -87,7 +90,7 @@ export class AiBattleService {
   }
 
   listModels(): readonly AiBattleModel[] {
-    return this.deps.availableModels?.() ?? QWEN_AI_BATTLE_MODELS;
+    return this.deps.availableModels?.() ?? API_AI_BATTLE_MODELS;
   }
 
   listPresets() {
@@ -113,6 +116,12 @@ export class AiBattleService {
         '思考强度仅支持本地 Codex 的轻度或中等',
         400
       );
+    if (isCodexAiBattleModel(input.model) && input.enableThinking)
+      throw new AiBattleSetupError(
+        'AI_REASONING_UNSUPPORTED',
+        'Codex 使用思考强度选项，不使用 API 思考开关',
+        400
+      );
     this.cleanup();
     const active = [...this.sessions.values()].filter((entry) => this.finishedAt(entry) === null);
     if (this.creatingOwners.has(userId) || active.some((entry) => entry.ownerUserId === userId))
@@ -122,6 +131,17 @@ export class AiBattleService {
       this.sessions.size + this.creatingOwners.size >= MAX_RETAINED_AI_SESSIONS
     )
       throw new AiBattleSetupError('AI_CAPACITY_FULL', 'AI 调试容量已满，请稍后重试', 503);
+    const codex = isCodexAiBattleModel(input.model);
+    if (
+      codex &&
+      (this.creatingCodex || active.some((entry) => isCodexAiBattleModel(entry.input.model)))
+    )
+      throw new AiBattleSetupError(
+        'AI_CODEX_ALREADY_ACTIVE',
+        '本地服务仅允许一局 Codex 对战，请先结束当前 Codex 对局',
+        409
+      );
+    if (codex) this.creatingCodex = true;
     this.creatingOwners.add(userId);
     try {
       const [profile, setup] = await Promise.all([
@@ -144,6 +164,7 @@ export class AiBattleService {
         this.traces,
         input.model,
         billing,
+        input.enableThinking,
         input.reasoningEffort
       );
       const startedAt = this.now();
@@ -180,6 +201,7 @@ export class AiBattleService {
       });
       const entry: AiOwnedSession = {
         billing,
+        ...(model.codexBudget ? { codexBudget: Object.freeze({ ...model.codexBudget }) } : {}),
         ownerUserId: userId,
         matchId: match.matchId,
         input: {
@@ -238,6 +260,7 @@ export class AiBattleService {
       }
     } finally {
       this.creatingOwners.delete(userId);
+      if (codex) this.creatingCodex = false;
     }
   }
 
@@ -358,6 +381,7 @@ export class AiBattleService {
     return {
       ...entry.input,
       matchBilling: entry.billing.view(),
+      ...(entry.codexBudget ? { codexBudget: entry.codexBudget } : {}),
       matchId: entry.matchId,
       startedAt: entry.startedAt,
       endedAt,

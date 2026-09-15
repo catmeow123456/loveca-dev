@@ -31,6 +31,31 @@ describe('AI subscription usage display', () => {
       expect(render(value)).not.toContain('¥');
     }
   });
+  it('shows the frozen local call budget next to subscription usage', () => {
+    vi.stubGlobal('window', { innerWidth: 1000 });
+    const html = renderToStaticMarkup(
+      createElement(AiBillingCost, {
+        billing,
+        codexBudget: {
+          maxCalls: 5,
+          maxInputTokens: 500000,
+          maxUncachedInputTokens: 150000,
+          maxOutputTokens: 10000,
+        },
+      })
+    );
+    expect(html).toContain('调用 1/5');
+    expect(html).not.toContain('¥');
+  });
+  it('does not invent a call limit when only a token budget is set', () => {
+    vi.stubGlobal('window', { innerWidth: 1000 });
+    const html = renderToStaticMarkup(
+      createElement(AiBillingCost, { billing, codexBudget: { maxInputTokens: 500000 } })
+    );
+    expect(html).toContain('ChatGPT 订阅');
+    expect(html).not.toContain('调用 1/');
+    expect(html).not.toContain('undefined');
+  });
   it('preserves unknown usage and the Qwen money display', () => {
     expect(render({ ...billing, reportedAttempts: 0, unreportedAttempts: 1 })).toContain(
       '用量未确认'

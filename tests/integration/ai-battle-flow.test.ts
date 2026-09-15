@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { createGameSession } from '../../src/application/game-session';
 import { GameCommandType } from '../../src/application/game-commands';
 import { DecisionTapeRandomSource } from '../../src/shared/random-source';
-import { CardType, GameEndReason, GameMode } from '../../src/shared/types/enums';
+import { GameEndReason, GameMode } from '../../src/shared/types/enums';
 import { getBaseCardCode } from '../../src/shared/utils/card-code';
 import { getCardAbilityDefinitionsForCardCode } from '../../src/application/card-effects/definitions/lookup';
 import {
   buildAiBattleDecision,
+  materializeAiDecisionCommands,
   parseAiBattleResponse,
   type AiDecision,
   type AiSelection,
@@ -49,18 +50,6 @@ function choose(decision: AiDecision): AiSelection {
         state.objects[a.candidate.objectId!]!.frontInfo!.cost!
     );
     return (plays[0] ?? choices.find(({ command }) => command.type === GameCommandType.END_PHASE))!
-      .selection;
-  }
-  if (purpose === 'LIVE_SET') {
-    const placed = choices.some(({ command }) => command.type === GameCommandType.UNSET_LIVE_CARD);
-    const live = !placed
-      ? choices.find(
-          ({ command, candidate }) =>
-            command.type === GameCommandType.SET_LIVE_CARD &&
-            state.objects[candidate.objectId!]!.frontInfo!.cardType === CardType.LIVE
-        )
-      : undefined;
-    return (live ?? choices.find(({ command }) => command.type === GameCommandType.CONFIRM_STEP))!
       .selection;
   }
   return choices[0]!.selection;
@@ -156,20 +145,21 @@ describe('frozen Muse mirror through AI decision references', () => {
           decision,
           JSON.stringify({ selection: choose(decision) })
         ).selection;
-        const command = decision.toCommand(selection, now);
-        const result = session.executeCommand(command);
-        expect(
-          result.success,
-          JSON.stringify({
-            error: result.error,
-            step,
-            purpose: decision.input.purpose,
-            phase: session.state!.currentPhase,
-            subPhase: session.state!.currentSubPhase,
-            command,
-          })
-        ).toBe(true);
-        commands.push(command.type);
+        for (const command of materializeAiDecisionCommands(decision, selection, now)) {
+          const result = session.executeCommand(command);
+          expect(
+            result.success,
+            JSON.stringify({
+              error: result.error,
+              step,
+              purpose: decision.input.purpose,
+              phase: session.state!.currentPhase,
+              subPhase: session.state!.currentSubPhase,
+              command,
+            })
+          ).toBe(true);
+          commands.push(command.type);
+        }
         now += 10;
       }
       expect(

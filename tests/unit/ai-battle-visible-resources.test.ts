@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  describeAiActivationResources,
   describeAiMemberPlay,
   summarizeAiSelfResources,
 } from '../../src/server/ai-battle/visible-resources';
@@ -7,6 +8,101 @@ import type { PlayerViewState, ViewCardObject, ViewZoneState } from '../../src/o
 import { CardType, HeartColor, OrientationState } from '../../src/shared/types/enums';
 
 describe('AI visible resource subtotals', () => {
+  it('summarizes only own waiting-room fronts, grouping identical printings and distinguishing cost from score', () => {
+    const memberFront = {
+      cardCode: 'PL!N-bp4-017-N',
+      nameCn: '宫下爱',
+      cardType: CardType.MEMBER,
+      cost: 2,
+    };
+    const liveFront = {
+      cardCode: 'PL!N-bp4-030-L',
+      nameCn: 'Daydream Mermaid',
+      cardType: CardType.LIVE,
+      score: 3,
+    };
+    const card = (id: string, frontInfo: ViewCardObject['frontInfo']): ViewCardObject => ({
+      publicObjectId: id,
+      ownerSeat: 'FIRST',
+      controllerSeat: 'FIRST',
+      surface: 'FRONT',
+      frontInfo,
+    });
+    const view: Pick<PlayerViewState, 'table' | 'objects'> = {
+      objects: {
+        member1: card('member1', memberFront),
+        member2: card('member2', memberFront),
+        live: card('live', liveFront),
+        hidden: {
+          ...card('hidden', { ...liveFront, cardCode: 'HIDDEN-SENTINEL' }),
+          surface: 'BACK',
+        },
+        opponent: card('opponent', { ...liveFront, cardCode: 'OPPONENT-SENTINEL' }),
+      },
+      table: {
+        zones: {
+          SHARED_RESOLUTION_ZONE: {
+            zone: 'RESOLUTION_ZONE',
+            count: 0,
+            ordered: false,
+            objectIds: [],
+          },
+          FIRST_WAITING_ROOM: {
+            zone: 'WAITING_ROOM',
+            ownerSeat: 'FIRST',
+            count: 5,
+            ordered: false,
+            objectIds: ['member1', 'member2', 'live', 'hidden'],
+          },
+          SECOND_WAITING_ROOM: {
+            zone: 'WAITING_ROOM',
+            ownerSeat: 'SECOND',
+            count: 1,
+            ordered: false,
+            objectIds: ['opponent'],
+          },
+        },
+      },
+    };
+    const before = globalThis.structuredClone(view);
+    const summary = summarizeAiSelfResources(view, 'FIRST').waitingRoomSummary;
+    expect(summary).toContain('成员 2 张：2宫下爱(PL!N-bp4-017-N)×2');
+    expect(summary).toContain('LIVE 1 张：3Daydream Mermaid(PL!N-bp4-030-L)');
+    expect(summary).toContain('未知正面 2 张');
+    expect(summary).not.toContain('SENTINEL');
+    expect(view).toEqual(before);
+    const changed = globalThis.structuredClone(view);
+    Object.assign(changed.table.zones.FIRST_WAITING_ROOM, {
+      count: 2,
+      objectIds: ['member1', 'member2'],
+    });
+    expect(summarizeAiSelfResources(changed, 'FIRST').waitingRoomSummary).toBe(
+      '己方休息室：成员 2 张：2宫下爱(PL!N-bp4-017-N)×2；LIVE 0 张'
+    );
+    Object.assign(changed.table.zones.FIRST_WAITING_ROOM, { count: 0, objectIds: [] });
+    expect(summarizeAiSelfResources(changed, 'FIRST').waitingRoomSummary).toBe(
+      '己方休息室：成员 0 张；LIVE 0 张'
+    );
+  });
+
+  it('describes source costs and the existing target query without claiming recovery or removing empty choices', () => {
+    const activation = {
+      costs: [{ kind: 'SEND_SOURCE_MEMBER_TO_WAITING_ROOM' as const }],
+      destination: 'HAND' as const,
+      targets: [],
+    };
+    const before = globalThis.structuredClone(activation);
+    expect(describeAiActivationResources(activation)).toContain('来源成员送入休息室');
+    expect(describeAiActivationResources(activation)).toContain('支付后可见回手目标 0 张');
+    expect(activation).toEqual(before);
+    expect(
+      describeAiActivationResources({
+        ...activation,
+        targets: [{ objectId: 'visible-live' }],
+      })
+    ).toContain('支付后可见回手目标 1 张（尚未选择或取得）');
+  });
+
   it('compares visible values once, including duplicated colors and losses, without forecasting effects', () => {
     const incoming = {
       cardCode: 'INCOMING',
@@ -32,6 +128,7 @@ describe('AI visible resource subtotals', () => {
     };
     const before = globalThis.structuredClone({ incoming, outgoing });
     const description = describeAiMemberPlay(incoming, outgoing);
+    expect(description).toContain('手牌打出 1 张（未计卡效）');
     expect(description).toContain('HEART -2（PINK -1、PURPLE -1）／BLADE -2');
     expect(description).toContain('舞台顶层成员印刷总费用变化 -5');
     expect(description).toContain('未预结算卡效、常时条件或朝向变化');

@@ -1,5 +1,10 @@
-/** Qwen uses reviewed Beijing API prices; local Codex models use subscription accounting. */
-export const QWEN_AI_BATTLE_MODELS = ['qwen3.8-flash', 'qwen3.8-max'] as const;
+/** API models use reviewed Beijing prices; local Codex models use subscription accounting. */
+export const API_AI_BATTLE_MODELS = [
+  'qwen3.8-flash',
+  'qwen3.8-max',
+  'glm-5.2',
+  'deepseek-v4.1-flash',
+] as const;
 export const CODEX_AI_REASONING_EFFORTS = ['low', 'medium'] as const;
 export type CodexAiReasoningEffort = (typeof CODEX_AI_REASONING_EFFORTS)[number];
 export const DEFAULT_CODEX_AI_BATTLE_MODEL = 'codex:gpt-5.6-luna' as const;
@@ -9,8 +14,8 @@ export const CODEX_AI_BATTLE_MODELS = [
   'codex:gpt-5.6-terra',
   'codex:gpt-5.6-sol',
 ] as const;
-export const AI_BATTLE_MODELS = [...QWEN_AI_BATTLE_MODELS, ...CODEX_AI_BATTLE_MODELS] as const;
-export type QwenAiBattleModel = (typeof QWEN_AI_BATTLE_MODELS)[number];
+export const AI_BATTLE_MODELS = [...API_AI_BATTLE_MODELS, ...CODEX_AI_BATTLE_MODELS] as const;
+export type ApiAiBattleModel = (typeof API_AI_BATTLE_MODELS)[number];
 export type CodexAiBattleModel = (typeof CODEX_AI_BATTLE_MODELS)[number];
 export function isCodexAiBattleModel(model: string): model is CodexAiBattleModel {
   return (CODEX_AI_BATTLE_MODELS as readonly string[]).includes(model);
@@ -58,4 +63,12 @@ export interface AiMatchBilling extends AiBillingRecord, AiBillingSummary {}
 
 export interface AiRecordedBillingResponse {
   readonly matchBilling: AiMatchBilling | null;
+}
+
+/** Local, per-game test limits; not a subscription quota or persistent billing format. */
+export interface CodexBattleBudget {
+  readonly maxCalls?: number;
+  readonly maxInputTokens?: number;
+  readonly maxUncachedInputTokens?: number;
+  readonly maxOutputTokens?: number;
 }

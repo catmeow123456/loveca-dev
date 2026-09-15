@@ -13,6 +13,7 @@ const OWNER = 'ai-ui-admin';
 const NOW = '2026-09-09T06:00:00.000Z';
 export const CREATE_INPUT: CreateAiBattleInput = {
   model: 'qwen3.8-max',
+  enableThinking: false,
   humanPresetId: 'muse-starter',
   aiPresetId: 'muse-starter',
   handbookId: 'muse-balanced',
@@ -68,7 +69,7 @@ export async function aiBrowserFixture(page: Page) {
           entries: {},
         }),
     }),
-    createModel: (knowledge, store, model, billing) =>
+    createModel: (knowledge, store, model, billing, enableThinking) =>
       Promise.resolve(
         new DashScopeAiBattleClient(
           {
@@ -78,6 +79,7 @@ export async function aiBrowserFixture(page: Page) {
                   throw new Error('Qwen-only fixture');
                 })()
               : model,
+            enableThinking,
             apiKey: 'browser-fake-secret',
             temperature: 0.2,
             maxTokens: 2048,

@@ -170,7 +170,45 @@ const response = (selection: unknown): AiModelOutcome => ({
 afterEach(() => vi.useRealTimers());
 
 describe('AI match authority queue and lifecycle', () => {
-  it('feeds only accepted model intentions and post-command resources into the next queued sample', async () => {
+  it('submits one LIVE_SET model selection as the final card set and immediately confirms it', async () => {
+    const f = await fixture();
+    Object.assign(f.match.session.state!, {
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_FIRST_PLAYER,
+      activePlayerIndex: 0,
+      waitingPlayerId: null,
+      liveSetCompletedPlayers: [],
+    });
+    const task = await modelTask(f);
+    expect(task.input.purpose).toBe('LIVE_SET');
+    expect(task.input.liveSet?.selectionMode).toBe('FINAL_SET_AND_CONFIRM');
+    expect(task.input.space.kind).toBe('CARDS');
+    const selectedRefs = task.input.space.candidates.slice(0, 2).map((candidate) => candidate.ref);
+    const handCount = f.match.session.state!.players[0].hand.cardIds.length;
+    const deckCount = f.match.session.state!.players[0].mainDeck.cardIds.length;
+
+    const held = await f.service.completeAiBattleTask(
+      f.match.matchId,
+      task,
+      response({ kind: 'CARDS', cardRefs: selectedRefs })
+    );
+    expect(held).toMatchObject({ kind: 'WAIT', reason: 'PHASE_COMPLETION' });
+    if (held.kind !== 'WAIT') throw new Error(JSON.stringify(held));
+    f.setNow(held.deadlineAt);
+    expect(await f.service.advanceAiBattle(f.match.matchId)).toEqual({ kind: 'ACCEPTED' });
+
+    expect(f.match.session.state!.players[0].liveZone.cardIds).toHaveLength(2);
+    expect(f.match.session.state!.players[0].hand.cardIds).toHaveLength(handCount);
+    expect(f.match.session.state!.players[0].mainDeck.cardIds).toHaveLength(deckCount - 2);
+    expect(f.match.session.getCommandLogSince(0).map((record) => record.commandType)).toEqual([
+      GameCommandType.SET_LIVE_CARD,
+      GameCommandType.SET_LIVE_CARD,
+      GameCommandType.CONFIRM_STEP,
+    ]);
+    expect(await f.service.advanceAiBattle(f.match.matchId)).toEqual({ kind: 'IDLE' });
+  });
+
+  it('feeds accepted actions and post-command facts, but not model rationales, into the next queued sample', async () => {
     const f = await fixture({ main: true });
     const task = await modelTask(f);
     const play = task.input.space.candidates.find((candidate) => candidate.targetSlot)!;
@@ -188,7 +226,6 @@ describe('AI match authority queue and lifecycle', () => {
     expect(next.input.context?.recentDecisions).toMatchObject([
       {
         source: 'MODEL',
-        modelIntent: '先填补空位，再按实际资源重新比较。',
         selectedCards: [{ cardCode: 'TEST-MEMBER' }],
         resourcesAfter: {
           stageHeartTotal: next.input.state.selfResources.stageHeartTotal,
@@ -196,6 +233,9 @@ describe('AI match authority queue and lifecycle', () => {
         },
       },
     ]);
+    expect(next.input.context?.recentDecisions[0]?.resultSummary).toBeDefined();
+    expect(JSON.stringify(next.input.context)).not.toContain('先填补空位，再按实际资源重新比较。');
+    expect(JSON.stringify(next.input.context)).not.toContain('modelIntent');
     expect(await f.service.completeAiBattleTask(f.match.matchId, task, outcome)).toEqual({
       kind: 'STALE',
     });
@@ -688,7 +728,7 @@ describe('AI match authority queue and lifecycle', () => {
     const decide = vi.fn<AiBattleModelClient['decide']>(() => late.promise);
     await new AiBattleDriver(f.service, f.now).start(f.match.matchId, {
       decide,
-      timeoutMs: 90_000,
+      requestTimeoutMs: 90_000,
       stopOnTimeout: true,
     });
     await vi.advanceTimersByTimeAsync(0);
@@ -708,35 +748,45 @@ describe('AI match authority queue and lifecycle', () => {
     await f.service.deleteMatch(f.match.matchId);
   });
 
-  it('retries a timed-out request once, ignores its late output, then falls back once', async () => {
-    vi.useFakeTimers();
-    const f = await fixture({ attach: false });
-    const late = deferred<AiModelOutcome>();
-    const signals: AbortSignal[] = [];
-    const decide = vi.fn<AiBattleModelClient['decide']>((_, signal) => {
-      signals.push(signal);
-      return late.promise;
-    });
-    await new AiBattleDriver(f.service, f.now).start(f.match.matchId, { decide });
-    await vi.advanceTimersByTimeAsync(0);
-    const before = f.match.remoteRevision;
-    await vi.advanceTimersByTimeAsync(30_000);
-    expect(decide).toHaveBeenCalledTimes(2);
-    expect(signals[0]?.aborted).toBe(true);
-    expect(signals[1]?.aborted).toBe(false);
-    expect(decide.mock.calls[0]![0]).toEqual(decide.mock.calls[1]![0]);
-    expect(f.service.getAiBattleStatus(f.match.matchId)?.consecutiveFailures).toBe(0);
-    await vi.advanceTimersByTimeAsync(30_000);
-    expect(signals[1]?.aborted).toBe(true);
-    expect(f.match.remoteRevision).toBe(before + 1);
-    expect(f.service.getAiBattleStatus(f.match.matchId)?.consecutiveFailures).toBe(1);
-    late.resolve({ kind: 'RESPONSE', text: '{' });
-    await vi.advanceTimersByTimeAsync(0);
-    expect(f.match.remoteRevision).toBe(before + 1);
-    expect(decide).toHaveBeenCalledTimes(2);
-    expect(f.service.getAiBattleStatus(f.match.matchId)?.consecutiveFailures).toBe(1);
-    await f.service.deleteMatch(f.match.matchId);
-  });
+  it.each([undefined, 120_000])(
+    'retries a timed-out request once, ignores its late output, then falls back once (deadline %s)',
+    async (requestTimeoutMs) => {
+      vi.useFakeTimers();
+      const f = await fixture({ attach: false });
+      const late = deferred<AiModelOutcome>();
+      const signals: AbortSignal[] = [];
+      const decide = vi.fn<AiBattleModelClient['decide']>((_, signal) => {
+        signals.push(signal);
+        return late.promise;
+      });
+      await new AiBattleDriver(f.service, f.now).start(f.match.matchId, {
+        decide,
+        requestTimeoutMs,
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      const before = f.match.remoteRevision;
+      const timeout = requestTimeoutMs ?? 30_000;
+      await vi.advanceTimersByTimeAsync(timeout - 1);
+      expect(decide).toHaveBeenCalledTimes(1);
+      expect(signals[0]?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(decide).toHaveBeenCalledTimes(2);
+      expect(signals[0]?.aborted).toBe(true);
+      expect(signals[1]?.aborted).toBe(false);
+      expect(decide.mock.calls[0]![0]).toEqual(decide.mock.calls[1]![0]);
+      expect(f.service.getAiBattleStatus(f.match.matchId)?.consecutiveFailures).toBe(0);
+      await vi.advanceTimersByTimeAsync(timeout);
+      expect(signals[1]?.aborted).toBe(true);
+      expect(f.match.remoteRevision).toBe(before + 1);
+      expect(f.service.getAiBattleStatus(f.match.matchId)?.consecutiveFailures).toBe(1);
+      late.resolve({ kind: 'RESPONSE', text: '{' });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(f.match.remoteRevision).toBe(before + 1);
+      expect(decide).toHaveBeenCalledTimes(2);
+      expect(f.service.getAiBattleStatus(f.match.matchId)?.consecutiveFailures).toBe(1);
+      await f.service.deleteMatch(f.match.matchId);
+    }
+  );
 
   it.each(['REVEAL', 'CARDS', 'CHOICE'] as const)(
     'advances the human-controlled %s display once without polling or model calls',

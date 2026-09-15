@@ -106,20 +106,41 @@ export function buildAiEffectDecision(
     return actions('EFFECT_CONFIRM');
   }
   if (selection.kind === 'OPTIONS') {
-    if (selection.min !== 1 || selection.max !== 1)
-      return { reason: 'Multiple effect branches are not yet adapted' };
+    if (!selection.structured && (selection.min !== 1 || selection.max !== 1))
+      return { reason: 'Multiple unstructured effect branches are not supported' };
     const projected = selection.structured
       ? visible.effectChoice?.options
       : visible.selectableOptions;
     for (const option of selection.options) {
       if (!projected?.some((candidate) => candidate.id === option.id))
         return { reason: 'Effect option lacks a visible reference' };
-      add(
-        { description: option.text },
-        selection.structured
-          ? { selectedEffectOptionIds: [option.id] }
-          : { selectedOptionId: option.id }
-      );
+    }
+    if (selection.structured) {
+      // Each action is a complete legal subset, ordered as printed for resolution.
+      const addCombinations = (start: number, count: number, indices: number[]) => {
+        if (count === 0) {
+          const chosen = indices.map((index) => selection.options[index]!);
+          add(
+            { description: chosen.map((option) => option.text).join('\n') || '不选择效果' },
+            { selectedEffectOptionIds: chosen.map((option) => option.id) }
+          );
+          return;
+        }
+        for (let index = start; index <= selection.options.length - count; index++) {
+          addCombinations(index + 1, count - 1, [...indices, index]);
+        }
+      };
+      for (
+        let count = selection.min;
+        count <= Math.min(selection.max, selection.options.length);
+        count++
+      ) {
+        addCombinations(0, count, []);
+      }
+    } else {
+      for (const option of selection.options) {
+        add({ description: option.text }, { selectedOptionId: option.id });
+      }
     }
     if (selection.canSkip)
       add({ description: visible.skipSelectionLabel ?? '不发动' }, { selectedCardId: null });

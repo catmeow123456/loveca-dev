@@ -21,6 +21,63 @@ export const CODEX_SESSION_CONFIG = [
   // Stop locally before the context limit; never silently compact player history.
   'model_auto_compact_token_limit=1000000000',
 ];
+export class CodexContextLimitError extends CodexInvocationNotStartedError {}
+type SessionFailureReason =
+  | 'RPC_ERROR'
+  | 'PROCESS_ERROR'
+  | 'PROCESS_EXIT'
+  | 'STDIN_ERROR'
+  | 'OUTPUT_LIMIT'
+  | 'INVALID_JSON'
+  | 'AUTH_REFRESH_FAILED'
+  | 'UNEXPECTED_RPC'
+  | 'UNEXPECTED_ITEM'
+  | 'TURN_FAILED'
+  | 'INVALID_RESPONSE'
+  | 'CANCELLED';
+// CLI wire enums only. Upstream messages/additionalDetails may contain private data.
+const upstreamErrorNames = [
+  'contextWindowExceeded',
+  'sessionBudgetExceeded',
+  'usageLimitExceeded',
+  'rateLimitExceeded',
+  'serverOverloaded',
+  'cyberPolicy',
+  'misalignmentPolicyViolation',
+  'internalServerError',
+  'unauthorized',
+  'badRequest',
+  'threadRollbackFailed',
+  'sandboxError',
+  'other',
+] as const;
+const upstreamHttpErrors = [
+  'httpConnectionFailed',
+  'responseStreamConnectionFailed',
+  'responseStreamDisconnected',
+  'responseTooManyFailedAttempts',
+] as const;
+function safeUpstreamError(info: unknown): { category: string; httpStatusCode?: number } {
+  if (typeof info === 'string' && upstreamErrorNames.some((name) => name === info))
+    return { category: info };
+  if (info && typeof info === 'object' && !Array.isArray(info)) {
+    for (const category of upstreamHttpErrors) {
+      if (!Object.hasOwn(info, category)) continue;
+      const detail = (info as Record<string, unknown>)[category];
+      const status =
+        detail && typeof detail === 'object'
+          ? (detail as Record<string, unknown>).httpStatusCode
+          : undefined;
+      return {
+        category,
+        ...(typeof status === 'number' && Number.isInteger(status) && status >= 100 && status <= 599
+          ? { httpStatusCode: status }
+          : {}),
+      };
+    }
+  }
+  return { category: 'UNKNOWN' };
+}
 const credentials = z.object({
   tokens: z.object({ access_token: z.string().min(1), account_id: z.string().min(1) }),
 });
@@ -36,7 +93,7 @@ async function existingLogin() {
 const liveSessions = new Set<CodexBattleSession>();
 let exitHookInstalled = false;
 
-/** One private, ephemeral thread per client. Fail closed after cancellation/failure; no automatic resume. */
+/** One private ephemeral thread per client; subsequent windows append only current input. Fail closed after cancellation/failure; no automatic resume. */
 export class CodexBattleSession {
   private child?: ChildProcessWithoutNullStreams;
   private directory?: string;
@@ -51,15 +108,44 @@ export class CodexBattleSession {
   private sequence = 0;
   private buffer = '';
   private bytes = 0;
-  private historyBytes = 0;
-  private lastInputTokens = 0;
   private contextLimit = 150_000;
+  private lastContextTokens: number | null = null;
+  private modelContextWindow: number | null = null;
+  private completedTurns = 0;
+  private compactions = 0;
+  private phase: 'INITIALIZE' | 'LOGIN' | 'THREAD_START' | 'TURN_START' | 'TURN_RUNNING' =
+    'INITIALIZE';
+  private failure?: { reason: SessionFailureReason; rpcCode?: number };
+  private upstreamFailure?: ReturnType<typeof safeUpstreamError>;
+  /** Fixed local labels only: never expose upstream messages, stderr or credentials. */
+  get failureDiagnostics() {
+    return {
+      phase: this.phase,
+      ...this.failure,
+      ...(this.upstreamFailure ? { upstream: { ...this.upstreamFailure } } : {}),
+    };
+  }
+  private recordFailure(reason: SessionFailureReason, rpcCode?: number) {
+    this.failure ??= { reason, ...(Number.isSafeInteger(rpcCode) ? { rpcCode } : {}) };
+  }
+  get contextStatus() {
+    return {
+      lastContextTokens: this.lastContextTokens,
+      modelContextWindow: this.modelContextWindow,
+      stopAtTokens: this.contextLimit,
+      completedTurns: this.completedTurns,
+      automaticCompaction: false,
+      compactions: this.compactions,
+    };
+  }
   private pending = new Map<
     number,
     { resolve: (value: any) => void; reject: (error: Error) => void }
   >();
   private turn?: {
     id?: string;
+    operation?: 'COMPACTION';
+    compactionCompleted?: boolean;
     text?: string;
     usage: AiTokenUsage | null;
     resolve: (value: { text: string; usage: AiTokenUsage | null }) => void;
@@ -69,6 +155,16 @@ export class CodexBattleSession {
     private readonly config: LocalCodexConfig,
     private readonly model: CodexAiBattleModel
   ) {}
+
+  /** Replace a completed thread without changing the game account or carrying its old snapshots. */
+  async createSuccessor(): Promise<CodexBattleSession> {
+    if (this.closed || this.busy || !this.accountId || !this.threadId)
+      throw new CodexInvocationNotStartedError('Codex thread rotation unavailable');
+    const next = new CodexBattleSession(this.config, this.model);
+    next.accountId = this.accountId;
+    await this.close();
+    return next;
+  }
 
   private send(message: unknown) {
     if (this.closed || !this.child) throw new Error('Codex session closed');
@@ -86,7 +182,8 @@ export class CodexBattleSession {
       }
     });
   }
-  private fail() {
+  private fail(reason?: SessionFailureReason) {
+    if (reason && !this.closed) this.recordFailure(reason);
     void this.close().catch(() => {});
   }
   private async refresh(id: number, previousAccountId?: string) {
@@ -105,22 +202,24 @@ export class CodexBattleSession {
       this.accessFingerprint = fingerprint;
       this.send({ id, result: login });
     } catch {
-      this.fail();
+      this.fail('AUTH_REFRESH_FAILED');
     }
   }
   private receive(message: any) {
     if (message.method && message.id !== undefined) {
       if (message.method === 'account/chatgptAuthTokens/refresh')
         void this.refresh(message.id, message.params?.previousAccountId);
-      else this.fail(); // Reject tool calls, approval requests and any unexpected server RPC.
+      else this.fail('UNEXPECTED_RPC'); // Reject tool calls, approval requests and any unexpected server RPC.
       return;
     }
     if (message.id !== undefined) {
       const p = this.pending.get(message.id);
       if (!p) return;
       this.pending.delete(message.id);
-      if (message.error) p.reject(new Error('Codex protocol request failed'));
-      else {
+      if (message.error) {
+        this.recordFailure('RPC_ERROR', message.error.code);
+        p.reject(new Error('Codex protocol request failed'));
+      } else {
         if (this.turn && typeof message.result?.turn?.id === 'string')
           this.turn.id = message.result.turn.id;
         p.resolve(message.result);
@@ -135,34 +234,59 @@ export class CodexBattleSession {
     if (!id || id !== this.turn.id) return;
     if (message.method === 'thread/tokenUsage/updated') {
       const u = p.tokenUsage?.last;
-      this.turn.usage = parseCodexUsage({
-        input_tokens: u?.inputTokens,
-        cached_input_tokens: u?.cachedInputTokens,
-        output_tokens: u?.outputTokens,
-        cache_write_input_tokens: u?.cacheWriteInputTokens,
-      });
-      if (this.turn.usage) this.lastInputTokens = u.inputTokens;
+      if (this.turn.operation === 'COMPACTION') {
+        // Native remote compaction currently resets last usage to zero without accounting
+        // for the compact request. totalTokens here is the new context size, NOT a bill.
+        this.turn.usage = null;
+        if (Number.isSafeInteger(u?.totalTokens) && u.totalTokens >= 0)
+          this.lastContextTokens = u.totalTokens;
+      } else {
+        this.turn.usage = parseCodexUsage({
+          input_tokens: u?.inputTokens,
+          cached_input_tokens: u?.cachedInputTokens,
+          output_tokens: u?.outputTokens,
+          cache_write_input_tokens: u?.cacheWriteInputTokens,
+        });
+        if (this.turn.usage) this.lastContextTokens = u.inputTokens + u.outputTokens;
+      }
       if (
         Number.isSafeInteger(p.tokenUsage?.modelContextWindow) &&
         p.tokenUsage.modelContextWindow > 0
-      )
-        this.contextLimit = Math.min(150_000, Math.floor(p.tokenUsage.modelContextWindow * 0.75));
+      ) {
+        this.modelContextWindow = p.tokenUsage.modelContextWindow;
+        this.contextLimit = Math.floor(p.tokenUsage.modelContextWindow * 0.8);
+      }
     } else if (message.method === 'item/started' || message.method === 'item/completed') {
-      if (!['userMessage', 'agentMessage', 'reasoning'].includes(p.item?.type)) return this.fail();
+      if (p.item?.type === 'contextCompaction' && this.turn.operation === 'COMPACTION') {
+        if (message.method === 'item/completed') this.turn.compactionCompleted = true;
+        return;
+      }
+      if (!['userMessage', 'agentMessage', 'reasoning'].includes(p.item?.type))
+        return this.fail('UNEXPECTED_ITEM');
       if (message.method === 'item/completed' && p.item.type === 'agentMessage')
         this.turn.text = p.item.text;
     } else if (message.method === 'turn/completed') {
       const turn = this.turn;
       this.turn = undefined;
+      if (turn.operation === 'COMPACTION') {
+        if (!turn.compactionCompleted) {
+          turn.reject(new Error('Codex compaction incomplete'));
+          this.fail();
+          return;
+        }
+        turn.text = '';
+      }
       if (
         p.turn?.status !== 'completed' ||
         typeof turn.text !== 'string' ||
         Buffer.byteLength(turn.text) > 256 * 1024
       ) {
+        if (p.turn?.status === 'failed')
+          this.upstreamFailure = safeUpstreamError(p.turn?.error?.codexErrorInfo);
+        this.recordFailure(p.turn?.status !== 'completed' ? 'TURN_FAILED' : 'INVALID_RESPONSE');
         turn.reject(new Error('Codex turn incomplete'));
         this.fail();
       } else {
-        this.historyBytes += Buffer.byteLength(turn.text);
         turn.resolve({ text: turn.text, usage: turn.usage });
       }
     }
@@ -179,6 +303,8 @@ export class CodexBattleSession {
     await mkdir(cwd);
     const login = await existingLogin();
     if (this.closed) throw new Error('Codex session closed');
+    if (this.accountId && this.accountId !== login.chatgptAccountId)
+      throw new Error('Codex account changed across thread rotation');
     this.accountId = login.chatgptAccountId;
     this.accessFingerprint = createHash('sha256').update(login.accessToken).digest('hex');
     this.child = spawn(
@@ -213,18 +339,18 @@ export class CodexBattleSession {
         });
       }
     }
-    this.child.on('error', () => this.fail());
-    this.child.on('close', () => this.fail());
-    this.child.stdin.on('error', () => this.fail());
+    this.child.on('error', () => this.fail('PROCESS_ERROR'));
+    this.child.on('close', () => this.fail('PROCESS_EXIT'));
+    this.child.stdin.on('error', () => this.fail('STDIN_ERROR'));
     this.child.stderr.on('data', (chunk) => {
       this.bytes += chunk.length;
-      if (this.bytes > 2 * 1024 * 1024) this.fail();
+      if (this.bytes > 2 * 1024 * 1024) this.fail('OUTPUT_LIMIT');
     });
     this.child.stdout.setEncoding('utf8');
     this.child.stdout.on('data', (chunk: string) => {
       this.bytes += Buffer.byteLength(chunk);
       this.buffer += chunk;
-      if (this.bytes > 2 * 1024 * 1024) return this.fail();
+      if (this.bytes > 2 * 1024 * 1024) return this.fail('OUTPUT_LIMIT');
       let at: number;
       while ((at = this.buffer.indexOf('\n')) >= 0) {
         const line = this.buffer.slice(0, at);
@@ -233,7 +359,7 @@ export class CodexBattleSession {
         try {
           this.receive(JSON.parse(line));
         } catch {
-          this.fail();
+          this.fail('INVALID_JSON');
         }
       }
     });
@@ -242,10 +368,14 @@ export class CodexBattleSession {
       capabilities: { experimentalApi: true },
     });
     this.send({ method: 'initialized' });
+    this.phase = 'LOGIN';
     await this.rpc('account/login/start', { type: 'chatgptAuthTokens', ...login });
+  }
+  private async startThread() {
+    this.phase = 'THREAD_START';
     const result = await this.rpc('thread/start', {
       model: this.model.slice('codex:'.length),
-      cwd,
+      cwd: join(this.directory!, 'work'),
       ephemeral: true,
       permissions: 'ai_decision',
       baseInstructions: CODEX_SESSION_INSTRUCTIONS,
@@ -261,27 +391,31 @@ export class CodexBattleSession {
     if (this.closed || this.busy || signal.aborted)
       throw new CodexInvocationNotStartedError('Codex session unavailable');
     const size = Buffer.byteLength(prompt);
+    // Bytes limit transport size only. The context watermark uses reported tokens,
+    // not a byte-based prediction of the next request; the upstream still enforces its window.
     if (
       size > 512 * 1024 ||
-      this.historyBytes + size > 1024 * 1024 ||
-      this.lastInputTokens + size > this.contextLimit
+      (this.completedTurns > 0 &&
+        (this.lastContextTokens === null || this.lastContextTokens >= this.contextLimit))
     ) {
       await this.close();
-      throw new CodexInvocationNotStartedError('Codex context limit reached');
+      throw new CodexContextLimitError('Codex context watermark reached or usage unavailable');
     }
     this.busy = true;
     this.refreshed = false;
     this.bytes = 0;
     let sent = false;
-    const abort = () => this.fail();
+    const abort = () => this.fail('CANCELLED');
     signal.addEventListener('abort', abort, { once: true });
     try {
-      if (!this.threadId) {
+      if (!this.child) {
         this.starting = this.start();
         await this.starting;
       } else if ((await existingLogin()).chatgptAccountId !== this.accountId)
         throw new Error('Codex account changed');
       if (signal.aborted || this.closed) throw new Error('Codex cancelled');
+      if (!this.threadId) await this.startThread();
+      this.lastContextTokens = null;
       const result = new Promise<{ text: string; usage: AiTokenUsage | null }>(
         (resolve, reject) => {
           this.turn = { resolve, reject, usage: null };
@@ -290,20 +424,58 @@ export class CodexBattleSession {
       // Attach immediately: an abort or process exit may reject before turn/start responds.
       void result.catch(() => {});
       sent = true;
+      this.phase = 'TURN_START';
       const started = await this.rpc('turn/start', {
         threadId: this.threadId,
         effort: this.config.reasoningEffort,
         input: [{ type: 'text', text: prompt, text_elements: [] }],
         outputSchema: schema,
       });
+      if (!this.failure) this.phase = 'TURN_RUNNING';
       if (this.turn && !this.turn.id) this.turn.id = started.turn?.id;
       const response = await result;
-      this.historyBytes += size;
+      this.completedTurns++;
       return response;
     } catch {
       await this.close();
       if (!sent) throw new CodexInvocationNotStartedError('Codex session initialization failed');
       throw new Error('Codex session interrupted; no fallback');
+    } finally {
+      signal.removeEventListener('abort', abort);
+      this.busy = false;
+    }
+  }
+  /** Explicit native diagnostic operation; never called automatically by decide().
+   * Count as an upstream invocation even when the CLI does not report its usage.
+   */
+  async compact(signal: AbortSignal) {
+    if (this.closed || this.busy || signal.aborted || !this.threadId)
+      throw new CodexInvocationNotStartedError('Codex compaction unavailable');
+    this.busy = true;
+    this.refreshed = false;
+    this.bytes = 0;
+    let sent = false;
+    const abort = () => this.fail();
+    signal.addEventListener('abort', abort, { once: true });
+    try {
+      if ((await existingLogin()).chatgptAccountId !== this.accountId || signal.aborted)
+        throw new Error('Codex account changed or cancelled');
+      this.lastContextTokens = null;
+      const result = new Promise<{ text: string; usage: AiTokenUsage | null }>(
+        (resolve, reject) => {
+          this.turn = { operation: 'COMPACTION', resolve, reject, usage: null };
+        }
+      );
+      void result.catch(() => {});
+      sent = true;
+      await this.rpc('thread/compact/start', { threadId: this.threadId });
+      await result;
+      this.compactions++;
+      return { usage: null, context: this.contextStatus };
+    } catch {
+      await this.close();
+      if (!sent) throw new CodexInvocationNotStartedError('Codex compaction not started');
+      throw new Error('Codex compaction interrupted; no fallback');
     } finally {
       signal.removeEventListener('abort', abort);
       this.busy = false;

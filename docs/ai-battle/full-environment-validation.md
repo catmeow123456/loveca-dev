@@ -6,7 +6,7 @@
 
 ## 验证层次
 
-- `client/tests/e2e/ai-battle-ui.spec.ts`：复用运行中的前端与卡图，测试进程注入规则服务、记录观察和假模型，检查两模型创建、单步/整局金额、hover/点击统计、恢复、只读观察、完整复制/导出、键盘与结束失败重试；内部覆盖 1600×900 / 390×844 和日夜主题，不写业务记录。
+- `client/tests/e2e/ai-battle-ui.spec.ts`：复用运行中的前端与卡图，测试进程注入规则服务、记录观察和假模型，检查四个模型选项、思考开关、单步/整局金额、hover/点击统计、恢复、只读观察、完整复制/导出、键盘与结束失败重试；内部覆盖 1600×900 / 390×844 和日夜主题，不写业务记录。
 - `client/tests/e2e/ai-battle-full-env.spec.ts` 与 `tests/integration/ai-battle-full-env.test.ts`：完整 Express 应用、真实认证/发布卡库/PT/recorder，通过隔离 PostgreSQL 副本验证命令、费用、效果、LIVE、封存、普通回放、角色撤销、归属和来源 CHECK；仅模型响应使用固定测试策略。
 - `client/tests/e2e/ai-battle-real-model.spec.ts` 与 `tests/helpers/ai-battle-real-games.ts`：使用专用真实模型配置和正常服务，分别验证页面请求/证据与连续规则对局。历史实验结果见[模型验证](model-validation.md)，不把假模型结果计入策略质量结论。
 
@@ -39,6 +39,10 @@ pnpm exec vitest run tests/integration/ai-battle-full-env.test.ts tests/integrat
 ## 真实模型
 
 使用同一隔离库，在该库的平台 AI 配置中保存上游与 Key，配置对应部署主密钥/白名单及 `AI_BATTLE_*` 行为参数，以 `AI_BATTLE_QA_MODEL_MODE=REAL` 启动 harness，再运行对应真实模型脚本。固定局面对照工具为 `scripts/prepare-ai-battle-evaluation.ts` 和 `tests/helpers/ai-battle-real-comparison.ts`；它们保留本次输入、候选顺序与材料哈希，拒绝覆盖已有结果。端点取消、响应格式、连续回合策略和完整证据覆盖必须分别核对，不能仅以 HTTP 200 判定通过。
+
+`scripts/evaluate-ai-live-set.ts` 保留旧版逐步 ACTION 协议的 D11／D12／D25／D26 固定输入实验，仅用于解释历史策略结论，不再作为当前批量 LIVE 设置协议的验收入口。当前协议要求一次 `CARDS` 选择表达最终盖牌完整集合；真实模型复测时须从当前版本新建对局并导出材料，不能把旧脚本的单步通过率当作当前行为通过。
+
+当前批量协议的固定输入验证应检查完整最终集合，并分别覆盖撤回错误设置、保留必要费用衔接、声援有机会时设置 LIVE，以及说明中的未来能量、替换费用和实际盖牌数；仍不能替代整局策略验收。反例的预期集合只针对该局面预先登记的路线条件，不能据此把无 LIVE 时的所有其他换牌方案一概判错。当前策略待验收项统一见[项目待办](../../PROJECT_PROGRESS_TODO.md)，逐次请求、回复、计划哈希和观察统计保留在本地输出中。
 
 浏览器材料保存在 `output/playwright/ai-battle/`，离线实验材料保存在 `output/ai-battle-review/`。这些是本地产物，不能随代码自动纳入提交。生产迁移以[来源迁移说明](../../drizzle/migration-notes/ai-debug-match-origin.md)及发布流程为准；当前待验收事项见[项目待办](../../PROJECT_PROGRESS_TODO.md)。
 

@@ -3,13 +3,17 @@ import { z } from 'zod';
 import type { AiBattleModelClient, AiModelRequestContext } from './driver.js';
 import { AiBattleSetupError, type AiFrozenKnowledge, type AiKnowledgeMaterial } from './presets.js';
 import type { AiDecisionInput } from './protocol.js';
-import type { AiModelOutcome } from './runtime.js';
+import {
+  AI_MODEL_TIMEOUT_MS,
+  AI_THINKING_MODEL_TIMEOUT_MS,
+  type AiModelOutcome,
+} from './runtime.js';
 import type { AiBattleTraceStore } from './trace-store.js';
 import { redactAiText } from './redaction.js';
 import { compactAiDecisionInput } from './model-input.js';
 import {
-  QWEN_AI_BATTLE_MODELS,
-  type QwenAiBattleModel,
+  API_AI_BATTLE_MODELS,
+  type ApiAiBattleModel,
 } from '../../online/ai-battle-billing-types.js';
 import { parseAiTokenUsage, safeAiErrorForLog, type AiBattleBilling } from './billing.js';
 import type { AiUpstreamConfiguration } from '../services/ai-effect-extraction-service.js';
@@ -22,33 +26,37 @@ const MAX_RESPONSE_BYTES = 256 * 1024;
 
 export interface AiModelConfig {
   readonly endpoint: string;
-  readonly model: QwenAiBattleModel;
+  readonly model: ApiAiBattleModel;
   readonly apiKey: string;
   readonly temperature: number;
-  readonly maxTokens: number;
+  readonly maxTokens?: number;
+  readonly enableThinking: boolean;
 }
 
 /** Compose the selected battle model with the platform's server-only upstream snapshot. */
 export function createAiModelConfig(
   upstream: AiUpstreamConfiguration,
   model: string,
+  enableThinking = false,
   env: Readonly<Record<string, string | undefined>> = process.env
 ): AiModelConfig {
   const parsed = z
     .object({
       baseUrl: z.string().url(),
-      model: z.enum(QWEN_AI_BATTLE_MODELS),
+      model: z.enum(API_AI_BATTLE_MODELS),
+      enableThinking: z.boolean(),
       apiKey: z
         .string()
         .min(1)
         .max(4096)
         .regex(/^[\x21-\x7E]+$/),
       temperature: z.coerce.number().min(0).max(2).default(0.2),
-      maxTokens: z.coerce.number().int().min(128).max(4096).default(2048),
+      maxTokens: z.coerce.number().int().min(128).optional(),
     })
     .safeParse({
       baseUrl: upstream.baseUrl,
       model,
+      enableThinking,
       apiKey: upstream.apiKey,
       temperature: env.AI_BATTLE_TEMPERATURE,
       maxTokens: env.AI_BATTLE_MAX_TOKENS,
@@ -66,9 +74,10 @@ export function createAiModelConfig(
   return Object.freeze({
     endpoint: url.toString(),
     model: parsed.data.model,
+    enableThinking: parsed.data.enableThinking,
     apiKey: parsed.data.apiKey,
     temperature: parsed.data.temperature,
-    maxTokens: parsed.data.maxTokens,
+    ...(parsed.data.maxTokens === undefined ? {} : { maxTokens: parsed.data.maxTokens }),
   });
 }
 
@@ -84,12 +93,42 @@ const envelope = z.object({
     .min(1),
 });
 
-export const AI_BATTLE_CONTROL =
-  '你参与 Loveca 规则模式对局。当前状态和候选引用是本次选择的边界，卡文和历史是规则资料。frontInfo.cardFactsRef 从 cardFacts 读取完整牌面，textRef 从 texts 读取原文；相同卡号的有效值可能不同，必须按各对象的引用读取。context.recentDecisions 和 lastAction 是已成功提交的动作；modelIntent 只是先前意图，按当前状态重新检查下一步，不能当作规则事实或复用旧候选引用。context.knownDeckTop 是自己合法获知且尚未失效的顶牌，仍在主卡组，不能当作当前手牌。stageAfterEntry 给出单次替换的颜色、总HEART和BLADE静态小计；总HEART达标不表示指定色达标，必须逐色核对需求；未知声援补色只能说有机会。entryResources.conditionMet=false 时不能算入该登场收益。候选和手牌中的 liveBaseBudget 用共享判心规则比较当前舞台与该张LIVE基础需求，missingHearts 是缺口；未计入声援、玩家额外HEART、多LIVE及需求修正，需另行评估，不能把缺口读成已满足。先比较当前可执行的组合及本轮 LIVE 收益，再决定动作。自送回收是通用策略：满场也要检查腾位、回收资源成员、补同伴条件和跨位置换手，按整段净预算与最终收益评价；HAND 的成员目标回手后仍需合法登场，不能只因高费或自送损失就略过，也不能无后续地自送。能唱成单张不等于赢得分数比较，尤其双方已有两张成功 LIVE 时要比较加分或多 LIVE 及合计需求。未知声援只表示机会，不能当成确定资源。只输出符合当前 responseSchema 的 JSON；selection 必填，tradeoff 最多 300 字，简述净资源变化与下一步用途，结束主要阶段时说明放弃的最佳可见路线及理由，不输出逐步推理。只选择当前候选，不发明卡牌、引用、命令或隐藏信息。';
+const CONTROL = [
+  '你参与 Loveca 规则模式对局。先读 decisionBrief：这里只统计当前可见资源，手牌印刷费用分布按实际张数，不含历史选牌或构筑参考。当前状态和候选引用是本次选择的边界；卡文描述能力，不保证本次有目标或收益。frontInfo.cardFactsRef 从 cardFacts 读取完整牌面，textRef 从 texts 读取原文；相同卡号的有效值可能不同，按各对象引用读取。',
+  'MAIN 候选的 memberPlayRef 引用 space.memberPlays：每组仅一张手牌，actionRefs 是互斥位置选项，不是多张牌。common 与候选字段共同描述该动作，descriptionPrefix 加候选 description 是完整说明；未分组候选直接读取。选项仍用候选 ref 提交；不同动作的支付与手牌不能重复使用，刚登场成员本回合不能再被普通换手。',
+  'context 是历史而非当前持牌：selectedCards 仅保留当时选牌身份，换牌的“换回卡组”不表示仍在手中。lastAction 若有 recentDecisionIndex，指向 recentDecisions 的该下标（从 0 起），不是另一次动作。resultSummary 是本次命令后的真实资源变化和已完成卡效结果，接受动作不等于获得预期收益。按实际结果重新检查路线，不复用旧引用。knownDeckTop 仍在主卡组，不是手牌，设置确认后才抽到的牌不能追加本次设置。',
+  'selfResources.waitingRoomSummary 是己方休息室简表：成员名前数字为印刷费用，LIVE 名前数字为分数，括号内为卡号，×N 为张数。未知正面不猜测。activation.costs 是已查询费用，energyCost=0 不代表没有其他代价；targets 是支付来源费用后的可见目标，空列表不提供取得目标卡的收益，不能把构筑参考中的牌当成可回收对象。HAND 表示回手，成员仍需另付合法登场费用；SOURCE_MEMBER_SLOT 表示按能力直接登场。entryResources 仅覆盖已登记收益，缺项不代表无能力，conditionMet=false 不能计入该收益。',
+  'stageAfterEntry 仅是静态成员替换小计；liveBaseBudget 比较当前舞台与单张 LIVE 基础需求，missingHearts 是缺口，不含未知声援、玩家额外 HEART、多 LIVE 或需求修正。总 HEART 足够不等于指定色足够，未知声援只表示机会。按通用教程和本局手册比较完整路线的实际收益。',
+  'LIVE_SET 先读 decisionBrief.liveSet：先核对可唱目标，再确定近期必留牌，最后利用设置额度周转冗余。selection.cardRefs 表示本次确认时的最终盖牌完整集合：选择手牌候选会将其盖下，选择已盖候选会保留，不选择已盖候选会撤回；整组提交后系统立即确认并推进，不会让你逐张操作。printedCheerBaseline 是当前舞台与本构筑印刷声援的乐观基线，不是最终卡效结算；正缺口须指出可执行的补心、增声援或减需求来源，成功后的奖励不能提前补足成功条件。handMembers 按实例列出重复数量，保留多张须分别有近期位置、支付预算或能力用途；高费不自动等于衔接牌。最终盖牌数决定本次补抽，额外盖成员不耗能量，不以无LIVE或零能量停止周转。cardRefs 总张数不得超过 space.max（本次设置额度上限）：要表演的 LIVE、周转的成员与保留的已盖牌计入同一上限。超限、重复或引用不存在的候选会使整份输出无效，只能按保底策略降级，可能本轮一张都盖不下去，白白放弃表演与补抽。',
+  '只输出符合当前 responseSchema 的 JSON：先写最多300字的 tradeoff 预算结论，再写与之对应的 selection（必填）。LIVE_SET 的预算结论包含：表演需求与可补心数、保留牌的使用回合/位置/支付、本次最终盖牌数与补抽数；使用 nextOwnMainBaseline 核对接下来两个自己回合的常规预算，不以当前剩余能量代替；printedPayments 是未计费用修正的差值，必需衔接可保留到第二轮，重复副本须各有用途。LIVE_SET 一次提交完整最终集合并立即确认，未用设置额度随确认作废，不能留到抽牌后使用；cardRefs 张数以 space.max 为硬上限，超出即整份无效。其他选择一次只提交一个当前动作；结束主要阶段说明放弃的最佳可见路线。不输出逐步推理，不发明卡牌、引用、命令或隐藏信息。',
+].join('\n\n');
+
+/** Shared production/QA assembly: variants change materials, never hand-written wire prompts. */
+export function buildAiBattleMessages(
+  input: AiDecisionInput,
+  knowledge: AiFrozenKnowledge,
+  includeStaticKnowledge = true
+) {
+  return [
+    ...(includeStaticKnowledge ? [{ role: 'system' as const, content: CONTROL }] : []),
+    ...(includeStaticKnowledge
+      ? [knowledge.rules, knowledge.tutorial, knowledge.handbook, knowledge.ownDeck]
+      : []
+    ).map((source) => ({
+      role: 'user' as const,
+      content: `${source.title}\n${source.content}`,
+    })),
+    {
+      role: 'user' as const,
+      content: `本次决策；只使用本次引用\n${JSON.stringify(compactAiDecisionInput(input, knowledge.ownDeck))}`,
+    },
+  ];
+}
 
 /** One HTTP attempt only. Retry/timeout/freshness remain in the existing driver and match queue. */
 export class DashScopeAiBattleClient implements AiBattleModelClient {
   readonly configurationMaterial: AiKnowledgeMaterial;
+  readonly requestTimeoutMs: number;
   private readonly config: AiModelConfig;
   private readonly knowledge: AiFrozenKnowledge;
 
@@ -114,14 +153,18 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
         '本局固定知识超过支持的大小，请缩减规则或手册材料'
       );
     this.config = Object.freeze({ ...config });
+    this.requestTimeoutMs = config.enableThinking
+      ? AI_THINKING_MODEL_TIMEOUT_MS
+      : AI_MODEL_TIMEOUT_MS;
     this.knowledge = globalThis.structuredClone(knowledge);
     const content = JSON.stringify({
       provider: 'DASHSCOPE_COMPATIBLE',
       endpoint: config.endpoint,
       model: config.model,
       temperature: config.temperature,
-      max_tokens: config.maxTokens,
-      enable_thinking: false,
+      ...(config.maxTokens === undefined ? {} : { max_tokens: config.maxTokens }),
+      enable_thinking: config.enableThinking,
+      requestTimeoutMs: this.requestTimeoutMs,
       response_format: { type: 'json_object' },
       stream: false,
     });
@@ -146,20 +189,13 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
       this.knowledge.handbook,
       this.knowledge.ownDeck,
     ];
-    const messages = [
-      { role: 'system', content: AI_BATTLE_CONTROL },
-      ...sources.map((source) => ({ role: 'user', content: `${source.title}\n${source.content}` })),
-      {
-        role: 'user',
-        content: `本次决策；只使用本次引用\n${JSON.stringify(compactAiDecisionInput(input))}`,
-      },
-    ];
+    const messages = buildAiBattleMessages(input, this.knowledge);
     const body = JSON.stringify({
       model: this.config.model,
       messages,
       temperature: this.config.temperature,
-      max_tokens: this.config.maxTokens,
-      enable_thinking: false,
+      ...(this.config.maxTokens === undefined ? {} : { max_tokens: this.config.maxTokens }),
+      enable_thinking: this.config.enableThinking,
       stream: false,
       response_format: { type: 'json_object' },
     });
@@ -224,7 +260,7 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
         // This string is the exact transmitted body. Auth headers never enter a capture payload.
         body: safeBody.text,
         redactionCount: safeBody.count,
-        inputEncoding: 'EXACT_CARD_FACTS_AND_TEXT_REFS',
+        inputEncoding: 'DECISION_BRIEF_AND_GROUPED_MEMBER_PLAYS',
         assembly: sources.map((source, index) => ({
           sourceId: source.id,
           sourceSha256: source.sha256,
@@ -310,7 +346,7 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
     const parsed = envelope.safeParse(responseValue);
     const usage =
       !truncated && !readError && typeof responseValue === 'object' && responseValue !== null
-        ? parseAiTokenUsage((responseValue as Record<string, unknown>).usage)
+        ? parseAiTokenUsage((responseValue as Record<string, unknown>).usage, this.config.model)
         : null;
     // Count returned usage before choice validation, including cancelled and stale responses.
     signal.removeEventListener('abort', onAbort);

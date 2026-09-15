@@ -31,6 +31,7 @@ const presetSchema = z
   .object({
     id: z.string().min(1),
     name: z.string().min(1),
+    aiOnly: z.boolean().optional().default(false),
     deckPath: z.string().min(1),
     deckSha256: z.string().regex(/^[0-9a-f]{64}$/),
     defaultHandbookId: z.string().min(1),
@@ -102,6 +103,7 @@ export class AiBattlePresetLoader {
     return catalog.presets.map((preset) => ({
       id: preset.id,
       name: preset.name,
+      humanSelectable: !preset.aiOnly,
       defaultHandbookId: preset.defaultHandbookId,
       handbooks: preset.handbooks.map(({ id, name }) => ({ id, name })),
     }));
@@ -119,6 +121,9 @@ export class AiBattlePresetLoader {
     if (!humanPreset || !aiPreset || !handbook) {
       throw new AiBattleSetupError('AI_PRESET_INVALID', '请选择登记过的构筑及其关联手册', 400);
     }
+    if (humanPreset.aiOnly) {
+      throw new AiBattleSetupError('AI_PRESET_AI_ONLY', '该构筑仅允许 AI 使用', 400);
+    }
     const [registry, pointTable, rules, tutorial, book] = await Promise.all([
       this.getRegistry(),
       this.getPointTable(),
@@ -126,11 +131,11 @@ export class AiBattlePresetLoader {
       this.material('tutorial', '操作教程', catalog.tutorial),
       this.material(handbook.id, handbook.name, handbook.path),
     ]);
-    const human = await this.preset(humanPreset, registry, pointTable);
+    const human = await this.preset(humanPreset, registry, pointTable, true);
     const ai =
       humanPreset.id === aiPreset.id
         ? globalThis.structuredClone(human)
-        : await this.preset(aiPreset, registry, pointTable);
+        : await this.preset(aiPreset, registry, pointTable, false);
     const cardCounts = new Map<string, { count: number; card: DeckConfig['mainDeck'][number] }>();
     for (const card of [...ai.deck.mainDeck, ...ai.deck.energyDeck]) {
       const previous = cardCounts.get(card.cardCode);
@@ -183,7 +188,8 @@ export class AiBattlePresetLoader {
   private async preset(
     config: z.infer<typeof presetSchema>,
     registry: CardDataRegistry,
-    pointTable: DeckPointTableRules
+    pointTable: DeckPointTableRules,
+    enforcePointLimit: boolean
   ): Promise<AiFrozenPreset> {
     const yaml = await this.material(`yaml:${config.id}`, config.name, config.deckPath);
     if (yaml.sha256 !== config.deckSha256)
@@ -192,7 +198,13 @@ export class AiBattlePresetLoader {
         '构筑文件与已验证版本不符，请先完成构筑验证'
       );
     const deckConfig = DeckConfigSchema.parse(parseYaml(yaml.content));
-    const validation = validateDeckConfig(deckConfig, pointTable);
+    const pointValidation = validateDeckConfig(deckConfig, pointTable);
+    const validation = enforcePointLimit
+      ? pointValidation
+      : validateDeckConfig(deckConfig, {
+          ...pointTable,
+          pointLimit: Math.max(pointTable.pointLimit, pointValidation.stats.pointTotal),
+        });
     const loaded = new DeckLoader(registry).loadFromConfig(deckConfig);
     if (!validation.valid || !loaded.success || !loaded.deck || loaded.warnings.length) {
       throw new AiBattleSetupError(
@@ -210,7 +222,7 @@ export class AiBattlePresetLoader {
       }),
       pointValidation: {
         pointTableVersion: pointTable.version,
-        pointTotal: validation.stats.pointTotal,
+        pointTotal: pointValidation.stats.pointTotal,
         pointLimit: pointTable.pointLimit,
       },
     };

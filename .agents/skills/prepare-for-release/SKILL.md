@@ -21,6 +21,8 @@ description: 准备并公开 Loveca 正式版本：同步版本、提交并推�
 
 识别实际指向 `catmeow123456/loveca-dev` 的作者 remote，不假定名为 `origin`。fetch 作者 `main` 与 tags，确认当前 HEAD 等于作者 `main`。检查 tracked diff、未跟踪文件、临时卡图和 Docker build context；无关未跟踪文件可以保留，但不得进入提交或发布产物。
 
+fetch 禁用子模块递归；如需作者 main 独立副本，按[分支同步](../prepare-for-pr/references/branch-sync.md)复用既有目录。涉及历史数据或公开协议兼容时，核对[兼容边界](../prepare-for-pr/references/compatibility-boundaries.md)；这些参考不替代本技能的发布顺序与门禁。
+
 ## 发布流程
 
 1. **准备最终提交**

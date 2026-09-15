@@ -4,11 +4,13 @@ import type {
   AiBattleModel,
   AiMatchBilling,
   CodexAiReasoningEffort,
+  CodexBattleBudget,
 } from './ai-battle-billing-types.js';
 
 export interface AiBattlePresetChoice {
   readonly id: string;
   readonly name: string;
+  readonly humanSelectable: boolean;
   readonly defaultHandbookId: string;
   readonly handbooks: readonly { readonly id: string; readonly name: string }[];
 }
@@ -24,10 +26,13 @@ export interface CreateAiBattleInput extends AiBattlePresetInput {
   readonly model: AiBattleModel;
   /** Local Codex only; omitted requests use the server default. Frozen per game. */
   readonly reasoningEffort?: CodexAiReasoningEffort;
+  readonly enableThinking: boolean;
 }
 
 export interface AiBattleSessionView extends CreateAiBattleInput {
   readonly matchBilling: AiMatchBilling;
+  /** Frozen local test limits, only available for current Codex sessions. */
+  readonly codexBudget?: CodexBattleBudget;
   readonly matchId: string;
   readonly startedAt: number;
   readonly endedAt: number | null;

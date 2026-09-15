@@ -3,8 +3,11 @@ import type { GameSession } from '../../src/application/game-session';
 import { GameCommandType } from '../../src/application/game-commands';
 import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
 import {
+  BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
   KOTORI_LIVE_START_HEART_ABILITY_ID,
+  N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
   NICO_LIVE_START_SCORE_ABILITY_ID,
+  PL_N_BP3_009_LIVE_START_BOTTOM_TWO_WAITING_MEMBERS_COST_SUM_REWARD_ABILITY_ID,
   START_DASH_LIVE_SUCCESS_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import type { PendingAbilityState } from '../../src/domain/entities/game';
@@ -334,6 +337,225 @@ describe('AI effect selections through the normal command pipeline', () => {
       ).toBe(color === HeartColor.PINK ? 2 : 1);
     }
   );
+
+  it.each([HeartColor.PINK, HeartColor.YELLOW, HeartColor.PURPLE])(
+    'offers BP3 success-count Heart choices to AI and applies %s after public display',
+    (color) => {
+      const { session, advanceTime } = setup();
+      const source = stage(session, member('PL!-bp3-012-N', 2), SlotPosition.LEFT);
+      const [successLive] = putOnTop(session, [live('SUCCESS-LIVE')]);
+      const player = session.state!.players[0];
+      Object.assign(player.mainDeck, { cardIds: player.mainDeck.cardIds.slice(1) });
+      Object.assign(player.successZone, { cardIds: [successLive] });
+      pending(
+        session,
+        source,
+        BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID
+      );
+
+      const current = decision(session);
+      expect(current.input.purpose).toBe('EFFECT');
+      expect(
+        current.input.space.candidates.map((candidate) =>
+          current.toCommand({ kind: 'ACTION', actionRef: candidate.ref }, 1000)
+        )
+      ).toEqual([
+        expect.objectContaining({ selectedEffectOptionIds: [HeartColor.PINK] }),
+        expect.objectContaining({ selectedEffectOptionIds: [HeartColor.YELLOW] }),
+        expect.objectContaining({ selectedEffectOptionIds: [HeartColor.PURPLE] }),
+      ]);
+
+      const selected =
+        current.input.space.candidates[
+          [HeartColor.PINK, HeartColor.YELLOW, HeartColor.PURPLE].indexOf(color)
+        ]!;
+      submit(session, current, { kind: 'ACTION', actionRef: selected.ref });
+      const gate = buildAiBattleDecision(session.state!, P2, session.getPlayerViewState(P2)!);
+      if (gate.kind !== 'WAITING_FOR_TIME') throw new Error('Expected public effect choice');
+      advanceTime(gate.deadlineAt - 1000);
+      const advance = decision(session, P2);
+      submit(session, advance, getAiMechanicalSelection(advance)!);
+
+      expect(session.state!.activeEffect).toBeNull();
+      expect(
+        getMemberEffectiveHeartIcons(
+          session.state!,
+          P1,
+          source,
+          collectLiveModifiers(session.state!)
+        )
+      ).toContainEqual({ color, count: 1 });
+    }
+  );
+
+  it('lets AI optionally discard and publicly recover a Nijigasaki LIVE', () => {
+    const { session, advanceTime } = setup();
+    const source = stage(session, member('PL!N-bp5-022-N', 9), SlotPosition.CENTER);
+    const [discard] = replaceHand(session, [member('DISCARD-MEMBER')]);
+    const [target] = putOnTop(session, [{ ...live('NIJIGASAKI-LIVE'), groupNames: ['虹ヶ咲'] }]);
+    const player = session.state!.players[0];
+    Object.assign(player.mainDeck, { cardIds: player.mainDeck.cardIds.slice(1) });
+    Object.assign(player.waitingRoom, { cardIds: [target] });
+    pending(session, source, N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID);
+
+    const discardDecision = decision(session);
+    expect(discardDecision.input.space).toMatchObject({
+      kind: 'CARDS',
+      min: 1,
+      max: 1,
+      canSkip: true,
+    });
+    chooseCard(session, discardDecision, 0);
+    expect(session.state!.players[0].waitingRoom.cardIds).toContain(discard);
+
+    const recoveryDecision = decision(session);
+    expect(recoveryDecision.input.space).toMatchObject({
+      kind: 'CARDS',
+      min: 1,
+      max: 1,
+      canSkip: false,
+    });
+    expect(recoveryDecision.input.space.candidates.map((candidate) => candidate.objectId)).toEqual([
+      createPublicObjectId(target!),
+    ]);
+    chooseCard(session, recoveryDecision, 0);
+
+    const gate = buildAiBattleDecision(session.state!, P2, session.getPlayerViewState(P2)!);
+    if (gate.kind !== 'WAITING_FOR_TIME') throw new Error('Expected public recovery display');
+    advanceTime(gate.deadlineAt - 1000);
+    const advance = decision(session, P2);
+    submit(session, advance, getAiMechanicalSelection(advance)!);
+    expect(session.state!.activeEffect).toBeNull();
+    expect(session.state!.players[0].hand.cardIds).toEqual([target]);
+    expect(session.state!.players[0].waitingRoom.cardIds).toEqual([discard]);
+  });
+
+  it.each([
+    { rarity: 'R＋', costs: [2, 4], draws: 1, hearts: 0, score: 0 },
+    { rarity: 'P', costs: [4, 4], draws: 0, hearts: 1, score: 0 },
+    { rarity: 'P＋', costs: [10, 15], draws: 0, hearts: 0, score: 1 },
+    { rarity: 'SEC', costs: [2, 2], draws: 0, hearts: 0, score: 0 },
+  ])(
+    'lets AI order two waiting members for Rina $rarity, costs $costs, then resolves after display',
+    ({ rarity, costs, draws, hearts, score }) => {
+      const { session, advanceTime, randomCalls } = setup();
+      const source = stage(session, member(`PL!N-bp3-009-${rarity}`, 10), SlotPosition.CENTER);
+      const waiting = putOnTop(session, [
+        member('PAYMENT-A', costs[0]),
+        member('PAYMENT-B', costs[1]),
+        member('UNSELECTED-MEMBER', 9),
+        live('NOT-A-MEMBER'),
+      ]);
+      const player = session.state!.players[0];
+      Object.assign(player.mainDeck, { cardIds: player.mainDeck.cardIds.slice(waiting.length) });
+      Object.assign(player.waitingRoom, { cardIds: waiting });
+      pending(
+        session,
+        source,
+        PL_N_BP3_009_LIVE_START_BOTTOM_TWO_WAITING_MEMBERS_COST_SUM_REWARD_ABILITY_ID
+      );
+
+      const before = globalThis.structuredClone(session.state!);
+      const calls = randomCalls();
+      const current = decision(session);
+      expect(current.input.purpose).toBe('EFFECT');
+      expect(current.input.space).toMatchObject({
+        kind: 'CARDS',
+        min: 2,
+        max: 2,
+        ordered: true,
+        canSkip: true,
+      });
+      expect(current.input.space.candidates.map((candidate) => candidate.objectId)).toEqual(
+        waiting.slice(0, 3).map(createPublicObjectId)
+      );
+      expect(getAiMechanicalSelection(current)).toBeNull();
+      expect(session.state).toEqual(before);
+      expect(randomCalls()).toBe(calls);
+      const refs = current.input.space.candidates.map((candidate) => candidate.ref);
+      for (const cardRefs of [[refs[0]], [refs[0], refs[0]], refs, [refs[0], 'unknown']]) {
+        expect(() =>
+          parseAiBattleResponse(
+            current,
+            JSON.stringify({
+              selection: { kind: 'CARDS', cardRefs },
+            })
+          )
+        ).toThrow();
+      }
+      const invalid = session.executeCommand({
+        type: GameCommandType.CONFIRM_EFFECT_STEP,
+        playerId: P1,
+        timestamp: 1000,
+        effectId: session.state!.activeEffect!.id,
+        selectedCardIds: [waiting[0]!],
+      });
+      expect(invalid.success).toBe(false);
+      expect(session.state).toEqual(before);
+
+      const selectedIds = [waiting[1]!, waiting[0]!];
+      const command = submit(session, current, {
+        kind: 'CARDS',
+        cardRefs: [refs[1]!, refs[0]!],
+      });
+      expect(command).toMatchObject({ selectedCardIds: selectedIds });
+      expect(session.state!.players[0].waitingRoom.cardIds).toEqual(waiting);
+      expect(session.state!.players[0].mainDeck.cardIds).toEqual(
+        before.players[0].mainDeck.cardIds
+      );
+      expect(session.state!.players[0].hand.cardIds).toEqual(before.players[0].hand.cardIds);
+      expect(session.state!.liveResolution.liveModifiers).toEqual([]);
+      expect(session.getPlayerViewState(P2)!.activeEffect?.revealedObjectIds).toEqual(
+        selectedIds.map(createPublicObjectId)
+      );
+      const gate = buildAiBattleDecision(session.state!, P2, session.getPlayerViewState(P2)!);
+      if (gate.kind !== 'WAITING_FOR_TIME') throw new Error('Expected public bottom-deck display');
+      advanceTime(gate.deadlineAt - 1000);
+      const advance = decision(session, P2);
+      submit(session, advance, getAiMechanicalSelection(advance)!);
+
+      expect(session.state!.activeEffect).toBeNull();
+      expect(session.state!.pendingAbilities).toEqual([]);
+      expect(session.state!.players[0].waitingRoom.cardIds).toEqual(waiting.slice(2));
+      expect(session.state!.players[0].mainDeck.cardIds.slice(-2)).toEqual(selectedIds);
+      expect(session.state!.players[0].hand.cardIds).toHaveLength(
+        before.players[0].hand.cardIds.length + draws
+      );
+      const modifiers = collectLiveModifiers(session.state!);
+      expect(
+        getMemberEffectiveHeartIcons(session.state!, P1, source, modifiers)
+          .filter((heart) => heart.color === HeartColor.RAINBOW)
+          .reduce((sum, heart) => sum + heart.count, 0)
+      ).toBe(hearts);
+      expect(getPlayerLiveScoreModifier(session.state!.liveResolution, P1, modifiers)).toBe(score);
+      expect(session.executeCommand(command).success).toBe(false);
+    }
+  );
+
+  it('lets AI decline Rina even with exactly two eligible members', () => {
+    const { session } = setup();
+    const source = stage(session, member('PL!N-bp3-009-R＋', 10), SlotPosition.CENTER);
+    const waiting = putOnTop(session, [member('PAYMENT-A', 2), member('PAYMENT-B', 4)]);
+    const player = session.state!.players[0];
+    Object.assign(player.mainDeck, { cardIds: player.mainDeck.cardIds.slice(waiting.length) });
+    Object.assign(player.waitingRoom, { cardIds: waiting });
+    pending(
+      session,
+      source,
+      PL_N_BP3_009_LIVE_START_BOTTOM_TWO_WAITING_MEMBERS_COST_SUM_REWARD_ABILITY_ID
+    );
+    const before = globalThis.structuredClone(session.state!);
+    const current = decision(session);
+    expect(current.input.space.candidates).toHaveLength(2);
+    expect(getAiMechanicalSelection(current)).toBeNull();
+    submit(session, current, getAiFallbackSelection(current));
+    expect(session.state!.activeEffect).toBeNull();
+    expect(session.state!.pendingAbilities).toEqual([]);
+    expect(session.state!.players[0].waitingRoom).toEqual(before.players[0].waitingRoom);
+    expect(session.state!.players[0].mainDeck).toEqual(before.players[0].mainDeck);
+    expect(session.state!.players[0].hand).toEqual(before.players[0].hand);
+    expect(session.state!.liveResolution.liveModifiers).toEqual([]);
+  });
 
   it('retains each pending instance on the same source and confirms before resolving the selected one', () => {
     for (const index of [0, 1]) {

@@ -23,10 +23,17 @@ Before testing, write a short inventory:
 
 ## Environment
 
-- Prefer the project test environment when a real battle flow is needed: `pnpm test-env:start`.
-- The usual local page is `http://localhost:5173/` or `http://127.0.0.1:5173/`.
+- When a real battle flow needs the full environment, inspect `pnpm test-env:start`, its script, and the actual running configuration first. Reuse an available environment; initialize/reset only when needed and within the task's authorization.
+- Discover the actual local URL and entry route; do not assume a historical localhost port or home-page entry still applies. Do not advance or reset the user's complex match merely to prepare a test.
 - Use `output/playwright/` for browser artifacts committed only when explicitly useful. Do not add new top-level artifact folders.
 - When a dev server is already running, reuse it unless its state blocks the test.
+
+### Local Test Decks And Card Images
+
+Read this section only when the test needs deck fixtures or local image assets. Test decks live in `assets/decks/`; do not create, import, or save account decks without the user's explicit authorization.
+
+- `scripts/download-local-test-card-images.mjs` supports `--dry-run`, `--deck-dir=...`, base-number rarity expansion, and P+/L+ aliases. Preview the intended scope before downloading missing images.
+- `assets/images/` remains a local fallback until explicitly replaced. Temporary images are not card-rule dependencies; inspect image diffs before any authorized commit and keep temporary assets out of production assets. Preserve existing user changes and do not use fixture preparation to update submodules.
 
 ## Browser Checks
 

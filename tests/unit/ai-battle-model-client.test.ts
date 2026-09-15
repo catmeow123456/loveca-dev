@@ -10,15 +10,18 @@ import { redactAiText, serializeAiEvidence } from '../../src/server/ai-battle/re
 import { fromTransport } from '../../src/online/serde';
 import { AiBattleBilling } from '../../src/server/ai-battle/billing';
 import { createMemoryAiBilling } from '../helpers/ai-battle-billing';
+import { compactAiDecisionInput } from '../../src/server/ai-battle/model-input';
+import type { AiBattleModel } from '../../src/online/ai-battle-billing-types';
 
 const KEY = 'test-api-key-never-export';
-const config = () =>
+const config = (model: AiBattleModel = 'qwen3.8-max', enableThinking = false) =>
   createAiModelConfig(
     {
       baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
       apiKey: KEY,
     },
-    'qwen3.8-max'
+    model,
+    enableThinking
   );
 const context = { matchId: 'm', taskId: '1', revision: 2, windowKey: 'MAIN', attempt: 0 };
 const input: AiDecisionInput = {
@@ -31,6 +34,7 @@ const input: AiDecisionInput = {
     subPhase: 'NONE',
     selfSeat: 'SECOND',
     selfResources: {
+      waitingRoomSummary: '己方休息室：成员 0 张；LIVE 0 张',
       handCards: [],
       handLiveCount: 0,
       stageMembers: [],
@@ -57,7 +61,11 @@ const response = (
     }),
     { status: 200 }
   );
-function fixture(fetcher: typeof globalThis.fetch) {
+function fixture(
+  fetcher: typeof globalThis.fetch,
+  model: AiBattleModel = 'qwen3.8-max',
+  enableThinking = false
+) {
   const knowledge = Object.fromEntries(
     ['rules', 'tutorial', 'handbook', 'ownDeck'].map((id) => [
       id,
@@ -71,7 +79,7 @@ function fixture(fetcher: typeof globalThis.fetch) {
     ])
   ) as unknown as AiFrozenKnowledge;
   const store = new AiBattleTraceStore();
-  const mutableConfig = { ...config() };
+  const mutableConfig = { ...config(model, enableThinking) };
   const client = new DashScopeAiBattleClient(mutableConfig, knowledge, store, fetcher);
   store.open('m', [
     knowledge.rules,
@@ -84,17 +92,18 @@ function fixture(fetcher: typeof globalThis.fetch) {
   return { client, store, mutableConfig, knowledge };
 }
 
-async function billedFixture(fetcher: typeof globalThis.fetch) {
-  const f = fixture(fetcher);
+async function billedFixture(
+  fetcher: typeof globalThis.fetch,
+  model: AiBattleModel = 'qwen3.8-max'
+) {
+  const f = fixture(fetcher, model);
   const memory = createMemoryAiBilling();
-  const billing = new AiBattleBilling(
-    'qwen3.8-max',
-    memory.persistence,
-    (id, value, decision, delta) => f.store.updateBilling(id, value, decision, delta)
+  const billing = new AiBattleBilling(model, memory.persistence, (id, value, decision, delta) =>
+    f.store.updateBilling(id, value, decision, delta)
   );
   await billing.initialize('m');
   const client = new DashScopeAiBattleClient(
-    config(),
+    config(model),
     f.knowledge,
     f.store,
     fetcher,
@@ -117,8 +126,58 @@ const meteredResponse = (choices: unknown = []) =>
   );
 
 describe('AI model HTTP boundary', () => {
+  it.each(['qwen3.8-max', 'qwen3.8-flash', 'glm-5.2', 'deepseek-v4.1-flash'] as const)(
+    'sends frozen thinking settings for %s and uses only the final answer as the decision',
+    async (model) => {
+      const answer = '{"selection":{"kind":"ACTION","actionRef":"a1"}}';
+      const fetcher = vi.fn<typeof globalThis.fetch>().mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              choices: [
+                {
+                  message: { content: answer, reasoning_content: 'provider reasoning' },
+                  finish_reason: 'stop',
+                },
+              ],
+            })
+          )
+        )
+      );
+      for (const enableThinking of [false, true]) {
+        const f = fixture(fetcher, model, enableThinking);
+        f.mutableConfig.enableThinking = !enableThinking;
+        expect(await f.client.decide(input, new AbortController().signal, context)).toEqual({
+          kind: 'RESPONSE',
+          text: answer,
+          truncated: false,
+        });
+        const body: unknown = JSON.parse(fetcher.mock.calls.at(-1)![1]!.body as string);
+        expect(body).toMatchObject({
+          model,
+          enable_thinking: enableThinking,
+          stream: false,
+          response_format: { type: 'json_object' },
+        });
+        expect(body).not.toHaveProperty('max_tokens');
+        expect(body).not.toHaveProperty('requestTimeoutMs');
+        expect(f.client.requestTimeoutMs).toBe(enableThinking ? 120_000 : 30_000);
+        expect(JSON.parse(f.client.configurationMaterial.content)).toMatchObject({
+          enable_thinking: enableThinking,
+          requestTimeoutMs: f.client.requestTimeoutMs,
+        });
+        const capturedRequest = f.store
+          .export('m')!
+          .materials.find((material) => material.title === 'REQUEST')!;
+        expect(JSON.parse(capturedRequest.content!)).toMatchObject({
+          body: fetcher.mock.calls.at(-1)![1]!.body,
+        });
+      }
+    }
+  );
+
   it('restricts models while using the configured Chat Completions upstream', () => {
-    for (const model of ['qwen3.8-max', 'qwen3.8-flash'])
+    for (const model of ['qwen3.8-max', 'qwen3.8-flash', 'glm-5.2', 'deepseek-v4.1-flash'])
       expect(
         createAiModelConfig(
           {
@@ -145,6 +204,75 @@ describe('AI model HTTP boundary', () => {
       ).endpoint
     ).toBe('https://api.example.com/gateway/v1/chat/completions');
   });
+
+  it.each([
+    ['glm-5.2', '0.27546000'],
+    ['deepseek-v4.1-flash', '0.06372360'],
+  ] as const)(
+    'sends %s JSON requests and persists its model-specific usage and price snapshot',
+    async (model, expectedCny) => {
+      const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+        meteredResponse([
+          {
+            message: { content: '{"selection":{"kind":"ACTION","actionRef":"a1"}}' },
+            finish_reason: 'stop',
+          },
+        ])
+      );
+      const f = await billedFixture(fetcher, model);
+      expect(await f.client.decide(input, new AbortController().signal, context)).toMatchObject({
+        kind: 'RESPONSE',
+      });
+      expect(JSON.parse(fetcher.mock.calls[0]![1]!.body as string)).toMatchObject({
+        model,
+        enable_thinking: false,
+        response_format: { type: 'json_object' },
+      });
+      expect(JSON.parse(f.client.configurationMaterial.content)).toMatchObject({ model });
+      expect(f.memory.records.get('m')).toMatchObject({
+        model,
+        pricingDate: '2026-09-14',
+        reportedAttempts: 1,
+      });
+      expect(f.billing.view().estimatedCny).toBe(expectedCny);
+    }
+  );
+
+  it.each(['glm-5.2', 'deepseek-v4.1-flash'] as const)(
+    'keeps %s explicit-cache reports unconfirmed at the HTTP boundary',
+    async (model) => {
+      const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: { content: '{"selection":{"kind":"ACTION","actionRef":"a1"}}' },
+                finish_reason: 'stop',
+              },
+            ],
+            usage: {
+              prompt_tokens: 1600,
+              completion_tokens: 100,
+              prompt_tokens_details: {
+                cached_tokens: 1200,
+                cache_creation_input_tokens: 300,
+                cache_type: 'ephemeral',
+              },
+            },
+          })
+        )
+      );
+      const f = await billedFixture(fetcher, model);
+      expect(await f.client.decide(input, new AbortController().signal, context)).toMatchObject({
+        kind: 'RESPONSE',
+      });
+      expect(f.billing.view()).toMatchObject({
+        attempts: 1,
+        reportedAttempts: 0,
+        unreportedAttempts: 1,
+      });
+    }
+  );
 
   it('persists usage independently of invalid choice envelopes and failed diagnostic capture', async () => {
     const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(meteredResponse());
@@ -217,7 +345,7 @@ describe('AI model HTTP boundary', () => {
   });
   it('requires explicit platform credentials, excludes URL credentials and validates behavior parameters', () => {
     expect(() =>
-      createAiModelConfig({ baseUrl: '', apiKey: '' }, 'qwen3.8-flash', {
+      createAiModelConfig({ baseUrl: '', apiKey: '' }, 'qwen3.8-flash', false, {
         AI_BATTLE_BASE_URL: 'https://old.example/v1',
         AI_BATTLE_API_KEY: KEY,
       })
@@ -241,8 +369,16 @@ describe('AI model HTTP boundary', () => {
     expect(config()).toMatchObject({
       endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
       temperature: 0.2,
-      maxTokens: 2048,
     });
+    expect(config()).not.toHaveProperty('maxTokens');
+    expect(
+      createAiModelConfig(
+        { baseUrl: 'https://api.example.com/v1', apiKey: KEY },
+        'deepseek-v4.1-flash',
+        true,
+        { AI_BATTLE_MAX_TOKENS: '8192' }
+      ).maxTokens
+    ).toBe(8192);
   });
 
   it('captures the transmitted body and frozen sources/configuration, without authorization or prior responses', async () => {
@@ -282,7 +418,9 @@ describe('AI model HTTP boundary', () => {
       'user',
     ]);
     expect(body.messages[3]!.content).toContain('frozen handbook');
-    expect(body.messages.at(-1)!.content).toContain(JSON.stringify(input));
+    expect(body.messages.at(-1)!.content).toBe(
+      `本次决策；只使用本次引用\n${JSON.stringify(compactAiDecisionInput(input))}`
+    );
     const bundle = store.export('m')!;
     const requestEvent = bundle.decisions[0]!.events.find((event) => event.stage === 'REQUEST')!;
     const evidence = JSON.parse(

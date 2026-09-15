@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { AiBillingSummary } from '@game/online/ai-battle-billing-types';
+import type { AiBillingSummary, CodexBattleBudget } from '@game/online/ai-battle-billing-types';
 import './ai-battle.css';
 
 function amount(cny: string): string {
@@ -15,9 +15,11 @@ function amount(cny: string): string {
 export function AiBillingCost({
   billing,
   label,
+  codexBudget,
 }: {
   readonly billing: AiBillingSummary | null;
   readonly label?: string;
+  readonly codexBudget?: CodexBattleBudget;
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
   const pinned = useRef(false);
@@ -44,6 +46,11 @@ export function AiBillingCost({
     !billing || billing.attempts === 0
       ? '未调用模型'
       : `输入 ${count(usage!.inputTokens)} + 缓存输入 ${count(usage!.implicitCachedTokens + usage!.explicitCachedTokens)} + 缓存创建 ${count(usage!.cacheCreationTokens)} → 输出 ${count(usage!.outputTokens)} token`;
+  const limit = (value: number | undefined) => (value === undefined ? '未设置' : count(value));
+  const budgetText =
+    subscription && codexBudget && billing
+      ? `测试预算：调用 ${count(billing.attempts)}/${limit(codexBudget.maxCalls)}；输入（含缓存）${count(usage!.inputTokens + usage!.implicitCachedTokens + usage!.explicitCachedTokens + usage!.cacheCreationTokens)}/${limit(codexBudget.maxInputTokens)}；非缓存输入 ${count(usage!.inputTokens + usage!.cacheCreationTokens)}/${limit(codexBudget.maxUncachedInputTokens)}；输出 ${count(usage!.outputTokens)}/${limit(codexBudget.maxOutputTokens)}`
+      : '';
   const notes = [
     billing && billing.attempts > 1 ? `${billing.attempts} 次调用合计` : '',
     billing?.pendingAttempts ? `${billing.pendingAttempts} 次待统计` : '',
@@ -115,6 +122,12 @@ export function AiBillingCost({
       >
         {label && <span>{label} </span>}
         {text}
+        {subscription && codexBudget?.maxCalls !== undefined && billing && (
+          <span>
+            {' '}
+            · 调用 {billing.attempts}/{codexBudget.maxCalls}
+          </span>
+        )}
         {billing?.saveFailed && <span className="ai-billing-warning"> · 保存失败</span>}
       </button>
       {anchor &&
@@ -134,6 +147,16 @@ export function AiBillingCost({
             }}
           >
             <div>{breakdown}</div>
+            {budgetText && (
+              <>
+                <div>{budgetText}</div>
+                <small>
+                  达到预算后停止后续请求；最后一次可能超过 token
+                  阈值。重开对局重新计数，用量未知时停止。
+                </small>
+              </>
+            )}
+
             {notes && <small>{notes}</small>}
           </div>,
           document.body

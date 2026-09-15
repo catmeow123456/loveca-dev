@@ -1,22 +1,28 @@
 ---
 name: prepare-for-git-commit
-description: git commit操作的前期准备，包括代码规范检查，以及commit message编写
+description: 检查或准备 Loveca Git 提交，核对暂存区范围、相关代码与文档、必要验证，并编写中文 commit message；只起草说明时保持只读，不默认 stage、commit 或 push。
 ---
 
-提示：需要启动开发测试环境时，使用 `bash scripts/start-test-env.sh` 来干净地启动开发测试。
+# 提交检查与准备
 
-提示：运行全量 unit / integration 测试时，`pnpm test:run` 需要显式传测试环境变量，否则部分服务端路由测试会因缺少 `DATABASE_URL` 等配置失败：
+以用户指定范围和实际暂存区为依据，完成必要检查与准确的提交说明。沿用仓库 `AGENTS.md` 的授权、工作树保护与验证原则。
 
-```bash
-env DATABASE_URL=postgres://loveca:loveca_dev@localhost:5432/loveca JWT_SECRET=test JWT_REFRESH_SECRET=test MINIO_ENDPOINT=localhost MINIO_ACCESS_KEY=test MINIO_SECRET_KEY=test FRONTEND_URL=http://localhost:5173 pnpm test:run
-```
+## 范围与授权
 
-步骤：
+- 只要求提交说明时，读取指定 diff；未指定则以暂存区为准。暂存区为空时说明没有暂存修改，不自动纳入其他文件；可根据已明确的工作树范围提供候选草稿，并标明依据。
+- 只要求审查时保持只读，报告有证据的问题与已有验证情况；完整准备请求则包含范围内必要修正、相关验证和文案。stage、commit、push 按已有具体授权执行，不由技能名称自动推导，也不重复索取用户已给出的授权。
+- 保留暂存、未暂存和未跟踪修改的边界，不批量 stage，不把其他 agent 或用户的改动并入本次提交。需要扩大范围或改变规则解释时，仅询问影响后续的具体决定。
 
-1. 检查代码、文档和配置是否引入 bug，整体实现是否合理无误。
-2. 分析git暂存区的代码和文档修改是否符合 `docs/coding-standard/` 和 `docs/doc_writing_guide.md`，并给出结论；具体审查细则以这些规范文档为准。
-3. 无论是否引入了bug/是否合理/是否符合规范，都根据git暂存区的代码修改编写commit message
-4. 如果代码有发生变化，那么检查 `CLAUDE.md`, `AGENTS.md` 和游戏系统设计文档 `docs/system-design.md`, `docs/PROJECT_REQUIREMENTS.md` 或者其他文档是否需要更新保持与最新的项目代码一致，如果不一致，则修改、更新这些文档以反映最新的代码架构和实现细节。
-5. 进行 unit test 和 integration test，确保代码修改没有引入新的问题，并且现有的功能仍然正常工作。如果测试失败，需要修复代码直到测试通过；无需进行 eslint 测试。
-6. 如果业务逻辑有发生变化，那么检查相关的需求文档和设计文档和相关的代码是否逻辑一致。如果不一致，则修改、更新文档。
-7. 最后输出准备提交的commit message，用中文表达。commit message 的 title 需要表达修改的具体内容，需要通俗易懂。
+## 检查与验证
+
+从当前 checkout 根目录读取实际 diff 与状态。完整检查或准备时，按[改动检查与验证](references/change-review.md)定位相关规范、代码、文档与验证；只起草说明不默认运行测试、修改文档或处理既有失败。
+
+涉及卡效或卡效提交说明时，使用 [loveca-card-effect-governance](../loveca-card-effect-governance/SKILL.md)。按其“数据与工具”参考从用户指定导出生成事实骨架，再核对真实 diff；不另定卡牌事实来源，不用日志或模型描述代替卡文。
+
+准备过程中发现本次问题则在范围内修复；只读审查列出修正建议。无论是否存在阻塞，都可提供与当前实际差异相符的说明草稿，明确失败或未验证项，不宣称已可安全提交。
+
+## 提交说明与交付
+
+commit message 使用中文。标题写清具体改变；非平凡提交加正文说明范围、关键实现、实际验证及必要遗留事项，不逐文件复述 diff，不把尚未实现的计划写成成果。卡号同时附费用／分数与卡名。
+
+若已获提交授权，提交前重查实际将提交的 diff；只纳入明确范围。多行正文使用临时文件或结构化参数保留真实换行。提交完成后报告 commit SHA；仅准备时交付检查结果与 message，不声称已提交。

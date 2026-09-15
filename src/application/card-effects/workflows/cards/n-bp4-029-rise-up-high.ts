@@ -13,6 +13,7 @@ import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -45,7 +46,8 @@ export function registerNBp4029RiseUpHighWorkflowHandlers(): void {
         game,
         input.selectedCardId ?? null,
         context.continuePendingCardEffects
-      )
+      ),
+    queryCardSelection
   );
 }
 

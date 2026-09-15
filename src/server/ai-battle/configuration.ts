@@ -20,10 +20,15 @@ import type { AiBattleBilling } from './billing.js';
 
 /** The platform singleton is the sole upstream source, including for real-model QA scripts. */
 export async function readAiModelConfig(
-  model: string = process.env.AI_BATTLE_MODEL ?? 'qwen3.8-flash'
+  model: string = process.env.AI_BATTLE_MODEL ?? 'qwen3.8-flash',
+  enableThinking = false
 ) {
   try {
-    return createAiModelConfig(await aiEffectExtractionService.getUpstreamConfiguration(), model);
+    return createAiModelConfig(
+      await aiEffectExtractionService.getUpstreamConfiguration(),
+      model,
+      enableThinking
+    );
   } catch (error) {
     if (error instanceof AiBattleSetupError) throw error;
     throw new AiBattleSetupError(
@@ -59,6 +64,7 @@ export async function createPlatformAiBattleClient(
   traces: AiBattleTraceStore,
   model: AiBattleModel,
   billing: AiBattleBilling,
+  enableThinking: boolean,
   reasoningEffort?: CodexAiReasoningEffort
 ) {
   if (isCodexAiBattleModel(model))
@@ -71,7 +77,7 @@ export async function createPlatformAiBattleClient(
       reasoningEffort
     );
   return new DashScopeAiBattleClient(
-    await readAiModelConfig(model),
+    await readAiModelConfig(model, enableThinking),
     knowledge,
     traces,
     globalThis.fetch,

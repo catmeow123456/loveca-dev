@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
   isCodexAiBattleModel,
-  type QwenAiBattleModel,
+  type ApiAiBattleModel,
 } from '../../online/ai-battle-billing-types.js';
 import type {
   AiBattleModel,
@@ -12,23 +12,54 @@ import type {
   AiTokenUsage,
 } from '../../online/ai-battle-billing-types.js';
 
-// Beijing list prices checked 2026-09-11. CNY cents / 1M tokens, not discount ratios.
+// Beijing list prices. CNY cents / 1M tokens, not discount ratios.
 // https://help.aliyun.com/zh/model-studio/qwen3-8-max
 // https://help.aliyun.com/zh/model-studio/qwen3-8-flash
-const PRICES: Readonly<Record<QwenAiBattleModel, AiTokenUsage>> = {
+// https://help.aliyun.com/zh/model-studio/model-pricing
+// https://help.aliyun.com/zh/model-studio/context-cache
+const PRICING: Readonly<Record<ApiAiBattleModel, { pricingDate: string; prices: AiTokenUsage }>> = {
   'qwen3.8-max': {
-    inputTokens: 1200,
-    implicitCachedTokens: 150,
-    explicitCachedTokens: 100,
-    cacheCreationTokens: 1500,
-    outputTokens: 3600,
+    pricingDate: '2026-09-11',
+    prices: {
+      inputTokens: 1200,
+      implicitCachedTokens: 150,
+      explicitCachedTokens: 100,
+      cacheCreationTokens: 1500,
+      outputTokens: 3600,
+    },
   },
   'qwen3.8-flash': {
-    inputTokens: 80,
-    implicitCachedTokens: 10,
-    explicitCachedTokens: 10,
-    cacheCreationTokens: 125,
-    outputTokens: 270,
+    pricingDate: '2026-09-11',
+    prices: {
+      inputTokens: 80,
+      implicitCachedTokens: 10,
+      explicitCachedTokens: 10,
+      cacheCreationTokens: 125,
+      outputTokens: 270,
+    },
+  },
+  'glm-5.2': {
+    pricingDate: '2026-09-14',
+    prices: {
+      inputTokens: 800,
+      implicitCachedTokens: 200,
+      // Unsupported buckets; parseAiTokenUsage rejects explicit-cache usage for this model.
+      explicitCachedTokens: 0,
+      cacheCreationTokens: 0,
+      outputTokens: 2800,
+    },
+  },
+  'deepseek-v4.1-flash': {
+    pricingDate: '2026-09-14',
+    // Freeze Beijing peak list prices for estimates; off-peak discounts are not applied.
+    prices: {
+      inputTokens: 200,
+      implicitCachedTokens: 20,
+      // Unsupported buckets; parseAiTokenUsage rejects explicit-cache usage for this model.
+      explicitCachedTokens: 0,
+      cacheCreationTokens: 0,
+      outputTokens: 800,
+    },
   },
 };
 
@@ -44,8 +75,8 @@ export function createAiBillingRecord(model: AiBattleModel): AiBillingRecord {
   return {
     revision: 0,
     model,
-    pricingDate: isCodexAiBattleModel(model) ? null : '2026-09-11',
-    prices: isCodexAiBattleModel(model) ? null : { ...PRICES[model] },
+    pricingDate: isCodexAiBattleModel(model) ? null : PRICING[model].pricingDate,
+    prices: isCodexAiBattleModel(model) ? null : { ...PRICING[model].prices },
     attempts: 0,
     reportedAttempts: 0,
     usage: emptyAiTokenUsage(),
@@ -83,7 +114,7 @@ const usageSchema = z.object({
 });
 
 /** Only the current DashScope Chat Completions usage contract. No protocol fallbacks. */
-export function parseAiTokenUsage(value: unknown): AiTokenUsage | null {
+export function parseAiTokenUsage(value: unknown, model: AiBattleModel): AiTokenUsage | null {
   const parsed = usageSchema.safeParse(value);
   if (!parsed.success) return null;
   const {
@@ -92,6 +123,8 @@ export function parseAiTokenUsage(value: unknown): AiTokenUsage | null {
     prompt_tokens_details: details,
   } = parsed.data;
   const explicit = details.cache_type === 'ephemeral';
+  // These models support implicit caching only; explicit reports have no reviewed price.
+  if (explicit && (model === 'glm-5.2' || model === 'deepseek-v4.1-flash')) return null;
   if (explicit && details.cache_creation_input_tokens === undefined) return null;
   const created = details.cache_creation_input_tokens ?? 0;
   const cached = details.cached_tokens;

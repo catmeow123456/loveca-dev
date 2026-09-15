@@ -17,7 +17,7 @@ import {
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { AiBattleObservationPanel } from './AiBattleObservationPanel';
 import {
-  QWEN_AI_BATTLE_MODELS,
+  API_AI_BATTLE_MODELS,
   DEFAULT_CODEX_AI_BATTLE_MODEL,
   isCodexAiBattleModel,
   type AiBattleModel,
@@ -46,9 +46,10 @@ export function AiBattleAdminPage({
   const [aiPresetId, setAiPresetId] = useState('');
   const [handbookId, setHandbookId] = useState('');
   const [humanSeat, setHumanSeat] = useState<Seat>('FIRST');
-  const [models, setModels] = useState<readonly AiBattleModel[]>(QWEN_AI_BATTLE_MODELS);
+  const [models, setModels] = useState<readonly AiBattleModel[]>(API_AI_BATTLE_MODELS);
   const [model, setModel] = useState<AiBattleModel>('qwen3.8-flash');
   const [reasoningEffort, setReasoningEffort] = useState<CodexAiReasoningEffort>('low');
+  const [enableThinking, setEnableThinking] = useState(false);
   const [boardId, setBoardId] = useState<string | null>(null);
   const [observationId, setObservationId] = useState<string | null>(null);
   const [endingId, setEndingId] = useState<string | null>(null);
@@ -58,7 +59,9 @@ export function AiBattleAdminPage({
   const [error, setError] = useState<string | null>(null);
   const active = sessions.find((session) => session.endedAt === null);
   const selectedSession = sessions.find((session) => session.matchId === boardId);
-  const selectedHuman = presets.find((preset) => preset.id === humanPresetId) ?? presets[0];
+  const humanPresets = presets.filter((preset) => preset.humanSelectable);
+  const selectedHuman =
+    humanPresets.find((preset) => preset.id === humanPresetId) ?? humanPresets[0];
   const selectedAi = presets.find((preset) => preset.id === aiPresetId) ?? presets[0];
   const selectedHandbook =
     selectedAi?.handbooks.find((book) => book.id === handbookId) ??
@@ -175,6 +178,7 @@ export function AiBattleAdminPage({
         humanSeat,
         model,
         ...(isCodexAiBattleModel(model) ? { reasoningEffort } : {}),
+        enableThinking: isCodexAiBattleModel(model) ? false : enableThinking,
       });
       await attach(result.session, result.snapshot, generation);
     } catch (cause) {
@@ -301,7 +305,11 @@ export function AiBattleAdminPage({
                   {selectedSession ? activityLabels[selectedSession.activity] : '同步中'}
                 </small>
                 {selectedSession && (
-                  <AiBillingCost billing={selectedSession.matchBilling} label="本局" />
+                  <AiBillingCost
+                    billing={selectedSession.matchBilling}
+                    codexBudget={selectedSession.codexBudget}
+                    label="本局"
+                  />
                 )}
               </div>
             </div>
@@ -367,7 +375,7 @@ export function AiBattleAdminPage({
               <p>真人与 AI 各控制一席。先完成规则操作，再对照决定材料复盘。</p>
             </header>
             <fieldset disabled={isBusy || isLoading || Boolean(active)}>
-              <legend className="sr-only">构筑与先后手</legend>
+              <legend className="sr-only">模型、构筑与先后手</legend>
               <label>
                 AI 模型
                 <select
@@ -396,6 +404,27 @@ export function AiBattleAdminPage({
                   <small>仅用于新建的本地 Codex 对局；轻度不减少发送的上下文。</small>
                 </label>
               )}
+              {!isCodexAiBattleModel(model) && (
+                <>
+                  {model === 'deepseek-v4.1-flash' && (
+                    <small>费用按北京忙时价预估，闲时实际费用可能更低。</small>
+                  )}
+                  <div>
+                    <label className="ai-thinking-choice">
+                      <input
+                        type="checkbox"
+                        checked={enableThinking}
+                        onChange={(event) => setEnableThinking(event.target.checked)}
+                        aria-describedby="ai-thinking-help"
+                      />
+                      开启思考
+                    </label>
+                    <small id="ai-thinking-help">
+                      让模型先思考再作出选择，可能增加等待时间和费用。本局创建后固定。
+                    </small>
+                  </div>
+                </>
+              )}
               <div className="ai-deck-pair">
                 <label>
                   真人构筑
@@ -403,7 +432,7 @@ export function AiBattleAdminPage({
                     value={selectedHuman?.id ?? ''}
                     onChange={(event) => setHumanPresetId(event.target.value)}
                   >
-                    {presets.map((preset) => (
+                    {humanPresets.map((preset) => (
                       <option key={preset.id} value={preset.id}>
                         {preset.name}
                       </option>
@@ -510,16 +539,25 @@ export function AiBattleAdminPage({
                     <strong>
                       {new Date(session.startedAt).toLocaleString('zh-CN', { hour12: false })}
                     </strong>
-                    <AiBillingCost billing={session.matchBilling} label="本局" />
+                    <AiBillingCost
+                      billing={session.matchBilling}
+                      codexBudget={session.codexBudget}
+                      label="本局"
+                    />
                   </div>
                   <p>
                     {session.humanSeat === 'FIRST' ? '真人先手' : '真人后手'} ·{' '}
                     {activityLabels[session.activity]} · 连续失败 {session.consecutiveFailures}
                   </p>
                   <small>
-                    {session.handbookId} · {session.model}
-                    {session.reasoningEffort &&
-                      ` · ${session.reasoningEffort === 'low' ? '轻度' : '中等'}`}
+                    {session.handbookId} · {session.model} ·{' '}
+                    {isCodexAiBattleModel(session.model)
+                      ? session.reasoningEffort === 'medium'
+                        ? '中等'
+                        : '轻度'
+                      : session.enableThinking
+                        ? '思考开启'
+                        : '思考关闭'}
                   </small>
                 </div>
                 <div className="ai-actions">

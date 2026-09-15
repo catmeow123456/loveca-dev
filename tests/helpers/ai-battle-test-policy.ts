@@ -37,19 +37,5 @@ export function chooseAiTestSelection({ space, state, purpose }: AiDecisionInput
     if (!candidate) throw new Error('P5 MAIN fixture expected play or end');
     return { kind: 'ACTION', actionRef: candidate.ref };
   }
-  if (purpose === 'LIVE_SET') {
-    const alreadySet = space.candidates.some((c) => c.description.startsWith('撤回本次盖牌'));
-    const live =
-      !alreadySet &&
-      space.candidates.find(
-        (c) =>
-          c.description.startsWith('里侧设置') &&
-          state.objects[c.objectId!]?.frontInfo?.cardType === 'LIVE'
-      );
-    const candidate =
-      live || space.candidates.find((c) => c.description.startsWith('完成 LIVE 设置'));
-    if (!candidate) throw new Error('P5 LIVE fixture expected setup completion');
-    return { kind: 'ACTION', actionRef: candidate.ref };
-  }
   return { kind: 'ACTION', actionRef: space.candidates[0]!.ref };
 }

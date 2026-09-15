@@ -13,7 +13,10 @@ import { AiBattleService } from '../../src/server/services/ai-battle-service.js'
 import { AiBattleTraceStore } from '../../src/server/ai-battle/trace-store.js';
 import { DashScopeAiBattleClient } from '../../src/server/ai-battle/model-client.js';
 import { readAiModelConfig, validateAiUpstream } from '../../src/server/ai-battle/configuration.js';
-import { buildAiBattleDecision } from '../../src/server/ai-battle/decision.js';
+import {
+  buildAiBattleDecision,
+  materializeAiDecisionCommands,
+} from '../../src/server/ai-battle/decision.js';
 import { getAiMechanicalSelection } from '../../src/server/ai-battle/policy.js';
 import { serializeAiEvidence, redactAiText } from '../../src/server/ai-battle/redaction.js';
 import { pool } from '../../src/server/db/pool.js';
@@ -119,10 +122,10 @@ async function play(index: number): Promise<void> {
   const ai = new AiBattleService({
     matchService: matches,
     traces,
-    createModel: (knowledge, store, model, billing) =>
+    createModel: (knowledge, store, model, billing, enableThinking) =>
       Promise.resolve(
         new DashScopeAiBattleClient(
-          { ...configuration, model },
+          { ...configuration, model, enableThinking },
           knowledge,
           store,
           globalThis.fetch,
@@ -135,6 +138,7 @@ async function play(index: number): Promise<void> {
   const startedAt = Date.now();
   const { session } = await ai.create(owner!, {
     model: configuration.model,
+    enableThinking: configuration.enableThinking,
     humanPresetId: 'muse-starter',
     aiPresetId: 'muse-starter',
     handbookId: 'muse-balanced',
@@ -213,40 +217,46 @@ async function play(index: number): Promise<void> {
           continue;
         }
       }
-      const command = query.decision.toCommand(selection, Date.now());
-      const permission = snapshot.playerViewState.permissions.availableCommands.find(
-        (hint) => hint.command === command.type
-      );
+      const commandBatch = materializeAiDecisionCommands(query.decision, selection, Date.now());
+      const permission = commandBatch
+        .map((command) =>
+          snapshot.playerViewState.permissions.availableCommands.find(
+            (hint) => hint.command === command.type
+          )
+        )
+        .find((hint) => hint?.availability && hint.availability.availableAfterMs > 0);
       if (permission?.availability && permission.availability.availableAfterMs > 0) {
         await delay(Math.min(250, permission.availability.availableAfterMs));
         continue;
       }
       const turn = match.session.state!.turnCount;
-      const result = await ai.command(owner!, session.matchId, command);
-      if (
-        !result?.success &&
-        (query.decision.input.purpose === 'RULE_CONFIRM' ||
-          query.decision.input.purpose === 'PUBLIC_DISPLAY') &&
-        snapshot.seq !== match.remoteRevision
-      ) {
-        // Either participant may advance these shared windows. Re-sample only after proven
-        // intervening authority progress; never retry a rejected choice against the same state.
-        staleHumanConfirmations.push({
+      for (const command of commandBatch) {
+        const result = await ai.command(owner!, session.matchId, command);
+        if (
+          !result?.success &&
+          (query.decision.input.purpose === 'RULE_CONFIRM' ||
+            query.decision.input.purpose === 'PUBLIC_DISPLAY') &&
+          snapshot.seq !== match.remoteRevision
+        ) {
+          // Either participant may advance these shared windows. Re-sample only after proven
+          // intervening authority progress; never retry a rejected choice against the same state.
+          staleHumanConfirmations.push({
+            type: command.type,
+            beforeRevision: snapshot.seq,
+            afterRevision: match.remoteRevision,
+            error: result?.error,
+          });
+          break;
+        }
+        if (!result?.success)
+          throw new Error(`HUMAN_COMMAND_REJECTED:${command.type}:${result?.error}`);
+        commands.push({
           type: command.type,
-          beforeRevision: snapshot.seq,
-          afterRevision: match.remoteRevision,
-          error: result?.error,
+          purpose: query.decision.input.purpose,
+          turn,
+          at: Date.now(),
         });
-        continue;
       }
-      if (!result?.success)
-        throw new Error(`HUMAN_COMMAND_REJECTED:${command.type}:${result?.error}`);
-      commands.push({
-        type: command.type,
-        purpose: query.decision.input.purpose,
-        turn,
-        at: Date.now(),
-      });
     }
   } catch (error) {
     failure = redactAiText(error instanceof Error ? error.message : String(error)).text;

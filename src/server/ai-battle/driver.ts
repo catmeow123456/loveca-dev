@@ -1,4 +1,7 @@
-import type { CodexAiReasoningEffort } from '../../online/ai-battle-billing-types.js';
+import type {
+  CodexAiReasoningEffort,
+  CodexBattleBudget,
+} from '../../online/ai-battle-billing-types.js';
 import type { OnlineMatchService } from '../services/online-match-service.js';
 import {
   AI_MODEL_TIMEOUT_MS,
@@ -14,8 +17,9 @@ import { safeAiErrorForLog } from './billing.js';
 export interface AiBattleModelClient {
   dispose?(): Promise<void>;
   readonly reasoningEffort?: CodexAiReasoningEffort;
-  /** Trusted provider deadline, bounded to 90 s; never read from model output. */
-  readonly timeoutMs?: number;
+  readonly codexBudget?: CodexBattleBudget;
+  /** Trusted provider deadline, bounded to 120 s; never read from model output. */
+  readonly requestTimeoutMs?: number;
   readonly stopOnTimeout?: boolean;
   readonly configurationMaterial?: AiKnowledgeMaterial;
   decide(
@@ -210,7 +214,7 @@ async function requestWithDeadline(
       );
       controller.abort();
     },
-    Math.max(1, Math.min(model.timeoutMs ?? AI_MODEL_TIMEOUT_MS, 90_000))
+    Math.max(1, Math.min(model.requestTimeoutMs ?? AI_MODEL_TIMEOUT_MS, 120_000))
   );
   timer.unref?.();
   task.signal.addEventListener('abort', cancel, { once: true });

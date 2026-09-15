@@ -13,13 +13,13 @@ import { queryActivatedAbilityStart } from '../../application/card-effects/runti
 import { visibleActivationResources, visibleMemberEntryResources } from './ability-resources.js';
 import { createPublicObjectId, projectPlayerViewState } from '../../online/projector.js';
 import type { PlayerViewState } from '../../online/types.js';
-import { FaceState, GamePhase, SubPhase } from '../../shared/types/enums.js';
+import { CardType, FaceState, GamePhase, SubPhase } from '../../shared/types/enums.js';
 import { getSuccessLiveSelectionCandidateIds } from '../../domain/rules/success-live-placement.js';
 import { buildAiEffectDecision } from './effect-decision.js';
 import {
+  describeAiActivationResources,
   describeAiCardIdentity,
   describeAiLiveSet,
-  describeAiLiveSetCompletion,
   describeAiMainPhaseEnd,
   summarizeAiLiveBaseBudget,
   describeAiMemberPlay,
@@ -29,12 +29,14 @@ import {
 import {
   validateSelection,
   responseSchema,
+  type AiDecision,
   type AiCandidate,
   type AiDecisionSpace,
   type AiDecisionInput,
   type AiDecisionQuery,
 } from './protocol.js';
 export {
+  materializeAiDecisionCommands,
   validateSelection,
   parseAiBattleResponse,
   type AiSelection,
@@ -176,6 +178,7 @@ export function buildAiBattleDecision(
   const cardName = (cardId: string) => describeAiCardIdentity(cardFront(cardId));
   let purpose: AiDecisionInput['purpose'];
   let space: AiDecisionSpace;
+  let toCommands: AiDecision['toCommands'];
   const mulliganIds = new Map<string, string>();
   if (enabled(GameCommandType.MULLIGAN)) {
     purpose = 'MULLIGAN';
@@ -270,12 +273,19 @@ export function buildAiBattleDecision(
               reason: `Missing activation query: ${ability.abilityId}`,
             };
           if (!canStart) continue;
+          const activationResources = visibleActivationResources(
+            game,
+            playerId,
+            cardId,
+            ability.abilityId,
+            view
+          );
           addAction(
             {
-              description: `起动 ${cardName(cardId)}：${ability.title}`,
+              description: `起动 ${cardName(cardId)}；${activationResources.activation ? `${describeAiActivationResources(activationResources.activation)}；` : ''}能力：${ability.title}`,
               objectId: createPublicObjectId(cardId),
               effectText: ability.text,
-              ...visibleActivationResources(game, playerId, cardId, ability.abilityId, view),
+              ...activationResources,
             },
             {
               type: GameCommandType.ACTIVATE_ABILITY,
@@ -304,41 +314,77 @@ export function buildAiBattleDecision(
     enabled(GameCommandType.CONFIRM_STEP)
   ) {
     purpose = 'LIVE_SET';
-    const setCount = getLiveSetCardCountForPlayer(game, playerId);
-    if (
-      enabled(GameCommandType.SET_LIVE_CARD) &&
-      setCount < getLiveSetCardLimitForPlayer(game, playerId)
-    ) {
-      for (const cardId of player.hand.cardIds)
-        addAction(
-          {
-            description: describeAiLiveSet(cardFront(cardId)),
-            objectId: createPublicObjectId(cardId),
-          },
-          { type: GameCommandType.SET_LIVE_CARD, cardId, faceDown: true }
-        );
-    }
-    if (enabled(GameCommandType.UNSET_LIVE_CARD)) {
-      for (const cardId of getLiveSetCardIdsForPlayer(game, playerId)) {
-        if (
-          player.liveZone.cardIds.includes(cardId) &&
-          player.liveZone.cardStates.get(cardId)?.face === FaceState.FACE_DOWN
-        ) {
-          addAction(
-            {
-              description: `撤回本次盖牌 ${cardName(cardId)}`,
-              objectId: createPublicObjectId(cardId),
-            },
-            { type: GameCommandType.UNSET_LIVE_CARD, cardId }
-          );
-        }
-      }
-    }
-    addAction(
-      { description: describeAiLiveSetCompletion(setCount) },
-      { type: GameCommandType.CONFIRM_STEP, subPhase: game.currentSubPhase }
+    const setLimit = getLiveSetCardLimitForPlayer(game, playerId);
+    const initiallySetIds = getLiveSetCardIdsForPlayer(game, playerId).filter(
+      (cardId) =>
+        player.liveZone.cardIds.includes(cardId) &&
+        player.liveZone.cardStates.get(cardId)?.face === FaceState.FACE_DOWN
     );
-    space = { kind: 'ACTION', candidates };
+    const initiallySet = new Set(initiallySetIds);
+    const cardIdsByRef = new Map<string, string>();
+    const addCard = (cardId: string, description: string) => {
+      const ref = `c${candidates.length + 1}`;
+      candidates.push({ ref, description, objectId: createPublicObjectId(cardId) });
+      cardIdsByRef.set(ref, cardId);
+    };
+    for (const cardId of initiallySetIds) {
+      const front = cardFront(cardId);
+      // A kept LIVE stays in the same merged all-or-nothing judgment as any newly set LIVE;
+      // members already set do not participate, so only tag the LIVE keeps.
+      const keepTag =
+        front.cardType === CardType.LIVE
+          ? '；保留的 LIVE 仍并入本轮合并判定（全成或全败）'
+          : '';
+      addCard(
+        cardId,
+        `保留本次已盖牌 ${describeAiCardIdentity(front)}；仍作为最终盖牌${keepTag}`
+      );
+    }
+    if (enabled(GameCommandType.SET_LIVE_CARD))
+      for (const cardId of player.hand.cardIds)
+        addCard(cardId, describeAiLiveSet(cardFront(cardId)));
+    space = {
+      kind: 'CARDS',
+      candidates,
+      min: 0,
+      max: Math.min(setLimit, candidates.length),
+      ordered: false,
+    };
+    const subPhase = game.currentSubPhase;
+    toCommands = (selection, timestamp) => {
+      validateSelection(space, selection);
+      if (selection.kind !== 'CARDS') throw new Error('Invalid LIVE set selection');
+      const selectedRefs = new Set(selection.cardRefs);
+      const selectedCardIds = new Set(selection.cardRefs.map((ref) => cardIdsByRef.get(ref)!));
+      return [
+        ...initiallySetIds
+          .filter((cardId) => !selectedCardIds.has(cardId))
+          .map((cardId): GameCommand => ({
+            type: GameCommandType.UNSET_LIVE_CARD,
+            playerId,
+            timestamp,
+            cardId,
+          })),
+        ...candidates
+          .filter(
+            (candidate) =>
+              selectedRefs.has(candidate.ref) && !initiallySet.has(cardIdsByRef.get(candidate.ref)!)
+          )
+          .map((candidate): GameCommand => ({
+            type: GameCommandType.SET_LIVE_CARD,
+            playerId,
+            timestamp,
+            cardId: cardIdsByRef.get(candidate.ref)!,
+            faceDown: true,
+          })),
+        {
+          type: GameCommandType.CONFIRM_STEP,
+          playerId,
+          timestamp,
+          subPhase,
+        },
+      ];
+    };
   } else if (enabled(GameCommandType.SELECT_SUCCESS_LIVE)) {
     purpose = 'SUCCESS_LIVE';
     for (const cardId of getSuccessLiveSelectionCandidateIds(game, playerId)) {
@@ -395,8 +441,14 @@ export function buildAiBattleDecision(
     kind: 'DECISION',
     decision: {
       input,
+      ...(toCommands ? { toCommands } : {}),
       toCommand(selection, timestamp) {
         validateSelection(space, selection);
+        if (toCommands) {
+          const batch = toCommands(selection, timestamp);
+          if (batch.length !== 1) throw new Error('LIVE_SET selection requires batch submission');
+          return batch[0]!;
+        }
         if (selection.kind === 'ACTION')
           return { ...commands.get(selection.actionRef)!, playerId, timestamp } as GameCommand;
         return {
@@ -422,6 +474,9 @@ function createDecisionInput(
     const liveBaseBudget = front ? summarizeAiLiveBaseBudget(selfResources, front) : undefined;
     return liveBaseBudget ? { ...candidate, liveBaseBudget } : candidate;
   });
+  const selfId = view.match.participants[view.match.viewerSeat].id;
+  const setCount = getLiveSetCardCountForPlayer(game, selfId);
+  const setLimit = getLiveSetCardLimitForPlayer(game, selfId);
   return globalThis.structuredClone({
     state: {
       turn: game.turnCount,
@@ -435,6 +490,19 @@ function createDecisionInput(
       ...(view.match.liveResult ? { liveResult: view.match.liveResult } : {}),
     },
     purpose,
+    ...(purpose === 'LIVE_SET'
+      ? {
+          liveSet: {
+            selectionMode: 'FINAL_SET_AND_CONFIRM',
+            setCardObjectIds: getLiveSetCardIdsForPlayer(game, selfId)
+              .map(createPublicObjectId)
+              .filter((id) => view.objects[id]?.surface === 'FRONT'),
+            setCount,
+            setLimit,
+            drawCountRule: 'FINAL_SET_COUNT',
+          },
+        }
+      : {}),
     ...(view.activeEffect
       ? {
           effect: {

@@ -53,14 +53,20 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function createClient() {
+async function createClient(enableThinking = false) {
   const store = new AiBattleTraceStore();
   const billing = new AiBattleBilling(
     'qwen3.8-flash',
     createMemoryAiBilling().persistence,
     () => undefined
   );
-  const client = await createPlatformAiBattleClient(knowledge, store, 'qwen3.8-flash', billing);
+  const client = await createPlatformAiBattleClient(
+    knowledge,
+    store,
+    'qwen3.8-flash',
+    billing,
+    enableThinking
+  );
   store.open('m', [
     knowledge.rules,
     knowledge.tutorial,
@@ -84,7 +90,7 @@ describe('platform AI battle configuration', () => {
       baseUrl: 'https://api.example.com/next/v1',
       apiKey: 'changed-secret',
     });
-    const next = await createClient();
+    const next = await createClient(true);
     await first.client.decide(input(), new AbortController().signal, context);
     await next.client.decide(input(), new AbortController().signal, context);
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
@@ -98,6 +104,15 @@ describe('platform AI battle configuration', () => {
       expect(typeof init?.body).toBe('string');
       expect(JSON.parse(init?.body as string)).toMatchObject({ model: 'qwen3.8-flash' });
     }
+    expect(
+      fetcher.mock.calls.map(([, init]) => JSON.parse(init?.body as string) as unknown)
+    ).toMatchObject([{ enable_thinking: false }, { enable_thinking: true }]);
+    expect(JSON.parse(first.client.configurationMaterial.content)).toMatchObject({
+      enable_thinking: false,
+    });
+    expect(JSON.parse(next.client.configurationMaterial.content)).toMatchObject({
+      enable_thinking: true,
+    });
     expect(first.billing.view().reportedAttempts).toBe(1);
     expect(platform.validate).toHaveBeenCalledWith('https://api.example.com/v1/chat/completions');
     expect(JSON.stringify(first.store.export('m'))).not.toContain('platform-secret');
