@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { GameCommandType } from '../../src/application/game-commands';
+import { GameCommandType, createSetLiveCardCommand } from '../../src/application/game-commands';
 import type { CardInstance, LiveCardData } from '../../src/domain/entities/card';
 import { createHeartRequirement } from '../../src/domain/entities/card';
 import { getActiveEnergyIds } from '../../src/domain/entities/zone';
-import { buildAiBattleDecision, parseAiBattleResponse } from '../../src/server/ai-battle/decision';
+import {
+  buildAiBattleDecision,
+  materializeAiDecisionCommands,
+  parseAiBattleResponse,
+} from '../../src/server/ai-battle/decision';
 import {
   CardType,
   GamePhase,
@@ -633,39 +637,37 @@ describe('AI ordinary decisions through authoritative commands', () => {
       currentSubPhase: SubPhase.LIVE_SET_FIRST_PLAYER,
       waitingPlayerId: null,
     });
-    for (let i = 0; i < 3; i++) {
-      const current = decision(session);
-      const action = current.input.space.candidates.find(
-        (c) =>
-          current.toCommand({ kind: 'ACTION', actionRef: c.ref }, 1000).type ===
-          GameCommandType.SET_LIVE_CARD
-      )!;
-      expect(action).toBeDefined();
-      submit(session, current, { kind: 'ACTION', actionRef: action.ref });
-    }
-    const full = decision(session);
-    const commands = full.input.space.candidates.map((c) =>
-      full.toCommand({ kind: 'ACTION', actionRef: c.ref }, 1000)
+    const initiallySetId = session.state!.players[0].hand.cardIds[0]!;
+    expect(session.executeCommand(createSetLiveCardCommand(P1, initiallySetId, true)).success).toBe(
+      true
     );
-    expect(commands.filter((c) => c.type === GameCommandType.SET_LIVE_CARD)).toHaveLength(0);
-    expect(commands.filter((c) => c.type === GameCommandType.UNSET_LIVE_CARD)).toHaveLength(3);
-    const unset = full.input.space.candidates[0]!;
-    submit(session, full, { kind: 'ACTION', actionRef: unset.ref });
-    expect(session.state!.players[0].liveZone.cardIds).toHaveLength(2);
-    const next = decision(session);
+    const current = decision(session);
+    expect(current.input.space).toMatchObject({ kind: 'CARDS', min: 0, max: 3, ordered: false });
+    expect(current.input.liveSet).toMatchObject({
+      selectionMode: 'FINAL_SET_AND_CONFIRM',
+      setCount: 1,
+      setLimit: 3,
+    });
+    const setObjectIds = new Set(current.input.liveSet!.setCardObjectIds);
+    const finalRefs = current.input.space.candidates
+      .filter((candidate) => candidate.objectId && !setObjectIds.has(candidate.objectId))
+      .slice(0, 3)
+      .map((candidate) => candidate.ref);
+    const selection = { kind: 'CARDS' as const, cardRefs: finalRefs };
     expect(
-      next.input.space.candidates.some(
-        (c) =>
-          next.toCommand({ kind: 'ACTION', actionRef: c.ref }, 1000).type ===
-          GameCommandType.SET_LIVE_CARD
-      )
-    ).toBe(true);
-    const finish = next.input.space.candidates.at(-1)!;
-    expect(finish.description).toContain('本次已盖 2 张，确认后抽 2 张');
+      materializeAiDecisionCommands(current, selection, 1000).map((command) => command.type)
+    ).toEqual([
+      GameCommandType.UNSET_LIVE_CARD,
+      GameCommandType.SET_LIVE_CARD,
+      GameCommandType.SET_LIVE_CARD,
+      GameCommandType.SET_LIVE_CARD,
+      GameCommandType.CONFIRM_STEP,
+    ]);
     const deckCount = session.state!.players[0].mainDeck.cardIds.length;
-    submit(session, next, { kind: 'ACTION', actionRef: finish.ref });
+    submit(session, current, selection);
     expect(session.state!.players[0].hand.cardIds).toHaveLength(initialHandCount);
-    expect(session.state!.players[0].mainDeck.cardIds).toHaveLength(deckCount - 2);
+    expect(session.state!.players[0].mainDeck.cardIds).toHaveLength(deckCount - 3);
+    expect(session.state!.players[0].liveZone.cardIds).toHaveLength(3);
     expect(session.state!.players[0].memberSlots.slots.LEFT).toBe(stageMember);
     expect(buildAiBattleDecision(session.state!, P1).kind).toBe('WAITING_FOR_PLAYER');
     expect(decision(session, P2).input.purpose).toBe('LIVE_SET');

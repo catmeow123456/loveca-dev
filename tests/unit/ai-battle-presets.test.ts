@@ -21,7 +21,10 @@ import {
 } from '../../src/shared/types/enums';
 import { fromTransport } from '../../src/online/serde';
 import type { AnyCardData } from '../../src/domain/entities/card';
-import { buildAiBattleDecision } from '../../src/server/ai-battle/decision';
+import {
+  buildAiBattleDecision,
+  materializeAiDecisionCommands,
+} from '../../src/server/ai-battle/decision';
 import { getAiMechanicalSelection } from '../../src/server/ai-battle/policy';
 import { chooseAiTestSelection } from '../helpers/ai-battle-test-policy';
 
@@ -144,8 +147,10 @@ describe('AI curated deck and frozen knowledge loading', () => {
         purposes.add(query.decision.input.purpose);
         const selected =
           getAiMechanicalSelection(query.decision) ?? chooseAiTestSelection(query.decision.input);
-        const result = session.executeCommand(query.decision.toCommand(selected, now));
-        expect(result.success, result.error).toBe(true);
+        for (const command of materializeAiDecisionCommands(query.decision, selected, now)) {
+          const result = session.executeCommand(command);
+          expect(result.success, result.error).toBe(true);
+        }
         now += 10;
       } else {
         const waiting = queries.find((item) => item.kind === 'WAITING_FOR_TIME');

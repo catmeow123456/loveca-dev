@@ -1,6 +1,11 @@
 import { GameCommandType } from '../../application/game-commands.js';
 import { findAiCardSelection } from './protocol.js';
-import { validateSelection, type AiDecision, type AiSelection } from './decision.js';
+import {
+  validateSelection,
+  type AiDecision,
+  type AiDecisionSpace,
+  type AiSelection,
+} from './decision.js';
 
 /** Strategic phase completion remains a model decision even when no development is affordable. */
 export function getAiMechanicalSelection(decision: AiDecision): AiSelection | null {
@@ -53,12 +58,34 @@ export function getAiMechanicalSelection(decision: AiDecision): AiSelection | nu
   return selection;
 }
 
-/** One deterministic, complete fallback for the currently supported windows. Never trial-executes. */
-export function getAiFallbackSelection(decision: AiDecision): AiSelection {
+/**
+ * One deterministic, complete fallback for the currently supported windows. Never trial-executes.
+ * `invalidSelection` carries a model answer that failed strict validation; LIVE_SET repairs its
+ * recognizable intent instead of discarding the whole plan (an empty set forfeits performance
+ * and the replenishment draw). Other windows keep their existing deterministic policy.
+ */
+export function getAiFallbackSelection(
+  decision: AiDecision,
+  invalidSelection?: AiSelection | null
+): AiSelection {
   const mechanical = getAiMechanicalSelection(decision);
   if (mechanical) return mechanical;
   if (decision.input.purpose === 'MULLIGAN') {
     const selection: AiSelection = { kind: 'CARDS', cardRefs: [] };
+    validateSelection(decision.input.space, selection);
+    return selection;
+  }
+  if (decision.input.purpose === 'LIVE_SET') {
+    if (decision.input.space.kind !== 'CARDS') throw new Error('Invalid LIVE set decision space');
+    const repaired = repairAiLiveSetSelection(decision.input.space, invalidSelection);
+    if (repaired) return repaired;
+    const setObjectIds = new Set(decision.input.liveSet?.setCardObjectIds ?? []);
+    const selection: AiSelection = {
+      kind: 'CARDS',
+      cardRefs: decision.input.space.candidates
+        .filter((candidate) => candidate.objectId && setObjectIds.has(candidate.objectId))
+        .map((candidate) => candidate.ref),
+    };
     validateSelection(decision.input.space, selection);
     return selection;
   }
@@ -96,4 +123,37 @@ export function getAiFallbackSelection(decision: AiDecision): AiSelection {
     if (decision.toCommand(selection, 0).type === commandType) return selection;
   }
   throw new Error('No complete fallback for this decision');
+}
+
+/**
+ * Bounded repair of an invalid model LIVE_SET answer. Keeps only recognizable candidate refs
+ * (deduplicated), ranks performable LIVE targets (stage alone meets the base requirement, higher
+ * score first) above other LIVE above cycling cards, preserves the model's own order within equal
+ * ranks, then truncates to the authoritative set limit. Returns null when nothing is recognizable
+ * so the caller keeps its existing keep-set fallback. Never invents refs the model did not send.
+ */
+function repairAiLiveSetSelection(
+  space: Extract<AiDecisionSpace, { kind: 'CARDS' }>,
+  attempted: AiSelection | null | undefined
+): AiSelection | null {
+  if (!attempted || attempted.kind !== 'CARDS') return null;
+  const known = new Map(space.candidates.map((candidate) => [candidate.ref, candidate]));
+  const seen = new Set<string>();
+  const recognized = attempted.cardRefs.filter((ref) => {
+    if (!known.has(ref) || seen.has(ref)) return false;
+    seen.add(ref);
+    return true;
+  });
+  if (recognized.length === 0) return null;
+  const rank = (ref: string): number => {
+    const budget = known.get(ref)?.liveBaseBudget;
+    if (!budget) return 0;
+    return budget.stageAloneMeetsBaseRequirement ? 2 : 1;
+  };
+  const score = (ref: string): number => known.get(ref)?.liveBaseBudget?.score ?? 0;
+  // Array.prototype.sort is stable, so equal-ranked refs keep the model's order.
+  const ranked = [...recognized].sort((a, b) => rank(b) - rank(a) || score(b) - score(a));
+  const selection: AiSelection = { kind: 'CARDS', cardRefs: ranked.slice(0, space.max) };
+  validateSelection(space, selection);
+  return selection;
 }

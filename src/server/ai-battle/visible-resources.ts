@@ -216,11 +216,7 @@ export function summarizeAiLiveBaseBudget(
 export type AiLiveBaseBudget = ReturnType<typeof summarizeAiLiveBaseBudget>;
 
 export function describeAiLiveSet(front: ViewFrontCardInfo): string {
-  return `里侧设置 ${describeAiCardIdentity(front)}；手牌 → LIVE 区，不移走舞台成员；确认设置后计入抽牌数`;
-}
-
-export function describeAiLiveSetCompletion(setCount: number): string {
-  return `完成 LIVE 设置；本次已盖 ${setCount} 张，确认后抽 ${setCount} 张；不再追加盖牌`;
+  return `选择 ${describeAiCardIdentity(front)} 作为本次最终盖牌；手牌 → LIVE 区，不移走舞台成员；整组提交后自动确认并计入抽牌数；盖下的 LIVE 并入本轮合并判定（全成或全败），唱不成的 LIVE 会使整轮得 0 分，只有成员卡盖牌才不参与判定`;
 }
 
 /** A model-readable subtotal of already visible facts, never a new rules calculation or state.

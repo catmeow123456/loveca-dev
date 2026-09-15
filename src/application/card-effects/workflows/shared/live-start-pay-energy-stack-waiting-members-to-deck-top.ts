@@ -14,6 +14,7 @@ import {
 } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryCardSelection, queryOptionSelection } from '../../runtime/selection-query.js';
 import { moveWaitingRoomCardsToDeckTopAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import {
   getAbilityEffectText,
@@ -44,7 +45,10 @@ export function registerLiveStartPayEnergyStackWaitingMembersToDeckTopWorkflowHa
     (game, input, context) =>
       input.selectedOptionId === 'pay'
         ? finishPayEnergyForStackWaitingMembers(game)
-        : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+        : finishSkippedActiveEffect(game, context.continuePendingCardEffects),
+    // Pay/decline is an explicit unstructured two-option choice; decline is the
+    // 'decline' option, never an empty submission, so the shared query is exact.
+    queryOptionSelection
   );
   registerActiveEffectStepHandler(
     HS_PR_020_LIVE_START_PAY_ENERGY_STACK_WAITING_MEMBERS_TO_DECK_TOP_ABILITY_ID,
@@ -56,7 +60,8 @@ export function registerLiveStartPayEnergyStackWaitingMembersToDeckTopWorkflowHa
             input.selectedCardIds,
             context.continuePendingCardEffects
           )
-        : game
+        : game,
+    queryCardSelection
   );
 }
 

@@ -170,6 +170,44 @@ const response = (selection: unknown): AiModelOutcome => ({
 afterEach(() => vi.useRealTimers());
 
 describe('AI match authority queue and lifecycle', () => {
+  it('submits one LIVE_SET model selection as the final card set and immediately confirms it', async () => {
+    const f = await fixture();
+    Object.assign(f.match.session.state!, {
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_FIRST_PLAYER,
+      activePlayerIndex: 0,
+      waitingPlayerId: null,
+      liveSetCompletedPlayers: [],
+    });
+    const task = await modelTask(f);
+    expect(task.input.purpose).toBe('LIVE_SET');
+    expect(task.input.liveSet?.selectionMode).toBe('FINAL_SET_AND_CONFIRM');
+    expect(task.input.space.kind).toBe('CARDS');
+    const selectedRefs = task.input.space.candidates.slice(0, 2).map((candidate) => candidate.ref);
+    const handCount = f.match.session.state!.players[0].hand.cardIds.length;
+    const deckCount = f.match.session.state!.players[0].mainDeck.cardIds.length;
+
+    const held = await f.service.completeAiBattleTask(
+      f.match.matchId,
+      task,
+      response({ kind: 'CARDS', cardRefs: selectedRefs })
+    );
+    expect(held).toMatchObject({ kind: 'WAIT', reason: 'PHASE_COMPLETION' });
+    if (held.kind !== 'WAIT') throw new Error(JSON.stringify(held));
+    f.setNow(held.deadlineAt);
+    expect(await f.service.advanceAiBattle(f.match.matchId)).toEqual({ kind: 'ACCEPTED' });
+
+    expect(f.match.session.state!.players[0].liveZone.cardIds).toHaveLength(2);
+    expect(f.match.session.state!.players[0].hand.cardIds).toHaveLength(handCount);
+    expect(f.match.session.state!.players[0].mainDeck.cardIds).toHaveLength(deckCount - 2);
+    expect(f.match.session.getCommandLogSince(0).map((record) => record.commandType)).toEqual([
+      GameCommandType.SET_LIVE_CARD,
+      GameCommandType.SET_LIVE_CARD,
+      GameCommandType.CONFIRM_STEP,
+    ]);
+    expect(await f.service.advanceAiBattle(f.match.matchId)).toEqual({ kind: 'IDLE' });
+  });
+
   it('feeds accepted actions and post-command facts, but not model rationales, into the next queued sample', async () => {
     const f = await fixture({ main: true });
     const task = await modelTask(f);

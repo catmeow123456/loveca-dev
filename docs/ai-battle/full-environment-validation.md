@@ -40,13 +40,9 @@ pnpm exec vitest run tests/integration/ai-battle-full-env.test.ts tests/integrat
 
 使用同一隔离库，在该库的平台 AI 配置中保存上游与 Key，配置对应部署主密钥/白名单及 `AI_BATTLE_*` 行为参数，以 `AI_BATTLE_QA_MODEL_MODE=REAL` 启动 harness，再运行对应真实模型脚本。固定局面对照工具为 `scripts/prepare-ai-battle-evaluation.ts` 和 `tests/helpers/ai-battle-real-comparison.ts`；它们保留本次输入、候选顺序与材料哈希，拒绝覆盖已有结果。端点取消、响应格式、连续回合策略和完整证据覆盖必须分别核对，不能仅以 HTTP 200 判定通过。
 
-LIVE 设置专项使用 `scripts/evaluate-ai-live-set.ts`。它校验指定的 `8233fb6f` 导出材料哈希，取 D11／D12／D25／D26，并加入两个使用冻结本地卡牌事实的反例；每种条件重复三次，交错顺序。四个原局窗口的新增设置额度在离线材料中明确重建为当时的 3 张上限，运行时仍查询真实规则额度；反例不是原局 checkpoint。原局 OLD 保留实际请求，NEW 使用生产消息组装；反例两条件使用相同当前事实，仅比较提示。通过条件检查实际动作，说明准确性另行人工核对。脚本默认只准备材料，`--run` 才使用用户明确配置的 `DASHSCOPE_BASE_URL` / `DASHSCOPE_API_KEY` 发起请求，不读写平台设置，也不提交游戏命令。输出目录须未使用过，失败样本保留，不以重试成功替换。
+`scripts/evaluate-ai-live-set.ts` 保留旧版逐步 ACTION 协议的 D11／D12／D25／D26 固定输入实验，仅用于解释历史策略结论，不再作为当前批量 LIVE 设置协议的验收入口。当前协议要求一次 `CARDS` 选择表达最终盖牌完整集合；真实模型复测时须从当前版本新建对局并导出材料，不能把旧脚本的单步通过率当作当前行为通过。
 
-```bash
-node --env-file=.env --import tsx scripts/evaluate-ai-live-set.ts --export loveca-ai-8233fb6f-023e-4467-8e75-41997824aae6.json --out output/ai-battle-review/live-set-new-run --run
-```
-
-固定输入验证只衡量当前第一步选择，不能证明后续会完成整组盖牌或整局策略已通过验收。应分别检查继续周转与撤回错误设置、保留必要费用衔接、声援有机会时设置 LIVE，以及说明中的未来能量、替换费用和实际盖牌数。反例的预期动作只针对该局面预先登记的路线条件，不能据此把无 LIVE 时的所有其他换牌方案一概判错。当前策略待验收项统一见[项目待办](../../PROJECT_PROGRESS_TODO.md)，逐次请求、回复、计划哈希和观察统计保留在脚本的本地输出中。
+当前批量协议的固定输入验证应检查完整最终集合，并分别覆盖撤回错误设置、保留必要费用衔接、声援有机会时设置 LIVE，以及说明中的未来能量、替换费用和实际盖牌数；仍不能替代整局策略验收。反例的预期集合只针对该局面预先登记的路线条件，不能据此把无 LIVE 时的所有其他换牌方案一概判错。当前策略待验收项统一见[项目待办](../../PROJECT_PROGRESS_TODO.md)，逐次请求、回复、计划哈希和观察统计保留在本地输出中。
 
 浏览器材料保存在 `output/playwright/ai-battle/`，离线实验材料保存在 `output/ai-battle-review/`。这些是本地产物，不能随代码自动纳入提交。生产迁移以[来源迁移说明](../../drizzle/migration-notes/ai-debug-match-origin.md)及发布流程为准；当前待验收事项见[项目待办](../../PROJECT_PROGRESS_TODO.md)。
 

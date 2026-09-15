@@ -110,12 +110,14 @@ function observe(f: Fixture, runtime: AiBattleRuntime) {
   );
 }
 function submit(f: Fixture, runtime: AiBattleRuntime) {
-  const command = runtime.command(f.now());
-  const result = f.session.executeCommand(command);
-  runtime.record('AUTHORITY_RESULT', { success: result.success, error: result.error });
-  if (!result.success) throw new Error(result.error);
+  const commands = runtime.commands(f.now());
+  for (const command of commands) {
+    const result = f.session.executeCommand(command);
+    runtime.record('AUTHORITY_RESULT', { success: result.success, error: result.error });
+    if (!result.success) throw new Error(result.error);
+  }
   runtime.accepted(f.session.getPlayerViewState('ai')!, observation(f, runtime));
-  return command.type;
+  return commands.at(-1)!.type;
 }
 function scripted(f: Fixture, runtime: AiBattleRuntime, selection: AiSelection, tradeoff: string) {
   observe(f, runtime);

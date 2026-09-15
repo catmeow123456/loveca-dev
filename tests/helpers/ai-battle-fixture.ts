@@ -6,6 +6,7 @@ import { createHeartIcon, createHeartRequirement } from '../../src/domain/entiti
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   buildAiBattleDecision,
+  materializeAiDecisionCommands,
   parseAiBattleResponse,
   type AiDecision,
   type AiSelection,
@@ -104,10 +105,12 @@ export function decision(session: GameSession, playerId = P1): AiDecision {
 
 export function submit(session: GameSession, current: AiDecision, selection: AiSelection) {
   const response = parseAiBattleResponse(current, JSON.stringify({ selection }));
-  const command = current.toCommand(response.selection, 1000);
-  const result = session.executeCommand(command);
-  expect(result.success, result.error).toBe(true);
-  return command;
+  const commands = materializeAiDecisionCommands(current, response.selection, 1000);
+  for (const command of commands) {
+    const result = session.executeCommand(command);
+    expect(result.success, result.error).toBe(true);
+  }
+  return commands.at(-1)!;
 }
 
 export function replaceHand(session: GameSession, data: AnyCardData[]) {

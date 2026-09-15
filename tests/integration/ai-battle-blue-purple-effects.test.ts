@@ -2,20 +2,35 @@ import { describe, expect, it } from 'vitest';
 import { GameCommandType } from '../../src/application/game-commands';
 import type { GameSession } from '../../src/application/game-session';
 import { GameService } from '../../src/application/game-service';
+import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
 import {
+  HS_PR_020_LIVE_START_PAY_ENERGY_STACK_WAITING_MEMBERS_TO_DECK_TOP_ABILITY_ID as IZUMI_ABILITY_ID,
   PL_N_BP1_003_LIVE_START_PAY_ONE_ENERGY_CHOOSE_HEART_ABILITY_ID,
   PL_N_BP3_004_ACTIVATED_WAIT_SELF_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID as KARIN_ABILITY_ID,
+  PL_N_BP4_004_LIVE_START_DRAW_WAIT_LOW_COST_OPPONENT_MEMBER_ABILITY_ID as KARIN15_DRAW_WAIT_ABILITY_ID,
+  PL_N_BP4_004_LIVE_START_STACK_NIJIGASAKI_MEMBERS_BY_OPPONENT_WAIT_COUNT_ABILITY_ID as KARIN15_STACK_ABILITY_ID,
   PL_N_BP4_029_LIVE_START_TURN_ONE_SCORE_TARGET_NIJIGASAKI_BLADE_ABILITY_ID as RISE_ABILITY_ID,
   PL_N_BP4_030_LIVE_SUCCESS_CHOOSE_ENERGY_OR_MEMBER_RECOVERY_ABILITY_ID as DAYDREAM_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { queryActivatedAbilityStart } from '../../src/application/card-effects/runtime/activated-registry';
-import type { AnyCardData, CardInstance, MemberCardData } from '../../src/domain/entities/card';
-import { addCardToStatefulZone, removeCardFromSlot } from '../../src/domain/entities/zone';
+import {
+  createHeartRequirement,
+  type AnyCardData,
+  type CardInstance,
+  type MemberCardData,
+} from '../../src/domain/entities/card';
+import {
+  addCardToStatefulZone,
+  placeCardInSlot,
+  removeCardFromSlot,
+} from '../../src/domain/entities/zone';
 import { getMemberEffectiveBladeCount } from '../../src/domain/rules/live-modifiers';
 import { createPublicObjectId } from '../../src/online/projector';
 import {
+  CardType,
   FaceState,
   GamePhase,
+  HeartColor,
   OrientationState,
   SlotPosition,
   SubPhase,
@@ -654,4 +669,358 @@ describe('blue-purple Rise Up High AI target selection', () => {
       expect(decision(f.session).input.purpose).toBe('MAIN');
     }
   );
+});
+
+const IZUMI_PAY_STEP_ID = 'HS_PR_020_PAY_ENERGY_STACK_WAITING_MEMBERS';
+const IZUMI_SELECT_STEP_ID = 'HS_PR_020_SELECT_WAITING_MEMBERS_TO_DECK_TOP';
+const PUBLIC_CONFIRMATION_STEP_ID = 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION';
+
+function setupIzumi(options: { activeEnergy?: number } = {}) {
+  const fixture = setup();
+  const { session } = fixture;
+  const source = stage(session, card('PL!HS-PR-023') as MemberCardData, SlotPosition.CENTER);
+  const player = session.state!.players[0];
+  Object.assign(player.waitingRoom, { cardIds: [] });
+  // The waiting room holds a plain LIVE next to the two members: it must never
+  // appear in the member-only selection window.
+  const [memberA, memberB, waitingLive] = waiting(session, [
+    member('IZUMI-WAIT-A', 2),
+    member('IZUMI-WAIT-B', 4),
+    {
+      cardCode: 'IZUMI-WAIT-LIVE',
+      name: 'IZUMI-WAIT-LIVE',
+      cardType: CardType.LIVE,
+      score: 1,
+      requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+    },
+  ]);
+  const game = session.state!;
+  player.energyZone.cardIds.forEach((id, index) =>
+    Object.assign(player.energyZone.cardStates.get(id)!, {
+      orientation:
+        index < (options.activeEnergy ?? 1) ? OrientationState.ACTIVE : OrientationState.WAITING,
+    })
+  );
+  Object.assign(game, {
+    pendingAbilities: [
+      {
+        id: `pending:${source}`,
+        sourceCardId: source,
+        abilityId: IZUMI_ABILITY_ID,
+        controllerId: P1,
+        mandatory: true,
+        timingId: TriggerCondition.ON_LIVE_START,
+        eventIds: [],
+      },
+    ],
+  });
+  Object.assign(game, resolvePendingCardEffects(game).gameState);
+  return { ...fixture, source, memberA: memberA!, memberB: memberB!, waitingLive: waitingLive! };
+}
+
+function izumiActiveEnergy(f: ReturnType<typeof setupIzumi>) {
+  const player = f.session.state!.players[0];
+  return player.energyZone.cardIds.filter(
+    (id) => player.energyZone.cardStates.get(id)?.orientation === OrientationState.ACTIVE
+  ).length;
+}
+
+function izumiOption(current: ReturnType<typeof decision>, optionId: 'pay' | 'decline') {
+  const candidate = current.input.space.candidates.find((candidate) => {
+    const command = current.toCommand({ kind: 'ACTION', actionRef: candidate.ref }, 1000);
+    return (
+      command.type === GameCommandType.CONFIRM_EFFECT_STEP && command.selectedOptionId === optionId
+    );
+  });
+  expect(candidate).toBeDefined();
+  return candidate!;
+}
+
+describe('blue-purple Izumi stack-waiting-members AI decisions', () => {
+  it('adapts pay/decline and the ordered two-member stack through authority commands', () => {
+    const f = setupIzumi();
+    expect(f.session.state!.activeEffect).toMatchObject({
+      sourceCardId: f.source,
+      abilityId: IZUMI_ABILITY_ID,
+      stepId: IZUMI_PAY_STEP_ID,
+    });
+
+    const pay = decision(f.session);
+    expect(pay.input.purpose).toBe('EFFECT');
+    expect(pay.input.space.kind).toBe('ACTION');
+    expect(pay.input.space.candidates).toHaveLength(2);
+    const payOption = izumiOption(pay, 'pay');
+    expect(izumiOption(pay, 'decline').ref).not.toBe(payOption.ref);
+
+    const activeBefore = izumiActiveEnergy(f);
+    expect(activeBefore).toBeGreaterThan(0);
+    submit(f.session, pay, { kind: 'ACTION', actionRef: payOption.ref });
+    expect(izumiActiveEnergy(f)).toBe(activeBefore - 1);
+    expect(f.session.state!.activeEffect).toMatchObject({
+      abilityId: IZUMI_ABILITY_ID,
+      stepId: IZUMI_SELECT_STEP_ID,
+    });
+
+    const select = decision(f.session);
+    expect(select.input.purpose).toBe('EFFECT');
+    expect(select.input.space).toMatchObject({ kind: 'CARDS', min: 2, max: 2, ordered: true });
+    expect(select.input.space.candidates.map((candidate) => candidate.objectId)).toEqual([
+      createPublicObjectId(f.memberA),
+      createPublicObjectId(f.memberB),
+    ]);
+    const refs = select.input.space.candidates.map((candidate) => candidate.ref);
+    expect(() =>
+      parseAiBattleResponse(
+        select,
+        JSON.stringify({ selection: { kind: 'CARDS', cardRefs: [refs[0]!] } })
+      )
+    ).toThrow();
+
+    // Reversed submission order must map to the deck-top order: first selected is topmost.
+    submit(f.session, select, { kind: 'CARDS', cardRefs: [refs[1]!, refs[0]!] });
+    expect(f.session.state!.activeEffect?.stepId).toBe(PUBLIC_CONFIRMATION_STEP_ID);
+    advanceDisplay(f);
+
+    const state = f.session.state!;
+    const player = state.players[0];
+    expect(state.activeEffect).toBeNull();
+    expect(state.pendingAbilities).toEqual([]);
+    expect(player.mainDeck.cardIds.slice(0, 2)).toEqual([f.memberB, f.memberA]);
+    expect(player.waitingRoom.cardIds).toEqual([f.waitingLive]);
+    expect(decision(f.session).input.purpose).toBe('MAIN');
+  });
+
+  it('declining keeps energy, waiting room and deck unchanged', () => {
+    const f = setupIzumi();
+    const player = f.session.state!.players[0];
+    const deckBefore = [...player.mainDeck.cardIds];
+    const waitingBefore = [...player.waitingRoom.cardIds];
+    const activeBefore = izumiActiveEnergy(f);
+
+    const pay = decision(f.session);
+    const decline = izumiOption(pay, 'decline');
+    submit(f.session, pay, { kind: 'ACTION', actionRef: decline.ref });
+
+    expect(f.session.state!.activeEffect).toBeNull();
+    expect(f.session.state!.pendingAbilities).toEqual([]);
+    expect(player.mainDeck.cardIds).toEqual(deckBefore);
+    expect(player.waitingRoom.cardIds).toEqual(waitingBefore);
+    expect(izumiActiveEnergy(f)).toBe(activeBefore);
+    expect(decision(f.session).input.purpose).toBe('MAIN');
+  });
+
+  it('skips without an AI window when no energy can be paid', () => {
+    const f = setupIzumi({ activeEnergy: 0 });
+    expect(izumiActiveEnergy(f)).toBe(0);
+    expect(f.session.state!.activeEffect).toBeNull();
+    expect(f.session.state!.pendingAbilities).toEqual([]);
+    expect(decision(f.session).input.purpose).toBe('MAIN');
+  });
+});
+
+const KARIN15_DRAW_WAIT_STEP_ID = 'PL_N_BP4_004_SELECT_OPPONENT_LOW_COST_MEMBER_TO_WAIT';
+const KARIN15_STACK_STEP_ID = 'PL_N_BP4_004_SELECT_NIJIGASAKI_MEMBERS_TO_DECK_TOP';
+
+function nijigasakiMember(code: string, cost: number): MemberCardData {
+  return { ...member(code, cost), groupNames: ['虹ヶ咲学園スクールアイドル同好会'] };
+}
+
+function stageOpponent(
+  session: GameSession,
+  data: MemberCardData,
+  slot: SlotPosition,
+  orientation: OrientationState
+) {
+  const game = session.state!;
+  const opponent = game.players[1];
+  const id = opponent.mainDeck.cardIds[0]!;
+  Object.assign(opponent.mainDeck, { cardIds: opponent.mainDeck.cardIds.slice(1) });
+  (game.cardRegistry as Map<string, CardInstance>).set(id, {
+    ...game.cardRegistry.get(id)!,
+    data,
+  });
+  Object.assign(opponent, {
+    memberSlots: placeCardInSlot(opponent.memberSlots, slot, id, {
+      orientation,
+      face: FaceState.FACE_UP,
+    }),
+  });
+  return id;
+}
+
+interface Karin15OpponentEntry {
+  slot: SlotPosition;
+  cost: number;
+  orientation: OrientationState;
+}
+
+// One ability at a time: injecting both would open the shared ability-order
+// window instead of the card's own selection steps.
+function setupKarin15(
+  abilityId: string,
+  options: {
+    opponent?: readonly Karin15OpponentEntry[];
+    nijigasaki?: readonly string[];
+    foreign?: boolean;
+  } = {}
+) {
+  const fixture = setup();
+  const { session } = fixture;
+  const source = stage(session, card('PL!N-bp4-004') as MemberCardData, SlotPosition.CENTER);
+  const game = session.state!;
+  const player = game.players[0];
+  Object.assign(player.waitingRoom, { cardIds: [] });
+  const opponentIds = (options.opponent ?? []).map((entry) =>
+    stageOpponent(session, member(`OPP-${entry.cost}`, entry.cost), entry.slot, entry.orientation)
+  );
+  const waitingIds = waiting(session, [
+    ...(options.nijigasaki ?? []).map((code, index) => nijigasakiMember(code, 2 + index)),
+    // A non-虹ヶ咲 waiting member must never appear in the group-restricted window.
+    ...(options.foreign ? [{ ...member('WAIT-FOREIGN', 2), groupNames: ["μ's"] }] : []),
+  ]);
+  const handBefore = player.hand.cardIds.length;
+  Object.assign(game, {
+    pendingAbilities: [
+      {
+        id: `pending:${source}`,
+        sourceCardId: source,
+        abilityId,
+        controllerId: P1,
+        mandatory: true,
+        timingId: TriggerCondition.ON_LIVE_START,
+        eventIds: [],
+      },
+    ],
+  });
+  Object.assign(game, resolvePendingCardEffects(game).gameState);
+  return { ...fixture, source, opponentIds, waitingIds, handBefore };
+}
+
+describe('blue-purple Karin-15 live-start AI decisions', () => {
+  it('adapts the draw-one wait-one window and excludes illegal targets', () => {
+    const f = setupKarin15(KARIN15_DRAW_WAIT_ABILITY_ID, {
+      opponent: [
+        { slot: SlotPosition.LEFT, cost: 4, orientation: OrientationState.ACTIVE },
+        { slot: SlotPosition.CENTER, cost: 10, orientation: OrientationState.ACTIVE },
+        { slot: SlotPosition.RIGHT, cost: 2, orientation: OrientationState.WAITING },
+      ],
+    });
+    expect(f.session.state!.activeEffect).toMatchObject({
+      sourceCardId: f.source,
+      abilityId: KARIN15_DRAW_WAIT_ABILITY_ID,
+      stepId: KARIN15_DRAW_WAIT_STEP_ID,
+    });
+    expect(f.session.state!.players[0].hand.cardIds).toHaveLength(f.handBefore + 1);
+
+    const current = decision(f.session);
+    expect(current.input.purpose).toBe('EFFECT');
+    expect(current.input.space).toMatchObject({
+      kind: 'CARDS',
+      min: 1,
+      max: 1,
+      canSkip: false,
+    });
+    // Only the ACTIVE cost-4 member is selectable: cost 10 exceeds the cap and
+    // the cost-2 member is already WAITING.
+    expect(current.input.space.candidates.map((candidate) => candidate.objectId)).toEqual([
+      createPublicObjectId(f.opponentIds[0]!),
+    ]);
+    expect(() =>
+      parseAiBattleResponse(current, JSON.stringify({ selection: { kind: 'CARDS', cardRefs: [] } }))
+    ).toThrow();
+
+    submit(f.session, current, {
+      kind: 'CARDS',
+      cardRefs: [current.input.space.candidates[0]!.ref],
+    });
+    const state = f.session.state!;
+    expect(state.activeEffect).toBeNull();
+    expect(state.pendingAbilities).toEqual([]);
+    expect(state.players[1].memberSlots.cardStates.get(f.opponentIds[0]!)?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    expect(state.players[1].memberSlots.cardStates.get(f.opponentIds[1]!)?.orientation).toBe(
+      OrientationState.ACTIVE
+    );
+    expect(decision(f.session).input.purpose).toBe('MAIN');
+  });
+
+  it('still draws but opens no AI window when no opponent target is legal', () => {
+    const f = setupKarin15(KARIN15_DRAW_WAIT_ABILITY_ID, {
+      opponent: [{ slot: SlotPosition.CENTER, cost: 10, orientation: OrientationState.ACTIVE }],
+    });
+    expect(f.session.state!.activeEffect).toBeNull();
+    expect(f.session.state!.pendingAbilities).toEqual([]);
+    expect(f.session.state!.players[0].hand.cardIds).toHaveLength(f.handBefore + 1);
+    expect(decision(f.session).input.purpose).toBe('MAIN');
+  });
+
+  it('adapts the ordered 虹ヶ咲 stack window excluding foreign members', () => {
+    const f = setupKarin15(KARIN15_STACK_ABILITY_ID, {
+      opponent: [{ slot: SlotPosition.CENTER, cost: 4, orientation: OrientationState.WAITING }],
+      nijigasaki: ['WAIT-NIJI-A', 'WAIT-NIJI-B'],
+      foreign: true,
+    });
+    expect(f.session.state!.activeEffect).toMatchObject({
+      sourceCardId: f.source,
+      abilityId: KARIN15_STACK_ABILITY_ID,
+      stepId: KARIN15_STACK_STEP_ID,
+    });
+
+    const current = decision(f.session);
+    expect(current.input.purpose).toBe('EFFECT');
+    // One WAITING opponent member caps the stack at 1 despite two candidates.
+    expect(current.input.space).toMatchObject({
+      kind: 'CARDS',
+      min: 0,
+      max: 1,
+      ordered: true,
+      canSkip: true,
+      skipDescription: '不放置',
+    });
+    expect(current.input.space.candidates.map((candidate) => candidate.objectId)).toEqual([
+      createPublicObjectId(f.waitingIds[0]!),
+      createPublicObjectId(f.waitingIds[1]!),
+    ]);
+
+    submit(f.session, current, {
+      kind: 'CARDS',
+      cardRefs: [current.input.space.candidates[1]!.ref],
+    });
+    expect(f.session.state!.activeEffect?.stepId).toBe(PUBLIC_CONFIRMATION_STEP_ID);
+    advanceDisplay(f);
+
+    const state = f.session.state!;
+    const player = state.players[0];
+    expect(state.activeEffect).toBeNull();
+    expect(state.pendingAbilities).toEqual([]);
+    expect(player.mainDeck.cardIds[0]).toBe(f.waitingIds[1]!);
+    expect(player.waitingRoom.cardIds).toEqual([f.waitingIds[0]!, f.waitingIds[2]!]);
+    expect(decision(f.session).input.purpose).toBe('MAIN');
+  });
+
+  it('maps an empty selection to the explicit skip and needs no window without waiting opponents', () => {
+    const f = setupKarin15(KARIN15_STACK_ABILITY_ID, {
+      opponent: [{ slot: SlotPosition.CENTER, cost: 4, orientation: OrientationState.WAITING }],
+      nijigasaki: ['WAIT-NIJI'],
+    });
+    const player = f.session.state!.players[0];
+    const deckBefore = [...player.mainDeck.cardIds];
+    const current = decision(f.session);
+    const command = submit(f.session, current, { kind: 'CARDS', cardRefs: [] });
+    expect(command.type).toBe(GameCommandType.CONFIRM_EFFECT_STEP);
+    expect(f.session.state!.activeEffect).toBeNull();
+    expect(f.session.state!.pendingAbilities).toEqual([]);
+    expect(player.mainDeck.cardIds).toEqual(deckBefore);
+    expect(player.waitingRoom.cardIds).toEqual([f.waitingIds[0]!]);
+    expect(decision(f.session).input.purpose).toBe('MAIN');
+
+    const idle = setupKarin15(KARIN15_STACK_ABILITY_ID, {
+      opponent: [{ slot: SlotPosition.CENTER, cost: 4, orientation: OrientationState.ACTIVE }],
+      nijigasaki: ['WAIT-NIJI'],
+    });
+    expect(idle.session.state!.activeEffect).toBeNull();
+    expect(idle.session.state!.pendingAbilities).toEqual([]);
+    expect(decision(idle.session).input.purpose).toBe('MAIN');
+  });
 });

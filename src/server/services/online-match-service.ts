@@ -848,23 +848,21 @@ export class OnlineMatchService {
       })
     )
       return { kind: 'STALE' };
-    let command: GameCommand;
+    let commands: readonly GameCommand[];
     try {
-      command = runtime.command(this.now());
+      commands = runtime.commands(this.now());
     } catch (error) {
       return runtime.stop(`ADAPTER_COMMAND: ${readErrorMessage(error)}`);
     }
     const participant = match.participants[runtime.seat];
     const gate = this.synchronizePhaseCompletionGate(match);
-    if (
-      gate &&
-      gate.actingSeat === runtime.seat &&
-      gate.command === command.type &&
-      this.now() < gate.notBefore
-    ) {
+    const gatedCommand = gate
+      ? commands.find((command) => command.type === gate.command)
+      : undefined;
+    if (gate && gate.actingSeat === runtime.seat && gatedCommand && this.now() < gate.notBefore) {
       runtime.record(
         'WAIT',
-        { reason: 'PHASE_COMPLETION', deadlineAt: gate.notBefore, command },
+        { reason: 'PHASE_COMPLETION', deadlineAt: gate.notBefore, command: gatedCommand, commands },
         'WAITING_SELECTED'
       );
       return { kind: 'WAIT', deadlineAt: gate.notBefore, reason: 'PHASE_COMPLETION' };
@@ -872,17 +870,22 @@ export class OnlineMatchService {
     runtime.record('SUBMIT', {
       revision: match.remoteRevision,
       windowKey: frame.windowKey,
-      command,
+      command: commands.length === 1 ? commands[0] : null,
+      commands,
       selection: task.prepared,
     });
     const beforeCommandSeq = match.session.getRuntimeStats().currentCommandSeq;
     try {
-      const result = await this.executeCommandUnserialized(
-        match.matchId,
-        participant.userId,
-        command,
-        true
-      );
+      let result: Awaited<ReturnType<OnlineMatchService['executeCommandUnserialized']>> = null;
+      for (const command of commands) {
+        result = await this.executeCommandUnserialized(
+          match.matchId,
+          participant.userId,
+          command,
+          true
+        );
+        if (!result?.success) break;
+      }
       runtime.record('AUTHORITY_RESULT', {
         success: result?.success ?? false,
         error: result?.error ?? null,

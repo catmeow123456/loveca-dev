@@ -70,7 +70,7 @@ export function summarizeAiLiveSetPlanning(input: AiDecisionInput, ownDeck?: AiK
     const budget = candidate.liveBaseBudget;
     return [
       {
-        actionRef: candidate.ref,
+        cardRef: candidate.ref,
         objectId: candidate.objectId,
         location: resources.handCards.some((card) => card.objectId === candidate.objectId)
           ? 'HAND'
@@ -83,6 +83,16 @@ export function summarizeAiLiveSetPlanning(input: AiDecisionInput, ownDeck?: AiK
       },
     ];
   });
+  // Engine semantics (live-resolver judgeMultipleLives/performLive): every LIVE in the final set
+  // merges into one all-or-nothing judgment, so a single LIVE whose own requirement already
+  // exceeds the printed-heart ceiling dooms the whole round. Derived here because this is the
+  // only layer holding the frozen own deck needed for the true ceiling.
+  const guaranteedFailureLiveRefs =
+    totalHeartCeiling === null
+      ? null
+      : liveCards
+          .filter((card) => (card.shortfallEvenAtPrintedCeiling ?? 0) > 0)
+          .map((card) => card.cardRef);
   return {
     ...input.liveSet,
     nextOwnMainBaseline: {
@@ -99,7 +109,7 @@ export function summarizeAiLiveSetPlanning(input: AiDecisionInput, ownDeck?: AiK
     handMembers: [...handMembers.values()].map((group) => ({
       ...group,
       count: group.objectIds.length,
-      coverActionRefs: input.space.candidates
+      coverCardRefs: input.space.candidates
         .filter((candidate) => candidate.objectId && group.objectIds.includes(candidate.objectId))
         .map((candidate) => candidate.ref),
       printedPayments: {
@@ -126,5 +136,10 @@ export function summarizeAiLiveSetPlanning(input: AiDecisionInput, ownDeck?: AiK
         '未计玩家额外HEART、声援次数/判心修正、后续卡效及多LIVE合计需求；未检查指定色命中和剩余牌序。缺口为0不保证成功；正缺口必须有实际可执行的补足来源。',
     },
     liveCards,
+    jointJudgment: {
+      semantics: 'MERGED_ALL_OR_NOTHING' as const,
+      guaranteedFailureLiveRefs,
+      rule: '最终 LIVE 区全部 LIVE 的修正需求合并为一次判定：合计不满足时整轮全部失败得 0 分，不保留其中本可唱成 LIVE 的分数。guaranteedFailureLiveRefs 列出的 LIVE 在印刷声援上限口径下（不含可支付补心卡效与玩家额外 HEART）仅自身合计需求即有缺口，放进最终集合等于注定整轮失败，只有在已决定放弃本轮表演、改走周转时才可盖下或保留；仍在争取任何 LIVE 时，多余盖牌额度用成员卡填充或留空。',
+    },
   };
 }

@@ -2,6 +2,8 @@ import type { GameCommand } from '../../application/game-commands.js';
 import type { Seat } from '../../online/types.js';
 import {
   parseAiBattleResponse,
+  materializeAiDecisionCommands,
+  extractInvalidCardSelection,
   validateSelection,
   type AiDecision,
   type AiDecisionInput,
@@ -218,6 +220,7 @@ export class AiBattleRuntime {
       return this.modelRequest(task);
     }
     let failure: string;
+    let attemptedSelection: AiSelection | null = null;
     if (outcome.kind === 'RESPONSE') {
       try {
         if (outcome.truncated) throw new Error('Upstream output truncated');
@@ -227,6 +230,9 @@ export class AiBattleRuntime {
         return null;
       } catch (error) {
         failure = `MODEL_SELECTION: ${errorMessage(error)}`;
+        // Salvage the recognizable part of the invalid answer so the deterministic
+        // LIVE_SET fallback can repair the model's plan instead of discarding it.
+        attemptedSelection = extractInvalidCardSelection(outcome.text);
       }
     } else {
       failure = `MODEL_SERVICE: ${outcome.message}`;
@@ -240,7 +246,7 @@ export class AiBattleRuntime {
     if (this.consecutiveFailures >= AI_CONSECUTIVE_FAILURE_LIMIT)
       return this.stop(`CONSECUTIVE_FAILURE_LIMIT: ${failure}`);
     try {
-      const selection = getAiFallbackSelection(task.decision);
+      const selection = getAiFallbackSelection(task.decision, attemptedSelection);
       validateSelection(task.decision.input.space, selection);
       task.prepared = { source: 'FALLBACK', selection };
       this.record('PREPARED', {
@@ -248,6 +254,7 @@ export class AiBattleRuntime {
         validation: 'VALID',
         reason: failure,
         policy: 'getAiFallbackSelection',
+        ...(attemptedSelection ? { attemptedModelSelection: attemptedSelection } : {}),
       });
       return null;
     } catch (error) {
@@ -256,10 +263,16 @@ export class AiBattleRuntime {
   }
 
   command(now: number): GameCommand {
+    const commands = this.commands(now);
+    if (commands.length !== 1) throw new Error('Prepared AI selection requires batch submission');
+    return commands[0]!;
+  }
+
+  commands(now: number): readonly GameCommand[] {
     const task = this.current;
     if (!task?.prepared) throw new Error('No prepared AI selection');
     validateSelection(task.decision.input.space, task.prepared.selection);
-    return task.decision.toCommand(task.prepared.selection, now);
+    return materializeAiDecisionCommands(task.decision, task.prepared.selection, now);
   }
 
   accepted(view?: PlayerViewState, publicObservation?: AiPublicObservation): void {

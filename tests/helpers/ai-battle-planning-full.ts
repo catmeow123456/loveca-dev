@@ -2,7 +2,10 @@ import { appendFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
-import { buildAiBattleDecision } from '../../src/server/ai-battle/decision';
+import {
+  buildAiBattleDecision,
+  materializeAiDecisionCommands,
+} from '../../src/server/ai-battle/decision';
 import { getAiMechanicalSelection } from '../../src/server/ai-battle/policy';
 import { AiBattleRuntime } from '../../src/server/ai-battle/runtime';
 import { AiBattleTraceStore } from '../../src/server/ai-battle/trace-store';
@@ -119,10 +122,11 @@ export async function evaluatePlanningFullGames(
       }
       if (runtime.current?.prepared) {
         if (runtime.current.prepared.source === 'MECHANICAL') mechanical++;
-        const command = runtime.command(now);
-        const result = session.executeCommand(command);
-        runtime.record('AUTHORITY_RESULT', { success: result.success, error: result.error });
-        if (!result.success) throw new Error(result.error);
+        for (const command of runtime.commands(now)) {
+          const result = session.executeCommand(command);
+          runtime.record('AUTHORITY_RESULT', { success: result.success, error: result.error });
+          if (!result.success) throw new Error(result.error);
+        }
         runtime.accepted(session.getPlayerViewState('ai')!, observation());
         accepted++;
         now += 10;
@@ -136,8 +140,10 @@ export async function evaluatePlanningFullGames(
       if (human.kind === 'DECISION') {
         const selection =
           getAiMechanicalSelection(human.decision) ?? chooseAiTestSelection(human.decision.input);
-        const result = session.executeCommand(human.decision.toCommand(selection, now));
-        if (!result.success) throw new Error(result.error);
+        for (const command of materializeAiDecisionCommands(human.decision, selection, now)) {
+          const result = session.executeCommand(command);
+          if (!result.success) throw new Error(result.error);
+        }
         now += 10;
       } else if (q.kind === 'WAITING_FOR_TIME' || human.kind === 'WAITING_FOR_TIME') {
         now =
