@@ -1,3 +1,4 @@
+import { queryOptionSelection, queryCardSelection } from '../../runtime/selection-query.js';
 import { isMemberCardData, type CardInstance } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -612,39 +613,47 @@ export function registerLookTopSelectToHandWorkflowHandlers(deps: {
           )
     );
     if (config.optionalSourceOrientationCost && config.optionStepId) {
-      registerActiveEffectStepHandler(abilityId, config.optionStepId, (game, input, context) =>
-        input.selectedOptionId === 'activate'
-          ? finishOptionalSourceOrientationLookTopWorkflow(
-              game,
-              {
-                ...workflowConfig,
-                effectText: getAbilityEffectText(abilityId),
-              },
-              {
-                orderedResolution: game.activeEffect?.metadata?.orderedResolution === true,
-                continuePendingCardEffects: context.continuePendingCardEffects,
-                enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
-                enqueueMemberStateChangedCardEffects: deps.enqueueTriggeredCardEffects,
-              }
-            )
-          : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+      registerActiveEffectStepHandler(
+        abilityId,
+        config.optionStepId,
+        (game, input, context) =>
+          input.selectedOptionId === 'activate'
+            ? finishOptionalSourceOrientationLookTopWorkflow(
+                game,
+                {
+                  ...workflowConfig,
+                  effectText: getAbilityEffectText(abilityId),
+                },
+                {
+                  orderedResolution: game.activeEffect?.metadata?.orderedResolution === true,
+                  continuePendingCardEffects: context.continuePendingCardEffects,
+                  enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+                  enqueueMemberStateChangedCardEffects: deps.enqueueTriggeredCardEffects,
+                }
+              )
+            : finishSkippedActiveEffect(game, context.continuePendingCardEffects),
+        queryOptionSelection
       );
     }
-    registerActiveEffectStepHandler(abilityId, config.selectStepId, (game, input, context) =>
-      resolveLookTopSelectToHandSelection(
-        game,
-        input.selectedCardId ?? null,
-        input.selectedCardIds,
-        {
-          continuePendingCardEffects: context.continuePendingCardEffects,
-          enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
-        },
-        (state, selectedCardIds) =>
-          selectedCardIds.every((cardId) => {
-            const card = getCardById(state, cardId);
-            return card !== null && config.selector(card);
-          })
-      )
+    registerActiveEffectStepHandler(
+      abilityId,
+      config.selectStepId,
+      (game, input, context) =>
+        resolveLookTopSelectToHandSelection(
+          game,
+          input.selectedCardId ?? null,
+          input.selectedCardIds,
+          {
+            continuePendingCardEffects: context.continuePendingCardEffects,
+            enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+          },
+          (state, selectedCardIds) =>
+            selectedCardIds.every((cardId) => {
+              const card = getCardById(state, cardId);
+              return card !== null && config.selector(card);
+            })
+        ),
+      queryCardSelection
     );
     if (config.revealStepId) {
       registerActiveEffectStepHandler(abilityId, config.revealStepId, (game, _input, context) =>

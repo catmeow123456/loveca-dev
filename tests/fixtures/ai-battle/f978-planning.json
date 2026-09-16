@@ -1,0 +1,392 @@
+{
+  "sourceLog": "f978d81a-f64b-416e-a1bf-1cfa3b342cb5",
+  "sourceSha256": "a235138ae88bbfdb88cc373f5b451b4ae6f19d768585d75528255af5ebd3a0a8",
+  "scope": "Own visible zones and opponent public stage/success only. Unknown deck order and prior authority history are not reconstructed.",
+  "cases": [
+    {
+      "decisionId": "111",
+      "turn": 5,
+      "hand": ["PL!HS-bp5-019-L", "PL!HS-PR-014-RM", "PL!HS-bp5-019-L", "PL!HS-PR-019-RM"],
+      "waitingRoom": [
+        "PL!HS-pb1-009-P+",
+        "PL!HS-pb1-009-R",
+        "PL!HS-bp2-022-L+",
+        "PL!HS-bp6-001-R+",
+        "PL!HS-bp6-017-N",
+        "PL!HS-sd1-009-SD",
+        "PL!HS-sd1-001-SD",
+        "PL!HS-bp1-003-SEC",
+        "PL!HS-PR-019-RM",
+        "PL!HS-bp5-008-R",
+        "PL!HS-bp5-008-R",
+        "PL!HS-sd1-009-SD",
+        "PL!HS-bp2-022-L+",
+        "PL!HS-bp6-027-L",
+        "PL!HS-sd1-012-SD",
+        "PL!HS-bp6-001-R+",
+        "PL!HS-bp5-001-SEC",
+        "PL!HS-sd1-012-SD",
+        "PL!HS-sd1-001-SD",
+        "PL!HS-bp6-017-N",
+        "PL!HS-bp5-019-L",
+        "PL!HS-sd1-006-SD",
+        "PL!HS-bp5-001-SEC",
+        "PL!HS-PR-019-RM",
+        "PL!HS-bp2-022-L+",
+        "PL!HS-bp1-002-RM",
+        "PL!HS-sd1-001-SD",
+        "PL!HS-sd1-001-SD"
+      ],
+      "stage": {
+        "LEFT": "PL!HS-bp6-017-N",
+        "CENTER": "PL!HS-PR-019-RM",
+        "RIGHT": "PL!HS-bp1-002-RM"
+      },
+      "energyCount": 8,
+      "activeEnergy": 8,
+      "opponentStage": {
+        "CENTER": {
+          "cardCode": "PL!HS-pb1-009-P+",
+          "nameJp": "日野下花帆",
+          "nameCn": "日野下花帆",
+          "cardType": "MEMBER",
+          "cost": 15,
+          "blade": 8,
+          "hearts": [
+            {
+              "color": "PINK",
+              "count": 1
+            },
+            {
+              "color": "GREEN",
+              "count": 3
+            },
+            {
+              "color": "PURPLE",
+              "count": 1
+            }
+          ],
+          "bladeHearts": [
+            {
+              "effect": "HEART",
+              "heartColor": "GREEN"
+            }
+          ],
+          "cardTextJp": "【自動】【センター】【ターン2回】自分のステージに『蓮ノ空』のメンバーが登場するたび、ライブ終了時まで、[ブレード][ブレード]を得る。\n\n【ライブ開始時】このメンバーが持つ[ブレード]の数が8以上の場合、カードを2枚引き、手札を1枚控え室に置く。",
+          "cardTextCn": "【自动】【中央】【1回合2次】每当『莲之空』的成员登场至自己的舞台时，LIVE结束时为止，获得[ブレード][ブレード]。\n\n【LIVE开始时】此成员持有的[ブレード]的数量大于等于8的场合，抽2张卡，将1张手牌放置入休息室。",
+          "modifierDelta": {
+            "bladeDelta": 4
+          }
+        },
+        "RIGHT": {
+          "cardCode": "PL!HS-sd1-006-SD",
+          "nameJp": "安養寺姫芽",
+          "nameCn": "安养寺姬芽",
+          "cardType": "MEMBER",
+          "cost": 15,
+          "blade": 5,
+          "hearts": [
+            {
+              "color": "PINK",
+              "count": 2
+            },
+            {
+              "color": "GREEN",
+              "count": 2
+            },
+            {
+              "color": "BLUE",
+              "count": 2
+            },
+            {
+              "color": "PURPLE",
+              "count": 1
+            }
+          ],
+          "cardTextJp": "【登場】自分のステージに「大沢瑠璃乃」か「百生吟子」か「徒町小鈴」がいる場合、エネルギーを1枚アクティブにし、自分の控え室から『蓮ノ空』のライブカードを1枚手札に加える。\n\n【ライブ開始時】[E]支払ってもよい：ライブ終了時まで、[ブレード][ブレード]を得る。",
+          "cardTextCn": "【登场】自己的舞台中存在「大泽瑠璃乃」或「百生吟子」或「徒町小铃」的场合，将1张能量变为活跃状态，从自己的休息室将1张『莲之空』的LIVE卡加入手牌。\n\n【LIVE开始时】可以支付[E]：LIVE结束时为止，获得[ブレード][ブレード]。"
+        }
+      },
+      "opponentSuccess": ["PL!HS-bp2-022-L+"]
+    },
+    {
+      "decisionId": "149",
+      "turn": 6,
+      "hand": [
+        "PL!HS-PR-014-RM",
+        "PL!HS-bp5-019-L",
+        "PL!HS-PR-019-RM",
+        "PL!HS-PR-014-RM",
+        "PL!HS-bp6-001-R+"
+      ],
+      "waitingRoom": [
+        "PL!HS-pb1-009-P+",
+        "PL!HS-pb1-009-R",
+        "PL!HS-bp2-022-L+",
+        "PL!HS-bp6-001-R+",
+        "PL!HS-bp6-017-N",
+        "PL!HS-sd1-009-SD",
+        "PL!HS-sd1-001-SD",
+        "PL!HS-bp1-003-SEC",
+        "PL!HS-PR-019-RM",
+        "PL!HS-bp5-008-R",
+        "PL!HS-bp5-008-R",
+        "PL!HS-sd1-009-SD",
+        "PL!HS-bp2-022-L+",
+        "PL!HS-bp6-027-L",
+        "PL!HS-sd1-012-SD",
+        "PL!HS-bp6-001-R+",
+        "PL!HS-bp5-001-SEC",
+        "PL!HS-sd1-012-SD",
+        "PL!HS-sd1-001-SD",
+        "PL!HS-bp6-017-N",
+        "PL!HS-bp5-019-L",
+        "PL!HS-sd1-006-SD",
+        "PL!HS-bp5-001-SEC",
+        "PL!HS-PR-019-RM",
+        "PL!HS-bp2-022-L+",
+        "PL!HS-bp1-002-RM",
+        "PL!HS-sd1-001-SD",
+        "PL!HS-sd1-001-SD",
+        "PL!HS-bp5-019-L",
+        "PL!HS-sd1-009-SD",
+        "PL!HS-bp1-002-RM",
+        "PL!HS-sd1-006-SD",
+        "PL!HS-bp5-019-L",
+        "PL!HS-PR-014-RM",
+        "PL!HS-pb1-009-P+"
+      ],
+      "stage": {
+        "LEFT": "PL!HS-bp6-017-N",
+        "CENTER": "PL!HS-PR-019-RM",
+        "RIGHT": "PL!HS-bp1-002-RM"
+      },
+      "energyCount": 9,
+      "activeEnergy": 9,
+      "opponentStage": {
+        "LEFT": {
+          "cardCode": "PL!HS-sd1-012-SD",
+          "nameJp": "百生吟子",
+          "nameCn": "百生吟子",
+          "cardType": "MEMBER",
+          "cost": 4,
+          "blade": 1,
+          "hearts": [
+            {
+              "color": "GREEN",
+              "count": 2
+            }
+          ],
+          "bladeHearts": [
+            {
+              "effect": "HEART",
+              "heartColor": "GREEN"
+            }
+          ],
+          "cardTextCn": "-"
+        },
+        "CENTER": {
+          "cardCode": "PL!HS-pb1-009-P+",
+          "nameJp": "日野下花帆",
+          "nameCn": "日野下花帆",
+          "cardType": "MEMBER",
+          "cost": 15,
+          "blade": 8,
+          "hearts": [
+            {
+              "color": "PINK",
+              "count": 1
+            },
+            {
+              "color": "GREEN",
+              "count": 3
+            },
+            {
+              "color": "PURPLE",
+              "count": 1
+            }
+          ],
+          "bladeHearts": [
+            {
+              "effect": "HEART",
+              "heartColor": "GREEN"
+            }
+          ],
+          "cardTextJp": "【自動】【センター】【ターン2回】自分のステージに『蓮ノ空』のメンバーが登場するたび、ライブ終了時まで、[ブレード][ブレード]を得る。\n\n【ライブ開始時】このメンバーが持つ[ブレード]の数が8以上の場合、カードを2枚引き、手札を1枚控え室に置く。",
+          "cardTextCn": "【自动】【中央】【1回合2次】每当『莲之空』的成员登场至自己的舞台时，LIVE结束时为止，获得[ブレード][ブレード]。\n\n【LIVE开始时】此成员持有的[ブレード]的数量大于等于8的场合，抽2张卡，将1张手牌放置入休息室。",
+          "modifierDelta": {
+            "bladeDelta": 4
+          }
+        },
+        "RIGHT": {
+          "cardCode": "PL!HS-sd1-006-SD",
+          "nameJp": "安養寺姫芽",
+          "nameCn": "安养寺姬芽",
+          "cardType": "MEMBER",
+          "cost": 15,
+          "blade": 5,
+          "hearts": [
+            {
+              "color": "PINK",
+              "count": 2
+            },
+            {
+              "color": "GREEN",
+              "count": 2
+            },
+            {
+              "color": "BLUE",
+              "count": 2
+            },
+            {
+              "color": "PURPLE",
+              "count": 1
+            }
+          ],
+          "cardTextJp": "【登場】自分のステージに「大沢瑠璃乃」か「百生吟子」か「徒町小鈴」がいる場合、エネルギーを1枚アクティブにし、自分の控え室から『蓮ノ空』のライブカードを1枚手札に加える。\n\n【ライブ開始時】[E]支払ってもよい：ライブ終了時まで、[ブレード][ブレード]を得る。",
+          "cardTextCn": "【登场】自己的舞台中存在「大泽瑠璃乃」或「百生吟子」或「徒町小铃」的场合，将1张能量变为活跃状态，从自己的休息室将1张『莲之空』的LIVE卡加入手牌。\n\n【LIVE开始时】可以支付[E]：LIVE结束时为止，获得[ブレード][ブレード]。"
+        }
+      },
+      "opponentSuccess": ["PL!HS-bp2-022-L+", "PL!HS-cl1-009-CL"]
+    },
+    {
+      "decisionId": "151",
+      "turn": 6,
+      "hand": ["PL!HS-PR-014-RM", "PL!HS-bp5-019-L", "PL!HS-PR-019-RM", "PL!HS-PR-014-RM"],
+      "waitingRoom": [
+        "PL!HS-pb1-009-P+",
+        "PL!HS-pb1-009-R",
+        "PL!HS-bp2-022-L+",
+        "PL!HS-bp6-001-R+",
+        "PL!HS-bp6-017-N",
+        "PL!HS-sd1-009-SD",
+        "PL!HS-sd1-001-SD",
+        "PL!HS-bp1-003-SEC",
+        "PL!HS-PR-019-RM",
+        "PL!HS-bp5-008-R",
+        "PL!HS-bp5-008-R",
+        "PL!HS-sd1-009-SD",
+        "PL!HS-bp2-022-L+",
+        "PL!HS-bp6-027-L",
+        "PL!HS-sd1-012-SD",
+        "PL!HS-bp6-001-R+",
+        "PL!HS-bp5-001-SEC",
+        "PL!HS-sd1-012-SD",
+        "PL!HS-sd1-001-SD",
+        "PL!HS-bp6-017-N",
+        "PL!HS-bp5-019-L",
+        "PL!HS-sd1-006-SD",
+        "PL!HS-bp5-001-SEC",
+        "PL!HS-PR-019-RM",
+        "PL!HS-bp2-022-L+",
+        "PL!HS-bp1-002-RM",
+        "PL!HS-sd1-001-SD",
+        "PL!HS-sd1-001-SD",
+        "PL!HS-bp5-019-L",
+        "PL!HS-sd1-009-SD",
+        "PL!HS-bp1-002-RM",
+        "PL!HS-sd1-006-SD",
+        "PL!HS-bp5-019-L",
+        "PL!HS-PR-014-RM",
+        "PL!HS-pb1-009-P+",
+        "PL!HS-PR-019-RM",
+        "PL!HS-bp6-001-R+",
+        "PL!HS-pb1-009-R",
+        "PL!HS-pb1-020-N",
+        "PL!HS-bp5-001-SEC"
+      ],
+      "stage": {
+        "LEFT": "PL!HS-bp6-017-N",
+        "CENTER": "PL!HS-bp6-001-R+",
+        "RIGHT": "PL!HS-bp1-002-RM"
+      },
+      "energyCount": 9,
+      "activeEnergy": 7,
+      "opponentStage": {
+        "LEFT": {
+          "cardCode": "PL!HS-sd1-012-SD",
+          "nameJp": "百生吟子",
+          "nameCn": "百生吟子",
+          "cardType": "MEMBER",
+          "cost": 4,
+          "blade": 1,
+          "hearts": [
+            {
+              "color": "GREEN",
+              "count": 2
+            }
+          ],
+          "bladeHearts": [
+            {
+              "effect": "HEART",
+              "heartColor": "GREEN"
+            }
+          ],
+          "cardTextCn": "-"
+        },
+        "CENTER": {
+          "cardCode": "PL!HS-pb1-009-P+",
+          "nameJp": "日野下花帆",
+          "nameCn": "日野下花帆",
+          "cardType": "MEMBER",
+          "cost": 15,
+          "blade": 8,
+          "hearts": [
+            {
+              "color": "PINK",
+              "count": 1
+            },
+            {
+              "color": "GREEN",
+              "count": 3
+            },
+            {
+              "color": "PURPLE",
+              "count": 1
+            }
+          ],
+          "bladeHearts": [
+            {
+              "effect": "HEART",
+              "heartColor": "GREEN"
+            }
+          ],
+          "cardTextJp": "【自動】【センター】【ターン2回】自分のステージに『蓮ノ空』のメンバーが登場するたび、ライブ終了時まで、[ブレード][ブレード]を得る。\n\n【ライブ開始時】このメンバーが持つ[ブレード]の数が8以上の場合、カードを2枚引き、手札を1枚控え室に置く。",
+          "cardTextCn": "【自动】【中央】【1回合2次】每当『莲之空』的成员登场至自己的舞台时，LIVE结束时为止，获得[ブレード][ブレード]。\n\n【LIVE开始时】此成员持有的[ブレード]的数量大于等于8的场合，抽2张卡，将1张手牌放置入休息室。",
+          "modifierDelta": {
+            "bladeDelta": 4
+          }
+        },
+        "RIGHT": {
+          "cardCode": "PL!HS-sd1-006-SD",
+          "nameJp": "安養寺姫芽",
+          "nameCn": "安养寺姬芽",
+          "cardType": "MEMBER",
+          "cost": 15,
+          "blade": 5,
+          "hearts": [
+            {
+              "color": "PINK",
+              "count": 2
+            },
+            {
+              "color": "GREEN",
+              "count": 2
+            },
+            {
+              "color": "BLUE",
+              "count": 2
+            },
+            {
+              "color": "PURPLE",
+              "count": 1
+            }
+          ],
+          "cardTextJp": "【登場】自分のステージに「大沢瑠璃乃」か「百生吟子」か「徒町小鈴」がいる場合、エネルギーを1枚アクティブにし、自分の控え室から『蓮ノ空』のライブカードを1枚手札に加える。\n\n【ライブ開始時】[E]支払ってもよい：ライブ終了時まで、[ブレード][ブレード]を得る。",
+          "cardTextCn": "【登场】自己的舞台中存在「大泽瑠璃乃」或「百生吟子」或「徒町小铃」的场合，将1张能量变为活跃状态，从自己的休息室将1张『莲之空』的LIVE卡加入手牌。\n\n【LIVE开始时】可以支付[E]：LIVE结束时为止，获得[ブレード][ブレード]。"
+        }
+      },
+      "opponentSuccess": ["PL!HS-bp2-022-L+", "PL!HS-cl1-009-CL"]
+    }
+  ]
+}

@@ -353,7 +353,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
             className="button-secondary inline-flex min-h-10 items-center gap-2 px-3 text-sm"
           >
             <Bot size={15} />
-            <span className="hidden sm:inline">AI 提取配置</span>
+            <span className="hidden sm:inline">AI 上游配置</span>
             <span className="sm:hidden">AI 配置</span>
           </button>
         }

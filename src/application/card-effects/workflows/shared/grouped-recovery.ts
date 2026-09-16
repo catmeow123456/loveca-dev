@@ -1,3 +1,4 @@
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   addAction,
   getCardById,
@@ -86,7 +87,7 @@ interface GroupedRecoveryWorkflowConfig {
         readonly ok: false;
         readonly step: string;
         readonly payload?: Readonly<Record<string, unknown>>;
-  };
+      };
 }
 
 interface GroupedRecoverySelectionState {
@@ -268,7 +269,8 @@ export function registerGroupedRecoveryWorkflowHandlers(deps: {
               deps.enqueueTriggeredCardEffects
             )
           : finishSkippedActiveEffect(game, context.continuePendingCardEffects);
-      }
+      },
+      queryCardSelection
     );
     registerActiveEffectStepHandler(
       config.abilityId,
@@ -279,7 +281,8 @@ export function registerGroupedRecoveryWorkflowHandlers(deps: {
           input.selectedCardIds ?? [],
           config,
           context.continuePendingCardEffects
-        )
+        ),
+      (game) => queryGroupedRecoverySelection(game, config)
     );
   }
 }
@@ -366,6 +369,23 @@ function startGroupedRecoveryWorkflow(
       selectableCardIds: player.hand.cardIds,
     }
   );
+}
+
+function queryGroupedRecoverySelection(game: GameState, config: GroupedRecoveryWorkflowConfig) {
+  const selection = queryCardSelection(game);
+  if (selection?.kind !== 'CARDS') return undefined;
+  const requiredKeys = getStringArrayMetadata(game.activeEffect?.metadata?.requiredGroupKeys);
+  return {
+    ...selection,
+    groups: config.groups.map((group) => ({
+      cardIds: selection.cardIds.filter((id) => {
+        const card = getCardById(game, id);
+        return card !== null && group.selector(card);
+      }),
+      min: requiredKeys.includes(group.key) ? 1 : 0,
+      max: 1,
+    })),
+  };
 }
 
 function startGroupedRecoveryAfterDiscard(
@@ -526,14 +546,12 @@ function finishGroupedRecoveryWorkflow(
   const validation = validateGroupedCardSelection(
     game,
     uniqueSelectedCardIds,
-    config.groups.map(
-      (group): GroupedSelectionRule => ({
-        key: group.key,
-        selector: group.selector,
-        minCount: requiredGroupKeys.includes(group.key) ? 1 : 0,
-        maxCount: 1,
-      })
-    )
+    config.groups.map((group): GroupedSelectionRule => ({
+      key: group.key,
+      selector: group.selector,
+      minCount: requiredGroupKeys.includes(group.key) ? 1 : 0,
+      maxCount: 1,
+    }))
   );
   if (!validation) {
     return game;

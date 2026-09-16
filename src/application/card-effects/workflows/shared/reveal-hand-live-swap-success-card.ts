@@ -14,6 +14,7 @@ import {
   revealHandCardForActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -60,10 +61,14 @@ export function registerRevealHandLiveSwapSuccessCardWorkflowHandlers(): void {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
       startSelection(game, ability, options.orderedResolution === true, config)
     );
-    registerActiveEffectStepHandler(config.abilityId, config.handStepId, (game, input, context) =>
-      input.selectedCardId
-        ? revealHandLive(game, input.selectedCardId, config)
-        : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.handStepId,
+      (game, input, context) =>
+        input.selectedCardId
+          ? revealHandLive(game, input.selectedCardId, config)
+          : finishSkippedActiveEffect(game, context.continuePendingCardEffects),
+      queryCardSelection
     );
     registerActiveEffectStepHandler(
       config.abilityId,
@@ -77,7 +82,8 @@ export function registerRevealHandLiveSwapSuccessCardWorkflowHandlers(): void {
       (game, input, context) =>
         input.selectedCardId
           ? finishSwap(game, input.selectedCardId, context.continuePendingCardEffects)
-          : game
+          : game,
+      queryCardSelection
     );
   }
 }

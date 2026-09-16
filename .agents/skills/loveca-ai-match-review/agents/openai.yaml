@@ -1,0 +1,4 @@
+interface:
+  display_name: "Loveca AI 对战复盘"
+  short_description: "精简提取完整对战日志，复盘双方局势、手牌资源与决策失误原因"
+  default_prompt: "使用 $loveca-ai-match-review 分析指定对战日志，梳理双方局势及 AI 手牌演化，并依据当时可见信息定位关键失误及原因。"

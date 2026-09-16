@@ -1156,6 +1156,7 @@ function buildFrontInfo(card: CardInstance): ViewFrontCardInfo {
       nameCn: card.data.nameCn,
       cardType: card.data.cardType,
       cost: card.data.cost,
+      blade: card.data.blade,
       hearts: card.data.hearts.map((heart) => ({ color: heart.color, count: heart.count })),
       bladeHearts: card.data.bladeHearts?.map((item) => ({ ...item })),
       cardTextJp: card.data.cardTextJp,
@@ -1209,6 +1210,7 @@ function buildStageMemberFrontInfo(
 
   return {
     ...frontInfo,
+    blade,
     hearts: hearts.map((heart) => ({ color: heart.color, count: heart.count })),
     ...(modifierDelta ? { modifierDelta } : {}),
   };
@@ -1517,7 +1519,9 @@ function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] 
     }
     case GamePhase.PERFORMANCE_PHASE:
       if (game.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT) {
-        return PERFORMANCE_SUCCESS_INTERACTION_COMMAND_TYPES;
+        return getManualOperationMode(game) === 'RULES'
+          ? [...PERFORMANCE_SUCCESS_INTERACTION_COMMAND_TYPES, GameCommandType.CONFIRM_STEP]
+          : PERFORMANCE_SUCCESS_INTERACTION_COMMAND_TYPES;
       }
       if (game.currentSubPhase === SubPhase.PERFORMANCE_LIVE_START_EFFECTS) {
         return PERFORMANCE_LIVE_START_COMMAND_TYPES;

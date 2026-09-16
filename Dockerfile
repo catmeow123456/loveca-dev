@@ -17,6 +17,7 @@ RUN corepack enable && pnpm install --frozen-lockfile --prod
 
 COPY --from=build /app/dist ./dist
 COPY assets/decks ./assets/decks
+COPY assets/ai-battle ./assets/ai-battle
 
 EXPOSE 3007
 

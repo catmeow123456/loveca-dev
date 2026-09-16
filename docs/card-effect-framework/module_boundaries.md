@@ -45,6 +45,12 @@ Examples:
 
 费用 query 必须区分“卡牌本身的当前费用”和“登场时实际支付的费用”。卡效读取手牌成员卡的费用时使用 `getHandMemberEffectiveCost`；它包含 `LL-bp2-001` 这类“手牌中的此卡费用减少”的常时修正，但不包含 `PL!SP-bp5-003` 这类“从手牌登场所需费用减少”。只有实际生成登场支付方案时才使用 `getHandMemberEffectivePlayCost` / `calculateModifiedPlayCost`。直接读取 `card.data.cost` 仅表示印刷／原本费用，不能用于要求当前费用的卡效条件。
 
+### 供动作选择读取的能力资源
+
+`card-effects/runtime/ability-resource-query.ts` 是只读注册/分发入口。workflow 注册当前费用、目标与有限登场条件收益，复用实际 resolver 的 activation query、selector 和条件，不在 AI adapter 复制卡号规则。`selectWaitingRoomTargetsAfterSourceCost` 只查询来源自送后可进入休息室的来源/下方成员与当前休息室，不支付、不排队、不试执行命令。
+
+当前覆盖自送回手、付能回手、原槽登场三族，以及费用 15「安养寺姬芽」的同伴条件/回能上限/LIVE 回收。它不预测随机牌、其他诱发或完整多步收益；未知能力不返回虚假的零收益。服务端 AI 投影再按玩家当前可见对象过滤；查询结果不会改变命令合法性，也不写入权威状态。新增查询须验证无状态/随机源变化，以及当前事实与实际命令结果一致，参考 `tests/integration/ai-battle-planning.test.ts`。
+
 ## Runtime Action
 
 Target location:

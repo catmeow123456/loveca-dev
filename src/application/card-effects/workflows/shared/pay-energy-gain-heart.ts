@@ -21,6 +21,7 @@ import {
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
+import { queryOptionSelection } from '../../runtime/selection-query.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
@@ -120,10 +121,14 @@ export function registerPayEnergyGainHeartWorkflowHandlers(): void {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
       startPayEnergyGainHeartWorkflow(game, ability, config, options.orderedResolution === true)
     );
-    registerActiveEffectStepHandler(config.abilityId, config.payStepId, (game, input, context) =>
-      input.selectedOptionId === 'pay'
-        ? payEnergyForHeartWorkflow(game, config, context.continuePendingCardEffects)
-        : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.payStepId,
+      (game, input, context) =>
+        input.selectedOptionId === 'pay'
+          ? payEnergyForHeartWorkflow(game, config, context.continuePendingCardEffects)
+          : finishSkippedActiveEffect(game, context.continuePendingCardEffects),
+      queryOptionSelection
     );
     if (isChooseHeartWorkflowConfig(config)) {
       const chooseHeartConfig = config;
@@ -136,7 +141,8 @@ export function registerPayEnergyGainHeartWorkflowHandlers(): void {
             chooseHeartConfig,
             input.selectedOptionId ?? null,
             context.continuePendingCardEffects
-          )
+          ),
+        queryOptionSelection
       );
     }
   }

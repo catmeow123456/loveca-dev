@@ -29,10 +29,13 @@ flowchart LR
 
 ## 3. 持久化与原子保存
 
+同一行的 Base URL / Key 现供卡效提取与 AI 对战共用，继续沿用原表、密文 AAD 和配置路由；不复制凭据或增加配置单例。服务的 `getUpstreamConfiguration()` 只向服务端调用方返回校验后的 URL/Key，启用开关和模型仍属于提取。AI 对战开局冻结与逐请求出站校验见 [运行与观测说明](../ai-battle/runtime-and-observation.md)。
+
 - `ai_effect_extraction_config` 是 `id='default'` 的单例行，保存 revision、启用状态、Base URL、Model ID、API Key 密文和更新人。
 - `ai_effect_extraction_audit_logs` 追加保存前后 revision、管理员和不含秘密的变更摘要。
 - `PUT /api/ai-effect-extraction/admin/config` 在事务中锁定单例行，比较 `expectedRevision`，更新配置并追加审计；任一步失败即回滚。
 - Key 操作是 `KEEP | REPLACE | CLEAR` 判别联合。`REPLACE` 使用 AES-256-GCM、随机 96 位 IV、认证标签和固定 AAD 形成版本化密文 envelope；服务端不返回 envelope。
+- 配置页只展示上游地址、Key 输入框、卡效提取模型与开关，以及测试和保存操作。Key 默认遮挡，眼睛图标只切换新输入内容的可见性，清除图标标记保存时清除；未编辑 Key 时发送 `KEEP`，浏览器不取回既有 Key。部署缺项和操作错误按需显示。
 
 ## 4. API
 

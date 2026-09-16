@@ -15,6 +15,7 @@ import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryOptionSelection } from '../../runtime/selection-query.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 const LIVE_START_SUCCESS_COUNT_CHOOSE_HEART_STEP_ID = 'LIVE_START_SUCCESS_COUNT_CHOOSE_HEART';
@@ -69,7 +70,8 @@ export function registerLiveStartSuccessCountChooseHeartWorkflowHandlers(): void
           game,
           input.selectedOptionId ?? null,
           context.continuePendingCardEffects
-        )
+        ),
+      queryOptionSelection
     );
   }
 }

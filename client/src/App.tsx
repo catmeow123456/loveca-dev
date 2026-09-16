@@ -179,6 +179,11 @@ const AdminCenterPage = lazy(() =>
     default: module.AdminCenterPage,
   }))
 );
+const AiBattleAdminPage = lazy(() =>
+  import('@/components/admin/AiBattleAdminPage').then((module) => ({
+    default: module.AiBattleAdminPage,
+  }))
+);
 const AiEffectExtractionAdminPage = lazy(() =>
   import('@/components/admin/AiEffectExtractionAdminPage').then((module) => ({
     default: module.AiEffectExtractionAdminPage,
@@ -225,6 +230,7 @@ type AppPage =
   | 'card-admin'
   | 'card-sync-admin'
   | 'ai-effect-admin'
+  | 'ai-battle-admin'
   | 'online-admin'
   | 'announcement-admin'
   | 'ranked-admin'
@@ -315,6 +321,7 @@ function getInitialPage(): AppPage {
     page === 'card-admin' ||
     page === 'card-sync-admin' ||
     page === 'ai-effect-admin' ||
+    page === 'ai-battle-admin' ||
     page === 'online-admin' ||
     page === 'announcement-admin' ||
     page === 'ranked-admin' ||
@@ -528,6 +535,7 @@ function App() {
   const [isRestartingCurrentGame, setIsRestartingCurrentGame] = useState(false);
   const [isOnlineRoomImmersive, setIsOnlineRoomImmersive] = useState(false);
   const [isOnlineDebugImmersive, setIsOnlineDebugImmersive] = useState(false);
+  const [isAiBattleImmersive, setIsAiBattleImmersive] = useState(false);
   const gameBriefingKeyRef = useRef<string | null>(null);
   const solitaireRestoreAttemptedRef = useRef(false);
 
@@ -1409,6 +1417,7 @@ function App() {
         onOpenCards={() => setCurrentPage('card-admin')}
         onOpenCardSync={() => setCurrentPage('card-sync-admin')}
         onOpenAiExtraction={() => setCurrentPage('ai-effect-admin')}
+        onOpenAiBattle={() => setCurrentPage('ai-battle-admin')}
         onOpenDeckPoints={() => setCurrentPage('deck-point-admin')}
         onOpenOnlineRooms={() => setCurrentPage('online-admin')}
         onOpenPlatformOperations={() => setCurrentPage('platform-operations-admin')}
@@ -1420,6 +1429,22 @@ function App() {
         onBattleEntryVisibilityChanged={refreshAppConfig}
       />,
       null
+    );
+  }
+
+  // AI 调试继续复用共享真人牌桌，外层页面负责创建与观察。
+  if (
+    effectivePage === 'ai-battle-admin' &&
+    profile &&
+    hasPermission(profile.role, 'rules.manage')
+  ) {
+    return withProductFrame(
+      <AiBattleAdminPage
+        onBack={() => setCurrentPage('admin-center')}
+        onImmersiveModeChange={setIsAiBattleImmersive}
+      />,
+      null,
+      isAiBattleImmersive
     );
   }
 
@@ -1597,6 +1622,7 @@ function App() {
         onNavigateToMatchRecords={() => setCurrentPage('match-records')}
         onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
         onNavigateToAdminCenter={() => setCurrentPage('admin-center')}
+        onNavigateToAiBattle={() => setCurrentPage('ai-battle-admin')}
         onNavigateToTutorial={openTutorial}
         battleEntryVisibility={appConfig.features.battleEntries}
         siteStatus={appConfig.siteStatus}

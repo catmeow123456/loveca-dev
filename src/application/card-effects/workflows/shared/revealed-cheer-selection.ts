@@ -1,3 +1,4 @@
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -316,15 +317,19 @@ export function registerRevealedCheerSelectionWorkflowHandlers(
         continuePendingCardEffects: context.continuePendingCardEffects,
       })
     );
-    registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input) =>
-      finishRevealedCheerSelectionWorkflow(
-        game,
-        config,
-        isMultiSelectRevealedCheerConfig(config)
-          ? (input.selectedCardIds ?? [])
-          : (input.selectedCardId ?? null),
-        dependencies.continuePendingCardEffects
-      )
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.stepId,
+      (game, input) =>
+        finishRevealedCheerSelectionWorkflow(
+          game,
+          config,
+          isMultiSelectRevealedCheerConfig(config)
+            ? (input.selectedCardIds ?? [])
+            : (input.selectedCardId ?? null),
+          dependencies.continuePendingCardEffects
+        ),
+      queryCardSelection
     );
   }
 }
@@ -583,9 +588,9 @@ function finishRevealedCheerSelectionWorkflow(
   const selectedCardIds =
     selectedCardIdOrIds === null
       ? []
-      : Array.isArray(selectedCardIdOrIds)
-        ? selectedCardIdOrIds
-        : [selectedCardIdOrIds];
+      : typeof selectedCardIdOrIds === 'string'
+        ? [selectedCardIdOrIds]
+        : selectedCardIdOrIds;
   const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
   const minCount =
     effect.selectableCardMode === 'ORDERED_MULTI' ? (effect.minSelectableCards ?? 0) : 0;

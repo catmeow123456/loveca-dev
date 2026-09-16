@@ -1,0 +1,54 @@
+{
+  "rules": "assets/ai-battle/rules.md",
+  "tutorial": "assets/ai-battle/tutorial.md",
+  "presets": [
+    {
+      "id": "muse-starter",
+      "name": "μ's 原始预组",
+      "deckPath": "assets/decks/缪预组.yaml",
+      "deckSha256": "4a085d4710ec06b4a5046a8a8dc48bd5ff66aeb88fcbe1222ee1f52b737133cf",
+      "defaultHandbookId": "muse-balanced",
+      "handbooks": [
+        {
+          "id": "muse-balanced",
+          "name": "均衡发展",
+          "path": "assets/ai-battle/handbooks/muse-balanced.md"
+        },
+        {
+          "id": "muse-tempo",
+          "name": "积极争取 LIVE",
+          "path": "assets/ai-battle/handbooks/muse-tempo.md"
+        }
+      ]
+    },
+    {
+      "id": "green-hasunosora-bp6",
+      "name": "绿莲 · 6弹ver",
+      "deckPath": "assets/decks/绿莲-6弹ver.yaml",
+      "deckSha256": "8bd34fe220c73043a30434276749f64ac2acca6ef1b83048aca59612cb4764bd",
+      "defaultHandbookId": "green-hasunosora-recovery",
+      "handbooks": [
+        {
+          "id": "green-hasunosora-recovery",
+          "name": "回收与舞台发展",
+          "path": "assets/ai-battle/handbooks/green-hasunosora-recovery.md"
+        }
+      ]
+    },
+    {
+      "id": "blue-purple-nijigasaki",
+      "name": "蓝紫",
+      "aiOnly": true,
+      "deckPath": "assets/decks/蓝紫.yaml",
+      "deckSha256": "040ba2258970d6804146985605088c926f12898d9a22736ec4164ff46c2d077e",
+      "defaultHandbookId": "blue-purple-nijigasaki-tempo",
+      "handbooks": [
+        {
+          "id": "blue-purple-nijigasaki-tempo",
+          "name": "蓝紫节奏与回收",
+          "path": "assets/ai-battle/handbooks/blue-purple-nijigasaki-tempo.md"
+        }
+      ]
+    }
+  ]
+}

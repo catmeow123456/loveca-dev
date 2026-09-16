@@ -1,3 +1,4 @@
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   addAction,
   getPlayerById,
@@ -55,7 +56,8 @@ export function registerHsPb1004GinkoWorkflowHandlers(deps: {
             context.continuePendingCardEffects,
             deps.enqueueTriggeredCardEffects
           )
-        : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+        : finishSkippedActiveEffect(game, context.continuePendingCardEffects),
+    queryCardSelection
   );
   registerActiveEffectStepHandler(
     HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
@@ -66,7 +68,8 @@ export function registerHsPb1004GinkoWorkflowHandlers(deps: {
         input.selectedCardId ?? null,
         input.selectedCardIds,
         context.continuePendingCardEffects
-      )
+      ),
+    queryCardSelection
   );
 }
 

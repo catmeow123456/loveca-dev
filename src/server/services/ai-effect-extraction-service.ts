@@ -93,10 +93,13 @@ export interface AiEffectExtractionTestResult {
   readonly latencyMs: number;
 }
 
-interface EffectiveAiConfiguration {
+export interface AiUpstreamConfiguration {
   readonly baseUrl: string;
-  readonly modelId: string;
   readonly apiKey: string;
+}
+
+interface EffectiveAiConfiguration extends AiUpstreamConfiguration {
+  readonly modelId: string;
 }
 
 interface AiEffectExtractionServiceDependencies {
@@ -145,6 +148,21 @@ export class AiEffectExtractionService {
 
   async getAdminConfig(): Promise<AdminAiEffectExtractionConfig> {
     return this.toAdminView(await this.readConfig(this.database));
+  }
+
+  /** Server-only credentials shared by extraction and AI battles; extraction's toggle/model stay local to extraction. */
+  async getUpstreamConfiguration(): Promise<AiUpstreamConfiguration> {
+    return this.resolveUpstreamConfiguration(await this.readConfig(this.database));
+  }
+
+  private async resolveUpstreamConfiguration(row: ConfigRow): Promise<AiUpstreamConfiguration> {
+    this.assertDeploymentReady();
+    if (!row.encrypted_api_key) {
+      throw serviceError('AI_EFFECT_CONFIG_KEY_REQUIRED', '平台 AI 配置没有可用的 API Key', 503);
+    }
+    const upstream = { baseUrl: row.base_url, apiKey: this.decryptApiKey(row.encrypted_api_key) };
+    await this.validateOutboundUrl(upstream.baseUrl);
+    return Object.freeze(upstream);
   }
 
   async saveConfig(
@@ -261,16 +279,10 @@ export class AiEffectExtractionService {
     if (!row.enabled) {
       throw serviceError('AI_EFFECT_EXTRACTION_DISABLED', 'AI 效果提取当前未启用', 409);
     }
-    this.assertDeploymentReady();
-    if (!row.encrypted_api_key) {
-      throw serviceError('AI_EFFECT_CONFIG_KEY_REQUIRED', 'AI 提取服务没有可用的 API Key', 503);
-    }
     const effective = {
-      baseUrl: row.base_url,
+      ...(await this.resolveUpstreamConfiguration(row)),
       modelId: row.model_id,
-      apiKey: this.decryptApiKey(row.encrypted_api_key),
     };
-    await this.validateOutboundUrl(effective.baseUrl);
 
     const cardResult = await this.database.query<CardImageRow>(
       'SELECT card_code, image_filename FROM cards WHERE card_code = $1',
@@ -444,7 +456,8 @@ export class AiEffectExtractionService {
     }
   }
 
-  private async validateOutboundUrl(value: string): Promise<URL> {
+  /** Recheck the deployment allowlist and DNS before each outbound call, including a frozen battle. */
+  async validateOutboundUrl(value: string): Promise<URL> {
     this.assertDeploymentReady();
     let parsed: URL;
     try {

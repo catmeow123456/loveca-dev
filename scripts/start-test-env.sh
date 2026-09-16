@@ -578,7 +578,9 @@ NODE
 }
 
 api_command() {
-  printf 'cd %q && env PORT=%q NODE_ENV=%q DATABASE_URL=%q JWT_SECRET=%q JWT_REFRESH_SECRET=%q MINIO_ENDPOINT=%q MINIO_PORT=%q MINIO_ACCESS_KEY=%q MINIO_SECRET_KEY=%q MINIO_BUCKET=%q MINIO_USE_SSL=%q AI_EFFECT_EXTRACTION_ENCRYPTION_KEY=%q AI_EFFECT_EXTRACTION_ALLOWED_HOSTS=%q FRONTEND_URL=%q PUBLIC_SITE_STATUS_SNAPSHOT_PATH=%q node --watch dist/server/index.js' \
+  # Read optional server settings (including AI_BATTLE_*) without embedding their secrets
+  # in the tmux launch command. Explicit test-environment overrides still take precedence.
+  printf 'cd %q && env PORT=%q NODE_ENV=%q DATABASE_URL=%q JWT_SECRET=%q JWT_REFRESH_SECRET=%q MINIO_ENDPOINT=%q MINIO_PORT=%q MINIO_ACCESS_KEY=%q MINIO_SECRET_KEY=%q MINIO_BUCKET=%q MINIO_USE_SSL=%q AI_EFFECT_EXTRACTION_ENCRYPTION_KEY=%q AI_EFFECT_EXTRACTION_ALLOWED_HOSTS=%q FRONTEND_URL=%q PUBLIC_SITE_STATUS_SNAPSHOT_PATH=%q node --env-file-if-exists=.env --watch dist/server/index.js' \
     "$ROOT_DIR" \
     "$PORT" \
     "$NODE_ENV" \
