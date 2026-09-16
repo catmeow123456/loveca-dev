@@ -8,11 +8,23 @@ import type {
   AiTraceListing,
   AiTraceMaterial,
 } from '@game/online/ai-battle-observation-types';
-import { fetchAiDecision, fetchAiDecisions, exportAiBattle } from '@/lib/aiBattleClient';
+import {
+  fetchAiDecision,
+  fetchAiDecisions,
+  exportAiBattle,
+  exportAiArchive,
+} from '@/lib/aiBattleClient';
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import './ai-battle.css';
 import { AiBillingCost } from './AiBillingCost';
+
+const archiveFailures = {
+  FILE_LIMIT: '达到单局文件上限',
+  QUEUE_LIMIT: '磁盘写入积压',
+  WRITE_FAILED: '磁盘写入失败',
+  CAPTURE_FAILED: '材料采集失败',
+} as const;
 
 const purposes: Readonly<Record<string, string>> = {
   MULLIGAN: '换牌',
@@ -133,7 +145,12 @@ export function AiBattleObservationPanel({
         try {
           const next = await fetchAiDecisions(matchId, controller.signal);
           if (!controller.signal.aborted) {
-            setListing((old) => (old?.revision === next.revision ? old : next));
+            setListing((old) =>
+              old?.revision === next.revision &&
+              JSON.stringify(old?.archive) === JSON.stringify(next.archive)
+                ? old
+                : next
+            );
             setListError(null);
           }
         } catch (error) {
@@ -184,11 +201,14 @@ export function AiBattleObservationPanel({
       listing.discardedLateUpdates +
       listing.captureFailures >
       0;
-  const exportSession = async () => {
+  const exportSession = async (archive = false) => {
     setIsExporting(true);
     setNotice(null);
     try {
-      saveAs(await exportAiBattle(matchId), `loveca-ai-${matchId}.json`);
+      saveAs(
+        archive ? await exportAiArchive(matchId) : await exportAiBattle(matchId),
+        `loveca-ai-${matchId}.${archive ? 'jsonl' : 'json'}`
+      );
     } catch (error) {
       setNotice(message(error));
     } finally {
@@ -233,8 +253,19 @@ export function AiBattleObservationPanel({
               disabled={isExporting}
             >
               <ArrowDownToLine size={15} />
-              导出会话
+              导出当前缓存
             </button>
+            {listing?.archive && (
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={isExporting}
+                onClick={() => void exportSession(true)}
+              >
+                <ArrowDownToLine size={15} />
+                {listing.archive.state === 'FAILED' ? '导出已有归档（不完整）' : '导出完整归档'}
+              </button>
+            )}
             <button
               ref={closeRef}
               type="button"
@@ -256,11 +287,23 @@ export function AiBattleObservationPanel({
             {notice}
           </p>
         )}
+        {listing?.archive && (
+          <p className="ai-notice" role="status">
+            {listing.archive.state === 'FAILED'
+              ? `本地归档已停止，记录不完整（${listing.archive.failure ? archiveFailures[listing.archive.failure] : '原因未知'}）；对局继续运行。`
+              : listing.archive.state === 'ENDED'
+                ? '本地归档已记录对局结束。'
+                : '本地完整归档正在记录，内存淘汰不影响已归档内容。'}{' '}
+            已写入 {(listing.archive.writtenBytes / 1024 / 1024).toFixed(1)} MiB， 上限{' '}
+            {Math.round(listing.archive.maxBytes / 1024 / 1024)} MiB。
+            {listing.archive.queuedBytes > 0 && ' 尚有待写入材料，导出时会等待写入。'}
+          </p>
+        )}
         {incomplete && (
           <p className="ai-notice">
             已淘汰 {listing.evictedDecisions} 项；未保存 {listing.omittedDecisions} 项；丢弃迟到更新{' '}
             {listing.discardedLateUpdates} 次；采集失败 {listing.captureFailures}{' '}
-            次。导出仅包含当前保留材料。
+            次。“导出当前缓存”仅包含当前保留材料。
           </p>
         )}
         <div className="ai-observation-columns">

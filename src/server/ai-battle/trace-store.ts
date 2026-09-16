@@ -1,3 +1,4 @@
+import type { LocalAiArchive } from './local-archive.js';
 import { createHash } from 'node:crypto';
 import type {
   AiTraceDecision,
@@ -44,6 +45,7 @@ interface StoredDecision {
   readonly pendingSince: Map<number, number>;
 }
 interface TraceSession {
+  readonly archive?: LocalAiArchive;
   matchBilling: AiMatchBilling | null;
   readonly matchId: string;
   readonly decisions: Map<string, StoredDecision>;
@@ -104,7 +106,11 @@ export class AiBattleTraceStore {
     };
   }
 
-  open(matchId: string, sources: readonly AiKnowledgeMaterial[]): boolean {
+  open(
+    matchId: string,
+    sources: readonly AiKnowledgeMaterial[],
+    archive?: LocalAiArchive
+  ): boolean {
     this.cleanup();
     if (
       this.sessions.has(matchId) ||
@@ -120,6 +126,7 @@ export class AiBattleTraceStore {
     )
       return false;
     const session: TraceSession = {
+      archive,
       matchBilling: null,
       matchId,
       decisions: new Map(),
@@ -135,6 +142,7 @@ export class AiBattleTraceStore {
       nextMaterial: 0,
     };
     this.sessions.set(matchId, session);
+    archive?.record('SOURCES', { sources });
     this.reserve(session, SESSION_RESERVATION);
     for (const source of sources) {
       this.reserve(session, MATERIAL_RESERVATION);
@@ -150,6 +158,7 @@ export class AiBattleTraceStore {
   begin(matchId: string, identity: AiTraceIdentity): void {
     const session = this.retained(matchId);
     if (!session) return;
+    session.archive?.record('BEGIN', { identity });
     this.capture(session, () => {
       if (session.decisions.has(identity.id)) return;
       if (!this.makeRoom(session, DECISION_RESERVATION, true)) {
@@ -192,6 +201,7 @@ export class AiBattleTraceStore {
   ): void {
     const session = this.retained(matchId);
     if (!session) return;
+    session.archive?.record('APPEND', { decisionId, stage, payload, options });
     this.capture(session, () => {
       const record = session.decisions.get(decisionId);
       if (!record) {
@@ -267,6 +277,7 @@ export class AiBattleTraceStore {
   ): void {
     const session = this.retained(matchId);
     if (!session) return;
+    session.archive?.record('BILLING', { billing, decisionId, delta });
     session.matchBilling = globalThis.structuredClone(billing);
     const record = decisionId === undefined ? undefined : session.decisions.get(decisionId);
     if (record && delta) {
@@ -287,6 +298,7 @@ export class AiBattleTraceStore {
     const session = this.retained(matchId);
     if (!session || session.endedAt !== null) return;
     session.endedAt = endedAt;
+    session.archive?.markEnded(endedAt);
     session.revision++;
   }
 
@@ -327,6 +339,7 @@ export class AiBattleTraceStore {
   cleanup(): void {
     for (const [id, session] of this.sessions) {
       if (session.endedAt !== null && this.now() - session.endedAt >= this.limits.endedTtlMs) {
+        void session.archive?.close();
         this.bytes -= session.bytes;
         this.sessions.delete(id);
       }
@@ -340,6 +353,7 @@ export class AiBattleTraceStore {
   reportCaptureFailure(matchId: string): void {
     const session = this.sessions.get(matchId);
     if (session) {
+      session.archive?.reportCaptureFailure();
       session.captureFailures++;
       session.revision++;
     }
@@ -355,6 +369,7 @@ export class AiBattleTraceStore {
 
   private listing(session: TraceSession): AiTraceListing {
     return {
+      ...(session.archive ? { archive: session.archive.status() } : {}),
       matchBilling: session.matchBilling,
       revision: session.revision,
       endedAt: session.endedAt,

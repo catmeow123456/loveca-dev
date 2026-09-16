@@ -1,3 +1,6 @@
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { readLocalArchiveConfig } from '../ai-battle/local-archive.js';
 import { readLocalCodexConfig, isLocalCodexRequest } from '../ai-battle/local-codex-config.js';
 import { Router, type ErrorRequestHandler } from 'express';
 import { z } from 'zod';
@@ -23,6 +26,7 @@ const createSchema = z
     model: z.enum(AI_BATTLE_MODELS),
     reasoningEffort: z.enum(CODEX_AI_REASONING_EFFORTS).optional(),
     enableThinking: z.boolean(),
+    archiveEnabled: z.boolean().optional(),
   })
   .strict();
 const seqSchema = z.coerce.number().int().min(0).optional();
@@ -35,7 +39,7 @@ export function createAiBattleRouter(service: AiBattleService): Router {
   router.use(privateNoStore, requireAuth, requirePermission('rules.manage'));
   router.use((req, res, next) => {
     try {
-      const local = readLocalCodexConfig();
+      const local = readLocalCodexConfig() ?? readLocalArchiveConfig();
       if (
         local &&
         !isLocalCodexRequest(local, {
@@ -48,11 +52,18 @@ export function createAiBattleRouter(service: AiBattleService): Router {
       ) {
         res.status(403).json({
           data: null,
-          error: { code: 'AI_LOCAL_ONLY', message: 'Codex 测试仅允许本机页面和本机连接' },
+          error: { code: 'AI_LOCAL_ONLY', message: '本地 AI 测试仅允许本机页面和本机连接' },
         });
         return;
       }
       next();
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.get('/local-options', (_req, res, next) => {
+    try {
+      res.json({ data: service.localOptions(), error: null });
     } catch (error) {
       next(error);
     }
@@ -118,6 +129,28 @@ export function createAiBattleRouter(service: AiBattleService): Router {
       });
     } catch (error) {
       next(error);
+    }
+  });
+  router.get('/sessions/:matchId/archive', async (req, res, next) => {
+    try {
+      const snapshot = await service.exportArchive(req.user!.id, req.params.matchId);
+      res.attachment(`loveca-ai-${encodeURIComponent(req.params.matchId)}.jsonl`);
+      res.type('application/x-ndjson');
+      res.setHeader('Content-Length', Buffer.byteLength(snapshot.manifest) + snapshot.bytes);
+      const body = Readable.from(
+        (async function* () {
+          yield snapshot.manifest;
+          if (snapshot.stream) yield* snapshot.stream;
+        })()
+      );
+      try {
+        await pipeline(body, res);
+      } finally {
+        snapshot.stream?.destroy();
+      }
+    } catch (error) {
+      if (res.headersSent) res.destroy();
+      else next(error);
     }
   });
   router.get('/sessions/:matchId/export', (req, res, next) => {

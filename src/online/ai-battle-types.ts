@@ -27,6 +27,8 @@ export interface CreateAiBattleInput extends AiBattlePresetInput {
   /** Local Codex only; omitted requests use the server default. Frozen per game. */
   readonly reasoningEffort?: CodexAiReasoningEffort;
   readonly enableThinking: boolean;
+  /** Opt-in local disk archive, frozen at creation; unavailable in production. */
+  readonly archiveEnabled?: boolean;
 }
 
 export interface AiBattleSessionView extends CreateAiBattleInput {

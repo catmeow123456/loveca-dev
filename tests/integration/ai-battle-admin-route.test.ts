@@ -1,3 +1,7 @@
+import { AiBattleTraceStore } from '../../src/server/ai-battle/trace-store';
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { AiBattleModelClient } from '../../src/server/ai-battle/driver';
 import {
   API_AI_BATTLE_MODELS,
@@ -34,6 +38,7 @@ import { createAiBattleRouter } from '../../src/server/routes/ai-battle';
 import { onlineRouter } from '../../src/server/routes/online';
 import type { AiBattleSessionView } from '../../src/server/services/ai-battle-service';
 
+const archiveDirs: string[] = [];
 const servers: ReturnType<express.Express['listen']>[] = [];
 const input = {
   model: 'qwen3.8-max' as const,
@@ -53,6 +58,7 @@ const material = {
 
 function createService(models: readonly AiBattleModel[] = API_AI_BATTLE_MODELS) {
   const billing = createMemoryAiBilling();
+  const traces = new AiBattleTraceStore();
   const matches = new OnlineMatchService({ recorder: null });
   const createModel = vi.fn((): Promise<AiBattleModelClient> =>
     Promise.resolve({ decide: () => Promise.resolve({ kind: 'RESPONSE' as const, text: '{}' }) })
@@ -66,6 +72,8 @@ function createService(models: readonly AiBattleModel[] = API_AI_BATTLE_MODELS) 
     pointValidation: { pointTableVersion: 'test', pointTotal: 0, pointLimit: 9 },
   };
   const service = new AiBattleService({
+    now: () => Date.now(),
+    traces,
     availableModels: () => models,
     billingPersistence: billing.persistence,
     matchService: matches,
@@ -95,7 +103,7 @@ function createService(models: readonly AiBattleModel[] = API_AI_BATTLE_MODELS) 
         }),
     },
   });
-  return { service, matches, createModel, start, billing };
+  return { service, matches, createModel, start, billing, traces };
 }
 
 async function serverFixture(models?: readonly AiBattleModel[]) {
@@ -140,6 +148,7 @@ async function serverFixture(models?: readonly AiBattleModel[]) {
 }
 
 afterEach(async () => {
+  await Promise.all(archiveDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
   auth.roles.clear();
@@ -156,6 +165,135 @@ afterEach(async () => {
 });
 
 describe('AI administrator routes and ownership', () => {
+  it('keeps archival off by default and rejects forged enablement before model creation', async () => {
+    const f = await serverFixture();
+    auth.roles.set('owner', 'admin');
+    expect((await (await f.request('/ai/local-options', { userId: 'owner' })).json()).data).toEqual(
+      { archiveAvailable: false }
+    );
+    const response = await f.request('/ai/sessions', {
+      userId: 'owner',
+      body: { ...input, archiveEnabled: true },
+    });
+    expect(response.status).toBe(400);
+    expect(f.createModel).not.toHaveBeenCalled();
+  });
+
+  it('offers a per-game local archive toggle and streams only the owning administrator archive', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'loveca-route-archive-'));
+    archiveDirs.push(dir);
+    for (const [key, value] of Object.entries({
+      AI_BATTLE_LOCAL_ARCHIVE: '1',
+      AI_BATTLE_ARCHIVE_DIR: dir,
+      NODE_ENV: 'development',
+      API_HOST: '127.0.0.1',
+      DATABASE_URL: 'postgres://test:test@localhost/test',
+      FRONTEND_URL: 'http://localhost:5173',
+    }))
+      vi.stubEnv(key, value);
+    const f = await serverFixture();
+    auth.roles.set('owner', 'admin');
+    auth.roles.set('other', 'admin');
+    expect((await (await f.request('/ai/local-options', { userId: 'owner' })).json()).data).toEqual(
+      { archiveAvailable: true }
+    );
+    expect(
+      (
+        await f.request('/ai/local-options', {
+          userId: 'owner',
+          headers: { origin: 'https://remote.example' },
+        })
+      ).status
+    ).toBe(403);
+    const off = (
+      await (
+        await f.request('/ai/sessions', {
+          userId: 'owner',
+          body: { ...input, archiveEnabled: false },
+        })
+      ).json()
+    ).data.session.matchId;
+    expect(await readdir(dir)).toEqual([]);
+    expect((await f.request(`/ai/sessions/${off}/archive`, { userId: 'owner' })).status).toBe(404);
+    await f.service.end('owner', off);
+    const enabled = await f.request('/ai/sessions', {
+      userId: 'owner',
+      body: { ...input, archiveEnabled: true },
+    });
+    expect(enabled.status).toBe(201);
+    const id = (await enabled.json()).data.session.matchId;
+    expect(f.service.listDecisions('owner', id).archive?.state).toBe('RECORDING');
+    expect((await f.request(`/ai/sessions/${id}/archive`, { userId: 'other' })).status).toBe(404);
+    expect(
+      (
+        await f.request(`/ai/sessions/${id}/archive`, {
+          userId: 'owner',
+          headers: { 'x-forwarded-for': '192.168.1.2' },
+        })
+      ).status
+    ).toBe(403);
+    const full = '完整请求'.repeat(30000);
+    f.traces.begin(id, {
+      id: 'large',
+      revision: 1,
+      windowKey: 'MAIN',
+      seat: 'SECOND',
+      purpose: 'MAIN',
+    });
+    f.traces.append(id, 'large', 'REQUEST', { text: full }, { status: 'ACCEPTED' });
+    await f.service.end('owner', id);
+    const response = await f.request(`/ai/sessions/${id}/archive`, { userId: 'owner' });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-disposition')).toContain('.jsonl');
+    const raw = await response.text();
+    expect(Buffer.byteLength(raw)).toBe(Number(response.headers.get('content-length')));
+    const rows = raw
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    expect(rows[0]).toMatchObject({
+      kind: 'EXPORT',
+      payload: { completeThroughExport: true, status: { state: 'ENDED' } },
+    });
+    expect(rows.find((row) => row.kind === 'SOURCES').payload.sources).toHaveLength(4);
+    expect(rows.find((row) => row.kind === 'APPEND').payload.payload.text).toBe(full);
+    expect(rows.some((row) => row.kind === 'BILLING')).toBe(true);
+    expect(rows.at(-1).kind).toBe('END');
+    auth.roles.set('owner', 'user');
+    expect((await f.request(`/ai/sessions/${id}/archive`, { userId: 'owner' })).status).toBe(403);
+    // Ended HTTP metadata expires, but disk evidence is deliberately retained.
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 61 * 60 * 1000);
+    f.service.cleanup();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(await readdir(dir)).toHaveLength(1);
+  });
+
+  it('cleans up a failed archive creation without starting the driver', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'loveca-route-archive-'));
+    archiveDirs.push(dir);
+    const file = join(dir, 'not-a-directory');
+    await writeFile(file, 'unchanged');
+    for (const [key, value] of Object.entries({
+      AI_BATTLE_LOCAL_ARCHIVE: '1',
+      AI_BATTLE_ARCHIVE_DIR: file,
+      NODE_ENV: 'development',
+      API_HOST: '127.0.0.1',
+      DATABASE_URL: 'postgres://test:test@localhost/test',
+      FRONTEND_URL: 'http://localhost:5173',
+    }))
+      vi.stubEnv(key, value);
+    const f = await serverFixture();
+    auth.roles.set('owner', 'admin');
+    const response = await f.request('/ai/sessions', {
+      userId: 'owner',
+      body: { ...input, archiveEnabled: true },
+    });
+    expect(response.status).toBe(503);
+    expect((await response.json()).error.code).toBe('AI_ARCHIVE_OPEN_FAILED');
+    expect(f.start).not.toHaveBeenCalled();
+    expect(f.service.listSessions('owner')).toEqual([]);
+  });
+
   it('advertises only enabled models and rejects forged Codex selection before model creation', async () => {
     const f = await serverFixture();
     auth.roles.set('owner', 'admin');

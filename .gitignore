@@ -59,6 +59,7 @@ pnpm-debug.log*
 # Local AI battle validation artifacts (see docs/ai-battle/full-environment-validation.md)
 output/
 loveca-ai-*.json
+loveca-ai-*.jsonl
 
 # Private card data source files
 docs/card-data-sync/sources/

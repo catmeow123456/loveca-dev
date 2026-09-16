@@ -10,6 +10,7 @@ import {
   endAiBattle,
   fetchAiBattlePresets,
   fetchAiBattleModels,
+  fetchAiLocalOptions,
   fetchAiBattleSession,
   fetchAiBattleSessions,
   fetchAiBattleSnapshot,
@@ -49,6 +50,8 @@ export function AiBattleAdminPage({
   const [models, setModels] = useState<readonly AiBattleModel[]>(API_AI_BATTLE_MODELS);
   const [model, setModel] = useState<AiBattleModel>('qwen3.8-flash');
   const [reasoningEffort, setReasoningEffort] = useState<CodexAiReasoningEffort>('low');
+  const [archiveAvailable, setArchiveAvailable] = useState(false);
+  const [archiveEnabled, setArchiveEnabled] = useState(false);
   const [enableThinking, setEnableThinking] = useState(false);
   const [boardId, setBoardId] = useState<string | null>(null);
   const [observationId, setObservationId] = useState<string | null>(null);
@@ -84,10 +87,16 @@ export function AiBattleAdminPage({
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([fetchAiBattlePresets(), fetchAiBattleSessions(), fetchAiBattleModels()])
-      .then(([catalog, list, availableModels]) => {
+    void Promise.all([
+      fetchAiBattlePresets(),
+      fetchAiBattleSessions(),
+      fetchAiBattleModels(),
+      fetchAiLocalOptions(),
+    ])
+      .then(([catalog, list, availableModels, localOptions]) => {
         if (!cancelled) {
           setPresets(catalog);
+          setArchiveAvailable(localOptions.archiveAvailable);
           setModels(availableModels);
           if (availableModels.includes(DEFAULT_CODEX_AI_BATTLE_MODEL))
             setModel(DEFAULT_CODEX_AI_BATTLE_MODEL);
@@ -177,6 +186,7 @@ export function AiBattleAdminPage({
         handbookId: selectedHandbook.id,
         humanSeat,
         model,
+        ...(archiveAvailable ? { archiveEnabled } : {}),
         ...(isCodexAiBattleModel(model) ? { reasoningEffort } : {}),
         enableThinking: isCodexAiBattleModel(model) ? false : enableThinking,
       });
@@ -424,6 +434,23 @@ export function AiBattleAdminPage({
                     </small>
                   </div>
                 </>
+              )}
+              {archiveAvailable && (
+                <div>
+                  <label className="ai-thinking-choice">
+                    <input
+                      type="checkbox"
+                      checked={archiveEnabled}
+                      onChange={(event) => setArchiveEnabled(event.target.checked)}
+                      aria-describedby="ai-archive-help"
+                    />
+                    完整归档到本机
+                  </label>
+                  <small id="ai-archive-help">
+                    保存本局 AI 视角、模型请求与执行记录，方便完整复盘；不额外调用模型。
+                    仅对新局生效，文件保留在本机，需自行清理。
+                  </small>
+                </div>
               )}
               <div className="ai-deck-pair">
                 <label>

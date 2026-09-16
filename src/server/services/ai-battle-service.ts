@@ -1,3 +1,8 @@
+import {
+  LocalAiArchive,
+  readLocalArchiveConfig,
+  type LocalArchiveConfig,
+} from '../ai-battle/local-archive.js';
 import { randomUUID } from 'node:crypto';
 import type { GameCommand } from '../../application/game-commands.js';
 import type {
@@ -35,6 +40,7 @@ const MAX_RETAINED_AI_SESSIONS = 32;
 const ENDED_SESSION_TTL_MS = 60 * 60 * 1000;
 
 interface AiOwnedSession {
+  archive?: LocalAiArchive;
   readonly billing: AiBattleBilling;
   readonly codexBudget?: AiBattleSessionView['codexBudget'];
   readonly ownerUserId: string;
@@ -47,6 +53,7 @@ interface AiOwnedSession {
 }
 
 interface AiBattleServiceDeps {
+  readonly archiveConfig?: () => LocalArchiveConfig | null;
   readonly availableModels?: () => readonly AiBattleModel[];
   /** Validates and freezes model configuration before a match can be registered. */
   readonly createModel: (
@@ -93,6 +100,25 @@ export class AiBattleService {
     return this.deps.availableModels?.() ?? API_AI_BATTLE_MODELS;
   }
 
+  localOptions() {
+    return { archiveAvailable: Boolean(this.archiveConfig()) };
+  }
+
+  private archiveConfig() {
+    return (this.deps.archiveConfig ?? readLocalArchiveConfig)();
+  }
+
+  async exportArchive(userId: string, matchId: string) {
+    const entry = this.owned(userId, matchId);
+    if (!entry.archive)
+      throw new AiBattleSetupError(
+        'AI_ARCHIVE_NOT_ENABLED',
+        '本局未开启完整归档，无法补回历史',
+        404
+      );
+    return entry.archive.snapshot();
+  }
+
   listPresets() {
     return this.presets.list();
   }
@@ -122,6 +148,9 @@ export class AiBattleService {
         'Codex 使用思考强度选项，不使用 API 思考开关',
         400
       );
+    const archiveConfig = input.archiveEnabled ? this.archiveConfig() : null;
+    if (input.archiveEnabled && !archiveConfig)
+      throw new AiBattleSetupError('AI_LOCAL_ARCHIVE_DISABLED', '服务端未开启本地归档选项', 400);
     this.cleanup();
     const active = [...this.sessions.values()].filter((entry) => this.finishedAt(entry) === null);
     if (this.creatingOwners.has(userId) || active.some((entry) => entry.ownerUserId === userId))
@@ -215,15 +244,30 @@ export class AiBattleService {
       };
       this.sessions.set(match.matchId, entry);
       try {
+        if (archiveConfig) {
+          try {
+            entry.archive = await LocalAiArchive.create(archiveConfig, match.matchId);
+          } catch {
+            throw new AiBattleSetupError(
+              'AI_ARCHIVE_OPEN_FAILED',
+              '无法创建本地归档，请检查目录与磁盘权限',
+              503
+            );
+          }
+        }
         const knowledge = setup.knowledge;
         if (
-          !this.traces.open(match.matchId, [
-            knowledge.rules,
-            knowledge.tutorial,
-            knowledge.handbook,
-            knowledge.ownDeck,
-            ...(model.configurationMaterial ? [model.configurationMaterial] : []),
-          ])
+          !this.traces.open(
+            match.matchId,
+            [
+              knowledge.rules,
+              knowledge.tutorial,
+              knowledge.handbook,
+              knowledge.ownDeck,
+              ...(model.configurationMaterial ? [model.configurationMaterial] : []),
+            ],
+            entry.archive
+          )
         )
           throw new AiBattleSetupError(
             'AI_OBSERVATION_CAPACITY_FULL',
@@ -241,6 +285,7 @@ export class AiBattleService {
         });
         if (removed) {
           this.traces.end(match.matchId);
+          await entry.archive?.close();
           this.sessions.delete(match.matchId);
         } else {
           entry.stoppedReason = 'AI_CREATE_CLEANUP_FAILED';
@@ -346,7 +391,10 @@ export class AiBattleService {
         entry.stoppedReason ??= 'MATCH_RUNTIME_RELEASED';
         this.traces.end(id, entry.endedAt);
       }
-      if (this.expired(entry)) this.sessions.delete(id);
+      if (this.expired(entry)) {
+        void entry.archive?.close();
+        this.sessions.delete(id);
+      }
     }
     this.traces.cleanup();
   }

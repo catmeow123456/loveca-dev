@@ -24,7 +24,7 @@ export const CREATE_INPUT: CreateAiBattleInput = {
  * No business DB or upstream connection: all dependencies that read/write those are injected.
  * Route authorization is covered separately by ai-battle-admin-route.test.ts.
  */
-export async function aiBrowserFixture(page: Page) {
+export async function aiBrowserFixture(page: Page, archiveDirectory?: string) {
   Object.assign(process.env, {
     DATABASE_URL: 'postgresql://unused:unused@127.0.0.1:1/unused',
     JWT_SECRET: 'ai-ui-fixture',
@@ -54,6 +54,11 @@ export async function aiBrowserFixture(page: Page) {
   const traces = new AiBattleTraceStore();
   const state = { modelCalls: 0, writes: [] as string[], snapshots: 0, failNextEnd: false };
   const service = new AiBattleService({
+    now: () => Date.now(),
+    archiveConfig: () =>
+      archiveDirectory
+        ? { directory: archiveDirectory, frontendOrigin: 'http://localhost:5173' }
+        : null,
     billingPersistence: createMemoryAiBilling(OWNER).persistence,
     matchService: matches,
     traces,
@@ -173,6 +178,7 @@ export async function aiBrowserFixture(page: Page) {
     if (!path.startsWith('/api/admin/ai-battle')) return fulfill(route, null);
     if (request.method() !== 'GET') state.writes.push(path);
     try {
+      if (path.endsWith('/local-options')) return fulfill(route, service.localOptions());
       if (path.endsWith('/models')) return fulfill(route, service.listModels());
       if (path.endsWith('/presets')) return fulfill(route, await service.listPresets());
       if (path.endsWith('/sessions'))
@@ -228,6 +234,17 @@ export async function aiBrowserFixture(page: Page) {
             ? service.exportDecisions(OWNER, id, segments[7])
             : service.listDecisions(OWNER, id)
         );
+      if (operation === 'archive') {
+        const snapshot = await service.exportArchive(OWNER, id);
+        const chunks = [Buffer.from(snapshot.manifest)];
+        if (snapshot.stream)
+          for await (const chunk of snapshot.stream) chunks.push(Buffer.from(chunk));
+        return route.fulfill({
+          body: Buffer.concat(chunks),
+          contentType: 'application/x-ndjson',
+          headers: { 'content-disposition': 'attachment; filename=ai-fixture.jsonl' },
+        });
+      }
       if (operation === 'export')
         return route.fulfill({
           json: service.exportDecisions(OWNER, id),

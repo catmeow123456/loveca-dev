@@ -670,17 +670,21 @@
   }
   .ai-observation-header {
     padding: 14px;
-    align-items: flex-start;
+    flex-direction: column;
+    align-items: stretch;
   }
   .ai-observation-header h2 {
     font-size: 17px;
   }
   .ai-observation-header p {
-    max-width: 210px;
+    max-width: none;
   }
   .ai-observation-header .ai-actions {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 4px;
+  }
+  .ai-observation-header .button-icon {
+    margin-left: auto;
   }
   .ai-observation-header button {
     padding: 7px;

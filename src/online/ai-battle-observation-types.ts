@@ -1,5 +1,16 @@
 import type { AiBillingSummary, AiMatchBilling } from './ai-battle-billing-types.js';
 
+/** Local disk evidence only; this never changes model context or game state. */
+export interface AiLocalArchiveStatus {
+  readonly state: 'RECORDING' | 'ENDED' | 'FAILED';
+  readonly writtenBytes: number;
+  readonly queuedBytes: number;
+  readonly maxBytes: number;
+  readonly writtenRecords: number;
+  readonly droppedRecords: number;
+  readonly failure?: 'FILE_LIMIT' | 'QUEUE_LIMIT' | 'WRITE_FAILED' | 'CAPTURE_FAILED';
+}
+
 /** Administrator-only diagnostic DTOs. These never enter the normal player snapshot. */
 export interface AiTraceMaterial {
   readonly id: string;
@@ -44,6 +55,7 @@ export interface AiTraceDecision extends Omit<AiTraceDecisionSummary, 'submissio
 }
 
 export interface AiTraceListing {
+  readonly archive?: AiLocalArchiveStatus;
   readonly matchBilling: AiMatchBilling | null;
   readonly revision: number;
   readonly endedAt: number | null;

@@ -26,6 +26,8 @@ async function data<T>(request: Promise<ApiResponse<T>>): Promise<T> {
   return fromTransport<T>(response.data);
 }
 
+export const fetchAiLocalOptions = () =>
+  data(apiClient.get<{ archiveAvailable: boolean }>(`${ROOT}/local-options`));
 export const fetchAiBattleModels = () =>
   data(apiClient.get<readonly AiBattleModel[]>(`${ROOT}/models`));
 export const fetchAiBattlePresets = () =>
@@ -75,5 +77,11 @@ export const fetchAiDecision = (id: string, decisionId: string, signal?: AbortSi
 export async function exportAiBattle(id: string): Promise<Blob> {
   const response = await apiClient.getBlob(`${sessionPath(id)}/export`);
   if (!response.data) throw toApiClientError(response, '导出 AI 调试材料失败');
+  return response.data;
+}
+
+export async function exportAiArchive(id: string): Promise<Blob> {
+  const response = await apiClient.getBlob(`${sessionPath(id)}/archive`);
+  if (!response.data) throw toApiClientError(response, '导出本地完整归档失败');
   return response.data;
 }

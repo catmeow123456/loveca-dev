@@ -1,11 +1,95 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import { aiBrowserFixture, CREATE_INPUT } from './ai-battle-fixture';
 
 test.describe('AI 管理员共享牌桌与只读观察', () => {
   test.beforeEach(({ browser }, info) => {
     void browser;
     test.skip(info.project.name !== 'tablet-1024x768', '本文件显式覆盖宽屏与紧凑视口');
+  });
+
+  test('本地完整归档：默认关闭、逐局选择、缓存淘汰后下载及失败提示', async ({ page }) => {
+    const dir = await mkdtemp(join(tmpdir(), 'loveca-ui-archive-'));
+    const f = await aiBrowserFixture(page, dir);
+    try {
+      await page.setViewportSize({ width: 1600, height: 900 });
+      await page.goto('/?page=ai-battle-admin');
+      const toggle = page.getByRole('checkbox', { name: '完整归档到本机', exact: true });
+      await expect(toggle).not.toBeChecked();
+      await toggle.check();
+      await toggle.uncheck();
+      await toggle.check();
+      await page.screenshot({ path: '../output/playwright/ai-battle/archive-setup-1600.png' });
+      await page.getByRole('button', { name: '创建调试对局', exact: true }).click();
+      await expect.poll(() => f.service.listSessions(f.owner).length).toBe(1);
+      const id = f.service.listSessions(f.owner)[0]!.matchId;
+      expect(f.service.getSession(f.owner, id).archiveEnabled).toBe(true);
+      const full = '完整材料'.repeat(30000);
+      for (let i = 0; i < 130; i++) {
+        f.traces.begin(id, {
+          id: `archive-${i}`,
+          revision: i,
+          windowKey: 'TEST',
+          seat: 'SECOND',
+          purpose: 'MAIN',
+        });
+        f.traces.append(
+          id,
+          `archive-${i}`,
+          'SAMPLE',
+          { text: i === 0 ? full : 'test' },
+          { status: 'ACCEPTED' }
+        );
+      }
+      await page.getByRole('button', { name: '观察', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'AI 决定观察', exact: true });
+      await expect(dialog).toContainText('本地完整归档正在记录');
+      const downloadPromise = page.waitForEvent('download');
+      await dialog.getByRole('button', { name: '导出完整归档', exact: true }).click();
+      const download = await downloadPromise;
+      expect(download.suggestedFilename()).toContain('.jsonl');
+      const rows = (await readFile((await download.path())!, 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line));
+      expect(rows[0].payload.completeThroughExport).toBe(true);
+      expect(
+        rows.find((row) => row.kind === 'APPEND' && row.payload.decisionId === 'archive-0').payload
+          .payload.text
+      ).toBe(full);
+      expect(f.service.listDecisions(f.owner, id).evictedDecisions).toBeGreaterThan(0);
+      await page.screenshot({
+        path: '../output/playwright/ai-battle/archive-observation-1600.png',
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expect(dialog.getByRole('button', { name: '导出完整归档', exact: true })).toBeVisible();
+      await page.screenshot({ path: '../output/playwright/ai-battle/archive-observation-390.png' });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true
+      );
+      f.traces.reportCaptureFailure(id);
+      await expect(dialog).toContainText('记录不完整');
+      await expect(
+        dialog.getByRole('button', { name: '导出已有归档（不完整）', exact: true })
+      ).toBeVisible();
+      await page.screenshot({ path: '../output/playwright/ai-battle/archive-failed-390.png' });
+      const closeBounds = await dialog
+        .getByRole('button', { name: '关闭决定观察', exact: true })
+        .boundingBox();
+      expect(closeBounds).not.toBeNull();
+      expect(closeBounds!.x + closeBounds!.width).toBeLessThanOrEqual(390);
+      expect(f.state.modelCalls).toBe(0);
+    } finally {
+      await f.close();
+      const originalNow = Date.now;
+      Date.now = () => originalNow() + 61 * 60 * 1000;
+      f.service.cleanup();
+      Date.now = originalNow;
+      await new Promise((resolve) => setImmediate(resolve));
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   for (const theme of ['light', 'dark'] as const) {

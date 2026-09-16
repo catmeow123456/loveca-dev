@@ -92,6 +92,18 @@ MAIN 的普通登场选项按同一张手牌实例归入 `space.memberPlays`，�
 
 `SAMPLE`、模型输出/校验、失败、准备的机械/兜底选择、等待、`SUBMIT`、`AUTHORITY_RESULT` 与结束状态分别记录。实际命令带既有 command record 引用。记录追加异常不重复执行命令。HTTP 元数据和原始正文分开采集，因此正文达到观测上限时，仍可区分上游长度截断、HTTP 读取上限、观测容量裁剪与 UI 折叠。凭据字段、错误中反射的实际 Key、URL/JSON 编码和读取边缘的 Key 前缀均在采集时脱敏；不保存 Authorization 请求头。
 
+## 可选的本地完整归档
+
+`AI_BATTLE_LOCAL_ARCHIVE=1` 与 `AI_BATTLE_ARCHIVE_DIR=/仓库外/绝对目录` 只提供本机归档能力；建局表单的“完整归档到本机”默认不选，按局冻结。该能力独立于模型供应方，本地 Codex 和 API 模型均可使用。必须同时满足 development、回环 API_HOST、本机数据库、本机 HTTP FRONTEND_URL 及回环请求检查，生产不可开启；不接收客户端指定路径。不开启时不创建文件，仍使用原有限观察缓存。
+
+开启后，现有 AI 席位观察链路在内存准入、淘汰和单项裁剪前，经 `serializeAiEvidence` 脱敏后追加仓库外 `loveca-ai-<matchId>.jsonl`，包括固定来源、BEGIN、APPEND（SAMPLE/REQUEST/RESPONSE/提交/结果/等待等）、BILLING、END 与采集失败。固定来源每局一份；不读取权威隐藏状态或另一席私有记录，不改变请求、策略和规则链，也不产生额外模型调用。异步写入按序，文件以排他方式创建、权限0600，新目录0700；真实路径位于仓库内（含符号链接指入）时拒绝建局。
+
+内存浏览列表继续有界。“导出当前缓存”保持 `loveca-ai-observation-v1`；新增“导出完整归档”下载 `loveca-ai-archive-v1` JSONL，每行独立JSON。这是诊断事件日志，不能用于恢复权威对局。每条记录具有 sequence/timestamp/kind/payload，APPEND由decisionId关联BEGIN，options保留状态及请求开始/结束信息，BILLING保留整局累计及决定增量。下载首行EXPORT包含导出时间、状态与completeThroughExport；HEADER包含matchId和范围。它表示已捕获证据在导出时点的完整性，不表示自然终局；自然终局需检查实际样本endInfo。没有旧格式兼容读取器。
+
+每局磁盘上限256MiB、待写队列上限8MiB，独立于模型预算。达到上限、序列化失败或写盘失败时停止归档并显示“不完整”，保留已成功写入前缀，对局继续。导出等待当时已入队写入，以固定字节边界流式下载，不将整局载入服务端内存；下载发生后的新事件继续进入原文件。不能补回未开启时的历史，也不能恢复模型上游本身未返回的内容。
+
+文件不自动删除；结束一小时后HTTP会话仍按原TTL释放，但磁盘文件保留，需用户自行清理。服务重启后可直接从归档目录取文件，本批不增加跨重启目录浏览/任意文件下载或自动恢复。进程崩溃/强制终止可能丢失待写队列，不能将缺少结束材料或断行的本地文件视为完整自然局。应优先提供面板下载的JSONL，其中有导出完整性清单。
+
 ## 当前路由工厂
 
 `createAiBattleRouter(service)` 挂在 `/api/admin/ai-battle`，整个路由树经过私密不缓存、登录与当前数据库 `rules.manage` 校验；服务再检查自身会话归属，包括已结束材料。通用 online 对局及管理员调试导出入口对 AI_DEBUG 同样检查当前权限和真人归属；AI_DEBUG 不生成管理员或房间号观战链接。

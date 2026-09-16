@@ -30,32 +30,8 @@ export function readLocalCodexConfig(
       'Codex 仅支持显式启用的本地开发环境：回环 API_HOST、本机数据库及本机 FRONTEND_URL',
       503
     );
-  if (
-    env.AI_BATTLE_LOCAL_CODEX !== '1' ||
-    env.NODE_ENV !== 'development' ||
-    !['127.0.0.1', '::1'].includes(env.API_HOST ?? '')
-  )
-    throw fail();
-  let database: URL;
-  let frontend: URL;
-  try {
-    database = new URL(env.DATABASE_URL ?? '');
-    frontend = new URL(env.FRONTEND_URL ?? '');
-  } catch {
-    throw fail();
-  }
-  if (
-    !['postgres:', 'postgresql:'].includes(database.protocol) ||
-    !isLoopbackHost(database.hostname) ||
-    !isLoopbackHost(frontend.hostname) ||
-    frontend.protocol !== 'http:' ||
-    frontend.username ||
-    frontend.password ||
-    frontend.search ||
-    frontend.hash ||
-    frontend.pathname !== '/'
-  )
-    throw fail();
+  if (env.AI_BATTLE_LOCAL_CODEX !== '1') throw fail();
+  const frontendOrigin = readLocalAiEnvironment(env, fail);
   const reuse = env.AI_BATTLE_CODEX_SESSION_REUSE ?? '0';
   if (!['0', '1'].includes(reuse)) throw fail();
   const rotation = env.AI_BATTLE_CODEX_THREAD_ROTATION ?? '0';
@@ -86,13 +62,40 @@ export function readLocalCodexConfig(
     sessionReuse: reuse === '1',
     threadRotation: rotation === '1',
     reasoningEffort: effort as CodexAiReasoningEffort,
-    frontendOrigin: frontend.origin,
+    frontendOrigin,
   });
+}
+
+/** Shared deployment boundary for opt-in local diagnostics, independent of model provider. */
+export function readLocalAiEnvironment(env: NodeJS.ProcessEnv, fail: () => Error): string {
+  if (env.NODE_ENV !== 'development' || !['127.0.0.1', '::1'].includes(env.API_HOST ?? ''))
+    throw fail();
+  let database: URL;
+  let frontend: URL;
+  try {
+    database = new URL(env.DATABASE_URL ?? '');
+    frontend = new URL(env.FRONTEND_URL ?? '');
+  } catch {
+    throw fail();
+  }
+  if (
+    !['postgres:', 'postgresql:'].includes(database.protocol) ||
+    !isLoopbackHost(database.hostname) ||
+    !isLoopbackHost(frontend.hostname) ||
+    frontend.protocol !== 'http:' ||
+    frontend.username ||
+    frontend.password ||
+    frontend.search ||
+    frontend.hash ||
+    frontend.pathname !== '/'
+  )
+    throw fail();
+  return frontend.origin;
 }
 
 /** Raw socket addresses are authoritative; never trust req.ip / X-Forwarded-For alone. */
 export function isLocalCodexRequest(
-  config: LocalCodexConfig,
+  config: Pick<LocalCodexConfig, 'frontendOrigin'>,
   request: {
     remoteAddress?: string;
     host?: string;
