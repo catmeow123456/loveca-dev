@@ -5,10 +5,7 @@ import {
   getPlayerById,
   updatePlayer,
 } from '../../../domain/entities/game.js';
-import type {
-  EnterWaitingRoomEvent,
-  LeaveStageEvent,
-} from '../../../domain/events/game-events.js';
+import type { EnterWaitingRoomEvent, LeaveStageEvent } from '../../../domain/events/game-events.js';
 import {
   createEnterWaitingRoomEvent,
   createLeaveStageEvent,
@@ -47,8 +44,17 @@ export interface PaySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggersOptions
   readonly additionalCostsBeforeSourceMemberToWaitingRoom?: readonly EnergyCostBeforeSourceMemberToWaitingRoom[];
 }
 
-export interface PaySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggersResult
-  extends EffectCostPaymentResult {
+/** Read-only cost description shared by selection queries and the trigger-safe payment below. */
+export function getSourceMemberToWaitingRoomCosts(
+  options: PaySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggersOptions = {}
+): readonly EffectCostDefinition[] {
+  return [
+    ...(options.additionalCostsBeforeSourceMemberToWaitingRoom ?? []),
+    { kind: 'SEND_SOURCE_MEMBER_TO_WAITING_ROOM' },
+  ];
+}
+
+export interface PaySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggersResult extends EffectCostPaymentResult {
   readonly leaveStageEvents: readonly LeaveStageEvent[];
   readonly enterWaitingRoomEvent: EnterWaitingRoomEvent | null;
 }
@@ -68,10 +74,12 @@ export function paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForLeaveStage,
   options: PaySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggersOptions = {}
 ): PaySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggersResult | null {
-  const costPayment = payImmediateEffectCosts(game, playerId, sourceCardId, [
-    ...(options.additionalCostsBeforeSourceMemberToWaitingRoom ?? []),
-    { kind: 'SEND_SOURCE_MEMBER_TO_WAITING_ROOM' },
-  ]);
+  const costPayment = payImmediateEffectCosts(
+    game,
+    playerId,
+    sourceCardId,
+    getSourceMemberToWaitingRoomCosts(options)
+  );
   if (!costPayment) {
     return null;
   }

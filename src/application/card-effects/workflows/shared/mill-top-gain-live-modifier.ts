@@ -1,3 +1,4 @@
+import { queryConfirmSelection } from '../../runtime/selection-query.js';
 import {
   addAction,
   getCardById,
@@ -190,8 +191,12 @@ export function registerMillTopGainLiveModifierWorkflowHandlers(deps: {
         deps.enqueueTriggeredCardEffects
       )
     );
-    registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, _input, context) =>
-      finishMillTopGainLiveModifier(game, context.continuePendingCardEffects, config)
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.stepId,
+      (game, _input, context) =>
+        finishMillTopGainLiveModifier(game, context.continuePendingCardEffects, config),
+      queryConfirmSelection
     );
   }
 }

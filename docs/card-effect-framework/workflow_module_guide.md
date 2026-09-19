@@ -44,6 +44,12 @@ workflow 是卡效流程的主要承载层。它可以是一类同型效果，�
 - shared family 只能对明确的 abilityId/config 开启 Ren-granted 来源。相同文件内其他作品、其他 abilityId 继续使用原 direct-only 边界；同一 abilityId 有多个原生基础编号时，必须全部保留在 `directBaseCardCodes`。
 - 新增或修改可被获得的『Liella!』起动能力时，同步扩展 `tests/integration/sp-pb2-005-ren-granted-activated-abilities.test.ts` 的显式能力清单，并执行 direct-only source gate 静态审计。代表性测试还要证明待机、离场、移动、modifier 或向下叠卡等“此成员”语义作用于 host，并覆盖同 abilityId 的两份授予实例分别使用、伪造/错配/移除实例拒绝及多阶段实例身份传递。
 
+## 起动只读条件
+
+workflow 可以在 activated handler 注册时提供 `canStart`；查询不持有 pending，不移动卡、不使用随机源，不尝试完整结算。已登记条件同时用于 registry 实际执行前检查。当前样本与验证范围见 [运行时说明](active_effect_runtime.md#起动发动条件的只读查询)，其他 workflow 未登记时仍保持原执行方式，AI 明确返回未覆盖。
+
+步骤选择现在也支持 workflow 显式登记只读 query；正常 handler/公开确认前共用校验。候选、数量和顺序能够完整表达的步骤才使用普通选择查询，分组回收由 workflow 通过相同 selector 与必选组事实补充各组候选/min/max，AI 与正常命令共用验证；盲选、数字和站位仍需单独补齐，详见 [步骤选择约束](active_effect_runtime.md#步骤选择的只读约束)。
+
 ## Public Reveal Dwell
 
 隐藏卡牌按卡文变为双方公开后，如果接下来会自动移动、判断、发放奖励、推进 pending，或打开另一项真实交互，workflow 必须在两者之间接入 `runtime/public-reveal-dwell.ts`。当前 step 恢复后只需无输入结算时使用 `withPublicRevealDwell`；展示结束后还有真实选卡、选项或槽位交互时使用 `createPublicRevealDwellBeforeNextEffect`，到期只恢复 next effect。

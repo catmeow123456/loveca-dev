@@ -25,6 +25,7 @@ export type BattleInteractionSurface =
   | 'LOCAL_DEBUG'
   | 'SOLITAIRE'
   | 'ONLINE'
+  | 'AI_DEBUG'
   | 'TUTORIAL'
   | 'REMOTE_DEBUG'
   | 'SPECTATOR_READONLY'

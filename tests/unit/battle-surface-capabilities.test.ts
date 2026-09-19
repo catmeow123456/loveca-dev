@@ -6,6 +6,29 @@ import {
 import { GameMode } from '../../src/shared/types/enums';
 
 describe('battle surface capabilities', () => {
+  it('AI 调试保留普通操作与标准判定，禁止自由模式、切换视角、撤销和重开', () => {
+    expectCapabilities(
+      deriveBattleSurfaceCapabilities({
+        gameMode: GameMode.DEBUG,
+        remoteSessionSource: 'AI_DEBUG',
+      }),
+      {
+        authority: 'REMOTE',
+        surface: 'AI_DEBUG',
+        canSwitchPerspective: false,
+        canSwitchLocalMode: false,
+        canShowDebugLog: false,
+        canRestart: false,
+        canUndo: false,
+        undoPolicy: 'NONE',
+        showFreePlayControl: false,
+        freePlayPolicy: 'COMMAND_FLAG',
+        isSolitairePresentation: false,
+        scoreConfirmPresentation: 'STANDARD_MODAL',
+        isReadOnly: false,
+      }
+    );
+  });
   it('派生本地调试桌面能力', () => {
     expectCapabilities(deriveBattleSurfaceCapabilities({ gameMode: GameMode.DEBUG }), {
       authority: 'LOCAL',

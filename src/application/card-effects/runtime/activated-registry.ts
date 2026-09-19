@@ -11,12 +11,31 @@ export type ActivatedAbilityHandler = (
 ) => GameState;
 
 const activatedAbilityHandlers = new Map<string, ActivatedAbilityHandler>();
+type ActivatedAbilityAvailabilityQuery = (
+  game: GameState,
+  playerId: string,
+  cardId: string
+) => boolean;
+const availabilityQueries = new Map<string, ActivatedAbilityAvailabilityQuery>();
 
 export function registerActivatedAbilityHandler(
   abilityId: string,
-  handler: ActivatedAbilityHandler
+  handler: ActivatedAbilityHandler,
+  canStart?: ActivatedAbilityAvailabilityQuery
 ): void {
   activatedAbilityHandlers.set(abilityId, handler);
+  if (canStart) availabilityQueries.set(abilityId, canStart);
+  else availabilityQueries.delete(abilityId);
+}
+
+/** Undefined means this workflow has not supplied a read-only start query. Never trial-resolve it. */
+export function queryActivatedAbilityStart(
+  game: GameState,
+  playerId: string,
+  cardId: string,
+  abilityId: string
+): boolean | undefined {
+  return availabilityQueries.get(abilityId)?.(game, playerId, cardId);
 }
 
 export function resolveActivatedAbilityWithRegistry(
@@ -27,6 +46,7 @@ export function resolveActivatedAbilityWithRegistry(
 ): GameState | null {
   const handler = activatedAbilityHandlers.get(abilityId);
   if (!handler) return null;
+  if (queryActivatedAbilityStart(game, playerId, cardId, abilityId) === false) return game;
   try {
     return handler(game, playerId, cardId, abilityId);
   } catch (error) {

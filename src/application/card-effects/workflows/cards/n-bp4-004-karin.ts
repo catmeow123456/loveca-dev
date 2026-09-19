@@ -29,6 +29,7 @@ import {
 } from '../../runtime/member-state-changed-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 const SELECT_OPPONENT_LOW_COST_MEMBER_STEP_ID =
@@ -63,7 +64,11 @@ export function registerNBp4004KarinWorkflowHandlers(deps: {
         input.selectedCardId ?? null,
         context.continuePendingCardEffects,
         deps.enqueueTriggeredCardEffects
-      )
+      ),
+    // Exactly-one target among the opponent's visible stage members; no skip
+    // (finishKarinOpponentWaitSelection treats null as a no-op), so the shared
+    // SINGLE query is exact: min=max=1, canSkip=false.
+    queryCardSelection
   );
 
   registerPendingAbilityStarterHandler(
@@ -85,7 +90,11 @@ export function registerNBp4004KarinWorkflowHandlers(deps: {
         input.selectedCardIds ?? (input.selectedCardId ? [input.selectedCardId] : []),
         input.selectedCardId === null,
         context.continuePendingCardEffects
-      )
+      ),
+    // Ordered 0..N selection over public waiting-room candidates with an
+    // explicit skip (selectedCardId null); the shared ORDERED_MULTI query is
+    // exact, and the adapter maps an empty skip to selectedCardId null.
+    queryCardSelection
   );
 }
 

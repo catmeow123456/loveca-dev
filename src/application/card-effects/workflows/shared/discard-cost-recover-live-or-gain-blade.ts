@@ -32,6 +32,7 @@ import {
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import { finishWaitingRoomToHandWorkflow } from './waiting-room-to-hand.js';
 
@@ -134,16 +135,20 @@ export function registerNDiscardRecoverAndBladeWorkflowHandlers(deps: {
         context.continuePendingCardEffects
       )
     );
-    registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) =>
-      input.selectedCardId
-        ? finishDiscardGainBlade(
-            game,
-            input.selectedCardId,
-            config,
-            context.continuePendingCardEffects,
-            deps.enqueueTriggeredCardEffects
-          )
-        : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.stepId,
+      (game, input, context) =>
+        input.selectedCardId
+          ? finishDiscardGainBlade(
+              game,
+              input.selectedCardId,
+              config,
+              context.continuePendingCardEffects,
+              deps.enqueueTriggeredCardEffects
+            )
+          : finishSkippedActiveEffect(game, context.continuePendingCardEffects),
+      queryCardSelection
     );
   }
 
@@ -169,7 +174,8 @@ export function registerNDiscardRecoverAndBladeWorkflowHandlers(deps: {
               context.continuePendingCardEffects,
               deps.enqueueTriggeredCardEffects
             )
-          : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+          : finishSkippedActiveEffect(game, context.continuePendingCardEffects),
+      queryCardSelection
     );
     registerActiveEffectStepHandler(
       config.abilityId,
@@ -186,7 +192,8 @@ export function registerNDiscardRecoverAndBladeWorkflowHandlers(deps: {
           context.continuePendingCardEffects,
           { currentCandidateCardIds }
         );
-      }
+      },
+      queryCardSelection
     );
   }
 }

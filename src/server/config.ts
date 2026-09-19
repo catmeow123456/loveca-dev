@@ -48,6 +48,7 @@ export function isCompleteSmtpConfiguration(smtp: SmtpConfiguration): boolean {
 export const config = {
   port: parseInt(optionalEnv('PORT', '3007'), 10),
   nodeEnv: optionalEnv('NODE_ENV', 'development'),
+  apiHost: process.env.API_HOST,
 
   // PostgreSQL
   databaseUrl: requireEnv('DATABASE_URL'),

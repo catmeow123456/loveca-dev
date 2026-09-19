@@ -1,3 +1,4 @@
+import { queryOptionSelection, queryCardSelection } from '../../runtime/selection-query.js';
 import {
   addAction,
   getCardById,
@@ -303,7 +304,8 @@ export function registerArrangeInspectedDeckEdgeWorkflowHandlers(deps: {
             input.selectedOptionId ?? null,
             config,
             context.continuePendingCardEffects
-          )
+          ),
+        queryOptionSelection
       );
     }
     if (config.unselectedOrderStep) {
@@ -316,7 +318,8 @@ export function registerArrangeInspectedDeckEdgeWorkflowHandlers(deps: {
             input.selectedCardIds ?? [],
             context.continuePendingCardEffects,
             deps.enqueueTriggeredCardEffects
-          )
+          ),
+        queryCardSelection
       );
     }
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) => {
@@ -355,13 +358,17 @@ export function registerArrangeInspectedDeckEdgeWorkflowHandlers(deps: {
         context.continuePendingCardEffects
       );
     });
-    registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) =>
-      finishArrangeInspectedDeckEdgeWorkflow(
-        game,
-        input.selectedCardIds ?? [],
-        context.continuePendingCardEffects,
-        deps.enqueueTriggeredCardEffects
-      )
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.stepId,
+      (game, input, context) =>
+        finishArrangeInspectedDeckEdgeWorkflow(
+          game,
+          input.selectedCardIds ?? [],
+          context.continuePendingCardEffects,
+          deps.enqueueTriggeredCardEffects
+        ),
+      queryCardSelection
     );
   }
 }

@@ -1,3 +1,4 @@
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import { type CardInstance } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -298,19 +299,24 @@ export function registerWaitingRoomToHandWorkflowHandlers(): void {
         orderedResolution,
       });
     });
-    registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) => {
-      const effect = game.activeEffect;
-      const currentCandidateCardIds = effect
-        ? config.candidateBuilder(game, effect.controllerId)
-        : [];
-      return finishWaitingRoomToHandWorkflow(
-        game,
-        input.selectedCardId ?? null,
-        input.selectedCardIds,
-        context.continuePendingCardEffects,
-        { currentCandidateCardIds }
-      );
-    });
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.stepId,
+      (game, input, context) => {
+        const effect = game.activeEffect;
+        const currentCandidateCardIds = effect
+          ? config.candidateBuilder(game, effect.controllerId)
+          : [];
+        return finishWaitingRoomToHandWorkflow(
+          game,
+          input.selectedCardId ?? null,
+          input.selectedCardIds,
+          context.continuePendingCardEffects,
+          { currentCandidateCardIds }
+        );
+      },
+      queryCardSelection
+    );
   }
 }
 

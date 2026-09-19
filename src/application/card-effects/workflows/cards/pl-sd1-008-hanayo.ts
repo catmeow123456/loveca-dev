@@ -5,6 +5,7 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { GamePhase } from '../../../../shared/types/enums.js';
+import { getActiveEnergyIds } from '../../../../domain/entities/zone.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { HANAYO_ACTIVATED_ABILITY_ID } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
@@ -20,8 +21,14 @@ import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../.
 export function registerSd1008HanayoWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
-  registerActivatedAbilityHandler(HANAYO_ACTIVATED_ABILITY_ID, (game, playerId, cardId) =>
-    startHanayoActivatedEffect(game, playerId, cardId, deps.enqueueTriggeredCardEffects)
+  registerActivatedAbilityHandler(
+    HANAYO_ACTIVATED_ABILITY_ID,
+    (game, playerId, cardId) =>
+      startHanayoActivatedEffect(game, playerId, cardId, deps.enqueueTriggeredCardEffects),
+    (game, playerId) => {
+      const player = getPlayerById(game, playerId);
+      return player !== null && getActiveEnergyIds(player.energyZone).length >= 2;
+    }
   );
 }
 

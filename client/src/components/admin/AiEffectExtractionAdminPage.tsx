@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, CircleAlert, KeyRound, Loader2, Save, TestTube2 } from 'lucide-react';
+import {
+  CheckCircle2,
+  CircleAlert,
+  Eye,
+  EyeOff,
+  Loader2,
+  Save,
+  TestTube2,
+  Trash2,
+} from 'lucide-react';
 import {
   fetchAiEffectExtractionConfig,
   saveAiEffectExtractionConfig,
@@ -26,6 +35,7 @@ export function AiEffectExtractionAdminPage({
   const [enabled, setEnabled] = useState(false);
   const [keyMode, setKeyMode] = useState<KeyMode>('KEEP');
   const [replacementKey, setReplacementKey] = useState('');
+  const [keyVisible, setKeyVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -39,6 +49,7 @@ export function AiEffectExtractionAdminPage({
     setEnabled(next.enabled);
     setKeyMode('KEEP');
     setReplacementKey('');
+    setKeyVisible(false);
   }, []);
 
   useEffect(() => {
@@ -132,7 +143,7 @@ export function AiEffectExtractionAdminPage({
         apiKey: keyAction,
       });
       applyConfig(next);
-      setNotice('配置已保存；下一次提取将使用新版本。');
+      setNotice('已保存');
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '保存失败');
     } finally {
@@ -143,7 +154,7 @@ export function AiEffectExtractionAdminPage({
   return (
     <div className="app-shell min-h-screen">
       <AdminPageHeader
-        title="卡牌效果 AI 提取"
+        title="AI 上游配置"
         category="卡牌与规则"
         onBack={handleBack}
         actions={
@@ -152,197 +163,180 @@ export function AiEffectExtractionAdminPage({
             onClick={handleOpenCardAdmin}
             className="button-secondary px-3 py-2 text-sm"
           >
-            打开卡牌数据
+            卡牌数据
           </button>
         }
       />
 
       <main className="product-page-main">
-        <section className="product-workbench mx-auto max-w-4xl">
+        <section className="product-workbench mx-auto max-w-2xl">
           {loading ? (
             <div className="flex min-h-72 items-center justify-center gap-2 text-sm text-[var(--text-secondary)]">
-              <Loader2 size={17} className="animate-spin" /> 正在读取私密配置…
+              <Loader2 size={17} className="animate-spin" /> 读取中…
             </div>
           ) : config ? (
             <>
-              <div className="grid grid-cols-2 border-b border-[var(--border-subtle)] sm:grid-cols-4">
-                <StatusCell label="密钥加密" ready={config.encryptionReady} />
-                <StatusCell label="上游白名单" ready={config.outboundPolicyReady} />
-                <StatusCell label="API Key" ready={config.apiKeyConfigured} />
-                <StatusCell label="当前可用" ready={config.runtimeReady} />
-              </div>
+              <div className="space-y-5 p-4 sm:p-5">
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">
+                    Base URL
+                  </span>
+                  <input
+                    value={baseUrl}
+                    onChange={(event) => setBaseUrl(event.target.value)}
+                    className="input-field w-full px-3 py-2.5"
+                    placeholder="https://provider.example/v1"
+                    autoComplete="off"
+                  />
+                </label>
 
-              <div className="p-4 sm:p-5">
-                <div className="mb-5">
-                  <h2 className="font-semibold text-[var(--text-primary)]">上游配置</h2>
-                  <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">
-                    API 服务读取受信任卡图并调用 OpenAI-compatible 上游；提取结果只回填卡牌编辑框。
-                  </p>
-                </div>
-
-                <div className="space-y-5">
-                  <fieldset className="grid gap-4 sm:grid-cols-[minmax(0,1.5fr)_minmax(12rem,0.75fr)]">
-                    <legend className="sr-only">模型上游</legend>
-                    <label className="block">
-                      <span className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">
-                        Base URL
-                      </span>
-                      <input
-                        value={baseUrl}
-                        onChange={(event) => setBaseUrl(event.target.value)}
-                        className="input-field w-full px-3 py-2.5"
-                        placeholder="https://provider.example/v1"
-                        autoComplete="off"
-                      />
-                      <span className="mt-1.5 block text-xs text-[var(--text-muted)]">
-                        仅允许部署白名单内的 HTTPS 主机，不跟随重定向。
-                      </span>
-                    </label>
-                    <label className="block">
-                      <span className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">
-                        Model ID
-                      </span>
-                      <input
-                        value={modelId}
-                        onChange={(event) => setModelId(event.target.value)}
-                        className="input-field w-full px-3 py-2.5"
-                        placeholder="vision-model"
-                        autoComplete="off"
-                      />
-                    </label>
-                  </fieldset>
-
-                  <fieldset>
-                    <legend className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-                      <KeyRound size={15} /> API Key
-                    </legend>
-                    <div className="grid overflow-hidden rounded-lg border border-[var(--border-default)] sm:grid-cols-3 sm:divide-x sm:divide-[var(--border-default)]">
-                      {(
-                        [
-                          ['KEEP', '保留当前 Key'],
-                          ['REPLACE', '替换 Key'],
-                          ['CLEAR', '清除 Key'],
-                        ] as const
-                      ).map(([value, label]) => (
-                        <button
-                          key={value}
-                          type="button"
-                          aria-pressed={keyMode === value}
-                          onClick={() => {
-                            setKeyMode(value);
-                            if (value !== 'REPLACE') setReplacementKey('');
-                            setNotice(null);
-                          }}
-                          className={`min-h-10 border-b border-[var(--border-default)] px-3 text-sm font-medium transition-colors last:border-b-0 sm:border-b-0 ${
-                            keyMode === value
-                              ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] text-[var(--text-primary)]'
-                              : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                    {keyMode === 'REPLACE' ? (
-                      <input
-                        type="password"
-                        value={replacementKey}
-                        onChange={(event) => setReplacementKey(event.target.value)}
-                        className="input-field mt-3 w-full px-3 py-2.5"
-                        placeholder="输入新的 API Key"
-                        autoComplete="new-password"
-                      />
-                    ) : (
-                      <p className="mt-2 text-xs text-[var(--text-muted)]">
-                        {keyMode === 'KEEP'
-                          ? config.apiKeyConfigured
-                            ? '已有 Key 已加密保存，页面不会读取或显示原值。'
-                            : '当前尚未配置 Key。'
-                          : '保存后立即移除密文；启用状态下不能清除 Key。'}
-                      </p>
-                    )}
-                  </fieldset>
-
-                  <label className="flex items-center justify-between gap-4 rounded-lg border border-[var(--border-default)] px-3 py-3">
-                    <span>
-                      <span className="block text-sm font-semibold text-[var(--text-primary)]">
-                        启用效果提取
-                      </span>
-                      <span className="mt-0.5 block text-xs leading-5 text-[var(--text-secondary)]">
-                        关闭时保留配置，但拒绝新的提取请求。
-                      </span>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={enabled}
-                      disabled={!enabled && !canEnable}
-                      onChange={(event) => setEnabled(event.target.checked)}
-                      className="h-5 w-5 shrink-0 accent-[var(--accent-primary)]"
-                    />
+                <div>
+                  <label
+                    htmlFor="ai-upstream-key"
+                    className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]"
+                  >
+                    API Key
                   </label>
-
-                  {error ? <Feedback tone="error">{error}</Feedback> : null}
-                  {notice ? <Feedback tone="success">{notice}</Feedback> : null}
+                  <div className="relative">
+                    <input
+                      id="ai-upstream-key"
+                      type={keyVisible ? 'text' : 'password'}
+                      value={replacementKey}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setReplacementKey(value);
+                        setKeyMode(value ? 'REPLACE' : 'KEEP');
+                        if (!value) setKeyVisible(false);
+                        setNotice(null);
+                      }}
+                      className="input-field w-full py-2.5 pl-3 pr-24"
+                      placeholder={
+                        keyMode === 'CLEAR'
+                          ? '待清除'
+                          : config.apiKeyConfigured
+                            ? '••••••••'
+                            : '输入 API Key'
+                      }
+                      autoComplete="new-password"
+                      spellCheck={false}
+                    />
+                    <div className="absolute inset-y-0 right-1 flex items-center">
+                      <button
+                        type="button"
+                        aria-label={keyVisible ? '隐藏 Key' : '显示 Key'}
+                        title={keyVisible ? '隐藏 Key' : '显示新输入的 Key'}
+                        disabled={!replacementKey}
+                        onClick={() => setKeyVisible((visible) => !visible)}
+                        className="flex size-10 items-center justify-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-35"
+                      >
+                        {keyVisible ? <EyeOff size={17} /> : <Eye size={17} />}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="清除 Key"
+                        title="清除 Key"
+                        disabled={
+                          keyMode === 'CLEAR' || (!config.apiKeyConfigured && !replacementKey)
+                        }
+                        onClick={() => {
+                          setKeyMode(config.apiKeyConfigured ? 'CLEAR' : 'KEEP');
+                          setReplacementKey('');
+                          setKeyVisible(false);
+                          setNotice(null);
+                        }}
+                        className="flex size-10 items-center justify-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--semantic-error)] disabled:opacity-35"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
+
+                <div className="border-t border-[var(--border-subtle)] pt-4">
+                  <div className="mb-2 flex items-center justify-between gap-4">
+                    <label
+                      htmlFor="ai-extraction-model"
+                      className="text-sm font-medium text-[var(--text-primary)]"
+                    >
+                      卡效提取模型
+                    </label>
+                    <label className="flex min-h-8 items-center gap-2 text-sm text-[var(--text-secondary)]">
+                      <input
+                        type="checkbox"
+                        aria-label="启用卡效提取"
+                        checked={enabled}
+                        disabled={!enabled && !canEnable}
+                        onChange={(event) => setEnabled(event.target.checked)}
+                        className="h-5 w-5 shrink-0 accent-[var(--accent-primary)]"
+                      />
+                      启用
+                    </label>
+                  </div>
+                  <input
+                    id="ai-extraction-model"
+                    value={modelId}
+                    onChange={(event) => setModelId(event.target.value)}
+                    className="input-field w-full px-3 py-2.5"
+                    placeholder="模型 ID"
+                    autoComplete="off"
+                  />
+                </div>
+
+                {!config.encryptionReady || !config.outboundPolicyReady ? (
+                  <Feedback tone="error">
+                    {`请配置${[
+                      !config.encryptionReady && '密钥加密',
+                      !config.outboundPolicyReady && '上游白名单',
+                    ]
+                      .filter(Boolean)
+                      .join('与')}`}
+                  </Feedback>
+                ) : null}
+                {keyMode === 'CLEAR' && enabled ? (
+                  <Feedback tone="error">关闭卡效提取后可清除 Key</Feedback>
+                ) : null}
+                {error ? <Feedback tone="error">{error}</Feedback> : null}
+                {notice ? <Feedback tone="success">{notice}</Feedback> : null}
               </div>
 
-              <footer className="flex flex-col-reverse gap-3 border-t border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                <p className="text-xs text-[var(--text-muted)]">
-                  版本 {config.revision}
-                  {config.updatedAt ? ` · 更新于 ${formatDate(config.updatedAt)}` : ''}
-                </p>
-                <div className="flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleTest()}
-                    disabled={!canTest}
-                    className="button-secondary inline-flex min-h-10 items-center justify-center gap-2 px-4 disabled:opacity-45"
-                  >
-                    {testing ? (
-                      <Loader2 size={15} className="animate-spin" />
-                    ) : (
-                      <TestTube2 size={15} />
-                    )}
-                    测试配置
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleSave()}
-                    disabled={
-                      !isDirty ||
-                      saving ||
-                      testing ||
-                      (enabled && !canEnable) ||
-                      (keyMode === 'REPLACE' && !replacementKey.trim())
-                    }
-                    className="button-primary inline-flex min-h-10 items-center justify-center gap-2 px-4 disabled:opacity-45"
-                  >
-                    {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-                    保存并生效
-                  </button>
-                </div>
+              <footer className="flex items-center justify-end gap-2 border-t border-[var(--border-subtle)] px-4 py-3 sm:px-5">
+                <button
+                  type="button"
+                  onClick={() => void handleTest()}
+                  disabled={!canTest}
+                  className="button-secondary inline-flex min-h-10 items-center justify-center gap-2 px-4 disabled:opacity-45"
+                >
+                  {testing ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <TestTube2 size={15} />
+                  )}
+                  测试提取
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSave()}
+                  disabled={
+                    !isDirty ||
+                    saving ||
+                    testing ||
+                    (enabled && !canEnable) ||
+                    (keyMode === 'REPLACE' && !replacementKey.trim())
+                  }
+                  className="button-primary inline-flex min-h-10 items-center justify-center gap-2 px-4 disabled:opacity-45"
+                >
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                  保存
+                </button>
               </footer>
             </>
           ) : (
             <div className="p-5">
-              <Feedback tone="error">配置未能载入。请检查数据库迁移和 API 服务状态。</Feedback>
+              <Feedback tone="error">{error ?? '配置加载失败，请重试。'}</Feedback>
             </div>
           )}
         </section>
       </main>
-    </div>
-  );
-}
-
-function StatusCell({ label, ready }: { readonly label: string; readonly ready: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-2 border-b border-r border-[var(--border-subtle)] px-3 py-2.5 last:border-r-0 sm:border-b-0 sm:px-4">
-      <span className="text-xs text-[var(--text-secondary)]">{label}</span>
-      <span
-        className={`text-xs font-medium ${ready ? 'text-[var(--semantic-success)]' : 'text-[var(--text-muted)]'}`}
-      >
-        {ready ? '就绪' : '未就绪'}
-      </span>
     </div>
   );
 }
@@ -362,9 +356,4 @@ function Feedback({ tone, children }: { tone: 'error' | 'success'; children: str
       <span>{children}</span>
     </div>
   );
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false });
 }

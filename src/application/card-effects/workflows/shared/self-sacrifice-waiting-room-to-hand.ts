@@ -1,3 +1,4 @@
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   isLiveCardData,
   isMemberCardData,
@@ -31,6 +32,10 @@ import {
   recoverCardsFromWaitingRoomToHandForPlayer,
 } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
+import {
+  registerActivatedAbilityResourceQuery,
+  selectWaitingRoomTargetsAfterSourceCost,
+} from '../../runtime/ability-resource-query.js';
 import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -39,6 +44,7 @@ import {
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
 import {
+  getSourceMemberToWaitingRoomCosts,
   paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers,
   type EnqueueTriggeredCardEffectsForLeaveStage,
 } from '../../runtime/leave-stage-triggers.js';
@@ -228,16 +234,36 @@ export function registerSelfSacrificeWaitingRoomToHandWorkflowHandlers(
   dependencies: SelfSacrificeWaitingRoomToHandWorkflowDependencies
 ): void {
   for (const config of SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS) {
-    registerActivatedAbilityHandler(config.abilityId, (game, playerId, cardId) =>
-      startSelfSacrificeWaitingRoomToHandWorkflow(game, playerId, cardId, config, dependencies)
+    registerActivatedAbilityHandler(
+      config.abilityId,
+      (game, playerId, cardId) =>
+        startSelfSacrificeWaitingRoomToHandWorkflow(game, playerId, cardId, config, dependencies),
+      (game, playerId, cardId) => {
+        const player = getPlayerById(game, playerId);
+        return player !== null && findMemberSlot(player, cardId) !== null;
+      }
     );
-    registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) =>
-      finishSelfSacrificeWaitingRoomToHandWorkflow(
+    registerActivatedAbilityResourceQuery(config.abilityId, (game, playerId, cardId) => ({
+      costs: getSourceMemberToWaitingRoomCosts(),
+      targetCardIds: selectWaitingRoomTargetsAfterSourceCost(
         game,
-        input.selectedCardId ?? null,
-        input.selectedCardIds,
-        context.continuePendingCardEffects
-      )
+        playerId,
+        cardId,
+        config.selectablePredicate
+      ),
+      destination: 'HAND',
+    }));
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.stepId,
+      (game, input, context) =>
+        finishSelfSacrificeWaitingRoomToHandWorkflow(
+          game,
+          input.selectedCardId ?? null,
+          input.selectedCardIds,
+          context.continuePendingCardEffects
+        ),
+      queryCardSelection
     );
   }
 }

@@ -555,6 +555,7 @@ describe('PlayerViewState projector', () => {
     const sourceObject = view.objects[createPublicObjectId(sourceMember.instanceId)];
 
     expect(sourceObject?.frontInfo?.modifierDelta).toEqual({ bladeDelta: 2 });
+    expect(sourceObject?.frontInfo?.blade).toBe(3);
     expect(sourceObject?.frontInfo?.hearts).toEqual([{ color: HeartColor.PINK, count: 1 }]);
   });
 
@@ -731,6 +732,9 @@ describe('PlayerViewState projector', () => {
     ]);
 
     expect(hiddenOpponentView.objects[lanzhuObjectId]?.frontInfo?.modifierDelta).toBeUndefined();
+    expect(ownerView.objects[lanzhuObjectId]?.frontInfo?.blade).toBe(
+      hiddenOpponentView.objects[lanzhuObjectId]!.frontInfo!.blade! + 2
+    );
     expect(hiddenOpponentView.objects[lanzhuObjectId]?.frontInfo?.hearts).toEqual([
       { color: HeartColor.PINK, count: 1 },
     ]);
@@ -745,6 +749,10 @@ describe('PlayerViewState projector', () => {
 
     state = revealPlayerLiveZone(state, PLAYER1);
     const revealedOpponentView = projectPlayerViewState(state, PLAYER2);
+
+    expect(revealedOpponentView.objects[lanzhuObjectId]?.frontInfo?.blade).toBe(
+      ownerView.objects[lanzhuObjectId]?.frontInfo?.blade
+    );
 
     expect(revealedOpponentView.objects[lanzhuObjectId]?.frontInfo?.modifierDelta).toEqual({
       bladeDelta: 2,
@@ -1366,7 +1374,7 @@ describe('PlayerViewState projector', () => {
     expect(getCommandHint(opponentView, GameCommandType.OPEN_INSPECTION)).toBeNull();
   });
 
-  it('RULES 在判定窗口只投影自动判定提交，不投影提前成功 Live 选择', () => {
+  it('RULES 在自动判定后投影继续命令，仍限制操作席位与提前成功 Live 选择', () => {
     const { state } = createProjectedState();
     const rulesState = {
       ...state,
@@ -1381,6 +1389,26 @@ describe('PlayerViewState projector', () => {
     expect(getCommandHint(view, GameCommandType.SELECT_SUCCESS_LIVE)).toBeNull();
     expect(getCommandHint(view, GameCommandType.CONFIRM_PERFORMANCE_OUTCOME)).toBeNull();
     expect(getCommandHint(view, GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE)).toBeNull();
+    expect(hasEnabledCommand(view, GameCommandType.CONFIRM_STEP)).toBe(false);
+    const judged = {
+      ...rulesState,
+      liveResolution: {
+        ...rulesState.liveResolution,
+        liveResults: new Map(rulesState.players[0].liveZone.cardIds.map((id) => [id, true])),
+      },
+    };
+    expect(
+      hasEnabledCommand(projectPlayerViewState(judged, PLAYER1), GameCommandType.CONFIRM_STEP)
+    ).toBe(true);
+    expect(
+      hasEnabledCommand(projectPlayerViewState(judged, PLAYER2), GameCommandType.CONFIRM_STEP)
+    ).toBe(false);
+    expect(
+      getCommandHint(
+        projectPlayerViewState({ ...judged, manualOperationMode: 'FREE' }, PLAYER1),
+        GameCommandType.CONFIRM_STEP
+      )
+    ).toBeNull();
   });
 
   it('主要阶段和表演阶段应向非当前回合玩家暴露 TAP_MEMBER', () => {

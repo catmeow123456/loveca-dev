@@ -9,6 +9,10 @@
 
 本文件基于 `loveca_effect_fragments_catalog.json` 回扫当前已实现卡牌。它只列 Stage 1A-1F 之后仍值得追踪的缺口；已经有主模块的片段不再作为 P0-now 抽象任务重复列出。
 
+## 能力资源查询的边界
+
+`card-effects/runtime/ability-resource-query.ts` 已让自送回手、支付能量回手、原槽登场三族共享当前费用/目标事实；费用 15「安养寺姬芽」复用实际 workflow 的同伴条件、回能上限与 LIVE 目标。该查询服务当前动作选择，不改变卡效完成状态；未覆盖其他能力收益、连锁 AUTO、常时重算、随机结果或多步计划求解。费用描述与 trigger-safe 支付共用 `getSourceMemberToWaitingRoomCosts`，仍不建立 condition AST 或任意模拟 DSL。
+
 ## Closed or substantially reduced by staged refactors
 
 | fragments | current module | status |
@@ -30,6 +34,8 @@
 | `S01,S03,X05,X06` | `src/application/effects/member-state.ts` + `stage-targets.ts` + `stage-member-target-selection.ts` + `card-selectors.ts` | `PL!HS-bp6-004-R` 费用 13「百生 吟子」已验证选择对手舞台费用 <= 9 成员并调用 `setMemberOrientation(WAITING)`；舞台目标 helper 已抽到 `stage-targets.ts`，目标 active effect 已抽到 `stage-member-target-selection.ts`，弃置卡姓名归一化判断已抽为 `cardNameIs`。`PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」验证 `cardNameAliasIs` 的舞台条件扫描，`PL!HS-bp5-008-R` 费用 4「桂城泉」验证 `costGte` 高费用成员 selector。后续可用第二张同型卡继续验证。 |
 | `X01,L01,L02,X13` | `src/application/effects/conditions.ts` + `card-selectors.ts` + application-local state queries | 第一版纯 query helper 已起步，提供区域计数、selector 计数/阈值、按 selector 返回 cardIds、区域 + selector 组合、成功 LIVE 数、成功 LIVE 分数合计、舞台成员数/存在性、其他舞台成员、LIVE 区排除来源卡计数、来源 BLADE 阈值、舞台成员有效费用查询、团体/姓名 alias selector，以及舞台成员/能量按朝向查询等。`PL!-bp4-008` 费用 4「小泉花阳」验证只读 effective cost 查询边界；现有 `costLte` / `costGte` 仍按印刷费用筛选。当前只替换低风险内联计数与 selector，不做 condition AST、typed formula builder 或 declarative steps；完整剩余清单见 `condition_query_remaining_inventory.md`。 |
 | same-base rarity sync | `CARD_ABILITY_DEFINITIONS.baseCardCodes` + `src/shared/utils/card-code.ts` | 卡效登记、continuous live modifier registry 与费用修正已支持基础编号匹配；`tests/unit/card-effect-rarity-sync.test.ts` 会防止 exact `cardCodes` 漏掉同基础编号其他罕度。`existing_module_map.md` 已按基础编号记录完成/部分/同型/partial 状态。 |
+
+AI 已复用普通登场只读费用计划，并为缪斯与绿莲涉及的起动、选牌/确认、精确弃二与分组回收提供只读契约；分组 min/max 在模型协议、完整合法兜底和正常命令入口共用约束。绿莲相关四个旧 exact definition 已按基础编号覆盖，其他起动条件、盲选、数字、站位及旧 exact 查询仍按[支持矩阵](../ai-battle/support-matrix.md)逐项验收，不代表全卡池 AI 支持。
 
 ## Remaining gaps
 

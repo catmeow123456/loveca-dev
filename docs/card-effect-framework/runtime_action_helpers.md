@@ -14,6 +14,10 @@ Focused：`member-state-effect-history.test.ts`、`pl-pb2-011-023-continuous.tes
 
 runtime action helper 只表达原子动作，不表达完整卡文流程。它们的价值不是立刻减少总代码行数，而是让 workflow 不再重复实现同一套移动、抽牌、弃牌和结果记录语义。
 
+## 自送费用的只读描述
+
+`leave-stage-triggers.ts` 的 `getSourceMemberToWaitingRoomCosts` 为资源查询与实际 trigger-safe 支付提供同一费用列表，包含可选的前置能量费用与来源自送。workflow 使用这项描述供动作选择读取，实际执行仍只能经过 `paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers`，不能直接支付裸自送费用绕过离场事件。能力目标/登场收益查询的职责与当前覆盖见 [module_boundaries.md](module_boundaries.md#供动作选择读取的能力资源)；它们不是 runtime action，不试结算卡效。
+
 ## 目标成员绑定的临时 LIVE modifier
 
 - `addPlayerScoreLiveModifierForTargetMember` 在 `domain/rules/live-modifiers.ts` 写入玩家总分 SCORE，同时显式保存 `targetMemberCardId`、审计 `sourceCardId` 和 `abilityId`；不以来源卡替代目标成员身份。

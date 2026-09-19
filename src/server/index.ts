@@ -1,3 +1,4 @@
+import { readLocalCodexConfig } from './ai-battle/local-codex-config.js';
 import { assertSecurityConfiguration, config } from './config.js';
 import { createApp } from './app.js';
 import { pool } from './db/pool.js';
@@ -69,6 +70,7 @@ function logRuntimeStats() {
 }
 
 async function main() {
+  readLocalCodexConfig();
   assertSecurityConfiguration();
 
   // Verify database connection
@@ -98,7 +100,7 @@ async function main() {
 
   const app = createApp();
 
-  const server = app.listen(config.port, () => {
+  const server = app.listen({ port: config.port, host: config.apiHost }, () => {
     console.log(`API server listening on port ${config.port} (${config.nodeEnv})`);
   });
   server.on('close', () => {

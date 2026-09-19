@@ -9,6 +9,49 @@ import { isValidAiEffectExtractionEncryptionKey } from '../../src/server/config'
 const ADMIN_ID = '11111111-1111-4111-8111-111111111111';
 
 describe('AiEffectExtractionService', () => {
+  it('provides decrypted shared upstream credentials independently of the extraction model and toggle', async () => {
+    const database = new FakeDatabase();
+    const service = createService(database);
+    await service.saveConfig({ ...enabledCandidate(), enabled: false, modelId: '' }, ADMIN_ID);
+    const first = await service.getUpstreamConfiguration();
+    expect(first).toEqual({ baseUrl: 'https://api.example.com/v1', apiKey: 'candidate-secret' });
+    await service.saveConfig(
+      {
+        ...enabledCandidate(),
+        expectedRevision: 2,
+        baseUrl: 'https://api.example.com/next/v1',
+        apiKey: { action: 'REPLACE', value: 'new-secret' },
+      },
+      ADMIN_ID
+    );
+    expect(await service.getUpstreamConfiguration()).toEqual({
+      baseUrl: 'https://api.example.com/next/v1',
+      apiKey: 'new-secret',
+    });
+    expect(first.apiKey).toBe('candidate-secret');
+    expect(first.baseUrl).toBe('https://api.example.com/v1');
+    expect(await service.getAdminConfig()).not.toHaveProperty('apiKey');
+  });
+
+  it('rejects missing or unreadable shared credentials and rechecks DNS for saved configuration', async () => {
+    const database = new FakeDatabase();
+    const service = createService(database);
+    await expect(service.getUpstreamConfiguration()).rejects.toMatchObject({
+      code: 'AI_EFFECT_CONFIG_KEY_REQUIRED',
+    });
+    await service.saveConfig(enabledCandidate(), ADMIN_ID);
+    const privateService = createService(database, undefined, undefined, () =>
+      Promise.resolve([{ address: '127.0.0.1', family: 4 as const }])
+    );
+    await expect(privateService.getUpstreamConfiguration()).rejects.toMatchObject({
+      code: 'AI_EFFECT_PRIVATE_ADDRESS_REJECTED',
+    });
+    database.config.encrypted_api_key = 'v1.invalid';
+    await expect(service.getUpstreamConfiguration()).rejects.toMatchObject({
+      code: 'AI_EFFECT_KEY_DECRYPTION_FAILED',
+    });
+  });
+
   it('只接受规范的 32 字节 hex 或 base64 主密钥', () => {
     expect(isValidAiEffectExtractionEncryptionKey('11'.repeat(32))).toBe(true);
     expect(isValidAiEffectExtractionEncryptionKey(Buffer.alloc(32, 1).toString('base64'))).toBe(

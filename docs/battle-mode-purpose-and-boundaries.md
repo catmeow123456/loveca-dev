@@ -1,7 +1,7 @@
 # Loveca 对战模式目的与边界
 
 > 文档类型：专题说明
-> 适用范围：本地调试、对墙打、正式联机、正式联机观战、历史回放、远程调试联机的桌面场景目的、能力边界和规则/自由模式语义
+> 适用范围：本地调试、对墙打、管理员 AI 对战、正式联机、正式联机观战、历史回放、远程调试联机的桌面场景目的、能力边界和规则/自由模式语义
 > 当前状态：现行模式目的说明；已落地权威 `RULES/FREE` 状态、切换协议与 `RULES` 中央玩家命令白名单
 > 最后更新：2026-07-26
 
@@ -17,7 +17,7 @@
 
 `GameMode.DEBUG` 不等于“显示本地调试 UI”。正式联机和远程调试联机的服务端 `GameSession` 也可以使用 `DEBUG` 规则策略，因为它表示“不自动替玩家跳过完整双人流程”。共享桌面组件不能只看 `gameMode` 来判断 UI 能力。
 
-命名上需要保持清楚：`LOCAL_DEBUG`、`SOLITAIRE`、`ONLINE`、`REMOTE_DEBUG`、`SPECTATOR_READONLY`、`REPLAY_READONLY` 已作为 `BattleSurfaceKind` 的桌面场景标签使用；当前 `GameMode` 只有 `DEBUG` / `SOLITAIRE`，只表示规则自动化策略。`SOLITAIRE` 在两层里同名只是为了表达“本地对墙打场景由 `GameMode.SOLITAIRE` 派生”，不要因此把联机、观战、回放或远程调试场景加进 `GameMode`。
+命名上需要保持清楚：`LOCAL_DEBUG`、`SOLITAIRE`、`AI_DEBUG`、`TUTORIAL`、`ONLINE`、`REMOTE_DEBUG`、`SPECTATOR_READONLY`、`REPLAY_READONLY` 已作为 `BattleSurfaceKind` 的桌面场景标签使用；当前 `GameMode` 只有 `DEBUG` / `SOLITAIRE`，只表示规则自动化策略。`SOLITAIRE` 在两层里同名只是为了表达“本地对墙打场景由 `GameMode.SOLITAIRE` 派生”，不要因此把联机、观战、回放或远程调试场景加进 `GameMode`。
 
 ## 2. 场景总览
 
@@ -25,6 +25,7 @@
 | --------------------------------- | ----------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------- | ------------------------------ |
 | 本地调试 `LOCAL_DEBUG`            | 本地浏览器 `GameSession`                        | 开发者、卡效实现者、规则测试者   | 快速验证规则流程、卡效、UI 行为和双方视角                                        | 安全时点直接切换               |
 | 对墙打 `SOLITAIRE`                | 本地浏览器 `GameSession` 或服务端 `GameSession` | 单人测试玩家、卡效验证者         | 用接近玩家视角的方式推进一人对局，对手流程自动化；服务端可记录入口会进入历史复盘 | 安全时点直接切换               |
+| AI 调试 `AI_DEBUG` | 服务端 `GameSession` | 平台管理员 | 使用精选构筑对战 AI，并只读观察决定材料；详细边界见 [AI 运行与观测说明](ai-battle/runtime-and-observation.md) | 固定 RULES，不提供切换 |
 | 正式联机 `ONLINE`                 | 服务端 `GameSession`                            | 真实房间中的两名玩家、联机验收者 | 在隐藏信息和服务端权威下推进可玩的远程对局                                       | 开启需对方同意；退出可单方发起 |
 | 正式联机观战 `SPECTATOR_READONLY` | 服务端 `GameSession`                            | 受邀观战者、联机验收者           | 按某一参赛玩家视角只读观看进行中对局和公共日志，不提供上帝视角                   | 只读，不可切换                 |
 | 历史回放 `REPLAY_READONLY`        | 持久化 authority checkpoint 的玩家视角投影      | 历史对局参与者、复盘者           | 在不重新执行规则引擎的前提下只读查看离散历史节点；对墙打记录保留单人展示语义     | 只读，不可切换                 |

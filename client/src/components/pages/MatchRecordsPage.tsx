@@ -62,6 +62,7 @@ import type {
   ViewZoneState,
 } from '@game/online';
 import { hasPermission } from '@game/shared/auth/permissions';
+import { AiRecordedBilling } from '@/components/admin/AiRecordedBilling';
 
 interface MatchRecordsPageProps {
   onBack: () => void;
@@ -960,6 +961,16 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
               {selectedRecord?.partialReasonSummary ? (
                 <PartialRecordNotice detail={selectedRecord.partialReasonSummary} />
               ) : null}
+              {selectedRecord?.originKind === 'AI_DEBUG' &&
+                profile &&
+                hasPermission(profile.role, 'rules.manage') &&
+                detail?.matchId === selectedRecord.matchId &&
+                detail.participants.some((participant) => participant.userId === profile.id) && (
+                  <AiRecordedBilling
+                    key={selectedRecord.matchId}
+                    matchId={selectedRecord.matchId}
+                  />
+                )}
               {selectedRecord ? (
                 <MatchRecordSummary
                   detail={detail}
@@ -1279,7 +1290,7 @@ function MatchRecordButton({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <ModePill mode={record.matchMode} />
+          <ModePill record={record} />
           <StatusPill status={record.status} completeness={record.completeness} />
         </div>
       </div>
@@ -1361,7 +1372,7 @@ function MatchRecordSummary({
   return (
     <div className="mt-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-3">
       <div className="flex flex-wrap items-center gap-2">
-        <ModePill mode={record.matchMode} />
+        <ModePill record={record} />
         <span className="text-sm font-semibold text-[var(--text-primary)]">{resultSummary}</span>
       </div>
       {deckSummary ? (
@@ -1546,7 +1557,13 @@ function ReplayMetricGrid({ replay }: { replay: MatchRecordReplayView }) {
 
   return (
     <div className="grid min-w-0 grid-cols-2 gap-2">
-      <MiniMetric label="模式" value={formatMatchModeLabel(replay.sourceMatchMode)} />
+      <MiniMetric
+        label="模式"
+        value={formatMatchModeLabel({
+          matchMode: replay.sourceMatchMode,
+          originKind: replay.originKind,
+        })}
+      />
       <MiniMetric label="视角" value={replay.viewerSeat} />
       <MiniMetric label="对象" value={objectCount} />
       <MiniMetric label="正面" value={frontCount} />
@@ -1955,14 +1972,14 @@ function StatusPill({
   );
 }
 
-function ModePill({ mode }: { mode: MatchRecordSummaryView['matchMode'] }) {
+function ModePill({ record }: { record: MatchRecordSummaryView }) {
   const tone =
-    mode === 'SOLITAIRE'
+    record.matchMode === 'SOLITAIRE'
       ? 'border-[color:var(--semantic-warning)]/35 text-[var(--semantic-warning)]'
       : 'border-[var(--border-subtle)] text-[var(--text-muted)]';
   return (
     <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tone}`}>
-      {formatMatchModeLabel(mode)}
+      {formatMatchModeLabel(record)}
     </span>
   );
 }
@@ -2034,8 +2051,11 @@ function formatDateTime(value: number | null): string {
   })}`;
 }
 
-function formatMatchModeLabel(mode: MatchRecordSummaryView['matchMode']): string {
-  return mode === 'SOLITAIRE' ? '对墙打' : '正式联机';
+function formatMatchModeLabel(
+  record: Pick<MatchRecordSummaryView, 'matchMode' | 'originKind'>
+): string {
+  if (record.originKind === 'AI_DEBUG') return 'AI 调试';
+  return record.matchMode === 'SOLITAIRE' ? '对墙打' : '正式联机';
 }
 
 function formatSeatPerspective(seat: Seat): string {
@@ -2089,8 +2109,8 @@ function formatRecordTitle(record: MatchRecordSummaryView): string {
     return `${first} vs ${second}`;
   }
   return record.opponentDisplayName
-    ? `${formatMatchModeLabel(record.matchMode)} · ${record.opponentDisplayName}`
-    : `${formatMatchModeLabel(record.matchMode)} · ${record.roomCode}`;
+    ? `${formatMatchModeLabel(record)} · ${record.opponentDisplayName}`
+    : `${formatMatchModeLabel(record)} · ${record.roomCode}`;
 }
 
 function formatFrameTypeLabel(frameType: MatchRecordTimelineEntryView['frameType']): string {

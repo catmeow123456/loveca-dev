@@ -6,6 +6,7 @@ const FOCUSABLE_SELECTOR = [
   'input:not([disabled])',
   'select:not([disabled])',
   'textarea:not([disabled])',
+  'summary',
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
@@ -44,9 +45,22 @@ function lockBodyScroll(): () => void {
 }
 
 function getFocusableElements(dialog: HTMLElement): HTMLElement[] {
-  return Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (element) => !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true'
-  );
+  return Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) => {
+    if (element.matches(':disabled') || element.closest('[aria-hidden="true"], [inert]'))
+      return false;
+    if (!element.getClientRects().length || getComputedStyle(element).visibility === 'hidden')
+      return false;
+    // Closed details retain descendants in the DOM. Only their first summary is focusable;
+    // nested summaries and controls must not become the trap's final element.
+    for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+      if (parent instanceof HTMLDetailsElement && !parent.open) {
+        const summary = parent.querySelector(':scope > summary');
+        if (!summary?.contains(element)) return false;
+      }
+      if (parent === dialog) break;
+    }
+    return element.tabIndex >= 0;
+  });
 }
 
 function focusWithoutScrolling(element: HTMLElement | null): void {

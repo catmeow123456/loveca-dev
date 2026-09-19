@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from
 import {
   ArrowRight,
   BookOpen,
+  Bot,
   CalendarClock,
   CheckCircle2,
   Cloud,
@@ -47,7 +48,7 @@ import type {
 } from '@/lib/appConfig';
 import { HomeEntryPanel, type HomeEntryAction } from './HomeEntryPanel';
 import './home-page.css';
-import { hasAnyManagementPermission } from '@game/shared/auth/permissions';
+import { hasAnyManagementPermission, hasPermission } from '@game/shared/auth/permissions';
 
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
 
@@ -71,6 +72,7 @@ interface HomePageProps {
   onNavigateToMatchRecords: () => void;
   onNavigateToOnlineDebug: () => void;
   onNavigateToAdminCenter: () => void;
+  onNavigateToAiBattle: () => void;
   onNavigateToTutorial: () => void;
   battleEntryVisibility: PlayerBattleEntryVisibility;
   siteStatus: PublicSiteStatus;
@@ -116,6 +118,7 @@ export function HomePage({
   onNavigateToMatchRecords,
   onNavigateToOnlineDebug,
   onNavigateToAdminCenter,
+  onNavigateToAiBattle,
   onNavigateToTutorial,
   battleEntryVisibility,
   siteStatus,
@@ -440,6 +443,17 @@ export function HomePage({
                   tone="primary"
                   compact
                 />
+                {hasPermission(profile.role, 'rules.manage') && (
+                  <ActionTile
+                    title="AI 对战"
+                    description="使用缪预组与 AI 对战，可选先后手。"
+                    icon={Bot}
+                    onClick={onNavigateToAiBattle}
+                    status="平台管理员"
+                    tone="blue"
+                    compact
+                  />
+                )}
               </div>
             </section>
           ) : null}

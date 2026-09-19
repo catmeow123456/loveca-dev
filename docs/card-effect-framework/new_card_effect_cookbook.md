@@ -62,6 +62,12 @@
 - `effects/look-top.ts` 的底部检视返回顺序是“最下方在前”。底部 ordered selection 的数字1也表示最终最下方；归位必须走 inspection-to-deck-bottom/waiting-room wrapper，保证 inspection 清理与 grouped `MAIN_DECK -> WAITING_ROOM` 事件一致。
 - 卡组顶的既有公开摘要仍只服务顶牌流程；底牌是私密信息时不得复用会暗示“卡组顶”的 summary。当前公开底部样本是 `PL!S-bp7-004-P` 费用13「黑泽黛雅」，效果按基础编号 `PL!S-bp7-004` 覆盖。
 
+### 起动候选查询
+
+需要供非交互消费者枚举起动时，在现有 activated registry 注册纯 `canStart`，并让真实执行继续使用原 workflow/费用路径。不得靠试执行或解析卡文判断费用。首批及未覆盖边界见 [起动发动条件查询](active_effect_runtime.md#起动发动条件的只读查询)；这不是所有已实现起动均已有完整参数查询的声明。
+
+步骤选择现在也支持 workflow 显式登记只读 query；正常 handler/公开确认前共用校验。候选、数量和顺序能够完整表达的步骤才使用普通选择查询，分组、盲选、数字和站位仍需单独补齐，详见 [步骤选择约束](active_effect_runtime.md#步骤选择的只读约束)。
+
 ## Hidden Information Modifier Visibility
 
 如果 modifier 本身已经生效，但前端展示会让非拥有者推断未公开内容，不要改 workflow 结算，也不要在前端组件里按卡名硬隐藏图标。Continuous modifier 必须在 definition/registry 层声明信息可见性，再由统一 collect 边界为本次产生的全部 modifier 附加 `visibilityDependency`；`projectPlayerViewState` 仍只按视角过滤投影用 modifier。

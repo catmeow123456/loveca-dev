@@ -157,6 +157,10 @@ defineAbility({
 - `CARD_ABILITY_DEFINITIONS` 已从 runner 拆到 `src/application/card-effects/definitions/index.ts`；ability id 在 `src/application/card-effects/ability-ids.ts`，definition 类型在 `src/application/card-effects/ability-definition-types.ts`。
 - 仍需要把 resolver dispatch 从大量 `switch abilityId` 逐步变成按 `steps` 执行。
 
+起动 registry 现可由 workflow 注册窄的只读 `canStart` 条件，供候选查询与 registry 执行共用；目前覆盖支付两能量堆墓与自送回收的首批样本。缺省 `undefined` 表示未提供查询，不等于合法或无效果。来源、时点、turn-limit 与实际费用原语保持原边界，见 [activeEffect runtime](active_effect_runtime.md#起动发动条件的只读查询)。
+
+步骤选择现在也支持 workflow 显式登记只读 query；正常 handler/公开确认前共用校验。候选、数量和顺序能够完整表达的步骤才使用普通选择查询，分组、盲选、数字和站位仍需单独补齐，详见 [步骤选择约束](active_effect_runtime.md#步骤选择的只读约束)。
+
 ### 4.2 Event and trigger layer
 
 职责：
