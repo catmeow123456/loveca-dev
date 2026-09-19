@@ -1,7 +1,5 @@
-import type {
-  CodexAiReasoningEffort,
-  CodexBattleBudget,
-} from '../../online/ai-battle-billing-types.js';
+import type { CodexAiReasoningEffort } from '../../online/ai-battle-model-registry.js';
+import type { CodexBattleBudget } from '../../online/ai-battle-billing-types.js';
 import type { OnlineMatchService } from '../services/online-match-service.js';
 import {
   AI_MODEL_TIMEOUT_MS,

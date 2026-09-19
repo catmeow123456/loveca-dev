@@ -11,7 +11,11 @@ import { fromTransport } from '../../src/online/serde';
 import { AiBattleBilling } from '../../src/server/ai-battle/billing';
 import { createMemoryAiBilling } from '../helpers/ai-battle-billing';
 import { compactAiDecisionInput } from '../../src/server/ai-battle/model-input';
-import type { AiBattleModel } from '../../src/online/ai-battle-billing-types';
+import {
+  API_AI_BATTLE_MODELS,
+  API_MODEL_METADATA,
+  type AiBattleModel,
+} from '../../src/online/ai-battle-model-registry';
 
 const KEY = 'test-api-key-never-export';
 const config = (model: AiBattleModel = 'qwen3.8-max', enableThinking = false) =>
@@ -126,7 +130,7 @@ const meteredResponse = (choices: unknown = []) =>
   );
 
 describe('AI model HTTP boundary', () => {
-  it.each(['qwen3.8-max', 'qwen3.8-flash', 'glm-5.2', 'deepseek-v4.1-flash'] as const)(
+  it.each(API_AI_BATTLE_MODELS)(
     'sends frozen thinking settings for %s and uses only the final answer as the decision',
     async (model) => {
       const answer = '{"selection":{"kind":"ACTION","actionRef":"a1"}}';
@@ -177,7 +181,7 @@ describe('AI model HTTP boundary', () => {
   );
 
   it('restricts models while using the configured Chat Completions upstream', () => {
-    for (const model of ['qwen3.8-max', 'qwen3.8-flash', 'glm-5.2', 'deepseek-v4.1-flash'])
+    for (const model of API_AI_BATTLE_MODELS)
       expect(
         createAiModelConfig(
           {
@@ -206,11 +210,12 @@ describe('AI model HTTP boundary', () => {
   });
 
   it.each([
-    ['glm-5.2', '0.27546000'],
-    ['deepseek-v4.1-flash', '0.06372360'],
+    ['glm-5.3', '2026-09-18', '0.27546000'],
+    ['glm-5.2', '2026-09-14', '0.27546000'],
+    ['deepseek-v4.1-flash', '2026-09-14', '0.06372360'],
   ] as const)(
     'sends %s JSON requests and persists its model-specific usage and price snapshot',
-    async (model, expectedCny) => {
+    async (model, pricingDate, expectedCny) => {
       const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
         meteredResponse([
           {
@@ -231,48 +236,47 @@ describe('AI model HTTP boundary', () => {
       expect(JSON.parse(f.client.configurationMaterial.content)).toMatchObject({ model });
       expect(f.memory.records.get('m')).toMatchObject({
         model,
-        pricingDate: '2026-09-14',
+        pricingDate,
         reportedAttempts: 1,
       });
       expect(f.billing.view().estimatedCny).toBe(expectedCny);
     }
   );
 
-  it.each(['glm-5.2', 'deepseek-v4.1-flash'] as const)(
-    'keeps %s explicit-cache reports unconfirmed at the HTTP boundary',
-    async (model) => {
-      const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            choices: [
-              {
-                message: { content: '{"selection":{"kind":"ACTION","actionRef":"a1"}}' },
-                finish_reason: 'stop',
-              },
-            ],
-            usage: {
-              prompt_tokens: 1600,
-              completion_tokens: 100,
-              prompt_tokens_details: {
-                cached_tokens: 1200,
-                cache_creation_input_tokens: 300,
-                cache_type: 'ephemeral',
-              },
+  it.each(
+    API_AI_BATTLE_MODELS.filter((id) => API_MODEL_METADATA[id].cacheBilling === 'implicit-only')
+  )('keeps %s explicit-cache reports unconfirmed at the HTTP boundary', async (model) => {
+    const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: { content: '{"selection":{"kind":"ACTION","actionRef":"a1"}}' },
+              finish_reason: 'stop',
             },
-          })
-        )
-      );
-      const f = await billedFixture(fetcher, model);
-      expect(await f.client.decide(input, new AbortController().signal, context)).toMatchObject({
-        kind: 'RESPONSE',
-      });
-      expect(f.billing.view()).toMatchObject({
-        attempts: 1,
-        reportedAttempts: 0,
-        unreportedAttempts: 1,
-      });
-    }
-  );
+          ],
+          usage: {
+            prompt_tokens: 1600,
+            completion_tokens: 100,
+            prompt_tokens_details: {
+              cached_tokens: 1200,
+              cache_creation_input_tokens: 300,
+              cache_type: 'ephemeral',
+            },
+          },
+        })
+      )
+    );
+    const f = await billedFixture(fetcher, model);
+    expect(await f.client.decide(input, new AbortController().signal, context)).toMatchObject({
+      kind: 'RESPONSE',
+    });
+    expect(f.billing.view()).toMatchObject({
+      attempts: 1,
+      reportedAttempts: 0,
+      unreportedAttempts: 1,
+    });
+  });
 
   it('persists usage independently of invalid choice envelopes and failed diagnostic capture', async () => {
     const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(meteredResponse());

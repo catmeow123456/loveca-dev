@@ -14,7 +14,7 @@ import { compactAiDecisionInput } from './model-input.js';
 import {
   API_AI_BATTLE_MODELS,
   type ApiAiBattleModel,
-} from '../../online/ai-battle-billing-types.js';
+} from '../../online/ai-battle-model-registry.js';
 import { parseAiTokenUsage, safeAiErrorForLog, type AiBattleBilling } from './billing.js';
 import type { AiUpstreamConfiguration } from '../services/ai-effect-extraction-service.js';
 

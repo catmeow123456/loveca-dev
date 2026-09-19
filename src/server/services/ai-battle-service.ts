@@ -26,7 +26,7 @@ import {
   isCodexAiBattleModel,
   type AiBattleModel,
   type CodexAiReasoningEffort,
-} from '../../online/ai-battle-billing-types.js';
+} from '../../online/ai-battle-model-registry.js';
 import {
   AiBattleBilling,
   projectAiBilling,

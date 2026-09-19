@@ -1,67 +1,16 @@
 import { z } from 'zod';
 import {
+  API_MODEL_METADATA,
   isCodexAiBattleModel,
-  type ApiAiBattleModel,
-} from '../../online/ai-battle-billing-types.js';
+  type AiBattleModel,
+} from '../../online/ai-battle-model-registry.js';
 import type {
-  AiBattleModel,
   AiBillingRecord,
   AiBillingSummary,
   AiBillingTotals,
   AiMatchBilling,
   AiTokenUsage,
 } from '../../online/ai-battle-billing-types.js';
-
-// Beijing list prices. CNY cents / 1M tokens, not discount ratios.
-// https://help.aliyun.com/zh/model-studio/qwen3-8-max
-// https://help.aliyun.com/zh/model-studio/qwen3-8-flash
-// https://help.aliyun.com/zh/model-studio/model-pricing
-// https://help.aliyun.com/zh/model-studio/context-cache
-const PRICING: Readonly<Record<ApiAiBattleModel, { pricingDate: string; prices: AiTokenUsage }>> = {
-  'qwen3.8-max': {
-    pricingDate: '2026-09-11',
-    prices: {
-      inputTokens: 1200,
-      implicitCachedTokens: 150,
-      explicitCachedTokens: 100,
-      cacheCreationTokens: 1500,
-      outputTokens: 3600,
-    },
-  },
-  'qwen3.8-flash': {
-    pricingDate: '2026-09-11',
-    prices: {
-      inputTokens: 80,
-      implicitCachedTokens: 10,
-      explicitCachedTokens: 10,
-      cacheCreationTokens: 125,
-      outputTokens: 270,
-    },
-  },
-  'glm-5.2': {
-    pricingDate: '2026-09-14',
-    prices: {
-      inputTokens: 800,
-      implicitCachedTokens: 200,
-      // Unsupported buckets; parseAiTokenUsage rejects explicit-cache usage for this model.
-      explicitCachedTokens: 0,
-      cacheCreationTokens: 0,
-      outputTokens: 2800,
-    },
-  },
-  'deepseek-v4.1-flash': {
-    pricingDate: '2026-09-14',
-    // Freeze Beijing peak list prices for estimates; off-peak discounts are not applied.
-    prices: {
-      inputTokens: 200,
-      implicitCachedTokens: 20,
-      // Unsupported buckets; parseAiTokenUsage rejects explicit-cache usage for this model.
-      explicitCachedTokens: 0,
-      cacheCreationTokens: 0,
-      outputTokens: 800,
-    },
-  },
-};
 
 export const emptyAiTokenUsage = (): AiTokenUsage => ({
   inputTokens: 0,
@@ -75,8 +24,8 @@ export function createAiBillingRecord(model: AiBattleModel): AiBillingRecord {
   return {
     revision: 0,
     model,
-    pricingDate: isCodexAiBattleModel(model) ? null : PRICING[model].pricingDate,
-    prices: isCodexAiBattleModel(model) ? null : { ...PRICING[model].prices },
+    pricingDate: isCodexAiBattleModel(model) ? null : API_MODEL_METADATA[model].pricingDate,
+    prices: isCodexAiBattleModel(model) ? null : { ...API_MODEL_METADATA[model].prices },
     attempts: 0,
     reportedAttempts: 0,
     usage: emptyAiTokenUsage(),
@@ -123,8 +72,13 @@ export function parseAiTokenUsage(value: unknown, model: AiBattleModel): AiToken
     prompt_tokens_details: details,
   } = parsed.data;
   const explicit = details.cache_type === 'ephemeral';
-  // These models support implicit caching only; explicit reports have no reviewed price.
-  if (explicit && (model === 'glm-5.2' || model === 'deepseek-v4.1-flash')) return null;
+  // Implicit-only models (registry cacheBilling) have no reviewed explicit-cache price.
+  if (
+    explicit &&
+    !isCodexAiBattleModel(model) &&
+    API_MODEL_METADATA[model].cacheBilling === 'implicit-only'
+  )
+    return null;
   if (explicit && details.cache_creation_input_tokens === undefined) return null;
   const created = details.cache_creation_input_tokens ?? 0;
   const cached = details.cached_tokens;

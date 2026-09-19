@@ -1,4 +1,4 @@
-import { isCodexAiBattleModel } from '../../../src/online/ai-battle-billing-types';
+import { isCodexAiBattleModel } from '../../../src/online/ai-battle-model-registry';
 import { fileURLToPath } from 'node:url';
 import type { Page, Route } from '@playwright/test';
 import type { GameCommand } from '../../../src/application/game-commands';

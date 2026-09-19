@@ -11,7 +11,7 @@
 - 使用仓库 `package.json` 要求的 Node/pnpm；依赖安装沿用锁文件。
 - API 进程必须能执行本机 Codex CLI，并使用该进程所属用户自己的 ChatGPT 登录。程序拒绝 API Key 认证，不会回退到 Qwen。该用户需有可用的目标模型权限与额度。
 - `AI_BATTLE_CODEX_PATH` 必须是 CLI 可执行文件的绝对路径。源码兼容默认值为 `/Applications/ChatGPT.app/Contents/Resources/codex`，其他安装位置需明确覆盖，不能假定该路径存在。
-- 当前源码只接受 `codex-cli 0.153.4`、`codex-cli 0.154.0-alpha.6.2`。可通过指定可执行文件的 `--version`、`login status` 核对，不产生对战模型调用。其他版本先重新验证严格参数、文件/工具隔离和响应格式，不能仅删除版本检查；现有实证来自 macOS，不宣称其他系统已验收。
+- 当前源码只接受 `codex-cli 0.153.4`、`codex-cli 0.154.0`、`codex-cli 0.154.0-alpha.6.2`。可通过指定可执行文件的 `--version`、`login status` 核对，不产生对战模型调用。其他版本先重新验证严格参数、文件/工具隔离和响应格式，不能仅删除版本检查；现有实证来自 macOS（0.153.4 与 0.154.0-alpha.6.2）及 Linux（0.154.0，2026-09-19 以一次真实最小调用验证 `--strict-config` 参数接受与响应格式），不宣称其他系统已验收。
 - 同线程模式读取进程环境 `CODEX_HOME` 或默认用户目录下的 `.codex/auth.json` 中现有 ChatGPT 登录，仅将所需 token 送入子进程内存。仅钥匙串登录暂不支持。只检查存在性、可读性与登录状态，不输出或发送文件正文；不要复制他人凭据，不覆盖原 Codex 配置。
 - 使用已有本地测试账号及 `rules.manage` 权限进入 AI 对战。这里沿用作者的测试入口，不要求访问生产管理页面。
 

@@ -10,7 +10,7 @@ import {
   CODEX_AI_REASONING_EFFORTS,
   type CodexAiBattleModel,
   type CodexAiReasoningEffort,
-} from '../../online/ai-battle-billing-types.js';
+} from '../../online/ai-battle-model-registry.js';
 import { AiBattleSetupError, type AiFrozenKnowledge } from './presets.js';
 import type { AiDecisionInput } from './protocol.js';
 import type { AiModelOutcome } from './runtime.js';

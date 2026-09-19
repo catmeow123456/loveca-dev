@@ -3,7 +3,7 @@ import { createLiveSetFixture } from '../helpers/ai-battle-live-set-fixture';
 import { decision, submit } from '../helpers/ai-battle-fixture';
 import { parseAiBattleResponse } from '../../src/server/ai-battle/decision';
 import * as codexProcess from '../../src/server/ai-battle/codex-process';
-import { DEFAULT_CODEX_AI_BATTLE_MODEL } from '../../src/online/ai-battle-billing-types';
+import { DEFAULT_CODEX_AI_BATTLE_MODEL } from '../../src/online/ai-battle-model-registry';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

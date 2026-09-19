@@ -1,7 +1,7 @@
 import {
   isCodexAiBattleModel,
   type CodexAiReasoningEffort,
-} from '../../online/ai-battle-billing-types.js';
+} from '../../online/ai-battle-model-registry.js';
 import { readLocalCodexConfig } from './local-codex-config.js';
 import { createLocalCodexClient } from './codex-model-client.js';
 import {
@@ -14,7 +14,7 @@ import {
   createAiModelConfig,
   DashScopeAiBattleClient,
 } from './model-client.js';
-import type { AiBattleModel } from '../../online/ai-battle-billing-types.js';
+import type { AiBattleModel } from '../../online/ai-battle-model-registry.js';
 import type { AiBattleTraceStore } from './trace-store.js';
 import type { AiBattleBilling } from './billing.js';
 

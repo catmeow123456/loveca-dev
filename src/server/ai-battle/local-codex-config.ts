@@ -1,8 +1,8 @@
 import {
   CODEX_AI_REASONING_EFFORTS,
   type CodexAiReasoningEffort,
-  type CodexBattleBudget,
-} from '../../online/ai-battle-billing-types.js';
+} from '../../online/ai-battle-model-registry.js';
+import type { CodexBattleBudget } from '../../online/ai-battle-billing-types.js';
 import { AiBattleSetupError } from './presets.js';
 
 export interface LocalCodexConfig {

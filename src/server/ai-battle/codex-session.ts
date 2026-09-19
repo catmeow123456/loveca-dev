@@ -4,7 +4,8 @@ import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import type { CodexAiBattleModel, AiTokenUsage } from '../../online/ai-battle-billing-types.js';
+import type { CodexAiBattleModel } from '../../online/ai-battle-model-registry.js';
+import type { AiTokenUsage } from '../../online/ai-battle-billing-types.js';
 import type { LocalCodexConfig } from './local-codex-config.js';
 import {
   CODEX_ISOLATION_CONFIG,

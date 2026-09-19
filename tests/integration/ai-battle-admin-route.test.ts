@@ -7,7 +7,7 @@ import {
   API_AI_BATTLE_MODELS,
   AI_BATTLE_MODELS,
   type AiBattleModel,
-} from '../../src/online/ai-battle-billing-types';
+} from '../../src/online/ai-battle-model-registry';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isUserRole } from '../../src/shared/auth/permissions';
@@ -414,7 +414,7 @@ describe('AI administrator routes and ownership', () => {
     expect((await response.json()).data.session.reasoningEffort).toBe('medium');
   });
 
-  it.each(['qwen3.8-flash', 'qwen3.8-max', 'glm-5.2', 'deepseek-v4.1-flash'] as const)(
+  it.each(API_AI_BATTLE_MODELS)(
     'requires an explicit supported model and passes %s to the per-game client',
     async (model) => {
       const f = await serverFixture();

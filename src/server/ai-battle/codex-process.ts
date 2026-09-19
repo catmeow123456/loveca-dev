@@ -3,13 +3,18 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { CodexAiBattleModel, AiTokenUsage } from '../../online/ai-battle-billing-types.js';
+import type { CodexAiBattleModel } from '../../online/ai-battle-model-registry.js';
+import type { AiTokenUsage } from '../../online/ai-battle-billing-types.js';
 import type { LocalCodexConfig } from './local-codex-config.js';
 import { z } from 'zod';
 
 // Revalidate isolation before accepting a different CLI version: tool capabilities can change.
 export const TESTED_CODEX_VERSION = 'codex-cli 0.153.4';
-export const TESTED_CODEX_VERSIONS = [TESTED_CODEX_VERSION, 'codex-cli 0.154.0-alpha.6.2'] as const;
+export const TESTED_CODEX_VERSIONS = [
+  TESTED_CODEX_VERSION,
+  'codex-cli 0.154.0',
+  'codex-cli 0.154.0-alpha.6.2',
+] as const;
 export class CodexInvocationNotStartedError extends Error {}
 const SAFE_ENV = [
   'PATH',

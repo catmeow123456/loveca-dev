@@ -8,6 +8,10 @@ import {
 } from '../../src/server/ai-battle/billing';
 import { AiBattleTraceStore, AI_TRACE_LIMITS } from '../../src/server/ai-battle/trace-store';
 import { createMemoryAiBilling } from '../helpers/ai-battle-billing';
+import {
+  API_AI_BATTLE_MODELS,
+  API_MODEL_METADATA,
+} from '../../src/online/ai-battle-model-registry';
 
 const rawUsage = {
   prompt_tokens: 47205,
@@ -29,6 +33,8 @@ describe('AI Beijing token accounting', () => {
     });
     expect(calculateAiCost(usage, max.prices)).toBe('0.38659200');
     expect(calculateAiCost(usage, flash.prices)).toBe('0.02579710');
+    expect(max.pricingDate).toBe('2026-09-11');
+    expect(flash.pricingDate).toBe('2026-09-11');
     const explicit = parseAiTokenUsage(
       {
         prompt_tokens: 1600,
@@ -48,18 +54,22 @@ describe('AI Beijing token accounting', () => {
     expect(calculateAiCost(explicit, flash.prices)).toBe('0.00084500');
   });
 
-  it('prices GLM input, implicit cache and output using its own dated snapshot', () => {
-    const record = createAiBillingRecord('glm-5.2');
-    expect(record).toMatchObject({
-      model: 'glm-5.2',
-      pricingDate: '2026-09-14',
-      prices: { inputTokens: 800, implicitCachedTokens: 200, outputTokens: 2800 },
-    });
-    expect(parseAiTokenUsage(rawUsage, 'glm-5.2')).toEqual(usage);
-    expect(calculateAiCost(usage, record.prices)).toBe('0.27546000');
-    expect(createAiBillingRecord('qwen3.8-max').pricingDate).toBe('2026-09-11');
-    expect(createAiBillingRecord('qwen3.8-flash').pricingDate).toBe('2026-09-11');
-  });
+  it.each([
+    ['glm-5.3', '2026-09-18'],
+    ['glm-5.2', '2026-09-14'],
+  ] as const)(
+    'prices %s input, implicit cache and output using its own dated snapshot',
+    (model, pricingDate) => {
+      const record = createAiBillingRecord(model);
+      expect(record).toMatchObject({
+        model,
+        pricingDate,
+        prices: { inputTokens: 800, implicitCachedTokens: 200, outputTokens: 2800 },
+      });
+      expect(parseAiTokenUsage(rawUsage, model)).toEqual(usage);
+      expect(calculateAiCost(usage, record.prices)).toBe('0.27546000');
+    }
+  );
 
   it('prices DeepSeek ordinary input, implicit cache and output at the Beijing peak rates', () => {
     const record = createAiBillingRecord('deepseek-v4.1-flash');
@@ -72,23 +82,22 @@ describe('AI Beijing token accounting', () => {
     expect(calculateAiCost(usage, record.prices)).toBe('0.06372360');
   });
 
-  it.each(['glm-5.2', 'deepseek-v4.1-flash'] as const)(
-    'leaves unsupported %s explicit-cache usage unknown instead of charging zero',
-    (model) => {
-      const explicit = {
-        prompt_tokens: 1600,
-        completion_tokens: 100,
-        prompt_tokens_details: {
-          cached_tokens: 1200,
-          cache_creation_input_tokens: 300,
-          cache_type: 'ephemeral',
-        },
-      };
-      expect(parseAiTokenUsage(explicit, model)).toBeNull();
-      expect(parseAiTokenUsage(explicit, 'qwen3.8-max')).not.toBeNull();
-      expect(parseAiTokenUsage(explicit, 'qwen3.8-flash')).not.toBeNull();
-    }
-  );
+  it.each(
+    API_AI_BATTLE_MODELS.filter((id) => API_MODEL_METADATA[id].cacheBilling === 'implicit-only')
+  )('leaves unsupported %s explicit-cache usage unknown instead of charging zero', (model) => {
+    const explicit = {
+      prompt_tokens: 1600,
+      completion_tokens: 100,
+      prompt_tokens_details: {
+        cached_tokens: 1200,
+        cache_creation_input_tokens: 300,
+        cache_type: 'ephemeral',
+      },
+    };
+    expect(parseAiTokenUsage(explicit, model)).toBeNull();
+    expect(parseAiTokenUsage(explicit, 'qwen3.8-max')).not.toBeNull();
+    expect(parseAiTokenUsage(explicit, 'qwen3.8-flash')).not.toBeNull();
+  });
 
   it.each([
     undefined,

@@ -1,4 +1,4 @@
-import { isCodexAiBattleModel } from '../../src/online/ai-battle-billing-types';
+import { isCodexAiBattleModel } from '../../src/online/ai-battle-model-registry';
 /** Standalone QA harness: full app + real PostgreSQL; fake HTTP by default, explicit REAL mode.
  * Start against an isolated local database named loveca_ai_qa_*. No test route exposes authority
  * or mutates rules. Browser requests use the normal administrator router and command validator.

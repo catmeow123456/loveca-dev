@@ -88,6 +88,10 @@ src/
 │                            # deck-storage-service (cloud deck normalization + validation),
 │                            # site-announcement-service (public site status + admin announcements),
 │                            # match-recorder/read/debug-replay and replay-retention services
+├── online/           # Shared online contracts (types, serde, visibility) imported by server and client
+│   └── ai-battle-model-registry.ts # AI battle model single source of truth: model ids, Beijing price
+│                            # snapshots (pricingDate), cache billing mode, provider declarations; adding
+│                            # a model only touches this file (Record typing enforces a pricing entry)
 └── shared/
     ├── types/enums.ts       # All game enums
     └── phase-config/        # Phase configuration registry

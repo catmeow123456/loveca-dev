@@ -15,7 +15,7 @@ import type { AiBattleService } from '../services/ai-battle-service.js';
 import {
   AI_BATTLE_MODELS,
   CODEX_AI_REASONING_EFFORTS,
-} from '../../online/ai-battle-billing-types.js';
+} from '../../online/ai-battle-model-registry.js';
 
 const createSchema = z
   .object({

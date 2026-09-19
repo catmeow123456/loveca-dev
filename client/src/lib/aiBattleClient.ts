@@ -11,10 +11,8 @@ import type {
   CreateAiBattleResult,
 } from '@game/online/ai-battle-types';
 import type { AiTraceExport, AiTraceListing } from '@game/online/ai-battle-observation-types';
-import type {
-  AiRecordedBillingResponse,
-  AiBattleModel,
-} from '@game/online/ai-battle-billing-types';
+import type { AiRecordedBillingResponse } from '@game/online/ai-battle-billing-types';
+import type { AiBattleModel } from '@game/online/ai-battle-model-registry';
 import { fromTransport, toTransport } from '@game/online/serde';
 import { apiClient, toApiClientError, type ApiResponse } from './apiClient';
 

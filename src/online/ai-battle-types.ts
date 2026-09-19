@@ -1,11 +1,7 @@
 import type { OnlineMatchSnapshot } from './release-types.js';
 import type { Seat } from './types.js';
-import type {
-  AiBattleModel,
-  AiMatchBilling,
-  CodexAiReasoningEffort,
-  CodexBattleBudget,
-} from './ai-battle-billing-types.js';
+import type { AiBattleModel, CodexAiReasoningEffort } from './ai-battle-model-registry.js';
+import type { AiMatchBilling, CodexBattleBudget } from './ai-battle-billing-types.js';
 
 export interface AiBattlePresetChoice {
   readonly id: string;

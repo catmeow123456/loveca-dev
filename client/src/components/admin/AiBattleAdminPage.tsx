@@ -19,11 +19,12 @@ import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { AiBattleObservationPanel } from './AiBattleObservationPanel';
 import {
   API_AI_BATTLE_MODELS,
+  API_MODEL_METADATA,
   DEFAULT_CODEX_AI_BATTLE_MODEL,
   isCodexAiBattleModel,
   type AiBattleModel,
   type CodexAiReasoningEffort,
-} from '@game/online/ai-battle-billing-types';
+} from '@game/online/ai-battle-model-registry';
 import { AiBillingCost } from './AiBillingCost';
 import './ai-battle.css';
 
@@ -416,7 +417,7 @@ export function AiBattleAdminPage({
               )}
               {!isCodexAiBattleModel(model) && (
                 <>
-                  {model === 'deepseek-v4.1-flash' && (
+                  {API_MODEL_METADATA[model].peakPriceOnly && (
                     <small>费用按北京忙时价预估，闲时实际费用可能更低。</small>
                   )}
                   <div>
