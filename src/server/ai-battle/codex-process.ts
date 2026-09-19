@@ -154,7 +154,10 @@ export function runCodexProcess(
     signal.addEventListener('abort', abort, { once: true });
     if (signal.aborted) abort();
     child.on('error', () => stop(new Error('Cannot start Codex CLI')));
-    child.stdin.on('error', () => stop(new Error('Codex stdin closed')));
+    // A CLI that exits without draining stdin (e.g. `codex --version`) closes the pipe's
+    // read end; the flush then surfaces here as EPIPE. The exit code and captured output
+    // already describe that outcome, so a stdin error is not itself an invocation failure.
+    child.stdin.on('error', () => {});
     for (const [stream, isOut] of [
       [child.stdout, true],
       [child.stderr, false],
