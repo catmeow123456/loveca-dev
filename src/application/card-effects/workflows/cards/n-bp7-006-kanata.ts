@@ -36,6 +36,11 @@ import {
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
+  queryCardSelection,
+  queryConfirmSelection,
+  queryOptionSelection,
+} from '../../runtime/selection-query.js';
+import {
   getAbilityEffectText,
   recordAbilityUseForContext,
   recordPayCostAction,
@@ -66,7 +71,10 @@ export function registerNBp7006KanataWorkflowHandlers(deps: {
 }): void {
   registerActivatedAbilityHandler(
     N_BP7_006_ACTIVATED_PAY_ENERGY_INSPECT_TOP_FOUR_ABILITY_ID,
-    (game, playerId, sourceCardId) => startInspectTopFour(game, playerId, sourceCardId, deps)
+    (game, playerId, sourceCardId) => startInspectTopFour(game, playerId, sourceCardId, deps),
+    (game, playerId, sourceCardId) =>
+      !!getValidSourceController(game, playerId, sourceCardId) &&
+      getEnergyCardIdsByOrientation(game, playerId, OrientationState.ACTIVE).length >= 1
   );
   registerActiveEffectStepHandler(
     N_BP7_006_ACTIVATED_PAY_ENERGY_INSPECT_TOP_FOUR_ABILITY_ID,
@@ -77,12 +85,16 @@ export function registerNBp7006KanataWorkflowHandlers(deps: {
         input.selectedCardIds ?? [],
         context.continuePendingCardEffects,
         deps.enqueueTriggeredCardEffects
-      )
+      ),
+    queryCardSelection
   );
 
   registerActivatedAbilityHandler(
     N_BP7_006_ACTIVATED_MILL_TOP_THREE_CHOOSE_ENERGY_OR_BLADE_ABILITY_ID,
-    (game, playerId, sourceCardId) => startMillTopThree(game, playerId, sourceCardId, deps)
+    (game, playerId, sourceCardId) => startMillTopThree(game, playerId, sourceCardId, deps),
+    (game, playerId, sourceCardId) =>
+      (getValidSourceController(game, playerId, sourceCardId)?.mainDeck.cardIds.length ?? 0) >=
+      MILL_COST_COUNT
   );
   registerActiveEffectStepHandler(
     N_BP7_006_ACTIVATED_MILL_TOP_THREE_CHOOSE_ENERGY_OR_BLADE_ABILITY_ID,
@@ -92,12 +104,14 @@ export function registerNBp7006KanataWorkflowHandlers(deps: {
         game,
         input.selectedOptionId ?? null,
         context.continuePendingCardEffects
-      )
+      ),
+    queryOptionSelection
   );
   registerActiveEffectStepHandler(
     N_BP7_006_ACTIVATED_MILL_TOP_THREE_CHOOSE_ENERGY_OR_BLADE_ABILITY_ID,
     REVEAL_MILL_COST_RESULT_STEP_ID,
-    (game, _input, context) => finishMillCostPublicResult(game, context.continuePendingCardEffects)
+    (game, _input, context) => finishMillCostPublicResult(game, context.continuePendingCardEffects),
+    queryConfirmSelection
   );
 }
 

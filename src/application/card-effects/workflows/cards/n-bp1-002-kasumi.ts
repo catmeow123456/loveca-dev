@@ -28,6 +28,7 @@ import {
   playMemberFromZoneToStageSlotWithReplacement,
 } from '../../runtime/play-member-to-stage.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryCardSelection, querySlotSelection } from '../../runtime/selection-query.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 export const N_BP1_002_SELECT_DISCARD_STEP_ID = 'N_BP1_002_SELECT_DISCARD';
@@ -50,7 +51,8 @@ export function registerNBp1002KasumiWorkflowHandlers(deps: {
 }): void {
   registerActivatedAbilityHandler(
     PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
-    (game, playerId, cardId) => startKasumiFromWaitingRoomActivated(game, playerId, cardId)
+    (game, playerId, cardId) => startKasumiFromWaitingRoomActivated(game, playerId, cardId),
+    (game, playerId, cardId) => getKasumiActivationController(game, playerId, cardId) !== null
   );
   registerActiveEffectStepHandler(
     PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
@@ -61,7 +63,8 @@ export function registerNBp1002KasumiWorkflowHandlers(deps: {
         input.selectedCardId ?? null,
         deps.enqueueTriggeredCardEffects,
         context.continuePendingCardEffects
-      )
+      ),
+    queryCardSelection
   );
   registerActiveEffectStepHandler(
     PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
@@ -72,17 +75,18 @@ export function registerNBp1002KasumiWorkflowHandlers(deps: {
         input.selectedSlot ?? null,
         deps.enqueueTriggeredCardEffects,
         context.continuePendingCardEffects
-      )
+      ),
+    querySlotSelection
   );
 }
 
-function startKasumiFromWaitingRoomActivated(
+function getKasumiActivationController(
   game: GameState,
   playerId: string,
   cardId: string
-): GameState {
+): ReturnType<typeof getPlayerById> {
   if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
-    return game;
+    return null;
   }
 
   const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
@@ -99,8 +103,18 @@ function startKasumiFromWaitingRoomActivated(
     player.hand.cardIds.length === 0 ||
     getActiveEnergyCardIds(game, player.id).length < 2
   ) {
-    return game;
+    return null;
   }
+  return player;
+}
+
+function startKasumiFromWaitingRoomActivated(
+  game: GameState,
+  playerId: string,
+  cardId: string
+): GameState {
+  const player = getKasumiActivationController(game, playerId, cardId);
+  if (!player) return game;
 
   return addAction(
     {

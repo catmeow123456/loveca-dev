@@ -1,8 +1,10 @@
 import type { ActiveEffectState, GameState } from '../../../domain/entities/game.js';
 import type { ActiveEffectStepHandlerInput } from './step-registry.js';
+import type { SlotPosition } from '../../../shared/types/enums.js';
 
 /** A current input contract, supplied by the workflow that owns the step. */
 export type ActiveEffectSelection =
+  | { readonly kind: 'SLOTS'; readonly slots: readonly SlotPosition[]; readonly canSkip: boolean }
   | {
       readonly kind: 'CARDS';
       readonly cardIds: readonly string[];
@@ -28,6 +30,14 @@ export type ActiveEffectSelection =
   | { readonly kind: 'CONFIRM' };
 
 export type ActiveEffectSelectionQuery = (game: GameState) => ActiveEffectSelection | undefined;
+
+/** Opt in for a single stage-slot choice with no simultaneous card/number input. */
+export function querySlotSelection(game: GameState): ActiveEffectSelection | undefined {
+  const effect = game.activeEffect;
+  return effect?.selectableSlots
+    ? { kind: 'SLOTS', slots: effect.selectableSlots, canSkip: effect.canSkipSelection === true }
+    : undefined;
+}
 
 /** Opt in only when membership and cardinality fully describe this workflow's selection. */
 export function queryCardSelection(game: GameState): ActiveEffectSelection | undefined {
@@ -90,6 +100,14 @@ export function isActiveEffectSelectionValid(
   if (keys.length === 0) {
     return selection.canSkip || (selection.kind === 'CARDS' && selection.min === 0);
   }
+  if (selection.kind === 'SLOTS')
+    return (
+      keys.length === 1 &&
+      keys[0] === 'selectedSlot' &&
+      input.selectedSlot !== undefined &&
+      input.selectedSlot !== null &&
+      selection.slots.includes(input.selectedSlot)
+    );
   if (selection.kind === 'CARDS') {
     const key = selection.mode === 'ORDERED_MULTI' ? 'selectedCardIds' : 'selectedCardId';
     // Existing clients may submit the single object form to an exact-one multi step.

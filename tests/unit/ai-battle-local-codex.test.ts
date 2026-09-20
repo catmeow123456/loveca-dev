@@ -1,4 +1,5 @@
 import { CodexBattleSession } from '../../src/server/ai-battle/codex-session';
+import { CODEX_OBSERVED_HISTORY_MAX_BYTES } from '../../src/server/ai-battle/codex-observed-history';
 import { createLiveSetFixture } from '../helpers/ai-battle-live-set-fixture';
 import { decision, submit } from '../helpers/ai-battle-fixture';
 import { parseAiBattleResponse } from '../../src/server/ai-battle/decision';
@@ -19,7 +20,6 @@ import {
   parseCodexOutput,
   runCodexProcess,
   verifyCodexLogin,
-  TESTED_CODEX_VERSIONS,
   CodexInvocationNotStartedError,
   executeCodexDecision,
 } from '../../src/server/ai-battle/codex-process';
@@ -214,8 +214,8 @@ describe('Codex subprocess transport and subscription accounting', () => {
       parseCodexOutput('{"type":"item.started","item":{"type":"command_execution"}}\n' + stream({}))
     ).toThrow();
   });
-  it.each(TESTED_CODEX_VERSIONS)(
-    'accepts ChatGPT login only for validated CLI %s',
+  it.each(['codex-cli 0.153.4', 'codex-cli 0.155.0-alpha.9.2', 'codex-cli 9.0.0'])(
+    'allows local ChatGPT login regardless of CLI version %s without starting a model',
     async (version) => {
       const dir = await mkdtemp(join(tmpdir(), 'codex-login-test-'));
       const cli = join(dir, 'cli');
@@ -231,25 +231,38 @@ describe('Codex subprocess transport and subscription accounting', () => {
       }
     }
   );
-  it.each(TESTED_CODEX_VERSIONS)(
-    'rejects API-key login for %s and untested CLI versions without starting a model',
-    async (version) => {
+  it.each(['Logged in using an API key', 'Not logged in'])(
+    'still rejects login status %s without starting a model',
+    async (status) => {
       const dir = await mkdtemp(join(tmpdir(), 'codex-login-test-'));
       const cli = join(dir, 'cli');
       try {
         await writeFile(
           cli,
-          `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "${version}"; else echo "Logged in using an API key"; fi\n`,
+          `#!/bin/sh\nif [ "$1" = "login" ] && [ "$2" = "status" ]; then echo "${status}"; else exit 99; fi\n`,
           { mode: 0o700 }
         );
         await expect(verifyCodexLogin({ ...config, cliPath: cli })).rejects.toThrow('ChatGPT');
-        await writeFile(cli, '#!/bin/sh\necho "codex-cli untested"\n');
-        await expect(verifyCodexLogin({ ...config, cliPath: cli })).rejects.toThrow('version');
       } finally {
         await rm(dir, { recursive: true, force: true });
       }
     }
   );
+  it('still rejects an unavailable CLI or a failed login command', async () => {
+    await expect(
+      verifyCodexLogin({ ...config, cliPath: '/missing-loveca-codex-cli' })
+    ).rejects.toThrow('Cannot start');
+    const dir = await mkdtemp(join(tmpdir(), 'codex-login-test-'));
+    try {
+      const cli = join(dir, 'cli');
+      await writeFile(cli, '#!/bin/sh\necho "Logged in using ChatGPT"\nexit 1\n', { mode: 0o700 });
+      await expect(verifyCodexLogin({ ...config, cliPath: cli })).rejects.toThrow(
+        'exited with code 1'
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
   it('distinguishes failures before spawn from unconfirmed model usage', async () => {
     await expect(
       executeCodexDecision(
@@ -528,83 +541,164 @@ describe('Codex provider preserves the existing decision contract', () => {
       unreportedAttempts: 1,
     });
   });
-  it('rotates at the watermark before dispatch, restores knowledge and preserves observed public history without replaying an old request', async () => {
-    const decide = vi.spyOn(CodexBattleSession.prototype, 'decide').mockResolvedValue({
-      text: '{}',
-      usage: parseCodexUsage({ input_tokens: 20, cached_input_tokens: 0, output_tokens: 1 }),
-    });
-    const close = vi.spyOn(CodexBattleSession.prototype, 'close').mockResolvedValue();
-    vi.spyOn(CodexBattleSession.prototype, 'createSuccessor').mockImplementation(async function () {
-      await this.close();
-      return new CodexBattleSession(
-        { ...config, sessionReuse: true, threadRotation: true },
-        'codex:gpt-5.6-luna'
+  it.each([0, 180 * 1024])(
+    'rotates at the watermark and preserves public history (%i bytes of content) without replaying an old request',
+    async (historyContentBytes) => {
+      const decide = vi.spyOn(CodexBattleSession.prototype, 'decide').mockResolvedValue({
+        text: '{}',
+        usage: parseCodexUsage({ input_tokens: 20, cached_input_tokens: 0, output_tokens: 1 }),
+      });
+      const close = vi.spyOn(CodexBattleSession.prototype, 'close').mockResolvedValue();
+      vi.spyOn(CodexBattleSession.prototype, 'createSuccessor').mockImplementation(
+        async function () {
+          await this.close();
+          return new CodexBattleSession(
+            { ...config, sessionReuse: true, threadRotation: true },
+            'codex:gpt-5.6-luna'
+          );
+        }
       );
-    });
-    vi.spyOn(CodexBattleSession.prototype, 'contextStatus', 'get').mockImplementation(() => ({
-      lastContextTokens: decide.mock.calls.length === 1 ? 200 : null,
-      modelContextWindow: 250,
-      stopAtTokens: 200,
-      completedTurns: decide.mock.calls.length,
-      automaticCompaction: false,
-      compactions: 0,
-    }));
-    const f = await fixture(undefined, undefined, true, undefined, undefined, true);
-    const event = {
-      type: 'PlayerDeclared',
-      source: 'PLAYER',
-      actorSeat: 'FIRST',
-      matchId: 'm',
-      eventId: 'm:1',
-      seq: 1,
-      timestamp: 1,
-      declarationType: 'OLD_PUBLIC_FACT',
-    };
-    const first = {
-      ...input,
-      history: {
-        selection: 'LAST_12_PUBLIC_EVENTS',
-        throughPublicSeq: 1,
-        omittedEventCount: 0,
-        events: [event],
-      },
-    } as AiDecisionInput;
-    const next = {
-      ...input,
-      history: {
-        selection: 'LAST_12_PUBLIC_EVENTS',
-        throughPublicSeq: 5,
-        omittedEventCount: 5,
-        events: [],
-      },
-      space: { kind: 'ACTION', candidates: [{ ref: 'new-ref', description: 'CURRENT_ONLY' }] },
-    } as AiDecisionInput;
-    expect((await f.client.decide(first, new AbortController().signal, context)).kind).toBe(
-      'RESPONSE'
-    );
-    expect(close).not.toHaveBeenCalled();
-    expect(
-      (await f.client.decide(next, new AbortController().signal, { ...context, taskId: 'next' }))
-        .kind
-    ).toBe('RESPONSE');
-    expect(close).toHaveBeenCalledTimes(1);
-    expect(decide).toHaveBeenCalledTimes(2);
-    expect(decide.mock.instances[0]).not.toBe(decide.mock.instances[1]);
-    const sent = decide.mock.calls[1]![0];
-    expect(sent).toContain('ONLY_FROZEN_PUBLIC_OR_SELF_KNOWLEDGE');
-    expect(sent).toContain('OLD_PUBLIC_FACT');
-    expect(sent).toContain('"unobservedEventCount":4');
-    expect(sent).toContain('new-ref');
-    expect(sent).not.toContain('完成主要阶段');
-    expect(f.billing.view().attempts).toBe(2);
-    await f.client.dispose();
-  });
+      vi.spyOn(CodexBattleSession.prototype, 'contextStatus', 'get').mockImplementation(() => ({
+        lastContextTokens: decide.mock.calls.length === 1 ? 200 : null,
+        modelContextWindow: 250,
+        stopAtTokens: 200,
+        completedTurns: decide.mock.calls.length,
+        automaticCompaction: false,
+        compactions: 0,
+      }));
+      const f = await fixture(undefined, undefined, true, undefined, undefined, true);
+      const event = {
+        type: 'PlayerDeclared',
+        source: 'PLAYER',
+        actorSeat: 'FIRST',
+        matchId: 'm',
+        eventId: 'm:1',
+        seq: 1,
+        timestamp: 1,
+        declarationType: 'OLD_PUBLIC_FACT',
+        publicValue: 'x'.repeat(historyContentBytes),
+      };
+      const first = {
+        ...input,
+        history: {
+          selection: 'LAST_12_PUBLIC_EVENTS',
+          throughPublicSeq: 1,
+          omittedEventCount: 0,
+          events: [event],
+        },
+      } as AiDecisionInput;
+      const next = {
+        ...input,
+        history: {
+          selection: 'LAST_12_PUBLIC_EVENTS',
+          throughPublicSeq: 5,
+          omittedEventCount: 5,
+          events: [],
+        },
+        space: { kind: 'ACTION', candidates: [{ ref: 'new-ref', description: 'CURRENT_ONLY' }] },
+      } as AiDecisionInput;
+      expect((await f.client.decide(first, new AbortController().signal, context)).kind).toBe(
+        'RESPONSE'
+      );
+      expect(close).not.toHaveBeenCalled();
+      expect(
+        (await f.client.decide(next, new AbortController().signal, { ...context, taskId: 'next' }))
+          .kind
+      ).toBe('RESPONSE');
+      expect(close).toHaveBeenCalledTimes(1);
+      expect(decide).toHaveBeenCalledTimes(2);
+      expect(decide.mock.instances[0]).not.toBe(decide.mock.instances[1]);
+      const sent = decide.mock.calls[1]![0];
+      expect(sent).toContain('ONLY_FROZEN_PUBLIC_OR_SELF_KNOWLEDGE');
+      expect(sent).toContain('OLD_PUBLIC_FACT');
+      expect(sent).toContain(JSON.stringify(event));
+      expect(Buffer.byteLength(sent)).toBeLessThan(512 * 1024);
+      expect(sent).toContain('"unobservedEventCount":4');
+      expect(sent).toContain('new-ref');
+      expect(sent).not.toContain('完成主要阶段');
+      expect(f.billing.view().attempts).toBe(2);
+      await f.client.dispose();
+    }
+  );
   it('stops before a model request when rotation history is unavailable', async () => {
     const execute = vi.fn();
     const f = await fixture(execute, undefined, true, undefined, undefined, true);
     expect((await f.client.decide(input, new AbortController().signal, context)).kind).toBe(
       'ADAPTER_ERROR'
     );
+    expect(execute).not.toHaveBeenCalled();
+    expect(f.billing.view().attempts).toBe(0);
+  });
+  it('reports history capacity separately and stops before dispatch or billing', async () => {
+    const execute = vi.fn();
+    const f = await fixture(execute, undefined, true, undefined, undefined, true);
+    const capture = vi.spyOn(f.traces, 'append');
+    const tooLarge = {
+      ...input,
+      history: {
+        selection: 'LAST_12_PUBLIC_EVENTS',
+        throughPublicSeq: 1,
+        omittedEventCount: 0,
+        events: [
+          {
+            type: 'PlayerDeclared',
+            source: 'PLAYER',
+            matchId: 'm',
+            eventId: 'm:1',
+            seq: 1,
+            timestamp: 1,
+            declarationType: 'PUBLIC_FACT',
+            publicValue: 'x'.repeat(CODEX_OBSERVED_HISTORY_MAX_BYTES),
+          },
+        ],
+      },
+    } as AiDecisionInput;
+    const attemptedBytes = Buffer.byteLength(JSON.stringify(tooLarge.history!.events[0]));
+    const result = await f.client.decide(tooLarge, new AbortController().signal, context);
+    expect(result.kind).toBe('ADAPTER_ERROR');
+    expect(result).toHaveProperty(
+      'message',
+      expect.stringContaining(
+        `本次累计 ${attemptedBytes} 字节，上限 ${CODEX_OBSERVED_HISTORY_MAX_BYTES} 字节`
+      )
+    );
+    expect(capture).toHaveBeenCalledWith(
+      'm',
+      'd',
+      'HISTORY_STOP',
+      {
+        reason: 'CAPACITY',
+        attemptedBytes,
+        limitBytes: CODEX_OBSERVED_HISTORY_MAX_BYTES,
+      },
+      undefined
+    );
+    await f.client.decide(input, new AbortController().signal, context);
+    expect(execute).not.toHaveBeenCalled();
+    expect(f.billing.view().attempts).toBe(0);
+  });
+  it('keeps the independent 512 KiB request cap even when history fits', async () => {
+    const execute = vi.fn();
+    const f = await fixture(execute);
+    const capture = vi.spyOn(f.traces, 'append');
+    const oversizedInput = {
+      ...input,
+      space: { kind: 'ACTION', candidates: [{ ref: 'a1', description: 'x'.repeat(512 * 1024) }] },
+    } as AiDecisionInput;
+    const result = await f.client.decide(oversizedInput, new AbortController().signal, context);
+    expect(result.kind).toBe('ADAPTER_ERROR');
+    expect(result).toHaveProperty('message', expect.stringContaining('单次请求容量超限'));
+    expect(capture).toHaveBeenCalledWith(
+      'm',
+      'd',
+      'CONTEXT_STOP',
+      expect.objectContaining({
+        reason: 'REQUEST_BYTES',
+        limitBytes: 512 * 1024,
+      }),
+      undefined
+    );
+    await f.client.decide(input, new AbortController().signal, context);
     expect(execute).not.toHaveBeenCalled();
     expect(f.billing.view().attempts).toBe(0);
   });

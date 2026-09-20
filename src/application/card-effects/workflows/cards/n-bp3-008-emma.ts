@@ -6,7 +6,10 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForSourceMember, addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
+import {
+  addHeartLiveModifierForSourceMember,
+  addHeartLiveModifierForTargetMember,
+} from '../../../../domain/rules/live-modifiers.js';
 import type {
   EnterWaitingRoomEvent,
   MemberStateChangedEvent,
@@ -33,6 +36,7 @@ import { registerActivatedAbilityHandler } from '../../runtime/activated-registr
 import { discardHandCardsToWaitingRoomAndEnqueueTriggers } from '../../runtime/enter-waiting-room-triggers.js';
 import { enqueueMemberStateChangedTriggersFromOrientationResult } from '../../runtime/member-state-changed-triggers.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import {
@@ -65,7 +69,14 @@ export function registerNBp3008EmmaWorkflowHandlers(deps: {
 }): void {
   registerActivatedAbilityHandler(
     PL_N_BP3_008_ACTIVATED_WAIT_OTHER_NIJIGASAKI_DRAW_ONE_ABILITY_ID,
-    (game, playerId, cardId) => startActivatedWaitOtherNijigasakiDrawOne(game, playerId, cardId)
+    (game, playerId, cardId) => startActivatedWaitOtherNijigasakiDrawOne(game, playerId, cardId),
+    (game, playerId, cardId) =>
+      !game.activeEffect &&
+      game.currentPhase === GamePhase.MAIN_PHASE &&
+      game.players[game.activePlayerIndex]?.id === playerId &&
+      isEmmaSourceOnOwnStage(game, playerId, cardId) &&
+      getSourceMemberSlot(game, playerId, cardId) !== null &&
+      getActivatedCostTargetIds(game, playerId, cardId).length > 0
   );
   registerActiveEffectStepHandler(
     PL_N_BP3_008_ACTIVATED_WAIT_OTHER_NIJIGASAKI_DRAW_ONE_ABILITY_ID,
@@ -75,17 +86,14 @@ export function registerNBp3008EmmaWorkflowHandlers(deps: {
         game,
         input.selectedCardId ?? null,
         deps.enqueueTriggeredCardEffects
-      )
+      ),
+    queryCardSelection
   );
 
   registerPendingAbilityStarterHandler(
     PL_N_BP3_008_LIVE_START_DISCARD_TWO_ACTIVATE_OTHER_MEMBER_GAIN_GREEN_HEART_ABILITY_ID,
     (game, ability, options) =>
-      startLiveStartDiscardTwoActivateOtherMember(
-        game,
-        ability,
-        options.orderedResolution === true
-      )
+      startLiveStartDiscardTwoActivateOtherMember(game, ability, options.orderedResolution === true)
   );
   registerActiveEffectStepHandler(
     PL_N_BP3_008_LIVE_START_DISCARD_TWO_ACTIVATE_OTHER_MEMBER_GAIN_GREEN_HEART_ABILITY_ID,
@@ -98,7 +106,8 @@ export function registerNBp3008EmmaWorkflowHandlers(deps: {
             input.selectedCardIds,
             deps.enqueueTriggeredCardEffects,
             context.continuePendingCardEffects
-          )
+          ),
+    queryCardSelection
   );
   registerActiveEffectStepHandler(
     PL_N_BP3_008_LIVE_START_DISCARD_TWO_ACTIVATE_OTHER_MEMBER_GAIN_GREEN_HEART_ABILITY_ID,
@@ -109,7 +118,8 @@ export function registerNBp3008EmmaWorkflowHandlers(deps: {
         input.selectedCardId ?? null,
         deps.enqueueTriggeredCardEffects,
         context.continuePendingCardEffects
-      )
+      ),
+    queryCardSelection
   );
 }
 
@@ -194,12 +204,18 @@ function finishActivatedWaitOtherNijigasakiDrawOne(
     return game;
   }
 
-  const waitResult = setMemberOrientation(game, player.id, selectedCardId, OrientationState.WAITING, {
-    kind: 'CARD_EFFECT',
-    playerId: player.id,
-    sourceCardId: effect.sourceCardId,
-    abilityId: effect.abilityId,
-  });
+  const waitResult = setMemberOrientation(
+    game,
+    player.id,
+    selectedCardId,
+    OrientationState.WAITING,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: player.id,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+    }
+  );
   if (!waitResult || waitResult.previousOrientation === OrientationState.WAITING) {
     return game;
   }
@@ -328,11 +344,7 @@ function finishLiveStartDiscardTwo(
   }
 
   const state = discardResult.gameState;
-  const selectableCardIds = getLiveStartActivateTargetIds(
-    state,
-    player.id,
-    effect.sourceCardId
-  );
+  const selectableCardIds = getLiveStartActivateTargetIds(state, player.id, effect.sourceCardId);
   if (selectableCardIds.length === 0) {
     return continuePendingCardEffects(
       addAction({ ...state, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
@@ -467,16 +479,21 @@ function finishLiveStartActivateTarget(
   }
 
   return continuePendingCardEffects(
-    addAction({ ...sourceHeartResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      sourceSlot: effect.metadata?.sourceSlot,
-      step: 'GAIN_GREEN_HEARTS',
-      targetMemberCardId: selectedCardId,
-      discardedCardIds: getDiscardedCardIds(effect.metadata),
-      greenHeartMemberCardIds: [selectedCardId, effect.sourceCardId],
-    }),
+    addAction(
+      { ...sourceHeartResult.gameState, activeEffect: null },
+      'RESOLVE_ABILITY',
+      player.id,
+      {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        sourceSlot: effect.metadata?.sourceSlot,
+        step: 'GAIN_GREEN_HEARTS',
+        targetMemberCardId: selectedCardId,
+        discardedCardIds: getDiscardedCardIds(effect.metadata),
+        greenHeartMemberCardIds: [selectedCardId, effect.sourceCardId],
+      }
+    ),
     effect.metadata?.orderedResolution === true
   );
 }
@@ -525,16 +542,24 @@ function getLiveStartActivateTargetIds(
     const card = getCardById(game, cardId);
     const player = getPlayerById(game, playerId);
     const state = player?.memberSlots.cardStates.get(cardId);
-    return card !== null && isMemberCardData(card.data) && state?.orientation === OrientationState.WAITING;
+    return (
+      card !== null &&
+      isMemberCardData(card.data) &&
+      state?.orientation === OrientationState.WAITING
+    );
   });
 }
 
 function getOwnStageMemberCardIds(game: GameState, playerId: string): readonly string[] {
   const player = getPlayerById(game, playerId);
-  return player ? Object.values(player.memberSlots.slots).filter((cardId): cardId is string => cardId !== null) : [];
+  return player
+    ? Object.values(player.memberSlots.slots).filter((cardId): cardId is string => cardId !== null)
+    : [];
 }
 
-function getDiscardedCardIds(metadata: Readonly<Record<string, unknown>> | undefined): readonly string[] {
+function getDiscardedCardIds(
+  metadata: Readonly<Record<string, unknown>> | undefined
+): readonly string[] {
   return Array.isArray(metadata?.discardedCardIds)
     ? metadata.discardedCardIds.filter((cardId): cardId is string => typeof cardId === 'string')
     : [];

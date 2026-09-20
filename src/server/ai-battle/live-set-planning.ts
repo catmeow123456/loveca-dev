@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { BladeHeartEffect, CardType, SlotPosition } from '../../shared/types/enums.js';
 import type { AiDecisionInput } from './protocol.js';
 import type { AiKnowledgeMaterial } from './presets.js';
+import { summarizeAiLiveProbabilities } from './live-probability-summary.js';
 
 // Read only the current frozen own-deck format. No registry lookup or hidden remaining order.
 const deckReference = z.object({
@@ -133,6 +134,7 @@ export function summarizeAiLiveSetPlanning(input: AiDecisionInput, ownDeck?: AiK
         '未计玩家额外HEART、声援次数/判心修正、后续卡效及多LIVE合计需求；未检查指定色命中和剩余牌序。缺口为0不保证成功；正缺口必须有实际可执行的补足来源。',
     },
     liveCards,
+    probabilityReference: summarizeAiLiveProbabilities(input, ownDeck),
     jointJudgment: {
       semantics: 'MERGED_ALL_OR_NOTHING' as const,
       printedBaselineShortfallLiveRefs,

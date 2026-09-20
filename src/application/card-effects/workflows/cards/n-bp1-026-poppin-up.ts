@@ -13,6 +13,7 @@ import {
 } from '../../../effects/cheer-selection.js';
 import { PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID } from '../../ability-ids.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   registerPendingAbilityStarterHandler,
   type PendingAbilityStarterOptions,
@@ -32,12 +33,7 @@ export function registerNBp1026PoppinUpWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID,
     (game, ability, options, context) =>
-      startNBp1026PoppinUpSelection(
-        game,
-        ability,
-        options,
-        context.continuePendingCardEffects
-      )
+      startNBp1026PoppinUpSelection(game, ability, options, context.continuePendingCardEffects)
   );
 
   registerActiveEffectStepHandler(
@@ -48,7 +44,8 @@ export function registerNBp1026PoppinUpWorkflowHandlers(): void {
         game,
         input.selectedCardId ?? null,
         context.continuePendingCardEffects
-      )
+      ),
+    queryCardSelection
   );
 }
 

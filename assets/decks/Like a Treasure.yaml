@@ -1,0 +1,48 @@
+player_name: Like a Treasure
+description: 用户固定附件构筑；7费轴发展、米娅与彼方资源循环；普通能量用于本地试打
+main_deck:
+  members:
+    - card_code: PL!-bp3-012-N
+      count: 4
+    - card_code: PL!-pb1-019-N
+      count: 2
+    - card_code: PL!HS-PR-021-RM
+      count: 4
+    - card_code: PL!HS-bp1-008-R
+      count: 4
+    - card_code: PL!N-PR-014-RM
+      count: 2
+    - card_code: PL!N-bp1-002-R+
+      count: 2
+    - card_code: PL!N-bp1-012-R+
+      count: 1
+    - card_code: PL!N-bp3-008-R+
+      count: 1
+    - card_code: PL!N-bp7-006-R+
+      count: 4
+    - card_code: PL!N-bp7-009-R
+      count: 4
+    - card_code: PL!N-bp7-011-R+
+      count: 4
+    - card_code: PL!N-bp7-014-N
+      count: 4
+    - card_code: PL!N-pb1-030-N
+      count: 3
+    - card_code: PL!N-sd1-001-SD
+      count: 1
+    - card_code: PL!N-sd1-011-SD
+      count: 4
+    - card_code: PL!N-sd2-024-SD2
+      count: 4
+  lives:
+    - card_code: PL!N-bp1-026-L
+      count: 4
+    - card_code: PL!N-bp1-029-L
+      count: 2
+    - card_code: PL!N-bp5-026-L
+      count: 3
+    - card_code: PL!N-bp7-031-L
+      count: 3
+energy_deck:
+  - card_code: LL-E-003-SD
+    count: 12

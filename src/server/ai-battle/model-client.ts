@@ -17,6 +17,12 @@ import {
 } from '../../online/ai-battle-model-registry.js';
 import { parseAiTokenUsage, safeAiErrorForLog, type AiBattleBilling } from './billing.js';
 import type { AiUpstreamConfiguration } from '../services/ai-effect-extraction-service.js';
+import {
+  LIVE_PROBABILITY_QUERY_INSTRUCTIONS,
+  liveProbabilityQuerySchema,
+  liveProbabilityResultMessage,
+  withLiveProbabilityQuery,
+} from './live-probability-query.js';
 
 /** An injected upstream validator throws this for transient infrastructure faults (e.g. DNS). */
 export class AiUpstreamTransientError extends Error {}
@@ -94,13 +100,16 @@ const envelope = z.object({
 });
 
 const CONTROL = [
+  LIVE_PROBABILITY_QUERY_INSTRUCTIONS,
   '你参与 Loveca 规则模式对局。先读 decisionBrief：这里只统计当前可见资源，手牌印刷费用分布按实际张数，不含历史选牌或构筑参考。当前状态和候选引用是本次选择的边界；卡文描述能力，不保证本次有目标或收益。frontInfo.cardFactsRef 从 cardFacts 读取完整牌面，textRef 从 texts 读取原文；相同卡号的有效值可能不同，按各对象引用读取。',
   'MAIN 候选的 memberPlayRef 引用 space.memberPlays：每组仅一张手牌，actionRefs 是互斥位置选项，不是多张牌。common 与候选字段共同描述该动作，descriptionPrefix 加候选 description 是完整说明；未分组候选直接读取。选项仍用候选 ref 提交；不同动作的支付与手牌不能重复使用，刚登场成员本回合不能再被普通换手。',
   'context 是历史而非当前持牌：selectedCards 仅保留当时选牌身份，换牌的“换回卡组”不表示仍在手中。lastAction 若有 recentDecisionIndex，指向 recentDecisions 的该下标（从 0 起），不是另一次动作。resultSummary 是本次命令后的真实资源变化和已完成卡效结果，接受动作不等于获得预期收益。按实际结果重新检查路线，不复用旧引用。knownDeckTop 仍在主卡组，不是手牌，设置确认后才抽到的牌不能追加本次设置。',
   'selfResources.waitingRoomSummary 是己方休息室简表：成员名前数字为印刷费用，LIVE 名前数字为分数，括号内为卡号，×N 为张数。未知正面不猜测。activation.costs 是已查询费用，energyCost=0 不代表没有其他代价；targets 是支付来源费用后的可见目标，空列表不提供取得目标卡的收益，不能把构筑参考中的牌当成可回收对象。HAND 表示回手，成员仍需另付合法登场费用；SOURCE_MEMBER_SLOT 表示按能力直接登场。entryResources 仅覆盖已登记收益，缺项不代表无能力，conditionMet=false 不能计入该收益。',
   'stageAfterEntry 仅是静态成员替换小计；liveBaseBudget 比较当前舞台与单张 LIVE 基础需求，missingHearts 是缺口，不含未知声援、玩家额外 HEART、多 LIVE 或需求修正。总 HEART 足够不等于指定色足够，未知声援只表示机会。按通用教程和本局手册比较完整路线的实际收益。',
   'LIVE_SET 先读 decisionBrief.liveSet：先核对可唱目标，再确定近期必留牌，最后利用设置额度周转冗余。selection.cardRefs 表示本次确认时的最终盖牌完整集合：选择手牌候选会将其盖下，选择已盖候选会保留，不选择已盖候选会撤回；整组提交后系统立即确认并推进，不会让你逐张操作。printedCheerBaseline 是当前舞台与本构筑印刷声援的乐观基线，不是最终卡效结算；正缺口须指出可执行的补心、增声援或减需求来源，成功后的奖励不能提前补足成功条件。handMembers 按实例列出重复数量，保留多张须分别有近期位置、支付预算或能力用途；高费不自动等于衔接牌。最终盖牌数决定本次补抽，额外盖成员不耗能量，不以无LIVE或零能量停止周转。cardRefs 总张数不得超过 space.max（本次设置额度上限）：要表演的 LIVE、周转的成员与保留的已盖牌计入同一上限。超限、重复或引用不存在的候选会使整份输出无效，只能按保底策略降级，可能本轮一张都盖不下去，白白放弃表演与补抽。',
-  '只输出符合当前 responseSchema 的 JSON：先写最多300字的 tradeoff 预算结论，再写与之对应的 selection（必填）。LIVE_SET 的预算结论包含：表演需求与可补心数、保留牌的使用回合/位置/支付、本次最终盖牌数与补抽数；使用 nextOwnMainBaseline 核对接下来两个自己回合的常规预算，不以当前剩余能量代替；printedPayments 是未计费用修正的差值，必需衔接可保留到第二轮，重复副本须各有用途。LIVE_SET 一次提交完整最终集合并立即确认，未用设置额度随确认作废，不能留到抽牌后使用；cardRefs 张数以 space.max 为硬上限，超出即整份无效。其他选择一次只提交一个当前动作；结束主要阶段说明放弃的最佳可见路线。不输出逐步推理，不发明卡牌、引用、命令或隐藏信息。',
+  'probabilityReference 是按 assumptions 计算的声援成功率参考，不是本轮赢分或整局胜率。范围反映成员周转与盖牌数差异；不能把上限直接套给任意盖牌。当前已知顶牌会先按补抽时点消费，其余牌均匀混合是近似，尤其注意洗成员回底等已知历史。未结算的补心、加刀、需求变化及重判须另行评价，printedScore也不含未来加分。比较单曲和不同多曲组合的得分与增量失败风险，不能仅因追加LIVE可能全败就排除，也不能只选最高成功率。对手已有两张成功LIVE时，先判断目标分数能否抵挡公开终结威胁，再考虑下轮留牌；唱成但输分仍可能立即输掉对局。',
+  '比较方案时，同时考虑唱成后的赢分机会、失败后的后果，以及平局续战的资源价值。选择较低分的稳健方案，应说明该分数应对了哪些有公开依据的威胁、续局优势是什么；选择高风险方案，应说明额外分数改变了什么胜负结果。对手隐藏资源不明时保留不确定性，不默认对手拥有最强组合，不编造对手持牌概率，也不设固定的必赌成功率阈值。不直接以成功率乘分数决定动作；在预算结论中简述关键取舍即可。',
+  '只输出JSON。只读查询使用readOnlyQuery.selectionSchema；最终动作使用当前 responseSchema：先写最多300字的 tradeoff 预算结论，再写与之对应的 selection（必填）。LIVE_SET 的预算结论包含：表演需求与可补心数、保留牌的使用回合/位置/支付、本次最终盖牌数与补抽数；仍有后续回合的合理预期时，使用 nextOwnMainBaseline 核对未来预算，不以当前剩余能量代替；printedPayments 是未计费用修正的差值，必需衔接可保留到第二轮，重复副本须各有用途。LIVE_SET 一次提交完整最终集合并立即确认，未用设置额度随确认作废，不能留到抽牌后使用；cardRefs 张数以 space.max 为硬上限，超出即整份无效。其他选择一次只提交一个当前动作；结束主要阶段说明放弃的最佳可见路线。不输出逐步推理，不发明卡牌、引用、命令或隐藏信息。',
 ].join('\n\n');
 
 /** Shared production/QA assembly: variants change materials, never hand-written wire prompts. */
@@ -120,12 +129,23 @@ export function buildAiBattleMessages(
     })),
     {
       role: 'user' as const,
-      content: `本次决策；只使用本次引用\n${JSON.stringify(compactAiDecisionInput(input, knowledge.ownDeck))}`,
+      content: `本次决策；只使用本次引用\n${JSON.stringify({
+        ...compactAiDecisionInput(input, knowledge.ownDeck),
+        ...(input.purpose === 'LIVE_SET' && input.space.kind === 'CARDS'
+          ? {
+              readOnlyQuery: {
+                maxBatches: 1,
+                maxScenarios: 8,
+                selectionSchema: liveProbabilityQuerySchema,
+              },
+            }
+          : {}),
+      })}`,
     },
   ];
 }
 
-/** One HTTP attempt only. Retry/timeout/freshness remain in the existing driver and match queue. */
+/** One optional read-only batch between two model turns; rule execution stays in the driver. */
 export class DashScopeAiBattleClient implements AiBattleModelClient {
   readonly configurationMaterial: AiKnowledgeMaterial;
   readonly requestTimeoutMs: number;
@@ -182,6 +202,32 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
     signal: AbortSignal,
     context: AiModelRequestContext
   ): Promise<AiModelOutcome> {
+    const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] =
+      buildAiBattleMessages(input, this.knowledge);
+    return withLiveProbabilityQuery(
+      input,
+      this.knowledge,
+      signal,
+      (exchange) => {
+        const conversation = exchange
+          ? [
+              ...messages,
+              { role: 'assistant' as const, content: exchange.requestText },
+              { role: 'user' as const, content: liveProbabilityResultMessage(exchange) },
+            ]
+          : messages;
+        return this.request(conversation, signal, context, exchange ? 1 : 0);
+      },
+      (stage, payload) => this.capture(context, stage, payload)
+    );
+  }
+
+  private async request(
+    messages: readonly { role: 'system' | 'user' | 'assistant'; content: string }[],
+    signal: AbortSignal,
+    context: AiModelRequestContext,
+    queryRound: number
+  ): Promise<AiModelOutcome> {
     const startedAt = this.now();
     const sources = [
       this.knowledge.rules,
@@ -189,7 +235,6 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
       this.knowledge.handbook,
       this.knowledge.ownDeck,
     ];
-    const messages = buildAiBattleMessages(input, this.knowledge);
     const body = JSON.stringify({
       model: this.config.model,
       messages,
@@ -256,6 +301,7 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
       'REQUEST',
       {
         startedAt,
+        queryRound,
         endpoint: this.config.endpoint,
         // This string is the exact transmitted body. Auth headers never enter a capture payload.
         body: safeBody.text,
@@ -358,6 +404,7 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
       {
         startedAt,
         endedAt: this.now(),
+        queryRound,
         httpStatus: response.status,
         requestId: redactAiText(
           response.headers.get('x-request-id') ?? (parsed.success ? (parsed.data.id ?? '') : ''),

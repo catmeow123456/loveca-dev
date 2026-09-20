@@ -176,7 +176,7 @@ describe('AI ordinary decisions through authoritative commands', () => {
     }
   });
 
-  it('enumerates normal plays while a double-relay card is in hand and fails closed only on card-defined plays', () => {
+  it('keeps normal decisions available with double-relay or unaffordable confirm-only special plays', () => {
     // Double relay is a generic mechanism the adapter simply does not offer: with two
     // relayable occupants on stage the MAIN window must still enumerate normal plays.
     const { session } = setup();
@@ -198,7 +198,7 @@ describe('AI ordinary decisions through authoritative commands', () => {
       )
     ).toBe(true);
 
-    // A card-defined special play has no representable command shape and stays fail-closed.
+    // A confirm-only special play is representable, but this fixture cannot pay its cost.
     const special = setup();
     replaceHand(special.session, [member('PL!N-bp7-011-R', 13)]);
     const game = special.session.state!;
@@ -217,10 +217,11 @@ describe('AI ordinary decisions through authoritative commands', () => {
       ),
       'precondition: the special play option must actually be available'
     ).toBe(true);
-    expect(buildAiBattleDecision(game, P1, special.session.getPlayerViewState(P1)!)).toMatchObject({
-      kind: 'UNSUPPORTED',
-      reason: 'Card-defined play is not yet adapted',
-    });
+    const specialDecision = decision(special.session);
+    expect(specialDecision.input.purpose).toBe('MAIN');
+    expect(specialDecision.input.space.candidates.some((candidate) => candidate.targetSlot)).toBe(
+      false
+    );
   });
 
   it('uses dynamic hand cost excluding the incoming card itself and current relay cost', () => {

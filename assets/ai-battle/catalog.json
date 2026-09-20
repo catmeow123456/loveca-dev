@@ -49,6 +49,20 @@
           "path": "assets/ai-battle/handbooks/blue-purple-nijigasaki-tempo.md"
         }
       ]
+    },
+    {
+      "id": "like-a-treasure",
+      "name": "Like a Treasure",
+      "deckPath": "assets/decks/Like a Treasure.yaml",
+      "deckSha256": "5d696a1ebcf00dd7b394cf0dabd935eefacb2eb46355c62b758192b0530ccd35",
+      "defaultHandbookId": "like-a-treasure",
+      "handbooks": [
+        {
+          "id": "like-a-treasure",
+          "name": "Like a Treasure · 基础打法 v0.2",
+          "path": "assets/ai-battle/handbooks/like-a-treasure.md"
+        }
+      ]
     }
   ]
 }

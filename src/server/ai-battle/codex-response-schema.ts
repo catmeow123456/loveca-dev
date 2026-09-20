@@ -1,4 +1,5 @@
 import type { AiDecisionInput } from './protocol.js';
+import { liveProbabilityQuerySchema } from './live-probability-query.js';
 
 /** Wire schema only. Full group/uniqueness/skip constraints still go to the model in input
  * and are enforced by the original response parser and authority chain, not this adapter. */
@@ -11,6 +12,7 @@ export function codexResponseSchema(input: AiDecisionInput): Record<string, unkn
     properties: {
       selection: {
         anyOf: [
+          liveProbabilityQuerySchema,
           {
             type: 'object',
             additionalProperties: false,

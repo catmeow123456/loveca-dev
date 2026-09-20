@@ -21,6 +21,7 @@ import {
 import { registerPendingOrderOptionHintHandler } from '../../runtime/pending-order-option-hints.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   getAbilityEffectText,
   recordAbilityUseForContext,
@@ -58,7 +59,8 @@ export function registerNBp7031LikeATreasureWorkflowHandlers(): void {
         game,
         input.selectedCardId ?? null,
         context.continuePendingCardEffects
-      )
+      ),
+    queryCardSelection
   );
 }
 

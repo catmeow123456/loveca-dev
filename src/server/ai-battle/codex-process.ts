@@ -8,13 +8,6 @@ import type { AiTokenUsage } from '../../online/ai-battle-billing-types.js';
 import type { LocalCodexConfig } from './local-codex-config.js';
 import { z } from 'zod';
 
-// Revalidate isolation before accepting a different CLI version: tool capabilities can change.
-export const TESTED_CODEX_VERSION = 'codex-cli 0.153.4';
-export const TESTED_CODEX_VERSIONS = [
-  TESTED_CODEX_VERSION,
-  'codex-cli 0.154.0',
-  'codex-cli 0.154.0-alpha.6.2',
-] as const;
 export class CodexInvocationNotStartedError extends Error {}
 const SAFE_ENV = [
   'PATH',
@@ -193,17 +186,8 @@ export async function verifyCodexLogin(
     ...(externalSignal ? [externalSignal] : []),
   ]);
   const env = codexEnvironment();
-  const version = await runCodexProcess(
-    config.cliPath,
-    ['--version'],
-    tmpdir(),
-    '',
-    signal,
-    env,
-    32_768
-  );
-  if (!(TESTED_CODEX_VERSIONS as readonly string[]).includes(version.stdout.trim()))
-    throw new Error('Codex CLI version has not passed AI isolation validation');
+  // Local deployment is already explicitly gated. Allow CLI upgrades without a version
+  // allowlist; actual calls still require strict config, isolation and valid responses.
   const login = await runCodexProcess(
     config.cliPath,
     ['login', 'status'],

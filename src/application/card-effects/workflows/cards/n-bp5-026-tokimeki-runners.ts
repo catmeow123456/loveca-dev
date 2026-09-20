@@ -23,6 +23,7 @@ import {
 } from '../../ability-ids.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   registerPendingAbilityStarterHandler,
   type PendingAbilityStarterOptions,
@@ -63,12 +64,7 @@ export function registerNBp5026TokimekiRunnersWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     N_BP5_026_LIVE_SUCCESS_SCORE_THREE_RECOVER_NIJIGASAKI_CARD_ABILITY_ID,
     (game, ability, options, context) =>
-      startTokimekiLiveSuccessRecovery(
-        game,
-        ability,
-        options,
-        context.continuePendingCardEffects
-      )
+      startTokimekiLiveSuccessRecovery(game, ability, options, context.continuePendingCardEffects)
   );
 
   registerActiveEffectStepHandler(
@@ -79,7 +75,8 @@ export function registerNBp5026TokimekiRunnersWorkflowHandlers(): void {
         game,
         input.selectedCardId ?? null,
         context.continuePendingCardEffects
-      )
+      ),
+    queryCardSelection
   );
 }
 
@@ -267,7 +264,11 @@ function getTokimekiLiveStartContext(
   readonly conditionMet: boolean;
   readonly noOpStep: string;
 } {
-  const sourceInLiveZone = isSourceLiveCardInOwnLiveZone(game, ability.controllerId, ability.sourceCardId);
+  const sourceInLiveZone = isSourceLiveCardInOwnLiveZone(
+    game,
+    ability.controllerId,
+    ability.sourceCardId
+  );
   const heartColorsPresent = collectOwnStageEffectiveHeartColors(game, ability.controllerId);
   const colorSet = new Set(heartColorsPresent);
   const hasAllSixHearts = SIX_HEART_COLORS.every((color) => colorSet.has(color));
@@ -292,7 +293,11 @@ function getTokimekiLiveSuccessContext(
 } {
   const player = getPlayerById(game, ability.controllerId);
   const sourceCard = getCardById(game, ability.sourceCardId);
-  const sourceInLiveZone = isSourceLiveCardInOwnLiveZone(game, ability.controllerId, ability.sourceCardId);
+  const sourceInLiveZone = isSourceLiveCardInOwnLiveZone(
+    game,
+    ability.controllerId,
+    ability.sourceCardId
+  );
   const printedScore =
     sourceCard && isLiveCardData(sourceCard.data) && sourceCard.ownerId === ability.controllerId
       ? sourceCard.data.score
@@ -301,9 +306,7 @@ function getTokimekiLiveSuccessContext(
     printedScore + getLiveCardScoreModifier(game.liveResolution, ability.sourceCardId);
   const conditionMet = sourceInLiveZone && currentScore === 3;
   const selectableCardIds =
-    player && conditionMet
-      ? selectWaitingRoomCardIds(game, player.id, groupAliasIs('虹ヶ咲'))
-      : [];
+    player && conditionMet ? selectWaitingRoomCardIds(game, player.id, groupAliasIs('虹ヶ咲')) : [];
   return {
     sourceInLiveZone,
     currentScore,
@@ -322,9 +325,7 @@ function getTokimekiLiveSuccessNoOpEffectText(
   ability: PendingAbilityState,
   context = getTokimekiLiveSuccessContext(game, ability)
 ): string {
-  return `${getAbilityEffectText(ability.abilityId)}（${getTokimekiLiveSuccessNoOpText(
-    context
-  )}）`;
+  return `${getAbilityEffectText(ability.abilityId)}（${getTokimekiLiveSuccessNoOpText(context)}）`;
 }
 
 function getTokimekiLiveStartPreviewText(
@@ -378,7 +379,10 @@ function formatHeartColor(color: HeartColor): string {
   }
 }
 
-function collectOwnStageEffectiveHeartColors(game: GameState, playerId: string): readonly HeartColor[] {
+function collectOwnStageEffectiveHeartColors(
+  game: GameState,
+  playerId: string
+): readonly HeartColor[] {
   const player = getPlayerById(game, playerId);
   if (!player) {
     return [];
@@ -427,7 +431,11 @@ function addScoreModifierAndRefresh(
     sourceCardId: options.sourceCardId,
     abilityId: options.abilityId,
   };
-  return refreshPlayerScoreDraft(addLiveModifier(game, modifier), options.playerId, options.scoreBonus);
+  return refreshPlayerScoreDraft(
+    addLiveModifier(game, modifier),
+    options.playerId,
+    options.scoreBonus
+  );
 }
 
 function refreshPlayerScoreDraft(game: GameState, playerId: string, scoreBonus: number): GameState {
@@ -441,7 +449,9 @@ function refreshPlayerScoreDraft(game: GameState, playerId: string, scoreBonus: 
 function removePendingAbility(game: GameState, pendingAbilityId: string): GameState {
   return {
     ...game,
-    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== pendingAbilityId),
+    pendingAbilities: game.pendingAbilities.filter(
+      (candidate) => candidate.id !== pendingAbilityId
+    ),
   };
 }
 

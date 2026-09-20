@@ -15,6 +15,7 @@ import {
 import { discardOneHandCardToWaitingRoomAndEnqueueTriggers } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 const ABILITY_ID = N_BP7_011_AUTO_DECK_TO_WAITING_DISCARD_ONE_RECOVER_SELF_ABILITY_ID;
@@ -46,7 +47,8 @@ export function registerNBp7011MiaTaylorWorkflowHandlers(options: {
         input.selectedCardId ?? null,
         options.enqueueTriggeredCardEffects,
         context.continuePendingCardEffects
-      )
+      ),
+    queryCardSelection
   );
 }
 

@@ -105,6 +105,21 @@ export function buildAiEffectDecision(
     add({ description: '继续处理当前效果', effectText: visible.effectText }, {});
     return actions('EFFECT_CONFIRM');
   }
+  if (selection.kind === 'SLOTS') {
+    if (
+      visible.selectableSlots?.length !== selection.slots.length ||
+      !selection.slots.every((slot) => visible.selectableSlots?.includes(slot))
+    )
+      return { reason: 'Effect slot candidates are not visible to the acting seat' };
+    for (const slot of selection.slots)
+      add(
+        { description: `${visible.selectionLabel ?? '选择成员区'}：${slot}`, targetSlot: slot },
+        { selectedSlot: slot }
+      );
+    if (selection.canSkip)
+      add({ description: visible.skipSelectionLabel ?? '不选择' }, { selectedSlot: null });
+    return candidates.length ? actions('EFFECT') : { reason: 'No legal effect slot choices' };
+  }
   if (selection.kind === 'OPTIONS') {
     if (!selection.structured && (selection.min !== 1 || selection.max !== 1))
       return { reason: 'Multiple unstructured effect branches are not supported' };

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SlotPosition } from '../../src/shared/types/enums';
 import {
   isActiveEffectSelectionValid,
   queryCardSelection,
@@ -77,6 +78,27 @@ function cards(
 }
 
 describe('isActiveEffectSelectionValid option contract', () => {
+  it('accepts only one currently offered stage slot, with no mixed input', () => {
+    const selection: ActiveEffectSelection = {
+      kind: 'SLOTS',
+      slots: [SlotPosition.LEFT],
+      canSkip: false,
+    };
+    expect(isActiveEffectSelectionValid(selection, { selectedSlot: SlotPosition.LEFT })).toBe(true);
+    expect(isActiveEffectSelectionValid(selection, { selectedSlot: SlotPosition.CENTER })).toBe(
+      false
+    );
+    expect(isActiveEffectSelectionValid(selection, {})).toBe(false);
+    expect(
+      isActiveEffectSelectionValid(selection, {
+        selectedSlot: SlotPosition.LEFT,
+        selectedCardId: 'foreign',
+      })
+    ).toBe(false);
+    expect(
+      isActiveEffectSelectionValid({ ...selection, canSkip: true }, { selectedSlot: null })
+    ).toBe(true);
+  });
   it('accepts the legacy selectedOptionId submission for an exact-one structured choice', () => {
     // game-session.ts normalizes selectedOptionId to [id] for SINGLE effectChoice;
     // the gate must accept the same shape instead of silently returning game.

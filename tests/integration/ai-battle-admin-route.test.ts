@@ -12,8 +12,24 @@ import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isUserRole } from '../../src/shared/auth/permissions';
 import { fromTransport } from '../../src/online/serde';
-import { GameCommandType } from '../../src/application/game-commands';
-import { deck } from '../helpers/ai-battle-fixture';
+import {
+  GameCommandType,
+  createBeginSpecialMemberPlayCommand,
+  createConfirmSpecialMemberPlayCommand,
+  createCancelSpecialMemberPlayCommand,
+  type GameCommand,
+} from '../../src/application/game-commands';
+import { deck, replaceHand, stage } from '../helpers/ai-battle-fixture';
+import { readFrozenLikeATreasureDeck } from '../helpers/ai-curated-decks';
+import type { CardInstance, MemberCardData } from '../../src/domain/entities/card';
+import { getActiveEnergyIds } from '../../src/domain/entities/zone';
+import {
+  FaceState,
+  GamePhase,
+  OrientationState,
+  SlotPosition,
+  SubPhase,
+} from '../../src/shared/types/enums';
 import { createMemoryAiBilling } from '../helpers/ai-battle-billing';
 
 const auth = vi.hoisted(() => ({ roles: new Map<string, string>() }));
@@ -118,7 +134,7 @@ async function serverFixture(models?: readonly AiBattleModel[]) {
   });
   app.use('/ai', createAiBattleRouter(f.service));
   app.use('/online', onlineRouter);
-  const server = app.listen(0);
+  const server = app.listen(0, '127.0.0.1');
   servers.push(server);
   await new Promise<void>((resolve) => server.once('listening', resolve));
   const address = server.address();
@@ -147,6 +163,74 @@ async function serverFixture(models?: readonly AiBattleModel[]) {
   return { ...f, request };
 }
 
+async function humanSpecialPlayFixture(energyCount = 6) {
+  const f = await serverFixture();
+  auth.roles.set('owner', 'admin');
+  auth.roles.set('other', 'admin');
+  const created = await f.service.create('owner', input);
+  const match = f.matches.getMatch(created.session.matchId)!;
+  const game = match.session.state!;
+  Object.assign(game, {
+    currentPhase: GamePhase.MAIN_PHASE,
+    currentSubPhase: SubPhase.NONE,
+    activePlayerIndex: 0,
+    waitingPlayerId: null,
+  });
+  const cards = readFrozenLikeATreasureDeck().deck.mainDeck;
+  const card = (code: string) => cards.find((card) => card.cardCode === code)!;
+  const oldId = stage(match.session, card('PL!N-pb1-030-N') as MemberCardData, SlotPosition.CENTER);
+  const [sourceId] = replaceHand(match.session, [card('PL!N-bp7-011-R+')]);
+  const player = game.players[0];
+  const [waitingMember, waitingLive] = player.mainDeck.cardIds.slice(0, 2);
+  const registry = game.cardRegistry as Map<string, CardInstance>;
+  registry.set(waitingMember!, { ...registry.get(waitingMember!)!, data: card('PL!HS-PR-021-RM') });
+  registry.set(waitingLive!, { ...registry.get(waitingLive!)!, data: card('PL!N-bp7-031-L') });
+  Object.assign(player.mainDeck, { cardIds: player.mainDeck.cardIds.slice(2) });
+  Object.assign(player.waitingRoom, { cardIds: [waitingMember!, waitingLive!] });
+  const energies = [...player.energyZone.cardIds, ...player.energyDeck.cardIds].slice(
+    0,
+    energyCount
+  );
+  Object.assign(player.energyZone, {
+    cardIds: energies,
+    cardStates: new Map(
+      energies.map((id) => [id, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }])
+    ),
+  });
+  Object.assign(player.energyDeck, {
+    cardIds: player.energyDeck.cardIds.filter((id) => !energies.includes(id)),
+  });
+  const begin = createBeginSpecialMemberPlayCommand(
+    // The route must replace the client-supplied player identity, including for special play.
+    match.participants.SECOND.playerId,
+    sourceId!,
+    SlotPosition.CENTER,
+    'N_BP7_011_WAITING_MEMBERS_COST_MINUS_TWO'
+  );
+  const send = async (command: GameCommand, userId = 'owner') => {
+    const response = await f.request(`/ai/sessions/${match.matchId}/command`, {
+      userId,
+      body: { command },
+    });
+    expect(response.status).toBe(200);
+    return fromTransport<{
+      data: { success: boolean; error?: string };
+      error: { code: string } | null;
+    }>(await response.json());
+  };
+  return {
+    ...f,
+    match,
+    begin,
+    send,
+    sourceId: sourceId!,
+    oldId,
+    waitingMember: waitingMember!,
+    waitingLive: waitingLive!,
+    playerId: player.id,
+  };
+}
+
 afterEach(async () => {
   await Promise.all(archiveDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   vi.restoreAllMocks();
@@ -165,6 +249,71 @@ afterEach(async () => {
 });
 
 describe('AI administrator routes and ownership', () => {
+  it('executes human special play begin, cancel and confirm over HTTP with authoritative costs and ownership', async () => {
+    const f = await humanSpecialPlayFixture();
+    const initial = structuredClone(f.match.session.state!);
+    expect(
+      (
+        await f.request(`/ai/sessions/${f.match.matchId}/command`, {
+          userId: 'other',
+          body: { command: f.begin },
+        })
+      ).status
+    ).toBe(404);
+    expect(f.match.session.state).toEqual(initial);
+
+    expect((await f.send(f.begin)).data.success).toBe(true);
+    const firstPending = f.match.session.state!.pendingSpecialMemberPlay!;
+    expect(firstPending.playerId).toBe(f.playerId);
+    expect(getActiveEnergyIds(f.match.session.state!.players[0].energyZone)).toHaveLength(6);
+    expect(
+      (await f.send(createCancelSpecialMemberPlayCommand(f.playerId, firstPending.id))).data.success
+    ).toBe(true);
+    expect(f.match.session.state!.pendingSpecialMemberPlay).toBeNull();
+    expect(f.match.session.state!.players).toEqual(initial.players);
+
+    expect((await f.send(f.begin)).data.success).toBe(true);
+    const pending = f.match.session.state!.pendingSpecialMemberPlay!;
+    const beforeInvalid = structuredClone(f.match.session.state!);
+    const revision = f.match.remoteRevision;
+    for (const command of [
+      createConfirmSpecialMemberPlayCommand(f.playerId, firstPending.id, []),
+      createCancelSpecialMemberPlayCommand(f.playerId, firstPending.id),
+      createConfirmSpecialMemberPlayCommand(f.playerId, pending.id, [f.waitingLive]),
+    ]) {
+      expect((await f.send(command)).data.success).toBe(false);
+      expect(f.match.session.state).toEqual(beforeInvalid);
+      expect(f.match.remoteRevision).toBe(revision);
+    }
+
+    const confirm = createConfirmSpecialMemberPlayCommand(f.playerId, pending.id, []);
+    expect((await f.send(confirm)).data.success).toBe(true);
+    const after = f.match.session.state!.players[0];
+    expect(f.match.session.state!.pendingSpecialMemberPlay).toBeNull();
+    expect(after.memberSlots.slots[SlotPosition.CENTER]).toBe(f.sourceId);
+    expect(getActiveEnergyIds(after.energyZone)).toHaveLength(2);
+    expect(after.mainDeck.cardIds).toContain(f.waitingMember);
+    expect(after.waitingRoom.cardIds).toEqual(expect.arrayContaining([f.waitingLive, f.oldId]));
+    expect(after.waitingRoom.cardIds).not.toContain(f.waitingMember);
+    expect(f.match.session.getCommandLogSince(0).at(-1)?.playerId).toBe(f.playerId);
+    const completed = structuredClone(f.match.session.state!);
+    expect((await f.send(confirm)).data.success).toBe(false);
+    expect(f.match.session.state).toEqual(completed);
+  });
+
+  it('rejects unaffordable human special play through the rules instead of the HTTP command allowlist', async () => {
+    const f = await humanSpecialPlayFixture(3);
+    expect((await f.send(f.begin)).data.success).toBe(true);
+    const before = structuredClone(f.match.session.state!);
+    const result = await f.send(
+      createConfirmSpecialMemberPlayCommand(f.playerId, before.pendingSpecialMemberPlay!.id, [])
+    );
+    expect(result.data.success).toBe(false);
+    expect(result.error?.code).toBe('COMMAND_REJECTED');
+    expect(f.match.session.state).toEqual(before);
+    expect(getActiveEnergyIds(f.match.session.state!.players[0].energyZone)).toHaveLength(3);
+  });
+
   it('keeps archival off by default and rejects forged enablement before model creation', async () => {
     const f = await serverFixture();
     auth.roles.set('owner', 'admin');
@@ -709,6 +858,32 @@ describe('AI administrator routes and ownership', () => {
       { type: GameCommandType.MULLIGAN, cardIdsToMulligan: 'all' },
       { type: GameCommandType.MOVE_TABLE_CARD, cardId: 'anything' },
       { type: GameCommandType.CONFIRM_EFFECT_STEP, effectId: 'effect', selectedCardIds: [null] },
+      {
+        type: GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY,
+        cardId: 'card',
+        targetSlot: 'CENTER',
+        mode: 'invented',
+      },
+      {
+        type: GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY,
+        cardId: 'card',
+        targetSlot: 'invalid',
+        mode: 'N_BP7_011_WAITING_MEMBERS_COST_MINUS_TWO',
+      },
+      {
+        type: GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY,
+        cardId: 'card',
+        targetSlot: 'CENTER',
+        mode: 'N_BP7_011_WAITING_MEMBERS_COST_MINUS_TWO',
+        freePlay: true,
+      },
+      {
+        type: GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY,
+        pendingId: 'pending',
+        selectedCardIds: [null],
+      },
+      { type: GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY, pendingId: 'pending' },
+      { type: GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY },
     ]) {
       const response = await f.request(`/ai/sessions/${match.matchId}/command`, {
         userId: 'owner',

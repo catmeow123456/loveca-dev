@@ -1,4 +1,7 @@
-import { CodexObservedHistory } from './codex-observed-history.js';
+import {
+  CodexObservedHistory,
+  CodexObservedHistoryCapacityError,
+} from './codex-observed-history.js';
 import { createHash } from 'node:crypto';
 import {
   CodexBattleSession,
@@ -25,6 +28,11 @@ import {
 } from './codex-process.js';
 
 import { codexResponseSchema } from './codex-response-schema.js';
+import {
+  liveProbabilityResultMessage,
+  withLiveProbabilityQuery,
+  type LiveProbabilityExchange,
+} from './live-probability-query.js';
 export { codexResponseSchema } from './codex-response-schema.js';
 
 export class CodexAiBattleClient implements AiBattleModelClient {
@@ -57,7 +65,7 @@ export class CodexAiBattleClient implements AiBattleModelClient {
     execute: typeof executeCodexDecision | undefined = undefined,
     private readonly verify: typeof verifyCodexLogin = verifyCodexLogin
   ) {
-    this.knowledge = structuredClone(knowledge);
+    this.knowledge = globalThis.structuredClone(knowledge);
     if (config.threadRotation) this.observedHistory = new CodexObservedHistory();
     this.codexBudget = config.budget ? Object.freeze({ ...config.budget }) : undefined;
     if (execute) this.execute = execute;
@@ -100,7 +108,22 @@ export class CodexAiBattleClient implements AiBattleModelClient {
     this.identity = identity;
     this.busy = true;
     try {
-      return await this.decideCurrent(input, signal, context);
+      return await withLiveProbabilityQuery(
+        input,
+        this.knowledge,
+        signal,
+        (exchange) => this.decideCurrent(input, signal, context, exchange),
+        (stage, payload) => {
+          try {
+            this.traces.append(context.matchId, context.taskId, stage, {
+              attempt: context.attempt,
+              ...payload,
+            });
+          } catch {
+            this.traces.reportCaptureFailure(context.matchId);
+          }
+        }
+      );
     } finally {
       this.busy = false;
     }
@@ -109,7 +132,8 @@ export class CodexAiBattleClient implements AiBattleModelClient {
   private async decideCurrent(
     input: AiDecisionInput,
     signal: AbortSignal,
-    context: AiModelRequestContext
+    context: AiModelRequestContext,
+    exchange?: LiveProbabilityExchange
   ): Promise<AiModelOutcome> {
     const capture = (
       stage: string,
@@ -186,7 +210,19 @@ export class CodexAiBattleClient implements AiBattleModelClient {
           unobservedEventCount: handover.unobservedEventCount,
         });
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof CodexObservedHistoryCapacityError) {
+        capture('HISTORY_STOP', {
+          reason: 'CAPACITY',
+          attemptedBytes: error.attemptedBytes,
+          limitBytes: error.limitBytes,
+        });
+        await this.dispose();
+        return {
+          kind: 'ADAPTER_ERROR',
+          message: `Codex 公开历史容量超限：本次累计 ${error.attemptedBytes} 字节，上限 ${error.limitBytes} 字节；已停止，未裁剪历史或发送模型请求`,
+        };
+      }
       await this.dispose();
       return {
         kind: 'ADAPTER_ERROR',
@@ -194,12 +230,25 @@ export class CodexAiBattleClient implements AiBattleModelClient {
       };
     }
     const includesStaticKnowledge = !this.config.sessionReuse || this.completedTurns === 0;
-    const messages = buildAiBattleMessages(input, this.knowledge, includesStaticKnowledge);
+    // Reused thread already has this exact observation and query. A rotated/stateless thread
+    // must receive the full current window plus the unexecuted query before the result.
+    const queryContinuation = !!exchange && this.config.sessionReuse && !includesStaticKnowledge;
+    const messages = queryContinuation
+      ? []
+      : buildAiBattleMessages(input, this.knowledge, includesStaticKnowledge);
     if (handover)
       messages.splice(messages.length - 1, 0, {
         role: 'user',
         content: `同一局同一席的新线程。以下仅为此前实际收到的公开事件，序号缺口未知，不得补造。历史身份不证明当前隐藏位置，旧计划不等于已执行；当前状态、context与合法引用以本次决策为准。\n${JSON.stringify(handover)}`,
       });
+    if (exchange) {
+      if (!queryContinuation)
+        messages.push({
+          role: 'user',
+          content: `此前只读查询（不是已执行动作）：\n${exchange.requestText}`,
+        });
+      messages.push({ role: 'user', content: liveProbabilityResultMessage(exchange) });
+    }
     // Restate the current window after long card text/history. This is a reminder,
     // not validation: the original parser still rejects stale refs or wrong shapes.
     const currentWindow = {
@@ -209,8 +258,15 @@ export class CodexAiBattleClient implements AiBattleModelClient {
       selectionKind: input.space.kind,
     };
     const prompt = `${messages.map((message) => message.content).join('\n\n')}\n\n当前窗口摘要：只回答本窗口，引用取当前 space.candidates；历史卡效不代表当前任务。\n${JSON.stringify(currentWindow)}`;
-    if (Buffer.byteLength(prompt) > 512 * 1024)
-      return { kind: 'ADAPTER_ERROR', message: 'Codex 请求超过支持的大小' };
+    const promptBytes = Buffer.byteLength(prompt);
+    if (promptBytes > 512 * 1024) {
+      capture('CONTEXT_STOP', { reason: 'REQUEST_BYTES', promptBytes, limitBytes: 512 * 1024 });
+      await this.dispose();
+      return {
+        kind: 'ADAPTER_ERROR',
+        message: `Codex 单次请求容量超限：${promptBytes} 字节，上限 ${512 * 1024} 字节；未发送模型请求`,
+      };
+    }
     if (signal.aborted) return { kind: 'SERVICE_ERROR', message: 'Codex 已取消', retryable: false };
     let attempt: Awaited<ReturnType<AiBattleBilling['begin']>>;
     try {
@@ -230,6 +286,7 @@ export class CodexAiBattleClient implements AiBattleModelClient {
       {
         provider: 'LOCAL_CODEX',
         model: this.model,
+        queryRound: exchange ? 1 : 0,
         prompt,
         schema,
         sessionTurn: this.completedTurns + 1,
@@ -247,6 +304,7 @@ export class CodexAiBattleClient implements AiBattleModelClient {
         'RESPONSE',
         {
           text: result.text,
+          queryRound: exchange ? 1 : 0,
           usage: result.usage,
           cancelled: signal.aborted,
           context: this.session?.contextStatus,
@@ -317,7 +375,7 @@ export async function createLocalCodexClient(
   } catch {
     throw new AiBattleSetupError(
       'AI_CODEX_LOGIN_REQUIRED',
-      '请使用受支持的 Codex CLI 并通过 ChatGPT 登录；不会使用 API Key',
+      '请确认本地 Codex CLI 可执行且已通过 ChatGPT 登录；不会使用 API Key',
       503
     );
   }

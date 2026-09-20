@@ -9,6 +9,7 @@ import type { DeckPointTableRules } from '../../src/domain/rules/deck-point-tabl
 import {
   readFrozenBluePurpleDeck,
   readFrozenGreenHasunosoraDeck,
+  readFrozenLikeATreasureDeck,
   readFrozenMuseDeck,
 } from '../helpers/ai-curated-decks';
 import { createGameSession } from '../../src/application/game-session';
@@ -50,11 +51,13 @@ async function fixture() {
     cp('assets/decks/缪预组.yaml', path.join(root, 'assets/decks/缪预组.yaml')),
     cp('assets/decks/绿莲-6弹ver.yaml', path.join(root, 'assets/decks/绿莲-6弹ver.yaml')),
     cp('assets/decks/蓝紫.yaml', path.join(root, 'assets/decks/蓝紫.yaml')),
+    cp('assets/decks/Like a Treasure.yaml', path.join(root, 'assets/decks/Like a Treasure.yaml')),
   ]);
   const registry = new CardDataRegistry();
   const deck = readFrozenMuseDeck().deck;
   const green = readFrozenGreenHasunosoraDeck().deck;
   const bluePurple = readFrozenBluePurpleDeck().deck;
+  const treasure = readFrozenLikeATreasureDeck().deck;
   registry.load([
     ...deck.mainDeck,
     ...deck.energyDeck,
@@ -62,6 +65,8 @@ async function fixture() {
     ...green.energyDeck,
     ...bluePurple.mainDeck,
     ...bluePurple.energyDeck,
+    ...treasure.mainDeck,
+    ...treasure.energyDeck,
   ]);
   const loader = new AiBattlePresetLoader({
     root,
@@ -76,6 +81,62 @@ afterEach(async () => {
 });
 
 describe('AI curated deck and frozen knowledge loading', () => {
+  it.each(['human', 'ai', 'both'])(
+    'loads Like a Treasure for %s without mixing the opponent deck or handbook',
+    async (side) => {
+      const { loader } = await fixture();
+      const aiTreasure = side !== 'human';
+      expect((await loader.list()).find((preset) => preset.id === 'like-a-treasure')).toMatchObject(
+        {
+          name: 'Like a Treasure',
+          humanSelectable: true,
+          defaultHandbookId: 'like-a-treasure',
+        }
+      );
+      const loaded = await loader.load({
+        humanPresetId: side !== 'ai' ? 'like-a-treasure' : choice.humanPresetId,
+        aiPresetId: aiTreasure ? 'like-a-treasure' : choice.aiPresetId,
+        handbookId: aiTreasure ? 'like-a-treasure' : choice.handbookId,
+      });
+      const treasure = side === 'ai' ? loaded.ai : loaded.human;
+      const expected = readFrozenLikeATreasureDeck().deck;
+      expect(treasure.deck).toEqual({
+        mainDeck: expected.mainDeck,
+        energyDeck: expected.energyDeck,
+      });
+      expect(
+        treasure.deck.mainDeck.filter((card) => card.cardType === CardType.MEMBER)
+      ).toHaveLength(48);
+      expect(treasure.deck.mainDeck.filter((card) => card.cardType === CardType.LIVE)).toHaveLength(
+        12
+      );
+      expect(treasure.deck.energyDeck).toHaveLength(12);
+      expect(
+        treasure.deck.mainDeck.find((card) => card.cardCode === 'PL!HS-PR-021-RM')?.groupNames
+      ).toEqual(['蓮ノ空']);
+      const reference = fromTransport<{
+        presetId: string;
+        cards: { count: number; card: AnyCardData }[];
+      }>(JSON.parse(loaded.knowledge.ownDeck.content));
+      expect(reference.presetId).toBe(loaded.ai.id);
+      expect(reference.cards.reduce((sum, entry) => sum + entry.count, 0)).toBe(72);
+      expect(loaded.knowledge.handbook.id).toBe(aiTreasure ? 'like-a-treasure' : 'muse-balanced');
+      if (aiTreasure) {
+        expect(loaded.knowledge.handbook.content).toBe(
+          await readFile('assets/ai-battle/handbooks/like-a-treasure.md', 'utf8')
+        );
+        const live = reference.cards.find(({ card }) => card.cardCode === 'PL!N-bp7-031-L')!.card;
+        if (live.cardType !== CardType.LIVE) throw new Error('Missing Treasure LIVE');
+        expect(live.requirements.colorRequirements.get(HeartColor.PINK)).toBe(2);
+        expect(live.requirements.colorRequirements.get(HeartColor.YELLOW)).toBe(2);
+        expect(live.requirements.colorRequirements.get(HeartColor.GREEN)).toBe(2);
+      }
+      const session = createGameSession();
+      session.createGame('treasure-preset', 'human', 'Human', 'ai', 'AI');
+      expect(session.initializeGame(loaded.human.deck, loaded.ai.deck).success).toBe(true);
+    }
+  );
+
   it('adds a different composition through catalog and handbook files and completes the existing decision flow', async () => {
     const { root, loader } = await fixture();
     const original = await readFile(path.join(root, 'assets/decks/缪预组.yaml'), 'utf8');
