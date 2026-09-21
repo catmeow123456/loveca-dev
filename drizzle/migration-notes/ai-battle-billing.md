@@ -15,7 +15,7 @@
 
 1. 停止旧 API 及写入任务，备份目标数据库；先在备份副本执行 `pnpm db:migrate` 并检查结果。
 2. 确认目标库无进行中的旧 AI 对局后，使用发布环境的 `DATABASE_URL` 执行 `pnpm db:migrate`。
-3. 部署新服务及前端，在平台“AI 上游配置”中保存 Base URL 与 API Key；复用已有加密主密钥和主机白名单。旧 `AI_BATTLE_BASE_URL` / `AI_BATTLE_API_KEY` 不再读取，也不自动迁入平台表。网页创建模型必须为 `qwen3.8-max`、`qwen3.8-flash`、`glm-5.2` 或 `deepseek-v4.1-flash`，并显式提交本局的 `enableThinking` 布尔值；不接受旧的缺少这些创建参数的请求。
+3. 部署新服务及前端，在平台“AI 上游配置”中保存 Base URL 与 API Key；复用已有加密主密钥和主机白名单。旧 `AI_BATTLE_BASE_URL` / `AI_BATTLE_API_KEY` 不再读取，也不自动迁入平台表。网页 API 模型以 [`API_AI_BATTLE_MODELS`](../../src/online/ai-battle-model-registry.ts) 为准（v3.10.6 包含 `qwen3.8-max`、`qwen3.8-flash`、`glm-5.3`、`glm-5.2` 和 `deepseek-v4.1-flash`），并显式提交本局的 `enableThinking` 布尔值；不接受旧的缺少这些创建参数的请求。
 4. 新建一场 AI 调试局并完成一次调用，核对原始 usage、单步提示、本局累计与历史接口；失败/结束不可重复计入同一次请求。
 
 校验：
