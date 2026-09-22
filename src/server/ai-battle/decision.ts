@@ -16,6 +16,7 @@ import { queryActivatedAbilityStart } from '../../application/card-effects/runti
 import { getActivatedAbilityUiConfigs } from '../../application/card-effects/runtime/activated-ability-ui.js';
 import { CardAbilitySourceZone } from '../../application/card-effects/ability-definition-types.js';
 import { visibleActivationResources, visibleMemberEntryResources } from './ability-resources.js';
+import { queryAiActivationFollowUps } from './activation-follow-up.js';
 import { createPublicObjectId, projectPlayerViewState } from '../../online/projector.js';
 import type { PlayerViewState } from '../../online/types.js';
 import { CardType, FaceState, GamePhase, SubPhase } from '../../shared/types/enums.js';
@@ -39,6 +40,7 @@ import {
   type AiDecisionSpace,
   type AiDecisionInput,
   type AiDecisionQuery,
+  type AiActivationFollowUp,
 } from './protocol.js';
 export {
   materializeAiDecisionCommands,
@@ -185,10 +187,12 @@ export function buildAiBattleDecision(
 
   const candidates: AiCandidate[] = [];
   const commands = new Map<string, CommandParameters>();
+  const activationFollowUps = new Map<string, AiActivationFollowUp>();
   const addAction = (facts: Omit<AiCandidate, 'ref'>, command: CommandParameters) => {
     const ref = `a${candidates.length + 1}`;
     candidates.push({ ref, ...facts });
     commands.set(ref, command);
+    return ref;
   };
   const cardFront = (cardId: string) => {
     const front = view.objects[createPublicObjectId(cardId)]?.frontInfo;
@@ -305,22 +309,37 @@ export function buildAiBattleDecision(
             ability.abilityId,
             view
           );
-          addAction(
-            {
-              description: `起动 ${cardName(cardId)}；${activationResources.activation ? `${describeAiActivationResources(activationResources.activation)}；` : ''}能力：${ability.title}`,
-              objectId: createPublicObjectId(cardId),
-              effectText: ability.text,
-              ...activationResources,
-            },
-            {
-              type: GameCommandType.ACTIVATE_ABILITY,
-              cardId,
-              abilityId: ability.abilityId,
-              ...(ability.abilityInstanceId
-                ? { abilityInstanceId: ability.abilityInstanceId }
-                : {}),
-            }
-          );
+          const facts = {
+            description: `起动 ${cardName(cardId)}；${activationResources.activation ? `${describeAiActivationResources(activationResources.activation)}；` : ''}能力：${ability.title}`,
+            objectId: createPublicObjectId(cardId),
+            effectText: ability.text,
+            ...activationResources,
+          };
+          const command = {
+            type: GameCommandType.ACTIVATE_ABILITY as const,
+            cardId,
+            abilityId: ability.abilityId,
+            ...(ability.abilityInstanceId ? { abilityInstanceId: ability.abilityInstanceId } : {}),
+          };
+          addAction(facts, command);
+          for (const { targetObjectId, followUp } of queryAiActivationFollowUps(
+            game,
+            playerId,
+            cardId,
+            ability.abilityId,
+            view,
+            ability.abilityInstanceId
+          )) {
+            const ref = addAction(
+              {
+                ...facts,
+                description: `起动 ${cardName(cardId)}（预选 ${describeAiCardIdentity(view.objects[targetObjectId]!.frontInfo!)}）；${facts.description.split('；').slice(1).join('；')}`,
+                followUpTargetObjectId: targetObjectId,
+              },
+              command
+            );
+            activationFollowUps.set(ref, followUp);
+          }
         }
       }
     }
@@ -462,6 +481,7 @@ export function buildAiBattleDecision(
     decision: {
       input,
       ...(toCommands ? { toCommands } : {}),
+      ...(activationFollowUps.size ? { activationFollowUps } : {}),
       toCommand(selection, timestamp) {
         validateSelection(space, selection);
         if (toCommands) {

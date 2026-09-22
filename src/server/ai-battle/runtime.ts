@@ -9,16 +9,20 @@ import {
   type AiDecisionInput,
   type AiDecisionQuery,
   type AiSelection,
+  type AiActivationFollowUp,
 } from './protocol.js';
 import { getAiFallbackSelection, getAiMechanicalSelection } from './policy.js';
 import type { AiBattleTraceObserver } from './trace-store.js';
 import type { PlayerViewState } from '../../online/types.js';
 import { AiDecisionContext, type AiPublicObservation } from './decision-context.js';
+import { GamePhase } from '../../shared/types/enums.js';
 
 export const AI_MODEL_TIMEOUT_MS = 30_000;
 export const AI_THINKING_MODEL_TIMEOUT_MS = 120_000;
 export const AI_SERVICE_RETRY_LIMIT = 1;
 export const AI_CONSECUTIVE_FAILURE_LIMIT = 3;
+export const AI_LIVE_PRESENTATION_DWELL_MS = 1_800;
+export const AI_ACTIVATION_PRESENTATION_DWELL_MS = 1_000;
 
 export type AiModelOutcome =
   | { readonly kind: 'RESPONSE'; readonly text: string; readonly truncated?: boolean }
@@ -56,6 +60,12 @@ export interface AiRuntimeTask extends AiTaskIdentity {
   readonly controller: AbortController;
   attempt: number;
   prepared: AiPreparedSelection | null;
+  presentationDeadlineAt?: number;
+  activationFollowUp?: {
+    readonly plan: AiActivationFollowUp;
+    readonly deadlineAt: number;
+    readonly beforeCommandSeq: number;
+  };
 }
 
 /** All mutating methods run inside OnlineMatchService's existing match queue. */
@@ -80,7 +90,33 @@ export class AiBattleRuntime {
     return this.context.publicSeq;
   }
 
+  /** Presentation pacing only; the driver waits outside the authority queue. */
+  waitForLivePresentation(now: number): AiBattleAdvanceResult | null {
+    const task = this.current;
+    if (!task || task.prepared?.source !== 'MECHANICAL') return null;
+    const { purpose, state } = task.decision.input;
+    // Public card/effect displays already have their own authoritative dwell.
+    if (
+      (purpose !== 'RULE_CONFIRM' && purpose !== 'SUCCESS_LIVE') ||
+      (state.phase !== GamePhase.PERFORMANCE_PHASE && state.phase !== GamePhase.LIVE_RESULT_PHASE)
+    )
+      return null;
+    if (task.presentationDeadlineAt === undefined) {
+      task.presentationDeadlineAt = now + AI_LIVE_PRESENTATION_DWELL_MS;
+      this.record(
+        'WAIT',
+        { reason: 'LIVE_PRESENTATION', deadlineAt: task.presentationDeadlineAt },
+        'WAITING_SELECTED'
+      );
+    }
+    return now < task.presentationDeadlineAt
+      ? { kind: 'WAIT', deadlineAt: task.presentationDeadlineAt, reason: 'LIVE_PRESENTATION' }
+      : null;
+  }
+
   invalidate(reason: 'STALE' | 'ACCEPTED' | 'STOPPED' | 'ENDED' = 'STALE'): void {
+    if (this.current?.activationFollowUp && reason !== 'ACCEPTED')
+      this.record('ACTIVATION_FOLLOW_UP', { kind: 'REQUERY', reason });
     if (this.current && reason === 'STALE') this.record('INVALIDATED', { reason }, 'STALE');
     this.current?.controller.abort();
     this.current = null;
@@ -271,13 +307,49 @@ export class AiBattleRuntime {
   commands(now: number): readonly GameCommand[] {
     const task = this.current;
     if (!task?.prepared) throw new Error('No prepared AI selection');
+    if (task.activationFollowUp)
+      throw new Error('Activation already committed; requery its target');
     validateSelection(task.decision.input.space, task.prepared.selection);
     return materializeAiDecisionCommands(task.decision, task.prepared.selection, now);
   }
 
+  /** Bind the preselected target to the post-activation revision, never replay the original action. */
+  holdActivationFollowUp(
+    plan: AiActivationFollowUp,
+    revision: number,
+    windowKey: string,
+    beforeCommandSeq: number,
+    now: number,
+    view: PlayerViewState,
+    observation: AiPublicObservation
+  ): AiBattleAdvanceResult {
+    const task = this.current;
+    if (!task?.prepared || task.activationFollowUp) throw new Error('Invalid activation hold');
+    // Preserve the accepted cost/action even if an external change cancels the held target.
+    this.context.accepted(
+      task.decision.input,
+      task.prepared.selection,
+      task.prepared.source,
+      view,
+      observation
+    );
+    this.context.observe(view, observation);
+    if (task.prepared.source === 'MODEL') this.consecutiveFailures = 0;
+    const deadlineAt = now + AI_ACTIVATION_PRESENTATION_DWELL_MS;
+    this.current = {
+      ...task,
+      revision,
+      windowKey,
+      activationFollowUp: { plan, deadlineAt, beforeCommandSeq },
+    };
+    const wait = { kind: 'WAIT' as const, reason: 'ACTIVATION_PRESENTATION', deadlineAt };
+    this.record('WAIT', wait, 'WAITING_SELECTED');
+    return wait;
+  }
+
   accepted(view?: PlayerViewState, publicObservation?: AiPublicObservation): void {
     const task = this.current;
-    if (task?.prepared)
+    if (task?.prepared && !task.activationFollowUp)
       this.context.accepted(
         task.decision.input,
         task.prepared.selection,

@@ -452,7 +452,7 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
       await page.goto('/?page=ai-battle-admin');
       await expect(page.getByRole('button', { name: '创建调试对局', exact: true })).toBeEnabled();
       const model = page.getByRole('combobox', { name: 'AI 模型', exact: true });
-      await expect(model.locator('option')).toHaveCount(4);
+      await expect(model.locator('option')).toHaveCount(f.service.listModels().length);
       await expect(model).toHaveValue('qwen3.8-flash');
       const thinking = page.getByRole('checkbox', { name: '开启思考', exact: true });
       await expect(thinking).not.toBeChecked();

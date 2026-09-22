@@ -45,6 +45,19 @@ import {
 } from '../helpers/ai-battle-fixture';
 
 describe('AI ordinary decisions through authoritative commands', () => {
+  it('automates only the sole main action and retains a free activation as a real choice', () => {
+    const { session } = setup();
+    replaceHand(session, []);
+    const current = decision(session);
+    expect(current.input.space.candidates).toHaveLength(1);
+    const selected = getAiMechanicalSelection(current)!;
+    expect(current.toCommand(selected, 1000).type).toBe(GameCommandType.END_PHASE);
+    stage(session, member('PL!-sd1-002-SD', 2), SlotPosition.LEFT);
+    const withAbility = decision(session);
+    expect(withAbility.input.space.candidates.length).toBeGreaterThan(1);
+    expect(getAiMechanicalSelection(withAbility)).toBeNull();
+  });
+
   it.each([P1, P2])(
     'waits for public selection display and lets %s advance exactly once',
     (advancingPlayer) => {
@@ -97,7 +110,7 @@ describe('AI ordinary decisions through authoritative commands', () => {
     }
   );
 
-  it('uses deterministic ordinary fallback without randomness or turning end-phase into a mechanical decision', () => {
+  it('uses deterministic ordinary fallback without making end-phase mechanical when other choices exist', () => {
     for (const main of [false, true]) {
       const { session, randomCalls } = setup(main);
       const current = decision(session);
@@ -603,7 +616,9 @@ describe('AI ordinary decisions through authoritative commands', () => {
           data: { ...member('PL!SP-bp4-015-N', 2), groupNames: ['Liella!'] },
         });
       const current = decision(session);
-      const activations = current.input.space.candidates.filter((c) => c.effectText);
+      const activations = current.input.space.candidates.filter(
+        (c) => c.effectText && !c.followUpTargetObjectId
+      );
       expect(activations).toHaveLength(2);
       expect(activations.map((c) => c.objectId)).toEqual([
         createPublicObjectId(host),

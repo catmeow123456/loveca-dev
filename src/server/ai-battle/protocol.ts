@@ -1,4 +1,5 @@
 import type { GameCommand } from '../../application/game-commands.js';
+import type { GameState } from '../../domain/entities/game.js';
 import type { PlayerViewState, PublicEvent } from '../../online/types.js';
 import type { AiSelfResources, AiStageEntryBudget, AiLiveBaseBudget } from './visible-resources.js';
 import type { EffectCostDefinition } from '../../application/effects/effect-costs.js';
@@ -20,6 +21,8 @@ export interface AiCandidate {
   readonly ref: string;
   readonly description: string;
   readonly objectId?: string;
+  /** Preselected visible target; executed only if the immediate post-activation window still matches. */
+  readonly followUpTargetObjectId?: string;
   readonly targetSlot?: string;
   readonly energyCost?: number;
   readonly replacedObjectIds?: readonly string[];
@@ -113,6 +116,18 @@ export interface AiDecision {
   readonly toCommand: (selection: AiSelection, timestamp: number) => GameCommand;
   /** Multi-command plans stay inside the same authority queue and represent one model decision. */
   readonly toCommands?: (selection: AiSelection, timestamp: number) => readonly GameCommand[];
+  /** Server-only, single-use plans. Never serialized or carried to a later decision window. */
+  readonly activationFollowUps?: ReadonlyMap<string, AiActivationFollowUp>;
+}
+
+export interface AiActivationFollowUp {
+  readonly resolve: (
+    game: GameState,
+    view: PlayerViewState,
+    timestamp: number
+  ) =>
+    | { readonly kind: 'READY'; readonly command: GameCommand; readonly selection: AiSelection }
+    | { readonly kind: 'REQUERY'; readonly reason: string };
 }
 
 export function materializeAiDecisionCommands(

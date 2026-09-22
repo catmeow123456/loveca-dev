@@ -6,6 +6,10 @@ import { OnlineMatchService } from '../../src/server/services/online-match-servi
 import type { MatchRecorderService } from '../../src/server/services/match-recorder-service';
 import { AiBattleDriver, type AiBattleModelClient } from '../../src/server/ai-battle/driver';
 import type { AiModelTask, AiModelOutcome } from '../../src/server/ai-battle/runtime';
+import {
+  AI_ACTIVATION_PRESENTATION_DWELL_MS,
+  AI_LIVE_PRESENTATION_DWELL_MS,
+} from '../../src/server/ai-battle/runtime';
 import { buildAiBattleDecision } from '../../src/server/ai-battle/decision';
 import { getAiFallbackSelection } from '../../src/server/ai-battle/policy';
 import { AiBattleTraceStore } from '../../src/server/ai-battle/trace-store';
@@ -14,8 +18,9 @@ import {
   createAiModelConfig,
 } from '../../src/server/ai-battle/model-client';
 import type { AiFrozenKnowledge } from '../../src/server/ai-battle/presets';
-import { GamePhase, SubPhase } from '../../src/shared/types/enums';
-import { deck, member, replaceHand } from '../helpers/ai-battle-fixture';
+import { CardType, GamePhase, SlotPosition, SubPhase } from '../../src/shared/types/enums';
+import { deck, member, replaceHand, stage } from '../helpers/ai-battle-fixture';
+import { createPublicObjectId } from '../../src/online/projector';
 import type { ActiveEffectState } from '../../src/domain/entities/game';
 import { registerActiveEffectStepHandler } from '../../src/application/card-effects/runtime/step-registry';
 import { withPublicRevealDwell } from '../../src/application/card-effects/runtime/public-reveal-dwell';
@@ -170,6 +175,280 @@ const response = (selection: unknown): AiModelOutcome => ({
 afterEach(() => vi.useRealTimers());
 
 describe('AI match authority queue and lifecycle', () => {
+  it('holds a combined activation for one second, then selects once from the same model answer and preserves public display', async () => {
+    const f = await fixture({ main: true, attach: false });
+    const live = deck().mainDeck.find((card) => card.cardType === CardType.LIVE)!;
+    const targets = replaceHand(f.match.session, [live, live]);
+    const player = f.match.session.state!.players[0];
+    Object.assign(player.waitingRoom, { cardIds: targets });
+    Object.assign(player.hand, { cardIds: [] });
+    const source = stage(f.match.session, member('PL!N-sd1-011-SD', 2), SlotPosition.LEFT);
+    const traces = new AiBattleTraceStore(undefined, f.now);
+    traces.open(f.match.matchId, []);
+    await f.service.attachAiBattle(f.match.matchId, f.wake, traces.bind(f.match.matchId));
+    const task = await modelTask(f);
+    const candidate = task.input.space.candidates.find(
+      (c) => c.followUpTargetObjectId === createPublicObjectId(targets[1]!)
+    )!;
+    const seq = f.match.session.getRuntimeStats().currentCommandSeq;
+    const outcome = response({ kind: 'ACTION', actionRef: candidate.ref });
+    const hold = await f.service.completeAiBattleTask(f.match.matchId, task, outcome);
+    expect(hold).toEqual({
+      kind: 'WAIT',
+      reason: 'ACTIVATION_PRESENTATION',
+      deadlineAt: f.now() + 1000,
+    });
+    expect(f.match.session.getCommandLogSince(seq).map((entry) => entry.commandType)).toEqual([
+      GameCommandType.ACTIVATE_ABILITY,
+    ]);
+    expect(await f.service.getMatchSnapshot(f.match.matchId, humanId)).toBeTruthy();
+    expect(f.match.session.state!.players[0].memberSlots.slots.LEFT).toBeNull();
+    expect(f.match.session.state!.activeEffect?.selectableCardIds).toEqual(targets);
+    expect(await f.service.completeAiBattleTask(f.match.matchId, task, outcome)).toEqual({
+      kind: 'STALE',
+    });
+    f.setNow(f.now() + 999);
+    expect(await f.service.advanceAiBattle(f.match.matchId)).toEqual(hold);
+    expect(await f.service.advanceAiBattle(f.match.matchId)).toEqual(hold);
+    expect(f.match.session.getCommandLogSince(seq)).toHaveLength(1);
+    f.setNow(f.now() + 1);
+    expect(await f.service.advanceAiBattle(f.match.matchId)).toEqual({ kind: 'ACCEPTED' });
+    expect(f.match.session.getCommandLogSince(seq).map((entry) => entry.commandType)).toEqual([
+      GameCommandType.ACTIVATE_ABILITY,
+      GameCommandType.CONFIRM_EFFECT_STEP,
+    ]);
+    const after = f.match.session.state!.players[0];
+    expect(after.memberSlots.slots.LEFT).toBeNull();
+    expect(after.waitingRoom.cardIds).toContain(source);
+    expect(after.hand.cardIds).not.toContain(targets[1]);
+    const bundle = traces.export(f.match.matchId, task.taskId)!;
+    expect(
+      JSON.parse(bundle.materials.find((m) => m.title === 'ACTIVATION_FOLLOW_UP')!.content!)
+    ).toMatchObject({ kind: 'READY' });
+    expect(
+      JSON.parse(bundle.materials.find((m) => m.title === 'AUTHORITY_RESULT')!.content!)
+    ).toMatchObject({
+      success: true,
+      commandRecords: [{ commandType: 'ACTIVATE_ABILITY' }, { commandType: 'CONFIRM_EFFECT_STEP' }],
+    });
+    const wait = await f.service.advanceAiBattle(f.match.matchId);
+    expect(wait).toMatchObject({ kind: 'WAIT', reason: 'PUBLIC_DISPLAY' });
+    if (wait.kind !== 'WAIT') throw Error('Expected public display');
+    expect(wait.deadlineAt).toBe(f.now() + 2000);
+    expect(await f.service.completeAiBattleTask(f.match.matchId, task, outcome)).toEqual({
+      kind: 'STALE',
+    });
+    f.setNow(wait.deadlineAt);
+    expect(await f.service.advanceAiBattle(f.match.matchId)).toEqual({ kind: 'ACCEPTED' });
+    expect(f.match.session.state!.players[0].hand.cardIds).toEqual([targets[1]]);
+    expect(f.match.session.state!.players[0].waitingRoom.cardIds).toContain(targets[0]);
+  });
+
+  it.each(['surrender', 'changed target'] as const)(
+    'cancels the delayed preselection on %s without replaying activation',
+    async (change) => {
+      const f = await fixture({ main: true });
+      const live = deck().mainDeck.find((card) => card.cardType === CardType.LIVE)!;
+      const targets = replaceHand(f.match.session, [live, live, live]);
+      Object.assign(f.match.session.state!.players[0].waitingRoom, { cardIds: targets });
+      Object.assign(f.match.session.state!.players[0].hand, { cardIds: [] });
+      stage(f.match.session, member('PL!N-sd1-011-SD', 2), SlotPosition.LEFT);
+      const task = await modelTask(f);
+      const candidate = task.input.space.candidates.find(
+        (c) => c.followUpTargetObjectId === createPublicObjectId(targets[2]!)
+      )!;
+      const seq = f.match.session.getRuntimeStats().currentCommandSeq;
+      const hold = await f.service.completeAiBattleTask(
+        f.match.matchId,
+        task,
+        response({ kind: 'ACTION', actionRef: candidate.ref })
+      );
+      expect(hold.kind).toBe('WAIT');
+      if (change === 'surrender') {
+        expect(
+          (
+            await f.service.executeCommand(
+              f.match.matchId,
+              humanId,
+              createSurrenderCommand(humanId)
+            )
+          )?.success
+        ).toBe(true);
+      } else {
+        // Even without a revision notification, the delayed target must be queried again.
+        Object.assign(f.match.session.state!.activeEffect!, {
+          selectableCardIds: targets.slice(0, 2),
+        });
+      }
+      f.setNow(f.now() + AI_ACTIVATION_PRESENTATION_DWELL_MS);
+      expect(await f.service.advanceAiBattle(f.match.matchId)).toEqual({
+        kind: change === 'surrender' ? 'ENDED' : 'ACCEPTED',
+      });
+      const commands = f.match.session.getCommandLogSince(seq).map((entry) => entry.commandType);
+      expect(
+        commands.filter((command) => command === GameCommandType.ACTIVATE_ABILITY)
+      ).toHaveLength(1);
+      expect(commands).not.toContain(GameCommandType.CONFIRM_EFFECT_STEP);
+      if (change === 'changed target') {
+        const next = await modelTask(f);
+        expect(next.input.purpose).toBe('EFFECT');
+        expect(next.input.context?.recentDecisions).toHaveLength(1);
+        expect(next.input.context?.recentDecisions[0]?.source).toBe('MODEL');
+      }
+    }
+  );
+
+  it('wakes the delayed target through the driver timer without another model request', async () => {
+    vi.useFakeTimers();
+    const f = await fixture({ main: true, attach: false });
+    const live = deck().mainDeck.find((card) => card.cardType === CardType.LIVE)!;
+    const targets = replaceHand(f.match.session, [live, live]);
+    Object.assign(f.match.session.state!.players[0].waitingRoom, { cardIds: targets });
+    Object.assign(f.match.session.state!.players[0].hand, { cardIds: [] });
+    stage(f.match.session, member('PL!N-sd1-011-SD', 2), SlotPosition.LEFT);
+    const decide = vi.fn<AiBattleModelClient['decide']>(async (input) =>
+      response({
+        kind: 'ACTION',
+        actionRef: input.space.candidates.find((c) => c.followUpTargetObjectId)!.ref,
+      })
+    );
+    const seq = f.match.session.getRuntimeStats().currentCommandSeq;
+    const driver = new AiBattleDriver(f.service, f.now);
+    await driver.start(f.match.matchId, { decide });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.match.session.getCommandLogSince(seq)).toHaveLength(1);
+    f.setNow(f.now() + 999);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(f.match.session.getCommandLogSince(seq)).toHaveLength(1);
+    f.setNow(f.now() + 1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(f.match.session.getCommandLogSince(seq).map((entry) => entry.commandType)).toEqual([
+      GameCommandType.ACTIVATE_ABILITY,
+      GameCommandType.CONFIRM_EFFECT_STEP,
+    ]);
+    expect(decide).toHaveBeenCalledTimes(1);
+    await driver.stop(f.match.matchId);
+  });
+
+  it('cancels a sole-action phase completion if the match ends while waiting', async () => {
+    const f = await fixture({ main: true });
+    replaceHand(f.match.session, []);
+    const wait = await f.service.advanceAiBattle(f.match.matchId);
+    expect(wait).toMatchObject({ kind: 'WAIT', reason: 'PHASE_COMPLETION' });
+    await f.service.executeCommand(f.match.matchId, humanId, createSurrenderCommand(humanId));
+    const seq = f.match.session.getRuntimeStats().currentCommandSeq;
+    f.setNow(f.now() + 10_000);
+    expect(await f.service.advanceAiBattle(f.match.matchId)).toEqual({ kind: 'ENDED' });
+    expect(f.match.session.getCommandLogSince(seq)).toEqual([]);
+  });
+
+  it('keeps the activation committed and asks again if the immediate target window changes', async () => {
+    const recorder = recorderFixture();
+    const f = await fixture({ main: true, recorder });
+    const live = deck().mainDeck.find((card) => card.cardType === CardType.LIVE)!;
+    const targets = replaceHand(f.match.session, [live, live, live]);
+    Object.assign(f.match.session.state!.players[0].waitingRoom, { cardIds: targets });
+    Object.assign(f.match.session.state!.players[0].hand, { cardIds: [] });
+    const source = stage(f.match.session, member('PL!N-sd1-011-SD', 2), SlotPosition.LEFT);
+    const task = await modelTask(f);
+    const candidate = task.input.space.candidates.find(
+      (c) => c.followUpTargetObjectId === createPublicObjectId(targets[2]!)
+    )!;
+    // Inject a changed next window after the real first command, at the recorder boundary.
+    recorder.appendMatchRecordFrame.mockImplementationOnce(async (input) => {
+      Object.assign(f.match.session.state!.activeEffect!, {
+        selectableCardIds: targets.slice(0, 2),
+      });
+      return { matchId: input.matchId, timelineSeq: 2, checkpointSeq: null, payloadHash: null };
+    });
+    const seq = f.match.session.getRuntimeStats().currentCommandSeq;
+    expect(
+      await f.service.completeAiBattleTask(
+        f.match.matchId,
+        task,
+        response({ kind: 'ACTION', actionRef: candidate.ref })
+      )
+    ).toEqual({ kind: 'ACCEPTED' });
+    expect(f.match.session.getCommandLogSince(seq).map((entry) => entry.commandType)).toEqual([
+      GameCommandType.ACTIVATE_ABILITY,
+    ]);
+    expect(f.match.session.state!.players[0].memberSlots.slots.LEFT).toBeNull();
+    expect(f.match.session.state!.players[0].waitingRoom.cardIds).toContain(source);
+    const next = await modelTask(f);
+    expect(next.input.purpose).toBe('EFFECT');
+    expect(next.input.space.candidates.map((c) => c.objectId)).toEqual(
+      targets.slice(0, 2).map(createPublicObjectId)
+    );
+  });
+
+  it.each([SubPhase.PERFORMANCE_LIVE_START_EFFECTS, SubPhase.PERFORMANCE_JUDGMENT])(
+    'holds %s for 1.8 seconds without blocking snapshots or calling the model',
+    async (subPhase) => {
+      vi.useFakeTimers();
+      const f = await fixture({ attach: false });
+      Object.assign(f.match.session.state!, {
+        currentPhase: GamePhase.PERFORMANCE_PHASE,
+        currentSubPhase: subPhase,
+        activePlayerIndex: 0,
+        waitingPlayerId: null,
+      });
+      const before = f.match.remoteRevision;
+      const decide = vi.fn<AiBattleModelClient['decide']>();
+      const driver = new AiBattleDriver(f.service, f.now);
+      await driver.start(f.match.matchId, { decide });
+      await vi.advanceTimersByTimeAsync(0);
+      const wait = await f.service.advanceAiBattle(f.match.matchId);
+      expect(wait).toEqual({
+        kind: 'WAIT',
+        reason: 'LIVE_PRESENTATION',
+        deadlineAt: f.now() + AI_LIVE_PRESENTATION_DWELL_MS,
+      });
+      expect(await f.service.getMatchSnapshot(f.match.matchId, humanId)).toBeTruthy();
+      f.setNow(f.now() + AI_LIVE_PRESENTATION_DWELL_MS - 1);
+      await vi.advanceTimersByTimeAsync(AI_LIVE_PRESENTATION_DWELL_MS - 1);
+      expect(f.match.remoteRevision).toBe(before);
+      expect(await f.service.advanceAiBattle(f.match.matchId)).toEqual(wait);
+      f.setNow(f.now() + 1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(f.match.remoteRevision).toBe(before + 1);
+      expect(decide).not.toHaveBeenCalled();
+      await f.service.deleteMatch(f.match.matchId);
+      await vi.advanceTimersByTimeAsync(AI_LIVE_PRESENTATION_DWELL_MS);
+      expect(f.match.remoteRevision).toBe(before + 1);
+    }
+  );
+
+  it('cancels a held LIVE confirmation when the human ends the game before its deadline', async () => {
+    vi.useFakeTimers();
+    const f = await fixture({ attach: false });
+    Object.assign(f.match.session.state!, {
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      activePlayerIndex: 0,
+      waitingPlayerId: null,
+    });
+    const decide = vi.fn<AiBattleModelClient['decide']>();
+    await new AiBattleDriver(f.service, f.now).start(f.match.matchId, { decide });
+    await vi.advanceTimersByTimeAsync(0);
+    expect((await f.service.advanceAiBattle(f.match.matchId)).kind).toBe('WAIT');
+    const human = f.match.participants.SECOND;
+    const surrendered = await f.service.executeCommand(
+      f.match.matchId,
+      humanId,
+      createSurrenderCommand(human.playerId, f.now())
+    );
+    expect(surrendered?.success).toBe(true);
+    const revision = f.match.remoteRevision;
+    f.setNow(f.now() + AI_LIVE_PRESENTATION_DWELL_MS);
+    await vi.advanceTimersByTimeAsync(AI_LIVE_PRESENTATION_DWELL_MS);
+    expect(f.match.remoteRevision).toBe(revision);
+    expect(decide).not.toHaveBeenCalled();
+    expect(f.match.session.getCommandLogSince(0).map((entry) => entry.commandType)).toEqual([
+      GameCommandType.SURRENDER,
+    ]);
+    await f.service.deleteMatch(f.match.matchId);
+  });
+
   it('submits one LIVE_SET model selection as the final card set and immediately confirms it', async () => {
     const f = await fixture();
     Object.assign(f.match.session.state!, {
@@ -210,6 +489,7 @@ describe('AI match authority queue and lifecycle', () => {
 
   it('feeds accepted actions and post-command facts, but not model rationales, into the next queued sample', async () => {
     const f = await fixture({ main: true });
+    replaceHand(f.match.session, [member('TEST-MEMBER', 0), member('ANOTHER-MEMBER', 0)]);
     const task = await modelTask(f);
     const play = task.input.space.candidates.find((candidate) => candidate.targetSlot)!;
     const outcome = {
@@ -451,7 +731,7 @@ describe('AI match authority queue and lifecycle', () => {
     expect(f.wake).toHaveBeenCalledTimes(wakes);
   });
 
-  it('holds the chosen END_PHASE until the service deadline without suppressing legal plays', async () => {
+  it('automatically holds the sole END_PHASE until its deadline after the model plays its last member', async () => {
     const f = await fixture({ main: true });
     const task = await modelTask(f);
     const play = task.input.space.candidates.find((candidate) => candidate.targetSlot);
@@ -467,24 +747,16 @@ describe('AI match authority queue and lifecycle', () => {
       response({ kind: 'ACTION', actionRef: play!.ref })
     );
     expect(played.kind).toBe('ACCEPTED');
-    const next = await modelTask(f);
-    const nextEnd = next.input.space.candidates.find(
-      (candidate) => candidate.availableAt !== undefined
-    )!;
     const revision = f.match.remoteRevision;
-    const wait = await f.service.completeAiBattleTask(
-      f.match.matchId,
-      next,
-      response({ kind: 'ACTION', actionRef: nextEnd.ref })
-    );
+    const wait = await f.service.advanceAiBattle(f.match.matchId);
     expect(wait).toEqual({
       kind: 'WAIT',
-      deadlineAt: nextEnd.availableAt,
+      deadlineAt: end!.availableAt,
       reason: 'PHASE_COMPLETION',
     });
     expect(f.match.remoteRevision).toBe(revision);
     expect(await f.service.advanceAiBattle(f.match.matchId)).toEqual(wait);
-    f.setNow(nextEnd.availableAt!);
+    f.setNow(end!.availableAt!);
     expect(await f.service.advanceAiBattle(f.match.matchId)).toEqual({ kind: 'ACCEPTED' });
     expect(f.match.remoteRevision).toBe(revision + 1);
   });

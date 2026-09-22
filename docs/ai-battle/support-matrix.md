@@ -126,10 +126,11 @@
 | 换牌（任意手牌子集，含全保留） | 当前换牌席位 | MULLIGAN | GameSession + mulligan.handler | AI decision 测试；重复对象拒绝与真实换牌 |
 | 普通登场/换手 | 自己主要阶段 | PLAY_MEMBER_TO_SLOT | normal-member-play + cost-calculator + member-turn-state | AI decision 测试；实际支付/槽位/离场结果 |
 | 起动选择；同来源多能力 | 自己主要阶段 | ACTIVATE_ABILITY | activated UI/turn-limit/start query + workflow | 自送回收、支付能量回收、公开手中 LIVE 同名回收和原槽位登场已提供查询；其他 workflow 无查询时明确未覆盖 |
+| 起动＋已知单选目标 | 自己主要阶段与紧接的效果窗口 | ACTIVATE_ABILITY、CONFIRM_EFFECT_STEP | shared self-sacrifice-waiting-room-to-hand 的 immediateSelection + 原选牌查询 | 一个模型 actionRef 预选可见回收目标；起动后队列外停留 1 秒，再重验并选牌，两条命令分别权威校验；目标／约束／来源实例变化或新信息／触发即重新询问，公开展示保留；ai-battle-activation-follow-up、ai-battle-service-runtime 验证定时续行、取消、不重复起动且不增加模型调用，不代表真实模型采用率已验收 |
 | 只需确认的特殊登场 | 自己主要阶段 | BEGIN_SPECIAL_MEMBER_PLAY、CONFIRM_SPECIAL_MEMBER_PLAY | 原 special-member-play-procedures + cost-calculator | 按 min/max=0 的通用形状适配；费用13米娅减费与普通换手分别报价，选择后确认由机械策略执行；需额外选卡的特殊登场仍明确未支持；真人 HTTP 入口支持 BEGIN/CONFIRM/CANCEL 三步，共用既有 mode 定义并交原规则链重验，见 ai-battle-admin-route |
 | 手牌/休息室起动与单槽选择 | 来源控制者 | ACTIVATE_ABILITY、CONFIRM_EFFECT_STEP | 原 sourceZone 起动 UI/start query + workflow 单槽 SLOTS 契约 | 费用2霞从休息室复出：真实支付、弃手、合法区域、登场及后续检视；AI 仅转换当前席位可见来源与候选 |
 | Like a Treasure 的卡效选择 | 来源控制者；私密检视只对本人 | CONFIRM_EFFECT_STEP | workflow 自有 CARDS/OPTIONS/CONFIRM 查询 | 费用17彼方两段起动、费用13艾玛/米娅、Poppin、TOKIMEKI、Treasure 与共享休息室置顶步骤；效果计算继续由原 workflow 执行 |
-| 结束主要阶段 | 当前主要阶段玩家 | END_PHASE | player-command-policy + GameSession | AI decision 测试 |
+| 结束主要阶段 | 当前主要阶段玩家 | END_PHASE | player-command-policy + GameSession | 完整候选仅剩 END_PHASE 时机械推进；仍遵守阶段 deadline，等待期间结束对局会取消；有其他合法动作时继续交模型选择 |
 | 一次选择最终盖牌完整集合并完成设置 | 当前 LIVE 设置席位 | SET/UNSET_LIVE_CARD、CONFIRM_STEP（同队列批次） | getLiveSetCardCount/Limit/Ids + live-set.handler | AI decision / service runtime 测试；可选任意手牌，不限 LIVE 类型；撤回、追加与确认不再重复请求模型 |
 | pending 顺序/confirm-only | 实时检查时点的等待席位 | CONFIRM_EFFECT_STEP | pending runtime/order-selection | ai-battle-effect-decision；同来源不同 pending 独立映射、手动选择后 confirm-only 实际结算 |
 | 可选弃手费用；支付后私密检视 | 来源控制者 | CONFIRM_EFFECT_STEP | discard-look-top-select-to-hand + active-effect | ai-battle-effect-decision；唯一目标仍可不发动，已付费用后的强制取一拒绝空选 |

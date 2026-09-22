@@ -13,6 +13,14 @@ export interface ActivatedAbilityResources {
   readonly targetCardIds: readonly string[];
   readonly destination: 'HAND' | 'SOURCE_MEMBER_SLOT';
   readonly sourceSlot?: SlotPosition;
+  /** The owning workflow reaches this card choice directly after cost, without drawing/revealing.
+   * Consumers must still requery the actual window and discard preselection on interruptions. */
+  readonly immediateSelection?: {
+    readonly stepId: string;
+    readonly min: number;
+    readonly max: number;
+    readonly canSkip: boolean;
+  };
 }
 
 type ActivationQuery = (

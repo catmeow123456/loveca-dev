@@ -169,7 +169,7 @@
 }
 .ai-battle-toolbar {
   position: relative;
-  z-index: 120;
+  /* GameBoard is an isolated stacking context; its fixed dialogs must cover this toolbar. */
   display: flex;
   align-items: center;
   gap: 12px;

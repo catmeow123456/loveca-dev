@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AiBattleRuntime } from '../../src/server/ai-battle/runtime';
+import { AiBattleRuntime, AI_LIVE_PRESENTATION_DWELL_MS } from '../../src/server/ai-battle/runtime';
 import { GameCommandType } from '../../src/application/game-commands';
-import { SubPhase } from '../../src/shared/types/enums';
+import { GamePhase, SubPhase } from '../../src/shared/types/enums';
 import { decision, setup } from '../helpers/ai-battle-fixture';
 import type { AiDecision } from '../../src/server/ai-battle/protocol';
 
@@ -158,5 +158,77 @@ describe('AI task failure accounting', () => {
     expect(runtime.current?.attempt).toBe(0);
     expect(runtime.current?.prepared?.source).toBe('FALLBACK');
     expect(runtime.consecutiveFailures).toBe(1);
+  });
+});
+
+describe('AI public LIVE presentation pacing', () => {
+  function observe(
+    runtime: AiBattleRuntime,
+    purpose = 'RULE_CONFIRM',
+    phase = GamePhase.PERFORMANCE_PHASE
+  ) {
+    const current = mechanical();
+    return runtime.observe(1, 'live', {
+      kind: 'DECISION',
+      decision: {
+        ...current,
+        input: {
+          ...current.input,
+          purpose: purpose as AiDecision['input']['purpose'],
+          state: { ...current.input.state, phase },
+        },
+      },
+    });
+  }
+
+  it.each(['RULE_CONFIRM', 'SUCCESS_LIVE'])(
+    'holds %s once per window and does not reset on repeated polling',
+    (purpose) => {
+      const runtime = new AiBattleRuntime('FIRST', vi.fn());
+      expect(observe(runtime, purpose)).toBeNull();
+      const deadlineAt = 1000 + AI_LIVE_PRESENTATION_DWELL_MS;
+      expect(runtime.waitForLivePresentation(1000)).toEqual({
+        kind: 'WAIT',
+        reason: 'LIVE_PRESENTATION',
+        deadlineAt,
+      });
+      expect(runtime.waitForLivePresentation(deadlineAt - 1)).toMatchObject({
+        kind: 'WAIT',
+        deadlineAt,
+      });
+      expect(runtime.waitForLivePresentation(deadlineAt)).toBeNull();
+      expect(runtime.waitForLivePresentation(deadlineAt + 1000)).toBeNull();
+      runtime.accepted();
+      observe(runtime, purpose);
+      expect(runtime.waitForLivePresentation(deadlineAt)).toMatchObject({
+        deadlineAt: deadlineAt + AI_LIVE_PRESENTATION_DWELL_MS,
+      });
+    }
+  );
+
+  it.each(['PUBLIC_DISPLAY', 'EFFECT_CONFIRM', 'MAIN'])(
+    'does not add another wait to %s',
+    (purpose) => {
+      const runtime = new AiBattleRuntime('FIRST', vi.fn());
+      observe(runtime, purpose);
+      expect(runtime.waitForLivePresentation(1000)).toBeNull();
+    }
+  );
+
+  it('does not delay confirmations outside LIVE or retain a stale/ended window', () => {
+    const runtime = new AiBattleRuntime('FIRST', vi.fn());
+    observe(runtime, 'RULE_CONFIRM', GamePhase.LIVE_SET_PHASE);
+    expect(runtime.waitForLivePresentation(1000)).toBeNull();
+    runtime.invalidate();
+    observe(runtime, 'RULE_CONFIRM', GamePhase.LIVE_RESULT_PHASE);
+    expect(runtime.waitForLivePresentation(1000)?.kind).toBe('WAIT');
+    runtime.invalidate();
+    expect(runtime.waitForLivePresentation(1100)).toBeNull();
+    observe(runtime);
+    expect(runtime.waitForLivePresentation(1100)).toMatchObject({
+      deadlineAt: 1100 + AI_LIVE_PRESENTATION_DWELL_MS,
+    });
+    runtime.end();
+    expect(runtime.waitForLivePresentation(3000)).toBeNull();
   });
 });
