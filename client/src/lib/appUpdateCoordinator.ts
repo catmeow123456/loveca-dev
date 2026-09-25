@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
-export type AppUpdateStatus = 'IDLE' | 'CHECKING' | 'AVAILABLE' | 'APPLYING' | 'ERROR';
+export type AppUpdateStatus =
+  'IDLE' | 'CHECKING' | 'AVAILABLE' | 'PREPARING' | 'APPLYING' | 'ERROR';
 
 export interface AppUpdateState {
   readonly status: AppUpdateStatus;
@@ -12,8 +13,8 @@ export interface AppUpdateState {
 }
 
 interface AppUpdateServiceWorkerActions {
-  readonly checkForWaitingWorker: () => Promise<boolean>;
-  readonly applyWaitingWorker: () => Promise<void>;
+  readonly prepareUpdate: (signal: AbortSignal) => Promise<'waiting' | 'reload'>;
+  readonly applyWaitingWorker: (signal: AbortSignal) => Promise<void>;
 }
 
 interface StorageLike {
@@ -53,6 +54,7 @@ export class AppUpdateCoordinator {
   private serviceWorkerActions: AppUpdateServiceWorkerActions | null = null;
   private workerAlreadyControlsPage = false;
   private reloadRequested = false;
+  private canApplyUpdateNow = () => true;
 
   constructor(options: AppUpdateCoordinatorOptions) {
     this.storage = options.storage ?? null;
@@ -79,6 +81,14 @@ export class AppUpdateCoordinator {
     this.serviceWorkerActions = actions;
   }
 
+  setCanApplyUpdateNow(check: () => boolean): void {
+    this.canApplyUpdateNow = check;
+  }
+
+  private assertCanApplyUpdateNow(): void {
+    if (!this.canApplyUpdateNow()) throw new Error('对局进行中，更新已暂停，请结束对局后重试。');
+  }
+
   markUpdateAvailable(
     input: {
       readonly latestBuildId?: string | null;
@@ -99,7 +109,13 @@ export class AppUpdateCoordinator {
     const targetBuildId = latestBuildId ?? UNKNOWN_UPDATE_BUILD_ID;
     const isDeferred = deferredBuildId === targetBuildId;
     const status =
-      this.state.status === 'APPLYING' ? 'APPLYING' : isDeferred ? 'IDLE' : 'AVAILABLE';
+      this.state.status === 'APPLYING' || this.state.status === 'PREPARING'
+        ? this.state.status
+        : isDeferred
+          ? 'IDLE'
+          : this.state.status === 'ERROR' && latestBuildId === this.state.latestBuildId
+            ? 'ERROR'
+            : 'AVAILABLE';
 
     this.setState({
       ...this.state,
@@ -112,7 +128,7 @@ export class AppUpdateCoordinator {
   }
 
   deferCurrentUpdate(): void {
-    if (this.state.status !== 'AVAILABLE') return;
+    if (this.state.status !== 'AVAILABLE' && this.state.status !== 'ERROR') return;
 
     const deferredBuildId = this.state.latestBuildId ?? UNKNOWN_UPDATE_BUILD_ID;
     this.writeDeferredBuildId(deferredBuildId);
@@ -165,58 +181,84 @@ export class AppUpdateCoordinator {
   }
 
   async applyCurrentUpdate(): Promise<boolean> {
-    if (this.state.status !== 'AVAILABLE') return false;
+    if (this.state.status !== 'AVAILABLE' && this.state.status !== 'ERROR') return false;
 
-    this.setState({ ...this.state, status: 'APPLYING', error: null });
-
-    if (this.workerAlreadyControlsPage) {
-      this.reloadOnce();
-      return true;
-    }
-
+    this.setState({ ...this.state, status: 'PREPARING', error: null });
     try {
-      const actions = this.serviceWorkerActions;
-      const waitingWorkerAvailable =
-        this.state.waitingWorkerAvailable ||
-        (actions ? await actions.checkForWaitingWorker() : false);
-
-      if (!actions || !waitingWorkerAvailable) {
-        this.setState({
-          ...this.state,
-          status: 'AVAILABLE',
-          waitingWorkerAvailable: false,
-          error: '更新已发现，请稍后重试。',
-        });
-        return false;
+      this.assertCanApplyUpdateNow();
+      if (this.workerAlreadyControlsPage) {
+        this.reloadOnce();
+        return true;
       }
-
-      this.setState({ ...this.state, waitingWorkerAvailable: true });
-      await actions.applyWaitingWorker();
+      const actions = this.serviceWorkerActions;
+      if (!actions) throw new Error('更新功能尚未就绪，请刷新页面后重试。');
+      // Always consult the registration: a previously waiting worker may have
+      // been activated by another tab since the notice was displayed.
+      const prepared = await this.withTimeout(
+        (signal) => actions.prepareUpdate(signal),
+        180_000,
+        '新版下载未完成，请检查网络后重试。'
+      );
+      if (prepared === 'reload' || this.workerAlreadyControlsPage) {
+        this.reloadOnce();
+        return true;
+      }
+      this.assertCanApplyUpdateNow();
+      this.setState({ ...this.state, status: 'APPLYING', waitingWorkerAvailable: true });
+      await this.withTimeout(
+        (signal) => actions.applyWaitingWorker(signal),
+        60_000,
+        '新版切换超时，请重试；若仍失败，请关闭所有 Loveca 页面后重新打开。'
+      );
+      this.reloadOnce();
       return true;
     } catch (error) {
       this.warn('[version] failed to apply update:', error);
       this.setState({
         ...this.state,
-        status: 'AVAILABLE',
-        error: '暂时无法完成更新，请稍后重试。',
+        status: 'ERROR',
+        waitingWorkerAvailable: false,
+        error: error instanceof Error ? error.message : '更新失败，请检查网络后重试。',
       });
       return false;
     }
   }
 
-  handleServiceWorkerControlChange(): void {
-    if (this.state.status === 'APPLYING') {
-      this.reloadOnce();
-      return;
+  private async withTimeout<T>(
+    operation: (signal: AbortSignal) => Promise<T>,
+    milliseconds: number,
+    message: string
+  ): Promise<T> {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        operation(controller.signal),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            const error = new Error(message);
+            reject(error);
+            controller.abort(error);
+          }, milliseconds);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+      controller.abort();
     }
+  }
 
+  handleServiceWorkerControlChange(): void {
     this.workerAlreadyControlsPage = true;
+    if (this.state.status === 'APPLYING' || this.state.status === 'PREPARING') return;
     this.markUpdateAvailable({ waitingWorkerAvailable: false });
   }
 
   private reloadOnce(): void {
     if (this.reloadRequested) return;
+    this.assertCanApplyUpdateNow();
     this.reloadRequested = true;
+    this.setState({ ...this.state, status: 'APPLYING' });
     this.reload();
   }
 

@@ -81,7 +81,7 @@ describe('AppUpdateCoordinator', () => {
       coordinator.handleServiceWorkerControlChange();
     });
     coordinator.setServiceWorkerActions({
-      checkForWaitingWorker: vi.fn(async () => true),
+      prepareUpdate: vi.fn(async () => 'waiting' as const),
       applyWaitingWorker,
     });
     coordinator.markUpdateAvailable({
@@ -96,10 +96,12 @@ describe('AppUpdateCoordinator', () => {
     expect(reload).toHaveBeenCalledOnce();
   });
 
-  it('keeps the prompt available when no waiting worker is ready', async () => {
+  it('shows a retryable error when preparation fails', async () => {
     const { coordinator, reload } = createCoordinator();
     coordinator.setServiceWorkerActions({
-      checkForWaitingWorker: vi.fn(async () => false),
+      prepareUpdate: vi.fn(async () => {
+        throw new Error('新版安装失败');
+      }),
       applyWaitingWorker: vi.fn(),
     });
     coordinator.markUpdateAvailable({ latestBuildId: 'build-new' });
@@ -107,8 +109,8 @@ describe('AppUpdateCoordinator', () => {
     await expect(coordinator.applyCurrentUpdate()).resolves.toBe(false);
 
     expect(coordinator.getState()).toMatchObject({
-      status: 'AVAILABLE',
-      error: '更新已发现，请稍后重试。',
+      status: 'ERROR',
+      error: '新版安装失败',
     });
     expect(reload).not.toHaveBeenCalled();
   });
@@ -127,7 +129,7 @@ describe('AppUpdateCoordinator', () => {
   it('preserves the current page when applying the worker fails', async () => {
     const { coordinator, reload } = createCoordinator();
     coordinator.setServiceWorkerActions({
-      checkForWaitingWorker: vi.fn(async () => true),
+      prepareUpdate: vi.fn(async () => 'waiting' as const),
       applyWaitingWorker: vi.fn(async () => {
         throw new Error('message failed');
       }),
@@ -137,8 +139,8 @@ describe('AppUpdateCoordinator', () => {
     await expect(coordinator.applyCurrentUpdate()).resolves.toBe(false);
 
     expect(coordinator.getState()).toMatchObject({
-      status: 'AVAILABLE',
-      error: '暂时无法完成更新，请稍后重试。',
+      status: 'ERROR',
+      error: 'message failed',
     });
     expect(reload).not.toHaveBeenCalled();
   });

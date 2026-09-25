@@ -139,6 +139,8 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       VitePWA({
         registerType: 'prompt',
+        // appUpdateRegistration owns registration, retries and user-confirmed activation.
+        injectRegister: false,
         includeAssets: [
           'back.jpg',
           'deck.png',

@@ -6,24 +6,30 @@ import { applyTheme, readTheme } from '@/lib/theme';
 import { MotionConfig } from 'framer-motion';
 import { AppUpdateNotice } from '@/components/common/AppUpdateNotice';
 import { startAppUpdateChecks } from '@/lib/appUpdateRegistration';
+import { appUpdateCoordinator } from '@/lib/appUpdateCoordinator';
 import { startDocumentNavigation } from '@/lib/appPerformance';
 import { useGameStore } from '@/store/gameStore';
 
 startDocumentNavigation(`${window.location.pathname}${window.location.search}`);
 applyTheme(readTheme());
 
-function AppRoot() {
-  const canApplyUpdateNow = useGameStore(
-    (state) =>
-      !state.playerViewState ||
-      state.remoteSession?.source === 'SPECTATOR' ||
-      state.replaySession !== null
+function canApplyUpdateNow(state: ReturnType<typeof useGameStore.getState>): boolean {
+  return (
+    !state.playerViewState ||
+    state.remoteSession?.source === 'SPECTATOR' ||
+    state.replaySession !== null
   );
+}
+
+appUpdateCoordinator.setCanApplyUpdateNow(() => canApplyUpdateNow(useGameStore.getState()));
+
+function AppRoot() {
+  const updateAllowed = useGameStore(canApplyUpdateNow);
 
   return (
     <>
       <App />
-      {canApplyUpdateNow ? <AppUpdateNotice canApplyUpdateNow /> : null}
+      {updateAllowed ? <AppUpdateNotice canApplyUpdateNow /> : null}
     </>
   );
 }

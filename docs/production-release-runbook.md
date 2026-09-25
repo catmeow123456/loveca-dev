@@ -141,7 +141,7 @@ curl -fsS http://127.0.0.1:4173/manifest.webmanifest >/dev/null
 - API 实际容器使用目标镜像。
 - 前端 `version.json` 的版本和 commit SHA 正确。
 - 当前构建的 JS/CSS 资源返回 200。
-- `loveca.lovelivefun.xyz` 正常；`cdn.lovelivefun.xyz` 的 DNS 生效后也检查该域名。
+- `loveca.lovelivefun.xyz` 正常。
 - 管理员登录、牌组读取及本版本最小业务 smoke 通过。
 - 平台状态和站点快照读取正常。
 

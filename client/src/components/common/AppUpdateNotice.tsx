@@ -6,8 +6,9 @@ import { ConfirmDialog } from './ConfirmDialog';
 export function AppUpdateNotice({ canApplyUpdateNow }: { canApplyUpdateNow: boolean }) {
   const updateState = useAppUpdateState();
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const isApplying = updateState.status === 'APPLYING';
-  const isVisible = updateState.status === 'AVAILABLE' || isApplying;
+  const isApplying = updateState.status === 'APPLYING' || updateState.status === 'PREPARING';
+  const isVisible =
+    updateState.status === 'AVAILABLE' || updateState.status === 'ERROR' || isApplying;
 
   if (!canApplyUpdateNow || !isVisible) return null;
 
@@ -24,7 +25,15 @@ export function AppUpdateNotice({ canApplyUpdateNow }: { canApplyUpdateNow: bool
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-[var(--text-primary)]">
-              {isApplying ? '正在应用新版本…' : '新版本已准备好。你可以稍后更新。'}
+              {updateState.status === 'PREPARING'
+                ? '正在下载并准备新版…'
+                : updateState.status === 'APPLYING'
+                  ? '正在切换到新版…'
+                  : updateState.status === 'ERROR'
+                    ? '更新未完成。'
+                    : updateState.waitingWorkerAvailable
+                      ? '新版已准备好，可以更新。'
+                      : '发现新版，可以开始更新。'}
             </p>
             {updateState.error ? (
               <p className="mt-1 text-xs leading-5 text-[var(--semantic-error)]">
@@ -46,7 +55,7 @@ export function AppUpdateNotice({ canApplyUpdateNow }: { canApplyUpdateNow: bool
                 onClick={() => setConfirmOpen(true)}
                 className="button-primary min-h-9 px-3 text-sm font-semibold disabled:opacity-50"
               >
-                立即更新
+                {updateState.status === 'ERROR' ? '重试更新' : '立即更新'}
               </button>
             </div>
           </div>
