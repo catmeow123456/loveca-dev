@@ -1677,6 +1677,52 @@ test.describe('focused browser regressions', () => {
     await expect(page.getByRole('heading', { name: '从 DeckLog 导入' })).toHaveCount(0);
   });
 
+  test('从小能苗粘贴卡组可校验错误并进入编辑器', async ({ page }) => {
+    await installApiMocks(page, true);
+    await page.goto('/?page=deck-manager');
+    await expect(page.getByText('卡组管理')).toBeVisible();
+
+    if ((page.viewportSize()?.width ?? 0) < 768) {
+      await page.getByRole('button', { name: '导入', exact: true }).click();
+      await page.getByRole('dialog', { name: '导入卡组' })
+        .getByRole('button', { name: /从小能苗导入/ }).click();
+    } else {
+      await page.getByRole('button', { name: '从小能苗导入' }).click();
+    }
+
+    const dialog = page.getByRole('dialog', { name: '从小能苗导入卡组' });
+    const input = dialog.getByLabel('卡组文本');
+    await input.fill('player_name: 粘贴测试卡组');
+    await dialog.getByRole('button', { name: '导入并编辑' }).click();
+    await expect(dialog.getByRole('alert')).toContainText('卡组文本结构不正确');
+    await expect(input).toHaveValue('player_name: 粘贴测试卡组');
+
+    const yamlContent = [
+      'player_name: 粘贴测试卡组',
+      'description: 从复制的文本导入',
+      'main_deck:',
+      '  members:',
+      ...MEMBER_CARDS.flatMap((card) => [
+        `    - card_code: ${card.card_code}`,
+        '      count: 4',
+      ]),
+      '  lives:',
+      ...LIVE_CARDS.flatMap((card) => [
+        `    - card_code: ${card.card_code}`,
+        '      count: 1',
+      ]),
+      'energy_deck:',
+      `  - card_code: ${ENERGY_CARD.card_code}`,
+      '    count: 12',
+    ].join('\n');
+    await input.fill(yamlContent);
+    await dialog.getByRole('button', { name: '导入并编辑' }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByPlaceholder('卡组名称')).toHaveValue('粘贴测试卡组');
+    await expect(page.getByPlaceholder('搜索卡牌名称或编号...')).toBeVisible();
+  });
+
   test('DeckLog 读取成功后进入卡组编辑器', async ({ page }) => {
     await installApiMocks(page, true);
     await page.goto('/?page=deck-manager');

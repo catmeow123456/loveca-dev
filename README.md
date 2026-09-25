@@ -92,12 +92,14 @@ docker compose -f docker-compose.dev.yml up -d
 pnpm test-env:start
 ```
 
-脚本会先加载本地测试默认值并校验对局启动必需配置，停止同名 tmux session，默认使用 compose project `loveca` 执行 `down -v` 清理数据库 volume，确认 `3007`、`5173`、`5432` 端口空闲后启动 Postgres。若配置指向本地 MinIO，也会启动并检查本地 MinIO；若指向远端 MinIO，则只检查远端 bucket 可读。数据库迁移完成后会从 `llocg_db` 同步卡牌数据，执行 card code / group name 标准化与校验，然后启动 API 和前端。API 健康检查通过后会自动注册默认测试用户，创建、激活且开放一个全年有效的“测试赛季”，并初始化一个全天开放的“测试主题赛季”。主题赛季卡组池使用 `assets/decks/` 中四副 DeckLog 示例卡组，自动形成包含四个镜像对局在内的 10 个等权组合：
+脚本会先加载本地测试默认值并校验对局启动必需配置、卡牌来源，再停止同名 tmux session。默认使用 compose project `loveca` 执行 `down -v` 清理数据库 volume，确认 `3007`、`5173`、`5432` 端口空闲后启动 Postgres。若配置指向本地 MinIO，也会启动并检查本地 MinIO；若指向远端 MinIO，则只检查远端 bucket 可读。数据库迁移完成后会初始化卡牌数据，执行 card code / group name 标准化与校验，然后启动 API 和前端。API 健康检查通过后会自动注册默认测试用户，创建、激活且开放一个全年有效的“测试赛季”，并初始化一个全天开放的“测试主题赛季”。主题赛季卡组池使用 `assets/decks/` 中四副 DeckLog 示例卡组，自动形成包含四个镜像对局在内的 10 个等权组合：
 
 - `decklog-1Y9J3S.yaml`：Liella! 加分星
 - `decklog-222H9S.yaml`：Liella! 可香三神
 - `decklog-1YWYS4.yaml`：μ's DGG混合
 - `decklog-N33A0.yaml`：彩虹混合
+
+卡牌来源默认依次选择完整的 `llocg_db/json/`、`docs/card-data-sync/sources/` 或 `source/` 中最新的 `loveca_YYYYMMDDHHMMSS.xlsx`、已配置凭据的 CloudBase。也可通过 `--card-source=llocg|xlsx|cloudbase` 指定来源，或用 `TEST_CARD_XLSX=/path/to/file.xlsx` 指定本地文件。空库使用本地 Excel 时会复用 Loveca 同步脚本建立测试卡牌；使用 CloudBase 时会复用新卡导入脚本，以 `PUBLISHED` 状态导入并跳过卡图上传。找不到来源会在清空数据库前报错。已有数据库配合 `--no-db-rebuild` 可以在没有来源时直接复用卡牌。
 
 两个测试赛季的时区均为 `Asia/Shanghai`，每天全天开放：
 

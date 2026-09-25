@@ -11,6 +11,8 @@ TMUX_SESSION="${TEST_TMUX_SESSION:-loveca-test}"
 FRONTEND_PORT="${TEST_FRONTEND_PORT:-5173}"
 RESET_DATA="${TEST_RESET_DATA:-1}"
 USE_LOCAL_MINIO="${TEST_USE_LOCAL_MINIO:-0}"
+CARD_SOURCE="${TEST_CARD_SOURCE:-auto}"
+CARD_XLSX_PATH=""
 
 cd "$ROOT_DIR"
 
@@ -40,6 +42,10 @@ Options:
       Ignore MinIO values from .env for this run and use docker-compose.dev.yml's
       local MinIO. This is equivalent to TEST_USE_LOCAL_MINIO=1.
 
+  --card-source=auto|llocg|xlsx|cloudbase
+      Select the card source. Auto prefers llocg_db, then a local Loveca Excel
+      snapshot, then CloudBase credentials. Default: auto.
+
   -h, --help
       Show this help message.
 EOF
@@ -57,6 +63,9 @@ parse_args() {
       --local-minio)
         USE_LOCAL_MINIO=1
         ;;
+      --card-source=*)
+        CARD_SOURCE="${1#--card-source=}"
+        ;;
       -h|--help)
         usage
         exit 0
@@ -67,6 +76,63 @@ parse_args() {
     esac
     shift
   done
+}
+
+has_cloudbase_credentials() {
+  [[ -n "${CLOUDBASE_ENV_ID:-}" && -n "${CLOUDBASE_SECRET_ID:-${CLOUDBASE_SECRETID:-}}" && -n "${CLOUDBASE_SECRET_KEY:-${CLOUDBASE_SECRETKEY:-}}" ]] &&
+    [[ "${CLOUDBASE_ENV_ID}" != your_* && "${CLOUDBASE_SECRET_ID:-${CLOUDBASE_SECRETID:-}}" != your_* && "${CLOUDBASE_SECRET_KEY:-${CLOUDBASE_SECRETKEY:-}}" != your_* ]]
+}
+
+resolve_card_xlsx_path() {
+  if [[ -n "${TEST_CARD_XLSX:-}" ]]; then
+    [[ -f "$TEST_CARD_XLSX" ]] || die "TEST_CARD_XLSX does not exist: $TEST_CARD_XLSX"
+    CARD_XLSX_PATH="$TEST_CARD_XLSX"
+    return
+  fi
+
+  local candidate
+  for candidate in "$ROOT_DIR"/docs/card-data-sync/sources/loveca_??????????????.xlsx "$ROOT_DIR"/source/loveca_??????????????.xlsx; do
+    [[ -f "$candidate" ]] || continue
+    if [[ -z "$CARD_XLSX_PATH" || "${candidate##*/}" > "${CARD_XLSX_PATH##*/}" ]]; then
+      CARD_XLSX_PATH="$candidate"
+    fi
+  done
+}
+
+select_card_source() {
+  if [[ "$CARD_SOURCE" != cloudbase ]]; then
+    resolve_card_xlsx_path
+  fi
+  case "$CARD_SOURCE" in
+    auto)
+      if [[ -n "${TEST_CARD_XLSX:-}" ]]; then
+        CARD_SOURCE=xlsx
+      elif [[ -f "$ROOT_DIR/llocg_db/json/cards.json" && -f "$ROOT_DIR/llocg_db/json/cards_cn.json" ]]; then
+        CARD_SOURCE=llocg
+      elif [[ -n "$CARD_XLSX_PATH" ]]; then
+        CARD_SOURCE=xlsx
+      elif has_cloudbase_credentials; then
+        CARD_SOURCE=cloudbase
+      else
+        CARD_SOURCE=none
+      fi
+      ;;
+    llocg)
+      [[ -f "$ROOT_DIR/llocg_db/json/cards.json" && -f "$ROOT_DIR/llocg_db/json/cards_cn.json" ]] || die "llocg_db card JSON files are missing"
+      ;;
+    xlsx)
+      [[ -n "$CARD_XLSX_PATH" ]] || die "no Loveca Excel snapshot found; set TEST_CARD_XLSX or place loveca_YYYYMMDDHHMMSS.xlsx in docs/card-data-sync/sources/ (or source/)"
+      ;;
+    cloudbase)
+      has_cloudbase_credentials || die "CloudBase credentials are missing; set CLOUDBASE_ENV_ID, CLOUDBASE_SECRET_ID and CLOUDBASE_SECRET_KEY"
+      ;;
+    *) die "invalid card source: $CARD_SOURCE" ;;
+  esac
+
+  if [[ "$CARD_SOURCE" == none && "$RESET_DATA" == 1 ]]; then
+    die "no card source available: provide llocg_db, docs/card-data-sync/sources/ or source/ Excel, TEST_CARD_XLSX, or CloudBase credentials"
+  fi
+  log "card source: $CARD_SOURCE${CARD_XLSX_PATH:+ ($CARD_XLSX_PATH)}"
 }
 
 need_cmd() {
@@ -553,19 +619,48 @@ NODE
 
   if [[ "$RESET_DATA" == "0" && "$card_count" != "0" ]]; then
     log "reusing existing card data (${card_count} cards)"
-    log "syncing Loveca Excel multilingual card data"
-    pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --yes
+    case "$CARD_SOURCE" in
+      xlsx)
+        log "syncing local Loveca Excel card data"
+        pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --xlsx="$CARD_XLSX_PATH" --seed-missing-for-test --yes
+        ;;
+      cloudbase)
+        log "syncing existing card data from CloudBase"
+        pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --source=cloudbase --yes
+        ;;
+      llocg|none)
+        if [[ -n "$CARD_XLSX_PATH" ]]; then
+          log "syncing local Loveca Excel card data"
+          pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --xlsx="$CARD_XLSX_PATH" --yes
+        fi
+        ;;
+    esac
     return
   fi
 
-  log "syncing card data from llocg_db"
-  pnpm exec tsx src/scripts/sync-cards-llocg.ts
+  case "$CARD_SOURCE" in
+    llocg)
+      log "syncing card data from llocg_db"
+      pnpm exec tsx src/scripts/sync-cards-llocg.ts
+      ;;
+    xlsx)
+      log "initializing cards from local Loveca Excel snapshot"
+      pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --xlsx="$CARD_XLSX_PATH" --seed-missing-for-test --yes
+      ;;
+    cloudbase)
+      log "initializing cards from CloudBase"
+      pnpm exec tsx src/scripts/sync-cards-cloudbase-new.ts --cloudbase-collection=loveca --status=PUBLISHED --skip-images --yes
+      ;;
+    *) die "empty test database requires a card source" ;;
+  esac
 
   log "normalizing card codes"
   pnpm exec tsx src/scripts/normalize-card-codes.ts
 
-  log "syncing Loveca Excel multilingual card data"
-  pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --yes
+  if [[ "$CARD_SOURCE" == llocg && -n "$CARD_XLSX_PATH" ]]; then
+    log "syncing Loveca Excel multilingual card data"
+    pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --xlsx="$CARD_XLSX_PATH" --yes
+  fi
 
   log "normalizing group names"
   pnpm exec tsx src/scripts/normalize-group.ts
@@ -575,6 +670,9 @@ NODE
 
   log "validating group names"
   pnpm exec tsx src/scripts/validate-group.ts --source=db --errors-only
+
+  card_count="$(DATABASE_URL="$DATABASE_URL" node -e "const {Pool}=require('pg');const p=new Pool({connectionString:process.env.DATABASE_URL});p.query('SELECT count(*)::int AS count FROM cards').then(r=>{console.log(r.rows[0].count);return p.end()}).catch(e=>{console.error(e);process.exit(1)})")"
+  [[ "$card_count" != "0" ]] || die "card source imported no cards"
 }
 
 api_command() {
@@ -662,6 +760,7 @@ main() {
   warn_env_file_completeness
   load_env_file
   validate_env
+  select_card_source
 
   docker info >/dev/null 2>&1 || die "docker daemon is not reachable"
 

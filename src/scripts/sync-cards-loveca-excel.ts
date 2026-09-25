@@ -37,7 +37,7 @@ import { parse as parseDotenv } from 'dotenv';
 import * as Minio from 'minio';
 import { Pool } from 'pg';
 import sharp from 'sharp';
-import { normalizeCardCode } from '../shared/utils/card-code.js';
+import { normalizeCardCode, parseCardCode, validateCardCode } from '../shared/utils/card-code.js';
 import { appendDoubleGrayBladeHearts } from './card-sync-double-heart.js';
 import { normalizeCardSyncGroupNames } from './card-sync-group-names.js';
 import { resolveSyncedRuleFields } from './card-sync-rule-fields.js';
@@ -85,6 +85,7 @@ interface Args {
   readonly cloudbaseBatchSize: number;
   readonly cardCodes: ReadonlySet<string> | null;
   readonly refreshImageFilenames: boolean;
+  readonly seedMissingForTest: boolean;
 }
 
 interface ExcelCardRow {
@@ -371,6 +372,7 @@ function parseArgs(argv: readonly string[]): Args {
   let cloudbaseBatchSize = DEFAULT_CLOUDBASE_BATCH_SIZE;
   let cardCodes: ReadonlySet<string> | null = null;
   let refreshImageFilenames = false;
+  let seedMissingForTest = false;
 
   for (const arg of argv) {
     if (arg === '--dry-run') {
@@ -401,6 +403,8 @@ function parseArgs(argv: readonly string[]): Args {
       cardCodes = parseCardCodesArg(arg.slice('--card-codes='.length));
     } else if (arg === '--refresh-image-filenames') {
       refreshImageFilenames = true;
+    } else if (arg === '--seed-missing-for-test') {
+      seedMissingForTest = true;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -408,6 +412,12 @@ function parseArgs(argv: readonly string[]): Args {
 
   if (refreshImageFilenames && !cardCodes) {
     throw new Error('--refresh-image-filenames requires --card-codes');
+  }
+  if (seedMissingForTest && cardCodes) {
+    throw new Error('--seed-missing-for-test cannot be combined with --card-codes');
+  }
+  if (seedMissingForTest && !dryRun && !yes) {
+    throw new Error('--seed-missing-for-test requires --yes');
   }
 
   return {
@@ -420,6 +430,7 @@ function parseArgs(argv: readonly string[]): Args {
     cloudbaseBatchSize,
     cardCodes,
     refreshImageFilenames,
+    seedMissingForTest,
   };
 }
 
@@ -1717,6 +1728,113 @@ async function applyUpdates(pool: Pool, updates: readonly PendingUpdate[]) {
   }
 }
 
+function requireLocalTestDatabase(databaseUrl: string): void {
+  const url = new URL(databaseUrl);
+  if (
+    process.env.NODE_ENV === 'production' ||
+    !['localhost', '127.0.0.1'].includes(url.hostname) ||
+    url.port !== '5432' ||
+    url.pathname !== '/loveca' ||
+    decodeURIComponent(url.username) !== 'loveca' ||
+    decodeURIComponent(url.password) !== 'loveca_dev'
+  ) {
+    throw new Error('--seed-missing-for-test requires the local loveca test database');
+  }
+}
+
+function buildTestSeedRecord(row: ExcelCardRow, warnings: string[]): ExcelSyncRecord | null {
+  const cardType = parseSourceCardType(cleanString(row.values[FIELD_NAMES.cardType]));
+  const validation = validateCardCode(row.cardCode);
+  if (!cardType || !validation.valid) {
+    warnings.push(`${row.cardCode} row ${row.rowNumber}: invalid card type or card code`);
+    return null;
+  }
+
+  const emptyExisting: ExistingCardRow = {
+    card_code: row.cardCode,
+    card_type: cardType,
+    name_jp: null,
+    name_cn: null,
+    group_names: null,
+    unit_name: null,
+    unit_name_raw: null,
+    card_text_jp: null,
+    card_text_cn: null,
+    cost: null,
+    blade: null,
+    hearts: null,
+    blade_hearts: null,
+    score: null,
+    requirements: null,
+    product: null,
+    product_code: null,
+    image_source_uri: null,
+    image_filename: null,
+    source_external_id: null,
+    source_flags: null,
+  };
+  const record = buildExcelSyncRecord(row, emptyExisting, cardType, warnings);
+  if (!record.name_jp && !record.name_cn) {
+    warnings.push(`${row.cardCode} row ${row.rowNumber}: missing card name`);
+    return null;
+  }
+  return record;
+}
+
+async function insertTestSeedCards(
+  pool: Pool,
+  records: readonly ExcelSyncRecord[]
+): Promise<number> {
+  const client = await pool.connect();
+  let inserted = 0;
+  try {
+    await client.query('BEGIN');
+    for (const record of records) {
+      const result = await client.query(
+        `INSERT INTO cards (
+          card_code, card_type, name_jp, name_cn, group_names, unit_name, unit_name_raw,
+          card_text_jp, card_text_cn, cost, blade, hearts, blade_hearts, score, requirements,
+          product, product_code, image_source_uri, source_external_id, source_flags, rare, status
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+          $16, $17, $18, $19, $20, $21, 'PUBLISHED'
+        ) ON CONFLICT (card_code) DO NOTHING`,
+        [
+          record.card_code,
+          record.card_type,
+          record.name_jp,
+          record.name_cn,
+          record.group_names == null ? null : JSON.stringify(record.group_names),
+          record.unit_name,
+          record.unit_name_raw,
+          record.card_text_jp,
+          record.card_text_cn,
+          record.cost,
+          record.blade,
+          record.hearts == null ? JSON.stringify([]) : JSON.stringify(record.hearts),
+          record.blade_hearts == null ? null : JSON.stringify(record.blade_hearts),
+          record.score,
+          record.requirements == null ? JSON.stringify([]) : JSON.stringify(record.requirements),
+          record.product,
+          record.product_code,
+          record.image_source_uri,
+          record.source_external_id,
+          record.source_flags == null ? null : JSON.stringify(record.source_flags),
+          parseCardCode(record.card_code)?.rarity ?? null,
+        ]
+      );
+      inserted += result.rowCount ?? 0;
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+  return inserted;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   console.log(`Loveca card text sync${args.dryRun ? ' (DRY RUN)' : ''}`);
@@ -1763,6 +1881,10 @@ async function main() {
   }
 
   const databaseUrl = readEnvValue('DATABASE_URL');
+  if (args.seedMissingForTest && !args.dryRun) {
+    if (!databaseUrl) throw new Error('DATABASE_URL is required for --seed-missing-for-test');
+    requireLocalTestDatabase(databaseUrl);
+  }
   if (!databaseUrl) {
     if (!args.dryRun) {
       throw new Error(
@@ -1800,6 +1922,14 @@ async function main() {
     const updates: PendingUpdate[] = [];
     const invalidSourceTypes: CardTypeValidationIssue[] = [];
     const cardTypeCorrections: CardTypeCorrection[] = [];
+    const testSeedRecords = args.seedMissingForTest
+      ? sourceOnly
+          .map((code) => buildTestSeedRecord(sourceByCode.get(code)!, warnings))
+          .filter((record): record is ExcelSyncRecord => record !== null)
+      : [];
+    if (args.seedMissingForTest && existingRows.length === 0 && testSeedRecords.length === 0) {
+      throw new Error('No usable source cards to initialize the local test database');
+    }
 
     for (const [code, sourceRow] of sourceByCode) {
       const existing = existingByCode.get(code);
@@ -1833,7 +1963,11 @@ async function main() {
 
     console.log('\nDB comparison:');
     console.log(`  DB cards: ${existingRows.length}`);
-    console.log(`  Source-only skipped: ${sourceOnly.length}`);
+    console.log(
+      args.seedMissingForTest
+        ? `  Source-only ready for test seed: ${testSeedRecords.length} (${sourceOnly.length - testSeedRecords.length} skipped)`
+        : `  Source-only skipped: ${sourceOnly.length}`
+    );
     console.log(`  DB-only untouched: ${dbOnly.length}`);
     console.log(
       `  Invalid or missing ${FIELD_NAMES.cardType} skipped: ${invalidSourceTypes.length}`
@@ -1852,7 +1986,7 @@ async function main() {
     printConflictDetails(updates);
     printCardTypeSyncReport(invalidSourceTypes, cardTypeCorrections);
 
-    if (sourceOnly.length > 0) {
+    if (sourceOnly.length > 0 && !args.seedMissingForTest) {
       console.log(`\nSource-only card codes (not inserted): ${sourceOnly.slice(0, 40).join(', ')}`);
       if (sourceOnly.length > 40) {
         console.log(`  ... and ${sourceOnly.length - 40} more`);
@@ -1864,7 +1998,7 @@ async function main() {
       return;
     }
 
-    if (updates.length === 0 && !args.cardCodes) {
+    if (updates.length === 0 && testSeedRecords.length === 0 && !args.cardCodes) {
       console.log('\nNo updates needed.');
       return;
     }
@@ -1886,6 +2020,10 @@ async function main() {
     }
     if (updates.length > 0) {
       await applyUpdates(pool, updates);
+    }
+    if (testSeedRecords.length > 0) {
+      const inserted = await insertTestSeedCards(pool, testSeedRecords);
+      console.log(`Inserted ${inserted} local test cards from Loveca Excel.`);
     }
     if (args.refreshImageFilenames) {
       await updateImageFilenames(pool, uploadedImageFilenames);

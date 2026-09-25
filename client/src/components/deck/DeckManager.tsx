@@ -120,6 +120,9 @@ export function DeckManager({
   const [copyingDeckId, setCopyingDeckId] = useState<string | null>(null);
   const [openActionsDeckId, setOpenActionsDeckId] = useState<string | null>(null);
   const [showImportSheet, setShowImportSheet] = useState(false);
+  const [showYamlDialog, setShowYamlDialog] = useState(false);
+  const [yamlInput, setYamlInput] = useState('');
+  const [yamlImportError, setYamlImportError] = useState<string | null>(null);
   const [deckSearchQuery, setDeckSearchQuery] = useState('');
 
   // 初始快照用于 dirty 检测
@@ -199,20 +202,21 @@ export function DeckManager({
   }, [ensureCloudDecks, offlineMode]);
 
   useEffect(() => {
-    if (!showDecklogDialog && !showImportSheet) return;
+    if (!showDecklogDialog && !showImportSheet && !showYamlDialog) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       if (showDecklogDialog && !decklogLoading) setShowDecklogDialog(false);
       if (showImportSheet) setShowImportSheet(false);
+      if (showYamlDialog) setShowYamlDialog(false);
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', closeOnEscape);
     };
-  }, [decklogLoading, showDecklogDialog, showImportSheet]);
+  }, [decklogLoading, showDecklogDialog, showImportSheet, showYamlDialog]);
 
   useEffect(() => {
     return () => {
@@ -510,49 +514,67 @@ export function DeckManager({
     setViewMode('edit');
   };
 
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const importYamlContent = (content: string) => {
+    if (!content.trim()) {
+      setYamlImportError('请粘贴卡组文本');
+      return;
+    }
+
+    try {
+      const rawDeck = yaml.parse(content);
+      const parseResult = DeckConfigSchema.safeParse(rawDeck);
+
+      if (!parseResult.success) {
+        setYamlImportError(`卡组文本结构不正确：${formatYamlStructureError(parseResult.error.issues)}`);
+        return;
+      }
+
+      const registry = new CardDataRegistry();
+      registry.load(Array.from(cardDataRegistry.values()));
+      const loadResult = new DeckLoader(registry).loadFromConfig(parseResult.data);
+
+      if (!loadResult.success) {
+        setYamlImportError(`卡牌校验失败：${loadResult.errors.join('；')}`);
+        return;
+      }
+
+      const deck = parseResult.data;
+      setEditingDeck(deck);
+      setEditingDeckId(null);
+      setDeckName(deck.player_name);
+      setDeckDescription(deck.description || '');
+      setSaveError(null);
+      setInitialSnapshot(JSON.stringify(deck));
+      setViewMode('edit');
+      setShowYamlDialog(false);
+      setYamlInput('');
+      setYamlImportError(null);
+      if (loadResult.warnings.length > 0) {
+        showToast(`卡组已导入，${loadResult.warnings[0]}`);
+      }
+    } catch {
+      setYamlImportError('卡组文本格式错误');
+    }
+  };
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const content = event.target?.result as string;
-        const rawDeck = yaml.parse(content);
-        const parseResult = DeckConfigSchema.safeParse(rawDeck);
+    try {
+      const content = await file.text();
+      setYamlInput(content);
+      importYamlContent(content);
+    } catch {
+      setYamlImportError('读取卡组文件失败，请重试');
+    }
+  };
 
-        if (!parseResult.success) {
-          setSaveError(`YAML 结构错误：${formatYamlStructureError(parseResult.error.issues)}`);
-          return;
-        }
-
-        const registry = new CardDataRegistry();
-        registry.load(Array.from(cardDataRegistry.values()));
-        const loader = new DeckLoader(registry);
-        const loadResult = loader.loadFromConfig(parseResult.data);
-
-        if (!loadResult.success) {
-          setSaveError(`YAML 卡牌校验失败：${loadResult.errors.join('；')}`);
-          return;
-        }
-
-        const deck = parseResult.data;
-
-        setEditingDeck(deck);
-        setDeckName(deck.player_name || '导入的卡组');
-        setDeckDescription(deck.description || '');
-        setSaveError(null);
-        setInitialSnapshot(JSON.stringify(deck));
-        setViewMode('edit');
-        if (loadResult.warnings.length > 0) {
-          showToast(`YAML 已导入，${loadResult.warnings[0]}`);
-        }
-      } catch {
-        setSaveError('YAML 格式错误');
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
+  const openYamlDialog = () => {
+    setYamlImportError(null);
+    setShowImportSheet(false);
+    setShowYamlDialog(true);
   };
 
   const handleDecklogImport = async () => {
@@ -755,16 +777,14 @@ export function DeckManager({
                     >
                       <Globe size={14} />从 DeckLog 导入
                     </button>
-                    <label className="button-secondary inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium">
-                      <Upload size={14} />
-                      导入 YAML
-                      <input
-                        type="file"
-                        accept=".yaml,.yml"
-                        className="hidden"
-                        onChange={handleImport}
-                      />
-                    </label>
+                    <button
+                      type="button"
+                      onClick={openYamlDialog}
+                      className="button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium"
+                    >
+                      <Copy size={14} />
+                      从小能苗导入
+                    </button>
                     <button
                       onClick={handleCreateNew}
                       className="button-primary inline-flex min-h-11 items-center justify-center gap-1.5 px-5 py-2 text-sm font-bold"
@@ -1304,6 +1324,24 @@ export function DeckManager({
               <div className="space-y-2 px-4 pb-3">
                 <button
                   type="button"
+                  onClick={openYamlDialog}
+                  className="flex min-h-16 w-full items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-4 py-3 text-left transition-colors hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)]"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--semantic-info)_14%,transparent)] text-[var(--semantic-info)]">
+                    <Copy size={19} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-[var(--text-primary)]">
+                      从小能苗导入
+                    </span>
+                    <span className="mt-0.5 block text-xs text-[var(--text-secondary)]">
+                      粘贴复制的卡组文本
+                    </span>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
                   disabled={cloudFeaturesUnavailable}
                   onClick={() => {
                     setShowImportSheet(false);
@@ -1326,29 +1364,6 @@ export function DeckManager({
                     </span>
                   </span>
                 </button>
-
-                <label className="flex min-h-16 w-full cursor-pointer items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-4 py-3 text-left transition-colors hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)]">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--semantic-info)_14%,transparent)] text-[var(--semantic-info)]">
-                    <Upload size={19} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-[var(--text-primary)]">
-                      导入 YAML 文件
-                    </span>
-                    <span className="mt-0.5 block text-xs text-[var(--text-secondary)]">
-                      从本机选择 .yaml 或 .yml 文件
-                    </span>
-                  </span>
-                  <input
-                    type="file"
-                    accept=".yaml,.yml"
-                    className="hidden"
-                    onChange={(event) => {
-                      setShowImportSheet(false);
-                      handleImport(event);
-                    }}
-                  />
-                </label>
               </div>
 
               <div className="border-t border-[var(--border-subtle)] px-4 py-3">
@@ -1359,6 +1374,104 @@ export function DeckManager({
                 >
                   取消
                 </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {showYamlDialog &&
+        createPortal(
+          <div
+            className={`modal-backdrop z-50 flex ${
+              isMobile ? 'items-end justify-center p-0' : 'items-center justify-center p-4'
+            }`}
+            onClick={() => setShowYamlDialog(false)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="yaml-import-dialog-title"
+              className={`modal-surface flex w-full flex-col overflow-hidden ${
+                isMobile
+                  ? 'safe-bottom max-h-[88dvh] rounded-b-none rounded-t-[24px] border-b-0'
+                  : 'max-w-xl'
+              }`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {isMobile && (
+                <div className="flex justify-center pt-3">
+                  <div className="h-1.5 w-12 rounded-full bg-[var(--border-default)]" />
+                </div>
+              )}
+
+              <div className="flex items-start gap-3 px-5 pb-4 pt-4 sm:px-6 sm:pt-6">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[color:color-mix(in_srgb,var(--semantic-info)_14%,transparent)] text-[var(--semantic-info)]">
+                  <Copy size={21} />
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <h2 id="yaml-import-dialog-title" className="text-lg font-bold text-[var(--text-primary)]">
+                    从小能苗导入卡组
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  aria-label="关闭小能苗导入"
+                  onClick={() => setShowYamlDialog(false)}
+                  className="button-ghost inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[var(--text-secondary)]"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="touch-scroll flex-1 overflow-y-auto px-5 pb-5 sm:px-6">
+                <label htmlFor="yaml-import-input" className="mb-2 block text-xs font-semibold text-[var(--text-muted)]">
+                  卡组文本
+                </label>
+                <textarea
+                  id="yaml-import-input"
+                  value={yamlInput}
+                  onChange={(event) => {
+                    setYamlInput(event.target.value);
+                    setYamlImportError(null);
+                  }}
+                  placeholder="在小能苗卡组页面导出卡组并一键复制，然后粘贴到这里"
+                  spellCheck={false}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  autoFocus={!isMobile}
+                  className="input-field min-h-56 w-full resize-y font-mono text-sm leading-6"
+                />
+                {yamlImportError && (
+                  <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)] p-3 text-xs leading-5 text-[var(--semantic-error)]">
+                    <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                    <span>{yamlImportError}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-footer safe-bottom flex flex-wrap items-center justify-between gap-2 px-5 py-4 sm:px-6">
+                <label className="button-ghost inline-flex min-h-11 cursor-pointer items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)]">
+                  <Upload size={15} />从 YAML 文件导入
+                  <input type="file" accept=".yaml,.yml" className="sr-only" onChange={handleImport} />
+                </label>
+                <div className="flex flex-1 justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowYamlDialog(false)}
+                    className="button-ghost inline-flex min-h-11 items-center justify-center px-4 py-2 text-sm font-medium"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => importYamlContent(yamlInput)}
+                    disabled={!yamlInput.trim()}
+                    className="button-primary inline-flex min-h-11 items-center justify-center px-5 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    导入并编辑
+                  </button>
+                </div>
               </div>
             </div>
           </div>,
