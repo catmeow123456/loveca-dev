@@ -39,6 +39,9 @@ export class CodexAiBattleClient implements AiBattleModelClient {
   get reasoningEffort(): CodexAiReasoningEffort {
     return this.config.reasoningEffort;
   }
+  get fastMode(): boolean {
+    return this.config.fastMode === true;
+  }
   readonly requestTimeoutMs = 90_000;
   readonly stopOnTimeout = true;
   readonly configurationMaterial;
@@ -80,6 +83,8 @@ export class CodexAiBattleClient implements AiBattleModelClient {
       budget: this.codexBudget,
       model,
       reasoningEffort: config.reasoningEffort,
+      fastMode: this.fastMode,
+      requestedServiceTier: this.fastMode ? 'priority' : 'default',
       authentication: 'CHATGPT_SUBSCRIPTION',
       timeoutMs: this.requestTimeoutMs,
       apiFallback: false,
@@ -361,7 +366,8 @@ export async function createLocalCodexClient(
   knowledge: AiFrozenKnowledge,
   traces: AiBattleTraceStore,
   billing: AiBattleBilling,
-  reasoningEffort?: CodexAiReasoningEffort
+  reasoningEffort?: CodexAiReasoningEffort,
+  fastMode?: boolean
 ): Promise<CodexAiBattleClient> {
   if (!config) throw new AiBattleSetupError('AI_LOCAL_CODEX_DISABLED', '本地 Codex 尚未启用', 503);
   if (reasoningEffort !== undefined && !CODEX_AI_REASONING_EFFORTS.includes(reasoningEffort))
@@ -369,6 +375,7 @@ export async function createLocalCodexClient(
   const frozenConfig = Object.freeze({
     ...config,
     reasoningEffort: reasoningEffort ?? config.reasoningEffort,
+    fastMode: fastMode === true,
   });
   try {
     await verifyCodexLogin(frozenConfig);

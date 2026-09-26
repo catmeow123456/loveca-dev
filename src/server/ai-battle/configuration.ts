@@ -65,7 +65,8 @@ export async function createPlatformAiBattleClient(
   model: AiBattleModel,
   billing: AiBattleBilling,
   enableThinking: boolean,
-  reasoningEffort?: CodexAiReasoningEffort
+  reasoningEffort?: CodexAiReasoningEffort,
+  fastMode?: boolean
 ) {
   if (isCodexAiBattleModel(model))
     return createLocalCodexClient(
@@ -74,7 +75,8 @@ export async function createPlatformAiBattleClient(
       knowledge,
       traces,
       billing,
-      reasoningEffort
+      reasoningEffort,
+      fastMode
     );
   return new DashScopeAiBattleClient(
     await readAiModelConfig(model, enableThinking),

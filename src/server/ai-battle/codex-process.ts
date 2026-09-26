@@ -73,6 +73,14 @@ export const CODEX_ISOLATION_CONFIG = [
   'history.persistence="none"',
 ];
 
+/** Explicit per-game speed; caller configuration must not enable Fast implicitly. */
+export function codexSpeedConfig(config: LocalCodexConfig): string[] {
+  return [
+    `features.fast_mode=${config.fastMode === true}`,
+    ...(config.fastMode ? ['service_tier="priority"'] : []),
+  ];
+}
+
 export function codexExecArgs(
   config: LocalCodexConfig,
   model: CodexAiBattleModel,
@@ -91,9 +99,11 @@ export function codexExecArgs(
     'never',
     '--model',
     model.slice('codex:'.length),
-    ...[...CODEX_ISOLATION_CONFIG, `model_reasoning_effort="${config.reasoningEffort}"`].flatMap(
-      (value) => ['-c', value]
-    ),
+    ...[
+      ...CODEX_ISOLATION_CONFIG,
+      ...codexSpeedConfig(config),
+      `model_reasoning_effort="${config.reasoningEffort}"`,
+    ].flatMap((value) => ['-c', value]),
     ...(instructionsPath
       ? ['-c', `model_instructions_file=${JSON.stringify(instructionsPath)}`]
       : []),

@@ -12,6 +12,7 @@ export interface LocalCodexConfig {
   readonly sessionReuse?: boolean;
   readonly threadRotation?: boolean;
   readonly reasoningEffort: CodexAiReasoningEffort;
+  readonly fastMode?: boolean;
   readonly frontendOrigin: string;
 }
 

@@ -453,54 +453,57 @@ describe('AI administrator routes and ownership', () => {
       (
         await f.request('/ai/sessions', {
           userId: 'owner',
-          body: { ...input, model: 'codex:gpt-5.6-luna' },
+          body: { ...input, model: 'codex:gpt-6-luna' },
         })
       ).status
     ).toBe(400);
     expect(f.createModel).not.toHaveBeenCalled();
   });
 
-  it('creates a local subscription session with no Qwen prices and blocks remote origin/proxy access', async () => {
-    for (const [key, value] of Object.entries({
-      AI_BATTLE_LOCAL_CODEX: '1',
-      NODE_ENV: 'development',
-      API_HOST: '127.0.0.1',
-      DATABASE_URL: 'postgres://test:test@localhost/test',
-      FRONTEND_URL: 'http://localhost:5173',
-    }))
-      vi.stubEnv(key, value);
-    const f = await serverFixture(AI_BATTLE_MODELS);
-    auth.roles.set('owner', 'admin');
-    for (const headers of [
-      { origin: 'https://public.example' },
-      { 'x-forwarded-for': '192.168.1.2' },
-    ]) {
-      expect(
-        (
-          await f.request('/ai/sessions', {
-            userId: 'owner',
-            body: { ...input, model: 'codex:gpt-5.6-luna' },
-            headers,
-          })
-        ).status
-      ).toBe(403);
+  it.each(['codex:gpt-6-luna', 'codex:gpt-6-sol'] as const)(
+    'creates a local %s subscription session with no Qwen prices and blocks remote origin/proxy access',
+    async (model) => {
+      for (const [key, value] of Object.entries({
+        AI_BATTLE_LOCAL_CODEX: '1',
+        NODE_ENV: 'development',
+        API_HOST: '127.0.0.1',
+        DATABASE_URL: 'postgres://test:test@localhost/test',
+        FRONTEND_URL: 'http://localhost:5173',
+      }))
+        vi.stubEnv(key, value);
+      const f = await serverFixture(AI_BATTLE_MODELS);
+      auth.roles.set('owner', 'admin');
+      for (const headers of [
+        { origin: 'https://public.example' },
+        { 'x-forwarded-for': '192.168.1.2' },
+      ]) {
+        expect(
+          (
+            await f.request('/ai/sessions', {
+              userId: 'owner',
+              body: { ...input, model },
+              headers,
+            })
+          ).status
+        ).toBe(403);
+      }
+      expect(f.createModel).not.toHaveBeenCalled();
+      const response = await f.request('/ai/sessions', {
+        userId: 'owner',
+        body: { ...input, model },
+        headers: { origin: 'http://localhost:5173', 'x-forwarded-for': '127.0.0.1' },
+      });
+      expect(response.status).toBe(201);
+      const session = (await response.json()).data.session;
+      expect(session.matchBilling).toMatchObject({
+        model,
+        prices: null,
+        pricingDate: null,
+        estimatedCny: null,
+      });
+      expect(f.billing.records.get(session.matchId)).toMatchObject({ prices: null });
     }
-    expect(f.createModel).not.toHaveBeenCalled();
-    const response = await f.request('/ai/sessions', {
-      userId: 'owner',
-      body: { ...input, model: 'codex:gpt-5.6-luna' },
-      headers: { origin: 'http://localhost:5173', 'x-forwarded-for': '127.0.0.1' },
-    });
-    expect(response.status).toBe(201);
-    const session = (await response.json()).data.session;
-    expect(session.matchBilling).toMatchObject({
-      model: 'codex:gpt-5.6-luna',
-      prices: null,
-      pricingDate: null,
-      estimatedCny: null,
-    });
-    expect(f.billing.records.get(session.matchId)).toMatchObject({ prices: null });
-  });
+  );
 
   it.each(['low', 'medium'] as const)(
     'passes per-game Codex effort %s and records the resolved value',
@@ -513,21 +516,60 @@ describe('AI administrator routes and ownership', () => {
       });
       const response = await f.request('/ai/sessions', {
         userId: 'owner',
-        body: { ...input, model: 'codex:gpt-5.6-luna', reasoningEffort },
+        body: { ...input, model: 'codex:gpt-6-luna', reasoningEffort },
       });
       expect(response.status).toBe(201);
       expect(f.createModel).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        'codex:gpt-5.6-luna',
+        'codex:gpt-6-luna',
         expect.anything(),
         false,
-        reasoningEffort
+        reasoningEffort,
+        undefined
       );
       expect((await response.json()).data.session.reasoningEffort).toBe(reasoningEffort);
       expect(f.service.listSessions('owner')[0]!.reasoningEffort).toBe(reasoningEffort);
     }
   );
+
+  it.each([true, false, undefined])('freezes local Fast mode %s per match', async (fastMode) => {
+    const f = await serverFixture(AI_BATTLE_MODELS);
+    auth.roles.set('owner', 'admin');
+    f.createModel.mockResolvedValueOnce({
+      fastMode: fastMode === true,
+      decide: async () => ({ kind: 'RESPONSE', text: '{}' }),
+    });
+    const response = await f.request('/ai/sessions', {
+      userId: 'owner',
+      body: { ...input, model: 'codex:gpt-6-luna', fastMode },
+    });
+    expect(response.status).toBe(201);
+    const session = (await response.json()).data.session;
+    expect(session.fastMode).toBe(fastMode === true);
+    expect(f.service.getSession('owner', session.matchId).fastMode).toBe(fastMode === true);
+    expect(f.createModel).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'codex:gpt-6-luna',
+      expect.anything(),
+      false,
+      undefined,
+      fastMode
+    );
+  });
+  it('rejects API Fast mode, malformed flags and retired models before calling a model', async () => {
+    const f = await serverFixture(AI_BATTLE_MODELS);
+    auth.roles.set('owner', 'admin');
+    for (const body of [
+      { ...input, fastMode: true },
+      { ...input, fastMode: false },
+      ...['true', 1, null].map((fastMode) => ({ ...input, model: 'codex:gpt-6-luna', fastMode })),
+      ...['luna', 'terra', 'sol'].map((name) => ({ ...input, model: `codex:gpt-5.6-${name}` })),
+    ])
+      expect((await f.request('/ai/sessions', { userId: 'owner', body })).status).toBe(400);
+    expect(f.createModel).not.toHaveBeenCalled();
+  });
 
   it('rejects invalid effort and Qwen effort before creating a model or match', async () => {
     const f = await serverFixture(AI_BATTLE_MODELS);
@@ -536,7 +578,7 @@ describe('AI administrator routes and ownership', () => {
       { ...input, reasoningEffort: 'low' },
       ...['none', 'high', 'ultra', '', 1].map((reasoningEffort) => ({
         ...input,
-        model: 'codex:gpt-5.6-luna',
+        model: 'codex:gpt-6-luna',
         reasoningEffort,
       })),
     ])
@@ -557,7 +599,7 @@ describe('AI administrator routes and ownership', () => {
     });
     const response = await f.request('/ai/sessions', {
       userId: 'owner',
-      body: { ...input, model: 'codex:gpt-5.6-luna' },
+      body: { ...input, model: 'codex:gpt-6-luna' },
     });
     expect(response.status).toBe(201);
     expect((await response.json()).data.session.reasoningEffort).toBe('medium');
@@ -601,6 +643,7 @@ describe('AI administrator routes and ownership', () => {
         model,
         expect.anything(),
         false,
+        undefined,
         undefined
       );
     }
@@ -638,6 +681,7 @@ describe('AI administrator routes and ownership', () => {
         input.model,
         expect.anything(),
         enableThinking,
+        undefined,
         undefined
       );
     }
@@ -897,7 +941,7 @@ describe('AI administrator routes and ownership', () => {
 
   it('reserves one Codex game across owners, releases on end and leaves API capacity separate', async () => {
     const f = createService(AI_BATTLE_MODELS);
-    const codexInput = { ...input, model: 'codex:gpt-5.6-luna' as const, enableThinking: false };
+    const codexInput = { ...input, model: 'codex:gpt-6-luna' as const, enableThinking: false };
     const budget = {
       maxCalls: 5,
       maxInputTokens: 500000,
@@ -925,7 +969,7 @@ describe('AI administrator routes and ownership', () => {
   });
   it('releases the Codex creation reservation after setup failure', async () => {
     const f = createService(AI_BATTLE_MODELS);
-    const codexInput = { ...input, model: 'codex:gpt-5.6-luna' as const, enableThinking: false };
+    const codexInput = { ...input, model: 'codex:gpt-6-luna' as const, enableThinking: false };
     f.createModel.mockRejectedValueOnce(new Error('login failed'));
     await expect(f.service.create('one', codexInput)).rejects.toThrow('login failed');
     await expect(f.service.create('two', codexInput)).resolves.toBeDefined();

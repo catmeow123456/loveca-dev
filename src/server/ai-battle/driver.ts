@@ -15,6 +15,7 @@ import { safeAiErrorForLog } from './billing.js';
 export interface AiBattleModelClient {
   dispose?(): Promise<void>;
   readonly reasoningEffort?: CodexAiReasoningEffort;
+  readonly fastMode?: boolean;
   readonly codexBudget?: CodexBattleBudget;
   /** Trusted provider deadline, bounded to 120 s; never read from model output. */
   readonly requestTimeoutMs?: number;

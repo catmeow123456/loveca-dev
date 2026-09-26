@@ -25,6 +25,7 @@ const createSchema = z
     humanSeat: z.enum(['FIRST', 'SECOND']),
     model: z.enum(AI_BATTLE_MODELS),
     reasoningEffort: z.enum(CODEX_AI_REASONING_EFFORTS).optional(),
+    fastMode: z.boolean().optional(),
     enableThinking: z.boolean(),
     archiveEnabled: z.boolean().optional(),
   })

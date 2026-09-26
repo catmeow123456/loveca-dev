@@ -51,6 +51,7 @@ export function AiBattleAdminPage({
   const [models, setModels] = useState<readonly AiBattleModel[]>(API_AI_BATTLE_MODELS);
   const [model, setModel] = useState<AiBattleModel>('qwen3.8-flash');
   const [reasoningEffort, setReasoningEffort] = useState<CodexAiReasoningEffort>('low');
+  const [fastMode, setFastMode] = useState(false);
   const [archiveAvailable, setArchiveAvailable] = useState(false);
   const [archiveEnabled, setArchiveEnabled] = useState(false);
   const [enableThinking, setEnableThinking] = useState(false);
@@ -188,7 +189,7 @@ export function AiBattleAdminPage({
         humanSeat,
         model,
         ...(archiveAvailable ? { archiveEnabled } : {}),
-        ...(isCodexAiBattleModel(model) ? { reasoningEffort } : {}),
+        ...(isCodexAiBattleModel(model) ? { reasoningEffort, fastMode } : {}),
         enableThinking: isCodexAiBattleModel(model) ? false : enableThinking,
       });
       await attach(result.session, result.snapshot, generation);
@@ -415,6 +416,23 @@ export function AiBattleAdminPage({
                   <small>仅用于新建的本地 Codex 对局；轻度不减少发送的上下文。</small>
                 </label>
               )}
+              {isCodexAiBattleModel(model) && (
+                <div>
+                  <label className="ai-thinking-choice">
+                    <input
+                      type="checkbox"
+                      checked={fastMode}
+                      onChange={(event) => setFastMode(event.target.checked)}
+                      aria-describedby="ai-fast-help"
+                    />
+                    快速模式（本地 GPT）
+                  </label>
+                  <small id="ai-fast-help">
+                    仅本局生效，默认关闭；开启后按标准模式 2.5 倍 credits
+                    消耗，实际加速取决于服务可用性，不改变思考强度。
+                  </small>
+                </div>
+              )}
               {!isCodexAiBattleModel(model) && (
                 <>
                   {API_MODEL_METADATA[model].peakPriceOnly && (
@@ -586,6 +604,8 @@ export function AiBattleAdminPage({
                       : session.enableThinking
                         ? '思考开启'
                         : '思考关闭'}
+                    {isCodexAiBattleModel(session.model) &&
+                      (session.fastMode ? ' · 快速模式' : ' · 标准速度')}
                   </small>
                 </div>
                 <div className="ai-actions">

@@ -15,13 +15,14 @@ import { getAiFallbackSelection, getAiMechanicalSelection } from './policy.js';
 import type { AiBattleTraceObserver } from './trace-store.js';
 import type { PlayerViewState } from '../../online/types.js';
 import { AiDecisionContext, type AiPublicObservation } from './decision-context.js';
-import { GamePhase } from '../../shared/types/enums.js';
+import { GamePhase, SubPhase } from '../../shared/types/enums.js';
 
 export const AI_MODEL_TIMEOUT_MS = 30_000;
 export const AI_THINKING_MODEL_TIMEOUT_MS = 120_000;
 export const AI_SERVICE_RETRY_LIMIT = 1;
 export const AI_CONSECUTIVE_FAILURE_LIMIT = 3;
 export const AI_LIVE_PRESENTATION_DWELL_MS = 1_800;
+export const AI_SCORE_CONFIRM_DWELL_MS = 500;
 export const AI_ACTIVATION_PRESENTATION_DWELL_MS = 1_000;
 
 export type AiModelOutcome =
@@ -102,7 +103,13 @@ export class AiBattleRuntime {
     )
       return null;
     if (task.presentationDeadlineAt === undefined) {
-      task.presentationDeadlineAt = now + AI_LIVE_PRESENTATION_DWELL_MS;
+      const dwellMs =
+        purpose === 'RULE_CONFIRM' &&
+        state.phase === GamePhase.LIVE_RESULT_PHASE &&
+        state.subPhase === SubPhase.RESULT_SCORE_CONFIRM
+          ? AI_SCORE_CONFIRM_DWELL_MS
+          : AI_LIVE_PRESENTATION_DWELL_MS;
+      task.presentationDeadlineAt = now + dwellMs;
       this.record(
         'WAIT',
         { reason: 'LIVE_PRESENTATION', deadlineAt: task.presentationDeadlineAt },

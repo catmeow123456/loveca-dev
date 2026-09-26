@@ -10,6 +10,7 @@ import type { LocalCodexConfig } from './local-codex-config.js';
 import {
   CODEX_ISOLATION_CONFIG,
   codexEnvironment,
+  codexSpeedConfig,
   CodexInvocationNotStartedError,
   parseCodexUsage,
 } from './codex-process.js';
@@ -314,7 +315,7 @@ export class CodexBattleSession {
         'app-server',
         '--stdio',
         '--strict-config',
-        ...CODEX_SESSION_CONFIG.flatMap((v) => ['-c', v]),
+        ...[...CODEX_SESSION_CONFIG, ...codexSpeedConfig(this.config)].flatMap((v) => ['-c', v]),
       ],
       {
         cwd,
@@ -376,6 +377,7 @@ export class CodexBattleSession {
     this.phase = 'THREAD_START';
     const result = await this.rpc('thread/start', {
       model: this.model.slice('codex:'.length),
+      serviceTier: this.config.fastMode ? 'priority' : null,
       cwd: join(this.directory!, 'work'),
       ephemeral: true,
       permissions: 'ai_decision',
@@ -429,6 +431,7 @@ export class CodexBattleSession {
       const started = await this.rpc('turn/start', {
         threadId: this.threadId,
         effort: this.config.reasoningEffort,
+        serviceTier: this.config.fastMode ? 'priority' : null,
         input: [{ type: 'text', text: prompt, text_elements: [] }],
         outputSchema: schema,
       });

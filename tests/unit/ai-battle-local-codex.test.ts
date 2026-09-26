@@ -164,7 +164,7 @@ describe('Codex subprocess transport and subscription accounting', () => {
         MINIO_SECRET_KEY: 'secret',
       })
     ).toEqual({ HOME: '/home/test', PATH: '/bin' });
-    const args = codexExecArgs(config, 'codex:gpt-5.6-luna', '/tmp/schema.json');
+    const args = codexExecArgs(config, 'codex:gpt-6-luna', '/tmp/schema.json');
     expect(args).toContain('--ignore-user-config');
     expect(args).toContain('forced_login_method="chatgpt"');
     expect(args).toContain('features.shell_tool=false');
@@ -181,7 +181,7 @@ describe('Codex subprocess transport and subscription accounting', () => {
       { input_tokens: 2, cached_input_tokens: 0, output_tokens: -1 },
     ])
       expect(parseCodexUsage(value)).toBeNull();
-    const record = createAiBillingRecord('codex:gpt-5.6-luna');
+    const record = createAiBillingRecord('codex:gpt-6-luna');
     expect(record.prices).toBeNull();
     expect(record.pricingDate).toBeNull();
     expect(projectAiBilling(record).estimatedCny).toBeNull();
@@ -355,7 +355,7 @@ describe('Codex provider preserves the existing decision contract', () => {
     traces.open('m', []);
     traces.begin('m', { id: 'd', revision: 1, windowKey: 'MAIN', seat: 'SECOND', purpose: 'MAIN' });
     const billing = new AiBattleBilling(
-      'codex:gpt-5.6-luna',
+      'codex:gpt-6-luna',
       memory.persistence,
       (id, value, decision, delta) => traces.updateBilling(id, value, decision, delta)
     );
@@ -369,7 +369,7 @@ describe('Codex provider preserves the existing decision contract', () => {
     };
     const client = new CodexAiBattleClient(
       { ...config, sessionReuse, budget, threadRotation },
-      'codex:gpt-5.6-luna',
+      'codex:gpt-6-luna',
       { rules: material, tutorial: material, handbook: material, ownDeck: ownDeck ?? material },
       traces,
       billing,
@@ -391,29 +391,49 @@ describe('Codex provider preserves the existing decision contract', () => {
     };
   }
   it('defaults new local games to Luna', () => {
-    expect(DEFAULT_CODEX_AI_BATTLE_MODEL).toBe('codex:gpt-5.6-luna');
+    expect(DEFAULT_CODEX_AI_BATTLE_MODEL).toBe('codex:gpt-6-luna');
   });
+  it.each([true, false, undefined])(
+    'freezes Fast mode %s and explicitly configures isolated exec',
+    async (fastMode) => {
+      const f = await fixture(vi.fn());
+      const login = vi.spyOn(codexProcess, 'verifyCodexLogin').mockResolvedValue(undefined);
+      const client = await createLocalCodexClient(
+        { ...config, fastMode: true },
+        'codex:gpt-6-luna',
+        f.knowledge,
+        f.traces,
+        f.billing,
+        undefined,
+        fastMode
+      );
+      const frozen = login.mock.calls[0]![0];
+      expect(Object.isFrozen(frozen)).toBe(true);
+      expect(client.fastMode).toBe(fastMode === true);
+      expect(JSON.parse(client.configurationMaterial.content)).toMatchObject({
+        fastMode: fastMode === true,
+        requestedServiceTier: fastMode ? 'priority' : 'default',
+      });
+      const args = codexExecArgs(frozen, 'codex:gpt-6-luna', '/schema.json');
+      expect(args).toContain(`features.fast_mode=${fastMode === true}`);
+      expect(args.includes('service_tier="priority"')).toBe(fastMode === true);
+      expect(args).toContain('--ignore-user-config');
+    }
+  );
   it('freezes the selected effort per game and forwards it to CLI arguments and observation', async () => {
     const f = await fixture(vi.fn());
     const login = vi.spyOn(codexProcess, 'verifyCodexLogin').mockResolvedValue(undefined);
     const create = (effort?: 'low' | 'medium') =>
-      createLocalCodexClient(
-        config,
-        'codex:gpt-5.6-luna',
-        f.knowledge,
-        f.traces,
-        f.billing,
-        effort
-      );
+      createLocalCodexClient(config, 'codex:gpt-6-luna', f.knowledge, f.traces, f.billing, effort);
     const medium = await create('medium');
     const frozen = login.mock.calls[0]![0];
     expect(Object.isFrozen(frozen)).toBe(true);
-    expect(codexProcess.codexExecArgs(frozen, 'codex:gpt-5.6-luna', '/schema.json')).toContain(
+    expect(codexProcess.codexExecArgs(frozen, 'codex:gpt-6-luna', '/schema.json')).toContain(
       'model_reasoning_effort="medium"'
     );
     expect(JSON.parse(medium.configurationMaterial.content)).toMatchObject({
       reasoningEffort: 'medium',
-      model: 'codex:gpt-5.6-luna',
+      model: 'codex:gpt-6-luna',
     });
     vi.stubEnv('AI_BATTLE_CODEX_REASONING', 'low');
     const low = await create('low');
@@ -422,7 +442,7 @@ describe('Codex provider preserves the existing decision contract', () => {
     expect(config.reasoningEffort).toBe('low');
     const serverDefault = await createLocalCodexClient(
       { ...config, reasoningEffort: 'medium' },
-      'codex:gpt-5.6-luna',
+      'codex:gpt-6-luna',
       f.knowledge,
       f.traces,
       f.billing
@@ -433,12 +453,12 @@ describe('Codex provider preserves the existing decision contract', () => {
     const f = await fixture(vi.fn());
     const login = vi.spyOn(codexProcess, 'verifyCodexLogin').mockResolvedValue(undefined);
     await expect(
-      createLocalCodexClient(null, 'codex:gpt-5.6-luna', f.knowledge, f.traces, f.billing, 'low')
+      createLocalCodexClient(null, 'codex:gpt-6-luna', f.knowledge, f.traces, f.billing, 'low')
     ).rejects.toThrow('本地 Codex 尚未启用');
     await expect(
       createLocalCodexClient(
         config,
-        'codex:gpt-5.6-luna',
+        'codex:gpt-6-luna',
         f.knowledge,
         f.traces,
         f.billing,
@@ -554,7 +574,7 @@ describe('Codex provider preserves the existing decision contract', () => {
           await this.close();
           return new CodexBattleSession(
             { ...config, sessionReuse: true, threadRotation: true },
-            'codex:gpt-5.6-luna'
+            'codex:gpt-6-luna'
           );
         }
       );

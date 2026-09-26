@@ -50,7 +50,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
 });
-async function fixture(model: 'codex:gpt-5.6-luna' | 'qwen3.8-max' = 'codex:gpt-5.6-luna') {
+async function fixture(model: 'codex:gpt-6-luna' | 'qwen3.8-max' = 'codex:gpt-6-luna') {
   const { input, ownDeck } = createProbabilityFixture();
   const material = { ...ownDeck, content: 'FROZEN_RULES' };
   const knowledge = { rules: material, tutorial: material, handbook: material, ownDeck };
@@ -97,7 +97,7 @@ describe('probability query through model transports', () => {
         .mockResolvedValueOnce({ text: answer, usage });
       const client = new CodexAiBattleClient(
         config(reuse),
-        'codex:gpt-5.6-luna',
+        'codex:gpt-6-luna',
         f.knowledge,
         f.traces,
         f.billing,
@@ -140,7 +140,7 @@ describe('probability query through model transports', () => {
       const budget = mode === 'calls' ? { maxCalls: 1 } : { maxUncachedInputTokens: 25 };
       const client = new CodexAiBattleClient(
         { ...config(), budget },
-        'codex:gpt-5.6-luna',
+        'codex:gpt-6-luna',
         f.knowledge,
         f.traces,
         f.billing,
@@ -167,7 +167,7 @@ describe('probability query through model transports', () => {
       this: CodexBattleSession
     ) {
       await this.close();
-      return new CodexBattleSession(cfg, 'codex:gpt-5.6-luna');
+      return new CodexBattleSession(cfg, 'codex:gpt-6-luna');
     });
     vi.spyOn(CodexBattleSession.prototype, 'contextStatus', 'get').mockImplementation(() => ({
       lastContextTokens: decide.mock.calls.length === 1 ? 200 : null,
@@ -179,7 +179,7 @@ describe('probability query through model transports', () => {
     }));
     const client = new CodexAiBattleClient(
       cfg,
-      'codex:gpt-5.6-luna',
+      'codex:gpt-6-luna',
       f.knowledge,
       f.traces,
       f.billing,
@@ -307,7 +307,7 @@ describe('probability query through model transports', () => {
     });
     const client = new CodexAiBattleClient(
       config(),
-      'codex:gpt-5.6-luna',
+      'codex:gpt-6-luna',
       { ...f.knowledge, ownDeck: game.ownDeck },
       f.traces,
       f.billing,

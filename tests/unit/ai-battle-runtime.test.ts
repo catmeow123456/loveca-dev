@@ -165,7 +165,8 @@ describe('AI public LIVE presentation pacing', () => {
   function observe(
     runtime: AiBattleRuntime,
     purpose = 'RULE_CONFIRM',
-    phase = GamePhase.PERFORMANCE_PHASE
+    phase = GamePhase.PERFORMANCE_PHASE,
+    subPhase = SubPhase.NONE
   ) {
     const current = mechanical();
     return runtime.observe(1, 'live', {
@@ -175,7 +176,7 @@ describe('AI public LIVE presentation pacing', () => {
         input: {
           ...current.input,
           purpose: purpose as AiDecision['input']['purpose'],
-          state: { ...current.input.state, phase },
+          state: { ...current.input.state, phase, subPhase },
         },
       },
     });
@@ -205,6 +206,20 @@ describe('AI public LIVE presentation pacing', () => {
       });
     }
   );
+
+  it('releases score confirmation after 500ms without extending it on repeated polling', () => {
+    const runtime = new AiBattleRuntime('FIRST', vi.fn());
+    observe(runtime, 'RULE_CONFIRM', GamePhase.LIVE_RESULT_PHASE, SubPhase.RESULT_SCORE_CONFIRM);
+    expect(runtime.waitForLivePresentation(1000)).toMatchObject({
+      kind: 'WAIT',
+      deadlineAt: 1500,
+    });
+    expect(runtime.waitForLivePresentation(1499)).toMatchObject({ deadlineAt: 1500 });
+    expect(runtime.waitForLivePresentation(1500)).toBeNull();
+    runtime.accepted();
+    observe(runtime, 'RULE_CONFIRM', GamePhase.LIVE_RESULT_PHASE, SubPhase.RESULT_ANIMATION);
+    expect(runtime.waitForLivePresentation(1500)).toMatchObject({ deadlineAt: 3300 });
+  });
 
   it.each(['PUBLIC_DISPLAY', 'EFFECT_CONFIRM', 'MAIN'])(
     'does not add another wait to %s',

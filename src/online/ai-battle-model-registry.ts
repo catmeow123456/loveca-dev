@@ -21,12 +21,11 @@ export const API_AI_BATTLE_MODELS = [
 ] as const;
 export const CODEX_AI_REASONING_EFFORTS = ['low', 'medium'] as const;
 export type CodexAiReasoningEffort = (typeof CODEX_AI_REASONING_EFFORTS)[number];
-export const DEFAULT_CODEX_AI_BATTLE_MODEL = 'codex:gpt-5.6-luna' as const;
+export const DEFAULT_CODEX_AI_BATTLE_MODEL = 'codex:gpt-6-luna' as const;
 export const CODEX_AI_BATTLE_MODELS = [
   DEFAULT_CODEX_AI_BATTLE_MODEL,
+  'codex:gpt-6-sol',
   'codex:gpt-6-astra',
-  'codex:gpt-5.6-terra',
-  'codex:gpt-5.6-sol',
 ] as const;
 export const AI_BATTLE_MODELS = [...API_AI_BATTLE_MODELS, ...CODEX_AI_BATTLE_MODELS] as const;
 export type ApiAiBattleModel = (typeof API_AI_BATTLE_MODELS)[number];

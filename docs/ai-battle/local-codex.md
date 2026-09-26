@@ -52,7 +52,9 @@ AI_BATTLE_ARCHIVE_DIR=/absolute/path/outside/repository/loveca-ai-archives
 
 先结束并导出当前内存对局，再执行 `pnpm build:server`，通过本机原有方式重启 API；开发前端沿用现有启动方式，若使用构建产物则按原流程更新前端。服务端使用 `--watch` 时，构建本身也可能触发重启。不要为了开启 Codex 运行会重建测试库、导入种子或同步子模块的全套环境脚本。
 
-刷新本地建局页，选择 **Luna + 中等（medium）**。前端当前初始强度是 low，并显式提交选项；服务端 medium 默认不能覆盖前端的 low。新局冻结模型、强度、资料、预算与归档选项，进行中对局不随配置变化。
+刷新本地建局页，本地 Codex 可用时默认选择 **gpt-6-luna**，也可选择 gpt-6-sol 或 gpt-6-astra；5.6 系列不再列入可选模型。测试时可选择中等（medium）强度；前端当前初始强度是 low，并显式提交选项，服务端 medium 默认不能覆盖前端的 low。新局冻结模型、强度、速度、资料、预算与归档选项，进行中对局不随配置变化。
+
+本地 Codex GPT 建局页可勾选“快速模式”，默认关闭，不影响 Qwen/API。开启时向隔离 CLI / app-server 请求 `priority` 服务层级，每次续接与换线程沿用本局设置，记录为 `fastMode` 与 `requestedServiceTier`；这表示请求的层级，不保证上游实际加速。关闭时不继承个人 Codex 快速模式配置。按[官方速度说明](https://learn.chatgpt.com/docs/agent-configuration/speed)，GPT-6 快速模式消耗标准模式的 2.5 倍 credits；不是 token 数翻倍，现有 token 预算也不等于套餐额度上限。快速模式不改变思考强度，不压缩输入。
 
 “本局模型配置”应显示：
 
