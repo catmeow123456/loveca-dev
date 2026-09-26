@@ -76,6 +76,7 @@ import {
   type PublicSiteStatusSnapshotResult,
 } from '@/lib/publicSiteStatusSnapshot';
 import { resolveTutorialHistoryTransition } from '@/lib/tutorialNavigation';
+import { GameMode } from '@game/shared/types/enums';
 
 const GameBoard = lazy(() => import('@/components/game/GameBoard'));
 const TutorialPage = lazy(() =>
@@ -364,8 +365,12 @@ function App() {
   const [authPage, setAuthPage] = useState<AuthPage>(initialAuthRequest.page);
   const [authToken, setAuthToken] = useState<string | null>(initialAuthRequest.token);
   const [currentPage, setCurrentPageState] = useState<AppPage>(getInitialPage);
+  const [homeLocalSetupMode, setHomeLocalSetupMode] = useState<
+    GameMode.SOLITAIRE | GameMode.DEBUG | null
+  >(null);
   const currentPageRef = useRef(currentPage);
   const setCurrentPage = useCallback((nextPage: AppPage) => {
+    if (nextPage !== 'game-setup') setHomeLocalSetupMode(null);
     const previousPage = currentPageRef.current;
     if (previousPage !== nextPage) {
       startAppNavigation(previousPage, nextPage);
@@ -1298,6 +1303,7 @@ function App() {
       <>
         <AppSurfaceTiming surface="game-setup" />
         <GameSetupPage
+          initialLocalMode={homeLocalSetupMode}
           navigation={productNavigation}
           headerActions={authenticatedHeaderActions}
           mobileMenuActions={authenticatedMobileMenuActions}
@@ -1614,6 +1620,11 @@ function App() {
         mobileMenuActions={authenticatedMobileMenuActions}
         onNavigateToDeckManager={() => openDeckManager('home')}
         onNavigateToGameSetup={() => setCurrentPage('game-setup')}
+        onNavigateToLocalSetup={(mode) => {
+          setHomeLocalSetupMode(mode);
+          setCurrentPage('game-setup');
+        }}
+        onNavigateToPublicTable={() => setCurrentPage('public-table')}
         onAbandonSavedRoomForLocalGame={handleAbandonSavedRoomForLocalGame}
         onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
         onNavigateToRanked={() => setCurrentPage('ranked')}

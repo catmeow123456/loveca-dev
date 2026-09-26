@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from
 import {
   ArrowRight,
   BookOpen,
+  Bug,
   Bot,
   CalendarClock,
   CheckCircle2,
@@ -15,6 +16,7 @@ import {
   DoorOpen,
   Eye,
   Gamepad2,
+  Globe2,
   History,
   Medal,
   RefreshCw,
@@ -22,6 +24,7 @@ import {
   ShieldAlert,
   Swords,
   School,
+  Target,
   TriangleAlert,
   WifiOff,
 } from 'lucide-react';
@@ -49,6 +52,7 @@ import type {
 import { HomeEntryPanel, type HomeEntryAction } from './HomeEntryPanel';
 import './home-page.css';
 import { hasAnyManagementPermission, hasPermission } from '@game/shared/auth/permissions';
+import { GameMode } from '@game/shared/types/enums';
 
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
 
@@ -64,6 +68,8 @@ interface HomePageProps {
   mobileMenuActions: ReactNode;
   onNavigateToDeckManager: () => void;
   onNavigateToGameSetup: () => void;
+  onNavigateToLocalSetup: (mode: GameMode.SOLITAIRE | GameMode.DEBUG) => void;
+  onNavigateToPublicTable: () => void;
   onAbandonSavedRoomForLocalGame: () => Promise<void>;
   onNavigateToOnlineRoom: () => void;
   onNavigateToRanked: () => void;
@@ -110,6 +116,8 @@ export function HomePage({
   mobileMenuActions,
   onNavigateToDeckManager,
   onNavigateToGameSetup,
+  onNavigateToLocalSetup,
+  onNavigateToPublicTable,
   onAbandonSavedRoomForLocalGame,
   onNavigateToOnlineRoom,
   onNavigateToRanked,
@@ -302,6 +310,15 @@ export function HomePage({
       onClick: onNavigateToTutorial,
       tone: 'blue',
     },
+    {
+      id: 'public-table',
+      title: '公共牌桌',
+      icon: Swords,
+      onClick: onNavigateToPublicTable,
+      disabled: !canUseOnlineRoom,
+      disabledReason: canUseOnlineRoom ? undefined : '连接后可用',
+      tone: canUseOnlineRoom ? 'blue' : 'muted',
+    },
   ];
 
   if (battleEntryVisibility.ranked) {
@@ -333,6 +350,33 @@ export function HomePage({
   }
 
   secondaryActions.push(
+    {
+      id: 'online-room',
+      title: '房间联机',
+      icon: Globe2,
+      onClick: onNavigateToOnlineRoom,
+      disabled: !canUseOnlineRoom,
+      disabledReason: canUseOnlineRoom ? undefined : '连接后可用',
+      tone: canUseOnlineRoom ? 'blue' : 'muted',
+    },
+    {
+      id: 'solitaire',
+      title: '对墙打',
+      icon: Target,
+      onClick: () => onNavigateToLocalSetup(GameMode.SOLITAIRE),
+      disabled: canReturnSavedRoom,
+      disabledReason: canReturnSavedRoom ? '请先放弃当前联机对局' : undefined,
+      tone: canReturnSavedRoom ? 'muted' : 'green',
+    },
+    {
+      id: 'debug',
+      title: '双人调试',
+      icon: Bug,
+      onClick: () => onNavigateToLocalSetup(GameMode.DEBUG),
+      disabled: canReturnSavedRoom,
+      disabledReason: canReturnSavedRoom ? '请先放弃当前联机对局' : undefined,
+      tone: 'muted',
+    },
     {
       id: 'spectator',
       title: '房间观战',

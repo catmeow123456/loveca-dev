@@ -69,6 +69,7 @@ type SetupMode =
   'PUBLIC_TABLE' | 'RANKED' | 'THEME_TABLE' | 'ONLINE' | GameMode.DEBUG | GameMode.SOLITAIRE;
 
 interface GameSetupPageProps {
+  initialLocalMode?: GameMode.SOLITAIRE | GameMode.DEBUG | null;
   navigation: ProductNavigationHandlers;
   headerActions: ReactNode;
   mobileMenuActions: ReactNode;
@@ -169,6 +170,7 @@ function ModeChoice({
 }
 
 export function GameSetupPage({
+  initialLocalMode = null,
   navigation,
   headerActions,
   mobileMenuActions,
@@ -181,8 +183,8 @@ export function GameSetupPage({
   onManageDecks,
   battleEntryVisibility,
 }: GameSetupPageProps) {
-  const [currentStep, setCurrentStep] = useState<SetupStep>(0);
-  const [setupMode, setSetupMode] = useState<SetupMode>(GameMode.SOLITAIRE);
+  const [currentStep, setCurrentStep] = useState<SetupStep>(initialLocalMode ? 1 : 0);
+  const [setupMode, setSetupMode] = useState<SetupMode>(initialLocalMode ?? GameMode.SOLITAIRE);
   const [selectedP1DeckState, setSelectedP1Deck] = useState<DeckDisplayItem | null>(null);
   const [selectedP2DeckState, setSelectedP2Deck] = useState<DeckDisplayItem | null>(null);
   const [hasManualSelectedP1Deck, setHasManualSelectedP1Deck] = useState(false);

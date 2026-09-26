@@ -1,6 +1,7 @@
 import { useState, type ComponentType } from 'react';
 import { ArrowRight, LayoutGrid, RotateCcw } from 'lucide-react';
 import {
+  DEFAULT_HIDDEN_HOME_ENTRIES,
   readHiddenHomeEntries,
   writeHiddenHomeEntries,
   type HomeEntryId,
@@ -119,8 +120,11 @@ export function HomeEntryPanel({ actions }: { actions: HomeEntryAction[] }) {
           <button
             type="button"
             className="lobby-entry-reset"
-            disabled={hiddenEntries.length === 0}
-            onClick={() => save([])}
+            disabled={
+              hiddenEntries.length === DEFAULT_HIDDEN_HOME_ENTRIES.length &&
+              hiddenEntries.every((id) => DEFAULT_HIDDEN_HOME_ENTRIES.includes(id))
+            }
+            onClick={() => save([...DEFAULT_HIDDEN_HOME_ENTRIES])}
           >
             <RotateCcw size={13} aria-hidden="true" />
             恢复默认
