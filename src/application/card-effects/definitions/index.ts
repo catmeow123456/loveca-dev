@@ -1,4 +1,11 @@
 import {
+  PL_PB2_024_LIVE_START_ONLY_BIBI_WAIT_LOW_COST_OPPONENT_ABILITY_ID,
+  PL_PB2_028_LIVE_START_WAIT_SELF_GAIN_YELLOW_HEART_ABILITY_ID,
+  PL_PB2_031_LIVE_START_DISCARD_MUSE_GAIN_PURPLE_HEART_ABILITY_ID,
+  PL_PB2_032_ON_ENTER_DISCARD_LOOK_TOP_FIVE_NO_BLADE_MUSE_MEMBER_ABILITY_ID,
+  PL_PB2_037_LIVE_SUCCESS_SAME_UNIT_CHEER_MEMBER_TO_HAND_ABILITY_ID,
+} from '../ability-ids.js';
+import {
   CardType,
   HeartColor,
   OrientationState,
@@ -2691,7 +2698,69 @@ const N_PR_022_ON_ENTER_EFFECT_TEXT =
 const LL_PR_004_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】询问对手喜欢什么。\n\n回答是薄荷巧克力或草莓味或曲奇奶油的场合，自己和对方分别将1张手牌放置入休息室。\n\n回答是你的场合，自己和对方分别抽1张卡。\n\n回答是其它的场合，LIVE结束时为止，存在于自己和对方舞台上的成员获得[ブレード]。';
 
+const PL_PB2_024_EFFECT_TEXT =
+  '【LIVE开始时】自己的舞台上仅存在『BiBi』的成员的场合，将存在于对方的舞台的1名费用小于等于2的成员变为待机状态。';
+const PL_PB2_028_EFFECT_TEXT =
+  '【LIVE开始时】可以将此成员变为待机状态：LIVE结束时为止，获得[黄ハート]。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）';
+const PL_PB2_031_EFFECT_TEXT =
+  '【LIVE开始时】可以将手牌的1张『μ’s』的卡片放置入休息室：LIVE结束时为止，获得[紫ハート]。';
+const PL_PB2_032_EFFECT_TEXT =
+  '【登场】将1张手牌放置入休息室：检视自己的卡组顶的5张卡片。可以将其中的1张不持有BLADE HEART的『μ’s』的成员卡公开并加入手牌。其余的放置入休息室。';
+const PL_PB2_037_EFFECT_TEXT =
+  '【LIVE成功时】因声援被公开的自己的成员卡全部为『Printemps』，或全部为『lily white』，或全部为『BiBi』的场合，从因声援被公开的自己的卡片中将1张成员卡加入手牌。';
+
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
+  {
+    abilityId: PL_PB2_024_LIVE_START_ONLY_BIBI_WAIT_LOW_COST_OPPONENT_ABILITY_ID,
+    baseCardCodes: ['PL!-pb2-024'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB2_024_EFFECT_TEXT,
+  },
+  {
+    abilityId: PL_PB2_028_LIVE_START_WAIT_SELF_GAIN_YELLOW_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!-pb2-028'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB2_028_EFFECT_TEXT,
+  },
+  {
+    abilityId: PL_PB2_031_LIVE_START_DISCARD_MUSE_GAIN_PURPLE_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!-pb2-031'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB2_031_EFFECT_TEXT,
+  },
+  {
+    abilityId: PL_PB2_032_ON_ENTER_DISCARD_LOOK_TOP_FIVE_NO_BLADE_MUSE_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!-pb2-032'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB2_032_EFFECT_TEXT,
+  },
+  {
+    abilityId: PL_PB2_037_LIVE_SUCCESS_SAME_UNIT_CHEER_MEMBER_TO_HAND_ABILITY_ID,
+    baseCardCodes: ['PL!-pb2-037'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB2_037_EFFECT_TEXT,
+  },
+
   {
     abilityId: N_PR_022_ON_ENTER_PREVIOUS_OPPONENT_LIVE_FAILED_ASK_EMMA_PUNCH_BLADE_ABILITY_ID,
     baseCardCodes: ['PL!N-PR-022'],

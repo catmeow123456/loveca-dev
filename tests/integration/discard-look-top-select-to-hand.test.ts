@@ -3408,3 +3408,172 @@ describe('PL!N-bp5-009 Rina wait-discard look top shared workflow', () => {
     expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([topCards[5]!.instanceId]);
   });
 });
+
+describe('PL!-pb2-032 Rin shared discard-look-top config', () => {
+  const effectText =
+    '【登场】将1张手牌放置入休息室：检视自己的卡组顶的5张卡片。可以将其中的1张不持有BLADE HEART的『μ’s』的成员卡公开并加入手牌。其余的放置入休息室。';
+
+  function setup(options: {
+    readonly topCards: readonly ReturnType<typeof createCardInstance>[];
+    readonly waitingCards?: readonly ReturnType<typeof createCardInstance>[];
+    readonly withDiscard?: boolean;
+  }) {
+    const session = createGameSession();
+    const deck = createDeck();
+    session.createGame('pl-pb2-032-rin', PLAYER1, 'P1', PLAYER2, 'P2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+    const source = createCardInstance(
+      createMemberCard('PL!-pb2-032-N', '星空凛', 4),
+      PLAYER1,
+      'pl-pb2-032-source'
+    );
+    const discardCard = createCardInstance(
+      createMemberCard('PL!N-pb2-032-discard', 'Discard'),
+      PLAYER1,
+      'pl-pb2-032-discard'
+    );
+    const waitingCards = options.waitingCards ?? [];
+    const state = registerCards(session.state!, [
+      source,
+      discardCard,
+      ...options.topCards,
+      ...waitingCards,
+    ]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+    const player = state.players[0]!;
+    clearPlayerZones(player);
+    player.hand.cardIds =
+      options.withDiscard === false
+        ? [source.instanceId]
+        : [source.instanceId, discardCard.instanceId];
+    player.mainDeck.cardIds = options.topCards.map((card) => card.instanceId);
+    player.waitingRoom.cardIds = waitingCards.map((card) => card.instanceId);
+    session.setManualOperationMode('FREE');
+    expect(
+      session.executeCommand(
+        createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+          freePlay: true,
+        })
+      ).success
+    ).toBe(true);
+    return { session, source, discardCard };
+  }
+
+  function payDiscard(session: ReturnType<typeof createGameSession>, discardCardId: string): void {
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, discardCardId)
+      ).success
+    ).toBe(true);
+  }
+
+  it('filters member group and BLADE HEART, reveals only the chosen card before moving', () => {
+    const cards = [
+      createCardInstance(createMemberCard('PL!-test-valid'), PLAYER1, 'rin-valid'),
+      createCardInstance(
+        {
+          ...createMemberCard('PL!-test-blade'),
+          bladeHearts: [createHeartIcon(HeartColor.PINK, 1)],
+        },
+        PLAYER1,
+        'rin-blade'
+      ),
+      createCardInstance(createLiveCard('PL!-test-live'), PLAYER1, 'rin-live'),
+      createCardInstance(createMemberCard('PL!S-test-other'), PLAYER1, 'rin-other'),
+      createCardInstance(createMemberCard('PL!N-test-other'), PLAYER1, 'rin-other-2'),
+      createCardInstance(createMemberCard('PL!-test-sixth'), PLAYER1, 'rin-sixth'),
+    ];
+    const { session, discardCard } = setup({ topCards: cards });
+    expect(session.state?.activeEffect?.effectText).toBe(effectText);
+    payDiscard(session, discardCard.instanceId);
+    expect(session.state?.activeEffect).toMatchObject({
+      inspectionCardIds: cards.slice(0, 5).map((c) => c.instanceId),
+      selectableCardIds: [cards[0]!.instanceId],
+      confirmSelectionLabel: '公开并加入手牌',
+      skipSelectionLabel: '全部放置入休息室',
+    });
+    expect(session.state?.inspectionZone.revealedCardIds).toEqual([]);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          cards[1]!.instanceId
+        )
+      ).success
+    ).toBe(false);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          cards[0]!.instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(session.state?.inspectionZone.revealedCardIds).toEqual([cards[0]!.instanceId]);
+    expect(advancePublicRevealDwellIfNeeded(session)?.success).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).toEqual([cards[0]!.instanceId]);
+    expect(session.state?.eventLog.at(-1)?.event).toMatchObject({
+      fromZone: ZoneType.MAIN_DECK,
+      toZone: ZoneType.WAITING_ROOM,
+      cardInstanceIds: cards.slice(1, 5).map((c) => c.instanceId),
+    });
+  });
+
+  it('allows declining the ability before payment and preserves paid cost with no matching card', () => {
+    const cards = Array.from({ length: 6 }, (_, i) =>
+      createCardInstance(createMemberCard(`PL!S-rin-no-${i}`), PLAYER1, `rin-no-${i}`)
+    );
+    const skipped = setup({ topCards: cards });
+    expect(
+      skipped.session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, skipped.session.state!.activeEffect!.id, null)
+      ).success
+    ).toBe(true);
+    expect(skipped.session.state?.players[0].hand.cardIds).toContain(
+      skipped.discardCard.instanceId
+    );
+    const { session, discardCard } = setup({ topCards: cards });
+    payDiscard(session, discardCard.instanceId);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toContain(discardCard.instanceId);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, null)
+      ).success
+    ).toBe(true);
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
+      expect.arrayContaining([
+        discardCard.instanceId,
+        ...cards.slice(0, 5).map((c) => c.instanceId),
+      ])
+    );
+  });
+  it('pays before inspecting a short deck and continues through refresh without granting an invalid target', () => {
+    const cards = [createCardInstance(createMemberCard('PL!S-rin-short'), PLAYER1, 'rin-short')];
+    const { session, discardCard } = setup({ topCards: cards });
+    payDiscard(session, discardCard.instanceId);
+    expect(session.state?.activeEffect?.inspectionCardIds).toEqual([
+      cards[0]!.instanceId,
+      discardCard.instanceId,
+    ]);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([]);
+    expect(session.state?.inspectionZone.revealedCardIds).toEqual([]);
+    expect(
+      session.state?.actionHistory.some(
+        (action) => action.type === 'RULE_ACTION' && action.payload.type === 'REFRESH'
+      )
+    ).toBe(true);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, null)
+      ).success
+    ).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+  });
+});

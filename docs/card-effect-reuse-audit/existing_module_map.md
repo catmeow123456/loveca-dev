@@ -3,7 +3,7 @@
 > 文档类型：专题说明
 > 适用范围：已实现卡效的基础编号登记、完成状态、同编号罕度覆盖、复用模块与测试入口
 > 当前状态：卡牌效果完成状态主登记册；新增或完成卡效时优先同步本文档
-> 最后更新：2026-09-20
+> 最后更新：2026-09-27
 
 本文件是卡效完成状态登记册，按“基础编号”记录。Loveca 中同基础编号不同罕度视为同一张卡，例如 `PL!HS-bp1-004-P` / `PL!HS-bp1-004-R+` / `PL!HS-bp1-004-SEC` 均归为 `PL!HS-bp1-004`。
 
@@ -18,6 +18,26 @@
 - 模块覆盖与 helper 边界：`docs/card-effect-reuse-audit/effect_module_coverage.md`
 - 同构批量扩样本：`docs/card-effect-reuse-audit/card_effect_batch_expansions.md`
 - 缺口与下一步：`docs/card-effect-reuse-audit/module_gap_list.md`
+
+## 2026-09-27 PB2 剩余卡效
+
+权威来源为仓库外只读 `../references/cards_export_2026-09-27.json`，规则用 `cardTextJp`、展示用完整 `cardTextCn`，没有访问卡牌或管理员 API。本次补齐7个基础编号的7条能力，其中5条新增 abilityId、2条沿用同文 family；均以 `baseCardCodes` 覆盖全罕度。导出合计43条印刷、40个基础编号，39个有效果基础编号共50条能力登记；`PL!-pb2-036` 费用11「矢泽日香（矢泽妮可）」日中卡效均为空，按无效果成员排除。
+
+| 基础编号 | 覆盖与卡牌 | 实现与复用边界 | focused tests |
+| --- | --- | --- | --- |
+| `PL!-pb2-024` | `N`；费用4「西木野真姬」；全罕度 | LIVE_START 完整实现。扩展 `shared/opponent-wait-target.ts`，己方顶层舞台非空且全为结构化 BiBi 时，强制选择对方当前有效费用≤2的合法成员待机；复用 `getMemberEffectiveCost`、状态事件 wrapper 与 continuation。条件失败／无目标显示实时结果，ordered 自动继续；目标实例在提交时重验，旧选择不操作离场重登的新对象。 | `pl-pb2-stage-heart-effects.test.ts`；旧 opponent-wait family |
+| `PL!-pb2-027` | `N`；费用2「矢泽日香（矢泽妮可）」；全罕度 | ACTIVATED 完整实现。加入 `PB1_019_LIKE_SELF_SACRIFICE_MEMBER_BASE_CARD_CODES`，复用 `shared/self-sacrifice-waiting-room-to-hand.ts`；先支付自身离场费用，再强制回收1张当前休息室成员，可选择刚自送的自身，公开展示后移动。 | `n-self-sacrifice-waiting-room-to-hand.test.ts` |
+| `PL!-pb2-028` | `N`；费用2「高坂穗乃果」；全罕度 | LIVE_START 完整实现。单卡 `cards/pl-pb2-028-honoka.ts`，固定自身费用“发动／不发动”，通过状态事件 wrapper 支付待机后获得 `SOURCE_MEMBER` 黄 Heart×1至LIVE结束。重验来源实例，不制造自身单卡选择；runner仅import/register。 | `pl-pb2-stage-heart-effects.test.ts` |
+| `PL!-pb2-031` | `N`；费用4「园田海未」；全罕度 | LIVE_START 完整实现。扩展 `shared/live-start-discard-gain-heart.ts` 的费用selector，展示与提交均检查结构化 μ’s 手牌；可弃1张后直接给予来源紫 Heart×1，不打开颜色窗口。费用事件安全入队，来源实例失效不继承奖励且费用不退回。 | `pl-pb2-stage-heart-effects.test.ts`；旧 live-start-discard-gain-heart |
+| `PL!-pb2-032` | `N`；费用4「星空凛」；全罕度 | ON_ENTER 完整实现。向 `shared/discard-look-top-select-to-hand.ts` 追加现有 GROUP／topCount=5／memberOnly／noBladeHeartOnly 配置。可支付弃1手费用后私密检视顶5，可公开1张无 BLADE HEART 的 μ’s 成员入手；其余统一 grouped 进入休息室，无目标不退费。 | `discard-look-top-select-to-hand.test.ts` |
+| `PL!-pb2-035` | `N`；费用2「小泉花阳」；全罕度 | ACTIVATED 完整实现。加入 `RIN_LIKE_SELF_SACRIFICE_LIVE_BASE_CARD_CODES`，复用既有自送回收LIVE family；有目标强制回收1张，无目标仍可支付自身离场费用并完成空结算。 | `n-self-sacrifice-waiting-room-to-hand.test.ts` |
+| `PL!-pb2-037` | `L`；分数3「Shangri-La Shower」；全罕度 | LIVE_SUCCESS 完整实现，本次导出已解决旧类型／分数／时点冲突。扩展 `shared/revealed-cheer-selection.ts`：普通及追加声援历史中的全部成员须共同属于 Printemps、lily white、BiBi 中同一个小队；非成员忽略、已移走成员仍参与条件。强制回收1张当前合法声援成员，公开展示后重验；无成员、条件失败或无目标安全续行。 | `pl-pb2-037-shangri-la-shower.test.ts`；旧 revealed-cheer family |
+
+本批复用审计没有需要晋升的旧单卡 family；六张扩展既有shared，一张保留薄单卡编排。只扩展费用筛选、固定来源Heart奖励、全舞台小队条件及声援条件确认／重验，不新增通用步骤DSL或持久状态结构。
+
+JSON 三层审计覆盖全部导出印刷和未知罕度：50条能力中46条与对应完整中文段落一致，4条沿用登记册已有修订——费用4「绚濑绘里」002修正语序，费用2「小泉花阳」008补“的”，费用4「高坂穗乃果」019按日文补可选支付，分数7「PSYCHIC FIRE」042删除重复“存在”。本次新增7张不改写正文；7条起动正文与definition一致，新增两张同文卡的 `activatedUi.text` 源码直接引用既有 `effectText` 常量。完整正文与注册契约由 `pl-pb2-september-27-definitions.test.ts` 覆盖。
+
+主窗口独立审阅全部本次源码与测试改动后，分两组运行23个测试文件、837项测试全部通过（15文件498项，8文件339项），覆盖本批新卡、受影响shared旧卡、公开选择、生命周期、修正值、待机调度、classification、token及text governance。根 `pnpm exec tsc --noEmit` 与 `git diff --check` 通过。未执行浏览器或生产验收；保留任务开始前的 `docs/README.md` 与 `llocg_db` 改动，未提交或发布。
 
 ## Recent Compact Registrations
 
@@ -36,7 +56,7 @@
 
 042 实测姓名修复：公共 `card-identity.ts` 的妮可别名组补入 0910 JSON 实际名称“矢泽日香（矢泽妮可）”，原来只覆盖“矢泽日香（妮可）”等旧写法，导致 `cardNameAliasIs('矢泽妮可')` 漏判。继续复用结构化姓名精确别名匹配与组合卡拆名，不从卡文或任意子串认定姓名。新增真实中文单人/组合卡的完整声援结算回归，以及双向别名和非姓名反例；修复前复现失败，修复后 card-identity、card-selectors、042、token、text governance 共5个文件120项通过。完整能力正文不变，外部 JSON 不变。
 
-2026-09-09 本批以用户指定的 `cards_export_2026-09-09.json` 为唯一卡牌权威：新增7个基础编号、12条独立能力，均使用 `baseCardCodes` 覆盖全部罕度。完整 PB2 范围为34条印刷、31个基础编号；其中30个基础编号已登记完整实现，共41条独立能力。`PL!-pb2-037-L`「Shangri-La Shower」仍挂起：JSON 为 MEMBER，费用与分数均缺失，日中触发时点不一致；未访问任何卡牌或管理员 API，也未修改外部 JSON。
+2026-09-09 本批以用户指定的 `cards_export_2026-09-09.json` 为唯一卡牌权威：新增7个基础编号、12条独立能力，均使用 `baseCardCodes` 覆盖全部罕度。完整 PB2 范围为34条印刷、31个基础编号；其中30个基础编号已登记完整实现，共41条独立能力。当时 `PL!-pb2-037-L`「Shangri-La Shower」因 MEMBER 类型、费用／分数缺失及日中时点不一致而挂起；2026-09-27 指定导出已修正为分数3的 LIVE，当前实现见本页对应登记行；未访问任何卡牌或管理员 API，也未修改外部 JSON。
 
 | 基础编号 | 覆盖与卡牌 | 状态/效果 | 实现与测试 |
 | --- | --- | --- | --- |
@@ -66,7 +86,7 @@ JSON 三层审计：本次7张卡的12条 definition 正文逐段采用完整中
 | `PL!-pb2-008-PP` 费用2「小泉花阳」 | 可以将其中的1张需求HEART的合计大于等于8 『μ’s』的LIVE卡公开并加入手牌。 | 可以将其中的1张需求HEART的合计大于等于8的『μ’s』的LIVE卡公开并加入手牌。 | 补缺失连接字“的”；该段其余正文保持完整。 |
 | `PL!-pb2-019-N` 费用4「高坂穗乃果」 | 【LIVE开始时】将此成员变为待机状态，将1张手牌放置入休息室： | 【LIVE开始时】可以将此成员变为待机状态，并将1张手牌放置入休息室： | 按日文可选支付补“可以”，用“并”连接两项费用；冒号后完整效果及括注保持不变。 |
 
-2026-09-05 本批未发布 PB2 卡以用户提供的 `cards_export_2026-09-05.json` 为权威来源：规则使用 `cardTextJp`，窗口正文逐段使用完整 `cardTextCn`；本批不访问卡牌或管理员 API。`PL!-pb2-037`「Shangri-La Shower」导出分类为 MEMBER、费用/分数均为空，且日中时点不一致，按用户决定延期，不登记为完成。
+2026-09-05 本批未发布 PB2 卡以用户提供的 `cards_export_2026-09-05.json` 为权威来源：规则使用 `cardTextJp`，窗口正文逐段使用完整 `cardTextCn`；本批不访问卡牌或管理员 API。当时 `PL!-pb2-037`「Shangri-La Shower」因导出类型、数值与日中时点冲突延期；2026-09-27 指定导出已修正为分数3的 LIVE 并完成实现，当前状态见本页对应登记行。
 
 | 基础编号 | 覆盖与卡牌 | 状态/效果 | 实现与测试 |
 | --- | --- | --- | --- |

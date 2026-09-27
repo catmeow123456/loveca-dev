@@ -1987,3 +1987,18 @@ export const PL_PB2_025_CONTINUOUS_SUCCESS_LILY_WHITE_GAIN_BLADE_ABILITY_ID =
   'PL!-pb2-025:continuous-success-lily-white-gain-blade';
 export const PL_PB2_042_AUTO_ON_CHEER_BIBI_NAMES_WAIT_OPPONENT_ABILITY_ID =
   'PL!-pb2-042:auto-on-cheer-bibi-names-wait-opponent';
+
+export const PL_PB2_024_LIVE_START_ONLY_BIBI_WAIT_LOW_COST_OPPONENT_ABILITY_ID =
+  'PL!-pb2-024:live-start-only-bibi-wait-low-cost-opponent';
+
+export const PL_PB2_028_LIVE_START_WAIT_SELF_GAIN_YELLOW_HEART_ABILITY_ID =
+  'PL!-pb2-028:live-start-wait-self-gain-yellow-heart';
+
+export const PL_PB2_031_LIVE_START_DISCARD_MUSE_GAIN_PURPLE_HEART_ABILITY_ID =
+  'PL!-pb2-031:live-start-discard-muse-gain-purple-heart';
+
+export const PL_PB2_032_ON_ENTER_DISCARD_LOOK_TOP_FIVE_NO_BLADE_MUSE_MEMBER_ABILITY_ID =
+  'PL!-pb2-032:on-enter-discard-look-top-five-no-blade-muse-member';
+
+export const PL_PB2_037_LIVE_SUCCESS_SAME_UNIT_CHEER_MEMBER_TO_HAND_ABILITY_ID =
+  'PL!-pb2-037:live-success-same-unit-cheer-member-to-hand';
