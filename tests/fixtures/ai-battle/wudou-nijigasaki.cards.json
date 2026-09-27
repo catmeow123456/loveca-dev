@@ -1,0 +1,646 @@
+{
+  "source": "cards_export_2026-09-20.json",
+  "sourceSha256": "0777180b2174120cae569e101ef391ae523773205b8d5d9da50949204957b5f2",
+  "cards": [
+    {
+      "cardCode": "PL!N-bp7-008-R",
+      "cardType": "MEMBER",
+      "nameJp": "エマ・ヴェルデ",
+      "nameCn": "艾玛·维尔德",
+      "workNames": [
+        "ラブライブ！虹ヶ咲学園スクールアイドル同好会"
+      ],
+      "groupNames": [
+        "虹ヶ咲"
+      ],
+      "unitName": "「QU4RTZ」",
+      "cost": 15,
+      "blade": 5,
+      "hearts": [
+        {
+          "color": "RED",
+          "count": 2
+        },
+        {
+          "color": "GREEN",
+          "count": 2
+        },
+        {
+          "color": "PURPLE",
+          "count": 3
+        }
+      ],
+      "bladeHearts": null,
+      "score": null,
+      "requirements": [],
+      "cardTextJp": "【登場】自分の控え室からブレードハートを持たないメンバーカードを4枚まで好きな順番でデッキの下に置いてもよい。これによりデッキに置いたカード1枚につき、エネルギーを1枚アクティブにする。",
+      "cardTextCn": "【登场】可以从自己的休息室将至多4张不持有BLADE HEART的成员卡按任意顺序放置于卡组底。每有1张因此放置的卡片，将1张能量变为活跃状态。"
+    },
+    {
+      "cardCode": "PL!N-bp7-006-R+",
+      "cardType": "MEMBER",
+      "nameJp": "近江彼方",
+      "nameCn": "近江彼方",
+      "workNames": [
+        "ラブライブ！虹ヶ咲学園スクールアイドル同好会"
+      ],
+      "groupNames": [
+        "虹ヶ咲"
+      ],
+      "unitName": "「QU4RTZ」",
+      "cost": 17,
+      "blade": 5,
+      "hearts": [
+        {
+          "color": "RED",
+          "count": 2
+        },
+        {
+          "color": "PINK",
+          "count": 2
+        },
+        {
+          "color": "BLUE",
+          "count": 1
+        },
+        {
+          "color": "PURPLE",
+          "count": 3
+        }
+      ],
+      "bladeHearts": null,
+      "score": null,
+      "requirements": [],
+      "cardTextJp": "【起動】【ターン1回】[E]：自分のデッキの上からカードを4枚見る。その後、それらを好きな順番でデッキの上に置く。 \n\n【起動】【ターン2回】デッキの上からカードを3枚控え室に置く：これにより控え室に置いたカードの中に『虹ヶ咲』のライブカードかブレードハートを持たない『虹ヶ咲』のメンバーカードがある場合、以下から1つを選ぶ。 \n\n·エネルギーを2枚アクティブにする。 \n\n·ライブ終了時まで、[ブレード][ブレード]を得る。",
+      "cardTextCn": "【起动】【1回合1次】[E]：检视自己的卡组顶的4张卡。此后，将那些卡片按任意顺序放置于卡组顶。 \n\n【起动】【1回合2次】将卡组顶的3张卡片放置入休息室：因此放置于休息室的卡片中存在『虹咲』的LIVE卡或不持有BLADE HEART的『虹咲』的成员卡的场合，从以下选择1项。 \n\n·将2张能量变为活跃状态。 \n\n·LIVE结束时为止，获得[ブレード][ブレード]。"
+    },
+    {
+      "cardCode": "PL!N-bp7-011-R+",
+      "cardType": "MEMBER",
+      "nameJp": "ミア・テイラー",
+      "nameCn": "米娅·泰勒",
+      "workNames": [
+        "ラブライブ！虹ヶ咲学園スクールアイドル同好会"
+      ],
+      "groupNames": [
+        "虹ヶ咲"
+      ],
+      "unitName": "「R3BIRTH」",
+      "cost": 13,
+      "blade": 4,
+      "hearts": [
+        {
+          "color": "PINK",
+          "count": 2
+        },
+        {
+          "color": "GREEN",
+          "count": 2
+        },
+        {
+          "color": "YELLOW",
+          "count": 2
+        }
+      ],
+      "bladeHearts": null,
+      "score": null,
+      "requirements": [],
+      "cardTextJp": "【自動】このカードがデッキから控え室に置かれたとき、手札を1枚控え室に置いてもよい。そうしたとき、控え室からこのカードを手札に加える。 \n\n【常時】このカードをプレイする際、自分の控え室にあるすべてのメンバーカードをシャッフルし、デッキの下に置いてもよい。そうしたとき、このカードのコストは2減る。 \n\n【ライブ成功時】自分の控え室にある『虹ヶ咲』のカード1枚をデッキの一番上に置いてもよい。",
+      "cardTextCn": "【自动】此卡从卡组被放置入休息室时，可以将1张手牌放置入休息室。如此做时，从休息室将此卡加入手牌。 \n\n【常时】打出此卡时，可以将存在于自己的休息室的所有成员卡洗牌，放置于卡组底。如此做时，此卡的费用减2。 \n\n【LIVE成功时】可以将存在于自己的休息室的1张『虹咲』的卡片放置于卡组顶。"
+    },
+    {
+      "cardCode": "PL!N-bp1-012-R+",
+      "cardType": "MEMBER",
+      "nameJp": "鐘嵐珠",
+      "nameCn": "钟岚珠",
+      "workNames": [
+        "ラブライブ！虹ヶ咲学園スクールアイドル同好会"
+      ],
+      "groupNames": [
+        "虹ヶ咲"
+      ],
+      "unitName": "「R3BIRTH」",
+      "cost": 15,
+      "blade": 4,
+      "hearts": [
+        {
+          "color": "PINK",
+          "count": 3
+        },
+        {
+          "color": "GREEN",
+          "count": 2
+        },
+        {
+          "color": "PURPLE",
+          "count": 1
+        }
+      ],
+      "bladeHearts": [
+        {
+          "effect": "HEART",
+          "heartColor": "PINK"
+        }
+      ],
+      "score": null,
+      "requirements": null,
+      "cardTextJp": "【常時】自分のライブ中のカードが3枚以上あり、その中に『虹ヶ咲』のライブカードを1枚以上含む場合、[ALLハート][ALLハート][ブレード][ブレード]を得る。\n【起動】【ターン1回】[E][E][E]：自分の控え室からライブカードを1枚手札に加える。",
+      "cardTextCn": "【常时】自己的LIVE中的卡片大于等于3张，且其中包含大于等于1张『虹咲』的LIVE卡的场合，获得[ALLハート][ALLハート][ブレード][ブレード]。\n\n【起动】【1回合1次】[E][E][E]：从自己的休息室将1张LIVE卡加入手牌。"
+    },
+    {
+      "cardCode": "PL!N-bp5-005-R+",
+      "cardType": "MEMBER",
+      "nameJp": "宮下愛",
+      "nameCn": "宫下爱",
+      "workNames": [
+        "ラブライブ！虹ヶ咲学園スクールアイドル同好会"
+      ],
+      "groupNames": [
+        "虹ヶ咲"
+      ],
+      "unitName": "「DiverDiva」",
+      "cost": 9,
+      "blade": 4,
+      "hearts": [
+        {
+          "color": "RED",
+          "count": 1
+        },
+        {
+          "color": "BLUE",
+          "count": 1
+        }
+      ],
+      "bladeHearts": null,
+      "score": null,
+      "requirements": null,
+      "cardTextJp": "【自動】このメンバーがステージから控え室に置かれたとき、このメンバーがコスト10以上のブレードハートを持たない『虹ヶ咲』のメンバーとバトンタッチしていた場合、エネルギーを2枚アクティブにする。コスト15以上のブレードハートを持たない『虹ヶ咲』のメンバーの場合、さらにカードを1枚引く。",
+      "cardTextCn": "【自动】此成员被从舞台放置入休息室时，此成员曾与费用大于等于10的不持有BLADE HEART的『虹咲』的成员换手的场合，将2张能量变为活跃状态。与费用大于等于15的不持有BLADE HEART的『虹咲』的成员换手的场合，再抽1张卡。"
+    },
+    {
+      "cardCode": "PL!N-bp5-019-N",
+      "cardType": "MEMBER",
+      "nameJp": "優木せつ菜",
+      "nameCn": "优木雪菜",
+      "workNames": [
+        "ラブライブ！虹ヶ咲学園スクールアイドル同好会"
+      ],
+      "groupNames": [
+        "虹ヶ咲"
+      ],
+      "unitName": "「A・ZU・NA」",
+      "cost": 9,
+      "blade": 4,
+      "hearts": [
+        {
+          "color": "RED",
+          "count": 1
+        },
+        {
+          "color": "YELLOW",
+          "count": 1
+        },
+        {
+          "color": "BLUE",
+          "count": 1
+        }
+      ],
+      "bladeHearts": null,
+      "score": null,
+      "requirements": null,
+      "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分の控え室から『虹ヶ咲』のライブカードを1枚手札に加える。",
+      "cardTextCn": "【登场】可以将1张手牌放置入休息室：从自己的休息室将1张『虹咲』的LIVE卡加入手牌。"
+    },
+    {
+      "cardCode": "PL!-bp5-222-R",
+      "cardType": "MEMBER",
+      "nameJp": "優木あんじゅ",
+      "nameCn": "优木杏树",
+      "workNames": null,
+      "groupNames": [
+        "A-RISE"
+      ],
+      "unitName": "「A-RISE」",
+      "cost": 4,
+      "blade": 2,
+      "hearts": [
+        {
+          "color": "PINK",
+          "count": 1
+        }
+      ],
+      "bladeHearts": [
+        {
+          "effect": "HEART",
+          "heartColor": "BLUE"
+        }
+      ],
+      "score": null,
+      "requirements": null,
+      "cardTextJp": "【登場】このメンバーをウェイトにし、手札を1枚控え室に置いてもよい：自分のデッキの上からカードを3枚見る。その中から1枚を手札に加える。残りを控え室に置く。",
+      "cardTextCn": "【登场】可以将此成员变为待机状态，将1张手牌放置入休息室：检视自己卡组顶的3张卡。从其中将1张卡加入手牌。其余的卡片放置入休息室。"
+    },
+    {
+      "cardCode": "PL!N-bp7-018-N",
+      "cardType": "MEMBER",
+      "nameJp": "近江彼方",
+      "nameCn": "近江彼方",
+      "workNames": [
+        "ラブライブ！虹ヶ咲学園スクールアイドル同好会"
+      ],
+      "groupNames": [
+        "虹ヶ咲"
+      ],
+      "unitName": "「QU4RTZ」",
+      "cost": 4,
+      "blade": 2,
+      "hearts": [
+        {
+          "color": "YELLOW",
+          "count": 1
+        }
+      ],
+      "bladeHearts": [
+        {
+          "effect": "HEART",
+          "heartColor": "YELLOW"
+        }
+      ],
+      "score": null,
+      "requirements": [],
+      "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分のデッキの上からカードを5枚見る。その中からブレードハートを持たない『虹ヶ咲』のメンバーカードを1枚公開して手札に加えてもよい。残りを控え室に置く。",
+      "cardTextCn": "【登场】可以将1张手牌放置入休息室：检视自己的卡组顶的5张卡片。可以从其中将1张不持有BLADE HEART的『虹咲』的成员卡公开并加入手牌。其余的放置入休息室。"
+    },
+    {
+      "cardCode": "PL!SP-bp7-018-N",
+      "cardType": "MEMBER",
+      "nameJp": "米女メイ",
+      "nameCn": "米女芽衣",
+      "workNames": [
+        "ラブライブ！スーパースター!!"
+      ],
+      "groupNames": [
+        "Liella!"
+      ],
+      "unitName": "「CatChu!」",
+      "cost": 4,
+      "blade": 2,
+      "hearts": [
+        {
+          "color": "YELLOW",
+          "count": 1
+        }
+      ],
+      "bladeHearts": [
+        {
+          "effect": "HEART",
+          "heartColor": "YELLOW"
+        }
+      ],
+      "score": null,
+      "requirements": [],
+      "cardTextJp": "【登場】手札のライブカードを1枚控え室に置いてもよい：自分のデッキの上からカードを5枚見る。その中から1枚を手札に加え、残りを控え室に置く。",
+      "cardTextCn": "【登场】可以将手牌的1张LIVE卡放置入休息室：检视自己的卡组顶的5张卡片。从其中将1张卡片加入手牌，其余的放置入休息室。"
+    },
+    {
+      "cardCode": "PL!HS-bp6-001-R+",
+      "cardType": "MEMBER",
+      "nameJp": "日野下花帆",
+      "nameCn": "日野下花帆",
+      "workNames": [
+        "蓮ノ空女学院スクールアイドルクラブ"
+      ],
+      "groupNames": [
+        "蓮ノ空"
+      ],
+      "unitName": "「スリーズブーケ」",
+      "cost": 4,
+      "blade": 0,
+      "hearts": [
+        {
+          "color": "GREEN",
+          "count": 1
+        },
+        {
+          "color": "BLUE",
+          "count": 1
+        }
+      ],
+      "bladeHearts": [
+        {
+          "effect": "HEART",
+          "heartColor": "GREEN"
+        }
+      ],
+      "score": null,
+      "requirements": null,
+      "cardTextJp": "【登場】自分のデッキの上から、自分のステージにいるメンバーの数に2を足した数に等しい枚数見る。その中から1枚をデッキの一番上に置き、残りを控え室に置く。\n\n【ライブ成功時】エールにより公開された自分のカードの中から、カードを1枚デッキの一番上に置いてもよい。",
+      "cardTextCn": "【登场】检视自己的卡组顶等同于存在于自己的舞台的成员数量+2的卡片。从中将1张卡片放置于卡组顶，其余的卡片放置入休息室。\n\n【LIVE成功时】可以从因声援被公开的自己的卡片中，将1张卡片放置于卡组顶。"
+    },
+    {
+      "cardCode": "PL!N-PR-014-RM",
+      "cardType": "MEMBER",
+      "nameJp": "鐘嵐珠",
+      "nameCn": "钟岚珠",
+      "workNames": [
+        "ラブライブ！虹ヶ咲学園スクールアイドル同好会"
+      ],
+      "groupNames": [
+        "虹ヶ咲"
+      ],
+      "unitName": "「R3BIRTH」",
+      "cost": 2,
+      "blade": 1,
+      "hearts": [
+        {
+          "color": "PINK",
+          "count": 1
+        }
+      ],
+      "bladeHearts": [
+        {
+          "effect": "HEART",
+          "heartColor": "PINK"
+        }
+      ],
+      "score": null,
+      "requirements": null,
+      "cardTextJp": "【起動】このメンバーをステージから控え室に置く：自分の控え室からライブカードを1枚手札に加える。",
+      "cardTextCn": "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。"
+    },
+    {
+      "cardCode": "PL!-sd1-005-SD",
+      "cardType": "MEMBER",
+      "nameJp": "星空凛",
+      "nameCn": "星空凛",
+      "workNames": [
+        "ラブライブ！"
+      ],
+      "groupNames": [
+        "μ’s"
+      ],
+      "unitName": "「lilywhite」",
+      "cost": 2,
+      "blade": 1,
+      "hearts": [
+        {
+          "color": "PINK",
+          "count": 1
+        }
+      ],
+      "bladeHearts": [
+        {
+          "effect": "HEART",
+          "heartColor": "PINK"
+        }
+      ],
+      "score": null,
+      "requirements": null,
+      "cardTextJp": "【起動】このメンバーをステージから控え室に置く：自分の控え室からライブカードを1枚手札に加える。",
+      "cardTextCn": "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。"
+    },
+    {
+      "cardCode": "PL!N-sd2-024-SD2",
+      "cardType": "MEMBER",
+      "nameJp": "鐘嵐珠",
+      "nameCn": "钟岚珠",
+      "workNames": null,
+      "groupNames": [
+        "虹ヶ咲"
+      ],
+      "unitName": "「R3BIRTH」",
+      "cost": 2,
+      "blade": 1,
+      "hearts": [
+        {
+          "color": "PINK",
+          "count": 1
+        }
+      ],
+      "bladeHearts": [
+        {
+          "effect": "HEART",
+          "heartColor": "PINK"
+        }
+      ],
+      "score": null,
+      "requirements": [],
+      "cardTextJp": "【起動】このメンバーをステージから控え室に置く：自分の控え室からメンバーカードを1枚手札に加える。",
+      "cardTextCn": "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。"
+    },
+    {
+      "cardCode": "PL!N-PR-012-RM",
+      "cardType": "MEMBER",
+      "nameJp": "三船栞子",
+      "nameCn": "三船栞子",
+      "workNames": [
+        "ラブライブ！虹ヶ咲学園スクールアイドル同好会"
+      ],
+      "groupNames": [
+        "虹ヶ咲"
+      ],
+      "unitName": "「R3BIRTH」",
+      "cost": 2,
+      "blade": 1,
+      "hearts": [
+        {
+          "color": "GREEN",
+          "count": 1
+        }
+      ],
+      "bladeHearts": [
+        {
+          "effect": "HEART",
+          "heartColor": "GREEN"
+        }
+      ],
+      "score": null,
+      "requirements": null,
+      "cardTextJp": "【起動】このメンバーをステージから控え室に置く：自分の控え室からライブカードを1枚手札に加える。",
+      "cardTextCn": "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。"
+    },
+    {
+      "cardCode": "PL!N-bp7-025-L",
+      "cardType": "LIVE",
+      "nameJp": "Colorful Dreams! Colorful Smiles!",
+      "nameCn": "Colorful Dreams! Colorful Smiles!",
+      "workNames": [
+        "ラブライブ！虹ヶ咲学園スクールアイドル同好会"
+      ],
+      "groupNames": [
+        "虹ヶ咲"
+      ],
+      "unitName": null,
+      "cost": null,
+      "blade": null,
+      "hearts": [],
+      "bladeHearts": [
+        {
+          "effect": "HEART",
+          "heartColor": "RAINBOW"
+        }
+      ],
+      "score": 1,
+      "requirements": [
+        {
+          "color": "PINK",
+          "count": 1
+        },
+        {
+          "color": "BLUE",
+          "count": 1
+        },
+        {
+          "color": "YELLOW",
+          "count": 1
+        },
+        {
+          "color": "RAINBOW",
+          "count": 1
+        }
+      ],
+      "cardTextJp": "【ライブ開始時】ライブ終了時まで、自分のステージにいる『虹ヶ咲』のメンバー1人は、[ブレード]を得る。 \n\n【ライブ成功時】エールにより公開された自分のカードの中に[桃ブレード]、[赤ブレード]、[黄ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]のうち、3種類以上ある場合、このカードのスコアを+1する。",
+      "cardTextCn": "【LIVE开始时】LIVE结束时为止，存在于自己的舞台的1名『虹咲』的成员，获得[ブレード]。 \n\n【LIVE成功时】因声援被公开的自己的卡片中，存在[桃ブレード]、[赤ブレード]、[黄ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]中大于等于3种的场合，此卡的分数+1。"
+    },
+    {
+      "cardCode": "PL!N-bp7-026-L",
+      "cardType": "LIVE",
+      "nameJp": "Just Believe!!!",
+      "nameCn": "Just Believe!!!",
+      "workNames": [
+        "ラブライブ！虹ヶ咲学園スクールアイドル同好会"
+      ],
+      "groupNames": [
+        "虹ヶ咲"
+      ],
+      "unitName": null,
+      "cost": null,
+      "blade": null,
+      "hearts": [],
+      "bladeHearts": [
+        {
+          "effect": "HEART",
+          "heartColor": "PURPLE"
+        },
+        {
+          "effect": "DRAW"
+        }
+      ],
+      "score": 5,
+      "requirements": [
+        {
+          "color": "RED",
+          "count": 2
+        },
+        {
+          "color": "GREEN",
+          "count": 2
+        },
+        {
+          "color": "PURPLE",
+          "count": 2
+        },
+        {
+          "color": "RAINBOW",
+          "count": 6
+        }
+      ],
+      "cardTextJp": "【ライブ開始時】手札を2枚まで控え室に置いてもよい：自分のステージにいる『虹ヶ咲』のメンバーを、これにより控え室に置いたカードの枚数に等しい数まで選ぶ。ライブ終了時まで、それらは[ブレード]を得る。 \n\n【ライブ成功時】エールにより公開された自分のカードの中に、ブレードハートを持たないメンバーカードが2枚以上ある場合、このカードのスコアを+1する。",
+      "cardTextCn": "【LIVE开始时】可以将至多2张手牌放置入休息室：选择与因此放置入休息室的卡片的数量相同数量的存在于自己的舞台的『虹咲』的成员。LIVE结束时为止，那些成员获得[ブレード]。 \n\n【LIVE成功时】因声援被公开的自己的卡片中，存在大于等于2张不持有BLADE HEART的成员卡的场合，此卡的分数+1。"
+    },
+    {
+      "cardCode": "PL!N-bp1-029-L",
+      "cardType": "LIVE",
+      "nameJp": "Eutopia",
+      "nameCn": "Eutopia",
+      "workNames": [
+        "ラブライブ！虹ヶ咲学園スクールアイドル同好会"
+      ],
+      "groupNames": [
+        "虹ヶ咲"
+      ],
+      "unitName": null,
+      "cost": null,
+      "blade": null,
+      "hearts": null,
+      "bladeHearts": [
+        {
+          "effect": "HEART",
+          "heartColor": "PINK"
+        },
+        {
+          "effect": "DRAW"
+        }
+      ],
+      "score": 5,
+      "requirements": [
+        {
+          "color": "PINK",
+          "count": 5
+        },
+        {
+          "color": "RAINBOW",
+          "count": 7
+        }
+      ],
+      "cardTextJp": "【ライブ開始時】自分のライブ中のカードが3枚以上ある場合、このカードのスコアを+2する。",
+      "cardTextCn": "【LIVE开始时】自己的LIVE中的卡片大于等于3张的场合，此卡的分数+2。"
+    },
+    {
+      "cardCode": "PL!N-bp5-026-L",
+      "cardType": "LIVE",
+      "nameJp": "TOKIMEKI Runners",
+      "nameCn": "心动逐梦人",
+      "workNames": [
+        "ラブライブ！虹ヶ咲学園スクールアイドル同好会"
+      ],
+      "groupNames": [
+        "虹ヶ咲"
+      ],
+      "unitName": null,
+      "cost": null,
+      "blade": null,
+      "hearts": null,
+      "bladeHearts": [
+        {
+          "effect": "HEART",
+          "heartColor": "RAINBOW"
+        }
+      ],
+      "score": 2,
+      "requirements": [
+        {
+          "color": "YELLOW",
+          "count": 2
+        },
+        {
+          "color": "RAINBOW",
+          "count": 4
+        }
+      ],
+      "cardTextJp": "【ライブ開始時】自分のステージにいるメンバーが持つハートの中に[桃ハート]、[緑ハート]、[青ハート]、[赤ハート]、[黄ハート]、[紫ハート]がすべてある場合、このカードのスコアを+1する。\n\n【ライブ成功時】このカードのスコアが3の場合、自分の控え室にある『虹ヶ咲』のカードを1枚手札に加える。",
+      "cardTextCn": "【LIVE开始时】存在于自己的舞台的成员持有的HEART中[桃ハート]，[赤ハート]，[黄ハート]，[緑ハート]，[青ハート]，[紫ハート]全部存在的场合，此卡的分数+1。\n\n【LIVE成功时】此卡的分数为3的场合，将1张存在于自己休息室的『虹咲』的卡片加入手牌。"
+    },
+    {
+      "cardCode": "LL-E-003-SD",
+      "cardType": "ENERGY",
+      "nameJp": "エネルギー",
+      "nameCn": "能量",
+      "workNames": [
+        "ラブライブ！虹ヶ咲学園スクールアイドル同好会"
+      ],
+      "groupNames": [
+        "虹ヶ咲"
+      ],
+      "unitName": null,
+      "cost": null,
+      "blade": null,
+      "hearts": null,
+      "bladeHearts": null,
+      "score": null,
+      "requirements": null,
+      "cardTextJp": null,
+      "cardTextCn": null
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+player_name: 无豆虹
+description: 桃轴非BLADE HEART虹咲；追记版，用户指定花帆4张、普通能量12张
+main_deck:
+  members:
+    - card_code: PL!N-bp7-008-R # 15费艾玛·维尔德
+      count: 4
+    - card_code: PL!N-bp7-006-R+ # 17费近江彼方
+      count: 4
+    - card_code: PL!N-bp7-011-R+ # 13费米娅·泰勒
+      count: 3
+    - card_code: PL!N-bp1-012-R+ # 15费钟岚珠
+      count: 2
+    - card_code: PL!N-bp5-005-R+ # 9费宫下爱
+      count: 4
+    - card_code: PL!N-bp5-019-N # 9费优木雪菜
+      count: 3
+    - card_code: PL!-bp5-222-R # 4费优木杏树
+      count: 4
+    - card_code: PL!N-bp7-018-N # 4费近江彼方
+      count: 4
+    - card_code: PL!SP-bp7-018-N # 4费米女芽衣
+      count: 2
+    - card_code: PL!HS-bp6-001-R+ # 4费日野下花帆
+      count: 4
+    - card_code: PL!N-PR-014-RM # 2费钟岚珠
+      count: 4
+    - card_code: PL!-sd1-005-SD # 2费星空凛
+      count: 4
+    - card_code: PL!N-sd2-024-SD2 # 2费钟岚珠
+      count: 4
+    - card_code: PL!N-PR-012-RM # 2费三船栞子
+      count: 2
+  lives:
+    - card_code: PL!N-bp7-025-L # 1分Colorful Dreams! Colorful Smiles!
+      count: 3
+    - card_code: PL!N-bp7-026-L # 5分Just Believe!!!
+      count: 4
+    - card_code: PL!N-bp1-029-L # 5分Eutopia
+      count: 3
+    - card_code: PL!N-bp5-026-L # 2分心动逐梦人
+      count: 2
+energy_deck:
+  - card_code: LL-E-003-SD # 能量
+    count: 12

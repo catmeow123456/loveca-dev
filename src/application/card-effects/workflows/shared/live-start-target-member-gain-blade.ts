@@ -27,6 +27,7 @@ import {
 import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 const SELECT_MEMBER_STEP_ID = 'LIVE_START_TARGET_MEMBER_GAIN_BLADE_SELECT_MEMBER';
@@ -127,7 +128,8 @@ export function registerLiveStartTargetMemberGainBladeWorkflowHandlers(): void {
           input.selectedCardId ?? null,
           config,
           context.continuePendingCardEffects
-        )
+        ),
+      queryCardSelection
     );
   }
 }

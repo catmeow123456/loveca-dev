@@ -15,6 +15,7 @@ import { activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import { moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
@@ -36,12 +37,16 @@ export function registerNBp7008EmmaVerdeWorkflowHandlers(): void {
       context.continuePendingCardEffects
     )
   );
-  registerActiveEffectStepHandler(ABILITY_ID, SELECT_BOTTOM_STEP_ID, (game, input, context) =>
-    finishBottomSelection(
-      game,
-      input.selectedCardIds ?? (input.selectedCardId ? [input.selectedCardId] : []),
-      context.continuePendingCardEffects
-    )
+  registerActiveEffectStepHandler(
+    ABILITY_ID,
+    SELECT_BOTTOM_STEP_ID,
+    (game, input, context) =>
+      finishBottomSelection(
+        game,
+        input.selectedCardIds ?? (input.selectedCardId ? [input.selectedCardId] : []),
+        context.continuePendingCardEffects
+      ),
+    queryCardSelection
   );
 }
 
