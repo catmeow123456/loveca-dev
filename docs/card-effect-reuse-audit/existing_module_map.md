@@ -37,8 +37,6 @@
 
 JSON 三层审计覆盖全部导出印刷和未知罕度：50条能力中46条与对应完整中文段落一致，4条沿用登记册已有修订——费用4「绚濑绘里」002修正语序，费用2「小泉花阳」008补“的”，费用4「高坂穗乃果」019按日文补可选支付，分数7「PSYCHIC FIRE」042删除重复“存在”。本次新增7张不改写正文；7条起动正文与definition一致，新增两张同文卡的 `activatedUi.text` 源码直接引用既有 `effectText` 常量。完整正文与注册契约由 `pl-pb2-september-27-definitions.test.ts` 覆盖。
 
-主窗口独立审阅全部本次源码与测试改动后，分两组运行23个测试文件、837项测试全部通过（15文件498项，8文件339项），覆盖本批新卡、受影响shared旧卡、公开选择、生命周期、修正值、待机调度、classification、token及text governance。根 `pnpm exec tsc --noEmit` 与 `git diff --check` 通过。未执行浏览器或生产验收；保留任务开始前的 `docs/README.md` 与 `llocg_db` 改动，未提交或发布。
-
 ## Recent Compact Registrations
 
 2026-09-10 两张新增卡以用户指定的 `references/cards_export_2026-09-10.json` 为权威；新增2条独立能力，均按 `baseCardCodes` 覆盖全罕度，无起动段。未访问卡牌或管理员 API，未修改外部 JSON。
