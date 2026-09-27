@@ -25,10 +25,12 @@ import {
   moveRevealedCheerCards,
   evaluateCurrentLiveRevealedCheerCardCondition,
   selectRevealedCheerCardIds,
+  selectCurrentLiveRevealedCheerCardIds,
   type CheerCardPredicate,
   type RevealedCheerCardDestination,
 } from '../../../effects/cheer-selection.js';
 import {
+  PL_PB2_037_LIVE_SUCCESS_SAME_UNIT_CHEER_MEMBER_TO_HAND_ABILITY_ID,
   HS_BP1_021_LIVE_SUCCESS_HASUNOSORA_LIVE_REVEALED_CHEER_TO_HAND_ABILITY_ID,
   HS_BP6_005_LIVE_SUCCESS_DOLLCHESTRA_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
   HS_BP6_032_LIVE_SUCCESS_LOW_COST_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
@@ -92,6 +94,7 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 
 interface RevealedCheerSelectionStartConditionResult {
   readonly conditionMet: boolean;
+  readonly description?: string;
   readonly payload?: Readonly<Record<string, unknown>>;
 }
 
@@ -106,11 +109,13 @@ interface RevealedCheerSelectionWorkflowConfig {
   readonly destination: RevealedCheerCardDestination;
   readonly optional: boolean;
   readonly confirmWhenNoTargets?: boolean;
+  readonly noTargetsDescription?: string;
+  readonly confirmWhenConditionFails?: boolean;
+  readonly recheckConditionOnSelection?: boolean;
   readonly availabilityGate?: LiveSuccessAbilityAvailabilityGate;
   readonly startCondition?: (
     game: GameState,
-    playerId: string,
-    ability: PendingAbilityState
+    playerId: string
   ) => RevealedCheerSelectionStartConditionResult;
   readonly selectMin?: number;
   readonly selectMax?: number;
@@ -144,6 +149,20 @@ export interface SyncHsBp6027ManualCheerAdjustmentDependencies {
 }
 
 const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflowConfig[] = [
+  {
+    abilityId: PL_PB2_037_LIVE_SUCCESS_SAME_UNIT_CHEER_MEMBER_TO_HAND_ABILITY_ID,
+    stepId: 'PL_PB2_037_SELECT_CHEER_MEMBER_TO_HAND',
+    stepText: '请选择1张因声援被公开的自己的成员卡加入手牌。',
+    selectionLabel: '选择要加入手牌的声援公开成员',
+    predicate: typeIs(CardType.MEMBER),
+    destination: 'HAND',
+    optional: false,
+    confirmWhenNoTargets: true,
+    noTargetsDescription: '没有可选择的成员卡，不加入手牌。',
+    confirmWhenConditionFails: true,
+    recheckConditionOnSelection: true,
+    startCondition: allCheerMembersShareSpecifiedUnit,
+  },
   {
     abilityId: PL_N_PB1_012_LIVE_SUCCESS_NIJIGASAKI_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
     stepId: PL_N_PB1_012_SELECT_NIJIGASAKI_MEMBER_CHEER_TO_HAND_STEP_ID,
@@ -196,7 +215,7 @@ const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflo
     predicate: and(typeIs(CardType.LIVE), groupAliasIs('蓮ノ空')),
     destination: 'HAND',
     optional: false,
-    startCondition: (game, playerId, ability) => {
+    startCondition: (game, playerId) => {
       const condition = evaluateCurrentLiveRevealedCheerCardCondition(game, playerId, {
         minCount: 1,
         cardTypes: CardType.LIVE,
@@ -462,8 +481,19 @@ function startRevealedCheerSelectionWorkflow(
     return game;
   }
 
-  const startCondition = config.startCondition?.(game, player.id, context.ability);
+  const startCondition = config.startCondition?.(game, player.id);
   if (startCondition && !startCondition.conditionMet) {
+    if (config.confirmWhenConditionFails === true) {
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(
+        game,
+        context.ability,
+        context.options,
+        {
+          effectText: `${getAbilityEffectText(config.abilityId)}\n${startCondition.description ?? '不满足条件。'}`,
+        }
+      );
+      if (confirmation) return confirmation;
+    }
     const state = {
       ...game,
       pendingAbilities: game.pendingAbilities.filter(
@@ -488,7 +518,12 @@ function startRevealedCheerSelectionWorkflow(
       const manualConfirmation = maybeStartConfirmablePendingAbilityConfirmation(
         game,
         context.ability,
-        context.options
+        context.options,
+        startCondition?.description
+          ? {
+              effectText: `${getAbilityEffectText(config.abilityId)}\n${startCondition.description} ${config.noTargetsDescription ?? '没有可选择的目标。'}`,
+            }
+          : undefined
       );
       if (manualConfirmation) {
         return manualConfirmation;
@@ -628,7 +663,12 @@ function finishRevealedCheerSelectionWorkflow(
     return game;
   }
 
-  const currentSelectableCardIds = selectRevealedCheerCardIds(game, player.id, config.predicate);
+  const conditionStillMet =
+    config.recheckConditionOnSelection !== true ||
+    config.startCondition?.(game, player.id).conditionMet !== false;
+  const currentSelectableCardIds = conditionStillMet
+    ? selectRevealedCheerCardIds(game, player.id, config.predicate)
+    : [];
   if (!uniqueSelectedCardIds.every((cardId) => currentSelectableCardIds.includes(cardId))) {
     return refreshOrFinishStaleRevealedCheerSelection(
       game,
@@ -830,6 +870,33 @@ function countSBp6021AdditionalCheer(game: GameState, movedCardIds: readonly str
     return total + Math.floor(card.data.cost / 5);
   }, 0);
   return Math.min(4, cheerCount);
+}
+
+function allCheerMembersShareSpecifiedUnit(
+  game: GameState,
+  playerId: string
+): RevealedCheerSelectionStartConditionResult {
+  const memberIds = selectCurrentLiveRevealedCheerCardIds(game, playerId, {
+    cardTypes: CardType.MEMBER,
+  });
+  const matchingUnit =
+    memberIds.length > 0
+      ? ['Printemps', 'lily white', 'BiBi'].find((unit) =>
+          memberIds.every((cardId) => {
+            const card = getCardById(game, cardId);
+            return card !== null && unitAliasIs(unit)(card);
+          })
+        )
+      : undefined;
+  return {
+    conditionMet: matchingUnit !== undefined,
+    description: matchingUnit
+      ? `本次声援公开的${memberIds.length}张成员卡全部属于『${matchingUnit}』，满足条件。`
+      : memberIds.length === 0
+        ? '本次声援没有公开成员卡，不加入手牌。'
+        : '本次声援公开的成员卡未全部属于同一个指定小队，不满足条件，不加入手牌。',
+    payload: { revealedCheerFactCardIds: memberIds, matchingUnit: matchingUnit ?? null },
+  };
 }
 
 function liveScoresAreEqual(

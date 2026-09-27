@@ -22,6 +22,8 @@ export interface CreateAiBattleInput extends AiBattlePresetInput {
   readonly model: AiBattleModel;
   /** Local Codex only; omitted requests use the server default. Frozen per game. */
   readonly reasoningEffort?: CodexAiReasoningEffort;
+  /** Local Codex only; defaults off and is frozen per game. */
+  readonly fastMode?: boolean;
   readonly enableThinking: boolean;
   /** Opt-in local disk archive, frozen at creation; unavailable in production. */
   readonly archiveEnabled?: boolean;

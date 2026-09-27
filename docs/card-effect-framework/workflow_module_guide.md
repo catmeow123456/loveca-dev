@@ -1,5 +1,13 @@
 # Workflow Module Guide
 
+## 2026-09-27 PB2 既有 family 扩展
+
+`shared/opponent-wait-target.ts` 为 `PL!-pb2-024` 费用4「西木野真姬」增加 `allOwnStageMembersUnitAlias` 条件：己方顶层舞台非空且全部匹配结构化小队身份。费用门槛通过已有 `statePredicate` 调用 `getMemberEffectiveCost`，不改变旧配置的印刷费用 selector；条件失败或无目标使用带实时结果的统一确认，ordered batch 保持自动续行。该卡同时启用窄 `trackTargetLifecycle` 配置，窗口保存目标舞台实例并在提交时重验；同一实体离场重登后旧选择空结算，不扩大旧配置行为。
+
+`shared/revealed-cheer-selection.ts` 为 `PL!-pb2-037` 分数3「Shangri-La Shower」复用事件包含式声援查询，要求全部声援成员共同属于一个指定小队，非成员不参与判断。配置可选择条件失败时确认和选卡时重验条件；条件结果可提供实时说明。历史公开事实与当前可移动集合继续分离，选卡与公开展示恢复均不能移动已失效目标。不新增声援 query、事件类型或独立 workflow。
+
+`PL!-pb2-028` 费用2「高坂穗乃果」保留 `cards/pl-pb2-028-honoka.ts` 单卡 ownership：自身待机费用后给予自身黄 Heart。它只复用状态事件 wrapper、来源生命周期、成员 Heart modifier 和统一 continuation，不把“中央成员获得 BLADE”或“起动选择颜色”的不同目标／交互合并为 family。runner 仅作 import/register。
+
 ## 2026-09-09 PB2 叠卡 family 与来源相关计数
 
 `shared/waiting-room-members-below-source.ts` 由 `PL!N-PR-026` 费用15「天王寺璃奈」与 `PL!-pb2-017` 费用17「小泉花阳」的登场段证明。固定流程为重扫自己休息室的成员、强制选择可取得的指定数量、提交时重验来源实例和整个目标集合，再立即放到来源成员下方并继续结算；配置仅有成员 selector、数量与能力步骤/文案。叠卡不增加定时公开停留，下方成员持续对双方正面可见。璃奈继续保留持久步骤 ID `N_PR_026_RINA_SELECT_WAITING_MEMBER`；其余下方能力委托仍归原单卡 workflow。非法或失效输入不能部分叠入，也不制造登场事件。
@@ -149,7 +157,9 @@ deadline 恢复后整体重验，并调用统一 waiting-room-to-main-deck 事�
 
 `PL!N-sd2-005` 费用13「宫下爱」是 `discardCount: 2` / `heartCount: 2` 样本，并继续证明来源成员在支付后从六种普通 HEART 中指定1色的有限模式；颜色窗口只使用前端已有稳定 token，不接受 ALL 或任意字符串。
 
-该 family 只扫描控制者 LEFT/CENTER/RIGHT 顶层成员，排除来源与 memberBelow；目标确认时重扫来源与候选，支付后无目标或来源/目标 stale 均保留费用并通过统一 continuation 继续。成员 Heart 统一写 `SOURCE_MEMBER` / `TARGET_MEMBER` modifier。family 不接受 selector callback，不表达任意费用、任意目标、任意 modifier 或步骤 DSL。
+`PL!-pb2-031` 费用4「园田海未」扩展费用侧的只读 `discardSelector`，在候选展示及提交时筛选结构化 μ’s 手牌；固定紫 Heart + `SOURCE_MEMBER` 在支付后直接给予来源，不增加颜色选择。来源生命周期失效时不将奖励转给重登对象，已支付费用保留。
+
+该 family 的其他成员目标只扫描控制者 LEFT/CENTER/RIGHT 顶层成员，排除来源与 memberBelow；目标确认时重扫来源与候选，支付后无目标或来源/目标 stale 均保留费用并通过统一 continuation 继续。成员 Heart 统一写 `SOURCE_MEMBER` / `TARGET_MEMBER` modifier。费用侧 selector 不扩为任意目标、任意费用动作、任意 modifier 或步骤 DSL。
 
 同型效果放 family 文件。例如：
 

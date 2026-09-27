@@ -305,6 +305,7 @@ import { registerPlPb1003KotoriWorkflowHandlers } from './card-effects/workflows
 import { registerPlPb1004UmiWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-004-umi.js';
 import { registerPlPb1008HanayoWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-008-hanayo.js';
 import { registerPlPb1009NicoWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-009-nico.js';
+import { registerPlPb2028HonokaWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-028-honoka.js';
 import { registerPlPb1017HanayoWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-017-hanayo.js';
 import { registerPlPb1006MakiWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-006-maki.js';
 import { registerPlPb1007NozomiWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-007-nozomi.js';
@@ -1161,6 +1162,7 @@ registerPlPb1004UmiWorkflowHandlers();
 registerPlPb1008HanayoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb1009NicoWorkflowHandlers();
 registerPlPb1017HanayoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlPb2028HonokaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb1006MakiWorkflowHandlers();
 registerPlPb1007NozomiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb1010HonokaWorkflowHandlers({ enqueueTriggeredCardEffects });

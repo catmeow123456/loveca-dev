@@ -41,7 +41,7 @@ function createMemberCard(cardCode: string, name = cardCode, cost = 2): MemberCa
   return {
     cardCode,
     name,
-    groupNames: ['虹ヶ咲'],
+    groupNames: cardCode.startsWith('PL!-') ? ['μ’s'] : ['虹ヶ咲'],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,
@@ -184,6 +184,7 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
   );
 
   it.each([
+    { cardCode: 'PL!-pb2-027-N', name: '矢泽日香（矢泽妮可）' },
     { cardCode: 'PL!N-bp4-017-N', name: '宮下 愛' },
     { cardCode: 'PL!N-bp4-020-N', name: 'エマ・ヴェルデ' },
     { cardCode: 'PL!N-sd2-024-SD2', name: '鐘嵐珠' },
@@ -249,6 +250,7 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
   );
 
   it.each([
+    { cardCode: 'PL!-pb2-035-N', name: '小泉花阳' },
     { cardCode: 'PL!N-PR-019-PR', name: '中須かすみ' },
     { cardCode: 'PL!N-sd1-011-SD', name: 'ミア・テイラー' },
     { cardCode: 'PL!N-sd2-016-SD2', name: '朝香果林' },
@@ -303,10 +305,10 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
     }
   });
 
-  it('keeps the self-sacrifice cost paid when the LIVE recovery family has no legal target', () => {
+  it.each(['PL!N-PR-019-PR', 'PL!-pb2-035-N'])('keeps the self-sacrifice cost paid when %s has no legal target', (cardCode) => {
     const { session, sourceId, waitingMemberId } = setupScenario({
-      sourceCardCode: 'PL!N-PR-019-PR',
-      sourceName: '中須かすみ',
+      sourceCardCode: cardCode,
+      sourceName: cardCode === 'PL!-pb2-035-N' ? '小泉花阳' : '中須かすみ',
       includeWaitingMember: true,
     });
 

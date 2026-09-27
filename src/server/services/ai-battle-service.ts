@@ -62,7 +62,8 @@ interface AiBattleServiceDeps {
     model: AiBattleModel,
     billing: AiBattleBilling,
     enableThinking: boolean,
-    reasoningEffort?: CodexAiReasoningEffort
+    reasoningEffort?: CodexAiReasoningEffort,
+    fastMode?: boolean
   ) => Promise<AiBattleModelClient>;
   readonly billingPersistence?: AiBillingPersistence;
   readonly traces?: AiBattleTraceStore;
@@ -142,6 +143,15 @@ export class AiBattleService {
         '思考强度仅支持本地 Codex 的轻度或中等',
         400
       );
+    if (
+      input.fastMode !== undefined &&
+      (!isCodexAiBattleModel(input.model) || typeof input.fastMode !== 'boolean')
+    )
+      throw new AiBattleSetupError(
+        'AI_FAST_MODE_UNSUPPORTED',
+        '快速模式仅支持本地 Codex GPT 对局',
+        400
+      );
     if (isCodexAiBattleModel(input.model) && input.enableThinking)
       throw new AiBattleSetupError(
         'AI_REASONING_UNSUPPORTED',
@@ -194,7 +204,8 @@ export class AiBattleService {
         input.model,
         billing,
         input.enableThinking,
-        input.reasoningEffort
+        input.reasoningEffort,
+        input.fastMode
       );
       const startedAt = this.now();
       const human = {
@@ -236,6 +247,7 @@ export class AiBattleService {
         input: {
           ...input,
           ...(model.reasoningEffort ? { reasoningEffort: model.reasoningEffort } : {}),
+          ...(isCodexAiBattleModel(input.model) ? { fastMode: model.fastMode === true } : {}),
         },
         startedAt,
         endedAt: null,

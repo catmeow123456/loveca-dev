@@ -2,13 +2,13 @@
 
 > 文档类型：专题说明
 > 适用范围：精选构筑、卡牌事实与 AI 可选择的规则窗口
-> 当前状态：原始 μ's 预组与绿莲-6弹ver支持镜像及交叉对局；蓝紫作为 AI 专用超 PT 构筑接入；真实模型策略尚未验收
+> 当前状态：原始 μ's 预组、绿莲-6弹ver与 Like a Treasure 支持镜像及交叉对局；无豆虹追记版已通过本地镜像流程回归并有用户实战，v0.5策略待继续验证；蓝紫作为 AI 专用超 PT 构筑接入；真实模型策略尚未完整验收
 
 应用已提供管理员 AI 对战与观察入口。目录、运行边界和权限由[运行与观测说明](runtime-and-observation.md)维护；卡效完成状态以[主登记册](../card-effect-reuse-audit/existing_module_map.md)为准。测试策略通局仅证明规则链路，模型强度与生产开放仍需独立验收。
 
 ## 构筑与卡牌事实冻结
 
-构筑 SHA-256 对 YAML 原始字节计算。卡牌 SHA-256 对按 YAML 顺序（成员、LIVE、能量）展开前的每条 `[card_code,count,原始卡牌对象]` 的 `JSON.stringify` 计算；只做 NFKC 全半角编号查找，不替换基础编号或其他罕度。实际服务创建时还须核对当前数据、构筑规则及冻结快照；本表不是产品的可创建清单。
+构筑 SHA-256 对 YAML 原始字节计算。除无豆虹另述的指定导出子集外，卡牌 SHA-256 对按 YAML 顺序（成员、LIVE、能量）展开前的每条 `[card_code,count,原始卡牌对象]` 的 `JSON.stringify` 计算；只做 NFKC 全半角编号查找，不替换基础编号或其他罕度。实际服务创建时还须核对当前数据、构筑规则及冻结快照；本表不是产品的可创建清单。
 
 ### 缪斯
 
@@ -64,6 +64,29 @@
 - 数量：成员 48；LIVE 12；能量 12。
 - 当前范围：目录、加载、AI-only 边界、PT 事实、独立策略手册及下表已列卡效窗口的 AI 专项回归；完整确定性通局、全部蓝紫窗口专项回归与真实模型强度尚未验收。
 
+### Like a Treasure
+
+目录 ID 与手册 ID 均为 `like-a-treasure`。用户指定截图版固定 48 成员、12 LIVE，补 12 张普通能量；不归类为“无豆虹”，不以文章旧构筑替换附件卡位。真人与 AI 均可选择，执行完整 PT 校验。2026-09-20 本机已发布卡库与当前 PT 表的只读加载校验通过（9/9pt）；初次浏览器检查已核实双席选择与手册联动；后续已有用户本地真人对战及归档复盘，策略强度仍待持续验证。
+
+- 构筑：[Like a Treasure.yaml](../../assets/decks/Like%20a%20Treasure.yaml)；策略：[基础打法 v0.2](../../assets/ai-battle/handbooks/like-a-treasure.md)。
+- YAML：`5d696a1ebcf00dd7b394cf0dabd935eefacb2eb46355c62b758192b0530ccd35`。
+- 测试冻结卡牌事实：`44a526b2bdc044450a75afada3b4fecec6bf07fb997267cfa3035f1f5b8c38eb`；混合学校按实际 series 映射，不能一律视为虹咲。
+- 已验证：两局固定种子镜像经玩家视角输入、确定性测试策略和正常命令自然终局；普通/减费换手费用与洗底结果、只确认的特殊登场机械执行、休息室起动及单槽选择、彼方私密有序检视与非法输入拒绝。回归入口 `tests/integration/ai-battle-like-a-treasure.test.ts`。
+- 策略 v0.2 结合攻略文章、构筑事实与有限历史样本；已有本地真人/模型试玩，包含概率辅助下的多曲比较。样本不足以判定固定风险偏好优劣，两局流程回归也不覆盖所有可能局面或证明策略强度。
+
+### 无豆虹
+
+目录与手册 ID：`wudou-nijigasaki`。采用《桃軸の非ブレ虹ヶ咲》追记版，用户明确补花帆至4张、普通能量12张；与 Like a Treasure 独立。真人与 AI 均有目录选项，创建仍沿用既有发布卡库与 PT 校验，不新增例外。
+
+- 构筑：[无豆虹.yaml](../../assets/decks/无豆虹.yaml)；策略：[桃轴基础打法 v0.5](../../assets/ai-battle/handbooks/wudou-nijigasaki.md)。成员48、LIVE12、普通能量12；芽衣2、新Colorful 3、TOKIMEKI 2、花帆4。YAML SHA-256：`922f310d1a786561b64e50ebf4f671299dc196b5cdca29410ec8aeb4e5b5c558`。
+- 权威核对来源：用户指定的仓库外 `references/cards_export_2026-09-20.json`，SHA-256 `0777180b2174120cae569e101ef391ae523773205b8d5d9da50949204957b5f2`。18种主卡基础编号的40种印刷及1种普通能量，在名称、类型、费用／分数、心刀、需求、日中卡文和团体字段内跨罕度一致。YAML采用导出存在的普通印刷，不声称复刻原图罕度。
+- 测试只冻结所选19种印刷的必要字段：[导出事实子集](../../tests/fixtures/ai-battle/wudou-nijigasaki.cards.json)，按文件原始字节的 SHA-256 为 `6f7931f68f74395a4a940344f8d13887731bed7f34b1bd390b80f4a28d944c3f`。测试读取此子集，不读 `llocg_db`、外部导出绝对路径或数据库；生产加载仍只用现有发布快照，不以测试子集兜底。
+- 已验证：[专项回归](../../tests/integration/ai-battle-wudou-nijigasaki.test.ts)覆盖目录及关联手册加载、镜像双方冻结、48／12／12与混合团体、逐色需求序列化、艾玛有序可跳过返底／回能、新Just Believe弃牌与不同目标加刀、新Colorful仅虹咲目标、成员MAIN可查询，以及两组固定种子的玩家视角确定性镜像自然终局。确定性测试策略不使用本手册，不证明留牌、落三分配或争分策略优劣。
+- 接入补齐：费用15艾玛 `PL!N-bp7-008` 的返底步骤、分数5新Just Believe!!! `PL!N-bp7-026` 的弃牌／选目标步骤，以及分数1新Colorful `PL!N-bp7-025` 所属共享单目标加刀 family，均接入已有 `queryCardSelection`；费用、卡效结算与目标条件未改。
+- 策略v0.5：保留前期4→9→15与17彼方条件回能规划；结合Astra对局，明确回能不突破单笔支付上限，比较保留歌组与换舞台后回收换歌的完整路线，优先定量比较有竞争力的一两个替代方案。区分MAIN资源账与LIVE_SET条件查询，不将未模拟的落三／换场／刷新分支包装成完整成功率。仅修订无豆虹专属策略，未改公共教程、概率工具或动作接口。
+- 已知边界：新Just Believe日文允许选择“至多等于弃牌数”的目标；当前流程将弃牌数按目标数限缩并要求等量目标。本次保持该既有行为，少选目标／额外弃牌路线未获支持，不把“完整实现”旧标签当作本次消除了此差异。
+- 未验证：当前服务发布卡库与实时PT的独立核对、v0.5模型策略。加载测试使用显式测试PT空表，只检验契约，不证明当前真人席PT合法。用户已有v0.1～v0.4实战；v0.4的Luna归档出现动作与理由矛盾，Astra归档前中期衔接改善，但T5暴露单笔预算错误与换歌路线比较遗漏，不能据单局推断整体强度。本次仅完成文档检查，未调用模型或订阅额度、未重启服务；v0.5由用户继续实战。手册冻结在创建时，旧对局不自动更新。
+
 ### 绿莲-6弹ver
 
 目录 ID：`green-hasunosora-bp6`；策略手册：`green-hasunosora-recovery`。管理员可为真人或 AI 独立选择本构筑，沿用当前卡库/PT 校验与共享牌桌。
@@ -109,14 +132,18 @@
 
 ## 真实输入窗口与权威路径
 
-两份构筑当前卡文没有直接要求对手弃手、盲选或替对手选择目标的段落；仍必须覆盖先后手、双方分数确认，以及任一参与者推进公共展示。以下“自己”始终指该能力控制者，不能硬编码当前回合玩家。
+上述构筑当前所列卡文没有直接要求对手弃手、盲选或替对手选择目标的段落；仍必须覆盖先后手、双方分数确认，以及任一参与者推进公共展示。以下“自己”始终指该能力控制者，不能硬编码当前回合玩家。
 
 | 窗口 | 输入责任 | 命令 | 约束来源 | 现有验证入口 / AI 待补 |
 | --- | --- | --- | --- | --- |
 | 换牌（任意手牌子集，含全保留） | 当前换牌席位 | MULLIGAN | GameSession + mulligan.handler | AI decision 测试；重复对象拒绝与真实换牌 |
 | 普通登场/换手 | 自己主要阶段 | PLAY_MEMBER_TO_SLOT | normal-member-play + cost-calculator + member-turn-state | AI decision 测试；实际支付/槽位/离场结果 |
 | 起动选择；同来源多能力 | 自己主要阶段 | ACTIVATE_ABILITY | activated UI/turn-limit/start query + workflow | 自送回收、支付能量回收、公开手中 LIVE 同名回收和原槽位登场已提供查询；其他 workflow 无查询时明确未覆盖 |
-| 结束主要阶段 | 当前主要阶段玩家 | END_PHASE | player-command-policy + GameSession | AI decision 测试 |
+| 起动＋已知单选目标 | 自己主要阶段与紧接的效果窗口 | ACTIVATE_ABILITY、CONFIRM_EFFECT_STEP | shared self-sacrifice-waiting-room-to-hand 的 immediateSelection + 原选牌查询 | 一个模型 actionRef 预选可见回收目标；起动后队列外停留 1 秒，再重验并选牌，两条命令分别权威校验；目标／约束／来源实例变化或新信息／触发即重新询问，公开展示保留；ai-battle-activation-follow-up、ai-battle-service-runtime 验证定时续行、取消、不重复起动且不增加模型调用，不代表真实模型采用率已验收 |
+| 只需确认的特殊登场 | 自己主要阶段 | BEGIN_SPECIAL_MEMBER_PLAY、CONFIRM_SPECIAL_MEMBER_PLAY | 原 special-member-play-procedures + cost-calculator | 按 min/max=0 的通用形状适配；费用13米娅减费与普通换手分别报价，选择后确认由机械策略执行；需额外选卡的特殊登场仍明确未支持；真人 HTTP 入口支持 BEGIN/CONFIRM/CANCEL 三步，共用既有 mode 定义并交原规则链重验，见 ai-battle-admin-route |
+| 手牌/休息室起动与单槽选择 | 来源控制者 | ACTIVATE_ABILITY、CONFIRM_EFFECT_STEP | 原 sourceZone 起动 UI/start query + workflow 单槽 SLOTS 契约 | 费用2霞从休息室复出：真实支付、弃手、合法区域、登场及后续检视；AI 仅转换当前席位可见来源与候选 |
+| Like a Treasure 的卡效选择 | 来源控制者；私密检视只对本人 | CONFIRM_EFFECT_STEP | workflow 自有 CARDS/OPTIONS/CONFIRM 查询 | 费用17彼方两段起动、费用13艾玛/米娅、Poppin、TOKIMEKI、Treasure 与共享休息室置顶步骤；效果计算继续由原 workflow 执行 |
+| 结束主要阶段 | 当前主要阶段玩家 | END_PHASE | player-command-policy + GameSession | 完整候选仅剩 END_PHASE 时机械推进；仍遵守阶段 deadline，等待期间结束对局会取消；有其他合法动作时继续交模型选择 |
 | 一次选择最终盖牌完整集合并完成设置 | 当前 LIVE 设置席位 | SET/UNSET_LIVE_CARD、CONFIRM_STEP（同队列批次） | getLiveSetCardCount/Limit/Ids + live-set.handler | AI decision / service runtime 测试；可选任意手牌，不限 LIVE 类型；撤回、追加与确认不再重复请求模型 |
 | pending 顺序/confirm-only | 实时检查时点的等待席位 | CONFIRM_EFFECT_STEP | pending runtime/order-selection | ai-battle-effect-decision；同来源不同 pending 独立映射、手动选择后 confirm-only 实际结算 |
 | 可选弃手费用；支付后私密检视 | 来源控制者 | CONFIRM_EFFECT_STEP | discard-look-top-select-to-hand + active-effect | ai-battle-effect-decision；唯一目标仍可不发动，已付费用后的强制取一拒绝空选 |
@@ -153,7 +180,7 @@
 - `tests/integration/ai-battle-pay-energy-gain-heart.test.ts`：蓝紫樱坂雫的支付/不发动、六色选择与公开续行；同时验证共享特殊能量精确一/二张支付和失效输入。
 - `tests/integration/ai-battle-flow.test.ts`：完整能力段数、罕度集合和原始构筑两席位的确定性自然终局。
 - `tests/integration/ai-battle-service-runtime.test.ts`：异步任务、同队列过期校验、失败停止、展示门禁和结束封存。
-- `tests/integration/ai-battle-admin-route.test.ts`：权限、归属、容量和错误响应。
+- `tests/integration/ai-battle-admin-route.test.ts`：权限、归属、容量和错误响应；真人特殊登场经真实 HTTP 入口完成开始/取消/确认，覆盖米娅实际4费换手、洗底与LIVE保留、客户端席位覆盖、非法参数/过期/重复提交及费用不足无状态变化。
 - `tests/unit/ai-battle-presets.test.ts`：目录与当前数据校验、冻结参考的逐色 LIVE 需求、配置扩展和材料隔离。
 
 模型输入和观察容量由[运行与观测说明](runtime-and-observation.md)维护。真实 HTTP、数据库、浏览器与模型的复现条件见[完整环境验证](full-environment-validation.md)，历史模型结果及其局限见[模型验证](model-validation.md)。未完成事项统一登记在[项目待办](../../PROJECT_PROGRESS_TODO.md)。

@@ -160,8 +160,10 @@ describe('PL pb2 final batch definitions and complete player text', () => {
     expect(new Set(definitions.map((definition) => definition.abilityId)).size).toBe(count);
   });
 
-  it('keeps invalid 037 unimplemented', () => {
-    expect(getCardAbilityDefinitionsForCardCode('PL!-pb2-037-L')).toHaveLength(0);
+  it('registers 037 after the authoritative export resolves its LIVE identity', () => {
+    expect(getCardAbilityDefinitionsForCardCode('PL!-pb2-037-L')).toMatchObject([
+      { category: 'LIVE_SUCCESS', sourceZone: 'LIVE_CARD', implemented: true },
+    ]);
   });
 
   it('012 activated UI directly reuses the definition text constant', () => {

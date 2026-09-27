@@ -26,6 +26,7 @@ import {
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   getAbilityEffectText,
   registerManualConfirmablePendingAbilityStarterHandler,
@@ -66,7 +67,8 @@ export function registerNBp7026JustBelieveWorkflowHandlers(deps: {
         input.selectedCardIds ?? (input.selectedCardId ? [input.selectedCardId] : []),
         context.continuePendingCardEffects,
         deps.enqueueTriggeredCardEffects
-      )
+      ),
+    queryCardSelection
   );
   registerActiveEffectStepHandler(
     LIVE_START_ABILITY_ID,
@@ -76,7 +78,8 @@ export function registerNBp7026JustBelieveWorkflowHandlers(deps: {
         game,
         input.selectedCardIds ?? (input.selectedCardId ? [input.selectedCardId] : []),
         context.continuePendingCardEffects
-      )
+      ),
+    queryCardSelection
   );
   registerManualConfirmablePendingAbilityStarterHandler(
     LIVE_SUCCESS_ABILITY_ID,

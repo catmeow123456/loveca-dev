@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { GameCommandType as T, type GameCommand } from '../../application/game-commands.js';
 import { SlotPosition, SubPhase } from '../../shared/types/enums.js';
+import { CARD_DEFINED_SPECIAL_MEMBER_PLAY_MODES } from '../../shared/rules/member-play-options.js';
 import { AiBattleSetupError } from './presets.js';
 
 const id = z.string().min(1).max(500);
@@ -11,6 +12,22 @@ const base = z.object({
 });
 const schema = z.discriminatedUnion('type', [
   base.extend({ type: z.literal(T.MULLIGAN), cardIdsToMulligan: z.array(id) }).strict(),
+  base
+    .extend({
+      type: z.literal(T.BEGIN_SPECIAL_MEMBER_PLAY),
+      cardId: id,
+      targetSlot: z.enum(SlotPosition),
+      mode: z.enum(CARD_DEFINED_SPECIAL_MEMBER_PLAY_MODES),
+    })
+    .strict(),
+  base
+    .extend({
+      type: z.literal(T.CONFIRM_SPECIAL_MEMBER_PLAY),
+      pendingId: id,
+      selectedCardIds: z.array(id),
+    })
+    .strict(),
+  base.extend({ type: z.literal(T.CANCEL_SPECIAL_MEMBER_PLAY), pendingId: id }).strict(),
   base
     .extend({
       type: z.literal(T.PLAY_MEMBER_TO_SLOT),

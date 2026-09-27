@@ -15,10 +15,10 @@ import {
 import { moveWaitingRoomCardsToDeckTopAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
-const SELECT_WAITING_ROOM_CARD_TO_DECK_TOP_STEP_ID =
-  'SELECT_WAITING_ROOM_CARD_TO_DECK_TOP';
+const SELECT_WAITING_ROOM_CARD_TO_DECK_TOP_STEP_ID = 'SELECT_WAITING_ROOM_CARD_TO_DECK_TOP';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -60,7 +60,8 @@ export function registerWaitingRoomCardToDeckTopWorkflowHandlers(): void {
           game,
           input.selectedCardId ?? null,
           context.continuePendingCardEffects
-        )
+        ),
+      queryCardSelection
     );
   }
 }
@@ -144,7 +145,8 @@ function finishWaitingRoomCardToDeckTopSelection(
     !effect ||
     !getConfig(effect.abilityId) ||
     effect.stepId !== SELECT_WAITING_ROOM_CARD_TO_DECK_TOP_STEP_ID
-  ) return game;
+  )
+    return game;
 
   const player = getPlayerById(game, effect.controllerId);
   const config = getConfig(effect.abilityId);
@@ -169,20 +171,26 @@ function finishWaitingRoomCardToDeckTopSelection(
     selectedCard.ownerId !== player.id ||
     !player.waitingRoom.cardIds.includes(selectedCardId) ||
     !config.selector(selectedCard)
-  ) return game;
+  )
+    return game;
 
-  const moveResult = moveWaitingRoomCardsToDeckTopAndEnqueueTriggers(game, player.id, [selectedCardId], {
-    candidateCardIds: effect.selectableCardIds,
-    minCount: 1,
-    maxCount: 1,
-    cause: {
-      kind: 'CARD_EFFECT',
-      playerId: effect.controllerId,
-      sourceCardId: effect.sourceCardId,
-      abilityId: effect.abilityId,
-      pendingAbilityId: effect.id,
-    },
-  });
+  const moveResult = moveWaitingRoomCardsToDeckTopAndEnqueueTriggers(
+    game,
+    player.id,
+    [selectedCardId],
+    {
+      candidateCardIds: effect.selectableCardIds,
+      minCount: 1,
+      maxCount: 1,
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: effect.controllerId,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      },
+    }
+  );
   if (!moveResult) return game;
 
   return continuePendingCardEffects(

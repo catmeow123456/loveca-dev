@@ -848,12 +848,40 @@ export class OnlineMatchService {
       })
     )
       return { kind: 'STALE' };
+    const pendingFollowUp = task.activationFollowUp;
     let commands: readonly GameCommand[];
     try {
-      commands = runtime.commands(this.now());
+      if (pendingFollowUp) {
+        if (frame.now < pendingFollowUp.deadlineAt)
+          return {
+            kind: 'WAIT',
+            reason: 'ACTIVATION_PRESENTATION',
+            deadlineAt: pendingFollowUp.deadlineAt,
+          };
+        const resolved = pendingFollowUp.plan.resolve(frame.state, frame.view, frame.now);
+        runtime.record('ACTIVATION_FOLLOW_UP', {
+          ...resolved,
+          revision: match.remoteRevision,
+          windowKey: frame.windowKey,
+        });
+        if (resolved.kind === 'REQUERY') {
+          const observed = match.session.getPublicEventsSliceSince(runtime.observedPublicSeq, 256);
+          runtime.accepted(frame.view, {
+            events: observed.publicEvents,
+            throughPublicSeq: match.session.getCurrentPublicEventSeq(),
+            droppedEventCount: observed.droppedEventCount,
+          });
+          runtime.wake();
+          return { kind: 'ACCEPTED' };
+        }
+        commands = [resolved.command];
+      } else commands = runtime.commands(this.now());
     } catch (error) {
       return runtime.stop(`ADAPTER_COMMAND: ${readErrorMessage(error)}`);
     }
+    // Start alongside any existing phase gate, never after it. No sleep in the match queue.
+    const presentationWait = runtime.waitForLivePresentation(frame.now);
+    if (presentationWait) return presentationWait;
     const participant = match.participants[runtime.seat];
     const gate = this.synchronizePhaseCompletionGate(match);
     const gatedCommand = gate
@@ -867,14 +895,15 @@ export class OnlineMatchService {
       );
       return { kind: 'WAIT', deadlineAt: gate.notBefore, reason: 'PHASE_COMPLETION' };
     }
-    runtime.record('SUBMIT', {
+    runtime.record(pendingFollowUp ? 'ACTIVATION_FOLLOW_UP_SUBMIT' : 'SUBMIT', {
       revision: match.remoteRevision,
       windowKey: frame.windowKey,
       command: commands.length === 1 ? commands[0] : null,
       commands,
       selection: task.prepared,
     });
-    const beforeCommandSeq = match.session.getRuntimeStats().currentCommandSeq;
+    const beforeCommandSeq =
+      pendingFollowUp?.beforeCommandSeq ?? match.session.getRuntimeStats().currentCommandSeq;
     try {
       let result: Awaited<ReturnType<OnlineMatchService['executeCommandUnserialized']>> = null;
       for (const command of commands) {
@@ -885,6 +914,56 @@ export class OnlineMatchService {
           true
         );
         if (!result?.success) break;
+      }
+      const selection = task.prepared?.selection;
+      const followUp =
+        selection?.kind === 'ACTION'
+          ? task.decision.activationFollowUps?.get(selection.actionRef)
+          : undefined;
+      if (
+        !pendingFollowUp &&
+        result?.success &&
+        followUp &&
+        commands.length === 1 &&
+        commands[0]!.type === GameCommandType.ACTIVATE_ABILITY
+      ) {
+        // Only schedule the immediate, still-matching target window. Waiting releases the queue.
+        const next = this.sampleAiBattleFrame(match, runtime);
+        const resolved = followUp.resolve(next.state, next.view, next.now);
+        runtime.record(
+          resolved.kind === 'READY' ? 'ACTIVATION_FOLLOW_UP_CHECK' : 'ACTIVATION_FOLLOW_UP',
+          {
+            ...resolved,
+            revision: match.remoteRevision,
+            windowKey: next.windowKey,
+          }
+        );
+        if (resolved.kind === 'READY') {
+          runtime.record('ACTIVATION_RESULT', {
+            success: true,
+            afterRevision: match.remoteRevision,
+            commandRecords: match.session.getCommandLogSince(beforeCommandSeq).map((entry) => ({
+              recordId: entry.recordId,
+              seq: entry.seq,
+              commandType: entry.commandType,
+              status: entry.status,
+            })),
+          });
+          const observed = match.session.getPublicEventsSliceSince(runtime.observedPublicSeq, 256);
+          return runtime.holdActivationFollowUp(
+            followUp,
+            match.remoteRevision,
+            next.windowKey,
+            beforeCommandSeq,
+            next.now,
+            next.view,
+            {
+              events: observed.publicEvents,
+              throughPublicSeq: match.session.getCurrentPublicEventSeq(),
+              droppedEventCount: observed.droppedEventCount,
+            }
+          );
+        }
       }
       runtime.record('AUTHORITY_RESULT', {
         success: result?.success ?? false,
@@ -2014,7 +2093,13 @@ export class OnlineMatchService {
         runtime &&
         (previousMatch !== currentMatch || previousRevision !== currentMatch?.remoteRevision)
       ) {
-        runtime.invalidate();
+        // A committed activation may have rebound its held target to this exact revision.
+        // Every later external mutation still invalidates it; the wake also rechecks its window.
+        const holdsCurrentActivation =
+          previousMatch === currentMatch &&
+          runtime.current?.activationFollowUp &&
+          runtime.current.revision === currentMatch?.remoteRevision;
+        if (!holdsCurrentActivation) runtime.invalidate();
         if (!currentMatch || this.isMatchCompleted(matchId)) runtime.end();
         runtime.wake();
         if (!currentMatch) this.aiRuntimes.delete(matchId);

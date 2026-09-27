@@ -7,10 +7,16 @@ import {
 } from '../../domain/entities/game.js';
 import { GameCommandType, type GameCommand } from '../../application/game-commands.js';
 import { getNormalMemberPlayOptions } from '../../application/normal-member-play.js';
-import { getMemberPlayOptionsForHandCard } from '../../application/member-play-options.js';
+import {
+  buildAiSpecialMemberPlayConfirmation,
+  queryAiSpecialMemberPlays,
+} from './special-member-play-decision.js';
 import { canUseActivatedAbilityThisTurn } from '../../application/card-effects/runtime/ability-turn-limit.js';
 import { queryActivatedAbilityStart } from '../../application/card-effects/runtime/activated-registry.js';
+import { getActivatedAbilityUiConfigs } from '../../application/card-effects/runtime/activated-ability-ui.js';
+import { CardAbilitySourceZone } from '../../application/card-effects/ability-definition-types.js';
 import { visibleActivationResources, visibleMemberEntryResources } from './ability-resources.js';
+import { queryAiActivationFollowUps } from './activation-follow-up.js';
 import { createPublicObjectId, projectPlayerViewState } from '../../online/projector.js';
 import type { PlayerViewState } from '../../online/types.js';
 import { CardType, FaceState, GamePhase, SubPhase } from '../../shared/types/enums.js';
@@ -34,6 +40,7 @@ import {
   type AiDecisionSpace,
   type AiDecisionInput,
   type AiDecisionQuery,
+  type AiActivationFollowUp,
 } from './protocol.js';
 export {
   materializeAiDecisionCommands,
@@ -151,11 +158,26 @@ export function buildAiBattleDecision(
       },
     };
   }
-  if (game.pendingCostPayment || game.pendingSpecialMemberPlay || game.inspectionContext) {
+  if (game.pendingSpecialMemberPlay) {
+    if (
+      view.pendingSpecialMemberPlay?.playerSeat !== view.match.viewerSeat ||
+      !enabled(GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY)
+    )
+      return { kind: 'WAITING_FOR_PLAYER' };
+    const plan = buildAiSpecialMemberPlayConfirmation(game, playerId, view);
+    if ('reason' in plan) return { kind: 'UNSUPPORTED', reason: plan.reason };
+    return {
+      kind: 'DECISION',
+      decision: {
+        input: createDecisionInput(game, view, plan.purpose, plan.space),
+        toCommand: plan.toCommand,
+      },
+    };
+  }
+  if (game.pendingCostPayment || game.inspectionContext) {
     const ownsWindow =
       view.activeEffect?.waitingSeat === view.match.viewerSeat ||
       view.pendingCostPayment?.playerSeat === view.match.viewerSeat ||
-      view.pendingSpecialMemberPlay?.playerSeat === view.match.viewerSeat ||
       game.inspectionContext?.ownerPlayerId === playerId ||
       enabled(GameCommandType.CONFIRM_EFFECT_STEP);
     return ownsWindow
@@ -165,10 +187,12 @@ export function buildAiBattleDecision(
 
   const candidates: AiCandidate[] = [];
   const commands = new Map<string, CommandParameters>();
+  const activationFollowUps = new Map<string, AiActivationFollowUp>();
   const addAction = (facts: Omit<AiCandidate, 'ref'>, command: CommandParameters) => {
     const ref = `a${candidates.length + 1}`;
     candidates.push({ ref, ...facts });
     commands.set(ref, command);
+    return ref;
   };
   const cardFront = (cardId: string) => {
     const front = view.objects[createPublicObjectId(cardId)]?.frontInfo;
@@ -195,21 +219,12 @@ export function buildAiBattleDecision(
   } else if (game.currentPhase === GamePhase.MAIN_PHASE && enabled(GameCommandType.END_PHASE)) {
     purpose = 'MAIN';
     const resources = summarizeAiSelfResources(view, view.match.viewerSeat);
+    if (enabled(GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY)) {
+      const special = queryAiSpecialMemberPlays(game, playerId, view);
+      if ('reason' in special) return { kind: 'UNSUPPORTED', reason: special.reason };
+      for (const { facts, command } of special) addAction(facts, command);
+    }
     if (enabled(GameCommandType.PLAY_MEMBER_TO_SLOT)) {
-      for (const cardId of player.hand.cardIds) {
-        // Double relay is a generic mechanism the adapter simply does not offer; normal
-        // plays for the same card remain enumerable. Only card-defined special plays have
-        // no representable command shape and must fail closed.
-        const hasCardDefinedPlay = getMemberPlayOptionsForHandCard(game, playerId, cardId).some(
-          (option) => option.kind === 'CARD_DEFINED'
-        );
-        if (hasCardDefinedPlay) {
-          return {
-            kind: 'UNSUPPORTED',
-            reason: 'Card-defined play is not yet adapted',
-          };
-        }
-      }
       for (const option of getNormalMemberPlayOptions(game, playerId)) {
         const replacedCardId = player.memberSlots.slots[option.targetSlot];
         addAction(
@@ -254,8 +269,22 @@ export function buildAiBattleDecision(
         ...player.waitingRoom.cardIds,
       ]) {
         if (!cardId) continue;
-        for (const ability of view.objects[createPublicObjectId(cardId)]
-          ?.activatedAbilityUiConfigs ?? []) {
+        const visible = view.objects[createPublicObjectId(cardId)];
+        if (visible?.surface !== 'FRONT' || !visible.frontInfo) continue;
+        const sourceZone = player.hand.cardIds.includes(cardId)
+          ? CardAbilitySourceZone.HAND
+          : player.waitingRoom.cardIds.includes(cardId)
+            ? CardAbilitySourceZone.WAITING_ROOM
+            : CardAbilitySourceZone.STAGE_MEMBER;
+        const abilities =
+          sourceZone === CardAbilitySourceZone.STAGE_MEMBER
+            ? (visible.activatedAbilityUiConfigs ?? [])
+            : getActivatedAbilityUiConfigs(visible.frontInfo.cardCode, sourceZone, {
+                game,
+                playerId,
+                sourceCardId: cardId,
+              });
+        for (const ability of abilities) {
           if (
             !canUseActivatedAbilityThisTurn(
               game,
@@ -280,22 +309,37 @@ export function buildAiBattleDecision(
             ability.abilityId,
             view
           );
-          addAction(
-            {
-              description: `起动 ${cardName(cardId)}；${activationResources.activation ? `${describeAiActivationResources(activationResources.activation)}；` : ''}能力：${ability.title}`,
-              objectId: createPublicObjectId(cardId),
-              effectText: ability.text,
-              ...activationResources,
-            },
-            {
-              type: GameCommandType.ACTIVATE_ABILITY,
-              cardId,
-              abilityId: ability.abilityId,
-              ...(ability.abilityInstanceId
-                ? { abilityInstanceId: ability.abilityInstanceId }
-                : {}),
-            }
-          );
+          const facts = {
+            description: `起动 ${cardName(cardId)}；${activationResources.activation ? `${describeAiActivationResources(activationResources.activation)}；` : ''}能力：${ability.title}`,
+            objectId: createPublicObjectId(cardId),
+            effectText: ability.text,
+            ...activationResources,
+          };
+          const command = {
+            type: GameCommandType.ACTIVATE_ABILITY as const,
+            cardId,
+            abilityId: ability.abilityId,
+            ...(ability.abilityInstanceId ? { abilityInstanceId: ability.abilityInstanceId } : {}),
+          };
+          addAction(facts, command);
+          for (const { targetObjectId, followUp } of queryAiActivationFollowUps(
+            game,
+            playerId,
+            cardId,
+            ability.abilityId,
+            view,
+            ability.abilityInstanceId
+          )) {
+            const ref = addAction(
+              {
+                ...facts,
+                description: `起动 ${cardName(cardId)}（预选 ${describeAiCardIdentity(view.objects[targetObjectId]!.frontInfo!)}）；${facts.description.split('；').slice(1).join('；')}`,
+                followUpTargetObjectId: targetObjectId,
+              },
+              command
+            );
+            activationFollowUps.set(ref, followUp);
+          }
         }
       }
     }
@@ -332,13 +376,8 @@ export function buildAiBattleDecision(
       // A kept LIVE stays in the same merged all-or-nothing judgment as any newly set LIVE;
       // members already set do not participate, so only tag the LIVE keeps.
       const keepTag =
-        front.cardType === CardType.LIVE
-          ? '；保留的 LIVE 仍并入本轮合并判定（全成或全败）'
-          : '';
-      addCard(
-        cardId,
-        `保留本次已盖牌 ${describeAiCardIdentity(front)}；仍作为最终盖牌${keepTag}`
-      );
+        front.cardType === CardType.LIVE ? '；保留的 LIVE 仍并入本轮合并判定（全成或全败）' : '';
+      addCard(cardId, `保留本次已盖牌 ${describeAiCardIdentity(front)}；仍作为最终盖牌${keepTag}`);
     }
     if (enabled(GameCommandType.SET_LIVE_CARD))
       for (const cardId of player.hand.cardIds)
@@ -442,6 +481,7 @@ export function buildAiBattleDecision(
     decision: {
       input,
       ...(toCommands ? { toCommands } : {}),
+      ...(activationFollowUps.size ? { activationFollowUps } : {}),
       toCommand(selection, timestamp) {
         validateSelection(space, selection);
         if (toCommands) {

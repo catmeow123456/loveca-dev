@@ -44,14 +44,43 @@ export function readFrozenGreenHasunosoraDeck() {
 export function readFrozenBluePurpleDeck() {
   return readFrozenDeck(
     '蓝紫.yaml',
-    '虹ヶ咲',
+    frozenGroups,
     '040ba2258970d6804146985605088c926f12898d9a22736ec4164ff46c2d077e',
     '0d61f31c84ee5757e4509a81d1fd0a9b197dd0bb159d0cbbb42b0b8826c76260'
   );
 }
 
+export function readFrozenLikeATreasureDeck() {
+  return readFrozenDeck(
+    'Like a Treasure.yaml',
+    frozenGroups,
+    '5d696a1ebcf00dd7b394cf0dabd935eefacb2eb46355c62b758192b0530ccd35',
+    '44a526b2bdc044450a75afada3b4fecec6bf07fb997267cfa3035f1f5b8c38eb'
+  );
+}
+
+function frozenGroups(card: RawCard): readonly string[] {
+  const groups: Record<string, string> = {
+    'ラブライブ！': "μ's",
+    'ラブライブ！サンシャイン!!': 'Aqours',
+    'ラブライブ！スーパースター!!': 'Liella!',
+    'ラブライブ！蓮ノ空女学院スクールアイドルクラブ': '蓮ノ空',
+    'ラブライブ！虹ヶ咲学園スクールアイドル同好会': '虹ヶ咲',
+  };
+  return card.series.split('\n').map((series) => {
+    const group = groups[series.trim()];
+    if (!group) throw new Error(`Unknown frozen work: ${series}`);
+    return group;
+  });
+}
+
 /** Test-only exact-printing facts; never a runtime card-source fallback. */
-function readFrozenDeck(file: string, group: string, expectedYaml: string, expectedFacts: string) {
+function readFrozenDeck(
+  file: string,
+  group: string | ((card: RawCard) => readonly string[]),
+  expectedYaml: string,
+  expectedFacts: string
+) {
   const yaml = readFileSync(new URL(`../../assets/decks/${file}`, import.meta.url), 'utf8');
   const config = parse(yaml) as {
     main_deck: { members: Entry[]; lives: Entry[] };
@@ -75,7 +104,11 @@ function readFrozenDeck(file: string, group: string, expectedYaml: string, expec
       `The ${file} deck/facts changed; review the support matrix before accepting a new baseline`
     );
   const registry = new CardDataRegistry();
-  registry.load(facts.map(([code, , card]) => convertCard(code, card, group)));
+  registry.load(
+    facts.map(([code, , card]) =>
+      convertCard(code, card, typeof group === 'string' ? [group] : group(card))
+    )
+  );
   const loaded = loadDeckFromYamlString(yaml, registry);
   if (!loaded.success || !loaded.deck || loaded.warnings.length)
     throw new Error(JSON.stringify({ errors: loaded.errors, warnings: loaded.warnings }));
@@ -105,7 +138,7 @@ function hearts(raw: Record<string, number> = {}): HeartIcon[] {
     return { color, count };
   });
 }
-function convertCard(code: string, raw: RawCard, group: string): AnyCardData {
+function convertCard(code: string, raw: RawCard, groups: readonly string[]): AnyCardData {
   const bladeHearts: BladeHeartItem[] = [];
   for (const [key, count] of Object.entries(raw.blade_heart ?? {})) {
     const color = key === 'b_all' ? HeartColor.RAINBOW : colors[key.replace(/^b_/, '')];
@@ -126,7 +159,7 @@ function convertCard(code: string, raw: RawCard, group: string): AnyCardData {
     cardText: raw.ability,
     cardTextJp: raw.ability,
     workNames: [raw.series],
-    groupNames: [group],
+    groupNames: groups,
     unitName: raw.unit,
     bladeHearts,
   };

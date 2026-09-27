@@ -15,7 +15,7 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map((d) => rm(d, { recursive: true, force: true })));
   vi.unstubAllEnvs();
 });
-async function fixture(mode = 'normal', turnErrorInfo: unknown = null) {
+async function fixture(mode = 'normal', turnErrorInfo: unknown = null, fastMode = false) {
   const dir = await mkdtemp(join(tmpdir(), 'loveca-session-test-'));
   dirs.push(dir);
   await writeFile(
@@ -31,7 +31,7 @@ async function fixture(mode = 'normal', turnErrorInfo: unknown = null) {
  let turns=0,threads=0;const mode=${JSON.stringify(mode)},log=${JSON.stringify(log)};
  const send=m=>process.stdout.write(JSON.stringify(m)+'\\n');
  rl.on('line',line=>{const m=JSON.parse(line);if(!m.method)return;
- fs.appendFileSync(log,JSON.stringify({method:m.method,params:m.method==='account/login/start'?{type:m.params.type}:m.params,home:process.env.CODEX_HOME,cwd:process.cwd(),hasAuth:fs.existsSync(process.env.CODEX_HOME+'/auth.json'),hasConfig:fs.existsSync(process.env.CODEX_HOME+'/config.toml')})+'\\n');
+ fs.appendFileSync(log,JSON.stringify({args:process.argv.slice(2),method:m.method,params:m.method==='account/login/start'?{type:m.params.type}:m.params,home:process.env.CODEX_HOME,cwd:process.cwd(),hasAuth:fs.existsSync(process.env.CODEX_HOME+'/auth.json'),hasConfig:fs.existsSync(process.env.CODEX_HOME+'/config.toml')})+'\\n');
  if(m.id===undefined)return;
  if(m.method==='thread/start')return send({id:m.id,result:{thread:{id:'t-'+(++threads),ephemeral:true}}});
  if(m.method==='thread/compact/start'){
@@ -57,8 +57,8 @@ async function fixture(mode = 'normal', turnErrorInfo: unknown = null) {
  });`;
   await writeFile(cli, script, { mode: 0o700 });
   const session = new CodexBattleSession(
-    { cliPath: cli, reasoningEffort: 'low', frontendOrigin: 'http://localhost:5173' },
-    'codex:gpt-5.6-luna'
+    { cliPath: cli, fastMode, reasoningEffort: 'low', frontendOrigin: 'http://localhost:5173' },
+    'codex:gpt-6-luna'
   );
   sessions.push(session);
   return {
@@ -74,6 +74,24 @@ async function fixture(mode = 'normal', turnErrorInfo: unknown = null) {
 const schema = { type: 'object' },
   signal = () => AbortSignal.timeout(3000);
 describe('isolated ephemeral Codex sessions', () => {
+  it.each([true, false])(
+    'keeps speed %s on the isolated thread and subsequent turns',
+    async (fastMode) => {
+      const f = await fixture('normal', null, fastMode);
+      await f.session.decide('FIRST', schema, signal());
+      await f.session.decide('NEXT', schema, signal());
+      const records = await f.records();
+      const requests = records.filter(
+        (r) => r.method === 'thread/start' || r.method === 'turn/start'
+      );
+      expect(requests).toHaveLength(3);
+      for (const r of requests) {
+        expect(r.params.serviceTier).toBe(fastMode ? 'priority' : null);
+        expect(r.args).toContain(`features.fast_mode=${fastMode}`);
+        expect(r.hasConfig).toBe(false);
+      }
+    }
+  );
   it.each([
     ['usageLimitExceeded', { category: 'usageLimitExceeded' }],
     ['unauthorized', { category: 'unauthorized' }],

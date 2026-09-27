@@ -243,16 +243,27 @@ export function registerSelfSacrificeWaitingRoomToHandWorkflowHandlers(
         return player !== null && findMemberSlot(player, cardId) !== null;
       }
     );
-    registerActivatedAbilityResourceQuery(config.abilityId, (game, playerId, cardId) => ({
-      costs: getSourceMemberToWaitingRoomCosts(),
-      targetCardIds: selectWaitingRoomTargetsAfterSourceCost(
+    registerActivatedAbilityResourceQuery(config.abilityId, (game, playerId, cardId) => {
+      const targetCardIds = selectWaitingRoomTargetsAfterSourceCost(
         game,
         playerId,
         cardId,
         config.selectablePredicate
-      ),
-      destination: 'HAND',
-    }));
+      );
+      const required = config.selectionRequiredWhenHasTargets === true && targetCardIds.length > 0;
+      return {
+        costs: getSourceMemberToWaitingRoomCosts(),
+        targetCardIds,
+        destination: 'HAND',
+        immediateSelection: {
+          stepId: config.stepId,
+          // The SINGLE input contract selects one card; optional skipping is separate.
+          min: 1,
+          max: 1,
+          canSkip: !required,
+        },
+      };
+    });
     registerActiveEffectStepHandler(
       config.abilityId,
       config.stepId,

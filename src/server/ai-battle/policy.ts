@@ -7,8 +7,14 @@ import {
   type AiSelection,
 } from './decision.js';
 
-/** Strategic phase completion remains a model decision even when no development is affordable. */
+/** Only forced choices bypass the model; unaffordable development alone is not sufficient. */
 export function getAiMechanicalSelection(decision: AiDecision): AiSelection | null {
+  if (decision.input.purpose === 'MAIN') {
+    const space = decision.input.space;
+    if (space.kind !== 'ACTION' || space.candidates.length !== 1) return null;
+    const selection: AiSelection = { kind: 'ACTION', actionRef: space.candidates[0]!.ref };
+    return decision.toCommand(selection, 0).type === GameCommandType.END_PHASE ? selection : null;
+  }
   if (decision.input.purpose === 'SUCCESS_LIVE') {
     const candidates = decision.input.space.candidates;
     return candidates.length === 1 ? { kind: 'ACTION', actionRef: candidates[0]!.ref } : null;
