@@ -31,6 +31,8 @@ import {
   SubPhase,
 } from '../../src/shared/types/enums';
 import { createMemoryAiBilling } from '../helpers/ai-battle-billing';
+import { createMemoryAiEvidence } from '../helpers/ai-battle-evidence';
+import type { AiEvidenceRepository } from '../../src/server/ai-battle/evidence-repository';
 
 const auth = vi.hoisted(() => ({ roles: new Map<string, string>() }));
 vi.mock('../../src/server/db/pool.js', () => ({
@@ -72,7 +74,10 @@ const material = {
   content: 'test knowledge',
 };
 
-function createService(models: readonly AiBattleModel[] = API_AI_BATTLE_MODELS) {
+function createService(
+  models: readonly AiBattleModel[] = API_AI_BATTLE_MODELS,
+  evidence: AiEvidenceRepository = createMemoryAiEvidence()
+) {
   const billing = createMemoryAiBilling();
   const traces = new AiBattleTraceStore();
   const matches = new OnlineMatchService({ recorder: null });
@@ -92,6 +97,7 @@ function createService(models: readonly AiBattleModel[] = API_AI_BATTLE_MODELS) 
     traces,
     availableModels: () => models,
     billingPersistence: billing.persistence,
+    evidenceRepository: evidence,
     matchService: matches,
     driver: { start, stop: vi.fn(async () => {}) },
     createModel,
@@ -119,11 +125,11 @@ function createService(models: readonly AiBattleModel[] = API_AI_BATTLE_MODELS) 
         }),
     },
   });
-  return { service, matches, createModel, start, billing, traces };
+  return { service, matches, createModel, start, billing, evidence, traces };
 }
 
-async function serverFixture(models?: readonly AiBattleModel[]) {
-  const f = createService(models);
+async function serverFixture(models?: readonly AiBattleModel[], evidence?: AiEvidenceRepository) {
+  const f = createService(models, evidence);
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
@@ -328,7 +334,7 @@ describe('AI administrator routes and ownership', () => {
     expect(f.createModel).not.toHaveBeenCalled();
   });
 
-  it('offers a per-game local archive toggle and streams only the owning administrator archive', async () => {
+  it('offers a per-game local archive toggle and streams it to platform administrators', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'loveca-route-archive-'));
     archiveDirs.push(dir);
     for (const [key, value] of Object.entries({
@@ -372,7 +378,7 @@ describe('AI administrator routes and ownership', () => {
     expect(enabled.status).toBe(201);
     const id = (await enabled.json()).data.session.matchId;
     expect(f.service.listDecisions('owner', id).archive?.state).toBe('RECORDING');
-    expect((await f.request(`/ai/sessions/${id}/archive`, { userId: 'other' })).status).toBe(404);
+    expect((await f.request(`/ai/sessions/${id}/archive`, { userId: 'other' })).status).toBe(200);
     expect(
       (
         await f.request(`/ai/sessions/${id}/archive`, {
@@ -704,11 +710,101 @@ describe('AI administrator routes and ownership', () => {
         },
       },
     });
-    expect((await f.request(path, { userId: 'other' })).status).toBe(404);
+    expect((await f.request(path, { userId: 'other' })).status).toBe(200);
     expect((await f.request(path)).status).toBe(401);
     auth.roles.set('owner', 'user');
     expect((await f.request(path, { userId: 'owner' })).status).toBe(403);
     expect(f.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('rolls back creation when the database evidence header cannot be saved', async () => {
+    const evidence: AiEvidenceRepository = {
+      ...createMemoryAiEvidence(),
+      append: () => Promise.reject(new Error('database unavailable')),
+    };
+    const f = await serverFixture(undefined, evidence);
+    auth.roles.set('owner', 'admin');
+    const response = await f.request('/ai/sessions', { userId: 'owner', body: input });
+    expect(response.status).toBe(503);
+    expect((await response.json()).error.code).toBe('AI_EVIDENCE_OPEN_FAILED');
+    expect(f.matches.getRuntimeStats().matchCount).toBe(0);
+    expect(f.service.listVisibleSessions()).toEqual([]);
+    expect(f.start).not.toHaveBeenCalled();
+  });
+
+  it('exports redacted database evidence for another administrator after session expiry and service restart', async () => {
+    const f = await serverFixture();
+    auth.roles.set('owner', 'admin');
+    auth.roles.set('other', 'admin');
+    const { session } = await f.service.create('owner', input);
+    f.traces.begin(session.matchId, {
+      id: 'persisted-decision',
+      revision: 1,
+      windowKey: 'test-window',
+      seat: 'SECOND',
+      purpose: 'MAIN',
+    });
+    for (let index = 0; index < 105; index++)
+      f.traces.append(session.matchId, 'persisted-decision', 'REQUEST', {
+        text: 'durable model request',
+        index,
+      });
+    await f.service.end('owner', session.matchId);
+    const path = `/ai/records/${session.matchId}/evidence`;
+    const response = await f.request(path, { userId: 'other' });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    const lines = (await response.text())
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    expect(lines[0]).toMatchObject({
+      format: 'loveca-ai-evidence-v1',
+      kind: 'EXPORT',
+      matchId: session.matchId,
+      completeThroughEnd: true,
+    });
+    expect(lines.map((line) => line.entry?.kind)).toContain('SOURCES');
+    expect(lines.map((line) => line.entry?.kind)).toContain('BILLING');
+    expect(lines.at(-1).entry.kind).toBe('END');
+    expect(lines.find((line) => line.entry?.kind === 'APPEND').entry.payload).toMatchObject({
+      decisionId: 'persisted-decision',
+      payload: { text: 'durable model request', index: 0 },
+    });
+    expect(lines.filter((line) => line.entry?.kind === 'APPEND')).toHaveLength(105);
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 61 * 60 * 1000);
+    f.service.cleanup();
+    expect(f.service.listVisibleSessions()).toEqual([]);
+    expect((await f.request(path, { userId: 'other' })).status).toBe(200);
+    const restarted = new AiBattleService({
+      createModel: f.createModel,
+      evidenceRepository: f.evidence,
+      matchService: new OnlineMatchService({ recorder: null }),
+    });
+    const afterRestart = await restarted.exportEvidence(session.matchId);
+    expect(afterRestart.manifest).toContain('"completeThroughEnd":true');
+    let persisted = '';
+    for await (const line of afterRestart.stream) persisted += line;
+    expect(persisted).toContain('persisted-decision');
+    auth.roles.set('other', 'user');
+    expect((await f.request(path, { userId: 'other' })).status).toBe(403);
+    expect((await f.request('/ai/records/not-a-match/evidence', { userId: 'owner' })).status).toBe(
+      404
+    );
+  });
+
+  it('keeps an active evidence export bounded when new entries arrive during pagination', async () => {
+    const f = await serverFixture();
+    const { session } = await f.service.create('owner', input);
+    for (let index = 0; index < 105; index++)
+      await f.evidence.append(session.matchId, { kind: 'APPEND', index });
+    const exported = await f.service.exportEvidence(session.matchId);
+    await f.evidence.append(session.matchId, { kind: 'APPEND', index: 105 });
+    const lines = [];
+    for await (const line of exported.stream) lines.push(JSON.parse(line));
+    expect(lines).toHaveLength(Number(JSON.parse(exported.manifest).lastSequence));
+    expect(lines.at(-1).entry.index).toBe(104);
+    expect(exported.manifest).toContain('"completeThroughEnd":false');
   });
   it('serves retained observations without driving the game and scopes a decision to its own match', async () => {
     const f = await serverFixture();
@@ -762,7 +858,7 @@ describe('AI administrator routes and ownership', () => {
     }
   );
 
-  it('creates only the authenticated human seat and denies another administrator before and after end', async () => {
+  it('shares observation with administrators but keeps gameplay and ending owner-only', async () => {
     const f = await serverFixture();
     auth.roles.set('owner', 'admin');
     auth.roles.set('other', 'admin');
@@ -772,28 +868,32 @@ describe('AI administrator routes and ownership', () => {
       await created.json()
     ).data;
     const id = data.session.matchId;
+    const visible = await f.request('/ai/sessions', { userId: 'other' });
+    expect(visible.status).toBe(200);
+    expect((await visible.json()).data).toMatchObject([
+      { matchId: id, ownerUserId: 'owner', ownerDisplayName: '管理员' },
+    ]);
     const match = f.matches.getMatch(id)!;
     expect(match.participants.FIRST).toMatchObject({ userId: 'owner', participantKind: 'USER' });
     expect(match.participants.SECOND).toMatchObject({
       ownerUserId: 'owner',
       participantKind: 'SYSTEM',
     });
-    for (const suffix of [
-      '',
-      '/snapshot',
-      '/public-events',
-      '/decisions',
-      '/decisions/1',
-      '/export',
-      '/end',
-      '/advance',
-    ]) {
+    for (const suffix of ['', '/snapshot', '/public-events', '/end', '/advance']) {
       const response = await f.request(`/ai/sessions/${id}${suffix}`, {
         userId: 'other',
         method: suffix === '/end' || suffix === '/advance' ? 'POST' : 'GET',
       });
       expect(response.status).toBe(404);
     }
+    for (const suffix of ['/decisions', '/export']) {
+      expect((await f.request(`/ai/sessions/${id}${suffix}`, { userId: 'other' })).status).toBe(
+        200
+      );
+    }
+    expect((await f.request(`/ai/sessions/${id}/decisions/1`, { userId: 'other' })).status).toBe(
+      404
+    );
     const command = {
       type: GameCommandType.MULLIGAN,
       playerId: match.participants.SECOND.playerId,
@@ -826,7 +926,7 @@ describe('AI administrator routes and ownership', () => {
     expect((await f.request(`/ai/sessions/${id}`, { userId: 'other' })).status).toBe(404);
     expect((await f.request(`/ai/sessions/${id}`, { userId: 'owner' })).status).toBe(200);
     expect((await f.request(`/ai/sessions/${id}/export`, { userId: 'owner' })).status).toBe(200);
-    expect((await f.request(`/ai/sessions/${id}/export`, { userId: 'other' })).status).toBe(404);
+    expect((await f.request(`/ai/sessions/${id}/export`, { userId: 'other' })).status).toBe(200);
     auth.roles.set('owner', 'user');
     expect((await f.request(`/ai/sessions/${id}`, { userId: 'owner' })).status).toBe(403);
     expect((await f.request(`/ai/sessions/${id}/export`, { userId: 'owner' })).status).toBe(403);

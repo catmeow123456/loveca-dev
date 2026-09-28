@@ -80,16 +80,35 @@ export function createAiBattleRouter(service: AiBattleService): Router {
     }
   });
   router.get('/sessions', (req, res) => {
-    res.json({ data: service.listSessions(req.user!.id), error: null });
+    res.json({ data: service.listVisibleSessions(), error: null });
   });
   router.get('/records/:matchId/billing', async (req, res, next) => {
     try {
       res.json({
-        data: await service.getRecordedBilling(req.user!.id, req.params.matchId),
+        data: await service.getRecordedBilling(req.params.matchId),
         error: null,
       });
     } catch (error) {
       next(error);
+    }
+  });
+  router.get('/records/:matchId/evidence', async (req, res, next) => {
+    try {
+      const exportFile = await service.exportEvidence(req.params.matchId);
+      res.attachment(`loveca-ai-${encodeURIComponent(req.params.matchId)}.jsonl`);
+      res.type('application/x-ndjson');
+      await pipeline(
+        Readable.from(
+          (async function* () {
+            yield exportFile.manifest;
+            yield* exportFile.stream;
+          })()
+        ),
+        res
+      );
+    } catch (error) {
+      if (res.headersSent) res.destroy();
+      else next(error);
     }
   });
   router.post('/sessions', requireGameplayAvailable, async (req, res, next) => {

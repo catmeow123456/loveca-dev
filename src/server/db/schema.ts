@@ -1,6 +1,7 @@
 import {
   type AnyPgColumn,
   boolean,
+  bigserial,
   check,
   doublePrecision,
   foreignKey,
@@ -1711,6 +1712,19 @@ export const matchRecords = pgTable(
       sql`${table.winnerSeat} IS NULL OR ${table.winnerSeat} IN ('FIRST', 'SECOND')`
     ),
   ]
+);
+
+/** Opaque, append-only AI observation entries; their shape belongs to the capture format. */
+export const aiBattleEvidenceEntries = pgTable(
+  'ai_battle_evidence_entries',
+  {
+    id: bigserial('id', { mode: 'bigint' }).primaryKey(),
+    matchId: text('match_id')
+      .notNull()
+      .references(() => matchRecords.matchId, { onDelete: 'cascade' }),
+    entry: jsonb('entry').$type<Record<string, unknown>>().notNull(),
+  },
+  (table) => [index('idx_ai_battle_evidence_match_id_id').on(table.matchId, table.id)]
 );
 
 export const matchDeckSnapshots = pgTable(

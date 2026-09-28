@@ -63,6 +63,8 @@ import type {
 } from '@game/online';
 import { hasPermission } from '@game/shared/auth/permissions';
 import { AiRecordedBilling } from '@/components/admin/AiRecordedBilling';
+import { exportAiRecordedEvidence } from '@/lib/aiBattleClient';
+import { saveAs } from 'file-saver';
 
 interface MatchRecordsPageProps {
   onBack: () => void;
@@ -830,6 +832,28 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     }
   }, [canExport, selectedRecord]);
 
+  const handleExportAiEvidence = useCallback(async () => {
+    if (
+      !selectedRecord ||
+      selectedRecord.originKind !== 'AI_DEBUG' ||
+      !profile ||
+      !hasPermission(profile.role, 'rules.manage')
+    )
+      return;
+    setIsExporting(true);
+    setError(null);
+    try {
+      saveAs(
+        await exportAiRecordedEvidence(selectedRecord.matchId),
+        `loveca-ai-${selectedRecord.matchId}.jsonl`
+      );
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : '导出 AI 决定材料失败');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [profile, selectedRecord]);
+
   if (replayBoardOpen && replay) {
     return (
       <ReplayBoardSurface
@@ -955,6 +979,19 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                         导出
                       </button>
                     ) : null}
+                    {selectedRecord.originKind === 'AI_DEBUG' &&
+                    profile &&
+                    hasPermission(profile.role, 'rules.manage') ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleExportAiEvidence()}
+                        disabled={isExporting}
+                        className="button-ghost inline-flex h-9 items-center justify-center gap-1.5 border border-[var(--border-default)] px-3 text-xs font-semibold disabled:opacity-50"
+                      >
+                        <Download size={14} />
+                        导出 AI 决定材料
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -964,8 +1001,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
               {selectedRecord?.originKind === 'AI_DEBUG' &&
                 profile &&
                 hasPermission(profile.role, 'rules.manage') &&
-                detail?.matchId === selectedRecord.matchId &&
-                detail.participants.some((participant) => participant.userId === profile.id) && (
+                detail?.matchId === selectedRecord.matchId && (
                   <AiRecordedBilling
                     key={selectedRecord.matchId}
                     matchId={selectedRecord.matchId}

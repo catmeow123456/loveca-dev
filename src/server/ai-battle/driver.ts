@@ -147,6 +147,9 @@ export class AiBattleDriver {
         entry.timer.unref?.();
         return;
       case 'ENDED':
+        entry.observer?.end();
+        void this.stop(entry.matchId);
+        return;
       case 'STOPPED':
         void this.stop(entry.matchId);
         return;

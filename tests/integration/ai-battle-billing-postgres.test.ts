@@ -58,6 +58,19 @@ it.skipIf(!api || !databaseUrl)(
         )
         .toBe(1);
       expect((await request(`/sessions/${matchId}/end`, {})).status).toBe(200);
+      const evidence = await request(`/records/${matchId}/evidence`);
+      expect(evidence.status).toBe(200);
+      const evidenceLines = (await evidence.text())
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line));
+      expect(evidenceLines[0]).toMatchObject({
+        format: 'loveca-ai-evidence-v1',
+        matchId,
+        completeThroughEnd: true,
+      });
+      expect(evidenceLines.some((line) => line.entry?.kind === 'SOURCES')).toBe(true);
+      expect(evidenceLines.at(-1).entry.kind).toBe('END');
       const billing = (
         await data<AiRecordedBillingResponse>(await request(`/records/${matchId}/billing`))
       ).matchBilling;
@@ -113,6 +126,9 @@ it.skipIf(!api || !databaseUrl)(
         expect(projectAiBilling((await repository.readOwned(matchId!, owner))!).estimatedCny).toBe(
           '0.05159420'
         );
+        expect(projectAiBilling((await repository.read(matchId!))!).estimatedCny).toBe(
+          '0.05159420'
+        );
         expect(
           await repository.readOwned(matchId!, '00000000-0000-0000-0000-000000000000')
         ).toBeUndefined();
@@ -121,6 +137,7 @@ it.skipIf(!api || !databaseUrl)(
           matchId,
         ]);
         expect(await repository.readOwned(matchId!, owner)).toBeNull();
+        expect(await repository.read(matchId!)).toBeNull();
         await repository.save(matchId!, first);
         await expect(
           client.query("UPDATE match_records SET origin_kind = 'SOLITAIRE' WHERE match_id = $1", [

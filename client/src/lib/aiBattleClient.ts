@@ -38,6 +38,11 @@ export const fetchAiRecordedBilling = (id: string, signal?: AbortSignal) =>
       signal,
     })
   );
+export async function exportAiRecordedEvidence(id: string): Promise<Blob> {
+  const response = await apiClient.getBlob(`${ROOT}/records/${encodeURIComponent(id)}/evidence`);
+  if (!response.data) throw toApiClientError(response, '导出 AI 决定材料失败');
+  return response.data;
+}
 export const createAiBattle = (input: CreateAiBattleInput) =>
   data(apiClient.post<CreateAiBattleResult>(`${ROOT}/sessions`, input));
 export const fetchAiBattleSession = (id: string) =>

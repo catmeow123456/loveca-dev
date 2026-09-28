@@ -154,6 +154,7 @@ export function safeAiErrorForLog(error: unknown): {
 export interface AiBillingPersistence {
   save(matchId: string, record: AiBillingRecord): Promise<void>;
   readOwned(matchId: string, ownerUserId: string): Promise<AiBillingRecord | null | undefined>;
+  read(matchId: string): Promise<AiBillingRecord | null | undefined>;
 }
 
 /** One game's cumulative facts. Individual requests live only in their HTTP callback closures. */

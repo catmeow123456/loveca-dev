@@ -11,6 +11,7 @@ export function createMemoryAiBilling(ownerUserId = 'owner') {
       return Promise.resolve();
     },
     readOwned: (id, owner) => Promise.resolve(owner === ownerUserId ? records.get(id) : undefined),
+    read: (id) => Promise.resolve(records.get(id)),
   };
   return { records, persistence };
 }

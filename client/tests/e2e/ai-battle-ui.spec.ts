@@ -214,7 +214,7 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
           await page.keyboard.press('Escape');
           await expect(tooltip).not.toBeVisible();
           await expect(dialog).toBeVisible();
-          const billing = await f.service.getRecordedBilling(f.owner, id);
+          const billing = await f.service.getRecordedBilling(id);
           expect(billing.matchBilling?.estimatedCny).toBe('0.38659200');
           const requestMaterial = dialog
             .locator('.ai-material')

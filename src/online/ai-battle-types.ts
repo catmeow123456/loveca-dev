@@ -30,6 +30,8 @@ export interface CreateAiBattleInput extends AiBattlePresetInput {
 }
 
 export interface AiBattleSessionView extends CreateAiBattleInput {
+  readonly ownerUserId: string;
+  readonly ownerDisplayName: string;
   readonly matchBilling: AiMatchBilling;
   /** Frozen local test limits, only available for current Codex sessions. */
   readonly codexBudget?: CodexBattleBudget;

@@ -38,4 +38,13 @@ export class AiBillingRepository implements AiBillingPersistence {
     );
     return result.rows[0]?.ai_billing;
   }
+
+  async read(matchId: string): Promise<AiBillingRecord | null | undefined> {
+    const result = await this.queryClient.query<{ ai_billing: AiBillingRecord | null }>(
+      `SELECT ai_billing FROM match_records
+       WHERE match_id = $1 AND origin_kind = 'AI_DEBUG'`,
+      [matchId]
+    );
+    return result.rows[0]?.ai_billing;
+  }
 }

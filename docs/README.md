@@ -67,7 +67,7 @@
 
 版本迁移：[3.10.5 → 3.10.6](../drizzle/migration-notes/3.10.5-to-3.10.6.md) 汇总 AI 对战来源、计费字段、配置与回退边界；生产操作仍按发布 Runbook 执行。
 
-AI 专题入口：[LIVE 概率辅助](ai-battle/live-probability.md)维护通用概率基线、只读批量条件查询与估算边界；[本地 Codex 接入](ai-battle/local-codex.md)维护本机订阅测试的环境配置、预算及归档启用步骤；[支持矩阵](ai-battle/support-matrix.md)维护构筑与窗口边界；[运行与观测说明](ai-battle/runtime-and-observation.md)维护实现、权限与证据契约；[token 计费与费用展示](ai-battle/token-billing-proposal.md)维护 API 模型的价格快照、单步提示、整局持久累计与未知用量口径，部署需执行 [0040 迁移](../drizzle/migration-notes/ai-battle-billing.md)；[完整环境验证](ai-battle/full-environment-validation.md)维护复现条件。
+AI 专题入口：[LIVE 概率辅助](ai-battle/live-probability.md)维护通用概率基线、只读批量条件查询与估算边界；[本地 Codex 接入](ai-battle/local-codex.md)维护本机订阅测试的环境配置、预算及归档启用步骤；[支持矩阵](ai-battle/support-matrix.md)维护构筑与窗口边界；[运行与观测说明](ai-battle/runtime-and-observation.md)维护实现、权限与证据契约；[token 计费与费用展示](ai-battle/token-billing-proposal.md)维护 API 模型的价格快照、单步提示、整局持久累计与未知用量口径，部署需执行 [0040 迁移](../drizzle/migration-notes/ai-battle-billing.md)；[数据库决定归档迁移](../drizzle/migration-notes/ai-battle-evidence.md)维护 0041 的结构、执行顺序及回退边界；[完整环境验证](ai-battle/full-environment-validation.md)维护复现条件。
 
 ## 编码标准
 

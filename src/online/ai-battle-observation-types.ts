@@ -11,6 +11,13 @@ export interface AiLocalArchiveStatus {
   readonly failure?: 'FILE_LIMIT' | 'QUEUE_LIMIT' | 'WRITE_FAILED' | 'CAPTURE_FAILED';
 }
 
+export interface AiDatabaseArchiveStatus {
+  readonly state: 'RECORDING' | 'ENDED' | 'FAILED';
+  readonly queuedBytes: number;
+  readonly writtenEntries: number;
+  readonly failure?: 'QUEUE_LIMIT' | 'WRITE_FAILED' | 'CAPTURE_FAILED';
+}
+
 /** Administrator-only diagnostic DTOs. These never enter the normal player snapshot. */
 export interface AiTraceMaterial {
   readonly id: string;
@@ -56,6 +63,7 @@ export interface AiTraceDecision extends Omit<AiTraceDecisionSummary, 'submissio
 
 export interface AiTraceListing {
   readonly archive?: AiLocalArchiveStatus;
+  readonly databaseArchive?: AiDatabaseArchiveStatus;
   readonly matchBilling: AiMatchBilling | null;
   readonly revision: number;
   readonly endedAt: number | null;

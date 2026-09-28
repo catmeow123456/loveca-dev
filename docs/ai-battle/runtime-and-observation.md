@@ -100,9 +100,17 @@ MAIN 的普通登场选项按同一张手牌实例归入 `space.memberPlays`，�
 
 `SAMPLE`、模型输出/校验、失败、准备的机械/兜底选择、等待、`SUBMIT`、`AUTHORITY_RESULT` 与结束状态分别记录。实际命令带既有 command record 引用。记录追加异常不重复执行命令。HTTP 元数据和原始正文分开采集，因此正文达到观测上限时，仍可区分上游长度截断、HTTP 读取上限、观测容量裁剪与 UI 折叠。凭据字段、错误中反射的实际 Key、URL/JSON 编码和读取边缘的 Key 前缀均在采集时脱敏；不保存 Authorization 请求头。
 
+## 数据库决定归档
+
+每局 AI_DEBUG 都将相同采集链路在内存淘汰和裁剪前脱敏，以 `HEADER`、`SOURCES`、`BEGIN`、`APPEND`、`BILLING`、`END` 等不限定正文形状的事件追加到 PostgreSQL `ai_battle_evidence_entries`。表只存对局 ID、自增顺序和 `entry JSONB`，不以当前决定 DTO、模型协议或事件名称建立列及 CHECK；未来 AI 模块重构可改变新事件的内部格式，既有行仍可作为原始 JSONL 导出。数据随 `match_records` 存在；旧局不会凭空补齐决定材料。迁移和回退见[数据库决定归档迁移](../../drizzle/migration-notes/ai-battle-evidence.md)。
+
+单局按序异步写入，开始驱动前确认 HEADER 与 SOURCES 已持久化，正常结束等待已入队事件写完。数据库写入或序列化失败、待写内存达到 16 MiB 时停止该局归档，不阻断已开始的权威对局；导出只提供已写入前缀，首行 `EXPORT.completeThroughEnd` 为 `false`。服务进程异常退出可能失去尚未写入的队列，故缺少最后的 `END` 不能视为完整归档。导出在固定最后序号处分批读取，避免将整局材料载入服务端内存。普通回放的清理策略不清理该表；只有删除 `match_records` 根记录才级联删除归档。
+
+所有当前平台管理员可在观察框导出数据库 JSONL，也可在对局记录详情导出历史 AI 决定材料；后者不依赖内存会话、原始创建者或服务器重启。此 JSONL 是诊断事件，不用于恢复权威对局或代替回放。每行包含顺序号和不透明 `entry`，首行包含对局 ID、固定导出上界和完整性标志。旧格式无需运行时 dual-read；本次迁移前的 AI 对局仍只有当时已存的回放、费用和可选本地归档。
+
 ## 可选的本地完整归档
 
-`AI_BATTLE_LOCAL_ARCHIVE=1` 与 `AI_BATTLE_ARCHIVE_DIR=/仓库外/绝对目录` 只提供本机归档能力；建局表单的“完整归档到本机”默认不选，按局冻结。该能力独立于模型供应方，本地 Codex 和 API 模型均可使用。必须同时满足 development、回环 API_HOST、本机数据库、本机 HTTP FRONTEND_URL 及回环请求检查，生产不可开启；不接收客户端指定路径。不开启时不创建文件，仍使用原有限观察缓存。
+`AI_BATTLE_LOCAL_ARCHIVE=1` 与 `AI_BATTLE_ARCHIVE_DIR=/仓库外/绝对目录` 只提供本机额外归档能力；建局表单的“完整归档到本机”默认不选，按局冻结。该能力独立于模型供应方，本地 Codex 和 API 模型均可使用。必须同时满足 development、回环 API_HOST、本机数据库、本机 HTTP FRONTEND_URL 及回环请求检查，生产不可开启；不接收客户端指定路径。不开启时不创建文件，数据库归档仍照常写入。
 
 开启后，现有 AI 席位观察链路在内存准入、淘汰和单项裁剪前，经 `serializeAiEvidence` 脱敏后追加仓库外 `loveca-ai-<matchId>.jsonl`，包括固定来源、BEGIN、APPEND（SAMPLE/REQUEST/RESPONSE/提交/结果/等待等）、BILLING、END 与采集失败。固定来源每局一份；不读取权威隐藏状态或另一席私有记录，不改变请求、策略和规则链，也不产生额外模型调用。异步写入按序，文件以排他方式创建、权限0600，新目录0700；真实路径位于仓库内（含符号链接指入）时拒绝建局。
 
@@ -114,21 +122,22 @@ MAIN 的普通登场选项按同一张手牌实例归入 `space.memberPlays`，�
 
 ## 当前路由工厂
 
-`createAiBattleRouter(service)` 挂在 `/api/admin/ai-battle`，整个路由树经过私密不缓存、登录与当前数据库 `rules.manage` 校验；服务再检查自身会话归属，包括已结束材料。通用 online 对局及管理员调试导出入口对 AI_DEBUG 同样检查当前权限和真人归属；AI_DEBUG 不生成管理员或房间号观战链接。
+`createAiBattleRouter(service)` 挂在 `/api/admin/ai-battle`，整个路由树经过私密不缓存、登录与当前数据库 `rules.manage` 校验。所有当前平台管理员可列出会话、查看有界观察材料、导出当前缓存、数据库归档或本机已开启的完整归档，并读取持久费用；真人桌面快照、命令与结束操作仍检查创建者归属。通用 online 对局及管理员调试导出入口对 AI_DEBUG 继续检查真人归属；AI_DEBUG 不生成管理员或房间号观战链接。对局记录页提供持久回放、费用和数据库决定归档。内存观察仍在结束一小时或重启后失效，数据库归档不受此限制。
 
-| 相对路径                                              | 用途                                     |
-| ----------------------------------------------------- | ---------------------------------------- |
-| `GET /presets`、`GET /sessions`                       | 允许的构筑/手册及自己的会话              |
-| `POST /sessions`                                      | 按构筑 ID、手册 ID、真人先后手和模型创建 |
-| `GET /sessions/:matchId`                              | 会话状态和本局计费累计                   |
-| `GET /records/:matchId/billing`                       | 本人 AI 对局的持久费用，不依赖内存会话   |
-| `GET /sessions/:matchId/snapshot`、`/public-events`   | 真人正常可见桌面和公开事件               |
-| `POST /sessions/:matchId/command`、`/advance`、`/end` | 真人命令、普通阶段推进与可重试的结束封存 |
-| `GET /sessions/:matchId/decisions`                    | 有修订号的简短列表                       |
-| `GET /sessions/:matchId/decisions/:decisionId`        | 某决定及其引用材料                       |
-| `GET /sessions/:matchId/export`                       | 可独立读取的当前保留会话 JSON            |
+| 相对路径                                              | 用途                                         |
+| ----------------------------------------------------- | -------------------------------------------- |
+| `GET /presets`、`GET /sessions`                       | 允许的构筑/手册及管理员共享的保留会话        |
+| `POST /sessions`                                      | 按构筑 ID、手册 ID、真人先后手和模型创建     |
+| `GET /sessions/:matchId`                              | 会话状态和本局计费累计                       |
+| `GET /records/:matchId/billing`                       | 管理员可读的 AI 对局持久费用，不依赖内存会话 |
+| `GET /records/:matchId/evidence`                      | 管理员可读的 AI 决定数据库 JSONL 归档        |
+| `GET /sessions/:matchId/snapshot`、`/public-events`   | 真人正常可见桌面和公开事件                   |
+| `POST /sessions/:matchId/command`、`/advance`、`/end` | 真人命令、普通阶段推进与可重试的结束封存     |
+| `GET /sessions/:matchId/decisions`                    | 有修订号的简短列表                           |
+| `GET /sessions/:matchId/decisions/:decisionId`        | 某决定及其引用材料                           |
+| `GET /sessions/:matchId/export`                       | 可独立读取的当前保留会话 JSON                |
 
-观测读取只克隆保留证据，不读取新的权威快照、不执行命令、不唤醒 AI。完整验证范围见[支持矩阵](support-matrix.md)。数据库需要[来源迁移](../../drizzle/migration-notes/ai-debug-match-origin.md)与[计费字段迁移](../../drizzle/migration-notes/ai-battle-billing.md)。
+观测读取只读取已采集证据，不读取新的权威快照、不执行命令、不唤醒 AI。完整验证范围见[支持矩阵](support-matrix.md)。数据库需要[来源迁移](../../drizzle/migration-notes/ai-debug-match-origin.md)、[计费字段迁移](../../drizzle/migration-notes/ai-battle-billing.md)和[决定归档迁移](../../drizzle/migration-notes/ai-battle-evidence.md)。
 
 ## 管理员页面
 

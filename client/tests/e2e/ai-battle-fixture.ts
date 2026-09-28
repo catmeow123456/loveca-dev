@@ -60,6 +60,9 @@ export async function aiBrowserFixture(page: Page, archiveDirectory?: string) {
         ? { directory: archiveDirectory, frontendOrigin: 'http://localhost:5173' }
         : null,
     billingPersistence: createMemoryAiBilling(OWNER).persistence,
+    evidenceRepository: (
+      await import('../../../tests/helpers/ai-battle-evidence')
+    ).createMemoryAiEvidence(),
     matchService: matches,
     traces,
     loadProfile: (userId) => Promise.resolve({ userId, displayName: '调试管理员' }),
@@ -192,7 +195,7 @@ export async function aiBrowserFixture(page: Page, archiveDirectory?: string) {
       const id = segments[5]!;
       const operation = segments[6];
       if (segments[4] === 'records' && operation === 'billing')
-        return fulfill(route, await service.getRecordedBilling(OWNER, id));
+        return fulfill(route, await service.getRecordedBilling(id));
       if (!operation) return fulfill(route, service.getSession(OWNER, id));
       if (operation === 'snapshot') {
         state.snapshots++;

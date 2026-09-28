@@ -13,6 +13,7 @@ import {
   fetchAiDecisions,
   exportAiBattle,
   exportAiArchive,
+  exportAiRecordedEvidence,
 } from '@/lib/aiBattleClient';
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
@@ -150,7 +151,8 @@ export function AiBattleObservationPanel({
           if (!controller.signal.aborted) {
             setListing((old) =>
               old?.revision === next.revision &&
-              JSON.stringify(old?.archive) === JSON.stringify(next.archive)
+              JSON.stringify(old?.archive) === JSON.stringify(next.archive) &&
+              JSON.stringify(old?.databaseArchive) === JSON.stringify(next.databaseArchive)
                 ? old
                 : next
             );
@@ -204,14 +206,17 @@ export function AiBattleObservationPanel({
       listing.discardedLateUpdates +
       listing.captureFailures >
       0;
-  const exportSession = async (archive = false) => {
+  const exportSession = async (source: 'cache' | 'local' | 'database' = 'cache') => {
     setIsExporting(true);
     setNotice(null);
     try {
-      saveAs(
-        archive ? await exportAiArchive(matchId) : await exportAiBattle(matchId),
-        `loveca-ai-${matchId}.${archive ? 'jsonl' : 'json'}`
-      );
+      const file =
+        source === 'local'
+          ? await exportAiArchive(matchId)
+          : source === 'database'
+            ? await exportAiRecordedEvidence(matchId)
+            : await exportAiBattle(matchId);
+      saveAs(file, `loveca-ai-${matchId}.${source === 'cache' ? 'json' : 'jsonl'}`);
     } catch (error) {
       setNotice(message(error));
     } finally {
@@ -258,12 +263,21 @@ export function AiBattleObservationPanel({
               <ArrowDownToLine size={15} />
               导出当前缓存
             </button>
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => void exportSession('database')}
+              disabled={isExporting}
+            >
+              <ArrowDownToLine size={15} />
+              导出数据库归档
+            </button>
             {listing?.archive && (
               <button
                 type="button"
                 className="button-secondary"
                 disabled={isExporting}
-                onClick={() => void exportSession(true)}
+                onClick={() => void exportSession('local')}
               >
                 <ArrowDownToLine size={15} />
                 {listing.archive.state === 'FAILED' ? '导出已有归档（不完整）' : '导出完整归档'}
@@ -288,6 +302,11 @@ export function AiBattleObservationPanel({
         {notice && (
           <p className="ai-notice" role="status">
             {notice}
+          </p>
+        )}
+        {listing?.databaseArchive?.state === 'FAILED' && (
+          <p className="ai-error" role="alert">
+            数据库归档已停止，历史导出只有已写入的材料前缀；请检查服务端数据库与日志。
           </p>
         )}
         {listing?.archive && (

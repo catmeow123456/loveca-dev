@@ -26,6 +26,7 @@ import {
   type CodexAiReasoningEffort,
 } from '@game/online/ai-battle-model-registry';
 import { AiBillingCost } from './AiBillingCost';
+import { useAuthStore } from '@/store/authStore';
 import './ai-battle.css';
 
 const activityLabels = {
@@ -62,7 +63,10 @@ export function AiBattleAdminPage({
   const [isBusy, setIsBusy] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const active = sessions.find((session) => session.endedAt === null);
+  const viewerUserId = useAuthStore((state) => state.profile?.id);
+  const active = sessions.find(
+    (session) => session.ownerUserId === viewerUserId && session.endedAt === null
+  );
   const selectedSession = sessions.find((session) => session.matchId === boardId);
   const humanPresets = presets.filter((preset) => preset.humanSelectable);
   const selectedHuman =
@@ -560,8 +564,10 @@ export function AiBattleAdminPage({
         <section className="product-workbench ai-session-section">
           <header>
             <div>
-              <h2>我的调试会话</h2>
-              <p>结束后保留一小时；服务器重启后观测材料失效。</p>
+              <h2>管理员调试会话</h2>
+              <p>
+                所有平台管理员可查看和导出观察材料。结束一小时后或服务器重启后，可到对局记录导出持久回放和数据库决定归档。
+              </p>
             </div>
             <button
               type="button"
@@ -592,6 +598,7 @@ export function AiBattleAdminPage({
                     />
                   </div>
                   <p>
+                    {session.ownerDisplayName} ·{' '}
                     {session.humanSeat === 'FIRST' ? '真人先手' : '真人后手'} ·{' '}
                     {activityLabels[session.activity]} · 连续失败 {session.consecutiveFailures}
                   </p>
@@ -609,7 +616,7 @@ export function AiBattleAdminPage({
                   </small>
                 </div>
                 <div className="ai-actions">
-                  {session.endedAt === null && (
+                  {session.ownerUserId === viewerUserId && session.endedAt === null && (
                     <button
                       type="button"
                       className="button-primary"
@@ -626,7 +633,7 @@ export function AiBattleAdminPage({
                   >
                     观察材料
                   </button>
-                  {session.endedAt === null && (
+                  {session.ownerUserId === viewerUserId && session.endedAt === null && (
                     <button
                       type="button"
                       className="button-ghost"
