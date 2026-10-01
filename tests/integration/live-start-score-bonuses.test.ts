@@ -469,7 +469,7 @@ describe("PL!-bp3 μ's live-start score bonus LIVE cards", () => {
       metadata: { confirmOnlyPendingAbility: true },
     });
     expect(result.gameState.activeEffect?.effectText).toContain(
-      "【LIVE开始时】自己的LIVE中存在大于等于2张『μ's』的卡片的场合，此卡的分数＋１。"
+      "【LIVE开始时】自己的LIVE中存在大于等于2张『μ's』的卡片的场合，此卡的分数+1。"
     );
     expect(result.gameState.activeEffect?.effectText).toContain("当前自己LIVE中的『μ's』卡片2张");
     expect(result.gameState.activeEffect?.effectText).toContain('满足条件，实际[スコア]+1');

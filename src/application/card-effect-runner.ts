@@ -1,3 +1,5 @@
+import { registerPlPb2021KotoriWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-021-kotori.js';
+import { registerNPr036ShizukuWorkflowHandlers } from './card-effects/workflows/cards/n-pr-036-shizuku.js';
 import {
   ABILITY_ORDER_SELECTION_ID,
   queryPendingAbilityOrder,
@@ -1369,6 +1371,8 @@ registerPlPb2016NozomiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerWaitingRoomMembersBelowSourceWorkflowHandlers();
 registerPlPb2017HanayoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb2018NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlPb2021KotoriWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNPr036ShizukuWorkflowHandlers();
 registerPlPb2042PsychicFireWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb2039BokutachiWaHitotsuNoHikariWorkflowHandlers();
 registerPlBp8005RinWorkflowHandlers({ enqueueTriggeredCardEffects });

@@ -7,7 +7,8 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import { ZoneType } from '../../../../shared/types/enums.js';
+import { getMemberEffectiveCost } from '../../../effects/conditions.js';
+import { TriggerCondition, ZoneType } from '../../../../shared/types/enums.js';
 import { PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import { getPendingLeaveStageEvent } from '../../runtime/events.js';
@@ -22,9 +23,10 @@ interface RelayReplacementContext {
   readonly leaveStageEventId: string | null;
   readonly replacingCardId: string | null;
   readonly replacingCardName: string | null;
-  readonly replacingCardPrintedCost: number | null;
+  readonly replacingCardEffectiveCost: number | null;
   readonly replacementIsOwnCurrentStageTop: boolean;
   readonly eventMatches: boolean;
+  readonly replacementLeftAfterRelay: boolean;
   readonly conditionMet: boolean;
 }
 
@@ -48,8 +50,8 @@ function getConfirmationConfig(
 ): { readonly effectText: string; readonly stepText: string } {
   const context = getRelayReplacementContext(game, ability);
   const replacementDescription =
-    context.replacingCardName && context.replacingCardPrintedCost !== null
-      ? `换手登场成员为「${context.replacingCardName}」（费用${context.replacingCardPrintedCost}）`
+    context.replacingCardName && context.replacingCardEffectiveCost !== null
+      ? `换手登场成员为「${context.replacingCardName}」（费用${context.replacingCardEffectiveCost}）`
       : '没有可确认的换手登场成员';
   const result = context.conditionMet
     ? '条件满足，实际获得[ブレード][ブレード]'
@@ -57,7 +59,7 @@ function getConfirmationConfig(
   return {
     effectText: `${getAbilityEffectText(ability.abilityId)}（${replacementDescription}；${result}。）`,
     stepText: context.conditionMet
-      ? '换手登场成员仍在自己的舞台且印刷费用大于等于9，确认后获得[ブレード][ブレード]。'
+      ? '换手登场成员仍在自己的舞台且有效费用大于等于9，确认后获得[ブレード][ブレード]。'
       : '当前不满足换手登场成员的条件，确认后不获得[ブレード]。',
   };
 }
@@ -120,18 +122,38 @@ function getRelayReplacementContext(
     replacement.ownerId === player.id &&
     replacementSlot !== null &&
     player.memberSlots.slots[replacementSlot] === replacingCardId;
-  const printedCost =
-    replacement && isMemberCardData(replacement.data) ? replacement.data.cost : null;
+  const effectiveCost =
+    replacementIsOwnCurrentStageTop && replacingCardId
+      ? getMemberEffectiveCost(game, ability.controllerId, replacingCardId)
+      : null;
+  const relaySequence = game.eventLog.find(
+    (entry) => entry.event.eventId === event?.eventId
+  )?.sequence;
+  // The replacement enters after this leave event during normal relay. Only a later leave
+  // ends that rules object; slot/orientation changes and the initial entry do not.
+  const replacementLeftAfterRelay =
+    relaySequence !== undefined &&
+    game.eventLog.some(
+      (entry) =>
+        entry.sequence > relaySequence &&
+        entry.event.eventType === TriggerCondition.ON_LEAVE_STAGE &&
+        entry.event.cardInstanceId === replacingCardId
+    );
 
   return {
     leaveStageEventId: event?.eventId ?? null,
     replacingCardId,
     replacingCardName:
       replacement && isMemberCardData(replacement.data) ? replacement.data.name : null,
-    replacingCardPrintedCost: printedCost,
+    replacingCardEffectiveCost: effectiveCost,
     replacementIsOwnCurrentStageTop,
     eventMatches,
+    replacementLeftAfterRelay,
     conditionMet:
-      eventMatches && replacementIsOwnCurrentStageTop && printedCost !== null && printedCost >= 9,
+      eventMatches &&
+      replacementIsOwnCurrentStageTop &&
+      !replacementLeftAfterRelay &&
+      effectiveCost !== null &&
+      effectiveCost >= 9,
   };
 }

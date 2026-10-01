@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   confirmActiveEffectStep,
+  enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import {
+  S_PR_046_LIVE_SUCCESS_OPPONENT_CHEER_LIVE_DRAW_ONE_ABILITY_ID,
   PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
   PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID,
   PR_LIVE_START_WAITING_ROOM_AT_MOST_NINE_STACK_LIVE_ABILITY_ID,
@@ -30,8 +32,13 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
-import { collectLiveModifiers } from '../../src/domain/rules/live-modifiers';
+import { addCardToZone, placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
+import { createLiveSuccessEvent } from '../../src/domain/events/game-events';
+import { GameService } from '../../src/application/game-service';
+import {
+  getMemberEffectiveBladeCount,
+  collectLiveModifiers,
+} from '../../src/domain/rules/live-modifiers';
 import {
   CardType,
   FaceState,
@@ -143,8 +150,16 @@ describe('PR continuous total successful LIVE score Heart family', () => {
 });
 
 describe('PR relay replacement cost-nine BLADE family', () => {
-  function setupReplacement(cost = 9, eventReplacingCardId: string | null = 'replacement') {
-    const source = createCardInstance(memberData('PL!-PR-025-PR', '南琴梨'), P1, 'source');
+  function setupReplacement(
+    cost = 9,
+    eventReplacingCardId: string | null = 'replacement',
+    sourceCode = 'PL!-PR-025-PR'
+  ) {
+    const source = createCardInstance(
+      memberData(sourceCode, sourceCode.startsWith('PL!S-PR-047') ? '樱内梨子' : '南琴梨', 4),
+      P1,
+      'source'
+    );
     const replacement = createCardInstance(
       memberData('REPLACEMENT', '换手成员', cost),
       P1,
@@ -199,7 +214,7 @@ describe('PR relay replacement cost-nine BLADE family', () => {
     ['PL!-PR-025-PR', 'PL!-PR-025'],
     ['PL!-PR-025-UNSEEN', 'PL!-PR-025'],
     ['PL!HS-PR-040-SEC', 'PL!HS-PR-040'],
-    ['PL!S-PR-046-P', 'PL!S-PR-046'],
+    ['PL!S-PR-047-P', 'PL!S-PR-047'],
   ])('definition family covers %s (%s)', (cardCode, baseCardCode) => {
     const source = createCardInstance(memberData(cardCode), P1, 'source');
     expect(source.data.cardCode).toBe(cardCode);
@@ -209,7 +224,7 @@ describe('PR relay replacement cost-nine BLADE family', () => {
           definition.abilityId === PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID
       )
     ).toMatchObject({
-      baseCardCodes: ['PL!-PR-025', 'PL!HS-PR-040', 'PL!S-PR-046'],
+      baseCardCodes: ['PL!-PR-025', 'PL!HS-PR-040', 'PL!S-PR-047'],
       effectText:
         '【自动】此成员从舞台被放置入休息室时，此成员曾与费用大于等于9的成员换手的场合，LIVE结束时为止，该换手登场的成员获得[ブレード][ブレード]。',
     });
@@ -217,7 +232,7 @@ describe('PR relay replacement cost-nine BLADE family', () => {
   });
 
   it('does not grant the relay ability to adjacent PR cards', () => {
-    for (const cardCode of ['PL!-PR-023-PR', 'PL!-PR-024-PR']) {
+    for (const cardCode of ['PL!-PR-023-PR', 'PL!-PR-024-PR', 'PL!S-PR-046-PR', 'PL!S-PR-048-PR']) {
       expect(
         getCardAbilityDefinitionsForCardCode(cardCode).some(
           (definition) =>
@@ -227,29 +242,194 @@ describe('PR relay replacement cost-nine BLADE family', () => {
     }
   });
 
-  it('uses the exact LeaveStageEvent replacement and writes target-bound BLADE +2', () => {
-    const { game, source, replacement } = setupReplacement();
-    const resolved = resolvePendingCardEffects(game).gameState;
-    expect(resolved.pendingAbilities).toEqual([]);
-    expect(resolved.liveResolution.liveModifiers).toContainEqual({
-      kind: 'BLADE',
-      target: 'TARGET_MEMBER',
-      playerId: P1,
-      countDelta: 2,
-      sourceCardId: source.instanceId,
-      targetMemberCardId: replacement.instanceId,
-      abilityId: PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
-    });
-  });
+  it.each(['PL!-PR-025-PR', 'PL!S-PR-047-PR', 'PL!S-PR-047-UNSEEN'])(
+    'uses the exact LeaveStageEvent replacement and writes target-bound BLADE +2 for %s',
+    (sourceCode) => {
+      const { game, source, replacement } = setupReplacement(9, 'replacement', sourceCode);
+      const resolved = resolvePendingCardEffects(game).gameState;
+      expect(resolved.pendingAbilities).toEqual([]);
+      expect(resolved.liveResolution.liveModifiers).toContainEqual({
+        kind: 'BLADE',
+        target: 'TARGET_MEMBER',
+        playerId: P1,
+        countDelta: 2,
+        sourceCardId: source.instanceId,
+        targetMemberCardId: replacement.instanceId,
+        abilityId: PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
+      });
+    }
+  );
 
   it.each([
     ['no replacingCardId', 9, null],
-    ['printed cost below nine', 8, 'replacement'],
+    ['effective cost below nine', 8, 'replacement'],
   ] as const)('safely no-ops for %s', (_label, cost, replacementId) => {
     const { game } = setupReplacement(cost, replacementId);
     const resolved = resolvePendingCardEffects(game).gameState;
     expect(resolved.pendingAbilities).toEqual([]);
     expect(resolved.liveResolution.liveModifiers).toEqual([]);
+  });
+
+  function withReplacementCost(game: GameState, delta: number, setTo?: number): GameState {
+    return {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        liveModifiers: [
+          {
+            kind: 'MEMBER_COST',
+            playerId: P1,
+            memberCardId: 'replacement',
+            countDelta: delta,
+            sourceCardId: 'source',
+            abilityId: 'test-cost',
+          },
+          ...(setTo === undefined
+            ? []
+            : [
+                {
+                  kind: 'MEMBER_COST_SET' as const,
+                  playerId: P1,
+                  memberCardId: 'replacement',
+                  setTo,
+                  sourceCardId: 'source',
+                  abilityId: 'test-cost-set',
+                },
+              ]),
+        ],
+      },
+    };
+  }
+
+  function openRelayConfirmation(game: GameState): GameState {
+    const withSecond = {
+      ...game,
+      pendingAbilities: [
+        ...game.pendingAbilities,
+        { ...game.pendingAbilities[0]!, id: 'second-relay', eventIds: ['missing-event'] },
+      ],
+    };
+    const order = resolvePendingCardEffects(withSecond).gameState;
+    return confirmActiveEffectStep(
+      order,
+      P1,
+      order.activeEffect!.id,
+      undefined,
+      undefined,
+      undefined,
+      'relay-pending'
+    );
+  }
+
+  it.each([
+    [8, 1, undefined, 3],
+    [9, -1, undefined, 1],
+    [8, 0, 9, 3],
+    [9, 5, 8, 1],
+  ] as const)(
+    'checks effective replacement cost: printed %i, delta %i, set %s',
+    (cost, delta, setTo, expectedBlade) => {
+      const { game } = setupReplacement(cost, 'replacement', 'PL!S-PR-047-PR');
+      const resolved = resolvePendingCardEffects(withReplacementCost(game, delta, setTo)).gameState;
+      expect(getMemberEffectiveBladeCount(resolved, P1, 'replacement')).toBe(expectedBlade);
+      expect(resolved.pendingAbilities).toEqual([]);
+      expect(resolved.actionHistory.at(-1)?.payload).toMatchObject({
+        replacingCardEffectiveCost: setTo ?? cost + delta,
+      });
+    }
+  );
+
+  it.each([
+    [0, 1, 3],
+    [1, 0, 1],
+  ] as const)(
+    'rechecks the effective cost when confirming: delta %i becomes %i',
+    (initialDelta, finalDelta, expectedBlade) => {
+      const { game } = setupReplacement(8, 'replacement', 'PL!S-PR-047-PR');
+      const started = openRelayConfirmation(withReplacementCost(game, initialDelta));
+      expect(started.activeEffect?.effectText).toContain(`费用${8 + initialDelta}`);
+      expect(started.activeEffect?.stepText).not.toContain('印刷');
+      const resolved = confirmActiveEffectStep(
+        withReplacementCost(started, finalDelta),
+        P1,
+        started.activeEffect!.id
+      );
+      expect(getMemberEffectiveBladeCount(resolved, P1, 'replacement')).toBe(expectedBlade);
+    }
+  );
+
+  function emitReplacementLeaveAndReenter(game: GameState): GameState {
+    const left = emitGameEvent(game, {
+      eventId: 'replacement-left',
+      eventType: TriggerCondition.ON_LEAVE_STAGE,
+      timestamp: 2,
+      cardInstanceId: 'replacement',
+      fromZone: ZoneType.MEMBER_SLOT,
+      toZone: ZoneType.WAITING_ROOM,
+      fromSlot: SlotPosition.CENTER,
+      ownerId: P1,
+      controllerId: P1,
+    });
+    return emitGameEvent(left, {
+      eventId: 'replacement-reentered',
+      eventType: TriggerCondition.ON_ENTER_STAGE,
+      timestamp: 3,
+      cardInstanceId: 'replacement',
+      fromZone: ZoneType.WAITING_ROOM,
+      toZone: ZoneType.MEMBER_SLOT,
+      toSlot: SlotPosition.CENTER,
+      ownerId: P1,
+      controllerId: P1,
+    });
+  }
+
+  it('does not reward a replacement that left and reentered before the pending resolves', () => {
+    const { game } = setupReplacement(9, 'replacement', 'PL!S-PR-047-PR');
+    const resolved = resolvePendingCardEffects(emitReplacementLeaveAndReenter(game)).gameState;
+    expect(getMemberEffectiveBladeCount(resolved, P1, 'replacement')).toBe(1);
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.actionHistory.at(-1)?.payload).toMatchObject({
+      replacementLeftAfterRelay: true,
+      bladeBonus: 0,
+    });
+  });
+
+  it('rechecks the replacement lifecycle after opening manual confirmation', () => {
+    const { game } = setupReplacement(9, 'replacement', 'PL!S-PR-047-PR');
+    const started = openRelayConfirmation(game);
+    expect(started.activeEffect?.effectText).toContain('条件满足');
+    const resolved = confirmActiveEffectStep(
+      emitReplacementLeaveAndReenter(started),
+      P1,
+      started.activeEffect!.id
+    );
+    expect(getMemberEffectiveBladeCount(resolved, P1, 'replacement')).toBe(1);
+  });
+
+  it('accepts the original entry and later slot movement without treating them as reentry', () => {
+    const { game } = setupReplacement(9, 'replacement', 'PL!S-PR-047-PR');
+    let entered = emitGameEvent(game, {
+      eventId: 'replacement-first-entry',
+      eventType: TriggerCondition.ON_ENTER_STAGE,
+      timestamp: 2,
+      cardInstanceId: 'replacement',
+      fromZone: ZoneType.HAND,
+      toZone: ZoneType.MEMBER_SLOT,
+      toSlot: SlotPosition.CENTER,
+      ownerId: P1,
+      controllerId: P1,
+      replacedMemberCardId: 'source',
+    });
+    entered = updatePlayer(entered, P1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: { ...player.memberSlots.slots, CENTER: null, LEFT: 'replacement' },
+      },
+    }));
+    const resolved = resolvePendingCardEffects(entered).gameState;
+    expect(getMemberEffectiveBladeCount(resolved, P1, 'replacement')).toBe(3);
+    expect(resolved.pendingAbilities).toEqual([]);
   });
 
   it('shows real-time manual confirmation text and rechecks a stale replacement', () => {
@@ -384,7 +564,7 @@ describe('PR on-enter look top ten minus hand, take up to two family', () => {
 
 describe('PR LIVE-start waiting LIVE to deck top family', () => {
   function setup(waitingLiveCount = 3, fillerCount = 0) {
-    const source = createCardInstance(memberData('PL!S-PR-047-PR', '黑泽露比', 13), P1, 'source');
+    const source = createCardInstance(memberData('PL!S-PR-048-PR', '黑泽露比', 13), P1, 'source');
     const lives = Array.from({ length: waitingLiveCount }, (_, index) =>
       createCardInstance(liveData(`WAITING-LIVE-${index}`), P1, `waiting-live-${index}`)
     );
@@ -565,5 +745,224 @@ describe('PR LIVE-start waiting LIVE to deck top family', () => {
     ).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([staleSetup.deckTopId]);
+  });
+});
+
+describe('PL!S-PR-046 费用5 渡边曜 opponent revealed LIVE draw', () => {
+  const ABILITY_ID = S_PR_046_LIVE_SUCCESS_OPPONENT_CHEER_LIVE_DRAW_ONE_ABILITY_ID;
+  const TEXT = '【LIVE成功时】因声援被公开的对方的卡片中存在LIVE卡的场合，抽1张卡。';
+  function setup(
+    options: {
+      sourceCode?: string;
+      liveOwner?: string;
+      currentCheer?: boolean;
+      hasLive?: boolean;
+      moved?: boolean;
+      sourceOnStage?: boolean;
+    } = {}
+  ) {
+    const owner = options.liveOwner ?? P2;
+    const source = createCardInstance(
+      memberData(options.sourceCode ?? 'PL!S-PR-046-PR', '渡边曜', 5),
+      P1,
+      'you'
+    );
+    const cheer = createCardInstance(
+      options.hasLive === false ? memberData('CHEER') : liveData('CHEER'),
+      owner,
+      'cheer'
+    );
+    const draw = createCardInstance(memberData('DRAW'), P1, 'draw');
+    let game = registerCards(createGameState('you-pr046', P1, 'P1', P2, 'P2'), [
+      source,
+      cheer,
+      draw,
+    ]);
+    game = updatePlayer(game, P1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: [draw.instanceId] },
+      memberSlots:
+        options.sourceOnStage === false
+          ? player.memberSlots
+          : placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
+              orientation: OrientationState.ACTIVE,
+              face: FaceState.FACE_UP,
+            }),
+    }));
+    game = updatePlayer(game, owner, (player) => ({
+      ...player,
+      hand: options.moved ? addCardToZone(player.hand, cheer.instanceId) : player.hand,
+    }));
+    game = {
+      ...game,
+      resolutionZone: {
+        ...game.resolutionZone,
+        cardIds: options.moved ? [] : ['cheer'],
+        revealedCardIds: options.moved ? [] : ['cheer'],
+      },
+      liveResolution: {
+        ...game.liveResolution,
+        performingPlayerId: P1,
+        firstPlayerCheerCardIds: owner === P1 && options.currentCheer !== false ? ['cheer'] : [],
+        secondPlayerCheerCardIds: owner === P2 && options.currentCheer !== false ? ['cheer'] : [],
+      },
+      pendingAbilities: [
+        pending('you-pending', ABILITY_ID, 'you', TriggerCondition.ON_LIVE_SUCCESS),
+      ],
+    };
+    return emitGameEvent(game, {
+      eventId: 'cheer-history',
+      eventType: TriggerCondition.ON_CHEER,
+      timestamp: 1,
+      playerId: owner,
+      revealedCardIds: ['cheer'],
+      totalBlade: 1,
+    });
+  }
+  it.each(['PR', 'SEC', 'UNSEEN'])(
+    'binds all rarities and draws only after the confirmation: %s',
+    (rare) => {
+      const code = `PL!S-PR-046-${rare}`;
+      expect(
+        getCardAbilityDefinitionsForCardCode(code).find((item) => item.abilityId === ABILITY_ID)
+      ).toMatchObject({
+        baseCardCodes: ['PL!S-PR-046'],
+        effectText: TEXT,
+        queued: true,
+        implemented: true,
+      });
+      const started = resolvePendingCardEffects(setup({ sourceCode: code })).gameState;
+      expect(started.players[0].hand.cardIds).toEqual([]);
+      expect(started.activeEffect?.effectText).toBe(
+        `${TEXT}（本次对方因声援公开的卡中存在LIVE卡，满足条件，实际抽1张卡。）`
+      );
+      const done = confirmActiveEffectStep(started, P1, started.activeEffect!.id);
+      expect(done.players[0].hand.cardIds).toEqual(['draw']);
+      expect(done.pendingAbilities).toEqual([]);
+      expect(done.activeEffect).toBeNull();
+    }
+  );
+  it('counts the opponent LIVE historical reveal even after it leaves the resolution zone', () => {
+    const started = resolvePendingCardEffects(setup({ moved: true })).gameState;
+    const done = confirmActiveEffectStep(started, P1, started.activeEffect!.id);
+    expect(done.players[0].hand.cardIds).toEqual(['draw']);
+    expect(done.players[1].hand.cardIds).toEqual(['cheer']);
+  });
+  it.each([{ hasLive: false }, { liveOwner: P1 }, { currentCheer: false }])(
+    'does not draw for an ineligible state %j',
+    (options) => {
+      const game = setup(options);
+      const started = resolvePendingCardEffects(game).gameState;
+      const done = started.activeEffect
+        ? confirmActiveEffectStep(started, P1, started.activeEffect.id)
+        : started;
+      expect(done.players[0].mainDeck.cardIds).toEqual(['draw']);
+      expect(done.pendingAbilities).toEqual([]);
+    }
+  );
+  function leaveStage(game: GameState) {
+    return updatePlayer(game, P1, (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+      waitingRoom: addCardToZone(player.waitingRoom, 'you'),
+    }));
+  }
+  function triggerSuccess(game: GameState) {
+    const successLive = createCardInstance(liveData('SUCCESS-LIVE'), P1, 'success-live');
+    const event = createLiveSuccessEvent(P1, ['success-live'], 1);
+    const logged = emitGameEvent(
+      registerCards({ ...game, pendingAbilities: [] }, [successLive]),
+      event
+    );
+    return enqueueTriggeredCardEffects(logged, [TriggerCondition.ON_LIVE_SUCCESS], {
+      liveSuccessEvents: [event],
+    });
+  }
+  it.each(['before-start', 'after-confirmation-opens'] as const)(
+    'resolves a real triggered draw after source leaves: %s',
+    (timing) => {
+      const queued = triggerSuccess(setup());
+      expect(queued.pendingAbilities.map((a) => a.abilityId)).toEqual([ABILITY_ID]);
+      const started =
+        timing === 'before-start'
+          ? resolvePendingCardEffects(leaveStage(queued)).gameState
+          : leaveStage(resolvePendingCardEffects(queued).gameState);
+      expect(started.activeEffect?.effectText).toContain('实际抽1张卡');
+      const done = confirmActiveEffectStep(started, P1, started.activeEffect!.id);
+      expect(done.players[0].hand.cardIds).toEqual(['draw']);
+      expect(started.players[0].waitingRoom.cardIds).toContain('you');
+      expect(Object.values(done.players[0].memberSlots.slots)).not.toContain('you');
+      expect(done.pendingAbilities).toEqual([]);
+      expect(done.activeEffect).toBeNull();
+    }
+  );
+  it('does not enqueue if the source left before LIVE_SUCCESS', () => {
+    const queued = triggerSuccess(leaveStage(setup()));
+    expect(queued.pendingAbilities).toEqual([]);
+    expect(resolvePendingCardEffects(queued).gameState.players[0].hand.cardIds).toEqual([]);
+  });
+  it('still checks the opponent reveal condition after the source leaves', () => {
+    const queued = triggerSuccess(setup({ hasLive: false }));
+    const started = resolvePendingCardEffects(leaveStage(queued)).gameState;
+    const done = confirmActiveEffectStep(started, P1, started.activeEffect!.id);
+    expect(done.players[0].mainDeck.cardIds).toEqual(['draw']);
+    expect(done.pendingAbilities).toEqual([]);
+  });
+  it('handles ordered resolution without extra windows', () => {
+    const game = setup();
+    const ordered = resolvePendingCardEffects({
+      ...game,
+      pendingAbilities: [
+        ...game.pendingAbilities,
+        { ...game.pendingAbilities[0]!, id: 'you-second' },
+      ],
+    }).gameState;
+    const done = confirmActiveEffectStep(
+      ordered,
+      P1,
+      ordered.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
+    expect(done.players[0].hand.cardIds).toEqual(['draw']);
+    expect(done.activeEffect).toBeNull();
+    expect(done.pendingAbilities).toEqual([]);
+  });
+  it('collects the actual LIVE_SUCCESS definition and rejects cross-bound PR abilities', () => {
+    const ownLive = createCardInstance(liveData('SUCCESS-LIVE'), P1, 'success-live');
+    let game = registerCards(setup(), [ownLive]);
+    game = {
+      ...game,
+      liveResolution: { ...game.liveResolution, liveResults: new Map([['success-live', true]]) },
+    };
+    const checked = new GameService().executeCheckTiming({ ...game, pendingAbilities: [] }, [
+      TriggerCondition.ON_LIVE_SUCCESS,
+    ]);
+    expect(checked.success).toBe(true);
+    expect(
+      checked.gameState.activeEffect?.abilityId ?? checked.gameState.pendingAbilities[0]?.abilityId
+    ).toBe(ABILITY_ID);
+    for (const rare of ['PR', 'UNSEEN']) {
+      const ids = (base: string) =>
+        getCardAbilityDefinitionsForCardCode(`${base}-${rare}`).map((item) => item.abilityId);
+      expect(ids('PL!S-PR-046')).not.toContain(
+        PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID
+      );
+      expect(ids('PL!S-PR-047')).not.toContain(
+        PR_LIVE_START_WAITING_ROOM_AT_MOST_NINE_STACK_LIVE_ABILITY_ID
+      );
+      expect(ids('PL!S-PR-048')).not.toContain(
+        PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID
+      );
+      expect(ids('PL!S-PR-048')).toContain(
+        PR_LIVE_START_WAITING_ROOM_AT_MOST_NINE_STACK_LIVE_ABILITY_ID
+      );
+      expect(ids('PL!S-PR-047')).toContain(
+        PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID
+      );
+      expect(ids('PL!S-PR-047')).not.toContain(ABILITY_ID);
+      expect(ids('PL!S-PR-048')).not.toContain(ABILITY_ID);
+    }
   });
 });

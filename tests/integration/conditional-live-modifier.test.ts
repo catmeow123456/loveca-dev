@@ -1450,7 +1450,7 @@ describe('conditional live modifier workflow', () => {
       metadata: { confirmOnlyPendingAbility: true },
     });
     expect(preview.activeEffect?.effectText).toContain(
-      '【LIVE开始时】存在于自己的舞台的成员持有的[BLADE]的合计大于等于10的场合、使此卡成功的必要HEART减少[無ハート][無ハート]。'
+      '【LIVE开始时】存在于自己的舞台的成员持有的[ブレード]的合计大于等于10的场合、使此卡成功的必要HEART减少[無ハート][無ハート]。'
     );
     expect(preview.activeEffect?.effectText).toContain('当前自己舞台成员持有的[BLADE]合计10');
     expect(preview.activeEffect?.effectText).toContain('满足条件，实际减少2个[無ハート]');

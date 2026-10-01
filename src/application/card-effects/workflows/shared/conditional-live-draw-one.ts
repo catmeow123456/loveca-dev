@@ -6,6 +6,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
+import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import { sumStageMemberEffectiveCostMatching } from '../../../effects/conditions.js';
 import {
@@ -13,7 +14,7 @@ import {
   rebalanceRemainingHeartColorForPlayer,
 } from '../../../effects/remaining-hearts.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { HeartColor } from '../../../../shared/types/enums.js';
+import { CardType, HeartColor } from '../../../../shared/types/enums.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import type { PendingAbilityStarterOptions } from '../../runtime/starter-registry.js';
@@ -22,6 +23,7 @@ import {
   registerManualConfirmablePendingAbilityStarterHandler,
 } from '../../runtime/workflow-helpers.js';
 import {
+  S_PR_046_LIVE_SUCCESS_OPPONENT_CHEER_LIVE_DRAW_ONE_ABILITY_ID,
   PL_BP4_001_LIVE_START_LOWER_STAGE_COST_DRAW_ONE_ABILITY_ID,
   PL_BP4_023_LIVE_SUCCESS_PINK_REMAINING_HEART_DRAW_ONE_ABILITY_ID,
   PL_N_BP4_003_LIVE_SUCCESS_HIGHER_SCORE_DRAW_ABILITY_ID,
@@ -31,6 +33,18 @@ import {
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 type ConditionalLiveDrawConfig =
+  | {
+      readonly abilityId: typeof S_PR_046_LIVE_SUCCESS_OPPONENT_CHEER_LIVE_DRAW_ONE_ABILITY_ID;
+      readonly expectedBaseCardCodes: readonly ['PL!S-PR-046'];
+      readonly sourceKind: 'STAGE_MEMBER';
+      readonly requireSourceInZoneAtResolution: false;
+      readonly conditionType: 'OPPONENT_REVEALED_CHEER_HAS_LIVE';
+      readonly actionStep: 'DRAW_ONE';
+      readonly noOpSteps: {
+        readonly sourceMissing: 'SOURCE_IDENTITY_INVALID';
+        readonly conditionNotMet: 'OPPONENT_CHEER_HAS_NO_LIVE';
+      };
+    }
   | {
       readonly abilityId: typeof PL_N_BP4_003_LIVE_SUCCESS_HIGHER_SCORE_DRAW_ABILITY_ID;
       readonly expectedBaseCardCodes: readonly ['PL!N-bp4-003'];
@@ -78,6 +92,18 @@ type ConditionalLiveDrawConfig =
 
 const CONDITIONAL_LIVE_DRAW_CONFIGS: readonly ConditionalLiveDrawConfig[] = [
   {
+    abilityId: S_PR_046_LIVE_SUCCESS_OPPONENT_CHEER_LIVE_DRAW_ONE_ABILITY_ID,
+    expectedBaseCardCodes: ['PL!S-PR-046'],
+    sourceKind: 'STAGE_MEMBER',
+    requireSourceInZoneAtResolution: false,
+    conditionType: 'OPPONENT_REVEALED_CHEER_HAS_LIVE',
+    actionStep: 'DRAW_ONE',
+    noOpSteps: {
+      sourceMissing: 'SOURCE_IDENTITY_INVALID',
+      conditionNotMet: 'OPPONENT_CHEER_HAS_NO_LIVE',
+    },
+  },
+  {
     abilityId: PL_N_BP4_003_LIVE_SUCCESS_HIGHER_SCORE_DRAW_ABILITY_ID,
     expectedBaseCardCodes: ['PL!N-bp4-003'],
     sourceKind: 'STAGE_MEMBER',
@@ -124,6 +150,11 @@ const CONDITIONAL_LIVE_DRAW_CONFIGS: readonly ConditionalLiveDrawConfig[] = [
 ];
 
 type EvaluatedCondition =
+  | {
+      readonly conditionType: 'OPPONENT_REVEALED_CHEER_HAS_LIVE';
+      readonly opponentRevealedLiveCardIds: readonly string[];
+      readonly conditionMet: boolean;
+    }
   | {
       readonly conditionType: 'HIGHER_LIVE_SCORE';
       readonly ownScore: number;
@@ -203,9 +234,7 @@ function resolveConditionalLiveDrawOne(
 
   const context = getConditionalLiveDrawContext(game, ability, config);
   const canDraw =
-    context.sourceValid &&
-    context.sourceCardMatchesExpectedBase &&
-    context.condition.conditionMet;
+    context.sourceValid && context.sourceCardMatchesExpectedBase && context.condition.conditionMet;
   const resolutionBaseState =
     context.sourceValid &&
     context.sourceCardMatchesExpectedBase &&
@@ -230,13 +259,7 @@ function resolveConditionalLiveDrawOne(
     drawnCardIds = drawResult.drawnCardIds;
   }
 
-  const actionPayload = createActionPayload(
-    ability,
-    config,
-    context,
-    canDraw,
-    drawnCardIds
-  );
+  const actionPayload = createActionPayload(ability, config, context, canDraw, drawnCardIds);
   return continuePendingCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, actionPayload),
     options.orderedResolution === true
@@ -249,9 +272,7 @@ function getConditionalLiveDrawContext(
   config: ConditionalLiveDrawConfig
 ): ConditionalLiveDrawContext {
   const player = getPlayerById(game, ability.controllerId);
-  const sourceSlot = player
-    ? getSourceMemberSlot(game, player.id, ability.sourceCardId)
-    : null;
+  const sourceSlot = player ? getSourceMemberSlot(game, player.id, ability.sourceCardId) : null;
   const sourceCard = getCardById(game, ability.sourceCardId);
   const sourceCardMatchesExpectedBase =
     sourceCard !== null &&
@@ -266,7 +287,14 @@ function getConditionalLiveDrawContext(
     sourceSlot,
     sourceOnStage,
     sourceInLiveZone,
-    sourceValid: config.sourceKind === 'STAGE_MEMBER' ? sourceOnStage : sourceInLiveZone,
+    sourceValid:
+      'requireSourceInZoneAtResolution' in config && !config.requireSourceInZoneAtResolution
+        ? sourceCard !== null &&
+          sourceCard.ownerId === ability.controllerId &&
+          isMemberCardData(sourceCard.data)
+        : config.sourceKind === 'STAGE_MEMBER'
+          ? sourceOnStage
+          : sourceInLiveZone,
     sourceCardMatchesExpectedBase,
     condition: evaluateCondition(game, ability.controllerId, config.conditionType),
   };
@@ -277,13 +305,23 @@ function evaluateCondition(
   playerId: string,
   conditionType: ConditionalLiveDrawConfig['conditionType']
 ): EvaluatedCondition {
+  if (conditionType === 'OPPONENT_REVEALED_CHEER_HAS_LIVE') {
+    const opponent = getOpponent(game, playerId);
+    const opponentRevealedLiveCardIds = opponent
+      ? selectCurrentLiveRevealedCheerCardIds(game, opponent.id, { cardTypes: CardType.LIVE })
+      : [];
+    return {
+      conditionType,
+      opponentRevealedLiveCardIds,
+      conditionMet: opponentRevealedLiveCardIds.length > 0,
+    };
+  }
+
   if (conditionType === 'HIGHER_LIVE_SCORE') {
     const player = getPlayerById(game, playerId);
     const opponent = player ? getOpponent(game, player.id) : null;
     const ownScore = game.liveResolution.playerScores.get(playerId) ?? 0;
-    const opponentScore = opponent
-      ? game.liveResolution.playerScores.get(opponent.id) ?? 0
-      : 0;
+    const opponentScore = opponent ? (game.liveResolution.playerScores.get(opponent.id) ?? 0) : 0;
     const scoreHigherThanOpponent = ownScore > opponentScore;
     return {
       conditionType,
@@ -360,6 +398,17 @@ function getConfirmationConfig(
   config: ConditionalLiveDrawConfig
 ): { readonly effectText: string; readonly stepText: string } {
   const context = getConditionalLiveDrawContext(game, ability, config);
+  if (context.condition.conditionType === 'OPPONENT_REVEALED_CHEER_HAS_LIVE') {
+    const actualDrawCount =
+      context.sourceValid && context.sourceCardMatchesExpectedBase && context.condition.conditionMet
+        ? getActualDrawCount(game, ability.controllerId)
+        : 0;
+    const previewText = `本次对方因声援公开的卡中${context.condition.conditionMet ? '存在LIVE卡，满足条件' : '没有LIVE卡，未满足条件'}，实际抽${actualDrawCount}张卡。`;
+    return {
+      effectText: `${getAbilityEffectText(ability.abilityId)}（${previewText}）`,
+      stepText: '确认后结算此效果。',
+    };
+  }
   if (context.condition.conditionType === 'HIGHER_LIVE_SCORE') {
     const actualDrawCount =
       context.sourceOnStage &&
@@ -376,9 +425,7 @@ function getConfirmationConfig(
 
   if (context.condition.conditionType === 'OWN_STAGE_EFFECTIVE_COST_LESS_THAN_OPPONENT') {
     const actualDrawCount =
-      context.sourceValid &&
-      context.sourceCardMatchesExpectedBase &&
-      context.condition.conditionMet
+      context.sourceValid && context.sourceCardMatchesExpectedBase && context.condition.conditionMet
         ? getActualDrawCount(game, ability.controllerId)
         : 0;
     const previewText = `当前双方舞台成员的有效费用合计为${context.condition.ownStageEffectiveCostTotal}对${context.condition.opponentStageEffectiveCostTotal}，${context.condition.conditionMet ? '满足条件' : '未满足条件'}，实际抽${actualDrawCount}张卡。`;
@@ -390,9 +437,7 @@ function getConfirmationConfig(
 
   if (context.condition.conditionType === 'PINK_REMAINING_HEART_AT_LEAST_ONE') {
     const actualDrawCount =
-      context.sourceValid &&
-      context.sourceCardMatchesExpectedBase &&
-      context.condition.conditionMet
+      context.sourceValid && context.sourceCardMatchesExpectedBase && context.condition.conditionMet
         ? getActualDrawCount(game, ability.controllerId)
         : 0;
     const previewText = `当前持有${context.condition.conditionMet ? '至少1个' : '0个'}粉色剩余HEART，抽${actualDrawCount}张卡。`;
@@ -402,11 +447,11 @@ function getConfirmationConfig(
     };
   }
 
-  const { ownRevealedCheerCount, opponentRevealedCheerCount, conditionMet } =
-    context.condition;
-  const actualDrawCount = context.sourceOnStage && context.sourceCardMatchesExpectedBase && conditionMet
-    ? getActualDrawCount(game, ability.controllerId)
-    : 0;
+  const { ownRevealedCheerCount, opponentRevealedCheerCount, conditionMet } = context.condition;
+  const actualDrawCount =
+    context.sourceOnStage && context.sourceCardMatchesExpectedBase && conditionMet
+      ? getActualDrawCount(game, ability.controllerId)
+      : 0;
   const previewText = `本次自己因声援公开${ownRevealedCheerCount}张，对方${opponentRevealedCheerCount}张，${conditionMet ? '满足条件' : '未满足条件'}，实际抽${actualDrawCount}张卡。`;
   return {
     effectText: `${getAbilityEffectText(ability.abilityId)}（${previewText}）`,
@@ -432,6 +477,22 @@ function createActionPayload(
   canDraw: boolean,
   drawnCardIds: readonly string[]
 ): Readonly<Record<string, unknown>> {
+  if (context.condition.conditionType === 'OPPONENT_REVEALED_CHEER_HAS_LIVE') {
+    return {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      sourceSlot: context.sourceSlot,
+      step: canDraw
+        ? config.actionStep
+        : context.sourceValid
+          ? config.noOpSteps.conditionNotMet
+          : config.noOpSteps.sourceMissing,
+      opponentRevealedLiveCardIds: context.condition.opponentRevealedLiveCardIds,
+      conditionMet: context.condition.conditionMet,
+      drawnCardIds,
+    };
+  }
   if (context.condition.conditionType === 'HIGHER_LIVE_SCORE') {
     if (config.conditionType !== 'HIGHER_LIVE_SCORE') {
       throw new Error(`Mismatched conditional draw config: ${config.abilityId}`);
@@ -452,7 +513,6 @@ function createActionPayload(
       drawnCardIds,
     };
   }
-
 
   if (context.condition.conditionType === 'OWN_STAGE_EFFECTIVE_COST_LESS_THAN_OPPONENT') {
     if (config.conditionType !== 'OWN_STAGE_EFFECTIVE_COST_LESS_THAN_OPPONENT') {
