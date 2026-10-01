@@ -4,6 +4,8 @@
 
 import {
   memo,
+  lazy,
+  Suspense,
   useState,
   useCallback,
   useEffect,
@@ -166,6 +168,10 @@ function formatCardCompactLabel(cardData: AnyCardData): string {
 }
 
 type MobileBattlePanel = 'opponent' | 'log' | 'publicLog';
+
+const DevCardEntranceLayer = import.meta.env.DEV
+  ? lazy(() => import('./card-entrance/CardEntranceLayer').then((m) => ({ default: m.CardEntranceLayer })))
+  : null;
 
 export interface MobileBattlefieldFocusRequest {
   readonly key: string;
@@ -2398,6 +2404,11 @@ export const GameBoard = memo(function GameBoard({
       >
         <BoardBackground {...tableWallpaper} className="-z-10" />
         <BattleAnimationLayer />
+        {DevCardEntranceLayer && (
+          <Suspense fallback={null}>
+            <DevCardEntranceLayer />
+          </Suspense>
+        )}
         <BattleActionFeedbackLayer />
         {!isReadOnly && <RankedStallNotice stall={rankedStall} viewerSeat={viewerSeat} />}
 

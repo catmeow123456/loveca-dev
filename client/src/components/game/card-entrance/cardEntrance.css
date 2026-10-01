@@ -1,0 +1,167 @@
+.card-entrance-switch {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 6px 10px;
+  background: #231c2bea;
+  color: #f1e5ef;
+  border-radius: 5px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.card-entrance {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  overflow: hidden;
+  background: #16132258;
+}
+.card-entrance-light {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 65% 60%, #efb79199, transparent 65%);
+}
+.card-entrance-art {
+  position: absolute;
+  right: 12%;
+  bottom: -9%;
+  height: 106%;
+  width: auto;
+  aspect-ratio: 1061/1483;
+  transform: translateX(var(--entrance-x, 0));
+  mask-image: linear-gradient(#000 82%, transparent 99%);
+}
+.card-entrance-name {
+  position: absolute;
+  top: 43%;
+  left: 16%;
+  font:
+    clamp(26px, 4vw, 60px) 'Songti SC',
+    serif;
+  letter-spacing: 0.13em;
+  color: #fff2e6;
+  text-shadow: 0 2px 18px #33243b;
+}
+.card-entrance-english {
+  display: block;
+  font: 10px system-ui;
+  letter-spacing: 0.3em;
+  margin-top: 14px;
+}
+.card-entrance-skip {
+  position: absolute;
+  bottom: 15%;
+  right: 16px;
+  pointer-events: auto;
+  border: 1px solid #ffffff60;
+  border-radius: 5px;
+  background: #241b30dd;
+  color: #fff;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.card-entrance-skip:focus-visible {
+  outline: 2px solid #ffdbab;
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .card-entrance-art {
+    right: -8%;
+    height: 82%;
+    bottom: 3%;
+    max-width: 100%;
+  }
+  .card-entrance-name {
+    top: auto;
+    bottom: 20%;
+    left: 6%;
+    font-size: 28px;
+  }
+  .card-entrance-skip {
+    bottom: 12%;
+  }
+}
+
+.card-entrance-switch label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.card-entrance-switch select,
+.card-entrance-switch button {
+  border: 1px solid #ffffff45;
+  border-radius: 4px;
+  background: #352b41;
+  color: #f1e5ef;
+  padding: 3px 6px;
+  font: inherit;
+}
+.card-entrance-switch button:disabled {
+  opacity: 0.45;
+}
+.card-entrance-switch :focus-visible {
+  outline: 2px solid #ffdbab;
+  outline-offset: 2px;
+}
+.card-entrance--centered .card-entrance-light {
+  background: radial-gradient(ellipse at 50% 45%, #efb79199, transparent 62%);
+}
+/* The face/torso sits at ~62% of this asset; center that, not the flowing hair bounds. */
+.card-entrance--centered .card-entrance-art {
+  left: 50%;
+  right: auto;
+  top: 6%;
+  bottom: auto;
+  height: 86%;
+  max-width: none;
+  transform: translateX(calc(-62% + var(--entrance-x, 0px)));
+  mask-image: linear-gradient(#000 64%, #0008 82%, transparent 98%);
+}
+.card-entrance--centered .card-entrance-name {
+  left: 50%;
+  top: auto;
+  bottom: 22%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-width: 94%;
+  padding: 12px 30px;
+  transform: translate(-50%, var(--name-y, 0px));
+  opacity: var(--name-opacity, 0);
+  font-size: clamp(32px, 4vw, 62px);
+  line-height: 1.15;
+  white-space: nowrap;
+  background: radial-gradient(ellipse, #24182ccc, transparent 72%);
+}
+.card-entrance-card-name {
+  font: inherit;
+}
+@media (max-width: 600px) {
+  .card-entrance-switch {
+    gap: 6px;
+    font-size: 11px;
+    padding: 5px 7px;
+  }
+  .card-entrance--centered .card-entrance-art {
+    top: 7%;
+    height: 76%;
+  }
+  .card-entrance--centered .card-entrance-name {
+    bottom: 24%;
+    font-size: 32px;
+    padding: 12px 14px;
+  }
+}
+@media (max-height: 500px) and (min-width: 601px) {
+  .card-entrance--centered .card-entrance-name {
+    bottom: 24%;
+    font-size: 32px;
+  }
+}
