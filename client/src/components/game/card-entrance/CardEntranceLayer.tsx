@@ -253,12 +253,12 @@ function Entrance({
       const tick = (now: number) => {
         if (disposed) return;
         const t = (now - start) / 1000;
-        if (t >= 2.05) {
+        if (t >= 1.95) {
           if (container.current) container.current.style.opacity = '0';
           return;
         }
         const enter = 1 - (1 - Math.min(1, t / 0.6)) ** 3;
-        const exit = Math.max(0, Math.min(1, (t - 1.6) / 0.45));
+        const exit = Math.max(0, Math.min(1, (t - 1.5) / 0.45));
         if (container.current) {
           container.current.style.opacity = String(reduced ? 1 : enter * (1 - exit));
           const labelEnter = reduced
