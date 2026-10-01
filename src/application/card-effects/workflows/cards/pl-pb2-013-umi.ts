@@ -84,7 +84,7 @@ function start(
       controllerId: player.id,
       effectText: getAbilityEffectText(ABILITY_ID),
       stepId: CHECK_REVEAL,
-      stepText: `已公开卡组顶的${cardIds.length}张卡牌。展示结束后，若全部是『lily white』的卡片，将其中1张『lily white』的LIVE卡加入手牌，其余放置入休息室；否则保持卡组原顺序。`,
+      stepText: `已公开卡组顶的${cardIds.length}张卡牌。展示结束后，若全部是『lily white』的卡片，将其中1张『lily white』的LIVE卡加入手牌，其余放置入休息室；否则将公开的卡片全部放置入休息室。`,
       awaitingPlayerId: player.id,
       revealedCardIds: cardIds,
       metadata: { orderedResolution },
@@ -126,7 +126,7 @@ function checkRevealed(game: GameState, enqueue: Enqueue, continuation: Continue
   if (!isCurrentRevealValid(game, effect))
     return finish(game, effect, continuation, 'REVEALED_TOP_CHANGED');
   if (!allLilyWhite(game, effect))
-    return finish(game, effect, continuation, 'NOT_ALL_LILY_WHITE_KEEP_DECK_ORDER');
+    return moveAndFinish(game, effect, null, enqueue, continuation);
   const candidates = (effect.revealedCardIds ?? []).filter((id) => {
     const card = getCardById(game, id);
     return !!card && lilyWhiteLive(card);

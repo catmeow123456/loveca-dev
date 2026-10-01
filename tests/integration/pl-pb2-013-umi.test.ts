@@ -281,21 +281,62 @@ describe('PL!-pb2-013 费用2 园田海未', () => {
       expect.objectContaining({ fromZone: ZoneType.MAIN_DECK, cardInstanceIds: [s.topIds[2]] }),
     ]);
   });
-  it('leaves a failed reveal in its original order without movements or refresh, including an exactly-four deck', () => {
+  it('sends a mixed reveal entirely to waiting after display, even when it contains a recoverable LIVE', () => {
+    const s = setup({
+      top: [live('live'), member('lily'), member('wrong', 'Printemps'), member('lily2')],
+    });
+    const deck = [...s.session.state!.players[0].mainDeck.cardIds];
+    expect(play(s).success).toBe(true);
+    expect(s.session.state!.activeEffect?.stepText).toBe(
+      '已公开卡组顶的4张卡牌。展示结束后，若全部是『lily white』的卡片，将其中1张『lily white』的LIVE卡加入手牌，其余放置入休息室；否则将公开的卡片全部放置入休息室。'
+    );
+    expect(s.session.state!.players[0].mainDeck.cardIds).toEqual(deck);
+    expect(s.session.state!.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(waitingEvents(s)).toEqual([]);
+    expect(refreshes(s)).toEqual([]);
+    expect(select(s, s.topIds[0]!).success).toBe(false);
+    expect(s.session.executeCommand(advanceCommand(s)).success).toBe(false);
+    expect(s.session.state!.players[0].mainDeck.cardIds).toEqual(deck);
+    expect(advance(s).success).toBe(true);
+    expect(s.session.state!.players[0].mainDeck.cardIds).toEqual(['tail']);
+    expect(s.session.state!.players[0].hand.cardIds).toEqual(['discard']);
+    expect(s.session.state!.players[0].waitingRoom.cardIds).toEqual(s.topIds);
+    expect(waitingEvents(s)).toHaveLength(1);
+    expect(waitingEvents(s)[0]).toMatchObject({
+      cardInstanceIds: s.topIds,
+      cause: { kind: 'CARD_EFFECT', sourceCardId: s.source, abilityId: ABILITY_ID },
+    });
+    expect(
+      s.session.state!.eventLog.some(
+        (entry) => entry.event.eventType === TriggerCondition.ON_ENTER_HAND
+      )
+    ).toBe(false);
+    expect(refreshes(s)).toEqual([]);
+    expect(s.session.state!.activeEffect).toBeNull();
+    expect(s.session.state!.pendingAbilities).toEqual([]);
+  });
+  it('refreshes an exactly-four mixed deck only after all four enter waiting in one event', () => {
     const s = setup({
       top: [live('live'), member('lily'), member('wrong', 'Printemps'), member('lily2')],
       tail: false,
       waiting: [member('waiting')],
     });
-    const deck = [...s.session.state!.players[0].mainDeck.cardIds];
-    play(s);
-    expect(refreshes(s)).toEqual([]);
-    expect(advance(s).success).toBe(true);
-    expect(s.session.state!.players[0].mainDeck.cardIds).toEqual(deck);
+    expect(play(s).success).toBe(true);
+    expect(s.session.state!.players[0].mainDeck.cardIds).toEqual(s.topIds);
     expect(s.session.state!.players[0].waitingRoom.cardIds).toEqual(s.waitingIds);
     expect(waitingEvents(s)).toEqual([]);
     expect(refreshes(s)).toEqual([]);
+    expect(advance(s).success).toBe(true);
+    expect(s.session.state!.players[0].hand.cardIds).toEqual(['discard']);
+    expect(waitingEvents(s)).toHaveLength(1);
+    expect(waitingEvents(s)[0]).toMatchObject({ cardInstanceIds: s.topIds });
+    expect(refreshes(s)).toHaveLength(1);
+    expect(s.session.state!.players[0].waitingRoom.cardIds).toEqual([]);
+    expect([...s.session.state!.players[0].mainDeck.cardIds].sort()).toEqual(
+      [...s.waitingIds, ...s.topIds].sort()
+    );
     expect(s.session.state!.activeEffect).toBeNull();
+    expect(s.session.state!.pendingAbilities).toEqual([]);
   });
   it('sends all matching revealed members to waiting when no LIVE exists', () => {
     const s = setup({ top: [member('a'), member('b'), member('c'), member('d')] });
@@ -425,6 +466,42 @@ describe('PL!-pb2-013 费用2 园田海未', () => {
       s.session.state!.activeEffect?.abilityId === DECK_OBSERVER ||
         s.session.state!.pendingAbilities.some((a) => a.abilityId === DECK_OBSERVER)
     ).toBe(true);
+  });
+  it('finishes the complete failed reveal before starting its newly queued observer', () => {
+    const s = setup({
+      top: [live('live'), member('PL!N-bp7-011-R', 'other-unit'), member('lily'), member('lily2')],
+    });
+    expect(play(s).success).toBe(true);
+    expect(s.session.state!.activeEffect?.abilityId).toBe(ABILITY_ID);
+    expect(s.session.state!.pendingAbilities).toEqual([]);
+    expect(waitingEvents(s)).toEqual([]);
+    expect(
+      s.session.state!.actionHistory.some((action) => action.payload.abilityId === DECK_OBSERVER)
+    ).toBe(false);
+    expect(advance(s).success).toBe(true);
+    expect(s.session.state!.players[0].mainDeck.cardIds).toEqual(['tail']);
+    expect(s.session.state!.players[0].waitingRoom.cardIds).toEqual(s.topIds);
+    expect(s.session.state!.players[0].hand.cardIds).toEqual(['discard']);
+    expect(waitingEvents(s)).toHaveLength(1);
+    expect(waitingEvents(s)[0]).toMatchObject({ cardInstanceIds: s.topIds });
+    expect(s.session.state!.activeEffect?.abilityId).toBe(DECK_OBSERVER);
+    const history = s.session.state!.actionHistory;
+    const umiFinished = history.findIndex(
+      (action) =>
+        action.payload.abilityId === ABILITY_ID &&
+        action.payload.step === 'RECOVER_LIVE_AND_SEND_REST_TO_WAITING'
+    );
+    const observerStarted = history.findIndex(
+      (action) =>
+        action.payload.abilityId === DECK_OBSERVER &&
+        action.payload.step === 'SELECT_DISCARD_TO_RECOVER_SELF'
+    );
+    expect(umiFinished).toBeGreaterThanOrEqual(0);
+    expect(observerStarted).toBeGreaterThan(umiFinished);
+    expect(select(s, null).success).toBe(true);
+    expect(s.session.state!.activeEffect).toBeNull();
+    expect(s.session.state!.pendingAbilities).toEqual([]);
+    expect(s.session.state!.players[0].waitingRoom.cardIds).toEqual(s.topIds);
   });
   it('handles manual and ordered pending starts through the normal scheduler with no extra confirm-only window', () => {
     for (const ordered of [false, true]) {

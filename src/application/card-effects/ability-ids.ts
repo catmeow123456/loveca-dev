@@ -2002,3 +2002,14 @@ export const PL_PB2_032_ON_ENTER_DISCARD_LOOK_TOP_FIVE_NO_BLADE_MUSE_MEMBER_ABIL
 
 export const PL_PB2_037_LIVE_SUCCESS_SAME_UNIT_CHEER_MEMBER_TO_HAND_ABILITY_ID =
   'PL!-pb2-037:live-success-same-unit-cheer-member-to-hand';
+
+export const PL_PB2_021_AUTO_SELF_WAITED_ACTIVATE_GAIN_BLADE_ABILITY_ID =
+  'PL!-pb2-021:auto-self-waited-activate-gain-blade';
+export const PL_PB2_029_ON_ENTER_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID =
+  'PL!-pb2-029:on-enter-only-muse-wait-low-original-blade';
+export const PL_PB2_029_LIVE_START_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID =
+  'PL!-pb2-029:live-start-only-muse-wait-low-original-blade';
+export const N_PR_036_LIVE_START_OTHER_NIJIGASAKI_YELLOW_HEART_ABILITY_ID =
+  'PL!N-PR-036:live-start-other-nijigasaki-yellow-heart';
+export const S_PR_046_LIVE_SUCCESS_OPPONENT_CHEER_LIVE_DRAW_ONE_ABILITY_ID =
+  'PL!S-PR-046:live-success-opponent-cheer-live-draw-one';

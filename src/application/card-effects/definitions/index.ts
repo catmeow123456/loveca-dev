@@ -1,4 +1,11 @@
 import {
+  PL_PB2_021_AUTO_SELF_WAITED_ACTIVATE_GAIN_BLADE_ABILITY_ID,
+  PL_PB2_029_ON_ENTER_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID,
+  PL_PB2_029_LIVE_START_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID,
+  N_PR_036_LIVE_START_OTHER_NIJIGASAKI_YELLOW_HEART_ABILITY_ID,
+  S_PR_046_LIVE_SUCCESS_OPPONENT_CHEER_LIVE_DRAW_ONE_ABILITY_ID,
+} from '../ability-ids.js';
+import {
   PL_PB2_024_LIVE_START_ONLY_BIBI_WAIT_LOW_COST_OPPONENT_ABILITY_ID,
   PL_PB2_028_LIVE_START_WAIT_SELF_GAIN_YELLOW_HEART_ABILITY_ID,
   PL_PB2_031_LIVE_START_DISCARD_MUSE_GAIN_PURPLE_HEART_ABILITY_ID,
@@ -1430,7 +1437,7 @@ const PL_BP5_333_CONTINUOUS_EFFECT_TEXT = '【常时】只要此成员为待机�
 const PL_BP5_001_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】可以将1张手牌放置入休息室：查看自己卡组顶等同于自己的LIVE合计[スコア]+2张的卡。从其中将1张卡加入手牌。其余放置入休息室。';
 const PL_BP5_021_LIVE_START_EFFECT_TEXT =
-  "【LIVE开始时】自己舞台有1名以上成员时，自己和对方各抽1张卡，并将1张手牌放置入休息室。有2名以上时，进一步选择自己舞台上1名『μ's』成员，LIVE结束时为止获得[黄ハート]。有3名以上且各自名字不同的场合，进一步使此卡的[スコア]+1。";
+  "【LIVE开始时】自己的舞台中存在大于等于1名成员的场合，自己与对方抽1张卡，将1张手牌放置入休息室。大于等于2名的场合，再使存在于自己的舞台的1名『μ's』的成员，LIVE结束时为止，获得[黄ハート]。大于等于3名，且名称互不相同的场合，再使此卡的分数+1。";
 const LL_BP5_001_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】因声援公开的自己的卡中有LIVE卡2张以上，或自己舞台上的成员持有的Heart中[桃ハート]、[赤ハート]、[黄ハート]、[緑ハート]、[青ハート]、[紫ハート]合计有5种以上，或这个回合自己舞台上的成员移动过区域的场合，此卡的[スコア]+1。';
 const LL_BP5_002_LIVE_START_EFFECT_TEXT =
@@ -1809,7 +1816,7 @@ const NICO_EFFECT_TEXT =
 const BOKUIMA_EFFECT_TEXT =
   '【LIVE开始时】每存在1张自己的成功LIVE卡区中的卡片，使此卡成功的必要HEART减少[無ハート][無ハート]。';
 const PL_BP3_019_LIVE_START_EFFECT_TEXT =
-  "【LIVE开始时】自己的LIVE中存在大于等于2张『μ's』的卡片的场合，此卡的分数＋１。";
+  "【LIVE开始时】自己的LIVE中存在大于等于2张『μ's』的卡片的场合，此卡的分数+1。";
 const PL_BP3_022_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】从自己的卡组顶，每有1名存在于舞台的成员，公开1张卡片。其中每有1张LIVE卡，此卡的分数+1。之后，将因此公开的卡片放置入休息室。';
 const PL_BP3_007_LIVE_START_EFFECT_TEXT =
@@ -1819,13 +1826,13 @@ const PL_BP3_008_ACTIVATED_EFFECT_TEXT =
 const PL_BP3_008_LIVE_START_EFFECT_TEXT =
   "【LIVE开始时】可以将1名『μ's』的成员变为待机状态：LIVE结束时为止，获得[黄ハート][黄ハート]。";
 const PL_BP3_023_LIVE_START_EFFECT_TEXT =
-  '【LIVE开始时】存在于自己的舞台的成员持有的[BLADE]的合计大于等于10的场合、使此卡成功的必要HEART减少[無ハート][無ハート]。';
+  "【LIVE开始时】存在于自己的舞台的成员持有的[ブレード]的合计大于等于10的场合、使此卡成功的必要HEART减少[無ハート][無ハート]。";
 const PL_BP3_024_LIVE_START_CHOOSE_HEART_EFFECT_TEXT =
   "【LIVE开始时】自己的成功LIVE卡区存在卡片的场合，选择[桃ハート]或[黄ハート]或[紫ハート]中的1种。LIVE结束时为止，存在于自己的舞台的1名『μ's』的成员，获得1个选择了的HEART。";
 const PL_BP3_024_LIVE_START_SCORE_EFFECT_TEXT =
-  '【LIVE开始时】自己的成功LIVE卡区存在大于等于2张的场合，此卡的分数＋１。';
+  "【LIVE开始时】自己的成功LIVE卡区存在大于等于2张的场合，此卡的分数+1。";
 const PL_BP3_025_LIVE_SUCCESS_EFFECT_TEXT =
-  '【LIVE成功时】此回合中，自己没有剩余HEART的场合，此卡的分数＋１。';
+  "【LIVE成功时】此回合中，自己没有剩余HEART的场合，此卡的分数+1。";
 const PL_BP5_020_LIVE_START_EFFECT_TEXT =
   "【LIVE开始时】自己的中央区存在『μ's』成员的场合，该成员每持有2个[黄ハート]，此LIVE所需的必要[無ハート]减少1个。此能力最多减少3个[無ハート]。";
 const PL_BP5_022_LIVE_START_EFFECT_TEXT =
@@ -1898,7 +1905,7 @@ const SP_SD1_009_ON_ENTER_EFFECT_TEXT =
 const SP_BP1_023_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】LIVE的合计分数比对方高的场合，从自己的能量卡组，将1张能量卡以待机状态放置入能量区。';
 const BP4_021_LIVE_START_EFFECT_TEXT =
-  '【LIVE开始时】存在于自己的成功LIVE卡区的卡片的分数合计大于等于6的场合，使此卡成功的必要[無ハート]减少1；分数合计大于等于9的场合，此卡的分数再＋1。';
+  "【LIVE开始时】存在于自己的成功LIVE卡区的卡片的分数合计大于等于6的场合，使此卡成功的必要HEART减少[無ハート]。分数合计大于等于9的场合，此卡的分数再+1。";
 const HS_PB1_029_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的舞台上存在1名以上持有比原本持有Heart数更多Heart的『みらくらぱーく！』成员的场合，抽1张卡。存在2名以上的场合，此外此LIVE的必要Heart减少[無ハート][無ハート]。';
 const HS_PB1_030_LIVE_START_EFFECT_TEXT =
@@ -2709,7 +2716,79 @@ const PL_PB2_032_EFFECT_TEXT =
 const PL_PB2_037_EFFECT_TEXT =
   '【LIVE成功时】因声援被公开的自己的成员卡全部为『Printemps』，或全部为『lily white』，或全部为『BiBi』的场合，从因声援被公开的自己的卡片中将1张成员卡加入手牌。';
 
+const PL_PB2_021_AUTO_EFFECT_TEXT =
+  '【自动】【1回合1次】此成员，因自己的卡片的费用，或因自己的卡片的能力变为待机状态时，将此成员变为活跃状态，LIVE结束时为止，获得[ブレード]。';
+const PL_PB2_029_EFFECT_TEXT =
+  "【登场】/【LIVE开始时】自己的舞台上仅存在『μ's』的成员的场合，将存在于对方的舞台的1名原本持有的[ブレード]的数量小于等于2的成员变为待机状态。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）";
+const N_PR_036_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】LIVE结束时为止，存在于自己的舞台的1名其他的『虹咲』的成员获得[黄ハート]。该成员的费用大于等于15的场合，再获得[黄ハート]。';
+const S_PR_046_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】因声援被公开的对方的卡片中存在LIVE卡的场合，抽1张卡。';
+
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
+  {
+    abilityId: PL_PB2_021_AUTO_SELF_WAITED_ACTIVATE_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!-pb2-021'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_MEMBER_STATE_CHANGED,
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    observerOnly: true,
+    skipQueueWhenTurnLimitReached: true,
+    effectText: PL_PB2_021_AUTO_EFFECT_TEXT,
+    notes:
+      '单卡 workflow pl-pb2-021-kotori；仅 observer 按自身真实待机事件及己方费用/卡效来源入队，将来源变为活跃并独立给予 BLADE +1，已活跃不取消奖励。',
+  },
+  {
+    abilityId: PL_PB2_029_ON_ENTER_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!-pb2-029'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB2_029_EFFECT_TEXT,
+    notes:
+      '扩展 opponent-wait-target shared family；己方舞台仅有 μ’s 成员时，选择对方原本 BLADE 不超过2的成员待机。',
+  },
+  {
+    abilityId: PL_PB2_029_LIVE_START_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!-pb2-029'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB2_029_EFFECT_TEXT,
+    notes:
+      '复用同一 opponent-wait-target 配置形状，按实时己方舞台身份与目标原本 BLADE 结算。',
+  },
+  {
+    abilityId: N_PR_036_LIVE_START_OTHER_NIJIGASAKI_YELLOW_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!N-PR-036'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: N_PR_036_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 workflow n-pr-036-shizuku；来源离场不取消已诱发能力；选择其他虹咲成员并重验目标实例，按目标有效费用15阈值写 TARGET_MEMBER 黄 Heart +1或+2。',
+  },
+  {
+    abilityId: S_PR_046_LIVE_SUCCESS_OPPONENT_CHEER_LIVE_DRAW_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!S-PR-046'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_PR_046_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '扩展 shared conditional-live-draw-one；使用对方本次声援历史公开事实判断 LIVE，已诱发后来源离场仍结算且保留身份核对，满足时抽1并继续 pending。',
+  },
   {
     abilityId: PL_PB2_024_LIVE_START_ONLY_BIBI_WAIT_LOW_COST_OPPONENT_ABILITY_ID,
     baseCardCodes: ['PL!-pb2-024'],
@@ -10499,7 +10578,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!-bp3-019-L'],
+    baseCardCodes: ['PL!-bp3-019'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -10511,7 +10590,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_BP3_022_LIVE_START_REVEAL_PER_STAGE_MEMBER_GAIN_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!-bp3-022-L'],
+    baseCardCodes: ['PL!-bp3-022'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -10535,7 +10614,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
-    cardCodes: ['PL!-bp3-023-L'],
+    baseCardCodes: ['PL!-bp3-023'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -10547,7 +10626,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_BP3_024_LIVE_START_SUCCESS_CHOOSE_HEART_TARGET_MUSE_MEMBER_ABILITY_ID,
-    cardCodes: ['PL!-bp3-024-L'],
+    baseCardCodes: ['PL!-bp3-024'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -10559,7 +10638,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_BP3_024_LIVE_START_SUCCESS_TWO_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!-bp3-024-L'],
+    baseCardCodes: ['PL!-bp3-024'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -10571,7 +10650,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_BP3_025_LIVE_SUCCESS_NO_REMAINING_HEART_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!-bp3-025-L'],
+    baseCardCodes: ['PL!-bp3-025'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -10986,7 +11065,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
-    cardCodes: ['PL!-bp4-021-L'],
+    baseCardCodes: ['PL!-bp4-021'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -12552,7 +12631,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_BP5_021_LIVE_START_SUNNY_DAY_SONG_ABILITY_ID,
-    cardCodes: ['PL!-bp5-021-L'],
+    baseCardCodes: ['PL!-bp5-021'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -14331,7 +14410,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_PB2_013_ON_ENTER_EFFECT_TEXT,
     notes:
-      '单卡 pl-pb2-013-umi.ts；顶牌在原卡组公开，全部为 lily white 时回收1张 LIVE、余牌入休息室，条件失败保留牌序。',
+      '单卡 pl-pb2-013-umi.ts；顶牌在原卡组公开，全部为 lily white 时回收1张 LIVE、余牌入休息室；按用户转述的官方裁定，条件失败时公开牌全部入休息室。',
   },
   {
     abilityId: PL_PB2_017_ON_ENTER_STACK_FOUR_PRINTEMPS_MEMBERS_ABILITY_ID,
@@ -15013,7 +15092,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
-    baseCardCodes: ['PL!-PR-025', 'PL!HS-PR-040', 'PL!S-PR-046'],
+    baseCardCodes: ['PL!-PR-025', 'PL!HS-PR-040', 'PL!S-PR-047'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
@@ -15094,7 +15173,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PR_LIVE_START_WAITING_ROOM_AT_MOST_NINE_STACK_LIVE_ABILITY_ID,
-    baseCardCodes: ['PL!S-PR-047', 'PL!SP-PR-027'],
+    baseCardCodes: ['PL!S-PR-048', 'PL!SP-PR-027'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,

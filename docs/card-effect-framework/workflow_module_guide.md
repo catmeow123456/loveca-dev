@@ -1,5 +1,9 @@
 # Workflow Module Guide
 
+## 2026-09-29 条件与团体重验扩展
+
+`shared/opponent-wait-target.ts` 为 `PL!-pb2-029` 费用9「绚濑绘里」复用 `allOwnStageMembersGroupAlias` 与原本 BLADE query；选择提交时重新验证己方舞台非空且全部成员匹配指定团体，条件变化时结束原选择，不能沿用打开窗口时的结论。目标生命周期与状态也重新验证，真实待机后仍只由标准状态事件 wrapper 入队。该共享修正覆盖既有设置团体限制的配置，不改变未设置条件的卡牌。
+
 ## 2026-09-27 PB2 既有 family 扩展
 
 `shared/opponent-wait-target.ts` 为 `PL!-pb2-024` 费用4「西木野真姬」增加 `allOwnStageMembersUnitAlias` 条件：己方顶层舞台非空且全部匹配结构化小队身份。费用门槛通过已有 `statePredicate` 调用 `getMemberEffectiveCost`，不改变旧配置的印刷费用 selector；条件失败或无目标使用带实时结果的统一确认，ordered batch 保持自动续行。该卡同时启用窄 `trackTargetLifecycle` 配置，窗口保存目标舞台实例并在提交时重验；同一实体离场重登后旧选择空结算，不扩大旧配置行为。
@@ -116,10 +120,12 @@ FREE 只放宽这次登场的能量支付与目标槽位限制：卡面规定的
 
 ## Family Workflow
 
-`relay-replacement-gain-blade.ts` 是 `PL!-PR-025`、`PL!HS-PR-040`、`PL!S-PR-046`
+`relay-replacement-gain-blade.ts` 是 `PL!-PR-025`、`PL!HS-PR-040`、`PL!S-PR-047`
 三个同文基础编号证明的窄离场 family。它只接受绑定当前 pending 的精确
 `LeaveStageEvent`，并以该事件的 `replacingCardId` 重验换手登场成员仍为控制者主舞台顶层、
-印刷费用至少9；不得从最近 action、当前槽位变化或卡名猜测关系。合法时写目标成员实例绑定的
+当前有效费用至少9；并以原事件 sequence 排除其后替换成员发生过 `ON_LEAVE_STAGE` 的对象，
+防止旧 pending 作用于同实体重新登场后的新对象。正常换手后的首次登场以及站位、朝向变化
+不结束该实例；无需新增状态字段。不得从最近 action、当前槽位变化或卡名猜测关系。合法时写目标成员实例绑定的
 BLADE +2，离场来源无需仍在舞台；事件或目标 stale 时消费 pending 并 no-op。手动确认使用
 实时条件/结果文案，ordered batch 直接结算。
 
@@ -415,7 +421,9 @@ Workflow extraction should preserve existing tests. If behavior changes are inte
 
 `workflows/shared/conditional-live-draw-one.ts` is the behavior-named family proven across `PL!N-bp4-003`, `PL!S-bp3-005`, `PL!-bp4-001`, and `PL!-bp4-023`. It owns the shared LIVE_START/LIVE_SUCCESS and STAGE_MEMBER/LIVE_CARD pending lifecycle, source-safe resolution, confirm-only/manual bridge, ordered continuation, real-time condition reread, and one-card draw through `drawCardsForPlayer`.
 
-Its finite discriminated-union configuration has only the ability id, expected base card codes, source kind, condition type, exact action/no-op step labels, and condition-specific structured values needed for confirmation text. The proven conditions are LIVE score, event-inclusive cheer counts, stage effective-cost totals, and a specified remaining-HEART color with existing rebalance semantics; it is not a general condition callback or DSL.
+Its finite discriminated-union configuration has only the ability id, expected base card codes, source kind, condition type, exact action/no-op step labels, and condition-specific structured values needed for confirmation text. The proven conditions are LIVE score, event-inclusive cheer counts, stage effective-cost totals, a specified remaining-HEART color with existing rebalance semantics, and `OPPONENT_REVEALED_CHEER_HAS_LIVE`; it is not a general condition callback or DSL.
+
+`PL!S-PR-046` 费用5「渡边曜」使用新增有限条件 `OPPONENT_REVEALED_CHEER_HAS_LIVE`：确认与结算均通过 `selectCurrentLiveRevealedCheerCardIds` 查询对方本次声援历史中的 LIVE，已移出处理区的公开对象仍计入。仅该配置设置 `requireSourceInZoneAtResolution: false`，已诱发能力不因来源离场而取消，仍校验来源卡身份；该配置轴默认要求来源仍在原区域，旧卡保持既有行为。抽1、confirm-only 与 ordered continuation 沿用原流程，没有新增状态字段或任意回调配置。
 
 # conditional-live-modifier 的成员登场次数配置
 

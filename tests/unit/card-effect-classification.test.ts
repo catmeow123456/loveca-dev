@@ -1453,19 +1453,19 @@ describe('card effect classification registry', () => {
     }
   });
 
-  it('classifies the exact PL!-bp3-019-L and PL!-bp3-023-L LIVE-start abilities with full effect text', () => {
+  it('classifies all rarities of PL!-bp3-019-L and PL!-bp3-023-L LIVE-start abilities with full effect text', () => {
     for (const cardCase of [
       {
         cardCode: 'PL!-bp3-019-L',
         abilityId: PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
         effectText:
-          "【LIVE开始时】自己的LIVE中存在大于等于2张『μ's』的卡片的场合，此卡的分数＋１。",
+          "【LIVE开始时】自己的LIVE中存在大于等于2张『μ's』的卡片的场合，此卡的分数+1。",
       },
       {
         cardCode: 'PL!-bp3-023-L',
         abilityId: PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
         effectText:
-          '【LIVE开始时】存在于自己的舞台的成员持有的[BLADE]的合计大于等于10的场合、使此卡成功的必要HEART减少[無ハート][無ハート]。',
+          '【LIVE开始时】存在于自己的舞台的成员持有的[ブレード]的合计大于等于10的场合、使此卡成功的必要HEART减少[無ハート][無ハート]。',
       },
     ] as const) {
       expect(
@@ -1474,7 +1474,7 @@ describe('card effect classification registry', () => {
         )
       ).toMatchObject({
         abilityId: cardCase.abilityId,
-        cardCodes: [cardCase.cardCode],
+        baseCardCodes: [cardCase.cardCode.replace(/-L$/, '')],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -1508,11 +1508,11 @@ describe('card effect classification registry', () => {
       )
     ).toHaveLength(1);
 
-    expect(getCardAbilityDefinitions('PL!-bp3-019-P')).toEqual([]);
-    expect(getCardAbilityDefinitions('PL!-bp3-023-P')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!-bp3-019-P')).toHaveLength(1);
+    expect(getCardAbilityDefinitions('PL!-bp3-023-P')).toHaveLength(1);
   });
 
-  it('classifies only exact PL!-bp3-025-L as the queued LIVE-success ability with full effect text', () => {
+  it('classifies all rarities of PL!-bp3-025-L as the queued LIVE-success ability with full effect text', () => {
     expect(
       getCardAbilityDefinitions('PL!-bp3-025-L').find(
         (ability) =>
@@ -1521,18 +1521,18 @@ describe('card effect classification registry', () => {
       )
     ).toMatchObject({
       abilityId: PL_BP3_025_LIVE_SUCCESS_NO_REMAINING_HEART_THIS_LIVE_SCORE_ABILITY_ID,
-      cardCodes: ['PL!-bp3-025-L'],
+      baseCardCodes: ['PL!-bp3-025'],
       category: CardAbilityCategory.LIVE_SUCCESS,
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
       triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
       queued: true,
       implemented: true,
-      effectText: '【LIVE成功时】此回合中，自己没有剩余HEART的场合，此卡的分数＋１。',
+      effectText: '【LIVE成功时】此回合中，自己没有剩余HEART的场合，此卡的分数+1。',
     });
-    expect(getCardAbilityDefinitions('PL!-bp3-025-P')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!-bp3-025-P')).toHaveLength(1);
   });
 
-  it('classifies only exact PL!-bp3-022-L as the queued revealed LIVE score ability', () => {
+  it('classifies all rarities of PL!-bp3-022-L as the queued revealed LIVE score ability', () => {
     expect(
       getCardAbilityDefinitions('PL!-bp3-022-L').find(
         (ability) =>
@@ -1541,7 +1541,7 @@ describe('card effect classification registry', () => {
       )
     ).toMatchObject({
       abilityId: PL_BP3_022_LIVE_START_REVEAL_PER_STAGE_MEMBER_GAIN_LIVE_SCORE_ABILITY_ID,
-      cardCodes: ['PL!-bp3-022-L'],
+      baseCardCodes: ['PL!-bp3-022'],
       category: CardAbilityCategory.LIVE_START,
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
       triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -1550,15 +1550,15 @@ describe('card effect classification registry', () => {
       effectText:
         '【LIVE开始时】从自己的卡组顶，每有1名存在于舞台的成员，公开1张卡片。其中每有1张LIVE卡，此卡的分数+1。之后，将因此公开的卡片放置入休息室。',
     });
-    expect(getCardAbilityDefinitions('PL!-bp3-022-P')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!-bp3-022-P')).toHaveLength(1);
   });
 
-  it('classifies both exact PL!-bp3-024-L LIVE-start abilities with full effect text', () => {
+  it('classifies both abilities for all rarities of PL!-bp3-024-L LIVE-start abilities with full effect text', () => {
     expect(getCardAbilityDefinitions('PL!-bp3-024-L')).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           abilityId: PL_BP3_024_LIVE_START_SUCCESS_CHOOSE_HEART_TARGET_MUSE_MEMBER_ABILITY_ID,
-          cardCodes: ['PL!-bp3-024-L'],
+          baseCardCodes: ['PL!-bp3-024'],
           category: CardAbilityCategory.LIVE_START,
           sourceZone: CardAbilitySourceZone.LIVE_CARD,
           triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -1569,17 +1569,17 @@ describe('card effect classification registry', () => {
         }),
         expect.objectContaining({
           abilityId: PL_BP3_024_LIVE_START_SUCCESS_TWO_THIS_LIVE_SCORE_ABILITY_ID,
-          cardCodes: ['PL!-bp3-024-L'],
+          baseCardCodes: ['PL!-bp3-024'],
           category: CardAbilityCategory.LIVE_START,
           sourceZone: CardAbilitySourceZone.LIVE_CARD,
           triggerCondition: TriggerCondition.ON_LIVE_START,
           queued: true,
           implemented: true,
-          effectText: '【LIVE开始时】自己的成功LIVE卡区存在大于等于2张的场合，此卡的分数＋１。',
+          effectText: '【LIVE开始时】自己的成功LIVE卡区存在大于等于2张的场合，此卡的分数+1。',
         }),
       ])
     );
-    expect(getCardAbilityDefinitions('PL!-bp3-024-P')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!-bp3-024-P')).toHaveLength(2);
   });
 
   it('keeps PL!-bp5-009 and PL!-bp5-010 card-specific bodies out of the runner', () => {
@@ -5532,7 +5532,7 @@ describe('card effect classification registry', () => {
       )
     ).toMatchObject({
       abilityId: PL_BP5_021_LIVE_START_SUNNY_DAY_SONG_ABILITY_ID,
-      cardCodes: ['PL!-bp5-021-L'],
+      baseCardCodes: ['PL!-bp5-021'],
       category: CardAbilityCategory.LIVE_START,
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
       triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -16285,9 +16285,9 @@ describe('2026-07-27 PR shared-family definitions', () => {
         '【常时】只要存在于自己和对方的成功LIVE卡区的所有LIVE卡的分数合计大于等于10，获得[桃ハート]。',
     },
     {
-      cardCodes: ['PL!-PR-025-PR', 'PL!HS-PR-040-P', 'PL!S-PR-046-SEC'],
+      cardCodes: ['PL!-PR-025-PR', 'PL!HS-PR-040-P', 'PL!S-PR-047-SEC'],
       abilityId: PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
-      baseCardCodes: ['PL!-PR-025', 'PL!HS-PR-040', 'PL!S-PR-046'],
+      baseCardCodes: ['PL!-PR-025', 'PL!HS-PR-040', 'PL!S-PR-047'],
       category: CardAbilityCategory.AUTO,
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
@@ -16307,9 +16307,9 @@ describe('2026-07-27 PR shared-family definitions', () => {
         '【登场】检视自己卡组顶的，等同于10减去自己的手牌的张数的数量的卡片。从中将至多2张卡片加入手牌。其余的放置入休息室。',
     },
     {
-      cardCodes: ['PL!S-PR-047-PR', 'PL!SP-PR-027-SEC'],
+      cardCodes: ['PL!S-PR-048-PR', 'PL!SP-PR-027-SEC'],
       abilityId: PR_LIVE_START_WAITING_ROOM_AT_MOST_NINE_STACK_LIVE_ABILITY_ID,
-      baseCardCodes: ['PL!S-PR-047', 'PL!SP-PR-027'],
+      baseCardCodes: ['PL!S-PR-048', 'PL!SP-PR-027'],
       category: CardAbilityCategory.LIVE_START,
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       triggerCondition: TriggerCondition.ON_LIVE_START,

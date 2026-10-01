@@ -9,11 +9,14 @@ import {
 import {
   collectLiveModifiers,
   getMemberEffectiveHeartIcons,
+  getMemberOriginalBladeCount,
 } from '../../../../domain/rules/live-modifiers.js';
 import { getMemberEffectiveCost } from '../../../../domain/rules/member-effective-cost.js';
 import { addMemberActivePhaseSkip } from '../../../../domain/rules/member-active-skips.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import {
+  PL_PB2_029_ON_ENTER_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID,
+  PL_PB2_029_LIVE_START_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID,
   PL_PB2_024_LIVE_START_ONLY_BIBI_WAIT_LOW_COST_OPPONENT_ABILITY_ID,
   HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
@@ -133,6 +136,24 @@ const lowBladeNonDollchestraOpponentMemberSelector = and(
 );
 
 const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[] = [
+  ...[
+    PL_PB2_029_ON_ENTER_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID,
+    PL_PB2_029_LIVE_START_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID,
+  ].map((abilityId): OpponentWaitTargetWorkflowConfig => ({
+    abilityId,
+    effectTextAbilityId: abilityId,
+    stepId: 'PL_PB2_029_SELECT_LOW_ORIGINAL_BLADE_OPPONENT',
+    stepText: '请选择对方舞台上1名原本持有的[ブレード]数量小于等于2的成员变为待机状态。',
+    selectionLabel: '选择要变为待机状态的成员',
+    selector: typeIs(CardType.MEMBER),
+    statePredicate: (game, playerId, cardId) =>
+      getMemberOriginalBladeCount(game, playerId, cardId) <= 2,
+    allOwnStageMembersGroupAlias: "μ's",
+    startActionStep: 'START_SELECT_OPPONENT_LOW_ORIGINAL_BLADE_MEMBER',
+    trackTargetLifecycle: true,
+    consumeStaleSelectionAsNoOp: true,
+    confirmNoTargetWithRealtimeText: true,
+  })),
   {
     abilityId: PL_PB2_024_LIVE_START_ONLY_BIBI_WAIT_LOW_COST_OPPONENT_ABILITY_ID,
     effectTextAbilityId: PL_PB2_024_LIVE_START_ONLY_BIBI_WAIT_LOW_COST_OPPONENT_ABILITY_ID,
@@ -455,6 +476,19 @@ function startOpponentWaitTargetWorkflow(
           return card !== undefined && groupAliasIs(config.allOwnStageMembersGroupAlias!)(card);
         });
   if (!allOwnStageMembersMatchGroup) {
+    const confirmation =
+      config.confirmNoTargetWithRealtimeText === true
+        ? maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+            effectText: getOpponentWaitNoOpConfirmationText(
+              config,
+              0,
+              getOpponentWaitTargetCount(game, opponent.id, config.selector, config.statePredicate),
+              false
+            ),
+            stepText: '条件未满足，确认后不处理。',
+          })
+        : null;
+    if (confirmation) return confirmation;
     const state = {
       ...game,
       pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
@@ -696,6 +730,12 @@ function finishOpponentWaitTargetWorkflow(
       }));
   const currentSelectionIsLegal =
     unitConditionStillMet &&
+    (config.allOwnStageMembersGroupAlias === undefined ||
+      (ownStageIds.length > 0 &&
+        ownStageIds.every((cardId) => {
+          const card = game.cardRegistry.get(cardId);
+          return card !== undefined && groupAliasIs(config.allOwnStageMembersGroupAlias!)(card);
+        }))) &&
     (!config.trackTargetLifecycle ||
       (effect.metadata?.targetLifecycles as Readonly<Record<string, string>> | undefined)?.[
         selectedCardId
@@ -826,6 +866,12 @@ function getOpponentWaitNoOpConfirmationText(
   selectableTargetCount: number,
   conditionMet: boolean
 ): string {
+  if (config.allOwnStageMembersGroupAlias !== undefined) {
+    return (
+      getAbilityEffectText(config.effectTextAbilityId) +
+      `（当前己方舞台仅有『${config.allOwnStageMembersGroupAlias}』成员的条件${conditionMet ? '已满足' : '未满足'}，对方可选择目标${selectableTargetCount}名；不会将成员变为待机状态。）`
+    );
+  }
   if (config.allOwnStageMembersUnitAlias !== undefined) {
     return (
       getAbilityEffectText(config.effectTextAbilityId) +
