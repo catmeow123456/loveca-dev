@@ -7,12 +7,10 @@ import {
   getLandingCardGeometry,
   type EntranceStageTarget,
 } from '@/lib/cardEntranceLanding';
-import { OrientationState } from '@game/shared/types/enums';
 
 export interface LandingPresentation {
   id: string;
-  target?: EntranceStageTarget;
-  previewAnchor?: string;
+  target: EntranceStageTarget;
   imagePath: string;
 }
 
@@ -48,21 +46,14 @@ export function CardLanding({
     const timer = window.setTimeout(() => {
       const image = card.current;
       if (!image?.complete || !image.naturalWidth) return abort();
-      const objectId = presentation.target?.objectId;
-      const element = objectId
-        ? document.querySelector<HTMLElement>(`[data-object-id="${CSS.escape(objectId)}"]`)
-        : document.querySelector<HTMLElement>(
-            `[data-battle-ui-anchor="${presentation.previewAnchor}"] [data-zone-id]`
-          );
-      const rect = objectId
-        ? collectBattleAnimationAnchors().cards.get(objectId)
-        : element?.getBoundingClientRect();
+      const objectId = presentation.target.objectId;
+      const element = document.querySelector<HTMLElement>(
+        `[data-object-id="${CSS.escape(objectId)}"]`
+      );
+      const rect = collectBattleAnimationAnchors().cards.get(objectId);
       const board = document.querySelector<HTMLElement>('[data-battle-ui-anchor="battle-board"]');
       if (!rect || !element || !board || rect.width <= 0 || rect.height <= 0) return abort();
-      const end = getLandingCardGeometry(
-        rect,
-        presentation.target?.orientation ?? OrientationState.ACTIVE
-      );
+      const end = getLandingCardGeometry(rect, presentation.target.orientation);
       const bounds = board.getBoundingClientRect();
       // Travel from the portrait area to the slot, then descend in depth at a fixed centre.
       const startX = bounds.left + bounds.width * 0.5 - end.x;
@@ -145,7 +136,7 @@ export function CardLanding({
       flight.onfinish = () => {
         if (disposed) return;
         // Reveal the actual card at contact; the flight image never lingers over it.
-        if (presentation.target) image.style.visibility = 'hidden';
+        image.style.visibility = 'hidden';
         callbacks.current.onImpact();
         setImpact({
           x: end.x,

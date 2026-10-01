@@ -54,6 +54,7 @@ import { Card } from '@/components/card/Card';
 import { CardEffectText } from '@/components/card/CardEffectText';
 import { MulliganPanel } from './MulliganPanel';
 import { ThemeToggle } from '@/components/common';
+import { CardEntranceToggle } from './card-entrance/CardEntranceToggle';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { parseZoneId } from '@/lib/zoneUtils';
 import { getDragActionDescriptor, type SpecialDragTarget } from '@/lib/battleDragAction';
@@ -170,7 +171,9 @@ function formatCardCompactLabel(cardData: AnyCardData): string {
 type MobileBattlePanel = 'opponent' | 'log' | 'publicLog';
 
 const DevCardEntranceLayer = import.meta.env.DEV
-  ? lazy(() => import('./card-entrance/CardEntranceLayer').then((m) => ({ default: m.CardEntranceLayer })))
+  ? lazy(() =>
+      import('./card-entrance/CardEntranceLayer').then((m) => ({ default: m.CardEntranceLayer }))
+    )
   : null;
 
 export interface MobileBattlefieldFocusRequest {
@@ -438,6 +441,13 @@ export const GameBoard = memo(function GameBoard({
   const canShowDesktopPublicBattleLogButton =
     canShowPublicBattleLog && showDesktopPublicBattleLogButton;
   const isReadOnly = capabilities.isReadOnly;
+  const entranceSource = useGameStore((s) => s.remoteSession?.source ?? null);
+  const [cardEntranceEnabled, setCardEntranceEnabled] = useState(true);
+  const canShowCardEntrance =
+    !!DevCardEntranceLayer &&
+    ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) &&
+    (entranceSource === null || entranceSource === 'DEBUG' || entranceSource === 'SOLITAIRE') &&
+    !isReadOnly;
   const canShowUndo = capabilities.undoPolicy !== 'NONE';
   const undoGrant = matchView?.undo?.grant ?? null;
   const hasViewerUndoGrant =
@@ -2404,9 +2414,9 @@ export const GameBoard = memo(function GameBoard({
       >
         <BoardBackground {...tableWallpaper} className="-z-10" />
         <BattleAnimationLayer />
-        {DevCardEntranceLayer && (
+        {canShowCardEntrance && DevCardEntranceLayer && (
           <Suspense fallback={null}>
-            <DevCardEntranceLayer />
+            <DevCardEntranceLayer enabled={cardEntranceEnabled} />
           </Suspense>
         )}
         <BattleActionFeedbackLayer />
@@ -2461,7 +2471,14 @@ export const GameBoard = memo(function GameBoard({
                     </div>
                   </div>
 
-                  <div className="shrink-0">
+                  <div className="flex shrink-0 items-center gap-1">
+                    {canShowCardEntrance && (
+                      <CardEntranceToggle
+                        enabled={cardEntranceEnabled}
+                        onChange={setCardEntranceEnabled}
+                        className="h-9 w-9"
+                      />
+                    )}
                     <ThemeToggle className="h-9 w-9" />
                   </div>
                 </div>
@@ -2801,7 +2818,13 @@ export const GameBoard = memo(function GameBoard({
           </div>
         ) : (
           <>
-            <div className="absolute right-4 top-4 z-[80]">
+            <div className="absolute right-4 top-4 z-[80] flex items-center gap-2">
+              {canShowCardEntrance && (
+                <CardEntranceToggle
+                  enabled={cardEntranceEnabled}
+                  onChange={setCardEntranceEnabled}
+                />
+              )}
               <ThemeToggle />
             </div>
 
