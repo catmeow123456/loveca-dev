@@ -234,6 +234,8 @@ export interface RemoteUndoResponseOptions {
 }
 
 export interface BattleAnimationOcclusion {
+  /** A dedicated presentation owns this card’s movement until it releases the occlusion. */
+  readonly suppressDefaultMovement?: boolean;
   readonly eventId: string;
   readonly objectId: string;
 }

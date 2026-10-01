@@ -6,12 +6,18 @@ import { createCardInstance, type MemberCardData } from '../../src/domain/entiti
 import { registerCards, updatePlayer } from '../../src/domain/entities/game';
 import {
   CardType,
+  OrientationState,
   GamePhase,
   SlotPosition,
   SubPhase,
   TurnType,
 } from '../../src/shared/types/enums';
 import { collectCardEntrances, emptyEntranceCursor } from '../../client/src/lib/cardEntranceEvents';
+
+import {
+  getEntranceStageTarget,
+  sameEntranceTarget,
+} from '../../client/src/lib/cardEntranceLanding';
 
 const member: MemberCardData = {
   cardCode: 'PL!N-bp7-006-SEC',
@@ -84,6 +90,48 @@ describe('entrance consumes authoritative public member entry', () => {
       const view = session.getPlayerViewState(player)!;
       const id = result.entrances[0]!.objectId;
       expect(view.objects[id]?.frontInfo?.cardCode).toBe(`PL!N-bp7-006-${rarity}`);
+      const target = getEntranceStageTarget(view, id)!;
+      expect(target).toMatchObject({
+        objectId: id,
+        cardCode: `PL!N-bp7-006-${rarity}`,
+        orientation: OrientationState.ACTIVE,
+      });
+      expect(sameEntranceTarget(target, getEntranceStageTarget(view, id))).toBe(true);
+      const hidden = {
+        ...view,
+        objects: { ...view.objects, [id]: { ...view.objects[id]!, surface: 'BACK' as const } },
+      };
+      expect(getEntranceStageTarget(hidden, id)).toBeNull();
+      const waiting = {
+        ...view,
+        objects: {
+          ...view.objects,
+          [id]: { ...view.objects[id]!, orientation: OrientationState.WAITING },
+        },
+      };
+      expect(sameEntranceTarget(target, getEntranceStageTarget(waiting, id))).toBe(false);
+      const below = {
+        ...view,
+        table: {
+          ...view.table,
+          zones: Object.fromEntries(
+            Object.entries(view.table.zones).map(([key, z]) => [
+              key,
+              {
+                ...z,
+                slotMap: Object.fromEntries(
+                  Object.entries(z.slotMap ?? {}).map(([slot, occupant]) => [
+                    slot,
+                    occupant === id ? null : occupant,
+                  ])
+                ),
+                memberBelow: { CENTER: [id] },
+              },
+            ])
+          ),
+        },
+      };
+      expect(getEntranceStageTarget(below, id)).toBeNull();
       expect(
         Object.values(view.table.zones).some((z) => Object.values(z.slotMap ?? {}).includes(id))
       ).toBe(true);

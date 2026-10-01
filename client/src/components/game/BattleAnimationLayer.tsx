@@ -70,6 +70,13 @@ export function BattleAnimationLayer() {
       removeBattleAnimationOcclusion: s.removeBattleAnimationOcclusion,
     }))
   );
+  const movementOwners = useGameStore(
+    useShallow((s) =>
+      s.ui.battleAnimationOcclusions
+        .filter((entry) => entry.suppressDefaultMovement)
+        .map((entry) => entry.objectId)
+    )
+  );
   const [events, setEvents] = useState<BattleAnimationEvent[]>([]);
   const [discardPumpGeneration, setDiscardPumpGeneration] = useState(0);
   const previousViewRef = useRef<PlayerViewState | null>(null);
@@ -380,6 +387,7 @@ export function BattleAnimationLayer() {
               <MovingCard
                 key={event.id}
                 event={event}
+                suppressMovement={movementOwners.includes(event.render.objectId)}
                 imagePath={imagePath}
                 imageAlt={imageAlt}
                 reduceMotion={reduceMotion}
@@ -666,14 +674,24 @@ function MovingCard({
   imagePath,
   imageAlt,
   reduceMotion,
+  suppressMovement,
   onDone,
 }: {
   readonly event: Extract<BattleAnimationEvent, { kind: 'CARD_MOVE' }>;
+  readonly suppressMovement: boolean;
   readonly imagePath: string;
   readonly imageAlt: string;
   readonly reduceMotion: boolean | null;
   readonly onDone: () => void;
 }) {
+  const finish = useRef(onDone);
+  finish.current = onDone;
+  useLayoutEffect(() => {
+    if (suppressMovement) finish.current();
+  }, [suppressMovement]);
+  // Remove the motion child before completing its event, so AnimatePresence cannot
+  // keep a second flying card alive for an exit fade under the dedicated presentation.
+  if (suppressMovement) return null;
   const fromCenter = getRectCenter(event.fromRect);
   const toCenter = getRectCenter(event.toRect);
   const fromRect = normalizeCardMoveRect(event, event.fromRect, 'from');
