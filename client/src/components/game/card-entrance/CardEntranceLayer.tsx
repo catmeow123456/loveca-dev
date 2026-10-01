@@ -1,10 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '@/store/gameStore';
 import { collectCardEntrances, emptyEntranceCursor } from '@/lib/cardEntranceEvents';
-import { createCardEntranceMesh } from '@/lib/cardEntranceMesh';
-import art from './kanata.png';
+import { getCardEntranceProfile, type CardEntranceProfile } from '@/lib/cardEntranceProfiles';
+import { CardEntrancePortrait } from './CardEntrancePortrait';
 import { CardLanding, type LandingPresentation } from './CardLanding';
 import {
   CARD_ENTRANCE_TOTAL_MS,
@@ -20,7 +20,9 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
       log: s.publicBattleLog,
     }))
   );
-  const [queue, setQueue] = useState<(LandingPresentation & { receivedAt: number })[]>([]);
+  const [queue, setQueue] = useState<
+    (LandingPresentation & { receivedAt: number; profile: CardEntranceProfile })[]
+  >([]);
   const [landedId, setLandedId] = useState<string | null>(null);
   const cursor = useRef(emptyEntranceCursor());
   const reservations = useRef(new Set<string>());
@@ -47,10 +49,12 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
     }
     const fresh = result.entrances.flatMap((entry) => {
       const target = getEntranceStageTarget(view, entry.objectId);
-      return target
+      const profile = target && getCardEntranceProfile(target.cardCode);
+      return target && profile
         ? [
             {
               id: entry.id,
+              profile,
               target,
               imagePath: useGameStore.getState().getCardImagePath(target.cardCode),
               receivedAt: performance.now(),
@@ -127,8 +131,23 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
   return (
     <>
       {presentation && (
-        <div key={presentation.id} className="card-entrance-presentation">
-          <Entrance reduced={reduced} onDone={finishPresentation} />
+        <div
+          key={presentation.id}
+          className="card-entrance-presentation"
+          data-profile={presentation.profile.id}
+          style={
+            {
+              '--entrance-art-center': presentation.profile.center,
+              '--entrance-mobile-height': presentation.profile.mobileHeight,
+              '--entrance-light': presentation.profile.light,
+            } as CSSProperties
+          }
+        >
+          <CardEntrancePortrait
+            profile={presentation.profile}
+            reduced={reduced}
+            onDone={finishPresentation}
+          />
           {!reduced && (
             <CardLanding
               presentation={presentation}
@@ -148,85 +167,5 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
         </div>
       )}
     </>
-  );
-}
-
-function Entrance({ reduced, onDone }: { reduced: boolean; onDone: () => void }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const container = useRef<HTMLDivElement>(null);
-  const done = useRef(onDone);
-  done.current = onDone;
-  useEffect(() => {
-    const image = new Image();
-    const target = canvas.current;
-    const lost = () => done.current();
-    target?.addEventListener('webglcontextlost', lost);
-    let frame = 0,
-      disposed = false;
-    let mesh: ReturnType<typeof createCardEntranceMesh> = null;
-    const start = performance.now();
-    image.onload = () => {
-      if (disposed || !canvas.current) return;
-      try {
-        mesh = createCardEntranceMesh(canvas.current, image);
-      } catch {
-        done.current();
-        return;
-      }
-      if (!mesh) {
-        done.current();
-        return;
-      }
-      const tick = (now: number) => {
-        if (disposed) return;
-        const t = (now - start) / 1000;
-        if (t >= 1.95) {
-          if (container.current) container.current.style.opacity = '0';
-          return;
-        }
-        const enter = 1 - (1 - Math.min(1, t / 0.6)) ** 3;
-        const exit = Math.max(0, Math.min(1, (t - 1.5) / 0.45));
-        if (container.current) {
-          container.current.style.opacity = String(reduced ? 1 : enter * (1 - exit));
-          const labelEnter = reduced
-            ? 1
-            : 1 - (1 - Math.max(0, Math.min(1, (t - 0.3) / 0.35))) ** 3;
-          container.current.style.setProperty('--name-opacity', String(labelEnter));
-          container.current.style.setProperty('--name-y', `${(1 - labelEnter) * 12}px`);
-          container.current.style.setProperty(
-            '--entrance-x',
-            `${reduced ? 0 : (1 - enter) * 65}px`
-          );
-        }
-        mesh?.draw(t, reduced);
-        frame = requestAnimationFrame(tick);
-      };
-      frame = requestAnimationFrame(tick);
-    };
-    image.onerror = () => done.current();
-    image.src = art;
-    return () => {
-      disposed = true;
-      target?.removeEventListener('webglcontextlost', lost);
-      cancelAnimationFrame(frame);
-      image.onload = null;
-      image.onerror = null;
-      mesh?.dispose();
-    };
-  }, [reduced]);
-  return (
-    <div
-      ref={container}
-      className="card-entrance card-entrance--centered"
-      data-testid="kanata-entrance"
-      aria-label="近江彼方登场"
-      style={{ opacity: 0 }}
-    >
-      <div className="card-entrance-light" />
-      <canvas ref={canvas} className="card-entrance-art" />
-      <div className="card-entrance-name">
-        <span className="card-entrance-card-name">近江彼方</span>
-      </div>
-    </div>
   );
 }

@@ -1,6 +1,11 @@
+import type { EntranceMeshProfile } from './cardEntranceProfiles';
 // Experimental card-framing mesh: stable face, delayed hair and clothing motion.
 // Coordinates are specific to this card-framing concept, not card rules.
-export function createCardEntranceMesh(canvas: HTMLCanvasElement, image: HTMLImageElement) {
+export function createCardEntranceMesh(
+  canvas: HTMLCanvasElement,
+  image: HTMLImageElement,
+  profile: EntranceMeshProfile
+) {
   const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: false });
   if (!gl) return null;
   const shader = (type: number, source: string) => {
@@ -18,16 +23,17 @@ export function createCardEntranceMesh(canvas: HTMLCanvasElement, image: HTMLIma
       gl.VERTEX_SHADER,
       `
     attribute vec2 uv; varying vec2 tex; uniform float time; uniform float amount;
+    uniform vec4 hairRegion; uniform vec2 hairEnd; uniform vec4 hemRegion; uniform vec3 strength;
     void main(){
       tex=uv; vec2 p=uv;
       float settle=exp(-time*2.2)*sin(time*4.3);
-      float upper=1.0-smoothstep(.48,.97,uv.y);
+      float upper=(1.0-smoothstep(.48,.97,uv.y))*strength.x;
       p.x+=upper*settle*.028*amount;
       p.y-=upper*sin(min(time,1.8)*1.745)*.005*amount;
-      float hair=(1.0-smoothstep(.35,.57,uv.x))*smoothstep(.20,.40,uv.y)*(1.0-smoothstep(.63,.73,uv.y));
+      float hair=(1.0-smoothstep(hairRegion.x,hairRegion.y,uv.x))*smoothstep(hairRegion.z,hairRegion.w,uv.y)*(1.0-smoothstep(hairEnd.x,hairEnd.y,uv.y))*strength.y;
       p.x+=hair*sin(time*4.1-uv.y*6.0)*(.008+.024*exp(-time*1.4))*amount;
       p.y+=hair*sin(time*3.6-uv.x*4.0)*.009*amount;
-      float hem=(1.0-smoothstep(.43,.75,uv.x))*smoothstep(.68,.88,uv.y);
+      float hem=(1.0-smoothstep(hemRegion.x,hemRegion.y,uv.x))*smoothstep(hemRegion.z,hemRegion.w,uv.y)*strength.z;
       p.x+=hem*sin(time*3.5-uv.y*3.0)*(.008+.02*exp(-time*1.2))*amount;
       p.y+=hem*sin(time*3.3-uv.x*4.0)*.012*amount;
       p=.045+p*.91;
@@ -48,6 +54,10 @@ export function createCardEntranceMesh(canvas: HTMLCanvasElement, image: HTMLIma
   if (!gl.getProgramParameter(program, gl.LINK_STATUS))
     throw new Error(gl.getProgramInfoLog(program) ?? 'Shader link failed');
   gl.useProgram(program);
+  gl.uniform4fv(gl.getUniformLocation(program, 'hairRegion'), profile.hair);
+  gl.uniform2fv(gl.getUniformLocation(program, 'hairEnd'), profile.hairEnd);
+  gl.uniform4fv(gl.getUniformLocation(program, 'hemRegion'), profile.hem);
+  gl.uniform3fv(gl.getUniformLocation(program, 'strength'), profile.strength);
   const vertices = [];
   const n = 60;
   for (let y = 0; y < n; y++)

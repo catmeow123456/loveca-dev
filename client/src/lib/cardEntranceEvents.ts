@@ -1,3 +1,4 @@
+import { getCardEntranceProfile } from './cardEntranceProfiles';
 import type { PublicEvent } from '@game/online';
 import { ZoneType } from '@game/shared/types/enums';
 
@@ -18,11 +19,6 @@ export const emptyEntranceCursor = (): EntranceCursor => ({
 export interface CardEntrance {
   id: string;
   objectId: string;
-}
-
-// Cosmetic asset mapping only. No card ability or rule logic belongs here.
-export function isKanataEntranceCode(code: string): boolean {
-  return /^PL!N-bp7-006(?:-[^-]+)?$/.test(code);
 }
 
 export function collectCardEntrances(
@@ -64,7 +60,7 @@ export function collectCardEntrances(
     if (event.type !== 'CardMovedPublic' && event.type !== 'CardRevealedAndMoved') continue;
     if (
       !event.card ||
-      !isKanataEntranceCode(event.card.cardCode) ||
+      !getCardEntranceProfile(event.card.cardCode) ||
       !event.from ||
       event.from.zone === ZoneType.MEMBER_SLOT ||
       event.to?.zone !== ZoneType.MEMBER_SLOT ||

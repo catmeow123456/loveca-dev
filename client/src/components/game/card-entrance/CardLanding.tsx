@@ -249,7 +249,7 @@ export function CardLanding({
   }, [presentation]);
 
   return (
-    <div className="card-landing" data-testid="kanata-landing" aria-hidden="true">
+    <div className="card-landing" data-testid="card-landing" aria-hidden="true">
       <div ref={shadow} className="card-landing-shadow" />
       <img
         ref={card}

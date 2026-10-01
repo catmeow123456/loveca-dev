@@ -1,11 +1,8 @@
+import { getCardEntranceProfile } from '../../client/src/lib/cardEntranceProfiles';
 import { describe, expect, it } from 'vitest';
 import type { CardMovedPublicEvent } from '../../src/online/types';
 import { ZoneType } from '../../src/shared/types/enums';
-import {
-  collectCardEntrances,
-  emptyEntranceCursor,
-  isKanataEntranceCode,
-} from '../../client/src/lib/cardEntranceEvents';
+import { collectCardEntrances, emptyEntranceCursor } from '../../client/src/lib/cardEntranceEvents';
 const event = (seq: number, changes: Partial<CardMovedPublicEvent> = {}): CardMovedPublicEvent => ({
   type: 'CardMovedPublic',
   eventId: `e${seq}`,
@@ -28,9 +25,25 @@ const init = () => collectCardEntrances(emptyEntranceCursor(), input(10)).cursor
 describe('local card entrance presentation', () => {
   it('covers all member rarities but never the reference energy or similar numbers', () => {
     for (const rarity of ['R', 'R+', 'P', 'P+', 'SEC', 'NEW'])
-      expect(isKanataEntranceCode(`PL!N-bp7-006-${rarity}`)).toBe(true);
+      expect(getCardEntranceProfile(`PL!N-bp7-006-${rarity}`)?.id).toBe('kanata');
     for (const code of ['PL!N-bp7-E02-SECE', 'PL!N-bp7-0060-SEC', 'PL!N-bp7-007-R'])
-      expect(isKanataEntranceCode(code)).toBe(false);
+      expect(getCardEntranceProfile(code)).toBeUndefined();
+  });
+  it('maps Ren rarities and preserves mixed-character event order without replay', () => {
+    for (const suffix of ['', '-R', '-PP', '-NEW'])
+      expect(getCardEntranceProfile(`PL!SP-pb2-005${suffix}`)?.name).toBe('叶月恋');
+    for (const code of ['PL!SP-pb2-0050-PP', 'PL!SP-pb2-005-', 'PL!SP-pb2-005-PP-extra'])
+      expect(getCardEntranceProfile(code)).toBeUndefined();
+    const events = [
+      event(12, { card: { publicObjectId: 'obj_ren', cardCode: 'PL!SP-pb2-005-PP' } }),
+      event(11),
+    ];
+    const result = collectCardEntrances(init(), input(12, events));
+    expect(result.entrances).toEqual([
+      { id: 'e11', objectId: 'obj_k' },
+      { id: 'e12', objectId: 'obj_ren' },
+    ]);
+    expect(collectCardEntrances(result.cursor, input(12, events)).entrances).toEqual([]);
   });
   it('skips initial history, reconnect epochs, match changes and sequence rewind', () => {
     expect(collectCardEntrances(emptyEntranceCursor(), input(11, [event(11)])).entrances).toEqual(

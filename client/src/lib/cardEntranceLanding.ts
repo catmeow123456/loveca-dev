@@ -1,7 +1,7 @@
 import type { PlayerViewState } from '@game/online';
 import { OrientationState, ZoneType } from '@game/shared/types/enums';
 import type { BattleAnimationRect } from './battleAnimationEvents';
-import { isKanataEntranceCode } from './cardEntranceEvents';
+import { getCardEntranceProfile } from './cardEntranceProfiles';
 
 export const CARD_ENTRANCE_LANDING_DELAY_MS = 1750;
 export const CARD_ENTRANCE_TRAVEL_MS = 400;
@@ -24,7 +24,7 @@ export function getEntranceStageTarget(
 ): EntranceStageTarget | null {
   const object = view?.objects[objectId];
   const code = object?.frontInfo?.cardCode;
-  if (!view || object?.surface !== 'FRONT' || !code || !isKanataEntranceCode(code)) return null;
+  if (!view || object?.surface !== 'FRONT' || !code || !getCardEntranceProfile(code)) return null;
   for (const [zoneKey, zone] of Object.entries(view.table.zones)) {
     if (zone.zone !== ZoneType.MEMBER_SLOT) continue;
     for (const [slot, occupant] of Object.entries(zone.slotMap ?? {})) {
