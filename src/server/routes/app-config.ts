@@ -1,3 +1,4 @@
+import { cardEntranceConfigService } from '../services/card-entrance-config-service.js';
 import { Router } from 'express';
 import { config } from '../config.js';
 import { siteAnnouncementService } from '../services/site-announcement-service.js';
@@ -9,12 +10,14 @@ export const appConfigRouter = Router();
 appConfigRouter.get('/', async (_req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   const emailEnabled = config.isEmailFeatureEnabled;
-  const [siteStatus, matchEmotes, battleEntries, battleTimeouts] = await Promise.all([
-    siteAnnouncementService.getPublicSiteStatus(),
-    matchEmoteCatalogService.getPublicCatalog(),
-    siteAnnouncementService.getPlayerBattleEntryVisibility(),
-    battleTimeoutConfigService.getConfig(),
-  ]);
+  const [siteStatus, matchEmotes, battleEntries, battleTimeouts, cardEntranceEnabled] =
+    await Promise.all([
+      siteAnnouncementService.getPublicSiteStatus(),
+      matchEmoteCatalogService.getPublicCatalog(),
+      siteAnnouncementService.getPlayerBattleEntryVisibility(),
+      battleTimeoutConfigService.getConfig(),
+      cardEntranceConfigService.isEnabled(),
+    ]);
 
   res.json({
     data: {
@@ -24,6 +27,7 @@ appConfigRouter.get('/', async (_req, res) => {
           verificationRequired: config.isEmailVerificationRequired,
           passwordResetEnabled: emailEnabled,
         },
+        cardEntrance: { enabled: cardEntranceEnabled },
         battleEntries,
         battleTimeouts,
       },

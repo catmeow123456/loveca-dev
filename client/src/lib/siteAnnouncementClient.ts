@@ -176,3 +176,23 @@ export async function deleteAdminSiteAnnouncement(id: string): Promise<void> {
     throw new Error(response.error?.message ?? '删除公告失败');
   }
 }
+
+export async function fetchAdminCardEntranceConfig(): Promise<{ enabled: boolean }> {
+  const response = await apiClient.get<{ enabled: boolean }>(
+    '/api/site-announcements/admin/card-entrance'
+  );
+  if (response.error || !response.data)
+    throw new Error(response.error?.message ?? '读取卡牌动效配置失败');
+  return response.data;
+}
+export async function updateAdminCardEntranceConfig(input: {
+  enabled: boolean;
+}): Promise<{ enabled: boolean }> {
+  const response = await apiClient.put<{ enabled: boolean }>(
+    '/api/site-announcements/admin/card-entrance',
+    input
+  );
+  if (response.error || !response.data)
+    throw new Error(response.error?.message ?? '保存卡牌动效配置失败');
+  return response.data;
+}

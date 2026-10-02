@@ -295,6 +295,13 @@
       "when": 1790530118778,
       "tag": "0041_add_ai_battle_evidence",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1790906400000,
+      "tag": "0042_add_card_entrance_config",
+      "breakpoints": true
     }
   ]
 }

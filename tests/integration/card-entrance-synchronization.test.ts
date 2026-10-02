@@ -235,3 +235,37 @@ describe('authority entrance barrier with real Ren relay ability', () => {
     expect(session.getPlayerViewState('p2')!.match.entrance).toBeUndefined();
   });
 });
+
+it('platform disable resumes the real pending effect once, rejects old ACK and reenable does not replay', () => {
+  const { session, play, ack } = fixture();
+  play();
+  const pending = session.state!.entranceRuntime!.pending!;
+  expect(session.setCardEntranceEnabled(false)).toBe(true);
+  expect(session.state!.entranceRuntime!.pending).toBeNull();
+  expect(session.state!.entranceRuntime!.disabled).toBe(true);
+  expect(session.state!.players[0].memberSlots.memberBelow.CENTER).toEqual(['replacement']);
+  const after = session.state;
+  expect(session.setCardEntranceEnabled(false)).toBe(false);
+  expect(session.state).toBe(after);
+  expect(ack('p1', pending.id).success).toBe(false);
+  expect(session.setCardEntranceEnabled(true)).toBe(true);
+  expect(session.state!.entranceRuntime!.pending).toBeNull();
+});
+it('disabled entrances still pay and resolve effects without a wait', () => {
+  const { session, play } = fixture();
+  session.setCardEntranceEnabled(false);
+  play();
+  expect(session.state!.entranceRuntime!.pending).toBeNull();
+  expect(session.getPlayerViewState('p1')!.match.cardEntranceEnabled).toBe(false);
+  expect(session.state!.players[0].memberSlots.memberBelow.CENTER).toEqual(['replacement']);
+});
+
+it('undo does not undo platform policy and replay stays disabled', () => {
+  const { session, play } = fixture();
+  play();
+  session.setCardEntranceEnabled(false);
+  expect(session.undoLastStep().success).toBe(true);
+  expect(session.state!.entranceRuntime!.disabled).toBe(true);
+  play();
+  expect(session.state!.entranceRuntime!.pending).toBeNull();
+});

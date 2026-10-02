@@ -1126,6 +1126,7 @@ export const siteStatusConfig = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
     action: text('action'),
+    cardEntranceEnabled: boolean('card_entrance_enabled').notNull().default(true),
     rankedEntryVisible: boolean('ranked_entry_visible').notNull().default(true),
     themeTableEntryVisible: boolean('theme_table_entry_visible').notNull().default(true),
     playerActionTimeoutSeconds: integer('player_action_timeout_seconds').notNull().default(180),

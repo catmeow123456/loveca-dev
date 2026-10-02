@@ -1,3 +1,6 @@
+import { applyDebugCardEntranceConfig } from '../services/debug-match-service.js';
+import { cardEntranceConfigService } from '../services/card-entrance-config-service.js';
+import { onlineMatchService } from '../services/online-match-service.js';
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { SITE_ANNOUNCEMENT_TYPES, SITE_STATUS_LIFECYCLES } from '../site-status.js';
@@ -90,6 +93,35 @@ siteAnnouncementsRouter.put(
         },
         error: null,
       });
+    } catch (error) {
+      respondSiteAnnouncementError(res, error);
+    }
+  }
+);
+
+siteAnnouncementsRouter.get(
+  '/admin/card-entrance',
+  requireAuth,
+  requireAdmin,
+  async (_req, res) => {
+    try {
+      res.json({ data: await cardEntranceConfigService.getConfig(), error: null });
+    } catch (error) {
+      respondSiteAnnouncementError(res, error);
+    }
+  }
+);
+siteAnnouncementsRouter.put(
+  '/admin/card-entrance',
+  requireAuth,
+  requireAdmin,
+  validate(z.object({ enabled: z.boolean() }).strict()),
+  async (req, res) => {
+    try {
+      const config = await cardEntranceConfigService.updateConfig(req.body, req.user!.id);
+      applyDebugCardEntranceConfig(config.enabled);
+      await onlineMatchService.refreshCardEntrancePolicy();
+      res.json({ data: config, error: null });
     } catch (error) {
       respondSiteAnnouncementError(res, error);
     }

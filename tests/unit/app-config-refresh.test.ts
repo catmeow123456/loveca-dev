@@ -13,6 +13,7 @@ import {
 function createConfig(overrides: Partial<PublicAppConfig> = {}): PublicAppConfig {
   return {
     features: {
+      cardEntrance: { enabled: true },
       email: {
         enabled: false,
         verificationRequired: false,
@@ -262,4 +263,18 @@ describe('public app config refresh timing', () => {
     expect(shouldRunFocusPublicConfigRefresh(1_000, 10_000, 15_000)).toBe(false);
     expect(shouldRunFocusPublicConfigRefresh(1_000, 16_000, 15_000)).toBe(true);
   });
+});
+
+it('platform entrance policy participates in refresh equality and fails closed when absent', () => {
+  const base = createConfig();
+  const enabled = normalizeAppConfig({
+    ...base,
+    features: { ...base.features, cardEntrance: { enabled: true } },
+  });
+  const disabled = normalizeAppConfig({
+    ...base,
+    features: { ...base.features, cardEntrance: { enabled: false } },
+  });
+  expect(buildPublicAppConfigRenderKey(enabled)).not.toBe(buildPublicAppConfigRenderKey(disabled));
+  expect(normalizeAppConfig(null).features.cardEntrance.enabled).toBe(false);
 });

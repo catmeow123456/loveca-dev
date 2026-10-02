@@ -251,3 +251,26 @@ describe('online entrance synchronization', () => {
     }
   });
 });
+
+it('global policy closes active waits and projects the hidden player control for both seats', async () => {
+  let enabled = true;
+  const service = new OnlineMatchService({
+    recorder: null,
+    getCardEntranceEnabled: async () => enabled,
+  });
+  const match = await prepareEntrance(service);
+  expect(match.session.state!.entranceRuntime!.pending).not.toBeNull();
+  enabled = false;
+  await service.refreshCardEntrancePolicy();
+  for (const user of [FIRST_USER_ID, SECOND_USER_ID]) {
+    const snapshot = await readFullSnapshot(service, match, user);
+    expect(snapshot.playerViewState.match.entrance).toBeUndefined();
+    expect(snapshot.playerViewState.match.cardEntranceEnabled).toBe(false);
+  }
+  enabled = true;
+  await service.refreshCardEntrancePolicy();
+  expect((await readFullSnapshot(service, match)).playerViewState.match.cardEntranceEnabled).toBe(
+    true
+  );
+  expect(match.session.state!.entranceRuntime!.pending).toBeNull();
+});

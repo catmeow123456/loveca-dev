@@ -20,6 +20,7 @@ export interface EntranceWait {
   readonly deadlineAt: number;
 }
 export interface EntranceRuntime {
+  readonly disabled?: true;
   readonly singleViewer: boolean;
   readonly seenSequence: number;
   readonly generation: number;

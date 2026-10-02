@@ -1,3 +1,5 @@
+import { cardEntranceConfigService } from '../services/card-entrance-config-service.js';
+import { applyDebugCardEntranceConfig } from '../services/debug-match-service.js';
 import { Router } from 'express';
 import type { Seat } from '../../online/types.js';
 import type {
@@ -17,6 +19,10 @@ import {
 } from '../services/debug-match-service.js';
 
 export const debugOnlineRouter = Router();
+debugOnlineRouter.use(async (_req, _res, next) => {
+  applyDebugCardEntranceConfig(await cardEntranceConfigService.isEnabled());
+  next();
+});
 
 debugOnlineRouter.get('/matches/:matchId', (req, res) => {
   const status = getDebugMatchStatus(req.params.matchId);
