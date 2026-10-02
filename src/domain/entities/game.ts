@@ -943,6 +943,7 @@ export interface GameState {
   /**
    * 游戏是否已结束
    */
+  readonly entranceRuntime?: import('../../shared/card-entrance.js').EntranceRuntime;
   readonly isEnded: boolean;
 
   /**
@@ -1130,6 +1131,7 @@ export function getPlayerById(game: GameState, playerId: string): PlayerState | 
  */
 export function hasPendingAbilityOrChoice(game: GameState): boolean {
   return (
+    !!game.entranceRuntime?.pending ||
     game.checkTimingContext !== null ||
     game.pendingAbilities.length > 0 ||
     game.pendingChoice !== null ||

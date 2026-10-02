@@ -136,6 +136,12 @@ export interface MatchViewState {
   /** 当前投影必须显式携带权威操作模式。 */
   readonly manualOperation: ManualOperationModeView;
   /** 仅排位对局在能够唯一归责时存在；不包含任何隐藏窗口内容。 */
+  readonly entrance?: {
+    readonly id: string;
+    readonly objectIds: readonly string[];
+    readonly waitingSeats: readonly Seat[];
+    readonly deadlineAt: number;
+  };
   readonly rankedStall?: RankedStallView;
   readonly seq: number;
 }

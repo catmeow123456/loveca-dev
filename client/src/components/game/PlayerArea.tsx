@@ -113,6 +113,7 @@ interface PlayerAreaProps {
   isOpponent: boolean;
   isActive: boolean;
   suppressActiveEffectVisuals?: boolean;
+  interactionSuspended?: boolean;
   isInspectionZoneCollapsed: boolean;
   onInspectionZoneCollapsedChange: (collapsed: boolean) => void;
   selectedHandCardActionCardId?: string | null;
@@ -142,11 +143,13 @@ interface CardActionMenuItem {
 
 const CardActionMenu = memo(function CardActionMenu({
   items,
+  suspended = false,
   placement = 'above',
   layer = 'battle',
   anchor,
 }: {
   readonly items: readonly CardActionMenuItem[];
+  readonly suspended?: boolean;
   readonly placement?: 'above' | 'below';
   readonly layer?: 'battle' | 'modal';
   readonly anchor?: BattleUiAnchorId;
@@ -167,7 +170,7 @@ const CardActionMenu = memo(function CardActionMenu({
   } | null>(null);
 
   useEffect(() => {
-    if (items.length === 0) {
+    if (suspended || items.length === 0) {
       setLayout(null);
       return;
     }
@@ -219,9 +222,9 @@ const CardActionMenu = memo(function CardActionMenu({
       window.removeEventListener('scroll', updateLayout, true);
       resizeObserver?.disconnect();
     };
-  }, [items.length, placement, preferredWidth]);
+  }, [items.length, placement, preferredWidth, suspended]);
 
-  if (items.length === 0) return null;
+  if (suspended || items.length === 0) return null;
   return (
     <>
       <span ref={anchorRef} className="pointer-events-none absolute inset-0" aria-hidden="true" />
@@ -379,6 +382,7 @@ export const PlayerArea = memo(function PlayerArea({
   isOpponent,
   isActive,
   suppressActiveEffectVisuals = false,
+  interactionSuspended = false,
   isInspectionZoneCollapsed,
   onInspectionZoneCollapsedChange,
   selectedHandCardActionCardId = null,
@@ -1214,6 +1218,7 @@ export const PlayerArea = memo(function PlayerArea({
             {card && <CardModifierBadgeStack modifierDelta={card.modifierDelta} />}
             {card && canActivateAbility && (
               <CardActionMenu
+                suspended={interactionSuspended}
                 anchor={BATTLE_UI_ANCHORS.ACTIVATED_ABILITY_MENU}
                 items={activatedAbilityConfigs.map((config) => ({
                   id: config.abilityInstanceId ?? config.abilityId,
@@ -1612,7 +1617,8 @@ export const PlayerArea = memo(function PlayerArea({
             </div>
 
             {/* 展开的浮窗 */}
-            {waitingRoomExpanded &&
+            {!interactionSuspended &&
+              waitingRoomExpanded &&
               (() => {
                 const waitingRoomModal = (
                   <>
@@ -1767,6 +1773,7 @@ export const PlayerArea = memo(function PlayerArea({
                                   {waitingRoomCardContent}
                                   {canActivateWaitingRoomAbility && (
                                     <CardActionMenu
+                                      suspended={interactionSuspended}
                                       layer="modal"
                                       items={activatedAbilityConfigs.map((config) => ({
                                         id: config.abilityInstanceId ?? config.abilityId,
@@ -3028,6 +3035,7 @@ export const PlayerArea = memo(function PlayerArea({
                 </DraggableCard>
                 {canShowHandCardActionMenu && (
                   <CardActionMenu
+                    suspended={interactionSuspended}
                     items={handCardMenuItems}
                     placement={isOpponent ? 'below' : 'above'}
                   />

@@ -1,3 +1,4 @@
+import { entranceCards } from '../../src/shared/card-entrance';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   prepareEntranceAssets,
@@ -48,6 +49,7 @@ function imageFactory() {
 afterEach(() => vi.useRealTimers());
 describe('entrance registration and resources', () => {
   it('validates unique identities and resolves every registered asset and rarity', async () => {
+    expect(cardEntranceProfiles.map(p => p.baseCode).sort()).toEqual(Object.values(entranceCards).sort());
     const first = cardEntranceProfiles[0]!;
     expect(() => defineEntranceProfiles([first, { ...first, id: 'another' }])).toThrow();
     expect(() => defineEntranceProfiles([first, { ...first, baseCode: 'OTHER' }])).toThrow();

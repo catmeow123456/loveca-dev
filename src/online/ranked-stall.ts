@@ -18,6 +18,7 @@ export interface RankedSinglePlayerWait {
  * 行动责任依据。任一参与者都能安全推进的公开展示窗口也不会归责给单方。
  */
 export function describeRankedSinglePlayerWait(state: GameState): RankedSinglePlayerWait | null {
+  if (state.entranceRuntime?.pending) return null;
   if (!state.isStarted || state.isEnded || state.currentPhase === GamePhase.GAME_END) {
     return null;
   }

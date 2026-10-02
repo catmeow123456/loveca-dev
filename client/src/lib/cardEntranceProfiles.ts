@@ -1,3 +1,5 @@
+import { entranceCards } from '@game/shared/card-entrance';
+
 /** Cosmetic profiles only; card abilities remain in the shared rules engine. */
 export interface EntranceMeshProfile {
   /** UV mask: x fade start/end, y fade start/end. */
@@ -44,7 +46,7 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   {
     id: 'kanata',
     loadArt: () => import('../components/game/card-entrance/kanata.png'),
-    baseCode: 'PL!N-bp7-006',
+    baseCode: entranceCards['kanata'],
     name: '近江彼方',
     center: '-62%',
     mobileHeight: '76%',
@@ -59,7 +61,7 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   {
     id: 'ren',
     loadArt: () => import('../components/game/card-entrance/ren.png'),
-    baseCode: 'PL!SP-pb2-005',
+    baseCode: entranceCards['ren'],
     name: '叶月恋',
     center: '-56%',
     mobileHeight: 'min(76%, 123vw)',
@@ -74,7 +76,7 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   {
     id: 'shiki',
     loadArt: () => import('../components/game/card-entrance/shiki.png'),
-    baseCode: 'PL!SP-pb2-008',
+    baseCode: entranceCards['shiki'],
     name: '若菜四季',
     center: '-52%',
     mobileHeight: 'min(76%, 126vw)',
@@ -90,7 +92,7 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   {
     id: 'next-step-trio',
     loadArt: () => import('../components/game/card-entrance/next-step-trio.png'),
-    baseCode: 'LL-bp2-001',
+    baseCode: entranceCards['next-step-trio'],
     name: '渡边曜&鬼冢夏美&大泽瑠璃乃',
     center: '-50%',
     mobileHeight: 'min(74%, 110vw)',

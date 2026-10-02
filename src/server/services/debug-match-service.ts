@@ -79,6 +79,7 @@ export function getDebugMatchSnapshot(matchId: string, seat: Seat): DebugMatchSn
     return null;
   }
 
+  if (match.session.expireCardEntrance()) match.revision += 1;
   const playerId = match.seats[seat].playerId;
   const playerViewState = match.session.getPlayerViewState(playerId, {
     seqOverride: match.revision,
@@ -237,7 +238,7 @@ function recreateMatchSessionIfReady(match: DebugMatchState): void {
     return;
   }
 
-  const session = createGameSession({ allowRulesModeSuccessLiveSkip: true });
+  const session = createGameSession({ cardEntrance: 'LOCAL', allowRulesModeSuccessLiveSkip: true });
   session.createGame(
     match.matchId,
     match.seats.FIRST.playerId,

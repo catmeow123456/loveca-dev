@@ -455,6 +455,10 @@ export class OnlineMatchService {
   private readonly sealMatchPromises = new Map<string, Promise<boolean>>();
   private readonly aiRuntimes = new Map<string, AiBattleRuntime>();
   private serviceRejectedAttemptSeq = 0;
+  private readonly entranceTimers = new Map<
+    string,
+    { id: string; timer: ReturnType<typeof setTimeout> }
+  >();
 
   constructor(deps: OnlineMatchServiceDeps = {}) {
     this.now = deps.now ?? (() => Date.now());
@@ -495,6 +499,12 @@ export class OnlineMatchService {
     const matchId = this.idGenerator();
     const automationGameMode = params.automationGameMode ?? 'DEBUG';
     const session = createGameSession({
+      cardEntrance:
+        params.originKind === 'AI_DEBUG'
+          ? undefined
+          : automationGameMode === 'SOLITAIRE'
+            ? 'LOCAL'
+            : 'REMOTE',
       gameMode: toGameMode(automationGameMode),
       now: this.now,
       randomInt: this.randomInt,
@@ -1065,6 +1075,7 @@ export class OnlineMatchService {
     this.synchronizePhaseCompletionGate(match);
     this.synchronizeRankedStallRuntime(match);
     this.matches.set(match.matchId, match);
+    this.scheduleCardEntranceTimeout(match);
     if (match.recoveryNotice) {
       await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
         summary: buildRecoverySummary(match.recoveryNotice),
@@ -1185,6 +1196,7 @@ export class OnlineMatchService {
       return null;
     }
 
+    await this.expireCardEntranceIfNeeded(match);
     await this.expirePendingUndoRequestIfNeeded(match);
     await this.expirePendingManualOperationModeRequestIfNeeded(match);
     await this.expireActiveUndoGrantIfNeeded(match);
@@ -1926,6 +1938,7 @@ export class OnlineMatchService {
       return { success: false, error: 'AI 系统席位仅接受当前决策任务提交' };
     }
 
+    await this.expireCardEntranceIfNeeded(match);
     const commandWithPlayer = applyAuthoritativeManualOperationModeToCommand(
       { ...command, playerId: participant.playerId },
       match.session.manualOperationMode
@@ -2233,6 +2246,7 @@ export class OnlineMatchService {
     now = this.now(),
     acceptedPlayerId?: string
   ): RankedStallRuntime | null {
+    this.scheduleCardEntranceTimeout(match);
     const state = match.session.state;
     if (match.originKind !== 'RANKED' || match.matchMode !== 'ONLINE' || !state) {
       match.rankedStallRuntime = null;
@@ -3160,6 +3174,9 @@ export class OnlineMatchService {
       }
 
       const now = options.now ?? this.now();
+      const entranceTimer = this.entranceTimers.get(matchId);
+      if (entranceTimer) clearTimeout(entranceTimer.timer);
+      this.entranceTimers.delete(matchId);
       this.matches.delete(matchId);
       for (const [token, link] of this.spectatorLinks) {
         if (link.matchId === matchId) {
@@ -3336,6 +3353,42 @@ export class OnlineMatchService {
     }
   }
 
+  private scheduleCardEntranceTimeout(match: OnlineMatchState): void {
+    const pending = match.session.state?.entranceRuntime?.pending;
+    const existing = this.entranceTimers.get(match.matchId);
+    if (pending && existing?.id === pending.id) return;
+    if (existing) clearTimeout(existing.timer);
+    this.entranceTimers.delete(match.matchId);
+    if (!pending) return;
+    const timer = setTimeout(
+      () => {
+        this.entranceTimers.delete(match.matchId);
+        void this.runSerializedMatchMutation(match.matchId, async () => {
+          if (this.matches.get(match.matchId) !== match) return;
+          await this.expireCardEntranceIfNeeded(match);
+          this.scheduleCardEntranceTimeout(match);
+        }).catch((error) =>
+          console.error('[OnlineMatch] entrance timeout continuation failed', error)
+        );
+      },
+      Math.max(0, pending.deadlineAt - this.now())
+    );
+    timer.unref();
+    this.entranceTimers.set(match.matchId, { id: pending.id, timer });
+  }
+
+  private async expireCardEntranceIfNeeded(match: OnlineMatchState): Promise<void> {
+    if (!match.session.expireCardEntrance()) return;
+    incrementRemoteRevision(match);
+    this.synchronizePhaseCompletionGate(match);
+    this.synchronizeRankedStallRuntime(match);
+    await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
+      summary: '登场演出等待超时，继续结算',
+      force: true,
+    });
+    await this.sealCompletedMatchIfNeeded(match);
+  }
+
   async cleanupExpiredMatches(
     activeMatchIds: ReadonlySet<string>,
     now = Date.now()
@@ -3347,6 +3400,7 @@ export class OnlineMatchService {
 
     for (const [matchId, match] of this.matches) {
       checkedMatchCount += 1;
+      await this.runSerializedMatchMutation(matchId, () => this.expireCardEntranceIfNeeded(match));
       if (activeMatchIds.has(matchId)) {
         continue;
       }

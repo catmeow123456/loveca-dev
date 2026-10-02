@@ -9,6 +9,8 @@
  * - SOLITAIRE: 对墙打策略，系统自动处理对手无输入流程
  */
 
+import { captureCardEntrance } from './card-entrance.js';
+import { ENTRANCE_WAIT_LIMIT_MS } from '../shared/card-entrance.js';
 import { GameService, type DeckConfig, type GameOperationResult } from './game-service.js';
 import { PhaseManager } from './phase-manager.js';
 import {
@@ -277,6 +279,8 @@ export type GameSessionEvent =
  * 游戏会话选项
  */
 export interface GameSessionOptions {
+  /** LOCAL has one presentation viewer; REMOTE requires both participant acknowledgments. */
+  cardEntrance?: 'LOCAL' | 'REMOTE';
   /** 游戏模式（默认调试模式） */
   gameMode?: GameMode;
   /** 规则模式下是否允许跳过成功 Live 入区；仅供对墙打与调试桌面开启。 */
@@ -530,8 +534,19 @@ export class GameSession {
       player2Id,
       player2Name
     );
-    this.setAuthorityState(initialState, { source: 'SYSTEM' });
-    return initialState;
+    const state = this.options.cardEntrance
+      ? {
+          ...initialState,
+          entranceRuntime: {
+            singleViewer: this.options.cardEntrance === 'LOCAL',
+            seenSequence: initialState.eventSequence,
+            generation: 0,
+            pending: null,
+          },
+        }
+      : initialState;
+    this.setAuthorityState(state, { source: 'SYSTEM' });
+    return state;
   }
 
   /**
@@ -660,11 +675,12 @@ export class GameSession {
     }
 
     const isPublicSelectionAutoAdvance =
-      command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
-      (command.publicCardSelectionAutoAdvanceAt !== undefined ||
-        command.publicEffectChoiceAutoAdvanceAt !== undefined ||
-        command.publicRevealAutoAdvanceAt !== undefined ||
-        command.publicRevealGeneration !== undefined);
+      command.type === GameCommandType.ACK_CARD_ENTRANCE ||
+      (command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
+        (command.publicCardSelectionAutoAdvanceAt !== undefined ||
+          command.publicEffectChoiceAutoAdvanceAt !== undefined ||
+          command.publicRevealAutoAdvanceAt !== undefined ||
+          command.publicRevealGeneration !== undefined));
     const undoDraft = isPublicSelectionAutoAdvance
       ? null
       : this.captureUndoDraft(command.playerId, command.type);
@@ -800,7 +816,7 @@ export class GameSession {
   }
 
   canUndoLastStep(): boolean {
-    return this.undoHistory.length > 0;
+    return !this.authorityState?.entranceRuntime?.pending && this.undoHistory.length > 0;
   }
 
   undoLastStep(): GameOperationResult {
@@ -812,6 +828,8 @@ export class GameSession {
       };
     }
 
+    if (this.authorityState.entranceRuntime?.pending)
+      return { success: false, gameState: this.authorityState, error: '请等待双方登场演出结束' };
     const entry = this.undoHistory.pop();
     if (!entry) {
       return {
@@ -837,6 +855,8 @@ export class GameSession {
       return createUndoAvailability(policy, false, null, '游戏尚未开始');
     }
 
+    if (this.authorityState.entranceRuntime?.pending)
+      return createUndoAvailability(policy, false, null, '请等待双方登场演出结束');
     const viewerSeat = getSeatForPlayer(this.authorityState, playerId);
     if (!viewerSeat) {
       return createUndoAvailability(policy, false, null, '玩家不存在');
@@ -1089,8 +1109,20 @@ export class GameSession {
 
   private restoreUndoSnapshot(snapshot: GameSessionUndoSnapshot): void {
     const currentManualOperationMode = this.manualOperationMode;
+    const entranceGeneration = this.authorityState?.entranceRuntime?.generation ?? 0;
     this.authorityState = {
       ...this.cloneForUndo(snapshot.authorityState),
+      ...(snapshot.authorityState.entranceRuntime
+        ? {
+            entranceRuntime: {
+              ...snapshot.authorityState.entranceRuntime,
+              generation: Math.max(
+                entranceGeneration,
+                snapshot.authorityState.entranceRuntime.generation
+              ),
+            },
+          }
+        : {}),
       manualOperationMode: currentManualOperationMode,
     };
     this.publicEvents = this.publicEvents.filter((event) => event.seq <= snapshot.publicEventSeq);
@@ -1159,7 +1191,7 @@ export class GameSession {
   }
 
   private runPostCommitAutomation(triggerPlayerId: string): void {
-    if (!this.authorityState) {
+    if (!this.authorityState || this.authorityState.entranceRuntime?.pending) {
       return;
     }
 
@@ -1194,6 +1226,7 @@ export class GameSession {
 
     while (
       this.authorityState &&
+      !this.authorityState.entranceRuntime?.pending &&
       iterations < MAX_MODE_AUTOMATION_ITERATIONS &&
       this.authorityState.currentPhase !== GamePhase.GAME_END
     ) {
@@ -1586,6 +1619,13 @@ export class GameSession {
         ? '对局已结束，不能再认输'
         : null;
     }
+
+    if (command.type === GameCommandType.ACK_CARD_ENTRANCE) {
+      return state.entranceRuntime?.pending?.id === command.entranceId
+        ? null
+        : '登场演出已结束或已失效';
+    }
+    if (state.entranceRuntime?.pending) return '请等待双方登场演出结束';
 
     const policyDecision = getPlayerCommandPolicyDecision(state, command.playerId, command.type);
     if (!policyDecision.allowed) {
@@ -2731,6 +2771,26 @@ export class GameSession {
 
   private applyCommand(state: GameState, command: GameCommand): CommandExecutionResult {
     switch (command.type) {
+      case GameCommandType.ACK_CARD_ENTRANCE: {
+        const runtime = state.entranceRuntime!;
+        const pending = runtime.pending!;
+        const waitingPlayerIds = runtime.singleViewer
+          ? []
+          : pending.waitingPlayerIds.filter((id) => id !== command.playerId);
+        const next = {
+          ...state,
+          entranceRuntime: {
+            ...runtime,
+            pending: waitingPlayerIds.length ? { ...pending, waitingPlayerIds } : null,
+          },
+        };
+        return {
+          success: true,
+          gameState: waitingPlayerIds.length
+            ? next
+            : this.gameService.executeCheckTiming(next).gameState,
+        };
+      }
       case GameCommandType.MULLIGAN:
         return this.applyMulliganCommand(state, command);
       case GameCommandType.SET_LIVE_CARD:
@@ -5202,7 +5262,39 @@ export class GameSession {
     return currentState;
   }
 
+  /** Authority timeout, independent of any client timer or completion message. */
+  expireCardEntrance(): boolean {
+    const state = this.authorityState;
+    const runtime = state?.entranceRuntime;
+    if (!state || !runtime?.pending || this.now() < runtime.pending.deadlineAt) return false;
+    const resumed = { ...state, entranceRuntime: { ...runtime, pending: null } };
+    this.setAuthorityState(this.gameService.executeCheckTiming(resumed).gameState, {
+      source: 'SYSTEM',
+    });
+    this.runPostCommitAutomation(state.players[state.activePlayerIndex]!.id);
+    this.extendLatestUndoEntryThroughAutomaticContinuation();
+    return true;
+  }
+
   private setAuthorityState(nextState: GameState, options: StateTransitionOptions = {}): void {
+    nextState = captureCardEntrance(nextState);
+    const runtime = nextState.entranceRuntime;
+    if (runtime?.pending) {
+      nextState = {
+        ...nextState,
+        entranceRuntime: {
+          ...runtime,
+          pending: nextState.isEnded
+            ? null
+            : {
+                ...runtime.pending,
+                deadlineAt:
+                  runtime.pending.deadlineAt ||
+                  this.now() + ENTRANCE_WAIT_LIMIT_MS * runtime.pending.cardIds.length,
+              },
+        },
+      };
+    }
     const previousState = this.authorityState;
     const authoritativeNextState = this.attachPublicRevealAuthorityForCommit(nextState);
     getManualOperationMode(authoritativeNextState);
@@ -5215,6 +5307,22 @@ export class GameSession {
   }
 
   private attachPublicRevealAuthorityForCommit(nextState: GameState): GameState {
+    // A subsequent public result window gets its full reading time after the cinematic.
+    if (nextState.entranceRuntime?.pending) {
+      if (!nextState.activeEffect) return nextState;
+      const {
+        publicRevealAutoAdvanceAt: _reveal,
+        publicRevealGeneration: _generation,
+        publicCardSelectionAutoAdvanceAt: _selection,
+        publicEffectChoiceAutoAdvanceAt: _choice,
+        ...effect
+      } = nextState.activeEffect;
+      return { ...nextState, activeEffect: effect };
+    }
+    nextState = attachPublicEffectChoiceAutoAdvanceDeadline(
+      attachPublicCardSelectionAutoAdvanceDeadline(nextState, this.now()),
+      this.now()
+    );
     const existingAuthority = getPublicRevealAutoAdvanceMetadata(nextState.activeEffect);
     const attachedState = attachPublicRevealAutoAdvanceAuthority(nextState, this.now(), () =>
       this.createPublicRevealGeneration(nextState)
