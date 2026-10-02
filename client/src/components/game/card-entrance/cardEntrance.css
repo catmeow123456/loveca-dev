@@ -355,3 +355,21 @@
     bottom: 22%;
   }
 }
+
+/* Long single-person names retain the same frame without breaking the name. */
+.card-entrance--long .card-entrance-name {
+  font-size: clamp(22px, 2.8vw, 40px);
+}
+@media (max-width: 600px) {
+  .card-entrance--long .card-entrance-name {
+    font-size: clamp(16px, 5.3vw, 23px);
+    padding: 14px 30px;
+  }
+}
+
+@media (max-width: 600px) {
+  .card-entrance--lower-skip ~ .card-entrance-skip {
+    top: auto;
+    bottom: 16%;
+  }
+}

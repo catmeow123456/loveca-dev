@@ -6,7 +6,7 @@
 
 1. 打开 http://localhost:5173/ ，照常选择自己的卡组进入本地对局。右上角夜间模式旁的「登场动画」开关默认开启：高亮星光图标和状态点表示开启，灰色斜杠表示关闭；桌面与窄屏共用状态。
 2. 固定使用已确认的居中布局：人物主体居中略偏上，下方只展示卡名。已移除临时布局选择和预览栏。
-3. 让费用 17「近江彼方」（PL!N-bp7-006，任意罕度）、费用 20「叶月恋」（PL!SP-pb2-005，含 R／PP）、费用 17「若菜四季」（PL!SP-pb2-008，含 R／PP）、费用 20「渡边曜&鬼冢夏美&大泽瑠璃乃」（LL-bp2-001，R+）、费用 15「安养寺姬芽」（PL!HS-sd1-006，SD）、费用 15「钟岚珠」（PL!N-bp1-012，P／P+／R+／SEC）、费用 15「绚濑绘里」（PL!-pb2-020，N）或费用 22「高坂穗乃果」（PL!-pb2-001，R／PP）成功登场。普通付费或调试自由登场均从同一公共进场事件触发。
+3. 让费用 17「近江彼方」（PL!N-bp7-006，任意罕度）、费用 20「叶月恋」（PL!SP-pb2-005，含 R／PP）、费用 17「若菜四季」（PL!SP-pb2-008，含 R／PP）、费用 20「渡边曜&鬼冢夏美&大泽瑠璃乃」（LL-bp2-001，R+）、费用 15「安养寺姬芽」（PL!HS-sd1-006，SD）、费用 15「钟岚珠」（PL!N-bp1-012，P／P+／R+／SEC）、费用 15「绚濑绘里」（PL!-pb2-020，N）、费用 22「高坂穗乃果」（PL!-pb2-001，R／PP）、费用 15「星空凛&小泉花阳」（PL!-pb2-000，DUO／R）、费用 15「赛拉丝·柳田·利林费尔德」（PL!HS-bp6-007，P／R）或费用 15「日野下花帆」（PL!HS-pb1-009，P+／R）成功登场。普通付费或调试自由登场均从同一公共进场事件触发。
 4. 演出持续约 2.74 秒：人物入场 0.6 秒，展示到第 1.5 秒，用 0.45 秒淡出；完整卡牌从第 1.75 秒开始，先用约 400ms 从画面中央飞到对应舞台位置，再用 150ms 以俯视桌面的视角压向桌面（最后压落时中心不移动，以尺寸和倾斜表现高度），与人物淡出略有重叠。落地前阴影收紧，触地闪光与场地冲量同步，以落点中心向四周平面扩散紫色光环和少量碎光，并在 210ms 内强起、快速衰减地震动场地（背景、成员区和 LIVE 区，手牌与操作栏保持稳定）；其他场上成员和 LIVE 卡按与落点的距离衰减冲量，根据落点与邻卡的屏幕相对位置，让朝向落点的一侧先翘起、背向落点的一侧作支点；方向会转换到卡牌自身坐标，横置卡也保持正确受力方向，独立平面阴影留在桌面上；每张公开对象具有稳定的幅度和回落节奏差异，支点与倾斜轴不随机，传播延迟最多 75ms；回落时先接触一条边，再让剩余翘起的一侧贴回桌面，临时阴影在完成或取消时移除，不做屏幕向上位移，落场来源自身不弹起，可点「跳过演出」。演出期间其他桌面操作锁定，开关在可操作时调整。
 5. 测试付费失败、起动能力、舞台位置移动时不播放；重复公开事件不重复播，离场后重新登场可重播。
 6. 核对双方视角、连续登场、选择弹窗出现、窄屏及减少动态。减少动态时沿用约 160ms 的短展示，不执行卡牌下落与震动。
@@ -21,7 +21,7 @@
 
 ## 卡牌清单
 
-以下八张已登记并按上述模式范围启用。原六张保留已有配置；绘里与穗乃果为本批首版，已完成下述本地自查，用户同意先提交当前阶段版本。触发按基础编号覆盖罕度；素材来源卡不等于触发卡。
+以下十一张已登记并按上述模式范围启用。原四张人物配置保留，后续七张已完成动作协调调优并获用户认可；赛拉丝仍使用端正坐姿备选素材，原卡姿态尚未恢复。当前未部署。触发按基础编号覆盖罕度；素材来源卡不等于触发卡。
 
 | 基础编号 | 费用与名称 | 已验证印刷 | 人物素材来源 |
 | --- | --- | --- | --- |
@@ -33,6 +33,9 @@
 | PL!N-bp1-012 | 15「钟岚珠」 | P／P+／R+／SEC | PL!N-bp1-033-SECE 重绘；仅作素材参考 |
 | PL!-pb2-020 | 15「绚濑绘里」 | N | 同基础编号 N 重绘 |
 | PL!-pb2-001 | 22「高坂穗乃果」 | R／PP | 同基础编号 R 重绘 |
+| PL!-pb2-000 | 15「星空凛&小泉花阳」 | DUO／R | DUO 与 PL!-pb2-E00-SECE 参考重绘；后者为能量卡 |
+| PL!HS-bp6-007 | 15「赛拉丝·柳田·利林费尔德」 | P／R | 同基础编号 P，端正坐姿备选重绘 |
+| PL!HS-pb1-009 | 15「日野下花帆」 | P+／R | 同基础编号 P+ 重绘，官网图像后缀 P2 |
 
 ## 登记、时间线与加载
 
@@ -47,7 +50,7 @@
 自动检查：
 
 ```sh
-pnpm test:run tests/integration/hime-entrance-synchronization.test.ts tests/integration/card-entrance-synchronization.test.ts tests/integration/online-card-entrance.test.ts tests/unit/card-entrance-policy.test.ts tests/unit/card-entrance-assets.test.ts tests/unit/card-entrance-events.test.ts tests/unit/card-entrance-landing.test.ts tests/integration/card-entrance-presentation.test.ts tests/unit/battle-animation-events.test.ts
+pnpm test:run tests/unit/card-entrance-articulation.test.ts tests/integration/duo-entrance-synchronization.test.ts tests/integration/kaho-entrance-synchronization.test.ts tests/integration/seras-entrance-synchronization.test.ts tests/integration/hime-entrance-synchronization.test.ts tests/integration/card-entrance-synchronization.test.ts tests/integration/online-card-entrance.test.ts tests/unit/card-entrance-policy.test.ts tests/unit/card-entrance-assets.test.ts tests/unit/card-entrance-events.test.ts tests/unit/card-entrance-landing.test.ts tests/integration/card-entrance-presentation.test.ts tests/unit/battle-animation-events.test.ts
 pnpm --dir client exec tsc -b
 ```
 
@@ -107,7 +110,7 @@ node client/node_modules/vite/bin/vite.js --config ../animation-prototypes/share
 
 ## 共用卡名样式
 
-六张卡共用 `CardEntranceNameplate`：思源宋体 Heavy 姓名子集、半透明切角名牌、细边线与两侧菱形。装饰颜色沿用角色光色，三人组合在窄屏按完整姓名分为三行。框线与文字复用人物时间线的 label 进度（0.2 秒），不另设动画计时器，总演出时长不变；减少动态直接显示完整名牌。字体来源、许可和新增姓名时的生成命令见 [fonts/README.md](fonts/README.md)。
+全部登记卡共用 `CardEntranceNameplate`：思源宋体 Heavy 姓名子集、半透明切角名牌、细边线与两侧菱形。装饰颜色沿用角色光色，三人组合在窄屏按完整姓名分为三行。框线与文字复用人物时间线的 label 进度（0.2 秒），不另设动画计时器，总演出时长不变；减少动态直接显示完整名牌。字体来源、许可和新增姓名时的生成命令见 [fonts/README.md](fonts/README.md)。
 
 
 ## 姬芽与岚珠第二版（2026-10-02，阶段提交／未部署）
@@ -116,7 +119,7 @@ node client/node_modules/vite/bin/vite.js --config ../animation-prototypes/share
 
 第一版单图摆腰、反向拧头及前伸臂旋转已被用户否定，不能以首版技术检查通过代替动作观感通过。旧图、旧参数和录屏保留在仓库外 `animation-prototypes/hime-lanzhu/`。当前运行素材只有 `hime-layers.png`、`lanzhu-layers.png`：各是一张含身体底图和独立活动手臂的透明图集，底图补绘原手臂遮住的发束与衣服。生成工具、完整提示词、源稿和第二版预览在同目录的 `v2/`，运行时不依赖该目录。
 
-共用 `cardEntranceMesh` 增加可选 `armLayers`：在同一纹理、网格和播放时钟内依次绘制身体与活动手臂，配置图集取样区域、部件对齐、支点、动作起止及袖部连接。姬芽前臂绕肘部轻抬向肩侧，头肩与身体同向小幅配合，不再反向拧头；岚珠持麦肘部弯曲并向身体收拢，袖子在肩部保留连接，手指与麦克风所在区域完整运动，前伸手维持原姿势。主体在约 1.04／1.16 秒到位后保持，发辫、长发与衣料用延迟进度差短暂跟随，不再使用往返摆动或回弹。脸部没有独立形变。仍为有限的二维关节与衣料过渡，不是完整骨骼、三维前伸或逐帧表情动画；袖部及重绘接缝存在近看局限。
+共用 `cardEntranceMesh` 增加可选 `armLayers`：在同一纹理、网格和播放时钟内依次绘制身体与活动手臂，配置图集取样区域、部件对齐、支点、动作起止及袖部连接。姬芽前臂绕肘部轻抬向肩侧，头肩与身体同向小幅配合，不再反向拧头；岚珠持麦肘部弯曲并向身体收拢，袖子在肩部保留连接，手指与麦克风所在区域完整运动，前伸手维持原姿势。主体在约 1.25／1.26 秒到位后保持，发辫、长发与衣料用延迟进度差短暂跟随，不再使用往返摆动或回弹。脸部没有独立形变。仍为有限的二维关节与衣料过渡，不是完整骨骼、三维前伸或逐帧表情动画；袖部及重绘接缝存在近看局限。
 
 原四张不启用图集配置，保留原公式、素材及参数。总时长仍为 2.74 秒，人物淡入淡出、名字、字体、平台总开关、个人偏好、加载、ACK、飞行角度／时长、紫色平面圈、震桌和方向性邻卡翘起均沿用。减少动态下使用固定组合姿势，不运行关节或衣料跟随。图集仍通过原 `loadArt` 单图按需加载，不增加加载器或逐角色控制器。
 
@@ -132,12 +135,35 @@ node client/node_modules/vite/bin/vite.js --config ../animation-prototypes/share
 
 `eli-layers.png`（928,046 字节）基于[官方 PL!-pb2-020-N 卡面](https://llofficial-cardgame.com/cardlist/searchresults/?cardno=PL!-pb2-020-N)，`honoka-layers.png`（1,353,680 字节）基于[官方 PL!-pb2-001-R 卡面](https://llofficial-cardgame.com/cardlist/searchresults/?cardno=PL!-pb2-001-R)，均经 imagegen 透明重绘、分离手臂并补绘遮挡，不是官方无字原图。穗乃果 R／PP 共用此图。保留头部到裙部的原取景，没有补腿；脸部、服饰花纹、手形与杖尖等细节仍有重绘差异。源卡、提示词、未采用图集及录屏在仓库外 `../animation-prototypes/eli-honoka/`，正式包只保留采用图集。
 
-绘里将向观众伸出的前臂整体轻抬约15°，手掌、手指和手环作为同一刚性部件，不放大手掌；起势在0.24秒、0.84秒内收住，肩部轻随、马尾与裙部稍后收势。修正了初稿重复袖口，手臂覆盖连接处。穗乃果将倾斜的杖扶正约8°并略提起，持杖前臂、手套、手指、三叉杖及饰物一起运动；0.28秒起势、0.86秒收住，发束与衣料跟随。脸部没有独立形变或额外扭头，都是有限二维关节，不是完整骨骼、三维前伸或表情动画。
+当前调优：绘里先倾身，再将邀请手轻抬约10°，手掌、手指和手环作为同一刚性部件；手臂0.18秒起势、1.28秒到位，身体提前160ms起势，马尾与裙部随后收住。保留已修正的袖口和连接处。穗乃果保持小幅扶杖约4.3°及轻提，持杖前臂、手套、手指、三叉杖及饰物一起运动；手臂0.23秒起势、1.31秒到位，身体提前180ms起势，发束与衣料跟随。脸部没有独立形变或额外扭头，都是有限二维关节，不是完整骨骼、三维前伸或表情动画。
 
-共用绘制只增加两个可选项：`behindBody` 使远侧持杖手臂先绘制，身体遮住连接处；`rigidBodyFollow` 让整个手臂／长杖使用关节位置的身体跟随权重，避免杖身经过腰线时弯折。原六张不启用这两项，绘制次序、公式、素材与参数保持原样。没有新增播放器、加载器、事件白名单或规则等待。仍复用2.74秒时间线、统一姓名框和字体、平台／个人开关、跳过、权威ACK、飞牌与方向性邻卡冲击。
+共用绘制只增加两个可选项：`behindBody` 使远侧持杖手臂先绘制，身体遮住连接处；`rigidBodyFollow` 让整个手臂／长杖使用关节位置的身体跟随权重，避免杖身经过腰线时弯折。后续人物可按素材需要启用这些可选项，原四张单层绘制保持原样。没有新增播放器、加载器、事件白名单或规则等待。仍复用2.74秒时间线、统一姓名框和字体、平台／个人开关、跳过、权威ACK、飞牌与方向性邻卡冲击。
 
 本批8个 focused 文件66项通过，包含新卡 N／R／PP 的真实命令与公开对象、混合身份去重、通用等待及姬芽真实卡效回归。客户端 `tsc -b` 和生产 Vite 构建通过，构建仍有既有大 chunk 警告。中文姓名子集更新为41字符。
 
 浏览器使用仓库外真实 GameBoard 共用隔离场景，自查桌面1728×817、390×844，两张单独及八张交替播放、无光效正常速度和关键姿态、姓名、落场、横置邻卡及结束复位。两张各自检查跳过、加载失败／超时、加载中公开来源方向失效、全站关闭／重开；结束时权威可操作，真实卡牌可见、临时阴影为零，邻卡 transform／filter 复位。减少动态使用本页媒体查询替身，检查短结束、无落场层及终态清理；不等于系统设置实测。新卡自身无登场时能力，未改原有常时／LIVE开始时工作流；浏览器采用自由登场，不声称验证新卡完整付费或LIVE能力。
 
 `http://127.0.0.1:5177/review.html?batch=eli-honoka` 可重播两轮正常速度人物录屏；`motion.html?card=eli` 与 `?card=honoka` 直接使用真实运行时网格。历史／重连去重、双方ACK和超时由本批重跑的自动测试覆盖；本批没有实测双端网络、生产部署、系统减少动态或WebGL上下文丢失。短视频不替代真实桌面验收。用户同意先提交当前阶段版本，不代表生产烟测完成。
+
+
+## 双人卡、赛拉丝与花帆的素材和表现
+
+`rin-hanayo-layers.png`（1,486,049字节，1774×887）参考[官方DUO卡面](https://llofficial-cardgame.com/cardlist/searchresults/?cardno=PL!-pb2-000-DUO)及[对应SECE](https://llofficial-cardgame.com/cardlist/searchresults/?cardno=PL!-pb2-E00-SECE)重绘。后景人物与前景人物分层，前景包含完整拥抱手臂；两人围绕搭手区域轻靠，减少独立平移和抬升引起的错位。保留头部至裙部取景，没有补腿；搭手、头纱、脸和衣纹存在重绘差异。DUO／R共用基础身份，SECE仅作能量卡美术参考。源稿与提示词在仓库外 `../animation-prototypes/rin-hanayo-seras/`。
+
+`seras-layers.png`（2,086,712字节，1536×1024）参考[官方P卡面](https://llofficial-cardgame.com/cardlist/searchresults/?cardno=PL!HS-bp6-007-P)重绘，P／R共用。原姿态生成被图像工具拒绝，当前采用用户此前授权的端正坐姿备选；姿态、裙料覆盖、活动手臂一侧与原卡不同，原姿态恢复仍未完成。身体与带袖前臂分层，头肩随上身轻倾，手保持在下颌附近并小幅调整，避免扫离脸部。使用同一字体和名字框，通过可选 `nameLayout: long` 适配窄屏长名。源稿与提示词在上述双人原型目录；原姿态重试的提示词与拒绝记录在 `../animation-prototypes/motion-tuning-20261003/seras-original-pose-attempt.md`，没有新生成素材。
+
+`kaho-layers.png`（2,185,870字节，1536×1024）参考[官方P+卡面](https://llofficial-cardgame.com/cardlist/searchresults/?cardno=PL!HS-pb1-009-P%EF%BC%8B)重绘；网页图像后缀为P2，运行身份仍按导出使用P+／R。主体保留左后方人物，举起的前臂、白手套与手指作为完整图层轻展，头肩随上身运动。该构图的发梢遮罩会影响颈部及后景人物，因此关闭局部发梢形变，仅让衣裙底部轻微跟随。可选 `mobileSkipPosition: below-name` 将窄屏共用跳过按钮移至名字框下方，避开举臂。源稿与提示词在仓库外 `../animation-prototypes/kaho/`。
+
+以上均为内置imagegen生成的有限二维重绘，不是官方无字原图、完整骨骼或真实三维动作；服饰、脸手和接缝存在差异。运行时只依赖采用图集与profile，不依赖仓库外制作文件。
+
+## 人物动作编排与质量边界
+
+`cardEntranceArticulation.ts` 在同一人物时钟上计算手臂、身体和衣发跟随进度。可选 `bodyMotion` 允许身体先起势，`easing` 调整速度分布，`armTravelStart` 控制起始位置；动作完成后停驻，减少动态返回固定姿态。姬芽、岚珠、绘里、穗乃果、赛拉丝、花帆按各自姿态配置带动关系；双人卡围绕接触关系同步轻靠，不强制统一节奏。人物和落场总时长仍为2.74秒，原四张参数保持不变。
+
+`bodyPlacement` 与 `independentBody` 支持双人构图和独立运动；`bodyBlendY` 将上身旋转的软过渡放到适当衣料区域，避开头颈和后景人物。`rigidBodyFollow` 保持整条手臂与硬道具的统一权重；`sleeveAnchor` 只覆盖袖口连接，不能侵入手和麦克风。岚珠的肩部范围收回袖口后，麦克风恢复完整刚性旋转。具体幅度、支点、裁切和时间以 `cardEntranceProfiles.ts` 为准，不在文档重复维护参数表。
+
+人物的自然度、形状和接触关系优先于幅度。制作与自查按[人物质量参考](../../../../../.agents/skills/loveca-card-entrance-production/references/portrait-quality.md)，分别检查静态姿态与正常速度连续动作。用户已认可当前七张调优观感，不代表生产烟测完成，也不代表赛拉丝已恢复原卡姿态。
+
+动作进度测试覆盖单向收势、身体提前与减少动态固定姿态；新增双人、赛拉丝及花帆的集成测试使用真实命令，分别验证双人换手回收LIVE／加分、对手选择横置、中央登场光棒加成在权威等待结束后只续行一次，覆盖ACK、超时和全站关闭。工程测试不证明人物观感。
+
+本地正常速度预览读取真实网格与配置：`/review.html?batch=motion-tuning` 展示花帆和岚珠，`/review.html?batch=remaining-five` 展示其余五张，`/motion.html?card=<profile id>` 可检查关键姿态。当前录屏保存在仓库外 `../animation-prototypes/motion-tuning-20261002/prop-fix/` 和 `../animation-prototypes/motion-tuning-20261003/`；原型服务需运行，路径不构成发布依赖。实际桌面检查使用上方共用隔离GameBoard入口；人物视频不能代替真实桌面、双端网络或生产验收。

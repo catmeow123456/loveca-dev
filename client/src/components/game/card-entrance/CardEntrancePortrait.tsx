@@ -70,7 +70,7 @@ export function CardEntrancePortrait({
   return (
     <div
       ref={container}
-      className={`card-entrance card-entrance--centered${profile.nameLayout === 'group' ? ' card-entrance--group' : ''}`}
+      className={`card-entrance card-entrance--centered${profile.nameLayout ? ` card-entrance--${profile.nameLayout}` : ''}${profile.mobileSkipPosition === 'below-name' ? ' card-entrance--lower-skip' : ''}`}
       data-testid="card-entrance"
       aria-label={`${profile.name}登场`}
       style={{ opacity: 0 }}

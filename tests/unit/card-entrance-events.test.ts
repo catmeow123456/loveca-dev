@@ -61,6 +61,50 @@ describe('local card entrance presentation', () => {
     for (const code of ['PL!-pb2-0200-N', 'PL!-pb2-001-R-extra'])
       expect(getCardEntranceProfile(code)).toBeUndefined();
   });
+  it('registers Kaho prints and keeps mixed profiles distinct', () => {
+    for (const code of ['PL!HS-pb1-009', 'PL!HS-pb1-009-P+', 'PL!HS-pb1-009-R'])
+      expect(getCardEntranceProfile(code)?.id).toBe('kaho');
+    const codes = ['PL!HS-pb1-009-P+', 'PL!HS-bp6-007-P', 'PL!-pb2-000-DUO', 'PL!HS-pb1-009-R'];
+    const events = codes.map((cardCode, i) =>
+      event(31 + i, { card: { publicObjectId: `kaho_${i}`, cardCode } })
+    );
+    const result = collectCardEntrances(init(), input(34, events));
+    expect(result.entrances.map((e) => e.objectId)).toEqual([
+      'kaho_0',
+      'kaho_1',
+      'kaho_2',
+      'kaho_3',
+    ]);
+    expect(collectCardEntrances(result.cursor, input(34, events)).entrances).toEqual([]);
+  });
+  it('registers Seras prints in the mixed entrance queue', () => {
+    for (const code of ['PL!HS-bp6-007', 'PL!HS-bp6-007-P', 'PL!HS-bp6-007-R'])
+      expect(getCardEntranceProfile(code)?.id).toBe('seras');
+    const codes = ['PL!HS-bp6-007-P', 'PL!-pb2-000-DUO', 'PL!-pb2-020-N', 'PL!HS-bp6-007-R'];
+    const events = codes.map((cardCode, i) =>
+      event(21 + i, { card: { publicObjectId: `seras_${i}`, cardCode } })
+    );
+    const result = collectCardEntrances(init(), input(24, events));
+    expect(result.entrances.map((e) => e.objectId)).toEqual([
+      'seras_0',
+      'seras_1',
+      'seras_2',
+      'seras_3',
+    ]);
+    expect(collectCardEntrances(result.cursor, input(24, events)).entrances).toEqual([]);
+  });
+  it('registers Rin/Hanayo member prints without treating the SECE reference as a member', () => {
+    for (const code of ['PL!-pb2-000', 'PL!-pb2-000-DUO', 'PL!-pb2-000-R'])
+      expect(getCardEntranceProfile(code)?.id).toBe('rin-hanayo');
+    expect(getCardEntranceProfile('PL!-pb2-E00-SECE')).toBeUndefined();
+    const codes = ['PL!-pb2-000-DUO', 'PL!-pb2-E00-SECE', 'PL!-pb2-020-N', 'PL!-pb2-001-R'];
+    const events = codes.map((cardCode, i) =>
+      event(11 + i, { card: { publicObjectId: `duo_${i}`, cardCode } })
+    );
+    const result = collectCardEntrances(init(), input(14, events));
+    expect(result.entrances.map((e) => e.objectId)).toEqual(['duo_0', 'duo_2', 'duo_3']);
+    expect(collectCardEntrances(result.cursor, input(14, events)).entrances).toEqual([]);
+  });
   it('covers all member rarities but never the reference energy or similar numbers', () => {
     for (const rarity of ['R', 'R+', 'P', 'P+', 'SEC', 'NEW'])
       expect(getCardEntranceProfile(`PL!N-bp7-006-${rarity}`)?.id).toBe('kanata');

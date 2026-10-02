@@ -1,5 +1,5 @@
 import type { EntranceMeshProfile } from './cardEntranceProfiles';
-import { entranceArmProgress } from './cardEntranceArticulation';
+import { entranceLayerFrame } from './cardEntranceArticulation';
 // Shared portrait mesh; optional atlas layers articulate intact hands and props.
 // Coordinates are specific to this card-framing concept, not card rules.
 export function createCardEntranceMesh(
@@ -29,10 +29,11 @@ export function createCardEntranceMesh(
     uniform float hasGroupSway; uniform vec4 groupColumns;
     uniform vec3 groupAmplitude; uniform vec3 groupPhase;
     uniform float hasArmLayers; uniform float artAspect; uniform float layer;
-    uniform vec2 armPivot; uniform vec2 armOffset; uniform vec2 bodyPivot;
+    uniform vec2 armPivot; uniform vec2 armOffset; uniform vec2 bodyPivot; uniform vec2 bodyBlendY;
     uniform float armAngle; uniform float restAngle; uniform float bodyAngle; uniform float bodyLift;
-    uniform float gestureProgress; uniform float follow; uniform float rigidBodyFollow;
-    uniform vec4 sourceRect; uniform vec4 armPlacement; uniform vec3 sleeveAnchor; uniform vec2 armTravel;
+    uniform float gestureProgress; uniform float bodyProgress; uniform float follow; uniform float rigidBodyFollow;
+    uniform vec4 sourceRect; uniform vec4 armPlacement; uniform vec4 bodyPlacement;
+    uniform float independentBody; uniform vec3 sleeveAnchor; uniform vec2 armTravel; uniform vec2 armTravelStart;
     vec2 rotateAt(vec2 point, vec2 pivot, float angle) {
       // Rotate in image-space pixels, not stretched UV space: faces and hands
       // keep their proportions. Only the configured joint boundaries blend.
@@ -78,16 +79,19 @@ export function createCardEntranceMesh(
         if(layer<.5){
           p.x+=(hair*.012+hem*.004)*follow*amount;
           p.y+=hem*.003*follow*amount;
+          p=bodyPlacement.xy+p*bodyPlacement.zw;
         }else{
           // The full hand / microphone is a rigid layer: no finger stretching.
           p=armPlacement.xy+uv*armPlacement.zw;
           float joint=sleeveAnchor.z>0.0?smoothstep(0.0,sleeveAnchor.z,distance(p,sleeveAnchor.xy)):1.0;
-          p=mix(p,rotateAt(p,armPivot,mix(restAngle,armAngle,amount))+armTravel*gestureProgress,joint)+armOffset;
+          p=mix(p,rotateAt(p,armPivot,mix(restAngle,armAngle,amount))+mix(armTravelStart,armTravel,gestureProgress),joint)+armOffset;
         }
         float bodyY=(layer>.5 && rigidBodyFollow>.5)?armPivot.y+armOffset.y:p.y;
-        float upper=1.0-smoothstep(bodyPivot.y-.06,bodyPivot.y+.10,bodyY);
-        p=mix(p,rotateAt(p,bodyPivot,bodyAngle*gestureProgress),upper*amount);
-        p.y-=bodyLift*gestureProgress*upper*amount;
+        float upper=1.0-smoothstep(bodyBlendY.x,bodyBlendY.y,bodyY);
+        if(layer<.5 || independentBody<.5){
+          p=mix(p,rotateAt(p,bodyPivot,bodyAngle*bodyProgress),upper*amount);
+          p.y-=bodyLift*bodyProgress*upper*amount;
+        }
       }
       p=.045+p*.91;
       gl_Position=vec4(p.x*2.0-1.0,1.0-p.y*2.0,0,1);
@@ -111,22 +115,35 @@ export function createCardEntranceMesh(
   gl.uniform1f(gl.getUniformLocation(program, 'hasArmLayers'), rig ? 1 : 0);
   gl.uniform1f(
     gl.getUniformLocation(program, 'artAspect'),
-    (image.naturalWidth / image.naturalHeight) * (rig ? rig.bodyCrop[2] / rig.bodyCrop[3] : 1)
+    (image.naturalWidth / image.naturalHeight) *
+      (rig ? rig.bodyCrop[2] / rig.bodyCrop[3] : 1) *
+      (rig?.bodyPlacement ? rig.bodyPlacement[3] / rig.bodyPlacement[2] : 1)
   );
   gl.uniform2fv(gl.getUniformLocation(program, 'armPivot'), rig?.pivot ?? [0, 0]);
   gl.uniform2fv(gl.getUniformLocation(program, 'armOffset'), rig?.offset ?? [0, 0]);
   gl.uniform2fv(gl.getUniformLocation(program, 'bodyPivot'), rig?.bodyPivot ?? [0, 0]);
+  gl.uniform2fv(
+    gl.getUniformLocation(program, 'bodyBlendY'),
+    rig?.bodyBlendY ?? [(rig?.bodyPivot[1] ?? 0) - 0.06, (rig?.bodyPivot[1] ?? 0) + 0.1]
+  );
   gl.uniform1f(gl.getUniformLocation(program, 'bodyAngle'), rig?.bodyAngle ?? 0);
   gl.uniform1f(gl.getUniformLocation(program, 'bodyLift'), rig?.bodyLift ?? 0);
   gl.uniform4fv(gl.getUniformLocation(program, 'armPlacement'), rig?.armPlacement ?? [0, 0, 1, 1]);
+  gl.uniform4fv(
+    gl.getUniformLocation(program, 'bodyPlacement'),
+    rig?.bodyPlacement ?? [0, 0, 1, 1]
+  );
+  gl.uniform1f(gl.getUniformLocation(program, 'independentBody'), rig?.independentBody ? 1 : 0);
   gl.uniform3fv(gl.getUniformLocation(program, 'sleeveAnchor'), rig?.sleeveAnchor ?? [0, 0, 0]);
   gl.uniform2fv(gl.getUniformLocation(program, 'armTravel'), rig?.armTravel ?? [0, 0]);
+  gl.uniform2fv(gl.getUniformLocation(program, 'armTravelStart'), rig?.armTravelStart ?? [0, 0]);
   gl.uniform1f(gl.getUniformLocation(program, 'rigidBodyFollow'), rig?.rigidBodyFollow ? 1 : 0);
   const sourceRect = gl.getUniformLocation(program, 'sourceRect');
   const layer = gl.getUniformLocation(program, 'layer');
   const armAngle = gl.getUniformLocation(program, 'armAngle');
   gl.uniform1f(gl.getUniformLocation(program, 'restAngle'), rig?.angles[1] ?? 0);
   const gestureProgress = gl.getUniformLocation(program, 'gestureProgress');
+  const bodyProgress = gl.getUniformLocation(program, 'bodyProgress');
   const follow = gl.getUniformLocation(program, 'follow');
   if (rig) {
     gl.enable(gl.BLEND);
@@ -191,15 +208,11 @@ export function createCardEntranceMesh(
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.uniform1f(time, seconds);
     gl.uniform1f(amount, reduced ? 0 : 1);
-    const progress = rig
-      ? reduced
-        ? 1
-        : entranceArmProgress(seconds, rig.start, rig.duration)
-      : 0;
-    gl.uniform1f(gestureProgress, progress);
-    gl.uniform1f(armAngle, rig ? rig.angles[0] + (rig.angles[1] - rig.angles[0]) * progress : 0);
-    const trailing = rig ? entranceArmProgress(seconds - 0.16, rig.start, rig.duration + 0.16) : 0;
-    gl.uniform1f(follow, (progress - trailing) * 3);
+    const motion = rig ? entranceLayerFrame(seconds, rig, reduced) : null;
+    gl.uniform1f(gestureProgress, motion?.arm ?? 0);
+    gl.uniform1f(bodyProgress, motion?.body ?? 0);
+    gl.uniform1f(armAngle, rig ? rig.angles[0] + (rig.angles[1] - rig.angles[0]) * motion!.arm : 0);
+    gl.uniform1f(follow, motion?.follow ?? 0);
     const drawLayer = (isArm: boolean) => {
       gl.uniform4fv(sourceRect, isArm ? rig!.armCrop : (rig?.bodyCrop ?? [0, 0, 1, 1]));
       gl.uniform1f(layer, isArm ? 1 : 0);

@@ -8,6 +8,9 @@ export const entranceCards = {
   lanzhu: 'PL!N-bp1-012',
   eli: 'PL!-pb2-020',
   honoka: 'PL!-pb2-001',
+  'rin-hanayo': 'PL!-pb2-000',
+  seras: 'PL!HS-bp6-007',
+  kaho: 'PL!HS-pb1-009',
 } as const;
 export function isEntranceCard(code: string): boolean {
   return Object.values(entranceCards).some(

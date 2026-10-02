@@ -1,28 +1,37 @@
 import { entranceCards } from '@game/shared/card-entrance';
+import type { EntranceMotionTiming } from './cardEntranceArticulation';
 
-/** Two registered atlas panels: repaired body, then an intact moving arm. */
-export interface EntranceArmLayers {
-  /** Normalized atlas crops, and arm placement in the body panel. */
+/** Two registered atlas panels: repaired body plus an intact arm or second character. */
+export interface EntranceArmLayers extends EntranceMotionTiming {
+  /** Normalized atlas crops and placement within the composed portrait. */
   bodyCrop: readonly [number, number, number, number];
+  /** Optional placement for a smaller back character in a wider duo composition. */
+  bodyPlacement?: readonly [number, number, number, number];
   armCrop: readonly [number, number, number, number];
   armPlacement: readonly [number, number, number, number];
   /** Source pivot and alignment, in one portrait panel's normalized coordinates. */
   pivot: readonly [number, number];
   offset: readonly [number, number];
   angles: readonly [number, number];
-  start: number;
-  duration: number;
+  /** Optional torso lead; absent preserves the hand's existing timing. */
+  bodyMotion?: EntranceMotionTiming;
   bodyPivot: readonly [number, number];
+  /** Composed portrait Y range where torso rotation fades into the fixed lower body. */
+  bodyBlendY?: readonly [number, number];
   bodyAngle: number;
   bodyLift: number;
   /** Elbow tuck as the hand approaches its final pose. */
   armTravel?: readonly [number, number];
-  /** Pin the sleeve's shoulder while the forearm bends at the elbow. */
+  /** Start nearer the final gesture without moving the shoulder attachment. */
+  armTravelStart?: readonly [number, number];
+  /** Pin the sleeve's shoulder; the radius must exclude the rigid hand and prop. */
   sleeveAnchor?: readonly [number, number, number];
   /** Let the repaired sleeve/torso cover the joint's attachment cap. */
   behindBody?: boolean;
   /** Long rigid props inherit the body's weight at the joint, not per vertex. */
   rigidBodyFollow?: boolean;
+  /** A second character may lean independently instead of following the first body. */
+  independentBody?: boolean;
 }
 /** Cosmetic profiles only; card abilities remain in the shared rules engine. */
 export interface EntranceMeshProfile {
@@ -52,7 +61,9 @@ export interface CardEntranceProfile {
   mobileHeight: string;
   /** Preserve wider group artwork without stretching older portraits. */
   artAspectRatio?: string;
-  nameLayout?: 'group';
+  nameLayout?: 'group' | 'long';
+  /** Keep the shared skip button clear of artwork with a raised arm on mobile. */
+  mobileSkipPosition?: 'below-name';
   light: string;
   mesh: EntranceMeshProfile;
 }
@@ -152,19 +163,23 @@ export const cardEntranceProfiles = defineEntranceProfiles([
       hairEnd: [0.95, 1],
       rightHair: [0.91, 0.99, 0.49, 0.55, 0.66, 0.71],
       hem: [0.83, 0.98, 0.67, 0.82],
-      strength: [0, 1.1, 0.8],
+      strength: [0, 0.7, 0.45],
       armLayers: {
         bodyCrop: [0, 0, 0.498, 1],
         armCrop: [0.5, 0, 0.5, 1],
         armPlacement: [0, 0, 1, 1],
         pivot: [0.65, 0.652],
         offset: [0.157, 0.014],
-        angles: [-0.16, -0.4],
-        start: 0.24,
-        duration: 0.8,
-        bodyPivot: [0.54, 0.68],
-        bodyAngle: -0.012,
-        bodyLift: 0.006,
+        angles: [-0.23, -0.4],
+        start: 0.19,
+        duration: 1.06,
+        easing: 'smoothstep',
+        bodyMotion: { start: 0.03, duration: 1.12, easing: 'smoothstep' },
+        bodyPivot: [0.54, 0.7],
+        bodyBlendY: [0.7, 0.88],
+        bodyAngle: -0.024,
+        bodyLift: 0.002,
+        rigidBodyFollow: true,
       },
     },
   },
@@ -189,14 +204,18 @@ export const cardEntranceProfiles = defineEntranceProfiles([
         armPlacement: [0.68, 0.25, 0.326, 0.33],
         pivot: [0.85, 0.51],
         offset: [0, 0],
-        angles: [0, -0.72],
-        start: 0.3,
-        duration: 0.86,
+        angles: [-0.44, -0.72],
+        start: 0.18,
+        duration: 1.08,
+        easing: 'smoothstep',
+        bodyMotion: { start: 0.04, duration: 1.08, easing: 'smoothstep' },
         bodyPivot: [0.55, 0.57],
-        bodyAngle: 0.012,
-        bodyLift: 0.006,
-        sleeveAnchor: [0.7, 0.36, 0.17],
+        bodyAngle: 0.025,
+        bodyLift: 0.003,
+        sleeveAnchor: [0.7, 0.36, 0.095],
+        armTravelStart: [-0.043, -0.031],
         armTravel: [-0.07, -0.05],
+        rigidBodyFollow: true,
       },
     },
   },
@@ -213,18 +232,21 @@ export const cardEntranceProfiles = defineEntranceProfiles([
       hair: [0.18, 0.28, 0.33, 0.42],
       hairEnd: [0.59, 0.66],
       hem: [0.85, 0.98, 0.84, 0.95],
-      strength: [0, 1.1, 0.6],
+      strength: [0, 0.8, 0.4],
       armLayers: {
         bodyCrop: [0, 0, 0.7, 1],
         armCrop: [0.705, 0.325, 0.29, 0.355],
         armPlacement: [0.552, 0.363, 0.414286, 0.355],
         pivot: [0.62, 0.623],
         offset: [0, 0],
-        angles: [0.18, -0.08],
-        start: 0.24,
-        duration: 0.84,
+        angles: [0.14, -0.04],
+        start: 0.18,
+        duration: 1.1,
+        easing: 'smoothstep',
+        bodyMotion: { start: 0.02, duration: 1.12, easing: 'smoothstep' },
         bodyPivot: [0.55, 0.88],
-        bodyAngle: -0.01,
+        bodyBlendY: [0.8, 1.04],
+        bodyAngle: -0.022,
         bodyLift: 0.004,
         rigidBodyFollow: true,
       },
@@ -243,22 +265,134 @@ export const cardEntranceProfiles = defineEntranceProfiles([
       hair: [0.19, 0.29, 0.25, 0.34],
       hairEnd: [0.52, 0.58],
       hem: [0.42, 0.55, 0.73, 0.9],
-      strength: [0, 0.8, 0.65],
+      strength: [0, 0.6, 0.4],
       armLayers: {
         bodyCrop: [0, 0, 0.7, 1],
         armCrop: [0.74, 0, 0.22, 1],
         armPlacement: [0.581, 0, 0.314286, 1],
         pivot: [0.63, 0.63],
         offset: [0, 0],
-        angles: [-0.08, 0.06],
-        start: 0.28,
-        duration: 0.86,
+        angles: [-0.05, 0.025],
+        start: 0.23,
+        duration: 1.08,
+        easing: 'smoothstep',
+        bodyMotion: { start: 0.05, duration: 1.1, easing: 'smoothstep' },
         bodyPivot: [0.51, 0.76],
-        bodyAngle: -0.007,
-        bodyLift: 0.004,
+        bodyBlendY: [0.78, 0.95],
+        bodyAngle: -0.014,
+        bodyLift: 0.002,
         behindBody: true,
         rigidBodyFollow: true,
-        armTravel: [-0.004, -0.018],
+        armTravel: [-0.003, -0.009],
+      },
+    },
+  },
+  {
+    id: 'rin-hanayo',
+    baseCode: entranceCards['rin-hanayo'],
+    name: '星空凛&小泉花阳',
+    loadArt: () => import('../components/game/card-entrance/rin-hanayo-layers.png'),
+    artAspectRatio: '1150 / 887',
+    center: '-50%',
+    mobileHeight: 'min(72%, 83vw)',
+    nameLayout: 'group',
+    light: '#e3c69b77',
+    mesh: {
+      hair: [0.2, 0.3, 0.24, 0.32],
+      hairEnd: [0.43, 0.5],
+      hem: [0.45, 0.65, 0.77, 0.9],
+      strength: [0, 0.35, 0.35],
+      armLayers: {
+        bodyCrop: [0, 0, 0.36, 1],
+        bodyPlacement: [0, 0, 0.555339, 1],
+        armCrop: [0.386, 0, 0.614, 1],
+        armPlacement: [0.052, 0, 0.947172, 1],
+        // Both figures lean around their shared hand contact, keeping the embrace joined.
+        pivot: [0.34, 0.79],
+        offset: [0, 0],
+        angles: [0.025, -0.018],
+        start: 0.08,
+        duration: 1.18,
+        easing: 'smoothstep',
+        bodyPivot: [0.34, 0.79],
+        bodyBlendY: [0.86, 1.04],
+        bodyAngle: 0.02,
+        bodyLift: 0,
+        independentBody: true,
+      },
+    },
+  },
+  {
+    id: 'seras',
+    baseCode: entranceCards.seras,
+    name: '赛拉丝·柳田·利林费尔德',
+    loadArt: () => import('../components/game/card-entrance/seras-layers.png'),
+    artAspectRatio: '1136.64 / 1024',
+    center: '-50%',
+    mobileHeight: 'min(74%, 94vw)',
+    light: '#d58c9b77',
+    nameLayout: 'long',
+    mesh: {
+      hair: [0.26, 0.33, 0.34, 0.43],
+      hairEnd: [0.63, 0.69],
+      rightHair: [0.66, 0.74, 0.36, 0.45, 0.62, 0.69],
+      hem: [0.75, 0.95, 0.77, 0.9],
+      strength: [0, 0.4, 0.3],
+      armLayers: {
+        bodyCrop: [0, 0, 0.74, 1],
+        armCrop: [0.79, 0.34, 0.19, 0.53],
+        armPlacement: [0.47, 0.355, 0.231081, 0.477],
+        pivot: [0.646, 0.805],
+        offset: [0, 0],
+        // Keep the support hand near the chin; the upper body leads a small lean.
+        angles: [-0.04, 0.012],
+        start: 0.19,
+        duration: 1.12,
+        easing: 'smoothstep',
+        bodyMotion: { start: 0.04, duration: 1.15, easing: 'smoothstep' },
+        bodyPivot: [0.52, 0.84],
+        bodyBlendY: [0.88, 1.06],
+        bodyAngle: -0.022,
+        bodyLift: 0.001,
+        rigidBodyFollow: true,
+      },
+    },
+  },
+  {
+    id: 'kaho',
+    mobileSkipPosition: 'below-name',
+    baseCode: entranceCards.kaho,
+    name: '日野下花帆',
+    loadArt: () => import('../components/game/card-entrance/kaho-layers.png'),
+    artAspectRatio: '1059.84 / 1137.78',
+    center: '-50%',
+    mobileHeight: 'min(74%, 105vw)',
+    light: '#89c8dd77',
+    mesh: {
+      hair: [0.5, 0.59, 0.43, 0.5],
+      hairEnd: [0.6, 0.66],
+      rightHair: [0.62, 0.7, 0.26, 0.33, 0.44, 0.5],
+      // This atlas includes another face below Kaho's head. Broad hair masks
+      // also hit their necklines; keep both faces and necklaces undeformed.
+      hem: [0.86, 0.98, 0.9, 0.99],
+      strength: [0, 0, 0.3],
+      armLayers: {
+        bodyCrop: [0, 0, 0.69, 1],
+        bodyPlacement: [0, 0.1, 1, 0.9],
+        armCrop: [0.7, 0.05, 0.3, 0.24],
+        armPlacement: [0.488, 0.067, 0.434783, 0.216],
+        pivot: [0.902, 0.226],
+        offset: [0, 0],
+        angles: [-0.035, 0.095],
+        start: 0.2,
+        duration: 1.08,
+        easing: 'smoothstep',
+        bodyMotion: { start: 0.04, duration: 1.1, easing: 'smoothstep' },
+        bodyPivot: [0.61, 0.72],
+        bodyBlendY: [0.87, 1.02],
+        bodyAngle: 0.024,
+        bodyLift: 0.002,
+        rigidBodyFollow: true,
       },
     },
   },
