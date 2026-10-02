@@ -3,12 +3,14 @@ export interface EntranceMeshProfile {
   /** UV mask: x fade start/end, y fade start/end. */
   hair: readonly [number, number, number, number];
   hairEnd: readonly [number, number];
+  /** Optional right-side hair: x fade start/end, y start/end, y fade-out start/end. */
+  rightHair?: readonly [number, number, number, number, number, number];
   hem: readonly [number, number, number, number];
   /** Upper body, hair, hem displacement multipliers. */
   strength: readonly [number, number, number];
 }
 export interface CardEntranceProfile {
-  id: 'kanata' | 'ren';
+  id: 'kanata' | 'ren' | 'shiki';
   baseCode: string;
   name: string;
   center: string;
@@ -43,6 +45,21 @@ const profiles: readonly CardEntranceProfile[] = [
       hairEnd: [0.65, 0.78],
       hem: [0.4, 0.8, 0.7, 0.9],
       strength: [0.4, 0.8, 0.55],
+    },
+  },
+  {
+    id: 'shiki',
+    baseCode: 'PL!SP-pb2-008',
+    name: '若菜四季',
+    center: '-52%',
+    mobileHeight: 'min(76%, 126vw)',
+    light: '#83c9c599',
+    mesh: {
+      hair: [0.26, 0.36, 0.12, 0.2],
+      hairEnd: [0.29, 0.34],
+      rightHair: [0.67, 0.74, 0.12, 0.2, 0.29, 0.34],
+      hem: [0.82, 0.96, 0.69, 0.84],
+      strength: [0.15, 0.48, 0.38],
     },
   },
 ];

@@ -3,7 +3,8 @@ import { createCardEntranceMesh } from '../../../lib/cardEntranceMesh';
 import type { CardEntranceProfile } from '../../../lib/cardEntranceProfiles';
 import kanataArt from './kanata.png';
 import renArt from './ren.png';
-const artwork = { kanata: kanataArt, ren: renArt };
+import shikiArt from './shiki.png';
+const artwork = { kanata: kanataArt, ren: renArt, shiki: shikiArt };
 
 export function CardEntrancePortrait({
   profile,

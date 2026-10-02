@@ -23,6 +23,7 @@ export function createCardEntranceMesh(
       gl.VERTEX_SHADER,
       `
     attribute vec2 uv; varying vec2 tex; uniform float time; uniform float amount;
+    uniform vec4 rightHairRegion; uniform vec2 rightHairEnd; uniform float hasRightHair;
     uniform vec4 hairRegion; uniform vec2 hairEnd; uniform vec4 hemRegion; uniform vec3 strength;
     void main(){
       tex=uv; vec2 p=uv;
@@ -31,6 +32,7 @@ export function createCardEntranceMesh(
       p.x+=upper*settle*.028*amount;
       p.y-=upper*sin(min(time,1.8)*1.745)*.005*amount;
       float hair=(1.0-smoothstep(hairRegion.x,hairRegion.y,uv.x))*smoothstep(hairRegion.z,hairRegion.w,uv.y)*(1.0-smoothstep(hairEnd.x,hairEnd.y,uv.y))*strength.y;
+      hair+=hasRightHair*smoothstep(rightHairRegion.x,rightHairRegion.y,uv.x)*smoothstep(rightHairRegion.z,rightHairRegion.w,uv.y)*(1.0-smoothstep(rightHairEnd.x,rightHairEnd.y,uv.y))*strength.y;
       p.x+=hair*sin(time*4.1-uv.y*6.0)*(.008+.024*exp(-time*1.4))*amount;
       p.y+=hair*sin(time*3.6-uv.x*4.0)*.009*amount;
       float hem=(1.0-smoothstep(hemRegion.x,hemRegion.y,uv.x))*smoothstep(hemRegion.z,hemRegion.w,uv.y)*strength.z;
@@ -56,6 +58,10 @@ export function createCardEntranceMesh(
   gl.useProgram(program);
   gl.uniform4fv(gl.getUniformLocation(program, 'hairRegion'), profile.hair);
   gl.uniform2fv(gl.getUniformLocation(program, 'hairEnd'), profile.hairEnd);
+  const rightHair = profile.rightHair ?? [0, 1, 0, 1, 0, 1];
+  gl.uniform4fv(gl.getUniformLocation(program, 'rightHairRegion'), rightHair.slice(0, 4));
+  gl.uniform2fv(gl.getUniformLocation(program, 'rightHairEnd'), rightHair.slice(4));
+  gl.uniform1f(gl.getUniformLocation(program, 'hasRightHair'), profile.rightHair ? 1 : 0);
   gl.uniform4fv(gl.getUniformLocation(program, 'hemRegion'), profile.hem);
   gl.uniform3fv(gl.getUniformLocation(program, 'strength'), profile.strength);
   const vertices = [];

@@ -45,6 +45,19 @@ describe('local card entrance presentation', () => {
     ]);
     expect(collectCardEntrances(result.cursor, input(12, events)).entrances).toEqual([]);
   });
+  it('maps Shiki R/PP and keeps all three portraits associated with their public objects', () => {
+    for (const suffix of ['', '-R', '-PP'])
+      expect(getCardEntranceProfile(`PL!SP-pb2-008${suffix}`)?.id).toBe('shiki');
+    for (const code of ['PL!SP-pb2-0080-PP', 'PL!SP-pb2-008-', 'PL!SP-pb2-008-PP-extra'])
+      expect(getCardEntranceProfile(code)).toBeUndefined();
+    const codes = ['PL!SP-pb2-008-PP', 'PL!SP-pb2-005-R', 'PL!N-bp7-006-SEC'];
+    const events = codes.map((cardCode, i) =>
+      event(11 + i, { card: { publicObjectId: `obj_${i}`, cardCode } })
+    );
+    const result = collectCardEntrances(init(), input(13, events));
+    expect(result.entrances.map((e) => e.objectId)).toEqual(['obj_0', 'obj_1', 'obj_2']);
+    expect(collectCardEntrances(result.cursor, input(13, events)).entrances).toEqual([]);
+  });
   it('skips initial history, reconnect epochs, match changes and sequence rewind', () => {
     expect(collectCardEntrances(emptyEntranceCursor(), input(11, [event(11)])).entrances).toEqual(
       []
