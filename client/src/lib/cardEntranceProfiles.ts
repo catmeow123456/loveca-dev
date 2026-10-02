@@ -6,15 +6,24 @@ export interface EntranceMeshProfile {
   /** Optional right-side hair: x fade start/end, y start/end, y fade-out start/end. */
   rightHair?: readonly [number, number, number, number, number, number];
   hem: readonly [number, number, number, number];
+  /** Three softly joined upper-body regions; UV column transitions avoid faces. */
+  groupSway?: {
+    columns: readonly [number, number, number, number];
+    amplitude: readonly [number, number, number];
+    phase: readonly [number, number, number];
+  };
   /** Upper body, hair, hem displacement multipliers. */
   strength: readonly [number, number, number];
 }
 export interface CardEntranceProfile {
-  id: 'kanata' | 'ren' | 'shiki';
+  id: 'kanata' | 'ren' | 'shiki' | 'next-step-trio';
   baseCode: string;
   name: string;
   center: string;
   mobileHeight: string;
+  /** Preserve wider group artwork without stretching older portraits. */
+  artAspectRatio?: string;
+  nameLayout?: 'group';
   light: string;
   mesh: EntranceMeshProfile;
 }
@@ -60,6 +69,30 @@ const profiles: readonly CardEntranceProfile[] = [
       rightHair: [0.67, 0.74, 0.12, 0.2, 0.29, 0.34],
       hem: [0.82, 0.96, 0.69, 0.84],
       strength: [0.15, 0.48, 0.38],
+    },
+  },
+  {
+    id: 'next-step-trio',
+    baseCode: 'LL-bp2-001',
+    name: '渡边曜&鬼冢夏美&大泽瑠璃乃',
+    center: '-50%',
+    mobileHeight: 'min(74%, 110vw)',
+    artAspectRatio: '1152 / 1366',
+    nameLayout: 'group',
+    light: '#9bcfea88',
+    mesh: {
+      // Broad regions move each face and its nearby props together. Only the
+      // outer hair and skirt receive additional flexible displacement.
+      hair: [0.08, 0.13, 0.29, 0.35],
+      hairEnd: [0.4, 0.46],
+      hem: [0.85, 0.98, 0.77, 0.86],
+      rightHair: [0.91, 0.99, 0.23, 0.31, 0.68, 0.78],
+      strength: [0, 0.65, 0.65],
+      groupSway: {
+        columns: [0.34, 0.43, 0.64, 0.71],
+        amplitude: [0.012, 0.009, 0.013],
+        phase: [0, 0.7, 1.4],
+      },
     },
   },
 ];

@@ -4,7 +4,8 @@ import type { CardEntranceProfile } from '../../../lib/cardEntranceProfiles';
 import kanataArt from './kanata.png';
 import renArt from './ren.png';
 import shikiArt from './shiki.png';
-const artwork = { kanata: kanataArt, ren: renArt, shiki: shikiArt };
+import trioArt from './next-step-trio.png';
+const artwork = { kanata: kanataArt, ren: renArt, shiki: shikiArt, 'next-step-trio': trioArt };
 
 export function CardEntrancePortrait({
   profile,
@@ -80,13 +81,17 @@ export function CardEntrancePortrait({
   return (
     <div
       ref={container}
-      className="card-entrance card-entrance--centered"
+      className={`card-entrance card-entrance--centered${profile.nameLayout === 'group' ? ' card-entrance--group' : ''}`}
       data-testid="card-entrance"
       aria-label={`${profile.name}登场`}
       style={{ opacity: 0 }}
     >
       <div className="card-entrance-light" />
-      <canvas ref={canvas} className="card-entrance-art" />
+      <canvas
+        ref={canvas}
+        className="card-entrance-art"
+        style={{ aspectRatio: profile.artAspectRatio }}
+      />
       <div className="card-entrance-name">
         <span className="card-entrance-card-name">{profile.name}</span>
       </div>

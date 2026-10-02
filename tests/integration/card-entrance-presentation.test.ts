@@ -35,6 +35,7 @@ describe('entrance consumes authoritative public member entry', () => {
     ['PL!SP-pb2-005-PP', '叶月恋', 20, 6],
     ['PL!SP-pb2-008-R', '若菜四季', 17, 7],
     ['PL!SP-pb2-008-PP', '若菜四季', 17, 7],
+    ['LL-bp2-001-R+', '渡边曜&鬼冢夏美&大泽瑠璃乃', 20, 6],
   ] as const)(
     'uses real command events and public object IDs for %s',
     (cardCode, name, cost, blade) => {

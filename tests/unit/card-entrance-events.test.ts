@@ -58,6 +58,23 @@ describe('local card entrance presentation', () => {
     expect(result.entrances.map((e) => e.objectId)).toEqual(['obj_0', 'obj_1', 'obj_2']);
     expect(collectCardEntrances(result.cursor, input(13, events)).entrances).toEqual([]);
   });
+  it('triggers the trio member once but never its reference RE energy print', () => {
+    for (const code of ['LL-bp2-001', 'LL-bp2-001-R+', 'LL-bp2-001-R＋'])
+      expect(getCardEntranceProfile(code)?.id).toBe('next-step-trio');
+    for (const code of ['LL-bp2-E01-RE', 'LL-bp2-0010-R+', 'LL-bp2-001-', 'LL-bp2-001-R+-extra'])
+      expect(getCardEntranceProfile(code)).toBeUndefined();
+    const events = [
+      event(11, { card: { publicObjectId: 'trio', cardCode: 'LL-bp2-001-R+' } }),
+      event(12, { card: { publicObjectId: 'reference', cardCode: 'LL-bp2-E01-RE' } }),
+      event(13, { card: { publicObjectId: 'shiki', cardCode: 'PL!SP-pb2-008-PP' } }),
+    ];
+    const result = collectCardEntrances(init(), input(13, events));
+    expect(result.entrances).toEqual([
+      { id: 'e11', objectId: 'trio' },
+      { id: 'e13', objectId: 'shiki' },
+    ]);
+    expect(collectCardEntrances(result.cursor, input(13, events)).entrances).toEqual([]);
+  });
   it('skips initial history, reconnect epochs, match changes and sequence rewind', () => {
     expect(collectCardEntrances(emptyEntranceCursor(), input(11, [event(11)])).entrances).toEqual(
       []
