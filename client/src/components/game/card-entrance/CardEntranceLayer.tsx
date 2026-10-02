@@ -1,16 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '@/store/gameStore';
 import { collectCardEntrances, emptyEntranceCursor } from '@/lib/cardEntranceEvents';
 import { getCardEntranceProfile, type CardEntranceProfile } from '@/lib/cardEntranceProfiles';
-import { CardEntrancePortrait } from './CardEntrancePortrait';
-import { CardLanding, type LandingPresentation } from './CardLanding';
-import {
-  CARD_ENTRANCE_TOTAL_MS,
-  getEntranceStageTarget,
-  sameEntranceTarget,
-} from '@/lib/cardEntranceLanding';
+import { CardEntrancePlayback } from './CardEntrancePlayback';
+import { type LandingPresentation } from './CardLanding';
+import { getEntranceStageTarget, sameEntranceTarget } from '@/lib/cardEntranceLanding';
 import './cardEntrance.css';
 
 export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
@@ -115,57 +111,14 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
     []
   );
 
-  useEffect(() => {
-    if (!presentationId) return;
-    const timer = window.setTimeout(
-      () => {
-        setQueue((q) =>
-          q.filter((e) => e.id !== presentationId && performance.now() - e.receivedAt < 5000)
-        );
-      },
-      reduced ? 160 : CARD_ENTRANCE_TOTAL_MS
-    );
-    return () => window.clearTimeout(timer);
-  }, [presentationId, reduced]);
-
-  return (
-    <>
-      {presentation && (
-        <div
-          key={presentation.id}
-          className="card-entrance-presentation"
-          data-profile={presentation.profile.id}
-          style={
-            {
-              '--entrance-art-center': presentation.profile.center,
-              '--entrance-mobile-height': presentation.profile.mobileHeight,
-              '--entrance-light': presentation.profile.light,
-            } as CSSProperties
-          }
-        >
-          <CardEntrancePortrait
-            profile={presentation.profile}
-            reduced={reduced}
-            onDone={finishPresentation}
-          />
-          {!reduced && (
-            <CardLanding
-              presentation={presentation}
-              onImpact={() => setLandedId(presentation.id)}
-              onDone={finishPresentation}
-            />
-          )}
-          <button
-            className="card-entrance-skip"
-            onClick={(e) => {
-              e.stopPropagation();
-              finishPresentation();
-            }}
-          >
-            跳过演出
-          </button>
-        </div>
-      )}
-    </>
-  );
+  return presentation ? (
+    <CardEntrancePlayback
+      key={presentation.id}
+      presentation={presentation}
+      profile={presentation.profile}
+      reduced={reduced}
+      onImpact={() => setLandedId(presentation.id)}
+      onDone={finishPresentation}
+    />
+  ) : null;
 }

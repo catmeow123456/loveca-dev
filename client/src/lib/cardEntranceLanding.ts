@@ -3,13 +3,6 @@ import { OrientationState, ZoneType } from '@game/shared/types/enums';
 import type { BattleAnimationRect } from './battleAnimationEvents';
 import { getCardEntranceProfile } from './cardEntranceProfiles';
 
-export const CARD_ENTRANCE_LANDING_DELAY_MS = 1750;
-export const CARD_ENTRANCE_TRAVEL_MS = 400;
-export const CARD_ENTRANCE_FLIGHT_MS = CARD_ENTRANCE_TRAVEL_MS + 150;
-export const CARD_ENTRANCE_IMPACT_MS = 440;
-export const CARD_ENTRANCE_TOTAL_MS =
-  CARD_ENTRANCE_LANDING_DELAY_MS + CARD_ENTRANCE_FLIGHT_MS + CARD_ENTRANCE_IMPACT_MS;
-
 export interface EntranceStageTarget {
   objectId: string;
   cardCode: string;

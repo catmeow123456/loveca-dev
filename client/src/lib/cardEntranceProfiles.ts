@@ -16,9 +16,11 @@ export interface EntranceMeshProfile {
   strength: readonly [number, number, number];
 }
 export interface CardEntranceProfile {
-  id: 'kanata' | 'ren' | 'shiki' | 'next-step-trio';
+  id: string;
   baseCode: string;
   name: string;
+  /** Loaded only when this public card is about to present. */
+  loadArt: () => Promise<{ default: string }>;
   center: string;
   mobileHeight: string;
   /** Preserve wider group artwork without stretching older portraits. */
@@ -27,9 +29,21 @@ export interface CardEntranceProfile {
   light: string;
   mesh: EntranceMeshProfile;
 }
-const profiles: readonly CardEntranceProfile[] = [
+export function defineEntranceProfiles(entries: readonly CardEntranceProfile[]) {
+  const ids = new Set<string>(),
+    codes = new Set<string>();
+  for (const entry of entries) {
+    if (!entry.id || !entry.baseCode || ids.has(entry.id) || codes.has(entry.baseCode))
+      throw new Error(`Duplicate or empty entrance registration: ${entry.id}/${entry.baseCode}`);
+    ids.add(entry.id);
+    codes.add(entry.baseCode);
+  }
+  return entries;
+}
+export const cardEntranceProfiles = defineEntranceProfiles([
   {
     id: 'kanata',
+    loadArt: () => import('../components/game/card-entrance/kanata.png'),
     baseCode: 'PL!N-bp7-006',
     name: '近江彼方',
     center: '-62%',
@@ -44,6 +58,7 @@ const profiles: readonly CardEntranceProfile[] = [
   },
   {
     id: 'ren',
+    loadArt: () => import('../components/game/card-entrance/ren.png'),
     baseCode: 'PL!SP-pb2-005',
     name: '叶月恋',
     center: '-56%',
@@ -58,6 +73,7 @@ const profiles: readonly CardEntranceProfile[] = [
   },
   {
     id: 'shiki',
+    loadArt: () => import('../components/game/card-entrance/shiki.png'),
     baseCode: 'PL!SP-pb2-008',
     name: '若菜四季',
     center: '-52%',
@@ -73,6 +89,7 @@ const profiles: readonly CardEntranceProfile[] = [
   },
   {
     id: 'next-step-trio',
+    loadArt: () => import('../components/game/card-entrance/next-step-trio.png'),
     baseCode: 'LL-bp2-001',
     name: '渡边曜&鬼冢夏美&大泽瑠璃乃',
     center: '-50%',
@@ -95,9 +112,9 @@ const profiles: readonly CardEntranceProfile[] = [
       },
     },
   },
-];
+]);
 export function getCardEntranceProfile(code: string): CardEntranceProfile | undefined {
-  return profiles.find(
+  return cardEntranceProfiles.find(
     ({ baseCode }) =>
       code === baseCode ||
       (code.startsWith(`${baseCode}-`) && /^[^-]+$/.test(code.slice(baseCode.length + 1)))
