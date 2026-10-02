@@ -36,6 +36,11 @@ describe('entrance consumes authoritative public member entry', () => {
     ['PL!SP-pb2-008-R', '若菜四季', 17, 7],
     ['PL!SP-pb2-008-PP', '若菜四季', 17, 7],
     ['LL-bp2-001-R+', '渡边曜&鬼冢夏美&大泽瑠璃乃', 20, 6],
+    ['PL!HS-sd1-006-SD', '安养寺姬芽', 15, 5],
+    ['PL!N-bp1-012-P', '钟岚珠', 15, 4],
+    ['PL!N-bp1-012-P+', '钟岚珠', 15, 4],
+    ['PL!N-bp1-012-R+', '钟岚珠', 15, 4],
+    ['PL!N-bp1-012-SEC', '钟岚珠', 15, 4],
   ] as const)(
     'uses real command events and public object IDs for %s',
     (cardCode, name, cost, blade) => {

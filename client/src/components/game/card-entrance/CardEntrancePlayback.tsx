@@ -4,6 +4,8 @@ import { prepareEntranceAssets } from '@/lib/cardEntranceAssets';
 import { entranceTimeline, entranceImpactCss, entranceRemaining } from '@/lib/cardEntranceTimeline';
 import { CardEntrancePortrait } from './CardEntrancePortrait';
 import { CardLanding, type LandingPresentation } from './CardLanding';
+import { useGameStore } from '@/store/gameStore';
+import { getEntranceStageTarget, sameEntranceTarget } from '@/lib/cardEntranceLanding';
 
 /** One cancellable resource preparation and one clock for portrait, landing and completion. */
 export function CardEntrancePlayback({
@@ -21,12 +23,24 @@ export function CardEntrancePlayback({
 }) {
   const done = useRef(onDone);
   done.current = onDone;
+  const sourceValid = useGameStore((state) =>
+    sameEntranceTarget(
+      presentation.target,
+      state.playerViewState
+        ? getEntranceStageTarget(state.playerViewState, presentation.target.objectId)
+        : null
+    )
+  );
+  useEffect(() => {
+    if (!sourceValid) done.current();
+  }, [sourceValid]);
   const [ready, setReady] = useState<{
     portrait: HTMLImageElement;
     card: HTMLImageElement | null;
     startedAt: number;
   } | null>(null);
   useEffect(() => {
+    if (!sourceValid) return;
     const controller = new AbortController();
     setReady(null);
     prepareEntranceAssets(profile, reduced ? null : presentation.imagePath, controller.signal)
@@ -37,7 +51,7 @@ export function CardEntrancePlayback({
         if (!controller.signal.aborted) done.current();
       });
     return () => controller.abort();
-  }, [profile, presentation.imagePath, reduced]);
+  }, [profile, presentation.imagePath, reduced, sourceValid]);
   useEffect(() => {
     if (!ready) return;
     const timer = window.setTimeout(

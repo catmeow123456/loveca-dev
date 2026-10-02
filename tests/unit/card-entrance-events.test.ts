@@ -23,6 +23,20 @@ const input = (seq: number, events: CardMovedPublicEvent[] = []) => ({
 });
 const init = () => collectCardEntrances(emptyEntranceCursor(), input(10)).cursor;
 describe('local card entrance presentation', () => {
+  it('keeps Hime, Lanzhu and old portraits in order, excluding the SECE energy reference', () => {
+    for (const suffix of ['', '-SD', '-FUTURE'])
+      expect(getCardEntranceProfile(`PL!HS-sd1-006${suffix}`)?.id).toBe('hime');
+    for (const suffix of ['', '-P', '-P+', '-R+', '-SEC', '-FUTURE'])
+      expect(getCardEntranceProfile(`PL!N-bp1-012${suffix}`)?.id).toBe('lanzhu');
+    expect(getCardEntranceProfile('PL!N-bp1-033-SECE')).toBeUndefined();
+    const codes = ['PL!HS-sd1-006-SD', 'PL!N-bp1-033-SECE', 'PL!N-bp1-012-SEC', 'PL!N-bp7-006-SEC'];
+    const events = codes.map((cardCode, i) =>
+      event(11 + i, { card: { publicObjectId: `new_${i}`, cardCode } })
+    );
+    const result = collectCardEntrances(init(), input(14, events));
+    expect(result.entrances.map((e) => e.objectId)).toEqual(['new_0', 'new_2', 'new_3']);
+    expect(collectCardEntrances(result.cursor, input(14, events)).entrances).toEqual([]);
+  });
   it('covers all member rarities but never the reference energy or similar numbers', () => {
     for (const rarity of ['R', 'R+', 'P', 'P+', 'SEC', 'NEW'])
       expect(getCardEntranceProfile(`PL!N-bp7-006-${rarity}`)?.id).toBe('kanata');

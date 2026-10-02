@@ -1,12 +1,13 @@
 import type { EntranceMeshProfile } from './cardEntranceProfiles';
-// Experimental card-framing mesh: stable face, delayed hair and clothing motion.
+import { entranceArmProgress } from './cardEntranceArticulation';
+// Shared portrait mesh; optional atlas layers articulate intact hands and props.
 // Coordinates are specific to this card-framing concept, not card rules.
 export function createCardEntranceMesh(
   canvas: HTMLCanvasElement,
   image: HTMLImageElement,
   profile: EntranceMeshProfile
 ) {
-  const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: false });
+  const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: !!profile.armLayers });
   if (!gl) return null;
   const shader = (type: number, source: string) => {
     const s = gl.createShader(type)!;
@@ -27,6 +28,18 @@ export function createCardEntranceMesh(
     uniform vec4 hairRegion; uniform vec2 hairEnd; uniform vec4 hemRegion; uniform vec3 strength;
     uniform float hasGroupSway; uniform vec4 groupColumns;
     uniform vec3 groupAmplitude; uniform vec3 groupPhase;
+    uniform float hasArmLayers; uniform float artAspect; uniform float layer;
+    uniform vec2 armPivot; uniform vec2 armOffset; uniform vec2 bodyPivot;
+    uniform float armAngle; uniform float restAngle; uniform float bodyAngle; uniform float bodyLift;
+    uniform float gestureProgress; uniform float follow;
+    uniform vec4 sourceRect; uniform vec4 armPlacement; uniform vec3 sleeveAnchor; uniform vec2 armTravel;
+    vec2 rotateAt(vec2 point, vec2 pivot, float angle) {
+      // Rotate in image-space pixels, not stretched UV space: faces and hands
+      // keep their proportions. Only the configured joint boundaries blend.
+      vec2 d=(point-pivot)*vec2(artAspect,1.0);
+      d=mat2(cos(angle),sin(angle),-sin(angle),cos(angle))*d;
+      return pivot+d/vec2(artAspect,1.0);
+    }
     vec2 bodySway(vec2 point, float pivotX, float amplitude, float phase) {
       // A small rigid rotation keeps facial proportions. The waist blend below
       // anchors skirts; damped arrival and slower breathing share the same clock.
@@ -39,6 +52,7 @@ export function createCardEntranceMesh(
     }
     void main(){
       tex=uv; vec2 p=uv;
+      if(hasArmLayers>0.5) tex=sourceRect.xy+clamp(uv,vec2(.001),vec2(.999))*sourceRect.zw;
       float settle=exp(-time*2.2)*sin(time*4.3);
       float upper=(1.0-smoothstep(.48,.97,uv.y))*strength.x;
       p.x+=upper*settle*.028*amount;
@@ -58,6 +72,22 @@ export function createCardEntranceMesh(
           +right*bodySway(uv,.82,groupAmplitude.z,groupPhase.z);
         p+=sway*(1.0-smoothstep(.48,.92,uv.y))*amount;
       }
+      if(hasArmLayers>0.5){
+        // Hair and cloth trail this gesture, rather than oscillating forever.
+        p=uv;
+        if(layer<.5){
+          p.x+=(hair*.012+hem*.004)*follow*amount;
+          p.y+=hem*.003*follow*amount;
+        }else{
+          // The full hand / microphone is a rigid layer: no finger stretching.
+          p=armPlacement.xy+uv*armPlacement.zw;
+          float joint=sleeveAnchor.z>0.0?smoothstep(0.0,sleeveAnchor.z,distance(p,sleeveAnchor.xy)):1.0;
+          p=mix(p,rotateAt(p,armPivot,mix(restAngle,armAngle,amount))+armTravel*gestureProgress,joint)+armOffset;
+        }
+        float upper=1.0-smoothstep(bodyPivot.y-.06,bodyPivot.y+.10,p.y);
+        p=mix(p,rotateAt(p,bodyPivot,bodyAngle*gestureProgress),upper*amount);
+        p.y-=bodyLift*gestureProgress*upper*amount;
+      }
       p=.045+p*.91;
       gl_Position=vec4(p.x*2.0-1.0,1.0-p.y*2.0,0,1);
     }`
@@ -76,6 +106,31 @@ export function createCardEntranceMesh(
   if (!gl.getProgramParameter(program, gl.LINK_STATUS))
     throw new Error(gl.getProgramInfoLog(program) ?? 'Shader link failed');
   gl.useProgram(program);
+  const rig = profile.armLayers;
+  gl.uniform1f(gl.getUniformLocation(program, 'hasArmLayers'), rig ? 1 : 0);
+  gl.uniform1f(
+    gl.getUniformLocation(program, 'artAspect'),
+    (image.naturalWidth / image.naturalHeight) * (rig ? rig.bodyCrop[2] / rig.bodyCrop[3] : 1)
+  );
+  gl.uniform2fv(gl.getUniformLocation(program, 'armPivot'), rig?.pivot ?? [0, 0]);
+  gl.uniform2fv(gl.getUniformLocation(program, 'armOffset'), rig?.offset ?? [0, 0]);
+  gl.uniform2fv(gl.getUniformLocation(program, 'bodyPivot'), rig?.bodyPivot ?? [0, 0]);
+  gl.uniform1f(gl.getUniformLocation(program, 'bodyAngle'), rig?.bodyAngle ?? 0);
+  gl.uniform1f(gl.getUniformLocation(program, 'bodyLift'), rig?.bodyLift ?? 0);
+  gl.uniform4fv(gl.getUniformLocation(program, 'armPlacement'), rig?.armPlacement ?? [0, 0, 1, 1]);
+  gl.uniform3fv(gl.getUniformLocation(program, 'sleeveAnchor'), rig?.sleeveAnchor ?? [0, 0, 0]);
+  gl.uniform2fv(gl.getUniformLocation(program, 'armTravel'), rig?.armTravel ?? [0, 0]);
+  const sourceRect = gl.getUniformLocation(program, 'sourceRect');
+  const layer = gl.getUniformLocation(program, 'layer');
+  const armAngle = gl.getUniformLocation(program, 'armAngle');
+  gl.uniform1f(gl.getUniformLocation(program, 'restAngle'), rig?.angles[1] ?? 0);
+  const gestureProgress = gl.getUniformLocation(program, 'gestureProgress');
+  const follow = gl.getUniformLocation(program, 'follow');
+  if (rig) {
+    gl.enable(gl.BLEND);
+    // Straight-alpha texture is blended into a premultiplied-alpha canvas.
+    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  }
   gl.uniform4fv(gl.getUniformLocation(program, 'hairRegion'), profile.hair);
   gl.uniform2fv(gl.getUniformLocation(program, 'hairEnd'), profile.hairEnd);
   const rightHair = profile.rightHair ?? [0, 1, 0, 1, 0, 1];
@@ -134,7 +189,23 @@ export function createCardEntranceMesh(
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.uniform1f(time, seconds);
     gl.uniform1f(amount, reduced ? 0 : 1);
+    const progress = rig
+      ? reduced
+        ? 1
+        : entranceArmProgress(seconds, rig.start, rig.duration)
+      : 0;
+    gl.uniform1f(gestureProgress, progress);
+    gl.uniform1f(armAngle, rig ? rig.angles[0] + (rig.angles[1] - rig.angles[0]) * progress : 0);
+    const trailing = rig ? entranceArmProgress(seconds - 0.16, rig.start, rig.duration + 0.16) : 0;
+    gl.uniform1f(follow, (progress - trailing) * 3);
+    gl.uniform4fv(sourceRect, rig?.bodyCrop ?? [0, 0, 1, 1]);
+    gl.uniform1f(layer, 0);
     gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 2);
+    if (rig) {
+      gl.uniform4fv(sourceRect, rig.armCrop);
+      gl.uniform1f(layer, 1);
+      gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 2);
+    }
   };
   return {
     draw,

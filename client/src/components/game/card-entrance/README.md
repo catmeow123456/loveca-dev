@@ -6,7 +6,7 @@
 
 1. 打开 http://localhost:5173/ ，照常选择自己的卡组进入本地对局。右上角夜间模式旁的「登场动画」开关默认开启：高亮星光图标和状态点表示开启，灰色斜杠表示关闭；桌面与窄屏共用状态。
 2. 固定使用已确认的居中布局：人物主体居中略偏上，下方只展示卡名。已移除临时布局选择和预览栏。
-3. 让费用 17「近江彼方」（PL!N-bp7-006，任意罕度）、费用 20「叶月恋」（PL!SP-pb2-005，含 R／PP）、费用 17「若菜四季」（PL!SP-pb2-008，含 R／PP）或费用 20「渡边曜&鬼冢夏美&大泽瑠璃乃」（LL-bp2-001，R+）成功登场。普通付费或调试自由登场均从同一公共进场事件触发。
+3. 让费用 17「近江彼方」（PL!N-bp7-006，任意罕度）、费用 20「叶月恋」（PL!SP-pb2-005，含 R／PP）、费用 17「若菜四季」（PL!SP-pb2-008，含 R／PP）、费用 20「渡边曜&鬼冢夏美&大泽瑠璃乃」（LL-bp2-001，R+）、费用 15「安养寺姬芽」（PL!HS-sd1-006，SD）或费用 15「钟岚珠」（PL!N-bp1-012，P／P+／R+／SEC）成功登场。普通付费或调试自由登场均从同一公共进场事件触发。
 4. 演出持续约 2.74 秒：人物入场 0.6 秒，展示到第 1.5 秒，用 0.45 秒淡出；完整卡牌从第 1.75 秒开始，先用约 400ms 从画面中央飞到对应舞台位置，再用 150ms 以俯视桌面的视角压向桌面（最后压落时中心不移动，以尺寸和倾斜表现高度），与人物淡出略有重叠。落地前阴影收紧，触地闪光与场地冲量同步，以落点中心向四周平面扩散紫色光环和少量碎光，并在 210ms 内强起、快速衰减地震动场地（背景、成员区和 LIVE 区，手牌与操作栏保持稳定）；其他场上成员和 LIVE 卡按与落点的距离衰减冲量，根据落点与邻卡的屏幕相对位置，让朝向落点的一侧先翘起、背向落点的一侧作支点；方向会转换到卡牌自身坐标，横置卡也保持正确受力方向，独立平面阴影留在桌面上；每张公开对象具有稳定的幅度和回落节奏差异，支点与倾斜轴不随机，传播延迟最多 75ms；回落时先接触一条边，再让剩余翘起的一侧贴回桌面，临时阴影在完成或取消时移除，不做屏幕向上位移，落场来源自身不弹起，可点「跳过演出」。演出期间其他桌面操作锁定，开关在可操作时调整。
 5. 测试付费失败、起动能力、舞台位置移动时不播放；重复公开事件不重复播，离场后重新登场可重播。
 6. 核对双方视角、连续登场、选择弹窗出现、窄屏及减少动态。减少动态时沿用约 160ms 的短展示，不执行卡牌下落与震动。
@@ -21,7 +21,7 @@
 
 ## 卡牌清单
 
-以下四张均已完成首版验收，按上述模式范围启用。触发按基础编号覆盖罕度；素材来源卡不等于触发卡。
+以下六张已登记并按上述模式范围启用。旧四张沿用已确认表现；姬芽与岚珠已完成第二版本地自查，用户同意先提交当前阶段版本。触发按基础编号覆盖罕度；素材来源卡不等于触发卡。
 
 | 基础编号 | 费用与名称 | 已验证印刷 | 人物素材来源 |
 | --- | --- | --- | --- |
@@ -29,6 +29,8 @@
 | PL!SP-pb2-005 | 20「叶月恋」 | R／PP | 同基础编号 PP 重绘 |
 | PL!SP-pb2-008 | 17「若菜四季」 | R／PP | 同基础编号 PP 重绘 |
 | LL-bp2-001 | 20「渡边曜&鬼冢夏美&大泽瑠璃乃」 | R+ | 关联 RE 素材重绘，见下方来源说明 |
+| PL!HS-sd1-006 | 15「安养寺姬芽」 | SD | 同基础编号 SD 重绘 |
+| PL!N-bp1-012 | 15「钟岚珠」 | P／P+／R+／SEC | PL!N-bp1-033-SECE 重绘；仅作素材参考 |
 
 ## 登记、时间线与加载
 
@@ -43,13 +45,13 @@
 自动检查：
 
 ```sh
-pnpm test:run tests/integration/card-entrance-synchronization.test.ts tests/integration/online-card-entrance.test.ts tests/unit/card-entrance-policy.test.ts tests/unit/card-entrance-assets.test.ts tests/unit/card-entrance-events.test.ts tests/unit/card-entrance-landing.test.ts tests/integration/card-entrance-presentation.test.ts tests/unit/battle-animation-events.test.ts
+pnpm test:run tests/integration/hime-entrance-synchronization.test.ts tests/integration/card-entrance-synchronization.test.ts tests/integration/online-card-entrance.test.ts tests/unit/card-entrance-policy.test.ts tests/unit/card-entrance-assets.test.ts tests/unit/card-entrance-events.test.ts tests/unit/card-entrance-landing.test.ts tests/integration/card-entrance-presentation.test.ts tests/unit/battle-animation-events.test.ts
 pnpm --dir client exec tsc -b
 ```
 
 `card-entrance-assets.test.ts` 覆盖登记冲突、全部素材解析、双图解码、超时、取消、失败后重试和阶段衔接。真实命令测试覆盖各卡的公开进场及目标有效性，不能代替浏览器观感验收。
 
-本工作区共用浏览器验收页位于仓库外 `../animation-prototypes/shared-entrance/`，角色列表直接读取运行时登记，规则身份只读指定 0929 JSON，使用真实 GameBoard、store 和命令。原各卡试作保留作素材档案，新卡验收优先扩展这一个页面。启动命令（仓库根目录）：
+本工作区共用浏览器验收页位于仓库外 `../animation-prototypes/shared-entrance/`，角色列表直接读取运行时登记，规则身份只读指定 2026-10-01 JSON，使用真实 GameBoard、store 和命令。原各卡试作保留作素材档案，新卡验收优先扩展这一个页面。启动命令（仓库根目录）：
 
 ```sh
 node client/node_modules/vite/bin/vite.js --config ../animation-prototypes/shared-entrance/vite.config.mjs
@@ -103,4 +105,23 @@ node client/node_modules/vite/bin/vite.js --config ../animation-prototypes/share
 
 ## 共用卡名样式
 
-四张卡共用 `CardEntranceNameplate`：思源宋体 Heavy 姓名子集、半透明切角名牌、细边线与两侧菱形。装饰颜色沿用角色光色，三人组合在窄屏按完整姓名分为三行。框线与文字复用人物时间线的 label 进度（0.2 秒），不另设动画计时器，总演出时长不变；减少动态直接显示完整名牌。字体来源、许可和新增姓名时的生成命令见 [fonts/README.md](fonts/README.md)。
+六张卡共用 `CardEntranceNameplate`：思源宋体 Heavy 姓名子集、半透明切角名牌、细边线与两侧菱形。装饰颜色沿用角色光色，三人组合在窄屏按完整姓名分为三行。框线与文字复用人物时间线的 label 进度（0.2 秒），不另设动画计时器，总演出时长不变；减少动态直接显示完整名牌。字体来源、许可和新增姓名时的生成命令见 [fonts/README.md](fonts/README.md)。
+
+
+## 姬芽与岚珠第二版（2026-10-02，阶段提交／未部署）
+
+规则身份以 `references/cards_export_2026-10-01.json` 为准。姬芽基于[官方 SD 卡面](https://llofficial-cardgame.com/cardlist/searchresults/?cardno=PL!HS-sd1-006-SD)经内置 imagegen 透明重绘；岚珠基于[官方 SECE 卡面](https://llofficial-cardgame.com/cardlist/searchresults/?cardno=PL!N-bp1-033-SECE)重绘，并核对[目标 SEC 成员卡](https://llofficial-cardgame.com/cardlist/searchresults/?cardno=PL!N-bp1-012-SEC)。SECE 仅作素材参考，不触发演出。保留原有腰裙／上腿边缘取景，不补腿脚，不加费用或台词。去字和分层后的脸、手指、衣纹、饰物与遮挡部分存在重绘差异，两张均不是官方无字原画。
+
+第一版单图摆腰、反向拧头及前伸臂旋转已被用户否定，不能以首版技术检查通过代替动作观感通过。旧图、旧参数和录屏保留在仓库外 `animation-prototypes/hime-lanzhu/`。当前运行素材只有 `hime-layers.png`、`lanzhu-layers.png`：各是一张含身体底图和独立活动手臂的透明图集，底图补绘原手臂遮住的发束与衣服。生成工具、完整提示词、源稿和第二版预览在同目录的 `v2/`，运行时不依赖该目录。
+
+共用 `cardEntranceMesh` 增加可选 `armLayers`：在同一纹理、网格和播放时钟内依次绘制身体与活动手臂，配置图集取样区域、部件对齐、支点、动作起止及袖部连接。姬芽前臂绕肘部轻抬向肩侧，头肩与身体同向小幅配合，不再反向拧头；岚珠持麦肘部弯曲并向身体收拢，袖子在肩部保留连接，手指与麦克风所在区域完整运动，前伸手维持原姿势。主体在约 1.04／1.16 秒到位后保持，发辫、长发与衣料用延迟进度差短暂跟随，不再使用往返摆动或回弹。脸部没有独立形变。仍为有限的二维关节与衣料过渡，不是完整骨骼、三维前伸或逐帧表情动画；袖部及重绘接缝存在近看局限。
+
+原四张不启用图集配置，保留原公式、素材及参数。总时长仍为 2.74 秒，人物淡入淡出、名字、字体、平台总开关、个人偏好、加载、ACK、飞行角度／时长、紫色平面圈、震桌和方向性邻卡翘起均沿用。减少动态下使用固定组合姿势，不运行关节或衣料跟随。图集仍通过原 `loadArt` 单图按需加载，不增加加载器或逐角色控制器。
+
+本批保留 `CardEntrancePlayback` 对当前公开舞台对象、卡号、槽位和方向的检查；加载或播放中来源失效即取消，迟到资源不能恢复演出。它只消费公开投影，不读取隐藏卡，也不执行规则续行。
+
+首版接入时 9 个 focused 文件共 85 项、客户端和根目录类型检查、构建通过。第二版改动后重跑 `card-entrance-assets`、`card-entrance-events`、`card-entrance-landing`、`hime-entrance-synchronization` 共 29 项通过；客户端 `tsc -b` 和生产 Vite 构建通过（既有 chunk 体积警告）。姬芽集成测试使用真实费用15、已有登场卡效、双方 ACK／超时／全站关闭、一次回能和 LIVE 回收、重复确认拒绝及已完成会话恢复不补播。
+
+第二版浏览器自查使用仓库外隔离内存会话和真实 GameBoard／命令路径，覆盖桌面及 390×844 两张卡的构图、姓名、完整卡飞行、横置邻卡与结束复位；无光效正常速度录制和中间姿态；六张新旧卡交替以及跳过后接续；两张卡各自跳过、资源失败／超时、公开来源方向失效、全站关闭／重新开放。终态卡牌可见，transform／filter 为 none，临时邻卡阴影为零。姬芽真实条件夹具在等待期间0张活跃能量，结束后1张活跃并显示 LIVE 回收选择，公开确认后回收一次。浏览器夹具使用自由登场，真实15费用由集成测试覆盖。
+
+减少动态通过本页媒体查询替身验证短展示、无落场层及终态清理；不等于操作系统偏好实测。`http://127.0.0.1:5177/review.html` 可重播第二版两轮录屏；`motion.html` 直接导入运行时网格、配置与人物淡入淡出时间线，正常1×、无装饰光效。录屏只展示人物段，不代替桌面验收。未实测生产部署、两台真实客户端网络、系统减少动态设置、WebGL 上下文丢失或同一原子卡效内的浏览器多卡批量队列。用户同意先提交当前阶段版本，不代表生产烟测完成；未修改用户原对局或 `llocg_db`。

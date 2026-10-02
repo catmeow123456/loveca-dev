@@ -4,6 +4,8 @@ export const entranceCards = {
   ren: 'PL!SP-pb2-005',
   shiki: 'PL!SP-pb2-008',
   'next-step-trio': 'LL-bp2-001',
+  hime: 'PL!HS-sd1-006',
+  lanzhu: 'PL!N-bp1-012',
 } as const;
 export function isEntranceCard(code: string): boolean {
   return Object.values(entranceCards).some(

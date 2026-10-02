@@ -1,7 +1,28 @@
 import { entranceCards } from '@game/shared/card-entrance';
 
+/** Two registered atlas panels: repaired body, then an intact moving arm. */
+export interface EntranceArmLayers {
+  /** Normalized atlas crops, and arm placement in the body panel. */
+  bodyCrop: readonly [number, number, number, number];
+  armCrop: readonly [number, number, number, number];
+  armPlacement: readonly [number, number, number, number];
+  /** Source pivot and alignment, in one portrait panel's normalized coordinates. */
+  pivot: readonly [number, number];
+  offset: readonly [number, number];
+  angles: readonly [number, number];
+  start: number;
+  duration: number;
+  bodyPivot: readonly [number, number];
+  bodyAngle: number;
+  bodyLift: number;
+  /** Elbow tuck as the hand approaches its final pose. */
+  armTravel?: readonly [number, number];
+  /** Pin the sleeve's shoulder while the forearm bends at the elbow. */
+  sleeveAnchor?: readonly [number, number, number];
+}
 /** Cosmetic profiles only; card abilities remain in the shared rules engine. */
 export interface EntranceMeshProfile {
+  armLayers?: EntranceArmLayers;
   /** UV mask: x fade start/end, y fade start/end. */
   hair: readonly [number, number, number, number];
   hairEnd: readonly [number, number];
@@ -111,6 +132,67 @@ export const cardEntranceProfiles = defineEntranceProfiles([
         columns: [0.34, 0.43, 0.64, 0.71],
         amplitude: [0.012, 0.009, 0.013],
         phase: [0, 0.7, 1.4],
+      },
+    },
+  },
+  {
+    id: 'hime',
+    baseCode: entranceCards.hime,
+    name: '安养寺姬芽',
+    loadArt: () => import('../components/game/card-entrance/hime-layers.png'),
+    center: '-50%',
+    mobileHeight: 'min(76%, 126vw)',
+    light: '#eabfc477',
+    mesh: {
+      hair: [0, 0.01, 0.8, 0.9],
+      hairEnd: [0.95, 1],
+      rightHair: [0.91, 0.99, 0.49, 0.55, 0.66, 0.71],
+      hem: [0.83, 0.98, 0.67, 0.82],
+      strength: [0, 1.1, 0.8],
+      armLayers: {
+        bodyCrop: [0, 0, 0.498, 1],
+        armCrop: [0.5, 0, 0.5, 1],
+        armPlacement: [0, 0, 1, 1],
+        pivot: [0.65, 0.652],
+        offset: [0.157, 0.014],
+        angles: [-0.16, -0.4],
+        start: 0.24,
+        duration: 0.8,
+        bodyPivot: [0.54, 0.68],
+        bodyAngle: -0.012,
+        bodyLift: 0.006,
+      },
+    },
+  },
+  {
+    id: 'lanzhu',
+    baseCode: entranceCards.lanzhu,
+    name: '钟岚珠',
+    loadArt: () => import('../components/game/card-entrance/lanzhu-layers.png'),
+    artAspectRatio: '830 / 1050',
+    center: '-50%',
+    mobileHeight: 'min(76%, 126vw)',
+    light: '#e5a6ba77',
+    mesh: {
+      hair: [0.035, 0.1, 0.48, 0.54],
+      hairEnd: [0.62, 0.68],
+      rightHair: [0.92, 0.99, 0.44, 0.49, 0.64, 0.7],
+      hem: [0.89, 1, 0.65, 0.83],
+      strength: [0, 1.1, 0.65],
+      armLayers: {
+        bodyCrop: [0, 0, 0.552, 1],
+        armCrop: [0.795, 0.25, 0.18, 0.33],
+        armPlacement: [0.68, 0.25, 0.326, 0.33],
+        pivot: [0.85, 0.51],
+        offset: [0, 0],
+        angles: [0, -0.72],
+        start: 0.3,
+        duration: 0.86,
+        bodyPivot: [0.55, 0.57],
+        bodyAngle: 0.012,
+        bodyLift: 0.006,
+        sleeveAnchor: [0.7, 0.36, 0.17],
+        armTravel: [-0.07, -0.05],
       },
     },
   },
