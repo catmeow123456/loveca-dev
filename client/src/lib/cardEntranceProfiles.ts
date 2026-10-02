@@ -19,6 +19,10 @@ export interface EntranceArmLayers {
   armTravel?: readonly [number, number];
   /** Pin the sleeve's shoulder while the forearm bends at the elbow. */
   sleeveAnchor?: readonly [number, number, number];
+  /** Let the repaired sleeve/torso cover the joint's attachment cap. */
+  behindBody?: boolean;
+  /** Long rigid props inherit the body's weight at the joint, not per vertex. */
+  rigidBodyFollow?: boolean;
 }
 /** Cosmetic profiles only; card abilities remain in the shared rules engine. */
 export interface EntranceMeshProfile {
@@ -193,6 +197,68 @@ export const cardEntranceProfiles = defineEntranceProfiles([
         bodyLift: 0.006,
         sleeveAnchor: [0.7, 0.36, 0.17],
         armTravel: [-0.07, -0.05],
+      },
+    },
+  },
+  {
+    id: 'eli',
+    baseCode: entranceCards.eli,
+    name: '绚濑绘里',
+    loadArt: () => import('../components/game/card-entrance/eli-layers.png'),
+    artAspectRatio: '1050.7 / 1047',
+    center: '-50%',
+    mobileHeight: 'min(74%, 100vw)',
+    light: '#a9d9ef77',
+    mesh: {
+      hair: [0.18, 0.28, 0.33, 0.42],
+      hairEnd: [0.59, 0.66],
+      hem: [0.85, 0.98, 0.84, 0.95],
+      strength: [0, 1.1, 0.6],
+      armLayers: {
+        bodyCrop: [0, 0, 0.7, 1],
+        armCrop: [0.705, 0.325, 0.29, 0.355],
+        armPlacement: [0.552, 0.363, 0.414286, 0.355],
+        pivot: [0.62, 0.623],
+        offset: [0, 0],
+        angles: [0.18, -0.08],
+        start: 0.24,
+        duration: 0.84,
+        bodyPivot: [0.55, 0.88],
+        bodyAngle: -0.01,
+        bodyLift: 0.004,
+        rigidBodyFollow: true,
+      },
+    },
+  },
+  {
+    id: 'honoka',
+    baseCode: entranceCards.honoka,
+    name: '高坂穗乃果',
+    loadArt: () => import('../components/game/card-entrance/honoka-layers.png'),
+    artAspectRatio: '1050 / 1049',
+    center: '-50%',
+    mobileHeight: 'min(74%, 100vw)',
+    light: '#e3a2c877',
+    mesh: {
+      hair: [0.19, 0.29, 0.25, 0.34],
+      hairEnd: [0.52, 0.58],
+      hem: [0.42, 0.55, 0.73, 0.9],
+      strength: [0, 0.8, 0.65],
+      armLayers: {
+        bodyCrop: [0, 0, 0.7, 1],
+        armCrop: [0.74, 0, 0.22, 1],
+        armPlacement: [0.581, 0, 0.314286, 1],
+        pivot: [0.63, 0.63],
+        offset: [0, 0],
+        angles: [-0.08, 0.06],
+        start: 0.28,
+        duration: 0.86,
+        bodyPivot: [0.51, 0.76],
+        bodyAngle: -0.007,
+        bodyLift: 0.004,
+        behindBody: true,
+        rigidBodyFollow: true,
+        armTravel: [-0.004, -0.018],
       },
     },
   },

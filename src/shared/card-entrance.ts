@@ -6,6 +6,8 @@ export const entranceCards = {
   'next-step-trio': 'LL-bp2-001',
   hime: 'PL!HS-sd1-006',
   lanzhu: 'PL!N-bp1-012',
+  eli: 'PL!-pb2-020',
+  honoka: 'PL!-pb2-001',
 } as const;
 export function isEntranceCard(code: string): boolean {
   return Object.values(entranceCards).some(

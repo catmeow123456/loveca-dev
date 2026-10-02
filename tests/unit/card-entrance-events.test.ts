@@ -37,6 +37,30 @@ describe('local card entrance presentation', () => {
     expect(result.entrances.map((e) => e.objectId)).toEqual(['new_0', 'new_2', 'new_3']);
     expect(collectCardEntrances(result.cursor, input(14, events)).entrances).toEqual([]);
   });
+  it('keeps Eli N and Honoka R/PP identities in a mixed queue without replay', () => {
+    const codes = [
+      'PL!-pb2-020-N',
+      'PL!HS-sd1-006-SD',
+      'PL!-pb2-001-R',
+      'PL!N-bp1-012-SEC',
+      'PL!-pb2-001-PP',
+    ];
+    expect(codes.map((code) => getCardEntranceProfile(code)?.id)).toEqual([
+      'eli',
+      'hime',
+      'honoka',
+      'lanzhu',
+      'honoka',
+    ]);
+    const events = codes.map((cardCode, i) =>
+      event(11 + i, { card: { publicObjectId: `mixed_${i}`, cardCode } })
+    );
+    const result = collectCardEntrances(init(), input(15, events));
+    expect(result.entrances.map((e) => e.objectId)).toEqual(codes.map((_, i) => `mixed_${i}`));
+    expect(collectCardEntrances(result.cursor, input(15, events)).entrances).toEqual([]);
+    for (const code of ['PL!-pb2-0200-N', 'PL!-pb2-001-R-extra'])
+      expect(getCardEntranceProfile(code)).toBeUndefined();
+  });
   it('covers all member rarities but never the reference energy or similar numbers', () => {
     for (const rarity of ['R', 'R+', 'P', 'P+', 'SEC', 'NEW'])
       expect(getCardEntranceProfile(`PL!N-bp7-006-${rarity}`)?.id).toBe('kanata');

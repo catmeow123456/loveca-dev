@@ -31,7 +31,7 @@ export function createCardEntranceMesh(
     uniform float hasArmLayers; uniform float artAspect; uniform float layer;
     uniform vec2 armPivot; uniform vec2 armOffset; uniform vec2 bodyPivot;
     uniform float armAngle; uniform float restAngle; uniform float bodyAngle; uniform float bodyLift;
-    uniform float gestureProgress; uniform float follow;
+    uniform float gestureProgress; uniform float follow; uniform float rigidBodyFollow;
     uniform vec4 sourceRect; uniform vec4 armPlacement; uniform vec3 sleeveAnchor; uniform vec2 armTravel;
     vec2 rotateAt(vec2 point, vec2 pivot, float angle) {
       // Rotate in image-space pixels, not stretched UV space: faces and hands
@@ -84,7 +84,8 @@ export function createCardEntranceMesh(
           float joint=sleeveAnchor.z>0.0?smoothstep(0.0,sleeveAnchor.z,distance(p,sleeveAnchor.xy)):1.0;
           p=mix(p,rotateAt(p,armPivot,mix(restAngle,armAngle,amount))+armTravel*gestureProgress,joint)+armOffset;
         }
-        float upper=1.0-smoothstep(bodyPivot.y-.06,bodyPivot.y+.10,p.y);
+        float bodyY=(layer>.5 && rigidBodyFollow>.5)?armPivot.y+armOffset.y:p.y;
+        float upper=1.0-smoothstep(bodyPivot.y-.06,bodyPivot.y+.10,bodyY);
         p=mix(p,rotateAt(p,bodyPivot,bodyAngle*gestureProgress),upper*amount);
         p.y-=bodyLift*gestureProgress*upper*amount;
       }
@@ -120,6 +121,7 @@ export function createCardEntranceMesh(
   gl.uniform4fv(gl.getUniformLocation(program, 'armPlacement'), rig?.armPlacement ?? [0, 0, 1, 1]);
   gl.uniform3fv(gl.getUniformLocation(program, 'sleeveAnchor'), rig?.sleeveAnchor ?? [0, 0, 0]);
   gl.uniform2fv(gl.getUniformLocation(program, 'armTravel'), rig?.armTravel ?? [0, 0]);
+  gl.uniform1f(gl.getUniformLocation(program, 'rigidBodyFollow'), rig?.rigidBodyFollow ? 1 : 0);
   const sourceRect = gl.getUniformLocation(program, 'sourceRect');
   const layer = gl.getUniformLocation(program, 'layer');
   const armAngle = gl.getUniformLocation(program, 'armAngle');
@@ -198,14 +200,14 @@ export function createCardEntranceMesh(
     gl.uniform1f(armAngle, rig ? rig.angles[0] + (rig.angles[1] - rig.angles[0]) * progress : 0);
     const trailing = rig ? entranceArmProgress(seconds - 0.16, rig.start, rig.duration + 0.16) : 0;
     gl.uniform1f(follow, (progress - trailing) * 3);
-    gl.uniform4fv(sourceRect, rig?.bodyCrop ?? [0, 0, 1, 1]);
-    gl.uniform1f(layer, 0);
-    gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 2);
-    if (rig) {
-      gl.uniform4fv(sourceRect, rig.armCrop);
-      gl.uniform1f(layer, 1);
+    const drawLayer = (isArm: boolean) => {
+      gl.uniform4fv(sourceRect, isArm ? rig!.armCrop : (rig?.bodyCrop ?? [0, 0, 1, 1]));
+      gl.uniform1f(layer, isArm ? 1 : 0);
       gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 2);
-    }
+    };
+    if (rig?.behindBody) drawLayer(true);
+    drawLayer(false);
+    if (rig && !rig.behindBody) drawLayer(true);
   };
   return {
     draw,
