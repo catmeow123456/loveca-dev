@@ -12,6 +12,7 @@ description: 制作、接入或调优 Loveca 卡牌专属登场演出，包括�
 - 动画设计与规则反馈边界：[motion-system-design](../motion-system-design/SKILL.md)。本任务是已获用户授权的专属演出，不套用普通移牌的短时长上限。
 - 调整对战开关或操作入口时：[battle-interaction-design](../battle-interaction-design/SKILL.md)。沿用现有 UI；明显改版才加载 [frontend-design](../frontend-design/SKILL.md)。
 - 浏览器验收：[animation-verification](../animation-verification/SKILL.md)。
+- 用户要求提交或起草提交说明时，使用 [prepare-for-git-commit](../prepare-for-git-commit/SKILL.md)。动画新增与调优沿用 `feat(animation): 中文摘要`，缺陷修复用 `fix(animation)`，仅共用结构重构用 `refactor(animation)`；不要另起“新增费用…本地演出”这种无前缀标题。正文核对基础编号、费用／分数、卡名、素材来源、复用边界、启用范围与实际验证，不机械堆满所有栏目。
 - 新增卡牌、查找已接入样本的共用边界或判断是否需要扩展绘制能力时：[实现入口与复用检查](references/implementation-map.md)。
 - 需要生成或编辑位图素材时，使用当前环境可用的 `imagegen` skill 与图像工具；CSS、网格形变和参数调整不需要生成图片。
 
