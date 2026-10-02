@@ -37,6 +37,10 @@ export async function prepareEntranceAssets(
       Promise.all([
         profile.loadArt().then(({ default: url }) => load(url)),
         cardUrl ? load(cardUrl) : Promise.resolve(null),
+        // Share the existing preparation deadline; a missing font keeps a readable fallback.
+        typeof document === 'undefined'
+          ? Promise.resolve()
+          : document.fonts.load('900 32px "Loveca Entrance"', profile.name).catch(() => {}),
       ]).then(([portrait, card]) => ({ portrait, card })),
       interrupted,
     ]);

@@ -1,3 +1,10 @@
+@font-face {
+  font-family: 'Loveca Entrance';
+  src: url('./fonts/entrance-names-heavy.woff2') format('woff2');
+  font-weight: 900;
+  font-display: swap;
+}
+
 .card-entrance {
   position: absolute;
   inset: 0;
@@ -30,11 +37,14 @@
   top: 43%;
   left: 16%;
   font:
-    clamp(26px, 4vw, 60px) 'Songti SC',
+    900 clamp(26px, 4vw, 60px) 'Loveca Entrance',
+    'Songti SC',
     serif;
-  letter-spacing: 0.13em;
-  color: #fff2e6;
-  text-shadow: 0 2px 18px #33243b;
+  letter-spacing: 0.045em;
+  color: #fffaf3;
+  text-shadow:
+    0 2px 0 #171424,
+    0 3px 5px #0008;
 }
 .card-entrance-skip {
   position: absolute;
@@ -97,17 +107,72 @@
   justify-content: center;
   width: max-content;
   max-width: 94%;
-  padding: 12px 30px;
+  padding: 15px 48px;
+  isolation: isolate;
+  --name-accent: color-mix(in srgb, var(--entrance-light) 75%, #f5e9d8);
   transform: translate(-50%, var(--name-y, 0px));
   opacity: var(--name-opacity, 0);
-  font-size: clamp(32px, 4vw, 62px);
+  font-size: clamp(32px, 3.8vw, 56px);
   line-height: 1.15;
   white-space: nowrap;
-  background: radial-gradient(ellipse, #24182ccc, transparent 72%);
 }
 .card-entrance-card-name {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font: inherit;
+  -webkit-text-stroke: 0.35px #e8e0eb;
 }
+.card-entrance-name-member {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.card-entrance-name-join {
+  font-size: 0.5em;
+  margin: 0 0.65em;
+  color: var(--name-accent);
+}
+.card-entrance-name-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transform: scaleX(var(--name-opacity, 0));
+}
+.card-entrance-name-panel {
+  fill: #161523e6;
+  stroke: var(--name-accent);
+  stroke-width: 1.2px;
+  vector-effect: non-scaling-stroke;
+}
+.card-entrance-name-inset {
+  fill: none;
+  stroke: var(--name-accent);
+  stroke-width: 0.6px;
+  opacity: 0.55;
+  vector-effect: non-scaling-stroke;
+}
+.card-entrance-name-jewel {
+  position: absolute;
+  top: calc(50% - 3px);
+  width: 6px;
+  height: 6px;
+  background: var(--name-accent);
+  transform: rotate(45deg);
+  box-shadow:
+    0 0 0 3px #171523,
+    0 0 0 4px var(--name-accent);
+}
+.card-entrance-name-jewel--left {
+  left: 17px;
+}
+.card-entrance-name-jewel--right {
+  right: 17px;
+}
+
 @media (max-width: 600px) {
   .card-entrance--centered .card-entrance-art {
     top: 7%;
@@ -116,7 +181,7 @@
   .card-entrance--centered .card-entrance-name {
     bottom: 24%;
     font-size: 32px;
-    padding: 12px 14px;
+    padding: 14px 38px;
   }
 }
 @media (max-height: 500px) and (min-width: 601px) {
@@ -177,7 +242,8 @@
     0 0 3px #6e3ba2,
     0 0 12px #b781efa8,
     inset 0 0 8px #d6b0ff99;
-  animation: card-landing-ring var(--impact-ring) cubic-bezier(0.08, 0.65, 0.2, 1) var(--impact-contact) both;
+  animation: card-landing-ring var(--impact-ring) cubic-bezier(0.08, 0.65, 0.2, 1)
+    var(--impact-contact) both;
 }
 .card-landing-ring--echo {
   border-width: 2px;
@@ -197,7 +263,8 @@
   height: 13px;
   background: #fff0d7;
   box-shadow: 0 0 5px #c4a1ea;
-  animation: card-landing-spark var(--impact-spark) cubic-bezier(0.1, 0.65, 0.3, 1) var(--impact-contact) both;
+  animation: card-landing-spark var(--impact-spark) cubic-bezier(0.1, 0.65, 0.3, 1)
+    var(--impact-contact) both;
 }
 @keyframes card-landing-ring {
   0% {
@@ -256,16 +323,23 @@
   }
 }
 
-/* A group card keeps its full name; single-character typography is unchanged. */
+/* Group names keep member boundaries intact at narrow widths. */
 .card-entrance--group .card-entrance-name {
-  font-size: clamp(22px, 2.8vw, 42px);
-  letter-spacing: 0.06em;
+  font-size: clamp(22px, 2.8vw, 40px);
+  letter-spacing: 0.025em;
 }
 @media (max-width: 600px) {
   .card-entrance--group .card-entrance-name {
     bottom: 29%;
-    font-size: clamp(15px, 4.4vw, 20px);
-    padding: 12px 8px;
+    font-size: 23px;
+    padding: 14px 40px;
+  }
+  .card-entrance--group .card-entrance-card-name {
+    flex-direction: column;
+    gap: 5px;
+  }
+  .card-entrance--group .card-entrance-name-join {
+    display: none;
   }
   .card-entrance--group ~ .card-entrance-skip {
     top: auto;

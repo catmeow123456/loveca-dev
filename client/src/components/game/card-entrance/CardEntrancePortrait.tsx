@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { CardEntranceNameplate } from './CardEntranceNameplate';
 import { createCardEntranceMesh } from '../../../lib/cardEntranceMesh';
 import type { CardEntranceProfile } from '../../../lib/cardEntranceProfiles';
 import { entrancePortraitFrame } from '../../../lib/cardEntranceTimeline';
@@ -80,9 +81,7 @@ export function CardEntrancePortrait({
         className="card-entrance-art"
         style={{ aspectRatio: profile.artAspectRatio }}
       />
-      <div className="card-entrance-name">
-        <span className="card-entrance-card-name">{profile.name}</span>
-      </div>
+      <CardEntranceNameplate name={profile.name} />
     </div>
   );
 }

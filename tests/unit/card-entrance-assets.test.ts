@@ -46,10 +46,15 @@ function imageFactory() {
   };
   return { images, make };
 }
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 describe('entrance registration and resources', () => {
   it('validates unique identities and resolves every registered asset and rarity', async () => {
-    expect(cardEntranceProfiles.map(p => p.baseCode).sort()).toEqual(Object.values(entranceCards).sort());
+    expect(cardEntranceProfiles.map((p) => p.baseCode).sort()).toEqual(
+      Object.values(entranceCards).sort()
+    );
     const first = cardEntranceProfiles[0]!;
     expect(() => defineEntranceProfiles([first, { ...first, id: 'another' }])).toThrow();
     expect(() => defineEntranceProfiles([first, { ...first, baseCode: 'OTHER' }])).toThrow();
@@ -78,6 +83,39 @@ describe('entrance registration and resources', () => {
     expect(loadArt).toHaveBeenCalledTimes(1);
     expect(ready.mock.calls[0]![0].portrait.src).toBe('portrait.png');
     expect(ready.mock.calls[0]![0].card.src).toBe('card.png');
+  });
+  it('font rejection retains the decoded art and allows fallback typography', async () => {
+    vi.stubGlobal('document', {
+      fonts: { load: vi.fn().mockRejectedValue(new Error('font offline')) },
+    });
+    const { images, make } = imageFactory();
+    const work = prepareEntranceAssets(
+      { ...cardEntranceProfiles[0]!, loadArt: async () => ({ default: 'portrait.png' }) },
+      null,
+      new AbortController().signal,
+      make
+    );
+    await vi.waitFor(() => expect(images).toHaveLength(1));
+    images[0]!.gate.resolve();
+    expect((await work).portrait.src).toBe('portrait.png');
+  });
+  it('font preparation shares the existing timeout even when images are ready', async () => {
+    vi.useFakeTimers();
+    const font = deferred<void>();
+    vi.stubGlobal('document', { fonts: { load: () => font.promise } });
+    const { images, make } = imageFactory();
+    const work = prepareEntranceAssets(
+      { ...cardEntranceProfiles[0]!, loadArt: async () => ({ default: 'portrait.png' }) },
+      null,
+      new AbortController().signal,
+      make
+    );
+    const rejected = expect(work).rejects.toThrow('timeout');
+    await vi.advanceTimersByTimeAsync(0);
+    images[0]!.gate.resolve();
+    await vi.advanceTimersByTimeAsync(ENTRANCE_LOAD_TIMEOUT_MS);
+    await rejected;
+    font.resolve();
   });
   it('cancellation prevents a late import from starting a new image', async () => {
     const gate = deferred<{ default: string }>(),

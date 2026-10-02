@@ -1,5 +1,5 @@
 // Milliseconds throughout. Changing a phase updates dependent deadlines and CSS together.
-const portrait = { enter: 600, fadeAt: 1500, fade: 450, labelAt: 300, label: 350 };
+const portrait = { enter: 600, fadeAt: 1500, fade: 450, labelAt: 300, label: 200 };
 const impact = {
   contact: 40,
   flash: 110,

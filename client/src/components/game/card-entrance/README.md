@@ -100,3 +100,7 @@ node client/node_modules/vite/bin/vite.js --config ../animation-prototypes/share
 本次验证：`card-entrance-assets`、`card-entrance-events`、`card-entrance-landing` 共 18 项测试通过，客户端 `tsc -b` 与 `git diff --check` 通过。共用隔离内存对局使用真实命令检查 1600×900 和 390×844 连续帧、完整飞行及落场、跳过后恢复操作；彼方、恋、四季人物绘制及跳过均通过，浏览器无 error 日志。媒体查询替身下确认短展示后立即恢复真实卡牌，无飞行冲击；这不是系统偏好实测。截图和连续帧存于 `output/playwright/trio-motion-*`，不加入运行时。
 
 本次未重测生产／双席联机、WebGL 丢失、素材故障、横置和费用选择流程；相关控制器未修改。可在上方共用验收页选择三人卡并点击「登场」，结束后「回手」再播放。
+
+## 共用卡名样式
+
+四张卡共用 `CardEntranceNameplate`：思源宋体 Heavy 姓名子集、半透明切角名牌、细边线与两侧菱形。装饰颜色沿用角色光色，三人组合在窄屏按完整姓名分为三行。框线与文字复用人物时间线的 label 进度（0.2 秒），不另设动画计时器，总演出时长不变；减少动态直接显示完整名牌。字体来源、许可和新增姓名时的生成命令见 [fonts/README.md](fonts/README.md)。
