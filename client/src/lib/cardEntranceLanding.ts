@@ -55,3 +55,26 @@ export function getLandingCardGeometry(rect: BattleAnimationRect, orientation: O
     rotation: waiting ? 90 : 0,
   };
 }
+
+/** The edge facing the impact rises; convert screen direction into the card's resting axes. */
+export function getNeighborImpactHinge(
+  towardX: number,
+  towardY: number,
+  rotation: number,
+  width: number,
+  height: number
+) {
+  const radians = (rotation * Math.PI) / 180;
+  const localX = towardX * Math.cos(radians) + towardY * Math.sin(radians);
+  const localY = -towardX * Math.sin(radians) + towardY * Math.cos(radians);
+  const length = Math.hypot(localX, localY);
+  if (length < 0.001) return null;
+  const x = Math.abs(localX / length) < 0.001 ? 0 : localX / length;
+  const y = Math.abs(localY / length) < 0.001 ? 0 : localY / length;
+  return {
+    pivotX: (-Math.sign(x) * width) / 2,
+    pivotY: (-Math.sign(y) * height) / 2,
+    axisX: y,
+    axisY: -x,
+  };
+}

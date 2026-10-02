@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { OrientationState } from '../../src/shared/types/enums';
 import {
   getLandingCardGeometry,
+  getNeighborImpactHinge,
   sameEntranceTarget,
   type EntranceStageTarget,
 } from '../../client/src/lib/cardEntranceLanding';
@@ -40,5 +41,45 @@ describe('card entrance landing', () => {
     ]) {
       expect(sameEntranceTarget(target, next)).toBe(false);
     }
+  });
+});
+
+describe('impact-facing card edge', () => {
+  it.each([0, 90, -90, 180])(
+    'lifts the edge toward the impact at resting rotation %s',
+    (rotation) => {
+      const radians = (rotation * Math.PI) / 180;
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+        [1, 1],
+        [-1, 1],
+      ]) {
+        const hinge = getNeighborImpactHinge(dx!, dy!, rotation, 100, 140)!;
+        const corners = [
+          [-50, -70],
+          [-50, 70],
+          [50, -70],
+          [50, 70],
+        ]
+          .map(([x, y]) => {
+            const screenX = x! * Math.cos(radians) - y! * Math.sin(radians);
+            const screenY = x! * Math.sin(radians) + y! * Math.cos(radians);
+            // Rodrigues' rotation: positive Z is toward the viewer.
+            const z =
+              (hinge.axisX * (y! - hinge.pivotY) - hinge.axisY * (x! - hinge.pivotX)) *
+              Math.sin(Math.PI / 4);
+            return { proximity: screenX * dx! + screenY * dy!, z };
+          })
+          .sort((a, b) => a.proximity - b.proximity);
+        expect(corners[3]!.z).toBeGreaterThan(corners[0]!.z + 30);
+        expect(corners.every((corner) => corner.z >= -0.001)).toBe(true);
+      }
+    }
+  );
+  it('does not invent a direction for coincident centers', () => {
+    expect(getNeighborImpactHinge(0, 0, 90, 100, 140)).toBeNull();
   });
 });

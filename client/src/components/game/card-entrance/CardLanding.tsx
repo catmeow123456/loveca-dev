@@ -1,7 +1,20 @@
 import { entranceTimeline as timing, entranceRemaining } from '@/lib/cardEntranceTimeline';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { collectBattleAnimationAnchors } from '@/lib/battleAnimationEvents';
-import { getLandingCardGeometry, type EntranceStageTarget } from '@/lib/cardEntranceLanding';
+import {
+  getLandingCardGeometry,
+  getNeighborImpactHinge,
+  type EntranceStageTarget,
+} from '@/lib/cardEntranceLanding';
+
+// Stable per public object: variations do not change between frames or consume rule RNG.
+function impactVariation(objectId: string, salt: number): number {
+  let hash = salt;
+  for (const char of objectId) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  hash = Math.imul(hash ^ (hash >>> 16), 0x85ebca6b);
+  hash = Math.imul(hash ^ (hash >>> 13), 0xc2b2ae35);
+  return ((hash ^ (hash >>> 16)) >>> 0) / 0xffffffff;
+}
 
 export interface LandingPresentation {
   id: string;
@@ -36,6 +49,7 @@ export function CardLanding({
     let flight: Animation | undefined;
     let shockTimer: number | undefined;
     const secondaryAnimations: Animation[] = [];
+    const groundShadows: HTMLElement[] = [];
     const abort = () => callbacks.current.onDone();
     // Never fly toward stale coordinates after a resize or scroll.
     window.addEventListener('resize', abort);
@@ -153,7 +167,7 @@ export function CardLanding({
               })
             );
           }
-          // Hold the contact pose for 40ms before the impulse propagates. Rules never wait.
+          // Start the tabletop impulse at contact; neighbors respond as the wave reaches them.
           shockTimer = window.setTimeout(() => {
             if (disposed) return;
             // Only animate already-rendered field cards: never hands, decks, or hidden identities.
@@ -173,48 +187,98 @@ export function CardLanding({
               const dx = neighborRect.left + neighborRect.width / 2 - end.x;
               const dy = neighborRect.top + neighborRect.height / 2 - end.y;
               const distance = Math.min(1, Math.hypot(dx, dy) / reach);
-              const strength = 1 - distance * 0.75;
-              const zoom = 1 + (bounds.width < 600 ? 0.07 : 0.1) * strength;
-              const tiltX = (dy >= 0 ? -1 : 1) * 7 * strength;
-              const tiltY = (dx >= 0 ? 1 : -1) * 9 * strength;
-              // Lift toward the viewer: centred zoom, slight edge lift and a softer shadow.
-              // No upward/downward screen translation; resting orientation remains additive.
+              const id = neighbor.dataset.objectId ?? '';
+              const lift = impactVariation(id, 2166136261);
+              const pace = impactVariation(id, 374761393);
+              const strength = (1 - distance * 0.8) * (0.78 + lift * 0.44);
+              const width = neighbor.offsetWidth;
+              const height = neighbor.offsetHeight;
+              const restingStyle = getComputedStyle(neighbor);
+              const restingMatrix = new DOMMatrixReadOnly(
+                restingStyle.transform === 'none' ? undefined : restingStyle.transform
+              );
+              const rotation =
+                (parseFloat(restingStyle.rotate) || 0) +
+                (Math.atan2(restingMatrix.b, restingMatrix.a) * 180) / Math.PI;
+              const hinge = getNeighborImpactHinge(-dx, -dy, rotation, width, height);
+              if (!hinge) continue;
+              const { pivotX, pivotY, axisX, axisY } = hinge;
+              const angle = Math.min(46, (36 + lift * 12) * (0.65 + strength * 0.35));
+              const elevation = Math.min(width, height) * 0.04 * strength;
+              const perspective = Math.max(width, height) * 4.5;
+              const pose = (heightFactor: number, lean: number) =>
+                `perspective(${perspective}px) translateZ(${elevation * heightFactor}px) translate(${pivotX}px, ${pivotY}px) rotate3d(${axisX}, ${axisY}, 0, ${angle * lean}deg) translate(${-pivotX}px, ${-pivotY}px)`;
+              const duration = timing.impact.neighbors * (0.8 + pace * 0.2);
+              const delay = distance * timing.impact.spread;
+              const peak = 0.24 + pace * 0.1;
+              // A separate, flat silhouette stays on the tabletop instead of rotating with the art.
+              // Insert a disposable sibling, never reparent React's card or change its resting styles.
+              const groundShadow = document.createElement('div');
+              groundShadow.className = 'card-landing-neighbor-shadow';
+              groundShadow.setAttribute('aria-hidden', 'true');
+              Object.assign(groundShadow.style, {
+                left: `${neighbor.offsetLeft}px`,
+                top: `${neighbor.offsetTop}px`,
+                width: `${width}px`,
+                height: `${height}px`,
+                rotate: restingStyle.rotate,
+                transform: restingStyle.transform,
+                transformOrigin: restingStyle.transformOrigin,
+              });
+              neighbor.before(groundShadow);
+              groundShadows.push(groundShadow);
+              const shadowMotion = groundShadow.animate(
+                [
+                  { opacity: 0, filter: 'blur(1px)', offset: 0 },
+                  { opacity: 0.48 * strength, filter: `blur(${3 + 5 * strength}px)`, offset: peak },
+                  { opacity: 0.28, filter: 'blur(1px)', offset: 0.78 },
+                  { opacity: 0, filter: 'blur(0px)', offset: 1 },
+                ],
+                { duration, delay, easing: 'ease-out' }
+              );
+              shadowMotion.onfinish = () => groundShadow.remove();
+              secondaryAnimations.push(shadowMotion);
               secondaryAnimations.push(
                 neighbor.animate(
                   [
                     {
-                      transform: 'perspective(700px) rotateX(0deg) rotateY(0deg) scale(1)',
-                      filter: 'drop-shadow(0px 0px 0px #160c2900)',
+                      transform: pose(0, 0),
+                      boxShadow: '0 0 0 transparent',
+                      zIndex: '2',
                       offset: 0,
-                      easing: 'cubic-bezier(.15,.7,.3,1)',
+                      easing: 'cubic-bezier(.12,.75,.25,1)',
                     },
                     {
-                      transform: `perspective(700px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) scale(${zoom})`,
-                      filter: `drop-shadow(2px 3px ${8 * strength}px #160c2973)`,
-                      offset: 0.32,
+                      transform: pose(1, 1),
+                      boxShadow: '1px 2px 0 #332a40, 0 0 1px #ece4f6',
+                      zIndex: '2',
+                      offset: peak,
                       easing: 'cubic-bezier(.55,0,.85,.4)',
                     },
                     {
-                      transform: 'perspective(700px) rotateX(0deg) rotateY(0deg) scale(1)',
-                      filter: 'drop-shadow(0px 0px 0px #160c2900)',
-                      offset: 0.84,
+                      transform: pose(0, 0.065),
+                      boxShadow: '0 1px 1px #160c2940',
+                      zIndex: '2',
+                      offset: 0.72 + pace * 0.08,
+                      easing: 'ease-out',
                     },
                     {
-                      transform: 'perspective(700px) rotateX(0deg) rotateY(0deg) scale(1)',
-                      filter: 'drop-shadow(0px 0px 0px #160c2900)',
+                      transform: pose(0, 0),
+                      boxShadow: '0 0 0 transparent',
+                      zIndex: '2',
                       offset: 1,
                     },
                   ],
                   {
-                    duration: timing.impact.neighbors,
-                    delay: distance * timing.impact.spread,
+                    duration,
+                    delay,
                     composite: 'add',
                   }
                 )
               );
             }
             // Shake only the tabletop artwork and card zones. HUD, hands and controls stay fixed.
-            const amplitude = bounds.width < 600 ? 1 : 2;
+            const amplitude = bounds.width < 600 ? 2.5 : 5;
             const surfaces = board.querySelectorAll<HTMLElement>(
               '.board-background, [data-battle-ui-anchor*="-stage-"], [data-battle-ui-anchor$="-live-zone"]'
             );
@@ -226,10 +290,10 @@ export function CardLanding({
                 surface.animate(
                   [
                     { translate: '0px 0px' },
-                    { translate: `${-amplitude}px ${amplitude * 0.5}px`, offset: 0.12 },
-                    { translate: `${amplitude}px ${-amplitude * 0.5}px`, offset: 0.32 },
-                    { translate: `${-amplitude * 0.5}px ${-amplitude * 0.25}px`, offset: 0.52 },
-                    { translate: `${amplitude * 0.25}px 0px`, offset: 0.72 },
+                    { translate: `${-amplitude}px ${amplitude * 0.5}px`, offset: 0.07 },
+                    { translate: `${amplitude}px ${-amplitude * 0.5}px`, offset: 0.23 },
+                    { translate: `${-amplitude * 0.5}px ${-amplitude * 0.25}px`, offset: 0.45 },
+                    { translate: `${amplitude * 0.25}px 0px`, offset: 0.7 },
                     { translate: '0px 0px' },
                   ],
                   { duration: timing.impact.shake, easing: 'linear' }
@@ -249,6 +313,7 @@ export function CardLanding({
       window.removeEventListener('scroll', abort, true);
       flight?.cancel();
       for (const animation of secondaryAnimations) animation.cancel();
+      for (const groundShadow of groundShadows) groundShadow.remove();
     };
   }, [presentation, startedAt]);
 

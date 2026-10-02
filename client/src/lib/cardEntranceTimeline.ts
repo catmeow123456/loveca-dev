@@ -1,7 +1,7 @@
 // Milliseconds throughout. Changing a phase updates dependent deadlines and CSS together.
 const portrait = { enter: 600, fadeAt: 1500, fade: 450, labelAt: 300, label: 200 };
 const impact = {
-  contact: 40,
+  contact: 0,
   flash: 110,
   ring: 350,
   echoDelay: 60,
@@ -9,9 +9,9 @@ const impact = {
   dust: 340,
   spark: 310,
   shadow: 320,
-  neighbors: 300,
-  spread: 40,
-  shake: 160,
+  neighbors: 350,
+  spread: 75,
+  shake: 210,
 };
 const portraitEnd = portrait.fadeAt + portrait.fade;
 const landingAt = portraitEnd - 200;
