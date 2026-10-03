@@ -41,7 +41,11 @@ describe('battle overlay layering', () => {
 
   it('uses the modal action-menu layer for waiting-room activated abilities', () => {
     const source = fs.readFileSync(PLAYER_AREA_PATH, 'utf8');
-    expect(source).toMatch(/canActivateWaitingRoomAbility[\s\S]*?<CardActionMenu\s+layer="modal"/);
+    const waitingRoomMenu = source.match(
+      /\{canActivateWaitingRoomAbility\s*&&\s*\(\s*<CardActionMenu\b([\s\S]*?)\/>/
+    )?.[1];
+    expect(waitingRoomMenu).toBeDefined();
+    expect(waitingRoomMenu).toMatch(/\blayer\s*=\s*["']modal["']/);
   });
 
   it('keeps the replay board below body-portaled battle overlays', () => {

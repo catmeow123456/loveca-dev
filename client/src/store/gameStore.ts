@@ -234,6 +234,8 @@ export interface RemoteUndoResponseOptions {
 }
 
 export interface BattleAnimationOcclusion {
+  /** A dedicated presentation owns this card’s movement until it releases the occlusion. */
+  readonly suppressDefaultMovement?: boolean;
   readonly eventId: string;
   readonly objectId: string;
 }
@@ -445,6 +447,9 @@ export interface GameStore {
       readonly selectedCardId?: string | null;
     }
   ) => CommandDispatchResult;
+  /** 本方登场演出完成或跳过；服务器决定是否继续。 */
+  acknowledgeCardEntrance: (entranceId: string) => CommandDispatchResult;
+  expireLocalCardEntrance: () => void;
   /** 公共选卡展示到期后的无交互推进。 */
   autoAdvancePublicCardSelection: (
     effectId: string,
@@ -754,6 +759,7 @@ interface StoreCommandOptions {
 export const useGameStore = create<GameStore>((set, get) => {
   // 创建游戏会话，设置事件监听
   const gameSession = createGameSession({
+    cardEntrance: 'LOCAL',
     allowRulesModeSuccessLiveSkip: true,
     onEvent: (event: GameSessionEvent) => {
       handleGameSessionEvent(event, get);
@@ -1444,6 +1450,19 @@ export const useGameStore = create<GameStore>((set, get) => {
         }
       ),
 
+    acknowledgeCardEntrance: (entranceId) =>
+      runViewerCommand(
+        (playerId) => ({
+          type: GameCommandType.ACK_CARD_ENTRANCE,
+          playerId,
+          entranceId,
+          timestamp: Date.now(),
+        }),
+        { failureMessage: '登场演出确认失败', silentFailure: true }
+      ),
+    expireLocalCardEntrance: () => {
+      if (!get().remoteSession && get().gameSession.expireCardEntrance()) get().syncState();
+    },
     autoAdvancePublicCardSelection: (effectId, expectedDeadline) => {
       return runViewerCommand(
         (playerId) =>

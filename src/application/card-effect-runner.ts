@@ -1,3 +1,4 @@
+import { captureCardEntrance } from './card-entrance.js';
 import { registerPlPb2021KotoriWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-021-kotori.js';
 import { registerNPr036ShizukuWorkflowHandlers } from './card-effects/workflows/cards/n-pr-036-shizuku.js';
 import {
@@ -3146,6 +3147,8 @@ function getLiveSuccessEffectPlayerId(game: GameState): string | null {
 }
 
 export function resolvePendingCardEffects(game: GameState): CardEffectRunnerResult {
+  game = captureCardEntrance(game);
+  if (game.entranceRuntime?.pending) return { gameState: game, resolvedAbilityIds: [] };
   if (game.activeEffect) {
     return {
       gameState: game,
