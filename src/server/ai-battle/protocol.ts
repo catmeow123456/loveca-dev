@@ -4,6 +4,7 @@ import type { PlayerViewState, PublicEvent } from '../../online/types.js';
 import type { AiSelfResources, AiStageEntryBudget, AiLiveBaseBudget } from './visible-resources.js';
 import type { EffectCostDefinition } from '../../application/effects/effect-costs.js';
 import type { AiDecisionContextInput } from './decision-context.js';
+import { createAiLiveSetPlan, liveSetPlanSchema, type AiLiveSetPlan } from './live-set-budget.js';
 
 export interface AiMemberEntryResources {
   readonly abilityId: string;
@@ -249,19 +250,52 @@ export function findAiCardSelection(
 export function parseAiBattleResponse(
   decision: Pick<AiDecision, 'input'>,
   text: string
-): { selection: AiSelection; tradeoff?: string } {
+): {
+  selection: AiSelection;
+  tradeoff?: string;
+  tradeoffTruncated?: true;
+  liveSetPlan?: AiLiveSetPlan;
+} {
   const parsed: unknown = JSON.parse(text);
+  const liveSet = decision.input.purpose === 'LIVE_SET';
   if (
     !record(parsed) ||
-    Object.keys(parsed).some((key) => key !== 'selection' && key !== 'tradeoff') ||
-    (parsed.tradeoff !== undefined &&
-      (typeof parsed.tradeoff !== 'string' || parsed.tradeoff.length > 300))
+    Object.keys(parsed).some(
+      (key) => key !== 'selection' && key !== 'tradeoff' && !(liveSet && key === 'liveSetPlan')
+    ) ||
+    (parsed.tradeoff !== undefined && typeof parsed.tradeoff !== 'string')
   )
     throw new Error('Invalid response structure');
   validateSelection(decision.input.space, parsed.selection);
+  let liveSetPlan: AiLiveSetPlan | undefined;
+  if (liveSet) {
+    liveSetPlan = createAiLiveSetPlan(decision.input, parsed.selection);
+    const plan = parsed.liveSetPlan;
+    const sameRefs = (actual: unknown, expected: readonly string[]) =>
+      Array.isArray(actual) &&
+      actual.length === expected.length &&
+      new Set(actual).size === actual.length &&
+      expected.every((ref) => actual.includes(ref));
+    if (
+      !record(plan) ||
+      Object.keys(plan).length !== 3 ||
+      !sameRefs(plan.liveCardRefs, liveSetPlan.liveCardRefs) ||
+      !sameRefs(plan.memberCardRefs, liveSetPlan.memberCardRefs) ||
+      plan.baseRequiredHeartTotal !== liveSetPlan.baseRequiredHeartTotal
+    )
+      throw new Error('LIVE set plan does not match selected cards and merged base requirement');
+  }
   return {
     selection: parsed.selection,
-    ...(typeof parsed.tradeoff === 'string' ? { tradeoff: parsed.tradeoff } : {}),
+    ...(liveSetPlan ? { liveSetPlan } : {}),
+    // Auxiliary explanation never authorizes an action. Retain a bounded excerpt after
+    // fully validating the selection; the unchanged raw response remains in evidence.
+    ...(typeof parsed.tradeoff === 'string'
+      ? {
+          tradeoff: parsed.tradeoff.slice(0, 300),
+          ...(parsed.tradeoff.length > 300 ? { tradeoffTruncated: true as const } : {}),
+        }
+      : {}),
   };
 }
 
@@ -285,14 +319,18 @@ export function extractInvalidCardSelection(text: string): AiSelection | null {
   }
 }
 
-export function responseSchema(space: AiDecisionSpace): Readonly<Record<string, unknown>> {
+export function responseSchema(
+  space: AiDecisionSpace,
+  purpose?: AiDecisionInput['purpose']
+): Readonly<Record<string, unknown>> {
   const refs = space.candidates.map((candidate) => candidate.ref);
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['selection'],
+    required: purpose === 'LIVE_SET' ? ['selection', 'liveSetPlan'] : ['selection'],
     properties: {
       tradeoff: { type: 'string', maxLength: 300 },
+      ...(purpose === 'LIVE_SET' ? { liveSetPlan: liveSetPlanSchema(space) } : {}),
       selection: {
         type: 'object',
         additionalProperties: false,

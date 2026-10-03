@@ -136,6 +136,36 @@ export class AiBattlePresetLoader {
       humanPreset.id === aiPreset.id
         ? globalThis.structuredClone(human)
         : await this.preset(aiPreset, registry, pointTable, false);
+    return { human, ai, knowledge: this.freezeKnowledge(ai, rules, tutorial, book) };
+  }
+
+  /** Each self-play seat loads only its own deck and handbook; both use AI PT rules. */
+  async loadAi(input: { readonly presetId: string; readonly handbookId: string }): Promise<{
+    readonly ai: AiFrozenPreset;
+    readonly knowledge: AiFrozenKnowledge;
+  }> {
+    const catalog = await this.catalog();
+    const config = catalog.presets.find((preset) => preset.id === input.presetId);
+    const handbook = config?.handbooks.find((book) => book.id === input.handbookId);
+    if (!config || !handbook)
+      throw new AiBattleSetupError('AI_PRESET_INVALID', '请选择登记过的构筑及其关联手册', 400);
+    const [registry, pointTable, rules, tutorial, book] = await Promise.all([
+      this.getRegistry(),
+      this.getPointTable(),
+      this.material('rules', '规则说明', catalog.rules),
+      this.material('tutorial', '操作教程', catalog.tutorial),
+      this.material(handbook.id, handbook.name, handbook.path),
+    ]);
+    const ai = await this.preset(config, registry, pointTable, false);
+    return { ai, knowledge: this.freezeKnowledge(ai, rules, tutorial, book) };
+  }
+
+  private freezeKnowledge(
+    ai: AiFrozenPreset,
+    rules: AiKnowledgeMaterial,
+    tutorial: AiKnowledgeMaterial,
+    book: AiKnowledgeMaterial
+  ): AiFrozenKnowledge {
     const cardCounts = new Map<string, { count: number; card: DeckConfig['mainDeck'][number] }>();
     for (const card of [...ai.deck.mainDeck, ...ai.deck.energyDeck]) {
       const previous = cardCounts.get(card.cardCode);
@@ -149,19 +179,15 @@ export class AiBattlePresetLoader {
       })
     );
     return {
-      human,
-      ai,
-      knowledge: {
-        rules,
-        tutorial,
-        handbook: book,
-        ownDeck: {
-          id: `deck:${ai.id}`,
-          title: `${ai.name}卡牌参考`,
-          source: 'PUBLISHED_CARDS_SNAPSHOT',
-          content,
-          sha256: sha256(content),
-        },
+      rules,
+      tutorial,
+      handbook: book,
+      ownDeck: {
+        id: `deck:${ai.id}`,
+        title: `${ai.name}卡牌参考`,
+        source: 'PUBLISHED_CARDS_SNAPSHOT',
+        content,
+        sha256: sha256(content),
       },
     };
   }

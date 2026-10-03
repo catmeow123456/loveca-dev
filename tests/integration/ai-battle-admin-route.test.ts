@@ -6,6 +6,7 @@ import type { AiBattleModelClient } from '../../src/server/ai-battle/driver';
 import {
   API_AI_BATTLE_MODELS,
   AI_BATTLE_MODELS,
+  requiresAiThinking,
   type AiBattleModel,
 } from '../../src/online/ai-battle-model-registry';
 import express from 'express';
@@ -81,10 +82,12 @@ function createService(
   const billing = createMemoryAiBilling();
   const traces = new AiBattleTraceStore();
   const matches = new OnlineMatchService({ recorder: null });
-  const createModel = vi.fn((): Promise<AiBattleModelClient> =>
-    Promise.resolve({ decide: () => Promise.resolve({ kind: 'RESPONSE' as const, text: '{}' }) })
+  const createModel = vi.fn<ConstructorParameters<typeof AiBattleService>[0]['createModel']>(
+    (): Promise<AiBattleModelClient> =>
+      Promise.resolve({ decide: () => Promise.resolve({ kind: 'RESPONSE' as const, text: '{}' }) })
   );
   const start = vi.fn(() => Promise.resolve());
+  const startSelfPlay = vi.fn(async (_matchId: string) => {});
   const preset = {
     id: 'muse-starter',
     name: '预组',
@@ -99,10 +102,19 @@ function createService(
     billingPersistence: billing.persistence,
     evidenceRepository: evidence,
     matchService: matches,
-    driver: { start, stop: vi.fn(async () => {}) },
+    driver: { start, startSelfPlay, stop: vi.fn(async () => {}) },
     createModel,
     loadProfile: (userId) => Promise.resolve({ userId, displayName: '管理员' }),
     presets: {
+      loadAi: async ({ presetId, handbookId }) => ({
+        ai: { ...preset, id: presetId },
+        knowledge: {
+          rules: { ...material, id: 'rules' },
+          tutorial: { ...material, id: 'tutorial' },
+          handbook: { ...material, id: handbookId, content: `strategy:${handbookId}` },
+          ownDeck: { ...material, id: `deck:${presetId}`, content: `deck:${presetId}` },
+        },
+      }),
       list: () =>
         Promise.resolve([
           {
@@ -125,7 +137,7 @@ function createService(
         }),
     },
   });
-  return { service, matches, createModel, start, billing, evidence, traces };
+  return { service, matches, createModel, start, startSelfPlay, billing, evidence, traces };
 }
 
 async function serverFixture(models?: readonly AiBattleModel[], evidence?: AiEvidenceRepository) {
@@ -255,6 +267,173 @@ afterEach(async () => {
 });
 
 describe('AI administrator routes and ownership', () => {
+  const selfPlayInput = {
+    model: 'glm-5.3' as const,
+    enableThinking: false,
+    FIRST: { presetId: 'first-deck', handbookId: 'first-strategy' },
+    SECOND: { presetId: 'second-deck', handbookId: 'second-strategy' },
+  };
+
+  it('creates two isolated AI seats, combines billing and allows only readonly player-view spectating', async () => {
+    const f = await serverFixture();
+    auth.roles.set('owner', 'admin');
+    auth.roles.set('other', 'admin');
+    const response = await f.request('/ai/self-play-sessions', {
+      userId: 'owner',
+      body: selfPlayInput,
+    });
+    expect(response.status).toBe(201);
+    const { data } = fromTransport<{
+      data: import('../../src/online/ai-battle-types').CreateAiSelfPlayResult;
+    }>(await response.json());
+    expect(data.session.mode).toBe('AI_VS_AI');
+    expect(data.session.enableThinking).toBe(true);
+    expect(data).not.toHaveProperty('snapshot');
+    const id = data.session.matchId;
+    const match = f.matches.getMatch(id)!;
+    expect(Object.values(match.participants).map((p) => p.participantKind)).toEqual([
+      'SYSTEM',
+      'SYSTEM',
+    ]);
+    expect(Object.values(match.participants).every((p) => p.ownerUserId === 'owner')).toBe(true);
+    expect(Object.values(match.participants).some((p) => p.userId === 'owner')).toBe(false);
+    expect(f.startSelfPlay).toHaveBeenCalledOnce();
+    expect(f.start).not.toHaveBeenCalled();
+    expect(f.createModel).toHaveBeenCalledTimes(2);
+    const [first, second] = f.createModel.mock.calls;
+    expect(first![0].handbook.content).toBe('strategy:first-strategy');
+    expect(second![0].handbook.content).toBe('strategy:second-strategy');
+    expect(first![0].ownDeck.content).toBe('deck:first-deck');
+    expect(second![0].ownDeck.content).toBe('deck:second-deck');
+    expect(first![3]).toBe(second![3]);
+    for (const [seat, args] of [
+      ['FIRST', first],
+      ['SECOND', second],
+    ] as const) {
+      await (
+        await args![3].begin(`${seat}:1`)
+      ).finish({
+        inputTokens: 1000,
+        implicitCachedTokens: 0,
+        explicitCachedTokens: 0,
+        cacheCreationTokens: 0,
+        outputTokens: 10,
+      });
+    }
+    expect(f.service.getSession('owner', id).matchBilling.attempts).toBe(2);
+    expect((await f.service.getRecordedBilling(id)).matchBilling?.attempts).toBe(2);
+    expect(await f.matches.createAdminPlayerViewSpectatorLink(id, 'FIRST')).toBeNull();
+    const joined = await f.matches.joinSpectatorLink(data.spectatorLink.token);
+    expect(joined.link.authorizedViewerSeats).toEqual(['FIRST', 'SECOND']);
+    const snapshot = joined.snapshot as import('../../src/online').OnlineSpectatorMatchSnapshot;
+    expect(snapshot.seat).toBe('FIRST');
+    expect(snapshot.playerViewState.permissions.availableCommands).toEqual([]);
+    expect(snapshot.playerViewState.match.manualOperation?.canSwitchNow).toBe(false);
+    const opponentHand = snapshot.playerViewState.table.zones.SECOND_HAND;
+    expect(opponentHand.count).toBeGreaterThan(0);
+    expect(opponentHand.objectIds).toBeUndefined();
+    expect(snapshot.playerViewState.table.zones.FIRST_HAND.objectIds?.length).toBeGreaterThan(0);
+    const switched = await f.matches.switchSpectatorView(
+      data.spectatorLink.token,
+      joined.session.sessionId,
+      'SECOND'
+    );
+    expect(switched.snapshot.seat).toBe('SECOND');
+    expect(switched.snapshot.playerViewState.permissions.availableCommands).toEqual([]);
+    expect(switched.snapshot.playerViewState.table.zones.FIRST_HAND.objectIds).toBeUndefined();
+    for (const operation of ['snapshot', 'public-events', 'advance']) {
+      const result = await f.request(`/ai/sessions/${id}/${operation}`, {
+        userId: 'owner',
+        ...(operation === 'advance' ? { method: 'POST' } : {}),
+      });
+      expect(result.status).toBe(403);
+      expect((await result.json()).error.code).toBe('AI_SELF_PLAY_READ_ONLY');
+    }
+    const commandResult = await f.request(`/ai/sessions/${id}/command`, {
+      userId: 'owner',
+      body: {
+        command: {
+          type: GameCommandType.MULLIGAN,
+          playerId: match.participants.FIRST.playerId,
+          timestamp: 0,
+          cardIdsToMulligan: [],
+        },
+      },
+    });
+    expect(commandResult.status).toBe(403);
+    expect((await commandResult.json()).error.code).toBe('AI_SELF_PLAY_READ_ONLY');
+    expect(
+      (await f.request(`/ai/sessions/${id}/spectator-link`, { userId: 'other', method: 'POST' }))
+        .status
+    ).toBe(200);
+    expect(
+      (await f.request(`/ai/sessions/${id}/end`, { userId: 'other', method: 'POST' })).status
+    ).toBe(404);
+    expect((await f.request('/ai/sessions', { userId: 'owner', body: input })).status).toBe(409);
+    expect(
+      (await f.request(`/ai/sessions/${id}/end`, { userId: 'owner', method: 'POST' })).status
+    ).toBe(200);
+    expect(f.matches.getMatch(id)).toBeNull();
+    await expect(f.matches.joinSpectatorLink(data.spectatorLink.token)).rejects.toThrow();
+    expect((await f.request('/ai/sessions', { userId: 'owner', body: input })).status).toBe(201);
+  });
+
+  it('rejects unauthorized or malformed self-play creation before allocating models', async () => {
+    const f = await serverFixture();
+    auth.roles.set('normal', 'user');
+    auth.roles.set('owner', 'admin');
+    expect((await f.request('/ai/self-play-sessions', { body: selfPlayInput })).status).toBe(401);
+    expect(
+      (
+        await f.request('/ai/self-play-sessions', {
+          userId: 'normal',
+          role: 'user',
+          body: selfPlayInput,
+        })
+      ).status
+    ).toBe(403);
+    for (const body of [
+      { ...selfPlayInput, SECOND: {} },
+      { ...selfPlayInput, FIRST: { ...selfPlayInput.FIRST, handbookPath: '/tmp/untrusted' } },
+    ])
+      expect((await f.request('/ai/self-play-sessions', { userId: 'owner', body })).status).toBe(
+        400
+      );
+    expect(f.createModel).not.toHaveBeenCalled();
+  });
+
+  it.each(['second-model', 'configuration-change', 'driver-start'] as const)(
+    'disposes allocated clients and releases owner capacity after self-play setup failure: %s',
+    async (failure) => {
+      const f = createService();
+      const clients = [
+        { decide: vi.fn(), dispose: vi.fn(async () => {}) },
+        { decide: vi.fn(), dispose: vi.fn(async () => {}) },
+      ];
+      f.createModel.mockResolvedValueOnce(clients[0]!);
+      if (failure === 'second-model') {
+        f.createModel.mockRejectedValueOnce(new Error('second model unavailable'));
+      } else if (failure === 'configuration-change') {
+        f.createModel.mockResolvedValueOnce({
+          ...clients[1]!,
+          configurationMaterial: { ...material, id: 'model-configuration', sha256: 'changed' },
+        });
+      } else {
+        f.createModel.mockResolvedValueOnce(clients[1]!);
+        f.startSelfPlay.mockRejectedValueOnce(new Error('self-play driver unavailable'));
+      }
+      await expect(f.service.createSelfPlay('owner', selfPlayInput)).rejects.toThrow();
+      expect(clients[0]!.dispose).toHaveBeenCalledOnce();
+      if (failure !== 'second-model') expect(clients[1]!.dispose).toHaveBeenCalledOnce();
+      expect(f.service.listSessions('owner')).toEqual([]);
+      if (failure === 'driver-start')
+        expect(f.matches.getMatch(f.startSelfPlay.mock.calls[0]![0])).toBeNull();
+      else expect(f.startSelfPlay).not.toHaveBeenCalled();
+      const recovered = await f.service.create('owner', input);
+      expect(recovered.session.mode).toBe('HUMAN_VS_AI');
+    }
+  );
+
   it('executes human special play begin, cancel and confirm over HTTP with authoritative costs and ownership', async () => {
     const f = await humanSpecialPlayFixture();
     const initial = structuredClone(f.match.session.state!);
@@ -641,6 +820,7 @@ describe('AI administrator routes and ownership', () => {
       const result = (await response.json()) as { data: { session: AiBattleSessionView } };
       expect(result.data.session).toMatchObject({
         model,
+        enableThinking: requiresAiThinking(model),
         matchBilling: { model, attempts: 0 },
       });
       expect(f.createModel).toHaveBeenCalledWith(
@@ -648,7 +828,7 @@ describe('AI administrator routes and ownership', () => {
         expect.anything(),
         model,
         expect.anything(),
-        false,
+        requiresAiThinking(model),
         undefined,
         undefined
       );

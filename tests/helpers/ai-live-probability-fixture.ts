@@ -8,6 +8,7 @@ import {
 import type { ViewCardObject, ViewFrontCardInfo } from '../../src/online/types';
 import type { AiDecisionInput } from '../../src/server/ai-battle/protocol';
 import type { AiKnowledgeMaterial } from '../../src/server/ai-battle/presets';
+import { summarizeAiLiveBaseBudget } from '../../src/server/ai-battle/visible-resources';
 export function createProbabilityFixture() {
   const member = (cardCode: string, color?: C): ViewFrontCardInfo => ({
     cardCode,
@@ -113,6 +114,11 @@ export function createProbabilityFixture() {
       },
     },
   };
+  for (const candidate of input.space.candidates) {
+    const front = input.state.objects[candidate.objectId!]!.frontInfo!;
+    const budget = summarizeAiLiveBaseBudget(input.state.selfResources, front);
+    if (budget) Object.assign(candidate, { liveBaseBudget: budget });
+  }
   const ownDeck: AiKnowledgeMaterial = {
     id: 'deck:test',
     title: 'synthetic',

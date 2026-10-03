@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createReview, expandInput, differences, fieldAt, boundOutput, cli,
   phaseGroups, phasesText, candidateBrief, decisionBriefText } from './review.mjs';
 
@@ -46,6 +49,30 @@ function fixture() {
 }
 function payload(data, id) { return JSON.parse(data.materials.find((m) => m.id === id).content); }
 function replace(data, id, value) { data.materials.find((m) => m.id === id).content = JSON.stringify(value); }
+
+test('decodes current Codex prompts with frozen knowledge, reused threads and a trailing window summary', () => {
+  for (const includesStaticKnowledge of [true, false]) {
+    const data = fixture();
+    const input = payload(data, 's1').input;
+    replace(data, 'q1', { provider: 'LOCAL_CODEX', model: 'codex:gpt-6-luna',
+      includesStaticKnowledge, generation: 2, sessionTurn: 3,
+      prompt: `${includesStaticKnowledge ? '冻结规则与手册\n{"deck":[]}\n\n' : ''}本次决策；只使用本次引用\n${JSON.stringify(input)}\n\n当前窗口摘要：只回答本窗口\n{"phase":"MAIN_PHASE"}` });
+    const request = createReview(data).detail('1').requests[0];
+    assert.equal(request.transport, 'LOCAL_CODEX_PROMPT');
+    assert.equal(request.includesStaticKnowledge, includesStaticKnowledge);
+    assert.equal(request.generation, 2);
+    assert.equal(request.comparison.equal, true);
+    assert.deepEqual(request.input, input);
+  }
+});
+
+test('does not substitute sample facts for a Codex request missing dynamic input', () => {
+  const data = fixture();
+  replace(data, 'q1', { provider: 'LOCAL_CODEX', prompt: '只有摘要\n{"phase":"MAIN_PHASE"}' });
+  const request = createReview(data).detail('1').requests[0];
+  assert.match(request.error, /No dynamic state\/space JSON/);
+  assert.equal(request.input, undefined);
+});
 
 test('counts actual hand instances, not candidate slots, and respects the AI second seat', () => {
   const r = createReview(fixture());
@@ -207,6 +234,62 @@ test('normal model outcomes are diagnostic events, not failures', () => {
   assert.equal(d.outcome.diagnosticEvents[0].payload.outcome.kind, 'RESPONSE');
 });
 
+function withLog(data, run) {
+  const dir = mkdtempSync(join(tmpdir(), 'loveca-review-'));
+  const file = join(dir, 'observation.json');
+  try {
+    writeFileSync(file, JSON.stringify(data));
+    run(file);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+}
+
+test('model payload entry preserves raw attempts and validation separately from fallback submission', () => {
+  const data = fixture();
+  const first = '{"selection":{"kind":"ACTION","actionRef":"unknown"},"tradeoff":"结束但选择登场"}';
+  const second = '{"selection":{"kind":"ACTION","actionRef":"a2"},"tradeoff":"第二次选择"}';
+  const raw = [
+    ['raw1', 'MODEL_OUTCOME', { attempt: 0, outcome: { kind: 'RESPONSE', text: first } }],
+    ['failed1', 'MODEL_FAILURE', { attempt: 0, category: 'MODEL_SELECTION' }],
+    ['raw2', 'MODEL_OUTCOME', { attempt: 1, outcome: { kind: 'RESPONSE', text: second } }],
+  ];
+  const events = raw.map(([id, stage, value], index) => {
+    data.materials.push({ id, status: 'COMPLETE', content: JSON.stringify(value) });
+    return { stage, materialId: id, timestamp: 100 + index };
+  });
+  data.decisions[0].events.splice(2, 0, ...events);
+  replace(data, 'v1', { selection: { kind: 'ACTION', actionRef: 'a2' } });
+  const submit = payload(data, 'submit1');
+  submit.selection.source = 'FALLBACK';
+  replace(data, 'submit1', submit);
+  withLog(data, (file) => {
+    const model = JSON.parse(cli([file, '--decision', '1', '--input', 'model', '--json']));
+    assert.deepEqual(model.map((event) => event.materialId), ['raw1', 'failed1', 'raw2', 'v1']);
+    assert.equal(model[0].payload.outcome.text, first);
+    assert.equal(model[2].payload.attempt, 1);
+    assert.equal(model[2].payload.outcome.text, second);
+    assert.equal(model[3].payload.selection.actionRef, 'a2');
+    assert.equal(cli([file, '--decision', '1', '--input', 'model', '--field', '0.payload.outcome.text']), first);
+    const actual = JSON.parse(cli([file, '--decision', '1', '--input', 'submit', '--json']));
+    assert.equal(actual.selection.source, 'FALLBACK');
+    assert.equal(actual.selection.selection.actionRef, 'a3');
+  });
+});
+
+test('model payload entry reports absent or missing original evidence without borrowing submitted selection', () => {
+  const data = fixture();
+  data.decisions[0].events = data.decisions[0].events.filter((e) => e.stage !== 'MODEL_VALIDATION');
+  withLog(data, (file) => {
+    assert.deepEqual(JSON.parse(cli([file, '--decision', '1', '--input', 'model', '--json'])), []);
+  });
+  data.decisions[0].events.push({ stage: 'RESPONSE', materialId: 'missing-response' });
+  withLog(data, (file) => {
+    const model = JSON.parse(cli([file, '--decision', '1', '--input', 'model', '--json']));
+    assert.equal(model[0].status, 'MISSING');
+    assert.equal(model[0].payload, null);
+    assert.equal(model[0].materialId, 'missing-response');
+  });
+});
+
 function phaseFixture() {
   const data = fixture(), sample = payload(data, 's1');
   // D2: same MAIN_PHASE, waiting sample without submit; one active energy is now exhausted.
@@ -271,10 +354,11 @@ test('decision brief bundles context, compressed candidates, model output and dr
   assert.match(text, /- a1 登场 PL!N-bp4-013-N 费用 4「上原步梦」 ［→LEFT 付4\(E7→3\) HEART 5→7 BLADE 4→4］/);
   assert.match(text, /请求：q1 messages\[system:4,user:\d+\]/);
   assert.match(text, /REQUEST↔SAMPLE 动态事实：一致/);
-  assert.match(text, /模型输出：来源=MODEL；命令=END_PHASE；选择=a3/);
+  assert.match(text, /提交选择：来源=MODEL；命令=END_PHASE；选择=a3/);
   assert.match(text, /自述（非事实）：虚构后续收益/);
   assert.match(text, /权威结果：成功=true/);
-  assert.match(text, /--decision 1 --input submit（模型输出原始载荷）/);
+  assert.match(text, /--decision 1 --input model（原始响应与校验事件）/);
+  assert.match(text, /--decision 1 --input submit（实际提交载荷）/);
 });
 
 test('cli enforces the new mode combinations and payload entries', () => {

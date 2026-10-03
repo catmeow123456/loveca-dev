@@ -4,13 +4,13 @@
 > 适用范围：管理员 AI 对战的权威命令、模型输入、权限与观察界面
 > 当前状态：开发基线；生产开放和模型策略质量尚待验收
 
-平台管理员可通过精选构筑和共享真人牌桌进行 AI 调试对战，并查看有界决定材料。构筑与窗口覆盖见[支持矩阵](support-matrix.md)，环境复现见[完整环境验证](full-environment-validation.md)，历史模型实验见[模型验证](model-validation.md)。
+平台管理员可通过精选构筑和共享真人牌桌进行 AI 调试对战，也可开启双 AI 对战并进入共享观战窗口，查看有界决定材料。构筑与窗口覆盖见[支持矩阵](support-matrix.md)，环境复现见[完整环境验证](full-environment-validation.md)，历史模型实验见[模型验证](model-validation.md)。
 
 ## 权威命令与调度
 
 `src/server/services/online-match-service.ts` 在已有单场命令队列内采样权威快照、AI 玩家投影、规则查询、revision 与窗口身份。`src/server/ai-battle/decision.ts` 和 `effect-decision.ts` 只生成当前输入空间与服务端命令映射，不试执行候选。普通登场复用 `src/application/normal-member-play.ts`，效果步骤由 workflow 注册的只读选择查询提供。分组回收在 `CARDS.groups` 中提供仅含可见候选引用的成员集合与 min/max；一张卡计入所有所属组。模型协议与权威入口都校验组约束，兜底按约束寻找完整合法组合，不试执行卡效。
 
-`src/server/ai-battle/runtime.ts` 持有任务身份、取消句柄、已选结果与失败计数；`driver.ts` 在队列外请求模型。回包先在同一队列校验任务、attempt、revision 和窗口，再解析并通过正常命令入口提交。旧结果不重试、不增加当前失败计数。权威变更使在途任务失效并唤醒驱动；普通快照和观测读取不驱动游戏。
+`src/server/ai-battle/runtime.ts` 持有任务身份、取消句柄、已选结果与失败计数；`driver.ts` 在队列外请求模型。回包先在同一队列校验任务、attempt、revision 和窗口，再解析并通过正常命令入口提交。旧结果不重试、不增加当前失败计数。双 AI 自对弈在同一队列协调两席独立运行时，每次只请求一席；每席使用独立模型与观察者，决定编号带席位前缀。实验入口、共享预算和导出见[本地自对弈](self-play.md)。权威变更使在途任务失效并唤醒驱动；普通快照和观测读取不驱动游戏。
 
 公开展示与阶段完成仍使用服务端 deadline。已选结果等待门禁后再次校验才能执行。删除对局在同一权威队列内先沿既有 recorder 封存，成功后才停止并取消 AI 任务；封存失败时对局与 AI 驱动保持完整可运行，不留下 AI 已永久停止的半死对局，并保留结束重试入口，已经成立的权威胜负不改写。
 
@@ -52,7 +52,7 @@ LIVE 设置附带不增加模型调用的 [LIVE 成功率基线](live-probabilit
 
 自送回收、腾位补同伴与跨位置换手的取舍保留在通用教程；控制提示聚焦字段语义、当前事实与输出协议，不重复强调具体策略。模型应按当前目标和实际结算结果评估收益，区分合法动作、能力文案与已获得资源。这些提示没有增加路线搜索器或策略校验；此前提示版本的实验见[通用自送回收提示复测](reviews/2026-09-10-general-self-recovery-prompt.md)，当前版本的模型强度仍需真实请求验收。
 
-新对局通过 `src/server/ai-battle/configuration.ts` 读取平台 AI 配置中的 Base URL 和加密 API Key，复用 `aiEffectExtractionService.getUpstreamConfiguration()` 的数据库读取、解密和出站校验。平台“AI 上游配置”页面的 URL/Key 供对战与卡效提取共用；卡效模型及“启用效果提取”开关只控制卡效提取。对战模型由开局参数指定，默认 `qwen3.8-flash`，可手动选择 `qwen3.8-max`、`glm-5.2` 或 `deepseek-v4.1-flash`；北京公开价格与各模型核对日期见[计费说明](token-billing-proposal.md)。创建页提供“开启思考”开关，默认关闭，当前四个模型均可按局选择；开局接口要求显式布尔值 `enableThinking`，会话列表和冻结的模型配置均记录该选择。GLM-5.2 与 DeepSeek-V4.1-Flash 接入现有 Chat Completions、JSON 输出和隐式缓存链路；增加模型选项不代表已通过真实端点或对局强度验证。DeepSeek 费用沿用整局冻结公开价的估算方式，固定采用北京忙时价；创建页提示闲时实际费用可能更低，不按每次请求时段切价。[GLM 调用说明](https://help.aliyun.com/zh/model-studio/glm)、[DeepSeek 调用说明](https://help.aliyun.com/zh/model-studio/deepseek-api)
+新对局通过 `src/server/ai-battle/configuration.ts` 读取平台 AI 配置中的 Base URL 和加密 API Key，复用 `aiEffectExtractionService.getUpstreamConfiguration()` 的数据库读取、解密和出站校验。平台“AI 上游配置”页面的 URL/Key 供对战与卡效提取共用；卡效模型及“启用效果提取”开关只控制卡效提取。对战模型由开局参数指定，默认 `qwen3.8-flash`，可手动选择 `qwen3.8-max`、`glm-5.3`、`glm-5.2` 或 `deepseek-v4.1-flash`；北京公开价格与各模型核对日期见[计费说明](token-billing-proposal.md)。创建页提供“开启思考”开关，默认关闭，支持关闭思考的模型可按局选择；GLM-5.3 只支持思考，创建页开关固定开启，服务端和请求配置同时按能力冻结为开启；开局接口要求显式布尔值 `enableThinking`，会话列表和冻结的模型配置均记录该选择。GLM-5.2 与 DeepSeek-V4.1-Flash 接入现有 Chat Completions、JSON 输出和隐式缓存链路；增加模型选项不代表已通过真实端点或对局强度验证。DeepSeek 费用沿用整局冻结公开价的估算方式，固定采用北京忙时价；创建页提示闲时实际费用可能更低，不按每次请求时段切价。[GLM 调用说明](https://help.aliyun.com/zh/model-studio/glm)、[DeepSeek 调用说明](https://help.aliyun.com/zh/model-studio/deepseek-api)
 
 | 环境变量                              | 用途                                                               |
 | ------------------------------------- | ------------------------------------------------------------------ |
@@ -64,9 +64,9 @@ LIVE 设置附带不增加模型调用的 [LIVE 成功率基线](live-probabilit
 
 `src/server/ai-battle/service.ts` 使用 `createPlatformAiBattleClient` 在开局时冻结本局 URL、Key、模型与思考开关。配置中心保存成功后，新局无需重启服务即可使用更新值；已有局保持开局配置。创建及每次发送前都会重新检查白名单和 DNS，不能因冻结了 URL 而绕过后续出站限制。HTTP 继续使用现有 Chat Completions 协议，在 Base URL 后追加 `/chat/completions`；不增加其他协议适配。
 
-`AI_BATTLE_BASE_URL`、`AI_BATTLE_API_KEY`、旧 DashScope 变量与开发者凭据不再被读取。配置缺失、无法解密或不符合出站政策时，新局明确失败，不使用环境变量备用值。浏览器只读取非秘密配置和 Key 是否存在，不取得服务端明文 Key。主密钥或白名单属于部署配置，修改后需重启 API；配置中心的 URL/Key 修改只需保存。生产准备见[计费迁移说明](../../drizzle/migration-notes/ai-battle-billing.md)。
+网页及生产模型工厂不读取 `AI_BATTLE_BASE_URL`、`AI_BATTLE_API_KEY`、旧 DashScope 变量与开发者凭据。本地自对弈 CLI 允许显式选择 `local-env`，不改变此工厂的默认来源或失败边界。配置缺失、无法解密或不符合出站政策时，新局明确失败，不使用环境变量备用值。浏览器只读取非秘密配置和 Key 是否存在，不取得服务端明文 Key。主密钥或白名单属于部署配置，修改后需重启 API；配置中心的 URL/Key 修改只需保存。生产准备见[计费迁移说明](../../drizzle/migration-notes/ai-battle-billing.md)。
 
-当前客户端按 [DashScope 结构化输出文档](https://help.aliyun.com/zh/model-studio/qwen-structured-output) 使用 `response_format: {type: 'json_object'}`，提示中包含 JSON；`enable_thinking` 使用本局开关，默认 `false`。按[百炼深度思考说明](https://help.aliyun.com/zh/model-studio/deep-thinking)保留非流式请求；开启后仍只把最终 `message.content` 交给闭合选择协议，上游 `reasoning_content` 仅随原始响应留在观察材料，不作为选择或后续决策上下文。默认请求不发送 `max_tokens`，避免思考模型在最终 JSON 前因应用侧额度提前触发 `finish_reason=length`；只有部署显式配置 `AI_BATTLE_MAX_TOKENS` 时才发送该字段。字段与引用仍由本地闭合协议验证。接口结构参考 [Chat Completions 文档](https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions)。具体配置模型是否支持这些参数、取消是否及时和真实等待时间，必须在实际端点复测；HTTP `AbortSignal` 只取消客户端等待，不能替代队列内的过期校验，也不保证上游已经停止生成。
+当前客户端按 [DashScope 结构化输出文档](https://help.aliyun.com/zh/model-studio/qwen-structured-output) 使用 `response_format: {type: 'json_object'}`，提示中包含 JSON；`enable_thinking` 使用本局冻结开关，默认 `false`；GLM-5.3 根据模型能力固定为 `true`。按[百炼深度思考说明](https://help.aliyun.com/zh/model-studio/deep-thinking)保留非流式请求；开启后仍只把最终 `message.content` 交给闭合选择协议，上游 `reasoning_content` 仅随原始响应留在观察材料，不作为选择或后续决策上下文。默认请求不发送 `max_tokens`，避免思考模型在最终 JSON 前因应用侧额度提前触发 `finish_reason=length`；只有部署显式配置 `AI_BATTLE_MAX_TOKENS` 时才发送该字段。字段与引用仍由本地闭合协议验证。`tradeoff` 是诊断说明：合法选择通过校验后，超长说明只保留前 300 字并在 `MODEL_VALIDATION.tradeoffTruncated` 标记，原始响应仍完整留档；错误说明类型、额外字段、无效引用、重复或越界选择仍拒绝，不因说明过长而替换合法动作。接口结构参考 [Chat Completions 文档](https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions)。具体配置模型是否支持这些参数、取消是否及时和真实等待时间，必须在实际端点复测；HTTP `AbortSignal` 只取消客户端等待，不能替代队列内的过期校验，也不保证上游已经停止生成。
 
 每次模型请求在关闭思考时超时 30 秒，开启时为 120 秒，等待上限随本局配置冻结并记录；可重试服务错误最多原输入再试一次。HTTP 408/429/5xx 与非取消网络故障可重试，鉴权/参数/响应协议错误不盲目重试。空模型输出、非法 JSON、错误引用及上游 `finish_reason=length` 进入输出失败政策。上下文超出支持大小作为适配错误停止，不计为一次模型选择失败。每次发送前的出站复查按同样边界分类：白名单、HTTPS 或私网地址拒绝属于部署策略错误，作为适配错误立即停止；上游主机 DNS 解析失败属于临时基础设施故障，按可重试服务错误处理。计费快照保存失败发生在请求发送前且计数已回滚，同样按可重试服务错误处理，而不是适配错误。连续失败三次停止，第三次不兜底；只有模型选择被权威接受才清零。
 
@@ -80,9 +80,13 @@ LIVE 设置附带不增加模型调用的 [LIVE 成功率基线](live-probabilit
 
 HTTP 动态输入由 `model-input.ts` 按“当前资源摘要 → 决策目的与候选 → 历史 → 完整桌面”组织。首部 `decisionBrief` 的基础资源项从当前合法可见资源生成：回合/阶段、能量、手牌张数与成员印刷费用分布、手中 LIVE 数、舞台成员及本回合登场标记、休息室摘要和成功 LIVE 数；未知印刷费用标为 `UNKNOWN`。费用分布按实际手牌实例统计，不按候选位置数计数，也不从历史或冻结构筑补牌。它不模拟后续效果或改变权威状态，实际支付仍读取候选。
 
+`decisionBrief.competition` 从双方公开成功区张数标出对手下一次成功能否终局、己方第三张是否需要胜过对手；缺少对手公开区域时保持未知，不推断盖牌身份、隐藏手牌或胜率。MAIN 与 LIVE_SET 均提供接下来两个自己回合的常规能量基线。主要阶段提示要求结束前比较完整的回收→登场／补场→目标 LIVE→补心及支付路线，将当前竞争分数与下一轮发展分别核算；效果回收同样连接到这条路线，不只按回收前的基础心筛歌。
+
 LIVE 设置窗口另由现有规则查询生成 `input.liveSet`：本次已盖对象、实际已盖数、受卡效修正后的设置上限，以及“补抽数等于最终盖牌数”的规则。它不从 LIVE 区总张数猜测，也不固定为 3。该窗口使用一次 `CARDS` 多选，候选包含手牌与本次已盖牌，`selection.cardRefs` 表示确认时的最终盖牌完整集合；服务端在同一权威队列内先撤回未保留的已盖牌，再盖下新增选择，最后提交 `CONFIRM_STEP`，因此调整和确认不会拆成多次模型请求。每个底层命令仍独立经过现有规则校验、记录并驱动桌面更新。
 
-`decisionBrief.liveSet` 集中显示这些数据、手牌成员实例与重复数量、舞台当前 HEART 和活跃 BLADE。模型按“表演目标 → 近期保留集合 → 周转 → 确认”核对，每个保留用途须有近期位置、支付或能力依据。摘要另列接下来两个自己回合恢复并常规补能后的预算，以及手牌对各舞台槽位的印刷费用差；这些是未计卡效的基线，不是未来合法登场报价。响应 schema 与提示先列简短 `tradeoff` 预算结论，再列最终集合 `selection`；确认需交代盖牌/补抽数和未使用额度的取舍，不能把剩余额度留到确认补抽后。
+`decisionBrief.liveSet` 集中显示这些数据、手牌成员实例与重复数量、舞台当前 HEART 和活跃 BLADE。模型按“表演目标 → 近期保留集合 → 周转 → 确认”核对，每个保留用途须有近期位置、支付或能力依据。摘要另列接下来两个自己回合恢复并常规补能后的预算，以及手牌对各舞台槽位的印刷费用差；这些是未计卡效的基线，不是未来合法登场报价。最终回复先确定 `selection`，再声明 `liveSetPlan`，最后简写 `tradeoff`：计划中的 `liveCardRefs`、`memberCardRefs` 必须准确划分最终盖牌集合，`baseRequiredHeartTotal` 必须等于所选全部 LIVE 的基础总需求。引用、数量和合计由服务端重新核对，错误进入既有输出失败政策，观测保存通过核对的计划。基础需求不冒充后续卡效修正或真实成功率；正确声明的风险选择及放弃表演周转仍合法。概率查询时计划可填 `null`，最终 CARDS 回复必须填实际计划。确认需交代盖牌/补抽数和未使用额度的取舍，不能把剩余额度留到确认补抽后；自由文本仍是诊断材料，不能授权动作或保证说明与选择一致。
+
+LIVE_SET 非法输出的兜底仅从可识别引用中去重修复：优先舞台基础心已满足的 LIVE，否则保留基础缺口较小的一张；追加 LIVE 前检查全部所选 LIVE 的合并指定色及总心是否由当前舞台满足，再用原回答中可识别的成员填剩余额度。没有可识别引用时对已有盖牌集合按相同原则核对。兜底不假定未知声援或尚未结算能力能补齐，也不新增模型未选过的卡；正常通过校验的模型选择仍按原选择执行。
 
 `live-set-planning.ts` 从本局冻结的己方卡组参考计算单张印刷声援最多提供的 HEART 数，仅统计 HEART 效果，DRAW/SCORE 不增加心数，能量卡不参与主卡组基线。它与当前舞台 HEART、活跃 BLADE 相乘相加，列出单张 LIVE 即使命中印刷声援上限仍缺多少总心。该值明确标为条件基线：没有计算玩家额外 HEART、声援修正、后续卡效、多 LIVE 合计和指定色概率；最终可达性保持未确定，不过滤合法动作，也不把正缺口直接当成完整卡效结算后的必败判定。原始对象、候选引用及有效数值完整保留，展开输入仍可与采样核对。
 
@@ -106,6 +110,8 @@ MAIN 的普通登场选项按同一张手牌实例归入 `space.memberPlays`，�
 
 单局按序异步写入，开始驱动前确认 HEADER 与 SOURCES 已持久化，正常结束等待已入队事件写完。数据库写入或序列化失败、待写内存达到 16 MiB 时停止该局归档，不阻断已开始的权威对局；导出只提供已写入前缀，首行 `EXPORT.completeThroughEnd` 为 `false`。服务进程异常退出可能失去尚未写入的队列，故缺少最后的 `END` 不能视为完整归档。导出在固定最后序号处分批读取，避免将整局材料载入服务端内存。普通回放的清理策略不清理该表；只有删除 `match_records` 根记录才级联删除归档。
 
+运行时的 `APPEND/stage=END` 表示单席结束；采集日志顶层 `END` 由驱动／会话负责人在全部席位结束事件、模型请求及清理产生的迟到记录收齐后写入。双 AI 共用日志不能由第一席提前封存。CLI 自对弈由实验负责人追加最终玩家投影和实验结果后封存。旧日志不补写或改造，不把已发现的历史 END 后追加伪装为完整材料。
+
 所有当前平台管理员可在观察框导出数据库 JSONL，也可在对局记录详情导出历史 AI 决定材料；后者不依赖内存会话、原始创建者或服务器重启。此 JSONL 是诊断事件，不用于恢复权威对局或代替回放。每行包含顺序号和不透明 `entry`，首行包含对局 ID、固定导出上界和完整性标志。旧格式无需运行时 dual-read；本次迁移前的 AI 对局仍只有当时已存的回放、费用和可选本地归档。
 
 ## 可选的本地完整归档
@@ -122,12 +128,14 @@ MAIN 的普通登场选项按同一张手牌实例归入 `space.memberPlays`，�
 
 ## 当前路由工厂
 
-`createAiBattleRouter(service)` 挂在 `/api/admin/ai-battle`，整个路由树经过私密不缓存、登录与当前数据库 `rules.manage` 校验。所有当前平台管理员可列出会话、查看有界观察材料、导出当前缓存、数据库归档或本机已开启的完整归档，并读取持久费用；真人桌面快照、命令与结束操作仍检查创建者归属。通用 online 对局及管理员调试导出入口对 AI_DEBUG 继续检查真人归属；AI_DEBUG 不生成管理员或房间号观战链接。对局记录页提供持久回放、费用和数据库决定归档。内存观察仍在结束一小时或重启后失效，数据库归档不受此限制。
+`createAiBattleRouter(service)` 挂在 `/api/admin/ai-battle`，整个路由树经过私密不缓存、登录与当前数据库 `rules.manage` 校验。所有当前平台管理员可列出会话、查看有界观察材料、导出当前缓存、数据库归档或本机已开启的完整归档，并读取持久费用；真人桌面快照、命令与结束操作仍检查创建者归属。双 AI 会话没有真人参与者，真人快照、公开事件、命令及阶段推进入口拒绝访问；只有 AI 管理路由可为两席 SYSTEM 的 AI_DEBUG 会话生成允许切换双方视角的只读观战链接。链接使用既有观战令牌授权，不计入玩家 presence。通用 online 对局及管理员调试导出入口对 AI_DEBUG 继续检查真人归属；通用管理员／房间号入口仍不生成 AI_DEBUG 观战链接。对局记录页提供持久回放、费用和数据库决定归档。内存观察仍在结束一小时或重启后失效，数据库归档不受此限制。
 
 | 相对路径                                              | 用途                                         |
 | ----------------------------------------------------- | -------------------------------------------- |
 | `GET /presets`、`GET /sessions`                       | 允许的构筑/手册及管理员共享的保留会话        |
 | `POST /sessions`                                      | 按构筑 ID、手册 ID、真人先后手和模型创建     |
+| `POST /self-play-sessions`                            | 按双方构筑／手册及共用模型创建双 AI 会话，返回观战链接 |
+| `POST /sessions/:matchId/spectator-link`              | 管理员为保留的双 AI 会话生成只读观战链接               |
 | `GET /sessions/:matchId`                              | 会话状态和本局计费累计                       |
 | `GET /records/:matchId/billing`                       | 管理员可读的 AI 对局持久费用，不依赖内存会话 |
 | `GET /records/:matchId/evidence`                      | 管理员可读的 AI 决定数据库 JSONL 归档        |
@@ -143,6 +151,8 @@ MAIN 的普通登场选项按同一张手牌实例归入 `space.memberPlays`，�
 
 平台管理员从首页“运营工具 → AI 对战”直达；运营管理中心的“AI 对战调试”入口仍可使用，也可打开 `/?page=ai-battle-admin`。选择目录提供的真人构筑、AI 构筑、对应手册、模型与真人先后手后创建。可选构筑由精选目录提供。已有活动对局时，可继续或结束该局；返回列表、离开页面或关闭观察框不会结束服务端对局。
 
+选择 `AI vs AI` 后分别设置先手／后手 AI 构筑及手册，双方共用所选模型与思考配置。创建后在新窗口进入既有 `/online/spectate/:token` 玩家视角观战页，可切换先攻／后攻；每个投影只含当前视角可见信息，牌桌不可操作。弹窗被拦截时提供手动入口；会话列表“进入观战”只生成链接，不再建局。原管理页轮询活动会话状态及双方合计费用，继续提供观察／导出和创建者的结束操作；结束后取消双方任务并撤销该局观战链接。网页和 CLI 预算边界见[自对弈说明](self-play.md)。
+
 牌桌继续复用 `GameBoard / PlayerArea`，通过 `AI_DEBUG` 远程传输接入正常真人命令与快照同步。能力配置禁止自由模式、切换视角、撤销和重开；外层工具栏显示等待、请求中、停止或结束状态。结束失败会保留牌桌与重试入口，成功后返回列表并允许新建。
 
 判定区可切换查看先攻／后攻的公开判定信息，使用当前真人投影，不切换到 AI 私有视角或获得代操作权限。AI 工具栏不得覆盖共享牌桌弹层的切换和关闭按钮。
@@ -154,6 +164,8 @@ MAIN 的普通登场选项按同一张手牌实例归入 `space.memberPlays`，�
 模型选择、提交来源及权威执行结果分开显示；只有 `AUTHORITY_RESULT.success` 为真才显示执行成功。真实请求按原消息顺序展开 role/content，采集元数据仍保留来源映射；原始响应单独显示。材料支持查找、折叠、复制保留正文、导出本决定和保留会话。折叠不裁剪内容；采集层裁剪/缺失仍明确标示。内容仅作为文本渲染。
 
 浏览器夹具 `client/tests/e2e/ai-battle-ui.spec.ts` 覆盖宽屏／窄屏、日夜主题、键盘、观察导出、恢复和结束失败重试。完整数据库、HTTP、真实模型及截图的验证边界与复现步骤统一见[完整环境验证](full-environment-validation.md)。
+
+`client/tests/e2e/ai-battle-self-play-ui.spec.ts` 使用本机公开 `/api/cards` 的冻结快照（通过 `LOVECA_AI_UI_CARDS` 指定）、真实规则／驱动和假模型验证双 AI 自动建局、双方视角切换、观察、结束与窄屏布局，以及弹窗拦截和建局失败，不消耗真实模型额度。权限、只读投影、双方共享计费和清理由 `tests/integration/ai-battle-admin-route.test.ts` 覆盖。
 
 ## 模型调用计费
 

@@ -1,7 +1,7 @@
 import type { AiCandidate, AiDecisionInput } from './protocol.js';
 import { CardType } from '../../shared/types/enums.js';
 import type { AiKnowledgeMaterial } from './presets.js';
-import { summarizeAiLiveSetPlanning } from './live-set-planning.js';
+import { summarizeAiLiveSetPlanning, summarizeAiNextMainBaseline } from './live-set-planning.js';
 
 const TEXT_KEYS = new Set(['cardText', 'cardTextCn', 'cardTextJp', 'effectText', 'text']);
 
@@ -14,6 +14,11 @@ function decisionBrief(input: AiDecisionInput, ownDeck?: AiKnowledgeMaterial) {
     const cost = card.printedCost ?? 'UNKNOWN';
     handMemberPrintedCosts[cost] = (handMemberPrintedCosts[cost] ?? 0) + 1;
   }
+  const opponentSuccess =
+    Object.values(input.state.table.zones).find(
+      (zone) =>
+        zone.ownerSeat && zone.ownerSeat !== input.state.selfSeat && zone.zone === 'SUCCESS_ZONE'
+    )?.count ?? null;
   return {
     basis: 'CURRENT_VISIBLE_RESOURCES',
     turn: input.state.turn,
@@ -24,6 +29,16 @@ function decisionBrief(input: AiDecisionInput, ownDeck?: AiKnowledgeMaterial) {
     handCardCount: resources.handCards.length,
     handMemberPrintedCosts,
     handLiveCount: resources.handLiveCount,
+    competition: {
+      ownSuccessfulLiveCount: resources.successfulLiveCount,
+      opponentSuccessfulLiveCount: opponentSuccess,
+      opponentCanFinishWithNextSuccess: opponentSuccess === null ? null : opponentSuccess >= 2,
+      ownNeedsOutrightWinForThirdSuccess: resources.successfulLiveCount >= 2,
+      scope: 'PUBLIC_PROGRESS_NOT_OPPONENT_HIDDEN_LIVE_OR_WIN_PROBABILITY',
+    },
+    ...(input.purpose === 'MAIN'
+      ? { nextOwnMainBaseline: summarizeAiNextMainBaseline(input) }
+      : {}),
     ...(input.purpose === 'LIVE_SET'
       ? { liveSet: summarizeAiLiveSetPlanning(input, ownDeck) }
       : {}),

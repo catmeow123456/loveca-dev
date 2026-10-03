@@ -19,11 +19,16 @@ const query = (scenarios = [scenario()]): AiModelOutcome => ({
   text: JSON.stringify({
     selection: { kind: 'LIVE_PROBABILITY_QUERY', scenarios },
     tradeoff: '比较条件',
+    liveSetPlan: null,
   }),
 });
 const answer: AiModelOutcome = {
   kind: 'RESPONSE',
-  text: JSON.stringify({ selection: { kind: 'CARDS', cardRefs: ['c1'] }, tradeoff: '最终选择' }),
+  text: JSON.stringify({
+    selection: { kind: 'CARDS', cardRefs: ['c1'] },
+    tradeoff: '最终选择',
+    liveSetPlan: { liveCardRefs: ['c1'], memberCardRefs: [], baseRequiredHeartTotal: 2 },
+  }),
 };
 function fixture() {
   const { input, ownDeck } = createProbabilityFixture();
@@ -61,6 +66,9 @@ describe('bounded read-only LIVE probability query', () => {
       )
       .mockResolvedValueOnce(answer);
     expect(await f.run()).toEqual(answer);
+    expect(parseAiBattleResponse({ input: f.input }, answer.text)).toMatchObject({
+      selection: { kind: 'CARDS', cardRefs: ['c1'] },
+    });
     expect(f.request).toHaveBeenCalledTimes(2);
     const result = JSON.parse(f.request.mock.calls[1]![0]!.resultText) as {
       assumptionsVerified: boolean;

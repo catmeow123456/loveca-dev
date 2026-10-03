@@ -16,6 +16,7 @@ import type { AiBattleTraceObserver } from './trace-store.js';
 import type { PlayerViewState } from '../../online/types.js';
 import { AiDecisionContext, type AiPublicObservation } from './decision-context.js';
 import { GamePhase, SubPhase } from '../../shared/types/enums.js';
+import { createAiLiveSetPlan } from './live-set-budget.js';
 
 export const AI_MODEL_TIMEOUT_MS = 30_000;
 export const AI_THINKING_MODEL_TIMEOUT_MS = 120_000;
@@ -82,7 +83,8 @@ export class AiBattleRuntime {
   constructor(
     readonly seat: Seat,
     readonly wake: () => void,
-    private readonly observer?: AiBattleTraceObserver
+    private readonly observer?: AiBattleTraceObserver,
+    private readonly idPrefix = ''
   ) {
     this.context = new AiDecisionContext(seat);
   }
@@ -152,7 +154,7 @@ export class AiBattleRuntime {
       stoppedReason: this.stoppedReason,
     });
     this.invalidate('ENDED');
-    this.capture(() => this.observer?.end());
+    // The driver seals collection after both runtimes and all in-flight requests drain.
   }
 
   observe(
@@ -177,7 +179,7 @@ export class AiBattleRuntime {
           },
         },
       };
-    const id = String(++this.sequence);
+    const id = `${this.idPrefix}${++this.sequence}`;
     this.observationId = id;
     this.capture(() =>
       this.observer?.begin({
@@ -267,9 +269,18 @@ export class AiBattleRuntime {
     if (outcome.kind === 'RESPONSE') {
       try {
         if (outcome.truncated) throw new Error('Upstream output truncated');
-        const { selection, tradeoff } = parseAiBattleResponse(task.decision, outcome.text);
+        const { selection, tradeoff, tradeoffTruncated, liveSetPlan } = parseAiBattleResponse(
+          task.decision,
+          outcome.text
+        );
         task.prepared = { source: 'MODEL', selection, ...(tradeoff ? { tradeoff } : {}) };
-        this.record('MODEL_VALIDATION', { selection, tradeoff, validation: 'VALID' });
+        this.record('MODEL_VALIDATION', {
+          selection,
+          tradeoff,
+          ...(liveSetPlan ? { liveSetPlan } : {}),
+          ...(tradeoffTruncated ? { tradeoffTruncated } : {}),
+          validation: 'VALID',
+        });
         return null;
       } catch (error) {
         failure = `MODEL_SELECTION: ${errorMessage(error)}`;
@@ -297,6 +308,9 @@ export class AiBattleRuntime {
         validation: 'VALID',
         reason: failure,
         policy: 'getAiFallbackSelection',
+        ...(task.decision.input.purpose === 'LIVE_SET'
+          ? { liveSetPlan: createAiLiveSetPlan(task.decision.input, selection) }
+          : {}),
         ...(attemptedSelection ? { attemptedModelSelection: attemptedSelection } : {}),
       });
       return null;

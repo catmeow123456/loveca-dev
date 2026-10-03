@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { aiTestResponse } from '../helpers/ai-battle-test-policy';
 import { GameCommandType, createSurrenderCommand } from '../../src/application/game-commands';
 import type { Seat } from '../../src/online/types';
 import type { RandomIntegerSource } from '../../src/shared/random-source';
@@ -466,11 +467,10 @@ describe('AI match authority queue and lifecycle', () => {
     const handCount = f.match.session.state!.players[0].hand.cardIds.length;
     const deckCount = f.match.session.state!.players[0].mainDeck.cardIds.length;
 
-    const held = await f.service.completeAiBattleTask(
-      f.match.matchId,
-      task,
-      response({ kind: 'CARDS', cardRefs: selectedRefs })
-    );
+    const held = await f.service.completeAiBattleTask(f.match.matchId, task, {
+      kind: 'RESPONSE',
+      text: aiTestResponse(task.input, { kind: 'CARDS', cardRefs: selectedRefs }),
+    });
     expect(held).toMatchObject({ kind: 'WAIT', reason: 'PHASE_COMPLETION' });
     if (held.kind !== 'WAIT') throw new Error(JSON.stringify(held));
     f.setNow(held.deadlineAt);

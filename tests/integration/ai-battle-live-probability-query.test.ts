@@ -17,6 +17,7 @@ import {
   createAiModelConfig,
 } from '../../src/server/ai-battle/model-client';
 import { parseAiBattleResponse } from '../../src/server/ai-battle/protocol';
+import { createAiLiveSetPlan } from '../../src/server/ai-battle/live-set-budget';
 
 const context = { matchId: 'm', taskId: 'd', revision: 1, windowKey: 'LIVE_SET', attempt: 0 };
 const query = JSON.stringify({
@@ -37,6 +38,7 @@ const query = JSON.stringify({
 const answer = JSON.stringify({
   tradeoff: '最终选择',
   selection: { kind: 'CARDS', cardRefs: ['c1'] },
+  liveSetPlan: { liveCardRefs: ['c1'], memberCardRefs: [], baseRequiredHeartTotal: 2 },
 });
 const usage = parseCodexUsage({ input_tokens: 100, cached_input_tokens: 75, output_tokens: 5 })!;
 const localEnv = {
@@ -108,7 +110,7 @@ describe('probability query through model transports', () => {
       expect(outcome).toEqual({ kind: 'RESPONSE', text: answer });
       expect(execute).toHaveBeenCalledTimes(2);
       const [first, second] = execute.mock.calls;
-      expect(first![3]).toEqual(second![3]); // Stable output schema, including across the query boundary.
+      expect(first![3]).not.toEqual(second![3]); // Continuation allows only a final selection.
       expect(first![2]).toContain('readOnlyQuery');
       expect(second![2]).toContain('"assumptionsVerified":false');
       expect(second![2]).toContain('"successProbability":1');
@@ -262,6 +264,33 @@ describe('probability query through model transports', () => {
     expect(evidence(f.traces, 'REQUEST').map((r) => r.queryRound)).toEqual([0, 1]);
   });
 
+  it('checks the shared experiment budget again before the billed query continuation', async () => {
+    const f = await fixture('qwen3.8-max');
+    const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(response(query));
+    const admit = vi
+      .fn<(body: string) => string | null>()
+      .mockReturnValueOnce(null)
+      .mockReturnValueOnce('EXPERIMENT_REQUEST_LIMIT');
+    const client = new DashScopeAiBattleClient(
+      apiConfig(),
+      f.knowledge,
+      f.traces,
+      fetcher,
+      Date.now,
+      f.billing,
+      undefined,
+      admit
+    );
+    expect(await client.decide(f.input, new AbortController().signal, context)).toMatchObject({
+      kind: 'ADAPTER_ERROR',
+      message: 'EXPERIMENT_REQUEST_LIMIT',
+    });
+    expect(admit).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(f.billing.view()).toMatchObject({ attempts: 1, reportedAttempts: 1 });
+    expect(evidence(f.traces, 'BUDGET_STOP')).toHaveLength(1);
+  });
+
   it('API continuation failure cannot trigger a fresh query batch via retry', async () => {
     const f = await fixture('qwen3.8-max');
     const fetcher = vi
@@ -295,6 +324,7 @@ describe('probability query through model transports', () => {
     first.selection.scenarios[0]!.cardRefs = [ref];
     const final = JSON.stringify({
       selection: { kind: 'CARDS', cardRefs: [ref] },
+      liveSetPlan: createAiLiveSetPlan(current.input, { kind: 'CARDS', cardRefs: [ref] }),
       tradeoff: '最终选择',
     });
     const execute = vi.fn<typeof executeCodexDecision>().mockImplementation(() => {

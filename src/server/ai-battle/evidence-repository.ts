@@ -40,7 +40,7 @@ export class PostgresAiEvidenceRepository implements AiEvidenceRepository {
     const { pool } = await import('../db/pool.js');
     const result = await pool.query<AiEvidenceEntry>(
       `SELECT id::text AS id, entry FROM ai_battle_evidence_entries
-       WHERE match_id = $1 ORDER BY id DESC LIMIT 1`,
+       WHERE match_id = $1 ORDER BY ai_battle_evidence_entries.id DESC LIMIT 1`,
       [matchId]
     );
     return result.rows[0] ?? null;
@@ -54,7 +54,7 @@ export class PostgresAiEvidenceRepository implements AiEvidenceRepository {
     const { pool } = await import('../db/pool.js');
     const result = await pool.query<AiEvidenceEntry>(
       `SELECT id::text AS id, entry FROM ai_battle_evidence_entries
-       WHERE match_id = $1 AND id > $2 ORDER BY id LIMIT $3`,
+       WHERE match_id = $1 AND id > $2 ORDER BY ai_battle_evidence_entries.id LIMIT $3`,
       [matchId, afterId, limit]
     );
     return result.rows;

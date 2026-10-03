@@ -9,6 +9,8 @@ import type {
   AiBattleSessionView,
   CreateAiBattleInput,
   CreateAiBattleResult,
+  CreateAiSelfPlayInput,
+  CreateAiSelfPlayResult,
 } from '@game/online/ai-battle-types';
 import type { AiTraceExport, AiTraceListing } from '@game/online/ai-battle-observation-types';
 import type { AiRecordedBillingResponse } from '@game/online/ai-battle-billing-types';
@@ -45,6 +47,14 @@ export async function exportAiRecordedEvidence(id: string): Promise<Blob> {
 }
 export const createAiBattle = (input: CreateAiBattleInput) =>
   data(apiClient.post<CreateAiBattleResult>(`${ROOT}/sessions`, input));
+export const createAiSelfPlay = (input: CreateAiSelfPlayInput) =>
+  data(apiClient.post<CreateAiSelfPlayResult>(`${ROOT}/self-play-sessions`, input));
+export const createAiSelfPlaySpectatorLink = (id: string) =>
+  data(
+    apiClient.post<import('@game/online').OnlineSpectatorLinkView>(
+      `${sessionPath(id)}/spectator-link`
+    )
+  );
 export const fetchAiBattleSession = (id: string) =>
   data(apiClient.get<AiBattleSessionView>(sessionPath(id)));
 export const endAiBattle = (id: string) =>

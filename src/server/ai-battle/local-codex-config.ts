@@ -1,3 +1,5 @@
+import { isLoopbackHost, readLocalAiEnvironment } from './local-ai-environment.js';
+export { isLoopbackHost, readLocalAiEnvironment } from './local-ai-environment.js';
 import {
   CODEX_AI_REASONING_EFFORTS,
   type CodexAiReasoningEffort,
@@ -14,10 +16,6 @@ export interface LocalCodexConfig {
   readonly reasoningEffort: CodexAiReasoningEffort;
   readonly fastMode?: boolean;
   readonly frontendOrigin: string;
-}
-
-export function isLoopbackHost(host: string): boolean {
-  return ['127.0.0.1', '::1', '[::1]', 'localhost'].includes(host);
 }
 
 /** Explicit deployment opt-in, not a guess based on a URL or NODE_ENV alone. */
@@ -65,33 +63,6 @@ export function readLocalCodexConfig(
     reasoningEffort: effort as CodexAiReasoningEffort,
     frontendOrigin,
   });
-}
-
-/** Shared deployment boundary for opt-in local diagnostics, independent of model provider. */
-export function readLocalAiEnvironment(env: NodeJS.ProcessEnv, fail: () => Error): string {
-  if (env.NODE_ENV !== 'development' || !['127.0.0.1', '::1'].includes(env.API_HOST ?? ''))
-    throw fail();
-  let database: URL;
-  let frontend: URL;
-  try {
-    database = new URL(env.DATABASE_URL ?? '');
-    frontend = new URL(env.FRONTEND_URL ?? '');
-  } catch {
-    throw fail();
-  }
-  if (
-    !['postgres:', 'postgresql:'].includes(database.protocol) ||
-    !isLoopbackHost(database.hostname) ||
-    !isLoopbackHost(frontend.hostname) ||
-    frontend.protocol !== 'http:' ||
-    frontend.username ||
-    frontend.password ||
-    frontend.search ||
-    frontend.hash ||
-    frontend.pathname !== '/'
-  )
-    throw fail();
-  return frontend.origin;
 }
 
 /** Raw socket addresses are authoritative; never trust req.ip / X-Forwarded-For alone. */

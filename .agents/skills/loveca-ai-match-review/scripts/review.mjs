@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
+import { parseEvidence } from './archive.mjs';
 
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value ?? {}, key);
 const seats = ['FIRST', 'SECOND'];
@@ -62,6 +63,21 @@ export function differences(a, b, path = '$', out = []) {
 }
 
 function requestInput(request) {
+  if (request.provider === 'LOCAL_CODEX' && typeof request.prompt === 'string') {
+    // Codex joins message contents and appends a separate current-window summary.
+    // The dynamic state/space is its own JSON line, including on reused threads.
+    for (const line of request.prompt.split(/\r?\n/).reverse()) {
+      let wire;
+      try { wire = JSON.parse(line); } catch { continue; }
+      if (!wire?.state || !wire?.space) continue;
+      return { input: expandInput(wire), messageIndex: null, model: request.model,
+        messages: [{ index: 0, role: 'prompt', chars: request.prompt.length }],
+        transport: 'LOCAL_CODEX_PROMPT', includesStaticKnowledge: request.includesStaticKnowledge,
+        generation: request.generation, sessionTurn: request.sessionTurn,
+        inputEncoding: null, assembly: null };
+    }
+    throw new Error('No dynamic state/space JSON in Codex REQUEST prompt');
+  }
   const body = typeof request.body === 'string' ? JSON.parse(request.body) : request.body;
   if (!Array.isArray(body?.messages)) throw new Error('Missing REQUEST.body.messages');
   for (let i = body.messages.length - 1; i >= 0; i--) {
@@ -283,6 +299,9 @@ export function createReview(data) {
       events: d.events.map((e) => ({ ...e, status: materials.get(e.materialId)?.status ?? 'MISSING' })),
       sourceMaterialIds: d.sourceMaterialIds,
       outcome: { submit: last(d, 'SUBMIT'), authority: last(d, 'AUTHORITY_RESULT'),
+        modelEvents: d.events.filter((e) => ['RESPONSE', 'MODEL_OUTCOME', 'MODEL_VALIDATION', 'MODEL_FAILURE'].includes(e.stage))
+          .map((e) => ({ stage: e.stage, materialId: e.materialId, timestamp: e.timestamp,
+            status: materials.get(e.materialId)?.status ?? 'MISSING', payload: read(e.materialId) })),
         diagnosticEvents: d.events.filter((e) => ['STOP', 'MODEL_FAILURE', 'MODEL_OUTCOME', 'INVALIDATED'].includes(e.stage))
           .map((e) => ({ stage: e.stage, materialId: e.materialId, payload: read(e.materialId) })) } };
   };
@@ -506,12 +525,12 @@ export function decisionBriefText(review, d) {
   const candidates = d.sampleInput?.space?.candidates ?? [];
   lines.push(`\n合法候选×${candidates.length}${d.sampleInput?.space?.kind ? `（${d.sampleInput.space.kind}）` : ''}：`,
     ...(candidates.length ? candidates.map(candidateBrief) : ['（无候选）']));
-  lines.push(`\n模型输出：来源=${d.source ?? '无'}；命令=${d.command ?? '未提交'}；选择=${d.selected.map((c) => c.ref).join(',') || '无'}`);
+  lines.push(`\n提交选择：来源=${d.source ?? '无'}；命令=${d.command ?? '未提交'}；选择=${d.selected.map((c) => c.ref).join(',') || '无'}`);
   if (d.tradeoff) lines.push(`自述（非事实）：${d.tradeoff}`);
   lines.push(`权威结果：成功=${show(d.success)}${d.error ? `；错误=${JSON.stringify(d.error)}` : ''}${d.commandRecords?.length ? `；commandRecords×${d.commandRecords.length}` : ''}（非完整卡效结算保证）`);
   if (d.flags.length) lines.push(`待核查：${d.flags.join('；')}`);
   lines.push(`证据：${JSON.stringify(d.evidence)}`,
-    `\n下钻：--decision ${d.id}（完整候选与核对）；--decision ${d.id} --input request --field state.selfResources|space|context；--decision ${d.id} --input submit（模型输出原始载荷）；--decision ${d.id} --input authority（权威结果原始载荷）`);
+    `\n下钻：--decision ${d.id}（完整候选与核对）；--decision ${d.id} --input request --field state.selfResources|space|context；--decision ${d.id} --input model（原始响应与校验事件）；--decision ${d.id} --input submit（实际提交载荷）；--decision ${d.id} --input authority（权威结果原始载荷）`);
   return lines.join('\n');
 }
 
@@ -590,13 +609,14 @@ export function boundOutput(result, max, asJson = false) {
 }
 
 export function cli(args) {
-  if (!args.length || args.includes('--help')) return `Usage: node review.mjs LOG.json [--turn N | --timeline | --phases | --phase NAME | --decision ID [--brief] | --sources | --material ID | --card CODE]
-  [--input request|sample|submit|authority --field dotted.path] [--json] [--max-chars 18000]
+  if (!args.length || args.includes('--help')) return `Usage: node review.mjs LOG.json|LOG.jsonl [--turn N | --timeline | --phases | --phase NAME | --decision ID [--brief] | --sources | --material ID | --card CODE]
+  [--input request|sample|model|submit|authority --field dotted.path] [--json] [--max-chars 18000]
 Read-only local evidence. Default: coverage, both-side round evolution, hand costs, decision index.
 --phases: per-phase entry→exit state diff + AI action recap; --phase NAME filters by phase substring
   (e.g. MAIN, LIVE_SET); both combine with --turn N. --timeline keeps the full per-sample timeline.
 --decision includes full legal candidates and SAMPLE/REQUEST comparison; --brief renders a compact
-  context+output dossier instead; --input selects a decoded payload (submit = model output wrapper).
+  context+output dossier instead; --input model lists raw response/validation/failure events in order;
+  --input submit selects the actual submitted command and selection, including fallback.
 --material + --field can inspect nested REQUEST body.messages.0.content. No network or game actions.`;
   const file = args[0];
   const opts = {};
@@ -616,15 +636,16 @@ Read-only local evidence. Default: coverage, both-side round evolution, hand cos
   if (!Number.isInteger(max) || max < 1000) throw new Error('--max-chars must be an integer >= 1000');
   if (opts.turn && (!Number.isInteger(Number(opts.turn)) || Number(opts.turn) < 1)) throw new Error('Invalid turn');
   if (opts.brief && !opts.decision) throw new Error('--brief requires --decision');
-  if (opts.input && (!opts.decision || !['sample', 'request', 'submit', 'authority'].includes(opts.input)))
-    throw new Error('--input requires --decision and request|sample|submit|authority');
+  if (opts.input && (!opts.decision || !['sample', 'request', 'model', 'submit', 'authority'].includes(opts.input)))
+    throw new Error('--input requires --decision and request|sample|model|submit|authority');
   if (opts.brief && opts.input) throw new Error('--brief cannot combine with --input');
-  const review = createReview(JSON.parse(readFileSync(file, 'utf8')));
+  const review = createReview(parseEvidence(readFileSync(file, 'utf8')));
   let value, text;
   if (opts.decision) {
     const d = review.detail(opts.decision);
     if (opts.input) {
       value = opts.input === 'sample' ? d.sampleInput
+        : opts.input === 'model' ? d.outcome.modelEvents
         : opts.input === 'submit' ? d.outcome.submit
         : opts.input === 'authority' ? d.outcome.authority
         : d.requests.at(-1)?.input;

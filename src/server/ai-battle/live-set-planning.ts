@@ -23,12 +23,6 @@ const deckReference = z.object({
 export function summarizeAiLiveSetPlanning(input: AiDecisionInput, ownDeck?: AiKnowledgeMaterial) {
   if (input.purpose !== 'LIVE_SET') return undefined;
   const resources = input.state.selfResources;
-  const ownZones = Object.values(input.state.table.zones).filter(
-    (zone) => zone.ownerSeat === input.state.selfSeat
-  );
-  const energyCount = ownZones.find((zone) => zone.zone === 'ENERGY_ZONE')?.count ?? 0;
-  const energyDeckCount = ownZones.find((zone) => zone.zone === 'ENERGY_DECK')?.count ?? 0;
-  const nextRegularEnergyCount = energyCount + (energyDeckCount > 0 ? 1 : 0);
   const handMembers = new Map<
     string,
     {
@@ -93,17 +87,7 @@ export function summarizeAiLiveSetPlanning(input: AiDecisionInput, ownDeck?: AiK
           .map((card) => card.cardRef);
   return {
     ...input.liveSet,
-    nextOwnMainBaseline: {
-      basis: 'REGULAR_REFRESH_AND_ONE_ENERGY_WITHOUT_EFFECTS',
-      energyCount,
-      nextRegularEnergyCount,
-      followingRegularEnergyCount: energyCount + Math.min(2, energyDeckCount),
-      emptyStageSlots: Object.values(SlotPosition).filter(
-        (slot) => !resources.stageMembers.some((member) => member.slot === slot)
-      ),
-      exclusions:
-        '列出下个及再下个自己的主要阶段常规能量预算，每轮恢复并从能量卡组增加至多1张；不含卡效增减。成员支付仅为印刷费用差，未计费用修正、其他支付和未来合法性。',
-    },
+    nextOwnMainBaseline: summarizeAiNextMainBaseline(input),
     handMembers: [...handMembers.values()].map((group) => ({
       ...group,
       count: group.objectIds.length,
@@ -140,5 +124,25 @@ export function summarizeAiLiveSetPlanning(input: AiDecisionInput, ownDeck?: AiK
       printedBaselineShortfallLiveRefs,
       rule: '最终 LIVE 区全部 LIVE 的修正需求合并为一次判定：合计不满足时整轮全部失败得 0 分，不保留其中本可唱成 LIVE 的分数。printedBaselineShortfallLiveRefs 列出的 LIVE 在印刷声援上限口径下（不含可支付补心卡效与玩家额外 HEART）仅自身合计需求即有缺口，不能据此判定必败；应继续核对可执行的补心、增声援或需求修正及支付。无法证明可补足时，不把该 LIVE 算作确定得分。多余盖牌额度可用成员卡周转或留空。',
     },
+  };
+}
+
+/** MAIN/LIVE_SET only: the current own-main energy has already been placed by rule processing. */
+export function summarizeAiNextMainBaseline(input: AiDecisionInput) {
+  const ownZones = Object.values(input.state.table.zones).filter(
+    (zone) => zone.ownerSeat === input.state.selfSeat
+  );
+  const energyCount = ownZones.find((zone) => zone.zone === 'ENERGY_ZONE')?.count ?? 0;
+  const energyDeckCount = ownZones.find((zone) => zone.zone === 'ENERGY_DECK')?.count ?? 0;
+  return {
+    basis: 'REGULAR_REFRESH_AND_ONE_ENERGY_WITHOUT_EFFECTS',
+    energyCount,
+    nextRegularEnergyCount: energyCount + Math.min(1, energyDeckCount),
+    followingRegularEnergyCount: energyCount + Math.min(2, energyDeckCount),
+    emptyStageSlots: Object.values(SlotPosition).filter(
+      (slot) => !input.state.selfResources.stageMembers.some((member) => member.slot === slot)
+    ),
+    exclusions:
+      '列出下个及再下个自己的主要阶段常规能量预算，每轮恢复并从能量卡组增加至多1张；不含卡效增减。成员支付仅为印刷费用差，未计费用修正、其他支付和未来合法性。',
   };
 }

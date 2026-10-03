@@ -32,7 +32,7 @@ AI_BATTLE_CODEX_THREAD_ROTATION=1
 # 推荐长局测试预算；每项独立可调，未配置的项不参与限制
 AI_BATTLE_CODEX_MAX_CALLS=120
 AI_BATTLE_CODEX_MAX_INPUT_TOKENS=18000000
-AI_BATTLE_CODEX_MAX_UNCACHED_INPUT_TOKENS=3000000
+AI_BATTLE_CODEX_MAX_UNCACHED_INPUT_TOKENS=5000000
 AI_BATTLE_CODEX_MAX_OUTPUT_TOKENS=100000
 
 # 可选：只提供归档复选框，建局时默认不选
@@ -61,11 +61,13 @@ AI_BATTLE_ARCHIVE_DIR=/absolute/path/outside/repository/loveca-ai-archives
 - `transport: EPHEMERAL_APP_SERVER_EXPERIMENT`
 - `staticKnowledge: FIRST_TURN_OF_EACH_GENERATION`
 - `threadRotation: true`、`reasoningEffort: medium`
-- `budget` 四项为本机所选值；使用推荐配置时为 120、18000000、3000000、100000。
+- `budget` 四项为本机所选值；使用推荐配置时为 120、18000000、5000000、100000。
 
 只看到 `EPHEMERAL_EXEC` 表示未启用续接。未设置本地总开关时不显示 Codex；只开总开关仍默认独立 exec，不等于推荐配置。先做配置、版本、登录和本地连通检查；真实建局前由本机用户确认消耗其订阅额度及测试范围，不将他人历史授权当成本机授权。短测确认正常后由用户继续长局，无需另行调用合成模型实验。
 
 用量显示为“ChatGPT 订阅”及输入/缓存/输出 token，不折算为人民币、套餐百分比或账户剩余额度。同一线程的后续窗口可命中缓存；首轮、换线程首轮可为零，续轮也不保证每次命中。UI 决定记录含等待/机械推进，不等于模型调用次数。机械动作与批量 LIVE 设置沿用作者实现。
+
+Codex 的结构化输出 schema 随当前窗口更新，只允许实际选择类型、候选引用和本次选牌上限；schema 更新不重开线程。LIVE_SET 最终回复另需准确声明歌曲／成员引用与全部歌曲基础需求合计；第一次请求可查询概率，查询续轮只允许最终选择。合法性及计划核对仍由服务端完成，细节见[运行与观测说明](runtime-and-observation.md)。
 
 ## 用量、隔离与停止行为
 

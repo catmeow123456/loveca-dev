@@ -12,7 +12,7 @@ import { GameEndReason } from '../../src/shared/types/enums';
 import { getBaseCardCode } from '../../src/shared/utils/card-code';
 import { DecisionTapeRandomSource } from '../../src/shared/random-source';
 import { readFrozenGreenHasunosoraDeck, readFrozenMuseDeck } from '../helpers/ai-curated-decks';
-import { chooseAiTestSelection } from '../helpers/ai-battle-test-policy';
+import { aiTestResponse, chooseAiTestSelection } from '../helpers/ai-battle-test-policy';
 
 const abilityCounts = [1, 1, 0, 1, 1, 1, 2, 2, 1, 2, 1, 2, 1, 1, 2, 1, 1, 1, 1];
 
@@ -94,7 +94,7 @@ describe('frozen green Hasunosora AI support', () => {
         if (session.state!.activeEffect) effectSteps.add(session.state!.activeEffect.stepId);
         const selection =
           getAiMechanicalSelection(decision) ?? chooseAiTestSelection(decision.input);
-        const parsed = parseAiBattleResponse(decision, JSON.stringify({ selection }));
+        const parsed = parseAiBattleResponse(decision, aiTestResponse(decision.input, selection));
         for (const command of materializeAiDecisionCommands(decision, parsed.selection, now)) {
           const result = session.executeCommand(command);
           expect(

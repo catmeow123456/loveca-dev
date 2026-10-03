@@ -99,11 +99,13 @@ export class AiBattleTraceStore {
     private readonly now: () => number = Date.now
   ) {}
 
-  bind(matchId: string): AiBattleTraceObserver {
+  bind(matchId: string, options: { sealOnEnd?: boolean } = {}): AiBattleTraceObserver {
     return {
       begin: (identity) => this.begin(matchId, identity),
       append: (id, stage, payload, options) => this.append(matchId, id, stage, payload, options),
-      end: () => this.end(matchId),
+      end: () => {
+        if (options.sealOnEnd !== false) this.end(matchId);
+      },
       reportFailure: () => this.reportCaptureFailure(matchId),
     };
   }

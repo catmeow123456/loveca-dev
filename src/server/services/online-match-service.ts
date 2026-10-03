@@ -453,7 +453,7 @@ export class OnlineMatchService {
   private readonly partialRecordMatchIds = new Set<string>();
   private readonly matchMutationQueueTails = new Map<string, Promise<void>>();
   private readonly sealMatchPromises = new Map<string, Promise<boolean>>();
-  private readonly aiRuntimes = new Map<string, AiBattleRuntime>();
+  private readonly aiRuntimes = new Map<string, readonly AiBattleRuntime[]>();
   private serviceRejectedAttemptSeq = 0;
   private readonly entranceTimers = new Map<
     string,
@@ -482,17 +482,19 @@ export class OnlineMatchService {
       const players = [params.first, params.second];
       const human = players.find((player) => player.participantKind === 'USER');
       const system = players.find((player) => player.participantKind === 'SYSTEM');
+      const selfPlay =
+        players.every((player) => player.participantKind === 'SYSTEM') &&
+        Boolean(params.first.ownerUserId) &&
+        params.first.ownerUserId === params.second.ownerUserId;
       if (
         (params.matchMode ?? 'ONLINE') !== 'ONLINE' ||
         (params.automationGameMode ?? 'DEBUG') !== 'DEBUG' ||
-        !human ||
-        !system ||
-        human.userId === system.userId ||
-        system.ownerUserId !== human.userId
+        params.first.userId === params.second.userId ||
+        (!selfPlay && (!human || !system || system.ownerUserId !== human.userId))
       ) {
         throw new OnlineMatchServiceError(
           'AI_MATCH_INVALID',
-          'AI 调试对局必须绑定一席真人和一席系统'
+          'AI 调试对局必须绑定真人与系统，或同一所有者的两席系统'
         );
       }
     }
@@ -659,19 +661,37 @@ export class OnlineMatchService {
   async attachAiBattle(
     matchId: string,
     wake: () => void,
-    observer?: AiBattleTraceObserver
+    observer?: AiBattleTraceObserver,
+    seatObservers?: Readonly<Record<Seat, AiBattleTraceObserver>>
   ): Promise<void> {
     await this.runSerializedMatchMutation(matchId, () => {
       const match = this.matches.get(matchId);
-      const system =
+      const systems =
         match &&
-        Object.values(match.participants).find(
+        Object.values(match.participants).filter(
           (participant) => participant.participantKind === 'SYSTEM'
         );
-      if (!match || match.originKind !== 'AI_DEBUG' || !system || this.aiRuntimes.has(matchId)) {
+      if (
+        !match ||
+        match.originKind !== 'AI_DEBUG' ||
+        !systems?.length ||
+        this.aiRuntimes.has(matchId) ||
+        (systems.length === 2) !== Boolean(seatObservers)
+      ) {
         throw new OnlineMatchServiceError('AI_MATCH_BINDING_INVALID', 'AI 对局不存在或已绑定驱动');
       }
-      this.aiRuntimes.set(matchId, new AiBattleRuntime(system.seat, wake, observer));
+      this.aiRuntimes.set(
+        matchId,
+        systems.map(
+          (system) =>
+            new AiBattleRuntime(
+              system.seat,
+              wake,
+              seatObservers?.[system.seat] ?? observer,
+              systems.length === 2 ? `${system.seat}:` : ''
+            )
+        )
+      );
     });
     wake();
   }
@@ -683,103 +703,135 @@ export class OnlineMatchService {
     readonly currentTaskId: string | null;
     readonly activity: 'THINKING' | 'WAITING';
   } | null {
-    const runtime = this.aiRuntimes.get(matchId);
-    return runtime
+    const runtimes = this.aiRuntimes.get(matchId);
+    return runtimes
       ? {
-          consecutiveFailures: runtime.consecutiveFailures,
-          stoppedReason: runtime.stoppedReason,
-          ended: runtime.ended,
-          currentTaskId: runtime.current?.taskId ?? null,
-          activity: runtime.current && !runtime.current.prepared ? 'THINKING' : 'WAITING',
+          consecutiveFailures: Math.max(...runtimes.map((runtime) => runtime.consecutiveFailures)),
+          stoppedReason: runtimes.find((runtime) => runtime.stoppedReason)?.stoppedReason ?? null,
+          ended: runtimes.every((runtime) => runtime.ended),
+          currentTaskId: runtimes.find((runtime) => runtime.current)?.current?.taskId ?? null,
+          activity: runtimes.some((runtime) => runtime.current && !runtime.current.prepared)
+            ? 'THINKING'
+            : 'WAITING',
         }
       : null;
   }
 
   async advanceAiBattle(matchId: string): Promise<AiBattleAdvanceResult> {
     return this.runSerializedMatchMutation(matchId, async () => {
-      const runtime = this.aiRuntimes.get(matchId);
-      const match = this.matches.get(matchId);
-      if (!runtime || !match || runtime.ended) return { kind: 'ENDED' };
-      if (runtime.stoppedReason) return { kind: 'STOPPED', reason: runtime.stoppedReason };
-      try {
-        const frame = this.sampleAiBattleFrame(match, runtime);
-        if (
-          runtime.current &&
-          !runtime.isCurrent({
-            taskId: runtime.current.taskId,
-            revision: match.remoteRevision,
-            windowKey: frame.windowKey,
-          })
-        )
-          runtime.invalidate();
-        if (runtime.current) {
-          return runtime.current.prepared
-            ? this.submitPreparedAiSelection(match, runtime)
-            : { kind: 'BUSY' };
-        }
-        let query = buildAiBattleDecision(frame.state, frame.playerId, frame.view);
-        const gate = frame.gate;
-        if (
-          query.kind === 'DECISION' &&
-          query.decision.input.space.kind === 'ACTION' &&
-          gate?.actingSeat === runtime.seat &&
-          gate.notBefore > frame.now
-        ) {
-          const decision = query.decision;
-          query = {
-            kind: 'DECISION',
-            decision: {
-              ...decision,
-              input: {
-                ...decision.input,
-                space: {
-                  ...query.decision.input.space,
-                  candidates: decision.input.space.candidates.map((candidate) => {
-                    const command = decision.toCommand(
-                      { kind: 'ACTION', actionRef: candidate.ref },
-                      frame.now
-                    );
-                    return command.type === gate.command
-                      ? { ...candidate, availableAt: gate.notBefore }
-                      : candidate;
-                  }),
-                },
-              },
-            },
-          };
-        }
-        if (query.kind === 'DECISION') {
-          const history = match.session.getPublicEventsSliceSince(0, 12);
-          query = {
-            kind: 'DECISION',
-            decision: {
-              ...query.decision,
-              input: {
-                ...query.decision.input,
-                history: {
-                  selection: 'LAST_12_PUBLIC_EVENTS',
-                  throughPublicSeq: match.session.getCurrentPublicEventSeq(),
-                  omittedEventCount: history.droppedEventCount,
-                  events: globalThis.structuredClone(history.publicEvents),
-                },
-              },
-            },
-          };
-        }
-        const publicObservation = match.session.getPublicEventsSliceSince(
-          runtime.observedPublicSeq,
-          256
-        );
-        const result = runtime.observe(match.remoteRevision, frame.windowKey, query, frame.view, {
-          events: publicObservation.publicEvents,
-          throughPublicSeq: match.session.getCurrentPublicEventSeq(),
-          droppedEventCount: publicObservation.droppedEventCount,
-        });
-        return result ?? this.submitPreparedAiSelection(match, runtime);
-      } catch (error) {
-        return runtime.stop(`ADAPTER_BUILD: ${readErrorMessage(error)}`);
+      const runtimes = this.aiRuntimes.get(matchId);
+      if (!runtimes) return { kind: 'ENDED' };
+      const stopped = runtimes.find((runtime) => runtime.stoppedReason);
+      if (stopped) return { kind: 'STOPPED', reason: stopped.stoppedReason! };
+      // One request at a time across both seats. Keep a prepared choice through its dwell
+      // rather than asking the other seat and invalidating paid reasoning on submission.
+      const pending = runtimes.find((runtime) => runtime.current);
+      if (pending) return this.advanceAiBattleSeat(matchId, pending);
+      let waiting: Extract<AiBattleAdvanceResult, { kind: 'WAIT' }> | undefined;
+      for (const runtime of runtimes) {
+        const result = await this.advanceAiBattleSeat(matchId, runtime);
+        if (result.kind === 'WAIT') {
+          if (!waiting || result.deadlineAt < waiting.deadlineAt) waiting = result;
+          if (runtime.current) return result;
+        } else if (result.kind !== 'IDLE' && result.kind !== 'ENDED') return result;
       }
+      return waiting ?? { kind: runtimes.every((runtime) => runtime.ended) ? 'ENDED' : 'IDLE' };
     });
+  }
+
+  async stopAiBattle(matchId: string, reason: string): Promise<void> {
+    await this.runSerializedMatchMutation(matchId, () => {
+      for (const runtime of this.aiRuntimes.get(matchId) ?? [])
+        if (!runtime.ended && !runtime.stoppedReason) runtime.stop(reason);
+      this.aiRuntimes.get(matchId)?.[0]?.wake();
+    });
+  }
+
+  private async advanceAiBattleSeat(
+    matchId: string,
+    runtime: AiBattleRuntime
+  ): Promise<AiBattleAdvanceResult> {
+    const match = this.matches.get(matchId);
+    if (!runtime || !match || runtime.ended) return { kind: 'ENDED' };
+    if (runtime.stoppedReason) return { kind: 'STOPPED', reason: runtime.stoppedReason };
+    try {
+      const frame = this.sampleAiBattleFrame(match, runtime);
+      if (
+        runtime.current &&
+        !runtime.isCurrent({
+          taskId: runtime.current.taskId,
+          revision: match.remoteRevision,
+          windowKey: frame.windowKey,
+        })
+      )
+        runtime.invalidate();
+      if (runtime.current) {
+        return runtime.current.prepared
+          ? this.submitPreparedAiSelection(match, runtime)
+          : { kind: 'BUSY' };
+      }
+      let query = buildAiBattleDecision(frame.state, frame.playerId, frame.view);
+      const gate = frame.gate;
+      if (
+        query.kind === 'DECISION' &&
+        query.decision.input.space.kind === 'ACTION' &&
+        gate?.actingSeat === runtime.seat &&
+        gate.notBefore > frame.now
+      ) {
+        const decision = query.decision;
+        query = {
+          kind: 'DECISION',
+          decision: {
+            ...decision,
+            input: {
+              ...decision.input,
+              space: {
+                ...query.decision.input.space,
+                candidates: decision.input.space.candidates.map((candidate) => {
+                  const command = decision.toCommand(
+                    { kind: 'ACTION', actionRef: candidate.ref },
+                    frame.now
+                  );
+                  return command.type === gate.command
+                    ? { ...candidate, availableAt: gate.notBefore }
+                    : candidate;
+                }),
+              },
+            },
+          },
+        };
+      }
+      if (query.kind === 'DECISION') {
+        const history = match.session.getPublicEventsSliceSince(0, 12);
+        query = {
+          kind: 'DECISION',
+          decision: {
+            ...query.decision,
+            input: {
+              ...query.decision.input,
+              history: {
+                selection: 'LAST_12_PUBLIC_EVENTS',
+                throughPublicSeq: match.session.getCurrentPublicEventSeq(),
+                omittedEventCount: history.droppedEventCount,
+                events: globalThis.structuredClone(history.publicEvents),
+              },
+            },
+          },
+        };
+      }
+      const publicObservation = match.session.getPublicEventsSliceSince(
+        runtime.observedPublicSeq,
+        256
+      );
+      const result = runtime.observe(match.remoteRevision, frame.windowKey, query, frame.view, {
+        events: publicObservation.publicEvents,
+        throughPublicSeq: match.session.getCurrentPublicEventSeq(),
+        droppedEventCount: publicObservation.droppedEventCount,
+      });
+      return result ?? this.submitPreparedAiSelection(match, runtime);
+    } catch (error) {
+      return runtime.stop(`ADAPTER_BUILD: ${readErrorMessage(error)}`);
+    }
   }
 
   async completeAiBattleTask(
@@ -788,11 +840,13 @@ export class OnlineMatchService {
     outcome: AiModelOutcome
   ): Promise<AiBattleAdvanceResult> {
     return this.runSerializedMatchMutation(matchId, async () => {
-      const runtime = this.aiRuntimes.get(matchId);
+      const runtimes = this.aiRuntimes.get(matchId);
+      const runtime = runtimes?.find((candidate) => candidate.isCurrent(identity));
       const match = this.matches.get(matchId);
       if (
         !runtime ||
         !match ||
+        runtimes?.some((candidate) => candidate.stoppedReason) ||
         !runtime.isCurrent(identity) ||
         runtime.current?.attempt !== identity.attempt ||
         match.remoteRevision !== identity.revision
@@ -1347,6 +1401,33 @@ export class OnlineMatchService {
       return null;
     }
 
+    return this.createSpectatorLinkForSeat(match, viewerSeat, {
+      source: 'ADMIN_LINK',
+      countsInPresence: false,
+      authorizedViewerSeats: ['FIRST', 'SECOND'],
+      roomGeneration: null,
+    });
+  }
+
+  /** Admin AI-debug route only: a two-SYSTEM match has no human command participant. */
+  createAiSelfPlaySpectatorLink(
+    matchId: string,
+    ownerUserId: string,
+    viewerSeat: Seat = 'FIRST'
+  ): OnlineSpectatorLinkView | null {
+    const match = this.matches.get(matchId);
+    if (
+      !match ||
+      match.originKind !== 'AI_DEBUG' ||
+      match.matchMode !== 'ONLINE' ||
+      !(['FIRST', 'SECOND'] as const).every(
+        (seat) =>
+          match.participants[seat].participantKind === 'SYSTEM' &&
+          match.participants[seat].ownerUserId === ownerUserId
+      )
+    ) {
+      return null;
+    }
     return this.createSpectatorLinkForSeat(match, viewerSeat, {
       source: 'ADMIN_LINK',
       countsInPresence: false,
@@ -2101,20 +2182,22 @@ export class OnlineMatchService {
       return await operation();
     } finally {
       const currentMatch = this.matches.get(matchId);
-      const runtime = this.aiRuntimes.get(matchId);
+      const runtimes = this.aiRuntimes.get(matchId);
       if (
-        runtime &&
+        runtimes &&
         (previousMatch !== currentMatch || previousRevision !== currentMatch?.remoteRevision)
       ) {
-        // A committed activation may have rebound its held target to this exact revision.
-        // Every later external mutation still invalidates it; the wake also rechecks its window.
-        const holdsCurrentActivation =
-          previousMatch === currentMatch &&
-          runtime.current?.activationFollowUp &&
-          runtime.current.revision === currentMatch?.remoteRevision;
-        if (!holdsCurrentActivation) runtime.invalidate();
-        if (!currentMatch || this.isMatchCompleted(matchId)) runtime.end();
-        runtime.wake();
+        for (const runtime of runtimes) {
+          // A committed activation may have rebound its held target to this exact revision.
+          // Every later external mutation still invalidates it; the wake also rechecks its window.
+          const holdsCurrentActivation =
+            previousMatch === currentMatch &&
+            runtime.current?.activationFollowUp &&
+            runtime.current.revision === currentMatch?.remoteRevision;
+          if (!holdsCurrentActivation) runtime.invalidate();
+          if (!currentMatch || this.isMatchCompleted(matchId)) runtime.end();
+        }
+        runtimes[0]?.wake();
         if (!currentMatch) this.aiRuntimes.delete(matchId);
       }
       releaseCurrent();
@@ -3113,9 +3196,9 @@ export class OnlineMatchService {
       if (match.originKind !== 'AI_DEBUG') {
         throw new OnlineMatchServiceError('AI_MATCH_BINDING_INVALID', '不是 AI 调试对局');
       }
-      const runtime = this.aiRuntimes.get(matchId);
-      const consecutiveFailures = runtime?.consecutiveFailures ?? 0;
-      const stoppedReason = runtime?.stoppedReason ?? null;
+      const status = this.getAiBattleStatus(matchId);
+      const consecutiveFailures = status?.consecutiveFailures ?? 0;
+      const stoppedReason = status?.stoppedReason ?? null;
       const endedAt = match.session.state?.endInfo?.endTimestamp ?? this.now();
       const removed = await this.deleteMatchUnserialized(matchId, { reason: 'AI_DEBUG_ENDED' });
       return { removed, endedAt, consecutiveFailures, stoppedReason };
@@ -3167,10 +3250,10 @@ export class OnlineMatchService {
       // Stop only after the seal succeeds. This mutation holds the authority queue, so no AI
       // command can interleave during the seal; stopping earlier would leave a failed seal
       // with a permanently stopped runtime and a match that can never be driven again.
-      const aiRuntime = this.aiRuntimes.get(matchId);
-      if (aiRuntime) {
-        aiRuntime.stop('MATCH_END_REQUESTED');
-        aiRuntime.wake();
+      const aiRuntimes = this.aiRuntimes.get(matchId);
+      if (aiRuntimes) {
+        for (const runtime of aiRuntimes) runtime.stop('MATCH_END_REQUESTED');
+        aiRuntimes[0]?.wake();
       }
 
       const now = options.now ?? this.now();

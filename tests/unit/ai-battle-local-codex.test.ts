@@ -3,6 +3,7 @@ import { CODEX_OBSERVED_HISTORY_MAX_BYTES } from '../../src/server/ai-battle/cod
 import { createLiveSetFixture } from '../helpers/ai-battle-live-set-fixture';
 import { decision, submit } from '../helpers/ai-battle-fixture';
 import { parseAiBattleResponse } from '../../src/server/ai-battle/decision';
+import { createAiLiveSetPlan } from '../../src/server/ai-battle/live-set-budget';
 import * as codexProcess from '../../src/server/ai-battle/codex-process';
 import { DEFAULT_CODEX_AI_BATTLE_MODEL } from '../../src/online/ai-battle-model-registry';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -739,7 +740,7 @@ describe('Codex provider preserves the existing decision contract', () => {
     });
     expect(f.traces.list('m')!.decisions[0]!.decisionBilling?.estimatedCny).toBeNull();
   });
-  it('restates MAIN after a CARDS window without changing schema or repairing stale model output', async () => {
+  it('restates MAIN after a CARDS window with current schema and rejects stale model output', async () => {
     const stale = JSON.stringify({ selection: { kind: 'CARDS', cardRefs: ['c1'] } });
     const execute = vi.fn(async () => ({
       text: stale,
@@ -768,7 +769,7 @@ describe('Codex provider preserves the existing decision contract', () => {
       purpose: input.purpose,
       selectionKind: 'ACTION',
     });
-    expect(execute.mock.calls[0]![3]).toEqual(execute.mock.calls[1]![3]);
+    expect(execute.mock.calls[0]![3]).not.toEqual(execute.mock.calls[1]![3]);
     expect(result).toEqual({ kind: 'RESPONSE', text: stale });
     expect(() => parseAiBattleResponse({ input }, stale)).toThrow();
     expect(execute).toHaveBeenCalledTimes(2);
@@ -791,7 +792,7 @@ describe('Codex provider preserves the existing decision contract', () => {
       staticKnowledge: 'EVERY_REQUEST',
     });
   });
-  it('sends frozen knowledge once and appends the current author input, keeps schema stable and rejects cross-match/seat reuse', async () => {
+  it('sends frozen knowledge once, updates current-window schema and rejects cross-match/seat reuse', async () => {
     const execute = vi.fn(async () => ({
       text: '{"selection":{"kind":"ACTION","actionRef":"a1"}}',
       usage: parseCodexUsage({ input_tokens: 10, cached_input_tokens: 2, output_tokens: 1 }),
@@ -812,7 +813,7 @@ describe('Codex provider preserves the existing decision contract', () => {
     expect(execute.mock.calls[0]![2]).toContain('ONLY_FROZEN_PUBLIC_OR_SELF_KNOWLEDGE');
     expect(execute.mock.calls[1]![2]).not.toContain('ONLY_FROZEN_PUBLIC_OR_SELF_KNOWLEDGE');
     expect(execute.mock.calls[1]![2]).not.toContain('完成主要阶段');
-    expect(execute.mock.calls[0]![3]).toEqual(execute.mock.calls[1]![3]);
+    expect(execute.mock.calls[0]![3]).not.toEqual(execute.mock.calls[1]![3]);
     expect(execute.mock.calls[1]![2]).toContain('new-card');
     expect(
       (
@@ -844,6 +845,7 @@ describe('Codex provider preserves the existing decision contract', () => {
     const execute = vi.fn(async () => ({
       text: JSON.stringify({
         selection: { kind: 'CARDS', cardRefs: selected },
+        liveSetPlan: createAiLiveSetPlan(current.input, { kind: 'CARDS', cardRefs: selected }),
         tradeoff: 'fixture',
       }),
       usage: parseCodexUsage({ input_tokens: 10, cached_input_tokens: 2, output_tokens: 1 }),

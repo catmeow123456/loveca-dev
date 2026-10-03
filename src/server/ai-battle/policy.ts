@@ -1,10 +1,14 @@
 import { GameCommandType } from '../../application/game-commands.js';
+import { HeartPool } from '../../domain/value-objects/heart.js';
+import { HeartColor } from '../../shared/types/enums.js';
+import { summarizeAiLiveSetSelection } from './live-set-budget.js';
 import { findAiCardSelection } from './protocol.js';
 import {
   validateSelection,
   type AiDecision,
   type AiDecisionSpace,
   type AiSelection,
+  type AiDecisionInput,
 } from './decision.js';
 
 /** Only forced choices bypass the model; unaffordable development alone is not sufficient. */
@@ -83,7 +87,7 @@ export function getAiFallbackSelection(
   }
   if (decision.input.purpose === 'LIVE_SET') {
     if (decision.input.space.kind !== 'CARDS') throw new Error('Invalid LIVE set decision space');
-    const repaired = repairAiLiveSetSelection(decision.input.space, invalidSelection);
+    const repaired = repairAiLiveSetSelection(decision.input, invalidSelection);
     if (repaired) return repaired;
     const setObjectIds = new Set(decision.input.liveSet?.setCardObjectIds ?? []);
     const selection: AiSelection = {
@@ -92,8 +96,7 @@ export function getAiFallbackSelection(
         .filter((candidate) => candidate.objectId && setObjectIds.has(candidate.objectId))
         .map((candidate) => candidate.ref),
     };
-    validateSelection(decision.input.space, selection);
-    return selection;
+    return repairAiLiveSetSelection(decision.input, selection) ?? selection;
   }
   if (
     decision.input.purpose === 'EFFECT' ||
@@ -133,15 +136,17 @@ export function getAiFallbackSelection(
 
 /**
  * Bounded repair of an invalid model LIVE_SET answer. Keeps only recognizable candidate refs
- * (deduplicated), ranks performable LIVE targets (stage alone meets the base requirement, higher
- * score first) above other LIVE above cycling cards, preserves the model's own order within equal
- * ranks, then truncates to the authoritative set limit. Returns null when nothing is recognizable
- * so the caller keeps its existing keep-set fallback. Never invents refs the model did not send.
+ * (deduplicated). Prefer a stage-satisfied LIVE and add another only when the combined base
+ * requirement remains stage-satisfied. Otherwise retain just the least-deficit LIVE, then fill
+ * from the recognized members. This conservative failure policy never claims to simulate
+ * pending effects or cheer and never forbids a valid model's risk-taking/cycling choice.
  */
 function repairAiLiveSetSelection(
-  space: Extract<AiDecisionSpace, { kind: 'CARDS' }>,
+  input: AiDecisionInput,
   attempted: AiSelection | null | undefined
 ): AiSelection | null {
+  const space = input.space;
+  if (space.kind !== 'CARDS') throw new Error('Invalid LIVE set space');
   if (!attempted || attempted.kind !== 'CARDS') return null;
   const known = new Map(space.candidates.map((candidate) => [candidate.ref, candidate]));
   const seen = new Set<string>();
@@ -151,15 +156,43 @@ function repairAiLiveSetSelection(
     return true;
   });
   if (recognized.length === 0) return null;
-  const rank = (ref: string): number => {
-    const budget = known.get(ref)?.liveBaseBudget;
-    if (!budget) return 0;
-    return budget.stageAloneMeetsBaseRequirement ? 2 : 1;
+  const pool = new HeartPool(
+    new Map(Object.entries(input.state.selfResources.stageHeartCounts) as [HeartColor, number][])
+  );
+  const stageSatisfied = (refs: readonly string[]) => {
+    const budget = summarizeAiLiveSetSelection(input, refs);
+    return pool.canSatisfy({
+      colorRequirements: new Map(
+        Object.entries(budget.colorRequirements) as [HeartColor, number][]
+      ),
+      totalRequired: budget.baseRequiredHeartTotal,
+    });
   };
   const score = (ref: string): number => known.get(ref)?.liveBaseBudget?.score ?? 0;
-  // Array.prototype.sort is stable, so equal-ranked refs keep the model's order.
-  const ranked = [...recognized].sort((a, b) => rank(b) - rank(a) || score(b) - score(a));
-  const selection: AiSelection = { kind: 'CARDS', cardRefs: ranked.slice(0, space.max) };
+  const deficit = (ref: string) =>
+    Object.values(known.get(ref)!.liveBaseBudget!.missingHearts).reduce(
+      (total, count) => total + count,
+      0
+    );
+  const lives = recognized
+    .filter((ref) => known.get(ref)?.liveBaseBudget)
+    .sort(
+      (a, b) =>
+        Number(stageSatisfied([b])) - Number(stageSatisfied([a])) ||
+        deficit(a) - deficit(b) ||
+        score(b) - score(a)
+    );
+  const chosen: string[] = [];
+  for (const ref of lives) {
+    if (chosen.length >= space.max) break;
+    if (chosen.length === 0 || stageSatisfied([...chosen, ref])) chosen.push(ref);
+  }
+  chosen.push(
+    ...recognized
+      .filter((ref) => !known.get(ref)?.liveBaseBudget)
+      .slice(0, space.max - chosen.length)
+  );
+  const selection: AiSelection = { kind: 'CARDS', cardRefs: chosen };
   validateSelection(space, selection);
   return selection;
 }

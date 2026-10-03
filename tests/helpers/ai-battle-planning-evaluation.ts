@@ -17,6 +17,7 @@ import { AiBattleTraceStore } from '../../src/server/ai-battle/trace-store';
 import type { AiFrozenKnowledge } from '../../src/server/ai-battle/presets';
 import { toTransport } from '../../src/online/serde';
 import { evaluatePlanningFullGames } from './ai-battle-planning-full';
+import { aiTestResponse } from './ai-battle-test-policy';
 
 if (process.env.AI_BATTLE_QA_MODEL_MODE !== 'REAL')
   throw new Error('Explicit REAL QA mode required');
@@ -121,7 +122,10 @@ function submit(f: Fixture, runtime: AiBattleRuntime) {
 }
 function scripted(f: Fixture, runtime: AiBattleRuntime, selection: AiSelection, tradeoff: string) {
   observe(f, runtime);
-  runtime.resolve({ kind: 'RESPONSE', text: JSON.stringify({ selection, tradeoff }) });
+  runtime.resolve({
+    kind: 'RESPONSE',
+    text: aiTestResponse(runtime.current!.decision.input, selection, tradeoff),
+  });
   submit(f, runtime);
 }
 
