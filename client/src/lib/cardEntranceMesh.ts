@@ -10,6 +10,7 @@ export function createCardEntranceMesh(
   blink?: { image: HTMLImageElement; faces: readonly EntranceBlinkProfile[] }
 ) {
   const rig = profile.armLayers;
+  const breath = profile.clothBreath;
   const portrait = profile.portraitMotion;
   const part = profile.attachedPart ?? portrait?.attachedPart;
   if (part && (part.region.length < 3 || part.region.length > 8 || part.feather <= 0))
@@ -46,6 +47,7 @@ export function createCardEntranceMesh(
     uniform vec4 portraitFixedCorner;
     uniform vec2 partRegion[8]; uniform int partCount; uniform float partFeather;
     uniform vec2 partPivot; uniform float partAngle;
+    ${breath ? 'uniform vec4 clothBreathRegion; uniform vec2 clothBreathTravel; uniform vec2 clothBreathTiming;' : ''}
     vec2 rotateAt(vec2 point, vec2 pivot, float angle) {
       // Rotate in image-space pixels, not stretched UV space: faces and hands
       // keep their proportions. Only the configured joint boundaries blend.
@@ -145,6 +147,17 @@ export function createCardEntranceMesh(
         }
         if(layer>1.5) p=foregroundPlacement.xy+uv*foregroundPlacement.zw;
       }
+      ${
+        breath
+          ? `
+      // Local translation of fabric, not radial body inflation. Contact/edge vertices stay fixed.
+      float breathPhase=clamp((time-clothBreathTiming.x)/clothBreathTiming.y,0.0,1.0);
+      float breathRise=.5-.5*cos(breathPhase*6.28318530718);
+      float fabric=1.0-smoothstep(0.0,1.0,length((uv-clothBreathRegion.xy)/clothBreathRegion.zw));
+      p+=clothBreathTravel*breathRise*fabric*amount;
+      `
+          : ''
+      }
       p=.045+p*.91;
       gl_Position=vec4(p.x*2.0-1.0,1.0-p.y*2.0,0,1);
     }`
@@ -189,6 +202,15 @@ export function createCardEntranceMesh(
   );
   gl.uniform1f(gl.getUniformLocation(program, 'partFeather'), part?.feather ?? 0.01);
   gl.uniform2fv(gl.getUniformLocation(program, 'partPivot'), part?.pivot ?? [0, 0]);
+  if (breath) {
+    gl.uniform4fv(gl.getUniformLocation(program, 'clothBreathRegion'), breath.region);
+    gl.uniform2fv(gl.getUniformLocation(program, 'clothBreathTravel'), breath.travel);
+    gl.uniform2f(
+      gl.getUniformLocation(program, 'clothBreathTiming'),
+      breath.start,
+      breath.duration
+    );
+  }
   const partAngle = gl.getUniformLocation(program, 'partAngle');
   gl.uniform1f(gl.getUniformLocation(program, 'hasPortraitMotion'), portrait ? 1 : 0);
   gl.uniform2fv(gl.getUniformLocation(program, 'portraitPivot'), portrait?.pivot ?? [0, 0]);

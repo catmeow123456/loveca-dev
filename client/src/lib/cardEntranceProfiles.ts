@@ -64,6 +64,14 @@ export interface EntranceMeshProfile {
     /** An intact limb in the same image; the soft polygon boundary belongs in sleeve or empty space. */
     attachedPart?: EntranceAttachedPart;
   };
+  /** One slow local fabric rise/fall; the ellipse must exclude contact points and silhouette. */
+  clothBreath?: {
+    /** Center x/y and radius x/y in source UVs; zero displacement outside. */
+    region: readonly [number, number, number, number];
+    travel: readonly [number, number];
+    start: number;
+    duration: number;
+  };
   /** UV mask: x fade start/end, y fade start/end. */
   hair: readonly [number, number, number, number];
   hairEnd: readonly [number, number];
@@ -1300,6 +1308,200 @@ export const cardEntranceProfiles = defineEntranceProfiles([
         foreground: {
           crop: [1300 / 2168, 0, 868 / 2168, 1],
           placement: [-0.04, 0.216, 868 / 900, 725 / 925],
+        },
+      },
+    },
+  },
+  {
+    id: 'nico',
+    baseCode: entranceCards.nico,
+    name: '矢泽日香',
+    loadArt: () => import('../components/game/card-entrance/nico.png'),
+    artAspectRatio: '1062 / 1482',
+    center: '-50%',
+    mobileHeight: 'min(75%, 108vw)',
+    light: '#f2a4cf77',
+    mesh: {
+      // Original wink stays intact. Shoulder ruffle and the overlapping left arm
+      // follow the torso together; an independent arm mask shears the shoulder.
+      hair: [0, 0.01, 0.9, 1],
+      hairEnd: [0.99, 1],
+      hem: [0.55, 0.82, 0.72, 0.94],
+      strength: [0, 0, 0.65],
+      portraitMotion: {
+        start: 0.2,
+        duration: 1.1,
+        easing: 'smoothstep',
+        pivot: [0.51, 0.64],
+        blendY: [0.67, 0.87],
+        angle: -0.032,
+        travel: [-0.002, -0.003],
+      },
+    },
+  },
+  {
+    id: 'kotori',
+    baseCode: entranceCards.kotori,
+    name: '南琴梨',
+    loadArt: () => import('../components/game/card-entrance/kotori.png'),
+    artAspectRatio: '1062 / 1482',
+    center: '-50%',
+    mobileHeight: 'min(76%, 108vw)',
+    light: '#eed28c77',
+    mesh: {
+      // Only the far-left trailing locks; exclude the sleeve, hand and alpaca.
+      hair: [0.17, 0.28, 0.37, 0.43],
+      hairEnd: [0.51, 0.57],
+      hem: [0.2, 0.45, 0.68, 0.84],
+      strength: [0, 1.25, 0.3],
+      portraitMotion: {
+        start: 0.22,
+        duration: 1.12,
+        easing: 'smoothstep',
+        pivot: [0.61, 0.58],
+        blendY: [0.62, 0.83],
+        angle: 0.032,
+        travel: [0.004, -0.002],
+      },
+    },
+  },
+  {
+    id: 'riko',
+    baseCode: entranceCards.riko,
+    name: '樱内梨子',
+    loadArt: () => import('../components/game/card-entrance/riko.png'),
+    artAspectRatio: '1062 / 1482',
+    center: '-50%',
+    mobileHeight: 'min(76%, 108vw)',
+    light: '#dfa8c477',
+    mesh: {
+      // Sleeping contacts stay fixed: head, crossed hands, hair, pillow and outline.
+      // Chest is behind the arms; only the interior abdominal blanket breathes.
+      hair: [0, 1, 0, 1],
+      hairEnd: [0.99, 1],
+      hem: [0, 1, 0, 1],
+      strength: [0, 0, 0],
+      clothBreath: {
+        region: [0.415, 0.568, 0.14, 0.052],
+        travel: [-0.0015, -0.002],
+        start: 0.15,
+        duration: 2.4,
+      },
+    },
+  },
+  {
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/nozomi-blink.png'),
+      faces: [
+        {
+          start: 0.98,
+          close: 0.065,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              // Crop below the atlas eyebrows; keep portrait brows and bangs untouched.
+              target: [446 / 1062, 228 / 1482, 152 / 1062, 114 / 1482],
+              half: [279 / 1536, 222 / 1024, 483 / 1536, 292 / 1024],
+              closed: [279 / 1536, 700 / 1024, 483 / 1536, 292 / 1024],
+            },
+            {
+              target: [598 / 1062, 212 / 1482, 156 / 1062, 123 / 1482],
+              half: [763 / 1536, 175 / 1024, 546 / 1536, 269 / 1024],
+              closed: [763 / 1536, 653 / 1024, 546 / 1536, 269 / 1024],
+            },
+          ],
+        },
+      ],
+    },
+    id: 'nozomi',
+    baseCode: entranceCards.nozomi,
+    name: '东条希',
+    loadArt: () => import('../components/game/card-entrance/nozomi.png'),
+    artAspectRatio: '1062 / 1482',
+    center: '-50%',
+    mobileHeight: 'min(76%, 108vw)',
+    light: '#ba9de177',
+    mesh: {
+      // Outer ponytail tips only; no forearm, glove, neck or bracelet in the masks.
+      hair: [0.12, 0.2, 0.49, 0.55],
+      hairEnd: [0.63, 0.68],
+      rightHair: [0.9, 0.96, 0.58, 0.63, 0.8, 0.89],
+      hem: [0.3, 0.6, 0.79, 0.97],
+      strength: [0, 1.15, 0.5],
+      portraitMotion: {
+        start: 0.2,
+        duration: 1.1,
+        easing: 'smoothstep',
+        pivot: [0.53, 0.61],
+        blendY: [0.65, 0.84],
+        angle: -0.03,
+        travel: [0.001, -0.011],
+      },
+    },
+  },
+  {
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/hanayo-blink.png'),
+      faces: [
+        {
+          start: 1.04,
+          close: 0.06,
+          hold: 0.035,
+          open: 0.105,
+          eyes: [
+            {
+              target: [409 / 1062, 210 / 1482, 132 / 1062, 113 / 1482],
+              half: [448 / 1774, 150 / 887, 385 / 1774, 270 / 887],
+              closed: [448 / 1774, 557 / 887, 385 / 1774, 270 / 887],
+            },
+            {
+              target: [585 / 1062, 218 / 1482, 120 / 1062, 105 / 1482],
+              half: [965 / 1774, 155 / 887, 350 / 1774, 245 / 887],
+              closed: [965 / 1774, 562 / 887, 350 / 1774, 245 / 887],
+            },
+          ],
+        },
+      ],
+    },
+    id: 'hanayo',
+    baseCode: entranceCards.hanayo,
+    name: '小泉花阳',
+    loadArt: () => import('../components/game/card-entrance/hanayo.png'),
+    artAspectRatio: '1062 / 1482',
+    center: '-50%',
+    mobileHeight: 'min(76%, 108vw)',
+    mobileSkipPosition: 'below-name',
+    light: '#cce0a377',
+    mesh: {
+      // The crossed arm stays intact under the chin; articulate only the full glove
+      // around its cuff. A wider arm mask would sweep through the cheek.
+      hair: [0, 1, 0, 1],
+      hairEnd: [0.99, 1],
+      hem: [0.28, 0.55, 0.78, 0.96],
+      strength: [0, 0, 0.6],
+      portraitMotion: {
+        start: 0.18,
+        duration: 1.12,
+        easing: 'smoothstep',
+        pivot: [0.53, 0.61],
+        blendY: [0.77, 0.94],
+        angle: 0.025,
+        travel: [0.002, -0.003],
+        attachedPart: {
+          start: 0.34,
+          duration: 1,
+          easing: 'smoothstep',
+          pivot: [0.79, 0.3],
+          feather: 0.012,
+          region: [
+            [0.755, 0.254],
+            [0.82, 0.11],
+            [1.07, 0.09],
+            [1.08, 0.34],
+            [0.77, 0.345],
+          ],
+          angles: [0.1, 0],
         },
       },
     },

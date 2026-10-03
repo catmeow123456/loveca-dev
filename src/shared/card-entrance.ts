@@ -20,6 +20,11 @@ export const entranceCards = {
   mei: 'PL!SP-bp7-007',
   maki: 'PL!-bp6-006',
   'hime-bp6': 'PL!HS-bp6-006',
+  nico: 'PL!-pb2-018',
+  kotori: 'PL!-bp6-003',
+  riko: 'PL!S-bp6-002',
+  nozomi: 'PL!-pb2-016',
+  hanayo: 'PL!-pb2-017',
 } as const;
 export function isEntranceCard(code: string): boolean {
   return Object.values(entranceCards).some(
