@@ -114,6 +114,7 @@ import {
   DoorOpen,
   EyeOff,
   Maximize2,
+  PanelLeftOpen,
   Repeat2,
   RotateCcw,
   ScrollText,
@@ -260,8 +261,19 @@ function buildInitialStageFormationDraft(
   );
 }
 
-const inspectionFirstCollisionDetection: CollisionDetection = (args) => {
+const battleCollisionDetection: CollisionDetection = (args) => {
   const dragData = args.active.data.current as { fromZone?: ZoneType } | undefined;
+  if (dragData?.fromZone === ZoneType.RESOLUTION_ZONE) {
+    // 解决区卡牌只能通过判定区提供的三个专用回收目标离开，
+    // 不参与牌桌上的 Live 区、成员区等通用落点碰撞。
+    return rectIntersection({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((container) =>
+        String(container.id).startsWith(RESOLUTION_TARGET_PREFIX)
+      ),
+    });
+  }
+
   if (dragData?.fromZone === ZoneType.INSPECTION_ZONE) {
     const pointerCollisions = pointerWithin(args);
     const inspectionTargetCollision = pointerCollisions.find((collision) =>
@@ -1364,7 +1376,7 @@ export const GameBoard = memo(function GameBoard({
 
   const isJudgmentPanelRelevant = isJudgmentPanelAvailable(currentPhase, currentSubPhase);
 
-  // 左侧判定区抽屉开关（表演判定至成功 Live 结算期间可唤出）
+  // 左侧应援/判定区抽屉开关（表演判定至成功 Live 结算期间可唤出）
   const [judgmentPanelOpen, setJudgmentPanelOpen] = useState(false);
 
   // 弹窗回调
@@ -1785,6 +1797,11 @@ export const GameBoard = memo(function GameBoard({
         return;
       }
 
+      if (fromZone === ZoneType.RESOLUTION_ZONE && specialTarget?.kind !== 'resolution') {
+        setBattleDragActionHint(null);
+        return;
+      }
+
       const targetSlot = parsedTarget?.slotPosition;
       const targetOccupied =
         !!viewerSeat &&
@@ -1901,6 +1918,11 @@ export const GameBoard = memo(function GameBoard({
       const fromZone = dragData?.fromZone || findViewerCardZone(cardId);
       if (!fromZone) {
         pushDropError('无法确定卡牌来源区域');
+        return;
+      }
+
+      if (fromZone === ZoneType.RESOLUTION_ZONE && specialTarget?.kind !== 'resolution') {
+        pushDropError('判定区卡牌只能回手、弃置或回卡组顶');
         return;
       }
 
@@ -2385,7 +2407,7 @@ export const GameBoard = memo(function GameBoard({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={inspectionFirstCollisionDetection}
+      collisionDetection={battleCollisionDetection}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
@@ -2690,6 +2712,11 @@ export const GameBoard = memo(function GameBoard({
                 type="button"
                 onClick={handleOpenJudgmentPanel}
                 disabled={!isJudgmentPanelRelevant}
+                aria-expanded={judgmentPanelOpen}
+                aria-controls="judgment-panel"
+                aria-label={
+                  isJudgmentPanelRelevant ? '打开应援/判定区' : '当前没有可打开的应援/判定区'
+                }
                 className={cn(
                   'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]',
                   isJudgmentPanelRelevant &&
@@ -2697,9 +2724,9 @@ export const GameBoard = memo(function GameBoard({
                   !isJudgmentPanelRelevant &&
                     'cursor-not-allowed opacity-50 hover:border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] hover:text-[var(--text-secondary)]'
                 )}
-                title={isJudgmentPanelRelevant ? '打开判定区' : '当前没有可打开的判定区'}
+                title={isJudgmentPanelRelevant ? '打开应援/判定区' : '当前没有可打开的应援/判定区'}
               >
-                <ChevronRight size={16} />
+                <PanelLeftOpen size={16} />
                 <span className="truncate">判定</span>
               </button>
             </div>
@@ -4167,15 +4194,18 @@ export const GameBoard = memo(function GameBoard({
           </div>
         )}
 
-        {/* 左侧唤出按钮（判定区关闭时显示） */}
+        {/* 左侧唤出按钮（应援/判定区关闭时显示） */}
         {!isMobileBattlefield && isJudgmentPanelRelevant && !judgmentPanelOpen && (
           <button
             type="button"
             onClick={handleOpenJudgmentPanel}
-            className="fixed left-0 top-1/2 z-[70] flex -translate-y-1/2 items-center gap-1 rounded-r-2xl border border-l-0 border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 py-2 text-xs font-semibold text-[var(--accent-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl transition-colors hover:text-[var(--text-primary)]"
+            aria-expanded={judgmentPanelOpen}
+            aria-controls="judgment-panel"
+            className="group fixed left-0 top-1/2 z-[var(--z-battle-chrome)] flex h-16 w-11 -translate-y-1/2 items-center justify-center rounded-r-lg border border-l-0 border-[var(--border-default)] bg-[var(--bg-frosted)] text-[var(--text-secondary)] shadow-[var(--shadow-md)] backdrop-blur-xl transition-colors hover:border-[var(--accent-primary)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_88%,var(--accent-primary)_12%)] hover:text-[var(--accent-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)]"
+            aria-label="打开应援/判定区"
+            title="打开应援/判定区"
           >
-            <ChevronRight size={14} />
-            判定区
+            <PanelLeftOpen size={18} strokeWidth={1.9} />
           </button>
         )}
 

@@ -5,7 +5,7 @@ import { aiBrowserFixture } from './ai-battle-fixture';
 // QA: both public seats stay clickable above the AI toolbar; switching is read-only,
 // survives snapshot polling, and works at desktop/mobile sizes with reduced motion.
 for (const width of [1600, 390]) {
-  test(`AI 判定区 ${width}：先后攻切换不被工具栏遮挡`, async ({ page }, info) => {
+  test(`AI 应援/判定区 ${width}：先后攻切换不被工具栏遮挡`, async ({ page }, info) => {
     test.skip(info.project.name !== 'tablet-1024x768');
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -22,7 +22,7 @@ for (const width of [1600, 390]) {
       });
       await page.goto('/?page=ai-battle-admin');
       await page.getByRole('button', { name: '继续对局', exact: true }).click();
-      const panel = page.getByRole('dialog', { name: '判定区', exact: true });
+      const panel = page.getByRole('dialog', { name: '应援/判定区', exact: true });
       await expect(panel).toBeVisible();
       const first = panel.getByRole('button', { name: /查看先攻玩家/ });
       const second = panel.getByRole('button', { name: /查看后攻玩家/ });
@@ -44,7 +44,24 @@ for (const width of [1600, 390]) {
       await expect(panel).not.toContainText('此视图仅供查看');
       expect({ writes: f.state.writes.length, calls: f.state.modelCalls }).toEqual(before);
       await page.screenshot({ path: `../output/playwright/ai-battle/judgment-first-${width}.png` });
-      await panel.getByRole('button', { name: '收起判定区', exact: true }).click();
+      const closePanelButton = panel.getByRole('button', {
+        name: '收起应援/判定区',
+        exact: true,
+      });
+      await expect(closePanelButton).toHaveAttribute('aria-expanded', 'true');
+      await expect(closePanelButton).toHaveAttribute('aria-controls', 'judgment-panel');
+      await closePanelButton.click();
+      await expect(panel).toHaveCount(0);
+      const openPanelButton = page.getByRole('button', {
+        name: '打开应援/判定区',
+        exact: true,
+      });
+      await expect(openPanelButton).toBeVisible();
+      await expect(openPanelButton).toHaveAttribute('aria-expanded', 'false');
+      await expect(openPanelButton).toHaveAttribute('aria-controls', 'judgment-panel');
+      await openPanelButton.click();
+      await expect(panel).toBeVisible();
+      await panel.getByRole('button', { name: '收起应援/判定区', exact: true }).click();
       await expect(panel).toHaveCount(0);
       await page.getByRole('button', { name: '观察', exact: true }).click();
       await expect(page.getByRole('dialog', { name: 'AI 决定观察', exact: true })).toBeVisible();

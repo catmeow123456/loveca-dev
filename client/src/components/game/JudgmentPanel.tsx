@@ -19,8 +19,8 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
-import { motion } from 'framer-motion';
-import { BarChart3, ChevronLeft, Mic } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
+import { Heart, Mic, PanelLeftClose, X } from 'lucide-react';
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { GameCommandType } from '@game/application/game-commands';
 import { useShallow } from 'zustand/react/shallow';
@@ -400,6 +400,7 @@ const SortableCheerCard = memo(function SortableCheerCard({
 // ============================================
 
 export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: JudgmentPanelProps) {
+  const shouldReduceMotion = useReducedMotion();
   const activeSeat = useGameStore((s) => s.getActiveSeatView());
   const firstSeat = useGameStore((s) => s.playerViewState?.match.firstSeat ?? null);
   const [viewSelection, setViewSelection] = useState<JudgmentViewSelection>(() => ({
@@ -843,31 +844,39 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     liveJudgmentPreview.totalScore === null ? '--' : String(liveJudgmentPreview.totalScore);
   return (
     <motion.aside
+      id="judgment-panel"
       data-battle-ui-anchor={BATTLE_UI_ANCHORS.JUDGMENT_PANEL}
       className="safe-bottom safe-top pointer-events-auto fixed inset-0 z-[var(--z-battle-modal)] h-[var(--battle-viewport-height)] w-full max-w-none overflow-hidden border-[var(--border-default)] bg-[var(--bg-frosted)] p-3 shadow-[var(--shadow-lg)] backdrop-blur-xl md:left-0 md:top-0 md:h-full md:max-w-[420px] md:overflow-visible md:border-r md:p-4"
       role="dialog"
       aria-modal={isMobilePanel}
-      aria-label="判定区"
-      initial={{ x: -460, opacity: 0.8 }}
+      aria-label="应援/判定区"
+      initial={{ x: '-100%', opacity: 0.96 }}
       animate={{ x: 0, opacity: 1 }}
-      exit={{ x: -460, opacity: 0.8 }}
-      transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+      exit={{ x: '-100%', opacity: 0.96 }}
+      transition={
+        shouldReduceMotion
+          ? { duration: 0 }
+          : { type: 'tween', duration: 0.22, ease: [0.22, 1, 0.36, 1] }
+      }
     >
       <button
         type="button"
         onClick={onClose}
-        className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] text-[var(--accent-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl transition-all hover:text-[var(--text-primary)] md:-right-8 md:top-1/2 md:h-16 md:w-8 md:-translate-y-1/2 md:rounded-r-2xl md:border-l-0 md:hover:w-9"
-        aria-label="收起判定区"
-        title="收起判定区"
+        className="group absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-frosted)] text-[var(--text-secondary)] shadow-[var(--shadow-sm)] backdrop-blur-xl transition-colors hover:border-[var(--accent-primary)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_88%,var(--accent-primary)_12%)] hover:text-[var(--accent-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] md:right-0 md:top-1/2 md:h-16 md:w-11 md:-translate-y-1/2 md:translate-x-full md:rounded-r-lg md:rounded-l-none md:border-l-0 md:shadow-[var(--shadow-md)]"
+        aria-label="收起应援/判定区"
+        aria-expanded={true}
+        aria-controls="judgment-panel"
+        title="收起应援/判定区"
       >
-        <ChevronLeft size={16} />
+        <X className="md:hidden" size={18} strokeWidth={1.9} />
+        <PanelLeftClose className="hidden md:block" size={18} strokeWidth={1.9} />
       </button>
 
       <div className="mb-3 border-b border-[var(--border-default)] pb-2 pr-11 md:pr-0">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
-            <BarChart3 size={16} className="shrink-0 text-[var(--accent-primary)]" />
-            <span className="truncate">判定区 / 应援操作窗</span>
+            <Heart size={16} className="shrink-0 text-[var(--accent-primary)]" />
+            <span className="truncate">应援/判定区</span>
           </div>
           <JudgmentSeatSwitcher
             firstSeat={firstSeat}
@@ -881,14 +890,14 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
           {isPerformanceJudgment
             ? `当前为 ${activePlayer.name} 的 Live 判定阶段`
             : isLiveSuccessWindow
-              ? '当前为 Live 成功效果窗口（可继续操作判定区）'
+              ? '当前为 Live 成功效果窗口（可继续操作应援/判定区）'
               : isResultScoreConfirm
                 ? '当前为分数最终确认阶段'
                 : isResultAnimation
                   ? '当前为胜者结果动画阶段'
                   : isResultSettlement
                     ? '当前为成功 Live 结算阶段'
-                    : '可随时查看并操作判定区卡牌'}
+                    : '可随时查看并操作应援/判定区卡牌'}
         </div>
       </div>
 
@@ -1172,36 +1181,38 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
               disabled={!canSubmitViewedJudgment}
               className={cn(
                 canSubmitViewedJudgment
-                  ? 'button-gold w-full rounded-lg py-2 text-sm font-bold'
+                  ? 'button-primary w-full rounded-lg py-2 text-sm font-bold'
                   : 'w-full rounded-lg bg-[var(--bg-overlay)] py-2 text-sm font-bold text-[var(--text-muted)] cursor-not-allowed'
               )}
             >
               接受自动判定
             </button>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={handleLiveFailed}
-                disabled={!canConfirmViewedOutcome}
-                className={cn(
-                  canConfirmViewedOutcome
-                    ? 'button-secondary rounded-lg py-1.5 text-xs font-bold'
-                    : 'rounded-lg bg-[var(--bg-overlay)] py-1.5 text-xs font-bold text-[var(--text-muted)] cursor-not-allowed'
-                )}
-              >
-                强制失败
-              </button>
-              <button
-                onClick={handleLiveSuccess}
-                disabled={!canConfirmViewedOutcome}
-                className={cn(
-                  canConfirmViewedOutcome
-                    ? 'button-secondary rounded-lg py-1.5 text-xs font-bold'
-                    : 'rounded-lg bg-[var(--bg-overlay)] py-1.5 text-xs font-bold text-[var(--text-muted)] cursor-not-allowed'
-                )}
-              >
-                强制成功
-              </button>
-            </div>
+            {isFreeOperationMode ? (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={handleLiveFailed}
+                  disabled={!canConfirmViewedOutcome}
+                  className={cn(
+                    canConfirmViewedOutcome
+                      ? 'rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_56%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-error)_14%,transparent)] py-1.5 text-xs font-bold text-[var(--semantic-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_22%,transparent)]'
+                      : 'rounded-lg bg-[var(--bg-overlay)] py-1.5 text-xs font-bold text-[var(--text-muted)] cursor-not-allowed'
+                  )}
+                >
+                  强制失败
+                </button>
+                <button
+                  onClick={handleLiveSuccess}
+                  disabled={!canConfirmViewedOutcome}
+                  className={cn(
+                    canConfirmViewedOutcome
+                      ? 'rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-success)_56%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-success)_14%,transparent)] py-1.5 text-xs font-bold text-[var(--semantic-success)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-success)_22%,transparent)]'
+                      : 'rounded-lg bg-[var(--bg-overlay)] py-1.5 text-xs font-bold text-[var(--text-muted)] cursor-not-allowed'
+                  )}
+                >
+                  强制成功
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : (
           <div
