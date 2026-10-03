@@ -11,6 +11,8 @@ export const entranceCards = {
   'rin-hanayo': 'PL!-pb2-000',
   seras: 'PL!HS-bp6-007',
   kaho: 'PL!HS-pb1-009',
+  rurino: 'PL!HS-pb1-003',
+  you: 'PL!S-bp7-005',
 } as const;
 export function isEntranceCard(code: string): boolean {
   return Object.values(entranceCards).some(

@@ -36,6 +36,24 @@ export interface EntranceArmLayers extends EntranceMotionTiming {
 /** Cosmetic profiles only; card abilities remain in the shared rules engine. */
 export interface EntranceMeshProfile {
   armLayers?: EntranceArmLayers;
+  /** Intact portrait: head, hands and props share one move; blend only in soft clothing. */
+  portraitMotion?: EntranceMotionTiming & {
+    pivot: readonly [number, number];
+    blendY: readonly [number, number];
+    /** Optional left-side anchor; keeps a foreground knee still without warping a low hand. */
+    anchorX?: readonly [number, number];
+    /** Pin a lower-left foreground object; x and y transition ranges in source UVs. */
+    fixedCorner?: readonly [number, number, number, number];
+    angle: number;
+    travel: readonly [number, number];
+    /** An intact limb in the same image; the soft polygon boundary belongs in sleeve or empty space. */
+    attachedPart?: EntranceMotionTiming & {
+      region: readonly (readonly [number, number])[];
+      feather: number;
+      pivot: readonly [number, number];
+      angles: readonly [number, number];
+    };
+  };
   /** UV mask: x fade start/end, y fade start/end. */
   hair: readonly [number, number, number, number];
   hairEnd: readonly [number, number];
@@ -393,6 +411,96 @@ export const cardEntranceProfiles = defineEntranceProfiles([
         bodyAngle: 0.024,
         bodyLift: 0.002,
         rigidBodyFollow: true,
+      },
+    },
+  },
+  {
+    id: 'rurino',
+    mobileSkipPosition: 'below-name',
+    baseCode: entranceCards.rurino,
+    name: '大泽瑠璃乃',
+    loadArt: () => import('../components/game/card-entrance/rurino.png'),
+    artAspectRatio: '1199 / 1312',
+    center: '-50%',
+    mobileHeight: 'min(76%, 110vw)',
+    light: '#b3dfe977',
+    mesh: {
+      // Keep the face/choker intact; isolate the reaching arm at its loose sleeve.
+      hair: [0, 0.01, 0.9, 0.99],
+      hairEnd: [0.99, 1],
+      rightHair: [0.81, 0.92, 0.27, 0.37, 0.53, 0.59],
+      hem: [0.68, 0.74, 0.93, 0.99],
+      strength: [0, 1.9, 0.65],
+      portraitMotion: {
+        start: 0.24,
+        duration: 1.12,
+        easing: 'smoothstep',
+        pivot: [0.6, 0.69],
+        blendY: [0.57, 0.76],
+        anchorX: [0.28, 0.48],
+        angle: -0.042,
+        travel: [-0.006, -0.012],
+        attachedPart: {
+          start: 0.36,
+          duration: 1.08,
+          easing: 'smoothstep',
+          pivot: [0.78, 0.63],
+          region: [
+            [0.72, 0.59],
+            [0.85, 0.59],
+            [1.08, 0.74],
+            [1.08, 1.04],
+            [0.73, 1.04],
+            [0.71, 0.72],
+          ],
+          feather: 0.045,
+          angles: [0.145, 0],
+        },
+      },
+    },
+  },
+  {
+    id: 'you',
+    mobileSkipPosition: 'below-name',
+    baseCode: entranceCards.you,
+    name: '渡边曜',
+    loadArt: () => import('../components/game/card-entrance/you.png'),
+    artAspectRatio: '1061 / 1483',
+    center: '-50%',
+    mobileHeight: 'min(76%, 123vw)',
+    light: '#9bdbe577',
+    mesh: {
+      // Head and forehead hand share the torso. The full bottle follows one rigid arm region.
+      hair: [0, 1, 0, 1],
+      hairEnd: [0, 1],
+      hem: [0, 1, 0, 1],
+      strength: [0, 0, 0],
+      portraitMotion: {
+        start: 0.28,
+        duration: 1.12,
+        easing: 'smoothstep',
+        pivot: [0.75, 0.58],
+        blendY: [0.47, 0.65],
+        fixedCorner: [0.25, 0.4, 0.27, 0.34],
+        angle: 0.036,
+        travel: [0.004, 0.008],
+        attachedPart: {
+          start: 0.4,
+          duration: 1.03,
+          easing: 'smoothstep',
+          pivot: [0.755, 0.505],
+          region: [
+            [0.87, 0.2],
+            [1.04, 0.2],
+            [1.04, 0.62],
+            [0.74, 0.62],
+            [0.69, 0.5],
+            [0.78, 0.44],
+            [0.86, 0.37],
+          ],
+          feather: 0.018,
+          angles: [-0.1, 0],
+        },
       },
     },
   },

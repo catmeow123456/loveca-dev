@@ -7,6 +7,11 @@ export function createCardEntranceMesh(
   image: HTMLImageElement,
   profile: EntranceMeshProfile
 ) {
+  const rig = profile.armLayers;
+  const portrait = profile.portraitMotion;
+  const part = portrait?.attachedPart;
+  if (part && (part.region.length < 3 || part.region.length > 8 || part.feather <= 0))
+    throw new Error('Attached portrait region requires 3–8 vertices and a positive feather');
   const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: !!profile.armLayers });
   if (!gl) return null;
   const shader = (type: number, source: string) => {
@@ -34,12 +39,41 @@ export function createCardEntranceMesh(
     uniform float gestureProgress; uniform float bodyProgress; uniform float follow; uniform float rigidBodyFollow;
     uniform vec4 sourceRect; uniform vec4 armPlacement; uniform vec4 bodyPlacement;
     uniform float independentBody; uniform vec3 sleeveAnchor; uniform vec2 armTravel; uniform vec2 armTravelStart;
+    uniform float hasPortraitMotion; uniform vec2 portraitPivot; uniform vec2 portraitBlendY;
+    uniform float portraitAngle; uniform vec2 portraitTravel; uniform vec2 portraitAnchorX;
+    uniform vec4 portraitFixedCorner;
+    uniform vec2 partRegion[8]; uniform int partCount; uniform float partFeather;
+    uniform vec2 partPivot; uniform float partAngle;
     vec2 rotateAt(vec2 point, vec2 pivot, float angle) {
       // Rotate in image-space pixels, not stretched UV space: faces and hands
       // keep their proportions. Only the configured joint boundaries blend.
       vec2 d=(point-pivot)*vec2(artAspect,1.0);
       d=mat2(cos(angle),sin(angle),-sin(angle),cos(angle))*d;
       return pivot+d/vec2(artAspect,1.0);
+    }
+    float portraitWeight(vec2 point) {
+      float upper=1.0-smoothstep(portraitBlendY.x,portraitBlendY.y,point.y)*(1.0-smoothstep(portraitAnchorX.x,portraitAnchorX.y,point.x));
+      float pinned=(1.0-smoothstep(portraitFixedCorner.x,portraitFixedCorner.y,point.x))*smoothstep(portraitFixedCorner.z,portraitFixedCorner.w,point.y);
+      return upper*(1.0-pinned);
+    }
+    float attachedWeight(vec2 point) {
+      if(partCount<3) return 0.0;
+      bool inside=false;
+      float edgeDistance=10.0;
+      for(int i=0;i<8;i++) {
+        if(i>=partCount) break;
+        int j=i+1;
+        if(j==partCount) j=0;
+        vec2 a=partRegion[i], b=partRegion[j];
+        if((a.y>point.y)!=(b.y>point.y)) {
+          if(point.x<(b.x-a.x)*(point.y-a.y)/(b.y-a.y)+a.x) inside=!inside;
+        }
+        vec2 segment=(b-a)*vec2(artAspect,1.0);
+        vec2 relative=(point-a)*vec2(artAspect,1.0);
+        float t=clamp(dot(relative,segment)/max(dot(segment,segment),.000001),0.0,1.0);
+        edgeDistance=min(edgeDistance,length(relative-segment*t));
+      }
+      return smoothstep(-partFeather,partFeather,inside?edgeDistance:-edgeDistance);
     }
     vec2 bodySway(vec2 point, float pivotX, float amplitude, float phase) {
       // A small rigid rotation keeps facial proportions. The waist blend below
@@ -72,6 +106,17 @@ export function createCardEntranceMesh(
           +(1.0-left-right)*bodySway(uv,.51,groupAmplitude.y,groupPhase.y)
           +right*bodySway(uv,.82,groupAmplitude.z,groupPhase.z);
         p+=sway*(1.0-smoothstep(.48,.92,uv.y))*amount;
+      }
+      if(hasPortraitMotion>0.5){
+        // Head/forehead contacts remain intact. An optional limb moves within
+        // its source silhouette, with the soft boundary confined to clothing.
+        p=uv+vec2((hair*.012+hem*.004)*follow,hem*.003*follow)*amount;
+        float partWeight=attachedWeight(uv);
+        p=mix(p,rotateAt(p,partPivot,partAngle*amount),partWeight);
+        // Every point of a rigid hand/prop inherits the same torso weight.
+        float weight=mix(portraitWeight(uv),portraitWeight(partPivot),partWeight);
+        vec2 posed=rotateAt(p,portraitPivot,portraitAngle*bodyProgress)+portraitTravel*bodyProgress;
+        p=mix(p,posed,weight*amount);
       }
       if(hasArmLayers>0.5){
         // Hair and cloth trail this gesture, rather than oscillating forever.
@@ -111,7 +156,24 @@ export function createCardEntranceMesh(
   if (!gl.getProgramParameter(program, gl.LINK_STATUS))
     throw new Error(gl.getProgramInfoLog(program) ?? 'Shader link failed');
   gl.useProgram(program);
-  const rig = profile.armLayers;
+  gl.uniform1i(gl.getUniformLocation(program, 'partCount'), part?.region.length ?? 0);
+  gl.uniform2fv(
+    gl.getUniformLocation(program, 'partRegion[0]'),
+    Array.from({ length: 8 }, (_, i) => part?.region[i] ?? [0, 0]).flat()
+  );
+  gl.uniform1f(gl.getUniformLocation(program, 'partFeather'), part?.feather ?? 0.01);
+  gl.uniform2fv(gl.getUniformLocation(program, 'partPivot'), part?.pivot ?? [0, 0]);
+  const partAngle = gl.getUniformLocation(program, 'partAngle');
+  gl.uniform1f(gl.getUniformLocation(program, 'hasPortraitMotion'), portrait ? 1 : 0);
+  gl.uniform2fv(gl.getUniformLocation(program, 'portraitPivot'), portrait?.pivot ?? [0, 0]);
+  gl.uniform2fv(gl.getUniformLocation(program, 'portraitBlendY'), portrait?.blendY ?? [0, 1]);
+  gl.uniform1f(gl.getUniformLocation(program, 'portraitAngle'), portrait?.angle ?? 0);
+  gl.uniform2fv(gl.getUniformLocation(program, 'portraitTravel'), portrait?.travel ?? [0, 0]);
+  gl.uniform2fv(gl.getUniformLocation(program, 'portraitAnchorX'), portrait?.anchorX ?? [1, 1.01]);
+  gl.uniform4fv(
+    gl.getUniformLocation(program, 'portraitFixedCorner'),
+    portrait?.fixedCorner ?? [-1, 0, 1, 2]
+  );
   gl.uniform1f(gl.getUniformLocation(program, 'hasArmLayers'), rig ? 1 : 0);
   gl.uniform1f(
     gl.getUniformLocation(program, 'artAspect'),
@@ -208,11 +270,17 @@ export function createCardEntranceMesh(
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.uniform1f(time, seconds);
     gl.uniform1f(amount, reduced ? 0 : 1);
-    const motion = rig ? entranceLayerFrame(seconds, rig, reduced) : null;
+    const timing = rig ?? portrait;
+    const motion = timing ? entranceLayerFrame(seconds, timing, reduced) : null;
     gl.uniform1f(gestureProgress, motion?.arm ?? 0);
     gl.uniform1f(bodyProgress, motion?.body ?? 0);
     gl.uniform1f(armAngle, rig ? rig.angles[0] + (rig.angles[1] - rig.angles[0]) * motion!.arm : 0);
     gl.uniform1f(follow, motion?.follow ?? 0);
+    const partProgress = part ? entranceLayerFrame(seconds, part, reduced).arm : 0;
+    gl.uniform1f(
+      partAngle,
+      part ? part.angles[0] + (part.angles[1] - part.angles[0]) * partProgress : 0
+    );
     const drawLayer = (isArm: boolean) => {
       gl.uniform4fv(sourceRect, isArm ? rig!.armCrop : (rig?.bodyCrop ?? [0, 0, 1, 1]));
       gl.uniform1f(layer, isArm ? 1 : 0);
