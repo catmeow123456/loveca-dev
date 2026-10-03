@@ -14,6 +14,8 @@ import {
   entrancePortraitFrame,
   entranceRemaining,
 } from '../../client/src/lib/cardEntranceTimeline';
+// Explicitly exercise the no-eye-art path; registrations may gain blinking later.
+const plainProfile = { ...cardEntranceProfiles[0]!, blink: undefined };
 function deferred<T>() {
   let resolve!: (value: T) => void, reject!: (error: Error) => void;
   const promise = new Promise<T>((yes, no) => {
@@ -62,6 +64,7 @@ describe('entrance registration and resources', () => {
       expect(getCardEntranceProfile(`${p.baseCode}-FUTURE`)).toBe(p);
       expect(getCardEntranceProfile(`${p.baseCode}0-PP`)).toBeUndefined();
       expect((await p.loadArt()).default).toMatch(/\.png(?:\?|$)/);
+      if (p.blink) expect((await p.blink.loadArt()).default).toMatch(/\.png(?:\?|$)/);
     }
   });
   it('waits for both images to decode, without loading other registered art', async () => {
@@ -69,7 +72,7 @@ describe('entrance registration and resources', () => {
     const loadArt = vi.fn(async () => ({ default: 'portrait.png' }));
     const ready = vi.fn();
     const work = prepareEntranceAssets(
-      { ...cardEntranceProfiles[0]!, loadArt },
+      { ...plainProfile, loadArt },
       'card.png',
       new AbortController().signal,
       make
@@ -84,13 +87,111 @@ describe('entrance registration and resources', () => {
     expect(ready.mock.calls[0]![0].portrait.src).toBe('portrait.png');
     expect(ready.mock.calls[0]![0].card.src).toBe('card.png');
   });
+  it('prepares the optional blink before starting and falls back to the original portrait on a broken eye image', async () => {
+    for (const fails of [false, true]) {
+      const { images, make } = imageFactory();
+      const rurino = cardEntranceProfiles.find((p) => p.id === 'rurino')!;
+      const profile = {
+        ...rurino,
+        loadArt: async () => ({ default: 'portrait.png' }),
+        blink: { ...rurino.blink!, loadArt: async () => ({ default: 'eyes.png' }) },
+      };
+      const ready = vi.fn();
+      const work = prepareEntranceAssets(profile, null, new AbortController().signal, make).then(
+        ready
+      );
+      await vi.waitFor(() => expect(images).toHaveLength(2));
+      images.find((i) => i.src === 'portrait.png')!.gate.resolve();
+      await Promise.resolve();
+      expect(ready).not.toHaveBeenCalled();
+      const eyes = images.find((i) => i.src === 'eyes.png')!;
+      if (fails) eyes.gate.reject(new Error('eye decode failed'));
+      else eyes.gate.resolve();
+      await work;
+      expect(ready.mock.calls[0]![0].portrait.src).toBe('portrait.png');
+      expect(ready.mock.calls[0]![0].blink).toBe(fails ? null : eyes);
+    }
+  });
+  it('keeps the portrait usable when the optional eye module cannot be imported', async () => {
+    const { images, make } = imageFactory();
+    const original = cardEntranceProfiles[0]!;
+    const work = prepareEntranceAssets(
+      {
+        ...original,
+        loadArt: async () => ({ default: 'portrait.png' }),
+        blink: {
+          ...original.blink!,
+          loadArt: async () => {
+            throw new Error('chunk offline');
+          },
+        },
+      },
+      null,
+      new AbortController().signal,
+      make
+    );
+    await vi.waitFor(() => expect(images).toHaveLength(1));
+    images[0]!.gate.resolve();
+    expect(await work).toMatchObject({ portrait: images[0], card: null, blink: null });
+  });
+  it('ends preparation when only the eye image stalls and ignores its late completion', async () => {
+    vi.useFakeTimers();
+    const { images, make } = imageFactory();
+    const original = cardEntranceProfiles[0]!;
+    const ready = vi.fn();
+    const work = prepareEntranceAssets(
+      {
+        ...original,
+        loadArt: async () => ({ default: 'portrait.png' }),
+        blink: { ...original.blink!, loadArt: async () => ({ default: 'eyes.png' }) },
+      },
+      null,
+      new AbortController().signal,
+      make
+    ).then(ready);
+    const rejected = expect(work).rejects.toThrow('timeout');
+    await vi.advanceTimersByTimeAsync(0);
+    images.find((i) => i.src === 'portrait.png')!.gate.resolve();
+    await vi.advanceTimersByTimeAsync(ENTRANCE_LOAD_TIMEOUT_MS);
+    await rejected;
+    expect(images.every((i) => i.removeAttribute.mock.calls[0]?.[0] === 'src')).toBe(true);
+    images.find((i) => i.src === 'eyes.png')!.gate.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ready).not.toHaveBeenCalled();
+  });
+  it('does not start a late blink import after skip and releases already decoded images', async () => {
+    const { images, make } = imageFactory();
+    const gate = deferred<{ default: string }>(),
+      controller = new AbortController();
+    const rurino = cardEntranceProfiles.find((p) => p.id === 'rurino')!;
+    const work = prepareEntranceAssets(
+      {
+        ...rurino,
+        loadArt: async () => ({ default: 'portrait.png' }),
+        blink: { ...rurino.blink!, loadArt: () => gate.promise },
+      },
+      null,
+      controller.signal,
+      make
+    );
+    const rejected = expect(work).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.waitFor(() => expect(images).toHaveLength(1));
+    images[0]!.gate.resolve();
+    controller.abort();
+    await rejected;
+    gate.resolve({ default: 'late-eyes.png' });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(images).toHaveLength(1);
+    expect(images[0]!.removeAttribute).toHaveBeenCalledWith('src');
+  });
   it('font rejection retains the decoded art and allows fallback typography', async () => {
     vi.stubGlobal('document', {
       fonts: { load: vi.fn().mockRejectedValue(new Error('font offline')) },
     });
     const { images, make } = imageFactory();
     const work = prepareEntranceAssets(
-      { ...cardEntranceProfiles[0]!, loadArt: async () => ({ default: 'portrait.png' }) },
+      { ...plainProfile, loadArt: async () => ({ default: 'portrait.png' }) },
       null,
       new AbortController().signal,
       make
@@ -105,7 +206,7 @@ describe('entrance registration and resources', () => {
     vi.stubGlobal('document', { fonts: { load: () => font.promise } });
     const { images, make } = imageFactory();
     const work = prepareEntranceAssets(
-      { ...cardEntranceProfiles[0]!, loadArt: async () => ({ default: 'portrait.png' }) },
+      { ...plainProfile, loadArt: async () => ({ default: 'portrait.png' }) },
       null,
       new AbortController().signal,
       make
@@ -122,7 +223,7 @@ describe('entrance registration and resources', () => {
       controller = new AbortController();
     const { images, make } = imageFactory();
     const result = prepareEntranceAssets(
-      { ...cardEntranceProfiles[0]!, loadArt: () => gate.promise },
+      { ...plainProfile, loadArt: () => gate.promise },
       null,
       controller.signal,
       make
@@ -139,7 +240,7 @@ describe('entrance registration and resources', () => {
     vi.useFakeTimers();
     const { images, make } = imageFactory();
     const result = prepareEntranceAssets(
-      { ...cardEntranceProfiles[0]!, loadArt: async () => ({ default: 'slow.png' }) },
+      { ...plainProfile, loadArt: async () => ({ default: 'slow.png' }) },
       'card.png',
       new AbortController().signal,
       make
@@ -150,7 +251,7 @@ describe('entrance registration and resources', () => {
     expect(images.every((i) => i.removeAttribute.mock.calls[0]?.[0] === 'src')).toBe(true);
   });
   it('rejects decode failures and permits a fresh later attempt', async () => {
-    const p = { ...cardEntranceProfiles[0]!, loadArt: async () => ({ default: 'portrait.png' }) };
+    const p = { ...plainProfile, loadArt: async () => ({ default: 'portrait.png' }) };
     const first = imageFactory();
     const result = prepareEntranceAssets(p, null, new AbortController().signal, first.make);
     const rejected = expect(result).rejects.toThrow('decode failed');

@@ -1,3 +1,4 @@
+import { entranceBlinkFrame, type EntranceBlinkProfile } from './cardEntranceBlink';
 import type { EntranceMeshProfile } from './cardEntranceProfiles';
 import { entranceLayerFrame } from './cardEntranceArticulation';
 // Shared portrait mesh; optional atlas layers articulate intact hands and props.
@@ -5,7 +6,8 @@ import { entranceLayerFrame } from './cardEntranceArticulation';
 export function createCardEntranceMesh(
   canvas: HTMLCanvasElement,
   image: HTMLImageElement,
-  profile: EntranceMeshProfile
+  profile: EntranceMeshProfile,
+  blink?: { image: HTMLImageElement; faces: readonly EntranceBlinkProfile[] }
 ) {
   const rig = profile.armLayers;
   const portrait = profile.portraitMotion;
@@ -149,7 +151,26 @@ export function createCardEntranceMesh(
       gl.FRAGMENT_SHADER,
       `
     precision mediump float; varying vec2 tex; uniform sampler2D art;
-    void main(){gl_FragColor=texture2D(art,tex);}`
+    uniform sampler2D blinkArt; uniform float blinkAmount;
+    uniform vec4 eyeTarget[2]; uniform vec4 eyeHalf[2]; uniform vec4 eyeClosed[2];
+    void main(){
+      vec4 color=texture2D(art,tex);
+      // Drawn eyelid poses switch as animation cels; crossfading leaves ghost irises.
+      float poseIndex=floor(blinkAmount*2.0+.5);
+      if(poseIndex>0.0){
+        for(int i=0;i<2;i++){
+          vec2 local=(tex-eyeTarget[i].xy)/eyeTarget[i].zw;
+          float edge=1.0-smoothstep(.82,1.0,length((local-.5)*2.0));
+          if(edge>0.0){
+            vec4 halfEye=texture2D(blinkArt,eyeHalf[i].xy+local*eyeHalf[i].zw);
+            vec4 closedEye=texture2D(blinkArt,eyeClosed[i].xy+local*eyeClosed[i].zw);
+            vec4 pose=mix(halfEye,closedEye,poseIndex-1.0);
+            color.rgb=mix(color.rgb,pose.rgb,edge*pose.a);
+          }
+        }
+      }
+      gl_FragColor=color;
+    }`
     )
   );
   gl.linkProgram(program);
@@ -256,8 +277,37 @@ export function createCardEntranceMesh(
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+  gl.uniform1i(gl.getUniformLocation(program, 'art'), 0);
+  let blinkTexture: WebGLTexture | null = null;
+  const blinkAmount = gl.getUniformLocation(program, 'blinkAmount');
+  gl.uniform1i(gl.getUniformLocation(program, 'blinkArt'), 1);
+  // WebGL requires a complete texture even on an inactive sampler branch.
+  gl.activeTexture(gl.TEXTURE1);
+  if (blink) {
+    blinkTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, blinkTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, blink.image);
+  } else {
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+  }
+  gl.activeTexture(gl.TEXTURE0);
   const time = gl.getUniformLocation(program, 'time'),
     amount = gl.getUniformLocation(program, 'amount');
+  const eyeUniforms = (
+    [
+      ['target', 'eyeTarget'],
+      ['half', 'eyeHalf'],
+      ['closed', 'eyeClosed'],
+    ] as const
+  ).map(([key, uniform]) => ({
+    key,
+    location: gl.getUniformLocation(program, `${uniform}[0]`),
+  }));
+  let activeFace: EntranceBlinkProfile | null = null;
   const draw = (seconds: number, reduced: boolean) => {
     const w = Math.round(canvas.clientWidth * Math.min(devicePixelRatio, 2)),
       h = Math.round(canvas.clientHeight * Math.min(devicePixelRatio, 2));
@@ -269,6 +319,16 @@ export function createCardEntranceMesh(
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.uniform1f(time, seconds);
+    const blinkFrame = blink ? entranceBlinkFrame(seconds, blink.faces, reduced) : null;
+    if (blinkFrame && blinkFrame.face !== activeFace) {
+      activeFace = blinkFrame.face;
+      for (const { key, location } of eyeUniforms)
+        gl.uniform4fv(
+          location,
+          activeFace.eyes.flatMap((eye) => [...eye[key]])
+        );
+    }
+    gl.uniform1f(blinkAmount, blinkFrame?.amount ?? 0);
     gl.uniform1f(amount, reduced ? 0 : 1);
     const timing = rig ?? portrait;
     const motion = timing ? entranceLayerFrame(seconds, timing, reduced) : null;
@@ -295,6 +355,7 @@ export function createCardEntranceMesh(
     dispose() {
       for (const shader of gl.getAttachedShaders(program) ?? []) gl.deleteShader(shader);
       gl.deleteTexture(texture);
+      if (blinkTexture) gl.deleteTexture(blinkTexture);
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
     },

@@ -37,6 +37,7 @@ export function CardEntrancePlayback({
   const [ready, setReady] = useState<{
     portrait: HTMLImageElement;
     card: HTMLImageElement | null;
+    blink: HTMLImageElement | null;
     startedAt: number;
   } | null>(null);
   useEffect(() => {
@@ -82,6 +83,7 @@ export function CardEntrancePlayback({
           <CardEntrancePortrait
             profile={profile}
             image={ready.portrait}
+            blinkImage={ready.blink}
             startedAt={ready.startedAt}
             reduced={reduced}
             onDone={onDone}

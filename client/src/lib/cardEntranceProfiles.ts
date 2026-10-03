@@ -1,4 +1,5 @@
 import { entranceCards } from '@game/shared/card-entrance';
+import type { EntranceBlinkProfile } from './cardEntranceBlink';
 import type { EntranceMotionTiming } from './cardEntranceArticulation';
 
 /** Two registered atlas panels: repaired body plus an intact arm or second character. */
@@ -75,6 +76,7 @@ export interface CardEntranceProfile {
   name: string;
   /** Loaded only when this public card is about to present. */
   loadArt: () => Promise<{ default: string }>;
+  blink?: { loadArt: () => Promise<{ default: string }>; faces: readonly EntranceBlinkProfile[] };
   center: string;
   mobileHeight: string;
   /** Preserve wider group artwork without stretching older portraits. */
@@ -99,6 +101,29 @@ export function defineEntranceProfiles(entries: readonly CardEntranceProfile[]) 
 export const cardEntranceProfiles = defineEntranceProfiles([
   {
     id: 'kanata',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/kanata-blink.png'),
+      faces: [
+        {
+          start: 1.02,
+          close: 0.065,
+          hold: 0.045,
+          open: 0.13,
+          eyes: [
+            {
+              target: [648 / 1061, 252 / 1483, 98 / 1061, 61 / 1483],
+              half: [520 / 1774, 140 / 887, 430 / 1774, 267 / 887],
+              closed: [520 / 1774, 546 / 887, 430 / 1774, 267 / 887],
+            },
+            {
+              target: [763 / 1061, 273 / 1483, 55 / 1061, 42 / 1483],
+              half: [1125 / 1774, 230 / 887, 194 / 1774, 148 / 887],
+              closed: [1125 / 1774, 636 / 887, 194 / 1774, 148 / 887],
+            },
+          ],
+        },
+      ],
+    },
     loadArt: () => import('../components/game/card-entrance/kanata.png'),
     baseCode: entranceCards['kanata'],
     name: '近江彼方',
@@ -114,6 +139,29 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   },
   {
     id: 'ren',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/ren-blink.png'),
+      faces: [
+        {
+          start: 0.9,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [480 / 1061, 280 / 1483, 102 / 1061, 76 / 1483],
+              half: [370 / 1536, 206 / 1024, 340 / 1536, 253 / 1024],
+              closed: [370 / 1536, 646 / 1024, 340 / 1536, 253 / 1024],
+            },
+            {
+              target: [635 / 1061, 276 / 1483, 74 / 1061, 78 / 1483],
+              half: [942 / 1536, 203 / 1024, 252 / 1536, 266 / 1024],
+              closed: [942 / 1536, 643 / 1024, 252 / 1536, 266 / 1024],
+            },
+          ],
+        },
+      ],
+    },
     loadArt: () => import('../components/game/card-entrance/ren.png'),
     baseCode: entranceCards['ren'],
     name: '叶月恋',
@@ -129,6 +177,29 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   },
   {
     id: 'shiki',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/shiki-blink.png'),
+      faces: [
+        {
+          start: 0.94,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [390 / 1061, 246 / 1483, 108 / 1061, 70 / 1483],
+              half: [350 / 1536, 205 / 1024, 345 / 1536, 224 / 1024],
+              closed: [350 / 1536, 715 / 1024, 345 / 1536, 224 / 1024],
+            },
+            {
+              target: [544 / 1061, 269 / 1483, 114 / 1061, 68 / 1483],
+              half: [817 / 1536, 242 / 1024, 345 / 1536, 206 / 1024],
+              closed: [817 / 1536, 752 / 1024, 345 / 1536, 206 / 1024],
+            },
+          ],
+        },
+      ],
+    },
     loadArt: () => import('../components/game/card-entrance/shiki.png'),
     baseCode: entranceCards['shiki'],
     name: '若菜四季',
@@ -145,6 +216,47 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   },
   {
     id: 'next-step-trio',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/next-step-trio-blink.png'),
+      faces: [
+        {
+          start: 0.73,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [158 / 1152, 347 / 1366, 87 / 1152, 79 / 1366],
+              half: [103 / 1536, 210 / 1024, 214 / 1536, 194 / 1024],
+              closed: [103 / 1536, 722 / 1024, 214 / 1536, 194 / 1024],
+            },
+            {
+              target: [283 / 1152, 358 / 1366, 86 / 1152, 81 / 1366],
+              half: [419 / 1536, 210 / 1024, 210 / 1536, 198 / 1024],
+              closed: [419 / 1536, 722 / 1024, 210 / 1536, 198 / 1024],
+            },
+          ],
+        },
+        {
+          start: 1.15,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [470 / 1152, 250 / 1366, 94 / 1152, 76 / 1366],
+              half: [890 / 1536, 195 / 1024, 217 / 1536, 175 / 1024],
+              closed: [890 / 1536, 707 / 1024, 217 / 1536, 175 / 1024],
+            },
+            {
+              target: [608 / 1152, 259 / 1366, 90 / 1152, 77 / 1366],
+              half: [1213 / 1536, 196 / 1024, 209 / 1536, 179 / 1024],
+              closed: [1213 / 1536, 708 / 1024, 209 / 1536, 179 / 1024],
+            },
+          ],
+        },
+      ],
+    },
     loadArt: () => import('../components/game/card-entrance/next-step-trio.png'),
     baseCode: entranceCards['next-step-trio'],
     name: '渡边曜&鬼冢夏美&大泽瑠璃乃',
@@ -170,6 +282,29 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   },
   {
     id: 'hime',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/hime-blink.png'),
+      faces: [
+        {
+          start: 0.84,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [332 / 1500, 193 / 1049, 81 / 1500, 65 / 1049],
+              half: [634 / 1991, 153 / 789, 280 / 1991, 225 / 789],
+              closed: [634 / 1991, 548 / 789, 280 / 1991, 225 / 789],
+            },
+            {
+              target: [445 / 1500, 174 / 1049, 82 / 1500, 65 / 1049],
+              half: [1023 / 1991, 104 / 789, 287 / 1991, 228 / 789],
+              closed: [1023 / 1991, 500 / 789, 287 / 1991, 228 / 789],
+            },
+          ],
+        },
+      ],
+    },
     baseCode: entranceCards.hime,
     name: '安养寺姬芽',
     loadArt: () => import('../components/game/card-entrance/hime-layers.png'),
@@ -203,6 +338,29 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   },
   {
     id: 'lanzhu',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/lanzhu-blink.png'),
+      faces: [
+        {
+          start: 1.02,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [349 / 1500, 228 / 1049, 80 / 1500, 52 / 1049],
+              half: [830 / 2172, 172 / 724, 270 / 2172, 176 / 724],
+              closed: [830 / 2172, 519 / 724, 270 / 2172, 176 / 724],
+            },
+            {
+              target: [442 / 1500, 194 / 1049, 72 / 1500, 57 / 1049],
+              half: [1135 / 2172, 59 / 724, 260 / 2172, 206 / 724],
+              closed: [1135 / 2172, 405 / 724, 260 / 2172, 206 / 724],
+            },
+          ],
+        },
+      ],
+    },
     baseCode: entranceCards.lanzhu,
     name: '钟岚珠',
     loadArt: () => import('../components/game/card-entrance/lanzhu-layers.png'),
@@ -239,6 +397,29 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   },
   {
     id: 'eli',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/eli-blink.png'),
+      faces: [
+        {
+          start: 0.9,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [249 / 1501, 306 / 1047, 88 / 1501, 77 / 1047],
+              half: [608 / 1777, 207 / 885, 252 / 1777, 220 / 885],
+              closed: [608 / 1777, 621 / 885, 252 / 1777, 220 / 885],
+            },
+            {
+              target: [361 / 1501, 265 / 1047, 130 / 1501, 87 / 1047],
+              half: [914 / 1777, 104 / 885, 354 / 1777, 237 / 885],
+              closed: [914 / 1777, 518 / 885, 354 / 1777, 237 / 885],
+            },
+          ],
+        },
+      ],
+    },
     baseCode: entranceCards.eli,
     name: '绚濑绘里',
     loadArt: () => import('../components/game/card-entrance/eli-layers.png'),
@@ -272,6 +453,29 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   },
   {
     id: 'honoka',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/honoka-blink.png'),
+      faces: [
+        {
+          start: 0.82,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [387 / 1500, 242 / 1049, 83 / 1500, 76 / 1049],
+              half: [659 / 1900, 178 / 828, 275 / 1900, 252 / 828],
+              closed: [659 / 1900, 566 / 828, 275 / 1900, 252 / 828],
+            },
+            {
+              target: [497 / 1500, 202 / 1049, 75 / 1500, 77 / 1049],
+              half: [1035 / 1900, 95 / 828, 254 / 1900, 261 / 828],
+              closed: [1035 / 1900, 483 / 828, 254 / 1900, 261 / 828],
+            },
+          ],
+        },
+      ],
+    },
     baseCode: entranceCards.honoka,
     name: '高坂穗乃果',
     loadArt: () => import('../components/game/card-entrance/honoka-layers.png'),
@@ -307,6 +511,47 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   },
   {
     id: 'rin-hanayo',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/rin-hanayo-blink.png'),
+      faces: [
+        {
+          start: 0.76,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [303 / 1774, 185 / 887, 98 / 1774, 78 / 887],
+              half: [131 / 1414, 199 / 1113, 222 / 1414, 177 / 1113],
+              closed: [131 / 1414, 741 / 1113, 222 / 1414, 177 / 1113],
+            },
+            {
+              target: [406 / 1774, 257 / 887, 81 / 1774, 80 / 887],
+              half: [376 / 1414, 337 / 1113, 175 / 1414, 173 / 1113],
+              closed: [376 / 1414, 879 / 1113, 175 / 1414, 173 / 1113],
+            },
+          ],
+        },
+        {
+          start: 1.16,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [1163.08 / 1774, 185.61 / 887, 103.84 / 1774, 83.78 / 887],
+              half: [765.54 / 1414, 224.87 / 1113, 228.92 / 1414, 185.26 / 1113],
+              closed: [765.54 / 1414, 766.87 / 1113, 228.92 / 1414, 185.26 / 1113],
+            },
+            {
+              target: [1268.27 / 1774, 214.89 / 887, 114.46 / 1774, 93.22 / 887],
+              half: [1028.74 / 1414, 282.34 / 1113, 252.52 / 1414, 205.32 / 1113],
+              closed: [1028.74 / 1414, 824.34 / 1113, 252.52 / 1414, 205.32 / 1113],
+            },
+          ],
+        },
+      ],
+    },
     baseCode: entranceCards['rin-hanayo'],
     name: '星空凛&小泉花阳',
     loadArt: () => import('../components/game/card-entrance/rin-hanayo-layers.png'),
@@ -342,6 +587,29 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   },
   {
     id: 'seras',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/seras-blink.png'),
+      faces: [
+        {
+          start: 1.04,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [390 / 1536, 287 / 1024, 103 / 1536, 77 / 1024],
+              half: [365 / 1536, 245 / 1024, 358 / 1536, 249 / 1024],
+              closed: [365 / 1536, 725 / 1024, 358 / 1536, 249 / 1024],
+            },
+            {
+              target: [516 / 1536, 221 / 1024, 94 / 1536, 83 / 1024],
+              half: [860 / 1536, 125 / 1024, 340 / 1536, 290 / 1024],
+              closed: [860 / 1536, 605 / 1024, 340 / 1536, 290 / 1024],
+            },
+          ],
+        },
+      ],
+    },
     baseCode: entranceCards.seras,
     name: '赛拉丝·柳田·利林费尔德',
     loadArt: () => import('../components/game/card-entrance/seras-layers.png'),
@@ -378,6 +646,29 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   },
   {
     id: 'kaho',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/kaho-blink.png'),
+      faces: [
+        {
+          start: 0.94,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [359 / 1536, 370 / 1024, 98 / 1536, 101 / 1024],
+              half: [355 / 1024, 509 / 1536, 164 / 1024, 176 / 1536],
+              closed: [355 / 1024, 1281 / 1536, 164 / 1024, 176 / 1536],
+            },
+            {
+              target: [429 / 1536, 229 / 1024, 89 / 1536, 104 / 1024],
+              half: [493 / 1024, 263 / 1536, 166 / 1024, 187 / 1536],
+              closed: [493 / 1024, 1037 / 1536, 166 / 1024, 187 / 1536],
+            },
+          ],
+        },
+      ],
+    },
     mobileSkipPosition: 'below-name',
     baseCode: entranceCards.kaho,
     name: '日野下花帆',
@@ -416,6 +707,29 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   },
   {
     id: 'rurino',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/rurino-blink.png'),
+      faces: [
+        {
+          start: 0.88,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [658 / 1199, 333 / 1312, 124 / 1199, 100 / 1312],
+              half: [378 / 1536, 150 / 1024, 328 / 1536, 265 / 1024],
+              closed: [378 / 1536, 605 / 1024, 328 / 1536, 265 / 1024],
+            },
+            {
+              target: [820 / 1199, 357 / 1312, 131 / 1199, 101 / 1312],
+              half: [838 / 1536, 194 / 1024, 331 / 1536, 255 / 1024],
+              closed: [838 / 1536, 647 / 1024, 331 / 1536, 255 / 1024],
+            },
+          ],
+        },
+      ],
+    },
     mobileSkipPosition: 'below-name',
     baseCode: entranceCards.rurino,
     name: '大泽瑠璃乃',
@@ -461,6 +775,29 @@ export const cardEntranceProfiles = defineEntranceProfiles([
   },
   {
     id: 'you',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/you-blink.png'),
+      faces: [
+        {
+          start: 0.93,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [584 / 1061, 283 / 1483, 99 / 1061, 65 / 1483],
+              half: [381 / 1774, 155 / 887, 357 / 1774, 234 / 887],
+              closed: [381 / 1774, 598 / 887, 357 / 1774, 234 / 887],
+            },
+            {
+              target: [731 / 1061, 299 / 1483, 96 / 1061, 79 / 1483],
+              half: [910 / 1774, 179 / 887, 337 / 1774, 277 / 887],
+              closed: [910 / 1774, 622 / 887, 337 / 1774, 277 / 887],
+            },
+          ],
+        },
+      ],
+    },
     mobileSkipPosition: 'below-name',
     baseCode: entranceCards.you,
     name: '渡边曜',

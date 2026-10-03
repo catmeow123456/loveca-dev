@@ -7,12 +7,14 @@ import { entrancePortraitFrame } from '../../../lib/cardEntranceTimeline';
 export function CardEntrancePortrait({
   profile,
   image,
+  blinkImage,
   startedAt,
   reduced,
   onDone,
 }: {
   profile: CardEntranceProfile;
   image: HTMLImageElement;
+  blinkImage?: HTMLImageElement | null;
   startedAt: number;
   reduced: boolean;
   onDone: () => void;
@@ -31,7 +33,14 @@ export function CardEntrancePortrait({
     const initialize = () => {
       if (disposed || !canvas.current) return;
       try {
-        mesh = createCardEntranceMesh(canvas.current, image, profile.mesh);
+        mesh = createCardEntranceMesh(
+          canvas.current,
+          image,
+          profile.mesh,
+          profile.blink && blinkImage
+            ? { image: blinkImage, faces: profile.blink.faces }
+            : undefined
+        );
       } catch {
         done.current();
         return;
@@ -66,7 +75,7 @@ export function CardEntrancePortrait({
       cancelAnimationFrame(frame);
       mesh?.dispose();
     };
-  }, [reduced, profile, image, startedAt]);
+  }, [reduced, profile, image, blinkImage, startedAt]);
   return (
     <div
       ref={container}

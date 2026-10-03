@@ -68,14 +68,14 @@ node client/node_modules/vite/bin/vite.js --config ../animation-prototypes/share
 
 ## 素材与局限
 
-`kanata.png` 基于[官方 PL!N-bp7-E02-SECE 卡面](https://llofficial-cardgame.com/cardlist/searchresults/?cardno=PL!N-bp7-E02-SECE)的取景经 imagegen 重绘，用于本地概念验证，并非官方无字原画。没有补腿脚，人物服饰细节与官方原画仍有差异。仅用局部网格形变表现发束和衣料跟随，没有真正转身、眨眼或逐帧角色动作。
+`kanata.png` 基于[官方 PL!N-bp7-E02-SECE 卡面](https://llofficial-cardgame.com/cardlist/searchresults/?cardno=PL!N-bp7-E02-SECE)的取景经 imagegen 重绘，用于本地概念验证，并非官方无字原画。没有补腿脚，人物服饰细节与官方原画仍有差异。身体仍以局部网格形变表现发束和衣料跟随；眼部另用下方眨眼图集，不是真正三维转身或全身逐帧动作。
 
 素材存在重绘局限；本地验收与作者部署后的生产烟测分别记录。
 
 `ren.png` 基于[官方 PL!SP-pb2-005-PP 卡面](https://llofficial-cardgame.com/cardlist/searchresults/?cardno=PL!SP-pb2-005-PP)经 imagegen 去框、去字及透明背景重绘，保留原图截断的手臂与腿部范围；并非官方无字图，脸、手指与格纹细节可能存在重建差异。用户已确认此版素材。原图、提示词和独立预览保存在仓库外 `animation-prototypes/ren/`，运行时不依赖该目录。
 
 
-`shiki.png` 基于[官方 PL!SP-pb2-008-PP 卡面](https://llofficial-cardgame.com/cardlist/searchresults/?cardno=PL!SP-pb2-008-PP)使用内置 imagegen 透明背景重绘。规则身份来自用户指定 `references/cards_export_2026-09-29.json`：基础编号 PL!SP-pb2-008、费用 17「若菜四季」、R／PP；PP 是人物素材来源，两个罕度均触发自身完整卡牌飞行。源卡只展示到大腿上缘，本版保留该范围，没有补腿脚。去掉卡框、背景、签名、SAMPLE 与图标；遮挡的手指、胸前饰物、格纹和腰部衣料经过重建，线条、比例、饰物不保证与原画完全一致，不是官方无字图。仅为网格微动，不含眨眼、转身或骨骼动作。原图、生成结果、完整提示词及隔离验收页保存在仓库外 `animation-prototypes/shiki/`，运行时仅依赖本目录 `shiki.png`。
+`shiki.png` 基于[官方 PL!SP-pb2-008-PP 卡面](https://llofficial-cardgame.com/cardlist/searchresults/?cardno=PL!SP-pb2-008-PP)使用内置 imagegen 透明背景重绘。规则身份来自用户指定 `references/cards_export_2026-09-29.json`：基础编号 PL!SP-pb2-008、费用 17「若菜四季」、R／PP；PP 是人物素材来源，两个罕度均触发自身完整卡牌飞行。源卡只展示到大腿上缘，本版保留该范围，没有补腿脚。去掉卡框、背景、签名、SAMPLE 与图标；遮挡的手指、胸前饰物、格纹和腰部衣料经过重建，线条、比例、饰物不保证与原画完全一致，不是官方无字图。身体使用网格微动，眼部另用下方眨眼图集，不含真正转身或骨骼动作。原图、生成结果、完整提示词及隔离验收页保存在仓库外 `animation-prototypes/shiki/`，运行时使用本目录 `shiki.png` 与可选的 `shiki-blink.png`。
 
 ## 历史首版记录：四季（2026-10-02，生产开放前）
 
@@ -187,3 +187,20 @@ node client/node_modules/vite/bin/vite.js --config ../animation-prototypes/share
 用户已认可当前动作。人物检查应分别覆盖可感知程度、自然度、关键姿态及真实桌面，不以工程测试替代观感；可在上述入口对照调优前、调优后与静态版本。自动验证入口为 `tests/unit/card-entrance-articulation.test.ts`、`tests/unit/card-entrance-assets.test.ts`、`tests/integration/rurino-you-entrance-synchronization.test.ts` 和 `tests/integration/card-entrance-presentation.test.ts`。
 
 当前验收限于本机隔离桌面与浏览器，尚未进行本批生产部署、双端真实网络、操作系统减少动态设置或WebGL上下文丢失验收。
+
+
+## 眼部眨眼（2026-10-03）
+
+已登记的十三张卡牌均增加自然眨眼，用户已认可当前预览：彼方、恋、四季、姬芽、岚珠、绘里、穗乃果、赛拉丝、花帆、瑠璃乃、曜、曜／夏美／瑠璃乃三人卡、凛／花阳双人卡。十三个 `<profile id>-blink.png` 使用内置 imagegen 参考已采用的人物图生成半闭眼／闭眼图集，只采样双眼周围局部区域，不替换原人物图；属于局部重绘，并非官方表情素材。原身体动作和2.74秒总时间线不变。
+
+`profile.blink.faces` 统一登记各人物的双眼源／目标 UV 与独立时序，使用同一播放时钟。眼部在原人物网格的片元绘制中合成，自动跟随头部；原睁眼、半闭眼、闭眼三种状态离散切换，避免跨姿态透明混合产生重影。每个人物约0.2秒完成一次眨眼，彼方为0.24秒。侧脸、远眼、倾斜角度及刘海遮挡分别校准，赛拉丝和花帆另修正眼部边缘。
+
+组合卡按不重叠时间窗口先后眨眼，片元只处理当前一对眼睛，不复制播放器。三人卡先夏美、后曜，原本闭眼笑的瑠璃乃保留原表情；双人卡先花阳、后凛，分别跟随各自人物层。花帆身旁原本闭眼的角色同样不变。减少动态保留原眼睛。
+
+图集按卡加载，与人物图共用准备期限和取消机制。可选眼部模块导入或图片解码失败时回退原人物；准备超时或取消后不接受迟到结果，销毁网格时释放眼部纹理。结束确认仍沿用现有双方演出等待协议，不延长规则等待。
+
+完整生成提示词、原版网格对照和局部预览证据保存在仓库外 `../animation-prototypes/rurino-blink-20261003/`，赛拉丝和花帆最终提示词为 `seras-prompt-v2.txt`、`kaho-prompt-v2.txt`。`http://127.0.0.1:5180/compare.html` 可切换全部十三张，以无光效1×、关键帧和不眨眼原版对照；根页面复用隔离的真实GameBoard与卡效夹具。原型目录不属于运行依赖。
+
+本批提交前统一验证：76项相关测试、根目录类型检查、客户端类型检查和生产构建通过；91组WebGL像素对照确认非眨眼阶段及减少动态与原网格输出一致。已逐卡查看正常速度、半闭／闭眼与恢复姿态，检查组合卡错时和减少动态分支；真实桌面验证姬芽完整播放及跳过后卡效续行，并检查390×844窄屏三人卡。生产构建仍有既有包体积提示。本批未进行生产部署、双端真实网络、操作系统减少动态设置或WebGL上下文丢失验收。
+
+后续制作按当前卡检查局部观感，提交前统一执行相关回归、类型检查与构建；修改共用机制时针对影响面追加验证，不逐卡重复所有卡牌检查。

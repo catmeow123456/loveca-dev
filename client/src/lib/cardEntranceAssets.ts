@@ -7,7 +7,11 @@ export async function prepareEntranceAssets(
   cardUrl: string | null,
   signal: AbortSignal,
   makeImage: () => HTMLImageElement = () => new Image()
-): Promise<{ portrait: HTMLImageElement; card: HTMLImageElement | null }> {
+): Promise<{
+  portrait: HTMLImageElement;
+  card: HTMLImageElement | null;
+  blink: HTMLImageElement | null;
+}> {
   const pendingImages: HTMLImageElement[] = [];
   let timer: ReturnType<typeof setTimeout>;
   let abort: () => void = () => {};
@@ -37,11 +41,22 @@ export async function prepareEntranceAssets(
       Promise.all([
         profile.loadArt().then(({ default: url }) => load(url)),
         cardUrl ? load(cardUrl) : Promise.resolve(null),
+        profile.blink
+          ? profile.blink
+              .loadArt()
+              .then(({ default: url }) => load(url))
+              .catch(() => {
+                // A missing cosmetic eye patch falls back to the intact original face.
+                // Cancellation and the shared deadline still stop the presentation.
+                guard();
+                return null;
+              })
+          : Promise.resolve(null),
         // Share the existing preparation deadline; a missing font keeps a readable fallback.
         typeof document === 'undefined'
           ? Promise.resolve()
           : document.fonts.load('900 32px "Loveca Entrance"', profile.name).catch(() => {}),
-      ]).then(([portrait, card]) => ({ portrait, card })),
+      ]).then(([portrait, card, blink]) => ({ portrait, card, blink })),
       interrupted,
     ]);
   } catch (error) {

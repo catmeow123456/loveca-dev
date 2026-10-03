@@ -13,7 +13,7 @@
 | [card-entrance.ts](../../../../src/shared/card-entrance.ts)、[权威捕获](../../../../src/application/card-entrance.ts)、[game-session.ts](../../../../src/application/game-session.ts) | 共享卡号身份、原子步骤边界捕获、双席 ACK／超时、撤销代际与结算恢复 |
 | [CardEntranceLayer.tsx](../../../../client/src/components/game/card-entrance/CardEntranceLayer.tsx) | 消费 `match.entrance`、顺序播放、完成确认、等待另一席与遮挡；图片与卡名跟随当前 profile |
 | [cardEntranceProfiles.ts](../../../../client/src/lib/cardEntranceProfiles.ts)、[CardEntrancePortrait.tsx](../../../../client/src/components/game/card-entrance/CardEntrancePortrait.tsx) | 全部角色的基础编号、卡名、取景、光晕与形变配置；登记内绑定按需素材，共用人物绘制 |
-| [CardEntrancePlayback.tsx](../../../../client/src/components/game/card-entrance/CardEntrancePlayback.tsx)、[cardEntranceAssets.ts](../../../../client/src/lib/cardEntranceAssets.ts) | 可取消的双图解码、超时／失败释放；资源就绪后启动，迟到回调不能复活已取消演出 |
+| [CardEntrancePlayback.tsx](../../../../client/src/components/game/card-entrance/CardEntrancePlayback.tsx)、[cardEntranceAssets.ts](../../../../client/src/lib/cardEntranceAssets.ts) | 可取消的人物、飞牌与可选眼部图集解码、超时／失败释放；资源就绪后启动，迟到回调不能复活已取消演出 |
 | [cardEntranceTimeline.ts](../../../../client/src/lib/cardEntranceTimeline.ts) | 共用毫秒时间线、CSS 冲击时长、推导的总时长；人物、飞牌和结束计时使用同一开始时刻 |
 | [cardEntranceMesh.ts](../../../../client/src/lib/cardEntranceMesh.ts) | 基于当前素材的局部形变；新图的脸、发束和衣料分区需重新核对 |
 | [cardEntranceArticulation.ts](../../../../client/src/lib/cardEntranceArticulation.ts) | 人物时钟上的手臂、身体与衣发跟随进度；可选身体独立起势与缓动，不新增播放器或计时器 |
@@ -35,6 +35,14 @@
 
 `portraitMotion` 支持完整单图的身体编排，`attachedPart` 可用有限多边形区域、支点和独立时序带动同图中的完整手臂／道具，`fixedCorner` 用于固定左下前景。区域边缘应落在软衣料或透明间隙；仅适合不改变遮挡关系的有限动作，需要露出被遮挡区域时仍应制作分层素材。两种方式共用人物时钟，不能因此复制播放器。
 
+## 眼部图集复用
+
+`cardEntranceProfiles.blink` 绑定按需眼部图集与 `faces`；[cardEntranceBlink.ts](../../../../client/src/lib/cardEntranceBlink.ts) 由同一个人物播放时间推导一次眨眼，不新增定时器、循环或逐卡播放器。`faces` 按开始时刻排列且窗口不重叠，组合卡只切换当前人物的一对眼睛；现有绘制不支持多人同时闭合，不能以重叠配置假称支持。
+
+`eyes.target` 使用完整原人物纹理的归一化坐标；原图为身体／手臂或双人图集时，也按整张图集尺寸计算，不能按裁出的人物面板归一化。`half`／`closed` 则取眼部图集坐标。片元在同一源UV上合成，因此跟随各自头部网格，保留原透明轮廓；不要另加屏幕坐标眼皮浮层。
+
+眼部图集复用 `prepareEntranceAssets` 的取消和共同准备期限，导入／解码失败回退原人物，超时或取消仍终止本次演出；网格销毁释放眼部纹理。制作时只补已需要的表情与取样参数，先看当前已认可配置，不复制所有角色的眨眼时刻或扩大眼睛数组。当前覆盖与素材局限以登场说明为准。
+
 ## 验证入口
 
 - [card-entrance-events.test.ts](../../../../tests/unit/card-entrance-events.test.ts)：基础编号、公开进场事件、去重与历史重置。
@@ -55,3 +63,5 @@
 
 - [card-entrance-synchronization.test.ts](../../../../tests/integration/card-entrance-synchronization.test.ts)、[online-card-entrance.test.ts](../../../../tests/integration/online-card-entrance.test.ts)：真实卡效延后、两席确认／超时、排位时钟、越权与过期确认。
 - [作者部署说明](../../../../docs/card-entrance-production-rollout.md)：前后端同版本发布、素材分发、生产烟测与回退边界；读该文不代表取得生产操作授权。
+
+- [card-entrance-blink.test.ts](../../../../tests/unit/card-entrance-blink.test.ts)：一次眨眼、跳帧恢复、多人错时与减少动态；加载失败／取消仍由资源测试覆盖。眼部覆盖与跟随效果需浏览器验证。
