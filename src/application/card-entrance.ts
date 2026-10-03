@@ -5,7 +5,7 @@ import { isEntranceCard } from '../shared/card-entrance.js';
 /** Pause only at an atomic effect boundary; never split a cost or a workflow mutation. */
 export function captureCardEntrance(game: GameState): GameState {
   const runtime = game.entranceRuntime;
-  if (!runtime || runtime.disabled || runtime.pending || game.isEnded) return game;
+  if (!runtime || runtime.pending || game.isEnded) return game;
   const entries = game.eventLog.filter((e) => e.sequence > runtime.seenSequence);
   if (!entries.length) return game;
   const cardIds = [

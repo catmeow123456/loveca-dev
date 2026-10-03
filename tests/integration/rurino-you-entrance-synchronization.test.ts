@@ -108,7 +108,7 @@ function fixture(cardCode: string, name: string, kind: string) {
 
 describe('Rurino and You use the shared paid entrance and effect barrier', () => {
   for (const [code, name, kind] of prints)
-    it.each(['ACK', 'timeout', 'disabled'] as const)(
+    it.each(['ACK', 'timeout'] as const)(
       `${code} resumes its actual effect once after %s`,
       (mode) => {
         const { session, ack, advance } = fixture(code, name, kind);
@@ -135,10 +135,10 @@ describe('Rurino and You use the shared paid entrance and effect barrier', () =>
           expect(session.state!.activeEffect).toBeNull();
           expect(session.state!.entranceRuntime!.pending!.waitingPlayerIds).toEqual(['p2']);
           expect(ack('p2', pending.id).success).toBe(true);
-        } else if (mode === 'timeout') {
+        } else {
           advance();
           expect(session.expireCardEntrance()).toBe(true);
-        } else session.setCardEntranceEnabled(false);
+        }
         expect(session.state!.entranceRuntime!.pending).toBeNull();
         const confirm = (selection: string | string[]) =>
           session.executeCommand(
@@ -166,7 +166,6 @@ describe('Rurino and You use the shared paid entrance and effect barrier', () =>
         expect(session.state!.activeEffect).toBeNull();
         expect(session.state!.players[0].energyZone).toEqual(paid);
         expect(ack('p2', pending.id).success).toBe(false);
-        session.setCardEntranceEnabled(true);
         session.restoreRuntimeState({
           authorityState: session.state!,
           currentPublicSeq: session.getCurrentPublicEventSeq(),

@@ -1,4 +1,3 @@
-import { useCardEntranceConfigStore } from '@/store/cardEntranceConfigStore';
 /**
  * 游戏主界面布局
  */
@@ -447,21 +446,6 @@ export const GameBoard = memo(function GameBoard({
   const isReadOnly = capabilities.isReadOnly;
   const [cardEntranceEnabled, setCardEntranceEnabled] = useState(readCardEntranceEnabled);
   const canShowCardEntrance = canPresentCardEntrance(capabilities);
-  const platformEntranceEnabled = useCardEntranceConfigStore((s) => s.enabled);
-  const remoteEntranceSession = useGameStore((s) => s.remoteSession);
-  const entranceAvailable =
-    platformEntranceEnabled &&
-    (!remoteEntranceSession || playerViewState?.match.cardEntranceEnabled === true);
-  useEffect(() => {
-    if (remoteEntranceSession) return;
-    const store = useGameStore.getState();
-    if (store.gameSession.setCardEntranceEnabled(platformEntranceEnabled)) store.syncState();
-  }, [
-    platformEntranceEnabled,
-    remoteEntranceSession,
-    playerViewState?.match.matchId,
-    playerViewState?.match.entrance?.id,
-  ]);
   const entranceWaiting = !!playerViewState?.match.entrance && canShowCardEntrance;
   const changeCardEntranceEnabled = (enabled: boolean) => {
     saveCardEntranceEnabled(enabled);
@@ -2450,7 +2434,7 @@ export const GameBoard = memo(function GameBoard({
         <BattleAnimationLayer />
         {canShowCardEntrance && (
           <Suspense fallback={null}>
-            <CardEntranceLayer enabled={cardEntranceEnabled && entranceAvailable} />
+            <CardEntranceLayer enabled={cardEntranceEnabled} />
           </Suspense>
         )}
         <div className="contents" inert={entranceWaiting}>
@@ -2507,7 +2491,7 @@ export const GameBoard = memo(function GameBoard({
                     </div>
 
                     <div className="flex shrink-0 items-center gap-1">
-                      {canShowCardEntrance && entranceAvailable && (
+                      {canShowCardEntrance && (
                         <CardEntranceToggle
                           enabled={cardEntranceEnabled}
                           onChange={changeCardEntranceEnabled}
@@ -2856,7 +2840,7 @@ export const GameBoard = memo(function GameBoard({
           ) : (
             <>
               <div className="absolute right-4 top-4 z-[80] flex items-center gap-2">
-                {canShowCardEntrance && entranceAvailable && (
+                {canShowCardEntrance && (
                   <CardEntranceToggle
                     enabled={cardEntranceEnabled}
                     onChange={changeCardEntranceEnabled}

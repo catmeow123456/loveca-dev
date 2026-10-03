@@ -29,13 +29,6 @@ interface DebugMatchState {
 }
 
 const debugMatches = new Map<string, DebugMatchState>();
-let cardEntranceEnabled = true;
-export function applyDebugCardEntranceConfig(enabled: boolean): void {
-  cardEntranceEnabled = enabled;
-  for (const match of debugMatches.values()) {
-    if (match.session?.setCardEntranceEnabled(enabled)) match.revision += 1;
-  }
-}
 
 export function getDebugMatchStatus(matchId: string): DebugMatchStatus {
   const match = getOrCreateDebugMatch(matchId);
@@ -254,7 +247,6 @@ function recreateMatchSessionIfReady(match: DebugMatchState): void {
     match.seats.SECOND.playerName
   );
 
-  session.setCardEntranceEnabled(cardEntranceEnabled);
   const initialized = session.initializeGame(match.seats.FIRST.deck, match.seats.SECOND.deck);
   if (!initialized.success) {
     throw new Error(initialized.error ?? '调试对局初始化失败');

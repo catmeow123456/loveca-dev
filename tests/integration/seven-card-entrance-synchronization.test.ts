@@ -153,7 +153,7 @@ describe('seven new portraits share the real paid entrance barrier', () => {
       expect(session.state!.players[0].hand.cardIds).toContain('source');
     });
   }
-  it.each(['ACK', 'timeout', 'disabled'] as const)(
+  it.each(['ACK', 'timeout'] as const)(
     'Emma resumes her actual ordered-bottom/energy effect after %s',
     (mode) => {
       const { session, ack, advance, setNow } = fixture('PL!N-bp7-008-P', '艾玛·维尔德', 15);
@@ -167,10 +167,10 @@ describe('seven new portraits share the real paid entrance barrier', () => {
       if (mode === 'ACK') {
         ack('p1', pending.id);
         ack('p2', pending.id);
-      } else if (mode === 'timeout') {
+      } else {
         advance();
         expect(session.expireCardEntrance()).toBe(true);
-      } else session.setCardEntranceEnabled(false);
+      }
       const effect = session.state!.activeEffect!;
       expect(effect.selectableCardIds).toEqual([
         'waiting-0',

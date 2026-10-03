@@ -1,4 +1,3 @@
-import { cardEntranceConfigService } from './card-entrance-config-service.js';
 import { randomUUID } from 'node:crypto';
 import type { RandomIntegerSource } from '../../shared/random-source.js';
 import {
@@ -356,7 +355,6 @@ export interface RespondManualOperationModeRequestInput {
 }
 
 interface OnlineMatchServiceDeps {
-  readonly getCardEntranceEnabled?: () => Promise<boolean>;
   /** Trusted deterministic scenarios; ordinary services retain the secure default source. */
   readonly randomInt?: RandomIntegerSource;
   readonly now?: () => number;
@@ -456,7 +454,6 @@ export class OnlineMatchService {
   private readonly matchMutationQueueTails = new Map<string, Promise<void>>();
   private readonly sealMatchPromises = new Map<string, Promise<boolean>>();
   private readonly aiRuntimes = new Map<string, AiBattleRuntime>();
-  private readonly getCardEntranceEnabled: () => Promise<boolean>;
   private serviceRejectedAttemptSeq = 0;
   private readonly entranceTimers = new Map<
     string,
@@ -464,7 +461,6 @@ export class OnlineMatchService {
   >();
 
   constructor(deps: OnlineMatchServiceDeps = {}) {
-    this.getCardEntranceEnabled = deps.getCardEntranceEnabled ?? (async () => true);
     this.now = deps.now ?? (() => Date.now());
     this.idGenerator = deps.idGenerator ?? randomUUID;
     this.randomInt = deps.randomInt;
@@ -595,7 +591,6 @@ export class OnlineMatchService {
       }
     }
 
-    session.setCardEntranceEnabled(await this.getCardEntranceEnabled());
     const initialized = session.initializeGame(
       cloneRuntimeDeck(params.first.deck),
       cloneRuntimeDeck(params.second.deck)
@@ -3382,23 +3377,13 @@ export class OnlineMatchService {
     this.entranceTimers.set(match.matchId, { id: pending.id, timer });
   }
 
-  async refreshCardEntrancePolicy(): Promise<void> {
-    for (const match of this.matches.values()) {
-      await this.runSerializedMatchMutation(match.matchId, () =>
-        this.expireCardEntranceIfNeeded(match)
-      );
-    }
-  }
-
   private async expireCardEntranceIfNeeded(match: OnlineMatchState): Promise<void> {
-    const policyChanged = match.session.setCardEntranceEnabled(await this.getCardEntranceEnabled());
-    const expired = match.session.expireCardEntrance();
-    if (!policyChanged && !expired) return;
+    if (!match.session.expireCardEntrance()) return;
     incrementRemoteRevision(match);
     this.synchronizePhaseCompletionGate(match);
     this.synchronizeRankedStallRuntime(match);
     await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
-      summary: policyChanged ? '平台登场动效配置已更新' : '登场演出等待超时，继续结算',
+      summary: '登场演出等待超时，继续结算',
       force: true,
     });
     await this.sealCompletedMatchIfNeeded(match);
@@ -4063,9 +4048,7 @@ export class OnlineMatchService {
   }
 }
 
-export const onlineMatchService = new OnlineMatchService({
-  getCardEntranceEnabled: () => cardEntranceConfigService.isEnabled(),
-});
+export const onlineMatchService = new OnlineMatchService();
 
 function buildSnapshot(
   match: OnlineMatchState,

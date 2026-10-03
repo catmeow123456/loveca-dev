@@ -135,8 +135,7 @@ export interface MatchViewState {
   readonly undo?: OnlineUndoView;
   /** 当前投影必须显式携带权威操作模式。 */
   readonly manualOperation: ManualOperationModeView;
-  /** Whether this authority currently permits entrance presentations. */
-  readonly cardEntranceEnabled?: boolean;
+  /** 公开登场演出的双方确认与截止时间。 */
   readonly entrance?: {
     readonly id: string;
     readonly objectIds: readonly string[];

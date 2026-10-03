@@ -355,7 +355,6 @@ export function projectPlayerViewState(
       disabledReason: manualOperationSwitchBlockedReason,
       pendingRequest: null,
     },
-    cardEntranceEnabled: !!game.entranceRuntime && !game.entranceRuntime.disabled,
     ...(game.entranceRuntime?.pending && !game.isEnded
       ? {
           entrance: {

@@ -1,4 +1,3 @@
-import { CardEntranceConfigPanel } from './CardEntranceConfigPanel';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Bell,
@@ -334,8 +333,6 @@ export function SiteAnnouncementsAdminPage({
           onFormChange={setSiteStatusForm}
           onSave={() => void saveSiteStatus()}
         />
-
-        <CardEntranceConfigPanel onSaved={onSiteStatusChanged} />
 
         <BattleTimeoutControlPanel
           value={battleTimeoutDraft}

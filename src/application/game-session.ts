@@ -400,7 +400,6 @@ interface GameSessionUndoEntry {
  * 5. 对墙打模式下对手阶段自动跳过
  */
 export class GameSession {
-  private cardEntranceEnabled = true;
   private gameService: GameService;
   private authorityState: GameState | null = null;
   private _gameMode: GameMode;
@@ -539,7 +538,6 @@ export class GameSession {
       ? {
           ...initialState,
           entranceRuntime: {
-            ...(this.cardEntranceEnabled ? {} : { disabled: true as const }),
             singleViewer: this.options.cardEntrance === 'LOCAL',
             seenSequence: initialState.eventSequence,
             generation: 0,
@@ -1118,7 +1116,6 @@ export class GameSession {
         ? {
             entranceRuntime: {
               ...snapshot.authorityState.entranceRuntime,
-              disabled: this.cardEntranceEnabled ? undefined : true,
               generation: Math.max(
                 entranceGeneration,
                 snapshot.authorityState.entranceRuntime.generation
@@ -5263,35 +5260,6 @@ export class GameSession {
     }
 
     return currentState;
-  }
-
-  /** Apply platform policy at an authority boundary; disabling also releases current wait. */
-  setCardEntranceEnabled(enabled: boolean): boolean {
-    this.cardEntranceEnabled = enabled;
-    const state = this.authorityState;
-    const runtime = state?.entranceRuntime;
-    if (!state || !runtime || !runtime.disabled === enabled) return false;
-    const { disabled: _disabled, ...rest } = runtime;
-    const next = {
-      ...state,
-      entranceRuntime: {
-        ...rest,
-        ...(enabled ? {} : { disabled: true as const }),
-        seenSequence: state.eventSequence,
-        pending: null,
-      },
-    };
-    this.setAuthorityState(
-      runtime.pending && !state.isEnded
-        ? this.gameService.executeCheckTiming(next).gameState
-        : next,
-      { source: 'SYSTEM' }
-    );
-    if (runtime.pending && !state.isEnded) {
-      this.runPostCommitAutomation(state.players[state.activePlayerIndex]!.id);
-      this.extendLatestUndoEntryThroughAutomaticContinuation();
-    }
-    return true;
   }
 
   /** Authority timeout, independent of any client timer or completion message. */

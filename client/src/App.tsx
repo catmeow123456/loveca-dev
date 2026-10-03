@@ -1,4 +1,3 @@
-import { useCardEntranceConfigStore } from '@/store/cardEntranceConfigStore';
 /**
  * Loveca Card Game - Main Application
  */
@@ -442,7 +441,6 @@ function App() {
   }, [initialAuthRequest.token, isInitialAuthActionPage]);
 
   const setAppConfigIfChanged = useCallback((config: PublicAppConfig): boolean => {
-    useCardEntranceConfigStore.setState({ enabled: config.features.cardEntrance.enabled });
     const nextKey = buildPublicAppConfigRenderKey(config);
     if (nextKey === appConfigRenderKeyRef.current) {
       return false;

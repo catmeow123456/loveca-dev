@@ -97,7 +97,7 @@ function fixture(cardCode: string) {
 
 describe('Kaho real center entrance effect waits for entrance completion', () => {
   for (const cardCode of ['PL!HS-pb1-009-P+', 'PL!HS-pb1-009-R']) {
-    it.each(['ACK', 'timeout', 'disabled'] as const)(
+    it.each(['ACK', 'timeout'] as const)(
       `${cardCode} resumes once after %s`,
       (mode) => {
         const { session, play, ack, advance } = fixture(cardCode);
@@ -123,10 +123,10 @@ describe('Kaho real center entrance effect waits for entrance completion', () =>
           expect(ack('p1', pending.id).success).toBe(true);
           expect(session.state!.entranceRuntime!.pending!.waitingPlayerIds).toEqual(['p2']);
           expect(ack('p2', pending.id).success).toBe(true);
-        } else if (mode === 'timeout') {
+        } else {
           advance();
           expect(session.expireCardEntrance()).toBe(true);
-        } else session.setCardEntranceEnabled(false);
+        }
         expect(session.state!.entranceRuntime!.pending).toBeNull();
         expect(session.state!.activeEffect).toBeNull();
         expect(getSourceEffectiveBladeCount(session.state!, 'p1', 'source')).toBe(6);
@@ -138,7 +138,6 @@ describe('Kaho real center entrance effect waits for entrance completion', () =>
         expect(session.state!.players[0].energyZone).toEqual(paidEnergy);
         expect(ack('p2', pending.id).success).toBe(false);
         expect(getSourceEffectiveBladeCount(session.state!, 'p1', 'source')).toBe(6);
-        session.setCardEntranceEnabled(true);
         session.restoreRuntimeState({
           authorityState: session.state!,
           currentPublicSeq: session.getCurrentPublicEventSeq(),

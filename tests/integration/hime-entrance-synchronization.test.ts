@@ -123,7 +123,7 @@ function fixture() {
 }
 
 describe('Hime real on-enter continuation', () => {
-  it.each(['both ACK', 'timeout', 'platform off'] as const)(
+  it.each(['both ACK', 'timeout'] as const)(
     '%s resumes energy activation and LIVE selection exactly once',
     (mode) => {
       const { session, play, ack, activeEnergy, advance } = fixture();
@@ -142,10 +142,10 @@ describe('Hime real on-enter continuation', () => {
         expect(session.state!.activeEffect).toBeNull();
         expect(ack('p1', pending.id).success).toBe(true);
         expect(ack('p2', pending.id).success).toBe(true);
-      } else if (mode === 'timeout') {
+      } else {
         advance();
         expect(session.expireCardEntrance()).toBe(true);
-      } else session.setCardEntranceEnabled(false);
+      }
       expect(session.state!.entranceRuntime!.pending).toBeNull();
       expect(activeEnergy()).toBe(1);
       const effect = session.state!.activeEffect!;
@@ -157,7 +157,6 @@ describe('Hime real on-enter continuation', () => {
       expect(session.state!.players[0].hand.cardIds.filter((id) => id === 'live')).toHaveLength(1);
       expect(session.state!.players[0].waitingRoom.cardIds).not.toContain('live');
       expect(ack('p2', pending.id).success).toBe(false);
-      session.setCardEntranceEnabled(true);
       session.restoreRuntimeState({
         authorityState: session.state!,
         currentPublicSeq: session.getCurrentPublicEventSeq(),

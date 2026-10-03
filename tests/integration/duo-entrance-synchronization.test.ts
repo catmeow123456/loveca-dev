@@ -121,7 +121,7 @@ function fixture(cardCode: string) {
 
 describe('DUO real double relay waits for entrance completion', () => {
   for (const cardCode of ['PL!-pb2-000-DUO', 'PL!-pb2-000-R']) {
-    it.each(['ACK', 'timeout', 'disabled'] as const)(
+    it.each(['ACK', 'timeout'] as const)(
       `${cardCode} resumes once after %s`,
       (mode) => {
         const { session, play, ack, advance } = fixture(cardCode);
@@ -147,10 +147,10 @@ describe('DUO real double relay waits for entrance completion', () => {
           expect(ack('p1', pending.id).success).toBe(true);
           expect(session.state!.entranceRuntime!.pending!.waitingPlayerIds).toEqual(['p2']);
           expect(ack('p2', pending.id).success).toBe(true);
-        } else if (mode === 'timeout') {
+        } else {
           advance();
           expect(session.expireCardEntrance()).toBe(true);
-        } else session.setCardEntranceEnabled(false);
+        }
         expect(session.state!.entranceRuntime!.pending).toBeNull();
         const effect = session.state!.activeEffect!;
         expect(effect.awaitingPlayerId).toBe('p1');
@@ -170,7 +170,6 @@ describe('DUO real double relay waits for entrance completion', () => {
         expect(session.state!.liveResolution.playerScores.get('p1')).toBe(1);
         expect(session.state!.players[0].energyZone).toEqual(paidEnergy);
         expect(ack('p2', pending.id).success).toBe(false);
-        session.setCardEntranceEnabled(true);
         session.restoreRuntimeState({
           authorityState: session.state!,
           currentPublicSeq: session.getCurrentPublicEventSeq(),

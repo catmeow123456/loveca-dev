@@ -46,7 +46,6 @@ export interface PublicSiteStatus {
 
 export interface PublicAppConfig {
   features: {
-    cardEntrance: { enabled: boolean };
     email: {
       enabled: boolean;
       verificationRequired: boolean;
@@ -73,7 +72,6 @@ const DEFAULT_SITE_STATUS: PublicSiteStatus = {
 
 export const DEFAULT_APP_CONFIG: PublicAppConfig = {
   features: {
-    cardEntrance: { enabled: false },
     email: {
       enabled: false,
       verificationRequired: false,
@@ -106,7 +104,6 @@ export function normalizeAppConfig(
 
   return {
     features: {
-      cardEntrance: { enabled: config?.features?.cardEntrance?.enabled === true },
       email: {
         enabled: email?.enabled === true,
         verificationRequired: email?.verificationRequired === true,
@@ -184,7 +181,6 @@ export function buildPublicAppConfigRenderKey(config: PublicAppConfig): string {
         verificationRequired: normalized.features.email.verificationRequired,
         passwordResetEnabled: normalized.features.email.passwordResetEnabled,
       },
-      cardEntrance: normalized.features.cardEntrance,
       battleEntries: normalized.features.battleEntries,
       battleTimeouts: normalized.features.battleTimeouts,
     },
