@@ -13,6 +13,13 @@ export const entranceCards = {
   kaho: 'PL!HS-pb1-009',
   rurino: 'PL!HS-pb1-003',
   you: 'PL!S-bp7-005',
+  emma: 'PL!N-bp7-008',
+  'festival-trio': 'LL-bp7-001',
+  shizuku: 'PL!N-bp7-003',
+  kinako: 'PL!SP-bp7-006',
+  mei: 'PL!SP-bp7-007',
+  maki: 'PL!-bp6-006',
+  'hime-bp6': 'PL!HS-bp6-006',
 } as const;
 export function isEntranceCard(code: string): boolean {
   return Object.values(entranceCards).some(

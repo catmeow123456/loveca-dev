@@ -33,10 +33,24 @@ export interface EntranceArmLayers extends EntranceMotionTiming {
   rigidBodyFollow?: boolean;
   /** A second character may lean independently instead of following the first body. */
   independentBody?: boolean;
+  /** A stationary foreground from the same atlas, drawn after body and arm. */
+  foreground?: {
+    crop: readonly [number, number, number, number];
+    placement: readonly [number, number, number, number];
+  };
+}
+/** A connected limb; its soft boundary belongs in clothing or an actual joint. */
+export interface EntranceAttachedPart extends EntranceMotionTiming {
+  region: readonly (readonly [number, number])[];
+  feather: number;
+  pivot: readonly [number, number];
+  angles: readonly [number, number];
 }
 /** Cosmetic profiles only; card abilities remain in the shared rules engine. */
 export interface EntranceMeshProfile {
   armLayers?: EntranceArmLayers;
+  /** Intact-image gesture alongside group sway; use atlas layers for detached limbs. */
+  attachedPart?: EntranceAttachedPart;
   /** Intact portrait: head, hands and props share one move; blend only in soft clothing. */
   portraitMotion?: EntranceMotionTiming & {
     pivot: readonly [number, number];
@@ -48,12 +62,7 @@ export interface EntranceMeshProfile {
     angle: number;
     travel: readonly [number, number];
     /** An intact limb in the same image; the soft polygon boundary belongs in sleeve or empty space. */
-    attachedPart?: EntranceMotionTiming & {
-      region: readonly (readonly [number, number])[];
-      feather: number;
-      pivot: readonly [number, number];
-      angles: readonly [number, number];
-    };
+    attachedPart?: EntranceAttachedPart;
   };
   /** UV mask: x fade start/end, y fade start/end. */
   hair: readonly [number, number, number, number];
@@ -837,6 +846,460 @@ export const cardEntranceProfiles = defineEntranceProfiles([
           ],
           feather: 0.018,
           angles: [-0.1, 0],
+        },
+      },
+    },
+  },
+  {
+    id: 'emma',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/emma-blink.png'),
+      faces: [
+        {
+          start: 0.94,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [398 / 1024, 282 / 1536, 94 / 1024, 81 / 1536],
+              half: [515 / 1774, 169 / 887, 278 / 1774, 240 / 887],
+              closed: [515 / 1774, 636 / 887, 278 / 1774, 240 / 887],
+            },
+            {
+              target: [543 / 1024, 307 / 1536, 95 / 1024, 82 / 1536],
+              half: [958 / 1774, 187 / 887, 272 / 1774, 222 / 887],
+              closed: [958 / 1774, 652 / 887, 272 / 1774, 222 / 887],
+            },
+          ],
+        },
+      ],
+    },
+    baseCode: entranceCards.emma,
+    name: '艾玛·维尔德',
+    loadArt: () => import('../components/game/card-entrance/emma.png'),
+    artAspectRatio: '2 / 3',
+    center: '-52%',
+    mobileHeight: 'min(76%, 125vw)',
+    light: '#9ee6b477',
+    mesh: {
+      hair: [0.3, 0.37, 0.26, 0.29],
+      hairEnd: [0.33, 0.36],
+      rightHair: [0.65, 0.7, 0.28, 0.31, 0.34, 0.36],
+      hem: [0.26, 0.34, 0.67, 0.85],
+      strength: [0, 1.1, 0.6],
+      portraitMotion: {
+        start: 0.26,
+        duration: 1.08,
+        easing: 'smoothstep',
+        pivot: [0.48, 0.64],
+        blendY: [0.63, 0.85],
+        angle: -0.035,
+        travel: [-0.006, -0.009],
+        attachedPart: {
+          start: 0.28,
+          duration: 1.05,
+          easing: 'smoothstep',
+          pivot: [0.69, 0.56],
+          feather: 0.025,
+          region: [
+            [0.77, 0.34],
+            [1.05, 0.34],
+            [1.05, 0.66],
+            [0.79, 0.69],
+            [0.68, 0.61],
+            [0.68, 0.56],
+          ],
+          angles: [0.28, 0],
+        },
+      },
+    },
+  },
+  {
+    id: 'festival-trio',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/festival-trio-blink.png'),
+      faces: [
+        {
+          start: 0.66,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [323 / 1375, 285 / 1144, 81 / 1375, 67 / 1144],
+              half: [91 / 1536, 327 / 1024, 158 / 1536, 131 / 1024],
+              closed: [91 / 1536, 682 / 1024, 158 / 1536, 131 / 1024],
+            },
+            {
+              target: [432 / 1375, 319 / 1144, 68 / 1375, 63 / 1144],
+              half: [345 / 1536, 382 / 1024, 125 / 1536, 116 / 1024],
+              closed: [345 / 1536, 737 / 1024, 125 / 1536, 116 / 1024],
+            },
+          ],
+        },
+        {
+          start: 0.97,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [617 / 1375, 281 / 1144, 77 / 1375, 65 / 1144],
+              half: [550 / 1536, 353 / 1024, 169 / 1536, 143 / 1024],
+              closed: [550 / 1536, 710 / 1024, 169 / 1536, 143 / 1024],
+            },
+            {
+              target: [736 / 1375, 276 / 1144, 80 / 1375, 65 / 1144],
+              half: [822 / 1536, 350 / 1024, 160 / 1536, 130 / 1024],
+              closed: [822 / 1536, 706 / 1024, 160 / 1536, 130 / 1024],
+            },
+          ],
+        },
+        {
+          start: 1.27,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [930 / 1375, 266 / 1144, 96 / 1375, 96 / 1144],
+              half: [1054 / 1536, 335 / 1024, 195 / 1536, 195 / 1024],
+              closed: [1054 / 1536, 692 / 1024, 195 / 1536, 195 / 1024],
+            },
+            {
+              target: [1043 / 1375, 267 / 1144, 97 / 1375, 95 / 1144],
+              half: [1301 / 1536, 328 / 1024, 204 / 1536, 199 / 1024],
+              closed: [1301 / 1536, 685 / 1024, 204 / 1536, 199 / 1024],
+            },
+          ],
+        },
+      ],
+    },
+    baseCode: entranceCards['festival-trio'],
+    name: '国木田花丸&优木雪菜&岚千砂都',
+    loadArt: () => import('../components/game/card-entrance/festival-trio.png'),
+    artAspectRatio: '1375 / 1144',
+    center: '-50%',
+    mobileHeight: 'min(70%, 78vw)',
+    nameLayout: 'group',
+    mobileSkipPosition: 'below-name',
+    light: '#f7d88377',
+    mesh: {
+      attachedPart: {
+        start: 0.28,
+        duration: 0.98,
+        easing: 'smoothstep',
+        pivot: [0.107, 0.173],
+        feather: 0.01,
+        region: [
+          [-0.1, -0.1],
+          [0.145, -0.1],
+          [0.145, 0.18],
+          [-0.1, 0.18],
+        ],
+        angles: [0, 0.34],
+      },
+      // Column transitions stay between faces; hands remain in their original group.
+      hair: [0.12, 0.2, 0.32, 0.38],
+      hairEnd: [0.57, 0.65],
+      rightHair: [0.92, 0.97, 0.31, 0.37, 0.48, 0.55],
+      hem: [0.12, 0.28, 0.76, 0.95],
+      strength: [0, 0.45, 0.25],
+      groupSway: {
+        columns: [0.35, 0.41, 0.64, 0.69],
+        amplitude: [0.014, 0.009, 0.012],
+        phase: [0.1, 0.8, 1.45],
+      },
+    },
+  },
+  {
+    id: 'shizuku',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/shizuku-blink.png'),
+      faces: [
+        {
+          start: 0.88,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [394 / 1061, 286 / 1483, 92 / 1061, 77 / 1483],
+              half: [547 / 1774, 176 / 887, 246 / 1774, 206 / 887],
+              closed: [547 / 1774, 621 / 887, 246 / 1774, 206 / 887],
+            },
+            {
+              target: [539 / 1061, 301 / 1483, 93 / 1061, 78 / 1483],
+              half: [991 / 1774, 197 / 887, 258 / 1774, 216 / 887],
+              closed: [991 / 1774, 642 / 887, 258 / 1774, 216 / 887],
+            },
+          ],
+        },
+      ],
+    },
+    baseCode: entranceCards.shizuku,
+    name: '樱坂雫',
+    loadArt: () => import('../components/game/card-entrance/shizuku.png'),
+    artAspectRatio: '1061 / 1483',
+    center: '-51%',
+    mobileHeight: 'min(77%, 111vw)',
+    mobileSkipPosition: 'below-name',
+    light: '#8bc7ed77',
+    mesh: {
+      hair: [0.23, 0.34, 0.37, 0.46],
+      hairEnd: [0.64, 0.71],
+      rightHair: [0.73, 0.85, 0.27, 0.37, 0.54, 0.61],
+      hem: [0.37, 0.56, 0.65, 0.8],
+      strength: [0, 1.7, 0.55],
+      portraitMotion: {
+        start: 0.24,
+        duration: 1.13,
+        easing: 'smoothstep',
+        pivot: [0.55, 0.66],
+        blendY: [0.6, 0.8],
+        angle: -0.035,
+        travel: [-0.006, -0.006],
+        attachedPart: {
+          start: 0.35,
+          duration: 1.04,
+          easing: 'smoothstep',
+          pivot: [0.68, 0.42],
+          feather: 0.024,
+          region: [
+            [0.65, 0.41],
+            [0.76, 0.4],
+            [1.04, 0.63],
+            [1.04, 0.79],
+            [0.78, 0.79],
+            [0.7, 0.56],
+          ],
+          angles: [0.075, 0],
+        },
+      },
+    },
+  },
+  {
+    id: 'kinako',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/kinako-blink.png'),
+      faces: [
+        {
+          start: 0.98,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [594 / 1061, 478 / 1483, 72 / 1061, 60 / 1483],
+              half: [553 / 1774, 230 / 887, 230 / 1774, 190 / 887],
+              closed: [553 / 1774, 674 / 887, 230 / 1774, 190 / 887],
+            },
+            {
+              target: [673 / 1061, 455 / 1483, 88 / 1061, 72 / 1483],
+              half: [890 / 1774, 147 / 887, 291 / 1774, 238 / 887],
+              closed: [890 / 1774, 590 / 887, 291 / 1774, 238 / 887],
+            },
+          ],
+        },
+      ],
+    },
+    baseCode: entranceCards.kinako,
+    name: '樱小路希奈子',
+    loadArt: () => import('../components/game/card-entrance/kinako.png'),
+    artAspectRatio: '1061 / 1483',
+    center: '-51%',
+    mobileHeight: 'min(74%, 110vw)',
+    mobileSkipPosition: 'below-name',
+    light: '#f8d86f77',
+    mesh: {
+      hair: [0, 0.01, 0.9, 0.99],
+      hairEnd: [0.99, 1],
+      rightHair: [0.83, 0.91, 0.43, 0.46, 0.55, 0.58],
+      hem: [0, 1, 0, 1],
+      strength: [0, 1.8, 0],
+      portraitMotion: {
+        start: 0.25,
+        duration: 1.12,
+        easing: 'smoothstep',
+        pivot: [0.65, 0.59],
+        blendY: [0.53, 0.69],
+        fixedCorner: [0.49, 0.57, 0.32, 0.37],
+        angle: 0.028,
+        travel: [0.004, -0.007],
+        attachedPart: {
+          start: 0.38,
+          duration: 1.02,
+          easing: 'smoothstep',
+          pivot: [0.76, 0.57],
+          feather: 0.018,
+          region: [
+            [0.78, 0.54],
+            [1.04, 0.52],
+            [1.04, 0.68],
+            [0.76, 0.69],
+            [0.71, 0.62],
+          ],
+          angles: [-0.09, 0],
+        },
+      },
+    },
+  },
+  {
+    id: 'mei',
+    baseCode: entranceCards.mei,
+    name: '米女芽衣',
+    loadArt: () => import('../components/game/card-entrance/mei.png'),
+    artAspectRatio: '1061 / 1483',
+    center: '-51%',
+    mobileHeight: 'min(77%, 110vw)',
+    light: '#edb49477',
+    mesh: {
+      // The left-side hair mask would cross the gripping hand and glass stem.
+      // Leave that side rigid with the torso; only the right loose lock follows.
+      // Preserve the existing wink and the independent invitation gesture.
+      hair: [0, 0.01, 0.9, 0.99],
+      hairEnd: [1, 1.01],
+      rightHair: [0.79, 0.87, 0.25, 0.28, 0.34, 0.37],
+      hem: [0, 1, 0, 1],
+      strength: [0, 1.1, 0],
+      portraitMotion: {
+        start: 0.23,
+        duration: 1.13,
+        easing: 'smoothstep',
+        pivot: [0.48, 0.61],
+        blendY: [0.6, 0.78],
+        angle: 0.034,
+        travel: [0.004, -0.007],
+        attachedPart: {
+          start: 0.3,
+          duration: 1.02,
+          easing: 'smoothstep',
+          pivot: [0.66, 0.33],
+          feather: 0.025,
+          region: [
+            [0.62, 0.3],
+            [0.78, 0.31],
+            [1.02, 0.4],
+            [1.03, 0.63],
+            [0.7, 0.63],
+            [0.59, 0.45],
+          ],
+          angles: [0.22, -0.04],
+        },
+      },
+    },
+  },
+  {
+    id: 'maki',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/maki-blink.png'),
+      faces: [
+        {
+          start: 1.04,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [414 / 1062, 265 / 1482, 101 / 1062, 70 / 1482],
+              half: [238 / 1247, 353 / 1261, 281 / 1247, 195 / 1261],
+              closed: [238 / 1247, 946 / 1261, 281 / 1247, 195 / 1261],
+            },
+            {
+              target: [563 / 1062, 223 / 1482, 104 / 1062, 73 / 1482],
+              half: [713 / 1247, 237 / 1261, 307 / 1247, 215 / 1261],
+              closed: [713 / 1247, 828 / 1261, 307 / 1247, 215 / 1261],
+            },
+          ],
+        },
+      ],
+    },
+    baseCode: entranceCards.maki,
+    name: '西木野真姬',
+    loadArt: () => import('../components/game/card-entrance/maki.png'),
+    artAspectRatio: '1062 / 1482',
+    center: '-50%',
+    mobileHeight: 'min(75%, 108vw)',
+    light: '#dfa3bc77',
+    mesh: {
+      // Keep glass/table stationary; the cheek and touching hand lean together.
+      hair: [0, 0.01, 0.9, 0.99],
+      hairEnd: [0.99, 1],
+      rightHair: [0.7, 0.77, 0.27, 0.29, 0.33, 0.36],
+      hem: [0, 1, 0, 1],
+      strength: [0, 0.7, 0],
+      portraitMotion: {
+        start: 0.25,
+        duration: 1.1,
+        easing: 'smoothstep',
+        pivot: [0.5, 0.39],
+        blendY: [0.31, 0.43],
+        angle: -0.034,
+        travel: [-0.005, -0.003],
+      },
+    },
+  },
+  {
+    id: 'hime-bp6',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/hime-bp6-blink.png'),
+      faces: [
+        {
+          start: 0.87,
+          close: 0.055,
+          hold: 0.035,
+          open: 0.11,
+          eyes: [
+            {
+              target: [351 / 2168, 208 / 725, 67 / 2168, 62 / 725],
+              half: [513 / 1774, 148 / 887, 335 / 1774, 280 / 887],
+              closed: [513 / 1774, 590 / 887, 335 / 1774, 280 / 887],
+            },
+            {
+              target: [458 / 2168, 175 / 725, 69 / 2168, 62 / 725],
+              half: [963 / 1774, 47 / 887, 343 / 1774, 300 / 887],
+              closed: [963 / 1774, 489 / 887, 343 / 1774, 300 / 887],
+            },
+          ],
+        },
+      ],
+    },
+    baseCode: entranceCards['hime-bp6'],
+    name: '安养寺姬芽',
+    loadArt: () => import('../components/game/card-entrance/hime-bp6-layers.png'),
+    artAspectRatio: '900 / 925',
+    center: '-50%',
+    mobileHeight: 'min(74%, 92vw)',
+    mobileSkipPosition: 'below-name',
+    light: '#edb9d777',
+    mesh: {
+      hair: [0.16, 0.3, 0.52, 0.64],
+      hairEnd: [0.85, 0.98],
+      hem: [0, 1, 0, 1],
+      strength: [0, 1.1, 0],
+      armLayers: {
+        bodyCrop: [0, 0, 800 / 2168, 1],
+        bodyPlacement: [0, 0, 800 / 900, 725 / 925],
+        armCrop: [865 / 2168, 0, 350 / 2168, 1],
+        armPlacement: [0.62, 0.05, 350 / 900, 725 / 925],
+        pivot: [0.8, 0.74],
+        offset: [0, 0],
+        angles: [0.06, -0.2],
+        armTravel: [-0.015, -0.015],
+        sleeveAnchor: [0.8, 0.74, 0.12],
+        rigidBodyFollow: true,
+        start: 0.28,
+        duration: 1.06,
+        easing: 'smoothstep',
+        bodyMotion: { start: 0.15, duration: 1.05, easing: 'smoothstep' },
+        bodyPivot: [0.52, 0.56],
+        bodyBlendY: [0.6, 0.8],
+        bodyAngle: 0.025,
+        bodyLift: 0.003,
+        foreground: {
+          crop: [1300 / 2168, 0, 868 / 2168, 1],
+          placement: [-0.04, 0.216, 868 / 900, 725 / 925],
         },
       },
     },

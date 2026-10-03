@@ -11,7 +11,7 @@ export function createCardEntranceMesh(
 ) {
   const rig = profile.armLayers;
   const portrait = profile.portraitMotion;
-  const part = portrait?.attachedPart;
+  const part = profile.attachedPart ?? portrait?.attachedPart;
   if (part && (part.region.length < 3 || part.region.length > 8 || part.feather <= 0))
     throw new Error('Attached portrait region requires 3–8 vertices and a positive feather');
   const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: !!profile.armLayers });
@@ -39,7 +39,7 @@ export function createCardEntranceMesh(
     uniform vec2 armPivot; uniform vec2 armOffset; uniform vec2 bodyPivot; uniform vec2 bodyBlendY;
     uniform float armAngle; uniform float restAngle; uniform float bodyAngle; uniform float bodyLift;
     uniform float gestureProgress; uniform float bodyProgress; uniform float follow; uniform float rigidBodyFollow;
-    uniform vec4 sourceRect; uniform vec4 armPlacement; uniform vec4 bodyPlacement;
+    uniform vec4 sourceRect; uniform vec4 armPlacement; uniform vec4 bodyPlacement; uniform vec4 foregroundPlacement;
     uniform float independentBody; uniform vec3 sleeveAnchor; uniform vec2 armTravel; uniform vec2 armTravelStart;
     uniform float hasPortraitMotion; uniform vec2 portraitPivot; uniform vec2 portraitBlendY;
     uniform float portraitAngle; uniform vec2 portraitTravel; uniform vec2 portraitAnchorX;
@@ -77,6 +77,9 @@ export function createCardEntranceMesh(
       }
       return smoothstep(-partFeather,partFeather,inside?edgeDistance:-edgeDistance);
     }
+    vec2 articulatePart(vec2 point, vec2 source) {
+      return mix(point,rotateAt(point,partPivot,partAngle*amount),attachedWeight(source));
+    }
     vec2 bodySway(vec2 point, float pivotX, float amplitude, float phase) {
       // A small rigid rotation keeps facial proportions. The waist blend below
       // anchors skirts; damped arrival and slower breathing share the same clock.
@@ -101,6 +104,7 @@ export function createCardEntranceMesh(
       float hem=(1.0-smoothstep(hemRegion.x,hemRegion.y,uv.x))*smoothstep(hemRegion.z,hemRegion.w,uv.y)*strength.z;
       p.x+=hem*sin(time*3.5-uv.y*3.0)*(.008+.02*exp(-time*1.2))*amount;
       p.y+=hem*sin(time*3.3-uv.x*4.0)*.012*amount;
+      if(hasPortraitMotion<.5 && hasArmLayers<.5) p=articulatePart(p,uv);
       if(hasGroupSway>0.5){
         float left=1.0-smoothstep(groupColumns.x,groupColumns.y,uv.x);
         float right=smoothstep(groupColumns.z,groupColumns.w,uv.x);
@@ -114,7 +118,7 @@ export function createCardEntranceMesh(
         // its source silhouette, with the soft boundary confined to clothing.
         p=uv+vec2((hair*.012+hem*.004)*follow,hem*.003*follow)*amount;
         float partWeight=attachedWeight(uv);
-        p=mix(p,rotateAt(p,partPivot,partAngle*amount),partWeight);
+        p=articulatePart(p,uv);
         // Every point of a rigid hand/prop inherits the same torso weight.
         float weight=mix(portraitWeight(uv),portraitWeight(partPivot),partWeight);
         vec2 posed=rotateAt(p,portraitPivot,portraitAngle*bodyProgress)+portraitTravel*bodyProgress;
@@ -139,6 +143,7 @@ export function createCardEntranceMesh(
           p=mix(p,rotateAt(p,bodyPivot,bodyAngle*bodyProgress),upper*amount);
           p.y-=bodyLift*bodyProgress*upper*amount;
         }
+        if(layer>1.5) p=foregroundPlacement.xy+uv*foregroundPlacement.zw;
       }
       p=.045+p*.91;
       gl_Position=vec4(p.x*2.0-1.0,1.0-p.y*2.0,0,1);
@@ -212,6 +217,10 @@ export function createCardEntranceMesh(
   gl.uniform1f(gl.getUniformLocation(program, 'bodyAngle'), rig?.bodyAngle ?? 0);
   gl.uniform1f(gl.getUniformLocation(program, 'bodyLift'), rig?.bodyLift ?? 0);
   gl.uniform4fv(gl.getUniformLocation(program, 'armPlacement'), rig?.armPlacement ?? [0, 0, 1, 1]);
+  gl.uniform4fv(
+    gl.getUniformLocation(program, 'foregroundPlacement'),
+    rig?.foreground?.placement ?? [0, 0, 1, 1]
+  );
   gl.uniform4fv(
     gl.getUniformLocation(program, 'bodyPlacement'),
     rig?.bodyPlacement ?? [0, 0, 1, 1]
@@ -349,6 +358,11 @@ export function createCardEntranceMesh(
     if (rig?.behindBody) drawLayer(true);
     drawLayer(false);
     if (rig && !rig.behindBody) drawLayer(true);
+    if (rig?.foreground) {
+      gl.uniform4fv(sourceRect, rig.foreground.crop);
+      gl.uniform1f(layer, 2);
+      gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 2);
+    }
   };
   return {
     draw,
