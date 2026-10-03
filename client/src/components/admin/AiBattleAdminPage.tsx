@@ -7,6 +7,8 @@ import { BattleViewportShell, GameBoard } from '@/components/game';
 import { useGameStore } from '@/store/gameStore';
 import {
   createAiBattle,
+  createAiSelfPlay,
+  createAiSelfPlaySpectatorLink,
   endAiBattle,
   fetchAiBattlePresets,
   fetchAiBattleModels,
@@ -50,6 +52,9 @@ export function AiBattleAdminPage({
   const [aiPresetId, setAiPresetId] = useState('');
   const [handbookId, setHandbookId] = useState('');
   const [humanSeat, setHumanSeat] = useState<Seat>('FIRST');
+  const [mode, setMode] = useState<'HUMAN_VS_AI' | 'AI_VS_AI'>('HUMAN_VS_AI');
+  const [firstHandbookId, setFirstHandbookId] = useState('');
+  const [spectatorHref, setSpectatorHref] = useState<string | null>(null);
   const [models, setModels] = useState<readonly AiBattleModel[]>(API_AI_BATTLE_MODELS);
   const [model, setModel] = useState<AiBattleModel>('qwen3.8-flash');
   const [reasoningEffort, setReasoningEffort] = useState<CodexAiReasoningEffort>('low');
@@ -69,13 +74,18 @@ export function AiBattleAdminPage({
     (session) => session.ownerUserId === viewerUserId && session.endedAt === null
   );
   const selectedSession = sessions.find((session) => session.matchId === boardId);
-  const humanPresets = presets.filter((preset) => preset.humanSelectable);
+  const humanPresets =
+    mode === 'AI_VS_AI' ? presets : presets.filter((preset) => preset.humanSelectable);
   const selectedHuman =
     humanPresets.find((preset) => preset.id === humanPresetId) ?? humanPresets[0];
   const selectedAi = presets.find((preset) => preset.id === aiPresetId) ?? presets[0];
   const selectedHandbook =
     selectedAi?.handbooks.find((book) => book.id === handbookId) ??
     selectedAi?.handbooks.find((book) => book.id === selectedAi.defaultHandbookId);
+  const selectedFirstHandbook =
+    selectedHuman?.handbooks.find((book) => book.id === firstHandbookId) ??
+    selectedHuman?.handbooks.find((book) => book.id === selectedHuman.defaultHandbookId);
+  const pollingId = boardId ?? (active?.mode === 'AI_VS_AI' ? active.matchId : null);
   const liveMatchId = useGameStore((state) => state.playerViewState?.match.matchId ?? null);
   const mounted = useRef(true);
   const requestGeneration = useRef(0);
@@ -123,23 +133,23 @@ export function AiBattleAdminPage({
   }, []);
 
   useEffect(() => {
-    if (!boardId) return;
+    if (!pollingId) return;
     let cancelled = false;
     const scheduler = new SerialPollingScheduler({
       intervalMs: 700,
       poll: async () => {
         try {
-          const session = await fetchAiBattleSession(boardId);
+          const session = await fetchAiBattleSession(pollingId);
           if (cancelled) return;
           if (pollErrorActive.current) {
             pollErrorActive.current = false;
             setError(null);
           }
           setSessions((current) =>
-            current.map((entry) => (entry.matchId === boardId ? session : entry))
+            current.map((entry) => (entry.matchId === pollingId ? session : entry))
           );
           // Normal snapshot sync is independent of the observation dialog and its selected history.
-          if (useGameStore.getState().remoteSession?.matchId === boardId)
+          if (boardId && useGameStore.getState().remoteSession?.matchId === boardId)
             await useGameStore.getState().syncRemoteState();
         } catch (cause) {
           if (!cancelled) {
@@ -154,7 +164,7 @@ export function AiBattleAdminPage({
       cancelled = true;
       scheduler.dispose();
     };
-  }, [boardId]);
+  }, [boardId, pollingId]);
 
   useLayoutEffect(() => {
     onImmersiveModeChange?.(boardId !== null);
@@ -183,24 +193,49 @@ export function AiBattleAdminPage({
   };
   const create = async () => {
     if (!selectedHuman || !selectedAi || !selectedHandbook) return;
+    if (mode === 'AI_VS_AI' && !selectedFirstHandbook) return;
+    const spectatorWindow = mode === 'AI_VS_AI' ? window.open('about:blank', '_blank') : null;
+    if (spectatorWindow) spectatorWindow.opener = null;
     const generation = ++requestGeneration.current;
     setIsBusy(true);
     setError(null);
+    setSpectatorHref(null);
     try {
-      const result = await createAiBattle({
-        humanPresetId: selectedHuman.id,
-        aiPresetId: selectedAi.id,
-        handbookId: selectedHandbook.id,
-        humanSeat,
+      const modelInput = {
         model,
         ...(archiveAvailable ? { archiveEnabled } : {}),
         ...(isCodexAiBattleModel(model) ? { reasoningEffort, fastMode } : {}),
         enableThinking: isCodexAiBattleModel(model)
           ? false
           : requiresAiThinking(model) || enableThinking,
+      };
+      if (mode === 'AI_VS_AI') {
+        const result = await createAiSelfPlay({
+          ...modelInput,
+          FIRST: { presetId: selectedHuman.id, handbookId: selectedFirstHandbook!.id },
+          SECOND: { presetId: selectedAi.id, handbookId: selectedHandbook.id },
+        });
+        if (!mounted.current || requestGeneration.current !== generation) {
+          spectatorWindow?.close();
+          return;
+        }
+        setSessions((current) => [
+          result.session,
+          ...current.filter((entry) => entry.matchId !== result.session.matchId),
+        ]);
+        enterSpectator(result.spectatorLink.token, spectatorWindow);
+        return;
+      }
+      const result = await createAiBattle({
+        humanPresetId: selectedHuman.id,
+        aiPresetId: selectedAi.id,
+        handbookId: selectedHandbook.id,
+        humanSeat,
+        ...modelInput,
       });
       await attach(result.session, result.snapshot, generation);
     } catch (cause) {
+      spectatorWindow?.close();
       if (mounted.current) {
         pollErrorActive.current = false;
         setError(message(cause));
@@ -209,15 +244,33 @@ export function AiBattleAdminPage({
       if (mounted.current) setIsBusy(false);
     }
   };
+  const enterSpectator = (token: string, popup: Window | null) => {
+    const href = `/online/spectate/${encodeURIComponent(token)}`;
+    setSpectatorHref(href);
+    if (popup && !popup.closed) popup.location.replace(href);
+    else setError('浏览器阻止了观战窗口，请点击“打开观战窗口”继续。对局已保留。');
+  };
   const resume = async (session: AiBattleSessionView) => {
+    const popup = session.mode === 'AI_VS_AI' ? window.open('about:blank', '_blank') : null;
+    if (popup) popup.opener = null;
     const generation = ++requestGeneration.current;
     setIsBusy(true);
     setError(null);
     try {
+      if (session.mode === 'AI_VS_AI') {
+        const link = await createAiSelfPlaySpectatorLink(session.matchId);
+        if (!mounted.current || requestGeneration.current !== generation) {
+          popup?.close();
+          return;
+        }
+        enterSpectator(link.token, popup);
+        return;
+      }
       const snapshot = await fetchAiBattleSnapshot(session.matchId);
       if ('modified' in snapshot) throw new Error('未取得完整桌面快照，请重试');
       await attach(session, snapshot, generation);
     } catch (cause) {
+      popup?.close();
       if (mounted.current) {
         pollErrorActive.current = false;
         setError(message(cause));
@@ -270,6 +323,7 @@ export function AiBattleAdminPage({
         useGameStore.getState().disconnectRemoteSession();
         setBoardId(null);
       }
+      if (ended.mode === 'AI_VS_AI') setSpectatorHref(null);
       setEndingId(null);
     } catch (cause) {
       if (mounted.current) {
@@ -370,11 +424,24 @@ export function AiBattleAdminPage({
     <div className="app-shell min-h-screen">
       <PageHeader
         title="AI 对战调试"
-        description="选择构筑、模型与先后手，与 AI 开始对战"
+        description="与 AI 调试对战，或开启双 AI 对战并观战"
         onBack={onBack}
         backLabel="返回运营管理中心"
       />
       <main className="product-page-main ai-battle-page">
+        {spectatorHref && (
+          <p className="ai-spectator-entry">
+            <a
+              className="button-secondary"
+              href={spectatorHref}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              打开观战窗口
+            </a>
+            <span>观战窗口可切换双方视角。返回本页可查看决定材料或结束对局。</span>
+          </p>
+        )}
         {error && (
           <p className="ai-error" role="alert">
             {error}
@@ -391,12 +458,31 @@ export function AiBattleAdminPage({
             <header>
               <p className="ai-eyebrow">RULES · 管理员调试</p>
               <h2>建立一场对局</h2>
-              <p>真人与 AI 各控制一席。先完成规则操作，再对照决定材料复盘。</p>
+              <p>
+                {mode === 'AI_VS_AI'
+                  ? '双方由 AI 自动操作，创建后打开玩家视角观战窗口。'
+                  : '真人与 AI 各控制一席。先完成规则操作，再对照决定材料复盘。'}
+              </p>
             </header>
             <fieldset disabled={isBusy || isLoading || Boolean(active)}>
               <legend className="sr-only">模型、构筑与先后手</legend>
+              <fieldset className="ai-seat-choice">
+                <legend>对战模式</legend>
+                {(['HUMAN_VS_AI', 'AI_VS_AI'] as const).map((value) => (
+                  <label key={value}>
+                    <input
+                      type="radio"
+                      name="ai-battle-mode"
+                      value={value}
+                      checked={mode === value}
+                      onChange={() => setMode(value)}
+                    />
+                    {value === 'AI_VS_AI' ? 'AI vs AI' : '真人 vs AI'}
+                  </label>
+                ))}
+              </fieldset>
               <label>
-                AI 模型
+                {mode === 'AI_VS_AI' ? '双方 AI 模型' : 'AI 模型'}
                 <select
                   value={model}
                   onChange={(event) => setModel(event.target.value as AiBattleModel)}
@@ -477,17 +563,20 @@ export function AiBattleAdminPage({
                     完整归档到本机
                   </label>
                   <small id="ai-archive-help">
-                    保存本局 AI 视角、模型请求与执行记录，方便完整复盘；不额外调用模型。
-                    仅对新局生效，文件保留在本机，需自行清理。
+                    保存本局 AI 视角、模型请求与执行记录，方便完整复盘；双 AI
+                    包含双方决定，不额外调用模型。 仅对新局生效，文件保留在本机，需自行清理。
                   </small>
                 </div>
               )}
               <div className="ai-deck-pair">
                 <label>
-                  真人构筑
+                  {mode === 'AI_VS_AI' ? '先手 AI 构筑' : '真人构筑'}
                   <select
                     value={selectedHuman?.id ?? ''}
-                    onChange={(event) => setHumanPresetId(event.target.value)}
+                    onChange={(event) => {
+                      setHumanPresetId(event.target.value);
+                      setFirstHandbookId('');
+                    }}
                   >
                     {humanPresets.map((preset) => (
                       <option key={preset.id} value={preset.id}>
@@ -497,7 +586,7 @@ export function AiBattleAdminPage({
                   </select>
                 </label>
                 <label>
-                  AI 构筑
+                  {mode === 'AI_VS_AI' ? '后手 AI 构筑' : 'AI 构筑'}
                   <select
                     value={selectedAi?.id ?? ''}
                     onChange={(event) => {
@@ -513,8 +602,23 @@ export function AiBattleAdminPage({
                   </select>
                 </label>
               </div>
+              {mode === 'AI_VS_AI' && (
+                <label>
+                  先手 AI 对局手册
+                  <select
+                    value={selectedFirstHandbook?.id ?? ''}
+                    onChange={(event) => setFirstHandbookId(event.target.value)}
+                  >
+                    {selectedHuman?.handbooks.map((book) => (
+                      <option key={book.id} value={book.id}>
+                        {book.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label>
-                AI 对局手册
+                {mode === 'AI_VS_AI' ? '后手 AI 对局手册' : 'AI 对局手册'}
                 <select
                   value={selectedHandbook?.id ?? ''}
                   onChange={(event) => setHandbookId(event.target.value)}
@@ -526,30 +630,38 @@ export function AiBattleAdminPage({
                   ))}
                 </select>
               </label>
-              <fieldset className="ai-seat-choice">
-                <legend>真人先后手</legend>
-                {(['FIRST', 'SECOND'] as const).map((seat) => (
-                  <label key={seat}>
-                    <input
-                      type="radio"
-                      name="human-seat"
-                      value={seat}
-                      checked={humanSeat === seat}
-                      onChange={() => setHumanSeat(seat)}
-                    />
-                    {seat === 'FIRST' ? '真人先手' : '真人后手'}
-                  </label>
-                ))}
-              </fieldset>
+              {mode === 'HUMAN_VS_AI' && (
+                <fieldset className="ai-seat-choice">
+                  <legend>真人先后手</legend>
+                  {(['FIRST', 'SECOND'] as const).map((seat) => (
+                    <label key={seat}>
+                      <input
+                        type="radio"
+                        name="human-seat"
+                        value={seat}
+                        checked={humanSeat === seat}
+                        onChange={() => setHumanSeat(seat)}
+                      />
+                      {seat === 'FIRST' ? '真人先手' : '真人后手'}
+                    </label>
+                  ))}
+                </fieldset>
+              )}
             </fieldset>
             <footer>
               <button
                 type="submit"
                 className="button-primary"
-                disabled={isBusy || isLoading || Boolean(active) || !selectedHandbook}
+                disabled={
+                  isBusy ||
+                  isLoading ||
+                  Boolean(active) ||
+                  !selectedHandbook ||
+                  (mode === 'AI_VS_AI' && !selectedFirstHandbook)
+                }
               >
                 {isBusy ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-                创建调试对局
+                {mode === 'AI_VS_AI' ? '创建双 AI 对局并观战' : '创建调试对局'}
               </button>
               <p>
                 {active
@@ -606,11 +718,18 @@ export function AiBattleAdminPage({
                   </div>
                   <p>
                     {session.ownerDisplayName} ·{' '}
-                    {session.humanSeat === 'FIRST' ? '真人先手' : '真人后手'} ·{' '}
-                    {activityLabels[session.activity]} · 连续失败 {session.consecutiveFailures}
+                    {session.mode === 'AI_VS_AI'
+                      ? '双 AI 对战'
+                      : session.humanSeat === 'FIRST'
+                        ? '真人先手'
+                        : '真人后手'}{' '}
+                    · {activityLabels[session.activity]} · 连续失败 {session.consecutiveFailures}
                   </p>
                   <small>
-                    {session.handbookId} · {session.model} ·{' '}
+                    {session.mode === 'AI_VS_AI'
+                      ? `${session.FIRST.handbookId} / ${session.SECOND.handbookId}`
+                      : session.handbookId}{' '}
+                    · {session.model} ·{' '}
                     {isCodexAiBattleModel(session.model)
                       ? session.reasoningEffort === 'medium'
                         ? '中等'
@@ -623,16 +742,17 @@ export function AiBattleAdminPage({
                   </small>
                 </div>
                 <div className="ai-actions">
-                  {session.ownerUserId === viewerUserId && session.endedAt === null && (
-                    <button
-                      type="button"
-                      className="button-primary"
-                      disabled={isBusy}
-                      onClick={() => void resume(session)}
-                    >
-                      继续对局
-                    </button>
-                  )}
+                  {(session.mode === 'AI_VS_AI' || session.ownerUserId === viewerUserId) &&
+                    session.endedAt === null && (
+                      <button
+                        type="button"
+                        className="button-primary"
+                        disabled={isBusy}
+                        onClick={() => void resume(session)}
+                      >
+                        {session.mode === 'AI_VS_AI' ? '进入观战' : '继续对局'}
+                      </button>
+                    )}
                   <button
                     type="button"
                     className="button-secondary"

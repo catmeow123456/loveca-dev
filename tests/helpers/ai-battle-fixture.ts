@@ -4,6 +4,7 @@ import type { DeckConfig } from '../../src/application/game-service';
 import type { AnyCardData, MemberCardData, CardInstance } from '../../src/domain/entities/card';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
+import { createAiLiveSetPlan } from '../../src/server/ai-battle/live-set-budget';
 import {
   buildAiBattleDecision,
   materializeAiDecisionCommands,
@@ -104,7 +105,15 @@ export function decision(session: GameSession, playerId = P1): AiDecision {
 }
 
 export function submit(session: GameSession, current: AiDecision, selection: AiSelection) {
-  const response = parseAiBattleResponse(current, JSON.stringify({ selection }));
+  const response = parseAiBattleResponse(
+    current,
+    JSON.stringify({
+      selection,
+      ...(current.input.purpose === 'LIVE_SET'
+        ? { liveSetPlan: createAiLiveSetPlan(current.input, selection) }
+        : {}),
+    })
+  );
   const commands = materializeAiDecisionCommands(current, response.selection, 1000);
   for (const command of commands) {
     const result = session.executeCommand(command);

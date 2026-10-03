@@ -9,6 +9,7 @@ import { getAiMechanicalSelection } from '../../src/server/ai-battle/policy';
 import { createPublicObjectId } from '../../src/online/projector';
 import { summarizeAiSelfResources } from '../../src/server/ai-battle/visible-resources';
 import { createPlanningFixture } from '../helpers/ai-battle-planning-fixture';
+import { aiTestResponse } from '../helpers/ai-battle-test-policy';
 
 type Fixture = ReturnType<typeof createPlanningFixture>;
 function observation(f: Fixture, runtime: AiBattleRuntime) {
@@ -43,7 +44,7 @@ function execute(f: Fixture, runtime: AiBattleRuntime, selection: AiSelection, t
   if (!runtime.current?.prepared)
     runtime.resolve({
       kind: 'RESPONSE',
-      text: JSON.stringify({ selection, ...(tradeoff ? { tradeoff } : {}) }),
+      text: aiTestResponse(d.input, selection, tradeoff),
     });
   const result = f.session.executeCommand(runtime.command(f.now()));
   expect(result.success, result.error).toBe(true);

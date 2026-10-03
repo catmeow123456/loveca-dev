@@ -1397,6 +1397,33 @@ export class OnlineMatchService {
     });
   }
 
+  /** Admin AI-debug route only: a two-SYSTEM match has no human command participant. */
+  createAiSelfPlaySpectatorLink(
+    matchId: string,
+    ownerUserId: string,
+    viewerSeat: Seat = 'FIRST'
+  ): OnlineSpectatorLinkView | null {
+    const match = this.matches.get(matchId);
+    if (
+      !match ||
+      match.originKind !== 'AI_DEBUG' ||
+      match.matchMode !== 'ONLINE' ||
+      !(['FIRST', 'SECOND'] as const).every(
+        (seat) =>
+          match.participants[seat].participantKind === 'SYSTEM' &&
+          match.participants[seat].ownerUserId === ownerUserId
+      )
+    ) {
+      return null;
+    }
+    return this.createSpectatorLinkForSeat(match, viewerSeat, {
+      source: 'ADMIN_LINK',
+      countsInPresence: false,
+      authorizedViewerSeats: ['FIRST', 'SECOND'],
+      roomGeneration: null,
+    });
+  }
+
   createRoomCodePlayerViewSpectatorLink(
     matchId: string,
     viewerSeat: Seat,

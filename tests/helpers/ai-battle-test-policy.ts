@@ -1,5 +1,18 @@
 import { findAiCardSelection } from '../../src/server/ai-battle/protocol';
 import type { AiDecisionInput, AiSelection } from '../../src/server/ai-battle/protocol';
+import { createAiLiveSetPlan } from '../../src/server/ai-battle/live-set-budget';
+
+export function aiTestResponse(
+  input: AiDecisionInput,
+  selection = chooseAiTestSelection(input),
+  tradeoff = '确定性路径验证'
+) {
+  return JSON.stringify({
+    selection,
+    tradeoff,
+    ...(input.purpose === 'LIVE_SET' ? { liveSetPlan: createAiLiveSetPlan(input, selection) } : {}),
+  });
+}
 
 // This strategy reads exactly the transmitted visible input, never authority or command closures.
 // Its purpose is exercising the full service/recording/UI flow, not evaluating model quality.

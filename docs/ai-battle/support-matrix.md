@@ -4,7 +4,7 @@
 > 适用范围：精选构筑、卡牌事实与 AI 可选择的规则窗口
 > 当前状态：原始 μ's 预组、绿莲-6弹ver与 Like a Treasure 支持镜像及交叉对局；无豆虹追记版已通过本地镜像流程回归并有用户实战，v0.5策略待继续验证；蓝紫作为 AI 专用超 PT 构筑接入；真实模型策略尚未完整验收
 
-应用已提供管理员 AI 对战与观察入口。目录、运行边界和权限由[运行与观测说明](runtime-and-observation.md)维护；卡效完成状态以[主登记册](../card-effect-reuse-audit/existing_module_map.md)为准。测试策略通局仅证明规则链路，模型强度与生产开放仍需独立验收。
+应用已提供管理员真人／AI 对战、双 AI 建局及共享观战入口，双 AI 两席均按 AI 构筑规则加载，支持蓝紫镜像或交叉对局。目录、运行边界和权限由[运行与观测说明](runtime-and-observation.md)维护；卡效完成状态以[主登记册](../card-effect-reuse-audit/existing_module_map.md)为准。测试策略通局仅证明规则链路，模型强度与生产开放仍需独立验收。
 
 ## 构筑与卡牌事实冻结
 
@@ -116,7 +116,7 @@
 | `PL!HS-pb1-009` | R × 2；P+ × 2 | 费用 15「日野下花帆」 | AUTO、LIVE_START | [hs-pb1-009-kaho.ts](../../src/application/card-effects/workflows/cards/hs-pb1-009-kaho.ts) |
 | `PL!HS-bp6-027` | L × 3 | 分数 5「月夜見海月」 | AUTO | [revealed-cheer-selection.ts](../../src/application/card-effects/workflows/shared/revealed-cheer-selection.ts) |
 | `PL!HS-bp5-019` | L × 4 | 分数 6「ハナムスビ」 | LIVE_START | [conditional-live-modifier.ts](../../src/application/card-effects/workflows/shared/conditional-live-modifier.ts) |
-| `PL!HS-bp2-022` | L+ × 4 | 分数 2「アオクハルカ」 | LIVE_START | [conditional-live-modifier.ts](../../src/application/card-effects/workflows/shared/conditional-live-modifier.ts) |
+| `PL!HS-bp2-022` | L+ × 4 | 分数 1「AOKUHARUKA」；LIVE 开始满足休息室条件时加 1 分 | LIVE_START | [conditional-live-modifier.ts](../../src/application/card-effects/workflows/shared/conditional-live-modifier.ts) |
 | `PL!HS-cl1-009` | CL × 1 | 分数 1「水彩世界」 | LIVE_SUCCESS | [revealed-cheer-selection.ts](../../src/application/card-effects/workflows/shared/revealed-cheer-selection.ts) |
 | `PL!HS-bp6-E04` | PE+ × 4 | 能量「日野下花帆」 | 无效果文本 | 普通规则 |
 | `PL!HS-bp6-E05` | PE+ × 4 | 能量「村野さやか」 | 无效果文本 | 普通规则 |

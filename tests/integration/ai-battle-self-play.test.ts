@@ -3,11 +3,13 @@ import { OnlineMatchService } from '../../src/server/services/online-match-servi
 import { AiBattleDriver } from '../../src/server/ai-battle/driver';
 import { AiBattleTraceStore } from '../../src/server/ai-battle/trace-store';
 import { deck } from '../helpers/ai-battle-fixture';
-import { chooseAiTestSelection } from '../helpers/ai-battle-test-policy';
+import { chooseAiTestSelection, aiTestResponse } from '../helpers/ai-battle-test-policy';
 import type { Seat } from '../../src/online/types';
 import type { AiModelOutcome } from '../../src/server/ai-battle/runtime';
 import type { AiDecisionInput } from '../../src/server/ai-battle/protocol';
 import { CardType } from '../../src/shared/types/enums';
+import { AiDatabaseEvidenceArchive } from '../../src/server/ai-battle/evidence-repository';
+import { createMemoryAiEvidence } from '../helpers/ai-battle-evidence';
 
 afterEach(() => vi.useRealTimers());
 async function fixture() {
@@ -60,7 +62,7 @@ async function fixture() {
 }
 const response = (input: Parameters<typeof chooseAiTestSelection>[0]): AiModelOutcome => ({
   kind: 'RESPONSE',
-  text: JSON.stringify({ selection: chooseAiTestSelection(input), tradeoff: '确定性路径验证' }),
+  text: aiTestResponse(input),
 });
 
 describe('AI self-play through the shared authority queue', () => {
@@ -103,10 +105,68 @@ describe('AI self-play through the shared authority queue', () => {
     expect(f.match.session.state!.isEnded).toBe(true);
     expect(f.match.session.state!.endInfo?.winnerId).toBe(f.match.participants.SECOND.playerId);
     for (const seat of ['FIRST', 'SECOND'] as const) {
+      // This test drives the authority service directly; collection sealing belongs to its caller.
+      expect(f.traces[seat].export(f.match.matchId)!.endedAt).toBeNull();
+      f.traces[seat].end(f.match.matchId);
       const observation = f.traces[seat].export(f.match.matchId)!;
       expect(observation.decisions.every((decision) => decision.seat === seat)).toBe(true);
       expect(observation.endedAt).not.toBeNull();
     }
+  }, 30_000);
+
+  it('seals a shared journal after both terminal seat events and late model cleanup evidence', async () => {
+    vi.useFakeTimers();
+    const f = await fixture();
+    const repository = createMemoryAiEvidence();
+    const archive = new AiDatabaseEvidenceArchive(repository, f.match.matchId);
+    const shared = new AiBattleTraceStore();
+    shared.open(f.match.matchId, [], undefined, archive);
+    let release!: () => void;
+    const disposing = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const first = {
+      decide: async (input: AiDecisionInput) => response(input),
+      dispose: async () => {},
+    };
+    const second = {
+      decide: async (input: AiDecisionInput) => response(input),
+      dispose: async () => {
+        await disposing;
+        archive.record('BILLING', { lateCleanup: true });
+      },
+    };
+    const driver = new AiBattleDriver(f.service, f.now);
+    await driver.startSelfPlay(
+      f.match.matchId,
+      { FIRST: first, SECOND: second },
+      {
+        FIRST: shared.bind(f.match.matchId),
+        SECOND: shared.bind(f.match.matchId),
+      }
+    );
+    for (let step = 0; step < 300 && !f.match.session.state!.isEnded; step++) {
+      f.setNow(f.now() + 10_000);
+      await vi.advanceTimersByTimeAsync(10_000);
+    }
+    expect(f.match.session.state!.isEnded).toBe(true);
+    await archive.flush();
+    const before = await repository.listAfter(f.match.matchId, '0', 10_000);
+    const terminal = before.filter(
+      (row) =>
+        row.entry.kind === 'APPEND' && (row.entry.payload as { stage: string }).stage === 'END'
+    );
+    expect(terminal).toHaveLength(2);
+    expect(before.some((row) => row.entry.kind === 'END')).toBe(false);
+    release();
+    await driver.stop(f.match.matchId);
+    await Promise.resolve();
+    await archive.flush();
+    const after = await repository.listAfter(f.match.matchId, '0', 10_000);
+    expect(after.at(-1)!.entry.kind).toBe('END');
+    expect(after.at(-2)!.entry).toMatchObject({ kind: 'BILLING', payload: { lateCleanup: true } });
+    expect(after.filter((row) => row.entry.kind === 'END')).toHaveLength(1);
+    expect(archive.status()).toMatchObject({ state: 'ENDED', queuedBytes: 0 });
   }, 30_000);
 
   it('routes independent clients serially and stops both on an adapter failure', async () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { aiTestResponse } from '../helpers/ai-battle-test-policy';
 import { createGameSession } from '../../src/application/game-session';
 import { GameCommandType } from '../../src/application/game-commands';
 import { DecisionTapeRandomSource } from '../../src/shared/random-source';
@@ -143,7 +144,7 @@ describe('frozen Muse mirror through AI decision references', () => {
         if (session.state!.activeEffect) effectSteps.add(session.state!.activeEffect.stepId);
         const selection = parseAiBattleResponse(
           decision,
-          JSON.stringify({ selection: choose(decision) })
+          aiTestResponse(decision.input, choose(decision))
         ).selection;
         for (const command of materializeAiDecisionCommands(decision, selection, now)) {
           const result = session.executeCommand(command);

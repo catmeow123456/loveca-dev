@@ -285,7 +285,7 @@ export class CodexAiBattleClient implements AiBattleModelClient {
     }
     const interrupted = () => attempt.interrupt();
     signal.addEventListener('abort', interrupted, { once: true });
-    const schema = codexResponseSchema(input);
+    const schema = codexResponseSchema(input, !exchange);
     capture(
       'REQUEST',
       {

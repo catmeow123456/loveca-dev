@@ -1,39 +1,48 @@
 import type { AiDecisionInput } from './protocol.js';
 import { liveProbabilityQuerySchema } from './live-probability-query.js';
+import { liveSetPlanSchema } from './live-set-budget.js';
 
-/** Wire schema only. Full group/uniqueness/skip constraints still go to the model in input
- * and are enforced by the original response parser and authority chain, not this adapter. */
-export function codexResponseSchema(input: AiDecisionInput): Record<string, unknown> {
-  void input; // Stable wire format; current-window legality remains in the authoritative parser.
+/** Per-turn wire constraints; grouped choices still pass the original parser and authority. */
+export function codexResponseSchema(
+  input: AiDecisionInput,
+  allowQuery = true
+): Record<string, unknown> {
+  const space = input.space;
+  const refs = space.candidates.map((candidate) => candidate.ref);
+  const selection = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['kind', space.kind === 'ACTION' ? 'actionRef' : 'cardRefs'],
+    properties:
+      space.kind === 'ACTION'
+        ? { kind: { type: 'string', enum: ['ACTION'] }, actionRef: { type: 'string', enum: refs } }
+        : {
+            kind: { type: 'string', enum: ['CARDS'] },
+            cardRefs: {
+              type: 'array',
+              minItems: space.canSkip ? 0 : space.min,
+              maxItems: Math.min(space.max, refs.length),
+              uniqueItems: true,
+              items: { type: 'string', ...(refs.length ? { enum: refs } : {}) },
+            },
+          },
+  };
+  const liveSet = input.purpose === 'LIVE_SET';
+  const canQuery = liveSet && allowQuery;
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['selection', 'tradeoff'],
+    required: liveSet ? ['selection', 'tradeoff', 'liveSetPlan'] : ['selection', 'tradeoff'],
     properties: {
-      selection: {
-        anyOf: [
-          liveProbabilityQuerySchema,
-          {
-            type: 'object',
-            additionalProperties: false,
-            required: ['kind', 'actionRef'],
-            properties: {
-              kind: { type: 'string', enum: ['ACTION'] },
-              actionRef: { type: 'string' },
-            },
-          },
-          {
-            type: 'object',
-            additionalProperties: false,
-            required: ['kind', 'cardRefs'],
-            properties: {
-              kind: { type: 'string', enum: ['CARDS'] },
-              cardRefs: { type: 'array', items: { type: 'string' } },
-            },
-          },
-        ],
-      },
+      selection: canQuery ? { anyOf: [selection, liveProbabilityQuerySchema] } : selection,
       tradeoff: { type: 'string', maxLength: 300 },
+      ...(liveSet
+        ? {
+            liveSetPlan: canQuery
+              ? { anyOf: [liveSetPlanSchema(space), { type: 'null' }] }
+              : liveSetPlanSchema(space),
+          }
+        : {}),
     },
   };
 }

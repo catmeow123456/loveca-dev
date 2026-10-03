@@ -3,11 +3,14 @@ import { fileURLToPath } from 'node:url';
 import type { Page, Route } from '@playwright/test';
 import type { GameCommand } from '../../../src/application/game-commands';
 import type { CreateAiBattleInput } from '../../../src/online/ai-battle-types';
-import type { AiDecisionInput } from '../../../src/server/ai-battle/protocol';
+import type { AiDecisionInput, AiSelection } from '../../../src/server/ai-battle/protocol';
 import { CardDataRegistry } from '../../../src/domain/card-data/loader';
 import { toTransport, fromTransport } from '../../../src/online/serde';
 import { readFrozenMuseDeck } from '../../../tests/helpers/ai-curated-decks';
 import { createMemoryAiBilling } from '../../../tests/helpers/ai-battle-billing';
+import { aiTestResponse } from '../../../tests/helpers/ai-battle-test-policy';
+import type { AnyCardData } from '../../../src/domain/entities/card';
+import type { CardDbRecord } from '../../src/lib/cardService';
 
 const OWNER = 'ai-ui-admin';
 const NOW = '2026-09-09T06:00:00.000Z';
@@ -24,7 +27,14 @@ export const CREATE_INPUT: CreateAiBattleInput = {
  * No business DB or upstream connection: all dependencies that read/write those are injected.
  * Route authorization is covered separately by ai-battle-admin-route.test.ts.
  */
-export async function aiBrowserFixture(page: Page, archiveDirectory?: string) {
+export async function aiBrowserFixture(
+  page: Page,
+  archiveDirectory?: string,
+  published?: {
+    readonly records: readonly CardDbRecord[];
+    readonly cards: readonly AnyCardData[];
+  }
+) {
   Object.assign(process.env, {
     DATABASE_URL: 'postgresql://unused:unused@127.0.0.1:1/unused',
     JWT_SECRET: 'ai-ui-fixture',
@@ -48,8 +58,11 @@ export async function aiBrowserFixture(page: Page, archiveDirectory?: string) {
     import('../../../src/server/ai-battle/trace-store'),
   ]);
   const registry = new CardDataRegistry();
-  const deck = readFrozenMuseDeck().deck;
-  registry.load([...deck.mainDeck, ...deck.energyDeck]);
+  if (published) registry.load(published.cards);
+  else {
+    const deck = readFrozenMuseDeck().deck;
+    registry.load([...deck.mainDeck, ...deck.energyDeck]);
+  }
   const matches = new OnlineMatchService({ recorder: null });
   const traces = new AiBattleTraceStore();
   const state = { modelCalls: 0, writes: [] as string[], snapshots: 0, failNextEnd: false };
@@ -99,7 +112,7 @@ export async function aiBrowserFixture(page: Page, archiveDirectory?: string) {
             const body = JSON.parse(String(init?.body)) as { messages: { content: string }[] };
             const content = body.messages.at(-1)!.content;
             const input = JSON.parse(content.slice(content.indexOf('\n') + 1)) as AiDecisionInput;
-            const selection =
+            const selection: AiSelection =
               input.space.kind === 'CARDS'
                 ? {
                     kind: 'CARDS',
@@ -122,7 +135,7 @@ export async function aiBrowserFixture(page: Page, archiveDirectory?: string) {
                   choices: [
                     {
                       message: {
-                        content: JSON.stringify({ selection, tradeoff: '浏览器夹具固定选择' }),
+                        content: aiTestResponse(input, selection, '浏览器夹具固定选择'),
                       },
                       finish_reason: 'stop',
                     },
@@ -147,11 +160,17 @@ export async function aiBrowserFixture(page: Page, archiveDirectory?: string) {
       },
     })
   );
-  await page.route('**/api/**', async (route) => {
+  await page.context().route('**/site-status.json*', (route) =>
+    route.fulfill({
+      json: { schemaVersion: 1, availability: 'OPEN', generatedAt: NOW, maintenance: null },
+    })
+  );
+  await page.context().route('**/api/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
-    if (path === '/api/cards') return route.fallback(); // Existing published card/image display.
+    if (path === '/api/cards')
+      return published ? fulfill(route, published.records) : route.fallback();
     if (path === '/api/config')
       return fulfill(route, {
         features: {
@@ -178,9 +197,33 @@ export async function aiBrowserFixture(page: Page, archiveDirectory?: string) {
         },
       });
     if (path === '/api/decks' || path === '/api/player-badges/me') return fulfill(route, []);
-    if (!path.startsWith('/api/admin/ai-battle')) return fulfill(route, null);
-    if (request.method() !== 'GET') state.writes.push(path);
     try {
+      if (path.startsWith('/api/online/spectator-links/')) {
+        const parts = path.split('/');
+        const token = decodeURIComponent(parts[4]!);
+        const sessionId = url.searchParams.get('sessionId');
+        if (parts[5] === 'sessions' && parts[7] === 'view')
+          return fulfill(
+            route,
+            await matches.switchSpectatorView(token, parts[6], request.postDataJSON().viewerSeat)
+          );
+        if (parts[5] === 'sessions')
+          return fulfill(route, await matches.joinSpectatorLink(token, request.postDataJSON()));
+        if (parts[5] === 'snapshot')
+          return fulfill(route, await matches.getSpectatorSnapshot(token, sessionId));
+        if (parts[5] === 'public-events')
+          return fulfill(
+            route,
+            await matches.getSpectatorPublicEvents(token, sessionId, {
+              afterSeq: Number(url.searchParams.get('afterSeq') ?? 0),
+            })
+          );
+        if (parts[5] === 'chat') return fulfill(route, { messages: [], hasMore: false });
+      }
+      if (!path.startsWith('/api/admin/ai-battle')) return fulfill(route, null);
+      if (request.method() !== 'GET') state.writes.push(path);
+      if (path.endsWith('/self-play-sessions'))
+        return fulfill(route, await service.createSelfPlay(OWNER, request.postDataJSON()));
       if (path.endsWith('/local-options')) return fulfill(route, service.localOptions());
       if (path.endsWith('/models')) return fulfill(route, service.listModels());
       if (path.endsWith('/presets')) return fulfill(route, await service.listPresets());
@@ -194,6 +237,7 @@ export async function aiBrowserFixture(page: Page, archiveDirectory?: string) {
       const segments = path.split('/');
       const id = segments[5]!;
       const operation = segments[6];
+      if (operation === 'spectator-link') return fulfill(route, service.spectatorLink(OWNER, id));
       if (segments[4] === 'records' && operation === 'billing')
         return fulfill(route, await service.getRecordedBilling(id));
       if (!operation) return fulfill(route, service.getSession(OWNER, id));

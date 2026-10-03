@@ -191,10 +191,15 @@ export class AiBattleDriver {
         entry.timer.unref?.();
         return;
       case 'ENDED':
-        entry.observer?.end();
-        if (entry.seatObservers)
-          for (const observer of Object.values(entry.seatObservers)) observer.end();
-        void this.stop(entry.matchId);
+        // Runtime END is per seat. Seal the shared journal only after both seat END events
+        // and late request/billing updates have completed, so its last record is collection END.
+        void this.stop(entry.matchId)
+          .then(() => {
+            entry.observer?.end();
+            if (entry.seatObservers)
+              for (const observer of Object.values(entry.seatObservers)) observer.end();
+          })
+          .catch((error) => this.reportFault(entry, 'observe', error));
         return;
       case 'STOPPED':
         void this.stop(entry.matchId);

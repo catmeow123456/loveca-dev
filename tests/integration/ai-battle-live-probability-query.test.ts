@@ -17,6 +17,7 @@ import {
   createAiModelConfig,
 } from '../../src/server/ai-battle/model-client';
 import { parseAiBattleResponse } from '../../src/server/ai-battle/protocol';
+import { createAiLiveSetPlan } from '../../src/server/ai-battle/live-set-budget';
 
 const context = { matchId: 'm', taskId: 'd', revision: 1, windowKey: 'LIVE_SET', attempt: 0 };
 const query = JSON.stringify({
@@ -37,6 +38,7 @@ const query = JSON.stringify({
 const answer = JSON.stringify({
   tradeoff: '最终选择',
   selection: { kind: 'CARDS', cardRefs: ['c1'] },
+  liveSetPlan: { liveCardRefs: ['c1'], memberCardRefs: [], baseRequiredHeartTotal: 2 },
 });
 const usage = parseCodexUsage({ input_tokens: 100, cached_input_tokens: 75, output_tokens: 5 })!;
 const localEnv = {
@@ -108,7 +110,7 @@ describe('probability query through model transports', () => {
       expect(outcome).toEqual({ kind: 'RESPONSE', text: answer });
       expect(execute).toHaveBeenCalledTimes(2);
       const [first, second] = execute.mock.calls;
-      expect(first![3]).toEqual(second![3]); // Stable output schema, including across the query boundary.
+      expect(first![3]).not.toEqual(second![3]); // Continuation allows only a final selection.
       expect(first![2]).toContain('readOnlyQuery');
       expect(second![2]).toContain('"assumptionsVerified":false');
       expect(second![2]).toContain('"successProbability":1');
@@ -322,6 +324,7 @@ describe('probability query through model transports', () => {
     first.selection.scenarios[0]!.cardRefs = [ref];
     const final = JSON.stringify({
       selection: { kind: 'CARDS', cardRefs: [ref] },
+      liveSetPlan: createAiLiveSetPlan(current.input, { kind: 'CARDS', cardRefs: [ref] }),
       tradeoff: '最终选择',
     });
     const execute = vi.fn<typeof executeCodexDecision>().mockImplementation(() => {

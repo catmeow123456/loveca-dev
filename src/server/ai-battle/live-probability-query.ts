@@ -29,6 +29,7 @@ const querySelection = z.strictObject({
 const queryEnvelope = z.strictObject({
   selection: querySelection,
   tradeoff: z.string().max(300),
+  liveSetPlan: z.null().optional(),
 });
 // This is provider-only output, never an authority command or a public player protocol.
 const generatedSchema = z.toJSONSchema(querySelection, { target: 'draft-7' });
@@ -43,7 +44,7 @@ export interface LiveProbabilityExchange {
 }
 
 export const LIVE_PROBABILITY_QUERY_INSTRUCTIONS =
-  '仅 LIVE_SET 可以用 selection.kind=LIVE_PROBABILITY_QUERY 发起一批只读条件查询（最多8组，每窗口最多一批）；不需要查询时直接提交最终选择。每组填 id、cardRefs（完整最终盖牌，含成员）、additionalHearts（[{color,count}]，无补心用[]，颜色不得重复）、additionalCheer（额外声援次数，无则0）、assumptionNote（补心/加刀来源、费用与成立条件）。HEART颜色使用PINK/RED/YELLOW/GREEN/BLUE/PURPLE/ORANGE/GRAY/RAINBOW；GRAY只计总量，RAINBOW为ALL，不把任意选色误当ALL。只填尚未计入当前资源的增量，不重复计算已成立加成。程序不核验假设卡效是否合法，也不执行盖牌或付费；返回结果后必须提交原格式最终selection，不再查询。必要时把不同补心颜色、歌组、追加声援一并比较；无需逐组往返。查询后的模型回复仍消耗一次调用，已有基线足以决策时不要查询。';
+  '仅 LIVE_SET 可以用 selection.kind=LIVE_PROBABILITY_QUERY 发起一批只读条件查询（最多8组，每窗口最多一批）；不需要查询时直接提交最终选择；查询回复的 liveSetPlan 填 null，最终 CARDS 回复再填实际计划。每组填 id、cardRefs（完整最终盖牌，含成员）、additionalHearts（[{color,count}]，无补心用[]，颜色不得重复）、additionalCheer（额外声援次数，无则0）、assumptionNote（补心/加刀来源、费用与成立条件）。HEART颜色使用PINK/RED/YELLOW/GREEN/BLUE/PURPLE/ORANGE/GRAY/RAINBOW；GRAY只计总量，RAINBOW为ALL，不把任意选色误当ALL。只填尚未计入当前资源的增量，不重复计算已成立加成。程序不核验假设卡效是否合法，也不执行盖牌或付费；返回结果后必须提交原格式最终selection，不再查询。必要时把不同补心颜色、歌组、追加声援一并比较；无需逐组往返。查询后的模型回复仍消耗一次调用，已有基线足以决策时不要查询。';
 
 export function liveProbabilityResultMessage(exchange: LiveProbabilityExchange): string {
   return `本窗口只读批量概率查询结果；局面未推进，没有执行任何盖牌或卡效。假设由你提出且未验证，只能在费用、时点、选色确实成立时用于比较；不是胜率，分数仍须另算未来加分。查询额度已用完，请使用本窗口原候选提交最终 ACTION/CARDS selection，禁止再次查询。\n${exchange.resultText}`;

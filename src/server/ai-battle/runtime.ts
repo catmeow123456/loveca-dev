@@ -16,6 +16,7 @@ import type { AiBattleTraceObserver } from './trace-store.js';
 import type { PlayerViewState } from '../../online/types.js';
 import { AiDecisionContext, type AiPublicObservation } from './decision-context.js';
 import { GamePhase, SubPhase } from '../../shared/types/enums.js';
+import { createAiLiveSetPlan } from './live-set-budget.js';
 
 export const AI_MODEL_TIMEOUT_MS = 30_000;
 export const AI_THINKING_MODEL_TIMEOUT_MS = 120_000;
@@ -153,7 +154,7 @@ export class AiBattleRuntime {
       stoppedReason: this.stoppedReason,
     });
     this.invalidate('ENDED');
-    this.capture(() => this.observer?.end());
+    // The driver seals collection after both runtimes and all in-flight requests drain.
   }
 
   observe(
@@ -268,7 +269,7 @@ export class AiBattleRuntime {
     if (outcome.kind === 'RESPONSE') {
       try {
         if (outcome.truncated) throw new Error('Upstream output truncated');
-        const { selection, tradeoff, tradeoffTruncated } = parseAiBattleResponse(
+        const { selection, tradeoff, tradeoffTruncated, liveSetPlan } = parseAiBattleResponse(
           task.decision,
           outcome.text
         );
@@ -276,6 +277,7 @@ export class AiBattleRuntime {
         this.record('MODEL_VALIDATION', {
           selection,
           tradeoff,
+          ...(liveSetPlan ? { liveSetPlan } : {}),
           ...(tradeoffTruncated ? { tradeoffTruncated } : {}),
           validation: 'VALID',
         });
@@ -306,6 +308,9 @@ export class AiBattleRuntime {
         validation: 'VALID',
         reason: failure,
         policy: 'getAiFallbackSelection',
+        ...(task.decision.input.purpose === 'LIVE_SET'
+          ? { liveSetPlan: createAiLiveSetPlan(task.decision.input, selection) }
+          : {}),
         ...(attemptedSelection ? { attemptedModelSelection: attemptedSelection } : {}),
       });
       return null;

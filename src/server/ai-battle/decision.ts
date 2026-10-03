@@ -557,7 +557,7 @@ function createDecisionInput(
         }
       : {}),
     space: { ...space, candidates },
-    responseSchema: responseSchema(space),
+    responseSchema: responseSchema({ ...space, candidates }, purpose),
   });
 }
 

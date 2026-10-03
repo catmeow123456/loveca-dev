@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { runAiSelfPlay, AiSelfPlayBudget } from '../../src/server/ai-battle/self-play';
 import { deck } from '../helpers/ai-battle-fixture';
-import { chooseAiTestSelection } from '../helpers/ai-battle-test-policy';
+import { aiTestResponse } from '../helpers/ai-battle-test-policy';
 import type { AiFrozenKnowledge } from '../../src/server/ai-battle/presets';
 import type { AiDecisionInput } from '../../src/server/ai-battle/protocol';
 import { parseEvidence } from '../../.agents/skills/loveca-ai-match-review/scripts/archive.mjs';
@@ -44,7 +44,7 @@ it('exports both complete seat archives after stopping, including final player p
         }
         return {
           kind: 'RESPONSE' as const,
-          text: JSON.stringify({ selection: chooseAiTestSelection(input) }),
+          text: aiTestResponse(input),
         };
       },
     }),
@@ -66,6 +66,7 @@ it('exports both complete seat archives after stopping, including final player p
       expect(record.archiveStatus?.droppedRecords).toBe(0);
       const text = await readFile(record.exportPath!, 'utf8');
       expect(JSON.parse(text.split('\n')[0]).payload.completeThroughExport).toBe(true);
+      expect(JSON.parse(text.trim().split('\n').at(-1)!).kind).toBe('END');
       const data = parseEvidence(text);
       expect(data.captureFailures).toBe(0);
       expect(

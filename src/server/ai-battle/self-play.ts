@@ -257,8 +257,9 @@ export async function runAiSelfPlay(options: AiSelfPlayOptions) {
       await billings[seat]!.initialize(matchId);
     }
     await driver.startSelfPlay(matchId, models as Record<Seat, AiBattleModelClient>, {
-      FIRST: traces.FIRST.bind(matchId),
-      SECOND: traces.SECOND.bind(matchId),
+      // The runner adds final projections/result after the driver drains; it owns sealing.
+      FIRST: traces.FIRST.bind(matchId, { sealOnEnd: false }),
+      SECOND: traces.SECOND.bind(matchId, { sealOnEnd: false }),
     });
     let lastProgress = 0;
     while (true) {
@@ -328,9 +329,9 @@ export async function runAiSelfPlay(options: AiSelfPlayOptions) {
         );
         traces[seat].append(matchId, identity.id, 'EXPERIMENT_RESULT', { ...final, stopReason });
       }
-    if (matchId) for (const seat of seats) traces[seat].end(matchId, endedAt);
     if (matchId)
       await matches.deleteMatch(matchId, { reason: stopReason ?? 'EXPERIMENT_FINISHED' });
+    if (matchId) for (const seat of seats) traces[seat].end(matchId, endedAt);
     for (const archive of Object.values(archives)) await archive.close();
     for (const seat of seats) {
       const archive = archives[seat];

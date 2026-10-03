@@ -31,6 +31,21 @@ const createSchema = z
   })
   .strict();
 const seqSchema = z.coerce.number().int().min(0).optional();
+const aiSeatSchema = z
+  .object({
+    presetId: z.string().min(1).max(100),
+    handbookId: z.string().min(1).max(100),
+  })
+  .strict();
+const selfPlaySchema = createSchema
+  .omit({
+    humanPresetId: true,
+    aiPresetId: true,
+    handbookId: true,
+    humanSeat: true,
+  })
+  .extend({ FIRST: aiSeatSchema, SECOND: aiSeatSchema })
+  .strict();
 const commandSchema = z
   .object({ command: z.unknown().refine((value) => value !== undefined) })
   .strict();
@@ -123,6 +138,32 @@ export function createAiBattleRouter(service: AiBattleService): Router {
       res
         .status(201)
         .json({ data: toTransport(await service.create(req.user!.id, parsed.data)), error: null });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.post('/self-play-sessions', requireGameplayAvailable, async (req, res, next) => {
+    const parsed = selfPlaySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ data: null, error: { code: 'INVALID_REQUEST', message: '双 AI 创建参数非法' } });
+      return;
+    }
+    try {
+      res
+        .status(201)
+        .json({
+          data: toTransport(await service.createSelfPlay(req.user!.id, parsed.data)),
+          error: null,
+        });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.post('/sessions/:matchId/spectator-link', (req, res, next) => {
+    try {
+      res.json({ data: service.spectatorLink(req.user!.id, req.params.matchId), error: null });
     } catch (error) {
       next(error);
     }

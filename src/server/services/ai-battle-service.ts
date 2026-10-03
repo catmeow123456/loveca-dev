@@ -8,7 +8,10 @@ import type { GameCommand } from '../../application/game-commands.js';
 import type {
   CreateAiBattleInput,
   AiBattleSessionView,
+  AiBattleSessionStatusView,
   CreateAiBattleResult,
+  CreateAiSelfPlayInput,
+  CreateAiSelfPlayResult,
 } from '../../online/ai-battle-types.js';
 export type { CreateAiBattleInput, AiBattleSessionView } from '../../online/ai-battle-types.js';
 import { AiBattleDriver, type AiBattleModelClient } from '../ai-battle/driver.js';
@@ -53,7 +56,7 @@ interface AiOwnedSession {
   readonly ownerUserId: string;
   readonly ownerDisplayName: string;
   readonly matchId: string;
-  readonly input: CreateAiBattleInput;
+  readonly input: CreateAiBattleInput | CreateAiSelfPlayInput;
   readonly startedAt: number;
   endedAt: number | null;
   consecutiveFailures: number;
@@ -77,8 +80,10 @@ interface AiBattleServiceDeps {
   readonly evidenceRepository?: AiEvidenceRepository;
   readonly traces?: AiBattleTraceStore;
   readonly matchService?: OnlineMatchService;
-  readonly presets?: Pick<AiBattlePresetLoader, 'list' | 'load'>;
-  readonly driver?: Pick<AiBattleDriver, 'start' | 'stop'>;
+  readonly presets?: Pick<AiBattlePresetLoader, 'list' | 'load'> &
+    Partial<Pick<AiBattlePresetLoader, 'loadAi'>>;
+  readonly driver?: Pick<AiBattleDriver, 'start' | 'stop'> &
+    Partial<Pick<AiBattleDriver, 'startSelfPlay'>>;
   readonly loadProfile?: typeof loadUserProfileForOnlineMatch;
   readonly now?: () => number;
 }
@@ -89,8 +94,8 @@ export class AiBattleService {
   private readonly creatingOwners = new Set<string>();
   private creatingCodex = false;
   private readonly matches: OnlineMatchService;
-  private readonly presets: Pick<AiBattlePresetLoader, 'list' | 'load'>;
-  private readonly driver: Pick<AiBattleDriver, 'start' | 'stop'>;
+  private readonly presets: NonNullable<AiBattleServiceDeps['presets']>;
+  private readonly driver: NonNullable<AiBattleServiceDeps['driver']>;
   private readonly loadProfile: typeof loadUserProfileForOnlineMatch;
   private readonly now: () => number;
   private readonly traces: AiBattleTraceStore;
@@ -186,6 +191,27 @@ export class AiBattleService {
   }
 
   async create(userId: string, input: CreateAiBattleInput): Promise<CreateAiBattleResult> {
+    const result = await this.createSession(userId, input);
+    if (!('snapshot' in result)) throw new Error('Expected human AI session');
+    return result;
+  }
+
+  async createSelfPlay(
+    userId: string,
+    input: CreateAiSelfPlayInput
+  ): Promise<CreateAiSelfPlayResult> {
+    const result = await this.createSession(userId, input);
+    if (!('spectatorLink' in result)) throw new Error('Expected AI self-play session');
+    return result;
+  }
+
+  private async createSession(
+    userId: string,
+    input: CreateAiBattleInput | CreateAiSelfPlayInput
+  ): Promise<CreateAiBattleResult | CreateAiSelfPlayResult> {
+    const selfPlay = 'FIRST' in input;
+    if (selfPlay && (!this.presets.loadAi || !this.driver.startSelfPlay))
+      throw new AiBattleSetupError('AI_SELF_PLAY_UNAVAILABLE', '服务端未提供双 AI 调试', 503);
     if (!this.listModels().includes(input.model))
       throw new AiBattleSetupError('AI_MODEL_UNSUPPORTED', '请选择支持的 AI 对战模型', 400);
     if (requiresAiThinking(input.model)) input = { ...input, enableThinking: true };
@@ -238,11 +264,29 @@ export class AiBattleService {
       );
     if (codex) this.creatingCodex = true;
     this.creatingOwners.add(userId);
+    const models: AiBattleModelClient[] = [];
+    let started = false;
     try {
-      const [profile, setup] = await Promise.all([
-        this.loadProfile(userId),
-        this.presets.load(input),
-      ]);
+      const profile = await this.loadProfile(userId);
+      const setup = selfPlay ? null : await this.presets.load(input as CreateAiBattleInput);
+      const seats = selfPlay
+        ? {
+            FIRST: await this.presets.loadAi!((input as CreateAiSelfPlayInput).FIRST),
+            SECOND: await this.presets.loadAi!((input as CreateAiSelfPlayInput).SECOND),
+          }
+        : null;
+      // Source ids distinguish the two frozen handbooks/decks in the shared observation.
+      const knowledgeFor = (seat: 'FIRST' | 'SECOND'): AiFrozenKnowledge => {
+        const knowledge = seats![seat].knowledge;
+        return {
+          ...knowledge,
+          handbook: { ...knowledge.handbook, id: `${seat}:${knowledge.handbook.id}` },
+          ownDeck: { ...knowledge.ownDeck, id: `${knowledge.ownDeck.id}:${seat}` },
+        };
+      };
+      const knowledges = selfPlay
+        ? [knowledgeFor('FIRST'), knowledgeFor('SECOND')]
+        : [setup!.knowledge];
       const billing = new AiBattleBilling(
         input.model,
         this.billingPersistence,
@@ -254,33 +298,46 @@ export class AiBattleService {
           }
         }
       );
-      const model = await this.deps.createModel(
-        setup.knowledge,
-        this.traces,
-        input.model,
-        billing,
-        input.enableThinking,
-        input.reasoningEffort,
-        input.fastMode
-      );
+      for (const knowledge of knowledges)
+        models.push(
+          await this.deps.createModel(
+            knowledge,
+            this.traces,
+            input.model,
+            billing,
+            input.enableThinking,
+            input.reasoningEffort,
+            input.fastMode
+          )
+        );
+      const model = models[0]!;
+      if (
+        selfPlay &&
+        model.configurationMaterial?.sha256 !== models[1]!.configurationMaterial?.sha256
+      )
+        throw new AiBattleSetupError(
+          'AI_MODEL_CONFIGURATION_CHANGED',
+          '建局期间模型配置发生变化，请重新创建双 AI 对局',
+          409
+        );
       const startedAt = this.now();
       const human = {
         userId,
         displayName: profile.displayName,
-        deck: setup.human.deck,
-        deckName: setup.human.name,
+        deck: (setup?.human ?? seats!.FIRST.ai).deck,
+        deckName: (setup?.human ?? seats!.FIRST.ai).name,
         deckSource: 'PUBLISHED_CARDS_SNAPSHOT' as const,
-        pointValidation: setup.human.pointValidation,
+        pointValidation: (setup?.human ?? seats!.FIRST.ai).pointValidation,
         lockedAt: startedAt,
         participantKind: 'USER' as const,
       };
       const system = {
         userId: `system:ai-battle:${randomUUID()}`,
         displayName: 'AI',
-        deck: setup.ai.deck,
-        deckName: setup.ai.name,
+        deck: (setup?.ai ?? seats!.SECOND.ai).deck,
+        deckName: (setup?.ai ?? seats!.SECOND.ai).name,
         deckSource: 'PUBLISHED_CARDS_SNAPSHOT' as const,
-        pointValidation: setup.ai.pointValidation,
+        pointValidation: (setup?.ai ?? seats!.SECOND.ai).pointValidation,
         lockedAt: startedAt,
         participantKind: 'SYSTEM' as const,
         ownerUserId: userId,
@@ -292,8 +349,22 @@ export class AiBattleService {
         matchMode: 'ONLINE',
         automationGameMode: 'DEBUG',
         startedAt,
-        first: input.humanSeat === 'FIRST' ? human : system,
-        second: input.humanSeat === 'FIRST' ? system : human,
+        first: selfPlay
+          ? {
+              ...human,
+              userId: `system:ai-battle:${randomUUID()}`,
+              displayName: 'AI 先手',
+              participantKind: 'SYSTEM',
+              ownerUserId: userId,
+            }
+          : (input as CreateAiBattleInput).humanSeat === 'FIRST'
+            ? human
+            : system,
+        second: selfPlay
+          ? { ...system, displayName: 'AI 后手' }
+          : (input as CreateAiBattleInput).humanSeat === 'FIRST'
+            ? system
+            : human,
       });
       const entry: AiOwnedSession = {
         billing,
@@ -331,17 +402,22 @@ export class AiBattleService {
             );
           }
         }
-        const knowledge = setup.knowledge;
-        if (
-          !this.traces.open(
-            match.matchId,
-            [
+        const sources = new Map(
+          knowledges
+            .flatMap((knowledge) => [
               knowledge.rules,
               knowledge.tutorial,
               knowledge.handbook,
               knowledge.ownDeck,
-              ...(model.configurationMaterial ? [model.configurationMaterial] : []),
-            ],
+            ])
+            .map((source) => [source.id, source])
+        );
+        if (model.configurationMaterial)
+          sources.set(model.configurationMaterial.id, model.configurationMaterial);
+        if (
+          !this.traces.open(
+            match.matchId,
+            [...sources.values()],
             entry.archive,
             entry.databaseArchive
           )
@@ -353,12 +429,31 @@ export class AiBattleService {
         await billing.initialize(match.matchId);
         if (!(await entry.databaseArchive.flush()))
           throw new AiBattleSetupError('AI_EVIDENCE_OPEN_FAILED', '数据库决定归档初始化失败', 503);
+        if (selfPlay) {
+          const spectatorLink = this.spectatorLink(userId, match.matchId);
+          await this.driver.startSelfPlay!(
+            match.matchId,
+            { FIRST: models[0]!, SECOND: models[1]! },
+            {
+              FIRST: this.traces.bind(match.matchId),
+              SECOND: this.traces.bind(match.matchId),
+            }
+          );
+          const session = this.view(entry);
+          if (session.mode !== 'AI_VS_AI') throw new Error('Expected self-play view');
+          started = true;
+          return { session, spectatorLink };
+        }
         const snapshot = await this.matches.getMatchSnapshot(match.matchId, userId);
         if (!snapshot || 'modified' in snapshot)
           throw new AiBattleSetupError('AI_SNAPSHOT_FAILED', 'AI 对局初始快照读取失败');
         await this.driver.start(match.matchId, model, this.traces.bind(match.matchId));
-        return { session: this.view(entry), snapshot };
+        const session = this.view(entry);
+        if (session.mode !== 'HUMAN_VS_AI') throw new Error('Expected human view');
+        started = true;
+        return { session, snapshot };
       } catch (error) {
+        await this.driver.stop(match.matchId);
         await entry.databaseArchive?.flush();
         const removed = await this.matches.deleteMatch(match.matchId, {
           reason: 'AI_CREATE_FAILED',
@@ -384,9 +479,20 @@ export class AiBattleService {
         throw error;
       }
     } finally {
+      if (!started) await Promise.allSettled(models.map((model) => model.dispose?.()));
       this.creatingOwners.delete(userId);
       if (codex) this.creatingCodex = false;
     }
+  }
+
+  spectatorLink(_userId: string, matchId: string) {
+    const entry = this.observable(matchId);
+    if (!('FIRST' in entry.input))
+      throw new AiBattleSetupError('AI_SPECTATOR_UNAVAILABLE', '只有双 AI 调试可以进入观战', 400);
+    const link = this.matches.createAiSelfPlaySpectatorLink(matchId, entry.ownerUserId);
+    if (!link)
+      throw new AiBattleSetupError('AI_SPECTATOR_UNAVAILABLE', '双 AI 观战对局已失效', 404);
+    return link;
   }
 
   getSession(userId: string, matchId: string): AiBattleSessionView {
@@ -421,24 +527,24 @@ export class AiBattleService {
   }
 
   async snapshot(userId: string, matchId: string, sinceSeq?: number) {
-    this.owned(userId, matchId);
+    this.humanOwned(userId, matchId);
     return this.matches.getMatchSnapshot(matchId, userId, { sinceSeq });
   }
 
   async publicEvents(userId: string, matchId: string, afterSeq?: number) {
-    this.owned(userId, matchId);
+    this.humanOwned(userId, matchId);
     return this.matches.getMatchPublicEvents(matchId, userId, { afterSeq });
   }
 
   async command(userId: string, matchId: string, command: GameCommand) {
-    const entry = this.owned(userId, matchId);
+    const entry = this.humanOwned(userId, matchId);
     if (this.finishedAt(entry) !== null)
       throw new AiBattleSetupError('AI_MATCH_ENDED', '调试对局已结束', 409);
     return this.matches.executeCommand(matchId, userId, { ...command, timestamp: this.now() });
   }
 
   async advance(userId: string, matchId: string) {
-    const entry = this.owned(userId, matchId);
+    const entry = this.humanOwned(userId, matchId);
     if (this.finishedAt(entry) !== null)
       throw new AiBattleSetupError('AI_MATCH_ENDED', '调试对局已结束', 409);
     return this.matches.advancePhase(matchId, userId);
@@ -467,15 +573,14 @@ export class AiBattleService {
       const finishedAt = this.finishedAt(entry);
       if (entry.endedAt === null && finishedAt !== null) {
         entry.endedAt = finishedAt;
-        this.traces.end(id, finishedAt);
+        void this.finishEvidence(entry);
       }
       if (entry.endedAt === null && !this.matches.getMatch(id)) {
-        void this.driver.stop(id);
         // The shared runtime cleanup may remove a match independently of this administrator API.
         // This is the time its removal was observed, not an invented game-result timestamp.
         entry.endedAt = this.now();
         entry.stoppedReason ??= 'MATCH_RUNTIME_RELEASED';
-        this.traces.end(id, entry.endedAt);
+        void this.finishEvidence(entry);
       }
       if (this.expired(entry)) {
         void entry.archive?.close();
@@ -485,10 +590,33 @@ export class AiBattleService {
     this.traces.cleanup();
   }
 
+  private async finishEvidence(entry: AiOwnedSession): Promise<void> {
+    try {
+      await this.driver.stop(entry.matchId);
+      await entry.billing.flush();
+      this.traces.end(entry.matchId, entry.endedAt ?? this.now());
+      if (entry.databaseArchive && !(await entry.databaseArchive.flush()))
+        this.traces.reportCaptureFailure(entry.matchId);
+    } catch {
+      this.traces.reportCaptureFailure(entry.matchId);
+    }
+  }
+
   private owned(userId: string, matchId: string): AiOwnedSession {
     const entry = this.observable(matchId);
     if (entry.ownerUserId !== userId)
       throw new AiBattleSetupError('AI_SESSION_NOT_FOUND', '调试会话不存在', 404);
+    return entry;
+  }
+
+  private humanOwned(userId: string, matchId: string): AiOwnedSession {
+    const entry = this.owned(userId, matchId);
+    if ('FIRST' in entry.input)
+      throw new AiBattleSetupError(
+        'AI_SELF_PLAY_READ_ONLY',
+        '双 AI 对局只能观战，不能提交玩家操作',
+        403
+      );
     return entry;
   }
 
@@ -514,8 +642,7 @@ export class AiBattleService {
     const status = this.matches.getAiBattleStatus(entry.matchId);
     const endedAt = this.finishedAt(entry);
     const stoppedReason = entry.stoppedReason ?? status?.stoppedReason ?? null;
-    return {
-      ...entry.input,
+    const statusView: AiBattleSessionStatusView = {
       ownerUserId: entry.ownerUserId,
       ownerDisplayName: entry.ownerDisplayName,
       matchBilling: entry.billing.view(),
@@ -528,5 +655,8 @@ export class AiBattleService {
       activity:
         endedAt !== null ? 'ENDED' : stoppedReason ? 'STOPPED' : (status?.activity ?? 'WAITING'),
     };
+    return 'FIRST' in entry.input
+      ? { ...entry.input, ...statusView, mode: 'AI_VS_AI' }
+      : { ...entry.input, ...statusView, mode: 'HUMAN_VS_AI' };
   }
 }

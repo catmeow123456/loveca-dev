@@ -6,7 +6,7 @@ import { isCodexAiBattleModel } from '../../src/online/ai-battle-model-registry'
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import type { AiDecisionInput } from '../../src/server/ai-battle/protocol.js';
-import { chooseAiTestSelection } from './ai-battle-test-policy.js';
+import { aiTestResponse } from './ai-battle-test-policy.js';
 
 const database = new URL(process.env.DATABASE_URL ?? 'about:blank');
 const modelMode = process.env.AI_BATTLE_QA_MODEL_MODE ?? 'FAKE';
@@ -61,7 +61,6 @@ const ai = new AiBattleService({
           const body = JSON.parse(init.body) as { messages: { content: string }[] };
           const message = body.messages.at(-1)!.content;
           const input = JSON.parse(message.slice(message.indexOf('\n') + 1)) as AiDecisionInput;
-          const selection = chooseAiTestSelection(input);
           return Promise.resolve(
             new Response(
               JSON.stringify({
@@ -73,10 +72,7 @@ const ai = new AiBattleService({
                 choices: [
                   {
                     message: {
-                      content: JSON.stringify({
-                        selection,
-                        tradeoff: 'P5 固定规则测试策略，非真实模型输出',
-                      }),
+                      content: aiTestResponse(input),
                     },
                     finish_reason: 'stop',
                   },

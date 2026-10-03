@@ -2,13 +2,23 @@
 
 > 文档类型：运行说明
 > 适用范围：本地双 AI、完整归档、共享费用预算与 Codex 复盘迭代
-> 当前状态：共享规则路径和本地 CLI 已实现；网页建局仍用于真人对 AI，策略强度需用户验收
+> 当前状态：共享规则路径、本地 CLI 与管理员网页双 AI 建局／观战已实现；策略强度需用户验收
 
-## 架构与证据
+## 网页双 AI 对战
+
+平台管理员打开首页“运营工具 → AI 对战”，选择 `AI vs AI`，分别设置先手／后手构筑和手册，选择双方共用的模型与思考选项，再点击“创建双 AI 对局并观战”。两席均支持 AI 专用蓝紫。建局后自动打开已有玩家视角观战页面，可切换先攻／后攻视角；每次快照只包含当前授权席位可见的信息，观战者不能执行命令、推进阶段或撤销。
+
+原管理页保留对局状态、双方合计费用、决定观察与导出，以及创建者的结束入口。弹窗被拦截时点击“打开观战窗口”；已有会话点击“进入观战”，不会重复建局。所有平台管理员可为双 AI 会话生成观战链接，结束仍限创建者。链接沿用现有观战令牌授权，不能通过房间号或通用管理员观战入口生成 AI 调试链接。
+
+网页在同一会话冻结双方手册与构筑、分别创建模型客户端，决定编号使用席位前缀；数据库归档与可选本地归档包含双方证据。CLI 下述跨轮费用／请求预算、独立席位归档与 `result.json` 属于本地实验运行器，网页未提供跨轮自动迭代或人民币预算输入。
+
+## 本地实验架构与证据
 
 入口为 `scripts/run-ai-self-play.ts`，运行器为 `src/server/ai-battle/self-play.ts`。两席都是 `SYSTEM`，分别持有独立模型客户端、冻结资料、运行时、玩家投影和归档；同场仅一个模型请求在途。调度、窗口校验和动作提交复用 `OnlineMatchService` 的权威队列，不复制规则引擎。决定编号带 `FIRST:`／`SECOND:` 前缀，重复、过期或另一席任务的回答不能执行。
 
 两席按 AI 构筑规则分别加载，支持 AI 专用蓝紫；豁免的只有 PT 总数上限。模型只接收本席可见信息和本席冻结构筑参考，另一席手牌不会送入其请求。完整归档分别包含冻结资料、SAMPLE、实际 REQUEST、响应、权威结果、累计用量和终局玩家投影。停止后先完成驱动及对局清理，再封存归档，导出附完整性清单的 JSONL。`result.json` 区分自然结束、胜者与停止原因；归档 `ENDED` 本身只表示采集封存，不代表自然终局。
+
+终局收尾先收齐双方运行时结束事件及迟到模型／用量记录，再追加最终玩家投影和实验结果，最后写采集 `END`。网页双 AI 共用日志同样在两席收尾完成后封存，不能由第一席提前结束采集；旧材料的完整性标记保持原状。
 
 CLI 限定 development、loopback API／前端和本地数据库，输出目录必须在仓库外且尚不存在。发布卡库及配置只读；实验对局和计费不写业务数据库、账号卡组或历史对战。前端和生产 API 不接受实验手册路径。
 
@@ -75,7 +85,10 @@ GLM-5.3 只支持思考模式，服务端会按模型能力冻结为开启；CLI
 node .agents/skills/loveca-ai-match-review/scripts/review.mjs /round/FIRST/loveca-ai-MATCH.jsonl.export.jsonl
 node .agents/skills/loveca-ai-match-review/scripts/review.mjs /round/FIRST/loveca-ai-MATCH.jsonl.export.jsonl --phases
 node .agents/skills/loveca-ai-match-review/scripts/review.mjs /round/FIRST/loveca-ai-MATCH.jsonl.export.jsonl --decision FIRST:12 --brief
+node .agents/skills/loveca-ai-match-review/scripts/review.mjs /round/FIRST/loveca-ai-MATCH.jsonl.export.jsonl --decision FIRST:12 --input model
 ```
+
+多局笔记、终局附件确认与原始回答／兜底执行核对，按[复盘技能工作流](../../.agents/skills/loveca-ai-match-review/references/review-workflow.md)整理。`--input model` 保留原始响应与校验事件；`--input submit` 查看实际提交，包含来源与兜底，二者分别核对。
 
 Codex 先看整局资源与阶段演化，再以当时 REQUEST、合法候选、模型输出和实际结果定位原因；不使用另一席隐藏信息倒推最优动作。区分事实缺失、资料组织、模型忽略事实、规划取舍与随机失败。只把有证据的共性原则写回通用资料，蓝紫改进优先写构筑手册，不累积逐局分支。
 
