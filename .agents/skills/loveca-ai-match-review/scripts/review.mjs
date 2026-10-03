@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
+import { parseEvidence } from './archive.mjs';
 
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value ?? {}, key);
 const seats = ['FIRST', 'SECOND'];
@@ -590,7 +591,7 @@ export function boundOutput(result, max, asJson = false) {
 }
 
 export function cli(args) {
-  if (!args.length || args.includes('--help')) return `Usage: node review.mjs LOG.json [--turn N | --timeline | --phases | --phase NAME | --decision ID [--brief] | --sources | --material ID | --card CODE]
+  if (!args.length || args.includes('--help')) return `Usage: node review.mjs LOG.json|LOG.jsonl [--turn N | --timeline | --phases | --phase NAME | --decision ID [--brief] | --sources | --material ID | --card CODE]
   [--input request|sample|submit|authority --field dotted.path] [--json] [--max-chars 18000]
 Read-only local evidence. Default: coverage, both-side round evolution, hand costs, decision index.
 --phases: per-phase entry→exit state diff + AI action recap; --phase NAME filters by phase substring
@@ -619,7 +620,7 @@ Read-only local evidence. Default: coverage, both-side round evolution, hand cos
   if (opts.input && (!opts.decision || !['sample', 'request', 'submit', 'authority'].includes(opts.input)))
     throw new Error('--input requires --decision and request|sample|submit|authority');
   if (opts.brief && opts.input) throw new Error('--brief cannot combine with --input');
-  const review = createReview(JSON.parse(readFileSync(file, 'utf8')));
+  const review = createReview(parseEvidence(readFileSync(file, 'utf8')));
   let value, text;
   if (opts.decision) {
     const d = review.detail(opts.decision);

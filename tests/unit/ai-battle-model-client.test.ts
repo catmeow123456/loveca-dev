@@ -14,6 +14,7 @@ import { compactAiDecisionInput } from '../../src/server/ai-battle/model-input';
 import {
   API_AI_BATTLE_MODELS,
   API_MODEL_METADATA,
+  requiresAiThinking,
   type AiBattleModel,
 } from '../../src/online/ai-battle-model-registry';
 
@@ -149,6 +150,7 @@ describe('AI model HTTP boundary', () => {
         )
       );
       for (const enableThinking of [false, true]) {
+        const effectiveThinking = requiresAiThinking(model) || enableThinking;
         const f = fixture(fetcher, model, enableThinking);
         f.mutableConfig.enableThinking = !enableThinking;
         expect(await f.client.decide(input, new AbortController().signal, context)).toEqual({
@@ -159,15 +161,15 @@ describe('AI model HTTP boundary', () => {
         const body: unknown = JSON.parse(fetcher.mock.calls.at(-1)![1]!.body as string);
         expect(body).toMatchObject({
           model,
-          enable_thinking: enableThinking,
+          enable_thinking: effectiveThinking,
           stream: false,
           response_format: { type: 'json_object' },
         });
         expect(body).not.toHaveProperty('max_tokens');
         expect(body).not.toHaveProperty('requestTimeoutMs');
-        expect(f.client.requestTimeoutMs).toBe(enableThinking ? 120_000 : 30_000);
+        expect(f.client.requestTimeoutMs).toBe(effectiveThinking ? 120_000 : 30_000);
         expect(JSON.parse(f.client.configurationMaterial.content)).toMatchObject({
-          enable_thinking: enableThinking,
+          enable_thinking: effectiveThinking,
           requestTimeoutMs: f.client.requestTimeoutMs,
         });
         const capturedRequest = f.store
@@ -230,7 +232,7 @@ describe('AI model HTTP boundary', () => {
       });
       expect(JSON.parse(fetcher.mock.calls[0]![1]!.body as string)).toMatchObject({
         model,
-        enable_thinking: false,
+        enable_thinking: requiresAiThinking(model),
         response_format: { type: 'json_object' },
       });
       expect(JSON.parse(f.client.configurationMaterial.content)).toMatchObject({ model });

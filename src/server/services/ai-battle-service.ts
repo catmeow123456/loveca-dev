@@ -24,6 +24,7 @@ import {
   API_AI_BATTLE_MODELS,
   CODEX_AI_REASONING_EFFORTS,
   isCodexAiBattleModel,
+  requiresAiThinking,
   type AiBattleModel,
   type CodexAiReasoningEffort,
 } from '../../online/ai-battle-model-registry.js';
@@ -187,6 +188,7 @@ export class AiBattleService {
   async create(userId: string, input: CreateAiBattleInput): Promise<CreateAiBattleResult> {
     if (!this.listModels().includes(input.model))
       throw new AiBattleSetupError('AI_MODEL_UNSUPPORTED', '请选择支持的 AI 对战模型', 400);
+    if (requiresAiThinking(input.model)) input = { ...input, enableThinking: true };
     if (
       input.reasoningEffort !== undefined &&
       (!isCodexAiBattleModel(input.model) ||

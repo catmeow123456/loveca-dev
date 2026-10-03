@@ -6,6 +6,7 @@ import type { AiBattleModelClient } from '../../src/server/ai-battle/driver';
 import {
   API_AI_BATTLE_MODELS,
   AI_BATTLE_MODELS,
+  requiresAiThinking,
   type AiBattleModel,
 } from '../../src/online/ai-battle-model-registry';
 import express from 'express';
@@ -641,6 +642,7 @@ describe('AI administrator routes and ownership', () => {
       const result = (await response.json()) as { data: { session: AiBattleSessionView } };
       expect(result.data.session).toMatchObject({
         model,
+        enableThinking: requiresAiThinking(model),
         matchBilling: { model, attempts: 0 },
       });
       expect(f.createModel).toHaveBeenCalledWith(
@@ -648,7 +650,7 @@ describe('AI administrator routes and ownership', () => {
         expect.anything(),
         model,
         expect.anything(),
-        false,
+        requiresAiThinking(model),
         undefined,
         undefined
       );

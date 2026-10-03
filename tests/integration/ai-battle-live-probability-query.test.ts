@@ -262,6 +262,33 @@ describe('probability query through model transports', () => {
     expect(evidence(f.traces, 'REQUEST').map((r) => r.queryRound)).toEqual([0, 1]);
   });
 
+  it('checks the shared experiment budget again before the billed query continuation', async () => {
+    const f = await fixture('qwen3.8-max');
+    const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(response(query));
+    const admit = vi
+      .fn<(body: string) => string | null>()
+      .mockReturnValueOnce(null)
+      .mockReturnValueOnce('EXPERIMENT_REQUEST_LIMIT');
+    const client = new DashScopeAiBattleClient(
+      apiConfig(),
+      f.knowledge,
+      f.traces,
+      fetcher,
+      Date.now,
+      f.billing,
+      undefined,
+      admit
+    );
+    expect(await client.decide(f.input, new AbortController().signal, context)).toMatchObject({
+      kind: 'ADAPTER_ERROR',
+      message: 'EXPERIMENT_REQUEST_LIMIT',
+    });
+    expect(admit).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(f.billing.view()).toMatchObject({ attempts: 1, reportedAttempts: 1 });
+    expect(evidence(f.traces, 'BUDGET_STOP')).toHaveLength(1);
+  });
+
   it('API continuation failure cannot trigger a fresh query batch via retry', async () => {
     const f = await fixture('qwen3.8-max');
     const fetcher = vi

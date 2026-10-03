@@ -39,6 +39,7 @@ export type AiBattleModel = (typeof AI_BATTLE_MODELS)[number];
 // 价格来源：https://help.aliyun.com/zh/model-studio/billing/
 // 缓存计费规则：https://help.aliyun.com/zh/model-studio/context-cache
 export interface AiApiModelMetadata {
+  readonly requiresThinking?: boolean;
   readonly pricingDate: string;
   readonly prices: AiTokenUsage;
   /** implicit-only：仅支持隐式缓存，显式缓存用量按未知处理（parseAiTokenUsage 拒绝）。 */
@@ -70,6 +71,8 @@ export const API_MODEL_METADATA: Readonly<Record<ApiAiBattleModel, AiApiModelMet
     cacheBilling: 'explicit-supported',
   },
   'glm-5.3': {
+    // https://help.aliyun.com/zh/model-studio/glm — GLM-5.3 cannot disable thinking.
+    requiresThinking: true,
     pricingDate: '2026-09-18',
     prices: {
       inputTokens: 800,
@@ -108,6 +111,13 @@ export const API_MODEL_METADATA: Readonly<Record<ApiAiBattleModel, AiApiModelMet
     peakPriceOnly: true,
   },
 };
+
+export function requiresAiThinking(model: string): boolean {
+  return (
+    (API_AI_BATTLE_MODELS as readonly string[]).includes(model) &&
+    API_MODEL_METADATA[model as ApiAiBattleModel].requiresThinking === true
+  );
+}
 
 // —— 供应商声明：各模型的 endpoint / api key 解析来源 ——
 export const AI_MODEL_PROVIDERS = {

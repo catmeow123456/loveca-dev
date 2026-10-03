@@ -3,6 +3,7 @@ import { AiBattleRuntime, AI_LIVE_PRESENTATION_DWELL_MS } from '../../src/server
 import { GameCommandType } from '../../src/application/game-commands';
 import { GamePhase, SubPhase } from '../../src/shared/types/enums';
 import { decision, setup } from '../helpers/ai-battle-fixture';
+import { parseAiBattleResponse } from '../../src/server/ai-battle/protocol';
 import type { AiDecision } from '../../src/server/ai-battle/protocol';
 
 const invalid = { kind: 'RESPONSE', text: '{' } as const;
@@ -44,6 +45,25 @@ describe('AI task failure accounting', () => {
     });
     expect(runtime.consecutiveFailures).toBe(0);
     expect(runtime.current).toBeNull();
+  });
+
+  it('preserves a legal selection when only auxiliary rationale is oversized, retaining a bounded marked excerpt', () => {
+    const runtime = new AiBattleRuntime('FIRST', vi.fn());
+    strategy(runtime);
+    const selection = { kind: 'CARDS', cardRefs: [] };
+    const text = JSON.stringify({ selection, tradeoff: '预算说明'.repeat(101) });
+    expect(runtime.resolve({ kind: 'RESPONSE', text })).toBeNull();
+    expect(runtime.current?.prepared).toMatchObject({ source: 'MODEL', selection });
+    expect(runtime.current?.prepared?.tradeoff).toHaveLength(300);
+    expect(runtime.consecutiveFailures).toBe(0);
+    const current = runtime.current!.decision;
+    expect(parseAiBattleResponse(current, text)).toMatchObject({ tradeoffTruncated: true });
+    for (const answer of [
+      { selection: { kind: 'CARDS', cardRefs: ['stale'] }, tradeoff: '说明'.repeat(200) },
+      { selection, tradeoff: 100 },
+      { selection, tradeoff: '说明'.repeat(200), command: 'END_PHASE' },
+    ])
+      expect(() => parseAiBattleResponse(current, JSON.stringify(answer))).toThrow();
   });
 
   it('rejects an upstream-truncated answer even when its retained JSON selection is valid', () => {

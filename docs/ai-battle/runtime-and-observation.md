@@ -10,7 +10,7 @@
 
 `src/server/services/online-match-service.ts` 在已有单场命令队列内采样权威快照、AI 玩家投影、规则查询、revision 与窗口身份。`src/server/ai-battle/decision.ts` 和 `effect-decision.ts` 只生成当前输入空间与服务端命令映射，不试执行候选。普通登场复用 `src/application/normal-member-play.ts`，效果步骤由 workflow 注册的只读选择查询提供。分组回收在 `CARDS.groups` 中提供仅含可见候选引用的成员集合与 min/max；一张卡计入所有所属组。模型协议与权威入口都校验组约束，兜底按约束寻找完整合法组合，不试执行卡效。
 
-`src/server/ai-battle/runtime.ts` 持有任务身份、取消句柄、已选结果与失败计数；`driver.ts` 在队列外请求模型。回包先在同一队列校验任务、attempt、revision 和窗口，再解析并通过正常命令入口提交。旧结果不重试、不增加当前失败计数。权威变更使在途任务失效并唤醒驱动；普通快照和观测读取不驱动游戏。
+`src/server/ai-battle/runtime.ts` 持有任务身份、取消句柄、已选结果与失败计数；`driver.ts` 在队列外请求模型。回包先在同一队列校验任务、attempt、revision 和窗口，再解析并通过正常命令入口提交。旧结果不重试、不增加当前失败计数。双 AI 自对弈在同一队列协调两席独立运行时，每次只请求一席；每席使用独立模型与观察者，决定编号带席位前缀。实验入口、共享预算和导出见[本地自对弈](self-play.md)。权威变更使在途任务失效并唤醒驱动；普通快照和观测读取不驱动游戏。
 
 公开展示与阶段完成仍使用服务端 deadline。已选结果等待门禁后再次校验才能执行。删除对局在同一权威队列内先沿既有 recorder 封存，成功后才停止并取消 AI 任务；封存失败时对局与 AI 驱动保持完整可运行，不留下 AI 已永久停止的半死对局，并保留结束重试入口，已经成立的权威胜负不改写。
 
@@ -52,7 +52,7 @@ LIVE 设置附带不增加模型调用的 [LIVE 成功率基线](live-probabilit
 
 自送回收、腾位补同伴与跨位置换手的取舍保留在通用教程；控制提示聚焦字段语义、当前事实与输出协议，不重复强调具体策略。模型应按当前目标和实际结算结果评估收益，区分合法动作、能力文案与已获得资源。这些提示没有增加路线搜索器或策略校验；此前提示版本的实验见[通用自送回收提示复测](reviews/2026-09-10-general-self-recovery-prompt.md)，当前版本的模型强度仍需真实请求验收。
 
-新对局通过 `src/server/ai-battle/configuration.ts` 读取平台 AI 配置中的 Base URL 和加密 API Key，复用 `aiEffectExtractionService.getUpstreamConfiguration()` 的数据库读取、解密和出站校验。平台“AI 上游配置”页面的 URL/Key 供对战与卡效提取共用；卡效模型及“启用效果提取”开关只控制卡效提取。对战模型由开局参数指定，默认 `qwen3.8-flash`，可手动选择 `qwen3.8-max`、`glm-5.2` 或 `deepseek-v4.1-flash`；北京公开价格与各模型核对日期见[计费说明](token-billing-proposal.md)。创建页提供“开启思考”开关，默认关闭，当前四个模型均可按局选择；开局接口要求显式布尔值 `enableThinking`，会话列表和冻结的模型配置均记录该选择。GLM-5.2 与 DeepSeek-V4.1-Flash 接入现有 Chat Completions、JSON 输出和隐式缓存链路；增加模型选项不代表已通过真实端点或对局强度验证。DeepSeek 费用沿用整局冻结公开价的估算方式，固定采用北京忙时价；创建页提示闲时实际费用可能更低，不按每次请求时段切价。[GLM 调用说明](https://help.aliyun.com/zh/model-studio/glm)、[DeepSeek 调用说明](https://help.aliyun.com/zh/model-studio/deepseek-api)
+新对局通过 `src/server/ai-battle/configuration.ts` 读取平台 AI 配置中的 Base URL 和加密 API Key，复用 `aiEffectExtractionService.getUpstreamConfiguration()` 的数据库读取、解密和出站校验。平台“AI 上游配置”页面的 URL/Key 供对战与卡效提取共用；卡效模型及“启用效果提取”开关只控制卡效提取。对战模型由开局参数指定，默认 `qwen3.8-flash`，可手动选择 `qwen3.8-max`、`glm-5.3`、`glm-5.2` 或 `deepseek-v4.1-flash`；北京公开价格与各模型核对日期见[计费说明](token-billing-proposal.md)。创建页提供“开启思考”开关，默认关闭，支持关闭思考的模型可按局选择；GLM-5.3 只支持思考，创建页开关固定开启，服务端和请求配置同时按能力冻结为开启；开局接口要求显式布尔值 `enableThinking`，会话列表和冻结的模型配置均记录该选择。GLM-5.2 与 DeepSeek-V4.1-Flash 接入现有 Chat Completions、JSON 输出和隐式缓存链路；增加模型选项不代表已通过真实端点或对局强度验证。DeepSeek 费用沿用整局冻结公开价的估算方式，固定采用北京忙时价；创建页提示闲时实际费用可能更低，不按每次请求时段切价。[GLM 调用说明](https://help.aliyun.com/zh/model-studio/glm)、[DeepSeek 调用说明](https://help.aliyun.com/zh/model-studio/deepseek-api)
 
 | 环境变量                              | 用途                                                               |
 | ------------------------------------- | ------------------------------------------------------------------ |
@@ -64,9 +64,9 @@ LIVE 设置附带不增加模型调用的 [LIVE 成功率基线](live-probabilit
 
 `src/server/ai-battle/service.ts` 使用 `createPlatformAiBattleClient` 在开局时冻结本局 URL、Key、模型与思考开关。配置中心保存成功后，新局无需重启服务即可使用更新值；已有局保持开局配置。创建及每次发送前都会重新检查白名单和 DNS，不能因冻结了 URL 而绕过后续出站限制。HTTP 继续使用现有 Chat Completions 协议，在 Base URL 后追加 `/chat/completions`；不增加其他协议适配。
 
-`AI_BATTLE_BASE_URL`、`AI_BATTLE_API_KEY`、旧 DashScope 变量与开发者凭据不再被读取。配置缺失、无法解密或不符合出站政策时，新局明确失败，不使用环境变量备用值。浏览器只读取非秘密配置和 Key 是否存在，不取得服务端明文 Key。主密钥或白名单属于部署配置，修改后需重启 API；配置中心的 URL/Key 修改只需保存。生产准备见[计费迁移说明](../../drizzle/migration-notes/ai-battle-billing.md)。
+网页及生产模型工厂不读取 `AI_BATTLE_BASE_URL`、`AI_BATTLE_API_KEY`、旧 DashScope 变量与开发者凭据。本地自对弈 CLI 允许显式选择 `local-env`，不改变此工厂的默认来源或失败边界。配置缺失、无法解密或不符合出站政策时，新局明确失败，不使用环境变量备用值。浏览器只读取非秘密配置和 Key 是否存在，不取得服务端明文 Key。主密钥或白名单属于部署配置，修改后需重启 API；配置中心的 URL/Key 修改只需保存。生产准备见[计费迁移说明](../../drizzle/migration-notes/ai-battle-billing.md)。
 
-当前客户端按 [DashScope 结构化输出文档](https://help.aliyun.com/zh/model-studio/qwen-structured-output) 使用 `response_format: {type: 'json_object'}`，提示中包含 JSON；`enable_thinking` 使用本局开关，默认 `false`。按[百炼深度思考说明](https://help.aliyun.com/zh/model-studio/deep-thinking)保留非流式请求；开启后仍只把最终 `message.content` 交给闭合选择协议，上游 `reasoning_content` 仅随原始响应留在观察材料，不作为选择或后续决策上下文。默认请求不发送 `max_tokens`，避免思考模型在最终 JSON 前因应用侧额度提前触发 `finish_reason=length`；只有部署显式配置 `AI_BATTLE_MAX_TOKENS` 时才发送该字段。字段与引用仍由本地闭合协议验证。接口结构参考 [Chat Completions 文档](https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions)。具体配置模型是否支持这些参数、取消是否及时和真实等待时间，必须在实际端点复测；HTTP `AbortSignal` 只取消客户端等待，不能替代队列内的过期校验，也不保证上游已经停止生成。
+当前客户端按 [DashScope 结构化输出文档](https://help.aliyun.com/zh/model-studio/qwen-structured-output) 使用 `response_format: {type: 'json_object'}`，提示中包含 JSON；`enable_thinking` 使用本局冻结开关，默认 `false`；GLM-5.3 根据模型能力固定为 `true`。按[百炼深度思考说明](https://help.aliyun.com/zh/model-studio/deep-thinking)保留非流式请求；开启后仍只把最终 `message.content` 交给闭合选择协议，上游 `reasoning_content` 仅随原始响应留在观察材料，不作为选择或后续决策上下文。默认请求不发送 `max_tokens`，避免思考模型在最终 JSON 前因应用侧额度提前触发 `finish_reason=length`；只有部署显式配置 `AI_BATTLE_MAX_TOKENS` 时才发送该字段。字段与引用仍由本地闭合协议验证。`tradeoff` 是诊断说明：合法选择通过校验后，超长说明只保留前 300 字并在 `MODEL_VALIDATION.tradeoffTruncated` 标记，原始响应仍完整留档；错误说明类型、额外字段、无效引用、重复或越界选择仍拒绝，不因说明过长而替换合法动作。接口结构参考 [Chat Completions 文档](https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions)。具体配置模型是否支持这些参数、取消是否及时和真实等待时间，必须在实际端点复测；HTTP `AbortSignal` 只取消客户端等待，不能替代队列内的过期校验，也不保证上游已经停止生成。
 
 每次模型请求在关闭思考时超时 30 秒，开启时为 120 秒，等待上限随本局配置冻结并记录；可重试服务错误最多原输入再试一次。HTTP 408/429/5xx 与非取消网络故障可重试，鉴权/参数/响应协议错误不盲目重试。空模型输出、非法 JSON、错误引用及上游 `finish_reason=length` 进入输出失败政策。上下文超出支持大小作为适配错误停止，不计为一次模型选择失败。每次发送前的出站复查按同样边界分类：白名单、HTTPS 或私网地址拒绝属于部署策略错误，作为适配错误立即停止；上游主机 DNS 解析失败属于临时基础设施故障，按可重试服务错误处理。计费快照保存失败发生在请求发送前且计数已回滚，同样按可重试服务错误处理，而不是适配错误。连续失败三次停止，第三次不兜底；只有模型选择被权威接受才清零。
 

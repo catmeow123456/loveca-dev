@@ -20,6 +20,7 @@ import { AiBattleObservationPanel } from './AiBattleObservationPanel';
 import {
   API_AI_BATTLE_MODELS,
   API_MODEL_METADATA,
+  requiresAiThinking,
   DEFAULT_CODEX_AI_BATTLE_MODEL,
   isCodexAiBattleModel,
   type AiBattleModel,
@@ -194,7 +195,9 @@ export function AiBattleAdminPage({
         model,
         ...(archiveAvailable ? { archiveEnabled } : {}),
         ...(isCodexAiBattleModel(model) ? { reasoningEffort, fastMode } : {}),
-        enableThinking: isCodexAiBattleModel(model) ? false : enableThinking,
+        enableThinking: isCodexAiBattleModel(model)
+          ? false
+          : requiresAiThinking(model) || enableThinking,
       });
       await attach(result.session, result.snapshot, generation);
     } catch (cause) {
@@ -446,14 +449,18 @@ export function AiBattleAdminPage({
                     <label className="ai-thinking-choice">
                       <input
                         type="checkbox"
-                        checked={enableThinking}
+                        checked={requiresAiThinking(model) || enableThinking}
+                        disabled={requiresAiThinking(model)}
                         onChange={(event) => setEnableThinking(event.target.checked)}
                         aria-describedby="ai-thinking-help"
                       />
                       开启思考
                     </label>
                     <small id="ai-thinking-help">
-                      让模型先思考再作出选择，可能增加等待时间和费用。本局创建后固定。
+                      {requiresAiThinking(model)
+                        ? '该模型仅支持思考模式。'
+                        : '让模型先思考再作出选择，'}
+                      可能增加等待时间和费用。本局创建后固定。
                     </small>
                   </div>
                 </>

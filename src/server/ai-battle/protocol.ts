@@ -249,19 +249,25 @@ export function findAiCardSelection(
 export function parseAiBattleResponse(
   decision: Pick<AiDecision, 'input'>,
   text: string
-): { selection: AiSelection; tradeoff?: string } {
+): { selection: AiSelection; tradeoff?: string; tradeoffTruncated?: true } {
   const parsed: unknown = JSON.parse(text);
   if (
     !record(parsed) ||
     Object.keys(parsed).some((key) => key !== 'selection' && key !== 'tradeoff') ||
-    (parsed.tradeoff !== undefined &&
-      (typeof parsed.tradeoff !== 'string' || parsed.tradeoff.length > 300))
+    (parsed.tradeoff !== undefined && typeof parsed.tradeoff !== 'string')
   )
     throw new Error('Invalid response structure');
   validateSelection(decision.input.space, parsed.selection);
   return {
     selection: parsed.selection,
-    ...(typeof parsed.tradeoff === 'string' ? { tradeoff: parsed.tradeoff } : {}),
+    // Auxiliary explanation never authorizes an action. Retain a bounded excerpt after
+    // fully validating the selection; the unchanged raw response remains in evidence.
+    ...(typeof parsed.tradeoff === 'string'
+      ? {
+          tradeoff: parsed.tradeoff.slice(0, 300),
+          ...(parsed.tradeoff.length > 300 ? { tradeoffTruncated: true as const } : {}),
+        }
+      : {}),
   };
 }
 

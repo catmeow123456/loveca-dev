@@ -10,6 +10,7 @@ import {
 import type { AiDecisionInput } from './protocol.js';
 import type { AiBattleTraceObserver } from './trace-store.js';
 import type { AiKnowledgeMaterial } from './presets.js';
+import type { Seat } from '../../online/types.js';
 import { safeAiErrorForLog } from './billing.js';
 
 export interface AiBattleModelClient {
@@ -39,8 +40,11 @@ export interface AiModelRequestContext {
 interface DrivenMatch {
   readonly matchId: string;
   readonly model: AiBattleModelClient;
+  readonly seatModels?: Readonly<Record<Seat, AiBattleModelClient>>;
+  readonly seatObservers?: Readonly<Record<Seat, AiBattleTraceObserver>>;
   readonly observer?: AiBattleTraceObserver;
   readonly requests: Set<string>;
+  readonly inFlight: Set<Promise<void>>;
   observing: boolean;
   dirty: boolean;
   wakeGeneration: number;
@@ -50,6 +54,7 @@ interface DrivenMatch {
 /** Network calls never occupy the authority queue. Each wake samples through the match service. */
 export class AiBattleDriver {
   private readonly matches = new Map<string, DrivenMatch>();
+  private readonly stopping = new Map<string, Promise<void>>();
 
   constructor(
     private readonly service: Pick<
@@ -64,12 +69,36 @@ export class AiBattleDriver {
     model: AiBattleModelClient,
     observer?: AiBattleTraceObserver
   ): Promise<void> {
+    return this.startEntry(matchId, model, observer);
+  }
+
+  /** Two isolated model clients, driven serially through the same authority queue. */
+  async startSelfPlay(
+    matchId: string,
+    models: Readonly<Record<Seat, AiBattleModelClient>>,
+    observers: Readonly<Record<Seat, AiBattleTraceObserver>>
+  ): Promise<void> {
+    if (models.FIRST === models.SECOND)
+      throw new Error('Self-play requires independent model clients');
+    return this.startEntry(matchId, models.FIRST, undefined, models, observers);
+  }
+
+  private async startEntry(
+    matchId: string,
+    model: AiBattleModelClient,
+    observer?: AiBattleTraceObserver,
+    seatModels?: Readonly<Record<Seat, AiBattleModelClient>>,
+    seatObservers?: Readonly<Record<Seat, AiBattleTraceObserver>>
+  ): Promise<void> {
     if (this.matches.has(matchId)) throw new Error('AI driver already started');
     const entry: DrivenMatch = {
       matchId,
       model,
       observer,
+      seatModels,
+      seatObservers,
       requests: new Set(),
+      inFlight: new Set(),
       observing: false,
       dirty: false,
       wakeGeneration: 0,
@@ -77,7 +106,7 @@ export class AiBattleDriver {
     };
     this.matches.set(matchId, entry);
     try {
-      await this.service.attachAiBattle(matchId, () => this.wake(entry), observer);
+      await this.service.attachAiBattle(matchId, () => this.wake(entry), observer, seatObservers);
     } catch (error) {
       await this.stop(matchId);
       throw error;
@@ -85,14 +114,27 @@ export class AiBattleDriver {
   }
 
   async stop(matchId: string): Promise<void> {
+    const stopping = this.stopping.get(matchId);
+    if (stopping) return stopping;
     const entry = this.matches.get(matchId);
     if (!entry) return;
     this.matches.delete(matchId);
     if (entry.timer) clearTimeout(entry.timer);
+    const cleanup = (async () => {
+      for (const model of entry.seatModels ? Object.values(entry.seatModels) : [entry.model]) {
+        try {
+          await model.dispose?.();
+        } catch (error) {
+          this.reportFault(entry, 'request', error);
+        }
+      }
+      await Promise.allSettled([...entry.inFlight]);
+    })();
+    this.stopping.set(matchId, cleanup);
     try {
-      await entry.model.dispose?.();
-    } catch (error) {
-      this.reportFault(entry, 'request', error);
+      await cleanup;
+    } finally {
+      this.stopping.delete(matchId);
     }
   }
 
@@ -129,9 +171,11 @@ export class AiBattleDriver {
         const key = `${result.task.taskId}:${result.task.attempt}`;
         if (result.task.signal.aborted || entry.requests.has(key)) return;
         entry.requests.add(key);
-        void this.request(entry, result.task)
+        const pending = this.request(entry, result.task)
           .catch((error) => this.reportFault(entry, 'request', error))
           .finally(() => entry.requests.delete(key));
+        entry.inFlight.add(pending);
+        void pending.finally(() => entry.inFlight.delete(pending));
         return;
       }
       case 'WAIT':
@@ -148,6 +192,8 @@ export class AiBattleDriver {
         return;
       case 'ENDED':
         entry.observer?.end();
+        if (entry.seatObservers)
+          for (const observer of Object.values(entry.seatObservers)) observer.end();
         void this.stop(entry.matchId);
         return;
       case 'STOPPED':
@@ -164,7 +210,8 @@ export class AiBattleDriver {
   }
 
   private async request(entry: DrivenMatch, task: AiModelTask): Promise<void> {
-    const outcome = await requestWithDeadline(entry.model, task, entry.matchId);
+    const model = entry.seatModels?.[this.taskSeat(task)] ?? entry.model;
+    const outcome = await requestWithDeadline(model, task, entry.matchId);
     this.capture(entry, task, 'MODEL_OUTCOME', outcome);
     const generation = entry.wakeGeneration;
     const result = await this.service.completeAiBattleTask(entry.matchId, task, outcome);
@@ -173,15 +220,23 @@ export class AiBattleDriver {
       ...('reason' in result ? { reason: result.reason } : {}),
       ...('deadlineAt' in result ? { deadlineAt: result.deadlineAt } : {}),
     });
-    if (!task.signal.aborted) this.handle(entry, result, generation);
+    if (!task.signal.aborted || result.kind === 'STOPPED' || result.kind === 'ENDED')
+      this.handle(entry, result, generation);
   }
 
   private capture(entry: DrivenMatch, task: AiModelTask, stage: string, payload: unknown): void {
     try {
-      entry.observer?.append(task.taskId, stage, { attempt: task.attempt, outcome: payload });
+      const observer = entry.seatObservers?.[this.taskSeat(task)] ?? entry.observer;
+      observer?.append(task.taskId, stage, { attempt: task.attempt, outcome: payload });
     } catch {
-      entry.observer?.reportFailure();
+      (entry.seatObservers?.[this.taskSeat(task)] ?? entry.observer)?.reportFailure();
     }
+  }
+
+  private taskSeat(task: AiModelTask): Seat {
+    const seat = task.input.state.selfSeat;
+    if (seat !== 'FIRST' && seat !== 'SECOND') throw new Error('Invalid AI task seat');
+    return seat;
   }
 
   /** Sanitized last-resort log; error text is URL-redacted and never reflects credentials. */

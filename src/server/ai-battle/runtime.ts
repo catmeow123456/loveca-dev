@@ -82,7 +82,8 @@ export class AiBattleRuntime {
   constructor(
     readonly seat: Seat,
     readonly wake: () => void,
-    private readonly observer?: AiBattleTraceObserver
+    private readonly observer?: AiBattleTraceObserver,
+    private readonly idPrefix = ''
   ) {
     this.context = new AiDecisionContext(seat);
   }
@@ -177,7 +178,7 @@ export class AiBattleRuntime {
           },
         },
       };
-    const id = String(++this.sequence);
+    const id = `${this.idPrefix}${++this.sequence}`;
     this.observationId = id;
     this.capture(() =>
       this.observer?.begin({
@@ -267,9 +268,17 @@ export class AiBattleRuntime {
     if (outcome.kind === 'RESPONSE') {
       try {
         if (outcome.truncated) throw new Error('Upstream output truncated');
-        const { selection, tradeoff } = parseAiBattleResponse(task.decision, outcome.text);
+        const { selection, tradeoff, tradeoffTruncated } = parseAiBattleResponse(
+          task.decision,
+          outcome.text
+        );
         task.prepared = { source: 'MODEL', selection, ...(tradeoff ? { tradeoff } : {}) };
-        this.record('MODEL_VALIDATION', { selection, tradeoff, validation: 'VALID' });
+        this.record('MODEL_VALIDATION', {
+          selection,
+          tradeoff,
+          ...(tradeoffTruncated ? { tradeoffTruncated } : {}),
+          validation: 'VALID',
+        });
         return null;
       } catch (error) {
         failure = `MODEL_SELECTION: ${errorMessage(error)}`;

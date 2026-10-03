@@ -13,6 +13,7 @@ import { redactAiText } from './redaction.js';
 import { compactAiDecisionInput } from './model-input.js';
 import {
   API_AI_BATTLE_MODELS,
+  requiresAiThinking,
   type ApiAiBattleModel,
 } from '../../online/ai-battle-model-registry.js';
 import { parseAiTokenUsage, safeAiErrorForLog, type AiBattleBilling } from './billing.js';
@@ -37,6 +38,8 @@ export interface AiModelConfig {
   readonly temperature: number;
   readonly maxTokens?: number;
   readonly enableThinking: boolean;
+  readonly configurationSource?: 'LOCAL_EXPERIMENT_ENV';
+  readonly apiReasoningEffort?: 'low' | 'high' | 'max';
 }
 
 /** Compose the selected battle model with the platform's server-only upstream snapshot. */
@@ -46,6 +49,7 @@ export function createAiModelConfig(
   enableThinking = false,
   env: Readonly<Record<string, string | undefined>> = process.env
 ): AiModelConfig {
+  enableThinking = requiresAiThinking(model) || enableThinking;
   const parsed = z
     .object({
       baseUrl: z.string().url(),
@@ -160,7 +164,9 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
     private readonly fetcher: typeof globalThis.fetch = globalThis.fetch,
     private readonly now: () => number = Date.now,
     private readonly billing?: AiBattleBilling,
-    private readonly validateUpstream?: (endpoint: string) => Promise<unknown>
+    private readonly validateUpstream?: (endpoint: string) => Promise<unknown>,
+    /** Local experiment guard, called for every HTTP request including query continuation. */
+    private readonly beforeRequest?: (body: string) => string | null
   ) {
     const knowledgeBytes = [
       knowledge.rules,
@@ -185,6 +191,7 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
       temperature: config.temperature,
       ...(config.maxTokens === undefined ? {} : { max_tokens: config.maxTokens }),
       enable_thinking: config.enableThinking,
+      ...(config.apiReasoningEffort ? { reasoning_effort: config.apiReasoningEffort } : {}),
       requestTimeoutMs: this.requestTimeoutMs,
       response_format: { type: 'json_object' },
       stream: false,
@@ -192,7 +199,10 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
     this.configurationMaterial = Object.freeze({
       id: 'model-configuration',
       title: '本局模型配置',
-      source: 'server:platform-ai-configuration',
+      source:
+        config.configurationSource === 'LOCAL_EXPERIMENT_ENV'
+          ? 'local-experiment:environment'
+          : 'server:platform-ai-configuration',
       content,
       sha256: createHash('sha256').update(content).digest('hex'),
     });
@@ -242,6 +252,9 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
       temperature: this.config.temperature,
       ...(this.config.maxTokens === undefined ? {} : { max_tokens: this.config.maxTokens }),
       enable_thinking: this.config.enableThinking,
+      ...(this.config.apiReasoningEffort
+        ? { reasoning_effort: this.config.apiReasoningEffort }
+        : {}),
       stream: false,
       response_format: { type: 'json_object' },
     });
@@ -280,6 +293,11 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
     if (signal.aborted)
       return { kind: 'SERVICE_ERROR', message: 'Request cancelled before send', retryable: false };
     let billingAttempt: Awaited<ReturnType<AiBattleBilling['begin']>> | undefined;
+    const budgetStop = this.beforeRequest?.(body);
+    if (budgetStop) {
+      this.capture(context, 'BUDGET_STOP', { reason: budgetStop });
+      return { kind: 'ADAPTER_ERROR', message: budgetStop };
+    }
     try {
       if (this.billing) billingAttempt = await this.billing.begin(context.taskId);
     } catch {
