@@ -20,6 +20,7 @@ import { moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers } from 
 import { moveMemberBetweenSlotsAndEnqueueTriggers } from '../../runtime/member-slot-moved-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { querySlotSelection } from '../../runtime/selection-query.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import { inspectTopCards } from '../../../effects/look-top.js';
 
@@ -68,7 +69,8 @@ export function registerKarinWorkflowHandlers(deps: {
         input.selectedSlot ?? null,
         context.continuePendingCardEffects,
         deps.enqueueTriggeredCardEffects
-      )
+      ),
+    querySlotSelection
   );
 }
 

@@ -167,10 +167,10 @@ describe('AI model HTTP boundary', () => {
         });
         expect(body).not.toHaveProperty('max_tokens');
         expect(body).not.toHaveProperty('requestTimeoutMs');
-        expect(f.client.requestTimeoutMs).toBe(effectiveThinking ? 120_000 : 30_000);
+        expect(f.client.requestTimeoutMs).toBeUndefined();
         expect(JSON.parse(f.client.configurationMaterial.content)).toMatchObject({
           enable_thinking: effectiveThinking,
-          requestTimeoutMs: f.client.requestTimeoutMs,
+          requestTimeoutMs: null,
         });
         const capturedRequest = f.store
           .export('m')!
@@ -181,6 +181,23 @@ describe('AI model HTTP boundary', () => {
       }
     }
   );
+
+  it('freezes an explicitly configured deadline without sending it to the upstream', async () => {
+    const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response());
+    const f = fixture(fetcher);
+    const mutableConfig = {
+      ...f.mutableConfig,
+      requestTimeoutMs: 300_000,
+    };
+    const client = new DashScopeAiBattleClient(mutableConfig, f.knowledge, f.store, fetcher);
+    mutableConfig.requestTimeoutMs = 1;
+    expect(client.requestTimeoutMs).toBe(300_000);
+    expect(JSON.parse(client.configurationMaterial.content).requestTimeoutMs).toBe(300_000);
+    await client.decide(input, new AbortController().signal, context);
+    expect(JSON.parse(fetcher.mock.calls[0]![1]!.body as string)).not.toHaveProperty(
+      'requestTimeoutMs'
+    );
+  });
 
   it('restricts models while using the configured Chat Completions upstream', () => {
     for (const model of API_AI_BATTLE_MODELS)

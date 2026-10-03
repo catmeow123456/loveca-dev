@@ -42,7 +42,7 @@ export class CodexAiBattleClient implements AiBattleModelClient {
   get fastMode(): boolean {
     return this.config.fastMode === true;
   }
-  readonly requestTimeoutMs = 90_000;
+  readonly requestTimeoutMs?: number;
   readonly stopOnTimeout = true;
   readonly configurationMaterial;
   readonly codexBudget;
@@ -68,6 +68,7 @@ export class CodexAiBattleClient implements AiBattleModelClient {
     execute: typeof executeCodexDecision | undefined = undefined,
     private readonly verify: typeof verifyCodexLogin = verifyCodexLogin
   ) {
+    this.requestTimeoutMs = config.requestTimeoutMs;
     this.knowledge = globalThis.structuredClone(knowledge);
     if (config.threadRotation) this.observedHistory = new CodexObservedHistory();
     this.codexBudget = config.budget ? Object.freeze({ ...config.budget }) : undefined;
@@ -86,7 +87,7 @@ export class CodexAiBattleClient implements AiBattleModelClient {
       fastMode: this.fastMode,
       requestedServiceTier: this.fastMode ? 'priority' : 'default',
       authentication: 'CHATGPT_SUBSCRIPTION',
-      timeoutMs: this.requestTimeoutMs,
+      timeoutMs: this.requestTimeoutMs ?? null,
       apiFallback: false,
       transport: config.sessionReuse ? 'EPHEMERAL_APP_SERVER_EXPERIMENT' : 'EPHEMERAL_EXEC',
       staticKnowledge: config.sessionReuse ? 'FIRST_TURN_OF_EACH_GENERATION' : 'EVERY_REQUEST',

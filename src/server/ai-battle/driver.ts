@@ -1,12 +1,7 @@
 import type { CodexAiReasoningEffort } from '../../online/ai-battle-model-registry.js';
 import type { CodexBattleBudget } from '../../online/ai-battle-billing-types.js';
 import type { OnlineMatchService } from '../services/online-match-service.js';
-import {
-  AI_MODEL_TIMEOUT_MS,
-  type AiBattleAdvanceResult,
-  type AiModelOutcome,
-  type AiModelTask,
-} from './runtime.js';
+import { type AiBattleAdvanceResult, type AiModelOutcome, type AiModelTask } from './runtime.js';
 import type { AiDecisionInput } from './protocol.js';
 import type { AiBattleTraceObserver } from './trace-store.js';
 import type { AiKnowledgeMaterial } from './presets.js';
@@ -18,7 +13,7 @@ export interface AiBattleModelClient {
   readonly reasoningEffort?: CodexAiReasoningEffort;
   readonly fastMode?: boolean;
   readonly codexBudget?: CodexBattleBudget;
-  /** Trusted provider deadline, bounded to 120 s; never read from model output. */
+  /** Optional deployment deadline; absent means cancellation only, never read from model output. */
   readonly requestTimeoutMs?: number;
   readonly stopOnTimeout?: boolean;
   readonly configurationMaterial?: AiKnowledgeMaterial;
@@ -45,6 +40,7 @@ interface DrivenMatch {
   readonly observer?: AiBattleTraceObserver;
   readonly requests: Set<string>;
   readonly inFlight: Set<Promise<void>>;
+  readonly controller: AbortController;
   observing: boolean;
   dirty: boolean;
   wakeGeneration: number;
@@ -99,6 +95,7 @@ export class AiBattleDriver {
       seatObservers,
       requests: new Set(),
       inFlight: new Set(),
+      controller: new AbortController(),
       observing: false,
       dirty: false,
       wakeGeneration: 0,
@@ -119,6 +116,7 @@ export class AiBattleDriver {
     const entry = this.matches.get(matchId);
     if (!entry) return;
     this.matches.delete(matchId);
+    entry.controller.abort();
     if (entry.timer) clearTimeout(entry.timer);
     const cleanup = (async () => {
       for (const model of entry.seatModels ? Object.values(entry.seatModels) : [entry.model]) {
@@ -216,8 +214,14 @@ export class AiBattleDriver {
 
   private async request(entry: DrivenMatch, task: AiModelTask): Promise<void> {
     const model = entry.seatModels?.[this.taskSeat(task)] ?? entry.model;
-    const outcome = await requestWithDeadline(model, task, entry.matchId);
+    const outcome = await requestWithCancellation(
+      model,
+      task,
+      entry.matchId,
+      AbortSignal.any([task.signal, entry.controller.signal])
+    );
     this.capture(entry, task, 'MODEL_OUTCOME', outcome);
+    if (this.matches.get(entry.matchId) !== entry) return;
     const generation = entry.wakeGeneration;
     const result = await this.service.completeAiBattleTask(entry.matchId, task, outcome);
     this.capture(entry, task, 'COMPLETION', {
@@ -253,10 +257,11 @@ export class AiBattleDriver {
   }
 }
 
-async function requestWithDeadline(
+async function requestWithCancellation(
   model: AiBattleModelClient,
   task: AiModelTask,
-  matchId: string
+  matchId: string,
+  signal: AbortSignal
 ): Promise<AiModelOutcome> {
   const controller = new AbortController();
   let finishAbort!: (outcome: AiModelOutcome) => void;
@@ -267,32 +272,37 @@ async function requestWithDeadline(
     finishAbort({ kind: 'SERVICE_ERROR', message: 'Task superseded', retryable: false });
     controller.abort();
   };
-  const timer = setTimeout(
-    () => {
-      finishAbort(
-        model.stopOnTimeout
-          ? { kind: 'ADAPTER_ERROR', message: 'Model request timed out; provider requires stop' }
-          : { kind: 'SERVICE_ERROR', message: 'Model request timed out', retryable: true }
-      );
-      controller.abort();
-    },
-    Math.max(1, Math.min(model.requestTimeoutMs ?? AI_MODEL_TIMEOUT_MS, 120_000))
-  );
-  timer.unref?.();
-  task.signal.addEventListener('abort', cancel, { once: true });
+  const timer =
+    model.requestTimeoutMs === undefined
+      ? undefined
+      : setTimeout(() => {
+          finishAbort(
+            model.stopOnTimeout
+              ? {
+                  kind: 'ADAPTER_ERROR',
+                  message: 'Model request timed out; provider requires stop',
+                }
+              : { kind: 'SERVICE_ERROR', message: 'Model request timed out', retryable: true }
+          );
+          controller.abort();
+        }, model.requestTimeoutMs);
+  timer?.unref?.();
+  signal.addEventListener('abort', cancel, { once: true });
   try {
-    if (task.signal.aborted) {
+    if (signal.aborted) {
       cancel();
       return await interrupted;
     }
     const response = Promise.resolve().then(() =>
-      model.decide(task.input, controller.signal, {
-        matchId,
-        taskId: task.taskId,
-        revision: task.revision,
-        windowKey: task.windowKey,
-        attempt: task.attempt,
-      })
+      controller.signal.aborted
+        ? interrupted
+        : model.decide(task.input, controller.signal, {
+            matchId,
+            taskId: task.taskId,
+            revision: task.revision,
+            windowKey: task.windowKey,
+            attempt: task.attempt,
+          })
     );
     return await Promise.race([response, interrupted]);
   } catch {
@@ -304,6 +314,6 @@ async function requestWithDeadline(
     };
   } finally {
     clearTimeout(timer);
-    task.signal.removeEventListener('abort', cancel);
+    signal.removeEventListener('abort', cancel);
   }
 }

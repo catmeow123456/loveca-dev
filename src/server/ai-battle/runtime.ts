@@ -18,8 +18,6 @@ import { AiDecisionContext, type AiPublicObservation } from './decision-context.
 import { GamePhase, SubPhase } from '../../shared/types/enums.js';
 import { createAiLiveSetPlan } from './live-set-budget.js';
 
-export const AI_MODEL_TIMEOUT_MS = 30_000;
-export const AI_THINKING_MODEL_TIMEOUT_MS = 120_000;
 export const AI_SERVICE_RETRY_LIMIT = 1;
 export const AI_CONSECUTIVE_FAILURE_LIMIT = 3;
 export const AI_LIVE_PRESENTATION_DWELL_MS = 1_800;

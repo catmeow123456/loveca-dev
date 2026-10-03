@@ -29,9 +29,9 @@ export const AI_TRACE_LIMITS = {
 /**
  * A pending attempt whose completion callback never arrives would pin its decision forever:
  * on a half-open connection an abort may never settle `reader.read()`, so `attemptFinished`
- * never comes. 4 × the 30 s per-decision model timeout (runtime.ts `AI_MODEL_TIMEOUT_MS`,
- * one retry allowed) also exceeds the local Codex 90 s deadline plus process cleanup; beyond it every pending attempt of a
- * decision counts as hung, and forced new-decision admission may evict it as a last resort.
+ * never comes. Under forced new-decision admission, pending attempts older than this
+ * evidence-retention threshold may be evicted as a last resort. This does not cancel a
+ * model request or impose a completion deadline; a slow request can legitimately outlive it.
  * Without this, hung decisions eventually fill the session budget and silently black out all
  * further evidence (only `omittedDecisions` would grow).
  */

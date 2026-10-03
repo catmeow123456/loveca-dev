@@ -6,6 +6,7 @@ import {
 } from '../../online/ai-battle-model-registry.js';
 import type { CodexBattleBudget } from '../../online/ai-battle-billing-types.js';
 import { AiBattleSetupError } from './presets.js';
+import { readAiModelRequestTimeoutMs } from './request-timeout.js';
 
 export interface LocalCodexConfig {
   readonly cliPath: string;
@@ -15,6 +16,7 @@ export interface LocalCodexConfig {
   readonly threadRotation?: boolean;
   readonly reasoningEffort: CodexAiReasoningEffort;
   readonly fastMode?: boolean;
+  readonly requestTimeoutMs?: number;
   readonly frontendOrigin: string;
 }
 
@@ -61,6 +63,7 @@ export function readLocalCodexConfig(
     sessionReuse: reuse === '1',
     threadRotation: rotation === '1',
     reasoningEffort: effort as CodexAiReasoningEffort,
+    requestTimeoutMs: readAiModelRequestTimeoutMs(env),
     frontendOrigin,
   });
 }

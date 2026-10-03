@@ -54,7 +54,7 @@ export function liveSetPlanSchema(space: AiDecisionSpace) {
   if (space.kind !== 'CARDS') throw new Error('Invalid LIVE set space');
   const refs = (candidates: readonly AiCandidate[]) => ({
     type: 'array',
-    uniqueItems: true,
+    // Shared with Codex Structured Outputs; duplicate references are checked by the parser.
     minItems: 0,
     maxItems: Math.min(space.max, candidates.length),
     items: { type: 'string', ...(candidates.length ? { enum: candidates.map((c) => c.ref) } : {}) },

@@ -5,6 +5,7 @@ import { resolvePendingCardEffects } from '../../src/application/card-effect-run
 import {
   BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
   KOTORI_LIVE_START_HEART_ABILITY_ID,
+  KARIN_LIVE_START_ABILITY_ID,
   N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
   NICO_LIVE_START_SCORE_ABILITY_ID,
   PL_N_BP3_009_LIVE_START_BOTTOM_TWO_WAITING_MEMBERS_COST_SUM_REWARD_ABILITY_ID,
@@ -19,7 +20,9 @@ import {
   getPlayerLiveScoreModifier,
 } from '../../src/domain/rules/live-modifiers';
 import { createPublicObjectId } from '../../src/online/projector';
-import { CardType, HeartColor, SlotPosition } from '../../src/shared/types/enums';
+import { CardType, HeartColor, SlotPosition, TriggerCondition } from '../../src/shared/types/enums';
+import { KARIN_POSITION_CHANGE_STEP_ID } from '../../src/application/card-effects/workflows/cards/n-pb1-004-karin';
+import { attachPublicRevealAutoAdvanceAuthority } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   buildAiBattleDecision,
   parseAiBattleResponse,
@@ -96,6 +99,71 @@ function chooseCard(session: GameSession, current: AiDecision, index: number) {
 }
 
 describe('AI effect selections through the normal command pipeline', () => {
+  it.each(['P+', 'R'])(
+    'resolves Karin %s reveal and mandatory slot selection, moving to an empty or occupied slot',
+    (rarity) => {
+      for (const occupied of [false, true]) {
+        const { session, advanceTime } = setup();
+        const source = stage(session, member(`PL!N-pb1-004-${rarity}`, 11), SlotPosition.CENTER);
+        const other = occupied
+          ? stage(session, member('OTHER-STAGE-MEMBER'), SlotPosition.RIGHT)
+          : null;
+        const [revealed] = putOnTop(session, [member('REVEALED-MEMBER', 9)]);
+        pending(session, source, KARIN_LIVE_START_ABILITY_ID);
+        Object.assign(
+          session.state!,
+          attachPublicRevealAutoAdvanceAuthority(session.state!, 1000, () => 'test:karin-reveal')
+        );
+        const gate = buildAiBattleDecision(session.state!, P1, session.getPlayerViewState(P1)!);
+        if (gate.kind !== 'WAITING_FOR_TIME') throw new Error('Expected Karin public reveal dwell');
+        advanceTime(gate.deadlineAt - 1000);
+        const display = decision(session);
+        submit(session, display, getAiMechanicalSelection(display)!);
+        expect(session.state!.players[0].hand.cardIds).toContain(revealed);
+        expect(session.state!.activeEffect?.stepId).toBe(KARIN_POSITION_CHANGE_STEP_ID);
+        const current = decision(session);
+        expect(current.input.purpose).toBe('EFFECT');
+        expect(current.input.space.kind).toBe('ACTION');
+        expect(current.input.space.candidates.map((candidate) => candidate.targetSlot)).toEqual([
+          SlotPosition.LEFT,
+          SlotPosition.RIGHT,
+        ]);
+        expect(getAiMechanicalSelection(current)).toBeNull();
+        const before = session.state;
+        const invalid = session.executeCommand({
+          type: GameCommandType.CONFIRM_EFFECT_STEP,
+          playerId: P1,
+          timestamp: 1000,
+          effectId: session.state!.activeEffect!.id,
+          selectedSlot: SlotPosition.CENTER,
+        });
+        expect(invalid.success).toBe(false);
+        expect(session.state).toBe(before);
+        const target = current.input.space.candidates.find(
+          (candidate) => candidate.targetSlot === SlotPosition.RIGHT
+        )!;
+        const command = submit(session, current, { kind: 'ACTION', actionRef: target.ref });
+        expect(command).toMatchObject({
+          type: GameCommandType.CONFIRM_EFFECT_STEP,
+          selectedSlot: SlotPosition.RIGHT,
+        });
+        expect(session.state!.activeEffect).toBeNull();
+        expect(session.state!.pendingAbilities).toEqual([]);
+        expect(session.state!.players[0].memberSlots.slots.CENTER).toBe(other);
+        expect(session.state!.players[0].memberSlots.slots.RIGHT).toBe(source);
+        expect(
+          session.state!.eventLog.some(
+            (entry) =>
+              entry.event.eventType === TriggerCondition.ON_MEMBER_SLOT_MOVED &&
+              entry.event.cardInstanceId === source &&
+              entry.event.toSlot === SlotPosition.RIGHT
+          )
+        ).toBe(true);
+        expect(decision(session).input.purpose).toBe('MAIN');
+      }
+    }
+  );
+
   it('accepts a card selection with neutral optional command fields', () => {
     const { session } = setup();
     stage(session, member('old', 9), SlotPosition.LEFT);

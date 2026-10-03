@@ -58,6 +58,17 @@ afterEach(() => {
 });
 
 describe('explicit local Codex deployment boundary', () => {
+  it('waits without a request deadline by default and accepts an explicit deployment deadline', () => {
+    expect(readLocalCodexConfig(env)?.requestTimeoutMs).toBeUndefined();
+    expect(
+      readLocalCodexConfig({ ...env, AI_BATTLE_MODEL_REQUEST_TIMEOUT_MS: '0' })?.requestTimeoutMs
+    ).toBeUndefined();
+    expect(
+      readLocalCodexConfig({ ...env, AI_BATTLE_MODEL_REQUEST_TIMEOUT_MS: '300000' })
+        ?.requestTimeoutMs
+    ).toBe(300_000);
+  });
+
   it('keeps session reuse experimental and requires an explicit local opt-in', () => {
     expect(readLocalCodexConfig(env)?.sessionReuse).toBe(false);
     expect(readLocalCodexConfig({ ...env, AI_BATTLE_CODEX_SESSION_REUSE: '1' })?.sessionReuse).toBe(
@@ -936,5 +947,46 @@ describe('Codex provider preserves the existing decision contract', () => {
     const before = structuredClone(cards);
     expect(codexResponseSchema(cards)).toMatchObject({ required: ['selection', 'tradeoff'] });
     expect(cards).toEqual(before);
+  });
+  it('omits unsupported array uniqueness from Codex schemas while rejecting duplicate choices and plans', () => {
+    const f = createLiveSetFixture();
+    const current = decision(f.session);
+    const schema = codexResponseSchema(current.input);
+    const querySchema = codexResponseSchema(current.input, false);
+    expect(JSON.stringify(schema)).not.toContain('uniqueItems');
+    expect(JSON.stringify(querySchema)).not.toContain('uniqueItems');
+    const ref = current.input.space.candidates.find((c) => c.liveBaseBudget)!.ref;
+    const valid = { kind: 'CARDS' as const, cardRefs: [ref] };
+    const liveSetPlan = createAiLiveSetPlan(current.input, valid);
+    expect(() =>
+      parseAiBattleResponse(
+        current,
+        JSON.stringify({
+          selection: { kind: 'CARDS', cardRefs: [ref, ref] },
+          tradeoff: 'duplicate selection',
+          liveSetPlan,
+        })
+      )
+    ).toThrow();
+    expect(() =>
+      parseAiBattleResponse(
+        current,
+        JSON.stringify({
+          selection: valid,
+          tradeoff: 'duplicate plan',
+          liveSetPlan: { ...liveSetPlan, liveCardRefs: [ref, ref] },
+        })
+      )
+    ).toThrow();
+    expect(
+      parseAiBattleResponse(
+        current,
+        JSON.stringify({
+          selection: valid,
+          tradeoff: 'valid selection',
+          liveSetPlan,
+        })
+      ).selection
+    ).toEqual(valid);
   });
 });

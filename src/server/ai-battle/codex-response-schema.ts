@@ -22,7 +22,7 @@ export function codexResponseSchema(
               type: 'array',
               minItems: space.canSkip ? 0 : space.min,
               maxItems: Math.min(space.max, refs.length),
-              uniqueItems: true,
+              // Structured Outputs does not support uniqueItems; validateSelection rejects duplicates.
               items: { type: 'string', ...(refs.length ? { enum: refs } : {}) },
             },
           },

@@ -3,11 +3,8 @@ import { z } from 'zod';
 import type { AiBattleModelClient, AiModelRequestContext } from './driver.js';
 import { AiBattleSetupError, type AiFrozenKnowledge, type AiKnowledgeMaterial } from './presets.js';
 import type { AiDecisionInput } from './protocol.js';
-import {
-  AI_MODEL_TIMEOUT_MS,
-  AI_THINKING_MODEL_TIMEOUT_MS,
-  type AiModelOutcome,
-} from './runtime.js';
+import type { AiModelOutcome } from './runtime.js';
+import { readAiModelRequestTimeoutMs } from './request-timeout.js';
 import type { AiBattleTraceStore } from './trace-store.js';
 import { redactAiText } from './redaction.js';
 import { compactAiDecisionInput } from './model-input.js';
@@ -38,6 +35,7 @@ export interface AiModelConfig {
   readonly temperature: number;
   readonly maxTokens?: number;
   readonly enableThinking: boolean;
+  readonly requestTimeoutMs?: number;
   readonly configurationSource?: 'LOCAL_EXPERIMENT_ENV';
   readonly apiReasoningEffort?: 'low' | 'high' | 'max';
 }
@@ -87,6 +85,7 @@ export function createAiModelConfig(
     enableThinking: parsed.data.enableThinking,
     apiKey: parsed.data.apiKey,
     temperature: parsed.data.temperature,
+    requestTimeoutMs: readAiModelRequestTimeoutMs(env),
     ...(parsed.data.maxTokens === undefined ? {} : { maxTokens: parsed.data.maxTokens }),
   });
 }
@@ -153,7 +152,7 @@ export function buildAiBattleMessages(
 /** One optional read-only batch between two model turns; rule execution stays in the driver. */
 export class DashScopeAiBattleClient implements AiBattleModelClient {
   readonly configurationMaterial: AiKnowledgeMaterial;
-  readonly requestTimeoutMs: number;
+  readonly requestTimeoutMs?: number;
   private readonly config: AiModelConfig;
   private readonly knowledge: AiFrozenKnowledge;
 
@@ -180,9 +179,7 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
         '本局固定知识超过支持的大小，请缩减规则或手册材料'
       );
     this.config = Object.freeze({ ...config });
-    this.requestTimeoutMs = config.enableThinking
-      ? AI_THINKING_MODEL_TIMEOUT_MS
-      : AI_MODEL_TIMEOUT_MS;
+    this.requestTimeoutMs = config.requestTimeoutMs;
     this.knowledge = globalThis.structuredClone(knowledge);
     const content = JSON.stringify({
       provider: 'DASHSCOPE_COMPATIBLE',
@@ -192,7 +189,7 @@ export class DashScopeAiBattleClient implements AiBattleModelClient {
       ...(config.maxTokens === undefined ? {} : { max_tokens: config.maxTokens }),
       enable_thinking: config.enableThinking,
       ...(config.apiReasoningEffort ? { reasoning_effort: config.apiReasoningEffort } : {}),
-      requestTimeoutMs: this.requestTimeoutMs,
+      requestTimeoutMs: this.requestTimeoutMs ?? null,
       response_format: { type: 'json_object' },
       stream: false,
     });
