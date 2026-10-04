@@ -153,10 +153,9 @@ describe('LIVE set response accounting and failure repair', () => {
   it('changes the provider schema with the actual allowance and forbids another query after continuation', () => {
     const current = window();
     const schema = codexResponseSchema(current.input) as any;
-    expect(schema.properties.selection.anyOf[0].properties.cardRefs).toMatchObject({
-      maxItems: 3,
-      uniqueItems: true,
-    });
+    const cardRefsSchema = schema.properties.selection.anyOf[0].properties.cardRefs;
+    expect(cardRefsSchema).toMatchObject({ maxItems: 3 });
+    expect(cardRefsSchema).not.toHaveProperty('uniqueItems');
     const reduced = {
       ...current.input,
       space: { ...current.input.space, kind: 'CARDS' as const, min: 0, max: 1, ordered: false },
