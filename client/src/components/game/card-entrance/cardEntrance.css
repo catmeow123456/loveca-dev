@@ -1,0 +1,375 @@
+@font-face {
+  font-family: 'Loveca Entrance';
+  src: url('./fonts/entrance-names-heavy.woff2') format('woff2');
+  font-weight: 900;
+  font-display: swap;
+}
+
+.card-entrance {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  overflow: hidden;
+  background: #16132258;
+}
+.card-entrance-light {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 65% 60%,
+    var(--entrance-light, #efb79199),
+    transparent 65%
+  );
+}
+.card-entrance-art {
+  position: absolute;
+  right: 12%;
+  bottom: -9%;
+  height: 106%;
+  width: auto;
+  aspect-ratio: 1061/1483;
+  transform: translateX(var(--entrance-x, 0));
+  mask-image: linear-gradient(#000 82%, transparent 99%);
+}
+.card-entrance-name {
+  position: absolute;
+  top: 43%;
+  left: 16%;
+  font:
+    900 clamp(26px, 4vw, 60px) 'Loveca Entrance',
+    'Songti SC',
+    serif;
+  letter-spacing: 0.045em;
+  color: #fffaf3;
+  text-shadow:
+    0 2px 0 #171424,
+    0 3px 5px #0008;
+}
+.card-entrance-skip {
+  position: absolute;
+  bottom: 15%;
+  right: 16px;
+  pointer-events: auto;
+  border: 1px solid #ffffff60;
+  border-radius: 5px;
+  background: #241b30dd;
+  color: #fff;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.card-entrance-skip:focus-visible {
+  outline: 2px solid #ffdbab;
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .card-entrance-art {
+    right: -8%;
+    height: 82%;
+    bottom: 3%;
+    max-width: 100%;
+  }
+  .card-entrance-name {
+    top: auto;
+    bottom: 20%;
+    left: 6%;
+    font-size: 28px;
+  }
+  .card-entrance-skip {
+    bottom: 12%;
+  }
+}
+
+.card-entrance--centered .card-entrance-light {
+  background: radial-gradient(
+    ellipse at 50% 45%,
+    var(--entrance-light, #efb79199),
+    transparent 62%
+  );
+}
+/* Center the profile’s face/torso rather than the flowing hair bounds. */
+.card-entrance--centered .card-entrance-art {
+  left: 50%;
+  right: auto;
+  top: 6%;
+  bottom: auto;
+  height: 86%;
+  max-width: none;
+  transform: translateX(calc(var(--entrance-art-center, -62%) + var(--entrance-x, 0px)));
+  mask-image: linear-gradient(#000 64%, #0008 82%, transparent 98%);
+}
+.card-entrance--centered .card-entrance-name {
+  left: 50%;
+  top: auto;
+  bottom: 22%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-width: 94%;
+  padding: 15px 48px;
+  isolation: isolate;
+  --name-accent: color-mix(in srgb, var(--entrance-light) 75%, #f5e9d8);
+  transform: translate(-50%, var(--name-y, 0px));
+  opacity: var(--name-opacity, 0);
+  font-size: clamp(32px, 3.8vw, 56px);
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.card-entrance-card-name {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  -webkit-text-stroke: 0.35px #e8e0eb;
+}
+.card-entrance-name-member {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.card-entrance-name-join {
+  font-size: 0.5em;
+  margin: 0 0.65em;
+  color: var(--name-accent);
+}
+.card-entrance-name-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transform: scaleX(var(--name-opacity, 0));
+}
+.card-entrance-name-panel {
+  fill: #161523e6;
+  stroke: var(--name-accent);
+  stroke-width: 1.2px;
+  vector-effect: non-scaling-stroke;
+}
+.card-entrance-name-inset {
+  fill: none;
+  stroke: var(--name-accent);
+  stroke-width: 0.6px;
+  opacity: 0.55;
+  vector-effect: non-scaling-stroke;
+}
+.card-entrance-name-jewel {
+  position: absolute;
+  top: calc(50% - 3px);
+  width: 6px;
+  height: 6px;
+  background: var(--name-accent);
+  transform: rotate(45deg);
+  box-shadow:
+    0 0 0 3px #171523,
+    0 0 0 4px var(--name-accent);
+}
+.card-entrance-name-jewel--left {
+  left: 17px;
+}
+.card-entrance-name-jewel--right {
+  right: 17px;
+}
+
+@media (max-width: 600px) {
+  .card-entrance--centered .card-entrance-art {
+    top: 7%;
+    height: var(--entrance-mobile-height, 76%);
+  }
+  .card-entrance--centered .card-entrance-name {
+    bottom: 24%;
+    font-size: 32px;
+    padding: 14px 38px;
+  }
+}
+@media (max-height: 500px) and (min-width: 601px) {
+  .card-entrance--centered .card-entrance-name {
+    bottom: 24%;
+    font-size: 32px;
+  }
+}
+
+.card-entrance-presentation {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+.card-entrance-presentation > .card-entrance-skip {
+  z-index: 62;
+}
+.card-landing {
+  position: fixed;
+  inset: 0;
+  z-index: 61;
+  pointer-events: none;
+}
+.card-landing-shadow {
+  position: absolute;
+  opacity: 0;
+  border-radius: 18%;
+  background: #160c29;
+  pointer-events: none;
+  will-change: transform, filter, opacity;
+}
+.card-landing-neighbor-shadow {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 7px;
+  background: #160c29;
+  opacity: 0;
+  z-index: 0;
+}
+.card-landing-card {
+  position: absolute;
+  opacity: 0;
+  max-width: none;
+  border-radius: 7px;
+  object-fit: cover;
+  box-shadow: 0 4px 12px #190f2c66;
+  will-change: transform, opacity;
+}
+.card-landing-impact {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+.card-landing-impact span {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+.card-landing-flash {
+  background: radial-gradient(ellipse, #fff9ed 0%, #fff1dedb 15%, #d4aff899 32%, transparent 63%);
+  animation: card-landing-flash var(--impact-flash) ease-out both;
+}
+.card-landing-ring {
+  border: 4px solid #d4b0ff;
+  box-shadow:
+    0 0 3px #6e3ba2,
+    0 0 16px #b781efc4,
+    inset 0 0 8px #d6b0ff99;
+  animation: card-landing-ring var(--impact-ring) cubic-bezier(0.08, 0.65, 0.2, 1)
+    var(--impact-contact) both;
+}
+.card-landing-ring--echo {
+  border-width: 2px;
+  border-color: #b889e4;
+  animation-duration: var(--impact-echo);
+  animation-delay: var(--impact-echoDelay);
+}
+.card-landing-dust {
+  background: radial-gradient(ellipse, transparent 30%, #c1a6d866 49%, transparent 65%);
+  animation: card-landing-dust var(--impact-dust) ease-out var(--impact-contact) both;
+}
+.card-landing-spark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 13px;
+  background: #fff0d7;
+  box-shadow: 0 0 5px #c4a1ea;
+  animation: card-landing-spark var(--impact-spark) cubic-bezier(0.1, 0.65, 0.3, 1)
+    var(--impact-contact) both;
+}
+@keyframes card-landing-ring {
+  0% {
+    opacity: 1;
+    transform: scale(0.3);
+  }
+  22% {
+    opacity: 0.95;
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.1);
+  }
+}
+@keyframes card-landing-flash {
+  from {
+    opacity: 1;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}
+@keyframes card-landing-dust {
+  from {
+    opacity: 0.8;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+@keyframes card-landing-spark {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(var(--spark-turn)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--spark-x), var(--spark-y)) rotate(var(--spark-turn)) scale(0.2);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-landing {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .card-entrance-presentation > .card-entrance-skip {
+    top: 154px;
+    bottom: auto;
+    right: 12px;
+  }
+}
+
+/* Group names keep member boundaries intact at narrow widths. */
+.card-entrance--group .card-entrance-name {
+  font-size: clamp(22px, 2.8vw, 40px);
+  letter-spacing: 0.025em;
+}
+@media (max-width: 600px) {
+  .card-entrance--group .card-entrance-name {
+    bottom: 29%;
+    font-size: 23px;
+    padding: 14px 40px;
+  }
+  .card-entrance--group .card-entrance-card-name {
+    flex-direction: column;
+    gap: 5px;
+  }
+  .card-entrance--group .card-entrance-name-join {
+    display: none;
+  }
+  .card-entrance--group ~ .card-entrance-skip {
+    top: auto;
+    bottom: 22%;
+  }
+}
+
+/* Long single-person names retain the same frame without breaking the name. */
+.card-entrance--long .card-entrance-name {
+  font-size: clamp(22px, 2.8vw, 40px);
+}
+@media (max-width: 600px) {
+  .card-entrance--long .card-entrance-name {
+    font-size: clamp(16px, 5.3vw, 23px);
+    padding: 14px 30px;
+  }
+}
+
+@media (max-width: 600px) {
+  .card-entrance--lower-skip ~ .card-entrance-skip {
+    top: auto;
+    bottom: 16%;
+  }
+}

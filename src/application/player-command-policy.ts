@@ -14,6 +14,7 @@ export interface PlayerCommandPolicyDecision {
 }
 
 const COMMAND_CATEGORIES = {
+  [GameCommandType.ACK_CARD_ENTRANCE]: 'NORMAL_RULE_ACTION',
   [GameCommandType.MULLIGAN]: 'NORMAL_RULE_ACTION',
   [GameCommandType.SET_LIVE_CARD]: 'NORMAL_RULE_ACTION',
   [GameCommandType.UNSET_LIVE_CARD]: 'NORMAL_RULE_ACTION',
@@ -78,6 +79,13 @@ export function getPlayerCommandPolicyDecision(
   if (commandType === GameCommandType.SURRENDER) {
     return decision(category, !state.isEnded, state.isEnded ? '对局已结束，不能再认输' : null);
   }
+
+  if (commandType === GameCommandType.ACK_CARD_ENTRANCE) {
+    const allowed =
+      !!state.entranceRuntime?.pending && state.players.some((p) => p.id === playerId);
+    return decision(category, allowed, allowed ? null : '当前没有登场演出');
+  }
+  if (state.entranceRuntime?.pending) return decision(category, false, '请等待双方登场演出结束');
 
   const pendingSpecialPlay = state.pendingSpecialMemberPlay ?? null;
   if (pendingSpecialPlay) {

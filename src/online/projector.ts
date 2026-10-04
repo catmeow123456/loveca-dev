@@ -355,6 +355,19 @@ export function projectPlayerViewState(
       disabledReason: manualOperationSwitchBlockedReason,
       pendingRequest: null,
     },
+    ...(game.entranceRuntime?.pending && !game.isEnded
+      ? {
+          entrance: {
+            id: game.entranceRuntime.pending.id,
+            objectIds: game.entranceRuntime.pending.cardIds.map(createPublicObjectId),
+            waitingSeats: game.entranceRuntime.pending.waitingPlayerIds.flatMap((id) => {
+              const seat = getSeatForPlayer(game, id);
+              return seat ? [seat] : [];
+            }),
+            deadlineAt: game.entranceRuntime.pending.deadlineAt,
+          },
+        }
+      : {}),
     seq: options.seq ?? 0,
   };
 

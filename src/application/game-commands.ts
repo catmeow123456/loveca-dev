@@ -2,6 +2,7 @@ import { SlotPosition, SubPhase, ZoneType } from '../shared/types/enums.js';
 import type { CardDefinedSpecialMemberPlayMode } from '../shared/rules/member-play-options.js';
 
 export enum GameCommandType {
+  ACK_CARD_ENTRANCE = 'ACK_CARD_ENTRANCE',
   MULLIGAN = 'MULLIGAN',
   SET_LIVE_CARD = 'SET_LIVE_CARD',
   UNSET_LIVE_CARD = 'UNSET_LIVE_CARD',
@@ -219,10 +220,7 @@ export interface MovePublicCardToHandCommand extends BaseGameCommand {
   readonly type: GameCommandType.MOVE_PUBLIC_CARD_TO_HAND;
   readonly cardId: string;
   readonly fromZone:
-    | ZoneType.MEMBER_SLOT
-    | ZoneType.LIVE_ZONE
-    | ZoneType.SUCCESS_ZONE
-    | ZoneType.WAITING_ROOM;
+    ZoneType.MEMBER_SLOT | ZoneType.LIVE_ZONE | ZoneType.SUCCESS_ZONE | ZoneType.WAITING_ROOM;
   readonly sourceSlot?: SlotPosition;
 }
 
@@ -332,7 +330,13 @@ export interface SurrenderCommand extends BaseGameCommand {
   readonly type: GameCommandType.SURRENDER;
 }
 
+export interface AckCardEntranceCommand extends BaseGameCommand {
+  readonly type: GameCommandType.ACK_CARD_ENTRANCE;
+  readonly entranceId: string;
+}
+
 export type GameCommand =
+  | AckCardEntranceCommand
   | MulliganCommand
   | SetLiveCardCommand
   | UnsetLiveCardCommand
@@ -400,10 +404,7 @@ export function createSetLiveCardCommand(
   };
 }
 
-export function createUnsetLiveCardCommand(
-  playerId: string,
-  cardId: string
-): UnsetLiveCardCommand {
+export function createUnsetLiveCardCommand(playerId: string, cardId: string): UnsetLiveCardCommand {
   return {
     type: GameCommandType.UNSET_LIVE_CARD,
     playerId,
