@@ -17,6 +17,7 @@
 
 import * as fs from 'fs';
 import * as Minio from 'minio';
+import { PUBLIC_STATIC_IMAGE_ASSETS } from '../shared/public-static-assets.js';
 
 // ============================================
 // 配置
@@ -32,11 +33,17 @@ const CONFIG = {
 };
 
 // 待上传的静态资源列表
-const STATIC_ASSETS = [
-  { localPath: 'assets/deck.png', remotePath: 'static/deck.png', contentType: 'image/png' },
-  { localPath: 'assets/back.jpg', remotePath: 'static/back.jpg', contentType: 'image/jpeg' },
-  { localPath: 'assets/icon.jpg', remotePath: 'static/icon.jpg', contentType: 'image/jpeg' },
-];
+const STATIC_ASSETS = PUBLIC_STATIC_IMAGE_ASSETS.filter(
+  (asset) => asset.delivery === 'OBJECT_STORAGE' && asset.objectKey
+).map((asset) => ({
+  localPath: `assets/${asset.publicUrl.replace(/^\//u, '')}`,
+  remotePath: asset.objectKey!,
+  contentType: asset.publicUrl.endsWith('.png')
+    ? 'image/png'
+    : asset.publicUrl.endsWith('.webp')
+      ? 'image/webp'
+      : 'image/jpeg',
+}));
 
 // ============================================
 // 主逻辑

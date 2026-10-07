@@ -184,7 +184,12 @@ export function CardSyncAdminPage({ onBack }: CardSyncAdminPageProps) {
 
   return (
     <div className="app-shell min-h-screen">
-      <AdminPageHeader title="上游新卡同步" category="卡牌与规则" onBack={onBack} />
+      <AdminPageHeader
+        title="上游新卡同步"
+        category="卡牌与规则"
+        onBack={onBack}
+        backLabel="返回卡牌数据"
+      />
 
       <main className="product-page-main flex flex-col gap-4">
         <section

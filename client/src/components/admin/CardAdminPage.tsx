@@ -24,6 +24,7 @@ import {
   ListFilter,
   X,
   Bot,
+  CloudDownload,
 } from 'lucide-react';
 import { AdminPageHeader } from './AdminPageHeader';
 import { useAuthStore } from '@/store/authStore';
@@ -47,6 +48,7 @@ import { CardTypeTabs } from '@/components/card-filters/CardTypeTabs';
 interface CardAdminPageProps {
   onBack: () => void;
   onOpenAiConfig: () => void;
+  onOpenCardSync?: () => void;
 }
 
 const PAGE_SIZE = 28;
@@ -64,25 +66,33 @@ function getAdminCardLocalizedInfo(card: AdminCardListItem) {
 
 function AdminCardThumbnail({ card }: { card: AdminCardListItem }) {
   const [imageFailed, setImageFailed] = useState(false);
+  const [imageSize, setImageSize] = useState<'medium' | 'thumb'>('medium');
   const localizedName = getAdminCardLocalizedInfo(card);
 
   return imageFailed ? (
-    <div className="flex h-full w-full items-center justify-center rounded-lg bg-linear-to-br from-slate-700 to-slate-800 p-2 text-center text-xs text-slate-300">
+    <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-slate-700 to-slate-800 p-2 text-center text-xs text-slate-300">
       <span className="line-clamp-3 break-words">{localizedName.displayNameCn}</span>
     </div>
   ) : (
     <img
-      src={resolveCardImagePath(card, 'thumb')}
+      src={resolveCardImagePath(card, imageSize)}
       alt={localizedName.title}
-      className="h-full w-full rounded-lg object-cover shadow-lg transition-[filter] duration-200 group-hover:brightness-110"
+      className="h-full w-full object-contain transition-[filter] duration-200 group-hover:brightness-105"
       loading="lazy"
       decoding="async"
-      onError={() => setImageFailed(true)}
+      sizes="(max-width: 640px) 44vw, (max-width: 1280px) 18vw, 220px"
+      onError={() => {
+        if (imageSize === 'medium') {
+          setImageSize('thumb');
+        } else {
+          setImageFailed(true);
+        }
+      }}
     />
   );
 }
 
-export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
+export function CardAdminPage({ onBack, onOpenAiConfig, onOpenCardSync }: CardAdminPageProps) {
   const { offlineMode } = useAuthStore(useShallow((s) => ({ offlineMode: s.offlineMode })));
 
   const [cards, setCards] = useState<AdminCardListItem[]>([]);
@@ -110,6 +120,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
     isMobile ? 'mobile' : 'non-mobile',
     false
   );
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const isLoading = initialLoading || refreshing;
   const isSearchPending = searchQuery.trim() !== debouncedSearchQuery;
 
@@ -343,151 +354,186 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
   return (
     <div className="app-shell flex h-screen flex-col">
       <AdminPageHeader
-        title="卡牌数据管理"
+        title={isMobile ? '卡牌数据' : '卡牌数据管理'}
         category="卡牌与规则"
         onBack={onBack}
         actions={
-          <button
-            type="button"
-            onClick={onOpenAiConfig}
-            className="button-secondary inline-flex min-h-10 items-center gap-2 px-3 text-sm"
-          >
-            <Bot size={15} />
-            <span className="hidden sm:inline">AI 上游配置</span>
-            <span className="sm:hidden">AI 配置</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {onOpenCardSync ? (
+              <button
+                type="button"
+                onClick={onOpenCardSync}
+                className="button-ghost inline-flex min-h-10 items-center gap-1.5 px-2 text-sm"
+              >
+                <CloudDownload size={15} aria-hidden="true" />
+                同步新卡
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onOpenAiConfig}
+              className="button-secondary inline-flex min-h-10 items-center gap-2 px-3 text-sm"
+            >
+              <Bot size={15} />
+              <span className="hidden sm:inline">AI 上游配置</span>
+              <span className="sm:hidden">AI 配置</span>
+            </button>
+          </div>
         }
       />
 
       <div className="product-page-main flex-1 overflow-y-auto">
-        <div className="mx-auto mb-4 flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-[var(--text-secondary)]">
-            卡牌检索、状态维护与发布操作集中在这里处理。
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleExport}
-              disabled={exporting}
-              className="button-secondary inline-flex min-h-10 items-center gap-1.5 px-3 py-2 text-sm disabled:opacity-50"
-            >
-              <Download size={14} />
-              {exporting ? '导出中...' : '导出 JSON'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIsCreating(true);
-                setSelectedCard(null);
-              }}
-              className="button-primary inline-flex min-h-10 items-center gap-1.5 px-3 py-2 text-sm font-medium"
-            >
-              <Plus size={14} /> 新建卡牌
-            </button>
-          </div>
-        </div>
-
-        <div className="product-workbench mx-auto max-w-7xl p-4 sm:p-5">
-          <div className="mb-4 flex flex-col gap-3 border-b border-[var(--border-subtle)] pb-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-              <div className="w-full lg:max-w-md lg:flex-1">
-                <CardSearchInput
-                  value={searchQuery}
-                  resultCount={totalCards}
-                  onChange={(value) => {
-                    setSearchQuery(value);
-                    setCurrentPage(1);
-                  }}
-                />
+        <div className="product-workbench !rounded-none mx-auto max-w-7xl overflow-hidden">
+          <section className="border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+            <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+              <div className="flex min-w-0 items-baseline gap-2">
+                <h2 className="truncate text-sm font-semibold text-[var(--text-primary)]">
+                  卡牌资产
+                </h2>
+                <span className="font-mono text-[9px] uppercase tracking-[.16em] text-[var(--text-muted)]">
+                  editable
+                </span>
               </div>
-              <div className="flex items-center gap-2 md:hidden">
+              <div className="ml-auto flex shrink-0 items-center gap-3 text-[11px] text-[var(--text-muted)]">
+                <span>
+                  {activeFilterCount > 0 || debouncedSearchQuery ? '筛选结果' : '共'}{' '}
+                  <strong className="font-mono text-sm text-[var(--text-primary)]">
+                    {totalCards.toLocaleString()}
+                  </strong>{' '}
+                  张
+                </span>
+                {refreshing ? (
+                  <span className="inline-flex items-center gap-1 text-[var(--accent-primary)]">
+                    <Loader2 size={12} className="animate-spin" />
+                    更新中
+                  </span>
+                ) : null}
+              </div>
+              <div className="flex basis-full items-center gap-2 md:basis-auto md:flex-1 md:justify-end">
+                <div className="min-w-0 flex-1 md:max-w-md">
+                  <CardSearchInput
+                    value={searchQuery}
+                    resultCount={totalCards}
+                    onChange={(value) => {
+                      setSearchQuery(value);
+                      setCurrentPage(1);
+                    }}
+                  />
+                </div>
                 <button
                   type="button"
-                  onClick={() => setMobileFiltersOpen(true)}
-                  className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 py-2 text-sm"
+                  onClick={() => setFiltersOpen((open) => !open)}
+                  aria-expanded={filtersOpen}
+                  aria-controls="card-admin-secondary-filters"
+                  className="button-ghost hidden min-h-10 shrink-0 items-center gap-1.5 px-3 text-sm md:inline-flex"
                 >
                   <ListFilter size={14} />
-                  筛选
-                  {activeFilterCount > 0 && (
-                    <span className="rounded-full bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)] px-1.5 py-0.5 text-[10px] text-[var(--accent-primary)]">
+                  {filtersOpen ? '收起' : '筛选'}
+                  {activeFilterCount > 0 ? (
+                    <span className="font-mono text-[10px] text-[var(--accent-primary)]">
                       {activeFilterCount}
                     </span>
-                  )}
+                  ) : null}
                 </button>
                 <button
                   type="button"
                   onClick={refreshCards}
                   disabled={isLoading}
-                  className="button-icon h-10 w-10"
+                  className="button-icon hidden h-10 w-10 md:inline-flex"
                   aria-label="刷新卡牌列表"
                 >
                   <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
                 </button>
+                <div className="flex items-center gap-1 md:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setMobileFiltersOpen(true)}
+                    className="button-ghost inline-flex min-h-10 items-center gap-1.5 px-3 text-sm"
+                  >
+                    <ListFilter size={14} />
+                    筛选
+                    {activeFilterCount > 0 ? (
+                      <span className="font-mono text-[10px] text-[var(--accent-primary)]">
+                        {activeFilterCount}
+                      </span>
+                    ) : null}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={refreshCards}
+                    disabled={isLoading}
+                    className="button-icon h-10 w-10"
+                    aria-label="刷新卡牌列表"
+                  >
+                    <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+                  </button>
+                </div>
               </div>
-              <div className="hidden md:block">
+              <div className="flex basis-full items-center justify-end gap-2 border-t border-[var(--border-subtle)] pt-2 md:basis-auto md:border-t-0 md:pt-0">
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  disabled={exporting}
+                  className="button-ghost inline-flex min-h-8 items-center gap-1.5 px-2.5 text-xs disabled:opacity-50"
+                >
+                  <Download size={13} />
+                  {exporting ? '导出中...' : '导出 JSON'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreating(true);
+                    setSelectedCard(null);
+                  }}
+                  className="button-primary inline-flex min-h-8 items-center gap-1.5 px-2.5 text-xs font-medium"
+                >
+                  <Plus size={13} /> 新建卡牌
+                </button>
+              </div>
+            </div>
+
+            {filtersOpen ? (
+              <div
+                id="card-admin-secondary-filters"
+                className="grid gap-3 border-t border-[var(--border-subtle)] px-3 py-2 md:grid-cols-[minmax(0,1fr)_auto]"
+              >
                 <CardTypeTabs
                   includeAll
                   compact
+                  variant="flat"
                   selected={selectedType}
                   onSelect={(type) => {
                     setSelectedType(type);
                     setCurrentPage(1);
                   }}
                 />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="hidden flex-wrap items-center gap-2 md:flex">
-                {statusOptions.map((opt) => (
-                  <button
-                    type="button"
-                    key={opt.value}
-                    onClick={() => {
-                      setSelectedStatus(opt.value);
-                      setCurrentPage(1);
-                    }}
-                    className={`rounded-lg border px-2.5 py-1.5 text-xs transition-all ${
-                      selectedStatus === opt.value
-                        ? opt.active
-                        : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={refreshCards}
-                  disabled={isLoading}
-                  className="button-icon h-9 w-9"
-                  aria-label="刷新卡牌列表"
-                >
-                  <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-                </button>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--text-muted)] sm:w-full">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span>
-                    {activeFilterCount > 0 || debouncedSearchQuery ? '筛选结果' : '共'} {totalCards}{' '}
-                    张
-                  </span>
-                  {refreshing && (
-                    <span className="inline-flex items-center gap-1 text-[var(--accent-primary)]">
-                      <Loader2 size={12} className="animate-spin" />
-                      刷新中
-                    </span>
-                  )}
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                  {statusOptions.map((opt) => (
+                    <button
+                      type="button"
+                      key={opt.value}
+                      onClick={() => {
+                        setSelectedStatus(opt.value);
+                        setCurrentPage(1);
+                      }}
+                      className={`min-h-9 border px-2.5 text-xs transition-colors ${
+                        selectedStatus === opt.value
+                          ? opt.active
+                          : 'border-[var(--border-subtle)] bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
                 </div>
-                {totalCards > 0 && (
-                  <div className="hidden items-center gap-1 border-l border-[var(--border-subtle)] pl-3 md:flex">
+                {totalCards > 0 ? (
+                  <div className="flex items-center justify-end gap-1 border-t border-[var(--border-subtle)] pt-2 text-xs md:col-span-2">
                     <span className="mr-1 text-[var(--text-muted)]">批量更改筛选结果</span>
                     <button
                       type="button"
                       onClick={() => handleBatchStatus('PUBLISHED')}
                       disabled={batchWorking || isSearchPending || selectedStatus === 'PUBLISHED'}
-                      className="flex min-h-8 items-center gap-1 rounded-lg px-2 text-[var(--semantic-success)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-success)_10%,transparent)] disabled:opacity-40"
+                      className="inline-flex min-h-8 items-center gap-1 px-2 text-[var(--semantic-success)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-success)_10%,transparent)] disabled:opacity-40"
                     >
                       <ArrowUp size={10} /> 全部上线
                     </button>
@@ -495,15 +541,15 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                       type="button"
                       onClick={() => handleBatchStatus('DRAFT')}
                       disabled={batchWorking || isSearchPending || selectedStatus === 'DRAFT'}
-                      className="flex min-h-8 items-center gap-1 rounded-lg px-2 text-[var(--semantic-warning)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-warning)_10%,transparent)] disabled:opacity-40"
+                      className="inline-flex min-h-8 items-center gap-1 px-2 text-[var(--semantic-warning)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-warning)_10%,transparent)] disabled:opacity-40"
                     >
                       <ArrowDown size={10} /> 全部转草稿
                     </button>
                   </div>
-                )}
+                ) : null}
               </div>
-            </div>
-          </div>
+            ) : null}
+          </section>
 
           <AnimatePresence>
             {mobileFiltersOpen && (
@@ -520,7 +566,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                   animate={{ y: 0 }}
                   exit={reduceMotion ? undefined : { y: '100%' }}
                   transition={{ type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-                  className="safe-bottom fixed inset-x-0 bottom-0 z-50 flex max-h-[82dvh] flex-col rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] md:hidden"
+                  className="safe-bottom fixed inset-x-0 bottom-0 z-50 flex max-h-[82dvh] flex-col border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] md:hidden"
                 >
                   <div className="workspace-toolbar shrink-0 px-4 py-3">
                     <div className="mb-2 flex justify-center">
@@ -552,6 +598,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                       </div>
                       <CardTypeTabs
                         includeAll
+                        variant="flat"
                         selected={selectedType}
                         onSelect={(type) => {
                           setSelectedType(type);
@@ -573,7 +620,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                               setSelectedStatus(opt.value);
                               setCurrentPage(1);
                             }}
-                            className={`min-h-11 rounded-xl border px-2 py-2 text-sm transition-all ${
+                            className={`min-h-11 border px-2 py-2 text-sm transition-colors ${
                               selectedStatus === opt.value
                                 ? opt.active
                                 : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)]'
@@ -597,7 +644,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                             disabled={
                               batchWorking || isSearchPending || selectedStatus === 'PUBLISHED'
                             }
-                            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-success)_30%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_10%,transparent)] px-3 py-2 text-sm text-[var(--semantic-success)] disabled:opacity-40"
+                            className="inline-flex min-h-11 items-center justify-center gap-1.5 border border-[color:color-mix(in_srgb,var(--semantic-success)_30%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_10%,transparent)] px-3 py-2 text-sm text-[var(--semantic-success)] disabled:opacity-40"
                           >
                             <ArrowUp size={14} />
                             全部上线
@@ -606,7 +653,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                             type="button"
                             onClick={() => handleBatchStatus('DRAFT')}
                             disabled={batchWorking || isSearchPending || selectedStatus === 'DRAFT'}
-                            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-warning)_30%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_10%,transparent)] px-3 py-2 text-sm text-[var(--semantic-warning)] disabled:opacity-40"
+                            className="inline-flex min-h-11 items-center justify-center gap-1.5 border border-[color:color-mix(in_srgb,var(--semantic-warning)_30%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_10%,transparent)] px-3 py-2 text-sm text-[var(--semantic-warning)] disabled:opacity-40"
                           >
                             <ArrowDown size={14} />
                             全部转草稿
@@ -657,7 +704,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
             </div>
           ) : (
             <div aria-busy={refreshing}>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
+              <div className="grid grid-cols-2 gap-2 bg-[var(--bg-deep)] p-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                 {cards.map((card) => {
                   const localizedName = getAdminCardLocalizedInfo(card);
                   const isOpening = openingCardCode === card.cardCode;
@@ -672,15 +719,18 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                         disabled={isOpening}
                         onClick={() => void handleOpenCard(card)}
                       >
-                        <div className="relative w-full" style={{ aspectRatio: '63/88' }}>
+                        <div
+                          className="relative w-full overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-1.5"
+                          style={{ aspectRatio: '63/88' }}
+                        >
                           <AdminCardThumbnail card={card} />
                           {card.status === 'DRAFT' && (
-                            <div className="absolute right-1 top-1 rounded bg-[var(--semantic-warning)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--brand-stage-ink)]">
+                            <div className="absolute right-1 top-1 bg-[var(--semantic-warning)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--brand-stage-ink)]">
                               草稿
                             </div>
                           )}
                           {isOpening && (
-                            <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/45">
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/45">
                               <Loader2
                                 size={22}
                                 className="animate-spin text-[var(--text-on-accent)]"
@@ -688,23 +738,23 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                             </div>
                           )}
                         </div>
-                        <div className="mt-1.5 text-center">
-                          <div className="truncate text-xs text-[var(--text-secondary)]">
+                        <div className="border-x border-b border-[var(--border-subtle)] px-2 py-2 text-left">
+                          <div className="truncate font-mono text-[11px] font-medium text-[var(--text-primary)]">
                             {card.cardCode}
                           </div>
                           <div
-                            className="truncate text-xs text-[var(--text-muted)]"
+                            className="mt-1 truncate text-[11px] text-[var(--text-secondary)]"
                             title={localizedName.title}
                           >
                             {localizedName.displayNameCn}
                           </div>
-                          <div className="truncate text-[11px] text-[var(--text-muted)]">
+                          <div className="mt-0.5 truncate text-[10px] text-[var(--text-muted)]">
                             {localizedName.nameJp ?? '未收录日文名'}
                           </div>
                         </div>
                       </button>
-                      <div className="mt-2 flex flex-wrap justify-center gap-1">
-                        <span className="flex min-h-8 items-center gap-1 rounded-lg bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] px-2 py-1 text-xs text-[var(--accent-primary)] opacity-100 transition-opacity md:min-h-0 md:py-0.5 md:opacity-0 md:group-hover:opacity-100">
+                      <div className="flex min-h-9 items-center justify-between gap-2 border-x border-b border-[var(--border-subtle)] px-2 text-[11px]">
+                        <span className="inline-flex items-center gap-1 text-[var(--accent-primary)]">
                           <Pencil size={10} /> 编辑
                         </span>
                         {card.status === 'DRAFT' ? (
@@ -714,7 +764,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                               e.stopPropagation();
                               void handleCardStatusChange(card.cardCode, 'PUBLISHED');
                             }}
-                            className="flex min-h-8 items-center gap-0.5 rounded-lg bg-[color:color-mix(in_srgb,var(--semantic-success)_12%,transparent)] px-2 py-1 text-xs text-[var(--semantic-success)] opacity-100 transition-opacity hover:bg-[color:color-mix(in_srgb,var(--semantic-success)_20%,transparent)] md:min-h-0 md:py-0.5 md:opacity-0 md:group-hover:opacity-100"
+                            className="inline-flex min-h-8 items-center gap-0.5 px-1.5 text-[var(--semantic-success)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-success)_12%,transparent)]"
                           >
                             <ArrowUp size={10} /> 上线
                           </button>
@@ -725,7 +775,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                               e.stopPropagation();
                               void handleCardStatusChange(card.cardCode, 'DRAFT');
                             }}
-                            className="flex min-h-8 items-center gap-0.5 rounded-lg bg-[color:color-mix(in_srgb,var(--semantic-warning)_12%,transparent)] px-2 py-1 text-xs text-[var(--semantic-warning)] opacity-100 transition-opacity hover:bg-[color:color-mix(in_srgb,var(--semantic-warning)_20%,transparent)] md:min-h-0 md:py-0.5 md:opacity-0 md:group-hover:opacity-100"
+                            className="inline-flex min-h-8 items-center gap-0.5 px-1.5 text-[var(--semantic-warning)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-warning)_12%,transparent)]"
                           >
                             <ArrowDown size={10} /> 下线
                           </button>

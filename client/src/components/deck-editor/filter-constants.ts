@@ -4,8 +4,19 @@
  */
 
 import type { BladeHearts } from '@game/domain/entities/card';
-import { HeartColor, BladeHeartEffect } from '@game/shared/types/enums';
+import { CardType, HeartColor, BladeHeartEffect } from '@game/shared/types/enums';
 import { VALID_RARITIES } from '@game/shared/utils/card-code';
+
+/** 卡牌类型及其统一显示名；编辑器、管理页和筛选控件共用这一份定义。 */
+export const CARD_TYPE_OPTIONS = [
+  { value: CardType.MEMBER, label: '成员卡' },
+  { value: CardType.LIVE, label: 'Live 卡' },
+  { value: CardType.ENERGY, label: '能量卡' },
+] as const;
+
+export function getCardTypeLabel(cardType: CardType): string {
+  return CARD_TYPE_OPTIONS.find((option) => option.value === cardType)?.label ?? cardType;
+}
 
 /** 稀有度选项 - 与后端 VALID_RARITIES 同步 */
 export const RARITY_OPTIONS = VALID_RARITIES;

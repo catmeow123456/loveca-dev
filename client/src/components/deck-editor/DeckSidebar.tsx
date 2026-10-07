@@ -4,12 +4,14 @@
 
 import { useState } from 'react';
 import { Users, Music, Zap, AlertTriangle, CheckCircle, BarChart2, List, Star } from 'lucide-react';
+import { CardType } from '@game/shared/types/enums';
 import { DeckSectionList } from './DeckSectionList';
 import { DeckAnalysisPanel } from './DeckAnalysisPanel';
 import type { AnyCardData } from '@game/domain/entities/card';
 import type { DeckConfig } from '@game/domain/card-data/deck-loader';
 import { calculateDeckConfigStats } from '@game/domain/rules/deck-construction';
 import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
+import { getCardTypeLabel } from './filter-constants';
 
 interface DeckSidebarProps {
   deck: DeckConfig;
@@ -42,39 +44,65 @@ export function DeckSidebar({
           <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             <div className="flex items-center gap-1.5">
               <Users size={12} className="text-[var(--accent-primary)]" />
-              <span className={memberCount === 48 ? 'text-[var(--semantic-success)]' : 'text-[var(--text-secondary)]'}>
+              <span
+                className={
+                  memberCount === 48
+                    ? 'text-[var(--semantic-success)]'
+                    : 'text-[var(--text-secondary)]'
+                }
+              >
                 {memberCount}/48
               </span>
             </div>
             <div className="flex items-center gap-1.5">
               <Music size={12} className="text-[var(--heart-pink)]" />
-              <span className={liveCount === 12 ? 'text-[var(--semantic-success)]' : 'text-[var(--text-secondary)]'}>
+              <span
+                className={
+                  liveCount === 12
+                    ? 'text-[var(--semantic-success)]'
+                    : 'text-[var(--text-secondary)]'
+                }
+              >
                 {liveCount}/12
               </span>
             </div>
             <div className="flex items-center gap-1.5">
               <Zap size={12} className="text-[var(--heart-blue)]" />
-              <span className={energyCount === 12 ? 'text-[var(--semantic-success)]' : 'text-[var(--text-secondary)]'}>
+              <span
+                className={
+                  energyCount === 12
+                    ? 'text-[var(--semantic-success)]'
+                    : 'text-[var(--text-secondary)]'
+                }
+              >
                 {energyCount}/12
               </span>
             </div>
             <div className="flex items-center gap-1.5">
               <Star size={12} className="text-[var(--accent-primary)]" />
-              <span className={pointTotal <= pointTable.pointLimit ? 'text-[var(--semantic-success)]' : 'text-[var(--semantic-error)]'}>
+              <span
+                className={
+                  pointTotal <= pointTable.pointLimit
+                    ? 'text-[var(--semantic-success)]'
+                    : 'text-[var(--semantic-error)]'
+                }
+              >
                 {pointTotal}/{pointTable.pointLimit}pt
               </span>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`rounded-full border px-2 py-0.5 text-xs ${
-              validation.valid
-                ? 'border-[color:color-mix(in_srgb,var(--semantic-success)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_14%,transparent)] text-[var(--semantic-success)]'
-                : 'border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-secondary)_14%,transparent)] text-[var(--accent-secondary)]'
-            }`}>
+            <span
+              className={`rounded-full border px-2 py-0.5 text-xs ${
+                validation.valid
+                  ? 'border-[color:color-mix(in_srgb,var(--semantic-success)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_14%,transparent)] text-[var(--semantic-success)]'
+                  : 'border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-secondary)_14%,transparent)] text-[var(--accent-secondary)]'
+              }`}
+            >
               {validation.valid ? '完整' : '未完成'}
             </span>
             <button
-              onClick={() => setShowAnalysis(v => !v)}
+              onClick={() => setShowAnalysis((v) => !v)}
               className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors duration-150 ${
                 showAnalysis
                   ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] text-[var(--text-primary)]'
@@ -95,7 +123,7 @@ export function DeckSidebar({
         <div className="touch-scroll no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 touch-pan-y sm:p-4">
           <DeckSectionList
             entries={deck.main_deck.members}
-            title="成员卡"
+            title={getCardTypeLabel(CardType.MEMBER)}
             expectedCount={48}
             accentColor="orange"
             onAddCard={onAddCard}
@@ -104,7 +132,7 @@ export function DeckSidebar({
           />
           <DeckSectionList
             entries={deck.main_deck.lives}
-            title="Live 卡"
+            title={getCardTypeLabel(CardType.LIVE)}
             expectedCount={12}
             accentColor="rose"
             onAddCard={onAddCard}
@@ -113,7 +141,7 @@ export function DeckSidebar({
           />
           <DeckSectionList
             entries={deck.energy_deck}
-            title="能量卡"
+            title={getCardTypeLabel(CardType.ENERGY)}
             expectedCount={12}
             accentColor="sky"
             onAddCard={onAddCard}
@@ -130,7 +158,10 @@ export function DeckSidebar({
               </div>
               <ul className="space-y-1">
                 {validation.errors.map((err, i) => (
-                  <li key={i} className="relative pl-4 text-xs text-[var(--semantic-error)]/80 before:absolute before:left-1 before:content-['•'] before:text-[var(--semantic-error)]/60">
+                  <li
+                    key={i}
+                    className="relative pl-4 text-xs text-[var(--semantic-error)]/80 before:absolute before:left-1 before:content-['•'] before:text-[var(--semantic-error)]/60"
+                  >
                     {err}
                   </li>
                 ))}

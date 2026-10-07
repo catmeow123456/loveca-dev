@@ -17,18 +17,15 @@ import {
   type AiEffectExtractionConfig,
 } from '@/lib/aiService';
 import { AdminPageHeader } from './AdminPageHeader';
+import { useAdminHistoryGuard } from '@/hooks/useAdminHistoryGuard';
 
 interface AiEffectExtractionAdminPageProps {
   readonly onBack: () => void;
-  readonly onOpenCardAdmin: () => void;
 }
 
 type KeyMode = AiApiKeyAction['action'];
 
-export function AiEffectExtractionAdminPage({
-  onBack,
-  onOpenCardAdmin,
-}: AiEffectExtractionAdminPageProps) {
+export function AiEffectExtractionAdminPage({ onBack }: AiEffectExtractionAdminPageProps) {
   const [config, setConfig] = useState<AiEffectExtractionConfig | null>(null);
   const [baseUrl, setBaseUrl] = useState('');
   const [modelId, setModelId] = useState('');
@@ -106,13 +103,10 @@ export function AiEffectExtractionAdminPage({
   }, [isDirty]);
 
   const canLeave = () => !isDirty || window.confirm('有未保存修改，确定离开吗？');
+  useAdminHistoryGuard(isDirty, '有未保存修改，确定离开吗？');
 
   const handleBack = () => {
     if (canLeave()) onBack();
-  };
-
-  const handleOpenCardAdmin = () => {
-    if (canLeave()) onOpenCardAdmin();
   };
 
   const handleTest = async () => {
@@ -157,15 +151,7 @@ export function AiEffectExtractionAdminPage({
         title="AI 上游配置"
         category="卡牌与规则"
         onBack={handleBack}
-        actions={
-          <button
-            type="button"
-            onClick={handleOpenCardAdmin}
-            className="button-secondary px-3 py-2 text-sm"
-          >
-            卡牌数据
-          </button>
-        }
+        backLabel="返回卡牌数据"
       />
 
       <main className="product-page-main">

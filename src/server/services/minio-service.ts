@@ -122,6 +122,19 @@ export async function objectExists(path: string): Promise<boolean> {
   }
 }
 
+export async function statObject(path: string): Promise<{
+  size: number;
+  etag: string;
+  lastModified: Date;
+}> {
+  const stat = await minioClient.statObject(BUCKET, path);
+  return {
+    size: stat.size,
+    etag: stat.etag ?? '',
+    lastModified: stat.lastModified,
+  };
+}
+
 /**
  * Get an object stream from MinIO.
  */

@@ -52,6 +52,7 @@
     "badges:activity-assets:seed": "tsx scripts/seed-activity-badge-assets.ts",
     "emotes:generate-seed-assets": "node scripts/generate-seed-match-emotes.mjs",
     "emotes:seed-assets": "node scripts/seed-match-emote-assets.mjs",
+    "assets:inventory:card-images": "tsx src/scripts/inventory-card-images.ts",
     "build:client": "cd client && pnpm build",
     "start:prod": "cd client && pnpm preview --port 4173 --host",
     "test-env:start": "bash scripts/start-test-env.sh",

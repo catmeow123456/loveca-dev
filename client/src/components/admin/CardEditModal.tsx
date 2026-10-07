@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { X, Trash2, Wand2, Upload } from 'lucide-react';
+import { Eye, Pencil, X, Trash2, Wand2, Upload } from 'lucide-react';
 import { CardType, HeartColor, BladeHeartEffect } from '@game/shared/types/enums';
 import type { AnyCardData } from '@game/domain/entities/card';
 import type { CardUpdateInput, CardCreateInput } from '@/lib/cardService';
@@ -25,15 +25,46 @@ import {
   MEMBER_HEART_COLOR_OPTIONS,
   REQUIREMENT_HEART_COLOR_OPTIONS,
   RARITY_OPTIONS,
+  PRODUCT_OPTIONS,
+  CARD_TYPE_OPTIONS,
 } from '@/components/deck-editor/filter-constants';
 import { formDataToYaml, yamlToFormData } from './yaml-helpers';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { SelectMenu, type SelectMenuOption } from '@/components/common';
+import { CardEffectText } from '@/components/card/CardEffectText';
 
 type EditMode = 'form' | 'yaml';
 type CardFormData = CardUpdateInput & {
   cardCode?: string;
   cardType?: 'MEMBER' | 'LIVE' | 'ENERGY';
 };
+
+function CardTextPreview({
+  label,
+  text,
+  emptyText,
+}: {
+  label: string;
+  text: string | null | undefined;
+  emptyText: string;
+}) {
+  return (
+    <div className="border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_64%,transparent)] p-3">
+      <div className="mb-2 text-xs font-semibold text-[var(--text-muted)]">{label}</div>
+      {text?.trim() ? (
+        <CardEffectText
+          as="div"
+          text={text}
+          className="min-h-[80px] text-sm leading-relaxed text-[var(--text-secondary)]"
+        />
+      ) : (
+        <div className="flex min-h-[80px] items-start text-sm text-[var(--text-muted)]">
+          {emptyText}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function buildInitialFormData(card: AnyCardData | null): CardFormData {
   if (!card) {
@@ -123,6 +154,7 @@ export function CardEditModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editMode, setEditMode] = useState<EditMode>('form');
+  const [cardTextPreview, setCardTextPreview] = useState(false);
   const [yamlText, setYamlText] = useState('');
   const [yamlError, setYamlError] = useState<string | null>(null);
 
@@ -407,14 +439,31 @@ export function CardEditModal({
       : [];
 
   const fieldLabelClass = 'mb-1 block text-sm text-[var(--text-secondary)]';
-  const inputClass = 'input-field w-full px-3 py-2';
+  const inputClass = 'input-field !rounded-none w-full px-3 py-2';
   const chipButtonClass =
-    'flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] px-2 py-1 text-xs text-[var(--text-secondary)] transition-all hover:border-[var(--border-default)] hover:text-[var(--text-primary)]';
+    'flex min-h-8 items-center gap-1 border border-[var(--border-subtle)] bg-transparent px-2 py-1 text-xs text-[var(--text-secondary)] transition-colors hover:border-[var(--border-default)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]';
   const selectedChipClass =
-    'flex items-center gap-1 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] px-2 py-1 text-sm text-[var(--text-primary)]';
+    'flex items-center gap-1 border border-[color:color-mix(in_srgb,var(--accent-primary)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] px-2 py-1 text-sm text-[var(--text-primary)]';
   const sectionClass =
-    'rounded-2xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_74%,transparent)] p-4';
+    'border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_74%,transparent)] p-4';
   const sectionTitleClass = 'mb-3 text-xs font-semibold text-[var(--text-muted)]';
+  const selectClass = '!w-full !rounded-none !shadow-none';
+  const unitSelectOptions: readonly SelectMenuOption<string>[] = [
+    { value: '', label: '无' },
+    ...unitOptions.map((unit) => ({ value: unit, label: unit })),
+  ];
+  const raritySelectOptions: readonly SelectMenuOption<string>[] = [
+    { value: '', label: '自动（从编号推断）' },
+    ...RARITY_OPTIONS.map((rarity) => ({ value: rarity, label: rarity })),
+  ];
+  const productSelectOptions: readonly SelectMenuOption<string>[] = [
+    { value: '', label: '未指定' },
+    ...PRODUCT_OPTIONS.map((product) => ({ value: product, label: product })),
+    ...(formData.product &&
+    !PRODUCT_OPTIONS.includes(formData.product as (typeof PRODUCT_OPTIONS)[number])
+      ? [{ value: formData.product, label: formData.product }]
+      : []),
+  ];
 
   if (!isOpen) return null;
 
@@ -447,7 +496,7 @@ export function CardEditModal({
         transition={
           isMobile ? { type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] } : undefined
         }
-        className="modal-surface modal-accent-rose relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden rounded-none border-0 sm:h-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-[var(--radius-lg)] sm:border"
+        className="modal-surface modal-accent-rose relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden !rounded-none border-0 sm:h-auto sm:max-h-[90vh] sm:max-w-2xl sm:border"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -461,7 +510,7 @@ export function CardEditModal({
             {isCreating ? '创建新卡牌' : `编辑卡牌: ${card?.cardCode}`}
           </h2>
           <div className="flex shrink-0 items-center gap-2">
-            <div className="flex overflow-hidden rounded-lg border border-[var(--border-default)]">
+            <div className="flex overflow-hidden border border-[var(--border-default)]">
               <button
                 type="button"
                 onClick={() => (editMode === 'yaml' ? switchToForm() : undefined)}
@@ -500,7 +549,7 @@ export function CardEditModal({
 
         <div className="touch-scroll flex-1 overflow-y-auto p-4 cute-scrollbar sm:max-h-[calc(90vh-140px)] sm:p-6">
           {error && (
-            <div className="mb-4 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3 text-sm text-[var(--semantic-error)]">
+            <div className="mb-4 border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3 text-sm text-[var(--semantic-error)]">
               {error}
             </div>
           )}
@@ -508,7 +557,7 @@ export function CardEditModal({
           {editMode === 'yaml' ? (
             <div className="space-y-3">
               {yamlError && (
-                <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3 text-sm text-[var(--semantic-error)]">
+                <div className="border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3 text-sm text-[var(--semantic-error)]">
                   YAML 解析错误: {yamlError}
                 </div>
               )}
@@ -518,7 +567,7 @@ export function CardEditModal({
                   setYamlText(e.target.value);
                   setYamlError(null);
                 }}
-                className="input-field w-full resize-y px-4 py-3 font-mono text-sm"
+                className="input-field !rounded-none w-full resize-y px-4 py-3 font-mono text-sm"
                 style={{ minHeight: '400px' }}
                 spellCheck={false}
               />
@@ -545,20 +594,18 @@ export function CardEditModal({
                       </div>
                       <div>
                         <label className={fieldLabelClass}>卡牌类型 *</label>
-                        <select
+                        <SelectMenu
+                          label="卡牌类型"
                           value={formData.cardType || 'MEMBER'}
-                          onChange={(e) =>
+                          options={CARD_TYPE_OPTIONS}
+                          onChange={(value) =>
                             setFormData({
                               ...formData,
-                              cardType: e.target.value as 'MEMBER' | 'LIVE' | 'ENERGY',
+                              cardType: value,
                             })
                           }
-                          className={inputClass}
-                        >
-                          <option value="MEMBER">成员卡</option>
-                          <option value="LIVE">Live 卡</option>
-                          <option value="ENERGY">能量卡</option>
-                        </select>
+                          className={selectClass}
+                        />
                       </div>
                     </>
                   )}
@@ -601,7 +648,7 @@ export function CardEditModal({
                             key={g}
                             type="button"
                             onClick={() => toggleGroup(g)}
-                            className={`px-2 py-1 text-xs rounded-lg border transition-all ${
+                            className={`px-2 py-1 text-xs border transition-colors ${
                               isSelected
                                 ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
                                 : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]'
@@ -640,50 +687,36 @@ export function CardEditModal({
                   </div>
                   <div>
                     <label className={fieldLabelClass}>小组</label>
-                    <select
+                    <SelectMenu
+                      label="小组"
                       value={formData.unitName || ''}
-                      onChange={(e) =>
-                        setFormData({ ...formData, unitName: e.target.value || null })
-                      }
-                      className={inputClass}
+                      options={unitSelectOptions}
+                      onChange={(value) => setFormData({ ...formData, unitName: value || null })}
+                      className={selectClass}
                       disabled={selectedGroups.length === 0}
-                    >
-                      <option value="">无</option>
-                      {unitOptions.map((u) => (
-                        <option key={u} value={u}>
-                          {u}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className={fieldLabelClass}>稀有度</label>
-                    <select
+                    <SelectMenu
+                      label="稀有度"
                       value={formData.rare || ''}
-                      onChange={(e) => setFormData({ ...formData, rare: e.target.value || null })}
-                      className={inputClass}
-                    >
-                      <option value="">自动（从编号推断）</option>
-                      {RARITY_OPTIONS.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
+                      options={raritySelectOptions}
+                      onChange={(value) => setFormData({ ...formData, rare: value || null })}
+                      className={selectClass}
+                    />
                   </div>
                   <div>
                     <label className={fieldLabelClass}>收录商品</label>
-                    <input
-                      type="text"
+                    <SelectMenu
+                      label="收录商品"
                       value={formData.product || ''}
-                      onChange={(e) =>
-                        setFormData({ ...formData, product: e.target.value || null })
-                      }
-                      className={inputClass}
-                      placeholder="例: ブースターパック vol.1"
+                      options={productSelectOptions}
+                      onChange={(value) => setFormData({ ...formData, product: value || null })}
+                      className={selectClass}
                     />
                   </div>
                 </div>
@@ -798,7 +831,7 @@ export function CardEditModal({
                       onChange={(e) =>
                         setFormData({ ...formData, score: parseInt(e.target.value) || 1 })
                       }
-                      className="input-field w-32 px-3 py-2"
+                      className="input-field !rounded-none w-32 px-3 py-2"
                       min="1"
                     />
                   </div>
@@ -961,44 +994,78 @@ export function CardEditModal({
               )}
 
               <section className={sectionClass}>
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-3 flex items-center justify-between gap-3">
                   <div className={sectionTitleClass}>卡牌文本</div>
-                </div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm text-[var(--text-secondary)]">中文效果</label>
                   <button
                     type="button"
-                    onClick={handleAiExtract}
-                    disabled={aiExtracting || (!card?.imageFilename && !imagePreview)}
-                    className="rounded-lg bg-[color:color-mix(in_srgb,var(--heart-purple)_40%,transparent)] px-2 py-1 text-xs text-[var(--text-primary)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--heart-purple)_55%,transparent)] disabled:cursor-not-allowed disabled:opacity-40 flex items-center gap-1"
+                    onClick={() => setCardTextPreview((visible) => !visible)}
+                    aria-pressed={cardTextPreview}
+                    className={`inline-flex min-h-8 items-center gap-1.5 border px-2.5 py-1 text-xs transition-colors ${
+                      cardTextPreview
+                        ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] text-[var(--accent-primary)]'
+                        : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]'
+                    }`}
                   >
-                    {aiExtracting ? (
-                      <>
-                        <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[color:color-mix(in_srgb,var(--accent-primary)_45%,var(--text-primary))] border-t-transparent" />
-                        提取中...
-                      </>
-                    ) : (
-                      <>
-                        <Wand2 size={12} /> AI 提取效果
-                      </>
-                    )}
+                    {cardTextPreview ? <Pencil size={13} /> : <Eye size={13} />}
+                    {cardTextPreview ? '编辑文本' : '预览文本'}
                   </button>
                 </div>
-                <textarea
-                  value={formData.cardTextCn || ''}
-                  onChange={(e) => setFormData({ ...formData, cardTextCn: e.target.value || null })}
-                  className="input-field min-h-[80px] w-full resize-y px-3 py-2"
-                  placeholder="【登场】效果描述..."
-                />
-                <label className="mb-2 mt-3 block text-sm text-[var(--text-secondary)]">
-                  日文效果
-                </label>
-                <textarea
-                  value={formData.cardTextJp || ''}
-                  onChange={(e) => setFormData({ ...formData, cardTextJp: e.target.value || null })}
-                  className="input-field min-h-[80px] w-full resize-y px-3 py-2"
-                  placeholder="【登場時】効果テキスト..."
-                />
+                {cardTextPreview ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <CardTextPreview
+                      label="中文效果"
+                      text={formData.cardTextCn}
+                      emptyText="暂无中文效果"
+                    />
+                    <CardTextPreview
+                      label="日文效果"
+                      text={formData.cardTextJp}
+                      emptyText="暂无日文效果"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div className="mb-2 flex items-center justify-between">
+                      <label className="text-sm text-[var(--text-secondary)]">中文效果</label>
+                      <button
+                        type="button"
+                        onClick={handleAiExtract}
+                        disabled={aiExtracting || (!card?.imageFilename && !imagePreview)}
+                        className="flex items-center gap-1 bg-[color:color-mix(in_srgb,var(--heart-purple)_40%,transparent)] px-2 py-1 text-xs text-[var(--text-primary)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--heart-purple)_55%,transparent)] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {aiExtracting ? (
+                          <>
+                            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[color:color-mix(in_srgb,var(--accent-primary)_45%,var(--text-primary))] border-t-transparent" />
+                            提取中...
+                          </>
+                        ) : (
+                          <>
+                            <Wand2 size={12} /> AI 提取效果
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <textarea
+                      value={formData.cardTextCn || ''}
+                      onChange={(e) =>
+                        setFormData({ ...formData, cardTextCn: e.target.value || null })
+                      }
+                      className="input-field !rounded-none min-h-[80px] w-full resize-y px-3 py-2"
+                      placeholder="【登场】效果描述..."
+                    />
+                    <label className="mb-2 mt-3 block text-sm text-[var(--text-secondary)]">
+                      日文效果
+                    </label>
+                    <textarea
+                      value={formData.cardTextJp || ''}
+                      onChange={(e) =>
+                        setFormData({ ...formData, cardTextJp: e.target.value || null })
+                      }
+                      className="input-field !rounded-none min-h-[80px] w-full resize-y px-3 py-2"
+                      placeholder="【登場時】効果テキスト..."
+                    />
+                  </>
+                )}
               </section>
 
               <section className={sectionClass}>
@@ -1027,7 +1094,7 @@ export function CardEditModal({
 
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                   <div
-                    className="flex w-32 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)]"
+                    className="flex w-32 items-center justify-center overflow-hidden border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)]"
                     style={{ aspectRatio: '63/88' }}
                   >
                     {imagePreview ? (
@@ -1062,7 +1129,7 @@ export function CardEditModal({
                     )}
 
                     {uploadProgress && (
-                      <div className="rounded-xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_54%,transparent)] p-3 space-y-1">
+                      <div className="space-y-1 border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_54%,transparent)] p-3">
                         <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
                           <span>{uploadProgress.message}</span>
                           <span>{uploadProgress.progress}%</span>
@@ -1100,7 +1167,7 @@ export function CardEditModal({
                 type="button"
                 onClick={handleDelete}
                 disabled={saving}
-                className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-sm text-[var(--semantic-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)] disabled:opacity-50 sm:w-auto"
+                className="flex min-h-11 w-full items-center justify-center gap-1.5 px-4 py-2 text-sm text-[var(--semantic-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)] disabled:opacity-50 sm:w-auto"
               >
                 <Trash2 size={14} /> 删除
               </button>

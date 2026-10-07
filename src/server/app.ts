@@ -10,6 +10,7 @@ import { attachRequestContext } from './middleware/request-context.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { authRouter } from './routes/auth.js';
 import { cardsRouter } from './routes/cards.js';
+import { cardImageCatalogRouter } from './routes/card-image-catalog.js';
 import { decksRouter } from './routes/decks.js';
 import { profilesRouter } from './routes/profiles.js';
 import { imagesRouter, publicImagesRouter } from './routes/images.js';
@@ -116,6 +117,7 @@ export function createApp(): express.Express {
   app.use('/api/auth', authRouter);
   app.use('/api/config', appConfigRouter);
   app.use('/api/cards', cardsRouter);
+  app.use('/api/admin/card-images', cardImageCatalogRouter);
   app.use('/api/decks', decksRouter);
   app.use('/api/deck-point-tables', deckPointTablesRouter);
   app.use('/api/profiles', profilesRouter);

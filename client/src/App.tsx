@@ -76,6 +76,13 @@ import {
   type PublicSiteStatusSnapshotResult,
 } from '@/lib/publicSiteStatusSnapshot';
 import { resolveTutorialHistoryTransition } from '@/lib/tutorialNavigation';
+import { canViewImageAssetCatalog } from '@/lib/assetCatalogPermissions';
+import {
+  canLeaveAdminHistoryPage,
+  initializeAdminHistoryPosition,
+  pushAdminHistory,
+  readAdminHistoryPosition,
+} from '@/lib/adminNavigationHistory';
 import { GameMode } from '@game/shared/types/enums';
 
 const GameBoard = lazy(() => import('@/components/game/GameBoard'));
@@ -135,6 +142,9 @@ const AccountCenterPage = lazy(() =>
   }))
 );
 const CardAdminPage = lazy(() => import('@/components/admin/CardAdminPage'));
+const CardImageCatalogPage = lazy(() => import('@/components/admin/CardImageCatalogPage'));
+const MusicAssetCatalogPage = lazy(() => import('@/components/admin/MusicAssetCatalogPage'));
+const ImageAssetCatalogPage = lazy(() => import('@/components/admin/ImageAssetCatalogPage'));
 const CardSyncAdminPage = lazy(() =>
   import('@/components/admin/CardSyncAdminPage').then((module) => ({
     default: module.CardSyncAdminPage,
@@ -229,6 +239,9 @@ type AppPage =
   | 'game'
   | 'admin-center'
   | 'card-admin'
+  | 'card-images-admin'
+  | 'music-assets-admin'
+  | 'image-assets-admin'
   | 'card-sync-admin'
   | 'ai-effect-admin'
   | 'ai-battle-admin'
@@ -247,6 +260,9 @@ const CARD_DATA_INDEPENDENT_PAGES = new Set<AppPage>([
   'tutorial',
   'admin-center',
   'card-admin',
+  'card-images-admin',
+  'music-assets-admin',
+  'image-assets-admin',
   'card-sync-admin',
   'ai-effect-admin',
   'online-admin',
@@ -259,6 +275,19 @@ const CARD_DATA_INDEPENDENT_PAGES = new Set<AppPage>([
   'users-admin',
   'platform-operations-admin',
 ]);
+
+const ADMIN_HISTORY_PAGES = [
+  'admin-center',
+  'card-images-admin',
+  'music-assets-admin',
+  'image-assets-admin',
+  'card-admin',
+  'card-sync-admin',
+  'ai-effect-admin',
+  'match-emotes-admin',
+  'matchmaking-bgm-admin',
+] as const;
+const ADMIN_HISTORY_PAGE_SET = new Set<AppPage>(ADMIN_HISTORY_PAGES);
 
 function pageRequiresRuntimeCardData(page: AppPage): boolean {
   return !CARD_DATA_INDEPENDENT_PAGES.has(page);
@@ -301,9 +330,28 @@ function getInitialAuthRequest(): InitialAuthRequest {
   return { page: 'landing', token: null };
 }
 
+function readCardImageDetailCode(pathname: string): string | null {
+  const match = pathname.match(/^\/admin\/card-images\/([^/]+)$/);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
 function getInitialPage(): AppPage {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
   if (path === '/tutorial') return 'tutorial';
+  if (path === '/admin/card-images' || path.startsWith('/admin/card-images/')) {
+    return 'card-images-admin';
+  }
+  if (path === '/admin/music-assets') {
+    return 'music-assets-admin';
+  }
+  if (path === '/admin/image-assets') {
+    return 'image-assets-admin';
+  }
   const page = new URLSearchParams(window.location.search).get('page');
   if (
     page === 'tutorial' ||
@@ -320,6 +368,9 @@ function getInitialPage(): AppPage {
     page === 'game' ||
     page === 'admin-center' ||
     page === 'card-admin' ||
+    page === 'card-images-admin' ||
+    page === 'music-assets-admin' ||
+    page === 'image-assets-admin' ||
     page === 'card-sync-admin' ||
     page === 'ai-effect-admin' ||
     page === 'ai-battle-admin' ||
@@ -369,6 +420,8 @@ function App() {
     GameMode.SOLITAIRE | GameMode.DEBUG | null
   >(null);
   const currentPageRef = useRef(currentPage);
+  const [initialAdminHistoryPosition] = useState(initializeAdminHistoryPosition);
+  const adminHistoryPositionRef = useRef(initialAdminHistoryPosition);
   const setCurrentPage = useCallback((nextPage: AppPage) => {
     if (nextPage !== 'game-setup') setHomeLocalSetupMode(null);
     const previousPage = currentPageRef.current;
@@ -378,6 +431,15 @@ function App() {
     }
     setCurrentPageState(nextPage);
   }, []);
+  const navigateAdminPage = useCallback(
+    (nextPage: 'home' | (typeof ADMIN_HISTORY_PAGES)[number]) => {
+      adminHistoryPositionRef.current = pushAdminHistory(
+        nextPage === 'home' ? '/' : `/?page=${nextPage}`
+      );
+      setCurrentPage(nextPage);
+    },
+    [setCurrentPage]
+  );
   const [deckClassifierTemplateImport, setDeckClassifierTemplateImport] =
     useState<DeckClassifierTemplateImportSource | null>(null);
   const maintenanceAdminRequested =
@@ -402,10 +464,27 @@ function App() {
   }, [setCurrentPage]);
   useEffect(() => {
     const handlePopState = () => {
-      setCurrentPathname(window.location.pathname);
       const nextPage = getInitialPage();
+      const nextPosition = readAdminHistoryPosition();
+      if (
+        currentPageRef.current !== nextPage &&
+        ADMIN_HISTORY_PAGE_SET.has(currentPageRef.current) &&
+        !canLeaveAdminHistoryPage()
+      ) {
+        window.history.go(
+          nextPosition === null ? 1 : adminHistoryPositionRef.current - nextPosition
+        );
+        return;
+      }
+      if (nextPosition !== null) adminHistoryPositionRef.current = nextPosition;
+      setCurrentPathname(window.location.pathname);
       const transition = resolveTutorialHistoryTransition(currentPageRef.current, nextPage);
-      if (!transition) return;
+      if (
+        !transition &&
+        !ADMIN_HISTORY_PAGE_SET.has(currentPageRef.current) &&
+        !ADMIN_HISTORY_PAGE_SET.has(nextPage)
+      )
+        return;
       if (transition === 'EXIT') {
         void useTutorialStore.getState().stop();
         useGameStore.getState().disconnectRemoteSession();
@@ -1416,13 +1495,14 @@ function App() {
     return withProductFrame(
       <AdminCenterPage
         role={profile.role}
-        onBack={() => setCurrentPage('home')}
-        onOpenMatchEmotes={() => setCurrentPage('match-emotes-admin')}
-        onOpenMatchmakingBgm={() => setCurrentPage('matchmaking-bgm-admin')}
+        onBack={() => navigateAdminPage('home')}
         onOpenAnnouncements={() => setCurrentPage('announcement-admin')}
-        onOpenCards={() => setCurrentPage('card-admin')}
-        onOpenCardSync={() => setCurrentPage('card-sync-admin')}
-        onOpenAiExtraction={() => setCurrentPage('ai-effect-admin')}
+        onOpenCards={() => navigateAdminPage('card-admin')}
+        onOpenAssets={() =>
+          navigateAdminPage(
+            hasPermission(profile.role, 'cards.manage') ? 'card-images-admin' : 'image-assets-admin'
+          )
+        }
         onOpenAiBattle={() => setCurrentPage('ai-battle-admin')}
         onOpenDeckPoints={() => setCurrentPage('deck-point-admin')}
         onOpenOnlineRooms={() => setCurrentPage('online-admin')}
@@ -1458,8 +1538,88 @@ function App() {
   if (effectivePage === 'card-admin' && profile && hasPermission(profile.role, 'cards.manage')) {
     return withProductFrame(
       <CardAdminPage
-        onBack={() => setCurrentPage('admin-center')}
-        onOpenAiConfig={() => setCurrentPage('ai-effect-admin')}
+        onBack={() => navigateAdminPage('admin-center')}
+        onOpenAiConfig={() => navigateAdminPage('ai-effect-admin')}
+        onOpenCardSync={
+          hasPermission(profile.role, 'cards.sync')
+            ? () => navigateAdminPage('card-sync-admin')
+            : undefined
+        }
+      />,
+      null
+    );
+  }
+
+  if (
+    effectivePage === 'card-images-admin' &&
+    profile &&
+    hasPermission(profile.role, 'cards.manage')
+  ) {
+    return withProductFrame(
+      <CardImageCatalogPage
+        initialCardCode={readCardImageDetailCode(window.location.pathname)}
+        onBack={() => navigateAdminPage('admin-center')}
+        onOpenMusicAssets={
+          profile && hasPermission(profile.role, 'platform.manage')
+            ? () => navigateAdminPage('music-assets-admin')
+            : undefined
+        }
+        onOpenImageAssets={
+          canViewImageAssetCatalog(profile.role)
+            ? () => navigateAdminPage('image-assets-admin')
+            : undefined
+        }
+      />,
+      null
+    );
+  }
+
+  if (
+    effectivePage === 'music-assets-admin' &&
+    profile &&
+    hasPermission(profile.role, 'platform.manage')
+  ) {
+    return withProductFrame(
+      <MusicAssetCatalogPage
+        onBack={() => navigateAdminPage('admin-center')}
+        onOpenBgmAdmin={() => navigateAdminPage('matchmaking-bgm-admin')}
+        onOpenCardImages={
+          hasPermission(profile.role, 'cards.manage')
+            ? () => navigateAdminPage('card-images-admin')
+            : undefined
+        }
+        onOpenImageAssets={
+          canViewImageAssetCatalog(profile.role)
+            ? () => navigateAdminPage('image-assets-admin')
+            : undefined
+        }
+      />,
+      null
+    );
+  }
+
+  if (effectivePage === 'image-assets-admin' && profile && canViewImageAssetCatalog(profile.role)) {
+    return withProductFrame(
+      <ImageAssetCatalogPage
+        onBack={() => navigateAdminPage('admin-center')}
+        onOpenCardImages={
+          hasPermission(profile.role, 'cards.manage')
+            ? () => navigateAdminPage('card-images-admin')
+            : undefined
+        }
+        onOpenMusicAssets={
+          hasPermission(profile.role, 'platform.manage')
+            ? () => navigateAdminPage('music-assets-admin')
+            : undefined
+        }
+        onOpenEmoteAdmin={
+          hasPermission(profile.role, 'platform.manage')
+            ? () => navigateAdminPage('match-emotes-admin')
+            : undefined
+        }
+        canViewEmotes={hasPermission(profile.role, 'platform.manage')}
+        canViewRanked={hasPermission(profile.role, 'season.ranked.manage')}
+        canViewTheme={hasPermission(profile.role, 'season.theme.manage')}
       />,
       null
     );
@@ -1467,7 +1627,7 @@ function App() {
 
   if (effectivePage === 'card-sync-admin' && profile && hasPermission(profile.role, 'cards.sync')) {
     return withProductFrame(
-      <CardSyncAdminPage onBack={() => setCurrentPage('admin-center')} />,
+      <CardSyncAdminPage onBack={() => navigateAdminPage('card-admin')} />,
       null
     );
   }
@@ -1478,10 +1638,7 @@ function App() {
     hasPermission(profile.role, 'cards.manage')
   ) {
     return withProductFrame(
-      <AiEffectExtractionAdminPage
-        onBack={() => setCurrentPage('admin-center')}
-        onOpenCardAdmin={() => setCurrentPage('card-admin')}
-      />,
+      <AiEffectExtractionAdminPage onBack={() => navigateAdminPage('card-admin')} />,
       null
     );
   }
@@ -1577,7 +1734,7 @@ function App() {
   ) {
     return withProductFrame(
       <MatchEmotesAdminPage
-        onBack={() => setCurrentPage('admin-center')}
+        onBack={() => navigateAdminPage('image-assets-admin')}
         onCatalogPublished={refreshAppConfig}
       />,
       null
@@ -1601,7 +1758,7 @@ function App() {
     hasPermission(profile.role, 'platform.manage')
   ) {
     return withProductFrame(
-      <MatchmakingBgmAdminPage onBack={() => setCurrentPage('admin-center')} />,
+      <MatchmakingBgmAdminPage onBack={() => navigateAdminPage('music-assets-admin')} />,
       null
     );
   }
@@ -1632,7 +1789,7 @@ function App() {
         onNavigateToOnlineSpectator={() => setCurrentPage('online-spectator')}
         onNavigateToMatchRecords={() => setCurrentPage('match-records')}
         onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
-        onNavigateToAdminCenter={() => setCurrentPage('admin-center')}
+        onNavigateToAdminCenter={() => navigateAdminPage('admin-center')}
         onNavigateToAiBattle={() => setCurrentPage('ai-battle-admin')}
         onNavigateToTutorial={openTutorial}
         battleEntryVisibility={appConfig.features.battleEntries}

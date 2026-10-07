@@ -6,19 +6,24 @@
 
 ## 1. 页面结构
 
-`AdminCenterPage` 是管理员模块目录，不持有业务状态。目录以一层分组列表直接呈现全部工具，不再叠加首屏宣传区、页内分类导航或独立移动端选择器。`App.tsx` 继续负责当前页面选择，各模块复用既有组件；主页只链接管理中心，各模块通过 `AdminPageHeader` 使用一致的分类提示和返回入口。`CardSyncAdminPage`、`AiEffectExtractionAdminPage` 与 `CardAdminPage` 作为相邻入口，新卡导入、AI 配置与卡牌编辑仍是三个独立页面。
+`AdminCenterPage` 按“资源与数据”“对局与赛季”“平台运营”呈现模块目录；完整管理员共有 11 个顶层入口，桌面双列、移动端单列。卡图、图片和音乐共用一个“公共资产目录”入口，管理员默认进入卡图，赛季管理员默认进入图片；具体资源仍按原权限读取，目录间可以直接切换。表情管理与曲库管理分别从图片和音乐目录进入；新卡同步与 AI 配置从卡牌数据页进入，子页面返回对应父页面。玩家入口设置使用默认折叠的原生 `details`，保留未保存提示、保存反馈及原 API。
+
+`App.tsx` 继续负责页面选择，卡牌数据、资产目录及其子页面的进入和返回写入浏览器历史，`popstate` 同步实际页面。AI 配置、表情草稿和曲库默认选择的未保存保护也覆盖浏览器前进／后退；取消离开时恢复历史位置并保留当前表单。各模块复用既有组件与业务服务，`AdminPageHeader` 允许调用方指定返回名称。目录入口权限集中复用 `assetCatalogPermissions.ts`，不另建资源角色或业务配置。
 
 ```mermaid
 flowchart LR
     Home[登录后大厅] --> Center[运营管理中心]
-    Center --> Content[内容与平台]
-    Center --> Cards[卡牌与规则]
+    Center --> Resources[资源与数据]
     Center --> Matches[对局与赛季]
-    Cards --> CardAdmin[卡牌数据]
-    Cards --> SyncAdmin[上游新卡同步]
-    Cards --> AIAdmin[AI 私密配置]
-    CardAdmin <--> SyncAdmin
-    CardAdmin <--> AIAdmin
+    Center --> Platform[平台运营]
+    Resources --> CardAdmin[卡牌数据]
+    Resources --> Assets[公共资产目录]
+    CardAdmin <--> SyncAdmin[上游新卡同步]
+    CardAdmin <--> AIAdmin[AI 私密配置]
+    Assets --> Images[图片目录]
+    Assets --> Music[音乐目录]
+    Images <--> Emotes[表情管理]
+    Music <--> BGM[曲库管理]
 ```
 
 ## 2. 上游新卡任务

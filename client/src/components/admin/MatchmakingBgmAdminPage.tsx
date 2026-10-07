@@ -30,6 +30,7 @@ import {
   type MatchmakingBgmTrack,
 } from '@/lib/matchmakingBgmClient';
 import { AdminPageHeader } from './AdminPageHeader';
+import { useAdminHistoryGuard } from '@/hooks/useAdminHistoryGuard';
 
 interface MatchmakingBgmAdminPageProps {
   readonly onBack: () => void;
@@ -63,6 +64,13 @@ export function MatchmakingBgmAdminPage({ onBack }: MatchmakingBgmAdminPageProps
     () => !sameIdSet(savedDefaultIds, draftDefaultIds),
     [draftDefaultIds, savedDefaultIds]
   );
+  const leaveWarning = [
+    isUploading ? '曲目仍在上传，离开会中止剩余任务。' : null,
+    isDefaultDirty ? '默认候场曲目尚未保存。' : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  useAdminHistoryGuard(Boolean(leaveWarning), `${leaveWarning}\n确定离开吗？`);
 
   const replaceTracks = useCallback((nextTracks: readonly MatchmakingBgmTrack[]) => {
     const nextDefaultIds = nextTracks
@@ -261,13 +269,7 @@ export function MatchmakingBgmAdminPage({ onBack }: MatchmakingBgmAdminPageProps
   };
 
   const handleBack = () => {
-    const warning = [
-      isUploading ? '曲目仍在上传，离开会中止剩余任务。' : null,
-      isDefaultDirty ? '默认候场曲目尚未保存。' : null,
-    ]
-      .filter(Boolean)
-      .join('\n');
-    if (warning && !window.confirm(`${warning}\n确定离开吗？`)) return;
+    if (leaveWarning && !window.confirm(`${leaveWarning}\n确定离开吗？`)) return;
     uploadAbortControllerRef.current?.abort();
     onBack();
   };
@@ -295,7 +297,12 @@ export function MatchmakingBgmAdminPage({ onBack }: MatchmakingBgmAdminPageProps
 
   return (
     <div className="app-shell min-h-screen">
-      <AdminPageHeader title="候场 BGM" category="内容与平台" onBack={handleBack} />
+      <AdminPageHeader
+        title="候场 BGM"
+        category="内容与平台"
+        onBack={handleBack}
+        backLabel="返回音乐目录"
+      />
 
       <main className="product-page-main">
         <div className="mx-auto flex max-w-5xl flex-col gap-4">

@@ -2,17 +2,16 @@ import { useState, type ComponentType } from 'react';
 import {
   Bell,
   Bot,
+  ChevronDown,
   ChevronRight,
-  CloudDownload,
+  Images,
   Loader2,
   Medal,
-  Music2,
   MonitorCog,
   PieChart,
   Save,
   Scale,
   Settings,
-  SmilePlus,
   Sparkles,
   Users,
 } from 'lucide-react';
@@ -25,16 +24,14 @@ import { PageHeader } from '@/components/common';
 import { useKeyedState } from '@/hooks/useKeyedState';
 import type { PlayerBattleEntryVisibility } from '@/lib/appConfig';
 import { updatePlayerBattleEntryVisibility } from '@/lib/siteAnnouncementClient';
+import { ASSET_CATALOG_PERMISSIONS } from '@/lib/assetCatalogPermissions';
 
 interface AdminCenterPageProps {
   readonly role: UserRole;
   readonly onBack: () => void;
-  readonly onOpenMatchEmotes: () => void;
-  readonly onOpenMatchmakingBgm: () => void;
   readonly onOpenAnnouncements: () => void;
   readonly onOpenCards: () => void;
-  readonly onOpenCardSync: () => void;
-  readonly onOpenAiExtraction: () => void;
+  readonly onOpenAssets: () => void;
   readonly onOpenAiBattle: () => void;
   readonly onOpenDeckPoints: () => void;
   readonly onOpenOnlineRooms: () => void;
@@ -52,13 +49,12 @@ interface AdminModule {
   readonly description: string;
   readonly icon: ComponentType<{ size?: number }>;
   readonly onOpen: () => void;
-  readonly permission: ManagementPermission;
+  readonly permission: ManagementPermission | readonly ManagementPermission[];
 }
 
 interface AdminCategory {
   readonly id: string;
   readonly title: string;
-  readonly description: string;
   readonly modules: readonly AdminModule[];
 }
 
@@ -91,69 +87,33 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
 
   const allCategories: readonly AdminCategory[] = [
     {
-      id: 'content-platform',
-      title: '内容与平台',
-      description: '玩家可见内容和平台状态',
-      modules: [
-        {
-          title: '快捷表情',
-          description: '编辑对局表情、显示顺序和发送状态',
-          icon: SmilePlus,
-          onOpen: props.onOpenMatchEmotes,
-          permission: 'platform.manage',
-        },
-        {
-          title: '候场 BGM',
-          description: '管理候场曲库与平台默认播放子集',
-          icon: Music2,
-          onOpen: props.onOpenMatchmakingBgm,
-          permission: 'platform.manage',
-        },
-        {
-          title: '平台配置',
-          description: '维护平台状态、维护窗口和公告',
-          icon: Bell,
-          onOpen: props.onOpenAnnouncements,
-          permission: 'platform.manage',
-        },
-        {
-          title: '数据维护',
-          description: '清理过期回放并导出赛季积分报告',
-          icon: MonitorCog,
-          onOpen: props.onOpenPlatformOperations,
-          permission: 'platform.manage',
-        },
-      ],
-    },
-    {
-      id: 'cards-rules',
-      title: '卡牌与规则',
-      description: '卡牌资料、录入工具和构筑规则',
+      id: 'resources-data',
+      title: '资源与数据',
       modules: [
         {
           title: '卡牌数据',
-          description: '检索、编辑和发布卡牌资料',
+          description: '编辑发布、新卡同步与 AI 配置',
           icon: Settings,
           onOpen: props.onOpenCards,
           permission: 'cards.manage',
         },
         {
-          title: '上游新卡同步',
-          description: '检查小能苗并将生产库缺失的新卡导入为草稿',
-          icon: CloudDownload,
-          onOpen: props.onOpenCardSync,
-          permission: 'cards.sync',
+          title: '公共资产目录',
+          description: '浏览与下载卡图、图片、表情和音乐',
+          icon: Images,
+          onOpen: props.onOpenAssets,
+          permission: ASSET_CATALOG_PERMISSIONS,
         },
         {
-          title: 'AI 上游配置',
-          description: '配置 AI 对战与卡效提取共用的上游和私密凭据',
-          icon: Bot,
-          onOpen: props.onOpenAiExtraction,
-          permission: 'cards.manage',
+          title: '卡组分类',
+          description: '分类样板、规则与重分类',
+          icon: PieChart,
+          onOpen: props.onOpenDeckClassifier,
+          permission: 'season.deck_classifier.manage',
         },
         {
           title: '卡组规则',
-          description: '维护 PT 限制表和规则生效时间',
+          description: 'PT 限制与规则生效时间',
           icon: Scale,
           onOpen: props.onOpenDeckPoints,
           permission: 'rules.manage',
@@ -163,7 +123,6 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
     {
       id: 'matches-seasons',
       title: '对局与赛季',
-      description: '联机运行状态和竞技运营',
       modules: [
         {
           title: 'AI 对战调试',
@@ -187,13 +146,6 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           permission: 'season.ranked.manage',
         },
         {
-          title: '卡组分类',
-          description: '维护分类名称、样板、规则、发布版本与重分类',
-          icon: PieChart,
-          onOpen: props.onOpenDeckClassifier,
-          permission: 'season.deck_classifier.manage',
-        },
-        {
           title: '娱乐模式',
           description: '管理开放时段与平台卡组池',
           icon: Sparkles,
@@ -203,10 +155,23 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
       ],
     },
     {
-      id: 'users-permissions',
-      title: '用户与权限',
-      description: '账号查询与角色委派',
+      id: 'platform-operations',
+      title: '平台运营',
       modules: [
+        {
+          title: '平台配置',
+          description: '平台状态、维护窗口与公告',
+          icon: Bell,
+          onOpen: props.onOpenAnnouncements,
+          permission: 'platform.manage',
+        },
+        {
+          title: '数据维护',
+          description: '回放清理与赛季数据导出',
+          icon: MonitorCog,
+          onOpen: props.onOpenPlatformOperations,
+          permission: 'platform.manage',
+        },
         {
           title: '用户管理',
           description: '分页检索账号并授予或撤销平台角色',
@@ -220,37 +185,80 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
   const categories = allCategories
     .map((category) => ({
       ...category,
-      modules: category.modules.filter((module) => hasPermission(props.role, module.permission)),
+      modules: category.modules.filter((module) =>
+        typeof module.permission === 'string'
+          ? hasPermission(props.role, module.permission)
+          : module.permission.some((permission) => hasPermission(props.role, permission))
+      ),
     }))
     .filter((category) => category.modules.length > 0);
-  const toolCount = categories.reduce((sum, category) => sum + category.modules.length, 0);
   const isSeasonAdmin = props.role === 'season_admin';
 
   return (
     <div className="app-shell min-h-screen">
       <PageHeader
         title={isSeasonAdmin ? '赛季运营中心' : '运营管理中心'}
-        description={isSeasonAdmin ? '排位、娱乐模式与玩家入口' : '选择一项工作'}
         onBack={props.onBack}
         backLabel="返回大厅"
+        className="[&_.page-header-inner]:min-h-0 [&_.page-header-inner]:py-2 [&_.page-header-title]:text-lg"
       />
 
       <main className="product-page-main">
         <div className="mx-auto max-w-5xl">
+          <div className="space-y-4">
+            {categories.map((category) => (
+              <section
+                key={category.id}
+                aria-labelledby={`${category.id}-title`}
+                className="overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-surface)]"
+              >
+                <h2
+                  id={`${category.id}-title`}
+                  className="border-b border-[var(--border-subtle)] px-4 py-2 text-xs font-semibold text-[var(--text-muted)]"
+                >
+                  {category.title}
+                </h2>
+                <div className="grid gap-px bg-[var(--border-subtle)] md:grid-cols-2">
+                  {category.modules.map((module, index) => (
+                    <AdminModuleRow
+                      key={module.title}
+                      module={module}
+                      fullWidth={
+                        category.modules.length % 2 === 1 && index === category.modules.length - 1
+                      }
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+
           {hasPermission(props.role, 'season.entry_visibility.manage') ? (
-            <section
+            <details
               aria-labelledby="player-battle-entry-title"
-              className="product-workbench mb-5 overflow-hidden"
+              className="group mt-4 overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-surface)]"
             >
+              <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)] [&::-webkit-details-marker]:hidden">
+                <span
+                  id="player-battle-entry-title"
+                  className="font-medium text-[var(--text-primary)]"
+                >
+                  玩家入口设置
+                </span>
+                <span className="ml-auto text-xs text-[var(--text-muted)]">
+                  {hasEntryVisibilityChanges
+                    ? '有未保存修改'
+                    : `排位${entryVisibility.ranked ? '已显示' : '已隐藏'} · 娱乐${entryVisibility.themeTable ? '已显示' : '已隐藏'}`}
+                </span>
+                <ChevronDown
+                  size={15}
+                  aria-hidden="true"
+                  className="shrink-0 text-[var(--text-muted)] group-open:rotate-180"
+                />
+              </summary>
               <header className="flex flex-col gap-3 border-b border-[var(--border-subtle)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                 <div>
-                  <h2
-                    id="player-battle-entry-title"
-                    className="text-sm font-semibold text-[var(--text-primary)]"
-                  >
-                    玩家对战入口
-                  </h2>
-                  <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
+                  <p className="text-xs leading-5 text-[var(--text-muted)]">
                     关闭后，玩家大厅和对局准备页不再显示对应入口。
                   </p>
                 </div>
@@ -305,52 +313,8 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
                   </span>
                 ) : null}
               </footer>
-            </section>
+            </details>
           ) : null}
-
-          <div className="mb-4 flex items-center justify-between gap-4 px-1">
-            <p className="text-sm text-[var(--text-secondary)]">
-              {isSeasonAdmin
-                ? '管理本期排位、娱乐模式和玩家入口。'
-                : '管理公开内容、卡牌规则、用户权限与联机运营。'}
-            </p>
-            <span className="shrink-0 text-xs tabular-nums text-[var(--text-muted)]">
-              {toolCount} 项工具
-            </span>
-          </div>
-
-          <div className="product-workbench divide-y divide-[var(--border-subtle)]">
-            {categories.map((category) => (
-              <section
-                key={category.id}
-                id={category.id}
-                aria-labelledby={`${category.id}-title`}
-                className="grid md:grid-cols-[12rem_minmax(0,1fr)]"
-              >
-                <header className="relative px-4 py-4 sm:px-5 md:py-5">
-                  <span
-                    aria-hidden="true"
-                    className="absolute bottom-4 left-0 top-4 w-0.5 rounded-full bg-[var(--accent-primary)]"
-                  />
-                  <h2
-                    id={`${category.id}-title`}
-                    className="text-sm font-semibold text-[var(--text-primary)]"
-                  >
-                    {category.title}
-                  </h2>
-                  <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
-                    {category.description}
-                  </p>
-                </header>
-
-                <div className="divide-y divide-[var(--border-subtle)] md:border-l md:border-[var(--border-subtle)]">
-                  {category.modules.map((module) => (
-                    <AdminModuleRow key={module.title} module={module} />
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
         </div>
       </main>
     </div>
@@ -397,16 +361,22 @@ function BattleEntrySwitch({
   );
 }
 
-function AdminModuleRow({ module }: { module: AdminModule }) {
+function AdminModuleRow({
+  module,
+  fullWidth = false,
+}: {
+  module: AdminModule;
+  fullWidth?: boolean;
+}) {
   const Icon = module.icon;
   return (
     <button
       type="button"
       onClick={module.onOpen}
-      className="group flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-[var(--bg-elevated)] focus-visible:bg-[var(--bg-elevated)] sm:px-5"
+      className={`group flex min-h-18 w-full items-center gap-3 bg-[var(--bg-surface)] px-4 py-3 text-left transition-colors hover:bg-[var(--bg-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)] ${fullWidth ? 'md:col-span-2' : ''}`}
     >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] text-[var(--accent-primary)]">
-        <Icon size={17} />
+      <span className="shrink-0 text-[var(--accent-primary)]">
+        <Icon size={18} aria-hidden="true" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-semibold text-[var(--text-primary)]">

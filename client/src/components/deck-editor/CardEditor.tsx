@@ -25,6 +25,7 @@ import { DeckSidebar } from './DeckSidebar';
 import { CardDetailDrawer } from './CardDetailDrawer';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useKeyedState } from '@/hooks/useKeyedState';
+import { getCardTypeLabel } from './filter-constants';
 
 interface CardEditorProps {
   deck: DeckConfig;
@@ -91,11 +92,7 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
               <div className="mt-1 flex items-center justify-between gap-2 px-0.5">
                 <div className="flex min-w-0 items-center gap-1.5 text-[10px] text-[var(--text-muted)]">
                   <span className="inline-flex items-center rounded-full border border-[var(--border-subtle)] px-2 py-0.5 text-[var(--text-secondary)]">
-                    {filters.selectedCardType === 'MEMBER'
-                      ? '成员卡'
-                      : filters.selectedCardType === 'LIVE'
-                        ? 'Live 卡'
-                        : '能量卡'}
+                    {getCardTypeLabel(filters.selectedCardType)}
                   </span>
                   <span>{filters.sortedCards.length} 张卡</span>
                   {filters.hasActiveFilters && (

@@ -983,6 +983,7 @@ test.describe('focused browser regressions', () => {
       'pageSize=28'
     );
 
+    await page.getByRole('button', { name: '筛选', exact: true }).click();
     const memberFilterRequest = page.waitForRequest((request) => {
       const url = new URL(request.url());
       return (
@@ -1251,6 +1252,7 @@ test.describe('focused browser regressions', () => {
 
     await installApiMocks(page, true);
     await page.goto('/?page=admin-center');
+    await page.getByText('玩家入口设置', { exact: true }).click();
 
     const themeEntrySwitch = page.getByRole('switch', { name: '娱乐模式玩家入口' });
     await expect(themeEntrySwitch).toHaveAttribute('aria-checked', 'true');

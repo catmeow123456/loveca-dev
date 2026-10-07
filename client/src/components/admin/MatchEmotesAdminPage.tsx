@@ -31,6 +31,7 @@ import {
 import { ApiClientError } from '@/lib/apiClient';
 import { cn } from '@/lib/utils';
 import { AdminPageHeader } from './AdminPageHeader';
+import { useAdminHistoryGuard } from '@/hooks/useAdminHistoryGuard';
 
 interface MatchEmotesAdminPageProps {
   readonly onBack: () => void;
@@ -72,7 +73,8 @@ export function MatchEmotesAdminPage({ onBack, onCatalogPublished }: MatchEmotes
   }, []);
 
   useEffect(() => {
-    void loadCatalog();
+    const timer = window.setTimeout(() => void loadCatalog(), 0);
+    return () => window.clearTimeout(timer);
   }, [loadCatalog]);
 
   const selected = draft?.items.find((item) => item.id === selectedId) ?? null;
@@ -82,6 +84,7 @@ export function MatchEmotesAdminPage({ onBack, onCatalogPublished }: MatchEmotes
     [catalog, draft]
   );
   const enabledCount = draft?.items.filter((item) => item.enabled).length ?? 0;
+  useAdminHistoryGuard(isDirty, '有未发布修改，确定放弃吗？');
 
   useEffect(() => {
     if (!isDirty) return;
@@ -242,6 +245,7 @@ export function MatchEmotesAdminPage({ onBack, onCatalogPublished }: MatchEmotes
         title="快捷表情"
         category="内容与平台"
         onBack={handleBack}
+        backLabel="返回图片目录"
         actions={
           <>
             <button

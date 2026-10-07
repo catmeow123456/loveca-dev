@@ -6,11 +6,13 @@
 
 import { Layers3, Music, Users, Zap } from 'lucide-react';
 import { CardType } from '@game/shared/types/enums';
+import { CARD_TYPE_OPTIONS } from '@/components/deck-editor/filter-constants';
 
 type CardTypeSelection = CardType | 'ALL';
 
 interface CardTypeTabsBaseProps {
   compact?: boolean;
+  variant?: 'panel' | 'flat';
 }
 
 interface SingleCardTypeTabsProps extends CardTypeTabsBaseProps {
@@ -58,13 +60,29 @@ const ALL_TAB = {
 };
 
 const CARD_TYPE_TABS = [
-  { type: CardType.MEMBER, label: '成员卡', Icon: Users, colors: CARD_TYPE_COLORS.MEMBER },
-  { type: CardType.LIVE, label: 'Live 卡', Icon: Music, colors: CARD_TYPE_COLORS.LIVE },
-  { type: CardType.ENERGY, label: '能量卡', Icon: Zap, colors: CARD_TYPE_COLORS.ENERGY },
+  {
+    ...CARD_TYPE_OPTIONS[0],
+    type: CARD_TYPE_OPTIONS[0].value,
+    Icon: Users,
+    colors: CARD_TYPE_COLORS.MEMBER,
+  },
+  {
+    ...CARD_TYPE_OPTIONS[1],
+    type: CARD_TYPE_OPTIONS[1].value,
+    Icon: Music,
+    colors: CARD_TYPE_COLORS.LIVE,
+  },
+  {
+    ...CARD_TYPE_OPTIONS[2],
+    type: CARD_TYPE_OPTIONS[2].value,
+    Icon: Zap,
+    colors: CARD_TYPE_COLORS.ENERGY,
+  },
 ] as const;
 
 export function CardTypeTabs(props: CardTypeTabsProps) {
-  const { selected, compact = false } = props;
+  const { selected, compact = false, variant = 'panel' } = props;
+  const flat = variant === 'flat';
   const tabs = props.includeAll ? [ALL_TAB, ...CARD_TYPE_TABS] : CARD_TYPE_TABS;
 
   const handleSelect = (type: CardTypeSelection) => {
@@ -77,9 +95,11 @@ export function CardTypeTabs(props: CardTypeTabsProps) {
 
   return (
     <div
-      className={`rounded-xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] ${
-        compact ? 'overflow-x-auto p-1 no-scrollbar' : 'p-1'
-      }`}
+      className={
+        flat
+          ? `flex gap-1 border-b border-[var(--border-subtle)] ${compact ? 'overflow-x-auto no-scrollbar' : ''}`
+          : `rounded-xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] ${compact ? 'overflow-x-auto p-1 no-scrollbar' : 'p-1'}`
+      }
     >
       <div className={`flex gap-1 ${compact ? 'min-w-max' : ''}`}>
         {tabs.map(({ type, label, Icon, colors }) => {
@@ -90,13 +110,13 @@ export function CardTypeTabs(props: CardTypeTabsProps) {
               key={type}
               onClick={() => handleSelect(type)}
               aria-pressed={isActive}
-              className={`flex items-center justify-center rounded-lg font-medium transition-colors duration-150 ${
+              className={`flex items-center justify-center font-medium transition-colors duration-150 ${
                 compact
                   ? 'min-h-9 shrink-0 gap-1.5 px-3 py-1.5 text-xs'
                   : 'min-h-11 flex-1 gap-1 px-1 py-2 text-xs sm:gap-1.5 sm:px-2 sm:text-sm'
               } ${
                 isActive
-                  ? `${colors.bg} ${colors.border} ${colors.text}`
+                  ? `${colors.bg} ${flat ? colors.text : colors.border} ${colors.text}`
                   : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]'
               }`}
             >

@@ -45,6 +45,9 @@ ehthumbs.db
 .env.local
 .env.*.local
 
+# Local object-storage credentials
+/accesskey
+
 # Debug logs
 npm-debug.log*
 yarn-debug.log*

@@ -103,14 +103,15 @@ test.describe('运营管理中心与 AI 私密配置', () => {
     await page.setViewportSize({ width: 1600, height: 900 });
     await page.goto('/?page=admin-center');
     await expect(page.getByRole('heading', { name: '运营管理中心' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: '内容与平台' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: '卡牌与规则' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '资源与数据' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '平台运营' })).toBeVisible();
     await expect(page.getByRole('heading', { name: '对局与赛季' })).toBeVisible();
     await page.screenshot({
       path: '../output/playwright/admin-center-desktop.png',
       fullPage: true,
     });
 
+    await page.getByRole('button', { name: /^卡牌数据/u }).click();
     await page.getByRole('button', { name: /AI 上游配置/u }).click();
     await expect(page.getByRole('heading', { name: 'AI 上游配置' })).toBeVisible();
     const replacement = page.getByLabel('API Key', { exact: true });
@@ -131,9 +132,16 @@ test.describe('运营管理中心与 AI 私密配置', () => {
     });
     await Promise.all([
       leaveDialogPromise,
-      page.getByRole('button', { name: '卡牌数据', exact: true }).click(),
+      page.getByRole('button', { name: '返回卡牌数据', exact: true }).click(),
     ]);
     await expect(page.getByRole('heading', { name: 'AI 上游配置' })).toBeVisible();
+    const historyDialogPromise = page.waitForEvent('dialog').then(async (leaveDialog) => {
+      expect(leaveDialog.message()).toContain('有未保存修改');
+      await leaveDialog.dismiss();
+    });
+    await Promise.all([historyDialogPromise, page.goBack()]);
+    await expect(page).toHaveURL(/\?page=ai-effect-admin$/u);
+    await expect(baseUrlInput).toHaveValue('https://candidate.example/v1');
     await baseUrlInput.fill(original.baseUrl);
 
     await page.screenshot({
@@ -146,8 +154,9 @@ test.describe('运营管理中心与 AI 私密配置', () => {
       path: '../output/playwright/ai-effect-config-mobile.png',
       fullPage: true,
     });
+    await page.getByRole('button', { name: '返回卡牌数据' }).click();
     await page.getByRole('button', { name: '返回管理中心' }).click();
-    await expect(page.getByRole('button', { name: /快捷表情/u })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^公共资产目录/u })).toBeVisible();
     await expect(page.getByRole('combobox', { name: '选择管理分类' })).toHaveCount(0);
     await page.screenshot({ path: '../output/playwright/admin-center-mobile.png', fullPage: true });
   });
