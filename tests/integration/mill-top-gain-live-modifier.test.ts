@@ -1279,7 +1279,7 @@ describe('PL!-bp8-007 费用2「东条希」ANY_MATCH and migrated Kaho', () => 
     }
   );
 
-  it('resumes the existing Kaho step and original metadata without a version fallback', () => {
+  it('preserves Kaho action payloads and resumes its original step metadata', () => {
     const topCards = [
       museLive('restored-live'),
       filler('restored-1'),
@@ -1291,6 +1291,17 @@ describe('PL!-bp8-007 费用2「东条希」ANY_MATCH and migrated Kaho', () => 
       topCards: [...topCards, filler('restored-remain')],
     });
     const window = session.state!.activeEffect!;
+    expect(getStartedMillPayload(session)).toEqual({
+      pendingAbilityId: window.id,
+      abilityId: HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
+      sourceCardId: sourceId,
+      step: 'MILL_TOP_CARDS',
+      milledCardIds: topCards.map((card) => card.instanceId),
+      liveCardIds: ['restored-live'],
+      bladeBonus: 2,
+      refreshCount: 0,
+    });
+    expect(window.metadata).not.toHaveProperty('bladeHeartColors');
     session.restoreRuntimeState({
       authorityState: {
         ...session.state!,
@@ -1323,11 +1334,15 @@ describe('PL!-bp8-007 费用2「东条希」ANY_MATCH and migrated Kaho', () => 
     );
     expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, sourceId)).toBe(3);
     expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.actionHistory.at(-1)?.payload).toMatchObject({
+    expect(session.state?.actionHistory.at(-1)?.payload).toEqual({
+      pendingAbilityId: window.id,
+      abilityId: HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
+      sourceCardId: sourceId,
       step: 'MILL_TOP_FOUR_GAIN_BLADE_IF_LIVE',
       liveCardIds: ['restored-live'],
       bladeBonus: 2,
       milledCardIds: topCards.map((card) => card.instanceId),
+      refreshCount: 0,
     });
   });
 

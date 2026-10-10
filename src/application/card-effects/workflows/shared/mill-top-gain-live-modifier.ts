@@ -318,8 +318,7 @@ function startMillTopGainLiveModifierInspection(
               liveCardIds: condition.matchingCardIds,
               ...createRewardActionPayload(config.reward, conditionMet),
             }
-          : { conditionMet }),
-        bladeHeartColors: condition.bladeHeartColors,
+          : { conditionMet, bladeHeartColors: condition.bladeHeartColors }),
         refreshCount: millResult.refreshCount,
       },
     }),
@@ -327,12 +326,12 @@ function startMillTopGainLiveModifierInspection(
       sourceCardId: ability.sourceCardId,
       step: 'MILL_TOP_CARDS',
       milledCardIds,
-      conditionMet,
-      ...createConditionActionPayload(config, condition.matchingCardIds),
       ...(config.actionPayloadStyle === 'LIVE_PRESENCE_BLADE'
-        ? createRewardActionPayload(config.reward, conditionMet)
-        : {}),
-      bladeHeartColors: condition.bladeHeartColors,
+        ? {
+            liveCardIds: condition.matchingCardIds,
+            ...createRewardActionPayload(config.reward, conditionMet),
+          }
+        : { conditionMet, bladeHeartColors: condition.bladeHeartColors }),
       refreshCount: millResult.refreshCount,
     },
   });
@@ -393,10 +392,13 @@ function finishMillTopGainLiveModifier(
       sourceCardId: effect.sourceCardId,
       step: config.finishStep,
       milledCardIds,
-      conditionMet,
-      ...createConditionActionPayload(config, getStringArrayMetadata(effect.metadata?.liveCardIds)),
-      bladeHeartColors: getStringArrayMetadata(effect.metadata?.bladeHeartColors),
-      rewardApplied,
+      ...(config.actionPayloadStyle === 'LIVE_PRESENCE_BLADE'
+        ? { liveCardIds: getStringArrayMetadata(effect.metadata?.liveCardIds) }
+        : {
+            conditionMet,
+            bladeHeartColors: getStringArrayMetadata(effect.metadata?.bladeHeartColors),
+            rewardApplied,
+          }),
       refreshCount:
         typeof effect.metadata?.refreshCount === 'number' ? effect.metadata.refreshCount : 0,
       ...createRewardActionPayload(config.reward, rewardApplied),
@@ -464,15 +466,6 @@ function evaluateCondition(
     bladeHeartColors,
     matchingCardIds: [],
   };
-}
-
-function createConditionActionPayload(
-  config: MillTopGainLiveModifierConfig,
-  matchingCardIds: readonly string[]
-): Readonly<Record<string, unknown>> {
-  return config.actionPayloadStyle === 'LIVE_PRESENCE_BLADE'
-    ? { liveCardIds: matchingCardIds }
-    : {};
 }
 
 function createRewardActionPayload(
