@@ -40,6 +40,7 @@ import {
   type PendingAbilityStarterOptions,
 } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { isCurrentStageMemberAbilitySource } from '../../runtime/source-member.js';
 import {
   getAbilityEffectText,
   maybeStartConfirmablePendingAbilityConfirmation,
@@ -360,8 +361,9 @@ function startLiveStartDiscardGainHeartChoice(
 
   if (fixedHeartColor !== null && config.recipient.mode === 'SOURCE_MEMBER') {
     const sourceIsCurrent =
+      isCurrentStageMemberAbilitySource(state, effect) &&
       getAbilitySourceLifecycleId(state, effect.abilityId, effect.sourceCardId) ===
-      getActiveEffectSourceLifecycleId(game, effect);
+        getActiveEffectSourceLifecycleId(game, effect);
     const modifierResult = sourceIsCurrent
       ? addHeartLiveModifierForSourceMember(
           { ...state, activeEffect: null },
@@ -466,6 +468,15 @@ function finishLiveStartDiscardGainHeartBonus(
   }
 
   const heartCount = getHeartCountForEffect(effect.metadata);
+  if (!isCurrentStageMemberAbilitySource(game, effect)) {
+    return finishWithoutHeartModifier(
+      game,
+      effect,
+      player.id,
+      continuePendingCardEffects,
+      'SOURCE_RULES_OBJECT_LEFT_STAGE'
+    );
+  }
   const heartBonus = { color: selectedColor, count: heartCount };
   const modifierResult = addHeartLiveModifierForSourceMember(
     { ...game, activeEffect: null },

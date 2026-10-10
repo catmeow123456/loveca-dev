@@ -116,6 +116,10 @@ describe('CostCalculator', () => {
   });
 
   describe('calculateRelayDiscount', () => {
+    it('保留负的有效成员费用用于换手减法', () => {
+      expect(calculator.calculateRelayDiscount(createMockMemberData(4), -1)).toBe(-1);
+    });
+
     it('应该返回被换手成员的费用作为减免', () => {
       const memberData = createMockMemberData(2);
       expect(calculator.calculateRelayDiscount(memberData)).toBe(2);
@@ -204,6 +208,63 @@ describe('CostCalculator', () => {
       ]);
     });
 
+    it('单换手成员费用为-1时，应付5减去-1等于6', () => {
+      const resources: AvailableResources = {
+        activeEnergyIds: ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'],
+        stageMembers: [
+          createStageMemberInfo('negative-member', 4, SlotPosition.CENTER, { effectiveCost: -1 }),
+        ],
+      };
+      const result = calculator.checkCanPayCost(
+        createMockMemberData(5),
+        SlotPosition.CENTER,
+        resources,
+        { relayMode: 'SINGLE' }
+      );
+      expect(result.availablePlans).toHaveLength(1);
+      expect(result.availablePlans[0]).toMatchObject({
+        relayDiscount: -1,
+        actualEnergyCost: 6,
+        relayReplacements: [
+          { cardId: 'negative-member', slot: SlotPosition.CENTER, effectiveCost: -1 },
+        ],
+      });
+      expect(result.availablePlans[0]?.energyToTap).toEqual(resources.activeEnergyIds);
+      const insufficient = calculator.checkCanPayCost(
+        createMockMemberData(5),
+        SlotPosition.CENTER,
+        { ...resources, activeEnergyIds: resources.activeEnergyIds.slice(0, 5) },
+        { relayMode: 'SINGLE' }
+      );
+      expect(insufficient.canPay).toBe(false);
+      expect(insufficient.reason).toBe('费用不足：需要 6 能量，可用 5 能量');
+    });
+
+    it.each([-1, 0, 3])('双换手汇总真实负值后，只将最终支付量归零（另一成员费用 %s）', (otherCost) => {
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 30 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('negative-member', 4, SlotPosition.CENTER, { effectiveCost: -1 }),
+          createStageMemberInfo('other-member', 4, SlotPosition.LEFT, { effectiveCost: otherCost }),
+        ],
+      };
+      const result = calculator.checkCanPayCost(
+        createMockMemberData(15, '星空凛&小泉花陽', 'PL!-pb2-000-DUO'),
+        SlotPosition.CENTER,
+        resources,
+        { relayMode: 'DOUBLE', relayReplacementSlots: [SlotPosition.LEFT, SlotPosition.CENTER] }
+      );
+      expect(result.availablePlans[0]).toMatchObject({
+        relayDiscount: otherCost - 1,
+        actualEnergyCost: 16 - otherCost,
+        relayReplacements: [
+          { cardId: 'negative-member', slot: SlotPosition.CENTER, effectiveCost: -1 },
+          { cardId: 'other-member', slot: SlotPosition.LEFT, effectiveCost: otherCost },
+        ],
+      });
+      expect(result.availablePlans[0]?.energyToTap).toHaveLength(16 - otherCost);
+    });
+
     it('动态降为0费时覆盖普通成员只提供非换手登场方案', () => {
       const sourceCardId = 'll-bp2-001-source';
       const otherHandCardIds = Array.from({ length: 20 }, (_, index) => `hand-${index}`);
@@ -263,6 +324,8 @@ describe('CostCalculator', () => {
       ['PL!SP-bp4-004-P', 22, '平安名すみれ'],
       ['PL!SP-pb2-000-DUO', 15, '嵐千砂都&鬼塚夏美'],
       ['PL!-pb2-000-DUO', 15, '星空凛&小泉花陽'],
+      ['PL!S-pb2-000-DUO', 15, '松浦果南&小原鞠莉'],
+      ['PL!S-pb2-000-UNSEEN', 15, '松浦果南&小原鞠莉'],
     ] as const)(
       'allows explicit double relay for %s and sums effective costs',
       (cardCode, cost, name) => {

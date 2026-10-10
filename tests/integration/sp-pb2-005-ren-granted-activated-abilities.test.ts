@@ -23,7 +23,7 @@ import {
 } from '../../src/application/card-effects/ability-ids';
 import { CardAbilitySourceZone } from '../../src/application/card-effects/ability-definition-types';
 import { getActivatedAbilityUiConfigs } from '../../src/application/card-effect-runner';
-import { getRenGrantedActivatedAbilityDefinitions } from '../../src/application/card-effects/runtime/granted-activated-abilities';
+import { getGrantedActivatedAbilityDefinitions } from '../../src/application/card-effects/runtime/granted-member-below-abilities';
 import {
   createActivateAbilityCommand,
   createConfirmEffectStepCommand,
@@ -305,7 +305,7 @@ function setupScenario(cardCase: AbilityCase, sourceMode: SourceMode): Scenario 
   };
   setSessionState(session, game);
 
-  const grantedAbility = getRenGrantedActivatedAbilityDefinitions(game, P1, source.instanceId).find(
+  const grantedAbility = getGrantedActivatedAbilityDefinitions(game, P1, source.instanceId).find(
     (candidate) =>
       candidate.grantingMemberBelowCardId === grantedCard.instanceId &&
       candidate.definition.abilityId === cardCase.abilityId
@@ -696,7 +696,7 @@ describe('PL!SP-pb2-005 恋宿主的每回合次数按授予能力实例区分',
       'second-granted-card'
     );
 
-    const grantedEntries = getRenGrantedActivatedAbilityDefinitions(
+    const grantedEntries = getGrantedActivatedAbilityDefinitions(
       scenario.session.state!,
       P1,
       scenario.sourceId
@@ -790,7 +790,7 @@ describe('PL!SP-pb2-005 恋宿主的每回合次数按授予能力实例区分',
       cardCase.directCode,
       'removed-unused-granted-card'
     );
-    const grantedEntries = getRenGrantedActivatedAbilityDefinitions(
+    const grantedEntries = getGrantedActivatedAbilityDefinitions(
       scenario.session.state!,
       P1,
       scenario.sourceId
@@ -833,7 +833,7 @@ describe('PL!SP-pb2-005 恋宿主的每回合次数按授予能力实例区分',
       'PL!SP-pb2-002-R',
       'mismatched-granted-card'
     );
-    const mismatchedEntry = getRenGrantedActivatedAbilityDefinitions(
+    const mismatchedEntry = getGrantedActivatedAbilityDefinitions(
       scenario.session.state!,
       P1,
       scenario.sourceId
@@ -869,7 +869,7 @@ describe('PL!SP-pb2-005 恋宿主的每回合次数按授予能力实例区分',
     });
     setSessionState(scenario.session, game);
 
-    const hostAbilityInstanceId = getRenGrantedActivatedAbilityDefinitions(
+    const hostAbilityInstanceId = getGrantedActivatedAbilityDefinitions(
       scenario.session.state!,
       P1,
       ren.instanceId

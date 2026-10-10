@@ -7,7 +7,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { CardType, GamePhase, HeartColor } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import {
   BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
   N_SD1_005_ACTIVATED_DISCARD_TWO_RECOVER_NIJIGASAKI_MEMBER_ABILITY_ID,
@@ -38,7 +38,7 @@ import {
   typeIs,
   type CardSelector,
 } from '../../../effects/card-selectors.js';
-import { successLiveScoreAtLeast } from '../../../effects/conditions.js';
+import { successLiveScoreForCardEffectAtLeast } from '../../../effects/conditions.js';
 import { type EffectCostDefinition } from '../../../effects/effect-costs.js';
 import {
   createWaitingRoomToHandEffectState,
@@ -57,18 +57,15 @@ const PL_PR_003_SELECT_DISCARD_STEP_ID = 'PL_PR_003_SELECT_TWO_HAND_CARDS_TO_DIS
 const PL_PR_003_SELECT_WAITING_ROOM_LIVE_STEP_ID =
   'PL_PR_003_SELECT_WAITING_ROOM_YELLOW_THREE_LIVE';
 const PL_PR_004_SELECT_DISCARD_STEP_ID = 'PL_PR_004_SELECT_TWO_HAND_CARDS_TO_DISCARD';
-const PL_PR_004_SELECT_WAITING_ROOM_LIVE_STEP_ID =
-  'PL_PR_004_SELECT_WAITING_ROOM_PINK_THREE_LIVE';
-const PL_N_BP1_008_SELECT_DISCARD_MEMBER_STEP_ID =
-  'PL_N_BP1_008_SELECT_HAND_MEMBER_TO_DISCARD';
+const PL_PR_004_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'PL_PR_004_SELECT_WAITING_ROOM_PINK_THREE_LIVE';
+const PL_N_BP1_008_SELECT_DISCARD_MEMBER_STEP_ID = 'PL_N_BP1_008_SELECT_HAND_MEMBER_TO_DISCARD';
 const PL_N_BP1_008_SELECT_LOWER_COST_MEMBER_STEP_ID =
   'PL_N_BP1_008_SELECT_WAITING_ROOM_LOWER_COST_MEMBER';
 const N_SD1_005_SELECT_DISCARD_STEP_ID = 'N_SD1_005_SELECT_TWO_HAND_CARDS_TO_DISCARD';
 const N_SD1_005_SELECT_WAITING_ROOM_MEMBER_STEP_ID =
   'N_SD1_005_SELECT_WAITING_ROOM_NIJIGASAKI_MEMBER';
 const N_SD1_007_SELECT_DISCARD_STEP_ID = 'N_SD1_007_SELECT_TWO_HAND_CARDS_TO_DISCARD';
-const N_SD1_007_SELECT_WAITING_ROOM_LIVE_STEP_ID =
-  'N_SD1_007_SELECT_WAITING_ROOM_NIJIGASAKI_LIVE';
+const N_SD1_007_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'N_SD1_007_SELECT_WAITING_ROOM_NIJIGASAKI_LIVE';
 
 type RecoveryRule =
   | { readonly kind: 'STATIC_SELECTOR'; readonly selector: CardSelector }
@@ -87,7 +84,7 @@ interface DiscardCostWaitingRoomToHandWorkflowConfig {
   readonly recoveryStepText: string;
   readonly recoverySelectionLabel?: string;
   readonly recoveryConfirmSelectionLabel?: string;
-  readonly canActivate?: (game: GameState, playerId: string) => boolean;
+  readonly canActivate?: (game: GameState, playerId: string, sourceCardId: string) => boolean;
   readonly recoverySelectionRequiredWhenHasTargets?: boolean;
   readonly finishWhenNoRecoveryTargets?: boolean;
   readonly recordUseAfterDiscard?: boolean;
@@ -105,116 +102,117 @@ const BP4_002_DISCARD_RECOVER_WORKFLOW: DiscardCostWaitingRoomToHandWorkflowConf
   discardCount: 2,
   recoveryRule: { kind: 'STATIC_SELECTOR', selector: and(typeIs(CardType.LIVE), groupIs("μ's")) },
   recoveryStepText: "请选择自己的休息室中1张『μ's』的LIVE卡加入手牌。",
-  canActivate: (game, playerId) => successLiveScoreAtLeast(game, playerId, 6),
+  canActivate: (game, playerId, sourceCardId) =>
+    successLiveScoreForCardEffectAtLeast(game, playerId, sourceCardId, [playerId], 6),
   recoverySelectionRequiredWhenHasTargets: true,
 };
 
-const DISCARD_COST_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly DiscardCostWaitingRoomToHandWorkflowConfig[] = [
-  BP4_002_DISCARD_RECOVER_WORKFLOW,
-  {
-    abilityId: PL_PR_003_ACTIVATED_DISCARD_TWO_RECOVER_YELLOW_THREE_LIVE_ABILITY_ID,
-    expectedBaseCardCodes: ['PL!-PR-003'],
-    discardStepId: PL_PR_003_SELECT_DISCARD_STEP_ID,
-    recoveryStepId: PL_PR_003_SELECT_WAITING_ROOM_LIVE_STEP_ID,
-    discardCount: 2,
-    recoveryRule: {
-      kind: 'STATIC_SELECTOR',
-      selector: and(
-        typeIs(CardType.LIVE),
-        liveRequiresPrintedHeartColorAtLeast(HeartColor.YELLOW, 3)
-      ),
+const DISCARD_COST_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly DiscardCostWaitingRoomToHandWorkflowConfig[] =
+  [
+    BP4_002_DISCARD_RECOVER_WORKFLOW,
+    {
+      abilityId: PL_PR_003_ACTIVATED_DISCARD_TWO_RECOVER_YELLOW_THREE_LIVE_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!-PR-003'],
+      discardStepId: PL_PR_003_SELECT_DISCARD_STEP_ID,
+      recoveryStepId: PL_PR_003_SELECT_WAITING_ROOM_LIVE_STEP_ID,
+      discardCount: 2,
+      recoveryRule: {
+        kind: 'STATIC_SELECTOR',
+        selector: and(
+          typeIs(CardType.LIVE),
+          liveRequiresPrintedHeartColorAtLeast(HeartColor.YELLOW, 3)
+        ),
+      },
+      recoveryStepText:
+        '请选择自己的休息室中1张必要HEART中含有大于等于3个[黄ハート]的LIVE卡加入手牌。',
+      recoverySelectionLabel: '选择要加入手牌的LIVE卡',
+      recoveryConfirmSelectionLabel: '加入手牌',
+      recoverySelectionRequiredWhenHasTargets: true,
     },
-    recoveryStepText:
-      '请选择自己的休息室中1张必要HEART中含有大于等于3个[黄ハート]的LIVE卡加入手牌。',
-    recoverySelectionLabel: '选择要加入手牌的LIVE卡',
-    recoveryConfirmSelectionLabel: '加入手牌',
-    recoverySelectionRequiredWhenHasTargets: true,
-  },
-  {
-    abilityId: PL_PR_004_ACTIVATED_DISCARD_TWO_RECOVER_PINK_THREE_LIVE_ABILITY_ID,
-    expectedBaseCardCodes: ['PL!-PR-004'],
-    discardStepId: PL_PR_004_SELECT_DISCARD_STEP_ID,
-    recoveryStepId: PL_PR_004_SELECT_WAITING_ROOM_LIVE_STEP_ID,
-    discardCount: 2,
-    recoveryRule: {
-      kind: 'STATIC_SELECTOR',
-      selector: and(
-        typeIs(CardType.LIVE),
-        liveRequiresPrintedHeartColorAtLeast(HeartColor.PINK, 3)
-      ),
+    {
+      abilityId: PL_PR_004_ACTIVATED_DISCARD_TWO_RECOVER_PINK_THREE_LIVE_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!-PR-004'],
+      discardStepId: PL_PR_004_SELECT_DISCARD_STEP_ID,
+      recoveryStepId: PL_PR_004_SELECT_WAITING_ROOM_LIVE_STEP_ID,
+      discardCount: 2,
+      recoveryRule: {
+        kind: 'STATIC_SELECTOR',
+        selector: and(
+          typeIs(CardType.LIVE),
+          liveRequiresPrintedHeartColorAtLeast(HeartColor.PINK, 3)
+        ),
+      },
+      recoveryStepText:
+        '请选择自己的休息室中1张必要HEART中含有大于等于3个[桃ハート]的LIVE卡加入手牌。',
+      recoverySelectionLabel: '选择要加入手牌的LIVE卡',
+      recoveryConfirmSelectionLabel: '加入手牌',
+      recoverySelectionRequiredWhenHasTargets: true,
     },
-    recoveryStepText:
-      '请选择自己的休息室中1张必要HEART中含有大于等于3个[桃ハート]的LIVE卡加入手牌。',
-    recoverySelectionLabel: '选择要加入手牌的LIVE卡',
-    recoveryConfirmSelectionLabel: '加入手牌',
-    recoverySelectionRequiredWhenHasTargets: true,
-  },
-  {
-    abilityId: S_SD1_007_ACTIVATED_DISCARD_RECOVER_SCORE_AQOURS_LIVE_ABILITY_ID,
-    expectedBaseCardCodes: ['PL!S-sd1-007'],
-    discardStepId: S_SD1_007_SELECT_DISCARD_STEP_ID,
-    recoveryStepId: S_SD1_007_SELECT_WAITING_ROOM_SCORE_AQOURS_LIVE_STEP_ID,
-    discardCount: 2,
-    recoveryRule: {
-      kind: 'STATIC_SELECTOR',
-      selector: and(typeIs(CardType.LIVE), groupAliasIs('Aqours'), hasScoreBladeHeart()),
+    {
+      abilityId: S_SD1_007_ACTIVATED_DISCARD_RECOVER_SCORE_AQOURS_LIVE_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!S-sd1-007'],
+      discardStepId: S_SD1_007_SELECT_DISCARD_STEP_ID,
+      recoveryStepId: S_SD1_007_SELECT_WAITING_ROOM_SCORE_AQOURS_LIVE_STEP_ID,
+      discardCount: 2,
+      recoveryRule: {
+        kind: 'STATIC_SELECTOR',
+        selector: and(typeIs(CardType.LIVE), groupAliasIs('Aqours'), hasScoreBladeHeart()),
+      },
+      recoveryStepText: '请选择自己的休息室中1张持有 SCORE 图标的『Aqours』LIVE卡加入手牌。',
+      recoverySelectionRequiredWhenHasTargets: true,
     },
-    recoveryStepText:
-      '请选择自己的休息室中1张持有 SCORE 图标的『Aqours』LIVE卡加入手牌。',
-    recoverySelectionRequiredWhenHasTargets: true,
-  },
-  {
-    abilityId: PL_N_BP1_008_ACTIVATED_DISCARD_MEMBER_RECOVER_LOWER_COST_MEMBER_ABILITY_ID,
-    expectedBaseCardCodes: ['PL!N-bp1-008'],
-    discardStepId: PL_N_BP1_008_SELECT_DISCARD_MEMBER_STEP_ID,
-    recoveryStepId: PL_N_BP1_008_SELECT_LOWER_COST_MEMBER_STEP_ID,
-    discardCount: 1,
-    discardSelector: typeIs(CardType.MEMBER),
-    discardStepText: '请选择1张成员卡放置入休息室。',
-    discardSelectionLabel: '选择要放置入休息室的成员卡',
-    recoveryRule: { kind: 'LOWER_PRINTED_COST_THAN_DISCARDED_MEMBER' },
-    recoveryStepText: '请选择自己的休息室中1张费用更低的成员卡加入手牌。',
-    recoverySelectionLabel: '选择要加入手牌的成员卡',
-    recoveryConfirmSelectionLabel: '加入手牌',
-    recoverySelectionRequiredWhenHasTargets: true,
-    finishWhenNoRecoveryTargets: true,
-    recordUseAfterDiscard: true,
-    revalidateSourceBeforeDiscard: true,
-    canDeclineDiscardSelection: true,
-  },
-  {
-    abilityId: N_SD1_005_ACTIVATED_DISCARD_TWO_RECOVER_NIJIGASAKI_MEMBER_ABILITY_ID,
-    expectedBaseCardCodes: ['PL!N-sd1-005'],
-    discardStepId: N_SD1_005_SELECT_DISCARD_STEP_ID,
-    recoveryStepId: N_SD1_005_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
-    discardCount: 2,
-    recoveryRule: {
-      kind: 'STATIC_SELECTOR',
-      selector: and(typeIs(CardType.MEMBER), groupAliasIs('虹ヶ咲')),
+    {
+      abilityId: PL_N_BP1_008_ACTIVATED_DISCARD_MEMBER_RECOVER_LOWER_COST_MEMBER_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!N-bp1-008'],
+      discardStepId: PL_N_BP1_008_SELECT_DISCARD_MEMBER_STEP_ID,
+      recoveryStepId: PL_N_BP1_008_SELECT_LOWER_COST_MEMBER_STEP_ID,
+      discardCount: 1,
+      discardSelector: typeIs(CardType.MEMBER),
+      discardStepText: '请选择1张成员卡放置入休息室。',
+      discardSelectionLabel: '选择要放置入休息室的成员卡',
+      recoveryRule: { kind: 'LOWER_PRINTED_COST_THAN_DISCARDED_MEMBER' },
+      recoveryStepText: '请选择自己的休息室中1张费用更低的成员卡加入手牌。',
+      recoverySelectionLabel: '选择要加入手牌的成员卡',
+      recoveryConfirmSelectionLabel: '加入手牌',
+      recoverySelectionRequiredWhenHasTargets: true,
+      finishWhenNoRecoveryTargets: true,
+      recordUseAfterDiscard: true,
+      revalidateSourceBeforeDiscard: true,
+      canDeclineDiscardSelection: true,
     },
-    recoveryStepText: '请选择自己的休息室中1张『虹咲』的成员卡加入手牌。',
-    recoverySelectionLabel: '选择要加入手牌的虹咲成员卡',
-    recoveryConfirmSelectionLabel: '加入手牌',
-    recoverySelectionRequiredWhenHasTargets: true,
-    finishWhenNoRecoveryTargets: true,
-  },
-  {
-    abilityId: N_SD1_007_ACTIVATED_DISCARD_TWO_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
-    expectedBaseCardCodes: ['PL!N-sd1-007'],
-    discardStepId: N_SD1_007_SELECT_DISCARD_STEP_ID,
-    recoveryStepId: N_SD1_007_SELECT_WAITING_ROOM_LIVE_STEP_ID,
-    discardCount: 2,
-    recoveryRule: {
-      kind: 'STATIC_SELECTOR',
-      selector: and(typeIs(CardType.LIVE), groupAliasIs('虹ヶ咲')),
+    {
+      abilityId: N_SD1_005_ACTIVATED_DISCARD_TWO_RECOVER_NIJIGASAKI_MEMBER_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!N-sd1-005'],
+      discardStepId: N_SD1_005_SELECT_DISCARD_STEP_ID,
+      recoveryStepId: N_SD1_005_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
+      discardCount: 2,
+      recoveryRule: {
+        kind: 'STATIC_SELECTOR',
+        selector: and(typeIs(CardType.MEMBER), groupAliasIs('虹ヶ咲')),
+      },
+      recoveryStepText: '请选择自己的休息室中1张『虹咲』的成员卡加入手牌。',
+      recoverySelectionLabel: '选择要加入手牌的虹咲成员卡',
+      recoveryConfirmSelectionLabel: '加入手牌',
+      recoverySelectionRequiredWhenHasTargets: true,
+      finishWhenNoRecoveryTargets: true,
     },
-    recoveryStepText: '请选择自己的休息室中1张『虹咲』的LIVE卡加入手牌。',
-    recoverySelectionLabel: '选择要加入手牌的虹咲LIVE卡',
-    recoveryConfirmSelectionLabel: '加入手牌',
-    recoverySelectionRequiredWhenHasTargets: true,
-    finishWhenNoRecoveryTargets: true,
-  },
-];
+    {
+      abilityId: N_SD1_007_ACTIVATED_DISCARD_TWO_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!N-sd1-007'],
+      discardStepId: N_SD1_007_SELECT_DISCARD_STEP_ID,
+      recoveryStepId: N_SD1_007_SELECT_WAITING_ROOM_LIVE_STEP_ID,
+      discardCount: 2,
+      recoveryRule: {
+        kind: 'STATIC_SELECTOR',
+        selector: and(typeIs(CardType.LIVE), groupAliasIs('虹ヶ咲')),
+      },
+      recoveryStepText: '请选择自己的休息室中1张『虹咲』的LIVE卡加入手牌。',
+      recoverySelectionLabel: '选择要加入手牌的虹咲LIVE卡',
+      recoveryConfirmSelectionLabel: '加入手牌',
+      recoverySelectionRequiredWhenHasTargets: true,
+      finishWhenNoRecoveryTargets: true,
+    },
+  ];
 
 export function registerDiscardCostWaitingRoomToHandWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
@@ -245,14 +243,17 @@ export function registerDiscardCostWaitingRoomToHandWorkflowHandlers(deps: {
           : game;
       }
     );
-    registerActiveEffectStepHandler(config.abilityId, config.recoveryStepId, (game, input, context) =>
-      finishConfiguredWaitingRoomToHandWorkflow(
-        game,
-        input.selectedCardId ?? null,
-        input.selectedCardIds,
-        config,
-        context.continuePendingCardEffects
-      )
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.recoveryStepId,
+      (game, input, context) =>
+        finishConfiguredWaitingRoomToHandWorkflow(
+          game,
+          input.selectedCardId ?? null,
+          input.selectedCardIds,
+          config,
+          context.continuePendingCardEffects
+        )
     );
   }
 }
@@ -279,13 +280,17 @@ function startDiscardCostWaitingRoomToHandWorkflow(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !config.expectedBaseCardCodes.some((baseCardCode) =>
-      cardCodeMatchesBase(sourceCard.data.cardCode, baseCardCode)
+    !isDirectOrGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      config.abilityId,
+      config.expectedBaseCardCodes
     ) ||
     !isMemberCardData(sourceCard.data) ||
     !findMemberSlot(player, cardId) ||
     selectableDiscardCardIds.length < config.discardCount ||
-    config.canActivate?.(game, player.id) === false
+    config.canActivate?.(game, player.id, cardId) === false
   ) {
     return game;
   }
@@ -383,8 +388,10 @@ function startDiscardCostWaitingRoomRecoveryAfterDiscard(
         player.hand.cardIds.includes(selectedCardId) &&
         (() => {
           const selectedCard = getCardById(game, selectedCardId);
-          return selectedCard !== null &&
-            (!config.discardSelector || config.discardSelector(selectedCard));
+          return (
+            selectedCard !== null &&
+            (!config.discardSelector || config.discardSelector(selectedCard))
+          );
         })()
     )
   ) {
@@ -468,26 +475,26 @@ function startDiscardCostWaitingRoomRecoveryAfterDiscard(
   });
 
   const stateWithRecoveryEffect: GameState = {
-      ...stateAfterCostAndUse,
-      activeEffect: createWaitingRoomToHandEffectState({
-        id: effect.id,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-        controllerId: player.id,
-        effectText: effect.effectText,
-        stepId: recoveryStepId,
-        stepText: config.recoveryStepText,
-        selectionLabel: config.recoverySelectionLabel,
-        confirmSelectionLabel: config.recoveryConfirmSelectionLabel,
-        awaitingPlayerId: player.id,
-        selectableCardIds,
-        metadata: {
-          discardedHandCardIds: discardResult.discardedCardIds,
-          discardedMemberPrintedCost,
-        },
-        zoneSelection,
-      }),
-    };
+    ...stateAfterCostAndUse,
+    activeEffect: createWaitingRoomToHandEffectState({
+      id: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      controllerId: player.id,
+      effectText: effect.effectText,
+      stepId: recoveryStepId,
+      stepText: config.recoveryStepText,
+      selectionLabel: config.recoverySelectionLabel,
+      confirmSelectionLabel: config.recoveryConfirmSelectionLabel,
+      awaitingPlayerId: player.id,
+      selectableCardIds,
+      metadata: {
+        discardedHandCardIds: discardResult.discardedCardIds,
+        discardedMemberPrintedCost,
+      },
+      zoneSelection,
+    }),
+  };
   return config.recordUseAfterDiscard
     ? stateWithRecoveryEffect
     : addAction(stateWithRecoveryEffect, 'PAY_COST', player.id, payCostPayload);

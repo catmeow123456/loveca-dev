@@ -3,7 +3,7 @@ import { getCardById, getPlayerById, type GameState } from '../entities/game.js'
 import { SlotPosition } from '../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
 import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
-import { successLiveScoreAtLeast } from './success-live-score.js';
+import { successLiveScoreForCardEffectAtLeast } from './success-live-score.js';
 
 const BP4_008_HANAYO_BASE_CARD_CODE = 'PL!-bp4-008';
 const BP4_008_SUCCESS_SCORE_COST_BONUS = 3;
@@ -144,7 +144,7 @@ function isBp4008HanayoStageCostBonusActive(
   if (!isMemberOnPlayerStage(game, playerId, memberCardId)) {
     return false;
   }
-  return successLiveScoreAtLeast(game, playerId, 6);
+  return successLiveScoreForCardEffectAtLeast(game, playerId, memberCardId, [playerId], 6);
 }
 
 function isMemberOnPlayerStage(game: GameState, playerId: string, memberCardId: string): boolean {

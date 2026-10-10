@@ -545,6 +545,14 @@ export function applyRuleActionResult(
       // 刷新处理：仅将休息室洗牌后压到现有主卡组下方，保留原主卡组顺序。
       if (result.affectedPlayerId) {
         const playerBeforeRefresh = getPlayerById(state, result.affectedPlayerId);
+        const refreshStageSources = [
+          SlotPosition.LEFT,
+          SlotPosition.CENTER,
+          SlotPosition.RIGHT,
+        ].flatMap((sourceSlot) => {
+          const sourceCardId = playerBeforeRefresh?.memberSlots.slots[sourceSlot];
+          return sourceCardId ? [{ sourceCardId, sourceSlot }] : [];
+        });
         const waitingRoomCards = [...(playerBeforeRefresh?.waitingRoom.cardIds ?? [])];
         const shuffledCards = shuffleArray(waitingRoomCards);
         state = updatePlayer(state, result.affectedPlayerId, (player) => {
@@ -572,7 +580,8 @@ export function applyRuleActionResult(
                 kind: 'RULE_ACTION',
                 playerId: result.affectedPlayerId,
                 ruleAction: 'REFRESH',
-              }
+              },
+              refreshStageSources
             );
           state = emitGameEvent(state, refreshEvent);
         }

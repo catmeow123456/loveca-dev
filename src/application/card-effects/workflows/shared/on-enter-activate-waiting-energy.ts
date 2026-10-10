@@ -6,7 +6,10 @@ import {
 } from '../../../../domain/entities/game.js';
 import { OrientationState } from '../../../../shared/types/enums.js';
 import { getEnergyCardIdsByOrientation } from '../../../effects/energy.js';
-import { successLiveScoreAtLeast, sumSuccessfulLiveScore } from '../../../effects/conditions.js';
+import {
+  successLiveScoreForCardEffectAtLeast,
+  sumSuccessfulLiveScoreForCardEffect,
+} from '../../../effects/conditions.js';
 import {
   MEMBER_ON_ENTER_ACTIVATE_TWO_WAITING_ENERGY_ABILITY_ID,
   PL_BP4_004_ON_ENTER_SUCCESS_SCORE_SIX_ACTIVATE_TWO_ENERGY_ABILITY_ID,
@@ -66,11 +69,17 @@ function resolveOnEnterActivateWaitingEnergy(
   const successLiveScore =
     config.minSuccessLiveScore === undefined
       ? undefined
-      : sumSuccessfulLiveScore(game, player.id);
+      : sumSuccessfulLiveScoreForCardEffect(game, player.id, ability.sourceCardId, [player.id]);
   if (
     config.minSuccessLiveScore !== undefined &&
     successLiveScore !== undefined &&
-    !successLiveScoreAtLeast(game, player.id, config.minSuccessLiveScore)
+    !successLiveScoreForCardEffectAtLeast(
+      game,
+      player.id,
+      ability.sourceCardId,
+      [player.id],
+      config.minSuccessLiveScore
+    )
   ) {
     const stateWithoutPending: GameState = {
       ...game,

@@ -18,7 +18,12 @@ import type {
 } from '../../src/domain/entities/card';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import type { DeckConfig } from '../../src/application/game-service';
-import { createPlayMemberToSlotCommand } from '../../src/application/game-commands';
+import {
+  createConfirmCostPaymentCommand,
+  createPlayMemberToSlotCommand,
+  type PlayMemberToSlotCommand,
+} from '../../src/application/game-commands';
+import type { GameState } from '../../src/domain/entities/game';
 import { createGameSession } from '../../src/application/game-session';
 import { createPublicObjectId } from '../../src/online/projector';
 import { canPlayMemberInStageSlotThisTurn } from '../../src/domain/rules/member-turn-state';
@@ -126,6 +131,113 @@ function setActiveEnergyCountForPlayer(
 }
 
 describe('member cost payment', () => {
+  it.each(['PLAY', 'CONFIRM_COST'] as const)(
+    'explains negative relay and pays six energy for five minus negative one through %s',
+    (commandPath) => {
+      const session = createGameSession();
+      const deck = createDeck();
+      session.createGame('negative-relay-cost-payment', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+      session.initializeGame(deck, deck);
+      forceMainPhaseForPlayer(session);
+      setActiveEnergyCountForPlayer(session, 0, 7);
+      const state = session.state!;
+      const player = state.players[0] as unknown as {
+        hand: { cardIds: string[] };
+        mainDeck: { cardIds: string[] };
+        memberSlots: {
+          slots: Record<SlotPosition, string | null>;
+          cardStates: Map<string, { orientation: OrientationState }>;
+        };
+      };
+      const memberIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+        (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+      );
+      const incomingId = memberIds[0]!;
+      const replacedId = memberIds[1]!;
+      (state.cardRegistry.get(incomingId) as unknown as { data: MemberCardData }).data =
+        createMemberCard('TEST-INCOMING-FIVE', 'Incoming', 5);
+      (state.cardRegistry.get(replacedId) as unknown as { data: MemberCardData }).data =
+        createMemberCard('PL!HS-bp5-005-P', '徒町小鈴', 4, { unitName: 'DOLLCHESTRA' });
+      player.hand.cardIds = [incomingId];
+      player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+        (cardId) => cardId !== incomingId && cardId !== replacedId
+      );
+      player.memberSlots.slots[SlotPosition.CENTER] = replacedId;
+      player.memberSlots.cardStates = new Map([
+        [replacedId, { orientation: OrientationState.ACTIVE }],
+      ]);
+      const energyIds = state.players[0].energyZone.cardIds;
+      (session as unknown as { authorityState: GameState }).authorityState = {
+        ...state,
+        liveResolution: {
+          ...state.liveResolution,
+          liveModifiers: [
+            {
+              kind: 'MEMBER_COST_SET',
+              playerId: PLAYER1,
+              memberCardId: replacedId,
+              sourceCardId: replacedId,
+              abilityId: 'test:negative-cost-set',
+              setTo: -1,
+            },
+          ],
+        },
+      };
+      const playCommand = createPlayMemberToSlotCommand(PLAYER1, incomingId, SlotPosition.CENTER, {
+        relayMode: 'SINGLE',
+      });
+      // Normal play automatically pays; the same prepared structure also backs cost-confirmation windows.
+      const prepared = (
+        session as unknown as {
+          preparePlayMemberCostPayment(
+            game: GameState,
+            command: PlayMemberToSlotCommand
+          ): {
+            success: boolean;
+            pendingCostPayment?: GameState['pendingCostPayment'];
+          };
+        }
+      ).preparePlayMemberCostPayment(session.state!, playCommand);
+      expect(prepared.success).toBe(true);
+      const payment = prepared.pendingCostPayment!;
+      expect(payment).toMatchObject({
+        finalEnergyCost: 6,
+        relayDiscount: -1,
+        relayReplacements: [{ cardId: replacedId, slot: SlotPosition.CENTER, effectiveCost: -1 }],
+      });
+      expect(payment.explanation).toContain('换手成员费用 -1，应付增加 1');
+      expect(payment.explanation).toContain('支付 6');
+      expect(payment.explanation).not.toContain('换手减免 -1');
+      if (commandPath === 'CONFIRM_COST') {
+        (session as unknown as { authorityState: GameState }).authorityState = {
+          ...session.state!,
+          pendingCostPayment: payment,
+        };
+      }
+      const paid = session.executeCommand(
+        commandPath === 'PLAY'
+          ? playCommand
+          : createConfirmCostPaymentCommand(PLAYER1, payment.id, energyIds.slice(0, 6))
+      );
+      expect(paid.success, paid.error).toBe(true);
+      expect(session.state?.pendingCostPayment).toBeNull();
+      expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(incomingId);
+      expect(session.state?.players[0].waitingRoom.cardIds).toContain(replacedId);
+      expect(
+        session.state?.players[0].energyZone.cardIds.filter(
+          (id) =>
+            session.state?.players[0].energyZone.cardStates.get(id)?.orientation ===
+            OrientationState.WAITING
+        )
+      ).toHaveLength(6);
+      expect(
+        session.state?.actionHistory.find(
+          (action) => action.type === 'PAY_COST' && action.payload.sourceCardId === incomingId
+        )?.payload
+      ).toMatchObject({ amount: 6, relayDiscount: -1 });
+    }
+  );
+
   it('automatically taps energy and plays member when paying entry cost', () => {
     const session = createGameSession();
     const deck = createDeck();

@@ -18,7 +18,7 @@ import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/action
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import type { EnqueueTriggeredCardEffectsForEnergyReturn } from '../../runtime/energy-return.js';
 import { resolveEnergyReturnByCardEffect } from '../../runtime/energy-return.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import {
   paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers,
   type EnqueueTriggeredCardEffectsForLeaveStage,
@@ -82,7 +82,7 @@ function startMargareteActivated(
     sourceCard.ownerId !== player.id ||
     !isMemberCardData(sourceCard.data) ||
     sourceSlot === null ||
-    !isDirectOrRenGrantedActivatedAbilitySource(
+    !isDirectOrGrantedActivatedAbilitySource(
       game,
       player.id,
       sourceCardId,

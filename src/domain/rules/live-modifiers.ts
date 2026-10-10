@@ -38,7 +38,10 @@ import { countMemberCardsBelowSourceMember } from './member-below-queries.js';
 import { getMemberEffectiveCost } from './member-effective-cost.js';
 import { applyHeartRequirementModifiers } from './live-requirement-modifiers.js';
 import { hasLiveWithoutLiveStartOrSuccessAbility } from './live-zone-ability.js';
-import { sumSuccessfulLiveScore, successLiveScoreAtLeast } from './success-live-score.js';
+import {
+  sumSuccessfulLiveScoreForCardEffect,
+  successLiveScoreForCardEffectAtLeast,
+} from './success-live-score.js';
 import {
   countSuccessZoneCardsForCardEffect,
   getOwnedSuccessfulGroupScoreCardIds,
@@ -80,6 +83,7 @@ export interface LiveModifierMatch {
   readonly sourceCardId?: string;
   readonly targetMemberCardId?: string;
   readonly abilityId?: string;
+  readonly abilityInstanceId?: string;
 }
 
 interface ContinuousLiveModifierContext {
@@ -290,6 +294,8 @@ const SP_BP7_013_CONTINUOUS_THREE_KALEIDOSCORE_GAIN_PURPLE_HEART_BLADE_ABILITY_I
   'PL!SP-bp7-013-N:continuous-three-kaleidoscore-gain-purple-heart-blade';
 const S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID =
   'PL!S-bp7-005-SEC:continuous-aqours-host-with-member-below-gain-blade';
+const N_BP8_022_CONTINUOUS_OTHER_NIJIGASAKI_GAIN_BLADE_ABILITY_ID =
+  'PL!N-bp8-022:continuous-other-nijigasaki-gain-blade';
 const N_BP7_007_CONTINUOUS_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID =
   'PL!N-bp7-007-SEC:continuous-energy-below-gain-red-heart';
 const N_BP7_007_CONTINUOUS_ENERGY_ABOVE_SIX_GAIN_RED_HEART_ABILITY_ID =
@@ -812,7 +818,9 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!-pb2-030'],
     collect: ({ game, playerId, sourceCardId }) => {
-      const countDelta = Math.floor(sumSuccessfulLiveScore(game, playerId) / 5);
+      const countDelta = Math.floor(
+        sumSuccessfulLiveScoreForCardEffect(game, playerId, sourceCardId, [playerId]) / 5
+      );
       if (countDelta <= 0) {
         return [];
       }
@@ -820,6 +828,26 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         playerId,
         sourceCardId,
         abilityId: PL_PB2_030_CONTINUOUS_SUCCESS_SCORE_PER_FIVE_GAIN_BLADE_ABILITY_ID,
+        countDelta,
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
+  {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    baseCardCodes: ['PL!N-bp8-022'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      const countDelta = countOtherStageMembersBelongingToGroup(
+        game,
+        playerId,
+        sourceCardId,
+        '虹ヶ咲'
+      );
+      if (countDelta <= 0) return [];
+      const modifier = createBladeLiveModifierForSourceMember(game, {
+        playerId,
+        sourceCardId,
+        abilityId: N_BP8_022_CONTINUOUS_OTHER_NIJIGASAKI_GAIN_BLADE_ABILITY_ID,
         countDelta,
       });
       return modifier ? [modifier] : [];
@@ -885,7 +913,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!-bp4-018'],
     collect: ({ game, playerId, sourceCardId }) =>
-      hasSuccessfulLiveScoreLead(game, playerId)
+      hasSuccessfulLiveScoreLead(game, playerId, sourceCardId)
         ? [
             {
               kind: 'BLADE',
@@ -921,7 +949,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!N-bp4-012'],
     collect: ({ game, playerId, sourceCardId }) =>
-      opponentSuccessLiveScoreAtLeast(game, playerId, 6)
+      opponentSuccessLiveScoreAtLeast(game, playerId, sourceCardId, 6)
         ? [
             {
               kind: 'SCORE',
@@ -1777,9 +1805,12 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     baseCardCodes: ['PL!-PR-024', 'PL!N-PR-034'],
     collect: ({ game, playerId, sourceCardId }) => {
       const opponent = getOpponent(game, playerId);
-      const totalSuccessfulLiveScore =
-        sumSuccessfulLiveScore(game, playerId) +
-        (opponent ? sumSuccessfulLiveScore(game, opponent.id) : 0);
+      const totalSuccessfulLiveScore = sumSuccessfulLiveScoreForCardEffect(
+        game,
+        playerId,
+        sourceCardId,
+        opponent ? [playerId, opponent.id] : [playerId]
+      );
       if (totalSuccessfulLiveScore < 10) {
         return [];
       }
@@ -2332,22 +2363,32 @@ function collectLoveWingBellCenterMuseBladeModifier(
   ];
 }
 
-function hasSuccessfulLiveScoreLead(game: GameState, playerId: string): boolean {
+function hasSuccessfulLiveScoreLead(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): boolean {
   const opponent = game.players.find((candidate) => candidate.id !== playerId);
   if (!opponent) {
     return false;
   }
-  return sumSuccessfulLiveScore(game, playerId) > sumSuccessfulLiveScore(game, opponent.id);
+  return (
+    sumSuccessfulLiveScoreForCardEffect(game, playerId, sourceCardId, [playerId]) >
+    sumSuccessfulLiveScoreForCardEffect(game, playerId, sourceCardId, [opponent.id])
+  );
 }
 
 function opponentSuccessLiveScoreAtLeast(
   game: GameState,
   playerId: string,
+  sourceCardId: string,
   threshold: number
 ): boolean {
   const player = getPlayerById(game, playerId);
   const opponent = player ? getOpponent(game, player.id) : null;
-  return opponent ? successLiveScoreAtLeast(game, opponent.id, threshold) : false;
+  return opponent
+    ? successLiveScoreForCardEffectAtLeast(game, playerId, sourceCardId, [opponent.id], threshold)
+    : false;
 }
 
 function getTotalEnergyZoneCount(game: GameState, playerId: string): number {
@@ -2475,7 +2516,15 @@ function createSuccessScoreThresholdHeartContinuousDefinitions(
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: [definition.baseCardCode],
     collect: ({ game, playerId, sourceCardId }) => {
-      if (!successLiveScoreAtLeast(game, playerId, definition.minScore)) {
+      if (
+        !successLiveScoreForCardEffectAtLeast(
+          game,
+          playerId,
+          sourceCardId,
+          [playerId],
+          definition.minScore
+        )
+      ) {
         return [];
       }
       const modifier = createHeartLiveModifierForSourceMember(game, {
@@ -3434,6 +3483,7 @@ export interface PlayerScoreLiveModifierForTargetMemberOptions {
   readonly targetMemberCardId: string;
   readonly sourceCardId: string;
   readonly abilityId: string;
+  readonly abilityInstanceId?: string;
   readonly countDelta: number;
 }
 
@@ -3468,6 +3518,7 @@ export function addPlayerScoreLiveModifierForTargetMember(
     sourceCardId: options.sourceCardId,
     targetMemberCardId: options.targetMemberCardId,
     abilityId: options.abilityId,
+    ...(options.abilityInstanceId ? { abilityInstanceId: options.abilityInstanceId } : {}),
   };
   return { gameState: addLiveModifier(game, modifier), modifier };
 }
@@ -3489,7 +3540,7 @@ export function removeTargetMemberBoundLiveModifiers(
   );
   return liveModifiers.length === game.liveResolution.liveModifiers.length
     ? game
-    : setLiveModifiers(game, liveModifiers);
+    : setMemberBoundLiveModifiersAfterRemoval(game, liveModifiers);
 }
 
 /** Remove temporary modifiers bound to a concrete member instance that left the stage. */
@@ -3514,7 +3565,42 @@ export function removeStageMemberBoundLiveModifiers(
   });
   return liveModifiers.length === game.liveResolution.liveModifiers.length
     ? game
-    : setLiveModifiers(game, liveModifiers);
+    : setMemberBoundLiveModifiersAfterRemoval(game, liveModifiers);
+}
+
+/** Keep a judged score draft in sync by delta, preserving any manual adjustment. */
+function setMemberBoundLiveModifiersAfterRemoval(
+  game: GameState,
+  liveModifiers: readonly LiveModifierState[]
+): GameState {
+  const state = setLiveModifiers(game, liveModifiers);
+  if (!game.liveResolution.isInLive) return state;
+  const retained = new Set(liveModifiers);
+  const removedScoreByPlayer = new Map<string, number>();
+  for (const modifier of game.liveResolution.liveModifiers) {
+    if (modifier.kind !== 'SCORE' || retained.has(modifier)) continue;
+    removedScoreByPlayer.set(
+      modifier.playerId,
+      (removedScoreByPlayer.get(modifier.playerId) ?? 0) + modifier.countDelta
+    );
+  }
+  if (removedScoreByPlayer.size === 0) return state;
+  const playerScores = new Map(game.liveResolution.playerScores);
+  let changed = false;
+  for (const [playerId, removedBonus] of removedScoreByPlayer) {
+    const score = playerScores.get(playerId);
+    const player = getPlayerById(game, playerId);
+    // A pre-judgment draft or failed LIVE never included this SCORE bonus.
+    const hasJudgedSuccessfulLive =
+      player &&
+      [...player.liveZone.cardIds, ...player.successZone.cardIds].some(
+        (cardId) => game.liveResolution.liveResults.get(cardId) === true
+      );
+    if (score === undefined || !hasJudgedSuccessfulLive || removedBonus === 0) continue;
+    playerScores.set(playerId, Math.max(0, score - removedBonus));
+    changed = true;
+  }
+  return changed ? { ...state, liveResolution: { ...state.liveResolution, playerScores } } : state;
 }
 
 export function suppressLiveAbility(
@@ -3820,7 +3906,7 @@ export function addMemberCostSetLiveModifierForMember(
   game: GameState,
   options: MemberCostSetLiveModifierForMemberOptions
 ): AddMemberCostSetLiveModifierForMemberResult | null {
-  if (!Number.isInteger(options.setTo) || options.setTo < 0) {
+  if (!Number.isInteger(options.setTo)) {
     return null;
   }
 
@@ -3965,6 +4051,10 @@ function matchesLiveModifier(modifier: LiveModifierState, match: LiveModifierMat
   }
 
   if (match.abilityId !== undefined && modifier.abilityId !== match.abilityId) {
+    return false;
+  }
+  if (match.abilityInstanceId !== undefined &&
+    (!('abilityInstanceId' in modifier) || modifier.abilityInstanceId !== match.abilityInstanceId)) {
     return false;
   }
 

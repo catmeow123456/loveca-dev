@@ -6,7 +6,7 @@ import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID } from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import {
   getAbilityEffectText,
   recordAbilityUseForContext,
@@ -57,7 +57,7 @@ function resolveActivatedPayEnergyDraw(
     sourceCard.ownerId !== playerId ||
     !isMemberCardData(sourceCard.data) ||
     findMemberSlot(player, cardId) === null ||
-    !isDirectOrRenGrantedActivatedAbilitySource(
+    !isDirectOrGrantedActivatedAbilitySource(
       game,
       playerId,
       cardId,

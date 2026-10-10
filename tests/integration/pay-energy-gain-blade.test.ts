@@ -624,7 +624,7 @@ describe('pay energy gain Blade workflow', () => {
     expect(rejected.actionHistory.some((action) => action.type === 'PAY_COST')).toBe(false);
   });
 
-  it('PL!N-bp1-001 does not pay or add a modifier when the source leaves before confirmation', () => {
+  it('PL!N-bp1-001 still pays a legal energy cost but adds no source modifier when the source leaves before confirmation', () => {
     const scenario = setupBp1001({ energyOrientations: [OrientationState.ACTIVE] });
     let state = openBp1001(scenario.game);
     state = updatePlayer(state, PLAYER1, (player) => ({
@@ -638,7 +638,7 @@ describe('pay energy gain Blade workflow', () => {
     expect(state.activeEffect).toBeNull();
     expect(state.pendingAbilities).toEqual([]);
     expect(state.players[0].energyZone.cardStates.get(scenario.energyIds[0])?.orientation).toBe(
-      OrientationState.ACTIVE
+      OrientationState.WAITING
     );
     expect(state.liveResolution.liveModifiers).toEqual([]);
   });

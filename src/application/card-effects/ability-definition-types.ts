@@ -115,6 +115,7 @@ export interface CardAbilityDefinition {
   readonly triggerFromZones?: readonly ZoneType[];
   readonly triggerToZones?: readonly ZoneType[];
   readonly enterWaitingRoomCause?: 'OWN_LIVE_SUCCESS_ABILITY';
+  readonly waitingRoomToMainDeckCause?: 'REFRESH';
   readonly playedMemberOnEnterTriggerFilter?: PlayedMemberOnEnterTriggerFilter;
   readonly onEnterStageTriggerFilter?: OnEnterStageTriggerFilter;
   readonly memberStateChangedTriggerFilter?: MemberStateChangedTriggerFilter;

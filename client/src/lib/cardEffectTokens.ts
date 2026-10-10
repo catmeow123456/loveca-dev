@@ -38,6 +38,7 @@ const TOKEN_DEFINITIONS = new Map<string, Omit<CardEffectPlaceholderPart, 'raw'>
   ['【自动】', { kind: 'ability', label: '自动' }],
   ['【ターン1回】', { kind: 'limit', label: 'ターン1回' }],
   ['【1回合1次】', { kind: 'limit', label: '1回合1次' }],
+  ['【１回合１次】', { kind: 'limit', label: '１回合１次' }],
   ['【1回合1 次】', { kind: 'limit', label: '1回合1次' }],
   ['【每回合1次】', { kind: 'limit', label: '每回合1次' }],
   ['【ターン2回】', { kind: 'limit', label: 'ターン2回' }],

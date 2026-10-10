@@ -230,7 +230,7 @@ describe('无豆虹 curated deck integration', () => {
   );
 
   it.each([false, true])(
-    'Just Believe exposes optional discard then exact distinct targets in the existing workflow (skip=%s)',
+    'Just Believe exposes optional discard then up-to distinct targets in the existing workflow (skip=%s)',
     (skip) => {
       const f = setup();
       const targets = [
@@ -258,12 +258,12 @@ describe('无豆虹 curated deck integration', () => {
         return;
       }
       const target = decision(f.session);
-      expect(target.input.space).toMatchObject({ kind: 'CARDS', min: 2, max: 2, canSkip: false });
+      expect(target.input.space).toMatchObject({ kind: 'CARDS', min: 0, max: 2, canSkip: true });
       expect(target.input.space.candidates.map((candidate) => candidate.objectId).sort()).toEqual(
         targets.map(createPublicObjectId).sort()
       );
       const ref = target.input.space.candidates[0]!.ref;
-      for (const refs of [[], [ref], [ref, ref]])
+      for (const refs of [[ref, ref]])
         expect(() =>
           parseAiBattleResponse(
             target,

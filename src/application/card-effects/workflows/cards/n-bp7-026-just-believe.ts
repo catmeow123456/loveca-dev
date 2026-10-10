@@ -103,16 +103,14 @@ function startLiveStart(
   const player = getPlayerById(game, ability.controllerId);
   const sourceValid = isValidSourceLive(game, ability.controllerId, ability.sourceCardId);
   const targetCardIds = getCurrentTargetCardIds(game, ability.controllerId);
-  const maxDiscardCount = player
-    ? Math.min(MAX_DISCARD_COUNT, player.hand.cardIds.length, targetCardIds.length)
-    : 0;
+  const maxDiscardCount = player ? Math.min(MAX_DISCARD_COUNT, player.hand.cardIds.length) : 0;
   if (!player || !sourceValid || maxDiscardCount === 0) {
     return consumePendingNoOp(
       game,
       ability,
       orderedResolution,
       continuePendingCardEffects,
-      sourceValid ? 'NO_PAYABLE_DISCARD_AND_TARGET_PAIR' : 'SOURCE_INVALID_AT_START',
+      sourceValid ? 'NO_PAYABLE_DISCARD' : 'SOURCE_INVALID_AT_START',
       {
         handCount: player?.hand.cardIds.length ?? 0,
         targetCardIds,
@@ -139,8 +137,8 @@ function startLiveStart(
       stepId: SELECT_DISCARD_STEP_ID,
       stepText:
         maxDiscardCount === 1
-          ? '可以将至多1张手牌放置入休息室；如此做时，选择相同数量的自己舞台上的『虹咲』成员获得[ブレード]。'
-          : '可以将至多2张手牌放置入休息室；如此做时，选择相同数量的自己舞台上的『虹咲』成员获得[ブレード]。',
+          ? '可以将至多1张手牌放置入休息室；如此做时，选择至多相同数量的自己舞台上的『虹咲』成员获得[ブレード]。'
+          : '可以将至多2张手牌放置入休息室；如此做时，选择至多相同数量的自己舞台上的『虹咲』成员获得[ブレード]。',
       awaitingPlayerId: player.id,
       selectableCardIds: player.hand.cardIds,
       selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
@@ -196,12 +194,10 @@ function finishDiscardSelection(
 
   const maxDiscardCount = getInteger(effect.metadata?.maxDiscardCount);
   const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
-  const targetCardIds = getCurrentTargetCardIds(game, player.id);
   if (
     selectedCardIds.length !== uniqueSelectedCardIds.length ||
     selectedCardIds.length < 1 ||
     selectedCardIds.length > maxDiscardCount ||
-    selectedCardIds.length > targetCardIds.length ||
     uniqueSelectedCardIds.some(
       (cardId) =>
         effect.selectableCardIds?.includes(cardId) !== true || !player.hand.cardIds.includes(cardId)
@@ -231,25 +227,12 @@ function finishDiscardSelection(
     discardedHandCardIds: discardResult.discardedCardIds,
   });
   const currentTargetCardIds = getCurrentTargetCardIds(paidState, player.id);
-  const requiredTargetCount = discardResult.discardedCardIds.length;
-  if (currentTargetCardIds.length < requiredTargetCount) {
-    return consumeActiveEffectNoOp(
-      paidState,
-      effect,
-      continuePendingCardEffects,
-      'INSUFFICIENT_TARGETS_AFTER_DISCARD',
-      {
-        discardedHandCardIds: discardResult.discardedCardIds,
-        requiredTargetCount,
-        targetCardIds: currentTargetCardIds,
-      }
-    );
-  }
-  if (currentTargetCardIds.length === requiredTargetCount) {
+  const maxTargetCount = discardResult.discardedCardIds.length;
+  if (currentTargetCardIds.length === 0) {
     return resolveBladeTargets(
       paidState,
       effect,
-      currentTargetCardIds,
+      [],
       discardResult.discardedCardIds,
       continuePendingCardEffects
     );
@@ -260,21 +243,21 @@ function finishDiscardSelection(
     activeEffect: {
       ...effect,
       stepId: SELECT_TARGETS_STEP_ID,
-      stepText: `请选择${requiredTargetCount}名自己舞台上的『虹咲』成员获得[ブレード]。`,
+      stepText: `请选择至多${maxTargetCount}名自己舞台上的『虹咲』成员获得[ブレード]。`,
       selectableCardIds: currentTargetCardIds,
       selectableCardVisibility: 'PUBLIC',
-      selectableCardMode: requiredTargetCount > 1 ? 'ORDERED_MULTI' : 'SINGLE',
-      minSelectableCards: requiredTargetCount,
-      maxSelectableCards: requiredTargetCount,
+      selectableCardMode: 'ORDERED_MULTI',
+      minSelectableCards: 0,
+      maxSelectableCards: Math.min(maxTargetCount, currentTargetCardIds.length),
       selectionLabel: '选择获得[ブレード]的成员',
       confirmSelectionLabel: '获得[ブレード]',
-      canSkipSelection: false,
-      skipSelectionLabel: undefined,
+      canSkipSelection: true,
+      skipSelectionLabel: '不选择',
       metadata: {
         orderedResolution: effect.metadata?.orderedResolution === true,
         discardedHandCardIds: discardResult.discardedCardIds,
         targetCardIds: currentTargetCardIds,
-        requiredTargetCount,
+        maxTargetCount,
       },
     },
   };
@@ -298,21 +281,13 @@ function finishTargetSelection(
     );
   }
 
-  const requiredTargetCount = getInteger(effect.metadata?.requiredTargetCount);
+  const maxTargetCount = getInteger(effect.metadata?.maxTargetCount);
   const currentTargetCardIds = getCurrentTargetCardIds(game, player.id);
-  if (currentTargetCardIds.length < requiredTargetCount) {
-    return consumeActiveEffectNoOp(
-      game,
-      effect,
-      continuePendingCardEffects,
-      'INSUFFICIENT_TARGETS_BEFORE_TARGET_RESOLUTION'
-    );
-  }
   const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
   if (
-    requiredTargetCount <= 0 ||
+    maxTargetCount <= 0 ||
     selectedCardIds.length !== uniqueSelectedCardIds.length ||
-    selectedCardIds.length !== requiredTargetCount ||
+    selectedCardIds.length > maxTargetCount ||
     uniqueSelectedCardIds.some(
       (cardId) =>
         effect.selectableCardIds?.includes(cardId) !== true ||
@@ -348,7 +323,6 @@ function resolveBladeTargets(
   }
   const currentTargetCardIdSet = new Set(getCurrentTargetCardIds(game, effect.controllerId));
   if (
-    targetCardIds.length === 0 ||
     new Set(targetCardIds).size !== targetCardIds.length ||
     targetCardIds.some((cardId) => !currentTargetCardIdSet.has(cardId))
   ) {

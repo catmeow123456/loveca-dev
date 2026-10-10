@@ -26,7 +26,11 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import {
+  addCardToStatefulZone,
+  placeCardInSlot,
+  removeCardFromSlot,
+} from '../../src/domain/entities/zone';
 import {
   BladeHeartEffect,
   CardType,
@@ -203,62 +207,67 @@ function resolveSuccessPending(
 }
 
 describe('PL!N-bp7-026-SECL 分数5「Just Believe!!!」', () => {
-  it('clamps discard count to payable target count, rejects invalid input, and resolves one target', () => {
+  it('allows discard two with only one target, rejects illegal costs, and does not auto-select that target', () => {
     const scenario = setupLiveStart({
       handCount: 2,
       targetCount: 1,
       includeNonNijigasakiTarget: true,
     });
     expect(scenario.game.activeEffect).toMatchObject({
-      maxSelectableCards: 1,
+      maxSelectableCards: 2,
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
-      selectionLabel: '选择要放置入休息室的卡',
       confirmSelectionLabel: '放置入休息室',
     });
-
-    const invalid = submitCards(
+    const invalid = submitCards(scenario.game, [
+      scenario.handCards[0]!.instanceId,
+      scenario.handCards[0]!.instanceId,
+    ]);
+    expect(invalid).toBe(scenario.game);
+    const selecting = submitCards(
       scenario.game,
       scenario.handCards.map((card) => card.instanceId)
     );
-    expect(invalid.activeEffect?.stepId).toBe('N_BP7_026_SELECT_UP_TO_TWO_HAND_CARDS');
-    expect(invalid.players[0].hand.cardIds).toHaveLength(2);
-
-    const resolved = submitCards(scenario.game, [scenario.handCards[0]!.instanceId]);
+    expect(selecting.activeEffect).toMatchObject({
+      minSelectableCards: 0,
+      maxSelectableCards: 1,
+      canSkipSelection: true,
+    });
+    expect(selecting.players[0].hand.cardIds).toEqual([]);
+    expect(selecting.liveResolution.liveModifiers).toEqual([]);
+    const resolved = submitCards(selecting, [scenario.targets[0]!.instanceId]);
     expect(resolved.activeEffect).toBeNull();
-    expect(resolved.players[0].waitingRoom.cardIds).toContain(scenario.handCards[0]!.instanceId);
+    expect(resolved.players[0].waitingRoom.cardIds).toEqual(
+      scenario.handCards.map((card) => card.instanceId)
+    );
     expect(
-      resolved.eventLog.some(
+      resolved.eventLog.filter(
         ({ event }) =>
           event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
           'fromZone' in event &&
-          event.fromZone === ZoneType.HAND &&
-          'cardInstanceIds' in event &&
-          event.cardInstanceIds?.includes(scenario.handCards[0]!.instanceId)
+          event.fromZone === ZoneType.HAND
       )
-    ).toBe(true);
+    ).toHaveLength(1);
     expect(resolved.liveResolution.liveModifiers).toContainEqual(
       expect.objectContaining({
         kind: 'BLADE',
         target: 'TARGET_MEMBER',
-        playerId: P1,
         sourceCardId: scenario.source.instanceId,
         targetMemberCardId: scenario.targets[0]!.instanceId,
-        abilityId: LIVE_START_ABILITY_ID,
         countDelta: 1,
       })
     );
   });
 
-  it('discards two, then requires two distinct current Nijigasaki targets and preserves source/target identity', () => {
+  it('discards two, then allows up to two distinct current Nijigasaki targets and preserves source/target identity', () => {
     const scenario = setupLiveStart({ handCount: 3, targetCount: 3 });
     const selectedHandIds = scenario.handCards.slice(0, 2).map((card) => card.instanceId);
     const selectingTargets = submitCards(scenario.game, selectedHandIds);
     expect(selectingTargets.activeEffect).toMatchObject({
       stepId: 'N_BP7_026_SELECT_NIJIGASAKI_BLADE_TARGETS',
-      minSelectableCards: 2,
+      minSelectableCards: 0,
       maxSelectableCards: 2,
-      canSkipSelection: false,
+      canSkipSelection: true,
       selectionLabel: '选择获得[ブレード]的成员',
       confirmSelectionLabel: '获得[ブレード]',
     });
@@ -296,7 +305,7 @@ describe('PL!N-bp7-026-SECL 分数5「Just Believe!!!」', () => {
     ).toBe(false);
   });
 
-  it('supports declining and consumes no-op when there is no discard-target pair', () => {
+  it('supports declining, consumes no-op without hand, and allows paying without targets', () => {
     const declineScenario = setupLiveStart({ handCount: 2, targetCount: 2 });
     const declined = submitCards(declineScenario.game, []);
     expect(declined.activeEffect).toBeNull();
@@ -307,8 +316,126 @@ describe('PL!N-bp7-026-SECL 分数5「Just Believe!!!」', () => {
     expect(noHand.game.activeEffect).toBeNull();
     expect(noHand.game.pendingAbilities).toEqual([]);
     const noTarget = setupLiveStart({ handCount: 2, targetCount: 0 });
-    expect(noTarget.game.activeEffect).toBeNull();
-    expect(noTarget.game.pendingAbilities).toEqual([]);
+    expect(noTarget.game.activeEffect?.maxSelectableCards).toBe(2);
+    const paid = submitCards(
+      noTarget.game,
+      noTarget.handCards.map((card) => card.instanceId)
+    );
+    expect(paid.activeEffect).toBeNull();
+    expect(paid.players[0].hand.cardIds).toEqual([]);
+    expect(paid.players[0].waitingRoom.cardIds).toEqual(
+      noTarget.handCards.map((card) => card.instanceId)
+    );
+    expect(paid.liveResolution.liveModifiers).toEqual([]);
+    expect(paid.pendingAbilities).toEqual([]);
+  });
+
+  it.each([0, 1, 2])('discards two and grants exactly %s chosen targets', (targetCount) => {
+    const scenario = setupLiveStart({ handCount: 2, targetCount: 2 });
+    const paid = submitCards(
+      scenario.game,
+      scenario.handCards.map((card) => card.instanceId)
+    );
+    expect(paid.activeEffect?.stepId).toBe('N_BP7_026_SELECT_NIJIGASAKI_BLADE_TARGETS');
+    const resolved = submitCards(
+      paid,
+      scenario.targets.slice(0, targetCount).map((card) => card.instanceId)
+    );
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.players[0].hand.cardIds).toEqual([]);
+    expect(
+      resolved.liveResolution.liveModifiers.filter((modifier) => modifier.kind === 'BLADE')
+    ).toHaveLength(targetCount);
+    expect(resolved.actionHistory.filter((action) => action.type === 'PAY_COST')).toHaveLength(1);
+  });
+
+  it('keeps paid cards when target count falls, rejects stale input, and allows remaining or zero targets', () => {
+    const scenario = setupLiveStart({ handCount: 2, targetCount: 2 });
+    const paid = submitCards(
+      scenario.game,
+      scenario.handCards.map((card) => card.instanceId)
+    );
+    const stale = updatePlayer(paid, P1, (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.LEFT),
+    }));
+    expect(
+      submitCards(
+        stale,
+        scenario.targets.map((card) => card.instanceId)
+      )
+    ).toBe(stale);
+    const resolved = submitCards(stale, [scenario.targets[1]!.instanceId]);
+    expect(resolved.players[0].hand.cardIds).toEqual([]);
+    expect(resolved.liveResolution.liveModifiers).toHaveLength(1);
+    expect(submitCards(stale, []).activeEffect).toBeNull();
+  });
+
+  it('rejects stale hand costs and non-Nijigasaki targets', () => {
+    const scenario = setupLiveStart({
+      handCount: 2,
+      targetCount: 1,
+      includeNonNijigasakiTarget: true,
+    });
+    const stale = updatePlayer(scenario.game, P1, (player) => ({
+      ...player,
+      hand: { ...player.hand, cardIds: [scenario.handCards[1]!.instanceId] },
+    }));
+    expect(submitCards(stale, [scenario.handCards[0]!.instanceId])).toBe(stale);
+    const paid = submitCards(scenario.game, [scenario.handCards[0]!.instanceId]);
+    expect(submitCards(paid, [scenario.nonNijigasaki.instanceId])).toBe(paid);
+    expect(paid.players[0].waitingRoom.cardIds).toContain(scenario.handCards[0]!.instanceId);
+  });
+
+  it('retains payment when the source is lost before the target resolution', () => {
+    const scenario = setupLiveStart({ handCount: 2, targetCount: 2 });
+    const paid = submitCards(
+      scenario.game,
+      scenario.handCards.map((card) => card.instanceId)
+    );
+    const removed = updatePlayer(paid, P1, (player) => ({
+      ...player,
+      liveZone: { ...player.liveZone, cardIds: [] },
+    }));
+    const finished = submitCards(removed, [scenario.targets[0]!.instanceId]);
+    expect(finished.activeEffect).toBeNull();
+    expect(finished.players[0].hand.cardIds).toEqual([]);
+    expect(finished.liveResolution.liveModifiers).toEqual([]);
+    expect(
+      finished.actionHistory.find((action) => action.type === 'PAY_COST')?.payload
+        .discardedHandCardIds
+    ).toEqual(scenario.handCards.map((card) => card.instanceId));
+  });
+
+  it('queues discard triggers until this effect finishes, then continues to the next pending ability', () => {
+    const scenario = setupLiveStart({ handCount: 2, targetCount: 2 });
+    registerNBp7026JustBelieveWorkflowHandlers({
+      enqueueTriggeredCardEffects: (game, conditions, options) => ({
+        ...enqueueTriggeredCardEffects(game, conditions, options),
+        pendingAbilities: [
+          pending(LIVE_SUCCESS_ABILITY_ID, scenario.source.instanceId, 'follow-up'),
+        ],
+      }),
+    });
+    try {
+      const paid = submitCards(
+        scenario.game,
+        scenario.handCards.map((card) => card.instanceId)
+      );
+      expect(paid.pendingAbilities.map((ability) => ability.id)).toEqual(['follow-up']);
+      expect(paid.activeEffect?.abilityId).toBe(LIVE_START_ABILITY_ID);
+      expect(
+        paid.actionHistory.filter((action) => action.payload.pendingAbilityId === 'follow-up')
+      ).toEqual([]);
+      const completed = submitCards(paid, []);
+      expect(completed.activeEffect?.abilityId).toBe(LIVE_SUCCESS_ABILITY_ID);
+      expect(
+        completed.actionHistory.find((action) => action.type === 'PAY_COST')?.payload
+          .discardedHandCardIds
+      ).toEqual(scenario.handCards.map((card) => card.instanceId));
+    } finally {
+      registerNBp7026JustBelieveWorkflowHandlers({ enqueueTriggeredCardEffects });
+    }
   });
 
   it('counts event-inclusive MEMBER cards with no Blade Heart and keeps SCORE replacement idempotent', () => {

@@ -19,7 +19,7 @@ import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -52,7 +52,7 @@ interface ActivatedDiscardRecoverGroupLiveConfig {
   readonly startActionStep: string;
   readonly selectRecoveryActionStep: string;
   readonly noTargetActionStep: string;
-  readonly allowsRenGrantedSource?: boolean;
+  readonly allowsGrantedSource?: boolean;
 }
 
 const CONFIGS: readonly ActivatedDiscardRecoverGroupLiveConfig[] = [
@@ -93,7 +93,7 @@ const CONFIGS: readonly ActivatedDiscardRecoverGroupLiveConfig[] = [
     startActionStep: 'START_PAY_ENERGY_SELECT_DISCARD',
     selectRecoveryActionStep: 'SELECT_WAITING_ROOM_LIELLA_LIVE',
     noTargetActionStep: 'NO_LIELLA_LIVE_TARGET_AFTER_COST',
-    allowsRenGrantedSource: true,
+    allowsGrantedSource: true,
   },
   {
     abilityId: N_SD1_009_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
@@ -331,8 +331,8 @@ function sourceIsValid(
 ): boolean {
   const sourceCard = getCardById(game, sourceCardId);
   const sourceHasAbility =
-    config.allowsRenGrantedSource === true
-      ? isDirectOrRenGrantedActivatedAbilitySource(game, playerId, sourceCardId, config.abilityId, [
+    config.allowsGrantedSource === true
+      ? isDirectOrGrantedActivatedAbilitySource(game, playerId, sourceCardId, config.abilityId, [
           config.baseCardCode,
         ])
       : cardCodeMatchesBase(sourceCard?.data.cardCode ?? '', config.baseCardCode);

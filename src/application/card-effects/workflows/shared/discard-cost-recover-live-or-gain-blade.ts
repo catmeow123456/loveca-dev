@@ -34,6 +34,7 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import { isCurrentStageMemberAbilitySource } from '../../runtime/source-member.js';
 import { finishWaitingRoomToHandWorkflow } from './waiting-room-to-hand.js';
 
 export const N_SD1_004_SELECT_DISCARD_STEP_ID = 'N_SD1_004_SELECT_DISCARD_FOR_BLADE';
@@ -209,19 +210,6 @@ function startLiveStartDiscardGainBlade(
   if (!player) {
     return game;
   }
-  if (!isOwnStageMember(game, player.id, ability.sourceCardId)) {
-    return finishPendingAbility(
-      game,
-      ability,
-      player.id,
-      orderedResolution,
-      {
-        step: 'NO_OP_DISCARD_GAIN_BLADE',
-        reason: 'SOURCE_NOT_ON_STAGE',
-      },
-      continuePendingCardEffects
-    );
-  }
   if (player.hand.cardIds.length === 0) {
     return finishPendingAbility(
       game,
@@ -289,19 +277,18 @@ function finishDiscardGainBlade(
     return game;
   }
 
-  const bladeResult = addBladeLiveModifierForSourceMember(discardResult.gameState, {
-    playerId: player.id,
-    sourceCardId: effect.sourceCardId,
-    abilityId: effect.abilityId,
-    amount: config.bladeAmount,
-  });
-  if (!bladeResult) {
-    return game;
-  }
+  const bladeResult = isCurrentStageMemberAbilitySource(game, effect)
+    ? addBladeLiveModifierForSourceMember(discardResult.gameState, {
+        playerId: player.id,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        amount: config.bladeAmount,
+      })
+    : null;
 
   return finishActiveEffect(
     {
-      ...bladeResult.gameState,
+      ...(bladeResult?.gameState ?? discardResult.gameState),
       activeEffect: effect,
     },
     continuePendingCardEffects,
@@ -309,7 +296,7 @@ function finishDiscardGainBlade(
       step: config.resolvedStep,
       discardedCardId: discardResult.discardedCardIds[0] ?? selectedCardId,
       discardedCardIds: discardResult.discardedCardIds,
-      bladeBonus: bladeResult.bladeBonus,
+      bladeBonus: bladeResult?.bladeBonus ?? 0,
     }
   );
 }
@@ -559,9 +546,4 @@ function finishPendingAbility(
     ),
     orderedResolution
   );
-}
-
-function isOwnStageMember(game: GameState, playerId: string, sourceCardId: string): boolean {
-  const player = getPlayerById(game, playerId);
-  return Object.values(player?.memberSlots.slots ?? {}).some((cardId) => cardId === sourceCardId);
 }

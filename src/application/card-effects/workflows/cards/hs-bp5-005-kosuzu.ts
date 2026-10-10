@@ -199,8 +199,7 @@ function startHsBp5005KosuzuTargetSelection(
       activeEffect: {
         ...effect,
         stepId: HS_BP5_005_SELECT_DOLLCHESTRA_COST_SOURCE_STEP_ID,
-        stepText:
-          '请选择自己舞台上的1名『DOLLCHESTRA』成员。此成员的原本费用将决定来源成员费用。',
+        stepText: '请选择自己舞台上的1名『DOLLCHESTRA』成员。此成员的原本费用将决定来源成员费用。',
         selectableCardIds,
         selectableCardVisibility: 'PUBLIC',
         selectableCardMode: 'SINGLE',
@@ -274,7 +273,7 @@ function finishHsBp5005KosuzuTargetSelection(
     });
   }
 
-  const setTo = Math.max(0, selectedCard.data.cost - 1);
+  const setTo = selectedCard.data.cost - 1;
   const stateWithoutEffect = { ...game, activeEffect: null };
   const costResult = addMemberCostSetLiveModifierForMember(stateWithoutEffect, {
     playerId: player.id,

@@ -154,7 +154,8 @@ export class CostCalculator {
    * @returns 减免的费用（等于被换手成员的费用）
    */
   calculateRelayDiscount(relayMemberData: MemberCardData, effectiveCost?: number): number {
-    return Math.max(0, effectiveCost ?? relayMemberData.cost);
+    // Rules 1.3.2.2/1.3.2.4 permit negative values in subtraction (9.6.2.3.2).
+    return effectiveCost ?? relayMemberData.cost;
   }
 
   /** 计算会改变手牌中成员卡自身当前费用的常时修正。 */

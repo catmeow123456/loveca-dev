@@ -443,6 +443,32 @@ describe('PL!HS-bp5-018 AURORA FLOWER workflow', () => {
 });
 
 describe('PL!HS-bp5-005 Kosuzu workflow', () => {
+  it('preserves cost -1 when the selected DOLLCHESTRA member has printed cost 0', () => {
+    const scenario = setupKosuzu({
+      handCards: [{ id: 'doll-card', unitName: 'DOLLCHESTRA' }],
+      stageTargets: [{ id: 'target', name: '徒町小鈴', unitName: 'DOLLCHESTRA', cost: 0 }],
+    });
+    let state = resolve(
+      withPending(
+        scenario.game,
+        HS_BP5_005_LIVE_START_DISCARD_DOLLCHESTRA_SET_COST_GAIN_BLUE_HEART_ABILITY_ID,
+        scenario.sourceId
+      )
+    );
+    state = confirm(state, scenario.handIds[0]);
+    state = confirm(state, scenario.targetIds[0]);
+    expect(getMemberEffectiveCost(state, PLAYER1, scenario.sourceId)).toBe(-1);
+    expect(state.liveResolution.liveModifiers).toContainEqual({
+      kind: 'MEMBER_COST_SET',
+      playerId: PLAYER1,
+      memberCardId: scenario.sourceId,
+      sourceCardId: scenario.sourceId,
+      abilityId: HS_BP5_005_LIVE_START_DISCARD_DOLLCHESTRA_SET_COST_GAIN_BLUE_HEART_ABILITY_ID,
+      setTo: -1,
+    });
+    expect(state.actionHistory.at(-1)?.payload.gainedBlueHeart).toBe(false);
+  });
+
   it('no-ops when there is no DOLLCHESTRA hand card to discard', () => {
     const scenario = setupKosuzu({
       handCards: [{ id: 'miracra-card', unitName: 'みらくらぱーく！' }],

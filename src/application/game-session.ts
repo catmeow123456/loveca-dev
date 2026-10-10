@@ -175,7 +175,7 @@ import {
   CardAbilityCategory,
   CardAbilitySourceZone,
 } from './card-effects/ability-definition-types.js';
-import { getRenGrantedActivatedAbilityDefinition } from './card-effects/runtime/granted-activated-abilities.js';
+import { getGrantedActivatedAbilityDefinition } from './card-effects/runtime/granted-member-below-abilities.js';
 import { isActivatedAbilityDefinitionAvailableForSource } from './card-effects/runtime/activated-ability-availability.js';
 import {
   attachPublicCardSelectionAutoAdvanceDeadline,
@@ -1946,7 +1946,7 @@ export class GameSession {
         const grantedAbility = directDefinition
           ? null
           : command.abilityInstanceId
-            ? getRenGrantedActivatedAbilityDefinition(
+            ? getGrantedActivatedAbilityDefinition(
                 state,
                 command.playerId,
                 command.cardId,
@@ -4294,6 +4294,8 @@ export class GameSession {
 
     if (plan.relayDiscount > 0) {
       parts.push(`换手减免 ${plan.relayDiscount}`);
+    } else if (plan.relayDiscount < 0) {
+      parts.push(`换手成员费用 ${plan.relayDiscount}，应付增加 ${-plan.relayDiscount}`);
     }
 
     parts.push(`支付 ${plan.actualEnergyCost}`);

@@ -9,7 +9,7 @@ import {
 import { getCardAbilityDefinitionsForCardCode } from '../definitions/lookup.js';
 import { getActivatedAbilityLimitStatus } from './ability-turn-limit.js';
 import { isActivatedAbilityDefinitionAvailableForSource } from './activated-ability-availability.js';
-import { getRenGrantedActivatedAbilityDefinitions } from './granted-activated-abilities.js';
+import { getGrantedActivatedAbilityDefinitions } from './granted-member-below-abilities.js';
 
 interface LimitedActivatedAbilityCandidate {
   readonly definition: CardAbilityDefinition;
@@ -39,7 +39,7 @@ export function hasRemainingLimitedActivatedAbilityForStageMember(
       definition,
     }));
   const grantedCandidates: readonly LimitedActivatedAbilityCandidate[] =
-    getRenGrantedActivatedAbilityDefinitions(game, playerId, sourceCardId).map((candidate) => ({
+    getGrantedActivatedAbilityDefinitions(game, playerId, sourceCardId).map((candidate) => ({
       definition: candidate.definition,
       abilityInstanceId: candidate.abilityInstanceId,
     }));

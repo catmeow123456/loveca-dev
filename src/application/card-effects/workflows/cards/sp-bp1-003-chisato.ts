@@ -13,7 +13,7 @@ import { SP_BP1_003_ACTIVATED_REVEAL_HAND_MEMBERS_COST_TOTAL_GAIN_SCORE_ABILITY_
 import { findCardAbilityDefinitionById } from '../../definitions/lookup.js';
 import { revealHandCardsForActiveEffect } from '../../runtime/active-effect.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -64,7 +64,7 @@ function startChisatoActivatedWorkflow(
     sourceCard.ownerId !== playerId ||
     !isMemberCardData(sourceCard.data) ||
     !definition ||
-    !isDirectOrRenGrantedActivatedAbilitySource(
+    !isDirectOrGrantedActivatedAbilitySource(
       game,
       playerId,
       sourceCardId,
@@ -241,7 +241,7 @@ function isValidSource(game: GameState, effect: ActiveEffectState): boolean {
     sourceCard.ownerId === effect.controllerId &&
     isMemberCardData(sourceCard.data) &&
     definition &&
-    isDirectOrRenGrantedActivatedAbilitySource(
+    isDirectOrGrantedActivatedAbilitySource(
       game,
       effect.controllerId,
       effect.sourceCardId,

@@ -9,7 +9,7 @@ import { GamePhase, SlotPosition } from '../../../../shared/types/enums.js';
 import { SP_BP5_006_ACTIVATED_MILL_THREE_SELF_POSITION_CHANGE_ABILITY_ID } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import { moveTopDeckCardsToWaitingRoomAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import {
   moveMemberBetweenSlotsAndEnqueueTriggers,
@@ -69,7 +69,7 @@ function startSpBp5006KinakoActivated(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !isDirectOrRenGrantedActivatedAbilitySource(
+    !isDirectOrGrantedActivatedAbilitySource(
       game,
       playerId,
       cardId,

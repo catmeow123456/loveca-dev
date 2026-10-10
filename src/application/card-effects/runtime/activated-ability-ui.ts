@@ -7,7 +7,7 @@ import {
 import { getCardAbilityDefinitionsForCardCode } from '../definitions/lookup.js';
 import { isActivatedAbilityUiConfigAvailableForSource } from './activated-ability-availability.js';
 import { canUseActivatedAbilityThisTurn } from './ability-turn-limit.js';
-import { getRenGrantedActivatedAbilityUiConfigs } from './granted-activated-abilities.js';
+import { getGrantedActivatedAbilityUiConfigs } from './granted-member-below-abilities.js';
 
 interface ActivatedAbilityUiQueryOptions {
   readonly game?: GameState;
@@ -38,7 +38,7 @@ export function getActivatedAbilityUiConfigs(
     options.game &&
     options.playerId &&
     options.sourceCardId
-      ? getRenGrantedActivatedAbilityUiConfigs(options.game, options.playerId, options.sourceCardId)
+      ? getGrantedActivatedAbilityUiConfigs(options.game, options.playerId, options.sourceCardId)
       : [];
 
   const configsByAbilityInstance = new Map<string, ActivatedAbilityUiConfig>();

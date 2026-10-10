@@ -2013,3 +2013,29 @@ export const N_PR_036_LIVE_START_OTHER_NIJIGASAKI_YELLOW_HEART_ABILITY_ID =
   'PL!N-PR-036:live-start-other-nijigasaki-yellow-heart';
 export const S_PR_046_LIVE_SUCCESS_OPPONENT_CHEER_LIVE_DRAW_ONE_ABILITY_ID =
   'PL!S-PR-046:live-success-opponent-cheer-live-draw-one';
+
+export const LL_BP8_001_ON_ENTER_LOOK_SIX_STACK_MEMBER_BELOW_ABILITY_ID =
+  'LL-bp8-001:on-enter-look-six-stack-member-below';
+export const LL_BP8_001_LIVE_SUCCESS_LOOK_SIX_STACK_MEMBER_BELOW_ABILITY_ID =
+  'LL-bp8-001:live-success-look-six-stack-member-below';
+export const LL_BP8_001_CONTINUOUS_GAIN_MEMBER_BELOW_ABILITIES_ABILITY_ID =
+  'LL-bp8-001:continuous-gain-member-below-abilities';
+export const S_PB2_000_CONTINUOUS_DOUBLE_RELAY_ABILITY_ID =
+  'PL!S-pb2-000:continuous-double-relay';
+export const S_PB2_000_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID =
+  'PL!S-pb2-000:on-enter-draw-two-discard-two';
+export const S_PB2_000_LIVE_START_DOUBLE_AQOURS_RELAY_STACK_LIVE_ABILITY_ID =
+  'PL!S-pb2-000:live-start-double-aqours-relay-stack-live';
+export const N_BP8_022_CONTINUOUS_OTHER_NIJIGASAKI_GAIN_BLADE_ABILITY_ID =
+  'PL!N-bp8-022:continuous-other-nijigasaki-gain-blade';
+
+export const PL_BP8_013_CONTINUOUS_CARD_EFFECT_SUCCESS_LIVE_SCORE_PLUS_TWO_ABILITY_ID =
+  'PL!-bp8-013:continuous-card-effect-success-live-score-plus-two';
+export const HS_BP8_005_PLAY_REQUIRES_OTHER_DOLLCHESTRA_ABILITY_ID =
+  'PL!HS-bp8-005:continuous-play-requires-dollchestra';
+export const HS_BP8_005_NO_OTHER_DOLLCHESTRA_SEND_SELF_ABILITY_ID =
+  'PL!HS-bp8-005:auto-no-other-dollchestra-send-self';
+export const N_BP8_011_DECK_REFRESH_DRAW_TWO_DISCARD_ONE_ABILITY_ID =
+  'PL!N-bp8-011:deck-refresh-draw-two-discard-one';
+export const N_BP8_011_LIVE_SUCCESS_OPTIONAL_MILL_TOP_FIVE_ABILITY_ID =
+  'PL!N-bp8-011:live-success-optional-mill-top-five';

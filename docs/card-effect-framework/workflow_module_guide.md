@@ -44,17 +44,23 @@ waiting ability cancels the shortcut and reopens player choice.
 
 workflow 是卡效流程的主要承载层。它可以是一类同型效果，也可以是一张特殊卡的单独流程。
 
-## Granted Activated Ability Source Contract
+## Granted Member-Below Ability Source Contract
 
-当前 `PL!SP-pb2-005` 会让舞台上的 Ren host 获得同槽下方自己『Liella!』成员已经实现的 `ACTIVATED / STAGE_MEMBER` 能力。GameSession 的中央命令校验只负责允许合法命令进入 workflow；workflow 自己在后续步骤重复检查来源时仍必须兼容同一宿主契约。
+`runtime/granted-member-below-abilities.ts` 以宿主基础编号、下方成员 selector、可授予类别配置真实样本。`PL!SP-pb2-005` 保留 Liella! 起动能力，`LL-bp8-001` 增加矢泽日香、宫下爱、赛拉丝的起动与 LIVE 开始能力。原 Ren opaque 实例格式保持兼容；新增宿主不意味着未审查的 workflow 已自动接通。
 
-- 只要 abilityId 可以由该 host 获得，启动 handler 以及能量选择恢复、公开确认恢复、支付确认、finish 等所有来源复核点，都使用 `isDirectOrRenGrantedActivatedAbilitySource`。不得只替换第一个 `cardCodeMatchesBase` / `doesCardAbilityDefinitionMatchCardCode` 后就结束审查。
-- helper 的 `directBaseCardCodes` 保存该 abilityId 的全部原生来源；Ren-granted 分支继续检查 host、同槽下方授予卡、definition 与槽位限制。workflow 自己原有的 owner、成员类型、舞台位置、状态、资源与目标校验也必须保留，不得以“支持宿主”为由完全删除来源拥有能力或其他合法性校验。
-- `sourceCardId` 始终是实际发动的 host 实例，不是下方授予能力的卡。“此成员”的费用与效果、`sourceLifecycleId`、activeEffect 来源和 action audit 都绑定 host；memberBelow 实例只提供授予资格与独立能力实例身份，绝不得替代 `sourceCardId`。
-- 每张授予能力的 memberBelow 成员在 UI/query 中生成一个由服务端生成并持有的 opaque `abilityInstanceId`。Ren-granted `ACTIVATE_ABILITY` 必须原样透传它，中央命令会重验该下方成员仍属于当前 host 且能授予所请求的 abilityId；不得自行拼接或解析该 ID。直接发动不携带它。
-- `ABILITY_USE` 仍记录 host `sourceCardId/sourceLifecycleId`，但 Ren-granted 发动还要记录 `abilityInstanceId`，并把 per-turn identity 扩展为 host 来源身份 + 授予能力实例。因此同一恋下方两张相同成员的同 abilityId 能力各自每回合计次；单张下方成员的第二次发动仍应拒绝。多阶段 workflow 的 activeEffect 和最终 `ABILITY_USE` 必须保留同一实例标识。
-- shared family 只能对明确的 abilityId/config 开启 Ren-granted 来源。相同文件内其他作品、其他 abilityId 继续使用原 direct-only 边界；同一 abilityId 有多个原生基础编号时，必须全部保留在 `directBaseCardCodes`。
-- 新增或修改可被获得的『Liella!』起动能力时，同步扩展 `tests/integration/sp-pb2-005-ren-granted-activated-abilities.test.ts` 的显式能力清单，并执行 direct-only source gate 静态审计。代表性测试还要证明待机、离场、移动、modifier 或向下叠卡等“此成员”语义作用于 host，并覆盖同 abilityId 的两份授予实例分别使用、伪造/错配/移除实例拒绝及多阶段实例身份传递。
+- 起动 handler 及所有后续来源复核点使用 `isDirectOrGrantedActivatedAbilitySource`；`directBaseCardCodes` 保留能力的全部原生来源。当前命令重验授予卡仍在宿主下方、实例标识与能力匹配。
+- LIVE 开始按当前每份授予分别产生 pending；`isDirectOrGrantedTriggeredAbilitySource` 校验已捕获的授予身份，不能因触发后下方卡移除而撤销 pending。触发前已失去的能力不入队。
+- `sourceCardId/sourceLifecycleId`、费用、“此成员”、动作记录与修正继续绑定宿主。旧规则对象失效时不能奖励新宿主，也不能让依赖旧对象的待机费用生效；不依赖宿主的合法费用与其他目标效果分别判断。
+- `abilityInstanceId` 从服务端 UI/query 或 pending 原样贯穿 activeEffect、后续支付/公开恢复与 `ABILITY_USE`，不由业务层解析。每回合次数按宿主生命周期和能力实例计数；两份同能力可分别使用。两份 LIVE 开始可分别排序和结算，SCORE replacement 也按实例区分；来源获得的常时分数加成随宿主离场移除。
+- 原卡与宿主均需执行到完整结果，而非只测入队。Ren 显式能力清单与原有49项回归保留在 `sp-pb2-005-ren-granted-activated-abilities.test.ts`；LL 的14种唯一能力、双实例、费用与生命周期回归见 `ll-bp8-001-granted-member-below-abilities.test.ts`。逐种审查残留 direct-only gate，不扩大其他能力的来源边界。
+
+## Waiting-Room LIVE To Deck Top Segment
+
+`shared/waiting-room-live-to-deck-top.ts` 由费用10「三船栞子」`PL!N-pb1-010` 与费用15「松浦果南&小原鞠莉」`PL!S-pb2-000` 共用。稳定片段为“己方休息室指定团体 LIVE，至多 N 张，按所选顺序置顶”；配置只包含团体、数量与步骤/文案及动作记录字段。
+
+单卡仍拥有诱发条件与前置分支：栞子的二选一及能量分支留在原 workflow，果南&鞠莉使用 `effects/relay-entry-provenance.ts` 在触发事件截止点查询本回合最近一次真实登场及双 Aqours 换手记录。不能用实体卡曾经换手的集合替代来源规则对象；双换手本身不限制团体。
+
+非空选择复用双方 public-card-selection confirmation，到期整体重验 LIVE、团体和区域后，一次移动并发事件；任何目标失效不得部分移动。空选择直接完成，不创建空展示窗口。片段不承载历史条件、二选一或能量支付，旧卡步骤标识与 continuation 保持兼容。
 
 ## 起动只读条件
 

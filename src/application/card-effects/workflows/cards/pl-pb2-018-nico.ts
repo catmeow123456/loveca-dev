@@ -9,7 +9,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
+import { isDirectOrGrantedTriggeredAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import { hasAtLeastDifferentNamedCards } from '../../../../shared/utils/card-identity.js';
 import { and, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
 import { setMemberOrientation, setMembersOrientation } from '../../../effects/member-state.js';
@@ -354,7 +354,7 @@ function sourceIsEligible(game: GameState, context: SourceContext): boolean {
     source !== null &&
     source.ownerId === context.controllerId &&
     isMemberCardData(source.data) &&
-    cardCodeMatchesBase(source.data.cardCode, 'PL!-pb2-018')
+    isDirectOrGrantedTriggeredAbilitySource(game, context, ['PL!-pb2-018'])
   );
 }
 function sourceLifecycle(game: GameState, context: SourceContext): string {

@@ -26,7 +26,7 @@ import {
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { registerActivatedAbilityResourceQuery } from '../../runtime/ability-resource-query.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -72,7 +72,7 @@ interface PayEnergyWaitingRoomToHandWorkflowConfig {
   readonly zoneSelection: ZoneCardSelectionConfig;
   readonly canSkipSelection?: boolean;
   readonly allowPaymentWithoutInitialTarget?: boolean;
-  readonly allowsRenGrantedSource?: boolean;
+  readonly allowsGrantedSource?: boolean;
   readonly actionStep: string;
 }
 
@@ -170,7 +170,7 @@ const PAY_ENERGY_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly PayEnergyWaitingRoomTo
         optional: false,
       }),
       canSkipSelection: false,
-      allowsRenGrantedSource: true,
+      allowsGrantedSource: true,
       actionStep: 'PAY_COST_SELECT_WAITING_ROOM_LIVE',
     },
   ];
@@ -449,8 +449,8 @@ function getPayEnergyRecoveryActivation(
   const player = getPlayerById(game, playerId);
   const sourceCard = getCardById(game, cardId);
   const sourceHasAbility =
-    config.allowsRenGrantedSource === true
-      ? isDirectOrRenGrantedActivatedAbilitySource(
+    config.allowsGrantedSource === true
+      ? isDirectOrGrantedActivatedAbilitySource(
           game,
           playerId,
           cardId,

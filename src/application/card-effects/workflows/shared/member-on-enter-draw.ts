@@ -23,8 +23,8 @@ import {
 import {
   countSuccessfulLiveCards,
   hasStageMemberMatching,
-  successLiveScoreAtLeast,
-  sumSuccessfulLiveScore,
+  successLiveScoreForCardEffectAtLeast,
+  sumSuccessfulLiveScoreForCardEffect,
 } from '../../../effects/conditions.js';
 import { and, cardNameAliasIs, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
 import { CardType } from '../../../../shared/types/enums.js';
@@ -270,7 +270,12 @@ function resolveMemberOnEnterDraw(
       orderedResolution
     );
   }
-  const successLiveScore = sumSuccessfulLiveScore(game, player.id);
+  const successLiveScore = sumSuccessfulLiveScoreForCardEffect(
+    game,
+    player.id,
+    ability.sourceCardId,
+    [player.id]
+  );
   const successLiveCardCount = countSuccessfulLiveCards(game, player.id);
   if (
     config.minSuccessLiveCardCount !== undefined &&
@@ -291,7 +296,13 @@ function resolveMemberOnEnterDraw(
   }
   if (
     config.minSuccessLiveScore !== undefined &&
-    !successLiveScoreAtLeast(game, player.id, config.minSuccessLiveScore)
+    !successLiveScoreForCardEffectAtLeast(
+      game,
+      player.id,
+      ability.sourceCardId,
+      [player.id],
+      config.minSuccessLiveScore
+    )
   ) {
     return continuePendingCardEffects(
       addAction(stateAfterUseRecord, 'RESOLVE_ABILITY', player.id, {

@@ -1,5 +1,11 @@
 # Runtime Action Helpers
 
+## 2026-10-07 参照查询与打出限制
+
+- `domain/rules/success-live-score.ts` 保留单卡有效分数与真实合计，新增 `sumSuccessfulLiveScoreForCardEffect(game, controllerId, sourceCardId, referencedPlayerIds)` 及阈值wrapper。控制者来自实际能力上下文，来源可已支付离场费用；参照区域集合去重后一次求和，再应用该控制者的参照修正。单边比较分别参照，双方总和只加一次；不写LIVE修正，不改变真实分数或胜负条件。
+- `application/effects/member-play-restrictions.ts` 提供卡牌打出限制只读查询，正常登场候选、规则命令与底层规则play action共用。卡效直接放置成员走既有区域移动动作，不套用“不能打出”限制。第一项真实样本为费用0「徒町小铃」的己方舞台DOLLCHESTRA条件。
+- `MEMBER_COST_SET` 接受包括负数的整数设值；有效费用比较和换手减免计算保留有符号数值，最终能量支付量才限制为非负。费用4「徒町小铃」选择印刷费用0成员后将自身设为−1；换手时减去−1意味着应付增加1，不生成返还能量动作。
+
 ## 2026-09-05 PB2 复用增量
 
 - `runtime/success-zone.ts` 提供两个窄原子动作：成功区任意己方卡回手并发出标准 `ON_ENTER_HAND`，以及手牌 LIVE 经实时禁入检查后放入成功区。公开费用、替代选择及 continuation 由 `shared/reveal-hand-live-swap-success-card.ts` 持有；原子动作不启动替代或插入新能力。
@@ -409,6 +415,12 @@ Current boundary:
 - 先从来源区移除，再调用 domain 的 `addMemberBelowMember` 写入 `memberBelow`。
 - 不调用 zone-operations 的普通移动/登场回退，不 enqueue trigger；这不是进入休息室或登场事件。
 - 不扫描候选、不公开手牌、不写 action history、不处理 LIVE 修正或 pending continue；这些都由 workflow 负责。
+
+### `stackInspectedMemberBelowStageMember`
+
+`runtime/inspection-member-below.ts` 服务 `LL-bp8-001` 的检视后叠卡。只接收当前己方主卡组检视区中已按卡文公开的 MEMBER，校验区域 owner、卡牌 owner、顶层宿主与重复叠卡后，直接从 inspection 移入宿主下方。不能绕经休息室，不制造入休息室或登场事件。
+
+候选、宿主规则对象生命周期、仅选中卡的公开与 Public Reveal Dwell 由单卡 workflow 管理；到期重验同一宿主实例，槽位内移动允许继续，离场重登不继承旧叠卡。余下检视牌通过既有 `moveInspectedCardsToWaitingRoomAndEnqueueTriggers` 成组移动并派发一次实际事件，最后统一 continuation。无目标或不选择仍完成私密检视；下方卡叠入后按现有投影对双方公开。
 
 ### `moveCardsBelowSourceMemberToWaitingRoomAndEnqueueTriggers`
 

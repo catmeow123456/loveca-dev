@@ -12,7 +12,7 @@ import { SP_BP7_003_ACTIVATED_REVEAL_COST_TEN_OR_TWENTY_MEMBER_STACK_DRAW_TWO_AB
 import { revealHandCardForActiveEffect } from '../../runtime/active-effect.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { stackMemberCardBelowStageMember } from '../../runtime/actions.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -56,7 +56,7 @@ function startSpBp7003ChisatoActivated(
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
     !isMemberCardData(sourceCard.data) ||
-    !isDirectOrRenGrantedActivatedAbilitySource(
+    !isDirectOrGrantedActivatedAbilitySource(
       game,
       playerId,
       sourceCardId,

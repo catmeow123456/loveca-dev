@@ -43,16 +43,19 @@ queued bridge 的回归覆盖单 pending 确认前不结算、多 pending ordere
 - 槽位内移动、LIVE 区内移动和 ACTIVE/WAITING 不重置 lifecycle；离开再进入来源区形成新对象，不受旧对象已结算或未结算次数占用。旧 action/event 历史保留。
 - 入口：`src/application/card-effects/runtime/ability-source-lifecycle.ts`；回归：`tests/unit/ability-source-lifecycle.test.ts` 及涉及多步骤起动、跨区域重登场的 integration。
 
-## 授予起动能力：PL!SP-pb2-005
+## 下方成员授予能力：PL!SP-pb2-005 / LL-bp8-001
 
-新增/修改自己『Liella!』成员的 `ACTIVATED / STAGE_MEMBER` 时，检查 abilityId 能否由该宿主获得；任务仅描述原卡也不能漏掉适用的授予路径。
+新增/修改自己『Liella!』成员的 `ACTIVATED / STAGE_MEMBER`，或矢泽日香、宫下爱、赛拉丝成员的起动／LIVE开始能力时，检查 abilityId 能否由对应宿主获得；任务仅描述原卡也不能漏掉适用的授予路径。叶月恋只获得 Liella! 起动，LL 三人卡只获得三个姓名的起动／LIVE开始。
 
-- 对可授予的 abilityId，启动、能量选择恢复、公开/支付确认、finish 等全部来源复核点使用 `isDirectOrRenGrantedActivatedAbilitySource`。不能仅替换首个 gate，也不能保留要求宿主匹配原卡编号的 direct-only gate。
+- 对可授予起动 abilityId，启动、能量选择恢复、公开/支付确认、finish 等全部来源复核点使用 `isDirectOrGrantedActivatedAbilitySource`。不能仅替换首个 gate，也不能保留要求宿主匹配原卡编号的 direct-only gate。
 - `directBaseCardCodes` 包含此 abilityId 的所有原生来源；shared config 只对目标能力开启授予来源，无关作品/能力维持原边界。不能删除来源资格校验使任意成员发动。
 - 实际宿主是 `sourceCardId/sourceLifecycleId`，费用、动作记录、“此成员”的状态/离场/移动/modifier/叠卡均绑定宿主。下方授予卡不是效果来源。
 - 每张授予卡具有服务端生成的 opaque `abilityInstanceId`；UI/query 每实例独立返回，命令只能透传，不解析或拼接。服务端重验实例仍在当前宿主下方且 abilityId 匹配；直接发动不带此字段。
 - activeEffect 与最终 `ABILITY_USE` 保留同一实例标识。授予次数按宿主来源身份与能力实例联合计算；两张同能力下方卡可各使用一次，单实例第二次拒绝，原卡与宿主次数不互占。
+- LIVE开始按触发时的每份授予分别产生带实例标识的 pending；后续使用 `isDirectOrGrantedTriggeredAbilitySource` 校验捕获身份，不能因下方卡在触发后移除而取消已诱发能力。两份同 abilityId 必须分别排序、结算并叠加；SCORE replacement 也按实例区分。
+- 宿主生命周期失效不反向阻止不依赖宿主的合法费用，且旧调用不能向重登的新对象授予自身奖励。待机费用与“此成员获得常时分数”等自身效果绑定宿主；后者随宿主离场清理。动态确认文案需反映实际可结算结果。
 - 修改相关能力时扩展 `tests/integration/sp-pb2-005-ren-granted-activated-abilities.test.ts` 的显式能力清单：原卡直发、合法宿主、缺授予/无关成员、下方移除、次数隔离、同能力双实例、伪造/错配/移除实例拒绝；多阶段路径完成后续支付/确认且不丢身份。
-- 在本次修改的 workflow 范围搜索 `isDirectOrRenGrantedActivatedAbilitySource`、`cardCodeMatchesBase`、`doesCardAbilityDefinitionMatchCardCode`，核对残留 direct-only gate 是否为非目标能力；无需每次全库扫描并报告。
+- LL授予路径另维护 `tests/integration/ll-bp8-001-granted-member-below-abilities.test.ts` 的14种唯一能力清单，覆盖原卡／宿主完整结算、双实例叠加、触发前后授予移除、费用与规则对象生命周期。
+- 在本次修改的 workflow 范围搜索 `isDirectOrGrantedActivatedAbilitySource`、`isDirectOrGrantedTriggeredAbilitySource`、`cardCodeMatchesBase`、`doesCardAbilityDefinitionMatchCardCode`，核对残留 direct-only gate 是否为非目标能力；无需每次全库扫描并报告。
 
-授予入口：`src/application/card-effects/runtime/granted-activated-abilities.ts`。公开/定时恢复涉及的其他不变量见 [公开与可见性](reveal-and-visibility.md)。
+授予入口：`src/application/card-effects/runtime/granted-member-below-abilities.ts`。公开/定时恢复涉及的其他不变量见 [公开与可见性](reveal-and-visibility.md)。

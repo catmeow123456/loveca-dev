@@ -5,6 +5,7 @@ import { canPlayMemberInStageSlotThisTurn } from '../domain/rules/member-turn-st
 import { SlotPosition } from '../shared/types/enums.js';
 import type { PlayMemberToSlotCommand } from './game-commands.js';
 import { buildPlayMemberCostResources } from './effects/play-member-cost.js';
+import { getMemberPlayRestrictionReason } from './effects/member-play-restrictions.js';
 
 type MemberPlayParameters = Pick<
   PlayMemberToSlotCommand,
@@ -35,6 +36,8 @@ export function queryNormalMemberPlay(
   if (!isMemberCardData(card.data)) {
     return { ok: false, reason: '只有成员卡可以登场到成员区' };
   }
+  const playRestriction = getMemberPlayRestrictionReason(game, input.playerId, input.cardId);
+  if (playRestriction) return { ok: false, reason: playRestriction };
   const slots = [
     input.targetSlot,
     ...(input.relayMode === 'DOUBLE' ? (input.relayReplacementSlots ?? []) : []),

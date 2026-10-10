@@ -27,6 +27,7 @@ import {
   type ShuffleWaitingRoomCardsToDeckBottomForPlayerResult,
 } from './actions.js';
 import { canUseAbilityThisTurn } from './ability-turn-limit.js';
+import { getAbilitySourceLifecycleId } from './ability-source-lifecycle.js';
 import {
   getDispatchedTriggerEventIds,
   markTriggerEventDispatched,
@@ -94,8 +95,16 @@ export function enqueueWaitingRoomCardsMovedToMainDeckCardEffects(
       continue;
     }
 
-    for (const sourceSlot of MEMBER_SLOTS) {
-      const sourceCardId = player.memberSlots.slots[sourceSlot];
+    const isRefresh = event.cause.kind === 'RULE_ACTION' && event.cause.ruleAction === 'REFRESH';
+    // A refresh may happen in the middle of a larger atomic action. Use the
+    // sources captured by the central rule action, never the later stage.
+    const sourceSnapshots = isRefresh
+      ? (event.refreshStageSources ?? [])
+      : MEMBER_SLOTS.flatMap((sourceSlot) => {
+          const sourceCardId = player.memberSlots.slots[sourceSlot];
+          return sourceCardId ? [{ sourceCardId, sourceSlot }] : [];
+        });
+    for (const { sourceCardId, sourceSlot } of sourceSnapshots) {
       const sourceCard = sourceCardId ? getCardById(state, sourceCardId) : null;
       if (!sourceCardId || !sourceCard) {
         continue;
@@ -109,13 +118,27 @@ export function enqueueWaitingRoomCardsMovedToMainDeckCardEffects(
           definition.implemented &&
           definition.triggerCondition ===
             TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK &&
+          (definition.waitingRoomToMainDeckCause !== 'REFRESH' || isRefresh) &&
           (!definition.requiredSourceSlots || definition.requiredSourceSlots.includes(sourceSlot))
       );
 
       for (const definition of definitions) {
+        const sourceLifecycleId = getAbilitySourceLifecycleId(
+          state,
+          definition.abilityId,
+          sourceCardId,
+          [event.eventId]
+        );
         if (
           definition.skipQueueWhenTurnLimitReached === true &&
-          !canUseAbilityThisTurn(state, player.id, definition.abilityId, sourceCardId)
+          !canUseAbilityThisTurn(
+            state,
+            player.id,
+            definition.abilityId,
+            sourceCardId,
+            undefined,
+            sourceLifecycleId
+          )
         ) {
           continue;
         }
@@ -128,6 +151,7 @@ export function enqueueWaitingRoomCardsMovedToMainDeckCardEffects(
           id: pendingAbilityId,
           abilityId: definition.abilityId,
           sourceCardId,
+          sourceLifecycleId,
           controllerId: player.id,
           mandatory: true,
           timingId: TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK,
@@ -151,6 +175,7 @@ export function enqueueWaitingRoomCardsMovedToMainDeckCardEffects(
             pendingAbilityId,
             abilityId: definition.abilityId,
             sourceCardId,
+            sourceLifecycleId,
             eventId: event.eventId,
             movedCardIds: event.movedCardIds,
             destination: event.destination,

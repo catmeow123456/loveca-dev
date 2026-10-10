@@ -20,7 +20,7 @@ import { SP_BP5_002_ACTIVATED_WAIT_DRAW_THREE_DISCARD_TWO_NO_BLADE_HEART_REWARD_
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { drawCardsForPlayer, addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { discardHandCardsToWaitingRoomAndEnqueueTriggers } from '../../runtime/enter-waiting-room-triggers.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
@@ -91,7 +91,7 @@ function startSpBp5002KekeActivatedEffect(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !isDirectOrRenGrantedActivatedAbilitySource(
+    !isDirectOrGrantedActivatedAbilitySource(
       game,
       playerId,
       cardId,
