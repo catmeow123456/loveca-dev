@@ -2039,3 +2039,20 @@ export const N_BP8_011_DECK_REFRESH_DRAW_TWO_DISCARD_ONE_ABILITY_ID =
   'PL!N-bp8-011:deck-refresh-draw-two-discard-one';
 export const N_BP8_011_LIVE_SUCCESS_OPTIONAL_MILL_TOP_FIVE_ABILITY_ID =
   'PL!N-bp8-011:live-success-optional-mill-top-five';
+
+export const PL_BP8_007_ON_ENTER_MILL_FOUR_MUSE_LIVE_GAIN_BLADE_ABILITY_ID =
+  'PL!-bp8-007:on-enter-mill-four-muse-live-gain-blade';
+export const PL_BP8_017_ON_ENTER_REVEAL_NO_BLADE_HEART_MEMBER_BOTTOM_LOOK_FIVE_MUSE_ABILITY_ID =
+  'PL!-bp8-017:on-enter-reveal-no-blade-heart-member-bottom-look-five-muse';
+export const HS_BP8_002_CONTINUOUS_COST_PER_FIVE_GAIN_BLADE_ABILITY_ID =
+  'PL!HS-bp8-002:continuous-cost-per-five-gain-blade';
+export const HS_BP8_002_LIVE_START_DISCARD_GAIN_COST_ACTIVATE_DRAW_ABILITY_ID =
+  'PL!HS-bp8-002:live-start-discard-gain-cost-activate-draw';
+export const HS_BP8_006_ON_ENTER_DISCARD_HASUNOSORA_CHOOSE_HEART_OR_ARRANGE_ABILITY_ID =
+  'PL!HS-bp8-006:on-enter-discard-hasunosora-choose-heart-or-arrange';
+export const HS_BP8_020_LIVE_START_WAIT_TWO_REDUCE_REQUIREMENT_SKIP_ACTIVE_ABILITY_ID =
+  'PL!HS-bp8-020:live-start-wait-two-reduce-requirement-skip-active';
+export const HS_BP8_020_LIVE_START_TARGET_DOLLCHESTRA_GAIN_COST_SCORE_ABILITY_ID =
+  'PL!HS-bp8-020:live-start-target-dollchestra-gain-cost-score';
+export const N_BP8_023_LIVE_START_DISCARD_NIJIGASAKI_GAIN_YELLOW_HEART_ABILITY_ID =
+  'PL!N-bp8-023:live-start-discard-nijigasaki-gain-yellow-heart';

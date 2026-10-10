@@ -41,6 +41,22 @@ export function addMemberActivePhaseSkip(
   };
 }
 
+/** Clear the old stage objects without changing markers created later in the same action. */
+export function removeMemberActivePhaseSkipsForMembers(
+  game: GameState,
+  memberCardIds: readonly string[],
+  capturedSkips: readonly MemberActivePhaseSkipState[] = game.memberActivePhaseSkips
+): GameState {
+  const leavingIds = new Set(memberCardIds);
+  const oldSkips = new Set(capturedSkips);
+  const remaining = game.memberActivePhaseSkips.filter(
+    (skip) => !leavingIds.has(skip.memberCardId) || !oldSkips.has(skip)
+  );
+  return remaining.length === game.memberActivePhaseSkips.length
+    ? game
+    : { ...game, memberActivePhaseSkips: remaining };
+}
+
 export function consumeMemberActivePhaseSkipsForPlayer(
   game: GameState,
   playerId: string

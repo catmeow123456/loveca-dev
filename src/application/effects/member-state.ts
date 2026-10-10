@@ -14,6 +14,7 @@ import { FaceState, OrientationState, SlotPosition, ZoneType } from '../../share
 import { isMemberEffectActivationProhibited } from '../../domain/rules/member-effect-activation-prohibitions.js';
 import { isMemberWaitProtectedFromChange } from '../../domain/rules/member-wait-protections.js';
 import { resolveMemberEntryOrientation } from '../../domain/rules/member-entry-orientation.js';
+import { removeMemberActivePhaseSkipsForMembers } from '../../domain/rules/member-active-skips.js';
 
 export interface SetMemberOrientationResult {
   readonly gameState: GameState;
@@ -717,7 +718,11 @@ export function playMembersFromWaitingRoomToEmptySlots(
     };
   }
 
-  let gameState = updatePlayer(game, playerId, (currentPlayer) => {
+  const stateBeforeEntry = removeMemberActivePhaseSkipsForMembers(
+    game,
+    placements.map((placement) => placement.cardId)
+  );
+  let gameState = updatePlayer(stateBeforeEntry, playerId, (currentPlayer) => {
     let waitingRoom = currentPlayer.waitingRoom;
     const cardStates = new Map(currentPlayer.memberSlots.cardStates);
     const slots = { ...currentPlayer.memberSlots.slots };
@@ -802,7 +807,7 @@ export function clearPreviousStageMemberInstanceState(
     return true;
   });
   const state = {
-    ...game,
+    ...removeMemberActivePhaseSkipsForMembers(game, [memberCardId]),
     liveResolution: { ...game.liveResolution, liveModifiers },
   };
   return getPlayerById(state, playerId)

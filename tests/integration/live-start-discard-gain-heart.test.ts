@@ -12,10 +12,13 @@ import {
 } from '../../src/domain/entities/card';
 import {
   createGameState,
+  emitGameEvent,
   registerCards,
   updatePlayer,
   type GameState,
 } from '../../src/domain/entities/game';
+import { createEnterStageEvent, createLiveStartEvent } from '../../src/domain/events/game-events';
+import { getMemberEffectiveHeartIcons } from '../../src/domain/rules/live-modifiers';
 import { placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
 import {
   createAutoAdvancePublicEffectChoiceCommand,
@@ -34,12 +37,11 @@ import {
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
   KOTORI_LIVE_START_HEART_ABILITY_ID,
   N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+  N_BP8_023_LIVE_START_DISCARD_NIJIGASAKI_GAIN_YELLOW_HEART_ABILITY_ID as MIA_023,
   PL_BP4_013_LIVE_START_DISCARD_TARGET_OTHER_MEMBER_GAIN_PINK_HEART_ABILITY_ID as UMI_013_ABILITY_ID,
   PL_N_BP3_002_LIVE_START_DISCARD_CHOOSE_HEART_OTHER_NIJIGASAKI_MEMBER_ABILITY_ID as KASUMI_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
-import {
-  getCardAbilityDefinitionsForCardCode as getCardAbilityDefinitions,
-} from '../../src/application/card-effects/definitions/lookup';
+import { getCardAbilityDefinitionsForCardCode as getCardAbilityDefinitions } from '../../src/application/card-effects/definitions/lookup';
 import {
   CardType,
   FaceState,
@@ -50,6 +52,7 @@ import {
   SubPhase,
   TriggerCondition,
   TurnType,
+  ZoneType,
 } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
@@ -349,6 +352,252 @@ describe('live-start discard gain Heart workflow', () => {
           action.payload.step === 'GAIN_PINK_HEART_AND_BLADE_FROM_HAND_TO_WAITING'
       )
     ).toHaveLength(1);
+  });
+});
+
+describe('PL!N-bp8-023 费用2「米娅·泰勒」shared fixed yellow Heart', () => {
+  const fullText =
+    '【LIVE开始时】可以将手牌的１张『虹咲』的卡片放置入休息室：LIVE结束时为止，获得[黄ハート]。';
+  function setupMia(options: { hand?: boolean; observer?: boolean } = {}) {
+    const source = createCardInstance(
+      {
+        ...createMemberCard('PL!N-bp8-023-N', '米娅·泰勒', 2),
+        groupNames: ['虹ヶ咲'],
+        hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+      },
+      PLAYER1,
+      'mia-source'
+    );
+    const memberFee = createCardInstance(
+      { ...createMemberCard('nijigasaki-member-fee'), groupNames: ['虹咲'] },
+      PLAYER1,
+      'member-fee'
+    );
+    const liveFee = createCardInstance(
+      { ...createLiveCard('nijigasaki-live-fee'), groupNames: ['虹ヶ咲'] },
+      PLAYER1,
+      'live-fee'
+    );
+    const illegalFee = createCardInstance(
+      createMemberCard('hasunosora-fee'),
+      PLAYER1,
+      'illegal-fee'
+    );
+    const observer = createCardInstance(
+      createMemberCard('PL!HS-pb1-003-R', '大泽瑠璃乃', 15),
+      PLAYER1,
+      'discard-observer'
+    );
+    let game = registerCards(createGameState('mia-bp8-shared', PLAYER1, 'P1', PLAYER2, 'P2'), [
+      source,
+      memberFee,
+      liveFee,
+      illegalFee,
+      observer,
+    ]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      hand: {
+        ...player.hand,
+        cardIds:
+          options.hand === false
+            ? []
+            : [memberFee.instanceId, liveFee.instanceId, illegalFee.instanceId],
+      },
+      memberSlots: options.observer
+        ? placeCardInSlot(
+            placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId),
+            SlotPosition.LEFT,
+            observer.instanceId
+          )
+        : placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId),
+    }));
+    const event = createLiveStartEvent(PLAYER1, []);
+    game = enqueueTriggeredCardEffects(
+      emitGameEvent(game, event),
+      [TriggerCondition.ON_LIVE_START],
+      { liveStartEvents: [event] }
+    );
+    return { game, sourceId: source.instanceId, event };
+  }
+  function pay(game: GameState, ids: readonly string[] = []) {
+    return confirmActiveEffectStep(
+      game,
+      PLAYER1,
+      game.activeEffect!.id,
+      ids.length === 1 ? ids[0] : undefined,
+      undefined,
+      undefined,
+      undefined,
+      ids.length > 1 ? ids : undefined
+    );
+  }
+
+  it('registers full text across rarities and consumes the real LIVE_START event identity', () => {
+    for (const rarity of ['N', 'SEC', 'UNKNOWN']) {
+      const definitions = getCardAbilityDefinitions(`PL!N-bp8-023-${rarity}`);
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0].effectText).toBe(fullText);
+      expect(definitions[0]).toMatchObject({
+        abilityId: MIA_023,
+        baseCardCodes: ['PL!N-bp8-023'],
+        queued: true,
+        implemented: true,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+      });
+    }
+    const scenario = setupMia();
+    expect(scenario.game.pendingAbilities).toContainEqual(
+      expect.objectContaining({
+        abilityId: MIA_023,
+        sourceCardId: scenario.sourceId,
+        eventIds: [scenario.event.eventId],
+        timingId: TriggerCondition.ON_LIVE_START,
+      })
+    );
+    const window = resolvePendingCardEffects(scenario.game).gameState;
+    expect(window.activeEffect?.effectText).toBe(fullText);
+    expect(window.activeEffect).toMatchObject({
+      selectableCardIds: ['member-fee', 'live-fee'],
+      selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+      confirmSelectionLabel: '放置入休息室',
+      skipSelectionLabel: '不发动',
+    });
+    expect(window.activeEffect?.selectableOptions).toBeUndefined();
+  });
+
+  it.each(['member-fee', 'live-fee'])(
+    'pays a legal %s and immediately gives SOURCE_MEMBER yellow without a color step',
+    (fee) => {
+      const scenario = setupMia();
+      const window = resolvePendingCardEffects(scenario.game).gameState;
+      const done = pay(window, [fee]);
+      expect(done.activeEffect).toBeNull();
+      expect(done.players[0].hand.cardIds).not.toContain(fee);
+      expect(done.players[0].waitingRoom.cardIds).toEqual([fee]);
+      const events = done.eventLog
+        .map((entry) => entry.event)
+        .filter((event) => event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        cardInstanceIds: [fee],
+        fromZone: ZoneType.HAND,
+        toZone: ZoneType.WAITING_ROOM,
+        ownerId: PLAYER1,
+        controllerId: PLAYER1,
+      });
+      expect(done.liveResolution.liveModifiers).toContainEqual({
+        kind: 'HEART',
+        target: 'SOURCE_MEMBER',
+        playerId: PLAYER1,
+        sourceCardId: scenario.sourceId,
+        abilityId: MIA_023,
+        hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+      });
+      expect(getMemberEffectiveHeartIcons(done, PLAYER1, scenario.sourceId)).toEqual([
+        { color: HeartColor.YELLOW, count: 1 },
+        { color: HeartColor.YELLOW, count: 1 },
+      ]);
+      expect(confirmActiveEffectStep(done, PLAYER1, window.activeEffect!.id, fee)).toBe(done);
+      const finalized = new GameService().finalizeLiveResult({
+        ...done,
+        currentPhase: GamePhase.LIVE_RESULT_PHASE,
+        currentSubPhase: SubPhase.RESULT_SETTLEMENT,
+      });
+      expect(finalized.success).toBe(true);
+      expect(
+        getMemberEffectiveHeartIcons(finalized.gameState!, PLAYER1, scenario.sourceId)
+      ).toEqual([{ color: HeartColor.YELLOW, count: 1 }]);
+    }
+  );
+
+  it('declines without paying and confirms an empty legal fee pool without opening a color step', () => {
+    const scenario = setupMia();
+    const done = pay(resolvePendingCardEffects(scenario.game).gameState);
+    expect(done.activeEffect).toBeNull();
+    expect(done.players[0].hand.cardIds).toEqual(scenario.game.players[0].hand.cardIds);
+    expect(done.liveResolution.liveModifiers).toEqual([]);
+    const noFee = setupMia({ hand: false });
+    const emptyWindow = resolvePendingCardEffects(noFee.game).gameState;
+    expect(emptyWindow.activeEffect?.stepId).toBe('CONFIRM_ONLY_EFFECT');
+    expect(emptyWindow.activeEffect?.stepText).toBe('没有可用于支付费用的手牌，确认后不处理。');
+    const emptyDone = pay(emptyWindow);
+    expect(emptyDone.activeEffect).toBeNull();
+    expect(emptyDone.liveResolution.liveModifiers).toEqual([]);
+    expect(emptyDone.players[0].waitingRoom.cardIds).toEqual([]);
+  });
+
+  it('rejects illegal, duplicate, excess, removed and reclassified fee cards without partial payment', () => {
+    const window = resolvePendingCardEffects(setupMia().game).gameState;
+    for (const ids of [
+      ['illegal-fee'],
+      ['missing'],
+      ['member-fee', 'member-fee'],
+      ['member-fee', 'live-fee'],
+    ])
+      expect(pay(window, ids)).toBe(window);
+    const removed = updatePlayer(window, PLAYER1, (player) => ({
+      ...player,
+      hand: { ...player.hand, cardIds: ['live-fee', 'illegal-fee'] },
+    }));
+    expect(pay(removed, ['member-fee'])).toBe(removed);
+    const changedFee = window.cardRegistry.get('member-fee')!;
+    const reclassified = registerCards(window, [
+      { ...changedFee, data: { ...changedFee.data, groupNames: ['蓮ノ空'] } },
+    ]);
+    expect(pay(reclassified, ['member-fee'])).toBe(reclassified);
+  });
+
+  it('keeps a legal paid fee when the source leaves and re-enters, and does not reward the replacement', () => {
+    const scenario = setupMia();
+    const window = resolvePendingCardEffects(scenario.game).gameState;
+    let reentered = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+      window,
+      PLAYER1,
+      scenario.sourceId,
+      enqueueTriggeredCardEffects
+    )!.gameState;
+    reentered = updatePlayer(reentered, PLAYER1, (player) => ({
+      ...player,
+      waitingRoom: { ...player.waitingRoom, cardIds: [] },
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, scenario.sourceId),
+    }));
+    reentered = emitGameEvent(
+      reentered,
+      createEnterStageEvent(
+        scenario.sourceId,
+        ZoneType.WAITING_ROOM,
+        SlotPosition.CENTER,
+        PLAYER1,
+        PLAYER1
+      )
+    );
+    const done = pay(reentered, ['member-fee']);
+    expect(done.players[0].waitingRoom.cardIds).toEqual(['member-fee']);
+    expect(done.liveResolution.liveModifiers).toEqual([]);
+    expect(done.activeEffect).toBeNull();
+  });
+
+  it('finishes yellow Heart before an ability newly triggered by the fee starts resolving', () => {
+    const scenario = setupMia({ observer: true });
+    const done = pay(resolvePendingCardEffects(scenario.game).gameState, ['member-fee']);
+    expect(getMemberEffectiveHeartIcons(done, PLAYER1, scenario.sourceId)).toEqual([
+      { color: HeartColor.YELLOW, count: 1 },
+      { color: HeartColor.YELLOW, count: 1 },
+    ]);
+    const ownIndex = done.actionHistory.findIndex(
+      (action) =>
+        action.type === 'RESOLVE_ABILITY' &&
+        action.payload.abilityId === MIA_023 &&
+        action.payload.step === 'APPLY_HEART_BONUS'
+    );
+    const nextIndex = done.actionHistory.findIndex(
+      (action) =>
+        action.type === 'RESOLVE_ABILITY' &&
+        action.payload.abilityId === HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID
+    );
+    expect(ownIndex).toBeGreaterThanOrEqual(0);
+    expect(nextIndex).toBeGreaterThan(ownIndex);
   });
 });
 
@@ -1021,10 +1270,11 @@ describe('PL!N-sd2-005-SD2 费用13「宫下爱」shared discard-gain-Heart path
         `n-sd2-005-discard-${index}`
       )
     );
-    let game = registerCards(
-      createGameState('n-sd2-005', PLAYER1, 'P1', PLAYER2, 'P2'),
-      [source, triggerSource, ...discardCards]
-    );
+    let game = registerCards(createGameState('n-sd2-005', PLAYER1, 'P1', PLAYER2, 'P2'), [
+      source,
+      triggerSource,
+      ...discardCards,
+    ]);
     game = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
       memberSlots: placeCardInSlot(
@@ -1078,8 +1328,7 @@ describe('PL!N-sd2-005-SD2 费用13「宫下爱」shared discard-gain-Heart path
   it('通过基础编号登记完整新卡文，并打开精确弃2张的可选费用窗口', () => {
     const scenario = setupDraftAi();
     const definition = getCardAbilityDefinitions('PL!N-sd2-005-SEC').find(
-      (candidate) =>
-        candidate.abilityId === N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID
+      (candidate) => candidate.abilityId === N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID
     );
     expect(definition?.effectText).toBe(EFFECT_TEXT);
 
@@ -1176,7 +1425,8 @@ describe('PL!N-sd2-005-SD2 费用13「宫下爱」shared discard-gain-Heart path
       HeartColor.PURPLE,
     ]);
     expect(
-      state.activeEffect?.effectChoice?.options.find((option) => option.id === HeartColor.BLUE)?.text
+      state.activeEffect?.effectChoice?.options.find((option) => option.id === HeartColor.BLUE)
+        ?.text
     ).toBe('获得[青ハート][青ハート]。');
 
     const publicChoice = confirmActiveEffectStep(
@@ -1209,8 +1459,7 @@ describe('PL!N-sd2-005-SD2 费用13「宫下爱」shared discard-gain-Heart path
     expect(
       state.actionHistory.some(
         (action) =>
-          action.payload.abilityId ===
-          HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID
+          action.payload.abilityId === HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID
       )
     ).toBe(true);
   });

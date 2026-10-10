@@ -112,7 +112,9 @@ FREE 只放宽这次登场的能量支付与目标槽位限制：卡面规定的
 
 `workflows/shared/own-card-effect-place-energy-gain-source-blade.ts` 由 `PL!SP-bp7-005` / `PL!SP-bp7-016` 证明，只消费 pending `eventIds` 绑定的 `ON_ENERGY_PLACED_BY_CARD_EFFECT`，要求 cause.playerId 和 targetPlayerId 均为控制者且来源仍在己方主舞台。`place-waiting-energy.ts` 另只新增 `skipNextActivePhase` 有限轴；该轴必须调用 `placeWaitingEnergyWithActivePhaseSkip`，使放置事件、WAITING 状态、精确能量卡 marker 与 continuation 保持同一原子语义。
 
-`mill-top-gain-live-modifier.ts` 的新条件是有限 union `DISTINCT_MEMBER_BLADE_HEART_COLORS`；只读本次实际 milled IDs 中 MEMBER 的印刷 `BladeHeartEffect.HEART/heartColor`，不统计 LIVE 的 BLADE HEART、DRAW/SCORE 效果或普通 `hearts`。它仍共用 refresh-aware direct mill、grouped waiting-room event、Public Reveal Dwell 和来源 stale 后不回滚区域移动的原有边界，不接受任意 condition callback。
+`mill-top-gain-live-modifier.ts` 的条件是有限 union。`DISTINCT_MEMBER_BLADE_HEART_COLORS` 只读本次实际 milled IDs 中 MEMBER 的印刷 `BladeHeartEffect.HEART/heartColor`，不统计 LIVE 的 BLADE HEART、DRAW/SCORE 效果或普通 `hearts`；`ANY_MATCH` 以结构化 selector 判断本次实际移动结果中是否至少1张符合条件，由 `PL!-bp8-007` 的 μ’s LIVE 与迁移后的 `PL!HS-bp5-001` 任意 LIVE 证明，不要求实际张数等于印刷堆墓数。固定轴仍是堆墓数量、条件 union与已验证奖励类型，不接受任意 condition callback。
+
+该 family 共用 refresh-aware direct mill、完整 cause的 grouped waiting-room event及 Public Reveal Dwell；展示期间新 pending 不抢占当前流程，展示结束后才写奖励并继续。开窗保存来源 `sourceLifecycleId`，来源离场重登只使旧来源奖励失效，不回滚已经完成的区域移动。旧花帆的手动发动确认仅由该卡 `confirmManualSelection` 窄配置启用，其他原有配置与新希沿用原默认行为；其原 step、`liveCardIds / bladeBonus` 持久窗口与行动 payload由有限 `actionPayloadStyle` 保留，起动段继续留在单卡模块。
 
 ## When To Create A Workflow Module
 

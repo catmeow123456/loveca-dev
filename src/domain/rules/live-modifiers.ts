@@ -1233,6 +1233,24 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
   },
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    baseCardCodes: ['PL!HS-bp8-002'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      const countDelta = Math.max(
+        0,
+        Math.floor(getMemberEffectiveCost(game, playerId, sourceCardId) / 5)
+      );
+      if (countDelta === 0) return [];
+      const modifier = createBladeLiveModifierForSourceMember(game, {
+        playerId,
+        sourceCardId,
+        abilityId: 'PL!HS-bp8-002:continuous-cost-per-five-gain-blade',
+        countDelta,
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
+  {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!HS-bp5-007'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasOtherEdelNoteStageMember(game, playerId, sourceCardId)

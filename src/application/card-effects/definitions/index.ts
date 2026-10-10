@@ -1,4 +1,12 @@
 import {
+  PL_BP8_007_ON_ENTER_MILL_FOUR_MUSE_LIVE_GAIN_BLADE_ABILITY_ID,
+  PL_BP8_017_ON_ENTER_REVEAL_NO_BLADE_HEART_MEMBER_BOTTOM_LOOK_FIVE_MUSE_ABILITY_ID,
+  HS_BP8_002_CONTINUOUS_COST_PER_FIVE_GAIN_BLADE_ABILITY_ID,
+  HS_BP8_002_LIVE_START_DISCARD_GAIN_COST_ACTIVATE_DRAW_ABILITY_ID,
+  HS_BP8_006_ON_ENTER_DISCARD_HASUNOSORA_CHOOSE_HEART_OR_ARRANGE_ABILITY_ID,
+  HS_BP8_020_LIVE_START_WAIT_TWO_REDUCE_REQUIREMENT_SKIP_ACTIVE_ABILITY_ID,
+  HS_BP8_020_LIVE_START_TARGET_DOLLCHESTRA_GAIN_COST_SCORE_ABILITY_ID,
+  N_BP8_023_LIVE_START_DISCARD_NIJIGASAKI_GAIN_YELLOW_HEART_ABILITY_ID,
   PL_BP8_013_CONTINUOUS_CARD_EFFECT_SUCCESS_LIVE_SCORE_PLUS_TWO_ABILITY_ID,
   HS_BP8_005_PLAY_REQUIRES_OTHER_DOLLCHESTRA_ABILITY_ID,
   HS_BP8_005_NO_OTHER_DOLLCHESTRA_SEND_SELF_ABILITY_ID,
@@ -2497,7 +2505,7 @@ const S_BP6_002_AUTO_EFFECT_TEXT =
 const S_BP6_002_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的LIVE区中的卡全部为『Aqours』，且这些LIVE卡的必要红Heart、绿Heart、蓝Heart合计大于等于12的场合，LIVE结束时为止，获得 ALL Heart x2。';
 const HS_BP5_001_ON_ENTER_EFFECT_TEXT =
-  '【登场】将自己卡组顶的4张卡放置入休息室。那些卡片中存在LIVE卡的场合，LIVE结束时为止，获得[BLADE][BLADE]。';
+  '【登场】将自己卡组顶的4张卡放置入休息室。那些卡片中存在LIVE卡的场合，LIVE结束时为止，获得[ブレード][ブレード]。';
 const HS_BP5_001_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】[E][E]公开1张手牌的LIVE卡：从自己的休息室，将1张包含所有因此公开的卡的卡名的LIVE卡加入手牌。';
 const HS_BP5_002_CONTINUOUS_EFFECT_TEXT =
@@ -2763,7 +2771,117 @@ const N_BP8_011_AUTO_EFFECT_TEXT =
 const N_BP8_011_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】可以将自己的卡组顶的５张卡片放置入休息室。';
 
+const PL_BP8_007_ON_ENTER_EFFECT_TEXT =
+  '【登场】将自己的卡组顶的４张卡片放置入休息室。那些卡片中存在『μ’s』的LIVE卡的场合，LIVE结束时为止，获得[ブレード]。';
+const PL_BP8_017_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将手牌的1张不持有BLADE HEART的成员卡公开：将因此公开的卡片放置于自己的卡组底。此后，检视自己的卡组顶的5张卡片。可以将其中的1张『μ’s』的卡片公开并加入手牌。其余的放置入休息室。';
+const HS_BP8_002_CONTINUOUS_EFFECT_TEXT = '【常时】此成员的费用每有5，获得[ブレード]。';
+const HS_BP8_002_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将１张手牌放置入休息室：LIVE结束时为止，此成员的费用＋５。此后，此成员的费用大于等于２０的场合，将此成员变为活跃状态，抽1张卡。';
+const HS_BP8_006_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将手牌的１张『莲之空』的卡片放置入休息室：从以下选择１项。\n・选择[桃ハート]或[緑ハート]或[青ハート]或[紫ハート]中的１种。LIVE结束时为止，获得１个选中的HEART。\n・检视自己的卡组顶的3张卡片。可以将其中的任意张按任意顺序放置于卡组顶，其余的放置入休息室。';
+const HS_BP8_020_WAIT_TWO_EFFECT_TEXT =
+  '【LIVE开始时】可以将２名成员变为待机状态：此卡的必要HEART减少[無ハート][無ハート][無ハート]。因此变为待机状态的成员，在下个活跃阶段不会变为活跃状态。';
+const HS_BP8_020_TARGET_COST_EFFECT_TEXT =
+  '【LIVE开始时】LIVE结束时为止，１名『DOLLCHESTRA』的成员的费用＋５。此后，存在于自己的舞台的『莲之空』的成员的费用合计大于等于３０的场合，此卡的分数＋１。';
+const N_BP8_023_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将手牌的１张『虹咲』的卡片放置入休息室：LIVE结束时为止，获得[黄ハート]。';
+
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
+  {
+    abilityId: PL_BP8_007_ON_ENTER_MILL_FOUR_MUSE_LIVE_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-007'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_BP8_007_ON_ENTER_EFFECT_TEXT,
+    notes:
+      'shared mill-top-gain-live-modifier 的 ANY_MATCH；仅本次实际堆顶结果中的结构化μ’s LIVE满足条件，给予当前来源实例BLADE+1。',
+  },
+  {
+    abilityId: PL_BP8_017_ON_ENTER_REVEAL_NO_BLADE_HEART_MEMBER_BOTTOM_LOOK_FIVE_MUSE_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-017'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_BP8_017_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '单卡pl-bp8-017-hanayo；公开手牌成员费用、底置后委托既有私密检视取μ’s卡流程，保留公开展示与余牌成组休息室事件。',
+  },
+  {
+    abilityId: HS_BP8_002_CONTINUOUS_COST_PER_FIVE_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp8-002'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: HS_BP8_002_CONTINUOUS_EFFECT_TEXT,
+    notes: '常时按来源当前有效费用每5点提供BLADE；费用查询独立于LIVE modifier收集，避免递归。',
+  },
+  {
+    abilityId: HS_BP8_002_LIVE_START_DISCARD_GAIN_COST_ACTIVATE_DRAW_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp8-002'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP8_002_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡hs-bp8-002-sayaka；可选弃1手后给同一来源实例临时费用+5，再按当前有效费用>=20回正并抽1，事件经统一pending续行。',
+  },
+  {
+    abilityId: HS_BP8_006_ON_ENTER_DISCARD_HASUNOSORA_CHOOSE_HEART_OR_ARRANGE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp8-006'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP8_006_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '单卡hs-bp8-006-hime；精确弃1张结构化莲之空手牌后选择固定四色来源Heart或私密检视顶3排序，复用effectChoice和arrange共享核心。',
+  },
+  {
+    abilityId: HS_BP8_020_LIVE_START_WAIT_TWO_REDUCE_REQUIREMENT_SKIP_ACTIVE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp8-020'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP8_020_WAIT_TWO_EFFECT_TEXT,
+    notes:
+      '单卡hs-bp8-020-icy；可选精确支付两名活跃成员待机费用，来源LIVE必要无色Heart-3，标记实际支付成员跳过下次本人活跃阶段。',
+  },
+  {
+    abilityId: HS_BP8_020_LIVE_START_TARGET_DOLLCHESTRA_GAIN_COST_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp8-020'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP8_020_TARGET_COST_EFFECT_TEXT,
+    notes:
+      '单卡hs-bp8-020-icy；强制选择己方DOLLCHESTRA成员获得临时费用+5，再独立读取己方莲之空有效费用合计，>=30时来源LIVE分数+1。',
+  },
+  {
+    abilityId: N_BP8_023_LIVE_START_DISCARD_NIJIGASAKI_GAIN_YELLOW_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp8-023'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: N_BP8_023_LIVE_START_EFFECT_TEXT,
+    notes:
+      'shared live-start-discard-gain-heart 配置；候选与提交均重验结构化虹咲手牌，合法弃1后直接给予当前来源实例黄色Heart，无颜色选择窗口。',
+  },
   {
     abilityId: PL_BP8_013_CONTINUOUS_CARD_EFFECT_SUCCESS_LIVE_SCORE_PLUS_TWO_ABILITY_ID,
     baseCardCodes: ['PL!-bp8-013'],
@@ -5480,7 +5598,8 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: HS_BP5_001_ON_ENTER_EFFECT_TEXT,
-    notes: '第一批仅实现登场段；起动公开手牌 LIVE 并按同名回收 LIVE 留到 C07 批次。',
+    notes:
+      '登场段迁入shared mill-top-gain-live-modifier 的 ANY_MATCH；顶4实际存在LIVE时来源BLADE+2，保留旧步骤与行动记录。起动段仍由hs-bp5-001-kaho单卡workflow实现。',
   },
   {
     abilityId: HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART_BLADE_ABILITY_ID,

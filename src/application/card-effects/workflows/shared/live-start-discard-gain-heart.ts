@@ -23,6 +23,7 @@ import {
   HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
   KOTORI_LIVE_START_HEART_ABILITY_ID,
   N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+  N_BP8_023_LIVE_START_DISCARD_NIJIGASAKI_GAIN_YELLOW_HEART_ABILITY_ID,
   PL_BP4_013_LIVE_START_DISCARD_TARGET_OTHER_MEMBER_GAIN_PINK_HEART_ABILITY_ID,
   PL_N_BP3_002_LIVE_START_DISCARD_CHOOSE_HEART_OTHER_NIJIGASAKI_MEMBER_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -93,6 +94,14 @@ interface LiveStartDiscardGainHeartConfig {
 }
 
 const LIVE_START_DISCARD_GAIN_HEART_CONFIGS: readonly LiveStartDiscardGainHeartConfig[] = [
+  {
+    abilityId: N_BP8_023_LIVE_START_DISCARD_NIJIGASAKI_GAIN_YELLOW_HEART_ABILITY_ID,
+    discardCount: 1,
+    discardSelector: groupAliasIs('虹ヶ咲'),
+    heartCount: 1,
+    heartSelection: { mode: 'FIXED', color: HeartColor.YELLOW },
+    recipient: { mode: 'SOURCE_MEMBER', requiresOtherStageMember: false },
+  },
   {
     abilityId: PL_PB2_031_LIVE_START_DISCARD_MUSE_GAIN_PURPLE_HEART_ABILITY_ID,
     discardCount: 1,

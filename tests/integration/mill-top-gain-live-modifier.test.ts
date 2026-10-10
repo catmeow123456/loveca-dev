@@ -10,7 +10,21 @@ import {
   createHeartIcon,
   createHeartRequirement,
 } from '../../src/domain/entities/card';
-import { registerCards, type GameState } from '../../src/domain/entities/game';
+import {
+  emitGameEvent,
+  registerCards,
+  updatePlayer,
+  type GameState,
+} from '../../src/domain/entities/game';
+import { placeCardInSlot } from '../../src/domain/entities/zone';
+import { createEnterStageEvent } from '../../src/domain/events/game-events';
+import { getMemberEffectiveBladeCount } from '../../src/domain/rules/live-modifiers';
+import { getCardAbilityDefinitionsForCardCode } from '../../src/application/card-effects/definitions/lookup';
+import {
+  enqueueTriggeredCardEffects,
+  resolvePendingCardEffects,
+} from '../../src/application/card-effect-runner';
+import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
 import {
   createAutoAdvancePublicRevealCommand,
   createConfirmEffectStepCommand,
@@ -26,6 +40,8 @@ import {
   HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
   HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
   N_BP7_020_ON_ENTER_MILL_THREE_TWO_BLADE_HEART_COLORS_GAIN_GREEN_HEART_ABILITY_ID,
+  PL_BP8_007_ON_ENTER_MILL_FOUR_MUSE_LIVE_GAIN_BLADE_ABILITY_ID,
+  HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
@@ -147,9 +163,10 @@ function getStartedMillPayload(
   );
 }
 
-function createNBp7020OnEnterSession(options: {
+function createOnEnterMillSession(options: {
   readonly topCards: readonly ReturnType<typeof createCardInstance>[];
   readonly waitingCards?: readonly ReturnType<typeof createCardInstance>[];
+  readonly sourceData?: MemberCardData;
 }): {
   readonly session: ReturnType<typeof createGameSession>;
   readonly sourceId: string;
@@ -161,7 +178,7 @@ function createNBp7020OnEnterSession(options: {
   forceMainPhaseForPlayer(session);
 
   const source = createCardInstance(
-    createMemberCard('PL!N-bp7-020-N', '艾玛·维尔德'),
+    options.sourceData ?? createMemberCard('PL!N-bp7-020-N', '艾玛·维尔德'),
     PLAYER1,
     'p1-n-bp7-020-source'
   );
@@ -823,7 +840,7 @@ describe('mill-top gain live modifier workflow', () => {
       PLAYER1,
       'p1-n-bp7-020-remaining'
     );
-    const { session, sourceId } = createNBp7020OnEnterSession({
+    const { session, sourceId } = createOnEnterMillSession({
       topCards: [pinkMember, redLive, drawMember, remaining],
     });
 
@@ -876,7 +893,7 @@ describe('mill-top gain live modifier workflow', () => {
       PLAYER1,
       'p1-n-bp7-020-refresh-energy'
     );
-    const { session, sourceId } = createNBp7020OnEnterSession({
+    const { session, sourceId } = createOnEnterMillSession({
       topCards: [pinkMember, greenMember],
       waitingCards: [waitingLive, waitingEnergy],
     });
@@ -935,7 +952,7 @@ describe('mill-top gain live modifier workflow', () => {
       PLAYER1,
       'p1-n-bp7-020-stale-remaining'
     );
-    const { session, sourceId } = createNBp7020OnEnterSession({
+    const { session, sourceId } = createOnEnterMillSession({
       topCards: [...milledCards, remaining],
     });
     const beforeFinish = session.state!;
@@ -1044,3 +1061,353 @@ function createLiveStartSession(
 
   return session;
 }
+
+describe('PL!-bp8-007 费用2「东条希」ANY_MATCH and migrated Kaho', () => {
+  const nozomiText =
+    '【登场】将自己的卡组顶的４张卡片放置入休息室。那些卡片中存在『μ’s』的LIVE卡的场合，LIVE结束时为止，获得[ブレード]。';
+  const kahoText =
+    '【登场】将自己卡组顶的4张卡放置入休息室。那些卡片中存在LIVE卡的场合，LIVE结束时为止，获得[ブレード][ブレード]。';
+  const sourceData = (cardCode = 'PL!-bp8-007-R'): MemberCardData => ({
+    ...createMemberCard(cardCode, cardCode.startsWith('PL!HS') ? '日野下花帆' : '东条希'),
+    cost: cardCode.startsWith('PL!HS') ? 11 : 2,
+    groupNames: [cardCode.startsWith('PL!HS') ? '蓮ノ空' : 'μ’s'],
+  });
+  function museLive(id: string, groupNames = ['μ’s']) {
+    return createCardInstance(
+      { ...createBladeLiveCard(id, HeartColor.PINK), groupNames },
+      PLAYER1,
+      id
+    );
+  }
+  function filler(id: string) {
+    return createCardInstance(createMemberCard(id), PLAYER1, id);
+  }
+
+  it('registers the full paragraph for every rarity and corrects only Kaho on-enter text', () => {
+    for (const rarity of ['R', 'SEC', 'UNKNOWN']) {
+      const definitions = getCardAbilityDefinitionsForCardCode(`PL!-bp8-007-${rarity}`);
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0]).toMatchObject({
+        abilityId: PL_BP8_007_ON_ENTER_MILL_FOUR_MUSE_LIVE_GAIN_BLADE_ABILITY_ID,
+        baseCardCodes: ['PL!-bp8-007'],
+        queued: true,
+        implemented: true,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      });
+      expect(definitions[0].effectText).toBe(nozomiText);
+    }
+    expect(
+      getCardAbilityDefinitionsForCardCode('PL!HS-bp5-001-AR').find(
+        (definition) => definition.abilityId === HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID
+      )?.effectText
+    ).toBe(kahoText);
+  });
+
+  it('mills once, emits a grouped causal event, waits for the display, and gains source BLADE once', () => {
+    const topCards = [museLive('muse-live', ["μ's"]), filler('f1'), filler('f2'), filler('f3')];
+    const { session, sourceId } = createOnEnterMillSession({
+      sourceData: sourceData(),
+      topCards: [...topCards, filler('remain')],
+    });
+    const window = session.state!.activeEffect!;
+    expect(window.effectText).toBe(nozomiText);
+    expect(window.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+    expect(window.revealedCardIds).toEqual(topCards.map((card) => card.instanceId));
+    expect(window.stepText).toContain('展示结束后获得[ブレード]');
+    expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, sourceId)).toBe(1);
+    const events = session
+      .state!.eventLog.map((entry) => entry.event)
+      .filter(
+        (event) =>
+          event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          event.fromZone === ZoneType.MAIN_DECK
+      );
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      cardInstanceIds: topCards.map((card) => card.instanceId),
+      ownerId: PLAYER1,
+      controllerId: PLAYER1,
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: PLAYER1,
+        sourceCardId: sourceId,
+        abilityId: PL_BP8_007_ON_ENTER_MILL_FOUR_MUSE_LIVE_GAIN_BLADE_ABILITY_ID,
+      },
+    });
+    expect(
+      session.executeCommand(
+        createAutoAdvancePublicRevealCommand(
+          PLAYER2,
+          window.id,
+          window.publicRevealAutoAdvanceAt!,
+          window.publicRevealGeneration!
+        )
+      ).success
+    ).toBe(false);
+    expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, sourceId)).toBe(1);
+    expect(advancePublicRevealDwell(session).success).toBe(true);
+    expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, sourceId)).toBe(2);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.executeCommand(createConfirmEffectStepCommand(PLAYER1, window.id)).success).toBe(
+      false
+    );
+    const left = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+      session.state!,
+      PLAYER1,
+      sourceId,
+      enqueueTriggeredCardEffects
+    )!.gameState;
+    expect(left.liveResolution.liveModifiers).toEqual([]);
+  });
+
+  it('does not count a non-Muse LIVE, a Muse MEMBER, or an unrelated waiting-room Muse LIVE', () => {
+    const oldLive = museLive('already-waiting');
+    const topCards = [
+      museLive('other-live', ['虹ヶ咲']),
+      createCardInstance(
+        { ...createMemberCard('muse-member'), groupNames: ['μ’s'] },
+        PLAYER1,
+        'muse-member'
+      ),
+      filler('negative-1'),
+      filler('negative-2'),
+    ];
+    const { session, sourceId } = createOnEnterMillSession({
+      sourceData: sourceData(),
+      topCards: [...topCards, filler('negative-remain')],
+      waitingCards: [oldLive],
+    });
+    expect(getStartedMillPayload(session).conditionMet).toBe(false);
+    expect(advancePublicRevealDwell(session).success).toBe(true);
+    expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, sourceId)).toBe(1);
+  });
+
+  it('checks actual refresh-aware moves without counting the whole refreshed waiting room', () => {
+    const live = museLive('refresh-live');
+    const { session, sourceId } = createOnEnterMillSession({
+      sourceData: sourceData(),
+      topCards: [live, filler('refresh-top')],
+      waitingCards: [filler('refresh-wait-a'), filler('refresh-wait-b')],
+    });
+    const payload = getStartedMillPayload(session);
+    expect(payload.refreshCount).toBe(1);
+    expect(payload.milledCardIds).toHaveLength(4);
+    expect(payload.conditionMet).toBe(true);
+    const events = session
+      .state!.eventLog.map((entry) => entry.event)
+      .filter(
+        (event) =>
+          event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          event.fromZone === ZoneType.MAIN_DECK
+      );
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ cardInstanceIds: payload.milledCardIds });
+    expect(advancePublicRevealDwell(session).success).toBe(true);
+    expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, sourceId)).toBe(2);
+  });
+
+  it('has no reward or movement event when no card can be milled', () => {
+    const { session, sourceId } = createOnEnterMillSession({
+      sourceData: sourceData(),
+      topCards: [],
+    });
+    expect(getStartedMillPayload(session)).toMatchObject({
+      milledCardIds: [],
+      conditionMet: false,
+    });
+    expect(session.state?.activeEffect?.stepId).toBe('PL_BP8_007_MILL_TOP_FOUR');
+    expect(
+      session.state?.eventLog.some(
+        (entry) => entry.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
+      )
+    ).toBe(false);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, sourceId)).toBe(1);
+  });
+
+  it.each(['PL!-bp8-007-R', 'PL!HS-bp5-001-SEC'])(
+    'does not transfer the reward to a re-entered rules object for %s',
+    (code) => {
+      const topCards = [
+        museLive('stale-live'),
+        filler('stale-1'),
+        filler('stale-2'),
+        filler('stale-3'),
+      ];
+      const { session, sourceId } = createOnEnterMillSession({
+        sourceData: sourceData(code),
+        topCards: [...topCards, filler('stale-remain')],
+      });
+      const capturedLifecycle = session.state!.activeEffect!.sourceLifecycleId;
+      expect(capturedLifecycle).toBeTruthy();
+      let state = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+        session.state!,
+        PLAYER1,
+        sourceId,
+        enqueueTriggeredCardEffects
+      )!.gameState;
+      state = updatePlayer(state, PLAYER1, (player) => ({
+        ...player,
+        waitingRoom: {
+          ...player.waitingRoom,
+          cardIds: player.waitingRoom.cardIds.filter((id) => id !== sourceId),
+        },
+        memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, sourceId),
+      }));
+      state = emitGameEvent(
+        state,
+        createEnterStageEvent(
+          sourceId,
+          ZoneType.WAITING_ROOM,
+          SlotPosition.CENTER,
+          PLAYER1,
+          PLAYER1
+        )
+      );
+      (session as unknown as { authorityState: GameState }).authorityState = state;
+      expect(advancePublicRevealDwell(session).success).toBe(true);
+      expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, sourceId)).toBe(1);
+      expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
+        topCards.map((card) => card.instanceId)
+      );
+      expect(session.state?.activeEffect).toBeNull();
+    }
+  );
+
+  it('resumes the existing Kaho step and original metadata without a version fallback', () => {
+    const topCards = [
+      museLive('restored-live'),
+      filler('restored-1'),
+      filler('restored-2'),
+      filler('restored-3'),
+    ];
+    const { session, sourceId } = createOnEnterMillSession({
+      sourceData: sourceData('PL!HS-bp5-001-SEC'),
+      topCards: [...topCards, filler('restored-remain')],
+    });
+    const window = session.state!.activeEffect!;
+    session.restoreRuntimeState({
+      authorityState: {
+        ...session.state!,
+        activeEffect: {
+          id: window.id,
+          abilityId: HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
+          sourceCardId: sourceId,
+          controllerId: PLAYER1,
+          effectText: kahoText,
+          stepId: 'HS_BP5_001_REVEAL_TOP_FOUR',
+          awaitingPlayerId: PLAYER1,
+          revealedCardIds: topCards.map((card) => card.instanceId),
+          metadata: {
+            sourceZone: ZoneType.MAIN_DECK,
+            orderedResolution: false,
+            milledCardIds: topCards.map((card) => card.instanceId),
+            liveCardIds: ['restored-live'],
+            bladeBonus: 2,
+            refreshCount: 0,
+          },
+        },
+      },
+      currentPublicSeq: 0,
+    });
+    expect(session.state?.activeEffect?.effectText).toBe(
+      '【登场】将自己卡组顶的4张卡放置入休息室。那些卡片中存在LIVE卡的场合，LIVE结束时为止，获得[ブレード][ブレード]。'
+    );
+    expect(session.executeCommand(createConfirmEffectStepCommand(PLAYER1, window.id)).success).toBe(
+      true
+    );
+    expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, sourceId)).toBe(3);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.actionHistory.at(-1)?.payload).toMatchObject({
+      step: 'MILL_TOP_FOUR_GAIN_BLADE_IF_LIVE',
+      liveCardIds: ['restored-live'],
+      bladeBonus: 2,
+      milledCardIds: topCards.map((card) => card.instanceId),
+    });
+  });
+
+  it('retains only Kaho manual confirmation and bypasses it for an ordered batch', () => {
+    const topCards = [
+      museLive('manual-live'),
+      filler('manual-1'),
+      filler('manual-2'),
+      filler('manual-3'),
+      filler('manual-remain'),
+    ];
+    const { session, sourceId } = createOnEnterMillSession({
+      sourceData: sourceData('PL!HS-bp5-001-SEC'),
+      topCards,
+    });
+    const reset = updatePlayer(session.state!, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: topCards.map((card) => card.instanceId) },
+      waitingRoom: { ...player.waitingRoom, cardIds: [] },
+    }));
+    const pending = {
+      id: 'manual-kaho',
+      abilityId: HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
+      sourceCardId: sourceId,
+      controllerId: PLAYER1,
+      mandatory: true,
+      timingId: TriggerCondition.ON_ENTER_STAGE,
+      eventIds: [],
+    };
+    const nozomi = createCardInstance(sourceData(), PLAYER1, 'manual-nozomi-source');
+    const twoSources = updatePlayer(registerCards(reset, [nozomi]), PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.LEFT, nozomi.instanceId),
+    }));
+    const other = {
+      ...pending,
+      id: 'manual-nozomi',
+      sourceCardId: nozomi.instanceId,
+      abilityId: PL_BP8_007_ON_ENTER_MILL_FOUR_MUSE_LIVE_GAIN_BLADE_ABILITY_ID,
+    };
+    const orderedWindow = resolvePendingCardEffects({
+      ...twoSources,
+      activeEffect: null,
+      pendingAbilities: [pending, other],
+    }).gameState;
+    session.restoreRuntimeState({ authorityState: orderedWindow, currentPublicSeq: 0 });
+    const selected = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, sourceId)
+    );
+    expect(selected.error).toBeUndefined();
+    expect(selected.success).toBe(true);
+    expect(session.state?.activeEffect?.stepId).toBe('CONFIRM_ONLY_EFFECT');
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual(
+      topCards.map((card) => card.instanceId)
+    );
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+    session.restoreRuntimeState({ authorityState: orderedWindow, currentPublicSeq: 0 });
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          undefined,
+          undefined,
+          true
+        )
+      ).success
+    ).toBe(true);
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+    session.restoreRuntimeState({ authorityState: orderedWindow, currentPublicSeq: 0 });
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, nozomi.instanceId)
+      ).success
+    ).toBe(true);
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+  });
+});
