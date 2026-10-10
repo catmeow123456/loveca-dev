@@ -49,8 +49,7 @@ import {
   getCardIdsInZoneMatching,
   getMemberEffectiveCost,
   hasAtLeastCardsMatchingSelector,
-  successLiveScoreAtLeast,
-  sumSuccessfulLiveScore,
+  sumSuccessfulLiveScoreForCardEffect,
 } from '../../../effects/conditions.js';
 import { getStageMemberIdsActivatedByOwnCardEffectThisTurn } from '../../../../domain/rules/member-turn-state.js';
 import { countSuccessZoneCardsForCardEffect } from '../../../../domain/rules/success-zone-card-queries.js';
@@ -99,6 +98,8 @@ import {
   S_BP7_020_LIVE_START_ALL_STAGE_MEMBERS_ACTIVE_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID,
 } from '../../ability-ids.js';
 import { getStageMemberCardIdsByOrientation } from '../../../effects/stage-targets.js';
+import { isCurrentStageMemberAbilitySource } from '../../runtime/source-member.js';
+import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
 import {
   getAbilityEffectText,
   registerManualConfirmablePendingAbilityStarterHandler,
@@ -342,12 +343,13 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
   {
     abilityId: PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
     stepId: PL_N_BP3_005_MEMBER_ENTRIES_SCORE_STEP_ID,
-    getStartContext: (game, _ability, playerId) => {
+    getStartContext: (game, ability, playerId) => {
       const entryCount = countMemberEntriesThisTurn(game, playerId);
-      const conditionMet = entryCount >= 2;
+      const sourceIsCurrent = isCurrentPendingStageMemberSource(game, ability);
+      const conditionMet = entryCount >= 2 && sourceIsCurrent;
       return {
-        effectText: `${getAbilityEffectText(PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID)}（本回合自己的成员已登场${entryCount}次，${conditionMet ? '满足条件，实际LIVE合计[スコア]+1' : '未满足条件，不增加LIVE合计[スコア]'}。）`,
-        actionPayload: { entryCount, conditionMet, scoreBonus: conditionMet ? 1 : 0 },
+        effectText: `${getAbilityEffectText(PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID)}（本回合自己的成员已登场${entryCount}次，${!sourceIsCurrent ? '原成员已离场，不增加LIVE合计[スコア]' : conditionMet ? '满足条件，实际LIVE合计[スコア]+1' : '未满足条件，不增加LIVE合计[スコア]'}。）`,
+        actionPayload: { entryCount, sourceIsCurrent, conditionMet, scoreBonus: conditionMet ? 1 : 0 },
       };
     },
     finish: finishPlNBp3005MemberEntriesScore,
@@ -538,10 +540,15 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
   {
     abilityId: BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
     stepId: BP4_021_SUCCESS_SCORE_MODIFIER_STEP_ID,
-    getStartContext: (game, _ability, playerId) => {
-      const successLiveScore = sumSuccessfulLiveScore(game, playerId);
-      const reducesRequirement = successLiveScoreAtLeast(game, playerId, 6);
-      const gainsScore = successLiveScoreAtLeast(game, playerId, 9);
+    getStartContext: (game, ability, playerId) => {
+      const successLiveScore = sumSuccessfulLiveScoreForCardEffect(
+        game,
+        playerId,
+        ability.sourceCardId,
+        [playerId]
+      );
+      const reducesRequirement = successLiveScore >= 6;
+      const gainsScore = successLiveScore >= 9;
       return {
         effectText: `${getAbilityEffectText(
           BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID
@@ -722,32 +729,50 @@ function resolveConditionalLiveModifierWorkflow(
   );
 }
 
+function isCurrentPendingStageMemberSource(game: GameState, ability: PendingAbilityState): boolean {
+  return isCurrentStageMemberAbilitySource(game, {
+    controllerId: ability.controllerId,
+    sourceCardId: ability.sourceCardId,
+    sourceLifecycleId: getPendingAbilitySourceLifecycleId(game, ability),
+  });
+}
+
 function finishPlNBp3005MemberEntriesScore(
   game: GameState,
   effect: PendingAbilityState,
   playerId: string
 ): ConditionalLiveModifierFinishContext {
   const entryCount = countMemberEntriesThisTurn(game, playerId);
-  const scoreBonus = entryCount >= 2 ? 1 : 0;
+  const sourceIsCurrent = isCurrentPendingStageMemberSource(game, effect);
+  const scoreBonus = entryCount >= 2 && sourceIsCurrent ? 1 : 0;
   const previous = game.liveResolution.liveModifiers.find(
     (modifier) =>
       modifier.kind === 'SCORE' &&
       modifier.playerId === playerId &&
       modifier.sourceCardId === effect.sourceCardId &&
       modifier.abilityId === effect.abilityId &&
+      modifier.abilityInstanceId === effect.abilityInstanceId &&
       modifier.liveCardId === undefined
   );
   const previousBonus = previous?.kind === 'SCORE' ? previous.countDelta : 0;
   let state = replaceLiveModifier(
     { ...game, activeEffect: null },
-    { kind: 'SCORE', playerId, sourceCardId: effect.sourceCardId, abilityId: effect.abilityId },
+    {
+      kind: 'SCORE',
+      playerId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      ...(effect.abilityInstanceId ? { abilityInstanceId: effect.abilityInstanceId } : {}),
+    },
     scoreBonus > 0
       ? {
           kind: 'SCORE',
           playerId,
           countDelta: 1,
           sourceCardId: effect.sourceCardId,
+          targetMemberCardId: effect.sourceCardId,
           abilityId: effect.abilityId,
+          ...(effect.abilityInstanceId ? { abilityInstanceId: effect.abilityInstanceId } : {}),
         }
       : null
   );
@@ -758,6 +783,7 @@ function finishPlNBp3005MemberEntriesScore(
     actionPayload: {
       step: 'APPLY_MEMBER_ENTRIES_SCORE',
       entryCount,
+      sourceIsCurrent,
       conditionMet: scoreBonus > 0,
       scoreBonus,
       scoreDelta,
@@ -885,18 +911,21 @@ function finishNicoLiveStartScoreBonus(
     groupIs("μ's"),
     25
   );
+  const sourceIsCurrent = isCurrentPendingStageMemberSource(game, effect);
   let state: GameState = {
     ...game,
     activeEffect: null,
   };
-  if (isConditionMet) {
-    state = addLiveModifier(state, {
-      kind: 'SCORE',
+  if (isConditionMet && sourceIsCurrent) {
+    const result = addPlayerScoreLiveModifierForTargetMember(state, {
       playerId,
       countDelta: 1,
       sourceCardId: effect.sourceCardId,
+      targetMemberCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
+      ...(effect.abilityInstanceId ? { abilityInstanceId: effect.abilityInstanceId } : {}),
     });
+    if (result) state = result.gameState;
   }
 
   return {
@@ -905,23 +934,25 @@ function finishNicoLiveStartScoreBonus(
       step: 'APPLY_SCORE_BONUS',
       effectText: getAbilityEffectText(NICO_LIVE_START_SCORE_ABILITY_ID),
       conditionMet: isConditionMet,
+      sourceIsCurrent,
       museWaitingRoomCount,
-      scoreBonus: isConditionMet ? 1 : 0,
+      scoreBonus: isConditionMet && sourceIsCurrent ? 1 : 0,
     },
   };
 }
 
-function getNicoStartContext(game: GameState, _ability: PendingAbilityState, playerId: string) {
+function getNicoStartContext(game: GameState, ability: PendingAbilityState, playerId: string) {
   const museWaitingRoomCount = countCardsMatchingSelector(
     game,
     getCardIdsInZone(game, playerId, ZoneType.WAITING_ROOM),
     groupIs("μ's")
   );
-  const conditionMet = museWaitingRoomCount >= 25;
+  const sourceIsCurrent = isCurrentPendingStageMemberSource(game, ability);
+  const conditionMet = museWaitingRoomCount >= 25 && sourceIsCurrent;
   return {
     effectText: `${getAbilityEffectText(
       NICO_LIVE_START_SCORE_ABILITY_ID
-    )}（当前 μ's 休息室 ${museWaitingRoomCount}张，${conditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'}）`,
+    )}（当前 μ's 休息室 ${museWaitingRoomCount}张，${!sourceIsCurrent ? '原成员已离场，不增加分数' : conditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'}）`,
     actionPayload: {},
   };
 }
@@ -1949,9 +1980,11 @@ function finishBp4021HeartbeatLiveStartSuccessScoreModifier(
   effect: PendingAbilityState,
   playerId: string
 ): ConditionalLiveModifierFinishContext {
-  const successLiveScore = sumSuccessfulLiveScore(game, playerId);
-  const reducesRequirement = successLiveScoreAtLeast(game, playerId, 6);
-  const gainsScore = successLiveScoreAtLeast(game, playerId, 9);
+  const successLiveScore = sumSuccessfulLiveScoreForCardEffect(game, playerId, effect.sourceCardId, [
+    playerId,
+  ]);
+  const reducesRequirement = successLiveScore >= 6;
+  const gainsScore = successLiveScore >= 9;
   let state: GameState = {
     ...game,
     activeEffect: null,

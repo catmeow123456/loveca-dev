@@ -7,7 +7,7 @@ import { SP_BP1_009_ACTIVATED_PAY_ONE_ENERGY_DRAW_ONE_DISCARD_ONE_ABILITY_ID } f
 import { findCardAbilityDefinitionById } from '../../definitions/lookup.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
 import {
@@ -62,7 +62,7 @@ function startSpBp1009NatsumiActivated(
     !isMemberCardData(sourceCard.data) ||
     sourceSlot === null ||
     !definition ||
-    !isDirectOrRenGrantedActivatedAbilitySource(
+    !isDirectOrGrantedActivatedAbilitySource(
       game,
       playerId,
       cardId,

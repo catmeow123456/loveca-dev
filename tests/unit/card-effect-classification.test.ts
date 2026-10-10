@@ -1,6 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  LL_BP8_001_ON_ENTER_LOOK_SIX_STACK_MEMBER_BELOW_ABILITY_ID,
+  LL_BP8_001_LIVE_SUCCESS_LOOK_SIX_STACK_MEMBER_BELOW_ABILITY_ID,
+  LL_BP8_001_CONTINUOUS_GAIN_MEMBER_BELOW_ABILITIES_ABILITY_ID,
+  S_PB2_000_CONTINUOUS_DOUBLE_RELAY_ABILITY_ID,
+  S_PB2_000_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+  S_PB2_000_LIVE_START_DOUBLE_AQOURS_RELAY_STACK_LIVE_ABILITY_ID,
+  N_BP8_022_CONTINUOUS_OTHER_NIJIGASAKI_GAIN_BLADE_ABILITY_ID,
   SP_BP1_001_CONTINUOUS_NO_OTHER_STAGE_MEMBER_CANNOT_LIVE_ABILITY_ID,
   SP_BP1_004_CONTINUOUS_CENTER_GAIN_FIVE_BLADE_ABILITY_ID,
   SP_BP1_002_ON_ENTER_LEFT_PAY_TWO_ENERGY_DRAW_TWO_ABILITY_ID,
@@ -12524,7 +12531,11 @@ describe('card effect classification registry', () => {
           CardAbilitySourceZone.HAND,
           CardAbilitySourceZone.WAITING_ROOM,
         ]).toContain(ability.sourceZone);
-        expect(ability.triggerCondition).toBeDefined();
+        if (ability.triggerCondition === undefined) {
+          // State-induced abilities are observed without a fabricated event timing.
+          expect(ability.observerOnly).toBe(true);
+          expect(ability.sourceZone).toBe(CardAbilitySourceZone.STAGE_MEMBER);
+        }
         expect(ability.queued).toBe(true);
       }
 
@@ -16983,4 +16994,76 @@ describe('PL!-pb2-033 opponent printed-HEART wait definitions', () => {
       ).toBe(true);
     }
   );
+});
+
+
+describe('2026-10-06 new cards: complete paragraphs and full-base coverage', () => {
+  const expected = [
+    {
+      base: 'LL-bp8-001',
+      rarities: ['R+', 'P', 'SEC'],
+      abilities: [
+        [LL_BP8_001_ON_ENTER_LOOK_SIX_STACK_MEMBER_BELOW_ABILITY_ID, CardAbilityCategory.ON_ENTER, CardAbilitySourceZone.PLAYED_MEMBER, TriggerCondition.ON_ENTER_STAGE, '【登场】/【LIVE成功时】检视自己的卡组顶的６张卡片。可以将其中的１张成员卡公开，放置于此成员的下方。其余的放置入休息室。'],
+        [LL_BP8_001_LIVE_SUCCESS_LOOK_SIX_STACK_MEMBER_BELOW_ABILITY_ID, CardAbilityCategory.LIVE_SUCCESS, CardAbilitySourceZone.STAGE_MEMBER, TriggerCondition.ON_LIVE_SUCCESS, '【登场】/【LIVE成功时】检视自己的卡组顶的６张卡片。可以将其中的１张成员卡公开，放置于此成员的下方。其余的放置入休息室。'],
+        [LL_BP8_001_CONTINUOUS_GAIN_MEMBER_BELOW_ABILITIES_ABILITY_ID, CardAbilityCategory.CONTINUOUS, CardAbilitySourceZone.STAGE_MEMBER, undefined, '【常时】此成员，获得放置于此成员下方的「矢泽日香（矢泽妮可）」、「宫下爱」、「赛拉丝·柳田·利林费尔德」的成员卡持有的所有【起动】能力和【LIVE开始时】能力。'],
+      ],
+    },
+    {
+      base: 'PL!S-pb2-000',
+      rarities: ['DUO', 'R', 'P'],
+      abilities: [
+        [S_PB2_000_CONTINUOUS_DOUBLE_RELAY_ABILITY_ID, CardAbilityCategory.CONTINUOUS, CardAbilitySourceZone.HAND, undefined, '【常时】打出此卡时，可以与２名成员进行换手。'],
+        [S_PB2_000_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID, CardAbilityCategory.ON_ENTER, CardAbilitySourceZone.PLAYED_MEMBER, TriggerCondition.ON_ENTER_STAGE, '【登场】抽２张卡，将２张手牌放置入休息室。'],
+        [S_PB2_000_LIVE_START_DOUBLE_AQOURS_RELAY_STACK_LIVE_ABILITY_ID, CardAbilityCategory.LIVE_START, CardAbilitySourceZone.STAGE_MEMBER, TriggerCondition.ON_LIVE_START, '【LIVE开始时】此回合，此成员与２名『Aqours』的成员换手登场的场合，将存在于自己的休息室的至多２张『Aqours』的LIVE卡按任意顺序放置于卡组顶。'],
+      ],
+    },
+    {
+      base: 'PL!N-bp8-022',
+      rarities: ['N', 'P', 'SEC'],
+      abilities: [
+        [N_BP8_022_CONTINUOUS_OTHER_NIJIGASAKI_GAIN_BLADE_ABILITY_ID, CardAbilityCategory.CONTINUOUS, CardAbilitySourceZone.STAGE_MEMBER, undefined, '【常时】每有１名存在于自己的舞台的其他的『虹咲』的成员，获得[ブレード]。'],
+      ],
+    },
+  ] as const;
+
+  for (const card of expected) {
+    it(`registers every independent ability of ${card.base} for all rarities`, () => {
+      for (const rarity of card.rarities) {
+        const definitions = getCardAbilityDefinitions(`${card.base}-${rarity}`);
+        expect(definitions).toHaveLength(card.abilities.length);
+        for (const [abilityId, category, sourceZone, triggerCondition, effectText] of card.abilities) {
+          const definition = definitions.find((item) => item.abilityId === abilityId);
+          expect(definition).toMatchObject({
+            abilityId,
+            category,
+            sourceZone,
+            queued: triggerCondition !== undefined,
+            implemented: true,
+            baseCardCodes: [card.base],
+          });
+          expect(definition?.cardCodes).toBeUndefined();
+          expect(definition?.triggerCondition).toBe(triggerCondition);
+          expect(definition?.effectText).toBe(effectText);
+        }
+      }
+    });
+  }
+
+  it('preserves complete source paragraphs for repaired inherited abilities', () => {
+    const nico = getCardAbilityDefinitions('PL!-sd1-009-SD').find((item) => item.category === CardAbilityCategory.LIVE_START);
+    expect(nico?.effectText).toBe("【LIVE开始时】自己的休息室中存在大于等于25张『μ's』的卡片的场合，LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。");
+    for (const code of ['PL!N-bp3-017-N', 'PL!N-bp3-023-N', 'PL!S-bp3-012-N', 'PL!S-bp3-017-N']) {
+      for (const ability of getCardAbilityDefinitions(code)) {
+        expect(ability.effectText).toBe('【登场】/【LIVE开始时】可以将此成员变为待机状态：将存在于对方的舞台的1名费用小于等于4的成员变为待机状态。(待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。)');
+      }
+    }
+  });
+
+  it('uses the corrected complete Just Believe LIVE_START paragraph and the exported success paragraph', () => {
+    for (const code of ['PL!N-bp7-026-L', 'PL!N-bp7-026-SECL']) {
+      const definitions = getCardAbilityDefinitions(code);
+      expect(definitions.find((item) => item.abilityId === N_BP7_026_LIVE_START_DISCARD_UP_TO_TWO_TARGET_NIJIGASAKI_GAIN_BLADE_ABILITY_ID)?.effectText).toBe('【LIVE开始时】可以将至多2张手牌放置入休息室：选择至多与因此放置入休息室的卡片的数量相同数量的存在于自己的舞台的『虹咲』的成员。LIVE结束时为止，那些成员获得[ブレード]。');
+      expect(definitions.find((item) => item.abilityId === N_BP7_026_LIVE_SUCCESS_TWO_NO_BLADE_HEART_MEMBERS_SCORE_ABILITY_ID)?.effectText).toBe('【LIVE成功时】因声援被公开的自己的卡片中，存在大于等于2张不持有BLADE HEART的成员卡的场合，此卡的分数+1。');
+    }
+  });
 });

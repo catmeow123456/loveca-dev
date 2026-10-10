@@ -31,6 +31,7 @@ import {
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import { isCurrentStageMemberAbilitySource } from '../../runtime/source-member.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
@@ -156,7 +157,11 @@ function startWaitSelfOpponentWaitEffect(
     pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
   };
 
-  if (!sourceState.sourceSlot || sourceState.orientation !== OrientationState.ACTIVE) {
+  if (
+    !sourceState.sourceSlot ||
+    sourceState.orientation !== OrientationState.ACTIVE ||
+    !isCurrentStageMemberAbilitySource(game, ability)
+  ) {
     return continuePendingCardEffects(
       addAction(stateWithoutPending, 'RESOLVE_ABILITY', player.id, {
         pendingAbilityId: ability.id,
@@ -244,7 +249,11 @@ function finishSourceWaitCost(
   }
 
   const sourceState = getOwnSourceState(game, player.id, effect.sourceCardId);
-  if (!sourceState.sourceSlot || sourceState.orientation !== OrientationState.ACTIVE) {
+  if (
+    !sourceState.sourceSlot ||
+    sourceState.orientation !== OrientationState.ACTIVE ||
+    !isCurrentStageMemberAbilitySource(game, effect)
+  ) {
     return continuePendingCardEffects(
       addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
         pendingAbilityId: effect.id,

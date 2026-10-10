@@ -27,7 +27,8 @@ export function getAbilityTurnLimitStatus(
   playerId: string,
   abilityId: string,
   sourceCardId: string,
-  abilityInstanceId?: string
+  abilityInstanceId?: string,
+  capturedSourceLifecycleId?: string
 ): AbilityTurnLimitStatus | null {
   const definition = findCardAbilityDefinitionById(abilityId);
   if (definition?.implemented !== true) {
@@ -38,7 +39,8 @@ export function getAbilityTurnLimitStatus(
     return null;
   }
   const countPendingAsTurnUse = definition.countPendingAsTurnUse !== false;
-  const sourceLifecycleId = getAbilitySourceLifecycleId(game, abilityId, sourceCardId);
+  const sourceLifecycleId =
+    capturedSourceLifecycleId ?? getAbilitySourceLifecycleId(game, abilityId, sourceCardId);
   const matchesAbilityInstance = (actual: unknown): boolean =>
     abilityInstanceId === undefined ? typeof actual !== 'string' : actual === abilityInstanceId;
 
@@ -60,7 +62,7 @@ export function getAbilityTurnLimitStatus(
           ability.controllerId === playerId &&
           ability.abilityId === abilityId &&
           ability.sourceCardId === sourceCardId &&
-          abilityInstanceId === undefined &&
+          matchesAbilityInstance(ability.abilityInstanceId) &&
           getPendingAbilitySourceLifecycleId(game, ability) === sourceLifecycleId
       ).length
     : 0;
@@ -105,14 +107,16 @@ export function canUseAbilityThisTurn(
   playerId: string,
   abilityId: string,
   sourceCardId: string,
-  abilityInstanceId?: string
+  abilityInstanceId?: string,
+  capturedSourceLifecycleId?: string
 ): boolean {
   const status = getAbilityTurnLimitStatus(
     game,
     playerId,
     abilityId,
     sourceCardId,
-    abilityInstanceId
+    abilityInstanceId,
+    capturedSourceLifecycleId
   );
   return status === null || status.used < status.limit;
 }

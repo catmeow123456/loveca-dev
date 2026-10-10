@@ -351,6 +351,11 @@ export interface WaitingRoomCardsMovedToMainDeckEvent extends BaseGameEvent {
   readonly toZone: ZoneType.MAIN_DECK;
   readonly destination: MainDeckPlacementDestination;
   readonly cause: WaitingRoomCardsMovedToMainDeckCause;
+  /** Stage sources at the actual rule refresh, before callers can continue moving cards. */
+  readonly refreshStageSources?: readonly {
+    readonly sourceCardId: string;
+    readonly sourceSlot: SlotPosition;
+  }[];
 }
 
 // ============================================
@@ -840,7 +845,8 @@ export function createWaitingRoomCardsMovedToMainDeckEvent(
   controllerId: string,
   movedCardIds: readonly string[],
   destination: MainDeckPlacementDestination,
-  cause: WaitingRoomCardsMovedToMainDeckCause
+  cause: WaitingRoomCardsMovedToMainDeckCause,
+  refreshStageSources?: WaitingRoomCardsMovedToMainDeckEvent['refreshStageSources']
 ): WaitingRoomCardsMovedToMainDeckEvent {
   if (movedCardIds.length === 0) {
     throw new Error(
@@ -858,6 +864,9 @@ export function createWaitingRoomCardsMovedToMainDeckEvent(
     toZone: ZoneType.MAIN_DECK,
     destination,
     cause,
+    ...(refreshStageSources !== undefined
+      ? { refreshStageSources: refreshStageSources.map((source) => ({ ...source })) }
+      : {}),
     triggerPlayerId: playerId,
   };
 }

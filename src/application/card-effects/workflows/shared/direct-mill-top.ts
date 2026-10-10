@@ -15,6 +15,7 @@ import {
   HS_BP2_011_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   HS_PB1_027_LIVE_SUCCESS_OPTIONAL_MILL_TOP_FOUR_IF_CERISE_MEMBER_ABILITY_ID,
   N_BP7_031_LIVE_SUCCESS_MILL_TOP_THREE_ABILITY_ID,
+  N_BP8_011_LIVE_SUCCESS_OPTIONAL_MILL_TOP_FIVE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
@@ -45,6 +46,13 @@ interface DirectMillTopConfig {
 }
 
 const DIRECT_MILL_TOP_CONFIGS: readonly DirectMillTopConfig[] = [
+  {
+    abilityId: N_BP8_011_LIVE_SUCCESS_OPTIONAL_MILL_TOP_FIVE_ABILITY_ID,
+    stepId: 'N_BP8_011_REVEAL_MILLED_TOP_FIVE',
+    optionalDecisionStepId: 'N_BP8_011_DECIDE_MILL_TOP_FIVE',
+    topCount: 5,
+    finishStep: 'FINISH_OPTIONAL_MILL_TOP_FIVE',
+  },
   {
     abilityId: S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID,
     stepId: 'S_BP5_015_REVEAL_MILLED_TOP_TEN',
@@ -312,6 +320,10 @@ function finishDirectMillTopDecision(
     effect.stepId !== config.optionalDecisionStepId ||
     effect.metadata?.directMillTopDecision !== true
   ) {
+    return game;
+  }
+
+  if (selectedOptionId !== null && selectedOptionId !== 'activate') {
     return game;
   }
 

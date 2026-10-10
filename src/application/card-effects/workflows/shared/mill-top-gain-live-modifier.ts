@@ -15,28 +15,42 @@ import {
   ZoneType,
 } from '../../../../shared/types/enums.js';
 import {
+  HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
   HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID,
   HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID,
   HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
   HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
   HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
   N_BP7_020_ON_ENTER_MILL_THREE_TWO_BLADE_HEART_COLORS_GAIN_GREEN_HEART_ABILITY_ID,
+  PL_BP8_007_ON_ENTER_MILL_FOUR_MUSE_LIVE_GAIN_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import {
+  registerPendingAbilityStarterHandler,
+  type PendingAbilityStarterOptions,
+} from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartManualPendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
+import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
+import { isCurrentStageMemberAbilitySource } from '../../runtime/source-member.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import {
+  and,
   groupAliasIs,
   memberHasHeartColor,
   typeIs,
   type CardSelector,
 } from '../../../effects/card-selectors.js';
-import { allCardIdsMatchingSelector } from '../../../effects/conditions.js';
+import {
+  allCardIdsMatchingSelector,
+  getCardIdsMatchingSelector,
+} from '../../../effects/conditions.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -56,6 +70,11 @@ type MillTopReward =
 
 type MillTopCondition =
   | {
+      readonly kind: 'ANY_MATCH';
+      readonly selector: CardSelector;
+      readonly label: string;
+    }
+  | {
       readonly kind: 'ALL_MATCH';
       readonly selector: CardSelector;
       readonly label: string;
@@ -72,9 +91,38 @@ interface MillTopGainLiveModifierConfig {
   readonly condition: MillTopCondition;
   readonly reward: MillTopReward;
   readonly finishStep: string;
+  readonly actionPayloadStyle?: 'LIVE_PRESENCE_BLADE';
+  readonly confirmManualSelection?: true;
 }
 
 const MILL_TOP_GAIN_LIVE_MODIFIER_CONFIGS: readonly MillTopGainLiveModifierConfig[] = [
+  {
+    abilityId: HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
+    stepId: 'HS_BP5_001_REVEAL_TOP_FOUR',
+    topCount: 4,
+    condition: { kind: 'ANY_MATCH', selector: typeIs(CardType.LIVE), label: 'LIVE卡' },
+    reward: {
+      type: 'blade',
+      amount: 2,
+      label: '[ブレード][ブレード]',
+      actionPayloadKey: 'bladeBonus',
+    },
+    finishStep: 'MILL_TOP_FOUR_GAIN_BLADE_IF_LIVE',
+    actionPayloadStyle: 'LIVE_PRESENCE_BLADE',
+    confirmManualSelection: true,
+  },
+  {
+    abilityId: PL_BP8_007_ON_ENTER_MILL_FOUR_MUSE_LIVE_GAIN_BLADE_ABILITY_ID,
+    stepId: 'PL_BP8_007_MILL_TOP_FOUR',
+    topCount: 4,
+    condition: {
+      kind: 'ANY_MATCH',
+      selector: and(typeIs(CardType.LIVE), groupAliasIs('μ’s')),
+      label: '『μ’s』的LIVE卡',
+    },
+    reward: { type: 'blade', amount: 1, label: '[ブレード]', actionPayloadKey: 'bladeBonus' },
+    finishStep: 'FINISH_MILL_TOP_FOUR_MUSE_LIVE_GAIN_BLADE',
+  },
   {
     abilityId: HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
     stepId: 'HS_PR_019_REVEAL_TOP_THREE',
@@ -186,7 +234,7 @@ export function registerMillTopGainLiveModifierWorkflowHandlers(deps: {
       startMillTopGainLiveModifierInspection(
         game,
         ability,
-        options.orderedResolution === true,
+        options,
         config,
         deps.enqueueTriggeredCardEffects
       )
@@ -204,7 +252,7 @@ export function registerMillTopGainLiveModifierWorkflowHandlers(deps: {
 function startMillTopGainLiveModifierInspection(
   game: GameState,
   ability: PendingAbilityState,
-  orderedResolution: boolean,
+  options: PendingAbilityStarterOptions,
   config: MillTopGainLiveModifierConfig,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
@@ -212,6 +260,12 @@ function startMillTopGainLiveModifierInspection(
   if (!player) {
     return game;
   }
+
+  const confirmation = config.confirmManualSelection
+    ? maybeStartManualPendingAbilityConfirmation(game, ability, options)
+    : null;
+  if (confirmation) return confirmation;
+  const sourceLifecycleId = getPendingAbilitySourceLifecycleId(game, ability);
 
   const millResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
     game,
@@ -238,8 +292,8 @@ function startMillTopGainLiveModifierInspection(
   const conditionMet = condition.conditionMet;
   const refreshText = millResult.refreshCount > 0 ? '期间发生卡组更新。' : '';
   const rewardText = conditionMet
-    ? `${condition.description}确认后获得${config.reward.label}。`
-    : `${condition.description}确认后不获得奖励。`;
+    ? `${condition.description}展示结束后获得${config.reward.label}。`
+    : `${condition.description}展示结束后不获得奖励。`;
 
   return startPendingActiveEffect(millResult.gameState, {
     ability,
@@ -248,6 +302,7 @@ function startMillTopGainLiveModifierInspection(
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
+      sourceLifecycleId,
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(config.abilityId),
       stepId: config.stepId,
@@ -256,10 +311,14 @@ function startMillTopGainLiveModifierInspection(
       revealedCardIds,
       metadata: {
         sourceZone: ZoneType.MAIN_DECK,
-        orderedResolution,
+        orderedResolution: options.orderedResolution === true,
         milledCardIds,
-        conditionMet,
-        bladeHeartColors: condition.bladeHeartColors,
+        ...(config.actionPayloadStyle === 'LIVE_PRESENCE_BLADE'
+          ? {
+              liveCardIds: condition.matchingCardIds,
+              ...createRewardActionPayload(config.reward, conditionMet),
+            }
+          : { conditionMet, bladeHeartColors: condition.bladeHeartColors }),
         refreshCount: millResult.refreshCount,
       },
     }),
@@ -267,8 +326,12 @@ function startMillTopGainLiveModifierInspection(
       sourceCardId: ability.sourceCardId,
       step: 'MILL_TOP_CARDS',
       milledCardIds,
-      conditionMet,
-      bladeHeartColors: condition.bladeHeartColors,
+      ...(config.actionPayloadStyle === 'LIVE_PRESENCE_BLADE'
+        ? {
+            liveCardIds: condition.matchingCardIds,
+            ...createRewardActionPayload(config.reward, conditionMet),
+          }
+        : { conditionMet, bladeHeartColors: condition.bladeHeartColors }),
       refreshCount: millResult.refreshCount,
     },
   });
@@ -290,7 +353,10 @@ function finishMillTopGainLiveModifier(
   }
 
   const milledCardIds = getStringArrayMetadata(effect.metadata?.milledCardIds);
-  const conditionMet = effect.metadata?.conditionMet === true;
+  const conditionMet =
+    config.actionPayloadStyle === 'LIVE_PRESENCE_BLADE'
+      ? typeof effect.metadata?.bladeBonus === 'number' && effect.metadata.bladeBonus > 0
+      : effect.metadata?.conditionMet === true;
 
   let state: GameState = {
     ...game,
@@ -298,8 +364,7 @@ function finishMillTopGainLiveModifier(
   };
   let rewardApplied = false;
 
-  const sourceStillOnStage = Object.values(player.memberSlots.slots).includes(effect.sourceCardId);
-  if (conditionMet && sourceStillOnStage) {
+  if (conditionMet && isCurrentStageMemberAbilitySource(game, effect)) {
     const modifierResult =
       config.reward.type === 'heart'
         ? addHeartLiveModifierForSourceMember(state, {
@@ -327,9 +392,13 @@ function finishMillTopGainLiveModifier(
       sourceCardId: effect.sourceCardId,
       step: config.finishStep,
       milledCardIds,
-      conditionMet,
-      bladeHeartColors: getStringArrayMetadata(effect.metadata?.bladeHeartColors),
-      rewardApplied,
+      ...(config.actionPayloadStyle === 'LIVE_PRESENCE_BLADE'
+        ? { liveCardIds: getStringArrayMetadata(effect.metadata?.liveCardIds) }
+        : {
+            conditionMet,
+            bladeHeartColors: getStringArrayMetadata(effect.metadata?.bladeHeartColors),
+            rewardApplied,
+          }),
       refreshCount:
         typeof effect.metadata?.refreshCount === 'number' ? effect.metadata.refreshCount : 0,
       ...createRewardActionPayload(config.reward, rewardApplied),
@@ -346,7 +415,24 @@ function evaluateCondition(
   readonly conditionMet: boolean;
   readonly description: string;
   readonly bladeHeartColors: readonly HeartColor[];
+  readonly matchingCardIds: readonly string[];
 } {
+  if (config.condition.kind === 'ANY_MATCH') {
+    const matchingCardIds = getCardIdsMatchingSelector(
+      game,
+      milledCardIds,
+      config.condition.selector
+    );
+    const conditionMet = matchingCardIds.length > 0;
+    return {
+      conditionMet,
+      description: conditionMet
+        ? `其中存在${config.condition.label}。`
+        : `其中没有${config.condition.label}。`,
+      bladeHeartColors: [],
+      matchingCardIds: [...new Set(matchingCardIds)],
+    };
+  }
   if (config.condition.kind === 'ALL_MATCH') {
     const conditionMet =
       milledCardIds.length === config.topCount &&
@@ -357,6 +443,7 @@ function evaluateCondition(
         ? `这些卡均为${config.condition.label}。`
         : `这些卡不满足均为${config.condition.label}。`,
       bladeHeartColors: [],
+      matchingCardIds: [],
     };
   }
 
@@ -377,6 +464,7 @@ function evaluateCondition(
     conditionMet: bladeHeartColors.length >= config.condition.minCount,
     description: `这些成员卡的BLADE HEART颜色共${bladeHeartColors.length}种。`,
     bladeHeartColors,
+    matchingCardIds: [],
   };
 }
 

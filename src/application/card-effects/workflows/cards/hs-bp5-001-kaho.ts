@@ -6,22 +6,13 @@ import {
   getCardById,
   getPlayerById,
   type GameState,
-  type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { CardType, GamePhase, ZoneType } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import {
-  HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID,
-  HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
-} from '../../ability-ids.js';
-import {
-  revealHandCardForActiveEffect,
-  startConfirmOnlyPendingAbilityEffect,
-} from '../../runtime/active-effect.js';
+import { HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID } from '../../ability-ids.js';
+import { revealHandCardForActiveEffect } from '../../runtime/active-effect.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
@@ -29,48 +20,19 @@ import {
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
 import { and, cardNameContains, typeIs } from '../../../effects/card-selectors.js';
-import {
-  getCardIdsInZoneMatching,
-  getCardIdsMatchingSelector,
-  hasCardIdsMatchingSelector,
-} from '../../../effects/conditions.js';
+import { getCardIdsInZoneMatching } from '../../../effects/conditions.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
 } from '../../../effects/zone-selection.js';
 import { finishWaitingRoomToHandWorkflow } from '../shared/waiting-room-to-hand.js';
-import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
-import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
-import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 
 const HS_BP5_001_SELECT_HAND_LIVE_STEP_ID = 'HS_BP5_001_SELECT_HAND_LIVE_TO_REVEAL';
 const HS_BP5_001_REVEAL_HAND_LIVE_STEP_ID = 'HS_BP5_001_REVEAL_HAND_LIVE';
 const HS_BP5_001_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'HS_BP5_001_SELECT_WAITING_ROOM_SAME_NAME_LIVE';
-const HS_BP5_001_REVEAL_TOP_FOUR_STEP_ID = 'HS_BP5_001_REVEAL_TOP_FOUR';
 
-type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
-
-export function registerHsBp5001KahoWorkflowHandlers(deps: {
-  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
-}): void {
-  registerPendingAbilityStarterHandler(
-    HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
-    (game, ability, options) =>
-      startHsBp5KahoOnEnterMillGainBladeInspection(game, ability, {
-        orderedResolution: options.orderedResolution === true,
-        manualConfirmation: options.manualConfirmation === true,
-        skipManualConfirmation: options.skipManualConfirmation === true,
-        enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
-      })
-  );
-  registerActiveEffectStepHandler(
-    HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
-    HS_BP5_001_REVEAL_TOP_FOUR_STEP_ID,
-    (game, _input, context) =>
-      finishHsBp5KahoOnEnterMillGainBlade(game, context.continuePendingCardEffects),
-    queryConfirmSelection
-  );
+export function registerHsBp5001KahoWorkflowHandlers(): void {
   registerActivatedAbilityHandler(
     HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID,
     startHsBp5KahoActivatedRevealHandLiveRecoverSameNameLive,
@@ -100,155 +62,6 @@ export function registerHsBp5001KahoWorkflowHandlers(deps: {
       ),
     queryCardSelection
   );
-}
-
-function startHsBp5KahoOnEnterMillGainBladeInspection(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: {
-    readonly orderedResolution: boolean;
-    readonly manualConfirmation: boolean;
-    readonly skipManualConfirmation: boolean;
-    readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
-  }
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-  if (options.manualConfirmation && !options.skipManualConfirmation) {
-    return startConfirmOnlyPendingAbilityEffect(game, {
-      ability,
-      effectText: getAbilityEffectText(HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID),
-      orderedResolution: options.orderedResolution,
-    });
-  }
-
-  const millResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
-    game,
-    player.id,
-    4,
-    options.enqueueTriggeredCardEffects
-  );
-  if (!millResult) {
-    return game;
-  }
-  const milledCardIds = millResult.movedCardIds;
-  const hasLiveCard = hasCardIdsMatchingSelector(
-    millResult.gameState,
-    milledCardIds,
-    typeIs(CardType.LIVE)
-  );
-  const liveCardIds = hasLiveCard
-    ? [
-        ...new Set(
-          getCardIdsMatchingSelector(millResult.gameState, milledCardIds, typeIs(CardType.LIVE))
-        ),
-      ]
-    : [];
-  const bladeBonus = hasLiveCard ? 2 : 0;
-  const refreshText = millResult.refreshCount > 0 ? '期间发生卡组更新。' : '';
-  const rewardText = hasLiveCard
-    ? '其中有LIVE卡。确认后获得[BLADE][BLADE]。'
-    : '其中没有LIVE卡。确认后不获得BLADE。';
-  const state: GameState = {
-    ...millResult.gameState,
-    pendingAbilities: millResult.gameState.pendingAbilities.filter(
-      (candidate) => candidate.id !== ability.id
-    ),
-    activeEffect: withPublicRevealDwell({
-      id: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      controllerId: ability.controllerId,
-      effectText: getAbilityEffectText(HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID),
-      stepId: HS_BP5_001_REVEAL_TOP_FOUR_STEP_ID,
-      stepText: `已将卡组顶合计${milledCardIds.length}张放置入休息室。${refreshText}${rewardText}`,
-      awaitingPlayerId: player.id,
-      revealedCardIds: [...new Set(milledCardIds)],
-      metadata: {
-        sourceZone: ZoneType.MAIN_DECK,
-        orderedResolution: options.orderedResolution,
-        milledCardIds,
-        liveCardIds,
-        bladeBonus,
-        refreshCount: millResult.refreshCount,
-      },
-    }),
-  };
-
-  return addAction(state, 'RESOLVE_ABILITY', player.id, {
-    pendingAbilityId: ability.id,
-    abilityId: ability.abilityId,
-    sourceCardId: ability.sourceCardId,
-    step: 'MILL_TOP_CARDS',
-    milledCardIds,
-    liveCardIds,
-    bladeBonus,
-    refreshCount: millResult.refreshCount,
-  });
-}
-
-function finishHsBp5KahoOnEnterMillGainBlade(
-  game: GameState,
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !== HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID ||
-    effect.stepId !== HS_BP5_001_REVEAL_TOP_FOUR_STEP_ID
-  ) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const milledCardIds = getStringArrayMetadata(effect.metadata?.milledCardIds);
-  const liveCardIds = getStringArrayMetadata(effect.metadata?.liveCardIds);
-  const bladeBonus =
-    typeof effect.metadata?.bladeBonus === 'number' ? effect.metadata.bladeBonus : 0;
-
-  let stateAfterModifier = game;
-  if (bladeBonus > 0) {
-    const bladeResult = addBladeLiveModifierForSourceMember(game, {
-      playerId: player.id,
-      sourceCardId: effect.sourceCardId,
-      abilityId: effect.abilityId,
-      amount: bladeBonus,
-    });
-    if (!bladeResult) {
-      return game;
-    }
-    stateAfterModifier = bladeResult.gameState;
-  }
-  const state: GameState = {
-    ...stateAfterModifier,
-    activeEffect: null,
-  };
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'MILL_TOP_FOUR_GAIN_BLADE_IF_LIVE',
-      milledCardIds,
-      liveCardIds,
-      bladeBonus,
-      refreshCount:
-        typeof effect.metadata?.refreshCount === 'number' ? effect.metadata.refreshCount : 0,
-    }),
-    effect.metadata?.orderedResolution === true
-  );
-}
-
-function getStringArrayMetadata(value: unknown): readonly string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string')
-    : [];
 }
 
 function getHsBp5KahoActivation(game: GameState, playerId: string, cardId: string) {

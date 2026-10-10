@@ -14,6 +14,7 @@ const SOURCE_LIFECYCLE_PREFIX = 'source-lifecycle';
 interface AbilityInvocationContext {
   readonly abilityId: string;
   readonly abilityInstanceId?: string;
+  readonly grantingMemberBelowCardId?: string;
   readonly sourceCardId: string;
   readonly sourceLifecycleId?: string;
   readonly pendingAbilityId?: string;
@@ -141,7 +142,7 @@ export function capturePendingAbilitySourceLifecycles(game: GameState): GameStat
   const capturedByPendingId = new Map<string, string>();
   let pendingChanged = false;
   const pendingAbilities = game.pendingAbilities.map((ability) => {
-    if (!hasPerTurnLimit(ability.abilityId)) {
+    if (!hasPerTurnLimit(ability.abilityId) && ability.abilityInstanceId === undefined) {
       return ability;
     }
     const sourceLifecycleId = getPendingAbilitySourceLifecycleId(game, ability);
@@ -251,19 +252,14 @@ export function propagateAbilityInvocationContext(
   }
 
   after = preserveActiveEffectSourceDisplay(before, after);
-  const tracksSourceLifecycle = hasPerTurnLimit(context.abilityId);
-  if (!tracksSourceLifecycle && context.abilityInstanceId === undefined) {
+  const tracksSourceLifecycle =
+    hasPerTurnLimit(context.abilityId) || context.abilityInstanceId !== undefined;
+  if (!tracksSourceLifecycle) {
     return after;
   }
-  const sourceLifecycleId = tracksSourceLifecycle
-    ? (context.sourceLifecycleId ??
-      getAbilitySourceLifecycleId(
-        before,
-        context.abilityId,
-        context.sourceCardId,
-        context.eventIds
-      ))
-    : undefined;
+  const sourceLifecycleId =
+    context.sourceLifecycleId ??
+    getAbilitySourceLifecycleId(before, context.abilityId, context.sourceCardId, context.eventIds);
 
   let activeEffect = after.activeEffect;
   const activeEffectMatchesAbilityInstance =
@@ -278,12 +274,22 @@ export function propagateAbilityInvocationContext(
     activeEffect.sourceCardId === context.sourceCardId &&
     activeEffectMatchesAbilityInstance &&
     ((sourceLifecycleId !== undefined && activeEffect.sourceLifecycleId === undefined) ||
+      (context.grantingMemberBelowCardId !== undefined &&
+        activeEffect.metadata?.grantingMemberBelowCardId === undefined) ||
       (context.abilityInstanceId !== undefined && activeEffect.abilityInstanceId === undefined))
   ) {
     activeEffect = {
       ...activeEffect,
       ...(sourceLifecycleId ? { sourceLifecycleId } : {}),
       ...(context.abilityInstanceId ? { abilityInstanceId: context.abilityInstanceId } : {}),
+      ...(context.grantingMemberBelowCardId
+        ? {
+            metadata: {
+              ...activeEffect.metadata,
+              grantingMemberBelowCardId: context.grantingMemberBelowCardId,
+            },
+          }
+        : {}),
     };
   }
 

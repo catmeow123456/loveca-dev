@@ -4,7 +4,7 @@ import {
   N_BP7_006_ACTIVATED_PAY_ENERGY_INSPECT_TOP_FOUR_ABILITY_ID,
   SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
-import { getRenGrantedActivatedAbilityDefinitions } from '../../src/application/card-effects/runtime/granted-activated-abilities';
+import { getGrantedActivatedAbilityDefinitions } from '../../src/application/card-effects/runtime/granted-member-below-abilities';
 import { hasRemainingLimitedActivatedAbilityForStageMember } from '../../src/application/card-effects/runtime/limited-activated-ability-status';
 import { recordAbilityUseForContext } from '../../src/application/card-effects/runtime/workflow-helpers';
 import {
@@ -162,7 +162,7 @@ describe('limited activated ability stage reminder status', () => {
       },
     }));
 
-    const granted = getRenGrantedActivatedAbilityDefinitions(game, P1, hostId).find(
+    const granted = getGrantedActivatedAbilityDefinitions(game, P1, hostId).find(
       (candidate) =>
         candidate.definition.abilityId === SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
     );

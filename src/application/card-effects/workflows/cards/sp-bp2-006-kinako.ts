@@ -8,7 +8,7 @@ import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/action
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { discardOneHandCardToWaitingRoomAndEnqueueTriggers, type EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getWaitingRoomDelegatableOnEnterDefinitions } from '../../runtime/delegatable-definitions.js';
@@ -81,7 +81,7 @@ function startActivated(game: GameState, playerId: string, cardId: string): Game
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
     !isMemberCardData(sourceCard.data) ||
-    !isDirectOrRenGrantedActivatedAbilitySource(
+    !isDirectOrGrantedActivatedAbilitySource(
       game,
       playerId,
       cardId,

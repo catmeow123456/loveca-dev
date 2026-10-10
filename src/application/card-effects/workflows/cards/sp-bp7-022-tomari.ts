@@ -17,7 +17,7 @@ import {
   resolveEnergyReturnByCardEffect,
   type EnqueueTriggeredCardEffectsForEnergyReturn,
 } from '../../runtime/energy-return.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import type { EnqueueTriggeredCardEffectsForMemberSlotMoved } from '../../runtime/member-slot-moved-triggers.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -82,7 +82,7 @@ function startSpBp7022TomariActivated(
     sourceCard.ownerId !== player.id ||
     !isMemberCardData(sourceCard.data) ||
     sourceSlot === null ||
-    !isDirectOrRenGrantedActivatedAbilitySource(
+    !isDirectOrGrantedActivatedAbilitySource(
       game,
       player.id,
       sourceCardId,

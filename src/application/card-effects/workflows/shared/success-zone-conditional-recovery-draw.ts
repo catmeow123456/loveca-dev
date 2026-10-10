@@ -21,7 +21,7 @@ import { and, groupIs, typeIs } from '../../../effects/card-selectors.js';
 import {
   countCardsInZoneMatching,
   hasCardInZoneMatching,
-  successLiveScoreAtLeast,
+  successLiveScoreForCardEffectAtLeast,
 } from '../../../effects/conditions.js';
 import { selectWaitingRoomCardIds } from '../../../effects/zone-selection.js';
 import {
@@ -118,7 +118,7 @@ function startBp6013RecoverMuseLive(
     return game;
   }
 
-  const successScoreConditionMet = successLiveScoreAtLeast(game, player.id, 6);
+  const successScoreConditionMet = successLiveScoreForCardEffectAtLeast(game, player.id, ability.sourceCardId, [player.id], 6);
   const selectableCardIds = successScoreConditionMet
     ? getWaitingRoomMuseLiveCardIds(game, player.id)
     : [];

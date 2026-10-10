@@ -23,7 +23,7 @@ import {
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
@@ -105,7 +105,7 @@ function startSpPb2002KekeActivatedEffect(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !isDirectOrRenGrantedActivatedAbilitySource(
+    !isDirectOrGrantedActivatedAbilitySource(
       game,
       playerId,
       cardId,

@@ -12,7 +12,7 @@ import {
   isSupportedActivatedAbilityForCard,
 } from '../../src/application/card-effect-runner';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
-import { getRenGrantedActivatedAbilityDefinitions } from '../../src/application/card-effects/runtime/granted-activated-abilities';
+import { getGrantedActivatedAbilityDefinitions } from '../../src/application/card-effects/runtime/granted-member-below-abilities';
 import type { DeckConfig } from '../../src/application/game-service';
 import { registerCards, type GameState } from '../../src/domain/entities/game';
 import { createPublicObjectId } from '../../src/online/projector';
@@ -313,7 +313,7 @@ describe('PL!SP-pb2-005 Ren on-enter and granted activated workflows', () => {
 
   it('lets Ren activate an implemented activated ability from a Liella! member below', () => {
     const scenario = setupGrantedActivatedScenario();
-    const grantedAbility = getRenGrantedActivatedAbilityDefinitions(
+    const grantedAbility = getGrantedActivatedAbilityDefinitions(
       scenario.session.state!,
       PLAYER1,
       scenario.renId

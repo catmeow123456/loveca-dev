@@ -7,7 +7,7 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import { sumSuccessfulLiveScore } from '../../../../domain/rules/success-live-score.js';
+import { sumSuccessfulLiveScoreForCardEffect } from '../../../../domain/rules/success-live-score.js';
 import {
   CardType,
   HeartColor,
@@ -811,7 +811,12 @@ export function startLookTopSelectToHandWorkflow(
   }
 
   if (config.minSuccessfulLiveScore !== undefined) {
-    const successfulLiveScore = sumSuccessfulLiveScore(game, player.id);
+    const successfulLiveScore = sumSuccessfulLiveScoreForCardEffect(
+      game,
+      player.id,
+      ability.sourceCardId,
+      [player.id]
+    );
     if (successfulLiveScore < config.minSuccessfulLiveScore) {
       const state = {
         ...game,

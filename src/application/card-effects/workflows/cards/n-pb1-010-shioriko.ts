@@ -1,24 +1,23 @@
 import {
   addAction,
-  getCardById,
   getPlayerById,
   type ActiveEffectState,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { CardType, ZoneType } from '../../../../shared/types/enums.js';
-import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
 import { PL_N_PB1_010_ON_ENTER_CHOOSE_ACTIVATE_ONE_ENERGY_OR_STACK_NIJIGASAKI_LIVE_TO_DECK_TOP_ABILITY_ID } from '../../ability-ids.js';
-import {
-  activateWaitingEnergyCardsForPlayer,
-} from '../../runtime/actions.js';
-import { moveWaitingRoomCardsToDeckTopAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
+import { activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  createWaitingRoomLiveToDeckTopEffect,
+  finishWaitingRoomLiveToDeckTopSelection,
+  selectWaitingRoomLiveToDeckTopCandidates,
+  type WaitingRoomLiveToDeckTopConfig,
+} from '../shared/waiting-room-live-to-deck-top.js';
 
 export const N_PB1_010_SELECT_OPTION_STEP_ID = 'N_PB1_010_SELECT_OPTION';
 export const N_PB1_010_SELECT_NIJIGASAKI_LIVE_STEP_ID =
@@ -28,7 +27,17 @@ export const N_PB1_010_STACK_NIJIGASAKI_LIVE_OPTION_ID = 'stack-nijigasaki-live-
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-const nijigasakiLiveSelector = and(typeIs(CardType.LIVE), groupAliasIs('虹ヶ咲'));
+const liveToDeckTopConfig: WaitingRoomLiveToDeckTopConfig = {
+  abilityId:
+    PL_N_PB1_010_ON_ENTER_CHOOSE_ACTIVATE_ONE_ENERGY_OR_STACK_NIJIGASAKI_LIVE_TO_DECK_TOP_ABILITY_ID,
+  groupAlias: '虹ヶ咲',
+  maxCount: 2,
+  stepId: N_PB1_010_SELECT_NIJIGASAKI_LIVE_STEP_ID,
+  stepText: '请从自己休息室中选择至多2张『虹咲』LIVE卡，按选择顺序放置于卡组顶。',
+  skipStep: 'SKIP_STACK_NIJIGASAKI_LIVE',
+  moveStep: 'STACK_NIJIGASAKI_LIVE_TO_DECK_TOP',
+  actionPayload: { selectedOptionId: N_PB1_010_STACK_NIJIGASAKI_LIVE_OPTION_ID },
+};
 
 export function registerNPb1010ShiorikoWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
@@ -50,9 +59,10 @@ export function registerNPb1010ShiorikoWorkflowHandlers(): void {
     PL_N_PB1_010_ON_ENTER_CHOOSE_ACTIVATE_ONE_ENERGY_OR_STACK_NIJIGASAKI_LIVE_TO_DECK_TOP_ABILITY_ID,
     N_PB1_010_SELECT_NIJIGASAKI_LIVE_STEP_ID,
     (game, input, context) =>
-      resolveShiorikoStackSelection(
+      finishWaitingRoomLiveToDeckTopSelection(
         game,
         input.selectedCardIds ?? [],
+        liveToDeckTopConfig,
         context.continuePendingCardEffects
       )
   );
@@ -134,7 +144,11 @@ function resolveShiorikoOption(
 
   const player = getPlayerById(game, effect.controllerId);
   if (!player) return game;
-  const selectableCardIds = selectCurrentNijigasakiLiveCardIds(game, player.id);
+  const selectableCardIds = selectWaitingRoomLiveToDeckTopCandidates(
+    game,
+    player.id,
+    liveToDeckTopConfig.groupAlias
+  );
   if (selectableCardIds.length === 0) {
     return finishAndContinue(
       game,
@@ -151,7 +165,11 @@ function resolveShiorikoOption(
     );
   }
 
-  const nextEffect = createNijigasakiLiveSelectionEffect(effect, player.id, selectableCardIds);
+  const nextEffect = createWaitingRoomLiveToDeckTopEffect(
+    effect,
+    selectableCardIds,
+    liveToDeckTopConfig
+  );
   return addAction({ ...game, activeEffect: nextEffect }, 'RESOLVE_ABILITY', player.id, {
     pendingAbilityId: effect.id,
     abilityId: effect.abilityId,
@@ -199,168 +217,6 @@ function resolveActivateOneEnergy(
       previousOrientations: activation.previousOrientations,
       nextOrientation: activation.nextOrientation,
     }
-  );
-}
-
-function resolveShiorikoStackSelection(
-  game: GameState,
-  selectedCardIds: readonly string[],
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const effect = getExpectedEffect(game, N_PB1_010_SELECT_NIJIGASAKI_LIVE_STEP_ID);
-  if (!effect) return game;
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) return game;
-
-  const initialCandidateCardIds = effect.selectableCardIds ?? [];
-  const maxSelectableCards = Math.min(2, initialCandidateCardIds.length);
-  const selectionIsValid =
-    selectedCardIds.length <= maxSelectableCards &&
-    new Set(selectedCardIds).size === selectedCardIds.length &&
-    selectedCardIds.every((cardId) =>
-      isCurrentNijigasakiLiveCandidate(game, player.id, cardId, initialCandidateCardIds)
-    );
-  if (!selectionIsValid) {
-    if (!wasRestoredAfterPublicCardSelectionConfirmation(effect)) return game;
-    return recoverFromStaleStackSelection(
-      game,
-      effect,
-      player.id,
-      selectedCardIds,
-      continuePendingCardEffects
-    );
-  }
-
-  const moveResult = moveWaitingRoomCardsToDeckTopAndEnqueueTriggers(game, player.id, selectedCardIds, {
-    candidateCardIds: initialCandidateCardIds,
-    minCount: 0,
-    maxCount: maxSelectableCards,
-    cause: {
-      kind: 'CARD_EFFECT',
-      playerId: effect.controllerId,
-      sourceCardId: effect.sourceCardId,
-      abilityId: effect.abilityId,
-      pendingAbilityId: effect.id,
-    },
-  });
-  if (!moveResult) return game;
-  return finishAndContinue(
-    moveResult.gameState,
-    effect,
-    player.id,
-    continuePendingCardEffects,
-    selectedCardIds.length === 0
-      ? 'SKIP_STACK_NIJIGASAKI_LIVE'
-      : 'STACK_NIJIGASAKI_LIVE_TO_DECK_TOP',
-    {
-      selectedOptionId: N_PB1_010_STACK_NIJIGASAKI_LIVE_OPTION_ID,
-      candidateCardIds: initialCandidateCardIds,
-      selectedCardIds,
-      movedCardIds: moveResult.movedCardIds,
-    }
-  );
-}
-
-function recoverFromStaleStackSelection(
-  game: GameState,
-  effect: ActiveEffectState,
-  playerId: string,
-  staleSelectedCardIds: readonly string[],
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const currentCandidateCardIds = selectCurrentNijigasakiLiveCardIds(game, playerId);
-  if (currentCandidateCardIds.length === 0) {
-    return finishAndContinue(
-      game,
-      effect,
-      playerId,
-      continuePendingCardEffects,
-      'STALE_STACK_SELECTION_NO_OP',
-      {
-        selectedOptionId: N_PB1_010_STACK_NIJIGASAKI_LIVE_OPTION_ID,
-        candidateCardIds: effect.selectableCardIds ?? [],
-        selectedCardIds: staleSelectedCardIds,
-        currentCandidateCardIds,
-        movedCardIds: [],
-      }
-    );
-  }
-
-  const refreshedEffect = createNijigasakiLiveSelectionEffect(
-    effect,
-    playerId,
-    currentCandidateCardIds
-  );
-  return addAction({ ...game, activeEffect: refreshedEffect }, 'RESOLVE_ABILITY', playerId, {
-    pendingAbilityId: effect.id,
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    step: 'STALE_STACK_SELECTION_REFRESH',
-    selectedOptionId: N_PB1_010_STACK_NIJIGASAKI_LIVE_OPTION_ID,
-    staleSelectedCardIds,
-    currentCandidateCardIds,
-  });
-}
-
-function createNijigasakiLiveSelectionEffect(
-  effect: ActiveEffectState,
-  playerId: string,
-  selectableCardIds: readonly string[]
-): ActiveEffectState {
-  return {
-    id: effect.id,
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    controllerId: effect.controllerId,
-    effectText: effect.effectText,
-    stepId: N_PB1_010_SELECT_NIJIGASAKI_LIVE_STEP_ID,
-    stepText: '请从自己休息室中选择至多2张『虹咲』LIVE卡，按选择顺序放置于卡组顶。',
-    awaitingPlayerId: playerId,
-    selectableCardIds,
-    selectableCardVisibility: 'PUBLIC',
-    selectableCardMode: 'ORDERED_MULTI',
-    minSelectableCards: 0,
-    maxSelectableCards: Math.min(2, selectableCardIds.length),
-    canSkipSelection: true,
-    skipSelectionLabel: '不放置',
-    selectionLabel: '按放置顺序选择卡片',
-    confirmSelectionLabel: '按此顺序放置于卡组顶',
-    metadata: {
-      orderedResolution: effect.metadata?.orderedResolution === true,
-      sourceZone: ZoneType.WAITING_ROOM,
-      destination: ZoneType.MAIN_DECK,
-      publicCardSelectionConfirmation: {
-        source: 'WAITING_ROOM',
-        destination: 'MAIN_DECK_TOP',
-        ordered: true,
-        sourcePlayerId: playerId,
-      },
-    },
-  };
-}
-
-function selectCurrentNijigasakiLiveCardIds(game: GameState, playerId: string): readonly string[] {
-  const player = getPlayerById(game, playerId);
-  if (!player) return [];
-  return player.waitingRoom.cardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card?.ownerId === playerId && nijigasakiLiveSelector(card);
-  });
-}
-
-function isCurrentNijigasakiLiveCandidate(
-  game: GameState,
-  playerId: string,
-  cardId: string,
-  initialCandidateCardIds: readonly string[]
-): boolean {
-  const player = getPlayerById(game, playerId);
-  const card = getCardById(game, cardId);
-  return (
-    initialCandidateCardIds.includes(cardId) &&
-    player?.waitingRoom.cardIds.includes(cardId) === true &&
-    card?.ownerId === playerId &&
-    nijigasakiLiveSelector(card)
   );
 }
 

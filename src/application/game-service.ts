@@ -159,6 +159,7 @@ import { clearMemberWaitProtectionsUntilLiveEnd } from '../domain/rules/member-w
 import {
   collectContinuousActivePhaseSkippedMemberCardIds,
   consumeMemberActivePhaseSkipsForPlayer,
+  removeMemberActivePhaseSkipsForMembers,
 } from '../domain/rules/member-active-skips.js';
 import { consumeEnergyActivePhaseSkipsForPlayer } from '../domain/rules/energy-active-skips.js';
 
@@ -396,6 +397,11 @@ export class GameService {
               : []
           );
         preparedState = removeStageMemberBoundLiveModifiers(preparedState, leavingMemberCardIds);
+        preparedState = removeMemberActivePhaseSkipsForMembers(
+          preparedState,
+          leavingMemberCardIds,
+          game.memberActivePhaseSkips
+        );
         if (hasPendingAbilityOrChoice(preparedState)) {
           const deferredTriggerConditions = (result.triggeredEvents ?? []).filter(
             isTriggerCondition

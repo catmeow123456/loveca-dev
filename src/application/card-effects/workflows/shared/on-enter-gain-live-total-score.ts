@@ -10,7 +10,7 @@ import { addPlayerScoreLiveModifierForTargetMember } from '../../../../domain/ru
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   countSuccessfulLiveCards,
-  sumSuccessfulLiveScore,
+  sumSuccessfulLiveScoreForCardEffect,
 } from '../../../effects/conditions.js';
 import {
   PL_BP4_007_ON_ENTER_SUCCESS_LIVE_EXISTS_SCORE_AT_MOST_ONE_GAIN_SCORE_ABILITY_ID,
@@ -74,9 +74,7 @@ function resolveOnEnterGainLiveTotalScore(
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   const source = getCardById(game, ability.sourceCardId);
-  const sourceSlot = player
-    ? getSourceMemberSlot(game, player.id, ability.sourceCardId)
-    : null;
+  const sourceSlot = player ? getSourceMemberSlot(game, player.id, ability.sourceCardId) : null;
   const sourceIsValid =
     player !== null &&
     source !== null &&
@@ -110,7 +108,7 @@ function resolveOnEnterGainLiveTotalScore(
       : undefined;
   const successfulLiveScore =
     config.conditionKind === 'SUCCESS_LIVE_EXISTS_SCORE_AT_MOST_ONE'
-      ? sumSuccessfulLiveScore(game, player.id)
+      ? sumSuccessfulLiveScoreForCardEffect(game, player.id, ability.sourceCardId, [player.id])
       : undefined;
   const conditionMet =
     config.conditionKind === 'ALWAYS' ||

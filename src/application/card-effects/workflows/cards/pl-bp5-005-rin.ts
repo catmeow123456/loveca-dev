@@ -8,8 +8,8 @@ import { OrientationState } from '../../../../shared/types/enums.js';
 import { BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import {
-  successLiveScoreAtLeast,
-  sumSuccessfulLiveScore,
+  successLiveScoreForCardEffectAtLeast,
+  sumSuccessfulLiveScoreForCardEffect,
 } from '../../../effects/conditions.js';
 import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 
@@ -39,8 +39,19 @@ function resolveBp5RinOnEnterSuccessScorePlaceActiveEnergy(
     return game;
   }
 
-  const successLiveScore = sumSuccessfulLiveScore(game, player.id);
-  const conditionMet = successLiveScoreAtLeast(game, player.id, 6);
+  const successLiveScore = sumSuccessfulLiveScoreForCardEffect(
+    game,
+    player.id,
+    ability.sourceCardId,
+    [player.id]
+  );
+  const conditionMet = successLiveScoreForCardEffectAtLeast(
+    game,
+    player.id,
+    ability.sourceCardId,
+    [player.id],
+    6
+  );
   const energyPlacement = conditionMet
     ? placeEnergyFromDeckToZoneByCardEffect(game, player.id, 1, OrientationState.ACTIVE, {
         kind: 'CARD_EFFECT',

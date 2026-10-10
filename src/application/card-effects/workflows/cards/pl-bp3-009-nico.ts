@@ -13,7 +13,6 @@ import {
   OrientationState,
   SlotPosition,
 } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
 import { PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
@@ -21,7 +20,11 @@ import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
 } from '../../runtime/member-state-changed-triggers.js';
-import { getSourceMemberSlot } from '../../runtime/source-member.js';
+import {
+  getSourceMemberSlot,
+  isCurrentStageMemberAbilitySource,
+} from '../../runtime/source-member.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
@@ -160,7 +163,7 @@ function finishActivatedChooseHeart(
   }
   const player = getPlayerById(game, effect.controllerId);
   const sourceSlot = player ? getSourceMemberSlot(game, player.id, effect.sourceCardId) : null;
-  if (!player || sourceSlot === null) {
+  if (!player || sourceSlot === null || !isCurrentStageMemberAbilitySource(game, effect)) {
     return continuePendingCardEffects(
       addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
         abilityId: effect.abilityId,
@@ -212,7 +215,13 @@ function getValidActivatedSource(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !cardCodeMatchesBase(sourceCard.data.cardCode, BASE_CARD_CODE) ||
+    !isDirectOrGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID,
+      [BASE_CARD_CODE]
+    ) ||
     !isMemberCardData(sourceCard.data) ||
     sourceSlot === null ||
     sourceState?.orientation === undefined

@@ -91,19 +91,16 @@ Public Reveal Dwell 表示“隐藏信息刚刚按卡文变成双方公开”，
 
 费用 11「东条希」的 `PL!-bp6-007` 是“公开后原本立即移动与加分”的延迟结算样本；普通检视选1继续由 shared workflow 承担。focused 测试必须检查双方 FRONT 投影、deadline 前无后续结算、双方到期均可推进、重连/撤销不复用旧窗口，以及成功、条件失败、无目标和短牌库路径。
 
-## Granted Activated Abilities
+## Granted Member-Below Abilities
 
-少数常时能力会让舞台上的 host 获得下方成员的起动能力。当前只落地 `PL!SP-pb2-005` 的窄入口：
+`runtime/granted-member-below-abilities.ts` 由两个真实宿主共用：费用20「叶月恋」`PL!SP-pb2-005` 获得下方『Liella!』成员的起动能力；费用15「矢泽日香（矢泽妮可）&宫下爱&赛拉丝·柳田·利林费尔德」`LL-bp8-001` 获得下方三个结构化姓名成员的起动与 LIVE 开始能力。配置仅包含宿主基础编号、成员 selector、能力类别及兼容的实例前缀；原 Ren 实例标识保持不变。
 
-- `granted-activated-abilities.ts` 只在 Ren host 位于舞台时，读取同槽 `memberBelow` 中自己的『Liella!』成员。
-- 只枚举已实现的 `ACTIVATED / STAGE_MEMBER` definition，并按 host 当前槽位检查 `requiredSourceSlots`。
-- UI 查询为每张授予能力的 memberBelow 成员产生独立、由服务端生成并持有的 opaque `abilityInstanceId`；GameSession `ACTIVATE_ABILITY` 必须携带精确实例标识并重验该成员当前仍在同一 host 下方、仍能授予所请求的 abilityId。直接发动不携带该字段。
-- 可被该 host 获得的 activated workflow 在启动、能量选择恢复、公开确认恢复、支付确认和 finish 等每一个来源资格复核点，都必须调用 `isDirectOrRenGrantedActivatedAbilitySource(game, playerId, sourceCardId, abilityId, directBaseCardCodes)`；不得再次用 `cardCodeMatchesBase` 或 `doesCardAbilityDefinitionMatchCardCode` 把合法 host 限回原卡。
-- `directBaseCardCodes` 必须保留该 abilityId 的全部原生来源；helper 只增加当前合法获得能力的 Ren host，不允许任意成员调用，也不能完全删除“来源当前拥有能力”的校验。shared workflow 只能为明确的 abilityId/config 开启该入口，其他作品与能力继续保留原来源边界。
-- 下方成员只提供 ability definition 和能力实例身份，不接替结算来源。不得把 `sourceCardId` 替换成授予能力的 memberBelow 实例；“此成员”的待机、离场、移动、数值变化、向下叠卡、费用、action audit、`sourceCardId` 与 `sourceLifecycleId` 都继续绑定 host。`ABILITY_USE` 仍以 host 为效果来源，但对授予能力同时保存 `abilityInstanceId`；每回合次数以 host 来源身份与该能力实例联合计算，因此两张相同下方成员授予的两份同 abilityId 能力可分别使用一次。
-- `abilityInstanceId` 必须从当前 UI/query 返回的服务端结果透传，业务层不得解析、猜测或自行拼接其字符串格式。activeEffect 和最终 `ABILITY_USE` 必须保留同一标识，以支持多阶段恢复、在线投影、审计与回放。
-- focused 契约测试必须同时覆盖原卡直发、合法 host、无对应下方成员、无关成员、下方移除、原卡与 host 次数隔离、单张授予卡的 host 第二次发动拒绝，以及两张相同授予卡生成两个不同 `abilityInstanceId`、各可发动一次。还要拒绝伪造、错配和已移除的实例标识，并为多阶段 workflow 覆盖至少一个恢复/确认入口。
-- 该入口不是通用 DSL；新增同类 host 或新增 handler 接入时，需要逐卡审查 source/limit/cost 语义。
+- 当前持有查询只读取己方顶层宿主同槽下方的己方成员、已实现的 `STAGE_MEMBER` definitions，并检查宿主当前槽位。UI 每份授予能力返回独立 opaque `abilityInstanceId`，`ACTIVATE_ABILITY` 必须原样携带该标识，服务端重验当前授予关系。直接发动不带实例标识；业务层不解析或自行拼接它。
+- 起动 workflow 的启动、能量选择、公开/支付确认及 finish 来源资格检查使用 `isDirectOrGrantedActivatedAbilitySource`；`directBaseCardCodes` 保留全部原生来源。shared config 只对明确能力开放，不删除 owner、费用、状态或目标校验。
+- LIVE 开始时，runner 按当前持有的每份授予能力分别入队；pending 保存 `abilityInstanceId` 与授予卡 ID，不能按同一 `abilityId` 合并。已入队调用由 `isDirectOrGrantedTriggeredAbilitySource` 校验捕获的授予身份，之后移走下方卡不撤销已诱发能力；触发前移走则不入队。
+- `sourceCardId/sourceLifecycleId` 始终绑定宿主。下方卡仅提供 definition 和实例身份，不接替费用、动作记录或“此成员”。pending、activeEffect、多步恢复及 `ABILITY_USE` 保留同一实例；每回合次数按宿主规则对象与授予实例区分，同能力的两份起动分别计次。
+- 旧宿主离场重登后，旧 pending 仍可支付不依赖宿主的合法费用、处理其他目标，但不能向新宿主应用自身奖励或支付旧对象的待机费用。“此成员获得常时分数加成”也绑定宿主并随其离场清理。SCORE replacement 可按 `abilityInstanceId` 区分，两份宫下爱能力分别得到 +1，合计 +2。成员绑定 SCORE 离场清理同时按差值更新已经判定成功的分数草案，保留手工调整；无草案、未判定或失败 LIVE 不扣减。
+- `tests/integration/sp-pb2-005-ren-granted-activated-abilities.test.ts` 保留 Ren 原卡/宿主、次数、伪造实例及多步骤契约；`tests/integration/ll-bp8-001-granted-member-below-abilities.test.ts` 覆盖本批16个来源基础编号的14种能力、原卡/宿主完整结算、双 LIVE pending 与分数叠加、授予移除和宿主生命周期。新增可授予能力仍须逐种审查完整 source/limit/cost 路径，不表示任意新 workflow 已自动兼容。
 
 ## ActiveEffect Fields
 
@@ -112,10 +109,10 @@ Important fields:
 | field                             | responsibility                                                                                                                                                                                                                                      |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `abilityId`                       | 当前处理能力。                                                                                                                                                                                                                                      |
-| `abilityInstanceId`               | 可选的 opaque 能力实例身份。当 Ren host 发动下方成员授予的起动能力时，从命令跨后续 steps 保持到 `ABILITY_USE`；直接发动留空。它区分同一 host 获得的多份同 abilityId 能力，不替代 `sourceCardId`。                                                   |
+| `abilityInstanceId`               | 可选的 opaque 授予能力实例身份，从起动命令或 LIVE 开始 pending 跨 steps 保持到 `ABILITY_USE`；原生能力留空。区分同一宿主的多份同 abilityId 能力，不替代 `sourceCardId`。 |
 | `sourceCardId`                    | 来源卡实例。                                                                                                                                                                                                                                        |
 | `sourceCardDisplayCode`           | 来源在公开区域离开后仍用于当前效果窗口与重连显示的卡面快照；只可从曾对双方公开的来源建立，不授予隐藏来源可见性。                                                                                                                                    |
-| `sourceLifecycleId`               | `perTurnLimit` 能力来源规则对象的生命周期；从 pending 或 activated dispatch 捕获并跨 activeEffect steps 保持，避免来源跨区再进入后把旧 active 占用算到新对象。                                                                                      |
+| `sourceLifecycleId`               | 有次数限制或授予实例的来源规则对象生命周期；从 pending 或 activated dispatch 捕获并跨 steps 保持，防止离场重登后旧调用占用新对象次数或授予自身奖励。 |
 | `controllerId`                    | 效果控制者。                                                                                                                                                                                                                                        |
 | `awaitingPlayerId`                | 当前需要输入的玩家。                                                                                                                                                                                                                                |
 | `stepId`                          | 当前步骤。                                                                                                                                                                                                                                          |
@@ -173,6 +170,10 @@ Rules:
 - 选择完成并公开时，继续使用 `revealedCardIds` / `revealHandCardForActiveEffect`，此后双方才可看到正面。
 
 ## Continue Pending
+
+`runtime/state-trigger-observers.ts` 处理状态诱发，与发生型事件触发分开注册。舞台进入、离开和槽位移动的权威日志项保存 `stageMembersAfterEvent` 公开成员/槽位快照；observer 消费包含已注册来源的快照并补查当前状态，使多步骤效果中的暂时条件不会丢失。消费游标沿用 `DISPATCH_TRIGGER_EVENT` 审计；无相关来源不写额外动作。来源身份按事件时刻捕获，同一来源已有该能力 pending/active 时不重复待机；解决后仍满足条件可再次待机（规则9.7.6.1）。单卡负责条件及结算，runner仅在正常pending入口与continuation调用通用hook，不在当前activeEffect中插入resolver。
+
+中央 `REFRESH` 产生的休息室入主卡组事件携带实际刷新时刻的 `refreshStageSources`（含空数组）。监听定义可以声明 `waitingRoomToMainDeckCause: 'REFRESH'`；派发时使用快照资格与事件时刻的来源生命周期，普通回牌不误触发，后登场不追认。次数查询可接收已捕获生命周期，抽弃共享流程在抽牌前记录该次使用。声援入口仍先完成整批翻牌和全部 DRAW BLADE HEART 抽牌，再进入统一检查时点；检视、堆墓等当前多步骤效果同样必须完整结束后才处理待机能力。覆盖见 `n-bp8-011-mia-taylor.test.ts`、`hs-bp8-005-kosuzu.test.ts`。
 
 Production continuation now returns through `runtime/check-timing-scheduler.ts` while a
 serializable `checkTimingContext` is active. After one ability finishes completely, the

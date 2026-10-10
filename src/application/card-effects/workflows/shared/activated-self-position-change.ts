@@ -6,7 +6,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { SlotPosition } from '../../../../shared/types/enums.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import {
   moveMemberBetweenSlotsAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForMemberSlotMoved,
@@ -73,7 +73,7 @@ export function finishMandatoryActivatedSelfPositionChange(
     return game;
   }
 
-  const sourceStillEligible = isDirectOrRenGrantedActivatedAbilitySource(
+  const sourceStillEligible = isDirectOrGrantedActivatedAbilitySource(
     game,
     player.id,
     effect.sourceCardId,

@@ -5,6 +5,15 @@ import {
 } from '../../client/src/lib/cardEffectTokens';
 
 describe('parseCardEffectText', () => {
+  it('renders the exact fullwidth turn limit exported for BP8 Mia', () => {
+    const text = '【自动】【１回合１次】自己的卡组更新时，抽２张卡，将１张手牌放置入休息室。';
+    expect(getUnknownCardEffectPlaceholders(text)).toEqual([]);
+    expect(parseCardEffectText(text)).toEqual([
+      { kind: 'ability', raw: '【自动】', label: '自动' },
+      { kind: 'limit', raw: '【１回合１次】', label: '１回合１次' },
+      { kind: 'text', text: '自己的卡组更新时，抽２张卡，将１张手牌放置入休息室。' },
+    ]);
+  });
   it('maps the fixed pink Heart token used by PL!-bp4-013 Excel text and target copy', () => {
     const texts = [
       '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，1名存在于自己的舞台的此成员以外的成员，获得[桃ハート]。',

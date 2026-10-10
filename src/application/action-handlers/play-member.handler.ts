@@ -37,6 +37,7 @@ import { returnEnergyBelowMemberToEnergyDeckForPlayer } from '../effects/energy-
 import { canUseDoubleRelay } from '../../shared/rules/double-relay.js';
 import { RuleActionType } from '../../domain/rules/rule-actions.js';
 import { resolveMemberEntryOrientation } from '../../domain/rules/member-entry-orientation.js';
+import { getMemberPlayRestrictionReason } from '../effects/member-play-restrictions.js';
 
 interface RelayReplacementExecution {
   readonly cardId: string;
@@ -76,6 +77,10 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   // 验证是成员卡
   if (!isMemberCardData(card.data)) {
     return failure(game, '只能打出成员卡');
+  }
+  if (game.manualOperationMode === 'RULES') {
+    const playRestriction = getMemberPlayRestrictionReason(game, playerId, cardId);
+    if (playRestriction) return failure(game, playRestriction);
   }
 
   const existingCardId = getCardInSlot(player.memberSlots, targetSlot);

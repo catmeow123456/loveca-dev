@@ -4,6 +4,7 @@ export const DOUBLE_RELAY_MEMBER_BASE_CODES = [
   'PL!SP-bp4-004',
   'PL!SP-pb2-000',
   'PL!-pb2-000',
+  'PL!S-pb2-000',
 ] as const;
 
 export interface DoubleRelayCardLike {

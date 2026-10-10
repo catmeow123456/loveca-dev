@@ -38,7 +38,7 @@ import {
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { drawCardsForPlayer, activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
 import { discardOneHandCardToWaitingRoomAndEnqueueTriggers } from '../../runtime/enter-waiting-room-triggers.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
@@ -491,7 +491,7 @@ function startActivatedEnergyActivation(
     !sourceCard ||
     sourceCard.ownerId !== player.id ||
     !isMemberCardData(sourceCard.data) ||
-    !isDirectOrRenGrantedActivatedAbilitySource(
+    !isDirectOrGrantedActivatedAbilitySource(
       game,
       player.id,
       cardId,

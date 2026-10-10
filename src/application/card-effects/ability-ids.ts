@@ -2013,3 +2013,46 @@ export const N_PR_036_LIVE_START_OTHER_NIJIGASAKI_YELLOW_HEART_ABILITY_ID =
   'PL!N-PR-036:live-start-other-nijigasaki-yellow-heart';
 export const S_PR_046_LIVE_SUCCESS_OPPONENT_CHEER_LIVE_DRAW_ONE_ABILITY_ID =
   'PL!S-PR-046:live-success-opponent-cheer-live-draw-one';
+
+export const LL_BP8_001_ON_ENTER_LOOK_SIX_STACK_MEMBER_BELOW_ABILITY_ID =
+  'LL-bp8-001:on-enter-look-six-stack-member-below';
+export const LL_BP8_001_LIVE_SUCCESS_LOOK_SIX_STACK_MEMBER_BELOW_ABILITY_ID =
+  'LL-bp8-001:live-success-look-six-stack-member-below';
+export const LL_BP8_001_CONTINUOUS_GAIN_MEMBER_BELOW_ABILITIES_ABILITY_ID =
+  'LL-bp8-001:continuous-gain-member-below-abilities';
+export const S_PB2_000_CONTINUOUS_DOUBLE_RELAY_ABILITY_ID =
+  'PL!S-pb2-000:continuous-double-relay';
+export const S_PB2_000_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID =
+  'PL!S-pb2-000:on-enter-draw-two-discard-two';
+export const S_PB2_000_LIVE_START_DOUBLE_AQOURS_RELAY_STACK_LIVE_ABILITY_ID =
+  'PL!S-pb2-000:live-start-double-aqours-relay-stack-live';
+export const N_BP8_022_CONTINUOUS_OTHER_NIJIGASAKI_GAIN_BLADE_ABILITY_ID =
+  'PL!N-bp8-022:continuous-other-nijigasaki-gain-blade';
+
+export const PL_BP8_013_CONTINUOUS_CARD_EFFECT_SUCCESS_LIVE_SCORE_PLUS_TWO_ABILITY_ID =
+  'PL!-bp8-013:continuous-card-effect-success-live-score-plus-two';
+export const HS_BP8_005_PLAY_REQUIRES_OTHER_DOLLCHESTRA_ABILITY_ID =
+  'PL!HS-bp8-005:continuous-play-requires-dollchestra';
+export const HS_BP8_005_NO_OTHER_DOLLCHESTRA_SEND_SELF_ABILITY_ID =
+  'PL!HS-bp8-005:auto-no-other-dollchestra-send-self';
+export const N_BP8_011_DECK_REFRESH_DRAW_TWO_DISCARD_ONE_ABILITY_ID =
+  'PL!N-bp8-011:deck-refresh-draw-two-discard-one';
+export const N_BP8_011_LIVE_SUCCESS_OPTIONAL_MILL_TOP_FIVE_ABILITY_ID =
+  'PL!N-bp8-011:live-success-optional-mill-top-five';
+
+export const PL_BP8_007_ON_ENTER_MILL_FOUR_MUSE_LIVE_GAIN_BLADE_ABILITY_ID =
+  'PL!-bp8-007:on-enter-mill-four-muse-live-gain-blade';
+export const PL_BP8_017_ON_ENTER_REVEAL_NO_BLADE_HEART_MEMBER_BOTTOM_LOOK_FIVE_MUSE_ABILITY_ID =
+  'PL!-bp8-017:on-enter-reveal-no-blade-heart-member-bottom-look-five-muse';
+export const HS_BP8_002_CONTINUOUS_COST_PER_FIVE_GAIN_BLADE_ABILITY_ID =
+  'PL!HS-bp8-002:continuous-cost-per-five-gain-blade';
+export const HS_BP8_002_LIVE_START_DISCARD_GAIN_COST_ACTIVATE_DRAW_ABILITY_ID =
+  'PL!HS-bp8-002:live-start-discard-gain-cost-activate-draw';
+export const HS_BP8_006_ON_ENTER_DISCARD_HASUNOSORA_CHOOSE_HEART_OR_ARRANGE_ABILITY_ID =
+  'PL!HS-bp8-006:on-enter-discard-hasunosora-choose-heart-or-arrange';
+export const HS_BP8_020_LIVE_START_WAIT_TWO_REDUCE_REQUIREMENT_SKIP_ACTIVE_ABILITY_ID =
+  'PL!HS-bp8-020:live-start-wait-two-reduce-requirement-skip-active';
+export const HS_BP8_020_LIVE_START_TARGET_DOLLCHESTRA_GAIN_COST_SCORE_ABILITY_ID =
+  'PL!HS-bp8-020:live-start-target-dollchestra-gain-cost-score';
+export const N_BP8_023_LIVE_START_DISCARD_NIJIGASAKI_GAIN_YELLOW_HEART_ABILITY_ID =
+  'PL!N-bp8-023:live-start-discard-nijigasaki-gain-yellow-heart';

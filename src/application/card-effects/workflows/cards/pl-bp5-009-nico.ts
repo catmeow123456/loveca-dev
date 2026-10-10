@@ -6,7 +6,7 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { CardType, GamePhase, HeartColor } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import {
   and,
   liveRequiresPrintedHeartColorAtLeast,
@@ -87,7 +87,13 @@ function startBp5009NicoActivated(game: GameState, playerId: string, cardId: str
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
     !isMemberCardData(sourceCard.data) ||
-    !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!-bp5-009') ||
+    !isDirectOrGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      BP5_009_ACTIVATED_DISCARD_TWO_RECOVER_PURPLE_REQUIREMENT_LIVE_ABILITY_ID,
+      ['PL!-bp5-009']
+    ) ||
     sourceSlot === null ||
     player.hand.cardIds.length < DISCARD_COUNT
   ) {
@@ -207,13 +213,16 @@ function finishBp5009NicoDiscardCost(
     purpleRequirementLiveSelector
   );
   if (selectableCardIds.length === 0) {
-    return addAction({ ...state, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      sourceSlot: effect.metadata?.sourceSlot,
-      step: 'PAY_COST_NO_PURPLE_REQUIREMENT_LIVE_TARGET',
-      discardedHandCardIds: discardResult.discardedCardIds,
-    });
+    return continuePendingCardEffects(
+      addAction({ ...state, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        sourceSlot: effect.metadata?.sourceSlot,
+        step: 'PAY_COST_NO_PURPLE_REQUIREMENT_LIVE_TARGET',
+        discardedHandCardIds: discardResult.discardedCardIds,
+      }),
+      false
+    );
   }
 
   return addAction(

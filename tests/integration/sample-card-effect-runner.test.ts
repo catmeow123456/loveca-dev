@@ -6274,6 +6274,7 @@ describe('sample card effect runner', () => {
           sourceCardId: prCardId,
           step: 'PAY_ENERGY_GAIN_BLADE',
           paidEnergyCardIds: [energyCardIds[0], energyCardIds[1]],
+          requestedBladeBonus: 1,
           bladeBonus: 1,
         },
       })
@@ -10375,6 +10376,7 @@ describe('sample card effect runner', () => {
       countDelta: 1,
       sourceCardId: nicoCardId,
       abilityId: NICO_LIVE_START_SCORE_ABILITY_ID,
+      targetMemberCardId: nicoCardId,
     });
     expect(
       getLatestResolveAbilityPayload(session.state!, NICO_LIVE_START_SCORE_ABILITY_ID)

@@ -36,7 +36,7 @@ import {
   registerActivatedAbilityResourceQuery,
   selectWaitingRoomTargetsAfterSourceCost,
 } from '../../runtime/ability-resource-query.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -51,8 +51,8 @@ import {
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import {
   getCardIdsInZoneMatching,
-  successLiveScoreAtLeast,
-  sumSuccessfulLiveScore,
+  successLiveScoreForCardEffectAtLeast,
+  sumSuccessfulLiveScoreForCardEffect,
 } from '../../../effects/conditions.js';
 import { getEnergyCardIdsByOrientation } from '../../../effects/energy.js';
 import { clearPreviousStageMemberInstanceState } from '../../../effects/member-state.js';
@@ -299,7 +299,7 @@ function startSelfSacrificeWaitingRoomToHandWorkflow(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !isDirectOrRenGrantedActivatedAbilitySource(
+    !isDirectOrGrantedActivatedAbilitySource(
       game,
       playerId,
       cardId,
@@ -456,8 +456,16 @@ function finishPostRecovery(
   let conditionValue: number | null = null;
   let requestedActivationCount = 0;
   if (config?.postRecovery?.kind === 'SUCCESS_LIVE_EFFECTIVE_SCORE_AT_LEAST') {
-    conditionValue = sumSuccessfulLiveScore(game, playerId);
-    conditionMet = successLiveScoreAtLeast(game, playerId, config.postRecovery.threshold);
+    conditionValue = sumSuccessfulLiveScoreForCardEffect(game, playerId, effect.sourceCardId, [
+      playerId,
+    ]);
+    conditionMet = successLiveScoreForCardEffectAtLeast(
+      game,
+      playerId,
+      effect.sourceCardId,
+      [playerId],
+      config.postRecovery.threshold
+    );
     requestedActivationCount = config.postRecovery.activateCount;
   } else if (config?.postRecovery?.kind === 'RECOVERED_AQOURS_LIVE_PRINTED_SCORE_AT_LEAST') {
     conditionValue =

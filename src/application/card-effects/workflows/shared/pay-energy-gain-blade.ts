@@ -28,7 +28,7 @@ import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js'
 import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
-import { getSourceMemberSlot } from '../../runtime/source-member.js';
+import { isCurrentStageMemberAbilitySource } from '../../runtime/source-member.js';
 
 const DECLINE_OPTION_LABEL = '不发动';
 const HS_SD1_006_LIVE_START_PAY_ENERGY_STEP_ID = 'HS_SD1_006_LIVE_START_PAY_ENERGY';
@@ -213,10 +213,6 @@ function finishPayEnergyGainBladeWorkflow(
   if (!player) {
     return game;
   }
-  if (getSourceMemberSlot(game, player.id, effect.sourceCardId) === null) {
-    return finishSkippedActiveEffect(game, continuePendingCardEffects);
-  }
-
   const energyCostCount = getSelectedEnergyCostCount(config, selectedOptionId, effect);
   if (energyCostCount <= 0) {
     return game;
@@ -238,7 +234,7 @@ function finishPayEnergyGainBladeWorkflow(
     energyCardIds: costPayment.paidEnergyCardIds,
     amount: costPayment.paidEnergyCardIds.length,
   });
-  const bladeBonus = getResolvedBladeBonus(
+  const requestedBladeBonus = getResolvedBladeBonus(
     costPayment.gameState,
     player.id,
     effect,
@@ -246,17 +242,19 @@ function finishPayEnergyGainBladeWorkflow(
     costPayment.paidEnergyCardIds.length
   );
   let stateAfterModifier = stateAfterCost;
-  if (bladeBonus > 0) {
+  let bladeBonus = 0;
+  const sourceIsCurrent = isCurrentStageMemberAbilitySource(stateAfterCost, effect);
+  if (requestedBladeBonus > 0 && sourceIsCurrent) {
     const bladeResult = addBladeLiveModifierForSourceMember(stateAfterCost, {
       playerId: player.id,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
-      amount: bladeBonus,
+      amount: requestedBladeBonus,
     });
-    if (!bladeResult) {
-      return game;
+    if (bladeResult) {
+      stateAfterModifier = bladeResult.gameState;
+      bladeBonus = bladeResult.bladeBonus;
     }
-    stateAfterModifier = bladeResult.gameState;
   }
 
   const state = { ...stateAfterModifier, activeEffect: null };
@@ -268,6 +266,8 @@ function finishPayEnergyGainBladeWorkflow(
       step: 'PAY_ENERGY_GAIN_BLADE',
       paidEnergyCardIds: costPayment.paidEnergyCardIds,
       bladeBonus,
+      requestedBladeBonus,
+      ...(!sourceIsCurrent ? { reason: 'SOURCE_RULES_OBJECT_LEFT_STAGE' } : {}),
     }),
     effect.metadata?.orderedResolution === true
   );

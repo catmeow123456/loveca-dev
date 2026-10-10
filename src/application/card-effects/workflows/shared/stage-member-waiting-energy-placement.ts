@@ -19,7 +19,7 @@ import {
   SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
 } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
-import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { isDirectOrGrantedActivatedAbilitySource } from '../../runtime/granted-member-below-abilities.js';
 import {
   paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers,
   type EnqueueTriggeredCardEffectsForLeaveStage,
@@ -83,7 +83,7 @@ function startSd1011PayEnergyPlaceWaitingEnergy(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !isDirectOrRenGrantedActivatedAbilitySource(
+    !isDirectOrGrantedActivatedAbilitySource(
       game,
       playerId,
       cardId,
@@ -152,7 +152,7 @@ function startBp5021SelfSacrificeEnergyPlacement(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !isDirectOrRenGrantedActivatedAbilitySource(game, playerId, cardId, SP_BP5_021_ACTIVATED_SELF_SACRIFICE_ENERGY_SIX_PLACE_WAITING_ENERGY_ABILITY_ID, ['PL!SP-bp5-021']) ||
+    !isDirectOrGrantedActivatedAbilitySource(game, playerId, cardId, SP_BP5_021_ACTIVATED_SELF_SACRIFICE_ENERGY_SIX_PLACE_WAITING_ENERGY_ABILITY_ID, ['PL!SP-bp5-021']) ||
     !isMemberCardData(sourceCard.data) ||
     findMemberSlot(player, cardId) === null
   ) {
@@ -216,7 +216,7 @@ function startBp4010PayEnergyWaitSelfPlaceEnergy(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !isDirectOrRenGrantedActivatedAbilitySource(
+    !isDirectOrGrantedActivatedAbilitySource(
       game,
       playerId,
       cardId,

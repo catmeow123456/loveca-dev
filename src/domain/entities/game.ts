@@ -14,6 +14,7 @@ import {
   FaceState,
   SlotPosition,
   HeartColor,
+  TriggerCondition,
 } from '../../shared/types/enums.js';
 import { CardInstance, type HeartIcon } from './card.js';
 import {
@@ -169,6 +170,12 @@ export interface LiveSetLimitReductionState {
  *
  * 与 actionHistory 不同，eventLog 记录“规则上发生了什么事件”，用于后续自动能力触发匹配。
  */
+export interface StageMemberObservation {
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly sourceSlot: SlotPosition;
+}
+
 export interface GameEventLogEntry {
   /** 事件日志序号（用于稳定排序） */
   readonly sequence: number;
@@ -176,6 +183,8 @@ export interface GameEventLogEntry {
   readonly event: GameEvent;
   /** 促成此事件的动作 ID；没有对应动作时可为空 */
   readonly causedByActionId?: string;
+  /** Public stage facts captured at a stage change; an empty array is an observed empty stage. */
+  readonly stageMembersAfterEvent?: readonly StageMemberObservation[];
 }
 
 // ============================================
@@ -214,6 +223,8 @@ export type LiveModifierState =
       readonly targetMemberCardId?: string;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
+      /** Distinguishes independent copies of a granted SCORE ability. */
+      readonly abilityInstanceId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
   | {
@@ -505,6 +516,8 @@ export interface PendingAbilityState {
   readonly id: string;
   /** 能力定义 ID */
   readonly abilityId: string;
+  /** Concrete granted ability copy captured when this ability triggered. */
+  readonly abilityInstanceId?: string;
   /** 能力来源卡牌实例 ID */
   readonly sourceCardId: string;
   /**
@@ -1365,6 +1378,13 @@ export function emitGameEvent(
     sequence: game.eventSequence + 1,
     event,
     causedByActionId: metadata.causedByActionId,
+    ...([
+      TriggerCondition.ON_ENTER_STAGE,
+      TriggerCondition.ON_LEAVE_STAGE,
+      TriggerCondition.ON_MEMBER_SLOT_MOVED,
+    ].includes(event.eventType)
+      ? { stageMembersAfterEvent: getStageMemberObservations(game) }
+      : {}),
   };
 
   return {
@@ -1372,6 +1392,16 @@ export function emitGameEvent(
     eventLog: [...game.eventLog, entry],
     eventSequence: game.eventSequence + 1,
   };
+}
+
+/** Current public stage identities; does not inspect any private zone. */
+export function getStageMemberObservations(game: GameState): readonly StageMemberObservation[] {
+  return game.players.flatMap((player) =>
+    [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT].flatMap((sourceSlot) => {
+      const sourceCardId = player.memberSlots.slots[sourceSlot];
+      return sourceCardId ? [{ playerId: player.id, sourceCardId, sourceSlot }] : [];
+    })
+  );
 }
 
 /**

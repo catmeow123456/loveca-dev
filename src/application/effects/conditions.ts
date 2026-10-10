@@ -8,6 +8,8 @@ export {
   getSuccessfulLiveEffectiveScore,
   sumSuccessfulLiveScore,
   successLiveScoreAtLeast,
+  sumSuccessfulLiveScoreForCardEffect,
+  successLiveScoreForCardEffectAtLeast,
 } from '../../domain/rules/success-live-score.js';
 export {
   getLiveZoneCardEffectiveScores,

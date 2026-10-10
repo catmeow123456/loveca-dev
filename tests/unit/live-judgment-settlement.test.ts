@@ -498,6 +498,7 @@ describe('Live 判定与结算', () => {
       playerId: 'p1',
       countDelta: 1,
       sourceCardId: nico.instanceId,
+      targetMemberCardId: nico.instanceId,
       abilityId: NICO_LIVE_START_SCORE_ABILITY_ID,
     });
 

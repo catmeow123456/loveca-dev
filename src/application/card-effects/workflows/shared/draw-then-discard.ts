@@ -18,6 +18,8 @@ import {
   SP_BP4_003_ON_ENTER_SIDE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   SP_PB2_036_ON_ENTER_RIGHT_SIDE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   SP_PB2_037_ON_ENTER_LEFT_SIDE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+  S_PB2_000_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+  N_BP8_011_DECK_REFRESH_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
@@ -61,6 +63,7 @@ export interface DrawThenDiscardAbilityContext {
   readonly id: string;
   readonly abilityId: string;
   readonly sourceCardId: string;
+  readonly sourceLifecycleId?: string;
   readonly controllerId: string;
   readonly sourceSlot?: SlotPosition;
   readonly metadata?: Readonly<Record<string, unknown>>;
@@ -76,7 +79,16 @@ const DRAW_THEN_DISCARD_WORKFLOWS: readonly {
   readonly requiredSourceSlots?: readonly SlotPosition[];
   readonly requiresLeaveStageToWaitingRoom?: boolean;
   readonly requiredStageMemberGroup?: string;
+  readonly confirmSelectionLabel?: string;
 }[] = [
+  {
+    abilityId: N_BP8_011_DECK_REFRESH_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+    drawCount: 2,
+    discardCount: 1,
+    stepId: 'N_BP8_011_REFRESH_SELECT_DISCARD',
+    recordAbilityUseOnStart: true,
+    confirmSelectionLabel: '放置入休息室',
+  },
   {
     abilityId: SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,
     drawCount: 2,
@@ -112,6 +124,12 @@ const DRAW_THEN_DISCARD_WORKFLOWS: readonly {
     drawCount: 2,
     discardCount: 2,
     stepId: HS_BP1_006_ON_ENTER_SELECT_DISCARD_STEP_ID,
+  },
+  {
+    abilityId: S_PB2_000_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+    drawCount: 2,
+    discardCount: 2,
+    stepId: 'S_PB2_000_ON_ENTER_SELECT_DISCARD',
   },
   {
     abilityId: BP6_011_LIVE_SUCCESS_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
@@ -202,6 +220,7 @@ export function registerDrawThenDiscardWorkflowHandlers(deps: {
         requiredSourceSlots: config.requiredSourceSlots,
         requiresLeaveStageToWaitingRoom: config.requiresLeaveStageToWaitingRoom,
         requiredStageMemberGroup: config.requiredStageMemberGroup,
+        confirmSelectionLabel: config.confirmSelectionLabel,
       })
     );
     registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) =>
@@ -307,6 +326,8 @@ export function startDrawThenDiscardCardsWorkflow(
       ? recordAbilityUseForContext(game, player.id, {
           abilityId: config.ability.abilityId,
           sourceCardId: config.ability.sourceCardId,
+          sourceLifecycleId: config.ability.sourceLifecycleId,
+          pendingAbilityId: config.ability.id,
         })
       : game;
   const drawResult = drawCardsForPlayer(stateBeforeDraw, player.id, config.drawCount);
