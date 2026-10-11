@@ -12,13 +12,19 @@ import {
   getPlayerById,
   updatePlayer,
 } from '../../domain/entities/game.js';
-import { recordMoveToStage, recordPositionMove } from '../../domain/entities/player.js';
+import {
+  findCardZone,
+  recordMoveToStage,
+  recordPositionMove,
+} from '../../domain/entities/player.js';
 import {
   createEnterWaitingRoomEvent,
+  createEnterLiveZoneEvent,
   createLeaveStageEvent,
   createMemberSlotMovedEvent,
 } from '../../domain/events/game-events.js';
-import { ZoneType, SlotPosition } from '../../shared/types/enums.js';
+import { ZoneType, SlotPosition, FaceState } from '../../shared/types/enums.js';
+import { removeLiveCardBoundLiveModifiers } from '../../domain/rules/live-modifiers.js';
 import { returnEnergyBelowMemberToEnergyDeckForPlayer } from '../effects/energy-below.js';
 import {
   addCardToZone,
@@ -621,6 +627,25 @@ export function moveCardUniversal(
 
   const playerBeforeMove = getPlayerById(state, playerId);
   const cardBeforeMove = getCardById(state, cardId);
+  const crossesLiveBoundary =
+    fromZone !== toZone && (fromZone === ZoneType.LIVE_ZONE || toZone === ZoneType.LIVE_ZONE);
+  if (crossesLiveBoundary) {
+    const sourceContainsCard =
+      fromZone === ZoneType.RESOLUTION_ZONE
+        ? game.resolutionZone.cardIds.includes(cardId)
+        : playerBeforeMove !== null &&
+          (findCardZone(playerBeforeMove, cardId) === fromZone ||
+            (fromZone === ZoneType.MEMBER_SLOT &&
+              (findMemberBelowSlot(playerBeforeMove.memberSlots, cardId) !== null ||
+                findEnergyBelowSlot(playerBeforeMove.memberSlots, cardId) !== null)));
+    if (
+      !sourceContainsCard ||
+      !cardBeforeMove ||
+      (toZone !== ZoneType.RESOLUTION_ZONE && !getZoneAccessor(toZone))
+    ) {
+      return game;
+    }
+  }
   const directLeavingSlot =
     fromZone === ZoneType.MEMBER_SLOT &&
     toZone !== ZoneType.MEMBER_SLOT &&
@@ -680,6 +705,22 @@ export function moveCardUniversal(
   }
 
   const playerAfterMove = getPlayerById(state, playerId);
+  const crossedLiveBoundarySuccessfully =
+    crossesLiveBoundary &&
+    playerAfterMove !== null &&
+    (fromZone === ZoneType.LIVE_ZONE
+      ? !playerAfterMove.liveZone.cardIds.includes(cardId) &&
+        (toZone === ZoneType.RESOLUTION_ZONE
+          ? state.resolutionZone.cardIds.includes(cardId)
+          : findCardZone(playerAfterMove, cardId) === toZone)
+      : playerAfterMove.liveZone.cardIds.includes(cardId) &&
+        (fromZone === ZoneType.RESOLUTION_ZONE
+          ? !state.resolutionZone.cardIds.includes(cardId)
+          : findCardZone(playerAfterMove, cardId) !== fromZone));
+  if (crossesLiveBoundary && !crossedLiveBoundarySuccessfully) return game;
+  if (crossedLiveBoundarySuccessfully) {
+    state = removeLiveCardBoundLiveModifiers(state, [cardId]);
+  }
   if (
     directLeavingSlot !== undefined &&
     cardBeforeMove !== null &&
@@ -760,6 +801,19 @@ export function moveCardUniversal(
         )
       );
     }
+  }
+
+  if (crossedLiveBoundarySuccessfully && toZone === ZoneType.LIVE_ZONE && cardBeforeMove) {
+    state = emitGameEvent(
+      state,
+      createEnterLiveZoneEvent(
+        cardId,
+        fromZone,
+        cardBeforeMove.ownerId,
+        playerId,
+        playerAfterMove.liveZone.cardStates.get(cardId)?.face ?? FaceState.FACE_UP
+      )
+    );
   }
 
   return state;

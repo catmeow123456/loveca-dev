@@ -27,6 +27,7 @@ import {
 } from '../../domain/entities/game.js';
 import { removeCardFromZone, addCardToStatefulZone } from '../../domain/entities/zone.js';
 import { createEnterLiveZoneEvent } from '../../domain/events/game-events.js';
+import { removeLiveCardBoundLiveModifiers } from '../../domain/rules/live-modifiers.js';
 
 /**
  * 处理放置 Live 卡动作
@@ -61,7 +62,7 @@ export const handleSetLiveCard: ActionHandler<SetLiveCardAction> = (
   }
 
   // 执行：从手牌移除并放置到 Live 区
-  let state = updatePlayer(game, playerId, (p) => {
+  let state = updatePlayer(removeLiveCardBoundLiveModifiers(game, [cardId]), playerId, (p) => {
     const newHand = removeCardFromZone(p.hand, cardId);
     const newLiveZone = addCardToStatefulZone(p.liveZone, cardId, {
       orientation: OrientationState.ACTIVE,

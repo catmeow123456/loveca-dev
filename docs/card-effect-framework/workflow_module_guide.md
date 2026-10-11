@@ -116,6 +116,10 @@ FREE 只放宽这次登场的能量支付与目标槽位限制：卡面规定的
 
 该 family 共用 refresh-aware direct mill、完整 cause的 grouped waiting-room event及 Public Reveal Dwell；展示期间新 pending 不抢占当前流程，展示结束后才写奖励并继续。开窗保存来源 `sourceLifecycleId`，来源离场重登只使旧来源奖励失效，不回滚已经完成的区域移动。旧花帆的手动发动确认仅由该卡 `confirmManualSelection` 窄配置启用，其他原有配置与新希沿用原默认行为；其原 step、`liveCardIds / bladeBonus` 持久窗口与行动 payload由有限 `actionPayloadStyle` 保留，起动段继续留在单卡模块。
 
+2026-10-11 分数6「Stay」`PL!N-bp8-030` 的 LIVE_SUCCESS 扩入该 family：固定 `topCount: 5`，既有 `ANY_MATCH` 使用 `MEMBER + costGte(9) + 虹咲 + not(hasBladeHeart())`，DRAW、SCORE、HEART 任一种 BLADE HEART 均排除；有限奖励 union 增加 `source-live-score`，经当前 LIVE 来源生命周期查询与精确 replacement/delta helper 写此卡分数+1。条件读取完整实际 `movedCardIds` 历史集合，刷新已洗回的牌仍计入；非空卡池通过刷新累计5次实际移动，同一物理牌可重复，公开窗口只显示去重结果。牌库与休息室均空的实际零移动直接消费 pending 并继续，不打开空展示或发空移动事件。此前待机与本次因果触发保持到当前展示及奖励结束后共同回到实时检查时点。
+
+费用15「天王寺璃奈」`PL!N-bp8-009` 保留单卡 `cards/n-bp8-009-rina.ts` 的两段编排。起动无费用，每回合次数在合法发动时消费；手牌置底选择只对控制者公开，空手仍抽2，后续效果可在来源离场后完成。LIVE_START 的可选底1费用、实际 LIVE 类型判断、当前有效分数≤2的虹咲 LIVE 置顶与休息室 LIVE 正面替换顺序各自保持强制／可选语义，分别复用底牌费用原子动作、Public Reveal Dwell、LIVE 置顶 helper 与休息室 public-card-selection 定时确认；真实入区事件仅诱发适用 AUTO，当前整段结束后才进入统一 continuation。其特殊替换流程未提升为任意区域交换或步骤 DSL。
+
 ## When To Create A Workflow Module
 
 新增或迁移卡效时，满足任一条件就应放入 workflow module：
@@ -450,7 +454,7 @@ manual confirm-only 预览与最终结算都实时重算数量和来源 LIVE 状
 
 # LIVE_START 自身待机后中央 μ's 获得 BLADE family
 
-`workflows/shared/live-start-wait-self-center-muse-gain-blade.ts` 由第二个真实样本 `PL!-bp4-011` 触发晋升；原 `PL!-bp4-017` 单卡 workflow 与 focused test 已迁入行为命名 shared ownership。稳定参数轴仅为 `abilityId`、`bladeAmount` 与兼容 action step：两张卡都固定由来源自身从 ACTIVE 变 WAITING 作为可选费用，固定查询自己中央结构化 μ's 成员，并写目标成员 BLADE modifier。当前不泛化团体、区域、费用状态或 modifier 类型。
+`workflows/shared/live-start-wait-self-center-muse-gain-blade.ts` 由第二个真实样本 `PL!-bp4-011` 触发晋升；原 `PL!-bp4-017` 单卡 workflow 与 focused test 已迁入行为命名 shared ownership。稳定参数轴为 `abilityId`、`bladeAmount`、可选的固定 `discardHandCount: 1` 与兼容 action step：来源自身从 ACTIVE 变 WAITING 作为可选费用，配置弃手时再通过进入休息室事件 wrapper 支付1手，完整支付后固定查询自己中央结构化 μ's 成员，并写目标成员 BLADE modifier。费用4「高坂穗乃果」`PL!-pb2-019` 同时支付待机与弃1手，2026-10-11 指定导出确认奖励为 BLADE +2，发动与弃牌步骤都按配置显示双 `[ブレード]`。当前不泛化团体、区域、费用状态或 modifier 类型。
 
 该 family 使用“发动 / 不发动”且不生成固定来源的 `selectableCardIds`；打开窗口与确认发动时都重查来源，支付走成员状态事件 wrapper，支付后才重读中央目标。来源自身位于中央时，变为 WAITING 后仍可成为目标；中央无合法目标时保留费用并正常继续 pending。
 

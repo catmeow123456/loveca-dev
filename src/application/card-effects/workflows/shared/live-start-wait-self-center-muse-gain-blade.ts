@@ -56,7 +56,7 @@ const WORKFLOW_CONFIGS: readonly LiveStartWaitSelfCenterMuseGainBladeConfig[] = 
   },
   {
     abilityId: PL_PB2_019_LIVE_START_WAIT_SELF_DISCARD_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
-    bladeAmount: 1,
+    bladeAmount: 2,
     discardHandCount: 1,
     resolvedActionStep: 'WAIT_SELF_DISCARD_CENTER_MUSE_GAIN_BLADE',
   },
@@ -294,7 +294,7 @@ function finishLiveStartWaitSelfCenterMuseGainBlade(
             controllerId: effect.controllerId,
             effectText: effect.effectText,
             stepId: SELECT_DISCARD_COST_STEP_ID,
-            stepText: "请选择1张手牌放置入休息室。之后，自己中央区域的『μ's』成员获得[ブレード]。",
+            stepText: `请选择1张手牌放置入休息室。之后，自己中央区域的『μ's』成员获得${'[ブレード]'.repeat(config.bladeAmount)}。`,
             awaitingPlayerId: player.id,
             selectableCardIds: handCardIds,
             selectableCardVisibility: 'AWAITING_PLAYER_ONLY',

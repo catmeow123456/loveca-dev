@@ -419,6 +419,7 @@ export const handleManualMoveCard: ActionHandler<ManualMoveCardAction> = (
   const triggeredEvents = [
     TriggerCondition.ON_LEAVE_STAGE,
     TriggerCondition.ON_ENTER_WAITING_ROOM,
+    TriggerCondition.ON_ENTER_LIVE_ZONE,
   ].filter((condition) =>
     moveEvents.some((eventRecord) => eventRecord.event.eventType === condition)
   );

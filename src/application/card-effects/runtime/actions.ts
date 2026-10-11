@@ -23,6 +23,7 @@ import {
   addBladeLiveModifierForPlayer as addBladeLiveModifierForPlayerRule,
   addBladeLiveModifierForSourceMember as addBladeLiveModifierForSourceMemberRule,
   addBladeLiveModifierForTargetMember as addBladeLiveModifierForTargetMemberRule,
+  removeLiveCardBoundLiveModifiers,
 } from '../../../domain/rules/live-modifiers.js';
 import { CardType, FaceState, OrientationState, ZoneType } from '../../../shared/types/enums.js';
 import { paySelectedDiscardHandCost } from '../../effects/effect-costs.js';
@@ -517,11 +518,15 @@ export function returnLiveZoneCardToHandForPlayer(
   }
 
   const enterHandEvent = createEnterHandEvent([cardId], ZoneType.LIVE_ZONE, playerId, playerId);
-  const moved = updatePlayer(game, playerId, (currentPlayer) => ({
-    ...currentPlayer,
-    liveZone: removeCardFromStatefulZone(currentPlayer.liveZone, cardId),
-    hand: addCardToZone(currentPlayer.hand, cardId),
-  }));
+  const moved = updatePlayer(
+    removeLiveCardBoundLiveModifiers(game, [cardId]),
+    playerId,
+    (currentPlayer) => ({
+      ...currentPlayer,
+      liveZone: removeCardFromStatefulZone(currentPlayer.liveZone, cardId),
+      hand: addCardToZone(currentPlayer.hand, cardId),
+    })
+  );
 
   return {
     gameState: emitGameEvent(moved, enterHandEvent),
@@ -588,16 +593,20 @@ function placeOwnedLiveCardInLiveZoneForPlayer(
   const remainingCandidateIds = options.candidateCardIds.filter(
     (cardId) => cardId !== selectedCardId
   );
-  const gameStateBeforeEvent = updatePlayer(game, playerId, (currentPlayer) => ({
-    ...currentPlayer,
-    ...(sourceZone === ZoneType.HAND
-      ? { hand: removeCardFromZone(currentPlayer.hand, selectedCardId) }
-      : { waitingRoom: removeCardFromZone(currentPlayer.waitingRoom, selectedCardId) }),
-    liveZone: addCardToStatefulZone(currentPlayer.liveZone, selectedCardId, {
-      orientation: OrientationState.ACTIVE,
-      face: options.face,
-    }),
-  }));
+  const gameStateBeforeEvent = updatePlayer(
+    removeLiveCardBoundLiveModifiers(game, [selectedCardId]),
+    playerId,
+    (currentPlayer) => ({
+      ...currentPlayer,
+      ...(sourceZone === ZoneType.HAND
+        ? { hand: removeCardFromZone(currentPlayer.hand, selectedCardId) }
+        : { waitingRoom: removeCardFromZone(currentPlayer.waitingRoom, selectedCardId) }),
+      liveZone: addCardToStatefulZone(currentPlayer.liveZone, selectedCardId, {
+        orientation: OrientationState.ACTIVE,
+        face: options.face,
+      }),
+    })
+  );
   const enterLiveZoneEvent = createEnterLiveZoneEvent(
     selectedCardId,
     sourceZone,

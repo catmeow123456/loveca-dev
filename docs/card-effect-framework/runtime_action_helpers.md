@@ -1,5 +1,13 @@
 # Runtime Action Helpers
 
+## 2026-10-11 LIVE 卡区域移动与底牌费用
+
+- `domain/rules/live-modifiers.ts#removeLiveCardBoundLiveModifiers(game, liveCardIds)` 删除指定旧 LIVE 对象的 `SCORE.liveCardId`、`REQUIREMENT.liveCardId` 与以该卡为被压制对象的 `SUPPRESS_ABILITY`，经统一 setter 刷新兼容投影。同源已授予的 PLAYER 奖励保留；结算分数、成功判定、历史与 pending 保留原值和身份。LIVE 回手、手牌／休息室入 LIVE、正常 SET_LIVE_CARD、手动实际跨 LIVE 边界及 LIVE 置顶原子动作共用清理，LIVE 区内移动保留修正。
+- `runtime/live-zone-deck.ts#moveLiveZoneCardToDeckTopForPlayer` 提炼旧 `PL!S-bp6-004` 黛雅的 LIVE 置顶片段，只重验候选、owner、LIVE 类型与当前 LIVE 区并完成移动及上述清理；黛雅与费用15「天王寺璃奈」`PL!N-bp8-009` 共用。成员奖励、后续休息室选择与 continuation 归各 workflow。`moveCardUniversal` 对真实手动跨入 LIVE 发出既有 `EnterLiveZoneEvent`，保留原离场／休息室事件顺序后追加入区事件；`phase-ten.handler.ts` 按本次事件 delta 派发，跨区重入形成新来源生命周期。
+- `runtime/main-deck-waiting-room-triggers.ts#moveExactBottomDeckCardsToWaitingRoomAsCostAndEnqueueTriggers` 与精确顶牌费用入口对称：要求当前卡组足额、先实际支付底牌费用，再执行需要的刷新，grouped 事件仅记录本次实际移动事实并保留 cause。caller 决定可选发动、费用记录、公开结果、后续条件与 continuation。
+- `runtime/public-card-selection-confirmation.ts` 增加有限 `LIVE_ZONE` destination。休息室选中 LIVE 先向双方定时公开，恢复前保留原区域；恢复时重验 owner、LIVE 类型与原休息室，workflow 再执行正面入区。原有私密选择、公开 deadline 与统一续行继续适用。
+- `runtime/source-live.ts#isCurrentLiveCardAbilitySource` 是只读 query，核对己方 LIVE 类型、当前 LIVE 区、正面与传入的捕获 `sourceLifecycleId`；`getPendingAbilitySourceLifecycleId` 通过 pending 的原事件事实确定旧对象，离区重入后的新事件使旧自身奖励失效。`runtime/live-card-score.ts#replaceSourceLiveCardScoreModifierAndRefresh` 从分数5「Like a Treasure」`PL!N-bp7-031` 私有动作提炼，只替换同 player／LIVE／source／ability 的 SCORE 并按新旧差值刷新 `playerScores`，重复替换不累计；分数6「Stay」`PL!N-bp8-030` 为第二个真实消费者。来源合法性与是否奖励由 workflow 检查，helper 保留其他 LIVE／PLAYER 修正、成功判定、历史与 pending。
+
 ## 2026-10-07 参照查询与打出限制
 
 - `domain/rules/success-live-score.ts` 保留单卡有效分数与真实合计，新增 `sumSuccessfulLiveScoreForCardEffect(game, controllerId, sourceCardId, referencedPlayerIds)` 及阈值wrapper。控制者来自实际能力上下文，来源可已支付离场费用；参照区域集合去重后一次求和，再应用该控制者的参照修正。单边比较分别参照，双方总和只加一次；不写LIVE修正，不改变真实分数或胜负条件。

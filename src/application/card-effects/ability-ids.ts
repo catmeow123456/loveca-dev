@@ -1789,6 +1789,14 @@ export const PL_PB2_039_LIVE_SUCCESS_DISTINCT_MUSE_STAGE_CHEER_SCORE_ABILITY_ID 
   'PL!-pb2-039:live-success-distinct-muse-stage-cheer-score';
 export const N_BP8_002_ACTIVATED_WAITING_ROOM_PAY_ENERGY_BOTTOM_SELF_TARGET_YELLOW_HEART_ABILITY_ID =
   'PL!N-bp8-002:activated-waiting-room-pay-energy-bottom-self-target-yellow-heart';
+export const N_BP8_009_ACTIVATED_BOTTOM_HAND_DRAW_TWO_ABILITY_ID =
+  'PL!N-bp8-009:activated-bottom-hand-draw-two';
+export const N_BP8_009_LIVE_START_MILL_BOTTOM_REPLACE_LIVE_ABILITY_ID =
+  'PL!N-bp8-009:live-start-mill-bottom-replace-live';
+export const N_BP8_030_AUTO_FROM_WAITING_ROOM_REDUCE_REQUIREMENT_ABILITY_ID =
+  'PL!N-bp8-030:auto-from-waiting-room-reduce-requirement';
+export const N_BP8_030_LIVE_SUCCESS_MILL_FIVE_GAIN_SCORE_ABILITY_ID =
+  'PL!N-bp8-030:live-success-mill-five-gain-score';
 export const N_BP7_013_ON_ENTER_THREE_AZUNA_DRAW_ONE_ABILITY_ID =
   'PL!N-bp7-013:on-enter-three-azuna-draw-one';
 export const N_BP7_014_AUTO_LEAVE_STAGE_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID =

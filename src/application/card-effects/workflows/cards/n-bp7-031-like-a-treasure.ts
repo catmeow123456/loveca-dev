@@ -4,14 +4,13 @@ import {
   getCardById,
   getPlayerById,
   type GameState,
-  type LiveModifierState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { N_BP7_031_AUTO_OWN_LIVE_SUCCESS_MILL_RECOVER_NIJIGASAKI_LIVE_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
+import { replaceSourceLiveCardScoreModifierAndRefresh } from '../../runtime/live-card-score.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { canUseAbilityThisTurn } from '../../runtime/ability-turn-limit.js';
 import {
@@ -279,7 +278,7 @@ function finishLikeATreasureSelection(
     abilityId: effect.abilityId,
     sourceCardId: effect.sourceCardId,
   });
-  state = replaceScoreModifierAndRefresh(state, ability, 1);
+  state = replaceSourceLiveCardScoreModifierAndRefresh(state, ability, 1);
   return continuePendingCardEffects(
     addAction({ ...state, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
       pendingAbilityId: effect.id,
@@ -327,51 +326,6 @@ function isValidSourceLive(game: GameState, playerId: string, sourceCardId: stri
     cardCodeMatchesBase(source.data.cardCode, BASE_CARD_CODE) &&
     player.liveZone.cardIds.includes(sourceCardId)
   );
-}
-
-function replaceScoreModifierAndRefresh(
-  game: GameState,
-  ability: AbilityResolutionContext,
-  scoreBonus: number
-): GameState {
-  const matches = (modifier: LiveModifierState) =>
-    modifier.kind === 'SCORE' &&
-    modifier.playerId === ability.controllerId &&
-    modifier.liveCardId === ability.sourceCardId &&
-    modifier.sourceCardId === ability.sourceCardId &&
-    modifier.abilityId === ability.abilityId;
-  const previousScoreBonus = game.liveResolution.liveModifiers
-    .filter(matches)
-    .reduce((total, modifier) => total + (modifier.kind === 'SCORE' ? modifier.countDelta : 0), 0);
-  const replacement: Extract<LiveModifierState, { readonly kind: 'SCORE' }> | null =
-    scoreBonus > 0
-      ? {
-          kind: 'SCORE',
-          playerId: ability.controllerId,
-          countDelta: scoreBonus,
-          liveCardId: ability.sourceCardId,
-          sourceCardId: ability.sourceCardId,
-          abilityId: ability.abilityId,
-        }
-      : null;
-  const state = replaceLiveModifier(
-    game,
-    {
-      kind: 'SCORE',
-      playerId: ability.controllerId,
-      liveCardId: ability.sourceCardId,
-      sourceCardId: ability.sourceCardId,
-      abilityId: ability.abilityId,
-    },
-    replacement
-  );
-  const delta = scoreBonus - previousScoreBonus;
-  if (delta === 0) {
-    return state;
-  }
-  const playerScores = new Map(state.liveResolution.playerScores);
-  playerScores.set(ability.controllerId, (playerScores.get(ability.controllerId) ?? 0) + delta);
-  return { ...state, liveResolution: { ...state.liveResolution, playerScores } };
 }
 
 function finishPendingAbilityWithoutUse(

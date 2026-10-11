@@ -3496,6 +3496,28 @@ export function addLiveModifier(game: GameState, modifier: LiveModifierState): G
   return setLiveModifiers(game, [...game.liveResolution.liveModifiers, modifier]);
 }
 
+/** Clear temporary effects bound to an old LIVE rules object, preserving player rewards. */
+export function removeLiveCardBoundLiveModifiers(
+  game: GameState,
+  liveCardIds: readonly string[]
+): GameState {
+  const liveCardIdSet = new Set(liveCardIds);
+  if (liveCardIdSet.size === 0) return game;
+  const liveModifiers = game.liveResolution.liveModifiers.filter((modifier) => {
+    if (modifier.kind === 'SCORE' || modifier.kind === 'REQUIREMENT') {
+      return modifier.liveCardId === undefined || !liveCardIdSet.has(modifier.liveCardId);
+    }
+    if (modifier.kind === 'SUPPRESS_ABILITY') {
+      // sourceCardId is the suppressed card here, rather than the reward's origin.
+      return !liveCardIdSet.has(modifier.sourceCardId);
+    }
+    return true;
+  });
+  return liveModifiers.length === game.liveResolution.liveModifiers.length
+    ? game
+    : setLiveModifiers(game, liveModifiers);
+}
+
 export interface PlayerScoreLiveModifierForTargetMemberOptions {
   readonly playerId: string;
   readonly targetMemberCardId: string;

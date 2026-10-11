@@ -436,6 +436,8 @@ import { registerNBp7009RinaWorkflowHandlers } from './card-effects/workflows/ca
 import { registerNBp7011MiaTaylorWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-011-mia-taylor.js';
 import { registerNBp7023MiaTaylorWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-023-mia-taylor.js';
 import { registerNBp8002KasumiWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-002-kasumi.js';
+import { registerNBp8009RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-009-rina.js';
+import { registerNBp8030StayWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-030-stay.js';
 import { registerNBp7019SetsunaWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-019-setsuna.js';
 import { registerNBp7027AudreyWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-027-audrey.js';
 import { registerNBp7025ColorfulDreamsColorfulSmilesWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-025-colorful-dreams-colorful-smiles.js';
@@ -1294,6 +1296,8 @@ registerNBp7009RinaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp7011MiaTaylorWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp7023MiaTaylorWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp8002KasumiWorkflowHandlers();
+registerNBp8009RinaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp8030StayWorkflowHandlers();
 registerNBp7019SetsunaWorkflowHandlers();
 registerNBp7027AudreyWorkflowHandlers();
 registerNBp7025ColorfulDreamsColorfulSmilesWorkflowHandlers();

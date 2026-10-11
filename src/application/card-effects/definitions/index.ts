@@ -1,4 +1,8 @@
 import {
+  N_BP8_009_ACTIVATED_BOTTOM_HAND_DRAW_TWO_ABILITY_ID,
+  N_BP8_009_LIVE_START_MILL_BOTTOM_REPLACE_LIVE_ABILITY_ID,
+  N_BP8_030_AUTO_FROM_WAITING_ROOM_REDUCE_REQUIREMENT_ABILITY_ID,
+  N_BP8_030_LIVE_SUCCESS_MILL_FIVE_GAIN_SCORE_ABILITY_ID,
   PL_BP8_007_ON_ENTER_MILL_FOUR_MUSE_LIVE_GAIN_BLADE_ABILITY_ID,
   PL_BP8_017_ON_ENTER_REVEAL_NO_BLADE_HEART_MEMBER_BOTTOM_LOOK_FIVE_MUSE_ABILITY_ID,
   HS_BP8_002_CONTINUOUS_COST_PER_FIVE_GAIN_BLADE_ABILITY_ID,
@@ -1684,7 +1688,7 @@ const PL_PB2_007_ACTIVATED_EFFECT_TEXT =
 const PL_PB2_008_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将此成员变为待机状态：检视自己的卡组顶的4张卡片。可以将其中的1张需求HEART的合计大于等于8的『μ’s』的LIVE卡公开并加入手牌。其余的放置入休息室。';
 const PL_PB2_019_LIVE_START_EFFECT_TEXT =
-  '【LIVE开始时】可以将此成员变为待机状态，并将1张手牌放置入休息室：LIVE结束时为止，存在于自己的中央区域的『μ’s』的成员，获得[ブレード]。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）';
+  '【LIVE开始时】可以将此成员变为待机状态，并将1张手牌放置入休息室：LIVE结束时为止，存在于自己的中央区域的『μ’s』的成员，获得[ブレード][ブレード]。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）';
 const PL_PB2_020_CONTINUOUS_EFFECT_TEXT =
   '【常时】只要存在于自己的成功LIVE卡区的卡片的分数合计大于等于9，获得[桃ハート][黄ハート]。';
 const PL_PB2_030_CONTINUOUS_EFFECT_TEXT =
@@ -2786,8 +2790,71 @@ const HS_BP8_020_TARGET_COST_EFFECT_TEXT =
   '【LIVE开始时】LIVE结束时为止，１名『DOLLCHESTRA』的成员的费用＋５。此后，存在于自己的舞台的『莲之空』的成员的费用合计大于等于３０的场合，此卡的分数＋１。';
 const N_BP8_023_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将手牌的１张『虹咲』的卡片放置入休息室：LIVE结束时为止，获得[黄ハート]。';
+const N_BP8_009_ACTIVATED_EFFECT_TEXT =
+  '【起动】【１回合１次】将１张手牌放置于卡组底，抽２张卡。';
+const N_BP8_009_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将卡组底的卡片放置入休息室：因此放置入休息室的卡片是LIVE卡的场合，将存在于自己的LIVE卡区的１张分数小于等于２的『虹咲』的LIVE卡放置于卡组顶。如此做时，从自己的休息室将１张LIVE卡正面放置于LIVE卡区。';
+const N_BP8_030_AUTO_EFFECT_TEXT =
+  '【自动】此卡从休息室被放置于LIVE卡区时，此卡的必要HEART减少[無ハート][無ハート][無ハート]。';
+const N_BP8_030_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】将自己的卡组顶的５张卡片放置入休息室。那些卡片中存在费用大于等于9的不持有BLADE HEART的『虹咲』的成员卡的场合，此卡的分数＋１。';
 
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
+  {
+    abilityId: N_BP8_009_ACTIVATED_BOTTOM_HAND_DRAW_TWO_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp8-009'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: N_BP8_009_ACTIVATED_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: N_BP8_009_ACTIVATED_BOTTOM_HAND_DRAW_TWO_ABILITY_ID,
+      title: '将1张手牌放置于卡组底，抽2张卡',
+      text: N_BP8_009_ACTIVATED_EFFECT_TEXT,
+    },
+    notes:
+      '单卡 n-bp8-009-rina workflow；手牌置底属于效果而非费用，空手仍可发动并抽2张。来源生命周期与每回合次数复用统一起动底座。',
+  },
+  {
+    abilityId: N_BP8_009_LIVE_START_MILL_BOTTOM_REPLACE_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp8-009'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: N_BP8_009_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 n-bp8-009-rina workflow；可选卡组底入休息室后，按实际移动卡类型决定是否替换LIVE；通用LIVE与卡组动作保留真实区域事件和LIVE卡绑定修正清理。',
+  },
+  {
+    abilityId: N_BP8_030_AUTO_FROM_WAITING_ROOM_REDUCE_REQUIREMENT_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp8-030'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_ENTER_LIVE_ZONE,
+    triggerFromZones: [ZoneType.WAITING_ROOM],
+    triggerToZones: [ZoneType.LIVE_ZONE],
+    queued: true,
+    implemented: true,
+    effectText: N_BP8_030_AUTO_EFFECT_TEXT,
+    notes:
+      '单卡 n-bp8-030-stay workflow；仅真实休息室进入LIVE区事件诱发，必要无色Heart -3绑定当前LIVE来源实例，离区或重入不保留旧修正。',
+  },
+  {
+    abilityId: N_BP8_030_LIVE_SUCCESS_MILL_FIVE_GAIN_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp8-030'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: N_BP8_030_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '复用 shared mill-top-gain-live-modifier 的refresh-aware堆顶5张流程；条件仅检查本次实际移动的费用至少9、无BLADE HEART的虹咲成员，分数+1仅绑定当前LIVE卡。',
+  },
   {
     abilityId: PL_BP8_007_ON_ENTER_MILL_FOUR_MUSE_LIVE_GAIN_BLADE_ABILITY_ID,
     baseCardCodes: ['PL!-bp8-007'],
@@ -14226,7 +14293,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     perTurnLimit: 1,
     skipQueueWhenTurnLimitReached: true,
     effectText:
-      '【自动】【1回合1次】存在于自己的休息室的卡片被放置于卡组时，LIVE结束时为止，获得[BLADE][BLADE][BLADE]。',
+      '【自动】【1回合1次】存在于自己的休息室的卡片被放置于卡组时，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。',
     notes:
       '按基础编号覆盖同卡全部罕度；监听通用 grouped WAITING_ROOM -> MAIN_DECK 事件并按区域 owner 触发。结算时记录来源实例每回合次数，来源仍为己方舞台成员时获得 BLADE +3。',
   },
@@ -15197,7 +15264,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_PB2_019_LIVE_START_EFFECT_TEXT,
     notes:
-      '扩展 shared `live-start-wait-self-center-muse-gain-blade.ts` 的窄复合费用轴；发动前及确认时重验来源 ACTIVE 与至少1张手牌，依次通过成员状态与进入休息室事件 wrapper 支付待机与弃1手。费用完成后重读自己中央的结构化 μ’s 成员并写 TARGET_MEMBER BLADE +1；目标不存在不回滚费用。effectText 依日文规则语义窄补中文导出漏掉的“可以”。',
+      '扩展 shared `live-start-wait-self-center-muse-gain-blade.ts` 的窄复合费用轴；发动前及确认时重验来源 ACTIVE 与至少1张手牌，依次通过成员状态与进入休息室事件 wrapper 支付待机与弃1手。费用完成后重读自己中央的结构化 μ’s 成员并写 TARGET_MEMBER BLADE +2；目标不存在不回滚费用。effectText 依日文规则语义窄补中文导出漏掉的“可以”。',
   },
   {
     abilityId: PL_PB2_020_CONTINUOUS_SUCCESS_SCORE_NINE_PINK_YELLOW_HEART_ABILITY_ID,

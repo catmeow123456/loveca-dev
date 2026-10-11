@@ -41,6 +41,7 @@ import {
   drawCardsForPlayer,
 } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { moveLiveZoneCardToDeckTopForPlayer } from '../../runtime/live-zone-deck.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
@@ -540,18 +541,11 @@ function finishBp6004MoveLiveGainHearts(
     return game;
   }
 
-  const stateAfterMove = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    liveZone: {
-      ...currentPlayer.liveZone,
-      cardIds: currentPlayer.liveZone.cardIds.filter((cardId) => cardId !== selectedCardId),
-      cardStates: removeCardState(currentPlayer.liveZone.cardStates, selectedCardId),
-    },
-    mainDeck: {
-      ...currentPlayer.mainDeck,
-      cardIds: [selectedCardId, ...currentPlayer.mainDeck.cardIds],
-    },
-  }));
+  const moveResult = moveLiveZoneCardToDeckTopForPlayer(game, player.id, selectedCardId, {
+    candidateCardIds: effect.selectableCardIds ?? [],
+  });
+  if (!moveResult) return game;
+  const stateAfterMove = moveResult.gameState;
   const heartResult = addHeartLiveModifierForSourceMember(stateAfterMove, {
     playerId: player.id,
     sourceCardId: effect.sourceCardId,
@@ -1094,13 +1088,4 @@ function hasLiveStartAbility(cardCode: string): boolean {
 
 function isDeckDestination(value: string | null): value is DeckDestination {
   return value === TOP_OPTION_ID || value === BOTTOM_OPTION_ID;
-}
-
-function removeCardState<T>(
-  cardStates: ReadonlyMap<string, T>,
-  cardId: string
-): ReadonlyMap<string, T> {
-  const nextCardStates = new Map(cardStates);
-  nextCardStates.delete(cardId);
-  return nextCardStates;
 }

@@ -7,6 +7,7 @@ import {
 } from '../../src/application/effects/look-top';
 import {
   moveBottomDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers,
+  moveExactBottomDeckCardsToWaitingRoomAsCostAndEnqueueTriggers,
 } from '../../src/application/card-effects/runtime/main-deck-waiting-room-triggers';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../src/application/card-effects/runtime/enter-waiting-room-triggers';
 import { CardType, HeartColor, TriggerCondition, ZoneType } from '../../src/shared/types/enums';
@@ -45,6 +46,61 @@ function setup(mainDeckIds: readonly string[], waitingRoomIds: readonly string[]
 }
 
 describe('bottom-deck direct mill helper', () => {
+  it('does not refresh or partially pay an insufficient exact bottom cost', () => {
+    const enqueue = vi.fn((state) => state);
+    for (const game of [setup([], ['waiting']), setup(['bottom'], ['waiting'])]) {
+      const result = moveExactBottomDeckCardsToWaitingRoomAsCostAndEnqueueTriggers(
+        game,
+        P1,
+        2,
+        enqueue
+      );
+      expect(result).toBeNull();
+      expect(game.eventLog).toEqual([]);
+      expect(game.players[0].waitingRoom.cardIds).toEqual(['waiting']);
+    }
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it('preserves the paid bottom-card fact through the post-payment refresh', () => {
+    const game = setup(['paid-bottom'], ['waiting']);
+    const enqueue = vi.fn((state) => state);
+    const prepare = vi.fn((state) => state);
+    const result = moveExactBottomDeckCardsToWaitingRoomAsCostAndEnqueueTriggers(
+      game,
+      P1,
+      1,
+      enqueue,
+      {
+        prepareGameStateBeforeEnqueue: prepare,
+      }
+    );
+    expect(result?.movedCardIds).toEqual(['paid-bottom']);
+    expect(result?.refreshCount).toBe(1);
+    expect(result?.gameState.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(result?.gameState.players[0].mainDeck.cardIds).toEqual(
+      expect.arrayContaining(['paid-bottom', 'waiting'])
+    );
+    expect(prepare).toHaveBeenCalledWith(expect.anything(), ['paid-bottom'], 1);
+    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(result?.gameState.eventLog.at(-1)?.event).toMatchObject({
+      cardInstanceIds: ['paid-bottom'],
+      fromZone: ZoneType.MAIN_DECK,
+      toZone: ZoneType.WAITING_ROOM,
+    });
+  });
+
+  it.each([-1, 1.5, NaN])('rejects invalid exact-cost count %s', (count) => {
+    expect(
+      moveExactBottomDeckCardsToWaitingRoomAsCostAndEnqueueTriggers(
+        setup(['bottom']),
+        P1,
+        count,
+        (state) => state
+      )
+    ).toBeNull();
+  });
+
   it.each([0, -2])('keeps a non-empty deck unchanged when primitive count is %i', (count) => {
     const game = setup(['top', 'middle', 'bottom'], ['waiting']);
     const result = moveBottomDeckCardsToWaitingRoom(game, P1, count);

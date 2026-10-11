@@ -559,15 +559,9 @@ describe('mill-top gain live modifier workflow', () => {
 
     expect(timingResult.success).toBe(true);
     (session as unknown as { authorityState: GameState }).authorityState = timingResult.gameState;
-    const topCardIds = session.state!.activeEffect!.revealedCardIds!;
-    expect(topCardIds).toHaveLength(0);
-
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-
-    expect(confirmResult.success).toBe(true);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(topCardIds);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.pendingAbilities).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
     expect(
       session.state?.liveResolution.liveModifiers.some(
         (modifier) =>
@@ -1211,23 +1205,35 @@ describe('PL!-bp8-007 费用2「东条希」ANY_MATCH and migrated Kaho', () => 
       sourceData: sourceData(),
       topCards: [],
     });
-    expect(getStartedMillPayload(session)).toMatchObject({
+    expect(session.state?.actionHistory.at(-1)?.payload).toMatchObject({
+      abilityId: PL_BP8_007_ON_ENTER_MILL_FOUR_MUSE_LIVE_GAIN_BLADE_ABILITY_ID,
+      step: 'FINISH_MILL_TOP_FOUR_MUSE_LIVE_GAIN_BLADE',
       milledCardIds: [],
       conditionMet: false,
+      rewardApplied: false,
+      bladeBonus: 0,
     });
-    expect(session.state?.activeEffect?.stepId).toBe('PL_BP8_007_MILL_TOP_FOUR');
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.pendingAbilities).toEqual([]);
     expect(
       session.state?.eventLog.some(
         (entry) => entry.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
       )
     ).toBe(false);
+    expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, sourceId)).toBe(1);
+    const nextMember = filler('empty-mill-next-member');
+    const state = updatePlayer(registerCards(session.state!, [nextMember]), PLAYER1, (player) => ({
+      ...player,
+      hand: { ...player.hand, cardIds: [nextMember.instanceId] },
+    }));
+    (session as unknown as { authorityState: GameState }).authorityState = state;
     expect(
       session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+        createPlayMemberToSlotCommand(PLAYER1, nextMember.instanceId, SlotPosition.LEFT, {
+          freePlay: true,
+        })
       ).success
     ).toBe(true);
-    expect(session.state?.activeEffect).toBeNull();
-    expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, sourceId)).toBe(1);
   });
 
   it.each(['PL!-bp8-007-R', 'PL!HS-bp5-001-SEC'])(

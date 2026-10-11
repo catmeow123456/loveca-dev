@@ -17,6 +17,7 @@ import {
   BP4_017_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
   PL_PB2_019_LIVE_START_WAIT_SELF_DISCARD_CENTER_MUSE_GAIN_BLADE_ABILITY_ID as ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { getMemberEffectiveBladeCount } from '../../src/domain/rules/live-modifiers';
 import { getCardAbilityDefinitionsForCardCode } from '../../src/application/card-effects/definitions/lookup';
 import {
   CardAbilityCategory,
@@ -34,7 +35,7 @@ import {
 const P1 = 'p1';
 const P2 = 'p2';
 const EFFECT_TEXT =
-  '【LIVE开始时】可以将此成员变为待机状态，并将1张手牌放置入休息室：LIVE结束时为止，存在于自己的中央区域的『μ’s』的成员，获得[ブレード]。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）';
+  '【LIVE开始时】可以将此成员变为待机状态，并将1张手牌放置入休息室：LIVE结束时为止，存在于自己的中央区域的『μ’s』的成员，获得[ブレード][ブレード]。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）';
 
 function member(
   cardCode: string,
@@ -198,6 +199,8 @@ describe('PL!-pb2-019 高坂穗乃果', () => {
     expect(discardWindow.activeEffect).toMatchObject({
       abilityId: ABILITY_ID,
       effectText: EFFECT_TEXT,
+      stepText:
+        "请选择1张手牌放置入休息室。之后，自己中央区域的『μ's』成员获得[ブレード][ブレード]。",
       selectableCardIds: [scenario.handCards[0]!.instanceId],
       selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
       selectionLabel: '选择要放置入休息室的手牌',
@@ -232,16 +235,17 @@ describe('PL!-pb2-019 高坂穗乃果', () => {
         playerId: P1,
         sourceCardId: scenario.source.instanceId,
         targetMemberCardId: scenario.center.instanceId,
-        countDelta: 1,
+        countDelta: 2,
         abilityId: ABILITY_ID,
       },
     ]);
+    expect(getMemberEffectiveBladeCount(done, P1, scenario.center.instanceId)).toBe(3);
     expect(latestPayload(done)).toMatchObject({
       step: 'WAIT_SELF_DISCARD_CENTER_MUSE_GAIN_BLADE',
       discardedCardIds: [scenario.handCards[0]!.instanceId],
       enterWaitingRoomEventId: enterWaitingRoomEvent?.eventId,
       targetMemberCardId: scenario.center.instanceId,
-      bladeBonus: 1,
+      bladeBonus: 2,
     });
   });
 
@@ -309,7 +313,7 @@ describe('PL!-pb2-019 高坂穗乃果', () => {
     expect(orientation(done, scenario.source.instanceId)).toBe(OrientationState.WAITING);
     expect(bladeModifiers(done)[0]).toMatchObject({
       targetMemberCardId: scenario.source.instanceId,
-      countDelta: 1,
+      countDelta: 2,
     });
   });
 

@@ -22,6 +22,7 @@ import {
   HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
   HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
   N_BP7_020_ON_ENTER_MILL_THREE_TWO_BLADE_HEART_COLORS_GAIN_GREEN_HEART_ABILITY_ID,
+  N_BP8_030_LIVE_SUCCESS_MILL_FIVE_GAIN_SCORE_ABILITY_ID,
   PL_BP8_007_ON_ENTER_MILL_FOUR_MUSE_LIVE_GAIN_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
@@ -37,13 +38,18 @@ import {
 } from '../../runtime/workflow-helpers.js';
 import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
 import { isCurrentStageMemberAbilitySource } from '../../runtime/source-member.js';
+import { isCurrentLiveCardAbilitySource } from '../../runtime/source-live.js';
+import { replaceSourceLiveCardScoreModifierAndRefresh } from '../../runtime/live-card-score.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import {
   and,
+  costGte,
   groupAliasIs,
+  hasBladeHeart,
   memberHasHeartColor,
+  not,
   typeIs,
   type CardSelector,
 } from '../../../effects/card-selectors.js';
@@ -66,6 +72,12 @@ type MillTopReward =
       readonly amount: number;
       readonly label: string;
       readonly actionPayloadKey: 'bladeBonus';
+    }
+  | {
+      readonly type: 'source-live-score';
+      readonly amount: number;
+      readonly label: string;
+      readonly actionPayloadKey: 'scoreBonus';
     };
 
 type MillTopCondition =
@@ -96,6 +108,28 @@ interface MillTopGainLiveModifierConfig {
 }
 
 const MILL_TOP_GAIN_LIVE_MODIFIER_CONFIGS: readonly MillTopGainLiveModifierConfig[] = [
+  {
+    abilityId: N_BP8_030_LIVE_SUCCESS_MILL_FIVE_GAIN_SCORE_ABILITY_ID,
+    stepId: 'N_BP8_030_MILL_TOP_FIVE',
+    topCount: 5,
+    condition: {
+      kind: 'ANY_MATCH',
+      selector: and(
+        typeIs(CardType.MEMBER),
+        costGte(9),
+        groupAliasIs('虹ヶ咲'),
+        not(hasBladeHeart())
+      ),
+      label: '费用大于等于9的不持有BLADE HEART的『虹咲』成员卡',
+    },
+    reward: {
+      type: 'source-live-score',
+      amount: 1,
+      label: '此卡的分数＋１',
+      actionPayloadKey: 'scoreBonus',
+    },
+    finishStep: 'FINISH_MILL_TOP_FIVE_GAIN_SOURCE_LIVE_SCORE',
+  },
   {
     abilityId: HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
     stepId: 'HS_BP5_001_REVEAL_TOP_FOUR',
@@ -230,13 +264,14 @@ export function registerMillTopGainLiveModifierWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
   for (const config of MILL_TOP_GAIN_LIVE_MODIFIER_CONFIGS) {
-    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
       startMillTopGainLiveModifierInspection(
         game,
         ability,
         options,
         config,
-        deps.enqueueTriggeredCardEffects
+        deps.enqueueTriggeredCardEffects,
+        context.continuePendingCardEffects
       )
     );
     registerActiveEffectStepHandler(
@@ -254,7 +289,8 @@ function startMillTopGainLiveModifierInspection(
   ability: PendingAbilityState,
   options: PendingAbilityStarterOptions,
   config: MillTopGainLiveModifierConfig,
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+  continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
@@ -287,12 +323,40 @@ function startMillTopGainLiveModifierInspection(
   }
 
   const milledCardIds = millResult.movedCardIds;
+  if (milledCardIds.length === 0) {
+    return continuePendingCardEffects(
+      addAction(
+        {
+          ...millResult.gameState,
+          pendingAbilities: millResult.gameState.pendingAbilities.filter(
+            (candidate) => candidate.id !== ability.id
+          ),
+        },
+        'RESOLVE_ABILITY',
+        player.id,
+        {
+          pendingAbilityId: ability.id,
+          abilityId: ability.abilityId,
+          sourceCardId: ability.sourceCardId,
+          step: config.finishStep,
+          milledCardIds,
+          conditionMet: false,
+          rewardApplied: false,
+          refreshCount: millResult.refreshCount,
+          ...createRewardActionPayload(config.reward, false),
+        }
+      ),
+      options.orderedResolution === true
+    );
+  }
   const revealedCardIds = [...new Set(milledCardIds)];
   const condition = evaluateCondition(millResult.gameState, milledCardIds, config);
   const conditionMet = condition.conditionMet;
   const refreshText = millResult.refreshCount > 0 ? '期间发生卡组更新。' : '';
   const rewardText = conditionMet
-    ? `${condition.description}展示结束后获得${config.reward.label}。`
+    ? config.reward.type === 'source-live-score'
+      ? `${condition.description}展示结束后，${config.reward.label}。`
+      : `${condition.description}展示结束后获得${config.reward.label}。`
     : `${condition.description}展示结束后不获得奖励。`;
 
   return startPendingActiveEffect(millResult.gameState, {
@@ -364,7 +428,18 @@ function finishMillTopGainLiveModifier(
   };
   let rewardApplied = false;
 
-  if (conditionMet && isCurrentStageMemberAbilitySource(game, effect)) {
+  if (
+    conditionMet &&
+    config.reward.type === 'source-live-score' &&
+    isCurrentLiveCardAbilitySource(game, effect)
+  ) {
+    state = replaceSourceLiveCardScoreModifierAndRefresh(state, effect, config.reward.amount);
+    rewardApplied = true;
+  } else if (
+    conditionMet &&
+    config.reward.type !== 'source-live-score' &&
+    isCurrentStageMemberAbilitySource(game, effect)
+  ) {
     const modifierResult =
       config.reward.type === 'heart'
         ? addHeartLiveModifierForSourceMember(state, {

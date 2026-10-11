@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
-import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
+import type {
+  AnyCardData,
+  EnergyCardData,
+  MemberCardData,
+  LiveCardData,
+} from '../../src/domain/entities/card';
+import {
+  createCardInstance,
+  createHeartIcon,
+  createHeartRequirement,
+} from '../../src/domain/entities/card';
+import { moveLiveZoneCardToDeckTopForPlayer } from '../../src/application/card-effects/runtime/live-zone-deck';
+import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
 import {
   addAction,
   createGameState,
@@ -65,7 +76,7 @@ import {
   getNewMemberSlotMovedEvents,
   getPendingLeaveStageEvent,
 } from '../../src/application/card-effects/runtime/events';
-import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import { addCardToZone, addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   CardType,
   FaceState,
@@ -84,6 +95,103 @@ const WAITING_ROOM_TO_DECK_CAUSE = {
   abilityId: 'test-ability',
 };
 const PLAYER2 = 'player2';
+
+describe('LIVE zone to deck top runtime action', () => {
+  function setupLive() {
+    const data: LiveCardData = {
+      cardCode: 'test-live',
+      name: 'test-live',
+      cardType: CardType.LIVE,
+      score: 2,
+      requirements: createHeartRequirement({ [HeartColor.RAINBOW]: 3 }),
+    };
+    const cards = [
+      createCardInstance(data, PLAYER1, 'live'),
+      createCardInstance(data, PLAYER1, 'other-live'),
+      createCardInstance(data, PLAYER2, 'foreign'),
+      createCardInstance(createMemberCard('member'), PLAYER1, 'member'),
+    ];
+    let game = registerCards(createGameState('live-to-deck', PLAYER1, 'P1', PLAYER2, 'P2'), cards);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: ['top'] },
+      liveZone: cards.reduce(
+        (zone, card) => addCardToStatefulZone(zone, card.instanceId, { face: FaceState.FACE_UP }),
+        player.liveZone
+      ),
+    }));
+    return game;
+  }
+  it('clears the departed LIVE object modifiers while preserving player awards and resolved state', () => {
+    let game = setupLive();
+    game = addLiveModifier(game, {
+      kind: 'SCORE',
+      playerId: PLAYER1,
+      liveCardId: 'live',
+      countDelta: 2,
+    });
+    game = addLiveModifier(game, {
+      kind: 'REQUIREMENT',
+      liveCardId: 'live',
+      modifiers: [{ color: HeartColor.RAINBOW, countDelta: -3 }],
+    });
+    game = addLiveModifier(game, {
+      kind: 'SUPPRESS_ABILITY',
+      sourceCardId: 'live',
+      suppressedAbilityId: 'test-auto',
+    });
+    game = addLiveModifier(game, {
+      kind: 'SCORE',
+      playerId: PLAYER1,
+      sourceCardId: 'live',
+      countDelta: 1,
+    });
+    game = addLiveModifier(game, {
+      kind: 'SCORE',
+      playerId: PLAYER1,
+      liveCardId: 'other-live',
+      countDelta: 1,
+    });
+    const playerScores = new Map([[PLAYER1, 7]]);
+    const liveResults = new Map([['live', true]]);
+    game = { ...game, liveResolution: { ...game.liveResolution, playerScores, liveResults } };
+    const result = moveLiveZoneCardToDeckTopForPlayer(game, PLAYER1, 'live', {
+      candidateCardIds: ['live', 'other-live'],
+    });
+    expect(result?.gameState.players[0].mainDeck.cardIds).toEqual(['live', 'top']);
+    expect(result?.gameState.players[0].liveZone.cardStates.has('live')).toBe(false);
+    expect(result?.remainingCandidateIds).toEqual(['other-live']);
+    expect(result?.gameState.liveResolution.liveModifiers).toEqual([
+      expect.objectContaining({ kind: 'SCORE', sourceCardId: 'live', countDelta: 1 }),
+      expect.objectContaining({ kind: 'SCORE', liveCardId: 'other-live', countDelta: 1 }),
+    ]);
+    expect(result?.gameState.liveResolution.playerScores).toBe(playerScores);
+    expect(result?.gameState.liveResolution.liveResults).toBe(liveResults);
+    expect(result?.gameState.pendingAbilities).toBe(game.pendingAbilities);
+    expect(result?.gameState.actionHistory).toBe(game.actionHistory);
+    expect(result?.gameState.eventLog).toBe(game.eventLog);
+  });
+  it('rejects foreign, non-LIVE, absent and non-candidate selections without movement', () => {
+    const game = setupLive();
+    for (const id of ['foreign', 'member', 'absent'])
+      expect(
+        moveLiveZoneCardToDeckTopForPlayer(game, PLAYER1, id, { candidateCardIds: [id] })
+      ).toBeNull();
+    expect(
+      moveLiveZoneCardToDeckTopForPlayer(game, PLAYER1, 'live', { candidateCardIds: [] })
+    ).toBeNull();
+    const absentFromZone = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      liveZone: { ...player.liveZone, cardIds: [] },
+    }));
+    expect(
+      moveLiveZoneCardToDeckTopForPlayer(absentFromZone, PLAYER1, 'live', {
+        candidateCardIds: ['live'],
+      })
+    ).toBeNull();
+    expect(game.players[0].mainDeck.cardIds).toEqual(['top']);
+  });
+});
 
 function createMemberCard(cardCode: string): MemberCardData {
   return {

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   createCardInstance,
   createHeartIcon,
+  createHeartRequirement,
+  type LiveCardData,
   type MemberCardData,
 } from '../../src/domain/entities/card';
 import {
@@ -25,6 +27,8 @@ import {
 import { registerActiveEffectStepHandler } from '../../src/application/card-effects/runtime/step-registry';
 import {
   getPublicCardSelectionDisplayDurationMs,
+  createPublicCardSelectionConfirmationWindow,
+  getPublicCardSelectionConfirmationConfig,
   PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
 } from '../../src/application/card-effects/runtime/public-card-selection-confirmation';
 import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
@@ -176,6 +180,96 @@ function setup(
 }
 
 describe('public waiting-room card selection confirmation', () => {
+  it('accepts the LIVE_ZONE destination and displays the selection before any move', () => {
+    const data: LiveCardData = {
+      cardCode: 'test-live',
+      name: 'test-live',
+      cardType: CardType.LIVE,
+      score: 1,
+      requirements: createHeartRequirement({}),
+    };
+    let game = registerCards(createGameState('live-selection', PLAYER1, 'P1', PLAYER2, 'P2'), [
+      createCardInstance(data, PLAYER1, 'live'),
+    ]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      waitingRoom: { ...player.waitingRoom, cardIds: ['live'] },
+    }));
+    const effect = {
+      id: 'effect',
+      abilityId: 'test',
+      sourceCardId: 'source',
+      controllerId: PLAYER1,
+      awaitingPlayerId: PLAYER1,
+      effectText: '从休息室正面放置入LIVE卡区。',
+      stepId: 'SELECT_LIVE',
+      stepText: '选择LIVE卡。',
+      selectableCardIds: ['live'],
+      metadata: { publicCardSelectionConfirmation: { destination: 'LIVE_ZONE' } },
+    };
+    const config = getPublicCardSelectionConfirmationConfig(effect);
+    expect(config?.destination).toBe('LIVE_ZONE');
+    const displayed = createPublicCardSelectionConfirmationWindow(
+      game,
+      effect,
+      { selectedCardId: 'live' },
+      config!
+    );
+    expect(displayed?.activeEffect).toMatchObject({
+      stepId: PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
+      revealedCardIds: ['live'],
+      stepText: '已选择的LIVE卡已向双方公开，即将自动正面放置入LIVE卡区。',
+    });
+    expect(displayed?.players[0].waitingRoom.cardIds).toEqual(['live']);
+    expect(displayed?.players[0].liveZone.cardIds).toEqual([]);
+  });
+
+  it('does not create a LIVE_ZONE public window for a foreign or non-LIVE card', () => {
+    const data: LiveCardData = {
+      cardCode: 'test-live',
+      name: 'test-live',
+      cardType: CardType.LIVE,
+      score: 1,
+      requirements: createHeartRequirement({}),
+    };
+    const member: MemberCardData = {
+      cardCode: 'member',
+      name: 'member',
+      cardType: CardType.MEMBER,
+      cost: 1,
+      blade: 1,
+      hearts: [],
+    };
+    let game = registerCards(
+      createGameState('invalid-live-selection', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [createCardInstance(data, PLAYER2, 'foreign'), createCardInstance(member, PLAYER1, 'member')]
+    );
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      waitingRoom: { ...player.waitingRoom, cardIds: ['foreign', 'member'] },
+    }));
+    const effect = {
+      id: 'effect',
+      abilityId: 'test',
+      sourceCardId: 'source',
+      controllerId: PLAYER1,
+      awaitingPlayerId: PLAYER1,
+      effectText: 'effect',
+      stepId: 'SELECT_LIVE',
+      stepText: 'select',
+      selectableCardIds: ['foreign', 'member'],
+    };
+    for (const id of ['foreign', 'member'])
+      expect(
+        createPublicCardSelectionConfirmationWindow(
+          game,
+          effect,
+          { selectedCardId: id },
+          { destination: 'LIVE_ZONE' }
+        )
+      ).toBeNull();
+  });
+
   it('scales the display duration by revealed card count and caps it at 3500ms', () => {
     expect(getPublicCardSelectionDisplayDurationMs(1)).toBe(2_000);
     expect(getPublicCardSelectionDisplayDurationMs(2)).toBe(2_300);

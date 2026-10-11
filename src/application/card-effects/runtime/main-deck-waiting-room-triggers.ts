@@ -14,6 +14,7 @@ import {
 import { TriggerCondition, ZoneType } from '../../../shared/types/enums.js';
 import {
   moveTopDeckCardsToWaitingRoom,
+  moveBottomDeckCardsToWaitingRoom,
   moveTopDeckCardsToWaitingRoomWithRefresh,
   moveBottomDeckCardsToWaitingRoomWithRefresh,
   type MoveCardsToWaitingRoomResult,
@@ -171,6 +172,38 @@ export function moveExactTopDeckCardsToWaitingRoomAsCostAndEnqueueTriggers(
       preparedState,
       playerId,
       moveResult.movedCardIds,
+      enqueueTriggeredCardEffects,
+      options.cause
+    ),
+  };
+}
+
+/** Pays the full current bottom-deck cost first, then performs any required refresh. */
+export function moveExactBottomDeckCardsToWaitingRoomAsCostAndEnqueueTriggers(
+  game: GameState,
+  playerId: string,
+  count: number,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+  options: MainDeckWaitingRoomTriggerOptions = {}
+): MoveTopDeckCardsToWaitingRoomWithRefreshResult | null {
+  const player = getPlayerById(game, playerId);
+  if (!player || !Number.isInteger(count) || count < 0 || player.mainDeck.cardIds.length < count) {
+    return null;
+  }
+  const moved = moveBottomDeckCardsToWaitingRoom(game, playerId, count);
+  if (!moved || moved.movedCardIds.length !== count) return null;
+  const refreshed = applyPendingRefreshForPlayer(moved.gameState, playerId);
+  const refreshCount = refreshed === moved.gameState ? 0 : 1;
+  const prepared =
+    options.prepareGameStateBeforeEnqueue?.(refreshed, moved.movedCardIds, refreshCount) ??
+    refreshed;
+  return {
+    movedCardIds: moved.movedCardIds,
+    refreshCount,
+    gameState: enqueueMainDeckCardsEnteredWaitingRoom(
+      prepared,
+      playerId,
+      moved.movedCardIds,
       enqueueTriggeredCardEffects,
       options.cause
     ),

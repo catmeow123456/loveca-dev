@@ -1,4 +1,5 @@
-import type { ActiveEffectState, GameState } from '../../../domain/entities/game.js';
+import { getCardById, type ActiveEffectState, type GameState } from '../../../domain/entities/game.js';
+import { isLiveCardData } from '../../../domain/entities/card.js';
 import type {
   ActiveEffectStepHandlerContext,
   ActiveEffectStepHandlerInput,
@@ -18,6 +19,7 @@ export type PublicCardSelectionDestination =
   | 'MAIN_DECK_TOP'
   | 'MAIN_DECK_BOTTOM'
   | 'MAIN_DECK_POSITION_4'
+  | 'LIVE_ZONE'
   | 'WAITING_ROOM';
 
 export type PublicCardSelectionSource = 'WAITING_ROOM' | 'REVEALED_CHEER';
@@ -73,6 +75,7 @@ export function getPublicCardSelectionConfirmationConfig(
     destination !== 'MAIN_DECK_TOP' &&
     destination !== 'MAIN_DECK_BOTTOM' &&
     destination !== 'MAIN_DECK_POSITION_4' &&
+    destination !== 'LIVE_ZONE' &&
     destination !== 'WAITING_ROOM'
   ) {
     return null;
@@ -201,7 +204,12 @@ function selectedCardsRemainInConfiguredSource(
     return selectedCardIds.every((cardId) => movableCardIdSet.has(cardId));
   }
   const sourcePlayer = game.players.find((player) => player.id === sourcePlayerId);
-  return selectedCardIds.every((cardId) => sourcePlayer?.waitingRoom.cardIds.includes(cardId));
+  return selectedCardIds.every((cardId) => {
+    if (!sourcePlayer?.waitingRoom.cardIds.includes(cardId)) return false;
+    if (config.destination !== 'LIVE_ZONE') return true;
+    const card = getCardById(game, cardId);
+    return card?.ownerId === sourcePlayerId && isLiveCardData(card.data);
+  });
 }
 
 export function isPublicCardSelectionAutoAdvanceEffect(
@@ -380,6 +388,10 @@ function getConfirmationCopy(config: PublicCardSelectionConfirmationConfig): {
     case 'WAITING_ROOM':
       return {
         stepText: '已选择的卡牌已向双方公开，即将自动放置入休息室。',
+      };
+    case 'LIVE_ZONE':
+      return {
+        stepText: '已选择的LIVE卡已向双方公开，即将自动正面放置入LIVE卡区。',
       };
   }
 }

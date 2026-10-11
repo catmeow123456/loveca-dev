@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  N_BP8_009_ACTIVATED_BOTTOM_HAND_DRAW_TWO_ABILITY_ID,
+  N_BP8_009_LIVE_START_MILL_BOTTOM_REPLACE_LIVE_ABILITY_ID,
+  N_BP8_030_AUTO_FROM_WAITING_ROOM_REDUCE_REQUIREMENT_ABILITY_ID,
+  N_BP8_030_LIVE_SUCCESS_MILL_FIVE_GAIN_SCORE_ABILITY_ID,
   LL_BP8_001_ON_ENTER_LOOK_SIX_STACK_MEMBER_BELOW_ABILITY_ID,
   LL_BP8_001_LIVE_SUCCESS_LOOK_SIX_STACK_MEMBER_BELOW_ABILITY_ID,
   LL_BP8_001_CONTINUOUS_GAIN_MEMBER_BELOW_ABILITIES_ABILITY_ID,
@@ -16902,7 +16906,7 @@ describe('PL!-pb2-019 LIVE-start optional compound-cost definition', () => {
           queued: true,
           implemented: true,
           effectText:
-            '【LIVE开始时】可以将此成员变为待机状态，并将1张手牌放置入休息室：LIVE结束时为止，存在于自己的中央区域的『μ’s』的成员，获得[ブレード]。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）',
+            '【LIVE开始时】可以将此成员变为待机状态，并将1张手牌放置入休息室：LIVE结束时为止，存在于自己的中央区域的『μ’s』的成员，获得[ブレード][ブレード]。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）',
         }),
       ]);
       expect(getCardAbilityDefinitions(cardCode)[0]?.cardCodes).toBeUndefined();
@@ -17064,6 +17068,65 @@ describe('2026-10-06 new cards: complete paragraphs and full-base coverage', () 
       const definitions = getCardAbilityDefinitions(code);
       expect(definitions.find((item) => item.abilityId === N_BP7_026_LIVE_START_DISCARD_UP_TO_TWO_TARGET_NIJIGASAKI_GAIN_BLADE_ABILITY_ID)?.effectText).toBe('【LIVE开始时】可以将至多2张手牌放置入休息室：选择至多与因此放置入休息室的卡片的数量相同数量的存在于自己的舞台的『虹咲』的成员。LIVE结束时为止，那些成员获得[ブレード]。');
       expect(definitions.find((item) => item.abilityId === N_BP7_026_LIVE_SUCCESS_TWO_NO_BLADE_HEART_MEMBERS_SCORE_ABILITY_ID)?.effectText).toBe('【LIVE成功时】因声援被公开的自己的卡片中，存在大于等于2张不持有BLADE HEART的成员卡的场合，此卡的分数+1。');
+    }
+  });
+});
+
+describe('BP8 Rina and Stay base-scoped definitions', () => {
+  it('classifies both Rina abilities for all rarities without an activation cost gate', () => {
+    for (const suffix of ['SEC', 'P', 'R', 'UNSEEN']) {
+      const definitions = getCardAbilityDefinitions(`PL!N-bp8-009-${suffix}`);
+      expect(definitions).toEqual([
+        expect.objectContaining({
+          abilityId: N_BP8_009_ACTIVATED_BOTTOM_HAND_DRAW_TWO_ABILITY_ID,
+          baseCardCodes: ['PL!N-bp8-009'],
+          category: CardAbilityCategory.ACTIVATED,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          perTurnLimit: 1,
+          queued: false,
+          implemented: true,
+        }),
+        expect.objectContaining({
+          abilityId: N_BP8_009_LIVE_START_MILL_BOTTOM_REPLACE_LIVE_ABILITY_ID,
+          baseCardCodes: ['PL!N-bp8-009'],
+          category: CardAbilityCategory.LIVE_START,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          triggerCondition: TriggerCondition.ON_LIVE_START,
+          queued: true,
+          implemented: true,
+        }),
+      ]);
+      expect(definitions.every((definition) => definition.cardCodes === undefined)).toBe(true);
+      expect(definitions[0]?.requiredSourceOrientation).toBeUndefined();
+    }
+  });
+
+  it('classifies Stay AUTO only for waiting-room entries and LIVE_SUCCESS separately', () => {
+    for (const suffix of ['L', 'SEC', 'UNSEEN']) {
+      const definitions = getCardAbilityDefinitions(`PL!N-bp8-030-${suffix}`);
+      expect(definitions).toEqual([
+        expect.objectContaining({
+          abilityId: N_BP8_030_AUTO_FROM_WAITING_ROOM_REDUCE_REQUIREMENT_ABILITY_ID,
+          baseCardCodes: ['PL!N-bp8-030'],
+          category: CardAbilityCategory.AUTO,
+          sourceZone: CardAbilitySourceZone.LIVE_CARD,
+          triggerCondition: TriggerCondition.ON_ENTER_LIVE_ZONE,
+          triggerFromZones: [ZoneType.WAITING_ROOM],
+          triggerToZones: [ZoneType.LIVE_ZONE],
+          queued: true,
+          implemented: true,
+        }),
+        expect.objectContaining({
+          abilityId: N_BP8_030_LIVE_SUCCESS_MILL_FIVE_GAIN_SCORE_ABILITY_ID,
+          baseCardCodes: ['PL!N-bp8-030'],
+          category: CardAbilityCategory.LIVE_SUCCESS,
+          sourceZone: CardAbilitySourceZone.LIVE_CARD,
+          triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+          queued: true,
+          implemented: true,
+        }),
+      ]);
+      expect(definitions.every((definition) => definition.cardCodes === undefined)).toBe(true);
     }
   });
 });

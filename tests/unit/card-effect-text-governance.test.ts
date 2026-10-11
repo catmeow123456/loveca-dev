@@ -3,6 +3,14 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getUnknownCardEffectPlaceholders } from '../../client/src/lib/cardEffectTokens';
 import { CARD_ABILITY_DEFINITIONS } from '../../src/application/card-effects/definitions';
+import {
+  HS_BP8_001_AUTO_WAITING_ROOM_TO_DECK_GAIN_THREE_BLADE_ABILITY_ID,
+  N_BP8_009_ACTIVATED_BOTTOM_HAND_DRAW_TWO_ABILITY_ID,
+  N_BP8_009_LIVE_START_MILL_BOTTOM_REPLACE_LIVE_ABILITY_ID,
+  N_BP8_030_AUTO_FROM_WAITING_ROOM_REDUCE_REQUIREMENT_ABILITY_ID,
+  N_BP8_030_LIVE_SUCCESS_MILL_FIVE_GAIN_SCORE_ABILITY_ID,
+  PL_PB2_019_LIVE_START_WAIT_SELF_DISCARD_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 
 interface DisplayTextSource {
   readonly abilityId: string;
@@ -127,6 +135,44 @@ function formatViolations(violations: readonly GovernanceViolation[]): string {
 }
 
 describe('card effect display text governance', () => {
+  it.each([
+    [
+      N_BP8_009_ACTIVATED_BOTTOM_HAND_DRAW_TWO_ABILITY_ID,
+      '【起动】【１回合１次】将１张手牌放置于卡组底，抽２张卡。',
+    ],
+    [
+      N_BP8_009_LIVE_START_MILL_BOTTOM_REPLACE_LIVE_ABILITY_ID,
+      '【LIVE开始时】可以将卡组底的卡片放置入休息室：因此放置入休息室的卡片是LIVE卡的场合，将存在于自己的LIVE卡区的１张分数小于等于２的『虹咲』的LIVE卡放置于卡组顶。如此做时，从自己的休息室将１张LIVE卡正面放置于LIVE卡区。',
+    ],
+    [
+      N_BP8_030_AUTO_FROM_WAITING_ROOM_REDUCE_REQUIREMENT_ABILITY_ID,
+      '【自动】此卡从休息室被放置于LIVE卡区时，此卡的必要HEART减少[無ハート][無ハート][無ハート]。',
+    ],
+    [
+      N_BP8_030_LIVE_SUCCESS_MILL_FIVE_GAIN_SCORE_ABILITY_ID,
+      '【LIVE成功时】将自己的卡组顶的５张卡片放置入休息室。那些卡片中存在费用大于等于9的不持有BLADE HEART的『虹咲』的成员卡的场合，此卡的分数＋１。',
+    ],
+    [
+      PL_PB2_019_LIVE_START_WAIT_SELF_DISCARD_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
+      '【LIVE开始时】可以将此成员变为待机状态，并将1张手牌放置入休息室：LIVE结束时为止，存在于自己的中央区域的『μ’s』的成员，获得[ブレード][ブレード]。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）',
+    ],
+    [
+      HS_BP8_001_AUTO_WAITING_ROOM_TO_DECK_GAIN_THREE_BLADE_ABILITY_ID,
+      '【自动】【1回合1次】存在于自己的休息室的卡片被放置于卡组时，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。',
+    ],
+  ])('preserves the full approved Chinese paragraph for %s', (abilityId, expectedText) => {
+    expect(
+      CARD_ABILITY_DEFINITIONS.find((definition) => definition.abilityId === abilityId)?.effectText
+    ).toBe(expectedText);
+  });
+
+  it('uses the exact Rina activated paragraph in the activated UI', () => {
+    expect(
+      CARD_ABILITY_DEFINITIONS.find(
+        (definition) => definition.abilityId === N_BP8_009_ACTIVATED_BOTTOM_HAND_DRAW_TWO_ABILITY_ID
+      )?.activatedUi?.text
+    ).toBe('【起动】【１回合１次】将１张手牌放置于卡组底，抽２张卡。');
+  });
   it.each(['PL!-bp3-011', 'PL!-bp3-012', 'PL!-bp3-013'])(
     'preserves the shared paragraph with the approved N/PR wording for %s',
     (baseCardCode) => {
