@@ -19,15 +19,11 @@ import {
 const LAYOUTS = {
   WIDE: {
     aspect: 16 / 7,
-    minimumWidth: 1280,
-    minimumHeight: 560,
     outputWidth: 1920,
     outputHeight: 840,
   },
   COMPACT: {
     aspect: 4 / 3,
-    minimumWidth: 960,
-    minimumHeight: 720,
     outputWidth: 960,
     outputHeight: 720,
   },
@@ -36,7 +32,6 @@ const LAYOUTS = {
 const IMAGE_LIMITS: StaticImageProcessingLimits = {
   maxInputPixels: config.playerWallpaper.maxInputPixels,
   maxInputEdge: config.playerWallpaper.maxInputEdge,
-  minimumSourceEdge: 720,
   normalizedMasterMaxEdge: config.playerWallpaper.normalizedMasterMaxEdge,
   processingTimeoutSeconds: config.playerWallpaper.processingTimeoutSeconds,
   masterWebpQuality: 92,

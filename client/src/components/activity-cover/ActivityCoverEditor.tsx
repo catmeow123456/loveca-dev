@@ -277,6 +277,9 @@ export function ActivityCoverEditor({
                 <Moon size={14} /> 夜间
               </button>
             </div>
+            <span className="text-xs text-[var(--text-muted)]">
+              建议使用 2400 × 1350 或更大的横图；低清图片仍可保存，但不会被放大。
+            </span>
             {cover?.mode === 'CUSTOM' ? (
               <span className="ml-auto text-xs text-[var(--text-muted)]">
                 已发布 revision {cover.revision}
@@ -309,7 +312,7 @@ export function ActivityCoverEditor({
             <div className="activity-cover-editor__empty">
               <ImagePlus size={26} />
               <strong>使用当前活动默认 Hero</strong>
-              <span>上传一张至少能满足 1280 × 560 与 960 × 720 裁切的横图。</span>
+              <span>上传图片后可以分别调整宽屏与紧凑端构图。</span>
             </div>
           )}
 

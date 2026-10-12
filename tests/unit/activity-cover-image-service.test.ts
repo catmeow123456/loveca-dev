@@ -48,13 +48,49 @@ describe('activity cover image service', () => {
     });
   });
 
-  it('reports aspect and effective-pixel failures separately', () => {
+  it('reports aspect errors and rejects a crop smaller than one source pixel', () => {
     expect(() =>
       validateActivityCoverCrop({ x: 0, y: 0, width: 1, height: 1 }, 2400, 1350, 'WIDE')
     ).toThrow('裁切比例无效');
     expect(() =>
-      validateActivityCoverCrop({ x: 0, y: 0, width: 1, height: 0.4375 }, 1200, 1200, 'WIDE')
+      validateActivityCoverCrop(
+        { x: 0, y: 0, width: 0.0005, height: 0.00021875 },
+        1200,
+        1200,
+        'WIDE'
+      )
     ).toThrow('当前裁切区域像素不足');
+  });
+
+  it('publishes a low-resolution source without enlarging the generated assets', async () => {
+    const input = await sharp({
+      create: {
+        width: 640,
+        height: 360,
+        channels: 3,
+        background: { r: 130, g: 42, b: 86 },
+      },
+    })
+      .jpeg()
+      .toBuffer();
+    const master = await normalizeActivityCoverSource(input);
+    const [wide, compact] = await Promise.all([
+      renderActivityCoverLayout(master, 'WIDE', {
+        x: 0,
+        y: 7 / 36,
+        width: 1,
+        height: 7 / 9,
+      }),
+      renderActivityCoverLayout(master, 'COMPACT', {
+        x: 1 / 8,
+        y: 0,
+        width: 3 / 4,
+        height: 1,
+      }),
+    ]);
+
+    expect({ width: wide.width, height: wide.height }).toEqual({ width: 640, height: 280 });
+    expect({ width: compact.width, height: compact.height }).toEqual({ width: 480, height: 360 });
   });
 
   it('rejects animated WebP input', async () => {

@@ -40,7 +40,8 @@ export interface ProcessedStaticImage {
 export interface StaticImageProcessingLimits {
   readonly maxInputPixels: number;
   readonly maxInputEdge: number;
-  readonly minimumSourceEdge: number;
+  /** Optional business quality gate. Basic decode validation always applies. */
+  readonly minimumSourceEdge?: number;
   readonly normalizedMasterMaxEdge: number;
   readonly processingTimeoutSeconds: number;
   readonly masterWebpQuality: number;
@@ -49,8 +50,9 @@ export interface StaticImageProcessingLimits {
 
 export interface StaticImageLayoutSpecification {
   readonly aspect: number;
-  readonly minimumWidth: number;
-  readonly minimumHeight: number;
+  /** Optional business quality gate. Crops still need at least one source pixel. */
+  readonly minimumWidth?: number;
+  readonly minimumHeight?: number;
   readonly outputWidth: number;
   readonly outputHeight: number;
 }
@@ -122,7 +124,10 @@ export async function normalizeStaticImageSource(
   if (Math.max(orientedWidth, orientedHeight) > limits.maxInputEdge) {
     throw new StaticImageProcessingError('DIMENSIONS_TOO_LARGE');
   }
-  if (orientedWidth < limits.minimumSourceEdge || orientedHeight < limits.minimumSourceEdge) {
+  if (
+    limits.minimumSourceEdge !== undefined &&
+    (orientedWidth < limits.minimumSourceEdge || orientedHeight < limits.minimumSourceEdge)
+  ) {
     throw new StaticImageProcessingError('PIXELS_TOO_SMALL');
   }
 
@@ -220,7 +225,12 @@ export function validateNormalizedImageCrop(
   if (Math.abs(aspect - specification.aspect) / specification.aspect > 0.01) {
     throw new StaticImageProcessingError('INVALID_CROP_ASPECT');
   }
-  if (cropWidth < specification.minimumWidth || cropHeight < specification.minimumHeight) {
+  if (
+    cropWidth < 1 ||
+    cropHeight < 1 ||
+    (specification.minimumWidth !== undefined && cropWidth < specification.minimumWidth) ||
+    (specification.minimumHeight !== undefined && cropHeight < specification.minimumHeight)
+  ) {
     throw new StaticImageProcessingError('CROP_TOO_SMALL');
   }
 }
