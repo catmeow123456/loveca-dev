@@ -2,6 +2,24 @@ import { ZoneType } from '@game/shared/types/enums';
 import type { BattleAnimationEvent } from './battleAnimationEvents';
 
 export const BATTLE_CARD_MOVE_DURATION_MS = 360;
+export const RECOVERY_CHARGE_DURATION_MS = 80;
+export const RECOVERY_RISE_DURATION_MS = 180;
+export const RECOVERY_HOLD_DURATION_MS = 400;
+export const RECOVERY_FLIGHT_DURATION_MS = 400;
+export const RECOVERY_DURATION_MS =
+  RECOVERY_CHARGE_DURATION_MS +
+  RECOVERY_RISE_DURATION_MS +
+  RECOVERY_HOLD_DURATION_MS +
+  RECOVERY_FLIGHT_DURATION_MS;
+export const RECOVERY_STAGGER_MS = 60;
+
+export function isRecoveryCardMove(event: BattleAnimationEvent): boolean {
+  return (
+    event.kind === 'CARD_MOVE' &&
+    event.fromZoneType === ZoneType.WAITING_ROOM &&
+    event.toZoneType === ZoneType.HAND
+  );
+}
 export const BATTLE_CARD_MOVE_SETTLE_BUFFER_MS = 120;
 export const BATTLE_PULSE_DURATION_MS = 260;
 export const WAITING_ROOM_REVEAL_MOVE_DURATION_MS = 300;
@@ -34,14 +52,17 @@ export function createSequencedBattleAnimationEvents(
       event.fromZoneType !== ZoneType.MEMBER_SLOT
   );
 
-  if (!hasStageEntryMove) {
-    return events.map((event) => ({ event, delayMs: 0 }));
-  }
-
-  return events.map((event) => ({
-    event,
-    delayMs: getStageEntrySequencedDelay(event),
-  }));
+  const recoveryCounts = new Map<string, number>();
+  return events.map((event) => {
+    let delayMs = hasStageEntryMove ? getStageEntrySequencedDelay(event) : 0;
+    if (event.kind === 'CARD_MOVE' && isRecoveryCardMove(event)) {
+      const seat = event.toSeat ?? '';
+      const index = recoveryCounts.get(seat) ?? 0;
+      recoveryCounts.set(seat, index + 1);
+      delayMs += index * RECOVERY_STAGGER_MS;
+    }
+    return { event, delayMs };
+  });
 }
 
 export function getBattleAnimationEventDurationMs(
@@ -56,6 +77,10 @@ export function getBattleAnimationEventDurationMs(
 
   if (event.kind === 'CARD_MOVE' && event.presentation === 'WAITING_ROOM_REVEAL') {
     return WAITING_ROOM_REVEAL_DURATION_MS;
+  }
+
+  if (isRecoveryCardMove(event)) {
+    return prefersReducedMotion ? 120 : RECOVERY_DURATION_MS;
   }
 
   if (event.kind === 'ZONE_PULSE') {

@@ -24,6 +24,7 @@ import {
   DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS,
   DISCARD_PRESENTATION_REDUCED_MOTION_FADE_MS,
   getBattleAnimationEventDurationMs,
+  isRecoveryCardMove,
   WAITING_ROOM_REVEAL_DURATION_MS,
   WAITING_ROOM_REVEAL_HOLD_DURATION_MS,
   WAITING_ROOM_REVEAL_MOVE_DURATION_MS,
@@ -38,12 +39,12 @@ import {
   type PublicDiscardRevealBatch,
   type PublicDiscardRevealQueueState,
 } from '@/lib/publicDiscardRevealQueue';
+import { RecoveryCardMotion } from './RecoveryCardMotion';
+import { createBattleAnimationHistory } from '@/lib/battleAnimationHistory';
 import { useGameStore } from '@/store/gameStore';
 import { ZoneType } from '@game/shared/types/enums';
 import type { PlayerViewState } from '@game/online';
 
-const MAX_RENDERED_EVENT_IDS = 200;
-const RETAINED_RENDERED_EVENT_IDS = 150;
 const MAX_DISCARD_SOURCE_ANCHORS = 32;
 
 export interface RecentDiscardSourceAnchor {
@@ -81,7 +82,8 @@ export function BattleAnimationLayer() {
   const [discardPumpGeneration, setDiscardPumpGeneration] = useState(0);
   const previousViewRef = useRef<PlayerViewState | null>(null);
   const previousAnchorsRef = useRef<BattleAnimationAnchorMaps | null>(null);
-  const renderedEventIdsRef = useRef(new Set<string>());
+  const animationHistory = useRef(createBattleAnimationHistory());
+  const [timelineGeneration, setTimelineGeneration] = useState(0);
   const scheduledEventTimeoutsRef = useRef(new Set<number>());
   const activeOcclusionEventIdsRef = useRef(new Set<string>());
   const viewDiffGenerationRef = useRef(0);
@@ -113,8 +115,22 @@ export function BattleAnimationLayer() {
     );
     viewDiffGenerationRef.current = viewDiffGeneration;
     const previousAnchors = previousAnchorsRef.current;
-    if (previousViewState?.match.matchId !== playerViewState?.match.matchId) {
-      renderedEventIdsRef.current.clear();
+    const timelineReset = animationHistory.current.sync(
+      playerViewState
+        ? {
+            matchId: playerViewState.match.matchId,
+            viewerSeat: playerViewState.match.viewerSeat,
+            seq: playerViewState.match.seq,
+            presentationEpoch:
+              publicBattleLog.matchId === playerViewState.match.matchId
+                ? publicBattleLog.presentationEpoch
+                : undefined,
+            isReadOnly,
+          }
+        : null
+    );
+    if (timelineReset) {
+      setTimelineGeneration((current) => current + 1);
       recentDiscardSourceAnchorsRef.current.clear();
       activeDiscardEventIdRef.current = null;
       discardQueueRef.current = createPublicDiscardRevealQueueState();
@@ -126,7 +142,13 @@ export function BattleAnimationLayer() {
       });
     }
 
-    if (playerViewChanged && playerViewState && previousViewState && !isReadOnly) {
+    if (
+      !timelineReset &&
+      playerViewChanged &&
+      playerViewState &&
+      previousViewState &&
+      !isReadOnly
+    ) {
       prepareBattleAnimationLayoutForViewDiff({
         previousViewState,
         nextViewState: playerViewState,
@@ -139,6 +161,7 @@ export function BattleAnimationLayer() {
 
     if (
       playerViewChanged &&
+      !timelineReset &&
       playerViewState &&
       previousViewState &&
       previousAnchors &&
@@ -152,13 +175,15 @@ export function BattleAnimationLayer() {
         now: discardClockNow,
       });
       nextEvents.push(
-        ...createBattleAnimationEventsFromViewDiff({
-          previousViewState,
-          nextViewState: playerViewState,
-          previousAnchors,
-          nextAnchors,
-          enableWaitingRoomRevealFallback: remoteSessionSource === 'TUTORIAL',
-        }).filter((event) => !renderedEventIdsRef.current.has(event.id))
+        ...animationHistory.current.accept(
+          createBattleAnimationEventsFromViewDiff({
+            previousViewState,
+            nextViewState: playerViewState,
+            previousAnchors,
+            nextAnchors,
+            enableWaitingRoomRevealFallback: remoteSessionSource === 'TUTORIAL',
+          })
+        )
       );
     }
 
@@ -253,9 +278,6 @@ export function BattleAnimationLayer() {
     }
 
     if (nextEvents.length > 0) {
-      for (const event of nextEvents) {
-        rememberRenderedEventId(renderedEventIdsRef.current, event.id);
-      }
       const scheduledEvents = reduceMotion
         ? nextEvents.map((event) => ({ event, delayMs: 0 }))
         : createSequencedBattleAnimationEvents(nextEvents);
@@ -318,15 +340,21 @@ export function BattleAnimationLayer() {
       for (const [delayMs, delayedEvents] of delayedEventGroups) {
         const timeout = window.setTimeout(() => {
           scheduledEventTimeoutsRef.current.delete(timeout);
-          if (viewDiffGenerationRef.current !== viewDiffGeneration) {
+          // Recovery targets are measured live. An unrelated command must not swallow a
+          // staggered pickup; leaving the hand cancels it in RecoveryCardMotion instead.
+          const eligibleEvents = delayedEvents.filter(
+            (event) =>
+              viewDiffGenerationRef.current === viewDiffGeneration || isRecoveryCardMove(event)
+          );
+          const cancelledEvents = delayedEvents.filter((event) => !eligibleEvents.includes(event));
+          if (cancelledEvents.length > 0) {
             removeOcclusionsForAnimationEvents({
-              events: delayedEvents,
+              events: cancelledEvents,
               activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
               removeBattleAnimationOcclusion,
             });
-            return;
           }
-          setEvents((current) => [...current.slice(-12), ...delayedEvents]);
+          setEvents((current) => [...current.slice(-12), ...eligibleEvents]);
         }, delayMs);
         scheduledEventTimeoutsRef.current.add(timeout);
       }
@@ -363,7 +391,7 @@ export function BattleAnimationLayer() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[96]">
-      <AnimatePresence>
+      <AnimatePresence key={timelineGeneration}>
         {events.map((event) => {
           if (event.kind === 'DISCARD_PRESENTATION_BATCH') {
             return (
@@ -421,19 +449,6 @@ export function getNextViewDiffGeneration(
 /** TTLs use one client monotonic clock and never compare browser time with server timestamps. */
 export function getDiscardPresentationMonotonicNow(): number {
   return globalThis.performance?.now() ?? Date.now();
-}
-
-function rememberRenderedEventId(renderedEventIds: Set<string>, eventId: string): void {
-  renderedEventIds.add(eventId);
-  if (renderedEventIds.size <= MAX_RENDERED_EVENT_IDS) {
-    return;
-  }
-
-  const retainedEventIds = Array.from(renderedEventIds).slice(-RETAINED_RENDERED_EVENT_IDS);
-  renderedEventIds.clear();
-  for (const retainedEventId of retainedEventIds) {
-    renderedEventIds.add(retainedEventId);
-  }
 }
 
 function rememberVisibleDiscardSourceAnchors({
@@ -717,6 +732,10 @@ function MovingCard({
         onDone={onDone}
       />
     );
+  }
+
+  if (isRecoveryCardMove(event)) {
+    return <RecoveryCardMotion event={event} imagePath={imagePath} onDone={onDone} />;
   }
 
   return (

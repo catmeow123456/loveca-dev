@@ -1,0 +1,112 @@
+import { describe, expect, it } from 'vitest';
+import {
+  recoveryPoseFromBounds,
+  sampleRecoveryMotion,
+} from '../../client/src/lib/recoveryCardMotion';
+import {
+  RECOVERY_DURATION_MS,
+  createSequencedBattleAnimationEvents,
+  getBattleAnimationEventDurationMs,
+} from '../../client/src/lib/battleAnimationSequencing';
+import { createBattleAnimationHistory } from '../../client/src/lib/battleAnimationHistory';
+import type { BattleAnimationEvent } from '../../client/src/lib/battleAnimationEvents';
+import { ZoneType } from '../../src/shared/types/enums';
+const from = { left: 700, top: 400, width: 45, height: 63, rotation: 0 };
+const to = { left: 350, top: 650, width: 75, height: 105, rotation: 12 };
+const event: BattleAnimationEvent = {
+  id: 'move:3:obj_a',
+  kind: 'CARD_MOVE',
+  fromZoneType: ZoneType.WAITING_ROOM,
+  toZoneType: ZoneType.HAND,
+  toSeat: 'FIRST',
+  render: {
+    objectId: 'obj_a',
+    cardId: 'a',
+    surface: 'FRONT',
+    fromSurface: 'FRONT',
+    toSurface: 'FRONT',
+  },
+  fromRect: from,
+  toRect: to,
+};
+
+describe('2D recovery choreography', () => {
+  it('charges before emerging, decelerates into a stationary 400ms hover, then lands exactly', () => {
+    expect(sampleRecoveryMotion(from, to, 79).opacity).toBe(0);
+    expect(sampleRecoveryMotion(from, to, 80).pose).toEqual(from);
+    expect(sampleRecoveryMotion(from, to, 81).pose.top).toBeLessThan(from.top);
+    const hover = sampleRecoveryMotion(from, to, 260);
+    expect(hover.pose.width).toBe(67.5);
+    expect(hover.pose).toEqual(sampleRecoveryMotion(from, to, 659).pose);
+    expect(sampleRecoveryMotion(from, to, 660).sourceGlow).toBe(0);
+    expect(sampleRecoveryMotion(from, to, 660).pose).toEqual(hover.pose);
+    expect(sampleRecoveryMotion(from, to, 860).pose.top).toBeGreaterThan(hover.pose.top);
+    expect(sampleRecoveryMotion(from, to, 1060).pose).toEqual(to);
+    expect(getBattleAnimationEventDurationMs(event)).toBe(RECOVERY_DURATION_MS);
+    expect(getBattleAnimationEventDurationMs(event, true)).toBe(120);
+  });
+  it.each([-25, -12, 0, 12, 25])(
+    'recovers actual scaled dimensions at fan angle %s',
+    (rotation) => {
+      const radians = (rotation * Math.PI) / 180;
+      const w = 75,
+        h = 105;
+      const width = w * Math.abs(Math.cos(radians)) + h * Math.abs(Math.sin(radians));
+      const height = h * Math.abs(Math.cos(radians)) + w * Math.abs(Math.sin(radians));
+      const pose = recoveryPoseFromBounds(
+        { left: 200 - width / 2, top: 300 - height / 2, width, height },
+        rotation
+      );
+      expect(pose.width).toBeCloseTo(w);
+      expect(pose.height).toBeCloseTo(h);
+      expect(pose.left).toBeCloseTo(200 - w / 2);
+      expect(pose.top).toBeCloseTo(300 - h / 2);
+      const resized = { ...pose, left: 100, top: 180, width: 50, height: 70, rotation: -18 };
+      expect(sampleRecoveryMotion(from, resized, 1060).pose).toEqual(resized);
+    }
+  );
+  it('staggers each recovered card without shortening its own lifetime', () => {
+    const scheduled = createSequencedBattleAnimationEvents([event, { ...event, id: 'second' }]);
+    expect(scheduled.map((e) => e.delayMs)).toEqual([0, 60]);
+    expect(scheduled.map((e) => e.delayMs + getBattleAnimationEventDurationMs(e.event))).toEqual([
+      1060, 1120,
+    ]);
+  });
+});
+
+describe('presentation history', () => {
+  it('undo and redo reuse rule IDs but have distinct presentation IDs and reject stale completions', () => {
+    const history = createBattleAnimationHistory();
+    history.sync({ matchId: 'one', viewerSeat: 'FIRST', seq: 2 });
+    history.sync({ matchId: 'one', viewerSeat: 'FIRST', seq: 3 });
+    const first = history.accept([event]);
+    expect(history.accept([event])).toEqual([]);
+    expect(history.sync({ matchId: 'one', viewerSeat: 'FIRST', seq: 2 })).toBe(true);
+    history.sync({ matchId: 'one', viewerSeat: 'FIRST', seq: 3 });
+    const second = history.accept([event]);
+    expect(second).toHaveLength(1);
+    expect(second[0].id).not.toBe(first[0].id);
+    expect(second.filter((e) => e.id !== first[0].id)).toEqual(second);
+  });
+  it('resets for equal-sequence epoch changes, seats, match switches and read-only changes', () => {
+    const history = createBattleAnimationHistory();
+    const cursor = {
+      matchId: 'one',
+      viewerSeat: 'FIRST',
+      seq: 3,
+      presentationEpoch: 0,
+      isReadOnly: false,
+    };
+    history.sync(cursor);
+    history.accept([event]);
+    for (const update of [
+      { presentationEpoch: 1 },
+      { viewerSeat: 'SECOND' },
+      { matchId: 'two' },
+      { isReadOnly: true },
+    ]) {
+      expect(history.sync({ ...cursor, ...update })).toBe(true);
+      expect(history.accept([event])).toHaveLength(1);
+    }
+  });
+});
