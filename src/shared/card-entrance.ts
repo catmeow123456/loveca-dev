@@ -1,3 +1,5 @@
+import type { SlotPosition, OrientationState } from './types/enums.js';
+
 /** Public entrance identity shared by authority and cosmetic registry. */
 export const entranceCards = {
   kanata: 'PL!N-bp7-006',
@@ -9,6 +11,9 @@ export const entranceCards = {
   eli: 'PL!-pb2-020',
   honoka: 'PL!-pb2-001',
   'rin-hanayo': 'PL!-pb2-000',
+  'sumire-double': 'PL!SP-bp4-004',
+  'chisato-natsumi': 'PL!SP-pb2-000',
+  'kanan-mari': 'PL!S-pb2-000',
   seras: 'PL!HS-bp6-007',
   kaho: 'PL!HS-pb1-009',
   rurino: 'PL!HS-pb1-003',
@@ -34,11 +39,22 @@ export function isEntranceCard(code: string): boolean {
 }
 /** Per-card budget: bounded asset loading + playback + transport margin. */
 export const ENTRANCE_WAIT_LIMIT_MS = 6000;
+/** Additional per-double-relay playback budget; ordinary entrances keep their existing limit. */
+export const DOUBLE_RELAY_ENTRANCE_EXTRA_MS = 1400;
 export interface EntranceWait {
   readonly id: string;
   readonly cardIds: readonly string[];
   readonly waitingPlayerIds: readonly string[];
   readonly deadlineAt: number;
+  /** Only the replacements from these exact successful entry events, never inferred zone diffs. */
+  readonly doubleRelays?: readonly {
+    readonly cardId: string;
+    readonly sources: readonly {
+      readonly cardId: string;
+      readonly slot: SlotPosition;
+      readonly orientation: OrientationState;
+    }[];
+  }[];
 }
 export interface EntranceRuntime {
   readonly singleViewer: boolean;

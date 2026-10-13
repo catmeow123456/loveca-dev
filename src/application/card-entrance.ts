@@ -1,5 +1,5 @@
 import { getCardById, type GameState } from '../domain/entities/game.js';
-import { TriggerCondition } from '../shared/types/enums.js';
+import { OrientationState, TriggerCondition } from '../shared/types/enums.js';
 import { isEntranceCard } from '../shared/card-entrance.js';
 
 /** Pause only at an atomic effect boundary; never split a cost or a workflow mutation. */
@@ -20,6 +20,30 @@ export function captureCardEntrance(game: GameState): GameState {
       })
     ),
   ];
+  const doubleRelays = cardIds.flatMap((cardId) => {
+    const entry = [...entries]
+      .reverse()
+      .find(
+        ({ event }) =>
+          event.eventType === TriggerCondition.ON_ENTER_STAGE && event.cardInstanceId === cardId
+      )?.event;
+    if (
+      entry?.eventType !== TriggerCondition.ON_ENTER_STAGE ||
+      !('relayReplacements' in entry) ||
+      entry.relayReplacements?.length !== 2
+    )
+      return [];
+    return [
+      {
+        cardId,
+        sources: entry.relayReplacements.map(({ cardId, slot, orientation }) => ({
+          cardId,
+          slot,
+          orientation: orientation ?? OrientationState.ACTIVE,
+        })),
+      },
+    ];
+  });
   const generation = runtime.generation + (cardIds.length ? 1 : 0);
   return {
     ...game,
@@ -33,6 +57,7 @@ export function captureCardEntrance(game: GameState): GameState {
             cardIds,
             waitingPlayerIds: game.players.map((p) => p.id),
             deadlineAt: 0,
+            ...(doubleRelays.length ? { doubleRelays } : {}),
           }
         : null,
     },

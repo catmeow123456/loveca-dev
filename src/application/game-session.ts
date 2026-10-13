@@ -10,7 +10,10 @@
  */
 
 import { captureCardEntrance } from './card-entrance.js';
-import { ENTRANCE_WAIT_LIMIT_MS } from '../shared/card-entrance.js';
+import {
+  ENTRANCE_WAIT_LIMIT_MS,
+  DOUBLE_RELAY_ENTRANCE_EXTRA_MS,
+} from '../shared/card-entrance.js';
 import { GameService, type DeckConfig, type GameOperationResult } from './game-service.js';
 import { PhaseManager } from './phase-manager.js';
 import {
@@ -5301,7 +5304,9 @@ export class GameSession {
                 ...runtime.pending,
                 deadlineAt:
                   runtime.pending.deadlineAt ||
-                  this.now() + ENTRANCE_WAIT_LIMIT_MS * runtime.pending.cardIds.length,
+                  this.now() +
+                  ENTRANCE_WAIT_LIMIT_MS * runtime.pending.cardIds.length +
+                  DOUBLE_RELAY_ENTRANCE_EXTRA_MS * (runtime.pending.doubleRelays?.length ?? 0),
               },
         },
       };

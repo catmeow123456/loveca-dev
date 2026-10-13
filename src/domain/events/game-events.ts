@@ -116,6 +116,8 @@ export interface CardMoveEvent extends BaseGameEvent {
 }
 
 export interface RelayReplacementEventData {
+  /** Public resting pose immediately before relay removal, for the entrance presentation. */
+  readonly orientation?: OrientationState;
   readonly cardId: string;
   readonly slot: SlotPosition;
   readonly effectiveCost: number;

@@ -1,4 +1,8 @@
-import { entranceBlinkFrame, type EntranceBlinkProfile } from './cardEntranceBlink';
+import {
+  entranceBlinkFrame,
+  entranceBlinkEyeUniforms,
+  type EntranceBlinkProfile,
+} from './cardEntranceBlink';
 import type { EntranceMeshProfile } from './cardEntranceProfiles';
 import { entranceLayerFrame } from './cardEntranceArticulation';
 // Shared portrait mesh; optional atlas layers articulate intact hands and props.
@@ -33,7 +37,7 @@ export function createCardEntranceMesh(
       `
     attribute vec2 uv; varying vec2 tex; uniform float time; uniform float amount;
     uniform vec4 rightHairRegion; uniform vec2 rightHairEnd; uniform float hasRightHair;
-    uniform vec4 hairRegion; uniform vec2 hairEnd; uniform vec4 hemRegion; uniform vec3 strength;
+    uniform vec4 hairRegion; uniform vec2 hairEnd; uniform vec4 hemRegion; uniform vec2 hemEnd; uniform vec3 strength;
     uniform float hasGroupSway; uniform vec4 groupColumns;
     uniform vec3 groupAmplitude; uniform vec3 groupPhase;
     uniform float hasArmLayers; uniform float artAspect; uniform float layer;
@@ -103,7 +107,7 @@ export function createCardEntranceMesh(
       hair+=hasRightHair*smoothstep(rightHairRegion.x,rightHairRegion.y,uv.x)*smoothstep(rightHairRegion.z,rightHairRegion.w,uv.y)*(1.0-smoothstep(rightHairEnd.x,rightHairEnd.y,uv.y))*strength.y;
       p.x+=hair*sin(time*4.1-uv.y*6.0)*(.008+.024*exp(-time*1.4))*amount;
       p.y+=hair*sin(time*3.6-uv.x*4.0)*.009*amount;
-      float hem=(1.0-smoothstep(hemRegion.x,hemRegion.y,uv.x))*smoothstep(hemRegion.z,hemRegion.w,uv.y)*strength.z;
+      float hem=(1.0-smoothstep(hemRegion.x,hemRegion.y,uv.x))*smoothstep(hemRegion.z,hemRegion.w,uv.y)*(1.0-smoothstep(hemEnd.x,hemEnd.y,uv.y))*strength.z;
       p.x+=hem*sin(time*3.5-uv.y*3.0)*(.008+.02*exp(-time*1.2))*amount;
       p.y+=hem*sin(time*3.3-uv.x*4.0)*.012*amount;
       if(hasPortraitMotion<.5 && hasArmLayers<.5) p=articulatePart(p,uv);
@@ -271,6 +275,7 @@ export function createCardEntranceMesh(
   gl.uniform2fv(gl.getUniformLocation(program, 'rightHairEnd'), rightHair.slice(4));
   gl.uniform1f(gl.getUniformLocation(program, 'hasRightHair'), profile.rightHair ? 1 : 0);
   gl.uniform4fv(gl.getUniformLocation(program, 'hemRegion'), profile.hem);
+  gl.uniform2fv(gl.getUniformLocation(program, 'hemEnd'), profile.hemEnd ?? [1, 1.01]);
   gl.uniform3fv(gl.getUniformLocation(program, 'strength'), profile.strength);
   gl.uniform1f(gl.getUniformLocation(program, 'hasGroupSway'), profile.groupSway ? 1 : 0);
   gl.uniform4fv(
@@ -354,10 +359,7 @@ export function createCardEntranceMesh(
     if (blinkFrame && blinkFrame.face !== activeFace) {
       activeFace = blinkFrame.face;
       for (const { key, location } of eyeUniforms)
-        gl.uniform4fv(
-          location,
-          activeFace.eyes.flatMap((eye) => [...eye[key]])
-        );
+        gl.uniform4fv(location, entranceBlinkEyeUniforms(activeFace, key));
     }
     gl.uniform1f(blinkAmount, blinkFrame?.amount ?? 0);
     gl.uniform1f(amount, reduced ? 0 : 1);

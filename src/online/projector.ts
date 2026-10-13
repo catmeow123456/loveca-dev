@@ -366,6 +366,18 @@ export function projectPlayerViewState(
               return seat ? [seat] : [];
             }),
             deadlineAt: game.entranceRuntime.pending.deadlineAt,
+            ...(game.entranceRuntime.pending.doubleRelays?.length
+              ? {
+                  doubleRelays: game.entranceRuntime.pending.doubleRelays.map((relay) => ({
+                    objectId: createPublicObjectId(relay.cardId),
+                    sources: relay.sources.map((source) => ({
+                      objectId: createPublicObjectId(source.cardId),
+                      slot: source.slot,
+                      orientation: source.orientation,
+                    })),
+                  })),
+                }
+              : {}),
           },
         }
       : {}),

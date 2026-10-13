@@ -6,6 +6,7 @@ import {
   GameMode,
   HeartColor,
   OrientationState,
+  type SlotPosition,
 } from '../shared/types/enums.js';
 import type { GameState } from '../domain/entities/game.js';
 import type { HeartIcon } from '../domain/entities/card.js';
@@ -141,6 +142,15 @@ export interface MatchViewState {
     readonly objectIds: readonly string[];
     readonly waitingSeats: readonly Seat[];
     readonly deadlineAt: number;
+    /** Public stage replacements from this entry, present only for actual double relays. */
+    readonly doubleRelays?: readonly {
+      readonly objectId: string;
+      readonly sources: readonly {
+        readonly objectId: string;
+        readonly slot: SlotPosition;
+        readonly orientation: OrientationState;
+      }[];
+    }[];
   };
   /** 仅排位对局在能够唯一归责时存在；不包含任何隐藏窗口内容。 */
   readonly rankedStall?: RankedStallView;

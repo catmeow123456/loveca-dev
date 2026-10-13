@@ -373,3 +373,55 @@
     bottom: 16%;
   }
 }
+
+/* Successful double relay: one clock hands off to the existing portrait/landing sequence. */
+.double-relay-fusion {
+  position: fixed;
+  inset: 0;
+  z-index: 61;
+  pointer-events: none;
+  overflow: hidden;
+}
+.double-relay-beams {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.double-relay-source {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+.double-relay-source-face {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  border-radius: 7px;
+  will-change: transform, opacity;
+}
+.double-relay-source-glow {
+  position: absolute;
+  inset: -40%;
+  opacity: 0;
+  background: radial-gradient(ellipse, #f2ffffcc 0%, #93edff99 26%, #63c8ff44 46%, transparent 68%);
+  mix-blend-mode: screen;
+}
+.double-relay-source-glow--1 {
+  background: radial-gradient(ellipse, #fff1fccc 0%, #ffb5e499 26%, #d6a4ff44 46%, transparent 68%);
+}
+.double-relay-core {
+  position: absolute;
+  opacity: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffdfbe6 0%, #bdefffaa 10%, #e0b6ff55 27%, transparent 67%);
+  mix-blend-mode: screen;
+}
+.double-relay-formed {
+  position: absolute;
+  opacity: 0;
+  height: auto;
+  aspect-ratio: 5/7;
+  border-radius: 9px;
+  will-change: transform, opacity;
+}

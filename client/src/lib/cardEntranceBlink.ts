@@ -6,13 +6,23 @@ export interface EntranceBlinkProfile {
   close: number;
   hold: number;
   open: number;
-  eyes: readonly [EntranceBlinkEye, EntranceBlinkEye];
+  /** A pre-existing wink can animate only the other, open eye. */
+  eyes: readonly [EntranceBlinkEye] | readonly [EntranceBlinkEye, EntranceBlinkEye];
 }
 export interface EntranceBlinkEye {
   /** Destination rectangle in original portrait UVs; feathered elliptical boundary. */
   target: Rect;
   half: Rect;
   closed: Rect;
+}
+
+/** Always replace both GPU slots; the unused eye must not retain an earlier face. */
+export function entranceBlinkEyeUniforms(
+  face: EntranceBlinkProfile,
+  key: keyof EntranceBlinkEye
+): number[] {
+  const unused: Rect = key === 'target' ? [-2, -2, 1, 1] : [0, 0, 1, 1];
+  return [...face.eyes[0][key], ...(face.eyes[1]?.[key] ?? unused)];
 }
 
 /** One blink, with no timers or looping; skipped frames still produce the right pose. */

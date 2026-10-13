@@ -6,7 +6,8 @@ export async function prepareEntranceAssets(
   profile: CardEntranceProfile,
   cardUrl: string | null,
   signal: AbortSignal,
-  makeImage: () => HTMLImageElement = () => new Image()
+  makeImage: () => HTMLImageElement = () => new Image(),
+  relayCardUrls: readonly string[] = []
 ): Promise<{
   portrait: HTMLImageElement;
   card: HTMLImageElement | null;
@@ -52,6 +53,8 @@ export async function prepareEntranceAssets(
                 return null;
               })
           : Promise.resolve(null),
+        // Double-relay source faces share the same cancellable decode deadline.
+        Promise.all(relayCardUrls.map(load)),
         // Share the existing preparation deadline; a missing font keeps a readable fallback.
         typeof document === 'undefined'
           ? Promise.resolve()

@@ -78,6 +78,8 @@ export interface EntranceMeshProfile {
   /** Optional right-side hair: x fade start/end, y start/end, y fade-out start/end. */
   rightHair?: readonly [number, number, number, number, number, number];
   hem: readonly [number, number, number, number];
+  /** Stop cloth follow above exposed legs or a foreground object. */
+  hemEnd?: readonly [number, number];
   /** Three softly joined upper-body regions; UV column transitions avoid faces. */
   groupSway?: {
     columns: readonly [number, number, number, number];
@@ -1503,6 +1505,137 @@ export const cardEntranceProfiles = defineEntranceProfiles([
           ],
           angles: [0.1, 0],
         },
+      },
+    },
+  },
+  {
+    id: 'sumire-double',
+    baseCode: entranceCards['sumire-double'],
+    name: '平安名堇',
+    loadArt: () => import('../components/game/card-entrance/sumire-double.png'),
+    center: '-50%',
+    mobileHeight: '68vh',
+    light: '#aaf48b99',
+    mesh: {
+      // One stage lean: the face and both hands stay with the upper body.
+      // Only the outer curls trail; the palm overlapping the hair is excluded.
+      hair: [0.11, 0.19, 0.25, 0.32],
+      hairEnd: [0.43, 0.49],
+      rightHair: [0.82, 0.9, 0.18, 0.24, 0.32, 0.36],
+      hem: [0.22, 0.43, 0.56, 0.64],
+      hemEnd: [0.7, 0.78],
+      strength: [0, 3.0, 0.8],
+      portraitMotion: {
+        pivot: [0.56, 0.59],
+        blendY: [0.56, 0.77],
+        angle: 0.047,
+        travel: [0.002, -0.004],
+        start: 0.22,
+        duration: 1.02,
+        easing: 'smoothstep',
+      },
+    },
+  },
+  {
+    id: 'chisato-natsumi',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/chisato-natsumi-blink.png'),
+      faces: [
+        {
+          start: 0.86,
+          close: 0.055,
+          hold: 0.04,
+          open: 0.12,
+          eyes: [
+            {
+              target: [529 / 1061, 312 / 1483, 113 / 1061, 122 / 1483],
+              half: [315 / 1536, 150 / 1024, 325 / 1536, 265 / 1024],
+              closed: [315 / 1536, 660 / 1024, 325 / 1536, 265 / 1024],
+            },
+            {
+              target: [687 / 1061, 340 / 1483, 134 / 1061, 150 / 1483],
+              half: [770 / 1536, 297 / 1024, 338 / 1536, 206 / 1024],
+              closed: [770 / 1536, 807 / 1024, 338 / 1536, 206 / 1024],
+            },
+          ],
+        },
+      ],
+    },
+    baseCode: entranceCards['chisato-natsumi'],
+    name: '岚千砂都＆鬼冢夏美',
+    loadArt: () => import('../components/game/card-entrance/chisato-natsumi.png'),
+    center: '-50%',
+    mobileHeight: '61vh',
+    light: '#ffb6d799',
+    nameLayout: 'group',
+    mesh: {
+      // Cheek contact and interlaced hands share the same rigid upper pose.
+      // Soft follow is confined to Natsumi's outer tips and Chisato's ribbons.
+      hair: [0.13, 0.24, 0.41, 0.49],
+      hairEnd: [0.61, 0.69],
+      rightHair: [0.89, 0.96, 0.41, 0.49, 0.58, 0.65],
+      hem: [0, 1, 0, 1],
+      strength: [0, 2.6, 0],
+      portraitMotion: {
+        pivot: [0.55, 0.87],
+        blendY: [0.85, 0.98],
+        angle: -0.037,
+        travel: [-0.003, -0.005],
+        start: 0.23,
+        duration: 1.04,
+        easing: 'smoothstep',
+      },
+    },
+  },
+  {
+    id: 'kanan-mari',
+    blink: {
+      loadArt: () => import('../components/game/card-entrance/kanan-mari-blink.png'),
+      faces: [
+        {
+          start: 1.01,
+          close: 0.055,
+          hold: 0.04,
+          open: 0.12,
+          eyes: [
+            {
+              target: [298 / 1062, 298 / 1480, 111 / 1062, 80 / 1480],
+              half: [351 / 1536, 245 / 1024, 390 / 1536, 190 / 1024],
+              closed: [351 / 1536, 731 / 1024, 390 / 1536, 190 / 1024],
+            },
+            {
+              target: [434 / 1062, 273 / 1480, 97 / 1062, 80 / 1480],
+              half: [912 / 1536, 196 / 1024, 333 / 1536, 188 / 1024],
+              closed: [912 / 1536, 682 / 1024, 333 / 1536, 188 / 1024],
+            },
+          ],
+        },
+      ],
+    },
+    baseCode: entranceCards['kanan-mari'],
+    name: '松浦果南＆小原鞠莉',
+    loadArt: () => import('../components/game/card-entrance/kanan-mari.png'),
+    center: '-50%',
+    mobileHeight: '66vh',
+    light: '#a5e1f599',
+    nameLayout: 'group',
+    mesh: {
+      // Heads, shoulder contact, the complete gift and gripping hands move together.
+      // The only torso blend is below the gloves, across the soft skirt fabric.
+      hair: [0.1, 0.23, 0.27, 0.36],
+      hairEnd: [0.44, 0.51],
+      rightHair: [0.89, 0.97, 0.18, 0.25, 0.32, 0.38],
+      hem: [0.14, 0.29, 0.76, 0.82],
+      hemEnd: [0.87, 0.94],
+      strength: [0, 2.6, 0.55],
+      portraitMotion: {
+        pivot: [0.54, 0.8],
+        blendY: [0.8, 0.96],
+        angle: 0.031,
+        travel: [0, -0.013],
+        start: 0.25,
+        duration: 1.04,
+        easing: 'smoothstep',
       },
     },
   },

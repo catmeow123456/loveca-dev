@@ -187,6 +187,9 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
               cardId: replacement.cardId,
               slot: replacement.slot,
               effectiveCost: replacement.effectiveCost,
+              orientation:
+                player.memberSlots.cardStates.get(replacement.cardId)?.orientation ??
+                OrientationState.ACTIVE,
             })),
           }
         : undefined

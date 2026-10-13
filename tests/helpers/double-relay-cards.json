@@ -1,0 +1,272 @@
+[
+  {
+    "cardCode": "PL!SP-bp4-004-P",
+    "name": "平安名堇",
+    "nameCn": "平安名堇",
+    "cardType": "MEMBER",
+    "cost": 22,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 3
+      },
+      {
+        "color": "YELLOW",
+        "count": 3
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [],
+    "groupNames": ["Liella!"],
+    "unitName": "「CatChu!」",
+    "cardText": "【常时】打出此卡时，可以与2名成员进行换手。\n\n【登场】【中央】从2名『Liella!』的成员换手登场的场合，抽2张卡，将1张存在于自己休息室的费用小于等于4的『Liella!』的成员卡登场至自己的舞台的不存在成员的区域。"
+  },
+  {
+    "cardCode": "PL!SP-pb2-000-DUO",
+    "name": "岚千砂都＆鬼冢夏美",
+    "nameCn": "岚千砂都＆鬼冢夏美",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "groupNames": ["Liella!"],
+    "cardText": "【常时】打出此卡时，可以与2名成员进行换手。\n\n【登场】通过换手登场的场合，每有1张因此换手放置入休息室的『Liella!』的成员卡，抽1张卡。每有1张因此换手放置入休息室的不持有BLADE HEART的『Liella!』的成员卡，LIVE结束时为止，获得[ブレード][ブレード]。"
+  },
+  {
+    "cardCode": "PL!-pb2-000-DUO",
+    "name": "星空凛&小泉花阳",
+    "nameCn": "星空凛&小泉花阳",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "groupNames": ["μ’s"],
+    "cardText": "【常时】打出此卡时，可以与2名成员进行换手。\n\n【登场】从2名『μ’s』的成员换手登场的场合，从自己的休息室将1张『μ’s』的LIVE卡加入手牌，接着，那2名成员的费用合计为15的场合，LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。"
+  },
+  {
+    "cardCode": "PL!S-pb2-000-DUO",
+    "name": "松浦果南&小原鞠莉",
+    "nameCn": "松浦果南&小原鞠莉",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "groupNames": ["Aqours"],
+    "cardText": "【常时】打出此卡时，可以与２名成员进行换手。\n\n【登场】抽２张卡，将２张手牌放置入休息室。\n\n【LIVE开始时】此回合，此成员与２名『Aqours』的成员换手登场的场合，将存在于自己的休息室的至多２张『Aqours』的LIVE卡按任意顺序放置于卡组顶。"
+  },
+  {
+    "cardCode": "PL!SP-pb1-012-N",
+    "name": "涩谷香音",
+    "nameCn": "涩谷香音",
+    "cardType": "MEMBER",
+    "cost": 5,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 3
+      }
+    ],
+    "bladeHearts": [],
+    "groupNames": ["Liella!"],
+    "unitName": "「CatChu!」",
+    "cardText": "-"
+  },
+  {
+    "cardCode": "PL!SP-bp1-003-P",
+    "name": "岚千砂都",
+    "nameCn": "岚千砂都",
+    "cardType": "MEMBER",
+    "cost": 10,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [],
+    "groupNames": ["Liella!"],
+    "unitName": "「5yncri5e!」",
+    "cardText": "【起动】【1回合1次】公开任意张存在于手牌的成员卡：公开的卡片的费用的合计为，10、20、30、40、50中的任意值的场合，LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。"
+  },
+  {
+    "cardCode": "PL!S-bp3-014-N",
+    "name": "渡边曜",
+    "nameCn": "渡边曜",
+    "cardType": "MEMBER",
+    "cost": 5,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [],
+    "groupNames": ["Aqours"],
+    "unitName": "「CYaRon！」",
+    "cardText": "-"
+  },
+  {
+    "cardCode": "PL!S-bp5-001-P",
+    "name": "高海千歌",
+    "nameCn": "高海千歌",
+    "cardType": "MEMBER",
+    "cost": 10,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 4
+      }
+    ],
+    "bladeHearts": [],
+    "groupNames": ["Aqours"],
+    "unitName": "「CYaRon！」",
+    "cardText": "【登场】从不持有能力的成员换手登场的场合，抽1张卡。\n\n【常时】使不持有能力的成员卡从自己的手牌登场的费用减少1。"
+  },
+  {
+    "cardCode": "PL!-bp5-010-N",
+    "name": "高坂穗乃果",
+    "nameCn": "高坂穗乃果",
+    "cardType": "MEMBER",
+    "cost": 5,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [],
+    "groupNames": ["μ’s"],
+    "unitName": "「Printemps」",
+    "cardText": "【LIVE开始时】可以将1张手牌放置入休息室：将自己卡组顶的3张卡放置入休息室。之后，从自己的休息室将1张『A-RISE』的成员卡加入手牌。"
+  },
+  {
+    "cardCode": "PL!-bp5-005-P",
+    "name": "星空凛",
+    "nameCn": "星空凛",
+    "cardType": "MEMBER",
+    "cost": 10,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [],
+    "groupNames": ["μ’s"],
+    "unitName": "「lilywhite」",
+    "cardText": "【登场】存在于自己的成功LIVE卡区的卡片的分数合计大于等于6的场合，从自己的能量卡组，将1张能量卡以活跃状态放置入能量区。"
+  },
+  {
+    "cardCode": "PL!SP-sd1-008-SD",
+    "name": "若菜四季",
+    "nameCn": "若菜四季",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [],
+    "groupNames": ["Liella!"],
+    "unitName": "「5yncri5e!」",
+    "cardText": "【登场】可以支付[E]：检视自己卡组顶的3张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。"
+  }
+]
