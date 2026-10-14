@@ -24,6 +24,10 @@ activeEffect runtime 应统一处理：
 - 费用语义变更。
 - trigger matcher 接线。
 
+## 认输终局与未完成检视
+
+`SURRENDER` 不等待当前效果或检视完成；它清除活跃效果与待处理步骤并结束对局。若检视区仍有卡牌，终局保留卡牌位置和 `inspectionContext` 归属，不额外执行回顶、弃牌或刷新。非空检视区与上下文必须同时存在，以保证玩家投影、历史 checkpoint 和复水继续满足状态不变量。检视方或对手均可认输，随后正常离房；回归见 `tests/integration/online-room-service.test.ts`。
+
 ## 起动发动条件的只读查询
 
 `runtime/activated-registry.ts` 的 `registerActivatedAbilityHandler(abilityId, handler, canStart?)` 可在 workflow 注册时提供只读发动条件；`queryActivatedAbilityStart` 返回 `true / false / undefined`，其中 `undefined` 明确表示尚无查询，不能试执行 resolver 猜测可用性。registry 执行前也读取同一个已登记条件；时点、来源、授予实例和每回合限制仍由现有命令层校验，查询不支付费用、不写次数或推进 pending。

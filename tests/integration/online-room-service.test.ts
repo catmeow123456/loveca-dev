@@ -7,6 +7,7 @@ import {
   createSurrenderCommand,
 } from '../../src/application/game-commands';
 import type { DeckConfig } from '../../src/application/game-service';
+import { inspectTopCards } from '../../src/application/effects/look-top';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import {
@@ -1173,6 +1174,89 @@ describe('OnlineRoomService', () => {
       winnerSeat: 'SECOND',
       loserSeat: 'FIRST',
     });
+  });
+
+  it.each([
+    ['u1', 'command'],
+    ['u2', 'command'],
+    ['u1', 'local-game'],
+    ['u2', 'local-game'],
+  ] as const)('检视区仍有卡时 %s 通过 %s 认输后可离房并封存终局', async (userId, entry) => {
+    const recorder = createTestRecorder();
+    const matchService = createInMemoryMatchService({ recorder });
+    const service = new OnlineRoomService({
+      matchService,
+      loadUserProfile: async (id) => ({ userId: id, displayName: id }),
+      loadOwnedDeck: async (id, deckId) => ({
+        deckId,
+        deckName: `${id}-${deckId}`,
+        runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
+      }),
+    });
+    await service.createRoom('INSPECTEXIT', 'u1');
+    await service.joinRoom('INSPECTEXIT', 'u2');
+    await service.lockDeck('INSPECTEXIT', 'u1', 'deck-a');
+    await service.lockDeck('INSPECTEXIT', 'u2', 'deck-b');
+    const started = await startRoomThroughOpening(service, 'INSPECTEXIT', 'u1', 'u2', 'u1');
+    const match = matchService.getMatch(started.matchId!)!;
+    const inspection = inspectTopCards(match.session.state!, match.participants.FIRST.playerId, {
+      count: 2,
+    })!;
+    expect(inspection.inspectedCardIds).toHaveLength(2);
+    match.session.restoreRuntimeState({
+      authorityState: {
+        ...inspection.gameState,
+        currentPhase: GamePhase.MAIN_PHASE,
+        currentSubPhase: SubPhase.NONE,
+        activeEffect: {
+          id: 'inspection-exit',
+          abilityId: 'inspection-exit',
+          sourceCardId: inspection.gameState.players[0].hand.cardIds[0],
+          controllerId: match.participants.FIRST.playerId,
+          effectText: '检视卡组顶2张并调整顺序',
+          stepId: 'arrange-top',
+          stepText: '请选择放回卡组顶的卡牌',
+          awaitingPlayerId: match.participants.FIRST.playerId,
+          inspectionCardIds: inspection.inspectedCardIds,
+        },
+      },
+      currentPublicSeq: match.session.getCurrentPublicEventSeq(),
+    });
+
+    let left;
+    if (entry === 'local-game') {
+      left = await service.abandonRoomForLocalGame(started.roomCode, userId);
+    } else {
+      const result = await matchService.executeCommand(
+        match.matchId,
+        userId,
+        createSurrenderCommand('ignored-client-player-id')
+      );
+      expect(result?.success).toBe(true);
+      expect(result?.snapshot?.playerViewState.match.phase).toBe(GamePhase.GAME_END);
+      left = await service.leaveRoom(started.roomCode, userId);
+    }
+    expect(left.room?.currentUserPresence).toBe('LEFT');
+    const ended = match.session.state!;
+    expect(ended.currentPhase).toBe(GamePhase.GAME_END);
+    expect(ended.activeEffect).toBeNull();
+    expect(ended.inspectionZone.cardIds).toEqual(inspection.inspectedCardIds);
+    expect(ended.inspectionContext).toEqual(inspection.gameState.inspectionContext);
+    expect(ended.players[0].mainDeck.cardIds).toEqual(
+      inspection.gameState.players[0].mainDeck.cardIds
+    );
+    expect(recorder.sealMatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'SURRENDERED',
+        completeness: 'FULL',
+        winnerSeat: userId === 'u1' ? 'SECOND' : 'FIRST',
+      })
+    );
+    // 终局状态必须仍满足 checkpoint 复水所需的检视归属不变量。
+    match.session.restoreRuntimeState({ authorityState: ended, currentPublicSeq: 0 });
+    expect(match.session.state?.currentPhase).toBe(GamePhase.GAME_END);
   });
 
   it('重开请求应在对手同意后封存旧对局并回到可换卡组的准备阶段', async () => {

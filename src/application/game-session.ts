@@ -2904,7 +2904,9 @@ export class GameSession {
         pendingCostPayment: null,
         pendingSpecialMemberPlay: null,
         delegatedAbilitySequence: null,
-        inspectionContext: null,
+        // 终局停止效果，但保留检视区卡牌及其归属，不擅自结算未完成的卡牌移动。
+        // 非空检视区仍需上下文，供终局投影与历史 checkpoint 复水使用。
+        inspectionContext: state.inspectionZone.cardIds.length > 0 ? state.inspectionContext : null,
       },
       declarationType: 'SURRENDER',
     };
