@@ -51,6 +51,7 @@ import { CardDetailPressTarget } from './CardDetailPressTarget';
 import { JudgmentPanel } from './JudgmentPanel';
 import { ScoreConfirmModal } from './ScoreConfirmModal';
 import { BattleAnimationLayer } from './BattleAnimationLayer';
+import { AbilityActivationProvider } from './AbilityActivationMotion';
 import { BattleActionFeedbackLayer } from './BattleActionFeedbackLayer';
 import { BoardBackground } from './BoardBackground';
 import { RankedStallNotice } from './RankedStallNotice';
@@ -2488,6 +2489,7 @@ export const GameBoard = memo(function GameBoard({
   };
 
   return (
+    <AbilityActivationProvider>
     <DndContext
       sensors={sensors}
       collisionDetection={battleCollisionDetection}
@@ -4634,6 +4636,7 @@ export const GameBoard = memo(function GameBoard({
         </div>
       </div>
     </DndContext>
+    </AbilityActivationProvider>
   );
 });
 

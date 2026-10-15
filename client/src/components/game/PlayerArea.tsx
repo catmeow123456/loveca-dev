@@ -61,6 +61,7 @@ import {
 } from '@/lib/battleUiAnchors';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useGameStore } from '@/store/gameStore';
+import { useAbilityActivationMotion } from './AbilityActivationMotion';
 import { GameCommandType } from '@game/application/game-commands';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
 import {
@@ -392,6 +393,7 @@ export const PlayerArea = memo(function PlayerArea({
   onSelectedHandCardAction,
   onPlayMemberToSlot,
 }: PlayerAreaProps) {
+  const { activateCardAbility, activatingCardId } = useAbilityActivationMotion();
   const battlePlayerSide = isOpponent ? 'opponent' : 'self';
   const playerIdentity = useGameStore((s) => s.getPlayerIdentityForSeat(playerSeat));
   const viewerSeat = useGameStore((s) => s.getViewerSeat());
@@ -503,7 +505,6 @@ export const PlayerArea = memo(function PlayerArea({
     selectCard,
     setHoveredCard,
     playMemberToSlot,
-    activateCardAbility,
     moveMemberToSlot,
     attachEnergyToMember,
     setLiveCard,
@@ -541,7 +542,6 @@ export const PlayerArea = memo(function PlayerArea({
       selectCard: s.selectCard,
       setHoveredCard: s.setHoveredCard,
       playMemberToSlot: s.playMemberToSlot,
-      activateCardAbility: s.activateCardAbility,
       moveMemberToSlot: s.moveMemberToSlot,
       attachEnergyToMember: s.attachEnergyToMember,
       setLiveCard: s.setLiveCard,
@@ -1241,7 +1241,7 @@ export const PlayerArea = memo(function PlayerArea({
             {card && <CardModifierBadgeStack modifierDelta={card.modifierDelta} />}
             {card && canActivateAbility && (
               <CardActionMenu
-                suspended={interactionSuspended}
+                suspended={interactionSuspended || activatingCardId === card.instanceId}
                 anchor={BATTLE_UI_ANCHORS.ACTIVATED_ABILITY_MENU}
                 items={activatedAbilityConfigs.map((config) => ({
                   id: config.abilityInstanceId ?? config.abilityId,
@@ -1796,7 +1796,7 @@ export const PlayerArea = memo(function PlayerArea({
                                   {waitingRoomCardContent}
                                   {canActivateWaitingRoomAbility && (
                                     <CardActionMenu
-                                      suspended={interactionSuspended}
+                                      suspended={interactionSuspended || activatingCardId === card.instanceId}
                                       layer="modal"
                                       items={activatedAbilityConfigs.map((config) => ({
                                         id: config.abilityInstanceId ?? config.abilityId,
@@ -1806,9 +1806,9 @@ export const PlayerArea = memo(function PlayerArea({
                                           activateCardAbility(
                                             card.instanceId,
                                             config.abilityId,
-                                            config.abilityInstanceId
+                                            config.abilityInstanceId,
+                                            closeWaitingRoom
                                           );
-                                          closeWaitingRoom();
                                         },
                                       }))}
                                     />
@@ -3065,7 +3065,7 @@ export const PlayerArea = memo(function PlayerArea({
                 </DraggableCard>
                 {canShowHandCardActionMenu && (
                   <CardActionMenu
-                    suspended={interactionSuspended}
+                    suspended={interactionSuspended || activatingCardId === card.instanceId}
                     items={handCardMenuItems}
                     placement={isOpponent ? 'below' : 'above'}
                   />

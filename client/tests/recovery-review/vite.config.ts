@@ -12,6 +12,8 @@ const art = new Map([
   ['PL!HS-pb1-020-N', 'PL!HS-pb1-020-N.png'],
   ['PL!HS-sd1-012-SD', 'PL!HS-sd1-012-SD.png'],
   ['PL!HS-bp2-022-L', 'PL!HS-bp2-022-L.png'],
+  ['PL!HS-bp6-014-R', 'PL!HS-bp6-014-R.png'],
+  ['PL!N-bp1-002-P', 'PL!N-bp1-002-P.png'],
 ]);
 export default defineConfig({
   root: import.meta.dirname,

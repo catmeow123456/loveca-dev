@@ -1,5 +1,7 @@
 # 二维休息室回收验收
 
+同一环境的 `/activation.html` 提供[起动水墨动效验收](../../../docs/frontend-app-architecture/ability-activation-animation.md)，使用原生卡牌起动按钮。支持舞台、手牌和休息室三种来源，额外只读卡图为 `PL!HS-bp6-014-R.png`、`PL!N-bp1-002-P.png`；浏览器配置为 `activation.playwright.config.ts`。
+
 此本地入口挂载项目原有 `GameBoard`，使用真实 `GameSession` / card-effect 命令、投影、公开展示和撤销。只有初始局面由测试夹具准备，没有独立对战 UI、生产 API 或账号卡组写入。动画接入说明见[二维休息室回收动画](../../../docs/frontend-app-architecture/recovery-animation.md)。
 
 从仓库根目录启动（Node.js 22.13+，使用现有依赖）：
