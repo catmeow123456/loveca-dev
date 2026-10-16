@@ -76,17 +76,18 @@ function mutation<T>(
     }
   );
 }
-mutation('/find', entry, true, (user, data) => service.findOpponent(user, data));
+// Entry services recover committed retries before checking restrictions on new admission.
+mutation('/find', entry, false, (user, data) => service.findOpponent(user, data));
 mutation(
   '/create',
   entry.extend({
     discoverability: z.enum(['PUBLIC', 'UNLISTED']),
     note: z.string().trim().max(40),
   }),
-  true,
+  false,
   (user, data) => service.create(user, data)
 );
-mutation('/join', targeted.extend({ entry }), true, (user, data) =>
+mutation('/join', targeted.extend({ entry }), false, (user, data) =>
   service.join(user, data.target, data.entry)
 );
 mutation('/switch', z.object({ source: target, destination: target, entry }), true, (user, data) =>

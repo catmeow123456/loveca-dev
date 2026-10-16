@@ -14,6 +14,8 @@ import type {
   CasualTableOwnView,
 } from '../../src/online/casual-table-types';
 import { CasualTableService } from '../../src/server/services/casual-table-service';
+import { CASUAL_ENVIRONMENT_ID } from '../../src/server/services/casual-table-repository';
+import { DEFAULT_ROOM_LIFECYCLE_TIMEOUT_CONFIG } from '../../src/online/room-lifecycle-policy';
 import { GameplayParticipationService } from '../../src/server/services/gameplay-participation-service';
 import { OnlineMatchService } from '../../src/server/services/online-match-service';
 import {
@@ -244,6 +246,50 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
         .rows[0].count
     ).toBe(1);
   });
+
+  it.each(['create', 'find', 'join'] as const)(
+    'recovers a committed %s without reloading the deck during restrictions, but rejects new admission',
+    async (kind) => {
+      let restricted = false;
+      const configured = newService({
+        assertGameplayAvailable: undefined,
+        getGameplayRestriction: async () => (restricted ? { title: '维护', summary: null } : null),
+      });
+      const waiting = kind === 'join' ? await create(0) : null;
+      const input = entry(1);
+      const enter = (userId: string, data: CasualTableEntryInput) =>
+        kind === 'create'
+          ? configured.create(userId, { ...data, discoverability: 'PUBLIC', note: '' })
+          : kind === 'find'
+            ? configured.findOpponent(userId, data)
+            : configured.join(userId, waiting!, data);
+      const committed = await enter(users[1], input);
+      const deckLoads = loadDeck.mock.calls.length;
+      restricted = true;
+      loadDeck.mockRejectedValue(new Error('source deck was deleted'));
+      const recovered = await enter(users[1], input);
+      expect(recovered).toMatchObject({
+        tableId: committed.tableId,
+        roundId: committed.roundId,
+        ownDeck: committed.ownDeck,
+      });
+      await expect(enter(users[2], entry(2))).rejects.toMatchObject({
+        code: 'CASUAL_UNAVAILABLE',
+        statusCode: 503,
+      });
+      expect(loadDeck).toHaveBeenCalledTimes(deckLoads);
+      expect(
+        (await database.query('SELECT count(*)::int AS count FROM casual_tables')).rows[0].count
+      ).toBe(1);
+      expect(
+        (
+          await database.query('SELECT * FROM gameplay_participations WHERE user_id = $1', [
+            users[2],
+          ])
+        ).rowCount
+      ).toBe(0);
+    }
+  );
 
   it('preserves the original waiting order after a direct guest cancels and rejects previous-round confirmation', async () => {
     const waiting = await create(0);
@@ -781,6 +827,74 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     expect(payload).not.toContain('spectatorToken');
   });
 
+  it('reads the public lobby in one query while admission and seat locks are held', async () => {
+    const mine = await create(0);
+    await create(1, 'UNLISTED');
+    const other = await create(2);
+    const readerPool = new pg.Pool({
+      connectionString: databaseUrl,
+      options: `-c search_path=${schema},public`,
+      max: 1,
+      statement_timeout: 500,
+    });
+    const queries = vi.fn();
+    const reader = newService({
+      database: {
+        connect: async () => {
+          const client = await readerPool.connect();
+          return {
+            query: (sql: string, values?: unknown[]) => {
+              queries(sql);
+              return client.query(sql, values);
+            },
+            release: () => client.release(),
+          } as pg.PoolClient;
+        },
+      },
+    });
+    const blocker = await database.connect();
+    try {
+      await blocker.query('BEGIN');
+      await blocker.query('SELECT pg_advisory_xact_lock(hashtext($1))', [CASUAL_ENVIRONMENT_ID]);
+      await blocker.query('SELECT * FROM casual_tables FOR UPDATE');
+      await blocker.query('SELECT * FROM casual_table_seats FOR UPDATE');
+      const lobby = await reader.list(users[0]);
+      expect(lobby.counts).toEqual({ waiting: 2, preparing: 0, playing: 0 });
+      expect(lobby.rooms).toHaveLength(2);
+      expect(lobby.rooms).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ tableId: mine.tableId, isMine: true, canJoin: true }),
+          expect.objectContaining({ tableId: other.tableId, isMine: false, canJoin: true }),
+        ])
+      );
+      expect(queries).toHaveBeenCalledTimes(1);
+    } finally {
+      await blocker.query('ROLLBACK');
+      blocker.release();
+      await readerPool.end();
+    }
+  });
+
+  it.each(['WAITING', 'RESERVED'] as const)(
+    'omits expired %s supply without mutating it on lobby reads',
+    async (state) => {
+      const table = state === 'WAITING' ? await create(0) : await pair();
+      now += 60_001;
+      const lobby = await service.list(users[2]);
+      expect(lobby.rooms).toEqual([]);
+      expect(lobby.counts).toEqual({ waiting: 0, preparing: 0, playing: 0 });
+      expect(
+        (await database.query('SELECT state FROM casual_tables WHERE id = $1', [table.tableId]))
+          .rows[0].state
+      ).toBe(state);
+      await service.cleanupExpiredState();
+      expect(
+        (await database.query('SELECT state FROM casual_tables WHERE id = $1', [table.tableId]))
+          .rows[0].state
+      ).toBe('CLOSED');
+    }
+  );
+
   it('paginates more than fifty rooms without losing or duplicating rows and fences changed filters', async () => {
     for (let index = 0; index < 54; index++) {
       const userId = randomUUID();
@@ -821,6 +935,200 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     await matches.executeCommand(matchId, users[0], createSurrenderCommand('ignored'));
     expect((await current(0)).runtime?.status).toBe('ENDED');
     expect((await service.list(users[2])).counts.playing).toBe(0);
+  });
+
+  it('loads lifecycle policy before acquiring a client for concurrent previews and spectator admission', async () => {
+    const { bound } = await started();
+    const limitedPool = new pg.Pool({
+      connectionString: databaseUrl,
+      options: `-c search_path=${schema},public`,
+      max: 1,
+      connectionTimeoutMillis: 500,
+    });
+    const configured = newService({
+      database: limitedPool,
+      loadRoomLifecycleTimeoutConfig: async () => {
+        await limitedPool.query('SELECT 1');
+        return DEFAULT_ROOM_LIFECYCLE_TIMEOUT_CONFIG;
+      },
+    });
+    try {
+      const results = await Promise.all(
+        Array.from({ length: 6 }, async () => {
+          const preview = await configured.preview(users[2], bound.roomCode);
+          const link = await configured.spectate(users[2], preview, 'FIRST');
+          return { preview, link };
+        })
+      );
+      for (const { preview, link } of results) {
+        expect(preview).toMatchObject({ tableId: bound.tableId, status: 'PLAYING' });
+        expect(link.token).toBeTruthy();
+      }
+    } finally {
+      await limitedPool.end();
+    }
+  });
+
+  it.each(['WRITE', 'COMMIT'] as const)(
+    'preserves spectator authorization when a preference %s fails',
+    async (point) => {
+      const { bound } = await started();
+      for (const [userIndex, enabled, seat] of [
+        [1, true, 'SECOND'],
+        [0, false, 'FIRST'],
+      ] as const) {
+        const before = runtime.getCasualTableRuntime(bound.tableId, bound.roundId)!.view
+          .spectatorViews;
+        await expect(
+          newService({ database: failingTransition('SPECTATOR', point) }).setSpectatorPreference(
+            users[userIndex],
+            bound,
+            enabled
+          )
+        ).rejects.toThrow('injected transition');
+        expect(
+          runtime.getCasualTableRuntime(bound.tableId, bound.roundId)!.view.spectatorViews
+        ).toEqual(before);
+        expect(
+          (
+            await database.query(
+              'SELECT spectator_enabled FROM casual_table_seats WHERE table_id = $1 AND user_id = $2',
+              [bound.tableId, users[userIndex]]
+            )
+          ).rows[0].spectator_enabled
+        ).toBe(!enabled);
+        if (enabled) {
+          await expect(
+            runtime.createCasualSpectatorLink(bound.tableId, bound.roundId, users[2], seat)
+          ).rejects.toMatchObject({ code: 'ONLINE_ROOM_SPECTATOR_CLOSED' });
+        } else {
+          expect(
+            (await runtime.createCasualSpectatorLink(bound.tableId, bound.roundId, users[2], seat))
+              .token
+          ).toBeTruthy();
+        }
+      }
+    }
+  );
+
+  it('does not expose a spectator view until its preference transaction commits', async () => {
+    const { bound } = await started();
+    let reachedCommit!: () => void;
+    let finishCommit!: () => void;
+    const commitReached = new Promise<void>((resolve) => {
+      reachedCommit = resolve;
+    });
+    const commitAllowed = new Promise<void>((resolve) => {
+      finishCommit = resolve;
+    });
+    const configured = newService({
+      database: {
+        connect: async () => {
+          const client = await database.connect();
+          let changed = false;
+          return {
+            query: async (sql: string, values?: unknown[]) => {
+              if (sql.includes('UPDATE casual_table_seats SET spectator_enabled')) changed = true;
+              if (changed && sql === 'COMMIT') {
+                reachedCommit();
+                await commitAllowed;
+              }
+              return client.query(sql, values);
+            },
+            release: () => client.release(),
+          } as pg.PoolClient;
+        },
+      },
+    });
+    const updating = configured.setSpectatorPreference(users[1], bound, true);
+    try {
+      await commitReached;
+      expect(
+        runtime
+          .getCasualTableRuntime(bound.tableId, bound.roundId)!
+          .view.spectatorViews.map((view) => view.seat)
+      ).toEqual(['FIRST']);
+      await expect(
+        runtime.createCasualSpectatorLink(bound.tableId, bound.roundId, users[2], 'SECOND')
+      ).rejects.toMatchObject({ code: 'ONLINE_ROOM_SPECTATOR_CLOSED' });
+    } finally {
+      finishCommit();
+      await updating;
+    }
+    const view = await updating;
+    expect(view.runtime!.spectatorViews.map((entry) => entry.seat)).toEqual(['FIRST', 'SECOND']);
+    expect((await service.spectate(users[2], view, 'SECOND')).token).toBeTruthy();
+  });
+
+  it.each([true, false])(
+    'reconciles committed spectator preference %s after losing the COMMIT acknowledgement',
+    async (enabled) => {
+      const { bound } = await started();
+      const userIndex = enabled ? 1 : 0;
+      await expect(
+        newService({ database: failingTransition('SPECTATOR', 'ACK') }).setSpectatorPreference(
+          users[userIndex],
+          bound,
+          enabled
+        )
+      ).rejects.toThrow('acknowledgement');
+      const recovered = await current(userIndex);
+      expect(recovered.spectatorEnabled).toBe(enabled);
+      expect(recovered.runtime!.spectatorViews.map((view) => view.seat)).toEqual(
+        enabled ? ['FIRST', 'SECOND'] : []
+      );
+    }
+  );
+
+  it('does not overwrite a later spectator choice when an earlier COMMIT response is delayed', async () => {
+    const { bound } = await started();
+    let reachedCommit!: () => void;
+    let acknowledgeCommit!: () => void;
+    const committed = new Promise<void>((resolve) => {
+      reachedCommit = resolve;
+    });
+    const acknowledged = new Promise<void>((resolve) => {
+      acknowledgeCommit = resolve;
+    });
+    const delayed = newService({
+      database: {
+        connect: async () => {
+          const client = await database.connect();
+          let changed = false;
+          return {
+            query: async (sql: string, values?: unknown[]) => {
+              if (sql.includes('UPDATE casual_table_seats SET spectator_enabled')) changed = true;
+              const result = await client.query(sql, values);
+              if (changed && sql === 'COMMIT') {
+                reachedCommit();
+                await acknowledged;
+              }
+              return result;
+            },
+            release: () => client.release(),
+          } as pg.PoolClient;
+        },
+      },
+    });
+    const earlier = delayed.setSpectatorPreference(users[1], bound, true);
+    let latest!: CasualTableOwnView;
+    try {
+      await committed;
+      latest = await service.setSpectatorPreference(users[1], await current(1), false);
+      expect(latest.spectatorEnabled).toBe(false);
+    } finally {
+      acknowledgeCommit();
+      await earlier;
+    }
+    expect(await earlier).toMatchObject({ revision: latest.revision, spectatorEnabled: false });
+    expect(
+      runtime
+        .getCasualTableRuntime(bound.tableId, bound.roundId)!
+        .view.spectatorViews.map((view) => view.seat)
+    ).toEqual(['FIRST']);
+    await expect(service.spectate(users[2], latest, 'SECOND')).rejects.toMatchObject({
+      code: 'CASUAL_SPECTATOR_UNAVAILABLE',
+    });
   });
 
   it('starts rematches as new fenced preparation rounds, requiring two new confirmations', async () => {
@@ -1136,6 +1444,8 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
           query: async (sql: string, values?: unknown[]) => {
             if (
               (sql.includes('UPDATE casual_tables SET') && values?.[1] === state) ||
+              (state === 'SPECTATOR' &&
+                sql.includes('UPDATE casual_table_seats SET spectator_enabled')) ||
               (state === 'DEPARTURE' &&
                 sql.includes('DELETE FROM gameplay_participations WHERE casual_table_id') &&
                 sql.includes('AND user_id = $2'))

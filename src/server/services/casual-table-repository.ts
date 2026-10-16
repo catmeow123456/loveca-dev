@@ -54,6 +54,50 @@ export interface CasualParticipationRow {
   match_id: string | null;
 }
 
+export interface CasualLobbyMember {
+  userId: string;
+  displayName: string;
+  heartbeatAt: number;
+}
+
+interface CasualLobbyRow extends CasualTableRow {
+  members: CasualLobbyMember[];
+  is_mine: boolean;
+}
+
+/** One MVCC snapshot, without admission/row locks or private deck snapshots. */
+export async function readCasualLobby(
+  database: Pick<Pool, 'connect'>,
+  userId: string,
+  anchor: number
+): Promise<CasualLobbyRow[]> {
+  const client = await database.connect();
+  try {
+    const result = await client.query<CasualLobbyRow>(
+      `SELECT tables.*,
+         COALESCE(jsonb_agg(jsonb_build_object(
+           'userId', seat.user_id,
+           'displayName', COALESCE(profile.display_name, profile.username),
+           'heartbeatAt', EXTRACT(EPOCH FROM seat.heartbeat_at) * 1000
+         ) ORDER BY seat.seat) FILTER (WHERE seat.user_id IS NOT NULL), '[]'::jsonb) AS members,
+         COALESCE(bool_or(seat.user_id = $1), false) AND EXISTS (
+           SELECT 1 FROM gameplay_participations
+           WHERE user_id = $1 AND casual_table_id = tables.id
+         ) AS is_mine
+       FROM casual_tables AS tables
+       LEFT JOIN casual_table_seats AS seat ON seat.table_id = tables.id
+       LEFT JOIN profiles AS profile ON profile.id = seat.user_id
+       WHERE tables.discoverability = 'PUBLIC' AND tables.state <> 'CLOSED'
+         AND tables.created_at <= $2
+       GROUP BY tables.id`,
+      [userId, new Date(anchor)]
+    );
+    return result.rows;
+  } finally {
+    client.release();
+  }
+}
+
 /** One short admission lock also covers direct joins, cancellation and recovery.
  * No asset, profile, deck or policy loading may run inside the callback. */
 export async function withCasualAdmission<T>(

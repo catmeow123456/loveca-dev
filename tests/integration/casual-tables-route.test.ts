@@ -20,6 +20,10 @@ const service = vi.hoisted(() => ({
   leave: vi.fn(),
   continuePublic: vi.fn(),
 }));
+const availability = vi.hoisted(() => ({ getGameplayRestriction: vi.fn() }));
+vi.mock('../../src/server/services/site-announcement-service.js', () => ({
+  siteAnnouncementService: availability,
+}));
 vi.mock('../../src/server/services/casual-table-service.js', () => ({
   casualTableService: service,
   CasualTableServiceError: class extends Error {
@@ -44,13 +48,6 @@ vi.mock('../../src/server/middleware/require-auth.js', () => ({
     req.user = { id: 'viewer', role: 'user' } as express.Request['user'];
     next();
   },
-}));
-vi.mock('../../src/server/middleware/require-gameplay-available.js', () => ({
-  requireGameplayAvailable: (
-    _req: express.Request,
-    _res: express.Response,
-    next: express.NextFunction
-  ) => next(),
 }));
 import { casualTablesRouter } from '../../src/server/routes/casual-tables';
 import { CasualTableServiceError } from '../../src/server/services/casual-table-service';
@@ -87,7 +84,10 @@ beforeAll(async () => {
 afterAll(
   () => new Promise<void>((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())))
 );
-beforeEach(() => vi.resetAllMocks());
+beforeEach(() => {
+  vi.resetAllMocks();
+  availability.getGameplayRestriction.mockResolvedValue(null);
+});
 describe('casual table HTTP contract', () => {
   it('authenticates lobby reads and writes, and disables shared caching', async () => {
     expect((await request('/rooms', undefined, false)).status).toBe(401);
@@ -135,6 +135,38 @@ describe('casual table HTTP contract', () => {
       error: { code: 'CASUAL_STATE_CHANGED' },
     });
   });
+  it.each([
+    ['/find', 'findOpponent', entry],
+    ['/create', 'create', { ...entry, discoverability: 'PUBLIC', note: '' }],
+    ['/join', 'join', { target, entry }],
+  ] as const)(
+    'lets %s recover committed retries while new gameplay is restricted',
+    async (path, method, body) => {
+      availability.getGameplayRestriction.mockResolvedValue({ title: '维护', summary: null });
+      service[method].mockResolvedValue({ tableId: target.tableId, state: 'RESERVED' });
+      const recovered = await request(path, body);
+      expect(recovered.status).toBe(200);
+      expect(await recovered.json()).toMatchObject({
+        data: { tableId: target.tableId },
+        error: null,
+      });
+      expect(service[method]).toHaveBeenCalledTimes(1);
+
+      service[method].mockRejectedValue(
+        new CasualTableServiceError('CASUAL_UNAVAILABLE', '维护', 503)
+      );
+      const admission = await request(path, body);
+      expect(admission.status).toBe(503);
+      expect(await admission.json()).toMatchObject({
+        data: null,
+        error: { code: 'CASUAL_UNAVAILABLE' },
+      });
+
+      const confirmation = await request('/confirm', { target });
+      expect(confirmation.status).toBe(503);
+      expect(service.confirm).not.toHaveBeenCalled();
+    }
+  );
   it('keeps private code lookup separate from public search and validates spectator seats', async () => {
     service.list.mockResolvedValue({ rooms: [] });
     expect((await request('/rooms?filter=PLAYING&spectatable=true&search=test')).status).toBe(200);

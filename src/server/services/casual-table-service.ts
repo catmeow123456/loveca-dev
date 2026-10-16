@@ -38,11 +38,13 @@ import {
   CASUAL_ENVIRONMENT_ID,
   insertCasualSeat,
   insertCasualTable,
+  readCasualLobby,
   readCasualParticipation,
   readCasualSeats,
   readCasualTable,
   saveCasualTable,
   withCasualAdmission,
+  type CasualLobbyMember,
   type CasualSeatRow,
   type CasualTableRow,
 } from './casual-table-repository.js';
@@ -149,7 +151,6 @@ export class CasualTableService {
       }),
       query
     );
-    await this.cleanupExpiredState();
     const restriction = await this.getGameplayRestriction();
     const lifecycle = await this.loadLifecycleWindows();
     const signature = JSON.stringify([
@@ -184,55 +185,49 @@ export class CasualTableService {
         );
       }
     }
-    return withCasualAdmission(this.database, async (client) => {
-      const rows = await client.query<CasualTableRow>(
-        "SELECT * FROM casual_tables WHERE discoverability = 'PUBLIC' AND state <> 'CLOSED' AND created_at <= $1",
-        [new Date(anchor)]
-      );
-      const all: CasualRoomSummary[] = [];
-      for (const row of rows.rows) {
-        const summary = await this.summary(client, row, userId, lifecycle);
-        if (summary && !(summary.status === 'ENDED' && this.now() - summary.since > 60_000))
-          all.push(summary);
-      }
-      const counts = {
-        waiting: all.filter((row) => row.status === 'WAITING').length,
-        preparing: all.filter((row) => row.status === 'RESERVED' || row.status === 'OPENING')
-          .length,
-        playing: all.filter((row) => row.status === 'PLAYING').length,
-      };
-      const filtered = all
-        .filter(
-          (row) =>
-            (parsed.filter === 'WAITING'
-              ? row.status === 'WAITING'
-              : parsed.filter === 'PLAYING'
-                ? row.status === 'PLAYING'
-                : true) &&
-            (!parsed.spectatable || row.spectatorViews.length > 0) &&
-            (!parsed.search ||
-              [row.roomCode, ...row.members.map((member) => member.displayName)].some((value) =>
-                value.toLocaleLowerCase().includes(parsed.search!.toLocaleLowerCase())
-              ))
-        )
-        .sort((a, b) => compareLobbyKeys(lobbyKey(a), lobbyKey(b)));
-      const remaining = after
-        ? filtered.filter((row) => compareLobbyKeys(lobbyKey(row), after!) > 0)
-        : filtered;
-      const rooms = remaining.slice(0, 50);
-      return {
-        rooms,
-        counts,
-        snapshotAt: this.now(),
-        unavailableReason: restriction ? restriction.summary || restriction.title : null,
-        nextCursor:
-          remaining.length > 50
-            ? Buffer.from(
-                JSON.stringify({ anchor, signature, after: lobbyKey(rooms[rooms.length - 1]) })
-              ).toString('base64url')
-            : null,
-      };
-    });
+    const rows = await readCasualLobby(this.database, userId, anchor);
+    const all: CasualRoomSummary[] = [];
+    for (const row of rows) {
+      const summary = this.projectSummary(row, row.members, row.is_mine, lifecycle);
+      if (summary && !(summary.status === 'ENDED' && this.now() - summary.since > 60_000))
+        all.push(summary);
+    }
+    const counts = {
+      waiting: all.filter((row) => row.status === 'WAITING').length,
+      preparing: all.filter((row) => row.status === 'RESERVED' || row.status === 'OPENING').length,
+      playing: all.filter((row) => row.status === 'PLAYING').length,
+    };
+    const filtered = all
+      .filter(
+        (row) =>
+          (parsed.filter === 'WAITING'
+            ? row.status === 'WAITING'
+            : parsed.filter === 'PLAYING'
+              ? row.status === 'PLAYING'
+              : true) &&
+          (!parsed.spectatable || row.spectatorViews.length > 0) &&
+          (!parsed.search ||
+            [row.roomCode, ...row.members.map((member) => member.displayName)].some((value) =>
+              value.toLocaleLowerCase().includes(parsed.search!.toLocaleLowerCase())
+            ))
+      )
+      .sort((a, b) => compareLobbyKeys(lobbyKey(a), lobbyKey(b)));
+    const remaining = after
+      ? filtered.filter((row) => compareLobbyKeys(lobbyKey(row), after!) > 0)
+      : filtered;
+    const rooms = remaining.slice(0, 50);
+    return {
+      rooms,
+      counts,
+      snapshotAt: this.now(),
+      unavailableReason: restriction ? restriction.summary || restriction.title : null,
+      nextCursor:
+        remaining.length > 50
+          ? Buffer.from(
+              JSON.stringify({ anchor, signature, after: lobbyKey(rooms[rooms.length - 1]) })
+            ).toString('base64url')
+          : null,
+    };
   }
 
   async preview(userId: string, roomCode: string): Promise<CasualRoomSummary> {
@@ -245,13 +240,14 @@ export class CasualTableService {
       roomCode
     );
     await this.cleanupExpiredState();
+    const lifecycle = await this.loadLifecycleWindows();
     return withCasualAdmission(this.database, async (client) => {
       const result = await client.query<CasualTableRow>(
         "SELECT * FROM casual_tables WHERE room_code = $1 AND state <> 'CLOSED'",
         [code]
       );
       const summary = result.rows[0]
-        ? await this.summary(client, result.rows[0], userId, await this.loadLifecycleWindows())
+        ? await this.summary(client, result.rows[0], userId, lifecycle)
         : null;
       if (!summary)
         throw new CasualTableServiceError('CASUAL_ROOM_NOT_FOUND', '房间不存在或已关闭', 404);
@@ -262,10 +258,11 @@ export class CasualTableService {
   async spectate(userId: string, target: CasualTableCommandTarget, seat: 'FIRST' | 'SECOND') {
     parse(targetSchema, target);
     parse(z.enum(['FIRST', 'SECOND']), seat);
+    const lifecycle = await this.loadLifecycleWindows();
     await withCasualAdmission(this.database, async (client) => {
       const table = await this.requireTable(client, target);
       assertRevision(table, target);
-      const summary = await this.summary(client, table, userId, await this.loadLifecycleWindows());
+      const summary = await this.summary(client, table, userId, lifecycle);
       if (!summary || summary.isMine || !summary.spectatorViews.some((view) => view.seat === seat))
         throw new CasualTableServiceError(
           'CASUAL_SPECTATOR_UNAVAILABLE',
@@ -282,19 +279,24 @@ export class CasualTableService {
   ): Promise<CasualTableOwnView> {
     parse(targetSchema, target);
     parse(z.boolean(), enabled);
-    return withCasualAdmission(this.database, async (client) => {
+    const view = await withCasualAdmission(this.database, async (client) => {
       const table = await this.requireTable(client, target);
       assertRevision(table, target);
       await this.requireOwnSeat(client, table, userId);
       if (table.state === 'BOOTSTRAPPING') throw changed();
-      if (table.state === 'BOUND')
-        await this.runtime.setCasualSpectatorPreference(table.id, table.round_id, userId, enabled);
       await client.query(
         'UPDATE casual_table_seats SET spectator_enabled = $3 WHERE table_id = $1 AND user_id = $2',
         [table.id, userId, enabled]
       );
       table.revision += 1;
       await saveCasualTable(client, table);
+      return this.project(client, table, userId);
+    });
+    if (view.state !== 'BOUND') return view;
+    // Reconcile only committed preferences under the admission lock. Reading them
+    // again also prevents a delayed request from overwriting a later toggle.
+    return withCasualAdmission(this.database, async (client) => {
+      const table = await this.requireTable(client, view);
       return this.project(client, table, userId);
     });
   }
@@ -571,11 +573,47 @@ export class CasualTableService {
   ): Promise<CasualRoomSummary | null> {
     if (table.state === 'CLOSED') return null;
     const seats = await readCasualSeats(client, table.id);
+    const isMine =
+      seats.some((seat) => seat.user_id === userId) &&
+      (await readCasualParticipation(client, userId))?.casual_table_id === table.id;
+    return this.projectSummary(
+      table,
+      seats.map((seat) => ({
+        userId: seat.user_id,
+        displayName: seat.display_name,
+        heartbeatAt: seat.heartbeat_at.getTime(),
+      })),
+      isMine,
+      lifecycle
+    );
+  }
+
+  private projectSummary(
+    table: CasualTableRow,
+    members: readonly CasualLobbyMember[],
+    isMine: boolean,
+    lifecycle: CasualLifecycleWindows
+  ): CasualRoomSummary | null {
+    if (table.state === 'CLOSED') return null;
+    const alive = members.every(
+      (member) => member.heartbeatAt > this.now() - lifecycle.heartbeatGraceMs
+    );
+    if (
+      (table.state === 'WAITING' && (members.length !== 1 || !alive)) ||
+      (table.state === 'RESERVED' &&
+        (members.length !== 2 ||
+          !alive ||
+          (table.confirmation_expires_at?.getTime() ?? 0) <= this.now()))
+    )
+      return null;
     const runtime =
-      table.state === 'BOUND'
-        ? this.runtime.getCasualTableRuntime(table.id, table.round_id)?.view
-        : null;
-    if (table.state === 'BOUND' && !runtime) return null;
+      table.state === 'BOUND' ? this.runtime.getCasualTableRuntime(table.id, table.round_id) : null;
+    if (
+      table.state === 'BOUND' &&
+      (!runtime || runtime.ended || runtime.roomGeneration !== table.room_generation)
+    )
+      return null;
+    const view = runtime?.view;
     return {
       tableId: table.id,
       roundId: table.round_id,
@@ -583,25 +621,20 @@ export class CasualTableService {
       roomCode: table.room_code,
       note: table.note,
       status:
-        runtime?.status ??
+        view?.status ??
         (table.state === 'BOOTSTRAPPING'
           ? 'OPENING'
           : table.state === 'RESERVED'
             ? 'RESERVED'
             : 'WAITING'),
-      members: seats.map((seat) => ({ userId: seat.user_id, displayName: seat.display_name })),
+      members: members.map(({ userId, displayName }) => ({ userId, displayName })),
       since:
-        runtime?.status === 'OPENING'
+        view?.status === 'OPENING'
           ? table.waiting_since.getTime()
-          : (runtime?.endedAt ?? runtime?.startedAt ?? table.waiting_since.getTime()),
-      canJoin:
-        table.state === 'WAITING' &&
-        seats.length === 1 &&
-        isAlive(seats[0], this.now(), lifecycle.heartbeatGraceMs),
-      isMine:
-        seats.some((seat) => seat.user_id === userId) &&
-        (await readCasualParticipation(client, userId))?.casual_table_id === table.id,
-      spectatorViews: runtime?.spectatorViews ?? [],
+          : (view?.endedAt ?? view?.startedAt ?? table.waiting_since.getTime()),
+      canJoin: table.state === 'WAITING' && members.length === 1 && alive,
+      isMine,
+      spectatorViews: view?.spectatorViews ?? [],
     };
   }
 
@@ -928,7 +961,7 @@ export class CasualTableService {
     return withCasualAdmission(this.database, async (client) => this.current(client, userId));
   }
 
-  /** Shared by the server cleanup coordinator and authoritative lobby reads. */
+  /** Shared by the server cleanup coordinator and current-room recovery. */
   async cleanupExpiredState(): Promise<void> {
     const [rules, lifecycle] = await Promise.all([
       this.getPointTable(),
@@ -1200,6 +1233,14 @@ export class CasualTableService {
           ).rows.map((row) => row.user_id)
         );
         for (const seat of await readCasualSeats(client, identity.tableId)) {
+          // These rows precede this transaction's writes: they are committed
+          // authority, including when a previous COMMIT acknowledgement was lost.
+          await this.runtime.setCasualSpectatorPreference(
+            identity.tableId,
+            identity.roundId,
+            seat.user_id,
+            seat.spectator_enabled
+          );
           if (!active.has(seat.user_id))
             this.runtime.markCasualMemberLeft(identity.tableId, identity.roundId, seat.user_id);
         }

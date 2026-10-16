@@ -763,12 +763,20 @@ export class OnlineRoomService {
     userId: string,
     enabled: boolean
   ): Promise<void> {
-    const room = this.requireCasualRuntime(tableId, roundId);
-    if (room.status === 'IN_GAME')
-      await this.setOwnRoomSpectatorEntry(room.roomCode, userId, enabled);
-    else {
-      this.requireMember(room, userId);
-      room.spectatorRoomEntryEnabledByUserId[userId] = enabled;
+    const room =
+      this.pendingCasualRooms.get(`${tableId}:${roundId}`) ??
+      this.requireCasualRuntime(tableId, roundId);
+    this.requireMember(room, userId);
+    // Casual admission already fenced the runtime. Applying persisted authority
+    // must not run cleanup, load policy, or refresh a participant's presence.
+    if (room.spectatorRoomEntryEnabledByUserId[userId] === enabled) return;
+    room.spectatorRoomEntryEnabledByUserId[userId] = enabled;
+    if (room.matchId) {
+      this.matchService.setRoomCodeSpectatorSeats(
+        room.matchId,
+        room.roomGeneration,
+        getEnabledSpectatorSeats(room)
+      );
     }
   }
 
