@@ -71,6 +71,7 @@ async function createMatch(
   battleTimeouts?: {
     readonly playerActionTimeoutSeconds: number;
     readonly reconnectGracePeriodSeconds: number;
+    readonly doubleDisconnectNoContestWindowSeconds: number;
   }
 ): Promise<OnlineMatchState> {
   return service.createMatch({
@@ -177,6 +178,7 @@ describe('排位单一责任玩家停滞运行态', () => {
     const match = await createMatch(service, 'RANKED', {
       playerActionTimeoutSeconds: 90,
       reconnectGracePeriodSeconds: 30,
+      doubleDisconnectNoContestWindowSeconds: 5,
     });
     forceMainPhase(match, 'FIRST');
 
@@ -185,6 +187,7 @@ describe('排位单一责任玩家停滞运行态', () => {
     expect(match.battleTimeouts).toEqual({
       playerActionTimeoutSeconds: 90,
       reconnectGracePeriodSeconds: 30,
+      doubleDisconnectNoContestWindowSeconds: 5,
     });
     expect(snapshot.playerViewState.match.rankedStall).toEqual({
       responsibleSeat: 'FIRST',

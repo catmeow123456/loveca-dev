@@ -319,6 +319,57 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     expect(status.table).toBeNull();
     expect(status.notice?.reason).toBe('HEARTBEAT_EXPIRED');
   });
+  it('applies the platform-configured heartbeat grace and confirmation deadline', async () => {
+    const configured = newService({
+      loadRoomLifecycleTimeoutConfig: () =>
+        Promise.resolve({
+          roomDestroyAfterAllAbsentSeconds: 60,
+          casualHeartbeatGraceSeconds: 90,
+          casualConfirmationTtlSeconds: 30,
+        }),
+    });
+    const waiting = await configured.create(users[0], {
+      ...entry(0),
+      discoverability: 'PUBLIC',
+      note: '',
+    });
+
+    // 心跳停止 60 秒：默认 45 秒宽限会让席位失效并拒绝入座，配置的 90 秒仍允许配对。
+    now += 60_000;
+    const paired = await configured.join(users[1], waiting, entry(1));
+    expect(paired.state).toBe('RESERVED');
+    const reserved = (
+      await database.query<{ confirmation_expires_at: Date | null }>(
+        'SELECT confirmation_expires_at FROM casual_tables WHERE id = $1',
+        [paired.tableId]
+      )
+    ).rows[0];
+    // 确认期限按配置的 30 秒计算，而不是默认的 60 秒。
+    expect(reserved.confirmation_expires_at?.getTime()).toBe(now + 30_000);
+
+    // 超过配置期限 1 秒：按无过错超时回收本轮配对。
+    now += 31_000;
+    await configured.cleanupExpiredState();
+    const closed = (
+      await database.query<{ state: string; failure_reason: string }>(
+        'SELECT state, failure_reason FROM casual_tables WHERE id = $1',
+        [paired.tableId]
+      )
+    ).rows[0];
+    expect(closed).toMatchObject({ state: 'CLOSED', failure_reason: 'CONFIRMATION_EXPIRED' });
+
+    // 心跳停止 91 秒：超过配置的 90 秒宽限，席位失效。
+    const next = await configured.create(users[2], {
+      ...entry(2),
+      discoverability: 'PUBLIC',
+      note: '',
+    });
+    now += 91_000;
+    await expect(configured.heartbeat(users[2], next)).rejects.toMatchObject({
+      code: 'CASUAL_FORBIDDEN',
+    });
+    expect((await configured.getCurrent(users[2])).notice?.reason).toBe('HEARTBEAT_EXPIRED');
+  });
 
   it('keeps the source wait when switching fails, and atomically moves it on success', async () => {
     const from = await create(0);

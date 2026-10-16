@@ -75,6 +75,7 @@ async function createMatch(
   battleTimeouts?: {
     readonly playerActionTimeoutSeconds: number;
     readonly reconnectGracePeriodSeconds: number;
+    readonly doubleDisconnectNoContestWindowSeconds: number;
   }
 ): Promise<OnlineMatchState> {
   return service.createMatch({

@@ -20,9 +20,13 @@ import type {
 import type { MatchOriginKind } from '../../online/replay-types.js';
 import {
   DEFAULT_BATTLE_TIMEOUT_CONFIG,
-  RANKED_DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_MS,
   type BattleTimeoutConfig,
 } from '../../online/ranked-policy.js';
+import {
+  DEFAULT_ROOM_LIFECYCLE_TIMEOUT_CONFIG,
+  ROOM_DESTROY_AFTER_ALL_ABSENT_SECONDS_MIN,
+  type RoomLifecycleTimeoutConfig,
+} from '../../online/room-lifecycle-policy.js';
 import type { Seat } from '../../online/types.js';
 import type { CasualRuntimeView } from '../../online/casual-table-types.js';
 import { pool } from '../db/pool.js';
@@ -53,7 +57,8 @@ import { recoverNoFaultThemeOpeningPlayers } from './theme-table-recovery-servic
 import { battleTimeoutConfigService } from './battle-timeout-config-service.js';
 
 const MEMBER_PRESENCE_STALE_MS = 15 * 1000;
-const ROOM_DESTROY_AFTER_ALL_ABSENT_MS = 60 * 1000;
+/** 销房期限的可配置下界（毫秒），兼作清理路径的懒加载预检界：未满该界时无需读取配置。 */
+const ROOM_DESTROY_AFTER_ALL_ABSENT_MIN_MS = ROOM_DESTROY_AFTER_ALL_ABSENT_SECONDS_MIN * 1000;
 const RESTART_REQUEST_TTL_MS = 60 * 1000;
 export const PUBLIC_TABLE_OPENING_TTL_MS = 3 * 60 * 1000;
 const PUBLIC_TABLE_ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -130,6 +135,7 @@ interface OnlineRoomServiceDeps {
   readonly getCurrentPointTableRules?: () => Promise<DeckPointTableRules>;
   readonly participationService?: GameplayParticipationPort | null;
   readonly loadBattleTimeoutConfig?: () => Promise<BattleTimeoutConfig>;
+  readonly loadRoomLifecycleTimeoutConfig?: () => Promise<RoomLifecycleTimeoutConfig>;
 }
 
 export interface PublicTableRoomMemberInput {
@@ -239,6 +245,7 @@ export class OnlineRoomService {
   private readonly getCurrentPointTableRules: () => Promise<DeckPointTableRules>;
   private readonly participationService: GameplayParticipationPort | null;
   private readonly loadBattleTimeoutConfig: () => Promise<BattleTimeoutConfig>;
+  private readonly loadRoomLifecycleTimeoutConfig: () => Promise<RoomLifecycleTimeoutConfig>;
 
   constructor(deps: OnlineRoomServiceDeps = {}) {
     this.now = deps.now ?? (() => Date.now());
@@ -250,6 +257,9 @@ export class OnlineRoomService {
     this.participationService = deps.participationService ?? null;
     this.loadBattleTimeoutConfig =
       deps.loadBattleTimeoutConfig ?? (() => Promise.resolve(DEFAULT_BATTLE_TIMEOUT_CONFIG));
+    this.loadRoomLifecycleTimeoutConfig =
+      deps.loadRoomLifecycleTimeoutConfig ??
+      (() => Promise.resolve(DEFAULT_ROOM_LIFECYCLE_TIMEOUT_CONFIG));
   }
 
   async createRoom(roomCodeInput: string, userId: string): Promise<OnlineRoomView> {
@@ -2249,6 +2259,16 @@ export class OnlineRoomService {
     let rankedDisconnectForfeitCount = 0;
     let rankedStallForfeitCount = 0;
     let rankedPlatformNoContestCount = 0;
+    // 销房期限按清理周期实时读取；只有出现达到下界的销房候选时才触发一次配置读取。
+    let cachedRoomDestroyAfterAllAbsentMs: number | null = null;
+    const resolveRoomDestroyAfterAllAbsentMs = async (): Promise<number> => {
+      if (cachedRoomDestroyAfterAllAbsentMs === null) {
+        const lifecycleConfig = await this.loadRoomLifecycleTimeoutConfig();
+        cachedRoomDestroyAfterAllAbsentMs =
+          lifecycleConfig.roomDestroyAfterAllAbsentSeconds * 1000;
+      }
+      return cachedRoomDestroyAfterAllAbsentMs;
+    };
 
     for (const [roomCode, room] of this.rooms) {
       checkedRoomCount += 1;
@@ -2260,7 +2280,8 @@ export class OnlineRoomService {
       if (
         room.status === 'ENDED' &&
         room.endInfo !== null &&
-        now - room.endInfo.endedAt >= ROOM_DESTROY_AFTER_ALL_ABSENT_MS
+        now - room.endInfo.endedAt >= ROOM_DESTROY_AFTER_ALL_ABSENT_MIN_MS &&
+        now - room.endInfo.endedAt >= (await resolveRoomDestroyAfterAllAbsentMs())
       ) {
         this.rooms.delete(roomCode);
         destroyedRoomCount += 1;
@@ -2302,11 +2323,14 @@ export class OnlineRoomService {
         room.originKind === 'PUBLIC_TABLE' &&
         room.initialPublicTableMatchId !== null &&
         (room.status === 'PREPARING' || room.status === 'READY') &&
-        room.members.some((member) => shouldDropPreparingMember(member, now))
+        room.members.some((member) => now - member.lastSeenAt >= ROOM_DESTROY_AFTER_ALL_ABSENT_MIN_MS)
       ) {
-        await this.closePublicTableOpening(room, 'PLAYER_ABANDONED_OPENING', now);
-        destroyedRoomCount += 1;
-        continue;
+        const roomDestroyAfterAllAbsentMs = await resolveRoomDestroyAfterAllAbsentMs();
+        if (room.members.some((member) => shouldDropPreparingMember(member, now, roomDestroyAfterAllAbsentMs))) {
+          await this.closePublicTableOpening(room, 'PLAYER_ABANDONED_OPENING', now);
+          destroyedRoomCount += 1;
+          continue;
+        }
       }
 
       if (room.status === 'OPENING' || room.status === 'IN_GAME') {
@@ -2316,7 +2340,10 @@ export class OnlineRoomService {
           room.matchId &&
           !this.matchService.isMatchCompleted(room.matchId)
         ) {
+          // 冻结：重连期限与双断线判定窗口都读取开局时锁定的本局快照，不随平台配置实时变化。
           const reconnectGracePeriodMs = room.battleTimeouts.reconnectGracePeriodSeconds * 1000;
+          const doubleDisconnectNoContestWindowMs =
+            room.battleTimeouts.doubleDisconnectNoContestWindowSeconds * 1000;
           const overdueMembers = [...room.members]
             .filter((member) => now - member.lastSeenAt >= reconnectGracePeriodMs)
             .sort(
@@ -2327,7 +2354,7 @@ export class OnlineRoomService {
             overdueMembers.length === room.members.length &&
             overdueMembers.length > 1 &&
             overdueMembers[overdueMembers.length - 1]!.lastSeenAt - overdueMembers[0]!.lastSeenAt <=
-              RANKED_DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_MS;
+              doubleDisconnectNoContestWindowMs;
           if (hasIndistinguishableDoubleDisconnect) {
             const presenceSnapshot = capturePresenceSnapshot(overdueMembers);
             const matchId = room.matchId;
@@ -2468,33 +2495,48 @@ export class OnlineRoomService {
           room.originKind === 'RANKED' &&
           room.matchId !== null &&
           !this.matchService.isMatchCompleted(room.matchId);
-        if (shouldDestroyRoom(room, now) && !shouldPreserveUnfinishedRankedMatch) {
-          if (room.status === 'IN_GAME' && room.matchId) {
-            const deleted = await this.matchService.deleteMatch(room.matchId, {
-              reason: 'ROOM_DESTROYED_ALL_ABSENT',
-              now,
-            });
-            if (!deleted) {
-              continue;
+        // 实时：销房期限按清理周期读取当前平台配置。
+        const mayDestroyForAllAbsent =
+          room.members.length === 0 ||
+          (room.members.every((member) => member.presence === 'LEFT') &&
+            now - latestMemberSeenAt(room) >= ROOM_DESTROY_AFTER_ALL_ABSENT_MIN_MS);
+        if (mayDestroyForAllAbsent) {
+          const roomDestroyAfterAllAbsentMs = await resolveRoomDestroyAfterAllAbsentMs();
+          if (
+            shouldDestroyRoom(room, now, roomDestroyAfterAllAbsentMs) &&
+            !shouldPreserveUnfinishedRankedMatch
+          ) {
+            if (room.status === 'IN_GAME' && room.matchId) {
+              const deleted = await this.matchService.deleteMatch(room.matchId, {
+                reason: 'ROOM_DESTROYED_ALL_ABSENT',
+                now,
+              });
+              if (!deleted) {
+                continue;
+              }
             }
+            this.matchService.terminateRoomCodeSpectators(
+              room.roomCode,
+              room.roomGeneration,
+              'ROOM_CLOSED',
+              now
+            );
+            this.rooms.delete(roomCode);
+            await this.participationService?.releaseOnlineRoom(
+              room.members.map((member) => member.userId),
+              room.roomGeneration
+            );
+            destroyedRoomCount += 1;
           }
-          this.matchService.terminateRoomCodeSpectators(
-            room.roomCode,
-            room.roomGeneration,
-            'ROOM_CLOSED',
-            now
-          );
-          this.rooms.delete(roomCode);
-          await this.participationService?.releaseOnlineRoom(
-            room.members.map((member) => member.userId),
-            room.roomGeneration
-          );
-          destroyedRoomCount += 1;
         }
         continue;
       }
 
-      await this.removeExpiredPreparingMembers(room, now);
+      await this.removeExpiredPreparingMembers(
+        room,
+        now,
+        resolveRoomDestroyAfterAllAbsentMs
+      );
       if (room.members.length === 0) {
         this.matchService.terminateRoomCodeSpectators(
           room.roomCode,
@@ -2855,9 +2897,22 @@ export class OnlineRoomService {
     }
   }
 
-  private async removeExpiredPreparingMembers(room: OnlineRoomState, now: number): Promise<void> {
+  private async removeExpiredPreparingMembers(
+    room: OnlineRoomState,
+    now: number,
+    resolveRoomDestroyAfterAllAbsentMs: () => Promise<number>
+  ): Promise<void> {
+    // 未达到销房下界时直接返回，避免常规清理路径读取配置。
+    if (
+      !room.members.some((member) => now - member.lastSeenAt >= ROOM_DESTROY_AFTER_ALL_ABSENT_MIN_MS)
+    ) {
+      return;
+    }
+    const roomDestroyAfterAllAbsentMs = await resolveRoomDestroyAfterAllAbsentMs();
     const previousUserIds = new Set(room.members.map((member) => member.userId));
-    const nextMembers = room.members.filter((member) => !shouldDropPreparingMember(member, now));
+    const nextMembers = room.members.filter(
+      (member) => !shouldDropPreparingMember(member, now, roomDestroyAfterAllAbsentMs)
+    );
     if (nextMembers.length === room.members.length) {
       return;
     }
@@ -2999,6 +3054,7 @@ export class OnlineRoomService {
 export const onlineRoomService = new OnlineRoomService({
   participationService: gameplayParticipationService,
   loadBattleTimeoutConfig: () => battleTimeoutConfigService.getConfig(),
+  loadRoomLifecycleTimeoutConfig: () => battleTimeoutConfigService.getRoomLifecycleTimeoutConfig(),
 });
 
 function buildPublicTableMember(
@@ -3317,22 +3373,33 @@ function isMemberPresenceStale(member: OnlineRoomMemberState, now: number): bool
   return now - member.lastSeenAt >= MEMBER_PRESENCE_STALE_MS;
 }
 
-function shouldDropPreparingMember(member: OnlineRoomMemberState, now: number): boolean {
-  return now - member.lastSeenAt >= ROOM_DESTROY_AFTER_ALL_ABSENT_MS;
+function shouldDropPreparingMember(
+  member: OnlineRoomMemberState,
+  now: number,
+  roomDestroyAfterAllAbsentMs: number
+): boolean {
+  return now - member.lastSeenAt >= roomDestroyAfterAllAbsentMs;
 }
 
-function shouldDestroyRoom(room: OnlineRoomState, now: number): boolean {
+function latestMemberSeenAt(room: OnlineRoomState): number {
+  return room.members.reduce(
+    (latest, member) => Math.max(latest, member.lastSeenAt),
+    0
+  );
+}
+
+function shouldDestroyRoom(
+  room: OnlineRoomState,
+  now: number,
+  roomDestroyAfterAllAbsentMs: number
+): boolean {
   if (room.members.length === 0) {
     return true;
   }
 
-  const latestSeenAt = room.members.reduce(
-    (latest, member) => Math.max(latest, member.lastSeenAt),
-    0
-  );
   return (
     room.members.every((member) => member.presence === 'LEFT') &&
-    now - latestSeenAt >= ROOM_DESTROY_AFTER_ALL_ABSENT_MS
+    now - latestMemberSeenAt(room) >= roomDestroyAfterAllAbsentMs
   );
 }
 
