@@ -3,17 +3,21 @@
  * 左侧可展开/收起的侧边栏
  */
 
-import { memo, useRef, useEffect, useState } from 'react';
+import { memo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, ScrollText } from 'lucide-react';
+import { ScrollText, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGameStore } from '@/store/gameStore';
 
 interface GameLogContentProps {
   active?: boolean;
+  onClose?: () => void;
 }
 
-export const GameLogContent = memo(function GameLogContent({ active = true }: GameLogContentProps) {
+export const GameLogContent = memo(function GameLogContent({
+  active = true,
+  onClose,
+}: GameLogContentProps) {
   const logs = useGameStore((s) => s.ui.logs);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -37,7 +41,19 @@ export const GameLogContent = memo(function GameLogContent({ active = true }: Ga
           <ScrollText size={16} className="text-[var(--accent-primary)]" />
           调试日志
         </span>
-        <span className="text-xs text-[var(--text-muted)]">{logs.length} 条</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-[var(--text-muted)]">{logs.length} 条</span>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="button-icon h-8 w-8"
+              aria-label="关闭调试日志"
+            >
+              <X size={15} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div
@@ -78,59 +94,29 @@ export const GameLogContent = memo(function GameLogContent({ active = true }: Ga
   );
 });
 
-export const GameLog = memo(function GameLog() {
+export const GameLog = memo(function GameLog({
+  isOpen,
+  onClose,
+  docked,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  docked: boolean;
+}) {
   const canShowDebugLog = useGameStore((s) => s.getBattleSurfaceCapabilities().canShowDebugLog);
-  const [isExpanded, setIsExpanded] = useState(false);
 
-  if (!canShowDebugLog) return null;
+  if (!canShowDebugLog || !isOpen) return null;
 
   return (
-    <div className="fixed left-0 top-0 z-[var(--z-game-log)] flex h-full">
-      <motion.button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className={cn(
-          'flex h-full w-8 items-center justify-center border-r',
-          'border-[var(--border-default)] bg-[var(--bg-frosted)]',
-          'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
-          'transition-colors'
-        )}
-        whileHover={{ width: 36 }}
-        whileTap={{ scale: 0.95 }}
-      >
-        <motion.div
-          animate={{ rotate: isExpanded ? 180 : 0 }}
-          transition={{ duration: 0.2 }}
-          className="flex items-center justify-center"
-        >
-          {isExpanded ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-        </motion.div>
-      </motion.button>
-
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 280, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="flex h-full flex-col overflow-hidden border-r border-[var(--border-default)] bg-[var(--bg-frosted)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
-          >
-            <GameLogContent active={isExpanded} />
-
-            <div className="modal-footer flex-shrink-0 p-2">
-              <button
-                onClick={() => {
-                  // 这里可以添加清空日志的功能
-                }}
-                className="w-full rounded bg-[color:color-mix(in_srgb,var(--bg-surface)_70%,transparent)] py-1 text-xs text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-              >
-                点击展开按钮收起
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+    <aside
+      id="debug-battle-log-panel"
+      role="region"
+      aria-label="调试日志"
+      data-docked={docked}
+      className="battle-side-panel overflow-hidden"
+    >
+      <GameLogContent active={isOpen} onClose={onClose} />
+    </aside>
   );
 });
 

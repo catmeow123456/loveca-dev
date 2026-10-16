@@ -3,7 +3,7 @@
  *
  * 统一面板，上方为应援区（翻牌、操作、光棒心统计），
  * 下方为 Live 卡判定区（总心数汇总 + 成功/失败切换）。
- * 风格与 CheerPeekModal 保持一致（悬浮窗风格）。
+ * 桌面端使用可停靠辅助侧栏，移动端使用模态面板。
  *
  * 每位玩家的应援牌独立追踪（per-player），
  * 最终在 RESULT_SETTLEMENT 阶段统一清理到各自休息室。
@@ -20,6 +20,7 @@ import {
   type ReactNode,
 } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { Heart, Mic, PanelLeftClose, X } from 'lucide-react';
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { GameCommandType } from '@game/application/game-commands';
@@ -44,6 +45,7 @@ import {
 } from '@/lib/battleActionIntent';
 import { executeBattleActionPayload } from '@/lib/battleActionExecutor';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import {
   SubPhase,
   HeartColor,
@@ -69,6 +71,8 @@ import type { LiveResultViewState, Seat } from '@game/online';
 interface JudgmentPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  docked?: boolean;
+  mobilePortalTarget?: HTMLElement | null;
 }
 
 const EMPTY_PUBLIC_OBJECT_IDS: readonly string[] = [];
@@ -399,7 +403,13 @@ const SortableCheerCard = memo(function SortableCheerCard({
 // 主组件
 // ============================================
 
-export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: JudgmentPanelProps) {
+export const JudgmentPanel = memo(function JudgmentPanel({
+  isOpen,
+  onClose,
+  docked = false,
+  mobilePortalTarget,
+}: JudgmentPanelProps) {
+  const panelRef = useRef<HTMLElement>(null);
   const shouldReduceMotion = useReducedMotion();
   const activeSeat = useGameStore((s) => s.getActiveSeatView());
   const firstSeat = useGameStore((s) => s.playerViewState?.match.firstSeat ?? null);
@@ -814,13 +824,19 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   // ESC 关闭
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !e.defaultPrevented) onClose();
     };
-    if (isOpen) {
+    if (isOpen && !isMobilePanel) {
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
-  }, [isOpen, onClose]);
+  }, [isOpen, isMobilePanel, onClose]);
+
+  useDialogAccessibility({
+    isOpen: isOpen && isMobilePanel,
+    dialogRef: panelRef,
+    onEscape: onClose,
+  });
 
   if (!isOpen || !firstSeat || !activeSeat || !activePlayer || !viewingSeat || !viewedPlayer) {
     return null;
@@ -842,15 +858,17 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   const previewStatusLabel = getPreviewStatusLabel(liveJudgmentPreview.status);
   const previewScoreText =
     liveJudgmentPreview.totalScore === null ? '--' : String(liveJudgmentPreview.totalScore);
-  return (
+  const panel = (
     <motion.aside
+      ref={panelRef}
       id="judgment-panel"
       data-battle-ui-anchor={BATTLE_UI_ANCHORS.JUDGMENT_PANEL}
-      className="safe-bottom safe-top pointer-events-auto fixed inset-0 z-[var(--z-battle-modal)] h-[var(--battle-viewport-height)] w-full max-w-none overflow-hidden border-[var(--border-default)] bg-[var(--bg-frosted)] p-3 shadow-[var(--shadow-lg)] backdrop-blur-xl md:left-0 md:top-0 md:h-full md:max-w-[420px] md:overflow-visible md:border-r md:p-4"
+      data-docked={!isMobilePanel && docked}
+      className="battle-side-panel pointer-events-auto overflow-visible p-4 max-md:overflow-hidden max-md:p-3"
       role="dialog"
       aria-modal={isMobilePanel}
       aria-label="应援/判定区"
-      initial={{ x: '-100%', opacity: 0.96 }}
+      initial={{ x: docked ? 0 : '-100%', opacity: 0.96 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: '-100%', opacity: 0.96 }}
       transition={
@@ -872,7 +890,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
         <PanelLeftClose className="hidden md:block" size={18} strokeWidth={1.9} />
       </button>
 
-      <div className="mb-3 border-b border-[var(--border-default)] pb-2 pr-11 md:pr-0">
+      <div className="mb-3 shrink-0 border-b border-[var(--border-default)] pb-2 pr-11 md:pr-0">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
             <Heart size={16} className="shrink-0 text-[var(--accent-primary)]" />
@@ -901,7 +919,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
         </div>
       </div>
 
-      <div className="cute-scrollbar touch-scroll h-[calc(100%-4rem)] overflow-y-auto pr-1">
+      <div className="cute-scrollbar touch-scroll min-h-0 flex-1 overflow-y-auto pr-1">
         <div data-battle-ui-anchor={BATTLE_UI_ANCHORS.JUDGMENT_CHEER_CARDS} className="mb-4">
           <div className="mb-2 flex min-w-0 items-center justify-between gap-2 border-b border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] pb-2">
             <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-[var(--accent-secondary)]">
@@ -1166,67 +1184,68 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
             </JudgmentInfoBlock>
           </div>
         </div>
-
-        {/* ======== 底部按钮 ======== */}
-        {isPerformanceJudgment ? (
-          <div
-            className={cn(
-              'mt-4 space-y-2 border-t border-[var(--border-subtle)] pt-3',
-              (isReadOnly || !isViewingActiveSeat) && 'hidden'
-            )}
-          >
-            <button
-              data-battle-ui-anchor={BATTLE_UI_ANCHORS.AUTOMATIC_JUDGMENT_CONFIRM}
-              onClick={handleAcceptAutoJudgment}
-              disabled={!canSubmitViewedJudgment}
-              className={cn(
-                canSubmitViewedJudgment
-                  ? 'button-primary w-full rounded-lg py-2 text-sm font-bold'
-                  : 'w-full rounded-lg bg-[var(--bg-overlay)] py-2 text-sm font-bold text-[var(--text-muted)] cursor-not-allowed'
-              )}
-            >
-              接受自动判定
-            </button>
-            {isFreeOperationMode ? (
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={handleLiveFailed}
-                  disabled={!canConfirmViewedOutcome}
-                  className={cn(
-                    canConfirmViewedOutcome
-                      ? 'rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_56%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-error)_14%,transparent)] py-1.5 text-xs font-bold text-[var(--semantic-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_22%,transparent)]'
-                      : 'rounded-lg bg-[var(--bg-overlay)] py-1.5 text-xs font-bold text-[var(--text-muted)] cursor-not-allowed'
-                  )}
-                >
-                  强制失败
-                </button>
-                <button
-                  onClick={handleLiveSuccess}
-                  disabled={!canConfirmViewedOutcome}
-                  className={cn(
-                    canConfirmViewedOutcome
-                      ? 'rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-success)_56%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-success)_14%,transparent)] py-1.5 text-xs font-bold text-[var(--semantic-success)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-success)_22%,transparent)]'
-                      : 'rounded-lg bg-[var(--bg-overlay)] py-1.5 text-xs font-bold text-[var(--text-muted)] cursor-not-allowed'
-                  )}
-                >
-                  强制成功
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <div
-            className={cn(
-              'mt-4 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-secondary)]',
-              isReadOnly && 'hidden'
-            )}
-          >
-            当前不在 Live 判定确认子阶段，本面板保持为辅助操作窗口。
-          </div>
-        )}
       </div>
+
+      {/* ======== 底部按钮 ======== */}
+      {isPerformanceJudgment ? (
+        <div
+          className={cn(
+            'mt-4 shrink-0 space-y-2 border-t border-[var(--border-subtle)] pt-3',
+            (isReadOnly || !isViewingActiveSeat) && 'hidden'
+          )}
+        >
+          <button
+            data-battle-ui-anchor={BATTLE_UI_ANCHORS.AUTOMATIC_JUDGMENT_CONFIRM}
+            onClick={handleAcceptAutoJudgment}
+            disabled={!canSubmitViewedJudgment}
+            className={cn(
+              canSubmitViewedJudgment
+                ? 'button-primary w-full rounded-lg py-2 text-sm font-bold'
+                : 'w-full rounded-lg bg-[var(--bg-overlay)] py-2 text-sm font-bold text-[var(--text-muted)] cursor-not-allowed'
+            )}
+          >
+            接受自动判定
+          </button>
+          {isFreeOperationMode ? (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleLiveFailed}
+                disabled={!canConfirmViewedOutcome}
+                className={cn(
+                  canConfirmViewedOutcome
+                    ? 'rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_56%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-error)_14%,transparent)] py-1.5 text-xs font-bold text-[var(--semantic-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_22%,transparent)]'
+                    : 'rounded-lg bg-[var(--bg-overlay)] py-1.5 text-xs font-bold text-[var(--text-muted)] cursor-not-allowed'
+                )}
+              >
+                强制失败
+              </button>
+              <button
+                onClick={handleLiveSuccess}
+                disabled={!canConfirmViewedOutcome}
+                className={cn(
+                  canConfirmViewedOutcome
+                    ? 'rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-success)_56%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-success)_14%,transparent)] py-1.5 text-xs font-bold text-[var(--semantic-success)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-success)_22%,transparent)]'
+                    : 'rounded-lg bg-[var(--bg-overlay)] py-1.5 text-xs font-bold text-[var(--text-muted)] cursor-not-allowed'
+                )}
+              >
+                强制成功
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div
+          className={cn(
+            'mt-4 shrink-0 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-secondary)]',
+            isReadOnly && 'hidden'
+          )}
+        >
+          当前不在 Live 判定确认子阶段，本面板保持为辅助操作窗口。
+        </div>
+      )}
     </motion.aside>
   );
+  return isMobilePanel ? createPortal(panel, mobilePortalTarget ?? document.body) : panel;
 });
 
 export default JudgmentPanel;
