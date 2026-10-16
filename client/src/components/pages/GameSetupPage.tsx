@@ -12,7 +12,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Globe2,
   History,
   Layers3,
   Medal,
@@ -65,8 +64,7 @@ import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 import type { PlayerBattleEntryVisibility } from '@/lib/appConfig';
 
 type SetupStep = 0 | 1 | 2 | 3;
-type SetupMode =
-  'PUBLIC_TABLE' | 'RANKED' | 'THEME_TABLE' | 'ONLINE' | GameMode.DEBUG | GameMode.SOLITAIRE;
+type SetupMode = 'CASUAL' | 'RANKED' | 'THEME_TABLE' | GameMode.DEBUG | GameMode.SOLITAIRE;
 
 interface GameSetupPageProps {
   initialLocalMode?: GameMode.SOLITAIRE | GameMode.DEBUG | null;
@@ -75,8 +73,7 @@ interface GameSetupPageProps {
   mobileMenuActions: ReactNode;
   onBack: () => void;
   onGameStart: () => void;
-  onNavigateToOnlineRoom: () => void;
-  onNavigateToPublicTable: () => void;
+  onNavigateToLobby: () => void;
   onNavigateToRanked: () => void;
   onNavigateToThemeTable: () => void;
   onManageDecks: () => void;
@@ -176,8 +173,7 @@ export function GameSetupPage({
   mobileMenuActions,
   onBack,
   onGameStart,
-  onNavigateToOnlineRoom,
-  onNavigateToPublicTable,
+  onNavigateToLobby,
   onNavigateToRanked,
   onNavigateToThemeTable,
   onManageDecks,
@@ -191,11 +187,10 @@ export function GameSetupPage({
   const [hasManualSelectedP2Deck, setHasManualSelectedP2Deck] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isPublicTableMode = setupMode === 'PUBLIC_TABLE';
+  const isCasualMode = setupMode === 'CASUAL';
   const isRankedMode = setupMode === 'RANKED';
   const isThemeTableMode = setupMode === 'THEME_TABLE';
-  const isOnlineMode = setupMode === 'ONLINE';
-  const isRemoteEntryMode = isPublicTableMode || isRankedMode || isThemeTableMode || isOnlineMode;
+  const isRemoteEntryMode = isCasualMode || isRankedMode || isThemeTableMode;
   const gameMode = setupMode === GameMode.DEBUG ? GameMode.DEBUG : GameMode.SOLITAIRE;
   const isDebugMode = gameMode === GameMode.DEBUG;
   const maxStep: SetupStep = isRemoteEntryMode ? 1 : isDebugMode ? 3 : 2;
@@ -239,9 +234,12 @@ export function GameSetupPage({
       return;
     }
 
-    setSetupMode(GameMode.SOLITAIRE);
-    setCurrentStep(0);
-    setError(null);
+    const timer = window.setTimeout(() => {
+      setSetupMode(GameMode.SOLITAIRE);
+      setCurrentStep(0);
+      setError(null);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [battleEntryVisibility.ranked, battleEntryVisibility.themeTable, setupMode]);
 
   // 只显示有效的卡组
@@ -346,15 +344,9 @@ export function GameSetupPage({
   // 下一步
   const handleNext = () => {
     if (currentStep === 0) {
-      if (isPublicTableMode) {
+      if (isCasualMode) {
         if (canUseOnlineRoom) {
-          onNavigateToPublicTable();
-        }
-        return;
-      }
-      if (isOnlineMode) {
-        if (canUseOnlineRoom) {
-          onNavigateToOnlineRoom();
+          onNavigateToLobby();
         }
         return;
       }
@@ -527,10 +519,7 @@ export function GameSetupPage({
         ? [0, 1, 2]
         : [0, 1, 2, 3];
     const labels = isRemoteEntryMode
-      ? [
-          '模式',
-          isPublicTableMode ? '匹配' : isRankedMode ? '排位' : isThemeTableMode ? '主题' : '房间',
-        ]
+      ? ['模式', isCasualMode ? '匹配' : isRankedMode ? '排位' : isThemeTableMode ? '主题' : '房间']
       : gameMode === GameMode.SOLITAIRE
         ? ['模式', '卡组', '确认']
         : ['模式', 'P1', 'P2', '确认'];
@@ -594,10 +583,9 @@ export function GameSetupPage({
 
   const getNextButtonLabel = () => {
     if (currentStep === 0) {
-      if (isPublicTableMode) {
-        return canUseOnlineRoom ? '进入公共牌桌' : '公共牌桌暂不可用';
+      if (isCasualMode) {
+        return canUseOnlineRoom ? '进入对战大厅' : '对战大厅暂不可用';
       }
-      if (isOnlineMode) return canUseOnlineRoom ? '进入联机房间' : '联机暂不可用';
       if (isRankedMode) {
         if (!canUseOnlineRoom) return '赛季排位暂不可用';
         return validDecks.length > 0 ? '进入赛季排位' : '需要符合规则的卡组';
@@ -665,12 +653,12 @@ export function GameSetupPage({
                         快速匹配
                       </h2>
                       <ModeChoice
-                        mode="PUBLIC_TABLE"
-                        title="公共牌桌"
-                        description="自动匹配真人对手"
+                        mode="CASUAL"
+                        title="对战大厅"
+                        description="找对手、选房或创建约战"
                         icon={Swords}
                         toneClass="[--mode-accent:var(--accent-primary)]"
-                        selected={setupMode === 'PUBLIC_TABLE'}
+                        selected={setupMode === 'CASUAL'}
                         available={canUseOnlineRoom}
                         featured
                         onSelect={handleSelectMode}
@@ -722,16 +710,6 @@ export function GameSetupPage({
                         其他对战
                       </h2>
                       <div className="grid gap-2 sm:grid-cols-3">
-                        <ModeChoice
-                          mode="ONLINE"
-                          title="房间联机"
-                          description="创建或加入房间"
-                          icon={Globe2}
-                          toneClass="[--mode-accent:var(--semantic-info)]"
-                          selected={setupMode === 'ONLINE'}
-                          available={canUseOnlineRoom}
-                          onSelect={handleSelectMode}
-                        />
                         <ModeChoice
                           mode={GameMode.SOLITAIRE}
                           title="对墙打"

@@ -3,7 +3,7 @@ import type { MatchOriginKind } from '@game/online';
 export type OnlineRoomPostMatchRestartRole = 'NONE' | 'REQUESTER' | 'RESPONDER';
 
 export interface OnlineRoomPostMatchActionState {
-  readonly kind: 'REPLAYABLE_ROOM' | 'RANKED_ROOM' | 'THEME_ROOM';
+  readonly kind: 'CASUAL_ROOM' | 'REPLAYABLE_ROOM' | 'RANKED_ROOM' | 'THEME_ROOM';
   readonly preserveRoomOnLobbyReturn: boolean;
   readonly showExplicitLeaveRoom: boolean;
   readonly restartAction: 'REQUEST' | 'WAITING' | 'RESPOND' | null;
@@ -12,10 +12,19 @@ export interface OnlineRoomPostMatchActionState {
 
 export function getOnlineRoomPostMatchActionState(input: {
   readonly originKind: MatchOriginKind;
+  readonly casualTable?: boolean;
   readonly themeTableVersionId?: string | null;
   readonly restartRole: OnlineRoomPostMatchRestartRole;
   readonly opponentActive: boolean;
 }): OnlineRoomPostMatchActionState {
+  if (input.casualTable)
+    return {
+      kind: 'CASUAL_ROOM',
+      preserveRoomOnLobbyReturn: true,
+      showExplicitLeaveRoom: true,
+      restartAction: null,
+      restartDisabledReason: null,
+    };
   if (input.themeTableVersionId) {
     return {
       kind: 'THEME_ROOM',

@@ -6,7 +6,8 @@ import {
   type MatchmakingQueueStatus,
 } from '@/lib/matchmakingAudio';
 import { fetchMatchmakingBgmLibrary, type MatchmakingBgmTrack } from '@/lib/matchmakingBgmClient';
-import { usePublicTableStore } from '@/store/publicTableStore';
+import { useCasualTableStore } from '@/store/casualTableStore';
+import type { PublicTableStatusView } from '@game/online/public-table-types';
 import { useRankedStore } from '@/store/rankedStore';
 import { useThemeTableStore } from '@/store/themeTableStore';
 
@@ -21,7 +22,28 @@ export function MatchmakingAudioLayer({
   matchFoundSoundEnabled: boolean;
   preferredTrackIds: readonly string[] | null;
 }) {
-  const publicTableStatus = usePublicTableStore((state) => (state.hydrated ? state.status : null));
+  const casual = useCasualTableStore((state) => (state.hydrated ? state.status?.table : null));
+  const publicTableStatus: PublicTableStatusView | null = casual
+    ? {
+        state:
+          casual.state === 'WAITING'
+            ? 'WAITING'
+            : casual.state === 'RESERVED'
+              ? 'PENDING_CONFIRMATION'
+              : casual.state === 'BOOTSTRAPPING'
+                ? 'CREATING_ROOM'
+                : 'MATCHED',
+        ticketId: casual.tableId,
+        reservationId: casual.roundId,
+        joinedAt: casual.waitingSince,
+        deckName: casual.ownDeck?.name ?? null,
+        confirmationExpiresAt: casual.confirmationExpiresAt,
+        confirmed: false,
+        roomCode: casual.roomCode,
+        roomGeneration: casual.roomGeneration,
+        message: null,
+      }
+    : null;
   const rankedStatus = useRankedStore((state) => state.overview?.queue ?? null);
   const themeTableStatus = useThemeTableStore((state) => state.overview?.queue ?? null);
   const [libraryTracks, setLibraryTracks] = useState<readonly MatchmakingBgmTrack[]>([]);

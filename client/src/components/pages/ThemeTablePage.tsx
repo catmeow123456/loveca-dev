@@ -43,7 +43,7 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
             <Sparkles className="mx-auto text-[var(--accent-primary)]" />
             <h1 className="mt-3 text-xl font-semibold">下一期娱乐模式正在编排</h1>
             <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              当前没有公开活动。你仍可前往公共牌桌使用自己的卡组对战。
+              当前没有公开活动。你仍可前往对战大厅使用自己的卡组对战。
             </p>
           </Panel>
         </main>

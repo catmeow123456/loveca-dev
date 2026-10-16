@@ -179,7 +179,7 @@ describe('PublicTableService ranked admission', () => {
             {
               state: 'CREATING_ROOM',
               bootstrap_lease_until: leaseUntil,
-              queue_kind: 'CASUAL',
+              queue_kind: 'THEME',
               season_id: null,
               first_ticket_id: 'ticket-1',
               second_ticket_id: 'ticket-2',
@@ -206,7 +206,7 @@ describe('PublicTableService ranked admission', () => {
       return { rows: [] };
     });
     mocks.clientQuery.mockImplementation(async (text: string) => {
-      if (text.includes("WHERE state = 'CREATING_ROOM'") && text.includes('FOR UPDATE')) {
+      if (text.includes("AND state = 'CREATING_ROOM'") && text.includes('FOR UPDATE')) {
         return {
           rows: [
             {
@@ -268,7 +268,7 @@ describe('PublicTableService ranked admission', () => {
   it('releases an exhausted bootstrap reservation and restores both no-fault tickets', async () => {
     const now = new Date('2026-07-30T12:00:00.000Z').getTime();
     mocks.clientQuery.mockImplementation(async (text: string) => {
-      if (text.includes("WHERE state = 'CREATING_ROOM'") && text.includes('FOR UPDATE')) {
+      if (text.includes("AND state = 'CREATING_ROOM'") && text.includes('FOR UPDATE')) {
         return {
           rows: [
             {
@@ -318,7 +318,7 @@ describe('PublicTableService ranked admission', () => {
             {
               state: 'CREATING_ROOM',
               bootstrap_lease_until: leaseUntil,
-              queue_kind: 'CASUAL',
+              queue_kind: 'THEME',
               season_id: null,
               first_ticket_id: '11111111-1111-4111-8111-111111111111',
               second_ticket_id: '22222222-2222-4222-8222-222222222222',
@@ -348,7 +348,7 @@ describe('PublicTableService ranked admission', () => {
       return { rows: [], rowCount: text.includes('released_reservation') ? 1 : 0 };
     });
     mocks.clientQuery.mockImplementation(async (text: string) => {
-      if (text.includes("WHERE state = 'CREATING_ROOM'") && text.includes('FOR UPDATE')) {
+      if (text.includes("AND state = 'CREATING_ROOM'") && text.includes('FOR UPDATE')) {
         return {
           rows: [
             {

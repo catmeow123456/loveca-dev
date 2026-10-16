@@ -19,6 +19,7 @@ import { onlineRouter } from './routes/online.js';
 import { battleRouter } from './routes/battle.js';
 import { appConfigRouter } from './routes/app-config.js';
 import { siteAnnouncementsRouter } from './routes/site-announcements.js';
+import { casualTablesRouter } from './routes/casual-tables.js';
 import { publicTableRouter } from './routes/public-table.js';
 import { rankedRouter } from './routes/ranked.js';
 import { rankedAdminRouter } from './routes/ranked-admin.js';
@@ -56,12 +57,10 @@ export function createApp(): express.Express {
           forwardedFor: req.get('x-forwarded-for'),
         })
       ) {
-        res
-          .status(403)
-          .json({
-            data: null,
-            error: { code: 'AI_LOCAL_ONLY', message: '本地 Codex 模式仅接受本机请求' },
-          });
+        res.status(403).json({
+          data: null,
+          error: { code: 'AI_LOCAL_ONLY', message: '本地 Codex 模式仅接受本机请求' },
+        });
         return;
       }
       next();
@@ -127,6 +126,7 @@ export function createApp(): express.Express {
   app.use('/api/battle', battleRouter);
   app.use('/api/tutorial', tutorialRouter);
   app.use('/api/public-table', publicTableRouter);
+  app.use('/api/casual-tables', casualTablesRouter);
   app.use('/api/ranked', rankedRouter);
   app.use('/api/player-badges', playerBadgesRouter);
   app.use('/api/player-wallpapers', playerWallpapersRouter);

@@ -1,12 +1,13 @@
-import type { PoolClient } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
 
 export type GameplayParticipationKind =
-  'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'THEME_QUEUE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
+  'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'THEME_QUEUE' | 'CASUAL_TABLE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
 
 export interface GameplayParticipationRef {
   readonly kind: GameplayParticipationKind;
   readonly ticketId?: string | null;
+  readonly casualTableId?: string | null;
   readonly roomGeneration?: string | null;
   readonly matchId?: string | null;
 }
@@ -27,8 +28,10 @@ export interface GameplayParticipationPort {
 }
 
 export class GameplayParticipationService implements GameplayParticipationPort {
+  constructor(private readonly database: Pick<Pool, 'query'> = pool) {}
+
   async acquireOnlineRoom(userId: string, roomGeneration: string): Promise<boolean> {
-    const result = await pool.query(
+    const result = await this.database.query(
       `INSERT INTO gameplay_participations (
          user_id, kind, room_generation, updated_at
        )
@@ -51,7 +54,7 @@ export class GameplayParticipationService implements GameplayParticipationPort {
     if (userIds.length === 0) {
       return;
     }
-    await pool.query(
+    await this.database.query(
       `UPDATE gameplay_participations
        SET kind = 'ONLINE_MATCH',
            match_id = $3,
@@ -71,7 +74,7 @@ export class GameplayParticipationService implements GameplayParticipationPort {
     if (userIds.length === 0) {
       return 0;
     }
-    const result = await pool.query<{ restored_count: number }>(
+    const result = await this.database.query<{ restored_count: number }>(
       `WITH eligible AS MATERIALIZED (
          SELECT user_id
          FROM gameplay_participations
@@ -102,7 +105,7 @@ export class GameplayParticipationService implements GameplayParticipationPort {
     if (userIds.length === 0) {
       return;
     }
-    await pool.query(
+    await this.database.query(
       `DELETE FROM gameplay_participations
        WHERE user_id = ANY($1::uuid[])
          AND room_generation = $2`,

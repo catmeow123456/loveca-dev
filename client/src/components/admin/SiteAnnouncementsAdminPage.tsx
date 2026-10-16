@@ -31,7 +31,25 @@ import {
   type SiteStatusConfigInput,
 } from '@/lib/siteAnnouncementClient';
 import { useKeyedState } from '@/hooks/useKeyedState';
-import { DEFAULT_BATTLE_TIMEOUT_CONFIG, type BattleTimeoutConfig } from '@game/online';
+import {
+  CASUAL_CONFIRMATION_TTL_SECONDS_MAX,
+  CASUAL_CONFIRMATION_TTL_SECONDS_MIN,
+  CASUAL_HEARTBEAT_GRACE_SECONDS_MAX,
+  CASUAL_HEARTBEAT_GRACE_SECONDS_MIN,
+  DEFAULT_BATTLE_TIMEOUT_CONFIG,
+  DEFAULT_ROOM_LIFECYCLE_TIMEOUT_CONFIG,
+  DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_SECONDS_MAX,
+  DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_SECONDS_MIN,
+  ROOM_DESTROY_AFTER_ALL_ABSENT_SECONDS_MAX,
+  ROOM_DESTROY_AFTER_ALL_ABSENT_SECONDS_MIN,
+  formatBattleTimeoutSeconds,
+  type AdminBattleTimeoutSettings,
+} from '@game/online';
+
+const DEFAULT_ADMIN_BATTLE_TIMEOUT_SETTINGS: AdminBattleTimeoutSettings = {
+  battleTimeouts: DEFAULT_BATTLE_TIMEOUT_CONFIG,
+  roomLifecycle: DEFAULT_ROOM_LIFECYCLE_TIMEOUT_CONFIG,
+};
 
 const SITE_STATUS_LABELS: Record<SiteStatusLifecycle, string> = {
   NORMAL: '正常',
@@ -142,11 +160,11 @@ export function SiteAnnouncementsAdminPage({
   );
   const [isSavingSiteStatus, setIsSavingSiteStatus] = useState(false);
   const [siteStatusError, setSiteStatusError] = useState<string | null>(null);
-  const [battleTimeouts, setBattleTimeouts] = useState<BattleTimeoutConfig>(
-    DEFAULT_BATTLE_TIMEOUT_CONFIG
+  const [battleTimeoutSettings, setBattleTimeoutSettings] = useState<AdminBattleTimeoutSettings>(
+    DEFAULT_ADMIN_BATTLE_TIMEOUT_SETTINGS
   );
-  const [battleTimeoutDraft, setBattleTimeoutDraft] = useState<BattleTimeoutConfig>(
-    DEFAULT_BATTLE_TIMEOUT_CONFIG
+  const [battleTimeoutDraft, setBattleTimeoutDraft] = useState<AdminBattleTimeoutSettings>(
+    DEFAULT_ADMIN_BATTLE_TIMEOUT_SETTINGS
   );
   const [isLoadingBattleTimeouts, setIsLoadingBattleTimeouts] = useState(true);
   const [isSavingBattleTimeouts, setIsSavingBattleTimeouts] = useState(false);
@@ -183,7 +201,7 @@ export function SiteAnnouncementsAdminPage({
         );
       void fetchAdminBattleTimeoutConfig()
         .then((config) => {
-          setBattleTimeouts(config);
+          setBattleTimeoutSettings(config);
           setBattleTimeoutDraft(config);
         })
         .catch((error) =>
@@ -199,7 +217,7 @@ export function SiteAnnouncementsAdminPage({
     setBattleTimeoutError(null);
     try {
       const saved = await updateAdminBattleTimeoutConfig(battleTimeoutDraft);
-      setBattleTimeouts(saved);
+      setBattleTimeoutSettings(saved);
       setBattleTimeoutDraft(saved);
       await onSiteStatusChanged?.();
     } catch (error) {
@@ -336,7 +354,7 @@ export function SiteAnnouncementsAdminPage({
 
         <BattleTimeoutControlPanel
           value={battleTimeoutDraft}
-          savedValue={battleTimeouts}
+          savedValue={battleTimeoutSettings}
           loading={isLoadingBattleTimeouts}
           saving={isSavingBattleTimeouts}
           error={battleTimeoutError}
@@ -421,6 +439,108 @@ export function SiteAnnouncementsAdminPage({
   );
 }
 
+interface TimeoutFieldDefinition {
+  key: string;
+  label: string;
+  detail: string;
+  min: number;
+  max: number;
+  step: number;
+  getValue: (settings: AdminBattleTimeoutSettings) => number;
+  update: (settings: AdminBattleTimeoutSettings, seconds: number) => AdminBattleTimeoutSettings;
+}
+
+const RANKED_TIMEOUT_FIELDS: readonly TimeoutFieldDefinition[] = [
+  {
+    key: 'playerActionTimeoutSeconds',
+    label: '玩家操作超时',
+    detail: '排位中轮到某位玩家操作时，连续这么久没有成功操作即判负。',
+    min: 60,
+    max: 900,
+    step: 30,
+    getValue: (settings) => settings.battleTimeouts.playerActionTimeoutSeconds,
+    update: (settings, seconds) => ({
+      ...settings,
+      battleTimeouts: { ...settings.battleTimeouts, playerActionTimeoutSeconds: seconds },
+    }),
+  },
+  {
+    key: 'reconnectGracePeriodSeconds',
+    label: '断线重连期限',
+    detail: '排位中玩家断线后，这么久内重连可回到对局；超时未归由断线方判负。',
+    min: 15,
+    max: 300,
+    step: 15,
+    getValue: (settings) => settings.battleTimeouts.reconnectGracePeriodSeconds,
+    update: (settings, seconds) => ({
+      ...settings,
+      battleTimeouts: { ...settings.battleTimeouts, reconnectGracePeriodSeconds: seconds },
+    }),
+  },
+  {
+    key: 'doubleDisconnectNoContestWindowSeconds',
+    label: '双方断线判定窗口',
+    detail:
+      '双方都断线且都超过重连期限时，比较两人最后在线时间：相差不超过该窗口则本局无结果、不计积分；超过则较早离线方判负。',
+    min: DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_SECONDS_MIN,
+    max: DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_SECONDS_MAX,
+    step: 1,
+    getValue: (settings) => settings.battleTimeouts.doubleDisconnectNoContestWindowSeconds,
+    update: (settings, seconds) => ({
+      ...settings,
+      battleTimeouts: { ...settings.battleTimeouts, doubleDisconnectNoContestWindowSeconds: seconds },
+    }),
+  },
+];
+
+const ROOM_LIFECYCLE_TIMEOUT_FIELDS: readonly TimeoutFieldDefinition[] = [
+  {
+    key: 'roomDestroyAfterAllAbsentSeconds',
+    label: '全员离线销房期限',
+    detail: '房间里所有人都离线后，再过这么久房间被回收、未完成的对局封存。',
+    min: ROOM_DESTROY_AFTER_ALL_ABSENT_SECONDS_MIN,
+    max: ROOM_DESTROY_AFTER_ALL_ABSENT_SECONDS_MAX,
+    step: 30,
+    getValue: (settings) => settings.roomLifecycle.roomDestroyAfterAllAbsentSeconds,
+    update: (settings, seconds) => ({
+      ...settings,
+      roomLifecycle: { ...settings.roomLifecycle, roomDestroyAfterAllAbsentSeconds: seconds },
+    }),
+  },
+  {
+    key: 'casualHeartbeatGraceSeconds',
+    label: '休闲房间心跳宽限',
+    detail:
+      '休闲配对准备中，心跳（约每 15 秒一次）中断这么久后席位失效并被回收。下限 45 秒保证至少三次心跳余量。',
+    min: CASUAL_HEARTBEAT_GRACE_SECONDS_MIN,
+    max: CASUAL_HEARTBEAT_GRACE_SECONDS_MAX,
+    step: 15,
+    getValue: (settings) => settings.roomLifecycle.casualHeartbeatGraceSeconds,
+    update: (settings, seconds) => ({
+      ...settings,
+      roomLifecycle: { ...settings.roomLifecycle, casualHeartbeatGraceSeconds: seconds },
+    }),
+  },
+  {
+    key: 'casualConfirmationTtlSeconds',
+    label: '休闲房间配对确认期限',
+    detail: '配对进入双方确认阶段后，需在这么久内完成确认；超时按无过错恢复处理。',
+    min: CASUAL_CONFIRMATION_TTL_SECONDS_MIN,
+    max: CASUAL_CONFIRMATION_TTL_SECONDS_MAX,
+    step: 15,
+    getValue: (settings) => settings.roomLifecycle.casualConfirmationTtlSeconds,
+    update: (settings, seconds) => ({
+      ...settings,
+      roomLifecycle: { ...settings.roomLifecycle, casualConfirmationTtlSeconds: seconds },
+    }),
+  },
+];
+
+const ALL_TIMEOUT_FIELDS: readonly TimeoutFieldDefinition[] = [
+  ...RANKED_TIMEOUT_FIELDS,
+  ...ROOM_LIFECYCLE_TIMEOUT_FIELDS,
+];
+
 function BattleTimeoutControlPanel({
   value,
   savedValue,
@@ -430,53 +550,68 @@ function BattleTimeoutControlPanel({
   onChange,
   onSave,
 }: {
-  value: BattleTimeoutConfig;
-  savedValue: BattleTimeoutConfig;
+  value: AdminBattleTimeoutSettings;
+  savedValue: AdminBattleTimeoutSettings;
   loading: boolean;
   saving: boolean;
   error: string | null;
-  onChange: (value: BattleTimeoutConfig) => void;
+  onChange: (value: AdminBattleTimeoutSettings) => void;
   onSave: () => void;
 }) {
-  const hasChanges =
-    value.playerActionTimeoutSeconds !== savedValue.playerActionTimeoutSeconds ||
-    value.reconnectGracePeriodSeconds !== savedValue.reconnectGracePeriodSeconds;
-  const isValid =
-    Number.isInteger(value.playerActionTimeoutSeconds) &&
-    value.playerActionTimeoutSeconds >= 60 &&
-    value.playerActionTimeoutSeconds <= 900 &&
-    Number.isInteger(value.reconnectGracePeriodSeconds) &&
-    value.reconnectGracePeriodSeconds >= 15 &&
-    value.reconnectGracePeriodSeconds <= 300;
+  const hasChanges = ALL_TIMEOUT_FIELDS.some(
+    (field) => field.getValue(value) !== field.getValue(savedValue)
+  );
+  const isValid = ALL_TIMEOUT_FIELDS.every((field) => {
+    const seconds = field.getValue(value);
+    return Number.isInteger(seconds) && seconds >= field.min && seconds <= field.max;
+  });
 
   return (
     <section className="product-workbench overflow-hidden" aria-labelledby="battle-timeout-title">
-      <header className="flex flex-col gap-3 border-b border-[var(--border-subtle)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <header className="flex flex-col gap-3 border-b border-[var(--border-subtle)] px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--accent-primary)]">
             <Clock3 size={18} />
           </div>
-          <div>
-            <h2
-              id="battle-timeout-title"
-              className="text-base font-bold text-[var(--text-primary)]"
-            >
-              对战时限
-            </h2>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2
+                id="battle-timeout-title"
+                className="text-base font-bold text-[var(--text-primary)]"
+              >
+                对战时限
+              </h2>
+              {hasChanges ? (
+                <span className="rounded-md border border-[color:var(--semantic-warning)]/40 bg-[color:var(--semantic-warning)]/10 px-2 py-0.5 text-xs font-semibold text-[var(--semantic-warning)]">
+                  未保存的修改
+                </span>
+              ) : null}
+            </div>
             <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
-              全局统一设置，不随赛季或活动分别配置；保存后仅影响之后开始的对局。
+              全局统一设置，不随赛季或活动分别配置。排位裁定在开局时冻结，房间回收立即生效。
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={loading || saving || !hasChanges || !isValid}
-          className="button-primary inline-flex h-10 shrink-0 items-center justify-center gap-1.5 px-3 text-sm disabled:cursor-not-allowed disabled:opacity-45"
-        >
-          {saving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-          {saving ? '保存中' : '保存对战时限'}
-        </button>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onChange(DEFAULT_ADMIN_BATTLE_TIMEOUT_SETTINGS)}
+            disabled={loading || saving}
+            className="button-secondary inline-flex h-10 items-center justify-center gap-1.5 px-3 text-sm disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <RefreshCw size={14} />
+            恢复默认
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={loading || saving || !hasChanges || !isValid}
+            className="button-primary inline-flex h-10 items-center justify-center gap-1.5 px-3 text-sm disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            {saving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+            {saving ? '保存中' : '保存对战时限'}
+          </button>
+        </div>
       </header>
 
       {error ? (
@@ -485,32 +620,73 @@ function BattleTimeoutControlPanel({
         </div>
       ) : null}
 
-      <div className="grid divide-y divide-[var(--border-subtle)] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-        <TimeoutNumberField
-          label="玩家操作超时"
-          detail="已启用操作超时裁定的模式中，轮到单一玩家处理时使用。"
-          value={value.playerActionTimeoutSeconds}
-          min={60}
-          max={900}
-          step={30}
-          disabled={loading || saving}
-          onChange={(playerActionTimeoutSeconds) =>
-            onChange({ ...value, playerActionTimeoutSeconds })
-          }
-        />
-        <TimeoutNumberField
-          label="断线重连期限"
-          detail="已启用断线裁定的模式中，玩家离线后可返回原对局的期限。"
-          value={value.reconnectGracePeriodSeconds}
-          min={15}
-          max={300}
-          step={15}
-          disabled={loading || saving}
-          onChange={(reconnectGracePeriodSeconds) =>
-            onChange({ ...value, reconnectGracePeriodSeconds })
-          }
-        />
+      <div className="grid gap-4 p-4 lg:grid-cols-2">
+        <TimeoutGroupCard
+          title="排位裁定"
+          scopeLabel="赛季排位 · 开局冻结"
+          description="仅影响赛季排位对局。开局时锁定当时的值，保存后只影响之后开始的对局。"
+        >
+          {RANKED_TIMEOUT_FIELDS.map((field) => (
+            <TimeoutNumberField
+              key={field.key}
+              label={field.label}
+              detail={field.detail}
+              value={field.getValue(value)}
+              min={field.min}
+              max={field.max}
+              step={field.step}
+              disabled={loading || saving}
+              modified={field.getValue(value) !== field.getValue(savedValue)}
+              onChange={(seconds) => onChange(field.update(value, seconds))}
+            />
+          ))}
+        </TimeoutGroupCard>
+        <TimeoutGroupCard
+          title="房间与配对回收"
+          scopeLabel="休闲房间 · 立即生效"
+          description="影响休闲房间，不含排位／主题候场队列。保存后立即生效，进行中房间在下一个清理周期采用新值。"
+        >
+          {ROOM_LIFECYCLE_TIMEOUT_FIELDS.map((field) => (
+            <TimeoutNumberField
+              key={field.key}
+              label={field.label}
+              detail={field.detail}
+              value={field.getValue(value)}
+              min={field.min}
+              max={field.max}
+              step={field.step}
+              disabled={loading || saving}
+              modified={field.getValue(value) !== field.getValue(savedValue)}
+              onChange={(seconds) => onChange(field.update(value, seconds))}
+            />
+          ))}
+        </TimeoutGroupCard>
       </div>
+    </section>
+  );
+}
+
+function TimeoutGroupCard({
+  title,
+  scopeLabel,
+  description,
+  children,
+}: {
+  title: string;
+  scopeLabel: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="grid content-start gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
+      <header className="flex flex-wrap items-center gap-2">
+        <h3 className="text-sm font-bold text-[var(--text-primary)]">{title}</h3>
+        <span className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 py-0.5 text-[11px] font-semibold text-[var(--text-secondary)]">
+          {scopeLabel}
+        </span>
+      </header>
+      <p className="text-xs leading-5 text-[var(--text-secondary)]">{description}</p>
+      <div className="grid divide-y divide-[var(--border-subtle)]">{children}</div>
     </section>
   );
 }
@@ -523,6 +699,7 @@ function TimeoutNumberField({
   max,
   step,
   disabled,
+  modified,
   onChange,
 }: {
   label: string;
@@ -532,11 +709,19 @@ function TimeoutNumberField({
   max: number;
   step: number;
   disabled: boolean;
+  modified: boolean;
   onChange: (value: number) => void;
 }) {
   return (
-    <label className="grid gap-2 px-4 py-4 sm:px-5">
-      <span className="text-sm font-semibold text-[var(--text-primary)]">{label}</span>
+    <label className="grid gap-1.5 py-3">
+      <span className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold text-[var(--text-primary)]">{label}</span>
+        {modified ? (
+          <span className="rounded-md border border-[color:var(--accent-primary)]/40 bg-[color:var(--accent-primary)]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[var(--accent-primary)]">
+            已修改
+          </span>
+        ) : null}
+      </span>
       <span className="text-xs leading-5 text-[var(--text-muted)]">{detail}</span>
       <span className="mt-1 flex max-w-56 items-center gap-2">
         <input
@@ -553,7 +738,7 @@ function TimeoutNumberField({
         <span className="text-xs font-semibold text-[var(--text-secondary)]">秒</span>
       </span>
       <span className="text-[11px] text-[var(--text-muted)]">
-        可设置 {min}–{max} 秒
+        当前 {formatBattleTimeoutSeconds(value)}；可设置 {min}–{max} 秒
       </span>
     </label>
   );

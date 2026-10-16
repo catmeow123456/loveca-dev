@@ -3,6 +3,7 @@
  * 登录后的主界面，突出开始入口、卡组准备状态和联机入口。
  */
 
+import type { CasualTableCurrentView } from '@game/online/casual-table-types';
 import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
 import {
   ArrowRight,
@@ -14,9 +15,7 @@ import {
   Cloud,
   Database,
   DoorOpen,
-  Eye,
   Gamepad2,
-  Globe2,
   History,
   Medal,
   RefreshCw,
@@ -36,6 +35,7 @@ import {
   formatRelativeTime,
   type ProductNavigationHandlers,
 } from '@/components/common';
+import { useCasualTableStore } from '@/store/casualTableStore';
 import { useAuthStore } from '@/store/authStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
@@ -54,8 +54,6 @@ import './home-page.css';
 import { hasAnyManagementPermission, hasPermission } from '@game/shared/auth/permissions';
 import { GameMode } from '@game/shared/types/enums';
 
-const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
-
 const LIFECYCLE_LABELS: Record<SiteStatusLifecycle, string> = {
   NORMAL: '正常',
   RESTRICTING_NEW_GAMES: '限制新开局',
@@ -69,12 +67,12 @@ interface HomePageProps {
   onNavigateToDeckManager: () => void;
   onNavigateToGameSetup: () => void;
   onNavigateToLocalSetup: (mode: GameMode.SOLITAIRE | GameMode.DEBUG) => void;
-  onNavigateToPublicTable: () => void;
-  onAbandonSavedRoomForLocalGame: () => Promise<void>;
-  onNavigateToOnlineRoom: () => void;
+  onNavigateToLobby: () => void;
+  onAbandonSavedRoomForLocalGame: (
+    expected: CasualTableCurrentView | null | undefined
+  ) => Promise<void>;
   onNavigateToRanked: () => void;
   onNavigateToThemeTable: () => void;
-  onNavigateToOnlineSpectator: () => void;
   onNavigateToMatchRecords: () => void;
   onNavigateToOnlineDebug: () => void;
   onNavigateToAdminCenter: () => void;
@@ -117,12 +115,10 @@ export function HomePage({
   onNavigateToDeckManager,
   onNavigateToGameSetup,
   onNavigateToLocalSetup,
-  onNavigateToPublicTable,
+  onNavigateToLobby,
   onAbandonSavedRoomForLocalGame,
-  onNavigateToOnlineRoom,
   onNavigateToRanked,
   onNavigateToThemeTable,
-  onNavigateToOnlineSpectator,
   onNavigateToMatchRecords,
   onNavigateToOnlineDebug,
   onNavigateToAdminCenter,
@@ -141,7 +137,13 @@ export function HomePage({
   const refreshCloudDecks = useDeckStore((s) => s.refreshCloudDecks);
   const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
   const pointTable = useDeckPointTableRules();
-  const [savedRoomCode] = useState(() => window.sessionStorage.getItem(ONLINE_ROOM_STORAGE_KEY));
+  const currentTask = useCasualTableStore((state) => state.status);
+  const currentCasual = currentTask?.table;
+  const savedRoomCode = currentCasual?.state === 'BOUND' ? currentCasual.roomCode : null;
+  const hasOtherRoom =
+    currentTask?.otherParticipation?.kind === 'ONLINE_ROOM' ||
+    currentTask?.otherParticipation?.kind === 'ONLINE_MATCH';
+  const endedCasualRoom = currentCasual?.runtime?.status === 'ENDED';
   const [isAbandoningSavedRoom, setIsAbandoningSavedRoom] = useState(false);
   const [savedRoomActionError, setSavedRoomActionError] = useState<string | null>(null);
 
@@ -154,7 +156,7 @@ export function HomePage({
       : 'unconfigured';
   const canUseCloudDecks = deckSourceStatus === 'online';
   const canUseOnlineRoom = canUseCloudDecks;
-  const canReturnSavedRoom = Boolean(savedRoomCode && canUseOnlineRoom);
+  const canReturnSavedRoom = Boolean((savedRoomCode || hasOtherRoom) && canUseOnlineRoom);
   useEffect(() => {
     if (!canUseCloudDecks) {
       return;
@@ -206,7 +208,7 @@ export function HomePage({
     setIsAbandoningSavedRoom(true);
     setSavedRoomActionError(null);
     try {
-      await onAbandonSavedRoomForLocalGame();
+      await onAbandonSavedRoomForLocalGame(currentTask);
     } catch (error) {
       setSavedRoomActionError(error instanceof Error ? error.message : '放弃联机对局失败');
     } finally {
@@ -217,11 +219,13 @@ export function HomePage({
   const primaryAction: PrimaryActionConfig = canReturnSavedRoom
     ? {
         state: 'saved-room' as PrimaryActionState,
-        title: '返回房间',
-        description: `已保存房间 ${savedRoomCode}，进入后会恢复房间状态与对局同步。`,
+        title: endedCasualRoom ? '返回赛后房间' : '返回当前房间',
+        description: savedRoomCode
+          ? `房间 ${savedRoomCode} ${endedCasualRoom ? '已结束，可以协商再战或继续找人。' : '仍为你保留席位。'}`
+          : '你已有对局房间，可从大厅返回。',
         cta: '返回房间',
         icon: DoorOpen,
-        onClick: onNavigateToOnlineRoom,
+        onClick: onNavigateToLobby,
         supportAction: {
           label: isAbandoningSavedRoom ? '正在放弃联机对局...' : '另开本地对局',
           disabled: isAbandoningSavedRoom,
@@ -229,7 +233,11 @@ export function HomePage({
             void handleAbandonSavedRoomForLocalGame();
           },
         },
-        notice: savedRoomActionError ?? '另开本地对局会放弃当前联机对局，且不保留原房间恢复入口。',
+        notice:
+          savedRoomActionError ??
+          (endedCasualRoom
+            ? '另开本地对局会离开当前赛后房间。'
+            : '另开本地对局会放弃当前联机对局，且不保留原房间恢复入口。'),
       }
     : deckSourceStatus === 'unconfigured'
       ? {
@@ -311,10 +319,10 @@ export function HomePage({
       tone: 'blue',
     },
     {
-      id: 'public-table',
-      title: '公共牌桌',
+      id: 'battle-lobby',
+      title: '对战大厅',
       icon: Swords,
-      onClick: onNavigateToPublicTable,
+      onClick: onNavigateToLobby,
       disabled: !canUseOnlineRoom,
       disabledReason: canUseOnlineRoom ? undefined : '连接后可用',
       tone: canUseOnlineRoom ? 'blue' : 'muted',
@@ -351,15 +359,6 @@ export function HomePage({
 
   secondaryActions.push(
     {
-      id: 'online-room',
-      title: '房间联机',
-      icon: Globe2,
-      onClick: onNavigateToOnlineRoom,
-      disabled: !canUseOnlineRoom,
-      disabledReason: canUseOnlineRoom ? undefined : '连接后可用',
-      tone: canUseOnlineRoom ? 'blue' : 'muted',
-    },
-    {
       id: 'solitaire',
       title: '对墙打',
       icon: Target,
@@ -376,15 +375,6 @@ export function HomePage({
       disabled: canReturnSavedRoom,
       disabledReason: canReturnSavedRoom ? '请先放弃当前联机对局' : undefined,
       tone: 'muted',
-    },
-    {
-      id: 'spectator',
-      title: '房间观战',
-      icon: Eye,
-      onClick: onNavigateToOnlineSpectator,
-      disabled: !canUseOnlineRoom,
-      disabledReason: canUseOnlineRoom ? undefined : '连接后可用',
-      tone: canUseOnlineRoom ? 'green' : 'muted',
     },
     {
       id: 'match-records',
@@ -445,7 +435,7 @@ export function HomePage({
               onClick={primaryAction.onClick}
               supportAction={primaryAction.supportAction}
               state={primaryAction.state}
-              notice={primaryAction.notice}
+              notice={savedRoomActionError ?? primaryAction.notice}
             />
           </section>
 

@@ -42,6 +42,8 @@ vi.mock('../../src/server/services/battle-timeout-config-service.js', () => ({
   },
   battleTimeoutConfigService: {
     getConfig: vi.fn(),
+    getRoomLifecycleTimeoutConfig: vi.fn(),
+    getSettings: vi.fn(),
     updateConfig: vi.fn(),
   },
 }));
@@ -120,6 +122,11 @@ async function invokeRoute(path: string, method: RouteMethod, options: Partial<R
         }
       } catch (error) {
         reject(error);
+      }
+
+      // 校验失败等同步响应但不调用 next() 的中间件也要结束等待。
+      if (response.body !== null) {
+        resolve();
       }
     });
   }
@@ -301,37 +308,106 @@ describe('siteAnnouncementsRouter', () => {
   });
 
   it('reads and updates the global battle timeout config', async () => {
-    vi.mocked(battleTimeoutConfigService.getConfig).mockResolvedValue({
-      playerActionTimeoutSeconds: 180,
-      reconnectGracePeriodSeconds: 60,
+    vi.mocked(battleTimeoutConfigService.getSettings).mockResolvedValue({
+      battleTimeouts: {
+        playerActionTimeoutSeconds: 180,
+        reconnectGracePeriodSeconds: 60,
+        doubleDisconnectNoContestWindowSeconds: 5,
+      },
+      roomLifecycle: {
+        roomDestroyAfterAllAbsentSeconds: 60,
+        casualHeartbeatGraceSeconds: 45,
+        casualConfirmationTtlSeconds: 60,
+      },
     });
     vi.mocked(battleTimeoutConfigService.updateConfig).mockResolvedValue({
-      playerActionTimeoutSeconds: 240,
-      reconnectGracePeriodSeconds: 90,
+      battleTimeouts: {
+        playerActionTimeoutSeconds: 240,
+        reconnectGracePeriodSeconds: 90,
+        doubleDisconnectNoContestWindowSeconds: 10,
+      },
+      roomLifecycle: {
+        roomDestroyAfterAllAbsentSeconds: 120,
+        casualHeartbeatGraceSeconds: 90,
+        casualConfirmationTtlSeconds: 45,
+      },
     });
 
     const readResponse = await invokeRoute('/admin/battle-timeouts', 'get');
     const updateResponse = await invokeRoute('/admin/battle-timeouts', 'put', {
       body: {
-        playerActionTimeoutSeconds: 240,
-        reconnectGracePeriodSeconds: 90,
+        battleTimeouts: {
+          playerActionTimeoutSeconds: 240,
+          reconnectGracePeriodSeconds: 90,
+          doubleDisconnectNoContestWindowSeconds: 10,
+        },
+        roomLifecycle: {
+          roomDestroyAfterAllAbsentSeconds: 120,
+          casualHeartbeatGraceSeconds: 90,
+          casualConfirmationTtlSeconds: 45,
+        },
       },
     });
 
     expect(readResponse.body?.data).toEqual({
-      playerActionTimeoutSeconds: 180,
-      reconnectGracePeriodSeconds: 60,
+      battleTimeouts: {
+        playerActionTimeoutSeconds: 180,
+        reconnectGracePeriodSeconds: 60,
+        doubleDisconnectNoContestWindowSeconds: 5,
+      },
+      roomLifecycle: {
+        roomDestroyAfterAllAbsentSeconds: 60,
+        casualHeartbeatGraceSeconds: 45,
+        casualConfirmationTtlSeconds: 60,
+      },
     });
     expect(battleTimeoutConfigService.updateConfig).toHaveBeenCalledWith(
       {
-        playerActionTimeoutSeconds: 240,
-        reconnectGracePeriodSeconds: 90,
+        battleTimeouts: {
+          playerActionTimeoutSeconds: 240,
+          reconnectGracePeriodSeconds: 90,
+          doubleDisconnectNoContestWindowSeconds: 10,
+        },
+        roomLifecycle: {
+          roomDestroyAfterAllAbsentSeconds: 120,
+          casualHeartbeatGraceSeconds: 90,
+          casualConfirmationTtlSeconds: 45,
+        },
       },
       '22222222-2222-4222-8222-222222222222'
     );
     expect(updateResponse.body?.data).toEqual({
-      playerActionTimeoutSeconds: 240,
-      reconnectGracePeriodSeconds: 90,
+      battleTimeouts: {
+        playerActionTimeoutSeconds: 240,
+        reconnectGracePeriodSeconds: 90,
+        doubleDisconnectNoContestWindowSeconds: 10,
+      },
+      roomLifecycle: {
+        roomDestroyAfterAllAbsentSeconds: 120,
+        casualHeartbeatGraceSeconds: 90,
+        casualConfirmationTtlSeconds: 45,
+      },
     });
+  });
+
+  it('rejects an out-of-range double disconnect window with 400', async () => {
+    const response = await invokeRoute('/admin/battle-timeouts', 'put', {
+      body: {
+        battleTimeouts: {
+          playerActionTimeoutSeconds: 240,
+          reconnectGracePeriodSeconds: 90,
+          doubleDisconnectNoContestWindowSeconds: 1,
+        },
+        roomLifecycle: {
+          roomDestroyAfterAllAbsentSeconds: 120,
+          casualHeartbeatGraceSeconds: 90,
+          casualConfirmationTtlSeconds: 45,
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body?.error?.code).toBe('VALIDATION_ERROR');
+    expect(battleTimeoutConfigService.updateConfig).not.toHaveBeenCalled();
   });
 });

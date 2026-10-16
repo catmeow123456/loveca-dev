@@ -1,0 +1,2097 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>对战大厅 · Loveca 交互原型</title>
+    <style>
+      /* Standalone design attachment. Tokens follow product-visual-system.md. */
+      :root {
+        color-scheme: dark;
+        --canvas: #1d1321;
+        --surface: #281629;
+        --subtle: #301a30;
+        --strong: #35192f;
+        --text: #fffdf9;
+        --secondary: #c9bec8;
+        --muted: #b0a1b0;
+        --border: rgb(255 253 249 / 18%);
+        --control-border: #8b788d;
+        --hairline: rgb(255 253 249 / 10%);
+        --coral: #e95678;
+        --coral-hover: #f06b89;
+        --ink: #1d1321;
+        --ready: #6fcbd0;
+        --ready-bg: #203439;
+        --focus: #f298b0;
+        --font: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        --mono: ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
+      }
+      [data-theme='light'] {
+        color-scheme: light;
+        --canvas: #f8f3ed;
+        --surface: #fffdf9;
+        --subtle: #f1e9e5;
+        --strong: #e9deda;
+        --text: #1d1321;
+        --secondary: #655865;
+        --muted: #716471;
+        --border: rgb(29 19 33 / 22%);
+        --control-border: #897887;
+        --hairline: rgb(29 19 33 / 12%);
+        --coral-hover: #ef6c89;
+        --ready: #246169;
+        --ready-bg: #e0f0ef;
+        --focus: #a62c50;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--text);
+        font: 400 0.9375rem/1.65 var(--font);
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+        color: inherit;
+      }
+      input,
+      select,
+      textarea {
+        font-weight: 400;
+      }
+      body:has(dialog[open]) {
+        overflow: hidden;
+      }
+      button,
+      input,
+      select,
+      textarea,
+      a {
+        -webkit-tap-highlight-color: transparent;
+      }
+      button,
+      select,
+      summary {
+        cursor: pointer;
+      }
+      button {
+        min-height: 44px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 9px 16px;
+        background: var(--surface);
+        font-weight: 600;
+        line-height: 1.45;
+      }
+      button:hover {
+        background: var(--subtle);
+        border-color: var(--secondary);
+      }
+      button:disabled {
+        cursor: default;
+        opacity: 0.6;
+      }
+      button.primary {
+        background: var(--coral);
+        color: var(--ink);
+        border-color: transparent;
+      }
+      button.primary:hover {
+        background: var(--coral-hover);
+      }
+      button.quiet {
+        background: transparent;
+        border-color: transparent;
+      }
+      button.quiet:hover {
+        background: var(--subtle);
+      }
+      a {
+        color: inherit;
+        text-underline-offset: 4px;
+      }
+      :focus-visible {
+        outline: 3px solid var(--focus);
+        outline-offset: 3px;
+      }
+      [tabindex='-1']:focus {
+        outline: none;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font-size: 2rem;
+        line-height: 1.3;
+        font-weight: 600;
+      }
+      h2 {
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+      h3 {
+        font-size: 1.0625rem;
+        font-weight: 600;
+      }
+      small,
+      .small {
+        font-size: 0.8125rem;
+      }
+      .muted {
+        color: var(--secondary);
+      }
+      .mono {
+        font-family: var(--mono);
+        font-variant-numeric: tabular-nums;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border: 0;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .wrap {
+        max-width: 1168px;
+        margin: auto;
+        padding-inline: 24px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .between {
+        justify-content: space-between;
+      }
+      .stack {
+        display: grid;
+        gap: 16px;
+      }
+      .review {
+        border-bottom: 1px dashed var(--border);
+        background: var(--subtle);
+      }
+      .review summary {
+        min-height: 44px;
+        padding-block: 10px;
+        color: var(--secondary);
+        font-size: 0.8125rem;
+      }
+      .review summary span {
+        margin-left: 12px;
+      }
+      .review-body {
+        padding: 8px 0 20px;
+        display: grid;
+        gap: 12px;
+      }
+      .review-body label {
+        display: grid;
+        gap: 4px;
+        flex: 1 1 210px;
+      }
+      .review-body button {
+        align-self: end;
+      }
+      .review-links a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+      }
+      .topbar {
+        border-bottom: 1px solid var(--hairline);
+      }
+      .topbar .wrap {
+        min-height: 72px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 1.1875rem;
+        font-weight: 600;
+      }
+      .brand-mark {
+        width: 32px;
+        height: 32px;
+        border: 2px solid var(--coral);
+        border-radius: 6px;
+        display: grid;
+        place-items: center;
+        color: var(--coral);
+        font-size: 1rem;
+        transform: rotate(-8deg);
+      }
+      .account {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--secondary);
+      }
+      .account-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--ready);
+      }
+      main {
+        padding-block: 20px 48px;
+      }
+      .page-heading {
+        min-height: 72px;
+        margin-bottom: 16px;
+      }
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+      }
+      .current {
+        padding: 20px 24px;
+        border-top: 3px solid var(--coral);
+        margin-bottom: 32px;
+      }
+      .section-label {
+        font-size: 0.8125rem;
+        color: var(--secondary);
+        margin-bottom: 12px;
+      }
+      .current-body {
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .current-copy {
+        flex: 1 1 320px;
+        min-width: 0;
+      }
+      .current-copy p {
+        color: var(--secondary);
+        margin-top: 4px;
+      }
+      .current-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+      .deck-thumb {
+        width: 34px;
+        height: 46px;
+        background: var(--strong);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        display: grid;
+        place-items: center;
+        font-weight: 600;
+        color: var(--secondary);
+        flex-shrink: 0;
+      }
+      .deck-line {
+        margin-top: 12px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .badge {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 2px 9px;
+        font-size: 0.75rem;
+        white-space: nowrap;
+      }
+      .badge.ready {
+        color: var(--ready);
+        border-color: transparent;
+        background: var(--ready-bg);
+      }
+      .badge.ready::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .paired-players {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-top: 12px;
+      }
+      .paired-players > span {
+        padding: 8px 12px;
+        border: 1px solid var(--hairline);
+        border-radius: 8px;
+      }
+      .paired-players small {
+        display: block;
+        color: var(--secondary);
+      }
+      .deadline {
+        font-family: var(--mono);
+        font-size: 1.625rem;
+        line-height: 1.25;
+      }
+      .list-heading {
+        margin-bottom: 16px;
+      }
+      .counts {
+        color: var(--secondary);
+        font-size: 0.8125rem;
+      }
+      .toolbar {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--hairline);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .filter-group {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+      .filter-group button {
+        padding-inline: 12px;
+        background: transparent;
+        border-color: transparent;
+        color: var(--secondary);
+      }
+      .filter-group button[aria-pressed='true'] {
+        color: var(--text);
+        border-color: var(--border);
+        background: var(--strong);
+      }
+      .check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        cursor: pointer;
+      }
+      input[type='checkbox'],
+      input[type='radio'] {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--coral);
+        flex-shrink: 0;
+      }
+      input:not([type='checkbox']):not([type='radio']),
+      select,
+      textarea {
+        width: 100%;
+        min-height: 44px;
+        border: 1px solid var(--control-border);
+        border-radius: 8px;
+        background: var(--canvas);
+        padding: 9px 12px;
+      }
+      input::placeholder,
+      textarea::placeholder {
+        color: var(--muted);
+        opacity: 1;
+      }
+      .search {
+        flex: 1 1 200px;
+        max-width: 240px;
+      }
+      .table-head,
+      .room-row {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) 130px 85px 160px 104px;
+        gap: 16px;
+        align-items: center;
+        padding: 12px 20px;
+      }
+      .table-head {
+        font-size: 0.75rem;
+        color: var(--secondary);
+        background: var(--subtle);
+        border-bottom: 1px solid var(--hairline);
+      }
+      .room-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .room-row {
+        min-height: 98px;
+        border-bottom: 1px solid var(--hairline);
+      }
+      .room-row:last-child {
+        border-bottom: 0;
+      }
+      .room-row:hover {
+        background: var(--subtle);
+      }
+      .room-row > * {
+        min-width: 0;
+      }
+      .room-identity {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .avatar {
+        width: 36px;
+        height: 36px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--strong);
+        color: var(--secondary);
+        border: 1px solid var(--border);
+        font-size: 0.8125rem;
+        flex-shrink: 0;
+      }
+      .names {
+        font-weight: 600;
+        overflow-wrap: anywhere;
+      }
+      .versus {
+        color: var(--secondary);
+        font-size: 0.75rem;
+        margin-inline: 6px;
+        font-weight: 400;
+      }
+      .room-note,
+      .room-code {
+        color: var(--secondary);
+        font-size: 0.75rem;
+        overflow-wrap: anywhere;
+      }
+      .room-note {
+        margin-top: 4px;
+      }
+      .status-cell .small {
+        display: block;
+        margin-top: 4px;
+        color: var(--secondary);
+      }
+      .room-meta {
+        color: var(--secondary);
+        font-size: 0.8125rem;
+      }
+      .room-meta span {
+        display: block;
+      }
+      .spectator-cell {
+        font-size: 0.8125rem;
+      }
+      .spectator-cell small {
+        color: var(--secondary);
+        display: block;
+      }
+      .room-action {
+        text-align: right;
+        font-size: 0.75rem;
+        color: var(--secondary);
+      }
+      .room-action button {
+        width: 100%;
+        padding-inline: 10px;
+      }
+      .list-footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 12px 20px;
+        border-top: 1px solid var(--hairline);
+        color: var(--secondary);
+        font-size: 0.75rem;
+      }
+      .empty {
+        padding: 48px 24px;
+        text-align: center;
+      }
+      .empty p {
+        margin: 8px 0 16px;
+        color: var(--secondary);
+      }
+      .notice {
+        padding: 12px 16px;
+        background: var(--subtle);
+        border-left: 3px solid var(--coral);
+        margin: 12px 0;
+        border-radius: 0 8px 8px 0;
+      }
+      #listNotice {
+        margin: 0;
+        border-bottom: 1px solid var(--border);
+        border-radius: 0;
+      }
+      #pendingNotice {
+        margin-bottom: 12px;
+      }
+      footer.page-footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 24px;
+        color: var(--secondary);
+        font-size: 0.75rem;
+      }
+      dialog {
+        color: var(--text);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 0;
+        width: 560px;
+        max-width: calc(100% - 32px);
+        max-height: calc(100dvh - 32px);
+        overflow-y: auto;
+        box-shadow: 0 24px 80px rgb(0 0 0 / 30%);
+      }
+      dialog::backdrop {
+        background: rgb(14 8 17 / 72%);
+      }
+      .modal-header {
+        padding: 20px 24px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .modal-header button {
+        width: 44px;
+        padding: 8px;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+      }
+      .modal-body {
+        padding: 16px 24px 24px;
+      }
+      .modal-body > p {
+        color: var(--secondary);
+        margin-bottom: 16px;
+      }
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 24px;
+      }
+      fieldset {
+        margin: 0;
+        padding: 0;
+        border: 0;
+        min-width: 0;
+      }
+      legend,
+      .field-label {
+        font-weight: 600;
+        margin-bottom: 8px;
+        display: block;
+      }
+      .field-label small {
+        color: var(--secondary);
+        font-weight: 400;
+      }
+      .choices {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .choice {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        cursor: pointer;
+        min-width: 0;
+      }
+      .choice:has(input:checked) {
+        border-color: var(--coral);
+        background: var(--subtle);
+      }
+      .choice input {
+        margin: 3px 0 0;
+      }
+      .choice strong {
+        font-weight: 600;
+        display: block;
+      }
+      .choice small {
+        display: block;
+        color: var(--secondary);
+        margin-top: 4px;
+      }
+      .field-help {
+        color: var(--secondary);
+        font-size: 0.8125rem;
+        margin-top: 8px;
+      }
+      .deck-choices {
+        display: grid;
+        gap: 8px;
+      }
+      .deck-choices .choice {
+        align-items: center;
+      }
+      .deck-choices .choice input {
+        margin-top: 0;
+      }
+      .deck-choices .choice span:last-child {
+        flex: 1;
+      }
+      #dialogError {
+        margin-bottom: 16px;
+      }
+      .share-box {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .share-box input {
+        flex: 1 1 220px;
+        min-width: 0;
+      }
+      .preview {
+        padding: 16px;
+        background: var(--subtle);
+        border-radius: 8px;
+        margin-top: 16px;
+      }
+      .preview p {
+        color: var(--secondary);
+        margin-top: 4px;
+      }
+      .preview button {
+        margin-top: 12px;
+      }
+      @media (max-width: 1000px) {
+        .table-head,
+        .room-row {
+          grid-template-columns: minmax(180px, 1fr) 110px 70px 130px 96px;
+          gap: 12px;
+          padding-inline: 16px;
+        }
+        .toolbar {
+          padding-inline: 16px;
+        }
+      }
+      @media (max-width: 768px) {
+        .wrap {
+          padding-inline: 16px;
+        }
+        .topbar .wrap {
+          min-height: 64px;
+        }
+        .topbar .home-label {
+          padding-inline: 8px;
+        }
+        .topbar .wrap > .row {
+          gap: 4px;
+        }
+        .topbar .home-prefix {
+          display: none;
+        }
+        .brand {
+          gap: 8px;
+          font-size: 1.0625rem;
+        }
+        .account {
+          font-size: 0.8125rem;
+        }
+        h1 {
+          font-size: 1.625rem;
+        }
+        .page-heading {
+          gap: 12px;
+          margin-bottom: 16px;
+        }
+        .page-heading > .row {
+          gap: 8px;
+        }
+        .page-heading button {
+          padding-inline: 12px;
+        }
+        .current {
+          padding: 16px;
+          margin-bottom: 24px;
+        }
+        .current-body {
+          gap: 16px;
+        }
+        .current-copy {
+          flex-basis: 100%;
+        }
+        .current-actions {
+          width: 100%;
+        }
+        .current-actions .primary {
+          flex: 1;
+        }
+        .table-head {
+          display: none;
+        }
+        .room-row {
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 8px 12px;
+          padding: 16px;
+        }
+        .room-identity {
+          grid-column: 1;
+          grid-row: 1;
+        }
+        .status-cell {
+          grid-column: 2;
+          grid-row: 1;
+          justify-self: end;
+        }
+        .room-meta {
+          grid-column: 1;
+          grid-row: 2;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .spectator-cell {
+          grid-column: 1;
+          grid-row: 3;
+        }
+        .spectator-cell.empty-time {
+          display: none;
+        }
+        .spectator-cell small {
+          display: inline;
+          margin-left: 8px;
+        }
+        .room-action {
+          grid-column: 2;
+          grid-row: 2 / 4;
+          align-self: end;
+          max-width: 104px;
+        }
+        .room-action button {
+          width: auto;
+          min-width: 88px;
+        }
+        .toolbar {
+          align-items: stretch;
+          gap: 8px;
+        }
+        .toolbar > .row {
+          width: 100%;
+          justify-content: space-between;
+          gap: 0;
+        }
+        .filter-group button {
+          padding-inline: 10px;
+        }
+        .search {
+          max-width: none;
+          flex-basis: 100%;
+        }
+        .list-heading {
+          align-items: flex-start;
+          gap: 4px;
+        }
+        .list-heading h2 {
+          font-size: 1.125rem;
+        }
+        .counts {
+          width: 100%;
+        }
+        dialog {
+          max-width: calc(100% - 16px);
+          max-height: calc(100dvh - 16px);
+          margin: auto auto 8px;
+          width: 560px;
+        }
+        .modal-header {
+          padding: 16px 16px 0;
+        }
+        .modal-body {
+          padding: 16px;
+        }
+        .modal-actions > button {
+          flex: 1;
+        }
+        .choices {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 360px) {
+        .wrap {
+          padding-inline: 12px;
+        }
+        .account-dot {
+          display: none;
+        }
+        .topbar .row {
+          gap: 4px;
+        }
+        .topbar button {
+          padding-inline: 8px;
+        }
+        .filter-group button {
+          padding-inline: 8px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        button {
+          transition:
+            background-color 120ms ease,
+            border-color 120ms ease;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="sr-only" href="#main" id="skip">跳到大厅内容</a>
+    <style>
+      #skip:focus {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        width: auto;
+        height: auto;
+        clip-path: none;
+        margin: 0;
+        padding: 12px;
+        background: var(--surface);
+        z-index: 10;
+      }
+    </style>
+    <aside class="review" aria-label="原型评审工具">
+      <details class="wrap" id="reviewTools">
+        <summary>交互原型 · 本地示例数据 <span>展开评审工具</span></summary>
+        <div class="review-body">
+          <p class="small muted">
+            所有房间、卡组和操作均为内存演示；刷新重置。此工具条不属于产品界面。
+          </p>
+          <div class="row">
+            <label class="small"
+              >预设场景
+              <select id="scenario">
+                <option value="mixed">大厅 · 混合状态</option>
+                <option value="empty">没有公开房间</option>
+                <option value="loadError">首次加载失败</option>
+                <option value="stale">刷新失败 · 保留旧数据</option>
+                <option value="noDecks">没有合法卡组</option>
+                <option value="waiting">本人公开等人</option>
+                <option value="paired">配对待确认</option>
+                <option value="ended">休闲赛后</option>
+                <option value="ranked">已有排位占用</option>
+                <option value="lost">运行态无法恢复</option>
+              </select>
+            </label>
+            <label class="small"
+              >模拟事件
+              <select id="event">
+                <option value="pair">对手加入我的空房</option>
+                <option value="otherConfirm">对手确认开局</option>
+                <option value="timeout">确认期限到达</option>
+                <option value="opponentCancel">对手取消配对</option>
+                <option value="race">下一次加入被抢先占座</option>
+                <option value="revoke">撤销海月的观战授权</option>
+                <option value="newRoom">出现一个新公开房间</option>
+                <option value="refreshFail">后台刷新失败</option>
+                <option value="end">本局结束</option>
+                <option value="leave">赛后对手离开</option>
+                <option value="rematch">对手请求／同意再战</option>
+                <option value="bootstrapFail">下一次开局引导失败</option>
+              </select>
+            </label>
+            <button type="button" id="runEvent">执行事件</button>
+            <button type="button" id="reset">重置原型</button>
+          </div>
+          <p id="reviewResult" role="status" class="small muted">
+            可先加入「凉音」的房间，再模拟对手确认。
+          </p>
+          <div class="row review-links small">
+            <a href="../../online-mode/community-lobby-design.md">业务与 UI 设计</a
+            ><a href="../../online-mode/community-lobby-research.md">调研与依据</a>
+          </div>
+        </div>
+      </details>
+    </aside>
+    <header class="topbar">
+      <div class="wrap row between">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">L</span><span>Loveca Battle</span>
+        </div>
+        <div class="row">
+          <button class="quiet home-label" data-action="home" aria-label="返回首页">
+            <span class="home-prefix">返回</span>首页
+          </button>
+          <button class="quiet" id="theme" aria-label="切换到浅色主题">浅色</button>
+          <span class="account"><span class="account-dot" aria-hidden="true"></span>小凛</span>
+        </div>
+      </div>
+    </header>
+    <main class="wrap" id="main" tabindex="-1">
+      <div class="page-heading row between">
+        <h1>对战大厅</h1>
+        <div class="row">
+          <button data-action="create">创建房间</button
+          ><button data-action="code">输入房间号</button>
+        </div>
+      </div>
+      <section id="current" class="panel current" aria-labelledby="currentLabel"></section>
+      <section aria-labelledby="roomsTitle">
+        <div class="list-heading row between">
+          <h2 id="roomsTitle">公开房间</h2>
+          <p id="counts" class="counts"></p>
+        </div>
+        <div id="pendingNotice" class="notice row between" hidden>
+          <span>有新房间</span><button data-action="applyNew">更新列表</button>
+        </div>
+        <div class="panel">
+          <div class="toolbar">
+            <div class="row">
+              <div class="filter-group" role="group" aria-label="房间状态筛选">
+                <button data-filter="all" aria-pressed="true">全部</button
+                ><button data-filter="waiting" aria-pressed="false">等待加入</button
+                ><button data-filter="live" aria-pressed="false">对战中</button>
+              </div>
+            </div>
+            <label class="check small"><input type="checkbox" id="spectatable" />仅看可观战</label>
+            <label class="search"
+              ><span class="sr-only">搜索昵称或公开房间号</span
+              ><input type="search" id="search" placeholder="搜索昵称或房间号" autocomplete="off"
+            /></label>
+          </div>
+          <div id="listNotice" class="notice" hidden></div>
+          <div class="table-head" aria-hidden="true">
+            <span>玩家 / 房间</span><span>状态</span><span>人数 / 模式</span><span>时间 / 观战</span
+            ><span style="text-align: right">操作</span>
+          </div>
+          <ul id="rooms" class="room-list" aria-label="公开房间列表"></ul>
+          <div id="empty" class="empty" hidden></div>
+          <div class="list-footer">
+            <span id="updated"></span><button class="quiet" data-action="refresh">刷新列表</button>
+          </div>
+        </div>
+      </section>
+      <footer class="page-footer">
+        <span>公开房间对登录成员可见</span><span>排位与娱乐活动沿用各自的参与入口</span>
+      </footer>
+    </main>
+    <div id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+    <dialog id="modal" aria-labelledby="modalTitle">
+      <div class="modal-header">
+        <h2 id="modalTitle" tabindex="-1"></h2>
+        <button class="quiet" data-action="close" aria-label="关闭弹层">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="dialogError" class="notice" role="alert" hidden></div>
+        <div id="modalContent"></div>
+      </div>
+    </dialog>
+    <script>
+      'use strict';
+      // No fetch, account storage, API clients or external assets: this is an isolated mock.
+      const $ = (s) => document.querySelector(s);
+      const esc = (v) =>
+        String(v ?? '').replace(
+          /[&<>"']/g,
+          (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+        );
+      const button = (action, label, primary = false, extra = '') =>
+        `<button type="button" data-action="${action}" ${primary ? 'class="primary"' : ''} ${extra}>${label}</button>`;
+      const decks = [
+        { id: 'liella', name: 'Liella! 练习组', mark: 'L' },
+        { id: 'muse', name: 'μ’s 常用组', mark: 'μ' },
+        { id: 'aqours', name: 'Aqours 休闲组', mark: 'A' },
+      ];
+      const modal = $('#modal');
+      let rooms,
+        own,
+        preferredDeck = 'liella',
+        hasDecks = true,
+        filter = 'all',
+        readState = 'ready',
+        lastRead;
+      let pending = [],
+        context = null,
+        returnFocus = null,
+        raceNext = false,
+        failBootstrap = false,
+        serial = 0,
+        epoch = 0;
+      let bootstrapTimer, announcementTimer;
+      const seed = () => {
+        const t = Date.now();
+        return [
+          {
+            id: 'M7K2PF',
+            players: ['凉音'],
+            state: 'waiting',
+            mode: '休闲',
+            note: '轻松打一局，欢迎来玩',
+            since: t - 157000,
+            views: [],
+            version: 1,
+            public: true,
+          },
+          {
+            id: 'L9W4QT',
+            players: ['小夜'],
+            state: 'waiting',
+            mode: '休闲',
+            note: '',
+            since: t - 48000,
+            views: [],
+            version: 1,
+            public: true,
+          },
+          {
+            id: 'P3N8SU',
+            players: ['星见', '白羽'],
+            state: 'paired',
+            mode: '休闲',
+            note: '',
+            since: t - 30000,
+            views: [],
+            version: 1,
+            public: true,
+          },
+          {
+            id: 'A8C6TR',
+            players: ['海月', '小岚'],
+            state: 'live',
+            mode: '休闲',
+            note: '',
+            since: t - 720000,
+            views: ['海月', '小岚'],
+            version: 1,
+            public: true,
+          },
+          {
+            id: 'R2D5HV',
+            players: ['栞', '小圆'],
+            state: 'live',
+            mode: '排位',
+            note: '',
+            since: t - 1080000,
+            views: [],
+            version: 1,
+            public: true,
+          },
+          {
+            id: 'F6J3LX',
+            players: ['青禾', '阿澪'],
+            state: 'live',
+            mode: '娱乐活动',
+            note: '',
+            since: t - 300000,
+            views: ['青禾'],
+            version: 1,
+            public: true,
+          },
+          {
+            id: 'H3K8EZ',
+            players: ['雨音', '阿澈'],
+            state: 'ended',
+            mode: '休闲',
+            note: '',
+            since: t - 20000,
+            views: [],
+            version: 1,
+            public: true,
+          },
+          {
+            id: 'H7Q9KM',
+            players: ['遥'],
+            state: 'waiting',
+            mode: '休闲',
+            note: '群里约好的房间',
+            since: t - 60000,
+            views: [],
+            version: 1,
+            public: false,
+          },
+        ];
+      };
+      const getRoom = (id) => rooms.find((r) => r.id === id);
+      const myRoom = () => (own ? getRoom(own.roomId) : null);
+      const deckName = (id = own?.deck ?? preferredDeck) =>
+        decks.find((d) => d.id === id)?.name ?? '未选择卡组';
+      const elapsed = (start) => {
+        const s = Math.max(0, Math.floor((Date.now() - start) / 1000));
+        return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+      };
+      function announce(message) {
+        clearTimeout(announcementTimer);
+        $('#announcer').textContent = '';
+        announcementTimer = setTimeout(() => {
+          $('#announcer').textContent = message;
+        }, 40);
+      }
+      function review(message) {
+        $('#reviewResult').textContent = message;
+        announce(message);
+      }
+      function makeOwn(isPublic = true, start = Date.now(), note = '') {
+        const id = `V${String(++serial).padStart(4, '0')}K`;
+        const r = {
+          id,
+          players: ['小凛'],
+          state: 'waiting',
+          mode: '休闲',
+          note,
+          since: start,
+          views: [],
+          version: 1,
+          public: isPublic,
+        };
+        rooms.push(r);
+        own = {
+          roomId: id,
+          state: 'waiting',
+          deck: preferredDeck,
+          host: true,
+          publicIntent: isPublic,
+          waitingSince: start,
+          allowView: false,
+          round: ++epoch,
+        };
+        return r;
+      }
+      function renderCurrent() {
+        let content;
+        const r = myRoom();
+        const actions = (html) => `<div class="current-actions">${html}</div>`;
+        const copy = (title, body, extra = '') =>
+          `<div class="current-copy"><h3 id="currentTitle" tabindex="-1">${title}</h3><p>${body}</p>${extra}</div>`;
+        if (!own) {
+          content =
+            copy(
+              '下一局，和谁一起？',
+              hasDecks
+                ? '选一副卡组，找对手或加入下面的房间。'
+                : '还没有合法卡组。你仍可浏览房间和观战。',
+              hasDecks
+                ? `<div class="deck-line"><span class="deck-thumb" aria-hidden="true">${esc(decks.find((d) => d.id === preferredDeck).mark)}</span><span><strong>${esc(deckName())}</strong><br><small class="muted">最近使用 · 合法</small></span>${button('deck', '换组')}</div>`
+                : ''
+            ) + actions(button('find', '找对手', true));
+        } else if (own.state === 'ranked') {
+          content =
+            copy('你正在参加排位', '当前真人席位已占用。可以继续浏览和观战。') +
+            actions(button('room', '返回排位', true));
+        } else if (own.state === 'lost') {
+          content =
+            copy('这局暂时无法恢复', '房间 V0001K 的对局运行态缺失；当前占用需核验后处理。') +
+            actions(button('recover', '重新核验', true));
+        } else if (own.state === 'waiting') {
+          content =
+            copy(
+              r.public ? '正在等一位对手' : '等待通过链接加入',
+              `${r.public ? '公开找人 · ' : '不会出现在公开列表 · '}房间 <span class="mono">${r.id}</span> · 已等待 <span data-elapsed="${own.waitingSince}" class="mono">${elapsed(own.waitingSince)}</span>`,
+              `<div class="deck-line"><span class="badge ready">等待加入</span><span class="small muted">${esc(deckName())}</span>${button('deck', '换组')}</div>`
+            ) +
+            actions(
+              button('room', '查看房间', true) +
+                button('share', '分享') +
+                button('cancel', '取消等待')
+            );
+        } else if (own.state === 'paired') {
+          const opponent = r.players.find((p) => p !== '小凛');
+          content =
+            copy(
+              own.confirmed ? '已确认，等待对手' : '找到对手，请确认开局',
+              `房间 <span class="mono">${r.id}</span> · 本局使用「${esc(deckName())}」`,
+              `<div class="paired-players"><span>小凛<small>${own.confirmed ? '✓ 已确认' : '待确认'}</small></span><span aria-hidden="true">vs</span><span>${esc(opponent)}<small>${own.otherConfirmed ? '✓ 已确认' : '待确认'}</small></span><div><span class="deadline" id="countdown">${Math.max(0, Math.ceil((own.deadline - Date.now()) / 1000))}</span><small class="muted"> 秒内确认</small></div></div>`
+            ) +
+            actions(
+              (own.confirmed
+                ? '<span class="badge ready">你已确认</span>'
+                : button('confirm', '确认开局', true)) + button('cancel', '取消配对')
+            );
+        } else if (own.state === 'boot') {
+          content =
+            copy('正在准备开局…', '双方已确认，正在进入房间。') +
+            actions('<span class="badge">开局中</span>');
+        } else if (own.state === 'bootError') {
+          content =
+            copy('暂时未能开局', '双方确认已保留，尚未进入对局。请重试；达到上限会结束本轮准备。') +
+            actions(button('retryBoot', '重试开局', true));
+        } else if (own.state === 'live') {
+          content =
+            copy(
+              '你的对局正在进行',
+              `${esc(r.players.join(' · '))} · 房间 <span class="mono">${r.id}</span>`
+            ) + actions(button('room', '返回房间', true));
+        } else if (own.state === 'ended') {
+          const msg = own.opponentLeft
+            ? '对手已离开。你可以主动继续公开找人。'
+            : own.rematch === 'sent'
+              ? '已请求再来一局，等待对手同意。'
+              : own.rematch === 'received'
+                ? '对手想再来一局，是否继续？'
+                : '本局已结束。双方同意后重新选组和确认。';
+          content =
+            copy('本局已结束', msg) +
+            actions(
+              (own.opponentLeft
+                ? button('continue', '继续公开找人', true)
+                : own.rematch === 'sent'
+                  ? button('withdrawRematch', '撤回再战请求')
+                  : button('rematch', own.rematch === 'received' ? '同意再战' : '再来一局', true)) +
+                button('leave', '离开房间')
+            );
+        }
+        $('#current').innerHTML =
+          '<div class="section-label" id="currentLabel">我的当前状态</div><div class="current-body">' +
+          content +
+          '</div>';
+      }
+      function stateName(r) {
+        return {
+          waiting: '等待加入',
+          paired: '双方准备',
+          boot: '正在开局',
+          bootError: '开局待重试',
+          live: '对战中',
+          ended: '已结束',
+        }[r.state];
+      }
+      function rowHTML(r) {
+        const mine = own?.roomId === r.id;
+        const names = r.players.map(esc).join('<span class="versus">vs</span>');
+        const action = mine
+          ? button('room', '返回房间', false, `data-room="${r.id}"`)
+          : r.state === 'waiting'
+            ? button(
+                'join',
+                '加入房间',
+                false,
+                `data-room="${r.id}" aria-label="加入 ${esc(r.players[0])} 的房间"`
+              )
+            : r.state === 'live' && r.views.length
+              ? button(
+                  'spectate',
+                  '观战',
+                  false,
+                  `data-room="${r.id}" aria-label="观战 ${esc(r.players.join('与'))} 的对局"`
+                )
+              : r.state === 'live'
+                ? '未开放观战'
+                : r.state === 'ended'
+                  ? '等待赛后操作'
+                  : '双方准备中';
+        return `<li class="room-row" data-room-id="${r.id}"><div class="room-identity"><span class="avatar" aria-hidden="true">${esc(r.players[0].slice(0, 1))}</span><div><div class="names">${names}${mine ? ' <span class="badge">我的房间</span>' : ''}</div><div class="room-code mono">${r.id}</div>${r.note ? `<p class="room-note">${esc(r.note)}</p>` : ''}</div></div><div class="status-cell"><span class="badge ${r.state === 'waiting' ? 'ready' : ''}">${stateName(r)}</span></div><div class="room-meta"><span>${r.players.length}/2</span><span>${esc(r.mode)}</span></div><div class="spectator-cell ${['waiting', 'live'].includes(r.state) ? '' : 'empty-time'}">${r.state === 'waiting' ? '已等 ' : r.state === 'live' ? '已进行 ' : ''}${['waiting', 'live'].includes(r.state) ? `<span class="mono" data-elapsed="${r.since}">${elapsed(r.since)}</span>` : '—'}${r.state === 'live' && r.views.length ? `<small>${r.views.length} 个视角开放</small>` : ''}</div><div class="room-action">${action}</div></li>`;
+      }
+      function renderList() {
+        const order = { waiting: 0, paired: 1, boot: 1, bootError: 1, live: 2, ended: 3 };
+        const visible = rooms
+          .filter((r) => r.public)
+          .sort(
+            (a, b) =>
+              order[a.state] - order[b.state] || a.since - b.since || a.id.localeCompare(b.id)
+          );
+        $('#counts').textContent =
+          readState === 'error'
+            ? '暂时无法获取房间数量'
+            : `${visible.filter((r) => r.state === 'waiting').length} 间等待 · ${visible.filter((r) => r.state === 'paired' || r.state === 'boot' || r.state === 'bootError').length} 间准备 · ${visible.filter((r) => r.state === 'live').length} 间对战`;
+        document
+          .querySelectorAll('[data-filter]')
+          .forEach((el) => el.setAttribute('aria-pressed', String(el.dataset.filter === filter)));
+        const term = $('#search').value.trim().toLowerCase();
+        const matches = visible.filter(
+          (r) =>
+            (filter === 'all' || r.state === filter) &&
+            (!$('#spectatable').checked || (r.state === 'live' && r.views.length)) &&
+            (!term ||
+              r.id.toLowerCase().includes(term) ||
+              r.players.some((p) => p.toLowerCase().includes(term)))
+        );
+        $('#rooms').innerHTML = readState === 'error' ? '' : matches.map(rowHTML).join('');
+        $('#empty').hidden = readState !== 'error' && matches.length > 0;
+        $('#empty').innerHTML =
+          readState === 'error'
+            ? '<h3>房间列表加载失败</h3><p>无法获取房间状态，请检查网络后重试。</p>' +
+              button('refresh', '重试加载')
+            : visible.length
+              ? '<h3>没有符合条件的房间</h3><p>试试其他昵称，或清除筛选。</p>' +
+                button('clearFilters', '清除筛选')
+              : '<h3>当前没有公开房间</h3><p>你可以找对手，或创建房间邀请大家。</p>' +
+                button('find', '找对手');
+        $('#listNotice').hidden = readState !== 'stale';
+        if (readState === 'stale')
+          $('#listNotice').innerHTML =
+            `<span>刷新失败，状态可能已变化。上次更新 ${esc(lastRead)}。</span> ${button('refresh', '重试')}`;
+        $('#updated').textContent =
+          readState === 'error'
+            ? '尚未取得有效列表'
+            : `${readState === 'stale' ? '旧数据 · ' : ''}更新于 ${lastRead} · ${matches.length} 间符合条件`;
+        $('#pendingNotice').hidden = !pending.length;
+      }
+      function render() {
+        renderCurrent();
+        renderList();
+      }
+      function focusCurrent() {
+        $('#currentTitle')?.focus();
+      }
+      function show(title, html, nextContext = null) {
+        if (!modal.open) returnFocus = document.activeElement;
+        context = nextContext;
+        $('#modalTitle').textContent = title;
+        $('#modalContent').innerHTML = html;
+        $('#dialogError').hidden = true;
+        if (!modal.open) modal.showModal();
+        $('#modalTitle').focus();
+        modal.scrollTop = 0;
+      }
+      function close() {
+        modal.close();
+      }
+      modal.addEventListener('close', () => {
+        context = null;
+        if (returnFocus?.isConnected) returnFocus.focus();
+        else focusCurrent();
+      });
+      modal.addEventListener('keydown', (event) => {
+        if (event.key !== 'Tab') return;
+        const controls = [
+          ...modal.querySelectorAll(
+            'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]'
+          ),
+        ].filter((el) => el.getClientRects().length);
+        const first = controls[0],
+          last = controls.at(-1),
+          active = document.activeElement;
+        if (event.shiftKey && (active === first || active === $('#modalTitle'))) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && active === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      });
+      function error(message) {
+        $('#dialogError').textContent = message;
+        $('#dialogError').hidden = false;
+        $('#dialogError').scrollIntoView({ block: 'nearest' });
+      }
+      const actionsHTML = (label) =>
+        `<div class="modal-actions">${button('close', '取消')}<button class="primary" type="submit">${label}</button></div>`;
+      function deckFields() {
+        return `<fieldset><legend>本局卡组</legend><div class="deck-choices">${decks.map((d) => `<label class="choice"><input type="radio" name="deck" value="${d.id}" ${d.id === preferredDeck ? 'checked' : ''}><span class="deck-thumb" aria-hidden="true">${d.mark}</span><span><strong>${d.name}</strong><small>合法 · 可用于休闲对战</small></span></label>`).join('')}</div></fieldset>`;
+      }
+      const viewField = () =>
+        `<label class="check"><input type="checkbox" name="allowView" ${own?.allowView ? 'checked' : ''}>开放我的观战视角</label><p class="field-help">只控制你的视角，不会开放对手的隐藏信息。</p>`;
+      function noDeck() {
+        show(
+          '先准备一副合法卡组',
+          '<p>参与对战需要合法卡组。你仍可留在大厅浏览或观战。</p><div class="modal-actions">' +
+            button('close', '继续浏览') +
+            button('manageDecks', '管理卡组', true) +
+            '</div>'
+        );
+      }
+      function occupied() {
+        if (!own) return false;
+        show(
+          '你已有当前任务',
+          '<p>请先处理「我的当前状态」，再参与另一间房。</p><div class="modal-actions">' +
+            button('close', '继续浏览') +
+            button('goCurrent', '查看当前状态', true) +
+            '</div>'
+        );
+        return true;
+      }
+      function participate(flow, roomId) {
+        if (!hasDecks) return noDeck();
+        const target = roomId ? getRoom(roomId) : null;
+        const switching = flow === 'join' && own?.state === 'waiting' && target?.id !== own.roomId;
+        if (own && !switching) return occupied();
+        if (flow === 'join' && (!target || target.state !== 'waiting'))
+          return show(
+            '房间状态已变化',
+            '<p>这个房间已无法加入，请回到大厅选择其他房间。</p>' + button('close', '返回大厅')
+          );
+        const title =
+          flow === 'find'
+            ? '找对手'
+            : flow === 'create'
+              ? '创建房间'
+              : switching
+                ? '切换到另一间房'
+                : `加入 ${target.players[0]} 的房间`;
+        const introduction =
+          flow === 'find'
+            ? '会加入或创建公开等人房间，接受其他玩家加入和自动配对。列表筛选不影响找人范围。'
+            : flow === 'create'
+              ? '创建自己的房间，选择如何让对手找到你。'
+              : switching
+                ? '成功加入后才取消当前等待；如果目标已满，保留你现在的房间和等待顺序。'
+                : '选择卡组后加入。选组期间不占用空席，加入后双方还需确认开局。';
+        const access =
+          flow === 'create'
+            ? `<fieldset><legend>访问方式</legend><div class="choices"><label class="choice"><input type="radio" name="access" value="public" checked><span><strong>公开找人</strong><small>出现在大厅，接受加入和自动找人。</small></span></label><label class="choice"><input type="radio" name="access" value="unlisted"><span><strong>凭链接加入</strong><small>不出现在大厅，知道链接或房间号的玩家可加入。</small></span></label></div><p class="field-help">房间创建后访问方式固定。链接持有人可以转发。</p></fieldset><label class="field-label">房间备注 <small>可选，最多 40 字</small><input name="note" maxlength="40" placeholder="例如：轻松打一局，欢迎加入"></label>`
+            : '';
+        show(
+          title,
+          `<p>${esc(introduction)}</p><form id="participateForm" class="stack">${target ? `<div class="preview"><strong>${esc(target.players[0])}</strong> · <span class="mono">${target.id}</span><p>${target.public ? '公开找人' : '凭链接加入'} · 等待加入 · 1/2</p></div>` : ''}${deckFields()}${access}<div>${viewField()}</div>${actionsHTML(switching ? '取消当前等待并加入' : flow === 'find' ? '开始找对手' : flow === 'create' ? '创建房间' : '加入房间')}</form>`,
+          { flow, roomId, version: target?.version, switching, round: own?.round }
+        );
+      }
+      function dropOwn() {
+        const r = myRoom();
+        if (r) {
+          if (own.state === 'ended') {
+            r.players = r.players.filter((p) => p !== '小凛');
+            r.views = [];
+            r.version++;
+            if (!r.players.length) rooms = rooms.filter((x) => x.id !== r.id);
+          } else if (own.host) rooms = rooms.filter((x) => x.id !== r.id);
+          else {
+            r.players = r.players.filter((p) => p !== '小凛');
+            r.state = own.state === 'ended' ? 'ended' : 'waiting';
+            r.views = [];
+            r.version++;
+          }
+        }
+        own = null;
+        ++epoch;
+      }
+      function pair(r, publicIntent, host = false) {
+        const waitingSince = host ? own.waitingSince : Date.now();
+        r.state = 'paired';
+        r.version++;
+        if (!r.players.includes('小凛')) r.players.push('小凛');
+        own = {
+          roomId: r.id,
+          state: 'paired',
+          deck: preferredDeck,
+          host,
+          publicIntent,
+          waitingSince,
+          allowView: own?.allowView ?? false,
+          confirmed: false,
+          otherConfirmed: false,
+          deadline: Date.now() + 60000,
+          round: ++epoch,
+          attempts: 0,
+        };
+      }
+      function submitParticipation(form) {
+        const c = context,
+          data = new FormData(form);
+        if (!c) return;
+        const r = getRoom(c.roomId);
+        if (c.flow === 'join' && raceNext && r?.state === 'waiting') {
+          raceNext = false;
+          r.players.push('另一位玩家');
+          r.state = 'paired';
+          r.version++;
+          renderList();
+        }
+        if (c.flow === 'join' && (!r || r.state !== 'waiting' || r.version !== c.version))
+          return error(
+            '房间已被其他玩家加入。你尚未占座；原有等待（如有）保持不变。请关闭弹层选择其他房间。'
+          );
+        if (
+          (c.switching && (own?.state !== 'waiting' || own.round !== c.round)) ||
+          (!c.switching && own)
+        )
+          return error('你的当前状态已变化，请关闭弹层查看当前任务。');
+        preferredDeck = data.get('deck');
+        const allow = data.has('allowView');
+        if (c.switching) dropOwn();
+        if (c.flow === 'join') pair(r, false);
+        else if (c.flow === 'find') {
+          const candidate = rooms
+            .filter((x) => x.public && x.state === 'waiting' && x.mode === '休闲')
+            .sort((a, b) => a.since - b.since)[0];
+          if (candidate) pair(candidate, true);
+          else makeOwn();
+        } else makeOwn(data.get('access') === 'public', Date.now(), data.get('note').trim());
+        own.allowView = allow;
+        render();
+        close();
+        focusCurrent();
+        announce(
+          own.state === 'paired' ? '已加入，请在 60 秒内确认开局。' : '房间已创建，正在等人。'
+        );
+      }
+      function startBootstrap() {
+        if (!own?.confirmed || !own?.otherConfirmed) return;
+        own.state = 'boot';
+        own.attempts++;
+        myRoom().state = 'boot';
+        render();
+        const round = own.round;
+        bootstrapTimer = setTimeout(() => {
+          if (own?.round !== round || own.state !== 'boot') return;
+          if (failBootstrap) {
+            failBootstrap = false;
+            own.state = 'bootError';
+            myRoom().state = 'bootError';
+            render();
+            announce('暂时未能开局，可重试。');
+            return;
+          }
+          own.state = 'live';
+          myRoom().state = 'live';
+          myRoom().since = Date.now();
+          myRoom().views = own.allowView ? ['小凛'] : [];
+          render();
+          focusCurrent();
+          announce('双方已确认，已进入对局。原型在房间入口结束。');
+        }, 600);
+      }
+      function cancelOrTimeout(timedOut = false, opponentFault = false) {
+        if (!own || !['waiting', 'paired'].includes(own.state)) return;
+        const currentFocused = $('#current').contains(document.activeElement);
+        const relatedModal = modal.open && ['cancel', 'room', 'deck'].includes(context?.flow);
+        const innocent = opponentFault || (timedOut && own.confirmed);
+        const keep = innocent && own.publicIntent;
+        const r = myRoom(),
+          host = own.host,
+          start = own.waitingSince,
+          allow = own.allowView,
+          deck = own.deck;
+        const keepPrivate = opponentFault && host && !r.public;
+        if ((keep || keepPrivate) && host) {
+          r.players = ['小凛'];
+          r.state = 'waiting';
+          r.version++;
+          own = {
+            ...own,
+            state: 'waiting',
+            round: ++epoch,
+            confirmed: false,
+            otherConfirmed: false,
+          };
+        } else {
+          if (opponentFault && !host) {
+            r.state = 'ended';
+            r.views = [];
+          }
+          // A departing original host closes their table; a directed guest gains no public intent.
+          if (opponentFault && !host) {
+            rooms = rooms.filter((x) => x.id !== r.id);
+            own = null;
+            ++epoch;
+          } else dropOwn();
+          if (keep) {
+            makeOwn(true, start);
+            own.allowView = allow;
+            own.deck = deck;
+          }
+        }
+        render();
+        if (relatedModal) close();
+        if (currentFocused || relatedModal || (!timedOut && !opponentFault)) focusCurrent();
+        announce(
+          keep
+            ? '对手未能继续，已保留原等待顺序继续公开等人。'
+            : keepPrivate
+              ? '对手未能继续，已返回原凭链接房间等人，未公开房间。'
+              : timedOut
+                ? '确认已超时，本次配对已取消。'
+                : opponentFault
+                  ? '对手未能继续，你已返回大厅，未加入公开等待。'
+                  : '已取消并释放席位。'
+        );
+      }
+      function showRoom() {
+        if (own?.state === 'ranked')
+          return show(
+            '返回排位',
+            '<p>正式产品将在这里返回原排位任务。本原型不连接排位服务。</p>' +
+              button('close', '返回对战大厅')
+          );
+        const r = myRoom();
+        if (!r) return;
+        show(
+          `房间 ${r.id}`,
+          `<p>${esc(r.players.join(' · '))} · ${stateName(r)} · ${r.public ? '公开找人' : '凭链接加入'}</p><div class="preview"><h3>${own.state === 'live' ? '对局入口' : own.state === 'ended' ? '本局已结束' : '等待与准备'}</h3><p>${own.state === 'live' ? '正式产品复用现有开局与对战桌面；原型仅演示大厅和房间衔接。' : `本人卡组：${esc(deckName())}`}</p></div><div style="margin-top:16px">${viewField()}</div><div class="modal-actions">${button('share', '复制邀请')}${button('close', '返回对战大厅', true)}</div>`,
+          { flow: 'room' }
+        );
+      }
+      function share() {
+        const r = myRoom();
+        if (!r) return;
+        const url = new URL(location.href);
+        url.hash = '';
+        url.search = '';
+        url.searchParams.set('room', r.id);
+        show(
+          '分享房间',
+          `<p>${r.public ? '公开房间可从大厅加入，也可分享邀请。' : '该房间不在大厅展示。知道链接或房间号的登录玩家可加入，链接可以转发。'}</p><label class="field-label">房间号</label><div class="share-box"><input aria-label="房间号" readonly value="${r.id}" id="shareCode">${button('copyCode', '复制房间号')}</div><label class="field-label" style="margin-top:16px">邀请链接</label><div class="share-box"><input aria-label="邀请链接" readonly value="${esc(url.href)}" id="shareLink">${button('copyLink', '复制链接')}</div><p class="field-help">原型邀请只在本次页面的示例数据中演示，刷新后新建房间消失。</p><div class="modal-actions">${button('close', '返回对战大厅', true)}</div>`
+        );
+      }
+      async function copyValue(selector) {
+        const input = $(selector),
+          value = input.value;
+        try {
+          await navigator.clipboard.writeText(value);
+          announce('已复制。');
+        } catch {
+          input.focus();
+          input.select();
+          error('无法自动复制，已选中文本，请手动复制。');
+        }
+      }
+      function showCode() {
+        show(
+          '输入房间号',
+          '<p>查找不会加入房间或占用空席。</p><form id="codeForm"><label class="field-label" for="roomCode">房间号</label><div class="share-box"><input id="roomCode" name="code" required maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="例如 M7K2PF" class="mono"><button type="submit">查找房间</button></div></form><div id="codeResult" aria-live="polite"></div>',
+          { flow: 'code' }
+        );
+      }
+      function lookup(code) {
+        const r = getRoom(code.trim().toUpperCase());
+        const node = $('#codeResult');
+        if (!r) {
+          node.innerHTML =
+            '<div class="notice">没有找到有效房间，请核对房间号或向房主索取新链接。</div>';
+          return;
+        }
+        let action =
+          own?.roomId === r.id
+            ? button('room', '返回我的房间', true)
+            : r.state === 'waiting'
+              ? button('join', '选择卡组并加入', true, `data-room="${r.id}"`)
+              : r.state === 'live' && r.views.length
+                ? button('spectate', '选择观战视角', true, `data-room="${r.id}"`)
+                : '<p>这个房间已满，当前没有可用的加入或观战入口。</p>';
+        node.innerHTML = `<div class="preview"><h3>${esc(r.players.join(' · '))}</h3><p><span class="mono">${r.id}</span> · ${r.public ? '公开找人' : '凭链接加入'} · ${stateName(r)}</p>${action}</div>`;
+      }
+      function spectate(id) {
+        const r = getRoom(id);
+        if (!r) return;
+        if (own?.roomId === id) return showRoom();
+        if (!r.views.length)
+          return show(
+            '未开放观战',
+            '<p>该房间当前没有开放视角，请选择其他对局。</p>' + button('close', '返回大厅')
+          );
+        if (r.views.length === 1) return enterSpectate(id, r.views[0]);
+        show(
+          '选择观战视角',
+          `<p>只可查看所选玩家已授权的视角。</p><form id="spectateForm"><fieldset><legend>玩家视角</legend><div class="choices">${r.views.map((v, i) => `<label class="choice"><input type="radio" name="view" value="${esc(v)}" ${i === 0 ? 'checked' : ''}><span><strong>${esc(v)}</strong><small>已开放</small></span></label>`).join('')}</div></fieldset>${actionsHTML('进入观战')}</form>`,
+          { flow: 'spectate', roomId: id }
+        );
+      }
+      function enterSpectate(id, view) {
+        const r = getRoom(id);
+        if (!r || r.state !== 'live' || !r.views.includes(view))
+          return error('这个视角已关闭，无法进入。请关闭弹层重新选择。');
+        show(
+          '观战入口',
+          `<p>房间 <span class="mono">${r.id}</span> · ${esc(view)}的视角</p><div class="preview"><h3>已核验该视角开放</h3><p>正式产品将在这里进入现有观战桌面；此原型不展示任何卡组、手牌或真实对局。</p></div><div class="modal-actions">${button('close', '返回对战大厅', true)}</div>`,
+          { flow: 'viewing', roomId: id, view }
+        );
+      }
+      function rematchForm() {
+        show(
+          '再来一局',
+          `<p>重新选择本局卡组。双方同意后仍需在新一轮各自确认开局。</p><form id="rematchForm">${deckFields()}${actionsHTML(own.rematch === 'received' ? '同意并重新准备' : '发送再战请求')}</form>`,
+          { flow: 'rematch' }
+        );
+      }
+      function beginRematch() {
+        const r = myRoom();
+        r.state = 'paired';
+        r.version++;
+        own = {
+          ...own,
+          state: 'paired',
+          round: ++epoch,
+          deadline: Date.now() + 60000,
+          confirmed: false,
+          otherConfirmed: false,
+          rematch: null,
+          attempts: 0,
+        };
+        render();
+        if (modal.open) close();
+        focusCurrent();
+        announce('双方同意再战，请重新确认开局。');
+      }
+      function refreshList() {
+        readState = 'ready';
+        lastRead = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+        rooms.push(...pending);
+        pending = [];
+        renderList();
+        announce('房间列表已更新。');
+      }
+      function reset(scenario = 'mixed') {
+        clearTimeout(bootstrapTimer);
+        ++epoch;
+        if (modal.open) close();
+        rooms = seed();
+        own = null;
+        hasDecks = true;
+        preferredDeck = 'liella';
+        pending = [];
+        filter = 'all';
+        raceNext = false;
+        failBootstrap = false;
+        readState = 'ready';
+        lastRead = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+        $('#search').value = '';
+        $('#spectatable').checked = false;
+        $('#scenario').value = scenario;
+        if (scenario === 'empty') rooms = rooms.filter((r) => !r.public);
+        if (scenario === 'loadError') readState = 'error';
+        if (scenario === 'stale') readState = 'stale';
+        if (scenario === 'noDecks') hasDecks = false;
+        if (scenario === 'waiting') makeOwn();
+        if (scenario === 'paired') pair(getRoom('M7K2PF'), false);
+        if (scenario === 'ended') {
+          pair(getRoom('M7K2PF'), false);
+          own.state = 'ended';
+          myRoom().state = 'ended';
+        }
+        if (scenario === 'ranked') own = { state: 'ranked' };
+        if (scenario === 'lost') own = { state: 'lost' };
+        render();
+        review('场景已切换：' + $('#scenario').selectedOptions[0].textContent);
+      }
+      function runEvent(event) {
+        const r = myRoom();
+        if (event === 'race') {
+          raceNext = true;
+          return review('下一次提交加入将模拟席位被抢先认领，选组时仍显示原来的空席。');
+        }
+        if (event === 'bootstrapFail') {
+          failBootstrap = true;
+          return review('下一次双方确认后的引导将失败一次，可在当前状态中重试。');
+        }
+        if (event === 'refreshFail') {
+          if (readState === 'error') return review('尚无成功快照，请先加载成功。');
+          readState = 'stale';
+          $('#listNotice').hidden = false;
+          $('#listNotice').innerHTML =
+            `刷新失败，状态可能已变化。上次更新 ${esc(lastRead)}。 ${button('refresh', '重试')}`;
+          $('#updated').textContent = `旧数据 · 更新于 ${lastRead}`;
+          return review('保留原列表、顺序与焦点，已标记旧数据。');
+        }
+        if (event === 'newRoom') {
+          if (pending.length) return review('已有待插入房间，请先更新列表。');
+          pending.push({
+            id: `N${String(++serial).padStart(4, '0')}P`,
+            players: ['千夏'],
+            state: 'waiting',
+            mode: '休闲',
+            note: '欢迎加入',
+            since: Date.now(),
+            views: [],
+            version: 1,
+            public: true,
+          });
+          $('#pendingNotice').hidden = false;
+          return review('新增房间暂不插入；点击「更新列表」后出现。');
+        }
+        if (event === 'revoke') {
+          const target = getRoom('A8C6TR');
+          target.views = target.views.filter((v) => v !== '海月');
+          if (context?.flow === 'viewing' && context.view === '海月')
+            show(
+              '观战授权已关闭',
+              '<p>海月已关闭该视角，演示观战已退出。</p>' + button('close', '返回对战大厅')
+            );
+          renderList();
+          return review('海月视角已关闭；旧选择提交时也会被拒绝。');
+        }
+        if (event === 'pair' && own?.state === 'waiting') {
+          r.players.push('千夏');
+          pair(r, own.publicIntent, true);
+          render();
+          return review('对手已加入；双方都需要重新确认。');
+        }
+        if (event === 'otherConfirm' && own?.state === 'paired') {
+          own.otherConfirmed = true;
+          render();
+          startBootstrap();
+          return review('对手已确认。');
+        }
+        if (event === 'timeout' && own?.state === 'paired') {
+          own.deadline = Date.now() - 1;
+          cancelOrTimeout(true);
+          return review('期限已到；旧确认已失效，恢复按本人公开等待意图处理。');
+        }
+        if (event === 'opponentCancel' && own?.state === 'paired') {
+          cancelOrTimeout(false, true);
+          return review('对手取消；定向加入者返回大厅，公开求战者保留等待顺序。');
+        }
+        if (event === 'end' && own?.state === 'live') {
+          own.state = 'ended';
+          r.state = 'ended';
+          r.views = [];
+          render();
+          return review('本局已结束，不再计入对战中。');
+        }
+        if (event === 'leave' && own?.state === 'ended') {
+          own.opponentLeft = true;
+          own.rematch = null;
+          r.players = ['小凛'];
+          render();
+          return review('对手已离开，没有自动将你投入公开等待。');
+        }
+        if (event === 'rematch' && own?.state === 'ended' && !own.opponentLeft) {
+          if (own.rematch === 'sent') beginRematch();
+          else {
+            own.rematch = 'received';
+            render();
+          }
+          return review('已模拟对手的再战意愿。');
+        }
+        review('当前场景不适用该事件，请先切换场景或完成前一步。');
+      }
+      document.addEventListener('click', async (event) => {
+        const el = event.target.closest('button');
+        if (!el) return;
+        if (el.dataset.filter) {
+          filter = el.dataset.filter;
+          renderList();
+          announce('已筛选：' + el.textContent);
+          return;
+        }
+        const a = el.dataset.action,
+          id = el.dataset.room;
+        if (a === 'close') close();
+        if (a === 'find' || a === 'create') participate(a);
+        if (a === 'join') participate('join', id);
+        if (a === 'code') showCode();
+        if (a === 'spectate') spectate(id);
+        if (a === 'room') showRoom();
+        if (a === 'share') share();
+        if (a === 'copyCode') await copyValue('#shareCode');
+        if (a === 'copyLink') await copyValue('#shareLink');
+        if (a === 'goCurrent') {
+          close();
+          focusCurrent();
+        }
+        if (a === 'deck') {
+          if (own && own.state !== 'waiting') return occupied();
+          show(
+            '选择卡组',
+            `<form id="deckForm">${deckFields()}${actionsHTML('使用这副卡组')}</form>`,
+            { flow: 'deck', round: own?.round }
+          );
+        }
+        if (a === 'confirm' && own?.state === 'paired') {
+          if (Date.now() >= own.deadline) return cancelOrTimeout(true);
+          own.confirmed = true;
+          render();
+          focusCurrent();
+          announce('你已确认，等待对手。');
+          startBootstrap();
+        }
+        if (a === 'cancel') {
+          show(
+            own?.state === 'waiting' ? '取消等待？' : '取消当前配对？',
+            '<p>将释放你的席位，停止本次等待。再次找人会重新计时。</p><div class="modal-actions">' +
+              button('close', '继续等待') +
+              button('cancelNow', '确认取消', true) +
+              '</div>',
+            { flow: 'cancel', round: own?.round }
+          );
+        }
+        if (a === 'cancelNow' && context?.round === own?.round) cancelOrTimeout();
+        if (a === 'retryBoot' && own?.state === 'bootError') {
+          if (own.attempts >= 3) {
+            const keep = own.publicIntent,
+              start = own.waitingSince;
+            dropOwn();
+            if (keep) makeOwn(true, start);
+            render();
+            announce('开局重试已达上限，本轮已结束。');
+          } else startBootstrap();
+        }
+        if (a === 'refresh' || a === 'applyNew') refreshList();
+        if (a === 'clearFilters') {
+          filter = 'all';
+          $('#search').value = '';
+          $('#spectatable').checked = false;
+          renderList();
+          announce('已清除筛选。');
+        }
+        if (a === 'rematch' && own?.state === 'ended' && !own.opponentLeft) rematchForm();
+        if (a === 'withdrawRematch') {
+          own.rematch = null;
+          render();
+          announce('再战请求已撤回。');
+        }
+        if (a === 'leave' && own?.state === 'ended') {
+          dropOwn();
+          render();
+          focusCurrent();
+          announce('已离开房间，席位已释放。');
+        }
+        if (a === 'continue' && own?.opponentLeft) {
+          show(
+            '继续公开找人？',
+            '<p>将重新进入公开等待，出现在大厅并接受其他人加入和自动配对。原房间的访问方式保持不变；凭链接房间会关闭并另建公开房。</p><div class="modal-actions">' +
+              button('close', '取消') +
+              button('continueNow', '继续公开找人', true) +
+              '</div>'
+          );
+        }
+        if (a === 'continueNow' && own?.opponentLeft) {
+          const old = myRoom();
+          if (old.public) {
+            own.state = 'waiting';
+            own.host = true;
+            own.publicIntent = true;
+            own.waitingSince = Date.now();
+            own.round = ++epoch;
+            old.state = 'waiting';
+            old.since = Date.now();
+            old.players = ['小凛'];
+            old.version++;
+          } else {
+            dropOwn();
+            makeOwn();
+          }
+          render();
+          close();
+          focusCurrent();
+          announce('已主动开始新的公开等待。');
+        }
+        if (a === 'recover' && own?.state === 'lost')
+          show(
+            '无法恢复这局对战',
+            '<p>演示核验结果：运行态已确认丢失。本轮无法继续，按现有终局政策处理后释放失效占用，不会重建一局冒充恢复。</p><div class="modal-actions">' +
+              button('releaseLost', '处理失效占用', true) +
+              '</div>'
+          );
+        if (a === 'releaseLost' && own?.state === 'lost') {
+          own = null;
+          ++epoch;
+          render();
+          close();
+          focusCurrent();
+          announce('失效占用已处理，可重新参与。');
+        }
+        if (a === 'manageDecks')
+          show(
+            '管理卡组入口',
+            '<p>正式产品将在这里进入已有卡组管理。本原型不会创建、保存或导入账号卡组；可在评审工具切回正常场景继续体验。</p>' +
+              button('close', '返回大厅')
+          );
+        if (a === 'home')
+          show(
+            '返回首页',
+            '<p>正式产品将返回首页；有效等待会保留，并在全局当前状态中提示。</p>' +
+              button('close', '返回对战大厅')
+          );
+      });
+      document.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const form = event.target;
+        if (form.id === 'participateForm') submitParticipation(form);
+        if (form.id === 'codeForm') lookup(new FormData(form).get('code'));
+        if (form.id === 'spectateForm')
+          enterSpectate(context.roomId, new FormData(form).get('view'));
+        if (form.id === 'deckForm') {
+          if (own?.round !== context.round)
+            return error('当前配对已变化，请关闭弹层查看当前任务。');
+          preferredDeck = new FormData(form).get('deck');
+          if (own) own.deck = preferredDeck;
+          renderCurrent();
+          close();
+          announce('卡组已更换。');
+        }
+        if (form.id === 'rematchForm' && own?.state === 'ended' && !own.opponentLeft) {
+          preferredDeck = new FormData(form).get('deck');
+          own.deck = preferredDeck;
+          if (own.rematch === 'received') beginRematch();
+          else {
+            own.rematch = 'sent';
+            render();
+            close();
+            focusCurrent();
+            announce('再战请求已发送，等待对手同意。');
+          }
+        }
+      });
+      document.addEventListener('change', (event) => {
+        if (event.target.name === 'deck') {
+          preferredDeck = event.target.value;
+          if (!own) renderCurrent();
+        }
+        if (event.target.name === 'allowView' && context?.flow === 'room' && own) {
+          own.allowView = event.target.checked;
+          if (own.state === 'live') myRoom().views = own.allowView ? ['小凛'] : [];
+          renderList();
+          announce(own.allowView ? '你的视角已开放。' : '你的视角已关闭。');
+        }
+      });
+      $('#search').addEventListener('input', () => {
+        renderList();
+        announce($('#updated').textContent);
+      });
+      $('#spectatable').addEventListener('change', () => {
+        renderList();
+        announce($('#updated').textContent);
+      });
+      $('#scenario').addEventListener('change', (e) => reset(e.target.value));
+      $('#reset').addEventListener('click', () => reset());
+      $('#runEvent').addEventListener('click', () => runEvent($('#event').value));
+      $('#theme').addEventListener('click', () => {
+        const light = document.documentElement.dataset.theme !== 'light';
+        document.documentElement.dataset.theme = light ? 'light' : 'dark';
+        $('#theme').textContent = light ? '深色' : '浅色';
+        $('#theme').setAttribute('aria-label', `切换到${light ? '深' : '浅'}色主题`);
+      });
+      // Only text updates tick. No list replacement, focus movement or per-second live announcements.
+      setInterval(() => {
+        document.querySelectorAll('[data-elapsed]').forEach((el) => {
+          el.textContent = elapsed(Number(el.dataset.elapsed));
+        });
+        if (own?.state === 'paired') {
+          const seconds = Math.max(0, Math.ceil((own.deadline - Date.now()) / 1000));
+          const node = $('#countdown');
+          if (node) node.textContent = seconds;
+          if (seconds === 10 && !own.warned) {
+            own.warned = true;
+            announce('确认还剩 10 秒。');
+          }
+          if (seconds === 0) cancelOrTimeout(true);
+        }
+      }, 1000);
+      reset();
+      const incoming = new URLSearchParams(location.search).get('room');
+      if (incoming) {
+        showCode();
+        $('#roomCode').value = incoming;
+        lookup(incoming);
+      }
+    </script>
+  </body>
+</html>

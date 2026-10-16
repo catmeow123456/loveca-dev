@@ -93,7 +93,7 @@ export interface StoredMatchEmoteCatalogEntry {
   readonly assetId: string;
 }
 export type GameplayParticipationKind =
-  'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'THEME_QUEUE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
+  'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'THEME_QUEUE' | 'CASUAL_TABLE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
 export type MatchmakingQueueKind = 'CASUAL' | 'RANKED' | 'THEME';
 export type PublicTableTicketState = 'WAITING' | 'RESERVED' | 'MATCHED' | 'CANCELED' | 'EXPIRED';
 export type PublicTableReservationState =
@@ -1130,6 +1130,14 @@ export const siteStatusConfig = pgTable(
     themeTableEntryVisible: boolean('theme_table_entry_visible').notNull().default(true),
     playerActionTimeoutSeconds: integer('player_action_timeout_seconds').notNull().default(180),
     reconnectGracePeriodSeconds: integer('reconnect_grace_period_seconds').notNull().default(60),
+    doubleDisconnectNoContestWindowSeconds: integer('double_disconnect_no_contest_window_seconds')
+      .notNull()
+      .default(5),
+    roomDestroyAfterAllAbsentSeconds: integer('room_destroy_after_all_absent_seconds')
+      .notNull()
+      .default(60),
+    casualHeartbeatGraceSeconds: integer('casual_heartbeat_grace_seconds').notNull().default(45),
+    casualConfirmationTtlSeconds: integer('casual_confirmation_ttl_seconds').notNull().default(60),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1148,6 +1156,22 @@ export const siteStatusConfig = pgTable(
     check(
       'site_status_config_reconnect_grace_period_check',
       sql`${table.reconnectGracePeriodSeconds} BETWEEN 15 AND 300`
+    ),
+    check(
+      'site_status_config_double_disconnect_no_contest_window_check',
+      sql`${table.doubleDisconnectNoContestWindowSeconds} BETWEEN 2 AND 30`
+    ),
+    check(
+      'site_status_config_room_destroy_after_all_absent_check',
+      sql`${table.roomDestroyAfterAllAbsentSeconds} BETWEEN 30 AND 600`
+    ),
+    check(
+      'site_status_config_casual_heartbeat_grace_check',
+      sql`${table.casualHeartbeatGraceSeconds} BETWEEN 45 AND 300`
+    ),
+    check(
+      'site_status_config_casual_confirmation_ttl_check',
+      sql`${table.casualConfirmationTtlSeconds} BETWEEN 30 AND 300`
     ),
   ]
 );
@@ -1603,6 +1627,97 @@ export const themeTableAssignments = pgTable(
   (table) => [index('idx_theme_table_assignments_theme').on(table.themeTableVersionId)]
 );
 
+export const casualTables = pgTable(
+  'casual_tables',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    roomCode: text('room_code').notNull(),
+    discoverability: text('discoverability').$type<'PUBLIC' | 'UNLISTED'>().notNull(),
+    note: text('note').notNull().default(''),
+    environmentId: text('environment_id').notNull(),
+    state: text('state')
+      .$type<'WAITING' | 'RESERVED' | 'BOOTSTRAPPING' | 'BOUND' | 'CLOSED'>()
+      .notNull(),
+    roundId: uuid('round_id').notNull(),
+    revision: integer('revision').notNull().default(1),
+    waitingSince: timestamp('waiting_since', { withTimezone: true }).notNull(),
+    confirmationExpiresAt: timestamp('confirmation_expires_at', { withTimezone: true }),
+    bootstrapLeaseUntil: timestamp('bootstrap_lease_until', { withTimezone: true }),
+    bootstrapAttempts: integer('bootstrap_attempts').notNull().default(0),
+    roomGeneration: text('room_generation'),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    creationKey: uuid('creation_key').notNull(),
+    failureReason: text('failure_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('uq_casual_tables_active_room_code')
+      .on(table.roomCode)
+      .where(sql`${table.state} <> 'CLOSED'`),
+    unique('uq_casual_tables_creation').on(table.createdBy, table.creationKey),
+    index('idx_casual_tables_supply').on(table.environmentId, table.state, table.waitingSince),
+    check(
+      'casual_tables_discoverability_check',
+      sql`${table.discoverability} IN ('PUBLIC', 'UNLISTED')`
+    ),
+    check(
+      'casual_tables_state_check',
+      sql`${table.state} IN ('WAITING', 'RESERVED', 'BOOTSTRAPPING', 'BOUND', 'CLOSED')`
+    ),
+    check(
+      'casual_tables_revision_check',
+      sql`${table.revision} > 0 AND ${table.bootstrapAttempts} BETWEEN 0 AND 3`
+    ),
+    check('casual_tables_note_check', sql`char_length(${table.note}) <= 40`),
+    check(
+      'casual_tables_lifecycle_check',
+      sql`
+      (${table.state} = 'CLOSED') = (${table.closedAt} IS NOT NULL)
+      AND (${table.state} = 'BOOTSTRAPPING') = (${table.bootstrapLeaseUntil} IS NOT NULL)
+      AND (${table.state} = 'BOUND') = (${table.roomGeneration} IS NOT NULL)
+      AND (${table.state} IN ('RESERVED', 'BOOTSTRAPPING')) = (${table.confirmationExpiresAt} IS NOT NULL)
+    `
+    ),
+  ]
+);
+
+export const casualTableSeats = pgTable(
+  'casual_table_seats',
+  {
+    tableId: uuid('table_id')
+      .notNull()
+      .references(() => casualTables.id, { onDelete: 'cascade' }),
+    seat: integer('seat').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    sourceDeckId: uuid('source_deck_id').references(() => decks.id, { onDelete: 'set null' }),
+    deckName: text('deck_name').notNull(),
+    runtimeDeck: jsonb('runtime_deck'),
+    pointTableVersion: text('point_table_version').notNull(),
+    pointTotal: integer('point_total').notNull(),
+    pointLimit: integer('point_limit').notNull(),
+    lockedAt: timestamp('locked_at', { withTimezone: true }).notNull(),
+    heartbeatAt: timestamp('heartbeat_at', { withTimezone: true }).notNull(),
+    waitingSince: timestamp('waiting_since', { withTimezone: true }).notNull(),
+    continuePublic: boolean('continue_public').notNull(),
+    spectatorEnabled: boolean('spectator_enabled').notNull(),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tableId, table.seat] }),
+    unique('uq_casual_table_seats_user').on(table.tableId, table.userId),
+    check('casual_table_seats_seat_check', sql`${table.seat} IN (0, 1)`),
+    check(
+      'casual_table_seats_points_check',
+      sql`${table.pointTotal} >= 0 AND ${table.pointLimit} >= 0`
+    ),
+  ]
+);
+
 export const gameplayParticipations = pgTable(
   'gameplay_participations',
   {
@@ -1613,15 +1728,26 @@ export const gameplayParticipations = pgTable(
     ticketId: uuid('ticket_id').references(() => publicTableTickets.id, {
       onDelete: 'cascade',
     }),
+    casualTableId: uuid('casual_table_id').references(() => casualTables.id, {
+      onDelete: 'restrict',
+    }),
     roomGeneration: text('room_generation'),
     matchId: text('match_id'),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('idx_gameplay_participations_kind').on(table.kind),
+    index('idx_gameplay_participations_casual_table').on(table.casualTableId),
+    check(
+      'gameplay_participations_casual_ref_check',
+      sql`
+      (${table.kind} <> 'CASUAL_TABLE' OR (${table.casualTableId} IS NOT NULL AND ${table.roomGeneration} IS NULL AND ${table.matchId} IS NULL))
+      AND (${table.casualTableId} IS NULL OR (${table.kind} IN ('CASUAL_TABLE', 'ONLINE_ROOM', 'ONLINE_MATCH') AND ${table.ticketId} IS NULL))
+    `
+    ),
     check(
       'gameplay_participations_kind_check',
-      sql`${table.kind} IN ('PUBLIC_QUEUE', 'RANKED_QUEUE', 'THEME_QUEUE', 'ONLINE_ROOM', 'ONLINE_MATCH')`
+      sql`${table.kind} IN ('PUBLIC_QUEUE', 'RANKED_QUEUE', 'THEME_QUEUE', 'CASUAL_TABLE', 'ONLINE_ROOM', 'ONLINE_MATCH')`
     ),
   ]
 );

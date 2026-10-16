@@ -49,7 +49,9 @@ import {
   shouldRunFocusPublicConfigRefresh,
 } from '@/lib/publicConfigRefresh';
 import { fetchSolitaireMatchSnapshot } from '@/lib/solitaireMatchClient';
-import { abandonOnlineRoomForLocalGame } from '@/lib/onlineClient';
+import { abandonOnlineRoomForLocalGame, executeOnlineMatchCommand } from '@/lib/onlineClient';
+import type { CasualTableCurrentView } from '@game/online/casual-table-types';
+import { createSurrenderCommand } from '@game/application/game-commands';
 import {
   clearStoredSolitaireMatchId,
   readStoredSolitaireMatchId,
@@ -57,13 +59,14 @@ import {
 import { useGameStore } from '@/store/gameStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
-import { usePublicTableStore } from '@/store/publicTableStore';
+import { useCasualTableStore } from '@/store/casualTableStore';
+import { CASUAL_NAVIGATION_EVENT, CASUAL_PAGE_EVENT } from '@/lib/casualNavigation';
 import { useRankedStore } from '@/store/rankedStore';
 import { usePlayerWallpaperStore } from '@/store/playerWallpaperStore';
 import { useThemeTableStore } from '@/store/themeTableStore';
 import { useTutorialStore } from '@/store/tutorialStore';
 import { cardService } from '@/lib/cardService';
-import { PublicTableGlobalLayer } from '@/components/public-table/PublicTableGlobalLayer';
+import { CasualTableGlobalLayer } from '@/components/casual-table/CasualTableGlobalLayer';
 import { RankedGlobalLayer } from '@/components/ranked/RankedGlobalLayer';
 import { ThemeTableGlobalLayer } from '@/components/theme-table/ThemeTableGlobalLayer';
 import { MatchmakingAudioLayer } from '@/components/matchmaking/MatchmakingAudioLayer';
@@ -103,9 +106,9 @@ const OnlineDebugPage = lazy(() =>
 const OnlineRoomPage = lazy(() =>
   import('@/components/pages/OnlineRoomPage').then((module) => ({ default: module.OnlineRoomPage }))
 );
-const PublicTablePage = lazy(() =>
-  import('@/components/pages/PublicTablePage').then((module) => ({
-    default: module.PublicTablePage,
+const CasualLobbyPage = lazy(() =>
+  import('@/components/pages/CasualLobbyPage').then((module) => ({
+    default: module.CasualLobbyPage,
   }))
 );
 const RankedPage = lazy(() =>
@@ -123,11 +126,7 @@ const OnlineSpectatorPage = lazy(() =>
     default: module.OnlineSpectatorPage,
   }))
 );
-const OnlineSpectatorLobbyPage = lazy(() =>
-  import('@/components/pages/OnlineSpectatorLobbyPage').then((module) => ({
-    default: module.OnlineSpectatorLobbyPage,
-  }))
-);
+
 const MatchRecordsPage = lazy(() =>
   import('@/components/pages/MatchRecordsPage').then((module) => ({
     default: module.MatchRecordsPage,
@@ -230,10 +229,9 @@ type AppPage =
   | 'deck-manager'
   | 'game-setup'
   | 'online-room'
-  | 'public-table'
+  | 'battle-lobby'
   | 'ranked'
   | 'theme-table'
-  | 'online-spectator'
   | 'match-records'
   | 'online-debug'
   | 'game'
@@ -343,6 +341,7 @@ function readCardImageDetailCode(pathname: string): string | null {
 function getInitialPage(): AppPage {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
   if (path === '/tutorial') return 'tutorial';
+  if (path === '/online/spectate') return 'battle-lobby';
   if (path === '/admin/card-images' || path.startsWith('/admin/card-images/')) {
     return 'card-images-admin';
   }
@@ -353,16 +352,16 @@ function getInitialPage(): AppPage {
     return 'image-assets-admin';
   }
   const page = new URLSearchParams(window.location.search).get('page');
+  if (page === 'public-table' || page === 'online-spectator') return 'battle-lobby';
   if (
     page === 'tutorial' ||
     page === 'deck-manager' ||
     page === 'account' ||
     page === 'game-setup' ||
     page === 'online-room' ||
-    page === 'public-table' ||
+    page === 'battle-lobby' ||
     page === 'ranked' ||
     page === 'theme-table' ||
-    page === 'online-spectator' ||
     page === 'match-records' ||
     page === 'online-debug' ||
     page === 'game' ||
@@ -402,7 +401,7 @@ function AppSurfaceTiming({ surface, dataSource }: { surface: string; dataSource
   return null;
 }
 
-function App() {
+function AppContent() {
   const [currentPathname, setCurrentPathname] = useState(() => window.location.pathname);
   const requestedLegalDocument = resolveLegalDocumentPath(currentPathname);
   const [initialAuthRequest] = useState<InitialAuthRequest>(() => getInitialAuthRequest());
@@ -445,9 +444,11 @@ function App() {
   const maintenanceAdminRequested =
     new URLSearchParams(window.location.search).get('maintenanceAdmin') === '1' &&
     currentPage === 'announcement-admin';
-  const [deckManagerReturnPage, setDeckManagerReturnPage] = useState<'home' | 'game-setup'>('home');
+  const [deckManagerReturnPage, setDeckManagerReturnPage] = useState<
+    'home' | 'game-setup' | 'battle-lobby'
+  >('home');
   const openDeckManager = useCallback(
-    (returnPage: 'home' | 'game-setup' = 'home') => {
+    (returnPage: 'home' | 'game-setup' | 'battle-lobby' = 'home') => {
       setDeckManagerReturnPage(returnPage);
       setCurrentPage('deck-manager');
     },
@@ -505,6 +506,21 @@ function App() {
     }
     setCurrentPage('online-room');
   }, [setCurrentPage]);
+  useEffect(() => {
+    const navigate = (event: Event) => {
+      const page = (event as CustomEvent<'battle-lobby' | 'online-room' | 'ranked' | 'theme-table'>)
+        .detail;
+      window.history.pushState(null, '', `/?page=${page}`);
+      setCurrentPathname('/');
+      if (page === 'online-room') void enterOnlineRoom();
+      else setCurrentPage(page);
+    };
+    window.addEventListener(CASUAL_NAVIGATION_EVENT, navigate);
+    return () => window.removeEventListener(CASUAL_NAVIGATION_EVENT, navigate);
+  }, [enterOnlineRoom, setCurrentPage]);
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(CASUAL_PAGE_EVENT, { detail: currentPage }));
+  }, [currentPage]);
   const [appConfig, setAppConfig] = useState<PublicAppConfig>(DEFAULT_APP_CONFIG);
   const [configInitialized, setConfigInitialized] = useState(false);
   const [configLoadFailed, setConfigLoadFailed] = useState(false);
@@ -584,7 +600,19 @@ function App() {
   const enterOfflineMode = useAuthStore((s) => s.enterOfflineMode);
   const signOut = useAuthStore((s) => s.signOut);
   const invalidateSession = useAuthStore((s) => s.invalidateSession);
-  const setPublicTableSessionUser = usePublicTableStore((s) => s.setSessionUser);
+  const casualRuntimeGeneration = useCasualTableStore(
+    (state) => state.status?.table?.roomGeneration ?? null
+  );
+  const casualRoundState = useCasualTableStore((state) => state.status?.table?.state);
+  useEffect(() => {
+    if (currentPage === 'online-room' && casualRoundState === 'RESERVED') {
+      const timer = window.setTimeout(() => {
+        useGameStore.getState().disconnectRemoteSession();
+        setCurrentPage('battle-lobby');
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [casualRoundState, currentPage, setCurrentPage]);
   const setWallpaperSessionUser = usePlayerWallpaperStore((s) => s.setSessionUser);
   const publicTableSessionUserId = user && profile && !offlineMode ? user.id : null;
 
@@ -599,9 +627,8 @@ function App() {
   }, [invalidateSession, setCurrentPage]);
 
   useLayoutEffect(() => {
-    setPublicTableSessionUser(publicTableSessionUserId);
     setWallpaperSessionUser(publicTableSessionUserId);
-  }, [publicTableSessionUserId, setPublicTableSessionUser, setWallpaperSessionUser]);
+  }, [publicTableSessionUserId, setWallpaperSessionUser]);
 
   // Game state
   const matchView = useGameStore((s) => s.getMatchView());
@@ -1085,16 +1112,6 @@ function App() {
     );
   }
 
-  if (spectatorLobbyRequested) {
-    return (
-      <OnlineSpectatorLobbyPage
-        onBackHome={() => {
-          window.location.href = '/';
-        }}
-      />
-    );
-  }
-
   if (effectivePage === 'tutorial') {
     return (
       <>
@@ -1105,7 +1122,10 @@ function App() {
   }
 
   if (!isAuthenticated) {
-    const visibleAuthPage = shareLoginRequested && authPage === 'landing' ? 'login' : authPage;
+    const visibleAuthPage =
+      (shareLoginRequested || currentPage === 'battle-lobby') && authPage === 'landing'
+        ? 'login'
+        : authPage;
     const loginSubtitle =
       currentPage === 'deck-manager'
         ? '登录管理云端卡组，或进入离线模式把卡组保存在当前浏览器。'
@@ -1195,11 +1215,6 @@ function App() {
         matchFoundSoundEnabled={profile?.matchmaking_match_sound_enabled ?? true}
         preferredTrackIds={profile?.matchmaking_bgm_track_ids ?? null}
       />
-      <PublicTableGlobalLayer
-        enabled={Boolean(user && profile && !offlineMode)}
-        userId={publicTableSessionUserId}
-        onEnterRoom={enterOnlineRoom}
-      />
       <RankedGlobalLayer
         enabled={Boolean(user && profile && !offlineMode)}
         showWaitingNotice={effectivePage !== 'ranked'}
@@ -1215,9 +1230,16 @@ function App() {
 
   const productNavigation: ProductNavigationHandlers = {
     onHome: () => setCurrentPage('home'),
-    onDecks: () => openDeckManager(effectivePage === 'game-setup' ? 'game-setup' : 'home'),
-    onBattle: () => setCurrentPage('game-setup'),
-    onSpectate: () => setCurrentPage('online-spectator'),
+    onDecks: () =>
+      openDeckManager(
+        effectivePage === 'battle-lobby'
+          ? 'battle-lobby'
+          : effectivePage === 'game-setup'
+            ? 'game-setup'
+            : 'home'
+      ),
+    onBattle: () => setCurrentPage('battle-lobby'),
+    onSpectate: () => setCurrentPage('battle-lobby'),
     onHistory: () => setCurrentPage('match-records'),
   };
   const handleSignOut = () => {
@@ -1226,17 +1248,71 @@ function App() {
       setAuthPage('landing');
     });
   };
-  const handleAbandonSavedRoomForLocalGame = async () => {
-    const roomCode = window.sessionStorage.getItem('loveca.online.room');
-    if (roomCode) {
-      await abandonOnlineRoomForLocalGame(roomCode);
-      window.sessionStorage.removeItem('loveca.online.room');
-      await Promise.allSettled([
-        usePublicTableStore.getState().refresh(),
-        useRankedStore.getState().refresh(),
-        useThemeTableStore.getState().refresh(),
-      ]);
+  const handleAbandonSavedRoomForLocalGame = async (
+    expected: CasualTableCurrentView | null | undefined
+  ) => {
+    const actorId = user?.id;
+    const assertActor = () => {
+      if (!actorId || useCasualTableStore.getState().userId !== actorId)
+        throw new Error('登录账号已变化，请重新选择当前房间');
+    };
+    await useCasualTableStore.getState().refresh();
+    assertActor();
+    const current = useCasualTableStore.getState().status;
+    const unavailable = () => new Error('未能恢复当前房间，请先返回对战大厅处理，再开始本地对局');
+    if (!current) throw unavailable();
+    const { table, otherParticipation: other } = current;
+    if (
+      table &&
+      (table.tableId !== expected?.table?.tableId || table.roundId !== expected?.table?.roundId)
+    )
+      throw unavailable();
+    if (
+      other &&
+      (other.roomGeneration !== expected?.otherParticipation?.roomGeneration ||
+        other.matchId !== expected?.otherParticipation?.matchId)
+    )
+      throw unavailable();
+    if (
+      (table && table.state !== 'BOUND') ||
+      (other && !['ONLINE_ROOM', 'ONLINE_MATCH'].includes(other.kind))
+    )
+      throw unavailable();
+    let roomCode = table?.roomCode ?? null;
+    if (other?.destination === 'ranked' || other?.destination === 'theme-table') {
+      const mode = other.destination === 'ranked' ? useRankedStore : useThemeTableStore;
+      await mode.getState().refresh();
+      assertActor();
+      const queue = mode.getState().overview?.queue;
+      if (queue?.roomGeneration === other.roomGeneration) roomCode = queue?.roomCode ?? null;
     }
+    if (!roomCode && (table || other)) throw unavailable();
+    if (table) {
+      if (table.runtime?.status === 'PLAYING') {
+        if (!table.runtime.matchId) throw unavailable();
+        const result = await executeOnlineMatchCommand(
+          table.runtime.matchId,
+          createSurrenderCommand(actorId!)
+        );
+        if (!result.success) throw new Error('认输未成功，请返回房间处理');
+        await useCasualTableStore.getState().refresh();
+        assertActor();
+      }
+      const target = useCasualTableStore.getState().status?.table;
+      if (!target || target.tableId !== table.tableId || target.roundId !== table.roundId)
+        throw unavailable();
+      await useCasualTableStore.getState().mutate('leave', { target });
+    } else if (roomCode) await abandonOnlineRoomForLocalGame(roomCode);
+    assertActor();
+    window.sessionStorage.removeItem('loveca.online.room');
+    await Promise.allSettled([
+      useCasualTableStore.getState().refresh(),
+      useRankedStore.getState().refresh(),
+      useThemeTableStore.getState().refresh(),
+    ]);
+    assertActor();
+    const latest = useCasualTableStore.getState().status;
+    if (latest?.table || latest?.otherParticipation) throw unavailable();
     setCurrentPage('game-setup');
   };
   const authenticatedHeaderActions = (
@@ -1388,8 +1464,7 @@ function App() {
           mobileMenuActions={authenticatedMobileMenuActions}
           onBack={() => setCurrentPage('home')}
           onGameStart={() => setCurrentPage('game')}
-          onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
-          onNavigateToPublicTable={() => setCurrentPage('public-table')}
+          onNavigateToLobby={() => setCurrentPage('battle-lobby')}
           onNavigateToRanked={() => setCurrentPage('ranked')}
           onNavigateToThemeTable={() => setCurrentPage('theme-table')}
           onManageDecks={() => openDeckManager('game-setup')}
@@ -1402,7 +1477,8 @@ function App() {
   if (effectivePage === 'online-room') {
     return withProductFrame(
       <OnlineRoomPage
-        onBack={() => setCurrentPage('home')}
+        key={casualRuntimeGeneration ?? 'activity'}
+        onBack={() => setCurrentPage('battle-lobby')}
         onBackToThemeTable={() => setCurrentPage('theme-table')}
         onImmersiveModeChange={setIsOnlineRoomImmersive}
         emoteCatalog={appConfig.matchEmotes}
@@ -1414,12 +1490,13 @@ function App() {
     );
   }
 
-  if (effectivePage === 'public-table' && publicTableSessionUserId) {
+  if (effectivePage === 'battle-lobby' && publicTableSessionUserId) {
     return withProductFrame(
-      <PublicTablePage
+      <CasualLobbyPage
+        key={publicTableSessionUserId}
         userId={publicTableSessionUserId}
         onBack={() => setCurrentPage('home')}
-        onEnterRoom={enterOnlineRoom}
+        onManageDecks={() => openDeckManager('battle-lobby')}
       />,
       'battle'
     );
@@ -1438,17 +1515,6 @@ function App() {
 
   if (effectivePage === 'theme-table') {
     return withProductFrame(<ThemeTablePage onBack={() => setCurrentPage('home')} />, 'battle');
-  }
-
-  if (effectivePage === 'online-spectator') {
-    return withPublicTableLayer(
-      <OnlineSpectatorLobbyPage
-        navigation={productNavigation}
-        headerActions={authenticatedHeaderActions}
-        mobileMenuActions={authenticatedMobileMenuActions}
-        onBackHome={() => setCurrentPage('home')}
-      />
-    );
   }
 
   if (effectivePage === 'match-records') {
@@ -1781,12 +1847,10 @@ function App() {
           setHomeLocalSetupMode(mode);
           setCurrentPage('game-setup');
         }}
-        onNavigateToPublicTable={() => setCurrentPage('public-table')}
+        onNavigateToLobby={() => setCurrentPage('battle-lobby')}
         onAbandonSavedRoomForLocalGame={handleAbandonSavedRoomForLocalGame}
-        onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
         onNavigateToRanked={() => setCurrentPage('ranked')}
         onNavigateToThemeTable={() => setCurrentPage('theme-table')}
-        onNavigateToOnlineSpectator={() => setCurrentPage('online-spectator')}
         onNavigateToMatchRecords={() => setCurrentPage('match-records')}
         onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
         onNavigateToAdminCenter={() => navigateAdminPage('admin-center')}
@@ -1862,4 +1926,12 @@ function formatStartupDateTime(value: string): string {
   )}:${pad(date.getMinutes())}`;
 }
 
+function App() {
+  return (
+    <>
+      <AppContent />
+      <CasualTableGlobalLayer />
+    </>
+  );
+}
 export default App;

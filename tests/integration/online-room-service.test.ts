@@ -4192,6 +4192,7 @@ describe('OnlineRoomService', () => {
         Promise.resolve({
           playerActionTimeoutSeconds: 120,
           reconnectGracePeriodSeconds: 30,
+          doubleDisconnectNoContestWindowSeconds: 5,
         }),
     });
     const room = await service.createPublicTableRoom({
@@ -4229,10 +4230,12 @@ describe('OnlineRoomService', () => {
     expect(match?.battleTimeouts).toEqual({
       playerActionTimeoutSeconds: 120,
       reconnectGracePeriodSeconds: 30,
+      doubleDisconnectNoContestWindowSeconds: 5,
     });
     expect(started.battleTimeouts).toEqual({
       playerActionTimeoutSeconds: 120,
       reconnectGracePeriodSeconds: 30,
+      doubleDisconnectNoContestWindowSeconds: 5,
     });
 
     now += 20_000;
@@ -4802,5 +4805,149 @@ describe('OnlineRoomService', () => {
       expect.stringContaining("result_type = 'DISCONNECT_FORFEIT'"),
       [started.matchId]
     );
+  });
+  it('排位双方断线窗口应按开局时快照的平台配置裁定', async () => {
+    let now = 45_000;
+    const matchService = createInMemoryMatchService();
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadBattleTimeoutConfig: () =>
+        Promise.resolve({
+          playerActionTimeoutSeconds: 180,
+          reconnectGracePeriodSeconds: 60,
+          doubleDisconnectNoContestWindowSeconds: 10,
+        }),
+    });
+    const started = await startRankedPublicTableRoom(
+      service,
+      '61616161-2222-4333-8444-555555555555',
+      '72727272-2222-4333-8444-555555555555',
+      'double-disconnect-configured-window',
+      now
+    );
+
+    // 冻结快照携带平台配置的 10 秒窗口。
+    expect(started.battleTimeouts).toEqual({
+      playerActionTimeoutSeconds: 180,
+      reconnectGracePeriodSeconds: 60,
+      doubleDisconnectNoContestWindowSeconds: 10,
+    });
+
+    // 最后在线相差 8 秒：默认 5 秒窗口会判较早离线方负，配置的 10 秒窗口判平台无结果。
+    now += 8_000;
+    service.touchInGameMemberByMatch(started.matchId!, 'u2');
+    now += 61_000;
+    const summary = await service.cleanupExpiredRuntimeState();
+
+    expect(summary.rankedDisconnectForfeitCount).toBe(0);
+    expect(summary.rankedPlatformNoContestCount).toBe(1);
+    expect(matchService.getMatch(started.matchId!)).toBeNull();
+    expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
+      expect.stringContaining("result_type = 'PLATFORM_NO_CONTEST'"),
+      [started.matchId, new Date(now)]
+    );
+  });
+  it('ENDED 房间销毁期限应实时读取平台配置', async () => {
+    let now = 12_000;
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService: createInMemoryMatchService(),
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadRoomLifecycleTimeoutConfig: () =>
+        Promise.resolve({
+          roomDestroyAfterAllAbsentSeconds: 120,
+          casualHeartbeatGraceSeconds: 45,
+          casualConfirmationTtlSeconds: 60,
+        }),
+    });
+    const room = await service.createPublicTableRoom({
+      reservationId: '82828282-2222-4333-8444-555555555555',
+      originKind: 'PUBLIC_TABLE',
+      originLabel: '公共牌桌',
+      rankedSeasonId: null,
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'deck-a',
+        deckName: '卡组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('destroy-config-a')),
+        lockedAt: now,
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'deck-b',
+        deckName: '卡组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('destroy-config-b')),
+        lockedAt: now,
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      openingExpiresAt: now + 180_000,
+    });
+
+    await service.getRoomView(room.roomCode, 'u1');
+    now += 60_000;
+    const ended = await service.getRoomView(room.roomCode, 'u1');
+    expect(ended.status).toBe('ENDED');
+
+    // 全员离线计时从最后在线（12_000）起算。离线 90 秒时默认 60 秒期限已回收，
+    // 配置的 120 秒期限应保留房间。
+    now += 30_000;
+    expect((await service.cleanupExpiredRuntimeState()).destroyedRoomCount).toBe(0);
+    expect((await service.getRoomView(room.roomCode, 'u1')).status).toBe('ENDED');
+
+    // 离线 121 秒达到配置期限，房间被回收。
+    now += 31_000;
+    expect((await service.cleanupExpiredRuntimeState()).destroyedRoomCount).toBe(1);
+    await expect(service.getRoomView(room.roomCode, 'u1')).rejects.toMatchObject({
+      code: 'ONLINE_ROOM_NOT_FOUND',
+    });
+  });
+  it('keeps known activity-code spectator lookup and rejects stale generations and revoked views', async () => {
+    const now = 9_000_000;
+    const matchService = new OnlineMatchService({ now: () => now, recorder: null });
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: (userId) =>
+        Promise.resolve({ userId, displayName: userId === 'u1' ? '玩家一' : '玩家二' }),
+    });
+    const room = await startRankedPublicTableRoom(
+      service,
+      '11111111-2222-4333-8444-555555555555',
+      '22222222-3333-4444-8555-666666666666',
+      'activity-code',
+      now
+    );
+    await service.setOwnRoomSpectatorEntry(room.roomCode, 'u1', true);
+    await service.setOwnRoomSpectatorEntry(room.roomCode, 'u2', false);
+    const entry = await service.getRoomSpectatorEntry(room.roomCode, 'watcher', true);
+    expect(entry?.roomGeneration).toBe(
+      service.getRoomIdentityForPublicTableReservation('11111111-2222-4333-8444-555555555555')
+        ?.roomGeneration
+    );
+    expect(entry?.seats).toEqual([{ seat: 'FIRST', displayName: '玩家一', enabled: true }]);
+    await expect(
+      service.createRoomCodeSpectatorLink(room.roomCode, 'FIRST', 'watcher', 'stale-generation')
+    ).rejects.toMatchObject({ code: 'ONLINE_ROOM_REPLACED' });
+    expect(
+      (
+        await service.createRoomCodeSpectatorLink(
+          room.roomCode,
+          'FIRST',
+          'watcher',
+          entry!.roomGeneration
+        )
+      ).matchId
+    ).toBe(room.matchId);
+    await service.setOwnRoomSpectatorEntry(room.roomCode, 'u1', false);
+    await expect(
+      service.createRoomCodeSpectatorLink(room.roomCode, 'FIRST', 'watcher', entry!.roomGeneration)
+    ).rejects.toMatchObject({ code: 'ONLINE_ROOM_SPECTATOR_CLOSED' });
+    await matchService.executeCommand(room.matchId!, 'u1', createSurrenderCommand('ignored'));
+    expect(await service.getRoomSpectatorEntry(room.roomCode, 'watcher', true)).toBeNull();
   });
 });

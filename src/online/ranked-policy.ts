@@ -1,17 +1,24 @@
 export interface BattleTimeoutConfig {
   readonly playerActionTimeoutSeconds: number;
   readonly reconnectGracePeriodSeconds: number;
+  readonly doubleDisconnectNoContestWindowSeconds: number;
 }
 
 export const DEFAULT_BATTLE_TIMEOUT_CONFIG: BattleTimeoutConfig = {
   playerActionTimeoutSeconds: 3 * 60,
   reconnectGracePeriodSeconds: 60,
+  doubleDisconnectNoContestWindowSeconds: 5,
 };
+
+export const DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_SECONDS_MIN = 2;
+
+export const DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_SECONDS_MAX = 30;
 
 export const RANKED_RECONNECT_GRACE_PERIOD_MS =
   DEFAULT_BATTLE_TIMEOUT_CONFIG.reconnectGracePeriodSeconds * 1000;
 
-export const RANKED_DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_MS = 5 * 1000;
+export const RANKED_DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_MS =
+  DEFAULT_BATTLE_TIMEOUT_CONFIG.doubleDisconnectNoContestWindowSeconds * 1000;
 
 export const RANKED_STALL_TIMEOUT_MS =
   DEFAULT_BATTLE_TIMEOUT_CONFIG.playerActionTimeoutSeconds * 1000;
@@ -46,9 +53,10 @@ export function buildRankedSeasonDisconnectNotice(config: BattleTimeoutConfig): 
 } {
   const reconnectLabel = formatBattleTimeoutSeconds(config.reconnectGracePeriodSeconds);
   const actionLabel = formatBattleTimeoutSeconds(config.playerActionTimeoutSeconds);
+  const windowLabel = formatBattleTimeoutSeconds(config.doubleDisconnectNoContestWindowSeconds);
   return {
     title: '断线、重连与操作超时裁定',
-    summary: `断线后可在 ${reconnectLabel}内重连。单方断线超时由超时方判负；双方都超时，最后在线相差不超过 ${RANKED_DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_LABEL}时本局无结果、不计胜者与积分，超过 ${RANKED_DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_LABEL}时较早离线方判负。对局明确等待一名玩家操作时，连续 ${actionLabel}没有成功操作也会判负。`,
+    summary: `断线后可在 ${reconnectLabel}内重连。单方断线超时由超时方判负；双方都超时，最后在线相差不超过 ${windowLabel}时本局无结果、不计胜者与积分，超过 ${windowLabel}时较早离线方判负。对局明确等待一名玩家操作时，连续 ${actionLabel}没有成功操作也会判负。`,
   };
 }
 

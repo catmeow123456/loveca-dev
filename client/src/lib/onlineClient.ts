@@ -31,24 +31,6 @@ import type {
 import { toTransport } from '@game/online';
 import type { GameCommand } from '@game/application/game-commands';
 
-export async function createOnlineRoom(roomCode: string): Promise<OnlineRoomView> {
-  const response = await apiClient.post<OnlineRoomView>('/api/online/rooms', { roomCode });
-  if (!response.data) {
-    throw new Error(response.error?.message ?? '创建房间失败');
-  }
-  return response.data;
-}
-
-export async function joinOnlineRoom(roomCode: string): Promise<OnlineRoomView> {
-  const response = await apiClient.post<OnlineRoomView>(
-    `/api/online/rooms/${encodeURIComponent(roomCode)}/join`
-  );
-  if (!response.data) {
-    throw new Error(response.error?.message ?? '加入房间失败');
-  }
-  return response.data;
-}
-
 export async function fetchOnlineRoom(roomCode: string): Promise<OnlineRoomView> {
   const response = await apiClient.get<OnlineRoomView>(
     `/api/online/rooms/${encodeURIComponent(roomCode)}`
@@ -69,10 +51,11 @@ export async function abandonOnlineRoomForLocalGame(roomCode: string): Promise<v
 }
 
 export async function fetchOnlineRoomSpectatorEntry(
-  roomCode: string
+  roomCode: string,
+  activityOnly = false
 ): Promise<OnlineRoomSpectatorEntryView> {
   const response = await apiClient.get<OnlineRoomSpectatorEntryView>(
-    `/api/online/rooms/${encodeURIComponent(roomCode)}/spectator-entry`
+    `/api/online/rooms/${encodeURIComponent(roomCode)}/spectator-entry${activityOnly ? '?activityOnly=true' : ''}`
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取房间号观战入口失败');
@@ -82,12 +65,14 @@ export async function fetchOnlineRoomSpectatorEntry(
 
 export async function createOnlineRoomSpectatorEntryLink(
   roomCode: string,
-  viewerSeat: Seat
+  viewerSeat: Seat,
+  roomGeneration?: string
 ): Promise<OnlineSpectatorLinkView> {
   const response = await apiClient.post<OnlineSpectatorLinkView>(
     `/api/online/rooms/${encodeURIComponent(roomCode)}/spectator-entry/${encodeURIComponent(
       viewerSeat
-    )}/link`
+    )}/link`,
+    { roomGeneration }
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '进入房间号观战失败');

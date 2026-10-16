@@ -54,10 +54,6 @@ onlineRouter.use(['/matches/:matchId', '/admin/matches/:matchId'], (req, res, ne
 
 onlineRouter.use('/match-records', privateNoStore);
 
-const roomCodeSchema = z.object({
-  roomCode: z.string().min(4).max(12),
-});
-
 const deckSelectionSchema = z.object({
   deckId: z.string().uuid(),
 });
@@ -345,39 +341,12 @@ onlineRouter.get('/match-records/:matchId', requireAuth, async (req, res) => {
   }
 });
 
-onlineRouter.post('/rooms', requireAuth, requireGameplayAvailable, async (req, res) => {
-  const parsed = roomCodeSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res
-      .status(400)
-      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '房间号参数非法' } });
-    return;
-  }
-
-  try {
-    const room = await onlineRoomService.createRoom(parsed.data.roomCode, req.user!.id);
-    res.status(201).json({ data: room, error: null });
-  } catch (error) {
-    respondOnlineError(res, error);
-  }
+onlineRouter.post(['/rooms', '/rooms/:roomCode/join'], requireAuth, (_req, res) => {
+  res.status(410).json({
+    data: null,
+    error: { code: 'CASUAL_ENTRY_RETIRED', message: '请从对战大厅创建或加入房间' },
+  });
 });
-
-onlineRouter.post(
-  '/rooms/:roomCode/join',
-  requireAuth,
-  requireGameplayAvailable,
-  async (req, res) => {
-    try {
-      const room = await onlineRoomService.joinRoom(
-        readPathParam(req.params.roomCode),
-        req.user!.id
-      );
-      res.json({ data: room, error: null });
-    } catch (error) {
-      respondOnlineError(res, error);
-    }
-  }
-);
 
 onlineRouter.get('/rooms/:roomCode', requireAuth, async (req, res) => {
   try {
@@ -396,7 +365,8 @@ onlineRouter.get('/rooms/:roomCode/spectator-entry', async (req, res) => {
   try {
     const entry = await onlineRoomService.getRoomSpectatorEntry(
       readPathParam(req.params.roomCode),
-      req.user?.id
+      req.user?.id,
+      req.query.activityOnly === 'true'
     );
     if (!entry || !entry.matchId || entry.seats.length === 0) {
       res.status(404).json({
@@ -426,10 +396,21 @@ onlineRouter.post('/rooms/:roomCode/spectator-entry/:viewerSeat/link', async (re
   }
 
   try {
+    const parsed = z
+      .object({ roomGeneration: z.string().min(1).optional() })
+      .safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ data: null, error: { code: 'INVALID_REQUEST', message: '房间代际参数无效' } });
+      return;
+    }
+    const body = parsed.data;
     const link = await onlineRoomService.createRoomCodeSpectatorLink(
       readPathParam(req.params.roomCode),
       viewerSeat,
-      req.user?.id
+      req.user?.id,
+      body.roomGeneration
     );
     res.status(201).json({ data: link, error: null });
   } catch (error) {

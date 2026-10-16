@@ -191,6 +191,20 @@ export async function installVisualApiMocks(page: Page, authenticated: boolean) 
       return;
     }
 
+    if (url.pathname === '/api/casual-tables/me') {
+      await fulfill(route, { table: null, otherParticipation: null });
+      return;
+    }
+    if (url.pathname === '/api/casual-tables/rooms') {
+      await fulfill(route, {
+        rooms: [],
+        counts: { waiting: 0, preparing: 0, playing: 0 },
+        nextCursor: null,
+        snapshotAt: Date.now(),
+        unavailableReason: null,
+      });
+      return;
+    }
     if (url.pathname === '/api/decks' && request.method() === 'GET') {
       await fulfill(route, [DECK_RECORD]);
       return;

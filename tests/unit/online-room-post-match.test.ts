@@ -2,6 +2,22 @@ import { describe, expect, it } from 'vitest';
 import { getOnlineRoomPostMatchActionState } from '../../client/src/lib/onlineRoomPostMatch';
 
 describe('联机房间赛后动作', () => {
+  it('managed casual results preserve occupancy and send rematch negotiation through the lobby', () => {
+    expect(
+      getOnlineRoomPostMatchActionState({
+        originKind: 'ONLINE_ROOM',
+        casualTable: true,
+        restartRole: 'NONE',
+        opponentActive: true,
+      })
+    ).toEqual({
+      kind: 'CASUAL_ROOM',
+      preserveRoomOnLobbyReturn: true,
+      showExplicitLeaveRoom: true,
+      restartAction: null,
+      restartDisabledReason: null,
+    });
+  });
   it('私有房间保留大厅恢复入口并提供明确离房动作', () => {
     expect(
       getOnlineRoomPostMatchActionState({

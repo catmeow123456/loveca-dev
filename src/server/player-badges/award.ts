@@ -88,9 +88,10 @@ export async function awardEligibleThemeActivityBadges(
   if (input.userIds?.length === 0) return [];
   const result = await client.query<AwardedBadgeRow>(
     `WITH participant_matches AS (
-       SELECT record.first_user_id AS user_id, record.match_id, record.ended_at
+       SELECT participant.id AS user_id, record.match_id, record.ended_at
        FROM theme_table_assignments AS assignment
        JOIN match_records AS record ON record.match_id = assignment.match_id
+       JOIN profiles AS participant ON participant.id::text = record.first_user_id
        WHERE assignment.theme_table_version_id = $1
          AND record.ended_at IS NOT NULL
          AND (
@@ -99,9 +100,10 @@ export async function awardEligibleThemeActivityBadges(
            OR (record.status = 'COMPLETED' AND record.winner_seat IS NULL)
          )
        UNION ALL
-       SELECT record.second_user_id AS user_id, record.match_id, record.ended_at
+       SELECT participant.id AS user_id, record.match_id, record.ended_at
        FROM theme_table_assignments AS assignment
        JOIN match_records AS record ON record.match_id = assignment.match_id
+       JOIN profiles AS participant ON participant.id::text = record.second_user_id
        WHERE assignment.theme_table_version_id = $1
          AND record.ended_at IS NOT NULL
          AND (

@@ -295,6 +295,20 @@
       "when": 1790530118778,
       "tag": "0041_add_ai_battle_evidence",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792118909146,
+      "tag": "0042_add_casual_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792140216968,
+      "tag": "0043_add_platform_timeout_settings",
+      "breakpoints": true
     }
   ]
 }

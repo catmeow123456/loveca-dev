@@ -37,7 +37,6 @@ const NAV_ITEMS: ReadonlyArray<{
   { key: 'home', label: '大厅', handler: 'onHome' },
   { key: 'decks', label: '卡组', handler: 'onDecks' },
   { key: 'battle', label: '对战', handler: 'onBattle' },
-  { key: 'spectate', label: '观战', handler: 'onSpectate' },
   { key: 'history', label: '历史', handler: 'onHistory' },
 ];
 

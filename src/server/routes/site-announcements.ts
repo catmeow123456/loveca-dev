@@ -6,6 +6,18 @@ import { requireAdmin } from '../middleware/require-admin.js';
 import { requirePermission } from '../middleware/require-permission.js';
 import { validate } from '../middleware/validate.js';
 import {
+  DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_SECONDS_MAX,
+  DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_SECONDS_MIN,
+} from '../../online/ranked-policy.js';
+import {
+  CASUAL_CONFIRMATION_TTL_SECONDS_MAX,
+  CASUAL_CONFIRMATION_TTL_SECONDS_MIN,
+  CASUAL_HEARTBEAT_GRACE_SECONDS_MAX,
+  CASUAL_HEARTBEAT_GRACE_SECONDS_MIN,
+  ROOM_DESTROY_AFTER_ALL_ABSENT_SECONDS_MAX,
+  ROOM_DESTROY_AFTER_ALL_ABSENT_SECONDS_MIN,
+} from '../../online/room-lifecycle-policy.js';
+import {
   SiteAnnouncementServiceError,
   siteAnnouncementService,
   type SiteAnnouncementInput,
@@ -53,6 +65,34 @@ const playerBattleEntryVisibilityInputSchema = z.object({
 const battleTimeoutConfigInputSchema = z.object({
   playerActionTimeoutSeconds: z.number().int().min(60).max(900),
   reconnectGracePeriodSeconds: z.number().int().min(15).max(300),
+  doubleDisconnectNoContestWindowSeconds: z
+    .number()
+    .int()
+    .min(DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_SECONDS_MIN)
+    .max(DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_SECONDS_MAX),
+});
+
+const roomLifecycleTimeoutConfigInputSchema = z.object({
+  roomDestroyAfterAllAbsentSeconds: z
+    .number()
+    .int()
+    .min(ROOM_DESTROY_AFTER_ALL_ABSENT_SECONDS_MIN)
+    .max(ROOM_DESTROY_AFTER_ALL_ABSENT_SECONDS_MAX),
+  casualHeartbeatGraceSeconds: z
+    .number()
+    .int()
+    .min(CASUAL_HEARTBEAT_GRACE_SECONDS_MIN)
+    .max(CASUAL_HEARTBEAT_GRACE_SECONDS_MAX),
+  casualConfirmationTtlSeconds: z
+    .number()
+    .int()
+    .min(CASUAL_CONFIRMATION_TTL_SECONDS_MIN)
+    .max(CASUAL_CONFIRMATION_TTL_SECONDS_MAX),
+});
+
+const battleTimeoutSettingsInputSchema = z.object({
+  battleTimeouts: battleTimeoutConfigInputSchema,
+  roomLifecycle: roomLifecycleTimeoutConfigInputSchema,
 });
 
 siteAnnouncementsRouter.get('/admin', requireAuth, requireAdmin, async (_req, res) => {
@@ -102,7 +142,7 @@ siteAnnouncementsRouter.get(
   requireAdmin,
   async (_req, res) => {
     try {
-      res.json({ data: await battleTimeoutConfigService.getConfig(), error: null });
+      res.json({ data: await battleTimeoutConfigService.getSettings(), error: null });
     } catch (error) {
       respondSiteAnnouncementError(res, error);
     }
@@ -113,11 +153,11 @@ siteAnnouncementsRouter.put(
   '/admin/battle-timeouts',
   requireAuth,
   requireAdmin,
-  validate(battleTimeoutConfigInputSchema),
+  validate(battleTimeoutSettingsInputSchema),
   async (req, res) => {
     try {
       const config = await battleTimeoutConfigService.updateConfig(
-        req.body as z.infer<typeof battleTimeoutConfigInputSchema>,
+        req.body as z.infer<typeof battleTimeoutSettingsInputSchema>,
         req.user!.id
       );
       res.json({ data: config, error: null });

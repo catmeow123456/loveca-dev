@@ -8,16 +8,17 @@
 
 ## 推荐阅读顺序
 
-| 文档                                                          | 类型         | 维护边界                                                         |
-| ------------------------------------------------------------- | ------------ | ---------------------------------------------------------------- |
-| [产品视觉系统与页面统一规范](product-visual-system.md)        | 视觉设计规范 | 产品视觉方向、页面原型、导航系统、组件外观与子页面迁移目标       |
-| [前端 UI 开发规范](standard.md)                               | 编码标准     | React 组件、主题 token、页面布局、覆盖层和产品文案规范           |
-| [移动端适配需求](mobile-adaptation-requirements.md)           | 需求文档     | 手机/平板布局、触控、覆盖层和移动端验收目标                      |
-| [移动端现状差距清单](mobile-adaptation-gap-analysis.md)       | 专题说明     | 移动端目标态与当前前端实现之间的差距和优先级                     |
-| [对局入口卡组选择现状](deck-selection-entry-current-state.md) | 专题说明     | 游戏准备、正式联机和联机调试入口的选组体验、当前事实与未落地项   |
-| [游戏桌 UI 现状](game-table/current-state.md)                 | 专题说明     | 当前 `GameBoard` / `PlayerArea` / `JudgmentPanel` 布局和交互事实 |
-| [解决区行为](game-table/resolution-zone-behavior.md)          | 专题说明     | 解决区局部交互定稿                                               |
-| [卡组点击行为](game-table/deck-click-behavior.md)             | 专题说明     | 卡组点击局部交互定稿                                             |
+| 文档                                                                                                      | 类型            | 维护边界                                                         |
+| --------------------------------------------------------------------------------------------------------- | --------------- | ---------------------------------------------------------------- |
+| [产品视觉系统与页面统一规范](product-visual-system.md)                                                    | 视觉设计规范    | 产品视觉方向、页面原型、导航系统、组件外观与子页面迁移目标       |
+| [前端 UI 开发规范](standard.md)                                                                           | 编码标准        | React 组件、主题 token、页面布局、覆盖层和产品文案规范           |
+| [移动端适配需求](mobile-adaptation-requirements.md)                                                       | 需求文档        | 手机/平板布局、触控、覆盖层和移动端验收目标                      |
+| [移动端现状差距清单](mobile-adaptation-gap-analysis.md)                                                   | 专题说明        | 移动端目标态与当前前端实现之间的差距和优先级                     |
+| [对局入口卡组选择现状](deck-selection-entry-current-state.md)                                             | 专题说明        | 游戏准备、正式联机和联机调试入口的选组体验、当前事实与未落地项   |
+| [社区对战大厅设计](../online-mode/community-lobby-design.md)、[交互原型](prototypes/community-lobby.html) | 设计文档 / 原型 | 现行大厅实现与状态交互原型；原型用示例数据，不作现行视觉基线     |
+| [游戏桌 UI 现状](game-table/current-state.md)                                                             | 专题说明        | 当前 `GameBoard` / `PlayerArea` / `JudgmentPanel` 布局和交互事实 |
+| [解决区行为](game-table/resolution-zone-behavior.md)                                                      | 专题说明        | 解决区局部交互定稿                                               |
+| [卡组点击行为](game-table/deck-click-behavior.md)                                                         | 专题说明        | 卡组点击局部交互定稿                                             |
 
 ## 维护规则
 

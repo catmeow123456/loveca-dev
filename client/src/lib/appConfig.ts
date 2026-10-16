@@ -122,6 +122,10 @@ export function normalizeAppConfig(
           battleTimeouts?.reconnectGracePeriodSeconds,
           DEFAULT_BATTLE_TIMEOUT_CONFIG.reconnectGracePeriodSeconds
         ),
+        doubleDisconnectNoContestWindowSeconds: normalizePositiveInteger(
+          battleTimeouts?.doubleDisconnectNoContestWindowSeconds,
+          DEFAULT_BATTLE_TIMEOUT_CONFIG.doubleDisconnectNoContestWindowSeconds
+        ),
       },
     },
     siteStatus: normalizeSiteStatus(config?.siteStatus),
