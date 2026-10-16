@@ -41,6 +41,7 @@ import { PhaseIndicator } from './PhaseIndicator';
 import { PhaseBanner } from './PhaseBanner';
 import { LiveResultAnimation, type LiveScoreInfo } from './LiveResultAnimation';
 import { DebugControl } from './DebugControl';
+import { BattleSettingsMenu, BattleToolbarMenu } from './BattleToolbarMenu';
 import { CardDetailOverlay } from './CardDetailOverlay';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
 import { JudgmentPanel } from './JudgmentPanel';
@@ -334,11 +335,17 @@ export interface GameBoardProps {
   onLeaveLocalGame?: () => void;
   onRestartGame?: () => void;
   showDesktopPublicBattleLogButton?: boolean;
+  desktopHeaderActions?: ReactNode;
+  headerOverlay?: ReactNode;
   mobileHeaderActions?: ReactNode;
+  /** 移动端位于阶段浮层上方的入口，仍随桌面背景一起受模态隔离。 */
+  mobileFloatingHeaderActions?: ReactNode;
   /** 默认保持现有自动继续；教程可关闭，让玩家亲自确认正式结果窗口。 */
   resultAnimationAutoComplete?: boolean;
   /** 默认按规则阶段显示；教程说明区位时可暂时隐藏换牌弹窗。 */
   mulliganPanelVisible?: boolean;
+  /** 外层入场提示尚未关闭时，延后展示自动打开的判定区。 */
+  judgmentPanelVisible?: boolean;
   /** 教学等受控流程可限制换牌候选；普通牌桌仍允许选择任意起手牌。 */
   mulliganSelectableCardIds?: readonly string[] | null;
   /** 教程可据此移动聚焦框；不会改变正式换牌规则。 */
@@ -353,9 +360,13 @@ export const GameBoard = memo(function GameBoard({
   onLeaveLocalGame,
   onRestartGame,
   showDesktopPublicBattleLogButton = true,
+  desktopHeaderActions,
+  headerOverlay,
   mobileHeaderActions,
+  mobileFloatingHeaderActions,
   resultAnimationAutoComplete = true,
   mulliganPanelVisible = true,
+  judgmentPanelVisible = true,
   mulliganSelectableCardIds = null,
   onMulliganSelectionChange,
   mobileBattlefieldFocusRequest,
@@ -446,8 +457,24 @@ export const GameBoard = memo(function GameBoard({
   const logCount = useGameStore((s) => s.ui.logs.length);
   const publicLogCount = useGameStore((s) => s.publicBattleLog.events.length);
   const publicLogUnreadCount = useGameStore((s) => s.publicBattleLog.unreadCount);
+  const publicLogOpen = useGameStore((s) => s.publicBattleLog.isPanelOpen);
   const setPublicBattleLogPanelOpen = useGameStore((s) => s.setPublicBattleLogPanelOpen);
   const isMobileBattlefield = useMediaQuery('(max-width: 767px)');
+  const desktopWorkspaceRef = useRef<HTMLDivElement>(null);
+  const [boardRoot, setBoardRoot] = useState<HTMLDivElement | null>(null);
+  const [canDockBattlePanel, setCanDockBattlePanel] = useState(false);
+  const [desktopDebugLogOpen, setDesktopDebugLogOpen] = useState(false);
+  const hasMatchView = matchView !== null;
+  useLayoutEffect(() => {
+    const workspace = desktopWorkspaceRef.current;
+    if (isMobileBattlefield || !hasMatchView || !workspace) return;
+    // 420px 辅助面板之外，给三成员槽、两侧资源区及间距保留至少 1020px。
+    const measure = () => setCanDockBattlePanel(workspace.clientWidth >= 1440);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(workspace);
+    return () => observer.disconnect();
+  }, [isMobileBattlefield, hasMatchView]);
   const tableWallpaper = usePlayerTableWallpaper(isMobileBattlefield);
   const prefersReducedMotion = useReducedMotion() === true;
   const canShowDebugLog = capabilities.canShowDebugLog;
@@ -1420,15 +1447,17 @@ export const GameBoard = memo(function GameBoard({
 
   // 打开判定面板（由 PhaseIndicator 的判定按钮调用）
   const handleOpenJudgmentPanel = useCallback(() => {
+    setPublicBattleLogPanelOpen(false);
+    setDesktopDebugLogOpen(false);
     setJudgmentPanelOpen(true);
-  }, []);
+  }, [setPublicBattleLogPanelOpen]);
 
   useEffect(() => {
     if (currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT) {
-      const timer = window.setTimeout(() => setJudgmentPanelOpen(true), 0);
+      const timer = window.setTimeout(handleOpenJudgmentPanel, 0);
       return () => window.clearTimeout(timer);
     }
-  }, [currentSubPhase]);
+  }, [currentSubPhase, handleOpenJudgmentPanel]);
 
   useEffect(() => {
     if (!isJudgmentPanelRelevant && judgmentPanelOpen) {
@@ -2361,6 +2390,15 @@ export const GameBoard = memo(function GameBoard({
   }
 
   const selfSeat: Seat = viewerSeat;
+  const showDesktopPublicLog = !entranceWaiting && canShowPublicBattleLog && publicLogOpen;
+  const showDesktopDebugLog = canShowDebugLog && desktopDebugLogOpen;
+  const showDesktopJudgment =
+    !entranceWaiting &&
+    judgmentPanelVisible &&
+    isJudgmentPanelRelevant &&
+    judgmentPanelOpen &&
+    !showDesktopPublicLog &&
+    !showDesktopDebugLog;
   const opponentSeat: Seat = selfSeat === 'FIRST' ? 'SECOND' : 'FIRST';
   const resolvedActiveSeat = activeSeat ?? selfSeat;
   const isSolitaire = capabilities.isSolitairePresentation;
@@ -2448,6 +2486,7 @@ export const GameBoard = memo(function GameBoard({
       onDragCancel={clearDragInteractionState}
     >
       <div
+        ref={setBoardRoot}
         data-battle-ui-anchor={BATTLE_UI_ANCHORS.BOARD}
         className="isolate h-full flex flex-col relative overflow-hidden bg-[var(--board-wallpaper-base)]"
         onClick={handleBattlefieldBackgroundClick}
@@ -2459,200 +2498,581 @@ export const GameBoard = memo(function GameBoard({
             <CardEntranceLayer enabled={cardEntranceEnabled} />
           </Suspense>
         )}
-        <div className="contents" inert={entranceWaiting}>
+        <div
+          className="contents"
+          inert={
+            entranceWaiting ||
+            (isMobileBattlefield &&
+              !entranceWaiting &&
+              judgmentPanelVisible &&
+              isJudgmentPanelRelevant &&
+              judgmentPanelOpen)
+          }
+        >
           {!entranceWaiting && <BattleActionFeedbackLayer />}
           {!isReadOnly && <RankedStallNotice stall={rankedStall} viewerSeat={viewerSeat} />}
 
-          {isMobileBattlefield ? (
-            <div className="relative z-10 flex h-full min-h-0 flex-col overflow-hidden md:hidden">
-              <div className="safe-top shrink-0 px-2.5 pt-2.5">
-                <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_30%,transparent)] px-2.5 py-1.5 shadow-none backdrop-blur-[2px]">
-                  <div className="flex items-center justify-between gap-2">
-                    {showLeaveLocalGameButton || showRestartGameButton ? (
-                      <div className="flex shrink-0 items-center gap-1">
-                        {showLeaveLocalGameButton && (
-                          <button
-                            type="button"
-                            onClick={onLeaveLocalGame}
-                            className="button-ghost inline-flex h-9 shrink-0 items-center justify-center gap-1 px-2 text-xs"
-                            title={leaveLocalGameButtonTitle}
-                          >
-                            <DoorOpen size={15} />
-                            离开
-                          </button>
-                        )}
+          {!isMobileBattlefield && (
+            <header className="battle-desktop-toolbar" aria-label="对战工具栏">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                {desktopHeaderActions}
+                {(showLeaveLocalGameButton || showRestartGameButton) && (
+                  <BattleToolbarMenu label="房间" icon={<DoorOpen size={16} />}>
+                    {(close) => (
+                      <>
                         {showRestartGameButton && (
                           <button
                             type="button"
-                            onClick={onRestartGame}
-                            className="button-ghost inline-flex h-9 shrink-0 items-center justify-center gap-1 px-2 text-xs"
-                            title="重开对局"
-                            aria-label="重开对局"
+                            className="button-ghost flex min-h-11 w-full items-center gap-2 px-3"
+                            onClick={() => {
+                              close();
+                              onRestartGame?.();
+                            }}
                           >
-                            <RotateCcw size={15} />
-                            重开
+                            <RotateCcw size={16} />
+                            重开对局
                           </button>
                         )}
-                      </div>
-                    ) : mobileHeaderActions ? (
-                      <div data-mobile-header-actions className="flex shrink-0 items-center gap-1">
-                        {mobileHeaderActions}
-                      </div>
-                    ) : (
-                      <div className="h-9 w-9 shrink-0" />
+                        {showLeaveLocalGameButton && (
+                          <button
+                            type="button"
+                            className="button-ghost flex min-h-11 w-full items-center gap-2 px-3"
+                            title={leaveLocalGameButtonTitle}
+                            onClick={() => {
+                              close();
+                              onLeaveLocalGame?.();
+                            }}
+                          >
+                            <DoorOpen size={16} />
+                            离开房间
+                          </button>
+                        )}
+                      </>
                     )}
-
-                    <div className="min-w-0 text-center">
-                      <div className="truncate text-[13px] font-bold text-[var(--text-primary)]">
-                        {phaseInfo?.name ?? currentPhase}阶段
-                      </div>
-                      <div className="truncate text-[10px] text-[var(--text-muted)]">
-                        T{turnNumber}
-                        {subPhaseInfo ? ` · ${subPhaseInfo.name}` : ''}
-                      </div>
-                    </div>
-
-                    <div className="flex shrink-0 items-center gap-1">
-                      {canShowCardEntrance && (
-                        <CardEntranceToggle
-                          enabled={cardEntranceEnabled}
-                          onChange={changeCardEntranceEnabled}
-                          className="h-9 w-9"
-                        />
+                  </BattleToolbarMenu>
+                )}
+                {canShowDesktopPublicBattleLogButton && <PublicBattleLogButton />}
+                {canShowDebugLog && (
+                  <button
+                    type="button"
+                    className="button-ghost inline-flex min-h-11 items-center gap-2 px-3 text-sm"
+                    aria-label="调试日志"
+                    aria-expanded={desktopDebugLogOpen}
+                    aria-controls="debug-battle-log-panel"
+                    onClick={() => setDesktopDebugLogOpen((open) => !open)}
+                  >
+                    <ScrollText size={16} />
+                    日志
+                  </button>
+                )}
+              </div>
+              {!isReadOnly && <DebugControl />}
+              <BattleSettingsMenu
+                showCardEntrance={canShowCardEntrance}
+                cardEntranceEnabled={cardEntranceEnabled}
+                onCardEntranceChange={changeCardEntranceEnabled}
+              />
+            </header>
+          )}
+          <div
+            ref={desktopWorkspaceRef}
+            data-battle-workspace
+            className="relative flex min-h-0 flex-1"
+          >
+            <JudgmentPanel
+              isOpen={
+                isMobileBattlefield
+                  ? !entranceWaiting &&
+                    judgmentPanelVisible &&
+                    isJudgmentPanelRelevant &&
+                    judgmentPanelOpen
+                  : showDesktopJudgment
+              }
+              onClose={handleJudgmentPanelClose}
+              docked={!isMobileBattlefield && canDockBattlePanel}
+              mobilePortalTarget={boardRoot}
+            />
+            {isMobileBattlefield ? (
+              <div className="relative z-10 flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:hidden">
+                <div className="safe-top shrink-0 px-2.5 pt-2.5">
+                  <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_30%,transparent)] px-2.5 py-1.5 shadow-none backdrop-blur-[2px]">
+                    <div className="flex items-center justify-between gap-2">
+                      {showLeaveLocalGameButton || showRestartGameButton ? (
+                        <div className="flex shrink-0 items-center gap-1">
+                          {showLeaveLocalGameButton && (
+                            <button
+                              type="button"
+                              onClick={onLeaveLocalGame}
+                              className="button-ghost inline-flex h-9 shrink-0 items-center justify-center gap-1 px-2 text-xs"
+                              title={leaveLocalGameButtonTitle}
+                            >
+                              <DoorOpen size={15} />
+                              离开
+                            </button>
+                          )}
+                          {showRestartGameButton && (
+                            <button
+                              type="button"
+                              onClick={onRestartGame}
+                              className="button-ghost inline-flex h-9 shrink-0 items-center justify-center gap-1 px-2 text-xs"
+                              title="重开对局"
+                              aria-label="重开对局"
+                            >
+                              <RotateCcw size={15} />
+                              重开
+                            </button>
+                          )}
+                        </div>
+                      ) : mobileHeaderActions ? (
+                        <div
+                          data-mobile-header-actions
+                          className="flex shrink-0 items-center gap-1"
+                        >
+                          {mobileHeaderActions}
+                        </div>
+                      ) : (
+                        <div className="h-9 w-9 shrink-0" />
                       )}
-                      <ThemeToggle className="h-9 w-9" />
+
+                      <div className="min-w-0 text-center">
+                        <div className="truncate text-[13px] font-bold text-[var(--text-primary)]">
+                          {phaseInfo?.name ?? currentPhase}阶段
+                        </div>
+                        <div className="truncate text-[10px] text-[var(--text-muted)]">
+                          T{turnNumber}
+                          {subPhaseInfo ? ` · ${subPhaseInfo.name}` : ''}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-1">
+                        {canShowCardEntrance && (
+                          <CardEntranceToggle
+                            enabled={cardEntranceEnabled}
+                            onChange={changeCardEntranceEnabled}
+                            className="h-9 w-9"
+                          />
+                        )}
+                        <ThemeToggle className="h-9 w-9" />
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="relative z-[95] mt-1.5 grid grid-cols-2 items-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_18%,transparent)] px-1.5 py-1.5 shadow-none backdrop-blur-[2px]">
+                    {capabilities.canSwitchPerspective ? (
+                      (['FIRST', 'SECOND'] as const).map((seat) => {
+                        const identity = getPlayerIdentityForSeat(seat);
+                        const isCurrentPerspective = seat === selfSeat;
+                        const handCount = playerViewState.table.zones[`${seat}_HAND`]?.count ?? 0;
+                        const seatLabel = seat === 'FIRST' ? 'P1' : 'P2';
+                        return (
+                          <button
+                            key={seat}
+                            type="button"
+                            data-player-identity-seat={seat}
+                            onClick={() => handleMobilePerspectiveSelect(seat)}
+                            aria-pressed={isCurrentPerspective}
+                            aria-label={`${seatLabel} ${identity?.name ?? '玩家'}，手牌 ${handCount} 张${
+                              isCurrentPerspective ? '，当前视角' : '，切换至此视角'
+                            }`}
+                            className={cn(
+                              'flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition',
+                              isCurrentPerspective
+                                ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_58%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)] text-[var(--text-primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent-primary)_16%,transparent)]'
+                                : 'border-transparent bg-[color:color-mix(in_srgb,var(--bg-overlay)_16%,transparent)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]'
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                'shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold',
+                                isCurrentPerspective
+                                  ? 'bg-[var(--accent-primary)] text-white'
+                                  : 'bg-[var(--bg-overlay)] text-[var(--text-secondary)]'
+                              )}
+                            >
+                              {seatLabel}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold">
+                              {identity?.name ?? '玩家'}
+                            </span>
+                            <span
+                              data-mobile-player-hand-count={seat}
+                              className="shrink-0 text-[10px] font-semibold text-[var(--text-muted)] tabular-nums"
+                            >
+                              手牌 {handCount}
+                            </span>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          data-player-identity-seat={opponentSeat}
+                          data-mobile-player-status-seat={opponentSeat}
+                          data-mobile-active-player={
+                            resolvedActiveSeat === opponentSeat ? 'true' : undefined
+                          }
+                          onClick={handleMobileOpponentAction}
+                          aria-pressed={mobilePanel === 'opponent'}
+                          aria-label={`${opponentIdentity?.name ?? '对手'}，手牌 ${opponentHandCount} 张，${isSolitaire ? '查看对墙打对手战场' : '查看对手战场'}${resolvedActiveSeat === opponentSeat ? '，当前行动玩家' : ''}`}
+                          className={cn(
+                            'flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]',
+                            getMobilePlayerStatusStateClass(
+                              mobilePanel === 'opponent',
+                              resolvedActiveSeat === opponentSeat
+                            )
+                          )}
+                          title={isSolitaire ? '查看对墙打对手战场' : '查看对手战场'}
+                        >
+                          <UserRound size={14} className="shrink-0" />
+                          <span className="min-w-0 truncate text-[11px] font-semibold text-[var(--text-primary)]">
+                            {opponentIdentity?.name ?? '对手'}
+                          </span>
+                          <span
+                            data-mobile-player-hand-count={opponentSeat}
+                            className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)] tabular-nums"
+                          >
+                            手牌 {opponentHandCount}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          data-mobile-player-status-seat={selfSeat}
+                          data-mobile-active-player={
+                            resolvedActiveSeat === selfSeat ? 'true' : undefined
+                          }
+                          onClick={() => setMobilePanel(null)}
+                          aria-pressed={mobilePanel !== 'opponent'}
+                          aria-label={`${selfIdentity?.name ?? '己方'}，手牌 ${selfHandCount} 张，返回己方战场${resolvedActiveSeat === selfSeat ? '，当前行动玩家' : ''}`}
+                          className={cn(
+                            'flex min-w-0 items-center justify-end gap-1.5 rounded-lg border px-2 py-1.5 text-left transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]',
+                            getMobilePlayerStatusStateClass(
+                              mobilePanel !== 'opponent',
+                              resolvedActiveSeat === selfSeat
+                            )
+                          )}
+                          title="返回己方战场"
+                        >
+                          <span className="min-w-0 truncate text-right text-[11px] font-semibold text-[var(--text-primary)]">
+                            {selfIdentity?.name ?? '己方'}
+                          </span>
+                          <span
+                            data-mobile-player-hand-count={selfSeat}
+                            className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)] tabular-nums"
+                          >
+                            手牌 {selfHandCount}
+                          </span>
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                <div className="relative z-[95] mt-1.5 grid grid-cols-2 items-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_18%,transparent)] px-1.5 py-1.5 shadow-none backdrop-blur-[2px]">
-                  {capabilities.canSwitchPerspective ? (
-                    (['FIRST', 'SECOND'] as const).map((seat) => {
-                      const identity = getPlayerIdentityForSeat(seat);
-                      const isCurrentPerspective = seat === selfSeat;
-                      const handCount = playerViewState.table.zones[`${seat}_HAND`]?.count ?? 0;
-                      const seatLabel = seat === 'FIRST' ? 'P1' : 'P2';
-                      return (
-                        <button
-                          key={seat}
-                          type="button"
-                          data-player-identity-seat={seat}
-                          onClick={() => handleMobilePerspectiveSelect(seat)}
-                          aria-pressed={isCurrentPerspective}
-                          aria-label={`${seatLabel} ${identity?.name ?? '玩家'}，手牌 ${handCount} 张${
-                            isCurrentPerspective ? '，当前视角' : '，切换至此视角'
-                          }`}
-                          className={cn(
-                            'flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition',
-                            isCurrentPerspective
-                              ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_58%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)] text-[var(--text-primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent-primary)_16%,transparent)]'
-                              : 'border-transparent bg-[color:color-mix(in_srgb,var(--bg-overlay)_16%,transparent)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]'
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              'shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold',
-                              isCurrentPerspective
-                                ? 'bg-[var(--accent-primary)] text-white'
-                                : 'bg-[var(--bg-overlay)] text-[var(--text-secondary)]'
-                            )}
-                          >
-                            {seatLabel}
-                          </span>
-                          <span className="min-w-0 flex-1 truncate text-[11px] font-semibold">
-                            {identity?.name ?? '玩家'}
-                          </span>
-                          <span
-                            data-mobile-player-hand-count={seat}
-                            className="shrink-0 text-[10px] font-semibold text-[var(--text-muted)] tabular-nums"
-                          >
-                            手牌 {handCount}
-                          </span>
-                        </button>
-                      );
-                    })
-                  ) : (
+                <div className="min-h-0 flex-1 px-2 pb-32 pt-1.5">
+                  <motion.div
+                    key={`mobile-perspective-${selfSeat}`}
+                    data-perspective-surface="mobile-self"
+                    initial={{
+                      opacity: 0,
+                      y: prefersReducedMotion ? 0 : 10,
+                      scale: prefersReducedMotion ? 1 : 0.995,
+                    }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{
+                      duration: prefersReducedMotion ? 0.08 : 0.18,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_10%,transparent)] shadow-none"
+                  >
+                    <div className="min-h-0 flex-1 overflow-hidden">
+                      <PlayerArea
+                        interactionSuspended={entranceWaiting}
+                        playerSeat={selfSeat}
+                        isOpponent={false}
+                        isActive={resolvedActiveSeat === selfSeat}
+                        suppressActiveEffectVisuals={isActiveEffectUiSuspended}
+                        isInspectionZoneCollapsed={isInspectionZoneCollapsed}
+                        onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
+                        selectedHandCardActionCardId={selectedHandCardActionCardId}
+                        selectedHandCardActions={selectedHandCardActions}
+                        suppressSelectedHandCardActionMenu={!!activeMemberPlayOptionSelection}
+                        onSelectedHandCardAction={handleSelectedHandCardAction}
+                      />
+                    </div>
+                  </motion.div>
+                </div>
+
+                <div
+                  className={cn(
+                    'safe-bottom fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-[65] grid gap-1.5 md:hidden',
+                    mobileActionGridClass
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={handleMobileOpponentAction}
+                    className="relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]"
+                    aria-label={
+                      capabilities.canSwitchPerspective
+                        ? `切换至 ${opponentIdentity?.name ?? '对手'} 视角`
+                        : undefined
+                    }
+                    title={
+                      capabilities.canSwitchPerspective
+                        ? `切换至 ${opponentIdentity?.name ?? '对手'} 视角`
+                        : isSolitaire
+                          ? '查看对墙打对手战场'
+                          : '查看对手战场'
+                    }
+                  >
+                    {capabilities.canSwitchPerspective ? (
+                      <ArrowRightLeft size={16} />
+                    ) : (
+                      <Swords size={16} />
+                    )}
+                    <span className="truncate">
+                      {capabilities.canSwitchPerspective ? '换视角' : '对手'}
+                    </span>
+                  </button>
+
+                  {primaryMobileLogPanel && (
+                    <button
+                      type="button"
+                      onClick={() => setMobilePanel(primaryMobileLogPanel)}
+                      className="relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]"
+                      title={canShowPublicBattleLog ? '查看公开对局日志' : '查看调试日志'}
+                    >
+                      <ScrollText size={16} />
+                      <span className="truncate">{canShowPublicBattleLog ? '对局' : '日志'}</span>
+                      {primaryMobileLogCount > 0 && (
+                        <span className="absolute right-1 top-1 min-w-4 rounded-full bg-[var(--accent-primary)] px-1 text-[10px] leading-4 text-white shadow-[var(--shadow-sm)]">
+                          {primaryMobileLogBadge}
+                        </span>
+                      )}
+                    </button>
+                  )}
+
+                  {showMobileFreePlay && (
+                    <button
+                      type="button"
+                      onClick={() => setFreePlayEnabled(!freePlayEnabled)}
+                      disabled={manualOperationSwitchDisabled}
+                      aria-pressed={freePlayEnabled}
+                      className={cn(
+                        'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border px-1.5 py-1.5 text-[10px] font-semibold shadow-none backdrop-blur-[2px] transition',
+                        freePlayEnabled
+                          ? 'border-[color:color-mix(in_srgb,var(--semantic-warning)_68%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_20%,var(--bg-frosted))] text-[var(--semantic-warning)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--semantic-warning)_22%,transparent),0_0_18px_color-mix(in_srgb,var(--semantic-warning)_20%,transparent)]'
+                          : 'border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]'
+                      )}
+                      title={freePlayControlTitle}
+                    >
+                      <Zap size={16} className={cn(freePlayEnabled && 'fill-current')} />
+                      <span className="truncate">{freePlayEnabled ? '自由' : '规则'}</span>
+                    </button>
+                  )}
+
+                  {canShowUndo && (
+                    <button
+                      type="button"
+                      onClick={undoLastStep}
+                      disabled={!canUndoLastStep}
+                      className={cn(
+                        'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]',
+                        !canUndoLastStep &&
+                          'cursor-not-allowed opacity-50 hover:border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] hover:text-[var(--text-secondary)]'
+                      )}
+                      title={undoButtonLabel}
+                    >
+                      <Undo2 size={16} />
+                      <span className="truncate">{mobileUndoButtonLabel}</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleOpenJudgmentPanel}
+                    disabled={!isJudgmentPanelRelevant}
+                    aria-expanded={judgmentPanelOpen}
+                    aria-controls="judgment-panel"
+                    aria-label={
+                      isJudgmentPanelRelevant ? '打开应援/判定区' : '当前没有可打开的应援/判定区'
+                    }
+                    className={cn(
+                      'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]',
+                      isJudgmentPanelRelevant &&
+                        'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,var(--bg-frosted))] text-[var(--accent-primary)]',
+                      !isJudgmentPanelRelevant &&
+                        'cursor-not-allowed opacity-50 hover:border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] hover:text-[var(--text-secondary)]'
+                    )}
+                    title={
+                      isJudgmentPanelRelevant ? '打开应援/判定区' : '当前没有可打开的应援/判定区'
+                    }
+                  >
+                    <PanelLeftOpen size={16} />
+                    <span className="truncate">判定</span>
+                  </button>
+                </div>
+
+                <AnimatePresence>
+                  {!entranceWaiting && mobilePanel && (
                     <>
-                      <button
-                        type="button"
-                        data-player-identity-seat={opponentSeat}
-                        data-mobile-player-status-seat={opponentSeat}
-                        data-mobile-active-player={
-                          resolvedActiveSeat === opponentSeat ? 'true' : undefined
-                        }
-                        onClick={handleMobileOpponentAction}
-                        aria-pressed={mobilePanel === 'opponent'}
-                        aria-label={`${opponentIdentity?.name ?? '对手'}，手牌 ${opponentHandCount} 张，${isSolitaire ? '查看对墙打对手战场' : '查看对手战场'}${resolvedActiveSeat === opponentSeat ? '，当前行动玩家' : ''}`}
-                        className={cn(
-                          'flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]',
-                          getMobilePlayerStatusStateClass(
-                            mobilePanel === 'opponent',
-                            resolvedActiveSeat === opponentSeat
-                          )
-                        )}
-                        title={isSolitaire ? '查看对墙打对手战场' : '查看对手战场'}
-                      >
-                        <UserRound size={14} className="shrink-0" />
-                        <span className="min-w-0 truncate text-[11px] font-semibold text-[var(--text-primary)]">
-                          {opponentIdentity?.name ?? '对手'}
-                        </span>
-                        <span
-                          data-mobile-player-hand-count={opponentSeat}
-                          className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)] tabular-nums"
-                        >
-                          手牌 {opponentHandCount}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        data-mobile-player-status-seat={selfSeat}
-                        data-mobile-active-player={
-                          resolvedActiveSeat === selfSeat ? 'true' : undefined
-                        }
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="modal-backdrop fixed inset-0 z-[85] md:hidden"
                         onClick={() => setMobilePanel(null)}
-                        aria-pressed={mobilePanel !== 'opponent'}
-                        aria-label={`${selfIdentity?.name ?? '己方'}，手牌 ${selfHandCount} 张，返回己方战场${resolvedActiveSeat === selfSeat ? '，当前行动玩家' : ''}`}
-                        className={cn(
-                          'flex min-w-0 items-center justify-end gap-1.5 rounded-lg border px-2 py-1.5 text-left transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]',
-                          getMobilePlayerStatusStateClass(
-                            mobilePanel !== 'opponent',
-                            resolvedActiveSeat === selfSeat
-                          )
-                        )}
-                        title="返回己方战场"
+                      />
+                      <motion.div
+                        initial={{ y: '100%' }}
+                        animate={{ y: 0 }}
+                        exit={{ y: '100%' }}
+                        transition={{ type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+                        className="safe-bottom fixed inset-x-0 bottom-0 z-[90] flex max-h-[var(--battle-viewport-height-82)] min-h-[var(--battle-viewport-height-52)] flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] md:hidden"
                       >
-                        <span className="min-w-0 truncate text-right text-[11px] font-semibold text-[var(--text-primary)]">
-                          {selfIdentity?.name ?? '己方'}
-                        </span>
-                        <span
-                          data-mobile-player-hand-count={selfSeat}
-                          className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)] tabular-nums"
-                        >
-                          手牌 {selfHandCount}
-                        </span>
-                      </button>
+                        <div className="shrink-0 px-4 pb-2 pt-3">
+                          <div className="mb-3 flex justify-center">
+                            <div className="h-1.5 w-12 rounded-full bg-[var(--border-default)]" />
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-bold text-[var(--text-primary)]">
+                                {mobilePanel === 'opponent'
+                                  ? '对手战场'
+                                  : mobilePanel === 'publicLog'
+                                    ? '对局日志'
+                                    : '调试日志'}
+                              </div>
+                              <div className="mt-0.5 text-xs text-[var(--text-muted)]">
+                                {mobilePanel === 'opponent'
+                                  ? (opponentIdentity?.name ?? opponentSeat)
+                                  : mobilePanel === 'publicLog'
+                                    ? `${publicLogCount} 条公开事件`
+                                    : `${logCount} 条记录`}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setMobilePanel(null)}
+                              className="button-icon h-9 w-9 shrink-0"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {mobilePanel === 'opponent' ? (
+                          <div className="min-h-0 flex-1 overflow-hidden px-2 pb-3">
+                            <div
+                              className={cn(
+                                'h-full overflow-hidden rounded-2xl border border-[var(--border-subtle)]',
+                                isSolitaire && 'opacity-60'
+                              )}
+                            >
+                              <PlayerArea
+                                interactionSuspended={entranceWaiting}
+                                playerSeat={opponentSeat}
+                                isOpponent={true}
+                                isActive={resolvedActiveSeat === opponentSeat}
+                                suppressActiveEffectVisuals={isActiveEffectUiSuspended}
+                                isInspectionZoneCollapsed={isInspectionZoneCollapsed}
+                                onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
+                              />
+                            </div>
+                          </div>
+                        ) : mobilePanel === 'publicLog' ? (
+                          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3">
+                            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
+                              <PublicBattleLogContent active={mobilePanel === 'publicLog'} />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3">
+                            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
+                              <GameLogContent active={mobilePanel === 'log'} />
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
                     </>
                   )}
-                </div>
+                </AnimatePresence>
               </div>
+            ) : (
+              <>
+                {!entranceWaiting && canShowPublicBattleLog && (
+                  <PublicBattleLogPanel docked={canDockBattlePanel} />
+                )}
+                {canShowDebugLog && (
+                  <GameLog
+                    isOpen={showDesktopDebugLog}
+                    onClose={() => setDesktopDebugLogOpen(false)}
+                    docked={canDockBattlePanel}
+                  />
+                )}
+                <div data-battle-tabletop className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+                  {/* 对手区域 (顶部) - 包含成员槽位和对手 Live 区 */}
+                  <motion.div
+                    key={`desktop-opponent-${opponentSeat}`}
+                    data-perspective-surface="desktop-opponent"
+                    initial={{ opacity: 0, y: prefersReducedMotion ? 0 : -10 }}
+                    animate={{ opacity: isSolitaire ? 0.12 : 1, y: 0 }}
+                    transition={{
+                      duration: prefersReducedMotion ? 0.08 : 0.18,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    className={`relative flex-[5] min-h-0 overflow-hidden ${
+                      isSolitaire ? 'opacity-[0.12] pointer-events-none' : ''
+                    }`}
+                  >
+                    <PlayerArea
+                      interactionSuspended={entranceWaiting}
+                      playerSeat={opponentSeat}
+                      isOpponent={true}
+                      isActive={resolvedActiveSeat === opponentSeat}
+                      suppressActiveEffectVisuals={isActiveEffectUiSuspended}
+                      isInspectionZoneCollapsed={isInspectionZoneCollapsed}
+                      onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
+                    />
+                  </motion.div>
 
-              <div className="min-h-0 flex-1 px-2 pb-32 pt-1.5">
-                <motion.div
-                  key={`mobile-perspective-${selfSeat}`}
-                  data-perspective-surface="mobile-self"
-                  initial={{
-                    opacity: 0,
-                    y: prefersReducedMotion ? 0 : 10,
-                    scale: prefersReducedMotion ? 1 : 0.995,
-                  }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{
-                    duration: prefersReducedMotion ? 0.08 : 0.18,
-                    ease: [0.22, 1, 0.36, 1],
-                  }}
-                  className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_10%,transparent)] shadow-none"
-                >
-                  <div className="min-h-0 flex-1 overflow-hidden">
+                  {/* VS 分隔线 (中央) - 对墙打模式下弱化 */}
+                  <div
+                    className="relative flex h-[32px] flex-shrink-0 items-center justify-center border-y"
+                    style={{
+                      borderColor: isSolitaire
+                        ? 'color-mix(in srgb, var(--border-default) 30%, transparent)'
+                        : 'var(--border-default)',
+                      background: isSolitaire
+                        ? 'color-mix(in srgb, var(--bg-overlay) 16%, transparent)'
+                        : 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-primary) 12%, transparent), color-mix(in srgb, var(--accent-secondary) 12%, transparent), transparent)',
+                    }}
+                  >
+                    <span
+                      className="px-4 text-lg font-bold tracking-[0.08em]"
+                      style={{
+                        color: isSolitaire ? 'var(--text-muted)' : 'var(--accent-primary)',
+                        textShadow: isSolitaire
+                          ? 'none'
+                          : '0 0 12px color-mix(in srgb, var(--accent-primary) 35%, transparent)',
+                      }}
+                    >
+                      VS
+                    </span>
+                  </div>
+
+                  {/* 己方区域 (底部) - 包含己方 Live 区和成员槽位 */}
+                  <motion.div
+                    key={`desktop-self-${selfSeat}`}
+                    data-perspective-surface="desktop-self"
+                    initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: prefersReducedMotion ? 0.08 : 0.18,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    className="flex-[5] min-h-0 overflow-hidden"
+                  >
                     <PlayerArea
                       interactionSuspended={entranceWaiting}
                       playerSeat={selfSeat}
@@ -2666,323 +3086,42 @@ export const GameBoard = memo(function GameBoard({
                       suppressSelectedHandCardActionMenu={!!activeMemberPlayOptionSelection}
                       onSelectedHandCardAction={handleSelectedHandCardAction}
                     />
-                  </div>
-                </motion.div>
-              </div>
-
-              <div
-                className={cn(
-                  'safe-bottom fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-[65] grid gap-1.5 md:hidden',
-                  mobileActionGridClass
-                )}
-              >
-                <button
-                  type="button"
-                  onClick={handleMobileOpponentAction}
-                  className="relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]"
-                  aria-label={
-                    capabilities.canSwitchPerspective
-                      ? `切换至 ${opponentIdentity?.name ?? '对手'} 视角`
-                      : undefined
-                  }
-                  title={
-                    capabilities.canSwitchPerspective
-                      ? `切换至 ${opponentIdentity?.name ?? '对手'} 视角`
-                      : isSolitaire
-                        ? '查看对墙打对手战场'
-                        : '查看对手战场'
-                  }
-                >
-                  {capabilities.canSwitchPerspective ? (
-                    <ArrowRightLeft size={16} />
-                  ) : (
-                    <Swords size={16} />
-                  )}
-                  <span className="truncate">
-                    {capabilities.canSwitchPerspective ? '换视角' : '对手'}
-                  </span>
-                </button>
-
-                {primaryMobileLogPanel && (
-                  <button
-                    type="button"
-                    onClick={() => setMobilePanel(primaryMobileLogPanel)}
-                    className="relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]"
-                    title={canShowPublicBattleLog ? '查看公开对局日志' : '查看调试日志'}
-                  >
-                    <ScrollText size={16} />
-                    <span className="truncate">{canShowPublicBattleLog ? '对局' : '日志'}</span>
-                    {primaryMobileLogCount > 0 && (
-                      <span className="absolute right-1 top-1 min-w-4 rounded-full bg-[var(--accent-primary)] px-1 text-[10px] leading-4 text-white shadow-[var(--shadow-sm)]">
-                        {primaryMobileLogBadge}
-                      </span>
-                    )}
-                  </button>
-                )}
-
-                {showMobileFreePlay && (
-                  <button
-                    type="button"
-                    onClick={() => setFreePlayEnabled(!freePlayEnabled)}
-                    disabled={manualOperationSwitchDisabled}
-                    aria-pressed={freePlayEnabled}
-                    className={cn(
-                      'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border px-1.5 py-1.5 text-[10px] font-semibold shadow-none backdrop-blur-[2px] transition',
-                      freePlayEnabled
-                        ? 'border-[color:color-mix(in_srgb,var(--semantic-warning)_68%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_20%,var(--bg-frosted))] text-[var(--semantic-warning)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--semantic-warning)_22%,transparent),0_0_18px_color-mix(in_srgb,var(--semantic-warning)_20%,transparent)]'
-                        : 'border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]'
-                    )}
-                    title={freePlayControlTitle}
-                  >
-                    <Zap size={16} className={cn(freePlayEnabled && 'fill-current')} />
-                    <span className="truncate">{freePlayEnabled ? '自由' : '规则'}</span>
-                  </button>
-                )}
-
-                {canShowUndo && (
-                  <button
-                    type="button"
-                    onClick={undoLastStep}
-                    disabled={!canUndoLastStep}
-                    className={cn(
-                      'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]',
-                      !canUndoLastStep &&
-                        'cursor-not-allowed opacity-50 hover:border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] hover:text-[var(--text-secondary)]'
-                    )}
-                    title={undoButtonLabel}
-                  >
-                    <Undo2 size={16} />
-                    <span className="truncate">{mobileUndoButtonLabel}</span>
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={handleOpenJudgmentPanel}
-                  disabled={!isJudgmentPanelRelevant}
-                  aria-expanded={judgmentPanelOpen}
-                  aria-controls="judgment-panel"
-                  aria-label={
-                    isJudgmentPanelRelevant ? '打开应援/判定区' : '当前没有可打开的应援/判定区'
-                  }
-                  className={cn(
-                    'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]',
-                    isJudgmentPanelRelevant &&
-                      'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,var(--bg-frosted))] text-[var(--accent-primary)]',
-                    !isJudgmentPanelRelevant &&
-                      'cursor-not-allowed opacity-50 hover:border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] hover:text-[var(--text-secondary)]'
-                  )}
-                  title={isJudgmentPanelRelevant ? '打开应援/判定区' : '当前没有可打开的应援/判定区'}
-                >
-                  <PanelLeftOpen size={16} />
-                  <span className="truncate">判定</span>
-                </button>
-              </div>
-
-              <AnimatePresence>
-                {!entranceWaiting && mobilePanel && (
-                  <>
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="modal-backdrop fixed inset-0 z-[85] md:hidden"
-                      onClick={() => setMobilePanel(null)}
-                    />
-                    <motion.div
-                      initial={{ y: '100%' }}
-                      animate={{ y: 0 }}
-                      exit={{ y: '100%' }}
-                      transition={{ type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-                      className="safe-bottom fixed inset-x-0 bottom-0 z-[90] flex max-h-[var(--battle-viewport-height-82)] min-h-[var(--battle-viewport-height-52)] flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] md:hidden"
-                    >
-                      <div className="shrink-0 px-4 pb-2 pt-3">
-                        <div className="mb-3 flex justify-center">
-                          <div className="h-1.5 w-12 rounded-full bg-[var(--border-default)]" />
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-bold text-[var(--text-primary)]">
-                              {mobilePanel === 'opponent'
-                                ? '对手战场'
-                                : mobilePanel === 'publicLog'
-                                  ? '对局日志'
-                                  : '调试日志'}
-                            </div>
-                            <div className="mt-0.5 text-xs text-[var(--text-muted)]">
-                              {mobilePanel === 'opponent'
-                                ? (opponentIdentity?.name ?? opponentSeat)
-                                : mobilePanel === 'publicLog'
-                                  ? `${publicLogCount} 条公开事件`
-                                  : `${logCount} 条记录`}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setMobilePanel(null)}
-                            className="button-icon h-9 w-9 shrink-0"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {mobilePanel === 'opponent' ? (
-                        <div className="min-h-0 flex-1 overflow-hidden px-2 pb-3">
-                          <div
-                            className={cn(
-                              'h-full overflow-hidden rounded-2xl border border-[var(--border-subtle)]',
-                              isSolitaire && 'opacity-60'
-                            )}
-                          >
-                            <PlayerArea
-                              interactionSuspended={entranceWaiting}
-                              playerSeat={opponentSeat}
-                              isOpponent={true}
-                              isActive={resolvedActiveSeat === opponentSeat}
-                              suppressActiveEffectVisuals={isActiveEffectUiSuspended}
-                              isInspectionZoneCollapsed={isInspectionZoneCollapsed}
-                              onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
-                            />
-                          </div>
-                        </div>
-                      ) : mobilePanel === 'publicLog' ? (
-                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3">
-                          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
-                            <PublicBattleLogContent active={mobilePanel === 'publicLog'} />
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3">
-                          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
-                            <GameLogContent active={mobilePanel === 'log'} />
-                          </div>
-                        </div>
-                      )}
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
-          ) : (
-            <>
-              <div className="absolute right-4 top-4 z-[80] flex items-center gap-2">
-                {canShowCardEntrance && (
-                  <CardEntranceToggle
-                    enabled={cardEntranceEnabled}
-                    onChange={changeCardEntranceEnabled}
-                  />
-                )}
-                <ThemeToggle />
-              </div>
-
-              {(showLeaveLocalGameButton ||
-                showRestartGameButton ||
-                canShowDesktopPublicBattleLogButton) && (
-                <div className="absolute left-4 top-4 z-[120] flex items-center gap-3">
-                  {showLeaveLocalGameButton && (
-                    <button
-                      type="button"
-                      onClick={onLeaveLocalGame}
-                      className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl"
-                      title={leaveLocalGameButtonTitle}
-                    >
-                      <DoorOpen size={16} />
-                      离开房间
-                    </button>
-                  )}
-                  {showRestartGameButton && (
-                    <button
-                      type="button"
-                      onClick={onRestartGame}
-                      className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl"
-                      title="重开对局"
-                    >
-                      <RotateCcw size={16} />
-                      重开对局
-                    </button>
-                  )}
-                  {canShowDesktopPublicBattleLogButton && <PublicBattleLogButton />}
+                  </motion.div>
                 </div>
-              )}
+                {isJudgmentPanelRelevant &&
+                  !judgmentPanelOpen &&
+                  !showDesktopPublicLog &&
+                  !showDesktopDebugLog && (
+                    <button
+                      type="button"
+                      onClick={handleOpenJudgmentPanel}
+                      aria-expanded={false}
+                      aria-controls="judgment-panel"
+                      className="group absolute left-0 top-1/2 z-[var(--z-battle-chrome)] flex h-16 w-11 -translate-y-1/2 items-center justify-center rounded-r-lg border border-l-0 border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] shadow-[var(--shadow-md)] hover:text-[var(--accent-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+                      aria-label="打开应援/判定区"
+                      title="打开应援/判定区"
+                    >
+                      <PanelLeftOpen size={18} strokeWidth={1.9} />
+                    </button>
+                  )}
+                {headerOverlay && (
+                  <div className="absolute left-4 top-2 z-[var(--z-battle-action-menu)] flex max-h-[calc(100%-1rem)] max-w-[calc(100%-2rem)] flex-col items-start gap-2 overflow-y-auto">
+                    {headerOverlay}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
 
-              {/* 对手区域 (顶部) - 包含成员槽位和对手 Live 区 */}
-              <motion.div
-                key={`desktop-opponent-${opponentSeat}`}
-                data-perspective-surface="desktop-opponent"
-                initial={{ opacity: 0, y: prefersReducedMotion ? 0 : -10 }}
-                animate={{ opacity: isSolitaire ? 0.12 : 1, y: 0 }}
-                transition={{
-                  duration: prefersReducedMotion ? 0.08 : 0.18,
-                  ease: [0.22, 1, 0.36, 1],
-                }}
-                className={`relative flex-[5] min-h-0 overflow-hidden ${
-                  isSolitaire ? 'opacity-[0.12] pointer-events-none' : ''
-                }`}
-              >
-                <PlayerArea
-                  interactionSuspended={entranceWaiting}
-                  playerSeat={opponentSeat}
-                  isOpponent={true}
-                  isActive={resolvedActiveSeat === opponentSeat}
-                  suppressActiveEffectVisuals={isActiveEffectUiSuspended}
-                  isInspectionZoneCollapsed={isInspectionZoneCollapsed}
-                  onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
-                />
-              </motion.div>
-
-              {/* VS 分隔线 (中央) - 对墙打模式下弱化 */}
-              <div
-                className="relative flex h-[32px] flex-shrink-0 items-center justify-center border-y"
-                style={{
-                  borderColor: isSolitaire
-                    ? 'color-mix(in srgb, var(--border-default) 30%, transparent)'
-                    : 'var(--border-default)',
-                  background: isSolitaire
-                    ? 'color-mix(in srgb, var(--bg-overlay) 16%, transparent)'
-                    : 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-primary) 12%, transparent), color-mix(in srgb, var(--accent-secondary) 12%, transparent), transparent)',
-                }}
-              >
-                <span
-                  className="px-4 text-lg font-bold tracking-[0.08em]"
-                  style={{
-                    color: isSolitaire ? 'var(--text-muted)' : 'var(--accent-primary)',
-                    textShadow: isSolitaire
-                      ? 'none'
-                      : '0 0 12px color-mix(in srgb, var(--accent-primary) 35%, transparent)',
-                  }}
-                >
-                  VS
-                </span>
-              </div>
-
-              {/* 己方区域 (底部) - 包含己方 Live 区和成员槽位 */}
-              <motion.div
-                key={`desktop-self-${selfSeat}`}
-                data-perspective-surface="desktop-self"
-                initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: prefersReducedMotion ? 0.08 : 0.18,
-                  ease: [0.22, 1, 0.36, 1],
-                }}
-                className="flex-[5] min-h-0 overflow-hidden"
-              >
-                <PlayerArea
-                  interactionSuspended={entranceWaiting}
-                  playerSeat={selfSeat}
-                  isOpponent={false}
-                  isActive={resolvedActiveSeat === selfSeat}
-                  suppressActiveEffectVisuals={isActiveEffectUiSuspended}
-                  isInspectionZoneCollapsed={isInspectionZoneCollapsed}
-                  onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
-                  selectedHandCardActionCardId={selectedHandCardActionCardId}
-                  selectedHandCardActions={selectedHandCardActions}
-                  suppressSelectedHandCardActionMenu={!!activeMemberPlayOptionSelection}
-                  onSelectedHandCardAction={handleSelectedHandCardAction}
-                />
-              </motion.div>
-            </>
+          {isMobileBattlefield && mobileFloatingHeaderActions && (
+            <div className="absolute left-5 top-[calc(env(safe-area-inset-top)+1rem)] z-[var(--z-battle-chrome)]">
+              {mobileFloatingHeaderActions}
+            </div>
+          )}
+          {isMobileBattlefield && headerOverlay && (
+            <div className="absolute left-2 top-[calc(env(safe-area-inset-top)+4rem)] z-[var(--z-battle-action-menu)] flex max-h-[calc(100%-5rem)] max-w-[calc(100%-1rem)] flex-col items-start gap-2 overflow-y-auto">
+              {headerOverlay}
+            </div>
           )}
 
           {/* 阶段指示器 */}
@@ -4264,32 +4403,8 @@ export const GameBoard = memo(function GameBoard({
             </div>
           )}
 
-          {/* 左侧唤出按钮（应援/判定区关闭时显示） */}
-          {!isMobileBattlefield && isJudgmentPanelRelevant && !judgmentPanelOpen && (
-            <button
-              type="button"
-              onClick={handleOpenJudgmentPanel}
-              aria-expanded={judgmentPanelOpen}
-              aria-controls="judgment-panel"
-              className="group fixed left-0 top-1/2 z-[var(--z-battle-chrome)] flex h-16 w-11 -translate-y-1/2 items-center justify-center rounded-r-lg border border-l-0 border-[var(--border-default)] bg-[var(--bg-frosted)] text-[var(--text-secondary)] shadow-[var(--shadow-md)] backdrop-blur-xl transition-colors hover:border-[var(--accent-primary)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_88%,var(--accent-primary)_12%)] hover:text-[var(--accent-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)]"
-              aria-label="打开应援/判定区"
-              title="打开应援/判定区"
-            >
-              <PanelLeftOpen size={18} strokeWidth={1.9} />
-            </button>
-          )}
-
-          {/* 游戏日志 */}
-          {!entranceWaiting && !isMobileBattlefield && canShowPublicBattleLog && (
-            <PublicBattleLogPanel />
-          )}
-          {!isMobileBattlefield && canShowDebugLog && <GameLog />}
-
           {/* 阶段提示横幅 */}
           <PhaseBanner />
-
-          {/* 调试控制面板 */}
-          {!isReadOnly && !isMobileBattlefield && <DebugControl />}
 
           {/* 卡牌详情浮窗 */}
           {!entranceWaiting && <CardDetailOverlay />}
@@ -4312,12 +4427,6 @@ export const GameBoard = memo(function GameBoard({
             animationKey={liveResultAnimationKey}
             autoComplete={resultAnimationAutoComplete}
             onComplete={handleLiveAnimationComplete}
-          />
-
-          {/* Live 判定面板 */}
-          <JudgmentPanel
-            isOpen={!entranceWaiting && isJudgmentPanelRelevant && judgmentPanelOpen}
-            onClose={handleJudgmentPanelClose}
           />
 
           {/* Live 分数最终确认弹窗（居中） */}
