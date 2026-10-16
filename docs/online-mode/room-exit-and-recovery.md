@@ -34,6 +34,7 @@
 ```mermaid
 flowchart TD
     Entry[选择卡组并找人／建房／加入] --> Prepare[准备与双方确认]
+    Prepare -->|取消等待／取消配对| Entry
     Prepare --> Opening[双方到场、猜拳、决定先后手]
     Opening --> Playing[创建 match，进入正式桌面]
     Opening -->|退出或失败| Failed[关闭本轮，释放占用]
