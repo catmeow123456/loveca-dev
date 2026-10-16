@@ -1130,6 +1130,14 @@ export const siteStatusConfig = pgTable(
     themeTableEntryVisible: boolean('theme_table_entry_visible').notNull().default(true),
     playerActionTimeoutSeconds: integer('player_action_timeout_seconds').notNull().default(180),
     reconnectGracePeriodSeconds: integer('reconnect_grace_period_seconds').notNull().default(60),
+    doubleDisconnectNoContestWindowSeconds: integer('double_disconnect_no_contest_window_seconds')
+      .notNull()
+      .default(5),
+    roomDestroyAfterAllAbsentSeconds: integer('room_destroy_after_all_absent_seconds')
+      .notNull()
+      .default(60),
+    casualHeartbeatGraceSeconds: integer('casual_heartbeat_grace_seconds').notNull().default(45),
+    casualConfirmationTtlSeconds: integer('casual_confirmation_ttl_seconds').notNull().default(60),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1148,6 +1156,22 @@ export const siteStatusConfig = pgTable(
     check(
       'site_status_config_reconnect_grace_period_check',
       sql`${table.reconnectGracePeriodSeconds} BETWEEN 15 AND 300`
+    ),
+    check(
+      'site_status_config_double_disconnect_no_contest_window_check',
+      sql`${table.doubleDisconnectNoContestWindowSeconds} BETWEEN 2 AND 30`
+    ),
+    check(
+      'site_status_config_room_destroy_after_all_absent_check',
+      sql`${table.roomDestroyAfterAllAbsentSeconds} BETWEEN 30 AND 600`
+    ),
+    check(
+      'site_status_config_casual_heartbeat_grace_check',
+      sql`${table.casualHeartbeatGraceSeconds} BETWEEN 45 AND 300`
+    ),
+    check(
+      'site_status_config_casual_confirmation_ttl_check',
+      sql`${table.casualConfirmationTtlSeconds} BETWEEN 30 AND 300`
     ),
   ]
 );

@@ -6,7 +6,7 @@ import type {
   SiteAnnouncementType,
   SiteStatusLifecycle,
 } from '@/lib/appConfig';
-import type { BattleTimeoutConfig } from '@game/online';
+import type { AdminBattleTimeoutSettings } from '@game/online';
 
 export type SiteAnnouncementStatus = 'DRAFT' | 'PUBLISHED';
 
@@ -31,8 +31,8 @@ export async function updatePlayerBattleEntryVisibility(
   return response.data;
 }
 
-export async function fetchAdminBattleTimeoutConfig(): Promise<BattleTimeoutConfig> {
-  const response = await apiClient.get<BattleTimeoutConfig>(
+export async function fetchAdminBattleTimeoutConfig(): Promise<AdminBattleTimeoutSettings> {
+  const response = await apiClient.get<AdminBattleTimeoutSettings>(
     '/api/site-announcements/admin/battle-timeouts'
   );
   if (!response.data) {
@@ -42,9 +42,9 @@ export async function fetchAdminBattleTimeoutConfig(): Promise<BattleTimeoutConf
 }
 
 export async function updateAdminBattleTimeoutConfig(
-  input: BattleTimeoutConfig
-): Promise<BattleTimeoutConfig> {
-  const response = await apiClient.put<BattleTimeoutConfig>(
+  input: AdminBattleTimeoutSettings
+): Promise<AdminBattleTimeoutSettings> {
+  const response = await apiClient.put<AdminBattleTimeoutSettings>(
     '/api/site-announcements/admin/battle-timeouts',
     input
   );

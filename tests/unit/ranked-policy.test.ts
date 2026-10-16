@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRankedSeasonDisconnectNotice,
+  DEFAULT_BATTLE_TIMEOUT_CONFIG,
   RANKED_DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_MS,
   RANKED_RATING_ALGORITHM_NOTICE,
   RANKED_RECONNECT_GRACE_PERIOD_MS,
@@ -15,6 +16,7 @@ describe('排位断线政策', () => {
     expect(RANKED_DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_MS).toBe(5_000);
     expect(RANKED_STALL_TIMEOUT_MS).toBe(180_000);
     expect(RANKED_STALL_NOTICE_AFTER_MS).toBe(120_000);
+    expect(DEFAULT_BATTLE_TIMEOUT_CONFIG.doubleDisconnectNoContestWindowSeconds).toBe(5);
   });
 
   it('赛季公告简要说明积分算法和断线裁定', () => {
@@ -29,13 +31,25 @@ describe('排位断线政策', () => {
       buildRankedSeasonDisconnectNotice({
         playerActionTimeoutSeconds: 90,
         reconnectGracePeriodSeconds: 30,
+        doubleDisconnectNoContestWindowSeconds: 5,
       }).summary
     ).toContain('断线后可在 30 秒内重连');
     expect(
       buildRankedSeasonDisconnectNotice({
         playerActionTimeoutSeconds: 90,
         reconnectGracePeriodSeconds: 30,
+        doubleDisconnectNoContestWindowSeconds: 5,
       }).summary
     ).toContain('连续 90 秒没有成功操作');
+  });
+
+  it('按全局配置生成双方断线判定窗口文案', () => {
+    const summary = buildRankedSeasonDisconnectNotice({
+      playerActionTimeoutSeconds: 90,
+      reconnectGracePeriodSeconds: 30,
+      doubleDisconnectNoContestWindowSeconds: 10,
+    }).summary;
+    expect(summary).toContain('相差不超过 10 秒时本局无结果');
+    expect(summary).toContain('超过 10 秒时较早离线方判负');
   });
 });

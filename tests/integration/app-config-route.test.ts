@@ -101,6 +101,7 @@ describe('appConfigRouter', () => {
     vi.mocked(battleTimeoutConfigService.getConfig).mockResolvedValue({
       playerActionTimeoutSeconds: 240,
       reconnectGracePeriodSeconds: 90,
+      doubleDisconnectNoContestWindowSeconds: 10,
     });
 
     const response = await invokeRoute('/', 'get');
@@ -125,6 +126,7 @@ describe('appConfigRouter', () => {
         battleTimeouts: {
           playerActionTimeoutSeconds: 240,
           reconnectGracePeriodSeconds: 90,
+          doubleDisconnectNoContestWindowSeconds: 10,
         },
       },
     });
