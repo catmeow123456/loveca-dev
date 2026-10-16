@@ -18,7 +18,7 @@
 6. [平台产品发展路线草案](./PRODUCT_DEVELOPMENT_ROADMAP_DRAFT.md)：影子评级、赛季运营前置、固定时段排位 Beta 与常驻评估的先后关系。
 7. [赛季排位卡组分类与环境饼图](./RANKED_DECK_CLASSIFIER.md)：分类算法、发布快照、运营工作流、玩家展示口径与初始种子边界。
 8. [评分参数修订与全量回算](./RANKED_RATING_PARAMETER_REVISION.md)：V3/V4 暂停赛季的预览、应用、追加审计与确定性重建。
-9. [房间返回、退出与恢复](../online-mode/room-exit-and-recovery.md)：公共牌桌的候场、到场确认、赛后释放与恢复边界。
+9. [房间状态机与生命周期](../online-mode/room-exit-and-recovery.md)：休闲、排位与主题的准备、终局、离房、恢复和清理边界。
 
 ## 卡组环境与轮换主题牌桌
 
@@ -38,7 +38,7 @@
 ## 维护边界
 
 - 本目录维护排位与主题牌桌的设计、评分、运营和历史调研；当前房间返回、退出和恢复行为由联机专题维护。已移除的公共牌桌草案通过 Git 历史追溯，不再作为阅读入口。
-- 当前联机能力与限制以 [联机模式准备文档](../online-mode/preparation.md)、[联机房间返回、退出与恢复设计](../online-mode/room-exit-and-recovery.md)为准。
+- 当前联机能力与限制以 [联机模式准备文档](../online-mode/preparation.md)、[房间状态机与生命周期](../online-mode/room-exit-and-recovery.md)为准。
 - 公共牌桌实现范围或验收边界变化时，更新现行联机专题；待修事项在项目待办中跟踪，不恢复独立草案作为第二份现状说明。
 - 首版排位已实现；后续故障恢复、外部告警和生产验收缺口以 `RANKED_INITIAL_IMPLEMENTATION.md` 与 `../online-mode/room-exit-and-recovery.md` 为准。生产实际迁移和开放状态应核对部署记录，不能从仓库存在某项实现推断。
 - 首版排位采用独立赛季排位页和固定活跃时段，底层复用公共牌桌候场与正式联机房间；不把休闲公共牌桌改成默认计分入口。

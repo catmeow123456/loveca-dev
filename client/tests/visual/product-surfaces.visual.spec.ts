@@ -42,11 +42,11 @@ const scenarios: VisualScenario[] = [
     },
   },
   {
-    name: 'spectator-lobby',
-    path: '/?page=online-spectator',
+    name: 'casual-lobby',
+    path: '/?page=battle-lobby',
     authenticated: true,
     ready: async (page) => {
-      await expect(page.getByLabel('房间号')).toBeVisible();
+      await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
     },
   },
 ];

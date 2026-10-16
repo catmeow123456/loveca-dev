@@ -24,6 +24,7 @@ import {
   type BattleTimeoutConfig,
 } from '../../online/ranked-policy.js';
 import type { Seat } from '../../online/types.js';
+import type { CasualRuntimeView } from '../../online/casual-table-types.js';
 import { pool } from '../db/pool.js';
 import {
   DeckPayloadValidationError,
@@ -98,6 +99,8 @@ interface OnlineRoomState {
   readonly rankedSeasonId: string | null;
   readonly themeTableVersionId: string | null;
   readonly closedToNewMembers: boolean;
+  readonly casualTable?: { readonly tableId: string; readonly roundId: string };
+  casualRetirementPending?: boolean;
   openingExpiresAt: number | null;
   openingArrivalExpiresAt: number | null;
   endInfo: OnlineRoomEndView | null;
@@ -150,6 +153,60 @@ export interface CreatePublicTableRoomInput {
   readonly openingExpiresAt: number;
 }
 
+export interface CreateCasualTableRuntimeInput {
+  readonly tableId: string;
+  readonly roundId: string;
+  readonly roomCode: string;
+  readonly originKind: 'PUBLIC_TABLE' | 'ONLINE_ROOM';
+  readonly openingExpiresAt: number;
+  readonly members: readonly [
+    PublicTableRoomMemberInput & { readonly spectatorEnabled: boolean },
+    PublicTableRoomMemberInput & { readonly spectatorEnabled: boolean },
+  ];
+}
+
+export interface CasualTableRuntimeIdentity {
+  readonly roomCode: string;
+  readonly roomGeneration: string;
+}
+
+export interface CasualTableRuntimePort {
+  prepareCasualTableRuntime(input: CreateCasualTableRuntimeInput): CasualTableRuntimeIdentity;
+  activateCasualTableRuntime(tableId: string, roundId: string, generation: string): void;
+  discardCasualTableRuntime(tableId: string, roundId: string, generation: string | null): boolean;
+  getCasualTableRuntime(
+    tableId: string,
+    roundId: string
+  ):
+    | (CasualTableRuntimeIdentity & {
+        readonly ended: boolean;
+        readonly completed: boolean;
+        readonly failureReason: string | null;
+        readonly view: CasualRuntimeView;
+      })
+    | null;
+  requestCasualRematch(tableId: string, roundId: string, userId: string): void;
+  dismissCasualRematch(tableId: string, roundId: string, userId: string, requestId: string): void;
+  markCasualMemberLeft(tableId: string, roundId: string, userId: string): void;
+  touchCasualMember(tableId: string, roundId: string, userId: string): void;
+  listCasualTableRuntimes(): readonly { tableId: string; roundId: string; generation: string }[];
+  sealCasualTableRuntime(tableId: string, roundId: string, generation: string): Promise<void>;
+  resumeCasualTableRuntime(tableId: string, roundId: string, generation: string): void;
+  retireCasualTableRuntime(tableId: string, roundId: string, generation: string): Promise<void>;
+  createCasualSpectatorLink(
+    tableId: string,
+    roundId: string,
+    userId: string,
+    seat: Seat
+  ): Promise<OnlineSpectatorLinkView>;
+  setCasualSpectatorPreference(
+    tableId: string,
+    roundId: string,
+    userId: string,
+    enabled: boolean
+  ): Promise<void>;
+}
+
 export class OnlineRoomServiceError extends Error {
   readonly code: string;
   readonly statusCode: number;
@@ -173,6 +230,7 @@ export interface OnlineRoomRuntimeCleanupSummary {
 
 export class OnlineRoomService {
   private readonly rooms = new Map<string, OnlineRoomState>();
+  private readonly pendingCasualRooms = new Map<string, OnlineRoomState>();
   private readonly matchStartPromises = new Map<string, Promise<unknown>>();
   private readonly now: () => number;
   private readonly matchService: OnlineMatchService;
@@ -406,6 +464,329 @@ export class OnlineRoomService {
     return { roomCode: room.roomCode, roomGeneration: room.roomGeneration };
   }
 
+  /** Allocate synchronously after the admission transaction checks its round/lease.
+   * Pending rooms cannot receive player commands before the DB binding commits. */
+  prepareCasualTableRuntime(input: CreateCasualTableRuntimeInput): CasualTableRuntimeIdentity {
+    const key = `${input.tableId}:${input.roundId}`;
+    const existing =
+      this.pendingCasualRooms.get(key) ??
+      [...this.rooms.values()].find(
+        (room) =>
+          room.casualTable?.tableId === input.tableId && room.casualTable.roundId === input.roundId
+      );
+    if (existing) return { roomCode: existing.roomCode, roomGeneration: existing.roomGeneration };
+    const roomCode = normalizeRoomCode(input.roomCode);
+    if (
+      this.rooms.has(roomCode) ||
+      [...this.pendingCasualRooms.values()].some((room) => room.roomCode === roomCode)
+    ) {
+      throw new OnlineRoomServiceError('ONLINE_ROOM_EXISTS', '房间号已经被占用', 409);
+    }
+    const now = this.now();
+    const room: OnlineRoomState = {
+      roomCode,
+      roomGeneration: randomUUID(),
+      status: 'OPENING',
+      ownerUserId: input.members[0].userId,
+      members: input.members.map((member, index) =>
+        buildPublicTableMember(member, index === 0 ? 'HOST' : 'GUEST', now)
+      ),
+      openingRps: null,
+      restartRequest: null,
+      matchId: null,
+      seatAssignments: {},
+      spectatorRoomEntryEnabledByUserId: Object.fromEntries(
+        input.members.map((member) => [member.userId, member.spectatorEnabled])
+      ),
+      originKind: input.originKind,
+      originLabel: roomCode,
+      publicTableReservationId: null,
+      initialPublicTableMatchId: null,
+      rankedSeasonId: null,
+      themeTableVersionId: null,
+      closedToNewMembers: true,
+      casualTable: { tableId: input.tableId, roundId: input.roundId },
+      openingExpiresAt: input.openingExpiresAt,
+      openingArrivalExpiresAt: now + 60_000,
+      endInfo: null,
+      matchStartBlocked: false,
+      battleTimeouts: DEFAULT_BATTLE_TIMEOUT_CONFIG,
+      updatedAt: now,
+    };
+    this.pendingCasualRooms.set(key, room);
+    return { roomCode, roomGeneration: room.roomGeneration };
+  }
+
+  activateCasualTableRuntime(tableId: string, roundId: string, generation: string): void {
+    const key = `${tableId}:${roundId}`;
+    const pending = this.pendingCasualRooms.get(key);
+    const existing = this.getCasualTableRuntime(tableId, roundId);
+    if (existing?.roomGeneration === generation) return;
+    if (!pending || pending.roomGeneration !== generation || this.rooms.has(pending.roomCode)) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_CASUAL_BINDING_CHANGED',
+        '本轮开局状态已经变化',
+        409
+      );
+    }
+    this.pendingCasualRooms.delete(key);
+    const now = this.now();
+    pending.openingArrivalExpiresAt = now + 60_000;
+    pending.openingExpiresAt = now + PUBLIC_TABLE_OPENING_TTL_MS;
+    pending.members.forEach((member) => {
+      member.lastSeenAt = now;
+    });
+    touchRoom(pending, now);
+    this.rooms.set(pending.roomCode, pending);
+  }
+
+  getCasualTableRuntime(tableId: string, roundId: string) {
+    const room = [...this.rooms.values()].find(
+      (candidate) =>
+        candidate.casualTable?.tableId === tableId && candidate.casualTable.roundId === roundId
+    );
+    return room
+      ? {
+          roomCode: room.roomCode,
+          roomGeneration: room.roomGeneration,
+          ended:
+            room.status === 'ENDED' ||
+            Boolean(room.matchId && !this.matchService.getMatch(room.matchId)),
+          completed: Boolean(room.matchId && this.matchService.isMatchCompleted(room.matchId)),
+          failureReason: room.endInfo?.reason ?? null,
+          view: this.buildCasualRuntimeView(room),
+        }
+      : null;
+  }
+
+  private buildCasualRuntimeView(room: OnlineRoomState): CasualRuntimeView {
+    this.expireRestartRequestIfNeeded(room, this.now());
+    const match = room.matchId ? this.matchService.getMatch(room.matchId) : null;
+    const completed = Boolean(room.matchId && this.matchService.isMatchCompleted(room.matchId));
+    return {
+      status:
+        completed || room.status === 'ENDED'
+          ? 'ENDED'
+          : room.status === 'IN_GAME'
+            ? 'PLAYING'
+            : 'OPENING',
+      matchId: room.matchId,
+      startedAt: match?.startedAt ?? room.updatedAt,
+      endedAt: match?.session.state?.endInfo?.endTimestamp ?? room.endInfo?.endedAt ?? null,
+      departedUserIds: room.members
+        .filter((member) => member.voluntarilyLeft)
+        .map((member) => member.userId),
+      spectatorViews:
+        !completed && room.status === 'IN_GAME'
+          ? (buildSpectatorRoomEntryView(room)?.seats ?? [])
+              .filter((seat) => seat.enabled)
+              .map((seat) => ({ seat: seat.seat, displayName: seat.displayName }))
+          : [],
+      rematch: room.restartRequest,
+    };
+  }
+
+  private requireCasualRuntime(tableId: string, roundId: string): OnlineRoomState {
+    const room = [...this.rooms.values()].find(
+      (candidate) =>
+        candidate.casualTable?.tableId === tableId && candidate.casualTable.roundId === roundId
+    );
+    if (!room) throw new OnlineRoomServiceError('ONLINE_ROOM_NOT_FOUND', '本轮房间已失效', 404);
+    return room;
+  }
+
+  requestCasualRematch(tableId: string, roundId: string, userId: string): void {
+    const room = this.requireCasualRuntime(tableId, roundId);
+    const member = this.requireMember(room, userId);
+    const other = room.members.find((candidate) => candidate.userId !== userId);
+    this.expireRestartRequestIfNeeded(room, this.now());
+    if (
+      !room.matchId ||
+      !this.matchService.isMatchCompleted(room.matchId) ||
+      member.voluntarilyLeft ||
+      !other ||
+      other.voluntarilyLeft
+    ) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_RESTART_FORBIDDEN',
+        '双方仍在赛后房间时才能再来一局',
+        409
+      );
+    }
+    if (room.restartRequest) {
+      if (room.restartRequest.requesterUserId === userId) return;
+      throw new OnlineRoomServiceError('ONLINE_RESTART_CONFLICT', '请先处理对手的再战请求', 409);
+    }
+    room.restartRequest = {
+      requestId: randomUUID(),
+      requesterUserId: userId,
+      responderUserId: other.userId,
+      matchId: room.matchId,
+      requestedAt: this.now(),
+      expiresAt: this.now() + RESTART_REQUEST_TTL_MS,
+    };
+    touchRoom(room, this.now());
+  }
+
+  dismissCasualRematch(tableId: string, roundId: string, userId: string, requestId: string): void {
+    const room = this.requireCasualRuntime(tableId, roundId);
+    this.requireMember(room, userId);
+    this.expireRestartRequestIfNeeded(room, this.now());
+    const request = this.requireRestartRequest(room, requestId);
+    if (request.requesterUserId !== userId && request.responderUserId !== userId)
+      throw new OnlineRoomServiceError('ONLINE_RESTART_FORBIDDEN', '无法处理本次请求', 403);
+    room.restartRequest = null;
+  }
+
+  markCasualMemberLeft(tableId: string, roundId: string, userId: string): void {
+    if (!this.getCasualTableRuntime(tableId, roundId)) return;
+    const room = this.requireCasualRuntime(tableId, roundId);
+    const member = this.requireMember(room, userId);
+    member.voluntarilyLeft = true;
+    member.presence = 'LEFT';
+    room.restartRequest = null;
+    touchRoom(room, this.now());
+  }
+
+  touchCasualMember(tableId: string, roundId: string, userId: string): void {
+    const room = this.requireCasualRuntime(tableId, roundId);
+    const member = this.requireMember(room, userId);
+    if (!member.voluntarilyLeft) markMemberSeen(member, this.now());
+  }
+
+  async retireCasualTableRuntime(
+    tableId: string,
+    roundId: string,
+    generation: string
+  ): Promise<void> {
+    const pending = this.pendingCasualRooms.get(`${tableId}:${roundId}`);
+    if (pending?.roomGeneration === generation) {
+      this.pendingCasualRooms.delete(`${tableId}:${roundId}`);
+      return;
+    }
+    if (!this.getCasualTableRuntime(tableId, roundId)) return;
+    const room = this.requireCasualRuntime(tableId, roundId);
+    if (
+      room.roomGeneration !== generation ||
+      (room.matchId &&
+        this.matchService.getMatch(room.matchId) &&
+        !this.matchService.isMatchCompleted(room.matchId))
+    ) {
+      throw new OnlineRoomServiceError('ONLINE_CASUAL_ROUND_ACTIVE', '请先结束当前对局', 409);
+    }
+    if (
+      room.matchId &&
+      !(await this.matchService.deleteMatch(room.matchId, {
+        reason: 'CASUAL_ROUND_RETIRED',
+        now: this.now(),
+      }))
+    ) {
+      throw new OnlineRoomServiceError('ONLINE_RESTART_SEAL_FAILED', '旧对局封存失败，请重试', 503);
+    }
+    this.matchService.terminateRoomCodeSpectators(
+      room.roomCode,
+      generation,
+      'ROOM_REPLACED',
+      this.now()
+    );
+    if (this.rooms.get(room.roomCode) === room) this.rooms.delete(room.roomCode);
+  }
+
+  listCasualTableRuntimes() {
+    return [...this.rooms.values(), ...this.pendingCasualRooms.values()]
+      .filter((room) => room.casualTable)
+      .map((room) => ({
+        tableId: room.casualTable!.tableId,
+        roundId: room.casualTable!.roundId,
+        generation: room.roomGeneration,
+      }));
+  }
+
+  async sealCasualTableRuntime(
+    tableId: string,
+    roundId: string,
+    generation: string
+  ): Promise<void> {
+    const room = this.requireCasualRuntime(tableId, roundId);
+    if (this.matchStartPromises.has(generation))
+      throw new OnlineRoomServiceError(
+        'ONLINE_CASUAL_TRANSITION_PENDING',
+        '开局正在进行，请稍后重试',
+        409
+      );
+    if (
+      room.roomGeneration !== generation ||
+      (room.matchId && !this.matchService.isMatchCompleted(room.matchId))
+    )
+      throw new OnlineRoomServiceError('ONLINE_CASUAL_ROUND_ACTIVE', '请先结束当前对局', 409);
+    if (room.matchId && !(await this.matchService.sealCompletedMatchForRemoval(room.matchId)))
+      throw new OnlineRoomServiceError('ONLINE_RESTART_SEAL_FAILED', '旧对局封存失败，请重试', 503);
+    if (!room.matchId) room.casualRetirementPending = true;
+  }
+
+  resumeCasualTableRuntime(tableId: string, roundId: string, generation: string): void {
+    const room = [...this.rooms.values()].find(
+      (candidate) =>
+        candidate.casualTable?.tableId === tableId &&
+        candidate.casualTable.roundId === roundId &&
+        candidate.roomGeneration === generation
+    );
+    // A committed binding can still be an inaccessible pending allocation.
+    if (room) room.casualRetirementPending = false;
+  }
+
+  async createCasualSpectatorLink(
+    tableId: string,
+    roundId: string,
+    userId: string,
+    seat: Seat
+  ): Promise<OnlineSpectatorLinkView> {
+    const room = this.requireCasualRuntime(tableId, roundId);
+    if (room.matchId && this.matchService.isMatchCompleted(room.matchId))
+      throw new OnlineRoomServiceError('ONLINE_ROOM_SPECTATOR_UNAVAILABLE', '本局已经结束', 409);
+    return this.createRoomCodeSpectatorLink(room.roomCode, seat, userId, room.roomGeneration);
+  }
+
+  async setCasualSpectatorPreference(
+    tableId: string,
+    roundId: string,
+    userId: string,
+    enabled: boolean
+  ): Promise<void> {
+    const room = this.requireCasualRuntime(tableId, roundId);
+    if (room.status === 'IN_GAME')
+      await this.setOwnRoomSpectatorEntry(room.roomCode, userId, enabled);
+    else {
+      this.requireMember(room, userId);
+      room.spectatorRoomEntryEnabledByUserId[userId] = enabled;
+    }
+  }
+
+  discardCasualTableRuntime(tableId: string, roundId: string, generation: string | null): boolean {
+    const key = `${tableId}:${roundId}`;
+    const pending = this.pendingCasualRooms.get(key);
+    if (pending && (generation === null || pending.roomGeneration === generation)) {
+      this.pendingCasualRooms.delete(key);
+      return true;
+    }
+    const room = [...this.rooms.values()].find(
+      (candidate) =>
+        candidate.casualTable?.tableId === tableId &&
+        candidate.casualTable.roundId === roundId &&
+        candidate.roomGeneration === generation &&
+        candidate.matchId === null
+    );
+    if (!room) return false;
+    this.matchService.terminateRoomCodeSpectators(
+      room.roomCode,
+      room.roomGeneration,
+      'ROOM_CLOSED',
+      this.now()
+    );
+    this.rooms.delete(room.roomCode);
+    return true;
+  }
+
   getRoomIdentityForPublicTableReservation(
     reservationId: string
   ): { roomCode: string; roomGeneration: string } | null {
@@ -449,6 +830,14 @@ export class OnlineRoomService {
     await this.cleanupExpiredState();
 
     const room = this.getRoomState(roomCodeInput);
+    if (room.casualTable) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_CASUAL_PREPARATION_REQUIRED',
+        '请从对战大厅处理本轮准备',
+        409
+      );
+    }
+
     if (room.status === 'OPENING' || room.status === 'IN_GAME') {
       throw new OnlineRoomServiceError(
         'ONLINE_ROOM_FORBIDDEN',
@@ -484,6 +873,14 @@ export class OnlineRoomService {
     await this.cleanupExpiredState();
 
     const room = this.getRoomState(roomCodeInput);
+    if (room.casualTable) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_CASUAL_PREPARATION_REQUIRED',
+        '请从对战大厅处理本轮准备',
+        409
+      );
+    }
+
     if (room.status === 'OPENING' || room.status === 'IN_GAME') {
       throw new OnlineRoomServiceError('ONLINE_READY_FORBIDDEN', '对局已开始，不能重复准备', 409);
     }
@@ -833,6 +1230,14 @@ export class OnlineRoomService {
       room.status === 'IN_GAME' && room.matchId && this.matchService.isMatchCompleted(room.matchId)
     );
 
+    if (room.casualTable) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_CASUAL_PREPARATION_REQUIRED',
+        '请通过当前休闲房间的轮次操作离开',
+        409
+      );
+    }
+
     if (room.status === 'IN_GAME' && !completedMatch) {
       throw new OnlineRoomServiceError(
         'ONLINE_ROOM_LEAVE_FORBIDDEN',
@@ -1034,6 +1439,13 @@ export class OnlineRoomService {
 
     const room = this.getRoomState(roomCodeInput);
     this.requireMember(room, userId);
+    if (room.casualTable) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_CASUAL_PREPARATION_REQUIRED',
+        '请通过当前休闲房间的轮次操作结束对局并离开',
+        409
+      );
+    }
     const now = this.now();
     const matchId = room.matchId;
 
@@ -1173,7 +1585,8 @@ export class OnlineRoomService {
 
   async getRoomSpectatorEntry(
     roomCodeInput: string,
-    viewerUserId?: string | null
+    viewerUserId?: string | null,
+    activityOnly = false
   ): Promise<OnlineRoomSpectatorEntryView | null> {
     await this.cleanupExpiredState();
 
@@ -1182,6 +1595,16 @@ export class OnlineRoomService {
     if (!room || room.members.length === 0) {
       return null;
     }
+    if (room.casualTable && room.matchId && this.matchService.isMatchCompleted(room.matchId))
+      return null;
+    if (
+      activityOnly &&
+      (room.casualTable ||
+        (!room.themeTableVersionId && room.originKind !== 'RANKED') ||
+        !room.matchId ||
+        this.matchService.isMatchCompleted(room.matchId))
+    )
+      return null;
     this.assertUserCanEnterRoomCodeSpectator(room, viewerUserId);
 
     return buildSpectatorRoomEntryView(room, { onlyEnabledSeats: true });
@@ -1190,13 +1613,20 @@ export class OnlineRoomService {
   async createRoomCodeSpectatorLink(
     roomCodeInput: string,
     viewerSeat: Seat,
-    viewerUserId?: string | null
+    viewerUserId?: string | null,
+    expectedGeneration?: string
   ): Promise<OnlineSpectatorLinkView> {
     await this.cleanupExpiredState();
 
     const room = this.getRoomState(roomCodeInput);
+    if (expectedGeneration && room.roomGeneration !== expectedGeneration)
+      throw new OnlineRoomServiceError('ONLINE_ROOM_REPLACED', '本轮房间已经变化，请重新选择', 409);
     this.assertUserCanEnterRoomCodeSpectator(room, viewerUserId);
-    if (room.status !== 'IN_GAME' || !room.matchId) {
+    if (
+      room.status !== 'IN_GAME' ||
+      !room.matchId ||
+      (room.casualTable && this.matchService.isMatchCompleted(room.matchId))
+    ) {
       throw new OnlineRoomServiceError(
         'ONLINE_ROOM_SPECTATOR_UNAVAILABLE',
         '该房间当前不能通过房间号观战',
@@ -1313,6 +1743,7 @@ export class OnlineRoomService {
   }
 
   clear(): void {
+    this.pendingCasualRooms.clear();
     this.rooms.clear();
   }
 
@@ -1322,6 +1753,12 @@ export class OnlineRoomService {
     if (!room) {
       throw new OnlineRoomServiceError('ONLINE_ROOM_NOT_FOUND', '房间不存在或已失效', 404);
     }
+    if (room.casualRetirementPending)
+      throw new OnlineRoomServiceError(
+        'ONLINE_CASUAL_TRANSITION_PENDING',
+        '本轮房间正在切换，请返回对战大厅查看结果',
+        409
+      );
     return room;
   }
 
@@ -1337,7 +1774,20 @@ export class OnlineRoomService {
     room: OnlineRoomState,
     member: OnlineRoomMemberState
   ): Promise<void> {
+    if (room.casualTable && member.voluntarilyLeft)
+      throw new OnlineRoomServiceError(
+        'ONLINE_CASUAL_ROOM_LEFT',
+        '你已离开本轮房间，请返回对战大厅',
+        403
+      );
     const profile = await this.loadUserProfile(member.userId);
+    // An in-flight read must not undo a departure committed while loading the profile.
+    if (room.casualTable && member.voluntarilyLeft)
+      throw new OnlineRoomServiceError(
+        'ONLINE_CASUAL_ROOM_LEFT',
+        '你已离开本轮房间，请返回对战大厅',
+        403
+      );
     const now = this.now();
     member.displayName = profile.displayName;
     member.voluntarilyLeft = false;
@@ -1356,6 +1806,7 @@ export class OnlineRoomService {
 
     return {
       roomCode: room.roomCode,
+      ...(room.casualTable ? { casualTable: room.casualTable } : {}),
       originKind: room.originKind,
       battleTimeouts: room.battleTimeouts,
       ...(room.themeTableVersionId ? { themeTableVersionId: room.themeTableVersionId } : {}),
@@ -1369,7 +1820,8 @@ export class OnlineRoomService {
       currentUserPresence: viewer.presence,
       currentUserSeat: getAssignedSeat(room, viewer.userId) ?? undefined,
       members: members.map((member) => {
-        const canSeeDeckIdentity = !room.themeTableVersionId || member.userId === viewer.userId;
+        const canSeeDeckIdentity =
+          member.userId === viewer.userId || (!room.themeTableVersionId && !room.casualTable);
         return {
           userId: member.userId,
           displayName: member.displayName,
@@ -1550,6 +2002,10 @@ export class OnlineRoomService {
     reviews: readonly { readonly member: OnlineRoomMemberState; readonly valid: boolean }[],
     now: number
   ): Promise<void> {
+    if (room.casualTable) {
+      await this.endRoomForOpeningFailure(room, now, 'DECK_POINT_TABLE_CHANGED');
+      return;
+    }
     if (!room.publicTableReservationId || room.initialPublicTableMatchId !== null) {
       for (const { member, valid } of reviews) {
         member.startReady = false;
@@ -1796,6 +2252,7 @@ export class OnlineRoomService {
 
     for (const [roomCode, room] of this.rooms) {
       checkedRoomCount += 1;
+      if (room.casualRetirementPending) continue;
       this.refreshMemberPresence(room, now);
       this.expireRestartRequestIfNeeded(room, now);
       this.clearRestartRequestIfParticipantInactive(room);
@@ -1816,7 +2273,17 @@ export class OnlineRoomService {
         now >= room.openingArrivalExpiresAt &&
         room.members.some((member) => member.arrivedAt === null)
       ) {
-        await this.endRoomForOpeningArrivalTimeout(room, now);
+        await this.endRoomForOpeningFailure(room, now);
+        continue;
+      }
+
+      if (
+        room.casualTable &&
+        room.status === 'OPENING' &&
+        room.openingExpiresAt !== null &&
+        now >= room.openingExpiresAt
+      ) {
+        await this.endRoomForOpeningFailure(room, now, 'OPENING_TIMEOUT');
         continue;
       }
 
@@ -2289,7 +2756,11 @@ export class OnlineRoomService {
     }
   }
 
-  private async endRoomForOpeningArrivalTimeout(room: OnlineRoomState, now: number): Promise<void> {
+  private async endRoomForOpeningFailure(
+    room: OnlineRoomState,
+    now: number,
+    reason: OnlineRoomEndView['reason'] = 'OPENING_ARRIVAL_TIMEOUT'
+  ): Promise<void> {
     const themeRecovery =
       room.publicTableReservationId && room.themeTableVersionId
         ? await recoverNoFaultThemeOpeningPlayers({
@@ -2349,7 +2820,7 @@ export class OnlineRoomService {
     room.openingArrivalExpiresAt = null;
     room.restartRequest = null;
     room.endInfo = {
-      reason: 'OPENING_ARRIVAL_TIMEOUT',
+      reason,
       endedAt: now,
     };
     touchRoom(room, now);
@@ -2432,6 +2903,13 @@ export class OnlineRoomService {
   }
 
   private ensureCanRestart(room: OnlineRoomState): void {
+    if (room.casualTable) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_CASUAL_PREPARATION_REQUIRED',
+        '请从对战大厅重新准备下一局',
+        409
+      );
+    }
     if (room.themeTableVersionId) {
       throw new OnlineRoomServiceError(
         'THEME_RESTART_FORBIDDEN',
@@ -2499,6 +2977,16 @@ export class OnlineRoomService {
     }
     const requester = findMember(room, request.requesterUserId);
     const responder = findMember(room, request.responderUserId);
+    // Lobby negotiation belongs to the retained seats, not the room page's
+    // short presence window. Explicit departure or the request TTL ends it.
+    if (
+      room.casualTable &&
+      requester &&
+      responder &&
+      !requester.voluntarilyLeft &&
+      !responder.voluntarilyLeft
+    )
+      return;
     if (requester?.presence === 'ACTIVE' && responder?.presence === 'ACTIVE') {
       return;
     }
@@ -2668,6 +3156,7 @@ function buildSpectatorRoomEntryView(
     roomCode: room.roomCode,
     status: room.status,
     matchId: room.matchId,
+    roomGeneration: room.roomGeneration,
     seats,
   };
 }

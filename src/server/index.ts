@@ -5,6 +5,7 @@ import { pool } from './db/pool.js';
 import { ensureBucket, ensurePrivateWallpaperBucket } from './services/minio-service.js';
 import { onlineMatchService } from './services/online-match-service.js';
 import { onlineRoomService } from './services/online-room-service.js';
+import { casualTableService } from './services/casual-table-service.js';
 import { publicTableService } from './services/public-table-service.js';
 import { rankedRuntimeService } from './services/ranked-runtime-service.js';
 import { playerWallpaperService } from './services/player-wallpaper-service.js';
@@ -36,6 +37,7 @@ async function cleanupExpiredRuntimeState() {
   try {
     const summary = await onlineRoomService.cleanupExpiredRuntimeState();
     const publicTableSummary = await publicTableService.cleanupExpiredState();
+    await casualTableService.cleanupExpiredState();
     const rankedSummary = await rankedRuntimeService.cleanup({
       terminateRuntimeMatch: (matchId, now, reason) =>
         onlineRoomService.terminateRankedMatchForNoContest(matchId, reason, now.getTime()),

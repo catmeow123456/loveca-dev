@@ -3183,6 +3183,15 @@ export class OnlineMatchService {
     );
   }
 
+  /** Seal a completed match without removing its recoverable runtime. */
+  async sealCompletedMatchForRemoval(matchId: string): Promise<boolean> {
+    return this.runSerializedMatchMutation(matchId, async () => {
+      const match = this.matches.get(matchId);
+      if (!match || !this.isMatchCompleted(matchId)) return false;
+      return this.sealMatchForRemoval(match, 'CASUAL_ROUND_RETIRED', this.now());
+    });
+  }
+
   /** Capture final AI accounting and remove the match in the same authority queue. */
   async endAiBattle(matchId: string): Promise<{
     readonly removed: boolean;

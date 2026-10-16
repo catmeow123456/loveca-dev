@@ -14,7 +14,7 @@
 - `docs/online-mode/preparation.md`：联机模式总览与当前实现边界。
 - `docs/online-mode/visibility-matrix.md`：可见性、投影、公共对象跟踪。
 - `docs/online-mode/free-drag-checklist.md`：自由拖拽权限模型与最小回归测试。
-- `docs/online-mode/room-exit-and-recovery.md`：返回大厅、赛前退出、放弃配对、认输与房间恢复入口的现行语义。
+- `docs/online-mode/room-exit-and-recovery.md`：准备、运行房间、对局终局、占用、离房、再战与清理的状态机和现行语义。
 - `docs/online-mode/remote-undo-requirements-design.md`：正式联机、服务端可记录对墙打撤销的历史实施记录，以及远程调试撤销的剩余计划；当前桌面场景边界以 `docs/battle-mode-purpose-and-boundaries.md` 为准。
 - `docs/online-mode/transport-serde-performance.md`：正式联机 snapshot / command response 的 JSON-native transport 热路径、性能基准和后续 snapshot diff / 增量同步边界。
 - `docs/match-replay/README.md`：历史记录、玩家视角 checkpoint 回放与运行态恢复专题入口。
@@ -25,7 +25,7 @@
 
 ## 2. 当前实现事实
 
-当前代码已经具备正式双人联机的基础产品闭环：房间、卡组锁定、双方准备、开局猜拳与胜者决定先后手、服务端权威对局、轮询同步、运行期玩家视角 snapshot、房间号观战入口、同会话授权视角切换、跨重开局间等待与自动续看、离开房间、短暂恢复和管理员观测。普通玩家专用观战链接已完整移除；同一房间最多 10 个活跃普通观战会话，恢复会话、快照、公开日志和视角切换受服务端频率窗口保护。正式联机响应侧已改为 JSON-native DTO 热路径，并继续优化了服务端投影、客户端 snapshot 应用和 recorder checkpoint 写入策略；相关性能边界见 `docs/online-mode/transport-serde-performance.md`。历史记录与回放已经具备阶段性闭环：正式联机与服务端可记录对墙打会写入历史根记录、卡组快照、timeline、authority checkpoint、public/private event 明细和部分 decision record，普通玩家可以按自己的历史视角读取详情、timeline 和只读 checkpoint 桌面；服务端可记录对墙打运行态缺失时，可从最新 authority checkpoint 与公共事件尾部恢复到最近保存点。卡效自动化第一阶段已经接入普通成员登场费用、Live 判定与修正、部分触发/起动/自动能力和第一批登记卡效。剩余缺口主要集中在实时传输、正式联机进程重启后恢复运行中对局与观战会话、完整随机记录、完整决策覆盖、确定性重演、全卡池完整自动裁判和完整重放恢复语义。
+当前代码已经具备正式双人联机的基础产品闭环：统一休闲大厅、持久准备／卡组快照、双方确认、开局猜拳与胜者决定先后手、服务端权威对局、轮询同步、运行期玩家视角 snapshot、房间号观战入口、同会话授权视角切换、赛后再战、离开房间、短暂恢复和管理员观测。普通玩家专用观战链接已完整移除；同一房间最多 10 个活跃普通观战会话，恢复会话、快照、公开日志和视角切换受服务端频率窗口保护。正式联机响应侧已改为 JSON-native DTO 热路径，并继续优化了服务端投影、客户端 snapshot 应用和 recorder checkpoint 写入策略；相关性能边界见 `docs/online-mode/transport-serde-performance.md`。历史记录与回放已经具备阶段性闭环：正式联机与服务端可记录对墙打会写入历史根记录、卡组快照、timeline、authority checkpoint、public/private event 明细和部分 decision record，普通玩家可以按自己的历史视角读取详情、timeline 和只读 checkpoint 桌面；服务端可记录对墙打运行态缺失时，可从最新 authority checkpoint 与公共事件尾部恢复到最近保存点。卡效自动化第一阶段已经接入普通成员登场费用、Live 判定与修正、部分触发/起动/自动能力和第一批登记卡效。剩余缺口主要集中在实时传输、正式联机进程重启后恢复运行中对局与观战会话、完整随机记录、完整决策覆盖、确定性重演、全卡池完整自动裁判和完整重放恢复语义。
 
 相关代码路径：
 
@@ -53,14 +53,12 @@
 - 命令入口已经在向语义化命令收敛；历史桌面自由移动能力只在权威 `FREE` 下作为兼容操作保留。
 - `RULES` 已接入中央玩家命令白名单：普通手动区域移动、能量操作、成员换位、手工判定/改分及与当前阶段或 pending 无关的输入会被拒绝。服务端会按权威模式重写命令中的兼容标记，不信任客户端单方声明。
 - 正式 `ONLINE` 对局的主要阶段结束和先/后攻 Live 放置确认共用服务层 3 秒防误触门禁。截止时间保存在 `OnlineMatchState` 的非确定性运行态，不写入 `GameState` / checkpoint / 回放；玩家视图通过 typed command availability 投影剩余毫秒驱动客户端倒计时，命令执行前仍由服务端最终校验。
-- 正式房间 REST 链路已经存在：创建/加入房间、锁定云端卡组、双方准备、暗选石头/剪刀/布、平局重选、猜拳胜者选择自己先手或后手、读取房间、离开房间、读取对局快照、提交命令、阶段推进。
+- 休闲准入使用 `/api/casual-tables` 的创建／加入、快照与双方确认；旧 CASUAL 票据和普通房间创建／加入接口返回 410。绑定后复用原猜拳、先后手、玩家投影和命令链路；排位／主题保持独立准入。详细生命周期见[房间状态机与生命周期](room-exit-and-recovery.md)。
 - 当前同步方式是短间隔 HTTP 轮询，不是 WebSocket；普通玩家观战使用请求完成后再计时的串行轮询，快照与按公开水位拉取的日志增量不并发重入。短暂断线通过房间码与服务端 `presence/lastSeenAt` 恢复，长期恢复仍受内存态生命周期限制。
 - 普通观战会话的恢复、快照、公开日志与视角切换共享服务端频率窗口。频率保护响应提供结构化等待时间，客户端按同一观战会话共享退避；已进入桌面的观战者保留最后一份有效桌面并自动恢复，容量达到上限导致的新会话失败仍作为入口阻断。
 - 观战视角切换会暂停轮询并作废旧代际的在途同步结果；未变化的视角元数据保持会话对象引用稳定，避免轮询 effect 因等价快照反复重建。
 - 房间号观战资格和客户端会话归属于不可复用的房间代际；当前 `matchId`、席位、视角版本和单局游标只是可替换绑定。管理员观战仍是单局链接，不跟随房间重开。
-- 双方接受重开并成功封存旧局后，普通观战 snapshot 返回结构化 `WAITING_NEXT_MATCH`，等待会话继续计入房间上限并由同一客户端恢复。新局创建后按 preferred 玩家身份解析新席位；授权 fallback 只改变 effective 目标，preferred 重新开放时自动恢复。
-- 房间销毁、等待期间参赛成员变化、会话过期或全部授权关闭会产生稳定终止原因；相同房间号重新创建不会继承旧房间代际的观战资格。等待心跳只续期观战会话，不更新参赛玩家 presence。
-- snapshot 与 public-events 会校验房间代际和绑定代际。客户端进入等待即清空旧单局 store 与公共日志，只继续轮询房间级会话结果；收到新局首份完整安全投影后才建立新远程会话，旧绑定公开事件不会跨局追加。
+- 正式终局、赛后再战、房间代际、观战结束和恢复语义统一见[房间状态机与生命周期](room-exit-and-recovery.md)，不在本文重复维护状态流转。
 - 运行期玩家视角 snapshot 与正式联机响应 DTO 已落地；历史记录、timeline、authority checkpoint、public/private event 明细和玩家视角只读 checkpoint 回放已阶段性落地。正式联机进程重启后的运行中对局恢复尚未落地；服务端可记录对墙打在运行态缺失时已支持从最新 authority checkpoint 与公共事件尾部恢复到最近保存点。
 - 当前自动化卡效范围以 `docs/card-effect-reuse-audit/existing_module_map.md` 为准；未登记卡效仍按显式操作与审计边界处理。
 

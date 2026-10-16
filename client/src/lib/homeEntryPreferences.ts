@@ -1,12 +1,10 @@
 export const HOME_ENTRY_IDS = [
   'tutorial',
-  'public-table',
+  'battle-lobby',
   'ranked',
   'theme-table',
-  'online-room',
   'solitaire',
   'debug',
-  'spectator',
   'match-records',
   'online-debug',
 ] as const;
@@ -14,12 +12,7 @@ export const HOME_ENTRY_IDS = [
 export type HomeEntryId = (typeof HOME_ENTRY_IDS)[number];
 
 const STORAGE_KEY = 'loveca.home.hiddenEntries';
-export const DEFAULT_HIDDEN_HOME_ENTRIES: HomeEntryId[] = [
-  'public-table',
-  'online-room',
-  'solitaire',
-  'debug',
-];
+export const DEFAULT_HIDDEN_HOME_ENTRIES: HomeEntryId[] = ['solitaire', 'debug'];
 
 export function readHiddenHomeEntries(): HomeEntryId[] {
   try {

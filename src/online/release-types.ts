@@ -6,7 +6,10 @@ import type { BattleTimeoutConfig } from './ranked-policy.js';
 export type OnlineRoomStatus = 'PREPARING' | 'READY' | 'OPENING' | 'IN_GAME' | 'ENDED';
 export type OnlineRoomMemberRole = 'HOST' | 'GUEST';
 export type OnlineRoomMemberPresence = 'ACTIVE' | 'LEFT';
-export type OnlineRoomEndReason = 'OPENING_ARRIVAL_TIMEOUT';
+export type OnlineRoomEndReason =
+  | 'OPENING_ARRIVAL_TIMEOUT'
+  | 'OPENING_TIMEOUT'
+  | 'DECK_POINT_TABLE_CHANGED';
 export type OpeningRpsGesture = 'ROCK' | 'PAPER' | 'SCISSORS';
 export type OpeningTurnOrderChoice = 'SELF_FIRST' | 'SELF_SECOND';
 export type OnlineSpectatorViewType = 'PLAYER';
@@ -71,6 +74,7 @@ export interface OnlineRoomEndView {
 }
 
 export interface OnlineRoomView {
+  readonly casualTable?: { readonly tableId: string; readonly roundId: string };
   readonly roomCode: string;
   readonly originKind: MatchOriginKind;
   /** 本房间当前对局开局时冻结的全局时限配置。 */
@@ -191,6 +195,7 @@ export interface OnlineRoomSpectatorSeatView {
 
 export interface OnlineRoomSpectatorEntryView {
   readonly roomCode: string;
+  readonly roomGeneration: string;
   readonly status: OnlineRoomStatus;
   readonly matchId: string | null;
   readonly seats: readonly OnlineRoomSpectatorSeatView[];

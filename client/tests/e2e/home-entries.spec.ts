@@ -13,7 +13,7 @@ test('定制入口即时保存，返回首页和刷新后保留，恢复默认�
   const edit = panel.getByRole('switch', { name: '自定义' });
   await expect(edit).not.toBeChecked();
   await expect(panel.getByRole('button', { name: /^新手教程/ })).toBeVisible();
-  for (const title of ['公共牌桌', '房间联机', '对墙打', '双人调试']) {
+  for (const title of ['对墙打', '双人调试']) {
     await expect(panel.getByRole('button', { name: title, exact: true })).toHaveCount(0);
   }
 
@@ -25,16 +25,16 @@ test('定制入口即时保存，返回首页和刷新后保留，恢复默认�
   await page.keyboard.press('Space');
   await expect(tutorial).not.toBeChecked();
   await expect(tutorial).toBeFocused();
-  await expect(panel.getByRole('checkbox')).toHaveCount(9);
-  await expect(panel.getByRole('status')).toHaveText('已显示 4 / 9 项');
+  await expect(panel.getByRole('checkbox')).toHaveCount(7);
+  await expect(panel.getByRole('status')).toHaveText('已显示 4 / 7 项');
   await expect(panel.getByRole('checkbox', { name: '显示对墙打' })).not.toBeChecked();
 
   await waitForVisualStability(page);
   await panel.screenshot({ path: testInfo.outputPath('customizing.png'), animations: 'disabled' });
   await edit.click();
   await expect(panel.getByRole('button', { name: /^新手教程/ })).toHaveCount(0);
-  await panel.getByRole('button', { name: /^房间观战/ }).click();
-  await expect(page.getByLabel('房间号')).toBeVisible();
+  await panel.getByRole('button', { name: /^对战大厅/ }).click();
+  await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
   await page.goto('/');
   await expect(panel.getByRole('button', { name: /^新手教程/ })).toHaveCount(0);
   await page.reload();
@@ -56,7 +56,7 @@ test('新增的对局入口可从自定义显示，并进入对应对局流程',
   const panel = page.getByRole('complementary', { name: '常用入口' });
   const edit = panel.getByRole('switch', { name: '自定义' });
   await edit.click();
-  for (const title of ['公共牌桌', '房间联机', '对墙打', '双人调试']) {
+  for (const title of ['对墙打', '双人调试']) {
     await panel.getByRole('checkbox', { name: `显示${title}` }).check();
   }
   await edit.click();
@@ -70,15 +70,11 @@ test('新增的对局入口可从自定义显示，并进入对应对局流程',
   await expect(page.getByRole('heading', { name: '选择 Player 1 的卡组' })).toBeVisible();
   await page.getByRole('button', { name: '返回大厅' }).click();
 
-  await panel.getByRole('button', { name: '房间联机' }).click();
-  await expect(page.getByLabel('房间号')).toBeVisible();
-  await page.getByRole('button', { name: '返回大厅' }).click();
-
-  await panel.getByRole('button', { name: '公共牌桌' }).click();
-  await expect(page.getByRole('heading', { name: '公共牌桌' })).toBeVisible();
+  await panel.getByRole('button', { name: '对战大厅', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
 });
 
-test('旧版入口偏好保留原选择，新入口仍默认隐藏', async ({ page }) => {
+test('旧版入口偏好保留原选择，统一大厅可见，调试入口默认隐藏', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('loveca.home.hiddenEntries', JSON.stringify(['tutorial']));
   });

@@ -30,27 +30,18 @@ import { freezeThemeTableAssignment } from './theme-table-allocation-service.js'
 import { getCurrentRankedCardCatalogIdentity } from '../rating/ranked-environment.js';
 import { REPLAY_RULES_VERSION } from './replay-constants.js';
 
-const ENVIRONMENT_ID = 'PUBLIC_TABLE_V1';
 const HEARTBEAT_GRACE_MS = 45_000;
 const CONFIRMATION_TTL_MS = 60_000;
 const BOOTSTRAP_LEASE_MS = 30_000;
 const MAX_BOOTSTRAP_ATTEMPTS = 3;
 
 export interface MatchmakingQueueContext {
-  readonly queueKind: 'CASUAL' | 'RANKED' | 'THEME';
-  readonly participationKind: 'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'THEME_QUEUE';
+  readonly queueKind: 'RANKED' | 'THEME';
+  readonly participationKind: 'RANKED_QUEUE' | 'THEME_QUEUE';
   readonly environmentId: string;
   readonly seasonId: string | null;
   readonly themeTableVersionId?: string | null;
 }
-
-export const CASUAL_QUEUE_CONTEXT: MatchmakingQueueContext = Object.freeze({
-  queueKind: 'CASUAL',
-  participationKind: 'PUBLIC_QUEUE',
-  environmentId: ENVIRONMENT_ID,
-  seasonId: null,
-  themeTableVersionId: null,
-});
 
 interface PublicTableServiceDeps {
   readonly now?: () => number;
@@ -118,9 +109,7 @@ export class PublicTableService {
       deps.getCurrentPointTableRules ?? (() => deckPointTableService.getCurrentRules());
   }
 
-  async getSummary(
-    context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT
-  ): Promise<PublicTableSummaryView> {
+  async getSummary(context: MatchmakingQueueContext): Promise<PublicTableSummaryView> {
     const restriction = await siteAnnouncementService.getGameplayRestriction();
     if (restriction) {
       return {
@@ -162,7 +151,7 @@ export class PublicTableService {
     userId: string,
     deckId: string | null,
     entrySource = 'DIRECT',
-    context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT
+    context: MatchmakingQueueContext
   ): Promise<PublicTableStatusView> {
     const current = await this.getStatus(userId, context);
     if (current.state !== 'IDLE') {
@@ -262,7 +251,7 @@ export class PublicTableService {
 
   async heartbeat(
     userId: string,
-    context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT
+    context: MatchmakingQueueContext
   ): Promise<PublicTableStatusView> {
     const now = new Date(this.now());
     await pool.query(
@@ -292,7 +281,7 @@ export class PublicTableService {
 
   async getStatus(
     userId: string,
-    context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT
+    context: MatchmakingQueueContext
   ): Promise<PublicTableStatusView> {
     const result = await pool.query<StatusRow>(
       `SELECT
@@ -338,10 +327,7 @@ export class PublicTableService {
     return mapStatusRow(row);
   }
 
-  async cancel(
-    userId: string,
-    context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT
-  ): Promise<PublicTableStatusView> {
+  async cancel(userId: string, context: MatchmakingQueueContext): Promise<PublicTableStatusView> {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -401,10 +387,7 @@ export class PublicTableService {
     }
   }
 
-  async confirm(
-    userId: string,
-    context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT
-  ): Promise<PublicTableStatusView> {
+  async confirm(userId: string, context: MatchmakingQueueContext): Promise<PublicTableStatusView> {
     const current = await this.getStatus(userId, context);
     if (
       current.state === 'CONFIRMED' ||
@@ -549,7 +532,7 @@ export class PublicTableService {
     return this.getStatus(userId, context);
   }
 
-  async tryMatch(context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT): Promise<void> {
+  async tryMatch(context: MatchmakingQueueContext): Promise<void> {
     const client = await pool.connect();
     const now = this.now();
     try {
@@ -678,7 +661,7 @@ export class PublicTableService {
            SET state = 'EXPIRED',
                terminal_reason = 'HEARTBEAT_EXPIRED',
                updated_at = $2
-           WHERE state = 'WAITING'
+           WHERE queue_kind IN ('RANKED', 'THEME') AND state = 'WAITING'
              AND heartbeat_at <= $1
            RETURNING id
          )
@@ -698,7 +681,7 @@ export class PublicTableService {
       }>(
         `SELECT id, first_ticket_id, second_ticket_id, first_confirmed_at, second_confirmed_at
          FROM public_table_reservations
-         WHERE state = 'PENDING_CONFIRMATION'
+         WHERE queue_kind IN ('RANKED', 'THEME') AND state = 'PENDING_CONFIRMATION'
            AND expires_at <= $1
          ORDER BY expires_at
          FOR UPDATE SKIP LOCKED
@@ -749,7 +732,7 @@ export class PublicTableService {
            second_ticket_id,
            bootstrap_attempt_count
          FROM public_table_reservations
-         WHERE state = 'CREATING_ROOM'
+         WHERE queue_kind IN ('RANKED', 'THEME') AND state = 'CREATING_ROOM'
            AND bootstrap_lease_until <= $1
          ORDER BY bootstrap_lease_until
          FOR UPDATE SKIP LOCKED
@@ -803,7 +786,7 @@ export class PublicTableService {
       }>(
         `SELECT id, room_generation
          FROM public_table_reservations
-         WHERE state = 'MATCHED'
+         WHERE queue_kind IN ('RANKED', 'THEME') AND state = 'MATCHED'
            AND room_generation IS NOT NULL
          ORDER BY updated_at
          FOR UPDATE SKIP LOCKED
@@ -865,7 +848,6 @@ export class PublicTableService {
         );
       }
     }
-    await this.tryMatch();
     return { expiredWaitingTickets, releasedReservations, recoveredCreatingReservations };
   }
 
@@ -873,7 +855,7 @@ export class PublicTableService {
     const result = await pool.query<{
       state: string;
       bootstrap_lease_until: Date;
-      queue_kind: 'CASUAL' | 'RANKED' | 'THEME';
+      queue_kind: 'RANKED' | 'THEME';
       season_id: string | null;
       theme_table_version_id: string | null;
       theme_name: string | null;
@@ -1088,11 +1070,7 @@ export class PublicTableService {
         [
           [row.first_ticket_id, row.second_ticket_id],
           room.roomGeneration,
-          row.queue_kind === 'RANKED'
-            ? 'RANKED_QUEUE'
-            : row.queue_kind === 'THEME'
-              ? 'THEME_QUEUE'
-              : 'PUBLIC_QUEUE',
+          row.queue_kind === 'RANKED' ? 'RANKED_QUEUE' : 'THEME_QUEUE',
         ]
       );
       logPublicTableLifecycleEvent({
@@ -1282,9 +1260,6 @@ async function isQueueContextOpen(
   context: MatchmakingQueueContext,
   now: number
 ): Promise<boolean> {
-  if (context.queueKind === 'CASUAL') {
-    return true;
-  }
   if (context.queueKind === 'THEME') {
     if (!context.themeTableVersionId) return false;
     const result = await client.query<ThemeAdmissionRow>(

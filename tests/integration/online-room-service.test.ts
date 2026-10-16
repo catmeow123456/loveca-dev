@@ -4803,4 +4803,48 @@ describe('OnlineRoomService', () => {
       [started.matchId]
     );
   });
+  it('keeps known activity-code spectator lookup and rejects stale generations and revoked views', async () => {
+    const now = 9_000_000;
+    const matchService = new OnlineMatchService({ now: () => now, recorder: null });
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: (userId) =>
+        Promise.resolve({ userId, displayName: userId === 'u1' ? '玩家一' : '玩家二' }),
+    });
+    const room = await startRankedPublicTableRoom(
+      service,
+      '11111111-2222-4333-8444-555555555555',
+      '22222222-3333-4444-8555-666666666666',
+      'activity-code',
+      now
+    );
+    await service.setOwnRoomSpectatorEntry(room.roomCode, 'u1', true);
+    await service.setOwnRoomSpectatorEntry(room.roomCode, 'u2', false);
+    const entry = await service.getRoomSpectatorEntry(room.roomCode, 'watcher', true);
+    expect(entry?.roomGeneration).toBe(
+      service.getRoomIdentityForPublicTableReservation('11111111-2222-4333-8444-555555555555')
+        ?.roomGeneration
+    );
+    expect(entry?.seats).toEqual([{ seat: 'FIRST', displayName: '玩家一', enabled: true }]);
+    await expect(
+      service.createRoomCodeSpectatorLink(room.roomCode, 'FIRST', 'watcher', 'stale-generation')
+    ).rejects.toMatchObject({ code: 'ONLINE_ROOM_REPLACED' });
+    expect(
+      (
+        await service.createRoomCodeSpectatorLink(
+          room.roomCode,
+          'FIRST',
+          'watcher',
+          entry!.roomGeneration
+        )
+      ).matchId
+    ).toBe(room.matchId);
+    await service.setOwnRoomSpectatorEntry(room.roomCode, 'u1', false);
+    await expect(
+      service.createRoomCodeSpectatorLink(room.roomCode, 'FIRST', 'watcher', entry!.roomGeneration)
+    ).rejects.toMatchObject({ code: 'ONLINE_ROOM_SPECTATOR_CLOSED' });
+    await matchService.executeCommand(room.matchId!, 'u1', createSurrenderCommand('ignored'));
+    expect(await service.getRoomSpectatorEntry(room.roomCode, 'watcher', true)).toBeNull();
+  });
 });

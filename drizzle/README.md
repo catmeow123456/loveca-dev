@@ -12,6 +12,8 @@
 
 `data-migrations/` 保存版本绑定的一次性数据迁移脚本，例如旧数据格式转换或生产数据修复。这里的脚本也不会被 `pnpm db:migrate` 自动执行；必须按对应 `migration-notes/` 文档在维护窗口手动运行，并保留 dry-run、报告和验证 SQL。
 
+社区对战大厅的新增休闲准备表、本地接入边界与生产排空要求见 [`migration-notes/community-lobby.md`](migration-notes/community-lobby.md)。
+
 ## 当前基线
 
 - `0000_baseline_current_schema.sql` 是 no-op 基线，只用于登记接入 Drizzle 时已经存在的基础结构。
