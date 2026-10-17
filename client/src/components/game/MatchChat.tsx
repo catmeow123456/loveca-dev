@@ -367,7 +367,7 @@ export const MatchChat = memo(function MatchChat({
         type="button"
         onClick={handleChatButton}
         className={cn(
-          'button-ghost relative inline-flex items-center justify-center border border-[var(--border-default)] bg-[var(--bg-frosted)] shadow-[var(--shadow-md)] backdrop-blur-xl',
+          'battle-toolbar-control button-ghost relative inline-flex items-center justify-center border border-[var(--border-default)] bg-[var(--bg-frosted)] shadow-[var(--shadow-md)] backdrop-blur-xl',
           compact ? 'h-9 w-9 p-0' : 'min-h-10 gap-2 px-3 sm:min-h-11'
         )}
         aria-label={isSpectator ? '观战聊天' : '局内聊天'}

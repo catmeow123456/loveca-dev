@@ -406,11 +406,14 @@ export const PlayerArea = memo(function PlayerArea({
     const core = desktopCoreRef.current;
     if (isMobileBoard || !hasPlayerIdentity || !core) return;
     const measure = () => {
-      // 成员竖牌 + LIVE 横牌，共享实际可用高度；另留内边距、间距和需求标记。
-      const width = Math.max(44, Math.min(140, (core.clientHeight - 42) / (7 / 5 + 5 / 7)));
+      // LIVE 使用独立的横牌尺寸；剩余高度优先给成员，避免两种卡一起越缩越小。
+      // LIVE 槽位 70px + 对称内边距/边框 10px + 两行间距 8px。
+      // 两侧资源各 150px、边距共 32px、两段列间距各 60px。
+      const columnWidth = Math.max(80, Math.min(140, (core.clientWidth - 332 - 120) / 3));
+      const availableHeight = Math.floor(core.getBoundingClientRect().height);
+      const width = Math.max(56, Math.min(columnWidth, (availableHeight - 88) / (7 / 5)));
+      core.style.setProperty('--battle-stage-column-width', `${columnWidth}px`);
       core.style.setProperty('--battle-stage-card-width', `${width}px`);
-      core.style.setProperty('--battle-stage-live-height', `${(width * 5) / 7}px`);
-      core.style.setProperty('--battle-stage-live-slot-height', `${(width * 5) / 7 + 12}px`);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -1037,7 +1040,7 @@ export const PlayerArea = memo(function PlayerArea({
               ? 'center'
               : 'right'
         )}
-        className="relative flex flex-col items-center md:w-[140px]"
+        className="relative flex flex-col items-center md:w-[var(--battle-stage-column-width,140px)]"
       >
         {/* 卡牌堆叠容器 - 使用 relative 定位实现重叠效果 */}
         <div className="relative aspect-[5/7] w-[clamp(56px,17vw,78px)] md:w-[var(--battle-stage-card-width,140px)]">
@@ -1188,6 +1191,7 @@ export const PlayerArea = memo(function PlayerArea({
               <DraggableCard
                 id={card.instanceId}
                 disabled={!allowGeneralOwnZoneInteraction}
+                className="h-full w-full"
                 data={{
                   cardId: card.instanceId,
                   cardCode: card.cardCode,
@@ -2219,12 +2223,12 @@ export const PlayerArea = memo(function PlayerArea({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.9 }}
           // 横置卡牌的容器：需要调整尺寸以适应旋转后的卡牌
-          className="relative flex h-[50px] w-[70px] items-center justify-center md:h-[var(--battle-stage-live-height,68px)] md:w-[var(--battle-stage-card-width,105px)]"
+          className="relative flex h-[var(--battle-live-height)] w-[var(--battle-live-width)] shrink-0 items-center justify-center"
         >
           <CardDetailPressTarget
             cardId={shouldShowFront && card ? card.instanceId : null}
             disabled={!shouldShowFront || !card}
-            className="-rotate-90 origin-center"
+            className="-rotate-90 origin-center shrink-0"
           >
             {card ? (
               <Card
@@ -2237,13 +2241,13 @@ export const PlayerArea = memo(function PlayerArea({
                 interactive={!isReadOnly && !isOpponent}
                 showHover={false}
                 className={cn(
-                  'h-[80px] w-[57px] md:h-[var(--battle-stage-card-width,112px)] md:w-[var(--battle-stage-live-height,80px)]',
+                  'h-[var(--battle-live-width)] w-[var(--battle-live-height)]',
                   getActiveEffectTaskCardClass(card.instanceId)
                 )}
                 onClick={() => confirmActiveEffectCardFromTable(card.instanceId)}
               />
             ) : (
-              <div className="h-[80px] w-[57px] overflow-hidden rounded-lg shadow-md md:h-[var(--battle-stage-card-width,112px)] md:w-[var(--battle-stage-live-height,80px)]">
+              <div className="h-[var(--battle-live-width)] w-[var(--battle-live-height)] overflow-hidden rounded-lg shadow-md">
                 <img src="/back.jpg" alt="Card Back" className="h-full w-full object-cover" />
               </div>
             )}
@@ -2267,18 +2271,21 @@ export const PlayerArea = memo(function PlayerArea({
 
           {/* Live 卡所需心展示 */}
           {shouldShowFront && liveData && (
-            <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-0.5 text-[8px] whitespace-nowrap">
+            <div
+              data-live-heart-requirements
+              className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-0.5 text-[8px] whitespace-nowrap md:-bottom-2.5"
+            >
               {getHeartRequirementEntries(liveData.requirements?.colorRequirements).map(
                 ([color, count], i) => (
                   <span key={i} className="inline-flex items-center gap-0.5">
                     <img
                       src={HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR[color as HeartColor]}
                       alt=""
-                      className="h-3 w-3 object-contain drop-shadow"
+                      className="h-3 w-3 object-contain drop-shadow md:h-2.5 md:w-2.5"
                       draggable={false}
                     />
                     {(count as number) > 1 && (
-                      <span className="text-[8px] font-bold text-white drop-shadow">
+                      <span className="text-[8px] font-bold text-white drop-shadow md:leading-none">
                         ×{count as number}
                       </span>
                     )}
@@ -2292,15 +2299,15 @@ export const PlayerArea = memo(function PlayerArea({
     );
   };
 
-  // 渲染单个 Live 槽位 - 与成员槽位尺寸对齐
+  // 桌面空槽保留成员列宽，LIVE 实卡在槽位中保持横牌比例并居中。
   const renderLiveSlot = (slotIndex: number) => {
     const cardId = liveCardIds[slotIndex];
     return (
       <div
         key={slotIndex}
+        data-battle-live-slot={slotIndex}
         className={cn(
-          // 桌面列位置保持稳定，横牌高度跟随牌区可用空间。
-          'h-12 w-[clamp(56px,17vw,78px)] md:h-[var(--battle-stage-live-slot-height,60px)] md:w-[140px]',
+          'h-[var(--battle-live-slot-height)] w-[var(--battle-live-width)] shrink-0 md:w-[var(--battle-stage-column-width,140px)]',
           'rounded-lg flex items-center justify-center',
           'border border-dashed',
           cardId
@@ -2339,7 +2346,7 @@ export const PlayerArea = memo(function PlayerArea({
       }
     };
     const content = (
-      <div className="flex w-full items-center justify-center gap-1 sm:gap-4 md:gap-15">
+      <div className="flex w-full items-center justify-center gap-1.5 sm:gap-4 md:gap-15">
         {slotOrder.map((idx) => renderLiveSlot(idx))}
       </div>
     );
@@ -2354,7 +2361,7 @@ export const PlayerArea = memo(function PlayerArea({
           disabled={!canDropToLiveZone || liveZoneIsFull}
           disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
           className={cn(
-            'relative rounded-lg px-1 py-2',
+            'battle-live-zone relative rounded-lg p-1',
             'border',
             isMobileBoard
               ? 'bg-[color:color-mix(in_srgb,var(--bg-frosted)_8%,transparent)]'
@@ -2387,7 +2394,7 @@ export const PlayerArea = memo(function PlayerArea({
       <div
         data-battle-ui-anchor={getBattleLiveZoneAnchor(battlePlayerSide)}
         className={cn(
-          'rounded-lg px-1 py-2',
+          'battle-live-zone rounded-lg p-1',
           isMobileBoard
             ? 'border border-slate-300/20 bg-[color:color-mix(in_srgb,var(--bg-frosted)_8%,transparent)]'
             : 'border border-slate-600/30 bg-slate-800/40',
@@ -2886,12 +2893,12 @@ export const PlayerArea = memo(function PlayerArea({
         <div
           data-animation-zone-id={getDroppableId(ZoneType.HAND)}
           data-battle-ui-anchor={getBattleHandAnchor(battlePlayerSide)}
-          className="relative h-[88px] w-full overflow-visible py-1 md:h-[92px]"
+          className="battle-hand-zone relative h-[88px] w-full overflow-visible py-1"
         >
           {Array.from({ length: visibleBackCount }, (_, idx) => (
             <div
               key={`opponent-hand-back-${idx}`}
-              className="absolute bottom-1 h-[84px] w-[60px] overflow-hidden rounded-lg shadow-md"
+              className="absolute bottom-1 h-[84px] w-[60px] overflow-hidden rounded-lg shadow-md md:h-[var(--battle-hand-card-height)] md:w-[var(--battle-hand-card-width)]"
               style={{
                 left: `calc(50% + ${(idx - (visibleBackCount - 1) / 2) * backStep}px)`,
                 transform: `translateX(-50%) rotate(${(idx - (visibleBackCount - 1) / 2) * backRotationStep}deg) scale(${backScale})`,
@@ -2952,7 +2959,7 @@ export const PlayerArea = memo(function PlayerArea({
         battleUiAnchor={getBattleHandAnchor(battlePlayerSide)}
         disabled={!allowGeneralOwnZoneInteraction && !canReceiveInspectionDrop}
         disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
-        className="relative h-[118px] w-full overflow-visible px-3 py-2 md:px-4 md:pr-72"
+        className="battle-hand-zone relative h-[118px] w-full overflow-visible px-3 py-2 md:px-4 md:pr-72"
         activeClassName="ring-2 ring-cyan-500 bg-cyan-500/20"
       >
         {handCardIds.map((cardId, idx) => {
@@ -3040,7 +3047,7 @@ export const PlayerArea = memo(function PlayerArea({
                         isActionableNow: canShowHandCardActionMenu,
                       })}
                       className={cn(
-                        'md:h-[90px] md:w-[64px]',
+                        'md:h-[var(--battle-hand-card-height)] md:w-[var(--battle-hand-card-width)]',
                         getActiveEffectTaskCardClass(card.instanceId)
                       )}
                       onClick={() => {
@@ -3204,7 +3211,7 @@ export const PlayerArea = memo(function PlayerArea({
         </div>
 
         {/* 玩家信息 - 紧凑 */}
-        <div className="flex items-center gap-2 my-1 flex-shrink-0 flex-row-reverse">
+        <div className="absolute left-4 top-4 z-20 flex max-w-[240px] items-center gap-2">
           <div
             data-player-identity-seat={playerSeat}
             className={cn(
@@ -3219,7 +3226,8 @@ export const PlayerArea = memo(function PlayerArea({
 
         {/* 主区域 - 绝对定位布局（成员槽和Live区在底部，靠近中央分隔线） */}
         {/* 对手区域镜像显示：左右交换，成员槽位顺序反转 */}
-        <div ref={desktopCoreRef} className="relative z-10 min-h-0 flex-1 px-2">
+        {/* 工具栏节省的 9px 中，双方各分配 4px 给成员，余下各 0.5px 留在手牌侧。 */}
+        <div ref={desktopCoreRef} className="relative z-10 mt-[0.5px] min-h-0 flex-1 px-2">
           {/* 左侧区域 - 对手的资源区（镜像后在左边，对手的右手边） */}
           <div className="absolute bottom-0 left-2 flex w-[92px] justify-center sm:w-[120px] md:w-[150px]">
             {renderResources(true)}
@@ -3260,7 +3268,7 @@ export const PlayerArea = memo(function PlayerArea({
       )}
     >
       {/* 主区域 - 绝对定位布局（成员槽和Live区在顶部，靠近中央分隔线） */}
-      <div ref={desktopCoreRef} className="relative min-h-0 flex-1 px-2">
+      <div ref={desktopCoreRef} className="relative mb-[0.5px] min-h-0 flex-1 px-2">
         {/* 左侧区域 - 绝对定位固定在左边 */}
         <div className="absolute left-2 top-0 flex w-[92px] justify-center sm:w-[120px] md:w-[150px]">
           {renderSuccessZone()}
@@ -3287,7 +3295,7 @@ export const PlayerArea = memo(function PlayerArea({
       </div>
 
       {/* 玩家信息 - 紧凑 */}
-      <div className="flex items-center gap-2 my-1 flex-shrink-0">
+      <div className="absolute right-4 bottom-[72px] z-20 flex max-w-[240px] items-center gap-2">
         <div
           data-player-identity-seat={playerSeat}
           className={cn(

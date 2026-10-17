@@ -1213,7 +1213,7 @@ export function ReplayBoardSurface({
 }) {
   const isMobileBattlefield = useMediaQuery('(max-width: 767px)');
   const replayToolbar = (
-    <div className="inline-flex h-11 max-w-full items-center overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
+    <div className="battle-toolbar-control-group inline-flex h-11 max-w-full items-center overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
       <div className="flex min-w-0 items-center gap-2 px-3 text-sm font-semibold">
         <History size={15} aria-hidden="true" className="shrink-0 text-[var(--accent-primary)]" />
         <span className="hidden sm:inline">历史回放</span>

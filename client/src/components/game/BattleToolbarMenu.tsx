@@ -55,7 +55,7 @@ export function BattleToolbarMenu({
       <button
         ref={triggerRef}
         type="button"
-        className="button-ghost inline-flex h-11 items-center justify-center gap-2 px-3 text-sm"
+        className="battle-toolbar-control button-ghost inline-flex h-11 items-center justify-center gap-2 px-3 text-sm"
         aria-label={label}
         aria-expanded={open}
         aria-controls={id}

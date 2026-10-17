@@ -36,7 +36,10 @@ async function openJudgmentRoom(page: Page, local = false) {
   await expect
     .poll(() =>
       page.evaluate(async () => {
-        const path = '/src/store/gameStore.ts';
+        const path = performance
+          .getEntriesByType('resource')
+          .find((entry) => entry.name.includes('/src/store/gameStore.ts'))?.name;
+        if (!path) return 0;
         const { useGameStore } = await import(path);
         return useGameStore.getState().cardDataRegistry.size;
       })
@@ -44,7 +47,9 @@ async function openJudgmentRoom(page: Page, local = false) {
     .toBeGreaterThan(0);
 
   const snapshot = await page.evaluate(async (repoRoot) => {
-    const storePath = '/src/store/gameStore.ts';
+    const storePath = performance
+      .getEntriesByType('resource')
+      .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
     const enumsPath = `/@fs${repoRoot}src/shared/types/enums.ts`;
     const serdePath = `/@fs${repoRoot}src/online/serde.ts`;
     const [{ useGameStore }, { GamePhase, SubPhase }, { toTransport }] = await Promise.all([
@@ -83,8 +88,12 @@ async function openJudgmentRoom(page: Page, local = false) {
   }, root);
   if (local) {
     await page.evaluate(async () => {
-      const reactPath = '/node_modules/.vite/deps/react.js';
-      const domPath = '/node_modules/.vite/deps/react-dom_client.js';
+      const reactPath = performance
+        .getEntriesByType('resource')
+        .find((entry) => /\/react\.js(?:\?|$)/.test(entry.name))!.name;
+      const domPath = performance
+        .getEntriesByType('resource')
+        .find((entry) => /\/react-dom_client\.js(?:\?|$)/.test(entry.name))!.name;
       const boardPath = '/src/components/game/GameBoard.tsx';
       const shellPath = '/src/components/game/BattleViewportShell.tsx';
       const [reactModule, domModule, { GameBoard }, { BattleViewportShell }] = await Promise.all([
@@ -191,6 +200,7 @@ test.describe('对战工具栏与辅助面板', () => {
       await openJudgmentRoom(page);
       const panel = page.getByRole('dialog', { name: '应援/判定区', exact: true });
       const toolbar = page.getByRole('banner', { name: '对战工具栏' });
+      expect((await toolbar.boundingBox())!.height).toBe(48);
       await expect(panel).toHaveAttribute('data-docked', String(width >= 1440));
       await expectNoOverlap(toolbar, panel);
       for (const side of ['self', 'opponent']) {
@@ -405,6 +415,7 @@ test.describe('对战工具栏与辅助面板', () => {
     await page.goto('/online/spectate/layout-token');
     const panel = page.getByRole('dialog', { name: '应援/判定区', exact: true });
     await expect(panel).toBeVisible();
+    expect((await page.getByRole('banner', { name: '对战工具栏' }).boundingBox())!.height).toBe(48);
     await expectNoOverlap(page.getByRole('banner', { name: '对战工具栏' }), panel);
     await expect(page.getByRole('button', { name: '接受自动判定' })).toHaveCount(0);
     await page.getByRole('button', { name: '对局日志', exact: true }).click();
@@ -415,10 +426,16 @@ test.describe('对战工具栏与辅助面板', () => {
     await page.goto('/');
     await page.evaluate(
       async ({ data, repoRoot }) => {
-        const storePath = '/src/store/gameStore.ts';
+        const storePath = performance
+          .getEntriesByType('resource')
+          .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
         const serdePath = `/@fs${repoRoot}src/online/serde.ts`;
-        const reactPath = '/node_modules/.vite/deps/react.js';
-        const domPath = '/node_modules/.vite/deps/react-dom_client.js';
+        const reactPath = performance
+          .getEntriesByType('resource')
+          .find((entry) => /\/react\.js(?:\?|$)/.test(entry.name))!.name;
+        const domPath = performance
+          .getEntriesByType('resource')
+          .find((entry) => /\/react-dom_client\.js(?:\?|$)/.test(entry.name))!.name;
         const replayPath = '/src/components/pages/MatchRecordsPage.tsx';
         const [
           { useGameStore },
@@ -472,6 +489,7 @@ test.describe('对战工具栏与辅助面板', () => {
       { data: snapshot, repoRoot: root }
     );
     await expect(panel).toBeVisible();
+    expect((await page.getByRole('banner', { name: '对战工具栏' }).boundingBox())!.height).toBe(48);
     await expectNoOverlap(page.getByRole('banner', { name: '对战工具栏' }), panel);
     await expect(page.getByRole('button', { name: '接受自动判定' })).toHaveCount(0);
     await page.getByRole('button', { name: '下一个回放节点' }).click();

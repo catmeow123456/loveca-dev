@@ -467,18 +467,18 @@ export function OnlineSpectatorPage({
       <button
         type="button"
         onClick={onBackHome}
-        className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 text-sm shadow-[var(--shadow-md)] backdrop-blur-xl"
+        className="battle-toolbar-control button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 text-sm shadow-[var(--shadow-md)] backdrop-blur-xl"
       >
         <ArrowLeft size={16} />
         返回
       </button>
-      <div className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)] bg-[var(--bg-frosted)] px-3 text-sm font-semibold text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
+      <div className="battle-toolbar-control inline-flex min-h-10 items-center gap-2 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)] bg-[var(--bg-frosted)] px-3 text-sm font-semibold text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
         <Eye size={16} className="text-[var(--accent-primary)]" />
         玩家视角观战
         {viewerName ? <span className="text-[var(--text-secondary)]">· {viewerName}</span> : null}
       </div>
       {authorizedViewerSeats.length > 1 ? (
-        <div className="inline-flex min-h-10 items-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] p-1 shadow-[var(--shadow-md)] backdrop-blur-xl">
+        <div className="battle-toolbar-control-group inline-flex min-h-10 items-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] p-1 shadow-[var(--shadow-md)] backdrop-blur-xl">
           {authorizedViewerSeats.map((seat) => (
             <button
               key={seat}
@@ -502,7 +502,7 @@ export function OnlineSpectatorPage({
         </div>
       ) : null}
       {sessionView ? (
-        <div className="hidden min-h-10 items-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 text-xs text-[var(--text-secondary)] shadow-[var(--shadow-md)] backdrop-blur-xl sm:inline-flex">
+        <div className="battle-toolbar-control hidden min-h-10 items-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 text-xs text-[var(--text-secondary)] shadow-[var(--shadow-md)] backdrop-blur-xl sm:inline-flex">
           {sessionView.displayName}
         </div>
       ) : null}

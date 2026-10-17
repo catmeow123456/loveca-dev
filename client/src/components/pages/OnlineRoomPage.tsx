@@ -1031,7 +1031,7 @@ export function OnlineRoomPage({
           type="button"
           onClick={() => setIsRoomPanelOpen((open) => !open)}
           aria-expanded={isRoomPanelOpen}
-          className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 px-3 text-sm"
+          className="battle-toolbar-control button-ghost inline-flex min-h-11 items-center justify-center gap-2 px-3 text-sm"
           title="打开房间操作"
         >
           <Users size={16} />

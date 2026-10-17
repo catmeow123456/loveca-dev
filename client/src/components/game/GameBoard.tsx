@@ -2566,7 +2566,7 @@ export const GameBoard = memo(function GameBoard({
                 {canShowDebugLog && (
                   <button
                     type="button"
-                    className="button-ghost inline-flex min-h-11 items-center gap-2 px-3 text-sm"
+                    className="battle-toolbar-control button-ghost inline-flex min-h-11 items-center gap-2 px-3 text-sm"
                     aria-label="调试日志"
                     aria-expanded={desktopDebugLogOpen}
                     aria-controls="debug-battle-log-panel"
@@ -3060,7 +3060,7 @@ export const GameBoard = memo(function GameBoard({
 
                   {/* VS 分隔线 (中央) - 对墙打模式下弱化 */}
                   <div
-                    className="relative flex h-[32px] flex-shrink-0 items-center justify-center border-y"
+                    className="relative flex h-[24px] flex-shrink-0 items-center justify-center border-y"
                     style={{
                       borderColor: isSolitaire
                         ? 'color-mix(in srgb, var(--border-default) 30%, transparent)'

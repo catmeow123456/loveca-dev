@@ -33,7 +33,7 @@ export const PublicBattleLogButton = memo(function PublicBattleLogButton() {
     <button
       type="button"
       onClick={() => setOpen(!isOpen)}
-      className="button-ghost relative inline-flex min-h-11 items-center justify-center gap-2 px-3"
+      className="battle-toolbar-control button-ghost relative inline-flex min-h-11 items-center justify-center gap-2 px-3"
       aria-label="对局日志"
       aria-expanded={isOpen}
       aria-controls="public-battle-log-panel"
@@ -42,7 +42,7 @@ export const PublicBattleLogButton = memo(function PublicBattleLogButton() {
       <ScrollText size={16} />
       <span className="hidden text-sm font-semibold sm:inline">对局日志</span>
       {unreadCount > 0 && (
-        <span className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-[var(--semantic-error)] px-1.5 py-0.5 text-center text-[10px] font-bold leading-none text-white shadow">
+        <span className="absolute -right-1.5 top-0 min-w-5 rounded-full bg-[var(--semantic-error)] px-1.5 py-0.5 text-center text-[10px] font-bold leading-none text-white shadow">
           {unreadCount > 99 ? '99+' : unreadCount}
         </span>
       )}
