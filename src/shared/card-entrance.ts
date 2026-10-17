@@ -30,6 +30,7 @@ export const entranceCards = {
   riko: 'PL!S-bp6-002',
   nozomi: 'PL!-pb2-016',
   hanayo: 'PL!-pb2-017',
+  mia: 'PL!N-bp7-011',
 } as const;
 export type EntranceAssetId = keyof typeof entranceCards;
 
@@ -57,11 +58,18 @@ export function isEntranceCard(code: string): boolean {
 export const ENTRANCE_WAIT_LIMIT_MS = 6000;
 /** Additional per-double-relay playback budget; ordinary entrances keep their existing limit. */
 export const DOUBLE_RELAY_ENTRANCE_EXTRA_MS = 1400;
+export const WAITING_RETURN_ENTRANCE_EXTRA_MS = 1300;
 export interface EntranceWait {
   readonly id: string;
   readonly cardIds: readonly string[];
   readonly waitingPlayerIds: readonly string[];
   readonly deadlineAt: number;
+  /** Previously public members, sorted independently of the shuffled deck order. */
+  readonly waitingRoomReturns?: readonly {
+    readonly cardId: string;
+    readonly playerId: string;
+    readonly members: readonly { readonly cardId: string; readonly cardCode: string }[];
+  }[];
   /** Only the replacements from these exact successful entry events, never inferred zone diffs. */
   readonly doubleRelays?: readonly {
     readonly cardId: string;

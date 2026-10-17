@@ -4,6 +4,9 @@ import { prepareEntranceAssets } from '@/lib/cardEntranceAssets';
 import { entranceTimeline, entranceImpactCss, entranceRemaining } from '@/lib/cardEntranceTimeline';
 import { DoubleRelayFusion } from './DoubleRelayFusion';
 import { doubleRelayTimeline, type DoubleRelaySource } from '@/lib/doubleRelayEntrance';
+import { waitingReturnTimeline, type WaitingReturnSource } from '@/lib/waitingReturnEntrance';
+import { getCardBackUrl } from '@/lib/imageService';
+import { WaitingRoomReturn } from './WaitingRoomReturn';
 import { CardEntrancePortrait } from './CardEntrancePortrait';
 import { CardLanding, type LandingPresentation } from './CardLanding';
 import { useGameStore } from '@/store/gameStore';
@@ -17,6 +20,7 @@ export function CardEntrancePlayback({
   profile,
   reduced,
   relaySources = NO_RELAY_SOURCES,
+  waitingReturn,
   onImpact,
   onDone,
 }: {
@@ -24,11 +28,17 @@ export function CardEntrancePlayback({
   profile: CardEntranceProfile;
   reduced: boolean;
   relaySources?: readonly DoubleRelaySource[];
+  waitingReturn?: WaitingReturnSource;
   onImpact: () => void;
   onDone: () => void;
 }) {
   const fusion = !reduced && relaySources.length === 2;
-  const portraitOffset = fusion ? doubleRelayTimeline.portraitAt : 0;
+  const returning = !reduced && !!waitingReturn;
+  const portraitOffset = returning
+    ? waitingReturnTimeline.portraitAt
+    : fusion
+      ? doubleRelayTimeline.portraitAt
+      : 0;
   const done = useRef(onDone);
   done.current = onDone;
   const sourceValid = useGameStore((state) =>
@@ -57,7 +67,11 @@ export function CardEntrancePlayback({
       reduced ? null : presentation.imagePath,
       controller.signal,
       undefined,
-      fusion ? relaySources.map((s) => s.imagePath) : []
+      returning
+        ? [...waitingReturn.facePaths, getCardBackUrl()]
+        : fusion
+          ? relaySources.map((s) => s.imagePath)
+          : []
     )
       .then((assets) => {
         if (!controller.signal.aborted) setReady({ ...assets, startedAt: performance.now() });
@@ -66,7 +80,16 @@ export function CardEntrancePlayback({
         if (!controller.signal.aborted) done.current();
       });
     return () => controller.abort();
-  }, [profile, presentation.imagePath, reduced, sourceValid, fusion, relaySources]);
+  }, [
+    profile,
+    presentation.imagePath,
+    reduced,
+    sourceValid,
+    fusion,
+    relaySources,
+    returning,
+    waitingReturn,
+  ]);
   useEffect(() => {
     if (!ready) return;
     const timer = window.setTimeout(
@@ -93,7 +116,14 @@ export function CardEntrancePlayback({
         } as CSSProperties
       }
     >
-      {fusion && (
+      {returning && (
+        <WaitingRoomReturn
+          source={waitingReturn}
+          startedAt={ready?.startedAt ?? null}
+          onInvalid={() => done.current()}
+        />
+      )}
+      {fusion && !returning && (
         <DoubleRelayFusion
           sources={relaySources}
           cardPath={presentation.imagePath}

@@ -11,6 +11,10 @@ import {
 import { createBattleAnimationHistory } from '../../client/src/lib/battleAnimationHistory';
 import type { BattleAnimationEvent } from '../../client/src/lib/battleAnimationEvents';
 import { ZoneType } from '../../src/shared/types/enums';
+import {
+  drainRecoveryPresentations,
+  RECOVERY_PRESENTATION_MAX_WAIT_MS,
+} from '../../client/src/lib/recoveryPresentationQueue';
 const from = { left: 700, top: 400, width: 45, height: 63, rotation: 0 };
 const to = { left: 350, top: 650, width: 75, height: 105, rotation: 12 };
 const event: BattleAnimationEvent = {
@@ -71,6 +75,67 @@ describe('2D recovery choreography', () => {
     expect(scheduled.map((e) => e.delayMs + getBattleAnimationEventDurationMs(e.event))).toEqual([
       1060, 1120,
     ]);
+  });
+});
+
+describe('discard before recovery presentation', () => {
+  it('waits for late public logs, then the same-seat discard, and releases multiple pickups with their original stagger', () => {
+    const pending = [event, { ...event, id: 'second' }].map((event) => ({
+      event,
+      receivedAt: 100,
+    }));
+    const backfill = drainRecoveryPresentations(pending, {
+      now: 110,
+      publicLogCaughtUp: false,
+      discardSeats: new Set(),
+    });
+    expect(backfill.ready).toEqual([]);
+    const discarding = drainRecoveryPresentations(backfill.waiting, {
+      now: 250,
+      publicLogCaughtUp: true,
+      discardSeats: new Set(['FIRST']),
+    });
+    expect(discarding.ready).toEqual([]);
+    const released = drainRecoveryPresentations(discarding.waiting, {
+      now: 1500,
+      publicLogCaughtUp: true,
+      discardSeats: new Set(),
+    });
+    expect(released.waiting).toEqual([]);
+    expect(released.expired).toEqual([]);
+    expect(
+      createSequencedBattleAnimationEvents(released.ready).map((entry) => entry.delayMs)
+    ).toEqual([0, 60]);
+  });
+  it('does not delay a pickup for another seat, or a recovery with no discard', () => {
+    for (const discardSeats of [
+      new Set<'FIRST' | 'SECOND'>(),
+      new Set<'FIRST' | 'SECOND'>(['SECOND']),
+    ]) {
+      expect(
+        drainRecoveryPresentations([{ event, receivedAt: 100 }], {
+          now: 101,
+          publicLogCaughtUp: true,
+          discardSeats,
+        }).ready
+      ).toEqual([event]);
+    }
+  });
+  it('expires a stalled pickup without replaying it when the public log eventually catches up', () => {
+    const expired = drainRecoveryPresentations([{ event, receivedAt: 100 }], {
+      now: 100 + RECOVERY_PRESENTATION_MAX_WAIT_MS,
+      publicLogCaughtUp: false,
+      discardSeats: new Set(['FIRST']),
+    });
+    expect(expired.expired).toEqual([event]);
+    expect(expired.ready).toEqual([]);
+    expect(
+      drainRecoveryPresentations(expired.waiting, {
+        now: 10000,
+        publicLogCaughtUp: true,
+        discardSeats: new Set(),
+      }).ready
+    ).toEqual([]);
   });
 });
 

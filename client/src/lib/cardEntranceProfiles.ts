@@ -1639,6 +1639,50 @@ export const cardEntranceProfiles = defineEntranceProfiles([
       },
     },
   },
+  {
+    id: 'mia',
+    baseCode: entranceCards.mia,
+    name: '米娅·泰勒',
+    mobileSkipPosition: 'below-name',
+    loadArt: () => import('../components/game/card-entrance/mia.png'),
+    center: '-50%',
+    mobileHeight: 'min(76%, 108vw)',
+    artAspectRatio: '1061 / 1483',
+    light: '#a3e8cb77',
+    mesh: {
+      hair: [0.28, 0.4, 0.26, 0.3],
+      hairEnd: [0.33, 0.36],
+      hem: [0.07, 0.23, 0.58, 0.7],
+      hemEnd: [0.89, 0.94],
+      strength: [0, 0.35, 0.45],
+      portraitMotion: {
+        start: 0.15,
+        duration: 1.12,
+        easing: 'smoothstep',
+        pivot: [0.53, 0.84],
+        blendY: [0.85, 0.98],
+        angle: -0.028,
+        travel: [-0.002, -0.001],
+        // Complete forearm, grip and water pistol; transition crosses only loose sleeve fabric.
+        attachedPart: {
+          region: [
+            [0.7, 0.03],
+            [1.08, 0.03],
+            [1.08, 0.86],
+            [0.8, 0.8],
+            [0.79, 0.48],
+            [0.69, 0.38],
+          ],
+          feather: 0.03,
+          pivot: [0.78, 0.43],
+          angles: [0, -0.055],
+          start: 0.35,
+          duration: 0.98,
+          easing: 'smoothstep',
+        },
+      },
+    },
+  },
 ]);
 export function getCardEntranceProfile(code: string): CardEntranceProfile | undefined {
   return cardEntranceProfiles.find(

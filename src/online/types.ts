@@ -145,6 +145,12 @@ export interface MatchViewState {
     readonly objectIds: readonly string[];
     readonly waitingSeats: readonly Seat[];
     readonly deadlineAt: number;
+    /** Public waiting-room faces before the shuffle, never the resulting deck order. */
+    readonly waitingRoomReturns?: readonly {
+      readonly objectId: string;
+      readonly ownerSeat: Seat;
+      readonly members: readonly { readonly objectId: string; readonly cardCode: string }[];
+    }[];
     /** Public stage replacements from this entry, present only for actual double relays. */
     readonly doubleRelays?: readonly {
       readonly objectId: string;

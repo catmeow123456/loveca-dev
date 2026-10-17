@@ -7,6 +7,7 @@ import { getEntranceStageTarget } from '@/lib/cardEntranceLanding';
 import { CardEntrancePlayback } from './CardEntrancePlayback';
 import type { PlayerViewState } from '@game/online/types';
 import { getDoubleRelaySources } from '@/lib/doubleRelayEntrance';
+import { getWaitingReturnSource } from '@/lib/waitingReturnEntrance';
 import './cardEntrance.css';
 
 export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
@@ -45,6 +46,11 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
               target,
               profile,
               imagePath: useGameStore.getState().getCardImagePath(target.cardCode),
+              waitingReturn: getWaitingReturnSource(
+                view,
+                objectId,
+                useGameStore.getState().getCardImagePath
+              ),
               relaySources: getDoubleRelaySources(
                 view,
                 objectId,
@@ -82,7 +88,11 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
     const ids = candidates
       .filter((p) => p.id !== landedId)
       .flatMap((p) =>
-        [p.target.objectId, ...p.relaySources.map((s) => s.objectId)].map((objectId) => ({
+        [
+          p.target.objectId,
+          ...p.relaySources.map((s) => s.objectId),
+          ...(p.waitingReturn?.objectIds ?? []),
+        ].map((objectId) => ({
           eventId: `entrance:${p.id}:${objectId}`,
           objectId,
           suppressDefaultMovement: true,
@@ -104,6 +114,7 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
           presentation={active}
           profile={active.profile}
           relaySources={active.relaySources}
+          waitingReturn={active.waitingReturn}
           reduced={reduced}
           onImpact={() => setLandedId(active.id)}
           onDone={() => setIndex((current) => (current === index ? current + 1 : current))}

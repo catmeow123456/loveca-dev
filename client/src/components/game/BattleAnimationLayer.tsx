@@ -14,6 +14,7 @@ import {
   type BattleAnimationCardRender,
   type BattleAnimationEvent,
   type BattleAnimationRect,
+  type BattleAnimationSeat,
   type DiscardPresentationBatchEvent,
 } from '@/lib/battleAnimationEvents';
 import {
@@ -40,6 +41,12 @@ import {
   type PublicDiscardRevealQueueState,
 } from '@/lib/publicDiscardRevealQueue';
 import { RecoveryCardMotion } from './RecoveryCardMotion';
+import {
+  DISCARD_EXIT_DURATION_MS,
+  RECOVERY_PRESENTATION_MAX_WAIT_MS,
+  drainRecoveryPresentations,
+  type PendingRecoveryPresentation,
+} from '@/lib/recoveryPresentationQueue';
 import { createBattleAnimationHistory } from '@/lib/battleAnimationHistory';
 import { useGameStore } from '@/store/gameStore';
 import { ZoneType } from '@game/shared/types/enums';
@@ -91,6 +98,8 @@ export function BattleAnimationLayer() {
     createPublicDiscardRevealQueueState()
   );
   const activeDiscardEventIdRef = useRef<string | null>(null);
+  const visibleDiscardSeatsRef = useRef(new Map<string, BattleAnimationSeat>());
+  const pendingRecoveriesRef = useRef<PendingRecoveryPresentation[]>([]);
   const recentDiscardSourceAnchorsRef = useRef(new Map<string, RecentDiscardSourceAnchor>());
 
   useEffect(() => {
@@ -133,6 +142,8 @@ export function BattleAnimationLayer() {
       setTimelineGeneration((current) => current + 1);
       recentDiscardSourceAnchorsRef.current.clear();
       activeDiscardEventIdRef.current = null;
+      visibleDiscardSeatsRef.current.clear();
+      pendingRecoveriesRef.current = [];
       discardQueueRef.current = createPublicDiscardRevealQueueState();
       setEvents([]);
       clearPendingBattleAnimations({
@@ -213,6 +224,8 @@ export function BattleAnimationLayer() {
 
       if (shouldResetActivePresentation) {
         activeDiscardEventIdRef.current = null;
+        visibleDiscardSeatsRef.current.clear();
+        pendingRecoveriesRef.current = [];
         setEvents((current) =>
           current.filter((event) => event.kind !== 'DISCARD_PRESENTATION_BATCH')
         );
@@ -276,6 +289,49 @@ export function BattleAnimationLayer() {
         }
       }
     }
+
+    for (const event of nextEvents) {
+      if (event.kind === 'DISCARD_PRESENTATION_BATCH') {
+        visibleDiscardSeatsRef.current.set(event.id, event.toSeat);
+      }
+      if (event.kind === 'CARD_MOVE' && isRecoveryCardMove(event)) {
+        pendingRecoveriesRef.current.push({ event, receivedAt: discardClockNow });
+        // The final hand already exists. Hide its destination while the public payment
+        // presentation (including late log backfill) still owns the waiting-room pile.
+        if (!reduceMotion) {
+          addBattleAnimationOcclusions([{ eventId: event.id, objectId: event.render.objectId }]);
+          activeOcclusionEventIdsRef.current.add(event.id);
+        }
+        const timeout = window.setTimeout(() => {
+          scheduledEventTimeoutsRef.current.delete(timeout);
+          setDiscardPumpGeneration((current) => current + 1);
+        }, RECOVERY_PRESENTATION_MAX_WAIT_MS);
+        scheduledEventTimeoutsRef.current.add(timeout);
+      }
+    }
+    const discardSeats = new Set(visibleDiscardSeatsRef.current.values());
+    for (const batch of discardQueueRef.current.queue) discardSeats.add(batch.ownerSeat);
+    const recoveryDrain = drainRecoveryPresentations(pendingRecoveriesRef.current, {
+      now: discardClockNow,
+      publicLogCaughtUp:
+        remoteSessionSource === 'TUTORIAL' ||
+        (publicBattleLog.matchId === playerViewState?.match.matchId &&
+          publicBattleLog.cursorSeq >= publicBattleLog.currentPublicSeq),
+      discardSeats,
+    });
+    pendingRecoveriesRef.current = recoveryDrain.waiting;
+    removeOcclusionsForAnimationEvents({
+      events: recoveryDrain.expired,
+      activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
+      removeBattleAnimationOcclusion,
+    });
+    // Release a batch together so the ordinary per-seat recovery stagger is preserved.
+    nextEvents.splice(
+      0,
+      nextEvents.length,
+      ...nextEvents.filter((event) => !isRecoveryCardMove(event)),
+      ...recoveryDrain.ready
+    );
 
     if (nextEvents.length > 0) {
       const scheduledEvents = reduceMotion
@@ -380,12 +436,15 @@ export function BattleAnimationLayer() {
       removeBattleAnimationOcclusion,
     });
     setEvents((current) => current.filter((candidate) => candidate.id !== event.id));
-    if (
-      event.kind === 'DISCARD_PRESENTATION_BATCH' &&
-      activeDiscardEventIdRef.current === event.id
-    ) {
-      activeDiscardEventIdRef.current = null;
-      setDiscardPumpGeneration((current) => current + 1);
+    if (event.kind === 'DISCARD_PRESENTATION_BATCH') {
+      // AnimatePresence still displays the collecting card during its short exit.
+      const timeout = window.setTimeout(() => {
+        scheduledEventTimeoutsRef.current.delete(timeout);
+        visibleDiscardSeatsRef.current.delete(event.id);
+        if (activeDiscardEventIdRef.current === event.id) activeDiscardEventIdRef.current = null;
+        setDiscardPumpGeneration((current) => current + 1);
+      }, DISCARD_EXIT_DURATION_MS);
+      scheduledEventTimeoutsRef.current.add(timeout);
     }
   };
 
@@ -846,7 +905,11 @@ export function DiscardPresentationBatch({
   }
 
   return (
-    <div aria-hidden="true" className="pointer-events-none fixed inset-0">
+    <div
+      data-discard-presentation={event.id}
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0"
+    >
       <motion.div
         className="fixed"
         style={{ left: layout.bounds.left + layout.bounds.width / 2, top: labelTop }}
@@ -897,7 +960,11 @@ export function DiscardPresentationBatch({
               opacity: [0.94, 1, 1, 1],
               scale: [0.985, 1, 1, 1],
             }}
-            exit={{ opacity: 0, scale: 0.995, transition: { duration: 0.05 } }}
+            exit={{
+              opacity: 0,
+              scale: 0.995,
+              transition: { duration: DISCARD_EXIT_DURATION_MS / 1000 },
+            }}
             transition={{
               duration: WAITING_ROOM_REVEAL_DURATION_MS / 1000,
               times: [0, firstKeyframeTime, secondKeyframeTime, 1],

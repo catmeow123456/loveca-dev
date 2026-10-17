@@ -4,6 +4,34 @@
   font-weight: 900;
   font-display: swap;
 }
+.waiting-return-entrance {
+  position: fixed;
+  inset: 0;
+  z-index: 61;
+  pointer-events: none;
+}
+.waiting-return-entrance [data-return-card] {
+  position: absolute;
+  opacity: 0;
+  border-radius: 4px;
+  object-fit: cover;
+  will-change: transform, opacity;
+}
+.waiting-return-ring {
+  position: absolute;
+  opacity: 0;
+  border-radius: 50%;
+  border: 2px solid #b9f6da;
+  box-shadow:
+    0 0 12px #8debc980,
+    inset 0 0 10px #8debc960;
+}
+.waiting-return-deck {
+  position: absolute;
+  opacity: 0;
+  z-index: 20;
+  border-radius: 4px;
+}
 
 .card-entrance {
   position: absolute;

@@ -376,6 +376,20 @@ export function projectPlayerViewState(
               return seat ? [seat] : [];
             }),
             deadlineAt: game.entranceRuntime.pending.deadlineAt,
+            ...(game.entranceRuntime.pending.waitingRoomReturns?.length
+              ? {
+                  waitingRoomReturns: game.entranceRuntime.pending.waitingRoomReturns.map(
+                    (entry) => ({
+                      objectId: createPublicObjectId(entry.cardId),
+                      ownerSeat: getSeatForPlayer(game, entry.playerId)!,
+                      members: entry.members.map((member) => ({
+                        objectId: createPublicObjectId(member.cardId),
+                        cardCode: member.cardCode,
+                      })),
+                    })
+                  ),
+                }
+              : {}),
             ...(game.entranceRuntime.pending.doubleRelays?.length
               ? {
                   doubleRelays: game.entranceRuntime.pending.doubleRelays.map((relay) => ({

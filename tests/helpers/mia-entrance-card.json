@@ -1,0 +1,26 @@
+{
+  "cardCode": "PL!N-bp7-011-SEC",
+  "cardType": "MEMBER",
+  "cost": 13,
+  "blade": 4,
+  "hearts": [
+    {
+      "color": "PINK",
+      "count": 2
+    },
+    {
+      "color": "GREEN",
+      "count": 2
+    },
+    {
+      "color": "YELLOW",
+      "count": 2
+    }
+  ],
+  "groupNames": ["虹ヶ咲"],
+  "unitName": "「R3BIRTH」",
+  "name": "米娅·泰勒",
+  "nameCn": "米娅·泰勒",
+  "bladeHearts": [],
+  "cardText": "【自动】此卡从卡组被放置入休息室时，可以将1张手牌放置入休息室。如此做时，从休息室将此卡加入手牌。 \n\n【常时】打出此卡时，可以将存在于自己的休息室的所有成员卡洗牌，放置于卡组底。如此做时，此卡的费用减2。 \n\n【LIVE成功时】可以将存在于自己的休息室的1张『虹咲』的卡片放置于卡组顶。"
+}
