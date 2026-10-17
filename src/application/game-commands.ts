@@ -177,8 +177,8 @@ export interface PlayMemberToSlotCommand extends BaseGameCommand {
   readonly targetSlot: SlotPosition;
   /** 自由拖拽兜底：跳过登场费用检查与支付。 */
   readonly freePlay?: boolean;
-  /** 显式换手模式；未传时保持旧拖拽行为。 */
-  readonly relayMode?: 'SINGLE' | 'DOUBLE';
+  /** NONE 为不换手；未传时自动选择费用最少的合法方式，同费用优先换手。 */
+  readonly relayMode?: 'NONE' | 'SINGLE' | 'DOUBLE';
   /** 显式选择的被换手成员槽位。双换手时必须正好 2 个。 */
   readonly relayReplacementSlots?: readonly SlotPosition[];
 }
@@ -640,7 +640,7 @@ export function createPlayMemberToSlotCommand(
   targetSlot: SlotPosition,
   options: {
     readonly freePlay?: boolean;
-    readonly relayMode?: 'SINGLE' | 'DOUBLE';
+    readonly relayMode?: 'NONE' | 'SINGLE' | 'DOUBLE';
     readonly relayReplacementSlots?: readonly SlotPosition[];
   } = {}
 ): PlayMemberToSlotCommand {

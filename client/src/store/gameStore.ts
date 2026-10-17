@@ -225,7 +225,7 @@ interface LocalGameRestartSetup {
 }
 
 export interface PlayMemberToSlotOptions {
-  readonly relayMode?: 'SINGLE' | 'DOUBLE';
+  readonly relayMode?: 'NONE' | 'SINGLE' | 'DOUBLE';
   readonly relayReplacementSlots?: readonly SlotPosition[];
 }
 

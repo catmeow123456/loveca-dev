@@ -120,6 +120,7 @@ interface PlayerAreaProps {
   selectedHandCardActions?: readonly SelectedHandCardAction[];
   suppressSelectedHandCardActionMenu?: boolean;
   onSelectedHandCardAction?: (cardId: string, actionId: string) => void;
+  onPlayMemberToSlot?: (cardId: string, targetSlot: SlotPosition) => void;
 }
 
 const INSPECTION_TARGET_IDS = {
@@ -389,6 +390,7 @@ export const PlayerArea = memo(function PlayerArea({
   selectedHandCardActions = [],
   suppressSelectedHandCardActionMenu = false,
   onSelectedHandCardAction,
+  onPlayMemberToSlot,
 }: PlayerAreaProps) {
   const battlePlayerSide = isOpponent ? 'opponent' : 'self';
   const playerIdentity = useGameStore((s) => s.getPlayerIdentityForSeat(playerSeat));
@@ -913,7 +915,7 @@ export const PlayerArea = memo(function PlayerArea({
       return;
     }
     executeBattleActionPayload(payload, {
-      playMemberToSlot,
+      playMemberToSlot: onPlayMemberToSlot ?? playMemberToSlot,
       moveMemberToSlot,
       attachEnergyToMember,
       setLiveCard,

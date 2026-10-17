@@ -127,6 +127,39 @@ describe('CostCalculator', () => {
   });
 
   describe('checkCanPayCost', () => {
+    it('explicit NONE retains hand cost reductions but excludes relay even when cheaper', () => {
+      const incoming = createMockMemberData(17, '艾玛·维尔德', 'PL!N-pb1-008-P+');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 17 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('waiting-nijigasaki', 4, SlotPosition.LEFT, {
+            orientation: OrientationState.WAITING,
+            groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
+          }),
+        ],
+        sourceCardId: 'incoming',
+        handCardIds: ['incoming'],
+      };
+      const result = calculator.checkCanPayCost(incoming, SlotPosition.LEFT, resources, {
+        relayMode: 'NONE',
+      });
+      expect(result.availablePlans).toHaveLength(1);
+      expect(result.availablePlans[0]).toMatchObject({
+        totalCost: 17,
+        modifiedCost: 15,
+        actualEnergyCost: 15,
+        costModifierAmount: 2,
+        isRelay: false,
+        relayDiscount: 0,
+        relayReplacements: [],
+      });
+      expect(
+        calculator.selectOptimalPlan(
+          calculator.checkCanPayCost(incoming, SlotPosition.LEFT, resources).availablePlans
+        )
+      ).toMatchObject({ actualEnergyCost: 11, isRelay: true });
+    });
+
     it('应该在能量充足时允许直接支付', () => {
       const memberData = createMockMemberData(3);
       const resources: AvailableResources = {

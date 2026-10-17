@@ -42,6 +42,10 @@ import { PhaseBanner } from './PhaseBanner';
 import { LiveResultAnimation, type LiveScoreInfo } from './LiveResultAnimation';
 import { DebugControl } from './DebugControl';
 import { BattleSettingsMenu, BattleToolbarMenu } from './BattleToolbarMenu';
+import { MemberOverwriteToggle } from './MemberOverwriteToggle';
+import { MemberOverwriteDialog } from './MemberOverwriteDialog';
+import { readAskMemberOverwrite, saveAskMemberOverwrite } from '@/lib/memberOverwriteChoice';
+import { useMemberOverwriteChoice } from '@/hooks/useMemberOverwriteChoice';
 import { CardDetailOverlay } from './CardDetailOverlay';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
 import { JudgmentPanel } from './JudgmentPanel';
@@ -483,6 +487,13 @@ export const GameBoard = memo(function GameBoard({
   const canShowDesktopPublicBattleLogButton =
     canShowPublicBattleLog && showDesktopPublicBattleLogButton;
   const isReadOnly = capabilities.isReadOnly;
+  const [askMemberOverwrite, setAskMemberOverwrite] = useState(readAskMemberOverwrite);
+  const overwriteChoice = useMemberOverwriteChoice(askMemberOverwrite && !isReadOnly);
+  const requestPlayMember = overwriteChoice.requestPlayMember;
+  const changeAskMemberOverwrite = (enabled: boolean) => {
+    saveAskMemberOverwrite(enabled);
+    setAskMemberOverwrite(enabled);
+  };
   const [cardEntranceEnabled, setCardEntranceEnabled] = useState(readCardEntranceEnabled);
   const canShowCardEntrance = canPresentCardEntrance(capabilities);
   const entranceWaiting = !!playerViewState?.match.entrance && canShowCardEntrance;
@@ -1731,7 +1742,7 @@ export const GameBoard = memo(function GameBoard({
   const executeBattleActionPayload = useCallback(
     (payload: Parameters<typeof executeBattleActionPayloadWithHandlers>[0]): boolean =>
       executeBattleActionPayloadWithHandlers(payload, {
-        playMemberToSlot,
+        playMemberToSlot: requestPlayMember,
         moveMemberToSlot,
         attachEnergyToMember,
         setLiveCard,
@@ -1756,7 +1767,7 @@ export const GameBoard = memo(function GameBoard({
       movePublicCardToHand,
       movePublicCardToWaitingRoom,
       moveResolutionCardToZone,
-      playMemberToSlot,
+      requestPlayMember,
       setLiveCard,
       unsetLiveCard,
     ]
@@ -2142,7 +2153,7 @@ export const GameBoard = memo(function GameBoard({
         toZone === ZoneType.MEMBER_SLOT &&
         targetSlot
       ) {
-        const result = playMemberToSlot(cardId, targetSlot);
+        const result = requestPlayMember(cardId, targetSlot);
         if (result.success) {
           addLog(`成员登场: 手牌 → ${targetSlot}`, 'action');
         }
@@ -2342,7 +2353,7 @@ export const GameBoard = memo(function GameBoard({
       }
     },
     [
-      playMemberToSlot,
+      requestPlayMember,
       moveTableCard,
       moveMemberToSlot,
       attachEnergyToMember,
@@ -2568,6 +2579,9 @@ export const GameBoard = memo(function GameBoard({
               </div>
               {!isReadOnly && <DebugControl />}
               <BattleSettingsMenu
+                showMemberOverwrite={!isReadOnly}
+                askMemberOverwrite={askMemberOverwrite}
+                onAskMemberOverwriteChange={changeAskMemberOverwrite}
                 showCardEntrance={canShowCardEntrance}
                 cardEntranceEnabled={cardEntranceEnabled}
                 onCardEntranceChange={changeCardEntranceEnabled}
@@ -2645,6 +2659,13 @@ export const GameBoard = memo(function GameBoard({
                       </div>
 
                       <div className="flex shrink-0 items-center gap-1">
+                        {!isReadOnly && (
+                          <MemberOverwriteToggle
+                            enabled={askMemberOverwrite}
+                            onChange={changeAskMemberOverwrite}
+                            className="h-9 w-9"
+                          />
+                        )}
                         {canShowCardEntrance && (
                           <CardEntranceToggle
                             enabled={cardEntranceEnabled}
@@ -2797,6 +2818,7 @@ export const GameBoard = memo(function GameBoard({
                         selectedHandCardActions={selectedHandCardActions}
                         suppressSelectedHandCardActionMenu={!!activeMemberPlayOptionSelection}
                         onSelectedHandCardAction={handleSelectedHandCardAction}
+                        onPlayMemberToSlot={requestPlayMember}
                       />
                     </div>
                   </motion.div>
@@ -3085,6 +3107,7 @@ export const GameBoard = memo(function GameBoard({
                       selectedHandCardActions={selectedHandCardActions}
                       suppressSelectedHandCardActionMenu={!!activeMemberPlayOptionSelection}
                       onSelectedHandCardAction={handleSelectedHandCardAction}
+                      onPlayMemberToSlot={requestPlayMember}
                     />
                   </motion.div>
                 </div>
@@ -3130,6 +3153,18 @@ export const GameBoard = memo(function GameBoard({
             turnNumber={currentTurnCount ?? matchView.turnCount}
             onOpenJudgment={handleOpenJudgmentPanel}
           />
+
+          {overwriteChoice.selection && (
+            <MemberOverwriteDialog
+              cardLabel={(() => {
+                const card = getVisibleCardPresentation(overwriteChoice.selection.cardId);
+                return card ? formatCardCompactLabel(card.cardData as AnyCardData) : '成员登场';
+              })()}
+              choices={overwriteChoice.selection.choices}
+              onChoose={overwriteChoice.choose}
+              onCancel={overwriteChoice.cancel}
+            />
+          )}
 
           {activeMemberPlayOptionSelection && activeMemberPlayOption && (
             <>

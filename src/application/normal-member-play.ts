@@ -20,6 +20,7 @@ export function queryNormalMemberPlay(
   | {
       readonly ok: true;
       readonly plan: CostPaymentPlan;
+      readonly availablePlans: readonly CostPaymentPlan[];
       readonly payableEnergyCardIds: readonly string[];
     }
   | { readonly ok: false; readonly reason: string } {
@@ -61,7 +62,12 @@ export function queryNormalMemberPlay(
   });
   const plan = costCalculator.selectOptimalPlan(check.availablePlans);
   if (!plan) return { ok: false, reason: check.reason ?? '可用活跃能量不足' };
-  return { ok: true, plan, payableEnergyCardIds: resources.activeEnergyIds };
+  return {
+    ok: true,
+    plan,
+    availablePlans: check.availablePlans,
+    payableEnergyCardIds: resources.activeEnergyIds,
+  };
 }
 
 /** Enumerates ordinary/single-relay inputs; card-defined and double-relay entries have separate workflows. */
@@ -69,7 +75,9 @@ export function getNormalMemberPlayOptions(game: GameState, playerId: string) {
   return (getPlayerById(game, playerId)?.hand.cardIds ?? []).flatMap((cardId) =>
     [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT].flatMap((targetSlot) => {
       const result = queryNormalMemberPlay(game, { playerId, cardId, targetSlot });
-      return result.ok ? [{ cardId, targetSlot, plan: result.plan }] : [];
+      return result.ok
+        ? [{ cardId, targetSlot, plan: result.plan, availablePlans: result.availablePlans }]
+        : [];
     })
   );
 }

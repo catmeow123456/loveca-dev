@@ -91,7 +91,7 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   const replacements = relayReplacements.replacements;
   const firstReplacement = replacements[0] ?? null;
   let duplicateMemberRemoval: RelayReplacementExecution | null = null;
-  if (existingCardId && action.isRelay === false) {
+  if (existingCardId && (action.isRelay === false || action.relayMode === 'NONE')) {
     const existingCard = ctx.getCardById(game, existingCardId);
     if (!existingCard || !isMemberCardData(existingCard.data)) {
       return failure(game, '目标槽位上的卡牌不是成员卡');
@@ -278,7 +278,7 @@ function collectRelayReplacements(
     return { ok: true, replacements: [] };
   }
 
-  if (action.isRelay === false) {
+  if (action.isRelay === false || action.relayMode === 'NONE') {
     return { ok: true, replacements: [] };
   }
 

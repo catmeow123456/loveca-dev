@@ -36,7 +36,7 @@ const tutorialCommandSchema = z.discriminatedUnion('type', [
     cardId: identifierSchema,
     targetSlot: slotSchema,
     freePlay: z.boolean().optional(),
-    relayMode: z.enum(['SINGLE', 'DOUBLE']).optional(),
+    relayMode: z.enum(['NONE', 'SINGLE', 'DOUBLE']).optional(),
     relayReplacementSlots: z.array(slotSchema).max(2).optional(),
   }),
   z.strictObject({

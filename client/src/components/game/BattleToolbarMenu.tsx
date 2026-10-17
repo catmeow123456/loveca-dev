@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Settings2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/common';
 import { CardEntranceToggle } from './card-entrance/CardEntranceToggle';
+import { MemberOverwriteToggle } from './MemberOverwriteToggle';
 
 export function BattleToolbarMenu({
   label,
@@ -80,10 +81,16 @@ export function BattleToolbarMenu({
 }
 
 export function BattleSettingsMenu({
+  showMemberOverwrite,
+  askMemberOverwrite,
+  onAskMemberOverwriteChange,
   showCardEntrance,
   cardEntranceEnabled,
   onCardEntranceChange,
 }: {
+  showMemberOverwrite: boolean;
+  askMemberOverwrite: boolean;
+  onAskMemberOverwriteChange: (enabled: boolean) => void;
   showCardEntrance: boolean;
   cardEntranceEnabled: boolean;
   onCardEntranceChange: (enabled: boolean) => void;
@@ -93,6 +100,15 @@ export function BattleSettingsMenu({
       <BattleToolbarMenu label="对战设置" icon={<Settings2 size={16} />}>
         {() => (
           <>
+            {showMemberOverwrite && (
+              <div className="flex min-h-12 items-center justify-between gap-4 px-2">
+                <span>覆盖登场时询问</span>
+                <MemberOverwriteToggle
+                  enabled={askMemberOverwrite}
+                  onChange={onAskMemberOverwriteChange}
+                />
+              </div>
+            )}
             <div className="flex min-h-12 items-center justify-between gap-4 px-2">
               <span>界面主题</span>
               <ThemeToggle />

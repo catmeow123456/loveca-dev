@@ -46,7 +46,8 @@ export interface RelayReplacementPlan {
   readonly effectiveCost: number;
 }
 
-export type RelayMode = 'SINGLE' | 'DOUBLE';
+/** NONE pays the current modified cost without a relay discount. Omission selects the optimal plan. */
+export type RelayMode = 'NONE' | 'SINGLE' | 'DOUBLE';
 
 export interface PlayMemberCostOptions {
   readonly relayMode?: RelayMode;
@@ -402,6 +403,12 @@ export class CostCalculator {
     resources: AvailableResources,
     options: PlayMemberCostOptions = {}
   ): CostCheckResult {
+    if (
+      options.relayMode !== undefined &&
+      !['NONE', 'SINGLE', 'DOUBLE'].includes(options.relayMode)
+    ) {
+      return { canPay: false, availablePlans: [], reason: '无效的登场支付方式' };
+    }
     const costInfo = this.calculateModifiedPlayCost(memberData, resources, options);
     const baseCost = costInfo.baseCost;
     const modifiedCost = costInfo.modifiedCost;
@@ -410,7 +417,7 @@ export class CostCalculator {
     const requiredEnergyCosts: number[] = [];
 
     // 方案1：直接支付（不换手）
-    if (options.relayMode === undefined) {
+    if (options.relayMode === undefined || options.relayMode === 'NONE') {
       requiredEnergyCosts.push(modifiedCost);
       if (availableEnergy >= modifiedCost) {
         availablePlans.push({
@@ -434,7 +441,7 @@ export class CostCalculator {
 
     // 综合规则 9.6.2.3.2：只有尚有至少1点待支付能量时才能执行换手减费。
     // 当前登场费用为0时，覆盖已有成员仍可走普通登场，旧成员由重复成员规则处理。
-    if (modifiedCost === 0 && options.relayMode !== undefined) {
+    if (modifiedCost === 0 && (options.relayMode === 'SINGLE' || options.relayMode === 'DOUBLE')) {
       return {
         canPay: false,
         availablePlans: [],
@@ -479,6 +486,7 @@ export class CostCalculator {
         });
       }
     } else if (
+      options.relayMode !== 'NONE' &&
       modifiedCost > 0 &&
       targetMember &&
       canMemberBeRelayedAway(targetMember.data, memberData)

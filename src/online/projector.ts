@@ -17,6 +17,7 @@ import { isPlayerCommandAllowedByPolicy } from '../application/player-command-po
 import { getActivatedAbilityUiConfigs } from '../application/card-effects/runtime/activated-ability-ui.js';
 import { hasRemainingLimitedActivatedAbilityForStageMember } from '../application/card-effects/runtime/limited-activated-ability-status.js';
 import { getMemberPlayOptionsByHandCardId } from '../application/member-play-options.js';
+import { getNormalMemberPlayOptions } from '../application/normal-member-play.js';
 import { getSpecialMemberPlayPendingUiConfig } from '../application/special-member-play-procedures.js';
 import { CardAbilitySourceZone } from '../application/card-effects/ability-definition-types.js';
 import {
@@ -1757,8 +1758,44 @@ function buildPhaseCommandHint(
           ],
         }),
       });
-    case GameCommandType.MOVE_MEMBER_TO_SLOT:
     case GameCommandType.PLAY_MEMBER_TO_SLOT:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [
+            createOwnedViewZoneKey(viewerSeat, 'HAND'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_LEFT'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_CENTER'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_RIGHT'),
+          ],
+        }),
+        params: {
+          // Only the acting player's legal, affordable ordinary overwrite alternatives.
+          // Equal costs remain separate because relay and duplicate-member removal have different timing.
+          memberOverwriteOptions:
+            getManualOperationMode(game) === 'RULES'
+              ? getNormalMemberPlayOptions(game, viewerPlayerId).flatMap(
+                  ({ cardId, targetSlot, availablePlans }) => {
+                    const relay = availablePlans.find((plan) => plan.isRelay);
+                    const direct = availablePlans.find((plan) => !plan.isRelay);
+                    return relay?.memberToRelay && direct
+                      ? [
+                          {
+                            sourceObjectId: createPublicObjectId(cardId),
+                            targetSlot,
+                            targetObjectId: createPublicObjectId(relay.memberToRelay),
+                            choices: [
+                              { relayMode: 'SINGLE', energyCost: relay.actualEnergyCost },
+                              { relayMode: 'NONE', energyCost: direct.actualEnergyCost },
+                            ],
+                          },
+                        ]
+                      : [];
+                  }
+                )
+              : [],
+        },
+      });
+    case GameCommandType.MOVE_MEMBER_TO_SLOT:
       return buildCommandHint(command, {
         scope: createCommandScope({
           zoneKeys: [

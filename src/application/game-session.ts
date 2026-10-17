@@ -1867,6 +1867,12 @@ export class GameSession {
         return null;
       }
       case GameCommandType.PLAY_MEMBER_TO_SLOT: {
+        if (
+          command.relayMode !== undefined &&
+          !['NONE', 'SINGLE', 'DOUBLE'].includes(command.relayMode)
+        ) {
+          return '无效的登场支付方式';
+        }
         const player = state.players.find((candidate) => candidate.id === command.playerId);
         if (!player) {
           return '玩家不存在';
@@ -4016,7 +4022,8 @@ export class GameSession {
       const existingCard = existingCardId ? state.cardRegistry.get(existingCardId) : null;
       const useRelay =
         command.relayMode === 'DOUBLE' ||
-        (incomingCard !== undefined &&
+        (command.relayMode !== 'NONE' &&
+          incomingCard !== undefined &&
           existingCard !== null &&
           existingCard !== undefined &&
           isMemberCardData(incomingCard.data) &&
