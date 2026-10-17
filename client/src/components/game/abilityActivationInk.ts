@@ -3,6 +3,9 @@ const smooth = (n: number) => {
   const t = clamp(n);
   return t * t * (3 - 2 * t);
 };
+// At full hover the card is 1.1x larger than the approved version. Compensate
+// that enlargement so the visible reach from its edge still contracts by one third.
+const INK_REACH_SCALE = 2 / 3 / 1.1;
 
 // A fixed, continuous dye field. No individual puffs, emitters or orbiting waves.
 const lattice = new Float32Array(64 * 64);
@@ -37,17 +40,23 @@ export function createActivationInkPainter(canvas: HTMLCanvasElement) {
   let count = 0;
   for (let row = 0; row < canvas.height; row++) {
     for (let col = 0; col < canvas.width; col++) {
-      const x = (col + 0.5) / 2 - 32;
-      const y = (row + 0.5) / 2 - 32;
-      const qx = Math.abs(x - 50) - 44,
-        qy = Math.abs(y - 70) - 64;
+      const px = (col + 0.5) / 2 - 32;
+      const py = (row + 0.5) / 2 - 32;
+      const qx = Math.abs(px - 50) - 44,
+        qy = Math.abs(py - 70) - 64;
       const dx = Math.max(qx, 0),
         dy = Math.max(qy, 0);
       const length = Math.hypot(dx, dy);
-      const distance = length + Math.min(Math.max(qx, qy), 0) - 6;
+      const physicalDistance = length + Math.min(Math.max(qx, qy), 0) - 6;
+      const distance =
+        Math.max(physicalDistance, 0) / INK_REACH_SCALE + Math.min(physicalDistance, 0);
       if (distance < -0.5 || distance > 29) continue;
-      const nx = length ? (dx / length) * Math.sign(x - 50) : 0;
-      const ny = length ? (dy / length) * Math.sign(y - 70) : 0;
+      const nx = length ? (dx / length) * Math.sign(px - 50) : 0;
+      const ny = length ? (dy / length) * Math.sign(py - 70) : 0;
+      // Resample the accepted wash along the edge normal, preserving its pigment
+      // layout and softness while bringing the whole shape closer to the card.
+      const x = px + nx * (distance - physicalDistance);
+      const y = py + ny * (distance - physicalDistance);
       const broad = noise(x * 0.044 + 9, y * 0.044 - 3);
       const fx = x * 0.075 + 21,
         fy = y * 0.075 - 7;

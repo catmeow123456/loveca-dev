@@ -1040,7 +1040,10 @@ export const PlayerArea = memo(function PlayerArea({
               ? 'center'
               : 'right'
         )}
-        className="relative flex flex-col items-center md:w-[var(--battle-stage-column-width,140px)]"
+        className={cn(
+          'relative flex flex-col items-center md:w-[var(--battle-stage-column-width,140px)]',
+          cardId !== null && activatingCardId === cardId && 'z-20'
+        )}
       >
         {/* 卡牌堆叠容器 - 使用 relative 定位实现重叠效果 */}
         <div className="relative aspect-[5/7] w-[clamp(56px,17vw,78px)] md:w-[var(--battle-stage-card-width,140px)]">
@@ -1737,10 +1740,11 @@ export const PlayerArea = memo(function PlayerArea({
 
                         <div
                           className={cn(
-                            'touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto px-3 pt-3 md:px-5 md:pt-5',
+                            // Leave room for a parallel activation lift at the first/last row.
+                            'touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto px-6 pt-8 md:pt-10',
                             canMoveWaitingRoomCardToHandFromModal
-                              ? 'pb-20 md:pb-20'
-                              : 'pb-3 md:pb-5'
+                              ? 'pb-28'
+                              : 'pb-10'
                           )}
                         >
                           <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2 sm:grid-cols-5 md:grid-cols-6 md:gap-3">
@@ -1791,7 +1795,10 @@ export const PlayerArea = memo(function PlayerArea({
                               return (
                                 <div
                                   key={cardId}
-                                  className="relative flex min-w-0 flex-col items-center"
+                                  className={cn(
+                                    'relative flex min-w-0 flex-col items-center',
+                                    activatingCardId === cardId && 'z-20'
+                                  )}
                                 >
                                   {waitingRoomCardContent}
                                   {canActivateWaitingRoomAbility && (
@@ -3021,7 +3028,7 @@ export const PlayerArea = memo(function PlayerArea({
               style={{
                 left: `calc(50% + ${(idx - (handCount - 1) / 2) * handStep}px)`,
                 transform: `translateX(-50%) rotate(${(idx - (handCount - 1) / 2) * handRotationStep}deg) scale(${handScale})`,
-                zIndex: idx,
+                zIndex: activatingCardId === cardId ? handCount + 1 : idx,
               }}
             >
               <div
@@ -3276,7 +3283,14 @@ export const PlayerArea = memo(function PlayerArea({
         </div>
 
         {/* 中间区域 - 绝对居中（Live 区 + 成员槽位） */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-0 overflow-visible">
+        <div
+          className={cn(
+            'absolute left-1/2 -translate-x-1/2 top-0 overflow-visible',
+            activatingCardId !== null &&
+              memberSlotSnapshots.some((slot) => slot.cardId === activatingCardId) &&
+              'z-20'
+          )}
+        >
           <div className="flex flex-col justify-start items-center gap-2">
             {/* Live 区 - 在成员槽位上方 */}
             {renderLiveZone()}

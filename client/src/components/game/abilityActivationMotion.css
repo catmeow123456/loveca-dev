@@ -16,6 +16,10 @@
   z-index: 20;
 }
 
+[data-recovery-hand-card] [data-ability-activation='true'] {
+  transform-origin: 50% 100%;
+}
+
 .ability-activation-floor {
   position: absolute;
   border-radius: 12%;

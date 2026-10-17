@@ -1,6 +1,6 @@
 # 二维休息室回收验收
 
-同一环境的 `/activation.html` 提供[起动水墨动效验收](../../../docs/frontend-app-architecture/ability-activation-animation.md)，使用原生卡牌起动按钮。支持舞台、手牌和休息室三种来源，额外只读卡图为 `PL!HS-bp6-014-R.png`、`PL!N-bp1-002-P.png`；浏览器配置为 `activation.playwright.config.ts`。
+同一环境的 `/activation.html` 提供[起动边缘特效对比](../../../docs/frontend-app-architecture/ability-activation-animation.md)，使用原生卡牌起动按钮。顶部“边缘特效”可切换沿边流光 1.5 倍速、沿边流光原速与保留的当前墨染，切换后自动重新准备；也可使用 `?edge=flow` / `?edge=flow-original` / `?edge=ink` 直接进入对应版本。浮起动作和 1 秒时长完全一致。支持舞台、手牌和休息室三种来源，额外只读卡图为 `PL!HS-bp6-014-R.png`、`PL!N-bp1-002-P.png`；浏览器配置为 `activation.playwright.config.ts`。
 
 此本地入口挂载项目原有 `GameBoard`，使用真实 `GameSession` / card-effect 命令、投影、公开展示和撤销。只有初始局面由测试夹具准备，没有独立对战 UI、生产 API 或账号卡组写入。动画接入说明见[二维休息室回收动画](../../../docs/frontend-app-architecture/recovery-animation.md)。
 
