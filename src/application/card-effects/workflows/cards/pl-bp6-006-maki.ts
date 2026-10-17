@@ -10,7 +10,7 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { GamePhase, HeartColor, OrientationState } from '../../../../shared/types/enums.js';
+import { GamePhase, HeartColor } from '../../../../shared/types/enums.js';
 import { groupAliasIs, memberHasHeartColor } from '../../../effects/card-selectors.js';
 import { inspectTopCards } from '../../../effects/look-top.js';
 import { BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID } from '../../ability-ids.js';
@@ -110,7 +110,6 @@ function startBp6006Activated(game: GameState, playerId: string, cardId: string)
   const player = getPlayerById(game, playerId);
   const sourceCard = getCardById(game, cardId);
   const sourceSlot = getSourceMemberSlot(game, playerId, cardId);
-  const sourceState = player?.memberSlots.cardStates.get(cardId);
   if (
     activePlayerId !== playerId ||
     !player ||
@@ -119,7 +118,6 @@ function startBp6006Activated(game: GameState, playerId: string, cardId: string)
     !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!-bp6-006') ||
     !isMemberCardData(sourceCard.data) ||
     sourceSlot === null ||
-    sourceState?.orientation !== OrientationState.ACTIVE ||
     player.hand.cardIds.length === 0 ||
     !canUseActivatedAbilityThisTurn(
       game,

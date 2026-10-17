@@ -81,11 +81,16 @@ function createLiveCard(
   };
 }
 
-function placeStageMember(game: GameState, cardId: string, slot = SlotPosition.CENTER): GameState {
+function placeStageMember(
+  game: GameState,
+  cardId: string,
+  slot = SlotPosition.CENTER,
+  orientation = OrientationState.ACTIVE
+): GameState {
   return updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     memberSlots: placeCardInSlot(player.memberSlots, slot, cardId, {
-      orientation: OrientationState.ACTIVE,
+      orientation,
       face: FaceState.FACE_UP,
     }),
   }));
@@ -183,37 +188,41 @@ function chooseHeartColor(session: ReturnType<typeof createGameSession>, color: 
 }
 
 describe('PL!-bp6-006 Maki workflow', () => {
-  it('PL!-bp6-006 cannot activate without a hand card and does not consume turn once', () => {
-    const maki = createCardInstance(
-      createMemberCard('PL!-bp6-006-R＋', { name: '西木野真姫', cost: 17 }),
-      PLAYER1,
-      'maki-no-hand'
-    );
-    let game = registerCards(createGameState('bp6-006-no-hand', PLAYER1, 'P1', PLAYER2, 'P2'), [
-      maki,
-    ]);
-    game = placeStageMember(game, maki.instanceId);
-    game = setPlayerZones(game, { hand: [] });
-    const session = createMainPhaseSession(game);
-
-    session.executeCommand(
-      createActivateAbilityCommand(
+  it.each([OrientationState.ACTIVE, OrientationState.WAITING])(
+    'PL!-bp6-006 cannot activate without a hand card while %s and does not consume turn once',
+    (orientation) => {
+      const maki = createCardInstance(
+        createMemberCard('PL!-bp6-006-R＋', { name: '西木野真姫', cost: 17 }),
         PLAYER1,
-        maki.instanceId,
-        BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID
-      )
-    );
+        'maki-no-hand'
+      );
+      let game = registerCards(createGameState('bp6-006-no-hand', PLAYER1, 'P1', PLAYER2, 'P2'), [
+        maki,
+      ]);
+      game = placeStageMember(game, maki.instanceId, SlotPosition.CENTER, orientation);
+      game = setPlayerZones(game, { hand: [] });
+      const session = createMainPhaseSession(game);
 
-    expect(session.state?.activeEffect).toBeNull();
-    expect(
-      session.state?.actionHistory.some(
-        (action) =>
-          action.payload.abilityId ===
-            BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID &&
-          action.payload.step === 'ABILITY_USE'
-      )
-    ).toBe(false);
-  });
+      const activated = session.executeCommand(
+        createActivateAbilityCommand(
+          PLAYER1,
+          maki.instanceId,
+          BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID
+        )
+      );
+
+      expect(activated.success).toBe(false);
+      expect(session.state?.activeEffect).toBeNull();
+      expect(
+        session.state?.actionHistory.some(
+          (action) =>
+            action.payload.abilityId ===
+              BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID &&
+            action.payload.step === 'ABILITY_USE'
+        )
+      ).toBe(false);
+    }
+  );
 
   it('PL!-bp6-006 can activate again after the same physical member leaves and re-enters', () => {
     const maki = createCardInstance(
@@ -263,139 +272,162 @@ describe('PL!-bp6-006 Maki workflow', () => {
     });
   });
 
-  it('PL!-bp6-006 pays discard cost, chooses a color, takes a μ’s card, and gains BLADE +3', () => {
-    const maki = createCardInstance(
-      createMemberCard('PL!-bp6-006-SEC', { name: '西木野真姫', cost: 17 }),
-      PLAYER1,
-      'maki-success'
-    );
-    const cost = createCardInstance(createMemberCard('cost-card'), PLAYER1, 'cost-card');
-    const revealedCards = [
-      createCardInstance(
-        createMemberCard('PL!-muse-red-member', {
-          name: 'μs red',
-          hearts: [createHeartIcon(HeartColor.RED, 1)],
-        }),
+  it.each(
+    ['R+', 'P', 'P+', 'SEC'].flatMap((rarity) =>
+      [OrientationState.ACTIVE, OrientationState.WAITING].map((orientation) => ({
+        rarity,
+        orientation,
+      }))
+    )
+  )(
+    'PL!-bp6-006 $rarity while $orientation pays discard cost, takes a μ’s card, and gains BLADE +3',
+    ({ rarity, orientation }) => {
+      const maki = createCardInstance(
+        createMemberCard(`PL!-bp6-006-${rarity}`, { name: '西木野真姫', cost: 17 }),
         PLAYER1,
-        'muse-red-member'
-      ),
-      createCardInstance(
-        createMemberCard('PL!-muse-red-member-2', {
-          name: 'μs red 2',
-          hearts: [createHeartIcon(HeartColor.RED, 1)],
-        }),
-        PLAYER1,
-        'muse-red-member-2'
-      ),
-      createCardInstance(
-        createMemberCard('PL!S-red-member', {
-          name: 'aqours red',
-          groupNames: ['Aqours'],
-          hearts: [createHeartIcon(HeartColor.RED, 1)],
-        }),
-        PLAYER1,
-        'aqours-red-member'
-      ),
-      createCardInstance(
-        createLiveCard('PL!-muse-red-live', { requirements: { [HeartColor.RED]: 1 } }),
-        PLAYER1,
-        'muse-red-live'
-      ),
-      createCardInstance(
-        createLiveCard('PL!S-red-live', {
-          groupNames: ['Aqours'],
-          requirements: { [HeartColor.RED]: 1 },
-        }),
-        PLAYER1,
-        'aqours-red-live'
-      ),
-    ];
-    let game = registerCards(createGameState('bp6-006-success', PLAYER1, 'P1', PLAYER2, 'P2'), [
-      maki,
-      cost,
-      ...revealedCards,
-    ]);
-    game = placeStageMember(game, maki.instanceId);
-    game = setPlayerZones(game, {
-      hand: [cost.instanceId],
-      mainDeck: revealedCards.map((card) => card.instanceId),
-    });
-    const session = createMainPhaseSession(game);
+        'maki-success'
+      );
+      const cost = createCardInstance(createMemberCard('cost-card'), PLAYER1, 'cost-card');
+      const revealedCards = [
+        createCardInstance(
+          createMemberCard('PL!-muse-red-member', {
+            name: 'μs red',
+            hearts: [createHeartIcon(HeartColor.RED, 1)],
+          }),
+          PLAYER1,
+          'muse-red-member'
+        ),
+        createCardInstance(
+          createMemberCard('PL!-muse-red-member-2', {
+            name: 'μs red 2',
+            hearts: [createHeartIcon(HeartColor.RED, 1)],
+          }),
+          PLAYER1,
+          'muse-red-member-2'
+        ),
+        createCardInstance(
+          createMemberCard('PL!S-red-member', {
+            name: 'aqours red',
+            groupNames: ['Aqours'],
+            hearts: [createHeartIcon(HeartColor.RED, 1)],
+          }),
+          PLAYER1,
+          'aqours-red-member'
+        ),
+        createCardInstance(
+          createLiveCard('PL!-muse-red-live', { requirements: { [HeartColor.RED]: 1 } }),
+          PLAYER1,
+          'muse-red-live'
+        ),
+        createCardInstance(
+          createLiveCard('PL!S-red-live', {
+            groupNames: ['Aqours'],
+            requirements: { [HeartColor.RED]: 1 },
+          }),
+          PLAYER1,
+          'aqours-red-live'
+        ),
+      ];
+      let game = registerCards(createGameState('bp6-006-success', PLAYER1, 'P1', PLAYER2, 'P2'), [
+        maki,
+        cost,
+        ...revealedCards,
+      ]);
+      game = placeStageMember(game, maki.instanceId, SlotPosition.CENTER, orientation);
+      game = setPlayerZones(game, {
+        hand: [cost.instanceId],
+        mainDeck: revealedCards.map((card) => card.instanceId),
+      });
+      const session = createMainPhaseSession(game);
 
-    session.executeCommand(
-      createActivateAbilityCommand(
-        PLAYER1,
-        maki.instanceId,
-        BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID
-      )
-    );
-    session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, cost.instanceId)
-    );
-    expect(session.state?.activeEffect?.effectChoice?.options.map((option) => option.id)).toContain(
-      HeartColor.RED
-    );
-    expect(session.state?.activeEffect?.selectableOptions).toBeUndefined();
-    expect(chooseHeartColor(session, HeartColor.RED).success).toBe(true);
-    expect(session.state?.activeEffect).toMatchObject({
-      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
-      stepText:
-        "已公开卡组顶5张卡片，且5张均满足所选 Heart 颜色条件。展示结束后，选择1张『μ's』卡加入手牌。",
-      revealedCardIds: revealedCards.map((card) => card.instanceId),
-    });
-    expect(session.state?.activeEffect?.selectableCardIds).toBeUndefined();
-    const revealedObjectIds = revealedCards.map((card) => createPublicObjectId(card.instanceId));
-    for (const viewerId of [PLAYER1, PLAYER2]) {
-      const view = projectPlayerViewState(session.state!, viewerId);
-      expect(view.activeEffect?.revealedObjectIds).toEqual(revealedObjectIds);
-      for (const objectId of revealedObjectIds) {
-        expect(view.objects[objectId]?.surface).toBe('FRONT');
+      const activated = session.executeCommand(
+        createActivateAbilityCommand(
+          PLAYER1,
+          maki.instanceId,
+          BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID
+        )
+      );
+      expect(activated.success, activated.error).toBe(true);
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, cost.instanceId)
+      );
+      expect(
+        session.state?.activeEffect?.effectChoice?.options.map((option) => option.id)
+      ).toContain(HeartColor.RED);
+      expect(session.state?.activeEffect?.selectableOptions).toBeUndefined();
+      expect(chooseHeartColor(session, HeartColor.RED).success).toBe(true);
+      expect(session.state?.activeEffect).toMatchObject({
+        stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
+        stepText:
+          "已公开卡组顶5张卡片，且5张均满足所选 Heart 颜色条件。展示结束后，选择1张『μ's』卡加入手牌。",
+        revealedCardIds: revealedCards.map((card) => card.instanceId),
+      });
+      expect(session.state?.activeEffect?.selectableCardIds).toBeUndefined();
+      const revealedObjectIds = revealedCards.map((card) => createPublicObjectId(card.instanceId));
+      for (const viewerId of [PLAYER1, PLAYER2]) {
+        const view = projectPlayerViewState(session.state!, viewerId);
+        expect(view.activeEffect?.revealedObjectIds).toEqual(revealedObjectIds);
+        for (const objectId of revealedObjectIds) {
+          expect(view.objects[objectId]?.surface).toBe('FRONT');
+        }
       }
-    }
-    advancePublicRevealDwellIfNeeded(session);
-    expect(session.state?.activeEffect?.selectableCardIds).toEqual([
-      revealedCards[0]!.instanceId,
-      revealedCards[1]!.instanceId,
-      revealedCards[3]!.instanceId,
-    ]);
-    session.executeCommand(
-      createConfirmEffectStepCommand(
-        PLAYER1,
-        session.state!.activeEffect!.id,
-        revealedCards[0]!.instanceId
-      )
-    );
+      advancePublicRevealDwellIfNeeded(session);
+      expect(session.state?.activeEffect?.selectableCardIds).toEqual([
+        revealedCards[0]!.instanceId,
+        revealedCards[1]!.instanceId,
+        revealedCards[3]!.instanceId,
+      ]);
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          revealedCards[0]!.instanceId
+        )
+      );
 
-    const player = getPlayerById(session.state!, PLAYER1)!;
-    expect(player.hand.cardIds).toEqual([revealedCards[0]!.instanceId]);
-    expect(player.waitingRoom.cardIds).toEqual([
-      revealedCards[1]!.instanceId,
-      revealedCards[2]!.instanceId,
-      revealedCards[3]!.instanceId,
-      revealedCards[4]!.instanceId,
-    ]);
-    expect(player.mainDeck.cardIds).toEqual([cost.instanceId]);
-    expect(session.state!.liveResolution.liveModifiers).toContainEqual({
-      kind: 'BLADE',
-      target: 'SOURCE_MEMBER',
-      playerId: PLAYER1,
-      countDelta: 3,
-      sourceCardId: maki.instanceId,
-      abilityId: BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
-    });
-    expect(
-      session.state!.actionHistory.some(
-        (action) =>
-          action.payload.abilityId ===
-            BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID &&
-          action.payload.step === 'ABILITY_USE'
-      )
-    ).toBe(true);
-    expect(enterWaitingRoomEvents(session.state!).map((event) => event.fromZone)).toEqual([
-      ZoneType.HAND,
-      ZoneType.MAIN_DECK,
-    ]);
-  });
+      const player = getPlayerById(session.state!, PLAYER1)!;
+      expect(player.hand.cardIds).toEqual([revealedCards[0]!.instanceId]);
+      expect(player.waitingRoom.cardIds).toEqual([
+        revealedCards[1]!.instanceId,
+        revealedCards[2]!.instanceId,
+        revealedCards[3]!.instanceId,
+        revealedCards[4]!.instanceId,
+      ]);
+      expect(player.mainDeck.cardIds).toEqual([cost.instanceId]);
+      expect(session.state!.liveResolution.liveModifiers).toContainEqual({
+        kind: 'BLADE',
+        target: 'SOURCE_MEMBER',
+        playerId: PLAYER1,
+        countDelta: 3,
+        sourceCardId: maki.instanceId,
+        abilityId: BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
+      });
+      expect(
+        session.state!.actionHistory.some(
+          (action) =>
+            action.payload.abilityId ===
+              BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID &&
+            action.payload.step === 'ABILITY_USE'
+        )
+      ).toBe(true);
+      expect(enterWaitingRoomEvents(session.state!).map((event) => event.fromZone)).toEqual([
+        ZoneType.HAND,
+        ZoneType.MAIN_DECK,
+      ]);
+      expect(player.memberSlots.cardStates.get(maki.instanceId)?.orientation).toBe(orientation);
+      expect(session.state?.activeEffect).toBeNull();
+      const stateAfterResolution = session.state;
+      const repeated = session.executeCommand(
+        createActivateAbilityCommand(
+          PLAYER1,
+          maki.instanceId,
+          BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID
+        )
+      );
+      expect(repeated.success).toBe(false);
+      expect(session.state).toEqual(stateAfterResolution);
+    }
+  );
 
   it('PL!-bp6-006 refreshes a short deck from waiting room, takes a μ’s card, and gains BLADE +3', () => {
     const maki = createCardInstance(
