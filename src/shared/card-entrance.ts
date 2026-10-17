@@ -31,6 +31,16 @@ export const entranceCards = {
   nozomi: 'PL!-pb2-016',
   hanayo: 'PL!-pb2-017',
   mia: 'PL!N-bp7-011',
+  rina: 'PL!N-bp8-009',
+  umi: 'PL!-pb2-004',
+  kanon: 'PL!SP-pb2-001',
+  tomari: 'PL!SP-pb2-022',
+  kasumi: 'PL!N-bp8-002',
+  'nico-ai-seras': 'LL-bp8-001',
+  kanan: 'PL!S-bp7-012',
+  hanamaru: 'PL!S-bp7-016',
+  keke: 'PL!SP-bp7-013',
+  'sumire-pb2': 'PL!SP-pb2-026',
 } as const;
 export type EntranceAssetId = keyof typeof entranceCards;
 

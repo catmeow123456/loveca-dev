@@ -1,0 +1,323 @@
+[
+  {
+    "id": "rina",
+    "cardCode": "PL!N-bp8-009-SEC",
+    "name": "天王寺璃奈",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      }
+    ],
+    "groupNames": ["虹ヶ咲"],
+    "unitName": "「QU4RTZ」",
+    "cardText": "【起动】【１回合１次】将１张手牌放置于卡组底，抽２张卡。\n\n【LIVE开始时】可以将卡组底的卡片放置入休息室：因此放置入休息室的卡片是LIVE卡的场合，将存在于自己的LIVE卡区的１张分数小于等于２的『虹咲』的LIVE卡放置于卡组顶。如此做时，从自己的休息室将１张LIVE卡正面放置于LIVE卡区。"
+  },
+  {
+    "id": "umi",
+    "cardCode": "PL!-pb2-004-PP",
+    "name": "园田海未",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "groupNames": ["μ’s"],
+    "unitName": "「lilywhite」",
+    "cardText": "【常时】存在于自己的成功LIVE卡区的持有[スコア]的『μ’s』的卡片每有1张，获得[ブレード]。\n\n【自动】【1回合1次】自己声援时，因声援被公开的自己的卡片中持有[スコア]的『μ’s』的卡片每有1张，追加声援1张卡片。"
+  },
+  {
+    "id": "umi",
+    "cardCode": "PL!-pb2-004-R",
+    "name": "园田海未",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "groupNames": ["μ’s"],
+    "unitName": "「lilywhite」",
+    "cardText": "【常时】存在于自己的成功LIVE卡区的持有[スコア]的『μ’s』的卡片每有1张，获得[ブレード]。\n\n【自动】【1回合1次】自己声援时，因声援被公开的自己的卡片中持有[スコア]的『μ’s』的卡片每有1张，追加声援1张卡片。"
+  },
+  {
+    "id": "kanon",
+    "cardCode": "PL!SP-pb2-001-PP",
+    "name": "涩谷香音",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 3
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "groupNames": ["Liella!"],
+    "unitName": "「CatChu!」",
+    "cardText": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。从中将至多1张费用小于等于4的『Liella!』的成员卡公开。将该卡登场至自己的舞台的不存在成员的区域，或加入手牌。其余的放置入休息室。"
+  },
+  {
+    "id": "kanon",
+    "cardCode": "PL!SP-pb2-001-R",
+    "name": "涩谷香音",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 3
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "groupNames": ["Liella!"],
+    "unitName": "「CatChu!」",
+    "cardText": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。从中将至多1张费用小于等于4的『Liella!』的成员卡公开。将该卡登场至自己的舞台的不存在成员的区域，或加入手牌。其余的放置入休息室。"
+  },
+  {
+    "id": "tomari",
+    "cardCode": "PL!SP-pb2-022-P+",
+    "name": "鬼冢冬毬",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "groupNames": ["Liella!"],
+    "unitName": "「5yncri5e!」",
+    "cardText": "【自动】【1回合1次】自己的舞台中『5yncri5e!』登场或移动区域时，LIVE结束时为止，[ブレード][ブレード][ブレード][ブレード]获得。"
+  },
+  {
+    "id": "tomari",
+    "cardCode": "PL!SP-pb2-022-R",
+    "name": "鬼冢冬毬",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "groupNames": ["Liella!"],
+    "unitName": "「5yncri5e!」",
+    "cardText": "【自动】【1回合1次】自己的舞台中『5yncri5e!』登场或移动区域时，LIVE结束时为止，[ブレード][ブレード][ブレード][ブレード]获得。"
+  },
+  {
+    "id": "kasumi",
+    "cardCode": "PL!N-bp8-002-P",
+    "name": "中须霞",
+    "cardType": "MEMBER",
+    "cost": 17,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      }
+    ],
+    "groupNames": ["虹ヶ咲"],
+    "unitName": "「QU4RTZ」",
+    "cardText": "【起动】[E]将此卡放置于卡组底：LIVE结束时为止，存在于自己的舞台的1名『虹咲』的成员，获得[黄ハート]。此能力仅可在此卡存在于休息室的场合起动。"
+  },
+  {
+    "id": "nico-ai-seras",
+    "cardCode": "LL-bp8-001-R+",
+    "name": "矢泽日香（矢泽妮可）&宫下爱&赛拉丝·柳田·利林费尔德",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "groupNames": ["μ’s", "虹ヶ咲", "蓮ノ空"],
+    "unitName": null,
+    "cardText": "【登场】/【LIVE成功时】检视自己的卡组顶的６张卡片。可以将其中的１张成员卡公开，放置于此成员的下方。其余的放置入休息室。\n\n【常时】此成员，获得放置于此成员下方的「矢泽日香（矢泽妮可）」、「宫下爱」、「赛拉丝·柳田·利林费尔德」的成员卡持有的所有【起动】能力和【LIVE开始时】能力。"
+  },
+  {
+    "id": "kanan",
+    "cardCode": "PL!S-bp7-012-N",
+    "name": "松浦果南",
+    "cardType": "MEMBER",
+    "cost": 17,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "groupNames": ["Aqours"],
+    "unitName": "「AZALEA」",
+    "cardText": "【登场】自己的舞台上仅存在『Aqours』或『Saint Snow』的成员的场合，可以进行队列变换。因此效果将『Saint Snow』的成员移动的场合，LIVE结束时为止，获得[ブレード][ブレード]。"
+  },
+  {
+    "id": "hanamaru",
+    "cardCode": "PL!S-bp7-016-N",
+    "name": "国木田花丸",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "groupNames": ["Aqours"],
+    "unitName": "「AZALEA」",
+    "cardText": "【常时】只要自己的舞台上存在大于等于3名成员，获得[赤ハート][緑ハート][青ハート]。"
+  },
+  {
+    "id": "keke",
+    "cardCode": "PL!SP-bp7-013-N",
+    "name": "唐可可",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "groupNames": ["Liella!"],
+    "unitName": "「KALEIDOSCORE」",
+    "cardText": "【常时】只要自己的舞台上存在大于等于3名『KALEIDOSCORE』的成员，获得[紫ハート][ブレード]。"
+  },
+  {
+    "id": "sumire-pb2",
+    "cardCode": "PL!SP-pb2-026-N",
+    "name": "平安名堇",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 3
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "groupNames": ["Liella!"],
+    "unitName": "「CatChu!」",
+    "cardText": "【常时】只要自己存在活跃状态的能量，获得[赤ハート][赤ハート]。"
+  }
+]
