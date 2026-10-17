@@ -617,7 +617,26 @@ export interface CardEffectSummaryPublicEvent extends BasePublicEvent {
   readonly waitingRoomCardCount?: number;
 }
 
+/** Public member HEART/BLADE changes for non-blocking presentation. */
+export type EffectFeedbackChange =
+  | { readonly kind: 'HEART'; readonly color: HeartColor; readonly delta: number }
+  | { readonly kind: 'BLADE'; readonly delta: number };
+
+export interface EffectFeedbackTarget {
+  readonly objectId?: string;
+  readonly zoneKey: ViewZoneKey;
+  readonly changes: readonly EffectFeedbackChange[];
+}
+
+export interface EffectFeedbackPublicEvent extends BasePublicEvent {
+  readonly type: 'EffectFeedback';
+  readonly mode: 'APPLIED' | 'UPDATE';
+  readonly sourceObjectId?: string;
+  readonly targets: readonly EffectFeedbackTarget[];
+}
+
 export type PublicEvent =
+  | EffectFeedbackPublicEvent
   | PhaseStartedPublicEvent
   | SubPhaseStartedPublicEvent
   | WindowStatusChangedPublicEvent
@@ -630,6 +649,7 @@ export type PublicEvent =
   | CardEffectSummaryPublicEvent;
 
 export type PublicEventDraft =
+  | Omit<EffectFeedbackPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
   | Omit<PhaseStartedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
   | Omit<SubPhaseStartedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
   | Omit<WindowStatusChangedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>

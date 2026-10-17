@@ -89,6 +89,7 @@ export function formatPublicBattleLogEvent(
   event: PublicEvent,
   options: PublicBattleLogFormatterOptions
 ): PublicBattleLogEventView {
+  if (event.type === 'EffectFeedback') return buildSingleEventView(event, options);
   return formatPublicBattleLogEvents([event], { ...options, filter: 'ALL' })[0]!;
 }
 
@@ -97,7 +98,9 @@ export function formatPublicBattleLogEvents(
   options: PublicBattleLogFormatterOptions & { readonly filter?: PublicBattleLogFilter }
 ): readonly PublicBattleLogEventView[] {
   const filter = options.filter ?? 'ALL';
-  const sortedEvents = [...events].sort((left, right) => left.seq - right.seq);
+  const sortedEvents = events
+    .filter((event) => event.type !== 'EffectFeedback')
+    .sort((left, right) => left.seq - right.seq);
   const skippedIndexes = new Set<number>([
     ...findDuplicateRevealMoveIndexes(sortedEvents),
     ...(filter === 'KEY' ? findSupersededStartedSummaryIndexes(sortedEvents) : []),
@@ -412,6 +415,18 @@ function buildSingleEventView(
   const actorSeat = getEventSubjectSeat(event);
 
   switch (event.type) {
+    case 'EffectFeedback':
+      return buildView({
+        events: [event],
+        options,
+        type: event.type,
+        keyEvent: false,
+        title: '成员心／刀反馈',
+        detail: null,
+        cards: [],
+        hiddenCardCount: 0,
+        actorSeat,
+      });
     case 'CardRevealed':
       return buildView({
         events: [event],

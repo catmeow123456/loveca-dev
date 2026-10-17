@@ -34,3 +34,7 @@ node node_modules/typescript/bin/tsc --noEmit
 ```
 
 浏览器使用临时隔离上下文，验收截图和失败 trace 写入 `output/playwright/recovery-2d/`。不使用当前 Chrome 的生产管理员会话。
+
+## 成员强化反馈
+
+打开同一服务的 `/feedback.html`，可验收单体加心、群体加刀、混合增益和起动后强化；支持横置目标、重新准备、撤销与双方视角。点击“演示一次”通过真实卡效命令逐步执行；验收起动浮起请在“自身待机费用 → 获得 HEART”场景直接点击源卡的起动按钮。测试使用 `feedback.playwright.config.ts`。

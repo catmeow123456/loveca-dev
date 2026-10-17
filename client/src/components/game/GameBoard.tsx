@@ -28,6 +28,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { EffectFeedbackLayer } from './EffectFeedbackLayer';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore, type VisibleCardPresentation } from '@/store/gameStore';
 import { PlayerArea, type SelectedHandCardAction } from './PlayerArea';
@@ -2506,6 +2507,7 @@ export const GameBoard = memo(function GameBoard({
       >
         <BoardBackground {...tableWallpaper} className="-z-10" />
         <BattleAnimationLayer />
+        <EffectFeedbackLayer />
         {canShowCardEntrance && (
           <Suspense fallback={null}>
             <CardEntranceLayer enabled={cardEntranceEnabled} />

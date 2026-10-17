@@ -15,6 +15,25 @@ const art = new Map([
   ['PL!HS-bp6-014-R', 'PL!HS-bp6-014-R.png'],
   ['PL!N-bp1-002-P', 'PL!N-bp1-002-P.png'],
 ]);
+const feedbackArt = new Map([
+  ['PL!-bp6-001-P', path.join(artRoot, 'PL!-bp6-001-P.png')],
+  ['PL!-bp3-009-P', path.join(artRoot, 'PL!-bp3-009-P.png')],
+  ['PL!-sd1-019-SD', path.join(artRoot, 'PL!-sd1-019-SD.png')],
+  ['PL!HS-pb1-001-R', path.join(artRoot, 'PL!HS-pb1-001-R.png')],
+  [
+    'PL!N-PR-036-PR',
+    path.resolve(repo, '../animation-prototypes/effect-feedback-20261003/shizuku-pr036.webp'),
+  ],
+  [
+    'PL!-pb2-021-N',
+    path.resolve(repo, '../animation-prototypes/effect-feedback-20261003/kotori-pb2.webp'),
+  ],
+  ['PL!N-bp7-006-P', path.resolve(repo, '../animation-prototypes/kanata/card.png')],
+  [
+    'PL!N-bp7-003-P',
+    path.resolve(repo, '../animation-prototypes/seven-20261003/sources/shizuku-card.png'),
+  ],
+]);
 export default defineConfig({
   root: import.meta.dirname,
   define: {
@@ -30,15 +49,24 @@ export default defineConfig({
           const url = decodeURIComponent((req.url ?? '').split('?')[0]);
           const code = /^\/images\/(?:medium|thumb|large)\/(.+)\.webp$/.exec(url)?.[1];
           const filename = code && art.get(code);
-          const file = filename
-            ? path.join(artRoot, filename)
-            : url === '/images/static/deck.png'
-              ? path.join(repo, 'assets/deck.png')
-              : url.includes('/back.') || code === 'ENERGY'
-                ? path.join(repo, 'assets/back.jpg')
-                : null;
+          const file =
+            (code && feedbackArt.get(code)) ||
+            (filename
+              ? path.join(artRoot, filename)
+              : url === '/images/static/deck.png'
+                ? path.join(repo, 'assets/deck.png')
+                : url.includes('/back.') || code === 'ENERGY'
+                  ? path.join(repo, 'assets/back.jpg')
+                  : null);
           if (file && existsSync(file)) {
-            res.setHeader('Content-Type', file.endsWith('.jpg') ? 'image/jpeg' : 'image/png');
+            res.setHeader(
+              'Content-Type',
+              file.endsWith('.jpg')
+                ? 'image/jpeg'
+                : file.endsWith('.webp')
+                  ? 'image/webp'
+                  : 'image/png'
+            );
             createReadStream(file).pipe(res);
             return;
           }

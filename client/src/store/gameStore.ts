@@ -3307,7 +3307,8 @@ function mergePublicBattleLogResponse(
 }
 
 function countUnreadPublicEvents(events: readonly PublicEvent[], lastReadSeq: number): number {
-  return events.filter((event) => event.seq > lastReadSeq).length;
+  return events.filter((event) => event.type !== 'EffectFeedback' && event.seq > lastReadSeq)
+    .length;
 }
 
 // 通用的卡图预加载:对比前后两个 PlayerViewState，预取新翻面卡的图片。
