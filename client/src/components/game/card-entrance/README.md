@@ -60,13 +60,18 @@
 
 `cardEntranceTimeline.ts` 统一以毫秒声明人物入场／淡出、标签、重叠、飞行／压落和冲击阶段，推导结束时间并生成光圈 CSS 时长。`CardEntrancePlayback` 在资源就绪后创建一次开始时刻，人物、飞牌和结束计时共用它。普通演出仍为 2.74 秒；双换手在同一时钟上偏移人物／落场起点，不改变原有阶段时长。
 
-素材按当前播放条目加载，不在进入对局时下载全部人物图。人物图与完整卡面都完成 `decode()` 后才启动时间线；减少动态仅准备人物图。准备最多等待 2 秒，失败或超时跳过当前条目并释放遮挡。关闭、跳过或来源失效会取消准备，迟到的导入／解码结果不能重启演出。动态导入不能撤回已经发出的网络请求，但取消后不会再创建画面。应用不保留所有角色的解码位图缓存，URL 缓存由浏览器管理。当前批次按权威 `objectIds` 依次播放，不再按 5 秒队龄丢弃后续卡；整批截止时间由服务器控制。
+桌面与手机共用同一条预加载链路，不按屏幕宽度或触屏能力分流。进入支持演出的对局且本机开关开启后，`CardEntranceLayer` 根据 `match.entranceAssetIds` 静默预取本局素材。权威 projector 从双方已登记卡牌筛选登记身份，按登记顺序去重；投影只包含双方合并后的动画 ID，不含归属、张数、实例或牌序。这是已明确接受的有限信息披露：仍可能根据素材清单／请求推测对手拥有某动画成员；不传对手卡组、手牌或其他隐藏身份。清单从现有权威状态推导，重连复水无需新增持久字段。
+
+`cardEntrancePreload.ts` 每次准备一个角色（人物与可选眼部并行），并准备共享姓名字体；不下载所有登记角色、不压缩或更换素材、不等待完成才开放对局。相同 URL 的在途后台请求跨局合并，已完成资源由浏览器 HTTP 缓存和生产 Service Worker 的 `card-entrance-assets-v1` CacheFirst 缓存复用。缓存名不随应用版本变化；内容哈希不变时沿用旧文件，素材变更才得到新 URL。最多保留96项、365天，浏览器仍可能因存储压力／用户清理而删除缓存；PNG／字体不加入安装预缓存。后台仅等待图片 load，不主动 decode、不保留常驻图片对象或 GPU 纹理；完成／失败后释放引用，避免把所有人物的解码内存长期留在应用中。
+
+关闭开关、离开或结束对局时停止尚未开始的队列，已开始的后台图片请求允许完成并缓存；模块请求与图片请求各有120秒上限，失败后继续下一个角色，不占用操作或规则等待。实际登场仍由原 `prepareEntranceAssets` 校验和解码：人物图与完整卡面完成 `decode()` 后才启动时间线，眼部／姓名字体沿用原准备逻辑；减少动态仅准备人物图。播放前最多等待2秒，失败或超时跳过当前条目并释放遮挡，不新增等待界面或替代演出。关闭、跳过或来源失效会取消本次播放准备，迟到结果不能重启；本次取消不会中断独立的后台预取。当前批次按权威 `objectIds` 依次播放，整批截止时间和双方 ACK 保持不变。
 
 ## 共用验收
 
 自动检查：
 
 ```sh
+pnpm test:run tests/unit/card-entrance-preload.test.ts tests/integration/card-entrance-preload.test.ts
 pnpm test:run tests/unit/card-entrance-articulation.test.ts tests/integration/duo-entrance-synchronization.test.ts tests/integration/kaho-entrance-synchronization.test.ts tests/integration/seras-entrance-synchronization.test.ts tests/integration/hime-entrance-synchronization.test.ts tests/integration/card-entrance-synchronization.test.ts tests/integration/online-card-entrance.test.ts tests/unit/card-entrance-policy.test.ts tests/unit/card-entrance-assets.test.ts tests/unit/card-entrance-events.test.ts tests/unit/card-entrance-landing.test.ts tests/integration/card-entrance-presentation.test.ts tests/unit/battle-animation-events.test.ts
 pnpm --dir client exec tsc -b
 ```

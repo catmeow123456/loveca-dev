@@ -31,6 +31,22 @@ export const entranceCards = {
   nozomi: 'PL!-pb2-016',
   hanayo: 'PL!-pb2-017',
 } as const;
+export type EntranceAssetId = keyof typeof entranceCards;
+
+/** Cosmetic manifest only: no ownership, quantities, card instances or deck order. */
+export function collectEntranceAssetIds(cardCodes: Iterable<string>): EntranceAssetId[] {
+  const codes = [...new Set(cardCodes)];
+  return (Object.entries(entranceCards) as [EntranceAssetId, string][]).flatMap(([id, base]) =>
+    codes.some(
+      (code) =>
+        code === base ||
+        (code.startsWith(`${base}-`) && /^[^-]+$/.test(code.slice(base.length + 1)))
+    )
+      ? [id]
+      : []
+  );
+}
+
 export function isEntranceCard(code: string): boolean {
   return Object.values(entranceCards).some(
     (base) =>

@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
-import { getCardEntranceProfile } from '@/lib/cardEntranceProfiles';
+import { cardEntranceProfiles, getCardEntranceProfile } from '@/lib/cardEntranceProfiles';
+import { preloadEntranceProfiles } from '@/lib/cardEntrancePreload';
 import { getEntranceStageTarget } from '@/lib/cardEntranceLanding';
 import { CardEntrancePlayback } from './CardEntrancePlayback';
 import type { PlayerViewState } from '@game/online/types';
@@ -12,6 +13,17 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
   const view = useGameStore((s) => s.playerViewState);
   const wait = view?.match.entrance;
   const contextKey = `${view?.match.matchId}:${view?.match.viewerSeat}`;
+  // A content key avoids restarting on every snapshot/ACK. The board already gates eligible modes.
+  const preloadKey =
+    enabled && view && !view.match.endInfo
+      ? JSON.stringify(view.match.entranceAssetIds ?? [])
+      : '[]';
+  const matchId = view?.match.matchId;
+  useEffect(() => {
+    const ids = new Set<string>(JSON.parse(preloadKey));
+    if (!ids.size) return;
+    return preloadEntranceProfiles(cardEntranceProfiles.filter((profile) => ids.has(profile.id)));
+  }, [matchId, preloadKey]);
   return view && wait && !view.match.endInfo ? (
     <SynchronizedEntrance key={`${contextKey}:${wait.id}`} view={view} enabled={enabled} />
   ) : null;

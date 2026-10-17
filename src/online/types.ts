@@ -13,6 +13,7 @@ import type { HeartIcon } from '../domain/entities/card.js';
 import type { ActivatedAbilityUiConfig } from '../application/card-effects/ability-definition-types.js';
 import type { CardDefinedSpecialMemberPlayMode } from '../shared/rules/member-play-options.js';
 import type { ManualOperationMode } from '../shared/types/manual-operation-mode.js';
+import type { EntranceAssetId } from '../shared/card-entrance.js';
 
 export type Seat = 'FIRST' | 'SECOND';
 
@@ -136,6 +137,8 @@ export interface MatchViewState {
   readonly undo?: OnlineUndoView;
   /** 当前投影必须显式携带权威操作模式。 */
   readonly manualOperation: ManualOperationModeView;
+  /** Intentionally discloses the union of both decks' entrance identities, never owners/counts/order. */
+  readonly entranceAssetIds?: readonly EntranceAssetId[];
   /** 公开登场演出的双方确认与截止时间。 */
   readonly entrance?: {
     readonly id: string;

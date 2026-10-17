@@ -86,6 +86,7 @@ import {
   isZoneOccupancyVisibleToViewer,
 } from './visibility.js';
 import { createBlindCardSelectionToken } from '../shared/utils/blind-card-selection.js';
+import { collectEntranceAssetIds } from '../shared/card-entrance.js';
 
 interface ProjectPlayerViewStateOptions {
   readonly seq?: number;
@@ -356,6 +357,15 @@ export function projectPlayerViewState(
       disabledReason: manualOperationSwitchBlockedReason,
       pendingRequest: null,
     },
+    // Approved cosmetic disclosure: only animation identities from both registered decks.
+    // Derive it from the registry so reconnects and restored games need no new persisted state.
+    ...(game.entranceRuntime && !game.isEnded
+      ? {
+          entranceAssetIds: collectEntranceAssetIds(
+            [...game.cardRegistry.values()].map((card) => card.data.cardCode)
+          ),
+        }
+      : {}),
     ...(game.entranceRuntime?.pending && !game.isEnded
       ? {
           entrance: {

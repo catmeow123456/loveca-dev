@@ -93,7 +93,7 @@ export interface CardEntranceProfile {
   id: string;
   baseCode: string;
   name: string;
-  /** Loaded only when this public card is about to present. */
+  /** Loaded on demand by the match's cosmetic preload manifest or by actual playback. */
   loadArt: () => Promise<{ default: string }>;
   blink?: { loadArt: () => Promise<{ default: string }>; faces: readonly EntranceBlinkProfile[] };
   center: string;
