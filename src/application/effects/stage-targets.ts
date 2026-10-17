@@ -3,6 +3,7 @@ import { isMemberCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
 import { getCardById, getPlayerById } from '../../domain/entities/game.js';
 import { getMemberOriginalHeartCount } from '../../domain/rules/live-modifiers.js';
+import { findMemberSlot } from '../../domain/entities/player.js';
 import { OrientationState, SlotPosition } from '../../shared/types/enums.js';
 import type { CardSelector } from './card-selectors.js';
 
@@ -18,6 +19,15 @@ export function memberOriginalHeartLte(maxHeart: number): StageMemberStatePredic
   return (game, playerId, cardId) =>
     getMemberOriginalHeartCount(game, playerId, cardId) <= maxHeart;
 }
+
+/** Counts a member once, regardless of how many energy cards are below it. */
+export const memberHasEnergyBelow: StageMemberStatePredicate = (game, playerId, cardId) => {
+  const player = getPlayerById(game, playerId);
+  const slot = player ? findMemberSlot(player, cardId) : null;
+  return (
+    player !== null && slot !== null && (player.memberSlots.energyBelow[slot] ?? []).length > 0
+  );
+};
 
 export function getStageMemberCardIdsMatching(
   game: GameState,

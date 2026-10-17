@@ -235,7 +235,7 @@ describe('PL!S-bp7-003-SEC private top-one inspection', () => {
             { id: 'place-bottom', text: '将检视的卡放置于卡组底。' },
           ],
         },
-        confirmSelectionLabel: '确定',
+        confirmSelectionLabel: '放置卡片',
       });
       expect(waiting.inspectionZone.revealedCardIds).toEqual([]);
       const ownView = projectPlayerViewState(waiting, P1);

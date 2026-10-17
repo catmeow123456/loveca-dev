@@ -6,8 +6,15 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
-import { CardType } from '../../../../shared/types/enums.js';
-import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
+import { CardType, TriggerCondition } from '../../../../shared/types/enums.js';
+import {
+  and,
+  groupAliasIs,
+  typeIs,
+  unitAliasIs,
+  type CardSelector,
+} from '../../../effects/card-selectors.js';
+import { sumStageMemberEffectiveCostMatching } from '../../../effects/conditions.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
@@ -16,6 +23,7 @@ import {
 import {
   N_BP1_005_LIVE_START_DISCARD_GAIN_ONE_BLADE_ABILITY_ID,
   N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+  HS_BP8_010_LIVE_START_DISCARD_HASUNOSORA_COST_TWENTY_FIVE_RECOVER_DOLLCHESTRA_LIVE_ABILITY_ID,
   N_SD2_011_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
   N_SD1_004_LIVE_START_DISCARD_GAIN_TWO_BLADE_ABILITY_ID,
   PL_N_PB1_001_ON_ENTER_OPTIONAL_DISCARD_IF_OTHER_COST_ELEVEN_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
@@ -30,10 +38,16 @@ import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import {
+  registerPendingAbilityStarterHandler,
+  type PendingAbilityStarterOptions,
+} from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 import { isCurrentStageMemberAbilitySource } from '../../runtime/source-member.js';
 import { finishWaitingRoomToHandWorkflow } from './waiting-room-to-hand.js';
 
@@ -78,23 +92,45 @@ const DISCARD_GAIN_BLADE_CONFIGS: readonly DiscardGainBladeConfig[] = [
   },
 ];
 
-interface OnEnterDiscardRecoverLiveConfig {
+interface TriggeredDiscardRecoverLiveConfig {
   readonly abilityId: string;
   readonly discardStepId: string;
   readonly recoveryStepId: string;
-  readonly recoveryCondition: 'ALWAYS' | 'OTHER_PRINTED_COST_ELEVEN_MEMBER';
+  readonly recoveryCondition: (game: GameState, playerId: string, sourceCardId: string) => boolean;
+  readonly recoverySelector?: CardSelector;
+  readonly recoveryStepText?: string;
+  readonly recoverySelectionLabel?: string;
+  readonly conditionNotMetReason?: string;
+  readonly noTargetReason?: string;
   readonly startActionStep: string;
   readonly selectActionStep: string;
   readonly conditionNotMetActionStep: string;
   readonly noTargetActionStep: string;
 }
 
-const ON_ENTER_DISCARD_RECOVER_LIVE_CONFIGS: readonly OnEnterDiscardRecoverLiveConfig[] = [
+const TRIGGERED_DISCARD_RECOVER_LIVE_CONFIGS: readonly TriggeredDiscardRecoverLiveConfig[] = [
+  {
+    abilityId:
+      HS_BP8_010_LIVE_START_DISCARD_HASUNOSORA_COST_TWENTY_FIVE_RECOVER_DOLLCHESTRA_LIVE_ABILITY_ID,
+    discardStepId: 'HS_BP8_010_SELECT_DISCARD_FOR_DOLLCHESTRA_LIVE',
+    recoveryStepId: 'HS_BP8_010_SELECT_WAITING_ROOM_DOLLCHESTRA_LIVE',
+    recoveryCondition: (game, playerId) =>
+      sumStageMemberEffectiveCostMatching(game, playerId, groupAliasIs('蓮ノ空')) >= 25,
+    recoverySelector: and(typeIs(CardType.LIVE), unitAliasIs('DOLLCHESTRA')),
+    recoveryStepText: '请选择自己的休息室中1张『DOLLCHESTRA』LIVE卡加入手牌。',
+    recoverySelectionLabel: '选择要加入手牌的DOLLCHESTRA LIVE卡',
+    startActionStep: 'START_SELECT_DISCARD_FOR_DOLLCHESTRA_LIVE_RECOVERY',
+    selectActionStep: 'DISCARD_SELECT_DOLLCHESTRA_LIVE',
+    conditionNotMetActionStep: 'DISCARD_COST_HASUNOSORA_STAGE_COST_BELOW_TWENTY_FIVE',
+    noTargetActionStep: 'DISCARD_COST_NO_DOLLCHESTRA_LIVE_TARGET',
+    conditionNotMetReason: 'HASUNOSORA_STAGE_COST_BELOW_TWENTY_FIVE',
+    noTargetReason: 'NO_DOLLCHESTRA_LIVE_TARGET',
+  },
   {
     abilityId: N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
     discardStepId: N_BP5_022_SELECT_DISCARD_STEP_ID,
     recoveryStepId: N_BP5_022_SELECT_RECOVERY_STEP_ID,
-    recoveryCondition: 'ALWAYS',
+    recoveryCondition: () => true,
     startActionStep: 'START_SELECT_DISCARD_FOR_NIJIGASAKI_LIVE_RECOVERY',
     selectActionStep: 'DISCARD_SELECT_NIJIGASAKI_LIVE',
     conditionNotMetActionStep: 'DISCARD_COST_RECOVERY_CONDITION_NOT_MET',
@@ -104,7 +140,7 @@ const ON_ENTER_DISCARD_RECOVER_LIVE_CONFIGS: readonly OnEnterDiscardRecoverLiveC
     abilityId: N_SD2_011_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
     discardStepId: N_SD2_011_SELECT_DISCARD_STEP_ID,
     recoveryStepId: N_SD2_011_SELECT_RECOVERY_STEP_ID,
-    recoveryCondition: 'ALWAYS',
+    recoveryCondition: () => true,
     startActionStep: 'START_SELECT_DISCARD_FOR_NIJIGASAKI_LIVE_RECOVERY',
     selectActionStep: 'DISCARD_SELECT_NIJIGASAKI_LIVE',
     conditionNotMetActionStep: 'DISCARD_COST_RECOVERY_CONDITION_NOT_MET',
@@ -115,7 +151,7 @@ const ON_ENTER_DISCARD_RECOVER_LIVE_CONFIGS: readonly OnEnterDiscardRecoverLiveC
       PL_N_PB1_001_ON_ENTER_OPTIONAL_DISCARD_IF_OTHER_COST_ELEVEN_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
     discardStepId: PL_N_PB1_001_SELECT_DISCARD_STEP_ID,
     recoveryStepId: PL_N_PB1_001_SELECT_RECOVERY_STEP_ID,
-    recoveryCondition: 'OTHER_PRINTED_COST_ELEVEN_MEMBER',
+    recoveryCondition: hasOtherPrintedCostElevenMember,
     startActionStep: 'START_SELECT_DISCARD_IF_OTHER_COST_ELEVEN_RECOVER_NIJIGASAKI_LIVE',
     selectActionStep: 'DISCARD_SELECT_NIJIGASAKI_LIVE_IF_OTHER_COST_ELEVEN',
     conditionNotMetActionStep: 'DISCARD_COST_OTHER_PRINTED_COST_ELEVEN_MEMBER_NOT_FOUND',
@@ -153,13 +189,13 @@ export function registerNDiscardRecoverAndBladeWorkflowHandlers(deps: {
     );
   }
 
-  for (const config of ON_ENTER_DISCARD_RECOVER_LIVE_CONFIGS) {
+  for (const config of TRIGGERED_DISCARD_RECOVER_LIVE_CONFIGS) {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
-      startOnEnterDiscardRecoverLive(
+      startTriggeredDiscardRecoverLive(
         game,
         ability,
         config,
-        options.orderedResolution === true,
+        options,
         context.continuePendingCardEffects
       )
     );
@@ -168,7 +204,7 @@ export function registerNDiscardRecoverAndBladeWorkflowHandlers(deps: {
       config.discardStepId,
       (game, input, context) =>
         input.selectedCardId
-          ? finishOnEnterDiscardCost(
+          ? finishTriggeredDiscardCost(
               game,
               input.selectedCardId,
               config,
@@ -184,7 +220,11 @@ export function registerNDiscardRecoverAndBladeWorkflowHandlers(deps: {
       (game, input, context) => {
         const effect = game.activeEffect;
         const currentCandidateCardIds = effect
-          ? selectWaitingRoomCardIds(game, effect.controllerId, nijigasakiLive)
+          ? selectWaitingRoomCardIds(
+              game,
+              effect.controllerId,
+              config.recoverySelector ?? nijigasakiLive
+            )
           : [];
         return finishWaitingRoomToHandWorkflow(
           game,
@@ -301,18 +341,28 @@ function finishDiscardGainBlade(
   );
 }
 
-function startOnEnterDiscardRecoverLive(
+function startTriggeredDiscardRecoverLive(
   game: GameState,
   ability: PendingAbilityState,
-  config: OnEnterDiscardRecoverLiveConfig,
-  orderedResolution: boolean,
+  config: TriggeredDiscardRecoverLiveConfig,
+  options: PendingAbilityStarterOptions,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
+  const orderedResolution = options.orderedResolution === true;
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
   }
   if (player.hand.cardIds.length === 0) {
+    if (
+      ability.timingId === TriggerCondition.ON_LIVE_START ||
+      ability.timingId === TriggerCondition.ON_LIVE_SUCCESS
+    ) {
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        stepText: '没有可用于支付费用的手牌，不执行后续回收。',
+      });
+      if (confirmation) return confirmation;
+    }
     return finishPendingAbility(
       game,
       ability,
@@ -350,10 +400,10 @@ function startOnEnterDiscardRecoverLive(
   });
 }
 
-function finishOnEnterDiscardCost(
+function finishTriggeredDiscardCost(
   game: GameState,
   selectedCardId: string,
-  config: OnEnterDiscardRecoverLiveConfig,
+  config: TriggeredDiscardRecoverLiveConfig,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
@@ -389,7 +439,7 @@ function finishOnEnterDiscardCost(
     sourceCardId: effect.sourceCardId,
     discardedHandCardIds: discardResult.discardedCardIds,
   });
-  if (!isRecoveryConditionMet(stateAfterCost, player.id, effect.sourceCardId, config)) {
+  if (!config.recoveryCondition(stateAfterCost, player.id, effect.sourceCardId)) {
     return finishActiveEffect(
       {
         ...stateAfterCost,
@@ -398,14 +448,18 @@ function finishOnEnterDiscardCost(
       continuePendingCardEffects,
       {
         step: config.conditionNotMetActionStep,
-        reason: 'OTHER_PRINTED_COST_ELEVEN_MEMBER_NOT_FOUND',
+        reason: config.conditionNotMetReason ?? 'OTHER_PRINTED_COST_ELEVEN_MEMBER_NOT_FOUND',
         discardedCardId: discardResult.discardedCardIds[0] ?? selectedCardId,
         discardedCardIds: discardResult.discardedCardIds,
         selectedCardIds: [],
       }
     );
   }
-  const selectableCardIds = selectWaitingRoomCardIds(stateAfterCost, player.id, nijigasakiLive);
+  const selectableCardIds = selectWaitingRoomCardIds(
+    stateAfterCost,
+    player.id,
+    config.recoverySelector ?? nijigasakiLive
+  );
 
   if (selectableCardIds.length === 0) {
     return finishActiveEffect(
@@ -416,7 +470,7 @@ function finishOnEnterDiscardCost(
       continuePendingCardEffects,
       {
         step: config.noTargetActionStep,
-        reason: 'NO_NIJIGASAKI_LIVE_TARGET',
+        reason: config.noTargetReason ?? 'NO_NIJIGASAKI_LIVE_TARGET',
         discardedCardId: discardResult.discardedCardIds[0] ?? selectedCardId,
         discardedCardIds: discardResult.discardedCardIds,
         selectableCardIds,
@@ -435,8 +489,8 @@ function finishOnEnterDiscardCost(
         controllerId: player.id,
         effectText: effect.effectText,
         stepId: config.recoveryStepId,
-        stepText: '请选择自己的休息室中1张『虹ヶ咲』LIVE卡加入手牌。',
-        selectionLabel: '选择要加入手牌的虹咲LIVE卡',
+        stepText: config.recoveryStepText ?? '请选择自己的休息室中1张『虹ヶ咲』LIVE卡加入手牌。',
+        selectionLabel: config.recoverySelectionLabel ?? '选择要加入手牌的虹咲LIVE卡',
         confirmSelectionLabel: '加入手牌',
         awaitingPlayerId: player.id,
         selectableCardIds,
@@ -466,16 +520,11 @@ function finishOnEnterDiscardCost(
   );
 }
 
-function isRecoveryConditionMet(
+function hasOtherPrintedCostElevenMember(
   game: GameState,
   playerId: string,
-  sourceCardId: string,
-  config: OnEnterDiscardRecoverLiveConfig
+  sourceCardId: string
 ): boolean {
-  if (config.recoveryCondition === 'ALWAYS') {
-    return true;
-  }
-
   const player = getPlayerById(game, playerId);
   return Object.values(player?.memberSlots.slots ?? {}).some((cardId) => {
     if (!cardId || cardId === sourceCardId) {

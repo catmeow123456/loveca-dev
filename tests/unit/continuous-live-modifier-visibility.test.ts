@@ -32,6 +32,7 @@ describe('continuous live modifier visibility governance', () => {
       [
         { cardCode: 'PL!-bp4-002', player: 'SELF' },
         { cardCode: 'PL!-bp6-022', player: 'SELF' },
+        { cardCode: 'PL!-bp8-001', player: 'SELF' },
         { cardCode: 'PL!-pb2-038', player: 'SELF' },
         { cardCode: 'PL!N-bp1-012', player: 'SELF' },
         { cardCode: 'PL!N-pb1-001', player: 'SELF' },

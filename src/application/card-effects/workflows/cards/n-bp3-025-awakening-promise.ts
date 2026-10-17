@@ -6,7 +6,12 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
-import { HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
+import { CardType, HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
+import { typeIs } from '../../../effects/card-selectors.js';
+import {
+  getStageMemberCardIdsMatching,
+  memberHasEnergyBelow,
+} from '../../../effects/stage-targets.js';
 import { returnSelectedEnergyBelowMemberToEnergyDeck } from '../../../effects/energy-below.js';
 import { PL_N_BP3_025_LIVE_START_RETURN_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
@@ -254,16 +259,12 @@ function finishReturnEnergyBelowGainRedHeart(
 }
 
 function getOwnStageMemberIdsWithEnergyBelow(game: GameState, playerId: string): readonly string[] {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return [];
-  }
-  return MEMBER_SLOT_ORDER.flatMap((slot) => {
-    const memberCardId = player.memberSlots.slots[slot];
-    return memberCardId && (player.memberSlots.energyBelow[slot] ?? []).length > 0
-      ? [memberCardId]
-      : [];
-  });
+  return getStageMemberCardIdsMatching(
+    game,
+    playerId,
+    typeIs(CardType.MEMBER),
+    memberHasEnergyBelow
+  );
 }
 
 function findStageSlotForMember(

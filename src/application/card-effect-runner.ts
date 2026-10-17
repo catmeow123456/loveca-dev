@@ -303,7 +303,7 @@ import { registerNBp5003ShizukuWorkflowHandlers } from './card-effects/workflows
 import { registerNBp5021RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp5-021-rina.js';
 import { registerNPb1006KanataWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-006-kanata.js';
 import { registerNPb1011MiaWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-011-mia.js';
-import { registerLiveSuccessDiscardRecoverLowCostOrScoreCheerWorkflowHandlers } from './card-effects/workflows/shared/live-success-discard-recover-low-cost-or-score-cheer.js';
+import { registerLiveSuccessDiscardRecoverCheerWorkflowHandlers } from './card-effects/workflows/shared/live-success-discard-recover-cheer.js';
 import { registerNPr026RinaWorkflowHandlers } from './card-effects/workflows/cards/n-pr-026-rina.js';
 import { registerNozomiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/pl-sd1-007-nozomi.js';
 import { registerPb1015MakiWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-015-maki.js';
@@ -450,6 +450,8 @@ import { registerSBp7025GuiltyNightGuiltyKissWorkflowHandlers } from './card-eff
 import { registerSpBp7028MiraiNoOtoGaKikoeruWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-028-mirai-no-oto-ga-kikoeru.js';
 import { registerSBp7001ChikaWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-001-chika.js';
 import { registerSBp7003KananWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-003-kanan.js';
+import { registerSCl1010MitaikenHorizonWorkflowHandlers } from './card-effects/workflows/cards/s-cl1-010-mitaiken-horizon.js';
+import { registerSCl1012KisekiHikaruWorkflowHandlers } from './card-effects/workflows/cards/s-cl1-012-kiseki-hikaru.js';
 import { registerSBp7004DiaWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-004-dia.js';
 import { registerSBp7005YouWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-005-you.js';
 import { registerSBp7007HanamaruWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-007-hanamaru.js';
@@ -523,7 +525,7 @@ import { registerPlPb2015MakiWorkflowHandlers } from './card-effects/workflows/c
 import { registerPlPb2016NozomiWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-016-nozomi.js';
 import { registerPlPb2017HanayoWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-017-hanayo.js';
 import { registerPlPb2018NicoWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-018-nico.js';
-import { registerPlPb2042PsychicFireWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-042-psychic-fire.js';
+import { registerOnCheerConditionalWaitOpponentOriginalHeartWorkflowHandlers } from './card-effects/workflows/shared/on-cheer-conditional-wait-opponent-original-heart.js';
 import { registerWaitingRoomMembersBelowSourceWorkflowHandlers } from './card-effects/workflows/shared/waiting-room-members-below-source.js';
 import { registerPlPb2006MakiWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-006-maki.js';
 import { registerPlPb2039BokutachiWaHitotsuNoHikariWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-039-bokutachi-wa-hitotsu-no-hikari.js';
@@ -584,7 +586,7 @@ import { registerLiveStartDiscardGainBladeWorkflowHandlers } from './card-effect
 import { registerLiveStartDiscardSameUnitGainHeartBladeWorkflowHandlers } from './card-effects/workflows/shared/live-start-discard-same-unit-gain-heart-blade.js';
 import { registerLiveStartPayEnergyStackWaitingMembersToDeckTopWorkflowHandlers } from './card-effects/workflows/shared/live-start-pay-energy-stack-waiting-members-to-deck-top.js';
 import { registerLiveStartReplaceOriginalHeartColorWorkflowHandlers } from './card-effects/workflows/shared/live-start-replace-original-heart-color.js';
-import { registerLiveStartSuccessCountChooseHeartWorkflowHandlers } from './card-effects/workflows/shared/live-start-success-count-choose-heart.js';
+import { registerLiveStartChooseHeartByCountWorkflowHandlers } from './card-effects/workflows/shared/live-start-choose-heart-by-count.js';
 import { registerMillTopGainLiveModifierWorkflowHandlers } from './card-effects/workflows/shared/mill-top-gain-live-modifier.js';
 import { registerPlBp8017HanayoWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-017-hanayo.js';
 import { registerHsBp8006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-006-hime.js';
@@ -915,6 +917,8 @@ registerLiveStartWaitingLiveToDeckTopWorkflowHandlers();
 registerRelayReplacementGainBladeWorkflowHandlers();
 registerActivatedRevealHandNoLiveLookTopLiveWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerArrangeInspectedDeckEdgeWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSCl1010MitaikenHorizonWorkflowHandlers();
+registerSCl1012KisekiHikaruWorkflowHandlers();
 registerConditionalLiveModifierWorkflowHandlers();
 registerSFutureWaterBatch2LiveStartWorkflowHandlers();
 registerSFutureWaterBatch3WorkflowHandlers();
@@ -960,7 +964,7 @@ registerLiveStartDiscardGainBladeWorkflowHandlers({ enqueueTriggeredCardEffects 
 registerLiveStartDiscardSameUnitGainHeartBladeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLiveStartPayEnergyStackWaitingMembersToDeckTopWorkflowHandlers();
 registerLiveStartReplaceOriginalHeartColorWorkflowHandlers();
-registerLiveStartSuccessCountChooseHeartWorkflowHandlers();
+registerLiveStartChooseHeartByCountWorkflowHandlers();
 registerBp5007NozomiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp6003KotoriWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp6020DancingStarsWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -1227,7 +1231,7 @@ registerPlBp6008And010ActivatedStateWorkflowHandlers({ enqueueTriggeredCardEffec
 registerPlBp6013And023SuccessZoneWorkflowHandlers();
 registerPlBp6021WonderfulRushWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlBp6007NozomiWorkflowHandlers();
-registerLiveSuccessDiscardRecoverLowCostOrScoreCheerWorkflowHandlers({
+registerLiveSuccessDiscardRecoverCheerWorkflowHandlers({
   enqueueTriggeredCardEffects,
 });
 registerNPr026RinaWorkflowHandlers();
@@ -1394,7 +1398,7 @@ registerPlPb2017HanayoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb2018NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb2021KotoriWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNPr036ShizukuWorkflowHandlers();
-registerPlPb2042PsychicFireWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerOnCheerConditionalWaitOpponentOriginalHeartWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb2039BokutachiWaHitotsuNoHikariWorkflowHandlers();
 registerPlBp8005RinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpPb2045ZettaiLoverWorkflowHandlers();

@@ -1,4 +1,8 @@
-import { getCardById, type ActiveEffectState, type GameState } from '../../../domain/entities/game.js';
+import {
+  getCardById,
+  type ActiveEffectState,
+  type GameState,
+} from '../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../domain/entities/card.js';
 import type {
   ActiveEffectStepHandlerContext,
@@ -7,6 +11,10 @@ import type {
 import { EnergySelectionRequiredError } from '../../effects/energy-selection.js';
 import { createActiveEffectEnergySelectionWindow } from './energy-operation-selection.js';
 import { selectRevealedCheerCardIds } from '../../effects/cheer-selection.js';
+import {
+  hasDistinctGroupedCardAssignment,
+  readExclusiveCardSelectionInput,
+} from './grouped-selection.js';
 
 export const PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID =
   'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION';
@@ -121,6 +129,9 @@ export function createPublicCardSelectionConfirmationWindow(
   originalInput: ActiveEffectStepHandlerInput,
   config: PublicCardSelectionConfirmationConfig
 ): GameState | null {
+  if (config.distinctGroupAssignment && readExclusiveCardSelectionInput(originalInput) === null) {
+    return null;
+  }
   const selectedCardIds = getSelectedCardIds(originalInput);
   if (selectedCardIds.length === 0) return null;
   const candidates = originalEffect.selectableCardIds ?? [];
@@ -286,38 +297,7 @@ function matchesSelectionGroups(
     });
   }
 
-  // A physical card can satisfy at most one selection group even when its
-  // structured identity belongs to multiple groups. Search for a valid
-  // assignment instead of counting the same selected card in every matching
-  // group.
-  const groupCounts = groups.map(() => 0);
-  const search = (selectedIndex: number): boolean => {
-    if (selectedIndex >= selectedCardIds.length) {
-      return groups.every(
-        (group, groupIndex) =>
-          groupCounts[groupIndex]! >= group.minCount && groupCounts[groupIndex]! <= group.maxCount
-      );
-    }
-
-    const selectedCardId = selectedCardIds[selectedIndex]!;
-    for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
-      const group = groups[groupIndex]!;
-      if (
-        groupCounts[groupIndex]! >= group.maxCount ||
-        !group.candidateCardIds.includes(selectedCardId)
-      ) {
-        continue;
-      }
-      groupCounts[groupIndex] += 1;
-      if (search(selectedIndex + 1)) {
-        return true;
-      }
-      groupCounts[groupIndex] -= 1;
-    }
-    return false;
-  };
-
-  return search(0);
+  return hasDistinctGroupedCardAssignment(selectedCardIds, groups);
 }
 
 export function resolvePublicCardSelectionConfirmationStep(

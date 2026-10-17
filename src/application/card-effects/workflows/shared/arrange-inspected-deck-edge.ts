@@ -20,6 +20,9 @@ import {
   PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
   N_BP7_030_LIVE_SUCCESS_ARRANGE_TOP_THREE_ABILITY_ID,
   S_BP7_008_ON_ENTER_ARRANGE_TOP_THREE_TO_TOP_AND_BOTTOM_ABILITY_ID,
+  S_BP7_003_ON_ENTER_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID,
+  S_BP7_003_LIVE_START_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID,
+  S_CL1_005_LIVE_START_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID,
   S_BP7_004_LIVE_START_LOOK_BOTTOM_THREE_ARRANGE_BOTTOM_ABILITY_ID,
   S_PR_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
   START_DASH_LIVE_SUCCESS_ABILITY_ID,
@@ -52,6 +55,7 @@ const PL_S_PB1_008_CHOOSE_TARGET_PLAYER_STEP_ID = 'PL_S_PB1_008_CHOOSE_TARGET_PL
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type InspectedDeckEdge = 'TOP' | 'BOTTOM';
 type InspectedCardDestination = 'MAIN_DECK_TOP' | 'MAIN_DECK_BOTTOM' | 'WAITING_ROOM';
+type ArrangeInspectedDeckEdgeInteraction = 'ORDERED_CARDS' | 'TOP_ONE_OPTIONAL_BOTTOM';
 type ArrangeInspectedDeckTopSourceActionLabel = '登场' | 'LIVE开始' | 'LIVE成功';
 
 interface ArrangeInspectedDeckTopPublicSummaryContext {
@@ -65,6 +69,7 @@ interface ArrangeInspectedDeckTopPublicSummaryContext {
 
 interface RegisteredArrangeInspectedDeckEdgeConfig {
   readonly abilityId: string;
+  readonly interaction?: ArrangeInspectedDeckEdgeInteraction;
   readonly inspectCount: number | ((game: GameState, playerId: string) => number);
   readonly inspectDeckEdge?: InspectedDeckEdge;
   readonly sourceActionLabel: ArrangeInspectedDeckTopSourceActionLabel;
@@ -101,7 +106,12 @@ interface RegisteredArrangeInspectedDeckEdgeConfig {
 }
 
 export interface ArrangeInspectedDeckEdgeConfig {
-  readonly ability: Pick<PendingAbilityState, 'id' | 'abilityId' | 'sourceCardId' | 'controllerId'>;
+  readonly ability: Pick<
+    PendingAbilityState,
+    'id' | 'abilityId' | 'sourceCardId' | 'controllerId'
+  > &
+    Partial<Pick<PendingAbilityState, 'sourceSlot' | 'timingId' | 'eventIds'>>;
+  readonly interaction?: ArrangeInspectedDeckEdgeInteraction;
   readonly playerId: string;
   readonly deckOwnerId?: string;
   readonly effectText: string;
@@ -131,6 +141,34 @@ export interface ArrangeInspectedDeckEdgeConfig {
 }
 
 const ARRANGE_INSPECTED_DECK_EDGE_WORKFLOWS: readonly RegisteredArrangeInspectedDeckEdgeConfig[] = [
+  ...[
+    {
+      abilityId: S_BP7_003_ON_ENTER_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID,
+      sourceActionLabel: '登场' as const,
+      stepId: 'S_BP7_003_LOOK_TOP_ONE_OPTIONAL_BOTTOM',
+    },
+    {
+      abilityId: S_BP7_003_LIVE_START_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID,
+      sourceActionLabel: 'LIVE开始' as const,
+      stepId: 'S_BP7_003_LOOK_TOP_ONE_OPTIONAL_BOTTOM',
+    },
+    {
+      abilityId: S_CL1_005_LIVE_START_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID,
+      sourceActionLabel: 'LIVE开始' as const,
+      stepId: 'S_CL1_005_LOOK_TOP_ONE_OPTIONAL_BOTTOM',
+    },
+  ].map((config): RegisteredArrangeInspectedDeckEdgeConfig => ({
+    ...config,
+    interaction: 'TOP_ONE_OPTIONAL_BOTTOM',
+    inspectCount: 1,
+    stepText: '查看卡组顶1张卡。可以将其放置于卡组底。',
+    selectionLabel: '选择卡片的放置位置',
+    confirmSelectionLabel: '放置卡片',
+    selectMin: 0,
+    selectMax: 1,
+    selectedDestination: 'MAIN_DECK_BOTTOM',
+    unselectedDestination: 'MAIN_DECK_TOP',
+  })),
   {
     abilityId: N_BP7_030_LIVE_SUCCESS_ARRANGE_TOP_THREE_ABILITY_ID,
     inspectCount: 3,
@@ -334,6 +372,7 @@ export function registerArrangeInspectedDeckEdgeWorkflowHandlers(deps: {
           playerId: ability.controllerId,
           effectText: getAbilityEffectText(config.abilityId),
           inspectCount: requestedInspectCount,
+          interaction: config.interaction,
           inspectDeckEdge: config.inspectDeckEdge,
           requestedInspectCount,
           sourceActionLabel: config.sourceActionLabel,
@@ -362,13 +401,20 @@ export function registerArrangeInspectedDeckEdgeWorkflowHandlers(deps: {
       config.abilityId,
       config.stepId,
       (game, input, context) =>
-        finishArrangeInspectedDeckEdgeWorkflow(
-          game,
-          input.selectedCardIds ?? [],
-          context.continuePendingCardEffects,
-          deps.enqueueTriggeredCardEffects
-        ),
-      queryCardSelection
+        config.interaction === 'TOP_ONE_OPTIONAL_BOTTOM'
+          ? finishTopOneOptionalBottom(
+              game,
+              input.selectedOptionId ?? null,
+              context.continuePendingCardEffects,
+              deps.enqueueTriggeredCardEffects
+            )
+          : finishArrangeInspectedDeckEdgeWorkflow(
+              game,
+              input.selectedCardIds ?? [],
+              context.continuePendingCardEffects,
+              deps.enqueueTriggeredCardEffects
+            ),
+      config.interaction === 'TOP_ONE_OPTIONAL_BOTTOM' ? queryOptionSelection : queryCardSelection
     );
   }
 }
@@ -479,6 +525,10 @@ export function startArrangeInspectedDeckEdgeWorkflow(
   const deckOwner = getPlayerById(game, config.deckOwnerId ?? player.id);
   if (!deckOwner) {
     return game;
+  }
+
+  if (config.interaction === 'TOP_ONE_OPTIONAL_BOTTOM') {
+    return startTopOneOptionalBottom(game, config, continuePendingCardEffects);
   }
 
   if (deckOwner.mainDeck.cardIds.length === 0 && deckOwner.waitingRoom.cardIds.length === 0) {
@@ -610,6 +660,142 @@ export function startArrangeInspectedDeckEdgeWorkflow(
       : {}),
     ...(condition?.payload ?? {}),
   });
+}
+
+/** Binary adapter keeps the established option input and private inspection checkpoint shape. */
+function startTopOneOptionalBottom(
+  game: GameState,
+  config: ArrangeInspectedDeckEdgeConfig,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const ability = config.ability;
+  const player = getPlayerById(game, config.playerId);
+  if (!player) return game;
+  if (player.mainDeck.cardIds.length === 0 && player.waitingRoom.cardIds.length === 0) {
+    const confirmation = config.starterOptions
+      ? maybeStartConfirmablePendingAbilityConfirmation(game, ability, config.starterOptions, {
+          effectText: `${config.effectText}\n\n当前卡组与休息室都没有卡片，本次没有卡片可以检视。`,
+          stepText: '确认后结束此效果，本次没有卡片可以检视。',
+        })
+      : null;
+    if (confirmation) return confirmation;
+  }
+  const stateWithoutPending = {
+    ...game,
+    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+  };
+  const inspection = inspectTopCards(stateWithoutPending, config.playerId, {
+    count: 1,
+    viewerPlayerId: config.playerId,
+  });
+  const inspectedCardId = inspection?.inspectedCardIds[0] ?? null;
+  if (!inspection || !inspectedCardId) {
+    return continuePendingCardEffects(
+      addAction(stateWithoutPending, 'RESOLVE_ABILITY', config.playerId, {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        sourceSlot: ability.sourceSlot,
+        step: 'NO_TOP_CARD_TO_INSPECT',
+      }),
+      config.orderedResolution
+    );
+  }
+  return addAction(
+    {
+      ...inspection.gameState,
+      activeEffect: {
+        id: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        controllerId: config.playerId,
+        effectText: config.effectText,
+        stepId: config.stepId,
+        stepText: config.stepText,
+        awaitingPlayerId: config.playerId,
+        inspectionCardIds: [inspectedCardId],
+        effectChoice: {
+          mode: 'SINGLE',
+          options: [
+            { id: 'keep-top', text: '将检视的卡保留在卡组顶。' },
+            { id: 'place-bottom', text: '将检视的卡放置于卡组底。' },
+          ],
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
+        confirmSelectionLabel: '放置卡片',
+        canSkipSelection: false,
+        skipSelectionLabel: undefined,
+        metadata: {
+          orderedResolution: config.orderedResolution,
+          sourceSlot: ability.sourceSlot,
+          timingId: ability.timingId,
+          eventIds: ability.eventIds,
+        },
+      },
+    },
+    'RESOLVE_ABILITY',
+    config.playerId,
+    {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      sourceSlot: ability.sourceSlot,
+      step: 'START_INSPECT_TOP_ONE_OPTIONAL_BOTTOM',
+      inspectedCardIds: [inspectedCardId],
+    }
+  );
+}
+
+function finishTopOneOptionalBottom(
+  game: GameState,
+  selectedOptionId: string | null,
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+): GameState {
+  const effect = game.activeEffect;
+  const config = ARRANGE_INSPECTED_DECK_EDGE_WORKFLOWS.find(
+    (candidate) =>
+      candidate.abilityId === effect?.abilityId &&
+      candidate.interaction === 'TOP_ONE_OPTIONAL_BOTTOM'
+  );
+  if (!effect || !config || effect.stepId !== config.stepId) return game;
+  if (selectedOptionId !== 'keep-top' && selectedOptionId !== 'place-bottom') return game;
+  const cardId = effect.inspectionCardIds?.length === 1 ? effect.inspectionCardIds[0] : null;
+  const player = getPlayerById(game, effect.controllerId);
+  const card = cardId ? getCardById(game, cardId) : null;
+  if (
+    !player ||
+    !cardId ||
+    !card ||
+    card.ownerId !== player.id ||
+    game.inspectionContext?.ownerPlayerId !== player.id ||
+    game.inspectionContext.sourceZone !== ZoneType.MAIN_DECK ||
+    game.inspectionZone.cardIds.length !== 1 ||
+    game.inspectionZone.cardIds[0] !== cardId ||
+    player.mainDeck.cardIds.includes(cardId)
+  )
+    return game;
+
+  const placeBottom = selectedOptionId === 'place-bottom';
+  return finishArrangeInspectedDeckEdgePlacement(
+    game,
+    {
+      ...effect,
+      metadata: {
+        ...effect.metadata,
+        // Destinations come from the adapter config, including for an existing binary checkpoint.
+        selectedDestination: config.selectedDestination,
+        unselectedDestination: config.unselectedDestination,
+      },
+    },
+    placeBottom ? [cardId] : [],
+    placeBottom ? [] : [cardId],
+    continuePendingCardEffects,
+    enqueueTriggeredCardEffects,
+    placeBottom ? 'PLACE_BOTTOM' : 'KEEP_TOP'
+  );
 }
 
 function finishArrangeInspectedDeckEdgeTargetPlayerSelection(
@@ -799,7 +985,8 @@ function finishArrangeInspectedDeckEdgePlacement(
   uniqueSelectedCardIds: readonly string[],
   orderedUnselectedCardIds: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects,
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+  binaryPlacement?: 'PLACE_BOTTOM' | 'KEEP_TOP'
 ): GameState {
   const player = getPlayerById(game, effect.controllerId);
   if (!player) {
@@ -881,6 +1068,15 @@ function finishArrangeInspectedDeckEdgePlacement(
       ...(deckTopCardIds.length > 0 ? { deckTopCardIds } : {}),
       ...(deckBottomCardIds.length > 0 ? { deckBottomCardIds } : {}),
       waitingRoomCardIds,
+      ...(binaryPlacement
+        ? {
+            step:
+              binaryPlacement === 'PLACE_BOTTOM'
+                ? 'PLACE_INSPECTED_CARD_AT_DECK_BOTTOM'
+                : 'KEEP_INSPECTED_CARD_AT_DECK_TOP',
+            inspectedCardId: inspectedCardIds[0],
+          }
+        : {}),
       ...(publicEffectSummaryContext
         ? {
             publicEffectSummary: {

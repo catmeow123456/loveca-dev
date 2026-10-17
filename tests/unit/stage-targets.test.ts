@@ -9,6 +9,7 @@ import {
   getStageMemberCardIdsByOrientation,
   getStageMemberCardIdsMatching,
   memberOriginalHeartLte,
+  memberHasEnergyBelow,
 } from '../../src/application/effects/stage-targets';
 import {
   CardType,
@@ -169,4 +170,34 @@ describe('stage target query helpers', () => {
       getStageMemberCardIdsMatching(game, 'p1', lowCostMemberSelector, originalHeartAtMostThree)
     ).toEqual([replacedWithinThreshold.instanceId]);
   });
+});
+
+it('selects each current member with energy below once and excludes empty slots and opponents', () => {
+  const first = createCardInstance(createMemberCard('ENERGY-BELOW'), 'p1', 'with-energy');
+  const second = createCardInstance(createMemberCard('NO-ENERGY'), 'p1', 'without-energy');
+  let game = registerCards(createGameState('stage-energy-query', 'p1', 'P1', 'p2', 'P2'), [
+    first,
+    second,
+  ]);
+  game = updatePlayer(game, 'p1', (p) => ({
+    ...p,
+    memberSlots: {
+      ...placeCardInSlot(
+        placeCardInSlot(p.memberSlots, SlotPosition.LEFT, first.instanceId),
+        SlotPosition.CENTER,
+        second.instanceId
+      ),
+      energyBelow: {
+        [SlotPosition.LEFT]: ['energy-1', 'energy-2'],
+        [SlotPosition.CENTER]: [],
+        [SlotPosition.RIGHT]: ['orphan-energy'],
+      },
+    },
+  }));
+  expect(
+    getStageMemberCardIdsMatching(game, 'p1', typeIs(CardType.MEMBER), memberHasEnergyBelow)
+  ).toEqual([first.instanceId]);
+  expect(memberHasEnergyBelow(game, 'p1', second.instanceId)).toBe(false);
+  expect(memberHasEnergyBelow(game, 'p2', first.instanceId)).toBe(false);
+  expect(memberHasEnergyBelow(game, 'missing', first.instanceId)).toBe(false);
 });

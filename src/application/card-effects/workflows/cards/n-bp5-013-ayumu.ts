@@ -5,7 +5,12 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
-import { HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
+import { CardType, HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
+import { typeIs } from '../../../effects/card-selectors.js';
+import {
+  getStageMemberCardIdsMatching,
+  memberHasEnergyBelow,
+} from '../../../effects/stage-targets.js';
 import { N_BP5_013_LIVE_START_ENERGY_BELOW_MEMBER_GAIN_PINK_HEART_ABILITY_ID } from '../../ability-ids.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import {
@@ -14,25 +19,21 @@ import {
 } from '../../runtime/workflow-helpers.js';
 import type { PendingAbilityStarterOptions } from '../../runtime/starter-registry.js';
 
-const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
-
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 export function registerNBp5013AyumuWorkflowHandlers(): void {
   registerManualConfirmablePendingAbilityStarterHandler(
     N_BP5_013_LIVE_START_ENERGY_BELOW_MEMBER_GAIN_PINK_HEART_ABILITY_ID,
     (game, ability, options, context) =>
-      resolveAyumuEnergyBelowLiveStart(
-        game,
-        ability,
-        options,
-        context.continuePendingCardEffects
-      ),
+      resolveAyumuEnergyBelowLiveStart(game, ability, options, context.continuePendingCardEffects),
     getAyumuConfirmationConfig
   );
 }
 
-function getAyumuConfirmationConfig(game: GameState, ability: PendingAbilityState): {
+function getAyumuConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): {
   readonly effectText: string;
   readonly stepText: string;
 } {
@@ -104,17 +105,16 @@ function evaluateAyumuCondition(
   readonly willGainHeart: boolean;
 } {
   const player = getPlayerById(game, ability.controllerId);
-  const sourceSlot = player
-    ? getSourceMemberSlot(game, player.id, ability.sourceCardId)
-    : null;
-  const energyBelowMemberSlots =
-    player?.memberSlots
-      ? MEMBER_SLOT_ORDER.filter(
-          (slot) =>
-            player.memberSlots.slots[slot] !== null &&
-            (player.memberSlots.energyBelow[slot] ?? []).length > 0
-        )
-      : [];
+  const sourceSlot = player ? getSourceMemberSlot(game, player.id, ability.sourceCardId) : null;
+  const energyBelowMemberSlots = getStageMemberCardIdsMatching(
+    game,
+    ability.controllerId,
+    typeIs(CardType.MEMBER),
+    memberHasEnergyBelow
+  ).flatMap((cardId) => {
+    const slot = getSourceMemberSlot(game, ability.controllerId, cardId);
+    return slot === null ? [] : [slot];
+  });
   const hasEnergyBelowMember = energyBelowMemberSlots.length > 0;
   const sourceOnStage = sourceSlot !== null;
   return {
@@ -126,9 +126,7 @@ function evaluateAyumuCondition(
   };
 }
 
-function getAyumuPreviewText(
-  condition: ReturnType<typeof evaluateAyumuCondition>
-): string {
+function getAyumuPreviewText(condition: ReturnType<typeof evaluateAyumuCondition>): string {
   if (!condition.sourceOnStage) {
     return '此成员已不在舞台，不获得[桃ハート]。';
   }

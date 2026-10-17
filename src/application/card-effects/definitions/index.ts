@@ -1,4 +1,15 @@
 import {
+  PL_BP8_001_CONTINUOUS_SUCCESS_SCORE_SIX_LOW_SCORE_MUSE_LIVE_REQUIREMENT_ABILITY_ID,
+  PL_BP8_008_LIVE_SUCCESS_DISCARD_RECOVER_MUSE_CHEER_ABILITY_ID,
+  HS_BP8_010_LIVE_START_DISCARD_HASUNOSORA_COST_TWENTY_FIVE_RECOVER_DOLLCHESTRA_LIVE_ABILITY_ID,
+  N_BP8_007_LIVE_START_ENERGY_BELOW_NIJIGASAKI_COUNT_CHOOSE_HEART_ABILITY_ID,
+  S_CL1_001_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
+  S_CL1_003_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_CARD_ABILITY_ID,
+  S_CL1_004_AUTO_ON_CHEER_TWO_LIVES_WAIT_OPPONENT_ORIGINAL_HEART_FOUR_ABILITY_ID,
+  S_CL1_005_LIVE_START_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID,
+  S_CL1_010_LIVE_START_BOTTOM_GROUPED_AQOURS_LIVES_GAIN_CENTER_BLADE_ABILITY_ID,
+  S_CL1_011_LIVE_SUCCESS_COMMON_HEART_AQOURS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
+  S_CL1_012_LIVE_START_STACK_SAME_NAME_SUCCESS_AQOURS_LIVES_ABILITY_ID,
   N_BP8_009_ACTIVATED_BOTTOM_HAND_DRAW_TWO_ABILITY_ID,
   N_BP8_009_LIVE_START_MILL_BOTTOM_REPLACE_LIVE_ABILITY_ID,
   N_BP8_030_AUTO_FROM_WAITING_ROOM_REDUCE_REQUIREMENT_ABILITY_ID,
@@ -2799,7 +2810,178 @@ const N_BP8_030_AUTO_EFFECT_TEXT =
 const N_BP8_030_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】将自己的卡组顶的５张卡片放置入休息室。那些卡片中存在费用大于等于9的不持有BLADE HEART的『虹咲』的成员卡的场合，此卡的分数＋１。';
 
+const PL_BP8_001_CONTINUOUS_EFFECT_TEXT =
+  '【常时】只要存在于自己的成功LIVE卡区的卡片的分数合计大于等于６，存在于自己的LIVE卡区的原本的分数小于等于４的『μ’s』的LIVE卡的必要HEART减少[無ハート]。';
+
+const PL_BP8_008_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】可以将１张手牌放置入休息室：从因声援被公开的自己的卡片中，将１张『μ’s』的卡片加入手牌。';
+
+const HS_BP8_010_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将１张手牌放置入休息室：存在于自己的舞台的『莲之空』的成员的费用合计大于等于２５的场合，从自己的休息室将１张『DOLLCHESTRA』的LIVE卡加入手牌。';
+
+const N_BP8_007_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】选择[桃ハート]或[赤ハート]或[黄ハート]中的１种。LIVE结束时为止，存在于自己的舞台的下方存在能量卡的『虹咲』的成员每有１名，获得１个选择的HEART。';
+
+const S_CL1_001_ON_ENTER_EFFECT_TEXT =
+  '【登场】将自己的卡组顶的５张卡片放置入休息室。';
+
+const S_CL1_003_ACTIVATED_EFFECT_TEXT =
+  '【起动】将此成员从舞台放置入休息室：从自己的休息室将１张『Aqours』的卡片加入手牌。';
+
+const S_CL1_004_AUTO_EFFECT_TEXT =
+  '【自动】【中央】【１回合１次】自己进行声援时，因声援被公开的自己的卡片中存在大于等于２张LIVE卡的场合，将存在于对方的舞台的１名原本持有的HEART的数量小于等于４的成员变为待机状态。';
+
+const S_CL1_005_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】检视自己的卡组顶的卡片，可以将其放置于卡组底。';
+
+const S_CL1_010_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】选择存在于自己休息室的至多１张持有[スコア]的『Aqours』的LIVE卡，和至多１张持有[ALLハート]的『Aqours』的LIVE卡，和至多１张持有[ダブル無色ブレード]的『Aqours』的LIVE卡，按任意顺序放置于卡组底。此后，LIVE结束时为止，每有１张因此放置于卡组底的卡片，存在于自己的中央区域的『Aqours』的成员，获得[ブレード]。';
+
+const S_CL1_011_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】自己的舞台上存在大于等于３名『Aqours』的成员，且那些成员持有相同颜色的HEART的场合，从因声援被公开的自己的卡片中，将１张持有该颜色的HEART的『Aqours』的成员卡加入手牌。';
+
+const S_CL1_012_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】对于存在于自己的成功LIVE卡区的『Aqours』的每张LIVE卡，从自己的休息室，分别选择至多１张与该卡持有相同卡名的LIVE卡，将它们按任意顺序放置于自己的卡组顶。';
+
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
+  {
+    abilityId: PL_BP8_001_CONTINUOUS_SUCCESS_SCORE_SIX_LOW_SCORE_MUSE_LIVE_REQUIREMENT_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-001'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: PL_BP8_001_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      'continuous registry 按成功区分数合计动态检查，筛己方 LIVE 区印刷分数至多4的 μ’s LIVE，逐张减少1个必要无色 HEART。',
+  },
+  {
+    abilityId: PL_BP8_008_LIVE_SUCCESS_DISCARD_RECOVER_MUSE_CHEER_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-008'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: PL_BP8_008_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '扩展 live-success-discard-recover-cheer shared family；先可选弃1手，再从本次当前可移动声援卡中强制回收1张 μ’s 卡。已诱发能力不依赖来源仍在舞台。',
+  },
+  {
+    abilityId: HS_BP8_010_LIVE_START_DISCARD_HASUNOSORA_COST_TWENTY_FIVE_RECOVER_DOLLCHESTRA_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp8-010'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP8_010_LIVE_START_EFFECT_TEXT,
+    notes:
+      '扩展 discard-cost-recover-live-or-gain-blade shared family；先可选弃1手，再按当前舞台莲之空成员有效费用合计至少25检查，强制回收1张 DOLLCHESTRA LIVE。无目标或条件失败不阻止支付费用。',
+  },
+  {
+    abilityId: N_BP8_007_LIVE_START_ENERGY_BELOW_NIJIGASAKI_COUNT_CHOOSE_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp8-007'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: N_BP8_007_LIVE_START_EFFECT_TEXT,
+    notes:
+      '扩展 live-start-choose-heart-by-count shared family；强制选择桃、赤、黄之一，按当前己方舞台下方有能量的虹咲成员数给触发来源实例授予 SOURCE_MEMBER HEART。',
+  },
+  {
+    abilityId: S_CL1_001_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
+    baseCardCodes: ['PL!S-cl1-001'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_CL1_001_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '扩展 direct-mill-top shared family；强制 refresh-aware 顶5，保留 grouped MAIN_DECK -> WAITING_ROOM 事件、来源 cause、实际移动展示与统一 continuation。',
+  },
+  {
+    abilityId: S_CL1_003_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_CARD_ABILITY_ID,
+    baseCardCodes: ['PL!S-cl1-003'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: S_CL1_003_ACTIVATED_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: S_CL1_003_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_CARD_ABILITY_ID,
+      title: '将此成员从舞台放置入休息室，回收1张『Aqours』卡片',
+      text: S_CL1_003_ACTIVATED_EFFECT_TEXT,
+    },
+    notes:
+      '扩展 self-sacrifice-waiting-room-to-hand shared family；先将来源从舞台送入休息室作为费用，再从当前休息室强制回收1张 Aqours 卡，来源自身符合时可选；不添加次数限制。',
+  },
+  {
+    abilityId: S_CL1_004_AUTO_ON_CHEER_TWO_LIVES_WAIT_OPPONENT_ORIGINAL_HEART_FOUR_ABILITY_ID,
+    baseCardCodes: ['PL!S-cl1-004'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_CHEER,
+    queued: true,
+    implemented: true,
+    effectText: S_CL1_004_AUTO_EFFECT_TEXT,
+    requiredSourceSlots: [SlotPosition.CENTER],
+    perTurnLimit: 1,
+    skipQueueWhenTurnLimitReached: true,
+    notes:
+      '扩展 on-cheer-conditional-wait-opponent-original-heart shared family；中央来源自己普通声援触发，按当前 LIVE 的声援公开历史至少2张 LIVE 检查，强制待机对方原本 HEART 至多4的合法成员。合法触发后条件失败或无目标仍消费 turn1。',
+  },
+  {
+    abilityId: S_CL1_005_LIVE_START_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID,
+    baseCardCodes: ['PL!S-cl1-005'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_CL1_005_LIVE_START_EFFECT_TEXT,
+    notes:
+      '扩展 arrange-inspected-deck-edge 的 TOP_ONE_OPTIONAL_BOTTOM 窄 binary adapter；私密检视顶1，通过保留顶部或置底的二选一委托同一 arrangement 原子核心，不公开、不进入休息室。',
+  },
+  {
+    abilityId: S_CL1_010_LIVE_START_BOTTOM_GROUPED_AQOURS_LIVES_GAIN_CENTER_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!S-cl1-010'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_CL1_010_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡薄编排复用 distinct-group assignment、休息室选择公开与有序置底 wrapper；三组分别至多1张，按实际移动数量给当前中央 Aqours 成员授予 TARGET_MEMBER BLADE。',
+  },
+  {
+    abilityId: S_CL1_011_LIVE_SUCCESS_COMMON_HEART_AQOURS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
+    baseCardCodes: ['PL!S-cl1-011'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_CL1_011_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '扩展 revealed-cheer-selection 的动态状态 predicate；己方三个 Aqours 顶层成员有效普通 HEART 颜色有共同交集时，强制回收1张普通 HEART 含交集颜色的 Aqours 声援成员。',
+  },
+  {
+    abilityId: S_CL1_012_LIVE_START_STACK_SAME_NAME_SUCCESS_AQOURS_LIVES_ABILITY_ID,
+    baseCardCodes: ['PL!S-cl1-012'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_CL1_012_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡薄编排按成功区每张 Aqours LIVE 实体提供同名0至1配额，复用公开确认、有序回顶 wrapper；目标仅要求 LIVE 且同名。用户明确批准将本卡中文“每种LIVE卡”单项改为“每张LIVE卡”。',
+  },
   {
     abilityId: N_BP8_009_ACTIVATED_BOTTOM_HAND_DRAW_TWO_ABILITY_ID,
     baseCardCodes: ['PL!N-bp8-009'],
@@ -4162,7 +4344,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: N_PR_021_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      'shared workflow `live-success-discard-recover-low-cost-or-score-cheer.ts`；先开可选弃1手窗口，弃手通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 入休息室。弃手后从当前自己的声援公开卡中选择费用<=2成员或分数<=2 LIVE 入手；无候选时费用保留并正常 RESOLVE。',
+      'shared workflow `live-success-discard-recover-cheer.ts`；先开可选弃1手窗口，弃手通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 入休息室。弃手后从当前自己的声援公开卡中选择费用<=2成员或分数<=2 LIVE 入手；无候选时费用保留并正常 RESOLVE。',
   },
   {
     abilityId: SP_PR_016_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
@@ -4174,7 +4356,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: N_PR_021_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      'shared workflow `live-success-discard-recover-low-cost-or-score-cheer.ts`；与 PL!N-PR-021 同形。先开可选弃1手窗口，弃手入休息室后从本次自己的声援公开卡中选择费用<=2成员或分数<=2 LIVE 入手。',
+      'shared workflow `live-success-discard-recover-cheer.ts`；与 PL!N-PR-021 同形。先开可选弃1手窗口，弃手入休息室后从本次自己的声援公开卡中选择费用<=2成员或分数<=2 LIVE 入手。',
   },
   {
     abilityId: SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABILITY_ID,
@@ -13997,7 +14179,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: '【登场】检视自己的卡组顶的卡片。可以将其放置于卡组底。',
     notes:
-      '按基础编号覆盖同卡全部罕度；与 LIVE_START 共享窄的私密顶牌检视 resolver，但保持独立 runtime ability identity。',
+      '按基础编号覆盖同卡全部罕度；与 LIVE_START 共用 arrange-inspected-deck-edge 的 TOP_ONE_OPTIONAL_BOTTOM adapter；保留旧 stepId、二选一输入与独立 runtime ability identity。',
   },
   {
     abilityId: S_BP7_003_LIVE_START_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID,
@@ -14009,7 +14191,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: '【LIVE开始时】检视自己的卡组顶的卡片。可以将其放置于卡组底。',
     notes:
-      '按基础编号覆盖同卡全部罕度；与 ON_ENTER 共享窄的私密顶牌检视 resolver，不公开、不进休息室。',
+      '按基础编号覆盖同卡全部罕度；与 ON_ENTER 共用 arrange-inspected-deck-edge 的 TOP_ONE_OPTIONAL_BOTTOM adapter；不公开、不进休息室，空库无交互路径复用统一确认桥接。',
   },
   {
     abilityId: S_BP7_003_ON_ENTER_CHOOSE_WAIT_PROTECTION_OR_POSITION_CHANGE_ABILITY_ID,
@@ -15336,7 +15518,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText:
       '【自动】【1回合1次】自己进行声援时，因声援被公开的自己的卡片中存在「绚濑绘里」和「西木野真姬」和「矢泽日香（矢泽妮可）」的成员卡，且自己的中央区域存在费用大于等于11的『BiBi』的成员的场合，将存在于对方的舞台的1名原本持有的HEART的数量小于等于4的成员变为待机状态。',
     notes:
-      '单卡 pl-pb2-042-psychic-fire.ts；绑定自己普通声援诱发，结算用当前 LIVE 普通及追加声援公开历史核对绘里、真姬、妮可的 MEMBER 姓名身份，并检查中央 BiBi 当前有效费用至少11。满足时强制待机对方原本 HEART 至多4的合法成员；有效结算即记原来源实例 turn1，条件失败或无目标也消费，状态事件入队后统一 continuation。中文仅修正重复字“存在存在”。',
+      'shared on-cheer-conditional-wait-opponent-original-heart.ts；绑定自己普通声援诱发，结算用当前 LIVE 普通及追加声援公开历史核对绘里、真姬、妮可的 MEMBER 姓名身份，并检查中央 BiBi 当前有效费用至少11。满足时强制待机对方原本 HEART 至多4的合法成员；有效结算即记原来源实例 turn1，条件失败或无目标也消费，状态事件入队后统一 continuation。中文仅修正重复字“存在存在”。',
   },
   {
     abilityId: PL_PB2_039_LIVE_START_SUCCESS_MUSE_TWO_CHEER_TEN_ABILITY_ID,

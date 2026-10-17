@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
-import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
+import {
+  createCardInstance,
+  createHeartIcon,
+  createHeartRequirement,
+} from '../../src/domain/entities/card';
 import {
   createGameState,
   registerCards,
@@ -105,8 +109,7 @@ function setupLanzhuScenario(options: {
     resolutionZone: {
       ...game.resolutionZone,
       cardIds: options.cheerCards.map((card) => card.instanceId),
-      revealedCardIds:
-        options.revealedCardIds ?? options.cheerCards.map((card) => card.instanceId),
+      revealedCardIds: options.revealedCardIds ?? options.cheerCards.map((card) => card.instanceId),
     },
     liveResolution: {
       ...game.liveResolution,
@@ -274,7 +277,7 @@ describe('PL!N-PR-021 Lanzhu LIVE success discard recover revealed cheer', () =>
     expect(session.state?.resolutionZone.cardIds).toContain(lowCostMember.instanceId);
   });
 
-  it('consumes pending without a discard choice when hand is empty', () => {
+  it('confirms the queued ability without a discard choice when hand is empty', () => {
     const lowCostMember = createCardInstance(
       createMember('PL!N-test-low-cost-member', 2),
       PLAYER1,
@@ -285,6 +288,12 @@ describe('PL!N-PR-021 Lanzhu LIVE success discard recover revealed cheer', () =>
       handCount: 0,
     });
 
+    expect(session.state?.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.pendingAbilities).toEqual([]);
     expect(session.state?.players[0].hand.cardIds).not.toContain(lowCostMember.instanceId);

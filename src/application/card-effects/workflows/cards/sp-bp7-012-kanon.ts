@@ -15,6 +15,10 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  hasDistinctGroupedCardAssignment,
+  readExclusiveCardSelectionInput,
+} from '../../runtime/grouped-selection.js';
 
 const SELECT_WAITING_CARDS_STEP_ID = 'SP_BP7_012_SELECT_WAITING_UNIT_CARDS';
 const REQUIRED_CARD_COUNT = 3;
@@ -46,12 +50,12 @@ export function registerSpBp7012KanonWorkflowHandlers(): void {
   registerActiveEffectStepHandler(
     SP_BP7_012_ON_ENTER_BOTTOM_CATCHU_KALEIDOSCORE_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
     SELECT_WAITING_CARDS_STEP_ID,
-    (game, input, context) =>
-      finishSelectWaitingCards(
-        game,
-        input.selectedCardIds ?? [],
-        context.continuePendingCardEffects
-      )
+    (game, input, context) => {
+      const selected = readExclusiveCardSelectionInput(input);
+      return selected === null
+        ? game
+        : finishSelectWaitingCards(game, selected, context.continuePendingCardEffects);
+    }
   );
 }
 
@@ -259,7 +263,15 @@ function getUnitSelectionState(game: GameState, playerId: string): UnitSelection
   return {
     candidateCardIds,
     candidateCardIdsByUnit,
-    hasCompleteAssignment: hasDistinctAssignment(candidateCardIdsByUnit),
+    hasCompleteAssignment: hasDistinctGroupedCardAssignment(
+      candidateCardIds,
+      candidateCardIdsByUnit.map((candidateCardIds) => ({
+        candidateCardIds,
+        minCount: 1,
+        maxCount: 1,
+      })),
+      { allowUnusedCards: true }
+    ),
   };
 }
 
@@ -283,22 +295,14 @@ function selectionHasDistinctUnitAssignment(
       return card !== null && card.ownerId === player.id && selector(card);
     })
   );
-  return hasDistinctAssignment(candidateCardIdsByUnit);
-}
-
-function hasDistinctAssignment(candidateCardIdsByUnit: readonly (readonly string[])[]): boolean {
-  const usedCardIds = new Set<string>();
-  const search = (unitIndex: number): boolean => {
-    if (unitIndex >= candidateCardIdsByUnit.length) return true;
-    for (const cardId of candidateCardIdsByUnit[unitIndex] ?? []) {
-      if (usedCardIds.has(cardId)) continue;
-      usedCardIds.add(cardId);
-      if (search(unitIndex + 1)) return true;
-      usedCardIds.delete(cardId);
-    }
-    return false;
-  };
-  return search(0);
+  return hasDistinctGroupedCardAssignment(
+    selectedCardIds,
+    candidateCardIdsByUnit.map((candidateCardIds) => ({
+      candidateCardIds,
+      minCount: 1,
+      maxCount: 1,
+    }))
+  );
 }
 
 function isExpectedStep(effect: ActiveEffectState | null): effect is ActiveEffectState {

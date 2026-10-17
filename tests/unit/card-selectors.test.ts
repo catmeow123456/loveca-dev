@@ -14,6 +14,7 @@ import {
   hasAllBladeHeart,
   hasBladeHeart,
   hasDrawBladeHeart,
+  hasDoubleGrayBladeHeart,
   hasNoAbilityOrContinuousAbility,
   hasScoreBladeHeart,
   liveRequiresHeartColor,
@@ -61,6 +62,15 @@ function liveCard(cardCode: string, overrides: Partial<LiveCardData> = {}): Card
 }
 
 describe('card selectors', () => {
+  it('requires two printed gray HEART blade-hearts for the double-gray selector', () => {
+    const gray = { effect: BladeHeartEffect.HEART, heartColor: HeartColor.GRAY };
+    const rainbow = { effect: BladeHeartEffect.HEART, heartColor: HeartColor.RAINBOW };
+    expect(hasDoubleGrayBladeHeart()(liveCard('DOUBLE', { bladeHearts: [gray, gray] }))).toBe(true);
+    expect(hasDoubleGrayBladeHeart()(liveCard('ONE', { bladeHearts: [gray, rainbow] }))).toBe(
+      false
+    );
+    expect(hasDoubleGrayBladeHeart()(liveCard('NONE'))).toBe(false);
+  });
   it('matches card type and numeric member cost', () => {
     const lowCostMember = memberCard('PL!-sd1-low', { cost: 4 });
     const highCostMember = memberCard('PL!-sd1-high', { cost: 5 });

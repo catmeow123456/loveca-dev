@@ -20,6 +20,7 @@ import {
   unitAliasIs,
 } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
+import { getOwnAqoursStageMemberCommonHeartColors } from '../../../effects/stage-member-common-hearts.js';
 import { revealCheerCardsFromMainDeck } from '../../../effects/cheer.js';
 import {
   moveRevealedCheerCards,
@@ -44,6 +45,7 @@ import {
   S_SD1_019_LIVE_SUCCESS_AQOURS_LIVE_REVEALED_CHEER_TO_HAND_ABILITY_ID,
   SP_BP7_023_LIVE_SUCCESS_LIELLA_REVEALED_CHEER_TO_DECK_TOP_ABILITY_ID,
   SP_BP2_025_LIVE_SUCCESS_TWO_DISTINCT_NAMED_STAGE_MEMBERS_REVEALED_CHEER_TO_HAND_ABILITY_ID,
+  S_CL1_011_LIVE_SUCCESS_COMMON_HEART_AQOURS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   CardAbilityCategory,
@@ -106,6 +108,7 @@ interface RevealedCheerSelectionWorkflowConfig {
   readonly stepText: string;
   readonly selectionLabel: string;
   readonly predicate?: CheerCardPredicate;
+  readonly predicateForState?: (game: GameState, playerId: string) => CheerCardPredicate;
   readonly destination: RevealedCheerCardDestination;
   readonly optional: boolean;
   readonly confirmWhenNoTargets?: boolean;
@@ -149,6 +152,35 @@ export interface SyncHsBp6027ManualCheerAdjustmentDependencies {
 }
 
 const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflowConfig[] = [
+  {
+    abilityId: S_CL1_011_LIVE_SUCCESS_COMMON_HEART_AQOURS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
+    stepId: 'S_CL1_011_SELECT_COMMON_HEART_AQOURS_CHEER_MEMBER_TO_HAND',
+    stepText: '请选择1张持有共同颜色HEART的『Aqours』声援公开成员卡加入手牌。',
+    selectionLabel: '选择要加入手牌的同色『Aqours』成员卡',
+    predicateForState: (game, playerId) => {
+      const commonColors = new Set(getOwnAqoursStageMemberCommonHeartColors(game, playerId));
+      return (card) =>
+        isMemberCardData(card.data) &&
+        groupAliasIs('Aqours')(card) &&
+        card.data.hearts.some((heart) => heart.count > 0 && commonColors.has(heart.color));
+    },
+    destination: 'HAND',
+    optional: false,
+    confirmWhenNoTargets: true,
+    noTargetsDescription: '没有持有共同颜色HEART的『Aqours』声援公开成员卡，本次不加入手牌。',
+    confirmWhenConditionFails: true,
+    recheckConditionOnSelection: true,
+    startCondition: (game, playerId) => {
+      const colors = getOwnAqoursStageMemberCommonHeartColors(game, playerId);
+      return {
+        conditionMet: colors.length > 0,
+        description:
+          colors.length > 0
+            ? '当前舞台的3名『Aqours』成员持有共同颜色的HEART。'
+            : '当前舞台没有3名持有共同颜色HEART的『Aqours』成员，本次不加入手牌。',
+      };
+    },
+  },
   {
     abilityId: PL_PB2_037_LIVE_SUCCESS_SAME_UNIT_CHEER_MEMBER_TO_HAND_ABILITY_ID,
     stepId: 'PL_PB2_037_SELECT_CHEER_MEMBER_TO_HAND',
@@ -512,7 +544,8 @@ function startRevealedCheerSelectionWorkflow(
     );
   }
 
-  const selectableCardIds = selectRevealedCheerCardIds(game, player.id, config.predicate);
+  const predicate = config.predicateForState?.(game, player.id) ?? config.predicate;
+  const selectableCardIds = selectRevealedCheerCardIds(game, player.id, predicate);
   if (selectableCardIds.length === 0) {
     if (config.confirmWhenNoTargets === true) {
       const manualConfirmation = maybeStartConfirmablePendingAbilityConfirmation(
@@ -667,7 +700,11 @@ function finishRevealedCheerSelectionWorkflow(
     config.recheckConditionOnSelection !== true ||
     config.startCondition?.(game, player.id).conditionMet !== false;
   const currentSelectableCardIds = conditionStillMet
-    ? selectRevealedCheerCardIds(game, player.id, config.predicate)
+    ? selectRevealedCheerCardIds(
+        game,
+        player.id,
+        config.predicateForState?.(game, player.id) ?? config.predicate
+      )
     : [];
   if (!uniqueSelectedCardIds.every((cardId) => currentSelectableCardIds.includes(cardId))) {
     return refreshOrFinishStaleRevealedCheerSelection(

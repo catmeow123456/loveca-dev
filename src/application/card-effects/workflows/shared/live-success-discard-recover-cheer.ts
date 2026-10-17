@@ -9,6 +9,8 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
+import { groupAliasIs, type CardSelector } from '../../../effects/card-selectors.js';
+import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import {
   moveRevealedCheerCards,
   selectRevealedCheerCardIds,
@@ -16,6 +18,7 @@ import {
 import {
   N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
   SP_PR_016_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
+  PL_BP8_008_LIVE_SUCCESS_DISCARD_RECOVER_MUSE_CHEER_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
@@ -31,10 +34,11 @@ import {
   registerPendingAbilityStarterHandler,
   type PendingAbilityStarterOptions,
 } from '../../runtime/starter-registry.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
-  maybeStartManualPendingAbilityConfirmation,
+  maybeStartConfirmablePendingAbilityConfirmation,
 } from '../../runtime/workflow-helpers.js';
 
 const SELECT_DISCARD_STEP_ID =
@@ -42,63 +46,89 @@ const SELECT_DISCARD_STEP_ID =
 const SELECT_REVEALED_CHEER_STEP_ID =
   'LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_CHEER_SELECT_REVEALED_CHEER';
 
-const ABILITY_IDS = [
-  N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
-  SP_PR_016_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
-] as const;
+interface DiscardRecoverCheerConfig {
+  readonly abilityId: string;
+  readonly recoveryPredicate: CardSelector;
+  readonly recoveryStepText: string;
+}
+const DISCARD_RECOVER_CHEER_CONFIGS: readonly DiscardRecoverCheerConfig[] = [
+  ...[
+    N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
+    SP_PR_016_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
+  ].map((abilityId) => ({
+    abilityId,
+    recoveryPredicate: isLowCostMemberOrLowScoreLive,
+    recoveryStepText: '请选择1张因声援公开的自己的费用2以下成员卡或分数2以下LIVE卡加入手牌。',
+  })),
+  {
+    abilityId: PL_BP8_008_LIVE_SUCCESS_DISCARD_RECOVER_MUSE_CHEER_ABILITY_ID,
+    recoveryPredicate: groupAliasIs("μ's"),
+    recoveryStepText: '请选择1张因声援被公开的自己的『μ’s』卡片加入手牌。',
+  },
+];
 
-type LowCostOrScoreCheerAbilityId = (typeof ABILITY_IDS)[number];
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerLiveSuccessDiscardRecoverLowCostOrScoreCheerWorkflowHandlers(deps: {
+export function registerLiveSuccessDiscardRecoverCheerWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
-  for (const abilityId of ABILITY_IDS) {
-    registerPendingAbilityStarterHandler(abilityId, (game, ability, options, context) =>
-      startLiveSuccessDiscardRecoverLowCostOrScoreCheer(
+  for (const config of DISCARD_RECOVER_CHEER_CONFIGS) {
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
+      startLiveSuccessDiscardRecoverCheer(
         game,
         ability,
+        config,
         options,
         context.continuePendingCardEffects
       )
     );
-    registerActiveEffectStepHandler(abilityId, SELECT_DISCARD_STEP_ID, (game, input, context) =>
-      input.selectedCardId
-        ? finishDiscardCost(
-            game,
-            input.selectedCardId,
-            context.continuePendingCardEffects,
-            deps.enqueueTriggeredCardEffects
-          )
-        : finishSkippedActiveEffect(game, context.continuePendingCardEffects, {
-            step: 'DECLINE_DISCARD_HAND_CARD',
-          })
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      SELECT_DISCARD_STEP_ID,
+      (game, input, context) =>
+        input.selectedCardId
+          ? finishDiscardCost(
+              game,
+              input.selectedCardId,
+              config,
+              context.continuePendingCardEffects,
+              deps.enqueueTriggeredCardEffects
+            )
+          : finishSkippedActiveEffect(game, context.continuePendingCardEffects, {
+              step: 'DECLINE_DISCARD_HAND_CARD',
+            }),
+      queryCardSelection
     );
     registerActiveEffectStepHandler(
-      abilityId,
+      config.abilityId,
       SELECT_REVEALED_CHEER_STEP_ID,
       (game, input, context) =>
         finishRecoverRevealedCheer(
           game,
           input.selectedCardId ?? null,
+          config,
           context.continuePendingCardEffects
-        )
+        ),
+      queryCardSelection
     );
   }
 }
 
-function startLiveSuccessDiscardRecoverLowCostOrScoreCheer(
+function startLiveSuccessDiscardRecoverCheer(
   game: GameState,
   ability: PendingAbilityState,
+  config: DiscardRecoverCheerConfig,
   options: PendingAbilityStarterOptions,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
-  const sourceSlot = player
-    ? getSourceMemberSlot(game, player.id, ability.sourceCardId)
-    : null;
-  if (!player || sourceSlot === null) {
-    const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+  const sourceSlot = player ? getSourceMemberSlot(game, player.id, ability.sourceCardId) : null;
+  if (!player) {
+    const manualConfirmation = maybeStartConfirmablePendingAbilityConfirmation(
+      game,
+      ability,
+      options
+    );
     if (manualConfirmation) {
       return manualConfirmation;
     }
@@ -108,11 +138,18 @@ function startLiveSuccessDiscardRecoverLowCostOrScoreCheer(
       ability.controllerId,
       options.orderedResolution === true,
       continuePendingCardEffects,
-      'SOURCE_NOT_ON_STAGE'
+      'PLAYER_NOT_FOUND'
     );
   }
   if (player.hand.cardIds.length === 0) {
-    const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+    const manualConfirmation = maybeStartConfirmablePendingAbilityConfirmation(
+      game,
+      ability,
+      options,
+      {
+        stepText: '没有可用于支付费用的手牌，不执行后续回收。',
+      }
+    );
     if (manualConfirmation) {
       return manualConfirmation;
     }
@@ -132,7 +169,7 @@ function startLiveSuccessDiscardRecoverLowCostOrScoreCheer(
     activeEffect: createOptionalDiscardHandToWaitingRoomActiveEffect({
       ability,
       playerId: player.id,
-      effectText: getAbilityEffectText(ability.abilityId),
+      effectText: getAbilityEffectText(config.abilityId),
       stepId: SELECT_DISCARD_STEP_ID,
       selectableCardIds: player.hand.cardIds,
       orderedResolution: options.orderedResolution === true,
@@ -152,13 +189,14 @@ function startLiveSuccessDiscardRecoverLowCostOrScoreCheer(
 function finishDiscardCost(
   game: GameState,
   discardCardId: string,
+  config: DiscardRecoverCheerConfig,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (
     !effect ||
-    !isLowCostOrScoreCheerAbilityId(effect.abilityId) ||
+    effect.abilityId !== config.abilityId ||
     effect.stepId !== SELECT_DISCARD_STEP_ID ||
     effect.selectableCardIds?.includes(discardCardId) !== true
   ) {
@@ -167,7 +205,7 @@ function finishDiscardCost(
 
   const player = getPlayerById(game, effect.controllerId);
   const sourceSlot = player ? getSourceMemberSlot(game, player.id, effect.sourceCardId) : null;
-  if (!player || sourceSlot === null || !player.hand.cardIds.includes(discardCardId)) {
+  if (!player || !player.hand.cardIds.includes(discardCardId)) {
     return game;
   }
 
@@ -185,27 +223,23 @@ function finishDiscardCost(
   }
 
   const discardedCardId = discardResult.discardedCardIds[0] ?? discardCardId;
-  const selectableCardIds = selectLowCostOrScoreRevealedCheerCardIds(
+  const selectableCardIds = selectRevealedCheerCardIds(
     discardResult.gameState,
-    player.id
+    player.id,
+    config.recoveryPredicate
   );
   if (selectableCardIds.length === 0) {
     return continuePendingCardEffects(
-      addAction(
-        { ...discardResult.gameState, activeEffect: null },
-        'RESOLVE_ABILITY',
-        player.id,
-        {
-          pendingAbilityId: effect.id,
-          abilityId: effect.abilityId,
-          sourceCardId: effect.sourceCardId,
-          step: 'DISCARD_HAND_CARD_NO_REVEALED_CHEER_TARGET',
-          sourceSlot,
-          discardedCardId,
-          selectedCardId: null,
-          movedCardIds: [],
-        }
-      ),
+      addAction({ ...discardResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: 'DISCARD_HAND_CARD_NO_REVEALED_CHEER_TARGET',
+        sourceSlot,
+        discardedCardId,
+        selectedCardId: null,
+        movedCardIds: [],
+      }),
       effect.metadata?.orderedResolution === true
     );
   }
@@ -216,8 +250,7 @@ function finishDiscardCost(
       activeEffect: {
         ...effect,
         stepId: SELECT_REVEALED_CHEER_STEP_ID,
-        stepText:
-          '请选择1张因声援公开的自己的费用2以下成员卡或分数2以下LIVE卡加入手牌。',
+        stepText: config.recoveryStepText,
         selectableCardIds,
         selectableCardVisibility: 'PUBLIC',
         selectableCardMode: 'SINGLE',
@@ -252,12 +285,13 @@ function finishDiscardCost(
 function finishRecoverRevealedCheer(
   game: GameState,
   selectedCardId: string | null,
+  config: DiscardRecoverCheerConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
   if (
     !effect ||
-    !isLowCostOrScoreCheerAbilityId(effect.abilityId) ||
+    effect.abilityId !== config.abilityId ||
     effect.stepId !== SELECT_REVEALED_CHEER_STEP_ID ||
     selectedCardId === null ||
     effect.selectableCardIds?.includes(selectedCardId) !== true
@@ -268,6 +302,22 @@ function finishRecoverRevealedCheer(
   const player = getPlayerById(game, effect.controllerId);
   if (!player) {
     return game;
+  }
+  if (
+    !selectRevealedCheerCardIds(game, player.id, config.recoveryPredicate).includes(selectedCardId)
+  ) {
+    if (!wasRestoredAfterPublicCardSelectionConfirmation(effect)) return game;
+    return continuePendingCardEffects(
+      addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: 'SELECTED_CHEER_CARD_NO_LONGER_ELIGIBLE',
+        selectedCardId,
+        movedCardIds: [],
+      }),
+      effect.metadata?.orderedResolution === true
+    );
   }
   const moveResult = moveRevealedCheerCards(game, player.id, [selectedCardId], 'HAND');
   if (!moveResult) {
@@ -289,13 +339,6 @@ function finishRecoverRevealedCheer(
   );
 }
 
-function selectLowCostOrScoreRevealedCheerCardIds(
-  game: GameState,
-  playerId: string
-): readonly string[] {
-  return selectRevealedCheerCardIds(game, playerId, isLowCostMemberOrLowScoreLive);
-}
-
 function isLowCostMemberOrLowScoreLive(card: CardInstance): boolean {
   if (isMemberCardData(card.data)) {
     return card.data.cost <= 2;
@@ -304,10 +347,6 @@ function isLowCostMemberOrLowScoreLive(card: CardInstance): boolean {
     return card.data.score <= 2;
   }
   return false;
-}
-
-function isLowCostOrScoreCheerAbilityId(value: string): value is LowCostOrScoreCheerAbilityId {
-  return ABILITY_IDS.some((abilityId) => abilityId === value);
 }
 
 function skipPendingAbility(

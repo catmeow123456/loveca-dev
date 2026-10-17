@@ -6,13 +6,23 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { countSuccessZoneCardsForCardEffect } from '../../../../domain/rules/success-zone-card-queries.js';
+import { groupAliasIs } from '../../../effects/card-selectors.js';
+import {
+  getStageMemberCardIdsMatching,
+  memberHasEnergyBelow,
+} from '../../../effects/stage-targets.js';
+import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import {
   BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
   BP5_011_LIVE_START_SUCCESS_COUNT_CHOOSE_GREEN_BLUE_PURPLE_HEART_ABILITY_ID,
+  N_BP8_007_LIVE_START_ENERGY_BELOW_NIJIGASAKI_COUNT_CHOOSE_HEART_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { getSourceMemberSlot } from '../../runtime/source-member.js';
+import {
+  getSourceMemberSlot,
+  isCurrentStageMemberAbilitySource,
+} from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { queryOptionSelection } from '../../runtime/selection-query.js';
@@ -32,29 +42,54 @@ const HEART_COLOR_OPTION_TEXTS: Readonly<Record<HeartColor, string>> = {
   [HeartColor.RAINBOW]: '获得与自己的成功LIVE卡区中的卡牌数量相同数量的[虹ハート]。',
 };
 
-interface LiveStartSuccessCountChooseHeartConfig {
+interface LiveStartChooseHeartByCountConfig {
   readonly abilityId: string;
   readonly heartColorOptions: readonly HeartColor[];
+  readonly countHearts: (game: GameState, controllerId: string, sourceCardId: string) => number;
+  readonly countDescription: string;
+  readonly countPayloadKey: 'successLiveCount' | 'energyBelowMemberCount';
+  readonly noHeartActionStep: string;
+  readonly gainHeartActionStep: string;
 }
 
-const LIVE_START_SUCCESS_COUNT_CHOOSE_HEART_CONFIGS: readonly LiveStartSuccessCountChooseHeartConfig[] =
-  [
-    {
-      abilityId: BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
-      heartColorOptions: [HeartColor.PINK, HeartColor.YELLOW, HeartColor.PURPLE],
-    },
-    {
-      abilityId: BP5_011_LIVE_START_SUCCESS_COUNT_CHOOSE_GREEN_BLUE_PURPLE_HEART_ABILITY_ID,
-      heartColorOptions: [HeartColor.GREEN, HeartColor.BLUE, HeartColor.PURPLE],
-    },
-  ];
+const LIVE_START_CHOOSE_HEART_BY_COUNT_CONFIGS: readonly LiveStartChooseHeartByCountConfig[] = [
+  {
+    abilityId: BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
+    heartColorOptions: [HeartColor.PINK, HeartColor.YELLOW, HeartColor.PURPLE],
+    countHearts: countSuccessZoneCardsForCardEffect,
+    countDescription: '自己的成功LIVE卡区中的卡牌数量',
+    countPayloadKey: 'successLiveCount',
+    noHeartActionStep: 'CHOOSE_HEART_NO_SUCCESS_LIVE',
+    gainHeartActionStep: 'GAIN_SELECTED_HEART_BY_SUCCESS_LIVE_COUNT',
+  },
+  {
+    abilityId: BP5_011_LIVE_START_SUCCESS_COUNT_CHOOSE_GREEN_BLUE_PURPLE_HEART_ABILITY_ID,
+    heartColorOptions: [HeartColor.GREEN, HeartColor.BLUE, HeartColor.PURPLE],
+    countHearts: countSuccessZoneCardsForCardEffect,
+    countDescription: '自己的成功LIVE卡区中的卡牌数量',
+    countPayloadKey: 'successLiveCount',
+    noHeartActionStep: 'CHOOSE_HEART_NO_SUCCESS_LIVE',
+    gainHeartActionStep: 'GAIN_SELECTED_HEART_BY_SUCCESS_LIVE_COUNT',
+  },
+  {
+    abilityId: N_BP8_007_LIVE_START_ENERGY_BELOW_NIJIGASAKI_COUNT_CHOOSE_HEART_ABILITY_ID,
+    heartColorOptions: [HeartColor.PINK, HeartColor.RED, HeartColor.YELLOW],
+    countHearts: (game, playerId) =>
+      getStageMemberCardIdsMatching(game, playerId, groupAliasIs('虹ヶ咲'), memberHasEnergyBelow)
+        .length,
+    countDescription: '自己舞台上下方存在能量卡的『虹咲』成员人数',
+    countPayloadKey: 'energyBelowMemberCount',
+    noHeartActionStep: 'CHOOSE_HEART_NO_ENERGY_BELOW_NIJIGASAKI_MEMBER',
+    gainHeartActionStep: 'GAIN_SELECTED_HEART_BY_ENERGY_BELOW_NIJIGASAKI_COUNT',
+  },
+];
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerLiveStartSuccessCountChooseHeartWorkflowHandlers(): void {
-  for (const config of LIVE_START_SUCCESS_COUNT_CHOOSE_HEART_CONFIGS) {
+export function registerLiveStartChooseHeartByCountWorkflowHandlers(): void {
+  for (const config of LIVE_START_CHOOSE_HEART_BY_COUNT_CONFIGS) {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
-      startLiveStartSuccessCountChooseHeart(
+      startLiveStartChooseHeartByCount(
         game,
         ability,
         options.orderedResolution === true,
@@ -66,9 +101,10 @@ export function registerLiveStartSuccessCountChooseHeartWorkflowHandlers(): void
       config.abilityId,
       LIVE_START_SUCCESS_COUNT_CHOOSE_HEART_STEP_ID,
       (game, input, context) =>
-        finishLiveStartSuccessCountChooseHeart(
+        finishLiveStartChooseHeartByCount(
           game,
           input.selectedOptionId ?? null,
+          config,
           context.continuePendingCardEffects
         ),
       queryOptionSelection
@@ -76,16 +112,17 @@ export function registerLiveStartSuccessCountChooseHeartWorkflowHandlers(): void
   }
 }
 
-function startLiveStartSuccessCountChooseHeart(
+function startLiveStartChooseHeartByCount(
   game: GameState,
   ability: PendingAbilityState,
   orderedResolution: boolean,
-  config: LiveStartSuccessCountChooseHeartConfig,
+  config: LiveStartChooseHeartByCountConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   const sourceSlot = player ? getSourceMemberSlot(game, player.id, ability.sourceCardId) : null;
-  if (!player || sourceSlot === null) {
+  const sourceLifecycleId = getPendingAbilitySourceLifecycleId(game, ability);
+  if (!player || !isCurrentStageMemberAbilitySource(game, { ...ability, sourceLifecycleId })) {
     return skipPendingAbility(
       game,
       ability,
@@ -103,6 +140,7 @@ function startLiveStartSuccessCountChooseHeart(
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
+      sourceLifecycleId,
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(config.abilityId),
       stepId: LIVE_START_SUCCESS_COUNT_CHOOSE_HEART_STEP_ID,
@@ -114,7 +152,10 @@ function startLiveStartSuccessCountChooseHeart(
         mode: 'SINGLE',
         options: config.heartColorOptions.map((color) => ({
           id: color,
-          text: HEART_COLOR_OPTION_TEXTS[color],
+          text: HEART_COLOR_OPTION_TEXTS[color].replace(
+            '自己的成功LIVE卡区中的卡牌数量',
+            config.countDescription
+          ),
         })),
         minSelections: 1,
         maxSelections: 1,
@@ -138,13 +179,18 @@ function startLiveStartSuccessCountChooseHeart(
   });
 }
 
-function finishLiveStartSuccessCountChooseHeart(
+function finishLiveStartChooseHeartByCount(
   game: GameState,
   selectedOptionId: string | null,
+  config: LiveStartChooseHeartByCountConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
-  if (!effect || effect.stepId !== LIVE_START_SUCCESS_COUNT_CHOOSE_HEART_STEP_ID) {
+  if (
+    !effect ||
+    effect.abilityId !== config.abilityId ||
+    effect.stepId !== LIVE_START_SUCCESS_COUNT_CHOOSE_HEART_STEP_ID
+  ) {
     return game;
   }
   const selectedColor = getHeartColorOptionsForEffect(effect.metadata).includes(
@@ -158,26 +204,28 @@ function finishLiveStartSuccessCountChooseHeart(
 
   const player = getPlayerById(game, effect.controllerId);
   const sourceSlot = player ? getSourceMemberSlot(game, player.id, effect.sourceCardId) : null;
-  if (!player || sourceSlot === null) {
+  if (!player || !isCurrentStageMemberAbilitySource(game, effect)) {
     return finishWithoutHeartModifier(
       game,
       effect.controllerId,
       selectedColor,
       0,
       'SOURCE_NOT_ON_STAGE',
+      config.countPayloadKey,
       continuePendingCardEffects
     );
   }
 
-  const successLiveCount = countSuccessZoneCardsForCardEffect(game, player.id, effect.sourceCardId);
+  const heartCount = config.countHearts(game, player.id, effect.sourceCardId);
   const stateWithoutActiveEffect = { ...game, activeEffect: null };
-  if (successLiveCount === 0) {
+  if (heartCount === 0) {
     return finishWithoutHeartModifier(
       game,
       player.id,
       selectedColor,
-      successLiveCount,
-      'CHOOSE_HEART_NO_SUCCESS_LIVE',
+      heartCount,
+      config.noHeartActionStep,
+      config.countPayloadKey,
       continuePendingCardEffects
     );
   }
@@ -186,7 +234,7 @@ function finishLiveStartSuccessCountChooseHeart(
     playerId: player.id,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
-    hearts: [{ color: selectedColor, count: successLiveCount }],
+    hearts: [{ color: selectedColor, count: heartCount }],
   });
 
   if (!heartResult) {
@@ -194,8 +242,9 @@ function finishLiveStartSuccessCountChooseHeart(
       game,
       player.id,
       selectedColor,
-      successLiveCount,
+      heartCount,
       'SOURCE_MEMBER_HEART_MODIFIER_UNAVAILABLE',
+      config.countPayloadKey,
       continuePendingCardEffects
     );
   }
@@ -205,9 +254,10 @@ function finishLiveStartSuccessCountChooseHeart(
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
-      step: 'GAIN_SELECTED_HEART_BY_SUCCESS_LIVE_COUNT',
+      step: config.gainHeartActionStep,
       selectedHeartColor: selectedColor,
-      successLiveCount,
+      heartCount,
+      [config.countPayloadKey]: heartCount,
       heartBonus: heartResult.heartBonus,
       sourceSlot,
     }),
@@ -219,8 +269,9 @@ function finishWithoutHeartModifier(
   game: GameState,
   playerId: string,
   selectedColor: HeartColor,
-  successLiveCount: number,
+  heartCount: number,
   step: string,
+  countPayloadKey: LiveStartChooseHeartByCountConfig['countPayloadKey'],
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
@@ -234,7 +285,7 @@ function finishWithoutHeartModifier(
       sourceCardId: effect.sourceCardId,
       step,
       selectedHeartColor: selectedColor,
-      successLiveCount,
+      [countPayloadKey]: heartCount,
     }),
     effect.metadata?.orderedResolution === true
   );
