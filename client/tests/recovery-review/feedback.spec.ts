@@ -19,6 +19,20 @@ async function sampleMotionAt(page: Page, time: number) {
     }
   }, time);
 }
+async function assertVerticalValues(page: Page, expected: number) {
+  const rows = badges(page).locator('.effect-result-value');
+  await expect(rows).toHaveCount(expected);
+  const bounds = await rows.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const r = node.getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom, center: r.left + r.width / 2 };
+    })
+  );
+  for (let i = 1; i < bounds.length; i++) {
+    expect(bounds[i]!.top).toBeGreaterThanOrEqual(bounds[i - 1]!.bottom);
+    expect(Math.abs(bounds[i]!.center - bounds[0]!.center)).toBeLessThan(1);
+  }
+}
 async function prepare(page: Page, scenario = 'heart') {
   await page.goto('/feedback.html');
   await page.getByLabel('验收场景').selectOption(scenario);
@@ -49,11 +63,11 @@ async function resolveGain(page: Page) {
     await page.getByRole('button', { name: '下一步', exact: true }).click();
     await page.clock.runFor(32);
   }
-  throw new Error('Real commands did not produce a member gain');
+  throw new Error('Real commands did not produce numerical feedback');
 }
 
 for (const narrow of [false, true])
-  for (const scenario of ['heart', 'multi', 'mixed']) {
+  for (const scenario of ['heart', 'multi', 'mixed', 'score', 'requirement']) {
     test(`${scenario} on ${narrow ? 'mobile' : 'desktop'}: real gain, visual and settled state`, async ({
       page,
     }, info) => {
@@ -68,6 +82,12 @@ for (const narrow of [false, true])
       const count = scenario === 'multi' ? 3 : 1;
       await expect(badges(page)).toHaveCount(count);
       await expect(art(page)).toHaveCount(count);
+      if (scenario === 'score') {
+        await expect(badges(page).locator('.card-effect-keyword-token-score')).toBeVisible();
+        await expect(badges(page).locator('b')).toHaveText('+1');
+        await expect(badges(page)).not.toContainText('分数');
+      }
+      if (scenario === 'requirement') await expect(badges(page)).toHaveText('需求−2');
       if (scenario === 'mixed') {
         await expect(page.locator('[data-effect-gain-radiance="heart"]')).toHaveCount(1);
         await expect(page.locator('[data-effect-gain-radiance="blade"]')).toHaveCount(1);
@@ -76,6 +96,7 @@ for (const narrow of [false, true])
       expect(state.events.flatMap((event) => event.targets)).toHaveLength(count);
       await page.clock.runFor(450);
       await sampleMotionAt(page, 450);
+      if (scenario === 'mixed') await assertVerticalValues(page, 2);
       if (narrow && scenario === 'mixed') {
         const target = (await page.locator('[data-object-id="obj_source"]').first().boundingBox())!;
         const label = (await badges(page).boundingBox())!;
@@ -196,3 +217,45 @@ test('real-time mixed gain visibly plays and disappears without waiting for anot
   await expect(art(page)).toHaveCount(0);
   expect((await snapshot(page)).active).toBe(false);
 });
+
+for (const { narrow, opposite } of [
+  { narrow: false, opposite: false },
+  { narrow: false, opposite: true },
+  { narrow: true, opposite: false },
+]) {
+  test(`player-level numerical fixture on ${narrow ? 'mobile' : 'desktop'} ${opposite ? 'opposite' : 'own'} seat stays in the LIVE zone`, async ({
+    page,
+  }, info) => {
+    if (narrow) await page.setViewportSize({ width: 390, height: 844 });
+    await prepare(page, 'zone');
+    if (opposite) await page.getByRole('button', { name: '切换视角', exact: true }).click();
+    await pauseClock(page);
+    await page.getByRole('button', { name: '下一步', exact: true }).click();
+    const events = (await snapshot(page)).events;
+    expect(events[0]?.targets).toHaveLength(1);
+    expect(events[0]?.targets[0]?.zoneKey).toBe('FIRST_LIVE_ZONE');
+    expect(events[0]?.targets[0]?.objectId).toBeUndefined();
+    await page.clock.runFor(450);
+    await sampleMotionAt(page, 450);
+    await expect(badges(page)).toHaveCount(1);
+    await expect(page.getByRole('button', { name: '继续处理', exact: true })).toHaveCount(0);
+    await expect(badges(page).locator('.card-effect-keyword-token-score')).toBeVisible();
+    await expect(badges(page)).not.toContainText('分数');
+    await expect(badges(page).locator('img')).toHaveCount(3);
+    await assertVerticalValues(page, 4);
+    const zoneSelector = `[data-battle-ui-anchor="${opposite ? 'opponent' : 'self'}-live-zone"]`;
+    const zoneArt = page.locator(`${zoneSelector} [data-effect-result-art]`);
+    await expect(zoneArt).toHaveCount(1);
+    const zone = await page.locator(zoneSelector).first().boundingBox();
+    const glow = (await zoneArt.boundingBox())!;
+    expect(Math.abs(glow.x + glow.width / 2 - zone!.x - zone!.width / 2)).toBeLessThan(2);
+    expect(Math.abs(glow.y + glow.height / 2 - zone!.y - zone!.height / 2)).toBeLessThan(2);
+    const badge = (await badges(page).boundingBox())!;
+    expect(badge.x + badge.width / 2).toBeGreaterThan(zone!.x);
+    expect(badge.x + badge.width / 2).toBeLessThan(zone!.x + zone!.width);
+    await page.screenshot({ path: info.outputPath('zone-values.png') });
+    await page.clock.runFor(1300);
+    await expect(badges(page)).toHaveCount(0);
+    await expect(art(page)).toHaveCount(0);
+  });
+}

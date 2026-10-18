@@ -617,10 +617,10 @@ export interface CardEffectSummaryPublicEvent extends BasePublicEvent {
   readonly waitingRoomCardCount?: number;
 }
 
-/** Public member HEART/BLADE changes for non-blocking presentation. */
+/** Public member/LIVE numerical changes for non-blocking presentation. */
 export type EffectFeedbackChange =
-  | { readonly kind: 'HEART'; readonly color: HeartColor; readonly delta: number }
-  | { readonly kind: 'BLADE'; readonly delta: number };
+  | { readonly kind: 'HEART' | 'REQUIREMENT'; readonly color: HeartColor; readonly delta: number }
+  | { readonly kind: 'BLADE' | 'SCORE'; readonly delta: number };
 
 export interface EffectFeedbackTarget {
   readonly objectId?: string;

@@ -57,7 +57,12 @@ export function hasEffectFeedbackGlow(
   return (
     mode === 'APPLIED' &&
     changes.some(
-      (change) => (change.kind === 'HEART' || change.kind === 'BLADE') && change.delta !== 0
+      (change) =>
+        (change.kind === 'HEART' ||
+          change.kind === 'BLADE' ||
+          change.kind === 'SCORE' ||
+          change.kind === 'REQUIREMENT') &&
+        change.delta !== 0
     )
   );
 }

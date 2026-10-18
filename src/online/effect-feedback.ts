@@ -1,11 +1,12 @@
 import type { GameState, LiveModifierState } from '../domain/entities/game.js';
-import { type HeartIcon } from '../domain/entities/card.js';
+import { isLiveCardData, type HeartIcon } from '../domain/entities/card.js';
 import {
   collectLiveModifiers,
   getMemberEffectiveBladeCount,
   getMemberEffectiveHeartIcons,
 } from '../domain/rules/live-modifiers.js';
-import { HeartColor } from '../shared/types/enums.js';
+import { applyHeartRequirementModifiers } from '../domain/rules/live-requirement-modifiers.js';
+import { FaceState, HeartColor } from '../shared/types/enums.js';
 import {
   createPublicObjectId,
   getSeatByPlayerIndex,
@@ -28,7 +29,7 @@ type Options = {
 };
 type Metric = {
   readonly target: Omit<EffectFeedbackTarget, 'changes'>;
-  readonly kind: 'HEART' | 'BLADE';
+  readonly kind: 'HEART' | 'BLADE' | 'SCORE' | 'REQUIREMENT';
   readonly color?: HeartColor;
   readonly value: number;
 };
@@ -171,6 +172,66 @@ function readMetrics(
       add(target, 'BLADE', getMemberEffectiveBladeCount(game, player.id, id, modifiers));
       addHearts(target, getMemberEffectiveHeartIcons(game, player.id, id, modifiers));
     }
+    const liveTarget = { zoneKey: `${seat}_LIVE_ZONE` as ViewZoneKey };
+    add(
+      liveTarget,
+      'SCORE',
+      modifiers.reduce(
+        (sum, m) =>
+          sum +
+          (m.kind === 'SCORE' && m.playerId === player.id && !m.liveCardId ? m.countDelta : 0),
+        0
+      )
+    );
+    add(
+      liveTarget,
+      'BLADE',
+      modifiers.reduce(
+        (sum, m) =>
+          sum +
+          (m.kind === 'BLADE' && m.target === 'PLAYER' && m.playerId === player.id
+            ? m.countDelta
+            : 0),
+        0
+      )
+    );
+    addHearts(
+      liveTarget,
+      modifiers.flatMap((m) =>
+        m.kind === 'HEART' && m.target === 'PLAYER' && m.playerId === player.id ? m.hearts : []
+      )
+    );
+    for (const id of player.liveZone.cardIds) {
+      const card = game.cardRegistry.get(id);
+      if (
+        !card ||
+        !isLiveCardData(card.data) ||
+        !options.isPublicCard(game, id) ||
+        player.liveZone.cardStates.get(id)?.face === FaceState.FACE_DOWN
+      )
+        continue;
+      const target = { ...liveTarget, objectId: createPublicObjectId(id) };
+      add(
+        target,
+        'SCORE',
+        modifiers.reduce(
+          (sum, m) => sum + (m.kind === 'SCORE' && m.liveCardId === id ? m.countDelta : 0),
+          0
+        )
+      );
+      const requirements = applyHeartRequirementModifiers(
+        card.data.requirements,
+        modifiers.flatMap((m) =>
+          m.kind === 'REQUIREMENT' && m.liveCardId === id ? m.modifiers : []
+        )
+      );
+      // Normalize implicit generic requirements using the same domain query as judgment.
+      const normalized = applyHeartRequirementModifiers(requirements, [
+        { color: HeartColor.RAINBOW, countDelta: 0 },
+      ]);
+      for (const color of Object.values(HeartColor))
+        add(target, 'REQUIREMENT', normalized.colorRequirements.get(color) ?? 0, color);
+    }
   });
   return metrics;
 }
@@ -189,7 +250,7 @@ function metricChanges(
       group = { target: metric.target, changes: [] };
       targets.set(targetKey, group);
     }
-    if (metric.kind === 'HEART') {
+    if (metric.kind === 'HEART' || metric.kind === 'REQUIREMENT') {
       group.changes.push({ kind: metric.kind, color: metric.color!, delta });
     } else group.changes.push({ kind: metric.kind, delta });
   }

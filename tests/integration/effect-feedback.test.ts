@@ -78,7 +78,10 @@ describe('real ability commands publish presentation facts', () => {
         expect(changes).toContainEqual({ kind: 'HEART', color: 'YELLOW', delta: 2 });
       if (scenario.id === 'multi')
         expect(changes.filter((c) => c.kind === 'BLADE')).toHaveLength(3);
-      if (['wait', 'score', 'requirement'].includes(scenario.id)) expect(events).toEqual([]);
+      if (scenario.id === 'wait') expect(events).toEqual([]);
+      if (scenario.id === 'score') expect(changes).toContainEqual({ kind: 'SCORE', delta: 1 });
+      if (scenario.id === 'requirement')
+        expect(changes).toContainEqual({ kind: 'REQUIREMENT', color: 'RAINBOW', delta: -2 });
       if (scenario.id === 'self')
         expect(changes).toContainEqual({ kind: 'HEART', color: 'YELLOW', delta: 1 });
       if (scenario.id === 'recover' || scenario.id === 'no-target') {

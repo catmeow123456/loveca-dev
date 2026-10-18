@@ -301,6 +301,7 @@ export const Card = memo(function Card({
       }
       whileTap={interactive ? { scale: 0.98 } : undefined}
       layout={enableLayoutAnimation}
+      data-card-surface=""
       data-card-id={instanceId}
       data-ability-activation-source={interactive && faceUp ? instanceId : undefined}
       data-object-id={instanceId ? `obj_${instanceId}` : undefined}

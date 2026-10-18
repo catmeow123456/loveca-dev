@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { OrientationState } from '../../src/shared/types/enums';
 import {
   getLandingCardGeometry,
+  getLandingFlightFrame,
+  getLandingImpactRadius,
+  getLandingSpreadProgress,
+  getNeighborImpactResponse,
   getNeighborImpactHinge,
   sameEntranceTarget,
   type EntranceStageTarget,
@@ -81,5 +85,37 @@ describe('impact-facing card edge', () => {
   );
   it('does not invent a direction for coincident centers', () => {
     expect(getNeighborImpactHinge(0, 0, 90, 100, 140)).toBeNull();
+  });
+});
+
+describe('shared contact and propagation', () => {
+  it('finishes travel before descending, with an exact resting endpoint even after a delayed frame', () => {
+    expect(getLandingFlightFrame(200, 400, 150)).toMatchObject({ height: 1, finished: false });
+    expect(getLandingFlightFrame(400, 400, 150)).toEqual({ path: 1, height: 1, finished: false });
+    expect(getLandingFlightFrame(475, 400, 150)).toEqual({
+      path: 1,
+      height: 0.75,
+      finished: false,
+    });
+    expect(getLandingFlightFrame(700, 400, 150)).toEqual({ path: 1, height: 0, finished: true });
+  });
+  it('keeps the light compact without suppressing the wider tabletop response', () => {
+    const lightRadius = getLandingImpactRadius(140);
+    expect(lightRadius).toBeCloseTo(203);
+    const reach = 600;
+    const near = getNeighborImpactResponse(180, reach, 0.5)!;
+    const far = getNeighborImpactResponse(350, reach, 0.5)!;
+    expect(near.angle).toBeGreaterThan(35);
+    expect(far.angle).toBeGreaterThan(30);
+    expect(far.strength).toBeLessThan(near.strength);
+    expect(far.arrival).toBeGreaterThan(near.arrival);
+    expect(getNeighborImpactResponse(reach, reach, 0.5)).toBeNull();
+    expect(getLandingSpreadProgress(0)).toBe(0);
+    expect(getLandingSpreadProgress(1)).toBe(1);
+  });
+  it('keeps the same response at different rendered board scales', () => {
+    expect(getNeighborImpactResponse(80, getLandingImpactRadius(100), 0.3)).toEqual(
+      getNeighborImpactResponse(160, getLandingImpactRadius(200), 0.3)
+    );
   });
 });

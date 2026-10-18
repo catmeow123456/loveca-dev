@@ -16,6 +16,16 @@ const art = new Map([
   ['PL!N-bp1-002-P', 'PL!N-bp1-002-P.png'],
 ]);
 const feedbackArt = new Map([
+  [
+    'PL!N-bp7-011-SEC',
+    path.resolve(repo, '../animation-prototypes/mia-20261017/source-mia-sec.png'),
+  ],
+  ['PL!SP-pb1-012-N', path.join(artRoot, 'PL!SP-pb1-012-N.png')],
+  ['PL!-sd1-019-SRL', path.join(artRoot, 'PL!-sd1-019-SD.png')],
+  ['PL!HS-pb1-026-L', path.join(artRoot, 'PL!HS-pb1-026-L.png')],
+  ...['001', '002', '003', '004', '005', '006'].map(
+    (n) => [`PL!HS-bp6-${n}-P`, path.join(artRoot, `PL!HS-bp6-${n}-P.png`)] as [string, string]
+  ),
   ['PL!-bp6-001-P', path.join(artRoot, 'PL!-bp6-001-P.png')],
   ['PL!-bp3-009-P', path.join(artRoot, 'PL!-bp3-009-P.png')],
   ['PL!-sd1-019-SD', path.join(artRoot, 'PL!-sd1-019-SD.png')],

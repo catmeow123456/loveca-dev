@@ -5,6 +5,8 @@ import { useShallow } from 'zustand/react/shallow';
 import type { EffectFeedbackChange, EffectFeedbackTarget, PlayerViewState } from '@game/online';
 import { HeartColor } from '@game/shared/types/enums';
 import { useGameStore } from '@/store/gameStore';
+import { getBattleLiveZoneAnchor } from '@/lib/battleUiAnchors';
+import { CardEffectText } from '@/components/card/CardEffectText';
 import {
   consumeEffectFeedback,
   hasEffectFeedbackGlow,
@@ -18,7 +20,11 @@ import {
   replaceFeedbackPresentations,
   type FeedbackPresentation,
 } from '@/lib/effectFeedbackPresentation';
-import { HEART_ICON_SOURCE_BY_COLOR, MODIFIER_ICON_SOURCE } from '@/lib/modifierIconAssets';
+import {
+  HEART_ICON_SOURCE_BY_COLOR,
+  HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR,
+  MODIFIER_ICON_SOURCE,
+} from '@/lib/modifierIconAssets';
 import { EffectResultArt } from './EffectResultArt';
 import './effectFeedback.css';
 
@@ -34,9 +40,13 @@ export const FEEDBACK_COLORS: Record<HeartColor, string> = {
   RAINBOW: '#e2d5ff',
 };
 function colorFor(change: EffectFeedbackChange) {
-  return 'color' in change ? FEEDBACK_COLORS[change.color] : '#d7c8ff';
+  return 'color' in change
+    ? FEEDBACK_COLORS[change.color]
+    : change.kind === 'SCORE'
+      ? '#ffe0a0'
+      : '#d7c8ff';
 }
-function findHost(target: EffectFeedbackTarget): HTMLElement | null {
+function findHost(target: EffectFeedbackTarget, view: PlayerViewState): HTMLElement | null {
   const member = target.zoneKey.match(/_MEMBER_(LEFT|CENTER|RIGHT)$/)?.[1];
   const suffix = member
     ? `slot-${member}`
@@ -47,7 +57,9 @@ function findHost(target: EffectFeedbackTarget): HTMLElement | null {
   const key = `seat-${seat}::${suffix}`;
   const selector = target.objectId
     ? `[data-object-id="${CSS.escape(target.objectId)}"]`
-    : `[data-zone-id="${key}"], [data-animation-zone-id="${key}"]`;
+    : target.zoneKey.endsWith('_LIVE_ZONE')
+      ? `[data-battle-ui-anchor="${getBattleLiveZoneAnchor(seat === view.match.viewerSeat ? 'self' : 'opponent')}"]`
+      : `[id="${key}"], [data-animation-zone-id="${key}"]`;
   return (
     Array.from(document.querySelectorAll<HTMLElement>(selector)).find((node) => {
       const rect = node.getBoundingClientRect();
@@ -134,7 +146,7 @@ export function EffectFeedbackLayer({ enabled = true }: { readonly enabled?: boo
     for (const event of result.events) {
       for (const target of event.targets) {
         if (!isEffectFeedbackTargetCurrent(target, view)) continue;
-        const host = findHost(target);
+        const host = findHost(target, view);
         const changes = groupEffectFeedbackChanges(target.changes);
         if (!host || !changes.length) continue;
         const key = effectFeedbackTargetKey(target);
@@ -158,7 +170,7 @@ export function EffectFeedbackLayer({ enabled = true }: { readonly enabled?: boo
         !event.targets.some((t) => hasEffectFeedbackGlow(event.mode, t.changes))
       )
         continue;
-      const host = findHost(source);
+      const host = findHost(source, view);
       if (host)
         additions.push({
           id: `${event.eventId}:source`,
@@ -187,7 +199,7 @@ export function EffectFeedbackLayer({ enabled = true }: { readonly enabled?: boo
           performance.now() < p.endsAt &&
           p.host.isConnected &&
           isEffectFeedbackTargetCurrent(p.target, latest) &&
-          findHost(p.target) === p.host
+          findHost(p.target, latest) === p.host
       );
       if (next.length !== active.current.length) {
         active.current = next;
@@ -256,12 +268,20 @@ export function EffectFeedbackLayer({ enabled = true }: { readonly enabled?: boo
 }
 function Change({ change }: { change: EffectFeedbackChange }) {
   const icon =
-    change.kind === 'HEART' ? HEART_ICON_SOURCE_BY_COLOR[change.color] : MODIFIER_ICON_SOURCE.blade;
+    change.kind === 'HEART'
+      ? HEART_ICON_SOURCE_BY_COLOR[change.color]
+      : change.kind === 'REQUIREMENT'
+        ? HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR[change.color]
+        : change.kind === 'BLADE'
+          ? MODIFIER_ICON_SOURCE.blade
+          : undefined;
   return (
     <span
       className="effect-result-value"
       style={{ '--feedback-color': colorFor(change) } as CSSProperties}
     >
+      {change.kind === 'REQUIREMENT' && <small>需求</small>}
+      {change.kind === 'SCORE' && <CardEffectText as="span" text="[スコア]" />}
       {icon && <img src={icon} alt="" />}
       <b>
         {change.delta > 0 ? '+' : '−'}

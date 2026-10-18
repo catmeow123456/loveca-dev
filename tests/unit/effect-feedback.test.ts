@@ -137,7 +137,7 @@ describe('authority effect feedback', () => {
     }));
     expect(buildEffectFeedbackEvents(buffed, departed, options)).toEqual([]);
   });
-  it('does not expand member feedback into LIVE requirement changes', () => {
+  it('uses effective generic requirements, including reductions beyond zero', () => {
     const before = fixture();
     const after = addLiveModifier(before, {
       kind: 'REQUIREMENT',
@@ -145,7 +145,9 @@ describe('authority effect feedback', () => {
       sourceCardId: 'source',
       modifiers: [{ color: HeartColor.RAINBOW, countDelta: -6 }],
     });
-    expect(buildEffectFeedbackEvents(before, after, options)).toEqual([]);
+    expect(buildEffectFeedbackEvents(before, after, options)[0]?.targets[0]?.changes).toEqual([
+      { kind: 'REQUIREMENT', color: HeartColor.RAINBOW, delta: -2 },
+    ]);
   });
   it('only publishes modifiers visible to both seats and never includes hidden source identity', () => {
     let before = fixture();
@@ -205,7 +207,7 @@ describe('authority effect feedback', () => {
     )!.gameState;
     expect(buildEffectFeedbackEvents(after, same, options)).toEqual([]);
   });
-  it('reports member hearts without including LIVE score or conflating source and target', () => {
+  it('reports member hearts and LIVE score at their respective targets', () => {
     const before = fixture();
     let after = addLiveModifier(before, {
       kind: 'HEART',
@@ -228,7 +230,84 @@ describe('authority effect feedback', () => {
         zoneKey: 'FIRST_MEMBER_LEFT',
         changes: [{ kind: 'HEART', color: HeartColor.YELLOW, delta: 2 }],
       },
+      { objectId: 'obj_live', zoneKey: 'FIRST_LIVE_ZONE', changes: [{ kind: 'SCORE', delta: 1 }] },
     ]);
+  });
+  it('keeps player HEART/BLADE/score at the LIVE zone, including quiet expiry', () => {
+    const before = fixture();
+    let after = addLiveModifier(before, {
+      kind: 'HEART',
+      target: 'PLAYER',
+      playerId: 'p1',
+      sourceCardId: 'source',
+      hearts: [{ color: HeartColor.BLUE, count: 2 }],
+    });
+    after = addLiveModifier(after, {
+      kind: 'BLADE',
+      target: 'PLAYER',
+      playerId: 'p1',
+      sourceCardId: 'source',
+      countDelta: 3,
+    });
+    after = addLiveModifier(after, {
+      kind: 'SCORE',
+      playerId: 'p1',
+      sourceCardId: 'source',
+      countDelta: 1,
+    });
+    const events = buildEffectFeedbackEvents(before, after, options);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.targets).toEqual([
+      {
+        zoneKey: 'FIRST_LIVE_ZONE',
+        changes: [
+          { kind: 'SCORE', delta: 1 },
+          { kind: 'BLADE', delta: 3 },
+          { kind: 'HEART', color: HeartColor.BLUE, delta: 2 },
+        ],
+      },
+    ]);
+    expect(buildEffectFeedbackEvents(after, before, options)).toMatchObject([
+      {
+        mode: 'UPDATE',
+        targets: [
+          {
+            zoneKey: 'FIRST_LIVE_ZONE',
+            changes: [
+              { kind: 'SCORE', delta: -1 },
+              { kind: 'BLADE', delta: -3 },
+              { kind: 'HEART', color: HeartColor.BLUE, delta: -2 },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+  it('does not publish a hidden LIVE target or replay a gain on reveal', () => {
+    const publicBefore = fixture();
+    const before = updatePlayer(publicBefore, 'p1', (p) => ({
+      ...p,
+      liveZone: {
+        ...p.liveZone,
+        cardStates: new Map([
+          ['live', { face: FaceState.FACE_DOWN, orientation: OrientationState.ACTIVE }],
+        ]),
+      },
+    }));
+    const after = addLiveModifier(before, {
+      kind: 'SCORE',
+      playerId: 'p1',
+      liveCardId: 'live',
+      sourceCardId: 'source',
+      countDelta: 2,
+    });
+    expect(buildEffectFeedbackEvents(before, after, options)).toEqual([]);
+    const revealed = updatePlayer(after, 'p1', (p) => ({
+      ...p,
+      liveZone: publicBefore.players[0].liveZone,
+    }));
+    expect(buildEffectFeedbackEvents(after, revealed, options)).toEqual([]);
+    expect(buildEffectFeedbackEvents(revealed, after, options)).toEqual([]);
   });
 });
 

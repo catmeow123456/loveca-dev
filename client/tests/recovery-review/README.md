@@ -38,3 +38,11 @@ node node_modules/typescript/bin/tsc --noEmit
 ## 成员强化反馈
 
 打开同一服务的 `/feedback.html`，可验收单体加心、群体加刀、混合增益和起动后强化；支持横置目标、重新准备、撤销与双方视角。点击“演示一次”通过真实卡效命令逐步执行；验收起动浮起请在“自身待机费用 → 获得 HEART”场景直接点击源卡的起动按钮。测试使用 `feedback.playwright.config.ts`。
+
+
+## LIVE 数值与二维落场迁移验收
+
+- `/feedback.html`：成员反馈及真实卡效的 LIVE 加分、需求减少；不启用方向或能量文字提示。
+- `/landing.html`：真实普通登场／米娅特殊登场，场上预置横置邻卡、横置 LIVE 与匿名背面。落场绘制使用产品 `CardLanding`，不另造展示实现。
+- 验收矩阵：桌面1600×900及窄屏390×844查看数值、落点、纹理和受光；命令结算后校验实际反馈目标及残留清理；对手视角、隐藏 LIVE、减少动态、冲击中跳过、纹理失败验证边界。数值区域级差量由单元测试覆盖，浏览器通过明确标记的展示夹具检查双方桌面与窄屏的实际落点。该样例只更新测试页投影，不执行或新增玩家级增益规则。
+- 浏览器脚本：`pnpm --dir client exec playwright test --config tests/recovery-review/feedback.playwright.config.ts`、`pnpm --dir client exec playwright test --config tests/recovery-review/landing.playwright.config.ts`。截图保存在 `output/playwright/member-feedback/` 与 `output/playwright/landing-migration/`。

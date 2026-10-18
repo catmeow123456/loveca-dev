@@ -2401,7 +2401,7 @@ export const PlayerArea = memo(function PlayerArea({
       <div
         data-battle-ui-anchor={getBattleLiveZoneAnchor(battlePlayerSide)}
         className={cn(
-          'battle-live-zone rounded-lg p-1',
+          'battle-live-zone relative rounded-lg p-1',
           isMobileBoard
             ? 'border border-slate-300/20 bg-[color:color-mix(in_srgb,var(--bg-frosted)_8%,transparent)]'
             : 'border border-slate-600/30 bg-slate-800/40',

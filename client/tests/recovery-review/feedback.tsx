@@ -9,16 +9,26 @@ import {
   prepareEffectFeedbackScenario,
   type FeedbackScenarioId,
 } from '../../../tests/helpers/effect-feedback-fixture';
+import { previewZoneFeedback } from './feedbackProbe';
 import './review.css';
 
 applyTheme('dark');
 const store = () => useGameStore.getState();
-const scenarios = EFFECT_FEEDBACK_SCENARIOS.filter((s) =>
-  ['heart', 'multi', 'mixed', 'self'].includes(s.id)
-);
+type ReviewScenarioId = FeedbackScenarioId | 'zone';
+const scenarios = [
+  ...EFFECT_FEEDBACK_SCENARIOS.filter((s) =>
+    ['heart', 'multi', 'mixed', 'self', 'score', 'requirement'].includes(s.id)
+  ),
+  { id: 'zone', name: 'LIVE 区域心／刀／分数（展示样例）' },
+] as const;
 let fixture: ReturnType<typeof prepareEffectFeedbackScenario>;
-export function prepare(id: FeedbackScenarioId, targetWaiting = false) {
-  fixture = prepareEffectFeedbackScenario(id, store().gameSession, undefined, { targetWaiting });
+export function prepare(id: ReviewScenarioId, targetWaiting = false) {
+  fixture = prepareEffectFeedbackScenario(
+    id === 'zone' ? 'multi' : id,
+    store().gameSession,
+    undefined,
+    { targetWaiting }
+  );
   store().loadCardData(fixture.cards.map((card) => card.data as AnyCardData));
   useGameStore.setState({ viewingPlayerId: 'p1', replaySession: null, remoteSession: null });
   store().syncState();
@@ -26,7 +36,7 @@ export function prepare(id: FeedbackScenarioId, targetWaiting = false) {
 prepare('heart');
 
 function App() {
-  const [selected, setSelected] = React.useState<FeedbackScenarioId>('heart');
+  const [selected, setSelected] = React.useState<ReviewScenarioId>('heart');
   const [targetWaiting, setTargetWaiting] = React.useState(false);
   const [message, setMessage] = React.useState('点击“演示一次”，或通过桌面原有按钮处理效果。');
   const [busy, setBusy] = React.useState(false);
@@ -43,6 +53,11 @@ function App() {
     []
   );
   const step = () => {
+    if (selected === 'zone') {
+      previewZoneFeedback();
+      setMessage('区域级心／刀／分数的展示样例；实际卡效请选加分或需求减少场景。');
+      return true;
+    }
     const command = fixture.nextCommand();
     if (!command) return false;
     const result = fixture.session.executeCommand(command);
@@ -65,7 +80,7 @@ function App() {
         await new Promise((r) => setTimeout(r, Math.max(0, deadline - Date.now()) + 60));
         if (epoch.current !== run || !fixture.session.state?.activeEffect) break;
       }
-      if (!step() || !fixture.session.state?.activeEffect) break;
+      if (!step() || selected === 'zone' || !fixture.session.state?.activeEffect) break;
       await new Promise((r) => setTimeout(r, 350));
     }
     if (epoch.current === run) setBusy(false);
@@ -73,12 +88,12 @@ function App() {
   return (
     <>
       <header className="review-bar">
-        <strong>成员强化 · 心／刀流光</strong>
+        <strong>成员与 LIVE 数值反馈</strong>
         <select
           aria-label="验收场景"
           value={selected}
           onChange={(e) => {
-            const next = e.target.value as FeedbackScenarioId;
+            const next = e.target.value as ReviewScenarioId;
             setSelected(next);
             reset(next);
           }}
@@ -114,6 +129,7 @@ function App() {
           切换视角
         </button>
         <a href="/activation.html?edge=flow">起动效果</a>
+        <a href="/landing.html">落场效果</a>
         <span role="status">{message}</span>
       </header>
       <main className="review-board">
