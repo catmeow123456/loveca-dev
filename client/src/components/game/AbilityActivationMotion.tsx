@@ -12,11 +12,12 @@ import { GameCommandType } from '@game/application/game-commands';
 import { useGameStore, type CommandDispatchResult } from '@/store/gameStore';
 import { createActivationInkPainter } from './abilityActivationInk';
 import { createActivationFlowPainter } from './abilityActivationFlow';
+import { createActivationRainbowPainter } from './abilityActivationRainbow';
 import './abilityActivationMotion.css';
 
-export type AbilityActivationStyle = 'flow' | 'flow-original' | 'ink';
+export type AbilityActivationStyle = 'rainbow' | 'flow' | 'flow-original' | 'ink';
 // Presentation-only override for the local comparison page; never part of game state.
-export const AbilityActivationStyleContext = createContext<AbilityActivationStyle>('flow');
+export const AbilityActivationStyleContext = createContext<AbilityActivationStyle>('rainbow');
 
 const DURATION_MS = 1000;
 const LIFT_END = 0.25;
@@ -165,9 +166,11 @@ function ActivationInk({
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const duration = reduced ? 80 : DURATION_MS;
     const paintInk =
-      activation.edgeStyle === 'ink'
-        ? createActivationInkPainter(ink)
-        : createActivationFlowPainter(ink, activation.edgeStyle === 'flow-original' ? 1 : 1.5);
+      activation.edgeStyle === 'rainbow'
+        ? createActivationRainbowPainter(ink)
+        : activation.edgeStyle === 'ink'
+          ? createActivationInkPainter(ink)
+          : createActivationFlowPainter(ink, activation.edgeStyle === 'flow-original' ? 1 : 1.5);
     if (reduced) paintInk(0.35);
     const floor = floorRef.current;
     const floorRotation = getComputedStyle(target).rotate;

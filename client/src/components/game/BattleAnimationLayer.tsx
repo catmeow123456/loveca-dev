@@ -27,8 +27,6 @@ import {
   getBattleAnimationEventDurationMs,
   isRecoveryCardMove,
   WAITING_ROOM_REVEAL_DURATION_MS,
-  WAITING_ROOM_REVEAL_HOLD_DURATION_MS,
-  WAITING_ROOM_REVEAL_MOVE_DURATION_MS,
   type ScheduledBattleAnimationEvent,
 } from '@/lib/battleAnimationSequencing';
 import {
@@ -41,6 +39,12 @@ import {
   type PublicDiscardRevealQueueState,
 } from '@/lib/publicDiscardRevealQueue';
 import { RecoveryCardMotion } from './RecoveryCardMotion';
+import {
+  getWaitingRoomCardKeyframes,
+  WAITING_ROOM_CARD_CLASS_NAME,
+  WAITING_ROOM_CARD_TIMES,
+  WAITING_ROOM_CARD_EASING,
+} from '@/lib/waitingRoomCardPresentation';
 import {
   DISCARD_EXIT_DURATION_MS,
   RECOVERY_PRESENTATION_MAX_WAIT_MS,
@@ -325,7 +329,7 @@ export function BattleAnimationLayer() {
       activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
       removeBattleAnimationOcclusion,
     });
-    // Release a batch together so the ordinary per-seat recovery stagger is preserved.
+    // Release a batch together so recovery can reverse the same per-seat discard fan.
     nextEvents.splice(
       0,
       nextEvents.length,
@@ -397,7 +401,7 @@ export function BattleAnimationLayer() {
         const timeout = window.setTimeout(() => {
           scheduledEventTimeoutsRef.current.delete(timeout);
           // Recovery targets are measured live. An unrelated command must not swallow a
-          // staggered pickup; leaving the hand cancels it in RecoveryCardMotion instead.
+          // scheduled pickup; leaving the hand cancels it in RecoveryCardMotion instead.
           const eligibleEvents = delayedEvents.filter(
             (event) =>
               viewDiffGenerationRef.current === viewDiffGeneration || isRecoveryCardMove(event)
@@ -856,10 +860,6 @@ export function DiscardPresentationBatch({
     viewportHeight,
   });
   const toRect = normalizePortraitCardRect(event.toRect);
-  const firstKeyframeTime = WAITING_ROOM_REVEAL_MOVE_DURATION_MS / WAITING_ROOM_REVEAL_DURATION_MS;
-  const secondKeyframeTime =
-    (WAITING_ROOM_REVEAL_MOVE_DURATION_MS + WAITING_ROOM_REVEAL_HOLD_DURATION_MS) /
-    WAITING_ROOM_REVEAL_DURATION_MS;
   const labelTop = clamp(
     layout.bounds.top >= 34 ? layout.bounds.top - 26 : layout.bounds.top + 4,
     8,
@@ -917,7 +917,7 @@ export function DiscardPresentationBatch({
         animate={{ opacity: [0, 1, 1, 0], y: [2, 0, 0, -1] }}
         transition={{
           duration: WAITING_ROOM_REVEAL_DURATION_MS / 1000,
-          times: [0, firstKeyframeTime, secondKeyframeTime, 1],
+          times: WAITING_ROOM_CARD_TIMES,
           ease: 'linear',
         }}
       >
@@ -941,7 +941,8 @@ export function DiscardPresentationBatch({
         return (
           <motion.div
             key={card.render.objectId}
-            className="fixed overflow-hidden rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_82%,white)] bg-[var(--bg-overlay)] shadow-[0_16px_36px_rgba(0,0,0,0.42),0_1px_0_rgba(255,255,255,0.08)_inset]"
+            data-discard-presentation-object-id={card.render.objectId}
+            className={WAITING_ROOM_CARD_CLASS_NAME}
             style={{
               width: startWidth,
               height: startHeight,
@@ -952,11 +953,17 @@ export function DiscardPresentationBatch({
             }}
             initial={{ opacity: 0.94, x: 0, y: 0, rotate: 0 }}
             animate={{
-              x: [0, revealRect.left - startLeft, revealRect.left - startLeft, endLeft - startLeft],
-              y: [0, revealRect.top - startTop, revealRect.top - startTop, endTop - startTop],
-              rotate: [0, revealRect.rotation, revealRect.rotation, 0],
-              width: [startWidth, revealRect.width, revealRect.width, endWidth],
-              height: [startHeight, revealRect.height, revealRect.height, endHeight],
+              ...getWaitingRoomCardKeyframes(
+                {
+                  left: startLeft,
+                  top: startTop,
+                  width: startWidth,
+                  height: startHeight,
+                  rotation: 0,
+                },
+                revealRect,
+                { left: endLeft, top: endTop, width: endWidth, height: endHeight, rotation: 0 }
+              ),
               opacity: [0.94, 1, 1, 1],
               scale: [0.985, 1, 1, 1],
             }}
@@ -967,8 +974,8 @@ export function DiscardPresentationBatch({
             }}
             transition={{
               duration: WAITING_ROOM_REVEAL_DURATION_MS / 1000,
-              times: [0, firstKeyframeTime, secondKeyframeTime, 1],
-              ease: ['easeOut', 'linear', 'easeInOut'],
+              times: WAITING_ROOM_CARD_TIMES,
+              ease: [...WAITING_ROOM_CARD_EASING],
             }}
             onAnimationComplete={index === 0 ? onDone : undefined}
           >
@@ -1021,7 +1028,7 @@ function DiscardPresentationCardFace({
   return (
     <div
       data-discard-presentation-object-id={render.objectId}
-      className="fixed overflow-hidden rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_82%,white)] bg-[var(--bg-overlay)] shadow-[0_16px_36px_rgba(0,0,0,0.42),0_1px_0_rgba(255,255,255,0.08)_inset]"
+      className={WAITING_ROOM_CARD_CLASS_NAME}
       style={{
         left: rect.left,
         top: rect.top,

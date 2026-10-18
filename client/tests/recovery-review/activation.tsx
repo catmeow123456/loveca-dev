@@ -27,7 +27,9 @@ function App() {
   const [selected, setSelected] = React.useState<ActivationScenario>('stage');
   const [edgeStyle, setEdgeStyle] = React.useState<AbilityActivationStyle>(() => {
     const requested = new URLSearchParams(window.location.search).get('edge');
-    return requested === 'ink' || requested === 'flow-original' ? requested : 'flow';
+    return requested === 'ink' || requested === 'flow-original' || requested === 'flow'
+      ? requested
+      : 'rainbow';
   });
   return (
     <>
@@ -45,6 +47,7 @@ function App() {
             prepare();
           }}
         >
+          <option value="rainbow">七彩流光 · 新版</option>
           <option value="flow">沿边流光 · 1.5 倍速</option>
           <option value="flow-original">沿边流光 · 原速</option>
           <option value="ink">当前墨染 · 保留版</option>

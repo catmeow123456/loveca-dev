@@ -1,64 +1,19 @@
 import type { BattleAnimationRect, BattleAnimationSeat } from './battleAnimationEvents';
-import {
-  RECOVERY_CHARGE_DURATION_MS,
-  RECOVERY_RISE_DURATION_MS,
-  RECOVERY_HOLD_DURATION_MS,
-  RECOVERY_FLIGHT_DURATION_MS,
-  RECOVERY_DURATION_MS,
-} from './battleAnimationSequencing';
+import { RECOVERY_DURATION_MS } from './battleAnimationSequencing';
+import { sampleWaitingRoomCardPose } from './waitingRoomCardPresentation';
 
 export interface RecoveryCardPose extends BattleAnimationRect {
   readonly rotation: number;
 }
 
-const clamp = (value: number) => Math.max(0, Math.min(1, value));
-const smooth = (value: number) => {
-  const t = clamp(value);
-  return t * t * (3 - 2 * t);
-};
-
-/** Same charge / release / still hover / flight as the approved stage prototype, in viewport pixels. */
+/** Reverse the discard path; the live hand pose remains the exact final destination. */
 export function sampleRecoveryMotion(
   from: RecoveryCardPose,
   to: RecoveryCardPose,
-  elapsed: number
+  elapsed: number,
+  reveal: RecoveryCardPose
 ) {
-  const riseProgress = clamp((elapsed - RECOVERY_CHARGE_DURATION_MS) / RECOVERY_RISE_DURATION_MS);
-  const launchAt =
-    RECOVERY_CHARGE_DURATION_MS + RECOVERY_RISE_DURATION_MS + RECOVERY_HOLD_DURATION_MS;
-  const flightProgress = clamp((elapsed - launchAt) / RECOVERY_FLIGHT_DURATION_MS);
-  const rise = 1 - (1 - riseProgress) ** 3;
-  const flight = 1 - (1 - flightProgress) ** 3;
-  const mix = (a: number, b: number) => a + (b - a) * flight;
-  const width = mix(from.width * (1 + 0.5 * rise), to.width);
-  const height = mix(from.height * (1 + 0.5 * rise), to.height);
-  // Fit the lifted face above the pile, including when the opponent's pile is near the top edge.
-  const lift =
-    Math.min(from.width, Math.max(0, from.top - from.height * 0.25 - 8)) *
-    rise *
-    (1 - smooth(flightProgress));
-  const rotationDelta = ((to.rotation - from.rotation + 540) % 360) - 180;
-  const pose =
-    elapsed >= RECOVERY_DURATION_MS
-      ? to
-      : {
-          left: mix(from.left + from.width / 2, to.left + to.width / 2) - width / 2,
-          top: mix(from.top + from.height / 2, to.top + to.height / 2) - height / 2 - lift,
-          width,
-          height,
-          rotation: from.rotation + rotationDelta * flight,
-        };
-  return {
-    pose,
-    riseProgress,
-    flightProgress,
-    // The face emerges at the pile; it is never first shown at the hover position.
-    opacity: clamp((elapsed - RECOVERY_CHARGE_DURATION_MS) / 24),
-    sourceGlow:
-      smooth(elapsed / RECOVERY_CHARGE_DURATION_MS) * (1 - smooth((elapsed - launchAt + 50) / 50)),
-    popGlow: Math.sin(Math.PI * riseProgress),
-    trailGlow: Math.sin(Math.PI * riseProgress) * 0.6 + Math.sin(Math.PI * flightProgress) * 0.65,
-  };
+  return { pose: sampleWaitingRoomCardPose(to, reveal, from, RECOVERY_DURATION_MS - elapsed) };
 }
 
 /** BoundingClientRect includes fan rotation and all ancestor scales. Undo the rotation only. */
@@ -123,15 +78,4 @@ export function measureRecoveryZonePose(
   if (!node) return null;
   const bounds = node.getBoundingClientRect();
   return bounds.width > 0 && bounds.height > 0 ? portraitRecoveryPose(bounds) : null;
-}
-
-/** Two short edge trails, not a border or an orbit around the pile. */
-export function recoveryEdgePoint(pose: RecoveryCardPose, side: number) {
-  const angle = (pose.rotation * Math.PI) / 180;
-  const x = side * pose.width * 0.48,
-    y = pose.height * 0.23;
-  return {
-    x: pose.left + pose.width / 2 + x * Math.cos(angle) - y * Math.sin(angle),
-    y: pose.top + pose.height / 2 + x * Math.sin(angle) + y * Math.cos(angle),
-  };
 }

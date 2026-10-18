@@ -8,6 +8,8 @@ import {
   createSequencedBattleAnimationEvents,
   getBattleAnimationEventDurationMs,
 } from '../../client/src/lib/battleAnimationSequencing';
+import { sampleWaitingRoomCardPose } from '../../client/src/lib/waitingRoomCardPresentation';
+import { getDiscardPresentationBatchLayout } from '../../client/src/lib/battleAnimationEvents';
 import { createBattleAnimationHistory } from '../../client/src/lib/battleAnimationHistory';
 import type { BattleAnimationEvent } from '../../client/src/lib/battleAnimationEvents';
 import { ZoneType } from '../../src/shared/types/enums';
@@ -17,6 +19,13 @@ import {
 } from '../../client/src/lib/recoveryPresentationQueue';
 const from = { left: 700, top: 400, width: 45, height: 63, rotation: 0 };
 const to = { left: 350, top: 650, width: 75, height: 105, rotation: 12 };
+const reveal = getDiscardPresentationBatchLayout({
+  count: 1,
+  toRect: from,
+  toSeat: 'FIRST',
+  viewportWidth: 1600,
+  viewportHeight: 900,
+}).cards[0];
 const event: BattleAnimationEvent = {
   id: 'move:3:obj_a',
   kind: 'CARD_MOVE',
@@ -35,18 +44,17 @@ const event: BattleAnimationEvent = {
 };
 
 describe('2D recovery choreography', () => {
-  it('charges before emerging, decelerates into a stationary 400ms hover, then lands exactly', () => {
-    expect(sampleRecoveryMotion(from, to, 79).opacity).toBe(0);
-    expect(sampleRecoveryMotion(from, to, 80).pose).toEqual(from);
-    expect(sampleRecoveryMotion(from, to, 81).pose.top).toBeLessThan(from.top);
-    const hover = sampleRecoveryMotion(from, to, 260);
-    expect(hover.pose.width).toBe(67.5);
-    expect(hover.pose).toEqual(sampleRecoveryMotion(from, to, 659).pose);
-    expect(sampleRecoveryMotion(from, to, 660).sourceGlow).toBe(0);
-    expect(sampleRecoveryMotion(from, to, 660).pose).toEqual(hover.pose);
-    expect(sampleRecoveryMotion(from, to, 860).pose.top).toBeGreaterThan(hover.pose.top);
-    expect(sampleRecoveryMotion(from, to, 1060).pose).toEqual(to);
-    expect(getBattleAnimationEventDurationMs(event)).toBe(RECOVERY_DURATION_MS);
+  it('reverses the discard geometry and timing, holds the same reveal pose and lands exactly', () => {
+    expect(sampleRecoveryMotion(from, to, 0, reveal).pose).toEqual(from);
+    expect(sampleRecoveryMotion(from, to, 160, reveal).pose).toEqual(reveal);
+    expect(sampleRecoveryMotion(from, to, 879, reveal).pose).toEqual(reveal);
+    expect(sampleRecoveryMotion(from, to, RECOVERY_DURATION_MS, reveal).pose).toEqual(to);
+    for (const time of [1, 80, 159, 300, 880, 1000, 1179]) {
+      expect(sampleRecoveryMotion(from, to, time, reveal).pose).toEqual(
+        sampleWaitingRoomCardPose(to, reveal, from, RECOVERY_DURATION_MS - time)
+      );
+    }
+    expect(getBattleAnimationEventDurationMs(event)).toBe(1180);
     expect(getBattleAnimationEventDurationMs(event, true)).toBe(120);
   });
   it.each([-25, -12, 0, 12, 25])(
@@ -66,20 +74,33 @@ describe('2D recovery choreography', () => {
       expect(pose.left).toBeCloseTo(200 - w / 2);
       expect(pose.top).toBeCloseTo(300 - h / 2);
       const resized = { ...pose, left: 100, top: 180, width: 50, height: 70, rotation: -18 };
-      expect(sampleRecoveryMotion(from, resized, 1060).pose).toEqual(resized);
+      expect(sampleRecoveryMotion(from, resized, RECOVERY_DURATION_MS, reveal).pose).toEqual(
+        resized
+      );
     }
   );
-  it('staggers each recovered card without shortening its own lifetime', () => {
-    const scheduled = createSequencedBattleAnimationEvents([event, { ...event, id: 'second' }]);
-    expect(scheduled.map((e) => e.delayMs)).toEqual([0, 60]);
+  it('groups same-seat cards into a simultaneous fan without mixing seats', () => {
+    const scheduled = createSequencedBattleAnimationEvents([
+      event,
+      { ...event, id: 'second' },
+      { ...event, id: 'other-seat', toSeat: 'SECOND' },
+    ]);
+    expect(scheduled.map((e) => e.delayMs)).toEqual([0, 0, 0]);
+    expect(scheduled.map(({ event }) => event.kind === 'CARD_MOVE' && event.recoveryGroup)).toEqual(
+      [
+        { index: 0, count: 2 },
+        { index: 1, count: 2 },
+        { index: 0, count: 1 },
+      ]
+    );
     expect(scheduled.map((e) => e.delayMs + getBattleAnimationEventDurationMs(e.event))).toEqual([
-      1060, 1120,
+      1180, 1180, 1180,
     ]);
   });
 });
 
 describe('discard before recovery presentation', () => {
-  it('waits for late public logs, then the same-seat discard, and releases multiple pickups with their original stagger', () => {
+  it('waits for late public logs, then the same-seat discard, and releases multiple pickups together', () => {
     const pending = [event, { ...event, id: 'second' }].map((event) => ({
       event,
       receivedAt: 100,
@@ -105,7 +126,7 @@ describe('discard before recovery presentation', () => {
     expect(released.expired).toEqual([]);
     expect(
       createSequencedBattleAnimationEvents(released.ready).map((entry) => entry.delayMs)
-    ).toEqual([0, 60]);
+    ).toEqual([0, 0]);
   });
   it('does not delay a pickup for another seat, or a recovery with no discard', () => {
     for (const discardSeats of [

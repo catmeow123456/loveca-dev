@@ -6,7 +6,7 @@ const floor = (page: Page) => page.locator('[data-ability-activation-floor]');
 const menu = (page: Page) => page.getByRole('button', { name: /^起动/ }).last();
 const snapshot = (page: Page) =>
   page.evaluate(async () => (await import('./activationProbe.ts')).snapshot());
-type EdgeStyle = 'flow' | 'flow-original' | 'ink';
+type EdgeStyle = 'rainbow' | 'flow' | 'flow-original' | 'ink';
 async function prepare(page: Page, style?: EdgeStyle) {
   await page.goto(`/activation.html${style ? `?edge=${style}` : ''}`);
   await expect(source(page)).toBeVisible();
@@ -62,19 +62,19 @@ async function record(page: Page) {
   });
 }
 
-test('real activation: original card lifts, flow evolves, then exactly one command processes', async ({
+test('real activation: original card lifts, rainbow travels, then exactly one command processes', async ({
   page,
 }, info) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await prepare(page);
-  await expect(page.getByLabel('边缘特效')).toHaveValue('flow');
+  await expect(page.getByLabel('边缘特效')).toHaveValue('rainbow');
   await record(page);
   await page.screenshot({ path: info.outputPath('before.png') });
   const before = await snapshot(page);
   await activate(page);
   await expect(ink(page)).toHaveCount(1);
-  await expect(ink(page)).toHaveAttribute('data-ability-activation-style', 'flow');
+  await expect(ink(page)).toHaveAttribute('data-ability-activation-style', 'rainbow');
   expect((await snapshot(page)).seq).toBe(before.seq);
   await expect
     .poll(async () => (await snapshot(page)).activationCount)
@@ -93,9 +93,9 @@ test('real activation: original card lifts, flow evolves, then exactly one comma
   expect(errors).toEqual([]);
 });
 
-for (const style of ['flow', 'ink'] as const)
+for (const style of ['rainbow', 'flow', 'ink'] as const)
   for (const narrow of [false, true])
-    test(`${style}: paused visual samples at ${style === 'flow' ? '250/450/650/800' : '450/750'}ms, ${narrow ? 'mobile' : 'desktop'}`, async ({
+    test(`${style}: paused visual samples at ${style !== 'ink' ? '250/450/650/800' : '450/750'}ms, ${narrow ? 'mobile' : 'desktop'}`, async ({
       page,
     }, info) => {
       if (narrow) await page.setViewportSize({ width: 390, height: 844 });
@@ -108,7 +108,32 @@ for (const style of ['flow', 'ink'] as const)
       // Pause in the installed clock's future, independent of host/browser clock skew.
       await page.clock.pauseAt(new Date(clockStart.getTime() + 1000));
       await menu(page).dispatchEvent('click');
+      const rainbowSamples: { time: number; lit: boolean[]; hues: number[] }[] = [];
       const captureFrame = async (time: number, bounds: typeof restingBounds) => {
+        if (style === 'rainbow') {
+          const sample = await ink(page).evaluate((node) => {
+            const context = (node as HTMLCanvasElement).getContext('2d')!;
+            const points = [
+              ...[96, 144, 192, 240].map((x) => [x, 60]),
+              ...[96, 160, 224, 288].map((y) => [267, y]),
+              ...[96, 144, 192, 240].map((x) => [x, 347]),
+              ...[96, 160, 224, 288].map((y) => [60, y]),
+            ];
+            const colours = points.map(([x, y]) => context.getImageData(x, y, 1, 1).data);
+            return {
+              lit: colours.map((rgba) => rgba[3] > 25),
+              hues: colours
+                .filter((rgba) => rgba[3] > 25)
+                .map((rgba) => {
+                  const rgb = Array.from(rgba).slice(0, 3);
+                  return Math.max(...rgb) - Math.min(...rgb) > 40
+                    ? rgb.indexOf(Math.max(...rgb))
+                    : -1;
+                }),
+            };
+          });
+          rainbowSamples.push({ time, ...sample });
+        }
         await page.screenshot({ path: info.outputPath(`${style}-paused-${time}ms.png`) });
         if (!narrow) {
           const canvasBounds = (await ink(page).boundingBox())!;
@@ -118,7 +143,7 @@ for (const style of ['flow', 'ink'] as const)
           await page.screenshot({
             path: info.outputPath(`${style}-detail-${time}ms.png`),
             clip:
-              style === 'flow'
+              style !== 'ink'
                 ? {
                     x,
                     y,
@@ -134,15 +159,15 @@ for (const style of ['flow', 'ink'] as const)
           });
         }
       };
-      if (style === 'flow') {
+      if (style !== 'ink') {
         await page.clock.runFor(250);
         await pauseLiftAt(page, 250);
         await captureFrame(250, (await source(page).boundingBox())!);
       }
-      await page.clock.runFor(style === 'flow' ? 200 : 450);
+      await page.clock.runFor(style !== 'ink' ? 200 : 450);
       await expect(ink(page)).toHaveCount(1);
       await expect(ink(page)).toHaveAttribute('data-ability-activation-style', style);
-      if (style === 'flow') {
+      if (style !== 'ink') {
         const coverage = await ink(page).evaluate((node) => {
           const context = (node as HTMLCanvasElement).getContext('2d')!;
           const hasPaint = (x: number, y: number, width: number, height: number) =>
@@ -185,16 +210,27 @@ for (const style of ['flow', 'ink'] as const)
       await expect(source(page).locator('[data-card-effect-outline]')).toHaveCSS('opacity', '0');
       await captureFrame(450, raised);
       let previousTime = 450;
-      for (const time of style === 'flow' ? [650, 800] : [750]) {
+      for (const time of style !== 'ink' ? [650, 800] : [750]) {
         // Advance the same canvas through every intervening frame, as in real playback.
         await page.clock.runFor(time - previousTime);
         await pauseLiftAt(page, time);
         await captureFrame(time, raised);
         previousTime = time;
       }
+      if (style === 'rainbow') {
+        const middle = rainbowSamples.find((sample) => sample.time === 450)!;
+        expect(middle.lit.filter(Boolean).length).toBeGreaterThan(3);
+        expect(middle.lit.filter(Boolean).length).toBeLessThan(13);
+        expect(new Set(middle.hues.filter((hue) => hue >= 0)).size).toBeGreaterThanOrEqual(2);
+        const first = rainbowSamples[0];
+        const later = rainbowSamples.find((sample) => sample.time === 650)!;
+        expect(later.lit.filter((lit, index) => lit !== first.lit[index]).length).toBeGreaterThan(
+          3
+        );
+      }
     });
 
-test('ink and both ribbon speeds keep identical lift, execute once at 1000ms, and clean up', async ({
+test('rainbow, ink and both ribbon speeds keep identical lift, execute once at 1000ms, and clean up', async ({
   page,
 }) => {
   await prepare(page, 'ink');
@@ -204,7 +240,7 @@ test('ink and both ribbon speeds keep identical lift, execute once at 1000ms, an
   await page.clock.install({ time: clockStart });
   await page.clock.pauseAt(new Date(clockStart.getTime() + 1000));
   let inkBounds = restingBounds;
-  for (const style of ['ink', 'flow-original', 'flow'] as const) {
+  for (const style of ['ink', 'flow-original', 'flow', 'rainbow'] as const) {
     if (style !== 'ink') await page.getByLabel('边缘特效').selectOption(style);
     const before = await snapshot(page);
     await source(page).dispatchEvent('click');

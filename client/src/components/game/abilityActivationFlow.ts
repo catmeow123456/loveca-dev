@@ -92,8 +92,22 @@ function writeRibbonProfile(
   }
 }
 
-/** Edge light only. Never samples, filters, or deforms the underlying card art. */
-export function createActivationFlowPainter(canvas: HTMLCanvasElement, speedMultiplier = 1.5) {
+const SPECTRUM = [
+  [255, 91, 119],
+  [255, 167, 76],
+  [255, 231, 110],
+  [111, 244, 142],
+  [100, 227, 255],
+  [128, 146, 255],
+  [214, 122, 255],
+];
+
+/** Edge light only. Both materials share the exact same moving heads and trail age. */
+export function createActivationFlowPainter(
+  canvas: HTMLCanvasElement,
+  speedMultiplier = 1.5,
+  material: 'pearl' | 'rainbow' = 'pearl'
+) {
   canvas.width = 328;
   canvas.height = 408;
   const context = canvas.getContext('2d');
@@ -143,6 +157,33 @@ export function createActivationFlowPainter(canvas: HTMLCanvasElement, speedMult
       const coverage = geometry[i + 3];
       if (strength < 0.001) {
         image.data[pixel + 3] = 0;
+        continue;
+      }
+      if (material === 'rainbow') {
+        const age = profile[p + 10];
+        // A simple coloured stroke stays close to the edge. Its thinner, fading
+        // tail follows the head's history rather than lighting the entire rim.
+        const across = distance - 1.6;
+        const coreWidth = (0.62 + 0.5 * (1 - age)) * 1.2;
+        const core = Math.exp(-(across ** 2) / (2 * coreWidth ** 2));
+        const halo = Math.exp(-(across ** 2) / (2 * (2.5 + age) ** 2));
+        const light = strength * coverage;
+        const coreWeight = core * 0.92;
+        const haloWeight = halo * 0.38 * (1 - coreWeight);
+        const alpha = (coreWeight + haloWeight) * light;
+        // The rainbow travels with each stroke; it is not a stationary gradient
+        // over a pulsing border. The second head starts at a different hue.
+        const colourPosition = (age * 6 + (profile === echo ? 3 : 0)) % 7;
+        const start = Math.floor(colourPosition);
+        const mix = smooth(colourPosition - start);
+        const from = SPECTRUM[start];
+        const to = SPECTRUM[(start + 1) % SPECTRUM.length];
+        const highlight = core * 0.28;
+        for (let channel = 0; channel < 3; channel++) {
+          const colour = from[channel] + (to[channel] - from[channel]) * mix;
+          image.data[pixel + channel] = colour + (255 - colour) * highlight;
+        }
+        image.data[pixel + 3] = 255 * alpha;
         continue;
       }
       const center = profile[p + 1];

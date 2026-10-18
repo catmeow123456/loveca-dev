@@ -2,16 +2,6 @@ import { ZoneType } from '@game/shared/types/enums';
 import type { BattleAnimationEvent } from './battleAnimationEvents';
 
 export const BATTLE_CARD_MOVE_DURATION_MS = 360;
-export const RECOVERY_CHARGE_DURATION_MS = 80;
-export const RECOVERY_RISE_DURATION_MS = 180;
-export const RECOVERY_HOLD_DURATION_MS = 400;
-export const RECOVERY_FLIGHT_DURATION_MS = 400;
-export const RECOVERY_DURATION_MS =
-  RECOVERY_CHARGE_DURATION_MS +
-  RECOVERY_RISE_DURATION_MS +
-  RECOVERY_HOLD_DURATION_MS +
-  RECOVERY_FLIGHT_DURATION_MS;
-export const RECOVERY_STAGGER_MS = 60;
 
 export function isRecoveryCardMove(event: BattleAnimationEvent): boolean {
   return (
@@ -29,6 +19,8 @@ export const WAITING_ROOM_REVEAL_DURATION_MS =
   WAITING_ROOM_REVEAL_MOVE_DURATION_MS +
   WAITING_ROOM_REVEAL_HOLD_DURATION_MS +
   WAITING_ROOM_REVEAL_COLLECT_DURATION_MS;
+// Same presentation played backwards: pile → reveal → hand.
+export const RECOVERY_DURATION_MS = WAITING_ROOM_REVEAL_DURATION_MS;
 export const DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS = 800;
 export const DISCARD_PRESENTATION_REDUCED_MOTION_FADE_MS = 80;
 export const ENTER_EFFECT_SURFACE_SUSPEND_MS =
@@ -53,13 +45,23 @@ export function createSequencedBattleAnimationEvents(
   );
 
   const recoveryCounts = new Map<string, number>();
+  const recoveryTotals = new Map<string, number>();
+  for (const event of events) {
+    if (event.kind === 'CARD_MOVE' && isRecoveryCardMove(event)) {
+      const seat = event.toSeat ?? '';
+      recoveryTotals.set(seat, (recoveryTotals.get(seat) ?? 0) + 1);
+    }
+  }
   return events.map((event) => {
-    let delayMs = hasStageEntryMove ? getStageEntrySequencedDelay(event) : 0;
+    const delayMs = hasStageEntryMove ? getStageEntrySequencedDelay(event) : 0;
     if (event.kind === 'CARD_MOVE' && isRecoveryCardMove(event)) {
       const seat = event.toSeat ?? '';
       const index = recoveryCounts.get(seat) ?? 0;
       recoveryCounts.set(seat, index + 1);
-      delayMs += index * RECOVERY_STAGGER_MS;
+      return {
+        event: { ...event, recoveryGroup: { index, count: recoveryTotals.get(seat)! } },
+        delayMs,
+      };
     }
     return { event, delayMs };
   });

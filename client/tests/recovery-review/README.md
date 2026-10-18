@@ -1,6 +1,6 @@
 # 二维休息室回收验收
 
-同一环境的 `/activation.html` 提供[起动边缘特效对比](../../../docs/frontend-app-architecture/ability-activation-animation.md)，使用原生卡牌起动按钮。顶部“边缘特效”可切换沿边流光 1.5 倍速、沿边流光原速与保留的当前墨染，切换后自动重新准备；也可使用 `?edge=flow` / `?edge=flow-original` / `?edge=ink` 直接进入对应版本。浮起动作和 1 秒时长完全一致。支持舞台、手牌和休息室三种来源，额外只读卡图为 `PL!HS-bp6-014-R.png`、`PL!N-bp1-002-P.png`；浏览器配置为 `activation.playwright.config.ts`。
+同一环境的 `/activation.html` 提供[起动边缘特效对比](../../../docs/frontend-app-architecture/ability-activation-animation.md)，使用原生卡牌起动按钮。顶部“边缘特效”默认使用七彩流光，可切换沿边流光 1.5 倍速、沿边流光原速与墨染，切换后自动重新准备；也可使用 `?edge=rainbow` / `?edge=flow` / `?edge=flow-original` / `?edge=ink` 直接进入对应版本。浮起动作和 1 秒时长完全一致。支持舞台、手牌和休息室三种来源，额外只读卡图为 `PL!HS-bp6-014-R.png`、`PL!N-bp1-002-P.png`；浏览器配置为 `activation.playwright.config.ts`。
 
 此本地入口挂载项目原有 `GameBoard`，使用真实 `GameSession` / card-effect 命令、投影、公开展示和撤销。只有初始局面由测试夹具准备，没有独立对战 UI、生产 API 或账号卡组写入。动画接入说明见[二维休息室回收动画](../../../docs/frontend-app-architecture/recovery-animation.md)。
 
@@ -19,7 +19,7 @@ node client/node_modules/vite/bin/vite.js --config client/tests/recovery-review/
 3. 下拉选择“百生吟子 · 双张回收”：`PL!HS-pb1-020-N` 费用 9「百生吟子」的真实登场卡效已在初始局面进入待处理；依次支付两张弃牌并选择回收。目标为 `PL!HS-sd1-012-SD` 费用 4「百生吟子」与 `PL!HS-bp2-022-L` 分数 2「AOKUHARUKA」，两张均应收尾。
 4. “无目标”场景支付费用后应结束，不播放回收；选牌时点“尝试非法选择”应拒绝，保持原局面。飞行中调整窗口大小、切换视角、重新准备新对局，均不得残留飞牌或遮挡。系统减少动态开启时只保留短提示。
 
-预期节奏：80ms 蓄亮 → 180ms 弹起至 1.5 倍 → 400ms 静止悬停 → 400ms 飞回。休息室内部柔光及少量光束／尾光与卡牌同一时钟，飞回前余光消失。最终大小、位置、扇形角度应连续接上真实手牌。视觉效果交由人工判断。
+预期节奏：从休息室展开 160ms → 原弃牌展示位置停留 720ms → 收入手牌 300ms，共 1180ms，按弃牌动画反向采样。复用弃牌卡牌样式和多张扇形排列，不显示数量提示，也不再使用蓄光／光束／拖尾。最终大小、位置、扇形角度应连续接上真实手牌；同批多张同步展开。
 
 ## 自动验证
 

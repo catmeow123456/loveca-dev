@@ -32,7 +32,7 @@ function App() {
   return (
     <>
       <header className="review-bar">
-        <strong>二维休息室回收</strong>
+        <strong>回收 · 反向弃牌</strong>
         <select
           aria-label="验收场景"
           value={scenario}

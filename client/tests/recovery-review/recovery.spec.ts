@@ -29,6 +29,7 @@ async function recover(page: Page, multiple = false) {
     await page
       .getByRole('button', { name: 'Dream with You 4分 Dream with You', exact: true })
       .click();
+  await page.mouse.move(8, 8);
   // Public presentation still advances at its real deadline.
   await page.waitForFunction(() => !!(window as any).__recoveryFrames?.length);
 }
@@ -60,9 +61,9 @@ async function recordRecoveryFrames(page: Page) {
             Math.abs(f.width - h.width),
             Math.abs(f.height - h.height)
           ),
-          glow: Number(
-            getComputedStyle(document.querySelector('[data-recovery-source-glow]')!).opacity
-          ),
+          left: f.left,
+          top: f.top,
+          rotation: getComputedStyle(flying).transform,
         });
       } else if (start !== undefined) {
         w.__recoveryFinished = true;
@@ -81,6 +82,7 @@ test('real A recovery, hand occlusion, undo and same-A recovery again', async ({
   await recover(page);
   await page.waitForFunction(() => (window as any).__recoveryFrames.at(-1)?.elapsed >= 300);
   await expect(recovered(page)).toHaveCSS('visibility', 'hidden');
+  await expect(page.getByText(/放置入休息室 ×/)).toHaveCount(0);
   await page.screenshot({ path: info.outputPath('hover.png') });
   await page.waitForFunction(() => (window as any).__recoveryFinished);
   const frames = await page.evaluate(
@@ -92,7 +94,8 @@ test('real A recovery, hand occlusion, undo and same-A recovery again', async ({
         opacity: number;
         rotation: number;
         error: number;
-        glow: number;
+        left: number;
+        top: number;
       }[]
   );
   expect(frames.at(-1)!.elapsed).toBeGreaterThan(1000);
@@ -103,7 +106,7 @@ test('real A recovery, hand occlusion, undo and same-A recovery again', async ({
     Math.max(...hover.map((f) => f.width)) - Math.min(...hover.map((f) => f.width))
   ).toBeLessThan(0.1);
   expect(frames.at(-1)!.error).toBeLessThan(1);
-  expect(frames.at(-1)!.glow).toBe(0);
+  await expect(page.locator('[data-recovery-source-glow]')).toHaveCount(0);
   await expect(recovered(page)).toBeVisible();
   await page.screenshot({ path: info.outputPath('settled.png') });
   await page.getByRole('banner').getByRole('button', { name: '撤销上一步', exact: true }).click();
@@ -117,12 +120,22 @@ test('real A recovery, hand occlusion, undo and same-A recovery again', async ({
   expect(errors).toEqual([]);
 });
 
-test('two recovered cards stagger and both settle after the shared selection closes', async ({
+test('two recovered cards share the discard fan and both settle after the shared selection closes', async ({
   page,
 }) => {
   await prepare(page, 'multiple');
   await recover(page, true);
   await expect(flight(page)).toHaveCount(2);
+  await page.waitForTimeout(350);
+  const fan = await flight(page).evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const rect = node.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, width: rect.width };
+    })
+  );
+  expect(Math.abs(fan[0].left - fan[1].left)).toBeGreaterThan(25);
+  expect(Math.abs(fan[0].top - fan[1].top)).toBeLessThan(3);
+  await expect(page.getByText(/放置入休息室 ×/)).toHaveCount(0);
   await expect(recovered(page, 'a')).toHaveCSS('visibility', 'hidden');
   await expect(recovered(page, 'b')).toHaveCSS('visibility', 'hidden');
   await expect(flight(page)).toHaveCount(0);
