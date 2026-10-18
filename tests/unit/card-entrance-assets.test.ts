@@ -87,6 +87,29 @@ describe('entrance registration and resources', () => {
     expect(ready.mock.calls[0]![0].portrait.src).toBe('portrait.png');
     expect(ready.mock.calls[0]![0].card.src).toBe('card.png');
   });
+  it('waits for both public relay faces under the same cancellation deadline', async () => {
+    const { images, make } = imageFactory();
+    const controller = new AbortController();
+    const ready = vi.fn();
+    const result = prepareEntranceAssets(
+      { ...plainProfile, loadArt: async () => ({ default: 'portrait.png' }) },
+      'card.png',
+      controller.signal,
+      make,
+      ['source-a.png', 'source-b.png']
+    ).then(ready);
+    const rejected = expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.waitFor(() => expect(images).toHaveLength(4));
+    for (const image of images.filter((i) => i.src !== 'source-b.png')) image.gate.resolve();
+    await Promise.resolve();
+    expect(ready).not.toHaveBeenCalled();
+    controller.abort();
+    await rejected;
+    images.find((i) => i.src === 'source-b.png')!.gate.resolve();
+    await Promise.resolve();
+    expect(ready).not.toHaveBeenCalled();
+    expect(images.every((i) => i.removeAttribute.mock.calls[0]?.[0] === 'src')).toBe(true);
+  });
   it('prepares the optional blink before starting and falls back to the original portrait on a broken eye image', async () => {
     for (const fails of [false, true]) {
       const { images, make } = imageFactory();

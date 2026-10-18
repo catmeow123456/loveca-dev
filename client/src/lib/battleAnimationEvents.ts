@@ -86,6 +86,8 @@ export type BattleAnimationEvent =
       readonly toZoneKey?: ViewZoneKey;
       readonly fromRect: BattleAnimationRect;
       readonly toRect: BattleAnimationRect;
+      /** Presentation-only fan position, shared by recoveries released in the same seat batch. */
+      readonly recoveryGroup?: { readonly index: number; readonly count: number };
     }
   | DiscardPresentationBatchEvent
   | {

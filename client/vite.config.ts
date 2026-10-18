@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { execFileSync } from 'node:child_process';
 import path from 'path';
-import { createReadStream, existsSync, readFileSync, statSync } from 'fs';
+import { createReadStream, existsSync, readFileSync, readdirSync, statSync } from 'fs';
 
 // 产品版本由仓库根目录 VERSION 维护，并通过 version:check 与 package 版本保持一致。
 const appVersion = readFileSync(path.resolve(__dirname, '../VERSION'), 'utf-8').trim();
@@ -26,6 +26,16 @@ const appBuildId =
   resolveGitCommitSha() ||
   `${appVersion}-${new Date().toISOString()}`;
 const localImagesDir = path.resolve(__dirname, '../assets/images');
+// Preserve existing hashed URLs; only cache requested entrance art, never precache the full set.
+const entranceAssetNames = [
+  ...readdirSync(path.resolve(__dirname, 'src/components/game/card-entrance'))
+    .filter((name) => name.endsWith('.png'))
+    .map((name) => path.parse(name).name),
+  'entrance-names-heavy',
+];
+const entranceAssetPattern = new RegExp(
+  `/assets/(?:${entranceAssetNames.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})-[\\w-]+\\.(?:png|woff2)(?:\\?.*)?$`
+);
 
 function localImagesFallbackPlugin(): Plugin {
   return {
@@ -196,6 +206,19 @@ export default defineConfig(({ mode }) => {
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           // 运行时缓存配置
           runtimeCaching: [
+            {
+              urlPattern: entranceAssetPattern,
+              handler: 'CacheFirst',
+              options: {
+                // Content hashes invalidate changed art; app releases and new matches keep this cache.
+                cacheName: 'card-entrance-assets-v1',
+                expiration: {
+                  maxEntries: 96,
+                  maxAgeSeconds: 365 * 24 * 60 * 60,
+                },
+                cacheableResponse: { statuses: [200] },
+              },
+            },
             // Remote card images (Nginx proxy to MinIO)
             {
               urlPattern: /\/images\/(thumb|medium|large)\/.*\.webp$/,

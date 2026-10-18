@@ -1,5 +1,14 @@
 # Workflow Module Guide
 
+## 2026-10-17 已有family的有限扩展
+
+- `shared/live-start-choose-heart-by-count.ts` 由旧成功区选色family加入费用2「优木雪菜」`PL!N-bp8-007` 后更名。配置仅增加纯 `countHearts` 与玩家计数说明，旧配置继续调用来源相关成功区query；新配置调用 `memberHasEnergyBelow` 统计顶层虹咲成员。有限 `countPayloadKey` 兼容原行动日志：旧成功区配置保留 `successLiveCount`，新能量下方成员计数写 `energyBelowMemberCount`，不将不同计数事实混名。捕获触发来源生命周期，颜色选项窗口与旧step ID不变，0计数仍强制选色；旧来源离台重登不获得奖励。两个旧卡的局部下方能量查询也共用该predicate，未晋升其完整workflow。
+- `shared/live-success-discard-recover-cheer.ts` 从低费/低分回收family更名，仅增加回收selector与步骤文案配置，费用13「小泉花阳」`PL!-bp8-008` 可回收任意卡型的μ’s声援卡。旧卡与新卡的已诱发弃手/回收不依赖来源仍在舞台；目标在费用完成后扫描，空手无交互路径先确认，付款后无目标保留费用。`discard-cost-recover-live-or-gain-blade.ts` 另增加纯 `recoveryCondition`、`recoverySelector` 与文案配置，为费用4「村野沙耶香」先弃后查莲之空有效费用总和≥25、回收DOLLCHESTRA LIVE；两者不合并为任意费用/奖励DSL。
+- `shared/arrange-inspected-deck-edge.ts` 新增唯一窄交互轴 `TOP_ONE_OPTIONAL_BOTTOM`，由费用11「渡边曜」`PL!S-cl1-005` 与旧费用4「松浦果南」`PL!S-bp7-003` 的登场/LIVE开始两段证明。binary adapter保留 `S_BP7_003_LOOK_TOP_ONE_OPTIONAL_BOTTOM`、`keep-top/place-bottom`、`selectedOptionId` 与私密 `effectChoice`；选项转换为固定TOP/BOTTOM分区后调用同一个placement core与 `moveInspectedCardsToDeckTopAndBottom`。去向由配置确定，不要求旧检查点新增metadata；不把旧输入改为选卡，不公开卡面、不产生休息室事件。真实检视不叠确认；无卡可检视时，单LIVE/手动选择通过统一confirmable bridge确认后结算，ordered自动结束。旧果南保护/站位段仍留单卡模块。
+- `shared/on-cheer-conditional-wait-opponent-original-heart.ts` 从分数7「PSYCHIC FIRE」晋升并加入费用15「黑泽黛雅」`PL!S-cl1-004`。稳定核心固定为自己普通ON_CHEER、turn1、条件结算、强制待机对方原本HEART≤4成员、目标生命周期/保护重验与标准状态事件；配置仅为ability/step、来源身份校验、纯条件query及状态说明。`pending.eventIds`证明正常触发，结算条件用当前LIVE公开历史，已移走仍计数、先结算的追加声援可计数但不再次触发。来源槽位由definition在触发时捕获，离台/移位不取消已诱发能力；次数绑定原来源生命周期，条件失败/无目标也消费。步骤登记 `queryCardSelection` 拒绝夹杂槽位、数值等非法输入，不扩通用opponent-wait配置。
+- `shared/revealed-cheer-selection.ts` 仅增加 `predicateForState(game, playerId) => CheerCardPredicate`，优先于固定predicate，初始候选与公开恢复统一生成。分数3「思念合而为一吧」`PL!S-cl1-011` 通过 `startCondition` / `recheckConditionOnSelection` 和 `effects/stage-member-common-hearts.ts` 检查三个己方顶层Aqours有效普通HEART全体交集；不使用availabilityGate抹除正常诱发，不修改全局CheerCardPredicate签名。RAINBOW只按自己的颜色求交，候选普通HEART匹配交集中任一色即可；BLADE HEART不参与该条件。
+- `runtime/grouped-selection.ts#hasDistinctGroupedCardAssignment` 从旧费用4「涩谷香音」局部分配与公开确认提炼纯一对一分配算法，为分数2「未体验地平线」三组各0～1配额复用。每张所选实体仅占一个组，按回溯找到合法分配，重复ID/不足或超配额拒绝。普通 `validateGroupedCardSelection` / selection-query groups 的“累计所有匹配组”语义保持；特殊workflow自行显式校验分配，不把普通query当完整约束。`readExclusiveCardSelectionInput` 保留单卡/有序多卡正常形式，拒绝混合输入。分数5「奇迹闪耀」保持单卡同名实体配额编排，也调用同一 `hasDistinctGroupedCardAssignment` 校验逐实体同名配额，并共用公开确认与有序区域移动原语，不泛化整个family。
+
 ## 2026-09-29 条件与团体重验扩展
 
 `shared/opponent-wait-target.ts` 为 `PL!-pb2-029` 费用9「绚濑绘里」复用 `allOwnStageMembersGroupAlias` 与原本 BLADE query；选择提交时重新验证己方舞台非空且全部成员匹配指定团体，条件变化时结束原选择，不能沿用打开窗口时的结论。目标生命周期与状态也重新验证，真实待机后仍只由标准状态事件 wrapper 入队。该共享修正覆盖既有设置团体限制的配置，不改变未设置条件的卡牌。

@@ -78,3 +78,31 @@ export function getNeighborImpactHinge(
     axisY: -x,
   };
 }
+
+/** Decorative light stays local; tabletop motion has its own wider reach. */
+export function getLandingImpactRadius(cardSize: number) {
+  return cardSize * 1.45;
+}
+export function getLandingSpreadProgress(progress: number) {
+  const t = Math.max(0, Math.min(1, progress));
+  return 1 - (1 - t) ** 3;
+}
+export function getNeighborImpactResponse(distance: number, radius: number, variation: number) {
+  const d = Math.max(0, distance / Math.max(1, radius));
+  if (d >= 1) return null;
+  const strength = (1 - d * 0.8) * (0.78 + variation * 0.44);
+  return {
+    strength,
+    angle: Math.min(46, (36 + variation * 12) * (0.65 + strength * 0.35)),
+    // Mechanical impulse propagates beyond the decorative light.
+    arrival: d,
+  };
+}
+
+/** One height curve for the card, its perspective and its contact shadow. */
+export function getLandingFlightFrame(elapsed: number, travel: number, press: number) {
+  const t = Math.max(0, Math.min(1, elapsed / travel));
+  const path = t * t * (3 - 2 * t);
+  const descent = Math.max(0, Math.min(1, (elapsed - travel) / press));
+  return { path, height: 1 - descent ** 2, finished: elapsed >= travel + press };
+}

@@ -1,10 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { entranceBlinkAmount, entranceBlinkFrame } from '../../client/src/lib/cardEntranceBlink';
+import {
+  entranceBlinkAmount,
+  entranceBlinkFrame,
+  entranceBlinkEyeUniforms,
+  type EntranceBlinkProfile,
+} from '../../client/src/lib/cardEntranceBlink';
 import { cardEntranceProfiles } from '../../client/src/lib/cardEntranceProfiles';
 import { entranceTimeline } from '../../client/src/lib/cardEntranceTimeline';
 
 const blink = cardEntranceProfiles.find((p) => p.id === 'rurino')!.blink!.faces[0]!;
 describe('portrait blink', () => {
+  it('preserves paired-eye uploads and clears the second slot for an original wink', () => {
+    const single: EntranceBlinkProfile = { ...blink, eyes: [blink.eyes[0]] };
+    for (const key of ['target', 'half', 'closed'] as const) {
+      expect(entranceBlinkEyeUniforms(blink, key)).toEqual(
+        blink.eyes.flatMap((eye) => [...eye[key]])
+      );
+      const upload = entranceBlinkEyeUniforms(single, key);
+      expect(upload).toHaveLength(8);
+      expect(upload.slice(0, 4)).toEqual(blink.eyes[0][key]);
+      expect(upload.slice(4)).toEqual(key === 'target' ? [-2, -2, 1, 1] : [0, 0, 1, 1]);
+    }
+    expect(entranceBlinkFrame(blink.start + blink.close, [single], false)?.face).toBe(single);
+    expect(entranceBlinkFrame(blink.start + blink.close, [single], true)).toBeNull();
+  });
   it('closes once, holds briefly and opens more slowly during the clear portrait phase', () => {
     expect(blink.start * 1000).toBeGreaterThan(entranceTimeline.portrait.enter);
     const end = blink.start + blink.close + blink.hold + blink.open;

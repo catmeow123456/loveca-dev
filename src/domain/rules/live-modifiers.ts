@@ -10,6 +10,7 @@ import {
   isMemberCardData,
   type BladeHeartItem,
   type HeartIcon,
+  type LiveCardData,
 } from '../entities/card.js';
 import type {
   GameState,
@@ -908,6 +909,19 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       });
       return modifier ? [modifier] : [];
     },
+  },
+  {
+    visibility: SELF_LIVE_ZONE_CONTENTS_VISIBILITY,
+    baseCardCodes: ['PL!-bp8-001'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      successLiveScoreForCardEffectAtLeast(game, playerId, sourceCardId, [playerId], 6)
+        ? collectOwnLiveRequirementModifiers(game, playerId, sourceCardId, {
+            abilityId:
+              PL_BP8_001_CONTINUOUS_SUCCESS_SCORE_SIX_LOW_SCORE_MUSE_LIVE_REQUIREMENT_ABILITY_ID,
+            matches: (card) => card.score <= 4 && cardBelongsToGroup(card, "μ's"),
+            genericCountDelta: -1,
+          })
+        : [],
   },
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
@@ -1985,6 +1999,8 @@ const SP_PB1_002_CONTINUOUS_ENERGY_TWELVE_LIVE_SCORE_ABILITY_ID =
   'PL!SP-pb1-002:continuous-energy-twelve-live-score';
 const BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID =
   'PL!-bp6-022:continuous-success-zone-muse-live-requirement';
+const PL_BP8_001_CONTINUOUS_SUCCESS_SCORE_SIX_LOW_SCORE_MUSE_LIVE_REQUIREMENT_ABILITY_ID =
+  'PL!-bp8-001:continuous-success-score-six-low-score-muse-live-requirement';
 const KARIN_CONTINUOUS_NOT_MOVED_BLADE_ABILITY_ID =
   'PL!N-pb1-004:continuous-not-position-moved-gain-two-blade';
 const N_PR_024_CONTINUOUS_SUCCESS_LIVE_TOTAL_FOUR_GAIN_TWO_BLADE_ABILITY_ID =
@@ -2265,6 +2281,23 @@ function collectDreaminGoGoRequirementModifiers(
   playerId: string,
   sourceCardId: string
 ): readonly LiveModifierState[] {
+  return collectOwnLiveRequirementModifiers(game, playerId, sourceCardId, {
+    abilityId: BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID,
+    matches: (card) => card.score >= 5 && cardBelongsToGroup(card, "μ's"),
+    genericCountDelta: -2,
+  });
+}
+
+function collectOwnLiveRequirementModifiers(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string,
+  config: {
+    readonly abilityId: string;
+    readonly matches: (card: LiveCardData) => boolean;
+    readonly genericCountDelta: number;
+  }
+): readonly LiveModifierState[] {
   const player = game.players.find((candidate) => candidate.id === playerId);
   if (!player) {
     return [];
@@ -2272,12 +2305,7 @@ function collectDreaminGoGoRequirementModifiers(
 
   return player.liveZone.cardIds.flatMap((liveCardId) => {
     const card = getCardById(game, liveCardId);
-    if (
-      !card ||
-      !isLiveCardData(card.data) ||
-      card.data.score < 5 ||
-      !cardBelongsToGroup(card.data, "μ's")
-    ) {
+    if (!card || !isLiveCardData(card.data) || !config.matches(card.data)) {
       return [];
     }
 
@@ -2285,9 +2313,9 @@ function collectDreaminGoGoRequirementModifiers(
       {
         kind: 'REQUIREMENT' as const,
         liveCardId,
-        modifiers: [{ color: HeartColor.RAINBOW, countDelta: -2 }],
+        modifiers: [{ color: HeartColor.RAINBOW, countDelta: config.genericCountDelta }],
         sourceCardId,
-        abilityId: BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID,
+        abilityId: config.abilityId,
       },
     ];
   });

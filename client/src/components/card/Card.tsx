@@ -301,7 +301,9 @@ export const Card = memo(function Card({
       }
       whileTap={interactive ? { scale: 0.98 } : undefined}
       layout={enableLayoutAnimation}
+      data-card-surface=""
       data-card-id={instanceId}
+      data-ability-activation-source={interactive && faceUp ? instanceId : undefined}
       data-object-id={instanceId ? `obj_${instanceId}` : undefined}
       data-limited-activated-highlight={limitedActivatedHighlight ? 'true' : undefined}
     >
@@ -373,6 +375,7 @@ export const Card = memo(function Card({
       {effectVisualState !== 'none' && <CardEffectMarker state={effectVisualState} />}
       {(limitedActivatedHighlight || effectVisualState !== 'none') && (
         <div
+          data-card-effect-outline="true"
           className={cn(
             'pointer-events-none absolute z-20 rounded-[12px] border',
             limitedActivatedHighlight

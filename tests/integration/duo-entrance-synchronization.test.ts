@@ -16,7 +16,7 @@ import {
   SubPhase,
   TurnType,
 } from '../../src/shared/types/enums';
-import { ENTRANCE_WAIT_LIMIT_MS } from '../../src/shared/card-entrance';
+import { ENTRANCE_WAIT_LIMIT_MS, DOUBLE_RELAY_ENTRANCE_EXTRA_MS } from '../../src/shared/card-entrance';
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 
 function fixture(cardCode: string) {
@@ -114,7 +114,7 @@ function fixture(cardCode: string) {
     play,
     ack,
     advance: () => {
-      now += ENTRANCE_WAIT_LIMIT_MS;
+      now += ENTRANCE_WAIT_LIMIT_MS + DOUBLE_RELAY_ENTRANCE_EXTRA_MS;
     },
   };
 }

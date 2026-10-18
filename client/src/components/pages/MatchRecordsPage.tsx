@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '@/components/common';
 import { GameBoard } from '@/components/game';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   exportAdminMatchRecordBundle,
   fetchAdminMatchRecordAuditPage,
@@ -1210,58 +1211,60 @@ export function ReplayBoardSurface({
   onRetryNode: () => void;
   onClose: () => void;
 }) {
+  const isMobileBattlefield = useMediaQuery('(max-width: 767px)');
+  const replayToolbar = (
+    <div className="battle-toolbar-control-group inline-flex h-11 max-w-full items-center overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
+      <div className="flex min-w-0 items-center gap-2 px-3 text-sm font-semibold">
+        <History size={15} aria-hidden="true" className="shrink-0 text-[var(--accent-primary)]" />
+        <span className="hidden sm:inline">历史回放</span>
+        <span className="whitespace-nowrap font-mono text-xs text-[var(--text-secondary)]">
+          {currentCheckpointIndex >= 0 ? currentCheckpointIndex + 1 : 0}/{checkpointCount}
+        </span>
+      </div>
+      <span className="h-5 w-px shrink-0 bg-[var(--border-default)]" />
+      <button
+        type="button"
+        onClick={() => onStep(-1)}
+        disabled={!canGoPrevious || isLoadingNode}
+        className="button-ghost grid h-10 w-10 shrink-0 place-items-center rounded-none p-0 disabled:cursor-not-allowed disabled:opacity-40"
+        aria-label="上一个回放节点"
+        title="上一个回放节点"
+      >
+        <ChevronLeft size={16} />
+      </button>
+      <button
+        type="button"
+        onClick={() => onStep(1)}
+        disabled={!canGoNext || isLoadingNode}
+        className="button-ghost grid h-10 w-10 shrink-0 place-items-center rounded-none p-0 disabled:cursor-not-allowed disabled:opacity-40"
+        aria-label="下一个回放节点"
+        title="下一个回放节点"
+      >
+        <ChevronRight size={16} />
+      </button>
+      <span className="h-5 w-px shrink-0 bg-[var(--border-default)]" />
+      <button
+        type="button"
+        onClick={onClose}
+        className="button-ghost grid h-10 w-10 shrink-0 place-items-center rounded-none p-0"
+        aria-label="关闭桌面回放"
+        title="关闭桌面回放"
+      >
+        <X size={16} />
+      </button>
+    </div>
+  );
   return (
     <div className="app-shell min-h-screen overflow-hidden bg-[var(--bg-surface)]">
       <div className="fixed inset-0 z-[var(--z-battle-replay-surface)] overflow-hidden bg-[var(--bg-surface)]">
         <div className="h-full w-full">
-          <GameBoard />
+          <GameBoard desktopHeaderActions={replayToolbar} />
         </div>
-        <div className="pointer-events-auto fixed left-2 top-[calc(env(safe-area-inset-top)+0.5rem)] z-[230] max-w-[calc(100vw-1rem)] md:left-4 md:top-4">
-          <div className="inline-flex h-11 max-w-full items-center overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
-            <div className="flex min-w-0 items-center gap-2 px-3 text-sm font-semibold">
-              <History
-                size={15}
-                aria-hidden="true"
-                className="shrink-0 text-[var(--accent-primary)]"
-              />
-              <span className="hidden sm:inline">历史回放</span>
-              <span className="whitespace-nowrap font-mono text-xs text-[var(--text-secondary)]">
-                {currentCheckpointIndex >= 0 ? currentCheckpointIndex + 1 : 0}/{checkpointCount}
-              </span>
-            </div>
-            <span className="h-5 w-px shrink-0 bg-[var(--border-default)]" />
-            <button
-              type="button"
-              onClick={() => onStep(-1)}
-              disabled={!canGoPrevious || isLoadingNode}
-              className="button-ghost grid h-10 w-10 shrink-0 place-items-center rounded-none p-0 disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="上一个回放节点"
-              title="上一个回放节点"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onStep(1)}
-              disabled={!canGoNext || isLoadingNode}
-              className="button-ghost grid h-10 w-10 shrink-0 place-items-center rounded-none p-0 disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="下一个回放节点"
-              title="下一个回放节点"
-            >
-              <ChevronRight size={16} />
-            </button>
-            <span className="h-5 w-px shrink-0 bg-[var(--border-default)]" />
-            <button
-              type="button"
-              onClick={onClose}
-              className="button-ghost grid h-10 w-10 shrink-0 place-items-center rounded-none p-0"
-              aria-label="关闭桌面回放"
-              title="关闭桌面回放"
-            >
-              <X size={16} />
-            </button>
+        {isMobileBattlefield && (
+          <div className="pointer-events-auto fixed left-2 top-[calc(env(safe-area-inset-top)+0.5rem)] z-[var(--z-battle-chrome)] max-w-[calc(100vw-1rem)]">
+            {replayToolbar}
           </div>
-        </div>
+        )}
         {nodeLoadError ? (
           <div
             role="alert"

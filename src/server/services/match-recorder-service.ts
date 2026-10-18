@@ -1418,6 +1418,8 @@ function buildTransitionDedupeKey(
 
 function summarizePublicEvent(event: PublicEvent): string {
   switch (event.type) {
+    case 'EffectFeedback':
+      return '成员心／刀反馈';
     case 'PhaseStarted':
       return `阶段开始：${event.phase}`;
     case 'SubPhaseStarted':

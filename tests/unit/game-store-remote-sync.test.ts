@@ -8,6 +8,7 @@ import type {
 } from '../../src/online/types';
 import type { MatchRecordReplayView } from '../../src/online/replay-types';
 import type { RemoteSnapshot } from '@/lib/remoteMatchClient';
+import { consumeEffectFeedback, type EffectFeedbackCursor } from '@/lib/effectFeedback';
 
 vi.mock('@/lib/imageService', () => ({
   preloadImage: vi.fn(() => Promise.resolve()),
@@ -187,6 +188,106 @@ describe('gameStore remote snapshot sync', () => {
       },
     });
   });
+
+  it.each(['ONLINE', 'SOLITAIRE', 'AI_DEBUG'] as const)(
+    '%s keeps feedback on the public clock through late logs, recovery and undo',
+    async (source) => {
+      const matchId = `feedback-${source}`;
+      setRemoteSession(matchId);
+      useGameStore.setState({
+        remoteSession: { ...useGameStore.getState().remoteSession!, source },
+      });
+      const feedback = (seq: number): PublicEvent => ({
+        type: 'EffectFeedback',
+        eventId: `feedback:${seq}`,
+        matchId,
+        seq,
+        timestamp: seq,
+        source: 'COMMAND',
+        mode: 'APPLIED',
+        targets: [
+          {
+            objectId: 'obj_member',
+            zoneKey: 'FIRST_MEMBER_LEFT',
+            changes: [{ kind: 'BLADE', delta: 1 }],
+          },
+        ],
+      });
+      let cursor: EffectFeedbackCursor | null = null;
+      const played: number[] = [];
+      const frames: [number, number][] = [];
+      // Subscribe synchronously, as a presentation reader can: no reliance on React batching.
+      const unsubscribe = useGameStore.subscribe(
+        ({ playerViewState: view, publicBattleLog: log }) => {
+          if (!view || view.match.matchId !== log.matchId) {
+            cursor = null;
+            return;
+          }
+          frames.push([view.match.seq, log.currentPublicSeq]);
+          const result = consumeEffectFeedback(cursor, {
+            context: `${view.match.matchId}:${view.match.viewerSeat}:${log.presentationEpoch}`,
+            currentPublicSeq: log.currentPublicSeq,
+            events: log.events,
+          });
+          cursor = result.cursor;
+          played.push(...result.events.map((event) => event.seq));
+        }
+      );
+      try {
+        const history = deferred<PublicEventsResponse>();
+        vi.mocked(fetchRemotePublicEvents).mockReturnValueOnce(history.promise);
+        await useGameStore.getState().applyRemoteSnapshot(createSnapshot(matchId, 10, 40));
+        expect(frames[0]).toEqual([10, 40]);
+        expect(played).toEqual([]);
+        history.resolve(createPublicEventsResponse(matchId, 40, [feedback(39)]));
+        await vi.waitFor(() =>
+          expect(useGameStore.getState().publicBattleLog.loadState).toBe('idle')
+        );
+        expect(played).toEqual([]); // Old log delivered after initial view is still history.
+
+        const late = deferred<PublicEventsResponse>();
+        vi.mocked(fetchRemotePublicEvents).mockReturnValueOnce(late.promise);
+        await useGameStore.getState().applyRemoteSnapshot(createSnapshot(matchId, 11, 42));
+        expect(played).toEqual([]);
+        late.resolve(createPublicEventsResponse(matchId, 42, [feedback(42)]));
+        await vi.waitFor(() => expect(played).toEqual([42]));
+        expect(fetchRemotePublicEvents).toHaveBeenLastCalledWith(source, matchId, 'FIRST', 40);
+
+        vi.mocked(fetchRemotePublicEvents).mockResolvedValueOnce(
+          createPublicEventsResponse(matchId, 42, [feedback(42)])
+        );
+        await useGameStore.getState().syncPublicBattleLog();
+        expect(played).toEqual([42]); // Repeated delivery is not another gain.
+        await useGameStore.getState().applyRemoteSnapshot(
+          createSnapshot(matchId, 11, 35, {
+            recovery: createRecoveryInfo(35),
+            publicEvents: [feedback(35)],
+          })
+        );
+        expect(played).toEqual([42]);
+        await useGameStore
+          .getState()
+          .applyRemoteSnapshot(createSnapshot(matchId, 12, 36, { publicEvents: [feedback(36)] }));
+        expect(played).toEqual([42, 36]);
+
+        // Undo advances the remote revision, but rewinds the public event clock.
+        await useGameStore
+          .getState()
+          .applyRemoteSnapshot(createSnapshot(matchId, 13, 35, { publicEvents: [feedback(35)] }));
+        expect(played).toEqual([42, 36]);
+        await useGameStore
+          .getState()
+          .applyRemoteSnapshot(createSnapshot(matchId, 14, 36, { publicEvents: [feedback(36)] }));
+        expect(played).toEqual([42, 36, 36]); // Redo is a new presentation epoch.
+        await useGameStore
+          .getState()
+          .applyRemoteSnapshot(createSnapshot(matchId, 12, 36, { publicEvents: [feedback(36)] }));
+        expect(played).toEqual([42, 36, 36]); // Stale snapshot cannot replay or rewind.
+      } finally {
+        unsubscribe();
+      }
+    }
+  );
 
   it('本地 syncState 会把 GameSession 公共事件增量接入同一日志状态', () => {
     const session = useGameStore.getState().gameSession;

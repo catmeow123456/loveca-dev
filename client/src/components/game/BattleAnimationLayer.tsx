@@ -14,6 +14,7 @@ import {
   type BattleAnimationCardRender,
   type BattleAnimationEvent,
   type BattleAnimationRect,
+  type BattleAnimationSeat,
   type DiscardPresentationBatchEvent,
 } from '@/lib/battleAnimationEvents';
 import {
@@ -24,9 +25,8 @@ import {
   DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS,
   DISCARD_PRESENTATION_REDUCED_MOTION_FADE_MS,
   getBattleAnimationEventDurationMs,
+  isRecoveryCardMove,
   WAITING_ROOM_REVEAL_DURATION_MS,
-  WAITING_ROOM_REVEAL_HOLD_DURATION_MS,
-  WAITING_ROOM_REVEAL_MOVE_DURATION_MS,
   type ScheduledBattleAnimationEvent,
 } from '@/lib/battleAnimationSequencing';
 import {
@@ -38,12 +38,24 @@ import {
   type PublicDiscardRevealBatch,
   type PublicDiscardRevealQueueState,
 } from '@/lib/publicDiscardRevealQueue';
+import { RecoveryCardMotion } from './RecoveryCardMotion';
+import {
+  getWaitingRoomCardKeyframes,
+  WAITING_ROOM_CARD_CLASS_NAME,
+  WAITING_ROOM_CARD_TIMES,
+  WAITING_ROOM_CARD_EASING,
+} from '@/lib/waitingRoomCardPresentation';
+import {
+  DISCARD_EXIT_DURATION_MS,
+  RECOVERY_PRESENTATION_MAX_WAIT_MS,
+  drainRecoveryPresentations,
+  type PendingRecoveryPresentation,
+} from '@/lib/recoveryPresentationQueue';
+import { createBattleAnimationHistory } from '@/lib/battleAnimationHistory';
 import { useGameStore } from '@/store/gameStore';
 import { ZoneType } from '@game/shared/types/enums';
 import type { PlayerViewState } from '@game/online';
 
-const MAX_RENDERED_EVENT_IDS = 200;
-const RETAINED_RENDERED_EVENT_IDS = 150;
 const MAX_DISCARD_SOURCE_ANCHORS = 32;
 
 export interface RecentDiscardSourceAnchor {
@@ -81,7 +93,8 @@ export function BattleAnimationLayer() {
   const [discardPumpGeneration, setDiscardPumpGeneration] = useState(0);
   const previousViewRef = useRef<PlayerViewState | null>(null);
   const previousAnchorsRef = useRef<BattleAnimationAnchorMaps | null>(null);
-  const renderedEventIdsRef = useRef(new Set<string>());
+  const animationHistory = useRef(createBattleAnimationHistory());
+  const [timelineGeneration, setTimelineGeneration] = useState(0);
   const scheduledEventTimeoutsRef = useRef(new Set<number>());
   const activeOcclusionEventIdsRef = useRef(new Set<string>());
   const viewDiffGenerationRef = useRef(0);
@@ -89,6 +102,8 @@ export function BattleAnimationLayer() {
     createPublicDiscardRevealQueueState()
   );
   const activeDiscardEventIdRef = useRef<string | null>(null);
+  const visibleDiscardSeatsRef = useRef(new Map<string, BattleAnimationSeat>());
+  const pendingRecoveriesRef = useRef<PendingRecoveryPresentation[]>([]);
   const recentDiscardSourceAnchorsRef = useRef(new Map<string, RecentDiscardSourceAnchor>());
 
   useEffect(() => {
@@ -113,10 +128,26 @@ export function BattleAnimationLayer() {
     );
     viewDiffGenerationRef.current = viewDiffGeneration;
     const previousAnchors = previousAnchorsRef.current;
-    if (previousViewState?.match.matchId !== playerViewState?.match.matchId) {
-      renderedEventIdsRef.current.clear();
+    const timelineReset = animationHistory.current.sync(
+      playerViewState
+        ? {
+            matchId: playerViewState.match.matchId,
+            viewerSeat: playerViewState.match.viewerSeat,
+            seq: playerViewState.match.seq,
+            presentationEpoch:
+              publicBattleLog.matchId === playerViewState.match.matchId
+                ? publicBattleLog.presentationEpoch
+                : undefined,
+            isReadOnly,
+          }
+        : null
+    );
+    if (timelineReset) {
+      setTimelineGeneration((current) => current + 1);
       recentDiscardSourceAnchorsRef.current.clear();
       activeDiscardEventIdRef.current = null;
+      visibleDiscardSeatsRef.current.clear();
+      pendingRecoveriesRef.current = [];
       discardQueueRef.current = createPublicDiscardRevealQueueState();
       setEvents([]);
       clearPendingBattleAnimations({
@@ -126,7 +157,13 @@ export function BattleAnimationLayer() {
       });
     }
 
-    if (playerViewChanged && playerViewState && previousViewState && !isReadOnly) {
+    if (
+      !timelineReset &&
+      playerViewChanged &&
+      playerViewState &&
+      previousViewState &&
+      !isReadOnly
+    ) {
       prepareBattleAnimationLayoutForViewDiff({
         previousViewState,
         nextViewState: playerViewState,
@@ -139,6 +176,7 @@ export function BattleAnimationLayer() {
 
     if (
       playerViewChanged &&
+      !timelineReset &&
       playerViewState &&
       previousViewState &&
       previousAnchors &&
@@ -152,13 +190,15 @@ export function BattleAnimationLayer() {
         now: discardClockNow,
       });
       nextEvents.push(
-        ...createBattleAnimationEventsFromViewDiff({
-          previousViewState,
-          nextViewState: playerViewState,
-          previousAnchors,
-          nextAnchors,
-          enableWaitingRoomRevealFallback: remoteSessionSource === 'TUTORIAL',
-        }).filter((event) => !renderedEventIdsRef.current.has(event.id))
+        ...animationHistory.current.accept(
+          createBattleAnimationEventsFromViewDiff({
+            previousViewState,
+            nextViewState: playerViewState,
+            previousAnchors,
+            nextAnchors,
+            enableWaitingRoomRevealFallback: remoteSessionSource === 'TUTORIAL',
+          })
+        )
       );
     }
 
@@ -188,6 +228,8 @@ export function BattleAnimationLayer() {
 
       if (shouldResetActivePresentation) {
         activeDiscardEventIdRef.current = null;
+        visibleDiscardSeatsRef.current.clear();
+        pendingRecoveriesRef.current = [];
         setEvents((current) =>
           current.filter((event) => event.kind !== 'DISCARD_PRESENTATION_BATCH')
         );
@@ -252,10 +294,50 @@ export function BattleAnimationLayer() {
       }
     }
 
-    if (nextEvents.length > 0) {
-      for (const event of nextEvents) {
-        rememberRenderedEventId(renderedEventIdsRef.current, event.id);
+    for (const event of nextEvents) {
+      if (event.kind === 'DISCARD_PRESENTATION_BATCH') {
+        visibleDiscardSeatsRef.current.set(event.id, event.toSeat);
       }
+      if (event.kind === 'CARD_MOVE' && isRecoveryCardMove(event)) {
+        pendingRecoveriesRef.current.push({ event, receivedAt: discardClockNow });
+        // The final hand already exists. Hide its destination while the public payment
+        // presentation (including late log backfill) still owns the waiting-room pile.
+        if (!reduceMotion) {
+          addBattleAnimationOcclusions([{ eventId: event.id, objectId: event.render.objectId }]);
+          activeOcclusionEventIdsRef.current.add(event.id);
+        }
+        const timeout = window.setTimeout(() => {
+          scheduledEventTimeoutsRef.current.delete(timeout);
+          setDiscardPumpGeneration((current) => current + 1);
+        }, RECOVERY_PRESENTATION_MAX_WAIT_MS);
+        scheduledEventTimeoutsRef.current.add(timeout);
+      }
+    }
+    const discardSeats = new Set(visibleDiscardSeatsRef.current.values());
+    for (const batch of discardQueueRef.current.queue) discardSeats.add(batch.ownerSeat);
+    const recoveryDrain = drainRecoveryPresentations(pendingRecoveriesRef.current, {
+      now: discardClockNow,
+      publicLogCaughtUp:
+        remoteSessionSource === 'TUTORIAL' ||
+        (publicBattleLog.matchId === playerViewState?.match.matchId &&
+          publicBattleLog.cursorSeq >= publicBattleLog.currentPublicSeq),
+      discardSeats,
+    });
+    pendingRecoveriesRef.current = recoveryDrain.waiting;
+    removeOcclusionsForAnimationEvents({
+      events: recoveryDrain.expired,
+      activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
+      removeBattleAnimationOcclusion,
+    });
+    // Release a batch together so recovery can reverse the same per-seat discard fan.
+    nextEvents.splice(
+      0,
+      nextEvents.length,
+      ...nextEvents.filter((event) => !isRecoveryCardMove(event)),
+      ...recoveryDrain.ready
+    );
+
+    if (nextEvents.length > 0) {
       const scheduledEvents = reduceMotion
         ? nextEvents.map((event) => ({ event, delayMs: 0 }))
         : createSequencedBattleAnimationEvents(nextEvents);
@@ -318,15 +400,21 @@ export function BattleAnimationLayer() {
       for (const [delayMs, delayedEvents] of delayedEventGroups) {
         const timeout = window.setTimeout(() => {
           scheduledEventTimeoutsRef.current.delete(timeout);
-          if (viewDiffGenerationRef.current !== viewDiffGeneration) {
+          // Recovery targets are measured live. An unrelated command must not swallow a
+          // scheduled pickup; leaving the hand cancels it in RecoveryCardMotion instead.
+          const eligibleEvents = delayedEvents.filter(
+            (event) =>
+              viewDiffGenerationRef.current === viewDiffGeneration || isRecoveryCardMove(event)
+          );
+          const cancelledEvents = delayedEvents.filter((event) => !eligibleEvents.includes(event));
+          if (cancelledEvents.length > 0) {
             removeOcclusionsForAnimationEvents({
-              events: delayedEvents,
+              events: cancelledEvents,
               activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
               removeBattleAnimationOcclusion,
             });
-            return;
           }
-          setEvents((current) => [...current.slice(-12), ...delayedEvents]);
+          setEvents((current) => [...current.slice(-12), ...eligibleEvents]);
         }, delayMs);
         scheduledEventTimeoutsRef.current.add(timeout);
       }
@@ -352,18 +440,21 @@ export function BattleAnimationLayer() {
       removeBattleAnimationOcclusion,
     });
     setEvents((current) => current.filter((candidate) => candidate.id !== event.id));
-    if (
-      event.kind === 'DISCARD_PRESENTATION_BATCH' &&
-      activeDiscardEventIdRef.current === event.id
-    ) {
-      activeDiscardEventIdRef.current = null;
-      setDiscardPumpGeneration((current) => current + 1);
+    if (event.kind === 'DISCARD_PRESENTATION_BATCH') {
+      // AnimatePresence still displays the collecting card during its short exit.
+      const timeout = window.setTimeout(() => {
+        scheduledEventTimeoutsRef.current.delete(timeout);
+        visibleDiscardSeatsRef.current.delete(event.id);
+        if (activeDiscardEventIdRef.current === event.id) activeDiscardEventIdRef.current = null;
+        setDiscardPumpGeneration((current) => current + 1);
+      }, DISCARD_EXIT_DURATION_MS);
+      scheduledEventTimeoutsRef.current.add(timeout);
     }
   };
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[96]">
-      <AnimatePresence>
+      <AnimatePresence key={timelineGeneration}>
         {events.map((event) => {
           if (event.kind === 'DISCARD_PRESENTATION_BATCH') {
             return (
@@ -421,19 +512,6 @@ export function getNextViewDiffGeneration(
 /** TTLs use one client monotonic clock and never compare browser time with server timestamps. */
 export function getDiscardPresentationMonotonicNow(): number {
   return globalThis.performance?.now() ?? Date.now();
-}
-
-function rememberRenderedEventId(renderedEventIds: Set<string>, eventId: string): void {
-  renderedEventIds.add(eventId);
-  if (renderedEventIds.size <= MAX_RENDERED_EVENT_IDS) {
-    return;
-  }
-
-  const retainedEventIds = Array.from(renderedEventIds).slice(-RETAINED_RENDERED_EVENT_IDS);
-  renderedEventIds.clear();
-  for (const retainedEventId of retainedEventIds) {
-    renderedEventIds.add(retainedEventId);
-  }
 }
 
 function rememberVisibleDiscardSourceAnchors({
@@ -719,6 +797,10 @@ function MovingCard({
     );
   }
 
+  if (isRecoveryCardMove(event)) {
+    return <RecoveryCardMotion event={event} imagePath={imagePath} onDone={onDone} />;
+  }
+
   return (
     <motion.div
       className="fixed overflow-hidden rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_82%,white)] bg-[var(--bg-overlay)] shadow-[0_10px_28px_rgba(0,0,0,0.34),0_1px_0_rgba(255,255,255,0.08)_inset]"
@@ -778,10 +860,6 @@ export function DiscardPresentationBatch({
     viewportHeight,
   });
   const toRect = normalizePortraitCardRect(event.toRect);
-  const firstKeyframeTime = WAITING_ROOM_REVEAL_MOVE_DURATION_MS / WAITING_ROOM_REVEAL_DURATION_MS;
-  const secondKeyframeTime =
-    (WAITING_ROOM_REVEAL_MOVE_DURATION_MS + WAITING_ROOM_REVEAL_HOLD_DURATION_MS) /
-    WAITING_ROOM_REVEAL_DURATION_MS;
   const labelTop = clamp(
     layout.bounds.top >= 34 ? layout.bounds.top - 26 : layout.bounds.top + 4,
     8,
@@ -827,7 +905,11 @@ export function DiscardPresentationBatch({
   }
 
   return (
-    <div aria-hidden="true" className="pointer-events-none fixed inset-0">
+    <div
+      data-discard-presentation={event.id}
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0"
+    >
       <motion.div
         className="fixed"
         style={{ left: layout.bounds.left + layout.bounds.width / 2, top: labelTop }}
@@ -835,7 +917,7 @@ export function DiscardPresentationBatch({
         animate={{ opacity: [0, 1, 1, 0], y: [2, 0, 0, -1] }}
         transition={{
           duration: WAITING_ROOM_REVEAL_DURATION_MS / 1000,
-          times: [0, firstKeyframeTime, secondKeyframeTime, 1],
+          times: WAITING_ROOM_CARD_TIMES,
           ease: 'linear',
         }}
       >
@@ -859,7 +941,8 @@ export function DiscardPresentationBatch({
         return (
           <motion.div
             key={card.render.objectId}
-            className="fixed overflow-hidden rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_82%,white)] bg-[var(--bg-overlay)] shadow-[0_16px_36px_rgba(0,0,0,0.42),0_1px_0_rgba(255,255,255,0.08)_inset]"
+            data-discard-presentation-object-id={card.render.objectId}
+            className={WAITING_ROOM_CARD_CLASS_NAME}
             style={{
               width: startWidth,
               height: startHeight,
@@ -870,19 +953,29 @@ export function DiscardPresentationBatch({
             }}
             initial={{ opacity: 0.94, x: 0, y: 0, rotate: 0 }}
             animate={{
-              x: [0, revealRect.left - startLeft, revealRect.left - startLeft, endLeft - startLeft],
-              y: [0, revealRect.top - startTop, revealRect.top - startTop, endTop - startTop],
-              rotate: [0, revealRect.rotation, revealRect.rotation, 0],
-              width: [startWidth, revealRect.width, revealRect.width, endWidth],
-              height: [startHeight, revealRect.height, revealRect.height, endHeight],
+              ...getWaitingRoomCardKeyframes(
+                {
+                  left: startLeft,
+                  top: startTop,
+                  width: startWidth,
+                  height: startHeight,
+                  rotation: 0,
+                },
+                revealRect,
+                { left: endLeft, top: endTop, width: endWidth, height: endHeight, rotation: 0 }
+              ),
               opacity: [0.94, 1, 1, 1],
               scale: [0.985, 1, 1, 1],
             }}
-            exit={{ opacity: 0, scale: 0.995, transition: { duration: 0.05 } }}
+            exit={{
+              opacity: 0,
+              scale: 0.995,
+              transition: { duration: DISCARD_EXIT_DURATION_MS / 1000 },
+            }}
             transition={{
               duration: WAITING_ROOM_REVEAL_DURATION_MS / 1000,
-              times: [0, firstKeyframeTime, secondKeyframeTime, 1],
-              ease: ['easeOut', 'linear', 'easeInOut'],
+              times: WAITING_ROOM_CARD_TIMES,
+              ease: [...WAITING_ROOM_CARD_EASING],
             }}
             onAnimationComplete={index === 0 ? onDone : undefined}
           >
@@ -935,7 +1028,7 @@ function DiscardPresentationCardFace({
   return (
     <div
       data-discard-presentation-object-id={render.objectId}
-      className="fixed overflow-hidden rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_82%,white)] bg-[var(--bg-overlay)] shadow-[0_16px_36px_rgba(0,0,0,0.42),0_1px_0_rgba(255,255,255,0.08)_inset]"
+      className={WAITING_ROOM_CARD_CLASS_NAME}
       style={{
         left: rect.left,
         top: rect.top,

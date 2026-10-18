@@ -10,7 +10,12 @@
  */
 
 import { captureCardEntrance } from './card-entrance.js';
-import { ENTRANCE_WAIT_LIMIT_MS } from '../shared/card-entrance.js';
+import { buildEffectFeedbackEvents } from '../online/effect-feedback.js';
+import {
+  ENTRANCE_WAIT_LIMIT_MS,
+  DOUBLE_RELAY_ENTRANCE_EXTRA_MS,
+  WAITING_RETURN_ENTRANCE_EXTRA_MS,
+} from '../shared/card-entrance.js';
 import { GameService, type DeckConfig, type GameOperationResult } from './game-service.js';
 import { PhaseManager } from './phase-manager.js';
 import {
@@ -1867,6 +1872,12 @@ export class GameSession {
         return null;
       }
       case GameCommandType.PLAY_MEMBER_TO_SLOT: {
+        if (
+          command.relayMode !== undefined &&
+          !['NONE', 'SINGLE', 'DOUBLE'].includes(command.relayMode)
+        ) {
+          return '无效的登场支付方式';
+        }
         const player = state.players.find((candidate) => candidate.id === command.playerId);
         if (!player) {
           return '玩家不存在';
@@ -4016,7 +4027,8 @@ export class GameSession {
       const existingCard = existingCardId ? state.cardRegistry.get(existingCardId) : null;
       const useRelay =
         command.relayMode === 'DOUBLE' ||
-        (incomingCard !== undefined &&
+        (command.relayMode !== 'NONE' &&
+          incomingCard !== undefined &&
           existingCard !== null &&
           existingCard !== undefined &&
           isMemberCardData(incomingCard.data) &&
@@ -5294,7 +5306,11 @@ export class GameSession {
                 ...runtime.pending,
                 deadlineAt:
                   runtime.pending.deadlineAt ||
-                  this.now() + ENTRANCE_WAIT_LIMIT_MS * runtime.pending.cardIds.length,
+                  this.now() +
+                    ENTRANCE_WAIT_LIMIT_MS * runtime.pending.cardIds.length +
+                    DOUBLE_RELAY_ENTRANCE_EXTRA_MS * (runtime.pending.doubleRelays?.length ?? 0) +
+                    WAITING_RETURN_ENTRANCE_EXTRA_MS *
+                      (runtime.pending.waitingRoomReturns?.length ?? 0),
               },
         },
       };
@@ -5798,6 +5814,15 @@ function buildDerivedPublicEvents(
 ): PublicEventDraft[] {
   const events: PublicEventDraft[] = [];
   events.push(...buildCardEffectSummaryPublicEvents(previousState, nextState, options));
+  events.push(
+    ...buildEffectFeedbackEvents(previousState, nextState, {
+      ...options,
+      isPublicCard: (state, cardId) => {
+        const location = locateCardForSystemEvent(state, cardId);
+        return !!location && isPublicFrontCardAtRef(state, cardId, location.ref);
+      },
+    })
+  );
 
   const candidateCardIds = new Set<string>([
     ...previousState.cardRegistry.keys(),

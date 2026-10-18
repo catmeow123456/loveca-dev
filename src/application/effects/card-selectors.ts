@@ -147,6 +147,25 @@ export function hasDrawBladeHeart(): CardSelector {
     ).bladeHearts?.some((bladeHeart) => bladeHeart.effect === BladeHeartEffect.DRAW) ?? false;
 }
 
+export function hasDoubleGrayBladeHeart(): CardSelector {
+  return (card) => {
+    const bladeHearts =
+      (
+        card.data as {
+          readonly bladeHearts?: readonly {
+            readonly effect?: unknown;
+            readonly heartColor?: unknown;
+          }[];
+        }
+      ).bladeHearts ?? [];
+    return (
+      bladeHearts.filter(
+        (heart) => heart.effect === BladeHeartEffect.HEART && heart.heartColor === HeartColor.GRAY
+      ).length >= 2
+    );
+  };
+}
+
 export function hasNoAbilityOrContinuousAbility(): CardSelector {
   return (card) => {
     const cardText = card.data.cardText ?? '';

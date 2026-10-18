@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Eye, Loader2, SwitchCamera } from 'lucide-react';
 import { BattleViewportShell, GameBoard, MatchChat } from '@/components/game';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
-import { ThemeToggle } from '@/components/common';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   fetchOnlineSpectatorSnapshotResponse,
   joinOnlineSpectatorLink,
@@ -37,6 +37,7 @@ export function OnlineSpectatorPage({
   emoteCatalog,
   onEmoteCatalogStale,
 }: OnlineSpectatorPageProps) {
+  const isMobileBattlefield = useMediaQuery('(max-width: 767px)');
   const connectRemoteSession = useGameStore((s) => s.connectRemoteSession);
   const applyRemoteSnapshot = useGameStore((s) => s.applyRemoteSnapshot);
   const applySpectatorViewSession = useGameStore((s) => s.applySpectatorViewSession);
@@ -461,86 +462,92 @@ export function OnlineSpectatorPage({
       ? (remoteSession?.spectatorAuthorizedViewerSeats ?? linkView?.authorizedViewerSeats ?? [])
       : [];
 
+  const spectatorToolbar = (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={onBackHome}
+        className="battle-toolbar-control button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 text-sm shadow-[var(--shadow-md)] backdrop-blur-xl"
+      >
+        <ArrowLeft size={16} />
+        返回
+      </button>
+      <div className="battle-toolbar-control inline-flex min-h-10 items-center gap-2 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)] bg-[var(--bg-frosted)] px-3 text-sm font-semibold text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
+        <Eye size={16} className="text-[var(--accent-primary)]" />
+        玩家视角观战
+        {viewerName ? <span className="text-[var(--text-secondary)]">· {viewerName}</span> : null}
+      </div>
+      {authorizedViewerSeats.length > 1 ? (
+        <div className="battle-toolbar-control-group inline-flex min-h-10 items-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] p-1 shadow-[var(--shadow-md)] backdrop-blur-xl">
+          {authorizedViewerSeats.map((seat) => (
+            <button
+              key={seat}
+              type="button"
+              onClick={() => void handleSwitchView(seat)}
+              disabled={isSwitchingView || remoteSession?.seat === seat}
+              className={`inline-flex min-h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition ${
+                remoteSession?.seat === seat
+                  ? 'bg-[var(--accent-primary)] text-white'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              {isSwitchingView && remoteSession?.seat !== seat ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <SwitchCamera size={13} />
+              )}
+              {getSeatLabel(seat)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {sessionView ? (
+        <div className="battle-toolbar-control hidden min-h-10 items-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 text-xs text-[var(--text-secondary)] shadow-[var(--shadow-md)] backdrop-blur-xl sm:inline-flex">
+          {sessionView.displayName}
+        </div>
+      ) : null}
+      {continuityStatus === 'WATCHING_MATCH' ? <PublicBattleLogButton /> : null}
+      {continuityStatus === 'WATCHING_MATCH' &&
+      remoteSession?.spectatorToken &&
+      remoteSession.spectatorSessionId &&
+      remoteSession.seat ? (
+        <MatchChat
+          key={remoteSession.matchId}
+          emoteCatalog={emoteCatalog}
+          onEmoteCatalogStale={onEmoteCatalogStale}
+          access={{
+            kind: 'SPECTATOR',
+            matchId: remoteSession.matchId,
+            viewerSeat: remoteSession.seat,
+            token: remoteSession.spectatorToken,
+            sessionId: remoteSession.spectatorSessionId,
+            roomGeneration: remoteSession.spectatorRoomGeneration,
+            attachmentGeneration: remoteSession.spectatorAttachmentGeneration,
+          }}
+        />
+      ) : null}
+    </div>
+  );
+  const showBattleBoard = continuityStatus === 'WATCHING_MATCH' && !isSwitchingView;
+
   return (
     <BattleViewportShell>
-      <div className="absolute left-4 top-4 z-[var(--z-battle-chrome)] flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={onBackHome}
-          className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 text-sm shadow-[var(--shadow-md)] backdrop-blur-xl"
-        >
-          <ArrowLeft size={16} />
-          返回
-        </button>
-        <div className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)] bg-[var(--bg-frosted)] px-3 text-sm font-semibold text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
-          <Eye size={16} className="text-[var(--accent-primary)]" />
-          玩家视角观战
-          {viewerName ? <span className="text-[var(--text-secondary)]">· {viewerName}</span> : null}
+      {(!showBattleBoard || isMobileBattlefield) && (
+        <div className="absolute left-4 top-4 z-[var(--z-battle-chrome)] max-w-[calc(100vw-2rem)]">
+          {spectatorToolbar}
         </div>
-        {authorizedViewerSeats.length > 1 ? (
-          <div className="inline-flex min-h-10 items-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] p-1 shadow-[var(--shadow-md)] backdrop-blur-xl">
-            {authorizedViewerSeats.map((seat) => (
-              <button
-                key={seat}
-                type="button"
-                onClick={() => void handleSwitchView(seat)}
-                disabled={isSwitchingView || remoteSession?.seat === seat}
-                className={`inline-flex min-h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition ${
-                  remoteSession?.seat === seat
-                    ? 'bg-[var(--accent-primary)] text-white'
-                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]'
-                }`}
-              >
-                {isSwitchingView && remoteSession?.seat !== seat ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <SwitchCamera size={13} />
-                )}
-                {getSeatLabel(seat)}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {sessionView ? (
-          <div className="hidden min-h-10 items-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 text-xs text-[var(--text-secondary)] shadow-[var(--shadow-md)] backdrop-blur-xl sm:inline-flex">
-            {sessionView.displayName}
-          </div>
-        ) : null}
-        {continuityStatus === 'WATCHING_MATCH' ? <PublicBattleLogButton /> : null}
-        {continuityStatus === 'WATCHING_MATCH' &&
-        remoteSession?.spectatorToken &&
-        remoteSession.spectatorSessionId &&
-        remoteSession.seat ? (
-          <MatchChat
-            key={remoteSession.matchId}
-            emoteCatalog={emoteCatalog}
-            onEmoteCatalogStale={onEmoteCatalogStale}
-            access={{
-              kind: 'SPECTATOR',
-              matchId: remoteSession.matchId,
-              viewerSeat: remoteSession.seat,
-              token: remoteSession.spectatorToken,
-              sessionId: remoteSession.spectatorSessionId,
-              roomGeneration: remoteSession.spectatorRoomGeneration,
-              attachmentGeneration: remoteSession.spectatorAttachmentGeneration,
-            }}
-          />
-        ) : null}
-        <div className="hidden md:block">
-          <ThemeToggle />
-        </div>
-      </div>
+      )}
       {syncNotice ? (
-        <div className="absolute right-4 top-4 z-[var(--z-battle-chrome)] max-w-[calc(100vw-2rem)] rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,transparent)] bg-[var(--bg-frosted)] px-3 py-2 text-xs text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl md:max-w-sm">
+        <div className="absolute right-4 top-20 z-[var(--z-battle-chrome)] max-w-[calc(100vw-2rem)] rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,transparent)] bg-[var(--bg-frosted)] px-3 py-2 text-xs text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl md:max-w-sm">
           {syncNotice}
         </div>
       ) : error ? (
-        <div className="absolute right-4 top-4 z-[var(--z-battle-chrome)] hidden max-w-sm rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[var(--bg-frosted)] px-3 py-2 text-xs text-[var(--semantic-error)] shadow-[var(--shadow-md)] backdrop-blur-xl md:block">
+        <div className="absolute right-4 top-20 z-[var(--z-battle-chrome)] hidden max-w-sm rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[var(--bg-frosted)] px-3 py-2 text-xs text-[var(--semantic-error)] shadow-[var(--shadow-md)] backdrop-blur-xl md:block">
           {error}
         </div>
       ) : null}
       {!syncNotice && !error && remoteSession?.spectatorAuthorizationNotice ? (
-        <div className="absolute right-4 top-4 z-[var(--z-battle-chrome)] max-w-sm rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,transparent)] bg-[var(--bg-frosted)] px-3 py-2 text-xs leading-5 text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
+        <div className="absolute right-4 top-20 z-[var(--z-battle-chrome)] max-w-sm rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,transparent)] bg-[var(--bg-frosted)] px-3 py-2 text-xs leading-5 text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
           {remoteSession.spectatorAuthorizationNotice.message}
         </div>
       ) : null}
@@ -556,7 +563,10 @@ export function OnlineSpectatorPage({
           </div>
         </div>
       ) : (
-        <GameBoard showDesktopPublicBattleLogButton={false} />
+        <GameBoard
+          desktopHeaderActions={spectatorToolbar}
+          showDesktopPublicBattleLogButton={false}
+        />
       )}
     </BattleViewportShell>
   );

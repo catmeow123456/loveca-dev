@@ -34,7 +34,7 @@ const schema = z.discriminatedUnion('type', [
       cardId: id,
       targetSlot: z.enum(SlotPosition),
       freePlay: z.literal(false).optional(),
-      relayMode: z.literal('SINGLE').optional(),
+      relayMode: z.enum(['NONE', 'SINGLE']).optional(),
       relayReplacementSlots: z.array(z.enum(SlotPosition)).optional(),
     })
     .strict(),

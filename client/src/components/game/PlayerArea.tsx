@@ -14,7 +14,7 @@
  * - 资源区和成功Live区在画布上呈现镜像对称
  */
 
-import { memo, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react';
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { motion, useReducedMotion } from 'framer-motion';
 import { createPortal } from 'react-dom';
@@ -61,6 +61,7 @@ import {
 } from '@/lib/battleUiAnchors';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useGameStore } from '@/store/gameStore';
+import { useAbilityActivationMotion } from './AbilityActivationMotion';
 import { GameCommandType } from '@game/application/game-commands';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
 import {
@@ -120,6 +121,7 @@ interface PlayerAreaProps {
   selectedHandCardActions?: readonly SelectedHandCardAction[];
   suppressSelectedHandCardActionMenu?: boolean;
   onSelectedHandCardAction?: (cardId: string, actionId: string) => void;
+  onPlayMemberToSlot?: (cardId: string, targetSlot: SlotPosition) => void;
 }
 
 const INSPECTION_TARGET_IDS = {
@@ -389,7 +391,9 @@ export const PlayerArea = memo(function PlayerArea({
   selectedHandCardActions = [],
   suppressSelectedHandCardActionMenu = false,
   onSelectedHandCardAction,
+  onPlayMemberToSlot,
 }: PlayerAreaProps) {
+  const { activateCardAbility, activatingCardId } = useAbilityActivationMotion();
   const battlePlayerSide = isOpponent ? 'opponent' : 'self';
   const playerIdentity = useGameStore((s) => s.getPlayerIdentityForSeat(playerSeat));
   const viewerSeat = useGameStore((s) => s.getViewerSeat());
@@ -398,6 +402,26 @@ export const PlayerArea = memo(function PlayerArea({
   const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
   const isMobileBoard = useMediaQuery('(max-width: 767px)');
+  const desktopCoreRef = useRef<HTMLDivElement>(null);
+  const hasPlayerIdentity = playerIdentity !== null;
+  useLayoutEffect(() => {
+    const core = desktopCoreRef.current;
+    if (isMobileBoard || !hasPlayerIdentity || !core) return;
+    const measure = () => {
+      // LIVE 使用独立的横牌尺寸；剩余高度优先给成员，避免两种卡一起越缩越小。
+      // LIVE 槽位 70px + 对称内边距/边框 10px + 两行间距 8px。
+      // 两侧资源各 150px、边距共 32px、两段列间距各 60px。
+      const columnWidth = Math.max(80, Math.min(140, (core.clientWidth - 332 - 120) / 3));
+      const availableHeight = Math.floor(core.getBoundingClientRect().height);
+      const width = Math.max(56, Math.min(columnWidth, (availableHeight - 88) / (7 / 5)));
+      core.style.setProperty('--battle-stage-column-width', `${columnWidth}px`);
+      core.style.setProperty('--battle-stage-card-width', `${width}px`);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(core);
+    return () => observer.disconnect();
+  }, [isMobileBoard, hasPlayerIdentity]);
   const reduceMotion = useReducedMotion();
   const activeEffect = useGameStore((s) => s.playerViewState?.activeEffect ?? null);
   const battleAnimationOcclusions = useGameStore((s) => s.ui.battleAnimationOcclusions);
@@ -481,7 +505,6 @@ export const PlayerArea = memo(function PlayerArea({
     selectCard,
     setHoveredCard,
     playMemberToSlot,
-    activateCardAbility,
     moveMemberToSlot,
     attachEnergyToMember,
     setLiveCard,
@@ -519,7 +542,6 @@ export const PlayerArea = memo(function PlayerArea({
       selectCard: s.selectCard,
       setHoveredCard: s.setHoveredCard,
       playMemberToSlot: s.playMemberToSlot,
-      activateCardAbility: s.activateCardAbility,
       moveMemberToSlot: s.moveMemberToSlot,
       attachEnergyToMember: s.attachEnergyToMember,
       setLiveCard: s.setLiveCard,
@@ -896,7 +918,7 @@ export const PlayerArea = memo(function PlayerArea({
       return;
     }
     executeBattleActionPayload(payload, {
-      playMemberToSlot,
+      playMemberToSlot: onPlayMemberToSlot ?? playMemberToSlot,
       moveMemberToSlot,
       attachEnergyToMember,
       setLiveCard,
@@ -1018,10 +1040,13 @@ export const PlayerArea = memo(function PlayerArea({
               ? 'center'
               : 'right'
         )}
-        className="relative flex flex-col items-center"
+        className={cn(
+          'relative flex flex-col items-center md:w-[var(--battle-stage-column-width,140px)]',
+          cardId !== null && activatingCardId === cardId && 'z-20'
+        )}
       >
         {/* 卡牌堆叠容器 - 使用 relative 定位实现重叠效果 */}
-        <div className="relative aspect-[5/7] w-[clamp(56px,17vw,78px)] md:w-[clamp(80px,10vw,140px)]">
+        <div className="relative aspect-[5/7] w-[clamp(56px,17vw,78px)] md:w-[var(--battle-stage-card-width,140px)]">
           {/* 能量卡层 - 在成员卡下方（Z-index 较低） */}
           {/* 渲染顺序：从最后一张开始（最大偏移），确保第 i+1 张在第 i 张下方 */}
           {[...energyBelowIds].reverse().map((energyCardId, reverseIndex) => {
@@ -1135,8 +1160,8 @@ export const PlayerArea = memo(function PlayerArea({
             disabled={slotDisabled}
             disabledForDragFromZones={[ZoneType.INSPECTION_ZONE]}
             className={cn(
-              // 响应式尺寸：使用 clamp 确保在合理范围内
-              'w-[clamp(56px,17vw,78px)] aspect-[5/7] rounded-lg md:w-[clamp(80px,10vw,140px)]',
+              // 桌面尺寸由成员与 LIVE 区共同可用的高度决定。
+              'w-[clamp(56px,17vw,78px)] aspect-[5/7] rounded-lg md:w-[var(--battle-stage-card-width,140px)]',
               isDragging
                 ? 'border-2 border-dashed transition-none'
                 : 'border-2 border-dashed transition-[border-color,background-color,outline-color] duration-150',
@@ -1169,6 +1194,7 @@ export const PlayerArea = memo(function PlayerArea({
               <DraggableCard
                 id={card.instanceId}
                 disabled={!allowGeneralOwnZoneInteraction}
+                className="h-full w-full"
                 data={{
                   cardId: card.instanceId,
                   cardCode: card.cardCode,
@@ -1218,7 +1244,7 @@ export const PlayerArea = memo(function PlayerArea({
             {card && <CardModifierBadgeStack modifierDelta={card.modifierDelta} />}
             {card && canActivateAbility && (
               <CardActionMenu
-                suspended={interactionSuspended}
+                suspended={interactionSuspended || activatingCardId === card.instanceId}
                 anchor={BATTLE_UI_ANCHORS.ACTIVATED_ABILITY_MENU}
                 items={activatedAbilityConfigs.map((config) => ({
                   id: config.abilityInstanceId ?? config.abilityId,
@@ -1714,10 +1740,11 @@ export const PlayerArea = memo(function PlayerArea({
 
                         <div
                           className={cn(
-                            'touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto px-3 pt-3 md:px-5 md:pt-5',
+                            // Leave room for a parallel activation lift at the first/last row.
+                            'touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto px-6 pt-8 md:pt-10',
                             canMoveWaitingRoomCardToHandFromModal
-                              ? 'pb-20 md:pb-20'
-                              : 'pb-3 md:pb-5'
+                              ? 'pb-28'
+                              : 'pb-10'
                           )}
                         >
                           <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2 sm:grid-cols-5 md:grid-cols-6 md:gap-3">
@@ -1768,12 +1795,15 @@ export const PlayerArea = memo(function PlayerArea({
                               return (
                                 <div
                                   key={cardId}
-                                  className="relative flex min-w-0 flex-col items-center"
+                                  className={cn(
+                                    'relative flex min-w-0 flex-col items-center',
+                                    activatingCardId === cardId && 'z-20'
+                                  )}
                                 >
                                   {waitingRoomCardContent}
                                   {canActivateWaitingRoomAbility && (
                                     <CardActionMenu
-                                      suspended={interactionSuspended}
+                                      suspended={interactionSuspended || activatingCardId === card.instanceId}
                                       layer="modal"
                                       items={activatedAbilityConfigs.map((config) => ({
                                         id: config.abilityInstanceId ?? config.abilityId,
@@ -1783,9 +1813,9 @@ export const PlayerArea = memo(function PlayerArea({
                                           activateCardAbility(
                                             card.instanceId,
                                             config.abilityId,
-                                            config.abilityInstanceId
+                                            config.abilityInstanceId,
+                                            closeWaitingRoom
                                           );
-                                          closeWaitingRoom();
                                         },
                                       }))}
                                     />
@@ -2200,12 +2230,12 @@ export const PlayerArea = memo(function PlayerArea({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.9 }}
           // 横置卡牌的容器：需要调整尺寸以适应旋转后的卡牌
-          className="relative flex h-[50px] w-[70px] items-center justify-center md:h-[68px] md:w-[105px]"
+          className="relative flex h-[var(--battle-live-height)] w-[var(--battle-live-width)] shrink-0 items-center justify-center"
         >
           <CardDetailPressTarget
             cardId={shouldShowFront && card ? card.instanceId : null}
             disabled={!shouldShowFront || !card}
-            className="-rotate-90 origin-center"
+            className="-rotate-90 origin-center shrink-0"
           >
             {card ? (
               <Card
@@ -2218,13 +2248,13 @@ export const PlayerArea = memo(function PlayerArea({
                 interactive={!isReadOnly && !isOpponent}
                 showHover={false}
                 className={cn(
-                  'h-[80px] w-[57px] md:h-[112px] md:w-[80px]',
+                  'h-[var(--battle-live-width)] w-[var(--battle-live-height)]',
                   getActiveEffectTaskCardClass(card.instanceId)
                 )}
                 onClick={() => confirmActiveEffectCardFromTable(card.instanceId)}
               />
             ) : (
-              <div className="h-[80px] w-[57px] overflow-hidden rounded-lg shadow-md md:h-[112px] md:w-[80px]">
+              <div className="h-[var(--battle-live-width)] w-[var(--battle-live-height)] overflow-hidden rounded-lg shadow-md">
                 <img src="/back.jpg" alt="Card Back" className="h-full w-full object-cover" />
               </div>
             )}
@@ -2248,18 +2278,21 @@ export const PlayerArea = memo(function PlayerArea({
 
           {/* Live 卡所需心展示 */}
           {shouldShowFront && liveData && (
-            <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-0.5 text-[8px] whitespace-nowrap">
+            <div
+              data-live-heart-requirements
+              className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-0.5 text-[8px] whitespace-nowrap md:-bottom-2.5"
+            >
               {getHeartRequirementEntries(liveData.requirements?.colorRequirements).map(
                 ([color, count], i) => (
                   <span key={i} className="inline-flex items-center gap-0.5">
                     <img
                       src={HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR[color as HeartColor]}
                       alt=""
-                      className="h-3 w-3 object-contain drop-shadow"
+                      className="h-3 w-3 object-contain drop-shadow md:h-2.5 md:w-2.5"
                       draggable={false}
                     />
                     {(count as number) > 1 && (
-                      <span className="text-[8px] font-bold text-white drop-shadow">
+                      <span className="text-[8px] font-bold text-white drop-shadow md:leading-none">
                         ×{count as number}
                       </span>
                     )}
@@ -2273,15 +2306,15 @@ export const PlayerArea = memo(function PlayerArea({
     );
   };
 
-  // 渲染单个 Live 槽位 - 与成员槽位尺寸对齐
+  // 桌面空槽保留成员列宽，LIVE 实卡在槽位中保持横牌比例并居中。
   const renderLiveSlot = (slotIndex: number) => {
     const cardId = liveCardIds[slotIndex];
     return (
       <div
         key={slotIndex}
+        data-battle-live-slot={slotIndex}
         className={cn(
-          // 与成员槽位相同的宽度，但高度固定为横置卡牌的高度
-          'h-12 w-[clamp(56px,17vw,78px)] md:h-[60px] md:w-[clamp(80px,10vw,140px)]',
+          'h-[var(--battle-live-slot-height)] w-[var(--battle-live-width)] shrink-0 md:w-[var(--battle-stage-column-width,140px)]',
           'rounded-lg flex items-center justify-center',
           'border border-dashed',
           cardId
@@ -2320,7 +2353,7 @@ export const PlayerArea = memo(function PlayerArea({
       }
     };
     const content = (
-      <div className="flex w-full items-center justify-center gap-1 sm:gap-4 md:gap-15">
+      <div className="flex w-full items-center justify-center gap-1.5 sm:gap-4 md:gap-15">
         {slotOrder.map((idx) => renderLiveSlot(idx))}
       </div>
     );
@@ -2335,7 +2368,7 @@ export const PlayerArea = memo(function PlayerArea({
           disabled={!canDropToLiveZone || liveZoneIsFull}
           disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
           className={cn(
-            'relative rounded-lg px-1 py-2',
+            'battle-live-zone relative rounded-lg p-1',
             'border',
             isMobileBoard
               ? 'bg-[color:color-mix(in_srgb,var(--bg-frosted)_8%,transparent)]'
@@ -2368,7 +2401,7 @@ export const PlayerArea = memo(function PlayerArea({
       <div
         data-battle-ui-anchor={getBattleLiveZoneAnchor(battlePlayerSide)}
         className={cn(
-          'rounded-lg px-1 py-2',
+          'battle-live-zone relative rounded-lg p-1',
           isMobileBoard
             ? 'border border-slate-300/20 bg-[color:color-mix(in_srgb,var(--bg-frosted)_8%,transparent)]'
             : 'border border-slate-600/30 bg-slate-800/40',
@@ -2867,12 +2900,12 @@ export const PlayerArea = memo(function PlayerArea({
         <div
           data-animation-zone-id={getDroppableId(ZoneType.HAND)}
           data-battle-ui-anchor={getBattleHandAnchor(battlePlayerSide)}
-          className="relative h-[88px] w-full overflow-visible py-1 md:h-[104px]"
+          className="battle-hand-zone relative h-[88px] w-full overflow-visible py-1"
         >
           {Array.from({ length: visibleBackCount }, (_, idx) => (
             <div
               key={`opponent-hand-back-${idx}`}
-              className="absolute bottom-1 h-[84px] w-[60px] overflow-hidden rounded-lg shadow-md"
+              className="absolute bottom-1 h-[84px] w-[60px] overflow-hidden rounded-lg shadow-md md:h-[var(--battle-hand-card-height)] md:w-[var(--battle-hand-card-width)]"
               style={{
                 left: `calc(50% + ${(idx - (visibleBackCount - 1) / 2) * backStep}px)`,
                 transform: `translateX(-50%) rotate(${(idx - (visibleBackCount - 1) / 2) * backRotationStep}deg) scale(${backScale})`,
@@ -2933,7 +2966,7 @@ export const PlayerArea = memo(function PlayerArea({
         battleUiAnchor={getBattleHandAnchor(battlePlayerSide)}
         disabled={!allowGeneralOwnZoneInteraction && !canReceiveInspectionDrop}
         disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
-        className="relative h-[118px] w-full overflow-visible px-3 py-2 md:h-[138px] md:px-4 md:pr-72"
+        className="battle-hand-zone relative h-[118px] w-full overflow-visible px-3 py-2 md:px-4 md:pr-72"
         activeClassName="ring-2 ring-cyan-500 bg-cyan-500/20"
       >
         {handCardIds.map((cardId, idx) => {
@@ -2987,6 +3020,7 @@ export const PlayerArea = memo(function PlayerArea({
           return (
             <div
               key={cardId}
+              data-recovery-hand-card={`obj_${cardId}`}
               className={cn(
                 'absolute bottom-3',
                 isDragging ? 'transition-none' : 'transition-[left,transform] duration-300 ease-out'
@@ -2994,7 +3028,7 @@ export const PlayerArea = memo(function PlayerArea({
               style={{
                 left: `calc(50% + ${(idx - (handCount - 1) / 2) * handStep}px)`,
                 transform: `translateX(-50%) rotate(${(idx - (handCount - 1) / 2) * handRotationStep}deg) scale(${handScale})`,
-                zIndex: idx,
+                zIndex: activatingCardId === cardId ? handCount + 1 : idx,
               }}
             >
               <div
@@ -3020,7 +3054,10 @@ export const PlayerArea = memo(function PlayerArea({
                       effectVisualState={getEffectVisualState(card, {
                         isActionableNow: canShowHandCardActionMenu,
                       })}
-                      className={getActiveEffectTaskCardClass(card.instanceId)}
+                      className={cn(
+                        'md:h-[var(--battle-hand-card-height)] md:w-[var(--battle-hand-card-width)]',
+                        getActiveEffectTaskCardClass(card.instanceId)
+                      )}
                       onClick={() => {
                         if (confirmActiveEffectCardFromTable(card.instanceId)) {
                           return;
@@ -3035,7 +3072,7 @@ export const PlayerArea = memo(function PlayerArea({
                 </DraggableCard>
                 {canShowHandCardActionMenu && (
                   <CardActionMenu
-                    suspended={interactionSuspended}
+                    suspended={interactionSuspended || activatingCardId === card.instanceId}
                     items={handCardMenuItems}
                     placement={isOpponent ? 'below' : 'above'}
                   />
@@ -3182,7 +3219,7 @@ export const PlayerArea = memo(function PlayerArea({
         </div>
 
         {/* 玩家信息 - 紧凑 */}
-        <div className="flex items-center gap-2 my-1 flex-shrink-0 flex-row-reverse">
+        <div className="absolute left-4 top-4 z-20 flex max-w-[240px] items-center gap-2">
           <div
             data-player-identity-seat={playerSeat}
             className={cn(
@@ -3197,7 +3234,8 @@ export const PlayerArea = memo(function PlayerArea({
 
         {/* 主区域 - 绝对定位布局（成员槽和Live区在底部，靠近中央分隔线） */}
         {/* 对手区域镜像显示：左右交换，成员槽位顺序反转 */}
-        <div className="relative z-10 min-h-0 flex-1 px-2">
+        {/* 工具栏节省的 9px 中，双方各分配 4px 给成员，余下各 0.5px 留在手牌侧。 */}
+        <div ref={desktopCoreRef} className="relative z-10 mt-[0.5px] min-h-0 flex-1 px-2">
           {/* 左侧区域 - 对手的资源区（镜像后在左边，对手的右手边） */}
           <div className="absolute bottom-0 left-2 flex w-[92px] justify-center sm:w-[120px] md:w-[150px]">
             {renderResources(true)}
@@ -3238,14 +3276,21 @@ export const PlayerArea = memo(function PlayerArea({
       )}
     >
       {/* 主区域 - 绝对定位布局（成员槽和Live区在顶部，靠近中央分隔线） */}
-      <div className="relative min-h-0 flex-1 px-2">
+      <div ref={desktopCoreRef} className="relative mb-[0.5px] min-h-0 flex-1 px-2">
         {/* 左侧区域 - 绝对定位固定在左边 */}
         <div className="absolute left-2 top-0 flex w-[92px] justify-center sm:w-[120px] md:w-[150px]">
           {renderSuccessZone()}
         </div>
 
         {/* 中间区域 - 绝对居中（Live 区 + 成员槽位） */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-0 overflow-visible">
+        <div
+          className={cn(
+            'absolute left-1/2 -translate-x-1/2 top-0 overflow-visible',
+            activatingCardId !== null &&
+              memberSlotSnapshots.some((slot) => slot.cardId === activatingCardId) &&
+              'z-20'
+          )}
+        >
           <div className="flex flex-col justify-start items-center gap-2">
             {/* Live 区 - 在成员槽位上方 */}
             {renderLiveZone()}
@@ -3265,7 +3310,7 @@ export const PlayerArea = memo(function PlayerArea({
       </div>
 
       {/* 玩家信息 - 紧凑 */}
-      <div className="flex items-center gap-2 my-1 flex-shrink-0">
+      <div className="absolute right-4 bottom-[72px] z-20 flex max-w-[240px] items-center gap-2">
         <div
           data-player-identity-seat={playerSeat}
           className={cn(

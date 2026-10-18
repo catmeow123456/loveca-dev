@@ -4,6 +4,34 @@
   font-weight: 900;
   font-display: swap;
 }
+.waiting-return-entrance {
+  position: fixed;
+  inset: 0;
+  z-index: 61;
+  pointer-events: none;
+}
+.waiting-return-entrance [data-return-card] {
+  position: absolute;
+  opacity: 0;
+  border-radius: 4px;
+  object-fit: cover;
+  will-change: transform, opacity;
+}
+.waiting-return-ring {
+  position: absolute;
+  opacity: 0;
+  border-radius: 50%;
+  border: 2px solid #b9f6da;
+  box-shadow:
+    0 0 12px #8debc980,
+    inset 0 0 10px #8debc960;
+}
+.waiting-return-deck {
+  position: absolute;
+  opacity: 0;
+  z-index: 20;
+  border-radius: 4px;
+}
 
 .card-entrance {
   position: absolute;
@@ -209,7 +237,7 @@
 .card-landing-shadow {
   position: absolute;
   opacity: 0;
-  border-radius: 18%;
+  border-radius: 7px;
   background: #160c29;
   pointer-events: none;
   will-change: transform, filter, opacity;
@@ -227,96 +255,20 @@
   opacity: 0;
   max-width: none;
   border-radius: 7px;
-  object-fit: cover;
   box-shadow: 0 4px 12px #190f2c66;
   will-change: transform, opacity;
+}
+.card-landing-card > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  border-radius: inherit;
 }
 .card-landing-impact {
   position: absolute;
   transform: translate(-50%, -50%);
-}
-.card-landing-impact span {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-}
-.card-landing-flash {
-  background: radial-gradient(ellipse, #fff9ed 0%, #fff1dedb 15%, #d4aff899 32%, transparent 63%);
-  animation: card-landing-flash var(--impact-flash) ease-out both;
-}
-.card-landing-ring {
-  border: 4px solid #d4b0ff;
-  box-shadow:
-    0 0 3px #6e3ba2,
-    0 0 16px #b781efc4,
-    inset 0 0 8px #d6b0ff99;
-  animation: card-landing-ring var(--impact-ring) cubic-bezier(0.08, 0.65, 0.2, 1)
-    var(--impact-contact) both;
-}
-.card-landing-ring--echo {
-  border-width: 2px;
-  border-color: #b889e4;
-  animation-duration: var(--impact-echo);
-  animation-delay: var(--impact-echoDelay);
-}
-.card-landing-dust {
-  background: radial-gradient(ellipse, transparent 30%, #c1a6d866 49%, transparent 65%);
-  animation: card-landing-dust var(--impact-dust) ease-out var(--impact-contact) both;
-}
-.card-landing-spark {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 3px;
-  height: 13px;
-  background: #fff0d7;
-  box-shadow: 0 0 5px #c4a1ea;
-  animation: card-landing-spark var(--impact-spark) cubic-bezier(0.1, 0.65, 0.3, 1)
-    var(--impact-contact) both;
-}
-@keyframes card-landing-ring {
-  0% {
-    opacity: 1;
-    transform: scale(0.3);
-  }
-  22% {
-    opacity: 0.95;
-    transform: scale(1.15);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(2.1);
-  }
-}
-@keyframes card-landing-flash {
-  from {
-    opacity: 1;
-    transform: scale(0.6);
-  }
-  to {
-    opacity: 0;
-    transform: scale(1.3);
-  }
-}
-@keyframes card-landing-dust {
-  from {
-    opacity: 0.8;
-    transform: scale(0.5);
-  }
-  to {
-    opacity: 0;
-    transform: scale(1.9);
-  }
-}
-@keyframes card-landing-spark {
-  0% {
-    opacity: 1;
-    transform: translate(-50%, -50%) rotate(var(--spark-turn)) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(var(--spark-x), var(--spark-y)) rotate(var(--spark-turn)) scale(0.2);
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .card-landing {
@@ -372,4 +324,56 @@
     top: auto;
     bottom: 16%;
   }
+}
+
+/* Successful double relay: one clock hands off to the existing portrait/landing sequence. */
+.double-relay-fusion {
+  position: fixed;
+  inset: 0;
+  z-index: 61;
+  pointer-events: none;
+  overflow: hidden;
+}
+.double-relay-beams {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.double-relay-source {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+.double-relay-source-face {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  border-radius: 7px;
+  will-change: transform, opacity;
+}
+.double-relay-source-glow {
+  position: absolute;
+  inset: -40%;
+  opacity: 0;
+  background: radial-gradient(ellipse, #f2ffffcc 0%, #93edff99 26%, #63c8ff44 46%, transparent 68%);
+  mix-blend-mode: screen;
+}
+.double-relay-source-glow--1 {
+  background: radial-gradient(ellipse, #fff1fccc 0%, #ffb5e499 26%, #d6a4ff44 46%, transparent 68%);
+}
+.double-relay-core {
+  position: absolute;
+  opacity: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffdfbe6 0%, #bdefffaa 10%, #e0b6ff55 27%, transparent 67%);
+  mix-blend-mode: screen;
+}
+.double-relay-formed {
+  position: absolute;
+  opacity: 0;
+  height: auto;
+  aspect-ratio: 5/7;
+  border-radius: 9px;
+  will-change: transform, opacity;
 }

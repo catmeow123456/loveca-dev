@@ -15,6 +15,7 @@ import {
   S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   S_BP6_017_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   S_SD1_013_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
+  S_CL1_001_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
@@ -193,6 +194,142 @@ function getStartedMillCardIds(session: ReturnType<typeof createGameSession>): r
 }
 
 describe('direct mill top shared workflow', () => {
+  it.each(['CL', 'SEC'])(
+    'mills top five for 2-cost Chika in rarity %s and defers new triggers',
+    (rarity) => {
+      const topCards = Array.from({ length: 8 }, (_, index) =>
+        createCardInstance(createMemberCard(`cl1-chika-top-${index}`), PLAYER1, `cl1-top-${index}`)
+      );
+      const observer = createCardInstance(
+        createMemberCard('PL!SP-bp5-005-AR', '嵐 千砂都', 17),
+        PLAYER1,
+        'cl1-observer'
+      );
+      const session = prepareDirectMillSession({
+        testId: `s-cl1-001-${rarity}`,
+        sourceCardCode: `PL!S-cl1-001-${rarity}`,
+        sourceName: '高海千歌',
+        sourceCost: 2,
+        topCards,
+        stageObserver: observer,
+      });
+      const movedIds = topCards.slice(0, 5).map((card) => card.instanceId);
+      expect(session.state?.activeEffect).toMatchObject({
+        abilityId: S_CL1_001_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
+        stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
+        revealedCardIds: movedIds,
+      });
+      expect(session.state?.players[0].waitingRoom.cardIds).toEqual(movedIds);
+      expect(session.state?.players[0].mainDeck.cardIds).toEqual(
+        topCards.slice(5).map((card) => card.instanceId)
+      );
+      const events = session.state!.eventLog.filter(
+        ({ event }) =>
+          event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          event.fromZone === ZoneType.MAIN_DECK
+      );
+      expect(events).toHaveLength(1);
+      expect(events[0].event).toMatchObject({
+        cardInstanceIds: movedIds,
+        toZone: ZoneType.WAITING_ROOM,
+        cause: {
+          kind: 'CARD_EFFECT',
+          playerId: PLAYER1,
+          sourceCardId: `s-cl1-001-${rarity}-source`,
+          abilityId: S_CL1_001_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
+        },
+      });
+      expect(
+        session.state?.pendingAbilities.filter(
+          (ability) =>
+            ability.abilityId ===
+            SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID
+        )
+      ).toHaveLength(1);
+      expect(advancePublicRevealDwell(session).success).toBe(true);
+      expect(session.state?.actionHistory).toContainEqual(
+        expect.objectContaining({
+          type: 'RESOLVE_ABILITY',
+          payload: expect.objectContaining({
+            abilityId: S_CL1_001_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
+            step: 'FINISH_MILL_TOP_FIVE',
+            milledCardIds: movedIds,
+          }),
+        })
+      );
+      expect(session.state?.activeEffect?.abilityId).not.toBe(
+        S_CL1_001_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID
+      );
+    }
+  );
+
+  it('preserves only actual top-five movement facts across a Chika deck refresh', () => {
+    const topCards = [0, 1].map((index) =>
+      createCardInstance(createMemberCard(`cl1-short-${index}`), PLAYER1, `cl1-short-${index}`)
+    );
+    const waitingRoomCards = [0, 1, 2, 3].map((index) =>
+      createCardInstance(createMemberCard(`cl1-refresh-${index}`), PLAYER1, `cl1-refresh-${index}`)
+    );
+    const session = prepareDirectMillSession({
+      testId: 's-cl1-001-refresh',
+      sourceCardCode: 'PL!S-cl1-001-CL',
+      sourceName: '高海千歌',
+      sourceCost: 2,
+      topCards,
+      waitingRoomCards,
+    });
+    const movedIds = getStartedMillCardIds(session);
+    expect(movedIds).toHaveLength(5);
+    expect(movedIds.slice(0, 2)).toEqual(topCards.map((card) => card.instanceId));
+    expect(movedIds).not.toEqual(
+      expect.arrayContaining(waitingRoomCards.map((card) => card.instanceId))
+    );
+    const events = session.state!.eventLog.filter(
+      ({ event }) =>
+        event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+        event.fromZone === ZoneType.MAIN_DECK
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0].event).toMatchObject({ cardInstanceIds: movedIds });
+    expect(advancePublicRevealDwell(session).success).toBe(true);
+    expect(session.state?.actionHistory).toContainEqual(
+      expect.objectContaining({
+        type: 'RESOLVE_ABILITY',
+        payload: expect.objectContaining({
+          abilityId: S_CL1_001_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
+          step: 'FINISH_MILL_TOP_FIVE',
+          refreshCount: 1,
+          milledCardIds: movedIds,
+        }),
+      })
+    );
+  });
+
+  it('emits no enter-waiting event when Chika has no cards to mill', () => {
+    const session = prepareDirectMillSession({
+      testId: 's-cl1-001-empty',
+      sourceCardCode: 'PL!S-cl1-001-CL',
+      sourceName: '高海千歌',
+      sourceCost: 2,
+      topCards: [],
+    });
+    expect(getStartedMillCardIds(session)).toEqual([]);
+    expect(
+      session.state?.eventLog.filter(
+        ({ event }) => event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
+      )
+    ).toEqual([]);
+    expect(session.state?.activeEffect?.stepId).not.toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+    if (session.state?.activeEffect) {
+      const result = session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state.activeEffect.id)
+      );
+      expect(result.success, result.error).toBe(true);
+    }
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.pendingAbilities).toEqual([]);
+  });
+
   it('mills top ten for PL!S-bp5-015-N through the shared refresh-aware direct-mill workflow', () => {
     const topCards = Array.from({ length: 10 }, (_, index) =>
       createCardInstance(

@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Filter, ScrollText, X } from 'lucide-react';
 import { useGameStore } from '@/store/gameStore';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -33,14 +33,16 @@ export const PublicBattleLogButton = memo(function PublicBattleLogButton() {
     <button
       type="button"
       onClick={() => setOpen(!isOpen)}
-      className="button-ghost relative inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 shadow-[var(--shadow-md)] backdrop-blur-xl"
+      className="battle-toolbar-control button-ghost relative inline-flex min-h-11 items-center justify-center gap-2 px-3"
       aria-label="对局日志"
+      aria-expanded={isOpen}
+      aria-controls="public-battle-log-panel"
       title="对局日志"
     >
       <ScrollText size={16} />
       <span className="hidden text-sm font-semibold sm:inline">对局日志</span>
       {unreadCount > 0 && (
-        <span className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-[var(--semantic-error)] px-1.5 py-0.5 text-center text-[10px] font-bold leading-none text-white shadow">
+        <span className="absolute -right-1.5 top-0 min-w-5 rounded-full bg-[var(--semantic-error)] px-1.5 py-0.5 text-center text-[10px] font-bold leading-none text-white shadow">
           {unreadCount > 99 ? '99+' : unreadCount}
         </span>
       )}
@@ -48,48 +50,51 @@ export const PublicBattleLogButton = memo(function PublicBattleLogButton() {
   );
 });
 
-export const PublicBattleLogPanel = memo(function PublicBattleLogPanel() {
+export const PublicBattleLogPanel = memo(function PublicBattleLogPanel({
+  docked,
+}: {
+  docked: boolean;
+}) {
+  const reduceMotion = useReducedMotion();
   const canShowPublicBattleLog = useGameStore(
     (s) => s.getBattleSurfaceCapabilities().authority === 'REMOTE'
   );
   const isOpen = useGameStore((s) => s.publicBattleLog.isPanelOpen);
   const setOpen = useGameStore((s) => s.setPublicBattleLogPanelOpen);
 
-  if (!canShowPublicBattleLog) {
+  if (!canShowPublicBattleLog || !isOpen) {
     return null;
   }
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.aside
-          initial={{ opacity: 0, x: -16 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -16 }}
-          transition={{ duration: 0.18 }}
-          className="fixed bottom-4 left-4 top-20 z-[115] hidden w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] shadow-[var(--shadow-lg)] backdrop-blur-xl md:flex"
+    <motion.aside
+      id="public-battle-log-panel"
+      role="region"
+      aria-label="对局日志"
+      data-docked={docked}
+      initial={{ opacity: 0, x: docked ? 0 : -16 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -16 }}
+      transition={{ duration: reduceMotion ? 0 : 0.18 }}
+      className="battle-side-panel overflow-hidden"
+    >
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border-subtle)] px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <ScrollText size={16} className="text-[var(--accent-primary)]" />
+          <span className="truncate text-sm font-bold text-[var(--text-primary)]">对局日志</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="button-icon h-8 w-8 shrink-0"
+          aria-label="关闭对局日志"
+          title="关闭"
         >
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border-subtle)] px-3 py-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <ScrollText size={16} className="text-[var(--accent-primary)]" />
-              <span className="truncate text-sm font-bold text-[var(--text-primary)]">
-                对局日志
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="button-icon h-8 w-8 shrink-0"
-              aria-label="关闭对局日志"
-              title="关闭"
-            >
-              <X size={15} />
-            </button>
-          </div>
-          <PublicBattleLogContent active={isOpen} />
-        </motion.aside>
-      )}
-    </AnimatePresence>
+          <X size={15} />
+        </button>
+      </div>
+      <PublicBattleLogContent active={isOpen} />
+    </motion.aside>
   );
 });
 

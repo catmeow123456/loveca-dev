@@ -1,0 +1,44 @@
+.cheer-review-bar {
+  background: #20272d;
+  border-bottom: 1px solid #9ec9b52b;
+}
+.cheer-review-bar strong {
+  font-size: 14px;
+}
+.cheer-preview-label {
+  color: #adc1ba;
+  font-size: 11px;
+  margin-right: 10px;
+}
+.cheer-review-bar .cheer-play {
+  color: #d7ffeb;
+  background: #34564a;
+  border-color: #78b09678;
+}
+.cheer-review-bar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.cheer-review-bar [role='status'] {
+  color: #c1d4cc;
+}
+@media (max-width: 767px) {
+  .review-board #judgment-panel {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+  }
+  .cheer-review-bar {
+    gap: 5px;
+    padding: 6px 8px;
+  }
+  .cheer-review-bar strong {
+    font-size: 12px;
+  }
+  .cheer-preview-label {
+    margin-right: 0;
+  }
+  .cheer-review-bar [role='status'] {
+    font-size: 11px;
+  }
+}

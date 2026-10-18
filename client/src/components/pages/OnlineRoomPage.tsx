@@ -197,12 +197,39 @@ export function OnlineRoomPage({
   const [briefingAcknowledged, setBriefingAcknowledged] = useState(false);
   const [isUpdatingSpectatorEntry, setIsUpdatingSpectatorEntry] = useState(false);
   const [isRoomPanelOpen, setIsRoomPanelOpen] = useState(false);
+  const roomTriggerRef = useRef<HTMLButtonElement>(null);
+  const roomPanelRef = useRef<HTMLDivElement>(null);
   const [isRankedNoticeOpen, setIsRankedNoticeOpen] = useState(false);
   const [roomCodeCopied, setRoomCodeCopied] = useState(false);
   const [showOpponentReturnedNotice, setShowOpponentReturnedNotice] = useState(false);
   const isMobileBattlefield = useMediaQuery('(max-width: 767px)');
   const roomCodeCopyTimerRef = useRef<number | null>(null);
   const opponentReturnedTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!isRoomPanelOpen) return;
+    roomPanelRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    const dismiss = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) return;
+      if (
+        roomTriggerRef.current?.contains(event.target) ||
+        roomPanelRef.current?.contains(event.target)
+      )
+        return;
+      setIsRoomPanelOpen(false);
+    };
+    const dismissForEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      event.preventDefault();
+      setIsRoomPanelOpen(false);
+      roomTriggerRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', dismiss);
+    document.addEventListener('keydown', dismissForEscape);
+    return () => {
+      document.removeEventListener('pointerdown', dismiss);
+      document.removeEventListener('keydown', dismissForEscape);
+    };
+  }, [isRoomPanelOpen]);
   const previousOpponentPresenceRef = useRef<OnlineRoomView['members'][number]['presence'] | null>(
     null
   );
@@ -997,70 +1024,52 @@ export function OnlineRoomPage({
   }
 
   if (activeBattleContext) {
-    return (
-      <BattleViewportShell>
-        <div className="absolute left-5 top-[calc(env(safe-area-inset-top)+1rem)] z-[120] flex max-w-[calc(100vw-1rem)] flex-col items-start gap-2 md:left-4 md:top-4 md:max-w-[calc(100vw-2rem)]">
-          {isMobileBattlefield ? (
-            <button
-              type="button"
-              onClick={() => setIsRoomPanelOpen((open) => !open)}
-              aria-label={`房间操作，房间 ${activeBattleContext.room.roomCode}，${spectatorPresence.total} 人观战`}
-              aria-expanded={isRoomPanelOpen}
-              className="button-ghost relative inline-flex h-9 w-9 items-center justify-center border border-[var(--border-default)] bg-[var(--bg-frosted)] p-0 shadow-[var(--shadow-md)] backdrop-blur-xl"
-              title="打开房间操作"
-            >
-              <Users size={16} />
-              {spectatorPresence.total > 0 && (
-                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[9px] font-bold leading-none text-white">
-                  {Math.min(spectatorPresence.total, 99)}
-                </span>
-              )}
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsRoomPanelOpen((open) => !open)}
-                aria-expanded={isRoomPanelOpen}
-                className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3.5 shadow-[var(--shadow-md)] backdrop-blur-xl sm:px-4"
-                title="打开房间操作"
-              >
-                <Users size={16} />
-                <span className="hidden text-sm font-semibold sm:inline">
-                  房间 {activeBattleContext.room.roomCode}
-                </span>
-                <span className="text-sm font-semibold sm:hidden">
-                  {activeBattleContext.room.roomCode}
-                </span>
-                <span className="h-4 w-px bg-[var(--border-default)]" />
-                <span
-                  className="inline-flex items-center gap-1.5"
-                  title="公开观战人数，不包含管理员观战"
-                >
-                  <Eye size={15} />
-                  <span className="text-sm">{spectatorPresence.total}</span>
-                </span>
-                <ChevronDown
-                  size={15}
-                  className={`transition-transform ${isRoomPanelOpen ? 'rotate-180' : ''}`}
-                />
-              </button>
-              <div className="hidden md:block">
-                <PublicBattleLogButton />
-              </div>
-              <MatchChat
-                key={activeBattleContext.matchId}
-                emoteCatalog={emoteCatalog}
-                onEmoteCatalogStale={onEmoteCatalogStale}
-                access={{
-                  kind: 'PARTICIPANT',
-                  matchId: activeBattleContext.matchId,
-                  viewerSeat: activeBattleContext.matchView.viewerSeat,
-                }}
-              />
-            </div>
-          )}
-          {isRoomPanelOpen && (
+    const roomHeaderActions = (
+      <div className="flex items-center gap-2">
+        <button
+          ref={roomTriggerRef}
+          type="button"
+          onClick={() => setIsRoomPanelOpen((open) => !open)}
+          aria-expanded={isRoomPanelOpen}
+          className="battle-toolbar-control button-ghost inline-flex min-h-11 items-center justify-center gap-2 px-3 text-sm"
+          title="打开房间操作"
+        >
+          <Users size={16} />
+          <span className="hidden text-sm font-semibold sm:inline">
+            房间 {activeBattleContext.room.roomCode}
+          </span>
+          <span className="text-sm font-semibold sm:hidden">
+            {activeBattleContext.room.roomCode}
+          </span>
+          <span className="h-4 w-px bg-[var(--border-default)]" />
+          <span className="inline-flex items-center gap-1.5" title="公开观战人数，不包含管理员观战">
+            <Eye size={15} />
+            <span className="text-sm">{spectatorPresence.total}</span>
+          </span>
+          <ChevronDown
+            size={15}
+            className={`transition-transform ${isRoomPanelOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
+        <div className="hidden md:block">
+          <PublicBattleLogButton />
+        </div>
+        <MatchChat
+          key={activeBattleContext.matchId}
+          emoteCatalog={emoteCatalog}
+          onEmoteCatalogStale={onEmoteCatalogStale}
+          access={{
+            kind: 'PARTICIPANT',
+            matchId: activeBattleContext.matchId,
+            viewerSeat: activeBattleContext.matchView.viewerSeat,
+          }}
+        />
+      </div>
+    );
+    const roomHeaderOverlay = (
+      <>
+        {isRoomPanelOpen && (
+          <div ref={roomPanelRef}>
             <RoomActionPanel
               roomCode={activeBattleContext.room.roomCode}
               presence={spectatorPresence}
@@ -1089,84 +1098,111 @@ export function OnlineRoomPage({
                   : handleRequestBackToLobby
               }
             />
-          )}
-          {!isMatchCompleted && opponentMember?.presence === 'LEFT' && (
+          </div>
+        )}
+        {!isMatchCompleted && opponentMember?.presence === 'LEFT' && (
+          <div
+            className="w-[min(420px,calc(100vw-2rem))] rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-2.5 text-sm font-medium text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl"
+            role="status"
+          >
+            <div>对方暂时不在房间</div>
+            <div className="mt-0.5 text-xs font-normal text-[var(--text-secondary)]">
+              等待对方返回。
+            </div>
+          </div>
+        )}
+        {!isMatchCompleted &&
+          showOpponentReturnedNotice &&
+          opponentMember?.presence === 'ACTIVE' && (
             <div
-              className="w-[min(420px,calc(100vw-2rem))] rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-2.5 text-sm font-medium text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl"
+              className="w-[min(420px,calc(100vw-2rem))] rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-success)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-2.5 text-sm font-medium text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl"
               role="status"
             >
-              <div>对方暂时不在房间</div>
-              <div className="mt-0.5 text-xs font-normal text-[var(--text-secondary)]">
-                等待对方返回。
-              </div>
+              对方已回到房间。
             </div>
           )}
-          {!isMatchCompleted &&
-            showOpponentReturnedNotice &&
-            opponentMember?.presence === 'ACTIVE' && (
-              <div
-                className="w-[min(420px,calc(100vw-2rem))] rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-success)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-2.5 text-sm font-medium text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl"
-                role="status"
-              >
-                对方已回到房间。
-              </div>
-            )}
-          {restartRequest && (
-            <div className="w-[min(420px,calc(100vw-2rem))] rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-3 text-sm text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-xs font-semibold text-[var(--accent-primary)]">重开请求</div>
-                  <div className="mt-1 font-semibold">
-                    {isRestartRequester ? '已发送重开请求' : `${restartRequesterName} 请求重开`}
-                  </div>
-                  <div className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
-                    {isRestartRequester
-                      ? '等待对手同意；同意后会回到准备页，可换卡组后重新开局。'
-                      : '同意后会封存当前对局，并回到准备页重新锁组或直接准备。'}
-                  </div>
+        {restartRequest && (
+          <div className="w-[min(420px,calc(100vw-2rem))] rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-3 text-sm text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-semibold text-[var(--accent-primary)]">重开请求</div>
+                <div className="mt-1 font-semibold">
+                  {isRestartRequester ? '已发送重开请求' : `${restartRequesterName} 请求重开`}
                 </div>
-                <RotateCcw size={18} className="mt-0.5 shrink-0 text-[var(--accent-primary)]" />
+                <div className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                  {isRestartRequester
+                    ? '等待对手同意；同意后会回到准备页，可换卡组后重新开局。'
+                    : '同意后会封存当前对局，并回到准备页重新锁组或直接准备。'}
+                </div>
               </div>
-              {isRestartRequester && (
+              <RotateCcw size={18} className="mt-0.5 shrink-0 text-[var(--accent-primary)]" />
+            </div>
+            {isRestartRequester && (
+              <button
+                type="button"
+                onClick={handleCancelRestart}
+                disabled={isSubmitting}
+                className="button-ghost mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-sm"
+              >
+                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
+                取消重开
+              </button>
+            )}
+            {isRestartResponder && (
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={handleCancelRestart}
+                  onClick={handleRejectRestart}
                   disabled={isSubmitting}
-                  className="button-ghost mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-sm"
+                  className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-sm"
                 >
-                  {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
-                  取消重开
+                  拒绝
                 </button>
-              )}
-              {isRestartResponder && (
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={handleRejectRestart}
-                    disabled={isSubmitting}
-                    className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-sm"
-                  >
-                    拒绝
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleAcceptRestart}
-                    disabled={isSubmitting}
-                    className="button-primary inline-flex min-h-10 items-center justify-center gap-2 px-3 text-sm"
-                  >
-                    同意重开
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+                <button
+                  type="button"
+                  onClick={handleAcceptRestart}
+                  disabled={isSubmitting}
+                  className="button-primary inline-flex min-h-10 items-center justify-center gap-2 px-3 text-sm"
+                >
+                  同意重开
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </>
+    );
+    return (
+      <BattleViewportShell>
         <GameBoard
+          judgmentPanelVisible={briefingAcknowledged || isMatchCompleted}
+          desktopHeaderActions={roomHeaderActions}
+          headerOverlay={roomHeaderOverlay}
           showDesktopPublicBattleLogButton={false}
+          mobileFloatingHeaderActions={
+            isMobileBattlefield ? (
+              <button
+                ref={roomTriggerRef}
+                type="button"
+                onClick={() => setIsRoomPanelOpen((open) => !open)}
+                aria-label={`房间操作，房间 ${activeBattleContext.room.roomCode}，${spectatorPresence.total} 人观战`}
+                aria-expanded={isRoomPanelOpen}
+                className="button-ghost relative inline-flex h-9 w-9 items-center justify-center border border-[var(--border-default)] bg-[var(--bg-frosted)] p-0 shadow-[var(--shadow-md)] backdrop-blur-xl"
+                title="打开房间操作"
+              >
+                <Users size={16} />
+                {spectatorPresence.total > 0 ? (
+                  <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[9px] font-bold leading-none text-white">
+                    {Math.min(spectatorPresence.total, 99)}
+                  </span>
+                ) : null}
+              </button>
+            ) : undefined
+          }
           mobileHeaderActions={
             isMobileBattlefield ? (
               <>
-                {/* The real room control sits above phase overlays; reserve its header slot. */}
+                {/* 房间入口在阶段浮层上方渲染，保留其标题栏位置。 */}
                 <span className="block h-9 w-9" aria-hidden="true" />
                 <MatchChat
                   key={activeBattleContext.matchId}

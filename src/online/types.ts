@@ -6,12 +6,14 @@ import {
   GameMode,
   HeartColor,
   OrientationState,
+  type SlotPosition,
 } from '../shared/types/enums.js';
 import type { GameState } from '../domain/entities/game.js';
 import type { HeartIcon } from '../domain/entities/card.js';
 import type { ActivatedAbilityUiConfig } from '../application/card-effects/ability-definition-types.js';
 import type { CardDefinedSpecialMemberPlayMode } from '../shared/rules/member-play-options.js';
 import type { ManualOperationMode } from '../shared/types/manual-operation-mode.js';
+import type { EntranceAssetId } from '../shared/card-entrance.js';
 
 export type Seat = 'FIRST' | 'SECOND';
 
@@ -135,12 +137,29 @@ export interface MatchViewState {
   readonly undo?: OnlineUndoView;
   /** 当前投影必须显式携带权威操作模式。 */
   readonly manualOperation: ManualOperationModeView;
+  /** Intentionally discloses the union of both decks' entrance identities, never owners/counts/order. */
+  readonly entranceAssetIds?: readonly EntranceAssetId[];
   /** 公开登场演出的双方确认与截止时间。 */
   readonly entrance?: {
     readonly id: string;
     readonly objectIds: readonly string[];
     readonly waitingSeats: readonly Seat[];
     readonly deadlineAt: number;
+    /** Public waiting-room faces before the shuffle, never the resulting deck order. */
+    readonly waitingRoomReturns?: readonly {
+      readonly objectId: string;
+      readonly ownerSeat: Seat;
+      readonly members: readonly { readonly objectId: string; readonly cardCode: string }[];
+    }[];
+    /** Public stage replacements from this entry, present only for actual double relays. */
+    readonly doubleRelays?: readonly {
+      readonly objectId: string;
+      readonly sources: readonly {
+        readonly objectId: string;
+        readonly slot: SlotPosition;
+        readonly orientation: OrientationState;
+      }[];
+    }[];
   };
   /** 仅排位对局在能够唯一归责时存在；不包含任何隐藏窗口内容。 */
   readonly rankedStall?: RankedStallView;
@@ -598,7 +617,26 @@ export interface CardEffectSummaryPublicEvent extends BasePublicEvent {
   readonly waitingRoomCardCount?: number;
 }
 
+/** Public member/LIVE numerical changes for non-blocking presentation. */
+export type EffectFeedbackChange =
+  | { readonly kind: 'HEART' | 'REQUIREMENT'; readonly color: HeartColor; readonly delta: number }
+  | { readonly kind: 'BLADE' | 'SCORE'; readonly delta: number };
+
+export interface EffectFeedbackTarget {
+  readonly objectId?: string;
+  readonly zoneKey: ViewZoneKey;
+  readonly changes: readonly EffectFeedbackChange[];
+}
+
+export interface EffectFeedbackPublicEvent extends BasePublicEvent {
+  readonly type: 'EffectFeedback';
+  readonly mode: 'APPLIED' | 'UPDATE';
+  readonly sourceObjectId?: string;
+  readonly targets: readonly EffectFeedbackTarget[];
+}
+
 export type PublicEvent =
+  | EffectFeedbackPublicEvent
   | PhaseStartedPublicEvent
   | SubPhaseStartedPublicEvent
   | WindowStatusChangedPublicEvent
@@ -611,6 +649,7 @@ export type PublicEvent =
   | CardEffectSummaryPublicEvent;
 
 export type PublicEventDraft =
+  | Omit<EffectFeedbackPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
   | Omit<PhaseStartedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
   | Omit<SubPhaseStartedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
   | Omit<WindowStatusChangedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>

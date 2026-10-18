@@ -74,7 +74,10 @@ describe('JudgmentSeatSwitcher', () => {
     expect(html).toContain('aria-label="查看后攻玩家 玩家 B 的判定"');
     expect(html).toContain('aria-pressed="true" aria-label="查看先攻玩家 玩家 A 的判定"');
     expect(html).toContain('aria-pressed="false" aria-label="查看后攻玩家 玩家 B 的判定"');
-    expect(html.match(/>当前<\/span>/g)).toHaveLength(1);
+    const buttons = html.match(/<button\b[^>]*>/g) ?? [];
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]).not.toContain('aria-description="当前行动方"');
+    expect(buttons[1]).toContain('aria-description="当前行动方"');
   });
 
   it('系统切换行动方后可将新的行动方呈现为选中状态', () => {
@@ -92,12 +95,5 @@ describe('JudgmentSeatSwitcher', () => {
     expect(secondRoleIndex).toBeGreaterThan(firstRoleIndex);
     expect(html).toContain('aria-pressed="true" aria-label="查看先攻玩家 玩家 B 的判定"');
     expect(html).toContain('aria-pressed="false" aria-label="查看后攻玩家 玩家 A 的判定"');
-  });
-
-  it('将字号应用在内部文字上，避免被全局按钮字体继承覆盖', () => {
-    const html = renderSwitcher('FIRST', 'FIRST', 'FIRST');
-
-    expect(html).toContain('class="text-[14px] leading-none">先攻</span>');
-    expect(html).toContain('text-[9px] leading-none');
   });
 });

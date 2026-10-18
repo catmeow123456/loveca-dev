@@ -1,0 +1,43 @@
+@import '../../src/index.css';
+@source '../../src';
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+#root {
+  display: flex;
+  flex-direction: column;
+}
+.review-bar {
+  position: relative;
+  z-index: 200;
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #222333;
+  color: #f4efff;
+  font: 12px/1.5 system-ui;
+}
+.review-bar button,
+.review-bar select {
+  border: 1px solid #ffffff30;
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: #343548;
+  cursor: pointer;
+}
+.review-bar [role='status'] {
+  flex-basis: 100%;
+  color: #cbc4dc;
+}
+.review-board {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}

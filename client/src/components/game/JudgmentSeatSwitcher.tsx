@@ -42,7 +42,7 @@ export function JudgmentSeatSwitcher({
     <div
       role="group"
       aria-label="切换判定查看玩家"
-      className="inline-flex rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_58%,transparent)] p-0.5 shadow-sm"
+      className="inline-flex shrink-0 items-center gap-1"
     >
       {roleSeats.map((seat) => {
         const isActive = seat === activeSeat;
@@ -57,19 +57,23 @@ export function JudgmentSeatSwitcher({
             onClick={() => onSelect(seat)}
             aria-pressed={isViewing}
             aria-label={`查看${seatLabel}玩家 ${playerName} 的判定`}
-            title={`查看${seatLabel}玩家 ${playerName} 的判定`}
+            aria-description={isActive ? '当前行动方' : undefined}
+            title={`查看${seatLabel}玩家 ${playerName} 的判定${isActive ? '（当前行动方）' : ''}`}
             className={cn(
-              'flex min-h-[25px] min-w-[68px] items-center justify-center gap-1 rounded-md border px-2 py-0.5 transition-colors',
+              'relative flex min-h-10 min-w-12 items-center justify-center rounded-md px-3 pb-1 pt-0.5 transition-colors hover:bg-[var(--bg-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] md:min-h-9',
               isViewing
-                ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_62%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,var(--bg-surface))] text-[var(--accent-primary)] shadow-sm'
-                : 'border-transparent text-[var(--text-muted)] hover:bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] hover:text-[var(--text-secondary)]'
+                ? 'text-[var(--text-primary)]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             )}
           >
-            <span className="text-[14px] leading-none">{seatLabel}</span>
-            {isActive ? (
-              <span className="rounded bg-[color:color-mix(in_srgb,var(--semantic-info)_18%,transparent)] px-1 py-0.5 text-[9px] leading-none text-[var(--semantic-info)]">
-                当前
-              </span>
+            <span className={cn('text-[13px] leading-none', isViewing && 'font-semibold')}>
+              {seatLabel}
+            </span>
+            {isViewing ? (
+              <span
+                aria-hidden="true"
+                className="absolute bottom-0.5 left-1/2 h-0.5 w-5 -translate-x-1/2 rounded-full bg-[var(--accent-primary)]"
+              />
             ) : null}
           </button>
         );

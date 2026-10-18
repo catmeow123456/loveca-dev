@@ -24,6 +24,7 @@ import {
   PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
   RIN_ACTIVATED_ABILITY_ID,
   S_BP3_008_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
+  S_CL1_003_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_CARD_ABILITY_ID,
   SP_BP4_018_ACTIVATED_SELF_SACRIFICE_RECOVER_LIELLA_CARD_ABILITY_ID,
 } from '../../ability-ids.js';
 import { findCardAbilityDefinitionById } from '../../definitions/lookup.js';
@@ -114,6 +115,16 @@ interface SelfSacrificeWaitingRoomToHandWorkflowConfig {
 
 const SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly SelfSacrificeWaitingRoomToHandWorkflowConfig[] =
   [
+    {
+      abilityId: S_CL1_003_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_CARD_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!S-cl1-003'],
+      stepId: 'S_CL1_003_SELECT_WAITING_ROOM_AQOURS_CARD',
+      selectablePredicate: groupAliasIs('Aqours'),
+      selectionRequiredWhenHasTargets: true,
+      stepText: '请选择自己的休息室中1张『Aqours』卡片加入手牌。',
+      selectionLabel: '选择要加入手牌的Aqours卡',
+      confirmSelectionLabel: '加入手牌',
+    },
     {
       abilityId: PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
       expectedBaseCardCodes: ['PL!-PR-017'],
@@ -399,12 +410,17 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
         ? [selectedCardId]
         : [];
   const zoneSelection = getZoneSelectionConfig(effect);
+  const currentCandidates = config
+    ? selectWaitingRoomCardIds(game, player.id, config.selectablePredicate)
+    : [];
   const recoveryResult = recoverCardsFromWaitingRoomToHandForPlayer(
     game,
     player.id,
     selectedCardIdsToMove,
     {
-      candidateCardIds: effect.selectableCardIds ?? [],
+      candidateCardIds: (effect.selectableCardIds ?? []).filter((cardId) =>
+        currentCandidates.includes(cardId)
+      ),
       minCount: zoneSelection.minCount,
       maxCount: zoneSelection.maxCount,
     }

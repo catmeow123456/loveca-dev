@@ -1,0 +1,47 @@
+.ability-activation-ink {
+  position: absolute;
+  left: -32%;
+  top: -22.857%;
+  width: 164%;
+  height: 145.714%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 30;
+  opacity: 0;
+}
+
+[data-ability-activation='true'] {
+  pointer-events: none;
+  will-change: transform;
+  z-index: 20;
+}
+
+[data-recovery-hand-card] [data-ability-activation='true'] {
+  transform-origin: 50% 100%;
+}
+
+.ability-activation-floor {
+  position: absolute;
+  border-radius: 12%;
+  background: radial-gradient(
+    ellipse at center,
+    #080808ba 20%,
+    #17171790 55%,
+    #24242430 72%,
+    transparent 85%
+  );
+  filter: blur(4px);
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0;
+}
+
+[data-ability-activation-floor-host='true'] {
+  position: relative;
+  isolation: isolate;
+}
+
+[data-ability-activation='true'] > [data-card-effect-outline] {
+  animation: none;
+  opacity: 0;
+}

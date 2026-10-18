@@ -1,33 +1,23 @@
-// Milliseconds throughout. Changing a phase updates dependent deadlines and CSS together.
+// Milliseconds throughout. Portrait, flight and impact share the same completion budget.
 const portrait = { enter: 600, fadeAt: 1500, fade: 450, labelAt: 300, label: 200 };
 const impact = {
   contact: 0,
-  flash: 110,
+  flash: 55,
+  burst: 350,
   ring: 350,
-  echoDelay: 60,
-  echo: 380,
-  dust: 340,
-  spark: 310,
+  settle: 440,
   shadow: 320,
   neighbors: 350,
   spread: 75,
-  shake: 210,
+  shake: 160,
 };
 const portraitEnd = portrait.fadeAt + portrait.fade;
 const landingAt = portraitEnd - 200;
 const travel = 400,
   press = 150;
 const flight = travel + press;
-const impactDuration = Math.max(
-  impact.flash,
-  impact.contact + impact.ring,
-  impact.echoDelay + impact.echo,
-  impact.contact + impact.dust,
-  impact.contact + impact.spark,
-  impact.contact + impact.shadow,
-  impact.contact + impact.spread + impact.neighbors,
-  impact.contact + impact.shake
-);
+// All neighbor tails are clamped to this shared impact budget.
+const impactDuration = impact.settle;
 export const entranceTimeline = {
   portrait,
   portraitEnd,
@@ -41,9 +31,6 @@ export const entranceTimeline = {
   total: landingAt + flight + impactDuration,
   reduced: 160,
 } as const;
-export const entranceImpactCss = Object.fromEntries(
-  Object.entries(impact).map(([key, ms]) => [`--impact-${key}`, `${ms}ms`])
-);
 export function entranceRemaining(startedAt: number, offset: number, now = performance.now()) {
   return Math.max(0, startedAt + offset - now);
 }

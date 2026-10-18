@@ -5,6 +5,12 @@ import {
 } from '../../client/src/lib/cardEffectTokens';
 
 describe('parseCardEffectText', () => {
+  it('maps the exact double-gray blade-heart token without rewriting the card paragraph', () => {
+    expect(getUnknownCardEffectPlaceholders('[ダブル無色ブレード]')).toEqual([]);
+    expect(parseCardEffectText('[ダブル無色ブレード]')).toEqual([
+      { kind: 'blade', raw: '[ダブル無色ブレード]', label: '双无色BLADE HEART', icon: 'blade_heart_double_gray' },
+    ]);
+  });
   it('renders the exact fullwidth turn limit exported for BP8 Mia', () => {
     const text = '【自动】【１回合１次】自己的卡组更新时，抽２张卡，将１张手牌放置入休息室。';
     expect(getUnknownCardEffectPlaceholders(text)).toEqual([]);
