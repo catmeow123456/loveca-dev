@@ -48,7 +48,7 @@ export function previewZoneFeedback() {
   // The isolated sample represents a completed result, without the unrelated
   // pending member ability obscuring its region. Authority remains untouched.
   after = { ...after, activeEffect: null, waitingForInput: false, waitingPlayerId: null };
-  const seq = state.playerViewState!.match.seq + 1;
+  const seq = state.publicBattleLog.currentPublicSeq + 1;
   const view = projectPlayerViewState(after, state.viewingPlayerId!);
   const events = buildEffectFeedbackEvents(before, after, {
     source: 'SYSTEM',
@@ -64,6 +64,8 @@ export function previewZoneFeedback() {
     playerViewState: { ...view, match: { ...view.match, seq } },
     publicBattleLog: {
       ...state.publicBattleLog,
+      currentPublicSeq: seq,
+      cursorSeq: seq,
       events: [...state.publicBattleLog.events, ...events],
     },
   });

@@ -10,6 +10,8 @@
 
 事件不改变规则或权威状态，不显示在玩家公共日志和未读计数中。正式联机与本地使用同一条投影和展示路径；前端与共享/API 需一起发布，无新增数据库字段、贴图、第三方依赖或生产配置。
 
+数值动效按 `publicBattleLog.currentPublicSeq` 消费公开事件，不能使用 `view.match.seq`：远程对局中的后者是独立的状态修订号，一次状态更新可能产生多条公开事件，两者没有大小对应关系。联机、对墙与 AI 共用该消费逻辑。远程快照同时提交玩家视图、公开事件水位及随快照附带的事件；晚到的新日志仍可播放，首次进入／重连时补回的历史日志不播放，撤销或恢复后的新事件按新的展示 epoch 消费。
+
 ## 展示与清理
 
 `EffectFeedbackLayer` 将流光挂到真实卡牌内，继承卡牌旋转、缩放；图标数值保持屏幕直立并跟随目标。LIVE 区域反馈按当前 viewerSeat 映射到已有 self/opponent 桌面锚点；对手区域也有局部定位容器，不依赖旧版 droppable 标记。新事件立即替换同一目标的旧反馈，不跨事件累加、不排队等待；不同目标可以同时展示。
@@ -24,7 +26,20 @@
 
 - 单元／集成：`tests/unit/effect-feedback.test.ts`、`tests/unit/effect-feedback-presentation.test.ts`、`tests/integration/effect-feedback.test.ts`；验证实际增量、隐藏条件、混合结果、无目标／非法命令、历史去重与撤销重放。
 - 浏览器：`client/tests/recovery-review/feedback.playwright.config.ts`；覆盖桌面和 390×844、横置与对手视角、减少动态、取消清理、起动 1000ms 衔接。截图位于 `output/playwright/member-feedback/`。
+- 远程编号回归：`tests/unit/game-store-remote-sync.test.ts` 覆盖三种模式的原子快照更新、日志晚到、重复送达、恢复、撤销重做与旧快照；`feedback-remote.spec.ts` 使用普通 5173 App、真实卡效命令和隔离的远程传输夹具，检查三种模式的加心、加刀、LIVE 加分与需求减少，以及高修订号、重连历史与对手窄屏的减少动态。它不连接真实双客户端网络或调用 AI 服务。
 - 回归沿用起动及回收验收，以及登场同步、公开日志和玩家投影测试。真实双客户端网络与低端设备性能需在后续发布验收中确认。
 
 
 本次迁移验证：13 个相关单元／集成文件共 147 项通过，覆盖反馈、落场几何、登场同步、双人接棒、米娅回流、新增高费登场与回收；`pnpm exec tsc --noEmit`、客户端类型检查、验收页类型检查及 `pnpm --dir client build` 通过。构建仍提示既有大 chunk。反馈浏览器共 20 项、落场浏览器共 6 项通过，含桌面／390×844、双方可见目标、减少动态、跳过及贴图失败回退；区域展示样例不作为真实卡效命令验收。没有进行生产或真实双客户端网络验收。
+
+远程编号修复验证（2026-10-18）：6 个单元／集成文件共 78 项、数值反馈浏览器 34 项及以下三处类型检查通过。浏览器首次运行中，对手窄屏用例被已打开的效果面板拦住；修正测试操作为先点“隐藏”再查看对手战场后，该项单独重跑通过，未修改产品交互。相关命令：
+
+```sh
+node node_modules/vitest/vitest.mjs run tests/unit/effect-feedback.test.ts tests/unit/effect-feedback-presentation.test.ts tests/integration/effect-feedback.test.ts tests/unit/game-store-remote-sync.test.ts
+node node_modules/vitest/vitest.mjs run tests/unit/remote-snapshot-order.test.ts tests/unit/public-battle-log-formatter.test.ts
+node client/node_modules/@playwright/test/cli.js test --config client/tests/recovery-review/feedback.playwright.config.ts
+node client/node_modules/@playwright/test/cli.js test --config client/tests/recovery-review/feedback.playwright.config.ts feedback-remote.spec.ts --grep 'opponent mobile' --output output/playwright/member-feedback/opponent-rerun
+node node_modules/typescript/bin/tsc --noEmit
+node client/node_modules/typescript/bin/tsc -p client/tsconfig.app.json
+node client/node_modules/typescript/bin/tsc -p client/tests/recovery-review/tsconfig.json
+```

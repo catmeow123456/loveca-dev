@@ -135,7 +135,8 @@ export function EffectFeedbackLayer({ enabled = true }: { readonly enabled?: boo
     }
     const result = consumeEffectFeedback(cursor.current, {
       context: `${view.match.matchId}:${view.match.viewerSeat}:${log.presentationEpoch}:${enabled}:${readOnly}:${reduced}`,
-      seq: view.match.seq,
+      // Remote match revisions and public event sequences are independent clocks.
+      currentPublicSeq: log.currentPublicSeq,
       events: log.events.filter((e) => e.matchId === view.match.matchId),
     });
     cursor.current = result.cursor;

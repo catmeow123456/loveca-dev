@@ -58,6 +58,7 @@ import { isSuccessEffectSubPhase } from '@game/shared/phase-config';
 import { useGameStore } from '@/store/gameStore';
 import { BATTLE_UI_ANCHORS } from '@/lib/battleUiAnchors';
 import { DroppableZone } from './interaction';
+import { useCheerRevealMotion } from './useCheerRevealMotion';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
 import {
   getJudgmentSeatRoleLabel,
@@ -384,6 +385,7 @@ const SortableCheerCard = memo(function SortableCheerCard({
   return (
     <div
       ref={setNodeRef}
+      data-cheer-card-id={cardId}
       style={style}
       {...attributes}
       {...listeners}
@@ -614,7 +616,28 @@ export const JudgmentPanel = memo(function JudgmentPanel({
         viewObject,
       };
     });
-  }, [cheerCardIds]);
+  }, [cheerCardIds, cardViewObjects]);
+
+  const motionCards = useMemo(
+    () =>
+      cheerCards.flatMap(({ id, viewObject, frontInfo }) =>
+        viewObject?.surface === 'FRONT' && frontInfo
+          ? [
+              {
+                id,
+                objectId: getPublicObjectId(id),
+                hearts: calculateCheerEffects(
+                  applyCheerHeartColorReplacement(
+                    frontInfo.bladeHearts as BladeHearts | undefined,
+                    cheerHeartColorReplacement
+                  )
+                ).penLightHearts,
+              },
+            ]
+          : []
+      ),
+    [cheerCards, cheerHeartColorReplacement]
+  );
 
   // ---- 心数汇总（成员心 + 光棒心） ----
 
@@ -838,6 +861,19 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     onEscape: onClose,
   });
 
+  useCheerRevealMotion({
+    panel: panelRef,
+    isOpen,
+    isReadOnly,
+    seat: viewingSeat,
+    phase: currentSubPhase,
+    cards: motionCards,
+    members: memberHearts,
+    totals: totalHearts,
+    requirements: liveJudgmentPreview.mergedRequirements,
+    playerName: viewedPlayer?.name ?? '玩家',
+  });
+
   if (!isOpen || !firstSeat || !activeSeat || !activePlayer || !viewingSeat || !viewedPlayer) {
     return null;
   }
@@ -1011,7 +1047,10 @@ export const JudgmentPanel = memo(function JudgmentPanel({
             </div>
           ) : null}
 
-          <div className="cute-scrollbar h-[140px] overflow-x-auto overflow-y-hidden rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_56%,transparent)] p-2">
+          <div
+            data-cheer-strip
+            className="cute-scrollbar h-[140px] overflow-x-auto overflow-y-hidden rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_56%,transparent)] p-2"
+          >
             {cheerCards.length === 0 ? (
               <div className="flex h-full items-center justify-center text-xs text-[var(--text-muted)]">
                 {isFreeOperationMode && isViewingActiveSeat
@@ -1065,7 +1104,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                             />
                           </div>
                         )}
-                        <div className="flex gap-0.5 text-[10px]">
+                        <div data-cheer-card-summary className="flex gap-0.5 text-[10px]">
                           {effects.penLightHearts.map((heart, i) => (
                             <HeartIconValue
                               key={i}
@@ -1095,7 +1134,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
           <div className="space-y-3">
             <JudgmentInfoBlock
               title="判定 Heart"
-              badge={<span>成员心 + 判心 · 总计 {totalHeartsCount}</span>}
+              badge={<span data-cheer-total>成员心 + 判心 · 总计 {totalHeartsCount}</span>}
             >
               {hasJudgmentResources ? (
                 <div className="flex flex-wrap gap-2">
@@ -1108,6 +1147,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                     return (
                       <div
                         key={color}
+                        data-cheer-heart-color={color}
                         className={JUDGMENT_CHIP_CLASS}
                         title={
                           isRainbow ? `All Heart，可作为任意颜色使用；${sourceLabel}` : sourceLabel
@@ -1120,7 +1160,12 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                           className="h-4 w-4 object-contain"
                           draggable={false}
                         />
-                        <span className="font-bold text-[var(--text-primary)]">{count}</span>
+                        <span
+                          data-cheer-heart-count
+                          className="font-bold text-[var(--text-primary)]"
+                        >
+                          {count}
+                        </span>
                         {bladeCount > 0 && (
                           <span className="text-[10px] text-[var(--accent-secondary)]">
                             成员 {memberCount} / 判心 {bladeCount}
@@ -1140,8 +1185,11 @@ export const JudgmentPanel = memo(function JudgmentPanel({
               )}
             </JudgmentInfoBlock>
 
-            <JudgmentInfoBlock title="LIVE 需求" badge={requirementSummary}>
-              <div className="grid grid-cols-3 gap-1.5">
+            <JudgmentInfoBlock
+              title="LIVE 需求"
+              badge={<span data-cheer-requirement-summary>{requirementSummary}</span>}
+            >
+              <div data-cheer-live-group className="grid grid-cols-3 gap-1.5">
                 {[0, 1, 2].map((slot) => (
                   <LiveRequirementCard
                     key={slot}
@@ -1153,7 +1201,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
             </JudgmentInfoBlock>
 
             <JudgmentInfoBlock title="接受后预计" className="p-2.5">
-              <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div data-cheer-outcome className="flex flex-wrap items-center gap-2 text-xs">
                 <div
                   className={cn(
                     'inline-flex min-h-7 items-center rounded border px-2.5 py-1 font-bold',

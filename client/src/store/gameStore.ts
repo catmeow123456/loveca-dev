@@ -3114,6 +3114,28 @@ function applyRemoteSnapshot(
         : state.remoteSession,
       viewingPlayerId: snapshot.playerId,
       playerViewState: normalizedPlayerViewState,
+      // Publish the view and its public-event watermark atomically. Presentation readers
+      // must not establish a history floor from the previous snapshot or remote revision.
+      publicBattleLog: mergePublicBattleLogResponse(
+        isRecoverySnapshot
+          ? {
+              ...EMPTY_PUBLIC_BATTLE_LOG,
+              matchId: snapshot.matchId,
+              presentationEpoch: state.publicBattleLog.presentationEpoch + 1,
+              isPanelOpen:
+                state.publicBattleLog.matchId === snapshot.matchId &&
+                state.publicBattleLog.isPanelOpen,
+            }
+          : state.publicBattleLog,
+        {
+          matchId: snapshot.matchId,
+          currentPublicSeq: snapshot.currentPublicSeq,
+          publicEvents: 'publicEvents' in snapshot ? (snapshot.publicEvents ?? []) : [],
+          truncated: snapshot.truncated,
+          droppedEventCount: snapshot.droppedEventCount,
+        },
+        { advanceCursorToCurrentPublicSeq: false }
+      ),
       freePlayEnabled:
         normalizedPlayerViewState !== null &&
         normalizedPlayerViewState.match.manualOperation.mode === 'FREE',
@@ -3154,44 +3176,11 @@ function applyRemoteSnapshotThenPreload(
 
   scheduleFrontTransitionPreload(previousViewState, nextViewState, cardDataRegistry, latencyProbe);
   if (snapshot.recovery) {
-    resetPublicBattleLogForRecoveredSnapshot(snapshot.matchId);
-  }
-  mergePublicEventsFromSnapshot(snapshot);
-  if (snapshot.recovery) {
     notifyRemoteRuntimeRecovery(snapshot.recovery);
   }
   if (options.syncPublicBattleLog !== false) {
     void syncPublicBattleLogIfNeeded(snapshot.matchId, snapshot.currentPublicSeq);
   }
-}
-
-function mergePublicEventsFromSnapshot(snapshot: RemoteSnapshot): void {
-  useGameStore.setState((state) => ({
-    publicBattleLog: mergePublicBattleLogResponse(
-      state.publicBattleLog,
-      {
-        matchId: snapshot.matchId,
-        currentPublicSeq: snapshot.currentPublicSeq,
-        publicEvents: 'publicEvents' in snapshot ? (snapshot.publicEvents ?? []) : [],
-        truncated: snapshot.truncated,
-        droppedEventCount: snapshot.droppedEventCount,
-      },
-      {
-        advanceCursorToCurrentPublicSeq: false,
-      }
-    ),
-  }));
-}
-
-function resetPublicBattleLogForRecoveredSnapshot(matchId: string): void {
-  useGameStore.setState((state) => ({
-    publicBattleLog: {
-      ...EMPTY_PUBLIC_BATTLE_LOG,
-      matchId,
-      presentationEpoch: state.publicBattleLog.presentationEpoch + 1,
-      isPanelOpen: state.publicBattleLog.matchId === matchId && state.publicBattleLog.isPanelOpen,
-    },
-  }));
 }
 
 function notifyRemoteRuntimeRecovery(recovery: RuntimeRecoveryInfo): void {

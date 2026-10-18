@@ -10,14 +10,24 @@ export interface EffectFeedbackCursor {
   readonly seen: readonly { id: string; seq: number }[];
 }
 
-/** Initial attachment, rollback, seat switch and recovery epochs establish a fresh floor. */
+/** Public-event sequence only: never pass the remote state revision (view.match.seq).
+ * Initial attachment, rollback, seat switch and recovery epochs establish a fresh floor. */
 export function consumeEffectFeedback(
   cursor: EffectFeedbackCursor | null,
-  input: { readonly context: string; readonly seq: number; readonly events: readonly PublicEvent[] }
+  input: {
+    readonly context: string;
+    readonly currentPublicSeq: number;
+    readonly events: readonly PublicEvent[];
+  }
 ): { cursor: EffectFeedbackCursor; events: readonly EffectFeedbackPublicEvent[]; reset: boolean } {
-  if (!cursor || cursor.context !== input.context || input.seq < cursor.latest) {
+  if (!cursor || cursor.context !== input.context || input.currentPublicSeq < cursor.latest) {
     return {
-      cursor: { context: input.context, floor: input.seq, latest: input.seq, seen: [] },
+      cursor: {
+        context: input.context,
+        floor: input.currentPublicSeq,
+        latest: input.currentPublicSeq,
+        seen: [],
+      },
       events: [],
       reset: true,
     };
@@ -28,7 +38,7 @@ export function consumeEffectFeedback(
     if (
       event.type !== 'EffectFeedback' ||
       event.seq <= cursor.floor ||
-      event.seq > input.seq ||
+      event.seq > input.currentPublicSeq ||
       seen.has(event.eventId)
     )
       continue;
@@ -41,7 +51,7 @@ export function consumeEffectFeedback(
     cursor: {
       ...cursor,
       floor: Math.max(cursor.floor, droppedFloor),
-      latest: input.seq,
+      latest: input.currentPublicSeq,
       seen: entries.slice(-256),
     },
     events: events.slice(-EFFECT_FEEDBACK_MAX_BATCH),

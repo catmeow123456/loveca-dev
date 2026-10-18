@@ -340,40 +340,55 @@ describe('client feedback cursor and layout', () => {
       })
     ).toEqual([]);
   });
-  it('uses the attached view floor before the initial log response arrives', () => {
-    const initial = consumeEffectFeedback(null, { context: 'match:first', seq: 20, events: [] });
+  it('uses the snapshot public-event floor before the initial log response arrives', () => {
+    const initial = consumeEffectFeedback(null, {
+      context: 'match:first',
+      currentPublicSeq: 20,
+      events: [],
+    });
     const backfill = consumeEffectFeedback(initial.cursor, {
       context: 'match:first',
-      seq: 20,
+      currentPublicSeq: 20,
       events: [event(10), event(20)],
     });
     expect(backfill.events).toEqual([]);
     expect(
       consumeEffectFeedback(backfill.cursor, {
         context: 'match:first',
-        seq: 21,
+        currentPublicSeq: 21,
         events: [event(21)],
       }).events
     ).toHaveLength(1);
   });
   it('ignores history, accepts late log delivery once and resets on recovery, rollback and seat changes', () => {
-    let result = consumeEffectFeedback(null, { context: 'first:0', seq: 10, events: [event(9)] });
+    let result = consumeEffectFeedback(null, {
+      context: 'first:0',
+      currentPublicSeq: 10,
+      events: [event(9)],
+    });
     expect(result.events).toEqual([]);
-    result = consumeEffectFeedback(result.cursor, { context: 'first:0', seq: 12, events: [] });
     result = consumeEffectFeedback(result.cursor, {
       context: 'first:0',
-      seq: 12,
+      currentPublicSeq: 12,
+      events: [],
+    });
+    result = consumeEffectFeedback(result.cursor, {
+      context: 'first:0',
+      currentPublicSeq: 12,
       events: [event(11)],
     });
     expect(result.events).toHaveLength(1);
     expect(
-      consumeEffectFeedback(result.cursor, { context: 'first:0', seq: 12, events: [event(11)] })
-        .events
+      consumeEffectFeedback(result.cursor, {
+        context: 'first:0',
+        currentPublicSeq: 12,
+        events: [event(11)],
+      }).events
     ).toEqual([]);
     for (const input of [
-      { context: 'first:1', seq: 12 },
-      { context: 'second:0', seq: 12 },
-      { context: 'first:0', seq: 8 },
+      { context: 'first:1', currentPublicSeq: 12 },
+      { context: 'second:0', currentPublicSeq: 12 },
+      { context: 'first:0', currentPublicSeq: 8 },
     ]) {
       expect(
         consumeEffectFeedback(result.cursor, { ...input, events: [event(11)] }).events
@@ -383,18 +398,18 @@ describe('client feedback cursor and layout', () => {
   it('does not resurrect old effects when bounded event identities are pruned', () => {
     let cursor: EffectFeedbackCursor | null = consumeEffectFeedback(null, {
       context: 'a',
-      seq: 0,
+      currentPublicSeq: 0,
       events: [],
     }).cursor;
     const history = Array.from({ length: 300 }, (_, i) => event(i + 1));
     for (let seq = 1; seq <= 300; seq++)
       cursor = consumeEffectFeedback(cursor, {
         context: 'a',
-        seq,
+        currentPublicSeq: seq,
         events: history.slice(0, seq),
       }).cursor;
     expect(
-      consumeEffectFeedback(cursor, { context: 'a', seq: 300, events: history }).events
+      consumeEffectFeedback(cursor, { context: 'a', currentPublicSeq: 300, events: history }).events
     ).toEqual([]);
   });
   it('does not animate a departed target at an occupied replacement slot', () => {
