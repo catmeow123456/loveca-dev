@@ -1,3 +1,4 @@
+import { getPresentationPortalRoot } from '@/lib/appPresentation';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
@@ -119,7 +120,7 @@ export function BattleActionFeedbackLayer() {
     </div>
   );
 
-  return typeof document === 'undefined' ? layer : createPortal(layer, document.body);
+  return typeof document === 'undefined' ? layer : createPortal(layer, getPresentationPortalRoot());
 }
 
 function AnchoredBadge({
@@ -183,11 +184,7 @@ function AnchoredBadge({
   return (
     <>
       {showFrame && dragHint !== undefined ? (
-        <div
-          data-battle-feedback-frame="drag"
-          className={frameClassName}
-          style={frameStyle}
-        />
+        <div data-battle-feedback-frame="drag" className={frameClassName} style={frameStyle} />
       ) : showFrame ? (
         <motion.div
           data-battle-feedback-frame={tone}

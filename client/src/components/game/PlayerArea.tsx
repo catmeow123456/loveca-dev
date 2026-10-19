@@ -1,3 +1,4 @@
+import { getPresentationPortalRoot } from '@/lib/appPresentation';
 /**
  * 玩家区域组件
  * 显示成员槽位、能量区、卡组、手牌、成功 Live 区、Live 区等
@@ -269,7 +270,7 @@ const CardActionMenu = memo(function CardActionMenu({
               </button>
             ))}
           </div>,
-          document.body
+          getPresentationPortalRoot()
         )}
     </>
   );
@@ -484,6 +485,7 @@ export const PlayerArea = memo(function PlayerArea({
   const canMovePublicCardToEnergyDeck = useGameStore((s) =>
     s.canUseAction(GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK)
   );
+  const memberPlayHint = useGameStore((s) => s.getCommandHint(GameCommandType.PLAY_MEMBER_TO_SLOT));
   const canConfirmEffectCommand = useGameStore((s) =>
     s.canUseAction(GameCommandType.CONFIRM_EFFECT_STEP)
   );
@@ -800,6 +802,7 @@ export const PlayerArea = memo(function PlayerArea({
           isReadOnly,
           availableCommandTypes: availableBattleActionCommandTypes,
           manualOperationMode: matchView?.manualOperation?.mode,
+          memberPlayHint,
           memberSlots: memberSlotSnapshots,
           liveZoneCount: liveZoneView?.count ?? liveCardIds.length,
           activeEffect: visibleActiveEffect,
@@ -1742,9 +1745,7 @@ export const PlayerArea = memo(function PlayerArea({
                           className={cn(
                             // Leave room for a parallel activation lift at the first/last row.
                             'touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto px-6 pt-8 md:pt-10',
-                            canMoveWaitingRoomCardToHandFromModal
-                              ? 'pb-28'
-                              : 'pb-10'
+                            canMoveWaitingRoomCardToHandFromModal ? 'pb-28' : 'pb-10'
                           )}
                         >
                           <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2 sm:grid-cols-5 md:grid-cols-6 md:gap-3">
@@ -1803,7 +1804,9 @@ export const PlayerArea = memo(function PlayerArea({
                                   {waitingRoomCardContent}
                                   {canActivateWaitingRoomAbility && (
                                     <CardActionMenu
-                                      suspended={interactionSuspended || activatingCardId === card.instanceId}
+                                      suspended={
+                                        interactionSuspended || activatingCardId === card.instanceId
+                                      }
                                       layer="modal"
                                       items={activatedAbilityConfigs.map((config) => ({
                                         id: config.abilityInstanceId ?? config.abilityId,
@@ -1874,7 +1877,7 @@ export const PlayerArea = memo(function PlayerArea({
 
                 return typeof document === 'undefined'
                   ? waitingRoomModal
-                  : createPortal(waitingRoomModal, document.body);
+                  : createPortal(waitingRoomModal, getPresentationPortalRoot());
               })()}
           </>
         )}

@@ -1,3 +1,5 @@
+import { useTextPresentation } from '@/lib/appPresentation';
+import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Clock3, X } from 'lucide-react';
 import { MatchmakingAudioHint } from '@/components/matchmaking/MatchmakingAudioHint';
@@ -16,6 +18,8 @@ export function RankedGlobalLayer({
   showWaitingNotice?: boolean;
   onEnterRoom: () => void | Promise<void>;
 }) {
+  const textOnly = useTextPresentation();
+  const dialogRef = useRef<HTMLDivElement>(null);
   const overview = useRankedStore((state) => state.overview);
   const loading = useRankedStore((state) => state.loading);
   const error = useRankedStore((state) => state.error);
@@ -31,6 +35,15 @@ export function RankedGlobalLayer({
     status?.state === 'MATCHED' && status.roomCode
       ? `${status.roomGeneration ?? 'unknown'}:${status.roomCode}`
       : null;
+
+  useDialogAccessibility({
+    isOpen:
+      textOnly &&
+      enabled &&
+      ['PENDING_CONFIRMATION', 'CONFIRMED', 'CREATING_ROOM'].includes(activeState),
+    dialogRef,
+    closeOnEscape: false,
+  });
 
   useEffect(() => {
     if (!enabled) return;
@@ -100,6 +113,43 @@ export function RankedGlobalLayer({
   }
 
   const creating = status.state === 'CREATING_ROOM';
+  if (textOnly)
+    return (
+      <div className="excel-modal-backdrop">
+        <div
+          ref={dialogRef}
+          className="excel-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="排位开局确认"
+          tabIndex={-1}
+        >
+          <h2>{creating ? '正在进入排位对局' : '找到对手'}</h2>
+          <p>
+            {creating
+              ? '双方已确认。'
+              : status.confirmed
+                ? '已确认，等待对方。'
+                : `请在 ${remainingSeconds ?? '—'} 秒内确认。`}
+          </p>
+          {error && <p role="alert">{error}</p>}
+          {!creating && (
+            <>
+              <button disabled={loading} onClick={() => void cancel().catch(() => undefined)}>
+                取消
+              </button>
+              <button
+                disabled={loading || status.confirmed}
+                onClick={() => void confirm().catch(() => undefined)}
+              >
+                确认开局
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+
   return (
     <div className="fixed inset-0 z-[112] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
       <div className="surface-panel w-full max-w-md p-6 text-center">

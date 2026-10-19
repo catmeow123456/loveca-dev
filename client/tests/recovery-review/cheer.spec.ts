@@ -9,7 +9,7 @@ async function prepare(page: Page) {
   await page.waitForTimeout(300);
 }
 async function clock(page: Page) {
-  const time = new Date('2026-01-01T00:00:00Z');
+  const time = new Date(); // Keep authority deadlines monotonic when installing the fake clock.
   await page.clock.install({ time });
   await page.clock.pauseAt(new Date(time.getTime() + 1000));
 }
@@ -155,18 +155,19 @@ for (const narrow of [false, true])
       const authPath = '/src/store/authStore.ts';
       const { prepareCheer } = await import(fixturePath);
       const { useAuthStore } = await import(authPath);
-      prepareCheer(true);
       useAuthStore.getState().enterOfflineMode('声援本地验收');
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      prepareCheer(true);
     });
     await expect(page.locator('[data-battle-ui-anchor="self-main-deck"]')).toBeVisible();
     await page.waitForTimeout(350);
     await clock(page);
     const result = await page.evaluate(async () => {
-      const storePath = '/src/store/gameStore.ts';
-      const { useGameStore } = await import(storePath);
+      const fixturePath = '/tests/recovery-review/cheerFixture.ts';
+      const { cheerReviewStore: useGameStore } = await import(fixturePath);
       return useGameStore.getState().confirmSubPhase('PERFORMANCE_LIVE_START_EFFECTS');
     });
-    expect(result.success).toBe(true);
+    expect(result, JSON.stringify(result)).toMatchObject({ success: true });
     await page.clock.runFor(16);
     await expect(originalCards(page)).toHaveCount(3);
     await expect(page.locator('.cheer-motion-overlay')).toHaveCount(1);
@@ -205,8 +206,8 @@ for (const narrow of [false, true])
     await expect(page.locator('#judgment-panel [style*="visibility: hidden"]')).toHaveCount(0);
     // Move a revealed card back using the ordinary command, then reveal it again.
     const moved = await page.evaluate(async () => {
-      const storePath = '/src/store/gameStore.ts';
-      const { useGameStore } = await import(storePath);
+      const fixturePath = '/tests/recovery-review/cheerFixture.ts';
+      const { cheerReviewStore: useGameStore } = await import(fixturePath);
       return useGameStore
         .getState()
         .moveResolutionCardToZone('remaining', 'MAIN_DECK', { position: 'TOP' });
@@ -238,13 +239,10 @@ test('large cheer batch uses effective heart colors and finishes within the half
   });
   await page.waitForTimeout(100);
   await clock(page);
-  const outcomes = await page.evaluate(
-    async (storePath) => {
-      const { useGameStore } = await import(storePath);
-      return Array.from({ length: 20 }, () => useGameStore.getState().revealCheerCard().success);
-    },
-    '/@fs' + path.resolve(import.meta.dirname, '../../src/store/gameStore.ts')
-  );
+  const outcomes = await page.evaluate(async (storePath) => {
+    const { cheerReviewStore: useGameStore } = await import(storePath);
+    return Array.from({ length: 20 }, () => useGameStore.getState().revealCheerCard().success);
+  }, '/cheerFixture.ts');
   expect(outcomes.every(Boolean)).toBe(true);
   await page.clock.runFor(100);
   await expect(originalCards(page)).toHaveCount(20);
@@ -285,18 +283,19 @@ for (const narrow of [false, true])
       const authPath = '/src/store/authStore.ts';
       const { prepareCheer } = await import(fixturePath);
       const { useAuthStore } = await import(authPath);
-      prepareCheer(true, 20, true);
       useAuthStore.getState().enterOfflineMode('声援本地验收');
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      prepareCheer(true, 20, true);
     });
     await expect(page.locator('[data-battle-ui-anchor="self-main-deck"]')).toBeVisible();
     await page.waitForTimeout(300);
     await clock(page);
     const result = await page.evaluate(async () => {
-      const storePath = '/src/store/gameStore.ts';
-      const { useGameStore } = await import(storePath);
+      const fixturePath = '/tests/recovery-review/cheerFixture.ts';
+      const { cheerReviewStore: useGameStore } = await import(fixturePath);
       return useGameStore.getState().confirmSubPhase('PERFORMANCE_LIVE_START_EFFECTS');
     });
-    expect(result.success).toBe(true);
+    expect(result, JSON.stringify(result)).toMatchObject({ success: true });
     await page.clock.runFor(16);
     await expect(originalCards(page)).toHaveCount(20);
     // Before any display frame can reveal the final result, the full batch is held on backs.
@@ -375,7 +374,7 @@ for (const opponent of [false, true])
       async ({ storePath, opponent }) => {
         const fixturePath = '/cheerFixture.ts';
         const { prepareCheer } = await import(fixturePath);
-        const { useGameStore } = await import(storePath);
+        const { cheerReviewStore: useGameStore } = await import(storePath);
         prepareCheer(true, 20, false, 2);
         if (opponent) {
           useGameStore.setState({ viewingPlayerId: 'p2' });
@@ -383,7 +382,7 @@ for (const opponent of [false, true])
         }
       },
       {
-        storePath: '/@fs' + path.resolve(import.meta.dirname, '../../src/store/gameStore.ts'),
+        storePath: '/cheerFixture.ts',
         opponent,
       }
     );
@@ -391,7 +390,7 @@ for (const opponent of [false, true])
     await clock(page);
     const result = await page.evaluate(
       async ({ storePath, commandPath }) => {
-        const { useGameStore } = await import(storePath);
+        const { cheerReviewStore: useGameStore } = await import(storePath);
         const { createConfirmStepCommand } = await import(commandPath);
         const store = useGameStore.getState();
         const result = store.gameSession.executeCommand(
@@ -401,12 +400,12 @@ for (const opponent of [false, true])
         return result;
       },
       {
-        storePath: '/@fs' + path.resolve(import.meta.dirname, '../../src/store/gameStore.ts'),
+        storePath: '/cheerFixture.ts',
         commandPath:
           '/@fs' + path.resolve(import.meta.dirname, '../../../src/application/game-commands.ts'),
       }
     );
-    expect(result.success).toBe(true);
+    expect(result, JSON.stringify(result)).toMatchObject({ success: true });
     await motionTime(page, 600);
     // One LIVE would already succeed, but the two-card group's merged requirement does not.
     await expect(page.locator('[data-cheer-live-success]')).toHaveCount(0);
@@ -468,18 +467,15 @@ test('already-satisfied initial LIVE still announces once, while no LIVE never a
         prepareCheer(false, 3, false, liveCount, true);
       },
       {
-        storePath: '/@fs' + path.resolve(import.meta.dirname, '../../src/store/gameStore.ts'),
+        storePath: '/cheerFixture.ts',
         liveCount,
       }
     );
     await page.clock.runFor(400);
-    await page.evaluate(
-      async (storePath) => {
-        const { useGameStore } = await import(storePath);
-        for (let i = 0; i < 3; i++) useGameStore.getState().revealCheerCard();
-      },
-      '/@fs' + path.resolve(import.meta.dirname, '../../src/store/gameStore.ts')
-    );
+    await page.evaluate(async (storePath) => {
+      const { cheerReviewStore: useGameStore } = await import(storePath);
+      for (let i = 0; i < 3; i++) useGameStore.getState().revealCheerCard();
+    }, '/cheerFixture.ts');
     await motionTime(page, 200);
     await expect(page.locator('[data-cheer-live-success]')).toHaveCount(liveCount);
     await page.clock.runFor(1600);

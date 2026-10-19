@@ -1,3 +1,4 @@
+import { getPresentationPortalRoot } from '@/lib/appPresentation';
 /**
  * DeckManager - 卡组管理页面
  * 支持创建新卡组、编辑已有卡组、删除卡组
@@ -1367,7 +1368,7 @@ export function DeckManager({
               </div>
             </div>
           </div>,
-          document.body
+          getPresentationPortalRoot()
         )}
 
       {showYamlDialog &&
@@ -1479,7 +1480,7 @@ export function DeckManager({
               </div>
             </div>
           </div>,
-          document.body
+          getPresentationPortalRoot()
         )}
 
       {showDecklogDialog &&
@@ -1688,7 +1689,7 @@ export function DeckManager({
               </div>
             </div>
           </div>,
-          document.body
+          getPresentationPortalRoot()
         )}
 
       <AnimatePresence>

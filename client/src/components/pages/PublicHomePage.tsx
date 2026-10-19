@@ -1,3 +1,4 @@
+import { useTextPresentation } from '@/lib/appPresentation';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
@@ -137,6 +138,7 @@ export function PublicHomePage({
   serviceAvailable,
   siteStatus,
 }: PublicHomePageProps) {
+  const textOnly = useTextPresentation();
   const cardCount = useGameStore((state) => state.cardDataRegistry.size);
   const announcements = siteStatus.announcements.slice(0, 3);
   const hasAnnouncements = Boolean(siteStatus.maintenance || announcements.length > 0);
@@ -144,6 +146,48 @@ export function PublicHomePage({
     event.currentTarget.onerror = null;
     event.currentTarget.src = getCardBackUrl('medium');
   };
+
+  if (textOnly)
+    return (
+      <main className="excel-entry">
+        <h1>工作表 · 开始</h1>
+        <table className="excel-table">
+          <thead>
+            <tr>
+              <th>入口</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>登录</td>
+              <td>{serviceAvailable ? '服务可用' : '服务暂不可用'}</td>
+              <td>
+                <button onClick={onLogin}>登录账号</button>
+                <button onClick={onRegister}>注册账号</button>
+              </td>
+            </tr>
+            <tr>
+              <td>对墙打</td>
+              <td>本机离线对局</td>
+              <td>
+                <button onClick={onTryOffline}>离线体验</button>
+              </td>
+            </tr>
+            <tr>
+              <td>休闲与排位</td>
+              <td>登录后使用已有合法卡组参与</td>
+              <td>
+                <button onClick={onStartGame}>开始对战</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        {siteStatus.maintenance && <p>服务维护中，请按当前服务状态操作。</p>}
+        <LegalNotice />
+      </main>
+    );
 
   return (
     <div className="public-home">

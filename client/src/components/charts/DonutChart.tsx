@@ -1,3 +1,4 @@
+import { useTextPresentation } from '@/lib/appPresentation';
 import { useId } from 'react';
 import './donut-chart.css';
 
@@ -73,6 +74,7 @@ export function DonutChart({
   variant = 'donut',
   formatValue = (value) => defaultNumberFormatter.format(value),
 }: DonutChartProps) {
+  const textOnly = useTextPresentation();
   const titleId = useId();
   const descriptionId = useId();
   const clipIdPrefix = useId().replace(/:/g, '');
@@ -82,6 +84,34 @@ export function DonutChart({
   const total = validData.reduce((sum, item) => sum + item.value, 0);
   const renderableData = buildRenderableData(validData, total);
   const rootClassName = ['donut-chart', className].filter(Boolean).join(' ');
+
+  if (textOnly)
+    return (
+      <table className="excel-table" aria-label={accessibleName}>
+        <caption>{title ?? accessibleName}</caption>
+        <thead>
+          <tr>
+            <th>项目</th>
+            <th>数值</th>
+            <th>占比</th>
+          </tr>
+        </thead>
+        <tbody>
+          {renderableData.map((item) => (
+            <tr key={item.id}>
+              <td>{item.label}</td>
+              <td>{formatValue(item.value)}</td>
+              <td>{percentageFormatter.format(item.percentage)}%</td>
+            </tr>
+          ))}
+          {!renderableData.length && (
+            <tr>
+              <td colSpan={3}>{emptyLabel}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    );
 
   return (
     <figure className={rootClassName}>

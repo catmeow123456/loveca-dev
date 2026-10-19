@@ -102,6 +102,46 @@ describe('buildBattleActionIntents', () => {
     ).not.toBeNull();
   });
 
+  it('uses projected costs and refuses disabled or missing RULES quotes', () => {
+    const input = {
+      ...BASE_INPUT,
+      manualOperationMode: 'RULES' as const,
+      sourceCardId: 'hand-member',
+      sourceZone: ZoneType.HAND,
+      sourceCardType: CardType.MEMBER,
+      memberPlayHint: {
+        command: GameCommandType.PLAY_MEMBER_TO_SLOT,
+        enabled: true,
+        params: {
+          memberPlayQuotes: [
+            {
+              sourceObjectId: 'obj_hand-member',
+              targetSlot: SlotPosition.LEFT,
+              enabled: true,
+              energyCost: 2,
+              relay: true,
+            },
+            {
+              sourceObjectId: 'obj_hand-member',
+              targetSlot: SlotPosition.CENTER,
+              enabled: false,
+              reason: '可用能量不足',
+            },
+          ],
+        },
+      },
+    };
+    const targets = buildBattleActionIntents(input).find(
+      (intent) => intent.commandType === GameCommandType.PLAY_MEMBER_TO_SLOT
+    )!.targets;
+    expect(targets[0]).toMatchObject({
+      enabled: true,
+      detail: expect.stringContaining('支付 2 能量（接力）') as unknown,
+    });
+    expect(targets[1]).toMatchObject({ enabled: false, reason: '可用能量不足' });
+    expect(targets[2].enabled).toBe(false);
+  });
+
   it('RULES 不允许 GameBoard 落入 legacy 手动 fallback，FREE 保留', () => {
     expect(canUseLegacyManualDropFallback('RULES')).toBe(false);
     expect(canUseLegacyManualDropFallback('FREE')).toBe(true);

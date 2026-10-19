@@ -1,3 +1,4 @@
+import { useTextPresentation } from '@/lib/appPresentation';
 import {
   createContext,
   useContext,
@@ -53,6 +54,7 @@ export function useCheerRevealMotion(input: {
   const epoch = useGameStore((s) => s.publicBattleLog.presentationEpoch);
   const previous = useRef<Cursor | null>(null);
   const labels = useRef<ReturnType<typeof readCheerJudgmentLabels>>([]);
+  const textOnly = useTextPresentation();
   const cancel = useRef<(() => void) | null>(null);
   const pending = useRef<{
     cards: CheerMotionCard[];
@@ -73,11 +75,15 @@ export function useCheerRevealMotion(input: {
     cleanup?.();
   };
   useEffect(() => {
-    void warmCheerAssets();
+    if (!textOnly) void warmCheerAssets();
     return stop;
-  }, []);
+  }, [textOnly]);
 
   useLayoutEffect(() => {
+    if (textOnly) {
+      stop();
+      return;
+    }
     const store = useGameStore.getState();
     const prev = previous.current;
     const match = view?.match;

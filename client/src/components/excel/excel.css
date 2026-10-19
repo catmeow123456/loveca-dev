@@ -1,0 +1,1117 @@
+html[data-presentation='excel'][data-theme] {
+  color-scheme: light;
+  --bg-deep: #f3f4f5;
+  --bg-surface: #fff;
+  --bg-overlay: #f3f4f5;
+  --bg-frosted: #fff;
+  --text-primary: #202526;
+  --text-secondary: #3d4548;
+  --text-muted: #5b6468;
+  --accent-primary: #276e4b;
+  --accent-secondary: #276e4b;
+  --border-default: #c6cdcf;
+  --border-subtle: #dce0e2;
+  --border-active: #276e4b;
+  --semantic-error: #a52a2a;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  background: #fff;
+}
+html[data-covered='true'] #app-surface,
+html[data-covered='true'] #app-overlays {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+html[data-presentation-ready='true'] #presentation-boot-cover {
+  display: none;
+}
+.excel-app,
+.worksheet-cover,
+html[data-presentation='excel'] #app-overlays {
+  font:
+    14px/1.45 Arial,
+    'Microsoft YaHei',
+    'PingFang SC',
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+  color: #202526;
+}
+.excel-app {
+  padding-top: 36px;
+  height: 100dvh;
+  overflow: hidden;
+  background: #fff;
+}
+.excel-app *,
+html[data-presentation='excel'] #app-overlays * {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+}
+.excel-app svg,
+html[data-presentation='excel'] #app-overlays svg {
+  display: none;
+}
+.excel-app [style*='opacity'],
+html[data-presentation='excel'] #app-overlays [style*='opacity'] {
+  opacity: 1 !important;
+}
+.excel-app [class*='text-[10px]'],
+.excel-app [class*='text-[11px]'],
+html[data-presentation='excel'] #app-overlays [class*='text-[10px]'],
+html[data-presentation='excel'] #app-overlays [class*='text-[11px]'] {
+  font-size: 12px;
+}
+.excel-app button,
+.excel-app input,
+.excel-app select,
+.worksheet-cover button,
+html[data-presentation='excel'] #app-overlays button {
+  min-height: 28px;
+  border-radius: 0;
+}
+.excel-app button:focus-visible,
+.excel-app input:focus-visible,
+.worksheet-cover button:focus-visible {
+  outline: 2px solid #276e4b;
+  outline-offset: 1px;
+}
+.excel-app button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55 !important;
+}
+.excel-toolbar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 12px;
+  background: #f3f4f5;
+  color: #202526;
+}
+.excel-toolbar {
+  left: 0;
+  height: 36px;
+  border-bottom: 1px solid #b9c3c5;
+}
+.excel-toolbar button,
+.worksheet-cover button {
+  border: 1px solid #b9c3c5;
+  padding: 2px 10px;
+  background: #fff;
+  font-size: 13px;
+}
+.excel-shortcut-hint {
+  margin-left: auto;
+  font-size: 12px;
+}
+.excel-shortcut-editor {
+  position: absolute;
+  top: 36px;
+  right: 8px;
+  padding: 12px;
+  background: white;
+  border: 1px solid #b9c3c5;
+}
+.worksheet-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  overflow: auto;
+  background: #fff;
+}
+.worksheet-cover header {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 16px;
+  background: #f3f4f5;
+  border-bottom: 1px solid #b9c3c5;
+}
+.worksheet-cover footer {
+  position: sticky;
+  bottom: 0;
+  background: #f3f4f5;
+  padding: 8px 40px;
+  border-top: 1px solid #b9c3c5;
+}
+.excel-formula {
+  display: flex;
+  min-height: 30px;
+  border-bottom: 1px solid #c6cdcf;
+  background: #fff;
+}
+.excel-formula > span:first-child {
+  min-width: 64px;
+  text-align: center;
+  border-right: 1px solid #c6cdcf;
+}
+.excel-formula > span {
+  padding: 4px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.excel-formula > span:first-child {
+  flex-shrink: 0;
+}
+.excel-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: #fff;
+}
+.excel-table th,
+.excel-table td {
+  border: 1px solid #dce0e2;
+  padding: 5px 8px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.excel-table th {
+  background: #f3f4f5;
+  font-weight: 500;
+}
+.excel-table tr[aria-selected='true'] {
+  background: #e8f1eb;
+  outline: 2px solid #276e4b;
+  outline-offset: -2px;
+}
+.excel-table button {
+  border: 1px solid #b9c3c5;
+  padding: 2px 7px;
+  background: #fff;
+  margin: 2px;
+}
+.excel-table caption {
+  text-align: left;
+  font-weight: 600;
+  padding: 5px 8px;
+  background: #eef1f2;
+}
+.excel-image-label {
+  display: inline;
+  font-size: inherit;
+}
+.excel-error {
+  padding: 24px;
+  background: #fff;
+  color: #a52a2a;
+}
+.excel-auth {
+  width: min(640px, calc(100% - 32px));
+  margin: 40px auto;
+  border: 1px solid #c6cdcf;
+}
+.excel-auth h1,
+.excel-auth > p {
+  padding: 8px 16px;
+  border-bottom: 1px solid #dce0e2;
+}
+.excel-auth form,
+.excel-auth > div {
+  padding: 16px;
+}
+.excel-app .app-shell {
+  height: calc(100dvh - 36px);
+  background: #fff;
+}
+.excel-app .product-header,
+.excel-app .surface-panel,
+.excel-app .surface-panel-frosted,
+.excel-app .modal-surface {
+  background: #fff;
+  border-radius: 0;
+}
+.excel-app .surface-panel,
+.excel-app .surface-panel-frosted {
+  border: 1px solid #dce0e2;
+}
+.excel-app .product-header {
+  border-bottom: 1px solid #b9c3c5;
+}
+@media (max-width: 767px) {
+  .excel-app {
+    overflow: auto;
+  }
+  .excel-shortcut-hint {
+    display: none;
+  }
+}
+html[data-presentation='excel'] .normal-only {
+  display: none !important;
+}
+.excel-battle {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: #fff;
+}
+.excel-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 16px;
+  border-bottom: 1px solid #c6cdcf;
+  padding: 4px 8px;
+  min-height: 34px;
+}
+.excel-battle-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(340px, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+.excel-board-data {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.excel-stage-area {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+.excel-stage {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-height: 0;
+  font-size: 13px;
+}
+.excel-stage caption {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.excel-stage thead,
+.excel-stage tbody {
+  display: block;
+  min-height: 0;
+}
+.excel-stage tr {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  height: 100%;
+}
+.excel-stage th {
+  padding: 1px 8px;
+}
+.excel-stage td {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+.excel-stage button {
+  max-width: 100%;
+  text-align: left;
+}
+.excel-stage p {
+  margin: 2px 0;
+}
+.excel-stage-identity {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+}
+.excel-stage-card-code {
+  font-size: 12px;
+}
+.excel-app .excel-stage-identity button {
+  min-height: 24px;
+  margin: 0;
+  padding: 0 4px;
+}
+.excel-stage-attributes {
+  display: grid;
+  grid-template-columns: 1.4fr 0.7fr 1.9fr;
+  margin: 4px 0;
+  border: 1px solid #dce0e2;
+}
+.excel-stage-attributes > div + div {
+  border-left: 1px solid #dce0e2;
+}
+.excel-stage-attributes dt {
+  padding: 1px 5px;
+  background: #f3f4f5;
+}
+.excel-stage-attributes dd {
+  padding: 2px 5px;
+}
+.excel-stage-effect {
+  padding: 4px 0;
+  border-bottom: 1px solid #dce0e2;
+  font-size: 14px;
+}
+.excel-live-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid #c6cdcf;
+  flex: 0 0 auto;
+  max-height: 64px;
+  overflow: auto;
+  font-size: 12px;
+}
+.excel-live-summary section {
+  padding: 4px 8px;
+  border-right: 1px solid #dce0e2;
+}
+.excel-live-cards:empty {
+  display: none;
+}
+.excel-live-summary button {
+  display: inline;
+  text-align: left;
+  border: 0;
+  padding: 0 3px;
+}
+.excel-hand-area {
+  --hand-visible-rows: 8;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 calc(34px + 30px * (var(--hand-visible-rows) + 1) + 2px);
+  min-height: 0;
+}
+.excel-hand-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  gap: 4px 12px;
+  min-height: 34px;
+  padding: 2px 8px;
+  background: #eef1f2;
+}
+.excel-app .excel-hand-summary button {
+  margin: 0 0 0 auto;
+  padding: 0 8px;
+  border: 1px solid #b9c3c5;
+  background: #fff;
+}
+.excel-hand {
+  container-type: inline-size;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.excel-hand thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.excel-card-table {
+  --card-min-width: 760px;
+  --card-row-width: 48px;
+  --card-code-width: 185px;
+  --card-type-width: 64px;
+  --card-value-width: 100px;
+  --card-state-width: 0px;
+  min-width: var(--card-min-width);
+}
+.excel-card-table th,
+.excel-card-table td {
+  height: 30px;
+  padding: 0 8px;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.excel-card-table tbody tr {
+  cursor: pointer;
+}
+.excel-card-table tbody tr:hover {
+  background: #f1f5f2;
+}
+.excel-app .excel-card-table button {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Card selection and keyboard focus share the row boundary, not the inset name button. */
+.excel-card-table tbody tr:has(button:focus-visible) {
+  outline: 2px dashed #276e4b;
+  outline-offset: -2px;
+}
+.excel-app .excel-card-table button[aria-pressed],
+.excel-app .excel-card-table button:focus-visible {
+  outline: none;
+}
+.excel-card-row {
+  width: var(--card-row-width);
+}
+.excel-card-code {
+  width: var(--card-code-width);
+}
+.excel-card-name {
+  width: calc(
+    (
+        max(var(--card-min-width), 100cqw) - var(--card-row-width) - var(--card-code-width) -
+          var(--card-type-width) - var(--card-value-width) - var(--card-state-width)
+      ) /
+      4
+  );
+}
+.excel-card-type {
+  width: var(--card-type-width);
+}
+.excel-card-value {
+  width: var(--card-value-width);
+}
+.excel-candidate-scroll {
+  overflow: auto;
+  max-height: 310px;
+}
+.excel-candidate-table {
+  min-width: 480px;
+  font-size: 12px;
+}
+.excel-candidate-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.excel-candidate-table th,
+.excel-candidate-table td {
+  height: 30px;
+  padding: 0 4px;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.excel-candidate-select {
+  width: 36px;
+}
+.excel-candidate-code {
+  width: 132px;
+}
+.excel-candidate-name {
+  width: 80px;
+}
+.excel-candidate-type {
+  width: 40px;
+}
+.excel-candidate-value {
+  width: 64px;
+}
+.excel-candidate-inspect {
+  width: 40px;
+}
+.excel-candidate-table tr:not([data-selection-disabled='true']) {
+  cursor: pointer;
+}
+.excel-candidate-table tbody tr:hover {
+  background: #f1f5f2;
+}
+.excel-app .excel-candidate-table button {
+  width: 100%;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+}
+.excel-app .excel-candidate-table button[aria-pressed] {
+  outline: none;
+}
+.excel-candidate-table tr:has(.excel-candidate-choose:focus-visible) {
+  outline: 2px dashed #276e4b;
+  outline-offset: -2px;
+}
+.excel-app .excel-candidate-choose:focus-visible {
+  outline: none;
+}
+.excel-candidate-detail {
+  border-top: 2px solid #276e4b;
+  padding: 6px;
+  margin-top: 8px;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 14px;
+}
+.excel-candidate-detail header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.excel-candidate-detail button {
+  flex-shrink: 0;
+  align-self: start;
+  border: 1px solid #b9c3c5;
+  padding: 0 4px;
+  font-size: 12px;
+}
+.excel-candidate-detail p {
+  margin: 4px 0;
+}
+@media (min-width: 1101px) and (min-height: 651px) {
+  /* Card metadata needs more space while choosing; keep the hand visible alongside it. */
+  .excel-battle-grid:has(.excel-candidate-table) {
+    grid-template-columns: minmax(0, 3fr) minmax(520px, 2fr);
+  }
+}
+.excel-hand-expanded .excel-stage-area,
+.excel-hand-expanded .excel-live-summary {
+  display: none;
+}
+.excel-hand-expanded .excel-hand-area {
+  flex: 1;
+}
+@media (min-height: 950px) {
+  .excel-hand-area {
+    --hand-visible-rows: 12;
+  }
+}
+.excel-zone-table {
+  container-type: inline-size;
+  overflow: auto;
+  margin-bottom: 12px;
+}
+.excel-card-table-with-state {
+  --card-state-width: 90px;
+}
+.excel-card-state {
+  width: var(--card-state-width);
+}
+.excel-current-operation {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 2px solid #b9c3c5;
+  padding: 8px;
+}
+.excel-operation-task {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+.excel-current-operation:has(.excel-selected-card) .excel-operation-task {
+  max-height: 50%;
+}
+.excel-operation-task > h2 {
+  background: #eef1f2;
+  padding: 4px 8px;
+  font-weight: bold;
+  border-bottom: 1px solid #c6cdcf;
+}
+.excel-command-controls {
+  border: 0;
+  min-width: 0;
+  padding: 0;
+}
+.excel-selected-card {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border-top: 2px solid #276e4b;
+  margin-top: 8px;
+  padding: 0 8px 8px;
+}
+.excel-selected-card > header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #eef1f2;
+  padding: 4px 0;
+}
+.excel-selected-card h2,
+.excel-selected-effect h3 {
+  font-weight: 600;
+}
+.excel-selected-card > header span {
+  font-size: 12px;
+}
+.excel-selected-card p,
+.excel-selection-hint {
+  margin: 6px 0;
+}
+.excel-selected-effect {
+  white-space: pre-wrap;
+}
+.excel-selected-effect h3 {
+  margin-bottom: 4px;
+}
+.excel-operation-panels .fixed,
+.excel-operation-panels [role='dialog'],
+.excel-operation-panels [id='judgment-panel'] {
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  translate: none !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 6px 0;
+  border-radius: 0 !important;
+  background: #fff !important;
+  color: #202526;
+}
+.excel-operation-panels .modal-backdrop:empty,
+.excel-operation-panels button.modal-backdrop {
+  display: none;
+}
+.excel-operation-panels [class*='backdrop-blur'],
+.excel-operation-panels [class*='bg-black'] {
+  backdrop-filter: none;
+  background: #fff;
+}
+.excel-operation-panels [class*='grid-cols-'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.excel-operation-panels [class*='max-h-'] {
+  max-height: none;
+}
+.excel-operation-panels div:has(> .excel-text-card),
+.excel-operation-panels div:has(> div > .excel-text-card),
+.excel-operation-panels div:has(> button > .excel-text-card) {
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 28px;
+  transform: none !important;
+}
+.excel-text-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  padding: 4px 8px;
+  background: #fff;
+  color: #202526;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.excel-text-card[data-selected] {
+  border-left: 3px solid #276e4b;
+}
+.excel-selected-actions {
+  border-top: 1px solid #c6cdcf;
+  padding: 6px 0;
+}
+.excel-selected-actions button,
+.excel-zone-controls button {
+  display: inline-block;
+  border: 1px solid #b9c3c5;
+  padding: 4px 8px;
+  margin: 3px;
+  background: #fff;
+  text-align: left;
+}
+.excel-selected-actions h3 {
+  font-weight: 600;
+}
+.excel-sheets {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  background: #f3f4f5;
+  border-top: 1px solid #b9c3c5;
+}
+.excel-sheets button {
+  border-right: 1px solid #c6cdcf;
+  padding: 6px 16px;
+}
+.excel-sheets button[aria-current] {
+  background: #fff;
+  border-bottom: 3px solid #276e4b;
+}
+.excel-sheet-scroll {
+  overflow: auto;
+  flex: 1;
+  padding: 10px;
+}
+.excel-full-details p {
+  margin: 8px 0;
+}
+.excel-deck-selector {
+  padding: 8px;
+  background: #fff;
+}
+.excel-deck-selector h2 {
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+.excel-deck-contents {
+  max-height: 360px;
+  overflow: auto;
+  border-top: 2px solid #b9c3c5;
+  margin-top: 12px;
+}
+.excel-detail-dialog {
+  position: fixed;
+  top: 70px;
+  right: 12px;
+  z-index: 800;
+  background: #fff;
+  color: #202526;
+  border: 2px solid #276e4b;
+  padding: 12px;
+  width: min(560px, calc(100vw - 24px));
+  max-height: calc(100dvh - 100px);
+  overflow: auto;
+}
+.excel-card-details p {
+  white-space: pre-wrap;
+  margin: 8px 0;
+}
+.excel-app button:has(> svg:only-child)::after,
+html[data-presentation='excel'] #app-overlays button:has(> svg:only-child)::after {
+  content: attr(aria-label);
+}
+.excel-app button:not([aria-label]):has(> svg:only-child)::after,
+html[data-presentation='excel']
+  #app-overlays
+  button:not([aria-label]):has(> svg:only-child)::after {
+  content: attr(title);
+}
+@media (max-width: 1100px), (max-height: 650px) {
+  .excel-battle {
+    height: auto;
+    min-height: 100%;
+  }
+  .excel-battle-grid {
+    display: flex;
+    flex-direction: column;
+  }
+  .excel-board-data {
+    overflow: visible;
+  }
+  .excel-current-operation {
+    overflow: visible;
+    border-left: 0;
+    border-top: 2px solid #b9c3c5;
+  }
+  .excel-hand {
+    max-height: 360px;
+  }
+  .excel-stage td {
+    height: auto;
+  }
+  .excel-app,
+  .excel-app .app-shell {
+    overflow: auto;
+  }
+}
+.excel-product-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  background: #fff;
+}
+.excel-product-frame > header {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #c6cdcf;
+  padding: 4px 12px;
+  background: #f3f4f5;
+}
+.excel-product-frame button,
+.excel-entry button,
+.excel-judgment button {
+  border: 1px solid #b9c3c5;
+  background: #fff;
+  color: #202526;
+  padding: 3px 10px;
+  margin: 3px;
+}
+.excel-product-frame > h1 {
+  font-size: 18px;
+  font-weight: 600;
+  padding: 12px 16px 4px;
+}
+.excel-product-frame > p {
+  padding: 4px 16px 10px;
+}
+.excel-column-headings {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  background: #f3f4f5;
+}
+.excel-column-headings span {
+  text-align: center;
+  border: 1px solid #dce0e2;
+  font-size: 12px;
+}
+.excel-page-content {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+.excel-entry {
+  padding: 16px;
+  overflow: auto;
+  height: 100%;
+}
+.excel-entry h1 {
+  font-size: 18px;
+  margin: 12px 0;
+}
+.excel-operation-panels [class*='line-clamp-'] {
+  -webkit-line-clamp: unset;
+}
+.excel-operation-panels [class*='grid-cols-'] > button {
+  width: 100%;
+  height: auto;
+}
+.excel-operation-panels .relative:has(.excel-text-card) {
+  height: auto !important;
+  min-height: 30px;
+}
+.excel-judgment {
+  border-top: 1px solid #b9c3c5;
+  padding: 8px 0;
+}
+.excel-judgment h3 {
+  margin: 8px 0;
+  font-weight: 600;
+}
+.excel-app [class*='text-slate-'],
+.excel-app [class*='text-white'] {
+  color: #3d4548;
+}
+
+.excel-operation-panels .modal-backdrop:has(*) {
+  position: static;
+  background: #fff;
+}
+.excel-operation-panels [class*='aspect-'] {
+  aspect-ratio: auto;
+  max-width: none;
+}
+
+.excel-product-frame > header > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.excel-product-frame > header button {
+  width: auto;
+  max-width: none;
+  white-space: nowrap;
+}
+.excel-product-frame > button {
+  align-self: flex-start;
+  margin: 4px 16px 8px;
+}
+.excel-setup {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 12px 16px;
+  min-height: 0;
+}
+.excel-setup h2 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+.excel-setup-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.excel-setup footer {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-top: 1px solid #b9c3c5;
+}
+.excel-setup .excel-deck-selector {
+  height: 100%;
+  overflow: auto;
+}
+.excel-mulligan {
+  padding: 8px 0;
+}
+.excel-mulligan h3 {
+  font-weight: 600;
+}
+.excel-mulligan button {
+  border: 1px solid #b9c3c5;
+  padding: 3px 8px;
+  margin: 2px;
+}
+.excel-app .animate-spin {
+  display: none;
+}
+
+html[data-presentation='excel'][data-theme] {
+  --bg-elevated: #f3f4f5;
+  --bg-input: #fff;
+  --accent-gold: #276e4b;
+  --accent-gold-light: #e8f1eb;
+  --accent-primary-hover: #235f42;
+}
+.excel-app .battle-viewport-shell {
+  height: calc(100dvh - 36px);
+  min-height: calc(100dvh - 36px);
+  max-height: calc(100dvh - 36px);
+}
+@media (min-width: 1101px) and (min-height: 651px) {
+  .excel-page-content .battle-viewport-shell {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+  }
+}
+.excel-modal-backdrop {
+  position: fixed;
+  inset: 36px 0 0;
+  z-index: 200;
+  background: #ffffffdd;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.excel-modal {
+  width: min(600px, 100%);
+  max-height: calc(100dvh - 72px);
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #b9c3c5;
+  padding: 20px;
+}
+.excel-modal h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+.excel-modal p {
+  margin: 12px 0;
+}
+.excel-modal button {
+  border: 1px solid #b9c3c5;
+  padding: 4px 12px;
+}
+.excel-mulligan th:first-child {
+  width: 48px;
+}
+.excel-mulligan th:last-child {
+  width: 64px;
+}
+.excel-stage-cell {
+  height: 100%;
+  overflow: auto;
+  padding: 3px 8px;
+}
+@media (max-width: 1100px), (max-height: 650px) {
+  .excel-stage-cell {
+    max-height: none;
+  }
+  .excel-app .battle-viewport-shell {
+    height: auto;
+    min-height: calc(100dvh - 36px);
+    max-height: none;
+    overflow: auto;
+  }
+}
+.excel-operation-panels [class*='overflow-y-auto'] {
+  max-height: 52vh;
+}
+.excel-match-result {
+  padding: 12px;
+  border: 1px solid #276e4b;
+}
+html[data-presentation='excel'] #app-overlays .button-icon {
+  width: auto;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+html[data-presentation='excel'] #app-overlays .modal-surface {
+  border-radius: 0;
+  background: #fff;
+}
+
+.excel-phase-controls {
+  border-bottom: 1px solid #c6cdcf;
+  padding: 6px 0;
+}
+.excel-phase-controls button {
+  border: 1px solid #b9c3c5;
+  padding: 4px 10px;
+  margin: 4px;
+}
+
+html[data-presentation='excel'] .button-primary,
+html[data-presentation='excel'] .button-secondary {
+  background: #fff;
+  color: #202526;
+  border: 1px solid #b9c3c5;
+}
+html[data-presentation='excel'] button[aria-pressed='true'] {
+  outline: 2px solid #276e4b;
+  outline-offset: -2px;
+}
+
+@media (max-width: 1100px), (max-height: 650px) {
+  .excel-stage-area {
+    display: block;
+  }
+  .excel-stage {
+    display: table;
+  }
+  .excel-stage caption {
+    display: table-caption;
+  }
+  .excel-stage thead {
+    display: table-header-group;
+  }
+  .excel-stage tbody {
+    display: table-row-group;
+  }
+  .excel-stage tr {
+    display: table-row;
+  }
+  .excel-stage-cell {
+    height: auto;
+    max-height: 140px;
+  }
+  .excel-hand-area {
+    flex: none;
+    height: 360px;
+  }
+  .excel-hand-expanded .excel-hand-area {
+    flex: none;
+    height: 70dvh;
+  }
+  .excel-hand-expanded .excel-hand {
+    max-height: none;
+  }
+  .excel-current-operation {
+    display: block;
+  }
+  .excel-current-operation:has(.excel-selected-card) .excel-operation-task {
+    max-height: none;
+  }
+  .excel-selected-card {
+    max-height: 70dvh;
+  }
+}

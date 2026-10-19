@@ -1,3 +1,4 @@
+import { PresentationImage } from '@/components/excel/PresentationRoot';
 import { cn } from '@/lib/utils';
 
 interface ProductBrandProps {
@@ -10,7 +11,7 @@ interface ProductBrandProps {
 export function ProductBrand({ ariaLabel, className, href, onClick }: ProductBrandProps) {
   const content = (
     <>
-      <img src="/icon.jpg" alt="" className="product-brand-mark" />
+      <PresentationImage src="/icon.jpg" alt="" className="product-brand-mark" />
       <strong className="product-brand-wordmark">Loveca</strong>
     </>
   );

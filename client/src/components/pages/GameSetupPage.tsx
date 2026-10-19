@@ -1,3 +1,4 @@
+import { useTextPresentation } from '@/lib/appPresentation';
 /**
  * GameSetupPage - 对局准备页面
  * Step 0: 选择对战方式（快速匹配 / 赛季活动 / 其他对战）
@@ -179,6 +180,7 @@ export function GameSetupPage({
   onManageDecks,
   battleEntryVisibility,
 }: GameSetupPageProps) {
+  const textOnly = useTextPresentation();
   const [currentStep, setCurrentStep] = useState<SetupStep>(initialLocalMode ? 1 : 0);
   const [setupMode, setSetupMode] = useState<SetupMode>(initialLocalMode ?? GameMode.SOLITAIRE);
   const [selectedP1DeckState, setSelectedP1Deck] = useState<DeckDisplayItem | null>(null);
@@ -601,6 +603,106 @@ export function GameSetupPage({
     if (currentStep === 2 && gameMode === GameMode.DEBUG) return '下一步：确认对局';
     return '下一步';
   };
+
+  if (textOnly)
+    return (
+      <ProductFrame
+        active="battle"
+        navigation={navigation}
+        actions={headerActions}
+        title="对局准备"
+        backLabel="返回大厅"
+        onBack={onBack}
+      >
+        <main className="excel-setup">
+          <h2>{getStepTitle()}</h2>
+          <div className="excel-setup-body">
+            {currentStep === 0 ? (
+              <table className="excel-table">
+                <thead>
+                  <tr>
+                    <th>模式</th>
+                    <th>说明</th>
+                    <th>选择</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(
+                    [
+                      {
+                        id: GameMode.SOLITAIRE,
+                        name: '对墙打',
+                        detail: canUseRecordedSolitaire ? '服务端记录对局' : '本地模拟',
+                      },
+                      { id: 'CASUAL', name: '休闲对战', detail: '公开房间或房间号' },
+                      ...(battleEntryVisibility.ranked
+                        ? [{ id: 'RANKED', name: '赛季排位', detail: '赛季匹配与结算' }]
+                        : []),
+                      { id: GameMode.DEBUG, name: '双人调试', detail: '本机切换玩家视角' },
+                    ] as const
+                  ).map((mode) => (
+                    <tr key={mode.id} aria-selected={setupMode === mode.id}>
+                      <td>{mode.name}</td>
+                      <td>{mode.detail}</td>
+                      <td>
+                        <button
+                          disabled={
+                            (mode.id === 'CASUAL' || mode.id === 'RANKED') && !canUseOnlineRoom
+                          }
+                          onClick={() => handleSelectMode(mode.id as SetupMode)}
+                        >
+                          {setupMode === mode.id ? '已选择' : `选择${mode.name}`}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : isConfirmStep ? (
+              <section>
+                <p>己方卡组：{selectedP1Deck?.name}</p>
+                {gameMode === GameMode.DEBUG && <p>对方卡组：{selectedP2Deck?.name}</p>}
+                <p>
+                  {canUseRecordedSolitaire
+                    ? '在线记录：本局会保存到历史并可复盘'
+                    : '本地模拟：本局不会保存历史'}
+                </p>
+              </section>
+            ) : (
+              <DeckSelector
+                cloudDecks={cloudDecks}
+                localDecks={offlineMode ? localDecks : []}
+                selectedId={currentStep === 1 ? selectedP1Deck?.id : selectedP2Deck?.id}
+                onSelect={currentStep === 1 ? handleSelectP1 : handleSelectP2}
+                isLoading={!offlineMode && isLoadingCloud}
+                isRefreshing={!offlineMode && isRefreshingCloud}
+                error={offlineMode ? null : cloudError}
+                onRefresh={offlineMode ? undefined : refreshCloudDecks}
+                title="可用卡组"
+              />
+            )}
+          </div>
+          {error && <p role="alert">{error}</p>}
+          <footer>
+            {currentStep > 0 && (
+              <button onClick={handlePrev} disabled={isStarting}>
+                上一步
+              </button>
+            )}
+            {currentStep < maxStep && (
+              <button onClick={handleNext} disabled={!canProceed()}>
+                {getNextButtonLabel()}
+              </button>
+            )}
+            {isConfirmStep && (
+              <button disabled={isStarting} onClick={() => void handleStartGame()}>
+                {isStarting ? '准备中…' : '开始对局'}
+              </button>
+            )}
+          </footer>
+        </main>
+      </ProductFrame>
+    );
 
   return (
     <ProductFrame

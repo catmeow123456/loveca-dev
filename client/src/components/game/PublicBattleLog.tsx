@@ -1,3 +1,4 @@
+import { PresentationImage } from '@/components/excel/PresentationRoot';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -514,7 +515,7 @@ function PublicBattleLogCardThumb({
       title={card.label}
       aria-label={card.label}
     >
-      <img
+      <PresentationImage
         src={imagePath}
         alt=""
         className="h-full w-full object-cover transition group-hover:scale-105"
@@ -565,7 +566,12 @@ function PublicBattleLogCardGroupChip({
     >
       <span className="flex max-w-[15rem] items-center gap-1.5 overflow-hidden">
         <span className="h-8 w-6 shrink-0 overflow-hidden rounded border border-[var(--border-subtle)] bg-[var(--bg-overlay)]">
-          <img src={imagePath} alt="" className="h-full w-full object-cover" draggable={false} />
+          <PresentationImage
+            src={imagePath}
+            alt=""
+            className="h-full w-full object-cover"
+            draggable={false}
+          />
         </span>
         <span className="min-w-0">
           <span className="block truncate font-semibold text-[var(--text-muted)]">
@@ -624,7 +630,12 @@ function PublicBattleLogCardChip({
     >
       <span className="flex max-w-[15rem] items-center gap-1.5 overflow-hidden">
         <span className="h-8 w-6 shrink-0 overflow-hidden rounded border border-[var(--border-subtle)] bg-[var(--bg-overlay)]">
-          <img src={imagePath} alt="" className="h-full w-full object-cover" draggable={false} />
+          <PresentationImage
+            src={imagePath}
+            alt=""
+            className="h-full w-full object-cover"
+            draggable={false}
+          />
         </span>
         <span className="min-w-0">
           <span className="block truncate font-semibold text-[var(--text-muted)]">

@@ -1,3 +1,4 @@
+import { useAppPresentation, useTextPresentation } from '@/lib/appPresentation';
 import { useEffect, useEffectEvent, type RefObject } from 'react';
 
 const FOCUSABLE_SELECTOR = [
@@ -82,6 +83,8 @@ export function useDialogAccessibility({
   onEscape,
   closeOnEscape = true,
 }: UseDialogAccessibilityOptions): void {
+  const covered = useAppPresentation((state) => state.covered);
+  const textOnly = useTextPresentation();
   const handleEscape = useEffectEvent((): boolean => {
     if (!closeOnEscape || !onEscape) {
       return false;
@@ -91,7 +94,7 @@ export function useDialogAccessibility({
   });
 
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || covered || (textOnly && dialogRef.current?.closest('.excel-operation-panels'))) {
       return;
     }
 
@@ -163,5 +166,5 @@ export function useDialogAccessibility({
         focusWithoutScrolling(previouslyFocused);
       }
     };
-  }, [dialogRef, initialFocusRef, isOpen]);
+  }, [dialogRef, initialFocusRef, isOpen, covered, textOnly]);
 }

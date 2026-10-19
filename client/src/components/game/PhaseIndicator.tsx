@@ -1,3 +1,4 @@
+import { useTextPresentation } from '@/lib/appPresentation';
 /**
  * 阶段指示器
  * 显示当前游戏阶段、子阶段和回合数，提供阶段流转按钮
@@ -156,6 +157,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
   onOpenJudgment,
 }: PhaseIndicatorProps) {
   // 状态选择器
+  const textOnly = useTextPresentation();
   const activeSeat = useGameStore((s) => s.getActiveSeatView());
   const permissionView = useGameStore((s) => s.getPermissionView());
   const matchView = useGameStore((s) => s.getMatchView());
@@ -324,6 +326,54 @@ export const PhaseIndicator = memo(function PhaseIndicator({
       showUndoActionFeedback('正在发送撤销请求…');
     }
   };
+
+  if (textOnly)
+    return (
+      <section
+        data-battle-ui-anchor={BATTLE_UI_ANCHORS.PHASE_CONTROLS}
+        className="excel-phase-controls"
+      >
+        <p>
+          回合 {currentTurnCount ?? turnNumber ?? '-'} · {info.name} ·{' '}
+          {subPhaseConfig?.display.name ?? ''}
+        </p>
+        <p>
+          {isReadOnly
+            ? '只读'
+            : isInspectionWindow
+              ? '当前正在检视'
+              : isMyTurn
+                ? '我方行动'
+                : '等待对手'}
+        </p>
+        {showActionButton && (
+          <button
+            data-battle-ui-anchor={BATTLE_UI_ANCHORS.PHASE_PRIMARY_ACTION}
+            data-phase-completion-gate={
+              hasPhaseCompletionTimeGate
+                ? isPhaseCompletionTimeGateLocked
+                  ? 'locked'
+                  : 'open'
+                : undefined
+            }
+            disabled={isPhaseCompletionTimeGateLocked}
+            onClick={handleAction}
+          >
+            {actionButtonText}
+          </button>
+        )}
+        {isPhaseCompletionTimeGateLocked && <p>{actionHint?.reason ?? '等待展示时间结束'}</p>}
+        {canShowUndo && !isReadOnly && (
+          <>
+            <button disabled={!canUndoLastStep} onClick={handleUndoAction}>
+              {undoButtonLabel}
+            </button>
+            {!canUndoLastStep && <p>{undoDisabledReason}</p>}
+          </>
+        )}
+        {undoActionFeedback && <p role="status">{undoActionFeedback}</p>}
+      </section>
+    );
 
   return (
     <div

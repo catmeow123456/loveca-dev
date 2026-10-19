@@ -1,3 +1,4 @@
+import { PresentationImage } from '@/components/excel/PresentationRoot';
 import { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -56,7 +57,7 @@ export function MatchEmoteVisual({ emote, className }: MatchEmoteVisualProps) {
 
   return (
     <span ref={rootRef} className={cn('match-emote-visual', className)} aria-hidden="true">
-      <img
+      <PresentationImage
         key={src}
         src={src}
         alt=""

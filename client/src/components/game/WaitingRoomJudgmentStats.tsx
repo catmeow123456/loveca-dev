@@ -1,3 +1,4 @@
+import { PresentationImage } from '@/components/excel/PresentationRoot';
 import { cn } from '@/lib/utils';
 import { HEART_ICON_SOURCE_BY_COLOR } from '@/lib/modifierIconAssets';
 import {
@@ -50,7 +51,7 @@ function WaitingRoomHeartStatChip({
           : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_45%,transparent)] text-[var(--text-muted)]'
       )}
     >
-      <img
+      <PresentationImage
         src={HEART_ICON_SOURCE_BY_COLOR[color]}
         alt=""
         className="h-4 w-4 object-contain"

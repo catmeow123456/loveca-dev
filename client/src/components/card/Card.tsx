@@ -1,3 +1,6 @@
+import { useTextPresentation } from '@/lib/appPresentation';
+import { TextCard } from '@/components/excel/TextCard';
+import { PresentationImage } from '@/components/excel/PresentationRoot';
 /**
  * 卡牌组件
  *
@@ -82,7 +85,7 @@ const HeartIcon = memo(function HeartIcon({
 
   return (
     <span className="inline-flex items-center gap-0.5">
-      <img
+      <PresentationImage
         src={HEART_ICON_SOURCE_BY_COLOR[color]}
         alt=""
         className={cn('object-contain drop-shadow', sizeClasses[size])}
@@ -190,7 +193,7 @@ const CardBack = memo(function CardBack({ size = 'md' }: { size?: 'sm' | 'md' | 
   // 如果有卡背图片，显示图片
   if (!imageError) {
     return (
-      <img
+      <PresentationImage
         src={CARD_BACK_IMAGE_PATH}
         alt="Card Back"
         className="w-full h-full object-cover rounded-lg"
@@ -249,6 +252,17 @@ export const Card = memo(function Card({
 }: CardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const textOnly = useTextPresentation();
+  if (textOnly)
+    return (
+      <TextCard
+        card={cardData}
+        instanceId={instanceId}
+        faceUp={faceUp}
+        selected={selected}
+        onClick={interactive ? onClick : undefined}
+      />
+    );
   const cardNameDisplay = getCardLocalizedInfo(cardData);
 
   // 尺寸映射
@@ -319,7 +333,7 @@ export const Card = memo(function Card({
           >
             {/* 卡牌图片 */}
             {imagePath && !imageError ? (
-              <img
+              <PresentationImage
                 src={imagePath}
                 alt={cardNameDisplay.title}
                 className="w-full h-full object-cover"

@@ -1,3 +1,4 @@
+import { getPresentationPortalRoot } from '@/lib/appPresentation';
 /**
  * CardDetailDrawer - 卡牌详情侧边抽屉
  * 纯查看，不含增删操作
@@ -204,6 +205,6 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
         </>
       )}
     </AnimatePresence>,
-    document.body
+    getPresentationPortalRoot()
   );
 }

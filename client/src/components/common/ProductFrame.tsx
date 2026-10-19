@@ -1,3 +1,4 @@
+import { useTextPresentation } from '@/lib/appPresentation';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { ProductHeader } from './ProductHeader';
@@ -55,10 +56,39 @@ export function ProductFrame({
   className,
   immersive = false,
 }: ProductFrameProps) {
+  const textOnly = useTextPresentation();
   const navigate = (handler: keyof ProductNavigationHandlers) => {
     navigation[handler]();
   };
 
+  if (textOnly)
+    return (
+      <div className="excel-product-frame">
+        <header>
+          <nav aria-label="主要导航">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.key}
+                aria-current={active === item.key ? 'page' : undefined}
+                onClick={() => navigate(item.handler)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+          <div>{actions}</div>
+        </header>
+        {title && <h1>{title}</h1>}
+        {description && <p>{description}</p>}
+        {onBack && <button onClick={onBack}>{backLabel ?? '返回'}</button>}
+        <div className="excel-column-headings" aria-hidden="true">
+          {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((letter) => (
+            <span key={letter}>{letter}</span>
+          ))}
+        </div>
+        <div className="excel-page-content">{children}</div>
+      </div>
+    );
   return (
     <div className={cn('app-shell flex h-[100dvh] min-h-0 flex-col overflow-x-hidden', className)}>
       {!immersive ? (

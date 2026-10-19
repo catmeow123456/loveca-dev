@@ -1,3 +1,5 @@
+import { useTextPresentation } from '@/lib/appPresentation';
+import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 /**
  * 换牌面板 (Mulligan Panel)
  * 游戏开始时，玩家可选择要换的牌
@@ -45,6 +47,7 @@ export const MulliganPanel = memo(function MulliganPanel({
   selectableCardIds = null,
   onSelectionChange,
 }: MulliganPanelProps) {
+  const textOnly = useTextPresentation();
   // 状态选择器
   const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView());
@@ -239,6 +242,70 @@ export const MulliganPanel = memo(function MulliganPanel({
   // 获取玩家名称用于显示
   const playerName = currentPlayerIdentity.name;
   const isFirstPlayer = viewerSeat === 'FIRST';
+
+  if (textOnly)
+    return (
+      <section data-battle-ui-anchor={BATTLE_UI_ANCHORS.MULLIGAN_PANEL} className="excel-mulligan">
+        <h3>
+          换牌阶段 · {playerName}（{isFirstPlayer ? '先攻' : '后攻'}）
+        </h3>
+        <p>{isMyMulliganTurn ? '选择要换掉的手牌，或保留全部手牌。' : '等待对手换牌'}</p>
+        <table className="excel-table">
+          <thead>
+            <tr>
+              <th>选择</th>
+              <th>手牌</th>
+              <th>详情</th>
+            </tr>
+          </thead>
+          <tbody>
+            {handCardIds.map((cardId, index) => {
+              const card = getVisibleCardPresentation(cardId);
+              if (!card) return null;
+              const label = getCardLocalizedInfo(card.cardData).title;
+              return (
+                <tr key={cardId}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={`换掉第 ${index + 1} 张手牌 ${label}`}
+                      checked={selectedCardIds.has(cardId)}
+                      disabled={
+                        !isMyMulliganTurn ||
+                        (!!selectableCardIdSet &&
+                          !selectableCardIdSet.has(cardId) &&
+                          !selectedCardIds.has(cardId))
+                      }
+                      onChange={() => activateCard(cardId)}
+                    />
+                  </td>
+                  <td>
+                    {label}
+                    <div>{card.cardData.cardCode}</div>
+                  </td>
+                  <td>
+                    <button onClick={() => setHoveredCard(cardId)}>详情</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p>已选择 {selectedCardIds.size} 张</p>
+        {!selectableCardIds && (
+          <button disabled={!isMyMulliganTurn} onClick={handleSkip}>
+            保留手牌
+          </button>
+        )}
+        <button
+          data-battle-ui-anchor={BATTLE_UI_ANCHORS.MULLIGAN_CONFIRM}
+          disabled={!canConfirmSelection}
+          onClick={handleConfirm}
+        >
+          换 {selectedCardIds.size} 张
+        </button>
+      </section>
+    );
 
   return (
     <AnimatePresence>

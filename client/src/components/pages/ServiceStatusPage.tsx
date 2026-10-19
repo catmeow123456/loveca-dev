@@ -1,3 +1,4 @@
+import { useTextPresentation } from '@/lib/appPresentation';
 import { useState } from 'react';
 import { RefreshCw, ShieldCheck } from 'lucide-react';
 import type { PublicSiteMaintenanceStatus } from '@/lib/appConfig';
@@ -9,6 +10,7 @@ interface ServiceStatusPageProps {
 }
 
 export function ServiceStatusPage({ kind, maintenance = null }: ServiceStatusPageProps) {
+  const textOnly = useTextPresentation();
   const [adminMessage, setAdminMessage] = useState<string | null>(null);
   const isMaintenance = kind === 'MAINTENANCE';
 
@@ -34,6 +36,14 @@ export function ServiceStatusPage({ kind, maintenance = null }: ServiceStatusPag
     }
   };
 
+  if (textOnly)
+    return (
+      <main className="excel-entry">
+        <h1>{isMaintenance ? '服务维护中' : '连接暂不可用'}</h1>
+        <p>{maintenance?.summary ?? '请检查网络，或稍后重试。'}</p>
+        <button onClick={checkStatus}>重新连接</button>
+      </main>
+    );
   return (
     <main className="service-status-page">
       <section className="service-status-card" aria-labelledby="service-status-title">
@@ -49,9 +59,7 @@ export function ServiceStatusPage({ kind, maintenance = null }: ServiceStatusPag
         </div>
         <h1 id="service-status-title">{isMaintenance ? '幕间维护' : '暂时无法入场'}</h1>
         <p className="service-status-summary">
-          {isMaintenance
-            ? (maintenance?.title ?? '舞台正在整备')
-            : '当前没有连上 Loveca。'}
+          {isMaintenance ? (maintenance?.title ?? '舞台正在整备') : '当前没有连上 Loveca。'}
         </p>
         <p className="service-status-detail">
           {isMaintenance

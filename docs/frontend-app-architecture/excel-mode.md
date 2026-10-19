@@ -1,0 +1,93 @@
+# Excel 界面：实现与验收边界
+
+Excel 模式是本地呈现偏好，复用现有游戏规则、玩家投影、命令和同步生命周期。开发基线为作者 `upstream/main` 的 `3ab942019dd62361207b882dac92d7d90855b37f`，开发分支为 `feat/excel-mode`。
+
+## 使用与产品范围
+
+使用 `Ctrl+Alt+E`（macOS 为 Control+Option+E）进入或退出表格界面，页面不显示模式切换按钮。模式保存在 localStorage。「遮挡工作区」或 `Ctrl+Alt+X`（macOS 为 Control+Option+X）显示固定工作记录，再按一次恢复；遮挡快捷键可自定义，但不能与模式切换键冲突。遮挡状态保存在当前标签页 sessionStorage，刷新保持，不主动改变其他标签页。
+
+提供登录、大厅、既有卡组选择与内容查看、休闲 / 排位匹配、猜拳先后手、对墙 / 联机对局、结果与返回的文字界面。完整卡组编辑器、观战和回放显示范围说明及普通界面切换提示。遮挡继续同步和计时，不代替人工操作，不重发命令；不隐藏浏览历史、网络或操作系统记录。
+
+## 工作表与选牌
+
+对局左侧显示双方场面、LIVE 摘要和手牌，右侧显示阶段、效果、费用、判定及分数确认。底部提供对局、休息室、其他区域、公开记录、详情和设置 Sheet。主区域通常约占三分之二宽度；效果选牌期间给右侧约四成宽度。小屏允许页面和表格局部滚动。
+
+手牌、双方休息室、下置卡牌以及其他区域共用 `ExcelCardTable`，每行 30px，显示序号、卡号、名称、卡牌效果、类型、印刷费用 / 分数。名称与卡效按 1:3 分配剩余空间；卡文中文优先，无中文回退日文，预览单行不换行，超出省略。无效果显示“无效果”。能量区额外显示投影明确提供的活跃 / 等待，休息室、手牌、卡组、LIVE 和下置卡牌不显示朝向。
+
+点击整行或用键盘激活名称按钮，只选择对应实例；右侧常驻区显示完整卡效、有效属性和合法操作，不跳转详情 Sheet，不提交游戏命令，不清除待处理效果草稿。实例编号只供内部定位和命令使用，列表、详情和无障碍名称都不展示。区域标题保留总张数与未公开张数，隐藏对象不会创建可查看的卡牌行。显式点击“详情” Sheet 仍可阅读当前选中卡牌。
+
+手牌概览显示成员 / LIVE 张数及可用能量。1366×768 为手牌预留至少 8 行、1920×1080 至少 12 行；“展开手牌”临时隐藏左侧场面与 LIVE 摘要，收起后保留选择。场上成员分别展示有效费用、光棒、心和完整卡效；费用修正另注印刷值，长卡文在格内滚动。右侧登场按钮使用权威费用报价。
+
+弃牌、回收等通用效果、特殊登场支付和成功 LIVE 选择共用 `ExcelCandidateTable`，提供卡号、名称、类型、费用 / 分数、单行卡效及独立“查看”。点击候选行沿用原选择流程；查看只在右侧展开完整信息，不提交、不跳 Sheet。保留立即提交的单选、复合单选草稿、有序多选、序号、上下移、确认和跳过。仅选择按钮按权限禁用，已公开卡文仍可阅读。舞台候选标明所属方及位置，能量候选保留等待 / 下次不活跃提示。
+
+## 共享控制、权限与同步
+
+- `GameBoard` 的 `useBattleInteractionController` 提供共享状态、合法动作及提交入口。稳定 portal 容器在渲染器间迁移，切换模式保留调度和分数草稿；效果草稿按对局、视角、步骤和候选集合校验，移除失效候选并提示。
+- `ExcelBattleBoard` 和文字选择器只消费 `PlayerViewState`。`selectExcelCard` 必须同时看到 FRONT 与授权 frontInfo 才返回卡牌，即使 BACK 对象意外带有 frontInfo 也拒绝展示。匿名候选仅使用提交令牌，不能反查卡池身份。公开日志复用既有受限投影。
+- `PLAY_MEMBER_TO_SLOT` 的既有 params 增加 `memberPlayQuotes`：权威 `queryNormalMemberPlay` 仅对当前玩家的手牌与槽位返回实际费用、接力和不可用原因。UI 不重新计算费用，不新增数据库字段、API 或游戏命令类型。
+- store 命令沿用远端队列及幂等机制，合并在途相同动作并显示提交状态；连接状态从当前远端会话更新。React 不直接修改规则状态。
+- `BattleRuntime` 共享入场 ACK、每秒重试、本地到期处理和结果窗口推进。无视觉模式不跳过公开展示或 TIME_GATE，也不改变人工确认语义。入场 / 结果窗口一旦经历遮挡或文字模式，恢复后不补播；新窗口可正常呈现。完成回调通过 ref 读取当前阶段。
+
+## 首帧与资源策略
+
+`appPresentation.ts` 管理偏好、快捷键和展示策略。入口 HTML 在 React 启动前确定模式、标题、图标、背景及遮挡。`PresentationRoot` 保持应用挂载，遮挡时对应用和统一弹层容器设置 inert 与 aria-hidden，禁用游戏快捷键、Toast 和播报；错误界面提供文字重载入口。
+
+图片组件、状态层预加载、桌面背景、匹配音频及视觉播放共同读取展示策略。卡效符号在文字模式中转为文字令牌，排位图表使用表格。PWA 不预缓存游戏图片 / 音频或 manifest 图标；普通模式按需挂载 manifest。仅用 CSS 隐藏图片不能代替资源加载门禁。
+
+## 验证入口与覆盖范围
+
+交互测试位于 `client/tests/e2e/excel-interactions.spec.ts`，通过真实 GameBoard 与受限投影契约验证三种视口、紧凑列表、完整卡文、键盘选择、重复实例、隐藏信息、数量边界、顺序、失效草稿、支付、切换、遮挡和恢复。其中回收、公开展示驻留、普通费用、LIVE 判定、分数及成功 LIVE 执行真实规则；其他选择契约不能替代跨模式完整服务端卡效证明。
+
+入口、资源、快捷键和首帧测试位于 `excel-mode.spec.ts`；`excel-real.spec.ts` 使用现有本地测试账号和合法卡组，包含服务端对墙、休闲和排位的 Excel / 混合客户端。独立浏览器不操作生产 Chrome 或管理 API，不写账号卡组、不重置数据库。真实排位验收会产生本地测试积分和历史记录。普通模式另有回收和应援 / LIVE 回归。
+
+本地证据保存在忽略的 `output/playwright/`、`output/excel-mode/`。区域紧凑表格证据目录为 `output/playwright/excel-zones/`；保留 QA 清单、命令结果及三视口截图，不将原始调试流水作为长期规范。以下矩阵保留截至 2026-10-19 的实际验收边界，版本提交不代表附件全部必测项完成。
+
+## 附件 A01–A14 状态
+
+| 用例 | 状态 | 证据及未覆盖项 |
+| --- | --- | --- |
+| A01 完整流程 | 通过已执行流程 | 三种模式及混合界面从入口到认输结果、返回；自然胜利完整牌局仍需补测 |
+| A02 核心同屏 | 通过 | 两种桌面视口检查 Sheet 底边与区域可见性；真实休闲、排位双端另跑 2 项，验证产品导航下方的剩余高度；390×844 允许滚动，已检查文字降级 |
+| A03 数据准确 | 通过已测场景 | 费用权威查询、有效属性、LIVE 修正、内部实例区分；未穷举全部卡牌修正组合 |
+| A04 选择完整 | 通过交互契约 | 全部选择类别、边界、顺序、特殊/普通费用、取消、跳过、站位及成功 LIVE；跨全部模式逐类服务端重放尚未完成 |
+| A05 权限安全 | 通过已测场景 | 投影单测/集成、隐藏 front 拒绝、匿名 token、公开日志复用；不是全卡池安全审计 |
+| A06 无图无声 | 通过已测场景 | 开发及生产构建、交互、真实双端资源监测及 Audio 构造拦截；未穷举所有异常来源 |
+| A07 素材依赖 | 通过 | 无素材请求的真实/固定场景可推进；生产预缓存及首帧无图片/音频；manifest 只在普通模式按需挂载 |
+| A08 同步 | 部分通过 | ACK 重试/到期、公开驻留、TIME_GATE 集成和真实双端阶段同步；每一混合组合的丢包/效果控制者交换未逐项执行 |
+| A09 遮挡 | 通过已测场景 | 固定记录、不读出游戏区、快捷键/点击、每标签页、刷新、支付/效果/结果 |
+| A10 恢复 | 部分通过 | 断线、刷新、对手认输、公开展示和结果推进；真实排位超时后恢复未完成 |
+| A11 中断重复 | 部分通过 | 在途去重、长按、切换、候选变更、刷新和取消；浏览器前进/后退与每种在途命令组合未穷举 |
+| A12 输入访问 | 部分通过 | 键盘选择/数量/站位、合成 IME 与 repeat 事件、焦点隔离；Windows 原生 Chrome、原生中文输入法及屏幕阅读器人工测试未执行 |
+| A13 排位一致 | 部分通过 | 本地真实匹配/结果与停滞规则集成通过；真实自然胜利、完整积分逐项对比和真实超时未完成 |
+| A14 普通模式回归 | 通过已测场景 | 混合联机、调度/选择草稿、21 项既有动效 E2E；真实扬声器听觉验收未执行 |
+
+**尚不能标记附件全部必测要求完成。** 剩余的真实双端卡效/等待方交换、完整自然胜利及超时矩阵，以及原生 Windows Chrome、中文输入法和辅助技术验收必须保留为未执行；不能用视口模拟或测试总数替代。
+
+## 复现命令
+
+标准项目环境下在仓库根目录执行（本机实际以缓存运行时的 `node` 直接调用同一工具入口，绕过 pnpm 的依赖重装提示）：
+
+```sh
+pnpm exec tsc --noEmit
+pnpm exec tsc -p tsconfig.server.json --noEmit
+pnpm --dir client exec tsc -b
+pnpm exec vitest run --config client/vitest.config.ts
+pnpm --dir client exec eslint src
+pnpm --dir client exec vite build
+pnpm --dir client exec playwright test --config playwright.excel-interactions.config.ts
+RUN_EXCEL_REAL=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:5173 pnpm --dir client exec playwright test --config playwright.excel-real.config.ts
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:4176 pnpm --dir client exec playwright test --config playwright.excel.config.ts
+pnpm --dir client exec playwright test --config tests/recovery-review/playwright.config.ts
+pnpm --dir client exec playwright test --config tests/recovery-review/cheer.playwright.config.ts
+git diff --check
+```
+
+4175 为隔离依赖缓存的 `vite --mode excel-review` 验收服务；4176 为构建产物 `vite preview`；5186 为仓库已有 recovery-review 服务。它们不替代用户的 5173 测试环境。浏览器测试运行时应暂停源文件编辑，避免 HMR 改变夹具或 store 的模块实例。
+
+
+补充测试文件组：
+
+```sh
+pnpm exec vitest run tests/unit/{game-store-remote-sync,battle-action-intent,battle-action-executor,phase-completion-time-gate-ui,public-card-selection-auto-advance-ui,public-reveal-auto-advance-ui,blind-card-selection,member-play-options,member-play-options-ui,score-confirm-state}.test.ts tests/integration/{normal-member-overwrite,member-cost-payment,stage-formation-change-aqours-saint-snow,sp-pb2-014-formation-change,online-card-entrance,card-entrance-synchronization,public-reveal-dwell,online-phase-completion-gate}.test.ts
+pnpm exec vitest run tests/integration/{online-session-bridge,online-ranked-stall-runtime,online-command-pipeline}.test.ts
+```

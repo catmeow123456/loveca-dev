@@ -1,3 +1,4 @@
+import { PresentationImage } from '@/components/excel/PresentationRoot';
 import type { PlayerBadgeView } from '@game/online/player-badge-types';
 import { Award, Loader2, RotateCcw, Sparkles } from 'lucide-react';
 import { ActionButton, Panel, SectionHeading, StatusBadge } from '@/components/common';
@@ -58,7 +59,7 @@ function BadgeCard({ badge }: { badge: PlayerBadgeView }) {
       />
       <div className="flex min-w-0 items-center gap-3.5">
         <div className="flex h-[88px] w-[88px] shrink-0 items-center justify-center rounded-xl border border-[color:color-mix(in_srgb,var(--accent-gold)_24%,var(--border-subtle))] bg-[var(--brand-card-white)] p-1.5 shadow-[var(--shadow-sm)]">
-          <img
+          <PresentationImage
             className="h-full w-full object-contain"
             src={badge.imageUrl}
             alt=""

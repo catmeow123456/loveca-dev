@@ -1,3 +1,7 @@
+import { useTextPresentation } from '@/lib/appPresentation';
+import { TextCardDetails } from '@/components/excel/TextCard';
+import { getPresentationPortalRoot } from '@/lib/appPresentation';
+import { PresentationImage } from '@/components/excel/PresentationRoot';
 /**
  * 卡牌详情浮窗组件
  *
@@ -44,7 +48,7 @@ function DetailMetric({
 }) {
   return (
     <div className={cn('chip-badge', compact ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1')}>
-      <img
+      <PresentationImage
         src={iconSrc}
         alt=""
         className={cn('object-contain', compact ? 'h-4 w-4' : 'h-5 w-5')}
@@ -113,7 +117,7 @@ function HeartIconGroup({
     >
       <span className="inline-flex items-center gap-0.5">
         {Array.from({ length: repeatedCount }, (_, index) => (
-          <img
+          <PresentationImage
             key={`${color}-${index}`}
             src={resolvedIconSrc}
             alt=""
@@ -309,6 +313,7 @@ export const LiveCardDetails = memo(function LiveCardDetails({
 });
 
 export const CardDetailOverlay = memo(function CardDetailOverlay() {
+  const textOnly = useTextPresentation();
   const cardDetail = useGameStore((s) => s.ui.cardDetail);
   const getVisibleCardPresentation = useGameStore((s) => s.getVisibleCardPresentation);
   const getPublicEventCardPresentation = useGameStore((s) => s.getPublicEventCardPresentation);
@@ -349,6 +354,13 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
     };
   }, [card, shouldUseCompactDrawer]);
 
+  if (textOnly)
+    return card ? (
+      <section className="excel-detail-dialog" role="dialog" aria-label="卡牌详情">
+        <button onClick={closeDetail}>关闭详情</button>
+        <TextCardDetails card={card.cardData} />
+      </section>
+    ) : null;
   const content = (
     <AnimatePresence>
       {card &&
@@ -368,7 +380,7 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
     return content;
   }
 
-  return createPortal(content, document.body);
+  return createPortal(content, getPresentationPortalRoot());
 });
 
 function DesktopCardDetailPanel({ card }: { card: VisibleCardPresentation }) {

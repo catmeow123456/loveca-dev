@@ -1,3 +1,4 @@
+import { getPresentationPortalRoot, useTextPresentation } from '@/lib/appPresentation';
 import { useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
@@ -15,16 +16,17 @@ export function MemberOverwriteDialog({
   onChoose: (mode: MemberOverwritePaymentChoice['relayMode']) => void;
   onCancel: () => void;
 }) {
+  const textOnly = useTextPresentation();
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   useDialogAccessibility({
-    isOpen: true,
+    isOpen: !textOnly,
     dialogRef,
     initialFocusRef: cancelRef,
     onEscape: onCancel,
   });
-  return createPortal(
+  const dialog = (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <button
         type="button"
@@ -56,10 +58,7 @@ export function MemberOverwriteDialog({
               <div className="font-semibold">
                 {relayMode === 'SINGLE' ? '换手登场' : '全款登场（不换手）'}
               </div>
-              <CardEffectText
-                text={`支付${energyCost}个[E]`}
-                className="mt-1 text-sm"
-              />
+              <CardEffectText text={`支付${energyCost}个[E]`} className="mt-1 text-sm" />
             </button>
           ))}
         </div>
@@ -75,7 +74,7 @@ export function MemberOverwriteDialog({
           取消
         </button>
       </div>
-    </div>,
-    document.body
+    </div>
   );
+  return textOnly ? dialog : createPortal(dialog, getPresentationPortalRoot());
 }

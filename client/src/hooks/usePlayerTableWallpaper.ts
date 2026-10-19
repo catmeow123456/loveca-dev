@@ -1,3 +1,4 @@
+import { useTextPresentation } from '@/lib/appPresentation';
 import { useEffect } from 'react';
 import { usePlayerWallpaperStore } from '@/store/playerWallpaperStore';
 import { getPlayerWallpaperSolidColor } from '@game/online/player-wallpaper-types';
@@ -15,6 +16,7 @@ export interface PlayerTableWallpaperPresentation {
 export function usePlayerTableWallpaper(
   isMobileBattlefield: boolean
 ): PlayerTableWallpaperPresentation {
+  const textOnly = useTextPresentation();
   const wallpaper = usePlayerWallpaperStore((state) => state.wallpaper);
   const objectUrls = usePlayerWallpaperStore((state) => state.objectUrls);
   const ensureAsset = usePlayerWallpaperStore((state) => state.ensureAsset);
@@ -26,8 +28,8 @@ export function usePlayerTableWallpaper(
     : (wallpaper?.wideSolidPreset ?? null);
 
   useEffect(() => {
-    void ensureAsset(asset);
-  }, [asset, ensureAsset]);
+    if (!textOnly) void ensureAsset(asset);
+  }, [asset, ensureAsset, textOnly]);
 
   const sourceUrl = asset ? (objectUrls[asset.id] ?? null) : null;
   const solidColor = getPlayerWallpaperSolidColor(solidPreset);

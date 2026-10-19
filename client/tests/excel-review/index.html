@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>工作簿</title>
+    <script>
+      localStorage.setItem('loveca.presentation.mode', 'excel');
+      document.documentElement.dataset.presentation = 'excel';
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="app-overlays"></div>
+    <script type="module" src="./review.tsx"></script>
+  </body>
+</html>
