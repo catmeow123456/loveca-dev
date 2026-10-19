@@ -38,6 +38,11 @@ const EMOTE_PREVIEW_DURATION_MS = 3_500;
 const CHAT_MAX_CODE_POINTS = 200;
 const CHAT_MAX_LINES = 3;
 const CHAT_MUTED_STORAGE_PREFIX = 'loveca.match-chat.muted.';
+const EMOTE_MENU_DESKTOP_WIDTH = 360;
+const EMOTE_MENU_ANCHOR_GAP = 8;
+const EMOTE_MENU_VIEWPORT_MARGIN = 8;
+const EMOTE_MENU_MAX_HEIGHT = 480;
+const EMOTE_MENU_MIN_HEIGHT = 220;
 
 type MatchChatAccess =
   | {
@@ -97,6 +102,7 @@ export const MatchChat = memo(function MatchChat({
   const firstEmoteButtonRef = useRef<HTMLButtonElement>(null);
   const chatReturnFocusRef = useRef<HTMLElement | null>(null);
   const reduceMotion = useReducedMotion();
+  const emoteMenuStyle = useEmoteMenuPlacement(emoteAnchorRootRef, isEmoteMenuOpen);
 
   const isSpectator = access.kind === 'SPECTATOR';
   const accessKind = access.kind;
@@ -418,9 +424,10 @@ export const MatchChat = memo(function MatchChat({
                       emoteLauncherButtonRef.current?.focus();
                     }
                   }}
-                  className="fixed inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-[var(--z-battle-action-menu)] rounded-xl border border-[var(--border-default)] bg-[var(--bg-frosted)] p-2.5 shadow-[var(--shadow-lg)] backdrop-blur-xl md:absolute md:inset-x-auto md:bottom-[calc(100%+0.5rem)] md:left-0 md:w-[360px]"
+                  style={emoteMenuStyle ?? undefined}
+                  className="fixed inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-[var(--z-battle-action-menu)] flex max-h-[min(60dvh,480px)] flex-col overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-frosted)] p-2.5 shadow-[var(--shadow-lg)] backdrop-blur-xl md:absolute md:inset-x-auto md:bottom-[calc(100%+0.5rem)] md:left-0 md:w-[360px]"
                 >
-                  <div className="mb-2 flex items-center justify-between px-1">
+                  <div className="mb-2 flex shrink-0 items-center justify-between px-1">
                     <div className="text-xs font-bold text-[var(--text-primary)]">选择快捷表情</div>
                     <button
                       type="button"
@@ -434,13 +441,15 @@ export const MatchChat = memo(function MatchChat({
                       <X size={14} />
                     </button>
                   </div>
-                  <EmoteGrid
-                    emotes={emoteCatalog.items}
-                    sendingEmoteId={sendingEmoteId}
-                    disabled={isSendingText}
-                    firstButtonRef={firstEmoteButtonRef}
-                    onSend={handleSendEmote}
-                  />
+                  <div className="cute-scrollbar min-h-0 flex-1 overflow-y-auto">
+                    <EmoteGrid
+                      emotes={emoteCatalog.items}
+                      sendingEmoteId={sendingEmoteId}
+                      disabled={isSendingText}
+                      firstButtonRef={firstEmoteButtonRef}
+                      onSend={handleSendEmote}
+                    />
+                  </div>
                   <InlineEmoteError error={emoteSendError} />
                 </motion.div>
               ) : null}
@@ -710,6 +719,67 @@ function useIdentityAnchorStyle(seat: Seat, kind: 'launcher' | 'preview'): CSSPr
   return style;
 }
 
+function useEmoteMenuPlacement(
+  anchorRootRef: RefObject<HTMLDivElement | null>,
+  isMenuOpen: boolean
+): CSSProperties | null {
+  const [style, setStyle] = useState<CSSProperties | null>(null);
+
+  useEffect(() => {
+    if (!isMenuOpen) {
+      // 关闭与退场动画期间保留上次定位，避免面板中途跳位。
+      return;
+    }
+    let frame = 0;
+    const update = () => {
+      const anchorRoot = anchorRootRef.current;
+      if (!anchorRoot || !window.matchMedia('(min-width: 768px)').matches) {
+        // 移动端由 CSS 底部面板样式负责定位与限高。
+        setStyle(null);
+        return;
+      }
+      const rect = anchorRoot.getBoundingClientRect();
+      const spaceAbove = rect.top - EMOTE_MENU_ANCHOR_GAP - EMOTE_MENU_VIEWPORT_MARGIN;
+      const spaceBelow =
+        window.innerHeight - rect.bottom - EMOTE_MENU_ANCHOR_GAP - EMOTE_MENU_VIEWPORT_MARGIN;
+      // 上方空间充足时保持默认向上展开；不足时翻转到锚点下方，并按剩余空间收缩高度。
+      const openUpward = spaceAbove >= spaceBelow;
+      const maxHeight = Math.max(
+        EMOTE_MENU_MIN_HEIGHT,
+        Math.min(openUpward ? spaceAbove : spaceBelow, EMOTE_MENU_MAX_HEIGHT)
+      );
+      const menuLeft = Math.min(
+        Math.max(rect.left, EMOTE_MENU_VIEWPORT_MARGIN),
+        Math.max(
+          EMOTE_MENU_VIEWPORT_MARGIN,
+          window.innerWidth - EMOTE_MENU_DESKTOP_WIDTH - EMOTE_MENU_VIEWPORT_MARGIN
+        )
+      );
+      setStyle({
+        left: `${menuLeft - rect.left}px`,
+        ...(openUpward
+          ? null
+          : { top: `calc(100% + ${EMOTE_MENU_ANCHOR_GAP}px)`, bottom: 'auto' }),
+        maxHeight: `${maxHeight}px`,
+      });
+    };
+    const scheduleUpdate = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(update);
+    };
+    scheduleUpdate();
+    window.addEventListener('resize', scheduleUpdate);
+    window.addEventListener('scroll', scheduleUpdate, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', scheduleUpdate);
+      window.removeEventListener('scroll', scheduleUpdate, true);
+    };
+  }, [anchorRootRef, isMenuOpen]);
+
+  return style;
+}
+
 function EmoteGrid({
   emotes,
   sendingEmoteId,
@@ -885,7 +955,7 @@ function InlineEmoteError({ error }: { readonly error: string | null }) {
   return (
     <div
       className={cn(
-        'min-h-5 px-1 pt-1.5 text-[11px] text-[var(--semantic-error)]',
+        'min-h-5 shrink-0 px-1 pt-1.5 text-[11px] text-[var(--semantic-error)]',
         !error && 'invisible'
       )}
       role="status"

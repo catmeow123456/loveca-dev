@@ -7,6 +7,7 @@ import {
   type Locator,
   type Page,
 } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 
 const DATABASE_URL =
@@ -15,6 +16,12 @@ const DECK_NAME_PREFIX = 'E2E 快捷表情卡组';
 
 interface LoginResult {
   readonly accessToken: string;
+}
+
+interface CasualTableTarget {
+  readonly tableId: string;
+  readonly roundId: string;
+  readonly revision: number;
 }
 
 test.describe('联机对局快捷表情', () => {
@@ -46,7 +53,6 @@ test.describe('联机对局快捷表情', () => {
       (item) => item.id === 'DEEP_THINKING'
     );
     expect(thinkingEmote?.animatedImageUrl).toBeTruthy();
-    const roomCode = `EM${Date.now().toString(36).slice(-6).toUpperCase()}`;
     let firstContext: BrowserContext | null = null;
     let secondContext: BrowserContext | null = null;
     let spectatorContext: BrowserContext | null = null;
@@ -65,38 +71,74 @@ test.describe('联机对局快捷表情', () => {
       const firstHeaders = bearer(firstLogin.accessToken);
       const secondHeaders = bearer(secondLogin.accessToken);
 
-      await apiData(
-        await request.post('/api/online/rooms', {
+      // 房间创建与加入已迁移到对战大厅（casual-tables），开局沿用既有房间 REST。
+      const created = await apiData<CasualTableTarget & { readonly roomCode: string }>(
+        await request.post('/api/casual-tables/create', {
           headers: firstHeaders,
-          data: { roomCode },
+          data: {
+            requestId: randomUUID(),
+            deckId: deckIds.test_player_1,
+            spectatorEnabled: true,
+            discoverability: 'UNLISTED',
+            note: '快捷表情 E2E',
+          },
         })
       );
-      await apiData(
-        await request.post(`/api/online/rooms/${roomCode}/join`, {
+      const roomCode = created.roomCode;
+      const preview = await apiData<CasualTableTarget>(
+        await request.get(`/api/casual-tables/rooms/${roomCode}`, { headers: secondHeaders })
+      );
+      const joined = await apiData<CasualTableTarget>(
+        await request.post('/api/casual-tables/join', {
           headers: secondHeaders,
+          data: {
+            target: {
+              tableId: preview.tableId,
+              roundId: preview.roundId,
+              revision: preview.revision,
+            },
+            entry: {
+              requestId: randomUUID(),
+              deckId: deckIds.test_player_2,
+              spectatorEnabled: false,
+            },
+          },
         })
       );
+      const firstCurrent = await apiData<{ readonly table: CasualTableTarget | null }>(
+        await request.get('/api/casual-tables/me', { headers: firstHeaders })
+      );
+      expect(firstCurrent.table).not.toBeNull();
       await apiData(
-        await request.post(`/api/online/rooms/${roomCode}/deck`, {
+        await request.post('/api/casual-tables/confirm', {
           headers: firstHeaders,
-          data: { deckId: deckIds.test_player_1 },
+          data: {
+            target: {
+              tableId: firstCurrent.table!.tableId,
+              roundId: firstCurrent.table!.roundId,
+              revision: firstCurrent.table!.revision,
+            },
+          },
         })
       );
       await apiData(
-        await request.post(`/api/online/rooms/${roomCode}/deck`, {
+        await request.post('/api/casual-tables/confirm', {
           headers: secondHeaders,
-          data: { deckId: deckIds.test_player_2 },
+          data: {
+            target: {
+              tableId: joined.tableId,
+              roundId: joined.roundId,
+              revision: joined.revision,
+            },
+          },
         })
       );
+      // 双方各拉取一次房间视图标记到场，房间才会进入开局猜拳阶段。
       await apiData(
-        await request.post(`/api/online/rooms/${roomCode}/ready-start`, {
-          headers: firstHeaders,
-        })
+        await request.get(`/api/online/rooms/${roomCode}`, { headers: firstHeaders })
       );
       await apiData(
-        await request.post(`/api/online/rooms/${roomCode}/ready-start`, {
-          headers: secondHeaders,
-        })
+        await request.get(`/api/online/rooms/${roomCode}`, { headers: secondHeaders })
       );
       await apiData(
         await request.post(`/api/online/rooms/${roomCode}/opening-rps`, {
@@ -259,6 +301,33 @@ test.describe('联机对局快捷表情', () => {
         thinkingEmote!.staticImageUrl
       );
 
+      // 缩到小屏手机视口：视口切换会重建战斗表层，重新打开面板后必须完整落在视口内。
+      const smallViewport = { width: 375, height: 667 };
+      await firstPage.setViewportSize(smallViewport);
+      const smallQuickMenu = firstPage.getByRole('dialog', { name: '快捷表情' });
+      if (!(await smallQuickMenu.isVisible().catch(() => false))) {
+        await firstPage.getByRole('button', { name: '快捷表情', exact: true }).click();
+      }
+      await expect(smallQuickMenu).toBeVisible();
+      await expect(smallQuickMenu.getByRole('button', { name: /^发送表情：/ })).toHaveCount(
+        publicConfig.matchEmotes.items.length
+      );
+      await expectWithinViewport(smallQuickMenu, smallViewport);
+      const smallMenuBox = await smallQuickMenu.boundingBox();
+      expect(smallMenuBox!.height).toBeLessThanOrEqual(smallViewport.height * 0.6 + 1);
+      await firstPage.screenshot({
+        path: '../output/playwright/match-emote-small-screen-menu.png',
+      });
+
+      // 矮桌面窗口同样不允许面板溢出视口（碰撞收缩/翻转路径）。
+      const shortDesktopViewport = { width: 1280, height: 520 };
+      await firstPage.setViewportSize(shortDesktopViewport);
+      if (!(await smallQuickMenu.isVisible().catch(() => false))) {
+        await firstPage.getByRole('button', { name: '快捷表情', exact: true }).click();
+      }
+      await expect(smallQuickMenu).toBeVisible();
+      await expectWithinViewport(smallQuickMenu, shortDesktopViewport);
+
       const response = await request.get(
         `/api/online/matches/${encodeURIComponent(started.matchId)}/chat/messages?afterSeq=0`,
         { headers: firstHeaders }
@@ -378,6 +447,16 @@ async function cleanupPlayerFixtures(): Promise<void> {
          SELECT id FROM profiles WHERE username IN ('test_player_1', 'test_player_2')
        )`
     );
+    await client.query(
+      `DELETE FROM casual_table_seats
+       WHERE user_id IN (
+         SELECT id FROM profiles WHERE username IN ('test_player_1', 'test_player_2')
+       )`
+    );
+    await client.query(
+      `DELETE FROM casual_tables
+       WHERE NOT EXISTS (SELECT 1 FROM casual_table_seats s WHERE s.table_id = casual_tables.id)`
+    );
     await client.query(`DELETE FROM decks WHERE name LIKE $1`, [`${DECK_NAME_PREFIX}%`]);
   });
 }
@@ -446,4 +525,16 @@ async function expectContainedWithin(inner: Locator, outer: Locator): Promise<vo
   expect(innerBox!.y).toBeGreaterThanOrEqual(outerBox!.y);
   expect(innerBox!.x + innerBox!.width).toBeLessThanOrEqual(outerBox!.x + outerBox!.width);
   expect(innerBox!.y + innerBox!.height).toBeLessThanOrEqual(outerBox!.y + outerBox!.height);
+}
+
+async function expectWithinViewport(
+  locator: Locator,
+  viewport: { readonly width: number; readonly height: number }
+): Promise<void> {
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
 }
