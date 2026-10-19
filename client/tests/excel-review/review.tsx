@@ -562,7 +562,7 @@ function formation() {
 };
 createRoot(document.getElementById('root')!).render(
   <PresentationRoot>
-    <div style={{ height: 'calc(100dvh - 36px)' }}>
+    <div style={{ height: 'calc(100dvh - var(--excel-toolbar-height))' }}>
       {new URLSearchParams(location.search).has('frame') ? (
         <ProductFrame
           active="battle"

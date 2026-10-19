@@ -4,6 +4,7 @@ interface ExcelCardTableProps {
   label: string;
   showCaption?: boolean;
   showState?: boolean;
+  startRow: number;
   rows: readonly ExcelCardRow[];
   count: number;
   selectedCardId: string | null;
@@ -18,7 +19,9 @@ export function ExcelCardTable({
   onSelect,
   showCaption = false,
   showState = false,
+  startRow,
 }: ExcelCardTableProps) {
+  const headerRow = startRow + (showCaption ? 1 : 0);
   return (
     <table
       className={`excel-table excel-card-table${showState ? ' excel-card-table-with-state' : ''}`}
@@ -26,6 +29,9 @@ export function ExcelCardTable({
     >
       {showCaption && (
         <caption>
+          <span className="excel-axis-number" aria-hidden="true">
+            {startRow}
+          </span>
           {label} · {count} 张{rows.length < count ? `（${count - rows.length} 张未公开）` : ''}
         </caption>
       )}
@@ -48,9 +54,14 @@ export function ExcelCardTable({
             '类型',
             '费用 / 分数',
             ...(showState ? ['状态'] : []),
-          ].map((label) => (
-            <th key={label} scope="col">
-              {label}
+          ].map((label, index) => (
+            <th
+              key={label}
+              scope="col"
+              aria-label={index === 0 ? '序号' : undefined}
+              data-sheet-row={index === 0 ? headerRow : undefined}
+            >
+              <span className={index === 0 ? 'sr-only' : undefined}>{label}</span>
             </th>
           ))}
         </tr>
@@ -65,7 +76,7 @@ export function ExcelCardTable({
               aria-selected={selectedCardId === card.cardId}
               onClick={() => onSelect(card)}
             >
-              <th scope="row">{index + 1}</th>
+              <th scope="row">{headerRow + 1 + index}</th>
               <td title={front.cardCode}>{front.cardCode}</td>
               <td>
                 <button
@@ -88,7 +99,8 @@ export function ExcelCardTable({
         })}
         {!rows.length && (
           <tr>
-            <td colSpan={showState ? 7 : 6}>{count ? '没有可公开的卡牌信息' : '空'}</td>
+            <th scope="row">{headerRow + 1}</th>
+            <td colSpan={showState ? 6 : 5}>{count ? '没有可公开的卡牌信息' : '空'}</td>
           </tr>
         )}
       </tbody>

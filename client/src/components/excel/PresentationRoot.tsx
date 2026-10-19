@@ -13,6 +13,7 @@ import {
   useAppPresentation,
   useTextPresentation,
 } from '@/lib/appPresentation';
+import { ExcelRibbon, ExcelRibbonTabs } from './ExcelRibbon';
 import './excel.css';
 
 export function PresentationImage(props: ImgHTMLAttributes<HTMLImageElement>) {
@@ -90,10 +91,18 @@ export function PresentationToolbar() {
   if (mode !== 'excel') return null;
   return (
     <div className="excel-toolbar">
-      <strong>工作簿</strong>
-      <button onClick={() => setCovered(true)}>遮挡工作区</button>
-      <button onClick={() => setEditing(!editing)}>快捷键设置</button>
-      <span className="excel-shortcut-hint">{shortcut.replace('Key', '')}</span>
+      <div className="excel-toolbar-top">
+        <ExcelRibbonTabs />
+        <div className="excel-toolbar-actions">
+          <button title={shortcut.replace('Key', '')} onClick={() => setCovered(true)}>
+            遮挡工作区
+          </button>
+          <button aria-expanded={editing} onClick={() => setEditing(!editing)}>
+            快捷键设置
+          </button>
+        </div>
+      </div>
+      <ExcelRibbon />
       {editing && (
         <div className="excel-shortcut-editor">
           <label>

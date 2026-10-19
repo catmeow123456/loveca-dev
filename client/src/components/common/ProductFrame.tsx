@@ -81,11 +81,13 @@ export function ProductFrame({
         {title && <h1>{title}</h1>}
         {description && <p>{description}</p>}
         {onBack && <button onClick={onBack}>{backLabel ?? '返回'}</button>}
-        <div className="excel-column-headings" aria-hidden="true">
-          {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((letter) => (
-            <span key={letter}>{letter}</span>
-          ))}
-        </div>
+        {active !== 'battle' && (
+          <div className="excel-column-headings" aria-hidden="true">
+            {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((letter) => (
+              <span key={letter}>{letter}</span>
+            ))}
+          </div>
+        )}
         <div className="excel-page-content">{children}</div>
       </div>
     );
