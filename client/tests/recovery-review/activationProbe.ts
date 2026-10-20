@@ -15,4 +15,6 @@ export function snapshot() {
     waiting: s.getSeatZoneCardIds('FIRST', 'WAITING_ROOM'),
   };
 }
-export const tapSource = () => store().tapMember('source', SlotPosition.CENTER);
+export const tapSource = (slot = SlotPosition.CENTER) => store().tapMember('source', slot);
+export const moveSourceToLeft = () =>
+  store().moveMemberToSlot('source', SlotPosition.CENTER, SlotPosition.LEFT);

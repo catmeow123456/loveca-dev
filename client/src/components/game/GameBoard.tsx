@@ -70,12 +70,13 @@ import { Card } from '@/components/card/Card';
 import { CardEffectText } from '@/components/card/CardEffectText';
 import { MulliganPanel } from './MulliganPanel';
 import { ThemeToggle } from '@/components/common';
+import { canPresentCardEntrance } from '@/lib/cardEntrancePolicy';
 import {
-  canPresentCardEntrance,
-  readCardEntranceEnabled,
-  saveCardEntranceEnabled,
-} from '@/lib/cardEntrancePolicy';
-import { CardEntranceToggle } from './card-entrance/CardEntranceToggle';
+  BattleEffectsContext,
+  readBattleEffectsEnabled,
+  saveBattleEffectsEnabled,
+} from '@/lib/battleEffects';
+import { BattleEffectsToggle } from './BattleEffectsToggle';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { parseZoneId } from '@/lib/zoneUtils';
 import { getDragActionDescriptor, type SpecialDragTarget } from '@/lib/battleDragAction';
@@ -521,12 +522,12 @@ export function useBattleInteractionController({
     saveAskMemberOverwrite(enabled);
     setAskMemberOverwrite(enabled);
   };
-  const [cardEntranceEnabled, setCardEntranceEnabled] = useState(readCardEntranceEnabled);
+  const [battleEffectsEnabled, setBattleEffectsEnabled] = useState(readBattleEffectsEnabled);
   const canShowCardEntrance = canPresentCardEntrance(capabilities);
   const entranceWaiting = !!playerViewState?.match.entrance && canShowCardEntrance;
-  const changeCardEntranceEnabled = (enabled: boolean) => {
-    saveCardEntranceEnabled(enabled);
-    setCardEntranceEnabled(enabled);
+  const changeBattleEffectsEnabled = (enabled: boolean) => {
+    saveBattleEffectsEnabled(enabled);
+    setBattleEffectsEnabled(enabled);
   };
   const canShowUndo = capabilities.undoPolicy !== 'NONE';
   const undoGrant = matchView?.undo?.grant ?? null;
@@ -2622,8 +2623,8 @@ export function useBattleInteractionController({
     askMemberOverwrite,
     changeAskMemberOverwrite,
     canShowCardEntrance,
-    cardEntranceEnabled,
-    changeCardEntranceEnabled,
+    battleEffectsEnabled,
+    changeBattleEffectsEnabled,
     desktopWorkspaceRef,
     handleJudgmentPanelClose,
     canDockBattlePanel,
@@ -2832,8 +2833,8 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
     askMemberOverwrite,
     changeAskMemberOverwrite,
     canShowCardEntrance,
-    cardEntranceEnabled,
-    changeCardEntranceEnabled,
+    battleEffectsEnabled,
+    changeBattleEffectsEnabled,
     desktopWorkspaceRef,
     handleJudgmentPanelClose,
     canDockBattlePanel,
@@ -4643,9 +4644,9 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
               showMemberOverwrite={!isReadOnly}
               askMemberOverwrite={askMemberOverwrite}
               onAskMemberOverwriteChange={changeAskMemberOverwrite}
-              showCardEntrance={canShowCardEntrance}
-              cardEntranceEnabled={cardEntranceEnabled}
-              onCardEntranceChange={changeCardEntranceEnabled}
+              showBattleEffects={!isReadOnly}
+              battleEffectsEnabled={battleEffectsEnabled}
+              onBattleEffectsChange={changeBattleEffectsEnabled}
             />
           </header>
         )}
@@ -4724,10 +4725,10 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                           className="h-9 w-9"
                         />
                       )}
-                      {canShowCardEntrance && (
-                        <CardEntranceToggle
-                          enabled={cardEntranceEnabled}
-                          onChange={changeCardEntranceEnabled}
+                      {!isReadOnly && (
+                        <BattleEffectsToggle
+                          enabled={battleEffectsEnabled}
+                          onChange={changeBattleEffectsEnabled}
                           className="h-9 w-9"
                         />
                       )}
@@ -5253,58 +5254,60 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
     </div>
   );
   return (
-    <AbilityActivationProvider>
-      <DndContext
-        sensors={sensors}
-        collisionDetection={battleCollisionDetection}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-        onDragCancel={clearDragInteractionState}
-      >
-        {createPortal(interactionPanels, interactionContainer)}
-        {canShowCardEntrance &&
-          createPortal(
-            <Suspense fallback={null}>
-              <CardEntranceLayer enabled={!textOnly && cardEntranceEnabled} />
-            </Suspense>,
-            entranceContainer
+    <BattleEffectsContext.Provider value={!textOnly && battleEffectsEnabled}>
+      <AbilityActivationProvider>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={battleCollisionDetection}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          onDragCancel={clearDragInteractionState}
+        >
+          {createPortal(interactionPanels, interactionContainer)}
+          {canShowCardEntrance &&
+            createPortal(
+              <Suspense fallback={null}>
+                <CardEntranceLayer enabled={!textOnly && battleEffectsEnabled} />
+              </Suspense>,
+              entranceContainer
+            )}
+          {textOnly ? (
+            <ExcelBattleBoard
+              view={playerViewState}
+              phaseLabel={`${phaseInfo?.name ?? currentPhase}${subPhaseInfo ? ` / ${subPhaseInfo.name}` : ''}`}
+              actions={
+                <>
+                  <div ref={attachEntranceSurface} className="contents" />
+                  <div ref={attachInteractionSurface} />
+                  <CardDetailOverlay />
+                </>
+              }
+              judgment={
+                isJudgmentPanelRelevant ? (
+                  <JudgmentPanel
+                    isOpen={judgmentPanelOpen}
+                    onClose={handleJudgmentPanelClose}
+                    docked
+                  />
+                ) : null
+              }
+              header={desktopHeaderActions}
+              headerOverlay={headerOverlay}
+              buildActions={buildDragBattleActionIntents}
+              execute={executeBattleActionPayload}
+              handActions={selectedHandCardActions}
+              handActionCardId={selectedHandCardActionCardId}
+              onHandAction={handleSelectedHandCardAction}
+              onLeave={showLeaveLocalGameButton ? onLeaveLocalGame : undefined}
+              onRestart={showRestartGameButton ? onRestartGame : undefined}
+            />
+          ) : (
+            ordinaryBoard
           )}
-        {textOnly ? (
-          <ExcelBattleBoard
-            view={playerViewState}
-            phaseLabel={`${phaseInfo?.name ?? currentPhase}${subPhaseInfo ? ` / ${subPhaseInfo.name}` : ''}`}
-            actions={
-              <>
-                <div ref={attachEntranceSurface} className="contents" />
-                <div ref={attachInteractionSurface} />
-                <CardDetailOverlay />
-              </>
-            }
-            judgment={
-              isJudgmentPanelRelevant ? (
-                <JudgmentPanel
-                  isOpen={judgmentPanelOpen}
-                  onClose={handleJudgmentPanelClose}
-                  docked
-                />
-              ) : null
-            }
-            header={desktopHeaderActions}
-            headerOverlay={headerOverlay}
-            buildActions={buildDragBattleActionIntents}
-            execute={executeBattleActionPayload}
-            handActions={selectedHandCardActions}
-            handActionCardId={selectedHandCardActionCardId}
-            onHandAction={handleSelectedHandCardAction}
-            onLeave={showLeaveLocalGameButton ? onLeaveLocalGame : undefined}
-            onRestart={showRestartGameButton ? onRestartGame : undefined}
-          />
-        ) : (
-          ordinaryBoard
-        )}
-      </DndContext>
-    </AbilityActivationProvider>
+        </DndContext>
+      </AbilityActivationProvider>
+    </BattleEffectsContext.Provider>
   );
 });
 

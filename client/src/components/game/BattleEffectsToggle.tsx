@@ -1,6 +1,6 @@
 import { Sparkles } from 'lucide-react';
 
-export function CardEntranceToggle({
+export function BattleEffectsToggle({
   enabled,
   onChange,
   className = '',
@@ -13,9 +13,9 @@ export function CardEntranceToggle({
     <button
       type="button"
       role="switch"
-      aria-label="登场动画"
+      aria-label="对战特效"
       aria-checked={enabled}
-      title={`登场动画：${enabled ? '已开启，点击关闭' : '已关闭，点击开启'}`}
+      title={`对战特效：${enabled ? '已开启，点击关闭' : '已关闭，点击开启'}`}
       className={`button-icon relative ${className}`.trim()}
       style={{ color: enabled ? 'var(--accent-primary)' : 'var(--text-muted)' }}
       onClick={(event) => {
