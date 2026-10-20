@@ -963,8 +963,12 @@ function getRecordValue(record: Record<string, unknown>, aliases: readonly strin
 }
 
 function parseHeartItems(value: unknown, context: string, warnings: string[]): HeartItem[] | null {
-  if (value == null || cleanString(value) === '') {
+  if (value == null) {
     return null;
+  }
+  // Explicit empty values mean zero Hearts; absent/null values remain unknown.
+  if (typeof value === 'string' && value.trim() === '') {
+    return [];
   }
 
   const trimmedValue = typeof value === 'string' ? value.trim() : '';
@@ -1017,7 +1021,7 @@ function parseHeartItems(value: unknown, context: string, warnings: string[]): H
   if (hasError) {
     return null;
   }
-  return result.length > 0 ? result : null;
+  return result;
 }
 
 function parseSpecialEffect(value: unknown): Exclude<BladeHeartEffect, 'HEART'> | null {
@@ -1052,7 +1056,7 @@ function parseBladeHeartCollection(
   context: string,
   warnings: string[]
 ): BladeHeartItem[] | null {
-  if (value == null || cleanString(value) === '') {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) {
     return null;
   }
 
@@ -1279,8 +1283,12 @@ function buildSourceFlags(
   missingRuleFields: readonly string[],
   warnings: readonly string[]
 ): SourceFlags {
+  const preservedSourceFlags = { ...(sourceFlags ?? {}) };
+  // Diagnostics describe this transform, not a previous upstream import.
+  delete preservedSourceFlags.missingRuleFields;
+  delete preservedSourceFlags.parseWarnings;
   return {
-    ...(sourceFlags ?? {}),
+    ...preservedSourceFlags,
     cloudbaseOnly: true,
     importedBy: SCRIPT_NAME,
     ...(missingRuleFields.length > 0 ? { missingRuleFields: [...missingRuleFields] } : {}),
@@ -1398,10 +1406,10 @@ export function transformRow(row: SourceRow, status: CardStatus): TransformResul
   if (cardType === 'MEMBER') {
     if (cost == null) missingRuleFields.push('cost');
     if (blade == null) missingRuleFields.push('blade');
-    if (!hearts || hearts.length === 0) missingRuleFields.push('hearts');
+    if (hearts == null) missingRuleFields.push('hearts');
   } else if (cardType === 'LIVE') {
     if (score == null) missingRuleFields.push('score');
-    if (!requirements || requirements.length === 0) missingRuleFields.push('requirements');
+    if (requirements == null) missingRuleFields.push('requirements');
   }
 
   const record: CardInsertRecord = {
