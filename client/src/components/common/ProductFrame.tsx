@@ -1,5 +1,5 @@
 import { useTextPresentation } from '@/lib/appPresentation';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { ProductHeader } from './ProductHeader';
 import { PageHeader } from './PageHeader';
@@ -41,6 +41,55 @@ const NAV_ITEMS: ReadonlyArray<{
   { key: 'history', label: '历史', handler: 'onHistory' },
 ];
 
+function ExcelProductMenu({
+  active,
+  navigation,
+  actions,
+}: Pick<ProductFrameProps, 'active' | 'navigation' | 'actions'>) {
+  const menu = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !menu.current?.contains(event.target) && menu.current)
+        menu.current.open = false;
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !menu.current?.open) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      menu.current.open = false;
+      menu.current.querySelector('summary')?.focus();
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape, true);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeOnEscape, true);
+    };
+  }, []);
+  return (
+    <details ref={menu} className="excel-navigation-menu">
+      <summary>菜单</summary>
+      <div className="excel-navigation-dropdown">
+        <nav aria-label="主要导航">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              aria-current={active === item.key ? 'page' : undefined}
+              onClick={() => {
+                if (menu.current) menu.current.open = false;
+                navigation[item.handler]();
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        {actions && <div className="excel-navigation-actions">{actions}</div>}
+      </div>
+    </details>
+  );
+}
+
 export function ProductFrame({
   active,
   navigation,
@@ -65,18 +114,7 @@ export function ProductFrame({
     return (
       <div className="excel-product-frame">
         <header>
-          <nav aria-label="主要导航">
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item.key}
-                aria-current={active === item.key ? 'page' : undefined}
-                onClick={() => navigate(item.handler)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </nav>
-          <div>{actions}</div>
+          <ExcelProductMenu active={active} navigation={navigation} actions={actions} />
         </header>
         {title && <h1>{title}</h1>}
         {description && <p>{description}</p>}

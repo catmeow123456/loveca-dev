@@ -9,6 +9,8 @@ interface ExcelCardTableProps {
   count: number;
   selectedCardId: string | null;
   onSelect: (card: ExcelCardRow) => void;
+  layout?: 'worksheet' | 'panel';
+  rowNumbers?: readonly number[];
 }
 
 export function ExcelCardTable({
@@ -20,11 +22,14 @@ export function ExcelCardTable({
   showCaption = false,
   showState = false,
   startRow,
+  layout = 'worksheet',
+  rowNumbers,
 }: ExcelCardTableProps) {
   const headerRow = startRow + (showCaption ? 1 : 0);
+  const worksheet = layout === 'worksheet';
   return (
     <table
-      className={`excel-table excel-card-table${showState ? ' excel-card-table-with-state' : ''}`}
+      className={`excel-table excel-card-table${showState ? ' excel-card-table-with-state' : ''}${worksheet ? '' : ' excel-card-table-panel'}`}
       aria-label={label}
     >
       {showCaption && (
@@ -59,9 +64,9 @@ export function ExcelCardTable({
               key={label}
               scope="col"
               aria-label={index === 0 ? '序号' : undefined}
-              data-sheet-row={index === 0 ? headerRow : undefined}
+              data-sheet-row={worksheet && index === 0 ? headerRow : undefined}
             >
-              <span className={index === 0 ? 'sr-only' : undefined}>{label}</span>
+              <span className={worksheet && index === 0 ? 'sr-only' : undefined}>{label}</span>
             </th>
           ))}
         </tr>
@@ -76,7 +81,9 @@ export function ExcelCardTable({
               aria-selected={selectedCardId === card.cardId}
               onClick={() => onSelect(card)}
             >
-              <th scope="row">{headerRow + 1 + index}</th>
+              <th scope="row">
+                {rowNumbers?.[index] ?? (worksheet ? headerRow + 1 + index : index + 1)}
+              </th>
               <td title={front.cardCode}>{front.cardCode}</td>
               <td>
                 <button
@@ -99,7 +106,7 @@ export function ExcelCardTable({
         })}
         {!rows.length && (
           <tr>
-            <th scope="row">{headerRow + 1}</th>
+            <th scope="row">{worksheet ? headerRow + 1 : '—'}</th>
             <td colSpan={showState ? 6 : 5}>{count ? '没有可公开的卡牌信息' : '空'}</td>
           </tr>
         )}

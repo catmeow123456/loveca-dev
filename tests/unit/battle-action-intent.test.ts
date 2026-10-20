@@ -88,6 +88,15 @@ describe('buildBattleActionIntents', () => {
     expect(
       findEnabledBattleActionSlotTarget(rulesIntents, ZoneType.MEMBER_SLOT, SlotPosition.CENTER)
     ).toBeNull();
+    const ordinaryTargets = rulesIntents.find(
+      (intent) => intent.commandType === GameCommandType.PLAY_MEMBER_TO_SLOT
+    )!.targets;
+    expect(ordinaryTargets.map(({ slot, enabled, detail }) => ({ slot, enabled, detail }))).toEqual(
+      [
+        { slot: SlotPosition.LEFT, enabled: true, detail: '左侧' },
+        { slot: SlotPosition.RIGHT, enabled: true, detail: '右侧' },
+      ]
+    );
 
     const freeIntents = buildBattleActionIntents({
       ...BASE_INPUT,

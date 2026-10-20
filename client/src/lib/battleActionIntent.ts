@@ -442,43 +442,52 @@ function buildActiveEffectIntents(input: BattleActionIntentInput): readonly Batt
 }
 
 function createPlayMemberIntent(input: BattleActionIntentInput): BattleActionIntent {
+  // The worksheet opts into quoted costs; the ordinary board retains its original targets/copy.
+  const showQuotedCosts = input.memberPlayHint !== undefined;
   const quotes = input.memberPlayHint?.params?.memberPlayQuotes;
-  const targets = getViewerMemberSlots(input).map((slot) => {
-    const quote: Record<string, unknown> | undefined = Array.isArray(quotes)
-      ? quotes.find(
-          (item) =>
-            item?.sourceObjectId === `obj_${input.sourceCardId}` && item.targetSlot === slot.slot
-        )
-      : undefined;
-    const rules = input.manualOperationMode === 'RULES';
-    const enabled =
-      !rules ||
-      (quote?.enabled === true &&
-        Number.isSafeInteger(quote.energyCost) &&
-        Number(quote.energyCost) >= 0);
-    const reason =
-      rules && !enabled
-        ? typeof quote?.reason === 'string'
-          ? quote.reason
-          : '等待当前合法费用与目标'
+  const targets = getViewerMemberSlots(input)
+    .filter(
+      (slot) =>
+        showQuotedCosts ||
+        input.manualOperationMode === 'FREE' ||
+        slot.enteredStageThisTurn !== true
+    )
+    .map((slot) => {
+      const quote: Record<string, unknown> | undefined = Array.isArray(quotes)
+        ? quotes.find(
+            (item) =>
+              item?.sourceObjectId === `obj_${input.sourceCardId}` && item.targetSlot === slot.slot
+          )
         : undefined;
-    return {
-      targetId: targetIdForMemberSlot(slot.slot),
-      kind: 'SLOT' as const,
-      zone: ZoneType.MEMBER_SLOT,
-      slot: slot.slot,
-      enabled,
-      reason,
-      label: slot.cardId ? '在此登场' : '登场',
-      detail: `${MEMBER_SLOT_LABELS[slot.slot]}${rules && enabled ? ` · 支付 ${quote!.energyCost} 能量${quote!.relay ? '（接力）' : ''}` : ''}`,
-      anchor: { zone: ZoneType.MEMBER_SLOT, slot: slot.slot },
-      commandPayload: {
-        type: GameCommandType.PLAY_MEMBER_TO_SLOT as const,
-        cardId: input.sourceCardId,
-        targetSlot: slot.slot,
-      },
-    };
-  });
+      const rules = showQuotedCosts && input.manualOperationMode === 'RULES';
+      const enabled =
+        !rules ||
+        (quote?.enabled === true &&
+          Number.isSafeInteger(quote.energyCost) &&
+          Number(quote.energyCost) >= 0);
+      const reason =
+        rules && !enabled
+          ? typeof quote?.reason === 'string'
+            ? quote.reason
+            : '等待当前合法费用与目标'
+          : undefined;
+      return {
+        targetId: targetIdForMemberSlot(slot.slot),
+        kind: 'SLOT' as const,
+        zone: ZoneType.MEMBER_SLOT,
+        slot: slot.slot,
+        enabled,
+        reason,
+        label: slot.cardId ? '在此登场' : '登场',
+        detail: `${MEMBER_SLOT_LABELS[slot.slot]}${rules && enabled ? ` · 支付 ${quote!.energyCost} 能量${quote!.relay ? '（接力）' : ''}` : ''}`,
+        anchor: { zone: ZoneType.MEMBER_SLOT, slot: slot.slot },
+        commandPayload: {
+          type: GameCommandType.PLAY_MEMBER_TO_SLOT as const,
+          cardId: input.sourceCardId,
+          targetSlot: slot.slot,
+        },
+      };
+    });
 
   return createIntent(input, {
     commandType: GameCommandType.PLAY_MEMBER_TO_SLOT,

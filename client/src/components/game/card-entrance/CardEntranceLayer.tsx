@@ -1,4 +1,5 @@
 import { useCardEntranceBarrier, useWindowVisualEligibility } from '../BattleRuntime';
+import { useTextPresentation } from '@/lib/appPresentation';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
@@ -33,6 +34,7 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
 
 function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enabled: boolean }) {
   const wait = view.match.entrance!;
+  const textOnly = useTextPresentation();
   const playVisuals = useWindowVisualEligibility(wait.id, enabled);
   const viewerWaiting = wait.waitingSeats.includes(view.match.viewerSeat);
   const reduced = !!useReducedMotion();
@@ -92,7 +94,7 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
     };
   }, [playVisuals, viewerWaiting, reduced, queue, index, landedId]);
 
-  if (!playVisuals) return null;
+  if (textOnly) return null;
   return (
     <>
       <div className="absolute inset-0 z-[59]" aria-hidden="true" />

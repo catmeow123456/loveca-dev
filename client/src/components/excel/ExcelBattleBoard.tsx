@@ -8,7 +8,7 @@ import { formatTextHearts, selectExcelCard, type ExcelCardRow } from '@/lib/exce
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { CardEffectText } from '@/components/card/CardEffectText';
 import { ExcelCardTable } from './ExcelCardTable';
-import { ExcelColumnHeadings } from './ExcelRibbon';
+import { ExcelBlankRows, ExcelColumnHeadings } from './ExcelRibbon';
 import { PublicBattleLogContent } from '@/components/game/PublicBattleLog';
 import type { SelectedHandCardAction } from '@/components/game/PlayerArea';
 import type { BattleActionIntent, BattleActionCommandPayload } from '@/lib/battleActionIntent';
@@ -49,6 +49,24 @@ interface ExcelBattleBoardProps {
   onRestart?: () => void;
 }
 
+function ExcelSummaryFields({
+  fields,
+  label,
+}: {
+  fields: readonly (readonly [string, string | number])[];
+  label: string;
+}) {
+  return (
+    <dl className="excel-summary-fields" aria-label={label}>
+      {fields.map(([name, value]) => (
+        <div key={name}>
+          <dt>{name}</dt> <dd title={String(value)}>{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export function ExcelBattleBoard({
   view,
   phaseLabel,
@@ -67,6 +85,39 @@ export function ExcelBattleBoard({
   const [sheet, setSheet] = useState('对局');
   const [handExpanded, setHandExpanded] = useState(false);
   const worksheetRef = useRef<HTMLDivElement>(null);
+  const settingsTitleRef = useRef<HTMLHeadingElement>(null);
+  const [stageBodyRows, setStageBodyRows] = useState<readonly [number, number]>([2, 2]);
+  useLayoutEffect(() => {
+    const worksheet = worksheetRef.current;
+    const live = worksheet?.querySelector<HTMLElement>('.excel-live-summary');
+    const hand = worksheet?.querySelector<HTMLElement>('.excel-hand-area');
+    if (!worksheet || !live || !hand || handExpanded) return;
+    const measure = () => {
+      const desktop = window.matchMedia('(min-width: 1101px) and (min-height: 651px)').matches;
+      const handRows = Number(getComputedStyle(hand).getPropertyValue('--hand-visible-rows'));
+      const axisHeight = worksheet.querySelector('.excel-sheet-columns')?.clientHeight ?? 0;
+      // Budget from the worksheet, not the stage itself: row rounding cannot feed back into sizing.
+      const available =
+        worksheet.clientHeight - axisHeight - live.clientHeight - (handRows + 2) * 30 - 2;
+      const totalRows = desktop ? Math.max(4, Math.floor(available / 30)) : 12;
+      const next: readonly [number, number] = [
+        Math.floor(totalRows / 2) - 1,
+        Math.ceil(totalRows / 2) - 1,
+      ];
+      setStageBodyRows((previous) =>
+        previous[0] === next[0] && previous[1] === next[1] ? previous : next
+      );
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(worksheet);
+    observer.observe(live);
+    window.addEventListener('resize', measure);
+    measure();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [sheet, handExpanded]);
   useLayoutEffect(() => {
     const worksheet = worksheetRef.current;
     const scroller = worksheet?.querySelector<HTMLElement>('.excel-hand, .excel-zone-sheet');
@@ -199,17 +250,50 @@ export function ExcelBattleBoard({
   const selectedZoneSection = numberedZones.find((zone) =>
     zone.rows.some((card) => card.cardId === selectedCardId)
   );
-  const selectedCoordinate = selectedZoneSection
-    ? `C${selectedZoneSection.startRow + 2 + selectedZoneSection.rows.findIndex((card) => card.cardId === selectedCardId)}`
+  const ownStageStart = stageBodyRows[0] + 2;
+  const liveStart = ownStageStart + stageBodyRows[1] + 1;
+  const liveRows = [opponent, self].some((seat) => rowsFor(seat, ZoneType.LIVE_ZONE).length > 0)
+    ? 2
+    : 1;
+  const handStart = liveStart + liveRows;
+  const selectedStageIndex =
+    selectedSlot && selected
+      ? stageSlots(selected.object.controllerSeat).indexOf(selectedSlot)
+      : -1;
+  const selectedAddress = selectedZoneSection
+    ? {
+        row:
+          selectedZoneSection.startRow +
+          2 +
+          selectedZoneSection.rows.findIndex((card) => card.cardId === selectedCardId),
+        columns: [2, 3] as const,
+      }
     : sheet === '对局' && selectedHandIndex >= 0
-      ? `C${10 + selectedHandIndex}`
-      : sheet === '对局' && selectedSlot && selected
-        ? `${['A', 'E', 'I'][stageSlots(selected.object.controllerSeat).indexOf(selectedSlot)]}${selected.object.controllerSeat === self ? 6 : 3}`
-        : 'A1';
+      ? { row: handStart + 2 + selectedHandIndex, columns: [2, 3] as const }
+      : sheet === '对局' && selectedStageIndex >= 0 && selected
+        ? {
+            row: (selected.object.controllerSeat === self ? ownStageStart : 1) + 1,
+            columns: [selectedStageIndex * 4, selectedStageIndex * 4 + 3] as const,
+          }
+        : null;
+  const selectedCoordinate = selectedAddress
+    ? `${String.fromCharCode(65 + selectedAddress.columns[0])}${selectedAddress.row}`
+    : 'A1';
   const stage = (seat: Seat, label: string) => {
-    const startRow = seat === self ? 4 : 1;
+    const startRow = seat === self ? ownStageStart : 1;
+    const bodyRows = stageBodyRows[seat === self ? 1 : 0];
+    const selectedStage =
+      sheet === '对局' &&
+      selected &&
+      selectedHandIndex < 0 &&
+      selectedSlot &&
+      selected.object.controllerSeat === seat;
     return (
-      <table className="excel-table excel-stage" aria-label={label}>
+      <table
+        className="excel-table excel-stage"
+        aria-label={label}
+        style={{ height: (bodyRows + 1) * 30 }}
+      >
         <caption>
           <span className="excel-axis-number" aria-hidden="true">
             {startRow}
@@ -218,84 +302,89 @@ export function ExcelBattleBoard({
           {visibleZone(seat, ZoneType.HAND)?.count ?? 0} · 主卡组{' '}
           {visibleZone(seat, ZoneType.MAIN_DECK)?.count ?? 0}
         </caption>
-        <thead>
-          <tr>
-            <th className="excel-axis-number" aria-hidden="true">
-              {startRow + 1}
-            </th>
-            {stageSlots(seat).map((slot) => (
-              <th key={slot} scope="col" className="excel-stage-column">
-                {SLOT_NAMES[slot]}
+        <tbody style={{ gridTemplateRows: `repeat(${bodyRows}, 30px)` }}>
+          {Array.from({ length: bodyRows }, (_, rowIndex) => (
+            <tr key={rowIndex}>
+              <th
+                className="excel-axis-number"
+                aria-hidden="true"
+                data-active={selectedStage || undefined}
+                style={{ gridColumn: 1, gridRow: rowIndex + 1 }}
+              >
+                {startRow + 1 + rowIndex}
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th className="excel-axis-number" aria-hidden="true">
-              {startRow + 2}
-            </th>
-            {stageSlots(seat).map((slot) => {
-              const zone = view.table.zones[`${seat}_MEMBER_${slot}` as ViewZoneKey];
-              const id = zone?.slotMap?.[slot];
-              const card = id ? selectExcelCard(view, id) : null;
-              const text = card ? getCardLocalizedInfo(card.front) : null;
-              const effect = text?.effectCn ?? text?.effectJp;
-              return (
-                <td key={slot}>
-                  <div
-                    className="excel-stage-cell"
-                    tabIndex={0}
-                    aria-label={`${label} · ${SLOT_NAMES[slot]}`}
-                  >
-                    {card ? (
-                      <>
-                        <div className="excel-stage-identity">
-                          <button onClick={() => select(card)}>
-                            {text?.nameCn ?? text?.nameJp ?? card.front.cardCode}
-                          </button>
-                          <span className="excel-stage-card-code">{card.front.cardCode}</span>
-                        </div>
-                        <dl className="excel-stage-attributes">
-                          <div>
-                            <dt>费用</dt>
-                            <dd>
-                              {card.front.cost === undefined
-                                ? '—'
-                                : card.front.cost + (card.front.modifierDelta?.costDelta ?? 0)}
-                              {!!card.front.modifierDelta?.costDelta && (
-                                <span>（印刷 {card.front.cost}）</span>
-                              )}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>光棒</dt>
-                            <dd>{card.front.blade ?? '—'}</dd>
-                          </div>
-                          <div>
-                            <dt>心</dt>
-                            <dd>{formatTextHearts(card.front.hearts)}</dd>
-                          </div>
-                        </dl>
-                        <div className="excel-stage-effect">
-                          {effect ? <CardEffectText text={effect} /> : '无效果'}
-                        </div>
-                        <p>
-                          {card.state && `${card.state} · `}下置能量{' '}
-                          {zone?.overlays?.[slot]?.length ?? 0} · 下置成员{' '}
-                          {zone?.memberBelow?.[slot]?.length ?? 0}
-                        </p>
-                      </>
-                    ) : id ? (
-                      '未知成员'
-                    ) : (
-                      '空位'
-                    )}
-                  </div>
-                </td>
-              );
-            })}
-          </tr>
+              {rowIndex === 0 &&
+                stageSlots(seat).map((slot, slotIndex) => {
+                  const zone = view.table.zones[`${seat}_MEMBER_${slot}` as ViewZoneKey];
+                  const id = zone?.slotMap?.[slot];
+                  const card = id ? selectExcelCard(view, id) : null;
+                  const text = card ? getCardLocalizedInfo(card.front) : null;
+                  const effect = text?.effectCn ?? text?.effectJp;
+                  return (
+                    <td
+                      key={slot}
+                      rowSpan={bodyRows}
+                      style={{
+                        gridColumn: `${2 + slotIndex * 4} / span 4`,
+                        gridRow: `1 / span ${bodyRows}`,
+                      }}
+                      data-selected={card && selectedCardId === card.cardId ? true : undefined}
+                    >
+                      <div
+                        className="excel-stage-cell"
+                        tabIndex={0}
+                        aria-label={`${label} · ${SLOT_NAMES[slot]}`}
+                      >
+                        <div className="excel-stage-position">{SLOT_NAMES[slot]}</div>
+                        {card ? (
+                          <>
+                            <div className="excel-stage-identity">
+                              <button onClick={() => select(card)}>
+                                {text?.nameCn ?? text?.nameJp ?? card.front.cardCode}
+                              </button>
+                              <span className="excel-stage-card-code">{card.front.cardCode}</span>
+                            </div>
+                            <dl className="excel-stage-attributes">
+                              <div>
+                                <dt>费用</dt>
+                                <dd>
+                                  {card.front.cost === undefined
+                                    ? '—'
+                                    : card.front.cost + (card.front.modifierDelta?.costDelta ?? 0)}
+                                  {!!card.front.modifierDelta?.costDelta && (
+                                    <span>（印刷 {card.front.cost}）</span>
+                                  )}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt>光棒</dt>
+                                <dd>{card.front.blade ?? '—'}</dd>
+                              </div>
+                              <div>
+                                <dt>心</dt>
+                                <dd>{formatTextHearts(card.front.hearts)}</dd>
+                              </div>
+                            </dl>
+                            <div className="excel-stage-effect">
+                              {effect ? <CardEffectText text={effect} /> : '无效果'}
+                            </div>
+                            <p>
+                              {card.state && `${card.state} · `}下置能量{' '}
+                              {zone?.overlays?.[slot]?.length ?? 0} · 下置成员{' '}
+                              {zone?.memberBelow?.[slot]?.length ?? 0}
+                            </p>
+                          </>
+                        ) : id ? (
+                          '未知成员'
+                        ) : (
+                          '空位'
+                        )}
+                      </div>
+                    </td>
+                  );
+                })}
+            </tr>
+          ))}
         </tbody>
       </table>
     );
@@ -315,24 +404,29 @@ export function ExcelBattleBoard({
         </span>
       </div>
       <div className="excel-status">
-        <span>
-          回合 {view.match.turnCount} · {phaseLabel}
-        </span>
-        <span>
-          行动方：
-          {store.getPlayerIdentityForSeat(store.getActiveSeatView() ?? self)?.name ?? '等待同步'}
-        </span>
-        <span>
-          {pending
-            ? '提交中…'
-            : !store.remoteSession
-              ? '本地对局'
-              : connection.matchId !== view.match.matchId || connection.state === 'connecting'
-                ? '连接中…'
-                : connection.state === 'retrying'
-                  ? '连接中断，正在重试'
-                  : '已连接'}
-        </span>
+        <ExcelSummaryFields
+          label="对局状态"
+          fields={[
+            ['回合', view.match.turnCount],
+            ['阶段', phaseLabel],
+            [
+              '行动方',
+              store.getPlayerIdentityForSeat(store.getActiveSeatView() ?? self)?.name ?? '等待同步',
+            ],
+            [
+              '连接',
+              pending
+                ? '提交中…'
+                : !store.remoteSession
+                  ? '本地对局'
+                  : connection.matchId !== view.match.matchId || connection.state === 'connecting'
+                    ? '连接中…'
+                    : connection.state === 'retrying'
+                      ? '连接中断，正在重试'
+                      : '已连接',
+            ],
+          ]}
+        />
         {header}
       </div>
       <div className="excel-battle-grid">
@@ -344,17 +438,30 @@ export function ExcelBattleBoard({
             ref={worksheetRef}
             className={`excel-worksheet${tabularSheet ? ' excel-worksheet-tabular' : ''}${sheet === '其他区域' ? ' excel-worksheet-with-state' : ''}`}
           >
-            {tabularSheet && <ExcelColumnHeadings withState={sheet === '其他区域'} />}
+            {tabularSheet && (
+              <ExcelColumnHeadings
+                withState={sheet === '其他区域'}
+                selectedColumns={selectedAddress?.columns}
+              />
+            )}
             {sheet === '对局' ? (
               <>
                 <div className="excel-stage-area">
                   {stage(opponent, '对方场面')}
                   {stage(self, '我方场面')}
                 </div>
-                <div className="excel-live-summary" aria-label="双方 LIVE 摘要">
-                  <span className="excel-axis-number" aria-hidden="true">
-                    7
-                  </span>
+                <div
+                  className="excel-live-summary"
+                  aria-label="双方 LIVE 摘要"
+                  style={{ height: liveRows * 30 }}
+                >
+                  <div className="excel-live-row-numbers" aria-hidden="true">
+                    {Array.from({ length: liveRows }, (_, index) => (
+                      <span className="excel-axis-number" key={index}>
+                        {liveStart + index}
+                      </span>
+                    ))}
+                  </div>
                   {[opponent, self].map((seat) => (
                     <section key={seat}>
                       <strong>
@@ -381,17 +488,23 @@ export function ExcelBattleBoard({
                 <section className="excel-hand-area" aria-label="手牌概览">
                   <div className="excel-hand-summary">
                     <span className="excel-axis-number" aria-hidden="true">
-                      8
+                      {handStart}
                     </span>
-                    <strong>手牌 {handCount} 张</strong>
-                    <span>
-                      成员{' '}
-                      {handRows.filter((card) => card.front.cardType === CardType.MEMBER).length}
-                    </span>
-                    <span>
-                      LIVE {handRows.filter((card) => card.front.cardType === CardType.LIVE).length}
-                    </span>
-                    <span>可用能量 {availableEnergy}</span>
+                    <ExcelSummaryFields
+                      label="手牌统计"
+                      fields={[
+                        ['手牌', `${handCount} 张`],
+                        [
+                          '成员',
+                          handRows.filter((card) => card.front.cardType === CardType.MEMBER).length,
+                        ],
+                        [
+                          'LIVE',
+                          handRows.filter((card) => card.front.cardType === CardType.LIVE).length,
+                        ],
+                        ['可用能量', availableEnergy],
+                      ]}
+                    />
                     {handRows.length < handCount && (
                       <span>未公开 {handCount - handRows.length} 张</span>
                     )}
@@ -405,12 +518,13 @@ export function ExcelBattleBoard({
                   <div className="excel-hand">
                     <ExcelCardTable
                       label="我方手牌"
-                      startRow={9}
+                      startRow={handStart + 1}
                       rows={handRows}
                       count={handCount}
                       selectedCardId={selectedCardId}
                       onSelect={select}
                     />
+                    <ExcelBlankRows startRow={handStart + 2 + Math.max(1, handRows.length)} />
                   </div>
                 </section>
               </>
@@ -428,6 +542,7 @@ export function ExcelBattleBoard({
                     />
                   </div>
                 ))}
+                <ExcelBlankRows startRow={nextRow} withState={sheet === '其他区域'} />
               </div>
             ) : sheet === '公开记录' ? (
               <PublicBattleLogContent active={sheet === '公开记录'} />
@@ -453,40 +568,51 @@ export function ExcelBattleBoard({
                 )}
               </div>
             ) : (
-              <div className="excel-sheet-scroll">
-                <h2>对局设置</h2>
+              <div className="excel-sheet-scroll excel-settings">
+                <h2 ref={settingsTitleRef} tabIndex={-1}>
+                  对局设置
+                </h2>
                 {notice && <p>{notice}</p>}
-                {capabilities.showFreePlayControl && (
-                  <button
-                    disabled={
-                      !view.match.manualOperation.canSwitchNow ||
-                      !!view.match.manualOperation.pendingRequest
-                    }
-                    onClick={() =>
-                      store.setFreePlayEnabled(view.match.manualOperation.mode !== 'FREE')
-                    }
-                  >
-                    {view.match.manualOperation.mode === 'FREE' ? '恢复规则模式' : '请求自由模式'}
-                  </button>
-                )}
-                {capabilities.undoPolicy !== 'NONE' && (
-                  <button disabled={!store.canUndoLastStep()} onClick={store.undoLastStep}>
-                    {capabilities.undoPolicy === 'REMOTE_REQUEST' ? '请求撤销' : '撤销'}
-                  </button>
-                )}
-                {onRestart && capabilities.canRestart && (
-                  <button onClick={onRestart}>重开对局</button>
-                )}
-                {onLeave && <button onClick={onLeave}>返回</button>}
-                {capabilities.canSwitchPerspective && (
-                  <button
-                    onClick={() => {
-                      const identity = store.getPlayerIdentityForSeat(opponent);
-                      if (identity) store.setViewingPlayer(identity.id);
-                    }}
-                  >
-                    切换到对方视角
-                  </button>
+                <div className="excel-settings-actions">
+                  {capabilities.showFreePlayControl && (
+                    <button
+                      disabled={
+                        !view.match.manualOperation.canSwitchNow ||
+                        !!view.match.manualOperation.pendingRequest
+                      }
+                      onClick={() =>
+                        store.setFreePlayEnabled(view.match.manualOperation.mode !== 'FREE')
+                      }
+                    >
+                      {view.match.manualOperation.mode === 'FREE' ? '恢复规则模式' : '请求自由模式'}
+                    </button>
+                  )}
+                  {capabilities.undoPolicy !== 'NONE' && (
+                    <button disabled={!store.canUndoLastStep()} onClick={store.undoLastStep}>
+                      {capabilities.undoPolicy === 'REMOTE_REQUEST' ? '请求撤销' : '撤销'}
+                    </button>
+                  )}
+                  {onRestart && capabilities.canRestart && (
+                    <button onClick={onRestart}>重开对局</button>
+                  )}
+                  {onLeave && (
+                    <button onClick={onLeave}>
+                      {capabilities.surface === 'TUTORIAL' ? '退出教程' : '退出房间'}
+                    </button>
+                  )}
+                  {capabilities.canSwitchPerspective && (
+                    <button
+                      onClick={() => {
+                        const identity = store.getPlayerIdentityForSeat(opponent);
+                        if (identity) store.setViewingPlayer(identity.id);
+                      }}
+                    >
+                      切换到对方视角
+                    </button>
+                  )}
+                </div>
+                {capabilities.surface === 'ONLINE' && (
+                  <p>退出、认输及可用的重开操作请使用上方「房间」菜单。</p>
                 )}
                 <p>遮挡期间对局和计时继续运行。</p>
               </div>
@@ -494,8 +620,20 @@ export function ExcelBattleBoard({
           </div>
         </section>
         <aside className="excel-current-operation excel-operation-panels" aria-label="当前操作">
+          <header className="excel-sidebar-title">
+            <h2>单元格信息</h2>
+            <button
+              type="button"
+              onClick={() => {
+                setSheet('设置');
+                requestAnimationFrame(() => settingsTitleRef.current?.focus());
+              }}
+            >
+              对局设置
+            </button>
+          </header>
           <div className="excel-operation-task">
-            <h2>当前操作</h2>
+            <h3 className="excel-sidebar-section-title">当前操作</h3>
             {sheet !== '对局' && <button onClick={() => setSheet('对局')}>返回对局工作表</button>}
             {view.match.entrance && <p role="status">等待登场同步完成</p>}
             <div className="excel-operation-overview">{headerOverlay}</div>
@@ -584,8 +722,9 @@ export function ExcelBattleBoard({
                               execute(target.commandPayload);
                           }}
                         >
-                          {intent.label} · {target.label}
-                          {target.detail ? ` · ${target.detail}` : ''}
+                          {[
+                            ...new Set([intent.label, target.label, target.detail].filter(Boolean)),
+                          ].join(' · ')}
                           {!target.enabled && target.reason ? `（${target.reason}）` : ''}
                         </button>
                       ))
@@ -618,17 +757,25 @@ export function ExcelBattleBoard({
           )}
         </aside>
       </div>
-      <nav className="excel-sheets" aria-label="工作表">
-        {['对局', '休息室', '其他区域', '公开记录', '详情', '设置'].map((name) => (
-          <button
-            key={name}
-            aria-current={sheet === name ? 'page' : undefined}
-            onClick={() => setSheet(name)}
-          >
-            {name}
-          </button>
-        ))}
-      </nav>
+      <footer className="excel-workbook-footer">
+        <nav className="excel-sheets" aria-label="工作表">
+          {['对局', '休息室', '其他区域', '公开记录', '详情', '设置'].map((name) => (
+            <button
+              key={name}
+              aria-current={sheet === name ? 'page' : undefined}
+              onClick={() => setSheet(name)}
+            >
+              {name}
+            </button>
+          ))}
+        </nav>
+        <span className="excel-selection-address" aria-label={`当前单元格 ${selectedCoordinate}`}>
+          {selectedCoordinate}
+        </span>
+        <span className="excel-zoom-label" aria-label="显示比例 100%">
+          100%
+        </span>
+      </footer>
     </main>
   );
 }

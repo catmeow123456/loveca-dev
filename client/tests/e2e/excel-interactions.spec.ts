@@ -405,6 +405,9 @@ test('ordered selection retains draft across renderer, reorders and removes stal
   await page.getByRole('button', { name: '第 2 项上移', exact: true }).click();
   await page.keyboard.press('Control+Alt+e');
   await expect(page.locator('html')).toHaveAttribute('data-presentation', 'normal');
+  await expect(page.getByRole('list', { name: '已选顺序' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /第 \d+ 项[上下]移/ })).toHaveCount(0);
+  await expect(page.locator('.excel-candidate-table')).toHaveCount(0);
   const normalChoices = page.locator('button.group');
   await normalChoices.nth(0).click();
   await normalChoices.nth(0).click();
@@ -420,6 +423,10 @@ test('ordered selection retains draft across renderer, reorders and removes stal
   await page.evaluate(() => (window as any).excelReview.expireCandidate());
   await expect(page.getByRole('list', { name: '已选顺序' }).getByRole('listitem')).toHaveCount(1);
   await expect(page.getByText(/候选已更新/)).toBeVisible();
+  await page.keyboard.press('Control+Alt+e');
+  await expect(page.getByRole('list', { name: '已选顺序' })).toHaveCount(0);
+  await expect(page.getByText(/候选已更新/)).toHaveCount(0);
+  await expect(page.locator('button.group')).toHaveCount(2);
 });
 test('anonymous selection sends token, reveals no front or image, and cover does not act', async ({
   page,
@@ -442,6 +449,79 @@ test('anonymous selection sends token, reveals no front or image, and cover does
   await panel(page).locator('.excel-candidate-choose').first().click();
   await expect.poll(() => submissions(page)).toEqual([['fixture-effect', 'blind-token-1']]);
   expect(assets).toEqual([]);
+});
+test('Excel theme and stylesheet leave ordinary battle controls unchanged after switching back', async ({
+  page,
+}) => {
+  await prepare(page, 'numeric');
+  await page.keyboard.press('Control+Alt+e');
+  const ordinaryPanel = page.locator('[data-battle-ui-anchor="active-effect-panel"]');
+  await expect(ordinaryPanel.locator('label')).toHaveText('支付数量');
+  await expect(ordinaryPanel).not.toContainText('整数');
+  const ordinaryAppearance = () =>
+    ordinaryPanel.evaluate((panel) => {
+      const properties = [
+        'color',
+        'background-color',
+        'font-family',
+        'font-size',
+        'border-radius',
+        'padding',
+      ];
+      return [panel, ...panel.querySelectorAll('button,input,label')].map((element) =>
+        properties.map((property) => getComputedStyle(element).getPropertyValue(property))
+      );
+    });
+  const before = await ordinaryAppearance();
+  await page.keyboard.press('Control+Alt+e');
+  await page.getByRole('button', { name: '夜间模式', exact: true }).click();
+  await page.keyboard.press('Control+Alt+x');
+  await page.keyboard.press('Control+Alt+x');
+  await page.keyboard.press('Control+Alt+e');
+  await expect.poll(ordinaryAppearance).toEqual(before);
+  await expect(page.locator('.excel-toolbar,.excel-candidate-table,.excel-card-table')).toHaveCount(
+    0
+  );
+  expect(await submissions(page)).toEqual([]);
+  const changes = await page.evaluate(() => {
+    const style = document.querySelector<HTMLStyleElement>(
+      'style[data-vite-dev-id$="/components/excel/excel.css"]'
+    );
+    if (!style?.sheet) throw new Error('Missing Excel stylesheet for isolation check');
+    const elements = [
+      document.documentElement,
+      document.body,
+      ...document.querySelectorAll('[data-battle-ui-anchor],button,input,[role="dialog"]'),
+    ];
+    const properties = [
+      'display',
+      'position',
+      'color',
+      'background-color',
+      'font-family',
+      'font-size',
+      'font-weight',
+      'line-height',
+      'border-radius',
+      'padding',
+      'box-shadow',
+      'z-index',
+    ];
+    const read = () =>
+      elements.map((element) =>
+        properties.map((property) => getComputedStyle(element).getPropertyValue(property))
+      );
+    const before = read();
+    style.sheet.disabled = true;
+    const after = read();
+    style.sheet.disabled = false;
+    return before.flatMap((values, index) =>
+      JSON.stringify(values) === JSON.stringify(after[index])
+        ? []
+        : [elements[index].outerHTML.slice(0, 160)]
+    );
+  });
+  expect(changes).toEqual([]);
 });
 test('candidate inspection never commits a single choice and hidden fronts stay unavailable', async ({
   page,

@@ -84,7 +84,8 @@ export function WorksheetCover() {
 }
 
 export function PresentationToolbar() {
-  const { mode, shortcut, setCovered, setShortcut } = useAppPresentation();
+  const { mode, excelTheme, shortcut, setExcelTheme, setCovered, setShortcut } =
+    useAppPresentation();
   const [editing, setEditing] = useState(false);
   const [shortcutDraft, setShortcutDraft] = useState(shortcut);
   const [error, setError] = useState('');
@@ -94,6 +95,13 @@ export function PresentationToolbar() {
       <div className="excel-toolbar-top">
         <ExcelRibbonTabs />
         <div className="excel-toolbar-actions">
+          <button
+            type="button"
+            aria-pressed={excelTheme === 'dark'}
+            onClick={() => setExcelTheme(excelTheme === 'dark' ? 'light' : 'dark')}
+          >
+            夜间模式
+          </button>
           <button title={shortcut.replace('Key', '')} onClick={() => setCovered(true)}>
             遮挡工作区
           </button>

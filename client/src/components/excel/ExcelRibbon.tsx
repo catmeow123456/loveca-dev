@@ -67,13 +67,52 @@ export function ExcelRibbon() {
 }
 
 /** A single axis shared by every merged region in the current worksheet. */
-export function ExcelColumnHeadings({ withState = false }: { withState?: boolean }) {
+export function ExcelColumnHeadings({
+  withState = false,
+  selectedColumns,
+}: {
+  withState?: boolean;
+  selectedColumns?: readonly [number, number];
+}) {
   return (
     <div className="excel-sheet-columns" aria-hidden="true" inert>
       <span className="excel-axis-corner" />
       {Array.from({ length: withState ? 13 : 12 }, (_, index) => (
-        <span key={index}>{String.fromCharCode(65 + index)}</span>
+        <span
+          key={index}
+          data-active={
+            selectedColumns && index >= selectedColumns[0] && index <= selectedColumns[1]
+              ? true
+              : undefined
+          }
+        >
+          {String.fromCharCode(65 + index)}
+        </span>
       ))}
+    </div>
+  );
+}
+
+/** Empty worksheet cells are decorative and never expose game data or receive focus. */
+export function ExcelBlankRows({
+  startRow,
+  withState = false,
+}: {
+  startRow: number;
+  withState?: boolean;
+}) {
+  return (
+    <div className="excel-blank-grid" aria-hidden="true" inert>
+      <div className="excel-blank-columns">
+        <div className="excel-blank-numbers">
+          {Array.from({ length: 80 }, (_, index) => (
+            <span key={index}>{startRow + index}</span>
+          ))}
+        </div>
+        {Array.from({ length: withState ? 13 : 12 }, (_, index) => (
+          <span key={index} />
+        ))}
+      </div>
     </div>
   );
 }

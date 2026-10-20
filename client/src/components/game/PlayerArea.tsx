@@ -485,7 +485,6 @@ export const PlayerArea = memo(function PlayerArea({
   const canMovePublicCardToEnergyDeck = useGameStore((s) =>
     s.canUseAction(GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK)
   );
-  const memberPlayHint = useGameStore((s) => s.getCommandHint(GameCommandType.PLAY_MEMBER_TO_SLOT));
   const canConfirmEffectCommand = useGameStore((s) =>
     s.canUseAction(GameCommandType.CONFIRM_EFFECT_STEP)
   );
@@ -802,7 +801,6 @@ export const PlayerArea = memo(function PlayerArea({
           isReadOnly,
           availableCommandTypes: availableBattleActionCommandTypes,
           manualOperationMode: matchView?.manualOperation?.mode,
-          memberPlayHint,
           memberSlots: memberSlotSnapshots,
           liveZoneCount: liveZoneView?.count ?? liveCardIds.length,
           activeEffect: visibleActiveEffect,

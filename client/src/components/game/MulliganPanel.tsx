@@ -1,5 +1,5 @@
 import { useTextPresentation } from '@/lib/appPresentation';
-import { getCardLocalizedInfo } from '@/lib/cardLocalization';
+import { getExcelCardSummary } from '@/lib/excelCardView';
 /**
  * 换牌面板 (Mulligan Panel)
  * 游戏开始时，玩家可选择要换的牌
@@ -250,47 +250,73 @@ export const MulliganPanel = memo(function MulliganPanel({
           换牌阶段 · {playerName}（{isFirstPlayer ? '先攻' : '后攻'}）
         </h3>
         <p>{isMyMulliganTurn ? '选择要换掉的手牌，或保留全部手牌。' : '等待对手换牌'}</p>
-        <table className="excel-table">
-          <thead>
-            <tr>
-              <th>选择</th>
-              <th>手牌</th>
-              <th>详情</th>
-            </tr>
-          </thead>
-          <tbody>
-            {handCardIds.map((cardId, index) => {
-              const card = getVisibleCardPresentation(cardId);
-              if (!card) return null;
-              const label = getCardLocalizedInfo(card.cardData).title;
-              return (
-                <tr key={cardId}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      aria-label={`换掉第 ${index + 1} 张手牌 ${label}`}
-                      checked={selectedCardIds.has(cardId)}
-                      disabled={
-                        !isMyMulliganTurn ||
-                        (!!selectableCardIdSet &&
-                          !selectableCardIdSet.has(cardId) &&
-                          !selectedCardIds.has(cardId))
-                      }
-                      onChange={() => activateCard(cardId)}
-                    />
-                  </td>
-                  <td>
-                    {label}
-                    <div>{card.cardData.cardCode}</div>
-                  </td>
-                  <td>
-                    <button onClick={() => setHoveredCard(cardId)}>详情</button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="excel-mulligan-scroll">
+          <table
+            className="excel-table excel-candidate-table excel-mulligan-table"
+            aria-label="换牌手牌"
+          >
+            <colgroup>
+              <col className="excel-candidate-select" />
+              <col className="excel-candidate-code" />
+              <col />
+              <col className="excel-candidate-type" />
+              <col className="excel-candidate-value" />
+              <col className="excel-candidate-inspect" />
+            </colgroup>
+            <thead>
+              <tr>
+                {['选择', '卡号', '名称', '类型', '费用/分数', '查看'].map((heading) => (
+                  <th key={heading} scope="col">
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {handCardIds.map((cardId, index) => {
+                const object = useGameStore.getState().getCardViewObject(cardId);
+                const front = object?.surface === 'FRONT' ? object.frontInfo : null;
+                if (!front) return null;
+                const summary = getExcelCardSummary(front);
+                return (
+                  <tr key={cardId} aria-selected={selectedCardIds.has(cardId)}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label={`换掉第 ${index + 1} 张手牌 ${summary.name}`}
+                        checked={selectedCardIds.has(cardId)}
+                        disabled={
+                          !isMyMulliganTurn ||
+                          (!!selectableCardIdSet &&
+                            !selectableCardIdSet.has(cardId) &&
+                            !selectedCardIds.has(cardId))
+                        }
+                        onChange={() => activateCard(cardId)}
+                      />
+                    </td>
+                    <td title={front.cardCode}>{front.cardCode}</td>
+                    <td title={summary.name}>{summary.name}</td>
+                    <td>{summary.type}</td>
+                    <td title={summary.valueLabel}>{summary.value}</td>
+                    <td>
+                      <button
+                        type="button"
+                        aria-label={`查看第 ${index + 1} 张手牌 ${summary.name}`}
+                        onClick={() => {
+                          const store = useGameStore.getState();
+                          store.setCardDetail(null);
+                          store.selectCard(cardId);
+                        }}
+                      >
+                        查看
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
         <p>已选择 {selectedCardIds.size} 张</p>
         {!selectableCardIds && (
           <button disabled={!isMyMulliganTurn} onClick={handleSkip}>

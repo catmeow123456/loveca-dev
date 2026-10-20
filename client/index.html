@@ -7,20 +7,45 @@
     <script>
       (() => {
         let mode = 'normal',
-          covered = false;
+          covered = false,
+          excelTheme = 'light';
         try {
           mode = localStorage.getItem('loveca.presentation.mode') === 'excel' ? 'excel' : 'normal';
+          excelTheme =
+            localStorage.getItem('loveca.presentation.theme') === 'dark' ? 'dark' : 'light';
           covered = sessionStorage.getItem('loveca.presentation.covered') === 'true';
         } catch {
           covered = true;
         }
         document.documentElement.dataset.presentation = mode;
+        document.documentElement.dataset.excelTheme = excelTheme;
         document.documentElement.dataset.covered = String(covered);
         if (mode === 'normal' && !covered)
           document.querySelector('link[rel="icon"]').href = '/pwa/icon-192.png';
       })();
     </script>
     <style>
+      :root {
+        --excel-surface: #fff;
+        --excel-text: #202526;
+        --excel-color-scheme: light;
+      }
+      html[data-excel-theme='dark'] {
+        --excel-surface: #202427;
+        --excel-text: #e4e8e9;
+        --excel-color-scheme: dark;
+      }
+      html[data-presentation='excel'],
+      html[data-covered='true'] {
+        background: var(--excel-surface);
+        color: var(--excel-text);
+        color-scheme: var(--excel-color-scheme);
+      }
+      html[data-presentation='excel'] body,
+      html[data-covered='true'] body {
+        background: var(--excel-surface);
+        color: var(--excel-text);
+      }
       #presentation-boot-cover {
         display: none;
       }
@@ -36,8 +61,8 @@
         position: fixed;
         inset: 0;
         z-index: 2147483647;
-        background: white;
-        color: #202526;
+        background: var(--excel-surface);
+        color: var(--excel-text);
         font:
           14px Arial,
           sans-serif;
@@ -73,7 +98,8 @@
           document.documentElement.dataset.presentation === 'excel' ||
           document.documentElement.dataset.covered === 'true'
         ) {
-          document.querySelector('meta[name="theme-color"]').content = '#ffffff';
+          document.querySelector('meta[name="theme-color"]').content =
+            document.documentElement.dataset.excelTheme === 'dark' ? '#202427' : '#ffffff';
         }
       })();
     </script>
