@@ -16,73 +16,13 @@ import {
   useTextPresentation,
 } from '@/lib/appPresentation';
 import { ExcelRibbon, ExcelRibbonTabs } from './ExcelRibbon';
+import { WorksheetCover } from './WorksheetCover';
 import './excel.css';
 
 export function PresentationImage(props: ImgHTMLAttributes<HTMLImageElement>) {
   const textOnly = useTextPresentation();
   if (textOnly) return props.alt ? <span className="excel-image-label">{props.alt}</span> : null;
   return <img {...props} />;
-}
-
-export function WorksheetCover() {
-  const restore = useAppPresentation((state) => state.setCovered);
-  const button = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    button.current?.focus();
-  }, []);
-  return (
-    <section className="worksheet-cover" aria-label="工作记录工作表">
-      <header>
-        <strong>工作簿</strong>
-        <button ref={button} onClick={() => restore(false)}>
-          返回工作区
-        </button>
-      </header>
-      <div className="excel-formula">
-        <span>A1</span>
-        <span>事项</span>
-      </div>
-      <table className="excel-table">
-        <thead>
-          <tr>
-            <th></th>
-            <th>A</th>
-            <th>B</th>
-            <th>C</th>
-            <th>D</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th>1</th>
-            <th>事项</th>
-            <th>计划</th>
-            <th>状态</th>
-            <th>备注</th>
-          </tr>
-          {['资料整理', '文档核对', '清单更新', '归档检查'].map((name, index) => (
-            <tr key={name}>
-              <th>{index + 2}</th>
-              <td>{name}</td>
-              <td>本周</td>
-              <td>待处理</td>
-              <td>常规工作</td>
-            </tr>
-          ))}
-          {Array.from({ length: 18 }, (_, index) => (
-            <tr key={index}>
-              <th>{index + 6}</th>
-              <td>&nbsp;</td>
-              <td></td>
-              <td></td>
-              <td></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <footer>工作记录</footer>
-    </section>
-  );
 }
 
 export function PresentationToolbar() {

@@ -235,3 +235,142 @@ test('service failure and covered reload remain neutral and silent', async ({ pa
   expect(media).toEqual([]);
   expect(await page.evaluate(() => (window as any).excelAudioCalls)).toBe(0);
 });
+
+test('cover worksheet edits local text, navigates, pastes and restores without game key events', async ({
+  page,
+  context,
+}, info) => {
+  await excel(page);
+  await installVisualApiMocks(page, false);
+  const media = observeMedia(page);
+  await page.goto('/');
+  const icon = await page.locator('link[rel="icon"]').getAttribute('href');
+  expect(icon).toMatch(/^data:image\/svg\+xml,/);
+  await expect(page).toHaveTitle('工作簿');
+  await page.getByRole('button', { name: '遮挡工作区', exact: true }).click();
+  const cover = page.getByRole('region', { name: '工作记录工作表' });
+  const grid = cover.getByRole('grid', { name: '工作表1' });
+  const current = cover.getByLabel('当前单元格');
+  await expect(cover.getByRole('textbox', { name: '编辑 A1', exact: true })).toBeFocused();
+  await page.evaluate(() => {
+    (window as any).backgroundKeyEvents = 0;
+    window.addEventListener('keydown', () => (window as any).backgroundKeyEvents++);
+  });
+  await page.keyboard.type('Plan');
+  await page.keyboard.press('Enter');
+  await expect(current).toHaveText('A2');
+  await page.keyboard.insertText('资料整理');
+  await page.keyboard.press('Tab');
+  await expect(current).toHaveText('B2');
+  const formula = cover.getByRole('textbox', { name: '单元格内容', exact: true });
+  await formula.fill('本周完成');
+  await page.keyboard.press('Enter');
+  await expect(cover.getByRole('textbox', { name: '编辑 B2', exact: true })).toBeFocused();
+  await grid.getByRole('gridcell', { name: 'A4', exact: true }).click();
+  await cover.getByRole('textbox', { name: '编辑 A4', exact: true }).evaluate((input) => {
+    const data = new DataTransfer();
+    data.setData('text/plain', '事项\t计划\n文档核对\t本周\n归档检查\t下周');
+    input.dispatchEvent(
+      new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })
+    );
+  });
+  await expect(grid.getByRole('gridcell', { name: 'B5', exact: true })).toHaveText('本周');
+  await expect(grid.getByRole('gridcell', { name: 'A6', exact: true })).toHaveText('归档检查');
+  await grid.getByRole('gridcell', { name: 'C2', exact: true }).click();
+  await cover.getByRole('textbox', { name: '编辑 C2', exact: true }).fill('=SUM(A1:A2)');
+  await page.keyboard.press('Enter');
+  await expect(grid.getByRole('gridcell', { name: 'C2', exact: true })).toHaveText('=SUM(A1:A2)');
+  await grid.getByRole('gridcell', { name: 'D2', exact: true }).click();
+  await cover
+    .getByRole('textbox', { name: '编辑 D2', exact: true })
+    .fill('<img src=x onerror=alert(1)>');
+  await cover.getByRole('textbox', { name: '编辑 D2', exact: true }).dispatchEvent('keydown', {
+    key: 'Enter',
+    code: 'Enter',
+    isComposing: true,
+    bubbles: true,
+  });
+  await expect(current).toHaveText('D2');
+  await page.keyboard.press('ArrowDown');
+  await expect(current).toHaveText('D3');
+  await page.keyboard.press('ArrowUp');
+  await expect(current).toHaveText('D2');
+  await expect(cover.locator('img')).toHaveCount(0);
+  expect(await page.evaluate(() => (window as any).backgroundKeyEvents)).toBe(0);
+  await expect(page.locator('#app-surface')).toHaveAttribute('inert', '');
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', icon!);
+  await page.screenshot({ path: info.outputPath('editable-workbook-light.png'), fullPage: true });
+  await page.keyboard.press('Control+Alt+x');
+  await expect(cover).toHaveCount(0);
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', icon!);
+  await page.getByRole('button', { name: '夜间模式', exact: true }).click();
+  await page.keyboard.press('Control+Alt+x');
+  await expect(cover.getByRole('textbox', { name: '编辑 A1', exact: true })).toHaveValue('Plan');
+  await page.screenshot({ path: info.outputPath('editable-workbook-dark.png'), fullPage: true });
+  await page.reload();
+  await expect(cover.getByRole('textbox', { name: '编辑 A1', exact: true })).toHaveValue('Plan');
+  await expect(grid.getByRole('gridcell', { name: 'A2', exact: true })).toHaveText('资料整理');
+  await expect(grid.getByRole('gridcell', { name: 'B2', exact: true })).toHaveText('本周完成');
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', icon!);
+  const other = await context.newPage();
+  await excel(other);
+  await installVisualApiMocks(other, false);
+  await other.goto('/');
+  await other.keyboard.press('Control+Alt+x');
+  await expect(other.getByRole('textbox', { name: '编辑 A1', exact: true })).toHaveValue('');
+  await other.close();
+  expect(media).toEqual([]);
+  await cover.getByRole('button', { name: '返回工作区', exact: true }).click();
+  await page.keyboard.press('Control+Alt+e');
+  await expect(page).toHaveTitle('LOVECA');
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/pwa/icon-192.png');
+});
+
+test('cover storage failure preserves edits until refresh and corrupt storage cannot break recovery', async ({
+  page,
+}) => {
+  await excel(page);
+  await installVisualApiMocks(page, false);
+  await page.addInitScript(() => {
+    sessionStorage.setItem('loveca.presentation.workbook', '{invalid');
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'loveca.presentation.workbook')
+        throw new DOMException('Blocked', 'QuotaExceededError');
+      return original.call(this, key, value);
+    };
+  });
+  await page.goto('/');
+  await page.keyboard.press('Control+Alt+x');
+  await page.getByRole('textbox', { name: '编辑 A1', exact: true }).fill('临时记录');
+  await expect(
+    page.getByRole('region', { name: '工作记录工作表' }).locator('.worksheet-save-status')
+  ).toContainText('刷新前请复制');
+  await page.keyboard.press('Control+Alt+x');
+  await page.keyboard.press('Control+Alt+x');
+  await expect(page.getByRole('textbox', { name: '编辑 A1', exact: true })).toHaveValue('临时记录');
+  await page.getByRole('button', { name: '返回工作区', exact: true }).click();
+  await expect(page.getByRole('button', { name: '遮挡工作区', exact: true })).toBeVisible();
+});
+
+test('workbook icon and title are present before React starts in Excel and covered modes', async ({
+  page,
+}) => {
+  await page.route(/\/src\/main\.tsx(?:\?|$)/, (route) =>
+    route.fulfill({ contentType: 'application/javascript', body: '' })
+  );
+  await page.addInitScript(() => {
+    const mode = new URL(location.href).searchParams.get('bootMode') ?? 'excel';
+    localStorage.setItem('loveca.presentation.mode', mode);
+    sessionStorage.setItem('loveca.presentation.covered', String(mode === 'normal'));
+  });
+  for (const mode of ['excel', 'normal']) {
+    await page.goto(`/?bootMode=${mode}`);
+    await expect(page).toHaveTitle('工作簿');
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
+      'href',
+      /^data:image\/svg\+xml,/
+    );
+    await expect(page.locator('#root')).toBeEmpty();
+  }
+});

@@ -8,6 +8,9 @@ export const PRESENTATION_COVER_KEY = 'loveca.presentation.covered';
 export const PRESENTATION_SHORTCUT_KEY = 'loveca.presentation.shortcut';
 export const DEFAULT_COVER_SHORTCUT = 'Ctrl+Alt+KeyX';
 export const PRESENTATION_MODE_SHORTCUT = 'Ctrl+Alt+KeyE';
+// Keep the inline bootstrap icon in index.html identical; no image request is needed.
+export const WORKBOOK_ICON =
+  'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%2323864f%22%20d%3D%22M9%207h19v23H9z%22%2F%3E%3Cpath%20fill%3D%22%234fbc83%22%20d%3D%22M4%202h18l5%205v21H4z%22%2F%3E%3Cpath%20fill%3D%22%239de1bb%22%20d%3D%22M22%202v5h5z%22%2F%3E%3Cpath%20fill%3D%22%23fff%22%20d%3D%22M8%2013h6v3H8zm9%200h6v3h-6zM8%2019h6v3H8zm9%200h6v3h-6z%22%2F%3E%3C%2Fsvg%3E';
 
 function readPreference(key: string, session = false): string | null {
   try {
@@ -113,7 +116,7 @@ export function applyDocumentPresentation(): void {
   document.documentElement.dataset.covered = String(covered);
   document.title = mode === 'excel' || covered ? '工作簿' : 'LOVECA';
   const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-  if (icon) icon.href = mode === 'excel' || covered ? 'data:,' : '/pwa/icon-192.png';
+  if (icon) icon.href = mode === 'excel' || covered ? WORKBOOK_ICON : '/pwa/icon-192.png';
   const manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
   if (mode === 'excel' || covered) manifest?.remove();
   else if (!manifest && import.meta.env.PROD) {
@@ -138,6 +141,16 @@ export function applyDocumentPresentation(): void {
 
 export function getPresentationPortalRoot(): HTMLElement {
   return document.getElementById('app-overlays') ?? document.body;
+}
+
+let coverKeyboard: ((event: KeyboardEvent) => void) | null = null;
+
+/** Forward cover editing keys without allowing them to reach underlying game listeners. */
+export function registerCoverKeyboard(handler: (event: KeyboardEvent) => void): () => void {
+  coverKeyboard = handler;
+  return () => {
+    if (coverKeyboard === handler) coverKeyboard = null;
+  };
 }
 
 let shortcutRecorder: ((event: KeyboardEvent) => void) | null = null;
@@ -171,8 +184,9 @@ export function installPresentationShortcut(): void {
         // Switching the renderer must never dismiss the independent privacy cover.
         state.setMode(state.mode === 'excel' ? 'normal' : 'excel');
       } else if (state.covered) {
-        // Let browser shortcuts keep their default behavior, but never reach game handlers.
+        // Native typing, clipboard and browser defaults still work; game handlers stay blocked.
         event.stopImmediatePropagation();
+        coverKeyboard?.(event);
       }
     },
     true
