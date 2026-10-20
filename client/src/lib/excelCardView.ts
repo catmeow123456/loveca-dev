@@ -99,7 +99,7 @@ export function selectExcelCard(view: PlayerViewState, objectId: string): ExcelC
       ? object.orientation === OrientationState.ACTIVE
         ? '活跃'
         : object.orientation === OrientationState.WAITING
-          ? '等待'
+          ? '待机'
           : ''
       : '';
   const result = view.match.liveResult;

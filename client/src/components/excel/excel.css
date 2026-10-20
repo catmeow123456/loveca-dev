@@ -295,10 +295,18 @@ html[data-presentation='excel'] #app-overlays button {
   position: absolute;
   top: 100%;
   right: 8px;
+  width: 360px;
   max-width: calc(100vw - 16px);
   padding: 12px;
   background: var(--excel-surface);
   border: 1px solid var(--excel-control-border);
+}
+.excel-shortcut-editor p {
+  margin: 6px 0;
+}
+.excel-shortcut-editor:focus {
+  outline: 2px solid var(--excel-accent);
+  outline-offset: -2px;
 }
 .worksheet-cover {
   color-scheme: var(--excel-color-scheme);
@@ -624,6 +632,33 @@ html[data-presentation='excel'] .normal-only {
   font-size: 12px;
   color: var(--excel-muted);
   line-height: 18px;
+}
+.excel-stage-heading {
+  position: sticky;
+  top: -3px;
+  z-index: 1;
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0 8px;
+  padding: 2px 0;
+  background: var(--excel-surface);
+  border-bottom: 1px solid var(--excel-grid);
+}
+.excel-stage-position {
+  flex: none;
+}
+.excel-stage-state {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0 6px;
+  font-size: 12px;
+  line-height: 18px;
+}
+.excel-stage-state > span {
+  white-space: nowrap;
 }
 .excel-stage td[data-selected='true'] {
   outline: 2px solid var(--excel-accent);

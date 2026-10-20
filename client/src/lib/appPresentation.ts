@@ -140,6 +140,15 @@ export function getPresentationPortalRoot(): HTMLElement {
   return document.getElementById('app-overlays') ?? document.body;
 }
 
+let shortcutRecorder: ((event: KeyboardEvent) => void) | null = null;
+
+export function capturePresentationShortcut(recorder: (event: KeyboardEvent) => void): () => void {
+  shortcutRecorder = recorder;
+  return () => {
+    if (shortcutRecorder === recorder) shortcutRecorder = null;
+  };
+}
+
 let shortcutInstalled = false;
 export function installPresentationShortcut(): void {
   if (shortcutInstalled || typeof window === 'undefined') return;
@@ -148,6 +157,10 @@ export function installPresentationShortcut(): void {
     'keydown',
     (event) => {
       const state = useAppPresentation.getState();
+      if (shortcutRecorder && state.mode === 'excel' && !state.covered) {
+        shortcutRecorder(event);
+        return;
+      }
       if (matchesCoverShortcut(event, state.shortcut)) {
         event.preventDefault();
         event.stopImmediatePropagation();

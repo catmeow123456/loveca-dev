@@ -56,7 +56,7 @@ describe('Excel projected card rows', () => {
     expect(first.objectId).toBe(next.objectId);
     expect(first.metrics).toContain('费用 3（印刷 5）');
     expect(first.metrics).toContain('光棒 3');
-    expect(first.state).toContain('等待');
+    expect(first.state).toContain('待机');
   });
   it('does not invent an active state when orientation is absent', () => {
     const state = view({ 'obj_public-a': { ...front, orientation: undefined } });
@@ -65,7 +65,7 @@ describe('Excel projected card rows', () => {
   it('drops stage-only states when a member moves to the waiting room', () => {
     const member = { ...front, enteredStageThisTurn: true, skipsNextActivePhase: true };
     const state = view({ 'obj_public-a': member });
-    expect(selectExcelCard(state, 'obj_public-a')!.state).toBe('等待；本回合登场；下次不活跃');
+    expect(selectExcelCard(state, 'obj_public-a')!.state).toBe('待机；本回合登场；下次不活跃');
     const after: PlayerViewState = {
       ...state,
       table: {
@@ -118,7 +118,7 @@ describe('Excel projected card rows', () => {
     };
     for (const [orientation, label] of [
       [OrientationState.ACTIVE, '活跃'],
-      [OrientationState.WAITING, '等待'],
+      [OrientationState.WAITING, '待机'],
     ] as const) {
       const state = view({ 'obj_public-a': { ...energy, orientation } });
       const projected: PlayerViewState = {

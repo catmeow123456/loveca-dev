@@ -10,6 +10,8 @@ import {
 import { MotionConfig } from 'framer-motion';
 import {
   applyDocumentPresentation,
+  capturePresentationShortcut,
+  PRESENTATION_MODE_SHORTCUT,
   useAppPresentation,
   useTextPresentation,
 } from '@/lib/appPresentation';
@@ -84,11 +86,80 @@ export function WorksheetCover() {
 }
 
 export function PresentationToolbar() {
-  const { mode, excelTheme, shortcut, setExcelTheme, setCovered, setShortcut } =
+  const { mode, covered, excelTheme, shortcut, setExcelTheme, setCovered, setShortcut } =
     useAppPresentation();
   const [editing, setEditing] = useState(false);
-  const [shortcutDraft, setShortcutDraft] = useState(shortcut);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const shortcutButton = useRef<HTMLButtonElement>(null);
+  const recorder = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!editing || mode !== 'excel' || covered) return;
+    recorder.current?.focus();
+    const close = () => {
+      setEditing(false);
+      shortcutButton.current?.focus();
+    };
+    const release = capturePresentationShortcut((event) => {
+      if (event.repeat || event.isComposing || event.keyCode === 229) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+      if (
+        event.target instanceof HTMLButtonElement &&
+        ['Enter', ' '].includes(event.key) &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.metaKey &&
+        !event.shiftKey
+      ) {
+        event.stopImmediatePropagation();
+        return;
+      }
+      // Tab can still reach Cancel, but recorded keys must never reach game handlers.
+      if (event.key !== 'Tab') event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.key === 'Escape') {
+        close();
+        return;
+      }
+      if (['Control', 'Alt', 'Shift', 'Meta', 'Tab'].includes(event.key)) return;
+      const candidate = [
+        event.ctrlKey && 'Ctrl',
+        event.altKey && 'Alt',
+        event.shiftKey && 'Shift',
+        event.metaKey && 'Meta',
+        event.code,
+      ]
+        .filter(Boolean)
+        .join('+');
+      if (candidate === PRESENTATION_MODE_SHORTCUT) {
+        setError('Ctrl+Alt+E 已用于切换普通／表格界面，请换一个组合。');
+      } else if (setShortcut(candidate)) {
+        setNotice(`遮挡快捷键已设为 ${candidate.replace('Key', '')}`);
+        close();
+      } else {
+        setError('请同时按住两个或三个修饰键，再按一个字母键。');
+      }
+    });
+    const cancelOutside = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !recorder.current?.contains(event.target) &&
+        !shortcutButton.current?.contains(event.target)
+      )
+        setEditing(false);
+    };
+    const cancelOnBlur = () => setEditing(false);
+    document.addEventListener('pointerdown', cancelOutside);
+    window.addEventListener('blur', cancelOnBlur);
+    return () => {
+      release();
+      document.removeEventListener('pointerdown', cancelOutside);
+      window.removeEventListener('blur', cancelOnBlur);
+    };
+  }, [editing, mode, covered, setShortcut]);
   if (mode !== 'excel') return null;
   return (
     <div className="excel-toolbar">
@@ -102,37 +173,57 @@ export function PresentationToolbar() {
           >
             夜间模式
           </button>
-          <button title={shortcut.replace('Key', '')} onClick={() => setCovered(true)}>
+          <button
+            title={`遮挡／恢复：${shortcut.replace('Key', '')}`}
+            onClick={() => setCovered(true)}
+          >
             遮挡工作区
           </button>
-          <button aria-expanded={editing} onClick={() => setEditing(!editing)}>
-            快捷键设置
+          <button
+            ref={shortcutButton}
+            aria-expanded={editing}
+            aria-controls="excel-shortcut-recorder"
+            title={`当前：${shortcut.replace('Key', '')}；点击后按新组合键`}
+            onClick={() => {
+              setEditing(!editing);
+              setError('');
+              setNotice('');
+            }}
+          >
+            遮挡快捷键
           </button>
         </div>
       </div>
       <ExcelRibbon />
       {editing && (
-        <div className="excel-shortcut-editor">
-          <label>
-            遮挡组合键{' '}
-            <input value={shortcutDraft} onChange={(e) => setShortcutDraft(e.target.value)} />
-          </label>
+        <div
+          ref={recorder}
+          id="excel-shortcut-recorder"
+          className="excel-shortcut-editor"
+          role="group"
+          aria-label="录制遮挡快捷键"
+          tabIndex={-1}
+        >
+          <strong>请直接按下新的组合键</strong>
+          <p>用于遮挡／恢复工作区，当前为 {shortcut.replace('Key', '')}。</p>
+          <p>
+            按住两个或三个修饰键（Ctrl、Alt、Shift、Command），再按字母。Mac 的 Alt 对应 Option。
+          </p>
+          <p>按下即保存；Esc 取消。切换界面仍用 Ctrl+Alt+E。</p>
+          <p role="status">{error}</p>
           <button
             onClick={() => {
-              if (setShortcut(shortcutDraft)) {
-                setError('');
-                setEditing(false);
-              } else
-                setError(
-                  '使用两个或三个修饰键与字母，例如 Ctrl+Alt+KeyX；Ctrl+Alt+KeyE 已用于切换界面'
-                );
+              setEditing(false);
+              shortcutButton.current?.focus();
             }}
           >
-            应用
+            取消
           </button>
-          <span role="status">{error}</span>
         </div>
       )}
+      <span className="sr-only" role="status">
+        {notice}
+      </span>
     </div>
   );
 }

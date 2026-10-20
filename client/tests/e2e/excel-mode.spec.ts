@@ -132,19 +132,57 @@ test('deck selection shows full text without card art', async ({ page }, info) =
 test('unsupported pages stay textual, shortcut configuration ignores IME and repeat events', async ({
   page,
   context,
-}) => {
+}, info) => {
   await excel(page);
   await installVisualApiMocks(page, true);
   const media = observeMedia(page);
   await page.goto('/?page=deck-manager');
   await expect(page.getByRole('heading', { name: '此页面使用普通界面' })).toBeVisible();
   await expect(page.locator('img')).toHaveCount(0);
-  await page.getByRole('button', { name: '快捷键设置', exact: true }).click();
-  await page.getByLabel('遮挡组合键').fill('Alt+Ctrl+KeyE');
-  await page.getByRole('button', { name: '应用', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('已用于切换界面');
-  await page.getByLabel('遮挡组合键').fill('Ctrl+Shift+KeyY');
-  await page.getByRole('button', { name: '应用', exact: true }).click();
+  const configure = page.getByRole('button', { name: '遮挡快捷键', exact: true });
+  const recorder = page.getByRole('group', { name: '录制遮挡快捷键' });
+  const cover = page.getByRole('region', { name: '工作记录工作表' });
+  await configure.click();
+  await expect(recorder).toBeFocused();
+  await page.keyboard.press('Control+Alt+e');
+  await expect(recorder.getByRole('status')).toContainText('已用于切换');
+  await expect(page.locator('html')).toHaveAttribute('data-presentation', 'excel');
+  await page.keyboard.press('y');
+  await expect(recorder.getByRole('status')).toContainText('修饰键');
+  await page.evaluate(() => {
+    for (const flags of [{ isComposing: true }, { repeat: true }])
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          code: 'KeyY',
+          ctrlKey: true,
+          shiftKey: true,
+          bubbles: true,
+          ...flags,
+        })
+      );
+  });
+  await expect(recorder).toBeVisible();
+  await expect(configure).toHaveAttribute('title', /Ctrl\+Alt\+X/);
+  await page.screenshot({ path: info.outputPath('shortcut-recorder.png'), fullPage: true });
+  await page.keyboard.press('Escape');
+  await expect(recorder).toHaveCount(0);
+  await expect(configure).toBeFocused();
+  await configure.click();
+  await page.keyboard.press('Tab');
+  await expect(recorder.getByRole('button', { name: '取消' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(recorder).toHaveCount(0);
+  // Re-recording the current shortcut must save it without activating the cover.
+  await configure.click();
+  await page.keyboard.press('Control+Alt+x');
+  await expect(recorder).toHaveCount(0);
+  await expect(cover).toHaveCount(0);
+  await configure.click();
+  await page.keyboard.press('Control+Shift+y');
+  await expect(recorder).toHaveCount(0);
+  await expect(configure).toHaveAttribute('title', /Ctrl\+Shift\+Y/);
+  await page.keyboard.press('Control+Alt+x');
+  await expect(cover).toHaveCount(0);
   await page.evaluate(() => {
     window.dispatchEvent(
       new KeyboardEvent('keydown', {

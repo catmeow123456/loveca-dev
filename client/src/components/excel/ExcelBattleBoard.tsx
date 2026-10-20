@@ -335,7 +335,21 @@ export function ExcelBattleBoard({
                         tabIndex={0}
                         aria-label={`${label} · ${SLOT_NAMES[slot]}`}
                       >
-                        <div className="excel-stage-position">{SLOT_NAMES[slot]}</div>
+                        <div className="excel-stage-heading">
+                          <span className="excel-stage-position">{SLOT_NAMES[slot]}</span>
+                          {card && (
+                            <div className="excel-stage-state">
+                              {card.state
+                                .split('；')
+                                .filter(Boolean)
+                                .map((state) => (
+                                  <span key={state}>{state}</span>
+                                ))}
+                              <span>下置能量 {zone?.overlays?.[slot]?.length ?? 0}</span>
+                              <span>下置成员 {zone?.memberBelow?.[slot]?.length ?? 0}</span>
+                            </div>
+                          )}
+                        </div>
                         {card ? (
                           <>
                             <div className="excel-stage-identity">
@@ -368,11 +382,6 @@ export function ExcelBattleBoard({
                             <div className="excel-stage-effect">
                               {effect ? <CardEffectText text={effect} /> : '无效果'}
                             </div>
-                            <p>
-                              {card.state && `${card.state} · `}下置能量{' '}
-                              {zone?.overlays?.[slot]?.length ?? 0} · 下置成员{' '}
-                              {zone?.memberBelow?.[slot]?.length ?? 0}
-                            </p>
                           </>
                         ) : id ? (
                           '未知成员'
@@ -851,7 +860,7 @@ function ExcelSelectedActions({
   return (
     <>
       {zone === ZoneType.MEMBER_SLOT && slot && can(GameCommandType.TAP_MEMBER) && (
-        <button onClick={() => store.tapMember(card.cardId, slot)}>切换活跃 / 等待</button>
+        <button onClick={() => store.tapMember(card.cardId, slot)}>切换活跃 / 待机</button>
       )}
       {zone === ZoneType.ENERGY_ZONE && can(GameCommandType.TAP_ENERGY) && (
         <button onClick={() => store.tapEnergy(card.cardId)}>切换能量状态</button>

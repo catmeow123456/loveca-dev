@@ -19,6 +19,10 @@ test('stage separates effective attributes and complete text, with no visible in
   await expect(attributes.nth(1)).toContainText('光棒3');
   await expect(attributes.nth(2)).toContainText('心黄 2');
   await expect(center.locator('.excel-stage-effect')).toContainText('完整卡文最后一句。');
+  const state = center.locator('.excel-stage-heading');
+  await expect(state).toContainText('活跃');
+  await expect(state).toContainText('下置能量 0');
+  await expect(state).toContainText('下置成员 0');
   await expect(page.getByRole('table', { name: '对方场面' })).toContainText('未知成员');
   await expect(page.locator('body')).not.toContainText('未公开成员');
   await expect(page.locator('body')).not.toContainText('未公开效果');
@@ -36,7 +40,14 @@ test('stage separates effective attributes and complete text, with no visible in
   expect(effectBounds!.width).toBeLessThanOrEqual(cellBounds!.width);
   if (page.viewportSize()!.width < 1100) await stage.scrollIntoViewIfNeeded();
   await page.screenshot({ path: info.outputPath('stage-initial.png'), fullPage: true });
-  await center.locator('.excel-stage-effect').scrollIntoViewIfNeeded();
+  await center.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const sticky = await state.boundingBox();
+  const scrolledCell = await center.boundingBox();
+  expect(sticky!.y).toBeGreaterThanOrEqual(scrolledCell!.y);
+  expect(sticky!.y + sticky!.height).toBeLessThanOrEqual(scrolledCell!.y + scrolledCell!.height);
+  await expect(state).toBeInViewport();
   await page.screenshot({ path: info.outputPath('stage-full-text.png'), fullPage: true });
   if (page.viewportSize()!.width >= 1100) {
     const hand = await page.locator('.excel-hand').boundingBox();
@@ -60,7 +71,7 @@ test('waiting-room lists and details omit orientation while stage and energy ret
     await expect(row).not.toContainText('活跃');
     await row.getByRole('button').click();
     await expect(
-      detail.locator(':scope > p').filter({ hasText: /^(活跃|等待|本回合登场|下次不活跃)/ })
+      detail.locator(':scope > p').filter({ hasText: /^(活跃|待机|本回合登场|下次不活跃)/ })
     ).toHaveCount(0);
     await expect(sheets.getByRole('button', { name: '休息室', exact: true })).toHaveAttribute(
       'aria-current',
@@ -73,7 +84,7 @@ test('waiting-room lists and details omit orientation while stage and energy ret
   await expect(
     page
       .locator('.excel-full-details > p')
-      .filter({ hasText: /^(活跃|等待|本回合登场|下次不活跃)/ })
+      .filter({ hasText: /^(活跃|待机|本回合登场|下次不活跃)/ })
   ).toHaveCount(0);
   await sheets.getByRole('button', { name: '其他区域', exact: true }).click();
   const energy = page.getByRole('table', { name: '我方能量区', exact: true });
@@ -548,7 +559,7 @@ test('candidate stage position and energy state remain distinguishable, blocked 
   const rows = table.locator('tbody tr');
   await expect(rows.nth(0)).toContainText('我方中');
   await expect(rows.nth(1)).toContainText('能量');
-  await expect(rows.nth(1)).toContainText('等待；下次不活跃');
+  await expect(rows.nth(1)).toContainText('待机；下次不活跃');
   await expect(rows.nth(2)).not.toContainText('下次不活跃');
   await page.evaluate(() => (window as any).excelReview.candidateStates(true));
   for (const choice of await table.locator('.excel-candidate-choose').all())
