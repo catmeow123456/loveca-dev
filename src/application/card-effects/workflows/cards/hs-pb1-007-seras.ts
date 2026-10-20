@@ -1,3 +1,5 @@
+import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
+import { createWaivedOnEnterCostContinuationState } from '../../runtime/waived-on-enter-cost.js';
 import {
   addAction,
   getPlayerById,
@@ -46,7 +48,8 @@ export function registerHsPb1007SerasWorkflowHandlers(deps: {
         game,
         ability,
         options,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
       )
   );
   registerActiveEffectStepHandler(
@@ -81,12 +84,26 @@ function startHsPb1007SerasOnEnterPayDiscardRecover(
   game: GameState,
   ability: PendingAbilityState,
   options: PendingAbilityStarterOptions,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
   }
+
+  if (isAbilityActivationCostWaived(ability))
+    return finishHsPb1007SerasDiscardCost(
+      createWaivedOnEnterCostContinuationState(
+        game,
+        ability,
+        SELECT_DISCARD_STEP_ID,
+        options.orderedResolution === true
+      ),
+      null,
+      continuePendingCardEffects,
+      enqueueTriggeredCardEffects
+    );
 
   const activeEnergyCardIds = getActiveEnergyCardIds(player);
   if (activeEnergyCardIds.length < ENERGY_COST || player.hand.cardIds.length < DISCARD_COUNT) {
@@ -158,7 +175,7 @@ function startHsPb1007SerasOnEnterPayDiscardRecover(
 
 function finishHsPb1007SerasDiscardCost(
   game: GameState,
-  discardCardId: string,
+  discardCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
@@ -168,32 +185,41 @@ function finishHsPb1007SerasDiscardCost(
     effect.abilityId !==
       HS_PB1_007_ON_ENTER_PAY_TWO_ENERGY_DISCARD_RECOVER_HASUNOSORA_CARD_ABILITY_ID ||
     effect.stepId !== SELECT_DISCARD_STEP_ID ||
-    effect.selectableCardIds?.includes(discardCardId) !== true
+    (!isAbilityActivationCostWaived(effect) &&
+      (discardCardId === null || effect.selectableCardIds?.includes(discardCardId) !== true))
   ) {
     return game;
   }
 
   const player = getPlayerById(game, effect.controllerId);
-  if (!player || !player.hand.cardIds.includes(discardCardId)) {
+  if (
+    !player ||
+    (!isAbilityActivationCostWaived(effect) &&
+      (discardCardId === null || !player.hand.cardIds.includes(discardCardId)))
+  ) {
     return game;
   }
 
-  const energyPayment = payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
-    { kind: 'TAP_ACTIVE_ENERGY', count: ENERGY_COST },
-  ]);
+  const energyPayment = isAbilityActivationCostWaived(effect)
+    ? { gameState: game, paidEnergyCardIds: [] }
+    : payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
+        { kind: 'TAP_ACTIVE_ENERGY', count: ENERGY_COST },
+      ]);
   if (!energyPayment) {
     return game;
   }
 
-  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
-    energyPayment.gameState,
-    player.id,
-    discardCardId,
-    {
-      candidateCardIds: effect.selectableCardIds ?? [],
-    },
-    enqueueTriggeredCardEffects
-  );
+  const discardResult = isAbilityActivationCostWaived(effect)
+    ? { gameState: game, discardedCardIds: [] }
+    : discardOneHandCardToWaitingRoomAndEnqueueTriggers(
+        energyPayment.gameState,
+        player.id,
+        discardCardId!,
+        {
+          candidateCardIds: effect.selectableCardIds ?? [],
+        },
+        enqueueTriggeredCardEffects
+      );
   if (!discardResult) {
     return game;
   }
@@ -203,15 +229,17 @@ function finishHsPb1007SerasDiscardCost(
     player.id,
     groupAliasIs('蓮ノ空')
   );
-  const stateWithCost = addAction(discardResult.gameState, 'PAY_COST', player.id, {
-    pendingAbilityId: effect.id,
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    energyCardIds: energyPayment.paidEnergyCardIds,
-    amount: energyPayment.paidEnergyCardIds.length,
-    discardedHandCardIds: discardResult.discardedCardIds,
-    selectableCardIds,
-  });
+  const stateWithCost = isAbilityActivationCostWaived(effect)
+    ? game
+    : addAction(discardResult.gameState, 'PAY_COST', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        energyCardIds: energyPayment.paidEnergyCardIds,
+        amount: energyPayment.paidEnergyCardIds.length,
+        discardedHandCardIds: discardResult.discardedCardIds,
+        selectableCardIds,
+      });
   const orderedResolution = effect.metadata?.orderedResolution === true;
 
   if (selectableCardIds.length === 0) {

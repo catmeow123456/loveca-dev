@@ -1,5 +1,4 @@
 import {
-  addAction,
   getOpponent,
   getPlayerById,
   type GameState,
@@ -8,13 +7,7 @@ import {
 import { getAllMemberCardIds } from '../../../../domain/entities/zone.js';
 import { getMemberEffectiveCost } from '../../../effects/conditions.js';
 import { S_BP5_016_LIVE_START_HIGHER_COST_THAN_ALL_OPPONENT_STAGE_GAIN_TWO_BLADE_ABILITY_ID } from '../../ability-ids.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
-import {
-  getAbilityEffectText,
-  registerManualConfirmablePendingAbilityStarterHandler,
-} from '../../runtime/workflow-helpers.js';
-
-type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
+import { registerLiveStartConditionalSourceBladeWorkflowHandlers } from '../shared/live-start-conditional-source-blade.js';
 
 interface StageCostEntry {
   readonly cardId: string;
@@ -30,76 +23,27 @@ interface HanamaruContext {
 }
 
 export function registerSBp5016HanamaruWorkflowHandlers(): void {
-  registerManualConfirmablePendingAbilityStarterHandler(
-    S_BP5_016_LIVE_START_HIGHER_COST_THAN_ALL_OPPONENT_STAGE_GAIN_TWO_BLADE_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveSBp5016HanamaruLiveStart(
-        game,
-        ability,
-        options.orderedResolution === true,
-        context.continuePendingCardEffects
-      ),
-    getSBp5016ConfirmationConfig
-  );
-}
-
-function getSBp5016ConfirmationConfig(
-  game: GameState,
-  ability: PendingAbilityState
-): { readonly effectText: string } {
-  const context = getSBp5016Context(game, ability);
-  return {
-    effectText: `${getAbilityEffectText(ability.abilityId)}（己方最高费用：${formatCostEntry(
-      context.ownHighestCostMember
-    )}；对方舞台成员费用：${formatOpponentCosts(
-      context.opponentCosts
-    )}；条件${context.conditionMet ? '满足' : '未满足'}；实际${
-      context.conditionMet ? '获得[BLADE][BLADE]' : '不获得[BLADE]'
-    }。）`,
-  };
-}
-
-function resolveSBp5016HanamaruLiveStart(
-  game: GameState,
-  ability: PendingAbilityState,
-  orderedResolution: boolean,
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const stateWithoutPending: GameState = {
-    ...game,
-    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-  };
-  const player = getPlayerById(stateWithoutPending, ability.controllerId);
-  if (!player) {
-    return continuePendingCardEffects(stateWithoutPending, orderedResolution);
-  }
-
-  const context = getSBp5016Context(stateWithoutPending, ability);
-  const bladeResult = context.conditionMet
-    ? addBladeLiveModifierForSourceMember(stateWithoutPending, {
-        playerId: player.id,
-        sourceCardId: ability.sourceCardId,
-        abilityId: ability.abilityId,
-        amount: 2,
-      })
-    : null;
-  const stateAfterBlade = bladeResult?.gameState ?? stateWithoutPending;
-
-  return continuePendingCardEffects(
-    addAction(stateAfterBlade, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      sourceOnStage: context.sourceOnStage,
-      step: context.conditionMet ? 'HIGHER_COST_GAIN_TWO_BLADE' : 'CONDITION_NOT_MET',
-      ownHighestCost: context.ownHighestCostMember?.cost ?? null,
-      satisfyingMemberCardId: context.satisfyingMember?.cardId ?? null,
-      opponentCosts: context.opponentCosts,
-      conditionMet: context.conditionMet,
-      bladeBonus: bladeResult?.bladeBonus ?? 0,
-    }),
-    orderedResolution
-  );
+  registerLiveStartConditionalSourceBladeWorkflowHandlers([
+    {
+      abilityId: S_BP5_016_LIVE_START_HIGHER_COST_THAN_ALL_OPPONENT_STAGE_GAIN_TWO_BLADE_ABILITY_ID,
+      bladeBonus: 2,
+      bladeToken: '[BLADE]',
+      actionStep: 'HIGHER_COST_GAIN_TWO_BLADE',
+      getContext: (game, ability) => {
+        const context = getSBp5016Context(game, ability);
+        return {
+          conditionMet: context.conditionMet,
+          conditionText: `己方最高费用：${formatCostEntry(context.ownHighestCostMember)}；对方舞台成员费用：${formatOpponentCosts(context.opponentCosts)}`,
+          metadata: {
+            sourceOnStage: context.sourceOnStage,
+            ownHighestCost: context.ownHighestCostMember?.cost ?? null,
+            satisfyingMemberCardId: context.satisfyingMember?.cardId ?? null,
+            opponentCosts: context.opponentCosts,
+          },
+        };
+      },
+    },
+  ]);
 }
 
 function getSBp5016Context(game: GameState, ability: PendingAbilityState): HanamaruContext {

@@ -1,3 +1,4 @@
+import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
 import {
   addAction,
   getPlayerById,
@@ -35,12 +36,9 @@ import { finishWaitingRoomToHandWorkflow } from './waiting-room-to-hand.js';
 const SP_PB2_015_SELECT_DISCARD_STEP_ID = 'SP_PB2_015_SELECT_DISCARD_FOR_CATCHU_RECOVERY';
 const SP_PB2_015_SELECT_RECOVERY_STEP_ID = 'SP_PB2_015_SELECT_CATCHU_CARD_FROM_WAITING_ROOM';
 const SP_PB2_019_SELECT_DISCARD_STEP_ID = 'SP_PB2_019_SELECT_DISCARD_FOR_FIVEYNCRISE_RECOVERY';
-const SP_PB2_019_SELECT_RECOVERY_STEP_ID =
-  'SP_PB2_019_SELECT_FIVEYNCRISE_CARD_FROM_WAITING_ROOM';
-const SP_PB2_021_SELECT_DISCARD_STEP_ID =
-  'SP_PB2_021_SELECT_DISCARD_FOR_KALEIDOSCORE_RECOVERY';
-const SP_PB2_021_SELECT_RECOVERY_STEP_ID =
-  'SP_PB2_021_SELECT_KALEIDOSCORE_CARD_FROM_WAITING_ROOM';
+const SP_PB2_019_SELECT_RECOVERY_STEP_ID = 'SP_PB2_019_SELECT_FIVEYNCRISE_CARD_FROM_WAITING_ROOM';
+const SP_PB2_021_SELECT_DISCARD_STEP_ID = 'SP_PB2_021_SELECT_DISCARD_FOR_KALEIDOSCORE_RECOVERY';
+const SP_PB2_021_SELECT_RECOVERY_STEP_ID = 'SP_PB2_021_SELECT_KALEIDOSCORE_CARD_FROM_WAITING_ROOM';
 const S_SD1_002_SELECT_DISCARD_STEP_ID = 'S_SD1_002_SELECT_DISCARD_FOR_AQOURS_RECOVERY';
 const S_SD1_002_SELECT_RECOVERY_STEP_ID = 'S_SD1_002_SELECT_AQOURS_CARD_FROM_WAITING_ROOM';
 
@@ -48,6 +46,7 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 
 interface OnEnterDiscardRecoverUnitCardConfig {
   readonly abilityId: string;
+  readonly hasPrintedActivationCost?: boolean;
   readonly recoveryLabel: string;
   readonly recoverySelector: (card: CardInstance) => boolean;
   readonly discardStepId: string;
@@ -101,6 +100,7 @@ const ON_ENTER_DISCARD_RECOVER_UNIT_CARD_WORKFLOWS: readonly OnEnterDiscardRecov
     },
     {
       abilityId: HS_SD1_014_ON_ENTER_DISCARD_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
+      hasPrintedActivationCost: true,
       recoveryLabel: '蓮ノ空',
       recoverySelector: groupAliasIs('蓮ノ空'),
       discardStepId: 'HS_SD1_014_SELECT_DISCARD_FOR_HASUNOSORA_RECOVERY',
@@ -121,27 +121,34 @@ export function registerOnEnterDiscardRecoverUnitCardWorkflowHandlers(deps: {
         ability,
         config,
         options.orderedResolution === true,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
       )
     );
-    registerActiveEffectStepHandler(config.abilityId, config.discardStepId, (game, input, context) =>
-      input.selectedCardId
-        ? finishDiscardForUnitRecovery(
-            game,
-            input.selectedCardId,
-            config,
-            context.continuePendingCardEffects,
-            deps.enqueueTriggeredCardEffects
-          )
-        : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.discardStepId,
+      (game, input, context) =>
+        input.selectedCardId
+          ? finishDiscardForUnitRecovery(
+              game,
+              input.selectedCardId,
+              config,
+              context.continuePendingCardEffects,
+              deps.enqueueTriggeredCardEffects
+            )
+          : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
     );
-    registerActiveEffectStepHandler(config.abilityId, config.recoveryStepId, (game, input, context) =>
-      finishWaitingRoomToHandWorkflow(
-        game,
-        input.selectedCardId ?? null,
-        input.selectedCardIds,
-        context.continuePendingCardEffects
-      )
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.recoveryStepId,
+      (game, input, context) =>
+        finishWaitingRoomToHandWorkflow(
+          game,
+          input.selectedCardId ?? null,
+          input.selectedCardIds,
+          context.continuePendingCardEffects
+        )
     );
   }
 }
@@ -151,14 +158,18 @@ function startOnEnterDiscardRecoverUnitCard(
   ability: PendingAbilityState,
   config: OnEnterDiscardRecoverUnitCardConfig,
   orderedResolution: boolean,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueue: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
   }
 
-  if (player.hand.cardIds.length === 0) {
+  if (
+    player.hand.cardIds.length === 0 &&
+    !(config.hasPrintedActivationCost === true && isAbilityActivationCostWaived(ability))
+  ) {
     return finishPendingAbility(
       game,
       ability,
@@ -173,7 +184,7 @@ function startOnEnterDiscardRecoverUnitCard(
     );
   }
 
-  return startPendingActiveEffect(game, {
+  const started = startPendingActiveEffect(game, {
     ability,
     playerId: player.id,
     activeEffect: createOptionalDiscardHandToWaitingRoomActiveEffect({
@@ -197,6 +208,9 @@ function startOnEnterDiscardRecoverUnitCard(
       selectableCardIds: player.hand.cardIds,
     },
   });
+  return config.hasPrintedActivationCost === true && isAbilityActivationCostWaived(ability)
+    ? finishDiscardForUnitRecovery(started, '', config, continuePendingCardEffects, enqueue)
+    : started;
 }
 
 function finishDiscardForUnitRecovery(
@@ -208,37 +222,44 @@ function finishDiscardForUnitRecovery(
 ): GameState {
   const effect = game.activeEffect;
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
+  const waived =
+    config.hasPrintedActivationCost === true && !!effect && isAbilityActivationCostWaived(effect);
   if (
     !effect ||
     effect.abilityId !== config.abilityId ||
     effect.stepId !== config.discardStepId ||
     !player ||
-    effect.selectableCardIds?.includes(selectedCardId) !== true ||
-    !player.hand.cardIds.includes(selectedCardId)
+    (!waived &&
+      (effect.selectableCardIds?.includes(selectedCardId) !== true ||
+        !player.hand.cardIds.includes(selectedCardId)))
   ) {
     return game;
   }
 
-  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
-    game,
-    player.id,
-    selectedCardId,
-    {
-      candidateCardIds: effect.selectableCardIds ?? [],
-    },
-    enqueueTriggeredCardEffects
-  );
+  const discardResult = waived
+    ? { gameState: game, discardedCardIds: [] as readonly string[] }
+    : discardOneHandCardToWaitingRoomAndEnqueueTriggers(
+        game,
+        player.id,
+        selectedCardId,
+        {
+          candidateCardIds: effect.selectableCardIds ?? [],
+        },
+        enqueueTriggeredCardEffects
+      );
   if (!discardResult) {
     return game;
   }
 
-  const stateAfterCost = addAction(discardResult.gameState, 'PAY_COST', player.id, {
-    pendingAbilityId: effect.id,
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    discardedHandCardIds: discardResult.discardedCardIds,
-    recoveryLabel: config.recoveryLabel,
-  });
+  const stateAfterCost = waived
+    ? discardResult.gameState
+    : addAction(discardResult.gameState, 'PAY_COST', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        discardedHandCardIds: discardResult.discardedCardIds,
+        recoveryLabel: config.recoveryLabel,
+      });
   const selectableCardIds = selectWaitingRoomCardIds(
     stateAfterCost,
     player.id,
@@ -278,6 +299,7 @@ function finishDiscardForUnitRecovery(
         selectableCardIds,
         metadata: {
           ...effect.metadata,
+          ...(waived ? { effectCosts: [], handToWaitingRoomCost: undefined } : {}),
           orderedResolution: effect.metadata?.orderedResolution === true,
           recoveryLabel: config.recoveryLabel,
           discardedHandCardIds: discardResult.discardedCardIds,

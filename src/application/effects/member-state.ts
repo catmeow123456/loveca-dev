@@ -782,6 +782,7 @@ export function clearPreviousStageMemberInstanceState(
   memberCardId: string
 ): GameState {
   const liveModifiers = game.liveResolution.liveModifiers.filter((modifier) => {
+    if (modifier.kind === 'ON_ENTER_ABILITY_GRANT' && modifier.controllerId === playerId && modifier.hostCardId === memberCardId) return false;
     if (modifier.kind === 'SUPPRESS_ABILITY' && modifier.sourceCardId === memberCardId)
       return false;
     if (!('playerId' in modifier) || modifier.playerId !== playerId) return true;

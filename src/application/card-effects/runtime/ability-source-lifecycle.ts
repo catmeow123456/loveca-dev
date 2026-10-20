@@ -19,6 +19,7 @@ interface AbilityInvocationContext {
   readonly sourceLifecycleId?: string;
   readonly pendingAbilityId?: string;
   readonly eventIds?: readonly string[];
+  readonly onEnterInvocation?: PendingAbilityState['onEnterInvocation'];
 }
 
 function getLifecycleEntryKind(abilityId: string): 'STAGE_MEMBER' | 'LIVE_CARD' | null {
@@ -253,7 +254,9 @@ export function propagateAbilityInvocationContext(
 
   after = preserveActiveEffectSourceDisplay(before, after);
   const tracksSourceLifecycle =
-    hasPerTurnLimit(context.abilityId) || context.abilityInstanceId !== undefined;
+    hasPerTurnLimit(context.abilityId) ||
+    context.abilityInstanceId !== undefined ||
+    context.onEnterInvocation !== undefined;
   if (!tracksSourceLifecycle) {
     return after;
   }
@@ -273,14 +276,18 @@ export function propagateAbilityInvocationContext(
     activeEffect.abilityId === context.abilityId &&
     activeEffect.sourceCardId === context.sourceCardId &&
     activeEffectMatchesAbilityInstance &&
+    (context.onEnterInvocation === undefined ||
+      activeEffect.id === (context.pendingAbilityId ?? before.activeEffect?.id)) &&
     ((sourceLifecycleId !== undefined && activeEffect.sourceLifecycleId === undefined) ||
       (context.grantingMemberBelowCardId !== undefined &&
         activeEffect.metadata?.grantingMemberBelowCardId === undefined) ||
-      (context.abilityInstanceId !== undefined && activeEffect.abilityInstanceId === undefined))
+      (context.abilityInstanceId !== undefined && activeEffect.abilityInstanceId === undefined) ||
+      (context.onEnterInvocation !== undefined && activeEffect.onEnterInvocation === undefined))
   ) {
     activeEffect = {
       ...activeEffect,
       ...(sourceLifecycleId ? { sourceLifecycleId } : {}),
+      ...(context.onEnterInvocation ? { onEnterInvocation: context.onEnterInvocation } : {}),
       ...(context.abilityInstanceId ? { abilityInstanceId: context.abilityInstanceId } : {}),
       ...(context.grantingMemberBelowCardId
         ? {

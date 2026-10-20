@@ -23,7 +23,11 @@ import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
 } from '../../runtime/member-state-changed-triggers.js';
-import { getSourceMemberSlot } from '../../runtime/source-member.js';
+import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
+import {
+  getSourceMemberSlot,
+  isCurrentStageMemberAbilitySource,
+} from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -100,47 +104,36 @@ function resolveHsBp6008IzumiOnEnter(
     pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
   };
 
-  const waitResult = setMemberOrientation(
-    state,
-    player.id,
-    ability.sourceCardId,
-    OrientationState.WAITING,
-    {
-      kind: 'CARD_EFFECT',
-      playerId: player.id,
-      sourceCardId: ability.sourceCardId,
-      abilityId: ability.abilityId,
-      pendingAbilityId: ability.id,
-    }
-  );
-  if (!waitResult) {
-    return continuePendingCardEffects(
-      addAction(state, 'RESOLVE_ABILITY', player.id, {
-        pendingAbilityId: ability.id,
-        abilityId: ability.abilityId,
+  const sourceCurrent = isCurrentStageMemberAbilitySource(game, {
+    ...ability,
+    sourceLifecycleId: getPendingAbilitySourceLifecycleId(game, ability),
+  });
+  const waitResult = sourceCurrent
+    ? setMemberOrientation(state, player.id, ability.sourceCardId, OrientationState.WAITING, {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
         sourceCardId: ability.sourceCardId,
-        step: 'SOURCE_NOT_ON_STAGE_NO_OP',
-        sourceSlot,
-      }),
-      orderedResolution
-    );
-  }
-
-  state = addAction(waitResult.gameState, 'RESOLVE_ABILITY', player.id, {
+        abilityId: ability.abilityId,
+        pendingAbilityId: ability.id,
+      })
+    : null;
+  state = addAction(waitResult?.gameState ?? state, 'RESOLVE_ABILITY', player.id, {
     pendingAbilityId: ability.id,
     abilityId: ability.abilityId,
     sourceCardId: ability.sourceCardId,
-    step: 'WAIT_SELF_BEFORE_RECOVER_LOW_SCORE_HASUNOSORA_LIVE',
+    step: waitResult
+      ? 'WAIT_SELF_BEFORE_RECOVER_LOW_SCORE_HASUNOSORA_LIVE'
+      : 'SOURCE_RULES_OBJECT_LEFT_STAGE_CONTINUE_RECOVERY',
     sourceSlot,
-    previousOrientation: waitResult.previousOrientation,
-    nextOrientation: waitResult.nextOrientation,
+    previousOrientation: waitResult?.previousOrientation,
+    nextOrientation: waitResult?.nextOrientation,
   });
 
   const selectableCardIds = selectWaitingRoomCardIds(state, player.id, lowScoreHasunosoraLive(4));
   if (selectableCardIds.length === 0) {
     const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
       game,
-      { ...waitResult, gameState: state },
+      { gameState: state },
       enqueueTriggeredCardEffects,
       {
         prepareGameStateBeforeEnqueue: (stateBeforeEnqueue) => ({
@@ -188,7 +181,7 @@ function resolveHsBp6008IzumiOnEnter(
 
   return enqueueMemberStateChangedTriggersFromOrientationResult(
     game,
-    { ...waitResult, gameState: stateWithRecoverStep },
+    { gameState: stateWithRecoverStep },
     enqueueTriggeredCardEffects
   ).gameState;
 }

@@ -716,6 +716,7 @@ export function isLiveModifierVisibleToViewer(
   viewerSeat: Seat,
   modifier: LiveModifierState
 ): boolean {
+  if (modifier.kind === 'ON_ENTER_ABILITY_GRANT') return false;
   const dependency = modifier.visibilityDependency;
   if (!dependency) {
     return true;

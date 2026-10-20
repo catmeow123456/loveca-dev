@@ -1,3 +1,5 @@
+import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
+import { createWaivedOnEnterCostContinuationState } from '../../runtime/waived-on-enter-cost.js';
 import {
   addAction,
   getCardById,
@@ -30,10 +32,7 @@ import {
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { finishWaitingRoomToHandWorkflow } from '../shared/waiting-room-to-hand.js';
-import {
-  getAbilityEffectText,
-  recordPayCostAction,
-} from '../../runtime/workflow-helpers.js';
+import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
 
 const HS_BP2_005_SELECT_DISCARD_STEP_ID = 'HS_BP2_005_SELECT_DISCARD_FOR_MIRACRA_RECOVERY';
 const HS_BP2_005_SELECT_RECOVERY_STEP_ID = 'HS_BP2_005_SELECT_MIRACRA_CARD_FROM_WAITING_ROOM';
@@ -53,7 +52,8 @@ export function registerHsBp2005RurinoWorkflowHandlers(deps: {
         game,
         ability,
         options.orderedResolution === true,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
       )
   );
   registerActiveEffectStepHandler(
@@ -100,12 +100,26 @@ function startHsBp2005OnEnter(
   game: GameState,
   ability: PendingAbilityState,
   orderedResolution: boolean,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
   }
+
+  if (isAbilityActivationCostWaived(ability))
+    return finishHsBp2005DiscardForRecovery(
+      createWaivedOnEnterCostContinuationState(
+        game,
+        ability,
+        HS_BP2_005_SELECT_DISCARD_STEP_ID,
+        orderedResolution
+      ),
+      null,
+      continuePendingCardEffects,
+      enqueueTriggeredCardEffects
+    );
 
   if (player.hand.cardIds.length === 0) {
     return finishPendingAbility(
@@ -146,7 +160,7 @@ function startHsBp2005OnEnter(
 
 function finishHsBp2005DiscardForRecovery(
   game: GameState,
-  selectedCardId: string,
+  selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
@@ -157,31 +171,37 @@ function finishHsBp2005DiscardForRecovery(
     !player ||
     effect.abilityId !== HS_BP2_005_ON_ENTER_DISCARD_RECOVER_MIRACRA_CARD_ABILITY_ID ||
     effect.stepId !== HS_BP2_005_SELECT_DISCARD_STEP_ID ||
-    effect.selectableCardIds?.includes(selectedCardId) !== true ||
-    !player.hand.cardIds.includes(selectedCardId)
+    (!isAbilityActivationCostWaived(effect) &&
+      (selectedCardId === null ||
+        effect.selectableCardIds?.includes(selectedCardId) !== true ||
+        !player.hand.cardIds.includes(selectedCardId)))
   ) {
     return game;
   }
 
-  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
-    game,
-    player.id,
-    selectedCardId,
-    {
-      candidateCardIds: effect.selectableCardIds ?? [],
-    },
-    enqueueTriggeredCardEffects
-  );
+  const discardResult = isAbilityActivationCostWaived(effect)
+    ? { gameState: game, discardedCardIds: [] }
+    : discardOneHandCardToWaitingRoomAndEnqueueTriggers(
+        game,
+        player.id,
+        selectedCardId!,
+        {
+          candidateCardIds: effect.selectableCardIds ?? [],
+        },
+        enqueueTriggeredCardEffects
+      );
   if (!discardResult) {
     return game;
   }
 
-  const stateAfterCost = recordPayCostAction(discardResult.gameState, player.id, {
-    pendingAbilityId: effect.id,
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    discardedHandCardIds: discardResult.discardedCardIds,
-  });
+  const stateAfterCost = isAbilityActivationCostWaived(effect)
+    ? game
+    : recordPayCostAction(discardResult.gameState, player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        discardedHandCardIds: discardResult.discardedCardIds,
+      });
   const hasOtherMember = ownStageHasOtherMember(stateAfterCost, player.id, effect.sourceCardId);
   const selectableCardIds = hasOtherMember
     ? selectWaitingRoomCardIds(stateAfterCost, player.id, unitAliasIs('Mira-Cra Park!'))
@@ -432,7 +452,9 @@ function ownStageHasOtherMember(game: GameState, playerId: string, sourceCardId:
 
 function ownStageIsFull(game: GameState, playerId: string): boolean {
   const player = getPlayerById(game, playerId);
-  return player ? MEMBER_SLOT_ORDER.every((slot) => player.memberSlots.slots[slot] !== null) : false;
+  return player
+    ? MEMBER_SLOT_ORDER.every((slot) => player.memberSlots.slots[slot] !== null)
+    : false;
 }
 
 function getActiveEnergyCardIds(player: NonNullable<ReturnType<typeof getPlayerById>>): string[] {

@@ -1,12 +1,13 @@
+import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
+import { isCurrentStageMemberAbilitySource } from '../../runtime/source-member.js';
 import {
   addAction,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { getAllMemberCardIds } from '../../../../domain/entities/zone.js';
 import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
-import { HeartColor } from '../../../../shared/types/enums.js';
+import { HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import {
   HS_CL1_006_ON_ENTER_GAIN_THREE_BLADE_ABILITY_ID,
   HS_PR_038_ON_ENTER_NON_HAND_GAIN_PURPLE_HEART_ABILITY_ID,
@@ -142,7 +143,15 @@ function resolveOnEnterSourceMemberLiveModifier(
     );
   }
 
-  const sourceOnStage = getAllMemberCardIds(player.memberSlots).includes(ability.sourceCardId);
+  const sourceOnStage = isCurrentStageMemberAbilitySource(game, {
+    ...ability,
+    sourceLifecycleId: getPendingAbilitySourceLifecycleId(game, ability),
+  });
+  // Native trigger filtering already checks this condition; copied ON_ENTER must use the host's captured entry origin.
+  const nonHandOriginMet =
+    config.abilityId !== HS_PR_038_ON_ENTER_NON_HAND_GAIN_PURPLE_HEART_ABILITY_ID ||
+    !ability.onEnterInvocation ||
+    (typeof ability.metadata?.fromZone === 'string' && ability.metadata.fromZone !== ZoneType.HAND);
   const qualifyingStageUnitMemberCardIds =
     config.requiredStageUnitAlias === undefined
       ? []
@@ -155,7 +164,7 @@ function resolveOnEnterSourceMemberLiveModifier(
     config.minStageUnitMemberCount === undefined ||
     qualifyingStageUnitMemberCardIds.length >= config.minStageUnitMemberCount;
   const modifierResult =
-    !sourceOnStage || !stageUnitMemberConditionMet
+    !sourceOnStage || !stageUnitMemberConditionMet || !nonHandOriginMet
       ? null
       : config.kind === 'BLADE'
         ? addBladeLiveModifierForSourceMember(stateWithoutPending, {
@@ -184,6 +193,7 @@ function resolveOnEnterSourceMemberLiveModifier(
       minStageUnitMemberCount: config.minStageUnitMemberCount,
       qualifyingStageUnitMemberCardIds,
       stageUnitMemberConditionMet,
+      nonHandOriginMet,
       modifierKind: config.kind,
       modifierAmount: modifierApplied ? config.amount : 0,
       expectedModifierAmount: config.amount,

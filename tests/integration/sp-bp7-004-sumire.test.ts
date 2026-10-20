@@ -324,6 +324,18 @@ describe('PL!SP-bp7-004-P 「平安名堇」', () => {
     expect(select(scenario.session, ids).success).toBe(true);
     expect(expire(scenario.session, scenario.setNow, P1).success).toBe(true);
     expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual(ids);
+    expect(
+      scenario.session.state?.actionHistory.filter(
+        (action) => action.type === 'PAY_COST' && action.payload.abilityId === ABILITY_ID
+      )
+    ).toEqual([
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          movedCardIds: ids,
+          waitingRoomCardsMovedToMainDeckEventId: expect.any(String),
+        }),
+      }),
+    ]);
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).toContain(
       scenario.unselectedNoBladeHeart.instanceId
     );

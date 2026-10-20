@@ -46,7 +46,10 @@ export interface FinishSkippedActiveEffectOptions {
 }
 
 export interface StartPendingActiveEffectConfig {
-  readonly ability: Pick<PendingAbilityState, 'id' | 'abilityId'>;
+  readonly ability: Pick<
+    PendingAbilityState,
+    'id' | 'abilityId' | 'onEnterInvocation' | 'sourceLifecycleId'
+  >;
   readonly activeEffect: ActiveEffectState;
   readonly playerId: string;
   readonly actionPayload: Readonly<Record<string, unknown>>;
@@ -122,7 +125,16 @@ export function startPendingActiveEffect(
       pendingAbilities: game.pendingAbilities.filter(
         (candidate) => candidate.id !== config.ability.id
       ),
-      activeEffect: config.activeEffect,
+      activeEffect: {
+        ...config.activeEffect,
+        ...(config.ability.onEnterInvocation
+          ? {
+              onEnterInvocation: config.ability.onEnterInvocation,
+              sourceLifecycleId:
+                config.activeEffect.sourceLifecycleId ?? config.ability.sourceLifecycleId,
+            }
+          : {}),
+      },
     },
     'RESOLVE_ABILITY',
     config.playerId,

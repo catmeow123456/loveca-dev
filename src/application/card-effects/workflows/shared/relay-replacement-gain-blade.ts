@@ -9,7 +9,10 @@ import {
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { getMemberEffectiveCost } from '../../../effects/conditions.js';
 import { TriggerCondition, ZoneType } from '../../../../shared/types/enums.js';
-import { PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID } from '../../ability-ids.js';
+import {
+  PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
+  SP_PR_034_AUTO_RELAY_LOW_COST_TARGET_GAIN_BLADE_ABILITY_ID,
+} from '../../ability-ids.js';
 import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import { getPendingLeaveStageEvent } from '../../runtime/events.js';
 import {
@@ -18,6 +21,21 @@ import {
 } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
+
+interface RelayReplacementConfig {
+  readonly abilityId: string;
+  readonly minCost?: number;
+  readonly maxCost?: number;
+  readonly blade: number;
+}
+const CONFIGS: readonly RelayReplacementConfig[] = [
+  {
+    abilityId: PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
+    minCost: 9,
+    blade: 2,
+  },
+  { abilityId: SP_PR_034_AUTO_RELAY_LOW_COST_TARGET_GAIN_BLADE_ABILITY_ID, maxCost: 11, blade: 2 },
+];
 
 interface RelayReplacementContext {
   readonly leaveStageEventId: string | null;
@@ -31,35 +49,42 @@ interface RelayReplacementContext {
 }
 
 export function registerRelayReplacementGainBladeWorkflowHandlers(): void {
-  registerManualConfirmablePendingAbilityStarterHandler(
-    PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveRelayReplacementGainBlade(
-        game,
-        ability,
-        options.orderedResolution === true,
-        context.continuePendingCardEffects
-      ),
-    (game, ability) => getConfirmationConfig(game, ability)
-  );
+  for (const config of CONFIGS) {
+    registerManualConfirmablePendingAbilityStarterHandler(
+      config.abilityId,
+      (game, ability, options, context) =>
+        resolveRelayReplacementGainBlade(
+          game,
+          ability,
+          options.orderedResolution === true,
+          context.continuePendingCardEffects,
+          config
+        ),
+      (game, ability) => getConfirmationConfig(game, ability, config)
+    );
+  }
 }
 
 function getConfirmationConfig(
   game: GameState,
-  ability: PendingAbilityState
+  ability: PendingAbilityState,
+  config: RelayReplacementConfig
 ): { readonly effectText: string; readonly stepText: string } {
-  const context = getRelayReplacementContext(game, ability);
+  const context = getRelayReplacementContext(game, ability, config);
   const replacementDescription =
     context.replacingCardName && context.replacingCardEffectiveCost !== null
       ? `换手登场成员为「${context.replacingCardName}」（费用${context.replacingCardEffectiveCost}）`
       : '没有可确认的换手登场成员';
+  const blades = '[ブレード]'.repeat(config.blade);
+  const costDescription =
+    config.minCost !== undefined ? `大于等于${config.minCost}` : `小于等于${config.maxCost}`;
   const result = context.conditionMet
-    ? '条件满足，实际获得[ブレード][ブレード]'
+    ? `条件满足，实际获得${blades}`
     : '条件未满足，实际不获得[ブレード]';
   return {
     effectText: `${getAbilityEffectText(ability.abilityId)}（${replacementDescription}；${result}。）`,
     stepText: context.conditionMet
-      ? '换手登场成员仍在自己的舞台且有效费用大于等于9，确认后获得[ブレード][ブレード]。'
+      ? `换手登场成员仍在自己的舞台且有效费用${costDescription}，确认后获得${blades}。`
       : '当前不满足换手登场成员的条件，确认后不获得[ブレード]。',
   };
 }
@@ -68,9 +93,10 @@ function resolveRelayReplacementGainBlade(
   game: GameState,
   ability: PendingAbilityState,
   orderedResolution: boolean,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  config: RelayReplacementConfig
 ): GameState {
-  const context = getRelayReplacementContext(game, ability);
+  const context = getRelayReplacementContext(game, ability, config);
   const stateWithoutPending: GameState = {
     ...game,
     pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
@@ -83,7 +109,7 @@ function resolveRelayReplacementGainBlade(
           sourceCardId: ability.sourceCardId,
           targetMemberCardId: context.replacingCardId,
           abilityId: ability.abilityId,
-          amount: 2,
+          amount: config.blade,
         })
       : null;
   const resolvedState = bladeResult?.gameState ?? stateWithoutPending;
@@ -104,7 +130,8 @@ function resolveRelayReplacementGainBlade(
 
 function getRelayReplacementContext(
   game: GameState,
-  ability: PendingAbilityState
+  ability: PendingAbilityState,
+  config: RelayReplacementConfig
 ): RelayReplacementContext {
   const player = getPlayerById(game, ability.controllerId);
   const event = getPendingLeaveStageEvent(game, ability);
@@ -154,6 +181,7 @@ function getRelayReplacementContext(
       replacementIsOwnCurrentStageTop &&
       !replacementLeftAfterRelay &&
       effectiveCost !== null &&
-      effectiveCost >= 9,
+      (config.minCost === undefined || effectiveCost >= config.minCost) &&
+      (config.maxCost === undefined || effectiveCost <= config.maxCost),
   };
 }

@@ -1,5 +1,6 @@
 import {
   addAction,
+  getCardById,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
@@ -7,6 +8,7 @@ import {
 import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { countSuccessZoneCardsForCardEffect } from '../../../../domain/rules/success-zone-card-queries.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
+import { collectEffectiveStageMemberHeartColors } from '../../../effects/stage-member-heart-colors.js';
 import {
   getStageMemberCardIdsMatching,
   memberHasEnergyBelow,
@@ -17,6 +19,7 @@ import {
   BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
   BP5_011_LIVE_START_SUCCESS_COUNT_CHOOSE_GREEN_BLUE_PURPLE_HEART_ABILITY_ID,
   N_BP8_007_LIVE_START_ENERGY_BELOW_NIJIGASAKI_COUNT_CHOOSE_HEART_ABILITY_ID,
+  N_BP8_019_LIVE_START_CHOOSE_ABSENT_NIJIGASAKI_HEART_COLOR_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import {
@@ -45,18 +48,61 @@ const HEART_COLOR_OPTION_TEXTS: Readonly<Record<HeartColor, string>> = {
 interface LiveStartChooseHeartByCountConfig {
   readonly abilityId: string;
   readonly heartColorOptions: readonly HeartColor[];
-  readonly countHearts: (game: GameState, controllerId: string, sourceCardId: string) => number;
+  readonly countHearts: (
+    game: GameState,
+    controllerId: string,
+    sourceCardId: string,
+    selectedColor: HeartColor
+  ) => number;
   readonly countDescription: string;
-  readonly countPayloadKey: 'successLiveCount' | 'energyBelowMemberCount';
+  readonly countPayloadKey: 'successLiveCount' | 'energyBelowMemberCount' | 'heartCount';
+  readonly optionText?: (color: HeartColor) => string;
+  readonly choiceAction?: 'GAIN' | 'DESIGNATE';
   readonly noHeartActionStep: string;
   readonly gainHeartActionStep: string;
 }
 
 const LIVE_START_CHOOSE_HEART_BY_COUNT_CONFIGS: readonly LiveStartChooseHeartByCountConfig[] = [
   {
+    abilityId: N_BP8_019_LIVE_START_CHOOSE_ABSENT_NIJIGASAKI_HEART_COLOR_ABILITY_ID,
+    heartColorOptions: [
+      HeartColor.PINK,
+      HeartColor.RED,
+      HeartColor.YELLOW,
+      HeartColor.GREEN,
+      HeartColor.BLUE,
+      HeartColor.PURPLE,
+    ],
+    countHearts: (game, playerId, _sourceCardId, selectedColor) => {
+      const memberCardIds = getStageMemberCardIdsMatching(game, playerId, groupAliasIs('虹ヶ咲'));
+      const allMemberHeartListsValid = memberCardIds.every((id) => {
+        const card = getCardById(game, id);
+        return card !== null && 'hearts' in card.data && Array.isArray(card.data.hearts);
+      });
+      return allMemberHeartListsValid &&
+        memberCardIds.length >= 3 &&
+        !collectEffectiveStageMemberHeartColors(game, playerId, { memberCardIds }).has(
+          selectedColor
+        )
+        ? 1
+        : 0;
+    },
+    countDescription: '符合人数与缺色条件时获得的HEART数量',
+    countPayloadKey: 'heartCount',
+    choiceAction: 'DESIGNATE',
+    optionText: (color) =>
+      HEART_COLOR_OPTION_TEXTS[color].replace(
+        '获得与自己的成功LIVE卡区中的卡牌数量相同数量的',
+        '满足条件时，获得1个'
+      ),
+    noHeartActionStep: 'NIJIGASAKI_COUNT_OR_ABSENT_HEART_CONDITION_NOT_MET',
+    gainHeartActionStep: 'GAIN_ABSENT_NIJIGASAKI_HEART_COLOR',
+  },
+  {
     abilityId: BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
     heartColorOptions: [HeartColor.PINK, HeartColor.YELLOW, HeartColor.PURPLE],
-    countHearts: countSuccessZoneCardsForCardEffect,
+    countHearts: (game, playerId, sourceCardId) =>
+      countSuccessZoneCardsForCardEffect(game, playerId, sourceCardId),
     countDescription: '自己的成功LIVE卡区中的卡牌数量',
     countPayloadKey: 'successLiveCount',
     noHeartActionStep: 'CHOOSE_HEART_NO_SUCCESS_LIVE',
@@ -65,7 +111,8 @@ const LIVE_START_CHOOSE_HEART_BY_COUNT_CONFIGS: readonly LiveStartChooseHeartByC
   {
     abilityId: BP5_011_LIVE_START_SUCCESS_COUNT_CHOOSE_GREEN_BLUE_PURPLE_HEART_ABILITY_ID,
     heartColorOptions: [HeartColor.GREEN, HeartColor.BLUE, HeartColor.PURPLE],
-    countHearts: countSuccessZoneCardsForCardEffect,
+    countHearts: (game, playerId, sourceCardId) =>
+      countSuccessZoneCardsForCardEffect(game, playerId, sourceCardId),
     countDescription: '自己的成功LIVE卡区中的卡牌数量',
     countPayloadKey: 'successLiveCount',
     noHeartActionStep: 'CHOOSE_HEART_NO_SUCCESS_LIVE',
@@ -144,7 +191,10 @@ function startLiveStartChooseHeartByCount(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(config.abilityId),
       stepId: LIVE_START_SUCCESS_COUNT_CHOOSE_HEART_STEP_ID,
-      stepText: '请选择本次获得的Heart颜色。',
+      stepText:
+        config.choiceAction === 'DESIGNATE'
+          ? '请选择指定的HEART颜色。随后检查当前舞台上的虹咲成员人数与其持有的HEART颜色。'
+          : '请选择本次获得的Heart颜色。',
       awaitingPlayerId: player.id,
       selectableCardIds: [],
       selectableCardVisibility: 'PUBLIC',
@@ -152,17 +202,19 @@ function startLiveStartChooseHeartByCount(
         mode: 'SINGLE',
         options: config.heartColorOptions.map((color) => ({
           id: color,
-          text: HEART_COLOR_OPTION_TEXTS[color].replace(
-            '自己的成功LIVE卡区中的卡牌数量',
-            config.countDescription
-          ),
+          text:
+            config.optionText?.(color) ??
+            HEART_COLOR_OPTION_TEXTS[color].replace(
+              '自己的成功LIVE卡区中的卡牌数量',
+              config.countDescription
+            ),
         })),
         minSelections: 1,
         maxSelections: 1,
         publicConfirmation: true,
       },
-      selectionLabel: '选择Heart颜色',
-      confirmSelectionLabel: '获得Heart',
+      selectionLabel: config.choiceAction === 'DESIGNATE' ? '指定HEART颜色' : '选择Heart颜色',
+      confirmSelectionLabel: config.choiceAction === 'DESIGNATE' ? '指定HEART颜色' : '获得Heart',
       canSkipSelection: false,
       metadata: {
         heartColorOptions: [...config.heartColorOptions],
@@ -216,7 +268,7 @@ function finishLiveStartChooseHeartByCount(
     );
   }
 
-  const heartCount = config.countHearts(game, player.id, effect.sourceCardId);
+  const heartCount = config.countHearts(game, player.id, effect.sourceCardId, selectedColor);
   const stateWithoutActiveEffect = { ...game, activeEffect: null };
   if (heartCount === 0) {
     return finishWithoutHeartModifier(

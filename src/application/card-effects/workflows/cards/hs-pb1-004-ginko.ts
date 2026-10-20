@@ -1,3 +1,5 @@
+import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
+import { createWaivedOnEnterCostContinuationState } from '../../runtime/waived-on-enter-cost.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   addAction,
@@ -40,10 +42,16 @@ export function registerHsPb1004GinkoWorkflowHandlers(deps: {
 }): void {
   registerPendingAbilityStarterHandler(
     HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
-    (game, ability, options) =>
-      startHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(game, ability, {
-        orderedResolution: options.orderedResolution === true,
-      })
+    (game, ability, options, context) =>
+      startHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
+        game,
+        ability,
+        {
+          orderedResolution: options.orderedResolution === true,
+        },
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
+      )
   );
   registerActiveEffectStepHandler(
     HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
@@ -76,12 +84,27 @@ export function registerHsPb1004GinkoWorkflowHandlers(deps: {
 function startHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
   game: GameState,
   ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
+  options: { readonly orderedResolution?: boolean },
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
   }
+
+  if (isAbilityActivationCostWaived(ability))
+    return finishHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
+      createWaivedOnEnterCostContinuationState(
+        game,
+        ability,
+        HS_PB1_004_SELECT_DISCARD_STEP_ID,
+        options.orderedResolution === true
+      ),
+      null,
+      continuePendingCardEffects,
+      enqueueTriggeredCardEffects
+    );
 
   const activeEnergyCardIds = getActiveEnergyCardIds(player);
   const canPay = activeEnergyCardIds.length >= 1 && player.hand.cardIds.length > 0;
@@ -143,7 +166,7 @@ function startHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
 
 function finishHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
   game: GameState,
-  discardCardId: string,
+  discardCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
@@ -153,44 +176,55 @@ function finishHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
     effect.abilityId !==
       HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID ||
     effect.stepId !== HS_PB1_004_SELECT_DISCARD_STEP_ID ||
-    !effect.selectableCardIds?.includes(discardCardId)
+    (!isAbilityActivationCostWaived(effect) &&
+      (discardCardId === null || !effect.selectableCardIds?.includes(discardCardId)))
   ) {
     return game;
   }
 
   const player = getPlayerById(game, effect.controllerId);
-  if (!player || !player.hand.cardIds.includes(discardCardId)) {
+  if (
+    !player ||
+    (!isAbilityActivationCostWaived(effect) &&
+      (discardCardId === null || !player.hand.cardIds.includes(discardCardId)))
+  ) {
     return game;
   }
 
-  const energyPayment = payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
-    { kind: 'TAP_ACTIVE_ENERGY', count: 1 },
-  ]);
+  const energyPayment = isAbilityActivationCostWaived(effect)
+    ? { gameState: game, paidEnergyCardIds: [] }
+    : payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
+        { kind: 'TAP_ACTIVE_ENERGY', count: 1 },
+      ]);
   if (!energyPayment) {
     return game;
   }
 
-  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
-    energyPayment.gameState,
-    player.id,
-    discardCardId,
-    {
-      candidateCardIds: effect.selectableCardIds ?? [],
-    },
-    enqueueTriggeredCardEffects
-  );
+  const discardResult = isAbilityActivationCostWaived(effect)
+    ? { gameState: game, discardedCardIds: [] }
+    : discardOneHandCardToWaitingRoomAndEnqueueTriggers(
+        energyPayment.gameState,
+        player.id,
+        discardCardId!,
+        {
+          candidateCardIds: effect.selectableCardIds ?? [],
+        },
+        enqueueTriggeredCardEffects
+      );
   if (!discardResult) {
     return game;
   }
 
-  const stateAfterCost = addAction(discardResult.gameState, 'PAY_COST', player.id, {
-    pendingAbilityId: effect.id,
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    energyCardIds: energyPayment.paidEnergyCardIds,
-    amount: energyPayment.paidEnergyCardIds.length,
-    discardedHandCardIds: discardResult.discardedCardIds,
-  });
+  const stateAfterCost = isAbilityActivationCostWaived(effect)
+    ? game
+    : addAction(discardResult.gameState, 'PAY_COST', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        energyCardIds: energyPayment.paidEnergyCardIds,
+        amount: energyPayment.paidEnergyCardIds.length,
+        discardedHandCardIds: discardResult.discardedCardIds,
+      });
 
   const millResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
     stateAfterCost,
