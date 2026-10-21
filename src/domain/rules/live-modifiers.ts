@@ -3259,7 +3259,10 @@ function hasAtLeastDifferentNamedStageMembers(
         card !== null && isMemberCard(card) && predicate(card)
     );
 
-  return hasAtLeastDifferentNamedCards(cards, minCount, (card) => card.data, { groupName });
+  return hasAtLeastDifferentNamedCards(cards, minCount, (card) => card.data, {
+    nameComparison: 'MEMBER_IDENTITY',
+    groupName,
+  });
 }
 
 function hasAtLeastDifferentEffectiveCostStageMembers(

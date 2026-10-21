@@ -112,6 +112,49 @@ function createSessionFromState(state: GameState): ReturnType<typeof createGameS
 }
 
 describe('PL!HS-pb1-030-L Edelied workflow', () => {
+  it('assigns a combined name across two distinct targets and never reuses the first card', () => {
+    const { state, members } = buildLiveStartState([
+      { card: createMember('COMBINED', 'セラス柳田リリエンフェルト&桂城泉'), id: 'combined' },
+      { card: createMember('SERAS', '赛拉丝·柳田·利林费尔德'), id: 'seras' },
+    ]);
+    const session = createSessionFromState(state);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          members[0].instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(session.state!.activeEffect!.selectableCardIds).toEqual([members[1].instanceId]);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          members[0].instanceId
+        )
+      ).success
+    ).toBe(false);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          members[1].instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(session.state!.liveResolution.liveModifiers).toContainEqual(
+      expect.objectContaining({
+        kind: 'HEART',
+        targetMemberCardId: members[1].instanceId,
+        hearts: [{ color: HeartColor.PURPLE, count: 2 }],
+      })
+    );
+  });
+
   it('gives BLADE +2 to one EdelNote member, then purple Heart +2 to a different-name EdelNote member', () => {
     const { state, live, members } = buildLiveStartState([
       {
@@ -245,30 +288,33 @@ describe('PL!HS-pb1-030-L Edelied workflow', () => {
     ).toBe(true);
   });
 
-  it('excludes same-name EdelNote members from the second target while allowing different names', () => {
-    const { state, members } = buildLiveStartState([
-      {
-        card: createMember('PL!HS-test-seras-a', 'セラス 柳田 リリエンフェルト'),
-        id: 'seras-a',
-      },
-      {
-        card: createMember('PL!HS-test-seras-b', 'セラス 柳田 リリエンフェルト'),
-        id: 'seras-b',
-      },
-      { card: createMember('PL!HS-test-izumi', '桂城 泉'), id: 'izumi' },
-    ]);
-    const session = createSessionFromState(state);
+  it.each(['セラス 柳田 リリエンフェルト', '赛拉丝·柳田·利林费尔德'])(
+    'excludes same-name EdelNote spelling %s from the second target',
+    (sameName) => {
+      const { state, members } = buildLiveStartState([
+        {
+          card: createMember('PL!HS-test-seras-a', 'セラス 柳田 リリエンフェルト'),
+          id: 'seras-a',
+        },
+        {
+          card: createMember('PL!HS-test-seras-b', sameName),
+          id: 'seras-b',
+        },
+        { card: createMember('PL!HS-test-izumi', '桂城 泉'), id: 'izumi' },
+      ]);
+      const session = createSessionFromState(state);
 
-    expect(
-      session.executeCommand(
-        createConfirmEffectStepCommand(
-          PLAYER1,
-          session.state!.activeEffect!.id,
-          members[0].instanceId
-        )
-      ).success
-    ).toBe(true);
+      expect(
+        session.executeCommand(
+          createConfirmEffectStepCommand(
+            PLAYER1,
+            session.state!.activeEffect!.id,
+            members[0].instanceId
+          )
+        ).success
+      ).toBe(true);
 
-    expect(session.state?.activeEffect?.selectableCardIds).toEqual([members[2].instanceId]);
-  });
+      expect(session.state?.activeEffect?.selectableCardIds).toEqual([members[2].instanceId]);
+    }
+  );
 });

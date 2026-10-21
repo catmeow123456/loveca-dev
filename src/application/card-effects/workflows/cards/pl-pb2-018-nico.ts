@@ -334,7 +334,9 @@ function getDiscardCandidates(game: GameState, playerId: string): readonly strin
   );
 }
 function hasThreeDifferentNames(game: GameState, ids: readonly string[]): boolean {
-  return hasAtLeastDifferentNamedCards(ids, 3, (id) => getCardById(game, id)?.data);
+  return hasAtLeastDifferentNamedCards(ids, 3, (id) => getCardById(game, id)?.data, {
+    nameComparison: 'MEMBER_IDENTITY',
+  });
 }
 function ownStageOnlyBibi(game: GameState, playerId: string): boolean {
   const ids = getStageMemberCardIdsMatching(game, playerId, member);

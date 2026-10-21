@@ -13,6 +13,7 @@ import {
 } from '../../src/domain/entities/game';
 import { createCheerEvent } from '../../src/domain/events/game-events';
 import {
+  countCurrentLiveRevealedDifferentNamedCheerCards,
   evaluateCurrentLiveRevealedCheerCardCondition,
   moveRevealedCheerCards,
   selectCurrentLiveDifferentNamedStageAndCheerMembers,
@@ -56,6 +57,35 @@ function member(cardCode: string, unitName: string): MemberCardData {
 }
 
 describe('current live revealed cheer selection', () => {
+  it.each([
+    [['澁谷かのん', '涩谷香音', '唐可可'], 2],
+    [['涩谷香音&平安名堇', '涩谷香音'], 2],
+    [['平安名堇&涩谷香音', '涩谷香音'], 2],
+    [['涩谷香音&平安名堇', '澁谷かのん', '平安名すみれ'], 2],
+    [['涩谷香音&平安名堇'], 1],
+  ] as const)(
+    'counts moved-out cheer members by all canonical identities: %j',
+    (names, expected) => {
+      const cards = names.map((name, index) =>
+        createCardInstance({ ...member(`CHEER-${index}`, ''), name }, PLAYER1, `cheer-${index}`)
+      );
+      let game = registerCards(
+        createGameState('cheer-member-identities', PLAYER1, 'P1', PLAYER2, 'P2'),
+        cards
+      );
+      const ids = cards.map((card) => card.instanceId);
+      game = { ...game, liveResolution: { ...game.liveResolution, firstPlayerCheerCardIds: ids } };
+      game = emitGameEvent(game, createCheerEvent(PLAYER1, ids, ids.length, { automated: true }));
+      const result = countCurrentLiveRevealedDifferentNamedCheerCards(game, PLAYER1, {
+        cardTypes: CardType.MEMBER,
+        groupAliases: ['Liella!'],
+      });
+      expect(result.matchingCardIds).toEqual(ids);
+      expect(result.differentNameCount).toBe(expected);
+      expect(new Set(result.normalizedNames).size).toBe(expected);
+    }
+  );
+
   it('counts different Muse names across top-level stage and event-inclusive moved-out cheer facts', () => {
     const stageHonoka = createCardInstance(
       { ...member('STAGE-HONOKA', ''), name: '高坂穂乃果', groupNames: ["μ's"] },

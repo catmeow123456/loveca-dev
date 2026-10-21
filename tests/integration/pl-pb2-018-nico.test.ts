@@ -76,11 +76,11 @@ function setup(abilityId = DRAW, rarity = 'P+'): GameState {
   const cards = [
     createCardInstance(data(`PL!-pb2-018-${rarity}`, '矢澤にこ'), 'p1', 'nico'),
     createCardInstance(data('ELI-P', '絢瀬絵里'), 'p1', 'eli'),
-    createCardInstance(data('ELI-P+', '絢瀬絵里'), 'p1', 'eli-copy'),
+    createCardInstance(data('ELI-P+', '绚濑绘里'), 'p1', 'eli-copy'),
     createCardInstance(data('MAKI-P', '西木野真姫'), 'p1', 'maki'),
     createCardInstance(data('NICO-HAND', '矢澤にこ'), 'p1', 'hand-nico'),
     createCardInstance(data('OTHER', '小泉花陽', 'Printemps'), 'p1', 'other'),
-    createCardInstance(data('DUO', '絢瀬絵里＆西木野真姫'), 'p1', 'duo'),
+    createCardInstance(data('DUO', '绚濑绘里＆西木野真姬'), 'p1', 'duo'),
     ...['opp0', 'opp1', 'opp2'].map((id) =>
       createCardInstance({ ...data(id), groupNames: ['Aqours'], blade: 1 }, 'p2', id)
     ),

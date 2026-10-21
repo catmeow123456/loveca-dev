@@ -119,6 +119,12 @@ const CARD_NAME_ALIAS_GROUPS: readonly (readonly string[])[] = [
   ['聖澤悠奈', '圣泽悠奈'],
 ];
 
+const MEMBER_NAME_KEYS = new Map(
+  CARD_NAME_ALIAS_GROUPS.flatMap((aliases) =>
+    aliases.map((alias) => [normalizeCardName(alias), normalizeCardName(aliases[0])] as const)
+  )
+);
+
 const GROUP_IDENTITY_GROUPS: readonly {
   readonly canonicalName: GroupIdentityName;
   readonly key: GroupIdentityKey;
@@ -333,6 +339,19 @@ export function normalizeCardName(value: string | undefined): string {
   return value?.replace(/[\s・·]/g, '') ?? '';
 }
 
+/** A member identity key; strict card titles and displayed names keep their original semantics. */
+export function normalizeMemberName(value: string | undefined): string {
+  const name = normalizeCardName(value);
+  return MEMBER_NAME_KEYS.get(name) ?? name;
+}
+
+export function getCanonicalMemberNameCandidates(
+  card: CardIdentityLike,
+  options: { readonly groupName?: string } = {}
+): readonly string[] {
+  return [...new Set(getCardNameCandidates(card, options).map(normalizeMemberName).filter(Boolean))];
+}
+
 export function cardNameAliasMatches(card: CardIdentityLike, name: string): boolean {
   const normalizedAliases = getNormalizedCardNameAliases(name);
   return getNormalizedCardNameCandidates(card).some((candidate) =>
@@ -407,6 +426,7 @@ export function selectDifferentNamedCards<T>(
   items: readonly T[],
   getCard: (item: T) => CardIdentityLike | null | undefined,
   options: {
+    readonly nameComparison?: 'CARD_NAME' | 'MEMBER_IDENTITY';
     readonly groupName?: string;
     readonly minCount?: number;
     readonly maxCount?: number;
@@ -414,6 +434,8 @@ export function selectDifferentNamedCards<T>(
     readonly getSecondaryKey?: (item: T) => string | number | null | undefined;
   } = {}
 ): readonly DifferentNamedCardMatch<T>[] {
+  const normalizeName =
+    options.nameComparison === 'MEMBER_IDENTITY' ? normalizeMemberName : normalizeCardName;
   const candidates = items.flatMap((item) => {
     const card = getCard(item);
     if (!card) {
@@ -438,8 +460,9 @@ export function selectDifferentNamedCards<T>(
   const selected = findDifferentNameAssignment(
     candidates,
     maxCount,
-    new Set(options.excludedNormalizedNames ?? []),
-    new Set()
+    new Set((options.excludedNormalizedNames ?? []).map(normalizeName)),
+    new Set(),
+    normalizeName
   );
   return selected.length >= minCount ? selected : [];
 }
@@ -449,6 +472,7 @@ export function hasAtLeastDifferentNamedCards<T>(
   minCount: number,
   getCard: (item: T) => CardIdentityLike | null | undefined,
   options: {
+    readonly nameComparison?: 'CARD_NAME' | 'MEMBER_IDENTITY';
     readonly groupName?: string;
     readonly excludedNormalizedNames?: readonly string[];
     readonly getSecondaryKey?: (item: T) => string | number | null | undefined;
@@ -661,47 +685,95 @@ function findDifferentNameAssignment<T>(
   }[],
   maxCount: number,
   usedNames: ReadonlySet<string>,
-  usedSecondaryKeys: ReadonlySet<string>
+  usedSecondaryKeys: ReadonlySet<string>,
+  normalizeName: (name: string) => string
 ): readonly DifferentNamedCardMatch<T>[] {
-  if (maxCount === 0 || candidates.length === 0) {
-    return [];
-  }
+  const normalizedCandidates = candidates.map((candidate) => ({
+    ...candidate,
+    names: candidate.names.map((name) => ({ name, normalizedName: normalizeName(name) })),
+  }));
+  const excludedNames = new Set(usedNames);
+  const excludedSecondaryKeys = new Set(usedSecondaryKeys);
 
-  let best: readonly DifferentNamedCardMatch<T>[] = [];
-  for (let index = 0; index < candidates.length; index += 1) {
-    const candidate = candidates[index]!;
-    if (candidate.secondaryKey !== null && usedSecondaryKeys.has(candidate.secondaryKey)) {
-      continue;
-    }
-    for (const name of candidate.names) {
-      const normalizedName = normalizeCardName(name);
-      if (!normalizedName || usedNames.has(normalizedName)) {
+  // Each card (or shared secondary key, such as cost) can supply at most one name.
+  // Augmenting paths can reassign a DUO to its other name without enumerating subsets.
+  const maximumMatchingCount = (startIndex: number, limit: number): number => {
+    if (limit <= 0) return 0;
+
+    const namesByGroup: Set<string>[] = [];
+    const secondaryGroupIndexes = new Map<string, number>();
+    for (let index = startIndex; index < normalizedCandidates.length; index += 1) {
+      const candidate = normalizedCandidates[index]!;
+      if (candidate.secondaryKey !== null && excludedSecondaryKeys.has(candidate.secondaryKey)) {
         continue;
       }
-      const nextUsedNames = new Set(usedNames);
-      nextUsedNames.add(normalizedName);
-      const nextUsedSecondaryKeys = new Set(usedSecondaryKeys);
-      if (candidate.secondaryKey !== null) {
-        nextUsedSecondaryKeys.add(candidate.secondaryKey);
+      let groupIndex =
+        candidate.secondaryKey === null
+          ? undefined
+          : secondaryGroupIndexes.get(candidate.secondaryKey);
+      if (groupIndex === undefined) {
+        groupIndex = namesByGroup.length;
+        namesByGroup.push(new Set());
+        if (candidate.secondaryKey !== null) {
+          secondaryGroupIndexes.set(candidate.secondaryKey, groupIndex);
+        }
       }
-      const rest = findDifferentNameAssignment(
-        candidates.slice(index + 1),
-        maxCount - 1,
-        nextUsedNames,
-        nextUsedSecondaryKeys
-      );
-      const match = { item: candidate.item, name, normalizedName };
-      if (rest.length === maxCount - 1) {
-        return [match, ...rest];
-      }
-      const selected = [match, ...rest];
-      if (selected.length > best.length) {
-        best = selected;
+      for (const { normalizedName } of candidate.names) {
+        if (normalizedName && !excludedNames.has(normalizedName)) {
+          namesByGroup[groupIndex]!.add(normalizedName);
+        }
       }
     }
-  }
 
-  return best;
+    const ownerByName = new Map<string, number>();
+    const augment = (groupIndex: number, visitedNames: Set<string>): boolean => {
+      for (const name of namesByGroup[groupIndex]!) {
+        if (visitedNames.has(name)) continue;
+        visitedNames.add(name);
+        const owner = ownerByName.get(name);
+        if (owner === undefined || augment(owner, visitedNames)) {
+          ownerByName.set(name, groupIndex);
+          return true;
+        }
+      }
+      return false;
+    };
+
+    for (let groupIndex = 0; groupIndex < namesByGroup.length; groupIndex += 1) {
+      if (augment(groupIndex, new Set()) && ownerByName.size >= limit) {
+        return limit;
+      }
+    }
+    return ownerByName.size;
+  };
+
+  const targetCount = maximumMatchingCount(0, maxCount);
+  const selected: DifferentNamedCardMatch<T>[] = [];
+  // Keep the previous candidate/name preference for stable selections and replay records.
+  // Accept a choice only if the remaining graph can still complete a maximum assignment.
+  for (
+    let index = 0;
+    index < normalizedCandidates.length && selected.length < targetCount;
+    index += 1
+  ) {
+    const candidate = normalizedCandidates[index]!;
+    if (candidate.secondaryKey !== null && excludedSecondaryKeys.has(candidate.secondaryKey)) {
+      continue;
+    }
+    for (const { name, normalizedName } of candidate.names) {
+      if (!normalizedName || excludedNames.has(normalizedName)) continue;
+      excludedNames.add(normalizedName);
+      if (candidate.secondaryKey !== null) excludedSecondaryKeys.add(candidate.secondaryKey);
+      const remainingCount = targetCount - selected.length - 1;
+      if (maximumMatchingCount(index + 1, remainingCount) === remainingCount) {
+        selected.push({ item: candidate.item, name, normalizedName });
+        break;
+      }
+      excludedNames.delete(normalizedName);
+      if (candidate.secondaryKey !== null) excludedSecondaryKeys.delete(candidate.secondaryKey);
+    }
+  }
+  return selected;
 }
 
 function findDifferentStructuredUnitAssignment<T>(

@@ -843,7 +843,7 @@ function getOwnStageDifferentBiBiMemberNameCount(game: GameState, playerId: stri
       and(typeIs(CardType.MEMBER), unitAliasIs('BiBi'))
     ),
     (cardId) => game.cardRegistry.get(cardId)?.data,
-    { minCount: 1 }
+    { nameComparison: 'MEMBER_IDENTITY', minCount: 1 }
   ).length;
 }
 

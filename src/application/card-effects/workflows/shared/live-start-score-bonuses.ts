@@ -937,7 +937,7 @@ function getLinkToTheFutureContext(
             ? card.data
             : null;
         },
-        { minCount: 1 }
+        { nameComparison: 'MEMBER_IDENTITY', minCount: 1 }
       ).map((match) => ({ cardId: match.item, name: match.name }))
     : [];
   return {
@@ -1197,7 +1197,7 @@ function getNeutralContext(
         ? card.data
         : null;
     },
-    { minCount: 1 }
+    { nameComparison: 'MEMBER_IDENTITY', minCount: 1 }
   ).map((match) => ({ cardId: match.item, name: match.name }));
   return {
     sourceInLiveZone,
@@ -1332,7 +1332,7 @@ function getDifferentNamedStageMembers(
       const card = getCardById(game, cardId);
       return card && isMemberCardData(card.data) ? card.data : null;
     },
-    { minCount: 1 }
+    { nameComparison: 'MEMBER_IDENTITY', minCount: 1 }
   ).map((match) => ({ cardId: match.item, name: match.name }));
 }
 
@@ -1364,6 +1364,7 @@ function getDifferentNamedAndEffectiveCostStageMembers(
       return card && isMemberCardData(card.data) ? card.data : null;
     },
     {
+      nameComparison: 'MEMBER_IDENTITY',
       minCount: 1,
       getSecondaryKey: (cardId) => getMemberEffectiveCost(game, playerId, cardId),
     }

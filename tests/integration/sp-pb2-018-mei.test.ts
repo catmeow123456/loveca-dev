@@ -45,7 +45,11 @@ function createEnergy(cardCode: string): EnergyCardData {
   };
 }
 
-function setupState(options: { readonly waitingEnergyCount: number }): {
+function setupState(options: {
+  readonly waitingEnergyCount: number;
+  readonly sourceName?: string;
+  readonly sameName?: string;
+}): {
   readonly game: GameState;
   readonly sourceId: string;
   readonly qualifyingId: string;
@@ -55,7 +59,7 @@ function setupState(options: { readonly waitingEnergyCount: number }): {
   readonly energyIds: readonly string[];
 } {
   const source = createCardInstance(
-    createMember('PL!SP-pb2-018-R', '米女メイ'),
+    createMember('PL!SP-pb2-018-R', options.sourceName ?? '米女メイ'),
     PLAYER1,
     'sp-pb2-018-source'
   );
@@ -65,7 +69,7 @@ function setupState(options: { readonly waitingEnergyCount: number }): {
     'sp-pb2-018-qualifying'
   );
   const sameName = createCardInstance(
-    createMember('PL!SP-pb2-018-same-name', '米女メイ'),
+    createMember('PL!SP-pb2-018-same-name', options.sameName ?? '米女メイ'),
     PLAYER1,
     'sp-pb2-018-same-name'
   );
@@ -153,29 +157,36 @@ function startAbility(game: GameState, sourceId: string): GameState {
 }
 
 describe('PL!SP-pb2-018 Mei live start energy activation', () => {
-  it('activates energy for different-named CatChu! stage members only', () => {
-    const scenario = setupState({ waitingEnergyCount: 2 });
-    const state = startAbility(scenario.game, scenario.sourceId);
+  it.each([
+    ['米女メイ', '米女メイ'],
+    ['米女メイ', '米女芽衣'],
+    ['米女芽衣', '米女メイ'],
+  ])(
+    'excludes same-name CatChu! aliases %s / %s from energy activation',
+    (sourceName, sameName) => {
+      const scenario = setupState({ waitingEnergyCount: 2, sourceName, sameName });
+      const state = startAbility(scenario.game, scenario.sourceId);
 
-    expect(state.activeEffect).toBeNull();
-    expect(state.players[0].energyZone.cardStates.get(scenario.energyIds[0])?.orientation).toBe(
-      OrientationState.ACTIVE
-    );
-    expect(state.players[0].energyZone.cardStates.get(scenario.energyIds[1])?.orientation).toBe(
-      OrientationState.WAITING
-    );
-    expect(
-      state.actionHistory.find(
-        (action) =>
-          action.type === 'RESOLVE_ABILITY' &&
-          action.payload.abilityId ===
-            SP_PB2_018_LIVE_START_DIFFERENT_NAME_CATCHU_ACTIVATE_ENERGY_ABILITY_ID
-      )?.payload
-    ).toMatchObject({
-      differentNamedCatchuMemberIds: [scenario.qualifyingId],
-      activatedEnergyCardIds: [scenario.energyIds[0]],
-    });
-  });
+      expect(state.activeEffect).toBeNull();
+      expect(state.players[0].energyZone.cardStates.get(scenario.energyIds[0])?.orientation).toBe(
+        OrientationState.ACTIVE
+      );
+      expect(state.players[0].energyZone.cardStates.get(scenario.energyIds[1])?.orientation).toBe(
+        OrientationState.WAITING
+      );
+      expect(
+        state.actionHistory.find(
+          (action) =>
+            action.type === 'RESOLVE_ABILITY' &&
+            action.payload.abilityId ===
+              SP_PB2_018_LIVE_START_DIFFERENT_NAME_CATCHU_ACTIVATE_ENERGY_ABILITY_ID
+        )?.payload
+      ).toMatchObject({
+        differentNamedCatchuMemberIds: [scenario.qualifyingId],
+        activatedEnergyCardIds: [scenario.energyIds[0]],
+      });
+    }
+  );
 
   it('only activates available waiting energy when fewer than the counted members', () => {
     const scenario = setupState({ waitingEnergyCount: 0 });

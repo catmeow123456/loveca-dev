@@ -158,7 +158,11 @@ function getExecutableBranches(game: GameState, playerId: string): readonly stri
 
 function getDifferentDiverDivaMemberIds(game: GameState, playerId: string): readonly string[] {
   const ids = getStageMemberCardIdsMatching(game, playerId, unitAliasIs('DiverDiva'));
-  return selectDifferentNamedCards(ids, (id) => getCardById(game, id)?.data ?? null, { minCount: 2, maxCount: 2 }).map((entry) => entry.item);
+  return selectDifferentNamedCards(ids, (id) => getCardById(game, id)?.data ?? null, {
+    nameComparison: 'MEMBER_IDENTITY',
+    minCount: 2,
+    maxCount: 2,
+  }).map((entry) => entry.item);
 }
 
 function getNijigasakiTargets(game: GameState, playerId: string): readonly string[] {

@@ -192,7 +192,7 @@ describe('PL!N-bp7-003-SEC 樱坂雫', () => {
   it('LIVE开始按联合姓名的结构化身份求最大不同名，并在来源离场时结算0', () => {
     const shizuku = member('PL!N-bp7-003-SEC', 'live-shizuku', { name: '樱坂雫' });
     const ayumu = member('AYUMU', 'ayumu', { name: '上原歩夢' });
-    const combined = member('COMBINED', 'combined', { name: '上原歩夢&桜坂しずく' });
+    const combined = member('COMBINED', 'combined', { name: '上原步梦&樱坂雫' });
     const shizukuName = member('SHIZUKU-NAME', 'shizuku-name', { name: '桜坂しずく' });
     let game = registerCards(createGameState('shizuku-live-names', P1, 'P1', P2, 'P2'), [
       shizuku,

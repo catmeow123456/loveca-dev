@@ -148,6 +148,10 @@ function getDifferentNamedCatchuStageMemberIds(
       }
       return card.data;
     },
-    { excludedNormalizedNames: sourceNormalizedNames, minCount: 1 }
+    {
+      nameComparison: 'MEMBER_IDENTITY',
+      excludedNormalizedNames: sourceNormalizedNames,
+      minCount: 1,
+    }
   ).map((match) => match.item);
 }
