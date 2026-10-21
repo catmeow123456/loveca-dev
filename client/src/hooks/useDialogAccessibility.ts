@@ -72,6 +72,7 @@ interface UseDialogAccessibilityOptions {
   readonly isOpen: boolean;
   readonly dialogRef: RefObject<HTMLElement | null>;
   readonly initialFocusRef?: RefObject<HTMLElement | null>;
+  readonly returnFocusRef?: RefObject<HTMLElement | null>;
   readonly onEscape?: () => void;
   readonly closeOnEscape?: boolean;
 }
@@ -80,6 +81,7 @@ export function useDialogAccessibility({
   isOpen,
   dialogRef,
   initialFocusRef,
+  returnFocusRef,
   onEscape,
   closeOnEscape = true,
 }: UseDialogAccessibilityOptions): void {
@@ -102,6 +104,7 @@ export function useDialogAccessibility({
     openDialogStack.push(dialogToken);
     const previouslyFocused =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const fallbackReturnTarget = returnFocusRef?.current;
     const unlockBodyScroll = lockBodyScroll();
     const dialog = dialogRef.current;
     const focusTarget =
@@ -162,9 +165,15 @@ export function useDialogAccessibility({
         openDialogStack.splice(dialogIndex, 1);
       }
       unlockBodyScroll();
-      if (wasTopDialog && previouslyFocused?.isConnected) {
-        focusWithoutScrolling(previouslyFocused);
+      const returnTarget =
+        previouslyFocused?.isConnected &&
+        previouslyFocused !== document.body &&
+        !previouslyFocused.closest('.worksheet-cover')
+          ? previouslyFocused
+          : fallbackReturnTarget;
+      if (wasTopDialog && returnTarget?.isConnected) {
+        focusWithoutScrolling(returnTarget);
       }
     };
-  }, [dialogRef, initialFocusRef, isOpen, covered, textOnly]);
+  }, [dialogRef, initialFocusRef, returnFocusRef, isOpen, covered, textOnly]);
 }

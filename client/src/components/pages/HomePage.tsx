@@ -1,5 +1,5 @@
 /** 登录后大厅：选择玩法、准备一副卡组、继续当前任务。 */
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTextPresentation } from '@/lib/appPresentation';
 import {
   ArrowRight,
@@ -150,6 +150,8 @@ export function HomePage({
     ids: Partial<Record<ModeId, string>>;
   }>({ ownerId, ids: {} });
   const [dialog, setDialog] = useState<'choose' | string | null>(null);
+  const chooseDeckButton = useRef<HTMLButtonElement>(null);
+  const deckDetailsButton = useRef<HTMLButtonElement>(null);
   const [isAbandoningRoom, setIsAbandoningRoom] = useState(false);
   const [roomError, setRoomError] = useState<string | null>(null);
 
@@ -376,7 +378,7 @@ export function HomePage({
                 当前卡组：{selectedDeck?.name ?? '未选择'} · 合法卡组 {validDeckItems.length} 副
               </p>
               <DeckSelector
-                cloudDecks={canUseOnline ? cloudDecks : []}
+                cloudDecks={canUseOnline ? validCloudDecks : []}
                 localDecks={offlineMode ? localDecks : []}
                 selectedId={selectedDeck?.id}
                 onSelect={(deck) =>
@@ -560,6 +562,7 @@ export function HomePage({
                     </h3>
                     <div className="lobby-deck-tools">
                       <button
+                        ref={chooseDeckButton}
                         type="button"
                         className="home-text-button"
                         onClick={() => {
@@ -571,6 +574,7 @@ export function HomePage({
                         <ArrowRight size={14} aria-hidden="true" />
                       </button>
                       <button
+                        ref={deckDetailsButton}
                         type="button"
                         className="home-text-button"
                         onClick={() => setDialog(selectedDeck.id)}
@@ -691,6 +695,7 @@ export function HomePage({
       {dialog === 'choose' && (
         <HomeDialog
           title="更换卡组"
+          returnFocusRef={chooseDeckButton}
           onClose={() => setDialog(null)}
           action={
             <button
@@ -743,6 +748,7 @@ export function HomePage({
       {dialog && dialog !== 'choose' && (
         <HomeDialog
           title={detailDeck?.name ?? '卡组已不可用'}
+          returnFocusRef={deckDetailsButton}
           onClose={() => setDialog(null)}
           action={
             detailDeck && (

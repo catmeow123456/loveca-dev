@@ -1,18 +1,21 @@
-import { useId, useRef, type ReactNode } from 'react';
+import { useId, useRef, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
+import { getPresentationPortalRoot } from '@/lib/appPresentation';
 
 export function HomeDialog({
   title,
   children,
   onClose,
   action,
+  returnFocusRef,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
   action?: ReactNode;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -21,6 +24,7 @@ export function HomeDialog({
     isOpen: true,
     dialogRef: ref,
     initialFocusRef: closeButton,
+    returnFocusRef,
     onEscape: onClose,
   });
 
@@ -50,6 +54,6 @@ export function HomeDialog({
         <div className="home-dialog-body">{children}</div>
       </div>
     </div>,
-    document.body
+    getPresentationPortalRoot()
   );
 }

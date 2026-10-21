@@ -82,7 +82,7 @@ const LIVE_CARDS = Array.from({ length: 12 }, (_, index) => {
 const ENERGY_CARD = makeCard('LL-E-001-SD', 'ENERGY', '视觉验收能量', 1);
 const CARD_RECORDS = [...MEMBER_CARDS, ...LIVE_CARDS, ENERGY_CARD];
 
-const DECK_RECORD = {
+export const DECK_RECORD = {
   id: 'visual-deck',
   user_id: 'visual-user',
   name: '视觉回归标准卡组',

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { installVisualApiMocks } from '../visual/support/mockApp';
+import { DECK_RECORD, installVisualApiMocks } from '../visual/support/mockApp';
 
 async function excel(page: Page) {
   await page.context().route('**/site-status.json*', (route) =>
@@ -373,4 +373,197 @@ test('workbook icon and title are present before React starts in Excel and cover
     );
     await expect(page.locator('#root')).toBeEmpty();
   }
+});
+
+test('new lobby shares deck and mode choices with Excel and keeps casual previews text only', async ({
+  page,
+}, info) => {
+  await excel(page);
+  await installVisualApiMocks(page, true);
+  const second = { ...DECK_RECORD, id: 'second-deck', name: '第二副测试卡组' };
+  await page.route('**/api/decks', (route) =>
+    route.fulfill({ json: { data: [DECK_RECORD, second], error: null } })
+  );
+  const media = observeMedia(page);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/');
+  const modes = page.getByRole('combobox', { name: '选择玩法', exact: true });
+  await expect(modes).toHaveValue('casual');
+  const rows = page.getByRole('table', { name: '卡组列表' }).getByRole('row');
+  const secondRow = rows.filter({ hasText: second.name });
+  await secondRow.getByRole('button', { name: '选择', exact: true }).click();
+  await secondRow.getByRole('button', { name: '查看内容', exact: true }).click();
+  await expect(page.getByRole('button', { name: '视觉验收成员 001', exact: true })).toBeVisible();
+  await page.keyboard.press('Control+Alt+x');
+  await expect(page.locator('#app-surface')).toHaveAttribute('inert', '');
+  await page.keyboard.press('Control+Alt+x');
+  await expect(secondRow).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('button', { name: '收起内容', exact: true }).click();
+  await modes.selectOption('ranked');
+  await expect(page.getByRole('button', { name: '前往赛季排位', exact: true })).toBeEnabled();
+  await modes.selectOption('casual');
+  await expect(secondRow).toHaveAttribute('aria-selected', 'true');
+  await page.screenshot({ path: info.outputPath('excel-new-lobby.png'), fullPage: true });
+  await page.getByRole('button', { name: '进入对战大厅', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
+  expect(
+    await page.evaluate(() => localStorage.getItem('loveca.deckSelection.lastUsed.public-table'))
+  ).toBe(second.id);
+  await page.getByRole('button', { name: '创建房间', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.locator('.casual-selected-deck')).toContainText(second.name);
+  await expect(dialog.locator('img')).toHaveCount(0);
+  await dialog.getByRole('button', { name: '更换', exact: true }).click();
+  await dialog
+    .getByRole('row')
+    .filter({ hasText: DECK_RECORD.name })
+    .getByRole('button', { name: '选择', exact: true })
+    .click();
+  await expect(dialog.locator('.casual-selected-deck')).toContainText(DECK_RECORD.name);
+  await page.screenshot({ path: info.outputPath('excel-casual-deck.png'), fullPage: true });
+  await page.keyboard.press('Control+Alt+x');
+  await expect(dialog).toBeHidden();
+  await page.keyboard.press('Control+Alt+x');
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  expect(media).toEqual([]);
+  expect(errors).toEqual([]);
+  expect(await page.evaluate(() => (window as any).excelAudioCalls)).toBe(0);
+  await page.getByRole('button', { name: '返回首页', exact: true }).click();
+  await modes.selectOption('ranked');
+  await secondRow.getByRole('button', { name: '选择', exact: true }).click();
+  await page.getByRole('button', { name: '前往赛季排位', exact: true }).click();
+  expect(
+    await page.evaluate(() => localStorage.getItem('loveca.deckSelection.lastUsed.ranked'))
+  ).toBe(second.id);
+  await expect(page.getByRole('heading', { name: '赛季排位', exact: true }).first()).toBeVisible();
+});
+
+test('new lobby preserves ordinary dialogs and selection when switching and covering', async ({
+  page,
+}, info) => {
+  await installVisualApiMocks(page, true);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Loveca 大厅', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '更换卡组', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '更换卡组', exact: true });
+  await expect(page.locator('#app-overlays').getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Control+Alt+x');
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('#app-overlays')).toHaveAttribute('inert', '');
+  await page.keyboard.press('Control+Alt+x');
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: '更换卡组', exact: true })).toBeFocused();
+  await page.getByRole('button', { name: '查看构筑', exact: true }).click();
+  await expect(page.getByRole('dialog').locator('img').first()).toBeVisible();
+  await page.keyboard.press('Control+Alt+e');
+  await expect(page.getByRole('combobox', { name: '选择玩法', exact: true })).toBeVisible();
+  await expect(page.locator('img')).toHaveCount(0);
+  await page.keyboard.press('Control+Alt+e');
+  await expect(page.getByRole('dialog').locator('img').first()).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.screenshot({ path: info.outputPath('ordinary-new-lobby.png'), fullPage: true });
+  await page.keyboard.press('Control+Alt+e');
+  await page.getByRole('button', { name: '对墙打', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '选择己方卡组', exact: true })).toBeVisible();
+});
+
+test('new Excel lobby handles failed reads, no valid deck and stale selections', async ({
+  page,
+}) => {
+  await excel(page);
+  await installVisualApiMocks(page, true);
+  let fail = true;
+  let decks: (typeof DECK_RECORD)[] = [];
+  await page.route('**/api/decks', (route) =>
+    route.fulfill({
+      status: fail ? 400 : 200,
+      json: {
+        data: fail ? null : decks,
+        error: fail ? { code: 'UNAVAILABLE', message: '测试卡组暂不可用' } : null,
+      },
+    })
+  );
+  await page.route('**/api/config', (route) =>
+    route.fulfill({
+      json: {
+        data: {
+          features: { battleEntries: { ranked: false, themeTable: false } },
+          siteStatus: {
+            lifecycle: 'NORMAL',
+            generatedAt: '2026-07-31T12:00:00.000Z',
+            maintenance: null,
+            announcements: [],
+          },
+        },
+        error: null,
+      },
+    })
+  );
+  await page.goto('/');
+  const launch = page.getByRole('button', { name: '进入对战大厅', exact: true });
+  await expect(page.getByRole('alert').filter({ hasText: '测试卡组暂不可用' })).toBeVisible();
+  await expect(launch).toBeDisabled();
+  await expect(
+    page.getByRole('combobox', { name: '选择玩法', exact: true }).locator('option')
+  ).toHaveText(['对战大厅']);
+  fail = false;
+  decks = [{ ...DECK_RECORD, main_deck: [], is_valid: false }];
+  await page.getByRole('button', { name: '刷新卡组', exact: true }).click();
+  await expect(page.getByText('需要一副符合规则的卡组', { exact: true })).toBeVisible();
+  await expect(launch).toBeDisabled();
+  const second = { ...DECK_RECORD, id: 'second-deck', name: '第二副测试卡组' };
+  decks = [DECK_RECORD, second];
+  await page.getByRole('button', { name: '刷新卡组', exact: true }).click();
+  const rows = page.getByRole('table', { name: '卡组列表' }).getByRole('row');
+  await rows
+    .filter({ hasText: second.name })
+    .getByRole('button', { name: '选择', exact: true })
+    .click();
+  decks = [DECK_RECORD];
+  await page.getByRole('button', { name: '刷新卡组', exact: true }).click();
+  await expect(rows.filter({ hasText: second.name })).toHaveCount(0);
+  await expect(rows.filter({ hasText: DECK_RECORD.name })).toHaveAttribute('aria-selected', 'true');
+  await expect(launch).toBeEnabled();
+});
+
+test('new Excel lobby retains room recovery guard before local play', async ({ page }) => {
+  await excel(page);
+  await installVisualApiMocks(page, true);
+  await page.route('**/api/casual-tables/me', (route) =>
+    route.fulfill({
+      json: {
+        data: {
+          table: null,
+          otherParticipation: {
+            kind: 'ONLINE_MATCH',
+            destination: 'ranked',
+            roomGeneration: 'ranked-generation',
+            matchId: 'ranked-match',
+          },
+        },
+        error: null,
+      },
+    })
+  );
+  const writes: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && /\/api\/(casual-tables|online)\//.test(request.url()))
+      writes.push(request.url());
+  });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: '对墙打', exact: true })).toBeDisabled();
+  const room = page.getByRole('region', { name: '当前房间', exact: true });
+  await room.getByText('其他操作', { exact: true }).click();
+  await room.getByRole('button', { name: '另开本地对局', exact: true }).click();
+  await expect(
+    page.getByRole('alert').filter({ hasText: /读取排位|读取赛季|未能恢复当前房间/ })
+  ).toBeVisible();
+  await expect(page.getByRole('combobox', { name: '选择玩法', exact: true })).toBeVisible();
+  expect(writes).toEqual([]);
+  await room.getByRole('button', { name: '返回房间', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
 });
