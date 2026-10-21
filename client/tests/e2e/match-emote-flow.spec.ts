@@ -350,7 +350,7 @@ test.describe('联机对局快捷表情', () => {
 
 async function attachPlayerToRoom(page: Page, roomCode: string): Promise<void> {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: '前往大厅' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Loveca 大厅', exact: true })).toBeVisible();
   await page.evaluate(({ storageKey, room }) => window.sessionStorage.setItem(storageKey, room), {
     storageKey: 'loveca.online.room',
     room: roomCode,

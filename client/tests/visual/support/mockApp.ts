@@ -125,6 +125,20 @@ async function fulfill(route: Route, data: unknown, status = 200) {
 }
 
 export async function installVisualApiMocks(page: Page, authenticated: boolean) {
+  // Synthetic fixture cards have no real artwork; keep their previews deterministic.
+  await page.route(/\/(?:ME|LV)-visual-\d+\.webp(?:\?.*)?$/, async (route) => {
+    const code = new URL(route.request().url()).pathname.split('/').at(-1)!.replace('.webp', '');
+    await route.fulfill({
+      contentType: 'image/svg+xml',
+      body: `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="420" viewBox="0 0 300 420">
+        <rect width="300" height="420" rx="16" fill="#ecdce5"/>
+        <rect x="12" y="12" width="276" height="396" rx="10" fill="#faf4f7"/>
+        <path d="M12 240 150 80 288 240v95H12Z" fill="#cbaabb"/>
+        <circle cx="150" cy="190" r="55" fill="#ead2df"/>
+        <text x="150" y="365" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#533c4d">${code}</text>
+      </svg>`,
+    });
+  });
   await page.route('**/api/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -207,6 +221,10 @@ export async function installVisualApiMocks(page: Page, authenticated: boolean) 
     }
     if (url.pathname === '/api/decks' && request.method() === 'GET') {
       await fulfill(route, [DECK_RECORD]);
+      return;
+    }
+    if (url.pathname === '/api/battle/match-records' && request.method() === 'GET') {
+      await fulfill(route, []);
       return;
     }
 

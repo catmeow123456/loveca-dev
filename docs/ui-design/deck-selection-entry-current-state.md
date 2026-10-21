@@ -56,9 +56,10 @@
 当前行为：
 
 - 找人、建房和加入时选择合法云端卡组，提交后服务端冻结快照；选组本身不占座。
+- 当前卡池与 PT 均通过校验后才可选择；默认显示已选卡组摘要，点击“更换”展开列表，选定后收起。
 - 等待阶段可通过“换组”打开弹层；配对后需先取消配对，再重新选组。
 - 赛后发起或同意再战时分别选组，再进入双方重新确认的新轮次。
-- 弹层提供内部滚动、Escape 关闭与焦点返回；无合法卡组时可进入卡组管理。
+- 弹层标题保持可见，内容内部滚动，确认区吸附在底部；提供 Escape 关闭与焦点返回，无合法卡组时可进入卡组管理。
 
 房间准入、再战与公开范围见[社区对战大厅设计](../online-mode/community-lobby-design.md)。
 
@@ -89,7 +90,7 @@
 
 ### 折叠式更换卡组入口
 
-休闲大厅已通过任务弹层按需展示列表；对墙打、本地调试和联机调试仍在当前选组步骤直接展示紧凑列表。
+休闲大厅在任务弹层默认显示已选卡组摘要，按需展开列表；对墙打、本地调试和联机调试仍在当前选组步骤直接展示紧凑列表。
 
 ### 推荐卡组摘要区
 
@@ -103,7 +104,7 @@
 
 对墙打和本地调试仍使用现有分步布局和底部导航，没有为卡组选择步骤新增独立 sticky 主操作区。
 
-休闲大厅使用可滚动弹层，联机调试把主操作提前到列表之前，但没有为所有视口提供始终吸附的操作栏。
+休闲大厅使用内容区滚动、标题常驻与确认区吸附的弹层；联机调试把主操作提前到列表之前，但没有为所有视口提供始终吸附的操作栏。
 
 ### 对局入口专项 Playwright 视口验收
 
@@ -116,15 +117,21 @@
 
 ## 相关代码路径
 
-| 路径                                              | 说明                                     |
-| ------------------------------------------------- | ---------------------------------------- |
-| `client/src/components/common/DeckSelector.tsx`   | 共用卡组选择控件                         |
-| `client/src/lib/deckDisplay.ts`                   | 卡组显示项构建与排序                     |
-| `client/src/lib/deckSelectionPreferences.ts`      | 入口级上次使用卡组本地偏好               |
-| `client/src/components/pages/GameSetupPage.tsx`   | 对墙打与本地调试准备流程                 |
-| `client/src/components/pages/CasualLobbyPage.tsx` | 休闲准备与赛后选组弹层                   |
-| `client/src/components/pages/OnlineRoomPage.tsx`  | 正式联机开局与运行视图                   |
-| `client/src/components/pages/OnlineDebugPage.tsx` | 联机调试准备流程                         |
-| `client/src/lib/localDeckStorage.ts`              | 浏览器本地卡组的版本化读写与结构校验     |
-| `client/src/store/deckStore.ts`                   | 云端与浏览器本地卡组状态                 |
-| `client/src/components/pages/HomePage.tsx`        | 首页最近卡组展示，不是入口级上次使用记录 |
+| 路径                                              | 说明                                                 |
+| ------------------------------------------------- | ---------------------------------------------------- |
+| `client/src/components/common/DeckSelector.tsx`   | 共用卡组选择控件                                     |
+| `client/src/lib/deckDisplay.ts`                   | 卡组显示项构建与排序                                 |
+| `client/src/lib/deckSelectionPreferences.ts`      | 入口级上次使用卡组本地偏好                           |
+| `client/src/components/pages/GameSetupPage.tsx`   | 对墙打与本地调试准备流程                             |
+| `client/src/components/pages/CasualLobbyPage.tsx` | 休闲准备与赛后选组弹层                               |
+| `client/src/components/pages/OnlineRoomPage.tsx`  | 正式联机开局与运行视图                               |
+| `client/src/components/pages/OnlineDebugPage.tsx` | 联机调试准备流程                                     |
+| `client/src/lib/localDeckStorage.ts`              | 浏览器本地卡组的版本化读写与结构校验                 |
+| `client/src/store/deckStore.ts`                   | 云端与浏览器本地卡组状态                             |
+| `client/src/components/pages/HomePage.tsx`        | 首页当前玩法的选组摘要，进入准备时复用对应的选组偏好 |
+
+### 玩家大厅 C 布局
+
+`HomePage` 只展示当前玩法的一副合法卡组，按需打开共享 `DeckSelector` 与只读构筑详情。首页选组临时保留；进入对战大厅、赛季排位、对墙打或双人调试时，分别写入既有 `publicTable`、`ranked`、`solitaire`、`localDebugPlayer1` 偏好，后续准备页继续校验并采用该选择。娱乐模式使用平台预组，不展示自建卡组选择器。首页不创建、导入或保存账号卡组。
+
+选组弹层标题旁提供“卡组管理”，构筑详情标题旁提供“编辑卡组”，后者直接打开当前云端或本地卡组的既有编辑器，不自动保存。正常选组时按过期策略自动读取，移除常驻刷新按钮；读取失败时显示“重试读取卡组”。选组列表随内容增高，达到视口上限后在列表内滚动，标题与快捷入口保持可见。

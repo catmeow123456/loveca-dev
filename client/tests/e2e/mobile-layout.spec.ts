@@ -1165,7 +1165,7 @@ test.describe('focused browser regressions', () => {
 
     await installApiMocks(page, true);
     await page.reload();
-    await expect(page.getByRole('button', { name: '前往大厅' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Loveca 大厅', exact: true })).toBeVisible();
     await page.getByRole('button', { name: /公告，1 条内容/ }).click();
     const authenticatedAnnouncementDialog = page.getByRole('dialog', { name: '公告' });
     await expect(authenticatedAnnouncementDialog).toBeVisible();
@@ -1241,8 +1241,11 @@ test.describe('focused browser regressions', () => {
 
     await expect(page.getByRole('button', { name: /赛季排位/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /娱乐模式/ })).toHaveCount(0);
-    await page.getByRole('button', { name: '开始对战', exact: true }).click();
-    await expect(page.getByRole('button', { name: /公共牌桌/ })).toBeVisible();
+    await page.getByRole('button', { name: '进入对战大厅', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
+    await page.goto('/?page=game-setup');
+    await expect(page.getByRole('heading', { name: '选择对战方式', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /对战大厅/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /赛季排位/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /娱乐模式/ })).toHaveCount(0);
   });
@@ -1334,9 +1337,9 @@ test.describe('focused browser regressions', () => {
     await page.addInitScript(() => window.localStorage.setItem('loveca-theme', 'light'));
     await installApiMocks(page, true);
     await page.goto('/');
-    await expect(page.getByRole('button', { name: '前往大厅' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Loveca 大厅', exact: true })).toBeVisible();
 
-    const actionBar = page.locator('.lobby-action-bar');
+    const actionBar = page.getByRole('region', { name: '对战准备', exact: true });
     const lightBackground = await actionBar.evaluate(
       (element) => window.getComputedStyle(element).backgroundColor
     );
@@ -1355,17 +1358,21 @@ test.describe('focused browser regressions', () => {
     await page.addInitScript(() => window.localStorage.setItem('loveca-theme', 'light'));
     await installApiMocks(page, true);
     await page.goto('/?page=online-spectator');
-    await expect(page.getByRole('heading', { name: '房间观战', exact: true })).toHaveCount(1);
-    await expect(page.getByText('输入房间号', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toHaveCount(1);
+    const codeEntry = page.getByRole('button', { name: '输入房间号', exact: true });
+    await expect(codeEntry).toBeVisible();
     await expect(page.getByText('选择先攻或后攻玩家的视角')).toHaveCount(0);
 
-    const desk = page.locator('.spectator-lobby-desk');
+    await codeEntry.click();
+    const desk = page.getByRole('dialog', { name: '输入房间号', exact: true });
     const lightBackground = await desk.evaluate(
       (element) => window.getComputedStyle(element).backgroundColor
     );
     expect(lightBackground).not.toBe('rgb(53, 25, 47)');
 
+    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: '切换到深色主题' }).click();
+    await codeEntry.click();
     const darkBackground = await desk.evaluate(
       (element) => window.getComputedStyle(element).backgroundColor
     );
@@ -1759,7 +1766,7 @@ test.describe('focused browser regressions', () => {
   test('观战入口忽略输入变更前返回的旧查询', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile-390x844', '竞态回归只需在一个浏览器尺寸执行');
 
-    await installApiMocks(page, false);
+    await installApiMocks(page, true);
 
     let notifyRequestStarted: () => void = () => undefined;
     const requestStarted = new Promise<void>((resolve) => {
@@ -1770,29 +1777,45 @@ test.describe('focused browser regressions', () => {
       releaseResponse = resolve;
     });
 
-    await page.route('**/api/online/rooms/AAAA/spectator-entry', async (route) => {
-      notifyRequestStarted();
-      await responseReleased;
-      await fulfillApi(route, {
-        roomCode: 'AAAA',
-        status: 'IN_GAME',
-        matchId: 'match-stale',
-        seats: [{ seat: 'FIRST', displayName: '旧房间玩家', enabled: true }],
-      });
-    });
+    await page.route('**/api/casual-tables/rooms/AAAA', (route) =>
+      fulfillApi(route, null, 404, { code: 'CASUAL_ROOM_NOT_FOUND', message: '房间不存在' })
+    );
+    await page.route(
+      '**/api/online/rooms/AAAA/spectator-entry?activityOnly=true',
+      async (route) => {
+        notifyRequestStarted();
+        await responseReleased;
+        await fulfillApi(route, {
+          roomCode: 'AAAA',
+          roomGeneration: 'stale-generation',
+          status: 'IN_GAME',
+          matchId: 'match-stale',
+          seats: [{ seat: 'FIRST', displayName: '旧房间玩家', enabled: true }],
+        });
+      }
+    );
 
     await page.goto('/online/spectate');
-    const roomCodeInput = page.getByLabel('房间号');
+    await page.getByRole('button', { name: '输入房间号', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: '输入房间号', exact: true });
+    const roomCodeInput = dialog.getByLabel('房间号', { exact: true });
     await roomCodeInput.fill('AAAA');
-    await page.getByRole('button', { name: '查找' }).click();
+    await dialog.getByRole('button', { name: '查找房间', exact: true }).click();
     await requestStarted;
 
     await roomCodeInput.fill('BBBB');
+    const staleResponse = page.waitForResponse(
+      '**/api/online/rooms/AAAA/spectator-entry?activityOnly=true'
+    );
     releaseResponse();
+    await staleResponse;
 
     await expect(roomCodeInput).toHaveValue('BBBB');
-    await expect(page.getByText(/房间 AAAA/)).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '查找' })).toBeEnabled();
+    await expect(dialog.getByText('旧房间玩家')).toHaveCount(0);
+    await expect(
+      dialog.getByRole('button', { name: '观看 旧房间玩家 的视角', exact: true })
+    ).toHaveCount(0);
+    await expect(dialog.getByRole('button', { name: '查找房间', exact: true })).toBeEnabled();
   });
 
   test('系统减少动态效果时全局动画与过渡会被压缩', async ({ page }, testInfo) => {
@@ -1801,7 +1824,7 @@ test.describe('focused browser regressions', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await installApiMocks(page, true);
     await page.goto('/');
-    await expect(page.getByRole('button', { name: '前往大厅' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Loveca 大厅', exact: true })).toBeVisible();
 
     const motionState = await page.evaluate(() => {
       const probe = document.createElement('div');

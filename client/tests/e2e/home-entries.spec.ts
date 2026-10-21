@@ -1,133 +1,147 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { installVisualApiMocks, waitForVisualStability } from '../visual/support/mockApp';
 
-test.use({ serviceWorkers: 'block' });
+const entries = (page: Page) => page.getByRole('region', { name: '常用入口', exact: true });
+const editor = (page: Page) => page.getByRole('dialog', { name: '自定义常用入口', exact: true });
+const shortcuts = (page: Page) => entries(page).locator('.lobby-shortcut strong');
+const defaults = ['新手教程', '观战', '历史对局', '对墙打'];
 
+test.use({ serviceWorkers: 'block' });
 test.beforeEach(async ({ page }) => {
   await installVisualApiMocks(page, true);
 });
 
-test('定制入口即时保存，返回首页和刷新后保留，恢复默认可重新访问', async ({ page }, testInfo) => {
+test('定制草稿显式保存，返回大厅和刷新后保留排序，恢复默认也需保存', async ({ page }, testInfo) => {
   await page.goto('/');
-  const panel = page.getByRole('complementary', { name: '常用入口' });
-  const edit = panel.getByRole('switch', { name: '自定义' });
-  await expect(edit).not.toBeChecked();
-  await expect(panel.getByRole('button', { name: /^新手教程/ })).toBeVisible();
-  for (const title of ['对墙打', '双人调试']) {
-    await expect(panel.getByRole('button', { name: title, exact: true })).toHaveCount(0);
-  }
-
+  await expect(page.getByRole('heading', { name: 'Loveca 大厅', exact: true })).toBeVisible();
+  await expect(shortcuts(page)).toHaveText(defaults);
+  const edit = entries(page).getByRole('button', { name: '自定义', exact: true });
   await edit.focus();
   await page.keyboard.press('Space');
-  await expect(edit).toBeChecked();
-  const tutorial = panel.getByRole('checkbox', { name: '显示新手教程' });
+  const dialog = editor(page);
+  await expect(dialog).toBeVisible();
+  const tutorial = dialog.getByRole('checkbox', { name: '新手教程', exact: true });
   await tutorial.focus();
   await page.keyboard.press('Space');
   await expect(tutorial).not.toBeChecked();
   await expect(tutorial).toBeFocused();
-  await expect(panel.getByRole('checkbox')).toHaveCount(7);
-  await expect(panel.getByRole('status')).toHaveText('已显示 4 / 7 项');
-  await expect(panel.getByRole('checkbox', { name: '显示对墙打' })).not.toBeChecked();
-
+  await expect(shortcuts(page)).toHaveText(defaults);
+  expect(await page.evaluate(() => localStorage.getItem('loveca.home.hiddenEntries'))).toBeNull();
+  await dialog.getByRole('button', { name: '上移对墙打', exact: true }).click();
   await waitForVisualStability(page);
-  await panel.screenshot({ path: testInfo.outputPath('customizing.png'), animations: 'disabled' });
-  await edit.click();
-  await expect(panel.getByRole('button', { name: /^新手教程/ })).toHaveCount(0);
-  await panel.getByRole('button', { name: /^对战大厅/ }).click();
+  await dialog.screenshot({ path: testInfo.outputPath('customizing.png'), animations: 'disabled' });
+  await dialog.getByRole('button', { name: '保存', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  const customized = ['观战', '对墙打', '历史对局'];
+  await expect(shortcuts(page)).toHaveText(customized);
+  await page.getByRole('button', { name: '进入对战大厅', exact: true }).click();
   await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
-  await page.goto('/');
-  await expect(panel.getByRole('button', { name: /^新手教程/ })).toHaveCount(0);
+  await page.getByRole('button', { name: '返回首页', exact: true }).click();
+  await expect(shortcuts(page)).toHaveText(customized);
   await page.reload();
-  await expect(edit).not.toBeChecked();
-  await expect(panel.getByRole('button', { name: /^新手教程/ })).toHaveCount(0);
+  await expect(shortcuts(page)).toHaveText(customized);
   await edit.click();
-  await expect(tutorial).not.toBeChecked();
-  await panel.getByRole('button', { name: '恢复默认' }).click();
+  await dialog.getByRole('button', { name: '恢复默认', exact: true }).click();
   await expect(tutorial).toBeChecked();
-  await expect(panel.getByRole('checkbox', { name: '显示对墙打' })).not.toBeChecked();
+  await expect(dialog.getByRole('checkbox', { name: '对墙打', exact: true })).toBeChecked();
+  await dialog.getByRole('button', { name: '取消', exact: true }).click();
+  await expect(shortcuts(page)).toHaveText(customized);
   await edit.click();
-  await expect(panel.getByRole('button', { name: /^新手教程/ })).toBeVisible();
+  await dialog.getByRole('button', { name: '恢复默认', exact: true }).click();
+  await dialog.getByRole('button', { name: '保存', exact: true }).click();
   await page.reload();
-  await expect(panel.getByRole('button', { name: /^新手教程/ })).toBeVisible();
+  await expect(shortcuts(page)).toHaveText(defaults);
 });
 
-test('新增的对局入口可从自定义显示，并进入对应对局流程', async ({ page }) => {
+test('关闭或取消定制不保存草稿，并把焦点还给自定义入口', async ({ page }) => {
   await page.goto('/');
-  const panel = page.getByRole('complementary', { name: '常用入口' });
-  const edit = panel.getByRole('switch', { name: '自定义' });
-  await edit.click();
-  for (const title of ['对墙打', '双人调试']) {
-    await panel.getByRole('checkbox', { name: `显示${title}` }).check();
+  const edit = entries(page).getByRole('button', { name: '自定义', exact: true });
+  for (const close of ['取消', '关闭弹层', 'Escape']) {
+    await edit.click();
+    await editor(page).getByRole('checkbox', { name: '新手教程', exact: true }).uncheck();
+    if (close === 'Escape') await page.keyboard.press('Escape');
+    else await editor(page).getByRole('button', { name: close, exact: true }).click();
+    await expect(editor(page)).toHaveCount(0);
+    await expect(edit).toBeFocused();
+    await expect(shortcuts(page)).toHaveText(defaults);
+    expect(await page.evaluate(() => localStorage.getItem('loveca.home.hiddenEntries'))).toBeNull();
   }
-  await edit.click();
-  await page.reload();
-
-  await panel.getByRole('button', { name: '对墙打' }).click();
-  await expect(page.getByRole('heading', { name: '选择己方卡组' })).toBeVisible();
-  await page.getByRole('button', { name: '返回大厅' }).click();
-
-  await panel.getByRole('button', { name: '双人调试' }).click();
-  await expect(page.getByRole('heading', { name: '选择 Player 1 的卡组' })).toBeVisible();
-  await page.getByRole('button', { name: '返回大厅' }).click();
-
-  await panel.getByRole('button', { name: '对战大厅', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
 });
 
-test('旧版入口偏好保留原选择，统一大厅可见，调试入口默认隐藏', async ({ page }) => {
+test('新增的调试和卡组入口可自定义显示，并进入对应流程', async ({ page }) => {
+  await page.goto('/');
+  await entries(page).getByRole('button', { name: '自定义', exact: true }).click();
+  for (const title of ['双人调试', '卡组管理']) {
+    await editor(page).getByRole('checkbox', { name: title, exact: true }).check();
+  }
+  await editor(page).getByRole('button', { name: '保存', exact: true }).click();
+  await page.reload();
+  await entries(page).getByRole('button', { name: '对墙打', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '选择己方卡组' })).toBeVisible();
+  await page.getByRole('button', { name: '返回大厅', exact: true }).click();
+  await entries(page).getByRole('button', { name: '双人调试', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '选择 Player 1 的卡组' })).toBeVisible();
+  await page.getByRole('button', { name: '返回大厅', exact: true }).click();
+  await entries(page).getByRole('button', { name: '卡组管理', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '卡组管理', exact: true })).toBeVisible();
+});
+
+test('旧版入口偏好保留隐藏选择，新版默认入口和调试边界明确', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('loveca.home.hiddenEntries', JSON.stringify(['tutorial']));
   });
   await page.goto('/');
-  const panel = page.getByRole('complementary', { name: '常用入口' });
-  await expect(panel.getByRole('button', { name: '新手教程' })).toHaveCount(0);
-  await expect(panel.getByRole('button', { name: '对墙打' })).toHaveCount(0);
-  await panel.getByRole('switch', { name: '自定义' }).click();
-  await expect(panel.getByRole('checkbox', { name: '显示新手教程' })).not.toBeChecked();
-  await expect(panel.getByRole('checkbox', { name: '显示对墙打' })).not.toBeChecked();
+  await expect(entries(page).getByRole('button', { name: '新手教程', exact: true })).toHaveCount(0);
+  await expect(entries(page).getByRole('button', { name: '对墙打', exact: true })).toBeVisible();
+  await expect(entries(page).getByRole('button', { name: '双人调试', exact: true })).toHaveCount(0);
+  await entries(page).getByRole('button', { name: '自定义', exact: true }).click();
+  await expect(
+    editor(page).getByRole('checkbox', { name: '新手教程', exact: true })
+  ).not.toBeChecked();
+  await expect(
+    editor(page).getByRole('checkbox', { name: '双人调试', exact: true })
+  ).not.toBeChecked();
 });
 
-test('全部隐藏仍能重新定制；浅色和深色页面在窄屏与桌面没有横向溢出', async ({ page }, testInfo) => {
+test('全部隐藏仍能重新定制；深浅主题下窄屏和桌面无横向溢出', async ({ page }, testInfo) => {
   await page.goto('/');
-  const panel = page.getByRole('complementary', { name: '常用入口' });
-  const edit = panel.getByRole('switch', { name: '自定义' });
+  const panel = entries(page);
+  const edit = panel.getByRole('button', { name: '自定义', exact: true });
   await edit.click();
-  for (const checkbox of await panel.getByRole('checkbox').all()) {
-    await checkbox.uncheck();
+  while (await editor(page).getByRole('checkbox', { checked: true }).count()) {
+    await editor(page).getByRole('checkbox', { checked: true }).first().uncheck();
   }
-  await edit.click();
-  await expect(panel.getByText('已隐藏所有常用入口')).toBeVisible();
+  await editor(page).getByRole('button', { name: '保存', exact: true }).click();
+  await expect(shortcuts(page)).toHaveCount(0);
+  await expect(panel.getByText('按你的习惯添加入口。')).toBeVisible();
   await page.reload();
-  await expect(panel.getByText('已隐藏所有常用入口')).toBeVisible();
+  await expect(shortcuts(page)).toHaveCount(0);
   await edit.click();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
-    true
-  );
-  await panel.getByRole('button', { name: '恢复默认' }).click();
-  await edit.click();
-
-  const width =
-    testInfo.project.name === 'tablet-1024x768' ? 1440 : testInfo.project.use.viewport!.width;
-  await page.setViewportSize({ width, height: 900 });
-  for (const theme of ['light', 'dark']) {
-    await page.evaluate(
-      (value) => document.documentElement.setAttribute('data-theme', value),
-      theme
-    );
-    await waitForVisualStability(page);
-    expect(
-      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
-    ).toBe(true);
-    await expect(panel.getByRole('button', { name: /^新手教程/ })).toBeVisible();
-    await page.screenshot({
-      path: testInfo.outputPath(`home-${theme}.png`),
-      fullPage: true,
-      animations: 'disabled',
-    });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await editor(page).getByRole('button', { name: '恢复默认', exact: true }).click();
+  await editor(page).getByRole('button', { name: '保存', exact: true }).click();
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(
+        (value) => document.documentElement.setAttribute('data-theme', value),
+        theme
+      );
+      await waitForVisualStability(page);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true
+      );
+      await expect(shortcuts(page)).toHaveText(defaults);
+      await page.screenshot({
+        path: testInfo.outputPath(`home-${width}-${theme}.png`),
+        fullPage: true,
+        animations: 'disabled',
+      });
+    }
   }
 });
 
-test('定制不开放平台关闭的入口，也不绕过卡组要求', async ({ page }) => {
+test('定制不重复玩法入口，也不绕过平台显隐和卡组要求', async ({ page }) => {
   await page.route('**/api/config', (route) =>
     route.fulfill({
       json: {
@@ -146,20 +160,21 @@ test('定制不开放平台关闭的入口，也不绕过卡组要求', async ({
   );
   await page.route('**/api/decks', (route) => route.fulfill({ json: { data: [], error: null } }));
   await page.goto('/');
-  const panel = page.getByRole('complementary', { name: '常用入口' });
-  const ranked = panel.getByRole('button', { name: '赛季排位', exact: true });
-  await expect(ranked).toBeDisabled();
-  await expect(ranked.getByText('需要符合规则的卡组')).toBeVisible();
-  await panel.getByRole('switch', { name: '自定义' }).click();
-  await expect(panel.getByRole('checkbox', { name: '显示娱乐模式' })).toHaveCount(0);
-  const rankedChoice = panel.getByRole('checkbox', { name: '显示赛季排位' });
-  await rankedChoice.uncheck();
-  await rankedChoice.check();
-  await panel.getByRole('switch', { name: '自定义' }).click();
-  await expect(ranked).toBeDisabled();
+  const modes = page.getByRole('region', { name: '选择玩法', exact: true });
+  await expect(modes.getByRole('button', { name: /娱乐模式/ })).toHaveCount(0);
+  await modes.getByRole('button', { name: /赛季排位/ }).click();
+  await expect(page.getByRole('button', { name: '前往赛季排位', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '构筑卡组', exact: true })).toBeVisible();
+  await entries(page).getByRole('button', { name: '自定义', exact: true }).click();
+  for (const label of ['娱乐模式', '赛季排位', '对战大厅']) {
+    await expect(editor(page).getByRole('checkbox', { name: label, exact: true })).toHaveCount(0);
+  }
+  await editor(page).getByRole('button', { name: '恢复默认', exact: true }).click();
+  await editor(page).getByRole('button', { name: '保存', exact: true }).click();
+  await expect(page.getByRole('button', { name: '前往赛季排位', exact: true })).toBeDisabled();
 });
 
-test('损坏的偏好回退默认；存储失败不阻止定制并给出提示', async ({ page }) => {
+test('损坏的偏好回退默认；存储失败仍应用当前选择并提示', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('loveca.home.hiddenEntries', '{broken');
     const setItem = Storage.prototype.setItem;
@@ -170,13 +185,10 @@ test('损坏的偏好回退默认；存储失败不阻止定制并给出提示',
     };
   });
   await page.goto('/');
-  const panel = page.getByRole('complementary', { name: '常用入口' });
-  await expect(panel.getByRole('button', { name: /^新手教程/ })).toBeVisible();
-  await panel.getByRole('switch', { name: '自定义' }).click();
-  await panel.getByRole('checkbox', { name: '显示新手教程' }).uncheck();
-  await expect(
-    panel.getByText('浏览器未能保存设置，刷新后可能丢失。请允许本站存储后重试。')
-  ).toBeVisible();
-  await panel.getByRole('switch', { name: '自定义' }).click();
-  await expect(panel.getByRole('button', { name: /^新手教程/ })).toHaveCount(0);
+  await expect(shortcuts(page)).toHaveText(defaults);
+  await entries(page).getByRole('button', { name: '自定义', exact: true }).click();
+  await editor(page).getByRole('checkbox', { name: '新手教程', exact: true }).uncheck();
+  await editor(page).getByRole('button', { name: '保存', exact: true }).click();
+  await expect(entries(page).getByRole('status')).toContainText('浏览器未能保存设置');
+  await expect(entries(page).getByRole('button', { name: '新手教程', exact: true })).toHaveCount(0);
 });

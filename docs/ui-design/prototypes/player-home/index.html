@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Loveca · 对战中心原型</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="demo.js" defer></script>
+  </head>
+  <body>
+    <aside class="prototype-bar" aria-label="原型比较工具">
+      <div class="prototype-title"><span class="prototype-dot"></span><strong>大厅设计提案</strong><span class="sample-note">示例账号与数据 · 仅本地预览</span></div>
+      <div class="prototype-controls">
+        <label>方案<select id="variant"><option value="a">A · 快捷开局</option><option value="b">B · 舞台大厅</option><option value="c" selected>C · 对战中心</option></select></label>
+        <label>状态<select id="scenario"><option value="normal">日常登录</option><option value="room">有进行中的房间</option><option value="empty">无自建卡组</option><option value="offline">连接中断</option></select></label>
+        <label>卡组<select id="count"><option value="0" hidden>0 副</option><option value="1">1 副</option><option value="5">5 副</option><option value="20">20 副</option></select></label>
+      </div>
+    </aside>
+    <div id="app"></div>
+    <dialog id="preview-dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

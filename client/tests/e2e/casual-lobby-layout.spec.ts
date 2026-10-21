@@ -50,7 +50,7 @@ test('lobby fits narrow and wide screens, both themes and enlarged text', async 
   }
 });
 
-test('old discovery links lead to the lobby and room tabs send server filters', async ({
+test('old discovery links lead to the lobby and the unified room list supports search', async ({
   page,
 }) => {
   await prepareVisualPage(page, 'light', true);
@@ -59,35 +59,16 @@ test('old discovery links lead to the lobby and room tabs send server filters', 
     await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: '创建房间', exact: true })).toBeEnabled();
   }
-  const waiting = page.waitForRequest(
-    (request) =>
-      request.url().includes('/api/casual-tables/rooms?') &&
-      new URL(request.url()).searchParams.get('filter') === 'WAITING'
-  );
-  await page.getByRole('tab', { name: '等待对手', exact: true }).click();
-  await waiting;
-  await expect(page.getByRole('tab', { name: '等待对手', exact: true })).toHaveAttribute(
-    'aria-selected',
-    'true'
-  );
-  await page.getByRole('tab', { name: '等待对手', exact: true }).focus();
-  await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('tab', { name: '正在对战', exact: true })).toBeFocused();
-  await expect(page.getByRole('tab', { name: '正在对战', exact: true })).toHaveAttribute(
-    'aria-selected',
-    'true'
-  );
-  const watching = page.waitForRequest(
+  await expect(page.getByRole('tablist', { name: '浏览房间' })).toHaveCount(0);
+  const search = page.waitForRequest(
     (request) =>
       new URL(request.url()).pathname === '/api/casual-tables/rooms' &&
-      new URL(request.url()).searchParams.get('spectatable') === 'true'
+      new URL(request.url()).searchParams.get('search') === '视觉验收玩家'
   );
-  await page.getByRole('tab', { name: '可观战', exact: true }).click();
-  await watching;
-  await expect(page.getByRole('tab', { name: '可观战', exact: true })).toHaveAttribute(
-    'aria-selected',
-    'true'
-  );
+  await page.getByRole('textbox', { name: '搜索昵称或房间号' }).fill('视觉验收玩家');
+  const request = await search;
+  expect(new URL(request.url()).searchParams.has('filter')).toBe(false);
+  expect(new URL(request.url()).searchParams.has('spectatable')).toBe(false);
   await expect(page.getByText('我的当前状态', { exact: true })).toHaveCount(0);
 });
 
@@ -164,6 +145,10 @@ test('missing activity recovery code cannot silently abandon authority and enter
     })
   );
   await page.goto('/');
+  await page
+    .getByRole('region', { name: '当前房间', exact: true })
+    .getByText('其他操作', { exact: true })
+    .click();
   await expect(page.getByRole('button', { name: '另开本地对局', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '另开本地对局', exact: true }).click();
   await expect(page.getByRole('heading', { name: '选择对战方式' })).toHaveCount(0);
@@ -297,6 +282,11 @@ for (const kind of [
     );
     await page.goto('/');
     const abandon = page.getByRole('button', { name: '另开本地对局', exact: true });
+    await expect(abandon).toBeHidden();
+    await page
+      .getByRole('region', { name: '当前房间', exact: true })
+      .getByText('其他操作', { exact: true })
+      .click();
     await expect(abandon).toBeVisible();
     await page.evaluate(() => sessionStorage.setItem('loveca.online.room', 'OLD123'));
     let staleWrites = 0;

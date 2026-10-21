@@ -23,8 +23,19 @@ export function getCasualLobby(query: CasualLobbyQuery = {}) {
     if (value !== undefined && value !== '') params.set(key, String(value));
   return data(apiClient.get<CasualLobbyView>(`${base}/rooms?${params}`));
 }
-export const previewCasualRoom = (code: string) =>
-  data(apiClient.get<CasualRoomSummary>(`${base}/rooms/${encodeURIComponent(code)}`));
+export async function previewCasualRoom(code: string): Promise<CasualRoomSummary> {
+  const normalized = code.trim().toUpperCase();
+  if (!/^[A-Z0-9]{4,12}$/.test(normalized)) {
+    throw new Error('请输入 4–12 位字母或数字房间号');
+  }
+  const room = await data(
+    apiClient.get<CasualRoomSummary>(`${base}/rooms/${encodeURIComponent(normalized)}`)
+  );
+  if (!Array.isArray(room.members) || !Array.isArray(room.spectatorViews)) {
+    throw new Error('房间信息读取失败，请重新查询');
+  }
+  return room;
+}
 export const casualWrite = (path: string, body: unknown) =>
   data(apiClient.post<unknown>(`${base}/${path}`, body));
 export const findCasualOpponent = (entry: CasualTableEntryInput) => casualWrite('find', entry);

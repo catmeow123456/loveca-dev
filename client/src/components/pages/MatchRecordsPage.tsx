@@ -69,6 +69,7 @@ import { saveAs } from 'file-saver';
 
 interface MatchRecordsPageProps {
   onBack: () => void;
+  initialMatchId?: string | null;
 }
 
 type MatchRecordAuditPages = Readonly<
@@ -80,9 +81,9 @@ interface FailedReplayNode {
   readonly message: string;
 }
 
-export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
+export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecordsPageProps) {
   const [records, setRecords] = useState<readonly MatchRecordSummaryView[]>([]);
-  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(initialMatchId);
   const [detail, setDetail] = useState<MatchRecordDetailView | null>(null);
   const [timeline, setTimeline] = useState<readonly MatchRecordTimelineEntryView[]>([]);
   const [replay, setReplay] = useState<MatchRecordReplayView | null>(null);
@@ -135,7 +136,8 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   const [replayNodeCache] = useState(() => new ReplayNodeRequestCache<MatchRecordReplayView>(12));
 
   const selectedRecord =
-    records.find((candidate) => candidate.matchId === selectedMatchId) ?? records[0] ?? null;
+    records.find((candidate) => candidate.matchId === selectedMatchId) ??
+    (detail?.matchId === selectedMatchId ? detail : null);
 
   useEffect(() => {
     hasManagementHistoryAccessRef.current = hasManagementHistoryAccess;
@@ -210,7 +212,8 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
       if (requestId !== recordsRequestRef.current) return;
       setRecords(nextRecords);
       setSelectedMatchId((current) =>
-        current && nextRecords.some((record) => record.matchId === current)
+        current &&
+        (current === initialMatchId || nextRecords.some((record) => record.matchId === current))
           ? current
           : (nextRecords[0]?.matchId ?? null)
       );
@@ -220,7 +223,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     } finally {
       if (requestId === recordsRequestRef.current) setIsLoadingRecords(false);
     }
-  }, [adminFilters, hasManagementHistoryAccess]);
+  }, [adminFilters, hasManagementHistoryAccess, initialMatchId]);
 
   const loadReplayNode = useCallback(
     async (matchId: string, checkpointSeq?: number) => {

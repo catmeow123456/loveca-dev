@@ -331,7 +331,9 @@ emoji 可以用于临时调试，不应作为正式 UI 的主图标系统。
 pnpm --dir client test:e2e:visual
 ```
 
-只有在明确接受视觉变化时才运行 `pnpm --dir client test:e2e:visual:update` 更新基线。基线按平台隔离；后续接入 Linux CI 时，应先在统一 Chromium 与 CJK 字体环境生成对应平台基线，再启用截图比较。
+只有在明确接受视觉变化时才运行 `pnpm --dir client test:e2e:visual:update` 更新基线。基线按平台隔离，不能用 Linux 截图覆盖 macOS 基线。
+
+`client/tests/visual/__screenshots__/linux/` 覆盖公开首页、玩家大厅、对局准备、卡组管理与对战大厅的 5 组视口／主题组合。本轮使用 Playwright 1.58.1 自带 Chromium 145.0.7632.6、Noto Sans CJK SC 和本地 mock 数据生成并复跑；测试卡牌使用确定性占位图，不依赖真实卡图。CI 应统一浏览器与字体环境。`darwin/` 中已改版页面的旧图需要在 macOS 原生环境重新验收更新，本轮未验证该平台。
 
 ## 9. 发布与版本规范
 

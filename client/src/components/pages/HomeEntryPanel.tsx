@@ -1,11 +1,15 @@
-import { useState, type ComponentType } from 'react';
-import { ArrowRight, LayoutGrid, RotateCcw } from 'lucide-react';
+import { useRef, useState, type ComponentType } from 'react';
+import { ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 import {
   DEFAULT_HIDDEN_HOME_ENTRIES,
+  DEFAULT_HOME_ENTRY_ORDER,
   readHiddenHomeEntries,
+  readHomeEntryOrder,
   writeHiddenHomeEntries,
+  writeHomeEntryOrder,
   type HomeEntryId,
 } from '@/lib/homeEntryPreferences';
+import { HomeDialog } from './HomeDialog';
 
 export interface HomeEntryAction {
   id: HomeEntryId;
@@ -14,145 +18,178 @@ export interface HomeEntryAction {
   onClick: () => void;
   disabled?: boolean;
   disabledReason?: string;
-  tone: 'blue' | 'green' | 'warning' | 'muted';
 }
 
 export function HomeEntryPanel({ actions }: { actions: HomeEntryAction[] }) {
-  const [isEditing, setIsEditing] = useState(false);
   const [hiddenEntries, setHiddenEntries] = useState(readHiddenHomeEntries);
+  const [order, setOrder] = useState(readHomeEntryOrder);
+  const [draft, setDraft] = useState<HomeEntryId[] | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
-  const visibleActions = actions.filter((action) => !hiddenEntries.includes(action.id));
+  const editor = useRef<HTMLDivElement>(null);
+  const orderedActions = [...actions].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+  const visibleActions = orderedActions.filter((action) => !hiddenEntries.includes(action.id));
+  const close = () => setDraft(null);
 
-  function save(next: HomeEntryId[]) {
-    setHiddenEntries(next);
-    setSaveFailed(!writeHiddenHomeEntries(next));
+  function save() {
+    if (!draft) return;
+    const availableIds = actions.map((action) => action.id);
+    const hidden = [
+      ...hiddenEntries.filter((id) => !availableIds.includes(id)),
+      ...availableIds.filter((id) => !draft.includes(id)),
+    ];
+    const nextOrder = [...draft, ...order.filter((id) => !draft.includes(id))];
+    const hiddenSaved = writeHiddenHomeEntries(hidden);
+    const orderSaved = writeHomeEntryOrder(nextOrder);
+    setHiddenEntries(hidden);
+    setOrder(nextOrder);
+    setSaveFailed(!hiddenSaved || !orderSaved);
+    close();
   }
 
+  function move(id: HomeEntryId, direction: -1 | 1) {
+    if (!draft) return;
+    const index = draft.indexOf(id);
+    const next = index + direction;
+    if (next < 0 || next >= draft.length) return;
+    const updated = [...draft];
+    [updated[index], updated[next]] = [updated[next], updated[index]];
+    setDraft(updated);
+    if (next + direction < 0 || next + direction >= updated.length) {
+      requestAnimationFrame(() =>
+        editor.current?.querySelector<HTMLInputElement>(`input[value="${id}"]`)?.focus()
+      );
+    }
+  }
+
+  const editorActions =
+    draft === null
+      ? []
+      : [
+          ...draft.map((id) => actions.find((action) => action.id === id)!).filter(Boolean),
+          ...orderedActions.filter((action) => !draft.includes(action.id)),
+        ];
+
   return (
-    <aside className="lobby-entry-panel" aria-labelledby="home-entries-heading">
-      <div className="lobby-entry-panel__header">
-        <h2 id="home-entries-heading">
-          <LayoutGrid size={17} aria-hidden="true" />
-          常用入口
-        </h2>
+    <section className="lobby-entry-panel" aria-labelledby="home-entries-heading">
+      <div className="lobby-section-heading">
+        <h2 id="home-entries-heading">常用入口</h2>
         <button
           type="button"
-          role="switch"
-          aria-checked={isEditing}
-          aria-controls="home-entries"
-          onClick={() => setIsEditing(!isEditing)}
-          className="lobby-entry-edit"
+          className="home-text-button"
+          onClick={() => setDraft(visibleActions.map((action) => action.id))}
         >
           自定义
-          <span className="lobby-entry-edit__track" aria-hidden="true">
-            <span />
-          </span>
+          <Pencil size={13} aria-hidden="true" />
         </button>
       </div>
-      <div id="home-entries">
-        {isEditing ? (
-          <fieldset className="lobby-entry-grid">
-            <legend className="sr-only">选择首页显示的入口</legend>
-            {actions.map((action) => {
-              const isVisible = !hiddenEntries.includes(action.id);
-              return (
-                <label
-                  key={action.id}
-                  className="lobby-shortcut lobby-shortcut--choice"
-                  data-selected={isVisible}
-                >
-                  <EntryCopy action={action} />
-                  <span className="lobby-shortcut__selection">
-                    <span aria-hidden="true">{isVisible ? '已显示' : '已隐藏'}</span>
-                    <input
-                      type="checkbox"
-                      aria-label={`显示${action.title}`}
-                      checked={isVisible}
-                      onChange={() =>
-                        save(
-                          isVisible
-                            ? [...hiddenEntries, action.id]
-                            : hiddenEntries.filter((id) => id !== action.id)
-                        )
-                      }
-                    />
-                  </span>
-                </label>
-              );
-            })}
-          </fieldset>
-        ) : visibleActions.length > 0 ? (
-          <div className="lobby-entry-grid">
-            {visibleActions.map((action) => (
-              <button
-                key={action.id}
-                type="button"
-                className="lobby-shortcut"
-                onClick={action.onClick}
-                disabled={action.disabled}
-                aria-label={action.title}
-                aria-describedby={
-                  action.disabled && action.disabledReason
-                    ? `home-entry-${action.id}-reason`
-                    : undefined
-                }
-              >
-                <EntryCopy action={action} />
-                {!action.disabled && (
-                  <ArrowRight className="lobby-shortcut__arrow" size={14} aria-hidden="true" />
+      {visibleActions.length ? (
+        <div className="lobby-entry-grid">
+          {visibleActions.map(({ icon: Icon, ...action }) => (
+            <button
+              key={action.id}
+              type="button"
+              className="lobby-shortcut"
+              onClick={action.onClick}
+              disabled={action.disabled}
+              aria-describedby={
+                action.disabledReason ? `home-entry-${action.id}-reason` : undefined
+              }
+            >
+              <Icon size={19} aria-hidden="true" />
+              <span>
+                <strong>{action.title}</strong>
+                {action.disabled && action.disabledReason && (
+                  <small id={`home-entry-${action.id}-reason`}>{action.disabledReason}</small>
                 )}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="lobby-entry-empty">
-            <LayoutGrid size={24} aria-hidden="true" />
-            <strong>已隐藏所有常用入口</strong>
-            <p>打开「自定义」，选择想显示的入口。</p>
-          </div>
-        )}
-      </div>
-      {isEditing && (
-        <div className="lobby-entry-panel__footer">
-          <span role="status">
-            已显示 {visibleActions.length} / {actions.length} 项
-          </span>
-          <button
-            type="button"
-            className="lobby-entry-reset"
-            disabled={
-              hiddenEntries.length === DEFAULT_HIDDEN_HOME_ENTRIES.length &&
-              hiddenEntries.every((id) => DEFAULT_HIDDEN_HOME_ENTRIES.includes(id))
-            }
-            onClick={() => save([...DEFAULT_HIDDEN_HOME_ENTRIES])}
-          >
-            <RotateCcw size={13} aria-hidden="true" />
-            恢复默认
-          </button>
+              </span>
+            </button>
+          ))}
         </div>
+      ) : (
+        <p className="lobby-entry-empty">按你的习惯添加入口。</p>
       )}
       {saveFailed && (
-        <p className="lobby-entry-save-error" role="status">
-          浏览器未能保存设置，刷新后可能丢失。请允许本站存储后重试。
+        <p className="home-inline-warning" role="status">
+          已应用到当前页面，浏览器未能保存设置。
         </p>
       )}
-    </aside>
-  );
-}
-
-function EntryCopy({ action }: { action: HomeEntryAction }) {
-  const Icon = action.icon;
-  return (
-    <>
-      <span className={`lobby-shortcut__icon lobby-shortcut__icon--${action.tone}`}>
-        <Icon size={19} aria-hidden="true" />
-      </span>
-      <span className="lobby-shortcut__copy">
-        <strong>{action.title}</strong>
-        {action.disabled && action.disabledReason && (
-          <span id={`home-entry-${action.id}-reason`}>{action.disabledReason}</span>
-        )}
-      </span>
-    </>
+      {draft !== null && (
+        <HomeDialog title="自定义常用入口" onClose={close}>
+          <p className="home-dialog-intro">选择需要的入口，并调整显示顺序。</p>
+          <div className="home-shortcut-editor" ref={editor}>
+            {editorActions.map(({ id, title, icon: Icon }) => {
+              const index = draft.indexOf(id);
+              return (
+                <div className="home-shortcut-row" key={id}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      value={id}
+                      checked={index >= 0}
+                      onChange={(event) => {
+                        setDraft(
+                          event.target.checked
+                            ? [...draft, id]
+                            : draft.filter((value) => value !== id)
+                        );
+                      }}
+                    />
+                    <Icon size={18} aria-hidden="true" />
+                    <span>{title}</span>
+                  </label>
+                  {index >= 0 && (
+                    <div className="home-shortcut-order">
+                      <button
+                        type="button"
+                        className="home-icon-button"
+                        aria-label={`上移${title}`}
+                        disabled={index === 0}
+                        onClick={() => move(id, -1)}
+                      >
+                        <ChevronUp size={18} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className="home-icon-button"
+                        aria-label={`下移${title}`}
+                        disabled={index === draft.length - 1}
+                        onClick={() => move(id, 1)}
+                      >
+                        <ChevronDown size={18} aria-hidden="true" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="home-shortcut-actions">
+            <button
+              type="button"
+              className="home-text-button"
+              onClick={() =>
+                setDraft(
+                  DEFAULT_HOME_ENTRY_ORDER.filter(
+                    (id) =>
+                      actions.some((action) => action.id === id) &&
+                      !DEFAULT_HIDDEN_HOME_ENTRIES.includes(id)
+                  )
+                )
+              }
+            >
+              恢复默认
+            </button>
+            <div>
+              <button type="button" className="home-secondary-button" onClick={close}>
+                取消
+              </button>
+              <button type="button" className="home-primary-button" onClick={save}>
+                保存
+              </button>
+            </div>
+          </div>
+        </HomeDialog>
+      )}
+    </section>
   );
 }

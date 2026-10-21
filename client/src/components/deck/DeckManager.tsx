@@ -525,7 +525,9 @@ export function DeckManager({
       const parseResult = DeckConfigSchema.safeParse(rawDeck);
 
       if (!parseResult.success) {
-        setYamlImportError(`卡组文本结构不正确：${formatYamlStructureError(parseResult.error.issues)}`);
+        setYamlImportError(
+          `卡组文本结构不正确：${formatYamlStructureError(parseResult.error.issues)}`
+        );
         return;
       }
 
@@ -710,15 +712,9 @@ export function DeckManager({
         }
       />
 
-      <AnimatePresence mode="wait">
+      <>
         {viewMode === 'list' ? (
-          <motion.main
-            key="list"
-            initial={reduceMotion ? false : { opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={reduceMotion ? undefined : { opacity: 0, x: 20 }}
-            className="relative z-10 flex-1 overflow-y-auto p-3 sm:p-6"
-          >
+          <main key="list" className="relative z-10 flex-1 overflow-y-auto p-3 sm:p-6">
             <div className="product-workbench product-workbench--popover mx-auto max-w-6xl">
               <div className="product-workbench-toolbar">
                 <label className="relative order-2 w-full sm:order-1 sm:max-w-sm">
@@ -1165,15 +1161,9 @@ export function DeckManager({
                 </div>
               </div>
             </div>
-          </motion.main>
+          </main>
         ) : (
-          <motion.main
-            key="edit"
-            initial={reduceMotion ? false : { opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={reduceMotion ? undefined : { opacity: 0, x: -20 }}
-            className="relative z-10 flex flex-1 flex-col overflow-hidden p-4 pt-6"
-          >
+          <main key="edit" className="relative z-10 flex flex-1 flex-col overflow-hidden p-4 pt-6">
             <div className="workspace-shell flex min-h-0 flex-1 flex-col overflow-hidden">
               <div className="workspace-toolbar px-3 py-2 sm:px-4 sm:py-3">
                 {isMobile ? (
@@ -1290,9 +1280,9 @@ export function DeckManager({
                 )}
               </div>
             </div>
-          </motion.main>
+          </main>
         )}
-      </AnimatePresence>
+      </>
 
       {showImportSheet &&
         createPortal(
@@ -1410,7 +1400,10 @@ export function DeckManager({
                   <Copy size={21} />
                 </div>
                 <div className="min-w-0 flex-1 pt-0.5">
-                  <h2 id="yaml-import-dialog-title" className="text-lg font-bold text-[var(--text-primary)]">
+                  <h2
+                    id="yaml-import-dialog-title"
+                    className="text-lg font-bold text-[var(--text-primary)]"
+                  >
                     从小能苗导入卡组
                   </h2>
                 </div>
@@ -1425,7 +1418,10 @@ export function DeckManager({
               </div>
 
               <div className="touch-scroll flex-1 overflow-y-auto px-5 pb-5 sm:px-6">
-                <label htmlFor="yaml-import-input" className="mb-2 block text-xs font-semibold text-[var(--text-muted)]">
+                <label
+                  htmlFor="yaml-import-input"
+                  className="mb-2 block text-xs font-semibold text-[var(--text-muted)]"
+                >
                   卡组文本
                 </label>
                 <textarea
@@ -1443,7 +1439,10 @@ export function DeckManager({
                   className="input-field min-h-56 w-full resize-y font-mono text-sm leading-6"
                 />
                 {yamlImportError && (
-                  <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)] p-3 text-xs leading-5 text-[var(--semantic-error)]">
+                  <div
+                    role="alert"
+                    className="mt-3 flex items-start gap-2 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)] p-3 text-xs leading-5 text-[var(--semantic-error)]"
+                  >
                     <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                     <span>{yamlImportError}</span>
                   </div>
@@ -1453,7 +1452,12 @@ export function DeckManager({
               <div className="modal-footer safe-bottom flex flex-wrap items-center justify-between gap-2 px-5 py-4 sm:px-6">
                 <label className="button-ghost inline-flex min-h-11 cursor-pointer items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)]">
                   <Upload size={15} />从 YAML 文件导入
-                  <input type="file" accept=".yaml,.yml" className="sr-only" onChange={handleImport} />
+                  <input
+                    type="file"
+                    accept=".yaml,.yml"
+                    className="sr-only"
+                    onChange={handleImport}
+                  />
                 </label>
                 <div className="flex flex-1 justify-end gap-2">
                   <button

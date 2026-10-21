@@ -132,6 +132,10 @@ for (const exitViaHome of [false, true]) {
         await first.getByTitle('打开房间操作').click();
         await first.getByRole('button', { name: '返回大厅', exact: true }).click();
         await first.getByRole('button', { name: '返回首页', exact: true }).click();
+        await first
+          .getByRole('region', { name: '当前房间', exact: true })
+          .getByText('其他操作', { exact: true })
+          .click();
         await first.getByRole('button', { name: '另开本地对局', exact: true }).click();
         await expect(
           first.getByRole('heading', { name: '选择对战方式', exact: true })

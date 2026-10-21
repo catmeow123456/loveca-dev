@@ -418,11 +418,13 @@ function AppContent() {
   const [homeLocalSetupMode, setHomeLocalSetupMode] = useState<
     GameMode.SOLITAIRE | GameMode.DEBUG | null
   >(null);
+  const [homeHistoryMatchId, setHomeHistoryMatchId] = useState<string | null>(null);
   const currentPageRef = useRef(currentPage);
   const [initialAdminHistoryPosition] = useState(initializeAdminHistoryPosition);
   const adminHistoryPositionRef = useRef(initialAdminHistoryPosition);
   const setCurrentPage = useCallback((nextPage: AppPage) => {
     if (nextPage !== 'game-setup') setHomeLocalSetupMode(null);
+    if (nextPage !== 'match-records') setHomeHistoryMatchId(null);
     const previousPage = currentPageRef.current;
     if (previousPage !== nextPage) {
       startAppNavigation(previousPage, nextPage);
@@ -447,9 +449,13 @@ function AppContent() {
   const [deckManagerReturnPage, setDeckManagerReturnPage] = useState<
     'home' | 'game-setup' | 'battle-lobby'
   >('home');
+  const [deckManagerOpenDeckId, setDeckManagerOpenDeckId] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get('openDeckId')
+  );
   const openDeckManager = useCallback(
-    (returnPage: 'home' | 'game-setup' | 'battle-lobby' = 'home') => {
+    (returnPage: 'home' | 'game-setup' | 'battle-lobby' = 'home', deckId: string | null = null) => {
       setDeckManagerReturnPage(returnPage);
+      setDeckManagerOpenDeckId(deckId);
       setCurrentPage('deck-manager');
     },
     [setCurrentPage]
@@ -882,7 +888,6 @@ function AppContent() {
   const spectatorLobbyRequested =
     window.location.pathname.replace(/\/+$/, '') === '/online/spectate';
   const shareLoginRequested = new URLSearchParams(window.location.search).get('login') === '1';
-  const initialOpenDeckId = new URLSearchParams(window.location.search).get('openDeckId');
   const emailFeature = appConfig.features.email;
 
   useEffect(() => {
@@ -1518,7 +1523,13 @@ function AppContent() {
   }
 
   if (effectivePage === 'match-records') {
-    return withProductFrame(<MatchRecordsPage onBack={() => setCurrentPage('home')} />, 'history');
+    return withProductFrame(
+      <MatchRecordsPage
+        initialMatchId={homeHistoryMatchId}
+        onBack={() => setCurrentPage('home')}
+      />,
+      'history'
+    );
   }
 
   if (effectivePage === 'online-debug') {
@@ -1541,7 +1552,7 @@ function AppContent() {
           setDeckManagerReturnPage('home');
         }}
         backLabel={deckManagerReturnPage === 'game-setup' ? '返回对局准备' : '返回大厅'}
-        initialOpenDeckId={initialOpenDeckId}
+        initialOpenDeckId={deckManagerOpenDeckId}
       />,
       'decks'
     );
@@ -1842,7 +1853,7 @@ function AppContent() {
         headerActions={authenticatedHeaderActions}
         mobileMenuActions={authenticatedMobileMenuActions}
         onNavigateToDeckManager={() => openDeckManager('home')}
-        onNavigateToGameSetup={() => setCurrentPage('game-setup')}
+        onEditDeck={(deckId) => openDeckManager('home', deckId)}
         onNavigateToLocalSetup={(mode) => {
           setHomeLocalSetupMode(mode);
           setCurrentPage('game-setup');
@@ -1851,7 +1862,10 @@ function AppContent() {
         onAbandonSavedRoomForLocalGame={handleAbandonSavedRoomForLocalGame}
         onNavigateToRanked={() => setCurrentPage('ranked')}
         onNavigateToThemeTable={() => setCurrentPage('theme-table')}
-        onNavigateToMatchRecords={() => setCurrentPage('match-records')}
+        onNavigateToMatchRecords={(matchId) => {
+          setHomeHistoryMatchId(matchId ?? null);
+          setCurrentPage('match-records');
+        }}
         onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
         onNavigateToAdminCenter={() => navigateAdminPage('admin-center')}
         onNavigateToAiBattle={() => setCurrentPage('ai-battle-admin')}

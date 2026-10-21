@@ -11,6 +11,7 @@ interface CasualState {
   status: CasualTableCurrentView | null;
   busy: boolean;
   error: string | null;
+  clearError: () => void;
   setUser: (userId: string | null) => void;
   refresh: () => Promise<void>;
   heartbeat: (target: CasualTableCommandTarget) => Promise<void>;
@@ -79,6 +80,7 @@ export const useCasualTableStore = create<CasualState>((set, get) => {
     status: null,
     busy: false,
     error: null,
+    clearError: () => set({ error: null }),
     setUser: (userId) => {
       if (get().userId === userId) return;
       epoch += 1;

@@ -130,28 +130,28 @@ test.describe('前端外层稳定性闭环', () => {
     });
 
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: '欢迎回来，视觉验收玩家' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Loveca 大厅', exact: true })).toBeVisible();
     await expect(page.getByText('视觉回归标准卡组', { exact: true }).first()).toBeVisible();
     await expect.poll(() => deckRequestCount).toBe(1);
 
-    const battleNavigation = page
-      .getByRole('navigation', { name: '主要导航' })
-      .getByRole('button', { name: '对战' });
-    await expect(battleNavigation).toBeEnabled();
-    await battleNavigation.click();
-    await expect(page.getByRole('heading', { name: '选择对战方式' })).toBeVisible();
-    await page.getByRole('button', { name: '返回大厅' }).click();
-    await expect(battleNavigation).toBeEnabled();
+    const enterLobby = page.getByRole('button', { name: '进入对战大厅', exact: true });
+    await enterLobby.click();
+    await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: '返回首页', exact: true }).click();
+    await expect(enterLobby).toBeEnabled();
     expect(deckRequestCount).toBe(1);
 
-    await battleNavigation.click();
-    await expect(page.getByRole('heading', { name: '选择对战方式' })).toBeVisible();
+    await enterLobby.click();
+    await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
     await page.clock.setFixedTime(new Date('2026-08-25T12:00:31.000Z'));
-    await page.getByRole('button', { name: '返回大厅' }).click();
-
+    await page.getByRole('button', { name: '返回首页', exact: true }).click();
     await expect.poll(() => deckRequestCount).toBe(2);
-    await expect(battleNavigation).toBeEnabled();
     await expect(page.getByText('视觉回归标准卡组', { exact: true }).first()).toBeVisible();
+    await expect(enterLobby).toBeEnabled();
+    await enterLobby.click();
+    await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: '返回首页', exact: true }).click();
+    await expect(enterLobby).toBeEnabled();
 
     releaseSecondDeckRequest();
     await expect.poll(() => deckRequestCount).toBe(2);
@@ -171,24 +171,27 @@ test.describe('前端外层稳定性闭环', () => {
     const requests = observeRequests(page);
 
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: '欢迎回来，视觉验收玩家' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Loveca 大厅', exact: true })).toBeVisible();
     await page.evaluate(() => {
       performance.clearMarks();
       performance.clearMeasures();
     });
 
-    const battleNavigation = page
-      .getByRole('navigation', { name: '主要导航' })
-      .getByRole('button', { name: '对战' });
-    await battleNavigation.click();
-    await expect(page.getByRole('heading', { name: '选择对战方式' })).toBeVisible();
-    await page.getByRole('button', { name: /双人调试/ }).click();
-    await page.getByRole('button', { name: '下一步：选择 P1 卡组' }).click();
+    await page.getByRole('button', { name: '自定义', exact: true }).click();
+    const customizer = page.getByRole('dialog', { name: '自定义常用入口', exact: true });
+    await customizer.getByRole('checkbox', { name: '双人调试', exact: true }).check();
+    await customizer.getByRole('button', { name: '保存', exact: true }).click();
+    await page
+      .getByRole('region', { name: '常用入口', exact: true })
+      .getByRole('button', { name: '双人调试', exact: true })
+      .click();
+    await expect(page.getByRole('heading', { name: '选择 Player 1 的卡组' })).toBeVisible();
     await page.getByRole('button', { name: '下一步：选择 P2 卡组' }).click();
     await page.getByRole('button', { name: '下一步：确认对局' }).click();
     await page.getByRole('button', { name: '开始对局' }).click();
 
-    const leaveBattle = page.getByRole('button', { name: '离开房间' });
+    await page.getByRole('button', { name: '房间', exact: true }).click();
+    const leaveBattle = page.getByRole('button', { name: '离开房间', exact: true });
     await expect(leaveBattle).toBeVisible();
     await leaveBattle.click();
     await expect(page.getByRole('heading', { name: '选择对战方式' })).toBeVisible();

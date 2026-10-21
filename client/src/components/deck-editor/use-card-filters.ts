@@ -11,7 +11,7 @@ import { CardType, HeartColor } from '@game/shared/types/enums';
 import {
   cardBelongsToGroup,
   cardBelongsToUnit,
-  getKnownCardGroupIdentityName,
+  KNOWN_GROUP_IDENTITY_NAMES,
 } from '@game/shared/utils/card-identity';
 import {
   RARITY_OPTIONS,
@@ -205,7 +205,8 @@ export function useCardFilters(): UseCardFiltersReturn {
     const options: string[] = [];
     const seen = new Set<string>();
 
-    for (const group of GROUP_OPTIONS) {
+    // Known identities are static; resolving every card's aliases only adds these same options.
+    for (const group of [...GROUP_OPTIONS, ...KNOWN_GROUP_IDENTITY_NAMES]) {
       addUniqueOption(options, seen, group, normalizeGroupFilterText);
     }
 
@@ -215,8 +216,6 @@ export function useCardFilters(): UseCardFiltersReturn {
           addUniqueOption(options, seen, item, normalizeGroupFilterText);
         }
       }
-
-      addUniqueOption(options, seen, getKnownCardGroupIdentityName(card), normalizeGroupFilterText);
     }
 
     return options;

@@ -9,14 +9,17 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
-import { ArrowLeft, Copy, Plus, RefreshCw, Search, Swords, X } from 'lucide-react';
+import { ArrowLeft, Copy, Hash, Plus, RefreshCw, Search, Swords, X } from 'lucide-react';
 import { DeckSelector, type DeckDisplayItem } from '@/components/common';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import { useCasualTableStore } from '@/store/casualTableStore';
 import { useGameStore } from '@/store/gameStore';
 import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 import { buildDeckDisplayItems } from '@/lib/deckDisplay';
-import { createDeckRecordCardTypeResolver } from '@/lib/deckRecordUtils';
+import {
+  createDeckRecordCardTypeResolver,
+  isDeckRecordValidForCurrentCardPool,
+} from '@/lib/deckRecordUtils';
 import { useDeckStore } from '@/store/deckStore';
 import { getCasualLobby, previewCasualRoom, spectateCasualRoom } from '@/lib/casualTableClient';
 import { ApiClientError } from '@/lib/apiClient';
@@ -94,6 +97,7 @@ export function CasualLobbyPage({
   const hydrated = useCasualTableStore((state) => state.hydrated);
   const busy = useCasualTableStore((state) => state.busy);
   const storeError = useCasualTableStore((state) => state.error);
+  const clearStoreError = useCasualTableStore((state) => state.clearError);
   const mutate = useCasualTableStore((state) => state.mutate);
   const table = status?.table;
   const cloudDecks = useDeckStore((state) => state.cloudDecks);
@@ -106,15 +110,21 @@ export function CasualLobbyPage({
     readLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.publicTable)
   );
   const registry = useGameStore((state) => state.cardDataRegistry);
+  const getCardImagePath = useGameStore((state) => state.getCardImagePath);
   const pointTable = useDeckPointTableRules();
+  const validCloudDecks = useMemo(
+    () =>
+      cloudDecks.filter((deck) => isDeckRecordValidForCurrentCardPool(deck, registry, pointTable)),
+    [cloudDecks, registry, pointTable]
+  );
   const choices = useMemo(
     () =>
       buildDeckDisplayItems({
-        cloudDecks,
+        cloudDecks: validCloudDecks,
         pointTable,
         resolveDeckRecordCardType: createDeckRecordCardTypeResolver(registry),
       }).filter((deck) => deck.isValid),
-    [cloudDecks, pointTable, registry]
+    [validCloudDecks, pointTable, registry]
   );
   const chosen =
     choices.find((deck) => deck.id === selected?.id) ??
@@ -122,26 +132,30 @@ export function CasualLobbyPage({
     choices[0] ??
     null;
   const [flow, setFlow] = useState<Flow | null>(null);
+  const [deckPickerOpen, setDeckPickerOpen] = useState(false);
   const flowRef = useRef(flow);
   useLayoutEffect(() => {
     flowRef.current = flow;
   }, [flow]);
   const listFailed = useRef(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [recoveringJoin, setRecoveringJoin] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [now, setNow] = useState(Date.now);
-  const [filter, setFilter] = useState<'ALL' | 'WAITING' | 'PLAYING'>('ALL');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [spectatable, setSpectatable] = useState(false);
   const [snapshot, setSnapshot] = useState<CasualLobbyView | null>(null);
   const [rows, setRows] = useState<CasualRoomSummary[]>([]);
   const [listError, setListError] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
+  const [loadedSearch, setLoadedSearch] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [preview, setPreview] = useState<CasualRoomSummary | null>(null);
   const [activityPreview, setActivityPreview] = useState<OnlineRoomSpectatorEntryView | null>(null);
   const [looking, setLooking] = useState(false);
+  const lookupEpoch = useRef(0);
+  const [spectatingTable, setSpectatingTable] = useState<string | null>(null);
+  const spectatorPending = useRef(false);
   const latest = useRef<CasualRoomSummary[]>([]);
   const shown = useRef(rows);
   useLayoutEffect(() => {
@@ -149,8 +163,10 @@ export function CasualLobbyPage({
   }, [rows]);
   const readEpoch = useRef(0);
   const readPromise = useRef<Promise<void> | null>(null);
-  const query: CasualLobbyQuery = { filter, search: debouncedSearch, spectatable };
-  const queryKey = JSON.stringify(query);
+  const readRef = useRef<(applyOrder?: boolean, more?: boolean) => Promise<void>>(() =>
+    Promise.resolve()
+  );
+  const queryKey = debouncedSearch;
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
@@ -162,12 +178,17 @@ export function CasualLobbyPage({
 
   const read = useCallback(
     (applyOrder = false, more = false): Promise<void> => {
-      if (readPromise.current) return readPromise.current;
+      if (readPromise.current) {
+        // An explicit refresh needs a fresh response, even if a poll started before a mutation.
+        return applyOrder || more
+          ? readPromise.current.then(() => readRef.current(applyOrder, more))
+          : readPromise.current;
+      }
       const epoch = readEpoch.current;
       setReading(true);
       const promise = (async () => {
         try {
-          const params = JSON.parse(queryKey) as CasualLobbyQuery;
+          const params: CasualLobbyQuery = { search: queryKey };
           let next = await getCasualLobby(
             more && snapshot?.nextCursor ? { ...params, cursor: snapshot.nextCursor } : params
           );
@@ -181,6 +202,7 @@ export function CasualLobbyPage({
           incoming = [...new Map(incoming.map((row) => [row.tableId, row])).values()];
           latest.current = incoming;
           setSnapshot(next);
+          setLoadedSearch(queryKey);
           listFailed.current = false;
           setListError(null);
           const previous = shown.current;
@@ -220,7 +242,6 @@ export function CasualLobbyPage({
     },
     [queryKey, snapshot?.nextCursor]
   );
-  const readRef = useRef(read);
   useLayoutEffect(() => {
     readRef.current = read;
   }, [read]);
@@ -228,20 +249,17 @@ export function CasualLobbyPage({
     readEpoch.current += 1;
     readPromise.current = null;
     latest.current = [];
-    shown.current = [];
     const resetTimer = window.setTimeout(() => {
-      setRows([]);
-      setSnapshot(null);
       setPendingCount(0);
       setListError(null);
-      void poll();
+      void poll(true);
     }, 0);
     let stopped = false;
     let timer: number;
     let failures = 0;
-    const poll = async () => {
+    const poll = async (applyOrder = false) => {
       if (document.visibilityState !== 'visible') return;
-      await readRef.current();
+      await readRef.current(applyOrder);
       if (!stopped) {
         failures = listFailed.current ? Math.min(failures + 1, 3) : 0;
         timer = window.setTimeout(() => void poll(), Math.min(30_000, 5000 * 2 ** failures));
@@ -263,26 +281,28 @@ export function CasualLobbyPage({
   }, [queryKey, userId]);
 
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get('room');
+    const code = new URLSearchParams(window.location.search).get('room')?.trim().toUpperCase();
     if (!code) return;
     let active = true;
     const timer = window.setTimeout(() => {
+      const epoch = ++lookupEpoch.current;
       setFlow({ kind: 'CODE', requestId: crypto.randomUUID() });
       setLooking(true);
       void lookupLobbyCode(code)
         .then(
           (room) => {
-            if (active) {
+            if (active && epoch === lookupEpoch.current) {
               setPreview(room.casual);
               setActivityPreview(room.activity);
             }
           },
           (error: unknown) => {
-            if (active) setLocalError(error instanceof Error ? error.message : '房间不存在');
+            if (active && epoch === lookupEpoch.current)
+              setLocalError(error instanceof Error ? error.message : '房间不存在');
           }
         )
         .finally(() => {
-          if (active) setLooking(false);
+          if (active && epoch === lookupEpoch.current) setLooking(false);
         });
     }, 0);
     return () => {
@@ -298,14 +318,30 @@ export function CasualLobbyPage({
       await read(true);
       return true;
     } catch (error) {
+      if (
+        ['join', 'switch'].includes(path) &&
+        error instanceof ApiClientError &&
+        ['CASUAL_STATE_CHANGED', 'CASUAL_ROOM_FULL', 'CASUAL_ROOM_NOT_FOUND'].includes(error.code)
+      ) {
+        setRecoveringJoin(true);
+        setFlow(null);
+        setLocalError('房间状态已变化，请从列表重新选择。');
+        await read(true);
+        setRecoveringJoin(false);
+        return false;
+      }
       setLocalError(error instanceof Error ? error.message : '操作没有完成');
       return false;
     }
   };
   const open = (kind: FlowKind, row?: CasualRoomSummary) => {
+    clearStoreError();
+    lookupEpoch.current += 1;
+    setLooking(false);
     setLocalError(null);
     setPreview(null);
     setActivityPreview(null);
+    setDeckPickerOpen(kind === 'DECK');
     if (kind === 'JOIN' && (status?.otherParticipation || (table && table.state !== 'WAITING'))) {
       setLocalError('请先处理我的当前房间，再加入另一间房');
       return;
@@ -329,6 +365,9 @@ export function CasualLobbyPage({
     }
   };
   const enterSpectator = async (row: CasualRoomSummary, seat: 'FIRST' | 'SECOND') => {
+    if (spectatorPending.current) return;
+    spectatorPending.current = true;
+    setSpectatingTable(row.tableId);
     setLooking(true);
     setLocalError(null);
     try {
@@ -338,6 +377,8 @@ export function CasualLobbyPage({
       setLocalError(error instanceof Error ? error.message : '该视角未开放');
       void read();
     } finally {
+      spectatorPending.current = false;
+      setSpectatingTable(null);
       setLooking(false);
     }
   };
@@ -345,6 +386,9 @@ export function CasualLobbyPage({
     entry: OnlineRoomSpectatorEntryView,
     seat: 'FIRST' | 'SECOND'
   ) => {
+    if (spectatorPending.current) return;
+    spectatorPending.current = true;
+    setSpectatingTable(entry.roomCode);
     setLooking(true);
     setLocalError(null);
     try {
@@ -357,6 +401,8 @@ export function CasualLobbyPage({
     } catch (error) {
       setLocalError(error instanceof Error ? error.message : '该视角当前不可观战');
     } finally {
+      spectatorPending.current = false;
+      setSpectatingTable(null);
       setLooking(false);
     }
   };
@@ -365,6 +411,7 @@ export function CasualLobbyPage({
     if (!flow) return;
     const data = new FormData(event.currentTarget);
     if (flow.kind === 'CODE') {
+      const epoch = ++lookupEpoch.current;
       setLooking(true);
       setLocalError(null);
       try {
@@ -374,16 +421,16 @@ export function CasualLobbyPage({
         setActivityPreview(null);
         setPreview(null);
         const result = await lookupLobbyCode(code);
-        if (flowRef.current?.requestId === flow.requestId) {
+        if (epoch === lookupEpoch.current && flowRef.current?.requestId === flow.requestId) {
           setPreview(result.casual);
           setActivityPreview(result.activity);
         }
       } catch (error) {
-        if (flowRef.current?.requestId !== flow.requestId) return;
+        if (epoch !== lookupEpoch.current || flowRef.current?.requestId !== flow.requestId) return;
         setPreview(null);
         setLocalError(error instanceof Error ? error.message : '房间不存在');
       } finally {
-        setLooking(false);
+        if (epoch === lookupEpoch.current) setLooking(false);
       }
       return;
     }
@@ -493,18 +540,6 @@ export function CasualLobbyPage({
               找对手
             </button>
           )}
-          <button
-            className="button-secondary"
-            disabled={!hydrated || Boolean(table || status?.otherParticipation)}
-            onClick={() => open('CREATE')}
-          >
-            <Plus size={16} />
-            创建房间
-          </button>
-          <button className="button-secondary" onClick={() => open('CODE')}>
-            <Search size={16} />
-            输入房间号
-          </button>
         </div>
       </header>
       <section
@@ -746,7 +781,7 @@ export function CasualLobbyPage({
             {snapshot.unavailableReason}
           </p>
         )}
-        {ownError && (
+        {ownError && !flow && (
           <p className="casual-error" role="alert">
             {ownError}
           </p>
@@ -769,61 +804,35 @@ export function CasualLobbyPage({
       </section>
       <section className="casual-rooms" aria-labelledby="casual-rooms-title">
         <div className="casual-section-heading">
-          <h2 id="casual-rooms-title">公开房间</h2>
-          {snapshot && (
-            <p>
-              {snapshot.counts.waiting} 间等人 · {snapshot.counts.preparing} 间准备 ·{' '}
-              {snapshot.counts.playing} 间对战中
-            </p>
-          )}
+          <div className="casual-room-heading">
+            <h2 id="casual-rooms-title">公开房间</h2>
+            {snapshot && (
+              <p>
+                {snapshot.counts.waiting} 间等人 · {snapshot.counts.preparing} 间准备 ·{' '}
+                {snapshot.counts.playing} 间对战中
+              </p>
+            )}
+          </div>
+          <div className="casual-room-commands" aria-label="房间操作">
+            <button
+              className="button-ghost casual-room-command"
+              disabled={
+                !hydrated ||
+                busy ||
+                Boolean(table || status?.otherParticipation || snapshot?.unavailableReason)
+              }
+              onClick={() => open('CREATE')}
+            >
+              <Plus size={16} />
+              创建房间
+            </button>
+            <button className="button-ghost casual-room-command" onClick={() => open('CODE')}>
+              <Hash size={16} />
+              输入房间号
+            </button>
+          </div>
         </div>
         <div className="casual-toolbar">
-          <div
-            role="tablist"
-            aria-label="浏览房间"
-            className="casual-filters"
-            onKeyDown={(event) => {
-              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-              const tabs = Array.from(
-                event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')
-              );
-              const index = tabs.indexOf(document.activeElement as HTMLButtonElement);
-              const next =
-                event.key === 'Home'
-                  ? 0
-                  : event.key === 'End'
-                    ? tabs.length - 1
-                    : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
-              event.preventDefault();
-              tabs[next]?.focus();
-              tabs[next]?.click();
-            }}
-          >
-            {(
-              [
-                ['ALL', '所有房间'],
-                ['WAITING', '等待对手'],
-                ['PLAYING', '正在对战'],
-                ['WATCH', '可观战'],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                role="tab"
-                aria-controls="casual-rooms-panel"
-                tabIndex={
-                  (value === 'WATCH' ? spectatable : !spectatable && filter === value) ? 0 : -1
-                }
-                aria-selected={value === 'WATCH' ? spectatable : !spectatable && filter === value}
-                onClick={() => {
-                  setSpectatable(value === 'WATCH');
-                  setFilter(value === 'WATCH' ? 'ALL' : value);
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
           <label className="casual-search">
             <Search size={16} />
             <input
@@ -834,6 +843,9 @@ export function CasualLobbyPage({
               onChange={(event) => setSearch(event.target.value)}
             />
           </label>
+          <span className="casual-list-progress" role="status">
+            {snapshot && !listError && search.trim() !== loadedSearch ? '正在搜索…' : ''}
+          </span>
           <button
             className="button-ghost casual-refresh"
             aria-label="刷新房间"
@@ -844,7 +856,7 @@ export function CasualLobbyPage({
             <RefreshCw size={16} />
           </button>
         </div>
-        <div id="casual-rooms-panel" role="tabpanel" aria-label="房间列表">
+        <div id="casual-rooms-panel" role="region" aria-label="房间列表" aria-busy={reading}>
           {(listError || stale) && (
             <p role="status" className="casual-error">
               {listError ?? '状态可能已变化'}
@@ -874,24 +886,11 @@ export function CasualLobbyPage({
               <div className="casual-empty-mark" aria-hidden="true">
                 <Swords size={25} strokeWidth={1.5} />
               </div>
-              <h3>
-                {filter !== 'ALL' || search || spectatable ? '这里暂时没有房间' : '还没有公开房间'}
-              </h3>
-              <p>
-                {filter !== 'ALL' || search || spectatable
-                  ? '换个分类看看，或邀请朋友来一局。'
-                  : '找个对手，或创建房间邀请朋友。'}
-              </p>
-              {(filter !== 'ALL' || search || spectatable) && (
-                <button
-                  className="button-secondary"
-                  onClick={() => {
-                    setFilter('ALL');
-                    setSearch('');
-                    setSpectatable(false);
-                  }}
-                >
-                  清除筛选
+              <h3>{debouncedSearch ? '没有找到这个房间或玩家' : '还没有公开房间'}</h3>
+              <p>{debouncedSearch ? '换个昵称或房间号试试。' : '找个对手，或创建房间邀请朋友。'}</p>
+              {search && (
+                <button className="button-secondary" onClick={() => setSearch('')}>
+                  清除搜索
                 </button>
               )}
             </div>
@@ -946,7 +945,14 @@ export function CasualLobbyPage({
                                 ? `观战 ${row.members.map((member) => member.displayName).join('与')} 的对局`
                                 : `${row.roomCode} ${names[row.status]}`
                         }
-                        disabled={!row.isMine && !row.canJoin && !row.spectatorViews.length}
+                        disabled={
+                          Boolean(spectatingTable) ||
+                          (!row.isMine &&
+                            (row.canJoin
+                              ? Boolean(snapshot?.unavailableReason) || busy || recoveringJoin
+                              : !row.spectatorViews.length))
+                        }
+                        aria-busy={spectatingTable === row.tableId}
                         onClick={() =>
                           row.isMine
                             ? document.getElementById('casual-current-title')?.focus()
@@ -957,19 +963,21 @@ export function CasualLobbyPage({
                                 : open('SPECTATE', row)
                         }
                       >
-                        {row.isMine
-                          ? '我的房间'
-                          : row.canJoin
-                            ? '加入'
-                            : row.spectatorViews.length
-                              ? '观战'
-                              : names[row.status]}
+                        {spectatingTable === row.tableId
+                          ? '进入中…'
+                          : row.isMine
+                            ? '我的房间'
+                            : row.canJoin
+                              ? '加入'
+                              : row.spectatorViews.length
+                                ? '观战'
+                                : names[row.status]}
                       </button>
                     </div>
                   </li>
                 ))}
               </ul>
-              {snapshot.nextCursor && (
+              {snapshot.nextCursor && loadedSearch === queryKey && (
                 <button
                   className="button-secondary casual-load-more"
                   disabled={reading}
@@ -985,8 +993,11 @@ export function CasualLobbyPage({
       {flow && (
         <LobbyDialog
           title={title}
+          closeDisabled={busy || Boolean(spectatingTable)}
           onClose={() => {
-            if (!busy && !looking) {
+            if (!busy && !spectatorPending.current) {
+              lookupEpoch.current += 1;
+              setLooking(false);
               setFlow(null);
               setLocalError(null);
             }
@@ -1051,10 +1062,17 @@ export function CasualLobbyPage({
                         required
                         maxLength={12}
                         defaultValue={new URLSearchParams(window.location.search).get('room') ?? ''}
+                        onChange={() => {
+                          lookupEpoch.current += 1;
+                          setLooking(false);
+                          setPreview(null);
+                          setActivityPreview(null);
+                          setLocalError(null);
+                        }}
                       />
                     </label>
                     <button className="button-primary" disabled={looking}>
-                      查找房间
+                      {looking ? '正在查找…' : '查找房间'}
                     </button>
                     {activityPreview && (
                       <div className="casual-preview">
@@ -1101,6 +1119,7 @@ export function CasualLobbyPage({
                           <button
                             type="button"
                             className="button-primary"
+                            disabled={Boolean(snapshot?.unavailableReason)}
                             onClick={() => open('JOIN', preview)}
                           >
                             选择卡组并加入
@@ -1122,9 +1141,7 @@ export function CasualLobbyPage({
                 ) : (
                   <>
                     {flow.kind === 'FIND' && (
-                      <p>
-                        会加入或创建公开等人房间，接受列表加入和自动配对。列表筛选不影响找人范围。
-                      </p>
+                      <p>优先加入正在等人的公开房间，没有对手时会创建房间等待。</p>
                     )}
                     {flow.kind === 'JOIN' && (
                       <p>
@@ -1137,25 +1154,48 @@ export function CasualLobbyPage({
                     {['REMATCH', 'ACCEPT'].includes(flow.kind) && (
                       <p>选择本次卡组。双方同意后仍需在新轮次各自确认开局。</p>
                     )}
-                    <div className="casual-deck-selector">
-                      <DeckSelector
-                        cloudDecks={cloudDecks}
-                        selectedId={chosen?.id}
-                        onSelect={(deck) => setSelected(deck)}
-                        isLoading={deckLoadState === 'LOADING'}
-                        isRefreshing={deckLoadState === 'REFRESHING'}
-                        error={cloudError}
-                        onRefresh={() => void refreshDecks()}
-                        title="选择本局卡组"
-                        density="compact"
-                        lastUsedDeckId={lastDeck}
-                        emptyActionLabel="管理卡组"
-                        onEmptyAction={() => {
-                          setFlow(null);
-                          onManageDecks();
-                        }}
-                      />
-                    </div>
+                    {chosen && !deckPickerOpen ? (
+                      <div className="casual-selected-deck">
+                        {chosen.previewCardCodes[0] && (
+                          <img src={getCardImagePath(chosen.previewCardCodes[0])} alt="" />
+                        )}
+                        <div>
+                          <small>本局卡组</small>
+                          <strong>{chosen.name}</strong>
+                          <span>{chosen.pointTotal} PT</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="button-secondary"
+                          onClick={() => setDeckPickerOpen(true)}
+                        >
+                          更换
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="casual-deck-selector">
+                        <DeckSelector
+                          cloudDecks={validCloudDecks}
+                          selectedId={chosen?.id}
+                          onSelect={(deck) => {
+                            setSelected(deck);
+                            setDeckPickerOpen(false);
+                          }}
+                          isLoading={deckLoadState === 'LOADING'}
+                          isRefreshing={deckLoadState === 'REFRESHING'}
+                          error={cloudError}
+                          onRefresh={() => void refreshDecks()}
+                          title="选择本局卡组"
+                          density="compact"
+                          lastUsedDeckId={lastDeck}
+                          emptyActionLabel="管理卡组"
+                          onEmptyAction={() => {
+                            setFlow(null);
+                            onManageDecks();
+                          }}
+                        />
+                      </div>
+                    )}
                     {flow.kind === 'CREATE' && (
                       <>
                         <fieldset>
@@ -1206,7 +1246,15 @@ export function CasualLobbyPage({
                       >
                         取消
                       </button>
-                      <button className="button-primary" disabled={busy || !chosen}>
+                      <button
+                        className="button-primary"
+                        disabled={
+                          busy ||
+                          !chosen ||
+                          (['FIND', 'CREATE', 'JOIN', 'CONTINUE'].includes(flow.kind) &&
+                            Boolean(snapshot?.unavailableReason))
+                        }
+                      >
                         {busy
                           ? '正在处理…'
                           : flow.kind === 'JOIN'
@@ -1240,37 +1288,39 @@ function LobbyDialog({
   title,
   children,
   onClose,
+  closeDisabled,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  closeDisabled: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null),
-    heading = useRef<HTMLHeadingElement>(null);
+    closeButton = useRef<HTMLButtonElement>(null);
   const id = useId();
   useDialogAccessibility({
     isOpen: true,
     dialogRef: ref,
-    initialFocusRef: heading,
+    initialFocusRef: closeButton,
     onEscape: onClose,
   });
   return (
     <div className="casual-dialog-backdrop">
       <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={id} className="casual-dialog">
         <header>
-          <h2 id={id} ref={heading} tabIndex={-1}>
-            {title}
-          </h2>
+          <h2 id={id}>{title}</h2>
           <button
+            ref={closeButton}
             type="button"
             className="button-secondary"
             aria-label="关闭弹层"
+            disabled={closeDisabled}
             onClick={onClose}
           >
             <X size={18} />
           </button>
         </header>
-        {children}
+        <div className="casual-dialog-content">{children}</div>
       </div>
     </div>
   );

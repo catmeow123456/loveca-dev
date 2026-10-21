@@ -7,12 +7,51 @@ export const HOME_ENTRY_IDS = [
   'debug',
   'match-records',
   'online-debug',
+  'spectate',
+  'deck-manager',
 ] as const;
 
 export type HomeEntryId = (typeof HOME_ENTRY_IDS)[number];
 
 const STORAGE_KEY = 'loveca.home.hiddenEntries';
-export const DEFAULT_HIDDEN_HOME_ENTRIES: HomeEntryId[] = ['solitaire', 'debug'];
+export const DEFAULT_HIDDEN_HOME_ENTRIES: HomeEntryId[] = ['debug', 'online-debug', 'deck-manager'];
+export const DEFAULT_HOME_ENTRY_ORDER: HomeEntryId[] = [
+  'tutorial',
+  'spectate',
+  'match-records',
+  'solitaire',
+  'deck-manager',
+  'debug',
+  'online-debug',
+  'battle-lobby',
+  'ranked',
+  'theme-table',
+];
+const ORDER_STORAGE_KEY = 'loveca.home.entryOrder';
+
+export function readHomeEntryOrder(): HomeEntryId[] {
+  try {
+    const value: unknown = JSON.parse(window.localStorage.getItem(ORDER_STORAGE_KEY) ?? 'null');
+    if (Array.isArray(value)) {
+      const order = [
+        ...new Set(value.filter((id): id is HomeEntryId => HOME_ENTRY_IDS.includes(id))),
+      ];
+      return [...order, ...DEFAULT_HOME_ENTRY_ORDER.filter((id) => !order.includes(id))];
+    }
+  } catch {
+    /* Preferences must not block navigation. */
+  }
+  return [...DEFAULT_HOME_ENTRY_ORDER];
+}
+
+export function writeHomeEntryOrder(order: HomeEntryId[]): boolean {
+  try {
+    window.localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(order));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export function readHiddenHomeEntries(): HomeEntryId[] {
   try {

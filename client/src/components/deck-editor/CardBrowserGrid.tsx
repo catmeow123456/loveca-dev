@@ -2,7 +2,7 @@
  * CardBrowserGrid - 卡牌浏览网格
  */
 
-import { useCallback } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '@/store/gameStore';
 import { BrowserCardCell } from './BrowserCardCell';
@@ -18,7 +18,47 @@ interface CardBrowserGridProps {
   onViewDetail: (card: AnyCardData) => void;
 }
 
-export function CardBrowserGrid({ cards, baseCodeCountInDeck, exactCodeCountInDeck, onAddCard, onRemoveCard, onViewDetail }: CardBrowserGridProps) {
+const CARD_BATCH_SIZE = 48;
+
+export function CardBrowserGrid({
+  cards,
+  baseCodeCountInDeck,
+  exactCodeCountInDeck,
+  onAddCard,
+  onRemoveCard,
+  onViewDetail,
+}: CardBrowserGridProps) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const loadMore = useRef<HTMLButtonElement>(null);
+  const [batch, setBatch] = useState({ cards, count: CARD_BATCH_SIZE });
+  // A new search/type/filter starts at the first batch; deck count changes keep the current batch.
+  if (batch.cards !== cards) setBatch({ cards, count: CARD_BATCH_SIZE });
+  const visibleCount = batch.cards === cards ? batch.count : CARD_BATCH_SIZE;
+  const hasMore = visibleCount < cards.length;
+  const showMore = useCallback(() => {
+    setBatch((current) =>
+      current.cards === cards
+        ? { cards, count: Math.min(current.count + CARD_BATCH_SIZE, cards.length) }
+        : current
+    );
+  }, [cards]);
+
+  useEffect(() => {
+    if (scroller.current) scroller.current.scrollTop = 0;
+  }, [cards]);
+
+  useEffect(() => {
+    if (!hasMore || !loadMore.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) showMore();
+      },
+      { root: scroller.current, rootMargin: '600px 0px' }
+    );
+    observer.observe(loadMore.current);
+    return () => observer.disconnect();
+  }, [hasMore, showMore, visibleCount]);
+
   const { getCardImagePath } = useGameStore(
     useShallow((s) => ({ getCardImagePath: s.getCardImagePath }))
   );
@@ -38,9 +78,13 @@ export function CardBrowserGrid({ cards, baseCodeCountInDeck, exactCodeCountInDe
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-3 cute-scrollbar sm:p-4">
+    <div
+      ref={scroller}
+      className="flex-1 overflow-y-auto p-3 cute-scrollbar sm:p-4"
+      aria-label="卡牌库"
+    >
       <div className="grid grid-cols-3 gap-2.5 min-[420px]:gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
-        {cards.map((card) => (
+        {cards.slice(0, visibleCount).map((card) => (
           <MemoizedCellWrapper
             key={card.cardCode}
             card={card}
@@ -53,6 +97,16 @@ export function CardBrowserGrid({ cards, baseCodeCountInDeck, exactCodeCountInDe
           />
         ))}
       </div>
+      {hasMore && (
+        <button
+          ref={loadMore}
+          type="button"
+          onClick={showMore}
+          className="button-secondary mx-auto mt-4 block min-h-11 px-5 py-2 text-sm"
+        >
+          显示更多卡牌
+        </button>
+      )}
     </div>
   );
 }
@@ -67,7 +121,15 @@ interface CellWrapperProps {
   onViewDetail: (card: AnyCardData) => void;
 }
 
-function MemoizedCellWrapper({ card, imagePath, baseCount, exactCount, onAddCard, onRemoveCard, onViewDetail }: CellWrapperProps) {
+const MemoizedCellWrapper = memo(function CellWrapper({
+  card,
+  imagePath,
+  baseCount,
+  exactCount,
+  onAddCard,
+  onRemoveCard,
+  onViewDetail,
+}: CellWrapperProps) {
   const handleAdd = useCallback(() => onAddCard(card), [onAddCard, card]);
   const handleRemove = useCallback(() => onRemoveCard(card), [onRemoveCard, card]);
   const handleDetail = useCallback(() => onViewDetail(card), [onViewDetail, card]);
@@ -83,4 +145,4 @@ function MemoizedCellWrapper({ card, imagePath, baseCount, exactCount, onAddCard
       onViewDetail={handleDetail}
     />
   );
-}
+});

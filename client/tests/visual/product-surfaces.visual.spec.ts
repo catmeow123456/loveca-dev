@@ -22,7 +22,7 @@ const scenarios: VisualScenario[] = [
     path: '/',
     authenticated: true,
     ready: async (page) => {
-      await expect(page.getByRole('heading', { name: '欢迎回来，视觉验收玩家' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Loveca 大厅', exact: true })).toBeVisible();
     },
   },
   {
@@ -38,7 +38,8 @@ const scenarios: VisualScenario[] = [
     path: '/?page=deck-manager',
     authenticated: true,
     ready: async (page) => {
-      await expect(page.getByRole('heading', { name: '视觉回归标准卡组' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: '卡组管理', exact: true })).toBeVisible();
+      await expect(page.getByText('视觉回归标准卡组', { exact: true })).toBeVisible();
     },
   },
   {

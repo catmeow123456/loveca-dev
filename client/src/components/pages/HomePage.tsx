@@ -1,37 +1,37 @@
-/**
- * HomePage - 入口大厅
- * 登录后的主界面，突出开始入口、卡组准备状态和联机入口。
- */
-
-import type { CasualTableCurrentView } from '@game/online/casual-table-types';
-import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
+/** 登录后大厅：选择玩法、准备一副卡组、继续当前任务。 */
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   ArrowRight,
-  BookOpen,
-  Bug,
   Bot,
+  Bug,
   CalendarClock,
-  CheckCircle2,
-  Cloud,
-  Database,
+  Check,
+  ChevronRight,
   DoorOpen,
-  Gamepad2,
+  Eye,
   History,
+  Layers3,
   Medal,
+  Pencil,
   RefreshCw,
-  Sparkles,
-  ShieldAlert,
-  Swords,
   School,
+  ShieldAlert,
+  Sparkles,
+  Swords,
   Target,
   TriangleAlert,
   WifiOff,
+  type LucideIcon,
 } from 'lucide-react';
+import type { CasualTableCurrentView } from '@game/online/casual-table-types';
+import type { MatchRecordSummaryView } from '@game/online/replay-types';
+import { hasAnyManagementPermission, hasPermission } from '@game/shared/auth/permissions';
+import { GameMode } from '@game/shared/types/enums';
 import {
   AppCredits,
   LegalNotice,
   ProductFrame,
-  DeckStatsRow,
+  DeckSelector,
   formatRelativeTime,
   type ProductNavigationHandlers,
 } from '@/components/common';
@@ -40,9 +40,15 @@ import { useAuthStore } from '@/store/authStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { isApiConfigured } from '@/lib/apiClient';
-import type { DeckDisplayItem } from '@/lib/deckDisplay';
+import { fetchMatchRecords } from '@/lib/onlineClient';
 import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 import { buildHomeDeckProjection } from '@/lib/homeDeckProjection';
+import {
+  choosePreferredDeck,
+  DECK_SELECTION_PREFERENCE_KEYS,
+  readLastUsedDeckId,
+  writeLastUsedDeckId,
+} from '@/lib/deckSelectionPreferences';
 import type {
   PlayerBattleEntryVisibility,
   PublicSiteMaintenanceStatus,
@@ -50,9 +56,9 @@ import type {
   SiteStatusLifecycle,
 } from '@/lib/appConfig';
 import { HomeEntryPanel, type HomeEntryAction } from './HomeEntryPanel';
+import { HomeDialog } from './HomeDialog';
+import { HomeDeckDetails } from './HomeDeckDetails';
 import './home-page.css';
-import { hasAnyManagementPermission, hasPermission } from '@game/shared/auth/permissions';
-import { GameMode } from '@game/shared/types/enums';
 
 const LIFECYCLE_LABELS: Record<SiteStatusLifecycle, string> = {
   NORMAL: '正常',
@@ -60,12 +66,23 @@ const LIFECYCLE_LABELS: Record<SiteStatusLifecycle, string> = {
   MAINTENANCE: '维护中',
 };
 
+type ModeId = 'casual' | 'ranked' | 'theme' | 'solitaire' | 'debug';
+interface LobbyMode {
+  id: ModeId;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  action: string;
+  preferenceKey?: string;
+  localMode?: GameMode.SOLITAIRE | GameMode.DEBUG;
+  onEnter: () => void;
+}
 interface HomePageProps {
   navigation: ProductNavigationHandlers;
   headerActions: ReactNode;
   mobileMenuActions: ReactNode;
   onNavigateToDeckManager: () => void;
-  onNavigateToGameSetup: () => void;
+  onEditDeck: (deckId: string) => void;
   onNavigateToLocalSetup: (mode: GameMode.SOLITAIRE | GameMode.DEBUG) => void;
   onNavigateToLobby: () => void;
   onAbandonSavedRoomForLocalGame: (
@@ -73,7 +90,7 @@ interface HomePageProps {
   ) => Promise<void>;
   onNavigateToRanked: () => void;
   onNavigateToThemeTable: () => void;
-  onNavigateToMatchRecords: () => void;
+  onNavigateToMatchRecords: (matchId?: string) => void;
   onNavigateToOnlineDebug: () => void;
   onNavigateToAdminCenter: () => void;
   onNavigateToAiBattle: () => void;
@@ -82,38 +99,12 @@ interface HomePageProps {
   siteStatus: PublicSiteStatus;
 }
 
-interface ActionTileProps {
-  title: string;
-  description?: string;
-  icon: ComponentType<{ size?: number | string; className?: string }>;
-  onClick: () => void;
-  disabled?: boolean;
-  compact?: boolean;
-  status?: string;
-  tone?: 'primary' | 'blue' | 'green' | 'warning' | 'muted';
-}
-
-type DeckSourceStatus = 'online' | 'offline' | 'unconfigured';
-
-type PrimaryActionState = 'saved-room' | 'ready' | 'loading' | 'needs-deck' | 'source-unavailable';
-
-interface PrimaryActionConfig {
-  state: PrimaryActionState;
-  title: string;
-  description: string;
-  cta: string;
-  icon: ComponentType<{ size?: number | string; className?: string }>;
-  onClick: () => void;
-  supportAction?: { label: string; onClick: () => void; disabled?: boolean };
-  notice?: string;
-}
-
 export function HomePage({
   navigation,
   headerActions,
   mobileMenuActions,
   onNavigateToDeckManager,
-  onNavigateToGameSetup,
+  onEditDeck,
   onNavigateToLocalSetup,
   onNavigateToLobby,
   onAbandonSavedRoomForLocalGame,
@@ -127,277 +118,212 @@ export function HomePage({
   battleEntryVisibility,
   siteStatus,
 }: HomePageProps) {
-  const { profile, offlineMode, offlineUser } = useAuthStore();
+  const { user, profile, offlineMode, offlineUser } = useAuthStore();
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
-  const cloudDecksLoadedAt = useDeckStore((s) => s.cloudDecksLoadedAt);
   const localDecks = useDeckStore((s) => s.localDecks);
+  const cloudDecksLoadedAt = useDeckStore((s) => s.cloudDecksLoadedAt);
   const cloudDeckLoadState = useDeckStore((s) => s.cloudDeckLoadState);
   const cloudError = useDeckStore((s) => s.cloudError);
   const ensureCloudDecks = useDeckStore((s) => s.ensureCloudDecks);
   const refreshCloudDecks = useDeckStore((s) => s.refreshCloudDecks);
   const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
+  const getCardImagePath = useGameStore((s) => s.getCardImagePath);
   const pointTable = useDeckPointTableRules();
-  const currentTask = useCasualTableStore((state) => state.status);
-  const currentCasual = currentTask?.table;
-  const savedRoomCode = currentCasual?.state === 'BOUND' ? currentCasual.roomCode : null;
+  const currentTask = useCasualTableStore((s) => s.status);
+  const table = currentTask?.table;
+  const savedRoomCode = table?.state === 'BOUND' ? table.roomCode : null;
   const hasOtherRoom =
     currentTask?.otherParticipation?.kind === 'ONLINE_ROOM' ||
     currentTask?.otherParticipation?.kind === 'ONLINE_MATCH';
-  const endedCasualRoom = currentCasual?.runtime?.status === 'ENDED';
-  const [isAbandoningSavedRoom, setIsAbandoningSavedRoom] = useState(false);
-  const [savedRoomActionError, setSavedRoomActionError] = useState<string | null>(null);
-
-  const hasOnlineDebugEntry = Boolean(import.meta.env.VITE_DEBUG_SEAT);
-  const hasManagementAccess = profile ? hasAnyManagementPermission(profile.role) : false;
-  const deckSourceStatus: DeckSourceStatus = offlineMode
-    ? 'offline'
-    : isApiConfigured
-      ? 'online'
-      : 'unconfigured';
-  const canUseCloudDecks = deckSourceStatus === 'online';
-  const canUseOnlineRoom = canUseCloudDecks;
-  const canReturnSavedRoom = Boolean((savedRoomCode || hasOtherRoom) && canUseOnlineRoom);
-  useEffect(() => {
-    if (!canUseCloudDecks) {
-      return;
-    }
-
-    void ensureCloudDecks();
-  }, [canUseCloudDecks, ensureCloudDecks]);
-
+  const canUseOnline = !offlineMode && isApiConfigured;
+  const canReturnRoom = canUseOnline && Boolean(savedRoomCode || hasOtherRoom);
+  const endedRoom = table?.runtime?.status === 'ENDED';
+  const ownerId = offlineMode ? `offline:${offlineUser?.username ?? ''}` : (user?.id ?? '');
   const displayUsername = offlineMode
-    ? offlineUser?.displayName || 'Guest'
-    : profile?.display_name || profile?.username || 'User';
+    ? offlineUser?.displayName || '玩家'
+    : profile?.display_name || profile?.username || '玩家';
+  const [modeId, setModeId] = useState<ModeId>(canUseOnline ? 'casual' : 'solitaire');
+  const [selection, setSelection] = useState<{
+    ownerId: string;
+    ids: Partial<Record<ModeId, string>>;
+  }>({ ownerId, ids: {} });
+  const [dialog, setDialog] = useState<'choose' | string | null>(null);
+  const [isAbandoningRoom, setIsAbandoningRoom] = useState(false);
+  const [roomError, setRoomError] = useState<string | null>(null);
 
-  const connectionStatus = offlineMode
-    ? {
-        icon: WifiOff,
-        label: '离线模式',
-        tone: 'text-[var(--semantic-warning)]',
-      }
-    : isApiConfigured
-      ? {
-          icon: Cloud,
-          label: '云端可用',
-          tone: 'text-[var(--semantic-success)]',
-        }
-      : {
-          icon: Database,
-          label: '本地服务未配置',
-          tone: 'text-[var(--text-secondary)]',
-        };
-  const ConnectionStatusIcon = connectionStatus.icon;
-
-  const { deckItems, validDeckItems } = useMemo(
+  useEffect(() => {
+    if (canUseOnline) void ensureCloudDecks();
+  }, [canUseOnline, ensureCloudDecks]);
+  const { deckItems, validDeckItems, validCloudDecks } = useMemo(
     () =>
       buildHomeDeckProjection({
-        cloudDecks: canUseCloudDecks ? cloudDecks : [],
+        cloudDecks: canUseOnline ? cloudDecks : [],
         localDecks: offlineMode ? localDecks : [],
         cardDataRegistry,
         pointTable,
       }),
-    [canUseCloudDecks, cardDataRegistry, cloudDecks, localDecks, offlineMode, pointTable]
+    [canUseOnline, cloudDecks, localDecks, offlineMode, cardDataRegistry, pointTable]
   );
 
-  const latestDeck = deckItems[0] ?? null;
-  const hasLegalDeck = validDeckItems.length > 0;
-  const isInitialDeckLoading = canUseCloudDecks && cloudDeckLoadState === 'LOADING';
-  const isRefreshingDecks = canUseCloudDecks && cloudDeckLoadState === 'REFRESHING';
-
-  const handleAbandonSavedRoomForLocalGame = async () => {
-    setIsAbandoningSavedRoom(true);
-    setSavedRoomActionError(null);
-    try {
-      await onAbandonSavedRoomForLocalGame(currentTask);
-    } catch (error) {
-      setSavedRoomActionError(error instanceof Error ? error.message : '放弃联机对局失败');
-    } finally {
-      setIsAbandoningSavedRoom(false);
-    }
-  };
-
-  const primaryAction: PrimaryActionConfig = canReturnSavedRoom
-    ? {
-        state: 'saved-room' as PrimaryActionState,
-        title: endedCasualRoom ? '返回赛后房间' : '返回当前房间',
-        description: savedRoomCode
-          ? `房间 ${savedRoomCode} ${endedCasualRoom ? '已结束，可以协商再战或继续找人。' : '仍为你保留席位。'}`
-          : '你已有对局房间，可从大厅返回。',
-        cta: '返回房间',
-        icon: DoorOpen,
-        onClick: onNavigateToLobby,
-        supportAction: {
-          label: isAbandoningSavedRoom ? '正在放弃联机对局...' : '另开本地对局',
-          disabled: isAbandoningSavedRoom,
-          onClick: () => {
-            void handleAbandonSavedRoomForLocalGame();
-          },
-        },
-        notice:
-          savedRoomActionError ??
-          (endedCasualRoom
-            ? '另开本地对局会离开当前赛后房间。'
-            : '另开本地对局会放弃当前联机对局，且不保留原房间恢复入口。'),
-      }
-    : deckSourceStatus === 'unconfigured'
-      ? {
-          state: 'source-unavailable' as PrimaryActionState,
-          title: '卡组来源不可用',
-          description: '当前没有可用 API 服务，无法同步云端卡组与房间信息。',
-          cta: '查看准备页',
-          icon: Database,
-          onClick: onNavigateToGameSetup,
-        }
-      : deckSourceStatus === 'offline' && hasLegalDeck
-        ? {
-            state: 'ready' as PrimaryActionState,
-            title: '开始本地对战',
-            description: '选择对墙打或双人调试，使用当前浏览器中的合法卡组开始对局。',
-            cta: '开始本地对战',
-            icon: Gamepad2,
-            onClick: onNavigateToGameSetup,
-          }
-        : deckSourceStatus === 'offline'
-          ? {
-              state: 'needs-deck' as PrimaryActionState,
-              title: '构筑本地卡组',
-              description: '当前浏览器还没有符合构筑规则的卡组。',
-              cta: '去卡组管理',
-              icon: BookOpen,
-              onClick: onNavigateToDeckManager,
-              supportAction: {
-                label: '进入准备页',
-                onClick: onNavigateToGameSetup,
-              },
-            }
-          : isInitialDeckLoading
-            ? {
-                state: 'loading' as PrimaryActionState,
-                title: '正在读取卡组',
-                description: '正在同步云端卡组列表；读取期间可以先查看准备页。',
-                cta: '查看准备页',
-                icon: RefreshCw,
-                onClick: onNavigateToGameSetup,
-              }
-            : cloudDeckLoadState === 'ERROR' && cloudDecksLoadedAt === null
-              ? {
-                  state: 'source-unavailable' as PrimaryActionState,
-                  title: '暂时无法读取卡组',
-                  description: '首次读取云端卡组失败，请重试后再开始对战。',
-                  cta: '重新读取',
-                  icon: RefreshCw,
-                  onClick: () => void refreshCloudDecks(),
-                }
-              : hasLegalDeck
-                ? {
-                    state: 'ready' as PrimaryActionState,
-                    title: '开始对战',
-                    description: '选择本局的对战方式并完成准备。',
-                    cta: '开始对战',
-                    icon: Gamepad2,
-                    onClick: onNavigateToGameSetup,
-                  }
-                : {
-                    state: 'needs-deck' as PrimaryActionState,
-                    title: '构筑卡组',
-                    description: '还没有符合构筑规则的卡组。请先创建或调整一副卡组。',
-                    cta: '去卡组管理',
-                    icon: BookOpen,
-                    onClick: onNavigateToDeckManager,
-                    supportAction: {
-                      label: '进入准备页',
-                      onClick: onNavigateToGameSetup,
-                    },
-                  };
-
-  const secondaryActions: HomeEntryAction[] = [
-    {
-      id: 'tutorial',
-      title: '新手教程',
-      icon: School,
-      onClick: onNavigateToTutorial,
-      tone: 'blue',
-    },
-    {
-      id: 'battle-lobby',
-      title: '对战大厅',
-      icon: Swords,
-      onClick: onNavigateToLobby,
-      disabled: !canUseOnlineRoom,
-      disabledReason: canUseOnlineRoom ? undefined : '连接后可用',
-      tone: canUseOnlineRoom ? 'blue' : 'muted',
-    },
-  ];
-
-  if (battleEntryVisibility.ranked) {
-    secondaryActions.push({
-      id: 'ranked',
-      title: '赛季排位',
-      icon: Medal,
-      onClick: onNavigateToRanked,
-      disabled: !canUseOnlineRoom || !hasLegalDeck,
-      disabledReason: !canUseOnlineRoom
-        ? '连接后可用'
-        : !hasLegalDeck
-          ? '需要符合规则的卡组'
-          : undefined,
-      tone: canUseOnlineRoom && hasLegalDeck ? 'warning' : 'muted',
-    });
-  }
-
-  if (battleEntryVisibility.themeTable) {
-    secondaryActions.push({
-      id: 'theme-table',
-      title: '娱乐模式',
-      icon: Sparkles,
-      onClick: onNavigateToThemeTable,
-      disabled: !canUseOnlineRoom,
-      disabledReason: canUseOnlineRoom ? undefined : '连接后可用',
-      tone: canUseOnlineRoom ? 'blue' : 'muted',
-    });
-  }
-
-  secondaryActions.push(
+  const localModes: LobbyMode[] = [
     {
       id: 'solitaire',
-      title: '对墙打',
+      label: '对墙打',
+      description: '使用自己的卡组练习',
       icon: Target,
-      onClick: () => onNavigateToLocalSetup(GameMode.SOLITAIRE),
-      disabled: canReturnSavedRoom,
-      disabledReason: canReturnSavedRoom ? '请先放弃当前联机对局' : undefined,
-      tone: canReturnSavedRoom ? 'muted' : 'green',
+      action: '前往对墙打',
+      preferenceKey: DECK_SELECTION_PREFERENCE_KEYS.solitaire,
+      localMode: GameMode.SOLITAIRE,
+      onEnter: () => onNavigateToLocalSetup(GameMode.SOLITAIRE),
     },
     {
       id: 'debug',
-      title: '双人调试',
+      label: '双人调试',
+      description: '在同一设备操作双方',
       icon: Bug,
-      onClick: () => onNavigateToLocalSetup(GameMode.DEBUG),
-      disabled: canReturnSavedRoom,
-      disabledReason: canReturnSavedRoom ? '请先放弃当前联机对局' : undefined,
-      tone: 'muted',
+      action: '前往双人调试',
+      preferenceKey: DECK_SELECTION_PREFERENCE_KEYS.localDebugPlayer1,
+      localMode: GameMode.DEBUG,
+      onEnter: () => onNavigateToLocalSetup(GameMode.DEBUG),
+    },
+  ];
+  const modes: LobbyMode[] = canUseOnline
+    ? [
+        {
+          id: 'casual',
+          label: '对战大厅',
+          description: '自由选组 · 创建或加入房间',
+          icon: Swords,
+          action: '进入对战大厅',
+          preferenceKey: DECK_SELECTION_PREFERENCE_KEYS.publicTable,
+          onEnter: onNavigateToLobby,
+        },
+        ...(battleEntryVisibility.ranked
+          ? [
+              {
+                id: 'ranked' as const,
+                label: '赛季排位',
+                description: '当前赛季 · 实力较量',
+                icon: Medal,
+                action: '前往赛季排位',
+                preferenceKey: DECK_SELECTION_PREFERENCE_KEYS.ranked,
+                onEnter: onNavigateToRanked,
+              },
+            ]
+          : []),
+        ...(battleEntryVisibility.themeTable
+          ? [
+              {
+                id: 'theme' as const,
+                label: '娱乐模式',
+                description: '平台预组 · 轻松体验',
+                icon: Sparkles,
+                action: '前往娱乐模式',
+                onEnter: onNavigateToThemeTable,
+              },
+            ]
+          : []),
+      ]
+    : localModes;
+  const mode = modes.find((entry) => entry.id === modeId) ?? modes[0];
+  const ModeIcon = mode.icon;
+  const isPlatformMode = mode.id === 'theme';
+  const preferredDeck = choosePreferredDeck(
+    validDeckItems,
+    mode.preferenceKey ? readLastUsedDeckId(mode.preferenceKey) : null
+  ).deck;
+  const selectedId = selection.ownerId === ownerId ? selection.ids[mode.id] : null;
+  const selectedDeck = validDeckItems.find((deck) => deck.id === selectedId) ?? preferredDeck;
+  const isLoading =
+    canUseOnline &&
+    cloudDecksLoadedAt === null &&
+    (cloudDeckLoadState === 'LOADING' || cloudDeckLoadState === 'IDLE');
+  const isRefreshing = canUseOnline && cloudDeckLoadState === 'REFRESHING';
+  const firstReadFailed =
+    canUseOnline && cloudDecksLoadedAt === null && cloudDeckLoadState === 'ERROR';
+  const needsDeck = !isPlatformMode && !selectedDeck && !isLoading && !firstReadFailed;
+  const localBlocked = Boolean(mode.localMode && canReturnRoom);
+  const launchDisabled =
+    (!isPlatformMode && (isLoading || firstReadFailed || !selectedDeck)) || localBlocked;
+
+  function rememberDeck(preferenceKey?: string) {
+    if (preferenceKey && selectedDeck) writeLastUsedDeckId(preferenceKey, selectedDeck.id);
+  }
+  function enterMode() {
+    if (launchDisabled) return;
+    rememberDeck(mode.preferenceKey);
+    mode.onEnter();
+  }
+  function enterLocal(localMode: GameMode.SOLITAIRE | GameMode.DEBUG) {
+    if (canReturnRoom) return;
+    rememberDeck(
+      localMode === GameMode.SOLITAIRE
+        ? DECK_SELECTION_PREFERENCE_KEYS.solitaire
+        : DECK_SELECTION_PREFERENCE_KEYS.localDebugPlayer1
+    );
+    onNavigateToLocalSetup(localMode);
+  }
+  async function abandonRoom() {
+    setIsAbandoningRoom(true);
+    setRoomError(null);
+    try {
+      await onAbandonSavedRoomForLocalGame(currentTask);
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : '放弃联机对局失败');
+    } finally {
+      setIsAbandoningRoom(false);
+    }
+  }
+  const entries: HomeEntryAction[] = [
+    { id: 'tutorial', title: '新手教程', icon: School, onClick: onNavigateToTutorial },
+    {
+      id: 'spectate',
+      title: '观战',
+      icon: Eye,
+      onClick: navigation.onSpectate,
+      disabled: !canUseOnline,
+      disabledReason: canUseOnline ? undefined : '联网登录后可用',
     },
     {
       id: 'match-records',
       title: '历史对局',
       icon: History,
-      onClick: onNavigateToMatchRecords,
-      disabled: !canUseCloudDecks,
-      disabledReason: canUseCloudDecks ? undefined : '连接后可用',
-      tone: canUseCloudDecks ? 'green' : 'muted',
-    }
-  );
-
-  if (hasOnlineDebugEntry) {
-    secondaryActions.push({
-      id: 'online-debug',
-      title: '联机调试',
-      icon: Swords,
-      onClick: onNavigateToOnlineDebug,
-      disabled: !canUseOnlineRoom,
-      disabledReason: canUseOnlineRoom ? undefined : '连接后可用',
-      tone: canUseOnlineRoom ? 'warning' : 'muted',
-    });
-  }
+      onClick: () => onNavigateToMatchRecords(),
+      disabled: !canUseOnline,
+      disabledReason: canUseOnline ? undefined : '联网登录后可用',
+    },
+    {
+      id: 'solitaire',
+      title: '对墙打',
+      icon: Target,
+      onClick: () => enterLocal(GameMode.SOLITAIRE),
+      disabled: canReturnRoom,
+      disabledReason: canReturnRoom ? '请先处理当前房间' : undefined,
+    },
+    { id: 'deck-manager', title: '卡组管理', icon: Layers3, onClick: onNavigateToDeckManager },
+    {
+      id: 'debug',
+      title: '双人调试',
+      icon: Bug,
+      onClick: () => enterLocal(GameMode.DEBUG),
+      disabled: canReturnRoom,
+      disabledReason: canReturnRoom ? '请先处理当前房间' : undefined,
+    },
+    ...(import.meta.env.VITE_DEBUG_SEAT
+      ? [
+          {
+            id: 'online-debug' as const,
+            title: '联机调试',
+            icon: Swords,
+            onClick: onNavigateToOnlineDebug,
+            disabled: !canUseOnline,
+            disabledReason: canUseOnline ? undefined : '联网登录后可用',
+          },
+        ]
+      : []),
+  ];
+  const detailDeck =
+    dialog && dialog !== 'choose' ? deckItems.find((deck) => deck.id === dialog) : null;
 
   return (
     <ProductFrame
@@ -407,7 +333,7 @@ export function HomePage({
       actions={headerActions}
       mobileMenuActions={mobileMenuActions}
       footer={
-        <footer className="safe-bottom relative z-10 px-4 py-3">
+        <footer className="lobby-footer safe-bottom">
           <AppCredits version={__APP_VERSION__} />
           <LegalNotice className="pt-1" />
         </footer>
@@ -417,86 +343,457 @@ export function HomePage({
         <div className="lobby-content">
           <header className="lobby-intro">
             <div>
-              <h1>欢迎回来，{displayUsername}</h1>
+              <p>欢迎回来，{displayUsername}</p>
+              <h1>Loveca 大厅</h1>
             </div>
-            <div className={`lobby-connection ${connectionStatus.tone}`}>
-              <ConnectionStatusIcon size={15} aria-hidden="true" />
-              <span>{connectionStatus.label}</span>
-            </div>
+            {offlineMode && (
+              <span className="lobby-offline">
+                <WifiOff size={15} aria-hidden="true" />
+                离线模式
+              </span>
+            )}
           </header>
-
-          <section className="lobby-primary">
-            <SiteStatusBanner siteStatus={siteStatus} />
-            <HomeActionBar
-              title={primaryAction.title}
-              description={primaryAction.description}
-              cta={primaryAction.cta}
-              icon={primaryAction.icon}
-              onClick={primaryAction.onClick}
-              supportAction={primaryAction.supportAction}
-              state={primaryAction.state}
-              notice={savedRoomActionError ?? primaryAction.notice}
-            />
-          </section>
-
-          <section className="lobby-workspace">
-            <DeckWorkspacePanel
-              deckCount={canUseCloudDecks ? cloudDecks.length : localDecks.length}
-              validDeckCount={validDeckItems.length}
-              latestDeck={latestDeck}
-              validDecks={validDeckItems.slice(0, 5)}
-              recentDecks={deckItems.slice(0, 3)}
-              isLoading={isInitialDeckLoading}
-              isRefreshing={isRefreshingDecks}
-              hasError={Boolean(canUseCloudDecks && cloudError)}
-              deckSourceStatus={deckSourceStatus}
-              onRefresh={refreshCloudDecks}
-              onManageDecks={onNavigateToDeckManager}
-            />
-
-            <HomeEntryPanel actions={secondaryActions} />
-          </section>
-
-          {hasManagementAccess && profile ? (
-            <section className="border-t border-[var(--border-subtle)] pt-4">
-              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-secondary)]">
-                <ShieldAlert size={16} className="text-[var(--accent-secondary)]" />
-                运营工具
+          <SiteStatusBanner siteStatus={siteStatus} />
+          {canReturnRoom && (
+            <section className="lobby-room-banner" aria-label="当前房间">
+              <DoorOpen size={22} aria-hidden="true" />
+              <div className="lobby-room-copy">
+                <h2>{savedRoomCode ? `房间 ${savedRoomCode}` : '你有正在进行的房间'}</h2>
+                <p>{endedRoom ? '对局已结束 · 可协商再战' : '你的席位仍在保留'}</p>
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                <ActionTile
-                  title={profile.role === 'season_admin' ? '赛季运营中心' : '运营管理中心'}
-                  description={
-                    profile.role === 'season_admin'
-                      ? '管理排位、娱乐模式与玩家入口。'
-                      : '统一进入内容、卡牌规则、用户权限、联机房间与赛季管理。'
-                  }
-                  icon={ShieldAlert}
-                  onClick={onNavigateToAdminCenter}
-                  status={profile.role === 'season_admin' ? '赛季管理员' : '平台管理员'}
-                  tone="primary"
-                  compact
-                />
-                {hasPermission(profile.role, 'rules.manage') && (
-                  <ActionTile
-                    title="AI 对战"
-                    description="使用缪预组与 AI 对战，可选先后手。"
-                    icon={Bot}
-                    onClick={onNavigateToAiBattle}
-                    status="平台管理员"
-                    tone="blue"
-                    compact
-                  />
-                )}
-              </div>
+              <button type="button" className="home-primary-button" onClick={onNavigateToLobby}>
+                返回房间
+                <ArrowRight size={17} aria-hidden="true" />
+              </button>
+              <details className="lobby-room-options">
+                <summary>其他操作</summary>
+                <p>
+                  {endedRoom
+                    ? '另开本地对局会离开当前赛后房间。'
+                    : '另开本地对局会放弃当前联机对局，且不保留原房间恢复入口。'}
+                </p>
+                <button
+                  type="button"
+                  className="home-secondary-button"
+                  disabled={isAbandoningRoom}
+                  onClick={() => void abandonRoom()}
+                >
+                  {isAbandoningRoom ? '正在处理…' : '另开本地对局'}
+                </button>
+              </details>
             </section>
-          ) : null}
+          )}
+          {roomError && (
+            <p className="home-inline-warning" role="alert">
+              {roomError}
+            </p>
+          )}
+          <div
+            className={`lobby-workspace${modes.length < 3 ? ' lobby-workspace--few-modes' : ''}`}
+          >
+            <section
+              className="lobby-mode-directory"
+              aria-label="选择玩法"
+              style={{ '--lobby-mode-count': modes.length } as CSSProperties}
+            >
+              {modes.map(({ icon: Icon, ...entry }) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  className="lobby-mode-row"
+                  aria-pressed={mode.id === entry.id}
+                  aria-controls="home-preparation-panel"
+                  onClick={() => setModeId(entry.id)}
+                >
+                  <span className="lobby-mode-icon">
+                    <Icon size={25} aria-hidden="true" />
+                  </span>
+                  <span className="lobby-mode-copy">
+                    <strong>{entry.label}</strong>
+                    <small>{entry.description}</small>
+                  </span>
+                  {entry.id === 'theme' && <span className="lobby-mode-status">无需组卡</span>}
+                  <span className="lobby-mode-indicator" aria-hidden="true">
+                    {mode.id === entry.id && <Check size={19} strokeWidth={2.5} />}
+                  </span>
+                </button>
+              ))}
+            </section>
+            <section
+              id="home-preparation-panel"
+              className="lobby-deck-panel"
+              aria-label="对战准备"
+              aria-busy={!isPlatformMode && isLoading}
+            >
+              <header className="lobby-preparation-heading" aria-live="polite" aria-atomic="true">
+                <div key={mode.id} className="lobby-preparation-title">
+                  <ModeIcon size={20} aria-hidden="true" />
+                  <h2>{mode.label}</h2>
+                </div>
+                {!isPlatformMode && selectedDeck && (
+                  <span className="lobby-ready">
+                    <i />
+                    构筑可用
+                  </span>
+                )}
+              </header>
+              {isPlatformMode ? (
+                <div className="lobby-current-deck">
+                  <span className="lobby-deck-placeholder">
+                    <Layers3 size={32} aria-hidden="true" />
+                  </span>
+                  <div>
+                    <p className="home-field-label">使用卡组</p>
+                    <h3>平台预组</h3>
+                    <p className="home-muted">无需自建卡组</p>
+                  </div>
+                </div>
+              ) : selectedDeck ? (
+                <div className="lobby-current-deck">
+                  <button
+                    type="button"
+                    className="lobby-deck-cover"
+                    aria-label={`查看卡组 ${selectedDeck.name}`}
+                    onClick={() => setDialog(selectedDeck.id)}
+                  >
+                    {selectedDeck.previewCardCodes[0] ? (
+                      <img src={getCardImagePath(selectedDeck.previewCardCodes[0])} alt="" />
+                    ) : (
+                      <Layers3 size={30} aria-hidden="true" />
+                    )}
+                  </button>
+                  <div>
+                    <p className="home-field-label">当前卡组</p>
+                    <h3>
+                      <button type="button" onClick={() => setDialog(selectedDeck.id)}>
+                        {selectedDeck.name}
+                      </button>
+                    </h3>
+                    <div className="lobby-deck-tools">
+                      <button
+                        type="button"
+                        className="home-text-button"
+                        onClick={() => {
+                          setDialog('choose');
+                          if (canUseOnline) void ensureCloudDecks();
+                        }}
+                      >
+                        更换卡组
+                        <ArrowRight size={14} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className="home-text-button"
+                        onClick={() => setDialog(selectedDeck.id)}
+                      >
+                        查看构筑
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="lobby-current-deck">
+                  <span className="lobby-deck-placeholder">
+                    {isLoading ? (
+                      <RefreshCw size={28} className="animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Layers3 size={32} aria-hidden="true" />
+                    )}
+                  </span>
+                  <div>
+                    <p className="home-field-label">当前卡组</p>
+                    <h3>
+                      {isLoading
+                        ? '正在读取卡组'
+                        : firstReadFailed
+                          ? '暂时无法读取卡组'
+                          : deckItems.length
+                            ? '还没有可用卡组'
+                            : '还没有卡组'}
+                    </h3>
+                    {!isLoading &&
+                      (firstReadFailed ? (
+                        <button
+                          type="button"
+                          className="home-text-button"
+                          onClick={() => void refreshCloudDecks()}
+                        >
+                          重新读取
+                          <RefreshCw size={14} aria-hidden="true" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="home-text-button"
+                          onClick={onNavigateToDeckManager}
+                        >
+                          {deckItems.length ? '调整构筑' : '构筑卡组'}
+                          <ArrowRight size={14} aria-hidden="true" />
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+              {!isPlatformMode && canUseOnline && cloudError && (
+                <div className="home-inline-warning" role="status">
+                  <TriangleAlert size={16} aria-hidden="true" />
+                  <span>{cloudError}</span>
+                  {selectedDeck && (
+                    <button
+                      type="button"
+                      className="home-text-button"
+                      disabled={isRefreshing}
+                      onClick={() => void refreshCloudDecks()}
+                    >
+                      {isRefreshing ? '正在重试…' : '重试'}
+                    </button>
+                  )}
+                </div>
+              )}
+              <div className="lobby-launch-action">
+                <button
+                  type="button"
+                  className={canReturnRoom ? 'home-secondary-button' : 'home-primary-button'}
+                  disabled={launchDisabled}
+                  onClick={enterMode}
+                >
+                  {mode.action}
+                  <ArrowRight size={18} aria-hidden="true" />
+                </button>
+              </div>
+              {needsDeck && (
+                <p className="lobby-action-caption">
+                  需要一副符合规则的卡组
+                  {canUseOnline && battleEntryVisibility.themeTable && (
+                    <>
+                      ，或
+                      <button type="button" onClick={() => setModeId('theme')}>
+                        体验娱乐模式
+                      </button>
+                    </>
+                  )}
+                </p>
+              )}
+              {localBlocked && <p className="lobby-action-caption">请先处理当前联机房间</p>}
+            </section>
+            <HomeEntryPanel actions={entries} />
+            <HomeRecentMatch
+              userId={canUseOnline ? (user?.id ?? null) : null}
+              displayUsername={displayUsername}
+              onOpen={onNavigateToMatchRecords}
+            />
+          </div>
+          {profile && hasAnyManagementPermission(profile.role) && (
+            <section className="lobby-operations" aria-label="运营工具">
+              <button type="button" className="home-text-button" onClick={onNavigateToAdminCenter}>
+                <ShieldAlert size={17} aria-hidden="true" />
+                {profile.role === 'season_admin' ? '赛季运营中心' : '运营管理中心'}
+              </button>
+              {hasPermission(profile.role, 'rules.manage') && (
+                <button type="button" className="home-text-button" onClick={onNavigateToAiBattle}>
+                  <Bot size={17} aria-hidden="true" />
+                  AI 对战
+                </button>
+              )}
+            </section>
+          )}
         </div>
       </main>
+      {dialog === 'choose' && (
+        <HomeDialog
+          title="更换卡组"
+          onClose={() => setDialog(null)}
+          action={
+            <button
+              type="button"
+              className="home-text-button"
+              onClick={() => {
+                setDialog(null);
+                onNavigateToDeckManager();
+              }}
+            >
+              <Layers3 size={16} aria-hidden="true" />
+              卡组管理
+            </button>
+          }
+        >
+          <div className="home-deck-selector">
+            <DeckSelector
+              cloudDecks={canUseOnline ? validCloudDecks : []}
+              localDecks={offlineMode ? localDecks : []}
+              selectedId={selectedDeck?.id}
+              onSelect={(deck) => {
+                setSelection((current) => ({
+                  ownerId,
+                  ids: { ...(current.ownerId === ownerId ? current.ids : {}), [mode.id]: deck.id },
+                }));
+                setDialog(null);
+              }}
+              isLoading={isLoading}
+              isRefreshing={isRefreshing}
+              error={canUseOnline ? cloudError : null}
+              density="compact"
+              title="选择本次使用的卡组"
+              emptyText="还没有符合规则的卡组。"
+            />
+          </div>
+          {canUseOnline && cloudError && (
+            <div className="home-deck-retry">
+              <button
+                type="button"
+                className="home-text-button"
+                disabled={isLoading || isRefreshing}
+                onClick={() => void refreshCloudDecks()}
+              >
+                {isLoading || isRefreshing ? '正在重试…' : '重试读取卡组'}
+              </button>
+            </div>
+          )}
+        </HomeDialog>
+      )}
+      {dialog && dialog !== 'choose' && (
+        <HomeDialog
+          title={detailDeck?.name ?? '卡组已不可用'}
+          onClose={() => setDialog(null)}
+          action={
+            detailDeck && (
+              <button
+                type="button"
+                className="home-text-button"
+                onClick={() => {
+                  setDialog(null);
+                  onEditDeck(detailDeck.id);
+                }}
+              >
+                <Pencil size={16} aria-hidden="true" />
+                编辑卡组
+              </button>
+            )
+          }
+        >
+          {detailDeck ? (
+            <HomeDeckDetails deck={detailDeck} />
+          ) : (
+            <p className="home-dialog-intro">这副卡组已不在当前列表中，请重新选择。</p>
+          )}
+        </HomeDialog>
+      )}
     </ProductFrame>
   );
 }
 
+function HomeRecentMatch({
+  userId,
+  displayUsername,
+  onOpen,
+}: {
+  userId: string | null;
+  displayUsername: string;
+  onOpen: (matchId?: string) => void;
+}) {
+  const [result, setResult] = useState<{
+    userId: string;
+    record: MatchRecordSummaryView | null;
+    error: boolean;
+  } | null>(null);
+  const [reload, setReload] = useState(0);
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    void fetchMatchRecords().then(
+      (records) => {
+        const record =
+          [...records]
+            .filter((item) => item.status !== 'IN_PROGRESS')
+            .sort((a, b) => (b.endedAt ?? b.startedAt) - (a.endedAt ?? a.startedAt))[0] ?? null;
+        if (!cancelled) setResult({ userId, record, error: false });
+      },
+      () => {
+        if (!cancelled) setResult({ userId, record: null, error: true });
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, reload]);
+  const current = result?.userId === userId ? result : null;
+  const record = current?.record;
+  const outcome =
+    record?.status === 'INTERRUPTED'
+      ? '已中断'
+      : record?.winnerSeat
+        ? record.winnerSeat === record.viewerSeat
+          ? '胜利'
+          : '落败'
+        : '已结束';
+  return (
+    <section className="lobby-recent" aria-labelledby="home-recent-heading">
+      <div className="lobby-section-heading">
+        <h2 id="home-recent-heading">最近一场</h2>
+        <button
+          type="button"
+          className="home-text-button"
+          disabled={!userId}
+          onClick={() => onOpen()}
+        >
+          全部历史
+          <ArrowRight size={14} aria-hidden="true" />
+        </button>
+      </div>
+      {!userId ? (
+        <p className="home-muted">联网登录后可查看历史对局</p>
+      ) : !current ? (
+        <p className="home-muted" role="status">
+          正在读取最近对局…
+        </p>
+      ) : current.error ? (
+        <div className="home-recent-error">
+          <p className="home-muted">暂时无法读取历史对局</p>
+          <button
+            type="button"
+            className="home-text-button"
+            onClick={() => {
+              setResult(null);
+              setReload((value) => value + 1);
+            }}
+          >
+            重试
+          </button>
+        </div>
+      ) : record ? (
+        <button
+          type="button"
+          className="lobby-match-preview"
+          onClick={() => onOpen(record.matchId)}
+        >
+          <span>
+            <strong>
+              {displayUsername}
+              <span className="home-muted"> vs </span>
+              {record.opponentDisplayName ?? '对手'}
+            </strong>
+            <small>
+              {record.originKind === 'AI_DEBUG'
+                ? 'AI 调试'
+                : record.matchMode === 'SOLITAIRE'
+                  ? '对墙打'
+                  : record.originKind === 'RANKED'
+                    ? '赛季排位'
+                    : '自由对战'}{' '}
+              · {formatRelativeTime(new Date(record.endedAt ?? record.startedAt))}
+            </small>
+          </span>
+          <span className="lobby-match-result">
+            {outcome}
+            <ChevronRight size={14} aria-hidden="true" />
+          </span>
+        </button>
+      ) : (
+        <p className="home-muted">还没有已结束的对局</p>
+      )}
+    </section>
+  );
+}
 function SiteStatusBanner({ siteStatus }: { siteStatus: PublicSiteStatus }) {
   const maintenance = siteStatus.maintenance;
   if (!maintenance || !shouldHighlightSiteStatus(siteStatus.lifecycle)) {
@@ -607,387 +904,4 @@ function formatStatusDateTime(value: string): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
     date.getHours()
   )}:${pad(date.getMinutes())} ${offset}`;
-}
-
-function HomeActionBar({
-  title,
-  description,
-  cta,
-  icon: Icon,
-  onClick,
-  supportAction,
-  state,
-  notice,
-}: {
-  title: string;
-  description: string;
-  cta: string;
-  icon: ComponentType<{ size?: number | string; className?: string }>;
-  onClick: () => void;
-  supportAction?: { label: string; onClick: () => void; disabled?: boolean };
-  state: PrimaryActionState;
-  notice?: string;
-}) {
-  return (
-    <div className="lobby-action-bar">
-      <div className="lobby-action-bar__content">
-        <div className="lobby-action-bar__copy">
-          <div className="lobby-action-bar__icon">
-            <Icon size={18} className={state === 'loading' ? 'animate-spin' : ''} />
-          </div>
-          <div className="min-w-0">
-            <h2>{title}</h2>
-            <p>{description}</p>
-            {notice && <small>{notice}</small>}
-          </div>
-        </div>
-
-        <div className="lobby-action-bar__actions">
-          <button type="button" onClick={onClick} className="lobby-action-bar__primary">
-            {cta}
-            <ArrowRight size={16} />
-          </button>
-          {supportAction && (
-            <button
-              type="button"
-              onClick={supportAction.onClick}
-              disabled={supportAction.disabled}
-              className="lobby-action-bar__secondary"
-            >
-              {supportAction.label}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DeckWorkspacePanel({
-  deckCount,
-  validDeckCount,
-  latestDeck,
-  validDecks,
-  recentDecks,
-  isLoading,
-  isRefreshing,
-  hasError,
-  deckSourceStatus,
-  onRefresh,
-  onManageDecks,
-}: {
-  deckCount: number;
-  validDeckCount: number;
-  latestDeck: DeckDisplayItem | null;
-  validDecks: DeckDisplayItem[];
-  recentDecks: DeckDisplayItem[];
-  isLoading: boolean;
-  isRefreshing: boolean;
-  hasError: boolean;
-  deckSourceStatus: DeckSourceStatus;
-  onRefresh: () => void;
-  onManageDecks: () => void;
-}) {
-  const isOnline = deckSourceStatus === 'online';
-  const isInitialLoading = isOnline && isLoading && deckCount === 0;
-  const workspaceTitle = validDeckCount > 0 ? '可用卡组' : '卡组准备';
-  const sourceSummary =
-    deckSourceStatus === 'offline'
-      ? validDeckCount > 0
-        ? deckCount === validDeckCount
-          ? `${validDeckCount} 副本地卡组可用于对局。`
-          : `${validDeckCount} / ${deckCount} 副本地卡组可用于对局。`
-        : `共 ${deckCount} 副本地卡组，暂无符合构筑规则的卡组。`
-      : deckSourceStatus === 'unconfigured'
-        ? '本地服务未配置。'
-        : isInitialLoading
-          ? '正在同步云端卡组列表。'
-          : validDeckCount > 0
-            ? deckCount === validDeckCount
-              ? `${validDeckCount} 副云端卡组可用于对局。`
-              : `${validDeckCount} / ${deckCount} 副云端卡组可用于对局。`
-            : `共 ${deckCount} 副云端卡组，暂无符合构筑规则的卡组。`;
-
-  const emptyState = isInitialLoading
-    ? {
-        icon: Cloud,
-        title: '正在读取卡组',
-        detail: '正在同步云端卡组列表，读取完成前不会判断为空。',
-        tone: 'info' as const,
-      }
-    : deckSourceStatus === 'offline'
-      ? {
-          icon: BookOpen,
-          title: '暂无可用本地卡组',
-          detail: '可从空白、YAML 或内置示例创建卡组，保存后即可用于本地对局。',
-          tone: 'warning' as const,
-        }
-      : deckSourceStatus === 'unconfigured'
-        ? {
-            icon: Database,
-            title: '本地服务未配置',
-            detail: 'API 服务可用后才能同步云端卡组与房间信息。',
-            tone: 'warning' as const,
-          }
-        : hasError
-          ? {
-              icon: TriangleAlert,
-              title: '暂时无法读取卡组',
-              detail: '可以刷新列表，或进入卡组管理检查登录和卡组状态。',
-              tone: 'warning' as const,
-            }
-          : {
-              icon: BookOpen,
-              title: '暂无可用卡组',
-              detail: '请先创建或调整一副符合构筑规则的卡组，再开始对局。',
-              tone: 'warning' as const,
-            };
-  const hasVisibleValidDecks = !isInitialLoading && validDecks.length > 0;
-  const invalidRecentDecks = recentDecks.filter((deck) => !deck.isValid).slice(0, 3);
-  const showLatestInvalidDeck =
-    hasVisibleValidDecks && latestDeck
-      ? !validDecks.some((deck) => deck.id === latestDeck.id)
-      : false;
-
-  return (
-    <section className="lobby-deck-panel">
-      <div className="lobby-deck-panel__header">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <BookOpen size={17} className="text-[var(--accent-primary)]" />
-            <h2 className="text-base font-semibold text-[var(--text-primary)]">{workspaceTitle}</h2>
-          </div>
-          <div className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">{sourceSummary}</div>
-        </div>
-        <div className="flex shrink-0 items-center justify-end gap-2 sm:self-center">
-          <button
-            type="button"
-            onClick={onManageDecks}
-            className="button-secondary inline-flex h-10 w-10 items-center justify-center gap-2 px-0 text-sm font-semibold sm:w-auto sm:px-3"
-            title="管理卡组"
-            aria-label="管理卡组"
-          >
-            <BookOpen size={15} />
-            <span className="hidden sm:inline">管理卡组</span>
-          </button>
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={!isOnline || isLoading || isRefreshing}
-            className="button-icon h-10 w-10 disabled:cursor-not-allowed disabled:opacity-45"
-            title="刷新卡组"
-          >
-            <RefreshCw size={15} className={isLoading || isRefreshing ? 'animate-spin' : ''} />
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-3">
-        {hasError && hasVisibleValidDecks && (
-          <div
-            role="status"
-            className="flex items-start gap-2 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_32%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_8%,transparent)] px-3 py-2 text-xs leading-5 text-[var(--text-secondary)]"
-          >
-            <TriangleAlert size={15} className="mt-0.5 shrink-0 text-[var(--semantic-warning)]" />
-            后台更新失败，当前卡组列表仍可继续使用。
-          </div>
-        )}
-
-        {hasVisibleValidDecks ? (
-          <div className="grid gap-2">
-            {validDecks.map((deck) => (
-              <DeckReadinessRow key={deck.id} deck={deck} />
-            ))}
-            {validDeckCount > validDecks.length && (
-              <div className="rounded-lg border border-dashed border-[var(--border-subtle)] px-3 py-2 text-xs text-[var(--text-secondary)]">
-                还有 {validDeckCount - validDecks.length} 副可用卡组，可在卡组管理中查看。
-              </div>
-            )}
-          </div>
-        ) : (
-          <InlineEmptyState
-            icon={emptyState.icon}
-            title={emptyState.title}
-            detail={emptyState.detail}
-            tone={emptyState.tone}
-          />
-        )}
-
-        {showLatestInvalidDeck && latestDeck && (
-          <InvalidDeckRow deck={latestDeck} label="最近更新但暂不可用" />
-        )}
-
-        {!hasVisibleValidDecks && invalidRecentDecks.length > 0 && (
-          <div className="grid gap-2">
-            {invalidRecentDecks.map((deck) => (
-              <InvalidDeckRow key={deck.id} deck={deck} label="最近更新但暂不可用" />
-            ))}
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function DeckReadinessRow({ deck }: { deck: DeckDisplayItem }) {
-  return (
-    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-3 py-2.5">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div className="flex min-w-0 items-start gap-2">
-          <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-[var(--semantic-success)]" />
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
-              {deck.name}
-            </div>
-            <div className="mt-0.5 text-xs text-[var(--text-muted)]">
-              {formatRelativeTime(deck.updatedAt)}
-            </div>
-          </div>
-        </div>
-        <DeckStatsRow stats={deck} size="sm" className="shrink-0 text-[var(--text-secondary)]" />
-      </div>
-    </div>
-  );
-}
-
-function InvalidDeckRow({ deck, label }: { deck: DeckDisplayItem; label: string }) {
-  return (
-    <div className="rounded-lg border border-dashed border-[var(--border-subtle)] px-3 py-2 text-xs text-[var(--text-secondary)]">
-      {label}：<span className="font-medium text-[var(--text-primary)]">{deck.name}</span>
-      <span className="text-[var(--text-muted)]"> · {formatRelativeTime(deck.updatedAt)}</span>
-    </div>
-  );
-}
-
-function InlineEmptyState({
-  icon: Icon,
-  title,
-  detail,
-  tone = 'warning',
-}: {
-  icon: ComponentType<{ size?: number | string; className?: string }>;
-  title: string;
-  detail: string;
-  tone?: 'info' | 'warning' | 'muted';
-}) {
-  const toneClass = {
-    info: 'text-[var(--semantic-info)]',
-    warning: 'text-[var(--semantic-warning)]',
-    muted: 'text-[var(--text-muted)]',
-  }[tone];
-
-  return (
-    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-4">
-      <div className="flex items-start gap-3">
-        <Icon size={18} className={`mt-0.5 shrink-0 ${toneClass}`} />
-        <div>
-          <div className="font-semibold text-[var(--text-primary)]">{title}</div>
-          <div className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">{detail}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ActionTile({
-  title,
-  description,
-  icon: Icon,
-  onClick,
-  disabled = false,
-  compact = false,
-  status,
-  tone = 'primary',
-}: ActionTileProps) {
-  const toneClass = {
-    primary: 'text-[var(--accent-primary)]',
-    blue: 'text-[var(--semantic-info)]',
-    green: 'text-[var(--semantic-success)]',
-    warning: 'text-[var(--semantic-warning)]',
-    muted: 'text-[var(--text-muted)]',
-  }[tone];
-
-  if (compact) {
-    return (
-      <button
-        type="button"
-        onClick={disabled ? undefined : onClick}
-        disabled={disabled}
-        aria-label={status ? `${title}，${status}` : title}
-        className={`group flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
-          compact ? 'lobby-entry-tile' : ''
-        } ${description ? 'min-h-[68px]' : 'min-h-14'} ${
-          disabled
-            ? 'cursor-not-allowed border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)] opacity-60'
-            : 'border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)] hover:border-[color:color-mix(in_srgb,var(--accent-primary)_30%,var(--border-default))]'
-        }`}
-      >
-        <div
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] ${toneClass}`}
-        >
-          <Icon size={17} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
-            {status && (
-              <span className="lobby-entry-tile__status shrink-0 rounded-md border border-[var(--border-subtle)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]">
-                {status}
-              </span>
-            )}
-          </div>
-          {description && (
-            <p className="mt-0.5 line-clamp-1 text-xs leading-5 text-[var(--text-secondary)]">
-              {description}
-            </p>
-          )}
-        </div>
-      </button>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={disabled ? undefined : onClick}
-      disabled={disabled}
-      className={`group flex min-h-[128px] w-full flex-col justify-between rounded-lg border p-4 text-left transition ${
-        disabled
-          ? 'cursor-not-allowed border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_54%,transparent)] opacity-70'
-          : 'border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)] hover:border-[color:color-mix(in_srgb,var(--accent-primary)_36%,var(--border-default))] hover:shadow-[var(--shadow-md)]'
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] ${toneClass}`}
-        >
-          <Icon size={19} />
-        </div>
-        {status && (
-          <span className="shrink-0 rounded-md border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-secondary)]">
-            {status}
-          </span>
-        )}
-      </div>
-
-      <div className="mt-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <h3 className="min-w-0 truncate text-base font-semibold text-[var(--text-primary)]">
-            {title}
-          </h3>
-          {!disabled && (
-            <ArrowRight
-              size={15}
-              className="text-[var(--text-muted)] transition-transform group-hover:translate-x-0.5"
-            />
-          )}
-        </div>
-        {description && (
-          <p className="mt-1 line-clamp-2 text-sm leading-5 text-[var(--text-secondary)]">
-            {description}
-          </p>
-        )}
-      </div>
-    </button>
-  );
 }
