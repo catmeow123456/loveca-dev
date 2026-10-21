@@ -282,8 +282,6 @@ function grantAndInvoke(
       discardedCardId: paidCardId,
     }
   );
-  if (definition.requiredSourceSlots && !definition.requiredSourceSlots.includes(slot))
-    return next(state, false);
   const child: PendingAbilityState = {
     id: globalThis.crypto.randomUUID(),
     abilityId,
@@ -301,6 +299,37 @@ function grantAndInvoke(
       grantId,
     },
   };
+  const canInvoke =
+    !definition.requiredSourceSlots || definition.requiredSourceSlots.includes(slot);
+  // The paid cost and grant are committed atomically. Only the invocation waits;
+  // both seats share the existing ACK/timeout and undo generation semantics.
+  if (state.entranceRuntime && !state.isEnded) {
+    const runtime = state.entranceRuntime;
+    const generation = runtime.generation + 1;
+    return {
+      ...state,
+      entranceRuntime: {
+        ...runtime,
+        generation,
+        seenSequence: state.eventSequence,
+        continuation: canInvoke ? child : undefined,
+        pending: {
+          id: `ability-transfer:${state.gameId}:${state.actionSequence}:${generation}`,
+          cardIds: [effect.sourceCardId],
+          waitingPlayerIds: state.players.map((player) => player.id),
+          deadlineAt: 0,
+          abilityTransfer: {
+            hostCardId: effect.sourceCardId,
+            sourceCardId: paidCardId,
+            abilityId,
+            grantId,
+            afterDiscard: effect.stepId === DISCARD_STEP,
+          },
+        },
+      },
+    };
+  }
+  if (!canInvoke) return next(state, false);
   return delegate(state, child, { skipManualConfirmation: true });
 }
 

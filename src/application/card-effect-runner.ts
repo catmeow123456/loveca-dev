@@ -10,6 +10,7 @@ import { registerHsBp8012GinkoWorkflowHandlers } from './card-effects/workflows/
 import { registerHsBp8017BloomTheSmileBloomTheDreamWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-017-bloom-the-smile-bloom-the-dream.js';
 import { registerSCl1007HanamaruWorkflowHandlers } from './card-effects/workflows/cards/s-cl1-007-hanamaru.js';
 import { captureCardEntrance } from './card-entrance.js';
+import { isCurrentStageMemberAbilitySource } from './card-effects/runtime/source-member.js';
 import { registerPlPb2021KotoriWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-021-kotori.js';
 import { registerNPr036ShizukuWorkflowHandlers } from './card-effects/workflows/cards/n-pr-036-shizuku.js';
 import {
@@ -3218,6 +3219,20 @@ function getLiveSuccessEffectPlayerId(game: GameState): string | null {
 export function resolvePendingCardEffects(game: GameState): CardEffectRunnerResult {
   game = captureCardEntrance(game);
   if (game.entranceRuntime?.pending) return { gameState: game, resolvedAbilityIds: [] };
+  const continuation = game.entranceRuntime?.continuation;
+  if (continuation && game.entranceRuntime) {
+    const { continuation: _consumed, ...runtime } = game.entranceRuntime;
+    const state = { ...game, entranceRuntime: runtime };
+    // Clear before delegation: automatic children may recursively enter this runner.
+    return {
+      gameState: game.isEnded
+        ? state
+        : isCurrentStageMemberAbilitySource(state, continuation)
+          ? delegatePendingAbility(state, continuation)
+          : resolvePendingCardEffects(state).gameState,
+      resolvedAbilityIds: [],
+    };
+  }
   if (game.activeEffect) {
     return {
       gameState: game,

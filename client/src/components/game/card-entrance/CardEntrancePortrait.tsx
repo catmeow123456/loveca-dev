@@ -3,6 +3,7 @@ import { CardEntranceNameplate } from './CardEntranceNameplate';
 import { createCardEntranceMesh } from '../../../lib/cardEntranceMesh';
 import type { CardEntranceProfile } from '../../../lib/cardEntranceProfiles';
 import { entrancePortraitFrame } from '../../../lib/cardEntranceTimeline';
+import { paintPortraitFlowers } from '@/lib/ginkoFlowerTransfer';
 
 export function CardEntrancePortrait({
   profile,
@@ -10,6 +11,7 @@ export function CardEntrancePortrait({
   blinkImage,
   startedAt,
   reduced,
+  preludeRevealMs = 0,
   onDone,
 }: {
   profile: CardEntranceProfile;
@@ -17,9 +19,11 @@ export function CardEntrancePortrait({
   blinkImage?: HTMLImageElement | null;
   startedAt: number;
   reduced: boolean;
+  preludeRevealMs?: number;
   onDone: () => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const flowers = useRef<HTMLCanvasElement>(null);
   const container = useRef<HTMLDivElement>(null);
   const done = useRef(onDone);
   done.current = onDone;
@@ -53,6 +57,13 @@ export function CardEntrancePortrait({
         if (disposed) return;
         const elapsed = now - startedAt;
         const visual = entrancePortraitFrame(elapsed, reduced);
+        // Let the incoming flower light reveal the portrait during the gathering phase
+        // of the prelude. Keep the hand stationary so the light has a real recipient.
+        if (preludeRevealMs && !reduced) {
+          const reveal = Math.max(0, Math.min(1, (elapsed + preludeRevealMs) / preludeRevealMs));
+          visual.opacity = reveal * (1 - Math.max(0, Math.min(1, (elapsed - 1500) / 450)));
+          visual.x = 0;
+        }
         if (visual.finished) {
           if (container.current) container.current.style.opacity = '0';
           return;
@@ -64,6 +75,14 @@ export function CardEntrancePortrait({
           container.current.style.setProperty('--entrance-x', `${visual.x}px`);
         }
         mesh?.draw(elapsed / 1000, reduced);
+        if (flowers.current && profile.flowerLight)
+          paintPortraitFlowers(
+            flowers.current,
+            elapsed,
+            profile.flowerLight,
+            reduced,
+            preludeRevealMs > 0
+          );
         frame = requestAnimationFrame(tick);
       };
       frame = requestAnimationFrame(tick);
@@ -75,7 +94,7 @@ export function CardEntrancePortrait({
       cancelAnimationFrame(frame);
       mesh?.dispose();
     };
-  }, [reduced, profile, image, blinkImage, startedAt]);
+  }, [reduced, profile, image, blinkImage, startedAt, preludeRevealMs]);
   return (
     <div
       ref={container}
@@ -91,6 +110,14 @@ export function CardEntrancePortrait({
         style={{ aspectRatio: profile.artAspectRatio }}
       />
       <CardEntranceNameplate name={profile.name} />
+      {profile.flowerLight && (
+        <canvas
+          ref={flowers}
+          className="card-entrance-art ginko-portrait-flowers"
+          style={{ aspectRatio: profile.artAspectRatio }}
+          aria-hidden="true"
+        />
+      )}
     </div>
   );
 }

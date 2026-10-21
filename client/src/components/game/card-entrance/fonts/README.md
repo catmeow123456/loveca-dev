@@ -4,7 +4,7 @@
 
 https://github.com/adobe-fonts/source-han-serif/blob/release/OTF/SimplifiedChinese/SourceHanSerifSC-Heavy.otf
 
-当前仅包含 `cardEntranceProfiles.ts` 中三十九张卡的姓名、`&` 与空格，共 122 个字符，59,172 字节。新增或修改姓名时，在装有 `fonttools[woff]` 的制作环境执行：
+当前仅包含 `cardEntranceProfiles.ts` 中四十张卡的姓名、`&` 与空格，共 125 个字符，59,952 字节。新增或修改姓名时，在装有 `fonttools[woff]` 的制作环境执行：
 
 ```sh
 python scripts/build-entrance-name-font.py /path/to/SourceHanSerifSC-Heavy.otf

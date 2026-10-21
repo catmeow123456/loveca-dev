@@ -3,6 +3,8 @@ import type { CardEntranceProfile } from '@/lib/cardEntranceProfiles';
 import { prepareEntranceAssets } from '@/lib/cardEntranceAssets';
 import { entranceTimeline, entranceRemaining } from '@/lib/cardEntranceTimeline';
 import { DoubleRelayFusion } from './DoubleRelayFusion';
+import { GinkoFlowerPrelude } from './GinkoFlowerPrelude';
+import { ginkoFlowerTimeline } from '@/lib/ginkoFlowerTransfer';
 import { doubleRelayTimeline, type DoubleRelaySource } from '@/lib/doubleRelayEntrance';
 import { waitingReturnTimeline, type WaitingReturnSource } from '@/lib/waitingReturnEntrance';
 import { getCardBackUrl } from '@/lib/imageService';
@@ -21,6 +23,8 @@ export function CardEntrancePlayback({
   reduced,
   relaySources = NO_RELAY_SOURCES,
   waitingReturn,
+  kahoSource,
+  onPreludeDone,
   onImpact,
   onDone,
 }: {
@@ -29,16 +33,23 @@ export function CardEntrancePlayback({
   reduced: boolean;
   relaySources?: readonly DoubleRelaySource[];
   waitingReturn?: WaitingReturnSource;
+  kahoSource?: DoubleRelaySource;
+  onPreludeDone?: () => void;
   onImpact: () => void;
   onDone: () => void;
 }) {
   const fusion = !reduced && relaySources.length === 2;
   const returning = !reduced && !!waitingReturn;
-  const portraitOffset = returning
-    ? waitingReturnTimeline.portraitAt
-    : fusion
-      ? doubleRelayTimeline.portraitAt
-      : 0;
+  const [preludeDone, setPreludeDone] = useState(false);
+  const kahoRelay = !reduced && !!kahoSource;
+  const kahoTiming = ginkoFlowerTimeline.relay;
+  const portraitOffset = kahoRelay
+    ? kahoTiming.portraitAt
+    : returning
+      ? waitingReturnTimeline.portraitAt
+      : fusion
+        ? doubleRelayTimeline.portraitAt
+        : 0;
   const done = useRef(onDone);
   done.current = onDone;
   const sourceValid = useGameStore((state) =>
@@ -67,11 +78,13 @@ export function CardEntrancePlayback({
       reduced ? null : presentation.imagePath,
       controller.signal,
       undefined,
-      returning
-        ? [...waitingReturn.facePaths, getCardBackUrl()]
-        : fusion
-          ? relaySources.map((s) => s.imagePath)
-          : []
+      kahoRelay
+        ? [kahoSource.imagePath]
+        : returning
+          ? [...waitingReturn.facePaths, getCardBackUrl()]
+          : fusion
+            ? relaySources.map((s) => s.imagePath)
+            : []
     )
       .then((assets) => {
         if (!controller.signal.aborted) setReady({ ...assets, startedAt: performance.now() });
@@ -89,6 +102,8 @@ export function CardEntrancePlayback({
     relaySources,
     returning,
     waitingReturn,
+    kahoRelay,
+    kahoSource,
   ]);
   useEffect(() => {
     if (!ready) return;
@@ -107,6 +122,7 @@ export function CardEntrancePlayback({
       data-profile={profile.id}
       data-phase={ready ? 'playing' : 'loading'}
       data-double-relay={fusion || undefined}
+      data-kaho-relay={kahoRelay || undefined}
       style={
         {
           '--entrance-art-center': profile.center,
@@ -115,6 +131,17 @@ export function CardEntrancePlayback({
         } as CSSProperties
       }
     >
+      {kahoRelay && !preludeDone && (
+        <GinkoFlowerPrelude
+          source={kahoSource}
+          startedAt={ready?.startedAt ?? null}
+          onDone={() => {
+            setPreludeDone(true);
+            onPreludeDone?.();
+          }}
+          onInvalid={() => done.current()}
+        />
+      )}
       {returning && (
         <WaitingRoomReturn
           source={waitingReturn}
@@ -138,6 +165,7 @@ export function CardEntrancePlayback({
             blinkImage={ready.blink}
             startedAt={ready.startedAt + portraitOffset}
             reduced={reduced}
+            preludeRevealMs={kahoRelay ? kahoTiming.portraitAt - kahoTiming.arrive : 0}
             onDone={onDone}
           />
           {!reduced && (

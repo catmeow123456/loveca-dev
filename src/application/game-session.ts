@@ -15,6 +15,7 @@ import {
   ENTRANCE_WAIT_LIMIT_MS,
   DOUBLE_RELAY_ENTRANCE_EXTRA_MS,
   WAITING_RETURN_ENTRANCE_EXTRA_MS,
+  KAHO_RELAY_ENTRANCE_EXTRA_MS,
 } from '../shared/card-entrance.js';
 import { GameService, type DeckConfig, type GameOperationResult } from './game-service.js';
 import { PhaseManager } from './phase-manager.js';
@@ -5309,6 +5310,7 @@ export class GameSession {
                   this.now() +
                     ENTRANCE_WAIT_LIMIT_MS * runtime.pending.cardIds.length +
                     DOUBLE_RELAY_ENTRANCE_EXTRA_MS * (runtime.pending.doubleRelays?.length ?? 0) +
+                    KAHO_RELAY_ENTRANCE_EXTRA_MS * (runtime.pending.kahoRelays?.length ?? 0) +
                     WAITING_RETURN_ENTRANCE_EXTRA_MS *
                       (runtime.pending.waitingRoomReturns?.length ?? 0),
               },

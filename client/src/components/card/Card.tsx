@@ -14,6 +14,9 @@ import type { AnyCardData, MemberCardData, LiveCardData } from '@game/domain/ent
 import { isMemberCardData, isLiveCardData, isEnergyCardData } from '@game/domain/entities/card';
 import type { CardEffectVisualState } from '@/lib/cardEffectAutomationVisuals';
 import { CardEffectMarker } from './CardEffectMarker';
+import { GinkoKnotMarker } from './GinkoKnotMarker';
+import { cardCodeMatchesBase } from '@game/shared/utils/card-code';
+import { entranceCards } from '@game/shared/card-entrance';
 
 // ============================================
 // 类型定义
@@ -373,6 +376,9 @@ export const Card = memo(function Card({
       </AnimatePresence>
 
       {effectVisualState !== 'none' && <CardEffectMarker state={effectVisualState} />}
+      {faceUp && instanceId && cardCodeMatchesBase(cardData.cardCode, entranceCards.ginko) && (
+        <GinkoKnotMarker objectId={`obj_${instanceId}`} />
+      )}
       {(limitedActivatedHighlight || effectVisualState !== 'none') && (
         <div
           data-card-effect-outline="true"

@@ -1,0 +1,25 @@
+/* Only the soft halo breathes; the cord and white flower remain fully legible. */
+.ginko-knot-emblem {
+  overflow: visible;
+  animation: ginko-knot-glow 3.2s ease-in-out infinite;
+}
+@keyframes ginko-knot-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 1px rgb(255 224 224 / 0.3)) drop-shadow(0 0 2px rgb(241 149 162 / 0.12));
+  }
+  50% {
+    filter: drop-shadow(0 0 2.2px rgb(255 224 224 / 0.75))
+      drop-shadow(0 0 5px rgb(241 149 162 / 0.42));
+  }
+}
+.ginko-knot-emblem[data-reduced-motion='true'] {
+  animation: none;
+  filter: drop-shadow(0 0 2px rgb(255 211 216 / 0.42));
+}
+@media (prefers-reduced-motion: reduce) {
+  .ginko-knot-emblem {
+    animation: none;
+    filter: drop-shadow(0 0 2px rgb(255 211 216 / 0.42));
+  }
+}

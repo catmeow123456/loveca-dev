@@ -104,6 +104,8 @@ export interface CardEntranceProfile {
   /** Keep the shared skip button clear of artwork with a raised arm on mobile. */
   mobileSkipPosition?: 'below-name';
   light: string;
+  /** Local hand light and petals, painted on the same portrait clock. */
+  flowerLight?: readonly [number, number];
   mesh: EntranceMeshProfile;
 }
 export function defineEntranceProfiles(entries: readonly CardEntranceProfile[]) {
@@ -118,6 +120,33 @@ export function defineEntranceProfiles(entries: readonly CardEntranceProfile[]) 
   return entries;
 }
 export const cardEntranceProfiles = defineEntranceProfiles([
+  {
+    id: 'ginko',
+    baseCode: entranceCards.ginko,
+    name: '百生吟子',
+    loadArt: () => import('../components/game/card-entrance/ginko.png'),
+    center: '-52%',
+    mobileHeight: 'min(78%, 115vw)',
+    artAspectRatio: '1061 / 1483',
+    light: '#80d7b96b',
+    flowerLight: [0.41, 0.65],
+    mesh: {
+      portraitMotion: {
+        start: 0.1,
+        duration: 1.15,
+        easing: 'smoothstep',
+        pivot: [0.57, 0.81],
+        blendY: [0.79, 0.96],
+        angle: -0.028,
+        travel: [0.006, -0.003],
+      },
+      hair: [0.27, 0.32, 0.32, 0.37],
+      hairEnd: [0.47, 0.51],
+      hem: [0.64, 0.82, 0.73, 0.86],
+      hemEnd: [0.91, 0.98],
+      strength: [0, 0.18, 0.4],
+    },
+  },
   {
     id: 'kanata',
     blink: {
