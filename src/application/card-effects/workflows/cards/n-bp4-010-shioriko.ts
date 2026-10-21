@@ -17,6 +17,7 @@ import { HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { normalizeCardName } from '../../../effects/card-selectors.js';
 import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
+import { recordSuccessZoneEntry } from '../../runtime/success-zone-entry-triggers.js';
 import {
   registerPendingAbilityStarterHandler,
   type PendingAbilityStarterOptions,
@@ -514,7 +515,7 @@ function moveCardBetweenOwnPublicZones(
   fromZone: ZoneType.SUCCESS_ZONE | ZoneType.WAITING_ROOM,
   toZone: ZoneType.SUCCESS_ZONE | ZoneType.WAITING_ROOM
 ): GameState {
-  return updatePlayer(game, playerId, (player) => ({
+  const state = updatePlayer(game, playerId, (player) => ({
     ...player,
     successZone:
       fromZone === ZoneType.SUCCESS_ZONE
@@ -529,6 +530,24 @@ function moveCardBetweenOwnPublicZones(
           ? addCardToZone(player.waitingRoom, cardId)
           : player.waitingRoom,
   }));
+  return toZone === ZoneType.SUCCESS_ZONE
+    ? recordSuccessZoneEntry(
+        game,
+        state,
+        playerId,
+        cardId,
+        fromZone,
+        game.activeEffect
+          ? {
+              kind: 'CARD_EFFECT',
+              playerId,
+              sourceCardId: game.activeEffect.sourceCardId,
+              abilityId: game.activeEffect.abilityId,
+              pendingAbilityId: game.activeEffect.id,
+            }
+          : undefined
+      )
+    : state;
 }
 
 function consumePendingAbility(game: GameState, ability: PendingAbilityRef): GameState {

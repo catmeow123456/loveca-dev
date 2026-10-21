@@ -29,6 +29,7 @@ import {
   OrientationState,
   SlotPosition,
   TriggerCondition,
+  ZoneType,
 } from '../../src/shared/types/enums';
 import { confirmIfConfirmOnly } from './confirm-only-pending';
 
@@ -185,6 +186,19 @@ describe('PL!N-bp4-010 Shioriko workflows', () => {
     const player = state.players.find((candidate) => candidate.id === PLAYER1)!;
     expect(player.successZone.cardIds).toEqual([waitingLive.instanceId]);
     expect(player.waitingRoom.cardIds).toEqual([successLive.instanceId]);
+    expect(state.eventLog.map((entry) => entry.event).filter(
+      (event) => event.eventType === TriggerCondition.ON_ENTER_SUCCESS_ZONE
+    )).toMatchObject([{
+      cardInstanceId: waitingLive.instanceId,
+      fromZone: ZoneType.WAITING_ROOM,
+      toZone: ZoneType.SUCCESS_ZONE,
+      successZoneCardCountAfter: 1,
+      cause: {
+        kind: 'CARD_EFFECT',
+        sourceCardId: source.instanceId,
+        abilityId: PL_N_BP4_010_ON_ENTER_EXCHANGE_NIJIGASAKI_SUCCESS_LIVE_ABILITY_ID,
+      },
+    }]);
     expect(state.pendingAbilities).toEqual([]);
     expect(state.activeEffect).toBeNull();
   });

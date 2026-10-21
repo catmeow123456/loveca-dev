@@ -19,6 +19,16 @@
 - 同构批量扩样本：`docs/card-effect-reuse-audit/card_effect_batch_expansions.md`
 - 缺口与下一步：`docs/card-effect-reuse-audit/module_gap_list.md`
 
+## 2026-10-21 绘里与成功区进入能力
+
+权威来源为只读 `../references/cards_export_2026-10-21.json`，本批3个基础编号、3段独立能力；当前导出分别为 P、N、SECL，均以 `baseCardCodes` 覆盖全罕度。完整 `cardTextCn` 原样用于 definition；本批没有起动能力，不新增 `activatedUi`。主窗口已独立审查实际代码与测试，组合验收23个文件、828项测试通过；根目录、服务端与客户端类型检查通过，3段中文正文及27组罕度匹配核对通过。
+
+| 基础编号 | 卡牌与覆盖 | 实现与复用边界 | 验证入口 |
+| --- | --- | --- | --- |
+| `PL!-bp8-002` | 费用9「绚濑绘里」；P，全罕度 | 完整已实现。薄单卡 `cards/pl-bp8-002-ayase-eli.ts` 将实际舞台至休息室事件绑定到来源对象，可选将自身置底后使对方原本 HEART≤4 的成员待机。复用休息室置底、原本 HEART 查询及状态事件；对方无目标不阻止自身置底，来源离区后重回休息室不沿用旧选择。 | `pl-bp8-002-ayase-eli.test.ts` |
+| `PL!-bp8-011` | 费用5「绚濑绘里」；N，全罕度 | 完整已实现。向 `shared/opponent-wait-target.ts` 追加成功区卡效参照分数≥6配置，满足后选择对方原本 BLADE≤3 的成员待机；普通 BLADE 加成不影响原本门槛，原本替换按既有 query 生效。提交选择时重验分数条件与目标实例。 | `pl-bp8-011-ayase-eli.test.ts`、既有 opponent-wait family 回归 |
+| `PL!-bp8-021` | 分数2「我们的奇迹」；SECL，全罕度 | 完整已实现。实际进入成功区后按包含自身的卡片数量≤1入队，原有1张再进入形成2张时不触发，之后卡数减少也不补触发；轮到结算前卡数增加到2张则不检视。入区事件区别于 LIVE 成功判定，实际入区、替代放置与原能力 continuation 均有回归。薄单卡复用 `shared/look-top-select-to-hand.ts` 私密检视顶4，可公开1张 μ’s 成员入手，其余成批进入休息室。 | `success-zone-entry-triggers.test.ts`、`pl-bp8-021-sore-wa-bokutachi-no-kiseki.test.ts` |
+
 ## 2026-10-20 剩余 DRAFT 卡效
 
 权威来源为只读 `../references/cards_export_2026-10-20.json`，本批19个基础编号、22段独立能力；全部使用 `baseCardCodes`，完整中文段落进入 `effectText`，5条起动 UI 直接引用同一正文常量。下列机制实现已通过主窗口独立审查与组合验收；字段缺失的实卡验收单独保留，不能由合成边界测试替代。原排除项保持不变；`PL!N-PR-048-PR` 不在导出中，不替换编号。已有实现的 `PL!-PR-025`、`PL!-bp3-001`、`PL!S-PR-048` 不重复开发，无卡效能量卡不纳入。

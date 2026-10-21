@@ -1,3 +1,6 @@
+import { registerPlBp8002AyaseEliWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-002-ayase-eli.js';
+import { registerPlBp8021SoreWaBokutachiNoKisekiWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-021-sore-wa-bokutachi-no-kiseki.js';
+import { enqueueUntriggeredEnterSuccessZoneCardEffects } from './card-effects/runtime/success-zone-entry-triggers.js';
 import { registerNBp8004KarinWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-004-karin.js';
 import { registerSCl1006YoshikoWorkflowHandlers } from './card-effects/workflows/cards/s-cl1-006-yoshiko.js';
 import { registerHsBp8003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-003-rurino.js';
@@ -1313,6 +1316,8 @@ registerNBp7011MiaTaylorWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp7023MiaTaylorWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp8002KasumiWorkflowHandlers();
 registerNBp8009RinaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlBp8002AyaseEliWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlBp8021SoreWaBokutachiNoKisekiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp8004KarinWorkflowHandlers({ enqueueTriggeredCardEffects, continuePendingCardEffects });
 registerSCl1006YoshikoWorkflowHandlers();
 registerHsBp8003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -3251,6 +3256,11 @@ export function resolvePendingCardEffects(game: GameState): CardEffectRunnerResu
     return resolvePendingCardEffects(stateWithWaitingRoomToMainDeckTriggers);
   }
 
+  const stateWithSuccessZoneEntryTriggers = enqueueUntriggeredEnterSuccessZoneCardEffects(game);
+  if (stateWithSuccessZoneEntryTriggers !== game) {
+    return resolvePendingCardEffects(stateWithSuccessZoneEntryTriggers);
+  }
+
   const stateWithEnergyBelowTriggers = enqueueUntriggeredEnergyPlacedBelowMemberCardEffects(game);
   if (stateWithEnergyBelowTriggers !== game) {
     return resolvePendingCardEffects(stateWithEnergyBelowTriggers);
@@ -3585,6 +3595,11 @@ function continuePendingCardEffects(game: GameState, orderedResolution: boolean)
     enqueueUntriggeredWaitingRoomCardsMovedToMainDeckCardEffects(game);
   if (stateWithWaitingRoomToMainDeckTriggers !== game) {
     return continuePendingCardEffects(stateWithWaitingRoomToMainDeckTriggers, orderedResolution);
+  }
+
+  const stateWithSuccessZoneEntryTriggers = enqueueUntriggeredEnterSuccessZoneCardEffects(game);
+  if (stateWithSuccessZoneEntryTriggers !== game) {
+    return continuePendingCardEffects(stateWithSuccessZoneEntryTriggers, orderedResolution);
   }
 
   const stateWithEnergyBelowTriggers = enqueueUntriggeredEnergyPlacedBelowMemberCardEffects(game);

@@ -17,6 +17,12 @@
 
 AI 输入复用的 `runtime/selection-query.ts` 已覆盖 owning workflow 登记的选牌、选项、确认及分组 cardIds/min/max；绿莲验证包含精确弃二、分组回收、声援选择、付能量与公开后续步骤。它只描述当前输入，不模拟结算，不覆盖盲选、数字或站位。范围与验证见 [AI 支持矩阵](../ai-battle/support-matrix.md)。
 
+## 2026-10-21 成功区进入与待机流程
+
+`runtime/success-zone-entry-triggers.ts` 记录真实 `ON_ENTER_SUCCESS_ZONE` 移动事件、来源和放入后的实体卡片数量；普通成功卡选择、卡效放置与替代路径共享事实语义，未实际进入及成功区内调整不发进入事件。definition 的窄 `enterSuccessZoneMaxCards` 字段约束本次进入事实，事件去重与统一 pending continuation 保证新能力不插入原能力中途。该入口区别于 `ON_LIVE_SUCCESS`，不改通用 trigger matcher 接线；`PL!-bp8-021` 分数2「我们的奇迹」只是其首个使用者，在自身 workflow 开始结算时再次核对当前成功区卡数，检视、选中卡公开停留和余牌批次移动继续复用 `look-top-select-to-hand`。规则模式实际成功卡选择、手牌交换及替代放置、事件原因、私密检视、公开停留与重复派发均已回归。
+
+`runtime/leave-stage-source.ts` 是只读来源查询，确认精确离场事件产生的休息室对象尚未再次跨区域移动；不支付费用、移动卡或推进 pending。`PL!-bp8-002` 费用9「绚濑绘里」在薄单卡中组合该查询、自身置底与对方成员待机，不将不同效果形状强并为 family。`shared/opponent-wait-target.ts` 为 `PL!-bp8-011` 费用5「绚濑绘里」新增有限成功区分数门槛轴，复用 `sumSuccessfulLiveScoreForCardEffect` 与 `getMemberOriginalBladeCount`，既有卡配置不变。
+
 ## 2026-10-20 复用与窄接口增量
 
 `activated-wait-self-discard-recover-live` 由旧果林与9费琴梨共同证明“自身待机→精确弃手→团体LIVE回收”形状；`ordered-waiting-members-bottom-gain-blade` 由堇与桂城泉共同证明“公开、有序整批置底成员费用→条件式自身BLADE”形状；`live-start-conditional-source-blade` 由旧花丸与徒町小铃共同证明“LIVE开始当前条件→自身BLADE”形状；`live-success-revealed-cheer-threshold-score` 仅统一栞子与冬毬的“本次声援历史事实门槛→玩家合计分数”。各family保留自己的目标、费用、公开与时点边界，不建立任意步骤解释器。

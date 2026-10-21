@@ -1,5 +1,10 @@
 import { N_BP8_026_LIVE_START_CONVERT_TARGET_RED_BLUE_TO_PURPLE_SCORE_ABILITY_ID } from '../ability-ids.js';
 import {
+  PL_BP8_002_AUTO_LEAVE_STAGE_BOTTOM_SELF_WAIT_ORIGINAL_HEART_FOUR_ABILITY_ID,
+  PL_BP8_011_LIVE_START_SUCCESS_SCORE_SIX_WAIT_ORIGINAL_BLADE_THREE_ABILITY_ID,
+  PL_BP8_021_AUTO_ENTER_SUCCESS_LOOK_TOP_FOUR_MUSE_MEMBER_ABILITY_ID,
+} from '../ability-ids.js';
+import {
   PL_BP8_012_ACTIVATED_WAIT_SELF_DISCARD_TWO_RECOVER_MUSE_LIVE_ABILITY_ID,
   N_BP8_004_ACTIVATED_HAND_PAY_TWO_DISCARD_SELF_RECOVER_BLADE_HEART_MEMBER_ABILITY_ID,
   N_BP8_004_LIVE_START_REVEAL_NIJIGASAKI_HAND_TOP_CHOOSE_HEART_ABILITY_ID,
@@ -1095,6 +1100,13 @@ import {
   PB1_019_LIKE_SELF_SACRIFICE_MEMBER_BASE_CARD_CODES,
   RIN_LIKE_SELF_SACRIFICE_LIVE_BASE_CARD_CODES,
 } from './shared-abilities.js';
+
+const PL_BP8_002_AUTO_EFFECT_TEXT =
+  '【自动】此成员从舞台被放置入休息室时，可以将此卡放置于卡组底。如此做时，将存在于对方的舞台的１名原本持有的HEART的数量小于等于４的成员变为待机状态。';
+const PL_BP8_011_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】存在于自己的成功LIVE卡区的卡片的分数合计大于等于６的场合，将存在于对方的舞台的１名原本持有的[ブレード]的数量小于等于３的成员变为待机状态。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）';
+const PL_BP8_021_AUTO_EFFECT_TEXT =
+  '【自动】此卡被放置入成功LIVE卡区时，存在于自己的成功LIVE卡区的卡片小于等于１张的场合，检视自己的卡组顶的４张卡片。可以将其中的１张『μ’s』的成员卡公开并加入手牌。其余的放置入休息室。';
 
 const NOZOMI_EFFECT_TEXT = '【登场】将自己卡组顶的5张卡放置入休息室。其中有LIVE卡的场合，抽1张卡。';
 const PL_N_BP3_003_ON_ENTER_EFFECT_TEXT =
@@ -2930,6 +2942,44 @@ const N_BP8_026_LIVE_START_CONVERT_TARGET_RED_BLUE_TO_PURPLE_SCORE_EFFECT_TEXT =
   '【LIVE开始时】选择存在于自己的舞台的1名『虹咲』的成员。LIVE结束时为止，该成员持有的[赤ハート]和[青ハート]，全部变为[紫ハート]。因此将大于等于５个HEART变为[紫ハート]的场合，此卡的分数＋１。';
 
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
+  {
+    abilityId: PL_BP8_002_AUTO_LEAVE_STAGE_BOTTOM_SELF_WAIT_ORIGINAL_HEART_FOUR_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-002'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+    triggerToZones: [ZoneType.WAITING_ROOM],
+    queued: true,
+    implemented: true,
+    effectText: PL_BP8_002_AUTO_EFFECT_TEXT,
+    notes:
+      '单卡 pl-bp8-002-ayase-eli 编排离场后可选自身置底与对方原本 HEART≤4 成员待机；绑定实际离场事件和休息室来源对象，复用区域移动与状态事件 wrapper，无后续目标不阻止合法置底。',
+  },
+  {
+    abilityId: PL_BP8_011_LIVE_START_SUCCESS_SCORE_SIX_WAIT_ORIGINAL_BLADE_THREE_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-011'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_BP8_011_LIVE_START_EFFECT_TEXT,
+    notes:
+      '扩展 shared opponent-wait-target 的成功区分数门槛配置；复用卡效成功区分数查询与原本 BLADE 查询，提交时重验门槛、目标及其舞台实例。',
+  },
+  {
+    abilityId: PL_BP8_021_AUTO_ENTER_SUCCESS_LOOK_TOP_FOUR_MUSE_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-021'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.SUCCESS_LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_ENTER_SUCCESS_ZONE,
+    enterSuccessZoneMaxCards: 1,
+    queued: true,
+    implemented: true,
+    effectText: PL_BP8_021_AUTO_EFFECT_TEXT,
+    notes:
+      '单卡 pl-bp8-021-sore-wa-bokutachi-no-kiseki 复用 look-top-select-to-hand；按真实成功区进入事件及放入后含自身的数量入队，原有1张再放入不触发。检视顶4，可公开1张 μ’s 成员入手，其余统一成批进入休息室。',
+  },
   {
     abilityId: N_BP8_026_LIVE_START_CONVERT_TARGET_RED_BLUE_TO_PURPLE_SCORE_ABILITY_ID,
     baseCardCodes: ['PL!N-bp8-026'],

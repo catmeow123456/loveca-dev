@@ -7,9 +7,10 @@ import {
   type GameState,
 } from '../../../domain/entities/game.js';
 import { addCardToZone, removeCardFromZone } from '../../../domain/entities/zone.js';
-import { createEnterHandEvent } from '../../../domain/events/game-events.js';
+import { createEnterHandEvent, type CardEffectCause } from '../../../domain/events/game-events.js';
 import { canLiveCardEnterSuccessZone } from '../../../domain/rules/success-live-placement.js';
 import { ZoneType } from '../../../shared/types/enums.js';
+import { recordSuccessZoneEntry } from './success-zone-entry-triggers.js';
 
 /** 成功区的“卡片”不限 LIVE；只移动当前仍属于自己的指定卡，并记录真实回手事件。 */
 export function returnSuccessZoneCardToHandForPlayer(
@@ -37,7 +38,8 @@ export function returnSuccessZoneCardToHandForPlayer(
 export function placeHandLiveCardInSuccessZoneForPlayer(
   game: GameState,
   playerId: string,
-  cardId: string
+  cardId: string,
+  cause?: CardEffectCause
 ): GameState | null {
   const player = getPlayerById(game, playerId);
   const card = getCardById(game, cardId);
@@ -49,9 +51,10 @@ export function placeHandLiveCardInSuccessZoneForPlayer(
     !canLiveCardEnterSuccessZone(game, playerId, cardId)
   )
     return null;
-  return updatePlayer(game, playerId, (current) => ({
+  const state = updatePlayer(game, playerId, (current) => ({
     ...current,
     hand: removeCardFromZone(current.hand, cardId),
     successZone: addCardToZone(current.successZone, cardId),
   }));
+  return recordSuccessZoneEntry(game, state, playerId, cardId, ZoneType.HAND, cause);
 }

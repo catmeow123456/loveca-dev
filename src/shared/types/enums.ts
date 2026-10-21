@@ -326,6 +326,8 @@ export enum TriggerCondition {
   ON_ENTER_HAND = 'ON_ENTER_HAND',
   /** 进入 LIVE 卡置场 */
   ON_ENTER_LIVE_ZONE = 'ON_ENTER_LIVE_ZONE',
+  /** 实际进入成功 LIVE 卡区（区别于 LIVE 成功判定） */
+  ON_ENTER_SUCCESS_ZONE = 'ON_ENTER_SUCCESS_ZONE',
   /** 进入休息室 */
   ON_ENTER_WAITING_ROOM = 'ON_ENTER_WAITING_ROOM',
   /** 卡片效果将能量从能量卡组放置入能量区 */

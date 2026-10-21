@@ -169,6 +169,13 @@ export interface EnterLiveZoneEvent extends CardMoveEvent {
   readonly face: FaceState;
 }
 
+/** 实际入区后的卡片数量包含本次进入的卡；后续移动不改变此触发事实。 */
+export interface EnterSuccessZoneEvent extends CardMoveEvent {
+  readonly eventType: TriggerCondition.ON_ENTER_SUCCESS_ZONE;
+  readonly toZone: ZoneType.SUCCESS_ZONE;
+  readonly successZoneCardCountAfter: number;
+}
+
 /**
  * 卡牌进入休息室事件
  */
@@ -459,6 +466,7 @@ export type GameEvent =
   | LeaveStageEvent
   | EnterHandEvent
   | EnterLiveZoneEvent
+  | EnterSuccessZoneEvent
   | EnterWaitingRoomEvent
   | LiveStartEvent
   | LiveSuccessEvent
@@ -489,6 +497,7 @@ export function isCardMoveEvent(event: GameEvent): event is CardMoveEvent {
     event.eventType === TriggerCondition.ON_LEAVE_STAGE ||
     event.eventType === TriggerCondition.ON_ENTER_HAND ||
     event.eventType === TriggerCondition.ON_ENTER_LIVE_ZONE ||
+    event.eventType === TriggerCondition.ON_ENTER_SUCCESS_ZONE ||
     event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
   );
 }
@@ -727,6 +736,29 @@ export function createEnterLiveZoneEvent(
     controllerId,
     triggerPlayerId: controllerId,
     face,
+  };
+}
+
+export function createEnterSuccessZoneEvent(
+  cardInstanceId: string,
+  fromZone: ZoneType,
+  ownerId: string,
+  controllerId: string,
+  successZoneCardCountAfter: number,
+  cause?: CardEffectCause
+): EnterSuccessZoneEvent {
+  return {
+    eventId: generateEventId(),
+    eventType: TriggerCondition.ON_ENTER_SUCCESS_ZONE,
+    timestamp: Date.now(),
+    cardInstanceId,
+    fromZone,
+    toZone: ZoneType.SUCCESS_ZONE,
+    ownerId,
+    controllerId,
+    triggerPlayerId: controllerId,
+    successZoneCardCountAfter,
+    ...(cause ? { cause } : {}),
   };
 }
 

@@ -2131,3 +2131,10 @@ export const HS_BP8_004_ACTIVATED_DISCARD_LOW_COST_HASUNOSORA_GAIN_ON_ENTER_ABIL
 
 export const N_BP8_026_LIVE_START_CONVERT_TARGET_RED_BLUE_TO_PURPLE_SCORE_ABILITY_ID =
   'PL!N-bp8-026:live-start-convert-target-red-blue-to-purple-score';
+
+export const PL_BP8_002_AUTO_LEAVE_STAGE_BOTTOM_SELF_WAIT_ORIGINAL_HEART_FOUR_ABILITY_ID =
+  'PL!-bp8-002:auto-leave-stage-bottom-self-wait-original-heart-four';
+export const PL_BP8_011_LIVE_START_SUCCESS_SCORE_SIX_WAIT_ORIGINAL_BLADE_THREE_ABILITY_ID =
+  'PL!-bp8-011:live-start-success-score-six-wait-original-blade-three';
+export const PL_BP8_021_AUTO_ENTER_SUCCESS_LOOK_TOP_FOUR_MUSE_MEMBER_ABILITY_ID =
+  'PL!-bp8-021:auto-enter-success-look-top-four-muse-member';

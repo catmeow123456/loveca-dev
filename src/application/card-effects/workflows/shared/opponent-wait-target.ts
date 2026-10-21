@@ -13,9 +13,11 @@ import {
 } from '../../../../domain/rules/live-modifiers.js';
 import { getMemberEffectiveCost } from '../../../../domain/rules/member-effective-cost.js';
 import { addMemberActivePhaseSkip } from '../../../../domain/rules/member-active-skips.js';
+import { sumSuccessfulLiveScoreForCardEffect } from '../../../../domain/rules/success-live-score.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import {
   PL_PB2_029_ON_ENTER_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID,
+  PL_BP8_011_LIVE_START_SUCCESS_SCORE_SIX_WAIT_ORIGINAL_BLADE_THREE_ABILITY_ID,
   PL_PB2_029_LIVE_START_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID,
   PL_PB2_024_LIVE_START_ONLY_BIBI_WAIT_LOW_COST_OPPONENT_ABILITY_ID,
   HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
@@ -51,6 +53,7 @@ import {
   type PendingAbilityStarterOptions,
 } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   getAbilityEffectText,
   maybeStartConfirmablePendingAbilityConfirmation,
@@ -116,6 +119,7 @@ interface OpponentWaitTargetWorkflowConfig {
   readonly statePredicate?: StageMemberStatePredicate;
   readonly startActionStep: string;
   readonly minOwnStageHeartTotal?: number;
+  readonly minSuccessfulLiveScore?: number;
   readonly minOwnStageDifferentBiBiMemberNameCount?: number;
   readonly minOwnStagePrintedCost?: number;
   readonly allOwnStageMembersGroupAlias?: string;
@@ -136,6 +140,22 @@ const lowBladeNonDollchestraOpponentMemberSelector = and(
 );
 
 const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[] = [
+  {
+    abilityId: PL_BP8_011_LIVE_START_SUCCESS_SCORE_SIX_WAIT_ORIGINAL_BLADE_THREE_ABILITY_ID,
+    effectTextAbilityId:
+      PL_BP8_011_LIVE_START_SUCCESS_SCORE_SIX_WAIT_ORIGINAL_BLADE_THREE_ABILITY_ID,
+    stepId: 'PL_BP8_011_SELECT_OPPONENT_ORIGINAL_BLADE_THREE_MEMBER',
+    stepText: '请选择对方舞台上1名原本持有的[ブレード]数量小于等于3的成员变为待机状态。',
+    selectionLabel: '选择要变为待机状态的成员',
+    selector: typeIs(CardType.MEMBER),
+    statePredicate: (game, playerId, cardId) =>
+      getMemberOriginalBladeCount(game, playerId, cardId) <= 3,
+    minSuccessfulLiveScore: 6,
+    startActionStep: 'START_SELECT_OPPONENT_ORIGINAL_BLADE_THREE_MEMBER',
+    trackTargetLifecycle: true,
+    consumeStaleSelectionAsNoOp: true,
+    confirmNoTargetWithRealtimeText: true,
+  },
   ...[
     PL_PB2_029_ON_ENTER_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID,
     PL_PB2_029_LIVE_START_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID,
@@ -397,14 +417,18 @@ export function registerOpponentWaitTargetWorkflowHandlers(deps: {
         context.continuePendingCardEffects
       )
     );
-    registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) =>
-      finishOpponentWaitTargetWorkflow(
-        game,
-        input.selectedCardId ?? null,
-        config,
-        context.continuePendingCardEffects,
-        deps.enqueueTriggeredCardEffects
-      )
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.stepId,
+      (game, input, context) =>
+        finishOpponentWaitTargetWorkflow(
+          game,
+          input.selectedCardId ?? null,
+          config,
+          context.continuePendingCardEffects,
+          deps.enqueueTriggeredCardEffects
+        ),
+      config.minSuccessfulLiveScore !== undefined ? queryCardSelection : undefined
     );
   }
 }
@@ -422,6 +446,46 @@ function startOpponentWaitTargetWorkflow(
     return game;
   }
   const orderedResolution = options.orderedResolution === true;
+
+  const successfulLiveScore =
+    config.minSuccessfulLiveScore === undefined
+      ? 0
+      : sumSuccessfulLiveScoreForCardEffect(game, player.id, ability.sourceCardId, [player.id]);
+  if (
+    config.minSuccessfulLiveScore !== undefined &&
+    successfulLiveScore < config.minSuccessfulLiveScore
+  ) {
+    const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+      effectText: getOpponentWaitNoOpConfirmationText(
+        config,
+        0,
+        getOpponentWaitTargetCount(game, opponent.id, config.selector, config.statePredicate),
+        false,
+        successfulLiveScore
+      ),
+      stepText: '条件未满足，确认后不处理。',
+    });
+    if (confirmation) return confirmation;
+    return continuePendingCardEffects(
+      addAction(
+        {
+          ...game,
+          pendingAbilities: game.pendingAbilities.filter((item) => item.id !== ability.id),
+        },
+        'RESOLVE_ABILITY',
+        player.id,
+        {
+          pendingAbilityId: ability.id,
+          abilityId: ability.abilityId,
+          sourceCardId: ability.sourceCardId,
+          step: 'SKIP_CONDITION_NOT_MET',
+          successfulLiveScore,
+          requiredSuccessfulLiveScore: config.minSuccessfulLiveScore,
+        }
+      ),
+      orderedResolution
+    );
+  }
 
   const ownStageMemberCardIds = getStageMemberCardIdsMatching(
     game,
@@ -632,7 +696,8 @@ function startOpponentWaitTargetWorkflow(
           config,
           ownStageHighPrintedCostMemberCount,
           targetSelection.selectableCardIds.length,
-          true
+          true,
+          successfulLiveScore
         ),
         stepText: `当前合法目标${targetSelection.selectableCardIds.length}名，确认后不处理。`,
       });
@@ -729,6 +794,9 @@ function finishOpponentWaitTargetWorkflow(
         return card !== undefined && unitAliasIs(config.allOwnStageMembersUnitAlias!)(card);
       }));
   const currentSelectionIsLegal =
+    (config.minSuccessfulLiveScore === undefined ||
+      sumSuccessfulLiveScoreForCardEffect(game, player.id, effect.sourceCardId, [player.id]) >=
+        config.minSuccessfulLiveScore) &&
     unitConditionStillMet &&
     (config.allOwnStageMembersGroupAlias === undefined ||
       (ownStageIds.length > 0 &&
@@ -864,8 +932,15 @@ function getOpponentWaitNoOpConfirmationText(
   config: OpponentWaitTargetWorkflowConfig,
   ownStageHighPrintedCostMemberCount: number,
   selectableTargetCount: number,
-  conditionMet: boolean
+  conditionMet: boolean,
+  successfulLiveScore?: number
 ): string {
+  if (config.minSuccessfulLiveScore !== undefined) {
+    return (
+      getAbilityEffectText(config.effectTextAbilityId) +
+      `（当前自己的成功LIVE卡区卡效参照分数合计为${successfulLiveScore ?? 0}，大于等于${config.minSuccessfulLiveScore}的条件${conditionMet ? '已满足' : '未满足'}，对方可选择目标${selectableTargetCount}名；不会将成员变为待机状态。）`
+    );
+  }
   if (config.allOwnStageMembersGroupAlias !== undefined) {
     return (
       getAbilityEffectText(config.effectTextAbilityId) +
