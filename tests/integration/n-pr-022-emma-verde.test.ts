@@ -15,6 +15,7 @@ import {
   createMoveInspectedCardToZoneCommand,
   createOpenInspectionCommand,
   createPlayMemberToSlotCommand,
+  createSelectSuccessLiveCommand,
   createSetLiveCardCommand,
   createSubmitJudgmentCommand,
   createSubmitScoreCommand,
@@ -212,6 +213,139 @@ function choosePublic(game: GameState, playerId: string, optionId: string): Game
 }
 
 describe('PL!N-PR-022-PR 费用2「艾玛·维尔德」', () => {
+  it('opens on T3 after the opponent fails T2 LIVE and Emma owner wins and becomes first player', () => {
+    const source = member('PL!N-PR-022-PR', P2, 'emma-after-first-player-swap');
+    const failedLive = live('FAILED-LIVE-L', P1, 'failed-t2-live');
+    const winningLiveData: LiveCardData = {
+      cardCode: 'WINNING-LIVE-L',
+      name: 'winning-t2-live',
+      cardType: CardType.LIVE,
+      score: 3,
+      requirements: createHeartRequirement({}),
+    };
+    const winningLive = createCardInstance(winningLiveData, P2, 'winning-t2-live');
+    const energyCards = [
+      energy('ENERGY-1', P2, 'emma-swap-energy-1'),
+      energy('ENERGY-2', P2, 'emma-swap-energy-2'),
+    ];
+    let game = registerCards(createGameState('emma-first-player-swap', P1, 'P1', P2, 'P2'), [
+      source,
+      failedLive,
+      winningLive,
+      ...energyCards,
+    ]);
+    game = updatePlayer(game, P1, (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, failedLive.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_DOWN,
+      }),
+    }));
+    game = updatePlayer(game, P2, (player) => ({
+      ...player,
+      hand: { ...player.hand, cardIds: [source.instanceId] },
+      liveZone: addCardToStatefulZone(player.liveZone, winningLive.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_DOWN,
+      }),
+      energyZone: {
+        ...player.energyZone,
+        cardIds: energyCards.map((card) => card.instanceId),
+        cardStates: new Map(
+          energyCards.map((card) => [
+            card.instanceId,
+            {
+              orientation: OrientationState.ACTIVE,
+              face: FaceState.FACE_UP,
+            },
+          ])
+        ),
+      },
+    }));
+    game = emitGameEvent(game, createTurnStartEvent(2, P1));
+    game = {
+      ...game,
+      turnCount: 2,
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_SECOND_PLAYER,
+      currentTurnType: TurnType.SECOND_PLAYER_TURN,
+      activePlayerIndex: 1,
+      liveSetCompletedPlayers: [P1],
+    };
+
+    const session = createGameSession();
+    session.createGame(game.gameId, P1, 'P1', P2, 'P2');
+    (session as unknown as { authorityState: GameState }).authorityState = game;
+    const execute = (command: Parameters<typeof session.executeCommand>[0]) => {
+      const result = session.executeCommand(command);
+      expect(result.success, result.error).toBe(true);
+    };
+
+    execute(createConfirmStepCommand(P2, SubPhase.LIVE_SET_SECOND_PLAYER));
+    execute(createConfirmStepCommand(P1, SubPhase.PERFORMANCE_LIVE_START_EFFECTS));
+    execute(createSubmitJudgmentCommand(P1, new Map()));
+    expect(session.state!.liveResolution.liveResults.get(failedLive.instanceId)).toBe(false);
+    execute(createConfirmStepCommand(P1, SubPhase.PERFORMANCE_JUDGMENT));
+    execute(createConfirmStepCommand(P2, SubPhase.PERFORMANCE_LIVE_START_EFFECTS));
+    execute(createSubmitJudgmentCommand(P2, new Map()));
+    expect(session.state!.liveResolution.liveResults.get(winningLive.instanceId)).toBe(true);
+    execute(createConfirmStepCommand(P2, SubPhase.PERFORMANCE_JUDGMENT));
+    execute(createConfirmStepCommand(P2, SubPhase.RESULT_SECOND_SUCCESS_EFFECTS));
+    execute(createSubmitScoreCommand(P1, 0));
+    execute(createSubmitScoreCommand(P2, 3));
+    execute(createConfirmStepCommand(P2, SubPhase.RESULT_ANIMATION));
+    execute(createSelectSuccessLiveCommand(P2, winningLive.instanceId));
+    execute(createConfirmStepCommand(P2, SubPhase.RESULT_SETTLEMENT));
+
+    expect(session.state).toMatchObject({
+      turnCount: 3,
+      firstPlayerIndex: 1,
+      activePlayerIndex: 1,
+      currentPhase: GamePhase.MAIN_PHASE,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+    });
+    expect(session.state!.players[1].successZone.cardIds).toContain(winningLive.instanceId);
+    expect(session.state!.players[0].liveZone.cardIds).not.toContain(failedLive.instanceId);
+    expect(session.state!.players[0].successZone.cardIds).not.toContain(failedLive.instanceId);
+    expect(session.state!.eventLog.map(({ event }) => event)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventType: TriggerCondition.ON_TURN_START,
+          turnNumber: 2,
+          currentPlayerId: P1,
+        }),
+        expect.objectContaining({
+          eventType: TriggerCondition.ON_TURN_END,
+          turnNumber: 2,
+          currentPlayerId: P2,
+        }),
+      ])
+    );
+
+    execute(createPlayMemberToSlotCommand(P2, source.instanceId, SlotPosition.CENTER));
+    expect(session.state!.activeEffect).toMatchObject({
+      abilityId: ABILITY_ID,
+      sourceCardId: source.instanceId,
+      stepId: 'N_PR_022_CHOOSE_WHETHER_TO_ASK',
+      controllerId: P2,
+      awaitingPlayerId: P2,
+    });
+    expect(
+      energyCards.every(
+        (card) =>
+          session.state!.players[1].energyZone.cardStates.get(card.instanceId)?.orientation ===
+          OrientationState.WAITING
+      )
+    ).toBe(true);
+    expect(
+      session.state!.actionHistory.some(
+        (action) =>
+          action.payload.abilityId === ABILITY_ID &&
+          action.payload.step === 'PREVIOUS_OPPONENT_LIVE_FAILED_CONDITION_NOT_MET'
+      )
+    ).toBe(false);
+  });
+
   it('opens through the real ON_ENTER path after the second player failed LIVE in the previous shared turn', () => {
     const source = member('PL!N-PR-022-PR', P1, 'emma-real-enter');
     const opponentLive = live('OPPONENT-LIVE-L', P2, 'opponent-failed-live');

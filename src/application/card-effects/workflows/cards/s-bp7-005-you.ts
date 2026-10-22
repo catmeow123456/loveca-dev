@@ -1,3 +1,9 @@
+import { getStageMemberLifecycleId } from '../../runtime/ability-source-lifecycle.js';
+import {
+  getTemporaryOnEnterAbilityInvocation,
+  getHostEnterStageEventIds,
+  getHostEnterStageMetadata,
+} from '../../runtime/temporary-on-enter-ability-grants.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -483,8 +489,8 @@ function startSelectedSequence(
   if (!targetCardId || !sourceAbilityId || !targetAbilityId || sourceSlot === null || targetSlot === null) {
     return finishActiveNoop(game, effect, continuePendingCardEffects, 'PAID_SEQUENCE_SELECTION_STALE');
   }
-  const sourceAbility = createSyntheticOnEnter(effect, effect.sourceCardId, sourceSlot, sourceAbilityId);
-  const targetAbility = createSyntheticOnEnter(effect, targetCardId, targetSlot, targetAbilityId);
+  const sourceAbility = createSyntheticOnEnter(game, effect, effect.sourceCardId, sourceSlot, sourceAbilityId);
+  const targetAbility = createSyntheticOnEnter(game, effect, targetCardId, targetSlot, targetAbilityId);
   const abilities = order === SOURCE_FIRST ? [sourceAbility, targetAbility] : [targetAbility, sourceAbility];
   const state = addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
     abilityId: effect.abilityId,
@@ -511,21 +517,33 @@ function startSelectedSequence(
 }
 
 function createSyntheticOnEnter(
+  game: GameState,
   effect: ActiveEffectState,
   sourceCardId: string,
   sourceSlot: SlotPosition,
   abilityId: string
 ): PendingAbilityState {
+  const onEnterInvocation = getTemporaryOnEnterAbilityInvocation(
+    game,
+    effect.controllerId,
+    sourceCardId,
+    abilityId
+  );
   return {
     id: `you:${effect.id}:${sourceCardId}:${abilityId}`,
     abilityId,
+    sourceLifecycleId: getStageMemberLifecycleId(game, sourceCardId),
+    onEnterInvocation,
     sourceCardId,
     controllerId: effect.controllerId,
     mandatory: true,
     timingId: TriggerCondition.ON_ENTER_STAGE,
-    eventIds: [`delegated-on-enter:${effect.id}:${sourceCardId}:${abilityId}`],
+    eventIds: onEnterInvocation
+      ? getHostEnterStageEventIds(game, sourceCardId)
+      : [`delegated-on-enter:${effect.id}:${sourceCardId}:${abilityId}`],
     sourceSlot,
     metadata: {
+      ...(onEnterInvocation ? getHostEnterStageMetadata(game, sourceCardId) : {}),
       delegatedByAbilityId: effect.abilityId,
       delegatedBySourceCardId: effect.sourceCardId,
       delegatedOnEnterFromStage: true,
@@ -542,7 +560,11 @@ function getStageOnEnterDefinitions(
   const slot = getSourceMemberSlot(game, playerId, cardId);
   const card = getCardById(game, cardId);
   if (!card || slot === null) return [];
-  return getStageMemberDelegatableOnEnterDefinitions(card.data.cardCode, slot);
+  return getStageMemberDelegatableOnEnterDefinitions(card.data.cardCode, slot, {
+    game,
+    controllerId: playerId,
+    sourceCardId: cardId,
+  });
 }
 
 function getOtherDelegatableAqoursMembers(game: GameState, playerId: string, sourceCardId: string) {

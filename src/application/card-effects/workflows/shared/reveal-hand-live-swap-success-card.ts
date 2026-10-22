@@ -208,7 +208,13 @@ function finishSwap(
   });
   if (replacementState !== null) return replacementState;
   state =
-    placeHandLiveCardInSuccessZoneForPlayer(state, effect.controllerId, handLiveCardId) ?? state;
+    placeHandLiveCardInSuccessZoneForPlayer(state, effect.controllerId, handLiveCardId, {
+      kind: 'CARD_EFFECT',
+      playerId: effect.controllerId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    }) ?? state;
   return continuePending(
     addAction({ ...state, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
       pendingAbilityId: effect.id,

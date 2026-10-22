@@ -8,12 +8,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { getAllMemberCardIds } from '../../../../domain/entities/zone.js';
-import {
-  addLiveModifier,
-  collectLiveModifiers,
-  getMemberEffectiveHeartIcons,
-  replaceLiveModifier,
-} from '../../../../domain/rules/live-modifiers.js';
+import { addLiveModifier, replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { findOwnSuccessOrCurrentLiveCardsWithExactEffectiveRequiredHeartCount } from '../../../../domain/rules/live-card-effective-requirement.js';
 import { HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
 import {
@@ -23,6 +18,7 @@ import {
 import { cardNameAliasIs } from '../../../effects/card-selectors.js';
 import { unitAliasIs } from '../../../effects/card-selectors.js';
 import { getMemberEffectiveCost } from '../../../effects/conditions.js';
+import { collectEffectiveStageMemberHeartColors } from '../../../effects/stage-member-heart-colors.js';
 import {
   HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID,
@@ -420,9 +416,7 @@ function getGoRestartConfirmationConfig(
   const context = getGoRestartContext(game, ability);
   return {
     effectText: `${getAbilityEffectText(ability.abilityId)}（当前自己成功LIVE ${context.ownSuccessZoneCount}张，对方成功LIVE ${context.opponentSuccessZoneCount}张，${
-      context.conditionMet
-        ? '满足条件，实际[スコア]+1。'
-        : '未满足条件，实际不增加[スコア]。'
+      context.conditionMet ? '满足条件，实际[スコア]+1。' : '未满足条件，实际不增加[スコア]。'
     }）`,
   };
 }
@@ -826,12 +820,16 @@ function resolveNeutralLiveStart(
       pendingAbilityId: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
-      step: context.conditionMet ? 'DIFFERENT_KALEIDOSCORE_NAMES_SCORE' : 'NO_DIFFERENT_KALEIDOSCORE_NAMES',
+      step: context.conditionMet
+        ? 'DIFFERENT_KALEIDOSCORE_NAMES_SCORE'
+        : 'NO_DIFFERENT_KALEIDOSCORE_NAMES',
       sourceInLiveZone: context.sourceInLiveZone,
-      differentNamedKaleidoscoreMemberCardIds:
-        context.differentNamedKaleidoscoreStageMembers.map((member) => member.cardId),
-      differentNamedKaleidoscoreMemberNames:
-        context.differentNamedKaleidoscoreStageMembers.map((member) => member.name),
+      differentNamedKaleidoscoreMemberCardIds: context.differentNamedKaleidoscoreStageMembers.map(
+        (member) => member.cardId
+      ),
+      differentNamedKaleidoscoreMemberNames: context.differentNamedKaleidoscoreStageMembers.map(
+        (member) => member.name
+      ),
       conditionMet: context.conditionMet,
       scoreBonus,
     }),
@@ -862,9 +860,7 @@ function resolveGoRestartLiveStart(
       pendingAbilityId: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
-      step: context.conditionMet
-        ? 'FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE'
-        : 'NO_FEWER_SUCCESS_LIVE',
+      step: context.conditionMet ? 'FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE' : 'NO_FEWER_SUCCESS_LIVE',
       sourceInLiveZone: context.sourceInLiveZone,
       ownSuccessZoneCount: context.ownSuccessZoneCount,
       opponentSuccessZoneCount: context.opponentSuccessZoneCount,
@@ -941,7 +937,7 @@ function getLinkToTheFutureContext(
             ? card.data
             : null;
         },
-        { minCount: 1 }
+        { nameComparison: 'MEMBER_IDENTITY', minCount: 1 }
       ).map((match) => ({ cardId: match.item, name: match.name }))
     : [];
   return {
@@ -1080,7 +1076,12 @@ function getPsychoHeartContext(
     sourceInLiveZone,
     hasPrintedScoreOne,
     hasPrintedScoreFive,
-    scoreBonus: hasPrintedScoreOne && hasPrintedScoreFive ? 2 : hasPrintedScoreOne || hasPrintedScoreFive ? 1 : 0,
+    scoreBonus:
+      hasPrintedScoreOne && hasPrintedScoreFive
+        ? 2
+        : hasPrintedScoreOne || hasPrintedScoreFive
+          ? 1
+          : 0,
   };
 }
 
@@ -1196,7 +1197,7 @@ function getNeutralContext(
         ? card.data
         : null;
     },
-    { minCount: 1 }
+    { nameComparison: 'MEMBER_IDENTITY', minCount: 1 }
   ).map((match) => ({ cardId: match.item, name: match.name }));
   return {
     sourceInLiveZone,
@@ -1331,7 +1332,7 @@ function getDifferentNamedStageMembers(
       const card = getCardById(game, cardId);
       return card && isMemberCardData(card.data) ? card.data : null;
     },
-    { minCount: 1 }
+    { nameComparison: 'MEMBER_IDENTITY', minCount: 1 }
   ).map((match) => ({ cardId: match.item, name: match.name }));
 }
 
@@ -1363,6 +1364,7 @@ function getDifferentNamedAndEffectiveCostStageMembers(
       return card && isMemberCardData(card.data) ? card.data : null;
     },
     {
+      nameComparison: 'MEMBER_IDENTITY',
       minCount: 1,
       getSecondaryKey: (cardId) => getMemberEffectiveCost(game, playerId, cardId),
     }
@@ -1378,15 +1380,10 @@ function getUniqueNormalEffectiveHeartColors(
   playerId: string,
   memberCardIds: readonly string[]
 ): readonly HeartColor[] {
-  const modifiers = collectLiveModifiers(game);
-  const colors = new Set<HeartColor>();
-  for (const memberCardId of memberCardIds) {
-    for (const heart of getMemberEffectiveHeartIcons(game, playerId, memberCardId, modifiers)) {
-      if (NORMAL_HEART_COLORS.includes(heart.color)) {
-        colors.add(heart.color);
-      }
-    }
-  }
+  const colors = collectEffectiveStageMemberHeartColors(game, playerId, {
+    memberCardIds,
+    includedColors: NORMAL_HEART_COLORS,
+  });
   return NORMAL_HEART_COLORS.filter((color) => colors.has(color));
 }
 
@@ -1416,16 +1413,45 @@ function addScoreModifierAndRefresh(
 
 function replaceScoreModifierAndRefresh(
   game: GameState,
-  options: { readonly playerId: string; readonly sourceCardId: string; readonly abilityId: string; readonly scoreBonus: number }
+  options: {
+    readonly playerId: string;
+    readonly sourceCardId: string;
+    readonly abilityId: string;
+    readonly scoreBonus: number;
+  }
 ): GameState {
   const previous = game.liveResolution.liveModifiers
-    .filter((modifier) => modifier.kind === 'SCORE' && modifier.playerId === options.playerId && modifier.liveCardId === options.sourceCardId && modifier.sourceCardId === options.sourceCardId && modifier.abilityId === options.abilityId)
+    .filter(
+      (modifier) =>
+        modifier.kind === 'SCORE' &&
+        modifier.playerId === options.playerId &&
+        modifier.liveCardId === options.sourceCardId &&
+        modifier.sourceCardId === options.sourceCardId &&
+        modifier.abilityId === options.abilityId
+    )
     .reduce((sum, modifier) => sum + (modifier.kind === 'SCORE' ? modifier.countDelta : 0), 0);
-  const replacement: Extract<LiveModifierState, { readonly kind: 'SCORE' }> | null = options.scoreBonus > 0 ? {
-    kind: 'SCORE', playerId: options.playerId, countDelta: options.scoreBonus,
-    liveCardId: options.sourceCardId, sourceCardId: options.sourceCardId, abilityId: options.abilityId,
-  } : null;
-  const state = replaceLiveModifier(game, { kind: 'SCORE', playerId: options.playerId, liveCardId: options.sourceCardId, sourceCardId: options.sourceCardId, abilityId: options.abilityId }, replacement);
+  const replacement: Extract<LiveModifierState, { readonly kind: 'SCORE' }> | null =
+    options.scoreBonus > 0
+      ? {
+          kind: 'SCORE',
+          playerId: options.playerId,
+          countDelta: options.scoreBonus,
+          liveCardId: options.sourceCardId,
+          sourceCardId: options.sourceCardId,
+          abilityId: options.abilityId,
+        }
+      : null;
+  const state = replaceLiveModifier(
+    game,
+    {
+      kind: 'SCORE',
+      playerId: options.playerId,
+      liveCardId: options.sourceCardId,
+      sourceCardId: options.sourceCardId,
+      abilityId: options.abilityId,
+    },
+    replacement
+  );
   return refreshPlayerScoreDraft(state, options.playerId, options.scoreBonus - previous);
 }
 

@@ -158,7 +158,7 @@ function getDifferentNamedCatchuStageMembers(
       const card = getCardById(game, cardId);
       return card && catchuMember(card) ? card.data : null;
     },
-    { minCount: 1 }
+    { nameComparison: 'MEMBER_IDENTITY', minCount: 1 }
   ).map((match) => ({ cardId: match.item, name: match.name }));
 }
 

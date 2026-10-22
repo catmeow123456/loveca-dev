@@ -1,3 +1,5 @@
+import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
+import { createWaivedOnEnterCostContinuationState } from '../../runtime/waived-on-enter-cost.js';
 import {
   addAction,
   addLiveSetLimitReduction,
@@ -67,24 +69,25 @@ function startHsBp2018HimeOnEnter(
     return game;
   }
 
-  const sourceOnStage = Object.values(player.memberSlots.slots).includes(ability.sourceCardId);
+  if (isAbilityActivationCostWaived(ability))
+    return finishPayTwoEnergy(
+      createWaivedOnEnterCostContinuationState(
+        game,
+        ability,
+        PAY_TWO_ENERGY_STEP_ID,
+        orderedResolution
+      ),
+      continuePendingCardEffects
+    );
+
   const activeEnergyCardIds = getActiveEnergyCardIds(game, player.id);
   const selectableCardIds = selectWaitingRoomLiveCardIds(game, player.id);
-  if (
-    !sourceOnStage ||
-    !isOwnMainPhase(game, player.id) ||
-    activeEnergyCardIds.length < ENERGY_COST ||
-    selectableCardIds.length === 0
-  ) {
+  if (!isOwnMainPhase(game, player.id) || activeEnergyCardIds.length < ENERGY_COST) {
     return finishPendingAbility(game, ability, orderedResolution, continuePendingCardEffects, {
       step: 'NO_OP_PAY_TWO_ENERGY_PLACE_WAITING_LIVE',
-      reason: !sourceOnStage
-        ? 'SOURCE_NOT_ON_STAGE'
-        : !isOwnMainPhase(game, player.id)
-          ? 'NOT_OWN_MAIN_PHASE'
-          : activeEnergyCardIds.length < ENERGY_COST
-            ? 'INSUFFICIENT_ACTIVE_ENERGY'
-            : 'NO_WAITING_ROOM_LIVE_TARGET',
+      reason: !isOwnMainPhase(game, player.id)
+        ? 'NOT_OWN_MAIN_PHASE'
+        : 'INSUFFICIENT_ACTIVE_ENERGY',
       activeEnergyCardIds,
       selectableCardIds,
     });
@@ -100,8 +103,7 @@ function startHsBp2018HimeOnEnter(
       controllerId: player.id,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_TWO_ENERGY_STEP_ID,
-      stepText:
-        '可以支付[E][E]；如此做时，从自己的休息室将1张LIVE卡以正面朝上放置入LIVE卡区。',
+      stepText: '可以支付[E][E]；如此做时，从自己的休息室将1张LIVE卡以正面朝上放置入LIVE卡区。',
       awaitingPlayerId: player.id,
       selectableOptions: [{ id: PAY_OPTION_ID, label: '支付[E][E]' }],
       canSkipSelection: true,
@@ -154,13 +156,11 @@ function finishPayTwoEnergy(
     return game;
   }
 
-  const sourceOnStage = Object.values(player.memberSlots.slots).includes(effect.sourceCardId);
   const selectableCardIdsBeforePayment = selectWaitingRoomLiveCardIds(game, player.id);
   if (
-    !sourceOnStage ||
     !isOwnMainPhase(game, player.id) ||
-    getActiveEnergyCardIds(game, player.id).length < ENERGY_COST ||
-    selectableCardIdsBeforePayment.length === 0
+    (!isAbilityActivationCostWaived(effect) &&
+      getActiveEnergyCardIds(game, player.id).length < ENERGY_COST)
   ) {
     return continuePendingCardEffects(
       addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
@@ -175,33 +175,36 @@ function finishPayTwoEnergy(
     );
   }
 
-  const costPayment = payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
-    { kind: 'TAP_ACTIVE_ENERGY', count: ENERGY_COST },
-  ]);
-  if (!costPayment || costPayment.paidEnergyCardIds.length !== ENERGY_COST) {
+  const costPayment = isAbilityActivationCostWaived(effect)
+    ? { gameState: game, paidEnergyCardIds: [] }
+    : payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
+        { kind: 'TAP_ACTIVE_ENERGY', count: ENERGY_COST },
+      ]);
+  if (
+    !costPayment ||
+    (!isAbilityActivationCostWaived(effect) && costPayment.paidEnergyCardIds.length !== ENERGY_COST)
+  ) {
     return game;
   }
 
-  const stateAfterCost = recordPayCostAction(costPayment.gameState, player.id, {
-    pendingAbilityId: effect.id,
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    energyCardIds: costPayment.paidEnergyCardIds,
-    amount: ENERGY_COST,
-  });
-  const selectableCardIds = selectWaitingRoomLiveCardIds(stateAfterCost, player.id);
-  if (selectableCardIds.length === 0) {
-    return continuePendingCardEffects(
-      addAction({ ...stateAfterCost, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+  const stateAfterCost = isAbilityActivationCostWaived(effect)
+    ? game
+    : recordPayCostAction(costPayment.gameState, player.id, {
         pendingAbilityId: effect.id,
         abilityId: effect.abilityId,
         sourceCardId: effect.sourceCardId,
-        step: 'PAID_TWO_ENERGY_NO_WAITING_LIVE_TARGET',
-        paidEnergyCardIds: costPayment.paidEnergyCardIds,
-        placedLiveCardIds: [],
-        nextLiveSetLimitReduction: 0,
-      }),
-      effect.metadata?.orderedResolution === true
+        energyCardIds: costPayment.paidEnergyCardIds,
+        amount: ENERGY_COST,
+      });
+  const selectableCardIds = selectWaitingRoomLiveCardIds(stateAfterCost, player.id);
+  if (selectableCardIds.length === 0) {
+    return finishLiveSetLimitReduction(
+      stateAfterCost,
+      {
+        ...effect,
+        metadata: { ...effect.metadata, paidEnergyCardIds: costPayment.paidEnergyCardIds },
+      },
+      continuePendingCardEffects
     );
   }
 
@@ -252,18 +255,12 @@ function finishPlaceWaitingLive(
 ): GameState {
   const effect = getExpectedActiveEffect(game, SELECT_WAITING_LIVE_STEP_ID);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
-  if (
-    !effect ||
-    !player ||
-    !selectedCardId ||
-    effect.selectableCardIds?.includes(selectedCardId) !== true
-  ) {
-    return game;
-  }
-
+  if (!effect || !player) return game;
   const selectableCardIds = selectWaitingRoomLiveCardIds(game, player.id);
-  if (!selectableCardIds.includes(selectedCardId)) {
-    return game;
+  if (selectableCardIds.length === 0)
+    return finishLiveSetLimitReduction(game, effect, continuePendingCardEffects);
+  if (!selectedCardId || !selectableCardIds.includes(selectedCardId)) {
+    return { ...game, activeEffect: { ...effect, selectableCardIds } };
   }
 
   const placeResult = placeWaitingRoomLiveCardInLiveZoneForPlayer(game, player.id, selectedCardId, {
@@ -274,24 +271,37 @@ function finishPlaceWaitingLive(
     return game;
   }
 
-  const stateWithLimitReduction = addLiveSetLimitReduction(placeResult.gameState, {
-    playerId: player.id,
+  return finishLiveSetLimitReduction(
+    placeResult.gameState,
+    effect,
+    continuePendingCardEffects,
+    placeResult
+  );
+}
+
+function finishLiveSetLimitReduction(
+  game: GameState,
+  effect: NonNullable<GameState['activeEffect']>,
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  placed?: NonNullable<ReturnType<typeof placeWaitingRoomLiveCardInLiveZoneForPlayer>>
+): GameState {
+  const state = addLiveSetLimitReduction(game, {
+    playerId: effect.controllerId,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
     amount: 1,
     expiresAt: 'NEXT_LIVE_SET_PHASE',
   });
-
   return continuePendingCardEffects(
-    addAction({ ...stateWithLimitReduction, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+    addAction({ ...state, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: 'PLACE_WAITING_LIVE_FACE_UP_AND_REDUCE_NEXT_LIVE_SET_LIMIT',
       paidEnergyCardIds: effect.metadata?.paidEnergyCardIds ?? [],
-      selectedCardId: placeResult.movedCardId,
-      selectedCardIds: [placeResult.movedCardId],
-      enterLiveZoneEventId: placeResult.enterLiveZoneEvent.eventId,
+      selectedCardId: placed?.movedCardId,
+      selectedCardIds: placed ? [placed.movedCardId] : [],
+      enterLiveZoneEventId: placed?.enterLiveZoneEvent.eventId,
       nextLiveSetLimitReduction: 1,
     }),
     effect.metadata?.orderedResolution === true

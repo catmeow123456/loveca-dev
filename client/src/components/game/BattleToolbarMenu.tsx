@@ -115,7 +115,7 @@ export function BattleSettingsMenu({
             </div>
             {showCardEntrance && (
               <div className="flex min-h-12 items-center justify-between gap-4 px-2">
-                <span>登场动画</span>
+                <span>卡牌特效</span>
                 <CardEntranceToggle enabled={cardEntranceEnabled} onChange={onCardEntranceChange} />
               </div>
             )}

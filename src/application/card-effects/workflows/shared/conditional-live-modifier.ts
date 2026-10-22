@@ -57,8 +57,8 @@ import { getRelayEnteredStageMemberCardIdsThisTurn } from '../../../effects/rela
 import {
   cardBelongsToGroup,
   getCardNameCandidates,
-  getNormalizedCardNameCandidates,
-  normalizeCardName,
+  getCanonicalMemberNameCandidates,
+  normalizeMemberName,
   selectDifferentNamedCards,
 } from '../../../../shared/utils/card-identity.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
@@ -2708,7 +2708,7 @@ function getEternalizeLoveContext(
     .map((entry) => ({
       cardId: entry.cardId,
       names: getCardNameCandidates(entry.card.data, { groupName: '虹ヶ咲' }),
-      normalizedNames: getNormalizedCardNameCandidates(entry.card.data, {
+      normalizedNames: getCanonicalMemberNameCandidates(entry.card.data, {
         groupName: '虹ヶ咲',
       }),
     }));
@@ -2723,7 +2723,7 @@ function getEternalizeLoveContext(
       }
       const rightNames = new Set(right.normalizedNames);
       for (const name of left.names) {
-        if (rightNames.has(normalizeCardName(name))) {
+        if (rightNames.has(normalizeMemberName(name))) {
           sharedNames.add(name);
         }
       }
@@ -2916,6 +2916,7 @@ function getDifferentGroupMemberRequirementContext(
     memberCardIds,
     (cardId) => getCardById(game, cardId)?.data ?? null,
     {
+      nameComparison: 'MEMBER_IDENTITY',
       groupName: config.groupAlias,
       minCount: 0,
     }

@@ -1,3 +1,5 @@
+import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
+import { createWaivedOnEnterCostContinuationState } from '../../runtime/waived-on-enter-cost.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -28,8 +30,7 @@ import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import { finishWaitingRoomToHandWorkflow } from '../shared/waiting-room-to-hand.js';
 
 const HS_SD1_004_SELECT_DISCARD_STEP_ID = 'HS_SD1_004_SELECT_HASUNOSORA_HAND_DISCARD';
-const HS_SD1_004_SELECT_WAITING_ROOM_MEMBER_STEP_ID =
-  'HS_SD1_004_SELECT_WAITING_ROOM_MEMBER';
+const HS_SD1_004_SELECT_WAITING_ROOM_MEMBER_STEP_ID = 'HS_SD1_004_SELECT_WAITING_ROOM_MEMBER';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -43,7 +44,8 @@ export function registerHsSd1004GinkoWorkflowHandlers(deps: {
         game,
         ability,
         options,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
       )
   );
   registerActiveEffectStepHandler(
@@ -74,12 +76,26 @@ function startHsSd1004OnEnterDiscardHasunosora(
   game: GameState,
   ability: PendingAbilityState,
   options: PendingAbilityStarterOptions,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
   }
+
+  if (isAbilityActivationCostWaived(ability))
+    return finishHsSd1004DiscardCost(
+      createWaivedOnEnterCostContinuationState(
+        game,
+        ability,
+        HS_SD1_004_SELECT_DISCARD_STEP_ID,
+        options.orderedResolution === true
+      ),
+      null,
+      continuePendingCardEffects,
+      enqueueTriggeredCardEffects
+    );
 
   const discardCandidateIds = player.hand.cardIds.filter((cardId) => {
     const card = getCardById(game, cardId);
@@ -146,7 +162,7 @@ function finishHsSd1004DiscardCost(
   if (!player) {
     return game;
   }
-  if (selectedCardId === null) {
+  if (selectedCardId === null && !isAbilityActivationCostWaived(effect)) {
     return continuePendingCardEffects(
       addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
         pendingAbilityId: effect.id,
@@ -158,22 +174,26 @@ function finishHsSd1004DiscardCost(
     );
   }
   if (
-    effect.selectableCardIds?.includes(selectedCardId) !== true ||
-    !player.hand.cardIds.includes(selectedCardId)
+    !isAbilityActivationCostWaived(effect) &&
+    (selectedCardId === null ||
+      effect.selectableCardIds?.includes(selectedCardId) !== true ||
+      !player.hand.cardIds.includes(selectedCardId))
   ) {
     return game;
   }
 
-  const discardResult = discardHandCardsToWaitingRoomAndEnqueueTriggers(
-    game,
-    player.id,
-    [selectedCardId],
-    {
-      count: 1,
-      candidateCardIds: effect.selectableCardIds ?? [],
-    },
-    enqueueTriggeredCardEffects
-  );
+  const discardResult = isAbilityActivationCostWaived(effect)
+    ? { gameState: game, discardedCardIds: [] }
+    : discardHandCardsToWaitingRoomAndEnqueueTriggers(
+        game,
+        player.id,
+        [selectedCardId!],
+        {
+          count: 1,
+          candidateCardIds: effect.selectableCardIds ?? [],
+        },
+        enqueueTriggeredCardEffects
+      );
   if (!discardResult) {
     return game;
   }
@@ -183,12 +203,14 @@ function finishHsSd1004DiscardCost(
     player.id,
     and(typeIs(CardType.MEMBER), (card) => isMemberCardData(card.data))
   );
-  const stateWithCost = addAction(discardResult.gameState, 'PAY_COST', player.id, {
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    discardedHandCardIds: discardResult.discardedCardIds,
-    selectableCardIds: selectableMemberCardIds,
-  });
+  const stateWithCost = isAbilityActivationCostWaived(effect)
+    ? game
+    : addAction(discardResult.gameState, 'PAY_COST', player.id, {
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        discardedHandCardIds: discardResult.discardedCardIds,
+        selectableCardIds: selectableMemberCardIds,
+      });
 
   if (selectableMemberCardIds.length === 0) {
     return continuePendingCardEffects(

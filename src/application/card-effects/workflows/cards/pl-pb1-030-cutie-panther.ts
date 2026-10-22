@@ -129,9 +129,13 @@ function getDifferentNamedBiBiStageMembers(
   playerId: string
 ): readonly { readonly cardId: string; readonly name: string }[] {
   return selectDifferentNamedCards(
-    getStageMemberCardIdsMatching(game, playerId, and(typeIs(CardType.MEMBER), unitAliasIs('BiBi'))),
+    getStageMemberCardIdsMatching(
+      game,
+      playerId,
+      and(typeIs(CardType.MEMBER), unitAliasIs('BiBi'))
+    ),
     (cardId) => game.cardRegistry.get(cardId)?.data,
-    { minCount: 1 }
+    { nameComparison: 'MEMBER_IDENTITY', minCount: 1 }
   ).map((match) => ({
     cardId: match.item,
     name: match.name,

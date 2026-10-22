@@ -227,7 +227,9 @@ export function isPlPb2012SpecialPlayMemberSelection(
     ids.length === 2 &&
     new Set(ids).size === 2 &&
     ids.every((id) => candidates.includes(id)) &&
-    hasAtLeastDifferentNamedCards(ids, 2, (id) => getCardById(game, id)?.data)
+    hasAtLeastDifferentNamedCards(ids, 2, (id) => getCardById(game, id)?.data, {
+      nameComparison: 'MEMBER_IDENTITY',
+    })
   );
 }
 
@@ -246,7 +248,8 @@ export function getPlPb2012SpecialPlayTargetSlots(
     !hasAtLeastDifferentNamedCards(
       getActivePrintempsMemberCardIds(game, playerId),
       2,
-      (id) => getCardById(game, id)?.data
+      (id) => getCardById(game, id)?.data,
+      { nameComparison: 'MEMBER_IDENTITY' }
     )
   )
     return [];

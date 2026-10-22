@@ -14,7 +14,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import { addCardToStatefulZone, addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import { createCheerEvent } from '../../src/domain/events/game-events';
 import {
   confirmActiveEffectStep,
@@ -130,6 +130,87 @@ function resolvePending(game: GameState, pendingAbilities: readonly PendingAbili
 }
 
 describe('PL!SP-bp4 third batch effects', () => {
+  it.each([
+    [['涩谷香音&平安名堇', '澁谷かのん', '唐可可'], true],
+    [['涩谷香音', '澁谷かのん', '唐可可'], false],
+  ] as const)(
+    'Kinako recovery uses distinct member identities for %j',
+    (names, expectedRecovery) => {
+      const source = createCardInstance(
+        createMember('PL!SP-bp4-006-R', '桜小路きな子'),
+        PLAYER1,
+        'kinako-identity'
+      );
+      const target = createCardInstance(
+        createLive('RECOVER-LIVE', 'Liella! LIVE'),
+        PLAYER1,
+        'recover-identity'
+      );
+      const members = names.map((name, index) =>
+        createCardInstance(createMember(`CHEER-${index}`, name), PLAYER1, `cheer-identity-${index}`)
+      );
+      let game = registerCards(baseGame('kinako-identities'), [source, target, ...members]);
+      game = withCheerState(game, [...members, target], [target]);
+      const started = resolvePending(game, [
+        pendingAbility(
+          SP_BP4_006_LIVE_SUCCESS_DIFFERENT_LIELLA_CHEER_LIVE_TO_HAND_ABILITY_ID,
+          source.instanceId
+        ),
+      ]);
+      const resolved = expectedRecovery
+        ? confirmActiveEffectStepThroughPublicReveal(
+            started,
+            PLAYER1,
+            started.activeEffect!.id,
+            target.instanceId
+          )
+        : confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+      expect(resolved.players[0].hand.cardIds.includes(target.instanceId)).toBe(expectedRecovery);
+      expect(resolved.resolutionZone.cardIds.includes(target.instanceId)).toBe(!expectedRecovery);
+    }
+  );
+
+  it.each([
+    [['涩谷香音&平安名堇', '澁谷かのん', '唐可可', '岚千砂都', '叶月恋'], 5, 1],
+    [['涩谷香音', '澁谷かのん', '唐可可', '岚千砂都', '叶月恋'], 4, 0],
+  ] as const)(
+    'Wish Song scores %j using canonical member assignment',
+    (names, expectedCount, bonus) => {
+      const source = createCardInstance(
+        createLive('PL!SP-bp4-026-L', 'Wish Song'),
+        PLAYER1,
+        'wish-identity'
+      );
+      const members = names.map((name, index) =>
+        createCardInstance(createMember(`WISH-${index}`, name), PLAYER1, `wish-identity-${index}`)
+      );
+      let game = registerCards(baseGame('wish-identities'), [source, ...members]);
+      game = withCheerState(game, members);
+      game = {
+        ...game,
+        liveResolution: { ...game.liveResolution, playerScores: new Map([[PLAYER1, 4]]) },
+      };
+      const started = resolvePending(game, [
+        pendingAbility(
+          SP_BP4_026_LIVE_SUCCESS_DIFFERENT_LIELLA_CHEER_SCORE_ABILITY_ID,
+          source.instanceId
+        ),
+      ]);
+      expect(started.activeEffect?.effectText).toContain(
+        `当前不同名Liella!成员 ${expectedCount}名`
+      );
+      const resolved = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+      expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(4 + bonus);
+      expect(
+        resolved.liveResolution.liveModifiers.some(
+          (modifier) =>
+            modifier.kind === 'SCORE' &&
+            modifier.abilityId === SP_BP4_026_LIVE_SUCCESS_DIFFERENT_LIELLA_CHEER_SCORE_ABILITY_ID
+        )
+      ).toBe(bonus > 0);
+    }
+  );
+
   it('PL!SP-bp4-006 counts current cheer facts even when one Liella member already left resolutionZone, then moves only a current revealed Liella! LIVE to hand', () => {
     const source = createCardInstance(
       createMember('PL!SP-bp4-006-R', '桜小路きな子'),
@@ -151,7 +232,7 @@ describe('PL!SP-bp4 third batch effects', () => {
     let game = registerCards(baseGame(), [source, kanon, keke, chisato, targetLive]);
     game = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
-      hand: addCardToStatefulZone(player.hand, chisato.instanceId),
+      hand: addCardToZone(player.hand, chisato.instanceId),
       memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
         orientation: OrientationState.ACTIVE,
         face: FaceState.FACE_UP,
@@ -317,6 +398,93 @@ describe('PL!SP-bp4 third batch effects', () => {
     expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBeUndefined();
   });
 
+  it.each([
+    { names: ['涩谷香音&唐可可', '澁谷かのん', '岚千砂都'], count: 3, recovers: true },
+    { names: ['涩谷香音&唐可可', '澁谷かのん', '唐可可'], count: 2, recovers: false },
+  ])(
+    'PL!SP-bp4-006 applies the three-name threshold with DUO and aliases: $count',
+    ({ names, count, recovers }) => {
+      const source = createCardInstance(
+        createMember('PL!SP-bp4-006-R', '桜小路きな子'),
+        PLAYER1,
+        'kinako-alias'
+      );
+      const members = names.map((name, index) =>
+        createCardInstance(
+          createMember(`KINAKO-ALIAS-${index}`, name),
+          PLAYER1,
+          `kinako-alias-${index}`
+        )
+      );
+      const target = createCardInstance(createLive('KINAKO-TARGET'), PLAYER1, 'kinako-target');
+      let game = registerCards(baseGame(), [source, ...members, target]);
+      game = withCheerState(game, [...members, target]);
+      const started = resolvePending(game, [
+        pendingAbility(
+          SP_BP4_006_LIVE_SUCCESS_DIFFERENT_LIELLA_CHEER_LIVE_TO_HAND_ABILITY_ID,
+          source.instanceId
+        ),
+      ]);
+      expect(started.activeEffect).not.toBeNull();
+      const resolved = recovers
+        ? confirmActiveEffectStepThroughPublicReveal(
+            started,
+            PLAYER1,
+            started.activeEffect!.id,
+            target.instanceId
+          )
+        : confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+      expect(resolved.players[0].hand.cardIds.includes(target.instanceId)).toBe(recovers);
+      expect(resolved.resolutionZone.cardIds.includes(target.instanceId)).toBe(!recovers);
+      expect(resolved.actionHistory.at(-1)?.payload).toMatchObject({
+        differentNameLiellaMemberCount: count,
+      });
+      expect(resolved.pendingAbilities).toEqual([]);
+      expect(resolved.activeEffect).toBeNull();
+    }
+  );
+
+  it.each([
+    { names: ['涩谷香音&唐可可', '澁谷かのん', '岚千砂都', '平安名堇', '叶月恋'], count: 5 },
+    { names: ['涩谷香音&唐可可', '澁谷かのん', '唐可可', '岚千砂都', '平安名堇'], count: 4 },
+  ])(
+    'PL!SP-bp4-026 applies the five-name threshold with DUO and aliases: $count',
+    ({ names, count }) => {
+      const live = createCardInstance(
+        createLive('PL!SP-bp4-026-L', 'Wish Song'),
+        PLAYER1,
+        'wish-alias'
+      );
+      const members = names.map((name, index) =>
+        createCardInstance(
+          createMember(`WISH-ALIAS-${index}`, name),
+          PLAYER1,
+          `wish-alias-${index}`
+        )
+      );
+      let game = registerCards(baseGame(), [live, ...members]);
+      game = withCheerState(game, members);
+      game = {
+        ...game,
+        liveResolution: { ...game.liveResolution, playerScores: new Map([[PLAYER1, 4]]) },
+      };
+      const started = resolvePending(game, [
+        pendingAbility(
+          SP_BP4_026_LIVE_SUCCESS_DIFFERENT_LIELLA_CHEER_SCORE_ABILITY_ID,
+          live.instanceId
+        ),
+      ]);
+      const resolved = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+      expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(count >= 5 ? 5 : 4);
+      expect(resolved.liveResolution.liveModifiers).toHaveLength(count >= 5 ? 1 : 0);
+      expect(resolved.actionHistory.at(-1)?.payload).toMatchObject({
+        differentNameLiellaMemberCount: count,
+      });
+      expect(resolved.pendingAbilities).toEqual([]);
+      expect(resolved.activeEffect).toBeNull();
+    }
+  );
+
   it('PL!SP-bp4-026 draws two then lets the player discard one hand card with eleven energy', () => {
     const live = createCardInstance(createLive('PL!SP-bp4-026-L', 'Wish Song'), PLAYER1, 'wish-song-draw');
     const hand = createCardInstance(createMember('WISH-HAND', '澁谷かのん'), PLAYER1, 'wish-hand');
@@ -334,9 +502,9 @@ describe('PL!SP-bp4 third batch effects', () => {
     ]);
     game = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
-      hand: addCardToStatefulZone(player.hand, hand.instanceId),
+      hand: addCardToZone(player.hand, hand.instanceId),
       mainDeck: [drawA, drawB].reduce(
-        (zone, card) => addCardToStatefulZone(zone, card.instanceId),
+        (zone, card) => addCardToZone(zone, card.instanceId),
         player.mainDeck
       ),
       energyZone: energies.reduce(
@@ -434,9 +602,9 @@ describe('PL!SP-bp4 third batch effects', () => {
     game = withCheerState(game, members);
     game = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
-      hand: addCardToStatefulZone(player.hand, hand.instanceId),
+      hand: addCardToZone(player.hand, hand.instanceId),
       mainDeck: [drawA, drawB].reduce(
-        (zone, card) => addCardToStatefulZone(zone, card.instanceId),
+        (zone, card) => addCardToZone(zone, card.instanceId),
         player.mainDeck
       ),
       energyZone: energies.reduce(
@@ -503,9 +671,9 @@ describe('PL!SP-bp4 third batch effects', () => {
     game = withCheerState(game, members);
     game = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
-      hand: addCardToStatefulZone(player.hand, hand.instanceId),
+      hand: addCardToZone(player.hand, hand.instanceId),
       mainDeck: [drawA, drawB].reduce(
-        (zone, card) => addCardToStatefulZone(zone, card.instanceId),
+        (zone, card) => addCardToZone(zone, card.instanceId),
         player.mainDeck
       ),
       energyZone: energies.reduce(

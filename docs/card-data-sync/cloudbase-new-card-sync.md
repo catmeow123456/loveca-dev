@@ -59,6 +59,10 @@ PostgreSQL `cards.card_type`：
 
 规则字段缺失不会阻止插入，但会写入 `source_flags.missingRuleFields`。这类卡默认保持 `DRAFT`，由维护者在管理端或后续同步流程中补齐。
 
+普通成员 `hearts` 与 LIVE `requirements` 区分“明确为 0”和“未知”：空数组、空对象、两者的 JSON 字符串表示以及空白字符串统一转换为 `[]`，不会标记该字段缺失；字段未提供、`undefined` 或 `null` 仍为 `null` 并标记缺失。非空非法值继续产生解析 warning、保持 `null` 并标记缺失，不保留部分解析结果。字段别名按声明顺序取首个存在的键，明确空值不被后续别名覆盖。个人 JSON 导出保留 `[]` 与 `null` 的区别。
+
+`source_flags.missingRuleFields` 与 `source_flags.parseWarnings` 由本次转换结果重新计算，不沿用上游的旧诊断；其他来源标记仍保留。合法空 HEART 不会掩盖费用、BLADE 或分数等其他规则字段的缺失。
+
 `cost`、`blade` 和 `score` 只接受安全的非负整数。负数不再作为 warning 降级为 `null`，而是直接阻断候选；PostgreSQL `cards` 表也使用 CHECK 作为最后写入边界。
 
 卡号仍校验四段结构、系列前缀、序号和稀有度，但商品代号不使用逐个白名单：`sd` / `bp` / `cl` / `pb` 后接数字即可，所以未来 `bp9`、`bp10` 等无需提前登记。非法结构仍会在预览中列为阻断项，不会直接写入。

@@ -1,7 +1,9 @@
 import type { SlotPosition, OrientationState } from './types/enums.js';
+import type { PendingAbilityState } from '../domain/entities/game.js';
 
 /** Public entrance identity shared by authority and cosmetic registry. */
 export const entranceCards = {
+  ginko: 'PL!HS-bp8-004',
   kanata: 'PL!N-bp7-006',
   ren: 'PL!SP-pb2-005',
   shiki: 'PL!SP-pb2-008',
@@ -69,11 +71,28 @@ export const ENTRANCE_WAIT_LIMIT_MS = 6000;
 /** Additional per-double-relay playback budget; ordinary entrances keep their existing limit. */
 export const DOUBLE_RELAY_ENTRANCE_EXTRA_MS = 1400;
 export const WAITING_RETURN_ENTRANCE_EXTRA_MS = 1300;
+export const KAHO_RELAY_ENTRANCE_EXTRA_MS = 1600;
 export interface EntranceWait {
   readonly id: string;
   readonly cardIds: readonly string[];
   readonly waitingPlayerIds: readonly string[];
   readonly deadlineAt: number;
+  /** Successful acquisition, after its discard cost and before invocation. */
+  readonly abilityTransfer?: {
+    readonly hostCardId: string;
+    readonly sourceCardId: string;
+    readonly abilityId: string;
+    readonly grantId: string;
+    readonly afterDiscard: boolean;
+  };
+  readonly kahoRelays?: readonly {
+    readonly cardId: string;
+    readonly source: {
+      readonly cardId: string;
+      readonly slot: SlotPosition;
+      readonly orientation: OrientationState;
+    };
+  }[];
   /** Previously public members, sorted independently of the shuffled deck order. */
   readonly waitingRoomReturns?: readonly {
     readonly cardId: string;
@@ -95,4 +114,6 @@ export interface EntranceRuntime {
   readonly seenSequence: number;
   readonly generation: number;
   readonly pending: EntranceWait | null;
+  /** Authority-only continuation consumed once after ACK/timeout. */
+  readonly continuation?: PendingAbilityState;
 }

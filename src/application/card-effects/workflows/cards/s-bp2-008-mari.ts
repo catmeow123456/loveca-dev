@@ -263,7 +263,12 @@ function hasFullDistinctAqoursStage(game: GameState, playerId: string): boolean 
     selectDifferentNamedCards(
       stageMemberCardIds,
       (cardId) => getCardById(game, cardId)?.data ?? null,
-      { groupName: 'Aqours', minCount: STAGE_SLOTS.length, maxCount: STAGE_SLOTS.length }
+      {
+        nameComparison: 'MEMBER_IDENTITY',
+        groupName: 'Aqours',
+        minCount: STAGE_SLOTS.length,
+        maxCount: STAGE_SLOTS.length,
+      }
     ).length === STAGE_SLOTS.length
   );
 }

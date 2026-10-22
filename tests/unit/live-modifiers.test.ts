@@ -5823,49 +5823,55 @@ describe('live modifier helpers', () => {
     expect(hasBp5003YellowHeartModifier(game)).toBe(false);
   });
 
-  it('does not collect PL!-bp5-003 yellow Heart when stage member names are not all different', () => {
-    const kotori = createBp5003Kotori('kotori-duplicate-names');
-    const umi = createCardInstance(
-      {
-        cardCode: 'PL!-TEST-UMI-A',
-        name: '園田海未',
-        cardType: CardType.MEMBER,
-        cost: 2,
-        blade: 1,
-        hearts: [],
-      },
-      'p1',
-      'umi-duplicate-a'
-    );
-    const anotherUmi = createCardInstance(
-      {
-        cardCode: 'PL!-TEST-UMI-B',
-        name: '園田海未',
-        cardType: CardType.MEMBER,
-        cost: 2,
-        blade: 1,
-        hearts: [],
-      },
-      'p1',
-      'umi-duplicate-b'
-    );
-    let game = createGameState('bp5-003-duplicate-names', 'p1', 'P1', 'p2', 'P2');
-    game = registerCards(game, [kotori, umi, anotherUmi]);
-    game = updatePlayer(game, 'p1', (player) => ({
-      ...player,
-      memberSlots: placeCardInSlot(
-        placeCardInSlot(
-          placeCardInSlot(player.memberSlots, SlotPosition.CENTER, kotori.instanceId),
-          SlotPosition.LEFT,
-          umi.instanceId
+  it.each(['園田海未', '园田海未'])(
+    'does not collect PL!-bp5-003 yellow Heart for duplicate member identity %s',
+    (duplicateName) => {
+      const kotori = createBp5003Kotori('kotori-duplicate-names');
+      const umi = createCardInstance(
+        {
+          cardCode: 'PL!-TEST-UMI-A',
+          name: '園田海未',
+          cardType: CardType.MEMBER,
+          cost: 2,
+          blade: 1,
+          hearts: [],
+        },
+        'p1',
+        'umi-duplicate-a'
+      );
+      const anotherUmi = createCardInstance(
+        {
+          cardCode: 'PL!-TEST-UMI-B',
+          name: duplicateName,
+          cardType: CardType.MEMBER,
+          cost: 2,
+          blade: 1,
+          hearts: [],
+        },
+        'p1',
+        'umi-duplicate-b'
+      );
+      let game = createGameState('bp5-003-duplicate-names', 'p1', 'P1', 'p2', 'P2');
+      game = registerCards(game, [kotori, umi, anotherUmi]);
+      game = updatePlayer(game, 'p1', (player) => ({
+        ...player,
+        memberSlots: placeCardInSlot(
+          placeCardInSlot(
+            placeCardInSlot(player.memberSlots, SlotPosition.CENTER, kotori.instanceId),
+            SlotPosition.LEFT,
+            umi.instanceId
+          ),
+          SlotPosition.RIGHT,
+          anotherUmi.instanceId
         ),
-        SlotPosition.RIGHT,
-        anotherUmi.instanceId
-      ),
-    }));
+      }));
 
-    expect(hasBp5003YellowHeartModifier(game)).toBe(false);
-  });
+      expect(hasBp5003YellowHeartModifier(game)).toBe(false);
+      expect(getMemberEffectiveHeartIcons(game, 'p1', kotori.instanceId)).toEqual([
+        createHeartIcon(HeartColor.PINK, 1),
+      ]);
+    }
+  );
 
   it('does not collect PL!-bp5-003 yellow Heart when the source member is not on stage', () => {
     const kotori = createBp5003Kotori('kotori-off-stage');

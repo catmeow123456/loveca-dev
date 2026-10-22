@@ -1,0 +1,3211 @@
+{
+  "PL!-bp8-012-N": {
+    "cardCode": "PL!-bp8-012-N",
+    "cardType": "MEMBER",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cardTextJp": "【起動】【ターン１回】このメンバーをウェイトにし、手札を２枚控え室に置く：自分の控え室から『μ’s』のライブカードを１枚手札に加える。（ウェイト状態のメンバーが持つ[ブレード]は、エールで公開する枚数を増やさない。）",
+    "cardTextCn": "【起动】【１回合１次】将此成员变为待机状态，将２张手牌放置入休息室：从自己的休息室将１张『μ’s』的LIVE卡加入手牌。(待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。)",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "parseWarnings": [
+        "PL!-bp8-012-N row 1681 blade_hearts: unsupported blade heart value"
+      ],
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!-bp8-012-N"
+    },
+    "name": "南琴梨（南小鸟）",
+    "nameJp": "南ことり",
+    "nameCn": "南琴梨（南小鸟）",
+    "cardText": "【起动】【１回合１次】将此成员变为待机状态，将２张手牌放置入休息室：从自己的休息室将１张『μ’s』的LIVE卡加入手牌。(待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。)",
+    "copyAbilityIds": []
+  },
+  "PL!HS-PR-001-PR": {
+    "cardCode": "PL!HS-PR-001-PR",
+    "cardType": "MEMBER",
+    "cost": 10,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分のデッキの上からカードを3枚見る。その中から1枚を手札に加え、残りを控え室に置く。\n\n【ライブ開始時】[E][E]支払ってもよい：ライブ終了時まで、[ブレード]を得る。",
+    "cardTextCn": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。\n\n【LIVE开始时】可以支付[E][E]：LIVE结束时为止，获得[ブレード]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "日野下花帆",
+    "nameJp": "日野下花帆",
+    "nameCn": "日野下花帆",
+    "cardText": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。\n\n【LIVE开始时】可以支付[E][E]：LIVE结束时为止，获得[ブレード]。",
+    "copyAbilityIds": [
+      "PL!-sd1:discard-one-look-top-take-one"
+    ]
+  },
+  "PL!HS-PR-002-PR": {
+    "cardCode": "PL!HS-PR-002-PR",
+    "cardType": "MEMBER",
+    "cost": 10,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分のデッキの上からカードを3枚見る。その中から1枚を手札に加え、残りを控え室に置く。\n\n\n【ライブ開始時】[E][E]支払ってもよい：ライブ終了時まで、[ブレード]を得る。",
+    "cardTextCn": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。\n\n【LIVE开始时】可以支付[E][E]：LIVE结束时为止，获得[ブレード]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "村野沙耶香",
+    "nameJp": "村野さやか",
+    "nameCn": "村野沙耶香",
+    "cardText": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。\n\n【LIVE开始时】可以支付[E][E]：LIVE结束时为止，获得[ブレード]。",
+    "copyAbilityIds": [
+      "PL!-sd1:discard-one-look-top-take-one"
+    ]
+  },
+  "PL!HS-PR-005-PR": {
+    "cardCode": "PL!HS-PR-005-PR",
+    "cardType": "MEMBER",
+    "cost": 10,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分のデッキの上からカードを3枚見る。その中から1枚を手札に加え、残りを控え室に置く。\n\n【ライブ開始時】[E][E]支払ってもよい：ライブ終了時まで、[ブレード]を得る。",
+    "cardTextCn": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。\n\n【LIVE开始时】可以支付[E][E]：LIVE结束时为止，获得[ブレード]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "大泽瑠璃乃",
+    "nameJp": "大沢瑠璃乃",
+    "nameCn": "大泽瑠璃乃",
+    "cardText": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。\n\n【LIVE开始时】可以支付[E][E]：LIVE结束时为止，获得[ブレード]。",
+    "copyAbilityIds": [
+      "PL!-sd1:discard-one-look-top-take-one"
+    ]
+  },
+  "PL!HS-PR-019-PR": {
+    "cardCode": "PL!HS-PR-019-PR",
+    "cardType": "MEMBER",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】自分のデッキの上からカードを3枚控え室に置く。それらがすべて[緑ハート]を持つメンバーカードの場合、ライブ終了時まで、[緑ハート]を得る。",
+    "cardTextCn": "【登场】将自己卡组顶的3张卡放置入休息室。那些卡均为持有[緑ハート]的成员卡的场合，LIVE结束时为止，获得[緑ハート]。",
+    "name": "百生吟子",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cardText": "【登场】将自己卡组顶的3张卡放置入休息室。那些卡均为持有[緑ハート]的成员卡的场合，LIVE结束时为止，获得[緑ハート]。",
+    "copyAbilityIds": [
+      "PL!HS-PR-019-PR:on-enter-mill-three-gain-green-heart-if-all-green-member"
+    ]
+  },
+  "PL!HS-PR-021-PR": {
+    "cardCode": "PL!HS-PR-021-PR",
+    "cardType": "MEMBER",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】自分のデッキの上からカードを3枚控え室に置く。それらがすべて[桃ハート]を持つメンバーカードの場合、ライブ終了時まで、[桃ハート]を得る。",
+    "cardTextCn": "【登场】将自己卡组顶的3张卡放置入休息室。那些卡均为持有[桃ハート]的成员卡的场合，LIVE结束时为止，获得[桃ハート]。",
+    "name": "安养寺姬芽",
+    "nameJp": "安養寺姫芽",
+    "nameCn": "安养寺姬芽",
+    "cardText": "【登场】将自己卡组顶的3张卡放置入休息室。那些卡均为持有[桃ハート]的成员卡的场合，LIVE结束时为止，获得[桃ハート]。",
+    "copyAbilityIds": [
+      "PL!HS-PR-021-PR:on-enter-mill-three-gain-pink-heart-if-all-pink-member"
+    ]
+  },
+  "PL!HS-PR-031-PR": {
+    "cardCode": "PL!HS-PR-031-PR",
+    "cardType": "MEMBER",
+    "cost": 11,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】手札を2枚控え室に置いてもよい：自分の手札が5枚になるまでカードを引く。",
+    "cardTextCn": "【登场】可以将2张手牌放置入休息室：自己抽卡直到手牌变为5张。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "日野下花帆",
+    "nameJp": "日野下花帆",
+    "nameCn": "日野下花帆",
+    "cardText": "【登场】可以将2张手牌放置入休息室：自己抽卡直到手牌变为5张。",
+    "copyAbilityIds": [
+      "PL!HS-PR-031:on-enter-discard-two-draw-to-five"
+    ]
+  },
+  "PL!HS-PR-035-PR": {
+    "cardCode": "PL!HS-PR-035-PR",
+    "cardType": "MEMBER",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】相手の控え室にあるメンバーカードを3枚選び、相手のデッキの下に好きな順番で置いてもよい。そうした場合、相手のステージにいる元々持つ[ブレード]の数が3つ以下のメンバー1人をウェイトにする。",
+    "cardTextCn": "【登场】选择存在于对方的休息室的3张成员卡，按任意顺序放置于对方的卡组底。如此做的场合，将存在于对方的舞台的1名原本持有的[ブレード]的数量小于等于3的成员变为待机状态。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true
+    },
+    "name": "百生吟子",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cardText": "【登场】选择存在于对方的休息室的3张成员卡，按任意顺序放置于对方的卡组底。如此做的场合，将存在于对方的舞台的1名原本持有的[ブレード]的数量小于等于3的成员变为待机状态。",
+    "copyAbilityIds": [
+      "PL!HS-PR-035-PR:on-enter-bottom-three-opponent-waiting-members-wait-low-blade"
+    ]
+  },
+  "PL!HS-PR-036-PR": {
+    "cardCode": "PL!HS-PR-036-PR",
+    "cardType": "MEMBER",
+    "cost": 5,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】自分の控え室にあるカードの枚数が8枚未満の場合、自分のデッキの上からカードをその差に等しい枚数控え室に置く。その後、これにより控え室に置いたカードの中から、ライブカード1枚をデッキ一番上に置いてもよい。",
+    "cardTextCn": "【登场】存在于自己的休息室的卡片的张数不足8张的场合，从自己的卡组顶将等同于差值的数量的卡片放置入休息室。此后，可以从因此放置入休息室的卡片中，将1张LIVE卡放置于卡组顶。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true
+    },
+    "name": "大泽瑠璃乃",
+    "nameJp": "大沢瑠璃乃",
+    "nameCn": "大泽瑠璃乃",
+    "cardText": "【登场】存在于自己的休息室的卡片的张数不足8张的场合，从自己的卡组顶将等同于差值的数量的卡片放置入休息室。此后，可以从因此放置入休息室的卡片中，将1张LIVE卡放置于卡组顶。",
+    "copyAbilityIds": [
+      "PR:on-enter-fill-waiting-room-to-eight-optional-milled-live-to-deck-top"
+    ]
+  },
+  "PL!HS-PR-038-PR": {
+    "cardCode": "PL!HS-PR-038-PR",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 3,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【登場】手札以外から登場したとき、ライブ終了時まで、[紫ハート]を得る。\n\n【ライブ成功時】相手のステージにいるコスト4以下のメンバー1人をウェイトにする。それは次のターンのアクティブフェイズにアクティブにならない。",
+    "cardTextCn": "【登场】从手牌以外登场时，LIVE结束时为止，获得[紫ハート]。\n\n【LIVE成功时】将存在于对方的舞台的1名费用小于等于4的成员变为待机状态。该成员在下回合的活跃阶段中不会变为活跃状态。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "missingRuleFields": [
+        "hearts"
+      ]
+    },
+    "name": "赛拉丝·柳田·利林费尔德",
+    "nameJp": "セラス 柳田 リリエンフェルト",
+    "nameCn": "赛拉丝·柳田·利林费尔德",
+    "cardText": "【登场】从手牌以外登场时，LIVE结束时为止，获得[紫ハート]。\n\n【LIVE成功时】将存在于对方的舞台的1名费用小于等于4的成员变为待机状态。该成员在下回合的活跃阶段中不会变为活跃状态。",
+    "copyAbilityIds": [
+      "PL!HS-PR-038:on-enter-non-hand-gain-purple-heart"
+    ]
+  },
+  "PL!HS-PR-043-PR": {
+    "cardCode": "PL!HS-PR-043-PR",
+    "cardType": "MEMBER",
+    "cost": 7,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【ライブ開始時】控え室にあるメンバーカード２枚を好きな順番でデッキの下に置いてもよい：これによりデッキの下に置いたメンバーカードが持つハートの総数が１２以上の場合、ライブ終了時まで、[ブレード][ブレード][ブレード]を得る。",
+    "cardTextCn": "【LIVE开始时】可以将存在于休息室的２张成员卡按任意顺序放置于卡组底：因此放置于卡组底的成员卡持有的HEART的总数大于等于１２的场合，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!HS-PR-043-PR"
+    },
+    "name": "桂城泉",
+    "nameJp": "桂城泉",
+    "nameCn": "桂城泉",
+    "cardText": "【LIVE开始时】可以将存在于休息室的２张成员卡按任意顺序放置于卡组底：因此放置于卡组底的成员卡持有的HEART的总数大于等于１２的场合，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。",
+    "copyAbilityIds": []
+  },
+  "PL!HS-bp1-001-P": {
+    "cardCode": "PL!HS-bp1-001-P",
+    "cardType": "MEMBER",
+    "cost": 11,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】エネルギーを2枚アクティブにする。",
+    "cardTextCn": "【登场】将2张能量变为活跃状态。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "日野下花帆",
+    "nameJp": "日野下花帆",
+    "nameCn": "日野下花帆",
+    "cardText": "【登场】将2张能量变为活跃状态。",
+    "copyAbilityIds": [
+      "member:on-enter-activate-two-waiting-energy"
+    ]
+  },
+  "PL!HS-bp1-005-P": {
+    "cardCode": "PL!HS-bp1-005-P",
+    "cardType": "MEMBER",
+    "cost": 9,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】手札を3枚まで控え室に置いてもよい：これにより置いた枚数分カードを引く。",
+    "cardTextCn": "【登场】可以将至多3张手牌放置入休息室：抽取因支付此费用放置入休息室的张数的卡片。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "大泽瑠璃乃",
+    "nameJp": "大沢瑠璃乃",
+    "nameCn": "大泽瑠璃乃",
+    "cardText": "【登场】可以将至多3张手牌放置入休息室：抽取因支付此费用放置入休息室的张数的卡片。",
+    "copyAbilityIds": [
+      "PL!HS-bp1-005:on-enter-discard-up-to-three-draw-same-count"
+    ]
+  },
+  "PL!HS-bp1-006-P": {
+    "cardCode": "PL!HS-bp1-006-P",
+    "cardType": "MEMBER",
+    "cost": 11,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】カードを2枚引き、手札を1枚控え室に置く。\n【ライブ開始時】手札を1枚控え室に置いてもよい：自分のステージにほかのメンバーがいる場合、好きなハートの色を1つ指定する。ライブ終了時まで、そのハートを1つ得る。",
+    "cardTextCn": "【登场】抽2张卡，将1张手牌放置入休息室。\n\n【LIVE开始时】可以将1张手牌放置入休息室：自己的舞台上存在其他的成员的场合，指定1个任意Heart的颜色。LIVE结束时为止，获得1个指定颜色的Heart。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "藤岛慈",
+    "nameJp": "藤島慈",
+    "nameCn": "藤岛慈",
+    "cardText": "【登场】抽2张卡，将1张手牌放置入休息室。\n\n【LIVE开始时】可以将1张手牌放置入休息室：自己的舞台上存在其他的成员的场合，指定1个任意Heart的颜色。LIVE结束时为止，获得1个指定颜色的Heart。",
+    "copyAbilityIds": [
+      "PL!HS-bp1-006-P:on-enter-draw-two-discard-one"
+    ]
+  },
+  "PL!HS-bp1-008-P": {
+    "cardCode": "PL!HS-bp1-008-P",
+    "cardType": "MEMBER",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【登場】自分のデッキの上からカードを3枚控え室に置く。それらがすべてメンバーカードの場合、カードを1枚引く。",
+    "cardTextCn": "【登场】将自己卡组顶的3张卡放置入休息室。那些卡均为成员卡的场合，抽1张卡。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "徒町小铃",
+    "nameJp": "徒町小鈴",
+    "nameCn": "徒町小铃",
+    "cardText": "【登场】将自己卡组顶的3张卡放置入休息室。那些卡均为成员卡的场合，抽1张卡。",
+    "copyAbilityIds": [
+      "PL!HS-bp1-008:on-enter-mill-three-draw-if-all-members"
+    ]
+  },
+  "PL!HS-bp1-009-P": {
+    "cardCode": "PL!HS-bp1-009-P",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分のデッキの上からカードを5枚見る。その中から「みらくらぱーく！」のカードを1枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以将1张其中的『Mira-Cra Park!』的卡片公开并加入手牌。其余的卡片放置入休息室。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "安养寺姬芽",
+    "nameJp": "安養寺姫芽",
+    "nameCn": "安养寺姬芽",
+    "cardText": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以将1张其中的『Mira-Cra Park!』的卡片公开并加入手牌。其余的卡片放置入休息室。",
+    "copyAbilityIds": [
+      "PL!-sd1:discard-one-look-top-take-one"
+    ]
+  },
+  "PL!HS-bp1-010-N": {
+    "cardCode": "PL!HS-bp1-010-N",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 2
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】カードを1枚引き、手札を1枚控え室に置く。",
+    "cardTextCn": "【登场】抽1张卡，将1张手牌放置入休息室。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "日野下花帆",
+    "nameJp": "日野下花帆",
+    "nameCn": "日野下花帆",
+    "cardText": "【登场】抽1张卡，将1张手牌放置入休息室。",
+    "copyAbilityIds": [
+      "PL!HS-bp1-006-P:on-enter-draw-one-discard-one"
+    ]
+  },
+  "PL!HS-bp1-011-N": {
+    "cardCode": "PL!HS-bp1-011-N",
+    "cardType": "MEMBER",
+    "cost": 9,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分のデッキの上からカードを5枚見る。その中からライブカードを1枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以将1张其中的LIVE卡公开并加入手牌。其余的卡片放置入休息室。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "村野沙耶香",
+    "nameJp": "村野さやか",
+    "nameCn": "村野沙耶香",
+    "cardText": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以将1张其中的LIVE卡公开并加入手牌。其余的卡片放置入休息室。",
+    "copyAbilityIds": [
+      "PL!-bp3-010-N:on-enter-look-top-reveal-live"
+    ]
+  },
+  "PL!HS-bp1-014-N": {
+    "cardCode": "PL!HS-bp1-014-N",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】カードを1枚引き、手札を1枚控え室に置く。",
+    "cardTextCn": "【登场】抽1张卡，将1张手牌放置入休息室。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "大泽瑠璃乃",
+    "nameJp": "大沢瑠璃乃",
+    "nameCn": "大泽瑠璃乃",
+    "cardText": "【登场】抽1张卡，将1张手牌放置入休息室。",
+    "copyAbilityIds": [
+      "PL!HS-bp1-006-P:on-enter-draw-one-discard-one"
+    ]
+  },
+  "PL!HS-bp2-002-P": {
+    "cardCode": "PL!HS-bp2-002-P",
+    "cardType": "MEMBER",
+    "cost": 13,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 4
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【登場】自分の控え室からコスト2以下のメンバーカードを2枚まで手札に加える。\n\n【常時】自分のステージに、このメンバーよりコストの大きいメンバーがいる場合、[ブレード][ブレード][ブレード]を得る。",
+    "cardTextCn": "【登场】从自己的休息室将至多2张费用小于等于2的成员卡加入手牌。\n\n【常时】自己的舞台上存在费用高于此成员的成员的场合，获得[ブレード][ブレード][ブレード]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "村野沙耶香",
+    "nameJp": "村野さやか",
+    "nameCn": "村野沙耶香",
+    "cardText": "【登场】从自己的休息室将至多2张费用小于等于2的成员卡加入手牌。\n\n【常时】自己的舞台上存在费用高于此成员的成员的场合，获得[ブレード][ブレード][ブレード]。",
+    "copyAbilityIds": [
+      "PL!HS-bp2-002-P:on-enter-take-up-to-two-low-cost-members"
+    ]
+  },
+  "PL!HS-bp2-005-P": {
+    "cardCode": "PL!HS-bp2-005-P",
+    "cardType": "MEMBER",
+    "cost": 10,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 4
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分のステージにほかのメンバーがいる場合、自分の控え室から「みらくらぱーく！」のカードを1枚手札に加える。\n\n【ライブ開始時】[E]支払ってもよい：自分のステージのエリアすべてにメンバーが登場している場合、ライブ終了時まで、[ブレード][ブレード]を得る。",
+    "cardTextCn": "【登场】可以将1张手牌放置入休息室：自己的舞台上存在其他的成员的场合，从自己的休息室将1张『Mira-Cra Park!』的卡加入手牌。。\n\n【LIVE开始时】可以支付[E]：自己的舞台的所有区域均有成员登场的场合，LIVE结束时为止，获得[ブレード][ブレード]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "大泽瑠璃乃",
+    "nameJp": "大沢瑠璃乃",
+    "nameCn": "大泽瑠璃乃",
+    "cardText": "【登场】可以将1张手牌放置入休息室：自己的舞台上存在其他的成员的场合，从自己的休息室将1张『Mira-Cra Park!』的卡加入手牌。。\n\n【LIVE开始时】可以支付[E]：自己的舞台的所有区域均有成员登场的场合，LIVE结束时为止，获得[ブレード][ブレード]。",
+    "copyAbilityIds": [
+      "PL!HS-bp2-005:on-enter-discard-recover-miracra-card"
+    ]
+  },
+  "PL!HS-bp2-007-P": {
+    "cardCode": "PL!HS-bp2-007-P",
+    "cardType": "MEMBER",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 3
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】このメンバーよりコストが低い『スリーズブーケ』のメンバーからバトンタッチして登場した場合、自分の控え室から『蓮ノ空』のライブカードを1枚手札に加える。\n\n【ライブ開始時】手札を1枚控え室に置いてもよい：これにより控え室に置いたカードがメンバーカードの場合、控え室に置いたカードと同じ名前を持つメンバー1人は、ライブ終了時まで、[緑ハート][ブレード]を得る。",
+    "cardTextCn": "【登场】因与小于此成员费用的『Cerise Bouquet』的成员换手登场的场合，从自己的休息室将1张『莲之空』的LIVE卡加入手牌。\n\n【LIVE开始时】可以将1张手牌放置入休息室：因支付此费用放置的卡为成员卡的场合，与放置入休息室的卡的持有相同名称的1名成员，LIVE结束时为止，获得[緑ハート][ブレード]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "百生吟子",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cardText": "【登场】因与小于此成员费用的『Cerise Bouquet』的成员换手登场的场合，从自己的休息室将1张『莲之空』的LIVE卡加入手牌。\n\n【LIVE开始时】可以将1张手牌放置入休息室：因支付此费用放置的卡为成员卡的场合，与放置入休息室的卡的持有相同名称的1名成员，LIVE结束时为止，获得[緑ハート][ブレード]。",
+    "copyAbilityIds": [
+      "PL!HS-bp2-007:on-enter-lower-cost-cerise-relay-recover-hasunosora-live"
+    ]
+  },
+  "PL!HS-bp2-008-P": {
+    "cardCode": "PL!HS-bp2-008-P",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【登場】このメンバーよりコストが低い『DOLLCHESTRA』のメンバーからバトンタッチして登場した場合、ライブ終了時まで、[ブレード][ブレード]を得る。",
+    "cardTextCn": "【登场】因与小于此成员费用的『DOLLCHESTRA』的成员换手登场的场合，LIVE结束时为止，获得[ブレード][ブレード]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "徒町小铃",
+    "nameJp": "徒町小鈴",
+    "nameCn": "徒町小铃",
+    "cardText": "【登场】因与小于此成员费用的『DOLLCHESTRA』的成员换手登场的场合，LIVE结束时为止，获得[ブレード][ブレード]。",
+    "copyAbilityIds": [
+      "PL!HS-bp2-008:on-enter-lower-cost-dollchestra-relay-gain-two-blade"
+    ]
+  },
+  "PL!HS-bp2-009-P": {
+    "cardCode": "PL!HS-bp2-009-P",
+    "cardType": "MEMBER",
+    "cost": 13,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 3
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】[E]支払ってもよい：このメンバーよりコストが低い「みらくらぱーく！」のメンバーからバトンタッチして登場した場合、ライブ終了時まで、[桃ハート][桃ハート]を得る。",
+    "cardTextCn": "【登场】可以支付[E]：因与小于此成员费用的『Mira-Cra Park!』的成员换手登场的场合，LIVE结束时为止，获得[桃ハート][桃ハート]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "安养寺姬芽",
+    "nameJp": "安養寺姫芽",
+    "nameCn": "安养寺姬芽",
+    "cardText": "【登场】可以支付[E]：因与小于此成员费用的『Mira-Cra Park!』的成员换手登场的场合，LIVE结束时为止，获得[桃ハート][桃ハート]。",
+    "copyAbilityIds": [
+      "PL!HS-bp2-009:on-enter-pay-energy-lower-cost-miracra-relay-gain-two-pink-heart"
+    ]
+  },
+  "PL!HS-bp2-010-N": {
+    "cardCode": "PL!HS-bp2-010-N",
+    "cardType": "MEMBER",
+    "cost": 9,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分のデッキの上からカードを5枚見る。その中からメンバーカードを1枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以将1张其中的成员卡公开并加入手牌。其余的卡片放置入休息室。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "日野下花帆",
+    "nameJp": "日野下花帆",
+    "nameCn": "日野下花帆",
+    "cardText": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以将1张其中的成员卡公开并加入手牌。其余的卡片放置入休息室。",
+    "copyAbilityIds": [
+      "PL!-sd1:discard-one-look-top-take-one"
+    ]
+  },
+  "PL!HS-bp2-011-N": {
+    "cardCode": "PL!HS-bp2-011-N",
+    "cardType": "MEMBER",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【登場】デッキの上からカードを5枚控え室に置く。",
+    "cardTextCn": "【登场】将卡组顶的5张卡放置入休息室。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "村野沙耶香",
+    "nameJp": "村野さやか",
+    "nameCn": "村野沙耶香",
+    "cardText": "【登场】将卡组顶的5张卡放置入休息室。",
+    "copyAbilityIds": [
+      "PL!HS-bp2-011:on-enter-mill-top-five"
+    ]
+  },
+  "PL!HS-bp2-014-N": {
+    "cardCode": "PL!HS-bp2-014-N",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】カードを1枚引く。ライブ終了時まで、自分はライブできない。",
+    "cardTextCn": "【登场】抽1张卡。LIVE结束时为止，自己无法进行LIVE。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "大泽瑠璃乃",
+    "nameJp": "大沢瑠璃乃",
+    "nameCn": "大泽瑠璃乃",
+    "cardText": "【登场】抽1张卡。LIVE结束时为止，自己无法进行LIVE。",
+    "copyAbilityIds": [
+      "PL!HS-bp2-014-N:on-enter-draw-cannot-live-until-live-end"
+    ]
+  },
+  "PL!HS-bp2-016-N": {
+    "cardCode": "PL!HS-bp2-016-N",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】自分のデッキの上からカードを2枚見る。その中から好きな枚数を好きな順番でデッキの上に置き、残りを控え室に置く。",
+    "cardTextCn": "【登场】检视自己卡组顶的2张卡。将其中任意张数的卡片按任意顺序放置于卡组顶，其余的卡片放置入休息室。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "百生吟子",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cardText": "【登场】检视自己卡组顶的2张卡。将其中任意张数的卡片按任意顺序放置于卡组顶，其余的卡片放置入休息室。",
+    "copyAbilityIds": [
+      "PL!HS-pb1-024:on-enter-look-top-two-arrange"
+    ]
+  },
+  "PL!HS-bp2-017-N": {
+    "cardCode": "PL!HS-bp2-017-N",
+    "cardType": "MEMBER",
+    "cost": 7,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【登場】自分の控え室にカードが10枚以上ある場合、カードを1枚引く。",
+    "cardTextCn": "【登场】自己的休息室中有大于等于10张卡的场合，抽1张卡。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "徒町小铃",
+    "nameJp": "徒町小鈴",
+    "nameCn": "徒町小铃",
+    "cardText": "【登场】自己的休息室中有大于等于10张卡的场合，抽1张卡。",
+    "copyAbilityIds": [
+      "PL!HS-bp2-017:on-enter-waiting-room-ten-draw-one"
+    ]
+  },
+  "PL!HS-bp2-018-N": {
+    "cardCode": "PL!HS-bp2-018-N",
+    "cardType": "MEMBER",
+    "cost": 7,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】自分のメインフェイズの場合、[E][E]支払ってもよい：自分の控え室からライブカードを1枚、表向きでライブカード置き場に置く。次のライブカードセットフェイズで自分がライブカード置き場に置けるカード枚数の上限が1枚減る。",
+    "cardTextCn": "【登场】自己的主要阶段的场合，可以支付[E]][E]：从自己的休息室将1张LIVE卡，以正面朝上放置入LIVE卡区。下一个LIVE卡设置阶段自己LIVE卡区放置的卡片张数的上限减少1张。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "安养寺姬芽",
+    "nameJp": "安養寺姫芽",
+    "nameCn": "安养寺姬芽",
+    "cardText": "【登场】自己的主要阶段的场合，可以支付[E]][E]：从自己的休息室将1张LIVE卡，以正面朝上放置入LIVE卡区。下一个LIVE卡设置阶段自己LIVE卡区放置的卡片张数的上限减少1张。",
+    "copyAbilityIds": [
+      "PL!HS-bp2-018:on-enter-pay-two-energy-place-waiting-live-reduce-next-live-set-limit"
+    ]
+  },
+  "PL!HS-bp5-001-AR": {
+    "cardCode": "PL!HS-bp5-001-AR",
+    "cardType": "MEMBER",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】自分のデッキの上からカードを4枚控え室に置く。それらの中にライブカードがある場合、ライブ終了時まで、[ブレード][ブレード]を得る。\n\n【起動】【ターン1回】[E][E]手札のライブカードを1枚公開する：自分の控え室から、これにより公開したカードのカード名がすべて含まれるライブカードを1枚手札に加える。",
+    "cardTextCn": "【登场】将自己卡组顶的4张卡放置入休息室。那些卡片中存在LIVE卡的场合，LIVE结束时为止，获得[ブレード][ブレード]。\n\n【起动】【1回合1次】[E][E]公开1张手牌的LIVE卡：从自己的休息室，将1张包含所有因此公开的卡的卡名的LIVE卡加入手牌。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "日野下花帆",
+    "nameJp": "日野下花帆",
+    "nameCn": "日野下花帆",
+    "cardText": "【登场】将自己卡组顶的4张卡放置入休息室。那些卡片中存在LIVE卡的场合，LIVE结束时为止，获得[ブレード][ブレード]。\n\n【起动】【1回合1次】[E][E]公开1张手牌的LIVE卡：从自己的休息室，将1张包含所有因此公开的卡的卡名的LIVE卡加入手牌。",
+    "copyAbilityIds": [
+      "PL!HS-bp5-001-SEC:on-enter-mill-four-gain-blade-if-live"
+    ]
+  },
+  "PL!HS-bp5-007-AR": {
+    "cardCode": "PL!HS-bp5-007-AR",
+    "cardType": "MEMBER",
+    "cost": 13,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【登場】手札を2枚控え室に置いてもよい：自分の控え室から『Edel Note』のライブカードを1枚手札に加える。\n\n【常時】自分のステージにこのメンバー以外の『Edel Note』のメンバーがいるかぎり、[ブレード][ブレード]を得る。",
+    "cardTextCn": "【登场】可以将2张手牌放置入休息室：从自己的休息室将1张『Edel Note』的LIVE卡加入手牌。\n\n【常时】只要自己的舞台中存在此成员以外的『Edel Note』的成员，获得[ブレード][ブレード]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "赛拉丝·柳田·利林费尔德",
+    "nameJp": "セラス 柳田 リリエンフェルト",
+    "nameCn": "赛拉丝·柳田·利林费尔德",
+    "cardText": "【登场】可以将2张手牌放置入休息室：从自己的休息室将1张『Edel Note』的LIVE卡加入手牌。\n\n【常时】只要自己的舞台中存在此成员以外的『Edel Note』的成员，获得[ブレード][ブレード]。",
+    "copyAbilityIds": [
+      "PL!HS-bp5-007:on-enter-discard-two-recover-edelnote-live"
+    ]
+  },
+  "PL!HS-bp5-008-AR": {
+    "cardCode": "PL!HS-bp5-008-AR",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【登場】このメンバーをウェイトにし、手札を1枚控え室に置いてもよい：自分のデッキの上からカードを5枚見る。その中からコスト9以上の『蓮ノ空』のメンバーカードを1枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将此成员变为待机状态，将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以从其中将1张费用大于等于9的『莲之空』的成员卡公开并加入手牌。其余的卡片放置入休息室。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "桂城泉",
+    "nameJp": "桂城泉",
+    "nameCn": "桂城泉",
+    "cardText": "【登场】可以将此成员变为待机状态，将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以从其中将1张费用大于等于9的『莲之空』的成员卡公开并加入手牌。其余的卡片放置入休息室。",
+    "copyAbilityIds": [
+      "PL!HS-bp5-008-R:on-enter-wait-self-discard-look-five-take-high-cost-member"
+    ]
+  },
+  "PL!HS-bp5-011-N": {
+    "cardCode": "PL!HS-bp5-011-N",
+    "cardType": "MEMBER",
+    "cost": 13,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】カードを1枚引く。",
+    "cardTextCn": "【登场】抽1张卡。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "大泽瑠璃乃",
+    "nameJp": "大沢瑠璃乃",
+    "nameCn": "大泽瑠璃乃",
+    "cardText": "【登场】抽1张卡。",
+    "copyAbilityIds": [
+      "member:on-enter-draw-one"
+    ]
+  },
+  "PL!HS-bp5-016-N": {
+    "cardCode": "PL!HS-bp5-016-N",
+    "cardType": "MEMBER",
+    "cost": 9,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：相手のステージにいるコスト4以下のメンバーを2人までウェイトにする。（ウェイト状態のメンバーが持つ[ブレード]は、エールで公開する枚数を増やさない。）\n\n【常時】相手のステージにウェイト状態のメンバーが2人以上いるかぎり、[紫ハート]を得る。",
+    "cardTextCn": "【登场】可以将1张手牌放置入休息室：将至多2名存在于对方的舞台的费用小于等于4的成员变为待机状态。（待机状态的成员持有的[ブレード]，在声援时不能增加公开张数。）\n\n【常时】只要对方的舞台中存在大于等于2名待机状态的成员，获得[紫ハート]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "桂城泉",
+    "nameJp": "桂城泉",
+    "nameCn": "桂城泉",
+    "cardText": "【登场】可以将1张手牌放置入休息室：将至多2名存在于对方的舞台的费用小于等于4的成员变为待机状态。（待机状态的成员持有的[ブレード]，在声援时不能增加公开张数。）\n\n【常时】只要对方的舞台中存在大于等于2名待机状态的成员，获得[紫ハート]。",
+    "copyAbilityIds": [
+      "PL!HS-bp5-016-N:on-enter-discard-wait-opponent-low-cost-members"
+    ]
+  },
+  "PL!HS-bp6-001-P": {
+    "cardCode": "PL!HS-bp6-001-P",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】自分のデッキの上から、自分のステージにいるメンバーの数に2を足した数に等しい枚数見る。その中から1枚をデッキの一番上に置き、残りを控え室に置く。\n\n【ライブ成功時】エールにより公開された自分のカードの中から、カードを1枚デッキの一番上に置いてもよい。",
+    "cardTextCn": "【登场】检视自己的卡组顶等同于存在于自己的舞台的成员数量+2的卡片。从中将1张卡片放置于卡组顶，其余的卡片放置入休息室。\n\n【LIVE成功时】可以从因声援被公开的自己的卡片中，将1张卡片放置于卡组顶。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "日野下花帆",
+    "nameJp": "日野下花帆",
+    "nameCn": "日野下花帆",
+    "cardText": "【登场】检视自己的卡组顶等同于存在于自己的舞台的成员数量+2的卡片。从中将1张卡片放置于卡组顶，其余的卡片放置入休息室。\n\n【LIVE成功时】可以从因声援被公开的自己的卡片中，将1张卡片放置于卡组顶。",
+    "copyAbilityIds": [
+      "PL!HS-bp6-001-R+:on-enter-look-stage-member-count-plus-two-top-one"
+    ]
+  },
+  "PL!HS-bp6-003-P": {
+    "cardCode": "PL!HS-bp6-003-P",
+    "cardType": "MEMBER",
+    "cost": 11,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】自分のステージにいるウェイト状態の『みらくらぱーく!』のメンバー1人をアクティブにしてもよい。そうした場合、自分の控え室から『みらくらぱーく!』のライブカードを1枚手札に加える。\n\n【ライブ開始時】手札を1枚控え室に置いてもよい：ライブ終了時まで、自分のステージにいる『みらくらぱーく!』のメンバー1人は、[桃ハート]を得る。",
+    "cardTextCn": "【登场】可以将存在于自己的舞台的1名待机状态的『Mira-Cra Park!』的成员变为活跃状态。如此做的场合，从自己的休息室将1张『Mira-Cra Park!』的LIVE卡加入手牌。\n\n【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，存在于自己的舞台的1名『Mira-Cra Park!』的成员，获得[桃ハート]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "大泽瑠璃乃",
+    "nameJp": "大沢瑠璃乃",
+    "nameCn": "大泽瑠璃乃",
+    "cardText": "【登场】可以将存在于自己的舞台的1名待机状态的『Mira-Cra Park!』的成员变为活跃状态。如此做的场合，从自己的休息室将1张『Mira-Cra Park!』的LIVE卡加入手牌。\n\n【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，存在于自己的舞台的1名『Mira-Cra Park!』的成员，获得[桃ハート]。",
+    "copyAbilityIds": [
+      "PL!HS-bp6-003-R:on-enter-activate-miracra-member-recover-miracra-live"
+    ]
+  },
+  "PL!HS-bp6-004-P": {
+    "cardCode": "PL!HS-bp6-004-P",
+    "cardType": "MEMBER",
+    "cost": 13,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】/【ライブ開始時】相手のステージにいるコスト9以下のメンバー1人をウェイトにする。\n\n【ライブ開始時】手札を1枚控え室に置いてもよい：ライブ終了時まで、[ブレード]を得る。これにより「百生吟子」のメンバーカードを控え室に置いた場合、さらに[ブレード]を得る。",
+    "cardTextCn": "【登场】/【LIVE开始时】将存在于对方的舞台的1名费用小于等于9的成员变为待机状态。\n\n【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止。获得[ブレード]。因此将「百生吟子」的成员卡放置入休息室的场合，再获得[ブレード]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "百生吟子",
+    "nameJp": "百生 吟子",
+    "nameCn": "百生吟子",
+    "cardText": "【登场】/【LIVE开始时】将存在于对方的舞台的1名费用小于等于9的成员变为待机状态。\n\n【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止。获得[ブレード]。因此将「百生吟子」的成员卡放置入休息室的场合，再获得[ブレード]。",
+    "copyAbilityIds": [
+      "PL!HS-bp6-004-R:on-enter-wait-opponent-low-cost-member"
+    ]
+  },
+  "PL!HS-bp6-008-P": {
+    "cardCode": "PL!HS-bp6-008-P",
+    "cardType": "MEMBER",
+    "cost": 11,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【登場】このメンバーをウェイトにする。その後、自分の控え室からスコア4以下の『蓮ノ空』のライブカードを1枚手札に加える。\n\n【ライブ開始時】自分のライブ中のカードにスコア2以下のライブカードがある場合、このメンバーをアクティブにする。",
+    "cardTextCn": "【登场】将此成员变为待机状态。此后，从自己的休息室将1张分数小于等于4的『莲之空』的LIVE卡加入手牌。\n\n【LIVE开始时】自己LIVE中的卡片存在分数小于等于2的LIVE卡的场合，将此成员变为活跃状态。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "桂城泉",
+    "nameJp": "桂城泉",
+    "nameCn": "桂城泉",
+    "cardText": "【登场】将此成员变为待机状态。此后，从自己的休息室将1张分数小于等于4的『莲之空』的LIVE卡加入手牌。\n\n【LIVE开始时】自己LIVE中的卡片存在分数小于等于2的LIVE卡的场合，将此成员变为活跃状态。",
+    "copyAbilityIds": [
+      "PL!HS-bp6-008:on-enter-wait-self-recover-low-score-hasunosora-live"
+    ]
+  },
+  "PL!HS-bp6-012-R": {
+    "cardCode": "PL!HS-bp6-012-R",
+    "cardType": "MEMBER",
+    "cost": 2,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】自分のステージにほかの『スリーズブーケ』のメンバーがいる場合、エネルギーを1枚アクティブにする。",
+    "cardTextCn": "【登场】自己的舞台存在其他的『Cerise Bouquet』的成员的场合，将1张能量变为活跃状态。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "百生吟子",
+    "nameJp": "百生 吟子",
+    "nameCn": "百生吟子",
+    "cardText": "【登场】自己的舞台存在其他的『Cerise Bouquet』的成员的场合，将1张能量变为活跃状态。",
+    "copyAbilityIds": [
+      "PL!HS-bp6-012-R:on-enter-other-cerise-bouquet-activate-energy"
+    ]
+  },
+  "PL!HS-bp6-015-R": {
+    "cardCode": "PL!HS-bp6-015-R",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【登場】このメンバーが手札以外からステージに登場している場合、カードを2枚引き、手札を2枚控え室に置く。",
+    "cardTextCn": "【登场】此成员从手牌以外的区域登场至舞台的场合，抽2张卡，将2张手牌放置入休息室。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "赛拉丝·柳田·利林费尔德",
+    "nameJp": "セラス 柳田 リリエンフェルト",
+    "nameCn": "赛拉丝·柳田·利林费尔德",
+    "cardText": "【登场】此成员从手牌以外的区域登场至舞台的场合，抽2张卡，将2张手牌放置入休息室。",
+    "copyAbilityIds": [
+      "PL!HS-bp6-015-R:on-enter-from-non-hand-draw-two-discard-two"
+    ]
+  },
+  "PL!HS-bp6-020-N": {
+    "cardCode": "PL!HS-bp6-020-N",
+    "cardType": "MEMBER",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】カードを1枚引き、手札を1枚控え室に置く。",
+    "cardTextCn": "【登场】抽1张卡，将1张手牌放置入休息室。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "百生吟子",
+    "nameJp": "百生 吟子",
+    "nameCn": "百生吟子",
+    "cardText": "【登场】抽1张卡，将1张手牌放置入休息室。",
+    "copyAbilityIds": [
+      "PL!HS-bp1-006-P:on-enter-draw-one-discard-one"
+    ]
+  },
+  "PL!HS-bp6-022-N": {
+    "cardCode": "PL!HS-bp6-022-N",
+    "cardType": "MEMBER",
+    "cost": 9,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分のデッキの上からカードを5枚見る。その中からライブカードを1枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以将1张其中的LIVE卡公开并加入手牌。其余的卡片放置入休息室。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "安养寺姬芽",
+    "nameJp": "安養寺 姫芽",
+    "nameCn": "安养寺姬芽",
+    "cardText": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以将1张其中的LIVE卡公开并加入手牌。其余的卡片放置入休息室。",
+    "copyAbilityIds": [
+      "PL!-bp3-010-N:on-enter-look-top-reveal-live"
+    ]
+  },
+  "PL!HS-bp8-001-P": {
+    "cardCode": "PL!HS-bp8-001-P",
+    "cardType": "MEMBER",
+    "cost": 13,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】自分のデッキの上からカードを3枚控え室に置く。それらがすべて『スリーズブーケ』のカードの場合、エネルギーを2枚アクティブにする。\n\n【自動】【ターン1回】自分の控え室にあるカードがデッキに置かれたとき、ライブ終了時まで、[ブレード][ブレード][ブレード]を得る。",
+    "cardTextCn": "【登场】将自己的卡组顶的3张卡片放置入休息室。那些卡片全部为『Cerise Bouquet』的卡片的场合，将2张能量变为活跃状态。\n\n【自动】【1回合1次】存在于自己的休息室的卡片被放置于卡组时，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true
+    },
+    "name": "日野下花帆",
+    "nameJp": "日野下花帆",
+    "nameCn": "日野下花帆",
+    "cardText": "【登场】将自己的卡组顶的3张卡片放置入休息室。那些卡片全部为『Cerise Bouquet』的卡片的场合，将2张能量变为活跃状态。\n\n【自动】【1回合1次】存在于自己的休息室的卡片被放置于卡组时，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。",
+    "copyAbilityIds": [
+      "PL!HS-bp8-001:on-enter-mill-three-all-cerise-activate-energy"
+    ]
+  },
+  "PL!HS-bp8-003-P": {
+    "cardCode": "PL!HS-bp8-003-P",
+    "cardType": "MEMBER",
+    "cost": 10,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 3
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】自分と相手はそれぞれ自身の手札の枚数を６枚になるまで手札を控え室に置く。\n\n【常時】自分の手札が７枚より少ないかぎり、その差に等しい数の[ブレード]を得る。",
+    "cardTextCn": "【登场】自己和对方分别将手牌放置入休息室直至自身的手牌数变为６张。\n\n【常时】只要自己的手牌少于７张，获得等同于差值数的[ブレード]。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "parseWarnings": [
+        "PL!HS-bp8-003-P row 1769 blade_hearts: unsupported blade heart value"
+      ],
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!HS-bp8-003-P"
+    },
+    "name": "大泽瑠璃乃",
+    "nameJp": "大沢瑠璃乃",
+    "nameCn": "大泽瑠璃乃",
+    "cardText": "【登场】自己和对方分别将手牌放置入休息室直至自身的手牌数变为６张。\n\n【常时】只要自己的手牌少于７张，获得等同于差值数的[ブレード]。",
+    "copyAbilityIds": [
+      "PL!HS-bp8-003:on-enter-both-discard-to-six"
+    ]
+  },
+  "PL!HS-bp8-004-SEC": {
+    "cardCode": "PL!HS-bp8-004-SEC",
+    "cardType": "MEMBER",
+    "cost": 17,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 4
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】カードを１枚引く。「日野下花帆」とバトンタッチして登場した場合、さらにカードを１枚引く。\n\n【起動】【ターン１回】手札を１枚控え室に置く：これにより控え室に置いたカードがコスト１３以下の『蓮ノ空』のメンバーカードの場合、ライブ終了時まで、このメンバーは、そのカードが持つ【登場】能力１つを得る。その【登場】能力をコストを支払わずに発動させる。",
+    "cardTextCn": "【登场】抽１张卡。 与「日野下花帆」进行换手登场的场合，再抽１张卡。\n\n【起动】【１回合１次】将１张手牌放置入休息室：因此将费用小于等于１３的『莲之空』的成员卡放置入休息室的场合，LIVE结束时为止，此卡获得那张卡的１个【登场】能力。不支付费用发动那个【登场】能力。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!HS-bp8-004-SEC"
+    },
+    "name": "百生吟子",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cardText": "【登场】抽１张卡。 与「日野下花帆」进行换手登场的场合，再抽１张卡。\n\n【起动】【１回合１次】将１张手牌放置入休息室：因此将费用小于等于１３的『莲之空』的成员卡放置入休息室的场合，LIVE结束时为止，此卡获得那张卡的１个【登场】能力。不支付费用发动那个【登场】能力。",
+    "copyAbilityIds": []
+  },
+  "PL!HS-bp8-006-R": {
+    "cardCode": "PL!HS-bp8-006-R",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】手札の『蓮ノ空』のカードを１枚控え室に置いてもよい：以下から１つを選ぶ。\n・[桃ハート]か[緑ハート]か[青ハート]か[紫ハート]のうち、１つを選ぶ。ライブ終了時まで、選んだハートを１つ得る。\n・自分のデッキの上からカードを３枚見る。その中から好きな枚数を好きな順番でデッキの上に置き、残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将手牌的１张『莲之空』的卡片放置入休息室：从以下选择１项。\n・选择[桃ハート]或[緑ハート]或[青ハート]或[紫ハート]中的１种。LIVE结束时为止，获得１个选中的HEART。\n・检视自己的卡组顶的3张卡片。可以将其中的任意张按任意顺序放置于卡组顶，其余的放置入休息室。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!HS-bp8-006-R"
+    },
+    "name": "安养寺姬芽",
+    "nameJp": "安養寺姫芽",
+    "nameCn": "安养寺姬芽",
+    "cardText": "【登场】可以将手牌的１张『莲之空』的卡片放置入休息室：从以下选择１项。\n・选择[桃ハート]或[緑ハート]或[青ハート]或[紫ハート]中的１种。LIVE结束时为止，获得１个选中的HEART。\n・检视自己的卡组顶的3张卡片。可以将其中的任意张按任意顺序放置于卡组顶，其余的放置入休息室。",
+    "copyAbilityIds": [
+      "PL!HS-bp8-006:on-enter-discard-hasunosora-choose-heart-or-arrange"
+    ]
+  },
+  "PL!HS-bp8-012-N": {
+    "cardCode": "PL!HS-bp8-012-N",
+    "cardType": "MEMBER",
+    "cost": 7,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】自分の控え室にあるすべてのメンバーカードをシャッフルし、デッキの下に置く。これにより『スリーズブーケ』のメンバーカードが３枚以上デッキの下に置かれた場合、ライブ終了時まで、[緑ハート][緑ハート]を得る。",
+    "cardTextCn": "【登场】将存在于自己的休息室的所有成员卡混洗，放置于卡组底。因此将大于等于３张『Cerise Bouquet』的成员卡放置于卡组底的场合，LIVE结束时为止，获得[緑ハート][緑ハート]。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "parseWarnings": [
+        "PL!HS-bp8-012-N row 1737 blade_hearts: unsupported blade heart value"
+      ],
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!HS-bp8-012-N"
+    },
+    "name": "百生吟子",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cardText": "【登场】将存在于自己的休息室的所有成员卡混洗，放置于卡组底。因此将大于等于３张『Cerise Bouquet』的成员卡放置于卡组底的场合，LIVE结束时为止，获得[緑ハート][緑ハート]。",
+    "copyAbilityIds": [
+      "PL!HS-bp8-012:on-enter-shuffle-waiting-members-bottom-cerise-gain-heart"
+    ]
+  },
+  "PL!HS-bp8-013-N": {
+    "cardCode": "PL!HS-bp8-013-N",
+    "cardType": "MEMBER",
+    "cost": 9,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 4
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【ライブ開始時】自分のライブカード置き場に『DOLLCHESTRA』のカードがある場合、ライブ終了時まで、[ブレード][ブレード][ブレード]を得る。",
+    "cardTextCn": "【LIVE开始时】自己的LIVE卡区存在『DOLLCHESTRA』的卡片的场合，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "parseWarnings": [
+        "PL!HS-bp8-013-N row 1736 blade_hearts: unsupported blade heart value"
+      ],
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!HS-bp8-013-N"
+    },
+    "name": "徒町小铃",
+    "nameJp": "徒町小鈴",
+    "nameCn": "徒町小铃",
+    "cardText": "【LIVE开始时】自己的LIVE卡区存在『DOLLCHESTRA』的卡片的场合，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。",
+    "copyAbilityIds": []
+  },
+  "PL!HS-bp8-017-SECL": {
+    "cardCode": "PL!HS-bp8-017-SECL",
+    "cardType": "LIVE",
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GRAY"
+      },
+      {
+        "effect": "HEART",
+        "heartColor": "GRAY"
+      }
+    ],
+    "score": 0,
+    "requirements": [
+      {
+        "color": "RAINBOW",
+        "count": 4
+      }
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "cardTextJp": "【ライブ開始時】自分のライブカード置き場にカードが２枚以上あり、かつ『蓮ノ空』のみの場合、このカードを手札に戻し、手札を１枚控え室に置く。そうしたとき、自分のライブカード置き場にあるカード１枚のスコアを＋１し、必要ハートを[無ハート][無ハート]増やす。",
+    "cardTextCn": "【LIVE开始时】存在于自己的LIVE卡区的卡片大于等于２张，且仅为『莲之空』的场合，将此卡放回手牌，将１张手牌放置入休息室。如此做时，存在于自己的LIVE卡区的１张卡片的分数＋１，必要HEART增加[無ハート][無ハート]。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!HS-bp8-017-SECL"
+    },
+    "name": "Bloom the smile, Bloom the dream!",
+    "nameJp": "Bloom the smile, Bloom the dream!",
+    "nameCn": "Bloom the smile, Bloom the dream!",
+    "cardText": "【LIVE开始时】存在于自己的LIVE卡区的卡片大于等于２张，且仅为『莲之空』的场合，将此卡放回手牌，将１张手牌放置入休息室。如此做时，存在于自己的LIVE卡区的１张卡片的分数＋１，必要HEART增加[無ハート][無ハート]。",
+    "copyAbilityIds": []
+  },
+  "PL!HS-cl1-002-CL": {
+    "cardCode": "PL!HS-cl1-002-CL",
+    "cardType": "MEMBER",
+    "cost": 5,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【登場】[E]支払ってもよい：自分の控え室から『DOLLCHESTRA』のカードを1枚手札に加える。",
+    "cardTextCn": "【登场】可以支付[E]：从自己的休息室将1张『DOLLCHESTRA』的卡片加入手牌。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "村野沙耶香",
+    "nameJp": "村野さやか",
+    "nameCn": "村野沙耶香",
+    "cardText": "【登场】可以支付[E]：从自己的休息室将1张『DOLLCHESTRA』的卡片加入手牌。",
+    "copyAbilityIds": [
+      "PL!HS-cl1-002-CL:on-enter-pay-energy-recover-dollchestra-card"
+    ]
+  },
+  "PL!HS-cl1-004-CL": {
+    "cardCode": "PL!HS-cl1-004-CL",
+    "cardType": "MEMBER",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】以下から1つを選ぶ：\n\n\n·自分のデッキの上からカードを5枚控え室に置く。\n\n\n·相手のステージにいるコスト2以下のメンバー1人をウェイトにする。",
+    "cardTextCn": "【登场】从以下选择1项：\n\n\n·将自己卡组顶的5张卡片放置入休息室。\n\n\n·将存在于对方的舞台的1名费用小于等于2的成员变为待机状态。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "百生 吟子",
+    "nameJp": "百生 吟子",
+    "nameCn": "百生 吟子",
+    "cardText": "【登场】从以下选择1项：\n\n\n·将自己卡组顶的5张卡片放置入休息室。\n\n\n·将存在于对方的舞台的1名费用小于等于2的成员变为待机状态。",
+    "copyAbilityIds": [
+      "PL!HS-cl1-004-CL:on-enter-mill-three-or-wait-opponent-low-cost"
+    ]
+  },
+  "PL!HS-cl1-006-CL": {
+    "cardCode": "PL!HS-cl1-006-CL",
+    "cardType": "MEMBER",
+    "cost": 11,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく！",
+    "cardTextJp": "【登場】ライブ終了時まで、[ブレード][ブレード][ブレード]を得る。",
+    "cardTextCn": "【登场】LIVE结束时为止，获得[ブレード][ブレード][ブレード]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "安养寺 姫芽",
+    "nameJp": "安養寺 姫芽",
+    "nameCn": "安养寺 姫芽",
+    "cardText": "【登场】LIVE结束时为止，获得[ブレード][ブレード][ブレード]。",
+    "copyAbilityIds": [
+      "PL!HS-cl1-006-CL:on-enter-gain-three-blade"
+    ]
+  },
+  "PL!HS-cl1-007-CL": {
+    "cardCode": "PL!HS-cl1-007-CL",
+    "cardType": "MEMBER",
+    "cost": 7,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分のデッキの上からカードを3枚見る。その中から1枚手札に加え、残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡片。从其中将1张卡片加入手牌，其余的卡片放置入休息室。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "赛拉丝·柳田·利林费尔德",
+    "nameJp": "セラス 柳田 リリエンフェルト",
+    "nameCn": "赛拉丝·柳田·利林费尔德",
+    "cardText": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡片。从其中将1张卡片加入手牌，其余的卡片放置入休息室。",
+    "copyAbilityIds": [
+      "PL!-sd1:discard-one-look-top-take-one"
+    ]
+  },
+  "PL!HS-pb1-004-P+": {
+    "cardCode": "PL!HS-pb1-004-P+",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】[E]手札を1枚控え室に置いてもよい：自分のデッキの上から3枚を控え室に置く。その後、自分の控え室から『スリーズブーケ』のライブカードを1枚手札に加える。",
+    "cardTextCn": "【登场】[E]可以将1张手牌放置入休息室：将自己卡组顶的3张卡放置入休息室。之后，从自己的休息室将1张『Cerise Bouquet』的LIVE卡加入手牌。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "百生吟子",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cardText": "【登场】[E]可以将1张手牌放置入休息室：将自己卡组顶的3张卡放置入休息室。之后，从自己的休息室将1张『Cerise Bouquet』的LIVE卡加入手牌。",
+    "copyAbilityIds": [
+      "PL!HS-pb1-004-R:on-enter-pay-energy-discard-mill-three-recover-cerise-live"
+    ]
+  },
+  "PL!HS-pb1-007-P+": {
+    "cardCode": "PL!HS-pb1-007-P+",
+    "cardType": "MEMBER",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【登場】[E][E]手札を1枚控え室に置いてもよい：自分の控え室から『蓮ノ空』のカードを1枚手札に加える。\n\n【常時】自分のステージにメンバーがちょうど2人おり、かつ相手のステージにメンバーが3人以上いるかぎり、[紫ハート]を得る。",
+    "cardTextCn": "【登场】[E][E]可以将1张手牌放置入休息室：从自己的休息室将1张『莲之空』的卡片加入手牌。\n\n【常时】只要存在于自己的舞台上的成员恰好为2名，且存在于对方的舞台的成员大于等于3名，获得[紫ハート]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "赛拉丝·柳田·利林费尔德",
+    "nameJp": "セラス 柳田 リリエンフェルト",
+    "nameCn": "赛拉丝·柳田·利林费尔德",
+    "cardText": "【登场】[E][E]可以将1张手牌放置入休息室：从自己的休息室将1张『莲之空』的卡片加入手牌。\n\n【常时】只要存在于自己的舞台上的成员恰好为2名，且存在于对方的舞台的成员大于等于3名，获得[紫ハート]。",
+    "copyAbilityIds": [
+      "PL!HS-pb1-007:on-enter-pay-two-energy-discard-recover-hasunosora-card"
+    ]
+  },
+  "PL!HS-pb1-010-P+": {
+    "cardCode": "PL!HS-pb1-010-P+",
+    "cardType": "MEMBER",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【登場】/【ライブ開始時】自分のステージにコスト10以上のメンバーがいる場合、相手のステージにいるコスト4以下のメンバー1人をウェイトにする。",
+    "cardTextCn": "【登场】/【LIVE开始时】自己的舞台上存在费用大于等于10的成员的场合，将存在于对手舞台的1名费用小于等于4的成员变为待机状态。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "村野沙耶香",
+    "nameJp": "村野さやか",
+    "nameCn": "村野沙耶香",
+    "cardText": "【登场】/【LIVE开始时】自己的舞台上存在费用大于等于10的成员的场合，将存在于对手舞台的1名费用小于等于4的成员变为待机状态。",
+    "copyAbilityIds": [
+      "PL!HS-pb1-010-R:on-enter-if-own-stage-cost-ten-wait-opponent-cost-four-member"
+    ]
+  },
+  "PL!HS-pb1-011-P+": {
+    "cardCode": "PL!HS-pb1-011-P+",
+    "cardType": "MEMBER",
+    "cost": 7,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分のデッキの上からカードを3枚見る。その中から1枚を手札に加え、残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "大泽瑠璃乃",
+    "nameJp": "大沢瑠璃乃",
+    "nameCn": "大泽瑠璃乃",
+    "cardText": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。",
+    "copyAbilityIds": [
+      "PL!-sd1:discard-one-look-top-take-one"
+    ]
+  },
+  "PL!HS-pb1-012-P+": {
+    "cardCode": "PL!HS-pb1-012-P+",
+    "cardType": "MEMBER",
+    "cost": 13,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】自分と相手はそれぞれ、自身の控え室にあるすべてのメンバーカードをシャッフルし、自身のデッキの下に置く。これにより自身と相手のカードが合計20枚以上デッキの下に置かれた場合、自分の控え室からライブカードを1枚手札に加え、ライブ終了時まで、[ブレード][ブレード]を得る。",
+    "cardTextCn": "【登场】自己和对方分别将存在于自身休息室的所有成员卡洗牌，放置入自身的卡组底。合计大于等于20张自己与对方的卡片因此被放置入卡组底的场合，从自己的休息室将1张LIVE卡加入手牌，LIVE结束时为止，获得[ブレード][ブレード]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "百生吟子",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cardText": "【登场】自己和对方分别将存在于自身休息室的所有成员卡洗牌，放置入自身的卡组底。合计大于等于20张自己与对方的卡片因此被放置入卡组底的场合，从自己的休息室将1张LIVE卡加入手牌，LIVE结束时为止，获得[ブレード][ブレード]。",
+    "copyAbilityIds": [
+      "PL!HS-pb1-012-R:on-enter-recycle-members-recover-live-gain-blade"
+    ]
+  },
+  "PL!HS-pb1-014-P+": {
+    "cardCode": "PL!HS-pb1-014-P+",
+    "cardType": "MEMBER",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】自分のステージにいるメンバーが『みらくらぱーく！』のみの場合、相手のステージにいるメンバー1人をこのメンバーの正面のエリアにポジションチェンジさせる。\n\n【常時】このメンバーの正面のエリアにいる相手のメンバーのコストが、このメンバーのコストより高いかぎり、[桃ハート]を得る。",
+    "cardTextCn": "【登场】自己的舞台仅存在『Mira-Cra Park!』的成员的场合，使存在于对方的舞台的1名成员站位变换到此成员正对面的区域。\n\n【常时】只要存在于此成员正对面的区域的对方的成员的费用，比此成员的费用高，获得[桃ハート]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "安养寺姬芽",
+    "nameJp": "安養寺姫芽",
+    "nameCn": "安养寺姬芽",
+    "cardText": "【登场】自己的舞台仅存在『Mira-Cra Park!』的成员的场合，使存在于对方的舞台的1名成员站位变换到此成员正对面的区域。\n\n【常时】只要存在于此成员正对面的区域的对方的成员的费用，比此成员的费用高，获得[桃ハート]。",
+    "copyAbilityIds": [
+      "PL!HS-pb1-014-R:on-enter-move-opponent-member-front-if-all-miracra"
+    ]
+  },
+  "PL!HS-pb1-016-P+": {
+    "cardCode": "PL!HS-pb1-016-P+",
+    "cardType": "MEMBER",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【登場】自分のステージにいるこのメンバー以外の[紫ハート]を持つメンバー1人は、ライブ終了時まで、[紫ハート]を得る。",
+    "cardTextCn": "【登场】1名存在于自己的舞台的此成员以外的持有[紫ハート]的成员，LIVE结束时为止，获得[紫ハート]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "桂城泉",
+    "nameJp": "桂城泉",
+    "nameCn": "桂城泉",
+    "cardText": "【登场】1名存在于自己的舞台的此成员以外的持有[紫ハート]的成员，LIVE结束时为止，获得[紫ハート]。",
+    "copyAbilityIds": [
+      "PL!HS-pb1-016:on-enter-target-purple-heart-member-gain-purple-heart"
+    ]
+  },
+  "PL!HS-pb1-018-N": {
+    "cardCode": "PL!HS-pb1-018-N",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分のデッキの上からカードを5枚見る。その中から『DOLLCHESTRA』のカードを1枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。将1张其中的『DOLLCHESTRA』的卡片加入手牌。其余的卡片放置入休息室。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "村野沙耶香",
+    "nameJp": "村野さやか",
+    "nameCn": "村野沙耶香",
+    "cardText": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。将1张其中的『DOLLCHESTRA』的卡片加入手牌。其余的卡片放置入休息室。",
+    "copyAbilityIds": [
+      "PL!-sd1:discard-one-look-top-take-one"
+    ]
+  },
+  "PL!HS-pb1-020-N": {
+    "cardCode": "PL!HS-pb1-020-N",
+    "cardType": "MEMBER",
+    "cost": 9,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】自分の控え室にライブカードが3枚以上ある場合、手札を2枚控え室に置いてもよい。そうした場合、自分の控え室から『スリーズブーケ』のメンバーカード1枚と『蓮ノ空』のライブカード1枚を手札に加える。",
+    "cardTextCn": "【登场】自己的休息室存在大于等于3张LIVE卡的场合，可以将2张手牌放置入休息室。如此做的场合，从自己的休息室将1张『Cerise Bouquet』的成员卡和1张『莲之空』的LIVE卡加入手牌。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "百生吟子",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cardText": "【登场】自己的休息室存在大于等于3张LIVE卡的场合，可以将2张手牌放置入休息室。如此做的场合，从自己的休息室将1张『Cerise Bouquet』的成员卡和1张『莲之空』的LIVE卡加入手牌。",
+    "copyAbilityIds": [
+      "PL!HS-pb1-020-N:on-enter-if-three-live-discard-two-recover-cerise-member-and-hasunosora-live"
+    ]
+  },
+  "PL!HS-pb1-024-N": {
+    "cardCode": "PL!HS-pb1-024-N",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【登場】自分のデッキの上からカードを2枚見る。その中から好きな枚数を好きな順番でデッキの上に置き、残りを控え室に置く。",
+    "cardTextCn": "【登场】检视自己卡组顶的2张卡片。将其中的任意张按任意顺序放置回卡组顶，其余的放置入休息室。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "桂城泉",
+    "nameJp": "桂城泉",
+    "nameCn": "桂城泉",
+    "cardText": "【登场】检视自己卡组顶的2张卡片。将其中的任意张按任意顺序放置回卡组顶，其余的放置入休息室。",
+    "copyAbilityIds": [
+      "PL!HS-pb1-024:on-enter-look-top-two-arrange"
+    ]
+  },
+  "PL!HS-sd1-004-SD": {
+    "cardCode": "PL!HS-sd1-004-SD",
+    "cardType": "MEMBER",
+    "cost": 11,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】手札の『蓮ノ空』のカードを1枚控え室に置いてもよい：自分の控え室からメンバーカードを1枚手札に加える。\n\n【常時】自分のステージに「日野下花帆」か「徒町小鈴」か「安養寺姫芽」がいるかぎり、[緑ハート]を得る。",
+    "cardTextCn": "【登场】可以将1张手牌的『莲之空』的卡片放置入休息室：从自己的休息室将1张成员卡加入手牌。\n\n【常时】只要自己的舞台中存在「日野下花帆」或「徒町小铃」或「安养寺姬芽」，获得[緑ハート]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "百生吟子",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cardText": "【登场】可以将1张手牌的『莲之空』的卡片放置入休息室：从自己的休息室将1张成员卡加入手牌。\n\n【常时】只要自己的舞台中存在「日野下花帆」或「徒町小铃」或「安养寺姬芽」，获得[緑ハート]。",
+    "copyAbilityIds": [
+      "PL!HS-sd1-004-SD:on-enter-discard-hasunosora-recover-member"
+    ]
+  },
+  "PL!HS-sd1-005-SD": {
+    "cardCode": "PL!HS-sd1-005-SD",
+    "cardType": "MEMBER",
+    "cost": 13,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【登場】「徒町小鈴」以外の『蓮ノ空』のメンバーからバトンタッチして登場した場合、自分の控え室からライブカードを1枚手札に加える。\n\n【常時】自分のステージに「村野さやか」か「百生吟子」か「安養寺姫芽」がいるかぎり、[ブレード]を得る。",
+    "cardTextCn": "【登场】从「徒町小铃」之外的『莲之空』的成员换手登场的场合，从自己的休息室将1张LIVE卡加入手牌。\n\n【常时】只要自己的舞台中存在「村野沙耶香」或「百生吟子」或「安养寺姬芽」，获得[ブレード]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "徒町小铃",
+    "nameJp": "徒町小鈴",
+    "nameCn": "徒町小铃",
+    "cardText": "【登场】从「徒町小铃」之外的『莲之空』的成员换手登场的场合，从自己的休息室将1张LIVE卡加入手牌。\n\n【常时】只要自己的舞台中存在「村野沙耶香」或「百生吟子」或「安养寺姬芽」，获得[ブレード]。",
+    "copyAbilityIds": [
+      "PL!HS-sd1-005-SD:on-enter-relay-from-other-hasunosora-recover-live"
+    ]
+  },
+  "PL!HS-sd1-008-SD": {
+    "cardCode": "PL!HS-sd1-008-SD",
+    "cardType": "MEMBER",
+    "cost": 13,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【登場】カードを2枚引き、手札を1枚控え室に置く。\n\n【ライブ開始時】手札の『蓮ノ空』のカードを2枚控え室に置いてもよい：[桃ハート]か[緑ハート]か[青ハート]か[紫ハート]のうち、1つを選ぶ。ライブ終了時まで、自分のステージにいるこのメンバー以外の『蓮ノ空』のメンバー1人は、選んだハートを2つ得る。",
+    "cardTextCn": "【登场】抽2张卡，将1张手牌放置入休息室。\n\n【LIVE开始时】可以将2张手牌的『莲之空』的卡片放置入休息室：从[桃ハート]或[緑ハート]或[青ハート]或[紫ハート]中选择1项。LIVE结束时为止，1名存在于自己的舞台的此成员以外的『莲之空』的成员，获得2个选择了的HEART。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "桂城泉",
+    "nameJp": "桂城泉",
+    "nameCn": "桂城泉",
+    "cardText": "【登场】抽2张卡，将1张手牌放置入休息室。\n\n【LIVE开始时】可以将2张手牌的『莲之空』的卡片放置入休息室：从[桃ハート]或[緑ハート]或[青ハート]或[紫ハート]中选择1项。LIVE结束时为止，1名存在于自己的舞台的此成员以外的『莲之空』的成员，获得2个选择了的HEART。",
+    "copyAbilityIds": [
+      "PL!HS-sd1-008-SD:on-enter-draw-two-discard-one"
+    ]
+  },
+  "PL!HS-sd1-013-SD": {
+    "cardCode": "PL!HS-sd1-013-SD",
+    "cardType": "MEMBER",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【登場】自分のデッキの上からカードを3枚控え室に置く。それらがすべて[青ハート]を持つメンバーカードの場合、ライブ終了時まで、[青ハート]を得る。",
+    "cardTextCn": "【登场】将自己卡组顶的3张卡放置入休息室。那些卡片皆为持有[青ハート]的成员卡的场合，LIVE结束时为止，获得[青ハート]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "徒町小铃",
+    "nameJp": "徒町小鈴",
+    "nameCn": "徒町小铃",
+    "cardText": "【登场】将自己卡组顶的3张卡放置入休息室。那些卡片皆为持有[青ハート]的成员卡的场合，LIVE结束时为止，获得[青ハート]。",
+    "copyAbilityIds": [
+      "PL!HS-sd1-013-SD:on-enter-mill-three-gain-blue-heart-if-all-blue-member"
+    ]
+  },
+  "PL!HS-sd1-014-SD": {
+    "cardCode": "PL!HS-sd1-014-SD",
+    "cardType": "MEMBER",
+    "cost": 9,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分の控え室から『蓮ノ空』のカードを1枚手札に加える。",
+    "cardTextCn": "【登场】可以将1张手牌放置入休息室：从自己的休息室将1张『莲之空』的卡片加入手牌。",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "name": "安养寺姬芽",
+    "nameJp": "安養寺姫芽",
+    "nameCn": "安养寺姬芽",
+    "cardText": "【登场】可以将1张手牌放置入休息室：从自己的休息室将1张『莲之空』的卡片加入手牌。",
+    "copyAbilityIds": [
+      "PL!HS-sd1-014-SD:on-enter-discard-recover-hasunosora-card"
+    ]
+  },
+  "PL!N-bp8-004-SEC": {
+    "cardCode": "PL!N-bp8-004-SEC",
+    "cardType": "MEMBER",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cardTextJp": "【起動】[E][E]このカードを手札から控え室に置く：自分の控え室からブレードハートを持つメンバーカードを１枚手札に加える。この能力は、このカードが手札にある場合のみ起動できる。\n\n【ライブ開始時】手札の『虹ヶ咲』のメンバーカードを１枚を公開してもよい：これにより公開したカードをデッキの一番上に置く。その後、好きなハートの色を１つ指定する。ライブ終了時まで、そのハートを１つ得る。",
+    "cardTextCn": "【起动】[E][E]将此卡从手牌放置入休息室：从自己的休息室将１张持有BLADE HEART的成员卡加入手牌。此能力仅可在此卡存在于手牌的场合起动。\n\n【LIVE开始时】可以将手牌的１张『虹咲』的成员卡公开：将因此公开的卡片放置于卡组顶。此后，指定１个任意HEART的颜色。LIVE结束时为止，获得１个指定颜色的HEART。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "parseWarnings": [
+        "PL!N-bp8-004-SEC row 1779 blade_hearts: unsupported blade heart value"
+      ],
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!N-bp8-004-SEC"
+    },
+    "name": "朝香果林",
+    "nameJp": "朝香果林",
+    "nameCn": "朝香果林",
+    "cardText": "【起动】[E][E]将此卡从手牌放置入休息室：从自己的休息室将１张持有BLADE HEART的成员卡加入手牌。此能力仅可在此卡存在于手牌的场合起动。\n\n【LIVE开始时】可以将手牌的１张『虹咲』的成员卡公开：将因此公开的卡片放置于卡组顶。此后，指定１个任意HEART的颜色。LIVE结束时为止，获得１个指定颜色的HEART。",
+    "copyAbilityIds": []
+  },
+  "PL!N-bp8-010-P": {
+    "cardCode": "PL!N-bp8-010-P",
+    "cardType": "MEMBER",
+    "cost": 9,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "unitName": "「R3BIRTH」",
+    "unitNameRaw": "R3BIRTH",
+    "cardTextJp": "【ライブ成功時】エールにより公開された自分のカードの中にブレードハートを持たない『虹ヶ咲』のメンバーカードが３枚以上ある場合、ライブの合計スコアを＋１する。",
+    "cardTextCn": "【LIVE成功时】因声援被公开的自己的卡片中存在大于等于3张不持有BLADE HEART的『虹咲』的成员的场合，LIVE的合计分数＋１。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "parseWarnings": [
+        "PL!N-bp8-010-P row 1765 blade_hearts: unsupported blade heart value"
+      ],
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!N-bp8-010-P"
+    },
+    "name": "三船栞子",
+    "nameJp": "三船栞子",
+    "nameCn": "三船栞子",
+    "cardText": "【LIVE成功时】因声援被公开的自己的卡片中存在大于等于3张不持有BLADE HEART的『虹咲』的成员的场合，LIVE的合计分数＋１。",
+    "copyAbilityIds": []
+  },
+  "PL!N-bp8-019-N": {
+    "cardCode": "PL!N-bp8-019-N",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 3,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "unitName": "「A・ZU・NA」",
+    "unitNameRaw": "A・ZU・NA",
+    "cardTextJp": "【ライブ開始時】好きなハートの色を１つ指定する。自分のステージに『虹ヶ咲』のメンバーが３人以上おり、それらのメンバーが持つハートの中にその色のハートがない場合、ライブ終了時まで、そのハートを１つ得る。",
+    "cardTextCn": "【LIVE开始时】指定一个任意HEART的颜色。自己的舞台上存在大于等于３名『虹咲』的成员，且那些成员持有的HEART中不存在该颜色的HEART的场合，LIVE结束时为止，获得一个该颜色的HEART。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "missingRuleFields": [
+        "hearts"
+      ],
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!N-bp8-019-N"
+    },
+    "name": "优木雪菜",
+    "nameJp": "優木せつ菜",
+    "nameCn": "优木雪菜",
+    "cardText": "【LIVE开始时】指定一个任意HEART的颜色。自己的舞台上存在大于等于３名『虹咲』的成员，且那些成员持有的HEART中不存在该颜色的HEART的场合，LIVE结束时为止，获得一个该颜色的HEART。",
+    "copyAbilityIds": []
+  },
+  "PL!N-bp8-026-SECL": {
+    "cardCode": "PL!N-bp8-026-SECL",
+    "cardType": "LIVE",
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      },
+      {
+        "effect": "DRAW"
+      }
+    ],
+    "score": 6,
+    "requirements": [
+      {
+        "color": "PURPLE",
+        "count": 7
+      },
+      {
+        "color": "RAINBOW",
+        "count": 6
+      }
+    ],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "cardTextJp": "【ライブ開始時】自分のステージにいる『虹ヶ咲』のメンバー１人を選ぶ。ライブ終了時まで、そのメンバーが持つ[赤ハート]と[青ハート]は、すべて[紫ハート]になる。これにより５つ以上のハートが[紫ハート]になった場合、このカードのスコアを＋１する。",
+    "cardTextCn": "【LIVE开始时】选择存在于自己的舞台的1名『虹咲』的成员。LIVE结束时为止，该成员持有的[赤ハート]和[青ハート]，全部变为[紫ハート]。因此将大于等于５个HEART变为[紫ハート]的场合，此卡的分数＋１。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!N-bp8-026-SECL"
+    },
+    "name": "Solitude Rain",
+    "nameJp": "Solitude Rain",
+    "nameCn": "Solitude Rain",
+    "cardText": "【LIVE开始时】选择存在于自己的舞台的1名『虹咲』的成员。LIVE结束时为止，该成员持有的[赤ハート]和[青ハート]，全部变为[紫ハート]。因此将大于等于５个HEART变为[紫ハート]的场合，此卡的分数＋１。",
+    "copyAbilityIds": []
+  },
+  "PL!N-bp8-028-L": {
+    "cardCode": "PL!N-bp8-028-L",
+    "cardType": "LIVE",
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 4,
+    "requirements": [
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 10
+      }
+    ],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "cardTextJp": "【ライブ開始時】自分のデッキの一番上のカードを控え室に置く。これにより控え室に置いたカードがメンバーカードの場合、そのメンバーカードが持つハートの色が、自分のステージにいるすべてのメンバーが持つハートの色の中にすべて含まれる場合、その含まれるハートの色１つにつき、このカードの必要ハートを[無ハート]減らす。",
+    "cardTextCn": "【LIVE开始时】将自己的卡组顶的卡片放置入休息室。因此放置入休息室的卡片是成员卡的场合，存在于自己的舞台的所有成员持有的HEART的颜色，包含该成员卡持有的所有HEART的颜色的场合，包含的颜色每有１种，此卡的必要HEART减少[無ハート]。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!N-bp8-028-L"
+    },
+    "name": "Dress Code",
+    "nameJp": "Dress Code",
+    "nameCn": "Dress Code",
+    "cardText": "【LIVE开始时】将自己的卡组顶的卡片放置入休息室。因此放置入休息室的卡片是成员卡的场合，存在于自己的舞台的所有成员持有的HEART的颜色，包含该成员卡持有的所有HEART的颜色的场合，包含的颜色每有１种，此卡的必要HEART减少[無ハート]。",
+    "copyAbilityIds": []
+  },
+  "PL!S-cl1-002-CL": {
+    "cardCode": "PL!S-cl1-002-CL",
+    "cardType": "MEMBER",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「GuiltyKiss」",
+    "unitNameRaw": "Guilty Kiss",
+    "cardTextJp": "【ライブ成功時】エールにより公開された自分のカードの中から、『Aqours』のカードを３枚まで、好きな順番でデッキの下に置く。",
+    "cardTextCn": "【LIVE成功时】从因声援被公开的自己的卡片中，将至多３张『Aqours』的卡片，按任意顺序放置于卡组底。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "parseWarnings": [
+        "PL!S-cl1-002-CL row 2220 blade_hearts: unsupported blade heart value"
+      ],
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!S-cl1-002-CL"
+    },
+    "name": "樱内梨子",
+    "nameJp": "桜内梨子",
+    "nameCn": "樱内梨子",
+    "cardText": "【LIVE成功时】从因声援被公开的自己的卡片中，将至多３张『Aqours』的卡片，按任意顺序放置于卡组底。",
+    "copyAbilityIds": []
+  },
+  "PL!S-cl1-006-CL": {
+    "cardCode": "PL!S-cl1-006-CL",
+    "cardType": "MEMBER",
+    "cost": 7,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「GuiltyKiss」",
+    "unitNameRaw": "Guilty Kiss",
+    "cardTextJp": "【ライブ開始時】手札を１枚デッキの一番下に置いてもよい：ライブ終了時まで、[ブレード][ブレード]を得る。",
+    "cardTextCn": "【LIVE开始时】可以将１张手牌放置于卡组底：LIVE结束时为止，获得[ブレード][ブレード]。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "parseWarnings": [
+        "PL!S-cl1-006-CL row 72 blade_hearts: unsupported blade heart value"
+      ],
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!S-cl1-006-CL"
+    },
+    "name": "津岛善子",
+    "nameJp": "津島善子",
+    "nameCn": "津岛善子",
+    "cardText": "【LIVE开始时】可以将１张手牌放置于卡组底：LIVE结束时为止，获得[ブレード][ブレード]。",
+    "copyAbilityIds": []
+  },
+  "PL!S-cl1-007-CL": {
+    "cardCode": "PL!S-cl1-007-CL",
+    "cardType": "MEMBER",
+    "cost": 5,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「AZALEA」",
+    "unitNameRaw": "AZALEA",
+    "cardTextJp": "【ライブ開始時】手札を１枚控え室に置いてもよい：ライブ終了時まで、自分のエールは、デッキの上から行う代わりにデッキの下から行う。",
+    "cardTextCn": "【LIVE开始时】可以将１张手牌放置入休息室：LIVE结束时为止，自己的声援，不从卡组顶进行，改为从卡组底进行。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "parseWarnings": [
+        "PL!S-cl1-007-CL row 2221 blade_hearts: unsupported blade heart value"
+      ],
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!S-cl1-007-CL"
+    },
+    "name": "国木田花丸",
+    "nameJp": "国木田花丸",
+    "nameCn": "国木田花丸",
+    "cardText": "【LIVE开始时】可以将１张手牌放置入休息室：LIVE结束时为止，自己的声援，不从卡组顶进行，改为从卡组底进行。",
+    "copyAbilityIds": []
+  },
+  "PL!S-cl1-008-CL": {
+    "cardCode": "PL!S-cl1-008-CL",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「GuiltyKiss」",
+    "unitNameRaw": "Guilty Kiss",
+    "cardTextJp": "【起動】【ターン１回】このメンバーをウェイトにし、手札を１枚控え室に置く：カードを１枚引く。",
+    "cardTextCn": "【起动】【１回合１次】将此成员变为待机状态，将１张手牌放置入休息室：抽１张卡。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!S-cl1-008-CL"
+    },
+    "name": "小原鞠莉",
+    "nameJp": "小原鞠莉",
+    "nameCn": "小原鞠莉",
+    "cardText": "【起动】【１回合１次】将此成员变为待机状态，将１张手牌放置入休息室：抽１张卡。",
+    "copyAbilityIds": []
+  },
+  "PL!S-cl1-009-CL": {
+    "cardCode": "PL!S-cl1-009-CL",
+    "cardType": "MEMBER",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「CYaRon！」",
+    "unitNameRaw": "CYaRon！",
+    "cardTextJp": "【起動】このメンバーをステージから控え室に置く：自分の控え室からメンバーカードを１枚手札に加える。",
+    "cardTextCn": "【起动】将此成员从舞台放置入休息室：从自己的休息室将１张成员卡加入手牌。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!S-cl1-009-CL"
+    },
+    "name": "黑泽露比",
+    "nameJp": "黒澤ルビィ",
+    "nameCn": "黑泽露比",
+    "cardText": "【起动】将此成员从舞台放置入休息室：从自己的休息室将１张成员卡加入手牌。",
+    "copyAbilityIds": []
+  },
+  "PL!SP-PR-034-PR": {
+    "cardCode": "PL!SP-PR-034-PR",
+    "cardType": "MEMBER",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「KALEIDOSCORE」",
+    "unitNameRaw": "KALEIDOSCORE",
+    "cardTextJp": "【自動】このメンバーがステージから控え室に置かれたとき、このメンバーがコスト１１以下のメンバーにバトンタッチしていた場合、ライブ終了時まで、そのバトンタッチで登場したメンバーは[ブレード][ブレード]得る。",
+    "cardTextCn": "【自动】此成员从舞台被放置入休息室时，此成员与费用小于等于11的成员进行了换手的场合，LIVE结束时为止，该换手登场的成员获得[ブレード][ブレード]。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!SP-PR-034-PR"
+    },
+    "name": "叶月恋",
+    "nameJp": "葉月恋",
+    "nameCn": "叶月恋",
+    "cardText": "【自动】此成员从舞台被放置入休息室时，此成员与费用小于等于11的成员进行了换手的场合，LIVE结束时为止，该换手登场的成员获得[ブレード][ブレード]。",
+    "copyAbilityIds": []
+  },
+  "PL!SP-PR-035-PR": {
+    "cardCode": "PL!SP-PR-035-PR",
+    "cardType": "MEMBER",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「5yncri5e!」",
+    "unitNameRaw": "5yncri5e!",
+    "cardTextJp": "【ライブ成功時】エールにより公開された相手のカードの枚数が１２枚以上ある場合、ライブの合計スコアを＋１する。",
+    "cardTextCn": "【LIVE成功时】因声援被公开的对方的卡片的张数大于等于12张的场合，LIVE的合计分数＋１。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!SP-PR-035-PR"
+    },
+    "name": "鬼冢冬毬",
+    "nameJp": "鬼塚冬毬",
+    "nameCn": "鬼冢冬毬",
+    "cardText": "【LIVE成功时】因声援被公开的对方的卡片的张数大于等于12张的场合，LIVE的合计分数＋１。",
+    "copyAbilityIds": []
+  }
+}

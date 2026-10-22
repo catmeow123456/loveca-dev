@@ -145,6 +145,20 @@ export interface MatchViewState {
     readonly objectIds: readonly string[];
     readonly waitingSeats: readonly Seat[];
     readonly deadlineAt: number;
+    readonly abilityTransfer?: {
+      readonly hostObjectId: string;
+      readonly sourceObjectId: string;
+      readonly abilityId: string;
+      readonly afterDiscard: boolean;
+    };
+    readonly kahoRelays?: readonly {
+      readonly objectId: string;
+      readonly source: {
+        readonly objectId: string;
+        readonly slot: SlotPosition;
+        readonly orientation: OrientationState;
+      };
+    }[];
     /** Public waiting-room faces before the shuffle, never the resulting deck order. */
     readonly waitingRoomReturns?: readonly {
       readonly objectId: string;
@@ -278,6 +292,8 @@ export interface ViewCardObject {
   readonly activatedAbilityUiConfigs?: readonly ActivatedAbilityUiConfig[];
   /** Viewer-owned stage member still has at least one currently available per-turn activated use. */
   readonly hasRemainingLimitedActivatedAbility?: boolean;
+  /** Public stage member currently retains an earned ON_ENTER ability for this LIVE. */
+  readonly hasTemporaryOnEnterAbility?: boolean;
 }
 
 export interface ViewCommandScope {

@@ -8,7 +8,8 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor } from '../../../../shared/types/enums.js';
-import { and, normalizeCardName, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
+import { and, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
+import { hasAtLeastDifferentNamedCards } from '../../../../shared/utils/card-identity.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { HS_PB1_030_LIVE_START_EDELNOTE_MEMBER_BLADE_DIFFERENT_NAME_PURPLE_HEART_ABILITY_ID } from '../../ability-ids.js';
 import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
@@ -272,13 +273,18 @@ function getDifferentNameEdelNoteMemberCardIds(
   bladeTargetCardId: string
 ): readonly string[] {
   const bladeTargetCard = getCardById(game, bladeTargetCardId);
-  const bladeTargetName = normalizeCardName(bladeTargetCard?.data.name);
-  if (!bladeTargetName) {
+  if (!bladeTargetCard) {
     return [];
   }
   return getEdelNoteMemberCardIds(game, playerId).filter((cardId) => {
     const card = getCardById(game, cardId);
-    return normalizeCardName(card?.data.name) !== bladeTargetName;
+    return (
+      card !== null &&
+      cardId !== bladeTargetCardId &&
+      hasAtLeastDifferentNamedCards([bladeTargetCard, card], 2, (member) => member.data, {
+        nameComparison: 'MEMBER_IDENTITY',
+      })
+    );
   });
 }
 

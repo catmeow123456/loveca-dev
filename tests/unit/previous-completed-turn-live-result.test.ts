@@ -23,6 +23,39 @@ function withEvents(events: readonly GameEvent[]): GameState {
 }
 
 describe('previous completed turn LIVE result query', () => {
+  it.each([
+    [P1, P2],
+    [P2, P1],
+  ])(
+    'keeps the completed turn when first player changes from %s to %s',
+    (previousFirst, nextFirst) => {
+      const game = withEvents([
+        createTurnStartEvent(2, previousFirst),
+        createLiveStartEvent(previousFirst, ['failed-live']),
+        createLiveStartEvent(nextFirst, ['successful-live']),
+        createLiveSuccessEvent(nextFirst, ['successful-live'], 3),
+        createTurnEndEvent(2, nextFirst),
+        createTurnStartEvent(3, nextFirst),
+      ]);
+
+      expect(getPreviousCompletedTurnLiveResult(game, previousFirst)).toEqual({
+        turnNumber: 2,
+        playerId: previousFirst,
+        startSequence: 1,
+        endSequence: 5,
+        performedLive: true,
+        succeededLive: false,
+      });
+      expect(didPlayerPerformAndFailLiveInPreviousCompletedTurn(game, previousFirst)).toBe(true);
+      expect(getPreviousCompletedTurnLiveResult(game, nextFirst)).toMatchObject({
+        turnNumber: 2,
+        performedLive: true,
+        succeededLive: true,
+      });
+      expect(didPlayerPerformAndFailLiveInPreviousCompletedTurn(game, nextFirst)).toBe(false);
+    }
+  );
+
   it('reads a failed opponent LIVE from the latest complete turn and ignores the open current turn', () => {
     const game = withEvents([
       createTurnStartEvent(1, P1),

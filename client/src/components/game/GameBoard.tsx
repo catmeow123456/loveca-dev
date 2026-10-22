@@ -67,6 +67,7 @@ import {
   saveCardEntranceEnabled,
 } from '@/lib/cardEntrancePolicy';
 import { CardEntranceToggle } from './card-entrance/CardEntranceToggle';
+import { CardEffectsEnabledContext } from '@/lib/cardEffectsContext';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { parseZoneId } from '@/lib/zoneUtils';
 import { getDragActionDescriptor, type SpecialDragTarget } from '@/lib/battleDragAction';
@@ -2490,6 +2491,7 @@ export const GameBoard = memo(function GameBoard({
   };
 
   return (
+    <CardEffectsEnabledContext.Provider value={cardEntranceEnabled}>
     <AbilityActivationProvider>
     <DndContext
       sensors={sensors}
@@ -4642,6 +4644,7 @@ export const GameBoard = memo(function GameBoard({
       </div>
     </DndContext>
     </AbilityActivationProvider>
+    </CardEffectsEnabledContext.Provider>
   );
 });
 

@@ -22,9 +22,9 @@ export interface PreviousCompletedTurnLiveResult {
  * log. The first real turn currently has no ON_TURN_START event, so ON_TURN_END (and the previous
  * ON_TURN_END when one exists) is the authoritative fallback boundary.
  *
- * Turn boundary currentPlayerId identifies the engine's round boundary owner; it does not limit
- * which player may have performed a LIVE inside that shared round. A newer, still-open turn does
- * not hide the preceding completed turn.
+ * Turn boundary currentPlayerId is the active player at that boundary and can change after LIVE
+ * settlement swaps first player. Match boundaries by turnNumber, then read each player's LIVE
+ * events independently. A newer, still-open turn does not hide the preceding completed turn.
  */
 export function getPreviousCompletedTurnLiveResult(
   game: GameState,
@@ -47,10 +47,7 @@ export function getPreviousCompletedTurnLiveResult(
       break;
     }
     if (!isTurnStartEvent(event)) continue;
-    if (
-      event.turnNumber !== endEvent.turnNumber ||
-      event.currentPlayerId !== endEvent.currentPlayerId
-    ) {
+    if (event.turnNumber !== endEvent.turnNumber) {
       return null;
     }
     startIndex = index;

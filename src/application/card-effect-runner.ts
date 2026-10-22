@@ -1,4 +1,19 @@
+import { registerPlBp8002AyaseEliWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-002-ayase-eli.js';
+import { registerPlBp8021SoreWaBokutachiNoKisekiWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-021-sore-wa-bokutachi-no-kiseki.js';
+import { enqueueUntriggeredEnterSuccessZoneCardEffects } from './card-effects/runtime/success-zone-entry-triggers.js';
+import { registerNBp8004KarinWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-004-karin.js';
+import { registerSCl1006YoshikoWorkflowHandlers } from './card-effects/workflows/cards/s-cl1-006-yoshiko.js';
+import { registerHsBp8003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-003-rurino.js';
+import { registerHsBp8013KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-013-kosuzu.js';
+import { registerLiveSuccessRevealedCheerThresholdScoreWorkflowHandlers } from './card-effects/workflows/shared/live-success-revealed-cheer-threshold-score.js';
+import { registerNBp8026SolitudeRainWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-026-solitude-rain.js';
+import { registerNBp8028DressCodeWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-028-dress-code.js';
+import { registerHsBp8004GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-004-ginko.js';
+import { registerHsBp8012GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-012-ginko.js';
+import { registerHsBp8017BloomTheSmileBloomTheDreamWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-017-bloom-the-smile-bloom-the-dream.js';
+import { registerSCl1007HanamaruWorkflowHandlers } from './card-effects/workflows/cards/s-cl1-007-hanamaru.js';
 import { captureCardEntrance } from './card-entrance.js';
+import { isCurrentStageMemberAbilitySource } from './card-effects/runtime/source-member.js';
 import { registerPlPb2021KotoriWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-021-kotori.js';
 import { registerNPr036ShizukuWorkflowHandlers } from './card-effects/workflows/cards/n-pr-036-shizuku.js';
 import {
@@ -137,7 +152,7 @@ import { registerSBp3024DeepResonanceWorkflowHandlers } from './card-effects/wor
 import { registerNBp3001AyumuWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-001-ayumu.js';
 import { registerNBp3003ShizukuWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-003-shizuku.js';
 import { registerSpBp2006KinakoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp2-006-kinako.js';
-import { registerNBp3004KarinWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-004-karin.js';
+import { registerActivatedWaitSelfDiscardRecoverLiveWorkflowHandlers } from './card-effects/workflows/shared/activated-wait-self-discard-recover-live.js';
 import { registerNBp3005AiWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-005-ai.js';
 import { registerNBp3006KanataWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-006-kanata.js';
 import { registerNBp3007SetsunaWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-007-setsuna.js';
@@ -1045,7 +1060,7 @@ registerSBp3024DeepResonanceWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp3001AyumuWorkflowHandlers();
 registerNBp3003ShizukuWorkflowHandlers();
 registerSpBp2006KinakoWorkflowHandlers({ enqueueTriggeredCardEffects });
-registerNBp3004KarinWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerActivatedWaitSelfDiscardRecoverLiveWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp3005AiWorkflowHandlers();
 registerNBp3006KanataWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp3007SetsunaWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -1301,6 +1316,19 @@ registerNBp7011MiaTaylorWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp7023MiaTaylorWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp8002KasumiWorkflowHandlers();
 registerNBp8009RinaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlBp8002AyaseEliWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlBp8021SoreWaBokutachiNoKisekiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp8004KarinWorkflowHandlers({ enqueueTriggeredCardEffects, continuePendingCardEffects });
+registerSCl1006YoshikoWorkflowHandlers();
+registerHsBp8003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp8013KosuzuWorkflowHandlers();
+registerLiveSuccessRevealedCheerThresholdScoreWorkflowHandlers();
+registerNBp8026SolitudeRainWorkflowHandlers();
+registerNBp8028DressCodeWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp8004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp8012GinkoWorkflowHandlers();
+registerHsBp8017BloomTheSmileBloomTheDreamWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSCl1007HanamaruWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp8030StayWorkflowHandlers();
 registerNBp7019SetsunaWorkflowHandlers();
 registerNBp7027AudreyWorkflowHandlers();
@@ -3196,6 +3224,20 @@ function getLiveSuccessEffectPlayerId(game: GameState): string | null {
 export function resolvePendingCardEffects(game: GameState): CardEffectRunnerResult {
   game = captureCardEntrance(game);
   if (game.entranceRuntime?.pending) return { gameState: game, resolvedAbilityIds: [] };
+  const continuation = game.entranceRuntime?.continuation;
+  if (continuation && game.entranceRuntime) {
+    const { continuation: _consumed, ...runtime } = game.entranceRuntime;
+    const state = { ...game, entranceRuntime: runtime };
+    // Clear before delegation: automatic children may recursively enter this runner.
+    return {
+      gameState: game.isEnded
+        ? state
+        : isCurrentStageMemberAbilitySource(state, continuation)
+          ? delegatePendingAbility(state, continuation)
+          : resolvePendingCardEffects(state).gameState,
+      resolvedAbilityIds: [],
+    };
+  }
   if (game.activeEffect) {
     return {
       gameState: game,
@@ -3212,6 +3254,11 @@ export function resolvePendingCardEffects(game: GameState): CardEffectRunnerResu
     enqueueUntriggeredWaitingRoomCardsMovedToMainDeckCardEffects(game);
   if (stateWithWaitingRoomToMainDeckTriggers !== game) {
     return resolvePendingCardEffects(stateWithWaitingRoomToMainDeckTriggers);
+  }
+
+  const stateWithSuccessZoneEntryTriggers = enqueueUntriggeredEnterSuccessZoneCardEffects(game);
+  if (stateWithSuccessZoneEntryTriggers !== game) {
+    return resolvePendingCardEffects(stateWithSuccessZoneEntryTriggers);
   }
 
   const stateWithEnergyBelowTriggers = enqueueUntriggeredEnergyPlacedBelowMemberCardEffects(game);
@@ -3351,6 +3398,7 @@ export function confirmActiveEffectStep(
   if (registryResult) {
     return propagateAbilityInvocationContext(game, registryResult, {
       abilityId: effect.abilityId,
+      onEnterInvocation: effect.onEnterInvocation,
       abilityInstanceId: effect.abilityInstanceId,
       grantingMemberBelowCardId: typeof effect.metadata?.grantingMemberBelowCardId === 'string'
         ? effect.metadata.grantingMemberBelowCardId : undefined,
@@ -3547,6 +3595,11 @@ function continuePendingCardEffects(game: GameState, orderedResolution: boolean)
     enqueueUntriggeredWaitingRoomCardsMovedToMainDeckCardEffects(game);
   if (stateWithWaitingRoomToMainDeckTriggers !== game) {
     return continuePendingCardEffects(stateWithWaitingRoomToMainDeckTriggers, orderedResolution);
+  }
+
+  const stateWithSuccessZoneEntryTriggers = enqueueUntriggeredEnterSuccessZoneCardEffects(game);
+  if (stateWithSuccessZoneEntryTriggers !== game) {
+    return continuePendingCardEffects(stateWithSuccessZoneEntryTriggers, orderedResolution);
   }
 
   const stateWithEnergyBelowTriggers = enqueueUntriggeredEnergyPlacedBelowMemberCardEffects(game);
@@ -3746,6 +3799,7 @@ function startPendingAbilityEffect(
   if (registryResult) {
     return propagateAbilityInvocationContext(game, registryResult, {
       abilityId: ability.abilityId,
+      onEnterInvocation: ability.onEnterInvocation,
       abilityInstanceId: ability.abilityInstanceId,
       grantingMemberBelowCardId: typeof ability.metadata?.grantingMemberBelowCardId === 'string'
         ? ability.metadata.grantingMemberBelowCardId : undefined,

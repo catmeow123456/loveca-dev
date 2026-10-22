@@ -252,13 +252,15 @@ describe('PL!HS-bp2-018-N Hime on-enter workflow', () => {
     expect(session.state?.actionHistory.at(-1)?.payload.reason).toBe('INSUFFICIENT_ACTIVE_ENERGY');
   });
 
-  it('does not open payment when the waiting room has no LIVE card', () => {
+  it('can pay without a waiting-room LIVE and still reduces the next LIVE set limit', () => {
     const member = createCardInstance(createMember('PL!HS-test-member'), PLAYER1, 'waiting-member');
     const { session } = setupOnEnter({ waitingCards: [member] });
-
+    expect(session.state?.activeEffect).not.toBeNull();
+    confirmOption(session, 'pay');
     expect(session.state?.activeEffect).toBeNull();
-    expect(hasPayCostAction(session.state!)).toBe(false);
-    expect(session.state?.actionHistory.at(-1)?.payload.reason).toBe('NO_WAITING_ROOM_LIVE_TARGET');
+    expect(hasPayCostAction(session.state!)).toBe(true);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([member.instanceId]);
+    expect(session.state?.liveSetLimitReductions).toEqual([expect.objectContaining({ amount: 1 })]);
   });
 
   it('declines without paying, moving a LIVE card, or registering the limit reduction', () => {
@@ -338,7 +340,7 @@ describe('PL!HS-bp2-018-N Hime on-enter workflow', () => {
     ).toBe(true);
   });
 
-  it('rejects an expired target without moving it or registering a partial limit reduction', () => {
+  it('finishes the independent limit reduction when the last LIVE target expires', () => {
     const live = createCardInstance(createLive('PL!HS-test-live'), PLAYER1, 'waiting-live');
     const { session, energyIds } = setupOnEnter({ waitingCards: [live] });
     confirmOption(session, 'pay');
@@ -353,12 +355,10 @@ describe('PL!HS-bp2-018-N Hime on-enter workflow', () => {
       createConfirmEffectStepCommand(PLAYER1, effect.id, live.instanceId)
     );
 
-    expect(staleResult.success).toBe(false);
-    expect(session.state?.activeEffect?.stepId).toBe(
-      'HS_BP2_018_SELECT_WAITING_LIVE_TO_PLACE_FACE_UP'
-    );
+    expect(staleResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].liveZone.cardIds).not.toContain(live.instanceId);
-    expect(session.state?.liveSetLimitReductions).toEqual([]);
+    expect(session.state?.liveSetLimitReductions).toEqual([expect.objectContaining({ amount: 1 })]);
     expect(
       energyIds.map(
         (cardId) => session.state?.players[0].energyZone.cardStates.get(cardId)?.orientation

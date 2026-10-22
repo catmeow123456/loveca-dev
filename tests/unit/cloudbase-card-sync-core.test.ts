@@ -79,6 +79,238 @@ describe('CloudBase card sync shared core', () => {
     });
   });
 
+  describe.each([
+    {
+      cardType: 'MEMBER',
+      field: 'hearts',
+      nativeField: '基本ハート',
+      ruleFields: { cost: 2, blade: 1 },
+      otherRuleFields: ['cost', 'blade'],
+    },
+    {
+      cardType: 'LIVE',
+      field: 'requirements',
+      nativeField: '必要ハート',
+      ruleFields: { score: 2 },
+      otherRuleFields: ['score'],
+    },
+  ] as const)('$field parsing', ({ cardType, field, nativeField, ruleFields, otherRuleFields }) => {
+    const buildTransform = (fields: Record<string, unknown>) =>
+      buildCloudbaseCardSnapshot([
+        {
+          card_code: 'PL!N-bp1-001-N',
+          type: cardType,
+          name_jp: 'Ordinary Heart parser fixture',
+          ...ruleFields,
+          ...fields,
+        },
+      ]).transforms[0]!;
+
+    it.each([
+      { label: 'an empty array', value: [] },
+      { label: 'an empty object', value: {} },
+      { label: 'a JSON empty array', value: ' [] ' },
+      { label: 'a JSON empty object', value: ' { } ' },
+      { label: 'an empty string', value: '' },
+      { label: 'whitespace', value: ' \t\n\u3000 ' },
+    ])('preserves $label as an explicit zero without a missing-field flag', ({ value }) => {
+      const transform = buildTransform({ [field]: value });
+
+      expect(transform.errors).toEqual([]);
+      expect(transform.record![field]).toEqual([]);
+      expect(transform.warnings).toEqual([]);
+      expect(transform.record!.source_flags).not.toHaveProperty('missingRuleFields');
+      expect(transform.record!.source_flags).not.toHaveProperty('parseWarnings');
+      expect(mapCardInsertRecordToExport(transform.record!)[field]).toEqual([]);
+    });
+
+    it.each([
+      { value: ' red ', expected: [{ color: 'RED', count: 1 }] },
+      { value: { blue: 2 }, expected: [{ color: 'BLUE', count: 2 }] },
+      { value: [{ color: 'PINK', count: 1 }], expected: [{ color: 'PINK', count: 1 }] },
+      { value: '{"blue":2}', expected: [{ color: 'BLUE', count: 2 }] },
+      {
+        value: '[{"color":"PINK","count":1}]',
+        expected: [{ color: 'PINK', count: 1 }],
+      },
+    ])('preserves valid nonempty value $value', ({ value, expected }) => {
+      const transform = buildTransform({ [field]: value });
+
+      expect(transform.errors).toEqual([]);
+      expect(transform.record![field]).toEqual(expected);
+      expect(transform.warnings).toEqual([]);
+      expect(transform.record!.source_flags).not.toHaveProperty('missingRuleFields');
+      expect(mapCardInsertRecordToExport(transform.record!)[field]).toEqual(expected);
+    });
+
+    it.each([
+      { label: 'a missing field', fields: {} },
+      { label: 'undefined', fields: { [field]: undefined } },
+      { label: 'null', fields: { [field]: null } },
+    ])('keeps $label unknown and reports it as missing', ({ fields }) => {
+      const transform = buildTransform(fields);
+
+      expect(transform.errors).toEqual([]);
+      expect(transform.record![field]).toBeNull();
+      expect(transform.warnings).toEqual([]);
+      expect(transform.record!.source_flags!.missingRuleFields).toEqual([field]);
+      expect(mapCardInsertRecordToExport(transform.record!)[field]).toBeNull();
+    });
+
+    it.each([
+      { value: false, warning: 'unsupported heart value' },
+      { value: 1, warning: 'unsupported heart value' },
+      { value: 'unknown', warning: 'unsupported heart value' },
+      { value: '[not-json]', warning: 'unsupported heart value' },
+      { value: { unknown: 1 }, warning: 'invalid heart entry "unknown"' },
+      { value: { red: 0 }, warning: 'invalid heart entry "red"' },
+      { value: ['unknown'], warning: 'heart item #1 is not an object' },
+      {
+        value: [
+          { color: 'RED', count: 1 },
+          { color: 'unknown', count: 1 },
+        ],
+        warning: 'invalid heart item #2',
+      },
+    ])(
+      'retains a warning and missing-field flag for invalid nonempty value $value',
+      ({ value, warning }) => {
+        const transform = buildTransform({ [field]: value });
+
+        expect(transform.errors).toEqual([]);
+        expect(transform.record![field]).toBeNull();
+        expect(transform.warnings).toEqual([`PL!N-bp1-001-N row 1 ${field}: ${warning}`]);
+        expect(transform.record!.source_flags!.missingRuleFields).toEqual([field]);
+        expect(transform.record!.source_flags!.parseWarnings).toEqual(transform.warnings);
+        expect(mapCardInsertRecordToExport(transform.record!)[field]).toBeNull();
+      }
+    );
+
+    it.each([
+      { value: [], expected: [] },
+      { value: '', expected: [] },
+      { value: null, expected: null },
+      { value: undefined, expected: null },
+    ])('respects the first present alias for $value', ({ value, expected }) => {
+      const transform = buildTransform({ [nativeField]: value, [field]: 'red' });
+
+      expect(transform.record![field]).toEqual(expected);
+      expect(transform.warnings).toEqual([]);
+      expect(transform.record!.source_flags!.missingRuleFields).toEqual(
+        expected === null ? [field] : undefined
+      );
+    });
+
+    it.each(['source_flags', 'sourceFlags'])(
+      'recomputes resolved diagnostics from %s',
+      (flagsField) => {
+        const upstreamFlags = {
+          missingRuleFields: [field],
+          parseWarnings: ['old parser warning'],
+          upstreamNote: 'keep',
+        };
+        const transform = buildTransform({ [field]: [], [flagsField]: upstreamFlags });
+
+        expect(transform.warnings).toEqual([]);
+        expect(transform.record!.source_flags).toMatchObject({ upstreamNote: 'keep' });
+        expect(transform.record!.source_flags).not.toHaveProperty('missingRuleFields');
+        expect(transform.record!.source_flags).not.toHaveProperty('parseWarnings');
+        expect(mapCardInsertRecordToExport(transform.record!).sourceFlags).toEqual(
+          transform.record!.source_flags
+        );
+        expect(upstreamFlags.missingRuleFields).toEqual([field]);
+        expect(upstreamFlags.parseWarnings).toEqual(['old parser warning']);
+      }
+    );
+
+    it('keeps other missing rule fields when the Heart collection is explicitly empty', () => {
+      const transform = buildTransform({
+        [field]: [],
+        ...Object.fromEntries(otherRuleFields.map((name) => [name, undefined])),
+        source_flags: { missingRuleFields: [field], parseWarnings: ['old parser warning'] },
+      });
+
+      expect(transform.record![field]).toEqual([]);
+      expect(transform.warnings).toEqual([]);
+      expect(transform.record!.source_flags!.missingRuleFields).toEqual(otherRuleFields);
+      expect(transform.record!.source_flags).not.toHaveProperty('parseWarnings');
+    });
+  });
+
+  describe.each(['blade_hearts', 'special_hearts'] as const)('%s parsing', (field) => {
+    const buildTransform = (fields: Record<string, unknown>) =>
+      buildCloudbaseCardSnapshot([
+        {
+          card_code: 'PL!N-bp1-001-N',
+          type: 'ENERGY',
+          name_jp: 'Blade Heart parser fixture',
+          ...fields,
+        },
+      ]).transforms[0]!;
+
+    it.each([
+      { label: 'null', value: null },
+      { label: 'undefined', value: undefined },
+      { label: 'an empty array', value: [] },
+      { label: 'an empty string', value: '' },
+      { label: 'whitespace', value: ' \t\n\u3000 ' },
+    ])('treats $label as absent without a warning', ({ value }) => {
+      const transform = buildTransform({ [field]: value });
+
+      expect(transform.errors).toEqual([]);
+      expect(transform.record!.blade_hearts).toBeNull();
+      expect(transform.warnings).toEqual([]);
+      expect(transform.record!.source_flags).not.toHaveProperty('parseWarnings');
+    });
+
+    it.each([
+      { value: ' red ', expected: [{ effect: 'HEART', heartColor: 'RED' }] },
+      { value: 0, expected: [{ effect: 'HEART', heartColor: 'RAINBOW' }] },
+      { value: 'draw', expected: [{ effect: 'DRAW' }] },
+      { value: 'score', expected: [{ effect: 'SCORE' }] },
+      {
+        value: { blue: 2 },
+        expected: [
+          { effect: 'HEART', heartColor: 'BLUE' },
+          { effect: 'HEART', heartColor: 'BLUE' },
+        ],
+      },
+    ])('preserves valid nonempty value $value', ({ value, expected }) => {
+      const transform = buildTransform({ [field]: value });
+
+      expect(transform.errors).toEqual([]);
+      expect(transform.record!.blade_hearts).toEqual(expected);
+      expect(transform.warnings).toEqual([]);
+    });
+
+    it.each([
+      { value: false, warning: 'unsupported blade heart value' },
+      { value: 1, warning: 'unsupported blade heart value' },
+      { value: 'unknown', warning: 'unsupported blade heart value' },
+      { value: { unknown: 1 }, warning: 'invalid blade heart entry "unknown"' },
+      { value: ['unknown'], warning: 'invalid blade heart item #1' },
+    ])('retains a parse warning for invalid nonempty value $value', ({ value, warning }) => {
+      const transform = buildTransform({ [field]: value });
+
+      expect(transform.errors).toEqual([]);
+      expect(transform.record!.blade_hearts).toBeNull();
+      expect(transform.warnings).toEqual([`PL!N-bp1-001-N row 1 ${field}: ${warning}`]);
+      expect(transform.record!.source_flags!.parseWarnings).toEqual(transform.warnings);
+    });
+
+    it('preserves the other Blade Heart source when this field is blank or missing', () => {
+      const otherField = field === 'blade_hearts' ? 'special_hearts' : 'blade_hearts';
+
+      for (const fields of [{ [field]: ' ', [otherField]: 'draw' }, { [otherField]: 'draw' }]) {
+        const transform = buildTransform(fields);
+
+        expect(transform.errors).toEqual([]);
+        expect(transform.record!.blade_hearts).toEqual([{ effect: 'DRAW' }]);
+        expect(transform.warnings).toEqual([]);
+      }
+    });
+  });
+
   it('strips reserved image version metadata supplied by CloudBase', () => {
     const snapshot = buildCloudbaseCardSnapshot([
       {

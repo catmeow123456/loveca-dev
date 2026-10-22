@@ -25,6 +25,7 @@ import {
 } from '../../src/server/services/replay-payload-serialization';
 import { LEGACY_GAME_STATE_SCHEMA_VERSION } from '../../src/server/services/replay-constants';
 import { GameMode, type SlotPosition } from '../../src/shared/types/enums';
+import { withLegacyReplayHistory } from '../helpers/legacy-replay-history';
 
 const LEGACY_FIXTURE_PATH =
   'data/20260627-cst_20260627T183253Z/loveca-match-replay-2026-06-27-cst-online-only.sql.gz';
@@ -1949,7 +1950,17 @@ function buildEngineReplayAudit(
       continue;
     }
 
-    const expectedNormalized = normalizeEngineState(afterCheckpoint.state);
+    const expectedState = withLegacyReplayHistory({
+      isJune2026Fixture:
+        FIXTURE_PATH === LEGACY_FIXTURE_PATH || FIXTURE_PATH === NORMALIZED_FIXTURE_PATH,
+      beforeSchemaVersion: beforeCheckpoint.schemaVersion,
+      afterSchemaVersion: afterCheckpoint.schemaVersion,
+      decision,
+      command,
+      before: beforeCheckpoint.state,
+      expected: afterCheckpoint.state,
+    });
+    const expectedNormalized = normalizeEngineState(expectedState);
     const actualNormalized = alignUnrecoverableLegacyBladeSourceProvenance(
       normalizeEngineState(result.gameState),
       expectedNormalized,
@@ -1973,7 +1984,7 @@ function buildEngineReplayAudit(
         diffs: collectedDiffs.slice(0, REPLAY_MISMATCH_DIFF_LIMIT),
         diffsTruncated: collectedDiffs.length > REPLAY_MISMATCH_DIFF_LIMIT,
         actual: summarizeReplayComparisonState(result.gameState),
-        expected: summarizeReplayComparisonState(afterCheckpoint.state),
+        expected: summarizeReplayComparisonState(expectedState),
       };
       const skipReason = getExpectedReplayMismatchSkipReason(decision, mismatch, {
         actualNormalized,

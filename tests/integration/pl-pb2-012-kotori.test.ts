@@ -347,16 +347,23 @@ describe('PL!-pb2-012 费用13 南琴梨（南小鸟）', () => {
     expect(energyPaid(s)).toEqual([]);
     expect(s.session.state!.pendingSpecialMemberPlay).toBeNull();
   });
-  it('rejects same-name members and accepts a valid distinct assignment for a combined name', () => {
-    const s = setup({ names: ['高坂穂乃果', '高坂穂乃果'] });
-    expect(begin(s).success).toBe(false);
-    const combined = setup({ names: ['高坂穂乃果&小泉花陽', '高坂穂乃果'] });
-    expect(
-      isPlPb2012SpecialPlayMemberSelection(combined.session.state!, P1, combined.memberIds)
-    ).toBe(true);
-    begin(combined);
-    expect(confirmPlay(combined, combined.memberIds).success).toBe(true);
-  });
+  it.each([
+    ['高坂穂乃果', '高坂穂乃果'],
+    ['高坂穂乃果', '高坂穗乃果'],
+    ['高坂穗乃果', '高坂穂乃果'],
+  ])(
+    'rejects same-member payment %s / %s and accepts a combined-name assignment',
+    (first, second) => {
+      const s = setup({ names: [first, second] });
+      expect(begin(s).success).toBe(false);
+      const combined = setup({ names: ['高坂穂乃果&小泉花陽', '高坂穂乃果'] });
+      expect(
+        isPlPb2012SpecialPlayMemberSelection(combined.session.state!, P1, combined.memberIds)
+      ).toBe(true);
+      begin(combined);
+      expect(confirmPlay(combined, combined.memberIds).success).toBe(true);
+    }
+  );
   it('rejects duplicate and foreign IDs without paying and preserves pending for cancellation', () => {
     const s = setup();
     begin(s);

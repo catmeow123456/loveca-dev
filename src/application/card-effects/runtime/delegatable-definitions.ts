@@ -1,3 +1,8 @@
+import type { GameState } from '../../../domain/entities/game.js';
+import {
+  getCurrentTemporaryOnEnterAbilityGrants,
+  getCopyableOnEnterDefinitions,
+} from './temporary-on-enter-ability-grants.js';
 import { TriggerCondition } from '../../../shared/types/enums.js';
 import {
   CardAbilityCategory,
@@ -49,9 +54,30 @@ export function getWaitingRoomDelegatableOnEnterDefinitions(
  */
 export function getStageMemberDelegatableOnEnterDefinitions(
   cardCode: string,
-  sourceSlot: SlotPosition
+  sourceSlot: SlotPosition,
+  context?: {
+    readonly game: GameState;
+    readonly controllerId: string;
+    readonly sourceCardId: string;
+  }
 ): readonly CardAbilityDefinition[] {
-  return getCardAbilityDefinitionsForCardCode(cardCode).filter(
+  const definitions = [
+    ...getCardAbilityDefinitionsForCardCode(cardCode),
+    ...(context
+      ? getCurrentTemporaryOnEnterAbilityGrants(
+          context.game,
+          context.controllerId,
+          context.sourceCardId
+        ).flatMap((grant) =>
+          getCopyableOnEnterDefinitions(grant.definitionSourceCardCode).filter(
+            (definition) => definition.abilityId === grant.abilityId
+          )
+        )
+      : []),
+  ];
+  return [
+    ...new Map(definitions.map((definition) => [definition.abilityId, definition])).values(),
+  ].filter(
     (definition) =>
       definition.implemented &&
       definition.queued &&

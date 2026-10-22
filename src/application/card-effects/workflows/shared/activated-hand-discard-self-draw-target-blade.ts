@@ -14,17 +14,14 @@ import {
   typeIs,
   type CardSelector,
 } from '../../../effects/card-selectors.js';
-import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
+import { payHandSourceEnergyAndDiscardCost } from '../../runtime/hand-source-cost.js';
 import {
   HS_BP6_014_ACTIVATED_HAND_DISCARD_SELF_DRAW_TARGET_MEGU_RURINO_BLADE_ABILITY_ID,
   PL_N_PB1_003_ACTIVATED_PAY_TWO_ENERGY_HAND_DISCARD_SELF_DRAW_TARGET_NIJIGASAKI_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { addBladeLiveModifierForTargetMember, drawCardsForPlayer } from '../../runtime/actions.js';
-import {
-  discardOneHandCardToWaitingRoomAndEnqueueTriggers,
-  type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
-} from '../../runtime/enter-waiting-room-triggers.js';
+import { type EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
@@ -119,40 +116,22 @@ function startWorkflow(
     return game;
   }
 
-  const paymentResult = payImmediateEffectCosts(
+  const discardResult = payHandSourceEnergyAndDiscardCost(
     game,
     player.id,
     cardId,
-    config.energyCost === 0 ? [] : [{ kind: 'TAP_ACTIVE_ENERGY', count: config.energyCost }]
-  );
-  if (!paymentResult) {
-    return game;
-  }
-
-  // The activated handler is replayed after the standard energy-selection window. Revalidate the
-  // hand source before any energy is committed, then discard it through the trigger-safe wrapper.
-  const paidPlayer = getPlayerById(paymentResult.gameState, player.id);
-  if (!paidPlayer?.hand.cardIds.includes(cardId)) {
-    return game;
-  }
-  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
-    paymentResult.gameState,
-    player.id,
-    cardId,
-    { candidateCardIds: [cardId] },
+    { baseCardCodes: [config.baseCardCode], energyCost: config.energyCost },
     enqueueTriggeredCardEffects
   );
-  if (!discardResult) {
-    return game;
-  }
+  if (!discardResult) return game;
 
   let state = discardResult.gameState;
   if (config.energyCost > 0) {
     state = recordPayCostAction(state, player.id, {
       abilityId: config.abilityId,
       sourceCardId: cardId,
-      paidEnergyCardIds: paymentResult.paidEnergyCardIds,
-      energyCardIds: paymentResult.paidEnergyCardIds,
+      paidEnergyCardIds: discardResult.paidEnergyCardIds,
+      energyCardIds: discardResult.paidEnergyCardIds,
       discardedCardIds: discardResult.discardedCardIds,
       movedToWaitingRoomCardIds: discardResult.discardedCardIds,
       cause: { kind: 'CARD_EFFECT', abilityId: config.abilityId, sourceCardId: cardId },
@@ -177,7 +156,7 @@ function startWorkflow(
     abilityId: config.abilityId,
     sourceCardId: cardId,
     effectText: getAbilityEffectText(config.abilityId),
-    paidEnergyCardIds: paymentResult.paidEnergyCardIds,
+    paidEnergyCardIds: discardResult.paidEnergyCardIds,
     discardedCardIds: discardResult.discardedCardIds,
     drawnCardIds: drawResult.drawnCardIds,
   };
@@ -211,7 +190,7 @@ function startWorkflow(
         confirmSelectionLabel: config.confirmSelectionLabel,
         canSkipSelection: false,
         metadata: {
-          paidEnergyCardIds: paymentResult.paidEnergyCardIds,
+          paidEnergyCardIds: discardResult.paidEnergyCardIds,
           discardedCardIds: discardResult.discardedCardIds,
           drawnCardIds: drawResult.drawnCardIds,
         },

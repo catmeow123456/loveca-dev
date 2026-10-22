@@ -24,7 +24,6 @@ import {
 import {
   cardBelongsToGroup,
   cardBelongsToUnit,
-  getNormalizedCardNameCandidates,
   selectDifferentNamedCards,
 } from '../../shared/utils/card-identity.js';
 
@@ -322,25 +321,21 @@ export function countCurrentLiveRevealedDifferentNamedCheerCards(
   options: CurrentLiveRevealedCheerCardSelectionOptions = {}
 ): CurrentLiveRevealedDifferentNameCheerCardResult {
   const matchingCardIds = selectCurrentLiveRevealedCheerCardIds(game, playerId, options);
-  const normalizedNameSet = new Set<string>();
-
-  for (const cardId of matchingCardIds) {
-    const card = getCardById(game, cardId);
-    if (!card) {
-      continue;
-    }
-    const normalizedName = getNormalizedCardNameCandidates(card.data, {
+  const selected = selectDifferentNamedCards(
+    matchingCardIds,
+    (cardId) => getCardById(game, cardId)?.data ?? null,
+    {
+      nameComparison: 'MEMBER_IDENTITY',
       groupName: options.groupAliases?.[0],
-    })[0];
-    if (normalizedName) {
-      normalizedNameSet.add(normalizedName);
+      minCount: 0,
+      getSecondaryKey: (cardId) => cardId,
     }
-  }
+  );
 
   return {
     matchingCardIds,
-    differentNameCount: normalizedNameSet.size,
-    normalizedNames: [...normalizedNameSet],
+    differentNameCount: selected.length,
+    normalizedNames: selected.map((match) => match.normalizedName),
   };
 }
 
@@ -383,6 +378,7 @@ export function selectCurrentLiveDifferentNamedStageAndCheerMembers(
     candidateCardIds,
     (cardId) => getCardById(game, cardId)?.data ?? null,
     {
+      nameComparison: 'MEMBER_IDENTITY',
       groupName: groupAlias,
       minCount: 0,
       getSecondaryKey: (cardId) => cardId,

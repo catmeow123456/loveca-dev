@@ -37,7 +37,7 @@ import {
   typeIs,
   unitAliasIs,
 } from '../../../effects/card-selectors.js';
-import { countCardsInZoneMatching, getCardIdsInZoneMatching } from '../../../effects/conditions.js';
+import { countCardsInZoneMatching } from '../../../effects/conditions.js';
 import { selectWaitingRoomCardIds } from '../../../effects/zone-selection.js';
 
 const DECLINE_OPTION_LABEL = '不发动';
@@ -63,6 +63,7 @@ interface RecoveryGroupConfig {
 }
 
 interface GroupedRecoveryWorkflowConfig {
+  readonly discardIsEffect?: boolean;
   readonly abilityId: string;
   readonly discardStepId: string;
   readonly recoveryStepId: string;
@@ -154,12 +155,13 @@ const GROUPED_RECOVERY_CONFIGS: readonly GroupedRecoveryWorkflowConfig[] = [
   },
   {
     abilityId: HS_PB1_020_ON_ENTER_DISCARD_TWO_RECOVER_CERISE_MEMBER_AND_HASUNOSORA_LIVE_ABILITY_ID,
+    discardIsEffect: true,
     discardStepId: HS_PB1_020_SELECT_DISCARD_STEP_ID,
     recoveryStepId: HS_PB1_020_SELECT_WAITING_ROOM_CARDS_STEP_ID,
     discardCount: 2,
     startActionStep: 'START_SELECT_DISCARD_TWO',
     recoveryActionStep: 'RECOVER_CERISE_MEMBER_AND_HASUNOSORA_LIVE',
-    discardActionType: 'PAY_COST',
+    discardActionType: 'RESOLVE_ABILITY',
     noTargetActionStep: 'DISCARD_TWO_NO_RECOVERY_TARGET',
     recoveryStepText: '请选择休息室中的1张『Cerise Bouquet』成员卡和1张『莲之空』LIVE卡加入手牌。',
     selectionLabel: '选择要加入手牌的 Cerise Bouquet 成员 / 莲之空 LIVE',
@@ -349,12 +351,16 @@ function startGroupedRecoveryWorkflow(
         metadata: {
           ...precondition?.metadata,
           orderedResolution,
-          effectCosts: [discardCost],
-          handToWaitingRoomCost: {
-            minCount: discardCost.minCount,
-            maxCount: discardCost.maxCount,
-            optional: discardCost.optional,
-          },
+          ...(config.discardIsEffect
+            ? {}
+            : {
+                effectCosts: [discardCost],
+                handToWaitingRoomCost: {
+                  minCount: discardCost.minCount,
+                  maxCount: discardCost.maxCount,
+                  optional: discardCost.optional,
+                },
+              }),
         },
       },
     },

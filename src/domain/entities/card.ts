@@ -173,6 +173,8 @@ export interface BaseCardData {
    * 多源同步标记，展示/审计用
    */
   readonly sourceFlags?: {
+    readonly parseWarnings?: readonly string[];
+    readonly missingRuleFields?: readonly string[];
     readonly excelOnly?: boolean;
     readonly oldSourceOnly?: boolean;
     readonly fieldConflict?: boolean;

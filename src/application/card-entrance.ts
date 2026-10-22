@@ -1,7 +1,9 @@
 import { getCardById, type GameState } from '../domain/entities/game.js';
 import { OrientationState, TriggerCondition } from '../shared/types/enums.js';
 import { N_BP7_011_CONTINUOUS_PLAY_SHUFFLE_WAITING_MEMBERS_COST_MINUS_TWO_ABILITY_ID } from './card-effects/ability-ids.js';
-import { isEntranceCard } from '../shared/card-entrance.js';
+import { entranceCards, isEntranceCard } from '../shared/card-entrance.js';
+import { cardCodeMatchesBase } from '../shared/utils/card-code.js';
+import { cardNameAliasIs } from './effects/card-selectors.js';
 
 /** Pause only at an atomic effect boundary; never split a cost or a workflow mutation. */
 export function captureCardEntrance(game: GameState): GameState {
@@ -46,6 +48,34 @@ export function captureCardEntrance(game: GameState): GameState {
     ];
   });
   const generation = runtime.generation + (cardIds.length ? 1 : 0);
+  const kahoRelays = cardIds.flatMap((cardId) => {
+    const card = getCardById(game, cardId);
+    if (!card || !cardCodeMatchesBase(card.data.cardCode, entranceCards.ginko)) return [];
+    const event = [...entries]
+      .reverse()
+      .find(
+        ({ event }) =>
+          event.eventType === TriggerCondition.ON_ENTER_STAGE && event.cardInstanceId === cardId
+      )?.event;
+    if (event?.eventType !== TriggerCondition.ON_ENTER_STAGE || !('relayReplacements' in event))
+      return [];
+    const source = event.relayReplacements?.find((replacement) => {
+      const replaced = getCardById(game, replacement.cardId);
+      return replaced && cardNameAliasIs('日野下花帆')(replaced);
+    });
+    return source
+      ? [
+          {
+            cardId,
+            source: {
+              cardId: source.cardId,
+              slot: source.slot,
+              orientation: source.orientation ?? OrientationState.ACTIVE,
+            },
+          },
+        ]
+      : [];
+  });
   const waitingRoomReturns = cardIds.flatMap((cardId) => {
     const arrival = [...entries]
       .reverse()
@@ -96,6 +126,7 @@ export function captureCardEntrance(game: GameState): GameState {
             waitingPlayerIds: game.players.map((p) => p.id),
             deadlineAt: 0,
             ...(doubleRelays.length ? { doubleRelays } : {}),
+            ...(kahoRelays.length ? { kahoRelays } : {}),
             ...(waitingRoomReturns.length ? { waitingRoomReturns } : {}),
           }
         : null,

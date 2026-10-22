@@ -1,3 +1,4 @@
+import { getCurrentTemporaryOnEnterAbilityGrants } from './temporary-on-enter-ability-grants.js';
 import {
   addAction,
   getCardById,
@@ -11,6 +12,7 @@ import {
   hasPendingAbilityStarterHandler,
   type DelegatePendingAbility,
 } from './starter-registry.js';
+import { isCurrentStageMemberAbilitySource } from './source-member.js';
 import { GamePhase } from '../../../shared/types/enums.js';
 
 export interface StartDelegatedAbilitySequenceOptions {
@@ -44,10 +46,12 @@ export function startDelegatedAbilitySequence(
     skippedPendingAbilityIds: [],
     skippedAbilityIds: [],
   };
-  return advanceDelegatedAbilitySequence(
-    { ...game, delegatedAbilitySequence: sequence },
-    delegatePendingAbility
-  ) ?? game;
+  return (
+    advanceDelegatedAbilitySequence(
+      { ...game, delegatedAbilitySequence: sequence },
+      delegatePendingAbility
+    ) ?? game
+  );
 }
 
 /**
@@ -196,8 +200,7 @@ function hasDelegatedAbilityProgressed(before: GameState, after: GameState): boo
     afterSequence.remainingAbilities.length < beforeSequence.remainingAbilities.length ||
     afterSequence.resolvedPendingAbilityIds.length >
       beforeSequence.resolvedPendingAbilityIds.length ||
-    afterSequence.skippedPendingAbilityIds.length >
-      beforeSequence.skippedPendingAbilityIds.length
+    afterSequence.skippedPendingAbilityIds.length > beforeSequence.skippedPendingAbilityIds.length
   );
 }
 
@@ -211,13 +214,26 @@ function isDelegatedStageOnEnterStillAvailable(
   if (
     !player ||
     !card ||
+    !isCurrentStageMemberAbilitySource(game, ability) ||
     sourceSlot === undefined ||
     player.memberSlots.slots[sourceSlot] !== ability.sourceCardId
   ) {
     return false;
   }
-  return getStageMemberDelegatableOnEnterDefinitions(
-    card.data.cardCode,
-    sourceSlot
-  ).some((definition) => definition.abilityId === ability.abilityId);
+  const invocation = ability.onEnterInvocation;
+  if (
+    invocation &&
+    !getCurrentTemporaryOnEnterAbilityGrants(game, ability.controllerId, ability.sourceCardId).some(
+      (grant) =>
+        grant.grantId === invocation.grantId &&
+        grant.abilityId === ability.abilityId &&
+        grant.definitionSourceCardCode === invocation.definitionSourceCardCode
+    )
+  )
+    return false;
+  return getStageMemberDelegatableOnEnterDefinitions(card.data.cardCode, sourceSlot, {
+    game,
+    controllerId: ability.controllerId,
+    sourceCardId: ability.sourceCardId,
+  }).some((definition) => definition.abilityId === ability.abilityId);
 }

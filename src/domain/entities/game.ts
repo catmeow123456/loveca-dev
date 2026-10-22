@@ -212,7 +212,13 @@ export interface LiveModifierVisibilityDependency {
   readonly playerId: string;
 }
 
+export interface MemberHeartColorSnapshotContribution {
+  readonly contributionKey: string;
+  readonly amounts: readonly HeartIcon[];
+}
+
 export type LiveModifierState =
+  | TemporaryOnEnterAbilityGrant
   | {
       readonly kind: 'SCORE';
       readonly playerId: string;
@@ -232,6 +238,8 @@ export type LiveModifierState =
       readonly target: 'SOURCE_MEMBER';
       readonly playerId: string;
       readonly hearts: readonly HeartIcon[];
+      /** Materialized only when an existing contribution is captured by a color snapshot. */
+      readonly heartContributionId?: string;
       readonly sourceCardId: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
@@ -251,6 +259,7 @@ export type LiveModifierState =
       readonly playerId: string;
       readonly targetMemberCardId: string;
       readonly hearts: readonly HeartIcon[];
+      readonly heartContributionId?: string;
       readonly sourceCardId: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
@@ -259,12 +268,27 @@ export type LiveModifierState =
       readonly kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT';
       readonly playerId: string;
       readonly memberCardId: string;
+      readonly heartContributionId?: string;
       /** Legacy color-only replacement: preserves the printed total and changes every icon color. */
       readonly color?: HeartColor;
       /** Full printed-heart snapshot replacement for effects that copy a member's printed vector. */
       readonly hearts?: readonly HeartIcon[];
       readonly sourceCardId?: string;
       readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
+    }
+  | {
+      /** A resolved color change affects only Heart contributions present at that moment. */
+      readonly kind: 'MEMBER_HEART_COLOR_SNAPSHOT';
+      readonly playerId: string;
+      readonly memberCardId: string;
+      readonly targetLifecycleId: string;
+      readonly fromColors: readonly HeartColor[];
+      readonly toColor: HeartColor;
+      readonly contributions: readonly MemberHeartColorSnapshotContribution[];
+      readonly sourceCardId: string;
+      readonly abilityId: string;
+      readonly snapshotId: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
   | {
@@ -316,6 +340,15 @@ export type LiveModifierState =
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
   | {
+      /** A resolved player effect; persists if its source leaves and expires at LIVE end. */
+      readonly kind: 'CHEER_DIRECTION';
+      readonly playerId: string;
+      readonly deckEdge: 'BOTTOM';
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
+    }
+  | {
       readonly kind: 'CHEER_COUNT';
       readonly playerId: string;
       readonly countDelta: number;
@@ -356,6 +389,26 @@ export type LiveModifierState =
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
     };
+
+/** Authority-only context of a borrowed ON_ENTER ability invocation. */
+export interface OnEnterAbilityInvocation {
+  readonly definitionSourceCardCode: string;
+  readonly waiveActivationCosts: boolean;
+  readonly grantId: string;
+}
+
+/** A temporary ability belongs to one concrete stage rules object, until LIVE end. */
+export interface TemporaryOnEnterAbilityGrant {
+  readonly kind: 'ON_ENTER_ABILITY_GRANT';
+  readonly sourceCardId?: string;
+  readonly visibilityDependency?: LiveModifierVisibilityDependency;
+  readonly grantId: string;
+  readonly controllerId: string;
+  readonly hostCardId: string;
+  readonly hostLifecycleId: string;
+  readonly definitionSourceCardCode: string;
+  readonly abilityId: string;
+}
 
 export interface LiveResolutionState {
   /** 是否正在进行 Live */
@@ -512,6 +565,7 @@ export interface GameEndInfo {
  * 这里只记录“哪张牌的哪个能力正在排队”，不记录玩家选择结果。
  */
 export interface PendingAbilityState {
+  readonly onEnterInvocation?: OnEnterAbilityInvocation;
   /** 待处理能力实例 ID */
   readonly id: string;
   /** 能力定义 ID */
@@ -632,6 +686,7 @@ export interface ActiveEffectChoiceState {
 }
 
 export interface ActiveEffectState {
+  readonly onEnterInvocation?: OnEnterAbilityInvocation;
   /** 当前处理中的效果实例 ID */
   readonly id: string;
   /** 能力定义 ID */
