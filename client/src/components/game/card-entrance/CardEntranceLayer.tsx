@@ -2,10 +2,12 @@ import { getRinaLiveSwapSource } from '@/lib/rinaLiveSwap';
 import { RinaLivePlayback } from './rina-sec/RinaLivePlayback';
 import { useCardEntranceBarrier, useWindowVisualEligibility } from '../BattleRuntime';
 import { useTextPresentation } from '@/lib/appPresentation';
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
 import { cardEntranceProfiles, getCardEntranceProfile } from '@/lib/cardEntranceProfiles';
+import { EffectImageCache } from '@/lib/effectImageCache';
+import { collectSpecialEffectImageUrls } from '@/lib/specialEffectPreload';
 import { preloadEntranceProfiles } from '@/lib/cardEntrancePreload';
 import { getEntranceStageTarget } from '@/lib/cardEntranceLanding';
 import { CardEntrancePlayback } from './CardEntrancePlayback';
@@ -28,17 +30,47 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
       ? JSON.stringify(view.match.entranceAssetIds ?? [])
       : '[]';
   const matchId = view?.match.matchId;
+  const reduced = !!useReducedMotion();
+  const imagePath = useGameStore((s) => s.getCardImagePath);
+  const images = useMemo(() => new EffectImageCache(), [contextKey]);
+  const warmImages = enabled && !!view && !view.match.endInfo;
+  const imageKey = warmImages
+    ? JSON.stringify(collectSpecialEffectImageUrls(view, imagePath, reduced))
+    : '[]';
+  useEffect(() => () => images.clear(), [images]);
+  useEffect(() => {
+    if (!warmImages) {
+      images.clear();
+      return;
+    }
+    // Yield to the initial board paint; future snapshots only update changed public candidates.
+    const timer = setTimeout(() => images.preload(JSON.parse(imageKey)), 0);
+    return () => clearTimeout(timer);
+  }, [images, imageKey, warmImages]);
   useEffect(() => {
     const ids = new Set<string>(JSON.parse(preloadKey));
     if (!ids.size) return;
     return preloadEntranceProfiles(cardEntranceProfiles.filter((profile) => ids.has(profile.id)));
   }, [matchId, preloadKey]);
   return view && wait && !view.match.endInfo ? (
-    <SynchronizedEntrance key={`${contextKey}:${wait.id}`} view={view} enabled={enabled} />
+    <SynchronizedEntrance
+      key={`${contextKey}:${wait.id}`}
+      view={view}
+      enabled={enabled}
+      images={images}
+    />
   ) : null;
 }
 
-function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enabled: boolean }) {
+function SynchronizedEntrance({
+  view,
+  enabled,
+  images,
+}: {
+  view: PlayerViewState;
+  enabled: boolean;
+  images: EffectImageCache;
+}) {
   const wait = view.match.entrance!;
   const textOnly = useTextPresentation();
   const playVisuals = useWindowVisualEligibility(wait.id, enabled);
@@ -139,10 +171,16 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
     <>
       <div className="absolute inset-0 z-[59]" aria-hidden="true" />
       {activeSwap ? (
-        <RinaLivePlayback source={activeSwap} reduced={reduced} onDone={() => setSwapDone(true)} />
+        <RinaLivePlayback
+          source={activeSwap}
+          images={images}
+          reduced={reduced}
+          onDone={() => setSwapDone(true)}
+        />
       ) : activeMemory ? (
         <HonokaMemoryPlayback
           presentation={activeMemory}
+          images={images}
           reduced={reduced}
           onDone={() => setMemoryDone(true)}
         />

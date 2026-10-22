@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { getEntranceStageTarget, sameEntranceTarget } from '@/lib/cardEntranceLanding';
 import { ENTRANCE_LOAD_TIMEOUT_MS } from '@/lib/cardEntranceAssets';
+import type { EffectImageCache } from '@/lib/effectImageCache';
 import type { RinaLiveSwapSource } from '@/lib/rinaLiveSwap';
 import { drawRinaSec } from './rinaSecDrawing';
 import { readRinaBattleLayout } from './rinaBattleLayout';
@@ -11,10 +12,12 @@ import './rinaSec.css';
 /** A public, already-committed movement. The shared authority barrier owns all continuation. */
 export function RinaLivePlayback({
   source,
+  images,
   reduced,
   onDone,
 }: {
   source: RinaLiveSwapSource;
+  images: EffectImageCache;
   reduced: boolean;
   onDone: () => void;
 }) {
@@ -34,21 +37,17 @@ export function RinaLivePlayback({
   }, [valid]);
   useEffect(() => {
     if (reduced || !valid) return;
-    const image = new Image();
     let cancelled = false;
     const timer = window.setTimeout(() => {
       cancelled = true;
-      image.removeAttribute('src');
       done.current();
     }, ENTRANCE_LOAD_TIMEOUT_MS);
-    image.src = source.imagePath;
-    image
-      .decode()
-      .then(() => {
+    images
+      .load(source.imagePath)
+      .then((image) => {
         if (!cancelled) {
           clearTimeout(timer);
-          if (image.naturalWidth && image.naturalHeight) setFace(image);
-          else done.current();
+          setFace(image);
         }
       })
       .catch(() => {
@@ -60,9 +59,8 @@ export function RinaLivePlayback({
     return () => {
       cancelled = true;
       clearTimeout(timer);
-      image.removeAttribute('src');
     };
-  }, [source.imagePath, reduced, valid]);
+  }, [images, source.imagePath, reduced, valid]);
   useLayoutEffect(() => {
     if ((!face && !reduced) || !valid) return;
     const layout = readRinaBattleLayout(source.target, source.side, source.liveIndex);

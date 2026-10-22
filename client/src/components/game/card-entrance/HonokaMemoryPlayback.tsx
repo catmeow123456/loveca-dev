@@ -10,6 +10,7 @@ import {
   getBattleWaitingRoomAnchor,
 } from '@/lib/battleUiAnchors';
 import { ENTRANCE_LOAD_TIMEOUT_MS } from '@/lib/cardEntranceAssets';
+import type { EffectImageCache } from '@/lib/effectImageCache';
 import type { HonokaMemoryPresentation } from '@/lib/honokaMemoryPresentation';
 import { HonokaMemoryStage } from './honoka-memory-stage/HonokaMemoryStage';
 import {
@@ -31,10 +32,12 @@ const anchor = (id: string) =>
 /** Shared barrier owns synchronization; this component only owns its current visual window. */
 export function HonokaMemoryPlayback({
   presentation,
+  images,
   reduced,
   onDone,
 }: {
   presentation: HonokaMemoryPresentation;
+  images: EffectImageCache;
   reduced: boolean;
   onDone: () => void;
 }) {
@@ -59,17 +62,16 @@ export function HonokaMemoryPlayback({
       return;
     }
     let cancelled = false;
-    const images = [
+    const urls = [
       ...new Set([...cue.memories, ...(cue.recovered ? [cue.recovered] : [])].map((f) => f.image)),
-    ].map((url) => {
-      const image = new Image();
-      image.src = url;
-      return image;
-    });
+    ];
     const timeout = setTimeout(() => {
-      if (!cancelled) done.current();
+      if (!cancelled) {
+        cancelled = true;
+        done.current();
+      }
     }, ENTRANCE_LOAD_TIMEOUT_MS);
-    Promise.all(images.map((image) => image.decode())).then(
+    Promise.all(urls.map((url) => images.load(url))).then(
       () => {
         if (!cancelled) {
           clearTimeout(timeout);
@@ -77,15 +79,18 @@ export function HonokaMemoryPlayback({
         }
       },
       () => {
-        if (!cancelled) done.current();
+        if (!cancelled) {
+          cancelled = true;
+          clearTimeout(timeout);
+          done.current();
+        }
       }
     );
     return () => {
       cancelled = true;
       clearTimeout(timeout);
-      for (const image of images) image.removeAttribute('src');
     };
-  }, [cue, reduced]);
+  }, [images, cue, reduced]);
 
   useLayoutEffect(() => {
     if (reduced || !cue.recovered) return;
