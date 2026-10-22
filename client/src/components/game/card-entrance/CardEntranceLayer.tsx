@@ -14,6 +14,8 @@ import { getDoubleRelaySources } from '@/lib/doubleRelayEntrance';
 import { getWaitingReturnSource } from '@/lib/waitingReturnEntrance';
 import { getAbilityTransferSource, getKahoRelaySource } from '@/lib/ginkoFlowerTransfer';
 import { AbilityTransferPlayback } from './AbilityTransferPlayback';
+import { getHonokaMemoryPresentation } from '@/lib/honokaMemoryPresentation';
+import { HonokaMemoryPlayback } from './HonokaMemoryPlayback';
 import './cardEntrance.css';
 
 export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
@@ -50,45 +52,52 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
   );
   const [swapDone, setSwapDone] = useState(false);
   const activeSwap = playVisuals && viewerWaiting && !swapDone ? rinaSwap : undefined;
+  const [memory] = useState(() =>
+    getHonokaMemoryPresentation(view, useGameStore.getState().getCardImagePath)
+  );
   // Snapshot only public, already-present stage cards. No historical event replay on mount.
   const [queue] = useState(() =>
-    (wait.abilityTransfer || wait.rinaLiveSwap ? [] : wait.objectIds).flatMap((objectId) => {
-      const target = getEntranceStageTarget(view, objectId);
-      const profile = target && getCardEntranceProfile(target.cardCode);
-      return target && profile
-        ? [
-            {
-              id: `${wait.id}:${objectId}`,
-              target,
-              profile,
-              imagePath: useGameStore.getState().getCardImagePath(target.cardCode),
-              kahoSource: getKahoRelaySource(
-                view,
-                objectId,
-                useGameStore.getState().getCardImagePath
-              ),
-              waitingReturn: getWaitingReturnSource(
-                view,
-                objectId,
-                useGameStore.getState().getCardImagePath
-              ),
-              relaySources: getDoubleRelaySources(
-                view,
-                objectId,
-                useGameStore.getState().getCardImagePath
-              ),
-            },
-          ]
-        : [];
-    })
+    (wait.abilityTransfer || wait.rinaLiveSwap || wait.honokaMemory ? [] : wait.objectIds).flatMap(
+      (objectId) => {
+        const target = getEntranceStageTarget(view, objectId);
+        const profile = target && getCardEntranceProfile(target.cardCode);
+        return target && profile
+          ? [
+              {
+                id: `${wait.id}:${objectId}`,
+                target,
+                profile,
+                imagePath: useGameStore.getState().getCardImagePath(target.cardCode),
+                kahoSource: getKahoRelaySource(
+                  view,
+                  objectId,
+                  useGameStore.getState().getCardImagePath
+                ),
+                waitingReturn: getWaitingReturnSource(
+                  view,
+                  objectId,
+                  useGameStore.getState().getCardImagePath
+                ),
+                relaySources: getDoubleRelaySources(
+                  view,
+                  objectId,
+                  useGameStore.getState().getCardImagePath
+                ),
+              },
+            ]
+          : [];
+      }
+    )
   );
   const [index, setIndex] = useState(0);
   const [landedId, setLandedId] = useState<string | null>(null);
   const [releasedPreludeId, setReleasedPreludeId] = useState<string | null>(null);
   const [transferDone, setTransferDone] = useState(false);
+  const [memoryDone, setMemoryDone] = useState(false);
+  const activeMemory = playVisuals && viewerWaiting && !memoryDone ? memory : undefined;
   const activeTransfer = playVisuals && viewerWaiting && !transferDone ? transfer : undefined;
   const active = playVisuals && viewerWaiting ? queue[index] : undefined;
-  const done = !active && !activeTransfer && !activeSwap;
+  const done = !active && !activeTransfer && !activeSwap && !activeMemory;
 
   useCardEntranceBarrier(view, done);
 
@@ -131,6 +140,12 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
       <div className="absolute inset-0 z-[59]" aria-hidden="true" />
       {activeSwap ? (
         <RinaLivePlayback source={activeSwap} reduced={reduced} onDone={() => setSwapDone(true)} />
+      ) : activeMemory ? (
+        <HonokaMemoryPlayback
+          presentation={activeMemory}
+          reduced={reduced}
+          onDone={() => setMemoryDone(true)}
+        />
       ) : activeTransfer ? (
         <AbilityTransferPlayback
           source={activeTransfer}

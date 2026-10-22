@@ -1,0 +1,145 @@
+.honoka-memory-presentation {
+  position: fixed;
+  inset: 0;
+  z-index: 68;
+  pointer-events: none;
+  overflow: hidden;
+  isolation: isolate;
+}
+.honoka-memory-source-light {
+  position: absolute;
+  border: 1px solid #f7bb7c;
+  border-radius: 7px;
+  box-shadow: 0 0 8px #e99a5a40;
+}
+.honoka-memory-card {
+  position: absolute;
+  transform-style: preserve-3d;
+  border-radius: 5px;
+  border: 1px solid #f0d7ac;
+  box-shadow:
+    2px 2px 0 #9e7e62,
+    4px 4px 0 #423746,
+    5px 12px 15px #06071877;
+  overflow: hidden;
+  background: #31273d;
+}
+.honoka-memory-card--projection {
+  border: 1px solid #fff1d0aa;
+  border-radius: 3px;
+  background: #f5dfc1;
+  box-shadow:
+    0 8px 18px #11122245,
+    0 0 12px #ffe3bd18;
+  mask-image: linear-gradient(#000 80%, #000b);
+}
+.honoka-memory-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  max-width: none;
+}
+.honoka-memory-card-sheen {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, #fff4d82b, transparent 37%, transparent 64%, #f3cc9d16);
+  border: 1px solid #ffe5b944;
+  border-radius: 4px;
+}
+.honoka-memory-card--projection .honoka-memory-card-sheen {
+  background: linear-gradient(180deg, #fff7e518, transparent 50%, #fff1d12b);
+}
+.honoka-memory-reward-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.honoka-memory-reward-row--floating {
+  position: absolute;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 24px);
+}
+.honoka-memory-reward {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding: 5px 10px;
+  border: 1px solid #dac6a977;
+  border-radius: 6px;
+  background: #25283af5;
+  box-shadow: 0 3px 10px #10132155;
+  color: #fff2d9;
+  white-space: nowrap;
+  font-size: 14px;
+}
+.honoka-memory-reward small {
+  font-size: 10px;
+  color: #e1dbd2;
+}
+.honoka-memory-reward img {
+  width: 27px;
+  height: 27px;
+  object-fit: contain;
+}
+.honoka-memory-reward b {
+  font-size: 19px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.honoka-memory-recovery-cue,
+.honoka-memory-recovery-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  color: #ffe6c2;
+  font: 600 12px/1.5 sans-serif;
+  text-shadow:
+    0 1px 3px #000,
+    0 1px 8px #000;
+  white-space: nowrap;
+}
+.honoka-memory-passage {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  perspective: 400px;
+  border: 2px solid #d2ae80;
+  border-bottom: 4px solid #a07c58;
+  box-shadow: 0 12px 8px #090c1933;
+  border-radius: 45% 45% 0 0;
+  background: radial-gradient(ellipse at bottom, #e7bd7b40, transparent 72%);
+}
+.honoka-memory-passage i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  background: linear-gradient(90deg, #6e3645, #cd9271 4%, #603749 15%, #281f33 94%, #c69a70);
+  border: 1px solid #dbb57c;
+  transform-origin: left center;
+  border-radius: 80% 0 0 0;
+}
+.honoka-memory-passage i + i {
+  left: 50%;
+  transform-origin: right center;
+  border-radius: 0 80% 0 0;
+}
+.honoka-memory-reduced {
+  position: absolute;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  color: #fff1d1;
+  font: 600 12px/1.5 sans-serif;
+  text-align: center;
+}
+.honoka-memory-reduced > span {
+  display: block;
+  padding: 6px 10px;
+  background: #25283af5;
+  border: 1px solid #dac6a977;
+  border-radius: 6px;
+}
