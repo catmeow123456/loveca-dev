@@ -1,67 +1,48 @@
 ---
 name: frontend-design
-description: Guidance for distinctive, intentional visual design when building new UI or reshaping an existing one. Helps with aesthetic direction, typography, and making choices that don't read as templated defaults.
+description: Design or substantially refine frontend interfaces around user tasks, an established product identity, accessible controls, and browser evidence. For small local changes, follow the existing design system without inventing a new visual direction.
 license: Complete terms in LICENSE.txt
 ---
 
 # Frontend Design
 
-Approach this as the design lead at a small studio known for giving every client a visual identity that could not be mistaken for anyone else's. This client has already rejected proposals that felt templated, and is paying for a distinctive point of view: make deliberate, opinionated choices about palette, typography, and layout that are specific to this brief, and take one real aesthetic risk you can justify.
+设计判断服务用户的任务、可读性与操作结果。独特风格是可以选择的表达方式，不是每次修改都要承担的目标。用户明确的方向、现有产品规范与实测证据优先于通用审美偏好。
 
-## Ground it in the subject
+## 先确定当前工作
 
-If the brief does not pin down what the product or subject is, pin it yourself before designing: name one concrete subject, its audience, and the page's single job, and state your choice. If there's any information in your memory about the human's preferences, context about what they're building, or designs you've made before – use that as a hint. The subject's own world, its materials, instruments, artifacts, and vernacular, is where distinctive choices come from. Build with the brief's real content and subject matter throughout.
+- 明确使用者、当前任务、主要动作和必须同时看见的信息；从现有页面、代码、截图和用户反馈中推断，不为已经明确的条件重复提问。
+- 新页面或明确重设计：选择与产品内容有关的视觉方向，再决定布局、层级与样式。
+- 现有界面维护：继承已确认的字体、颜色、组件和交互。先修复本次问题，不因局部需求重做页面或强制加入新字体、装饰、动效。
+- 密集界面：优先让信息可扫描、数量可比较、动作可发现、状态更新可追踪；布局紧凑不等于文字更小、热区更窄。
 
-## Design principles
+本仓库按需查阅[产品视觉系统](../../../docs/ui-design/product-visual-system.md)和[前端规范](../../../docs/ui-design/standard.md)。对战命令、隐藏信息与模式边界遵守对应领域约定；不要把 UI 外观修改扩展成规则变更。
 
-For web designs, the hero is a thesis. Open with the most characteristic thing in the subject's world, in whatever form makes sense for it: a headline, an image, an animation, a live demo, an interactive moment. Be deliberate with your choice: a big number with a small label, supporting stats, and a gradient accent is the template answer, only use if that's truly the best option.
+## 决策与实现
 
-Typography carries the personality of the page. Pair the display and body faces deliberately, not the same families you would reach for on any other project, and set a clear type scale with intentional weights, widths, and spacing. Make the type treatment itself a memorable part of the design, not a neutral delivery vehicle for the content.
+- 复用语义 token 和已有组件；重复出现的同类控件应共享字体、表面、尺寸、边界和状态规则。只有出现实际复用或明确需求时才提取抽象。
+- 一致性保留角色区别：信息标签、数量、可点击动作属于同一视觉体系，但静态信息不伪装成按钮，普通操作不随意借用危险或成功语义色。
+- 用位置、分组和留白表达关系；颜色、边框、图标和动效应有可说明的信息用途。不为避免“模板感”加入无关差异。
+- 不为视觉整齐隐式改变稳定排序、输入焦点或操作落点；需要排序、重组或动画时说明它支持的用户意图。
+- 文案使用玩家或产品用户能够理解的名称、动作和结果；保留必要反馈与不可操作原因，删除不帮助判断的解释和装饰性文案。
 
-Structure is information. Structural devices, numbering, eyebrows, dividers, labels, should encode something true about the content, not decorate it. Many generic designs use numbered markers (01 / 02 / 03), but that's only appropriate if the content actually is a sequence - like a real process or a typed timeline where order carries information the reader needs. Question if choices like numbered markers actually make sense before incorporating them.
+## 可读性与交互
 
-Leverage motion deliberately. Think about where and if animation can serve the subject: a page-load sequence, a scroll-triggered reveal, hover micro-interactions, ambient atmosphere. An orchestrated moment usually lands harder than scattered effects; choose what the direction calls for. However, sometimes less is more, and extra animation contributes to the feeling that the design is AI-generated.
+- 对比度依据文字旁实际背景计算，包含透明表面、图像和祖先 opacity。复杂或可变背景可用字形轮廓或局部表面改善可读性，选择应保留用户确认的视觉风格；模糊、阴影或“看起来更深”不能代替测量。
+- 遵循适用的 WCAG 要求：普通文字 4.5:1，必要的非文字控件信息 3:1；小字与细字应留出余量。禁用状态仍应可辨认，不能用整体淡化破坏重要信息。
+- 目标尺寸按设备、密度和替代操作选择，核对 WCAG 2.2 的 24px AA 基线及例外；重要触屏操作优先争取更大热区。不要把某一尺寸当作所有控件的机械要求。
+- 定义可用、hover、focus-visible、按下、禁用、等待、失败和完成状态中当前操作实际需要的部分。键盘、触屏与鼠标应有可完成的路径。
+- 响应式布局应保留主要动作和核心信息；不要仅隐藏溢出或滚动条来掩盖尺寸问题。不要自行增加用户不需要的内部滚动。
 
-Match complexity to the vision. Maximalist directions need elaborate execution; minimal directions need precision in spacing, type, and detail. Elegance is executing the chosen vision well.
+## 使用研究与规范
 
-Consider written content carefully. Often a design brief may not contain real content, and it's up to you to come up with copy. Copy can make a design feel as templated as the design itself. See the below section on writing for more guidance.
+用户要求调研、现有做法存在疑问或出现新的设计权衡时，再查相关研究、正式规范和权威产品指南。
 
-## Process: brainstorm, explore, plan, critique, build, critique again
+- 区分规范性要求、研究结果与本项目的设计推论；研究中的条件和限制不能省略，也不能把一种配色或案例升级为普遍规则。
+- 优先原论文、标准正文及官方设计系统，记录支持当前决策的具体来源；无需把一次任务的案例或完整资料复制进 skill。
+- 美感与偏好通过产品语境、用户讨论和真实画面评估，不用“最佳实践”替代具体判断。
 
-For calibration: AI-generated design right now clusters around three looks: (1) a warm cream background (near #F4F1EA) with a high-contrast serif display and a terracotta accent; (2) a near-black background with a single bright acid-green or vermilion accent; (3) a broadsheet-style layout with hairline rules, zero border-radius, and dense newspaper-like columns. All three are legitimate for some briefs, but they are defaults rather than choices, and they appear regardless of subject. Where the brief pins down a visual direction, follow it exactly — the brief's own words always win, including when it asks for one of these looks. Where it leaves an axis free, don't spend that freedom on one of these defaults. Just like a human designer who's hired, there's often a careful balance between doing what you're good at and taking each project as a chance to experiment and learn.
+## 验证与交付
 
-Work in two passes. First, brainstorm a short design plan based on the human's design brief: create a compact token system with color, type, layout, and signature. Color: describe the palette as 4–6 named hex values. Type: the typefaces for 2+ roles (a characterful display face that's used with restraint, a complementary body face, and a utility face for captions or data if needed). Layout: a layout concept, using one-sentence prose descriptions and ASCII wireframes to ideate and compare. Signature: the single unique element this page will be remembered by that embodies the brief in an appropriate way.
+先实现必要范围，再检查真实浏览器画面和操作结果。按风险选择有区分力的视口、主题、长内容或边界状态；使用实际截图评审可读性、重叠、裁切与层级，发现问题后修正并复核。
 
-Then review that plan against the brief before building: if any part of it reads like the generic default you would produce for any similar page (work through a similar prompt to see if you arrive somewhere similar) rather than a choice made for this specific brief — revise that part, say what you changed and why. Only after you've confirmed the relative uniqueness of your design plan should you start to write the code, following the revised plan exactly and deriving every color and type decision from it.
-
-When writing the code, be careful of structuring your CSS selector specificities. It's easy to generate CSS classes that cancel each other out (especially with a type-based selector like .section and a element-based selector like .cta). This can happen often with paddings/margins between sections.
-
-Try to do a lot of this planning and iteration in your thinking, and only show ideas to the user when you have higher confidence it'll delight them.
-
-## Restraint and self-critique
-
-Spend your boldness in one place. Let the signature element be the one memorable thing, keep everything around it quiet and disciplined, and cut any decoration that does not serve the brief. Not taking a risk can be a risk itself! Build to a quality floor without announcing it: responsive down to mobile, visible keyboard focus, reduced motion respected. Critique your own work as you build, taking screenshots if your environment supports it – a picture is worth 1000 tokens. Consider Chanel's advice: before leaving the house, take a look in the mirror and remove one accessory. Human creators have memory and always try to do something new, so if you have a space to quickly jot down notes about what you've tried, it can help you in future passes.
-
-## Aesthetic and minimalist design (NN/g)
-
-[NN/g's heuristic](https://www.nngroup.com/articles/aesthetic-minimalist-design/) prioritizes information that supports the user's current task. Unnecessary content competes with useful information; visual simplicity alone does not establish usability.
-
-Apply that principle when designing and reviewing:
-
-- **Test relevance.** For each subtitle, badge, eyebrow, or helper line, identify the decision or action it helps. When a navigation label already explains its destination, omit a routine explanatory subtitle. Avoid text that merely narrates the design or fills space.
-- **Reveal details when needed.** Put instructions in the relevant editing or task flow. Do not keep guidance permanently visible when the control is already understandable.
-- **Keep essential feedback.** Preserve unavailable reasons, selection state, error recovery, and information needed before a consequential action. Keep controls discoverable and keyboard focus visible.
-- **Remove at the source.** When redundant copy is removed, delete its data, rendering branches, and unused styles within scope. Do not conceal it with CSS or retain it in accessible names. Reduce leftover spacing too.
-- **Respect the brief.** This is an information-priority principle, not a requirement for sparse layouts, muted colors, or removing useful detail. Retain visual identity and task-relevant content.
-
-## More on writing in design
-
-Words appear in a design for one reason: to make it easier to understand, and therefore easier to use. They are design material, not decoration. Bring the same intentionality to copy that you would bring to spacing and color. Before writing anything, ask what the design needs to say, and how it can best be said to help the person navigate the experience.
-
-Write from the end user's side of the screen. Name things by what people control and recognize, never by how the system is built. A person manages notifications, not webhook config. Describe what something does in plain terms rather than selling it. Being specific is always better than being clever.
-
-Use active voice as default. A control should say exactly what happens when it's used: "Save changes," not "Submit." An action keeps the same name through the whole flow, so the button that says "Publish" produces a toast that says "Published." The vocabulary of an interface is the signposting for someone navigating the product. Cohesion and consistency are how people learn their way around.
-
-Treat failure and emptiness as moments for direction, not mood. Explain what went wrong and how to fix it, in the interface's voice rather than a person's. Errors don't apologize, and they are never vague about what happened. An empty screen is an invitation to act.
-
-Keep the register conversational and tuned: plain verbs, sentence case, no filler, with tone matched to the brand and the audience. Let each element do exactly one job. A label labels, an example demonstrates, and nothing quietly does double duty.
+对规则、权限、接口和脆弱交互写行为验证；纯外观调整优先使用浏览器与截图证据，不为匹配实现细节堆测试。交付说明实际变化、验证结果、设计取舍和仍未覆盖的边界。

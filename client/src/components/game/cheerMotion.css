@@ -28,7 +28,7 @@
   height: 100%;
   object-fit: cover;
   backface-visibility: hidden;
-  border-radius: 8px;
+  border-radius: var(--card-radius, 4px);
   box-shadow: 0 5px 15px #0005;
 }
 .cheer-motion-back {

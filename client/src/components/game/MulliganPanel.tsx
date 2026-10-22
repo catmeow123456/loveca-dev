@@ -380,7 +380,7 @@ export const MulliganPanel = memo(function MulliganPanel({
                           aria-pressed={isSelected}
                           aria-disabled={!isSelectable}
                           className={cn(
-                            'group flex min-w-0 items-center justify-center rounded-lg border p-1.5 transition sm:p-2',
+                            'group flex min-w-0 items-center justify-center rounded-md border p-1.5 transition sm:p-2',
                             isSelectable
                               ? 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)] hover:border-[color:color-mix(in_srgb,var(--accent-secondary)_42%,var(--border-default))]'
                               : 'cursor-zoom-in border-[var(--border-subtle)] bg-[var(--bg-overlay)] opacity-70',
@@ -388,7 +388,7 @@ export const MulliganPanel = memo(function MulliganPanel({
                               'border-[var(--accent-secondary)] bg-[color:color-mix(in_srgb,var(--accent-secondary)_14%,var(--bg-surface))] shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent-secondary)_45%,transparent)]'
                           )}
                         >
-                          <div className="relative aspect-[5/7] w-full max-w-[94px] overflow-visible rounded-lg sm:max-w-[106px]">
+                          <div className="battle-card-face relative aspect-[5/7] w-full max-w-[94px] overflow-visible sm:max-w-[106px]">
                             <Card
                               cardData={cardData as AnyCardData}
                               instanceId={card.instanceId}
