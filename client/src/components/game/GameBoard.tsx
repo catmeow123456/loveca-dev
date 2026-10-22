@@ -2502,7 +2502,7 @@ export const GameBoard = memo(function GameBoard({
       <div
         ref={setBoardRoot}
         data-battle-ui-anchor={BATTLE_UI_ANCHORS.BOARD}
-        className="isolate h-full flex flex-col relative overflow-hidden bg-[var(--board-wallpaper-base)]"
+        className="battle-table isolate h-full flex flex-col relative overflow-hidden bg-[var(--board-wallpaper-base)]"
         onClick={handleBattlefieldBackgroundClick}
       >
         <BoardBackground {...tableWallpaper} className="-z-10" />
@@ -2612,8 +2612,8 @@ export const GameBoard = memo(function GameBoard({
             />
             {isMobileBattlefield ? (
               <div className="relative z-10 flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:hidden">
-                <div className="safe-top shrink-0 px-2.5 pt-2.5">
-                  <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_30%,transparent)] px-2.5 py-1.5 shadow-none backdrop-blur-[2px]">
+                <div className="battle-mobile-header safe-top shrink-0 px-2.5 pt-2.5">
+                  <div className="battle-mobile-phase-header rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_30%,transparent)] px-2.5 py-1.5 shadow-none backdrop-blur-[2px]">
                     <div className="flex items-center justify-between gap-2">
                       {showLeaveLocalGameButton || showRestartGameButton ? (
                         <div className="flex shrink-0 items-center gap-1">
@@ -2682,7 +2682,7 @@ export const GameBoard = memo(function GameBoard({
                     </div>
                   </div>
 
-                  <div className="relative z-[95] mt-1.5 grid grid-cols-2 items-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_18%,transparent)] px-1.5 py-1.5 shadow-none backdrop-blur-[2px]">
+                  <div className="battle-mobile-seat-summary relative z-[95] mt-1.5 grid grid-cols-2 items-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_18%,transparent)] px-1.5 py-1.5 shadow-none backdrop-blur-[2px]">
                     {capabilities.canSwitchPerspective ? (
                       (['FIRST', 'SECOND'] as const).map((seat) => {
                         const identity = getPlayerIdentityForSeat(seat);
@@ -2721,7 +2721,7 @@ export const GameBoard = memo(function GameBoard({
                             </span>
                             <span
                               data-mobile-player-hand-count={seat}
-                              className="shrink-0 text-[10px] font-semibold text-[var(--text-muted)] tabular-nums"
+                              className="battle-zone-label battle-zone-count"
                             >
                               手牌 {handCount}
                             </span>
@@ -2755,7 +2755,7 @@ export const GameBoard = memo(function GameBoard({
                           </span>
                           <span
                             data-mobile-player-hand-count={opponentSeat}
-                            className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)] tabular-nums"
+                            className="battle-zone-label battle-zone-count"
                           >
                             手牌 {opponentHandCount}
                           </span>
@@ -2783,7 +2783,7 @@ export const GameBoard = memo(function GameBoard({
                           </span>
                           <span
                             data-mobile-player-hand-count={selfSeat}
-                            className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)] tabular-nums"
+                            className="battle-zone-label battle-zone-count"
                           >
                             手牌 {selfHandCount}
                           </span>
@@ -2793,7 +2793,7 @@ export const GameBoard = memo(function GameBoard({
                   </div>
                 </div>
 
-                <div className="min-h-0 flex-1 px-2 pb-32 pt-1.5">
+                <div className="min-h-0 flex-1 px-2 pb-[104px] pt-1.5">
                   <motion.div
                     key={`mobile-perspective-${selfSeat}`}
                     data-perspective-surface="mobile-self"
@@ -2807,7 +2807,7 @@ export const GameBoard = memo(function GameBoard({
                       duration: prefersReducedMotion ? 0.08 : 0.18,
                       ease: [0.22, 1, 0.36, 1],
                     }}
-                    className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_10%,transparent)] shadow-none"
+                    className="battle-mobile-surface flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_10%,transparent)] shadow-none"
                   >
                     <div className="min-h-0 flex-1 overflow-hidden">
                       <PlayerArea
@@ -2830,7 +2830,7 @@ export const GameBoard = memo(function GameBoard({
 
                 <div
                   className={cn(
-                    'safe-bottom fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-[65] grid gap-1.5 md:hidden',
+                    'battle-mobile-actions safe-bottom fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-[65] grid gap-1 md:hidden',
                     mobileActionGridClass
                   )}
                 >
@@ -2857,7 +2857,7 @@ export const GameBoard = memo(function GameBoard({
                       <Swords size={16} />
                     )}
                     <span className="truncate">
-                      {capabilities.canSwitchPerspective ? '换视角' : '对手'}
+                      {capabilities.canSwitchPerspective ? '视角' : '对手'}
                     </span>
                   </button>
 
@@ -2954,7 +2954,15 @@ export const GameBoard = memo(function GameBoard({
                         animate={{ y: 0 }}
                         exit={{ y: '100%' }}
                         transition={{ type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-                        className="safe-bottom fixed inset-x-0 bottom-0 z-[90] flex max-h-[var(--battle-viewport-height-82)] min-h-[var(--battle-viewport-height-52)] flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] md:hidden"
+                        className="battle-mobile-drawer safe-bottom fixed inset-x-0 bottom-0 z-[90] flex max-h-[var(--battle-viewport-height-82)] min-h-[var(--battle-viewport-height-52)] flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] md:hidden"
+                        style={
+                          mobilePanel === 'opponent'
+                            ? {
+                                height: 'var(--battle-viewport-height-88)',
+                                maxHeight: 'var(--battle-viewport-height-88)',
+                              }
+                            : undefined
+                        }
                       >
                         <div className="shrink-0 px-4 pb-2 pt-3">
                           <div className="mb-3 flex justify-center">
@@ -2988,13 +2996,8 @@ export const GameBoard = memo(function GameBoard({
                         </div>
 
                         {mobilePanel === 'opponent' ? (
-                          <div className="min-h-0 flex-1 overflow-hidden px-2 pb-3">
-                            <div
-                              className={cn(
-                                'h-full overflow-hidden rounded-2xl border border-[var(--border-subtle)]',
-                                isSolitaire && 'opacity-60'
-                              )}
-                            >
+                          <div className="min-h-0 flex-1 overflow-hidden px-2 pb-20">
+                            <div className="h-full overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
                               <PlayerArea
                                 interactionSuspended={entranceWaiting}
                                 playerSeat={opponentSeat}
@@ -3182,7 +3185,7 @@ export const GameBoard = memo(function GameBoard({
                 role="dialog"
                 aria-modal="true"
                 aria-label={activeMemberPlayOption.title}
-                className="pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(92vw,460px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+                className="battle-overlay-surface pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(92vw,460px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
               >
                 <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
                   {activeMemberPlayOption.label}
@@ -3297,7 +3300,7 @@ export const GameBoard = memo(function GameBoard({
             <div
               data-battle-animation-ignore="true"
               data-battle-ui-anchor={BATTLE_UI_ANCHORS.SUCCESS_LIVE_SELECTION}
-              className="pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(94vw,760px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+              className="battle-overlay-surface pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(94vw,760px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
             >
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div>
@@ -3360,7 +3363,7 @@ export const GameBoard = memo(function GameBoard({
                           />
                         </CardDetailPressTarget>
                       ) : (
-                        <div className="flex aspect-[2/3] w-full items-center justify-center rounded-md border border-dashed border-[var(--border-subtle)] text-xs text-[var(--text-muted)]">
+                        <div className="battle-card-face flex aspect-[5/7] w-full items-center justify-center border border-dashed border-[var(--border-subtle)] text-xs text-[var(--text-muted)]">
                           不可见
                         </div>
                       )}
@@ -3424,7 +3427,7 @@ export const GameBoard = memo(function GameBoard({
             >
               <motion.div
                 data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_PANEL}
-                className="flex max-h-[calc(var(--battle-viewport-height)_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_1.5rem)] w-full flex-col overflow-hidden rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl md:max-h-[88vh] md:p-4"
+                className="battle-overlay-surface flex max-h-[calc(var(--battle-viewport-height)_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_1.5rem)] w-full flex-col overflow-hidden rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl md:max-h-[88vh] md:p-4"
                 initial={{ opacity: 0, y: 12, scale: 0.985 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -3597,7 +3600,7 @@ export const GameBoard = memo(function GameBoard({
                                   />
                                 </CardDetailPressTarget>
                               ) : (
-                                <div className="order-1 row-span-2 flex h-[73px] w-[52px] items-center justify-center rounded-md border border-dashed border-[var(--border-default)] text-xs font-semibold text-[var(--text-muted)] md:order-none md:row-span-1 md:h-[112px] md:w-[80px]">
+                                <div className="order-1 row-span-2 battle-card-face flex h-[73px] w-[52px] items-center justify-center border border-dashed border-[var(--border-default)] text-xs font-semibold text-[var(--text-muted)] md:order-none md:row-span-1 md:h-[112px] md:w-[80px]">
                                   空
                                 </div>
                               )}
@@ -3647,7 +3650,7 @@ export const GameBoard = memo(function GameBoard({
                                 </span>
                               </CardDetailPressTarget>
                             ) : (
-                              <div className="flex h-[105px] w-[75px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
+                              <div className="battle-card-face flex h-[105px] w-[75px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
                                 ?
                               </div>
                             )}
@@ -3690,7 +3693,7 @@ export const GameBoard = memo(function GameBoard({
                                       className="h-[105px] w-[75px]"
                                     />
                                   ) : (
-                                    <div className="flex h-[105px] w-[75px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
+                                    <div className="battle-card-face flex h-[105px] w-[75px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
                                       ?
                                     </div>
                                   )}
@@ -3789,7 +3792,7 @@ export const GameBoard = memo(function GameBoard({
                                     className="h-[90px] w-[64px] md:h-[105px] md:w-[75px]"
                                   />
                                 ) : (
-                                  <div className="flex h-[90px] w-[64px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
+                                  <div className="battle-card-face flex h-[90px] w-[64px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
                                     ?
                                   </div>
                                 )}
@@ -3874,7 +3877,7 @@ export const GameBoard = memo(function GameBoard({
                                 ) : presentation ? (
                                   <div
                                     className={cn(
-                                      'h-[90px] w-[64px] rounded-lg transition-transform md:h-[105px] md:w-[75px]',
+                                      'battle-card-face h-[90px] w-[64px] transition-transform md:h-[105px] md:w-[75px]',
                                       isWaitingEnergy && 'rotate-90',
                                       skipsNextActivePhase &&
                                         'ring-2 ring-red-500 ring-offset-2 ring-offset-[var(--bg-surface)]'
@@ -3894,7 +3897,7 @@ export const GameBoard = memo(function GameBoard({
                                     />
                                   </div>
                                 ) : (
-                                  <div className="flex h-[90px] w-[64px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
+                                  <div className="battle-card-face flex h-[90px] w-[64px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
                                     ?
                                   </div>
                                 )}
@@ -3986,7 +3989,7 @@ export const GameBoard = memo(function GameBoard({
                                 >
                                   <div
                                     className={cn(
-                                      'h-[90px] w-[64px] rounded-lg transition-transform md:h-[105px] md:w-[75px]',
+                                      'battle-card-face h-[90px] w-[64px] transition-transform md:h-[105px] md:w-[75px]',
                                       isWaitingEnergy && 'rotate-90',
                                       skipsNextActivePhase &&
                                         'ring-2 ring-red-500 ring-offset-2 ring-offset-[var(--bg-surface)]'
@@ -4007,7 +4010,7 @@ export const GameBoard = memo(function GameBoard({
                                   </div>
                                 </CardDetailPressTarget>
                               ) : (
-                                <div className="flex h-[90px] w-[64px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
+                                <div className="battle-card-face flex h-[90px] w-[64px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
                                   ?
                                 </div>
                               )}
@@ -4309,7 +4312,7 @@ export const GameBoard = memo(function GameBoard({
           )}
 
           {!entranceWaiting && pendingSpecialMemberPlay && (
-            <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[97] w-[min(94vw,720px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
+            <div className="battle-overlay-surface pointer-events-auto fixed left-1/2 top-1/2 z-[97] w-[min(94vw,720px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
               {controlsPendingSpecialPlay ? (
                 <>
                   <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
@@ -4394,7 +4397,7 @@ export const GameBoard = memo(function GameBoard({
           )}
 
           {!entranceWaiting && pendingCostPayment && (
-            <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[96] w-[min(92vw,540px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
+            <div className="battle-overlay-surface pointer-events-auto fixed left-1/2 top-1/2 z-[96] w-[min(92vw,540px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div>
                   <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
@@ -4630,7 +4633,7 @@ export const GameBoard = memo(function GameBoard({
             {activeCard ? (
               <DragOverlayCard card={activeCard} fromZone={activeDragFromZone} />
             ) : activeCardId ? (
-              <div className="h-[112px] w-[80px] overflow-hidden rounded-lg shadow-lg">
+              <div className="battle-card-face h-[112px] w-[80px] overflow-hidden shadow-lg">
                 <img src="/back.jpg" alt="Card Back" className="h-full w-full object-cover" />
               </div>
             ) : null}

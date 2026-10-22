@@ -118,7 +118,7 @@ test.describe('前端外层稳定性闭环', () => {
     const requests = observeRequests(page);
 
     let deckRequestCount = 0;
-    let releaseSecondDeckRequest = () => undefined;
+    let releaseSecondDeckRequest: () => void = () => undefined;
     const secondDeckRequestGate = new Promise<void>((resolve) => {
       releaseSecondDeckRequest = resolve;
     });
@@ -172,6 +172,10 @@ test.describe('前端外层稳定性闭环', () => {
 
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Loveca 大厅', exact: true })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: '主要导航', exact: true })).toBeVisible();
+    const footer = page.getByRole('contentinfo');
+    await footer.scrollIntoViewIfNeeded();
+    await expect(footer).toBeInViewport();
     await page.evaluate(() => {
       performance.clearMarks();
       performance.clearMeasures();
@@ -190,11 +194,18 @@ test.describe('前端外层稳定性闭环', () => {
     await page.getByRole('button', { name: '下一步：确认对局' }).click();
     await page.getByRole('button', { name: '开始对局' }).click();
 
+    await expect(page.getByRole('banner', { name: '对战工具栏' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: '主要导航', exact: true })).toHaveCount(0);
+    await expect(footer).toHaveCount(0);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight + 1)
+    ).toBe(true);
     await page.getByRole('button', { name: '房间', exact: true }).click();
     const leaveBattle = page.getByRole('button', { name: '离开房间', exact: true });
     await expect(leaveBattle).toBeVisible();
     await leaveBattle.click();
     await expect(page.getByRole('heading', { name: '选择对战方式' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: '主要导航', exact: true })).toBeVisible();
 
     const performanceEntries = await attachArchitectureBaseline(
       page,

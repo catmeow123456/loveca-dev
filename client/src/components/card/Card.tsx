@@ -193,7 +193,7 @@ const CardBack = memo(function CardBack({ size = 'md' }: { size?: 'sm' | 'md' | 
       <img
         src={CARD_BACK_IMAGE_PATH}
         alt="Card Back"
-        className="w-full h-full object-cover rounded-lg"
+        className="w-full h-full object-cover rounded-[inherit]"
         onError={() => setImageError(true)}
         loading="lazy"
       />
@@ -204,7 +204,7 @@ const CardBack = memo(function CardBack({ size = 'md' }: { size?: 'sm' | 'md' | 
   return (
     <div
       className={cn(
-        'w-full h-full rounded-lg',
+        'w-full h-full rounded-[inherit]',
         'bg-gradient-to-br from-indigo-600 to-purple-700',
         'flex items-center justify-center',
         'border-2 border-purple-400/50'
@@ -269,7 +269,7 @@ export const Card = memo(function Card({
   return (
     <motion.div
       className={cn(
-        'relative isolate rounded-lg cursor-pointer',
+        'relative isolate rounded-[var(--card-radius,var(--radius-lg))] cursor-pointer',
         'shadow-lg transition-[rotate,scale,translate,transform,box-shadow,filter] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:duration-75',
         sizeClasses[size],
         selected &&
@@ -311,7 +311,7 @@ export const Card = memo(function Card({
         {faceUp ? (
           <motion.div
             key="front"
-            className="w-full h-full overflow-hidden rounded-lg"
+            className="w-full h-full overflow-hidden rounded-[inherit]"
             initial={{ rotateY: 90 }}
             animate={{ rotateY: 0 }}
             exit={{ rotateY: -90 }}
@@ -361,7 +361,7 @@ export const Card = memo(function Card({
         ) : (
           <motion.div
             key="back"
-            className="w-full h-full overflow-hidden rounded-lg"
+            className="w-full h-full overflow-hidden rounded-[inherit]"
             initial={{ rotateY: -90 }}
             animate={{ rotateY: 0 }}
             exit={{ rotateY: 90 }}
@@ -377,10 +377,10 @@ export const Card = memo(function Card({
         <div
           data-card-effect-outline="true"
           className={cn(
-            'pointer-events-none absolute z-20 rounded-[12px] border',
+            'pointer-events-none absolute z-20 border',
             limitedActivatedHighlight
-              ? '-inset-[2px] border-2 border-fuchsia-50 shadow-[0_0_0_2px_rgba(255,0,230,1),0_0_8px_2px_rgba(255,255,255,0.9),0_0_24px_5px_rgba(255,0,180,0.9)] motion-safe:animate-pulse'
-              : '-inset-[1px]',
+              ? 'rounded-[calc(var(--card-radius,var(--radius-lg))+2px)] -inset-[2px] border-2 border-fuchsia-50 shadow-[0_0_0_2px_rgba(255,0,230,1),0_0_8px_2px_rgba(255,255,255,0.9),0_0_24px_5px_rgba(255,0,180,0.9)] motion-safe:animate-pulse'
+              : 'rounded-[calc(var(--card-radius,var(--radius-lg))+1px)] -inset-[1px]',
             !limitedActivatedHighlight &&
               (effectVisualState === 'actionable'
                 ? 'border-sky-100 shadow-[0_0_0_1px_rgba(14,165,233,0.95),0_0_14px_rgba(56,189,248,0.95)]'
@@ -391,7 +391,7 @@ export const Card = memo(function Card({
 
       {/* 半透明数量提示 */}
       {count && count > 0 && (
-        <div className="absolute inset-0 flex items-center justify-center rounded-lg pointer-events-none bg-blue-500/30">
+        <div className="absolute inset-0 flex items-center justify-center rounded-[inherit] pointer-events-none bg-blue-500/30">
           <span className="text-blue-800 text-8xl font-bold opacity-50 drop-shadow-md">
             {count}
           </span>
@@ -401,7 +401,7 @@ export const Card = memo(function Card({
       {/* 选中高亮 */}
       {selected && (effectVisualState !== 'actionable' || limitedActivatedHighlight) && (
         <motion.div
-          className="absolute inset-0 rounded-lg bg-yellow-400/20 pointer-events-none"
+          className="absolute inset-0 rounded-[inherit] bg-yellow-400/20 pointer-events-none"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

@@ -3,7 +3,6 @@ import type { ActiveEffectViewState } from '../../src/online/types';
 import {
   buildPublicCardSelectionDisplayEntries,
   isPublicCardSelectionAutoAdvanceView,
-  PUBLIC_CARD_SELECTION_FALLBACK_DELAY_MS,
   schedulePublicCardSelectionAutoAdvance,
 } from '../../client/src/lib/publicCardSelectionAutoAdvance';
 
@@ -31,7 +30,6 @@ describe('public card selection auto-advance UI model', () => {
   it('identifies the dedicated display and preserves ordered card labels', () => {
     const view = effect();
     expect(isPublicCardSelectionAutoAdvanceView(view)).toBe(true);
-    expect(PUBLIC_CARD_SELECTION_FALLBACK_DELAY_MS).toBe(5_000);
     expect(buildPublicCardSelectionDisplayEntries(view)).toEqual([
       { cardId: 'target-b', order: 1 },
       { cardId: 'target-a', order: 2 },

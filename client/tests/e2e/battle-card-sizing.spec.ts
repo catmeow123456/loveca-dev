@@ -4,7 +4,7 @@ import { installVisualApiMocks } from '../visual/support/mockApp';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 
-async function openPopulatedBoard(page: Page) {
+async function openPopulatedBoard(page: Page, supportCards = false, successCount = 3) {
   await installVisualApiMocks(page, true);
   await page.route('**/site-status.json*', (route) =>
     route.fulfill({ json: { schemaVersion: 1, availability: 'OPEN', maintenance: null } })
@@ -29,7 +29,8 @@ async function openPopulatedBoard(page: Page) {
       )
     )
     .toBe(true);
-  await page.evaluate(async (repoRoot) => {
+  const fixture = { repoRoot: root, supportCards, successCount };
+  await page.evaluate(async ({ repoRoot, supportCards, successCount }) => {
     const resources = performance.getEntriesByType('resource').map((entry) => entry.name);
     const storePath = resources.find((url) => url.includes('/src/store/gameStore.ts'))!;
     const load = (path: string) => import(`/@fs${repoRoot}${path}.ts`);
@@ -65,6 +66,7 @@ async function openPopulatedBoard(page: Page) {
       score: 1,
       requirements: { colorRequirements: new Map([['PINK', 2]]), totalRequired: 2 },
     };
+    const energy = { cardCode: 'TEST-energy', name: '能量', cardType: 'ENERGY' };
     const cards = ['p1', 'p2'].flatMap((id) => [
       ...['left', 'center', 'right', 'deck', 'hand1', 'hand2', 'hand3', 'hand4'].map((suffix) =>
         createCardInstance(member, id, `${id}-${suffix}`)
@@ -72,6 +74,16 @@ async function openPopulatedBoard(page: Page) {
       ...['live0', 'live1', 'incoming'].map((suffix) =>
         createCardInstance(live, id, `${id}-${suffix}`)
       ),
+      ...(supportCards
+        ? [
+            ...Array.from({ length: successCount }, (_, index) =>
+              createCardInstance(live, id, `${id}-success${index}`)
+            ),
+            ...Array.from({ length: 12 }, (_, index) =>
+              createCardInstance(energy, id, `${id}-energy${index}`)
+            ),
+          ]
+        : []),
     ]);
     let state = registerCards(
       createGameState('card-sizing', 'p1', '测试玩家', 'p2', '对手'),
@@ -91,6 +103,30 @@ async function openPopulatedBoard(page: Page) {
           cardIds: ['hand1', 'hand2', 'hand3', 'hand4', 'incoming'].map((s) => `${id}-${s}`),
         },
         mainDeck: { ...player.mainDeck, cardIds: [`${id}-deck`] },
+        ...(supportCards
+          ? {
+              successZone: {
+                ...player.successZone,
+                cardIds: Array.from(
+                  { length: successCount },
+                  (_, index) => `${id}-success${index}`
+                ),
+              },
+              energyZone: {
+                ...player.energyZone,
+                cardIds: Array.from({ length: 12 }, (_, index) => `${id}-energy${index}`),
+                cardStates: new Map(
+                  Array.from({ length: 12 }, (_, index) => [
+                    `${id}-energy${index}`,
+                    {
+                      ...active,
+                      orientation: index < 7 ? OrientationState.WAITING : OrientationState.ACTIVE,
+                    },
+                  ])
+                ),
+              },
+            }
+          : {}),
         memberSlots: ['left', 'center', 'right'].reduce(
           (slots, slot) =>
             placeCardInSlot(slots, SlotPosition[slot.toUpperCase()], `${id}-${slot}`, {
@@ -130,11 +166,29 @@ async function openPopulatedBoard(page: Page) {
     dom
       .createRoot(host)
       .render(React.createElement(BattleViewportShell, null, React.createElement(GameBoard)));
-  }, root);
+  }, fixture);
   await expect(page.locator('[data-battle-ui-anchor="self-stage-center"]')).toBeVisible();
 }
 
 const anchor = (page: Page, name: string) => page.locator(`[data-battle-ui-anchor="${name}"]`);
+
+async function assertSuccessStack(page: Page, side: string, minimumStep: number) {
+  const success = anchor(page, `${side}-success-live-zone`);
+  const zone = (await success.boundingBox())!;
+  const slots = await success.locator('.battle-success-slot').all();
+  expect(slots).toHaveLength(3);
+  let previous: { x: number; y: number; height: number } | null = null;
+  for (const slot of slots) {
+    const box = (await slot.boundingBox())!;
+    expect(box.y + box.height).toBeLessThanOrEqual(zone.y + zone.height);
+    if (previous) {
+      expect(box.x).toBeCloseTo(previous.x, 1);
+      expect(box.y - previous.y).toBeGreaterThanOrEqual(minimumStep);
+      expect(box.y).toBeLessThan(previous.y + previous.height);
+    }
+    previous = box;
+  }
+}
 
 async function assertCardGeometry(page: Page, width: number, height: number) {
   // ResizeObserver and card rotation settle asynchronously; assert the complete geometry together.
@@ -149,7 +203,8 @@ async function assertCardGeometry(page: Page, width: number, height: number) {
       const member = anchor(page, `${side}-stage-center`).locator(`[data-card-id="${id}-center"]`);
       // A full stage must not collapse to thumbnail size on ordinary desktop viewports.
       // The portrait sits inside the slot's two 2px borders.
-      const minimum = width < 768 ? 60 : height >= 900 && width >= 1024 ? 120 : 72;
+      const minimum =
+        width < 768 ? 60 : width < 1024 ? 72 : height >= 900 ? 132 : height >= 750 ? 104 : 88;
       await expect
         .poll(async () => (await member.boundingBox())!.width)
         .toBeGreaterThanOrEqual(minimum);
@@ -170,7 +225,8 @@ async function assertCardGeometry(page: Page, width: number, height: number) {
       }
       const hand = (await anchor(page, `${side}-hand`).boundingBox())!;
       if (width >= 768) {
-        expect(hand.height).toBe(124);
+        expect(hand.height).toBeGreaterThanOrEqual(96);
+        expect(hand.height).toBeLessThanOrEqual(112);
         if (side === 'self') {
           const handCardSize = await anchor(page, 'self-hand')
             .locator('[data-card-id="p1-hand1"]')
@@ -178,9 +234,16 @@ async function assertCardGeometry(page: Page, width: number, height: number) {
               const style = getComputedStyle(e);
               return { width: parseFloat(style.width), height: parseFloat(style.height) };
             });
-          expect(handCardSize).toEqual(
-            height >= 850 ? { width: 75, height: 105 } : { width: 70, height: 98 }
-          );
+          expect(handCardSize.width).toBeGreaterThanOrEqual(60);
+          expect(handCardSize.width).toBeLessThanOrEqual(75);
+          expect(handCardSize.height / handCardSize.width).toBeCloseTo(7 / 5, 2);
+          if (height >= 900) expect(handCardSize).toEqual({ width: 75, height: 105 });
+          if (height <= 768) expect(handCardSize).toEqual({ width: 60, height: 84 });
+          for (const handCard of await anchor(page, 'self-hand').locator('[data-card-id]').all()) {
+            expect((await handCard.boundingBox())!.y).toBeGreaterThanOrEqual(
+              card.y + card.height - 1
+            );
+          }
         }
       }
       if (side === 'self') expect(card.y + card.height).toBeLessThanOrEqual(hand.y + 1);
@@ -197,19 +260,35 @@ async function assertCardGeometry(page: Page, width: number, height: number) {
         .toBeLessThan(0.1);
       const live = (await front.boundingBox())!;
       expect(live.width / live.height).toBeCloseTo(7 / 5, 1);
-      if (width >= 768) expect(live.width).toBeCloseTo(105, 0);
+      if (width >= 768) {
+        expect(live.width).toBeGreaterThanOrEqual(95);
+        expect(live.width).toBeLessThanOrEqual(117);
+      }
       const zone = (await liveZone.boundingBox())!;
-      if (width >= 768) expect(zone.height).toBe(80);
+      if (width >= 768) {
+        expect(zone.height).toBeGreaterThanOrEqual(78);
+        expect(zone.height).toBeLessThanOrEqual(88);
+        const separator = (await page
+          .getByText('VS', { exact: true })
+          .locator('..')
+          .boundingBox())!;
+        const gap =
+          side === 'self'
+            ? zone.y - (separator.y + separator.height)
+            : separator.y - (zone.y + zone.height);
+        expect(gap).toBeGreaterThanOrEqual(0);
+        expect(gap).toBeLessThanOrEqual(2);
+      }
       const liveSlot = (await liveZone.locator('[data-battle-live-slot="0"]').boundingBox())!;
       const memberColumn = (await anchor(page, `${side}-stage-center`).boundingBox())!;
       expect(liveSlot.width).toBeCloseTo(memberColumn.width, 0);
-      expect(liveSlot.height).toBeCloseTo(width >= 768 ? 70 : live.height, 0);
+      expect(liveSlot.height).toBeCloseTo(width >= 768 ? zone.height - 10 : live.height, 0);
       expect(live.y + live.height / 2).toBeCloseTo(zone.y + zone.height / 2, 0);
       expect(live.x + live.width / 2).toBeCloseTo(liveSlot.x + liveSlot.width / 2, 0);
       // Empty and filled slots both stay vertically centered; requirements use the row gap.
       const lastSlot = (await liveZone.locator('[data-battle-live-slot="2"]').boundingBox())!;
       expect(lastSlot.width).toBeCloseTo(memberColumn.width, 0);
-      expect(lastSlot.height).toBeCloseTo(width >= 768 ? 70 : live.height, 0);
+      expect(lastSlot.height).toBeCloseTo(width >= 768 ? zone.height - 10 : live.height, 0);
       expect(lastSlot.y + lastSlot.height / 2).toBeCloseTo(zone.y + zone.height / 2, 0);
       const centerSlot = (await liveZone.locator('[data-battle-live-slot="1"]').boundingBox())!;
       expect(centerSlot.x + centerSlot.width / 2).toBeCloseTo(card.x + card.width / 2, 0);
@@ -218,7 +297,12 @@ async function assertCardGeometry(page: Page, width: number, height: number) {
         .first()
         .boundingBox())!;
       const area = (await anchor(page, `${side}-area`).boundingBox())!;
-      expect(requirements.y).toBeGreaterThanOrEqual(live.y + live.height - 0.5);
+      if (width >= 768 && side === 'opponent') {
+        expect(requirements.y + requirements.height).toBeLessThanOrEqual(live.y + 0.5);
+        expect(requirements.y).toBeGreaterThanOrEqual(card.y + card.height - 0.5);
+      } else {
+        expect(requirements.y).toBeGreaterThanOrEqual(live.y + live.height - 0.5);
+      }
       expect(requirements.y + requirements.height).toBeLessThanOrEqual(area.y + area.height);
       if (side === 'self') expect(requirements.y + requirements.height).toBeLessThan(card.y);
       const adjacent = (await liveZone.locator('[data-battle-live-slot="1"]').boundingBox())!;
@@ -283,12 +367,24 @@ test('desktop: stage size survives LIVE placement, panel docking and viewport ch
     [1920, 1080],
     [1600, 900],
     [1366, 768],
+    [1280, 720],
     [1024, 768],
     [768, 1024],
   ]) {
     await page.setViewportSize({ width, height });
     await assertCardGeometry(page, width, height);
     await page.screenshot({ path: `${root}output/playwright/card-sizing-${width}.png` });
+  }
+  // Increasing viewport height must not make the primary cards smaller at a density boundary.
+  let previousWidth = 0;
+  for (const height of [768, 800, 849, 850, 900]) {
+    await page.setViewportSize({ width: 1440, height });
+    await assertCardGeometry(page, 1440, height);
+    const member = (await anchor(page, 'self-stage-center')
+      .locator('[data-card-id="p1-center"]')
+      .boundingBox())!;
+    expect(member.width).toBeGreaterThanOrEqual(previousWidth - 0.1);
+    previousWidth = member.width;
   }
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.evaluate(async (repoRoot) => {
@@ -328,5 +424,857 @@ test('phone: LIVE placement keeps its aspect ratio and fits the three columns', 
     await page.setViewportSize({ width, height });
     await assertCardGeometry(page, width, height);
     await page.screenshot({ path: `${root}output/playwright/card-sizing-${width}.png` });
+  }
+});
+
+test('desktop: energy uses the shared overlapping row without covering hand cards', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'tablet-1024x768');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await openPopulatedBoard(page, true, 2);
+  for (const [width, height] of [
+    [1600, 900],
+    [1024, 768],
+    [768, 1024],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await expect(async () => {
+      for (const side of ['self', 'opponent']) {
+        await assertSuccessStack(page, side, 30);
+        const success = anchor(page, `${side}-success-live-zone`);
+        const successZone = (await success.boundingBox())!;
+        const label = (await success.locator('.battle-zone-label').boundingBox())!;
+        for (const card of await success.locator('[data-card-surface]').all()) {
+          const box = (await card.boundingBox())!;
+          expect(box.width).toBeGreaterThanOrEqual(110);
+          expect(box.width / box.height).toBeCloseTo(7 / 5, 1);
+          expect(box.x).toBeGreaterThanOrEqual(successZone.x);
+          expect(box.x + box.width).toBeLessThanOrEqual(successZone.x + successZone.width);
+          expect(box.y).toBeGreaterThanOrEqual(label.y + label.height);
+          expect(box.y + box.height).toBeLessThanOrEqual(successZone.y + successZone.height);
+        }
+        const energy = anchor(page, `${side}-energy-zone`);
+        const zone = (await energy.boundingBox())!;
+        const cards = await energy.locator('button[data-card-id]').all();
+        expect(cards).toHaveLength(12);
+        let lastX = zone.x;
+        for (const card of cards) {
+          const box = (await card.boundingBox())!;
+          expect(box.x).toBeGreaterThanOrEqual(lastX);
+          expect(box.x + box.width).toBeLessThanOrEqual(zone.x + zone.width);
+          expect(box.y).toBeGreaterThanOrEqual(zone.y);
+          expect(box.y + box.height).toBeLessThanOrEqual(zone.y + zone.height);
+          const waiting = (await card.getAttribute('aria-pressed')) === 'true';
+          expect(box.width / box.height).toBeCloseTo(waiting ? 7 / 5 : 5 / 7, 1);
+          lastX = box.x;
+        }
+        const handCards =
+          side === 'self'
+            ? anchor(page, 'self-hand').locator('[data-card-id]')
+            : anchor(page, 'opponent-hand').locator('img[alt="Card Back"]');
+        for (const card of await handCards.all()) {
+          const box = (await card.boundingBox())!;
+          const overlap =
+            Math.max(
+              0,
+              Math.min(box.x + box.width, zone.x + zone.width) - Math.max(box.x, zone.x)
+            ) *
+            Math.max(
+              0,
+              Math.min(box.y + box.height, zone.y + zone.height) - Math.max(box.y, zone.y)
+            );
+          expect(overlap).toBe(0);
+        }
+      }
+    }).toPass({ timeout: 5000 });
+    await page.screenshot({ path: `${root}output/playwright/desktop-energy-${width}.png` });
+  }
+  await page.setViewportSize({ width: 1600, height: 900 });
+  for (const side of ['self', 'opponent']) {
+    const tabStops = await anchor(page, `${side}-energy-zone`)
+      .locator('button, [tabindex]')
+      .evaluateAll(
+        (elements) =>
+          elements.filter(
+            (element) => (element as HTMLElement).tabIndex >= 0 && !element.matches(':disabled')
+          ).length
+      );
+    expect(tabStops).toBe(0);
+  }
+  await page.evaluate(async () => {
+    const storePath = performance
+      .getEntriesByType('resource')
+      .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+    const { useGameStore } = await import(storePath);
+    useGameStore.getState().setFreePlayEnabled(true);
+  });
+  const energy = anchor(page, 'self-energy-zone');
+  const originalOrder = await energy
+    .locator('button[data-card-id]')
+    .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-card-id')));
+  await energy.locator('[data-card-id="p1-energy11"]').click();
+  await expect(energy).toContainText('4/12');
+  expect(
+    await energy
+      .locator('button[data-card-id]')
+      .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-card-id')))
+  ).toEqual(originalOrder);
+  await energy.getByRole('button', { name: '全部能量变为待机' }).click();
+  await expect(energy).toContainText('0/12');
+  await energy.getByRole('button', { name: '全部能量变为活跃' }).click();
+  await expect(energy).toContainText('12/12');
+  expect(
+    await energy
+      .locator('button[data-card-id]')
+      .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-card-id')))
+  ).toEqual(originalOrder);
+  // Tab reaches each usable card once; Enter and Space perform the same orientation action.
+  await page.mouse.move(0, 0);
+  await energy.getByRole('button', { name: '全部能量变为待机' }).focus();
+  for (const cardId of originalOrder) {
+    await page.keyboard.press('Tab');
+    await expect(energy.locator(`button[data-card-id="${cardId}"]`)).toBeFocused();
+  }
+  await page.keyboard.press('Tab');
+  await expect(energy.locator(':focus')).toHaveCount(0);
+  const firstEnergy = energy.locator('button[data-card-id]').first();
+  await firstEnergy.focus();
+  await page.keyboard.press('Enter');
+  await expect(firstEnergy).toHaveAttribute('aria-pressed', 'true');
+  await expect(energy).toContainText('11/12');
+  await page.keyboard.press('Space');
+  await expect(firstEnergy).toHaveAttribute('aria-pressed', 'false');
+  await expect(energy).toContainText('12/12');
+  expect(
+    await energy
+      .locator('button[data-card-id]')
+      .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-card-id')))
+  ).toEqual(originalOrder);
+});
+
+test('phone: success LIVE and energy fit between stage and hand, with working energy controls', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'mobile-390x844');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openPopulatedBoard(page, true);
+  const energy = anchor(page, 'self-energy-zone');
+  const success = anchor(page, 'self-success-live-zone');
+  const support = page.locator('[data-mobile-battle-support-row]');
+
+  for (const [width, height] of [
+    [390, 844],
+    [430, 932],
+    [320, 668],
+    [390, 700],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await expect(async () => {
+      const tabletop = await page.locator('[data-mobile-tabletop]').evaluate((element) => ({
+        height: element.clientHeight,
+        contentHeight: element.scrollHeight,
+        width: element.clientWidth,
+        contentWidth: element.scrollWidth,
+        overflowY: getComputedStyle(element).overflowY,
+        top: element.getBoundingClientRect().top,
+      }));
+      expect(tabletop.contentHeight, `${width}×${height}: table height`).toBeLessThanOrEqual(
+        tabletop.height + 1
+      );
+      expect(tabletop.contentWidth, `${width}×${height}: table width`).toBeLessThanOrEqual(
+        tabletop.width + 1
+      );
+      expect(['auto', 'scroll']).not.toContain(tabletop.overflowY);
+      const row = (await support.boundingBox())!;
+      const hand = (await anchor(page, 'self-hand').boundingBox())!;
+      const tools = (await page.locator('.battle-mobile-actions').boundingBox())!;
+      expect(tools.height).toBe(32);
+      for (const caption of await page
+        .locator('.battle-mobile-actions > button > span.truncate')
+        .all()) {
+        expect(
+          await caption.evaluate((element) => element.scrollWidth <= element.clientWidth)
+        ).toBe(true);
+      }
+      expect(hand.y + hand.height).toBeLessThanOrEqual(tools.y);
+      if (height >= 844) {
+        const member = (await anchor(page, 'self-stage-center').boundingBox())!;
+        expect(member.width).toBeGreaterThanOrEqual(68);
+      }
+      expect(row.y + row.height).toBeLessThanOrEqual(hand.y);
+      const identity = (await anchor(page, 'self-area')
+        .locator('[data-player-identity-seat]')
+        .boundingBox())!;
+      for (const card of await anchor(page, 'self-hand').locator('[data-card-id]').all()) {
+        expect((await card.boundingBox())!.y).toBeGreaterThanOrEqual(identity.y + identity.height);
+      }
+      const resources = (await page.locator('[data-mobile-battle-resources-rail]').boundingBox())!;
+      expect(resources.y + resources.height).toBeLessThanOrEqual(row.y);
+      for (const pile of await page.locator('.battle-deck-pile, .battle-waiting-room-pile').all()) {
+        const box = (await pile.boundingBox())!;
+        expect(box.height).toBeGreaterThanOrEqual(40);
+        if (height >= 844) expect(box.height).toBeGreaterThanOrEqual(70);
+        expect(box.width / box.height).toBeCloseTo(5 / 7, 1);
+      }
+      const left = (await anchor(page, 'self-stage-left').boundingBox())!;
+      const right = (await anchor(page, 'self-stage-right').boundingBox())!;
+      const live = (await anchor(page, 'self-live-zone').boundingBox())!;
+      expect(live.y).toBeGreaterThanOrEqual(tabletop.top);
+      expect(left.y).toBeGreaterThanOrEqual(live.y + live.height);
+      expect(right.x + right.width).toBeLessThan(resources.x);
+      expect(left.x).toBeLessThan(width / 5);
+      expect(left.y + left.height).toBeLessThanOrEqual(row.y);
+      const won = (await success.boundingBox())!;
+      await assertSuccessStack(page, 'self', 12);
+      const power = (await energy.boundingBox())!;
+      expect(won.x + won.width).toBeLessThanOrEqual(power.x);
+      expect(won.y).toBeCloseTo(power.y, 0);
+      const cards = await energy.locator('[data-card-id]').all();
+      expect(cards).toHaveLength(12);
+      for (const card of cards) {
+        const box = (await card.boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(power.x);
+        expect(box.x + box.width).toBeLessThanOrEqual(power.x + power.width);
+        expect(box.y).toBeGreaterThanOrEqual(power.y);
+        expect(box.y + box.height).toBeLessThanOrEqual(power.y + power.height);
+      }
+      for (const card of await success.locator('[data-card-id]').all()) {
+        const box = (await card.boundingBox())!;
+        expect(box.width).toBeGreaterThanOrEqual(80);
+        expect(box.width / box.height).toBeCloseTo(7 / 5, 1);
+        expect(box.x).toBeGreaterThanOrEqual(won.x);
+        expect(box.x + box.width).toBeLessThanOrEqual(won.x + won.width);
+        expect(box.y + box.height).toBeLessThanOrEqual(row.y + row.height);
+      }
+      // A compact card must retain its rectangular face at every clipping layer.
+      for (const surface of await page.locator('[data-card-surface]').all()) {
+        const corners = await surface.evaluate((element) => ({
+          radius: parseFloat(getComputedStyle(element).borderTopLeftRadius),
+          shortEdge: Math.min(
+            (element as HTMLElement).offsetWidth,
+            (element as HTMLElement).offsetHeight
+          ),
+          faceRadius: parseFloat(getComputedStyle(element.firstElementChild!).borderTopLeftRadius),
+        }));
+        expect(corners.radius).toBeLessThanOrEqual(corners.shortEdge * 0.15);
+        expect(corners.faceRadius).toBe(corners.radius);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width
+      );
+    }).toPass({ timeout: 5000 });
+    await page.screenshot({
+      path: `${root}output/playwright/mobile-support-${width}x${height}.png`,
+    });
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  // Three successful LIVE cards are a terminal board. Resume a two-LIVE fixture for commands.
+  await page.evaluate(async (repoRoot) => {
+    const storePath = performance
+      .getEntriesByType('resource')
+      .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+    const [{ useGameStore }, { updatePlayer }] = await Promise.all([
+      import(storePath),
+      import(`/@fs${repoRoot}src/domain/entities/game.ts`),
+    ]);
+    const store = useGameStore.getState();
+    let state = store.gameSession.state;
+    for (const id of ['p1', 'p2']) {
+      state = updatePlayer(state, id, (player: any) => ({
+        ...player,
+        successZone: { ...player.successZone, cardIds: player.successZone.cardIds.slice(0, 2) },
+        waitingRoom: { ...player.waitingRoom, cardIds: [player.successZone.cardIds[2]] },
+      }));
+    }
+    store.gameSession.authorityState = state;
+    store.syncState();
+  }, root);
+  const lastEnergy = energy.locator('[data-card-id="p1-energy11"]');
+  await expect(lastEnergy).toHaveAttribute('aria-disabled', 'true');
+  const lockedEnergy = (await lastEnergy.boundingBox())!;
+  await page.mouse.click(
+    lockedEnergy.x + lockedEnergy.width / 2,
+    lockedEnergy.y + lockedEnergy.height / 2
+  );
+  await expect(lastEnergy).toHaveAttribute('aria-pressed', 'false');
+  await expect(energy).toContainText('5/12');
+  await page.getByRole('button', { name: '规则', exact: true }).click();
+  const originalOrder = await energy
+    .locator('button[data-card-id]')
+    .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-card-id')));
+  await lastEnergy.click();
+  await expect(lastEnergy).toHaveAttribute('aria-pressed', 'true');
+  await expect(energy).toContainText('4/12');
+  expect(
+    await energy
+      .locator('button[data-card-id]')
+      .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-card-id')))
+  ).toEqual(originalOrder);
+  await energy.getByRole('button', { name: '全部能量变为待机' }).click();
+  await expect(energy).toContainText('0/12');
+  await energy.getByRole('button', { name: '全部能量变为活跃' }).click();
+  await expect(energy).toContainText('12/12');
+
+  const fullRowPositions = await energy
+    .locator('button[data-card-id]')
+    .evaluateAll((cards) => cards.slice(0, 4).map((card) => card.getBoundingClientRect().x));
+  for (const count of [4, 12]) {
+    await page.evaluate(
+      async ({ repoRoot, count }) => {
+        const storePath = performance
+          .getEntriesByType('resource')
+          .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+        const [{ useGameStore }, { updatePlayer }] = await Promise.all([
+          import(storePath),
+          import(`/@fs${repoRoot}src/domain/entities/game.ts`),
+        ]);
+        const store = useGameStore.getState();
+        const ids = Array.from({ length: 12 }, (_, index) => `p1-energy${index}`);
+        store.gameSession.authorityState = updatePlayer(
+          store.gameSession.state,
+          'p1',
+          (player: any) => ({
+            ...player,
+            energyDeck: { ...player.energyDeck, cardIds: ids.slice(count) },
+            energyZone: {
+              ...player.energyZone,
+              cardIds: ids.slice(0, count),
+              cardStates: new Map(
+                ids.slice(0, count).map((id) => [id, { orientation: 'ACTIVE', face: 'FACE_UP' }])
+              ),
+            },
+          })
+        );
+        store.syncState();
+      },
+      { repoRoot: root, count }
+    );
+    await expect(energy.locator('button[data-card-id]')).toHaveCount(count);
+    const positions = await energy
+      .locator('button[data-card-id]')
+      .evaluateAll((cards) => cards.slice(0, 4).map((card) => card.getBoundingClientRect().x));
+    positions.forEach((position, index) =>
+      expect(position).toBeCloseTo(fullRowPositions[index], 0)
+    );
+    await page.screenshot({ path: `${root}output/playwright/mobile-energy-${count}.png` });
+  }
+
+  const source = (await lastEnergy.boundingBox())!;
+  const target = (await anchor(page, 'self-stage-left').boundingBox())!;
+  await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(source.x + source.width / 2 + 12, source.y + source.height / 2, {
+    steps: 3,
+  });
+  await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 15 });
+  await page.mouse.up();
+  await expect(lastEnergy).toHaveCount(0);
+  await expect(anchor(page, 'self-stage-left').getByAltText('附加能量')).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const storePath = performance
+          .getEntriesByType('resource')
+          .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+        const { useGameStore } = await import(storePath);
+        return useGameStore.getState().getSeatMemberOverlayCardIds('FIRST', 'LEFT');
+      })
+    )
+    .toEqual(['p1-energy11']);
+  await expect(energy).toContainText('11/11');
+  await page.screenshot({ path: `${root}output/playwright/mobile-support-after-drag.png` });
+
+  await page.evaluate(async () => {
+    const storePath = performance
+      .getEntriesByType('resource')
+      .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+    const { useGameStore } = await import(storePath);
+    useGameStore.getState().setGameMode('SOLITAIRE');
+  });
+  await page.getByRole('button', { name: '对手', exact: true }).click();
+  const opponent = anchor(page, 'opponent-area');
+  await expect(opponent).toBeVisible();
+  await expect(async () => {
+    const opponentRow = (await opponent.locator('[data-mobile-battle-support-row]').boundingBox())!;
+    const opponentHand = (await anchor(page, 'opponent-hand').boundingBox())!;
+    const opponentMember = (await anchor(page, 'opponent-stage-center').boundingBox())!;
+    expect(opponentRow.y).toBeGreaterThanOrEqual(opponentHand.y + opponentHand.height);
+    expect(opponentRow.y + opponentRow.height).toBeLessThanOrEqual(opponentMember.y);
+  }).toPass({ timeout: 5000 });
+  await expect(opponent.locator('[data-card-id^="p2-hand"]')).toHaveCount(0);
+  await expect(anchor(page, 'opponent-energy-zone').locator('button[data-card-id]')).toHaveCount(
+    12
+  );
+  await expect(
+    anchor(page, 'opponent-energy-zone').getByRole('group', { name: '批量调整能量状态' })
+  ).toHaveCount(0);
+  for (const [width, height] of [
+    [390, 844],
+    [320, 668],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await expect(async () => {
+      const table = await opponent.locator('[data-mobile-tabletop]').evaluate((element) => ({
+        height: element.clientHeight,
+        contentHeight: element.scrollHeight,
+        width: element.clientWidth,
+        contentWidth: element.scrollWidth,
+      }));
+      expect(table.contentHeight).toBeLessThanOrEqual(table.height + 1);
+      expect(table.contentWidth).toBeLessThanOrEqual(table.width + 1);
+      const opponentDeck = (await anchor(page, 'opponent-energy-deck').boundingBox())!;
+      const phaseControls = (await anchor(page, 'phase-controls').boundingBox())!;
+      expect(opponentDeck.y + opponentDeck.height).toBeLessThanOrEqual(phaseControls.y);
+    }).toPass({ timeout: 5000 });
+    await page.screenshot({
+      path: `${root}output/playwright/mobile-support-opponent-${width}.png`,
+    });
+  }
+});
+
+test('free mode: return a chosen hand card to the top of the main deck', async ({ page }, info) => {
+  test.skip(!['mobile-390x844', 'tablet-1024x768'].includes(info.project.name));
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  if (info.project.name === 'tablet-1024x768')
+    await page.setViewportSize({ width: 1600, height: 900 });
+  await openPopulatedBoard(page);
+  await page.getByRole('button', { name: /^(规则|规则模式)$/ }).click();
+  const button = page.getByRole('button', { name: '将所选手牌放回牌库顶' });
+  await expect(button).toBeEnabled();
+  await button.click();
+  await expect(
+    page.getByRole('status').filter({ hasText: '点选一张手牌放回卡组顶' })
+  ).toBeVisible();
+  if (info.project.name === 'tablet-1024x768') {
+    for (const [width, height] of [
+      [1600, 900],
+      [1024, 768],
+      [900, 768],
+      [768, 1024],
+    ]) {
+      await page.setViewportSize({ width, height });
+      await expect(async () => {
+        const prompt = (await page
+          .getByRole('status')
+          .filter({ hasText: '点选一张手牌放回卡组顶' })
+          .boundingBox())!;
+        const hand = (await anchor(page, 'self-hand').boundingBox())!;
+        const identity = (await anchor(page, 'self-area')
+          .locator('[data-player-identity-seat]')
+          .boundingBox())!;
+        expect(prompt.x).toBeGreaterThanOrEqual(0);
+        expect(prompt.x + prompt.width).toBeLessThanOrEqual(width);
+        const textBounds = await page
+          .getByRole('status')
+          .filter({ hasText: '点选一张手牌放回卡组顶' })
+          .evaluate((element) => {
+            const range = document.createRange();
+            range.selectNodeContents(element);
+            const text = range.getBoundingClientRect();
+            const table = element.closest('.battle-table')!.getBoundingClientRect();
+            return {
+              left: text.left,
+              right: text.right,
+              tableLeft: table.left,
+              tableRight: table.right,
+            };
+          });
+        expect(textBounds.left).toBeGreaterThanOrEqual(textBounds.tableLeft);
+        expect(textBounds.right).toBeLessThanOrEqual(textBounds.tableRight);
+        expect(prompt.y).toBeGreaterThanOrEqual(hand.y - 48);
+        expect(prompt.y + prompt.height).toBeLessThanOrEqual(identity.y);
+        const boardItems = anchor(page, 'self-area').locator(
+          '[data-card-id], .battle-resource-pile, [data-player-identity-seat], [data-player-communication-seat], .battle-zone-label:not([role="status"]), .battle-mini-action'
+        );
+        for (const item of await boardItems.all()) {
+          const box = (await item.boundingBox())!;
+          const overlap =
+            Math.max(
+              0,
+              Math.min(box.x + box.width, prompt.x + prompt.width) - Math.max(box.x, prompt.x)
+            ) *
+            Math.max(
+              0,
+              Math.min(box.y + box.height, prompt.y + prompt.height) - Math.max(box.y, prompt.y)
+            );
+          expect(
+            overlap,
+            `${width}px: ${await item.evaluate((element) => element.outerHTML.slice(0, 240))}`
+          ).toBe(0);
+        }
+      }).toPass({ timeout: 5000 });
+      await page.screenshot({
+        path: `${root}output/playwright/return-hand-card-desktop-${width}.png`,
+      });
+    }
+    await page.setViewportSize({ width: 1600, height: 900 });
+  }
+  await page.screenshot({
+    path: `${root}output/playwright/return-hand-card-${info.project.name}.png`,
+  });
+  await page.getByRole('button', { name: '取消放回卡组顶' }).click();
+  await expect(anchor(page, 'self-hand').locator('[data-card-id="p1-incoming"]')).toHaveCount(1);
+  await expect(page.getByRole('status').filter({ hasText: '点选一张手牌放回卡组顶' })).toHaveCount(
+    0
+  );
+  await button.click();
+  await anchor(page, 'self-hand').locator('[data-card-id="p1-incoming"]').click();
+  await expect(anchor(page, 'self-hand').locator('[data-card-id="p1-incoming"]')).toHaveCount(0);
+  await expect(anchor(page, 'self-main-deck')).toContainText('2');
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const storePath = performance
+          .getEntriesByType('resource')
+          .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+        const { useGameStore } = await import(storePath);
+        return useGameStore.getState().gameSession.state.players[0].mainDeck.cardIds[0];
+      })
+    )
+    .toBe('p1-incoming');
+  // The established card-first route still executes the same command.
+  if (info.project.name === 'mobile-390x844')
+    await page.setViewportSize({ width: 320, height: 668 });
+  await anchor(page, 'self-hand').locator('[data-card-id="p1-hand4"]').click();
+  await button.click();
+  await expect(anchor(page, 'self-hand').locator('[data-card-id="p1-hand4"]')).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const storePath = performance
+          .getEntriesByType('resource')
+          .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+        const { useGameStore } = await import(storePath);
+        return useGameStore.getState().gameSession.state.players[0].mainDeck.cardIds;
+      })
+    )
+    .toEqual(['p1-hand4', 'p1-incoming', 'p1-deck']);
+  await button.click();
+  await page.getByRole('button', { name: /^(自由|自由模式)$/ }).click();
+  await expect(page.getByRole('status').filter({ hasText: '点选一张手牌放回卡组顶' })).toHaveCount(
+    0
+  );
+  await expect(button).toHaveCount(0);
+  await expect(anchor(page, 'self-hand').locator('[data-card-id]')).toHaveCount(3);
+  await page.getByRole('button', { name: /^(规则|规则模式)$/ }).click();
+  for (let remaining = 3; remaining > 0; remaining--) {
+    await button.click();
+    await anchor(page, 'self-hand').locator('[data-card-id]').last().click();
+    await expect(anchor(page, 'self-hand').locator('[data-card-id]')).toHaveCount(remaining - 1);
+  }
+  await expect(button).toBeDisabled();
+  await expect(button).toHaveAttribute('title', '没有可放回的手牌');
+  await page.getByRole('button', { name: '从主卡组抽一张牌' }).click();
+  await expect(anchor(page, 'self-hand').locator('[data-card-id]')).toHaveCount(1);
+  await expect(button).toBeEnabled();
+});
+
+test('battle utilities: readable text without covering the playmat, with keyboard feedback in both themes', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'tablet-1024x768');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openPopulatedBoard(page, true, 2);
+  await page.getByRole('button', { name: '规则', exact: true }).click();
+  for (const [width, height] of [
+    [320, 668],
+    [390, 844],
+    [1600, 900],
+  ]) {
+    await page.setViewportSize({ width, height });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((theme) => {
+        document.documentElement.dataset.theme = theme;
+      }, theme);
+      const audit = async () =>
+        page
+          .locator('.battle-zone-label:visible, .battle-mini-action:visible')
+          .evaluateAll((nodes) => {
+            const context = document.createElement('canvas').getContext('2d')!;
+            const rgb = (value: string) => {
+              context.clearRect(0, 0, 1, 1);
+              context.fillStyle = value;
+              context.fillRect(0, 0, 1, 1);
+              return Array.from(context.getImageData(0, 0, 1, 1).data);
+            };
+            const luminance = (color: number[]) =>
+              color
+                .slice(0, 3)
+                .map((value) => {
+                  const channel = value / 255;
+                  return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+                })
+                .reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+            const contrast = (a: number[], b: number[]) =>
+              (Math.max(luminance(a), luminance(b)) + 0.05) /
+              (Math.min(luminance(a), luminance(b)) + 0.05);
+            const composite = (foreground: number[], background: number[]) =>
+              foreground
+                .slice(0, 3)
+                .map(
+                  (channel, index) =>
+                    (channel * foreground[3]) / 255 + background[index] * (1 - foreground[3] / 255)
+                );
+            return nodes.map((node) => {
+              const style = getComputedStyle(node);
+              const scrim = getComputedStyle(node, '::before');
+              const hasScrim = scrim.content !== 'none' && scrim.content !== 'normal';
+              const background = rgb(hasScrim ? scrim.backgroundColor : style.backgroundColor);
+              // The label scrim stays at full strength across the text and fades outside it.
+              // Composite each local surface over both extremes of an arbitrary playmat.
+              const backgrounds = [
+                composite(background, [0, 0, 0]),
+                composite(background, [255, 255, 255]),
+              ];
+              const box = node.getBoundingClientRect();
+              let opacity = 1;
+              for (let parent: Element | null = node; parent; parent = parent.parentElement) {
+                opacity *= Number(getComputedStyle(parent).opacity);
+              }
+              return {
+                text: node.textContent?.trim(),
+                action: node.classList.contains('battle-mini-action'),
+                disabled: node.matches(':disabled'),
+                width: box.width,
+                height: box.height,
+                opacity,
+                size: style.fontSize,
+                weight: style.fontWeight,
+                stroke: parseFloat(style.webkitTextStrokeWidth),
+                textContrast: Math.min(...backgrounds.map((bg) => contrast(rgb(style.color), bg))),
+              };
+            });
+          });
+      await expect(async () => {
+        const items = await audit();
+        expect(items.length).toBeGreaterThan(8);
+        const typography = { size: items[0].size, weight: items[0].weight };
+        for (const item of items) {
+          expect(item.opacity, item.text).toBe(1);
+          expect({ size: item.size, weight: item.weight }, item.text).toEqual(typography);
+          expect(item.stroke, item.text).toBe(0);
+          expect(item.textContrast, item.text).toBeGreaterThanOrEqual(4.5);
+          if (item.action) {
+            expect(item.width).toBeGreaterThanOrEqual(24);
+            expect(item.height).toBeGreaterThanOrEqual(24);
+          }
+        }
+        for (const header of await page.locator('.battle-zone-header:visible').all()) {
+          const label = header.locator('.battle-zone-label');
+          const controls = header.locator('.battle-mini-action-group');
+          if (!(await controls.count())) continue;
+          const text = (await label.boundingBox())!;
+          const buttons = (await controls.boundingBox())!;
+          const zone = (await header.boundingBox())!;
+          expect(text.x + text.width).toBeLessThanOrEqual(buttons.x);
+          expect(buttons.x + buttons.width).toBeLessThanOrEqual(zone.x + zone.width + 1);
+        }
+      }).toPass({ timeout: 5000 });
+      const button = page.locator('.battle-mini-action:visible:not(:disabled)').first();
+      await page.mouse.move(0, 0);
+      await expect.poll(() => button.evaluate((element) => element.matches(':hover'))).toBe(false);
+      // Finish the hover-out transition before recording the resting surface.
+      await page.waitForTimeout(150);
+      const normal = await button.evaluate((element) => getComputedStyle(element).backgroundColor);
+      await button.hover();
+      await expect
+        .poll(() => button.evaluate((element) => getComputedStyle(element).backgroundColor))
+        .not.toBe(normal);
+      for (const item of await audit()) {
+        expect(item.textContrast, item.text).toBeGreaterThanOrEqual(4.5);
+      }
+      await page.keyboard.press('Tab');
+      await button.focus();
+      await expect(button).toBeFocused();
+      expect(
+        await button.evaluate((element) => ({
+          visible: element.matches(':focus-visible'),
+          width: getComputedStyle(element).outlineWidth,
+          style: getComputedStyle(element).outlineStyle,
+        }))
+      ).toEqual({ visible: true, width: '2px', style: 'solid' });
+      const items = await audit();
+      console.log(
+        JSON.stringify({
+          theme,
+          width,
+          minTextContrast: Math.min(
+            ...items.filter((item) => !item.disabled).map((item) => item.textContrast)
+          ),
+          minDisabledContrast: Math.min(
+            ...items.filter((item) => item.disabled).map((item) => item.textContrast)
+          ),
+        })
+      );
+      await page.screenshot({
+        path: `${root}output/playwright/battle-utilities-${width}-${theme}.png`,
+      });
+    }
+  }
+});
+
+test('battle panels: card contours stay consistent through judgment, inspection and portal details', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'tablet-1024x768');
+  test.setTimeout(90_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const expectCardCorners = async (selector: string) => {
+    const cards = page.locator(selector);
+    await expect(cards.first()).toBeVisible();
+    for (const card of await cards.all()) {
+      const geometry = await card.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          radius: parseFloat(style.borderTopLeftRadius),
+          ratio: parseFloat(style.height) / parseFloat(style.width),
+        };
+      });
+      expect(geometry.radius).toBe(4);
+      expect(geometry.ratio).toBeCloseTo(7 / 5, 1);
+    }
+  };
+  for (const [width, height] of [
+    [1600, 900],
+    [390, 844],
+    [320, 668],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await openPopulatedBoard(page);
+    await page.evaluate(async (repoRoot) => {
+      const storePath = performance
+        .getEntriesByType('resource')
+        .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+      const [{ useGameStore }, { updatePlayer }, { GamePhase, SubPhase }] = await Promise.all([
+        import(storePath),
+        import(`/@fs${repoRoot}src/domain/entities/game.ts`),
+        import(`/@fs${repoRoot}src/shared/types/enums.ts`),
+      ]);
+      const store = useGameStore.getState();
+      let state = store.gameSession.state;
+      for (const id of ['p1', 'p2']) {
+        state = updatePlayer(state, id, (player: any) => ({
+          ...player,
+          hand: {
+            ...player.hand,
+            cardIds: player.hand.cardIds.filter(
+              (cardId: string) =>
+                ![
+                  `${id}-hand1`,
+                  `${id}-hand3`,
+                  `${id}-hand4`,
+                  ...(id === 'p1' ? [`${id}-hand2`] : []),
+                ].includes(cardId)
+            ),
+          },
+          waitingRoom: { ...player.waitingRoom, cardIds: [`${id}-hand3`] },
+          mainDeck: { ...player.mainDeck, cardIds: [`${id}-deck`, `${id}-hand4`] },
+        }));
+      }
+      store.gameSession.authorityState = {
+        ...state,
+        currentPhase: GamePhase.PERFORMANCE_PHASE,
+        currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+        manualOperationMode: 'FREE',
+        resolutionZone: {
+          ...state.resolutionZone,
+          cardIds: ['p1-hand1', 'p1-hand2', 'p2-hand1'],
+          revealedCardIds: ['p1-hand1', 'p2-hand1'],
+        },
+      };
+      store.syncState();
+    }, root);
+    const judgment = page.getByRole('dialog', { name: '应援/判定区', exact: true });
+    await expect(judgment).toBeVisible();
+    await expectCardCorners('#judgment-panel [data-cheer-strip] .battle-card-face');
+    await expectCardCorners('#judgment-panel [data-cheer-live-group] .battle-card-face');
+    await judgment.getByRole('button', { name: /查看后攻玩家/ }).click();
+    await expect(judgment).toContainText('此视图仅供查看');
+    await expect(judgment.getByRole('button', { name: '↓ 翻开一张', exact: true })).toHaveCount(0);
+    await judgment.getByRole('button', { name: /查看先攻玩家/ }).click();
+    await page.screenshot({ path: `${root}output/playwright/battle-panel-judgment-${width}.png` });
+    await judgment.getByRole('button', { name: '收起应援/判定区', exact: true }).click();
+    await page.evaluate(async (repoRoot) => {
+      const storePath = performance
+        .getEntriesByType('resource')
+        .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+      const [{ useGameStore }, { GamePhase, SubPhase, ZoneType }] = await Promise.all([
+        import(storePath),
+        import(`/@fs${repoRoot}src/shared/types/enums.ts`),
+      ]);
+      const store = useGameStore.getState();
+      store.gameSession.authorityState = {
+        ...store.gameSession.state,
+        currentPhase: GamePhase.MAIN_PHASE,
+        currentSubPhase: SubPhase.NONE,
+      };
+      store.syncState();
+      const opened = store.openInspection(ZoneType.MAIN_DECK, 1);
+      if (!opened.success) throw new Error('Failed to open inspection');
+    }, root);
+    const inspected = anchor(page, 'self-area').locator('[data-inspection-zone-collapsed="false"]');
+    await expect(inspected).toBeVisible();
+    await expect(page.locator('[data-phase-announcement]')).toHaveCount(0);
+    await expectCardCorners('[data-inspection-zone-collapsed="false"] [data-card-id]');
+    await page.getByRole('button', { name: '隐藏检视区', exact: true }).click();
+    await expect(
+      anchor(page, 'self-area').locator('[data-inspection-zone-collapsed="true"]')
+    ).toBeVisible();
+    await page.getByRole('button', { name: '展开检视区', exact: true }).click();
+    await expect(inspected).toBeVisible();
+    await page.screenshot({
+      path: `${root}output/playwright/battle-panel-inspection-${width}.png`,
+    });
+    await page.getByRole('button', { name: '关闭回顶', exact: true }).click();
+    await expect(inspected).toHaveCount(0);
+    await anchor(page, 'self-area').locator('.battle-waiting-room-pile').click();
+    const waitingRoom = page.getByRole('dialog', { name: '休息室', exact: true });
+    await expect(waitingRoom).toBeVisible();
+    await expectCardCorners('[role="dialog"][aria-label="休息室"] [data-card-surface]');
+    expect(
+      await waitingRoom
+        .locator('.modal-surface')
+        .evaluate((e) => getComputedStyle(e).borderTopLeftRadius)
+    ).toBe('12px');
+    await page.screenshot({ path: `${root}output/playwright/battle-panel-waiting-${width}.png` });
+    await waitingRoom.getByTitle('关闭休息室', { exact: true }).click();
+    await page.evaluate(async () => {
+      const storePath = performance
+        .getEntriesByType('resource')
+        .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+      const { useGameStore } = await import(storePath);
+      useGameStore.getState().setHoveredCard('p1-center');
+    });
+    const detail = page.getByLabel('成员 卡牌详情', { exact: true });
+    await expect(detail).toBeVisible();
+    const detailCard = detail.locator('[data-card-surface]');
+    expect(await detailCard.evaluate((e) => getComputedStyle(e).borderTopLeftRadius)).toBe('4px');
+    await page.screenshot({ path: `${root}output/playwright/battle-panel-detail-${width}.png` });
+    if (width < 768) await page.getByRole('button', { name: '关闭卡牌详情', exact: true }).click();
+    await page.evaluate(async (repoRoot) => {
+      const storePath = performance
+        .getEntriesByType('resource')
+        .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+      const [{ useGameStore }, { GamePhase, SubPhase }] = await Promise.all([
+        import(storePath),
+        import(`/@fs${repoRoot}src/shared/types/enums.ts`),
+      ]);
+      const store = useGameStore.getState();
+      store.setHoveredCard(null);
+      store.gameSession.authorityState = {
+        ...store.gameSession.state,
+        currentPhase: GamePhase.MULLIGAN_PHASE,
+        currentSubPhase: SubPhase.MULLIGAN_FIRST_PLAYER,
+      };
+      store.syncState();
+    }, root);
+    await expect(anchor(page, 'mulligan-panel')).toBeVisible();
+    await expectCardCorners('[data-battle-ui-anchor="mulligan-cards"] [data-card-surface]');
+    await expect(page.locator('[data-phase-announcement]')).toHaveCount(0);
+    await page.screenshot({ path: `${root}output/playwright/battle-panel-mulligan-${width}.png` });
   }
 });

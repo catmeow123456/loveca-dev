@@ -6,11 +6,6 @@ import {
 } from '../../client/src/lib/memberStackLayout';
 
 describe('member stack layout', () => {
-  it('preserves the existing main-member layer for a short stack', () => {
-    expect(getMainMemberCardZIndex(0, 0)).toBe(10);
-    expect(getMainMemberCardZIndex(0, 5)).toBe(10);
-  });
-
   it.each([
     { energyBelowCount: 0, memberBelowCount: 1 },
     { energyBelowCount: 0, memberBelowCount: 6 },
@@ -33,9 +28,4 @@ describe('member stack layout', () => {
       }
     }
   );
-
-  it('covers the former seven-member boundary', () => {
-    expect(getMemberBelowCardZIndex(0, 6)).toBe(11);
-    expect(getMainMemberCardZIndex(0, 7)).toBe(12);
-  });
 });

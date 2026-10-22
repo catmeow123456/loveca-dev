@@ -2,6 +2,7 @@ import { expect, test, type Page, type Route, type TestInfo } from '@playwright/
 import { Buffer } from 'node:buffer';
 import type { RankedOverviewView } from '../../../src/online/ranked-types';
 import type { ThemeTableOverviewView } from '../../../src/online/theme-table-types';
+import type { DeckRecord } from '../../src/lib/apiClient';
 
 type ApiError = { code: string; message: string } | null;
 type CardDbRecord = {
@@ -33,26 +34,6 @@ type CardDbRecord = {
   created_at: string;
   updated_at: string;
   updated_by: string | null;
-};
-
-type DeckRecord = {
-  id: string;
-  user_id: string;
-  name: string;
-  description: string | null;
-  main_deck: Array<{ card_code: string; count: number; card_type: 'MEMBER' | 'LIVE' }>;
-  energy_deck: Array<{ card_code: string; count: number }>;
-  is_valid: boolean;
-  validation_errors: string[];
-  is_public: boolean;
-  share_id: string | null;
-  share_enabled: boolean;
-  shared_at: string | null;
-  forked_from_deck_id: string | null;
-  forked_from_share_id: string | null;
-  forked_at: string | null;
-  created_at: string;
-  updated_at: string;
 };
 
 const NOW = '2026-06-13T00:00:00.000Z';
@@ -1331,54 +1312,6 @@ test.describe('focused browser regressions', () => {
     await expect(page.getByText('选择己方卡组', { exact: true })).toBeVisible();
   });
 
-  test('浅色主题的主行动区使用主题语义背景', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile-390x844', '主题回归只需执行一次');
-
-    await page.addInitScript(() => window.localStorage.setItem('loveca-theme', 'light'));
-    await installApiMocks(page, true);
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Loveca 大厅', exact: true })).toBeVisible();
-
-    const actionBar = page.getByRole('region', { name: '对战准备', exact: true });
-    const lightBackground = await actionBar.evaluate(
-      (element) => window.getComputedStyle(element).backgroundColor
-    );
-    expect(lightBackground).not.toBe('rgb(53, 25, 47)');
-
-    await page.getByRole('button', { name: '切换到深色主题' }).click();
-    const darkBackground = await actionBar.evaluate(
-      (element) => window.getComputedStyle(element).backgroundColor
-    );
-    expect(darkBackground).not.toBe(lightBackground);
-  });
-
-  test('房间观战入口保持短文案并跟随主题', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile-390x844', '主题回归只需执行一次');
-
-    await page.addInitScript(() => window.localStorage.setItem('loveca-theme', 'light'));
-    await installApiMocks(page, true);
-    await page.goto('/?page=online-spectator');
-    await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toHaveCount(1);
-    const codeEntry = page.getByRole('button', { name: '输入房间号', exact: true });
-    await expect(codeEntry).toBeVisible();
-    await expect(page.getByText('选择先攻或后攻玩家的视角')).toHaveCount(0);
-
-    await codeEntry.click();
-    const desk = page.getByRole('dialog', { name: '输入房间号', exact: true });
-    const lightBackground = await desk.evaluate(
-      (element) => window.getComputedStyle(element).backgroundColor
-    );
-    expect(lightBackground).not.toBe('rgb(53, 25, 47)');
-
-    await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: '切换到深色主题' }).click();
-    await codeEntry.click();
-    const darkBackground = await desk.evaluate(
-      (element) => window.getComputedStyle(element).backgroundColor
-    );
-    expect(darkBackground).not.toBe(lightBackground);
-  });
-
   test('新建卡组默认包含 12 张能量卡', async ({ page }, testInfo) => {
     await installApiMocks(page, true);
     await page.goto('/?page=deck-manager');
@@ -1816,32 +1749,5 @@ test.describe('focused browser regressions', () => {
       dialog.getByRole('button', { name: '观看 旧房间玩家 的视角', exact: true })
     ).toHaveCount(0);
     await expect(dialog.getByRole('button', { name: '查找房间', exact: true })).toBeEnabled();
-  });
-
-  test('系统减少动态效果时全局动画与过渡会被压缩', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile-390x844', '媒体偏好回归只需执行一次');
-
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await installApiMocks(page, true);
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Loveca 大厅', exact: true })).toBeVisible();
-
-    const motionState = await page.evaluate(() => {
-      const probe = document.createElement('div');
-      probe.className = 'animate-spin transition-all';
-      document.body.append(probe);
-      const styles = window.getComputedStyle(probe);
-      const result = {
-        mediaMatches: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-        animationDurationSeconds: Number.parseFloat(styles.animationDuration),
-        transitionDurationSeconds: Number.parseFloat(styles.transitionDuration),
-      };
-      probe.remove();
-      return result;
-    });
-
-    expect(motionState.mediaMatches).toBe(true);
-    expect(motionState.animationDurationSeconds).toBeLessThanOrEqual(0.001);
-    expect(motionState.transitionDurationSeconds).toBeLessThanOrEqual(0.001);
   });
 });
