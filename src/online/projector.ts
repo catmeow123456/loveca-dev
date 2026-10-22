@@ -377,6 +377,55 @@ export function projectPlayerViewState(
               return seat ? [seat] : [];
             }),
             deadlineAt: game.entranceRuntime.pending.deadlineAt,
+            ...(game.entranceRuntime.pending.rinaLiveSwap
+              ? {
+                  rinaLiveSwap: {
+                    hostObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.rinaLiveSwap.hostCardId
+                    ),
+                    liveObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.rinaLiveSwap.liveCardId
+                    ),
+                    liveCardCode: game.entranceRuntime.pending.rinaLiveSwap.liveCardCode,
+                    ownerSeat: getSeatForPlayer(
+                      game,
+                      game.entranceRuntime.pending.rinaLiveSwap.playerId
+                    )!,
+                    phase: game.entranceRuntime.pending.rinaLiveSwap.phase,
+                    liveIndex: game.entranceRuntime.pending.rinaLiveSwap.liveIndex,
+                  },
+                }
+              : {}),
+            ...(game.entranceRuntime.pending.honokaMemory
+              ? {
+                  honokaMemory: {
+                    sourceObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.honokaMemory.sourceCardId
+                    ),
+                    memoryObjectIds:
+                      game.entranceRuntime.pending.honokaMemory.memoryCardIds.map(
+                        createPublicObjectId
+                      ),
+                    part: game.entranceRuntime.pending.honokaMemory.part,
+                    scoreGranted: game.entranceRuntime.pending.honokaMemory.scoreGranted,
+                    heartGranted: game.entranceRuntime.pending.honokaMemory.heartGranted,
+                    recoveryReady: game.entranceRuntime.pending.honokaMemory.recoveryReady,
+                    ...(game.entranceRuntime.pending.honokaMemory.recovered
+                      ? {
+                          recovered: {
+                            objectId: createPublicObjectId(
+                              game.entranceRuntime.pending.honokaMemory.recovered.cardId
+                            ),
+                            cardCode: game.entranceRuntime.pending.honokaMemory.recovered.cardCode,
+                            name: game.entranceRuntime.pending.honokaMemory.recovered.name,
+                            landscape:
+                              game.entranceRuntime.pending.honokaMemory.recovered.landscape,
+                          },
+                        }
+                      : {}),
+                  },
+                }
+              : {}),
             ...(game.entranceRuntime.pending.abilityTransfer
               ? {
                   abilityTransfer: {

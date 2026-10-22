@@ -2121,7 +2121,10 @@ export const PlayerArea = memo(function PlayerArea({
           {shouldShowFront && liveData && (
             <div
               data-live-heart-requirements
-              className="battle-live-requirements absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-0.5 text-[8px] whitespace-nowrap md:-bottom-2.5"
+              className={cn(
+                'battle-live-requirements absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-0.5 text-[8px] whitespace-nowrap md:-bottom-2.5',
+                getBattleAnimationOcclusionClass(cardId)
+              )}
             >
               {getHeartRequirementEntries(liveData.requirements?.colorRequirements).map(
                 ([color, count], i) => (

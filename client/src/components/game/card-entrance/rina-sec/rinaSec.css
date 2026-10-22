@@ -1,0 +1,45 @@
+.rina-sec-presentation {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  pointer-events: none;
+  overflow: hidden;
+}
+.rina-sec-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.rina-sec-portrait {
+  position: absolute;
+  overflow: hidden;
+  background: #10142765;
+}
+.rina-sec-portrait > canvas {
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  object-fit: contain;
+}
+.rina-sec-portrait-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 48%, #dca1eb5c, transparent 56%);
+}
+.rina-sec-portrait .card-entrance-name {
+  left: 50%;
+  top: auto;
+  right: auto;
+  bottom: 10%;
+  transform: translateX(-50%) translateY(var(--name-y));
+  max-width: 90%;
+  width: max-content;
+  font-size: clamp(28px, 3.6vw, 44px);
+}
+@media (max-width: 600px) {
+  .rina-sec-portrait .card-entrance-name {
+    width: 240px;
+    bottom: 11%;
+  }
+}

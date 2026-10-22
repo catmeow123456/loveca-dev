@@ -77,6 +77,30 @@ export interface EntranceWait {
   readonly cardIds: readonly string[];
   readonly waitingPlayerIds: readonly string[];
   readonly deadlineAt: number;
+  /** Successful public LIVE movement commanded by the current Rina stage object. */
+  readonly rinaLiveSwap?: {
+    readonly hostCardId: string;
+    readonly liveCardId: string;
+    readonly liveCardCode: string;
+    readonly playerId: string;
+    readonly phase: 'RETURN' | 'PLACE';
+    readonly liveIndex: number;
+  };
+  /** Resolved LIVE rewards, or an already-public card successfully recovered to hand. */
+  readonly honokaMemory?: {
+    readonly sourceCardId: string;
+    readonly memoryCardIds: readonly string[];
+    readonly part: 'rewards' | 'recovery';
+    readonly scoreGranted: boolean;
+    readonly heartGranted: boolean;
+    readonly recoveryReady: boolean;
+    readonly recovered?: {
+      readonly cardId: string;
+      readonly cardCode: string;
+      readonly name: string;
+      readonly landscape: boolean;
+    };
+  };
   /** Successful acquisition, after its discard cost and before invocation. */
   readonly abilityTransfer?: {
     readonly hostCardId: string;
@@ -116,4 +140,6 @@ export interface EntranceRuntime {
   readonly pending: EntranceWait | null;
   /** Authority-only continuation consumed once after ACK/timeout. */
   readonly continuation?: PendingAbilityState;
+  /** Resume the completed workflow's pending-effect policy once after its presentation. */
+  readonly resumePendingEffects?: boolean;
 }

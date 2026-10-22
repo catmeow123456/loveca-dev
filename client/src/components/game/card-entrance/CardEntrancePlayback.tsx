@@ -1,3 +1,5 @@
+import { RinaEntranceVisuals } from './rina-sec/RinaEntranceVisuals';
+import { rinaSecTiming } from './rina-sec/rinaSecTimeline';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { CardEntranceProfile } from '@/lib/cardEntranceProfiles';
 import { prepareEntranceAssets } from '@/lib/cardEntranceAssets';
@@ -38,18 +40,21 @@ export function CardEntrancePlayback({
   onImpact: () => void;
   onDone: () => void;
 }) {
+  const rina = profile.id === 'rina';
   const fusion = !reduced && relaySources.length === 2;
   const returning = !reduced && !!waitingReturn;
   const [preludeDone, setPreludeDone] = useState(false);
   const kahoRelay = !reduced && !!kahoSource;
   const kahoTiming = ginkoFlowerTimeline.relay;
-  const portraitOffset = kahoRelay
-    ? kahoTiming.portraitAt
-    : returning
-      ? waitingReturnTimeline.portraitAt
-      : fusion
-        ? doubleRelayTimeline.portraitAt
-        : 0;
+  const portraitOffset = rina
+    ? rinaSecTiming.portraitAt
+    : kahoRelay
+      ? kahoTiming.portraitAt
+      : returning
+        ? waitingReturnTimeline.portraitAt
+        : fusion
+          ? doubleRelayTimeline.portraitAt
+          : 0;
   const done = useRef(onDone);
   done.current = onDone;
   const sourceValid = useGameStore((state) =>
@@ -157,27 +162,37 @@ export function CardEntrancePlayback({
           onInvalid={() => done.current()}
         />
       )}
-      {ready && (
-        <>
-          <CardEntrancePortrait
+      {ready &&
+        (rina ? (
+          <RinaEntranceVisuals
+            target={presentation.target}
             profile={profile}
-            image={ready.portrait}
-            blinkImage={ready.blink}
-            startedAt={ready.startedAt + portraitOffset}
+            ready={ready}
             reduced={reduced}
-            preludeRevealMs={kahoRelay ? kahoTiming.portraitAt - kahoTiming.arrive : 0}
+            onImpact={onImpact}
             onDone={onDone}
           />
-          {!reduced && (
-            <CardLanding
-              presentation={presentation}
+        ) : (
+          <>
+            <CardEntrancePortrait
+              profile={profile}
+              image={ready.portrait}
+              blinkImage={ready.blink}
               startedAt={ready.startedAt + portraitOffset}
-              onImpact={onImpact}
+              reduced={reduced}
+              preludeRevealMs={kahoRelay ? kahoTiming.portraitAt - kahoTiming.arrive : 0}
               onDone={onDone}
             />
-          )}
-        </>
-      )}
+            {!reduced && (
+              <CardLanding
+                presentation={presentation}
+                startedAt={ready.startedAt + portraitOffset}
+                onImpact={onImpact}
+                onDone={onDone}
+              />
+            )}
+          </>
+        ))}
       <button
         className="card-entrance-skip"
         onClick={(e) => {

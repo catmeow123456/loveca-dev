@@ -3224,6 +3224,14 @@ function getLiveSuccessEffectPlayerId(game: GameState): string | null {
 export function resolvePendingCardEffects(game: GameState): CardEffectRunnerResult {
   game = captureCardEntrance(game);
   if (game.entranceRuntime?.pending) return { gameState: game, resolvedAbilityIds: [] };
+  if (game.entranceRuntime?.resumePendingEffects !== undefined) {
+    const { resumePendingEffects, ...runtime } = game.entranceRuntime;
+    const state = { ...game, entranceRuntime: runtime };
+    return {
+      gameState: game.isEnded ? state : continuePendingCardEffects(state, resumePendingEffects),
+      resolvedAbilityIds: [],
+    };
+  }
   const continuation = game.entranceRuntime?.continuation;
   if (continuation && game.entranceRuntime) {
     const { continuation: _consumed, ...runtime } = game.entranceRuntime;

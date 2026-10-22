@@ -1,8 +1,14 @@
-import { getCardById, type GameState } from '../domain/entities/game.js';
-import { OrientationState, TriggerCondition } from '../shared/types/enums.js';
+import {
+  getCardById,
+  getPlayerById,
+  type ActiveEffectState,
+  type GameState,
+} from '../domain/entities/game.js';
+import { FaceState, OrientationState, TriggerCondition } from '../shared/types/enums.js';
 import { N_BP7_011_CONTINUOUS_PLAY_SHUFFLE_WAITING_MEMBERS_COST_MINUS_TWO_ABILITY_ID } from './card-effects/ability-ids.js';
 import { entranceCards, isEntranceCard } from '../shared/card-entrance.js';
 import { cardCodeMatchesBase } from '../shared/utils/card-code.js';
+import { isCurrentStageMemberAbilitySource } from './card-effects/runtime/source-member.js';
 import { cardNameAliasIs } from './effects/card-selectors.js';
 
 /** Pause only at an atomic effect boundary; never split a cost or a workflow mutation. */
@@ -130,6 +136,65 @@ export function captureCardEntrance(game: GameState): GameState {
             ...(waitingRoomReturns.length ? { waitingRoomReturns } : {}),
           }
         : null,
+    },
+  };
+}
+
+/** Called only after a successful atomic movement, never from inferred client zone differences. */
+export function captureRinaLiveSwap(
+  before: GameState,
+  after: GameState,
+  effect: ActiveEffectState,
+  liveCardId: string,
+  phase: 'RETURN' | 'PLACE'
+): GameState {
+  const runtime = after.entranceRuntime;
+  const host = getCardById(after, effect.sourceCardId);
+  const live = getCardById(after, liveCardId);
+  const previousPlayer = getPlayerById(before, effect.controllerId);
+  const player = getPlayerById(after, effect.controllerId);
+  if (
+    !runtime ||
+    runtime.pending ||
+    after.isEnded ||
+    !host ||
+    !live ||
+    !player ||
+    !previousPlayer ||
+    !cardCodeMatchesBase(host.data.cardCode, entranceCards.rina) ||
+    !isCurrentStageMemberAbilitySource(after, effect) ||
+    (phase === 'RETURN'
+      ? previousPlayer.liveZone.cardStates.get(liveCardId)?.face !== FaceState.FACE_UP ||
+        player.mainDeck.cardIds[0] !== liveCardId
+      : !previousPlayer.waitingRoom.cardIds.includes(liveCardId) ||
+        player.liveZone.cardStates.get(liveCardId)?.face !== FaceState.FACE_UP)
+  )
+    return after;
+  const liveIndex = (phase === 'RETURN' ? previousPlayer : player).liveZone.cardIds.indexOf(
+    liveCardId
+  );
+  if (liveIndex < 0) return after;
+  const generation = runtime.generation + 1;
+  return {
+    ...after,
+    entranceRuntime: {
+      ...runtime,
+      generation,
+      seenSequence: after.eventSequence,
+      pending: {
+        id: `rina-live:${after.gameId}:${after.actionSequence}:${generation}`,
+        cardIds: [effect.sourceCardId],
+        waitingPlayerIds: after.players.map((p) => p.id),
+        deadlineAt: 0,
+        rinaLiveSwap: {
+          hostCardId: effect.sourceCardId,
+          liveCardId,
+          liveCardCode: live.data.cardCode,
+          playerId: effect.controllerId,
+          phase,
+          liveIndex,
+        },
+      },
     },
   };
 }

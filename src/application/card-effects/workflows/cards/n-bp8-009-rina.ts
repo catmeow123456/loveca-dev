@@ -1,3 +1,4 @@
+import { captureRinaLiveSwap } from '../../../card-entrance.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -391,13 +392,14 @@ function selectLiveToTop(
     candidateCardIds: candidates,
   });
   if (!moved) return game;
-  const state = addAction(moved.gameState, 'RESOLVE_ABILITY', effect.controllerId, {
+  let state = addAction(moved.gameState, 'RESOLVE_ABILITY', effect.controllerId, {
     pendingAbilityId: effect.id,
     abilityId: effect.abilityId,
     sourceCardId: effect.sourceCardId,
     step: 'RETURN_LIVE_TO_DECK_TOP',
     movedCardId: moved.movedCardId,
   });
+  state = captureRinaLiveSwap(game, state, effect, moved.movedCardId, 'RETURN');
   const waitingCandidates = getWaitingLiveCandidates(state, effect.controllerId);
   if (waitingCandidates.length === 0)
     return finish(
@@ -463,7 +465,7 @@ function selectWaitingLive(
   );
   return placed
     ? finish(
-        placed.gameState,
+        captureRinaLiveSwap(game, placed.gameState, effect, placed.movedCardId, 'PLACE'),
         'PLACE_WAITING_ROOM_LIVE_FACE_UP',
         { placedLiveCardId: placed.movedCardId },
         continuePending
@@ -479,14 +481,16 @@ function finish(
 ): GameState {
   const effect = game.activeEffect;
   if (!effect) return game;
-  return continuePending(
-    addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step,
-      ...payload,
-    }),
-    effect.metadata?.orderedResolution === true
-  );
+  const state = addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
+    pendingAbilityId: effect.id,
+    abilityId: effect.abilityId,
+    sourceCardId: effect.sourceCardId,
+    step,
+    ...payload,
+  });
+  const ordered = effect.metadata?.orderedResolution === true;
+  // Movement and its triggers are committed together. Subsequent rules/UI resume after both ACKs.
+  return state.entranceRuntime?.pending?.rinaLiveSwap
+    ? { ...state, entranceRuntime: { ...state.entranceRuntime, resumePendingEffects: ordered } }
+    : continuePending(state, ordered);
 }
