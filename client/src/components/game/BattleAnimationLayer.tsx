@@ -535,7 +535,11 @@ export function BattleAnimationLayer() {
               <MovingCard
                 key={event.id}
                 event={event}
-                suppressMovement={movementOwners.includes(event.render.objectId)}
+                suppressMovement={
+                  movementOwners.includes(event.render.objectId) ||
+                  playerViewState?.match.entrance?.rinaLiveSwap?.liveObjectId ===
+                    event.render.objectId
+                }
                 imagePath={imagePath}
                 imageAlt={imageAlt}
                 reduceMotion={reduceMotion}

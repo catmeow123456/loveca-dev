@@ -377,6 +377,25 @@ export function projectPlayerViewState(
               return seat ? [seat] : [];
             }),
             deadlineAt: game.entranceRuntime.pending.deadlineAt,
+            ...(game.entranceRuntime.pending.rinaLiveSwap
+              ? {
+                  rinaLiveSwap: {
+                    hostObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.rinaLiveSwap.hostCardId
+                    ),
+                    liveObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.rinaLiveSwap.liveCardId
+                    ),
+                    liveCardCode: game.entranceRuntime.pending.rinaLiveSwap.liveCardCode,
+                    ownerSeat: getSeatForPlayer(
+                      game,
+                      game.entranceRuntime.pending.rinaLiveSwap.playerId
+                    )!,
+                    phase: game.entranceRuntime.pending.rinaLiveSwap.phase,
+                    liveIndex: game.entranceRuntime.pending.rinaLiveSwap.liveIndex,
+                  },
+                }
+              : {}),
             ...(game.entranceRuntime.pending.abilityTransfer
               ? {
                   abilityTransfer: {

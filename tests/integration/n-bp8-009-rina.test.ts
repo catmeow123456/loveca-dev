@@ -22,6 +22,8 @@ import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
 import {
   createActivateAbilityCommand,
+  createPlayMemberToSlotCommand,
+  GameCommandType,
   createAutoAdvancePublicCardSelectionCommand,
   createAutoAdvancePublicRevealCommand,
   createConfirmEffectStepCommand,
@@ -47,6 +49,14 @@ import {
   ZoneType,
 } from '../../src/shared/types/enums';
 
+import { getRinaLiveSwapSource } from '../../client/src/lib/rinaLiveSwap';
+import { supportsRinaSec } from '../../client/src/components/game/card-entrance/rina-sec/rinaSecTimeline';
+import {
+  rehydrateAuthorityGameState,
+  serializeReplayPayload,
+} from '../../src/server/services/replay-payload-serialization';
+import { GAME_STATE_SCHEMA_VERSION } from '../../src/server/services/replay-constants';
+
 const P1 = 'p1';
 const P2 = 'p2';
 const SOURCE = 'rina';
@@ -56,9 +66,9 @@ const LIVE_TEXT =
 function member(id: string, ownerId = P1, code = id) {
   const data: MemberCardData = {
     cardCode: code,
-    name: code === 'PL!N-bp8-009-SEC' ? '天王寺璃奈' : id,
+    name: code.startsWith('PL!N-bp8-009') ? '天王寺璃奈' : id,
     cardType: CardType.MEMBER,
-    cost: code === 'PL!N-bp8-009-SEC' ? 15 : 1,
+    cost: code.startsWith('PL!N-bp8-009') ? 15 : 1,
     blade: 1,
     hearts: [createHeartIcon(HeartColor.PINK, 1)],
     groupNames: ['虹ヶ咲'],
@@ -82,6 +92,7 @@ function setup(
     hand?: ReturnType<typeof createCardInstance>[];
     lives?: ReturnType<typeof createCardInstance>[];
     waiting?: ReturnType<typeof createCardInstance>[];
+    sourceCode?: string;
   } = {}
 ) {
   const deck = options.deck ?? [member('top'), member('middle'), live('bottom')];
@@ -89,7 +100,7 @@ function setup(
   const lives = options.lives ?? [live('old-live')];
   const waiting = options.waiting ?? [];
   let game = registerCards(createGameState('rina-bp8', P1, 'P1', P2, 'P2'), [
-    member(SOURCE, P1, 'PL!N-bp8-009-SEC'),
+    member(SOURCE, P1, options.sourceCode ?? 'PL!N-bp8-009-SEC'),
     member('opponent', P2),
     ...deck,
     ...hand,
@@ -123,10 +134,15 @@ function setup(
     liveResolution: { ...game.liveResolution, performingPlayerId: P1 },
   };
 }
-function attach(state: GameState) {
+function attach(state: GameState, cardEntrance?: 'LOCAL' | 'REMOTE') {
   let now = 10_000;
-  const session = createGameSession({ now: () => now });
-  session.createGame('rina-session', P1, 'P1', P2, 'P2');
+  const session = createGameSession({ now: () => now, cardEntrance });
+  const initial = session.createGame('rina-session', P1, 'P1', P2, 'P2');
+  if (cardEntrance)
+    state = {
+      ...state,
+      entranceRuntime: { ...initial.entranceRuntime!, seenSequence: state.eventSequence },
+    };
   (session as unknown as { authorityState: GameState }).authorityState = state;
   return {
     session,
@@ -135,11 +151,11 @@ function attach(state: GameState) {
     },
   };
 }
-function startLive(state = setup()) {
+function startLive(state = setup(), cardEntrance?: 'LOCAL' | 'REMOTE') {
   const result = new GameService().executeCheckTiming(state, [TriggerCondition.ON_LIVE_START]);
   expect(result.success, result.error).toBe(true);
   expect(result.gameState.activeEffect?.abilityId).toBe(LIVE_ID);
-  return attach(result.gameState);
+  return attach(result.gameState, cardEntrance);
 }
 type Session = ReturnType<typeof createGameSession>;
 function choose(session: Session, cardId?: string | null, optionId?: string) {
@@ -610,5 +626,198 @@ describe('cost 15 PL!N-bp8-009 Rina', () => {
         .map((action) => action.payload.sourceCardId)
     ).toEqual(['new-stay', 'old-stay']);
     expect(session.state?.pendingAbilities).toEqual([]);
+  });
+});
+
+describe('Rina public presentation barriers', () => {
+  const ack = (
+    session: Session,
+    playerId = P1,
+    entranceId = session.state!.entranceRuntime!.pending!.id
+  ) =>
+    session.executeCommand({
+      type: GameCommandType.ACK_CARD_ENTRANCE,
+      playerId,
+      entranceId,
+      timestamp: 0,
+    });
+  const prints = ['PL!N-bp8-009', 'PL!N-bp8-009-R', 'PL!N-bp8-009-P', 'PL!N-bp8-009-SEC'];
+  it.each(prints)(
+    '%s enters through the shared barrier and plays both LIVE phases',
+    (sourceCode) => {
+      let game = setup({ sourceCode });
+      const energy = Array.from({ length: 15 }, (_, i) =>
+        createCardInstance(
+          { cardType: CardType.ENERGY, cardCode: `E${i}`, name: 'energy' },
+          P1,
+          `E${i}`
+        )
+      );
+      game = registerCards(game, energy);
+      game = updatePlayer(game, P1, (p) => ({
+        ...p,
+        hand: { ...p.hand, cardIds: [SOURCE] },
+        memberSlots: removeCardFromSlot(p.memberSlots, SlotPosition.CENTER),
+        energyZone: energy.reduce(
+          (zone, e) => addCardToStatefulZone(zone, e.instanceId),
+          p.energyZone
+        ),
+      }));
+      const entered = attach(game, 'LOCAL');
+      expect(
+        entered.session.executeCommand(
+          createPlayMemberToSlotCommand(P1, SOURCE, SlotPosition.CENTER)
+        ).success
+      ).toBe(true);
+      expect(entered.session.state!.entranceRuntime!.pending!.cardIds).toEqual([SOURCE]);
+      expect(supportsRinaSec(sourceCode)).toBe(true);
+      expect(ack(entered.session).success).toBe(true);
+      const { session, setNow } = startLive(setup({ sourceCode }), 'REMOTE');
+      pay(session);
+      advanceReveal(session, setNow);
+      choose(session, 'old-live');
+      const old = session.state!.entranceRuntime!.pending!;
+      expect(old.rinaLiveSwap).toMatchObject({
+        phase: 'RETURN',
+        liveCardId: 'old-live',
+        liveIndex: 0,
+      });
+      expect(session.state!.players[0].mainDeck.cardIds[0]).toBe('old-live');
+      const first = session.getPlayerViewState(P1)!,
+        second = session.getPlayerViewState(P2)!;
+      expect(first.match.entrance).toEqual(second.match.entrance);
+      expect(getRinaLiveSwapSource(first, (code) => code)).toMatchObject({
+        side: 'self',
+        imagePath: 'old-live',
+      });
+      expect(getRinaLiveSwapSource(second, (code) => code)).toMatchObject({ side: 'opponent' });
+      // Only the formerly public face is copied. The hidden deck identity remains hidden.
+      expect(second.objects.obj_top?.frontInfo).toBeUndefined();
+      expect(
+        session.executeCommand(
+          createConfirmEffectStepCommand(P1, session.state!.activeEffect!.id, 'bottom')
+        ).success
+      ).toBe(false);
+      expect(ack(session).success).toBe(true);
+      expect(session.state!.entranceRuntime!.pending!.waitingPlayerIds).toEqual([P2]);
+      expect(ack(session, P2).success).toBe(true);
+      choose(session, 'bottom');
+      advanceSelection(session, setNow);
+      const next = session.state!.entranceRuntime!.pending!;
+      expect(next.id).not.toBe(old.id);
+      expect(getRinaLiveSwapSource(session.getPlayerViewState(P2)!, (code) => code)?.phase).toBe(
+        'PLACE'
+      );
+      expect(next.rinaLiveSwap).toMatchObject({
+        phase: 'PLACE',
+        liveCardId: 'bottom',
+        liveIndex: 0,
+      });
+      expect(session.state!.activeEffect).toBeNull();
+      expect(session.state!.players[0].liveZone.cardIds).toEqual(['bottom']);
+      expect(ack(session, P1, old.id).success).toBe(false);
+      expect(ack(session).success).toBe(true);
+      expect(ack(session, P2).success).toBe(true);
+      expect(session.state!.entranceRuntime!.pending).toBeNull();
+      expect(session.state!.entranceRuntime!.resumePendingEffects).toBeUndefined();
+      expect(session.state!.actionHistory.filter((a) => a.type === 'PAY_COST')).toHaveLength(1);
+    }
+  );
+
+  it('defers the new LIVE AUTO, restores it exactly once after checkpoint timeout, and never replays the completed wait', () => {
+    const { session, setNow } = startLive(
+      setup({ waiting: [live('stay', 6, ['虹ヶ咲'], 'PL!N-bp8-030-L')] }),
+      'REMOTE'
+    );
+    pay(session);
+    advanceReveal(session, setNow);
+    choose(session, 'old-live');
+    ack(session);
+    ack(session, P2);
+    choose(session, 'stay');
+    advanceSelection(session, setNow);
+    const wait = session.state!.entranceRuntime!.pending!;
+    expect(
+      session.state!.liveResolution.liveModifiers.some((m) => m.abilityId === STAY_AUTO_ID)
+    ).toBe(false);
+    expect(session.state!.entranceRuntime!.resumePendingEffects).toBe(false);
+    expect(ack(session).success).toBe(true);
+    expect(
+      session.state!.liveResolution.liveModifiers.some((m) => m.abilityId === STAY_AUTO_ID)
+    ).toBe(false);
+    const serialized = rehydrateAuthorityGameState(
+      serializeReplayPayload(session.state!, 'AUTHORITY_GAME_STATE', GAME_STATE_SCHEMA_VERSION)
+    );
+    const restored = createGameSession({ cardEntrance: 'REMOTE', now: () => wait.deadlineAt });
+    restored.restoreRuntimeState({
+      authorityState: serialized,
+      currentPublicSeq: session.getCurrentPublicEventSeq(),
+    });
+    expect(restored.expireCardEntrance()).toBe(true);
+    expect(restored.state!.liveResolution.liveModifiers).toContainEqual(
+      expect.objectContaining({ abilityId: STAY_AUTO_ID, liveCardId: 'stay' })
+    );
+    expect(restored.expireCardEntrance()).toBe(false);
+    expect(ack(restored, P1, wait.id).success).toBe(false);
+    expect(
+      restored.state!.actionHistory.filter(
+        (a) => a.payload.step === 'REDUCE_SOURCE_LIVE_REQUIREMENT_FROM_WAITING_ROOM'
+      )
+    ).toHaveLength(1);
+    restored.restoreRuntimeState({
+      authorityState: restored.state!,
+      currentPublicSeq: restored.getCurrentPublicEventSeq(),
+    });
+    expect(restored.getPlayerViewState(P1)!.match.entrance).toBeUndefined();
+  });
+
+  it('lets a departed source resolve the rule without a board animation and excludes other Rina cards', () => {
+    expect(supportsRinaSec('PL!N-bp1-009-SEC')).toBe(false);
+    const { session, setNow } = startLive(setup(), 'LOCAL');
+    replaceAuthority(
+      session,
+      updatePlayer(session.state!, P1, (p) => ({
+        ...p,
+        memberSlots: removeCardFromSlot(p.memberSlots, SlotPosition.CENTER),
+      }))
+    );
+    pay(session);
+    advanceReveal(session, setNow);
+    choose(session, 'old-live');
+    expect(session.state!.entranceRuntime!.pending).toBeNull();
+    choose(session, 'bottom');
+    advanceSelection(session, setNow);
+    expect(session.state!.entranceRuntime!.pending).toBeNull();
+    expect(session.state!.players[0].liveZone.cardIds).toEqual(['bottom']);
+  });
+
+  it('a non-LIVE bottom cost and an invalid selection do not create a presentation', () => {
+    const invalid = startLive(setup(), 'LOCAL');
+    pay(invalid.session);
+    advanceReveal(invalid.session, invalid.setNow);
+    expect(
+      invalid.session.executeCommand(
+        createConfirmEffectStepCommand(P1, invalid.session.state!.activeEffect!.id, 'not-a-live')
+      ).success
+    ).toBe(false);
+    expect(invalid.session.state!.entranceRuntime!.pending).toBeNull();
+    const f = startLive(setup({ deck: [member('top'), member('bottom')] }), 'LOCAL');
+    pay(f.session);
+    advanceReveal(f.session, f.setNow);
+    expect(f.session.state!.entranceRuntime!.pending).toBeNull();
+    expect(f.session.state!.players[0].liveZone.cardIds).toEqual(['old-live']);
+  });
+
+  it('uses the actual old and new LIVE indices when other LIVE cards remain', () => {
+    const f = startLive(setup({ lives: [live('other', 3), live('old-live')] }), 'LOCAL');
+    pay(f.session);
+    advanceReveal(f.session, f.setNow);
+    choose(f.session, 'old-live');
+    expect(f.session.state!.entranceRuntime!.pending!.rinaLiveSwap!.liveIndex).toBe(1);
+    ack(f.session);
+    choose(f.session, 'bottom');
+    advanceSelection(f.session, f.setNow);
+    expect(f.session.state!.entranceRuntime!.pending!.rinaLiveSwap!.liveIndex).toBe(1);
+    expect(f.session.state!.players[0].liveZone.cardIds).toEqual(['other', 'bottom']);
   });
 });

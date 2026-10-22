@@ -145,6 +145,15 @@ export interface MatchViewState {
     readonly objectIds: readonly string[];
     readonly waitingSeats: readonly Seat[];
     readonly deadlineAt: number;
+    readonly rinaLiveSwap?: {
+      readonly hostObjectId: string;
+      readonly liveObjectId: string;
+      /** The public face before returning to deck, or after entering LIVE. */
+      readonly liveCardCode: string;
+      readonly ownerSeat: Seat;
+      readonly phase: 'RETURN' | 'PLACE';
+      readonly liveIndex: number;
+    };
     readonly abilityTransfer?: {
       readonly hostObjectId: string;
       readonly sourceObjectId: string;

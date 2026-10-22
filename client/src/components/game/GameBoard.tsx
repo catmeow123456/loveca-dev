@@ -5240,7 +5240,7 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
         />
 
         {/* 拖拽覆盖层 - 显示正在拖拽的卡牌 */}
-        <DragOverlay>
+        <DragOverlay dropAnimation={entranceWaiting ? null : undefined}>
           {activeCard ? (
             <DragOverlayCard card={activeCard} fromZone={activeDragFromZone} />
           ) : activeCardId ? (

@@ -1,3 +1,5 @@
+import { getRinaLiveSwapSource } from '@/lib/rinaLiveSwap';
+import { RinaLivePlayback } from './rina-sec/RinaLivePlayback';
 import { useCardEntranceBarrier, useWindowVisualEligibility } from '../BattleRuntime';
 import { useTextPresentation } from '@/lib/appPresentation';
 import { useEffect, useLayoutEffect, useState } from 'react';
@@ -43,9 +45,14 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
   const [transfer] = useState(() =>
     getAbilityTransferSource(view, useGameStore.getState().getCardImagePath)
   );
+  const [rinaSwap] = useState(() =>
+    getRinaLiveSwapSource(view, useGameStore.getState().getCardImagePath)
+  );
+  const [swapDone, setSwapDone] = useState(false);
+  const activeSwap = playVisuals && viewerWaiting && !swapDone ? rinaSwap : undefined;
   // Snapshot only public, already-present stage cards. No historical event replay on mount.
   const [queue] = useState(() =>
-    (wait.abilityTransfer ? [] : wait.objectIds).flatMap((objectId) => {
+    (wait.abilityTransfer || wait.rinaLiveSwap ? [] : wait.objectIds).flatMap((objectId) => {
       const target = getEntranceStageTarget(view, objectId);
       const profile = target && getCardEntranceProfile(target.cardCode);
       return target && profile
@@ -81,7 +88,7 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
   const [transferDone, setTransferDone] = useState(false);
   const activeTransfer = playVisuals && viewerWaiting && !transferDone ? transfer : undefined;
   const active = playVisuals && viewerWaiting ? queue[index] : undefined;
-  const done = !active && !activeTransfer;
+  const done = !active && !activeTransfer && !activeSwap;
 
   useCardEntranceBarrier(view, done);
 
@@ -108,11 +115,23 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
     };
   }, [playVisuals, viewerWaiting, reduced, queue, index, landedId, releasedPreludeId]);
 
+  useLayoutEffect(() => {
+    if (!activeSwap || reduced) return;
+    const store = useGameStore.getState();
+    const eventId = `entrance:${wait.id}:rina-live`;
+    store.addBattleAnimationOcclusions([
+      { eventId, objectId: activeSwap.liveObjectId, suppressDefaultMovement: true },
+    ]);
+    return () => store.removeBattleAnimationOcclusion(eventId);
+  }, [activeSwap, reduced, wait.id]);
+
   if (textOnly) return null;
   return (
     <>
       <div className="absolute inset-0 z-[59]" aria-hidden="true" />
-      {activeTransfer ? (
+      {activeSwap ? (
+        <RinaLivePlayback source={activeSwap} reduced={reduced} onDone={() => setSwapDone(true)} />
+      ) : activeTransfer ? (
         <AbilityTransferPlayback
           source={activeTransfer}
           reduced={reduced}
