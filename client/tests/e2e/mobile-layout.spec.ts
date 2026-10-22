@@ -770,6 +770,21 @@ async function installApiMocks(
       return;
     }
 
+    if (url.pathname === '/api/casual-tables/me') {
+      await fulfillApi(route, { table: null, otherParticipation: null });
+      return;
+    }
+    if (url.pathname === '/api/casual-tables/rooms') {
+      await fulfillApi(route, {
+        rooms: [],
+        counts: { waiting: 0, preparing: 0, playing: 0 },
+        nextCursor: null,
+        snapshotAt: Date.now(),
+        unavailableReason: null,
+      });
+      return;
+    }
+
     if (url.pathname === '/api/player-badges/me' && method === 'GET') {
       await fulfillApi(route, [
         {
@@ -1099,10 +1114,20 @@ test.describe('focused browser regressions', () => {
     await page.getByRole('button', { name: '打开导航菜单' }).click();
     await page.getByRole('button', { name: '退出登录', exact: true }).click();
     await page.getByRole('button', { name: '开始对战', exact: true }).click();
-    await expect(page.getByText('登录后继续选择对战方式和本次使用的卡组。')).toBeVisible();
+    await expect(page.getByText('登录后进入对战大厅，寻找对手或创建房间。')).toBeVisible();
+    await page.getByPlaceholder('输入你的用户名或邮箱').fill('e2e_admin');
+    await page.getByPlaceholder('输入你的密码').fill('test_password');
+    await page.getByRole('button', { name: '登录', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '对墙打', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: '双人调试', exact: true })).toBeEnabled();
+    await page.getByRole('button', { name: '打开导航菜单' }).click();
+    await page.getByRole('button', { name: '退出登录', exact: true }).click();
+    await page.getByRole('button', { name: '打开导航菜单' }).click();
+    await page.getByRole('button', { name: '对战', exact: true }).click();
 
     await page.getByRole('button', { name: '进入离线模式' }).click();
-    await expect(page.getByText('选择对战方式', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '选择己方卡组', exact: true })).toBeVisible();
   });
 
   test('离线访客可从示例创建并持久化本地卡组', async ({ page }, testInfo) => {
@@ -1172,23 +1197,23 @@ test.describe('focused browser regressions', () => {
     await expect(page.getByRole('heading', { name: 'Loveca 在线对战' })).toBeVisible();
   });
 
-  test('登录后开始对战包含赛季排位和娱乐模式入口', async ({ page }, testInfo) => {
+  test('首页保留赛季排位和娱乐模式入口', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile-390x844', '入口回归只需执行一次');
 
     await installApiMocks(page, true, CARD_RECORDS, undefined, THEME_TABLE_OVERVIEW);
-    await page.goto('/?page=game-setup');
-    await expect(page.getByText('选择对战方式', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: /娱乐模式/ })).toBeVisible();
+    await page.goto('/');
+    const modes = page.getByRole('region', { name: '选择玩法', exact: true });
+    await expect(modes.getByRole('button', { name: /娱乐模式/ })).toBeVisible();
     await waitForStableApp(page);
-    await attachScreenshot(page, testInfo, 'game-setup-season-entries');
+    await attachScreenshot(page, testInfo, 'home-season-entries');
 
-    await page.getByRole('button', { name: /赛季排位/ }).click();
-    await page.getByRole('button', { name: '进入赛季排位' }).click();
+    await modes.getByRole('button', { name: /赛季排位/ }).click();
+    await page.getByRole('button', { name: '前往赛季排位' }).click();
     await expect(page.getByText('赛季排位', { exact: true }).first()).toBeVisible();
 
-    await page.goto('/?page=game-setup');
-    await page.getByRole('button', { name: /娱乐模式/ }).click();
-    await page.getByRole('button', { name: '进入娱乐模式' }).click();
+    await page.goto('/');
+    await modes.getByRole('button', { name: /娱乐模式/ }).click();
+    await page.getByRole('button', { name: '前往娱乐模式' }).click();
     await expect(page.getByText('E2E 娱乐模式', { exact: true })).toBeVisible();
     await expect(page.locator('.theme-matchup-graph__canvas')).toBeVisible();
   });
@@ -1211,7 +1236,7 @@ test.describe('focused browser regressions', () => {
     await attachScreenshot(page, testInfo, 'theme-table-post-match-deck-choice');
   });
 
-  test('关闭赛季入口后大厅和对局准备页均不展示', async ({ page }, testInfo) => {
+  test('关闭赛季入口后首页不展示，练习准备页只保留本地模式', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile-390x844', '入口显隐回归只需执行一次');
 
     await installApiMocks(page, true, CARD_RECORDS, undefined, undefined, {
@@ -1225,8 +1250,9 @@ test.describe('focused browser regressions', () => {
     await page.getByRole('button', { name: '进入对战大厅', exact: true }).click();
     await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
     await page.goto('/?page=game-setup');
-    await expect(page.getByRole('heading', { name: '选择对战方式', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: /对战大厅/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '选择己方卡组', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '对墙打', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '双人调试', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: /赛季排位/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /娱乐模式/ })).toHaveCount(0);
   });
@@ -1257,9 +1283,8 @@ test.describe('focused browser regressions', () => {
     await page.setViewportSize({ width: 390, height: 667 });
     await installApiMocks(page, true);
     await page.goto('/?page=game-setup');
-    await expect(page.getByText('选择对战方式', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '选择己方卡组', exact: true })).toBeVisible();
 
-    await page.getByRole('button', { name: '下一步：选择己方卡组' }).click();
     await expect(page.getByRole('button', { name: 'E2E 移动验收卡组' })).toBeVisible();
     await page.getByRole('button', { name: '下一步：确认对局' }).click();
     await waitForStableApp(page);

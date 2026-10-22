@@ -138,7 +138,7 @@ for (const exitViaHome of [false, true]) {
           .click();
         await first.getByRole('button', { name: '另开本地对局', exact: true }).click();
         await expect(
-          first.getByRole('heading', { name: '选择对战方式', exact: true })
+          first.getByRole('heading', { name: '选择己方卡组', exact: true })
         ).toBeVisible();
       } else {
         await first.getByTitle('打开房间操作').click();

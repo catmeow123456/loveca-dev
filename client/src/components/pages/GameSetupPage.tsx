@@ -1,6 +1,5 @@
 /**
- * GameSetupPage - 对局准备页面
- * Step 0: 选择对战方式（快速匹配 / 赛季活动 / 其他对战）
+ * GameSetupPage - 对墙打与双人调试的卡组准备
  * Step 1: 选择卡组（调试模式选 2 副，对墙打模式选 1 副）
  * Step 2: 确认并开始对局
  */
@@ -14,16 +13,13 @@ import {
   ChevronRight,
   History,
   Layers3,
-  Medal,
   Play,
-  Swords,
   Star,
   Target,
   Users,
   UserRound,
   WandSparkles,
   Zap,
-  type LucideIcon,
 } from 'lucide-react';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
@@ -61,146 +57,50 @@ import { createSolitaireMatch } from '@/lib/solitaireMatchClient';
 import { writeStoredSolitaireMatchId } from '@/lib/solitaireMatchRecovery';
 import { cn } from '@/lib/utils';
 import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
-import type { PlayerBattleEntryVisibility } from '@/lib/appConfig';
 
-type SetupStep = 0 | 1 | 2 | 3;
-type SetupMode = 'CASUAL' | 'RANKED' | 'THEME_TABLE' | GameMode.DEBUG | GameMode.SOLITAIRE;
+type SetupStep = 1 | 2 | 3;
+type SetupMode = GameMode.DEBUG | GameMode.SOLITAIRE;
 
 interface GameSetupPageProps {
-  initialLocalMode?: GameMode.SOLITAIRE | GameMode.DEBUG | null;
+  mode: SetupMode;
+  onModeChange: (mode: SetupMode) => void;
   navigation: ProductNavigationHandlers;
   headerActions: ReactNode;
   mobileMenuActions: ReactNode;
   onBack: () => void;
   onGameStart: () => void;
-  onNavigateToLobby: () => void;
-  onNavigateToRanked: () => void;
-  onNavigateToThemeTable: () => void;
   onManageDecks: () => void;
-  battleEntryVisibility: PlayerBattleEntryVisibility;
 }
 
 function createLocalGameId(): string {
   return `game-${Date.now()}`;
 }
 
-interface ModeChoiceProps {
-  readonly mode: SetupMode;
-  readonly title: string;
-  readonly description: string;
-  readonly icon: LucideIcon;
-  readonly toneClass: string;
-  readonly selected: boolean;
-  readonly available: boolean;
-  readonly featured?: boolean;
-  readonly onSelect: (mode: SetupMode) => void;
-}
-
-function ModeChoice({
-  mode,
-  title,
-  description,
-  icon: Icon,
-  toneClass,
-  selected,
-  available,
-  featured = false,
-  onSelect,
-}: ModeChoiceProps) {
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(mode)}
-      disabled={!available}
-      aria-pressed={selected}
-      className={cn(
-        'group relative isolate flex w-full min-w-0 overflow-hidden border text-left outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-[var(--mode-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-deep)]',
-        toneClass,
-        featured
-          ? 'min-h-[92px] items-center gap-4 rounded-lg p-4 sm:min-h-[100px] sm:px-5'
-          : 'min-h-[80px] items-center gap-3 rounded-lg p-3 sm:min-h-[88px] sm:p-4',
-        selected
-          ? 'border-[color:color-mix(in_srgb,var(--mode-accent)_62%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--mode-accent)_10%,var(--bg-surface))]'
-          : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[color:color-mix(in_srgb,var(--mode-accent)_35%,var(--border-default))]',
-        !available &&
-          'cursor-not-allowed opacity-[0.48] grayscale-[0.25] hover:border-[var(--border-subtle)]'
-      )}
-    >
-      <span
-        className={cn(
-          'relative flex shrink-0 items-center justify-center border border-[color:color-mix(in_srgb,var(--mode-accent)_30%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--mode-accent)_12%,var(--bg-overlay))] text-[var(--mode-accent)]',
-          featured ? 'h-12 w-12 rounded-lg' : 'h-10 w-10 rounded-lg'
-        )}
-      >
-        <Icon size={featured ? 25 : 20} strokeWidth={1.8} />
-      </span>
-
-      <span className="relative min-w-0 flex-1 pr-7">
-        <span
-          className={cn(
-            'block font-semibold tracking-normal text-[var(--text-primary)]',
-            featured ? 'text-xl' : 'text-base sm:text-lg'
-          )}
-        >
-          {title}
-        </span>
-        <span className="mt-1 block text-[13px] leading-relaxed text-[var(--text-secondary)]">
-          {description}
-        </span>
-      </span>
-
-      {selected && (
-        <span
-          className="absolute right-4 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--mode-accent)] text-white"
-          aria-hidden="true"
-        >
-          <Check size={15} />
-        </span>
-      )}
-      {!available && (
-        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-[var(--text-muted)]">
-          暂不可用
-        </span>
-      )}
-    </button>
-  );
-}
-
 export function GameSetupPage({
-  initialLocalMode = null,
+  mode: gameMode,
+  onModeChange,
   navigation,
   headerActions,
   mobileMenuActions,
   onBack,
   onGameStart,
-  onNavigateToLobby,
-  onNavigateToRanked,
-  onNavigateToThemeTable,
   onManageDecks,
-  battleEntryVisibility,
 }: GameSetupPageProps) {
-  const [currentStep, setCurrentStep] = useState<SetupStep>(initialLocalMode ? 1 : 0);
-  const [setupMode, setSetupMode] = useState<SetupMode>(initialLocalMode ?? GameMode.SOLITAIRE);
+  const [currentStep, setCurrentStep] = useState<SetupStep>(1);
   const [selectedP1DeckState, setSelectedP1Deck] = useState<DeckDisplayItem | null>(null);
   const [selectedP2DeckState, setSelectedP2Deck] = useState<DeckDisplayItem | null>(null);
   const [hasManualSelectedP1Deck, setHasManualSelectedP1Deck] = useState(false);
   const [hasManualSelectedP2Deck, setHasManualSelectedP2Deck] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isCasualMode = setupMode === 'CASUAL';
-  const isRankedMode = setupMode === 'RANKED';
-  const isThemeTableMode = setupMode === 'THEME_TABLE';
-  const isRemoteEntryMode = isCasualMode || isRankedMode || isThemeTableMode;
-  const gameMode = setupMode === GameMode.DEBUG ? GameMode.DEBUG : GameMode.SOLITAIRE;
   const isDebugMode = gameMode === GameMode.DEBUG;
-  const maxStep: SetupStep = isRemoteEntryMode ? 1 : isDebugMode ? 3 : 2;
+  const maxStep: SetupStep = isDebugMode ? 3 : 2;
   const isConfirmStep =
     (currentStep === 2 && gameMode === GameMode.SOLITAIRE) ||
     (currentStep === 3 && gameMode === GameMode.DEBUG);
   const offlineMode = useAuthStore((s) => s.offlineMode);
   const authenticatedUser = useAuthStore((s) => s.user);
-  const canUseOnlineRoom = !offlineMode && isApiConfigured;
-  const canUseRecordedSolitaire = canUseOnlineRoom && authenticatedUser !== null;
+  const canUseRecordedSolitaire = !offlineMode && isApiConfigured && authenticatedUser !== null;
   const pointTable = useDeckPointTableRules();
 
   // Deck store
@@ -225,22 +125,6 @@ export function GameSetupPage({
   useEffect(() => {
     void ensureCloudDecks();
   }, [ensureCloudDecks]);
-
-  useEffect(() => {
-    const selectedEntryWasHidden =
-      (setupMode === 'RANKED' && !battleEntryVisibility.ranked) ||
-      (setupMode === 'THEME_TABLE' && !battleEntryVisibility.themeTable);
-    if (!selectedEntryWasHidden) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setSetupMode(GameMode.SOLITAIRE);
-      setCurrentStep(0);
-      setError(null);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [battleEntryVisibility.ranked, battleEntryVisibility.themeTable, setupMode]);
 
   // 只显示有效的卡组
   const validDecks = useMemo(
@@ -291,14 +175,8 @@ export function GameSetupPage({
     if (refreshedDeck) {
       return refreshedDeck;
     }
-    return !isRemoteEntryMode && !hasManualSelectedP1Deck ? p1PreferredDeck.deck : null;
-  }, [
-    deckDisplayItems,
-    hasManualSelectedP1Deck,
-    isRemoteEntryMode,
-    p1PreferredDeck.deck,
-    selectedP1DeckState,
-  ]);
+    return !hasManualSelectedP1Deck ? p1PreferredDeck.deck : null;
+  }, [deckDisplayItems, hasManualSelectedP1Deck, p1PreferredDeck.deck, selectedP1DeckState]);
   const selectedP2Deck = useMemo(() => {
     const refreshedDeck = selectedP2DeckState
       ? (deckDisplayItems.find((deck) => deck.id === selectedP2DeckState.id && deck.isValid) ??
@@ -330,45 +208,10 @@ export function GameSetupPage({
     setSelectedP2Deck(deck);
   };
 
-  // 选择模式
-  const handleSelectMode = (mode: SetupMode) => {
-    setSetupMode(mode);
-    // 切换模式时重置卡组选择
-    setSelectedP1Deck(null);
-    setSelectedP2Deck(null);
-    setHasManualSelectedP1Deck(false);
-    setHasManualSelectedP2Deck(false);
-    setError(null);
-  };
-
   // 下一步
   const handleNext = () => {
-    if (currentStep === 0) {
-      if (isCasualMode) {
-        if (canUseOnlineRoom) {
-          onNavigateToLobby();
-        }
-        return;
-      }
-      if (isRankedMode) {
-        if (canUseOnlineRoom && validDecks.length > 0) {
-          onNavigateToRanked();
-        }
-        return;
-      }
-      if (isThemeTableMode) {
-        if (canUseOnlineRoom) {
-          onNavigateToThemeTable();
-        }
-        return;
-      }
-      setCurrentStep(1);
-    } else if (currentStep === 1) {
-      if (gameMode === GameMode.DEBUG && selectedP1Deck) {
-        setCurrentStep(2);
-      } else if (gameMode === GameMode.SOLITAIRE && selectedP1Deck) {
-        setCurrentStep(2);
-      }
+    if (currentStep === 1) {
+      if (selectedP1Deck) setCurrentStep(2);
     } else if (currentStep === 2 && gameMode === GameMode.DEBUG && selectedP2Deck) {
       setCurrentStep(3);
     }
@@ -377,7 +220,7 @@ export function GameSetupPage({
   // 上一步
   const handlePrev = () => {
     if (currentStep === 1) {
-      setCurrentStep(0);
+      onBack();
     } else if (currentStep === 2) {
       setCurrentStep(1);
     } else if (currentStep === 3) {
@@ -387,10 +230,6 @@ export function GameSetupPage({
 
   // 是否可以进入下一步
   const canProceed = () => {
-    if (currentStep === 0) {
-      if (isRankedMode) return canUseOnlineRoom && validDecks.length > 0;
-      return isRemoteEntryMode ? canUseOnlineRoom : gameMode !== undefined;
-    }
     if (currentStep === 1) return selectedP1Deck !== null;
     if (currentStep === 2 && gameMode === GameMode.DEBUG) return selectedP2Deck !== null;
     return false;
@@ -513,16 +352,8 @@ export function GameSetupPage({
 
   // 步骤指示器
   const renderStepIndicator = () => {
-    const steps = isRemoteEntryMode
-      ? [0, 1]
-      : gameMode === GameMode.SOLITAIRE
-        ? [0, 1, 2]
-        : [0, 1, 2, 3];
-    const labels = isRemoteEntryMode
-      ? ['模式', isCasualMode ? '匹配' : isRankedMode ? '排位' : isThemeTableMode ? '主题' : '房间']
-      : gameMode === GameMode.SOLITAIRE
-        ? ['模式', '卡组', '确认']
-        : ['模式', 'P1', 'P2', '确认'];
+    const steps = isDebugMode ? [1, 2, 3] : [1, 2];
+    const labels = isDebugMode ? ['P1', 'P2', '确认'] : ['卡组', '确认'];
     return (
       <div className="mx-auto mb-4 w-full max-w-2xl sm:mb-5">
         <ol
@@ -570,8 +401,6 @@ export function GameSetupPage({
   // 步骤标题
   const getStepTitle = () => {
     switch (currentStep) {
-      case 0:
-        return '选择对战方式';
       case 1:
         return gameMode === GameMode.SOLITAIRE ? '选择己方卡组' : '选择 Player 1 的卡组';
       case 2:
@@ -582,20 +411,6 @@ export function GameSetupPage({
   };
 
   const getNextButtonLabel = () => {
-    if (currentStep === 0) {
-      if (isCasualMode) {
-        return canUseOnlineRoom ? '进入对战大厅' : '对战大厅暂不可用';
-      }
-      if (isRankedMode) {
-        if (!canUseOnlineRoom) return '赛季排位暂不可用';
-        return validDecks.length > 0 ? '进入赛季排位' : '需要符合规则的卡组';
-      }
-      if (isThemeTableMode) {
-        return canUseOnlineRoom ? '进入娱乐模式' : '娱乐模式暂不可用';
-      }
-      if (gameMode === GameMode.SOLITAIRE) return '下一步：选择己方卡组';
-      return '下一步：选择 P1 卡组';
-    }
     if (currentStep === 1 && gameMode === GameMode.DEBUG) return '下一步：选择 P2 卡组';
     if (currentStep === 1 && gameMode === GameMode.SOLITAIRE) return '下一步：确认对局';
     if (currentStep === 2 && gameMode === GameMode.DEBUG) return '下一步：确认对局';
@@ -608,135 +423,50 @@ export function GameSetupPage({
       navigation={navigation}
       actions={headerActions}
       mobileMenuActions={mobileMenuActions}
-      title="对局准备"
-      description="选择对战方式和本次使用的卡组"
+      title={isDebugMode ? '双人调试' : '对墙打'}
+      description={
+        isDebugMode ? '选择双方卡组，在同一设备操作双方' : '选择己方卡组，练习完整对局流程'
+      }
       backLabel="返回大厅"
       onBack={onBack}
     >
       <main className="relative z-10 flex flex-1 flex-col overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-5 sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+1.5rem)] sm:pt-6">
-        {currentStep > 0 && renderStepIndicator()}
+        <div className="mx-auto mb-4 flex gap-2" role="group" aria-label="练习与调试模式">
+          {(
+            [
+              [GameMode.SOLITAIRE, '对墙打', Target],
+              [GameMode.DEBUG, '双人调试', Bug],
+            ] as const
+          ).map(([mode, label, Icon]) => (
+            <button
+              key={mode}
+              type="button"
+              className={cn(
+                'inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm',
+                gameMode === mode ? 'button-secondary' : 'button-ghost'
+              )}
+              aria-pressed={gameMode === mode}
+              disabled={isStarting}
+              onClick={() => onModeChange(mode)}
+            >
+              <Icon size={16} aria-hidden="true" />
+              {label}
+            </button>
+          ))}
+        </div>
+        {renderStepIndicator()}
 
-        {currentStep > 0 && (
-          <motion.h2
-            key={currentStep}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-5 text-center text-xl font-semibold text-[var(--text-primary)] sm:mb-6 sm:text-2xl"
-          >
-            {getStepTitle()}
-          </motion.h2>
-        )}
+        <motion.h2
+          key={currentStep}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-5 text-center text-xl font-semibold text-[var(--text-primary)] sm:mb-6 sm:text-2xl"
+        >
+          {getStepTitle()}
+        </motion.h2>
 
         <div className="flex-1 min-h-0 relative">
           <AnimatePresence mode="wait">
-            {currentStep === 0 && (
-              <motion.div
-                key="step0"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="absolute inset-0 overflow-y-auto overscroll-contain"
-              >
-                <div className="mx-auto w-full max-w-5xl pb-4">
-                  <header className="mx-auto mb-4 text-center sm:mb-5">
-                    <h1 className="text-2xl font-semibold tracking-normal text-[var(--text-primary)] sm:text-3xl">
-                      选择对战方式
-                    </h1>
-                  </header>
-
-                  <Panel tone="muted" padding="compact" className="space-y-5 p-3 sm:p-4">
-                    <section aria-labelledby="quick-match-title">
-                      <h2
-                        id="quick-match-title"
-                        className="mb-2 px-1 text-xs font-semibold tracking-wide text-[var(--text-muted)]"
-                      >
-                        快速匹配
-                      </h2>
-                      <ModeChoice
-                        mode="CASUAL"
-                        title="对战大厅"
-                        description="找对手、选房或创建约战"
-                        icon={Swords}
-                        toneClass="[--mode-accent:var(--accent-primary)]"
-                        selected={setupMode === 'CASUAL'}
-                        available={canUseOnlineRoom}
-                        featured
-                        onSelect={handleSelectMode}
-                      />
-                    </section>
-
-                    {(battleEntryVisibility.ranked || battleEntryVisibility.themeTable) && (
-                      <section aria-labelledby="season-match-title">
-                        <h2
-                          id="season-match-title"
-                          className="mb-2 px-1 text-xs font-semibold tracking-wide text-[var(--text-muted)]"
-                        >
-                          活动对战
-                        </h2>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {battleEntryVisibility.ranked && (
-                            <ModeChoice
-                              mode="RANKED"
-                              title="赛季排位"
-                              description="自选卡组 · 计入积分"
-                              icon={Medal}
-                              toneClass="[--mode-accent:var(--semantic-warning)]"
-                              selected={setupMode === 'RANKED'}
-                              available={canUseOnlineRoom && validDecks.length > 0}
-                              onSelect={handleSelectMode}
-                            />
-                          )}
-                          {battleEntryVisibility.themeTable && (
-                            <ModeChoice
-                              mode="THEME_TABLE"
-                              title="娱乐模式"
-                              description="随机分配一副娱乐模式卡组"
-                              icon={WandSparkles}
-                              toneClass="[--mode-accent:var(--accent-secondary)]"
-                              selected={setupMode === 'THEME_TABLE'}
-                              available={canUseOnlineRoom}
-                              onSelect={handleSelectMode}
-                            />
-                          )}
-                        </div>
-                      </section>
-                    )}
-
-                    <section aria-labelledby="other-match-title">
-                      <h2
-                        id="other-match-title"
-                        className="mb-2 px-1 text-xs font-semibold tracking-wide text-[var(--text-muted)]"
-                      >
-                        其他对战
-                      </h2>
-                      <div className="grid gap-2 sm:grid-cols-3">
-                        <ModeChoice
-                          mode={GameMode.SOLITAIRE}
-                          title="对墙打"
-                          description="单人测试完整流程"
-                          icon={Target}
-                          toneClass="[--mode-accent:var(--semantic-success)]"
-                          selected={setupMode === GameMode.SOLITAIRE}
-                          available
-                          onSelect={handleSelectMode}
-                        />
-                        <ModeChoice
-                          mode={GameMode.DEBUG}
-                          title="双人调试"
-                          description="在同一桌面操作双方"
-                          icon={Bug}
-                          toneClass="[--mode-accent:var(--text-secondary)]"
-                          selected={setupMode === GameMode.DEBUG}
-                          available
-                          onSelect={handleSelectMode}
-                        />
-                      </div>
-                    </section>
-                  </Panel>
-                </div>
-              </motion.div>
-            )}
-
             {/* Step 1: Select P1 Deck */}
             {currentStep === 1 && (
               <motion.div
@@ -766,8 +496,8 @@ export function GameSetupPage({
                         ? '还没有可用的本地卡组。先从示例卡组创建一副。'
                         : '还没有可用卡组。'
                     }
-                    emptyActionLabel={offlineMode ? '创建本地卡组' : undefined}
-                    onEmptyAction={offlineMode ? onManageDecks : undefined}
+                    emptyActionLabel={offlineMode ? '创建本地卡组' : '管理卡组'}
+                    onEmptyAction={onManageDecks}
                     density="compact"
                     lastUsedDeckId={p1LastUsedDeckId}
                   />
@@ -804,8 +534,8 @@ export function GameSetupPage({
                         ? '还没有可用的本地卡组。先从示例卡组创建一副。'
                         : '还没有可用卡组。'
                     }
-                    emptyActionLabel={offlineMode ? '创建本地卡组' : undefined}
-                    onEmptyAction={offlineMode ? onManageDecks : undefined}
+                    emptyActionLabel={offlineMode ? '创建本地卡组' : '管理卡组'}
+                    onEmptyAction={onManageDecks}
                     density="compact"
                     lastUsedDeckId={p2LastUsedDeckId}
                   />
@@ -817,6 +547,8 @@ export function GameSetupPage({
             {isConfirmStep && (
               <motion.div
                 key="step-confirm"
+                role="region"
+                aria-label="对局确认"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
@@ -946,7 +678,7 @@ export function GameSetupPage({
         <div
           className={cn(
             'sticky bottom-0 mt-5 w-full self-center rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] p-3 shadow-[var(--shadow-md)] backdrop-blur-xl sm:static sm:mt-6 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none',
-            currentStep === 0 ? 'max-w-5xl' : 'max-w-2xl'
+            'max-w-2xl'
           )}
         >
           <div
@@ -954,31 +686,23 @@ export function GameSetupPage({
               'gap-2',
               isConfirmStep
                 ? 'grid grid-cols-[auto_minmax(0,1fr)] sm:flex sm:justify-between'
-                : currentStep === 0
-                  ? 'flex justify-stretch sm:justify-end'
-                  : 'flex flex-col-reverse sm:flex-row sm:justify-between'
+                : 'flex flex-col-reverse sm:flex-row sm:justify-between'
             )}
           >
-            {currentStep > 0 && (
-              <ActionButton
-                variant="ghost"
-                onClick={handlePrev}
-                className="border border-[var(--border-default)] px-6"
-              >
-                <ChevronLeft size={16} />
-                上一步
-              </ActionButton>
-            )}
+            <ActionButton
+              variant="ghost"
+              onClick={handlePrev}
+              className="border border-[var(--border-default)] px-6"
+            >
+              <ChevronLeft size={16} />
+              {currentStep === 1 ? '取消准备' : '上一步'}
+            </ActionButton>
 
             {currentStep < maxStep && (
               <ActionButton
                 onClick={handleNext}
                 disabled={!canProceed()}
-                className={cn(
-                  'px-6',
-                  currentStep === 0 && 'w-full sm:w-auto sm:min-w-56',
-                  !canProceed() && 'cursor-not-allowed opacity-50'
-                )}
+                className={cn('px-6', !canProceed() && 'cursor-not-allowed opacity-50')}
               >
                 {getNextButtonLabel()}
                 <ChevronRight size={16} />
@@ -988,7 +712,7 @@ export function GameSetupPage({
             {isConfirmStep && (
               <ActionButton
                 onClick={() => void handleStartGame()}
-                disabled={isStarting}
+                disabled={isStarting || !selectedP1Deck || (isDebugMode && !selectedP2Deck)}
                 className={cn(
                   'min-w-0 px-4 text-base font-semibold sm:px-10',
                   isStarting && 'cursor-not-allowed opacity-50'

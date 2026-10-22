@@ -204,7 +204,7 @@ test.describe('前端外层稳定性闭环', () => {
     const leaveBattle = page.getByRole('button', { name: '离开房间', exact: true });
     await expect(leaveBattle).toBeVisible();
     await leaveBattle.click();
-    await expect(page.getByRole('heading', { name: '选择对战方式' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '选择 Player 1 的卡组' })).toBeVisible();
     await expect(page.getByRole('navigation', { name: '主要导航', exact: true })).toBeVisible();
 
     const performanceEntries = await attachArchitectureBaseline(

@@ -550,6 +550,10 @@
 .casual-heading-actions {
   gap: 10px;
   padding-bottom: 2px;
+  max-width: 100%;
+}
+.casual-local-entries {
+  max-width: 100%;
 }
 .casual-heading-actions .button-primary {
   min-width: 124px;
@@ -696,6 +700,7 @@
   .casual-heading > .casual-actions {
     display: flex;
     gap: 8px;
+    flex: 0 1 auto;
   }
   .casual-heading-actions .button-primary {
     min-width: 100px;

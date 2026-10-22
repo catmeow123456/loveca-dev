@@ -9,7 +9,19 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
-import { ArrowLeft, Copy, Hash, Plus, RefreshCw, Search, Swords, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  Bug,
+  Copy,
+  Hash,
+  Plus,
+  RefreshCw,
+  Search,
+  Swords,
+  Target,
+  X,
+} from 'lucide-react';
+import { GameMode } from '@game/shared/types/enums';
 import { DeckSelector, type DeckDisplayItem } from '@/components/common';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import { useCasualTableStore } from '@/store/casualTableStore';
@@ -88,10 +100,12 @@ export function CasualLobbyPage({
   userId,
   onBack,
   onManageDecks,
+  onLocalSetup,
 }: {
   userId: string;
   onBack: () => void;
   onManageDecks: () => void;
+  onLocalSetup: (mode: GameMode.SOLITAIRE | GameMode.DEBUG) => void;
 }) {
   const status = useCasualTableStore((state) => state.status);
   const hydrated = useCasualTableStore((state) => state.hydrated);
@@ -518,6 +532,7 @@ export function CasualLobbyPage({
   const rematch = table?.runtime?.rematch;
   const ownError = localError ?? storeError;
   const stale = snapshot && now - snapshot.snapshotAt > 10_000;
+  const localSetupBlocked = !hydrated || busy || Boolean(table || status?.otherParticipation);
 
   return (
     <main className="casual-lobby">
@@ -540,6 +555,29 @@ export function CasualLobbyPage({
               找对手
             </button>
           )}
+          <div className="casual-local-entries" role="group" aria-label="练习与调试">
+            <div className="casual-actions">
+              <button
+                className="button-secondary"
+                disabled={localSetupBlocked}
+                onClick={() => onLocalSetup(GameMode.SOLITAIRE)}
+              >
+                <Target size={17} aria-hidden="true" />
+                对墙打
+              </button>
+              <button
+                className="button-secondary"
+                disabled={localSetupBlocked}
+                onClick={() => onLocalSetup(GameMode.DEBUG)}
+              >
+                <Bug size={17} aria-hidden="true" />
+                双人调试
+              </button>
+            </div>
+            {(table || status?.otherParticipation) && (
+              <p className="casual-muted">请先结束当前匹配或离开房间，再开始练习或调试。</p>
+            )}
+          </div>
         </div>
       </header>
       <section
