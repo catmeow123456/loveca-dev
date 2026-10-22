@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import type { OnlineRoomView } from '../../../src/online';
+import { DEFAULT_BATTLE_TIMEOUT_CONFIG } from '../../../src/online/ranked-policy';
 import { installVisualApiMocks } from '../visual/support/mockApp';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -130,7 +131,7 @@ async function openJudgmentRoom(page: Page, local = false) {
     roomCode: 'LAYOUT',
     originKind: 'ONLINE_ROOM',
     status: 'IN_GAME',
-    battleTimeouts: { playerActionTimeoutSeconds: 180, reconnectGracePeriodSeconds: 60 },
+    battleTimeouts: DEFAULT_BATTLE_TIMEOUT_CONFIG,
     ownerUserId: 'visual-user',
     currentUserId: 'visual-user',
     currentUserRole: 'HOST',
@@ -503,6 +504,40 @@ test.describe('对战工具栏与辅助面板', () => {
       )
       .toBe(1);
     await page.screenshot({ path: '../output/playwright/ui-layout-research/replay-1600.png' });
+    // Body-portaled details must remain above the actual replay stacking context.
+    const cardId = await page
+      .locator('[data-battle-ui-anchor="self-hand"] [data-card-id]')
+      .first()
+      .getAttribute('data-card-id');
+    expect(cardId).toBeTruthy();
+    await page.evaluate(async (id) => {
+      const storePath = '/src/store/gameStore.ts';
+      const { useGameStore } = await import(storePath);
+      useGameStore.getState().setHoveredCard(id);
+    }, cardId);
+    const detail = page.locator('[aria-label$=" 卡牌详情"]');
+    await expect(detail).toBeVisible();
+    const detailZIndex = await detail.evaluate((node) => Number(getComputedStyle(node).zIndex));
+    const replayZIndex = await page
+      .getByRole('button', { name: '关闭桌面回放' })
+      .evaluate((node) => {
+        let layer = node.parentElement;
+        let outerZIndex: number | null = null;
+        while (layer) {
+          const style = getComputedStyle(layer);
+          if (style.position !== 'static' && style.zIndex !== 'auto') {
+            outerZIndex = Number(style.zIndex);
+          }
+          layer = layer.parentElement;
+        }
+        if (outerZIndex === null) throw new Error('Replay stacking context not found');
+        return outerZIndex;
+      });
+    expect(detailZIndex).toBeGreaterThan(replayZIndex);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByRole('dialog', { name: / 卡牌详情$/ })).toBeVisible();
+    await page.getByRole('button', { name: '关闭卡牌详情', exact: true }).click();
+    await expect(detail).toHaveCount(0);
     await page.getByRole('button', { name: '关闭桌面回放' }).click();
     await expect
       .poll(() =>
