@@ -1,7 +1,16 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 test.setTimeout(120_000);
 
 import { prepareVisualPage, waitForVisualStability } from '../visual/support/mockApp';
+
+async function expectLobbyActionsInViewport(page: Page) {
+  for (const name of ['找对手', '对墙打', '双人调试']) {
+    const box = await page.getByRole('button', { name, exact: true }).boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  }
+}
 
 test('lobby fits narrow and wide screens, both themes and enlarged text', async ({
   page,
@@ -14,6 +23,7 @@ test('lobby fits narrow and wide screens, both themes and enlarged text', async 
       await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: '找对手', exact: true })).toBeEnabled();
       await waitForVisualStability(page);
+      await expectLobbyActionsInViewport(page);
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)
       ).toBe(true);
@@ -40,6 +50,7 @@ test('lobby fits narrow and wide screens, both themes and enlarged text', async 
     await page.evaluate(() => {
       document.documentElement.style.fontSize = '200%';
     });
+    await expectLobbyActionsInViewport(page);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(
       true
     );
@@ -151,7 +162,7 @@ test('missing activity recovery code cannot silently abandon authority and enter
     .click();
   await expect(page.getByRole('button', { name: '另开本地对局', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '另开本地对局', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '选择对战方式' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '选择己方卡组' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '返回房间', exact: true })).toBeVisible();
   await expect(page.getByText(/读取排位|读取赛季|未能恢复当前房间/).first()).toBeVisible();
 });
@@ -303,7 +314,7 @@ for (const kind of [
     await expect(
       page.getByText(/未能恢复当前房间|读取排位|读取赛季|读取娱乐/).first()
     ).toBeVisible();
-    await expect(page.getByRole('heading', { name: '选择对战方式', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: '选择己方卡组', exact: true })).toHaveCount(0);
     expect(staleWrites).toBe(0);
   });
 }

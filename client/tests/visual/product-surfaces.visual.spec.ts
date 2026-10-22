@@ -30,7 +30,7 @@ const scenarios: VisualScenario[] = [
     path: '/?page=game-setup',
     authenticated: true,
     ready: async (page) => {
-      await expect(page.getByRole('heading', { name: '选择对战方式' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: '选择己方卡组' })).toBeVisible();
     },
   },
   {

@@ -94,6 +94,9 @@ export function DeckSelector({
         error={error}
         loading={isLoading || isRefreshing}
         onRefresh={onRefresh}
+        emptyText={emptyText}
+        emptyActionLabel={emptyActionLabel}
+        onEmptyAction={onEmptyAction}
       />
     );
 

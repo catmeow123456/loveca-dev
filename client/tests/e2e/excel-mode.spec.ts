@@ -120,13 +120,120 @@ test('deck selection shows full text without card art', async ({ page }, info) =
   await installVisualApiMocks(page, true);
   const media = observeMedia(page);
   await page.goto('/?page=game-setup');
-  await page.getByRole('button', { name: '下一步：选择己方卡组' }).click();
+  await expect(page.getByRole('heading', { name: '选择己方卡组', exact: true })).toBeVisible();
   await expect(page.getByRole('table', { name: /卡组/ })).toBeVisible();
   await page.getByRole('button', { name: '查看内容', exact: true }).click();
   await expect(page.getByText('视觉验收成员 001', { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('excel-decks.png'), fullPage: true });
   expect(media).toEqual([]);
   expect(await page.evaluate(() => (window as any).excelAudioCalls)).toBe(0);
+});
+
+test('practice and debug enter deck selection directly and retain progress across presentation changes', async ({
+  page,
+}, info) => {
+  await excel(page);
+  await installVisualApiMocks(page, true);
+  const media = observeMedia(page);
+  await page.goto('/?page=battle-lobby');
+  await page.getByRole('button', { name: '对墙打', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '选择己方卡组', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '下一步：确认对局' }).click();
+  await expect(page.getByRole('region', { name: '对局确认' })).toContainText('在线记录');
+  await expect(page.getByRole('button', { name: '开始对局', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: '上一步', exact: true }).click();
+  await page.getByRole('button', { name: '取消准备', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: '双人调试', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '选择 Player 1 的卡组' })).toBeVisible();
+  await page.getByRole('button', { name: '下一步：选择 P2 卡组' }).click();
+  await expect(page.getByRole('heading', { name: '选择 Player 2 的卡组' })).toBeVisible();
+  const selectedDeck = await page.getByRole('row', { selected: true }).innerText();
+  expect(media).toEqual([]);
+  expect(await page.evaluate(() => (window as any).excelAudioCalls)).toBe(0);
+  await page.keyboard.press('Control+Alt+e');
+  await expect(page.locator('html')).toHaveAttribute('data-presentation', 'normal');
+  await expect(page.getByRole('heading', { name: '选择 Player 2 的卡组' })).toBeVisible();
+  await page.keyboard.press('Control+Alt+e');
+  await expect(page.locator('html')).toHaveAttribute('data-presentation', 'excel');
+  await expect(page.getByRole('row', { selected: true })).toHaveText(selectedDeck, {
+    useInnerText: true,
+  });
+  await expect(page.getByRole('heading', { name: '选择 Player 2 的卡组' })).toBeVisible();
+  await page.getByRole('button', { name: '下一步：确认对局' }).click();
+  await expect(page.getByRole('region', { name: '对局确认' })).toContainText('本地模拟');
+  await expect(page.getByRole('region', { name: '对局确认' })).toContainText('对方卡组');
+  await expect(page.getByRole('button', { name: '开始对局', exact: true })).toBeEnabled();
+  await page.screenshot({ path: info.outputPath('excel-debug-confirm.png'), fullPage: true });
+
+  await page
+    .getByRole('group', { name: '练习与调试模式' })
+    .getByRole('button', { name: '对墙打', exact: true })
+    .click();
+  await expect(page.getByRole('heading', { name: '选择己方卡组', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '返回大厅', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
+});
+
+test('empty practice decks cannot advance and retain access to deck management', async ({
+  page,
+}, info) => {
+  await excel(page);
+  await installVisualApiMocks(page, true);
+  await page.route('**/api/decks', (route) => route.fulfill({ json: { data: [], error: null } }));
+  const media = observeMedia(page);
+  await page.goto('/?page=battle-lobby');
+  await page.getByRole('button', { name: '对墙打', exact: true }).click();
+  await expect(page.getByRole('button', { name: '下一步：确认对局' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '管理卡组', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '双人调试', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '选择 Player 1 的卡组' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '下一步：选择 P2 卡组' })).toBeDisabled();
+  await page.screenshot({
+    path: info.outputPath('excel-empty-practice-decks.png'),
+    fullPage: true,
+  });
+  await page.getByRole('button', { name: '管理卡组', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '此页面使用普通界面' })).toBeVisible();
+  expect(media).toEqual([]);
+});
+
+test('practice stays blocked while lobby participation restores and while queued', async ({
+  page,
+}) => {
+  await excel(page);
+  await installVisualApiMocks(page, true);
+  let releaseStatus!: () => void;
+  const statusGate = new Promise<void>((resolve) => {
+    releaseStatus = resolve;
+  });
+  await page.route('**/api/casual-tables/me', async (route) => {
+    await statusGate;
+    await route.fulfill({
+      json: {
+        data: {
+          table: null,
+          otherParticipation: {
+            kind: 'RANKED_QUEUE',
+            destination: 'ranked',
+            roomGeneration: null,
+            matchId: null,
+          },
+        },
+        error: null,
+      },
+    });
+  });
+  const media = observeMedia(page);
+  await page.goto('/?page=battle-lobby');
+  await expect(page.getByRole('button', { name: '对墙打', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '双人调试', exact: true })).toBeDisabled();
+  releaseStatus();
+  await expect(page.getByText('请先结束当前匹配或离开房间，再开始练习或调试。')).toBeVisible();
+  await expect(page.getByRole('button', { name: '对墙打', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '双人调试', exact: true })).toBeDisabled();
+  expect(media).toEqual([]);
 });
 
 test('unsupported pages stay textual, shortcut configuration ignores IME and repeat events', async ({

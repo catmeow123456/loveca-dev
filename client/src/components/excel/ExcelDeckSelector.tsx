@@ -13,6 +13,9 @@ export function ExcelDeckSelector({
   error,
   loading,
   onRefresh,
+  emptyText = '没有可用卡组，请在普通界面准备合法卡组。',
+  emptyActionLabel,
+  onEmptyAction,
 }: {
   decks: readonly DeckDisplayItem[];
   selectedId?: string | null;
@@ -21,6 +24,9 @@ export function ExcelDeckSelector({
   error?: string | null;
   loading?: boolean;
   onRefresh?: () => void;
+  emptyText?: string;
+  emptyActionLabel?: string;
+  onEmptyAction?: () => void;
 }) {
   const [viewed, setViewed] = useState<DeckDisplayItem | null>(null);
   const [cardCode, setCardCode] = useState<string | null>(null);
@@ -75,7 +81,16 @@ export function ExcelDeckSelector({
           ))}
         </tbody>
       </table>
-      {!loading && !decks.length && <p>没有可用卡组，请在普通界面准备合法卡组。</p>}
+      {!loading && !error && !decks.some((deck) => deck.isValid) && (
+        <div>
+          <p>{emptyText}</p>
+          {emptyActionLabel && onEmptyAction && (
+            <button type="button" onClick={onEmptyAction}>
+              {emptyActionLabel}
+            </button>
+          )}
+        </div>
+      )}
       {viewed && (
         <section className="excel-deck-contents">
           <h3>{viewed.name}</h3>

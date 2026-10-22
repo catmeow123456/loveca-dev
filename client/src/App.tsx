@@ -417,15 +417,15 @@ function AppContent() {
   const [authPage, setAuthPage] = useState<AuthPage>(initialAuthRequest.page);
   const [authToken, setAuthToken] = useState<string | null>(initialAuthRequest.token);
   const [currentPage, setCurrentPageState] = useState<AppPage>(getInitialPage);
-  const [homeLocalSetupMode, setHomeLocalSetupMode] = useState<
-    GameMode.SOLITAIRE | GameMode.DEBUG | null
-  >(null);
+  const [localSetupMode, setLocalSetupMode] = useState<GameMode.SOLITAIRE | GameMode.DEBUG>(
+    GameMode.SOLITAIRE
+  );
+  const [localSetupReturnPage, setLocalSetupReturnPage] = useState<'home' | 'battle-lobby'>('home');
   const [homeHistoryMatchId, setHomeHistoryMatchId] = useState<string | null>(null);
   const currentPageRef = useRef(currentPage);
   const [initialAdminHistoryPosition] = useState(initializeAdminHistoryPosition);
   const adminHistoryPositionRef = useRef(initialAdminHistoryPosition);
   const setCurrentPage = useCallback((nextPage: AppPage) => {
-    if (nextPage !== 'game-setup') setHomeLocalSetupMode(null);
     if (nextPage !== 'match-records') setHomeHistoryMatchId(null);
     const previousPage = currentPageRef.current;
     if (previousPage !== nextPage) {
@@ -434,6 +434,14 @@ function AppContent() {
     }
     setCurrentPageState(nextPage);
   }, []);
+  const openLocalSetup = (
+    mode: GameMode.SOLITAIRE | GameMode.DEBUG,
+    returnPage: 'home' | 'battle-lobby' = 'home'
+  ) => {
+    setLocalSetupMode(mode);
+    setLocalSetupReturnPage(returnPage);
+    setCurrentPage('game-setup');
+  };
   const navigateAdminPage = useCallback(
     (nextPage: 'home' | (typeof ADMIN_HISTORY_PAGES)[number]) => {
       adminHistoryPositionRef.current = pushAdminHistory(
@@ -856,7 +864,12 @@ function AppContent() {
   ]);
 
   // 计算实际显示的页面（游戏结束后自动回到首页）
-  const effectivePage: AppPage = currentPage === 'game' && !matchView ? 'home' : currentPage;
+  const effectivePage: AppPage =
+    currentPage === 'game' && !matchView
+      ? 'home'
+      : offlineMode && currentPage === 'battle-lobby'
+        ? 'game-setup'
+        : currentPage;
   useLayoutEffect(() => {
     if (!requestedLegalDocument) return;
     window.scrollTo({ top: 0, left: 0 });
@@ -1154,9 +1167,11 @@ function AppContent() {
     const loginSubtitle =
       currentPage === 'deck-manager'
         ? '登录管理云端卡组，或进入离线模式把卡组保存在当前浏览器。'
-        : currentPage === 'game-setup'
-          ? '登录后继续选择对战方式和本次使用的卡组。'
-          : '登录账号，进入你的 Loveca 大厅。';
+        : currentPage === 'battle-lobby'
+          ? '登录后进入对战大厅，寻找对手或创建房间。'
+          : currentPage === 'game-setup'
+            ? '登录后继续准备对墙打或双人调试的卡组。'
+            : '登录账号，进入你的 Loveca 大厅。';
     const returnToLanding = () => {
       setCurrentPage('home');
       setAuthPage('landing');
@@ -1181,7 +1196,7 @@ function AppContent() {
                 setAuthPage('login');
               }}
               onStartGame={() => {
-                setCurrentPage('game-setup');
+                setCurrentPage('battle-lobby');
                 setAuthPage('login');
               }}
               onSpectate={() => {
@@ -1189,7 +1204,7 @@ function AppContent() {
               }}
               onTutorial={openTutorial}
               onTryOffline={() => {
-                setCurrentPage('game-setup');
+                openLocalSetup(GameMode.SOLITAIRE);
                 setError(null);
                 enterOfflineMode('Guest');
               }}
@@ -1338,7 +1353,7 @@ function AppContent() {
     assertActor();
     const latest = useCasualTableStore.getState().status;
     if (latest?.table || latest?.otherParticipation) throw unavailable();
-    setCurrentPage('game-setup');
+    openLocalSetup(GameMode.SOLITAIRE);
   };
   const authenticatedHeaderActions = (
     <>
@@ -1483,17 +1498,15 @@ function AppContent() {
       <>
         <AppSurfaceTiming surface="game-setup" />
         <GameSetupPage
-          initialLocalMode={homeLocalSetupMode}
+          key={localSetupMode}
+          mode={localSetupMode}
+          onModeChange={setLocalSetupMode}
           navigation={productNavigation}
           headerActions={authenticatedHeaderActions}
           mobileMenuActions={authenticatedMobileMenuActions}
-          onBack={() => setCurrentPage('home')}
+          onBack={() => setCurrentPage(offlineMode ? 'home' : localSetupReturnPage)}
           onGameStart={() => setCurrentPage('game')}
-          onNavigateToLobby={() => setCurrentPage('battle-lobby')}
-          onNavigateToRanked={() => setCurrentPage('ranked')}
-          onNavigateToThemeTable={() => setCurrentPage('theme-table')}
           onManageDecks={() => openDeckManager('game-setup')}
-          battleEntryVisibility={appConfig.features.battleEntries}
         />
       </>
     );
@@ -1522,6 +1535,7 @@ function AppContent() {
         userId={publicTableSessionUserId}
         onBack={() => setCurrentPage('home')}
         onManageDecks={() => openDeckManager('battle-lobby')}
+        onLocalSetup={(mode) => openLocalSetup(mode, 'battle-lobby')}
       />,
       'battle'
     );
@@ -1874,10 +1888,7 @@ function AppContent() {
         mobileMenuActions={authenticatedMobileMenuActions}
         onNavigateToDeckManager={() => openDeckManager('home')}
         onEditDeck={(deckId) => openDeckManager('home', deckId)}
-        onNavigateToLocalSetup={(mode) => {
-          setHomeLocalSetupMode(mode);
-          setCurrentPage('game-setup');
-        }}
+        onNavigateToLocalSetup={openLocalSetup}
         onNavigateToLobby={() => setCurrentPage('battle-lobby')}
         onAbandonSavedRoomForLocalGame={handleAbandonSavedRoomForLocalGame}
         onNavigateToRanked={() => setCurrentPage('ranked')}
