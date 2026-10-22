@@ -145,6 +145,21 @@ export interface MatchViewState {
     readonly objectIds: readonly string[];
     readonly waitingSeats: readonly Seat[];
     readonly deadlineAt: number;
+    readonly honokaMemory?: {
+      readonly sourceObjectId: string;
+      readonly memoryObjectIds: readonly string[];
+      readonly part: 'rewards' | 'recovery';
+      readonly scoreGranted: boolean;
+      readonly heartGranted: boolean;
+      readonly recoveryReady: boolean;
+      /** Snapshot of the selected public waiting-room face; never a hidden-hand lookup. */
+      readonly recovered?: {
+        readonly objectId: string;
+        readonly cardCode: string;
+        readonly name: string;
+        readonly landscape: boolean;
+      };
+    };
     readonly abilityTransfer?: {
       readonly hostObjectId: string;
       readonly sourceObjectId: string;

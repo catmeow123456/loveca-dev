@@ -12,6 +12,8 @@ import { getDoubleRelaySources } from '@/lib/doubleRelayEntrance';
 import { getWaitingReturnSource } from '@/lib/waitingReturnEntrance';
 import { getAbilityTransferSource, getKahoRelaySource } from '@/lib/ginkoFlowerTransfer';
 import { AbilityTransferPlayback } from './AbilityTransferPlayback';
+import { getHonokaMemoryPresentation } from '@/lib/honokaMemoryPresentation';
+import { HonokaMemoryPlayback } from './HonokaMemoryPlayback';
 import './cardEntrance.css';
 
 export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
@@ -43,9 +45,12 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
   const [transfer] = useState(() =>
     getAbilityTransferSource(view, useGameStore.getState().getCardImagePath)
   );
+  const [memory] = useState(() =>
+    getHonokaMemoryPresentation(view, useGameStore.getState().getCardImagePath)
+  );
   // Snapshot only public, already-present stage cards. No historical event replay on mount.
   const [queue] = useState(() =>
-    (wait.abilityTransfer ? [] : wait.objectIds).flatMap((objectId) => {
+    (wait.abilityTransfer || wait.honokaMemory ? [] : wait.objectIds).flatMap((objectId) => {
       const target = getEntranceStageTarget(view, objectId);
       const profile = target && getCardEntranceProfile(target.cardCode);
       return target && profile
@@ -79,9 +84,11 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
   const [landedId, setLandedId] = useState<string | null>(null);
   const [releasedPreludeId, setReleasedPreludeId] = useState<string | null>(null);
   const [transferDone, setTransferDone] = useState(false);
+  const [memoryDone, setMemoryDone] = useState(false);
+  const activeMemory = playVisuals && viewerWaiting && !memoryDone ? memory : undefined;
   const activeTransfer = playVisuals && viewerWaiting && !transferDone ? transfer : undefined;
   const active = playVisuals && viewerWaiting ? queue[index] : undefined;
-  const done = !active && !activeTransfer;
+  const done = !active && !activeTransfer && !activeMemory;
 
   useCardEntranceBarrier(view, done);
 
@@ -112,7 +119,13 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
   return (
     <>
       <div className="absolute inset-0 z-[59]" aria-hidden="true" />
-      {activeTransfer ? (
+      {activeMemory ? (
+        <HonokaMemoryPlayback
+          presentation={activeMemory}
+          reduced={reduced}
+          onDone={() => setMemoryDone(true)}
+        />
+      ) : activeTransfer ? (
         <AbilityTransferPlayback
           source={activeTransfer}
           reduced={reduced}

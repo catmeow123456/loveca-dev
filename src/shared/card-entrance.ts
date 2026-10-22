@@ -77,6 +77,21 @@ export interface EntranceWait {
   readonly cardIds: readonly string[];
   readonly waitingPlayerIds: readonly string[];
   readonly deadlineAt: number;
+  /** Resolved LIVE rewards, or an already-public card successfully recovered to hand. */
+  readonly honokaMemory?: {
+    readonly sourceCardId: string;
+    readonly memoryCardIds: readonly string[];
+    readonly part: 'rewards' | 'recovery';
+    readonly scoreGranted: boolean;
+    readonly heartGranted: boolean;
+    readonly recoveryReady: boolean;
+    readonly recovered?: {
+      readonly cardId: string;
+      readonly cardCode: string;
+      readonly name: string;
+      readonly landscape: boolean;
+    };
+  };
   /** Successful acquisition, after its discard cost and before invocation. */
   readonly abilityTransfer?: {
     readonly hostCardId: string;
@@ -116,4 +131,6 @@ export interface EntranceRuntime {
   readonly pending: EntranceWait | null;
   /** Authority-only continuation consumed once after ACK/timeout. */
   readonly continuation?: PendingAbilityState;
+  /** Resume a completed workflow with its chosen ordering after cosmetic ACK/timeout. */
+  readonly resumePendingEffects?: { readonly orderedResolution: boolean };
 }

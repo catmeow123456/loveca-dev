@@ -10,7 +10,8 @@ import {
   addHeartLiveModifierForSourceMember,
   addPlayerScoreLiveModifierForTargetMember,
 } from '../../../../domain/rules/live-modifiers.js';
-import { HeartColor } from '../../../../shared/types/enums.js';
+import type { EntranceWait } from '../../../../shared/card-entrance.js';
+import { CardType, HeartColor } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   groupAliasIs,
@@ -84,22 +85,34 @@ function startHonokaLiveStart(
   };
   const rewards = applyImmediateRewards(stateWithoutPending, ability, evaluation);
   if (!needsRecoverySelection) {
-    return continuePendingCardEffects(
-      addAction(rewards.gameState, 'RESOLVE_ABILITY', player.id, {
-        pendingAbilityId: ability.id,
-        abilityId: ability.abilityId,
+    const resolved = addAction(rewards.gameState, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: 'SUCCESS_MUSE_ICON_REWARDS',
+      ...evaluation,
+      scoreGranted: rewards.scoreGranted,
+      heartGranted: rewards.heartGranted,
+      recoveredCardIds: [],
+    });
+    const presented = presentHonokaMemory(
+      resolved,
+      {
         sourceCardId: ability.sourceCardId,
-        step: 'SUCCESS_MUSE_ICON_REWARDS',
-        ...evaluation,
+        memoryCardIds: evaluation.successMuseCardIds,
+        part: 'rewards',
         scoreGranted: rewards.scoreGranted,
         heartGranted: rewards.heartGranted,
-        recoveredCardIds: [],
-      }),
+        recoveryReady: false,
+      },
       options.orderedResolution === true
     );
+    return presented !== resolved
+      ? presented
+      : continuePendingCardEffects(resolved, options.orderedResolution === true);
   }
 
-  return addAction(
+  const resolved = addAction(
     {
       ...rewards.gameState,
       activeEffect: {
@@ -146,6 +159,14 @@ function startHonokaLiveStart(
       heartGranted: rewards.heartGranted,
     }
   );
+  return presentHonokaMemory(resolved, {
+    sourceCardId: ability.sourceCardId,
+    memoryCardIds: evaluation.successMuseCardIds,
+    part: 'rewards',
+    scoreGranted: rewards.scoreGranted,
+    heartGranted: rewards.heartGranted,
+    recoveryReady: true,
+  });
 }
 
 function finishMuseCardRecovery(
@@ -169,6 +190,8 @@ function finishMuseCardRecovery(
   if (!currentCandidates.includes(selectedCardId)) {
     return game;
   }
+  // Snapshot only this validated public waiting-room card, before it becomes hidden.
+  const recovered = getCardById(game, selectedCardId)!;
   const recovery = recoverCardsFromWaitingRoomToHandForPlayer(game, player.id, [selectedCardId], {
     candidateCardIds: effect.selectableCardIds ?? [],
     exactCount: 1,
@@ -177,8 +200,11 @@ function finishMuseCardRecovery(
     return game;
   }
 
-  return continuePendingCardEffects(
-    addAction({ ...recovery.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+  const resolved = addAction(
+    { ...recovery.gameState, activeEffect: null },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
@@ -190,9 +216,70 @@ function finishMuseCardRecovery(
       scoreGranted: effect.metadata?.scoreGranted === true,
       heartGranted: effect.metadata?.heartGranted === true,
       recoveredCardIds: recovery.movedCardIds,
-    }),
+    }
+  );
+  const presented = presentHonokaMemory(
+    resolved,
+    {
+      sourceCardId: effect.sourceCardId,
+      memoryCardIds: [],
+      part: 'recovery',
+      scoreGranted: false,
+      heartGranted: false,
+      recoveryReady: false,
+      recovered: {
+        cardId: selectedCardId,
+        cardCode: recovered.data.cardCode,
+        name: recovered.data.nameCn || recovered.data.nameJp || recovered.data.name,
+        landscape: recovered.data.cardType === CardType.LIVE,
+      },
+    },
     effect.metadata?.orderedResolution === true
   );
+  return presented !== resolved
+    ? presented
+    : continuePendingCardEffects(resolved, effect.metadata?.orderedResolution === true);
+}
+
+/** Cosmetic wait at an atomic result boundary. The existing session owns ACK/timeout/resume. */
+function presentHonokaMemory(
+  game: GameState,
+  presentation: NonNullable<EntranceWait['honokaMemory']>,
+  orderedResolution = false
+): GameState {
+  const runtime = game.entranceRuntime;
+  const source = getCardById(game, presentation.sourceCardId);
+  if (
+    !runtime ||
+    runtime.pending ||
+    game.isEnded ||
+    !source ||
+    !isValidSourceOnStage(game, source.ownerId, source.instanceId) ||
+    !(
+      presentation.scoreGranted ||
+      presentation.heartGranted ||
+      presentation.recoveryReady ||
+      presentation.recovered
+    )
+  )
+    return game;
+  const generation = runtime.generation + 1;
+  return {
+    ...game,
+    entranceRuntime: {
+      ...runtime,
+      generation,
+      seenSequence: game.eventSequence,
+      ...(!game.activeEffect ? { resumePendingEffects: { orderedResolution } } : {}),
+      pending: {
+        id: `honoka-memory:${game.gameId}:${game.actionSequence}:${generation}`,
+        cardIds: [source.instanceId],
+        waitingPlayerIds: game.players.map((p) => p.id),
+        deadlineAt: 0,
+        honokaMemory: presentation,
+      },
+    },
+  };
 }
 
 function evaluateHonoka(game: GameState, ability: PendingAbilityState) {
