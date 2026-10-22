@@ -39,7 +39,7 @@ export function sourceCardFixture(cardCode: string): MemberCardData | LiveCardDa
 export const P1 = 'p1',
   P2 = 'p2';
 export function member(id: string, options: Partial<MemberCardData> = {}, ownerId = P1) {
-  return createCardInstance<MemberCardData>(
+  return createCardInstance(
     {
       cardCode: id,
       name: id,
@@ -56,7 +56,7 @@ export function member(id: string, options: Partial<MemberCardData> = {}, ownerI
   );
 }
 export function live(id: string, options: Partial<LiveCardData> = {}, ownerId = P1) {
-  return createCardInstance<LiveCardData>(
+  return createCardInstance(
     {
       cardCode: id,
       name: id,
@@ -74,7 +74,7 @@ export function live(id: string, options: Partial<LiveCardData> = {}, ownerId = 
 export function gameWithCards(
   cards: readonly ReturnType<typeof member | typeof live>[]
 ): GameState {
-  return registerCards(createGameState('zone-effect-fixture', P1, 'P1', P2, 'P2'), cards);
+  return registerCards(createGameState('zone-effect-fixture', P1, 'P1', P2, 'P2'), [...cards]);
 }
 export function pending(
   abilityId: string,

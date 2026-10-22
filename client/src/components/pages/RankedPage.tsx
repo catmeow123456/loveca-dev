@@ -1,3 +1,4 @@
+import { PresentationImage } from '@/components/excel/PresentationRoot';
 import { useEffect, useMemo, useState } from 'react';
 import { BookOpen, DoorOpen, Loader2, Medal, Search, ShieldCheck, Swords, X } from 'lucide-react';
 import {
@@ -1054,7 +1055,7 @@ function CardUsageRanking({
                   <span className="text-center text-sm tabular-nums text-[var(--text-muted)]">
                     {card.rank}
                   </span>
-                  <img
+                  <PresentationImage
                     src={resolveCardImagePath(
                       {
                         cardCode: card.cardCode,

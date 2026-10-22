@@ -10,6 +10,7 @@ import {
 import { createPortal } from 'react-dom';
 import { GameCommandType } from '@game/application/game-commands';
 import { useGameStore, type CommandDispatchResult } from '@/store/gameStore';
+import { useBattleEffectsEnabled } from '@/lib/battleEffects';
 import { createActivationInkPainter } from './abilityActivationInk';
 import { createActivationFlowPainter } from './abilityActivationFlow';
 import { createActivationRainbowPainter } from './abilityActivationRainbow';
@@ -59,12 +60,14 @@ interface Activation {
 
 /** Presentation precedes the existing command; no game state is predicted or changed here. */
 export function AbilityActivationProvider({ children }: { children: ReactNode }) {
+  const enabled = useBattleEffectsEnabled();
   const edgeStyle = useContext(AbilityActivationStyleContext);
   const [activation, setActivation] = useState<Activation | null>(null);
   const pending = useRef<Activation | null>(null);
   const activate = useCallback<Activate>(
     (cardId, abilityId, instanceId, afterSubmit) => {
       if (pending.current) return { success: false, pending: true };
+      if (!enabled) return activateImmediately(cardId, abilityId, instanceId, afterSubmit);
       const state = useGameStore.getState();
       const view = state.playerViewState;
       const card = state.getCardViewObject(cardId);
@@ -121,7 +124,7 @@ export function AbilityActivationProvider({ children }: { children: ReactNode })
       state.setHoveredCard(null);
       return { success: false, pending: true };
     },
-    [edgeStyle]
+    [edgeStyle, enabled]
   );
   const finish = useCallback((request: Activation, execute: boolean) => {
     if (pending.current !== request) return;
@@ -129,12 +132,17 @@ export function AbilityActivationProvider({ children }: { children: ReactNode })
     setActivation(null);
     if (execute && request.isCurrent()) request.execute();
   }, []);
+  useLayoutEffect(() => {
+    // Disabling a cosmetic delay must still submit the player's valid request exactly once.
+    if (!enabled && pending.current) finish(pending.current, true);
+  }, [enabled, finish]);
   return (
     <ActivationContext.Provider
       value={{ activateCardAbility: activate, activatingCardId: activation?.cardId ?? null }}
     >
       {children}
-      {activation &&
+      {enabled &&
+        activation &&
         createPortal(<ActivationInk activation={activation} finish={finish} />, activation.target)}
     </ActivationContext.Provider>
   );

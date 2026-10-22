@@ -119,6 +119,46 @@ function overwriteOptions(state: GameState, playerId = P1): unknown[] {
 }
 
 describe('normal member overwrite payment and cost 0 Kosuzu', () => {
+  it('projects per-slot authority costs and disabled reasons without exposing the other hand', () => {
+    const state = fixture({ energy: 2 }).state!;
+    const getQuotes = (playerId: string) =>
+      projectPlayerViewState(state, playerId).permissions.availableCommands.find(
+        (hint) => hint.command === GameCommandType.PLAY_MEMBER_TO_SLOT
+      )?.params?.memberPlayQuotes ?? [];
+    expect(getQuotes(P1)).toEqual([
+      {
+        sourceObjectId: 'obj_incoming',
+        targetSlot: SlotPosition.LEFT,
+        enabled: true,
+        energyCost: 2,
+        relay: true,
+      },
+      expect.objectContaining({
+        sourceObjectId: 'obj_incoming',
+        targetSlot: SlotPosition.CENTER,
+        enabled: false,
+        reason: expect.any(String) as unknown,
+      }),
+      expect.objectContaining({
+        sourceObjectId: 'obj_incoming',
+        targetSlot: SlotPosition.RIGHT,
+        enabled: false,
+        reason: expect.any(String) as unknown,
+      }),
+    ]);
+    expect(getQuotes(P2)).toEqual([]);
+    const full = projectPlayerViewState(fixture().state!, P1).permissions.availableCommands.find(
+      (hint) => hint.command === GameCommandType.PLAY_MEMBER_TO_SLOT
+    )?.params?.memberPlayQuotes;
+    expect(full).toContainEqual({
+      sourceObjectId: 'obj_incoming',
+      targetSlot: SlotPosition.RIGHT,
+      enabled: true,
+      energyCost: 8,
+      relay: false,
+    });
+  });
+
   it('honors explicit NONE in the underlying play action without a separate isRelay override', () => {
     const result = new GameService().processAction(
       fixture().state!,

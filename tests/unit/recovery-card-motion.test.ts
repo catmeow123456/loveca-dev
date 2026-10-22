@@ -4,6 +4,7 @@ import {
   sampleRecoveryMotion,
 } from '../../client/src/lib/recoveryCardMotion';
 import {
+  BATTLE_CARD_MOVE_DURATION_MS,
   RECOVERY_DURATION_MS,
   createSequencedBattleAnimationEvents,
   getBattleAnimationEventDurationMs,
@@ -44,6 +45,14 @@ const event: BattleAnimationEvent = {
 };
 
 describe('2D recovery choreography', () => {
+  it('disabled recovery effects keep ordinary movement and its short duration', () => {
+    const scheduled = createSequencedBattleAnimationEvents([event], false);
+    expect(scheduled).toEqual([{ event, delayMs: 0 }]);
+    expect(getBattleAnimationEventDurationMs(scheduled[0].event, false, false)).toBe(
+      BATTLE_CARD_MOVE_DURATION_MS
+    );
+    expect(getBattleAnimationEventDurationMs(scheduled[0].event, true, false)).toBe(120);
+  });
   it('reverses the discard geometry and timing, holds the same reveal pose and lands exactly', () => {
     expect(sampleRecoveryMotion(from, to, 0, reveal).pose).toEqual(from);
     expect(sampleRecoveryMotion(from, to, 160, reveal).pose).toEqual(reveal);

@@ -1,3 +1,4 @@
+import { PresentationImage } from '@/components/excel/PresentationRoot';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { ActivityCoverPublicView } from '@game/online/activity-cover-types';
 import { cn } from '@/lib/utils';
@@ -38,7 +39,7 @@ export function ActivityCoverHero({
       <div className="activity-cover-hero__fallback" aria-hidden="true" />
       {hasCustomCover ? (
         <div className="activity-cover-hero__media" aria-hidden="true">
-          <img
+          <PresentationImage
             key={resourceKey}
             src={asset.url}
             alt=""

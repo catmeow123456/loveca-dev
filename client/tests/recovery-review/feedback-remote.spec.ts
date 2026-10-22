@@ -1,10 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import type { prepareRemoteFeedback } from './remoteFeedbackFixture';
+import type { prepareRemoteFeedback, readRemoteFeedback } from './remoteFeedbackFixture';
 
 const fixtureUrl = '/tests/recovery-review/remoteFeedbackFixture.ts';
 const badges = (page: Page) => page.locator('[data-effect-feedback-badge]');
 const art = (page: Page) => page.locator('[data-effect-result-art]');
-const snapshot = (page: Page) =>
+const snapshot = (page: Page): Promise<ReturnType<typeof readRemoteFeedback>> =>
   page.evaluate(async (path) => (await import(path)).readRemoteFeedback(), fixtureUrl);
 const invoke = (page: Page, name: string) =>
   page.evaluate(async ({ path, name }) => (await import(path))[name](), { path: fixtureUrl, name });
@@ -132,6 +132,45 @@ async function sampleAt(page: Page, time: number) {
       }
     }
   }, time);
+}
+
+for (const source of ['ONLINE', 'SOLITAIRE', 'AI_DEBUG'] as const) {
+  test(`${source}: battle effects switch preserves remote gains without replay`, async ({
+    page,
+  }) => {
+    const initiallyOff = source !== 'SOLITAIRE';
+    if (initiallyOff)
+      await page.addInitScript(() => localStorage.setItem('loveca-card-entrance-enabled', 'false'));
+    if (source === 'AI_DEBUG') await page.setViewportSize({ width: 390, height: 844 });
+    await prepare(page, { source, scenario: 'mixed' });
+    const notice = page.getByRole('button', { name: '关闭玩前须知', exact: true });
+    if (await notice.isVisible()) {
+      await notice.click();
+      await page.clock.runFor(250);
+    }
+    const state = await resolveGain(page);
+    const control = page.getByRole('switch', { name: '对战特效', exact: true });
+    if (!(await control.isVisible()))
+      await page.getByRole('button', { name: '对战设置', exact: true }).click();
+    if (!initiallyOff) {
+      await expect(badges(page)).toHaveCount(1);
+      await control.click();
+    }
+    await expect(control).toHaveAttribute('aria-checked', 'false');
+    await expect(badges(page)).toHaveCount(0);
+    await expect(art(page)).toHaveCount(0);
+    expect(
+      state.authorityEvents.flatMap((event) =>
+        event.targets.flatMap((target) => target.changes.map((change) => change.kind))
+      )
+    ).toEqual(expect.arrayContaining(['HEART', 'BLADE']));
+    await control.click();
+    await invoke(page, 'pollLogAgain');
+    await page.clock.runFor(1800);
+    await expect(badges(page)).toHaveCount(0);
+    await expect(art(page)).toHaveCount(0);
+    expect((await snapshot(page)).events).toEqual(state.authorityEvents);
+  });
 }
 
 for (const source of ['ONLINE', 'SOLITAIRE', 'AI_DEBUG'] as const) {

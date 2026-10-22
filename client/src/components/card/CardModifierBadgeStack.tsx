@@ -1,3 +1,4 @@
+import { PresentationImage } from '@/components/excel/PresentationRoot';
 import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { HeartColor } from '@game/shared/types/enums';
@@ -85,7 +86,12 @@ const ModifierBadge = memo(function ModifierBadge({ iconSrc, value }: ModifierBa
         'md:h-6 md:min-w-11 md:gap-1 md:pr-2'
       )}
     >
-      <img src={iconSrc} alt="" className="h-4 w-4 object-contain" draggable={false} />
+      <PresentationImage
+        src={iconSrc}
+        alt=""
+        className="h-4 w-4 object-contain"
+        draggable={false}
+      />
       <span className="text-[10px] font-bold leading-none text-white drop-shadow md:text-[11px]">
         {value > 0 ? `+${value}` : `${value}`}
       </span>

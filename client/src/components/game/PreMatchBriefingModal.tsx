@@ -1,3 +1,4 @@
+import { getPresentationPortalRoot, useTextPresentation } from '@/lib/appPresentation';
 import { memo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
@@ -56,6 +57,7 @@ function PreMatchBriefingContent({
   mode,
   onClose,
 }: Pick<PreMatchBriefingModalProps, 'mode' | 'onClose'>) {
+  const textOnly = useTextPresentation();
   const [activePageIndex, setActivePageIndex] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -79,6 +81,31 @@ function PreMatchBriefingContent({
     }
     onClose();
   };
+
+  if (textOnly)
+    return createPortal(
+      <div className="excel-modal-backdrop">
+        <section
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="excel-briefing-title"
+          className="excel-modal"
+        >
+          <h2 id="excel-briefing-title">表格操作说明</h2>
+          <p>双方场面、我方手牌与 LIVE 摘要在左侧，当前选择和确认在右侧。</p>
+          <p>
+            点选手牌或区域中的卡牌行，在右侧阅读完整卡效和选择可用操作；效果候选的“查看”只展开卡文。
+          </p>
+          <p>有序选择使用序号及上移、下移按钮；Tab、Enter 和空格可以操作按钮和选择框。</p>
+          <p>遮挡工作区期间继续同步和计时，需要玩家确认的选择不会自动提交。</p>
+          <button ref={closeButtonRef} onClick={onClose}>
+            跳过提示
+          </button>
+        </section>
+      </div>,
+      getPresentationPortalRoot()
+    );
 
   const modalContent = (
     <>
@@ -209,7 +236,7 @@ function PreMatchBriefingContent({
     return modalContent;
   }
 
-  return createPortal(modalContent, document.body);
+  return createPortal(modalContent, getPresentationPortalRoot());
 }
 
 export default PreMatchBriefingModal;

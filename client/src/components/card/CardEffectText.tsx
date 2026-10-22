@@ -1,3 +1,5 @@
+import { useTextPresentation } from '@/lib/appPresentation';
+import { PresentationImage } from '@/components/excel/PresentationRoot';
 import { memo, Fragment } from 'react';
 import { cn } from '@/lib/utils';
 import { parseCardEffectText, type CardEffectTokenIcon } from '@/lib/cardEffectTokens';
@@ -20,7 +22,7 @@ function EffectIcon({
 }) {
   return (
     <span className={cn('card-effect-icon-token', className)} title={label} aria-label={label}>
-      <img src={MODIFIER_ICON_SOURCE[icon]} alt="" aria-hidden="true" />
+      <PresentationImage src={MODIFIER_ICON_SOURCE[icon]} alt="" aria-hidden="true" />
     </span>
   );
 }
@@ -30,7 +32,14 @@ export const CardEffectText = memo(function CardEffectText({
   as: Tag = 'p',
   className,
 }: CardEffectTextProps) {
+  const textOnly = useTextPresentation();
   const parts = parseCardEffectText(text);
+  if (textOnly)
+    return (
+      <Tag className={className} style={{ whiteSpace: 'pre-wrap' }}>
+        {parts.map((part) => (part.kind === 'text' ? part.text : `[${part.label}]`)).join('')}
+      </Tag>
+    );
 
   return (
     <Tag className={cn('card-effect-rendered whitespace-pre-wrap break-words', className)}>

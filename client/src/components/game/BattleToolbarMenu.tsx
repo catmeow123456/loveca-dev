@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Settings2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/common';
-import { CardEntranceToggle } from './card-entrance/CardEntranceToggle';
+import { BattleEffectsToggle } from './BattleEffectsToggle';
 import { MemberOverwriteToggle } from './MemberOverwriteToggle';
 
 export function BattleToolbarMenu({
@@ -84,16 +84,16 @@ export function BattleSettingsMenu({
   showMemberOverwrite,
   askMemberOverwrite,
   onAskMemberOverwriteChange,
-  showCardEntrance,
-  cardEntranceEnabled,
-  onCardEntranceChange,
+  showBattleEffects,
+  battleEffectsEnabled,
+  onBattleEffectsChange,
 }: {
   showMemberOverwrite: boolean;
   askMemberOverwrite: boolean;
   onAskMemberOverwriteChange: (enabled: boolean) => void;
-  showCardEntrance: boolean;
-  cardEntranceEnabled: boolean;
-  onCardEntranceChange: (enabled: boolean) => void;
+  showBattleEffects: boolean;
+  battleEffectsEnabled: boolean;
+  onBattleEffectsChange: (enabled: boolean) => void;
 }) {
   return (
     <div className="battle-toolbar-settings ml-auto shrink-0">
@@ -113,10 +113,13 @@ export function BattleSettingsMenu({
               <span>界面主题</span>
               <ThemeToggle />
             </div>
-            {showCardEntrance && (
+            {showBattleEffects && (
               <div className="flex min-h-12 items-center justify-between gap-4 px-2">
-                <span>卡牌特效</span>
-                <CardEntranceToggle enabled={cardEntranceEnabled} onChange={onCardEntranceChange} />
+                <span>对战特效</span>
+                <BattleEffectsToggle
+                  enabled={battleEffectsEnabled}
+                  onChange={onBattleEffectsChange}
+                />
               </div>
             )}
           </>

@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { EffectFeedbackChange, EffectFeedbackTarget, PlayerViewState } from '@game/online';
 import { HeartColor } from '@game/shared/types/enums';
 import { useGameStore } from '@/store/gameStore';
+import { useBattleEffectsEnabled } from '@/lib/battleEffects';
 import { getBattleLiveZoneAnchor } from '@/lib/battleUiAnchors';
 import { CardEffectText } from '@/components/card/CardEffectText';
 import {
@@ -106,7 +107,9 @@ function hasGain(item: FeedbackPresentation) {
 }
 
 /** A single active-frame sampler validates identity; card-local portals inherit all transforms. */
-export function EffectFeedbackLayer({ enabled = true }: { readonly enabled?: boolean }) {
+export function EffectFeedbackLayer({ enabled: requested = true }: { readonly enabled?: boolean }) {
+  const effectsEnabled = useBattleEffectsEnabled();
+  const enabled = requested && effectsEnabled;
   const reduced = !!useReducedMotion();
   const { view, log, readOnly } = useGameStore(
     useShallow((s) => ({

@@ -1,3 +1,4 @@
+import { allowPresentationAssets } from './appPresentation';
 /**
  * Card image service
  *
@@ -123,6 +124,7 @@ const preloadedImages = new Set<string>();
  * @returns Promise，图片加载完成后 resolve
  */
 export function preloadImage(url: string): Promise<void> {
+  if (!allowPresentationAssets()) return Promise.resolve();
   if (preloadedImages.has(url)) {
     return Promise.resolve();
   }

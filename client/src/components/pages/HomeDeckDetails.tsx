@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { PresentationImage } from '@/components/excel/PresentationRoot';
 import { useGameStore } from '@/store/gameStore';
 import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 import { createDeckRecordCardTypeResolver, deckRecordToConfig } from '@/lib/deckRecordUtils';
@@ -53,7 +54,11 @@ export function HomeDeckDetails({ deck }: { deck: DeckDisplayItem }) {
               const name = card?.nameCn || card?.name || entry.card_code;
               return (
                 <figure key={entry.card_code}>
-                  <img src={getCardImagePath(entry.card_code)} alt={name} loading="lazy" />
+                  <PresentationImage
+                    src={getCardImagePath(entry.card_code)}
+                    alt={name}
+                    loading="lazy"
+                  />
                   <figcaption>
                     <span>{name}</span>
                     <strong>×{entry.count}</strong>

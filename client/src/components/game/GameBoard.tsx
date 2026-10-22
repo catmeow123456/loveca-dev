@@ -1,3 +1,12 @@
+import { PresentationImage } from '@/components/excel/PresentationRoot';
+import { useSelectionDraft } from '@/hooks/useSelectionDraft';
+import { createPortal } from 'react-dom';
+import { useTextPresentation } from '@/lib/appPresentation';
+import { useResultWindowCompletion, useWindowVisualEligibility } from './BattleRuntime';
+import { ExcelBattleBoard } from '@/components/excel/ExcelBattleBoard';
+import { ExcelCandidateTable } from '@/components/excel/ExcelCandidateTable';
+import { ExcelPublicCardTable } from '@/components/excel/ExcelPublicCardTable';
+import { selectExcelCard } from '@/lib/excelCardView';
 /**
  * 游戏主界面布局
  */
@@ -61,13 +70,13 @@ import { Card } from '@/components/card/Card';
 import { CardEffectText } from '@/components/card/CardEffectText';
 import { MulliganPanel } from './MulliganPanel';
 import { ThemeToggle } from '@/components/common';
+import { canPresentCardEntrance } from '@/lib/cardEntrancePolicy';
 import {
-  canPresentCardEntrance,
-  readCardEntranceEnabled,
-  saveCardEntranceEnabled,
-} from '@/lib/cardEntrancePolicy';
-import { CardEntranceToggle } from './card-entrance/CardEntranceToggle';
-import { CardEffectsEnabledContext } from '@/lib/cardEffectsContext';
+  BattleEffectsContext,
+  readBattleEffectsEnabled,
+  saveBattleEffectsEnabled,
+} from '@/lib/battleEffects';
+import { BattleEffectsToggle } from './BattleEffectsToggle';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { parseZoneId } from '@/lib/zoneUtils';
 import { getDragActionDescriptor, type SpecialDragTarget } from '@/lib/battleDragAction';
@@ -230,7 +239,6 @@ type StageFormationMoveHistoryEntry = {
   readonly toSlot: SlotPosition;
 };
 
-const EMPTY_STRING_SELECTION: string[] = [];
 const EMPTY_STAGE_FORMATION_HISTORY: StageFormationMoveHistoryEntry[] = [];
 
 function buildActiveEffectInteractionKey(
@@ -363,7 +371,8 @@ export interface GameBoardProps {
   mobileJudgmentPanelCloseRequestKey?: string;
 }
 
-export const GameBoard = memo(function GameBoard({
+/** Shared selection drafts, legal actions and synchronization lifecycles for both renderers. */
+export function useBattleInteractionController({
   onLeaveLocalGame,
   onRestartGame,
   showDesktopPublicBattleLogButton = true,
@@ -379,6 +388,21 @@ export const GameBoard = memo(function GameBoard({
   mobileBattlefieldFocusRequest,
   mobileJudgmentPanelCloseRequestKey,
 }: GameBoardProps) {
+  const textOnly = useTextPresentation();
+  const [interactionContainer] = useState(() => document.createElement('div'));
+  const attachInteractionSurface = useCallback(
+    (host: HTMLDivElement | null) => {
+      if (host) host.appendChild(interactionContainer);
+    },
+    [interactionContainer]
+  );
+  const [entranceContainer] = useState(() => document.createElement('div'));
+  const attachEntranceSurface = useCallback(
+    (host: HTMLDivElement | null) => {
+      if (host) host.appendChild(entranceContainer);
+    },
+    [entranceContainer]
+  );
   const mobileBattlefieldFocusKey = mobileBattlefieldFocusRequest?.key;
   const mobileBattlefieldFocusTarget = mobileBattlefieldFocusRequest?.target;
 
@@ -413,6 +437,7 @@ export const GameBoard = memo(function GameBoard({
   const isLiveDraw = useGameStore((s) => s.isLiveDraw);
   const freePlayEnabled = useGameStore((s) => s.freePlayEnabled);
   const capabilities = useGameStore(useShallow((s) => s.getBattleSurfaceCapabilities()));
+  const memberPlayHint = useGameStore((s) => s.getCommandHint(GameCommandType.PLAY_MEMBER_TO_SLOT));
   const canConfirmEffectCommand = useGameStore((s) =>
     s.canUseAction(GameCommandType.CONFIRM_EFFECT_STEP)
   );
@@ -497,12 +522,12 @@ export const GameBoard = memo(function GameBoard({
     saveAskMemberOverwrite(enabled);
     setAskMemberOverwrite(enabled);
   };
-  const [cardEntranceEnabled, setCardEntranceEnabled] = useState(readCardEntranceEnabled);
+  const [battleEffectsEnabled, setBattleEffectsEnabled] = useState(readBattleEffectsEnabled);
   const canShowCardEntrance = canPresentCardEntrance(capabilities);
   const entranceWaiting = !!playerViewState?.match.entrance && canShowCardEntrance;
-  const changeCardEntranceEnabled = (enabled: boolean) => {
-    saveCardEntranceEnabled(enabled);
-    setCardEntranceEnabled(enabled);
+  const changeBattleEffectsEnabled = (enabled: boolean) => {
+    saveBattleEffectsEnabled(enabled);
+    setBattleEffectsEnabled(enabled);
   };
   const canShowUndo = capabilities.undoPolicy !== 'NONE';
   const undoGrant = matchView?.undo?.grant ?? null;
@@ -642,18 +667,46 @@ export const GameBoard = memo(function GameBoard({
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [activeDragFromZone, setActiveDragFromZone] = useState<ZoneType | null>(null);
   const [mobilePanel, setMobilePanel] = useState<MobileBattlePanel | null>(null);
-  const activeEffectInteractionKey = buildActiveEffectInteractionKey(activeEffect);
-  const [activeEffectSingleSelection, setActiveEffectSingleSelection] = useKeyedState<
-    string | null
-  >(activeEffectInteractionKey, null);
-  const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useKeyedState(
-    activeEffectInteractionKey,
-    EMPTY_STRING_SELECTION
+  const activeEffectInteractionKey = activeEffect
+    ? `${matchView?.matchId}:${viewerSeat}:${buildActiveEffectInteractionKey(activeEffect)}`
+    : null;
+  const selectionContext = activeEffect
+    ? JSON.stringify([
+        matchView?.matchId,
+        viewerSeat,
+        activeEffect.id,
+        activeEffect.stepId,
+        activeEffect.selectableObjectMode,
+      ])
+    : null;
+  const selectionCandidates =
+    activeEffect?.selectableObjectIds?.map((id) => id.replace(/^obj_/, '')) ?? [];
+  const [singleSelectionDraft, setSingleSelectionDraft, singleDraftInvalidated] = useSelectionDraft(
+    selectionContext,
+    selectionCandidates,
+    1
   );
-  const [activeEffectChoiceSelection, setActiveEffectChoiceSelection] = useKeyedState(
-    activeEffectInteractionKey,
-    EMPTY_STRING_SELECTION
-  );
+  const activeEffectSingleSelection = singleSelectionDraft[0] ?? null;
+  const setActiveEffectSingleSelection = (
+    next: string | null | ((previous: string | null) => string | null)
+  ) => {
+    setSingleSelectionDraft((previous) => {
+      const value = typeof next === 'function' ? next(previous[0] ?? null) : next;
+      return value ? [value] : [];
+    });
+  };
+  const [activeEffectOrderedSelection, setActiveEffectOrderedSelection, orderedDraftInvalidated] =
+    useSelectionDraft(selectionContext, selectionCandidates, activeEffect?.maxSelectableObjects);
+  const [activeEffectChoiceSelection, setActiveEffectChoiceSelection, choiceDraftInvalidated] =
+    useSelectionDraft(
+      selectionContext,
+      activeEffect?.effectChoice?.options
+        .filter((option) => option.selectable !== false)
+        .map((option) => option.id) ?? [],
+      activeEffect?.effectChoice?.maxSelections
+    );
+  const selectionDraftInvalidated =
+    singleDraftInvalidated || orderedDraftInvalidated || choiceDraftInvalidated;
   const [activeEffectNumberInput, setActiveEffectNumberInput] = useKeyedState(
     activeEffectInteractionKey,
     ''
@@ -1047,12 +1100,13 @@ export const GameBoard = memo(function GameBoard({
       objectId.replace(/^obj_/, '')
     ) ?? [];
   const controlsPendingSpecialPlay =
+    !isReadOnly &&
     !!pendingSpecialMemberPlay?.sourceObjectId &&
     !!viewerSeat &&
     pendingSpecialMemberPlay.playerSeat === viewerSeat;
   const specialPlayPaymentSelection =
     specialPlayPaymentDraft && specialPlayPaymentDraft.pendingId === pendingSpecialMemberPlay?.id
-      ? specialPlayPaymentDraft.cardIds
+      ? specialPlayPaymentDraft.cardIds.filter((id) => pendingSpecialPlayCandidateIds.includes(id))
       : [];
   const pendingSpecialPlayRequiredCount = pendingSpecialMemberPlay?.minSelectableObjects ?? 0;
   const pendingSpecialPlayMaxCount = pendingSpecialMemberPlay?.maxSelectableObjects ?? 0;
@@ -1062,7 +1116,8 @@ export const GameBoard = memo(function GameBoard({
     activeEffectSuspension?.effectId === activeEffect.id;
   const isActiveEffectUiSuspended =
     entranceWaiting ||
-    (!isPublicRevealAutoAdvance &&
+    (!textOnly &&
+      !isPublicRevealAutoAdvance &&
       !!activeEffect &&
       (isActiveEffectLocallySuspended ||
         battleAnimationOcclusions.some(
@@ -1076,6 +1131,7 @@ export const GameBoard = memo(function GameBoard({
     }
 
     const shouldSuspendActiveEffectForEntry =
+      !textOnly &&
       !!activeEffect &&
       !isPublicRevealAutoAdvance &&
       !entryEffectSuspendedIdsRef.current.has(activeEffect.id) &&
@@ -1099,7 +1155,7 @@ export const GameBoard = memo(function GameBoard({
       lastNonActiveEffectViewStateRef.current = playerViewState;
     }
     previousViewStateRef.current = playerViewState;
-  }, [activeEffect, isPublicRevealAutoAdvance, playerViewState]);
+  }, [activeEffect, isPublicRevealAutoAdvance, playerViewState, textOnly]);
 
   useEffect(() => {
     if (!activeEffectSuspension) {
@@ -1545,7 +1601,10 @@ export const GameBoard = memo(function GameBoard({
   const shouldShowWinnerAnimation =
     isResultAnimationWindow && isViewerWinnerInCurrentLive && canConfirmResultAnimationCommand;
   const liveResultAnimationKey =
-    shouldShowWinnerAnimation && viewerSeat ? `${viewerSeat}:${matchView?.seq ?? 0}` : null;
+    shouldShowWinnerAnimation && viewerSeat
+      ? `${matchView?.matchId}:${viewerSeat}:${matchView?.turnCount}:${matchView?.activeSeat}`
+      : null;
+  const showResultVisuals = useWindowVisualEligibility(liveResultAnimationKey, !textOnly);
 
   const handleLiveAnimationComplete = useCallback(() => {
     if (isReadOnly) {
@@ -1556,6 +1615,13 @@ export const GameBoard = memo(function GameBoard({
     }
     confirmSubPhase(SubPhase.RESULT_ANIMATION);
   }, [confirmSubPhase, currentSubPhase, isReadOnly]);
+
+  useResultWindowCompletion({
+    visible: !entranceWaiting && !isReadOnly && shouldShowWinnerAnimation,
+    autoComplete: resultAnimationAutoComplete,
+    windowKey: liveResultAnimationKey,
+    onComplete: handleLiveAnimationComplete,
+  });
 
   const handleBattlefieldBackgroundClick = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
@@ -1670,6 +1736,7 @@ export const GameBoard = memo(function GameBoard({
             : []),
         ],
         manualOperationMode: matchView?.manualOperation?.mode,
+        memberPlayHint: textOnly ? memberPlayHint : undefined,
         memberSlots,
         liveZoneCount,
         activeEffect,
@@ -1692,6 +1759,8 @@ export const GameBoard = memo(function GameBoard({
       isReadOnly,
       isCardInCommandScope,
       matchView?.manualOperation?.mode,
+      memberPlayHint,
+      textOnly,
       viewerSeat,
     ]
   );
@@ -2390,6 +2459,423 @@ export const GameBoard = memo(function GameBoard({
 
   // 获取当前拖拽中的卡牌实例
   const activeCard = activeCardId ? getVisibleCardPresentation(activeCardId) : null;
+  return {
+    matchView,
+    viewerSeat,
+    currentPhase,
+    playerViewState,
+    entranceWaiting,
+    canShowPublicBattleLog,
+    publicLogOpen,
+    canShowDebugLog,
+    desktopDebugLogOpen,
+    judgmentPanelVisible,
+    isJudgmentPanelRelevant,
+    judgmentPanelOpen,
+    activeSeat,
+    capabilities,
+    onLeaveLocalGame,
+    onRestartGame,
+    getPlayerIdentityForSeat,
+    currentSubPhase,
+    currentTurnCount,
+    publicLogUnreadCount,
+    publicLogCount,
+    logCount,
+    canShowUndo,
+    pendingManualOperationRequest,
+    manualOperation,
+    freePlayEnabled,
+    setMobilePanel,
+    setViewingPlayer,
+    handleOpenJudgmentPanel,
+    overwriteChoice,
+    getVisibleCardPresentation,
+    activeMemberPlayOptionSelection,
+    activeMemberPlayOption,
+    setMemberPlayOptionSelection,
+    selectedCardPresentation,
+    memberPlaySelectedSlots,
+    handleSelectMemberPlayOptionSlot,
+    canConfirmMemberPlayOption,
+    handleConfirmMemberPlayOption,
+    showSuccessLiveSelectionModal,
+    successLiveSelectionCollapsed,
+    successLiveSelectionCardIds,
+    setSuccessLiveSelectionCollapsed,
+    setHoveredCard,
+    selectSuccessCard,
+    successLiveSelection,
+    skipSuccessLiveSelection,
+    isActiveEffectUiSuspended,
+    activeEffect,
+    activeEffectCollapsed,
+    activeEffectTitle,
+    isActiveEffectOrderSelectionWindow,
+    activeEffectDescription,
+    activeEffectInspectionCount,
+    setActiveEffectCollapsed,
+    activeEffectBadgeLabel,
+    showActiveEffectChoicePanel,
+    activeEffectChoice,
+    normalizedActiveEffectChoiceSelection,
+    canConfirmActiveEffect,
+    isPublicEffectChoiceAutoAdvance,
+    activeEffectUsesCardOptionSelection,
+    activeEffectSelectedCardId,
+    canConfirmActiveEffectChoice,
+    confirmEffectChoice,
+    setActiveEffectChoiceSelection,
+    confirmEffectStep,
+    hasActiveEffectOriginalText,
+    setActiveEffectOriginalTextExpanded,
+    activeEffectOriginalTextExpanded,
+    activeEffectOriginalTextCn,
+    activeEffectOriginalTextJp,
+    showOrdinaryActiveEffectControls,
+    activeEffectStageFormation,
+    stageFormationDraftSlots,
+    selectedStageFormationCardId,
+    handleStageFormationSlotClick,
+    isPublicCardSelectionAutoAdvance,
+    activeEffectSource,
+    activeEffectSourceLabel,
+    publicCardSelectionDisplayEntries,
+    activeEffectRevealedCardIds,
+    isPublicRevealAutoAdvance,
+    publicRevealDisplayEntries,
+    prefersReducedMotion,
+    publicRevealDisplayKey,
+    activeEffectSelectableCardIds,
+    activeEffectSelectionLabel,
+    activeEffectSelectableBadgeLabel,
+    activeEffectHasEnergyCandidates,
+    activeEffectSelectableObjectsFaceDown,
+    activeEffectOrderedSelection,
+    formatActiveEffectCardCompactLabel,
+    isReadOnly,
+    activeEffectUsesOrderedMultiSelect,
+    activeEffectUsesImmediateOrderedSingleSelect,
+    setActiveEffectOrderedSelection,
+    activeEffectMaxSelectableCards,
+    setActiveEffectSingleSelection,
+    publicSelectionFallbackReady,
+    canConfirmEffectCommand,
+    autoAdvancePublicCardSelection,
+    publicEffectChoiceFallbackReady,
+    autoAdvancePublicEffectChoice,
+    publicRevealFallbackReady,
+    publicRevealEffectId,
+    publicRevealAutoAdvanceAt,
+    publicRevealGeneration,
+    autoAdvancePublicReveal,
+    showLegacyActiveEffectControls,
+    handleConfirmStageFormation,
+    activeEffectSelectableSlots,
+    activeEffectSelectableOptions,
+    activeEffectNumericInput,
+    activeEffectNumberInput,
+    setActiveEffectNumberInput,
+    canConfirmActiveEffectNumber,
+    activeEffectSelectedNumber,
+    activeEffectMinSelectableCards,
+    canConfirmOrderedEffectSelection,
+    pendingSpecialMemberPlay,
+    controlsPendingSpecialPlay,
+    pendingSpecialPlayCandidateIds,
+    specialPlayPaymentSelection,
+    pendingSpecialPlayRequiredCount,
+    handleToggleSpecialPlayPayment,
+    cancelSpecialMemberPlay,
+    confirmSpecialMemberPlay,
+    pendingCostPayment,
+    pendingCostSource,
+    pendingCostEnergyIds,
+    canConfirmCostPayment,
+    confirmCostPayment,
+    autoCostEnergyIds,
+    mulliganPanelOpen,
+    mulliganPanelVisible,
+    mulliganSelectableCardIds,
+    onMulliganSelectionChange,
+    pendingUndoRequest,
+    pendingUndoRequesterName,
+    pendingUndoCanRespond,
+    pendingUndoIsRequester,
+    respondRemoteUndoRequest,
+    pendingManualOperationRequesterName,
+    pendingManualOperationIsRequester,
+    respondManualOperationModeRequest,
+    pendingManualOperationCanRespond,
+    sensors,
+    handleDragStart,
+    handleDragOver,
+    handleDragEnd,
+    clearDragInteractionState,
+    setBoardRoot,
+    handleBattlefieldBackgroundClick,
+    tableWallpaper,
+    isMobileBattlefield,
+    rankedStall,
+    desktopHeaderActions,
+    canShowDesktopPublicBattleLogButton,
+    setDesktopDebugLogOpen,
+    askMemberOverwrite,
+    changeAskMemberOverwrite,
+    canShowCardEntrance,
+    battleEffectsEnabled,
+    changeBattleEffectsEnabled,
+    desktopWorkspaceRef,
+    handleJudgmentPanelClose,
+    canDockBattlePanel,
+    boardRoot,
+    mobileHeaderActions,
+    mobilePanel,
+    isInspectionZoneCollapsed,
+    setInspectionZoneCollapsed,
+    selectedHandCardActionCardId,
+    selectedHandCardActions,
+    handleSelectedHandCardAction,
+    requestPlayMember,
+    setFreePlayEnabled,
+    undoLastStep,
+    canUndoLastStep,
+    undoButtonLabel,
+    mobileUndoButtonLabel,
+    headerOverlay,
+    mobileFloatingHeaderActions,
+    shouldShowWinnerAnimation,
+    showResultVisuals,
+    isViewerWinnerInCurrentLive,
+    viewerLiveScore,
+    opponentLiveScore,
+    viewerLiveWinner,
+    opponentLiveWinner,
+    isLiveDraw,
+    liveResultAnimationKey,
+    handleLiveAnimationComplete,
+    activeCard,
+    activeDragFromZone,
+    activeCardId,
+    textOnly,
+    selectionDraftInvalidated,
+    interactionContainer,
+    attachInteractionSurface,
+    entranceContainer,
+    attachEntranceSurface,
+    buildDragBattleActionIntents,
+    executeBattleActionPayload,
+  };
+}
+
+export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
+  const {
+    matchView,
+    viewerSeat,
+    currentPhase,
+    playerViewState,
+    entranceWaiting,
+    canShowPublicBattleLog,
+    publicLogOpen,
+    canShowDebugLog,
+    desktopDebugLogOpen,
+    judgmentPanelVisible,
+    isJudgmentPanelRelevant,
+    judgmentPanelOpen,
+    activeSeat,
+    capabilities,
+    onLeaveLocalGame,
+    onRestartGame,
+    getPlayerIdentityForSeat,
+    currentSubPhase,
+    currentTurnCount,
+    publicLogUnreadCount,
+    publicLogCount,
+    logCount,
+    canShowUndo,
+    pendingManualOperationRequest,
+    manualOperation,
+    freePlayEnabled,
+    setMobilePanel,
+    setViewingPlayer,
+    handleOpenJudgmentPanel,
+    overwriteChoice,
+    getVisibleCardPresentation,
+    activeMemberPlayOptionSelection,
+    activeMemberPlayOption,
+    setMemberPlayOptionSelection,
+    selectedCardPresentation,
+    memberPlaySelectedSlots,
+    handleSelectMemberPlayOptionSlot,
+    canConfirmMemberPlayOption,
+    handleConfirmMemberPlayOption,
+    showSuccessLiveSelectionModal,
+    successLiveSelectionCollapsed,
+    successLiveSelectionCardIds,
+    setSuccessLiveSelectionCollapsed,
+    setHoveredCard,
+    selectSuccessCard,
+    successLiveSelection,
+    skipSuccessLiveSelection,
+    isActiveEffectUiSuspended,
+    activeEffect,
+    activeEffectCollapsed,
+    activeEffectTitle,
+    isActiveEffectOrderSelectionWindow,
+    activeEffectDescription,
+    activeEffectInspectionCount,
+    setActiveEffectCollapsed,
+    activeEffectBadgeLabel,
+    showActiveEffectChoicePanel,
+    activeEffectChoice,
+    normalizedActiveEffectChoiceSelection,
+    canConfirmActiveEffect,
+    isPublicEffectChoiceAutoAdvance,
+    activeEffectUsesCardOptionSelection,
+    activeEffectSelectedCardId,
+    canConfirmActiveEffectChoice,
+    confirmEffectChoice,
+    setActiveEffectChoiceSelection,
+    confirmEffectStep,
+    hasActiveEffectOriginalText,
+    setActiveEffectOriginalTextExpanded,
+    activeEffectOriginalTextExpanded,
+    activeEffectOriginalTextCn,
+    activeEffectOriginalTextJp,
+    showOrdinaryActiveEffectControls,
+    activeEffectStageFormation,
+    stageFormationDraftSlots,
+    selectedStageFormationCardId,
+    handleStageFormationSlotClick,
+    isPublicCardSelectionAutoAdvance,
+    activeEffectSource,
+    activeEffectSourceLabel,
+    publicCardSelectionDisplayEntries,
+    activeEffectRevealedCardIds,
+    isPublicRevealAutoAdvance,
+    publicRevealDisplayEntries,
+    prefersReducedMotion,
+    publicRevealDisplayKey,
+    activeEffectSelectableCardIds,
+    activeEffectSelectionLabel,
+    activeEffectSelectableBadgeLabel,
+    activeEffectHasEnergyCandidates,
+    activeEffectSelectableObjectsFaceDown,
+    activeEffectOrderedSelection,
+    formatActiveEffectCardCompactLabel,
+    isReadOnly,
+    activeEffectUsesOrderedMultiSelect,
+    activeEffectUsesImmediateOrderedSingleSelect,
+    setActiveEffectOrderedSelection,
+    activeEffectMaxSelectableCards,
+    setActiveEffectSingleSelection,
+    publicSelectionFallbackReady,
+    canConfirmEffectCommand,
+    autoAdvancePublicCardSelection,
+    publicEffectChoiceFallbackReady,
+    autoAdvancePublicEffectChoice,
+    publicRevealFallbackReady,
+    publicRevealEffectId,
+    publicRevealAutoAdvanceAt,
+    publicRevealGeneration,
+    autoAdvancePublicReveal,
+    showLegacyActiveEffectControls,
+    handleConfirmStageFormation,
+    activeEffectSelectableSlots,
+    activeEffectSelectableOptions,
+    activeEffectNumericInput,
+    activeEffectNumberInput,
+    setActiveEffectNumberInput,
+    canConfirmActiveEffectNumber,
+    activeEffectSelectedNumber,
+    activeEffectMinSelectableCards,
+    canConfirmOrderedEffectSelection,
+    pendingSpecialMemberPlay,
+    controlsPendingSpecialPlay,
+    pendingSpecialPlayCandidateIds,
+    specialPlayPaymentSelection,
+    pendingSpecialPlayRequiredCount,
+    handleToggleSpecialPlayPayment,
+    cancelSpecialMemberPlay,
+    confirmSpecialMemberPlay,
+    pendingCostPayment,
+    pendingCostSource,
+    pendingCostEnergyIds,
+    canConfirmCostPayment,
+    confirmCostPayment,
+    autoCostEnergyIds,
+    mulliganPanelOpen,
+    mulliganPanelVisible,
+    mulliganSelectableCardIds,
+    onMulliganSelectionChange,
+    pendingUndoRequest,
+    pendingUndoRequesterName,
+    pendingUndoCanRespond,
+    pendingUndoIsRequester,
+    respondRemoteUndoRequest,
+    pendingManualOperationRequesterName,
+    pendingManualOperationIsRequester,
+    respondManualOperationModeRequest,
+    pendingManualOperationCanRespond,
+    sensors,
+    handleDragStart,
+    handleDragOver,
+    handleDragEnd,
+    clearDragInteractionState,
+    setBoardRoot,
+    handleBattlefieldBackgroundClick,
+    tableWallpaper,
+    isMobileBattlefield,
+    rankedStall,
+    desktopHeaderActions,
+    canShowDesktopPublicBattleLogButton,
+    setDesktopDebugLogOpen,
+    askMemberOverwrite,
+    changeAskMemberOverwrite,
+    canShowCardEntrance,
+    battleEffectsEnabled,
+    changeBattleEffectsEnabled,
+    desktopWorkspaceRef,
+    handleJudgmentPanelClose,
+    canDockBattlePanel,
+    boardRoot,
+    mobileHeaderActions,
+    mobilePanel,
+    isInspectionZoneCollapsed,
+    setInspectionZoneCollapsed,
+    selectedHandCardActionCardId,
+    selectedHandCardActions,
+    handleSelectedHandCardAction,
+    requestPlayMember,
+    setFreePlayEnabled,
+    undoLastStep,
+    canUndoLastStep,
+    undoButtonLabel,
+    mobileUndoButtonLabel,
+    headerOverlay,
+    mobileFloatingHeaderActions,
+    shouldShowWinnerAnimation,
+    showResultVisuals,
+    isViewerWinnerInCurrentLive,
+    viewerLiveScore,
+    opponentLiveScore,
+    viewerLiveWinner,
+    opponentLiveWinner,
+    isLiveDraw,
+    liveResultAnimationKey,
+    handleLiveAnimationComplete,
+    activeCard,
+    activeDragFromZone,
+    activeCardId,
+    textOnly,
+    selectionDraftInvalidated,
+    interactionContainer,
+    attachInteractionSurface,
+    entranceContainer,
+    attachEntranceSurface,
+    buildDragBattleActionIntents,
+    executeBattleActionPayload,
+  } = useBattleInteractionController(props);
 
   if (!matchView) {
     return (
@@ -2490,620 +2976,1895 @@ export const GameBoard = memo(function GameBoard({
     setViewingPlayer(identity.id);
   };
 
-  return (
-    <CardEffectsEnabledContext.Provider value={cardEntranceEnabled}>
-    <AbilityActivationProvider>
-    <DndContext
-      sensors={sensors}
-      collisionDetection={battleCollisionDetection}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
-      onDragCancel={clearDragInteractionState}
-    >
-      <div
-        ref={setBoardRoot}
-        data-battle-ui-anchor={BATTLE_UI_ANCHORS.BOARD}
-        className="battle-table isolate h-full flex flex-col relative overflow-hidden bg-[var(--board-wallpaper-base)]"
-        onClick={handleBattlefieldBackgroundClick}
-      >
-        <BoardBackground {...tableWallpaper} className="-z-10" />
-        <BattleAnimationLayer />
-        <EffectFeedbackLayer />
-        {canShowCardEntrance && (
-          <Suspense fallback={null}>
-            <CardEntranceLayer enabled={cardEntranceEnabled} />
-          </Suspense>
-        )}
-        <div
-          className="contents"
-          inert={
-            entranceWaiting ||
-            (isMobileBattlefield &&
-              !entranceWaiting &&
-              judgmentPanelVisible &&
-              isJudgmentPanelRelevant &&
-              judgmentPanelOpen)
-          }
-        >
-          {!entranceWaiting && <BattleActionFeedbackLayer />}
-          {!isReadOnly && <RankedStallNotice stall={rankedStall} viewerSeat={viewerSeat} />}
+  const handleActiveEffectCardSelect = (cardId: string) => {
+    if (!activeEffect || !canConfirmActiveEffect || isReadOnly) return;
+    setHoveredCard(null);
+    if (activeEffectUsesOrderedMultiSelect) {
+      if (activeEffectUsesImmediateOrderedSingleSelect) {
+        confirmEffectStep(activeEffect.id, undefined, undefined, undefined, undefined, [cardId]);
+        return;
+      }
+      setActiveEffectOrderedSelection((current) => {
+        const currentSelectable = current.filter((selectedId) =>
+          activeEffectSelectableCardIds.includes(selectedId)
+        );
+        if (currentSelectable.includes(cardId)) {
+          return currentSelectable.filter((selectedId) => selectedId !== cardId);
+        }
+        if (currentSelectable.length >= activeEffectMaxSelectableCards) {
+          return currentSelectable;
+        }
+        return [...currentSelectable, cardId];
+      });
+      return;
+    }
+    if (activeEffectUsesCardOptionSelection) {
+      setActiveEffectSingleSelection((current) => (current === cardId ? null : cardId));
+      return;
+    }
+    confirmEffectStep(activeEffect.id, cardId);
+  };
 
-          {!isMobileBattlefield && (
-            <header className="battle-desktop-toolbar" aria-label="对战工具栏">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                {desktopHeaderActions}
-                {(showLeaveLocalGameButton || showRestartGameButton) && (
-                  <BattleToolbarMenu label="房间" icon={<DoorOpen size={16} />}>
-                    {(close) => (
-                      <>
-                        {showRestartGameButton && (
-                          <button
-                            type="button"
-                            className="button-ghost flex min-h-11 w-full items-center gap-2 px-3"
-                            onClick={() => {
-                              close();
-                              onRestartGame?.();
-                            }}
-                          >
-                            <RotateCcw size={16} />
-                            重开对局
-                          </button>
-                        )}
-                        {showLeaveLocalGameButton && (
-                          <button
-                            type="button"
-                            className="button-ghost flex min-h-11 w-full items-center gap-2 px-3"
-                            title={leaveLocalGameButtonTitle}
-                            onClick={() => {
-                              close();
-                              onLeaveLocalGame?.();
-                            }}
-                          >
-                            <DoorOpen size={16} />
-                            离开房间
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </BattleToolbarMenu>
-                )}
-                {canShowDesktopPublicBattleLogButton && <PublicBattleLogButton />}
-                {canShowDebugLog && (
+  const interactionPanels = (
+    <>
+      {textOnly && selectionDraftInvalidated && (
+        <p role="status">候选已更新，失效选择已移除，请核对后重新确认。</p>
+      )}
+      {/* 阶段指示器 */}
+      <PhaseIndicator
+        phase={currentPhase}
+        turnNumber={currentTurnCount ?? matchView.turnCount}
+        onOpenJudgment={handleOpenJudgmentPanel}
+      />
+
+      {overwriteChoice.selection && (
+        <MemberOverwriteDialog
+          cardLabel={(() => {
+            const card = getVisibleCardPresentation(overwriteChoice.selection.cardId);
+            return card ? formatCardCompactLabel(card.cardData as AnyCardData) : '成员登场';
+          })()}
+          choices={overwriteChoice.selection.choices}
+          onChoose={overwriteChoice.choose}
+          onCancel={overwriteChoice.cancel}
+        />
+      )}
+
+      {activeMemberPlayOptionSelection && activeMemberPlayOption && (
+        <>
+          <button
+            type="button"
+            aria-label={`取消${activeMemberPlayOption.label}`}
+            className="modal-backdrop fixed inset-0 z-[93]"
+            onClick={() => setMemberPlayOptionSelection(null)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={activeMemberPlayOption.title}
+            className="battle-overlay-surface pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(92vw,460px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+          >
+            <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
+              {activeMemberPlayOption.label}
+            </div>
+            <div className="mt-1 text-sm font-semibold">
+              {selectedCardPresentation
+                ? formatCardCompactLabel(selectedCardPresentation.cardData as AnyCardData)
+                : '成员登场'}
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+              {activeMemberPlayOption.description}
+            </p>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {MEMBER_SLOT_ORDER.map((slot) => {
+                const isAvailable = activeMemberPlayOption.targetSlots.includes(slot);
+                const selectedOrderIndex = memberPlaySelectedSlots.indexOf(slot);
+                const isSelected = selectedOrderIndex >= 0;
+                const isDisabled =
+                  !isAvailable ||
+                  (activeMemberPlayOption.kind === 'DOUBLE_RELAY' &&
+                    !isSelected &&
+                    memberPlaySelectedSlots.length >= activeMemberPlayOption.selection.maxTargets);
+                return (
                   <button
+                    key={slot}
                     type="button"
-                    className="battle-toolbar-control button-ghost inline-flex min-h-11 items-center gap-2 px-3 text-sm"
-                    aria-label="调试日志"
-                    aria-expanded={desktopDebugLogOpen}
-                    aria-controls="debug-battle-log-panel"
-                    onClick={() => setDesktopDebugLogOpen((open) => !open)}
+                    disabled={isDisabled}
+                    onClick={() => handleSelectMemberPlayOptionSlot(slot)}
+                    className={cn(
+                      'button-secondary relative inline-flex min-h-11 items-center justify-center px-2 text-sm font-semibold',
+                      isSelected &&
+                        'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)]',
+                      isDisabled && 'cursor-not-allowed opacity-40'
+                    )}
                   >
-                    <ScrollText size={16} />
-                    日志
+                    {MEMBER_SLOT_LABELS[slot]}
+                    {activeMemberPlayOption.kind === 'DOUBLE_RELAY' && isSelected && (
+                      <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
+                        {selectedOrderIndex + 1}
+                      </span>
+                    )}
                   </button>
+                );
+              })}
+            </div>
+            <div
+              className={cn(
+                'mt-4 flex items-center gap-3',
+                activeMemberPlayOption.kind === 'DOUBLE_RELAY' ? 'justify-between' : 'justify-end'
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => setMemberPlayOptionSelection(null)}
+                className="button-secondary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
+              >
+                取消
+              </button>
+              {activeMemberPlayOption.kind === 'DOUBLE_RELAY' && (
+                <button
+                  type="button"
+                  disabled={!canConfirmMemberPlayOption}
+                  onClick={handleConfirmMemberPlayOption}
+                  className={cn(
+                    'button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold',
+                    !canConfirmMemberPlayOption && 'cursor-not-allowed opacity-50'
+                  )}
+                >
+                  <Repeat2 className="h-4 w-4" aria-hidden="true" />
+                  {activeMemberPlayOption.label}登场
+                </button>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {!entranceWaiting && showSuccessLiveSelectionModal && successLiveSelectionCollapsed && (
+        <div
+          data-battle-animation-ignore="true"
+          data-battle-ui-anchor={BATTLE_UI_ANCHORS.SUCCESS_LIVE_SELECTION}
+          className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[94] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]"
+        >
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
+                成功 Live
+              </div>
+              <div className="mt-0.5 truncate text-sm font-semibold">
+                选择放置入成功 LIVE 卡区的 Live
+              </div>
+              <div className="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]">
+                {successLiveSelectionCardIds.length} 张候选
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSuccessLiveSelectionCollapsed(false)}
+              className="button-primary inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
+            >
+              <Maximize2 className="h-4 w-4" aria-hidden="true" />
+              展开
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!entranceWaiting && showSuccessLiveSelectionModal && !successLiveSelectionCollapsed && (
+        <div
+          data-battle-animation-ignore="true"
+          data-battle-ui-anchor={BATTLE_UI_ANCHORS.SUCCESS_LIVE_SELECTION}
+          className="battle-overlay-surface pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(94vw,760px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+        >
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
+                成功 Live
+              </div>
+              <div className="mt-1 text-sm font-semibold">选择放置入成功 LIVE 卡区的 Live</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSuccessLiveSelectionCollapsed(true)}
+              className="button-secondary inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 px-2 text-xs font-semibold"
+            >
+              <EyeOff className="h-4 w-4" aria-hidden="true" />
+              隐藏
+            </button>
+          </div>
+          <div
+            data-battle-ui-anchor={BATTLE_UI_ANCHORS.SUCCESS_LIVE_CANDIDATES}
+            className={
+              textOnly
+                ? 'excel-candidate-surface'
+                : 'grid max-h-[var(--battle-viewport-height-52)] grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3'
+            }
+          >
+            {textOnly ? (
+              <ExcelCandidateTable
+                label="成功 LIVE 候选卡牌"
+                candidates={successLiveSelectionCardIds.map((cardId) => {
+                  const card = selectExcelCard(playerViewState, `obj_${cardId}`);
+                  return { id: cardId, card, disabled: !card || isReadOnly };
+                })}
+                onSelect={(cardId) => {
+                  setHoveredCard(null);
+                  selectSuccessCard(cardId);
+                }}
+              />
+            ) : (
+              successLiveSelectionCardIds.map((cardId) => {
+                const presentation = getVisibleCardPresentation(cardId);
+                const cardData = presentation?.cardData;
+                const label = cardData
+                  ? formatCardCompactLabel(cardData as AnyCardData)
+                  : '选择此卡';
+                return (
+                  <button
+                    key={cardId}
+                    data-battle-ui-object-id={cardId}
+                    type="button"
+                    disabled={!presentation}
+                    onClick={() => {
+                      setHoveredCard(null);
+                      selectSuccessCard(cardId);
+                    }}
+                    className={cn(
+                      'group flex min-w-0 flex-col items-center gap-1 rounded-lg border border-transparent p-1.5 transition-colors',
+                      presentation
+                        ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
+                        : 'cursor-not-allowed opacity-50'
+                    )}
+                    title={label}
+                  >
+                    {presentation ? (
+                      <CardDetailPressTarget
+                        cardId={presentation.instanceId}
+                        title={label}
+                        className="flex justify-center"
+                      >
+                        <Card
+                          cardData={presentation.cardData as AnyCardData}
+                          instanceId={presentation.instanceId}
+                          imagePath={presentation.imagePath}
+                          size="sm"
+                          faceUp={true}
+                          showHover={false}
+                          className="shadow-sm transition-transform group-hover:scale-[1.02]"
+                        />
+                      </CardDetailPressTarget>
+                    ) : (
+                      <div className="battle-card-face flex aspect-[5/7] w-full items-center justify-center border border-dashed border-[var(--border-subtle)] text-xs text-[var(--text-muted)]">
+                        不可见
+                      </div>
+                    )}
+                    <span className="line-clamp-2 min-h-8 text-center text-[11px] leading-4 text-[var(--text-secondary)]">
+                      {label}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+          {successLiveSelection?.canSkipToWaitingRoom === true && (
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => skipSuccessLiveSelection()}
+                className="button-secondary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
+              >
+                <DoorOpen className="h-4 w-4" aria-hidden="true" />
+                全部放置入休息室
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!isActiveEffectUiSuspended && activeEffect && activeEffectCollapsed && (
+        <div
+          data-battle-animation-ignore="true"
+          className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[95] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]"
+        >
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-semibold text-[var(--accent-primary)]">处理中</div>
+              <div className="mt-0.5 truncate text-sm font-semibold">{activeEffectTitle}</div>
+              <div className="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]">
+                {isActiveEffectOrderSelectionWindow
+                  ? activeEffectDescription
+                  : activeEffectInspectionCount > 0
+                    ? `检视区 ${activeEffectInspectionCount} 张 / ${activeEffect.stepText}`
+                    : activeEffect.stepText}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveEffectCollapsed(false)}
+              className="button-primary inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
+            >
+              <Maximize2 className="h-4 w-4" aria-hidden="true" />
+              展开效果
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!isActiveEffectUiSuspended && activeEffect && !activeEffectCollapsed && (
+        <div
+          data-battle-animation-ignore="true"
+          className="pointer-events-auto fixed inset-x-2 bottom-[max(0.75rem,env(safe-area-inset-bottom))] top-[max(0.75rem,env(safe-area-inset-top))] z-[95] flex items-end justify-center sm:inset-x-4 md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-[min(94vw,900px)] md:-translate-x-1/2 md:-translate-y-1/2"
+        >
+          <motion.div
+            data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_PANEL}
+            className="battle-overlay-surface flex max-h-[calc(var(--battle-viewport-height)_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_1.5rem)] w-full flex-col overflow-hidden rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl md:max-h-[88vh] md:p-4"
+            initial={{ opacity: 0, y: 12, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.99 }}
+            transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
+          >
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-subtle)] p-3 md:mb-3 md:border-b-0 md:p-0">
+              <div>
+                <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
+                  处理中的效果
+                </div>
+                <div className="mt-1 text-sm font-semibold">{activeEffectTitle}</div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <div className="rounded border border-[var(--border-default)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
+                  {activeEffectBadgeLabel}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveEffectCollapsed(true)}
+                  className="button-secondary inline-flex min-h-8 items-center justify-center gap-1.5 px-2 text-xs font-semibold"
+                >
+                  <EyeOff className="h-4 w-4" aria-hidden="true" />
+                  隐藏
+                </button>
+              </div>
+            </div>
+            <div className="touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-0 md:py-0">
+              <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-2.5 md:p-3">
+                <CardEffectText
+                  text={activeEffectDescription}
+                  className="text-[13px] leading-relaxed md:text-sm"
+                />
+                {showActiveEffectChoicePanel && activeEffectChoice && (
+                  <EffectChoicePanel
+                    activeEffect={activeEffect}
+                    selectedOptionIds={normalizedActiveEffectChoiceSelection}
+                    canChoose={
+                      canConfirmActiveEffect &&
+                      !isPublicEffectChoiceAutoAdvance &&
+                      (!activeEffectUsesCardOptionSelection || !!activeEffectSelectedCardId)
+                    }
+                    canConfirmMulti={canConfirmActiveEffectChoice}
+                    onSelectSingle={(optionId) =>
+                      confirmEffectChoice(activeEffect.id, {
+                        selectedCardId: activeEffectUsesCardOptionSelection
+                          ? activeEffectSelectedCardId
+                          : undefined,
+                        selectedEffectOptionIds: [optionId],
+                      })
+                    }
+                    onToggleMulti={(optionId) =>
+                      setActiveEffectChoiceSelection((current) => [
+                        ...toggleEffectChoiceSelection(activeEffectChoice, current, optionId),
+                      ])
+                    }
+                    onConfirmMulti={() =>
+                      confirmEffectChoice(activeEffect.id, {
+                        selectedCardId: activeEffectUsesCardOptionSelection
+                          ? activeEffectSelectedCardId
+                          : undefined,
+                        selectedEffectOptionIds: normalizedActiveEffectChoiceSelection,
+                      })
+                    }
+                    onSkip={() => confirmEffectStep(activeEffect.id, null)}
+                  />
+                )}
+                {!isActiveEffectOrderSelectionWindow && hasActiveEffectOriginalText && (
+                  <div className="mt-3 border-t border-[var(--border-subtle)] pt-2.5 md:pt-3">
+                    <button
+                      type="button"
+                      onClick={() => setActiveEffectOriginalTextExpanded((expanded) => !expanded)}
+                      className="button-secondary inline-flex min-h-8 items-center justify-center px-2.5 text-xs font-semibold"
+                    >
+                      {activeEffectOriginalTextExpanded ? '收起原卡文' : '查看原卡文'}
+                    </button>
+                    {activeEffectOriginalTextExpanded && (
+                      <div className="mt-3 space-y-3">
+                        <div className="text-[10px] font-semibold text-[var(--text-muted)]">
+                          原卡文
+                        </div>
+                        {activeEffectOriginalTextCn && (
+                          <div>
+                            <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
+                              中文
+                            </div>
+                            <CardEffectText
+                              text={activeEffectOriginalTextCn}
+                              className="text-xs leading-relaxed text-[var(--text-secondary)]"
+                            />
+                          </div>
+                        )}
+                        {activeEffectOriginalTextJp && (
+                          <div>
+                            <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
+                              日文
+                            </div>
+                            <CardEffectText
+                              text={activeEffectOriginalTextJp}
+                              className="text-xs leading-relaxed text-[var(--text-secondary)]"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-              {!isReadOnly && <DebugControl />}
-              <BattleSettingsMenu
-                showMemberOverwrite={!isReadOnly}
-                askMemberOverwrite={askMemberOverwrite}
-                onAskMemberOverwriteChange={changeAskMemberOverwrite}
-                showCardEntrance={canShowCardEntrance}
-                cardEntranceEnabled={cardEntranceEnabled}
-                onCardEntranceChange={changeCardEntranceEnabled}
-              />
-            </header>
-          )}
-          <div
-            ref={desktopWorkspaceRef}
-            data-battle-workspace
-            className="relative flex min-h-0 flex-1"
-          >
-            <JudgmentPanel
-              isOpen={
-                isMobileBattlefield
-                  ? !entranceWaiting &&
-                    judgmentPanelVisible &&
-                    isJudgmentPanelRelevant &&
-                    judgmentPanelOpen
-                  : showDesktopJudgment
-              }
-              onClose={handleJudgmentPanelClose}
-              docked={!isMobileBattlefield && canDockBattlePanel}
-              mobilePortalTarget={boardRoot}
-            />
-            {isMobileBattlefield ? (
-              <div className="relative z-10 flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:hidden">
-                <div className="battle-mobile-header safe-top shrink-0 px-2.5 pt-2.5">
-                  <div className="battle-mobile-phase-header rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_30%,transparent)] px-2.5 py-1.5 shadow-none backdrop-blur-[2px]">
-                    <div className="flex items-center justify-between gap-2">
-                      {showLeaveLocalGameButton || showRestartGameButton ? (
-                        <div className="flex shrink-0 items-center gap-1">
-                          {showLeaveLocalGameButton && (
-                            <button
-                              type="button"
-                              onClick={onLeaveLocalGame}
-                              className="button-ghost inline-flex h-9 shrink-0 items-center justify-center gap-1 px-2 text-xs"
-                              title={leaveLocalGameButtonTitle}
-                            >
-                              <DoorOpen size={15} />
-                              离开
-                            </button>
+              {showOrdinaryActiveEffectControls && activeEffectStageFormation && (
+                <div className="mt-3 md:mt-4">
+                  <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
+                    站位变换
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-2 md:grid-cols-3 md:gap-3 md:p-3">
+                    {MEMBER_SLOT_ORDER.map((slot) => {
+                      const entry = stageFormationDraftSlots.find(
+                        (candidate) => candidate.slot === slot
+                      );
+                      const cardId = entry?.cardId ?? null;
+                      const presentation = cardId ? getVisibleCardPresentation(cardId) : null;
+                      const cardData = presentation?.cardData;
+                      const isSelected = cardId !== null && cardId === selectedStageFormationCardId;
+                      const label = cardData
+                        ? formatCardCompactLabel(cardData as AnyCardData)
+                        : '空位';
+                      return (
+                        <button
+                          key={slot}
+                          type="button"
+                          disabled={!canConfirmActiveEffect}
+                          aria-pressed={isSelected}
+                          onClick={() => handleStageFormationSlotClick(slot)}
+                          className={cn(
+                            'grid min-h-[76px] min-w-0 grid-cols-[52px_minmax(0,1fr)] items-center gap-x-2 rounded-lg border p-2 text-left transition-colors md:flex md:min-h-[188px] md:flex-col md:items-center md:justify-between md:gap-2',
+                            isSelected
+                              ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
+                              : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_70%,transparent)]',
+                            canConfirmActiveEffect
+                              ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)]'
+                              : 'cursor-not-allowed opacity-50'
                           )}
-                          {showRestartGameButton && (
-                            <button
-                              type="button"
-                              onClick={onRestartGame}
-                              className="button-ghost inline-flex h-9 shrink-0 items-center justify-center gap-1 px-2 text-xs"
-                              title="重开对局"
-                              aria-label="重开对局"
-                            >
-                              <RotateCcw size={15} />
-                              重开
-                            </button>
-                          )}
-                        </div>
-                      ) : mobileHeaderActions ? (
-                        <div
-                          data-mobile-header-actions
-                          className="flex shrink-0 items-center gap-1"
+                          title={`${MEMBER_SLOT_LABELS[slot]}: ${label}`}
                         >
-                          {mobileHeaderActions}
+                          <div className="order-2 flex w-full min-w-0 items-center justify-between gap-2 md:order-none">
+                            <span className="text-xs font-bold text-[var(--text-primary)]">
+                              {MEMBER_SLOT_LABELS[slot]}
+                            </span>
+                            {entry?.originalSlot && cardId && (
+                              <span className="rounded border border-[var(--border-default)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
+                                原{MEMBER_SLOT_LABELS[entry.originalSlot].replace('侧', '')}
+                              </span>
+                            )}
+                          </div>
+                          {presentation ? (
+                            <CardDetailPressTarget
+                              cardId={presentation.instanceId}
+                              title={label}
+                              className="order-1 row-span-2 flex justify-center md:order-none md:row-span-1"
+                            >
+                              <Card
+                                cardData={presentation.cardData as AnyCardData}
+                                instanceId={presentation.instanceId}
+                                imagePath={presentation.imagePath}
+                                size="sm"
+                                faceUp={true}
+                                showHover={false}
+                                className="h-[73px] w-[52px] shadow-sm md:h-[105px] md:w-[75px]"
+                              />
+                            </CardDetailPressTarget>
+                          ) : (
+                            <div className="order-1 row-span-2 battle-card-face flex h-[73px] w-[52px] items-center justify-center border border-dashed border-[var(--border-default)] text-xs font-semibold text-[var(--text-muted)] md:order-none md:row-span-1 md:h-[112px] md:w-[80px]">
+                              空
+                            </div>
+                          )}
+                          <div className="order-3 w-full min-w-0 md:order-none">
+                            <div className="line-clamp-1 text-left text-[11px] font-semibold leading-4 text-[var(--text-primary)] md:line-clamp-2 md:min-h-8 md:text-center">
+                              {label}
+                            </div>
+                            <div className="mt-1 flex justify-start gap-1 text-[10px] text-[var(--text-secondary)] md:justify-center">
+                              <span>能量 {entry?.energyBelowCount ?? 0}</span>
+                              <span>下方 {entry?.memberBelowCount ?? 0}</span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {isPublicCardSelectionAutoAdvance && (
+                <div className="mt-3 md:mt-4">
+                  <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
+                    本次公开的选择
+                  </div>
+                  {textOnly ? (
+                    <>
+                      <ExcelPublicCardTable
+                        label="本次公开的选择"
+                        cardIds={publicCardSelectionDisplayEntries.map((entry) => entry.cardId)}
+                        view={playerViewState}
+                      />
+                      <p className="mt-2 text-xs">即将自动继续处理</p>
+                    </>
+                  ) : (
+                    <div className="rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_8%,var(--bg-surface))] p-3">
+                      <div className="flex items-center gap-3 overflow-x-auto pb-1">
+                        <div className="flex shrink-0 flex-col items-center gap-1.5">
+                          <span className="text-[10px] font-semibold text-[var(--text-muted)]">
+                            发动效果的卡牌
+                          </span>
+                          {activeEffectSource ? (
+                            <CardDetailPressTarget
+                              cardId={activeEffectSource.instanceId}
+                              title={activeEffectSourceLabel}
+                              className="flex flex-col items-center gap-1"
+                            >
+                              <Card
+                                cardData={activeEffectSource.cardData as AnyCardData}
+                                instanceId={activeEffectSource.instanceId}
+                                imagePath={activeEffectSource.imagePath}
+                                size="sm"
+                                faceUp={true}
+                                showHover={false}
+                                className="h-[105px] w-[75px]"
+                              />
+                              <span className="line-clamp-2 w-24 text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
+                                {activeEffectSourceLabel}
+                              </span>
+                            </CardDetailPressTarget>
+                          ) : (
+                            <div className="battle-card-face flex h-[105px] w-[75px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
+                              ?
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <div className="h-9 w-9 shrink-0" />
-                      )}
-
-                      <div className="min-w-0 text-center">
-                        <div className="truncate text-[13px] font-bold text-[var(--text-primary)]">
-                          {phaseInfo?.name ?? currentPhase}阶段
-                        </div>
-                        <div className="truncate text-[10px] text-[var(--text-muted)]">
-                          T{turnNumber}
-                          {subPhaseInfo ? ` · ${subPhaseInfo.name}` : ''}
+                        <ChevronRight
+                          className="h-8 w-8 shrink-0 text-[var(--accent-primary)]"
+                          aria-label="选择"
+                        />
+                        <div className="flex shrink-0 items-start gap-2">
+                          {publicCardSelectionDisplayEntries.map((entry) => {
+                            const presentation = getVisibleCardPresentation(entry.cardId);
+                            const cardData = presentation?.cardData;
+                            const label = cardData
+                              ? formatCardCompactLabel(cardData as AnyCardData)
+                              : '已选择的卡牌';
+                            return (
+                              <CardDetailPressTarget
+                                key={entry.cardId}
+                                cardId={presentation?.instanceId ?? null}
+                                disabled={!presentation}
+                                title={label}
+                                className="relative flex w-24 shrink-0 flex-col items-center gap-1"
+                              >
+                                {entry.order !== null && (
+                                  <span className="absolute right-1 top-5 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-white/70 bg-[var(--accent-primary)] px-1 text-[11px] font-bold text-white shadow">
+                                    {entry.order}
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-semibold text-[var(--text-muted)]">
+                                  {entry.order === null ? '选择的卡牌' : `第 ${entry.order} 张`}
+                                </span>
+                                {presentation ? (
+                                  <Card
+                                    cardData={presentation.cardData as AnyCardData}
+                                    instanceId={presentation.instanceId}
+                                    imagePath={presentation.imagePath}
+                                    size="sm"
+                                    faceUp={true}
+                                    showHover={false}
+                                    className="h-[105px] w-[75px]"
+                                  />
+                                ) : (
+                                  <div className="battle-card-face flex h-[105px] w-[75px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
+                                    ?
+                                  </div>
+                                )}
+                                <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
+                                  {label}
+                                </span>
+                              </CardDetailPressTarget>
+                            );
+                          })}
                         </div>
                       </div>
-
-                      <div className="flex shrink-0 items-center gap-1">
-                        {!isReadOnly && (
-                          <MemberOverwriteToggle
-                            enabled={askMemberOverwrite}
-                            onChange={changeAskMemberOverwrite}
-                            className="h-9 w-9"
-                          />
-                        )}
-                        {canShowCardEntrance && (
-                          <CardEntranceToggle
-                            enabled={cardEntranceEnabled}
-                            onChange={changeCardEntranceEnabled}
-                            className="h-9 w-9"
-                          />
-                        )}
-                        <ThemeToggle className="h-9 w-9" />
+                      <div className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--border-subtle)]">
+                        <div className="h-full w-full animate-pulse rounded-full bg-[var(--accent-primary)]" />
+                      </div>
+                      <div className="mt-1.5 text-center text-[11px] font-semibold text-[var(--text-secondary)]">
+                        即将自动继续处理
                       </div>
                     </div>
+                  )}
+                </div>
+              )}
+              {!isPublicCardSelectionAutoAdvance && activeEffectRevealedCardIds.length > 0 && (
+                <div className="mt-3 md:mt-4">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[var(--text-secondary)]">
+                    <span>{isPublicRevealAutoAdvance ? '本次公开的卡牌' : '已公开的卡牌'}</span>
+                    {isPublicRevealAutoAdvance && (
+                      <span
+                        role="status"
+                        aria-live="polite"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] px-2 py-1 text-[11px] text-[var(--text-primary)]"
+                      >
+                        <span
+                          className="h-1.5 w-1.5 rounded-full bg-[var(--accent-primary)] motion-safe:animate-pulse"
+                          aria-hidden="true"
+                        />
+                        公开展示中，即将自动继续
+                      </span>
+                    )}
                   </div>
+                  {textOnly ? (
+                    <ExcelPublicCardTable
+                      label={isPublicRevealAutoAdvance ? '本次公开的卡牌' : '已公开的卡牌'}
+                      cardIds={activeEffectRevealedCardIds}
+                      view={playerViewState}
+                    />
+                  ) : (
+                    <div
+                      className={cn(
+                        'grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2 rounded-lg border bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-2 md:max-h-[32vh] md:grid-cols-[repeat(auto-fill,minmax(76px,1fr))] md:gap-3 md:overflow-y-auto md:p-3',
+                        isPublicRevealAutoAdvance
+                          ? 'border-[var(--border-active)]'
+                          : 'border-[var(--border-subtle)]'
+                      )}
+                    >
+                      {activeEffectRevealedCardIds.map((cardId) => {
+                        const presentation = getVisibleCardPresentation(cardId);
+                        const cardData = presentation?.cardData;
+                        const label = cardData
+                          ? formatCardCompactLabel(cardData as AnyCardData)
+                          : '已公开卡牌';
+                        const entranceDelayMs = isPublicRevealAutoAdvance
+                          ? (publicRevealDisplayEntries.find((entry) => entry.cardId === cardId)
+                              ?.entranceDelayMs ?? 0)
+                          : 0;
+                        const entranceTiming = getPublicRevealEntranceTiming(
+                          { cardId, entranceDelayMs },
+                          prefersReducedMotion
+                        );
 
-                  <div className="battle-mobile-seat-summary relative z-[95] mt-1.5 grid grid-cols-2 items-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_18%,transparent)] px-1.5 py-1.5 shadow-none backdrop-blur-[2px]">
-                    {capabilities.canSwitchPerspective ? (
-                      (['FIRST', 'SECOND'] as const).map((seat) => {
-                        const identity = getPlayerIdentityForSeat(seat);
-                        const isCurrentPerspective = seat === selfSeat;
-                        const handCount = playerViewState.table.zones[`${seat}_HAND`]?.count ?? 0;
-                        const seatLabel = seat === 'FIRST' ? 'P1' : 'P2';
+                        return (
+                          <motion.div
+                            key={
+                              isPublicRevealAutoAdvance
+                                ? `${publicRevealDisplayKey}:${cardId}`
+                                : cardId
+                            }
+                            initial={
+                              isPublicRevealAutoAdvance && entranceTiming.shouldAnimate
+                                ? { opacity: 0, y: 8, scale: 0.97 }
+                                : false
+                            }
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            transition={{
+                              duration: entranceTiming.durationSeconds,
+                              delay: entranceTiming.delaySeconds,
+                              ease: [0.2, 0.8, 0.2, 1],
+                            }}
+                            className="min-w-0"
+                          >
+                            <CardDetailPressTarget
+                              cardId={presentation?.instanceId ?? null}
+                              disabled={!presentation}
+                              title={label}
+                              className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] p-1.5"
+                            >
+                              {presentation ? (
+                                <Card
+                                  cardData={presentation.cardData as AnyCardData}
+                                  instanceId={presentation.instanceId}
+                                  imagePath={presentation.imagePath}
+                                  size="sm"
+                                  faceUp={true}
+                                  showHover={false}
+                                  className="h-[90px] w-[64px] md:h-[105px] md:w-[75px]"
+                                />
+                              ) : (
+                                <div className="battle-card-face flex h-[90px] w-[64px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
+                                  ?
+                                </div>
+                              )}
+                              <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
+                                {label}
+                              </span>
+                            </CardDetailPressTarget>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+              {showOrdinaryActiveEffectControls && activeEffectSelectableCardIds.length > 0 && (
+                <div className="mt-3 md:mt-4">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[var(--text-secondary)]">
+                    <CardEffectText as="span" text={activeEffectSelectionLabel} />
+                    <span className="rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_76%,transparent)] px-2 py-1 text-[11px] text-[var(--text-primary)]">
+                      {activeEffectSelectableBadgeLabel}
+                    </span>
+                  </div>
+                  <div
+                    data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_SELECTION}
+                    className={
+                      textOnly
+                        ? 'excel-candidate-surface'
+                        : cn(
+                            'grid gap-2 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-2 md:max-h-[46vh] md:gap-3 md:overflow-y-auto md:p-3',
+                            activeEffectHasEnergyCandidates
+                              ? 'grid-cols-[repeat(auto-fill,minmax(90px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(105px,1fr))]'
+                              : 'grid-cols-[repeat(auto-fill,minmax(64px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(76px,1fr))]'
+                          )
+                    }
+                  >
+                    {textOnly ? (
+                      <ExcelCandidateTable
+                        key={activeEffect.id + ':' + activeEffect.stepId}
+                        label="效果候选卡牌"
+                        candidates={activeEffectSelectableCardIds.map((cardId, index) => {
+                          const card = activeEffectSelectableObjectsFaceDown
+                            ? null
+                            : selectExcelCard(
+                                playerViewState,
+                                activeEffect.selectableObjectIds![index]
+                              );
+                          return {
+                            id: cardId,
+                            card,
+                            concealed: activeEffectSelectableObjectsFaceDown,
+                            disabled:
+                              !canConfirmActiveEffect ||
+                              isReadOnly ||
+                              (!activeEffectSelectableObjectsFaceDown && !card),
+                            selected: activeEffectUsesOrderedMultiSelect
+                              ? activeEffectOrderedSelection.includes(cardId)
+                              : activeEffectSelectedCardId === cardId,
+                            order: activeEffectUsesOrderedMultiSelect
+                              ? activeEffectOrderedSelection.indexOf(cardId) + 1
+                              : undefined,
+                          };
+                        })}
+                        onSelect={handleActiveEffectCardSelect}
+                      />
+                    ) : (
+                      activeEffectSelectableCardIds.map((cardId, candidateIndex) => {
+                        const presentation = getVisibleCardPresentation(cardId);
+                        const cardData = presentation?.cardData;
+                        const candidateObjectId =
+                          activeEffect?.selectableObjectIds?.[candidateIndex];
+                        const candidateObject = candidateObjectId
+                          ? playerViewState?.objects[candidateObjectId]
+                          : undefined;
+                        const isEnergyCandidate = cardData?.cardType === CardType.ENERGY;
+                        const isWaitingEnergy =
+                          isEnergyCandidate &&
+                          candidateObject?.orientation === OrientationState.WAITING;
+                        const skipsNextActivePhase = candidateObject?.skipsNextActivePhase === true;
+                        const candidateCanBeSelected =
+                          activeEffectSelectableObjectsFaceDown || presentation !== null;
+                        const selectedOrderIndex = activeEffectOrderedSelection.indexOf(cardId);
+                        const isOrderedSelected = selectedOrderIndex >= 0;
+                        const isSingleSelected = activeEffectSelectedCardId === cardId;
+                        const label = activeEffectSelectableObjectsFaceDown
+                          ? `第${candidateIndex + 1}张手牌`
+                          : cardData
+                            ? formatActiveEffectCardCompactLabel(cardId, cardData as AnyCardData)
+                            : '选择此卡';
+                        const energyStatusLabel = isEnergyCandidate
+                          ? `；当前状态：${isWaitingEnergy ? '等待' : '活跃'}`
+                          : '';
+                        const candidateTitle = `${label}${energyStatusLabel}${
+                          skipsNextActivePhase ? '；下次活跃阶段不会自动变为活跃' : ''
+                        }`;
+                        if (isReadOnly) {
+                          return (
+                            <CardDetailPressTarget
+                              key={cardId}
+                              cardId={
+                                activeEffectSelectableObjectsFaceDown
+                                  ? null
+                                  : (presentation?.instanceId ?? null)
+                              }
+                              disabled={activeEffectSelectableObjectsFaceDown || !presentation}
+                              title={candidateTitle}
+                              className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_70%,transparent)] p-1.5"
+                            >
+                              {activeEffectSelectableObjectsFaceDown ? (
+                                <div className="h-[90px] w-[64px] overflow-hidden rounded-lg shadow md:h-[105px] md:w-[75px]">
+                                  <PresentationImage
+                                    src="/back.jpg"
+                                    alt="不可见的手牌"
+                                    className="h-full w-full object-cover"
+                                  />
+                                </div>
+                              ) : presentation ? (
+                                <div
+                                  className={cn(
+                                    'battle-card-face h-[90px] w-[64px] transition-transform md:h-[105px] md:w-[75px]',
+                                    isWaitingEnergy && 'rotate-90',
+                                    skipsNextActivePhase &&
+                                      'ring-2 ring-red-500 ring-offset-2 ring-offset-[var(--bg-surface)]'
+                                  )}
+                                >
+                                  <Card
+                                    cardData={presentation.cardData as AnyCardData}
+                                    instanceId={presentation.instanceId}
+                                    imagePath={presentation.imagePath}
+                                    size="sm"
+                                    faceUp={true}
+                                    showHover={false}
+                                    className={cn(
+                                      'h-full w-full transition-[filter,opacity]',
+                                      isWaitingEnergy && 'opacity-60 grayscale'
+                                    )}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="battle-card-face flex h-[90px] w-[64px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
+                                  ?
+                                </div>
+                              )}
+                              <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
+                                {label}
+                              </span>
+                            </CardDetailPressTarget>
+                          );
+                        }
                         return (
                           <button
-                            key={seat}
+                            key={cardId}
                             type="button"
-                            data-player-identity-seat={seat}
-                            onClick={() => handleMobilePerspectiveSelect(seat)}
-                            aria-pressed={isCurrentPerspective}
-                            aria-label={`${seatLabel} ${identity?.name ?? '玩家'}，手牌 ${handCount} 张${
-                              isCurrentPerspective ? '，当前视角' : '，切换至此视角'
+                            disabled={!canConfirmActiveEffect || !candidateCanBeSelected}
+                            onClick={() => handleActiveEffectCardSelect(cardId)}
+                            className={`group relative flex min-w-0 flex-col items-center gap-1 rounded-lg border p-1.5 transition-colors ${
+                              isOrderedSelected || isSingleSelected
+                                ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
+                                : 'border-transparent'
+                            } ${
+                              canConfirmActiveEffect && candidateCanBeSelected
+                                ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
+                                : 'cursor-not-allowed opacity-50'
                             }`}
-                            className={cn(
-                              'flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition',
-                              isCurrentPerspective
-                                ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_58%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)] text-[var(--text-primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent-primary)_16%,transparent)]'
-                                : 'border-transparent bg-[color:color-mix(in_srgb,var(--bg-overlay)_16%,transparent)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]'
-                            )}
+                            title={candidateTitle}
                           >
-                            <span
-                              className={cn(
-                                'shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold',
-                                isCurrentPerspective
-                                  ? 'bg-[var(--accent-primary)] text-white'
-                                  : 'bg-[var(--bg-overlay)] text-[var(--text-secondary)]'
-                              )}
-                            >
-                              {seatLabel}
-                            </span>
-                            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold">
-                              {identity?.name ?? '玩家'}
-                            </span>
-                            <span
-                              data-mobile-player-hand-count={seat}
-                              className="battle-zone-label battle-zone-count"
-                            >
-                              手牌 {handCount}
+                            {isOrderedSelected && (
+                              <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-[11px] font-bold text-white shadow">
+                                {selectedOrderIndex + 1}
+                              </span>
+                            )}
+                            {isSingleSelected && (
+                              <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-white shadow">
+                                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                              </span>
+                            )}
+                            {activeEffectSelectableObjectsFaceDown ? (
+                              <div className="h-[90px] w-[64px] overflow-hidden rounded-lg shadow md:h-[105px] md:w-[75px]">
+                                <PresentationImage
+                                  src="/back.jpg"
+                                  alt="不可见的手牌"
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                            ) : presentation ? (
+                              <CardDetailPressTarget
+                                cardId={presentation.instanceId}
+                                className="flex h-[90px] w-[90px] items-center justify-center md:h-[105px] md:w-[105px]"
+                                title={candidateTitle}
+                              >
+                                <div
+                                  className={cn(
+                                    'battle-card-face h-[90px] w-[64px] transition-transform md:h-[105px] md:w-[75px]',
+                                    isWaitingEnergy && 'rotate-90',
+                                    skipsNextActivePhase &&
+                                      'ring-2 ring-red-500 ring-offset-2 ring-offset-[var(--bg-surface)]'
+                                  )}
+                                >
+                                  <Card
+                                    cardData={presentation.cardData as AnyCardData}
+                                    instanceId={presentation.instanceId}
+                                    imagePath={presentation.imagePath}
+                                    size="sm"
+                                    faceUp={true}
+                                    showHover={false}
+                                    className={cn(
+                                      'h-full w-full transition-[filter,opacity]',
+                                      isWaitingEnergy && 'opacity-60 grayscale'
+                                    )}
+                                  />
+                                </div>
+                              </CardDetailPressTarget>
+                            ) : (
+                              <div className="battle-card-face flex h-[90px] w-[64px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
+                                ?
+                              </div>
+                            )}
+                            <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+                              {label}
                             </span>
                           </button>
                         );
                       })
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          data-player-identity-seat={opponentSeat}
-                          data-mobile-player-status-seat={opponentSeat}
-                          data-mobile-active-player={
-                            resolvedActiveSeat === opponentSeat ? 'true' : undefined
-                          }
-                          onClick={handleMobileOpponentAction}
-                          aria-pressed={mobilePanel === 'opponent'}
-                          aria-label={`${opponentIdentity?.name ?? '对手'}，手牌 ${opponentHandCount} 张，${isSolitaire ? '查看对墙打对手战场' : '查看对手战场'}${resolvedActiveSeat === opponentSeat ? '，当前行动玩家' : ''}`}
-                          className={cn(
-                            'flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]',
-                            getMobilePlayerStatusStateClass(
-                              mobilePanel === 'opponent',
-                              resolvedActiveSeat === opponentSeat
-                            )
-                          )}
-                          title={isSolitaire ? '查看对墙打对手战场' : '查看对手战场'}
-                        >
-                          <UserRound size={14} className="shrink-0" />
-                          <span className="min-w-0 truncate text-[11px] font-semibold text-[var(--text-primary)]">
-                            {opponentIdentity?.name ?? '对手'}
-                          </span>
-                          <span
-                            data-mobile-player-hand-count={opponentSeat}
-                            className="battle-zone-label battle-zone-count"
-                          >
-                            手牌 {opponentHandCount}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          data-mobile-player-status-seat={selfSeat}
-                          data-mobile-active-player={
-                            resolvedActiveSeat === selfSeat ? 'true' : undefined
-                          }
-                          onClick={() => setMobilePanel(null)}
-                          aria-pressed={mobilePanel !== 'opponent'}
-                          aria-label={`${selfIdentity?.name ?? '己方'}，手牌 ${selfHandCount} 张，返回己方战场${resolvedActiveSeat === selfSeat ? '，当前行动玩家' : ''}`}
-                          className={cn(
-                            'flex min-w-0 items-center justify-end gap-1.5 rounded-lg border px-2 py-1.5 text-left transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]',
-                            getMobilePlayerStatusStateClass(
-                              mobilePanel !== 'opponent',
-                              resolvedActiveSeat === selfSeat
-                            )
-                          )}
-                          title="返回己方战场"
-                        >
-                          <span className="min-w-0 truncate text-right text-[11px] font-semibold text-[var(--text-primary)]">
-                            {selfIdentity?.name ?? '己方'}
-                          </span>
-                          <span
-                            data-mobile-player-hand-count={selfSeat}
-                            className="battle-zone-label battle-zone-count"
-                          >
-                            手牌 {selfHandCount}
-                          </span>
-                        </button>
-                      </>
                     )}
                   </div>
                 </div>
-
-                <div className="min-h-0 flex-1 px-2 pb-[104px] pt-1.5">
-                  <motion.div
-                    key={`mobile-perspective-${selfSeat}`}
-                    data-perspective-surface="mobile-self"
-                    initial={{
-                      opacity: 0,
-                      y: prefersReducedMotion ? 0 : 10,
-                      scale: prefersReducedMotion ? 1 : 0.995,
-                    }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{
-                      duration: prefersReducedMotion ? 0.08 : 0.18,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                    className="battle-mobile-surface flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_10%,transparent)] shadow-none"
-                  >
-                    <div className="min-h-0 flex-1 overflow-hidden">
-                      <PlayerArea
-                        interactionSuspended={entranceWaiting}
-                        playerSeat={selfSeat}
-                        isOpponent={false}
-                        isActive={resolvedActiveSeat === selfSeat}
-                        suppressActiveEffectVisuals={isActiveEffectUiSuspended}
-                        isInspectionZoneCollapsed={isInspectionZoneCollapsed}
-                        onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
-                        selectedHandCardActionCardId={selectedHandCardActionCardId}
-                        selectedHandCardActions={selectedHandCardActions}
-                        suppressSelectedHandCardActionMenu={!!activeMemberPlayOptionSelection}
-                        onSelectedHandCardAction={handleSelectedHandCardAction}
-                        onPlayMemberToSlot={requestPlayMember}
-                      />
-                    </div>
-                  </motion.div>
-                </div>
-
-                <div
-                  className={cn(
-                    'battle-mobile-actions safe-bottom fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-[65] grid gap-1 md:hidden',
-                    mobileActionGridClass
-                  )}
+              )}
+            </div>
+            <div
+              data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_CONFIRM}
+              className={cn(
+                'flex shrink-0 gap-2 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 md:mt-4 md:border-t-0 md:bg-transparent md:p-0',
+                isActiveEffectOrderSelectionWindow
+                  ? 'flex-col items-stretch justify-start'
+                  : 'flex-wrap justify-end',
+                isReadOnly && 'hidden'
+              )}
+            >
+              {isPublicCardSelectionAutoAdvance && publicSelectionFallbackReady && (
+                <button
+                  type="button"
+                  disabled={isReadOnly || !canConfirmEffectCommand}
+                  onClick={() =>
+                    autoAdvancePublicCardSelection(
+                      activeEffect.id,
+                      activeEffect.publicCardSelectionAutoAdvanceAt!
+                    )
+                  }
+                  className="button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold"
                 >
+                  继续处理
+                </button>
+              )}
+              {isPublicEffectChoiceAutoAdvance && publicEffectChoiceFallbackReady && (
+                <button
+                  type="button"
+                  disabled={isReadOnly || !canConfirmEffectCommand}
+                  onClick={() =>
+                    autoAdvancePublicEffectChoice(
+                      activeEffect.id,
+                      activeEffect.publicEffectChoiceAutoAdvanceAt!
+                    )
+                  }
+                  className="button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold"
+                >
+                  继续处理
+                </button>
+              )}
+              {isPublicRevealAutoAdvance &&
+                publicRevealFallbackReady &&
+                publicRevealEffectId !== null &&
+                publicRevealAutoAdvanceAt !== null &&
+                publicRevealGeneration !== null && (
                   <button
                     type="button"
-                    onClick={handleMobileOpponentAction}
-                    className="relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]"
-                    aria-label={
-                      capabilities.canSwitchPerspective
-                        ? `切换至 ${opponentIdentity?.name ?? '对手'} 视角`
-                        : undefined
+                    disabled={isReadOnly || !canConfirmEffectCommand}
+                    onClick={() =>
+                      autoAdvancePublicReveal(
+                        publicRevealEffectId,
+                        publicRevealAutoAdvanceAt,
+                        publicRevealGeneration
+                      )
                     }
-                    title={
-                      capabilities.canSwitchPerspective
-                        ? `切换至 ${opponentIdentity?.name ?? '对手'} 视角`
-                        : isSolitaire
-                          ? '查看对墙打对手战场'
-                          : '查看对手战场'
-                    }
+                    className="button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold"
                   >
-                    {capabilities.canSwitchPerspective ? (
-                      <ArrowRightLeft size={16} />
-                    ) : (
-                      <Swords size={16} />
-                    )}
-                    <span className="truncate">
-                      {capabilities.canSwitchPerspective ? '视角' : '对手'}
-                    </span>
+                    继续处理
                   </button>
-
-                  {primaryMobileLogPanel && (
+                )}
+              {showLegacyActiveEffectControls && activeEffectStageFormation && (
+                <button
+                  type="button"
+                  disabled={!canConfirmActiveEffect}
+                  onClick={handleConfirmStageFormation}
+                  className={`button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold ${
+                    canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                  确认站位
+                </button>
+              )}
+              {showLegacyActiveEffectControls &&
+                activeEffectSelectableSlots.map((slot) => {
+                  const slotLabel =
+                    slot === SlotPosition.LEFT
+                      ? '左侧'
+                      : slot === SlotPosition.CENTER
+                        ? '中央'
+                        : '右侧';
+                  const slotActionLabel =
+                    activeEffect.confirmSelectionLabel === '登场' ? '登场至' : '移动到';
+                  return (
                     <button
+                      key={slot}
                       type="button"
-                      onClick={() => setMobilePanel(primaryMobileLogPanel)}
-                      className="relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]"
-                      title={canShowPublicBattleLog ? '查看公开对局日志' : '查看调试日志'}
+                      disabled={!canConfirmActiveEffect}
+                      onClick={() =>
+                        confirmEffectStep(activeEffect.id, undefined, slot as SlotPosition)
+                      }
+                      className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
+                        canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                      }`}
                     >
-                      <ScrollText size={16} />
-                      <span className="truncate">{canShowPublicBattleLog ? '对局' : '日志'}</span>
-                      {primaryMobileLogCount > 0 && (
-                        <span className="absolute right-1 top-1 min-w-4 rounded-full bg-[var(--accent-primary)] px-1 text-[10px] leading-4 text-white shadow-[var(--shadow-sm)]">
-                          {primaryMobileLogBadge}
-                        </span>
-                      )}
+                      {slotActionLabel}
+                      {slotLabel}
                     </button>
-                  )}
-
-                  {showMobileFreePlay && (
-                    <button
-                      type="button"
-                      onClick={() => setFreePlayEnabled(!freePlayEnabled)}
-                      disabled={manualOperationSwitchDisabled}
-                      aria-pressed={freePlayEnabled}
-                      className={cn(
-                        'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border px-1.5 py-1.5 text-[10px] font-semibold shadow-none backdrop-blur-[2px] transition',
-                        freePlayEnabled
-                          ? 'border-[color:color-mix(in_srgb,var(--semantic-warning)_68%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_20%,var(--bg-frosted))] text-[var(--semantic-warning)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--semantic-warning)_22%,transparent),0_0_18px_color-mix(in_srgb,var(--semantic-warning)_20%,transparent)]'
-                          : 'border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]'
-                      )}
-                      title={freePlayControlTitle}
-                    >
-                      <Zap size={16} className={cn(freePlayEnabled && 'fill-current')} />
-                      <span className="truncate">{freePlayEnabled ? '自由' : '规则'}</span>
-                    </button>
-                  )}
-
-                  {canShowUndo && (
-                    <button
-                      type="button"
-                      onClick={undoLastStep}
-                      disabled={!canUndoLastStep}
-                      className={cn(
-                        'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]',
-                        !canUndoLastStep &&
-                          'cursor-not-allowed opacity-50 hover:border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] hover:text-[var(--text-secondary)]'
-                      )}
-                      title={undoButtonLabel}
-                    >
-                      <Undo2 size={16} />
-                      <span className="truncate">{mobileUndoButtonLabel}</span>
-                    </button>
-                  )}
-
+                  );
+                })}
+              {showLegacyActiveEffectControls &&
+                activeEffectSelectableOptions.map((option) => (
                   <button
+                    key={option.id}
                     type="button"
-                    onClick={handleOpenJudgmentPanel}
-                    disabled={!isJudgmentPanelRelevant}
-                    aria-expanded={judgmentPanelOpen}
-                    aria-controls="judgment-panel"
-                    aria-label={
-                      isJudgmentPanelRelevant ? '打开应援/判定区' : '当前没有可打开的应援/判定区'
+                    disabled={
+                      !canConfirmActiveEffect ||
+                      (activeEffectUsesCardOptionSelection && !activeEffectSelectedCardId)
+                    }
+                    onClick={() =>
+                      confirmEffectStep(
+                        activeEffect.id,
+                        activeEffectUsesCardOptionSelection
+                          ? activeEffectSelectedCardId
+                          : undefined,
+                        undefined,
+                        undefined,
+                        option.id
+                      )
                     }
                     className={cn(
-                      'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]',
-                      isJudgmentPanelRelevant &&
-                        'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,var(--bg-frosted))] text-[var(--accent-primary)]',
-                      !isJudgmentPanelRelevant &&
-                        'cursor-not-allowed opacity-50 hover:border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] hover:text-[var(--text-secondary)]'
+                      'button-secondary inline-flex min-h-10 items-center px-3 text-sm font-semibold',
+                      isActiveEffectOrderSelectionWindow
+                        ? 'w-full justify-start py-3 text-left leading-relaxed'
+                        : 'justify-center',
+                      canConfirmActiveEffect &&
+                        (!activeEffectUsesCardOptionSelection || activeEffectSelectedCardId)
+                        ? ''
+                        : 'cursor-not-allowed opacity-50'
                     )}
-                    title={
-                      isJudgmentPanelRelevant ? '打开应援/判定区' : '当前没有可打开的应援/判定区'
-                    }
                   >
-                    <PanelLeftOpen size={16} />
-                    <span className="truncate">判定</span>
+                    <CardEffectText
+                      as="span"
+                      text={option.label}
+                      className={cn(
+                        isActiveEffectOrderSelectionWindow
+                          ? 'block w-full whitespace-pre-line break-normal text-left leading-relaxed'
+                          : 'inline-flex items-center justify-center gap-1 whitespace-normal break-normal'
+                      )}
+                    />
                   </button>
+                ))}
+              {showLegacyActiveEffectControls && activeEffectNumericInput && (
+                <div className="flex min-w-[180px] flex-col gap-1">
+                  <label className="text-xs font-semibold text-[var(--text-secondary)]">
+                    {activeEffectNumericInput.label ?? '数字'}
+                    {textOnly && (
+                      <>
+                        （{activeEffectNumericInput.min ?? '不限'}–
+                        {activeEffectNumericInput.max ?? '不限'}
+                        {activeEffectNumericInput.integerOnly ? '，整数' : ''}）
+                      </>
+                    )}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      aria-label={textOnly ? (activeEffectNumericInput.label ?? '数字') : undefined}
+                      min={activeEffectNumericInput.min ?? undefined}
+                      max={activeEffectNumericInput.max ?? undefined}
+                      step={activeEffectNumericInput.integerOnly === true ? 1 : undefined}
+                      value={activeEffectNumberInput}
+                      placeholder={activeEffectNumericInput.placeholder}
+                      onChange={(event) => setActiveEffectNumberInput(event.currentTarget.value)}
+                      className="min-h-10 w-28 rounded border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 text-sm font-semibold text-[var(--text-primary)] outline-none focus:border-[var(--border-active)]"
+                    />
+                    <button
+                      type="button"
+                      disabled={!canConfirmActiveEffectNumber}
+                      onClick={() =>
+                        confirmEffectStep(
+                          activeEffect.id,
+                          undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          activeEffectSelectedNumber
+                        )
+                      }
+                      className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                        canConfirmActiveEffectNumber ? '' : 'cursor-not-allowed opacity-50'
+                      }`}
+                    >
+                      {activeEffectNumericInput.confirmLabel ?? '确认'}
+                    </button>
+                  </div>
                 </div>
-
-                <AnimatePresence>
-                  {!entranceWaiting && mobilePanel && (
-                    <>
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="modal-backdrop fixed inset-0 z-[85] md:hidden"
-                        onClick={() => setMobilePanel(null)}
-                      />
-                      <motion.div
-                        initial={{ y: '100%' }}
-                        animate={{ y: 0 }}
-                        exit={{ y: '100%' }}
-                        transition={{ type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-                        className="battle-mobile-drawer safe-bottom fixed inset-x-0 bottom-0 z-[90] flex max-h-[var(--battle-viewport-height-82)] min-h-[var(--battle-viewport-height-52)] flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] md:hidden"
-                        style={
-                          mobilePanel === 'opponent'
-                            ? {
-                                height: 'var(--battle-viewport-height-88)',
-                                maxHeight: 'var(--battle-viewport-height-88)',
-                              }
-                            : undefined
-                        }
-                      >
-                        <div className="shrink-0 px-4 pb-2 pt-3">
-                          <div className="mb-3 flex justify-center">
-                            <div className="h-1.5 w-12 rounded-full bg-[var(--border-default)]" />
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-bold text-[var(--text-primary)]">
-                                {mobilePanel === 'opponent'
-                                  ? '对手战场'
-                                  : mobilePanel === 'publicLog'
-                                    ? '对局日志'
-                                    : '调试日志'}
-                              </div>
-                              <div className="mt-0.5 text-xs text-[var(--text-muted)]">
-                                {mobilePanel === 'opponent'
-                                  ? (opponentIdentity?.name ?? opponentSeat)
-                                  : mobilePanel === 'publicLog'
-                                    ? `${publicLogCount} 条公开事件`
-                                    : `${logCount} 条记录`}
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setMobilePanel(null)}
-                              className="button-icon h-9 w-9 shrink-0"
-                            >
-                              <X size={16} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {mobilePanel === 'opponent' ? (
-                          <div className="min-h-0 flex-1 overflow-hidden px-2 pb-20">
-                            <div className="h-full overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
-                              <PlayerArea
-                                interactionSuspended={entranceWaiting}
-                                playerSeat={opponentSeat}
-                                isOpponent={true}
-                                isActive={resolvedActiveSeat === opponentSeat}
-                                suppressActiveEffectVisuals={isActiveEffectUiSuspended}
-                                isInspectionZoneCollapsed={isInspectionZoneCollapsed}
-                                onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
-                              />
-                            </div>
-                          </div>
-                        ) : mobilePanel === 'publicLog' ? (
-                          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3">
-                            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
-                              <PublicBattleLogContent active={mobilePanel === 'publicLog'} />
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3">
-                            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
-                              <GameLogContent active={mobilePanel === 'log'} />
-                            </div>
-                          </div>
-                        )}
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
-              </div>
-            ) : (
-              <>
-                {!entranceWaiting && canShowPublicBattleLog && (
-                  <PublicBattleLogPanel docked={canDockBattlePanel} />
+              )}
+              {textOnly &&
+                showLegacyActiveEffectControls &&
+                activeEffectUsesOrderedMultiSelect &&
+                activeEffectOrderedSelection.length > 0 && (
+                  <ol className="w-full" aria-label="已选顺序">
+                    {activeEffectOrderedSelection.map((cardId, index) => (
+                      <li key={cardId}>
+                        <span>
+                          {index + 1}.{' '}
+                          {activeEffectSelectableObjectsFaceDown
+                            ? `匿名候选 ${activeEffectSelectableCardIds.indexOf(cardId) + 1}`
+                            : (() => {
+                                const card = getVisibleCardPresentation(cardId);
+                                return card
+                                  ? formatCardCompactLabel(card.cardData as AnyCardData)
+                                  : `候选 ${index + 1}`;
+                              })()}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={!canConfirmActiveEffect || index === 0}
+                          aria-label={`第 ${index + 1} 项上移`}
+                          onClick={() =>
+                            setActiveEffectOrderedSelection((current) => {
+                              const next = [...current];
+                              [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                              return next;
+                            })
+                          }
+                        >
+                          上移
+                        </button>
+                        <button
+                          type="button"
+                          disabled={
+                            !canConfirmActiveEffect ||
+                            index === activeEffectOrderedSelection.length - 1
+                          }
+                          aria-label={`第 ${index + 1} 项下移`}
+                          onClick={() =>
+                            setActiveEffectOrderedSelection((current) => {
+                              const next = [...current];
+                              [next[index], next[index + 1]] = [next[index + 1], next[index]];
+                              return next;
+                            })
+                          }
+                        >
+                          下移
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
                 )}
-                {canShowDebugLog && (
-                  <GameLog
-                    isOpen={showDesktopDebugLog}
-                    onClose={() => setDesktopDebugLogOpen(false)}
-                    docked={canDockBattlePanel}
-                  />
-                )}
-                <div data-battle-tabletop className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-                  {/* 对手区域 (顶部) - 包含成员槽位和对手 Live 区 */}
-                  <motion.div
-                    key={`desktop-opponent-${opponentSeat}`}
-                    data-perspective-surface="desktop-opponent"
-                    initial={{ opacity: 0, y: prefersReducedMotion ? 0 : -10 }}
-                    animate={{ opacity: isSolitaire ? 0.12 : 1, y: 0 }}
-                    transition={{
-                      duration: prefersReducedMotion ? 0.08 : 0.18,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                    className={`relative flex-[5] min-h-0 overflow-hidden ${
-                      isSolitaire ? 'opacity-[0.12] pointer-events-none' : ''
+              {showLegacyActiveEffectControls &&
+                activeEffectUsesOrderedMultiSelect &&
+                !activeEffectUsesImmediateOrderedSingleSelect &&
+                (activeEffectSelectableCardIds.length > 0 ||
+                  activeEffectMinSelectableCards === 0) && (
+                  <button
+                    type="button"
+                    disabled={!canConfirmOrderedEffectSelection}
+                    onClick={() =>
+                      confirmEffectStep(
+                        activeEffect.id,
+                        undefined,
+                        undefined,
+                        undefined,
+                        undefined,
+                        activeEffectOrderedSelection
+                      )
+                    }
+                    className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                      canConfirmOrderedEffectSelection ? '' : 'cursor-not-allowed opacity-50'
                     }`}
                   >
-                    <PlayerArea
-                      interactionSuspended={entranceWaiting}
-                      playerSeat={opponentSeat}
-                      isOpponent={true}
-                      isActive={resolvedActiveSeat === opponentSeat}
-                      suppressActiveEffectVisuals={isActiveEffectUiSuspended}
-                      isInspectionZoneCollapsed={isInspectionZoneCollapsed}
-                      onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
+                    <CardEffectText
+                      as="span"
+                      text={activeEffect.confirmSelectionLabel ?? '确认选择'}
+                      className="inline-flex items-center justify-center gap-1"
                     />
-                  </motion.div>
-
-                  {/* VS 分隔线 (中央) - 对墙打模式下弱化 */}
-                  <div
-                    className="relative flex h-[24px] flex-shrink-0 items-center justify-center border-y"
-                    style={{
-                      borderColor: isSolitaire
-                        ? 'color-mix(in srgb, var(--border-default) 30%, transparent)'
-                        : 'var(--border-default)',
-                      background: isSolitaire
-                        ? 'color-mix(in srgb, var(--bg-overlay) 16%, transparent)'
-                        : 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-primary) 12%, transparent), color-mix(in srgb, var(--accent-secondary) 12%, transparent), transparent)',
-                    }}
+                  </button>
+                )}
+              {showLegacyActiveEffectControls && activeEffect.canResolveInOrder && (
+                <button
+                  type="button"
+                  disabled={!canConfirmActiveEffect}
+                  onClick={() => confirmEffectStep(activeEffect.id, undefined, null, true)}
+                  className={cn(
+                    'button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold',
+                    isActiveEffectOrderSelectionWindow && 'self-end',
+                    canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                  )}
+                >
+                  顺序发动
+                </button>
+              )}
+              {showLegacyActiveEffectControls &&
+                activeEffect.canSkipSelection &&
+                (activeEffectSelectableCardIds.length > 0 ||
+                  activeEffectSelectableSlots.length > 0 ||
+                  activeEffectSelectableOptions.length > 0 ||
+                  !!activeEffectStageFormation ||
+                  !!activeEffectNumericInput ||
+                  activeEffect.canResolveInOrder) && (
+                  <button
+                    type="button"
+                    disabled={!canConfirmActiveEffect}
+                    onClick={() => confirmEffectStep(activeEffect.id, null)}
+                    className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
+                      canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                    }`}
                   >
-                    <span
-                      className="px-4 text-lg font-bold tracking-[0.08em]"
-                      style={{
-                        color: isSolitaire ? 'var(--text-muted)' : 'var(--accent-primary)',
-                        textShadow: isSolitaire
-                          ? 'none'
-                          : '0 0 12px color-mix(in srgb, var(--accent-primary) 35%, transparent)',
-                      }}
-                    >
-                      VS
-                    </span>
+                    {activeEffect.skipSelectionLabel ?? '不加入'}
+                  </button>
+                )}
+              {showLegacyActiveEffectControls &&
+                activeEffectSelectableCardIds.length === 0 &&
+                activeEffectSelectableSlots.length === 0 &&
+                activeEffectSelectableOptions.length === 0 &&
+                !activeEffectStageFormation &&
+                !activeEffectNumericInput &&
+                !activeEffect.canSkipSelection &&
+                !activeEffect.canResolveInOrder && (
+                  <button
+                    type="button"
+                    disabled={!canConfirmActiveEffect}
+                    onClick={() => confirmEffectStep(activeEffect.id)}
+                    className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                      canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    {activeEffect.confirmSelectionLabel ?? '继续处理'}
+                  </button>
+                )}
+              {showLegacyActiveEffectControls &&
+                activeEffectSelectableCardIds.length === 0 &&
+                activeEffectSelectableSlots.length === 0 &&
+                activeEffectSelectableOptions.length === 0 &&
+                !activeEffectStageFormation &&
+                !activeEffectNumericInput &&
+                activeEffect.canSkipSelection && (
+                  <button
+                    type="button"
+                    disabled={!canConfirmActiveEffect}
+                    onClick={() => confirmEffectStep(activeEffect.id, null)}
+                    className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
+                      canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    {activeEffect.skipSelectionLabel ?? '继续处理'}
+                  </button>
+                )}
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {!entranceWaiting && pendingSpecialMemberPlay && (
+        <div className="battle-overlay-surface pointer-events-auto fixed left-1/2 top-1/2 z-[97] w-[min(94vw,720px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
+          {controlsPendingSpecialPlay ? (
+            <>
+              <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
+                {pendingSpecialMemberPlay.selectionLabel}
+              </div>
+              <p className="mt-2 text-sm leading-relaxed">{pendingSpecialMemberPlay.stepText}</p>
+              <div
+                className={
+                  textOnly
+                    ? 'excel-candidate-surface mt-3'
+                    : 'mt-3 grid max-h-[48vh] grid-cols-[repeat(auto-fill,minmax(78px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] p-3'
+                }
+              >
+                {textOnly ? (
+                  <ExcelCandidateTable
+                    label="特殊登场支付候选卡牌"
+                    candidates={pendingSpecialPlayCandidateIds.map((cardId) => {
+                      const card = selectExcelCard(playerViewState, `obj_${cardId}`);
+                      return {
+                        id: cardId,
+                        card,
+                        disabled: !card || isReadOnly || pendingSpecialPlayRequiredCount === 0,
+                        selected: specialPlayPaymentSelection.includes(cardId),
+                        order: specialPlayPaymentSelection.indexOf(cardId) + 1,
+                      };
+                    })}
+                    onSelect={handleToggleSpecialPlayPayment}
+                  />
+                ) : (
+                  pendingSpecialPlayCandidateIds.map((cardId) => {
+                    const presentation = getVisibleCardPresentation(cardId);
+                    if (!presentation) return null;
+                    const selected = specialPlayPaymentSelection.includes(cardId);
+                    return (
+                      <button
+                        key={cardId}
+                        type="button"
+                        disabled={pendingSpecialPlayRequiredCount === 0}
+                        onClick={() => handleToggleSpecialPlayPayment(cardId)}
+                        className={cn(
+                          'relative flex min-w-0 flex-col items-center rounded-lg border p-1.5 transition-colors',
+                          selected
+                            ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)]'
+                            : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]',
+                          pendingSpecialPlayRequiredCount === 0 && 'cursor-default'
+                        )}
+                        title={formatCardCompactLabel(presentation.cardData as AnyCardData)}
+                      >
+                        <div className="h-[105px] w-[75px] overflow-hidden rounded-lg">
+                          <Card
+                            cardData={presentation.cardData as AnyCardData}
+                            instanceId={presentation.instanceId}
+                            imagePath={presentation.imagePath}
+                            size="sm"
+                            faceUp={true}
+                            showHover={false}
+                            className="h-full w-full"
+                          />
+                        </div>
+                        {selected && pendingSpecialPlayRequiredCount > 0 && (
+                          <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
+                            {specialPlayPaymentSelection.indexOf(cardId) + 1}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => cancelSpecialMemberPlay(pendingSpecialMemberPlay.id)}
+                  className="button-secondary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  disabled={specialPlayPaymentSelection.length !== pendingSpecialPlayRequiredCount}
+                  onClick={() =>
+                    confirmSpecialMemberPlay(
+                      pendingSpecialMemberPlay.id,
+                      specialPlayPaymentSelection
+                    )
+                  }
+                  className={cn(
+                    'button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold',
+                    specialPlayPaymentSelection.length !== pendingSpecialPlayRequiredCount &&
+                      'cursor-not-allowed opacity-50'
+                  )}
+                >
+                  {pendingSpecialMemberPlay.confirmSelectionLabel}
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="text-center text-sm font-semibold">等待对方完成特殊登场</p>
+          )}
+        </div>
+      )}
+
+      {!entranceWaiting && pendingCostPayment && (
+        <div className="battle-overlay-surface pointer-events-auto fixed left-1/2 top-1/2 z-[96] w-[min(92vw,540px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
+                支付登场费用
+              </div>
+              <div className="mt-1 text-sm font-semibold">
+                {pendingCostSource
+                  ? formatCardCompactLabel(pendingCostSource.cardData as AnyCardData)
+                  : '成员登场'}
+              </div>
+            </div>
+            <div className="rounded border border-[var(--border-default)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
+              {pendingCostPayment.finalEnergyCost}费
+            </div>
+          </div>
+          <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-3">
+            <p className="text-sm leading-relaxed">
+              确认支付 {pendingCostPayment.finalEnergyCost} 费让这张成员登场。
+            </p>
+            {pendingCostPayment.explanation && (
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                {pendingCostPayment.explanation}
+              </p>
+            )}
+            {pendingCostEnergyIds.length < pendingCostPayment.finalEnergyCost && (
+              <p className="mt-1 text-xs text-[var(--semantic-error)]">可用能量不足，无法支付。</p>
+            )}
+          </div>
+          {!isReadOnly && (
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                disabled={!canConfirmCostPayment}
+                onClick={() => confirmCostPayment(pendingCostPayment.id, autoCostEnergyIds)}
+                className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                  canConfirmCostPayment ? '' : 'cursor-not-allowed opacity-50'
+                }`}
+              >
+                确认支付
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Live 分数最终确认弹窗（居中） */}
+      {!isReadOnly && !entranceWaiting && <ScoreConfirmModal />}
+
+      {/* 换牌面板 */}
+      <MulliganPanel
+        isOpen={!isReadOnly && mulliganPanelOpen && mulliganPanelVisible}
+        selectableCardIds={mulliganSelectableCardIds}
+        onSelectionChange={onMulliganSelectionChange}
+      />
+
+      {!isReadOnly && pendingUndoRequest && (
+        <div className="pointer-events-auto fixed inset-0 z-[110] flex items-center justify-center px-4">
+          <div className="modal-backdrop absolute inset-0" />
+          <div className="modal-surface modal-accent-indigo relative w-[min(92vw,460px)] p-5 text-[var(--text-primary)]">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--accent-primary)]">
+                <Undo2 className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
+                  撤销请求
+                </div>
+                <div className="mt-1 text-sm font-semibold">
+                  {pendingUndoRequesterName} 请求撤销上一步
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+                  {pendingUndoRequest.summary}
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-[var(--text-muted)]">
+                  如果这一步公开了隐藏信息，撤销只回滚局面，不能消除已经看到的信息。
+                </p>
+                {pendingUndoCanRespond && (
+                  <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
+                    也可以允许对手连续撤销这一串操作；换阶段或有新动作后会失效。
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {pendingUndoIsRequester ? (
+              <div className="mt-4 rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+                等待对手回应
+              </div>
+            ) : (
+              <div className="mt-5 flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={!pendingUndoCanRespond}
+                  onClick={() => respondRemoteUndoRequest(pendingUndoRequest.requestId, false)}
+                  className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 text-sm font-semibold"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                  拒绝
+                </button>
+                <button
+                  type="button"
+                  disabled={!pendingUndoCanRespond}
+                  onClick={() => respondRemoteUndoRequest(pendingUndoRequest.requestId, true)}
+                  className="button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold"
+                >
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                  接受
+                </button>
+                <button
+                  type="button"
+                  disabled={!pendingUndoCanRespond}
+                  onClick={() =>
+                    respondRemoteUndoRequest(pendingUndoRequest.requestId, true, {
+                      grantContinuous: true,
+                    })
+                  }
+                  className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 text-sm font-semibold"
+                >
+                  <Repeat2 className="h-4 w-4" aria-hidden="true" />
+                  允许连续
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!isReadOnly && pendingManualOperationRequest && (
+        <div className="pointer-events-auto fixed inset-0 z-[111] flex items-center justify-center px-4">
+          <div className="modal-backdrop absolute inset-0" />
+          <div className="modal-surface modal-accent-indigo relative w-[min(92vw,460px)] p-5 text-[var(--text-primary)]">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-[var(--semantic-warning)]/40 bg-[var(--semantic-warning)]/10 text-[var(--semantic-warning)]">
+                <Zap className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
+                  自由模式请求
+                </div>
+                <div className="mt-1 text-sm font-semibold">
+                  {pendingManualOperationRequesterName} 请求开启自由模式
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+                  开启后，双方可免费登场及手动调整己方区域，用于人工处理尚未自动化的规则。
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-[var(--text-muted)]">
+                  不会获得操作对手或读取对手隐藏信息的权限。任意一方都可在安全时点单方恢复规则模式。
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              {pendingManualOperationIsRequester ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    respondManualOperationModeRequest(
+                      pendingManualOperationRequest.requestId,
+                      'cancel'
+                    )
+                  }
+                  className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 text-sm font-semibold"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                  取消请求
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    disabled={!pendingManualOperationCanRespond}
+                    onClick={() =>
+                      respondManualOperationModeRequest(
+                        pendingManualOperationRequest.requestId,
+                        'reject'
+                      )
+                    }
+                    className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 text-sm font-semibold"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                    拒绝
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!pendingManualOperationCanRespond}
+                    onClick={() =>
+                      respondManualOperationModeRequest(
+                        pendingManualOperationRequest.requestId,
+                        'accept'
+                      )
+                    }
+                    className="button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold"
+                  >
+                    <Check className="h-4 w-4" aria-hidden="true" />
+                    同意开启
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  const ordinaryBoard = (
+    <div
+      ref={setBoardRoot}
+      data-battle-ui-anchor={BATTLE_UI_ANCHORS.BOARD}
+      className="battle-table isolate h-full flex flex-col relative overflow-hidden bg-[var(--board-wallpaper-base)]"
+      onClick={handleBattlefieldBackgroundClick}
+    >
+      <BoardBackground {...tableWallpaper} className="-z-10" />
+      <BattleAnimationLayer />
+      <EffectFeedbackLayer />
+      <div ref={attachEntranceSurface} className="contents" />
+      <div
+        className="contents"
+        inert={
+          entranceWaiting ||
+          (isMobileBattlefield &&
+            !entranceWaiting &&
+            judgmentPanelVisible &&
+            isJudgmentPanelRelevant &&
+            judgmentPanelOpen)
+        }
+      >
+        {!entranceWaiting && <BattleActionFeedbackLayer />}
+        {!isReadOnly && <RankedStallNotice stall={rankedStall} viewerSeat={viewerSeat} />}
+
+        {!isMobileBattlefield && (
+          <header className="battle-desktop-toolbar" aria-label="对战工具栏">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {desktopHeaderActions}
+              {(showLeaveLocalGameButton || showRestartGameButton) && (
+                <BattleToolbarMenu label="房间" icon={<DoorOpen size={16} />}>
+                  {(close) => (
+                    <>
+                      {showRestartGameButton && (
+                        <button
+                          type="button"
+                          className="button-ghost flex min-h-11 w-full items-center gap-2 px-3"
+                          onClick={() => {
+                            close();
+                            onRestartGame?.();
+                          }}
+                        >
+                          <RotateCcw size={16} />
+                          重开对局
+                        </button>
+                      )}
+                      {showLeaveLocalGameButton && (
+                        <button
+                          type="button"
+                          className="button-ghost flex min-h-11 w-full items-center gap-2 px-3"
+                          title={leaveLocalGameButtonTitle}
+                          onClick={() => {
+                            close();
+                            onLeaveLocalGame?.();
+                          }}
+                        >
+                          <DoorOpen size={16} />
+                          离开房间
+                        </button>
+                      )}
+                    </>
+                  )}
+                </BattleToolbarMenu>
+              )}
+              {canShowDesktopPublicBattleLogButton && <PublicBattleLogButton />}
+              {canShowDebugLog && (
+                <button
+                  type="button"
+                  className="battle-toolbar-control button-ghost inline-flex min-h-11 items-center gap-2 px-3 text-sm"
+                  aria-label="调试日志"
+                  aria-expanded={desktopDebugLogOpen}
+                  aria-controls="debug-battle-log-panel"
+                  onClick={() => setDesktopDebugLogOpen((open) => !open)}
+                >
+                  <ScrollText size={16} />
+                  日志
+                </button>
+              )}
+            </div>
+            {!isReadOnly && <DebugControl />}
+            <BattleSettingsMenu
+              showMemberOverwrite={!isReadOnly}
+              askMemberOverwrite={askMemberOverwrite}
+              onAskMemberOverwriteChange={changeAskMemberOverwrite}
+              showBattleEffects={!isReadOnly}
+              battleEffectsEnabled={battleEffectsEnabled}
+              onBattleEffectsChange={changeBattleEffectsEnabled}
+            />
+          </header>
+        )}
+        <div
+          ref={desktopWorkspaceRef}
+          data-battle-workspace
+          className="relative flex min-h-0 flex-1"
+        >
+          <JudgmentPanel
+            isOpen={
+              isMobileBattlefield
+                ? !entranceWaiting &&
+                  judgmentPanelVisible &&
+                  isJudgmentPanelRelevant &&
+                  judgmentPanelOpen
+                : showDesktopJudgment
+            }
+            onClose={handleJudgmentPanelClose}
+            docked={!isMobileBattlefield && canDockBattlePanel}
+            mobilePortalTarget={boardRoot}
+          />
+          {isMobileBattlefield ? (
+            <div className="relative z-10 flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:hidden">
+              <div className="battle-mobile-header safe-top shrink-0 px-2.5 pt-2.5">
+                <div className="battle-mobile-phase-header rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_30%,transparent)] px-2.5 py-1.5 shadow-none backdrop-blur-[2px]">
+                  <div className="flex items-center justify-between gap-2">
+                    {showLeaveLocalGameButton || showRestartGameButton ? (
+                      <div className="flex shrink-0 items-center gap-1">
+                        {showLeaveLocalGameButton && (
+                          <button
+                            type="button"
+                            onClick={onLeaveLocalGame}
+                            className="button-ghost inline-flex h-9 shrink-0 items-center justify-center gap-1 px-2 text-xs"
+                            title={leaveLocalGameButtonTitle}
+                          >
+                            <DoorOpen size={15} />
+                            离开
+                          </button>
+                        )}
+                        {showRestartGameButton && (
+                          <button
+                            type="button"
+                            onClick={onRestartGame}
+                            className="button-ghost inline-flex h-9 shrink-0 items-center justify-center gap-1 px-2 text-xs"
+                            title="重开对局"
+                            aria-label="重开对局"
+                          >
+                            <RotateCcw size={15} />
+                            重开
+                          </button>
+                        )}
+                      </div>
+                    ) : mobileHeaderActions ? (
+                      <div data-mobile-header-actions className="flex shrink-0 items-center gap-1">
+                        {mobileHeaderActions}
+                      </div>
+                    ) : (
+                      <div className="h-9 w-9 shrink-0" />
+                    )}
+
+                    <div className="min-w-0 text-center">
+                      <div className="truncate text-[13px] font-bold text-[var(--text-primary)]">
+                        {phaseInfo?.name ?? currentPhase}阶段
+                      </div>
+                      <div className="truncate text-[10px] text-[var(--text-muted)]">
+                        T{turnNumber}
+                        {subPhaseInfo ? ` · ${subPhaseInfo.name}` : ''}
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-1">
+                      {!isReadOnly && (
+                        <MemberOverwriteToggle
+                          enabled={askMemberOverwrite}
+                          onChange={changeAskMemberOverwrite}
+                          className="h-9 w-9"
+                        />
+                      )}
+                      {!isReadOnly && (
+                        <BattleEffectsToggle
+                          enabled={battleEffectsEnabled}
+                          onChange={changeBattleEffectsEnabled}
+                          className="h-9 w-9"
+                        />
+                      )}
+                      <ThemeToggle className="h-9 w-9" />
+                    </div>
                   </div>
+                </div>
 
-                  {/* 己方区域 (底部) - 包含己方 Live 区和成员槽位 */}
-                  <motion.div
-                    key={`desktop-self-${selfSeat}`}
-                    data-perspective-surface="desktop-self"
-                    initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{
-                      duration: prefersReducedMotion ? 0.08 : 0.18,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                    className="flex-[5] min-h-0 overflow-hidden"
-                  >
+                <div className="battle-mobile-seat-summary relative z-[95] mt-1.5 grid grid-cols-2 items-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_18%,transparent)] px-1.5 py-1.5 shadow-none backdrop-blur-[2px]">
+                  {capabilities.canSwitchPerspective ? (
+                    (['FIRST', 'SECOND'] as const).map((seat) => {
+                      const identity = getPlayerIdentityForSeat(seat);
+                      const isCurrentPerspective = seat === selfSeat;
+                      const handCount = playerViewState.table.zones[`${seat}_HAND`]?.count ?? 0;
+                      const seatLabel = seat === 'FIRST' ? 'P1' : 'P2';
+                      return (
+                        <button
+                          key={seat}
+                          type="button"
+                          data-player-identity-seat={seat}
+                          onClick={() => handleMobilePerspectiveSelect(seat)}
+                          aria-pressed={isCurrentPerspective}
+                          aria-label={`${seatLabel} ${identity?.name ?? '玩家'}，手牌 ${handCount} 张${
+                            isCurrentPerspective ? '，当前视角' : '，切换至此视角'
+                          }`}
+                          className={cn(
+                            'flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition',
+                            isCurrentPerspective
+                              ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_58%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)] text-[var(--text-primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent-primary)_16%,transparent)]'
+                              : 'border-transparent bg-[color:color-mix(in_srgb,var(--bg-overlay)_16%,transparent)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]'
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold',
+                              isCurrentPerspective
+                                ? 'bg-[var(--accent-primary)] text-white'
+                                : 'bg-[var(--bg-overlay)] text-[var(--text-secondary)]'
+                            )}
+                          >
+                            {seatLabel}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-[11px] font-semibold">
+                            {identity?.name ?? '玩家'}
+                          </span>
+                          <span
+                            data-mobile-player-hand-count={seat}
+                            className="battle-zone-label battle-zone-count"
+                          >
+                            手牌 {handCount}
+                          </span>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        data-player-identity-seat={opponentSeat}
+                        data-mobile-player-status-seat={opponentSeat}
+                        data-mobile-active-player={
+                          resolvedActiveSeat === opponentSeat ? 'true' : undefined
+                        }
+                        onClick={handleMobileOpponentAction}
+                        aria-pressed={mobilePanel === 'opponent'}
+                        aria-label={`${opponentIdentity?.name ?? '对手'}，手牌 ${opponentHandCount} 张，${isSolitaire ? '查看对墙打对手战场' : '查看对手战场'}${resolvedActiveSeat === opponentSeat ? '，当前行动玩家' : ''}`}
+                        className={cn(
+                          'flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]',
+                          getMobilePlayerStatusStateClass(
+                            mobilePanel === 'opponent',
+                            resolvedActiveSeat === opponentSeat
+                          )
+                        )}
+                        title={isSolitaire ? '查看对墙打对手战场' : '查看对手战场'}
+                      >
+                        <UserRound size={14} className="shrink-0" />
+                        <span className="min-w-0 truncate text-[11px] font-semibold text-[var(--text-primary)]">
+                          {opponentIdentity?.name ?? '对手'}
+                        </span>
+                        <span
+                          data-mobile-player-hand-count={opponentSeat}
+                          className="battle-zone-label battle-zone-count"
+                        >
+                          手牌 {opponentHandCount}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        data-mobile-player-status-seat={selfSeat}
+                        data-mobile-active-player={
+                          resolvedActiveSeat === selfSeat ? 'true' : undefined
+                        }
+                        onClick={() => setMobilePanel(null)}
+                        aria-pressed={mobilePanel !== 'opponent'}
+                        aria-label={`${selfIdentity?.name ?? '己方'}，手牌 ${selfHandCount} 张，返回己方战场${resolvedActiveSeat === selfSeat ? '，当前行动玩家' : ''}`}
+                        className={cn(
+                          'flex min-w-0 items-center justify-end gap-1.5 rounded-lg border px-2 py-1.5 text-left transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]',
+                          getMobilePlayerStatusStateClass(
+                            mobilePanel !== 'opponent',
+                            resolvedActiveSeat === selfSeat
+                          )
+                        )}
+                        title="返回己方战场"
+                      >
+                        <span className="min-w-0 truncate text-right text-[11px] font-semibold text-[var(--text-primary)]">
+                          {selfIdentity?.name ?? '己方'}
+                        </span>
+                        <span
+                          data-mobile-player-hand-count={selfSeat}
+                          className="battle-zone-label battle-zone-count"
+                        >
+                          手牌 {selfHandCount}
+                        </span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="min-h-0 flex-1 px-2 pb-[104px] pt-1.5">
+                <motion.div
+                  key={`mobile-perspective-${selfSeat}`}
+                  data-perspective-surface="mobile-self"
+                  initial={{
+                    opacity: 0,
+                    y: prefersReducedMotion ? 0 : 10,
+                    scale: prefersReducedMotion ? 1 : 0.995,
+                  }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{
+                    duration: prefersReducedMotion ? 0.08 : 0.18,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                  className="battle-mobile-surface flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_10%,transparent)] shadow-none"
+                >
+                  <div className="min-h-0 flex-1 overflow-hidden">
                     <PlayerArea
                       interactionSuspended={entranceWaiting}
                       playerSeat={selfSeat}
@@ -3118,1533 +4879,438 @@ export const GameBoard = memo(function GameBoard({
                       onSelectedHandCardAction={handleSelectedHandCardAction}
                       onPlayMemberToSlot={requestPlayMember}
                     />
-                  </motion.div>
-                </div>
-                {isJudgmentPanelRelevant &&
-                  !judgmentPanelOpen &&
-                  !showDesktopPublicLog &&
-                  !showDesktopDebugLog && (
-                    <button
-                      type="button"
-                      onClick={handleOpenJudgmentPanel}
-                      aria-expanded={false}
-                      aria-controls="judgment-panel"
-                      className="group absolute left-0 top-1/2 z-[var(--z-battle-chrome)] flex h-16 w-11 -translate-y-1/2 items-center justify-center rounded-r-lg border border-l-0 border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] shadow-[var(--shadow-md)] hover:text-[var(--accent-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
-                      aria-label="打开应援/判定区"
-                      title="打开应援/判定区"
-                    >
-                      <PanelLeftOpen size={18} strokeWidth={1.9} />
-                    </button>
-                  )}
-                {headerOverlay && (
-                  <div className="absolute left-4 top-2 z-[var(--z-battle-action-menu)] flex max-h-[calc(100%-1rem)] max-w-[calc(100%-2rem)] flex-col items-start gap-2 overflow-y-auto">
-                    {headerOverlay}
                   </div>
-                )}
-              </>
-            )}
-          </div>
+                </motion.div>
+              </div>
 
-          {isMobileBattlefield && mobileFloatingHeaderActions && (
-            <div className="absolute left-5 top-[calc(env(safe-area-inset-top)+1rem)] z-[var(--z-battle-chrome)]">
-              {mobileFloatingHeaderActions}
-            </div>
-          )}
-          {isMobileBattlefield && headerOverlay && (
-            <div className="absolute left-2 top-[calc(env(safe-area-inset-top)+4rem)] z-[var(--z-battle-action-menu)] flex max-h-[calc(100%-5rem)] max-w-[calc(100%-1rem)] flex-col items-start gap-2 overflow-y-auto">
-              {headerOverlay}
-            </div>
-          )}
-
-          {/* 阶段指示器 */}
-          <PhaseIndicator
-            phase={currentPhase}
-            turnNumber={currentTurnCount ?? matchView.turnCount}
-            onOpenJudgment={handleOpenJudgmentPanel}
-          />
-
-          {overwriteChoice.selection && (
-            <MemberOverwriteDialog
-              cardLabel={(() => {
-                const card = getVisibleCardPresentation(overwriteChoice.selection.cardId);
-                return card ? formatCardCompactLabel(card.cardData as AnyCardData) : '成员登场';
-              })()}
-              choices={overwriteChoice.selection.choices}
-              onChoose={overwriteChoice.choose}
-              onCancel={overwriteChoice.cancel}
-            />
-          )}
-
-          {activeMemberPlayOptionSelection && activeMemberPlayOption && (
-            <>
-              <button
-                type="button"
-                aria-label={`取消${activeMemberPlayOption.label}`}
-                className="modal-backdrop fixed inset-0 z-[93]"
-                onClick={() => setMemberPlayOptionSelection(null)}
-              />
               <div
-                role="dialog"
-                aria-modal="true"
-                aria-label={activeMemberPlayOption.title}
-                className="battle-overlay-surface pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(92vw,460px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+                className={cn(
+                  'battle-mobile-actions safe-bottom fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-[65] grid gap-1 md:hidden',
+                  mobileActionGridClass
+                )}
               >
-                <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
-                  {activeMemberPlayOption.label}
-                </div>
-                <div className="mt-1 text-sm font-semibold">
-                  {selectedCardPresentation
-                    ? formatCardCompactLabel(selectedCardPresentation.cardData as AnyCardData)
-                    : '成员登场'}
-                </div>
-                <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-                  {activeMemberPlayOption.description}
-                </p>
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  {MEMBER_SLOT_ORDER.map((slot) => {
-                    const isAvailable = activeMemberPlayOption.targetSlots.includes(slot);
-                    const selectedOrderIndex = memberPlaySelectedSlots.indexOf(slot);
-                    const isSelected = selectedOrderIndex >= 0;
-                    const isDisabled =
-                      !isAvailable ||
-                      (activeMemberPlayOption.kind === 'DOUBLE_RELAY' &&
-                        !isSelected &&
-                        memberPlaySelectedSlots.length >=
-                          activeMemberPlayOption.selection.maxTargets);
-                    return (
-                      <button
-                        key={slot}
-                        type="button"
-                        disabled={isDisabled}
-                        onClick={() => handleSelectMemberPlayOptionSlot(slot)}
-                        className={cn(
-                          'button-secondary relative inline-flex min-h-11 items-center justify-center px-2 text-sm font-semibold',
-                          isSelected &&
-                            'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)]',
-                          isDisabled && 'cursor-not-allowed opacity-40'
-                        )}
-                      >
-                        {MEMBER_SLOT_LABELS[slot]}
-                        {activeMemberPlayOption.kind === 'DOUBLE_RELAY' && isSelected && (
-                          <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
-                            {selectedOrderIndex + 1}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div
-                  className={cn(
-                    'mt-4 flex items-center gap-3',
-                    activeMemberPlayOption.kind === 'DOUBLE_RELAY'
-                      ? 'justify-between'
-                      : 'justify-end'
-                  )}
+                <button
+                  type="button"
+                  onClick={handleMobileOpponentAction}
+                  className="relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]"
+                  aria-label={
+                    capabilities.canSwitchPerspective
+                      ? `切换至 ${opponentIdentity?.name ?? '对手'} 视角`
+                      : undefined
+                  }
+                  title={
+                    capabilities.canSwitchPerspective
+                      ? `切换至 ${opponentIdentity?.name ?? '对手'} 视角`
+                      : isSolitaire
+                        ? '查看对墙打对手战场'
+                        : '查看对手战场'
+                  }
                 >
+                  {capabilities.canSwitchPerspective ? (
+                    <ArrowRightLeft size={16} />
+                  ) : (
+                    <Swords size={16} />
+                  )}
+                  <span className="truncate">
+                    {capabilities.canSwitchPerspective ? '视角' : '对手'}
+                  </span>
+                </button>
+
+                {primaryMobileLogPanel && (
                   <button
                     type="button"
-                    onClick={() => setMemberPlayOptionSelection(null)}
-                    className="button-secondary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
+                    onClick={() => setMobilePanel(primaryMobileLogPanel)}
+                    className="relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]"
+                    title={canShowPublicBattleLog ? '查看公开对局日志' : '查看调试日志'}
                   >
-                    取消
+                    <ScrollText size={16} />
+                    <span className="truncate">{canShowPublicBattleLog ? '对局' : '日志'}</span>
+                    {primaryMobileLogCount > 0 && (
+                      <span className="absolute right-1 top-1 min-w-4 rounded-full bg-[var(--accent-primary)] px-1 text-[10px] leading-4 text-white shadow-[var(--shadow-sm)]">
+                        {primaryMobileLogBadge}
+                      </span>
+                    )}
                   </button>
-                  {activeMemberPlayOption.kind === 'DOUBLE_RELAY' && (
-                    <button
-                      type="button"
-                      disabled={!canConfirmMemberPlayOption}
-                      onClick={handleConfirmMemberPlayOption}
-                      className={cn(
-                        'button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold',
-                        !canConfirmMemberPlayOption && 'cursor-not-allowed opacity-50'
-                      )}
-                    >
-                      <Repeat2 className="h-4 w-4" aria-hidden="true" />
-                      {activeMemberPlayOption.label}登场
-                    </button>
+                )}
+
+                {showMobileFreePlay && (
+                  <button
+                    type="button"
+                    onClick={() => setFreePlayEnabled(!freePlayEnabled)}
+                    disabled={manualOperationSwitchDisabled}
+                    aria-pressed={freePlayEnabled}
+                    className={cn(
+                      'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border px-1.5 py-1.5 text-[10px] font-semibold shadow-none backdrop-blur-[2px] transition',
+                      freePlayEnabled
+                        ? 'border-[color:color-mix(in_srgb,var(--semantic-warning)_68%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_20%,var(--bg-frosted))] text-[var(--semantic-warning)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--semantic-warning)_22%,transparent),0_0_18px_color-mix(in_srgb,var(--semantic-warning)_20%,transparent)]'
+                        : 'border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]'
+                    )}
+                    title={freePlayControlTitle}
+                  >
+                    <Zap size={16} className={cn(freePlayEnabled && 'fill-current')} />
+                    <span className="truncate">{freePlayEnabled ? '自由' : '规则'}</span>
+                  </button>
+                )}
+
+                {canShowUndo && (
+                  <button
+                    type="button"
+                    onClick={undoLastStep}
+                    disabled={!canUndoLastStep}
+                    className={cn(
+                      'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]',
+                      !canUndoLastStep &&
+                        'cursor-not-allowed opacity-50 hover:border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] hover:text-[var(--text-secondary)]'
+                    )}
+                    title={undoButtonLabel}
+                  >
+                    <Undo2 size={16} />
+                    <span className="truncate">{mobileUndoButtonLabel}</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleOpenJudgmentPanel}
+                  disabled={!isJudgmentPanelRelevant}
+                  aria-expanded={judgmentPanelOpen}
+                  aria-controls="judgment-panel"
+                  aria-label={
+                    isJudgmentPanelRelevant ? '打开应援/判定区' : '当前没有可打开的应援/判定区'
+                  }
+                  className={cn(
+                    'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]',
+                    isJudgmentPanelRelevant &&
+                      'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,var(--bg-frosted))] text-[var(--accent-primary)]',
+                    !isJudgmentPanelRelevant &&
+                      'cursor-not-allowed opacity-50 hover:border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] hover:text-[var(--text-secondary)]'
                   )}
-                </div>
+                  title={
+                    isJudgmentPanelRelevant ? '打开应援/判定区' : '当前没有可打开的应援/判定区'
+                  }
+                >
+                  <PanelLeftOpen size={16} />
+                  <span className="truncate">判定</span>
+                </button>
               </div>
+
+              <AnimatePresence>
+                {!entranceWaiting && mobilePanel && (
+                  <>
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="modal-backdrop fixed inset-0 z-[85] md:hidden"
+                      onClick={() => setMobilePanel(null)}
+                    />
+                    <motion.div
+                      initial={{ y: '100%' }}
+                      animate={{ y: 0 }}
+                      exit={{ y: '100%' }}
+                      transition={{ type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+                      className="battle-mobile-drawer safe-bottom fixed inset-x-0 bottom-0 z-[90] flex max-h-[var(--battle-viewport-height-82)] min-h-[var(--battle-viewport-height-52)] flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] md:hidden"
+                      style={
+                        mobilePanel === 'opponent'
+                          ? {
+                              height: 'var(--battle-viewport-height-88)',
+                              maxHeight: 'var(--battle-viewport-height-88)',
+                            }
+                          : undefined
+                      }
+                    >
+                      <div className="shrink-0 px-4 pb-2 pt-3">
+                        <div className="mb-3 flex justify-center">
+                          <div className="h-1.5 w-12 rounded-full bg-[var(--border-default)]" />
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-bold text-[var(--text-primary)]">
+                              {mobilePanel === 'opponent'
+                                ? '对手战场'
+                                : mobilePanel === 'publicLog'
+                                  ? '对局日志'
+                                  : '调试日志'}
+                            </div>
+                            <div className="mt-0.5 text-xs text-[var(--text-muted)]">
+                              {mobilePanel === 'opponent'
+                                ? (opponentIdentity?.name ?? opponentSeat)
+                                : mobilePanel === 'publicLog'
+                                  ? `${publicLogCount} 条公开事件`
+                                  : `${logCount} 条记录`}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setMobilePanel(null)}
+                            className="button-icon h-9 w-9 shrink-0"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {mobilePanel === 'opponent' ? (
+                        <div className="min-h-0 flex-1 overflow-hidden px-2 pb-20">
+                          <div className="h-full overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
+                            <PlayerArea
+                              interactionSuspended={entranceWaiting}
+                              playerSeat={opponentSeat}
+                              isOpponent={true}
+                              isActive={resolvedActiveSeat === opponentSeat}
+                              suppressActiveEffectVisuals={isActiveEffectUiSuspended}
+                              isInspectionZoneCollapsed={isInspectionZoneCollapsed}
+                              onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
+                            />
+                          </div>
+                        </div>
+                      ) : mobilePanel === 'publicLog' ? (
+                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3">
+                          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
+                            <PublicBattleLogContent active={mobilePanel === 'publicLog'} />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3">
+                          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
+                            <GameLogContent active={mobilePanel === 'log'} />
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <>
+              {!entranceWaiting && canShowPublicBattleLog && (
+                <PublicBattleLogPanel docked={canDockBattlePanel} />
+              )}
+              {canShowDebugLog && (
+                <GameLog
+                  isOpen={showDesktopDebugLog}
+                  onClose={() => setDesktopDebugLogOpen(false)}
+                  docked={canDockBattlePanel}
+                />
+              )}
+              <div data-battle-tabletop className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+                {/* 对手区域 (顶部) - 包含成员槽位和对手 Live 区 */}
+                <motion.div
+                  key={`desktop-opponent-${opponentSeat}`}
+                  data-perspective-surface="desktop-opponent"
+                  initial={{ opacity: 0, y: prefersReducedMotion ? 0 : -10 }}
+                  animate={{ opacity: isSolitaire ? 0.12 : 1, y: 0 }}
+                  transition={{
+                    duration: prefersReducedMotion ? 0.08 : 0.18,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                  className={`relative flex-[5] min-h-0 overflow-hidden ${
+                    isSolitaire ? 'opacity-[0.12] pointer-events-none' : ''
+                  }`}
+                >
+                  <PlayerArea
+                    interactionSuspended={entranceWaiting}
+                    playerSeat={opponentSeat}
+                    isOpponent={true}
+                    isActive={resolvedActiveSeat === opponentSeat}
+                    suppressActiveEffectVisuals={isActiveEffectUiSuspended}
+                    isInspectionZoneCollapsed={isInspectionZoneCollapsed}
+                    onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
+                  />
+                </motion.div>
+
+                {/* VS 分隔线 (中央) - 对墙打模式下弱化 */}
+                <div
+                  className="relative flex h-[24px] flex-shrink-0 items-center justify-center border-y"
+                  style={{
+                    borderColor: isSolitaire
+                      ? 'color-mix(in srgb, var(--border-default) 30%, transparent)'
+                      : 'var(--border-default)',
+                    background: isSolitaire
+                      ? 'color-mix(in srgb, var(--bg-overlay) 16%, transparent)'
+                      : 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-primary) 12%, transparent), color-mix(in srgb, var(--accent-secondary) 12%, transparent), transparent)',
+                  }}
+                >
+                  <span
+                    className="px-4 text-lg font-bold tracking-[0.08em]"
+                    style={{
+                      color: isSolitaire ? 'var(--text-muted)' : 'var(--accent-primary)',
+                      textShadow: isSolitaire
+                        ? 'none'
+                        : '0 0 12px color-mix(in srgb, var(--accent-primary) 35%, transparent)',
+                    }}
+                  >
+                    VS
+                  </span>
+                </div>
+
+                {/* 己方区域 (底部) - 包含己方 Live 区和成员槽位 */}
+                <motion.div
+                  key={`desktop-self-${selfSeat}`}
+                  data-perspective-surface="desktop-self"
+                  initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: prefersReducedMotion ? 0.08 : 0.18,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                  className="flex-[5] min-h-0 overflow-hidden"
+                >
+                  <PlayerArea
+                    interactionSuspended={entranceWaiting}
+                    playerSeat={selfSeat}
+                    isOpponent={false}
+                    isActive={resolvedActiveSeat === selfSeat}
+                    suppressActiveEffectVisuals={isActiveEffectUiSuspended}
+                    isInspectionZoneCollapsed={isInspectionZoneCollapsed}
+                    onInspectionZoneCollapsedChange={setInspectionZoneCollapsed}
+                    selectedHandCardActionCardId={selectedHandCardActionCardId}
+                    selectedHandCardActions={selectedHandCardActions}
+                    suppressSelectedHandCardActionMenu={!!activeMemberPlayOptionSelection}
+                    onSelectedHandCardAction={handleSelectedHandCardAction}
+                    onPlayMemberToSlot={requestPlayMember}
+                  />
+                </motion.div>
+              </div>
+              {isJudgmentPanelRelevant &&
+                !judgmentPanelOpen &&
+                !showDesktopPublicLog &&
+                !showDesktopDebugLog && (
+                  <button
+                    type="button"
+                    onClick={handleOpenJudgmentPanel}
+                    aria-expanded={false}
+                    aria-controls="judgment-panel"
+                    className="group absolute left-0 top-1/2 z-[var(--z-battle-chrome)] flex h-16 w-11 -translate-y-1/2 items-center justify-center rounded-r-lg border border-l-0 border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] shadow-[var(--shadow-md)] hover:text-[var(--accent-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+                    aria-label="打开应援/判定区"
+                    title="打开应援/判定区"
+                  >
+                    <PanelLeftOpen size={18} strokeWidth={1.9} />
+                  </button>
+                )}
+              {headerOverlay && (
+                <div className="absolute left-4 top-2 z-[var(--z-battle-action-menu)] flex max-h-[calc(100%-1rem)] max-w-[calc(100%-2rem)] flex-col items-start gap-2 overflow-y-auto">
+                  {headerOverlay}
+                </div>
+              )}
             </>
           )}
-
-          {!entranceWaiting && showSuccessLiveSelectionModal && successLiveSelectionCollapsed && (
-            <div
-              data-battle-animation-ignore="true"
-              data-battle-ui-anchor={BATTLE_UI_ANCHORS.SUCCESS_LIVE_SELECTION}
-              className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[94] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
-                    成功 Live
-                  </div>
-                  <div className="mt-0.5 truncate text-sm font-semibold">
-                    选择放置入成功 LIVE 卡区的 Live
-                  </div>
-                  <div className="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]">
-                    {successLiveSelectionCardIds.length} 张候选
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSuccessLiveSelectionCollapsed(false)}
-                  className="button-primary inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
-                >
-                  <Maximize2 className="h-4 w-4" aria-hidden="true" />
-                  展开
-                </button>
-              </div>
-            </div>
-          )}
-
-          {!entranceWaiting && showSuccessLiveSelectionModal && !successLiveSelectionCollapsed && (
-            <div
-              data-battle-animation-ignore="true"
-              data-battle-ui-anchor={BATTLE_UI_ANCHORS.SUCCESS_LIVE_SELECTION}
-              className="battle-overlay-surface pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(94vw,760px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
-            >
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
-                    成功 Live
-                  </div>
-                  <div className="mt-1 text-sm font-semibold">选择放置入成功 LIVE 卡区的 Live</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSuccessLiveSelectionCollapsed(true)}
-                  className="button-secondary inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 px-2 text-xs font-semibold"
-                >
-                  <EyeOff className="h-4 w-4" aria-hidden="true" />
-                  隐藏
-                </button>
-              </div>
-              <div
-                data-battle-ui-anchor={BATTLE_UI_ANCHORS.SUCCESS_LIVE_CANDIDATES}
-                className="grid max-h-[var(--battle-viewport-height-52)] grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3"
-              >
-                {successLiveSelectionCardIds.map((cardId) => {
-                  const presentation = getVisibleCardPresentation(cardId);
-                  const cardData = presentation?.cardData;
-                  const label = cardData
-                    ? formatCardCompactLabel(cardData as AnyCardData)
-                    : '选择此卡';
-                  return (
-                    <button
-                      key={cardId}
-                      data-battle-ui-object-id={cardId}
-                      type="button"
-                      disabled={!presentation}
-                      onClick={() => {
-                        setHoveredCard(null);
-                        selectSuccessCard(cardId);
-                      }}
-                      className={cn(
-                        'group flex min-w-0 flex-col items-center gap-1 rounded-lg border border-transparent p-1.5 transition-colors',
-                        presentation
-                          ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
-                          : 'cursor-not-allowed opacity-50'
-                      )}
-                      title={label}
-                    >
-                      {presentation ? (
-                        <CardDetailPressTarget
-                          cardId={presentation.instanceId}
-                          title={label}
-                          className="flex justify-center"
-                        >
-                          <Card
-                            cardData={presentation.cardData as AnyCardData}
-                            instanceId={presentation.instanceId}
-                            imagePath={presentation.imagePath}
-                            size="sm"
-                            faceUp={true}
-                            showHover={false}
-                            className="shadow-sm transition-transform group-hover:scale-[1.02]"
-                          />
-                        </CardDetailPressTarget>
-                      ) : (
-                        <div className="battle-card-face flex aspect-[5/7] w-full items-center justify-center border border-dashed border-[var(--border-subtle)] text-xs text-[var(--text-muted)]">
-                          不可见
-                        </div>
-                      )}
-                      <span className="line-clamp-2 min-h-8 text-center text-[11px] leading-4 text-[var(--text-secondary)]">
-                        {label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              {successLiveSelection?.canSkipToWaitingRoom === true && (
-                <div className="mt-3 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => skipSuccessLiveSelection()}
-                    className="button-secondary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
-                  >
-                    <DoorOpen className="h-4 w-4" aria-hidden="true" />
-                    全部放置入休息室
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {!isActiveEffectUiSuspended && activeEffect && activeEffectCollapsed && (
-            <div
-              data-battle-animation-ignore="true"
-              className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[95] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
-                    处理中
-                  </div>
-                  <div className="mt-0.5 truncate text-sm font-semibold">{activeEffectTitle}</div>
-                  <div className="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]">
-                    {isActiveEffectOrderSelectionWindow
-                      ? activeEffectDescription
-                      : activeEffectInspectionCount > 0
-                        ? `检视区 ${activeEffectInspectionCount} 张 / ${activeEffect.stepText}`
-                        : activeEffect.stepText}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveEffectCollapsed(false)}
-                  className="button-primary inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
-                >
-                  <Maximize2 className="h-4 w-4" aria-hidden="true" />
-                  展开效果
-                </button>
-              </div>
-            </div>
-          )}
-
-          {!isActiveEffectUiSuspended && activeEffect && !activeEffectCollapsed && (
-            <div
-              data-battle-animation-ignore="true"
-              className="pointer-events-auto fixed inset-x-2 bottom-[max(0.75rem,env(safe-area-inset-bottom))] top-[max(0.75rem,env(safe-area-inset-top))] z-[95] flex items-end justify-center sm:inset-x-4 md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-[min(94vw,900px)] md:-translate-x-1/2 md:-translate-y-1/2"
-            >
-              <motion.div
-                data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_PANEL}
-                className="battle-overlay-surface flex max-h-[calc(var(--battle-viewport-height)_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_1.5rem)] w-full flex-col overflow-hidden rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl md:max-h-[88vh] md:p-4"
-                initial={{ opacity: 0, y: 12, scale: 0.985 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 6, scale: 0.99 }}
-                transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
-              >
-                <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-subtle)] p-3 md:mb-3 md:border-b-0 md:p-0">
-                  <div>
-                    <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
-                      处理中的效果
-                    </div>
-                    <div className="mt-1 text-sm font-semibold">{activeEffectTitle}</div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <div className="rounded border border-[var(--border-default)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
-                      {activeEffectBadgeLabel}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setActiveEffectCollapsed(true)}
-                      className="button-secondary inline-flex min-h-8 items-center justify-center gap-1.5 px-2 text-xs font-semibold"
-                    >
-                      <EyeOff className="h-4 w-4" aria-hidden="true" />
-                      隐藏
-                    </button>
-                  </div>
-                </div>
-                <div className="touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-0 md:py-0">
-                  <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-2.5 md:p-3">
-                    <CardEffectText
-                      text={activeEffectDescription}
-                      className="text-[13px] leading-relaxed md:text-sm"
-                    />
-                    {showActiveEffectChoicePanel && activeEffectChoice && (
-                      <EffectChoicePanel
-                        activeEffect={activeEffect}
-                        selectedOptionIds={normalizedActiveEffectChoiceSelection}
-                        canChoose={
-                          canConfirmActiveEffect &&
-                          !isPublicEffectChoiceAutoAdvance &&
-                          (!activeEffectUsesCardOptionSelection || !!activeEffectSelectedCardId)
-                        }
-                        canConfirmMulti={canConfirmActiveEffectChoice}
-                        onSelectSingle={(optionId) =>
-                          confirmEffectChoice(activeEffect.id, {
-                            selectedCardId: activeEffectUsesCardOptionSelection
-                              ? activeEffectSelectedCardId
-                              : undefined,
-                            selectedEffectOptionIds: [optionId],
-                          })
-                        }
-                        onToggleMulti={(optionId) =>
-                          setActiveEffectChoiceSelection((current) => [
-                            ...toggleEffectChoiceSelection(activeEffectChoice, current, optionId),
-                          ])
-                        }
-                        onConfirmMulti={() =>
-                          confirmEffectChoice(activeEffect.id, {
-                            selectedCardId: activeEffectUsesCardOptionSelection
-                              ? activeEffectSelectedCardId
-                              : undefined,
-                            selectedEffectOptionIds: normalizedActiveEffectChoiceSelection,
-                          })
-                        }
-                        onSkip={() => confirmEffectStep(activeEffect.id, null)}
-                      />
-                    )}
-                    {!isActiveEffectOrderSelectionWindow && hasActiveEffectOriginalText && (
-                      <div className="mt-3 border-t border-[var(--border-subtle)] pt-2.5 md:pt-3">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setActiveEffectOriginalTextExpanded((expanded) => !expanded)
-                          }
-                          className="button-secondary inline-flex min-h-8 items-center justify-center px-2.5 text-xs font-semibold"
-                        >
-                          {activeEffectOriginalTextExpanded ? '收起原卡文' : '查看原卡文'}
-                        </button>
-                        {activeEffectOriginalTextExpanded && (
-                          <div className="mt-3 space-y-3">
-                            <div className="text-[10px] font-semibold text-[var(--text-muted)]">
-                              原卡文
-                            </div>
-                            {activeEffectOriginalTextCn && (
-                              <div>
-                                <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
-                                  中文
-                                </div>
-                                <CardEffectText
-                                  text={activeEffectOriginalTextCn}
-                                  className="text-xs leading-relaxed text-[var(--text-secondary)]"
-                                />
-                              </div>
-                            )}
-                            {activeEffectOriginalTextJp && (
-                              <div>
-                                <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
-                                  日文
-                                </div>
-                                <CardEffectText
-                                  text={activeEffectOriginalTextJp}
-                                  className="text-xs leading-relaxed text-[var(--text-secondary)]"
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {showOrdinaryActiveEffectControls && activeEffectStageFormation && (
-                    <div className="mt-3 md:mt-4">
-                      <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
-                        站位变换
-                      </div>
-                      <div className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-2 md:grid-cols-3 md:gap-3 md:p-3">
-                        {MEMBER_SLOT_ORDER.map((slot) => {
-                          const entry = stageFormationDraftSlots.find(
-                            (candidate) => candidate.slot === slot
-                          );
-                          const cardId = entry?.cardId ?? null;
-                          const presentation = cardId ? getVisibleCardPresentation(cardId) : null;
-                          const cardData = presentation?.cardData;
-                          const isSelected =
-                            cardId !== null && cardId === selectedStageFormationCardId;
-                          const label = cardData
-                            ? formatCardCompactLabel(cardData as AnyCardData)
-                            : '空位';
-                          return (
-                            <button
-                              key={slot}
-                              type="button"
-                              disabled={!canConfirmActiveEffect}
-                              aria-pressed={isSelected}
-                              onClick={() => handleStageFormationSlotClick(slot)}
-                              className={cn(
-                                'grid min-h-[76px] min-w-0 grid-cols-[52px_minmax(0,1fr)] items-center gap-x-2 rounded-lg border p-2 text-left transition-colors md:flex md:min-h-[188px] md:flex-col md:items-center md:justify-between md:gap-2',
-                                isSelected
-                                  ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
-                                  : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_70%,transparent)]',
-                                canConfirmActiveEffect
-                                  ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)]'
-                                  : 'cursor-not-allowed opacity-50'
-                              )}
-                              title={`${MEMBER_SLOT_LABELS[slot]}: ${label}`}
-                            >
-                              <div className="order-2 flex w-full min-w-0 items-center justify-between gap-2 md:order-none">
-                                <span className="text-xs font-bold text-[var(--text-primary)]">
-                                  {MEMBER_SLOT_LABELS[slot]}
-                                </span>
-                                {entry?.originalSlot && cardId && (
-                                  <span className="rounded border border-[var(--border-default)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
-                                    原{MEMBER_SLOT_LABELS[entry.originalSlot].replace('侧', '')}
-                                  </span>
-                                )}
-                              </div>
-                              {presentation ? (
-                                <CardDetailPressTarget
-                                  cardId={presentation.instanceId}
-                                  title={label}
-                                  className="order-1 row-span-2 flex justify-center md:order-none md:row-span-1"
-                                >
-                                  <Card
-                                    cardData={presentation.cardData as AnyCardData}
-                                    instanceId={presentation.instanceId}
-                                    imagePath={presentation.imagePath}
-                                    size="sm"
-                                    faceUp={true}
-                                    showHover={false}
-                                    className="h-[73px] w-[52px] shadow-sm md:h-[105px] md:w-[75px]"
-                                  />
-                                </CardDetailPressTarget>
-                              ) : (
-                                <div className="order-1 row-span-2 battle-card-face flex h-[73px] w-[52px] items-center justify-center border border-dashed border-[var(--border-default)] text-xs font-semibold text-[var(--text-muted)] md:order-none md:row-span-1 md:h-[112px] md:w-[80px]">
-                                  空
-                                </div>
-                              )}
-                              <div className="order-3 w-full min-w-0 md:order-none">
-                                <div className="line-clamp-1 text-left text-[11px] font-semibold leading-4 text-[var(--text-primary)] md:line-clamp-2 md:min-h-8 md:text-center">
-                                  {label}
-                                </div>
-                                <div className="mt-1 flex justify-start gap-1 text-[10px] text-[var(--text-secondary)] md:justify-center">
-                                  <span>能量 {entry?.energyBelowCount ?? 0}</span>
-                                  <span>下方 {entry?.memberBelowCount ?? 0}</span>
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {isPublicCardSelectionAutoAdvance && (
-                    <div className="mt-3 md:mt-4">
-                      <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
-                        本次公开的选择
-                      </div>
-                      <div className="rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_8%,var(--bg-surface))] p-3">
-                        <div className="flex items-center gap-3 overflow-x-auto pb-1">
-                          <div className="flex shrink-0 flex-col items-center gap-1.5">
-                            <span className="text-[10px] font-semibold text-[var(--text-muted)]">
-                              发动效果的卡牌
-                            </span>
-                            {activeEffectSource ? (
-                              <CardDetailPressTarget
-                                cardId={activeEffectSource.instanceId}
-                                title={activeEffectSourceLabel}
-                                className="flex flex-col items-center gap-1"
-                              >
-                                <Card
-                                  cardData={activeEffectSource.cardData as AnyCardData}
-                                  instanceId={activeEffectSource.instanceId}
-                                  imagePath={activeEffectSource.imagePath}
-                                  size="sm"
-                                  faceUp={true}
-                                  showHover={false}
-                                  className="h-[105px] w-[75px]"
-                                />
-                                <span className="line-clamp-2 w-24 text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
-                                  {activeEffectSourceLabel}
-                                </span>
-                              </CardDetailPressTarget>
-                            ) : (
-                              <div className="battle-card-face flex h-[105px] w-[75px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
-                                ?
-                              </div>
-                            )}
-                          </div>
-                          <ChevronRight
-                            className="h-8 w-8 shrink-0 text-[var(--accent-primary)]"
-                            aria-label="选择"
-                          />
-                          <div className="flex shrink-0 items-start gap-2">
-                            {publicCardSelectionDisplayEntries.map((entry) => {
-                              const presentation = getVisibleCardPresentation(entry.cardId);
-                              const cardData = presentation?.cardData;
-                              const label = cardData
-                                ? formatCardCompactLabel(cardData as AnyCardData)
-                                : '已选择的卡牌';
-                              return (
-                                <CardDetailPressTarget
-                                  key={entry.cardId}
-                                  cardId={presentation?.instanceId ?? null}
-                                  disabled={!presentation}
-                                  title={label}
-                                  className="relative flex w-24 shrink-0 flex-col items-center gap-1"
-                                >
-                                  {entry.order !== null && (
-                                    <span className="absolute right-1 top-5 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-white/70 bg-[var(--accent-primary)] px-1 text-[11px] font-bold text-white shadow">
-                                      {entry.order}
-                                    </span>
-                                  )}
-                                  <span className="text-[10px] font-semibold text-[var(--text-muted)]">
-                                    {entry.order === null ? '选择的卡牌' : `第 ${entry.order} 张`}
-                                  </span>
-                                  {presentation ? (
-                                    <Card
-                                      cardData={presentation.cardData as AnyCardData}
-                                      instanceId={presentation.instanceId}
-                                      imagePath={presentation.imagePath}
-                                      size="sm"
-                                      faceUp={true}
-                                      showHover={false}
-                                      className="h-[105px] w-[75px]"
-                                    />
-                                  ) : (
-                                    <div className="battle-card-face flex h-[105px] w-[75px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
-                                      ?
-                                    </div>
-                                  )}
-                                  <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
-                                    {label}
-                                  </span>
-                                </CardDetailPressTarget>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        <div className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--border-subtle)]">
-                          <div className="h-full w-full animate-pulse rounded-full bg-[var(--accent-primary)]" />
-                        </div>
-                        <div className="mt-1.5 text-center text-[11px] font-semibold text-[var(--text-secondary)]">
-                          即将自动继续处理
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {!isPublicCardSelectionAutoAdvance && activeEffectRevealedCardIds.length > 0 && (
-                    <div className="mt-3 md:mt-4">
-                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[var(--text-secondary)]">
-                        <span>{isPublicRevealAutoAdvance ? '本次公开的卡牌' : '已公开的卡牌'}</span>
-                        {isPublicRevealAutoAdvance && (
-                          <span
-                            role="status"
-                            aria-live="polite"
-                            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] px-2 py-1 text-[11px] text-[var(--text-primary)]"
-                          >
-                            <span
-                              className="h-1.5 w-1.5 rounded-full bg-[var(--accent-primary)] motion-safe:animate-pulse"
-                              aria-hidden="true"
-                            />
-                            公开展示中，即将自动继续
-                          </span>
-                        )}
-                      </div>
-                      <div
-                        className={cn(
-                          'grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2 rounded-lg border bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-2 md:max-h-[32vh] md:grid-cols-[repeat(auto-fill,minmax(76px,1fr))] md:gap-3 md:overflow-y-auto md:p-3',
-                          isPublicRevealAutoAdvance
-                            ? 'border-[var(--border-active)]'
-                            : 'border-[var(--border-subtle)]'
-                        )}
-                      >
-                        {activeEffectRevealedCardIds.map((cardId) => {
-                          const presentation = getVisibleCardPresentation(cardId);
-                          const cardData = presentation?.cardData;
-                          const label = cardData
-                            ? formatCardCompactLabel(cardData as AnyCardData)
-                            : '已公开卡牌';
-                          const entranceDelayMs = isPublicRevealAutoAdvance
-                            ? (publicRevealDisplayEntries.find((entry) => entry.cardId === cardId)
-                                ?.entranceDelayMs ?? 0)
-                            : 0;
-                          const entranceTiming = getPublicRevealEntranceTiming(
-                            { cardId, entranceDelayMs },
-                            prefersReducedMotion
-                          );
-
-                          return (
-                            <motion.div
-                              key={
-                                isPublicRevealAutoAdvance
-                                  ? `${publicRevealDisplayKey}:${cardId}`
-                                  : cardId
-                              }
-                              initial={
-                                isPublicRevealAutoAdvance && entranceTiming.shouldAnimate
-                                  ? { opacity: 0, y: 8, scale: 0.97 }
-                                  : false
-                              }
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              transition={{
-                                duration: entranceTiming.durationSeconds,
-                                delay: entranceTiming.delaySeconds,
-                                ease: [0.2, 0.8, 0.2, 1],
-                              }}
-                              className="min-w-0"
-                            >
-                              <CardDetailPressTarget
-                                cardId={presentation?.instanceId ?? null}
-                                disabled={!presentation}
-                                title={label}
-                                className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] p-1.5"
-                              >
-                                {presentation ? (
-                                  <Card
-                                    cardData={presentation.cardData as AnyCardData}
-                                    instanceId={presentation.instanceId}
-                                    imagePath={presentation.imagePath}
-                                    size="sm"
-                                    faceUp={true}
-                                    showHover={false}
-                                    className="h-[90px] w-[64px] md:h-[105px] md:w-[75px]"
-                                  />
-                                ) : (
-                                  <div className="battle-card-face flex h-[90px] w-[64px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
-                                    ?
-                                  </div>
-                                )}
-                                <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
-                                  {label}
-                                </span>
-                              </CardDetailPressTarget>
-                            </motion.div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {showOrdinaryActiveEffectControls && activeEffectSelectableCardIds.length > 0 && (
-                    <div className="mt-3 md:mt-4">
-                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[var(--text-secondary)]">
-                        <CardEffectText as="span" text={activeEffectSelectionLabel} />
-                        <span className="rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_76%,transparent)] px-2 py-1 text-[11px] text-[var(--text-primary)]">
-                          {activeEffectSelectableBadgeLabel}
-                        </span>
-                      </div>
-                      <div
-                        data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_SELECTION}
-                        className={cn(
-                          'grid gap-2 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-2 md:max-h-[46vh] md:gap-3 md:overflow-y-auto md:p-3',
-                          activeEffectHasEnergyCandidates
-                            ? 'grid-cols-[repeat(auto-fill,minmax(90px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(105px,1fr))]'
-                            : 'grid-cols-[repeat(auto-fill,minmax(64px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(76px,1fr))]'
-                        )}
-                      >
-                        {activeEffectSelectableCardIds.map((cardId, candidateIndex) => {
-                          const presentation = getVisibleCardPresentation(cardId);
-                          const cardData = presentation?.cardData;
-                          const candidateObjectId =
-                            activeEffect?.selectableObjectIds?.[candidateIndex];
-                          const candidateObject = candidateObjectId
-                            ? playerViewState?.objects[candidateObjectId]
-                            : undefined;
-                          const isEnergyCandidate = cardData?.cardType === CardType.ENERGY;
-                          const isWaitingEnergy =
-                            isEnergyCandidate &&
-                            candidateObject?.orientation === OrientationState.WAITING;
-                          const skipsNextActivePhase =
-                            candidateObject?.skipsNextActivePhase === true;
-                          const candidateCanBeSelected =
-                            activeEffectSelectableObjectsFaceDown || presentation !== null;
-                          const selectedOrderIndex = activeEffectOrderedSelection.indexOf(cardId);
-                          const isOrderedSelected = selectedOrderIndex >= 0;
-                          const isSingleSelected = activeEffectSelectedCardId === cardId;
-                          const label = activeEffectSelectableObjectsFaceDown
-                            ? `第${candidateIndex + 1}张手牌`
-                            : cardData
-                              ? formatActiveEffectCardCompactLabel(cardId, cardData as AnyCardData)
-                              : '选择此卡';
-                          const energyStatusLabel = isEnergyCandidate
-                            ? `；当前状态：${isWaitingEnergy ? '等待' : '活跃'}`
-                            : '';
-                          const candidateTitle = `${label}${energyStatusLabel}${
-                            skipsNextActivePhase ? '；下次活跃阶段不会自动变为活跃' : ''
-                          }`;
-                          if (isReadOnly) {
-                            return (
-                              <CardDetailPressTarget
-                                key={cardId}
-                                cardId={
-                                  activeEffectSelectableObjectsFaceDown
-                                    ? null
-                                    : (presentation?.instanceId ?? null)
-                                }
-                                disabled={activeEffectSelectableObjectsFaceDown || !presentation}
-                                title={candidateTitle}
-                                className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_70%,transparent)] p-1.5"
-                              >
-                                {activeEffectSelectableObjectsFaceDown ? (
-                                  <div className="h-[90px] w-[64px] overflow-hidden rounded-lg shadow md:h-[105px] md:w-[75px]">
-                                    <img
-                                      src="/back.jpg"
-                                      alt="不可见的手牌"
-                                      className="h-full w-full object-cover"
-                                    />
-                                  </div>
-                                ) : presentation ? (
-                                  <div
-                                    className={cn(
-                                      'battle-card-face h-[90px] w-[64px] transition-transform md:h-[105px] md:w-[75px]',
-                                      isWaitingEnergy && 'rotate-90',
-                                      skipsNextActivePhase &&
-                                        'ring-2 ring-red-500 ring-offset-2 ring-offset-[var(--bg-surface)]'
-                                    )}
-                                  >
-                                    <Card
-                                      cardData={presentation.cardData as AnyCardData}
-                                      instanceId={presentation.instanceId}
-                                      imagePath={presentation.imagePath}
-                                      size="sm"
-                                      faceUp={true}
-                                      showHover={false}
-                                      className={cn(
-                                        'h-full w-full transition-[filter,opacity]',
-                                        isWaitingEnergy && 'opacity-60 grayscale'
-                                      )}
-                                    />
-                                  </div>
-                                ) : (
-                                  <div className="battle-card-face flex h-[90px] w-[64px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
-                                    ?
-                                  </div>
-                                )}
-                                <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
-                                  {label}
-                                </span>
-                              </CardDetailPressTarget>
-                            );
-                          }
-                          return (
-                            <button
-                              key={cardId}
-                              type="button"
-                              disabled={!canConfirmActiveEffect || !candidateCanBeSelected}
-                              onClick={() => {
-                                setHoveredCard(null);
-                                if (activeEffectUsesOrderedMultiSelect) {
-                                  if (activeEffectUsesImmediateOrderedSingleSelect) {
-                                    confirmEffectStep(
-                                      activeEffect.id,
-                                      undefined,
-                                      undefined,
-                                      undefined,
-                                      undefined,
-                                      [cardId]
-                                    );
-                                    return;
-                                  }
-                                  setActiveEffectOrderedSelection((current) => {
-                                    const currentSelectable = current.filter((selectedId) =>
-                                      activeEffectSelectableCardIds.includes(selectedId)
-                                    );
-                                    if (currentSelectable.includes(cardId)) {
-                                      return currentSelectable.filter(
-                                        (selectedId) => selectedId !== cardId
-                                      );
-                                    }
-                                    if (
-                                      currentSelectable.length >= activeEffectMaxSelectableCards
-                                    ) {
-                                      return currentSelectable;
-                                    }
-                                    return [...currentSelectable, cardId];
-                                  });
-                                  return;
-                                }
-                                if (activeEffectUsesCardOptionSelection) {
-                                  setActiveEffectSingleSelection((current) =>
-                                    current === cardId ? null : cardId
-                                  );
-                                  return;
-                                }
-                                confirmEffectStep(activeEffect.id, cardId);
-                              }}
-                              className={`group relative flex min-w-0 flex-col items-center gap-1 rounded-lg border p-1.5 transition-colors ${
-                                isOrderedSelected || isSingleSelected
-                                  ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
-                                  : 'border-transparent'
-                              } ${
-                                canConfirmActiveEffect && candidateCanBeSelected
-                                  ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
-                                  : 'cursor-not-allowed opacity-50'
-                              }`}
-                              title={candidateTitle}
-                            >
-                              {isOrderedSelected && (
-                                <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-[11px] font-bold text-white shadow">
-                                  {selectedOrderIndex + 1}
-                                </span>
-                              )}
-                              {isSingleSelected && (
-                                <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-white shadow">
-                                  <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                                </span>
-                              )}
-                              {activeEffectSelectableObjectsFaceDown ? (
-                                <div className="h-[90px] w-[64px] overflow-hidden rounded-lg shadow md:h-[105px] md:w-[75px]">
-                                  <img
-                                    src="/back.jpg"
-                                    alt="不可见的手牌"
-                                    className="h-full w-full object-cover"
-                                  />
-                                </div>
-                              ) : presentation ? (
-                                <CardDetailPressTarget
-                                  cardId={presentation.instanceId}
-                                  className="flex h-[90px] w-[90px] items-center justify-center md:h-[105px] md:w-[105px]"
-                                  title={candidateTitle}
-                                >
-                                  <div
-                                    className={cn(
-                                      'battle-card-face h-[90px] w-[64px] transition-transform md:h-[105px] md:w-[75px]',
-                                      isWaitingEnergy && 'rotate-90',
-                                      skipsNextActivePhase &&
-                                        'ring-2 ring-red-500 ring-offset-2 ring-offset-[var(--bg-surface)]'
-                                    )}
-                                  >
-                                    <Card
-                                      cardData={presentation.cardData as AnyCardData}
-                                      instanceId={presentation.instanceId}
-                                      imagePath={presentation.imagePath}
-                                      size="sm"
-                                      faceUp={true}
-                                      showHover={false}
-                                      className={cn(
-                                        'h-full w-full transition-[filter,opacity]',
-                                        isWaitingEnergy && 'opacity-60 grayscale'
-                                      )}
-                                    />
-                                  </div>
-                                </CardDetailPressTarget>
-                              ) : (
-                                <div className="battle-card-face flex h-[90px] w-[64px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
-                                  ?
-                                </div>
-                              )}
-                              <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
-                                {label}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div
-                  data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_CONFIRM}
-                  className={cn(
-                    'flex shrink-0 gap-2 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 md:mt-4 md:border-t-0 md:bg-transparent md:p-0',
-                    isActiveEffectOrderSelectionWindow
-                      ? 'flex-col items-stretch justify-start'
-                      : 'flex-wrap justify-end',
-                    isReadOnly && 'hidden'
-                  )}
-                >
-                  {isPublicCardSelectionAutoAdvance && publicSelectionFallbackReady && (
-                    <button
-                      type="button"
-                      disabled={isReadOnly || !canConfirmEffectCommand}
-                      onClick={() =>
-                        autoAdvancePublicCardSelection(
-                          activeEffect.id,
-                          activeEffect.publicCardSelectionAutoAdvanceAt
-                        )
-                      }
-                      className="button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold"
-                    >
-                      继续处理
-                    </button>
-                  )}
-                  {isPublicEffectChoiceAutoAdvance && publicEffectChoiceFallbackReady && (
-                    <button
-                      type="button"
-                      disabled={isReadOnly || !canConfirmEffectCommand}
-                      onClick={() =>
-                        autoAdvancePublicEffectChoice(
-                          activeEffect.id,
-                          activeEffect.publicEffectChoiceAutoAdvanceAt
-                        )
-                      }
-                      className="button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold"
-                    >
-                      继续处理
-                    </button>
-                  )}
-                  {isPublicRevealAutoAdvance &&
-                    publicRevealFallbackReady &&
-                    publicRevealEffectId !== null &&
-                    publicRevealAutoAdvanceAt !== null &&
-                    publicRevealGeneration !== null && (
-                      <button
-                        type="button"
-                        disabled={isReadOnly || !canConfirmEffectCommand}
-                        onClick={() =>
-                          autoAdvancePublicReveal(
-                            publicRevealEffectId,
-                            publicRevealAutoAdvanceAt,
-                            publicRevealGeneration
-                          )
-                        }
-                        className="button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold"
-                      >
-                        继续处理
-                      </button>
-                    )}
-                  {showLegacyActiveEffectControls && activeEffectStageFormation && (
-                    <button
-                      type="button"
-                      disabled={!canConfirmActiveEffect}
-                      onClick={handleConfirmStageFormation}
-                      className={`button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold ${
-                        canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                      }`}
-                    >
-                      <Check className="h-4 w-4" aria-hidden="true" />
-                      确认站位
-                    </button>
-                  )}
-                  {showLegacyActiveEffectControls &&
-                    activeEffectSelectableSlots.map((slot) => {
-                      const slotLabel =
-                        slot === SlotPosition.LEFT
-                          ? '左侧'
-                          : slot === SlotPosition.CENTER
-                            ? '中央'
-                            : '右侧';
-                      const slotActionLabel =
-                        activeEffect.confirmSelectionLabel === '登场' ? '登场至' : '移动到';
-                      return (
-                        <button
-                          key={slot}
-                          type="button"
-                          disabled={!canConfirmActiveEffect}
-                          onClick={() =>
-                            confirmEffectStep(activeEffect.id, undefined, slot as SlotPosition)
-                          }
-                          className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
-                            canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                          }`}
-                        >
-                          {slotActionLabel}
-                          {slotLabel}
-                        </button>
-                      );
-                    })}
-                  {showLegacyActiveEffectControls &&
-                    activeEffectSelectableOptions.map((option) => (
-                      <button
-                        key={option.id}
-                        type="button"
-                        disabled={
-                          !canConfirmActiveEffect ||
-                          (activeEffectUsesCardOptionSelection && !activeEffectSelectedCardId)
-                        }
-                        onClick={() =>
-                          confirmEffectStep(
-                            activeEffect.id,
-                            activeEffectUsesCardOptionSelection
-                              ? activeEffectSelectedCardId
-                              : undefined,
-                            undefined,
-                            undefined,
-                            option.id
-                          )
-                        }
-                        className={cn(
-                          'button-secondary inline-flex min-h-10 items-center px-3 text-sm font-semibold',
-                          isActiveEffectOrderSelectionWindow
-                            ? 'w-full justify-start py-3 text-left leading-relaxed'
-                            : 'justify-center',
-                          canConfirmActiveEffect &&
-                            (!activeEffectUsesCardOptionSelection || activeEffectSelectedCardId)
-                            ? ''
-                            : 'cursor-not-allowed opacity-50'
-                        )}
-                      >
-                        <CardEffectText
-                          as="span"
-                          text={option.label}
-                          className={cn(
-                            isActiveEffectOrderSelectionWindow
-                              ? 'block w-full whitespace-pre-line break-normal text-left leading-relaxed'
-                              : 'inline-flex items-center justify-center gap-1 whitespace-normal break-normal'
-                          )}
-                        />
-                      </button>
-                    ))}
-                  {showLegacyActiveEffectControls && activeEffectNumericInput && (
-                    <div className="flex min-w-[180px] flex-col gap-1">
-                      <label className="text-xs font-semibold text-[var(--text-secondary)]">
-                        {activeEffectNumericInput.label ?? '数字'}
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="number"
-                          min={activeEffectNumericInput.min ?? undefined}
-                          max={activeEffectNumericInput.max ?? undefined}
-                          step={activeEffectNumericInput.integerOnly === true ? 1 : undefined}
-                          value={activeEffectNumberInput}
-                          placeholder={activeEffectNumericInput.placeholder}
-                          onChange={(event) =>
-                            setActiveEffectNumberInput(event.currentTarget.value)
-                          }
-                          className="min-h-10 w-28 rounded border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 text-sm font-semibold text-[var(--text-primary)] outline-none focus:border-[var(--border-active)]"
-                        />
-                        <button
-                          type="button"
-                          disabled={!canConfirmActiveEffectNumber}
-                          onClick={() =>
-                            confirmEffectStep(
-                              activeEffect.id,
-                              undefined,
-                              undefined,
-                              undefined,
-                              undefined,
-                              undefined,
-                              activeEffectSelectedNumber
-                            )
-                          }
-                          className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
-                            canConfirmActiveEffectNumber ? '' : 'cursor-not-allowed opacity-50'
-                          }`}
-                        >
-                          {activeEffectNumericInput.confirmLabel ?? '确认'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {showLegacyActiveEffectControls &&
-                    activeEffectUsesOrderedMultiSelect &&
-                    !activeEffectUsesImmediateOrderedSingleSelect &&
-                    (activeEffectSelectableCardIds.length > 0 ||
-                      activeEffectMinSelectableCards === 0) && (
-                      <button
-                        type="button"
-                        disabled={!canConfirmOrderedEffectSelection}
-                        onClick={() =>
-                          confirmEffectStep(
-                            activeEffect.id,
-                            undefined,
-                            undefined,
-                            undefined,
-                            undefined,
-                            activeEffectOrderedSelection
-                          )
-                        }
-                        className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
-                          canConfirmOrderedEffectSelection ? '' : 'cursor-not-allowed opacity-50'
-                        }`}
-                      >
-                        <CardEffectText
-                          as="span"
-                          text={activeEffect.confirmSelectionLabel ?? '确认选择'}
-                          className="inline-flex items-center justify-center gap-1"
-                        />
-                      </button>
-                    )}
-                  {showLegacyActiveEffectControls && activeEffect.canResolveInOrder && (
-                    <button
-                      type="button"
-                      disabled={!canConfirmActiveEffect}
-                      onClick={() => confirmEffectStep(activeEffect.id, undefined, null, true)}
-                      className={cn(
-                        'button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold',
-                        isActiveEffectOrderSelectionWindow && 'self-end',
-                        canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                      )}
-                    >
-                      顺序发动
-                    </button>
-                  )}
-                  {showLegacyActiveEffectControls &&
-                    activeEffect.canSkipSelection &&
-                    (activeEffectSelectableCardIds.length > 0 ||
-                      activeEffectSelectableSlots.length > 0 ||
-                      activeEffectSelectableOptions.length > 0 ||
-                      !!activeEffectStageFormation ||
-                      !!activeEffectNumericInput ||
-                      activeEffect.canResolveInOrder) && (
-                      <button
-                        type="button"
-                        disabled={!canConfirmActiveEffect}
-                        onClick={() => confirmEffectStep(activeEffect.id, null)}
-                        className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
-                          canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                        }`}
-                      >
-                        {activeEffect.skipSelectionLabel ?? '不加入'}
-                      </button>
-                    )}
-                  {showLegacyActiveEffectControls &&
-                    activeEffectSelectableCardIds.length === 0 &&
-                    activeEffectSelectableSlots.length === 0 &&
-                    activeEffectSelectableOptions.length === 0 &&
-                    !activeEffectStageFormation &&
-                    !activeEffectNumericInput &&
-                    !activeEffect.canSkipSelection &&
-                    !activeEffect.canResolveInOrder && (
-                      <button
-                        type="button"
-                        disabled={!canConfirmActiveEffect}
-                        onClick={() => confirmEffectStep(activeEffect.id)}
-                        className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
-                          canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                        }`}
-                      >
-                        {activeEffect.confirmSelectionLabel ?? '继续处理'}
-                      </button>
-                    )}
-                  {showLegacyActiveEffectControls &&
-                    activeEffectSelectableCardIds.length === 0 &&
-                    activeEffectSelectableSlots.length === 0 &&
-                    activeEffectSelectableOptions.length === 0 &&
-                    !activeEffectStageFormation &&
-                    !activeEffectNumericInput &&
-                    activeEffect.canSkipSelection && (
-                      <button
-                        type="button"
-                        disabled={!canConfirmActiveEffect}
-                        onClick={() => confirmEffectStep(activeEffect.id, null)}
-                        className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
-                          canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                        }`}
-                      >
-                        {activeEffect.skipSelectionLabel ?? '继续处理'}
-                      </button>
-                    )}
-                </div>
-              </motion.div>
-            </div>
-          )}
-
-          {!entranceWaiting && pendingSpecialMemberPlay && (
-            <div className="battle-overlay-surface pointer-events-auto fixed left-1/2 top-1/2 z-[97] w-[min(94vw,720px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
-              {controlsPendingSpecialPlay ? (
-                <>
-                  <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
-                    {pendingSpecialMemberPlay.selectionLabel}
-                  </div>
-                  <p className="mt-2 text-sm leading-relaxed">
-                    {pendingSpecialMemberPlay.stepText}
-                  </p>
-                  <div className="mt-3 grid max-h-[48vh] grid-cols-[repeat(auto-fill,minmax(78px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] p-3">
-                    {pendingSpecialPlayCandidateIds.map((cardId) => {
-                      const presentation = getVisibleCardPresentation(cardId);
-                      if (!presentation) return null;
-                      const selected = specialPlayPaymentSelection.includes(cardId);
-                      return (
-                        <button
-                          key={cardId}
-                          type="button"
-                          disabled={pendingSpecialPlayRequiredCount === 0}
-                          onClick={() => handleToggleSpecialPlayPayment(cardId)}
-                          className={cn(
-                            'relative flex min-w-0 flex-col items-center rounded-lg border p-1.5 transition-colors',
-                            selected
-                              ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)]'
-                              : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]',
-                            pendingSpecialPlayRequiredCount === 0 && 'cursor-default'
-                          )}
-                          title={formatCardCompactLabel(presentation.cardData as AnyCardData)}
-                        >
-                          <div className="h-[105px] w-[75px] overflow-hidden rounded-lg">
-                            <Card
-                              cardData={presentation.cardData as AnyCardData}
-                              instanceId={presentation.instanceId}
-                              imagePath={presentation.imagePath}
-                              size="sm"
-                              faceUp={true}
-                              showHover={false}
-                              className="h-full w-full"
-                            />
-                          </div>
-                          {selected && pendingSpecialPlayRequiredCount > 0 && (
-                            <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
-                              {specialPlayPaymentSelection.indexOf(cardId) + 1}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => cancelSpecialMemberPlay(pendingSpecialMemberPlay.id)}
-                      className="button-secondary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
-                    >
-                      取消
-                    </button>
-                    <button
-                      type="button"
-                      disabled={
-                        specialPlayPaymentSelection.length !== pendingSpecialPlayRequiredCount
-                      }
-                      onClick={() =>
-                        confirmSpecialMemberPlay(
-                          pendingSpecialMemberPlay.id,
-                          specialPlayPaymentSelection
-                        )
-                      }
-                      className={cn(
-                        'button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold',
-                        specialPlayPaymentSelection.length !== pendingSpecialPlayRequiredCount &&
-                          'cursor-not-allowed opacity-50'
-                      )}
-                    >
-                      {pendingSpecialMemberPlay.confirmSelectionLabel}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <p className="text-center text-sm font-semibold">等待对方完成特殊登场</p>
-              )}
-            </div>
-          )}
-
-          {!entranceWaiting && pendingCostPayment && (
-            <div className="battle-overlay-surface pointer-events-auto fixed left-1/2 top-1/2 z-[96] w-[min(92vw,540px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
-                    支付登场费用
-                  </div>
-                  <div className="mt-1 text-sm font-semibold">
-                    {pendingCostSource
-                      ? formatCardCompactLabel(pendingCostSource.cardData as AnyCardData)
-                      : '成员登场'}
-                  </div>
-                </div>
-                <div className="rounded border border-[var(--border-default)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
-                  {pendingCostPayment.finalEnergyCost}费
-                </div>
-              </div>
-              <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-3">
-                <p className="text-sm leading-relaxed">
-                  确认支付 {pendingCostPayment.finalEnergyCost} 费让这张成员登场。
-                </p>
-                {pendingCostPayment.explanation && (
-                  <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                    {pendingCostPayment.explanation}
-                  </p>
-                )}
-                {pendingCostEnergyIds.length < pendingCostPayment.finalEnergyCost && (
-                  <p className="mt-1 text-xs text-[var(--semantic-error)]">
-                    可用能量不足，无法支付。
-                  </p>
-                )}
-              </div>
-              {!isReadOnly && (
-                <div className="mt-4 flex justify-end">
-                  <button
-                    type="button"
-                    disabled={!canConfirmCostPayment}
-                    onClick={() => confirmCostPayment(pendingCostPayment.id, autoCostEnergyIds)}
-                    className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
-                      canConfirmCostPayment ? '' : 'cursor-not-allowed opacity-50'
-                    }`}
-                  >
-                    确认支付
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 阶段提示横幅 */}
-          <PhaseBanner />
-
-          {/* 卡牌详情浮窗 */}
-          {!entranceWaiting && <CardDetailOverlay />}
-
-          {/* Live 结果动画 */}
-          <LiveResultAnimation
-            visible={!entranceWaiting && !isReadOnly && shouldShowWinnerAnimation}
-            isViewerWinner={isViewerWinnerInCurrentLive}
-            scoreInfo={
-              shouldShowWinnerAnimation
-                ? ({
-                    selfScore: viewerLiveScore,
-                    opponentScore: opponentLiveScore,
-                    selfWon: viewerLiveWinner,
-                    opponentWon: opponentLiveWinner,
-                    isDraw: isLiveDraw(),
-                  } as LiveScoreInfo)
-                : null
-            }
-            animationKey={liveResultAnimationKey}
-            autoComplete={resultAnimationAutoComplete}
-            onComplete={handleLiveAnimationComplete}
-          />
-
-          {/* Live 分数最终确认弹窗（居中） */}
-          {!isReadOnly && !entranceWaiting && <ScoreConfirmModal />}
-
-          {/* 换牌面板 */}
-          <MulliganPanel
-            isOpen={!isReadOnly && mulliganPanelOpen && mulliganPanelVisible}
-            selectableCardIds={mulliganSelectableCardIds}
-            onSelectionChange={onMulliganSelectionChange}
-          />
-
-          {!isReadOnly && pendingUndoRequest && (
-            <div className="pointer-events-auto fixed inset-0 z-[110] flex items-center justify-center px-4">
-              <div className="modal-backdrop absolute inset-0" />
-              <div className="modal-surface modal-accent-indigo relative w-[min(92vw,460px)] p-5 text-[var(--text-primary)]">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--accent-primary)]">
-                    <Undo2 className="h-5 w-5" aria-hidden="true" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
-                      撤销请求
-                    </div>
-                    <div className="mt-1 text-sm font-semibold">
-                      {pendingUndoRequesterName} 请求撤销上一步
-                    </div>
-                    <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
-                      {pendingUndoRequest.summary}
-                    </p>
-                    <p className="mt-2 text-xs leading-relaxed text-[var(--text-muted)]">
-                      如果这一步公开了隐藏信息，撤销只回滚局面，不能消除已经看到的信息。
-                    </p>
-                    {pendingUndoCanRespond && (
-                      <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
-                        也可以允许对手连续撤销这一串操作；换阶段或有新动作后会失效。
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {pendingUndoIsRequester ? (
-                  <div className="mt-4 rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] px-3 py-2 text-sm text-[var(--text-secondary)]">
-                    等待对手回应
-                  </div>
-                ) : (
-                  <div className="mt-5 flex flex-wrap justify-end gap-2">
-                    <button
-                      type="button"
-                      disabled={!pendingUndoCanRespond}
-                      onClick={() => respondRemoteUndoRequest(pendingUndoRequest.requestId, false)}
-                      className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 text-sm font-semibold"
-                    >
-                      <X className="h-4 w-4" aria-hidden="true" />
-                      拒绝
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!pendingUndoCanRespond}
-                      onClick={() => respondRemoteUndoRequest(pendingUndoRequest.requestId, true)}
-                      className="button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold"
-                    >
-                      <Check className="h-4 w-4" aria-hidden="true" />
-                      接受
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!pendingUndoCanRespond}
-                      onClick={() =>
-                        respondRemoteUndoRequest(pendingUndoRequest.requestId, true, {
-                          grantContinuous: true,
-                        })
-                      }
-                      className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 text-sm font-semibold"
-                    >
-                      <Repeat2 className="h-4 w-4" aria-hidden="true" />
-                      允许连续
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {!isReadOnly && pendingManualOperationRequest && (
-            <div className="pointer-events-auto fixed inset-0 z-[111] flex items-center justify-center px-4">
-              <div className="modal-backdrop absolute inset-0" />
-              <div className="modal-surface modal-accent-indigo relative w-[min(92vw,460px)] p-5 text-[var(--text-primary)]">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-[var(--semantic-warning)]/40 bg-[var(--semantic-warning)]/10 text-[var(--semantic-warning)]">
-                    <Zap className="h-5 w-5" aria-hidden="true" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
-                      自由模式请求
-                    </div>
-                    <div className="mt-1 text-sm font-semibold">
-                      {pendingManualOperationRequesterName} 请求开启自由模式
-                    </div>
-                    <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
-                      开启后，双方可免费登场及手动调整己方区域，用于人工处理尚未自动化的规则。
-                    </p>
-                    <p className="mt-2 text-xs leading-relaxed text-[var(--text-muted)]">
-                      不会获得操作对手或读取对手隐藏信息的权限。任意一方都可在安全时点单方恢复规则模式。
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-5 flex flex-wrap justify-end gap-2">
-                  {pendingManualOperationIsRequester ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        respondManualOperationModeRequest(
-                          pendingManualOperationRequest.requestId,
-                          'cancel'
-                        )
-                      }
-                      className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 text-sm font-semibold"
-                    >
-                      <X className="h-4 w-4" aria-hidden="true" />
-                      取消请求
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        disabled={!pendingManualOperationCanRespond}
-                        onClick={() =>
-                          respondManualOperationModeRequest(
-                            pendingManualOperationRequest.requestId,
-                            'reject'
-                          )
-                        }
-                        className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 text-sm font-semibold"
-                      >
-                        <X className="h-4 w-4" aria-hidden="true" />
-                        拒绝
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!pendingManualOperationCanRespond}
-                        onClick={() =>
-                          respondManualOperationModeRequest(
-                            pendingManualOperationRequest.requestId,
-                            'accept'
-                          )
-                        }
-                        className="button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold"
-                      >
-                        <Check className="h-4 w-4" aria-hidden="true" />
-                        同意开启
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 拖拽覆盖层 - 显示正在拖拽的卡牌 */}
-          <DragOverlay>
-            {activeCard ? (
-              <DragOverlayCard card={activeCard} fromZone={activeDragFromZone} />
-            ) : activeCardId ? (
-              <div className="battle-card-face h-[112px] w-[80px] overflow-hidden shadow-lg">
-                <img src="/back.jpg" alt="Card Back" className="h-full w-full object-cover" />
-              </div>
-            ) : null}
-          </DragOverlay>
         </div>
+
+        {isMobileBattlefield && mobileFloatingHeaderActions && (
+          <div className="absolute left-5 top-[calc(env(safe-area-inset-top)+1rem)] z-[var(--z-battle-chrome)]">
+            {mobileFloatingHeaderActions}
+          </div>
+        )}
+        {isMobileBattlefield && headerOverlay && (
+          <div className="absolute left-2 top-[calc(env(safe-area-inset-top)+4rem)] z-[var(--z-battle-action-menu)] flex max-h-[calc(100%-5rem)] max-w-[calc(100%-1rem)] flex-col items-start gap-2 overflow-y-auto">
+            {headerOverlay}
+          </div>
+        )}
+
+        <div ref={attachInteractionSurface} />
+
+        {/* 阶段提示横幅 */}
+        <PhaseBanner />
+
+        {/* 卡牌详情浮窗 */}
+        {!entranceWaiting && <CardDetailOverlay />}
+
+        {/* Live 结果动画 */}
+        <LiveResultAnimation
+          visible={
+            !entranceWaiting && !isReadOnly && shouldShowWinnerAnimation && showResultVisuals
+          }
+          isViewerWinner={isViewerWinnerInCurrentLive}
+          scoreInfo={
+            shouldShowWinnerAnimation
+              ? ({
+                  selfScore: viewerLiveScore,
+                  opponentScore: opponentLiveScore,
+                  selfWon: viewerLiveWinner,
+                  opponentWon: opponentLiveWinner,
+                  isDraw: isLiveDraw(),
+                } as LiveScoreInfo)
+              : null
+          }
+          animationKey={liveResultAnimationKey}
+          autoComplete={false}
+          onComplete={handleLiveAnimationComplete}
+        />
+
+        {/* 拖拽覆盖层 - 显示正在拖拽的卡牌 */}
+        <DragOverlay>
+          {activeCard ? (
+            <DragOverlayCard card={activeCard} fromZone={activeDragFromZone} />
+          ) : activeCardId ? (
+            <div className="battle-card-face h-[112px] w-[80px] overflow-hidden shadow-lg">
+              <PresentationImage
+                src="/back.jpg"
+                alt="Card Back"
+                className="h-full w-full object-cover"
+              />
+            </div>
+          ) : null}
+        </DragOverlay>
       </div>
-    </DndContext>
-    </AbilityActivationProvider>
-    </CardEffectsEnabledContext.Provider>
+    </div>
+  );
+  return (
+    <BattleEffectsContext.Provider value={!textOnly && battleEffectsEnabled}>
+      <AbilityActivationProvider>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={battleCollisionDetection}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          onDragCancel={clearDragInteractionState}
+        >
+          {createPortal(interactionPanels, interactionContainer)}
+          {canShowCardEntrance &&
+            createPortal(
+              <Suspense fallback={null}>
+                <CardEntranceLayer enabled={!textOnly && battleEffectsEnabled} />
+              </Suspense>,
+              entranceContainer
+            )}
+          {textOnly ? (
+            <ExcelBattleBoard
+              view={playerViewState}
+              phaseLabel={`${phaseInfo?.name ?? currentPhase}${subPhaseInfo ? ` / ${subPhaseInfo.name}` : ''}`}
+              actions={
+                <>
+                  <div ref={attachEntranceSurface} className="contents" />
+                  <div ref={attachInteractionSurface} />
+                  <CardDetailOverlay />
+                </>
+              }
+              judgment={
+                isJudgmentPanelRelevant ? (
+                  <JudgmentPanel
+                    isOpen={judgmentPanelOpen}
+                    onClose={handleJudgmentPanelClose}
+                    docked
+                  />
+                ) : null
+              }
+              header={desktopHeaderActions}
+              headerOverlay={headerOverlay}
+              buildActions={buildDragBattleActionIntents}
+              execute={executeBattleActionPayload}
+              handActions={selectedHandCardActions}
+              handActionCardId={selectedHandCardActionCardId}
+              onHandAction={handleSelectedHandCardAction}
+              onLeave={showLeaveLocalGameButton ? onLeaveLocalGame : undefined}
+              onRestart={showRestartGameButton ? onRestartGame : undefined}
+            />
+          ) : (
+            ordinaryBoard
+          )}
+        </DndContext>
+      </AbilityActivationProvider>
+    </BattleEffectsContext.Provider>
   );
 });
 

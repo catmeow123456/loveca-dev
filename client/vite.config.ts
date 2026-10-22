@@ -128,6 +128,8 @@ export default defineConfig(({ mode }) => {
     : undefined;
 
   return {
+    // Independent browser review servers must not rewrite the active development cache.
+    cacheDir: mode === 'excel-review' ? 'node_modules/.vite-excel-review' : undefined,
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),
       __APP_BUILD_ID__: JSON.stringify(appBuildId),
@@ -151,15 +153,8 @@ export default defineConfig(({ mode }) => {
         registerType: 'prompt',
         // appUpdateRegistration owns registration, retries and user-confirmed activation.
         injectRegister: false,
-        includeAssets: [
-          'back.jpg',
-          'deck.png',
-          'icon.jpg',
-          'pwa/icon-192.png',
-          'pwa/icon-512.png',
-          'pwa/icon-maskable-192.png',
-          'pwa/icon-maskable-512.png',
-        ],
+        includeAssets: [],
+        includeManifestIcons: false,
         manifest: {
           name: 'Loveca Card Game',
           short_name: 'Loveca',
@@ -311,9 +306,18 @@ export default defineConfig(({ mode }) => {
             },
           ],
           // 预缓存静态资源
-          globPatterns: ['**/*.{js,css,html,ico,svg}'],
+          globPatterns: ['**/*.{js,css,html}'],
         },
       }),
+      {
+        name: 'loveca-presentation-manifest',
+        enforce: 'post',
+        // PresentationRoot adds the generated manifest only when normal mode is visible.
+        transformIndexHtml: {
+          order: 'post',
+          handler: (html) => html.replace(/<link\s+rel=["']manifest["'][^>]*>/g, ''),
+        },
+      },
     ],
     resolve: {
       alias: {

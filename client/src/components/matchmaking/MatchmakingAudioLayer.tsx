@@ -1,3 +1,4 @@
+import { useTextPresentation } from '@/lib/appPresentation';
 import { useEffect, useMemo, useState } from 'react';
 import {
   matchmakingAudioPlayer,
@@ -12,7 +13,7 @@ import { useRankedStore } from '@/store/rankedStore';
 import { useThemeTableStore } from '@/store/themeTableStore';
 
 export function MatchmakingAudioLayer({
-  enabled,
+  enabled: requestedEnabled,
   waitingMusicEnabled,
   matchFoundSoundEnabled,
   preferredTrackIds,
@@ -22,6 +23,8 @@ export function MatchmakingAudioLayer({
   matchFoundSoundEnabled: boolean;
   preferredTrackIds: readonly string[] | null;
 }) {
+  const textOnly = useTextPresentation();
+  const enabled = requestedEnabled && !textOnly;
   const casual = useCasualTableStore((state) => (state.hydrated ? state.status?.table : null));
   const publicTableStatus: PublicTableStatusView | null = casual
     ? {

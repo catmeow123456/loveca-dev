@@ -1,3 +1,4 @@
+import { useAppPresentation, useTextPresentation } from '@/lib/appPresentation';
 import { useEffect, useEffectEvent, type RefObject } from 'react';
 
 const FOCUSABLE_SELECTOR = [
@@ -71,6 +72,7 @@ interface UseDialogAccessibilityOptions {
   readonly isOpen: boolean;
   readonly dialogRef: RefObject<HTMLElement | null>;
   readonly initialFocusRef?: RefObject<HTMLElement | null>;
+  readonly returnFocusRef?: RefObject<HTMLElement | null>;
   readonly onEscape?: () => void;
   readonly closeOnEscape?: boolean;
 }
@@ -79,9 +81,12 @@ export function useDialogAccessibility({
   isOpen,
   dialogRef,
   initialFocusRef,
+  returnFocusRef,
   onEscape,
   closeOnEscape = true,
 }: UseDialogAccessibilityOptions): void {
+  const covered = useAppPresentation((state) => state.covered);
+  const textOnly = useTextPresentation();
   const handleEscape = useEffectEvent((): boolean => {
     if (!closeOnEscape || !onEscape) {
       return false;
@@ -91,7 +96,7 @@ export function useDialogAccessibility({
   });
 
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || covered || (textOnly && dialogRef.current?.closest('.excel-operation-panels'))) {
       return;
     }
 
@@ -99,6 +104,7 @@ export function useDialogAccessibility({
     openDialogStack.push(dialogToken);
     const previouslyFocused =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const fallbackReturnTarget = returnFocusRef?.current;
     const unlockBodyScroll = lockBodyScroll();
     const dialog = dialogRef.current;
     const focusTarget =
@@ -159,9 +165,15 @@ export function useDialogAccessibility({
         openDialogStack.splice(dialogIndex, 1);
       }
       unlockBodyScroll();
-      if (wasTopDialog && previouslyFocused?.isConnected) {
-        focusWithoutScrolling(previouslyFocused);
+      const returnTarget =
+        previouslyFocused?.isConnected &&
+        previouslyFocused !== document.body &&
+        !previouslyFocused.closest('.worksheet-cover')
+          ? previouslyFocused
+          : fallbackReturnTarget;
+      if (wasTopDialog && returnTarget?.isConnected) {
+        focusWithoutScrolling(returnTarget);
       }
     };
-  }, [dialogRef, initialFocusRef, isOpen]);
+  }, [dialogRef, initialFocusRef, returnFocusRef, isOpen, covered, textOnly]);
 }

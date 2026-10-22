@@ -1,3 +1,4 @@
+import { useAppPresentation } from '@/lib/appPresentation';
 /**
  * Loveca Card Game - Main Application
  */
@@ -402,6 +403,7 @@ function AppSurfaceTiming({ surface, dataSource }: { surface: string; dataSource
 }
 
 function AppContent() {
+  const presentationMode = useAppPresentation((state) => state.mode);
   const [currentPathname, setCurrentPathname] = useState(() => window.location.pathname);
   const requestedLegalDocument = resolveLegalDocumentPath(currentPathname);
   const [initialAuthRequest] = useState<InitialAuthRequest>(() => getInitialAuthRequest());
@@ -1009,6 +1011,24 @@ function AppContent() {
     (!authInitialized ||
       !isAuthenticated ||
       Boolean(profile && hasPermission(profile.role, 'platform.manage')));
+
+  if (
+    presentationMode === 'excel' &&
+    (shareId ||
+      spectatorToken ||
+      !['home', 'game-setup', 'game', 'battle-lobby', 'ranked', 'online-room'].includes(
+        effectivePage
+      ))
+  ) {
+    return (
+      <main className="excel-entry">
+        <h1>此页面使用普通界面</h1>
+        <p>表格模式支持对墙、休闲、排位及选组查看。</p>
+        <button onClick={() => setCurrentPage('home')}>返回大厅</button>
+        <p>按 Ctrl+Alt+E 切换普通界面，macOS 使用 Control+Option+E。</p>
+      </main>
+    );
+  }
 
   if (requestedLegalDocument) {
     return <LegalPage document={requestedLegalDocument} />;

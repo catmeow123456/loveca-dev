@@ -1,3 +1,7 @@
+import { useTextPresentation } from '@/lib/appPresentation';
+import { HEART_TEXT } from '@/lib/excelCardView';
+import { getPresentationPortalRoot } from '@/lib/appPresentation';
+import { PresentationImage } from '@/components/excel/PresentationRoot';
 /**
  * Live 判定面板（含应援区）
  *
@@ -143,7 +147,7 @@ function HeartIconValue({
 }) {
   return (
     <span className="inline-flex items-center gap-0.5">
-      <img
+      <PresentationImage
         src={iconSrc ?? HEART_ICON_SOURCE_BY_COLOR[color]}
         alt=""
         className={cn('h-4 w-4 object-contain', iconClassName)}
@@ -262,7 +266,7 @@ function HeartRequirementIcons({
           title={`${getHeartRequirementLabel(req.color)}需求 ${req.count}`}
           aria-label={`${getHeartRequirementLabel(req.color)}需求 ${req.count}`}
         >
-          <img
+          <PresentationImage
             src={HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR[req.color]}
             alt=""
             className={cn('object-contain', iconClassName)}
@@ -290,7 +294,7 @@ function RequirementDeficitBadge({
           title={`${getHeartRequirementLabel(entry.color)}需求还差 ${entry.count}`}
           aria-label={`${getHeartRequirementLabel(entry.color)}需求还差 ${entry.count}`}
         >
-          <img
+          <PresentationImage
             src={HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR[entry.color]}
             alt=""
             className="h-3 w-3 object-contain"
@@ -334,7 +338,7 @@ function LiveRequirementCard({
       >
         <div className="relative mx-auto flex aspect-[7/5] w-full max-w-[96px] items-center justify-center">
           <div className="battle-card-face h-[140%] w-[71.428571%] shrink-0 -rotate-90 overflow-hidden shadow-sm">
-            <img
+            <PresentationImage
               src={imagePath}
               alt={canShowFront ? (card.cardName ?? '') : ''}
               className="h-full w-full object-cover"
@@ -396,7 +400,12 @@ const SortableCheerCard = memo(function SortableCheerCard({
         selected && 'ring-2 ring-cyan-300 ring-offset-2 ring-offset-slate-950'
       )}
     >
-      <img src={imagePath} alt="" className="w-full h-full object-cover" draggable={false} />
+      <PresentationImage
+        src={imagePath}
+        alt=""
+        className="w-full h-full object-cover"
+        draggable={false}
+      />
     </div>
   );
 });
@@ -411,6 +420,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
   docked = false,
   mobilePortalTarget,
 }: JudgmentPanelProps) {
+  const textOnly = useTextPresentation();
   const panelRef = useRef<HTMLElement>(null);
   const shouldReduceMotion = useReducedMotion();
   const activeSeat = useGameStore((s) => s.getActiveSeatView());
@@ -894,6 +904,120 @@ export const JudgmentPanel = memo(function JudgmentPanel({
   const previewStatusLabel = getPreviewStatusLabel(liveJudgmentPreview.status);
   const previewScoreText =
     liveJudgmentPreview.totalScore === null ? '--' : String(liveJudgmentPreview.totalScore);
+  if (textOnly)
+    return (
+      <section
+        ref={panelRef}
+        id="judgment-panel"
+        className="excel-judgment"
+        aria-label="应援与 LIVE 判定"
+      >
+        <h3>应援与 LIVE 判定</h3>
+        <button onClick={onClose}>收起判定</button>
+        <div>
+          {(['FIRST', 'SECOND'] as const).map((seat) => (
+            <button
+              key={seat}
+              aria-pressed={viewingSeat === seat}
+              onClick={() => handleViewingSeatChange(seat)}
+            >
+              {playerNames[seat]}
+            </button>
+          ))}
+        </div>
+        <p>
+          {isViewingActiveSeat ? '当前行动方' : '仅查看'} · 主卡组剩余 {mainDeckCount}
+        </p>
+        <table className="excel-table">
+          <caption>应援牌</caption>
+          <tbody>
+            {cheerCards.map(({ id, frontInfo }) => (
+              <tr key={id}>
+                <td>
+                  {frontInfo ? (
+                    <button
+                      aria-pressed={selectedResolutionCardId === id}
+                      onClick={() => toggleSelectedResolutionCard(id)}
+                    >
+                      {getCardLocalizedInfo(frontInfo).title}
+                    </button>
+                  ) : (
+                    '未知卡牌'
+                  )}
+                </td>
+                <td>{frontInfo?.cardCode ?? '未公开'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {canRevealViewedCheerCard && (
+          <button disabled={mainDeckCount === 0} onClick={drawCheerCard}>
+            翻开应援牌
+          </button>
+        )}
+        {showManualResolutionTargets && (
+          <div>
+            {[
+              ['放到手牌', resolutionHandTarget],
+              ['放到休息室', resolutionWaitingRoomTarget],
+              ['放回卡组顶', resolutionMainDeckTopTarget],
+            ].map(([label, target]) => (
+              <button
+                key={String(label)}
+                disabled={!target}
+                onClick={() => executeResolutionTarget(target as typeof resolutionHandTarget)}
+              >
+                {String(label)}
+              </button>
+            ))}
+          </div>
+        )}
+        <table className="excel-table">
+          <caption>心数与 LIVE 需求</caption>
+          <tbody>
+            {Array.from(totalHearts)
+              .filter(([, count]) => count > 0)
+              .map(([color, count]) => (
+                <tr key={color}>
+                  <th>{HEART_TEXT[color]}</th>
+                  <td>
+                    {count}（成员 {memberHearts.get(color) ?? 0} / 判心{' '}
+                    {bladeHearts.get(color) ?? 0}）
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+        {liveJudgmentPreview.rows.map((row, index) => (
+          <p key={index}>
+            {row.isVisible
+              ? `${row.cardName} · 当前分数 ${row.score} · 需求 ${row.requiredHearts.map((heart) => `${HEART_TEXT[heart.color]} ${heart.count}`).join('、')}`
+              : '未知 LIVE'}
+          </p>
+        ))}
+        <p>
+          {previewStatusLabel} · 预计分数 {previewScoreText} · 抽卡 +{liveJudgmentPreview.drawBonus}
+        </p>
+        {isPerformanceJudgment && !isReadOnly && isViewingActiveSeat && (
+          <>
+            <button disabled={!canSubmitViewedJudgment} onClick={handleAcceptAutoJudgment}>
+              接受自动判定
+            </button>
+            {isFreeOperationMode && (
+              <>
+                <button disabled={!canConfirmViewedOutcome} onClick={handleLiveFailed}>
+                  强制失败
+                </button>
+                <button disabled={!canConfirmViewedOutcome} onClick={handleLiveSuccess}>
+                  强制成功
+                </button>
+              </>
+            )}
+          </>
+        )}
+      </section>
+    );
+
   const panel = (
     <motion.aside
       ref={panelRef}
@@ -1091,7 +1215,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                           />
                         ) : (
                           <div className="battle-card-face aspect-[5/7] w-[72px] overflow-hidden shadow-md">
-                            <img
+                            <PresentationImage
                               src="/back.jpg"
                               alt=""
                               className="h-full w-full object-cover"
@@ -1149,7 +1273,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                         }
                         aria-label={`${HEART_LABEL_BY_COLOR[color]} Heart ${count}，${sourceLabel}`}
                       >
-                        <img
+                        <PresentationImage
                           src={HEART_ICON_SOURCE_BY_COLOR[color]}
                           alt=""
                           className="h-4 w-4 object-contain"
@@ -1288,7 +1412,9 @@ export const JudgmentPanel = memo(function JudgmentPanel({
       )}
     </motion.aside>
   );
-  return isMobilePanel ? createPortal(panel, mobilePortalTarget ?? document.body) : panel;
+  return isMobilePanel
+    ? createPortal(panel, mobilePortalTarget ?? getPresentationPortalRoot())
+    : panel;
 });
 
 export default JudgmentPanel;

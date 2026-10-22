@@ -1,3 +1,6 @@
+import { useTextPresentation } from '@/lib/appPresentation';
+import { ExcelDeckSelector } from '@/components/excel/ExcelDeckSelector';
+import { PresentationImage } from '@/components/excel/PresentationRoot';
 import { useMemo } from 'react';
 import { Check, Database, History, Layers3, RefreshCw, TriangleAlert } from 'lucide-react';
 import type { DeckRecord } from '@/lib/apiClient';
@@ -48,6 +51,7 @@ export function DeckSelector({
   emptyActionLabel,
   onEmptyAction,
 }: DeckSelectorProps) {
+  const textOnly = useTextPresentation();
   const isCompact = density === 'compact';
   const pointTable = useDeckPointTableRules();
   const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
@@ -79,6 +83,22 @@ export function DeckSelector({
         }),
     [displayDecks, lastUsedDeckId]
   );
+
+  if (textOnly)
+    return (
+      <ExcelDeckSelector
+        decks={displayDecks}
+        selectedId={selectedId}
+        onSelect={onSelect}
+        title={title}
+        error={error}
+        loading={isLoading || isRefreshing}
+        onRefresh={onRefresh}
+        emptyText={emptyText}
+        emptyActionLabel={emptyActionLabel}
+        onEmptyAction={onEmptyAction}
+      />
+    );
 
   return (
     <section
@@ -182,7 +202,7 @@ export function DeckSelector({
                       }}
                     >
                       {deck.previewCardCodes.map((cardCode) => (
-                        <img
+                        <PresentationImage
                           key={cardCode}
                           src={getCardImagePath(cardCode)}
                           alt=""

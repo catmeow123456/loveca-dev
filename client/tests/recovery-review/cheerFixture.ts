@@ -142,3 +142,6 @@ export function prepareCheer(
   useGameStore.setState({ viewingPlayerId: 'p1', remoteSession: null, replaySession: null });
   store.syncState();
 }
+
+// Browser reviews use this binding to avoid importing a second Vite HMR store instance.
+export { useGameStore as cheerReviewStore };

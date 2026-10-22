@@ -1,9 +1,9 @@
 import { afterEach, expect, it, vi } from 'vitest';
+import { canPresentCardEntrance } from '../../client/src/lib/cardEntrancePolicy';
 import {
-  canPresentCardEntrance,
-  readCardEntranceEnabled,
-  saveCardEntranceEnabled,
-} from '../../client/src/lib/cardEntrancePolicy';
+  readBattleEffectsEnabled,
+  saveBattleEffectsEnabled,
+} from '../../client/src/lib/battleEffects';
 import type { BattleSurfaceKind } from '../../client/src/store/battleSurfaceCapabilities';
 afterEach(() => vi.unstubAllGlobals());
 it('allows player battles, excludes tutorial, spectator, replay and read-only views', () => {
@@ -32,11 +32,13 @@ it('defaults on, remembers a local opt-out and supports opting back in', () => {
       setItem: (k: string, v: string) => values.set(k, v),
     },
   });
-  expect(readCardEntranceEnabled()).toBe(true);
-  saveCardEntranceEnabled(false);
-  expect(readCardEntranceEnabled()).toBe(false);
-  saveCardEntranceEnabled(true);
-  expect(readCardEntranceEnabled()).toBe(true);
+  expect(readBattleEffectsEnabled()).toBe(true);
+  values.set('loveca-card-entrance-enabled', 'false');
+  expect(readBattleEffectsEnabled()).toBe(false);
+  saveBattleEffectsEnabled(false);
+  expect(readBattleEffectsEnabled()).toBe(false);
+  saveBattleEffectsEnabled(true);
+  expect(readBattleEffectsEnabled()).toBe(true);
 });
 it('storage failures do not prevent entering a battle or toggling', () => {
   vi.stubGlobal('window', {
@@ -44,6 +46,6 @@ it('storage failures do not prevent entering a battle or toggling', () => {
       throw Error('unavailable');
     },
   });
-  expect(readCardEntranceEnabled()).toBe(true);
-  expect(() => saveCardEntranceEnabled(false)).not.toThrow();
+  expect(readBattleEffectsEnabled()).toBe(true);
+  expect(() => saveBattleEffectsEnabled(false)).not.toThrow();
 });

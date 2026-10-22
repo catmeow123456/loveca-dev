@@ -1,3 +1,4 @@
+import { useTextPresentation } from '@/lib/appPresentation';
 import { useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { applyTheme, readTheme, toggleTheme, type Theme } from '@/lib/theme';
@@ -7,6 +8,7 @@ interface ThemeToggleProps {
 }
 
 export function ThemeToggle({ className = '' }: ThemeToggleProps) {
+  const textOnly = useTextPresentation();
   const [theme, setTheme] = useState<Theme>(() => readTheme());
 
   const handleToggle = () => {
@@ -15,6 +17,7 @@ export function ThemeToggle({ className = '' }: ThemeToggleProps) {
     setTheme(nextTheme);
   };
 
+  if (textOnly) return null;
   return (
     <button
       type="button"

@@ -5,9 +5,9 @@ import { prepareGinkoScenario } from '../helpers/ginko-entrance-fixture';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { GameService } from '../../src/application/game-service';
 import { projectPlayerViewState } from '../../src/online/projector';
-import { CardEffectsEnabledContext } from '../../client/src/lib/cardEffectsContext';
+import { BattleEffectsContext } from '../../client/src/lib/battleEffects';
 import { GinkoKnotMarker } from '../../client/src/components/card/GinkoKnotMarker';
-import { CardEntranceToggle } from '../../client/src/components/game/card-entrance/CardEntranceToggle';
+import { BattleEffectsToggle } from '../../client/src/components/game/BattleEffectsToggle';
 
 let view: PlayerViewState | null = null;
 let reducedMotion = false;
@@ -30,7 +30,7 @@ const { renderToStaticMarkup } = requireFromClient('react-dom/server') as {
 function renderMarker(enabled: boolean) {
   return renderToStaticMarkup(
     createElement(
-      CardEffectsEnabledContext.Provider,
+      BattleEffectsContext.Provider,
       { value: enabled },
       createElement(GinkoKnotMarker, { objectId: 'obj_ginko' })
     )
@@ -42,7 +42,7 @@ afterEach(() => {
   reducedMotion = false;
 });
 
-describe('卡牌特效开关与吟子心意结', () => {
+describe('对战特效开关与吟子心意结', () => {
   it.each([
     ['p1', false],
     ['p2', false],
@@ -88,12 +88,12 @@ describe('卡牌特效开关与吟子心意结', () => {
     expect(renderMarker(true)).toBe('');
   });
 
-  it.each([false, true])('共用按钮以卡牌特效名称公开开关状态 %s', (enabled) => {
+  it.each([false, true])('共用按钮以对战特效名称公开开关状态 %s', (enabled) => {
     const html = renderToStaticMarkup(
-      createElement(CardEntranceToggle, { enabled, onChange: vi.fn() })
+      createElement(BattleEffectsToggle, { enabled, onChange: vi.fn() })
     );
     expect(html).toContain('role="switch"');
-    expect(html).toContain('aria-label="卡牌特效"');
+    expect(html).toContain('aria-label="对战特效"');
     expect(html).toContain(`aria-checked="${enabled}"`);
   });
 });

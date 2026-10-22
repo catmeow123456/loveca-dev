@@ -54,6 +54,7 @@ import {
 } from '@/lib/recoveryPresentationQueue';
 import { createBattleAnimationHistory } from '@/lib/battleAnimationHistory';
 import { useGameStore } from '@/store/gameStore';
+import { useBattleEffectsEnabled } from '@/lib/battleEffects';
 import { ZoneType } from '@game/shared/types/enums';
 import type { PlayerViewState } from '@game/online';
 
@@ -66,6 +67,7 @@ export interface RecentDiscardSourceAnchor {
 }
 
 export function BattleAnimationLayer() {
+  const effectsEnabled = useBattleEffectsEnabled();
   const reduceMotion = useReducedMotion();
   const { playerViewState, publicBattleLog, remoteSessionSource, isReadOnly, getCardImagePath } =
     useGameStore(
@@ -98,6 +100,9 @@ export function BattleAnimationLayer() {
   const [timelineGeneration, setTimelineGeneration] = useState(0);
   const scheduledEventTimeoutsRef = useRef(new Set<number>());
   const activeOcclusionEventIdsRef = useRef(new Set<string>());
+  const recoveryEffectTimeoutsRef = useRef(new Set<number>());
+  const recoveryEffectOcclusionIdsRef = useRef(new Set<string>());
+  const recoveryEffectGenerationRef = useRef(0);
   const viewDiffGenerationRef = useRef(0);
   const discardQueueRef = useRef<PublicDiscardRevealQueueState>(
     createPublicDiscardRevealQueueState()
@@ -121,6 +126,38 @@ export function BattleAnimationLayer() {
   }, [removeBattleAnimationOcclusion]);
 
   useLayoutEffect(() => {
+    if (effectsEnabled) return;
+    recoveryEffectGenerationRef.current++;
+    for (const timeout of recoveryEffectTimeoutsRef.current) {
+      window.clearTimeout(timeout);
+      scheduledEventTimeoutsRef.current.delete(timeout);
+    }
+    recoveryEffectTimeoutsRef.current.clear();
+    for (const id of recoveryEffectOcclusionIdsRef.current) {
+      activeOcclusionEventIdsRef.current.delete(id);
+      removeBattleAnimationOcclusion(id);
+    }
+    recoveryEffectOcclusionIdsRef.current.clear();
+    pendingRecoveriesRef.current = [];
+    // Cancel only the enhanced recovery. Base moves, flips and public reveals stay alive.
+    setEvents((current) => current.filter((event) => !isEnhancedRecovery(event)));
+  }, [effectsEnabled, removeBattleAnimationOcclusion]);
+
+  useLayoutEffect(() => {
+    const recoveryEffectGeneration = recoveryEffectGenerationRef.current;
+    for (const id of recoveryEffectOcclusionIdsRef.current) {
+      if (!activeOcclusionEventIdsRef.current.has(id))
+        recoveryEffectOcclusionIdsRef.current.delete(id);
+    }
+    const schedule = (callback: () => void, delay: number, recoveryEffect = false) => {
+      const timeout = window.setTimeout(() => {
+        scheduledEventTimeoutsRef.current.delete(timeout);
+        recoveryEffectTimeoutsRef.current.delete(timeout);
+        callback();
+      }, delay);
+      scheduledEventTimeoutsRef.current.add(timeout);
+      if (recoveryEffect) recoveryEffectTimeoutsRef.current.add(timeout);
+    };
     const previousViewState = previousViewRef.current;
     const playerViewChanged = previousViewState !== playerViewState;
     const viewDiffGeneration = getNextViewDiffGeneration(
@@ -149,6 +186,8 @@ export function BattleAnimationLayer() {
       activeDiscardEventIdRef.current = null;
       visibleDiscardSeatsRef.current.clear();
       pendingRecoveriesRef.current = [];
+      recoveryEffectTimeoutsRef.current.clear();
+      recoveryEffectOcclusionIdsRef.current.clear();
       discardQueueRef.current = createPublicDiscardRevealQueueState();
       setEvents([]);
       clearPendingBattleAnimations({
@@ -299,19 +338,22 @@ export function BattleAnimationLayer() {
       if (event.kind === 'DISCARD_PRESENTATION_BATCH') {
         visibleDiscardSeatsRef.current.set(event.id, event.toSeat);
       }
-      if (event.kind === 'CARD_MOVE' && isRecoveryCardMove(event)) {
+      if (effectsEnabled && event.kind === 'CARD_MOVE' && isRecoveryCardMove(event)) {
         pendingRecoveriesRef.current.push({ event, receivedAt: discardClockNow });
         // The final hand already exists. Hide its destination while the public payment
         // presentation (including late log backfill) still owns the waiting-room pile.
         if (!reduceMotion) {
           addBattleAnimationOcclusions([{ eventId: event.id, objectId: event.render.objectId }]);
           activeOcclusionEventIdsRef.current.add(event.id);
+          recoveryEffectOcclusionIdsRef.current.add(event.id);
         }
-        const timeout = window.setTimeout(() => {
-          scheduledEventTimeoutsRef.current.delete(timeout);
-          setDiscardPumpGeneration((current) => current + 1);
-        }, RECOVERY_PRESENTATION_MAX_WAIT_MS);
-        scheduledEventTimeoutsRef.current.add(timeout);
+        schedule(
+          () => {
+            setDiscardPumpGeneration((current) => current + 1);
+          },
+          RECOVERY_PRESENTATION_MAX_WAIT_MS,
+          true
+        );
       }
     }
     const discardSeats = new Set(visibleDiscardSeatsRef.current.values());
@@ -334,14 +376,14 @@ export function BattleAnimationLayer() {
     nextEvents.splice(
       0,
       nextEvents.length,
-      ...nextEvents.filter((event) => !isRecoveryCardMove(event)),
+      ...nextEvents.filter((event) => !effectsEnabled || !isRecoveryCardMove(event)),
       ...recoveryDrain.ready
     );
 
     if (nextEvents.length > 0) {
       const scheduledEvents = reduceMotion
         ? nextEvents.map((event) => ({ event, delayMs: 0 }))
-        : createSequencedBattleAnimationEvents(nextEvents);
+        : createSequencedBattleAnimationEvents(nextEvents, effectsEnabled);
       const moveOcclusions = scheduledEvents.flatMap((scheduledEvent) => {
         if (scheduledEvent.event.kind === 'CARD_MOVE') {
           if (reduceMotion) {
@@ -352,7 +394,12 @@ export function BattleAnimationLayer() {
               eventId: scheduledEvent.event.id,
               objectId: scheduledEvent.event.render.objectId,
               delayMs: scheduledEvent.delayMs,
-              durationMs: getBattleAnimationEventDurationMs(scheduledEvent.event),
+              durationMs: getBattleAnimationEventDurationMs(
+                scheduledEvent.event,
+                false,
+                isEnhancedRecovery(scheduledEvent.event)
+              ),
+              recoveryEffect: isEnhancedRecovery(scheduledEvent.event),
             },
           ];
         }
@@ -365,6 +412,7 @@ export function BattleAnimationLayer() {
               scheduledEvent.event,
               Boolean(reduceMotion)
             ),
+            recoveryEffect: false,
           }));
         }
         return [];
@@ -377,17 +425,18 @@ export function BattleAnimationLayer() {
       );
       for (const occlusion of moveOcclusions) {
         activeOcclusionEventIdsRef.current.add(occlusion.eventId);
+        if (occlusion.recoveryEffect) recoveryEffectOcclusionIdsRef.current.add(occlusion.eventId);
       }
       for (const occlusion of moveOcclusions) {
-        const timeout = window.setTimeout(
+        schedule(
           () => {
-            scheduledEventTimeoutsRef.current.delete(timeout);
             activeOcclusionEventIdsRef.current.delete(occlusion.eventId);
+            recoveryEffectOcclusionIdsRef.current.delete(occlusion.eventId);
             removeBattleAnimationOcclusion(occlusion.eventId);
           },
-          occlusion.delayMs + occlusion.durationMs + BATTLE_CARD_MOVE_SETTLE_BUFFER_MS
+          occlusion.delayMs + occlusion.durationMs + BATTLE_CARD_MOVE_SETTLE_BUFFER_MS,
+          occlusion.recoveryEffect
         );
-        scheduledEventTimeoutsRef.current.add(timeout);
       }
 
       const immediateEvents = scheduledEvents
@@ -399,25 +448,31 @@ export function BattleAnimationLayer() {
 
       const delayedEventGroups = groupDelayedEventsByDelay(scheduledEvents);
       for (const [delayMs, delayedEvents] of delayedEventGroups) {
-        const timeout = window.setTimeout(() => {
-          scheduledEventTimeoutsRef.current.delete(timeout);
-          // Recovery targets are measured live. An unrelated command must not swallow a
-          // scheduled pickup; leaving the hand cancels it in RecoveryCardMotion instead.
-          const eligibleEvents = delayedEvents.filter(
-            (event) =>
-              viewDiffGenerationRef.current === viewDiffGeneration || isRecoveryCardMove(event)
-          );
-          const cancelledEvents = delayedEvents.filter((event) => !eligibleEvents.includes(event));
-          if (cancelledEvents.length > 0) {
-            removeOcclusionsForAnimationEvents({
-              events: cancelledEvents,
-              activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
-              removeBattleAnimationOcclusion,
-            });
-          }
-          setEvents((current) => [...current.slice(-12), ...eligibleEvents]);
-        }, delayMs);
-        scheduledEventTimeoutsRef.current.add(timeout);
+        schedule(
+          () => {
+            // Recovery targets are measured live. An unrelated command must not swallow a
+            // scheduled pickup; leaving the hand cancels it in RecoveryCardMotion instead.
+            const eligibleEvents = delayedEvents.filter(
+              (event) =>
+                (!isEnhancedRecovery(event) ||
+                  recoveryEffectGenerationRef.current === recoveryEffectGeneration) &&
+                (viewDiffGenerationRef.current === viewDiffGeneration || isRecoveryCardMove(event))
+            );
+            const cancelledEvents = delayedEvents.filter(
+              (event) => !eligibleEvents.includes(event)
+            );
+            if (cancelledEvents.length > 0) {
+              removeOcclusionsForAnimationEvents({
+                events: cancelledEvents,
+                activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
+                removeBattleAnimationOcclusion,
+              });
+            }
+            setEvents((current) => [...current.slice(-12), ...eligibleEvents]);
+          },
+          delayMs,
+          delayedEvents.every(isEnhancedRecovery)
+        );
       }
     }
 
@@ -426,6 +481,7 @@ export function BattleAnimationLayer() {
   }, [
     addBattleAnimationOcclusions,
     discardPumpGeneration,
+    effectsEnabled,
     isReadOnly,
     playerViewState,
     publicBattleLog,
@@ -748,6 +804,11 @@ function getAnimationOcclusionEventIds(event: BattleAnimationEvent): readonly st
   return [];
 }
 
+// The group is assigned only when this event opts into the enhanced recovery.
+function isEnhancedRecovery(event: BattleAnimationEvent): boolean {
+  return event.kind === 'CARD_MOVE' && isRecoveryCardMove(event) && !!event.recoveryGroup;
+}
+
 function MovingCard({
   event,
   imagePath,
@@ -763,14 +824,16 @@ function MovingCard({
   readonly reduceMotion: boolean | null;
   readonly onDone: () => void;
 }) {
+  const effectsEnabled = useBattleEffectsEnabled();
+  const cancelled = !effectsEnabled && isEnhancedRecovery(event);
   const finish = useRef(onDone);
   finish.current = onDone;
   useLayoutEffect(() => {
-    if (suppressMovement) finish.current();
-  }, [suppressMovement]);
+    if (suppressMovement || cancelled) finish.current();
+  }, [suppressMovement, cancelled]);
   // Remove the motion child before completing its event, so AnimatePresence cannot
   // keep a second flying card alive for an exit fade under the dedicated presentation.
-  if (suppressMovement) return null;
+  if (suppressMovement || cancelled) return null;
   const fromCenter = getRectCenter(event.fromRect);
   const toCenter = getRectCenter(event.toRect);
   const fromRect = normalizeCardMoveRect(event, event.fromRect, 'from');
@@ -798,12 +861,13 @@ function MovingCard({
     );
   }
 
-  if (isRecoveryCardMove(event)) {
+  if (isEnhancedRecovery(event)) {
     return <RecoveryCardMotion event={event} imagePath={imagePath} onDone={onDone} />;
   }
 
   return (
     <motion.div
+      data-battle-card-move={event.render.objectId}
       className="fixed overflow-hidden rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_82%,white)] bg-[var(--bg-overlay)] shadow-[0_10px_28px_rgba(0,0,0,0.34),0_1px_0_rgba(255,255,255,0.08)_inset]"
       style={{
         width: startWidth,
@@ -1079,6 +1143,7 @@ function PulseFrame({
 
   return (
     <motion.div
+      data-battle-state-feedback={event.kind}
       className={cn(
         'fixed rounded-lg border',
         isOrientation &&

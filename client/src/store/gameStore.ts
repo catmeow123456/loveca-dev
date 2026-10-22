@@ -1,3 +1,6 @@
+import { reportBattleConnection } from '@/lib/battleConnection';
+import { beginBattleCommandSubmission, battleCommandIdentity } from '@/lib/battleCommandSubmission';
+import { allowPresentationAssets } from '@/lib/appPresentation';
 /**
  * 游戏状态管理 (Zustand Store)
  *
@@ -1976,6 +1979,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     isReadonlyReplayMode: () => isReadonlyReplayMode(),
 
     connectRemoteSession: (session) => {
+      reportBattleConnection(session.matchId, 'connecting');
       set((state) => ({
         remoteSession:
           session.source === 'SPECTATOR'
@@ -2067,9 +2071,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
 
-      const snapshotResult =
+      const snapshotRequest =
         remoteSession.source === 'SPECTATOR'
-          ? await fetchRemoteSnapshotSyncResult(
+          ? fetchRemoteSnapshotSyncResult(
               remoteSession.source,
               remoteSession.matchId,
               remoteSession.seat,
@@ -2080,12 +2084,24 @@ export const useGameStore = create<GameStore>((set, get) => {
               remoteSession.spectatorRoomGeneration,
               remoteSession.spectatorAttachmentGeneration
             )
-          : await fetchRemoteSnapshotSyncResult(
+          : fetchRemoteSnapshotSyncResult(
               remoteSession.source,
               remoteSession.matchId,
               remoteSession.seat,
               get().playerViewState?.match.seq
             );
+      const snapshotResult = await snapshotRequest.then(
+        (result) => {
+          if (isRemoteSessionStillCurrent(remoteSession))
+            reportBattleConnection(remoteSession.matchId, 'connected');
+          return result;
+        },
+        (error: unknown) => {
+          if (isRemoteSessionStillCurrent(remoteSession))
+            reportBattleConnection(remoteSession.matchId, 'retrying');
+          throw error;
+        }
+      );
       if (!isRemoteSessionStillCurrent(remoteSession)) {
         return;
       }
@@ -3157,6 +3173,7 @@ function applyRemoteSnapshotThenPreload(
   context: string,
   options: { readonly syncPublicBattleLog?: boolean } = {}
 ): void {
+  reportBattleConnection(snapshot.matchId, 'connected');
   const previousViewState = useGameStore.getState().playerViewState;
   const nextViewState = snapshot.playerViewState;
   const cardDataRegistry = useGameStore.getState().cardDataRegistry;
@@ -3311,6 +3328,7 @@ async function preloadFrontTransitions(
     return;
   }
 
+  if (!allowPresentationAssets()) return;
   const imageUrls = collectFrontTransitionImageUrls(
     previousViewState,
     nextViewState,
@@ -3829,6 +3847,10 @@ function dispatchRemoteCommand(
     return false;
   }
 
+  const finishSubmission = beginBattleCommandSubmission(
+    battleCommandIdentity(remoteSession.matchId, remoteSession.seat, command)
+  );
+  if (!finishSubmission) return true;
   const queuedCommand = ensureRemoteCommandIdempotencyKey(command);
   void enqueueRemoteSessionOperation(remoteSession, async () => {
     const result = await executeRemoteCommand(
@@ -3868,19 +3890,21 @@ function dispatchRemoteCommand(
 
     applyRemoteSnapshotThenPreload(result.snapshot, useGameStore.setState, 'remoteCommand');
     onSuccess?.();
-  }).catch((error) => {
-    useGameStore
-      .getState()
-      .addLog(
-        `${failureMessage}: ${error instanceof Error ? error.message : '网络请求失败'}`,
-        'error'
-      );
-    useGameStore.getState().pushBattleFeedback({
-      tone: 'error',
-      label: failureMessage,
-      detail: error instanceof Error ? error.message : '网络请求失败',
-    });
-  });
+  })
+    .catch((error) => {
+      useGameStore
+        .getState()
+        .addLog(
+          `${failureMessage}: ${error instanceof Error ? error.message : '网络请求失败'}`,
+          'error'
+        );
+      useGameStore.getState().pushBattleFeedback({
+        tone: 'error',
+        label: failureMessage,
+        detail: error instanceof Error ? error.message : '网络请求失败',
+      });
+    })
+    .finally(finishSubmission);
 
   return true;
 }
@@ -3896,6 +3920,10 @@ function dispatchRemoteAdvancePhase(): boolean {
     return false;
   }
 
+  const finishSubmission = beginBattleCommandSubmission(
+    battleCommandIdentity(remoteSession.matchId, remoteSession.seat, { type: 'advance-phase' })
+  );
+  if (!finishSubmission) return true;
   void enqueueRemoteSessionOperation(remoteSession, async () => {
     const result = await advanceRemotePhase(
       remoteSession.source,
@@ -3925,11 +3953,16 @@ function dispatchRemoteAdvancePhase(): boolean {
       const phaseName = getPhaseName(currentPhase);
       useGameStore.getState().addLog(`进入 ${phaseName}`, 'phase');
     }
-  }).catch((error) => {
-    useGameStore
-      .getState()
-      .addLog(`阶段推进失败: ${error instanceof Error ? error.message : '网络请求失败'}`, 'error');
-  });
+  })
+    .catch((error) => {
+      useGameStore
+        .getState()
+        .addLog(
+          `阶段推进失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
+          'error'
+        );
+    })
+    .finally(finishSubmission);
 
   return true;
 }
@@ -3958,6 +3991,13 @@ function dispatchRemoteUndoLastStep(): CommandDispatchResult {
     undoEntryId: undoEntry.undoEntryId,
     idempotencyKey: createClientIdempotencyKey('undo'),
   };
+  const finishSubmission = beginBattleCommandSubmission(
+    battleCommandIdentity(remoteSession.matchId, remoteSession.seat, {
+      type: 'undo',
+      undoEntryId: undoEntry.undoEntryId,
+    })
+  );
+  if (!finishSubmission) return { success: false, pending: true };
   void enqueueRemoteSessionOperation(remoteSession, async () => {
     const result = await undoRemoteMatch(remoteSession.source, remoteSession.matchId, input);
     if (!isRemoteSessionStillCurrent(remoteSession)) {
@@ -3975,11 +4015,13 @@ function dispatchRemoteUndoLastStep(): CommandDispatchResult {
 
     applyRemoteSnapshotThenPreload(result.snapshot, useGameStore.setState, 'remoteUndo');
     useGameStore.getState().addLog('撤销上一步', 'action');
-  }).catch((error) => {
-    useGameStore
-      .getState()
-      .addLog(`撤销失败: ${error instanceof Error ? error.message : '网络请求失败'}`, 'error');
-  });
+  })
+    .catch((error) => {
+      useGameStore
+        .getState()
+        .addLog(`撤销失败: ${error instanceof Error ? error.message : '网络请求失败'}`, 'error');
+    })
+    .finally(finishSubmission);
 
   return { success: false, pending: true };
 }
@@ -4003,6 +4045,13 @@ function dispatchRemoteManualOperationModeChange(
     };
   }
 
+  const finishSubmission = beginBattleCommandSubmission(
+    battleCommandIdentity(remoteSession.matchId, remoteSession.seat, {
+      type: 'manual-operation-mode',
+      targetMode,
+    })
+  );
+  if (!finishSubmission) return { success: false, pending: true };
   void enqueueRemoteSessionOperation(remoteSession, async () => {
     const result = await changeRemoteManualOperationMode(
       remoteSession.source,
@@ -4038,14 +4087,16 @@ function dispatchRemoteManualOperationModeChange(
             : '已切换为规则模式',
         'action'
       );
-  }).catch((error) => {
-    useGameStore
-      .getState()
-      .addLog(
-        `切换操作模式失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
-        'error'
-      );
-  });
+  })
+    .catch((error) => {
+      useGameStore
+        .getState()
+        .addLog(
+          `切换操作模式失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
+          'error'
+        );
+    })
+    .finally(finishSubmission);
   return { success: false, pending: true };
 }
 
@@ -4058,6 +4109,14 @@ function dispatchRemoteManualOperationModeRequestResponse(
   if (!remoteSession) {
     return { success: false, error: '未连接远程对局' };
   }
+  const finishSubmission = beginBattleCommandSubmission(
+    battleCommandIdentity(remoteSession.matchId, remoteSession.seat, {
+      type: 'manual-operation-response',
+      requestId,
+      action,
+    })
+  );
+  if (!finishSubmission) return { success: false, pending: true };
   void enqueueRemoteSessionOperation(remoteSession, async () => {
     const result = await respondRemoteManualOperationModeRequest(
       remoteSession.source,
@@ -4092,14 +4151,16 @@ function dispatchRemoteManualOperationModeRequestResponse(
             : '已取消自由模式请求',
         'action'
       );
-  }).catch((error) => {
-    useGameStore
-      .getState()
-      .addLog(
-        `处理自由模式请求失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
-        'error'
-      );
-  });
+  })
+    .catch((error) => {
+      useGameStore
+        .getState()
+        .addLog(
+          `处理自由模式请求失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
+          'error'
+        );
+    })
+    .finally(finishSubmission);
   return { success: false, pending: true };
 }
 
@@ -4134,6 +4195,13 @@ function dispatchRemoteUndoRequest(): CommandDispatchResult {
     undoEntryId: undoEntry.undoEntryId,
     idempotencyKey: createClientIdempotencyKey('undo-request'),
   };
+  const finishSubmission = beginBattleCommandSubmission(
+    battleCommandIdentity(remoteSession.matchId, remoteSession.seat, {
+      type: 'undo-request',
+      undoEntryId: undoEntry.undoEntryId,
+    })
+  );
+  if (!finishSubmission) return { success: false, pending: true };
   void enqueueRemoteSessionOperation(remoteSession, async () => {
     const result = await createRemoteUndoRequest(
       remoteSession.source,
@@ -4152,11 +4220,16 @@ function dispatchRemoteUndoRequest(): CommandDispatchResult {
 
     applyRemoteSnapshotThenPreload(result.snapshot, useGameStore.setState, 'remoteUndoRequest');
     useGameStore.getState().addLog('已发送撤销请求', 'action');
-  }).catch((error) => {
-    useGameStore
-      .getState()
-      .addLog(`请求撤销失败: ${error instanceof Error ? error.message : '网络请求失败'}`, 'error');
-  });
+  })
+    .catch((error) => {
+      useGameStore
+        .getState()
+        .addLog(
+          `请求撤销失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
+          'error'
+        );
+    })
+    .finally(finishSubmission);
 
   return { success: false, pending: true };
 }
@@ -4181,6 +4254,14 @@ function dispatchRemoteUndoRequestResponse(
     idempotencyKey: createClientIdempotencyKey(accepted ? 'undo-accept' : 'undo-reject'),
     ...(accepted && options.grantContinuous ? { grantContinuous: true } : {}),
   };
+  const finishSubmission = beginBattleCommandSubmission(
+    battleCommandIdentity(remoteSession.matchId, remoteSession.seat, {
+      type: 'undo-response',
+      requestId,
+      accepted,
+    })
+  );
+  if (!finishSubmission) return { success: false, pending: true };
   void enqueueRemoteSessionOperation(remoteSession, async () => {
     const result = accepted
       ? await acceptRemoteUndoRequest(remoteSession.source, remoteSession.matchId, requestId, input)
@@ -4209,16 +4290,18 @@ function dispatchRemoteUndoRequestResponse(
       accepted ? 'remoteUndoAccept' : 'remoteUndoReject'
     );
     useGameStore.getState().addLog(accepted ? '已接受撤销请求' : '已拒绝撤销请求', 'action');
-  }).catch((error) => {
-    useGameStore
-      .getState()
-      .addLog(
-        `${accepted ? '接受' : '拒绝'}撤销失败: ${
-          error instanceof Error ? error.message : '网络请求失败'
-        }`,
-        'error'
-      );
-  });
+  })
+    .catch((error) => {
+      useGameStore
+        .getState()
+        .addLog(
+          `${accepted ? '接受' : '拒绝'}撤销失败: ${
+            error instanceof Error ? error.message : '网络请求失败'
+          }`,
+          'error'
+        );
+    })
+    .finally(finishSubmission);
 
   return { success: false, pending: true };
 }

@@ -1,3 +1,4 @@
+import { getPresentationPortalRoot } from '@/lib/appPresentation';
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Loader2 } from 'lucide-react';
@@ -228,7 +229,7 @@ export function SelectMenu<Value extends string>({
                 );
               })}
             </div>,
-            document.body
+            getPresentationPortalRoot()
           )
         : null}
     </>

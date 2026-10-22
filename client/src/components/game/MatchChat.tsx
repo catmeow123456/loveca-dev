@@ -1,3 +1,4 @@
+import { getPresentationPortalRoot } from '@/lib/appPresentation';
 import {
   memo,
   useCallback,
@@ -477,7 +478,7 @@ export const MatchChat = memo(function MatchChat({
                 )
               ) : null}
             </AnimatePresence>,
-            document.body
+            getPresentationPortalRoot()
           )
         : null}
 
@@ -633,7 +634,7 @@ export const MatchChat = memo(function MatchChat({
                 </div>
               )}
             </aside>,
-            document.body
+            getPresentationPortalRoot()
           )
         : null}
     </div>
@@ -663,7 +664,7 @@ function IdentityAnchorPortal({
     >
       {children}
     </div>,
-    document.body
+    getPresentationPortalRoot()
   );
 }
 

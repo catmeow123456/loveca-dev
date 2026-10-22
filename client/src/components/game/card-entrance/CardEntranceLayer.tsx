@@ -1,3 +1,5 @@
+import { useCardEntranceBarrier, useWindowVisualEligibility } from '../BattleRuntime';
+import { useTextPresentation } from '@/lib/appPresentation';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
@@ -34,6 +36,8 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
 
 function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enabled: boolean }) {
   const wait = view.match.entrance!;
+  const textOnly = useTextPresentation();
+  const playVisuals = useWindowVisualEligibility(wait.id, enabled);
   const viewerWaiting = wait.waitingSeats.includes(view.match.viewerSeat);
   const reduced = !!useReducedMotion();
   const [transfer] = useState(() =>
@@ -75,29 +79,14 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
   const [landedId, setLandedId] = useState<string | null>(null);
   const [releasedPreludeId, setReleasedPreludeId] = useState<string | null>(null);
   const [transferDone, setTransferDone] = useState(false);
-  const activeTransfer = enabled && viewerWaiting && !transferDone ? transfer : undefined;
-  const active = enabled && viewerWaiting ? queue[index] : undefined;
+  const activeTransfer = playVisuals && viewerWaiting && !transferDone ? transfer : undefined;
+  const active = playVisuals && viewerWaiting ? queue[index] : undefined;
   const done = !active && !activeTransfer;
 
-  useEffect(() => {
-    if (!done || !viewerWaiting) return;
-    const acknowledge = () => useGameStore.getState().acknowledgeCardEntrance(wait.id);
-    acknowledge();
-    // Retry a lost response with the same barrier token; authority validates the participant.
-    const timer = window.setInterval(acknowledge, 1000);
-    return () => window.clearInterval(timer);
-  }, [done, viewerWaiting, wait.id]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(
-      () => useGameStore.getState().expireLocalCardEntrance(),
-      Math.max(0, wait.deadlineAt - Date.now()) + 20
-    );
-    return () => window.clearTimeout(timer);
-  }, [wait.deadlineAt]);
+  useCardEntranceBarrier(view, done);
 
   useLayoutEffect(() => {
-    const candidates = enabled && viewerWaiting && !reduced ? queue.slice(index) : [];
+    const candidates = playVisuals && viewerWaiting && !reduced ? queue.slice(index) : [];
     const ids = candidates
       .filter((p) => p.id !== landedId)
       .flatMap((p) =>
@@ -117,8 +106,9 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
     return () => {
       for (const { eventId } of ids) store.removeBattleAnimationOcclusion(eventId);
     };
-  }, [enabled, viewerWaiting, reduced, queue, index, landedId, releasedPreludeId]);
+  }, [playVisuals, viewerWaiting, reduced, queue, index, landedId, releasedPreludeId]);
 
+  if (textOnly) return null;
   return (
     <>
       <div className="absolute inset-0 z-[59]" aria-hidden="true" />

@@ -1,3 +1,4 @@
+import { PresentationImage } from '@/components/excel/PresentationRoot';
 import {
   useCallback,
   useEffect,
@@ -1195,7 +1196,10 @@ export function CasualLobbyPage({
                     {chosen && !deckPickerOpen ? (
                       <div className="casual-selected-deck">
                         {chosen.previewCardCodes[0] && (
-                          <img src={getCardImagePath(chosen.previewCardCodes[0])} alt="" />
+                          <PresentationImage
+                            src={getCardImagePath(chosen.previewCardCodes[0])}
+                            alt=""
+                          />
                         )}
                         <div>
                           <small>本局卡组</small>

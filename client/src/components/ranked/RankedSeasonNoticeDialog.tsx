@@ -1,3 +1,4 @@
+import { getPresentationPortalRoot } from '@/lib/appPresentation';
 import { memo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
@@ -155,7 +156,7 @@ export const RankedSeasonNoticeDialog = memo(function RankedSeasonNoticeDialog({
     return dialog;
   }
 
-  return createPortal(dialog, document.body);
+  return createPortal(dialog, getPresentationPortalRoot());
 });
 
 export default RankedSeasonNoticeDialog;

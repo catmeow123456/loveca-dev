@@ -1,3 +1,4 @@
+import { getPresentationPortalRoot } from '@/lib/appPresentation';
 /**
  * 玩家区域组件
  * 显示成员槽位、能量区、卡组、手牌、成功 Live 区、Live 区等
@@ -269,7 +270,7 @@ const CardActionMenu = memo(function CardActionMenu({
               </button>
             ))}
           </div>,
-          document.body
+          getPresentationPortalRoot()
         )}
     </>
   );
@@ -1793,7 +1794,7 @@ export const PlayerArea = memo(function PlayerArea({
 
                 return typeof document === 'undefined'
                   ? waitingRoomModal
-                  : createPortal(waitingRoomModal, document.body);
+                  : createPortal(waitingRoomModal, getPresentationPortalRoot());
               })()}
           </>
         )}

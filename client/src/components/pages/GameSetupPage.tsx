@@ -1,3 +1,4 @@
+import { useTextPresentation } from '@/lib/appPresentation';
 /**
  * GameSetupPage - 对墙打与双人调试的卡组准备
  * Step 1: 选择卡组（调试模式选 2 副，对墙打模式选 1 副）
@@ -86,6 +87,7 @@ export function GameSetupPage({
   onGameStart,
   onManageDecks,
 }: GameSetupPageProps) {
+  const textOnly = useTextPresentation();
   const [currentStep, setCurrentStep] = useState<SetupStep>(1);
   const [selectedP1DeckState, setSelectedP1Deck] = useState<DeckDisplayItem | null>(null);
   const [selectedP2DeckState, setSelectedP2Deck] = useState<DeckDisplayItem | null>(null);
@@ -416,6 +418,91 @@ export function GameSetupPage({
     if (currentStep === 2 && gameMode === GameMode.DEBUG) return '下一步：确认对局';
     return '下一步';
   };
+
+  if (textOnly)
+    return (
+      <ProductFrame
+        active="battle"
+        navigation={navigation}
+        actions={headerActions}
+        mobileMenuActions={mobileMenuActions}
+        title={isDebugMode ? '双人调试' : '对墙打'}
+        backLabel="返回大厅"
+        onBack={onBack}
+      >
+        <main className="excel-setup">
+          <div role="group" aria-label="练习与调试模式">
+            {(
+              [
+                [GameMode.SOLITAIRE, '对墙打'],
+                [GameMode.DEBUG, '双人调试'],
+              ] as const
+            ).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={gameMode === mode}
+                disabled={isStarting}
+                onClick={() => onModeChange(mode)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <h2>{getStepTitle()}</h2>
+          <div className="excel-setup-body">
+            {isConfirmStep ? (
+              <section aria-label="对局确认">
+                <p>己方卡组：{selectedP1Deck?.name}</p>
+                {gameMode === GameMode.DEBUG && <p>对方卡组：{selectedP2Deck?.name}</p>}
+                <p>
+                  {gameMode === GameMode.SOLITAIRE && canUseRecordedSolitaire
+                    ? '在线记录：本局会保存到历史并可复盘'
+                    : '本地模拟：本局不会保存历史'}
+                </p>
+              </section>
+            ) : (
+              <DeckSelector
+                cloudDecks={cloudDecks}
+                localDecks={offlineMode ? localDecks : []}
+                selectedId={currentStep === 1 ? selectedP1Deck?.id : selectedP2Deck?.id}
+                onSelect={currentStep === 1 ? handleSelectP1 : handleSelectP2}
+                isLoading={!offlineMode && isLoadingCloud}
+                isRefreshing={!offlineMode && isRefreshingCloud}
+                error={offlineMode ? null : cloudError}
+                onRefresh={offlineMode ? undefined : refreshCloudDecks}
+                title="可用卡组"
+                emptyText={
+                  offlineMode ? '还没有可用的本地卡组。先从示例卡组创建一副。' : '还没有可用卡组。'
+                }
+                emptyActionLabel={offlineMode ? '创建本地卡组' : '管理卡组'}
+                onEmptyAction={onManageDecks}
+                lastUsedDeckId={currentStep === 1 ? p1LastUsedDeckId : p2LastUsedDeckId}
+              />
+            )}
+          </div>
+          {error && <p role="alert">{error}</p>}
+          <footer>
+            <button onClick={handlePrev} disabled={isStarting}>
+              {currentStep === 1 ? '取消准备' : '上一步'}
+            </button>
+            {currentStep < maxStep && (
+              <button onClick={handleNext} disabled={!canProceed()}>
+                {getNextButtonLabel()}
+              </button>
+            )}
+            {isConfirmStep && (
+              <button
+                disabled={isStarting || !selectedP1Deck || (isDebugMode && !selectedP2Deck)}
+                onClick={() => void handleStartGame()}
+              >
+                {isStarting ? '准备中…' : '开始对局'}
+              </button>
+            )}
+          </footer>
+        </main>
+      </ProductFrame>
+    );
 
   return (
     <ProductFrame

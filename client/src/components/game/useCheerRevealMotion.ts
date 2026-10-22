@@ -1,3 +1,5 @@
+import { useTextPresentation } from '@/lib/appPresentation';
+import { useBattleEffectsEnabled } from '@/lib/battleEffects';
 import {
   createContext,
   useContext,
@@ -49,10 +51,12 @@ export function useCheerRevealMotion(input: {
   playerName: string;
 }) {
   const config = useContext(CheerMotionContext);
+  const effectsEnabled = useBattleEffectsEnabled();
   const view = useGameStore((s) => s.playerViewState);
   const epoch = useGameStore((s) => s.publicBattleLog.presentationEpoch);
   const previous = useRef<Cursor | null>(null);
   const labels = useRef<ReturnType<typeof readCheerJudgmentLabels>>([]);
+  const textOnly = useTextPresentation();
   const cancel = useRef<(() => void) | null>(null);
   const pending = useRef<{
     cards: CheerMotionCard[];
@@ -73,11 +77,17 @@ export function useCheerRevealMotion(input: {
     cleanup?.();
   };
   useEffect(() => {
-    void warmCheerAssets();
-    return stop;
-  }, []);
+    if (!textOnly && effectsEnabled && config.enabled) void warmCheerAssets();
+  }, [textOnly, effectsEnabled, config.enabled]);
+  // Preference changes are handled in the layout effect. A passive cleanup there
+  // could otherwise cancel a new batch prepared in the same render as re-enabling.
+  useEffect(() => stop, []);
 
   useLayoutEffect(() => {
+    if (textOnly) {
+      stop();
+      return;
+    }
     const store = useGameStore.getState();
     const prev = previous.current;
     const match = view?.match;
@@ -106,7 +116,8 @@ export function useCheerRevealMotion(input: {
       prev.epoch !== next.epoch ||
       next.seq < prev.seq ||
       input.isReadOnly ||
-      !config.enabled;
+      !config.enabled ||
+      !effectsEnabled;
     if (reset) {
       stop();
       labels.current = readCheerJudgmentLabels(input.panel.current);

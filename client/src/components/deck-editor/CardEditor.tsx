@@ -1,3 +1,4 @@
+import { getPresentationPortalRoot } from '@/lib/appPresentation';
 /**
  * CardEditor - 卡组编辑器主组件（编排器）
  * 布局层次：
@@ -214,7 +215,7 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
               </div>
             </motion.div>
           </>,
-          document.body
+          getPresentationPortalRoot()
         )}
 
       {isMobile && mobileFiltersOpen && (

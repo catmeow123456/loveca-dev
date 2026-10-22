@@ -1,3 +1,4 @@
+import { getPresentationPortalRoot } from '@/lib/appPresentation';
 import {
   memo,
   useCallback,
@@ -709,7 +710,7 @@ export const TutorialGuidanceLayer = memo(function TutorialGuidanceLayer({
     </AnimatePresence>
   );
 
-  return createPortal(overlay, document.body);
+  return createPortal(overlay, getPresentationPortalRoot());
 });
 
 export default TutorialGuidanceLayer;

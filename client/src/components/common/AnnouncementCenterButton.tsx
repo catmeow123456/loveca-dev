@@ -1,3 +1,4 @@
+import { getPresentationPortalRoot } from '@/lib/appPresentation';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, X } from 'lucide-react';
@@ -101,7 +102,7 @@ export function AnnouncementCenterButton({
       </button>
       {createPortal(
         <AnnouncementCenterDrawer isOpen={isOpen} items={items} onClose={close} />,
-        document.body
+        getPresentationPortalRoot()
       )}
       <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {hasUnread ? '公告已更新' : ''}

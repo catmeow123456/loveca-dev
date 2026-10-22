@@ -35,7 +35,8 @@ export interface ScheduledBattleAnimationEvent {
 }
 
 export function createSequencedBattleAnimationEvents(
-  events: readonly BattleAnimationEvent[]
+  events: readonly BattleAnimationEvent[],
+  recoveryEffectsEnabled = true
 ): ScheduledBattleAnimationEvent[] {
   const hasStageEntryMove = events.some(
     (event) =>
@@ -47,14 +48,14 @@ export function createSequencedBattleAnimationEvents(
   const recoveryCounts = new Map<string, number>();
   const recoveryTotals = new Map<string, number>();
   for (const event of events) {
-    if (event.kind === 'CARD_MOVE' && isRecoveryCardMove(event)) {
+    if (recoveryEffectsEnabled && event.kind === 'CARD_MOVE' && isRecoveryCardMove(event)) {
       const seat = event.toSeat ?? '';
       recoveryTotals.set(seat, (recoveryTotals.get(seat) ?? 0) + 1);
     }
   }
   return events.map((event) => {
     const delayMs = hasStageEntryMove ? getStageEntrySequencedDelay(event) : 0;
-    if (event.kind === 'CARD_MOVE' && isRecoveryCardMove(event)) {
+    if (recoveryEffectsEnabled && event.kind === 'CARD_MOVE' && isRecoveryCardMove(event)) {
       const seat = event.toSeat ?? '';
       const index = recoveryCounts.get(seat) ?? 0;
       recoveryCounts.set(seat, index + 1);
@@ -69,7 +70,8 @@ export function createSequencedBattleAnimationEvents(
 
 export function getBattleAnimationEventDurationMs(
   event: BattleAnimationEvent,
-  prefersReducedMotion = false
+  prefersReducedMotion = false,
+  recoveryEffectsEnabled = true
 ): number {
   if (event.kind === 'DISCARD_PRESENTATION_BATCH') {
     return prefersReducedMotion
@@ -82,7 +84,11 @@ export function getBattleAnimationEventDurationMs(
   }
 
   if (isRecoveryCardMove(event)) {
-    return prefersReducedMotion ? 120 : RECOVERY_DURATION_MS;
+    return prefersReducedMotion
+      ? 120
+      : recoveryEffectsEnabled
+        ? RECOVERY_DURATION_MS
+        : BATTLE_CARD_MOVE_DURATION_MS;
   }
 
   if (event.kind === 'ZONE_PULSE') {

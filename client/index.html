@@ -3,8 +3,83 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="referrer" content="no-referrer" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/pwa/icon-192.png" />
-    <link rel="apple-touch-icon" href="/pwa/icon-192.png" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%2323864f%22%20d%3D%22M9%207h19v23H9z%22%2F%3E%3Cpath%20fill%3D%22%234fbc83%22%20d%3D%22M4%202h18l5%205v21H4z%22%2F%3E%3Cpath%20fill%3D%22%239de1bb%22%20d%3D%22M22%202v5h5z%22%2F%3E%3Cpath%20fill%3D%22%23fff%22%20d%3D%22M8%2013h6v3H8zm9%200h6v3h-6zM8%2019h6v3H8zm9%200h6v3h-6z%22%2F%3E%3C%2Fsvg%3E"
+    />
+    <script>
+      (() => {
+        let mode = 'normal',
+          covered = false,
+          excelTheme = 'light';
+        try {
+          mode = localStorage.getItem('loveca.presentation.mode') === 'excel' ? 'excel' : 'normal';
+          excelTheme =
+            localStorage.getItem('loveca.presentation.theme') === 'dark' ? 'dark' : 'light';
+          covered = sessionStorage.getItem('loveca.presentation.covered') === 'true';
+        } catch {
+          covered = true;
+        }
+        document.documentElement.dataset.presentation = mode;
+        document.documentElement.dataset.excelTheme = excelTheme;
+        document.documentElement.dataset.covered = String(covered);
+        if (mode === 'normal' && !covered)
+          document.querySelector('link[rel="icon"]').href = '/pwa/icon-192.png';
+      })();
+    </script>
+    <style>
+      :root {
+        --excel-surface: #fff;
+        --excel-text: #202526;
+        --excel-color-scheme: light;
+      }
+      html[data-excel-theme='dark'] {
+        --excel-surface: #202427;
+        --excel-text: #e4e8e9;
+        --excel-color-scheme: dark;
+      }
+      html[data-presentation='excel'],
+      html[data-covered='true'] {
+        background: var(--excel-surface);
+        color: var(--excel-text);
+        color-scheme: var(--excel-color-scheme);
+      }
+      html[data-presentation='excel'] body,
+      html[data-covered='true'] body {
+        background: var(--excel-surface);
+        color: var(--excel-text);
+      }
+      #presentation-boot-cover {
+        display: none;
+      }
+      html[data-covered='true'] #root,
+      html[data-covered='true'] #app-overlays {
+        visibility: hidden;
+      }
+      html[data-covered='true'][data-presentation-ready='true'] #root {
+        visibility: visible;
+      }
+      html[data-covered='true'] #presentation-boot-cover {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        background: var(--excel-surface);
+        color: var(--excel-text);
+        font:
+          14px Arial,
+          sans-serif;
+        padding: 12px;
+      }
+      html[data-covered='true'][data-presentation-ready='true'] #presentation-boot-cover {
+        display: none;
+      }
+      html[data-covered='true'] #app-surface,
+      html[data-covered='true'] #app-overlays {
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+    </style>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#1d1321" />
     <script>
@@ -22,12 +97,21 @@
         } catch {
           document.documentElement.setAttribute('data-theme', 'dark');
         }
+        if (
+          document.documentElement.dataset.presentation === 'excel' ||
+          document.documentElement.dataset.covered === 'true'
+        ) {
+          document.querySelector('meta[name="theme-color"]').content =
+            document.documentElement.dataset.excelTheme === 'dark' ? '#202427' : '#ffffff';
+        }
       })();
     </script>
-    <title>LOVECA</title>
+    <title>工作簿</title>
   </head>
   <body>
+    <div id="presentation-boot-cover">工作簿</div>
     <div id="root"></div>
+    <div id="app-overlays"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

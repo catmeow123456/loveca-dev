@@ -1,7 +1,6 @@
-import { useContext } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { useReducedMotion } from 'framer-motion';
-import { CardEffectsEnabledContext } from '@/lib/cardEffectsContext';
+import { useBattleEffectsEnabled } from '@/lib/battleEffects';
 import './GinkoKnotMarker.css';
 import {
   knotColors,
@@ -12,7 +11,7 @@ import {
 } from '@/lib/ginkoKnotShape';
 
 export function GinkoKnotMarker({ objectId }: { objectId: string }) {
-  const enabled = useContext(CardEffectsEnabledContext);
+  const enabled = useBattleEffectsEnabled();
   const hasGrant = useGameStore(
     (s) => s.playerViewState?.objects[objectId]?.hasTemporaryOnEnterAbility === true
   );

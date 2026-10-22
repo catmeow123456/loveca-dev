@@ -1,5 +1,6 @@
 /** 登录后大厅：选择玩法、准备一副卡组、继续当前任务。 */
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useTextPresentation } from '@/lib/appPresentation';
 import {
   ArrowRight,
   Bot,
@@ -118,6 +119,7 @@ export function HomePage({
   battleEntryVisibility,
   siteStatus,
 }: HomePageProps) {
+  const textOnly = useTextPresentation();
   const { user, profile, offlineMode, offlineUser } = useAuthStore();
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
   const localDecks = useDeckStore((s) => s.localDecks);
@@ -148,6 +150,8 @@ export function HomePage({
     ids: Partial<Record<ModeId, string>>;
   }>({ ownerId, ids: {} });
   const [dialog, setDialog] = useState<'choose' | string | null>(null);
+  const chooseDeckButton = useRef<HTMLButtonElement>(null);
+  const deckDetailsButton = useRef<HTMLButtonElement>(null);
   const [isAbandoningRoom, setIsAbandoningRoom] = useState(false);
   const [roomError, setRoomError] = useState<string | null>(null);
 
@@ -325,6 +329,93 @@ export function HomePage({
   const detailDeck =
     dialog && dialog !== 'choose' ? deckItems.find((deck) => deck.id === dialog) : null;
 
+  if (textOnly)
+    return (
+      <ProductFrame
+        active="home"
+        navigation={navigation}
+        actions={headerActions}
+        mobileMenuActions={mobileMenuActions}
+      >
+        <main className="excel-entry">
+          <h1>大厅 · {displayUsername}</h1>
+          <p>{canUseOnline ? '已联网' : '离线模式'}</p>
+          {canReturnRoom && (
+            <section aria-label="当前房间">
+              <h2>{savedRoomCode ? `房间 ${savedRoomCode}` : '你有正在进行的房间'}</h2>
+              <p>{endedRoom ? '对局已结束 · 可协商再战' : '你的席位仍在保留'}</p>
+              <button onClick={onNavigateToLobby}>返回房间</button>
+              <details>
+                <summary>其他操作</summary>
+                <p>
+                  {endedRoom
+                    ? '另开本地对局会离开当前赛后房间。'
+                    : '另开本地对局会放弃当前联机对局，且不保留原房间恢复入口。'}
+                </p>
+                <button disabled={isAbandoningRoom} onClick={() => void abandonRoom()}>
+                  {isAbandoningRoom ? '正在处理…' : '另开本地对局'}
+                </button>
+              </details>
+            </section>
+          )}
+          {roomError && <p role="alert">{roomError}</p>}
+          <label>
+            选择玩法
+            <select value={mode.id} onChange={(event) => setModeId(event.target.value as ModeId)}>
+              {modes.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p>{mode.description}</p>
+          {isPlatformMode ? (
+            <p>此玩法使用普通界面，按 Ctrl+Alt+E 切换后可进入。</p>
+          ) : (
+            <>
+              <p>
+                当前卡组：{selectedDeck?.name ?? '未选择'} · 合法卡组 {validDeckItems.length} 副
+              </p>
+              <DeckSelector
+                cloudDecks={canUseOnline ? validCloudDecks : []}
+                localDecks={offlineMode ? localDecks : []}
+                selectedId={selectedDeck?.id}
+                onSelect={(deck) =>
+                  setSelection((current) => ({
+                    ownerId,
+                    ids: {
+                      ...(current.ownerId === ownerId ? current.ids : {}),
+                      [mode.id]: deck.id,
+                    },
+                  }))
+                }
+                isLoading={isLoading}
+                isRefreshing={isRefreshing}
+                error={canUseOnline ? cloudError : null}
+                onRefresh={canUseOnline ? () => void refreshCloudDecks() : undefined}
+                title="选择本次使用的卡组"
+              />
+              <button disabled={launchDisabled} onClick={enterMode}>
+                {mode.action}
+              </button>
+              {needsDeck && <p>需要一副符合规则的卡组</p>}
+              {localBlocked && <p>请先处理当前联机房间</p>}
+            </>
+          )}
+          {canUseOnline && (
+            <section aria-label="本地练习">
+              <button disabled={canReturnRoom} onClick={() => enterLocal(GameMode.SOLITAIRE)}>
+                对墙打
+              </button>
+              {canReturnRoom && <p>请先处理当前房间</p>}
+            </section>
+          )}
+          <SiteStatusBanner siteStatus={siteStatus} />
+        </main>
+      </ProductFrame>
+    );
+
   return (
     <ProductFrame
       active="home"
@@ -471,6 +562,7 @@ export function HomePage({
                     </h3>
                     <div className="lobby-deck-tools">
                       <button
+                        ref={chooseDeckButton}
                         type="button"
                         className="home-text-button"
                         onClick={() => {
@@ -482,6 +574,7 @@ export function HomePage({
                         <ArrowRight size={14} aria-hidden="true" />
                       </button>
                       <button
+                        ref={deckDetailsButton}
                         type="button"
                         className="home-text-button"
                         onClick={() => setDialog(selectedDeck.id)}
@@ -602,6 +695,7 @@ export function HomePage({
       {dialog === 'choose' && (
         <HomeDialog
           title="更换卡组"
+          returnFocusRef={chooseDeckButton}
           onClose={() => setDialog(null)}
           action={
             <button
@@ -654,6 +748,7 @@ export function HomePage({
       {dialog && dialog !== 'choose' && (
         <HomeDialog
           title={detailDeck?.name ?? '卡组已不可用'}
+          returnFocusRef={deckDetailsButton}
           onClose={() => setDialog(null)}
           action={
             detailDeck && (

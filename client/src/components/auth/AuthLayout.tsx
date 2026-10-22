@@ -1,3 +1,4 @@
+import { useTextPresentation } from '@/lib/appPresentation';
 import type { ReactNode } from 'react';
 import { ArrowLeft, Layers3, Radio } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -18,6 +19,17 @@ export function AuthLayout({
   eyebrow = 'Loveca 账户',
   onBackHome,
 }: AuthLayoutProps) {
+  const textOnly = useTextPresentation();
+  if (textOnly)
+    return (
+      <main className="excel-auth">
+        <h1>{title}</h1>
+        {subtitle && <p>{subtitle}</p>}
+        {onBackHome && <button onClick={onBackHome}>返回首页</button>}
+        {children}
+      </main>
+    );
+
   return (
     <div className="app-shell fixed inset-0 overflow-y-auto">
       <ProductHeader
