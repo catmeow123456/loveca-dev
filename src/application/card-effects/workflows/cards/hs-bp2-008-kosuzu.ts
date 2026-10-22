@@ -6,7 +6,8 @@ import {
 } from '../../../../domain/entities/game.js';
 import { HS_BP2_008_ON_ENTER_LOWER_COST_DOLLCHESTRA_RELAY_GAIN_TWO_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
-import { getSourceMemberSlot } from '../../runtime/source-member.js';
+import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
+import { isCurrentStageMemberAbilitySource } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { evaluateRelayEnterLowerCostUnitCondition } from '../shared/relay-enter-lower-cost-unit.js';
 
@@ -34,7 +35,10 @@ function resolveHsBp2008KosuzuOnEnter(
   const player = getPlayerById(game, ability.controllerId);
   const sourceOnStage =
     player !== null &&
-    getSourceMemberSlot(game, ability.controllerId, ability.sourceCardId) !== null;
+    isCurrentStageMemberAbilitySource(game, {
+      ...ability,
+      sourceLifecycleId: getPendingAbilitySourceLifecycleId(game, ability),
+    });
   const condition = evaluateRelayEnterLowerCostUnitCondition(
     game,
     {

@@ -75,3 +75,34 @@ export function discardOneHandCardToWaitingRoomAndEnqueueTriggers(
     ),
   };
 }
+
+/** Commit a simultaneous multi-player hand movement before collecting any triggered ability. */
+export function discardHandsToWaitingRoomAsBatchAndEnqueueTriggers(
+  game: GameState,
+  selections: readonly { readonly playerId: string; readonly selectedCardIds: readonly string[] }[],
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+): {
+  readonly gameState: GameState;
+  readonly enterWaitingRoomEvents: readonly EnterWaitingRoomEvent[];
+} | null {
+  let state = game;
+  const events: EnterWaitingRoomEvent[] = [];
+  for (const { playerId, selectedCardIds } of selections) {
+    if (selectedCardIds.length === 0) continue;
+    const result = discardHandCardsToWaitingRoomForPlayer(state, playerId, selectedCardIds, {
+      count: selectedCardIds.length,
+    });
+    if (!result) return null;
+    state = result.gameState;
+    if (result.enterWaitingRoomEvent) events.push(result.enterWaitingRoomEvent);
+  }
+  return {
+    gameState:
+      events.length === 0
+        ? state
+        : enqueueTriggeredCardEffects(state, [TriggerCondition.ON_ENTER_WAITING_ROOM], {
+            enterWaitingRoomEvents: events,
+          }),
+    enterWaitingRoomEvents: events,
+  };
+}

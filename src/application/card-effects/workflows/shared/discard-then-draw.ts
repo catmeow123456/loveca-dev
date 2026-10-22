@@ -1,3 +1,4 @@
+import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
 import {
   addAction,
   getCardById,
@@ -35,6 +36,7 @@ type DrawPolicy =
 
 interface DiscardThenDrawConfig {
   readonly abilityId: string;
+  readonly hasPrintedActivationCost?: boolean;
   readonly stepId: string;
   readonly selector: CardSelector;
   readonly minSelection: number;
@@ -81,6 +83,7 @@ const CONFIGS: readonly DiscardThenDrawConfig[] = [
   },
   {
     abilityId: HS_BP1_005_ON_ENTER_DISCARD_UP_TO_THREE_DRAW_SAME_COUNT_ABILITY_ID,
+    hasPrintedActivationCost: true,
     stepId: 'HS_BP1_005_SELECT_UP_TO_THREE_HAND_CARDS',
     selector: anyCard,
     minSelection: 1,
@@ -93,6 +96,7 @@ const CONFIGS: readonly DiscardThenDrawConfig[] = [
   },
   {
     abilityId: HS_PR_031_ON_ENTER_DISCARD_TWO_DRAW_TO_FIVE_ABILITY_ID,
+    hasPrintedActivationCost: true,
     stepId: 'HS_PR_031_SELECT_TWO_HAND_CARDS',
     selector: anyCard,
     minSelection: 2,
@@ -109,8 +113,15 @@ export function registerDiscardThenDrawWorkflowHandlers(dependencies: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
 }): void {
   for (const config of CONFIGS) {
-    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
-      startDiscardThenDraw(game, ability, config, options.orderedResolution === true)
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
+      startDiscardThenDraw(
+        game,
+        ability,
+        config,
+        options.orderedResolution === true,
+        dependencies.enqueueTriggeredCardEffects,
+        context.continuePendingCardEffects
+      )
     );
     registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) =>
       finishDiscardThenDraw(
@@ -128,7 +139,9 @@ function startDiscardThenDraw(
   game: GameState,
   ability: PendingAbilityState,
   config: DiscardThenDrawConfig,
-  orderedResolution: boolean
+  orderedResolution: boolean,
+  enqueue: EnqueueTriggeredCardEffects,
+  next: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) return game;
@@ -145,7 +158,7 @@ function startDiscardThenDraw(
     ? candidateBoundedMax
     : Math.max(config.minSelection, candidateBoundedMax);
 
-  return startPendingActiveEffect(game, {
+  const started = startPendingActiveEffect(game, {
     ability,
     playerId: player.id,
     activeEffect: {
@@ -170,6 +183,9 @@ function startDiscardThenDraw(
     },
     actionPayload: { sourceCardId: ability.sourceCardId, step: 'START_DISCARD_THEN_DRAW' },
   });
+  return config.hasPrintedActivationCost === true && isAbilityActivationCostWaived(ability)
+    ? finishDiscardThenDraw(started, [], config, enqueue, next)
+    : started;
 }
 
 function finishDiscardThenDraw(
@@ -184,9 +200,11 @@ function finishDiscardThenDraw(
   const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
   const maxSelection =
     config.maxSelection === 'ALL_CANDIDATES'
-      ? effect?.selectableCardIds?.length ?? 0
+      ? (effect?.selectableCardIds?.length ?? 0)
       : config.maxSelection;
-  const isSkip = selectedCardIds.length === 0 && !config.zeroSelectionResolves;
+  const waived =
+    config.hasPrintedActivationCost === true && !!effect && isAbilityActivationCostWaived(effect);
+  const isSkip = !waived && selectedCardIds.length === 0 && !config.zeroSelectionResolves;
   if (
     !effect ||
     effect.abilityId !== config.abilityId ||
@@ -194,6 +212,7 @@ function finishDiscardThenDraw(
     !player ||
     selectedCardIds.length !== uniqueSelectedCardIds.length ||
     (!isSkip &&
+      !waived &&
       (selectedCardIds.length < config.minSelection || selectedCardIds.length > maxSelection)) ||
     uniqueSelectedCardIds.some(
       (cardId) =>
@@ -227,7 +246,15 @@ function finishDiscardThenDraw(
   );
   if (!discardResult) return game;
 
-  const playerAfterDiscard = getPlayerById(discardResult.gameState, player.id);
+  const stateAfterDiscard =
+    config.hasPrintedActivationCost === true && !waived
+      ? addAction(discardResult.gameState, 'PAY_COST', player.id, {
+          abilityId: effect.abilityId,
+          sourceCardId: effect.sourceCardId,
+          discardedHandCardIds: discardResult.discardedCardIds,
+        })
+      : discardResult.gameState;
+  const playerAfterDiscard = getPlayerById(stateAfterDiscard, player.id);
   if (!playerAfterDiscard) return game;
   const drawCount =
     config.drawPolicy.kind === 'DISCARDED_COUNT'
@@ -237,8 +264,8 @@ function finishDiscardThenDraw(
         : Math.max(0, config.drawPolicy.target - playerAfterDiscard.hand.cardIds.length);
   const drawResult =
     drawCount === 0
-      ? { gameState: discardResult.gameState, drawnCardIds: [] as readonly string[] }
-      : drawCardsForPlayer(discardResult.gameState, player.id, drawCount);
+      ? { gameState: stateAfterDiscard, drawnCardIds: [] as readonly string[] }
+      : drawCardsForPlayer(stateAfterDiscard, player.id, drawCount);
   if (!drawResult) return game;
 
   return continuePendingCardEffects(

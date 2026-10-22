@@ -16,6 +16,7 @@ import {
 import { isPlayerCommandAllowedByPolicy } from '../application/player-command-policy.js';
 import { getActivatedAbilityUiConfigs } from '../application/card-effects/runtime/activated-ability-ui.js';
 import { hasRemainingLimitedActivatedAbilityForStageMember } from '../application/card-effects/runtime/limited-activated-ability-status.js';
+import { getCurrentTemporaryOnEnterAbilityGrants } from '../application/card-effects/runtime/temporary-on-enter-ability-grants.js';
 import { getMemberPlayOptionsByHandCardId } from '../application/member-play-options.js';
 import { queryNormalMemberPlay } from '../application/normal-member-play.js';
 import { getSpecialMemberPlayPendingUiConfig } from '../application/special-member-play-procedures.js';
@@ -376,6 +377,32 @@ export function projectPlayerViewState(
               return seat ? [seat] : [];
             }),
             deadlineAt: game.entranceRuntime.pending.deadlineAt,
+            ...(game.entranceRuntime.pending.abilityTransfer
+              ? {
+                  abilityTransfer: {
+                    hostObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.abilityTransfer.hostCardId
+                    ),
+                    sourceObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.abilityTransfer.sourceCardId
+                    ),
+                    abilityId: game.entranceRuntime.pending.abilityTransfer.abilityId,
+                    afterDiscard: game.entranceRuntime.pending.abilityTransfer.afterDiscard,
+                  },
+                }
+              : {}),
+            ...(game.entranceRuntime.pending.kahoRelays?.length
+              ? {
+                  kahoRelays: game.entranceRuntime.pending.kahoRelays.map((relay) => ({
+                    objectId: createPublicObjectId(relay.cardId),
+                    source: {
+                      objectId: createPublicObjectId(relay.source.cardId),
+                      slot: relay.source.slot,
+                      orientation: relay.source.orientation,
+                    },
+                  })),
+                }
+              : {}),
             ...(game.entranceRuntime.pending.waitingRoomReturns?.length
               ? {
                   waitingRoomReturns: game.entranceRuntime.pending.waitingRoomReturns.map(
@@ -716,6 +743,7 @@ export function isLiveModifierVisibleToViewer(
   viewerSeat: Seat,
   modifier: LiveModifierState
 ): boolean {
+  if (modifier.kind === 'ON_ENTER_ABILITY_GRANT') return false;
   const dependency = modifier.visibilityDependency;
   if (!dependency) {
     return true;
@@ -866,6 +894,11 @@ function addMemberSlotZones(
           activatedAbilityUiConfigs:
             activatedAbilityUiConfigs.length > 0 ? activatedAbilityUiConfigs : undefined,
           hasRemainingLimitedActivatedAbility: hasRemainingLimitedActivatedAbility || undefined,
+          // Derive only a public status bit; do not expose grant identities or source metadata.
+          hasTemporaryOnEnterAbility:
+            (!game.isEnded &&
+              getCurrentTemporaryOnEnterAbilityGrants(game, playerId, occupantId).length > 0) ||
+            undefined,
         });
       }
     }
@@ -1052,6 +1085,7 @@ function upsertViewObject(
     | 'activatedAbilityUiConfig'
     | 'activatedAbilityUiConfigs'
     | 'hasRemainingLimitedActivatedAbility'
+    | 'hasTemporaryOnEnterAbility'
   > & {
     readonly knownCardType?: ViewCardObject['cardType'];
   }
@@ -1074,6 +1108,8 @@ function upsertViewObject(
       surface === 'FRONT' ? metadata?.activatedAbilityUiConfigs : undefined,
     hasRemainingLimitedActivatedAbility:
       surface === 'FRONT' ? metadata?.hasRemainingLimitedActivatedAbility : undefined,
+    hasTemporaryOnEnterAbility:
+      surface === 'FRONT' ? metadata?.hasTemporaryOnEnterAbility : undefined,
   };
 }
 

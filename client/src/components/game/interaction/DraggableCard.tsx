@@ -14,6 +14,8 @@ export interface DraggableCardProps {
   data?: Record<string, unknown>;
   /** 是否禁用拖拽 */
   disabled?: boolean;
+  /** 子控件提供交互语义时，外层仅处理指针拖拽，避免嵌套按钮与重复焦点 */
+  hasInteractiveChild?: boolean;
   /** 子元素 */
   children: ReactNode;
   /** 额外的类名 */
@@ -26,16 +28,12 @@ export function DraggableCard({
   id,
   data,
   disabled = false,
+  hasInteractiveChild = false,
   children,
   className,
   onDoubleClick,
 }: DraggableCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    isDragging,
-  } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id,
     data,
     disabled,
@@ -54,7 +52,7 @@ export function DraggableCard({
         className
       )}
       {...listeners}
-      {...attributes}
+      {...(hasInteractiveChild ? {} : attributes)}
       onDoubleClick={onDoubleClick}
     >
       {children}

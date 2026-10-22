@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  PL_BP8_002_AUTO_LEAVE_STAGE_BOTTOM_SELF_WAIT_ORIGINAL_HEART_FOUR_ABILITY_ID,
+  PL_BP8_011_LIVE_START_SUCCESS_SCORE_SIX_WAIT_ORIGINAL_BLADE_THREE_ABILITY_ID,
+  PL_BP8_021_AUTO_ENTER_SUCCESS_LOOK_TOP_FOUR_MUSE_MEMBER_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids.js';
+import {
   N_BP8_009_ACTIVATED_BOTTOM_HAND_DRAW_TWO_ABILITY_ID,
   N_BP8_009_LIVE_START_MILL_BOTTOM_REPLACE_LIVE_ABILITY_ID,
   N_BP8_030_AUTO_FROM_WAITING_ROOM_REDUCE_REQUIREMENT_ABILITY_ID,
@@ -12534,7 +12539,11 @@ describe('card effect classification registry', () => {
           CardAbilitySourceZone.LIVE_CARD,
           CardAbilitySourceZone.HAND,
           CardAbilitySourceZone.WAITING_ROOM,
+          CardAbilitySourceZone.SUCCESS_LIVE_CARD,
         ]).toContain(ability.sourceZone);
+        if (ability.sourceZone === CardAbilitySourceZone.SUCCESS_LIVE_CARD) {
+          expect(ability.triggerCondition).toBe(TriggerCondition.ON_ENTER_SUCCESS_ZONE);
+        }
         if (ability.triggerCondition === undefined) {
           // State-induced abilities are observed without a fabricated event timing.
           expect(ability.observerOnly).toBe(true);
@@ -17129,4 +17138,48 @@ describe('BP8 Rina and Stay base-scoped definitions', () => {
       expect(definitions.every((definition) => definition.cardCodes === undefined)).toBe(true);
     }
   });
+});
+
+describe('October 21 μ’s draft ability classifications', () => {
+  it.each([
+    {
+      baseCardCode: 'PL!-bp8-002',
+      abilityId: PL_BP8_002_AUTO_LEAVE_STAGE_BOTTOM_SELF_WAIT_ORIGINAL_HEART_FOUR_ABILITY_ID,
+      category: CardAbilityCategory.AUTO,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+      triggerToZones: [ZoneType.WAITING_ROOM],
+    },
+    {
+      baseCardCode: 'PL!-bp8-011',
+      abilityId: PL_BP8_011_LIVE_START_SUCCESS_SCORE_SIX_WAIT_ORIGINAL_BLADE_THREE_ABILITY_ID,
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+    },
+    {
+      baseCardCode: 'PL!-bp8-021',
+      abilityId: PL_BP8_021_AUTO_ENTER_SUCCESS_LOOK_TOP_FOUR_MUSE_MEMBER_ABILITY_ID,
+      category: CardAbilityCategory.AUTO,
+      sourceZone: CardAbilitySourceZone.SUCCESS_LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_ENTER_SUCCESS_ZONE,
+      enterSuccessZoneMaxCards: 1,
+    },
+  ])(
+    'registers $baseCardCode once at its actual timing for every rarity',
+    ({ baseCardCode, ...expected }) => {
+      for (const rarity of ['N', 'R', 'R+', 'P', 'P+', 'SEC', 'L', 'SECL', 'UNSEEN']) {
+        const definitions = getCardAbilityDefinitions(`${baseCardCode}-${rarity}`);
+        expect(definitions).toEqual([
+          expect.objectContaining({
+            ...expected,
+            baseCardCodes: [baseCardCode],
+            queued: true,
+            implemented: true,
+          }),
+        ]);
+        expect(definitions[0]?.cardCodes).toBeUndefined();
+      }
+    }
+  );
 });

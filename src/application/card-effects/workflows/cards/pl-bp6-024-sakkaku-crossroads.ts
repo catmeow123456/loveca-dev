@@ -14,11 +14,13 @@ import {
 import { CardType, ZoneType } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { canLiveCardEnterSuccessZone } from '../../../../domain/rules/success-live-placement.js';
+import type { CardEffectCause } from '../../../../domain/events/game-events.js';
 import { BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID } from '../../ability-ids.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { and, groupIs, typeIs } from '../../../effects/card-selectors.js';
 import { getCardIdsInZoneMatching } from '../../../effects/conditions.js';
 import { placeHandLiveCardInSuccessZoneForPlayer } from '../../runtime/success-zone.js';
+import { recordSuccessZoneEntry } from '../../runtime/success-zone-entry-triggers.js';
 
 export const BP6_024_SUCCESS_REPLACEMENT_STEP_ID = 'BP6_024_SELECT_SUCCESS_REPLACEMENT_LIVE';
 
@@ -158,7 +160,8 @@ function finishLiveSuccessReplacementEffect(
   game: GameState,
   playerId: string,
   originalCardId: string,
-  replacementCardId: string | null
+  replacementCardId: string | null,
+  cause?: CardEffectCause
 ): GameState {
   let state = replacementCardId
     ? updatePlayer(game, playerId, (currentPlayer) => ({
@@ -172,6 +175,14 @@ function finishLiveSuccessReplacementEffect(
         successZone: addCardToZone(currentPlayer.successZone, originalCardId),
       }));
 
+  state = recordSuccessZoneEntry(
+    game,
+    state,
+    playerId,
+    replacementCardId ?? originalCardId,
+    replacementCardId ? ZoneType.WAITING_ROOM : ZoneType.LIVE_ZONE,
+    replacementCardId ? cause : undefined
+  );
   state = markLiveSuccessCardMoved(state, playerId, originalCardId);
   return state;
 }
@@ -180,16 +191,20 @@ function finishHandLiveSuccessReplacementEffect(
   game: GameState,
   playerId: string,
   handLiveCardId: string,
-  replacementCardId: string | null
+  replacementCardId: string | null,
+  cause?: CardEffectCause
 ): GameState {
   // 成功区原卡已由 family 真正加入手牌；此处只替代后续放置，不能再回手一次。
-  return replacementCardId
+  const state = replacementCardId
     ? updatePlayer(game, playerId, (currentPlayer) => ({
         ...currentPlayer,
         waitingRoom: removeCardFromZone(currentPlayer.waitingRoom, replacementCardId),
         successZone: addCardToZone(currentPlayer.successZone, replacementCardId),
       }))
-    : (placeHandLiveCardInSuccessZoneForPlayer(game, playerId, handLiveCardId) ?? game);
+    : (placeHandLiveCardInSuccessZoneForPlayer(game, playerId, handLiveCardId, cause) ?? game);
+  return replacementCardId
+    ? recordSuccessZoneEntry(game, state, playerId, replacementCardId, ZoneType.WAITING_ROOM, cause)
+    : state;
 }
 
 function finishSuccessZoneReplacementEffect(
@@ -224,9 +239,36 @@ function finishSuccessZoneReplacementEffect(
   )
     return game;
   let state = game;
+  const swapAbility = effect.metadata?.swapAbility as Readonly<Record<string, unknown>> | undefined;
+  const cause: CardEffectCause | undefined = replacementCardId
+    ? {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      }
+    : origin === 'HAND_LIVE_SUCCESS_CARD_SWAP' &&
+        typeof swapAbility?.sourceCardId === 'string' &&
+        typeof swapAbility.abilityId === 'string' &&
+        typeof swapAbility.pendingAbilityId === 'string'
+      ? {
+          kind: 'CARD_EFFECT',
+          playerId: player.id,
+          sourceCardId: swapAbility.sourceCardId,
+          abilityId: swapAbility.abilityId,
+          pendingAbilityId: swapAbility.pendingAbilityId,
+        }
+      : undefined;
 
   if (origin === 'LIVE_SUCCESS') {
-    state = finishLiveSuccessReplacementEffect(state, player.id, originalCardId, replacementCardId);
+    state = finishLiveSuccessReplacementEffect(
+      state,
+      player.id,
+      originalCardId,
+      replacementCardId,
+      cause
+    );
   } else {
     const successLiveCardId =
       typeof effect.metadata?.successLiveCardId === 'string'
@@ -244,7 +286,8 @@ function finishSuccessZoneReplacementEffect(
         state,
         player.id,
         originalCardId,
-        replacementCardId
+        replacementCardId,
+        cause
       );
     }
     const swapAbility = effect.metadata?.swapAbility;

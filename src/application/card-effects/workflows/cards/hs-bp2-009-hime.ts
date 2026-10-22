@@ -1,3 +1,5 @@
+import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
+import { createWaivedOnEnterCostContinuationState } from '../../runtime/waived-on-enter-cost.js';
 import { createHeartIcon } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -13,7 +15,11 @@ import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
-import { getSourceMemberSlot } from '../../runtime/source-member.js';
+import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
+import {
+  isCurrentStageMemberAbilitySource,
+  getSourceMemberSlot,
+} from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
@@ -61,6 +67,17 @@ function startHsBp2009HimeOnEnter(
     );
   }
 
+  if (isAbilityActivationCostWaived(ability))
+    return finishHsBp2009PayEnergy(
+      createWaivedOnEnterCostContinuationState(
+        game,
+        ability,
+        PAY_ENERGY_STEP_ID,
+        orderedResolution
+      ),
+      continuePendingCardEffects
+    );
+
   const activeEnergyCardIds = player.energyZone.cardIds.filter(
     (cardId) => player.energyZone.cardStates.get(cardId)?.orientation !== OrientationState.WAITING
   );
@@ -73,6 +90,7 @@ function startHsBp2009HimeOnEnter(
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
+      sourceLifecycleId: getPendingAbilitySourceLifecycleId(game, ability),
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_ENERGY_STEP_ID,
@@ -114,9 +132,11 @@ function finishHsBp2009PayEnergy(
     return game;
   }
 
-  const costPayment = payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
-    { kind: 'TAP_ACTIVE_ENERGY', count: 1 },
-  ]);
+  const costPayment = isAbilityActivationCostWaived(effect)
+    ? { gameState: game, paidEnergyCardIds: [] }
+    : payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
+        { kind: 'TAP_ACTIVE_ENERGY', count: 1 },
+      ]);
   if (!costPayment) {
     return finishActiveEffect(game, continuePendingCardEffects, {
       step: 'PAY_ENERGY_UNAVAILABLE_NO_OP',
@@ -126,15 +146,16 @@ function finishHsBp2009PayEnergy(
     });
   }
 
-  const stateAfterCost = recordPayCostAction(costPayment.gameState, player.id, {
-    pendingAbilityId: effect.id,
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    energyCardIds: costPayment.paidEnergyCardIds,
-    amount: costPayment.paidEnergyCardIds.length,
-  });
-  const sourceOnStage =
-    getSourceMemberSlot(stateAfterCost, player.id, effect.sourceCardId) !== null;
+  const stateAfterCost = isAbilityActivationCostWaived(effect)
+    ? game
+    : recordPayCostAction(costPayment.gameState, player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        energyCardIds: costPayment.paidEnergyCardIds,
+        amount: costPayment.paidEnergyCardIds.length,
+      });
+  const sourceOnStage = isCurrentStageMemberAbilitySource(stateAfterCost, effect);
   const condition = evaluateRelayEnterLowerCostUnitCondition(
     stateAfterCost,
     {

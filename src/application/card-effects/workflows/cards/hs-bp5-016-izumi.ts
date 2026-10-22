@@ -1,3 +1,5 @@
+import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
+import { createWaivedOnEnterCostContinuationState } from '../../runtime/waived-on-enter-cost.js';
 import {
   addAction,
   getCardById,
@@ -49,7 +51,8 @@ export function registerHsBp5016IzumiWorkflowHandlers(deps: {
         game,
         ability,
         options,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffectsForEnterWaitingRoom
       )
   );
   registerActiveEffectStepHandler(
@@ -82,12 +85,26 @@ function startHsBp5016IzumiOnEnterDiscard(
   game: GameState,
   ability: PendingAbilityState,
   options: PendingAbilityStarterOptions,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
   }
+
+  if (isAbilityActivationCostWaived(ability))
+    return finishHsBp5016IzumiDiscardCost(
+      createWaivedOnEnterCostContinuationState(
+        game,
+        ability,
+        SELECT_DISCARD_STEP_ID,
+        options.orderedResolution === true
+      ),
+      null,
+      continuePendingCardEffects,
+      enqueueTriggeredCardEffects
+    );
 
   if (player.hand.cardIds.length < DISCARD_COUNT) {
     return finishWithoutEffect(
@@ -146,7 +163,7 @@ function startHsBp5016IzumiOnEnterDiscard(
 
 function finishHsBp5016IzumiDiscardCost(
   game: GameState,
-  discardCardId: string,
+  discardCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
@@ -155,37 +172,46 @@ function finishHsBp5016IzumiDiscardCost(
     !effect ||
     effect.abilityId !== HS_BP5_016_ON_ENTER_DISCARD_WAIT_OPPONENT_LOW_COST_MEMBERS_ABILITY_ID ||
     effect.stepId !== SELECT_DISCARD_STEP_ID ||
-    effect.selectableCardIds?.includes(discardCardId) !== true
+    (!isAbilityActivationCostWaived(effect) &&
+      (discardCardId === null || effect.selectableCardIds?.includes(discardCardId) !== true))
   ) {
     return game;
   }
 
   const player = getPlayerById(game, effect.controllerId);
-  if (!player || !player.hand.cardIds.includes(discardCardId)) {
+  if (
+    !player ||
+    (!isAbilityActivationCostWaived(effect) &&
+      (discardCardId === null || !player.hand.cardIds.includes(discardCardId)))
+  ) {
     return game;
   }
 
-  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
-    game,
-    player.id,
-    discardCardId,
-    {
-      candidateCardIds: effect.selectableCardIds ?? [],
-    },
-    enqueueTriggeredCardEffects
-  );
+  const discardResult = isAbilityActivationCostWaived(effect)
+    ? { gameState: game, discardedCardIds: [] }
+    : discardOneHandCardToWaitingRoomAndEnqueueTriggers(
+        game,
+        player.id,
+        discardCardId!,
+        {
+          candidateCardIds: effect.selectableCardIds ?? [],
+        },
+        enqueueTriggeredCardEffects
+      );
   if (!discardResult) {
     return game;
   }
 
   const targetCardIds = getOpponentLowCostActiveMemberCardIds(discardResult.gameState, player.id);
-  const stateWithCost = addAction(discardResult.gameState, 'PAY_COST', player.id, {
-    pendingAbilityId: effect.id,
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    discardedHandCardIds: discardResult.discardedCardIds,
-    selectableCardIds: targetCardIds,
-  });
+  const stateWithCost = isAbilityActivationCostWaived(effect)
+    ? game
+    : addAction(discardResult.gameState, 'PAY_COST', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        discardedHandCardIds: discardResult.discardedCardIds,
+        selectableCardIds: targetCardIds,
+      });
   const orderedResolution = effect.metadata?.orderedResolution === true;
 
   if (targetCardIds.length === 0) {
@@ -384,7 +410,10 @@ function finishWithoutEffect(
   );
 }
 
-function getOpponentLowCostActiveMemberCardIds(game: GameState, playerId: string): readonly string[] {
+function getOpponentLowCostActiveMemberCardIds(
+  game: GameState,
+  playerId: string
+): readonly string[] {
   const player = getPlayerById(game, playerId);
   const opponent = player ? getOpponent(game, player.id) : null;
   if (!opponent) {

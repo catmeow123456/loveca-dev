@@ -5,16 +5,25 @@ import { PresentationRoot } from '@/components/excel/PresentationRoot';
 import { applyDocumentPresentation, installPresentationShortcut } from '@/lib/appPresentation';
 import { useGameStore } from '@/store/gameStore';
 import { prepareRecoveryScenario } from '../../../tests/helpers/recovery-animation-fixture';
+import { prepareGinkoScenario } from '../../../tests/helpers/ginko-entrance-fixture';
 import { prepareCheer } from '../recovery-review/cheerFixture';
 import type { ActiveEffectViewState, ViewZoneKey, ViewZoneState } from '@game/online/types';
+import type { AnyCardData } from '@game/domain/entities/card';
 import { GameCommandType } from '@game/application/game-commands';
-import { GamePhase, HeartColor, SlotPosition, SubPhase } from '@game/shared/types/enums';
+import {
+  GamePhase,
+  HeartColor,
+  OrientationState,
+  SlotPosition,
+  SubPhase,
+} from '@game/shared/types/enums';
 import '@/index.css';
 applyDocumentPresentation();
 installPresentationShortcut();
 const store = () => useGameStore.getState();
 const realConfirm = store().confirmEffectStep;
 const realChoice = store().confirmEffectChoice;
+const realEntranceAck = store().acknowledgeCardEntrance;
 const submissions: unknown[][] = [];
 function recovery(multiple = false) {
   useGameStore.setState({ confirmEffectStep: realConfirm, confirmEffectChoice: realChoice });
@@ -339,6 +348,41 @@ function payment(play = true) {
   return play ? store().playMemberToSlot('hand-0', SlotPosition.LEFT) : null;
 }
 const acks: string[] = [];
+let ginkoFixture: ReturnType<typeof prepareGinkoScenario>;
+function prepareAbilityTransfer(holdAck = true) {
+  ginkoFixture = prepareGinkoScenario({ mode: 'LOCAL', relay: 'none' });
+  if (!ginkoFixture.play().success || !ginkoFixture.ack().success) {
+    throw new Error('Unable to prepare the real Ginko entrance');
+  }
+  acks.length = 0;
+  useGameStore.setState({
+    gameSession: ginkoFixture.session,
+    viewingPlayerId: 'p1',
+    replaySession: null,
+    remoteSession: null,
+    acknowledgeCardEntrance: (id) => {
+      acks.push(id);
+      return holdAck ? { success: false, pending: true } : realEntranceAck(id);
+    },
+  });
+  store().loadCardData(
+    [...ginkoFixture.session.state!.cardRegistry.values()].map((c) => c.data as AnyCardData)
+  );
+  store().syncState();
+}
+function startAbilityTransfer() {
+  if (!ginkoFixture.activate().success || !ginkoFixture.discard().success) {
+    throw new Error('Unable to pay the real ability-copy cost');
+  }
+  store().syncState();
+  return store().playerViewState!.match.entrance!.id;
+}
+function finishAbilityTransfer() {
+  const token = store().playerViewState?.match.entrance?.id;
+  if (token && !realEntranceAck(token).success) throw new Error('Entrance ACK failed');
+  const effect = ginkoFixture.session.state!.activeEffect;
+  if (effect) store().confirmEffectStep(effect.id, effect.selectableCardIds?.[0]);
+}
 function entrance(withProfile = false) {
   recovery();
   acks.length = 0;
@@ -522,7 +566,7 @@ function formation() {
           ...view.objects,
           [energyId]: {
             ...view.objects[energyId],
-            orientation: 'WAITING',
+            orientation: OrientationState.WAITING,
             skipsNextActivePhase: true,
           },
           [handId]: { ...view.objects[handId], skipsNextActivePhase: true },
@@ -543,6 +587,9 @@ function formation() {
   paymentContract,
   formation,
   entrance,
+  prepareAbilityTransfer,
+  startAbilityTransfer,
+  finishAbilityTransfer,
   acks,
   score,
   recovery,
@@ -562,7 +609,7 @@ function formation() {
 };
 createRoot(document.getElementById('root')!).render(
   <PresentationRoot>
-    <div style={{ height: 'calc(100dvh - var(--excel-toolbar-height))' }}>
+    <div style={{ height: 'calc(100dvh - var(--excel-toolbar-height, 0px))' }}>
       {new URLSearchParams(location.search).has('frame') ? (
         <ProductFrame
           active="battle"

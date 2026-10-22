@@ -27,6 +27,7 @@ import {
   getBattleAnimationEventDurationMs,
   isRecoveryCardMove,
   WAITING_ROOM_REVEAL_DURATION_MS,
+  WAITING_ROOM_REVEAL_MOVE_DURATION_MS,
   type ScheduledBattleAnimationEvent,
 } from '@/lib/battleAnimationSequencing';
 import {
@@ -914,6 +915,12 @@ export function DiscardPresentationBatch({
   readonly reduceMotion: boolean | null;
   readonly onDone: () => void;
 }) {
+  const [presentationStartedAt] = useState(getDiscardPresentationMonotonicNow);
+  const revealAt =
+    presentationStartedAt +
+    (reduceMotion
+      ? DISCARD_PRESENTATION_REDUCED_MOTION_FADE_MS
+      : WAITING_ROOM_REVEAL_MOVE_DURATION_MS);
   const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth;
   const viewportHeight = typeof window === 'undefined' ? 720 : window.innerHeight;
   const layout = getDiscardPresentationBatchLayout({
@@ -935,6 +942,8 @@ export function DiscardPresentationBatch({
       DISCARD_PRESENTATION_REDUCED_MOTION_FADE_MS / DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS;
     return (
       <motion.div
+        data-discard-presentation={event.id}
+        data-discard-reveal-at={revealAt}
         aria-hidden="true"
         className="pointer-events-none fixed inset-0"
         initial={{ opacity: 0 }}
@@ -971,6 +980,7 @@ export function DiscardPresentationBatch({
   return (
     <div
       data-discard-presentation={event.id}
+      data-discard-reveal-at={revealAt}
       aria-hidden="true"
       className="pointer-events-none fixed inset-0"
     >

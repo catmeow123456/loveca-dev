@@ -383,7 +383,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full overflow-hidden rounded-[14px] border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_34%,transparent)] shadow-[var(--shadow-sm)] backdrop-blur-[2px] md:hidden"
+        className="battle-phase-surface w-full overflow-hidden rounded-[14px] border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_34%,transparent)] shadow-[var(--shadow-sm)] backdrop-blur-[2px] md:hidden"
       >
         <div className="px-2 py-1.5">
           <div className="flex min-w-0 items-center gap-1.5">
@@ -474,9 +474,9 @@ export const PhaseIndicator = memo(function PhaseIndicator({
         initial={{ opacity: 0, x: 18, scale: 0.98 }}
         animate={{ opacity: 1, x: 0, scale: 1 }}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="hidden min-h-12 items-center gap-2 rounded-xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] p-1.5 shadow-[var(--shadow-lg)] backdrop-blur-xl md:flex"
+        className="battle-phase-surface hidden min-h-12 items-center gap-2 rounded-xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] p-1.5 shadow-[var(--shadow-lg)] backdrop-blur-xl md:flex"
       >
-        <div className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-2.5">
+        <div className="battle-phase-summary flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-2.5">
           <span className="font-mono text-[11px] font-bold tabular-nums text-[var(--text-muted)]">
             T{currentTurnCount ?? turnNumber ?? '-'}
           </span>

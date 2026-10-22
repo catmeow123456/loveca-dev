@@ -116,6 +116,8 @@ export interface CardAbilityDefinition {
   readonly triggerToZones?: readonly ZoneType[];
   readonly enterWaitingRoomCause?: 'OWN_LIVE_SUCCESS_ABILITY';
   readonly waitingRoomToMainDeckCause?: 'REFRESH';
+  /** Maximum own success-zone count captured immediately after this source entered. */
+  readonly enterSuccessZoneMaxCards?: number;
   readonly playedMemberOnEnterTriggerFilter?: PlayedMemberOnEnterTriggerFilter;
   readonly onEnterStageTriggerFilter?: OnEnterStageTriggerFilter;
   readonly memberStateChangedTriggerFilter?: MemberStateChangedTriggerFilter;

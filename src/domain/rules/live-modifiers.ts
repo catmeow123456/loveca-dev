@@ -3,6 +3,8 @@ import {
   HeartColor,
   OrientationState,
   SlotPosition,
+  TriggerCondition,
+  ZoneType,
 } from '../../shared/types/enums.js';
 import {
   isLiveCardData,
@@ -18,6 +20,7 @@ import type {
   LiveModifierVisibilityDependency,
   LiveRequirementModifierState,
   LiveResolutionState,
+  MemberHeartColorSnapshotContribution,
 } from '../entities/game.js';
 import { getCardById, getOpponent, getPlayerById } from '../entities/game.js';
 import { findMemberSlot } from '../entities/player.js';
@@ -438,6 +441,21 @@ export interface SuppressLiveAbilityOptions {
 }
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
+  {
+    baseCardCodes: ['PL!HS-bp8-003'],
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    collect: ({ game, playerId, sourceCardId }) => {
+      const player = getPlayerById(game, playerId);
+      const countDelta = Math.max(0, 7 - (player?.hand.cardIds.length ?? 7));
+      const modifier = createBladeLiveModifierForSourceMember(game, {
+        playerId,
+        sourceCardId,
+        abilityId: 'PL!HS-bp8-003:continuous-hand-below-seven-gain-blade',
+        countDelta,
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
   ...ENERGY_COMPARISON_CONTINUOUS_DEFINITIONS.map(
     createEnergyComparisonContinuousModifierDefinition
   ),
@@ -3241,7 +3259,10 @@ function hasAtLeastDifferentNamedStageMembers(
         card !== null && isMemberCard(card) && predicate(card)
     );
 
-  return hasAtLeastDifferentNamedCards(cards, minCount, (card) => card.data, { groupName });
+  return hasAtLeastDifferentNamedCards(cards, minCount, (card) => card.data, {
+    nameComparison: 'MEMBER_IDENTITY',
+    groupName,
+  });
 }
 
 function hasAtLeastDifferentEffectiveCostStageMembers(
@@ -3507,14 +3528,10 @@ function isHasunosoraMemberCard(card: NonNullable<ReturnType<typeof getCardById>
   return isMemberCardData(card.data) && cardBelongsToGroup(card.data, '蓮ノ空');
 }
 
-function normalizeContinuousMemberName(name: string): string {
-  return name.replace(/[\s　・･·]/g, '');
-}
-
 function normalizeContinuousUnitName(unitName: string | undefined): string {
   return (
     unitName
-      ?.replace(/[『』「」'’\s　・･·]/g, '')
+      ?.replace(/[『』「」'’\s\u3000・･·]/g, '')
       .replace(/！/g, '!')
       .toLowerCase() ?? ''
   );
@@ -4121,8 +4138,10 @@ function matchesLiveModifier(modifier: LiveModifierState, match: LiveModifierMat
   if (match.abilityId !== undefined && modifier.abilityId !== match.abilityId) {
     return false;
   }
-  if (match.abilityInstanceId !== undefined &&
-    (!('abilityInstanceId' in modifier) || modifier.abilityInstanceId !== match.abilityInstanceId)) {
+  if (
+    match.abilityInstanceId !== undefined &&
+    (!('abilityInstanceId' in modifier) || modifier.abilityInstanceId !== match.abilityInstanceId)
+  ) {
     return false;
   }
 
@@ -4250,18 +4269,192 @@ export function getMemberEffectiveHeartIcons(
     return [];
   }
 
-  const originalHearts = getMemberOriginalHeartIcons(game, playerId, sourceCardId, liveModifiers);
-  const modifierHearts = liveModifiers
-    .filter(
-      (modifier): modifier is HeartModifierState =>
-        modifier.kind === 'HEART' &&
-        modifier.playerId === playerId &&
-        ((modifier.target === 'SOURCE_MEMBER' && modifier.sourceCardId === sourceCardId) ||
-          (modifier.target === 'TARGET_MEMBER' && modifier.targetMemberCardId === sourceCardId))
-    )
-    .flatMap((modifier) => modifier.hearts);
+  return collectMemberHeartContributions(game, playerId, sourceCardId, liveModifiers).flatMap(
+    (contribution) => contribution.amounts
+  );
+}
 
-  return [...originalHearts, ...modifierHearts];
+/** Stable stage rules-object identity used only to bind fixed Heart contributions. */
+export function getMemberHeartContributionLifecycleId(
+  game: GameState,
+  memberCardId: string
+): string {
+  const entry = [...game.eventLog]
+    .reverse()
+    .find(
+      ({ event }) =>
+        event.eventType === TriggerCondition.ON_ENTER_STAGE &&
+        event.cardInstanceId === memberCardId &&
+        event.fromZone !== ZoneType.MEMBER_SLOT
+    );
+  return entry ? `entry:${entry.event.eventId}` : `initial:${memberCardId}`;
+}
+
+type MemberHeartSnapshotModifier = Extract<
+  LiveModifierState,
+  { readonly kind: 'MEMBER_HEART_COLOR_SNAPSHOT' }
+>;
+
+function isMemberHeartRecipient(
+  modifier: LiveModifierState,
+  playerId: string,
+  memberCardId: string
+): modifier is HeartModifierState {
+  return (
+    modifier.kind === 'HEART' &&
+    modifier.playerId === playerId &&
+    ((modifier.target === 'SOURCE_MEMBER' && modifier.sourceCardId === memberCardId) ||
+      (modifier.target === 'TARGET_MEMBER' && modifier.targetMemberCardId === memberCardId))
+  );
+}
+
+function collectMemberHeartContributions(
+  game: GameState,
+  playerId: string,
+  memberCardId: string,
+  liveModifiers: readonly LiveModifierState[]
+): readonly MemberHeartColorSnapshotContribution[] {
+  const replacement = getLatestMemberOriginalHeartReplacementModifier(
+    playerId,
+    memberCardId,
+    liveModifiers
+  );
+  const contributions: MemberHeartColorSnapshotContribution[] = [
+    {
+      contributionKey: replacement
+        ? `original:${replacement.heartContributionId ?? 'uncaptured-replacement'}`
+        : 'original:printed',
+      amounts: getMemberOriginalHeartIcons(game, playerId, memberCardId, liveModifiers),
+    },
+  ];
+  const continuousOrdinals = new Map<string, number>();
+  for (const modifier of liveModifiers) {
+    if (!isMemberHeartRecipient(modifier, playerId, memberCardId)) continue;
+    // Persistent Hearts captured at resolution carry an opaque contribution identity.
+    // New persistent Hearts deliberately lack that identity and cannot match an old snapshot.
+    let contributionKey: string;
+    if (game.liveResolution.liveModifiers.includes(modifier)) {
+      contributionKey = `persistent:${'heartContributionId' in modifier ? modifier.heartContributionId : undefined}`;
+    } else {
+      const key = `continuous:${modifier.sourceCardId}:${modifier.abilityId}:${modifier.target}:${memberCardId}:${getMemberHeartContributionLifecycleId(game, modifier.sourceCardId ?? memberCardId)}`;
+      const ordinal = continuousOrdinals.get(key) ?? 0;
+      continuousOrdinals.set(key, ordinal + 1);
+      contributionKey = `${key}:${ordinal}`;
+    }
+    contributions.push({ contributionKey, amounts: modifier.hearts });
+  }
+  let result: readonly MemberHeartColorSnapshotContribution[] = contributions;
+  if (!isOwnTopLevelStageMember(game, playerId, memberCardId)) return result;
+  const lifecycle = getMemberHeartContributionLifecycleId(game, memberCardId);
+  for (const snapshot of liveModifiers) {
+    if (
+      snapshot.kind !== 'MEMBER_HEART_COLOR_SNAPSHOT' ||
+      snapshot.playerId !== playerId ||
+      snapshot.memberCardId !== memberCardId ||
+      snapshot.targetLifecycleId !== lifecycle
+    )
+      continue;
+    result = result.map((contribution) => {
+      const captured = snapshot.contributions.find(
+        (item) => item.contributionKey === contribution.contributionKey
+      );
+      return captured
+        ? {
+            ...contribution,
+            amounts: applyCapturedHeartColorAmounts(
+              contribution.amounts,
+              captured.amounts,
+              snapshot.toColor
+            ),
+          }
+        : contribution;
+    });
+  }
+  return result;
+}
+
+function applyCapturedHeartColorAmounts(
+  hearts: readonly HeartIcon[],
+  captured: readonly HeartIcon[],
+  toColor: HeartColor
+): readonly HeartIcon[] {
+  const remaining = new Map<HeartColor, number>();
+  for (const heart of captured)
+    remaining.set(heart.color, (remaining.get(heart.color) ?? 0) + heart.count);
+  return hearts.flatMap((heart) => {
+    const changed = Math.min(Math.max(0, heart.count), remaining.get(heart.color) ?? 0);
+    if (changed === 0) return [heart];
+    remaining.set(heart.color, (remaining.get(heart.color) ?? 0) - changed);
+    return [
+      ...(heart.count > changed ? [{ color: heart.color, count: heart.count - changed }] : []),
+      { color: toColor, count: changed },
+    ];
+  });
+}
+
+/** Resolve one fixed conversion; later contributions and later original replacements stay untouched. */
+export function addMemberHeartColorSnapshot(
+  game: GameState,
+  options: {
+    readonly playerId: string;
+    readonly memberCardId: string;
+    readonly targetLifecycleId: string;
+    readonly fromColors: readonly HeartColor[];
+    readonly toColor: HeartColor;
+    readonly sourceCardId: string;
+    readonly abilityId: string;
+    readonly snapshotId: string;
+  }
+): { readonly gameState: GameState; readonly convertedHeartCount: number } | null {
+  if (
+    !isOwnTopLevelStageMember(game, options.playerId, options.memberCardId) ||
+    getMemberHeartContributionLifecycleId(game, options.memberCardId) !== options.targetLifecycleId
+  )
+    return null;
+  const originalReplacement = getLatestMemberOriginalHeartReplacementModifier(
+    options.playerId,
+    options.memberCardId,
+    game.liveResolution.liveModifiers
+  );
+  const tagged = game.liveResolution.liveModifiers.map((modifier, index): LiveModifierState => {
+    if (
+      modifier !== originalReplacement &&
+      !isMemberHeartRecipient(modifier, options.playerId, options.memberCardId)
+    )
+      return modifier;
+    if (modifier.kind === 'HEART' && modifier.target === 'PLAYER') return modifier;
+    if ('heartContributionId' in modifier && modifier.heartContributionId) return modifier;
+    return {
+      ...modifier,
+      heartContributionId: `heart-contribution:${options.snapshotId}:${index}`,
+    } as LiveModifierState;
+  });
+  const taggedState = setLiveModifiers(game, tagged);
+  const fromColors = new Set(options.fromColors.filter((color) => color !== options.toColor));
+  const contributions = collectMemberHeartContributions(
+    taggedState,
+    options.playerId,
+    options.memberCardId,
+    collectLiveModifiers(taggedState)
+  )
+    .map((contribution) => ({
+      ...contribution,
+      amounts: contribution.amounts.filter(
+        (heart) => heart.count > 0 && fromColors.has(heart.color)
+      ),
+    }))
+    .filter((contribution) => contribution.amounts.length > 0);
+  const convertedHeartCount = contributions.reduce(
+    (total, item) => total + item.amounts.reduce((count, heart) => count + heart.count, 0),
+    0
+  );
+  if (convertedHeartCount === 0) return { gameState: game, convertedHeartCount: 0 };
+  const snapshot: MemberHeartSnapshotModifier = {
+    kind: 'MEMBER_HEART_COLOR_SNAPSHOT',
+    ...options,
+    contributions,
+  };
+  return { gameState: addLiveModifier(taggedState, snapshot), convertedHeartCount };
 }
 
 /**

@@ -10,6 +10,8 @@ import { CardEntrancePlayback } from './CardEntrancePlayback';
 import type { PlayerViewState } from '@game/online/types';
 import { getDoubleRelaySources } from '@/lib/doubleRelayEntrance';
 import { getWaitingReturnSource } from '@/lib/waitingReturnEntrance';
+import { getAbilityTransferSource, getKahoRelaySource } from '@/lib/ginkoFlowerTransfer';
+import { AbilityTransferPlayback } from './AbilityTransferPlayback';
 import './cardEntrance.css';
 
 export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
@@ -38,9 +40,12 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
   const playVisuals = useWindowVisualEligibility(wait.id, enabled);
   const viewerWaiting = wait.waitingSeats.includes(view.match.viewerSeat);
   const reduced = !!useReducedMotion();
+  const [transfer] = useState(() =>
+    getAbilityTransferSource(view, useGameStore.getState().getCardImagePath)
+  );
   // Snapshot only public, already-present stage cards. No historical event replay on mount.
   const [queue] = useState(() =>
-    wait.objectIds.flatMap((objectId) => {
+    (wait.abilityTransfer ? [] : wait.objectIds).flatMap((objectId) => {
       const target = getEntranceStageTarget(view, objectId);
       const profile = target && getCardEntranceProfile(target.cardCode);
       return target && profile
@@ -50,6 +55,11 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
               target,
               profile,
               imagePath: useGameStore.getState().getCardImagePath(target.cardCode),
+              kahoSource: getKahoRelaySource(
+                view,
+                objectId,
+                useGameStore.getState().getCardImagePath
+              ),
               waitingReturn: getWaitingReturnSource(
                 view,
                 objectId,
@@ -67,8 +77,11 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
   );
   const [index, setIndex] = useState(0);
   const [landedId, setLandedId] = useState<string | null>(null);
+  const [releasedPreludeId, setReleasedPreludeId] = useState<string | null>(null);
+  const [transferDone, setTransferDone] = useState(false);
+  const activeTransfer = playVisuals && viewerWaiting && !transferDone ? transfer : undefined;
   const active = playVisuals && viewerWaiting ? queue[index] : undefined;
-  const done = !active;
+  const done = !active && !activeTransfer;
 
   useCardEntranceBarrier(view, done);
 
@@ -80,6 +93,7 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
         [
           p.target.objectId,
           ...p.relaySources.map((s) => s.objectId),
+          ...(p.kahoSource && releasedPreludeId !== p.id ? [p.kahoSource.objectId] : []),
           ...(p.waitingReturn?.objectIds ?? []),
         ].map((objectId) => ({
           eventId: `entrance:${p.id}:${objectId}`,
@@ -92,19 +106,27 @@ function SynchronizedEntrance({ view, enabled }: { view: PlayerViewState; enable
     return () => {
       for (const { eventId } of ids) store.removeBattleAnimationOcclusion(eventId);
     };
-  }, [playVisuals, viewerWaiting, reduced, queue, index, landedId]);
+  }, [playVisuals, viewerWaiting, reduced, queue, index, landedId, releasedPreludeId]);
 
   if (textOnly) return null;
   return (
     <>
       <div className="absolute inset-0 z-[59]" aria-hidden="true" />
-      {active ? (
+      {activeTransfer ? (
+        <AbilityTransferPlayback
+          source={activeTransfer}
+          reduced={reduced}
+          onDone={() => setTransferDone(true)}
+        />
+      ) : active ? (
         <CardEntrancePlayback
           key={active.id}
           presentation={active}
           profile={active.profile}
           relaySources={active.relaySources}
           waitingReturn={active.waitingReturn}
+          kahoSource={active.kahoSource}
+          onPreludeDone={() => setReleasedPreludeId(active.id)}
           reduced={reduced}
           onImpact={() => setLandedId(active.id)}
           onDone={() => setIndex((current) => (current === index ? current + 1 : current))}

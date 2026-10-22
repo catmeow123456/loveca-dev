@@ -46,6 +46,7 @@ import {
   SP_BP7_023_LIVE_SUCCESS_LIELLA_REVEALED_CHEER_TO_DECK_TOP_ABILITY_ID,
   SP_BP2_025_LIVE_SUCCESS_TWO_DISTINCT_NAMED_STAGE_MEMBERS_REVEALED_CHEER_TO_HAND_ABILITY_ID,
   S_CL1_011_LIVE_SUCCESS_COMMON_HEART_AQOURS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
+  S_CL1_002_LIVE_SUCCESS_BOTTOM_UP_TO_THREE_AQOURS_CHEER_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   CardAbilityCategory,
@@ -111,6 +112,7 @@ interface RevealedCheerSelectionWorkflowConfig {
   readonly predicateForState?: (game: GameState, playerId: string) => CheerCardPredicate;
   readonly destination: RevealedCheerCardDestination;
   readonly optional: boolean;
+  readonly ordered?: boolean;
   readonly confirmWhenNoTargets?: boolean;
   readonly noTargetsDescription?: string;
   readonly confirmWhenConditionFails?: boolean;
@@ -152,6 +154,20 @@ export interface SyncHsBp6027ManualCheerAdjustmentDependencies {
 }
 
 const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflowConfig[] = [
+  {
+    abilityId: S_CL1_002_LIVE_SUCCESS_BOTTOM_UP_TO_THREE_AQOURS_CHEER_ABILITY_ID,
+    stepId: 'S_CL1_002_SELECT_AQOURS_CHEER_TO_DECK_BOTTOM',
+    stepText: '请选择至多3张因声援被公开的自己的『Aqours』卡片，按放置顺序放置于卡组底。',
+    selectionLabel: '按放置顺序选择声援公开的『Aqours』卡片',
+    predicate: groupAliasIs('Aqours'),
+    destination: 'MAIN_DECK_BOTTOM',
+    optional: true,
+    ordered: true,
+    selectMin: 0,
+    selectMax: 3,
+    skipSelectionLabel: '不放置',
+    confirmWhenNoTargets: true,
+  },
   {
     abilityId: S_CL1_011_LIVE_SUCCESS_COMMON_HEART_AQOURS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
     stepId: 'S_CL1_011_SELECT_COMMON_HEART_AQOURS_CHEER_MEMBER_TO_HAND',
@@ -605,7 +621,7 @@ function startRevealedCheerSelectionWorkflow(
       minSelectableCards: useMultiSelect ? selectMin : undefined,
       maxSelectableCards: useMultiSelect ? selectMax : undefined,
       selectionLabel: config.selectionLabel,
-      confirmSelectionLabel: getConfirmSelectionLabel(config.destination),
+      confirmSelectionLabel: getConfirmSelectionLabel(config.destination, config.ordered),
       canSkipSelection: config.optional,
       skipSelectionLabel: config.skipSelectionLabel,
       metadata: {
@@ -614,6 +630,7 @@ function startRevealedCheerSelectionWorkflow(
         publicCardSelectionConfirmation: {
           source: 'REVEALED_CHEER',
           destination: config.destination,
+          ordered: config.ordered === true,
         },
         additionalCheerEqualToMoved: config.additionalCheerEqualToMoved === true,
         orderedResolution: context.orderedResolution,
@@ -965,7 +982,10 @@ function getEffectDestination(effect: ActiveEffectState): RevealedCheerCardDesti
     : null;
 }
 
-function getConfirmSelectionLabel(destination: RevealedCheerCardDestination): string {
+function getConfirmSelectionLabel(
+  destination: RevealedCheerCardDestination,
+  ordered = false
+): string {
   if (destination === 'HAND') {
     return '加入手牌';
   }
@@ -973,9 +993,9 @@ function getConfirmSelectionLabel(destination: RevealedCheerCardDestination): st
     return '放置入休息室';
   }
   if (destination === 'MAIN_DECK_BOTTOM') {
-    return '放置于卡组底';
+    return ordered ? '按此顺序放置于卡组底' : '放置于卡组底';
   }
-  return '放置于卡组顶';
+  return ordered ? '按此顺序放置于卡组顶' : '放置于卡组顶';
 }
 
 function hasAbilityInstance(game: GameState, abilityInstanceId: string): boolean {

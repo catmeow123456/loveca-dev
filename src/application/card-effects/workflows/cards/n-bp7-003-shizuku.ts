@@ -339,6 +339,6 @@ function countDifferentMembersBelow(
   return selectDifferentNamedCards(
     memberCardIds,
     (cardId) => getCardById(game, cardId)?.data ?? null,
-    { minCount: 0, getSecondaryKey: (cardId) => cardId }
+    { nameComparison: 'MEMBER_IDENTITY', minCount: 0, getSecondaryKey: (cardId) => cardId }
   ).length;
 }

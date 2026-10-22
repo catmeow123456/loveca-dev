@@ -424,6 +424,26 @@ describe('reveal hand LIVE then recover success-zone card shared family', () => 
         decline ? ['success-card'] : ['crossroads', 'success-card']
       );
       expect(s.session.state!.activeEffect!.id).toBe('second-pending');
+      const entryEvents = s.session.state!.eventLog
+        .map(({ event }) => event)
+        .filter((event) => event.eventType === TriggerCondition.ON_ENTER_SUCCESS_ZONE);
+      expect(entryEvents).toHaveLength(1);
+      expect(entryEvents[0]).toMatchObject({
+        cardInstanceId: decline ? 'crossroads' : 'replacement',
+        fromZone: decline ? ZoneType.HAND : ZoneType.WAITING_ROOM,
+        cause: decline
+          ? {
+              kind: 'CARD_EFFECT',
+              sourceCardId: 'source',
+              abilityId: MAKI_ON_ENTER_ABILITY_ID,
+              pendingAbilityId: 'swap-pending',
+            }
+          : {
+              kind: 'CARD_EFFECT',
+              sourceCardId: 'crossroads',
+              abilityId: BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID,
+            },
+      });
       expect(
         s.session.state!.actionHistory.filter(
           (a) => a.payload.pendingAbilityId === 'swap-pending' && a.payload.step === 'FINISH'

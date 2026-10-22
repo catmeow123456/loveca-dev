@@ -10,6 +10,7 @@ import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
 import {
   N_SD2_015_ACTIVATED_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
+  S_CL1_008_ACTIVATED_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
   PR_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
@@ -44,6 +45,11 @@ interface ActivatedWaitSelfDiscardDrawConfig {
 }
 
 const ACTIVATED_WAIT_SELF_DISCARD_DRAW_CONFIGS: readonly ActivatedWaitSelfDiscardDrawConfig[] = [
+  {
+    abilityId: S_CL1_008_ACTIVATED_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!S-cl1-008'],
+    drawCount: 1,
+  },
   {
     abilityId: PR_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
     baseCardCodes: ['PL!-PR-012', 'PL!S-PR-038', 'PL!SP-PR-017'],

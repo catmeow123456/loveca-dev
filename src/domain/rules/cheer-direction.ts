@@ -18,18 +18,26 @@ export function getCheerDeckEdgeForPlayer(game: GameState, playerId: string): Ch
     return CheerDeckEdge.TOP;
   }
 
-  const usesBottom = [...new Set(player.liveZone.cardIds)].some((liveCardId) => {
-    const card = getCardById(game, liveCardId);
-    return (
-      card !== null &&
-      card.ownerId === player.id &&
-      isLiveCardData(card.data) &&
-      BOTTOM_CHEER_LIVE_BASE_CARD_CODES.some((baseCardCode) =>
-        cardCodeMatchesBase(card.data.cardCode, baseCardCode)
-      ) &&
-      player.liveZone.cardIds.includes(card.instanceId)
-    );
-  });
+  const hasTemporaryBottomEffect = game.liveResolution.liveModifiers.some(
+    (modifier) =>
+      modifier.kind === 'CHEER_DIRECTION' &&
+      modifier.playerId === playerId &&
+      modifier.deckEdge === CheerDeckEdge.BOTTOM
+  );
+  const usesBottom =
+    hasTemporaryBottomEffect ||
+    [...new Set(player.liveZone.cardIds)].some((liveCardId) => {
+      const card = getCardById(game, liveCardId);
+      return (
+        card !== null &&
+        card.ownerId === player.id &&
+        isLiveCardData(card.data) &&
+        BOTTOM_CHEER_LIVE_BASE_CARD_CODES.some((baseCardCode) =>
+          cardCodeMatchesBase(card.data.cardCode, baseCardCode)
+        ) &&
+        player.liveZone.cardIds.includes(card.instanceId)
+      );
+    });
 
   return usesBottom ? CheerDeckEdge.BOTTOM : CheerDeckEdge.TOP;
 }

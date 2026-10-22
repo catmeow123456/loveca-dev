@@ -26,6 +26,7 @@ import {
 import { ZoneType, SlotPosition, FaceState } from '../../shared/types/enums.js';
 import { removeLiveCardBoundLiveModifiers } from '../../domain/rules/live-modifiers.js';
 import { returnEnergyBelowMemberToEnergyDeckForPlayer } from '../effects/energy-below.js';
+import { recordSuccessZoneEntry } from '../card-effects/runtime/success-zone-entry-triggers.js';
 import {
   addCardToZone,
   addCardsToZone,
@@ -356,7 +357,9 @@ export function moveCardBetweenZones(
 ): GameState {
   let state = removeCardFromPlayerZone(game, playerId, cardId, fromZone);
   state = addCardToPlayerZone(state, playerId, cardId, toZone, options);
-  return state;
+  return toZone === ZoneType.SUCCESS_ZONE
+    ? recordSuccessZoneEntry(game, state, playerId, cardId, fromZone)
+    : state;
 }
 
 // ============================================
@@ -629,7 +632,8 @@ export function moveCardUniversal(
   const cardBeforeMove = getCardById(state, cardId);
   const crossesLiveBoundary =
     fromZone !== toZone && (fromZone === ZoneType.LIVE_ZONE || toZone === ZoneType.LIVE_ZONE);
-  if (crossesLiveBoundary) {
+  const entersSuccessZone = fromZone !== toZone && toZone === ZoneType.SUCCESS_ZONE;
+  if (crossesLiveBoundary || entersSuccessZone) {
     const sourceContainsCard =
       fromZone === ZoneType.RESOLUTION_ZONE
         ? game.resolutionZone.cardIds.includes(cardId)
@@ -816,5 +820,7 @@ export function moveCardUniversal(
     );
   }
 
-  return state;
+  return entersSuccessZone
+    ? recordSuccessZoneEntry(game, state, playerId, cardId, fromZone)
+    : state;
 }

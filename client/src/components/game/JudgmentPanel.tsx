@@ -336,8 +336,8 @@ function LiveRequirementCard({
         title={canShowFront ? (card.cardName ?? undefined) : undefined}
         className="mx-auto block w-full max-w-[96px]"
       >
-        <div className="relative mx-auto flex h-[56px] w-full max-w-[96px] items-center justify-center overflow-visible rounded-md border border-[color:color-mix(in_srgb,var(--border-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)] shadow-sm">
-          <div className="h-[82px] w-[58px] -rotate-90 overflow-hidden rounded-md">
+        <div className="relative mx-auto flex aspect-[7/5] w-full max-w-[96px] items-center justify-center">
+          <div className="battle-card-face h-[140%] w-[71.428571%] shrink-0 -rotate-90 overflow-hidden shadow-sm">
             <PresentationImage
               src={imagePath}
               alt={canShowFront ? (card.cardName ?? '') : ''}
@@ -395,7 +395,7 @@ const SortableCheerCard = memo(function SortableCheerCard({
       {...listeners}
       onClick={onClick}
       className={cn(
-        'w-[72px] h-[100px] rounded-lg overflow-hidden shadow-md cursor-grab',
+        'battle-card-face aspect-[5/7] w-[72px] overflow-hidden shadow-md cursor-grab',
         isDragging && 'shadow-xl ring-2 ring-amber-400',
         selected && 'ring-2 ring-cyan-300 ring-offset-2 ring-offset-slate-950'
       )}
@@ -1024,7 +1024,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
       id="judgment-panel"
       data-battle-ui-anchor={BATTLE_UI_ANCHORS.JUDGMENT_PANEL}
       data-docked={!isMobilePanel && docked}
-      className="battle-side-panel pointer-events-auto overflow-visible p-4 max-md:overflow-hidden max-md:p-3"
+      className="battle-table battle-side-panel pointer-events-auto overflow-visible p-4 max-md:overflow-hidden max-md:p-3"
       role="dialog"
       aria-modal={isMobilePanel}
       aria-label="应援/判定区"
@@ -1040,7 +1040,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
       <button
         type="button"
         onClick={onClose}
-        className="group absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-frosted)] text-[var(--text-secondary)] shadow-[var(--shadow-sm)] backdrop-blur-xl transition-colors hover:border-[var(--accent-primary)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_88%,var(--accent-primary)_12%)] hover:text-[var(--accent-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] md:right-0 md:top-1/2 md:h-16 md:w-11 md:-translate-y-1/2 md:translate-x-full md:rounded-r-lg md:rounded-l-none md:border-l-0 md:shadow-[var(--shadow-md)]"
+        className="group absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-md border border-[var(--border-default)] bg-[var(--bg-frosted)] text-[var(--text-secondary)] shadow-[var(--shadow-sm)] backdrop-blur-xl transition-colors hover:border-[var(--accent-primary)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_88%,var(--accent-primary)_12%)] hover:text-[var(--accent-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] md:right-0 md:top-1/2 md:h-16 md:w-11 md:-translate-y-1/2 md:translate-x-full md:rounded-r-md md:rounded-l-none md:border-l-0 md:shadow-[var(--shadow-md)]"
         aria-label="收起应援/判定区"
         aria-expanded={true}
         aria-controls="judgment-panel"
@@ -1108,12 +1108,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
               <button
                 onClick={drawCheerCard}
                 disabled={!canRevealViewedCheerCard || mainDeckCount === 0}
-                className={cn(
-                  'px-3 py-1.5 rounded text-xs font-medium',
-                  canRevealViewedCheerCard && mainDeckCount > 0
-                    ? 'button-gold'
-                    : 'bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
-                )}
+                className="battle-mini-action"
               >
                 ↓ 翻开一张
               </button>
@@ -1219,7 +1214,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                             }}
                           />
                         ) : (
-                          <div className="h-[100px] w-[72px] overflow-hidden rounded-lg shadow-md">
+                          <div className="battle-card-face aspect-[5/7] w-[72px] overflow-hidden shadow-md">
                             <PresentationImage
                               src="/back.jpg"
                               alt=""

@@ -1,9 +1,11 @@
+import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
   getCardById,
   getPlayerById,
   type GameState,
+  type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { CardType, GamePhase, OrientationState, ZoneType } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
@@ -27,7 +29,10 @@ import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
 } from '../../runtime/member-state-changed-triggers.js';
-import { getSourceMemberSlot } from '../../runtime/source-member.js';
+import {
+  getSourceMemberSlot,
+  isCurrentStageMemberAbilitySource,
+} from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -50,6 +55,7 @@ import {
   finishRevealedLookTopSelectToHandWorkflow,
   resolveLookTopSelectToHandSelection,
   startLookTopSelectToHandWorkflow,
+  type LookTopSelectToHandWorkflowConfig,
 } from '../shared/look-top-select-to-hand.js';
 
 const DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL = '请选择要放置入休息室的卡牌';
@@ -65,6 +71,7 @@ type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForEnterWaitingRoo
 
 interface WaitDiscardLookTopSelectToHandConfig {
   readonly abilityId: string;
+  readonly hasPrintedActivationCosts?: boolean;
   readonly activatedBaseCardCodes?: readonly string[];
   readonly topCount: number;
   readonly selector: CardSelector;
@@ -84,9 +91,11 @@ function createHighCostGroupMemberConfig(options: {
   readonly groupLabel: string;
   readonly topCount: number;
   readonly costGte: number;
+  readonly hasPrintedActivationCosts?: boolean;
 }): WaitDiscardLookTopSelectToHandConfig {
   return {
     abilityId: options.abilityId,
+    hasPrintedActivationCosts: options.hasPrintedActivationCosts,
     topCount: options.topCount,
     selector: and(
       typeIs(CardType.MEMBER),
@@ -106,6 +115,7 @@ function createHighCostGroupMemberConfig(options: {
 const WAIT_DISCARD_LOOK_TOP_WORKFLOWS: readonly WaitDiscardLookTopSelectToHandConfig[] = [
   createHighCostGroupMemberConfig({
     abilityId: HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+    hasPrintedActivationCosts: true,
     groupAlias: '蓮ノ空',
     groupLabel: '莲之空',
     topCount: 5,
@@ -193,12 +203,16 @@ export function registerWaitDiscardLookTopSelectToHandWorkflowHandlers(deps: {
         );
       });
     } else {
-      registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
+      registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
         startWaitDiscardLookTopSelectToHand(
           game,
           ability,
           config,
-          options.orderedResolution === true
+          options.orderedResolution === true,
+          {
+            continuePendingCardEffects: context.continuePendingCardEffects,
+            enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+          }
         )
       );
     }
@@ -272,13 +286,26 @@ function startWaitDiscardLookTopSelectToHand(
     readonly abilityId: string;
     readonly sourceCardId: string;
     readonly controllerId: string;
+    readonly onEnterInvocation?: PendingAbilityState['onEnterInvocation'];
+    readonly sourceLifecycleId?: string;
   },
   config: WaitDiscardLookTopSelectToHandConfig,
-  orderedResolution: boolean
+  orderedResolution: boolean,
+  deps?: {
+    readonly continuePendingCardEffects: ContinuePendingCardEffects;
+    readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
+  }
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
+  }
+
+  if (config.hasPrintedActivationCosts === true && isAbilityActivationCostWaived(ability) && deps) {
+    return startLookTopSelectToHandWorkflow(game, ability, createInspectionConfig(config, []), {
+      orderedResolution,
+      ...deps,
+    });
   }
 
   const sourceSlot = getSourceMemberSlot(game, ability.controllerId, ability.sourceCardId);
@@ -364,8 +391,9 @@ function startInspectionAfterWaitDiscardCost(
     return game;
   }
   if (
-    config.activatedBaseCardCodes &&
-    !hasActivatedSource(game, player.id, effect.sourceCardId, config)
+    !isCurrentStageMemberAbilitySource(game, effect) ||
+    (config.activatedBaseCardCodes &&
+      !hasActivatedSource(game, player.id, effect.sourceCardId, config))
   ) {
     return finishSkippedActiveEffect(game, continuePendingCardEffects);
   }
@@ -420,36 +448,46 @@ function startInspectionAfterWaitDiscardCost(
       sourceCardId: effect.sourceCardId,
       controllerId: effect.controllerId,
     },
-    {
-      effectText: getAbilityEffectText(config.abilityId),
-      topCount: config.topCount,
-      selector: config.selector,
-      countRule: { minCount: 0, maxCount: 1 },
-      revealSelectedBeforeHand: config.revealSelectedBeforeHand,
-      selectionRequiredWhenHasTargets: config.selectionRequiredWhenHasTargets,
-      selectStepId: DISCARD_LOOK_SELECT_TAKE_STEP_ID,
-      revealStepId: DISCARD_LOOK_REVEAL_SELECTED_STEP_ID,
-      selectStepText: config.selectStepText,
-      noTargetStepText: config.noTargetStepText,
-      selectionLabel: config.selectionLabel,
-      confirmSelectionLabel: config.confirmSelectionLabel,
-      skipSelectionLabel: config.skipSelectionLabel,
-      revealStepText: getAbilityEffectText(config.abilityId),
-      revealActionStep: 'REVEAL_SELECTED',
-      startActionPayload: { discardCardId },
-      publicEffectSummaryContext: {
-        effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
-        sourceActionLabel: config.activatedBaseCardCodes ? '起动' : '登场',
-        discardedCostCardIds: [discardCardId],
-        inspectSourceZone: ZoneType.MAIN_DECK,
-        requestedInspectCount: config.topCount,
-        sourceOrientationCost: 'WAITING',
-      },
-    },
+    createInspectionConfig(config, [discardCardId]),
     {
       orderedResolution: effect.metadata?.orderedResolution === true,
       continuePendingCardEffects,
       enqueueTriggeredCardEffects,
     }
   );
+}
+
+function createInspectionConfig(
+  config: WaitDiscardLookTopSelectToHandConfig,
+  discardedCostCardIds: readonly string[]
+): LookTopSelectToHandWorkflowConfig {
+  return {
+    effectText: getAbilityEffectText(config.abilityId),
+    topCount: config.topCount,
+    selector: config.selector,
+    countRule: { minCount: 0, maxCount: 1 },
+    revealSelectedBeforeHand: config.revealSelectedBeforeHand,
+    selectionRequiredWhenHasTargets: config.selectionRequiredWhenHasTargets,
+    selectStepId: DISCARD_LOOK_SELECT_TAKE_STEP_ID,
+    revealStepId: DISCARD_LOOK_REVEAL_SELECTED_STEP_ID,
+    selectStepText: config.selectStepText,
+    noTargetStepText: config.noTargetStepText,
+    selectionLabel: config.selectionLabel,
+    confirmSelectionLabel: config.confirmSelectionLabel,
+    skipSelectionLabel: config.skipSelectionLabel,
+    revealStepText: getAbilityEffectText(config.abilityId),
+    revealActionStep: 'REVEAL_SELECTED',
+    startActionPayload: {
+      ...(discardedCostCardIds.length === 1 ? { discardCardId: discardedCostCardIds[0] } : {}),
+      discardedCostCardIds,
+    },
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: config.activatedBaseCardCodes ? '起动' : '登场',
+      discardedCostCardIds,
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: config.topCount,
+      ...(discardedCostCardIds.length > 0 ? { sourceOrientationCost: 'WAITING' as const } : {}),
+    },
+  };
 }

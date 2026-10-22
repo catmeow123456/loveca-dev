@@ -58,6 +58,7 @@ import {
 } from '../../domain/rules/success-live-placement.js';
 import { phaseManager, type SubPhaseAutoAction } from '../phase-manager.js';
 import { isUserActionRequired } from '../../shared/phase-config/index.js';
+import { recordSuccessZoneEntry } from '../card-effects/runtime/success-zone-entry-triggers.js';
 
 function haveAllWinnersConfirmed(game: GameState, confirmedPlayerIds: readonly string[]): boolean {
   const winners = game.liveResolution.liveWinnerIds;
@@ -583,6 +584,7 @@ export const handleSelectSuccessCard: ActionHandler<SelectSuccessCardAction> = (
     const newSuccessZone = addCardToZone(p.successZone, cardId);
     return { ...p, liveZone: newLiveZone, successZone: newSuccessZone };
   });
+  state = recordSuccessZoneEntry(game, state, playerId, cardId, ZoneType.LIVE_ZONE);
 
   // 记录谁移动了卡牌到成功区（用于 finalizeLiveResult() 更新先攻）
   state = {

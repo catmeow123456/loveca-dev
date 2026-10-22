@@ -390,7 +390,8 @@ function finishSunnyDaySongModifiers(
     hasAtLeastDifferentNamedCards(
       stageMemberCardIds,
       3,
-      (cardId) => getCardById(state, cardId)?.data
+      (cardId) => getCardById(state, cardId)?.data,
+      { nameComparison: 'MEMBER_IDENTITY' }
     );
   if (hasThreeDifferentNames) {
     state = addLiveModifier(state, {

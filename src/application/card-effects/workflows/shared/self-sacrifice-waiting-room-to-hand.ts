@@ -25,6 +25,7 @@ import {
   RIN_ACTIVATED_ABILITY_ID,
   S_BP3_008_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
   S_CL1_003_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_CARD_ABILITY_ID,
+  S_CL1_009_ACTIVATED_SELF_SACRIFICE_RECOVER_MEMBER_ABILITY_ID,
   SP_BP4_018_ACTIVATED_SELF_SACRIFICE_RECOVER_LIELLA_CARD_ABILITY_ID,
 } from '../../ability-ids.js';
 import { findCardAbilityDefinitionById } from '../../definitions/lookup.js';
@@ -115,6 +116,16 @@ interface SelfSacrificeWaitingRoomToHandWorkflowConfig {
 
 const SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly SelfSacrificeWaitingRoomToHandWorkflowConfig[] =
   [
+    {
+      abilityId: S_CL1_009_ACTIVATED_SELF_SACRIFICE_RECOVER_MEMBER_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!S-cl1-009'],
+      stepId: 'S_CL1_009_SELECT_WAITING_ROOM_MEMBER',
+      selectablePredicate: typeIs(CardType.MEMBER),
+      selectionRequiredWhenHasTargets: true,
+      stepText: '请选择自己的休息室中1张成员卡加入手牌。',
+      selectionLabel: '选择要加入手牌的成员卡',
+      confirmSelectionLabel: '加入手牌',
+    },
     {
       abilityId: S_CL1_003_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_CARD_ABILITY_ID,
       expectedBaseCardCodes: ['PL!S-cl1-003'],

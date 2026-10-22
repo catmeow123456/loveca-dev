@@ -345,30 +345,378 @@ select {
   min-height: 0;
 }
 
+.battle-table {
+  --card-radius: 4px;
+  --battle-radius-mini: 3px;
+  --battle-radius-control: 6px;
+  --battle-radius-region: 8px;
+  --battle-radius-overlay: 12px;
+  --radius-sm: var(--battle-radius-mini);
+  --radius-md: var(--battle-radius-control);
+  --radius-lg: var(--battle-radius-region);
+  --radius-xl: var(--battle-radius-overlay);
+  --radius-2xl: var(--battle-radius-overlay);
+  --radius-control: var(--battle-radius-control);
+  --radius-panel: var(--battle-radius-region);
+}
+
+.battle-table .modal-surface,
+.battle-table .battle-overlay-surface {
+  border-radius: var(--battle-radius-overlay);
+}
+
+.battle-card-face {
+  border-radius: var(--card-radius);
+}
+
+.battle-card-mini,
+.battle-resource-pile {
+  border-radius: var(--battle-radius-mini);
+}
+
+.battle-card-slot {
+  border-radius: calc(var(--card-radius) + 2px);
+}
+
+.battle-resource-pile {
+  width: 40px;
+  height: 56px;
+}
+
+.battle-success-zone {
+  --battle-success-width: 126px;
+  --battle-success-height: 90px;
+  --battle-success-step-y: 45px;
+  width: 140px;
+  border-radius: var(--battle-radius-region);
+}
+
+.battle-success-stack {
+  width: var(--battle-success-width);
+  height: calc(var(--battle-success-height) + 2 * var(--battle-success-step-y));
+}
+
+.battle-success-slot {
+  width: var(--battle-success-width);
+  height: var(--battle-success-height);
+}
+
+.battle-success-card {
+  width: var(--battle-success-height);
+  height: var(--battle-success-width);
+}
+
+.battle-table
+  :is(
+    .battle-live-zone,
+    .battle-mobile-resources,
+    .battle-hand-context-actions,
+    .battle-mobile-phase-header,
+    .battle-mobile-seat-summary,
+    .battle-mobile-surface,
+    .battle-phase-surface
+  ) {
+  border-radius: var(--battle-radius-region);
+}
+
+.battle-table .battle-mobile-seat-summary > button,
+.battle-table .battle-toolbar-control,
+.battle-table .battle-phase-surface button,
+.battle-table .battle-phase-summary {
+  border-radius: var(--battle-radius-control);
+}
+
+.battle-table .battle-mobile-drawer {
+  border-radius: var(--battle-radius-overlay) var(--battle-radius-overlay) 0 0;
+}
+
 .battle-live-zone {
-  --battle-live-width: clamp(56px, 17vw, 78px);
+  --battle-live-width: var(--battle-mobile-stage-card-width, clamp(56px, 17vw, 78px));
   --battle-live-height: calc(var(--battle-live-width) * 5 / 7);
   --battle-live-slot-height: var(--battle-live-height);
 }
 
-@media (min-width: 768px) {
-  .battle-live-zone {
-    --battle-live-width: 105px;
-    --battle-live-height: 75px;
-    --battle-live-slot-height: 70px;
+.battle-zone-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  min-height: 28px;
+}
+
+.battle-zone-label,
+.battle-mini-action {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.battle-zone-label {
+  --battle-label-fade-inline: 12px;
+  isolation: isolate;
+  min-height: 16px;
+  color: color-mix(in srgb, var(--text-primary) 50%, var(--text-secondary));
+}
+
+.battle-zone-label:not(.absolute) {
+  position: relative;
+}
+
+.battle-zone-label::before {
+  content: '';
+  position: absolute;
+  inset: -6px calc(-1 * var(--battle-label-fade-inline));
+  z-index: -1;
+  pointer-events: none;
+  /* The fade begins outside the text, keeping a steady local contrast beneath every glyph. */
+  background: color-mix(in srgb, var(--bg-surface) 72%, transparent);
+  backdrop-filter: blur(6px);
+  mask-image:
+    linear-gradient(
+      to right,
+      transparent,
+      #000 var(--battle-label-fade-inline),
+      #000 calc(100% - var(--battle-label-fade-inline)),
+      transparent
+    ),
+    linear-gradient(to bottom, transparent, #000 6px, #000 calc(100% - 6px), transparent);
+  mask-composite: intersect;
+}
+
+.battle-resource-label {
+  --battle-label-fade-inline: 4px;
+}
+
+.battle-zone-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.battle-zone-count-overlay {
+  min-width: 18px;
+  padding-inline: 4px;
+  border-radius: var(--battle-radius-mini, 3px);
+  background: var(--bg-frosted);
+  box-shadow: var(--shadow-sm);
+}
+
+.battle-zone-count-overlay::before {
+  content: none;
+}
+
+.battle-mini-action {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 3px 6px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--battle-radius-control, 6px);
+  background: color-mix(in srgb, var(--bg-frosted) 72%, transparent);
+  backdrop-filter: blur(3px);
+  cursor: pointer;
+  transition:
+    background-color 100ms,
+    border-color 100ms;
+}
+
+.battle-mini-action:hover:not(:disabled) {
+  background: var(--bg-frosted);
+  border-color: var(--border-default);
+}
+
+.battle-mini-action:active:not(:disabled) {
+  background: var(--bg-overlay);
+}
+
+.battle-mini-action:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.battle-mini-action:disabled {
+  border-color: var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-frosted) 90%, transparent);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+}
+
+.battle-mini-action-group {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.battle-inspection-actions .battle-mini-action {
+  min-height: 32px;
+}
+
+@media (max-width: 767px) {
+  .battle-success-zone {
+    --battle-success-width: 84px;
+    --battle-success-height: 60px;
+    --battle-success-step-y: 14px;
+    width: 96px;
+    padding-block: 2px;
   }
 
-  .battle-hand-zone {
-    --battle-hand-card-width: 70px;
-    --battle-hand-card-height: 98px;
-    height: 124px;
+  .battle-support-zone .battle-zone-header {
+    position: relative;
+    min-height: 18px;
+  }
+
+  .battle-support-zone .battle-mini-action-group {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
+
+  .battle-support-zone {
+    height: 112px;
+    padding-block: 2px;
+  }
+
+  .battle-mobile-tabletop {
+    container-type: size;
+  }
+
+  .battle-mobile-tabletop-content {
+    /* Keep the stage and all three resource piles within the available battle height. */
+    --battle-mobile-stage-card-width: clamp(
+      44px,
+      calc((100cqh - 152px) * 35 / 74),
+      clamp(58px, 18vw, 82px)
+    );
+    --battle-mobile-resource-card-height: clamp(40px, calc((100cqh - 200px) / 3), 72px);
+  }
+
+  .battle-mobile-resources .battle-resource-label {
+    height: 16px;
+  }
+
+  .battle-mobile-resources :is(.battle-deck-pile, .battle-waiting-room-pile) {
+    height: var(--battle-mobile-resource-card-height);
+    width: calc(var(--battle-mobile-resource-card-height) * 5 / 7);
+  }
+
+  .battle-mobile-actions > button {
+    height: 32px;
+    min-height: 32px;
+    flex-direction: row;
+    gap: 4px;
+    padding: 2px 4px;
+    border-radius: var(--battle-radius-control);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 14px;
+  }
+
+  .battle-mobile-actions > button > svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+
+  .battle-mobile-actions > button > span.absolute {
+    top: -5px;
+    right: 0;
+    min-width: 14px;
+    font-size: 9px;
+    line-height: 14px;
   }
 }
 
-@media (min-width: 768px) and (min-height: 850px) {
+@media (max-width: 767px) and (max-height: 740px) {
+  .battle-mobile-header {
+    padding-top: max(6px, env(safe-area-inset-top));
+  }
+
+  .battle-mobile-phase-header,
+  .battle-mobile-seat-summary,
+  .battle-mobile-seat-summary > :is(button, div) {
+    padding-block: 4px;
+  }
+
+  .battle-mobile-seat-summary {
+    margin-top: 2px;
+  }
+
+  .battle-mobile-player-communication {
+    height: 28px;
+  }
+
+  .battle-support-zone {
+    height: 104px;
+    padding-block: 0;
+  }
+
+  .battle-success-zone {
+    --battle-success-step-y: 12px;
+  }
+
+  .battle-mobile-resources {
+    gap: 2px;
+    padding-block: 0;
+  }
+
+  .battle-mobile-tabletop-content {
+    --battle-mobile-resource-card-height: clamp(40px, calc((100cqh - 184px) / 3), 72px);
+  }
+}
+
+@media (min-width: 768px) {
+  .battle-live-zone {
+    --battle-live-extension: 8px;
+    --battle-live-width: calc(
+      clamp(84px, calc(84px + (var(--battle-viewport-height) - 768px) * 21 / 132), 105px) +
+        var(--battle-live-extension) * 7 / 5
+    );
+    --battle-live-height: calc(var(--battle-live-width) * 5 / 7);
+    --battle-live-slot-height: calc(
+      clamp(60px, calc(60px + (var(--battle-viewport-height) - 768px) * 10 / 132), 70px) +
+        var(--battle-live-extension)
+    );
+    margin-block-start: calc(-1 * var(--battle-live-extension));
+  }
+
+  .battle-live-zone-opponent {
+    margin-block-start: 0;
+    margin-block-end: calc(-1 * var(--battle-live-extension));
+  }
+
+  .battle-live-zone-opponent .battle-live-requirements {
+    top: -10px;
+    bottom: auto;
+  }
+
   .battle-hand-zone {
-    --battle-hand-card-width: 75px;
-    --battle-hand-card-height: 105px;
+    --battle-hand-card-width: clamp(
+      60px,
+      calc(60px + (var(--battle-viewport-height) - 768px) * 15 / 132),
+      75px
+    );
+    --battle-hand-card-height: calc(var(--battle-hand-card-width) * 7 / 5);
+    --battle-hand-max-step: calc(var(--battle-hand-card-width) * 64 / 75);
+    height: clamp(96px, calc(96px + (var(--battle-viewport-height) - 768px) * 16 / 132), 112px);
+  }
+
+  .battle-success-zone {
+    --battle-success-width: clamp(
+      112px,
+      calc(112px + (var(--battle-viewport-height) - 768px) * 14 / 132),
+      126px
+    );
+    --battle-success-height: calc(var(--battle-success-width) * 5 / 7);
+    --battle-success-step-y: clamp(
+      36px,
+      calc(36px + (var(--battle-viewport-height) - 768px) * 9 / 132),
+      45px
+    );
   }
 }
 

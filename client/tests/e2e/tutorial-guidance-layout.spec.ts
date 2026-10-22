@@ -177,5 +177,31 @@ test.describe('tutorial transfer guidance', () => {
       path: screenshotPath,
       contentType: 'image/png',
     });
+
+    // The spotlight must also leave the real modal selection and confirmation clickable.
+    const selection = page.locator('[data-battle-ui-anchor="active-effect-selection"]');
+    const memberIds = await selection.locator('[data-card-id]').evaluateAll(async (nodes) => {
+      const storePath = '/src/store/gameStore.ts';
+      const { useGameStore } = await import(storePath);
+      return nodes
+        .map((node) => node.getAttribute('data-card-id')!)
+        .filter(
+          (id) =>
+            useGameStore.getState().getVisibleCardPresentation(id)?.cardData.cardType === 'MEMBER'
+        )
+        .slice(0, 2);
+    });
+    expect(memberIds).toHaveLength(2);
+    for (const id of memberIds) {
+      await selection
+        .locator(`[data-card-id="${id}"]`)
+        .locator('xpath=ancestor::button[1]')
+        .click();
+    }
+    await page
+      .locator('[data-battle-ui-anchor="active-effect-confirm"]')
+      .getByRole('button', { name: '确认选择', exact: true })
+      .click();
+    await expect(page.locator('[data-tutorial-step="read-effect-live"]')).toBeVisible();
   });
 });

@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { addCheckTimingRuleSentinel } from '../helpers/check-timing-rule-sentinel';
-import type {
-  EnergyCardData,
-  LiveCardData,
-  MemberCardData,
-} from '../../src/domain/entities/card';
+import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
   createHeartIcon,
@@ -301,7 +297,7 @@ describe('PL!HS-cl1-002-CL Sayaka workflow', () => {
     ).toBe(true);
   });
 
-  it('does not pay and resolves no-op when there is no DOLLCHESTRA target', () => {
+  it('allows paying one energy even when no DOLLCHESTRA card can be recovered', () => {
     const nonTarget = createCardInstance(
       createNonDollchestraMember('PL!HS-test-non-dollchestra'),
       PLAYER1,
@@ -311,18 +307,14 @@ describe('PL!HS-cl1-002-CL Sayaka workflow', () => {
       activeEnergyCount: 1,
       waitingCards: [nonTarget],
     });
-
+    expect(session.state?.activeEffect).not.toBeNull();
+    confirmOption(session, 'pay');
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].energyZone.cardStates.get(energyIds[0]!)?.orientation).toBe(
-      OrientationState.ACTIVE
+      OrientationState.WAITING
     );
-    expect(hasPayCostAction(session.state!)).toBe(false);
-    expect(
-      session.state?.actionHistory.some(
-        (action) =>
-          action.type === 'RESOLVE_ABILITY' && action.payload.reason === 'NO_DOLLCHESTRA_TARGET'
-      )
-    ).toBe(true);
+    expect(hasPayCostAction(session.state!)).toBe(true);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([nonTarget.instanceId]);
   });
 
   it('resolves stale pending no-op when the source is no longer on stage', () => {
@@ -415,11 +407,23 @@ describe('PL!HS-cl1-002-CL Sayaka workflow', () => {
     }));
     game = emitGameEvent(
       game,
-      createEnterStageEvent(firstSource.instanceId, ZoneType.HAND, SlotPosition.LEFT, PLAYER1, PLAYER1)
+      createEnterStageEvent(
+        firstSource.instanceId,
+        ZoneType.HAND,
+        SlotPosition.LEFT,
+        PLAYER1,
+        PLAYER1
+      )
     );
     game = emitGameEvent(
       game,
-      createEnterStageEvent(secondSource.instanceId, ZoneType.HAND, SlotPosition.RIGHT, PLAYER1, PLAYER1)
+      createEnterStageEvent(
+        secondSource.instanceId,
+        ZoneType.HAND,
+        SlotPosition.RIGHT,
+        PLAYER1,
+        PLAYER1
+      )
     );
     game = addCheckTimingRuleSentinel(game, PLAYER1, 'hs-cl1-002-ordered');
     game = enqueueTriggeredCardEffects(game, [TriggerCondition.ON_ENTER_STAGE]);
@@ -454,8 +458,9 @@ describe('PL!HS-cl1-002-CL Sayaka workflow', () => {
       ],
     };
     const nextPendingSourceCardId =
-      session.state!.pendingAbilities.find((ability) => ability.sourceCardId !== currentSourceCardId)
-        ?.sourceCardId ?? null;
+      session.state!.pendingAbilities.find(
+        (ability) => ability.sourceCardId !== currentSourceCardId
+      )?.sourceCardId ?? null;
     expect([firstSource.instanceId, secondSource.instanceId]).toContain(currentSourceCardId);
     expect([firstSource.instanceId, secondSource.instanceId]).toContain(nextPendingSourceCardId);
     (session as unknown as { authorityState: GameState }).authorityState = {

@@ -388,7 +388,7 @@ function DesktopCardDetailPanel({ card }: { card: VisibleCardPresentation }) {
 
   return (
     <aside
-      className="pointer-events-none fixed bottom-3 right-3 top-3 z-[var(--z-card-detail)]"
+      className="battle-table pointer-events-none fixed bottom-3 right-3 top-3 z-[var(--z-card-detail)]"
       aria-label={`${localizedName.title} 卡牌详情`}
     >
       <motion.div
@@ -398,7 +398,7 @@ function DesktopCardDetailPanel({ card }: { card: VisibleCardPresentation }) {
         transition={{ duration: 0.2 }}
         className={cn(
           'h-full w-[min(380px,calc(100vw-1.5rem))] max-w-[380px] xl:w-[400px] xl:max-w-[400px]',
-          'surface-panel-frosted cute-scrollbar overflow-hidden p-3',
+          'battle-overlay-surface surface-panel-frosted cute-scrollbar overflow-hidden p-3',
           'border-[var(--border-default)] shadow-[var(--shadow-lg)]'
         )}
       >
@@ -436,7 +436,7 @@ function MobileCardDetailDrawer({
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-        className="safe-bottom fixed inset-x-0 bottom-0 z-[var(--z-card-detail)] flex max-h-[var(--battle-viewport-height-86,86dvh)] min-h-[var(--battle-viewport-height-46,46dvh)] flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)]"
+        className="battle-table safe-bottom fixed inset-x-0 bottom-0 z-[var(--z-card-detail)] flex max-h-[var(--battle-viewport-height-86,86dvh)] min-h-[var(--battle-viewport-height-46,46dvh)] flex-col overflow-hidden rounded-t-xl border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)]"
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
       >
@@ -502,7 +502,7 @@ function CardDetailContent({
             ? 'flex justify-center'
             : 'grid shrink-0 grid-cols-[120px_minmax(0,1fr)] gap-2.5',
           isMobile
-            ? 'rounded-2xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_44%,transparent)] p-3'
+            ? 'rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_44%,transparent)] p-3'
             : 'items-start'
         )}
       >

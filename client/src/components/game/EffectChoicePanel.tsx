@@ -48,7 +48,7 @@ function EffectChoiceOption({
   );
 
   const classes = cn(
-    'flex min-h-12 w-full items-start gap-2 rounded-lg border px-3 py-2.5 text-left text-[13px] font-semibold transition-colors md:text-sm',
+    'flex min-h-12 w-full items-start gap-2 rounded-md border px-3 py-2.5 text-left text-[13px] font-semibold transition-colors md:text-sm',
     selected
       ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,var(--bg-surface))] text-[var(--text-primary)]'
       : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)]',

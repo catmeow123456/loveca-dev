@@ -102,6 +102,9 @@ for (const style of ['rainbow', 'flow', 'ink'] as const)
       await prepare(page, style);
       await expect(page.getByLabel('边缘特效')).toHaveValue(style);
       await source(page).click();
+      // Measure the resting card after hover/tap feedback has settled, before freezing time.
+      await page.mouse.move(8, 8);
+      await expect(source(page)).toHaveCSS('transform', 'none');
       const restingBounds = (await source(page).boundingBox())!;
       const clockStart = new Date('2026-01-01T00:00:00Z');
       await page.clock.install({ time: clockStart });

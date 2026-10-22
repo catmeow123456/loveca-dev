@@ -15,6 +15,8 @@ import {
   selectWaitingRoomCardIds,
 } from '../../../effects/zone-selection.js';
 import { HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID } from '../../ability-ids.js';
+import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
+import { isCurrentStageMemberAbilitySource } from '../../runtime/source-member.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import {
   addBladeLiveModifierForSourceMember,
@@ -26,8 +28,7 @@ import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js'
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 export const HS_PB1_012_RECYCLE_CONFIRM_STEP_ID = 'HS_PB1_012_RECYCLE_MEMBERS_CONFIRM';
-export const HS_PB1_012_SELECT_WAITING_ROOM_LIVE_STEP_ID =
-  'HS_PB1_012_SELECT_WAITING_ROOM_LIVE';
+export const HS_PB1_012_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'HS_PB1_012_SELECT_WAITING_ROOM_LIVE';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -82,6 +83,7 @@ function startHsPb1012OnEnterRecycleMembers(
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
+      sourceLifecycleId: getPendingAbilitySourceLifecycleId(game, ability),
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(
         HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID
@@ -114,8 +116,7 @@ function finishHsPb1012RecycleWaitingRoomMembers(
   const effect = game.activeEffect;
   if (
     !effect ||
-    effect.abilityId !==
-      HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID ||
+    effect.abilityId !== HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID ||
     effect.stepId !== HS_PB1_012_RECYCLE_CONFIRM_STEP_ID
   ) {
     return game;
@@ -195,15 +196,12 @@ function finishHsPb1012RecycleWaitingRoomMembers(
       effect,
       player.id
     );
-    if (!stateAfterModifier) {
-      return game;
-    }
     const state = { ...stateAfterModifier, activeEffect: null };
     return continuePendingCardEffects(
       addAction(state, 'RESOLVE_ABILITY', player.id, {
         ...baseAction,
         step: 'RECYCLE_MEMBERS_NO_LIVE_TARGET_GAIN_BLADE',
-        bladeBonus: 2,
+        bladeBonus: isCurrentStageMemberAbilitySource(state, effect) ? 2 : 0,
       }),
       orderedResolution
     );
@@ -217,27 +215,30 @@ function finishHsPb1012RecycleWaitingRoomMembers(
   return addAction(
     {
       ...opponentRecycleResult.gameState,
-      activeEffect: createWaitingRoomToHandEffectState({
-        id: effect.id,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-        controllerId: effect.controllerId,
-        effectText: getAbilityEffectText(
-          HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID
-        ),
-        stepId: HS_PB1_012_SELECT_WAITING_ROOM_LIVE_STEP_ID,
-        stepText: '请选择自己的休息室中1张LIVE卡加入手牌。之后获得BLADE +2。',
-        awaitingPlayerId: player.id,
-        selectableCardIds: selectableLiveCardIds,
-        canSkipSelection: false,
-        metadata: {
-          orderedResolution,
-          movedOwnMemberCardIds,
-          movedOpponentMemberCardIds,
-          totalMovedMemberCount,
-        },
-        zoneSelection,
-      }),
+      activeEffect: {
+        ...createWaitingRoomToHandEffectState({
+          id: effect.id,
+          abilityId: effect.abilityId,
+          sourceCardId: effect.sourceCardId,
+          controllerId: effect.controllerId,
+          effectText: getAbilityEffectText(
+            HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID
+          ),
+          stepId: HS_PB1_012_SELECT_WAITING_ROOM_LIVE_STEP_ID,
+          stepText: '请选择自己的休息室中1张LIVE卡加入手牌。之后获得BLADE +2。',
+          awaitingPlayerId: player.id,
+          selectableCardIds: selectableLiveCardIds,
+          canSkipSelection: false,
+          metadata: {
+            orderedResolution,
+            movedOwnMemberCardIds,
+            movedOpponentMemberCardIds,
+            totalMovedMemberCount,
+          },
+          zoneSelection,
+        }),
+        sourceLifecycleId: effect.sourceLifecycleId,
+      },
     },
     'RESOLVE_ABILITY',
     player.id,
@@ -257,8 +258,7 @@ function finishHsPb1012RecoverLiveAndGainBlade(
   const effect = game.activeEffect;
   if (
     !effect ||
-    effect.abilityId !==
-      HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID ||
+    effect.abilityId !== HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID ||
     effect.stepId !== HS_PB1_012_SELECT_WAITING_ROOM_LIVE_STEP_ID ||
     selectedCardId === null ||
     effect.selectableCardIds?.includes(selectedCardId) !== true
@@ -285,9 +285,6 @@ function finishHsPb1012RecoverLiveAndGainBlade(
   }
 
   const stateAfterModifier = addHsPb1012BladeModifier(recoveryResult.gameState, effect, player.id);
-  if (!stateAfterModifier) {
-    return game;
-  }
   const state = { ...stateAfterModifier, activeEffect: null };
 
   return continuePendingCardEffects(
@@ -300,7 +297,7 @@ function finishHsPb1012RecoverLiveAndGainBlade(
       movedOwnMemberCardIds: effect.metadata?.movedOwnMemberCardIds,
       movedOpponentMemberCardIds: effect.metadata?.movedOpponentMemberCardIds,
       totalMovedMemberCount: effect.metadata?.totalMovedMemberCount,
-      bladeBonus: 2,
+      bladeBonus: isCurrentStageMemberAbilitySource(state, effect) ? 2 : 0,
     }),
     effect.metadata?.orderedResolution === true
   );
@@ -310,13 +307,16 @@ function addHsPb1012BladeModifier(
   game: GameState,
   effect: ActiveEffectState,
   playerId: string
-): GameState | null {
-  return addBladeLiveModifierForSourceMember(game, {
-    playerId,
-    sourceCardId: effect.sourceCardId,
-    abilityId: effect.abilityId,
-    amount: 2,
-  })?.gameState ?? null;
+): GameState {
+  if (!isCurrentStageMemberAbilitySource(game, effect)) return game;
+  return (
+    addBladeLiveModifierForSourceMember(game, {
+      playerId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      amount: 2,
+    })?.gameState ?? game
+  );
 }
 
 function getWaitingRoomMemberCardIds(game: GameState, playerId: string): readonly string[] {

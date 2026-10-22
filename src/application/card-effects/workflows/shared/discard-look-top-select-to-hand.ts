@@ -1,3 +1,7 @@
+import {
+  getAbilityTemplateCardCode,
+  isAbilityActivationCostWaived,
+} from '../../runtime/on-enter-ability-invocation.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   isLiveCardData,
@@ -215,6 +219,7 @@ export function registerDiscardLookTopSelectToHandWorkflowHandlers(deps: {
       startDiscardLookTopSelectToHandWorkflow(game, ability, {
         orderedResolution: options.orderedResolution === true,
         continuePendingCardEffects: context.continuePendingCardEffects,
+        enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
       })
     );
     registerActiveEffectStepHandler(
@@ -264,6 +269,7 @@ function startDiscardLookTopSelectToHandWorkflow(
   options: {
     readonly orderedResolution: boolean;
     readonly continuePendingCardEffects: ContinuePendingCardEffects;
+    readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
   }
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
@@ -272,7 +278,7 @@ function startDiscardLookTopSelectToHandWorkflow(
     return game;
   }
 
-  const cardCode = sourceCard.data.cardCode;
+  const cardCode = getAbilityTemplateCardCode(game, ability) ?? sourceCard.data.cardCode;
   const selectableCardIds = player.hand.cardIds.filter((cardId) => {
     if (cardId === ability.sourceCardId) {
       return false;
@@ -309,6 +315,24 @@ function startDiscardLookTopSelectToHandWorkflow(
       aliasCardConfig !== undefined,
     orderedResolution: options.orderedResolution,
   };
+
+  if (
+    [GENERIC_DISCARD_LOOK_TOP_ABILITY_ID, BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID].includes(
+      ability.abilityId
+    ) &&
+    isAbilityActivationCostWaived(ability)
+  ) {
+    return startLookTopSelectToHandWorkflow(
+      game,
+      ability,
+      createLookTopConfig(getDiscardLookTopEffectText(cardCode), metadata),
+      {
+        orderedResolution: options.orderedResolution,
+        continuePendingCardEffects: options.continuePendingCardEffects,
+        enqueueTriggeredCardEffects: options.enqueueTriggeredCardEffects,
+      }
+    );
+  }
 
   if (selectableCardIds.length === 0) {
     return finishPendingAbility(
@@ -397,8 +421,13 @@ function startDiscardLookTopInspection(
     return game;
   }
 
+  const paid = addAction(discardResult.gameState, 'PAY_COST', player.id, {
+    abilityId: effect.abilityId,
+    sourceCardId: effect.sourceCardId,
+    discardedHandCardIds: discardResult.discardedCardIds,
+  });
   return startLookTopSelectToHandWorkflow(
-    discardResult.gameState,
+    paid,
     {
       id: effect.id,
       abilityId: effect.abilityId,

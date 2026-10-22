@@ -63,6 +63,8 @@
 - workflow 目标目录：`src/application/card-effects/workflows/`
 - runner 接线：`src/application/card-effect-runner.ts`，只保留调度/生命周期/registry 注册与尚未迁出的 matcher、relay、trigger 条件胶水；完整卡效 fallback 已清空
 
+`selectDifferentNamedCards` 使用二分图增广路计算最大异名分配，再按候选及名称原顺序检查剩余分配是否可完成，以保留确定性的选卡/记录结果。组合卡最多贡献一个名称；`MEMBER_IDENTITY` 沿用中日别名归一与团体过滤，`getSecondaryKey` 仍约束同费用或同实例最多选一张。不要用名称并集替代异名张数，也不要恢复子集穷举。语义回归见 `different-name-matching.test.ts`、`member-name-identity.test.ts`；44 张声援重复卡的常规性能回归见 `cheer-name-count-performance.test.ts`。
+
 新增 helper 的条件：
 
 - 至少有真实卡效需要它。

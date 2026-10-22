@@ -4,6 +4,69 @@
   font-weight: 900;
   font-display: swap;
 }
+.ginko-flower-prelude,
+.ginko-ability-transfer {
+  position: fixed;
+  inset: 0;
+  z-index: 61;
+  pointer-events: none;
+}
+.ginko-flower-prelude canvas,
+.ginko-ability-transfer canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.ginko-relay-backdrop {
+  position: absolute;
+  inset: 0;
+  background: #091b2566;
+}
+.ginko-flower-prelude img {
+  position: absolute;
+  border-radius: 5px;
+  opacity: 0;
+  object-fit: contain;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 16px #8ee5c077;
+}
+.ginko-transfer-halo {
+  position: absolute;
+  border: 2px solid #fce9aa;
+  border-radius: 8px;
+  box-shadow:
+    0 0 20px #8ce8be,
+    inset 0 0 14px #a3eac24d;
+  opacity: 0;
+}
+.ginko-transfer-received {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  max-width: min(300px, calc(100vw - 20px));
+  width: max-content;
+  padding: 7px 12px;
+  border: 1px solid #c9e6ab88;
+  border-radius: 6px;
+  background: #12392ff2;
+  color: #fff2c9;
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: 0 3px 16px #0008;
+  opacity: 0;
+}
+.ginko-transfer-received span {
+  color: #bcecd8;
+}
+.ginko-portrait-flowers {
+  pointer-events: none;
+}
+@media (max-width: 600px) {
+  .ginko-transfer-received {
+    font-size: 11px;
+    max-width: 190px;
+  }
+}
 .waiting-return-entrance {
   position: fixed;
   inset: 0;

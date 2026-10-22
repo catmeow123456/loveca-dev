@@ -1,0 +1,236 @@
+[
+  {
+    "cardCode": "PL!-bp8-012-N",
+    "cardType": "MEMBER",
+    "nameCn": "南琴梨（南小鸟）",
+    "nameJp": "南ことり",
+    "cost": 9,
+    "score": null,
+    "blade": 4,
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": "「Printemps」",
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "requirements": [],
+    "cardTextCn": "【起动】【１回合１次】将此成员变为待机状态，将２张手牌放置入休息室：从自己的休息室将１张『μ’s』的LIVE卡加入手牌。(待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。)"
+  },
+  {
+    "cardCode": "PL!N-bp8-004-SEC",
+    "cardType": "MEMBER",
+    "nameCn": "朝香果林",
+    "nameJp": "朝香果林",
+    "cost": 9,
+    "score": null,
+    "blade": 4,
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "unitName": "「DiverDiva」",
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "requirements": [],
+    "cardTextCn": "【起动】[E][E]将此卡从手牌放置入休息室：从自己的休息室将１张持有BLADE HEART的成员卡加入手牌。此能力仅可在此卡存在于手牌的场合起动。\n\n【LIVE开始时】可以将手牌的１张『虹咲』的成员卡公开：将因此公开的卡片放置于卡组顶。此后，指定１个任意HEART的颜色。LIVE结束时为止，获得１个指定颜色的HEART。"
+  },
+  {
+    "cardCode": "PL!S-cl1-006-CL",
+    "cardType": "MEMBER",
+    "nameCn": "津岛善子",
+    "nameJp": "津島善子",
+    "cost": 7,
+    "score": null,
+    "blade": 2,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「GuiltyKiss」",
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "requirements": [],
+    "cardTextCn": "【LIVE开始时】可以将１张手牌放置于卡组底：LIVE结束时为止，获得[ブレード][ブレード]。"
+  },
+  {
+    "cardCode": "PL!S-cl1-008-CL",
+    "cardType": "MEMBER",
+    "nameCn": "小原鞠莉",
+    "nameJp": "小原鞠莉",
+    "cost": 4,
+    "score": null,
+    "blade": 2,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「GuiltyKiss」",
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "requirements": [],
+    "cardTextCn": "【起动】【１回合１次】将此成员变为待机状态，将１张手牌放置入休息室：抽１张卡。"
+  },
+  {
+    "cardCode": "PL!S-cl1-009-CL",
+    "cardType": "MEMBER",
+    "nameCn": "黑泽露比",
+    "nameJp": "黒澤ルビィ",
+    "cost": 2,
+    "score": null,
+    "blade": 1,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「CYaRon！」",
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "requirements": [],
+    "cardTextCn": "【起动】将此成员从舞台放置入休息室：从自己的休息室将１张成员卡加入手牌。"
+  },
+  {
+    "cardCode": "PL!-bp3-019-L",
+    "cardType": "LIVE",
+    "nameCn": "我们的演唱会与你的生活",
+    "nameJp": "僕らのLIVE 君とのLIFE",
+    "cost": null,
+    "score": 0,
+    "blade": null,
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": null,
+    "hearts": null,
+    "bladeHearts": [
+      {
+        "effect": "SCORE"
+      }
+    ],
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "cardTextCn": "【LIVE开始时】自己的LIVE中存在大于等于2张『μ's』的卡片的场合，此卡的分数+1。"
+  },
+  {
+    "cardCode": "PL!HS-pb1-003-P+",
+    "cardType": "MEMBER",
+    "nameCn": "大泽瑠璃乃",
+    "nameJp": "大沢瑠璃乃",
+    "cost": 15,
+    "score": null,
+    "blade": 5,
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 3
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "requirements": null,
+    "cardTextCn": "【登场】将任意张数的手牌的『Mira-Cra Park!』的成员卡放置入休息室，之后，抽张数为该张数+1的卡。\n\n【自动】【1回合2次】每当大于等于1张卡片从自己的手牌被放置入休息室，LIVE结束时为止，获得[桃ハート][ブレード]。"
+  },
+  {
+    "cardCode": "PL!S-sd1-019-SD",
+    "cardType": "LIVE",
+    "nameCn": "未来的我们早已知晓",
+    "nameJp": "未来の僕らは知ってるよ",
+    "cost": null,
+    "score": 1,
+    "blade": null,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": null,
+    "hearts": null,
+    "bladeHearts": [
+      {
+        "effect": "SCORE"
+      }
+    ],
+    "requirements": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "cardTextCn": "【LIVE成功时】从因声援被公开的自己的卡片中，将1张『Aqours』的LIVE卡加入手牌。"
+  }
+]

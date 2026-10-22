@@ -844,3 +844,128 @@ test('normal result presentation still plays, then cover cancels it without bloc
     )
     .toBe('RESULT_SETTLEMENT');
 });
+
+async function prepareAbilityTransferPage(page: Page) {
+  // Synthetic filler cards have no real art; keep their visual fixtures local to this browser.
+  await page.route('**/images/**', (route) => {
+    if (/\/(?:deck-\d+|neighbor|opponent)\.webp$/.test(new URL(route.request().url()).pathname)) {
+      return route.fulfill({
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="140"><rect width="100" height="140" fill="#593751"/><path d="M15 70h70M50 35v70" stroke="#f8bade" stroke-width="8"/></svg>',
+      });
+    }
+    return route.continue();
+  });
+  await prepare(page);
+}
+
+async function expectAbilityTransferSettled(page: Page) {
+  await expect(page.locator('[data-perspective-surface$="-self"]')).toHaveCSS('opacity', '1');
+  await expect(page.locator('[data-battle-card-move]')).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as any).excelReview.store().ui.battleAnimationOcclusions.length)
+    )
+    .toBe(0);
+}
+
+test('ability transfer cancels under cover, retries its ACK and restores only the valid marker', async ({
+  page,
+}, info) => {
+  await page.clock.install();
+  await prepareAbilityTransferPage(page);
+  await page.keyboard.press('Control+Alt+e');
+  await page.evaluate(() => (window as any).excelReview.prepareAbilityTransfer());
+  await expect(page.locator('[data-object-id="obj_ginko"]').first()).toBeVisible();
+  await expect(page.locator('[data-perspective-surface$="-self"]')).toHaveCSS('opacity', '1');
+  await page.clock.pauseAt(new Date((await page.evaluate(() => Date.now())) + 100));
+  const token = await page.evaluate(() => (window as any).excelReview.startAbilityTransfer());
+  await expect(page.locator('.ginko-ability-transfer')).toBeVisible();
+  await expect
+    .poll(
+      async () => {
+        await page.clock.runFor(100);
+        return page.locator('.ginko-ability-transfer').getAttribute('data-phase');
+      },
+      { intervals: [100] }
+    )
+    .toBe('transfer');
+  expect(await page.evaluate(() => (window as any).excelReview.acks)).toEqual([]);
+  await page.screenshot({ path: info.outputPath('ability-transfer-playing.png') });
+  await page.keyboard.press('Control+Alt+x');
+  await expect(page.getByRole('region', { name: '工作记录工作表' })).toBeVisible();
+  await expect(page.locator('.ginko-ability-transfer, [data-ginko-knot-marker]')).toHaveCount(0);
+  await page.clock.runFor(1100);
+  const acks = await page.evaluate(() => (window as any).excelReview.acks);
+  expect(acks.length).toBeGreaterThan(1);
+  expect(acks.every((id: string) => id === token)).toBe(true);
+  await page.keyboard.press('Control+Alt+x');
+  await page.clock.runFor(100);
+  await expect(page.locator('.ginko-ability-transfer')).toHaveCount(0);
+  await page.evaluate(() => (window as any).excelReview.finishAbilityTransfer());
+  await page.clock.runFor(3000);
+  await page.clock.resume();
+  const marker = page.locator('[data-ginko-knot-marker="obj_ginko"]').first();
+  await expect(marker).toBeVisible();
+  expect(
+    await page.evaluate(() => (window as any).excelReview.store().playerViewState.match.entrance)
+  ).toBeUndefined();
+  await expectAbilityTransferSettled(page);
+  const toggle = page.getByRole('switch', { name: '对战特效', exact: true });
+  if (!(await toggle.isVisible()))
+    await page.getByRole('button', { name: '对战设置', exact: true }).click();
+  await toggle.click();
+  await expect(page.locator('[data-ginko-knot-marker]')).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () =>
+        (window as any).excelReview.store().playerViewState.objects.obj_ginko
+          .hasTemporaryOnEnterAbility
+    )
+  ).toBe(true);
+  await toggle.click();
+  await page.keyboard.press('Escape');
+  await expect(marker).toBeVisible();
+  await expect(page.locator('.ginko-ability-transfer')).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath('ability-transfer-settled.png') });
+});
+
+test('ability transfer starting in Excel sends no image requests and never replays on return', async ({
+  page,
+}) => {
+  const assets: string[] = [];
+  page.on('request', (request) => {
+    if (['image', 'media'].includes(request.resourceType())) assets.push(request.url());
+  });
+  await prepareAbilityTransferPage(page);
+  await page.evaluate(() => (window as any).excelReview.prepareAbilityTransfer());
+  const token = await page.evaluate(() => (window as any).excelReview.startAbilityTransfer());
+  await expect.poll(() => page.evaluate(() => (window as any).excelReview.acks)).toContain(token);
+  await expect(page.locator('.ginko-ability-transfer, [data-ginko-knot-marker]')).toHaveCount(0);
+  expect(assets).toEqual([]);
+  await page.keyboard.press('Control+Alt+e');
+  await page.waitForTimeout(300);
+  await expect(page.locator('.ginko-ability-transfer')).toHaveCount(0);
+  await page.evaluate(() => (window as any).excelReview.finishAbilityTransfer());
+  await expect(page.locator('[data-ginko-knot-marker="obj_ginko"]').first()).toBeVisible();
+});
+
+test('ability transfer with reduced motion completes the real barrier and keeps the grant', async ({
+  page,
+}, info) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await prepareAbilityTransferPage(page);
+  await page.keyboard.press('Control+Alt+e');
+  await page.evaluate(() => (window as any).excelReview.prepareAbilityTransfer(false));
+  await expect(page.locator('[data-object-id="obj_ginko"]').first()).toBeVisible();
+  const token = await page.evaluate(() => (window as any).excelReview.startAbilityTransfer());
+  await expect.poll(() => page.evaluate(() => (window as any).excelReview.acks)).toContain(token);
+  await expect(page.locator('.ginko-ability-transfer')).toHaveCount(0);
+  await page.evaluate(() => (window as any).excelReview.finishAbilityTransfer());
+  await expectAbilityTransferSettled(page);
+  await expect(page.locator('[data-ginko-knot-marker] svg').first()).toHaveAttribute(
+    'data-reduced-motion',
+    'true'
+  );
+  await page.screenshot({ path: info.outputPath('ability-transfer-reduced-settled.png') });
+});

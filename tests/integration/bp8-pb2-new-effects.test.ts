@@ -452,6 +452,86 @@ describe('PL!-pb2-001-R 费用22「高坂穗乃果」', () => {
 });
 
 describe('PL!-pb2-039-L 分数9「我们是合而为一的光芒」', () => {
+  it('scores the replay turn-5 public member candidates as nine identities, including mixed Honoka spellings and two DUOs', () => {
+    const source = live('PL!-pb2-039-L', 'replay-bokuhika', { score: 9 });
+    // Public candidates from timelineSeq 71; first two cards are on stage, the rest are cheer facts.
+    // No hands, deck order, private events or player identifiers from the replay are retained.
+    const identities = [
+      ['PL!-pb2-020-N', '绚濑绘里'],
+      ['PL!-pb2-000-DUO', '星空凛&小泉花阳'],
+      ['PL!-pb1-015-P+', '西木野真姬'],
+      ['PL!-pb2-020-N', '绚濑绘里'],
+      ['PL!-pb2-001-R', '高坂穗乃果'],
+      ['PL!-pb2-031-N', '园田海未'],
+      ['PL!-bp4-005-SEC', '星空凛'],
+      ['PL!-bp8-001-R', '高坂穂乃果'],
+      ['PL!-bp3-012-PR', '南琴梨（南小鸟）'],
+      ['PL!-bp4-008-R', '小泉花阳'],
+      ['PL!-sd1-004-SD', '园田海未'],
+      ['PL!-pb2-008-PP', '小泉花阳'],
+      ['PL!-pb2-000-DUO', '星空凛&小泉花阳'],
+      ['PL!-bp6-005-P', '星空凛'],
+      ['PL!-bp4-008-R', '小泉花阳'],
+      ['PL!-pb1-025-N', '东条希'],
+      ['PL!-pb1-025-N', '东条希'],
+      ['PL!-PR-017-PR', '矢泽日香（矢泽妮可）'],
+      ['PL!-PR-017-PR', '矢泽日香（矢泽妮可）'],
+    ] as const;
+    const members = identities.map(([code, name], index) =>
+      member(code, `replay-member-${index}`, { name })
+    );
+    let game = registerCards(
+      createGameState('bokuhika-public-replay-regression', P1, 'P1', P2, 'P2'),
+      [source, ...members]
+    );
+    game = updatePlayer(game, P1, (player) => ({
+      ...player,
+      liveZone: { ...player.liveZone, cardIds: [source.instanceId] },
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, members[0]!.instanceId),
+        SlotPosition.RIGHT,
+        members[1]!.instanceId
+      ),
+    }));
+    const cheerIds = members.slice(2).map((card) => card.instanceId);
+    game = {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        firstPlayerCheerCardIds: cheerIds,
+        playerScores: new Map([[P1, 10]]),
+      },
+    };
+    game = emitGameEvent(
+      game,
+      createCheerEvent(P1, cheerIds, cheerIds.length, { automated: true })
+    );
+    const resolved = confirmIfConfirmOnly(
+      resolveSingle(
+        game,
+        PL_PB2_039_LIVE_SUCCESS_DISTINCT_MUSE_STAGE_CHEER_SCORE_ABILITY_ID,
+        source.instanceId,
+        TriggerCondition.ON_LIVE_SUCCESS
+      ),
+      P1
+    );
+    expect(resolved.liveResolution.playerScores.get(P1)).toBe(19);
+    expect(
+      resolved.liveResolution.liveModifiers.filter(
+        (modifier) =>
+          modifier.abilityId === PL_PB2_039_LIVE_SUCCESS_DISTINCT_MUSE_STAGE_CHEER_SCORE_ABILITY_ID
+      )
+    ).toEqual([
+      expect.objectContaining({ kind: 'SCORE', liveCardId: source.instanceId, countDelta: 9 }),
+    ]);
+    const result = resolved.actionHistory.find(
+      (action) => action.payload.step === 'DISTINCT_MUSE_STAGE_AND_CHEER_SCORE'
+    );
+    expect(result?.payload).toMatchObject({ differentNameCount: 9, scoreBonus: 9 });
+    expect(result?.payload.normalizedNames).toContain('高坂穂乃果');
+    expect(result?.payload.normalizedNames).not.toContain('高坂穗乃果');
+  });
+
   it('adds ten cheer from two successful Muse cards', () => {
     const source = live('PL!-pb2-039-L', 'bokuhika', {
       name: '僕たちはひとつの光',

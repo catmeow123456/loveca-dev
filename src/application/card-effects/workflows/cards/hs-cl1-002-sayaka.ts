@@ -1,3 +1,5 @@
+import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
+import { createWaivedOnEnterCostContinuationState } from '../../runtime/waived-on-enter-cost.js';
 import {
   addAction,
   getPlayerById,
@@ -69,10 +71,21 @@ function startHsCl1002SayakaOnEnter(
     return game;
   }
 
+  if (isAbilityActivationCostWaived(ability))
+    return finishHsCl1002SayakaPayEnergy(
+      createWaivedOnEnterCostContinuationState(
+        game,
+        ability,
+        PAY_ENERGY_STEP_ID,
+        orderedResolution
+      ),
+      continuePendingCardEffects
+    );
+
   const sourceOnStage = Object.values(player.memberSlots.slots).includes(ability.sourceCardId);
   const activeEnergyCardIds = getActiveEnergyCardIds(player);
   const selectableCardIds = selectDollchestraWaitingRoomCardIds(game, player.id);
-  if (!sourceOnStage || activeEnergyCardIds.length === 0 || selectableCardIds.length === 0) {
+  if (!sourceOnStage || activeEnergyCardIds.length === 0) {
     return finishPendingAbility(
       game,
       ability,
@@ -80,11 +93,7 @@ function startHsCl1002SayakaOnEnter(
       orderedResolution,
       {
         step: 'NO_OP_CHECK_PAY_ENERGY_DOLLCHESTRA_RECOVERY',
-        reason: !sourceOnStage
-          ? 'SOURCE_NOT_ON_STAGE'
-          : activeEnergyCardIds.length === 0
-            ? 'NO_ACTIVE_ENERGY'
-            : 'NO_DOLLCHESTRA_TARGET',
+        reason: !sourceOnStage ? 'SOURCE_NOT_ON_STAGE' : 'NO_ACTIVE_ENERGY',
         activeEnergyCardIds,
         selectableCardIds,
       },
@@ -102,8 +111,7 @@ function startHsCl1002SayakaOnEnter(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_ENERGY_STEP_ID,
-      stepText:
-        '可以支付[E]；如此做时，从自己的休息室将1张『DOLLCHESTRA』卡片加入手牌。',
+      stepText: '可以支付[E]；如此做时，从自己的休息室将1张『DOLLCHESTRA』卡片加入手牌。',
       awaitingPlayerId: player.id,
       selectableOptions: [{ id: 'pay', label: '支付[E]' }],
       canSkipSelection: true,
@@ -164,20 +172,24 @@ function finishHsCl1002SayakaPayEnergy(
     return game;
   }
 
-  const costPayment = payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
-    { kind: 'TAP_ACTIVE_ENERGY', count: 1 },
-  ]);
+  const costPayment = isAbilityActivationCostWaived(effect)
+    ? { gameState: game, paidEnergyCardIds: [] }
+    : payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
+        { kind: 'TAP_ACTIVE_ENERGY', count: 1 },
+      ]);
   if (!costPayment) {
     return game;
   }
 
-  const stateAfterCost = recordPayCostAction(costPayment.gameState, player.id, {
-    pendingAbilityId: effect.id,
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    energyCardIds: costPayment.paidEnergyCardIds,
-    amount: costPayment.paidEnergyCardIds.length,
-  });
+  const stateAfterCost = isAbilityActivationCostWaived(effect)
+    ? game
+    : recordPayCostAction(costPayment.gameState, player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        energyCardIds: costPayment.paidEnergyCardIds,
+        amount: costPayment.paidEnergyCardIds.length,
+      });
   const selectableCardIds = selectDollchestraWaitingRoomCardIds(stateAfterCost, player.id);
 
   if (selectableCardIds.length === 0) {
@@ -258,16 +270,12 @@ function finishPendingAbility(
   );
 }
 
-function selectDollchestraWaitingRoomCardIds(
-  game: GameState,
-  playerId: string
-): readonly string[] {
+function selectDollchestraWaitingRoomCardIds(game: GameState, playerId: string): readonly string[] {
   return selectWaitingRoomCardIds(game, playerId, unitAliasIs(DOLLCHESTRA_UNIT_ALIAS));
 }
 
 function getActiveEnergyCardIds(player: PlayerState): string[] {
   return player.energyZone.cardIds.filter(
-    (cardId) =>
-      player.energyZone.cardStates.get(cardId)?.orientation !== OrientationState.WAITING
+    (cardId) => player.energyZone.cardStates.get(cardId)?.orientation !== OrientationState.WAITING
   );
 }

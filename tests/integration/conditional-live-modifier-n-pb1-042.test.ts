@@ -171,6 +171,28 @@ const FAQ_CASES = [
 ] as const;
 
 describe('PL!N-pb1-042 Eternalize Love!! conditional live modifier', () => {
+  it.each([
+    ['宮下愛', '宫下爱'],
+    ['宫下爱', '宮下愛'],
+    ['宮下愛&上原歩夢', '上原步梦'],
+  ])('reduces the actual requirement for shared member aliases %s / %s', (first, second) => {
+    const scenario = setup(
+      [first, second].map((name, index) =>
+        createCardInstance(
+          member({ cardCode: `NIJI-ALIAS-${index}`, name, groupNames: [NIJI_WORK] }),
+          P1,
+          `alias-${index}`
+        )
+      )
+    );
+    const resolved = confirm(
+      focusEternalizeEffect(check(scenario.game), scenario.sources[0]!.instanceId)
+    );
+    expect(
+      getLiveCardRequirementModifiers(resolved.liveResolution, scenario.sources[0]!.instanceId)
+    ).toEqual([{ color: HeartColor.RAINBOW, countDelta: -3 }]);
+  });
+
   it.each(FAQ_CASES)(
     'locks FAQ Q204 production data: $label',
     ({ single, composite, sharedName }) => {
