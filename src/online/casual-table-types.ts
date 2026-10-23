@@ -1,4 +1,6 @@
-export type CasualTableState = 'WAITING' | 'RESERVED' | 'BOOTSTRAPPING' | 'BOUND' | 'CLOSED';
+import type { CardType } from '../shared/types/enums.js';
+export type CasualTableState =
+  'WAITING' | 'RESERVED' | 'BUILDING' | 'BOOTSTRAPPING' | 'BOUND' | 'CLOSED';
 export type CasualTableDiscoverability = 'PUBLIC' | 'UNLISTED';
 
 /** Every write targets a particular preparation round, never just a reusable room code. */
@@ -8,10 +10,38 @@ export interface CasualTableCommandTarget {
   readonly revision: number;
 }
 
+export type CasualFormat = 'CONSTRUCTED' | 'SEALED_BP7';
+export type SealedRematchKind = 'SAME_POOL' | 'REBOX';
+export interface SealedRematch {
+  readonly requestId: string;
+  readonly requesterUserId: string;
+  readonly kind: SealedRematchKind;
+  readonly expiresAt: number;
+}
+export interface SealedPoolView {
+  readonly poolId: string;
+  readonly version: string;
+  readonly draftRevision: number;
+  readonly selectedIndices: readonly number[];
+  readonly cards: readonly {
+    readonly index: number;
+    readonly cardCode: string;
+    readonly imageFilename?: string;
+    readonly name: string;
+    readonly cardType: CardType;
+    readonly rare: string;
+    readonly cost: number | null;
+    readonly score: number | null;
+    readonly groupNames: readonly string[];
+    readonly cardText: string;
+  }[];
+}
+
 export interface CasualTableEntryInput {
+  readonly format: CasualFormat;
   readonly ruleMode: CasualRuleMode;
   readonly requestId: string;
-  readonly deckId: string;
+  readonly deckId?: string;
   readonly spectatorEnabled: boolean;
 }
 
@@ -24,6 +54,9 @@ export interface CreateCasualTableInput extends CasualTableEntryInput {
 
 /** Private preparation projection. Only the caller's deck identity is included. */
 export interface CasualTableOwnView extends CasualTableCommandTarget {
+  readonly format: CasualFormat;
+  readonly sealedPool: SealedPoolView | null;
+  readonly sealedRematch: SealedRematch | null;
   readonly ruleMode: CasualRuleMode;
   readonly roomCode: string;
   readonly discoverability: CasualTableDiscoverability;
@@ -85,10 +118,11 @@ export interface CasualRuntimeView {
 }
 
 export interface CasualRoomSummary extends CasualTableCommandTarget {
+  readonly format: CasualFormat;
   readonly ruleMode: CasualRuleMode;
   readonly roomCode: string;
   readonly note: string;
-  readonly status: 'WAITING' | 'RESERVED' | 'OPENING' | 'PLAYING' | 'ENDED';
+  readonly status: 'WAITING' | 'RESERVED' | 'BUILDING' | 'OPENING' | 'PLAYING' | 'ENDED';
   readonly members: readonly { readonly userId: string; readonly displayName: string }[];
   readonly since: number;
   readonly canJoin: boolean;
@@ -97,6 +131,7 @@ export interface CasualRoomSummary extends CasualTableCommandTarget {
 }
 
 export interface CasualLobbyQuery {
+  readonly format?: CasualFormat;
   readonly ruleMode?: CasualRuleMode;
   readonly filter?: 'ALL' | 'WAITING' | 'PLAYING';
   readonly search?: string;

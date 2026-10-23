@@ -334,7 +334,8 @@ export const PhaseIndicator = memo(function PhaseIndicator({
         className="excel-phase-controls"
       >
         <p>
-          回合 {currentTurnCount ?? turnNumber ?? '-'} · {info.name} ·{' '}
+          {matchView?.rulesetId === 'SEALED_HALF_GRAY_V1' ? '开盒赛 · 两首获胜 · ' : ''}回合{' '}
+          {currentTurnCount ?? turnNumber ?? '-'} · {info.name} ·{' '}
           {subPhaseConfig?.display.name ?? ''}
         </p>
         <p>
@@ -394,7 +395,8 @@ export const PhaseIndicator = memo(function PhaseIndicator({
               className={cn('h-2.5 w-2.5 shrink-0 rounded-full', info.colorClass)}
             />
             <span className="shrink-0 text-[11px] font-bold text-[var(--text-muted)]">
-              T{currentTurnCount ?? turnNumber ?? '-'}
+              {matchView?.rulesetId === 'SEALED_HALF_GRAY_V1' ? '开盒赛 · 两首获胜 · ' : ''}T
+              {currentTurnCount ?? turnNumber ?? '-'}
             </span>
             <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
               <span className="shrink-0 text-xs font-bold text-[var(--text-primary)]">
@@ -478,7 +480,8 @@ export const PhaseIndicator = memo(function PhaseIndicator({
       >
         <div className="battle-phase-summary flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-2.5">
           <span className="font-mono text-[11px] font-bold tabular-nums text-[var(--text-muted)]">
-            T{currentTurnCount ?? turnNumber ?? '-'}
+            {matchView?.rulesetId === 'SEALED_HALF_GRAY_V1' ? '开盒赛 · 两首获胜 · ' : ''}T
+            {currentTurnCount ?? turnNumber ?? '-'}
           </span>
           <span className="h-4 w-px bg-[var(--border-subtle)]" aria-hidden="true" />
           <motion.span

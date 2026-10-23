@@ -1,3 +1,4 @@
+import { victoryLiveCount } from './battle-ruleset.js';
 /**
  * 规则处理模块
  * 基于 detail_rules.md 第 10 章 - 规则处理
@@ -194,11 +195,12 @@ export class RuleActionProcessor {
    * @param players 双方玩家状态
    * @returns 胜利检查结果
    */
-  checkVictoryCondition(players: readonly [PlayerState, PlayerState]): VictoryCheckResult {
-    const VICTORY_THRESHOLD = 3;
-
+  checkVictoryCondition(
+    players: readonly [PlayerState, PlayerState],
+    threshold = 3
+  ): VictoryCheckResult {
     const winnersWithCount = players
-      .filter((p) => p.successZone.cardIds.length >= VICTORY_THRESHOLD)
+      .filter((p) => p.successZone.cardIds.length >= threshold)
       .map((p) => p.id);
 
     if (winnersWithCount.length === 0) {
@@ -401,7 +403,7 @@ export class RuleActionProcessor {
       type: RuleActionType.VICTORY,
       executed: true,
       affectedPlayerId: winnerId,
-      description: `玩家 ${winnerId} 达成胜利条件（成功 Live 卡达到 3 张）`,
+      description: `玩家 ${winnerId} 达成胜利条件`,
       causesGameEnd: true,
       winnerId: winnerId ?? undefined,
     };
@@ -485,7 +487,7 @@ export class RuleActionProcessor {
     results.push(...this.collectPendingRefreshActions(game));
 
     // 2. 检查胜利条件 - 规则 10.3
-    const victoryCheck = this.checkVictoryCondition(game.players);
+    const victoryCheck = this.checkVictoryCondition(game.players, victoryLiveCount(game));
     if (victoryCheck.hasWinner) {
       const winnerId = victoryCheck.isDraw ? null : victoryCheck.winnerIds[0];
       results.push(this.executeVictory(winnerId, victoryCheck.isDraw));

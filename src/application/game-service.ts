@@ -1,3 +1,8 @@
+import {
+  baseLiveRequirement,
+  victoryLiveCount,
+  type BattleRulesetId,
+} from '../domain/rules/battle-ruleset.js';
 /**
  * 游戏服务层
  * 整合所有组件来运行游戏流程
@@ -256,9 +261,10 @@ export class GameService {
     player1Id: string,
     player1Name: string,
     player2Id: string,
-    player2Name: string
+    player2Name: string,
+    rulesetId: BattleRulesetId = 'STANDARD'
   ): GameState {
-    return createGameState(gameId, player1Id, player1Name, player2Id, player2Name);
+    return createGameState(gameId, player1Id, player1Name, player2Id, player2Name, rulesetId);
   }
 
   /**
@@ -1473,13 +1479,12 @@ export class GameService {
       cardId,
       collectLiveModifiers(game)
     );
-    if (modifiers.length === 0) {
-      return liveData;
-    }
-
     return {
       ...liveData,
-      requirements: applyHeartRequirementModifiers(liveData.requirements, modifiers),
+      requirements: applyHeartRequirementModifiers(
+        baseLiveRequirement(game, liveData.requirements),
+        modifiers
+      ),
     };
   }
 
@@ -1832,13 +1837,10 @@ export class GameService {
 
     // 检查胜利条件
     for (const player of state.players) {
-      if (player.successZone.cardIds.length >= GAME_CONFIG.VICTORY_LIVE_COUNT) {
+      if (player.successZone.cardIds.length >= victoryLiveCount(state)) {
         // 检查是否双方同时达成
         const otherPlayer = state.players.find((p) => p.id !== player.id);
-        if (
-          otherPlayer &&
-          otherPlayer.successZone.cardIds.length >= GAME_CONFIG.VICTORY_LIVE_COUNT
-        ) {
+        if (otherPlayer && otherPlayer.successZone.cardIds.length >= victoryLiveCount(state)) {
           // 平局
           return {
             success: true,
@@ -1983,11 +1985,11 @@ export class GameService {
     } else if (secondScore > firstScore) {
       winnerIds.push(secondPlayer.id);
     } else {
-      // 分数相等：成功区卡数 < 2 的玩家获胜。0 分成功 Live 也会进入这里。
+      // 同分不能取得决定胜负的最后一首；0 分成功 Live 同样适用。
       const firstSuccessCount = firstPlayer.successZone.cardIds.length;
       const secondSuccessCount = secondPlayer.successZone.cardIds.length;
-      if (firstSuccessCount < 2) winnerIds.push(firstPlayer.id);
-      if (secondSuccessCount < 2) winnerIds.push(secondPlayer.id);
+      if (firstSuccessCount < victoryLiveCount(game) - 1) winnerIds.push(firstPlayer.id);
+      if (secondSuccessCount < victoryLiveCount(game) - 1) winnerIds.push(secondPlayer.id);
     }
 
     const state: GameState = {

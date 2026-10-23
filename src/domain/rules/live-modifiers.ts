@@ -1,3 +1,4 @@
+import { baseLiveRequirement } from './battle-ruleset.js';
 import {
   BladeHeartEffect,
   HeartColor,
@@ -2898,7 +2899,7 @@ function hasOwnLiveCardWithEffectiveRequirementAllSixOrdinaryColors(
     }
 
     const effectiveRequirement = applyHeartRequirementModifiers(
-      card.data.requirements,
+      baseLiveRequirement(game, card.data.requirements),
       getLiveCardRequirementModifiers(
         game.liveResolution,
         liveCardId,

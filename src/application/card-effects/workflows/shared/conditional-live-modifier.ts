@@ -1,3 +1,4 @@
+import { baseLiveRequirement } from '../../../../domain/rules/battle-ruleset.js';
 import {
   CardType,
   GamePhase,
@@ -1057,7 +1058,9 @@ function sumOwnLiveZoneRequirement(game: GameState, playerId: string, color: Hea
     if (!card || !isLiveCardData(card.data)) {
       return total;
     }
-    return total + (card.data.requirements.colorRequirements.get(color) ?? 0);
+    return (
+      total + (baseLiveRequirement(game, card.data.requirements).colorRequirements.get(color) ?? 0)
+    );
   }, 0);
 }
 

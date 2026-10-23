@@ -15,6 +15,7 @@ const rules = toDeckPointTableRules({
 let now = 100_000;
 let rooms: OnlineRoomService;
 const input: CreateCasualTableRuntimeInput = {
+  format: 'CONSTRUCTED',
   ruleMode: 'NORMAL',
   tableId: 'table',
   roundId: 'round',
