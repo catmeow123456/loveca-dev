@@ -70,7 +70,7 @@ for (const exitViaHome of [false, true]) {
         .getByRole('dialog')
         .getByRole('button', { name: '创建普通房间', exact: true })
         .click();
-      await expect(first.getByRole('heading', { name: '正在公开等人' })).toBeVisible();
+      await expect(first.getByRole('status', { name: '正在公开等人' })).toBeVisible();
       const code = (await first.locator('.casual-current-top .casual-code').innerText()).trim();
       await first.screenshot({ path: testInfo.outputPath('desktop-waiting.png'), fullPage: true });
       await second.getByRole('button', { name: '输入房间号', exact: true }).click();
@@ -158,7 +158,7 @@ for (const exitViaHome of [false, true]) {
       await second.getByRole('button', { name: '返回对战大厅，再战或选组', exact: true }).click();
       await second.getByRole('button', { name: '继续公开找人', exact: true }).click();
       await second.getByRole('dialog').getByRole('button', { name: '确认', exact: true }).click();
-      await expect(second.getByRole('heading', { name: '正在公开等人' })).toBeVisible();
+      await expect(second.getByRole('status', { name: '正在公开等人' })).toBeVisible();
       expect((await second.locator('.casual-current-top .casual-code').innerText()).trim()).toBe(
         code
       );

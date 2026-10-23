@@ -1,5 +1,7 @@
-import { AlertTriangle, CalendarDays, Filter, Search } from 'lucide-react';
-import { ActionButton, SelectMenu } from '@/components/common';
+import { useId, useRef, useState } from 'react';
+import { AlertTriangle, ChevronDown, Filter, Search } from 'lucide-react';
+import { ActionButton, SelectMenu, TextInput } from '@/components/common';
+import './match-record-filters.css';
 
 export interface AdminActivityFilterOption {
   readonly value: string;
@@ -13,6 +15,7 @@ export function AdminMatchRecordFiltersPanel({
   onPlayerAQueryChange,
   onPlayerBQueryChange,
   rankedOnly = false,
+  collapsible = false,
   dateFrom,
   dateTo,
   activity,
@@ -33,6 +36,7 @@ export function AdminMatchRecordFiltersPanel({
   onPlayerAQueryChange: (value: string) => void;
   onPlayerBQueryChange: (value: string) => void;
   rankedOnly?: boolean;
+  collapsible?: boolean;
   dateFrom: string;
   dateTo: string;
   activity: string;
@@ -47,6 +51,9 @@ export function AdminMatchRecordFiltersPanel({
   onReset: () => void;
   disabled: boolean;
 }) {
+  const [expanded, setExpanded] = useState(!collapsible);
+  const detailsId = useId();
+  const filterToggleRef = useRef<HTMLButtonElement>(null);
   const hasFilterValue = Boolean(
     activity ||
     userQuery.trim() ||
@@ -59,69 +66,95 @@ export function AdminMatchRecordFiltersPanel({
 
   return (
     <form
-      className="-mx-3 mt-3 border-y border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_52%,var(--bg-surface))] px-3 py-3 sm:-mx-4 sm:px-4"
+      className="match-record-filters"
+      aria-label="对局筛选"
       onSubmit={(event) => {
         event.preventDefault();
-        if (!disabled) onApply();
+        if (disabled) return;
+        onApply();
+        if (collapsible) {
+          setExpanded(false);
+          filterToggleRef.current?.focus({ preventScroll: true });
+        }
       }}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2 text-[var(--text-primary)]">
-          <Filter size={14} aria-hidden="true" className="shrink-0 text-[var(--accent-primary)]" />
-          <h3 className="truncate text-xs font-semibold">筛选对局</h3>
-        </div>
-        <span
-          className={`shrink-0 text-[11px] font-medium ${
-            appliedFilterCount > 0 ? 'text-[var(--accent-primary)]' : 'text-[var(--text-muted)]'
-          }`}
-        >
-          {appliedFilterCount > 0 ? `${appliedFilterCount} 项生效` : '全部记录'}
-        </span>
-      </div>
-
-      <div className="mt-2.5 grid gap-2.5">
-        <SelectMenu
-          label={rankedOnly ? '按排位赛季筛选' : '按所属活动筛选'}
-          value={activity}
-          options={[{ value: '', label: rankedOnly ? '全部赛季' : '全部活动' }, ...activityOptions]}
-          onChange={onActivityChange}
-          disabled={disabled}
-          className="w-full shadow-none"
-        />
-
-        {activityOptionsError ? (
-          <p
-            className="flex items-start gap-1.5 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_25%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--semantic-warning)_7%,transparent)] px-2.5 py-2 text-[11px] leading-4 text-[var(--semantic-warning)]"
-            role="status"
-          >
-            <AlertTriangle size={13} aria-hidden="true" className="mt-0.5 shrink-0" />
-            <span>{activityOptionsError}</span>
-          </p>
-        ) : null}
-
-        <label className="relative block">
+      <div className="match-record-filters-search">
+        <label className="min-w-0">
           <span className="sr-only">搜索参与者或对局</span>
-          <Search
-            size={14}
-            aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
-          />
-          <input
+          <TextInput
             value={userQuery}
             onChange={(event) => onUserQueryChange(event.target.value)}
             type="search"
             autoComplete="off"
             maxLength={120}
-            className="input-field h-10 pl-9 pr-3 text-sm"
             placeholder="用户名、房间号或对局 ID"
           />
         </label>
+        <ActionButton type="submit" variant="secondary" disabled={disabled}>
+          <Search size={14} aria-hidden="true" /> 查询
+        </ActionButton>
+      </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <label className="grid gap-1 text-xs">
+      <div className="match-record-filters-toolbar">
+        {collapsible ? (
+          <ActionButton
+            ref={filterToggleRef}
+            variant="ghost"
+            size="compact"
+            aria-label="筛选对局"
+            aria-expanded={expanded}
+            aria-controls={detailsId}
+            onClick={() => setExpanded((current) => !current)}
+          >
+            <Filter size={14} aria-hidden="true" /> 筛选
+            <ChevronDown size={14} aria-hidden="true" className={expanded ? 'rotate-180' : ''} />
+          </ActionButton>
+        ) : (
+          <h3 className="text-sm font-semibold">筛选对局</h3>
+        )}
+        <span className="match-record-filters-applied" role="status">
+          {appliedFilterCount > 0 ? `${appliedFilterCount} 项生效` : ''}
+        </span>
+        <ActionButton
+          variant="ghost"
+          size="compact"
+          onClick={onReset}
+          disabled={disabled || !hasFilterValue}
+        >
+          清空
+        </ActionButton>
+      </div>
+
+      <div
+        id={detailsId}
+        className="match-record-filters-details"
+        hidden={collapsible && !expanded}
+      >
+        <div className="match-record-filter-field">
+          <span>{rankedOnly ? '排位赛季' : '所属活动'}</span>
+          <SelectMenu
+            label={rankedOnly ? '按排位赛季筛选' : '按所属活动筛选'}
+            value={activity}
+            options={[
+              { value: '', label: rankedOnly ? '全部赛季' : '全部活动' },
+              ...activityOptions,
+            ]}
+            onChange={onActivityChange}
+            disabled={disabled}
+            className="match-record-filters-activity"
+          />
+        </div>
+        {activityOptionsError ? (
+          <p className="match-record-filter-warning" role="status">
+            <AlertTriangle size={14} aria-hidden="true" className="mt-0.5 shrink-0" />
+            <span>{activityOptionsError}</span>
+          </p>
+        ) : null}
+
+        <div className="match-record-filters-pair">
+          <label className="match-record-filter-field">
             玩家 A
-            <input
-              className="input-field h-10 min-w-0"
+            <TextInput
               type="search"
               maxLength={120}
               placeholder="显示名或用户 ID"
@@ -129,10 +162,9 @@ export function AdminMatchRecordFiltersPanel({
               onChange={(event) => onPlayerAQueryChange(event.target.value)}
             />
           </label>
-          <label className="grid gap-1 text-xs">
+          <label className="match-record-filter-field">
             玩家 B
-            <input
-              className="input-field h-10 min-w-0"
+            <TextInput
               type="search"
               maxLength={120}
               placeholder="显示名或用户 ID"
@@ -141,51 +173,30 @@ export function AdminMatchRecordFiltersPanel({
             />
           </label>
         </div>
-        <fieldset className="grid gap-1.5">
-          <legend className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)]">
-            <CalendarDays size={13} aria-hidden="true" />
-            开局日期
-          </legend>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="grid min-w-0 gap-1 text-[10px] text-[var(--text-muted)]">
+
+        <fieldset>
+          <legend className="mb-2 text-xs text-[var(--text-secondary)]">开局日期</legend>
+          <div className="match-record-filters-pair">
+            <label className="match-record-filter-field">
               开始
-              <input
+              <TextInput
                 value={dateFrom}
                 onChange={(event) => onDateFromChange(event.target.value)}
                 type="date"
                 max={dateTo || undefined}
-                className="input-field h-10 min-w-0 px-2 text-[11px]"
               />
             </label>
-            <label className="grid min-w-0 gap-1 text-[10px] text-[var(--text-muted)]">
+            <label className="match-record-filter-field">
               结束
-              <input
+              <TextInput
                 value={dateTo}
                 onChange={(event) => onDateToChange(event.target.value)}
                 type="date"
                 min={dateFrom || undefined}
-                className="input-field h-10 min-w-0 px-2 text-[11px]"
               />
             </label>
           </div>
         </fieldset>
-      </div>
-
-      <div className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-2">
-        <ActionButton
-          type="button"
-          variant="ghost"
-          size="compact"
-          onClick={onReset}
-          disabled={disabled || !hasFilterValue}
-          className="border border-[var(--border-default)]"
-        >
-          清空
-        </ActionButton>
-        <ActionButton type="submit" size="compact" disabled={disabled}>
-          <Search size={14} aria-hidden="true" />
-          查询
-        </ActionButton>
       </div>
     </form>
   );

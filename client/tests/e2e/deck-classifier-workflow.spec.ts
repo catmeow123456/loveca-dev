@@ -424,8 +424,9 @@ test('取消编辑沿用原行为，分组去重、归档选项及自定义保�
 test('历史对局复用双方筛选，并保留原有娱乐活动筛选', async ({ page }) => {
   const state = await setup(page);
   await page.goto('/?page=match-records');
+  await page.getByRole('button', { name: '筛选对局', exact: true }).click();
   await page.getByRole('button', { name: '按所属活动筛选', exact: true }).click();
-  await page.getByRole('option', { name: '娱乐模式 · 测试娱乐活动', exact: true }).click();
+  await page.getByRole('option', { name: '主题牌桌 · 测试娱乐活动', exact: true }).click();
   await page.getByLabel('玩家 A', { exact: true }).fill('Alpha');
   await page.getByLabel('玩家 B', { exact: true }).fill('Beta');
   await page.getByLabel('搜索参与者或对局').fill('ROOM');

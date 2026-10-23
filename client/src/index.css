@@ -1456,6 +1456,15 @@ select {
   line-height: 1.55;
 }
 
+.ui-section-heading--compact {
+  gap: 0.75rem;
+}
+
+.ui-section-heading--compact .ui-section-heading__title {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
 .ui-section-heading__action {
   display: flex;
   flex: none;
@@ -1495,6 +1504,11 @@ select {
 .ui-action-button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.ui-action-button:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
 }
 
 .ui-status-badge {

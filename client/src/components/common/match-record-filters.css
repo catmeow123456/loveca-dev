@@ -1,0 +1,79 @@
+.match-record-filters {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  margin-top: 12px;
+  padding-block: 12px;
+  border-block: 1px solid var(--border-subtle);
+}
+
+.match-record-filters-search {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.match-record-filters-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.match-record-filters-applied {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.match-record-filters-details {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+  padding-top: 4px;
+}
+
+.match-record-filters-details[hidden] {
+  display: none;
+}
+
+.match-record-filter-field {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.match-record-filters .match-record-filters-activity {
+  width: 100%;
+  height: var(--control-height);
+  border-radius: var(--radius-control);
+  background: var(--bg-input);
+  box-shadow: none;
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.match-record-filters .ui-text-input {
+  min-width: 0;
+}
+
+.match-record-filters-pair {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.match-record-filter-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--semantic-warning);
+  font-size: 0.75rem;
+  line-height: 1.65;
+}

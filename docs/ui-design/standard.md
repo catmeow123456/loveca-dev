@@ -87,6 +87,24 @@
 
 标准字重为正文 400，普通强调、按钮及普通标题 600；700 仅用于比分、结算结果等短而强烈的信息。中文正文、控件和标题字距均为 0；仅纯拉丁展示标题可轻微收紧。等宽字体仅用于逐字符辨识的数据。
 
+### 2.4 当前共享组件入口与复用边界
+
+组件统一从 `client/src/components/common` 导出，按职责使用：
+
+| 层次 | 当前模块 | 职责 |
+| --- | --- | --- |
+| 视觉基础 | `VisualPrimitives.tsx` | `ActionButton`、`TextInput`、`Panel`、`SectionHeading`、`StatusBadge`；标题通过 `size="compact"` 支持紧凑工具区 |
+| 异步反馈 | `AsyncFeedback.tsx` | `LoadingState`、`EmptyState`、`ErrorNotice`；统一可读状态、空结果和可选重试入口 |
+| 页面外壳与通用交互 | `ProductFrame`、`ProductHeader`、`PageHeader`、`ConfirmDialog`、`SelectMenu` | 导航、页面标题、确认与选择交互 |
+| 业务组件 | `DeckSelector`、`DeckStats`、`CasualRuleSelector` | 卡组、构筑与模式等领域展示，复用基础控件 |
+| 交互行为 | `hooks/useDialogAccessibility.ts` | 对话框焦点、Escape 与背景交互隔离 |
+
+基础组件不读取接口、不维护业务请求或决定重试动作。调用方提供状态内容、`onRetry` 和 `retryDisabled`；`EmptyState` 的后续操作通过 `action` 传入。加载和空状态可选 `plain` / `panel` 外观，外部间距由调用方控制。历史页与卡组选择器已共用这组异步反馈。
+
+`panel` 状态使用轻量底色、实线细边框和面板圆角，不用深色占位块或虚线扩大视觉重量。模式、来源等分类优先使用普通辅助文字；真正的完成、警告与错误状态复用 `StatusBadge`。历史页的节点切换和手机回放入口复用 `ActionButton`，不另设按钮字阶。
+
+页面 CSS 只设置页面结构与业务布局，不用宽泛的 `button`、`input`、`h2` 后代选择器覆盖共享组件的尺寸、排版和状态。原生选择条目仍可保留专用组件，不为统一外观将所有可点击内容都改成普通操作按钮。优先扩展已有组件的明确变体，出现实际复用需求时再提取组件，不为一次性结构建立通用配置框架。
+
 ## 3. 布局规范
 
 ### 3.1 工具栏默认紧凑，避免“大而空”的控制区

@@ -28,6 +28,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Bug,
+  Check,
   ChevronDown,
   ChevronRight,
   Copy,
@@ -37,10 +38,11 @@ import {
   Search,
   Swords,
   Target,
+  UserRound,
   X,
 } from 'lucide-react';
 import { GameMode } from '@game/shared/types/enums';
-import { DeckSelector, type DeckDisplayItem } from '@/components/common';
+import { ActionButton, DeckSelector, TextInput, type DeckDisplayItem } from '@/components/common';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import { useCasualTableStore } from '@/store/casualTableStore';
 import { useGameStore } from '@/store/gameStore';
@@ -186,6 +188,14 @@ export function CasualLobbyPage({
     writeCasualRuleMode(userId, next);
   };
   const [deckPickerOpen, setDeckPickerOpen] = useState(false);
+  const selectedDeckButtonRef = useRef<HTMLButtonElement>(null);
+  const pickerWasOpen = useRef(false);
+  useLayoutEffect(() => {
+    if (pickerWasOpen.current && !deckPickerOpen && flow) {
+      selectedDeckButtonRef.current?.focus({ preventScroll: true });
+    }
+    pickerWasOpen.current = deckPickerOpen;
+  }, [deckPickerOpen, flow]);
   const flowRef = useRef(flow);
   useLayoutEffect(() => {
     flowRef.current = flow;
@@ -193,7 +203,12 @@ export function CasualLobbyPage({
   const listFailed = useRef(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [recoveringJoin, setRecoveringJoin] = useState(false);
-  const [feedback, setFeedback] = useState('');
+  const [copyFeedback, setCopyFeedback] = useState<{ kind: 'code' | 'invite' } | null>(null);
+  useEffect(() => {
+    if (!copyFeedback) return;
+    const timeout = window.setTimeout(() => setCopyFeedback(null), 2000);
+    return () => window.clearTimeout(timeout);
+  }, [copyFeedback]);
   const [now, setNow] = useState(Date.now);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -413,11 +428,12 @@ export function CasualLobbyPage({
     });
     if (!['CODE', 'SPECTATE', 'NOTE', 'CANCEL', 'LEAVE'].includes(kind)) void ensureDecks();
   };
-  const copy = async (value: string) => {
+  const copy = async (value: string, kind: 'code' | 'invite') => {
     try {
       await navigator.clipboard.writeText(value);
-      setFeedback('已复制');
+      setCopyFeedback({ kind });
     } catch {
+      setCopyFeedback(null);
       setLocalError('复制失败，请手动复制房间号');
     }
   };
@@ -465,7 +481,7 @@ export function CasualLobbyPage({
   };
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!flow) return;
+    if (!flow || (flow.kind === 'CREATE' && deckPickerOpen)) return;
     const data = new FormData(event.currentTarget);
     const customRoomCode = String(data.get('roomCode') ?? '')
       .trim()
@@ -574,7 +590,11 @@ export function CasualLobbyPage({
         SPECTATE: '选择观战视角',
         NOTE: '房间备注',
         LEAVE: table?.runtime?.status === 'OPENING' ? '退出本轮开局？' : '离开房间？',
-        CANCEL: table?.state === 'WAITING' ? '取消等待？' : '取消本次配对？',
+        CANCEL: flow.nextRuleMode
+          ? `结束等待并切换到${casualRuleName(flow.nextRuleMode)}？`
+          : table?.state === 'WAITING'
+            ? '取消等待？'
+            : '取消本次配对？',
       }[flow.kind]
     : '';
   const isForm = flow && !['SPECTATE', 'NOTE', 'CANCEL', 'LEAVE'].includes(flow.kind);
@@ -588,6 +608,35 @@ export function CasualLobbyPage({
   const snapshotMatchesMode = loadedSearch?.startsWith(`${ruleMode}:`) ?? false;
   const stale = snapshot && now - snapshot.snapshotAt > 10_000;
   const localSetupBlocked = !hydrated || busy || Boolean(table || status?.otherParticipation);
+  const createDeckPickerOpen = flow?.kind === 'CREATE' && deckPickerOpen;
+  const deckSelector = flow && (
+    <DeckSelector
+      ruleMode={selectionMode}
+      cloudDecks={cloudDecks}
+      onSwitchToUnlimited={
+        !table && ['FIND', 'CREATE'].includes(flow.kind) ? () => switchRule('UNLIMITED') : undefined
+      }
+      selectedId={chosen?.id}
+      onSelect={(deck) => {
+        setSelected(deck);
+        setDeckPickerOpen(false);
+      }}
+      isLoading={deckLoadState === 'LOADING'}
+      isRefreshing={deckLoadState === 'REFRESHING'}
+      error={cloudError}
+      onRefresh={() => void refreshDecks()}
+      title="选择本局卡组"
+      density="compact"
+      layout={flow.kind === 'CREATE' ? 'list' : 'grid'}
+      autoFocusSelection={flow.kind === 'CREATE' && deckPickerOpen}
+      lastUsedDeckId={lastDeck}
+      emptyActionLabel="管理卡组"
+      onEmptyAction={() => {
+        setFlow(null);
+        onManageDecks();
+      }}
+    />
+  );
 
   return (
     <main className="casual-lobby">
@@ -618,7 +667,9 @@ export function CasualLobbyPage({
         )}
       </header>
       <section
-        className={table || status?.otherParticipation ? 'casual-current' : 'casual-announcements'}
+        className={
+          table || status?.otherParticipation ? 'casual-current ui-panel' : 'casual-announcements'
+        }
         aria-label="我的房间"
       >
         {(table || status?.otherParticipation) && (
@@ -636,10 +687,15 @@ export function CasualLobbyPage({
               <button
                 className="casual-copy-code button-ghost"
                 aria-label="复制房间号"
-                onClick={() => void copy(table.roomCode)}
+                title={copyFeedback?.kind === 'code' ? '房间号已复制' : '复制房间号'}
+                onClick={() => void copy(table.roomCode, 'code')}
               >
                 <span className="casual-code">{table.roomCode}</span>
-                <Copy size={14} aria-hidden="true" />
+                {copyFeedback?.kind === 'code' ? (
+                  <Check size={14} aria-hidden="true" className="casual-copy-complete" />
+                ) : (
+                  <Copy size={14} aria-hidden="true" />
+                )}
               </button>
             )}
           </div>
@@ -648,14 +704,71 @@ export function CasualLobbyPage({
           <p role="status">正在恢复当前房间…</p>
         ) : table ? (
           <>
-            <div className="casual-current-body">
+            <div
+              className={`casual-current-body${table.state === 'WAITING' ? ' casual-current-body--waiting' : ''}`}
+            >
               <div className="casual-current-main">
-                <h3>
-                  {table.state === 'WAITING'
-                    ? table.discoverability === 'PUBLIC'
-                      ? '正在公开等人'
-                      : '凭链接等人'
-                    : pending
+                {table.state === 'WAITING' ? (
+                  <div className="casual-waiting">
+                    <div className="casual-waiting-status">
+                      <div className="casual-waiting-seats" aria-hidden="true">
+                        <span className="casual-waiting-seat casual-waiting-seat--occupied">
+                          <UserRound size={22} />
+                        </span>
+                        <span className="casual-waiting-connection">
+                          <i />
+                          <i />
+                          <i />
+                        </span>
+                        <span className="casual-waiting-seat casual-waiting-seat--empty">
+                          <UserRound size={22} />
+                        </span>
+                      </div>
+                      <div className="casual-waiting-caption">
+                        <span
+                          role="status"
+                          aria-label={
+                            table.discoverability === 'PUBLIC' ? '正在公开等人' : '凭链接等人'
+                          }
+                          className="casual-waiting-title"
+                        >
+                          等待加入
+                        </span>
+                        <span className="casual-waiting-detail">
+                          {table.discoverability === 'PUBLIC' ? '公开房间' : '凭链接加入'}
+                          <span aria-hidden="true"> · </span>
+                          <span className="casual-waiting-time">
+                            已等待 {duration(table.waitingSince, now)}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                    <ActionButton
+                      variant="secondary"
+                      aria-label="复制邀请"
+                      onClick={() =>
+                        void copy(
+                          `${casualRuleName(table.ruleMode)}${table.ruleMode === 'UNLIMITED' ? '（PT 不限）' : ''} · 房间 ${table.roomCode}\n${window.location.origin}/?page=battle-lobby&room=${table.roomCode}`,
+                          'invite'
+                        )
+                      }
+                    >
+                      {copyFeedback?.kind === 'invite' ? (
+                        <Check size={16} aria-hidden="true" className="casual-copy-complete" />
+                      ) : (
+                        <Copy size={16} aria-hidden="true" />
+                      )}
+                      <span className="casual-copy-label">
+                        <span className="invisible" aria-hidden="true">
+                          复制邀请
+                        </span>
+                        <span>{copyFeedback?.kind === 'invite' ? '已复制' : '复制邀请'}</span>
+                      </span>
+                    </ActionButton>
+                  </div>
+                ) : (
+                  <h3>
+                    {pending
                       ? confirmed
                         ? '你已确认，等待对手'
                         : '对手已加入，请确认开局'
@@ -666,7 +779,8 @@ export function CasualLobbyPage({
                           : table.runtime?.status === 'OPENING'
                             ? '正在等待开局'
                             : '你的房间正在对战'}
-                </h3>
+                  </h3>
+                )}
                 {(table.state !== 'WAITING' || table.members.length > 1) && (
                   <p>
                     {table.members
@@ -677,37 +791,48 @@ export function CasualLobbyPage({
                       .join(' · ')}
                   </p>
                 )}
-                <p className="casual-muted">
-                  {table.ownDeck?.name}
-                  {table.ownDeck && (
-                    <>
-                      {' '}
-                      ·{' '}
-                      {table.ruleMode === 'UNLIMITED'
-                        ? `${table.ownDeck.pointTotal} PT`
-                        : casualPointSummary(
-                            table.ownDeck.pointTotal,
-                            table.ownDeck.pointLimit,
-                            table.ruleMode
-                          )}
-                    </>
-                  )}
-                  {table.state === 'WAITING' && <> · 已等待 {duration(table.waitingSince, now)}</>}
-                  {pending && (
-                    <>
-                      <span aria-hidden="true">
+                <div className="casual-current-deck">
+                  <p className="casual-muted">
+                    {table.ownDeck?.name}
+                    {table.ownDeck && (
+                      <>
                         {' '}
-                        · 剩余{' '}
-                        {Math.max(
-                          0,
-                          Math.ceil(((table.confirmationExpiresAt ?? now) - now) / 1000)
-                        )}{' '}
-                        秒
-                      </span>
-                      <span className="sr-only">请在本轮确认期限内确认</span>
-                    </>
+                        ·{' '}
+                        {table.ruleMode === 'UNLIMITED'
+                          ? `${table.ownDeck.pointTotal} PT`
+                          : casualPointSummary(
+                              table.ownDeck.pointTotal,
+                              table.ownDeck.pointLimit,
+                              table.ruleMode
+                            )}
+                      </>
+                    )}
+                    {pending && (
+                      <>
+                        <span aria-hidden="true">
+                          {' '}
+                          · 剩余{' '}
+                          {Math.max(
+                            0,
+                            Math.ceil(((table.confirmationExpiresAt ?? now) - now) / 1000)
+                          )}{' '}
+                          秒
+                        </span>
+                        <span className="sr-only">请在本轮确认期限内确认</span>
+                      </>
+                    )}
+                  </p>
+                  {table.state === 'WAITING' && (
+                    <ActionButton
+                      variant="ghost"
+                      className="casual-current-deck-change"
+                      disabled={busy}
+                      onClick={() => open('DECK')}
+                    >
+                      更换卡组
+                    </ActionButton>
                   )}
-                </p>
+                </div>
                 {table.discoverability === 'UNLISTED' && table.state === 'WAITING' && (
                   <p className="casual-muted">不会出现在公开列表；知道房间号或链接的玩家可加入。</p>
                 )}
@@ -719,64 +844,72 @@ export function CasualLobbyPage({
                   </p>
                 )}
               </div>
-              <div className="casual-actions">
-                {table.state === 'WAITING' && (
-                  <>
-                    <button className="button-ghost" disabled={busy} onClick={() => open('DECK')}>
-                      换组
-                    </button>
-                    <button
-                      className="button-ghost"
-                      onClick={() =>
-                        void copy(
-                          `${casualRuleName(table.ruleMode)}${table.ruleMode === 'UNLIMITED' ? '（PT 不限）' : ''} · 房间 ${table.roomCode}\n${window.location.origin}/?page=battle-lobby&room=${table.roomCode}`
-                        )
-                      }
-                    >
-                      <Copy size={16} />
-                      复制邀请
-                    </button>
-                    <button className="button-ghost" disabled={busy} onClick={() => open('CANCEL')}>
-                      取消等待
-                    </button>
-                  </>
-                )}
-                {pending && (
-                  <>
-                    <button className="button-ghost" disabled={busy} onClick={() => open('CANCEL')}>
-                      取消配对
-                    </button>
-                    <button
-                      className="button-primary"
-                      disabled={busy || confirmed}
-                      onClick={() => void action('confirm', { target: table })}
-                    >
-                      {confirmed ? '已确认' : '确认开局'}
-                    </button>
-                  </>
-                )}
-                {activeRuntime && (
-                  <>
-                    {ended && table.canRematch && !rematch && (
+              {table.state !== 'WAITING' && (
+                <div className="casual-actions">
+                  {pending && (
+                    <>
+                      <button
+                        className="button-ghost"
+                        disabled={busy}
+                        onClick={() => open('CANCEL')}
+                      >
+                        取消配对
+                      </button>
                       <button
                         className="button-primary"
-                        disabled={busy}
-                        onClick={() => open('REMATCH')}
+                        disabled={busy || confirmed}
+                        onClick={() => void action('confirm', { target: table })}
                       >
-                        再来一局
+                        {confirmed ? '已确认' : '确认开局'}
                       </button>
-                    )}
-                    {ended && table.canContinuePublic && (
-                      <button
-                        className="button-primary"
-                        disabled={busy}
-                        onClick={() => open('CONTINUE')}
-                      >
-                        继续公开找人
-                      </button>
-                    )}
-                    {rematch?.responderUserId === userId && (
-                      <>
+                    </>
+                  )}
+                  {activeRuntime && (
+                    <>
+                      {ended && table.canRematch && !rematch && (
+                        <button
+                          className="button-primary"
+                          disabled={busy}
+                          onClick={() => open('REMATCH')}
+                        >
+                          再来一局
+                        </button>
+                      )}
+                      {ended && table.canContinuePublic && (
+                        <button
+                          className="button-primary"
+                          disabled={busy}
+                          onClick={() => open('CONTINUE')}
+                        >
+                          继续公开找人
+                        </button>
+                      )}
+                      {rematch?.responderUserId === userId && (
+                        <>
+                          <button
+                            className="button-secondary"
+                            disabled={busy}
+                            onClick={() =>
+                              void action('rematch/respond', {
+                                target: table,
+                                requestId: rematch.requestId,
+                                deckId: null,
+                                spectatorEnabled: null,
+                              })
+                            }
+                          >
+                            拒绝
+                          </button>
+                          <button
+                            className="button-primary"
+                            disabled={busy}
+                            onClick={() => open('ACCEPT')}
+                          >
+                            同意并选组
+                          </button>
+                        </>
+                      )}
+                      {rematch?.requesterUserId === userId && (
                         <button
                           className="button-secondary"
                           disabled={busy}
@@ -789,73 +922,31 @@ export function CasualLobbyPage({
                             })
                           }
                         >
-                          拒绝
+                          撤回请求
                         </button>
+                      )}
+                      <button
+                        className={ended ? 'button-secondary' : 'button-primary'}
+                        onClick={() => openCasualDestination('online-room', table.roomCode)}
+                      >
+                        {ended ? '查看本局结果' : '返回房间'}
+                      </button>
+                      {(ended || table.runtime?.status === 'OPENING') && (
                         <button
-                          className="button-primary"
+                          className="button-secondary"
                           disabled={busy}
-                          onClick={() => open('ACCEPT')}
+                          onClick={() => open('LEAVE')}
                         >
-                          同意并选组
+                          离开房间
                         </button>
-                      </>
-                    )}
-                    {rematch?.requesterUserId === userId && (
-                      <button
-                        className="button-secondary"
-                        disabled={busy}
-                        onClick={() =>
-                          void action('rematch/respond', {
-                            target: table,
-                            requestId: rematch.requestId,
-                            deckId: null,
-                            spectatorEnabled: null,
-                          })
-                        }
-                      >
-                        撤回请求
-                      </button>
-                    )}
-                    <button
-                      className={ended ? 'button-secondary' : 'button-primary'}
-                      onClick={() => openCasualDestination('online-room', table.roomCode)}
-                    >
-                      {ended ? '查看本局结果' : '返回房间'}
-                    </button>
-                    {(ended || table.runtime?.status === 'OPENING') && (
-                      <button
-                        className="button-secondary"
-                        disabled={busy}
-                        onClick={() => open('LEAVE')}
-                      >
-                        离开房间
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
             {table.state !== 'BOOTSTRAPPING' && (
               <div className="casual-current-footer">
-                {table.state === 'WAITING' && (
-                  <button
-                    className="button-ghost casual-change-rule"
-                    disabled={busy || Boolean(flow)}
-                    onClick={() => {
-                      open('CANCEL');
-                      setFlow((current) =>
-                        current
-                          ? {
-                              ...current,
-                              nextRuleMode: table.ruleMode === 'NORMAL' ? 'UNLIMITED' : 'NORMAL',
-                            }
-                          : current
-                      );
-                    }}
-                  >
-                    更改模式
-                  </button>
-                )}
                 <label className="casual-check">
                   <input
                     type="checkbox"
@@ -870,6 +961,34 @@ export function CasualLobbyPage({
                   />
                   开放我的观战视角
                 </label>
+                {table.state === 'WAITING' && (
+                  <div
+                    className="casual-current-exit-actions"
+                    role="group"
+                    aria-label="结束当前等待"
+                  >
+                    <button
+                      className="button-ghost casual-change-rule"
+                      disabled={busy}
+                      onClick={() => {
+                        open('CANCEL');
+                        setFlow((current) =>
+                          current
+                            ? {
+                                ...current,
+                                nextRuleMode: table.ruleMode === 'NORMAL' ? 'UNLIMITED' : 'NORMAL',
+                              }
+                            : current
+                        );
+                      }}
+                    >
+                      切换模式…
+                    </button>
+                    <ActionButton variant="ghost" disabled={busy} onClick={() => open('CANCEL')}>
+                      取消等待
+                    </ActionButton>
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -894,11 +1013,9 @@ export function CasualLobbyPage({
             {ownError}
           </p>
         )}
-        {feedback && (
-          <p role="status" className="casual-muted">
-            {feedback}
-          </p>
-        )}
+        <span role="status" className="sr-only">
+          {copyFeedback ? (copyFeedback.kind === 'code' ? '房间号已复制' : '邀请已复制') : ''}
+        </span>
         {!table &&
           status?.notice &&
           !['PLAYER_CANCELED', 'ROOM_LEFT', 'CONTINUED_PUBLICLY', 'SWITCHED_ROOM'].includes(
@@ -1010,13 +1127,19 @@ export function CasualLobbyPage({
               {listError ? '房间列表加载失败，请重试。' : '正在加载公开房间…'}
             </div>
           ) : !visibleRows.length ? (
-            <div className="casual-empty">
+            <div
+              className={`casual-empty${table || status?.otherParticipation ? ' casual-empty--secondary' : ''}`}
+            >
               <h3>
                 {debouncedSearch
                   ? '没有找到这个房间或玩家'
                   : `暂无${casualRuleName(ruleMode)}公开房间`}
               </h3>
-              <p>{debouncedSearch ? '换个昵称或房间号试试。' : '找个对手，或创建房间邀请朋友。'}</p>
+              {debouncedSearch || (!table && !status?.otherParticipation) ? (
+                <p>
+                  {debouncedSearch ? '换个昵称或房间号试试。' : '找个对手，或创建房间邀请朋友。'}
+                </p>
+              ) : null}
               {search && (
                 <button className="button-secondary" onClick={() => setSearch('')}>
                   清除搜索
@@ -1121,7 +1244,7 @@ export function CasualLobbyPage({
       </section>
       {flow && (
         <LobbyDialog
-          title={title}
+          title={createDeckPickerOpen ? '选择本局卡组' : title}
           closeDisabled={busy || Boolean(spectatingTable)}
           onClose={() => {
             if (!busy && !spectatorPending.current) {
@@ -1292,173 +1415,167 @@ export function CasualLobbyPage({
                   </>
                 ) : (
                   <>
-                    <CasualRuleBadge mode={selectionMode} />
-                    {flow.kind !== 'CREATE' && <p>{casualRuleDescription(selectionMode)}</p>}
-                    {flow.kind === 'FIND' && (
-                      <p>优先加入正在等人的公开房间，没有对手时会创建房间等待。</p>
-                    )}
-                    {flow.kind === 'JOIN' && (
-                      <p>
-                        {flow.row?.members[0]?.displayName} · {flow.row?.roomCode}。选组期间不占座。
-                        {flow.source
-                          ? '成功加入后才取消原等待；目标失效时保留原房间。'
-                          : '加入后由双方确认开局。'}
-                      </p>
-                    )}
-                    {['REMATCH', 'ACCEPT'].includes(flow.kind) && (
-                      <p>选择本次卡组。双方同意后仍需在新轮次各自确认开局。</p>
-                    )}
-                    {chosen && !deckPickerOpen ? (
-                      <div className="casual-selected-deck">
-                        {chosen.previewCardCodes[0] && (
-                          <PresentationImage
-                            src={getCardImagePath(chosen.previewCardCodes[0])}
-                            alt=""
-                          />
-                        )}
-                        <div>
-                          {flow.kind !== 'CREATE' && <small>本局卡组</small>}
-                          <strong>{chosen.name}</strong>
-                          <span>
-                            {pointTableDisplayReady
-                              ? casualPointSummary(
-                                  chosen.pointTotal,
-                                  pointTable.pointLimit,
-                                  selectionMode
-                                )
-                              : 'PT 暂无法读取'}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          className={flow.kind === 'CREATE' ? 'button-ghost' : 'button-secondary'}
-                          onClick={() => setDeckPickerOpen(true)}
+                    {createDeckPickerOpen && (
+                      <div className="casual-create-deck-picker">
+                        <ActionButton
+                          variant="ghost"
+                          className="casual-picker-back"
+                          onClick={() => setDeckPickerOpen(false)}
                         >
-                          更换
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="casual-deck-selector">
-                        <DeckSelector
-                          ruleMode={selectionMode}
-                          cloudDecks={cloudDecks}
-                          onSwitchToUnlimited={
-                            !table && ['FIND', 'CREATE'].includes(flow.kind)
-                              ? () => {
-                                  switchRule('UNLIMITED');
-                                }
-                              : undefined
-                          }
-                          selectedId={chosen?.id}
-                          onSelect={(deck) => {
-                            setSelected(deck);
-                            setDeckPickerOpen(false);
-                          }}
-                          isLoading={deckLoadState === 'LOADING'}
-                          isRefreshing={deckLoadState === 'REFRESHING'}
-                          error={cloudError}
-                          onRefresh={() => void refreshDecks()}
-                          title="选择本局卡组"
-                          density="compact"
-                          lastUsedDeckId={lastDeck}
-                          emptyActionLabel="管理卡组"
-                          onEmptyAction={() => {
-                            setFlow(null);
-                            onManageDecks();
-                          }}
-                        />
+                          <ArrowLeft size={16} aria-hidden="true" />
+                          返回房间设置
+                        </ActionButton>
+                        {deckSelector}
                       </div>
                     )}
-                    {flow.kind === 'CREATE' && (
-                      <>
-                        <label>
-                          <span className="casual-field-label">
-                            房间号（可选）
-                            <small id="casual-custom-code-hint">4–12 位字母或数字</small>
-                          </span>
-                          <input
-                            name="roomCode"
-                            aria-label="房间号（可选）"
-                            maxLength={12}
-                            placeholder="留空自动生成"
-                            autoCapitalize="characters"
-                            autoComplete="off"
-                            spellCheck={false}
-                            aria-describedby="casual-custom-code-hint"
-                          />
-                        </label>
-                        <fieldset className="casual-access">
-                          <legend>访问方式</legend>
-                          <div className="casual-access-options">
-                            <label className="casual-choice">
-                              <input type="radio" name="access" value="PUBLIC" defaultChecked />
-                              公开找人
-                            </label>
-                            <label className="casual-choice">
-                              <input type="radio" name="access" value="UNLISTED" />
-                              凭链接加入
-                            </label>
-                          </div>
-                        </fieldset>
-                        <label>
-                          备注（可选）
-                          <input name="note" maxLength={40} placeholder="最多 40 字" />
-                        </label>
-                      </>
-                    )}
-                    {flow.kind !== 'DECK' && (
-                      <label className="casual-check">
-                        <input
-                          name="spectatorEnabled"
-                          type="checkbox"
-                          defaultChecked={table?.spectatorEnabled ?? false}
-                        />
-                        开放我的观战视角
-                      </label>
-                    )}
-                    {flow.kind === 'CONTINUE' && table?.discoverability === 'UNLISTED' && (
-                      <label className="casual-check">
-                        <input name="publishNewRoom" type="checkbox" required />
-                        关闭原凭链接房间，新建公开房间并在大厅找人
-                      </label>
-                    )}
-                    <div className="casual-actions">
-                      {flow.kind === 'CREATE' && ownError && (
-                        <p className="casual-error" role="alert">
-                          {ownError}
+                    <div className="casual-room-settings" hidden={createDeckPickerOpen}>
+                      <CasualRuleBadge mode={selectionMode} />
+                      {flow.kind !== 'CREATE' && <p>{casualRuleDescription(selectionMode)}</p>}
+                      {flow.kind === 'FIND' && (
+                        <p>优先加入正在等人的公开房间，没有对手时会创建房间等待。</p>
+                      )}
+                      {flow.kind === 'JOIN' && (
+                        <p>
+                          {flow.row?.members[0]?.displayName} · {flow.row?.roomCode}
+                          。选组期间不占座。
+                          {flow.source
+                            ? '成功加入后才取消原等待；目标失效时保留原房间。'
+                            : '加入后由双方确认开局。'}
                         </p>
                       )}
-                      <button
-                        type="button"
-                        className={flow.kind === 'CREATE' ? 'button-ghost' : 'button-secondary'}
-                        disabled={busy}
-                        onClick={() => setFlow(null)}
-                      >
-                        取消
-                      </button>
-                      <button
-                        className="button-primary"
-                        disabled={
-                          busy ||
-                          !chosen ||
-                          (['FIND', 'CREATE', 'JOIN', 'CONTINUE'].includes(flow.kind) &&
-                            Boolean(snapshot?.unavailableReason))
-                        }
-                      >
-                        {busy
-                          ? '正在处理…'
-                          : flow.kind === 'JOIN'
-                            ? flow.source
-                              ? '取消当前等待并加入'
-                              : selectionMode !== ruleMode
-                                ? `按${casualRuleName(selectionMode)}加入`
-                                : '加入房间'
-                            : flow.kind === 'CREATE'
-                              ? `创建${selectionMode === 'UNLIMITED' ? '娱乐' : '标准'}房间`
-                              : flow.kind === 'FIND'
-                                ? '开始找对手'
-                                : '确认'}
-                      </button>
+                      {['REMATCH', 'ACCEPT'].includes(flow.kind) && (
+                        <p>选择本次卡组。双方同意后仍需在新轮次各自确认开局。</p>
+                      )}
+                      {(chosen || flow.kind === 'CREATE') && !deckPickerOpen ? (
+                        <div className="casual-selected-deck">
+                          {chosen?.previewCardCodes[0] && (
+                            <PresentationImage
+                              src={getCardImagePath(chosen.previewCardCodes[0])}
+                              alt=""
+                            />
+                          )}
+                          <div>
+                            {flow.kind !== 'CREATE' && <small>本局卡组</small>}
+                            <strong>{chosen?.name ?? '未选择卡组'}</strong>
+                            <span>
+                              {!chosen
+                                ? '选择卡组后创建房间'
+                                : pointTableDisplayReady
+                                  ? casualPointSummary(
+                                      chosen.pointTotal,
+                                      pointTable.pointLimit,
+                                      selectionMode
+                                    )
+                                  : 'PT 暂无法读取'}
+                            </span>
+                          </div>
+                          <ActionButton
+                            ref={selectedDeckButtonRef}
+                            variant={flow.kind === 'CREATE' ? 'ghost' : 'secondary'}
+                            onClick={() => setDeckPickerOpen(true)}
+                          >
+                            {chosen ? '更换' : '选择卡组'}
+                          </ActionButton>
+                        </div>
+                      ) : flow.kind !== 'CREATE' ? (
+                        <div className="casual-deck-selector">{deckSelector}</div>
+                      ) : null}
+                      {flow.kind === 'CREATE' && (
+                        <>
+                          <label>
+                            <span className="casual-field-label">
+                              房间号（可选）
+                              <small id="casual-custom-code-hint">4–12 位字母或数字</small>
+                            </span>
+                            <TextInput
+                              name="roomCode"
+                              className="mt-2 block"
+                              aria-label="房间号（可选）"
+                              maxLength={12}
+                              placeholder="留空自动生成"
+                              autoCapitalize="characters"
+                              autoComplete="off"
+                              spellCheck={false}
+                              aria-describedby="casual-custom-code-hint"
+                            />
+                          </label>
+                          <fieldset className="casual-access">
+                            <legend>访问方式</legend>
+                            <div className="casual-access-options">
+                              <label className="casual-choice">
+                                <input type="radio" name="access" value="PUBLIC" defaultChecked />
+                                公开找人
+                              </label>
+                              <label className="casual-choice">
+                                <input type="radio" name="access" value="UNLISTED" />
+                                凭链接加入
+                              </label>
+                            </div>
+                          </fieldset>
+                          <label>
+                            备注（可选）
+                            <TextInput
+                              name="note"
+                              className="mt-2 block"
+                              maxLength={40}
+                              placeholder="最多 40 字"
+                            />
+                          </label>
+                        </>
+                      )}
+                      {flow.kind !== 'DECK' && (
+                        <label className="casual-check">
+                          <input
+                            name="spectatorEnabled"
+                            type="checkbox"
+                            defaultChecked={table?.spectatorEnabled ?? false}
+                          />
+                          开放我的观战视角
+                        </label>
+                      )}
+                      {flow.kind === 'CONTINUE' && table?.discoverability === 'UNLISTED' && (
+                        <label className="casual-check">
+                          <input name="publishNewRoom" type="checkbox" required />
+                          关闭原凭链接房间，新建公开房间并在大厅找人
+                        </label>
+                      )}
+                      <div className="casual-actions">
+                        {flow.kind === 'CREATE' && ownError && (
+                          <p className="casual-error" role="alert">
+                            {ownError}
+                          </p>
+                        )}
+                        <ActionButton
+                          variant={flow.kind === 'CREATE' ? 'ghost' : 'secondary'}
+                          disabled={busy}
+                          onClick={() => setFlow(null)}
+                        >
+                          取消
+                        </ActionButton>
+                        <ActionButton
+                          type="submit"
+                          disabled={
+                            busy ||
+                            !chosen ||
+                            (['FIND', 'CREATE', 'JOIN', 'CONTINUE'].includes(flow.kind) &&
+                              Boolean(snapshot?.unavailableReason))
+                          }
+                        >
+                          {busy
+                            ? '正在处理…'
+                            : flow.kind === 'JOIN'
+                              ? flow.source
+                                ? '取消当前等待并加入'
+                                : selectionMode !== ruleMode
+                                  ? `按${casualRuleName(selectionMode)}加入`
+                                  : '加入房间'
+                              : flow.kind === 'CREATE'
+                                ? `创建${selectionMode === 'UNLIMITED' ? '娱乐' : '标准'}房间`
+                                : flow.kind === 'FIND'
+                                  ? '开始找对手'
+                                  : '确认'}
+                        </ActionButton>
+                      </div>
                     </div>
                   </>
                 )}
@@ -1501,16 +1618,15 @@ function LobbyDialog({
       <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={id} className="casual-dialog">
         <header>
           <h2 id={id}>{title}</h2>
-          <button
+          <ActionButton
             ref={closeButton}
-            type="button"
-            className="button-secondary"
+            variant="icon"
             aria-label="关闭弹层"
             disabled={closeDisabled}
             onClick={onClose}
           >
             <X size={18} />
-          </button>
+          </ActionButton>
         </header>
         <div className="casual-dialog-content">{children}</div>
       </div>

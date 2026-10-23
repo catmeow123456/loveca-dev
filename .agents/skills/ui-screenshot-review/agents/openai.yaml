@@ -1,0 +1,4 @@
+interface:
+  display_name: 'UI 截图评审'
+  short_description: '设计或重构完成并截图后，阅读实际画面，检查任务、交互和视觉层级'
+  default_prompt: '使用 $ui-screenshot-review 阅读当前截图，给出有证据的精简评审，并把范围内问题反馈到本次实现。'

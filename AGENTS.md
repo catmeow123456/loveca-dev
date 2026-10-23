@@ -17,6 +17,10 @@
 - 只增加当前需求所需的模型和状态。新增持久字段应有实际读取者和无法从既有权威状态推导的理由；临时弹窗候选、展示顺序等默认属于 UI 状态。输入、权限、并发、持久化及领域不变量处做必要校验，避免假设性兼容层、缓存和审计表。
 - 运行时默认只读当前格式，旧数据通过迁移处理；涉及持久格式、checkpoint 复水或公开协议兼容时读取[兼容边界](.agents/skills/prepare-for-pr/references/compatibility-boundaries.md)中的流程与既有窄例外，不扩散 dual-read。新的兼容需求由用户明确决定。
 
+## Skill 编写与维护
+
+默认开发者使用能力强的 agent 与 agent harness。Skill 聚焦目标、关键判断、项目特有约束和必要参考，避免细碎操作步骤、固定执行顺序与通用能力教学；仅在正确性或安全性依赖具体步骤时保留必要细节。不把单次问题或某个实现方案固化为普遍规则。
+
 ## 按任务定位
 
 - 仓库路径使用当前 checkout 根目录（`git rev-parse --show-toplevel`），不依赖作者机器的绝对路径。模块当前边界以 [文档导航](docs/README.md) 与 [项目待办](PROJECT_PROGRESS_TODO.md) 所列专题文档为准。
@@ -31,7 +35,9 @@
 | 卡效实现、审查、卡文治理或卡效提交说明 | [loveca-card-effect-governance](.agents/skills/loveca-card-effect-governance/SKILL.md)：指定导出、全罕度覆盖、workflow 归属、主登记册与卡文工具；纯非卡效任务无需加载 |
 | 对战交互、区域展示与撤销 | [battle-interaction-design](.agents/skills/battle-interaction-design/SKILL.md)：横置、orientation、效果选择、撤销窗口及模式边界；新增动画时再用 motion-system-design |
 | 卡牌专属登场动效制作与调优 | [loveca-card-entrance-production](.agents/skills/loveca-card-entrance-production/SKILL.md)：卡面素材、人物微动、俯视桌面落场、共用播放机制与验收；纯规则卡效不适用 |
-| 桌面浏览器验证、测试卡组与补图 | [animation-verification](.agents/skills/animation-verification/SKILL.md)：按需检查实际环境、玩家视图、测试资产和视觉证据 |
+| 前端界面设计与优化 | [frontend-design](.agents/skills/frontend-design/SKILL.md)：产品语境、设计取舍与浏览器证据 |
+| 实际 UI 截图评审 | [ui-screenshot-review](.agents/skills/ui-screenshot-review/SKILL.md)：任务、视觉层级与适配；截图不能代替交互验证 |
+| 对战动效与交互验证、相关测试物料 | [animation-verification](.agents/skills/animation-verification/SKILL.md)：权威结果、玩家视角、过程与终态；普通产品页样式不必加载 |
 | 提交检查或 commit message | [prepare-for-git-commit](.agents/skills/prepare-for-git-commit/SKILL.md)：暂存范围、相关验证与中文提交说明 |
 | PR 检查、准备或分支同步 | [prepare-for-pr](.agents/skills/prepare-for-pr/SKILL.md)：审查基线、作者 main 独立副本、冲突处理与中文 PR 文案 |
 | 正式版本发布 | [prepare-for-release](.agents/skills/prepare-for-release/SKILL.md)：发布授权、版本／SHA／CI／镜像／tag；不包含生产部署 |

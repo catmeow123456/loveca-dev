@@ -1,83 +1,25 @@
 ---
 name: animation-verification
-description: Loveca animation and interaction verification workflow. Use when validating battle desktop animations, drag/drop behavior, active-effect UI, inspection/reveal flows, LIVE resolution feedback, responsive layout, reduced-motion behavior, or visual regressions with Playwright, screenshots, and focused checks.
+description: Verify Loveca battle animations and interactions against authoritative state, player visibility, and browser evidence. Use for battle motion, drag/drop, inspection/reveal, effect resolution, and board layout regressions; ordinary product-page styling does not require this skill.
 ---
 
-# Animation Verification
+# 对战动效与交互验证
 
-## Purpose
+默认开发者使用能力强的 agent 与 harness，自主选择验证方法与深度。本 skill 关注共享对战桌面的正确性与体验，不规定检查顺序、场景数量或工具组合。
 
-Verify visible battle UI work with evidence, not just TypeScript success. Use real browser checks for any change that affects animation, layout, drag/drop, selection, active-effect panels, hidden-information display, or mobile/desktop board fit.
+## 验收判断
 
-Prefer the global `playwright` or `playwright-interactive` skills when available. Use the global `screenshot` skill for OS-level capture only when browser screenshots are not enough.
+- **动作与状态一致**：玩家意图、提交命令、权威结果和最终画面应一致。动效结束不代表动作成功；卡牌区域、横置方向、选择状态与效果反馈不能脱离实际规则结果。
+- **过程与终态完整**：既能理解正在发生什么，也能确认最后发生了什么。中断、取消、恢复或连续操作不应留下消失的卡牌、遮挡层或过期反馈；按当前改动判断相关风险。
+- **玩家视角正确**：涉及 inspection、reveal 或私密区域时，以受影响玩家的实际授权投影为依据。隐藏信息泄漏属于正确性问题，不能靠视觉遮挡或单一玩家视角证明隔离有效。
+- **任务持续可用**：适用模式、视口与减少动态设置下，关键状态和操作仍须清楚、可达。阻止玩家理解或完成动作的裁切、重叠、焦点丢失与错误终态应修复。
 
-## QA Inventory First
+## 证据与范围
 
-Before testing, write a short inventory:
+使用真实浏览器和实际运行组件检验相关过程与终态，证据应足以支持交付声明。静态截图、交互结果与规则测试各有边界，不能相互替代；验证规模由变更影响和剩余不确定性决定。
 
-- User-visible claims you intend to make in the final response.
-- Controls and interactions changed by the task.
-- State changes each control can cause.
-- At least one functional check and one visual check for each claim or interaction.
-- Two off-happy-path checks for fragile flows, such as stale selection, illegal drop, no legal targets, reduced-motion mode, or opponent hidden view.
+区分本地调试、正式联机、观战和回放的操作与可见性边界，按受影响范围验证。无法获得相关环境或玩家视角时，明确尚未验证的部分，不把局部通过扩展成全模式结论。
 
-## Environment
+复用合适的运行环境，保护用户正在使用的对局；验证准备不构成推进、重置对局或修改账号数据的授权。临时证据放在 `output/playwright/`，提交范围遵守用户要求。
 
-- When a real battle flow needs the full environment, inspect `pnpm test-env:start`, its script, and the actual running configuration first. Reuse an available environment; initialize/reset only when needed and within the task's authorization.
-- Discover the actual local URL and entry route; do not assume a historical localhost port or home-page entry still applies. Do not advance or reset the user's complex match merely to prepare a test.
-- Use `output/playwright/` for browser artifacts committed only when explicitly useful. Do not add new top-level artifact folders.
-- When a dev server is already running, reuse it unless its state blocks the test.
-
-### Local Test Decks And Card Images
-
-Read this section only when the test needs deck fixtures or local image assets. Test decks live in `assets/decks/`; do not create, import, or save account decks without the user's explicit authorization.
-
-- `scripts/download-local-test-card-images.mjs` supports `--dry-run`, `--deck-dir=...`, base-number rarity expansion, and P+/L+ aliases. Preview the intended scope before downloading missing images.
-- `assets/images/` remains a local fallback until explicitly replaced. Temporary images are not card-rule dependencies; inspect image diffs before any authorized commit and keep temporary assets out of production assets. Preserve existing user changes and do not use fixture preparation to update submodules.
-
-## Browser Checks
-
-Run checks at the smallest scope that proves the claim:
-
-- Desktop board: 1600x900 or a comparable wide viewport.
-- Mobile/narrow board: about 390x844 for fit and overlap checks.
-- Reduced motion: emulate `prefers-reduced-motion: reduce` when the task adds or changes motion.
-- Hidden information: verify both acting-player and opponent-visible projections when inspection, hand, deck, or revealed state is involved.
-- End state: after every animation, assert the card, zone, orientation, panel, or selected state has settled correctly.
-
-## What To Verify
-
-- Drag/drop: drag preview follows pointer, legal targets highlight, illegal target rejects without state mutation, final state matches command result.
-- Card movement: source and destination are clear, no card disappears mid-transition, and z-index does not cover important controls.
-- Orientation: active/waiting visual state is distinct before and after animation.
-- Active effect: source, effect text, candidate grid, confirm/skip controls, and hover detail are all readable and non-overlapping.
-- Inspection/reveal: private inspect, public reveal, selected reveal, and move-to-hand/waiting-room steps preserve visibility rules.
-- Pending queue: multiple pending abilities remain distinguishable, especially same-source multiple LIVE_START abilities.
-- LIVE resolution: score, Heart, BLADE, requirement modifiers, success/failure, and manual override controls remain coherent.
-- Responsive fit: board zones, effect panels, hover cards, toolbars, and buttons do not overlap or crop text.
-
-## Standard Commands
-
-Use code checks appropriate to the change:
-
-```bash
-pnpm --dir client exec tsc -b
-pnpm exec tsc --noEmit
-git diff --check
-```
-
-Add focused unit/integration tests when the task changes command behavior, card effect state, projection, visibility, or rule semantics. Pure CSS-only motion changes usually need browser evidence more than new unit tests.
-
-## Evidence
-
-- Capture before/during/after screenshots when judging animation or layout.
-- Capture at least one settled-state screenshot for final claims.
-- For hard-to-reproduce interaction bugs, keep a Playwright trace or concise reproduction commands.
-- In the final response, state exactly which commands and browser checks ran. If browser verification was skipped, say why.
-
-## Failure Rules
-
-- Treat text overlap, clipped buttons, hidden controls under overlays, blank card images where assets should render, and incorrect final state as blockers.
-- Treat inaccessible hidden information as a correctness issue, not a visual nit.
-- Do not accept an animation that only looks correct at one viewport if the board is meant to support both desktop and mobile/narrow views.
-- If a Playwright ref goes stale, resnapshot before continuing.
+需要环境入口或测试物料时，参阅[本地验证资源](references/local-verification.md)。设计取舍见 [frontend-design](../frontend-design/SKILL.md)，实际截图的视觉评审见 [ui-screenshot-review](../ui-screenshot-review/SKILL.md)，按任务需要使用。

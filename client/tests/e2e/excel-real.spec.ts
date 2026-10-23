@@ -246,7 +246,7 @@ for (const [textFirst, textSecond, firstStarts] of [
         .getByRole('dialog')
         .getByRole('button', { name: '创建房间', exact: true })
         .click();
-      await expect(first.getByRole('heading', { name: '正在公开等人' })).toBeVisible();
+      await expect(first.getByRole('status', { name: '正在公开等人' })).toBeVisible();
       const code = (await first.locator('.casual-current-top .casual-code').innerText()).trim();
       await second.getByRole('button', { name: '输入房间号', exact: true }).click();
       await second.getByRole('dialog').getByLabel('房间号', { exact: true }).fill(code);

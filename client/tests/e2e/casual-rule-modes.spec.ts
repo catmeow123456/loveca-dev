@@ -119,7 +119,7 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(dialog.getByText('20 PT · 无上限', { exact: true })).toBeVisible();
     await expect(dialog.getByText('构筑未完成', { exact: true })).toHaveCount(0);
     await dialog.getByRole('button', { name: '创建娱乐房间', exact: true }).click();
-    await expect(page.getByRole('heading', { name: '正在公开等人' })).toBeVisible();
+    await expect(page.getByRole('status', { name: '正在公开等人' })).toBeVisible();
     expect(writes.find((write) => write.path === 'create')?.body).toMatchObject({
       ruleMode: 'UNLIMITED',
       deckId: 'over-deck',
@@ -146,15 +146,16 @@ for (const theme of ['light', 'dark'] as const) {
         fullPage: true,
       });
     }
-    await page.getByRole('button', { name: '更改模式', exact: true }).click();
+    await page.getByRole('button', { name: '切换模式…', exact: true }).click();
     await expect(
       page.getByRole('dialog').getByRole('button', { name: '取消等待并切换', exact: true })
     ).toBeVisible();
     await page.getByRole('dialog').getByRole('button', { name: '继续等待', exact: true }).click();
+    await expect(page.getByRole('button', { name: '切换模式…', exact: true })).toBeFocused();
     expect(writes.filter((write) => write.path === 'cancel')).toHaveLength(0);
-    await expect(page.getByRole('heading', { name: '正在公开等人' })).toBeVisible();
+    await expect(page.getByRole('status', { name: '正在公开等人' })).toBeVisible();
     await expect(page.getByRole('heading', { name: '娱乐模式房间' })).toBeVisible();
-    await page.getByRole('button', { name: '更改模式', exact: true }).click();
+    await page.getByRole('button', { name: '切换模式…', exact: true }).click();
     await page
       .getByRole('dialog')
       .getByRole('button', { name: '取消等待并切换', exact: true })
@@ -163,6 +164,86 @@ for (const theme of ['light', 'dark'] as const) {
     expect(writes.filter((write) => write.path === 'find')).toHaveLength(0);
   });
 }
+
+test('room deck picker preserves settings, supports search and restores keyboard focus', async ({
+  page,
+}, testInfo) => {
+  const writes = await setup(page);
+  const additionalDecks = Array.from({ length: 6 }, (_, index) => ({
+    ...normalDeck,
+    id: `practice-${index}`,
+    name: `练习卡组 ${index + 1} · 用于区分同名前缀的完整卡组名称`,
+  }));
+  await page.route('**/api/decks', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          normalDeck,
+          ...additionalDecks,
+          overDeck,
+          { ...normalDeck, id: 'incomplete', name: '构筑未完成', energy_deck: [] },
+        ],
+        error: null,
+      }),
+    })
+  );
+  await page.goto('/?page=battle-lobby');
+  await page.getByRole('button', { name: '创建房间', exact: true }).click();
+  let dialog = page.getByRole('dialog', { name: '创建房间', exact: true });
+  await dialog.getByLabel('房间号（可选）', { exact: true }).fill('FRIENDS');
+  await dialog.getByLabel('备注（可选）').fill('练习用房间');
+  await dialog.getByRole('radio', { name: '凭链接加入', exact: true }).check();
+  await dialog.getByLabel('开放我的观战视角').check();
+  await dialog.getByRole('button', { name: '更换', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: '选择本局卡组', exact: true });
+  await expect(dialog.getByRole('button', { name: normalDeck.name, exact: true })).toBeFocused();
+  const thumbnail = dialog.locator('[data-deck-choice] img').first();
+  await expect(thumbnail).toHaveCSS('width', '40px');
+  await dialog.getByRole('searchbox', { name: '搜索卡组', exact: true }).fill('练习卡组 6');
+  await expect(dialog.locator('[data-deck-choice]')).toHaveCount(1);
+  await dialog.getByRole('searchbox').press('Enter');
+  await expect(dialog).toBeVisible();
+  expect(writes).toHaveLength(0);
+  await dialog.getByRole('button', { name: '返回房间设置', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: '创建房间', exact: true });
+  await expect(dialog.getByRole('button', { name: '更换', exact: true })).toBeFocused();
+  await expect(dialog.getByText(normalDeck.name, { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: '更换', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: '选择本局卡组', exact: true });
+  await dialog.getByRole('searchbox').fill('练习卡组 6');
+  const chosen = dialog.getByRole('button', { name: additionalDecks[5].name, exact: true });
+  await chosen.focus();
+  await chosen.press('Enter');
+  dialog = page.getByRole('dialog', { name: '创建房间', exact: true });
+  await expect(dialog.getByRole('button', { name: '更换', exact: true })).toBeFocused();
+  await expect(dialog.getByText(additionalDecks[5].name, { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('房间号（可选）', { exact: true })).toHaveValue('FRIENDS');
+  await expect(dialog.getByLabel('备注（可选）')).toHaveValue('练习用房间');
+  await expect(dialog.getByRole('radio', { name: '凭链接加入', exact: true })).toBeChecked();
+  await expect(dialog.getByLabel('开放我的观战视角')).toBeChecked();
+  await dialog.getByRole('button', { name: '更换', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: '选择本局卡组', exact: true });
+  await expect(
+    dialog.getByRole('button', { name: additionalDecks[5].name, exact: true })
+  ).toBeFocused();
+  await dialog.getByText('不可用卡组（2）', { exact: true }).click();
+  await expect(dialog.getByText('能量卡必须为 12 张 (当前 0)', { exact: true })).toBeVisible();
+  await expect(
+    dialog.getByText('卡组点数必须不超过 9pt (当前 20pt)', { exact: true })
+  ).toBeVisible();
+  await waitForVisualStability(page);
+  await page.screenshot({ path: testInfo.outputPath('room-deck-picker.png'), fullPage: true });
+  await dialog.getByRole('button', { name: '关闭弹层', exact: true }).click();
+  await page.getByRole('button', { name: '找对手', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: '找对手', exact: true });
+  await dialog.getByRole('button', { name: '更换', exact: true }).click();
+  const gridThumbnail = dialog.locator('[data-deck-choice] img').first();
+  const gridThumbnailBounds = await gridThumbnail.boundingBox();
+  expect(gridThumbnailBounds!.width).toBeGreaterThan(20);
+  expect(gridThumbnailBounds!.height).toBeGreaterThan(20);
+  expect(writes).toHaveLength(0);
+});
 
 test('custom room codes validate before submitting, preserve the form on conflict and can be corrected', async ({
   page,
@@ -206,7 +287,7 @@ test('custom room codes validate before submitting, preserve the form on conflic
   await page.screenshot({ path: testInfo.outputPath('custom-code-conflict.png'), fullPage: true });
   await code.fill('friends43');
   await dialog.getByRole('button', { name: '创建标准房间', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '凭链接等人' })).toBeVisible();
+  await expect(page.getByRole('status', { name: '凭链接等人' })).toBeVisible();
   await expect(page.getByRole('region', { name: '我的房间', exact: true })).toContainText(
     'FRIENDS43'
   );
@@ -250,7 +331,7 @@ test('code joining accepts target entertainment rules in the same dialog; cancel
   });
   await expect(page.getByRole('button', { name: '确认开局', exact: true })).toBeVisible();
   await expect(page.getByRole('radio', { name: '标准模式', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '更改模式', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '切换模式…', exact: true })).toHaveCount(0);
   await expect(page.getByRole('region', { name: '我的房间', exact: true })).toContainText(
     '娱乐模式 · PT 不限'
   );

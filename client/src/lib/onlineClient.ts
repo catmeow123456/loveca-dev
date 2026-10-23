@@ -677,8 +677,16 @@ export async function fetchOnlineAdminRooms(): Promise<readonly OnlineAdminRoomS
   return response.data;
 }
 
-export async function fetchMatchRecords(): Promise<readonly MatchRecordSummaryView[]> {
-  const response = await apiClient.get<MatchRecordSummaryView[]>('/api/battle/match-records');
+export async function fetchMatchRecords(
+  options: { readonly limit?: number; readonly offset?: number } = {}
+): Promise<readonly MatchRecordSummaryView[]> {
+  const search = new URLSearchParams();
+  if (options.limit !== undefined) search.set('limit', String(options.limit));
+  if (options.offset !== undefined) search.set('offset', String(options.offset));
+  const query = search.size ? `?${search}` : '';
+  const response = await apiClient.get<MatchRecordSummaryView[]>(
+    `/api/battle/match-records${query}`
+  );
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取历史对局记录失败');
   }

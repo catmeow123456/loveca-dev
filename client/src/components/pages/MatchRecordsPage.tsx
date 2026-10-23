@@ -6,6 +6,7 @@ import { buildMatchRecordFilters } from '@/lib/matchRecordFilters';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -19,7 +20,16 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react';
-import { PageHeader } from '@/components/common';
+import {
+  ActionButton,
+  EmptyState,
+  ErrorNotice,
+  LoadingState,
+  PageHeader,
+  Panel,
+  SectionHeading,
+  StatusBadge,
+} from '@/components/common';
 import { GameBoard } from '@/components/game';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
@@ -62,10 +72,15 @@ import type {
   ViewCardObject,
   ViewZoneState,
 } from '@game/online';
+import { getPhaseName } from '@game/shared/phase-config';
+import { GamePhase } from '@game/shared/types/enums';
+import type { Ref } from 'react';
 import { hasPermission } from '@game/shared/auth/permissions';
 import { AiRecordedBilling } from '@/components/admin/AiRecordedBilling';
 import { exportAiRecordedEvidence } from '@/lib/aiBattleClient';
 import { saveAs } from 'file-saver';
+
+const RECORD_PAGE_SIZE = 30;
 
 interface MatchRecordsPageProps {
   onBack: () => void;
@@ -91,7 +106,8 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
   const [isLoadingContext, setIsLoadingContext] = useState(false);
   const [isLoadingNode, setIsLoadingNode] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [contextError, setContextError] = useState<string | null>(null);
+  const detailErrorActionRef = useRef<'context' | 'open' | 'export' | 'ai-export'>('context');
   const [failedReplayNode, setFailedReplayNode] = useState<FailedReplayNode | null>(null);
   const [adminUserQuery, setAdminUserQuery] = useState('');
   const [adminPlayerAQuery, setAdminPlayerAQuery] = useState('');
@@ -104,6 +120,17 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
   >([]);
   const [adminActivityOptionsError, setAdminActivityOptionsError] = useState<string | null>(null);
   const [adminFilters, setAdminFilters] = useState<AdminMatchRecordFilters>({});
+  const [recordsError, setRecordsError] = useState<string | null>(null);
+  const [isLoadingMoreRecords, setIsLoadingMoreRecords] = useState(false);
+  const [hasMoreRecords, setHasMoreRecords] = useState(false);
+  const loadedRecordCountRef = useRef(0);
+  const failedRecordsAppendRef = useRef(false);
+  const isNarrow = useMediaQuery('(max-width: 1023px)');
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(Boolean(initialMatchId));
+  const listScrollRef = useRef(0);
+  const scrollRootRef = useRef<HTMLDivElement | null>(null);
+  const selectedButtonRef = useRef<HTMLButtonElement | null>(null);
+  const detailHeadingRef = useRef<HTMLDivElement | null>(null);
   const [debugDetailsOpen, setDebugDetailsOpen] = useState(false);
   const [auditPages, setAuditPages] = useState<MatchRecordAuditPages>({});
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
@@ -201,29 +228,76 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
     },
     []
   );
-  const loadRecords = useCallback(async () => {
-    const requestId = ++recordsRequestRef.current;
-    setIsLoadingRecords(true);
-    setError(null);
-    try {
-      const nextRecords = hasManagementHistoryAccess
-        ? await fetchAdminMatchRecords(adminFilters)
-        : await fetchMatchRecords();
-      if (requestId !== recordsRequestRef.current) return;
-      setRecords(nextRecords);
-      setSelectedMatchId((current) =>
-        current &&
-        (current === initialMatchId || nextRecords.some((record) => record.matchId === current))
-          ? current
-          : (nextRecords[0]?.matchId ?? null)
-      );
-    } catch (loadError) {
-      if (requestId !== recordsRequestRef.current) return;
-      setError(loadError instanceof Error ? loadError.message : '读取历史对局失败');
-    } finally {
-      if (requestId === recordsRequestRef.current) setIsLoadingRecords(false);
-    }
-  }, [adminFilters, hasManagementHistoryAccess, initialMatchId]);
+  const loadRecords = useCallback(
+    async (append = false) => {
+      const requestId = ++recordsRequestRef.current;
+      if (append) setIsLoadingMoreRecords(true);
+      else setIsLoadingRecords(true);
+      setRecordsError(null);
+      failedRecordsAppendRef.current = append;
+      try {
+        const page = hasManagementHistoryAccess
+          ? await fetchAdminMatchRecords(adminFilters)
+          : await fetchMatchRecords({
+              limit: RECORD_PAGE_SIZE + 1,
+              offset: append ? loadedRecordCountRef.current : 0,
+            });
+        if (requestId !== recordsRequestRef.current) return;
+        const nextRecords = hasManagementHistoryAccess ? page : page.slice(0, RECORD_PAGE_SIZE);
+        loadedRecordCountRef.current =
+          (append ? loadedRecordCountRef.current : 0) + nextRecords.length;
+        setHasMoreRecords(!hasManagementHistoryAccess && page.length > RECORD_PAGE_SIZE);
+        setRecords((current) =>
+          append
+            ? [
+                ...current,
+                ...nextRecords.filter(
+                  (record) => !current.some((item) => item.matchId === record.matchId)
+                ),
+              ]
+            : nextRecords
+        );
+        if (!append)
+          setSelectedMatchId((current) =>
+            current &&
+            (!hasManagementHistoryAccess ||
+              current === initialMatchId ||
+              nextRecords.some((record) => record.matchId === current))
+              ? current
+              : (nextRecords[0]?.matchId ?? null)
+          );
+      } catch (loadError) {
+        if (requestId !== recordsRequestRef.current) return;
+        setRecordsError(loadError instanceof Error ? loadError.message : '读取历史对局失败');
+      } finally {
+        if (requestId === recordsRequestRef.current) {
+          setIsLoadingRecords(false);
+          setIsLoadingMoreRecords(false);
+        }
+      }
+    },
+    [adminFilters, hasManagementHistoryAccess, initialMatchId]
+  );
+
+  useEffect(() => {
+    if (!isNarrow) return;
+    const frame = requestAnimationFrame(() => {
+      if (mobileDetailOpen) {
+        scrollRootRef.current?.scrollTo({ top: 0 });
+        detailHeadingRef.current?.focus({ preventScroll: true });
+      } else {
+        scrollRootRef.current?.scrollTo({ top: listScrollRef.current });
+        selectedButtonRef.current?.focus({ preventScroll: true });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isNarrow, mobileDetailOpen]);
+
+  const handleSelectRecord = (matchId: string) => {
+    listScrollRef.current = scrollRootRef.current?.scrollTop ?? 0;
+    setSelectedMatchId(matchId);
+    setMobileDetailOpen(true);
+  };
 
   const loadReplayNode = useCallback(
     async (matchId: string, checkpointSeq?: number) => {
@@ -246,7 +320,7 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
       replayAuditAbortRef.current?.abort();
       replayAuditAbortRef.current = null;
       setIsLoadingNode(true);
-      setError(null);
+      setContextError(null);
       setFailedReplayNode(null);
       setIsLoadingAudit(false);
       setLoadingMoreAuditKind(null);
@@ -298,7 +372,7 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
           return;
         }
         const message = loadError instanceof Error ? loadError.message : '读取历史节点失败';
-        setError(message);
+        setContextError(message);
         setFailedReplayNode({ checkpointSeq, message });
       } finally {
         if (requestId === latestReplayRequestRef.current) {
@@ -329,7 +403,7 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
       latestAuditRequestRef.current += 1;
       setIsLoadingContext(true);
       setIsLoadingNode(false);
-      setError(null);
+      setContextError(null);
       setFailedReplayNode(null);
       setIsLoadingAudit(false);
       setLoadingMoreAuditKind(null);
@@ -397,7 +471,8 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
             : 'CONTEXT_REQUEST_FAILED',
           { durationMs: replayPerformanceNow() - requestStartedAt }
         );
-        setError(loadError instanceof Error ? loadError.message : '读取历史对局上下文失败');
+        detailErrorActionRef.current = 'context';
+        setContextError(loadError instanceof Error ? loadError.message : '读取历史对局上下文失败');
       } finally {
         if (replayContextAbortRef.current === controller) {
           replayContextAbortRef.current = null;
@@ -703,7 +778,7 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
     if (!replay) {
       return;
     }
-    setError(null);
+    setContextError(null);
     setFailedReplayNode(null);
     replayBoardOpenRef.current = true;
     const requestId = latestReplayRequestRef.current;
@@ -716,7 +791,8 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
       replayBoardOpenRef.current = false;
       setReplayBoardOpen(false);
       leaveReadonlyReplay();
-      setError(openError instanceof Error ? openError.message : '打开桌面回放失败');
+      detailErrorActionRef.current = 'open';
+      setContextError(openError instanceof Error ? openError.message : '打开桌面回放失败');
     }
   }, [enterReadonlyReplay, leaveReadonlyReplay, replay]);
 
@@ -822,7 +898,7 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
       return;
     }
     setIsExporting(true);
-    setError(null);
+    setContextError(null);
     try {
       const bundle = await exportAdminMatchRecordBundle(selectedRecord.matchId);
       downloadJson(
@@ -830,7 +906,8 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
         bundle
       );
     } catch (exportError) {
-      setError(exportError instanceof Error ? exportError.message : '导出历史对局失败');
+      detailErrorActionRef.current = 'export';
+      setContextError(exportError instanceof Error ? exportError.message : '导出历史对局失败');
     } finally {
       setIsExporting(false);
     }
@@ -845,14 +922,15 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
     )
       return;
     setIsExporting(true);
-    setError(null);
+    setContextError(null);
     try {
       saveAs(
         await exportAiRecordedEvidence(selectedRecord.matchId),
         `loveca-ai-${selectedRecord.matchId}.jsonl`
       );
     } catch (exportError) {
-      setError(exportError instanceof Error ? exportError.message : '导出 AI 决定材料失败');
+      detailErrorActionRef.current = 'ai-export';
+      setContextError(exportError instanceof Error ? exportError.message : '导出 AI 决定材料失败');
     } finally {
       setIsExporting(false);
     }
@@ -876,7 +954,7 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
   }
 
   return (
-    <div className="app-shell flex min-h-screen flex-col overflow-x-hidden">
+    <div ref={scrollRootRef} className="app-shell flex min-h-screen flex-col overflow-x-hidden">
       <PageHeader
         title="历史对局"
         icon={<History size={18} />}
@@ -884,31 +962,49 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
         backLabel="返回大厅"
         right={
           <>
-            <button
-              type="button"
+            <ActionButton
+              variant="icon"
               onClick={() => void loadRecords()}
-              disabled={isLoadingRecords}
-              className="button-icon"
+              disabled={isLoadingRecords || isLoadingMoreRecords}
               aria-label="刷新历史对局"
               title="刷新历史对局"
             >
               <RefreshCw size={16} className={isLoadingRecords ? 'animate-spin' : ''} />
-            </button>
+            </ActionButton>
           </>
         }
       />
 
       <main className="relative z-10 flex-1 px-3 pb-24 pt-4 sm:px-4 sm:pb-24 lg:px-5 lg:pb-4 xl:px-6">
         <div className="mx-auto grid w-full max-w-[1480px] items-start gap-4 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
-          <section className="product-workbench flex min-w-0 flex-col overflow-hidden p-3 sm:p-4 lg:sticky lg:top-[5.75rem] lg:h-[calc(100dvh-6.5rem)]">
+          <section
+            aria-label="对局列表"
+            className={`product-workbench min-w-0 flex-col overflow-hidden p-3 sm:p-4 lg:sticky lg:top-[5.75rem] lg:flex lg:h-[calc(100dvh-6.5rem)] ${mobileDetailOpen ? 'hidden' : 'flex'}`}
+          >
             <PanelTitle
               icon={<History size={16} />}
               title="对局列表"
-              detail={`${records.length} 条`}
+              detail={
+                recordsError && records.length === 0
+                  ? '读取失败'
+                  : `${records.length} 条${hasMoreRecords ? ' · 可加载更多' : ''}`
+              }
             />
 
+            {!hasManagementHistoryAccess ? (
+              <p className="mt-2 text-xs text-[var(--text-muted)]">最近 10 天的对局</p>
+            ) : null}
+            {recordsError ? (
+              <ErrorNotice
+                className="mt-3"
+                message={recordsError}
+                retryDisabled={isLoadingRecords || isLoadingMoreRecords}
+                onRetry={() => void loadRecords(failedRecordsAppendRef.current)}
+              />
+            ) : null}
             {hasManagementHistoryAccess ? (
               <AdminMatchRecordFiltersPanel
+                collapsible
                 userQuery={adminUserQuery}
                 playerAQuery={adminPlayerAQuery}
                 playerBQuery={adminPlayerBQuery}
@@ -930,32 +1026,79 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
               />
             ) : null}
 
-            {isLoadingRecords ? (
-              <LoadingPanel label="读取历史对局" />
+            {isLoadingRecords && records.length === 0 ? (
+              <LoadingState variant="panel" className="mt-3" label="读取历史对局" />
             ) : records.length === 0 ? (
-              <EmptyPanel title="暂无历史对局" detail="完成正式联机或对墙打后会在这里显示。" />
+              recordsError ? null : (
+                <EmptyState
+                  variant="panel"
+                  className="mt-3"
+                  title="暂无历史对局"
+                  description="完成正式联机或对墙打后会在这里显示。"
+                />
+              )
             ) : (
-              <div className="mt-3 overflow-x-hidden border-y border-[var(--border-subtle)] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+              <div
+                className="mt-3 min-w-0 overflow-x-hidden border-y border-[var(--border-subtle)] lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
+                aria-busy={isLoadingRecords || isLoadingMoreRecords}
+              >
                 {records.map((record) => (
                   <MatchRecordButton
                     key={record.matchId}
                     record={record}
                     selected={record.matchId === selectedRecord?.matchId}
-                    onClick={() => setSelectedMatchId(record.matchId)}
+                    personal={!hasManagementHistoryAccess}
+                    buttonRef={
+                      record.matchId === selectedRecord?.matchId ? selectedButtonRef : undefined
+                    }
+                    onClick={() => handleSelectRecord(record.matchId)}
                   />
                 ))}
+                {hasMoreRecords ? (
+                  <ActionButton
+                    variant="ghost"
+                    onClick={() => void loadRecords(true)}
+                    disabled={isLoadingMoreRecords || isLoadingRecords}
+                    className="w-full"
+                  >
+                    {isLoadingMoreRecords ? '读取中…' : '加载更多对局'}
+                  </ActionButton>
+                ) : null}
               </div>
             )}
           </section>
 
-          <section className="grid min-w-0 gap-4">
-            {error ? (
-              <div className="rounded-lg border border-[color:var(--semantic-error)]/40 bg-[color:var(--semantic-error)]/10 px-4 py-3 text-sm text-[var(--semantic-error)]">
-                {error}
-              </div>
+          <section
+            aria-label="对局详情"
+            className={`min-w-0 gap-4 lg:grid ${mobileDetailOpen ? 'grid' : 'hidden'}`}
+          >
+            <div
+              ref={detailHeadingRef}
+              tabIndex={-1}
+              className="min-w-0 focus:outline-none lg:hidden"
+            >
+              <ActionButton variant="ghost" onClick={() => setMobileDetailOpen(false)}>
+                <ArrowLeft size={16} /> 返回对局列表
+              </ActionButton>
+            </div>
+            {contextError ? (
+              <ErrorNotice
+                className="mt-3"
+                message={contextError}
+                retryDisabled={isLoadingContext || isLoadingNode || isExporting}
+                onRetry={() => {
+                  if (failedReplayNode) handleRetryReplayNode();
+                  else if (detailErrorActionRef.current === 'open') void handleOpenReplayBoard();
+                  else if (detailErrorActionRef.current === 'export')
+                    void handleExportSelectedRecord();
+                  else if (detailErrorActionRef.current === 'ai-export')
+                    void handleExportAiEvidence();
+                  else if (selectedMatchId) void loadMatchContext(selectedMatchId);
+                }}
+              />
             ) : null}
 
-            <section className="surface-panel rounded-lg p-4">
+            <Panel as="section" padding="compact" className="min-w-0">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <PanelTitle
                   icon={<ShieldCheck size={16} />}
@@ -1013,7 +1156,7 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
                 )}
               {selectedRecord ? (
                 <MatchRecordSummary
-                  detail={detail}
+                  detail={detail?.matchId === selectedRecord.matchId ? detail : null}
                   record={selectedRecord}
                   viewerSeat={
                     hasManagementHistoryAccess ? adminViewerSeat : selectedRecord.viewerSeat
@@ -1021,92 +1164,83 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
                   loading={isLoadingContext}
                 />
               ) : (
-                <EmptyPanel title="未选择对局" detail="从左侧选择一条历史记录。" />
-              )}
-            </section>
-
-            <section className="grid gap-4 xl:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
-              <div className="surface-panel rounded-lg p-4">
-                <PanelTitle
-                  icon={<Eye size={16} />}
-                  title="桌面回放"
-                  detail={replay ? formatSeatPerspective(replay.viewerSeat) : '未载入'}
+                <EmptyState
+                  variant="panel"
+                  className="mt-3"
+                  title="未选择对局"
+                  description="从左侧选择一条历史记录。"
                 />
+              )}
+            </Panel>
 
-                {(isLoadingContext || isLoadingNode) && !replay ? (
-                  <LoadingPanel label="读取 checkpoint" />
-                ) : replay ? (
-                  <div className="mt-4 grid min-w-0 gap-3">
-                    <CheckpointNavigator
-                      currentIndex={currentCheckpointIndex}
-                      total={checkpointEntries.length}
-                      canPrevious={canGoPreviousCheckpoint}
-                      canNext={canGoNextCheckpoint}
-                      onPrevious={() => handleStepCheckpoint(-1)}
-                      onNext={() => handleStepCheckpoint(1)}
-                    />
-                    <button
-                      type="button"
+            {selectedMatchId ? (
+              <Panel as="section" padding="compact" className="min-w-0">
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                  <PanelTitle
+                    icon={<Eye size={16} />}
+                    title="对局回放"
+                    detail={replay ? formatSeatPerspective(replay.viewerSeat) : ''}
+                  />
+                  {replay ? (
+                    <ActionButton
                       onClick={() => void handleOpenReplayBoard()}
                       disabled={isLoadingNode}
-                      className="button-primary inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <Eye size={15} />
-                      打开桌面回放
-                    </button>
+                      <Eye size={15} /> 打开桌面回放
+                    </ActionButton>
+                  ) : null}
+                </div>
+                {isLoadingContext && !replay ? (
+                  <LoadingState variant="panel" className="mt-3" label="读取回放" />
+                ) : replay ? (
+                  <>
+                    <div className="mt-4 max-w-sm">
+                      <CheckpointNavigator
+                        currentIndex={currentCheckpointIndex}
+                        total={checkpointEntries.length}
+                        canPrevious={canGoPreviousCheckpoint && !isLoadingNode}
+                        canNext={canGoNextCheckpoint && !isLoadingNode}
+                        onPrevious={() => handleStepCheckpoint(-1)}
+                        onNext={() => handleStepCheckpoint(1)}
+                      />
+                    </div>
                     {replay.partialReasonSummary ? (
                       <PartialRecordNotice detail={replay.partialReasonSummary} compact />
                     ) : null}
-                  </div>
-                ) : (
-                  <EmptyPanel
+                    {timeline.length > 0 ? (
+                      <VirtualizedTimeline
+                        key={selectedMatchId}
+                        timeline={timeline}
+                        checkpointSeq={checkpointSeq}
+                        onSelect={handleSelectTimeline}
+                      />
+                    ) : (
+                      <p className="mt-4 text-sm text-[var(--text-muted)]">
+                        这场对局暂无可读进程。
+                      </p>
+                    )}
+                  </>
+                ) : !contextError ? (
+                  <EmptyState
+                    variant="panel"
+                    className="mt-3"
                     title={
                       selectedRecord?.completeness === 'METADATA_ONLY'
                         ? '回放数据已清理'
-                        : '暂无 checkpoint'
+                        : '暂无可用回放'
                     }
-                    detail={
+                    description={
                       selectedRecord?.completeness === 'METADATA_ONLY'
-                        ? '该对局仅保留结果、参与者和卡组来源等元信息。'
-                        : '选择带 checkpoint 的 timeline 节点。'
+                        ? '完整回放保留最近 10 天，该对局仅保留结果和卡组来源等信息。'
+                        : '这场对局尚无可读取的回放。'
                     }
                   />
-                )}
-              </div>
-
-              <div className="surface-panel rounded-lg p-4">
-                <PanelTitle
-                  icon={<ListTree size={16} />}
-                  title="对局进程"
-                  detail={timeline.length > 0 ? `${timeline.length} 条` : '无记录'}
-                />
-                {isLoadingContext && timeline.length === 0 ? (
-                  <LoadingPanel label="读取 timeline" />
-                ) : timeline.length === 0 ? (
-                  <EmptyPanel
-                    title={
-                      selectedRecord?.completeness === 'METADATA_ONLY'
-                        ? '时间线已清理'
-                        : '暂无 timeline'
-                    }
-                    detail={
-                      selectedRecord?.completeness === 'METADATA_ONLY'
-                        ? '完整回放仅保留最近 10 天。'
-                        : '该记录还没有可读时间线。'
-                    }
-                  />
-                ) : (
-                  <VirtualizedTimeline
-                    timeline={timeline}
-                    checkpointSeq={checkpointSeq}
-                    onSelect={handleSelectTimeline}
-                  />
-                )}
-              </div>
-            </section>
+                ) : null}
+              </Panel>
+            ) : null}
 
             {replay ? (
-              <section className="surface-panel rounded-lg p-4">
+              <Panel as="section" padding="compact" className="min-w-0">
                 <button
                   type="button"
                   onClick={handleToggleDebugDetails}
@@ -1123,7 +1257,7 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
                   </span>
                 </button>
                 {debugDetailsOpen && isLoadingAudit ? (
-                  <LoadingPanel label="读取审计详情" />
+                  <LoadingState variant="panel" className="mt-3" label="读取审计详情" />
                 ) : debugDetailsOpen && auditError ? (
                   <div className="mt-3 rounded-lg border border-[color:var(--semantic-error)]/40 bg-[color:var(--semantic-error)]/10 px-3 py-2 text-xs text-[var(--semantic-error)]">
                     {auditError}
@@ -1158,32 +1292,29 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
                     按需查看阶段、事件、决策与卡牌投影等审计信息。
                   </p>
                 )}
-              </section>
+              </Panel>
             ) : null}
           </section>
         </div>
       </main>
-      {replay ? (
-        <div className="fixed inset-x-3 bottom-3 z-[220] md:hidden">
-          <div className="flex items-center gap-3 rounded-xl border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] px-3 py-2.5 shadow-[var(--shadow-lg)] backdrop-blur-xl">
+      {replay && mobileDetailOpen ? (
+        <div className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-[220] lg:hidden">
+          <div className="flex items-center gap-3 rounded-[var(--radius-panel)] border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2.5 shadow-[var(--shadow-md)]">
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-semibold text-[var(--accent-primary)]">
-                当前回放节点
-              </div>
+              <div className="text-xs font-semibold text-[var(--text-secondary)]">当前回放节点</div>
               <div className="truncate text-xs text-[var(--text-muted)]">
                 Checkpoint {replay.replayPosition.checkpointSeq} ·{' '}
                 {selectedRecord ? formatRecordTitle(selectedRecord) : '历史对局'}
               </div>
             </div>
-            <button
-              type="button"
+            <ActionButton
               onClick={() => void handleOpenReplayBoard()}
               disabled={isLoadingNode}
-              className="button-primary inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50"
+              className="shrink-0"
             >
               <Eye size={14} />
               打开回放
-            </button>
+            </ActionButton>
           </div>
         </div>
       ) : null}
@@ -1301,49 +1432,83 @@ export function ReplayBoardSurface({
   );
 }
 
-function MatchRecordButton({
+export function MatchRecordButton({
   record,
   selected,
+  personal,
+  buttonRef,
   onClick,
 }: {
   record: MatchRecordSummaryView;
   selected: boolean;
+  personal: boolean;
+  buttonRef?: Ref<HTMLButtonElement>;
   onClick: () => void;
 }) {
-  const title = formatRecordTitle(record);
-
+  const title = personal
+    ? record.matchMode === 'SOLITAIRE'
+      ? '对墙打'
+      : `对战 ${record.opponentDisplayName ?? '未知对手'}`
+    : formatRecordTitle(record);
+  const result = personal ? formatPersonalResult(record) : null;
   return (
     <button
       type="button"
+      ref={buttonRef}
       onClick={onClick}
-      className={`w-full border-b border-[var(--border-subtle)] px-2.5 py-2.5 text-left transition last:border-b-0 ${
-        selected
-          ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_11%,var(--bg-surface))]'
-          : 'bg-transparent hover:bg-[var(--bg-elevated)]'
-      }`}
+      aria-current={selected ? 'true' : undefined}
+      className={`block w-full min-w-0 border-b border-[var(--border-subtle)] px-3 py-3 text-left transition last:border-b-0 ${selected ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_8%,var(--bg-surface))]' : 'bg-transparent hover:bg-[var(--bg-elevated)]'}`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-sm font-bold text-[var(--text-primary)]">{title}</div>
-          <div className="mt-1 flex min-w-0 items-center gap-2 overflow-hidden text-[11px] text-[var(--text-muted)]">
-            <span>{formatDateTime(record.startedAt)}</span>
-            <span>T{record.turnCount}</span>
-            <span className="truncate">{shortId(record.matchId)}</span>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <ModePill record={record} />
+      <div className="flex min-w-0 items-start gap-2">
+        {result ? (
+          <span
+            className={`shrink-0 text-sm font-semibold ${result === '胜利' ? 'text-[var(--semantic-success)]' : result === '失败' ? 'text-[var(--semantic-error)]' : 'text-[var(--text-secondary)]'}`}
+          >
+            {result}
+          </span>
+        ) : null}
+        <span className="min-w-0 flex-1 break-words text-sm font-semibold text-[var(--text-primary)] [overflow-wrap:anywhere] line-clamp-2">
+          {title}
+        </span>
+      </div>
+      <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--text-muted)]">
+        <span>{formatDateTime(record.startedAt)}</span>
+        <span>{record.turnCount} 回合</span>
+        {!personal ? <span className="font-mono">{shortId(record.matchId)}</span> : null}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <MatchModeLabel record={record} />
+        {!personal ||
+        record.completeness !== 'FULL' ||
+        record.status === 'INTERRUPTED' ||
+        record.status === 'CORRUPTED' ? (
           <StatusPill status={record.status} completeness={record.completeness} />
-        </div>
+        ) : null}
       </div>
       {record.partialReasonSummary ? (
-        <div className="mt-2 flex items-center gap-1.5 text-xs text-[var(--semantic-warning)]">
-          <AlertTriangle size={13} />
-          <span className="truncate">{record.partialReasonSummary}</span>
+        <div className="mt-2 flex min-w-0 items-start gap-1.5 text-xs text-[var(--semantic-warning)]">
+          <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+          <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+            {record.partialReasonSummary}
+          </span>
         </div>
       ) : null}
     </button>
   );
+}
+
+export function formatPersonalResult(
+  record: Pick<
+    MatchRecordSummaryView,
+    'matchMode' | 'status' | 'winnerSeat' | 'viewerSeat' | 'endReason'
+  >
+): string {
+  if (record.status === 'IN_PROGRESS') return '进行中';
+  if (record.status === 'INTERRUPTED') return '中断';
+  if (record.status === 'CORRUPTED') return '异常';
+  if (record.endReason === 'DRAW') return '平局';
+  if (record.winnerSeat) return record.winnerSeat === record.viewerSeat ? '胜利' : '失败';
+  return record.status === 'SURRENDERED' ? '认输结束' : '已结束';
 }
 
 function SeatSegmentedControl({
@@ -1412,13 +1577,15 @@ function MatchRecordSummary({
       : null;
 
   return (
-    <div className="mt-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-3">
+    <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
       <div className="flex flex-wrap items-center gap-2">
-        <ModePill record={record} />
-        <span className="text-sm font-semibold text-[var(--text-primary)]">{resultSummary}</span>
+        <MatchModeLabel record={record} />
+        <span className="min-w-0 break-words text-sm font-semibold text-[var(--text-primary)] [overflow-wrap:anywhere]">
+          {resultSummary}
+        </span>
       </div>
       {deckSummary ? (
-        <div className="mt-2 border-t border-[var(--border-subtle)] pt-2 text-xs text-[var(--text-muted)]">
+        <div className="mt-2 break-words text-xs text-[var(--text-secondary)] [overflow-wrap:anywhere]">
           {formatSeatPerspective(viewerSeat)}卡组：
           <span className="font-medium text-[var(--text-secondary)]">{deckSummary}</span>
         </div>
@@ -1427,7 +1594,7 @@ function MatchRecordSummary({
   );
 }
 
-function TimelineRow({
+export function TimelineRow({
   entry,
   selected,
   onClick,
@@ -1443,9 +1610,9 @@ function TimelineRow({
       onClick={onClick}
       disabled={!hasCheckpoint}
       title={entry.summary}
-      className={`grid h-14 w-full grid-cols-[1.75rem_minmax(0,1fr)] items-center gap-2.5 border-b border-[var(--border-subtle)] px-3 py-2 text-left transition last:border-b-0 ${
+      className={`grid h-[76px] w-full grid-cols-[1.75rem_minmax(0,1fr)] items-center gap-2.5 border-b border-[var(--border-subtle)] px-3 py-2 text-left transition last:border-b-0 ${
         selected
-          ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-surface))]'
+          ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_8%,var(--bg-surface))]'
           : 'bg-transparent hover:bg-[var(--bg-overlay)]'
       } disabled:cursor-default disabled:opacity-70`}
     >
@@ -1453,23 +1620,22 @@ function TimelineRow({
         {entry.timelineSeq}
       </div>
       <div className="min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-xs font-semibold text-[var(--text-primary)]">
-            {formatFrameTypeLabel(entry.frameType)}
-          </span>
+        <div className="line-clamp-2 break-words text-sm font-medium leading-5 text-[var(--text-primary)] [overflow-wrap:anywhere]">
+          {entry.summary || formatFrameTypeLabel(entry.frameType)}
+        </div>
+        <div className="mt-1 flex flex-wrap gap-x-2 text-xs text-[var(--text-muted)]">
+          <span>第 {entry.turnCount} 回合</span>
+          <span>{getPhaseName(entry.phase as GamePhase)}</span>
           {hasCheckpoint ? (
-            <span className="shrink-0 text-[10px] font-medium text-[var(--accent-primary)]">
-              节点 {entry.relatedCheckpointSeq}
-            </span>
+            <span className="text-[var(--accent-primary)]">节点 {entry.relatedCheckpointSeq}</span>
           ) : null}
         </div>
-        <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">第 {entry.turnCount} 回合</div>
       </div>
     </button>
   );
 }
 
-const TIMELINE_ROW_HEIGHT = 56;
+const TIMELINE_ROW_HEIGHT = 76;
 const TIMELINE_VIEWPORT_HEIGHT = 560;
 const TIMELINE_OVERSCAN_ROWS = 6;
 
@@ -1560,33 +1726,31 @@ function CheckpointNavigator({
   const label = currentIndex >= 0 ? `${currentIndex + 1} / ${total}` : `0 / ${total}`;
 
   return (
-    <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2">
-      <button
-        type="button"
+    <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2">
+      <ActionButton
+        variant="icon"
         onClick={onPrevious}
         disabled={!canPrevious}
-        className="button-icon h-9 w-9 disabled:cursor-default disabled:opacity-40"
         aria-label="上一个回放节点"
         title="上一个回放节点"
       >
         <ChevronLeft size={16} />
-      </button>
+      </ActionButton>
       <div className="min-w-0 text-center">
         <div className="text-xs text-[var(--text-muted)]">回放节点</div>
         <div className="mt-0.5 truncate font-mono text-sm font-bold text-[var(--text-primary)]">
           {label}
         </div>
       </div>
-      <button
-        type="button"
+      <ActionButton
+        variant="icon"
         onClick={onNext}
         disabled={!canNext}
-        className="button-icon h-9 w-9 disabled:cursor-default disabled:opacity-40"
         aria-label="下一个回放节点"
         title="下一个回放节点"
       >
         <ChevronRight size={16} />
-      </button>
+      </ActionButton>
     </div>
   );
 }
@@ -1956,15 +2120,20 @@ function PanelTitle({
   detail: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="text-[var(--accent-primary)]">{icon}</span>
-        <h2 className="truncate text-sm font-semibold text-[var(--text-primary)]">{title}</h2>
-      </div>
-      <span className="max-w-[45%] shrink-0 truncate text-right text-xs text-[var(--text-muted)]">
-        {detail}
-      </span>
-    </div>
+    <SectionHeading
+      size="compact"
+      title={
+        <span className="flex min-w-0 items-start gap-2">
+          <span className="shrink-0 text-[var(--accent-primary)]">{icon}</span>
+          <span className="min-w-0 break-words [overflow-wrap:anywhere]">{title}</span>
+        </span>
+      }
+      action={
+        detail ? (
+          <span className="truncate text-right text-xs text-[var(--text-muted)]">{detail}</span>
+        ) : undefined
+      }
+    />
   );
 }
 
@@ -1977,24 +2146,6 @@ function MiniMetric({ label, value }: { label: string; value: string | number })
   );
 }
 
-function LoadingPanel({ label }: { label: string }) {
-  return (
-    <div className="mt-3 flex min-h-36 items-center justify-center rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-sm text-[var(--text-muted)]">
-      <RefreshCw size={15} className="mr-2 animate-spin" />
-      {label}
-    </div>
-  );
-}
-
-function EmptyPanel({ title, detail }: { title: string; detail: string }) {
-  return (
-    <div className="mt-3 rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-4 py-8 text-center">
-      <div className="text-sm font-semibold text-[var(--text-secondary)]">{title}</div>
-      <div className="mt-1 text-xs text-[var(--text-muted)]">{detail}</div>
-    </div>
-  );
-}
-
 function StatusPill({
   status,
   completeness,
@@ -2002,26 +2153,17 @@ function StatusPill({
   status: MatchRecordSummaryView['status'];
   completeness: MatchRecordSummaryView['completeness'];
 }) {
-  const tone =
-    completeness !== 'FULL'
-      ? 'border-[color:var(--semantic-warning)]/40 text-[var(--semantic-warning)]'
-      : status === 'COMPLETED'
-        ? 'border-[color:var(--semantic-success)]/40 text-[var(--semantic-success)]'
-        : 'border-[var(--border-subtle)] text-[var(--text-muted)]';
+  const tone = completeness !== 'FULL' ? 'warning' : status === 'COMPLETED' ? 'success' : 'neutral';
   return (
-    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tone}`}>
+    <StatusBadge tone={tone} className="shrink-0">
       {formatRecordStatus({ status, completeness })}
-    </span>
+    </StatusBadge>
   );
 }
 
-function ModePill({ record }: { record: MatchRecordSummaryView }) {
-  const tone =
-    record.matchMode === 'SOLITAIRE'
-      ? 'border-[color:var(--semantic-warning)]/35 text-[var(--semantic-warning)]'
-      : 'border-[var(--border-subtle)] text-[var(--text-muted)]';
+function MatchModeLabel({ record }: { record: MatchRecordSummaryView }) {
   return (
-    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tone}`}>
+    <span className="shrink-0 text-xs text-[var(--text-secondary)]">
       {formatMatchModeLabel(record)}
     </span>
   );

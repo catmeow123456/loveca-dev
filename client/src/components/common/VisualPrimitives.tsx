@@ -38,6 +38,7 @@ export interface SectionHeadingProps extends Omit<HTMLAttributes<HTMLDivElement>
   eyebrow?: ReactNode;
   action?: ReactNode;
   level?: 2 | 3;
+  size?: 'default' | 'compact';
 }
 
 export function SectionHeading({
@@ -46,13 +47,21 @@ export function SectionHeading({
   eyebrow,
   action,
   level = 2,
+  size = 'default',
   className,
   ...props
 }: SectionHeadingProps) {
   const Heading = level === 2 ? 'h2' : 'h3';
 
   return (
-    <div className={cn('ui-section-heading', className)} {...props}>
+    <div
+      className={cn(
+        'ui-section-heading',
+        size === 'compact' && 'ui-section-heading--compact',
+        className
+      )}
+      {...props}
+    >
       <div className="min-w-0">
         {eyebrow ? <div className="ui-section-heading__eyebrow">{eyebrow}</div> : null}
         <Heading className="ui-section-heading__title">{title}</Heading>

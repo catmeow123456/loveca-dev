@@ -74,7 +74,7 @@ async function setup(page: Page, role: 'user' | 'season_admin' | 'admin', missin
       },
     })
   );
-  await page.route('**/api/battle/match-records', (route) => reply(route, [own]));
+  await page.route(/\/api\/battle\/match-records(?:\?.*)?$/, (route) => reply(route, [own]));
   let releaseList = () => {};
   const listGate = new Promise<void>((resolve) => {
     releaseList = resolve;
@@ -125,6 +125,9 @@ for (const role of ['user', 'season_admin', 'admin'] as const) {
     await expect(requested).toBeVisible();
     expect(detailRequests).toEqual([own.matchId]);
     if (role !== 'user') {
+      if (page.viewportSize()!.width < 1024) {
+        await page.getByRole('button', { name: '返回对局列表', exact: true }).click();
+      }
       const listed = page.getByRole('button', { name: /视觉验收玩家 vs 全站对手0\s/ });
       await listed.click();
       await expect(requested).toHaveCount(0);
@@ -152,4 +155,132 @@ test('指定详情读取失败时显示错误，不改为全站其他记录', as
   await expect(
     page.getByRole('heading', { name: '视觉验收玩家 vs 全站对手0', exact: true })
   ).toHaveCount(0);
+});
+
+test('个人历史分页、列表刷新失败与详情重试各自保留上下文', async ({ page }) => {
+  await setup(page, 'user');
+  const items = Array.from({ length: 65 }, (_, index) =>
+    record(`page-${index}`, `分页对手 ${index}`)
+  );
+  const offsets: number[] = [];
+  let failList = false;
+  let failDetail = true;
+  await page.route(/\/api\/battle\/match-records(?:\?.*)?$/, async (route) => {
+    const query = new URL(route.request().url()).searchParams;
+    if (!query.has('limit')) return reply(route, [own]);
+    if (failList)
+      return route.fulfill({
+        status: 503,
+        json: { data: null, error: { code: 'UNAVAILABLE', message: '暂时无法刷新列表' } },
+      });
+    const offset = Number(query.get('offset'));
+    offsets.push(offset);
+    await reply(route, items.slice(offset, offset + Number(query.get('limit'))));
+  });
+  await page.route(/\/api\/battle\/match-records\/page-\d+$/, async (route) => {
+    if (failDetail)
+      return route.fulfill({
+        status: 503,
+        json: { data: null, error: { code: 'UNAVAILABLE', message: '暂时无法读取这场对局' } },
+      });
+    await reply(
+      route,
+      items.find((item) => route.request().url().endsWith(item.matchId))
+    );
+  });
+  await page.goto('/');
+  await page
+    .getByRole('region', { name: '最近一场', exact: true })
+    .getByRole('button', { name: /本人上一场对手/ })
+    .click();
+  const list = page.getByRole('region', { name: '对局列表', exact: true });
+  const detail = page.getByRole('region', { name: '对局详情', exact: true });
+  const narrow = page.viewportSize()!.width < 1024;
+  if (narrow) {
+    await expect(list).toBeHidden();
+    await page.getByRole('button', { name: '返回对局列表' }).click();
+  }
+  await expect(list.getByRole('button', { name: /对战 分页对手 29\s/ })).toBeVisible();
+  await list.getByRole('button', { name: '加载更多对局' }).click();
+  await expect(list.getByRole('button', { name: /对战 分页对手 59\s/ })).toBeVisible();
+  await list.getByRole('button', { name: '加载更多对局' }).click();
+  await expect(list.getByRole('button', { name: /对战 分页对手 64\s/ })).toBeVisible();
+  await expect(list.getByRole('button', { name: '加载更多对局' })).toHaveCount(0);
+  expect(offsets).toEqual([0, 30, 60]);
+  const chosen = list.getByRole('button', { name: /对战 分页对手 29\s/ });
+  await chosen.scrollIntoViewIfNeeded();
+  const listScroll = await list.evaluate((element) => element.closest('.app-shell')!.scrollTop);
+  await chosen.click();
+  await expect(detail.getByRole('alert')).toContainText('暂时无法读取这场对局');
+  if (narrow) await expect(list).toBeHidden();
+  failDetail = false;
+  await detail.getByRole('alert').getByRole('button', { name: '重试' }).click();
+  await expect(
+    detail.getByRole('heading', { name: '视觉验收玩家 vs 分页对手 29', exact: true })
+  ).toBeVisible();
+  if (narrow) {
+    await page.getByRole('button', { name: '返回对局列表' }).click();
+    await expect(chosen).toBeFocused();
+    await expect
+      .poll(() => list.evaluate((element) => element.closest('.app-shell')!.scrollTop))
+      .toBeGreaterThan(listScroll - 5);
+  }
+  failList = true;
+  await page.getByRole('button', { name: '刷新历史对局', exact: true }).click();
+  await expect(list.getByRole('alert')).toContainText('暂时无法刷新列表');
+  await expect(chosen).toHaveAttribute('aria-current', 'true');
+  await expect(list.getByText('暂无历史对局', { exact: true })).toHaveCount(0);
+  failList = false;
+  await list.getByRole('alert').getByRole('button', { name: '重试' }).click();
+  await expect(list.getByRole('alert')).toHaveCount(0);
+  await expect(chosen).toHaveAttribute('aria-current', 'true');
+});
+
+test('历史筛选按需展开，查询和服务失败重试保留条件', async ({ page }) => {
+  await setup(page, 'season_admin');
+  let failList = true;
+  const queries: URLSearchParams[] = [];
+  await page.route(/\/api\/battle\/admin\/match-records(?:\?.*)?$/, async (route) => {
+    queries.push(new URL(route.request().url()).searchParams);
+    if (failList)
+      return route.fulfill({
+        status: 503,
+        json: { data: null, error: { code: 'UNAVAILABLE', message: '对战服务暂不可用' } },
+      });
+    await reply(route, globalRecords);
+  });
+  await page.goto('/?page=match-records');
+  const list = page.getByRole('region', { name: '对局列表', exact: true });
+  const filters = page.getByRole('form', { name: '对局筛选', exact: true });
+  const toggle = filters.getByRole('button', { name: '筛选对局', exact: true });
+  await expect(list.getByRole('alert')).toContainText('对战服务暂不可用');
+  await expect(list.getByText('0 条', { exact: true })).toHaveCount(0);
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(filters.getByLabel('玩家 A', { exact: true })).toBeHidden();
+  await toggle.click();
+  await filters.getByLabel('搜索参与者或对局', { exact: true }).fill('ROOM');
+  await filters.getByLabel('玩家 A', { exact: true }).fill('Alpha');
+  await filters.getByLabel('玩家 B', { exact: true }).fill('Beta');
+  await filters.getByLabel('开始', { exact: true }).fill('2026-10-20');
+  await filters.getByLabel('结束', { exact: true }).fill('2026-10-23');
+  await toggle.click();
+  await toggle.click();
+  await expect(filters.getByLabel('玩家 A', { exact: true })).toHaveValue('Alpha');
+  await filters.getByRole('button', { name: '查询', exact: true }).click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(toggle).toBeFocused();
+  await expect.poll(() => queries.at(-1)?.get('playerBQuery')).toBe('Beta');
+  expect(Object.fromEntries(queries.at(-1)!)).toMatchObject({
+    userQuery: 'ROOM',
+    playerAQuery: 'Alpha',
+    playerBQuery: 'Beta',
+  });
+  await expect(filters.getByRole('status')).toHaveText('5 项生效');
+  failList = false;
+  await list.getByRole('alert').getByRole('button', { name: '重试', exact: true }).click();
+  await expect(list.getByRole('alert')).toHaveCount(0);
+  expect(queries.at(-1)?.get('playerAQuery')).toBe('Alpha');
+  await filters.getByRole('button', { name: '清空', exact: true }).click();
+  await expect.poll(() => queries.at(-1)?.toString()).toBe('');
+  await expect(filters.getByRole('button', { name: '清空', exact: true })).toBeDisabled();
 });
