@@ -16,6 +16,10 @@
 
 - **可理解、可预测、可恢复。** Nielsen 的启发式关注状态可见、用户语言、一致性、识别而非记忆、用户控制、错误预防与恢复，以及内容相关性。可据此检查当前任务哪里需要猜测、记忆或重复操作。这些是诊断方向，不是规定组件外观的规范；精简的依据是信息与任务的关系。[NN/g：10 Usability Heuristics](https://www.nngroup.com/articles/ten-usability-heuristics/)
 
+- **信息按任务重要性与使用频率分层。** NN/g 的渐进式披露建议优先呈现重要、频繁需要的信息，将较少使用的内容放到后续层级，并让入口容易发现。其简约设计启发式强调保留支持任务的必要信息、减少竞争注意力的干扰。应用时权衡常驻信息的扫描负担与展开详情的访问成本，不把减少内容或增加交互次数当成独立目标。[Progressive Disclosure](https://www.nngroup.com/articles/progressive-disclosure/)、[Aesthetic and Minimalist Design](https://www.nngroup.com/articles/aesthetic-minimalist-design/)
+
+- **图形可识别不等于含义可理解。** NN/g 的图标可用性建议指出，用户理解依赖既有经验，许多图标有歧义，文字标签有助于明确含义。应用时结合上下文判断是否能准确传达动作或状态；图标节省空间不能直接证明理解更快，也不能替代对真实用户理解的验证。[Icon Usability](https://www.nngroup.com/articles/icon-usability/)
+
 ## 无障碍与工程
 
 - **无障碍有可检验的要求。** WCAG 2.2 从可感知、可操作、可理解和健壮性组织要求；涉及对比度、键盘、焦点、目标尺寸、重排、状态消息与输入错误时，查对应条款及适用条件。满足标准仍需结合实际用户与任务判断体验。[W3C WCAG 2.2](https://www.w3.org/TR/WCAG22/)
