@@ -1,3 +1,4 @@
+import { rulesetCardForSelection } from '../../domain/rules/battle-ruleset.js';
 import type { CardInstance } from '../../domain/entities/card.js';
 import type { ActiveEffectState, GameState } from '../../domain/entities/game.js';
 import { getCardById, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
@@ -58,7 +59,9 @@ export function selectWaitingRoomCardIds(
 
   return player.waitingRoom.cardIds.filter((cardId) => {
     const card = getCardById(game, cardId);
-    return card !== null && card.ownerId === playerId && predicate(card);
+    return (
+      card !== null && card.ownerId === playerId && predicate(rulesetCardForSelection(game, card))
+    );
   });
 }
 

@@ -45,7 +45,7 @@ export function CasualTableGlobalLayer() {
         const table = current.status?.table;
         if (
           table &&
-          (['WAITING', 'RESERVED', 'BOOTSTRAPPING'].includes(table.state) ||
+          (['WAITING', 'RESERVED', 'BUILDING', 'BOOTSTRAPPING'].includes(table.state) ||
             (table.state === 'BOUND' && table.runtime?.status === 'ENDED')) &&
           Date.now() - lastHeartbeat >= (table.state === 'BOUND' ? 5_000 : 15_000) &&
           !current.busy
@@ -98,9 +98,11 @@ export function CasualTableGlobalLayer() {
       <span>
         {table.state === 'WAITING'
           ? '房间正在等人'
-          : table.state === 'BOOTSTRAPPING'
-            ? '双方已确认，正在开局'
-            : '对手已加入，等待本轮确认'}{' '}
+          : table.state === 'BUILDING'
+            ? '开盒组牌进行中'
+            : table.state === 'BOOTSTRAPPING'
+              ? '双方已确认，正在开局'
+              : '对手已加入，等待本轮确认'}{' '}
         · <span className="font-mono">{table.roomCode}</span>
       </span>
       <button className="button-primary" onClick={() => openCasualDestination('battle-lobby')}>

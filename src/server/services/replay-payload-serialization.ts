@@ -169,6 +169,13 @@ function normalizePersistedAuthorityGameState(
     );
   }
 
+  if (state.rulesetId !== 'STANDARD' && state.rulesetId !== 'SEALED_HALF_GRAY_V1') {
+    throw new ReplayPayloadSerializationError(
+      'AUTHORITY_GAME_STATE 缺少有效的 rulesetId，请先迁移历史快照',
+      'CORRUPTED'
+    );
+  }
+
   const liveResolution = state.liveResolution as unknown;
   if (!isRecord(liveResolution) || !Array.isArray(liveResolution.liveModifiers)) {
     throw new ReplayPayloadSerializationError(
@@ -757,4 +764,64 @@ function toStableJsonValue(value: unknown): unknown {
   }
 
   return value;
+}
+
+/** Explicit offline migration only. Live readers never infer a missing ruleset. */
+export function migrateBattleRulesetCheckpoint(
+  envelope: ReplaySerializedPayloadEnvelope
+): ReplaySerializedPayloadEnvelope {
+  if (
+    envelope.payloadKind === 'AUTHORITY_GAME_STATE' &&
+    envelope.sourceSchemaVersion === GAME_STATE_SCHEMA_VERSION
+  ) {
+    rehydrateAuthorityGameState(envelope);
+    return envelope;
+  }
+  const value = fromTransport<unknown>(
+    readValidatedTransportPayload(
+      envelope,
+      undefined,
+      envelope.compression === 'NONE' ? 'legacy' : 'current'
+    )
+  );
+  if (!isRecord(value)) throw new ReplayPayloadSerializationError('历史快照结构无效', 'CORRUPTED');
+  if (envelope.payloadKind === 'AUTHORITY_GAME_STATE') {
+    if (
+      !['GAME_STATE_V1', 'GAME_STATE_V2'].includes(envelope.sourceSchemaVersion) ||
+      (value.rulesetId !== undefined && value.rulesetId !== 'STANDARD')
+    ) {
+      throw new ReplayPayloadSerializationError('历史规则集无法无损迁移');
+    }
+    const state = normalizePersistedAuthorityGameState(
+      { ...value, rulesetId: 'STANDARD' } as unknown as LegacyAuthorityGameStatePayload,
+      envelope.sourceSchemaVersion === LEGACY_GAME_STATE_SCHEMA_VERSION
+        ? LEGACY_GAME_STATE_SCHEMA_VERSION
+        : GAME_STATE_SCHEMA_VERSION
+    );
+    return serializeReplayPayload(state, envelope.payloadKind, GAME_STATE_SCHEMA_VERSION);
+  }
+  if (
+    envelope.payloadKind === 'PLAYER_VIEW_STATE' ||
+    envelope.payloadKind === 'PUBLIC_VIEW_STATE'
+  ) {
+    const legacyViewVersion = `${envelope.payloadKind}_V1`;
+    const currentViewVersion = `${envelope.payloadKind}_V2`;
+    if (![legacyViewVersion, currentViewVersion].includes(envelope.sourceSchemaVersion))
+      throw new ReplayPayloadSerializationError('未知视图快照版本');
+    if (!isRecord(value.match) || typeof value.match.matchId !== 'string')
+      throw new ReplayPayloadSerializationError('历史视图快照结构无效');
+    if (value.match.rulesetId !== undefined) {
+      if (value.match.rulesetId !== 'STANDARD' && value.match.rulesetId !== 'SEALED_HALF_GRAY_V1')
+        throw new ReplayPayloadSerializationError('未知视图规则集');
+      return envelope;
+    }
+    if (envelope.sourceSchemaVersion === currentViewVersion)
+      throw new ReplayPayloadSerializationError('当前视图快照缺少规则集');
+    return serializeReplayPayload(
+      { ...value, match: { ...value.match, rulesetId: 'STANDARD' } },
+      envelope.payloadKind,
+      currentViewVersion
+    );
+  }
+  throw new ReplayPayloadSerializationError('不支持的历史 checkpoint 类型');
 }

@@ -1,3 +1,5 @@
+import { casualEntrySchema } from '../../online/casual-table-schemas.js';
+import { SealedBoxError } from '../../domain/rules/sealed-box.js';
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/require-auth.js';
@@ -17,12 +19,7 @@ const target = z.object({
   revision: z.number().int().positive(),
 });
 const ruleMode = z.enum(['NORMAL', 'UNLIMITED']);
-const entry = z.object({
-  ruleMode,
-  requestId: z.uuid(),
-  deckId: z.uuid(),
-  spectatorEnabled: z.boolean(),
-});
+const entry = casualEntrySchema;
 const targeted = z.object({ target });
 
 casualTablesRouter.get('/me', async (req, res) => {
@@ -37,6 +34,7 @@ casualTablesRouter.get('/rooms', async (req, res) => {
     const query = z
       .object({
         ruleMode: ruleMode.optional(),
+        format: z.enum(['CONSTRUCTED', 'SEALED_BP7']).optional(),
         filter: z.enum(['ALL', 'WAITING', 'PLAYING']).optional(),
         search: z.string().max(80).optional(),
         spectatable: z.enum(['true', 'false']).optional(),
@@ -87,7 +85,7 @@ function mutation<T>(
 mutation('/find', entry, false, (user, data) => service.findOpponent(user, data));
 mutation(
   '/create',
-  entry.extend({
+  entry.safeExtend({
     discoverability: z.enum(['PUBLIC', 'UNLISTED']),
     note: z.string().trim().max(40),
     roomCode: z.string().trim().toUpperCase().optional(),
@@ -138,7 +136,39 @@ mutation(
   (user, data) => service.continuePublic(user, data.target, data.entry, data.publishNewRoom)
 );
 
+mutation(
+  '/sealed/draft',
+  targeted.extend({
+    draftRevision: z.number().int().nonnegative(),
+    indices: z.array(z.number().int().min(0).max(49)).max(24),
+  }),
+  false,
+  (user, data) => service.saveSealedDraft(user, data.target, data.draftRevision, data.indices)
+);
+mutation(
+  '/sealed/ready',
+  targeted.extend({ draftRevision: z.number().int().nonnegative(), ready: z.boolean() }),
+  true,
+  (user, data) => service.setSealedReady(user, data.target, data.draftRevision, data.ready)
+);
+mutation(
+  '/sealed/rematch/request',
+  targeted.extend({ requestId: z.uuid(), kind: z.enum(['SAME_POOL', 'REBOX']) }),
+  true,
+  (user, data) => service.requestSealedRematch(user, data.target, data.requestId, data.kind)
+);
+mutation(
+  '/sealed/rematch/respond',
+  targeted.extend({ requestId: z.uuid(), accept: z.boolean() }),
+  false,
+  (user, data) => service.respondSealedRematch(user, data.target, data.requestId, data.accept)
+);
+
 function respondError(res: Response, error: unknown) {
+  if (error instanceof SealedBoxError) {
+    res.status(409).json({ data: null, error: { code: 'SEALED_INVALID', message: error.message } });
+    return;
+  }
   if (error instanceof z.ZodError) {
     res.status(400).json({
       data: null,

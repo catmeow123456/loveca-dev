@@ -14,6 +14,7 @@ const normalDeck = {
   ),
 };
 const room = (ruleMode: 'NORMAL' | 'UNLIMITED') => ({
+  format: 'CONSTRUCTED',
   ruleMode,
   tableId: ruleMode === 'NORMAL' ? 'normal-table' : 'unlimited-table',
   roundId: 'round',
@@ -114,7 +115,7 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.getByText('标准房主', { exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: '创建房间', exact: true }).click();
     const dialog = page.getByRole('dialog');
-    await dialog.getByRole('button', { name: '更换', exact: true }).click();
+    await dialog.getByRole('button', { name: /^(更换|选择卡组)$/ }).click();
     await dialog.getByRole('button', { name: '超 PT 构筑', exact: true }).click();
     await expect(dialog.getByText('20 PT · 无上限', { exact: true })).toBeVisible();
     await expect(dialog.getByText('构筑未完成', { exact: true })).toHaveCount(0);

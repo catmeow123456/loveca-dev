@@ -1632,12 +1632,13 @@ export const casualTables = pgTable(
   'casual_tables',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    sealedRematch: jsonb('sealed_rematch'),
     roomCode: text('room_code').notNull(),
     discoverability: text('discoverability').$type<'PUBLIC' | 'UNLISTED'>().notNull(),
     note: text('note').notNull().default(''),
     environmentId: text('environment_id').notNull(),
     state: text('state')
-      .$type<'WAITING' | 'RESERVED' | 'BOOTSTRAPPING' | 'BOUND' | 'CLOSED'>()
+      .$type<'WAITING' | 'RESERVED' | 'BUILDING' | 'BOOTSTRAPPING' | 'BOUND' | 'CLOSED'>()
       .notNull(),
     roundId: uuid('round_id').notNull(),
     revision: integer('revision').notNull().default(1),
@@ -1666,7 +1667,7 @@ export const casualTables = pgTable(
     ),
     check(
       'casual_tables_state_check',
-      sql`${table.state} IN ('WAITING', 'RESERVED', 'BOOTSTRAPPING', 'BOUND', 'CLOSED')`
+      sql`${table.state} IN ('WAITING', 'RESERVED', 'BUILDING', 'BOOTSTRAPPING', 'BOUND', 'CLOSED')`
     ),
     check(
       'casual_tables_revision_check',
@@ -1674,7 +1675,7 @@ export const casualTables = pgTable(
     ),
     check(
       'casual_tables_environment_check',
-      sql`${table.environmentId} IN ('CASUAL_TABLE_V1', 'CASUAL_UNLIMITED_PT_V1')`
+      sql`${table.environmentId} IN ('CASUAL_TABLE_V1', 'CASUAL_UNLIMITED_PT_V1', 'CASUAL_SEALED_BP7_V1')`
     ),
     check('casual_tables_note_check', sql`char_length(${table.note}) <= 40`),
     check(
@@ -1683,7 +1684,7 @@ export const casualTables = pgTable(
       (${table.state} = 'CLOSED') = (${table.closedAt} IS NOT NULL)
       AND (${table.state} = 'BOOTSTRAPPING') = (${table.bootstrapLeaseUntil} IS NOT NULL)
       AND (${table.state} = 'BOUND') = (${table.roomGeneration} IS NOT NULL)
-      AND (${table.state} IN ('RESERVED', 'BOOTSTRAPPING')) = (${table.confirmationExpiresAt} IS NOT NULL)
+      AND (${table.state} IN ('RESERVED', 'BUILDING', 'BOOTSTRAPPING')) = (${table.confirmationExpiresAt} IS NOT NULL)
     `
     ),
   ]
@@ -1701,6 +1702,9 @@ export const casualTableSeats = pgTable(
       .references(() => profiles.id, { onDelete: 'cascade' }),
     sourceDeckId: uuid('source_deck_id').references(() => decks.id, { onDelete: 'set null' }),
     deckName: text('deck_name').notNull(),
+    sealedPool: jsonb('sealed_pool'),
+    sealedDraft: jsonb('sealed_draft').notNull().default([]),
+    draftRevision: integer('draft_revision').notNull().default(0),
     runtimeDeck: jsonb('runtime_deck'),
     pointTableVersion: text('point_table_version').notNull(),
     pointTotal: integer('point_total').notNull(),

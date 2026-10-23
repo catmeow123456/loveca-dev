@@ -1,3 +1,4 @@
+import type { CasualFormat, SealedRematch } from '../../online/casual-table-types.js';
 import type { Pool, PoolClient } from 'pg';
 import type {
   CasualTableDiscoverability,
@@ -5,6 +6,15 @@ import type {
   CasualRuleMode,
 } from '../../online/casual-table-types.js';
 
+export const SEALED_ENVIRONMENT_ID = 'CASUAL_SEALED_BP7_V1';
+export function casualFormat(environmentId: string): CasualFormat {
+  if (environmentId === SEALED_ENVIRONMENT_ID) return 'SEALED_BP7';
+  casualRuleMode(environmentId);
+  return 'CONSTRUCTED';
+}
+export function casualEnvironment(ruleMode: CasualRuleMode, format: CasualFormat): string {
+  return format === 'SEALED_BP7' ? SEALED_ENVIRONMENT_ID : CASUAL_ENVIRONMENTS[ruleMode];
+}
 export const CASUAL_ENVIRONMENT_ID = 'CASUAL_TABLE_V1';
 export const CASUAL_ENVIRONMENTS: Record<CasualRuleMode, string> = {
   NORMAL: CASUAL_ENVIRONMENT_ID,
@@ -13,11 +23,13 @@ export const CASUAL_ENVIRONMENTS: Record<CasualRuleMode, string> = {
 
 export function casualRuleMode(environmentId: string): CasualRuleMode {
   if (environmentId === CASUAL_ENVIRONMENTS.NORMAL) return 'NORMAL';
-  if (environmentId === CASUAL_ENVIRONMENTS.UNLIMITED) return 'UNLIMITED';
+  if (environmentId === SEALED_ENVIRONMENT_ID || environmentId === CASUAL_ENVIRONMENTS.UNLIMITED)
+    return 'UNLIMITED';
   throw new Error(`Unknown casual rule environment: ${environmentId}`);
 }
 
 export interface CasualTableRow {
+  sealed_rematch: SealedRematch | null;
   id: string;
   room_code: string;
   discoverability: CasualTableDiscoverability;
@@ -39,6 +51,9 @@ export interface CasualTableRow {
 }
 
 export interface CasualSeatRow {
+  sealed_pool: unknown;
+  sealed_draft: number[];
+  draft_revision: number;
   table_id: string;
   seat: number;
   user_id: string;
@@ -81,7 +96,8 @@ export async function readCasualLobby(
   database: Pick<Pool, 'connect'>,
   userId: string,
   anchor: number,
-  ruleMode: CasualRuleMode
+  ruleMode: CasualRuleMode,
+  format: CasualFormat
 ): Promise<CasualLobbyRow[]> {
   const client = await database.connect();
   try {
@@ -102,7 +118,7 @@ export async function readCasualLobby(
        WHERE tables.discoverability = 'PUBLIC' AND tables.state <> 'CLOSED'
          AND tables.created_at <= $2 AND tables.environment_id = $3
        GROUP BY tables.id`,
-      [userId, new Date(anchor), CASUAL_ENVIRONMENTS[ruleMode]]
+      [userId, new Date(anchor), casualEnvironment(ruleMode, format)]
     );
     return result.rows;
   } finally {
@@ -173,7 +189,7 @@ export async function saveCasualTable(client: PoolClient, row: CasualTableRow): 
   await client.query(
     `UPDATE casual_tables SET state = $2, round_id = $3, revision = $4,
        waiting_since = $5, confirmation_expires_at = $6, bootstrap_lease_until = $7,
-       bootstrap_attempts = $8, room_generation = $9, failure_reason = $10, closed_at = $11
+       bootstrap_attempts = $8, room_generation = $9, failure_reason = $10, closed_at = $11, sealed_rematch = $12::jsonb
      WHERE id = $1`,
     [
       row.id,
@@ -187,6 +203,7 @@ export async function saveCasualTable(client: PoolClient, row: CasualTableRow): 
       row.room_generation,
       row.failure_reason,
       row.closed_at,
+      JSON.stringify(row.sealed_rematch),
     ]
   );
 }
@@ -216,8 +233,8 @@ export async function insertCasualSeat(client: PoolClient, row: CasualSeatRow): 
   await client.query(
     `INSERT INTO casual_table_seats (table_id, seat, user_id, source_deck_id, deck_name,
        runtime_deck, point_table_version, point_total, point_limit,
-       locked_at, heartbeat_at, waiting_since, continue_public, spectator_enabled, confirmed_at)
-     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+       locked_at, heartbeat_at, waiting_since, continue_public, spectator_enabled, confirmed_at, sealed_pool, sealed_draft, draft_revision)
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17::jsonb, $18)`,
     [
       row.table_id,
       row.seat,
@@ -234,6 +251,9 @@ export async function insertCasualSeat(client: PoolClient, row: CasualSeatRow): 
       row.continue_public,
       row.spectator_enabled,
       row.confirmed_at,
+      row.sealed_pool === null ? null : JSON.stringify(row.sealed_pool),
+      JSON.stringify(row.sealed_draft),
+      row.draft_revision,
     ]
   );
 }

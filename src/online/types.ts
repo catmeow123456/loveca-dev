@@ -1,3 +1,4 @@
+import type { BattleRulesetId } from '../domain/rules/battle-ruleset.js';
 import {
   BladeHeartEffect,
   CardType,
@@ -120,6 +121,7 @@ export interface ViewWindowState {
 }
 
 export interface MatchViewState {
+  readonly rulesetId: BattleRulesetId;
   readonly matchId: string;
   readonly viewerSeat: Seat;
   readonly participants: Readonly<Record<Seat, ViewParticipant>>;

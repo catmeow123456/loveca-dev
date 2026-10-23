@@ -1,3 +1,4 @@
+import { rulesetCardForSelection } from '../../domain/rules/battle-ruleset.js';
 import type { CardInstance } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
 import { getCardById, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
@@ -79,7 +80,10 @@ function inspectDeckEdgeCards(
   const selectableCardIds = config.selectablePredicate
     ? inspectedCardIds.filter((cardId) => {
         const card = getCardById(state, cardId);
-        return card !== null && config.selectablePredicate?.(card) === true;
+        return (
+          card !== null &&
+          config.selectablePredicate?.(rulesetCardForSelection(state, card)) === true
+        );
       })
     : inspectedCardIds;
 
@@ -145,7 +149,7 @@ export function inspectTopCardsUntilMatch(
     state = inspection.gameState;
     inspectedCardIds.push(inspectedCardId);
     const inspectedCard = getCardById(state, inspectedCardId);
-    if (inspectedCard && predicate(state, inspectedCard)) {
+    if (inspectedCard && predicate(state, rulesetCardForSelection(state, inspectedCard))) {
       return { gameState: state, inspectedCardIds, hitCardId: inspectedCardId };
     }
   }
