@@ -81,11 +81,12 @@ export function registerNBp3008EmmaWorkflowHandlers(deps: {
   registerActiveEffectStepHandler(
     PL_N_BP3_008_ACTIVATED_WAIT_OTHER_NIJIGASAKI_DRAW_ONE_ABILITY_ID,
     N_BP3_008_ACTIVATED_SELECT_WAIT_TARGET_STEP_ID,
-    (game, input) =>
+    (game, input, context) =>
       finishActivatedWaitOtherNijigasakiDrawOne(
         game,
         input.selectedCardId ?? null,
-        deps.enqueueTriggeredCardEffects
+        deps.enqueueTriggeredCardEffects,
+        context.continuePendingCardEffects
       ),
     queryCardSelection
   );
@@ -188,7 +189,8 @@ function startActivatedWaitOtherNijigasakiDrawOne(
 function finishActivatedWaitOtherNijigasakiDrawOne(
   game: GameState,
   selectedCardId: string | null,
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects,
+  continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
@@ -248,14 +250,17 @@ function finishActivatedWaitOtherNijigasakiDrawOne(
   }
   state = drawResult.gameState;
 
-  return addAction({ ...state, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    sourceSlot: effect.metadata?.sourceSlot,
-    step: 'WAIT_OTHER_NIJIGASAKI_DRAW_ONE',
-    waitedMemberCardId: selectedCardId,
-    drawnCardIds: drawResult.drawnCardIds,
-  });
+  return continuePendingCardEffects(
+    addAction({ ...state, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      sourceSlot: effect.metadata?.sourceSlot,
+      step: 'WAIT_OTHER_NIJIGASAKI_DRAW_ONE',
+      waitedMemberCardId: selectedCardId,
+      drawnCardIds: drawResult.drawnCardIds,
+    }),
+    false
+  );
 }
 
 function startLiveStartDiscardTwoActivateOtherMember(
