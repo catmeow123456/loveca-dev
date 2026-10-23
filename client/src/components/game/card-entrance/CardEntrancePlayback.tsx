@@ -1,4 +1,6 @@
 import { RinaEntranceVisuals } from './rina-sec/RinaEntranceVisuals';
+import { isShizukuSec } from '@game/shared/card-entrance';
+import { ShizukuEntranceLight } from './ShizukuTheatre';
 import { rinaSecTiming } from './rina-sec/rinaSecTimeline';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { CardEntranceProfile } from '@/lib/cardEntranceProfiles';
@@ -126,6 +128,7 @@ export function CardEntrancePlayback({
       className="card-entrance-presentation"
       data-profile={profile.id}
       data-phase={ready ? 'playing' : 'loading'}
+      data-shizuku-sec={isShizukuSec(presentation.target.cardCode) || undefined}
       data-double-relay={fusion || undefined}
       data-kaho-relay={kahoRelay || undefined}
       style={
@@ -161,6 +164,9 @@ export function CardEntrancePlayback({
           startedAt={ready?.startedAt ?? null}
           onInvalid={() => done.current()}
         />
+      )}
+      {ready && isShizukuSec(presentation.target.cardCode) && (
+        <ShizukuEntranceLight startedAt={ready.startedAt + portraitOffset} reduced={reduced} />
       )}
       {ready &&
         (rina ? (

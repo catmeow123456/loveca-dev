@@ -1,4 +1,6 @@
 import { GameCommandType } from '../application/game-commands.js';
+import { isShizukuSec } from '../shared/card-entrance.js';
+import { N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID } from '../application/card-effects/ability-ids.js';
 import {
   MAIN_PHASE_ACTIVE_PLAYER_COMMAND_TYPES,
   OWN_DESK_FREE_DRAG_COMMAND_TYPES,
@@ -49,6 +51,7 @@ import {
 import { isPlayerActive } from '../shared/phase-config/index.js';
 import {
   collectLiveModifiers,
+  getLatestMemberOriginalHeartReplacementModifier,
   getMemberEffectiveBladeCount,
   getMemberEffectiveHeartIcons,
   getPlayerLiveScoreModifier,
@@ -377,6 +380,21 @@ export function projectPlayerViewState(
               return seat ? [seat] : [];
             }),
             deadlineAt: game.entranceRuntime.pending.deadlineAt,
+            ...(game.entranceRuntime.pending.shizukuRole
+              ? {
+                  shizukuRole: {
+                    hostObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.shizukuRole.hostCardId
+                    ),
+                    sourceObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.shizukuRole.sourceCardId
+                    ),
+                    hearts: game.entranceRuntime.pending.shizukuRole.hearts.map((heart) => ({
+                      ...heart,
+                    })),
+                  },
+                }
+              : {}),
             ...(game.entranceRuntime.pending.rinaLiveSwap
               ? {
                   rinaLiveSwap: {
@@ -943,6 +961,13 @@ function addMemberSlotZones(
           activatedAbilityUiConfigs:
             activatedAbilityUiConfigs.length > 0 ? activatedAbilityUiConfigs : undefined,
           hasRemainingLimitedActivatedAbility: hasRemainingLimitedActivatedAbility || undefined,
+          hasTemporaryHeartRole:
+            (!game.isEnded &&
+              isShizukuSec(occupant.data.cardCode) &&
+              getLatestMemberOriginalHeartReplacementModifier(playerId, occupantId, liveModifiers)
+                ?.abilityId ===
+                N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID) ||
+            undefined,
           // Derive only a public status bit; do not expose grant identities or source metadata.
           hasTemporaryOnEnterAbility:
             (!game.isEnded &&
@@ -1135,6 +1160,7 @@ function upsertViewObject(
     | 'activatedAbilityUiConfigs'
     | 'hasRemainingLimitedActivatedAbility'
     | 'hasTemporaryOnEnterAbility'
+    | 'hasTemporaryHeartRole'
   > & {
     readonly knownCardType?: ViewCardObject['cardType'];
   }
@@ -1159,6 +1185,7 @@ function upsertViewObject(
       surface === 'FRONT' ? metadata?.hasRemainingLimitedActivatedAbility : undefined,
     hasTemporaryOnEnterAbility:
       surface === 'FRONT' ? metadata?.hasTemporaryOnEnterAbility : undefined,
+    hasTemporaryHeartRole: surface === 'FRONT' ? metadata?.hasTemporaryHeartRole : undefined,
   };
 }
 

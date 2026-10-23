@@ -1,5 +1,9 @@
 import type { SlotPosition, OrientationState } from './types/enums.js';
 import type { PendingAbilityState } from '../domain/entities/game.js';
+import type { HeartIcon } from '../domain/entities/card.js';
+
+/** Only the new theatre presentation is print-specific; rules remain shared by base code. */
+export const isShizukuSec = (code: string) => code === 'PL!N-bp7-003-SEC';
 
 /** Public entrance identity shared by authority and cosmetic registry. */
 export const entranceCards = {
@@ -77,6 +81,12 @@ export interface EntranceWait {
   readonly cardIds: readonly string[];
   readonly waitingPlayerIds: readonly string[];
   readonly deadlineAt: number;
+  /** A public member was stacked and its printed HEART successfully adopted. */
+  readonly shizukuRole?: {
+    readonly hostCardId: string;
+    readonly sourceCardId: string;
+    readonly hearts: readonly HeartIcon[];
+  };
   /** Successful public LIVE movement commanded by the current Rina stage object. */
   readonly rinaLiveSwap?: {
     readonly hostCardId: string;

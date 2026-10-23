@@ -145,6 +145,11 @@ export interface MatchViewState {
     readonly objectIds: readonly string[];
     readonly waitingSeats: readonly Seat[];
     readonly deadlineAt: number;
+    readonly shizukuRole?: {
+      readonly hostObjectId: string;
+      readonly sourceObjectId: string;
+      readonly hearts: readonly HeartIcon[];
+    };
     readonly rinaLiveSwap?: {
       readonly hostObjectId: string;
       readonly liveObjectId: string;
@@ -318,6 +323,8 @@ export interface ViewCardObject {
   readonly hasRemainingLimitedActivatedAbility?: boolean;
   /** Public stage member currently retains an earned ON_ENTER ability for this LIVE. */
   readonly hasTemporaryOnEnterAbility?: boolean;
+  /** Current printed HEART replacement from Shizuku; derived, never persisted separately. */
+  readonly hasTemporaryHeartRole?: boolean;
 }
 
 export interface ViewCommandScope {

@@ -18,6 +18,8 @@ import { isMemberCardData, isLiveCardData, isEnergyCardData } from '@game/domain
 import type { CardEffectVisualState } from '@/lib/cardEffectAutomationVisuals';
 import { CardEffectMarker } from './CardEffectMarker';
 import { GinkoKnotMarker } from './GinkoKnotMarker';
+import { ShizukuRoleMarker } from './ShizukuRoleMarker';
+import { isShizukuSec } from '@game/shared/card-entrance';
 import { cardCodeMatchesBase } from '@game/shared/utils/card-code';
 import { entranceCards } from '@game/shared/card-entrance';
 
@@ -390,6 +392,9 @@ export const Card = memo(function Card({
       </AnimatePresence>
 
       {effectVisualState !== 'none' && <CardEffectMarker state={effectVisualState} />}
+      {faceUp && instanceId && isShizukuSec(cardData.cardCode) && (
+        <ShizukuRoleMarker objectId={`obj_${instanceId}`} />
+      )}
       {faceUp && instanceId && cardCodeMatchesBase(cardData.cardCode, entranceCards.ginko) && (
         <GinkoKnotMarker objectId={`obj_${instanceId}`} />
       )}
