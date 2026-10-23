@@ -5,7 +5,7 @@ export function getOpeningEndMessage(reason: OnlineRoomEndReason, themeRequeued 
     return '开局前卡组已不符合当前 PT 限制，本轮已关闭，请重新选组。';
   if (reason === 'OPENING_TIMEOUT') return '未在开局期限内完成猜拳和先后手选择，本轮已关闭。';
   return themeRequeued
-    ? '本次配对未能开始；你没有造成中断，已保留原候场顺序并自动返回娱乐模式队列。'
+    ? '本次配对未能开始；你没有造成中断，已保留原候场顺序并自动返回主题牌桌队列。'
     : '等待 60 秒后仍未等到双方进入房间，本次配对已取消。';
 }
 

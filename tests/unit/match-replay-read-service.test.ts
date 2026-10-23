@@ -301,6 +301,7 @@ function createHarness(options: CreateHarnessOptions = {}) {
     match_mode: 'ONLINE',
     automation_game_mode: 'DEBUG',
     origin_kind: 'ONLINE_ROOM',
+    casual_rule_mode: 'UNLIMITED',
     origin_label: 'READ1',
     status: 'IN_PROGRESS',
     completeness: 'PARTIAL',
@@ -539,6 +540,7 @@ describe('MatchReplayReadService P1b', () => {
       matchId: 'match-read-1',
       viewerSeat: 'FIRST',
       opponentDisplayName: 'Beta',
+      casualRuleMode: 'UNLIMITED',
       partialReasonSummary: '记录不完整，部分回放节点可能缺失',
     });
     expect(JSON.stringify(records)).not.toContain('database stack');

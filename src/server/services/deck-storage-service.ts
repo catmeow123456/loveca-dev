@@ -7,6 +7,7 @@ import { normalizeDeckRecordPayload } from '../../domain/card-data/deck-record-u
 import { getPublishedCardRegistry } from './card-registry-service.js';
 import { deckPointTableService } from './deck-point-table-service.js';
 import type { DeckPointTableRules } from '../../domain/rules/deck-point-table.js';
+import type { CasualRuleMode } from '../../domain/rules/deck-construction.js';
 
 export class DeckPayloadValidationError extends Error {
   readonly errors: readonly string[];
@@ -38,12 +39,14 @@ export async function getCurrentDeckValidationContext(): Promise<DeckValidationC
 
 export function prepareDeckPayloadWithContext(
   deck: DeckRecordLike,
-  context: DeckValidationContext
+  context: DeckValidationContext,
+  ruleMode: CasualRuleMode = 'NORMAL'
 ): PreparedDeckStoragePayload {
   const result = normalizeDeckRecordPayload(
     deck,
     (cardCode) => context.registry.getByCode(cardCode)?.cardType,
-    context.pointTable
+    context.pointTable,
+    ruleMode
   );
   if (result.sourceErrors.length > 0) {
     throw new DeckPayloadValidationError(result.sourceErrors);
@@ -52,7 +55,8 @@ export function prepareDeckPayloadWithContext(
 }
 
 export async function prepareDeckPayloadForStorage(
-  deck: DeckRecordLike
+  deck: DeckRecordLike,
+  ruleMode: CasualRuleMode = 'NORMAL'
 ): Promise<PreparedDeckStoragePayload> {
-  return prepareDeckPayloadWithContext(deck, await getCurrentDeckValidationContext());
+  return prepareDeckPayloadWithContext(deck, await getCurrentDeckValidationContext(), ruleMode);
 }

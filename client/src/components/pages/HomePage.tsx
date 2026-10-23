@@ -1,3 +1,10 @@
+import { CasualRuleSelector, CasualRuleBadge } from '@/components/common/CasualRuleSelector';
+import {
+  useCasualRuleMode,
+  writeCasualRuleMode,
+  casualDeckPreferenceKey,
+  casualPointSummary,
+} from '@/lib/casualRules';
 /** 登录后大厅：选择玩法、准备一副卡组、继续当前任务。 */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTextPresentation } from '@/lib/appPresentation';
@@ -42,7 +49,7 @@ import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { isApiConfigured } from '@/lib/apiClient';
 import { fetchMatchRecords } from '@/lib/onlineClient';
-import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
+import { useDeckPointTableRules, useDeckPointTableDisplayReady } from '@/hooks/useDeckPointTable';
 import { buildHomeDeckProjection } from '@/lib/homeDeckProjection';
 import {
   choosePreferredDeck,
@@ -131,6 +138,7 @@ export function HomePage({
   const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
   const getCardImagePath = useGameStore((s) => s.getCardImagePath);
   const pointTable = useDeckPointTableRules();
+  const pointTableDisplayReady = useDeckPointTableDisplayReady();
   const currentTask = useCasualTableStore((s) => s.status);
   const table = currentTask?.table;
   const savedRoomCode = table?.state === 'BOUND' ? table.roomCode : null;
@@ -144,10 +152,12 @@ export function HomePage({
   const displayUsername = offlineMode
     ? offlineUser?.displayName || '玩家'
     : profile?.display_name || profile?.username || '玩家';
+  const preferredRuleMode = useCasualRuleMode(ownerId);
+  const ruleMode = table?.ruleMode ?? preferredRuleMode;
   const [modeId, setModeId] = useState<ModeId>(canUseOnline ? 'casual' : 'solitaire');
   const [selection, setSelection] = useState<{
     ownerId: string;
-    ids: Partial<Record<ModeId, string>>;
+    ids: Partial<Record<string, string>>;
   }>({ ownerId, ids: {} });
   const [dialog, setDialog] = useState<'choose' | string | null>(null);
   const chooseDeckButton = useRef<HTMLButtonElement>(null);
@@ -165,8 +175,18 @@ export function HomePage({
         localDecks: offlineMode ? localDecks : [],
         cardDataRegistry,
         pointTable,
+        ruleMode: modeId === 'casual' ? ruleMode : 'NORMAL',
       }),
-    [canUseOnline, cloudDecks, localDecks, offlineMode, cardDataRegistry, pointTable]
+    [
+      canUseOnline,
+      cloudDecks,
+      localDecks,
+      offlineMode,
+      cardDataRegistry,
+      pointTable,
+      modeId,
+      ruleMode,
+    ]
   );
 
   const localModes: LobbyMode[] = [
@@ -199,7 +219,7 @@ export function HomePage({
           description: '自由选组 · 创建或加入房间',
           icon: Swords,
           action: '进入对战大厅',
-          preferenceKey: DECK_SELECTION_PREFERENCE_KEYS.publicTable,
+          preferenceKey: casualDeckPreferenceKey(ownerId, ruleMode),
           onEnter: onNavigateToLobby,
         },
         ...(battleEntryVisibility.ranked
@@ -219,10 +239,10 @@ export function HomePage({
           ? [
               {
                 id: 'theme' as const,
-                label: '娱乐模式',
+                label: '主题牌桌',
                 description: '平台预组 · 轻松体验',
                 icon: Sparkles,
-                action: '前往娱乐模式',
+                action: '前往主题牌桌',
                 onEnter: onNavigateToThemeTable,
               },
             ]
@@ -236,7 +256,8 @@ export function HomePage({
     validDeckItems,
     mode.preferenceKey ? readLastUsedDeckId(mode.preferenceKey) : null
   ).deck;
-  const selectedId = selection.ownerId === ownerId ? selection.ids[mode.id] : null;
+  const selectionKey = mode.id === 'casual' ? `casual:${ruleMode}` : mode.id;
+  const selectedId = selection.ownerId === ownerId ? selection.ids[selectionKey] : null;
   const selectedDeck = validDeckItems.find((deck) => deck.id === selectedId) ?? preferredDeck;
   const isLoading =
     canUseOnline &&
@@ -248,7 +269,8 @@ export function HomePage({
   const needsDeck = !isPlatformMode && !selectedDeck && !isLoading && !firstReadFailed;
   const localBlocked = Boolean(mode.localMode && canReturnRoom);
   const launchDisabled =
-    (!isPlatformMode && (isLoading || firstReadFailed || !selectedDeck)) || localBlocked;
+    (mode.id !== 'casual' && !isPlatformMode && (isLoading || firstReadFailed || !selectedDeck)) ||
+    localBlocked;
 
   function rememberDeck(preferenceKey?: string) {
     if (preferenceKey && selectedDeck) writeLastUsedDeckId(preferenceKey, selectedDeck.id);
@@ -343,6 +365,7 @@ export function HomePage({
           {canReturnRoom && (
             <section aria-label="当前房间">
               <h2>{savedRoomCode ? `房间 ${savedRoomCode}` : '你有正在进行的房间'}</h2>
+              {table && <CasualRuleBadge mode={table.ruleMode} />}
               <p>{endedRoom ? '对局已结束 · 可协商再战' : '你的席位仍在保留'}</p>
               <button onClick={onNavigateToLobby}>返回房间</button>
               <details>
@@ -370,6 +393,13 @@ export function HomePage({
             </select>
           </label>
           <p>{mode.description}</p>
+          {mode.id === 'casual' && (
+            <CasualRuleSelector
+              value={ruleMode}
+              disabled={Boolean(table || currentTask?.otherParticipation)}
+              onChange={(next) => writeCasualRuleMode(ownerId, next)}
+            />
+          )}
           {isPlatformMode ? (
             <p>此玩法使用普通界面，按 Ctrl+Alt+E 切换后可进入。</p>
           ) : (
@@ -378,7 +408,15 @@ export function HomePage({
                 当前卡组：{selectedDeck?.name ?? '未选择'} · 合法卡组 {validDeckItems.length} 副
               </p>
               <DeckSelector
-                cloudDecks={canUseOnline ? validCloudDecks : []}
+                ruleMode={mode.id === 'casual' ? ruleMode : 'NORMAL'}
+                onSwitchToUnlimited={
+                  mode.id === 'casual' && !table
+                    ? () => writeCasualRuleMode(ownerId, 'UNLIMITED')
+                    : undefined
+                }
+                cloudDecks={
+                  canUseOnline ? (mode.id === 'casual' ? cloudDecks : validCloudDecks) : []
+                }
                 localDecks={offlineMode ? localDecks : []}
                 selectedId={selectedDeck?.id}
                 onSelect={(deck) =>
@@ -386,7 +424,7 @@ export function HomePage({
                     ownerId,
                     ids: {
                       ...(current.ownerId === ownerId ? current.ids : {}),
-                      [mode.id]: deck.id,
+                      [selectionKey]: deck.id,
                     },
                   }))
                 }
@@ -450,6 +488,7 @@ export function HomePage({
               <DoorOpen size={22} aria-hidden="true" />
               <div className="lobby-room-copy">
                 <h2>{savedRoomCode ? `房间 ${savedRoomCode}` : '你有正在进行的房间'}</h2>
+                {table && <CasualRuleBadge mode={table.ruleMode} />}
                 <p>{endedRoom ? '对局已结束 · 可协商再战' : '你的席位仍在保留'}</p>
               </div>
               <button type="button" className="home-primary-button" onClick={onNavigateToLobby}>
@@ -528,6 +567,13 @@ export function HomePage({
                   </span>
                 )}
               </header>
+              {mode.id === 'casual' && (
+                <CasualRuleSelector
+                  value={ruleMode}
+                  disabled={Boolean(table || currentTask?.otherParticipation)}
+                  onChange={(next) => writeCasualRuleMode(ownerId, next)}
+                />
+              )}
               {isPlatformMode ? (
                 <div className="lobby-current-deck">
                   <span className="lobby-deck-placeholder">
@@ -560,6 +606,17 @@ export function HomePage({
                         {selectedDeck.name}
                       </button>
                     </h3>
+                    {mode.id === 'casual' && (
+                      <p className="home-muted">
+                        {pointTableDisplayReady
+                          ? casualPointSummary(
+                              selectedDeck.pointTotal,
+                              pointTable.pointLimit,
+                              ruleMode
+                            )
+                          : 'PT 暂无法读取'}
+                      </p>
+                    )}
                     <div className="lobby-deck-tools">
                       <button
                         ref={chooseDeckButton}
@@ -656,12 +713,19 @@ export function HomePage({
               </div>
               {needsDeck && (
                 <p className="lobby-action-caption">
-                  需要一副符合规则的卡组
+                  {mode.id === 'casual'
+                    ? '可以先进入大厅浏览；参加对战时需要一副符合所选规则的卡组。'
+                    : '需要一副符合规则的卡组'}
+                  {mode.id === 'casual' && ruleMode === 'NORMAL' && (
+                    <button type="button" onClick={() => writeCasualRuleMode(ownerId, 'UNLIMITED')}>
+                      切换娱乐模式
+                    </button>
+                  )}
                   {canUseOnline && battleEntryVisibility.themeTable && (
                     <>
                       ，或
                       <button type="button" onClick={() => setModeId('theme')}>
-                        体验娱乐模式
+                        体验主题牌桌
                       </button>
                     </>
                   )}
@@ -713,13 +777,22 @@ export function HomePage({
         >
           <div className="home-deck-selector">
             <DeckSelector
-              cloudDecks={canUseOnline ? validCloudDecks : []}
+              ruleMode={mode.id === 'casual' ? ruleMode : 'NORMAL'}
+              onSwitchToUnlimited={
+                mode.id === 'casual' && !table
+                  ? () => writeCasualRuleMode(ownerId, 'UNLIMITED')
+                  : undefined
+              }
+              cloudDecks={canUseOnline ? (mode.id === 'casual' ? cloudDecks : validCloudDecks) : []}
               localDecks={offlineMode ? localDecks : []}
               selectedId={selectedDeck?.id}
               onSelect={(deck) => {
                 setSelection((current) => ({
                   ownerId,
-                  ids: { ...(current.ownerId === ownerId ? current.ids : {}), [mode.id]: deck.id },
+                  ids: {
+                    ...(current.ownerId === ownerId ? current.ids : {}),
+                    [selectionKey]: deck.id,
+                  },
                 }));
                 setDialog(null);
               }}
@@ -767,7 +840,10 @@ export function HomePage({
           }
         >
           {detailDeck ? (
-            <HomeDeckDetails deck={detailDeck} />
+            <HomeDeckDetails
+              deck={detailDeck}
+              ruleMode={mode.id === 'casual' ? ruleMode : 'NORMAL'}
+            />
           ) : (
             <p className="home-dialog-intro">这副卡组已不在当前列表中，请重新选择。</p>
           )}
@@ -874,7 +950,11 @@ function HomeRecentMatch({
                   ? '对墙打'
                   : record.originKind === 'RANKED'
                     ? '赛季排位'
-                    : '自由对战'}{' '}
+                    : record.casualRuleMode === 'UNLIMITED'
+                      ? '娱乐对战 · PT 不限'
+                      : record.casualRuleMode === 'NORMAL'
+                        ? '标准对战'
+                        : '自由对战'}{' '}
               · {formatRelativeTime(new Date(record.endedAt ?? record.startedAt))}
             </small>
           </span>

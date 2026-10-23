@@ -309,6 +309,13 @@
       "when": 1792140216968,
       "tag": "0043_add_platform_timeout_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792724280750,
+      "tag": "0044_add_casual_rule_modes",
+      "breakpoints": true
     }
   ]
 }

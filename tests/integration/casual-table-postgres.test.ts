@@ -10,6 +10,7 @@ import { toDeckPointTableRules } from '../../src/domain/rules/deck-point-table';
 import { getBaseCardCode } from '../../src/shared/utils/card-code';
 import { CardType, GameEndReason, HeartColor } from '../../src/shared/types/enums';
 import type {
+  CasualRuleMode,
   CasualTableEntryInput,
   CasualTableOwnView,
 } from '../../src/online/casual-table-types';
@@ -74,11 +75,15 @@ function deck(prefix: string): DeckConfig {
     })),
   };
 }
-function entry(index: number): CasualTableEntryInput {
-  return { requestId: randomUUID(), deckId: decks[index], spectatorEnabled: index === 0 };
+function entry(index: number, ruleMode: CasualRuleMode = 'NORMAL'): CasualTableEntryInput {
+  return { ruleMode, requestId: randomUUID(), deckId: decks[index], spectatorEnabled: index === 0 };
 }
-async function create(index: number, discoverability: 'PUBLIC' | 'UNLISTED' = 'PUBLIC') {
-  return service.create(users[index], { ...entry(index), discoverability, note: '' });
+async function create(
+  index: number,
+  discoverability: 'PUBLIC' | 'UNLISTED' = 'PUBLIC',
+  ruleMode: CasualRuleMode = 'NORMAL'
+) {
+  return service.create(users[index], { ...entry(index, ruleMode), discoverability, note: '' });
 }
 async function current(index: number) {
   return (await service.getCurrent(users[index])).table!;
@@ -172,6 +177,185 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
       participationService: new GameplayParticipationService(database),
     });
     service = newService();
+  });
+
+  it.each([
+    ['PUBLIC', 'NORMAL'],
+    ['UNLISTED', 'UNLIMITED'],
+  ] as const)(
+    'creates a %s %s room with a custom code, recovers retries and releases the code on closure',
+    async (discoverability, ruleMode) => {
+      const input = { ...entry(0, ruleMode), discoverability, note: '', roomCode: '  friends42  ' };
+      const waiting = await service.create(users[0], input);
+      expect(waiting.roomCode).toBe('FRIENDS42');
+      expect((await service.preview(users[1], 'friends42')).tableId).toBe(waiting.tableId);
+      expect((await service.create(users[0], input)).tableId).toBe(waiting.tableId);
+      await service.cancel(users[0], waiting);
+      const reused = await service.create(users[1], { ...input, ...entry(1, ruleMode) });
+      expect(reused.roomCode).toBe('FRIENDS42');
+      expect(reused.tableId).not.toBe(waiting.tableId);
+    }
+  );
+
+  it('awards a contested custom code to exactly one creator across both modes', async () => {
+    const results = await Promise.allSettled([
+      service.create(users[0], {
+        ...entry(0),
+        discoverability: 'PUBLIC',
+        note: '',
+        roomCode: 'friends42',
+      }),
+      service.create(users[1], {
+        ...entry(1, 'UNLIMITED'),
+        discoverability: 'PUBLIC',
+        note: '',
+        roomCode: 'FRIENDS42',
+      }),
+    ]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find((result) => result.status === 'rejected');
+    expect(rejected?.reason).toMatchObject({ code: 'CASUAL_ROOM_CODE_TAKEN', statusCode: 409 });
+    const loser = results[0].status === 'rejected' ? 0 : 1;
+    expect((await service.getCurrent(users[loser])).table).toBeNull();
+    expect((await database.query('SELECT * FROM casual_tables')).rowCount).toBe(1);
+    expect((await database.query('SELECT * FROM gameplay_participations')).rowCount).toBe(1);
+  });
+
+  it('rejects a custom code already held by another runtime before reserving a seat', async () => {
+    await runtime.createRoom('FRIENDS42', users[4]);
+    await expect(
+      service.create(users[0], {
+        ...entry(0),
+        discoverability: 'PUBLIC',
+        note: '',
+        roomCode: 'FRIENDS42',
+      })
+    ).rejects.toMatchObject({ code: 'CASUAL_ROOM_CODE_TAKEN' });
+    expect((await service.getCurrent(users[0])).table).toBeNull();
+    expect((await database.query('SELECT * FROM casual_tables')).rowCount).toBe(0);
+  });
+
+  it.each(['', '   '])(
+    'automatically allocates a room code for blank input %j',
+    async (roomCode) => {
+      const waiting = await service.create(users[0], {
+        ...entry(0),
+        discoverability: 'PUBLIC',
+        note: '',
+        roomCode,
+      });
+      expect(waiting.roomCode).toMatch(/^[A-Z0-9]{6}$/);
+    }
+  );
+
+  it.each(['abc', 'abcdefghijklm', 'ab-cd', '房间号', 'ab cd'])(
+    'rejects invalid custom code %j before allocating authority',
+    async (roomCode) => {
+      await expect(
+        service.create(users[0], { ...entry(0), discoverability: 'PUBLIC', note: '', roomCode })
+      ).rejects.toMatchObject({ code: 'CASUAL_INVALID_ROOM_CODE', statusCode: 400 });
+      expect(loadDeck).not.toHaveBeenCalled();
+      expect((await database.query('SELECT * FROM casual_tables')).rowCount).toBe(0);
+    }
+  );
+
+  it('isolates public listings, counts and automatic matching by rule, while code lookup stays direct', async () => {
+    const normal = await create(0);
+    const unlimited = await create(1, 'PUBLIC', 'UNLIMITED');
+    const hidden = await create(2, 'UNLISTED', 'UNLIMITED');
+    expect((await service.list(users[4])).rooms.map((room) => room.tableId)).toEqual([
+      normal.tableId,
+    ]);
+    const list = await service.list(users[4], { ruleMode: 'UNLIMITED' });
+    expect(list.rooms.map((room) => room.tableId)).toEqual([unlimited.tableId]);
+    expect(list.counts).toEqual({ waiting: 1, preparing: 0, playing: 0 });
+    expect(JSON.stringify(list)).not.toContain('私有卡组');
+    expect(JSON.stringify(list)).not.toContain('pointTotal');
+    expect((await service.preview(users[4], hidden.roomCode)).ruleMode).toBe('UNLIMITED');
+    const found = await service.findOpponent(users[3], entry(3, 'UNLIMITED'));
+    expect(found.tableId).toBe(unlimited.tableId);
+    expect((await current(0)).state).toBe('WAITING');
+    await expect(service.findOpponent(users[3], entry(3))).rejects.toMatchObject({
+      code: 'CASUAL_RULE_MODE_MISMATCH',
+    });
+  });
+
+  it('requires explicit target rules on direct join without altering either room or user occupancy', async () => {
+    const room = await create(0, 'PUBLIC', 'UNLIMITED');
+    await expect(service.join(users[1], room, entry(1))).rejects.toMatchObject({
+      code: 'CASUAL_RULE_MODE_MISMATCH',
+    });
+    expect((await service.getCurrent(users[1])).table).toBeNull();
+    expect((await current(0)).state).toBe('WAITING');
+    expect((await service.join(users[1], room, entry(1, 'UNLIMITED'))).ruleMode).toBe('UNLIMITED');
+  });
+
+  it('refreshes the owners actual point summary after a PT rollover without closing entertainment waiting', async () => {
+    const waiting = await create(0, 'PUBLIC', 'UNLIMITED');
+    const changedRules = toDeckPointTableRules({
+      version: 'rollover',
+      pointLimit: 9,
+      effectiveFrom: '2026-01-01T00:00:00Z',
+      entries: [{ baseCardCode: getBaseCardCode(`${users[0]}-MEM-0`), points: 20 }],
+    });
+    const updated = newService({ getPointTable: () => Promise.resolve(changedRules) });
+    const latest = (await updated.getCurrent(users[0])).table!;
+    expect(latest.tableId).toBe(waiting.tableId);
+    expect(latest.state).toBe('WAITING');
+    // The synthetic runtime members share one base identifier.
+    expect(latest.ownDeck?.pointTotal).toBe(48 * 20);
+  });
+
+  it('admits over-PT decks only in entertainment, including waiting deck changes and confirmation', async () => {
+    const high = toDeckPointTableRules({
+      version: 'high',
+      pointLimit: 9,
+      effectiveFrom: '2026-01-01T00:00:00Z',
+      entries: [{ baseCardCode: getBaseCardCode(`${users[0]}-MEM-0`), points: 20 }],
+    });
+    service = newService({ getPointTable: () => Promise.resolve(high) });
+    await expect(create(0)).rejects.toMatchObject({ code: 'CASUAL_DECK_INVALID' });
+    const room = await create(0, 'PUBLIC', 'UNLIMITED');
+    expect(room.ownDeck?.pointTotal).toBeGreaterThan(9);
+    const changed = await service.changeDeck(users[0], room, decks[0]);
+    const paired = await service.join(users[1], changed, entry(1, 'UNLIMITED'));
+    expect((await confirmPair(paired)).ruleMode).toBe('UNLIMITED');
+    expect(loadDeck).toHaveBeenCalledWith(users[0], decks[0], 'UNLIMITED');
+  });
+
+  it('preserves entertainment through a PT rollover at final opening and a rematch with ordinary decks', async () => {
+    const { bound, matchId } = await completed('PUBLIC', 'UNLIMITED');
+    expect(matches.getMatch(matchId)?.casualRuleMode).toBe('UNLIMITED');
+    const requested = await service.requestRematch(users[0], bound, decks[0], false);
+    const responder = await current(1);
+    const next = await service.respondRematch(
+      users[1],
+      responder,
+      requested.runtime!.rematch!.requestId,
+      decks[1],
+      false
+    );
+    expect(next.ruleMode).toBe('UNLIMITED');
+    expect(next.tableId).toBe(bound.tableId);
+    expect(next.roundId).not.toBe(bound.roundId);
+    const newBound = await confirmPair(next);
+    await runtime.getRoomView(newBound.roomCode, users[0]);
+    await runtime.getRoomView(newBound.roomCode, users[1]);
+    await runtime.submitOpeningRps(newBound.roomCode, users[0], 'ROCK');
+    await runtime.submitOpeningRps(newBound.roomCode, users[1], 'SCISSORS');
+    runtimeRules = toDeckPointTableRules({
+      version: 'rollover',
+      pointLimit: 9,
+      effectiveFrom: '2026-01-01T00:00:00Z',
+      entries: [{ baseCardCode: getBaseCardCode(`${users[0]}-MEM-0`), points: 20 }],
+    });
+    const opened = await runtime.chooseOpeningTurnOrder(newBound.roomCode, users[0], 'SELF_FIRST');
+    expect(opened.matchId).toBeTruthy();
+    expect(opened.casualTable?.ruleMode).toBe('UNLIMITED');
+    expect(matches.getMatch(opened.matchId!)?.casualRuleMode).toBe('UNLIMITED');
+    expect((await matches.getMatchSnapshot(opened.matchId!, users[0]))?.casualRuleMode).toBe(
+      'UNLIMITED'
+    );
   });
 
   it('pairs simultaneous find requests into one stable room and cannot start before both confirm', async () => {
@@ -746,9 +930,12 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
       ).rows[0].room_generation
     ).toBeNull();
   });
-  async function started(discoverability: 'PUBLIC' | 'UNLISTED' = 'PUBLIC') {
-    const waiting = await create(0, discoverability);
-    const paired = await service.join(users[1], waiting, entry(1));
+  async function started(
+    discoverability: 'PUBLIC' | 'UNLISTED' = 'PUBLIC',
+    ruleMode: CasualRuleMode = 'NORMAL'
+  ) {
+    const waiting = await create(0, discoverability, ruleMode);
+    const paired = await service.join(users[1], waiting, entry(1, ruleMode));
     const bound = await confirmPair(paired);
     await runtime.getRoomView(bound.roomCode, users[0]);
     await runtime.getRoomView(bound.roomCode, users[1]);
@@ -758,8 +945,11 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     expect(room.matchId).toBeTruthy();
     return { bound: await current(0), matchId: room.matchId! };
   }
-  async function completed(discoverability: 'PUBLIC' | 'UNLISTED' = 'PUBLIC') {
-    const game = await started(discoverability);
+  async function completed(
+    discoverability: 'PUBLIC' | 'UNLISTED' = 'PUBLIC',
+    ruleMode: CasualRuleMode = 'NORMAL'
+  ) {
+    const game = await started(discoverability, ruleMode);
     const result = await matches.executeCommand(
       game.matchId,
       users[0],
@@ -902,6 +1092,7 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
       await database.query('INSERT INTO profiles VALUES ($1,$2,$2)', [userId, `访客${index}`]);
       await database.query('INSERT INTO decks VALUES ($1)', [deckId]);
       await service.create(userId, {
+        ruleMode: 'NORMAL',
         requestId: randomUUID(),
         deckId,
         spectatorEnabled: false,

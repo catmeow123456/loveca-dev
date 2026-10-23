@@ -1,3 +1,4 @@
+import type { CasualRuleMode } from '../domain/rules/deck-construction.js';
 import type { GamePhase, SubPhase } from '../shared/types/enums.js';
 import type { PlayerViewState, Seat } from './types.js';
 
@@ -337,6 +338,7 @@ export interface MatchRecordSummaryView {
   readonly matchMode: MatchMode;
   readonly automationGameMode: MatchAutomationGameMode;
   readonly originKind: MatchOriginKind;
+  readonly casualRuleMode?: CasualRuleMode | null;
   readonly originLabel: string;
   readonly status: MatchRecordStatus;
   readonly completeness: MatchRecordCompleteness;
@@ -385,6 +387,7 @@ export interface MatchRecordTimelineView {
   readonly matchMode: MatchMode;
   readonly automationGameMode: MatchAutomationGameMode;
   readonly originKind: MatchOriginKind;
+  readonly casualRuleMode?: CasualRuleMode | null;
   readonly originLabel: string;
   readonly viewerSeat: Seat;
   readonly recordStatus: MatchRecordStatus;
@@ -479,6 +482,7 @@ export interface MatchRecordReplayView {
   readonly sourceMatchMode: MatchMode;
   readonly automationGameMode: MatchAutomationGameMode;
   readonly originKind: MatchOriginKind;
+  readonly casualRuleMode?: CasualRuleMode | null;
   readonly originLabel: string;
   readonly viewerSeat: Seat;
   readonly replayPosition: MatchRecordReplayPosition;

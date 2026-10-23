@@ -125,6 +125,17 @@ async function fulfill(route: Route, data: unknown, status = 200) {
 }
 
 export async function installVisualApiMocks(page: Page, authenticated: boolean) {
+  await page.route('**/site-status.json?*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        schemaVersion: 1,
+        availability: 'OPEN',
+        generatedAt: NOW,
+        maintenance: null,
+      }),
+    })
+  );
   // Synthetic fixture cards have no real artwork; keep their previews deterministic.
   await page.route(/\/(?:ME|LV)-visual-\d+\.webp(?:\?.*)?$/, async (route) => {
     const code = new URL(route.request().url()).pathname.split('/').at(-1)!.replace('.webp', '');

@@ -1,3 +1,5 @@
+import { useGameStore } from '@/store/gameStore';
+import { isDeckConfigValidForCurrentCardPool } from '@/lib/deckRecordUtils';
 /**
  * DeckSidebar - 卡组预览右侧面板
  */
@@ -32,6 +34,13 @@ export function DeckSidebar({
 }: DeckSidebarProps) {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const pointTable = useDeckPointTableRules();
+  const registry = useGameStore((state) => state.cardDataRegistry);
+  const entertainmentValid = isDeckConfigValidForCurrentCardPool(
+    deck,
+    registry,
+    pointTable,
+    'UNLIMITED'
+  );
   const { memberCount, liveCount, energyCount, pointTotal } = calculateDeckConfigStats(
     deck,
     pointTable
@@ -99,7 +108,11 @@ export function DeckSidebar({
                   : 'border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-secondary)_14%,transparent)] text-[var(--accent-secondary)]'
               }`}
             >
-              {validation.valid ? '完整' : '未完成'}
+              {validation.valid
+                ? '标准／娱乐均可用'
+                : entertainmentValid
+                  ? '标准超限，娱乐可用'
+                  : '构筑待调整'}
             </span>
             <button
               onClick={() => setShowAnalysis((v) => !v)}
@@ -154,7 +167,7 @@ export function DeckSidebar({
             <div className="mt-3 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3">
               <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--semantic-error)]">
                 <AlertTriangle size={12} />
-                <span>卡组不完整</span>
+                <span>{entertainmentValid ? '标准模式 PT 超限，娱乐模式可用' : '构筑待调整'}</span>
               </div>
               <ul className="space-y-1">
                 {validation.errors.map((err, i) => (

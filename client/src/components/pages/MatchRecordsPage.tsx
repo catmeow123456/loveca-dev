@@ -178,7 +178,7 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
           })),
           ...themeEvents.map((event) => ({
             value: `theme:${event.id}`,
-            label: `娱乐模式 · ${event.name}`,
+            label: `主题牌桌 · ${event.name}`,
           })),
         ]);
       })
@@ -1604,6 +1604,7 @@ function ReplayMetricGrid({ replay }: { replay: MatchRecordReplayView }) {
         value={formatMatchModeLabel({
           matchMode: replay.sourceMatchMode,
           originKind: replay.originKind,
+          casualRuleMode: replay.casualRuleMode,
         })}
       />
       <MiniMetric label="视角" value={replay.viewerSeat} />
@@ -2094,9 +2095,12 @@ function formatDateTime(value: number | null): string {
 }
 
 function formatMatchModeLabel(
-  record: Pick<MatchRecordSummaryView, 'matchMode' | 'originKind'>
+  record: Pick<MatchRecordSummaryView, 'matchMode' | 'originKind' | 'casualRuleMode'>
 ): string {
   if (record.originKind === 'AI_DEBUG') return 'AI 调试';
+  if (record.casualRuleMode)
+    return record.casualRuleMode === 'UNLIMITED' ? '娱乐对战 · PT 不限' : '标准对战';
+  if (record.originKind === 'RANKED') return '赛季排位';
   return record.matchMode === 'SOLITAIRE' ? '对墙打' : '正式联机';
 }
 

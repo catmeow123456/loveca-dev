@@ -1,3 +1,4 @@
+import type { CasualRuleMode } from '../../domain/rules/deck-construction.js';
 import { createHash } from 'node:crypto';
 import type { AnyCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
@@ -99,6 +100,7 @@ export interface MatchRecorderDeckSnapshotInput {
 }
 
 export interface BeginMatchRecordInput {
+  readonly casualRuleMode?: CasualRuleMode | null;
   readonly matchId: string;
   readonly roomCode: string;
   readonly matchMode?: MatchMode;
@@ -343,8 +345,9 @@ export class MatchRecorderService {
           card_data_version,
           card_data_hash,
           replay_capabilities,
-          replay_limitations
-        ) VALUES ($1, $2, $3, $4, $5, $6, 'IN_PROGRESS', 'FULL', $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+          replay_limitations,
+          casual_rule_mode
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'IN_PROGRESS', 'FULL', $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
         [
           input.matchId,
           input.roomCode,
@@ -361,6 +364,7 @@ export class MatchRecorderService {
           cardDataHash,
           toJsonbParam(replayCapabilities),
           toJsonbParam(replayLimitations),
+          input.casualRuleMode ?? null,
         ]
       );
 
@@ -814,6 +818,7 @@ export function buildMatchRecorderBeginInputFromOnlineMatch(
     matchMode: match.matchMode,
     automationGameMode: match.automationGameMode,
     originKind: match.originKind,
+    casualRuleMode: match.casualRuleMode ?? null,
     originLabel: match.originLabel,
     startedAt: match.startedAt,
     participants: {

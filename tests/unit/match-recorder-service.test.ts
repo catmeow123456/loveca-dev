@@ -237,6 +237,17 @@ function readJsonbParam<T>(value: unknown): T {
 }
 
 describe('MatchRecorderService P0a', () => {
+  it.each(['NORMAL', 'UNLIMITED'] as const)(
+    'records the actual %s construction mode independently of PT totals',
+    async (casualRuleMode) => {
+      const { service, calls } = createRecorderHarness();
+      await service.beginMatch({ ...createBeginInput(), casualRuleMode });
+      const insert = calls.find((call) => call.text.includes('INSERT INTO match_records'))!;
+      expect(insert.text).toContain('casual_rule_mode');
+      expect(insert.values[15]).toBe(casualRuleMode);
+    }
+  );
+
   it('beginMatch 写入根记录、双方卡组快照与参与者，并保留独立游标初值', async () => {
     const { service, calls } = createRecorderHarness();
 

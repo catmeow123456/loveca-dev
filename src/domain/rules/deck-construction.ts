@@ -3,6 +3,9 @@ import { getBaseCardCode } from '../../shared/utils/card-code.js';
 import { MAX_SAME_CODE_COUNT } from './deck-validator.js';
 import type { DeckPointTableRules } from './deck-point-table.js';
 
+/** Self-built casual rooms only; other entry points retain NORMAL construction. */
+export type CasualRuleMode = 'NORMAL' | 'UNLIMITED';
+
 export interface DeckConfigStats {
   memberCount: number;
   liveCount: number;
@@ -57,7 +60,8 @@ export function calculateDeckConfigStats(
 
 export function validateDeckConfig(
   deck: DeckConfig,
-  pointTable: DeckPointTableRules
+  pointTable: DeckPointTableRules,
+  ruleMode: CasualRuleMode = 'NORMAL'
 ): DeckConfigValidation {
   const stats = calculateDeckConfigStats(deck, pointTable);
   const errors: string[] = [];
@@ -65,7 +69,7 @@ export function validateDeckConfig(
   if (stats.memberCount !== 48) errors.push(`成员卡必须为 48 张 (当前 ${stats.memberCount})`);
   if (stats.liveCount !== 12) errors.push(`Live 卡必须为 12 张 (当前 ${stats.liveCount})`);
   if (stats.energyCount !== 12) errors.push(`能量卡必须为 12 张 (当前 ${stats.energyCount})`);
-  if (stats.pointTotal > pointTable.pointLimit) {
+  if (ruleMode === 'NORMAL' && stats.pointTotal > pointTable.pointLimit) {
     errors.push(`卡组点数必须不超过 ${pointTable.pointLimit}pt (当前 ${stats.pointTotal}pt)`);
   }
 

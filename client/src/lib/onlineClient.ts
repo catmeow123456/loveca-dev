@@ -173,7 +173,7 @@ export async function endOnlineThemeRoom(
     `/api/online/rooms/${encodeURIComponent(roomCode)}/end-theme`
   );
   if (!response.data) {
-    throw new Error(response.error?.message ?? '结束娱乐模式房间失败');
+    throw new Error(response.error?.message ?? '结束主题牌桌房间失败');
   }
   return response.data;
 }

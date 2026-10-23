@@ -87,7 +87,7 @@ export function ThemeDeckAssignmentIntro({
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-xs font-semibold text-[var(--accent-primary)]">
-            {eventName ?? '娱乐模式'}
+            {eventName ?? '主题牌桌'}
           </div>
           <h1
             id="theme-assignment-intro-title"

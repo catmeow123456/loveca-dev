@@ -181,6 +181,9 @@
     transform: translateX(0);
   }
 }
+.lobby-deck-panel > .casual-rule-selector {
+  margin-bottom: 12px;
+}
 .lobby-current-deck {
   display: grid;
   grid-template-columns: 87px minmax(0, 1fr);

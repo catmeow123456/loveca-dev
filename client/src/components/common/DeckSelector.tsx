@@ -1,3 +1,5 @@
+import { casualPointSummary } from '@/lib/casualRules';
+import type { CasualRuleMode } from '@game/online/casual-table-types';
 import { useTextPresentation } from '@/lib/appPresentation';
 import { ExcelDeckSelector } from '@/components/excel/ExcelDeckSelector';
 import { PresentationImage } from '@/components/excel/PresentationRoot';
@@ -8,15 +10,18 @@ import { useGameStore } from '@/store/gameStore';
 import {
   createDeckRecordCardTypeResolver,
   isDeckConfigValidForCurrentCardPool,
+  isDeckRecordValidForCurrentCardPool,
 } from '@/lib/deckRecordUtils';
 import { buildDeckDisplayItems, type DeckDisplayItem, type LocalDeck } from '@/lib/deckDisplay';
-import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
+import { useDeckPointTableRules, useDeckPointTableDisplayReady } from '@/hooks/useDeckPointTable';
 
 export type { DeckDisplayItem, LocalDeck };
 
 type DeckSelectorDensity = 'comfortable' | 'compact';
 
 interface DeckSelectorProps {
+  ruleMode?: CasualRuleMode;
+  onSwitchToUnlimited?: () => void;
   cloudDecks?: DeckRecord[];
   localDecks?: LocalDeck[];
   selectedId?: string | null;
@@ -35,6 +40,8 @@ interface DeckSelectorProps {
 }
 
 export function DeckSelector({
+  ruleMode = 'NORMAL',
+  onSwitchToUnlimited,
   cloudDecks = [],
   localDecks = [],
   selectedId,
@@ -54,6 +61,7 @@ export function DeckSelector({
   const textOnly = useTextPresentation();
   const isCompact = density === 'compact';
   const pointTable = useDeckPointTableRules();
+  const pointTableDisplayReady = useDeckPointTableDisplayReady();
   const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
   const getCardImagePath = useGameStore((state) => state.getCardImagePath);
   const resolveDeckRecordCardType = useMemo(
@@ -67,11 +75,43 @@ export function DeckSelector({
         localDecks,
         resolveDeckRecordCardType,
         pointTable,
+        ruleMode,
         validateLocalDeck: (deck) =>
-          isDeckConfigValidForCurrentCardPool(deck, cardDataRegistry, pointTable),
-      }),
-    [cardDataRegistry, cloudDecks, localDecks, pointTable, resolveDeckRecordCardType]
+          isDeckConfigValidForCurrentCardPool(deck, cardDataRegistry, pointTable, ruleMode),
+      }).map((deck) => ({
+        ...deck,
+        isValid: deck.cloudDeck
+          ? isDeckRecordValidForCurrentCardPool(
+              deck.cloudDeck,
+              cardDataRegistry,
+              pointTable,
+              ruleMode
+            )
+          : deck.isValid,
+      })),
+    [ruleMode, cardDataRegistry, cloudDecks, localDecks, pointTable, resolveDeckRecordCardType]
   );
+  const entertainmentOnly =
+    ruleMode === 'NORMAL'
+      ? displayDecks.filter(
+          (deck) =>
+            !deck.isValid &&
+            (deck.cloudDeck
+              ? isDeckRecordValidForCurrentCardPool(
+                  deck.cloudDeck,
+                  cardDataRegistry,
+                  pointTable,
+                  'UNLIMITED'
+                )
+              : deck.localDeck &&
+                isDeckConfigValidForCurrentCardPool(
+                  deck.localDeck.config,
+                  cardDataRegistry,
+                  pointTable,
+                  'UNLIMITED'
+                ))
+        )
+      : [];
   const selectableDecks = useMemo(
     () =>
       displayDecks
@@ -244,11 +284,34 @@ export function DeckSelector({
                   <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
                     {deck.name}
                   </div>
+                  <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                    {pointTableDisplayReady
+                      ? casualPointSummary(deck.pointTotal, pointTable.pointLimit, ruleMode)
+                      : 'PT 暂无法读取'}
+                  </p>
                 </div>
               </button>
             );
           })}
         </div>
+        {entertainmentOnly.length > 0 && (
+          <section
+            className="mt-4 border-t border-[var(--border-subtle)] pt-3"
+            aria-label="娱乐模式可用卡组"
+          >
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">娱乐模式可用</h3>
+            {entertainmentOnly.map((deck) => (
+              <p key={deck.id} className="mt-2 text-sm text-[var(--text-secondary)]">
+                {deck.name} · {deck.pointTotal} PT，超过标准模式上限 {pointTable.pointLimit} PT
+              </p>
+            ))}
+            {onSwitchToUnlimited && (
+              <button type="button" className="button-secondary mt-3" onClick={onSwitchToUnlimited}>
+                切换娱乐模式
+              </button>
+            )}
+          </section>
+        )}
       </div>
     </section>
   );

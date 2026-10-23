@@ -9,6 +9,7 @@ export interface CasualTableCommandTarget {
 }
 
 export interface CasualTableEntryInput {
+  readonly ruleMode: CasualRuleMode;
   readonly requestId: string;
   readonly deckId: string;
   readonly spectatorEnabled: boolean;
@@ -17,17 +18,25 @@ export interface CasualTableEntryInput {
 export interface CreateCasualTableInput extends CasualTableEntryInput {
   readonly discoverability: CasualTableDiscoverability;
   readonly note: string;
+  /** Empty or omitted requests an automatically generated code. */
+  readonly roomCode?: string;
 }
 
 /** Private preparation projection. Only the caller's deck identity is included. */
 export interface CasualTableOwnView extends CasualTableCommandTarget {
+  readonly ruleMode: CasualRuleMode;
   readonly roomCode: string;
   readonly discoverability: CasualTableDiscoverability;
   readonly note: string;
   readonly state: CasualTableState;
   readonly waitingSince: number;
   readonly confirmationExpiresAt: number | null;
-  readonly ownDeck: { readonly id: string | null; readonly name: string } | null;
+  readonly ownDeck: {
+    readonly id: string | null;
+    readonly name: string;
+    readonly pointTotal: number;
+    readonly pointLimit: number;
+  } | null;
   readonly spectatorEnabled: boolean;
   readonly members: readonly {
     readonly userId: string;
@@ -76,6 +85,7 @@ export interface CasualRuntimeView {
 }
 
 export interface CasualRoomSummary extends CasualTableCommandTarget {
+  readonly ruleMode: CasualRuleMode;
   readonly roomCode: string;
   readonly note: string;
   readonly status: 'WAITING' | 'RESERVED' | 'OPENING' | 'PLAYING' | 'ENDED';
@@ -87,6 +97,7 @@ export interface CasualRoomSummary extends CasualTableCommandTarget {
 }
 
 export interface CasualLobbyQuery {
+  readonly ruleMode?: CasualRuleMode;
   readonly filter?: 'ALL' | 'WAITING' | 'PLAYING';
   readonly search?: string;
   readonly spectatable?: boolean;
@@ -104,3 +115,5 @@ export interface CasualLobbyView {
   readonly snapshotAt: number;
   readonly unavailableReason: string | null;
 }
+import type { CasualRuleMode } from '../domain/rules/deck-construction.js';
+export type { CasualRuleMode } from '../domain/rules/deck-construction.js';

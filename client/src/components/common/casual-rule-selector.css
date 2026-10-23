@@ -1,0 +1,93 @@
+.casual-rule-selector {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.casual-rule-selector legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.casual-rule-options {
+  display: flex;
+  gap: 16px;
+}
+.casual-rule-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 0;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+.casual-rule-option.is-selected {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.casual-rule-option.is-selected::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  left: 25px;
+  right: 0;
+  height: 2px;
+  background: currentColor;
+}
+.casual-rule-option:hover:not(.is-selected) {
+  color: var(--text-primary);
+}
+.casual-rule-option:has(input:focus-visible) {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.casual-rule-options input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+.casual-rule-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+.casual-rule-mark.casual-rule-unlimited {
+  color: color-mix(in srgb, var(--accent-primary) 72%, var(--text-primary));
+}
+.casual-rule-option > .casual-rule-mark svg {
+  width: 18px;
+  height: 18px;
+}
+.casual-rule-selector:disabled label {
+  cursor: default;
+}
+.casual-rule-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.casual-rule-badge.casual-rule-unlimited {
+  color: var(--text-primary);
+}
+.casual-rule-badge .casual-rule-mark svg {
+  width: 16px;
+  height: 16px;
+}

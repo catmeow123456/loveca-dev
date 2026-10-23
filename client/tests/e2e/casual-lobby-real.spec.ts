@@ -68,7 +68,7 @@ for (const exitViaHome of [false, true]) {
       await first.getByRole('dialog').getByRole('checkbox', { name: '开放我的观战视角' }).check();
       await first
         .getByRole('dialog')
-        .getByRole('button', { name: '创建房间', exact: true })
+        .getByRole('button', { name: '创建普通房间', exact: true })
         .click();
       await expect(first.getByRole('heading', { name: '正在公开等人' })).toBeVisible();
       const code = (await first.locator('.casual-current-top .casual-code').innerText()).trim();

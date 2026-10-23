@@ -117,6 +117,16 @@ describe('deck point table client fallback', () => {
     expect(after.deckItems[0]).toMatchObject({ pointTotal: 10, isValid: false });
     expect(after.validCloudDecks).toEqual([]);
     expect(after.validDeckItems).toEqual([]);
+    const entertainment = buildHomeDeckProjection({
+      cloudDecks: [deck],
+      cardDataRegistry,
+      pointTable: newRules,
+      ruleMode: 'UNLIMITED',
+    });
+    expect(entertainment.validDeckItems).toMatchObject([
+      { id: deck.id, pointTotal: 10, isValid: true },
+    ]);
+    expect(entertainment.validCloudDecks).toEqual([deck]);
   });
 
   it('publishes valid browser-local decks through the home projection', () => {

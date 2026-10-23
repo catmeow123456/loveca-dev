@@ -111,7 +111,7 @@ export class ThemeTablePlayerService {
     if (!event) {
       return {
         event: null,
-        availability: { state: 'NO_EVENT', canJoin: false, message: '当前没有开放的娱乐模式' },
+        availability: { state: 'NO_EVENT', canJoin: false, message: '当前没有开放的主题牌桌' },
         player: null,
         queue,
         deckChoice: null,
@@ -245,7 +245,7 @@ export class ThemeTablePlayerService {
       themeId,
     ]);
     const theme = result.rows[0];
-    if (!theme) throw playerError('THEME_TABLE_NOT_FOUND', '娱乐模式不存在', 404);
+    if (!theme) throw playerError('THEME_TABLE_NOT_FOUND', '主题牌桌不存在', 404);
     return theme;
   }
 
@@ -444,7 +444,7 @@ export class ThemeTablePlayerService {
 
   private async requireJoinableTheme(): Promise<ThemeRow> {
     const event = await this.loadVisibleTheme();
-    if (!event) throw playerError('THEME_TABLE_NOT_FOUND', '当前没有开放的娱乐模式', 404);
+    if (!event) throw playerError('THEME_TABLE_NOT_FOUND', '当前没有开放的主题牌桌', 404);
     const availability = await this.getAvailability(event);
     if (!availability.canJoin) {
       throw playerError('THEME_TABLE_CLOSED', availability.message, 409);
@@ -459,16 +459,16 @@ export class ThemeTablePlayerService {
   }> {
     const now = this.now();
     if (theme.lifecycle === 'PAUSED') {
-      return { state: 'PAUSED', canJoin: false, message: '本期娱乐模式暂时停止入场' };
+      return { state: 'PAUSED', canJoin: false, message: '本期主题牌桌暂时停止入场' };
     }
     if (theme.lifecycle === 'CLOSED' || now >= new Date(theme.ends_at).getTime()) {
-      return { state: 'CLOSED', canJoin: false, message: '本期娱乐模式已经结束' };
+      return { state: 'CLOSED', canJoin: false, message: '本期主题牌桌已经结束' };
     }
     if (now < new Date(theme.starts_at).getTime()) {
-      return { state: 'UPCOMING', canJoin: false, message: '本期娱乐模式尚未开始' };
+      return { state: 'UPCOMING', canJoin: false, message: '本期主题牌桌尚未开始' };
     }
     if (theme.lifecycle !== 'ACTIVE') {
-      return { state: 'PAUSED', canJoin: false, message: '本期娱乐模式暂不开放' };
+      return { state: 'PAUSED', canJoin: false, message: '本期主题牌桌暂不开放' };
     }
     const timing = getRankedQueueWindowTiming(
       new Date(now),
@@ -505,7 +505,7 @@ export class ThemeTablePlayerService {
     if (Number(pairs.rows[0]?.count ?? 0) === 0) {
       return { state: 'PAUSED', canJoin: false, message: '本期对局组合正在调整' };
     }
-    return { state: 'OPEN', canJoin: true, message: '可以加入娱乐模式' };
+    return { state: 'OPEN', canJoin: true, message: '可以加入主题牌桌' };
   }
 
   private async loadUserQueueContext(userId: string): Promise<ThemeQueueContext | null> {
@@ -533,7 +533,7 @@ export class ThemeTablePlayerService {
 
   private async requireUserQueueContext(userId: string): Promise<ThemeQueueContext> {
     const context = await this.loadUserQueueContext(userId);
-    if (!context) throw playerError('THEME_QUEUE_TICKET_NOT_FOUND', '当前没有娱乐模式候场', 404);
+    if (!context) throw playerError('THEME_QUEUE_TICKET_NOT_FOUND', '当前没有主题牌桌候场', 404);
     return context;
   }
 }

@@ -1,3 +1,4 @@
+import type { CasualRuleMode } from '../../domain/rules/deck-construction.js';
 import {
   type AnyPgColumn,
   boolean,
@@ -1671,6 +1672,10 @@ export const casualTables = pgTable(
       'casual_tables_revision_check',
       sql`${table.revision} > 0 AND ${table.bootstrapAttempts} BETWEEN 0 AND 3`
     ),
+    check(
+      'casual_tables_environment_check',
+      sql`${table.environmentId} IN ('CASUAL_TABLE_V1', 'CASUAL_UNLIMITED_PT_V1')`
+    ),
     check('casual_tables_note_check', sql`char_length(${table.note}) <= 40`),
     check(
       'casual_tables_lifecycle_check',
@@ -1767,6 +1772,7 @@ export const matchRecords = pgTable(
       .notNull()
       .default('DEBUG'),
     originKind: text('origin_kind').$type<MatchOriginKind>().notNull().default('ONLINE_ROOM'),
+    casualRuleMode: text('casual_rule_mode').$type<CasualRuleMode>(),
     originLabel: text('origin_label').notNull().default('在线房间'),
     status: text('status').$type<MatchRecordStatus>().notNull().default('IN_PROGRESS'),
     completeness: text('completeness').$type<MatchRecordCompleteness>().notNull().default('FULL'),
@@ -1820,6 +1826,10 @@ export const matchRecords = pgTable(
     check(
       'match_records_automation_game_mode_check',
       sql`${table.automationGameMode} IN ('DEBUG', 'SOLITAIRE')`
+    ),
+    check(
+      'match_records_casual_rule_mode_check',
+      sql`${table.casualRuleMode} IS NULL OR (${table.casualRuleMode} IN ('NORMAL', 'UNLIMITED') AND ${table.matchMode} = 'ONLINE' AND ${table.originKind} IN ('ONLINE_ROOM', 'PUBLIC_TABLE'))`
     ),
     check(
       'match_records_origin_kind_check',

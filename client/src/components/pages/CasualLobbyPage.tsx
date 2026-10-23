@@ -1,3 +1,17 @@
+import {
+  CasualRuleBadge,
+  CasualRuleMark,
+  CasualRuleSelector,
+} from '@/components/common/CasualRuleSelector';
+import {
+  useCasualRuleMode,
+  writeCasualRuleMode,
+  casualRuleName,
+  casualRuleDescription,
+  casualPointSummary,
+  casualDeckPreferenceKey,
+} from '@/lib/casualRules';
+import type { CasualRuleMode } from '@game/online/casual-table-types';
 import { PresentationImage } from '@/components/excel/PresentationRoot';
 import {
   useCallback,
@@ -12,7 +26,10 @@ import {
 } from 'react';
 import {
   ArrowLeft,
+  ArrowRight,
   Bug,
+  ChevronDown,
+  ChevronRight,
   Copy,
   Hash,
   Plus,
@@ -27,7 +44,7 @@ import { DeckSelector, type DeckDisplayItem } from '@/components/common';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import { useCasualTableStore } from '@/store/casualTableStore';
 import { useGameStore } from '@/store/gameStore';
-import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
+import { useDeckPointTableRules, useDeckPointTableDisplayReady } from '@/hooks/useDeckPointTable';
 import { buildDeckDisplayItems } from '@/lib/deckDisplay';
 import {
   createDeckRecordCardTypeResolver,
@@ -43,11 +60,7 @@ import {
 import type { OnlineRoomSpectatorEntryView } from '@game/online/release-types';
 import { openCasualDestination } from '@/lib/casualNavigation';
 import { getCasualClosureMessage } from '@/lib/roomLifecycleCopy';
-import {
-  DECK_SELECTION_PREFERENCE_KEYS,
-  readLastUsedDeckId,
-  writeLastUsedDeckId,
-} from '@/lib/deckSelectionPreferences';
+import { readLastUsedDeckId, writeLastUsedDeckId } from '@/lib/deckSelectionPreferences';
 import type {
   CasualLobbyQuery,
   CasualLobbyView,
@@ -66,6 +79,7 @@ type FlowKind =
   | 'CONTINUE'
   | 'CODE'
   | 'SPECTATE'
+  | 'NOTE'
   | 'CANCEL'
   | 'LEAVE';
 interface Flow {
@@ -75,6 +89,7 @@ interface Flow {
   row?: CasualRoomSummary;
   source?: CasualTableCommandTarget;
   rematchId?: string;
+  nextRuleMode?: CasualRuleMode;
 }
 const names = {
   WAITING: '等待加入',
@@ -121,32 +136,55 @@ export function CasualLobbyPage({
   const ensureDecks = useDeckStore((state) => state.ensureCloudDecks);
   const refreshDecks = useDeckStore((state) => state.refreshCloudDecks);
   const [selected, setSelected] = useState<DeckDisplayItem | null>(null);
-  const [lastDeck, setLastDeck] = useState(() =>
-    readLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.publicTable)
-  );
   const registry = useGameStore((state) => state.cardDataRegistry);
   const getCardImagePath = useGameStore((state) => state.getCardImagePath);
+  const preferredMode = useCasualRuleMode(userId);
+  const ruleMode = table?.ruleMode ?? preferredMode;
+  const [flow, setFlow] = useState<Flow | null>(null);
+  const selectionMode = flow?.kind === 'JOIN' ? flow.row!.ruleMode : ruleMode;
+  const lastDeck = readLastUsedDeckId(casualDeckPreferenceKey(userId, selectionMode));
   const pointTable = useDeckPointTableRules();
+  const pointTableDisplayReady = useDeckPointTableDisplayReady();
   const validCloudDecks = useMemo(
     () =>
-      cloudDecks.filter((deck) => isDeckRecordValidForCurrentCardPool(deck, registry, pointTable)),
-    [cloudDecks, registry, pointTable]
+      cloudDecks.filter((deck) =>
+        isDeckRecordValidForCurrentCardPool(deck, registry, pointTable, selectionMode)
+      ),
+    [cloudDecks, registry, pointTable, selectionMode]
   );
   const choices = useMemo(
     () =>
       buildDeckDisplayItems({
         cloudDecks: validCloudDecks,
         pointTable,
+        ruleMode: selectionMode,
         resolveDeckRecordCardType: createDeckRecordCardTypeResolver(registry),
       }).filter((deck) => deck.isValid),
-    [validCloudDecks, pointTable, registry]
+    [validCloudDecks, pointTable, registry, selectionMode]
   );
   const chosen =
     choices.find((deck) => deck.id === selected?.id) ??
     choices.find((deck) => deck.cloudDeck?.id === lastDeck) ??
     choices[0] ??
     null;
-  const [flow, setFlow] = useState<Flow | null>(null);
+  const switchRule = (next: CasualRuleMode) => {
+    const valid = cloudDecks.filter((deck) =>
+      isDeckRecordValidForCurrentCardPool(deck, registry, pointTable, next)
+    );
+    const targetLast = readLastUsedDeckId(casualDeckPreferenceKey(userId, next));
+    const nextChoices = buildDeckDisplayItems({
+      cloudDecks: valid,
+      pointTable,
+      ruleMode: next,
+      resolveDeckRecordCardType: createDeckRecordCardTypeResolver(registry),
+    });
+    setSelected(
+      nextChoices.find((deck) => deck.id === targetLast) ??
+        nextChoices.find((deck) => deck.id === chosen?.id) ??
+        null
+    );
+    writeCasualRuleMode(userId, next);
+  };
   const [deckPickerOpen, setDeckPickerOpen] = useState(false);
   const flowRef = useRef(flow);
   useLayoutEffect(() => {
@@ -181,7 +219,7 @@ export function CasualLobbyPage({
   const readRef = useRef<(applyOrder?: boolean, more?: boolean) => Promise<void>>(() =>
     Promise.resolve()
   );
-  const queryKey = debouncedSearch;
+  const queryKey = `${ruleMode}:${debouncedSearch}`;
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
@@ -203,7 +241,7 @@ export function CasualLobbyPage({
       setReading(true);
       const promise = (async () => {
         try {
-          const params: CasualLobbyQuery = { search: queryKey };
+          const params: CasualLobbyQuery = { search: debouncedSearch, ruleMode };
           let next = await getCasualLobby(
             more && snapshot?.nextCursor ? { ...params, cursor: snapshot.nextCursor } : params
           );
@@ -214,6 +252,7 @@ export function CasualLobbyPage({
             incoming.push(...next.rooms);
           }
           if (epoch !== readEpoch.current) return;
+          incoming = incoming.filter((row) => row.ruleMode === ruleMode);
           incoming = [...new Map(incoming.map((row) => [row.tableId, row])).values()];
           latest.current = incoming;
           setSnapshot(next);
@@ -255,7 +294,7 @@ export function CasualLobbyPage({
       readPromise.current = promise;
       return promise;
     },
-    [queryKey, snapshot?.nextCursor]
+    [queryKey, debouncedSearch, ruleMode, snapshot?.nextCursor]
   );
   useLayoutEffect(() => {
     readRef.current = read;
@@ -267,6 +306,8 @@ export function CasualLobbyPage({
     const resetTimer = window.setTimeout(() => {
       setPendingCount(0);
       setListError(null);
+      setSnapshot(null);
+      setRows([]);
       void poll(true);
     }, 0);
     let stopped = false;
@@ -357,6 +398,7 @@ export function CasualLobbyPage({
     setPreview(null);
     setActivityPreview(null);
     setDeckPickerOpen(kind === 'DECK');
+    if (kind === 'JOIN') setSelected(null);
     if (kind === 'JOIN' && (status?.otherParticipation || (table && table.state !== 'WAITING'))) {
       setLocalError('请先处理我的当前房间，再加入另一间房');
       return;
@@ -369,7 +411,7 @@ export function CasualLobbyPage({
       source: kind === 'JOIN' && table?.state === 'WAITING' ? table : undefined,
       rematchId: table?.runtime?.rematch?.requestId,
     });
-    if (!['CODE', 'SPECTATE', 'CANCEL', 'LEAVE'].includes(kind)) void ensureDecks();
+    if (!['CODE', 'SPECTATE', 'NOTE', 'CANCEL', 'LEAVE'].includes(kind)) void ensureDecks();
   };
   const copy = async (value: string) => {
     try {
@@ -425,6 +467,13 @@ export function CasualLobbyPage({
     event.preventDefault();
     if (!flow) return;
     const data = new FormData(event.currentTarget);
+    const customRoomCode = String(data.get('roomCode') ?? '')
+      .trim()
+      .toUpperCase();
+    if (flow.kind === 'CREATE' && customRoomCode && !/^[A-Z0-9]{4,12}$/.test(customRoomCode)) {
+      setLocalError('房间号需为 4–12 位字母或数字，或留空自动生成');
+      return;
+    }
     if (flow.kind === 'CODE') {
       const epoch = ++lookupEpoch.current;
       setLooking(true);
@@ -456,6 +505,7 @@ export function CasualLobbyPage({
     }
     const entry = {
       requestId: flow.requestId,
+      ruleMode: selectionMode,
       deckId,
       spectatorEnabled: data.has('spectatorEnabled'),
     };
@@ -472,6 +522,7 @@ export function CasualLobbyPage({
           ...entry,
           discoverability: data.get('access'),
           note: String(data.get('note') ?? '').trim(),
+          roomCode: customRoomCode,
         };
         break;
       case 'JOIN':
@@ -505,8 +556,8 @@ export function CasualLobbyPage({
         return;
     }
     if (await action(path, body)) {
-      writeLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.publicTable, deckId);
-      setLastDeck(deckId);
+      writeLastUsedDeckId(casualDeckPreferenceKey(userId, selectionMode), deckId);
+      writeCasualRuleMode(userId, selectionMode);
       setFlow(null);
     }
   };
@@ -521,17 +572,20 @@ export function CasualLobbyPage({
         CONTINUE: '继续公开找人',
         CODE: '输入房间号',
         SPECTATE: '选择观战视角',
+        NOTE: '房间备注',
         LEAVE: table?.runtime?.status === 'OPENING' ? '退出本轮开局？' : '离开房间？',
         CANCEL: table?.state === 'WAITING' ? '取消等待？' : '取消本次配对？',
       }[flow.kind]
     : '';
-  const isForm = flow && !['SPECTATE', 'CANCEL', 'LEAVE'].includes(flow.kind);
+  const isForm = flow && !['SPECTATE', 'NOTE', 'CANCEL', 'LEAVE'].includes(flow.kind);
   const pending = table?.state === 'RESERVED';
   const confirmed = table?.members.find((member) => member.userId === userId)?.confirmed;
   const activeRuntime = table?.state === 'BOUND';
   const ended = table?.runtime?.status === 'ENDED';
   const rematch = table?.runtime?.rematch;
   const ownError = localError ?? storeError;
+  const visibleRows = rows.filter((row) => row.ruleMode === ruleMode);
+  const snapshotMatchesMode = loadedSearch?.startsWith(`${ruleMode}:`) ?? false;
   const stale = snapshot && now - snapshot.snapshotAt > 10_000;
   const localSetupBlocked = !hydrated || busy || Boolean(table || status?.otherParticipation);
 
@@ -545,41 +599,23 @@ export function CasualLobbyPage({
           </button>
           <h1>对战大厅</h1>
         </div>
-        <div className="casual-actions casual-heading-actions">
-          {!table && !status?.otherParticipation && (
-            <button
-              className="button-primary"
-              disabled={!hydrated || busy || Boolean(snapshot?.unavailableReason)}
-              onClick={() => open('FIND')}
-            >
-              <Swords size={17} />
-              找对手
-            </button>
-          )}
-          <div className="casual-local-entries" role="group" aria-label="练习与调试">
-            <div className="casual-actions">
-              <button
-                className="button-secondary"
-                disabled={localSetupBlocked}
-                onClick={() => onLocalSetup(GameMode.SOLITAIRE)}
-              >
+        {!localSetupBlocked && (
+          <details className="casual-practice">
+            <summary>
+              练习与调试 <ChevronDown size={15} aria-hidden="true" />
+            </summary>
+            <div className="casual-practice-options" role="group" aria-label="练习与调试">
+              <button className="button-ghost" onClick={() => onLocalSetup(GameMode.SOLITAIRE)}>
                 <Target size={17} aria-hidden="true" />
                 对墙打
               </button>
-              <button
-                className="button-secondary"
-                disabled={localSetupBlocked}
-                onClick={() => onLocalSetup(GameMode.DEBUG)}
-              >
+              <button className="button-ghost" onClick={() => onLocalSetup(GameMode.DEBUG)}>
                 <Bug size={17} aria-hidden="true" />
                 双人调试
               </button>
             </div>
-            {(table || status?.otherParticipation) && (
-              <p className="casual-muted">请先结束当前匹配或离开房间，再开始练习或调试。</p>
-            )}
-          </div>
-        </div>
+          </details>
+        )}
       </header>
       <section
         className={table || status?.otherParticipation ? 'casual-current' : 'casual-announcements'}
@@ -587,10 +623,25 @@ export function CasualLobbyPage({
       >
         {(table || status?.otherParticipation) && (
           <div className="casual-current-top">
-            <h2 id="casual-current-title" tabIndex={-1}>
-              我的房间
-            </h2>
-            {table && <span className="casual-code">{table.roomCode}</span>}
+            <div className="casual-current-label">
+              {table && <CasualRuleMark mode={table.ruleMode} />}
+              <div>
+                <h2 id="casual-current-title" tabIndex={-1}>
+                  我的房间
+                </h2>
+                {table && <CasualRuleBadge mode={table.ruleMode} showMark={false} />}
+              </div>
+            </div>
+            {table && (
+              <button
+                className="casual-copy-code button-ghost"
+                aria-label="复制房间号"
+                onClick={() => void copy(table.roomCode)}
+              >
+                <span className="casual-code">{table.roomCode}</span>
+                <Copy size={14} aria-hidden="true" />
+              </button>
+            )}
           </div>
         )}
         {!hydrated ? (
@@ -616,16 +667,31 @@ export function CasualLobbyPage({
                             ? '正在等待开局'
                             : '你的房间正在对战'}
                 </h3>
-                <p>
-                  {table.members
-                    .map(
-                      (member) =>
-                        `${member.displayName}${table.runtime?.departedUserIds.includes(member.userId) ? '（已离开）' : ''}`
-                    )
-                    .join(' · ')}
-                </p>
+                {(table.state !== 'WAITING' || table.members.length > 1) && (
+                  <p>
+                    {table.members
+                      .map(
+                        (member) =>
+                          `${member.displayName}${table.runtime?.departedUserIds.includes(member.userId) ? '（已离开）' : ''}`
+                      )
+                      .join(' · ')}
+                  </p>
+                )}
                 <p className="casual-muted">
                   {table.ownDeck?.name}
+                  {table.ownDeck && (
+                    <>
+                      {' '}
+                      ·{' '}
+                      {table.ruleMode === 'UNLIMITED'
+                        ? `${table.ownDeck.pointTotal} PT`
+                        : casualPointSummary(
+                            table.ownDeck.pointTotal,
+                            table.ownDeck.pointLimit,
+                            table.ruleMode
+                          )}
+                    </>
+                  )}
                   {table.state === 'WAITING' && <> · 已等待 {duration(table.waitingSince, now)}</>}
                   {pending && (
                     <>
@@ -656,40 +722,28 @@ export function CasualLobbyPage({
               <div className="casual-actions">
                 {table.state === 'WAITING' && (
                   <>
-                    <button
-                      className="button-secondary"
-                      disabled={busy}
-                      onClick={() => open('DECK')}
-                    >
+                    <button className="button-ghost" disabled={busy} onClick={() => open('DECK')}>
                       换组
                     </button>
                     <button
-                      className="button-secondary"
+                      className="button-ghost"
                       onClick={() =>
                         void copy(
-                          `${window.location.origin}/?page=battle-lobby&room=${table.roomCode}`
+                          `${casualRuleName(table.ruleMode)}${table.ruleMode === 'UNLIMITED' ? '（PT 不限）' : ''} · 房间 ${table.roomCode}\n${window.location.origin}/?page=battle-lobby&room=${table.roomCode}`
                         )
                       }
                     >
                       <Copy size={16} />
                       复制邀请
                     </button>
-                    <button
-                      className="button-secondary"
-                      disabled={busy}
-                      onClick={() => open('CANCEL')}
-                    >
+                    <button className="button-ghost" disabled={busy} onClick={() => open('CANCEL')}>
                       取消等待
                     </button>
                   </>
                 )}
                 {pending && (
                   <>
-                    <button
-                      className="button-secondary"
-                      disabled={busy}
-                      onClick={() => open('CANCEL')}
-                    >
+                    <button className="button-ghost" disabled={busy} onClick={() => open('CANCEL')}>
                       取消配对
                     </button>
                     <button
@@ -782,27 +836,42 @@ export function CasualLobbyPage({
               </div>
             </div>
             {table.state !== 'BOOTSTRAPPING' && (
-              <label className="casual-check">
-                <input
-                  type="checkbox"
-                  checked={table.spectatorEnabled}
-                  disabled={busy}
-                  onChange={(event) =>
-                    void action('spectator-preference', {
-                      target: table,
-                      enabled: event.target.checked,
-                    })
-                  }
-                />
-                开放我的观战视角
-              </label>
+              <div className="casual-current-footer">
+                {table.state === 'WAITING' && (
+                  <button
+                    className="button-ghost casual-change-rule"
+                    disabled={busy || Boolean(flow)}
+                    onClick={() => {
+                      open('CANCEL');
+                      setFlow((current) =>
+                        current
+                          ? {
+                              ...current,
+                              nextRuleMode: table.ruleMode === 'NORMAL' ? 'UNLIMITED' : 'NORMAL',
+                            }
+                          : current
+                      );
+                    }}
+                  >
+                    更改模式
+                  </button>
+                )}
+                <label className="casual-check">
+                  <input
+                    type="checkbox"
+                    checked={table.spectatorEnabled}
+                    disabled={busy}
+                    onChange={(event) =>
+                      void action('spectator-preference', {
+                        target: table,
+                        enabled: event.target.checked,
+                      })
+                    }
+                  />
+                  开放我的观战视角
+                </label>
+              </div>
             )}
-            <button
-              className="casual-copy-code button-ghost"
-              onClick={() => void copy(table.roomCode)}
-            >
-              复制房间号
-            </button>
           </>
         ) : status?.otherParticipation ? (
           <div className="casual-current-body">
@@ -841,30 +910,50 @@ export function CasualLobbyPage({
             </p>
           )}
       </section>
+      {!table && !status?.otherParticipation && (
+        <section className="casual-preparation" aria-label="对战准备">
+          <CasualRuleSelector
+            value={ruleMode}
+            disabled={!hydrated || busy || Boolean(flow)}
+            onChange={switchRule}
+          />
+          <button
+            className="button-primary casual-find"
+            disabled={!hydrated || busy || Boolean(snapshot?.unavailableReason)}
+            onClick={() => open('FIND')}
+          >
+            <Swords size={17} />
+            找对手
+          </button>
+        </section>
+      )}
       <section className="casual-rooms" aria-labelledby="casual-rooms-title">
         <div className="casual-section-heading">
           <div className="casual-room-heading">
-            <h2 id="casual-rooms-title">公开房间</h2>
-            {snapshot && (
-              <p>
-                {snapshot.counts.waiting} 间等人 · {snapshot.counts.preparing} 间准备 ·{' '}
-                {snapshot.counts.playing} 间对战中
-              </p>
-            )}
+            <h2 id="casual-rooms-title">
+              <CasualRuleMark mode={ruleMode} />
+              {casualRuleName(ruleMode)}房间
+            </h2>
+            {snapshot &&
+              snapshotMatchesMode &&
+              snapshot.counts.waiting + snapshot.counts.preparing + snapshot.counts.playing > 0 && (
+                <p>
+                  {snapshot.counts.waiting} 间等人 · {snapshot.counts.preparing} 间准备 ·{' '}
+                  {snapshot.counts.playing} 间对战中
+                </p>
+              )}
           </div>
           <div className="casual-room-commands" aria-label="房间操作">
-            <button
-              className="button-ghost casual-room-command"
-              disabled={
-                !hydrated ||
-                busy ||
-                Boolean(table || status?.otherParticipation || snapshot?.unavailableReason)
-              }
-              onClick={() => open('CREATE')}
-            >
-              <Plus size={16} />
-              创建房间
-            </button>
+            {!table && !status?.otherParticipation && (
+              <button
+                className="button-ghost casual-room-command"
+                disabled={!hydrated || busy || Boolean(snapshot?.unavailableReason)}
+                onClick={() => open('CREATE')}
+              >
+                <Plus size={16} />
+                创建房间
+              </button>
+            )}
             <button className="button-ghost casual-room-command" onClick={() => open('CODE')}>
               <Hash size={16} />
               输入房间号
@@ -883,7 +972,7 @@ export function CasualLobbyPage({
             />
           </label>
           <span className="casual-list-progress" role="status">
-            {snapshot && !listError && search.trim() !== loadedSearch ? '正在搜索…' : ''}
+            {snapshot && !listError && queryKey !== loadedSearch ? '正在搜索…' : ''}
           </span>
           <button
             className="button-ghost casual-refresh"
@@ -916,16 +1005,17 @@ export function CasualLobbyPage({
               有 {pendingCount} 间新房间，更新列表
             </button>
           )}
-          {!snapshot ? (
+          {!snapshot || !snapshotMatchesMode ? (
             <div className="casual-empty" role="status">
               {listError ? '房间列表加载失败，请重试。' : '正在加载公开房间…'}
             </div>
-          ) : !rows.length ? (
+          ) : !visibleRows.length ? (
             <div className="casual-empty">
-              <div className="casual-empty-mark" aria-hidden="true">
-                <Swords size={25} strokeWidth={1.5} />
-              </div>
-              <h3>{debouncedSearch ? '没有找到这个房间或玩家' : '还没有公开房间'}</h3>
+              <h3>
+                {debouncedSearch
+                  ? '没有找到这个房间或玩家'
+                  : `暂无${casualRuleName(ruleMode)}公开房间`}
+              </h3>
               <p>{debouncedSearch ? '换个昵称或房间号试试。' : '找个对手，或创建房间邀请朋友。'}</p>
               {search && (
                 <button className="button-secondary" onClick={() => setSearch('')}>
@@ -938,81 +1028,81 @@ export function CasualLobbyPage({
               <div className="casual-row casual-row-head" aria-hidden="true">
                 <span>参与者／房间号</span>
                 <span>状态</span>
-                <span>人数</span>
-                <span>时间／观战</span>
                 <span>操作</span>
               </div>
               <ul className="casual-room-list" aria-label="公开房间列表">
-                {rows.map((row) => (
+                {visibleRows.map((row) => (
                   <li className="casual-row" key={row.tableId}>
                     <div className="casual-identity">
                       <strong>{row.members.map((member) => member.displayName).join(' · ')}</strong>
-                      <span className="casual-code">
-                        {row.roomCode}
-                        {row.isMine ? ' · 我的房间' : ''}
+                      <div className="casual-room-details">
+                        <span className="casual-code">
+                          {row.roomCode}
+                          {row.isMine ? ' · 我的房间' : ''}
+                        </span>
+                      </div>
+                      {row.note && (
+                        <button
+                          type="button"
+                          className="casual-room-note"
+                          aria-label={`查看房间 ${row.roomCode} 的备注`}
+                          title={row.note}
+                          onClick={() => open('NOTE', row)}
+                        >
+                          <span>{row.note}</span>
+                          <ChevronRight size={12} aria-hidden="true" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="casual-row-status">
+                      <span className={`casual-state casual-state-${row.status.toLowerCase()}`}>
+                        {names[row.status]}
                       </span>
-                      {row.note && <p>{row.note}</p>}
+                      {row.status === 'PLAYING' && !row.spectatorViews.length && (
+                        <small>未开放观战</small>
+                      )}
                     </div>
-                    <span className={`casual-state casual-state-${row.status.toLowerCase()}`}>
-                      {names[row.status]}
-                    </span>
-                    <span className="casual-room-meta">{row.members.length}/2 · 休闲</span>
-                    <span className="casual-time">
-                      {row.status === 'WAITING'
-                        ? '已等 '
-                        : row.status === 'PLAYING'
-                          ? '已进行 '
-                          : ''}
-                      {['WAITING', 'PLAYING'].includes(row.status) ? duration(row.since, now) : '—'}
-                      <small>
-                        {row.spectatorViews.length
-                          ? `${row.spectatorViews.length} 个视角开放`
-                          : row.status === 'PLAYING'
-                            ? '未开放观战'
-                            : ''}
-                      </small>
-                    </span>
-                    <div className="casual-row-action">
-                      <button
-                        className="button-secondary"
-                        aria-label={
-                          row.isMine
-                            ? `返回我的房间 ${row.roomCode}`
-                            : row.canJoin
-                              ? `加入 ${row.members[0]?.displayName} 的房间`
-                              : row.spectatorViews.length
-                                ? `观战 ${row.members.map((member) => member.displayName).join('与')} 的对局`
-                                : `${row.roomCode} ${names[row.status]}`
-                        }
-                        disabled={
-                          Boolean(spectatingTable) ||
-                          (!row.isMine &&
-                            (row.canJoin
-                              ? Boolean(snapshot?.unavailableReason) || busy || recoveringJoin
-                              : !row.spectatorViews.length))
-                        }
-                        aria-busy={spectatingTable === row.tableId}
-                        onClick={() =>
-                          row.isMine
-                            ? document.getElementById('casual-current-title')?.focus()
-                            : row.canJoin
-                              ? open('JOIN', row)
-                              : row.spectatorViews.length === 1
-                                ? void enterSpectator(row, row.spectatorViews[0].seat)
-                                : open('SPECTATE', row)
-                        }
-                      >
-                        {spectatingTable === row.tableId
-                          ? '进入中…'
-                          : row.isMine
-                            ? '我的房间'
-                            : row.canJoin
-                              ? '加入'
-                              : row.spectatorViews.length
-                                ? '观战'
-                                : names[row.status]}
-                      </button>
-                    </div>
+                    {(row.isMine || row.canJoin || row.spectatorViews.length > 0) && (
+                      <div className="casual-row-action">
+                        <button
+                          className={!row.isMine && row.canJoin ? 'casual-join' : 'button-ghost'}
+                          aria-label={
+                            row.isMine
+                              ? `返回我的房间 ${row.roomCode}`
+                              : row.canJoin
+                                ? `加入 ${row.members[0]?.displayName} 的房间`
+                                : `观战 ${row.members.map((member) => member.displayName).join('与')} 的对局`
+                          }
+                          disabled={
+                            Boolean(spectatingTable) ||
+                            (!row.isMine &&
+                              row.canJoin &&
+                              (Boolean(snapshot?.unavailableReason) || busy || recoveringJoin))
+                          }
+                          aria-busy={spectatingTable === row.tableId}
+                          onClick={() =>
+                            row.isMine
+                              ? document.getElementById('casual-current-title')?.focus()
+                              : row.canJoin
+                                ? open('JOIN', row)
+                                : row.spectatorViews.length === 1
+                                  ? void enterSpectator(row, row.spectatorViews[0].seat)
+                                  : open('SPECTATE', row)
+                          }
+                        >
+                          {spectatingTable === row.tableId
+                            ? '进入中…'
+                            : row.isMine
+                              ? '我的房间'
+                              : row.canJoin
+                                ? '加入房间'
+                                : '观战'}
+                          {!row.isMine && row.canJoin && (
+                            <ArrowRight size={14} aria-hidden="true" />
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -1049,7 +1139,9 @@ export function CasualLobbyPage({
                   ? table?.runtime?.status === 'OPENING'
                     ? '退出将关闭本轮开局，双方席位都会释放。'
                     : '离开后不再参与这个房间的再战。对手仍可保留赛后结果并继续找人。'
-                  : '本次操作会释放你的席位。下一次主动找人会重新计算等待时间。'}
+                  : flow.nextRuleMode
+                    ? `将取消本次等待并切换到${casualRuleName(flow.nextRuleMode)}，切换后请重新找人。`
+                    : '本次操作会释放你的席位。下一次主动找人会重新计算等待时间。'}
               </p>
               <div className="casual-actions">
                 <button className="button-secondary" disabled={busy} onClick={() => setFlow(null)}>
@@ -1063,14 +1155,31 @@ export function CasualLobbyPage({
                       await action(flow.kind === 'LEAVE' ? 'leave' : 'cancel', {
                         target: flow.target,
                       })
-                    )
+                    ) {
+                      if (flow.nextRuleMode) {
+                        switchRule(flow.nextRuleMode);
+                      }
                       setFlow(null);
+                    }
                   }}
                 >
-                  {flow.kind === 'LEAVE' ? '确认退出' : '确认取消'}
+                  {flow.kind === 'LEAVE'
+                    ? '确认退出'
+                    : flow.nextRuleMode
+                      ? '取消等待并切换'
+                      : '确认取消'}
                 </button>
               </div>
             </>
+          ) : flow.kind === 'NOTE' ? (
+            <div className="casual-note-content">
+              <p className="casual-muted">
+                {flow.row?.members.map((member) => member.displayName).join(' · ')}
+                {' · '}
+                {flow.row?.roomCode}
+              </p>
+              <p>{flow.row?.note}</p>
+            </div>
           ) : flow.kind === 'SPECTATE' ? (
             <>
               <p>只展示玩家已开放的视角。入场时会再次核验授权。</p>
@@ -1089,7 +1198,10 @@ export function CasualLobbyPage({
             </>
           ) : (
             isForm && (
-              <form onSubmit={(event) => void submit(event)} className="casual-form">
+              <form
+                onSubmit={(event) => void submit(event)}
+                className={`casual-form${flow.kind === 'CREATE' ? ' casual-create-form' : ''}`}
+              >
                 {flow.kind === 'CODE' ? (
                   <>
                     <label>
@@ -1145,6 +1257,7 @@ export function CasualLobbyPage({
                         </strong>
                         <p>
                           {preview.roomCode} · {names[preview.status]}
+                          <CasualRuleBadge mode={preview.ruleMode} />
                         </p>
                         {preview.isMine ? (
                           <button
@@ -1179,6 +1292,8 @@ export function CasualLobbyPage({
                   </>
                 ) : (
                   <>
+                    <CasualRuleBadge mode={selectionMode} />
+                    {flow.kind !== 'CREATE' && <p>{casualRuleDescription(selectionMode)}</p>}
                     {flow.kind === 'FIND' && (
                       <p>优先加入正在等人的公开房间，没有对手时会创建房间等待。</p>
                     )}
@@ -1202,13 +1317,21 @@ export function CasualLobbyPage({
                           />
                         )}
                         <div>
-                          <small>本局卡组</small>
+                          {flow.kind !== 'CREATE' && <small>本局卡组</small>}
                           <strong>{chosen.name}</strong>
-                          <span>{chosen.pointTotal} PT</span>
+                          <span>
+                            {pointTableDisplayReady
+                              ? casualPointSummary(
+                                  chosen.pointTotal,
+                                  pointTable.pointLimit,
+                                  selectionMode
+                                )
+                              : 'PT 暂无法读取'}
+                          </span>
                         </div>
                         <button
                           type="button"
-                          className="button-secondary"
+                          className={flow.kind === 'CREATE' ? 'button-ghost' : 'button-secondary'}
                           onClick={() => setDeckPickerOpen(true)}
                         >
                           更换
@@ -1217,7 +1340,15 @@ export function CasualLobbyPage({
                     ) : (
                       <div className="casual-deck-selector">
                         <DeckSelector
-                          cloudDecks={validCloudDecks}
+                          ruleMode={selectionMode}
+                          cloudDecks={cloudDecks}
+                          onSwitchToUnlimited={
+                            !table && ['FIND', 'CREATE'].includes(flow.kind)
+                              ? () => {
+                                  switchRule('UNLIMITED');
+                                }
+                              : undefined
+                          }
                           selectedId={chosen?.id}
                           onSelect={(deck) => {
                             setSelected(deck);
@@ -1240,26 +1371,38 @@ export function CasualLobbyPage({
                     )}
                     {flow.kind === 'CREATE' && (
                       <>
-                        <fieldset>
+                        <label>
+                          <span className="casual-field-label">
+                            房间号（可选）
+                            <small id="casual-custom-code-hint">4–12 位字母或数字</small>
+                          </span>
+                          <input
+                            name="roomCode"
+                            aria-label="房间号（可选）"
+                            maxLength={12}
+                            placeholder="留空自动生成"
+                            autoCapitalize="characters"
+                            autoComplete="off"
+                            spellCheck={false}
+                            aria-describedby="casual-custom-code-hint"
+                          />
+                        </label>
+                        <fieldset className="casual-access">
                           <legend>访问方式</legend>
-                          <label className="casual-choice">
-                            <input type="radio" name="access" value="PUBLIC" defaultChecked />
-                            <span>
-                              <strong>公开找人</strong>
-                              <small>出现在大厅，接受加入和自动找人。</small>
-                            </span>
-                          </label>
-                          <label className="casual-choice">
-                            <input type="radio" name="access" value="UNLISTED" />
-                            <span>
-                              <strong>凭链接加入</strong>
-                              <small>不会列出；知道链接或房间号的玩家可加入，链接可以转发。</small>
-                            </span>
-                          </label>
+                          <div className="casual-access-options">
+                            <label className="casual-choice">
+                              <input type="radio" name="access" value="PUBLIC" defaultChecked />
+                              公开找人
+                            </label>
+                            <label className="casual-choice">
+                              <input type="radio" name="access" value="UNLISTED" />
+                              凭链接加入
+                            </label>
+                          </div>
                         </fieldset>
                         <label>
-                          房间备注（可选，最多 40 字）
-                          <input name="note" maxLength={40} />
+                          备注（可选）
+                          <input name="note" maxLength={40} placeholder="最多 40 字" />
                         </label>
                       </>
                     )}
@@ -1280,9 +1423,14 @@ export function CasualLobbyPage({
                       </label>
                     )}
                     <div className="casual-actions">
+                      {flow.kind === 'CREATE' && ownError && (
+                        <p className="casual-error" role="alert">
+                          {ownError}
+                        </p>
+                      )}
                       <button
                         type="button"
-                        className="button-secondary"
+                        className={flow.kind === 'CREATE' ? 'button-ghost' : 'button-secondary'}
                         disabled={busy}
                         onClick={() => setFlow(null)}
                       >
@@ -1302,9 +1450,11 @@ export function CasualLobbyPage({
                           : flow.kind === 'JOIN'
                             ? flow.source
                               ? '取消当前等待并加入'
-                              : '加入房间'
+                              : selectionMode !== ruleMode
+                                ? `按${casualRuleName(selectionMode)}加入`
+                                : '加入房间'
                             : flow.kind === 'CREATE'
-                              ? '创建房间'
+                              ? `创建${selectionMode === 'UNLIMITED' ? '娱乐' : '标准'}房间`
                               : flow.kind === 'FIND'
                                 ? '开始找对手'
                                 : '确认'}
@@ -1315,7 +1465,7 @@ export function CasualLobbyPage({
               </form>
             )
           )}
-          {ownError && (
+          {ownError && flow.kind !== 'CREATE' && (
             <p className="casual-error" role="alert">
               {ownError}
             </p>

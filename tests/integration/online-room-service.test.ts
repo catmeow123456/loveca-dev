@@ -4031,7 +4031,7 @@ describe('OnlineRoomService', () => {
 
     await expect(service.requestRestart(room.roomCode, 'u1')).rejects.toMatchObject({
       code: 'THEME_RESTART_FORBIDDEN',
-      message: '娱乐模式每局都会重新分配卡组，请返回娱乐模式再次候场',
+      message: '主题牌桌每局都会重新分配卡组，请返回主题牌桌再次候场',
     });
   });
 

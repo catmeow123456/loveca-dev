@@ -54,6 +54,7 @@ import {
   deckConfigToRecordPayload,
   deckRecordToConfig,
   isDeckConfigValidForCurrentCardPool,
+  isDeckRecordValidForCurrentCardPool,
 } from '@/lib/deckRecordUtils';
 import { createNewDeckConfig } from '@game/domain/card-data/deck-defaults';
 import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
@@ -949,6 +950,36 @@ export function DeckManager({
                 {/* Deck list */}
                 <div className="product-list -mx-3 sm:-mx-5">
                   {visibleDecks.map((deck) => {
+                    const ordinaryValid = deck.cloudDeck
+                      ? isDeckRecordValidForCurrentCardPool(
+                          deck.cloudDeck,
+                          cardDataRegistry,
+                          pointTable
+                        )
+                      : Boolean(
+                          deck.localDeck &&
+                          isDeckConfigValidForCurrentCardPool(
+                            deck.localDeck.config,
+                            cardDataRegistry,
+                            pointTable
+                          )
+                        );
+                    const entertainmentValid = deck.cloudDeck
+                      ? isDeckRecordValidForCurrentCardPool(
+                          deck.cloudDeck,
+                          cardDataRegistry,
+                          pointTable,
+                          'UNLIMITED'
+                        )
+                      : Boolean(
+                          deck.localDeck &&
+                          isDeckConfigValidForCurrentCardPool(
+                            deck.localDeck.config,
+                            cardDataRegistry,
+                            pointTable,
+                            'UNLIMITED'
+                          )
+                        );
                     const stats = {
                       memberCount: deck.memberCount,
                       liveCount: deck.liveCount,
@@ -1015,13 +1046,17 @@ export function DeckManager({
                                   <Globe size={10} /> 已分享
                                 </span>
                               )}
-                              {deck.isValid ? (
+                              {ordinaryValid ? (
                                 <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-success)]">
-                                  <Check size={10} /> 完整
+                                  <Check size={10} /> 标准／娱乐均可用
+                                </span>
+                              ) : entertainmentValid ? (
+                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px]">
+                                  标准超限，娱乐可用
                                 </span>
                               ) : (
                                 <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px]">
-                                  <Circle size={8} /> 未完成
+                                  <Circle size={8} /> 构筑待调整
                                 </span>
                               )}
                             </div>

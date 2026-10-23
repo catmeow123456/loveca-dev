@@ -1,3 +1,4 @@
+import type { CasualRuleMode } from '../../domain/rules/deck-construction.js';
 import { randomUUID } from 'node:crypto';
 import type { RandomIntegerSource } from '../../shared/random-source.js';
 import {
@@ -127,6 +128,7 @@ export interface CreateOnlineMatchPlayerParams {
 }
 
 export interface CreateOnlineMatchParams {
+  readonly casualRuleMode?: CasualRuleMode | null;
   readonly roomCode: string;
   readonly matchMode?: MatchMode;
   readonly automationGameMode?: MatchAutomationGameMode;
@@ -182,6 +184,7 @@ export interface OnlineMatchState {
   readonly roomCode: string;
   readonly matchMode: MatchMode;
   readonly automationGameMode: MatchAutomationGameMode;
+  readonly casualRuleMode?: CasualRuleMode | null;
   readonly originKind: MatchOriginKind;
   readonly originLabel: string;
   readonly session: GameSession;
@@ -520,6 +523,7 @@ export class OnlineMatchService {
       matchMode: params.matchMode ?? 'ONLINE',
       automationGameMode,
       originKind: params.originKind ?? 'ONLINE_ROOM',
+      casualRuleMode: params.casualRuleMode ?? null,
       originLabel: params.originLabel ?? params.roomCode,
       session,
       participants: {
@@ -4193,6 +4197,7 @@ function buildSnapshot(
 
   return {
     matchId: match.matchId,
+    casualRuleMode: match.casualRuleMode ?? null,
     seat: participant.seat,
     playerId: participant.playerId,
     seq: match.remoteRevision,

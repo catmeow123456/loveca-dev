@@ -1,3 +1,5 @@
+import type { CasualRuleMode } from '@game/online/casual-table-types';
+import { CasualRuleBadge } from '@/components/common/CasualRuleSelector';
 import {
   type ReactNode,
   useCallback,
@@ -737,7 +739,7 @@ export function OnlineRoomPage({
         onBackToThemeTable();
         return;
       }
-      setError(endError instanceof Error ? endError.message : '结束娱乐模式房间失败');
+      setError(endError instanceof Error ? endError.message : '结束主题牌桌房间失败');
     } finally {
       setIsSubmitting(false);
     }
@@ -1037,6 +1039,9 @@ export function OnlineRoomPage({
           <Users size={16} />
           <span className="hidden text-sm font-semibold sm:inline">
             房间 {activeBattleContext.room.roomCode}
+            {activeBattleContext.room.casualTable?.ruleMode === 'UNLIMITED' && (
+              <span className="ml-1">· 娱乐 · PT 不限</span>
+            )}
           </span>
           <span className="text-sm font-semibold sm:hidden">
             {activeBattleContext.room.roomCode}
@@ -1071,6 +1076,7 @@ export function OnlineRoomPage({
         {isRoomPanelOpen && (
           <div ref={roomPanelRef}>
             <RoomActionPanel
+              ruleMode={activeBattleContext.room.casualTable?.ruleMode}
               roomCode={activeBattleContext.room.roomCode}
               presence={spectatorPresence}
               spectatorRoomEntry={mySpectatorRoomEntry}
@@ -1301,7 +1307,7 @@ export function OnlineRoomPage({
         />
         <ConfirmDialog
           isOpen={isThemeEndConfirmOpen}
-          title="结束娱乐模式房间？"
+          title="结束主题牌桌房间？"
           message="本次配对将立即取消，双方不分胜负、不计入统计，也无法再回到这个房间。"
           confirmLabel="结束房间"
           isConfirming={isSubmitting}
@@ -1920,6 +1926,7 @@ function OnlineOpeningStage({
                     <h1 className="text-xl font-semibold tracking-normal text-[var(--text-primary)] sm:text-3xl lg:text-4xl">
                       开局猜拳
                     </h1>
+                    {room.casualTable && <CasualRuleBadge mode={room.casualTable.ruleMode} />}
                     <p className="mt-1 max-w-2xl text-xs font-semibold text-[var(--text-secondary)] sm:mt-2 sm:text-sm sm:leading-relaxed">
                       {statusText}
                     </p>
@@ -2734,7 +2741,7 @@ function OnlineMatchEndPanel({
               ) : (
                 <ArrowLeft size={16} />
               )}
-              {actionState.kind === 'THEME_ROOM' ? '返回娱乐模式' : '返回大厅'}
+              {actionState.kind === 'THEME_ROOM' ? '返回主题牌桌' : '返回大厅'}
             </button>
           </div>
         )}
@@ -2744,6 +2751,7 @@ function OnlineMatchEndPanel({
 }
 
 function RoomActionPanel({
+  ruleMode,
   roomCode,
   presence,
   spectatorRoomEntry,
@@ -2764,6 +2772,7 @@ function RoomActionPanel({
   onSurrender,
   onBackHome,
 }: {
+  ruleMode?: CasualRuleMode;
   roomCode: string;
   presence: OnlineRoomView['spectatorPresence'];
   spectatorRoomEntry: NonNullable<OnlineRoomView['spectatorRoomEntry']>['seats'][number] | null;
@@ -2793,8 +2802,9 @@ function RoomActionPanel({
       <div className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] pb-3">
         <div>
           <div className="text-[11px] uppercase text-[var(--text-muted)]">
-            {isRankedRoom ? '赛季排位房间' : isThemeRoom ? '娱乐模式房间' : '正式联机房间'}
+            {isRankedRoom ? '赛季排位房间' : isThemeRoom ? '主题牌桌房间' : '正式联机房间'}
           </div>
+          {ruleMode && <CasualRuleBadge mode={ruleMode} />}
           <div className="mt-1 font-semibold">Room {roomCode}</div>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import type { CasualRuleMode } from '../../domain/rules/deck-construction.js';
 import { randomInt, randomUUID } from 'node:crypto';
 import { createSurrenderCommand } from '../../application/game-commands.js';
 import type { DeckConfig as RuntimeDeckConfig } from '../../application/game-service.js';
@@ -104,7 +105,11 @@ interface OnlineRoomState {
   readonly rankedSeasonId: string | null;
   readonly themeTableVersionId: string | null;
   readonly closedToNewMembers: boolean;
-  readonly casualTable?: { readonly tableId: string; readonly roundId: string };
+  readonly casualTable?: {
+    readonly tableId: string;
+    readonly roundId: string;
+    readonly ruleMode: CasualRuleMode;
+  };
   casualRetirementPending?: boolean;
   openingExpiresAt: number | null;
   openingArrivalExpiresAt: number | null;
@@ -160,6 +165,7 @@ export interface CreatePublicTableRoomInput {
 }
 
 export interface CreateCasualTableRuntimeInput {
+  readonly ruleMode: CasualRuleMode;
   readonly tableId: string;
   readonly roundId: string;
   readonly roomCode: string;
@@ -177,6 +183,7 @@ export interface CasualTableRuntimeIdentity {
 }
 
 export interface CasualTableRuntimePort {
+  isRoomCodeInUse(roomCode: string): boolean;
   prepareCasualTableRuntime(input: CreateCasualTableRuntimeInput): CasualTableRuntimeIdentity;
   activateCasualTableRuntime(tableId: string, roundId: string, generation: string): void;
   discardCasualTableRuntime(tableId: string, roundId: string, generation: string | null): boolean;
@@ -474,6 +481,13 @@ export class OnlineRoomService {
     return { roomCode: room.roomCode, roomGeneration: room.roomGeneration };
   }
 
+  isRoomCodeInUse(roomCode: string): boolean {
+    return (
+      this.rooms.has(roomCode) ||
+      [...this.pendingCasualRooms.values()].some((room) => room.roomCode === roomCode)
+    );
+  }
+
   /** Allocate synchronously after the admission transaction checks its round/lease.
    * Pending rooms cannot receive player commands before the DB binding commits. */
   prepareCasualTableRuntime(input: CreateCasualTableRuntimeInput): CasualTableRuntimeIdentity {
@@ -486,10 +500,7 @@ export class OnlineRoomService {
       );
     if (existing) return { roomCode: existing.roomCode, roomGeneration: existing.roomGeneration };
     const roomCode = normalizeRoomCode(input.roomCode);
-    if (
-      this.rooms.has(roomCode) ||
-      [...this.pendingCasualRooms.values()].some((room) => room.roomCode === roomCode)
-    ) {
+    if (this.isRoomCodeInUse(roomCode)) {
       throw new OnlineRoomServiceError('ONLINE_ROOM_EXISTS', '房间号已经被占用', 409);
     }
     const now = this.now();
@@ -515,7 +526,7 @@ export class OnlineRoomService {
       rankedSeasonId: null,
       themeTableVersionId: null,
       closedToNewMembers: true,
-      casualTable: { tableId: input.tableId, roundId: input.roundId },
+      casualTable: { tableId: input.tableId, roundId: input.roundId, ruleMode: input.ruleMode },
       openingExpiresAt: input.openingExpiresAt,
       openingArrivalExpiresAt: now + 60_000,
       endInfo: null,
@@ -1385,14 +1396,14 @@ export class OnlineRoomService {
     if (!room.themeTableVersionId) {
       throw new OnlineRoomServiceError(
         'ONLINE_THEME_ROOM_END_FORBIDDEN',
-        '只有娱乐模式房间可以无胜负结束',
+        '只有主题牌桌房间可以无胜负结束',
         409
       );
     }
     if (room.status !== 'OPENING') {
       throw new OnlineRoomServiceError(
         'ONLINE_THEME_ROOM_END_FORBIDDEN',
-        '只有娱乐模式开局流程可以无胜负结束房间',
+        '只有主题牌桌开局流程可以无胜负结束房间',
         409
       );
     }
@@ -1919,12 +1930,14 @@ export class OnlineRoomService {
     const hostPointReview = revalidateRuntimeDeckPointSnapshot(
       hostDeck,
       host.pointValidation,
-      currentPointTable
+      currentPointTable,
+      room.casualTable?.ruleMode ?? 'NORMAL'
     );
     const guestPointReview = revalidateRuntimeDeckPointSnapshot(
       guestDeck,
       guest.pointValidation,
-      currentPointTable
+      currentPointTable,
+      room.casualTable?.ruleMode ?? 'NORMAL'
     );
     const isInitialPublicTableOpening =
       room.publicTableReservationId !== null && room.initialPublicTableMatchId === null;
@@ -2009,6 +2022,7 @@ export class OnlineRoomService {
       },
       originKind: room.originKind,
       originLabel: room.originLabel,
+      casualRuleMode: room.casualTable?.ruleMode ?? null,
     };
 
     const match = await this.matchService.createMatch(params);
@@ -2272,8 +2286,7 @@ export class OnlineRoomService {
     const resolveRoomDestroyAfterAllAbsentMs = async (): Promise<number> => {
       if (cachedRoomDestroyAfterAllAbsentMs === null) {
         const lifecycleConfig = await this.loadRoomLifecycleTimeoutConfig();
-        cachedRoomDestroyAfterAllAbsentMs =
-          lifecycleConfig.roomDestroyAfterAllAbsentSeconds * 1000;
+        cachedRoomDestroyAfterAllAbsentMs = lifecycleConfig.roomDestroyAfterAllAbsentSeconds * 1000;
       }
       return cachedRoomDestroyAfterAllAbsentMs;
     };
@@ -2331,10 +2344,16 @@ export class OnlineRoomService {
         room.originKind === 'PUBLIC_TABLE' &&
         room.initialPublicTableMatchId !== null &&
         (room.status === 'PREPARING' || room.status === 'READY') &&
-        room.members.some((member) => now - member.lastSeenAt >= ROOM_DESTROY_AFTER_ALL_ABSENT_MIN_MS)
+        room.members.some(
+          (member) => now - member.lastSeenAt >= ROOM_DESTROY_AFTER_ALL_ABSENT_MIN_MS
+        )
       ) {
         const roomDestroyAfterAllAbsentMs = await resolveRoomDestroyAfterAllAbsentMs();
-        if (room.members.some((member) => shouldDropPreparingMember(member, now, roomDestroyAfterAllAbsentMs))) {
+        if (
+          room.members.some((member) =>
+            shouldDropPreparingMember(member, now, roomDestroyAfterAllAbsentMs)
+          )
+        ) {
           await this.closePublicTableOpening(room, 'PLAYER_ABANDONED_OPENING', now);
           destroyedRoomCount += 1;
           continue;
@@ -2540,11 +2559,7 @@ export class OnlineRoomService {
         continue;
       }
 
-      await this.removeExpiredPreparingMembers(
-        room,
-        now,
-        resolveRoomDestroyAfterAllAbsentMs
-      );
+      await this.removeExpiredPreparingMembers(room, now, resolveRoomDestroyAfterAllAbsentMs);
       if (room.members.length === 0) {
         this.matchService.terminateRoomCodeSpectators(
           room.roomCode,
@@ -2912,7 +2927,9 @@ export class OnlineRoomService {
   ): Promise<void> {
     // 未达到销房下界时直接返回，避免常规清理路径读取配置。
     if (
-      !room.members.some((member) => now - member.lastSeenAt >= ROOM_DESTROY_AFTER_ALL_ABSENT_MIN_MS)
+      !room.members.some(
+        (member) => now - member.lastSeenAt >= ROOM_DESTROY_AFTER_ALL_ABSENT_MIN_MS
+      )
     ) {
       return;
     }
@@ -2976,7 +2993,7 @@ export class OnlineRoomService {
     if (room.themeTableVersionId) {
       throw new OnlineRoomServiceError(
         'THEME_RESTART_FORBIDDEN',
-        '娱乐模式每局都会重新分配卡组，请返回娱乐模式再次候场',
+        '主题牌桌每局都会重新分配卡组，请返回主题牌桌再次候场',
         409
       );
     }
@@ -3390,10 +3407,7 @@ function shouldDropPreparingMember(
 }
 
 function latestMemberSeenAt(room: OnlineRoomState): number {
-  return room.members.reduce(
-    (latest, member) => Math.max(latest, member.lastSeenAt),
-    0
-  );
+  return room.members.reduce((latest, member) => Math.max(latest, member.lastSeenAt), 0);
 }
 
 function shouldDestroyRoom(
@@ -3487,7 +3501,8 @@ export async function loadUserProfileForOnlineMatch(userId: string): Promise<Use
 
 export async function loadOwnedDeckForOnlineMatch(
   userId: string,
-  deckId: string
+  deckId: string,
+  ruleMode: CasualRuleMode = 'NORMAL'
 ): Promise<OwnedDeckSummary> {
   const { rows } = await pool.query<{
     id: string;
@@ -3507,7 +3522,7 @@ export async function loadOwnedDeckForOnlineMatch(
   const deck = rows[0];
   let preparedDeck;
   try {
-    preparedDeck = await prepareDeckPayloadForStorage(deck);
+    preparedDeck = await prepareDeckPayloadForStorage(deck, ruleMode);
   } catch (error) {
     if (error instanceof DeckPayloadValidationError) {
       throw new OnlineRoomServiceError(

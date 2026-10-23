@@ -1,3 +1,4 @@
+import { CasualRuleBadge } from '@/components/common/CasualRuleSelector';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useCasualTableStore } from '@/store/casualTableStore';
@@ -93,6 +94,7 @@ export function CasualTableGlobalLayer() {
     return null;
   return (
     <aside className="casual-global-notice" role="status">
+      <CasualRuleBadge mode={table.ruleMode} />
       <span>
         {table.state === 'WAITING'
           ? '房间正在等人'

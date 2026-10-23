@@ -14,29 +14,29 @@ async function requireData<T>(
 export const fetchThemeTableOverview = () =>
   requireData<ThemeTableOverviewView>(
     apiClient.get('/api/theme-table/overview'),
-    '读取娱乐模式失败'
+    '读取主题牌桌失败'
   );
 
 export const joinThemeTable = () =>
   requireData<PublicTableStatusView>(
     apiClient.post('/api/theme-table/queue/join'),
-    '加入娱乐模式失败'
+    '加入主题牌桌失败'
   );
 
 export const heartbeatThemeTable = () =>
   requireData<PublicTableStatusView>(
     apiClient.post('/api/theme-table/queue/heartbeat'),
-    '更新娱乐模式候场状态失败'
+    '更新主题牌桌候场状态失败'
   );
 
 export const confirmThemeTable = (deckVersionId?: string) =>
   requireData<PublicTableStatusView>(
     apiClient.post('/api/theme-table/queue/confirm', deckVersionId ? { deckVersionId } : {}),
-    '确认娱乐模式对局失败'
+    '确认主题牌桌对局失败'
   );
 
 export const cancelThemeTable = () =>
   requireData<PublicTableStatusView>(
     apiClient.post('/api/theme-table/queue/cancel'),
-    '退出娱乐模式失败'
+    '退出主题牌桌失败'
   );

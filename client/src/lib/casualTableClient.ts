@@ -31,7 +31,11 @@ export async function previewCasualRoom(code: string): Promise<CasualRoomSummary
   const room = await data(
     apiClient.get<CasualRoomSummary>(`${base}/rooms/${encodeURIComponent(normalized)}`)
   );
-  if (!Array.isArray(room.members) || !Array.isArray(room.spectatorViews)) {
+  if (
+    !['NORMAL', 'UNLIMITED'].includes(room.ruleMode) ||
+    !Array.isArray(room.members) ||
+    !Array.isArray(room.spectatorViews)
+  ) {
     throw new Error('房间信息读取失败，请重新查询');
   }
   return room;

@@ -1,5 +1,9 @@
 import type { DeckConfig } from '@game/domain/card-data/deck-loader';
-import { calculateDeckConfigStats, validateDeckConfig } from '@game/domain/rules/deck-construction';
+import {
+  calculateDeckConfigStats,
+  validateDeckConfig,
+  type CasualRuleMode,
+} from '@game/domain/rules/deck-construction';
 import type { DeckRecord } from '@/lib/apiClient';
 import { deckRecordToConfig, type MainDeckEntryTypeResolver } from '@/lib/deckRecordUtils';
 import type { DeckPointTableRules } from '@game/domain/rules/deck-point-table';
@@ -30,11 +34,13 @@ export function buildDeckDisplayItems({
   resolveDeckRecordCardType,
   pointTable = getCurrentDeckPointTableRules(),
   validateLocalDeck,
+  ruleMode = 'NORMAL',
 }: {
   cloudDecks?: DeckRecord[];
   localDecks?: LocalDeck[];
   resolveDeckRecordCardType?: MainDeckEntryTypeResolver;
   pointTable?: DeckPointTableRules;
+  ruleMode?: CasualRuleMode;
   validateLocalDeck?: (deck: DeckConfig) => boolean;
 }): DeckDisplayItem[] {
   const items: DeckDisplayItem[] = [];
@@ -47,7 +53,7 @@ export function buildDeckDisplayItems({
       id: deck.id,
       name: deck.name,
       description: deck.description || undefined,
-      isValid: validateDeckConfig(deckConfig, pointTable).valid,
+      isValid: validateDeckConfig(deckConfig, pointTable, ruleMode).valid,
       isCloud: true,
       updatedAt: new Date(deck.updated_at),
       memberCount: stats.memberCount,
@@ -68,7 +74,7 @@ export function buildDeckDisplayItems({
       description: deck.description,
       isValid: validateLocalDeck
         ? validateLocalDeck(deck.config)
-        : validateDeckConfig(deck.config, pointTable).valid,
+        : validateDeckConfig(deck.config, pointTable, ruleMode).valid,
       isCloud: false,
       updatedAt: deck.updatedAt,
       memberCount: stats.memberCount,

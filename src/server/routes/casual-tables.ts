@@ -16,7 +16,13 @@ const target = z.object({
   roundId: z.uuid(),
   revision: z.number().int().positive(),
 });
-const entry = z.object({ requestId: z.uuid(), deckId: z.uuid(), spectatorEnabled: z.boolean() });
+const ruleMode = z.enum(['NORMAL', 'UNLIMITED']);
+const entry = z.object({
+  ruleMode,
+  requestId: z.uuid(),
+  deckId: z.uuid(),
+  spectatorEnabled: z.boolean(),
+});
 const targeted = z.object({ target });
 
 casualTablesRouter.get('/me', async (req, res) => {
@@ -30,6 +36,7 @@ casualTablesRouter.get('/rooms', async (req, res) => {
   try {
     const query = z
       .object({
+        ruleMode: ruleMode.optional(),
         filter: z.enum(['ALL', 'WAITING', 'PLAYING']).optional(),
         search: z.string().max(80).optional(),
         spectatable: z.enum(['true', 'false']).optional(),
@@ -83,6 +90,7 @@ mutation(
   entry.extend({
     discoverability: z.enum(['PUBLIC', 'UNLISTED']),
     note: z.string().trim().max(40),
+    roomCode: z.string().trim().toUpperCase().optional(),
   }),
   false,
   (user, data) => service.create(user, data)

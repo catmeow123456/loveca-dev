@@ -15,6 +15,7 @@ const rules = toDeckPointTableRules({
 let now = 100_000;
 let rooms: OnlineRoomService;
 const input: CreateCasualTableRuntimeInput = {
+  ruleMode: 'NORMAL',
   tableId: 'table',
   roundId: 'round',
   roomCode: 'ABC234',
@@ -61,6 +62,7 @@ describe('casual preparation/runtime boundary', () => {
 
   it('requires an exact activation identity and keeps pending allocations inaccessible', async () => {
     const identity = rooms.prepareCasualTableRuntime(input);
+    expect(rooms.isRoomCodeInUse(input.roomCode)).toBe(true);
     expect(rooms.prepareCasualTableRuntime(input)).toEqual(identity);
     expect(rooms.getCasualTableRuntime(input.tableId, input.roundId)).toBeNull();
     await expect(rooms.getRoomView(input.roomCode, 'host')).rejects.toMatchObject({
@@ -95,6 +97,7 @@ describe('casual preparation/runtime boundary', () => {
     );
     expect(view.members.find((member) => member.userId === 'guest')?.lockedDeckName).toBeNull();
     expect(view.members.find((member) => member.userId === 'guest')?.lockedDeckId).toBeNull();
+    expect(view.casualTable?.ruleMode).toBe('NORMAL');
     await expect(rooms.joinRoom(input.roomCode, 'third')).rejects.toMatchObject({
       code: 'ONLINE_ROOM_FORBIDDEN',
     });
@@ -117,6 +120,7 @@ describe('casual preparation/runtime boundary', () => {
     );
     expect(rooms.discardCasualTableRuntime('table', 'round', 'stale-generation')).toBe(false);
     expect(rooms.discardCasualTableRuntime('table', 'round', null)).toBe(true);
+    expect(rooms.isRoomCodeInUse(input.roomCode)).toBe(false);
     const next = rooms.prepareCasualTableRuntime(input);
     expect(next.roomGeneration).not.toBe(identity.roomGeneration);
     rooms.activateCasualTableRuntime('table', 'round', next.roomGeneration);

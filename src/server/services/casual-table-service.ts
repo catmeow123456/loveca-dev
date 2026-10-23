@@ -2,6 +2,7 @@ import { randomInt, randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import { z } from 'zod';
 import type {
+  CasualRuleMode,
   CasualLobbyQuery,
   CasualLobbyView,
   CasualRoomSummary,
@@ -35,7 +36,8 @@ import {
 import { siteAnnouncementService } from './site-announcement-service.js';
 import {
   acquireCasualParticipation,
-  CASUAL_ENVIRONMENT_ID,
+  CASUAL_ENVIRONMENTS,
+  casualRuleMode,
   insertCasualSeat,
   insertCasualTable,
   readCasualLobby,
@@ -52,7 +54,9 @@ import {
 const BOOTSTRAP_LEASE_MS = 30_000;
 const MAX_BOOTSTRAP_ATTEMPTS = 3;
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ruleModeSchema = z.enum(['NORMAL', 'UNLIMITED']);
 const entrySchema = z.object({
+  ruleMode: ruleModeSchema,
   requestId: z.uuid(),
   deckId: z.uuid(),
   spectatorEnabled: z.boolean(),
@@ -65,6 +69,7 @@ const targetSchema = z.object({
 const createSchema = entrySchema.extend({
   discoverability: z.enum(['PUBLIC', 'UNLISTED']),
   note: z.string().trim().max(40),
+  roomCode: z.string().trim().toUpperCase().optional(),
 });
 
 export class CasualTableServiceError extends Error {
@@ -82,7 +87,11 @@ interface CasualTableServiceDeps {
   readonly database?: Pick<Pool, 'connect'>;
   readonly runtime?: CasualTableRuntimePort;
   readonly now?: () => number;
-  readonly loadDeck?: (userId: string, deckId: string) => Promise<OwnedDeckSummary>;
+  readonly loadDeck?: (
+    userId: string,
+    deckId: string,
+    ruleMode: CasualRuleMode
+  ) => Promise<OwnedDeckSummary>;
   readonly getPointTable?: () => Promise<DeckPointTableRules>;
   readonly assertGameplayAvailable?: () => Promise<void>;
   readonly getGameplayRestriction?: () => Promise<{ title: string; summary: string | null } | null>;
@@ -100,7 +109,11 @@ export class CasualTableService {
   private readonly database: Pick<Pool, 'connect'>;
   private readonly runtime: CasualTableRuntimePort;
   private readonly now: () => number;
-  private readonly loadDeck: (userId: string, deckId: string) => Promise<OwnedDeckSummary>;
+  private readonly loadDeck: (
+    userId: string,
+    deckId: string,
+    ruleMode: CasualRuleMode
+  ) => Promise<OwnedDeckSummary>;
   private readonly getPointTable: () => Promise<DeckPointTableRules>;
   private readonly assertGameplayAvailable: () => Promise<void>;
   private readonly getGameplayRestriction: () => Promise<{
@@ -144,6 +157,7 @@ export class CasualTableService {
   async list(userId: string, query: CasualLobbyQuery = {}): Promise<CasualLobbyView> {
     const parsed = parse(
       z.object({
+        ruleMode: ruleModeSchema.default('NORMAL'),
         filter: z.enum(['ALL', 'WAITING', 'PLAYING']).optional(),
         search: z.string().trim().max(80).optional(),
         spectatable: z.boolean().optional(),
@@ -154,6 +168,7 @@ export class CasualTableService {
     const restriction = await this.getGameplayRestriction();
     const lifecycle = await this.loadLifecycleWindows();
     const signature = JSON.stringify([
+      parsed.ruleMode,
       parsed.filter ?? 'ALL',
       parsed.search ?? '',
       parsed.spectatable ?? false,
@@ -185,7 +200,7 @@ export class CasualTableService {
         );
       }
     }
-    const rows = await readCasualLobby(this.database, userId, anchor);
+    const rows = await readCasualLobby(this.database, userId, anchor, parsed.ruleMode);
     const all: CasualRoomSummary[] = [];
     for (const row of rows) {
       const summary = this.projectSummary(row, row.members, row.is_mine, lifecycle);
@@ -311,7 +326,10 @@ export class CasualTableService {
     parse(z.uuid(), deckId);
     parse(z.boolean(), spectatorEnabled);
     await this.assertGameplayAvailable();
-    const [deck, rules] = await Promise.all([this.loadDeck(userId, deckId), this.getPointTable()]);
+    const [deck, rules] = await Promise.all([
+      this.loadTableDeck(userId, deckId, target),
+      this.getPointTable(),
+    ]);
     const view = await withCasualAdmission(this.database, async (client) => {
       const table = await this.requireTable(client, target);
       assertRevision(table, target);
@@ -339,7 +357,7 @@ export class CasualTableService {
       await this.assertGameplayAvailable();
     }
     const [deck, rules, lifecycle] = await Promise.all([
-      deckId ? this.loadDeck(userId, deckId) : Promise.resolve(null),
+      deckId ? this.loadTableDeck(userId, deckId, target) : Promise.resolve(null),
       this.getPointTable(),
       this.loadLifecycleWindows(),
     ]);
@@ -360,7 +378,8 @@ export class CasualTableService {
       else {
         await this.replaceOwnSnapshot(client, table, userId, deck, rules, spectatorEnabled!);
         const seats = await readCasualSeats(client, table.id);
-        if (seats.some((seat) => !reviewSeat(seat, rules))) throw invalidDeck();
+        if (seats.some((seat) => !reviewSeat(seat, rules, casualRuleMode(table.environment_id))))
+          throw invalidDeck();
         await this.runtime.sealCasualTableRuntime(table.id, table.round_id, table.room_generation!);
         retirement = {
           tableId: table.id,
@@ -467,7 +486,7 @@ export class CasualTableService {
     parse(z.boolean(), publishNewRoom);
     await this.assertGameplayAvailable();
     const [deck, rules] = await Promise.all([
-      this.loadDeck(userId, input.deckId),
+      this.loadDeck(userId, input.deckId, input.ruleMode),
       this.getPointTable(),
     ]);
     let retirement: { tableId: string; roundId: string; generation: string } | null = null;
@@ -476,6 +495,7 @@ export class CasualTableService {
       assertRevision(table, target);
       await this.requireOwnSeat(client, table, userId);
       await this.requirePostMatch(client, table, false);
+      assertRuleMode(table, input.ruleMode);
       const others = await client.query(
         'SELECT user_id FROM gameplay_participations WHERE casual_table_id = $1 AND user_id <> $2',
         [table.id, userId]
@@ -491,7 +511,7 @@ export class CasualTableService {
           '继续公开找人会关闭原房间并新建公开房间，请确认'
         );
       const seat = makeSeat(userId, deck, input.spectatorEnabled, true, this.now());
-      if (!reviewSeat(seat, rules)) throw invalidDeck();
+      if (!reviewSeat(seat, rules, casualRuleMode(table.environment_id))) throw invalidDeck();
       await this.runtime.sealCasualTableRuntime(table.id, table.round_id, table.room_generation!);
       retirement = {
         tableId: table.id,
@@ -504,7 +524,12 @@ export class CasualTableService {
         next = await this.newTable(
           client,
           userId,
-          { requestId: input.requestId, discoverability: 'PUBLIC', note: '' },
+          {
+            requestId: input.requestId,
+            discoverability: 'PUBLIC',
+            note: '',
+            ruleMode: casualRuleMode(table.environment_id),
+          },
           this.now()
         );
         if (!(await acquireCasualParticipation(client, userId, next.id))) throw occupied();
@@ -544,6 +569,19 @@ export class CasualTableService {
     return runtime;
   }
 
+  private async loadTableDeck(
+    userId: string,
+    deckId: string,
+    target: CasualTableCommandTarget
+  ): Promise<OwnedDeckSummary> {
+    const ruleMode = await withCasualAdmission(this.database, async (client) => {
+      const table = await this.requireTable(client, target);
+      await this.requireOwnSeat(client, table, userId);
+      return casualRuleMode(table.environment_id);
+    });
+    return this.loadDeck(userId, deckId, ruleMode);
+  }
+
   private async replaceOwnSnapshot(
     client: PoolClient,
     table: CasualTableRow,
@@ -554,7 +592,7 @@ export class CasualTableService {
   ) {
     const previous = await this.requireOwnSeat(client, table, userId);
     const seat = makeSeat(userId, deck, spectatorEnabled, previous.continue_public, this.now());
-    if (!reviewSeat(seat, rules)) throw invalidDeck();
+    if (!reviewSeat(seat, rules, casualRuleMode(table.environment_id))) throw invalidDeck();
     seat.table_id = table.id;
     seat.seat = previous.seat;
     seat.waiting_since = previous.waiting_since;
@@ -619,6 +657,7 @@ export class CasualTableService {
       roundId: table.round_id,
       revision: table.revision,
       roomCode: table.room_code,
+      ruleMode: casualRuleMode(table.environment_id),
       note: table.note,
       status:
         view?.status ??
@@ -640,6 +679,13 @@ export class CasualTableService {
 
   async create(userId: string, input: CreateCasualTableInput): Promise<CasualTableOwnView> {
     const parsed = parse(createSchema, input);
+    if (parsed.roomCode && !/^[A-Z0-9]{4,12}$/.test(parsed.roomCode)) {
+      throw new CasualTableServiceError(
+        'CASUAL_INVALID_ROOM_CODE',
+        '房间号需为 4–12 位字母或数字，或留空自动生成',
+        400
+      );
+    }
     return this.enter(userId, parsed, false);
   }
 
@@ -662,25 +708,25 @@ export class CasualTableService {
     const initialLifecycle = await this.loadLifecycleWindows();
     const existing = await withCasualAdmission(this.database, async (client) => {
       await this.sweep(client, initialRules, initialLifecycle);
-      return this.existingEntry(client, userId, input.requestId, find);
+      return this.existingEntry(client, userId, input.requestId, find, input.ruleMode);
     });
     if (existing) return existing;
     await this.assertGameplayAvailable();
     const [deck, rules, lifecycle] = await Promise.all([
-      this.loadDeck(userId, input.deckId),
+      this.loadDeck(userId, input.deckId, input.ruleMode),
       this.getPointTable(),
       this.loadLifecycleWindows(),
     ]);
     return withCasualAdmission(this.database, async (client) => {
       await this.sweep(client, rules, lifecycle);
-      const retry = await this.existingEntry(client, userId, input.requestId, find);
+      const retry = await this.existingEntry(client, userId, input.requestId, find, input.ruleMode);
       if (retry) return retry;
       let table: CasualTableRow | null = null;
       if (find) {
         const candidates = await client.query<CasualTableRow>(
           `SELECT * FROM casual_tables WHERE environment_id = $1 AND state = 'WAITING'
              AND discoverability = 'PUBLIC' ORDER BY waiting_since, id FOR UPDATE`,
-          [CASUAL_ENVIRONMENT_ID]
+          [CASUAL_ENVIRONMENTS[input.ruleMode]]
         );
         table = candidates.rows[0] ?? null;
       }
@@ -702,7 +748,7 @@ export class CasualTableService {
           this.now()
         );
         seat.table_id = table.id;
-        if (!reviewSeat(seat, rules)) throw invalidDeck();
+        if (!reviewSeat(seat, rules, casualRuleMode(table.environment_id))) throw invalidDeck();
         if (!(await acquireCasualParticipation(client, userId, table.id))) throw occupied();
         await insertCasualSeat(client, seat);
       }
@@ -723,6 +769,7 @@ export class CasualTableService {
     const existing = await withCasualAdmission(this.database, async (client) => {
       await this.sweep(client, initialRules, initialLifecycle);
       const table = await this.requireTable(client, target);
+      assertRuleMode(table, input.ruleMode);
       const seats = await readCasualSeats(client, table.id);
       return seats.some((seat) => seat.user_id === userId) && table.state !== 'WAITING'
         ? this.project(client, table, userId)
@@ -731,13 +778,14 @@ export class CasualTableService {
     if (existing) return existing;
     await this.assertGameplayAvailable();
     const [deck, rules, lifecycle] = await Promise.all([
-      this.loadDeck(userId, input.deckId),
+      this.loadDeck(userId, input.deckId, input.ruleMode),
       this.getPointTable(),
       this.loadLifecycleWindows(),
     ]);
     return withCasualAdmission(this.database, async (client) => {
       await this.sweep(client, rules, lifecycle);
       const table = await this.requireTable(client, target);
+      assertRuleMode(table, input.ruleMode);
       const seats = await readCasualSeats(client, table.id);
       if (seats.some((seat) => seat.user_id === userId) && table.state !== 'WAITING') {
         return this.project(client, table, userId);
@@ -768,7 +816,7 @@ export class CasualTableService {
     if (source.tableId === destination.tableId) throw changed();
     await this.assertGameplayAvailable();
     const [deck, rules, lifecycle] = await Promise.all([
-      this.loadDeck(userId, input.deckId),
+      this.loadDeck(userId, input.deckId, input.ruleMode),
       this.getPointTable(),
       this.loadLifecycleWindows(),
     ]);
@@ -785,6 +833,7 @@ export class CasualTableService {
       const to = tables.find((table) => table.id === destination.tableId)!;
       assertRevision(from, source);
       assertRevision(to, destination);
+      assertRuleMode(to, input.ruleMode);
       const seats = await readCasualSeats(client, from.id);
       const participation = await readCasualParticipation(client, userId);
       if (
@@ -797,7 +846,7 @@ export class CasualTableService {
       if (to.state !== 'WAITING' || (await readCasualSeats(client, to.id)).length !== 1)
         throw full();
       const seat = makeSeat(userId, deck, input.spectatorEnabled, false, this.now());
-      if (!reviewSeat(seat, rules)) throw invalidDeck();
+      if (!reviewSeat(seat, rules, casualRuleMode(to.environment_id))) throw invalidDeck();
       await this.close(client, from, 'SWITCHED_ROOM');
       await this.claim(client, to, seat, rules, lifecycle);
       return this.project(client, to, userId);
@@ -812,7 +861,7 @@ export class CasualTableService {
     parse(targetSchema, target);
     parse(z.uuid(), deckId);
     const [deck, rules, lifecycle] = await Promise.all([
-      this.loadDeck(userId, deckId),
+      this.loadTableDeck(userId, deckId, target),
       this.getPointTable(),
       this.loadLifecycleWindows(),
     ]);
@@ -835,7 +884,8 @@ export class CasualTableService {
       );
       replacement.table_id = table.id;
       replacement.waiting_since = own.waiting_since;
-      if (!reviewSeat(replacement, rules)) throw invalidDeck();
+      if (!reviewSeat(replacement, rules, casualRuleMode(table.environment_id)))
+        throw invalidDeck();
       await client.query('DELETE FROM casual_table_seats WHERE table_id = $1', [table.id]);
       await insertCasualSeat(client, replacement);
       table.round_id = randomUUID();
@@ -871,7 +921,8 @@ export class CasualTableService {
         seats.length !== 2 ||
         seats.some(
           (seat) =>
-            !isAlive(seat, this.now(), lifecycle.heartbeatGraceMs) || !reviewSeat(seat, rules)
+            !isAlive(seat, this.now(), lifecycle.heartbeatGraceMs) ||
+            !reviewSeat(seat, rules, casualRuleMode(table.environment_id))
         )
       )
         throw invalidDeck();
@@ -1022,7 +1073,7 @@ export class CasualTableService {
             (seat) =>
               !seat.confirmed_at ||
               !isAlive(seat, this.now(), lifecycle.heartbeatGraceMs) ||
-              !reviewSeat(seat, rules)
+              !reviewSeat(seat, rules, casualRuleMode(table.environment_id))
           )
         ) {
           await this.close(client, table, 'BOOTSTRAP_INPUT_INVALID');
@@ -1038,6 +1089,7 @@ export class CasualTableService {
           tableId,
           roundId,
           roomCode: table.room_code,
+          ruleMode: casualRuleMode(table.environment_id),
           originKind: seats[1].continue_public ? 'PUBLIC_TABLE' : 'ONLINE_ROOM',
           openingExpiresAt: this.now() + PUBLIC_TABLE_OPENING_TTL_MS,
           members: [runtimeMember(seats[0]), runtimeMember(seats[1])],
@@ -1086,12 +1138,14 @@ export class CasualTableService {
     client: PoolClient,
     userId: string,
     requestId: string,
-    find: boolean
+    find: boolean,
+    ruleMode: CasualRuleMode
   ): Promise<CasualTableOwnView | null> {
     const participation = await readCasualParticipation(client, userId);
     if (participation?.casual_table_id) {
       const table = await readCasualTable(client, participation.casual_table_id);
       if (table && table.state !== 'CLOSED' && (find || table.creation_key === requestId)) {
+        assertRuleMode(table, ruleMode);
         return this.project(client, table, userId);
       }
     }
@@ -1121,7 +1175,11 @@ export class CasualTableService {
     )
       throw full();
     if (seats[0].user_id === seat.user_id) throw occupied();
-    if (!reviewSeat(seats[0], rules) || !reviewSeat(seat, rules)) throw invalidDeck();
+    if (
+      !reviewSeat(seats[0], rules, casualRuleMode(table.environment_id)) ||
+      !reviewSeat(seat, rules, casualRuleMode(table.environment_id))
+    )
+      throw invalidDeck();
     if (!(await acquireCasualParticipation(client, seat.user_id, table.id))) throw occupied();
     seat.table_id = table.id;
     seat.seat = 1;
@@ -1136,20 +1194,31 @@ export class CasualTableService {
   private async newTable(
     client: PoolClient,
     userId: string,
-    input: Pick<CreateCasualTableInput, 'requestId' | 'discoverability' | 'note'>,
+    input: Pick<
+      CreateCasualTableInput,
+      'requestId' | 'discoverability' | 'note' | 'ruleMode' | 'roomCode'
+    >,
     waitingSince: number
   ): Promise<CasualTableRow> {
     let roomCode = '';
     for (let attempt = 0; attempt < 32; attempt += 1) {
-      roomCode = Array.from(
-        { length: 6 },
-        () => ROOM_CODE_ALPHABET[randomInt(ROOM_CODE_ALPHABET.length)]
-      ).join('');
+      roomCode =
+        input.roomCode ||
+        Array.from(
+          { length: 6 },
+          () => ROOM_CODE_ALPHABET[randomInt(ROOM_CODE_ALPHABET.length)]
+        ).join('');
       const used = await client.query(
         "SELECT id FROM casual_tables WHERE room_code = $1 AND state <> 'CLOSED'",
         [roomCode]
       );
-      if (used.rowCount === 0) break;
+      if (used.rowCount === 0 && !this.runtime.isRoomCodeInUse(roomCode)) break;
+      if (input.roomCode) {
+        throw new CasualTableServiceError(
+          'CASUAL_ROOM_CODE_TAKEN',
+          '这个房间号已被占用，请换一个或留空自动生成'
+        );
+      }
       roomCode = '';
     }
     if (!roomCode)
@@ -1163,7 +1232,7 @@ export class CasualTableService {
       room_code: roomCode,
       discoverability: input.discoverability,
       note: input.note,
-      environment_id: CASUAL_ENVIRONMENT_ID,
+      environment_id: CASUAL_ENVIRONMENTS[input.ruleMode],
       state: 'WAITING',
       round_id: randomUUID(),
       revision: 1,
@@ -1280,9 +1349,26 @@ export class CasualTableService {
       }
       if (table.state === 'BOOTSTRAPPING') continue;
       const seats = await readCasualSeats(client, table.id);
-      if (!seats.length || seats.some((seat) => !reviewSeat(seat, rules))) {
+      const previousPoints = seats.map(
+        (seat) => `${seat.point_table_version}:${seat.point_total}:${seat.point_limit}`
+      );
+      if (
+        !seats.length ||
+        seats.some((seat) => !reviewSeat(seat, rules, casualRuleMode(table.environment_id)))
+      ) {
         await this.close(client, table, 'DECK_NO_LONGER_LEGAL');
         continue;
+      }
+      for (const [index, seat] of seats.entries()) {
+        if (
+          previousPoints[index] ===
+          `${seat.point_table_version}:${seat.point_total}:${seat.point_limit}`
+        )
+          continue;
+        await client.query(
+          'UPDATE casual_table_seats SET point_table_version = $3, point_total = $4, point_limit = $5 WHERE table_id = $1 AND user_id = $2',
+          [table.id, seat.user_id, seat.point_table_version, seat.point_total, seat.point_limit]
+        );
       }
       const expired = seats.filter(
         (seat) => !isAlive(seat, this.now(), lifecycle.heartbeatGraceMs)
@@ -1324,7 +1410,7 @@ export class CasualTableService {
       (seat) =>
         !faultIds.includes(seat.user_id) &&
         isAlive(seat, this.now(), lifecycle.heartbeatGraceMs) &&
-        reviewSeat(seat, rules) &&
+        reviewSeat(seat, rules, casualRuleMode(table.environment_id)) &&
         (!timeout || (seat.confirmed_at !== null && seat.continue_public))
     );
     if (!survivor || (survivor.seat !== 0 && !survivor.continue_public)) {
@@ -1359,6 +1445,7 @@ export class CasualTableService {
         survivor.user_id,
         {
           requestId: randomUUID(),
+          ruleMode: casualRuleMode(table.environment_id),
           discoverability: 'PUBLIC',
           note: '',
         },
@@ -1491,12 +1578,20 @@ export class CasualTableService {
       roundId: table.round_id,
       revision: table.revision,
       roomCode: table.room_code,
+      ruleMode: casualRuleMode(table.environment_id),
       discoverability: table.discoverability,
       note: table.note,
       state: table.state,
       waitingSince: table.waiting_since.getTime(),
       confirmationExpiresAt: table.confirmation_expires_at?.getTime() ?? null,
-      ownDeck: own ? { id: own.source_deck_id, name: own.deck_name } : null,
+      ownDeck: own
+        ? {
+            id: own.source_deck_id,
+            name: own.deck_name,
+            pointTotal: own.point_total,
+            pointLimit: own.point_limit,
+          }
+        : null,
       spectatorEnabled: own?.spectator_enabled ?? false,
       members: seats.map((seat) => ({
         userId: seat.user_id,
@@ -1543,7 +1638,11 @@ function makeSeat(
   };
 }
 
-function reviewSeat(seat: CasualSeatRow, rules: DeckPointTableRules): boolean {
+function reviewSeat(
+  seat: CasualSeatRow,
+  rules: DeckPointTableRules,
+  ruleMode: CasualRuleMode
+): boolean {
   const review = revalidateRuntimeDeckPointSnapshot(
     decodePublicTableRuntimeDeck(seat.runtime_deck),
     {
@@ -1551,7 +1650,8 @@ function reviewSeat(seat: CasualSeatRow, rules: DeckPointTableRules): boolean {
       pointTotal: seat.point_total,
       pointLimit: seat.point_limit,
     },
-    rules
+    rules,
+    ruleMode
   );
   if (review.valid) {
     seat.point_table_version = review.facts.pointTableVersion;
@@ -1582,6 +1682,14 @@ function runtimeMember(
 
 function isAlive(seat: CasualSeatRow, now: number, heartbeatGraceMs: number): boolean {
   return seat.heartbeat_at.getTime() > now - heartbeatGraceMs;
+}
+function assertRuleMode(table: CasualTableRow, ruleMode: CasualRuleMode): void {
+  if (casualRuleMode(table.environment_id) !== ruleMode) {
+    throw new CasualTableServiceError(
+      'CASUAL_RULE_MODE_MISMATCH',
+      '房间规则与本次选择不符，请按房间实际模式重新选组并加入'
+    );
+  }
 }
 function assertRevision(table: CasualTableRow, target: CasualTableCommandTarget): void {
   if (table.revision !== target.revision) throw changed();

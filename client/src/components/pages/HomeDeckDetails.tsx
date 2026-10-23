@@ -1,15 +1,24 @@
+import type { CasualRuleMode } from '@game/online/casual-table-types';
+import { casualPointSummary } from '@/lib/casualRules';
 import { useMemo } from 'react';
 import { PresentationImage } from '@/components/excel/PresentationRoot';
 import { useGameStore } from '@/store/gameStore';
-import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
+import { useDeckPointTableRules, useDeckPointTableDisplayReady } from '@/hooks/useDeckPointTable';
 import { createDeckRecordCardTypeResolver, deckRecordToConfig } from '@/lib/deckRecordUtils';
 import type { DeckDisplayItem } from '@/lib/deckDisplay';
 
 /** 使用同一卡组投影展示只读构筑；不进入编辑、导入或保存流程。 */
-export function HomeDeckDetails({ deck }: { deck: DeckDisplayItem }) {
+export function HomeDeckDetails({
+  deck,
+  ruleMode = 'NORMAL',
+}: {
+  deck: DeckDisplayItem;
+  ruleMode?: CasualRuleMode;
+}) {
   const registry = useGameStore((s) => s.cardDataRegistry);
   const getCardImagePath = useGameStore((s) => s.getCardImagePath);
   const pointTable = useDeckPointTableRules();
+  const pointTableDisplayReady = useDeckPointTableDisplayReady();
   const config = useMemo(
     () =>
       deck.cloudDeck
@@ -33,7 +42,12 @@ export function HomeDeckDetails({ deck }: { deck: DeckDisplayItem }) {
           ['成员', `${deck.memberCount} / 48`],
           ['LIVE', `${deck.liveCount} / 12`],
           ['能量', `${deck.energyCount} / 12`],
-          ['PT', `${deck.pointTotal} / ${pointTable.pointLimit}`],
+          [
+            'PT',
+            pointTableDisplayReady
+              ? casualPointSummary(deck.pointTotal, pointTable.pointLimit, ruleMode)
+              : 'PT 暂无法读取',
+          ],
         ].map(([label, value]) => (
           <div key={label}>
             <dt>{label}</dt>

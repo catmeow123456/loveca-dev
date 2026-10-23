@@ -4,13 +4,35 @@ test.setTimeout(120_000);
 import { prepareVisualPage, waitForVisualStability } from '../visual/support/mockApp';
 
 async function expectLobbyActionsInViewport(page: Page) {
+  await page.getByText('练习与调试', { exact: true }).click();
   for (const name of ['找对手', '对墙打', '双人调试']) {
     const box = await page.getByRole('button', { name, exact: true }).boundingBox();
     expect(box).not.toBeNull();
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   }
+  await page.getByText('练习与调试', { exact: true }).click();
 }
+
+test('practice entries expand with the keyboard and open their own preparation', async ({
+  page,
+}) => {
+  await prepareVisualPage(page, 'light', true);
+  for (const name of ['对墙打', '双人调试']) {
+    await page.goto('/?page=battle-lobby');
+    const practice = page.getByText('练习与调试', { exact: true });
+    await expect(page.getByRole('button', { name, exact: true })).toBeHidden();
+    await practice.focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('button', { name, exact: true }).click();
+    await expect(
+      page.getByRole('heading', {
+        name: name === '对墙打' ? '选择己方卡组' : '选择 Player 1 的卡组',
+        exact: true,
+      })
+    ).toBeVisible();
+  }
+});
 
 test('lobby fits narrow and wide screens, both themes and enlarged text', async ({
   page,
@@ -188,12 +210,13 @@ test('opening can explicitly close its round from the lobby without an old-room 
             : {
                 ...target,
                 roomCode: 'OPEN12',
+                ruleMode: 'NORMAL',
                 discoverability: 'PUBLIC',
                 note: '',
                 state: 'BOUND',
                 waitingSince: Date.now(),
                 confirmationExpiresAt: null,
-                ownDeck: { id: 'deck', name: '开局测试卡组' },
+                ownDeck: { id: 'deck', name: '开局测试卡组', pointTotal: 0, pointLimit: 9 },
                 spectatorEnabled: false,
                 members: [{ userId: 'visual-user', displayName: '视觉验收玩家', confirmed: true }],
                 roomGeneration: 'opening-generation',
@@ -268,6 +291,7 @@ for (const kind of [
             roundId: '22222222-2222-4222-8222-222222222222',
             revision: 1,
             roomCode: 'WAIT12',
+            ruleMode: 'NORMAL',
             discoverability: 'PUBLIC',
             note: '',
             state: kind,

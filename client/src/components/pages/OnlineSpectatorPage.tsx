@@ -1,3 +1,5 @@
+import type { CasualRuleMode } from '@game/online/casual-table-types';
+import { CasualRuleBadge } from '@/components/common/CasualRuleSelector';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Eye, Loader2, SwitchCamera } from 'lucide-react';
 import { BattleViewportShell, GameBoard, MatchChat } from '@/components/game';
@@ -53,6 +55,7 @@ export function OnlineSpectatorPage({
   const attachmentGenerationRef = useRef(0);
   const waitingGenerationRef = useRef<number | null>(null);
 
+  const [casualRuleMode, setCasualRuleMode] = useState<CasualRuleMode | null>(null);
   const [sessionView, setSessionView] = useState<OnlineSpectatorSessionView | null>(null);
   const [linkView, setLinkView] = useState<OnlineSpectatorJoinView['link'] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -199,6 +202,7 @@ export function OnlineSpectatorPage({
             }
           : current
       );
+      setCasualRuleMode(snapshot.casualRuleMode ?? null);
       setWaitingView(null);
       setContinuityStatus('WATCHING_MATCH');
       setError(null);
@@ -243,6 +247,7 @@ export function OnlineSpectatorPage({
       setIsAccessInvalid(false);
       setSyncNotice(null);
       setSessionView(null);
+      setCasualRuleMode(null);
       setLinkView(null);
       setWaitingView(null);
       setContinuityStatus('WATCHING_MATCH');
@@ -477,6 +482,7 @@ export function OnlineSpectatorPage({
         玩家视角观战
         {viewerName ? <span className="text-[var(--text-secondary)]">· {viewerName}</span> : null}
       </div>
+      {casualRuleMode && <CasualRuleBadge mode={casualRuleMode} />}
       {authorizedViewerSeats.length > 1 ? (
         <div className="battle-toolbar-control-group inline-flex min-h-10 items-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] p-1 shadow-[var(--shadow-md)] backdrop-blur-xl">
           {authorizedViewerSeats.map((seat) => (

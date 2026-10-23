@@ -1,3 +1,4 @@
+import type { CasualRuleMode } from '../../domain/rules/deck-construction.js';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import type { DeckClassifierMatchCandidatePageView } from '../../online/deck-classifier-types.js';
@@ -142,6 +143,7 @@ interface RecordAccessRow {
   readonly match_mode: MatchMode;
   readonly automation_game_mode: MatchAutomationGameMode;
   readonly origin_kind: MatchOriginKind;
+  readonly casual_rule_mode: CasualRuleMode | null;
   readonly origin_label: string;
   readonly status: MatchRecordStatus;
   readonly completeness: MatchRecordCompleteness;
@@ -176,6 +178,7 @@ interface AdminRecordRow {
   readonly match_mode: MatchMode;
   readonly automation_game_mode: MatchAutomationGameMode;
   readonly origin_kind: MatchOriginKind;
+  readonly casual_rule_mode: CasualRuleMode | null;
   readonly origin_label: string;
   readonly status: MatchRecordStatus;
   readonly completeness: MatchRecordCompleteness;
@@ -892,6 +895,7 @@ export class MatchReplayReadService {
       matchMode: access.match_mode,
       automationGameMode: access.automation_game_mode,
       originKind: access.origin_kind,
+      casualRuleMode: access.casual_rule_mode,
       originLabel: access.origin_label,
       viewerSeat: access.viewer_seat,
       recordStatus: access.status,
@@ -922,6 +926,7 @@ export class MatchReplayReadService {
       matchMode: record.match_mode,
       automationGameMode: record.automation_game_mode,
       originKind: record.origin_kind,
+      casualRuleMode: record.casual_rule_mode,
       originLabel: record.origin_label,
       viewerSeat,
       recordStatus: record.status,
@@ -1091,6 +1096,7 @@ export class MatchReplayReadService {
       sourceMatchMode: input.record.match_mode,
       automationGameMode: input.record.automation_game_mode,
       originKind: input.record.origin_kind,
+      casualRuleMode: input.record.casual_rule_mode,
       originLabel: input.record.origin_label,
       viewerSeat: input.viewerSeat,
       replayPosition: {
@@ -1861,6 +1867,7 @@ function recordAccessSelectSql(): string {
     record.match_mode,
     record.automation_game_mode,
     record.origin_kind,
+    record.casual_rule_mode,
     record.origin_label,
     record.status,
     record.completeness,
@@ -1903,6 +1910,7 @@ function adminRecordSelectSql(extraProjection = ''): string {
     record.match_mode,
     record.automation_game_mode,
     record.origin_kind,
+    record.casual_rule_mode,
     record.origin_label,
     record.status,
     record.completeness,
@@ -2183,6 +2191,7 @@ function mapRecordSummaryRow(row: RecordAccessRow): MatchRecordSummaryView {
     matchMode: row.match_mode,
     automationGameMode: row.automation_game_mode,
     originKind: row.origin_kind,
+    casualRuleMode: row.casual_rule_mode,
     originLabel: row.origin_label,
     status: row.status,
     completeness: row.completeness,
@@ -2217,6 +2226,7 @@ function mapAdminRecordSummaryRow(row: AdminRecordRow): MatchRecordSummaryView {
     matchMode: row.match_mode,
     automationGameMode: row.automation_game_mode,
     originKind: row.origin_kind,
+    casualRuleMode: row.casual_rule_mode,
     originLabel: row.origin_label,
     status: row.status,
     completeness: row.completeness,

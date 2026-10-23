@@ -2,7 +2,7 @@ import type { AnyCardData } from '@game/domain/entities/card';
 import type { DeckRecordLike } from '@game/domain/card-data/deck-record-utils';
 import type { DeckPointTableRules } from '@game/domain/rules/deck-point-table';
 import type { DeckConfig } from '@game/domain/card-data/deck-loader';
-import { validateDeckConfig } from '@game/domain/rules/deck-construction';
+import { validateDeckConfig, type CasualRuleMode } from '@game/domain/rules/deck-construction';
 import { CardType } from '@game/shared/types/enums';
 import {
   createDeckRecordCardDataTypeResolver,
@@ -32,12 +32,14 @@ export {
 export function isDeckRecordValidForCurrentCardPool(
   deck: DeckRecordLike,
   cardDataRegistry: ReadonlyMap<string, AnyCardData>,
-  pointTable: DeckPointTableRules = getCurrentDeckPointTableRules()
+  pointTable: DeckPointTableRules = getCurrentDeckPointTableRules(),
+  ruleMode: CasualRuleMode = 'NORMAL'
 ): boolean {
   const result = normalizeDeckRecordPayload(
     deck,
     createDeckRecordCardDataTypeResolver(cardDataRegistry),
-    pointTable
+    pointTable,
+    ruleMode
   );
 
   return result.sourceErrors.length === 0 && result.validation.valid;
@@ -46,9 +48,10 @@ export function isDeckRecordValidForCurrentCardPool(
 export function isDeckConfigValidForCurrentCardPool(
   deck: DeckConfig,
   cardDataRegistry: ReadonlyMap<string, AnyCardData>,
-  pointTable: DeckPointTableRules = getCurrentDeckPointTableRules()
+  pointTable: DeckPointTableRules = getCurrentDeckPointTableRules(),
+  ruleMode: CasualRuleMode = 'NORMAL'
 ): boolean {
-  if (!validateDeckConfig(deck, pointTable).valid) return false;
+  if (!validateDeckConfig(deck, pointTable, ruleMode).valid) return false;
 
   return (
     deck.main_deck.members.every(

@@ -37,11 +37,11 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
   if (!overview?.event) {
     return (
       <div className="app-shell min-h-screen">
-        <PageHeader title="娱乐模式" onBack={onBack} backLabel="返回大厅" />
+        <PageHeader title="主题牌桌" onBack={onBack} backLabel="返回大厅" />
         <main className="mx-auto max-w-lg px-4 py-16">
           <Panel padding="spacious" className="text-center">
             <Sparkles className="mx-auto text-[var(--accent-primary)]" />
-            <h1 className="mt-3 text-xl font-semibold">下一期娱乐模式正在编排</h1>
+            <h1 className="mt-3 text-xl font-semibold">下一期主题牌桌正在编排</h1>
             <p className="mt-2 text-sm text-[var(--text-secondary)]">
               当前没有公开活动。你仍可前往对战大厅使用自己的卡组对战。
             </p>
@@ -59,7 +59,7 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
   };
   return (
     <div className="app-shell theme-table-page min-h-screen">
-      <PageHeader title="娱乐模式" onBack={onBack} backLabel="返回大厅" />
+      <PageHeader title="主题牌桌" onBack={onBack} backLabel="返回大厅" />
       <main className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 sm:py-8">
         <ActivityCoverHero
           activityKey={event.id}
@@ -132,7 +132,7 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
                 onClick={() => void handleJoin()}
               >
                 {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                加入娱乐模式
+                加入主题牌桌
               </ActionButton>
             ) : null}
           </div>

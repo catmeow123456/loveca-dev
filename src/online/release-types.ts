@@ -1,3 +1,4 @@
+import type { CasualRuleMode } from '../domain/rules/deck-construction.js';
 import type { Seat } from './types.js';
 import type { RemoteCommandResult, RemoteMatchSnapshot } from './remote-match-types.js';
 import type { MatchOriginKind } from './replay-types.js';
@@ -7,9 +8,7 @@ export type OnlineRoomStatus = 'PREPARING' | 'READY' | 'OPENING' | 'IN_GAME' | '
 export type OnlineRoomMemberRole = 'HOST' | 'GUEST';
 export type OnlineRoomMemberPresence = 'ACTIVE' | 'LEFT';
 export type OnlineRoomEndReason =
-  | 'OPENING_ARRIVAL_TIMEOUT'
-  | 'OPENING_TIMEOUT'
-  | 'DECK_POINT_TABLE_CHANGED';
+  'OPENING_ARRIVAL_TIMEOUT' | 'OPENING_TIMEOUT' | 'DECK_POINT_TABLE_CHANGED';
 export type OpeningRpsGesture = 'ROCK' | 'PAPER' | 'SCISSORS';
 export type OpeningTurnOrderChoice = 'SELF_FIRST' | 'SELF_SECOND';
 export type OnlineSpectatorViewType = 'PLAYER';
@@ -74,7 +73,11 @@ export interface OnlineRoomEndView {
 }
 
 export interface OnlineRoomView {
-  readonly casualTable?: { readonly tableId: string; readonly roundId: string };
+  readonly casualTable?: {
+    readonly tableId: string;
+    readonly roundId: string;
+    readonly ruleMode: CasualRuleMode;
+  };
   readonly roomCode: string;
   readonly originKind: MatchOriginKind;
   /** 本房间当前对局开局时冻结的全局时限配置。 */
@@ -103,7 +106,9 @@ export interface OnlineRoomView {
   readonly updatedAt: number;
 }
 
-export type OnlineMatchSnapshot = RemoteMatchSnapshot;
+export type OnlineMatchSnapshot = RemoteMatchSnapshot & {
+  readonly casualRuleMode?: CasualRuleMode | null;
+};
 
 export type OnlineCommandResult = RemoteCommandResult<OnlineMatchSnapshot>;
 

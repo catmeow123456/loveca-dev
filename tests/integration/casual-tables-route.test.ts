@@ -57,6 +57,7 @@ const target = {
   revision: 1,
 };
 const entry = {
+  ruleMode: 'NORMAL',
   requestId: '33333333-3333-4333-8333-333333333333',
   deckId: '44444444-4444-4444-8444-444444444444',
   spectatorEnabled: false,
@@ -89,6 +90,21 @@ beforeEach(() => {
   availability.getGameplayRestriction.mockResolvedValue(null);
 });
 describe('casual table HTTP contract', () => {
+  it('forwards an optional normalized room code and preserves actionable creation conflicts', async () => {
+    service.create.mockResolvedValue({ roomCode: 'FRIENDS42', state: 'WAITING' });
+    const input = { ...entry, discoverability: 'UNLISTED', note: '', roomCode: '  friends42  ' };
+    expect((await request('/create', input)).status).toBe(200);
+    expect(service.create).toHaveBeenCalledWith('viewer', { ...input, roomCode: 'FRIENDS42' });
+    service.create.mockRejectedValue(
+      new CasualTableServiceError('CASUAL_ROOM_CODE_TAKEN', '这个房间号已被占用', 409)
+    );
+    const conflict = await request('/create', input);
+    expect(conflict.status).toBe(409);
+    expect(await conflict.json()).toMatchObject({
+      data: null,
+      error: { code: 'CASUAL_ROOM_CODE_TAKEN', message: '这个房间号已被占用' },
+    });
+  });
   it('authenticates lobby reads and writes, and disables shared caching', async () => {
     expect((await request('/rooms', undefined, false)).status).toBe(401);
     expect((await request('/find', entry, false)).status).toBe(401);

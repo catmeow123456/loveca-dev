@@ -2,9 +2,20 @@ import type { Pool, PoolClient } from 'pg';
 import type {
   CasualTableDiscoverability,
   CasualTableState,
+  CasualRuleMode,
 } from '../../online/casual-table-types.js';
 
 export const CASUAL_ENVIRONMENT_ID = 'CASUAL_TABLE_V1';
+export const CASUAL_ENVIRONMENTS: Record<CasualRuleMode, string> = {
+  NORMAL: CASUAL_ENVIRONMENT_ID,
+  UNLIMITED: 'CASUAL_UNLIMITED_PT_V1',
+};
+
+export function casualRuleMode(environmentId: string): CasualRuleMode {
+  if (environmentId === CASUAL_ENVIRONMENTS.NORMAL) return 'NORMAL';
+  if (environmentId === CASUAL_ENVIRONMENTS.UNLIMITED) return 'UNLIMITED';
+  throw new Error(`Unknown casual rule environment: ${environmentId}`);
+}
 
 export interface CasualTableRow {
   id: string;
@@ -69,7 +80,8 @@ interface CasualLobbyRow extends CasualTableRow {
 export async function readCasualLobby(
   database: Pick<Pool, 'connect'>,
   userId: string,
-  anchor: number
+  anchor: number,
+  ruleMode: CasualRuleMode
 ): Promise<CasualLobbyRow[]> {
   const client = await database.connect();
   try {
@@ -88,9 +100,9 @@ export async function readCasualLobby(
        LEFT JOIN casual_table_seats AS seat ON seat.table_id = tables.id
        LEFT JOIN profiles AS profile ON profile.id = seat.user_id
        WHERE tables.discoverability = 'PUBLIC' AND tables.state <> 'CLOSED'
-         AND tables.created_at <= $2
+         AND tables.created_at <= $2 AND tables.environment_id = $3
        GROUP BY tables.id`,
-      [userId, new Date(anchor)]
+      [userId, new Date(anchor), CASUAL_ENVIRONMENTS[ruleMode]]
     );
     return result.rows;
   } finally {

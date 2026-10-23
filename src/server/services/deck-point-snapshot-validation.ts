@@ -4,6 +4,7 @@ import type {
   DeckPointValidationFacts,
 } from '../../domain/rules/deck-point-table.js';
 import { getCardPoint } from '../../domain/rules/deck-construction.js';
+import type { CasualRuleMode } from '../../domain/rules/deck-construction.js';
 
 export interface RuntimeDeckPointRevalidation {
   readonly valid: boolean;
@@ -20,7 +21,8 @@ export interface RuntimeDeckPointRevalidation {
 export function revalidateRuntimeDeckPointSnapshot(
   deck: RuntimeDeckConfig,
   previous: DeckPointValidationFacts,
-  current: DeckPointTableRules
+  current: DeckPointTableRules,
+  ruleMode: CasualRuleMode = 'NORMAL'
 ): RuntimeDeckPointRevalidation {
   const pointTotal = [...deck.mainDeck, ...deck.energyDeck].reduce(
     (sum, card) => sum + getCardPoint(card.cardCode, current),
@@ -32,7 +34,7 @@ export function revalidateRuntimeDeckPointSnapshot(
     pointLimit: current.pointLimit,
   };
   return {
-    valid: pointTotal <= current.pointLimit,
+    valid: ruleMode === 'UNLIMITED' || pointTotal <= current.pointLimit,
     changed:
       previous.pointTableVersion !== facts.pointTableVersion ||
       previous.pointTotal !== facts.pointTotal ||
