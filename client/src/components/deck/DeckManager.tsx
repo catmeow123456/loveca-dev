@@ -19,7 +19,6 @@ import {
   Wifi,
   WifiOff,
   Check,
-  Circle,
   Zap,
   Globe,
   Copy,
@@ -39,6 +38,7 @@ import { apiClient, isApiConfigured, type DeckRecord } from '@/lib/apiClient';
 import { CardEditor } from '@/components/deck-editor';
 import { DeckStatsRow, getDeckPointTextClass, PageHeader } from '@/components/common';
 import { PRESET_DECKS, type PresetDeck } from './preset-decks';
+import { DeckStatusHint } from './DeckStatusHint';
 import {
   CardDataRegistry,
   DeckConfigSchema,
@@ -51,8 +51,10 @@ import * as yaml from 'yaml';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   createDeckRecordCardTypeResolver,
+  createDeckRecordCardDataTypeResolver,
   deckConfigToRecordPayload,
   deckRecordToConfig,
+  normalizeDeckRecordPayload,
   isDeckConfigValidForCurrentCardPool,
   isDeckRecordValidForCurrentCardPool,
 } from '@/lib/deckRecordUtils';
@@ -987,6 +989,26 @@ export function DeckManager({
                       pointTotal: deck.pointTotal,
                     };
                     const cloudDeck = deck.cloudDeck;
+                    const invalidDeck =
+                      !ordinaryValid && !entertainmentValid
+                        ? (cloudDeck ??
+                          (deck.localDeck
+                            ? {
+                                name: deck.name,
+                                ...deckConfigToRecordPayload(deck.localDeck.config),
+                              }
+                            : null))
+                        : null;
+                    const validation = invalidDeck
+                      ? normalizeDeckRecordPayload(
+                          invalidDeck,
+                          createDeckRecordCardDataTypeResolver(cardDataRegistry),
+                          pointTable
+                        )
+                      : null;
+                    const unavailableReasons = validation
+                      ? [...new Set([...validation.sourceErrors, ...validation.validation.errors])]
+                      : [];
                     const isDeleting = deleteConfirm === deck.id;
 
                     return (
@@ -1023,7 +1045,7 @@ export function DeckManager({
                         ) : (
                           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2.5">
                             <div className="col-start-1 row-start-1 min-w-0">
-                              <h3 className="mb-0.5 truncate text-[15px] font-bold text-[var(--text-primary)] sm:text-base">
+                              <h3 className="mb-0.5 truncate text-[15px] font-semibold text-[var(--text-primary)] sm:text-base">
                                 {deck.name}
                               </h3>
                               {deck.description && (
@@ -1035,28 +1057,73 @@ export function DeckManager({
                                 {deck.updatedAt.toLocaleDateString('zh-CN')}
                               </div>
                             </div>
-                            <div className="col-span-2 row-start-2 flex flex-wrap items-center gap-1 min-[560px]:col-span-1 min-[560px]:col-start-2 min-[560px]:row-start-1 min-[560px]:justify-end">
+                            <div className="col-span-2 row-start-2 -ml-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5 text-[var(--text-secondary)] min-[560px]:col-span-1 min-[560px]:col-start-2 min-[560px]:row-start-1 min-[560px]:justify-end">
+                              {ordinaryValid ? (
+                                <DeckStatusHint
+                                  label={`${deck.name}：标准，查看可用模式`}
+                                  details="标准、娱乐均可用。"
+                                >
+                                  <Check
+                                    size={13}
+                                    aria-hidden="true"
+                                    className="shrink-0 text-[var(--semantic-success)]"
+                                  />
+                                  标准
+                                </DeckStatusHint>
+                              ) : entertainmentValid ? (
+                                <DeckStatusHint
+                                  label={`${deck.name}：仅娱乐，查看可用模式`}
+                                  className="text-[color:color-mix(in_srgb,var(--semantic-warning)_80%,var(--text-primary))]"
+                                  details={`当前 ${deck.pointTotal} PT，标准上限 ${pointTable.pointLimit} PT。可用于娱乐对战。`}
+                                >
+                                  仅娱乐
+                                </DeckStatusHint>
+                              ) : (
+                                <DeckStatusHint
+                                  label={`${deck.name}：待调整，查看构筑问题`}
+                                  details={
+                                    unavailableReasons.length > 0 ? (
+                                      <ul className="list-disc space-y-1 pl-4 [overflow-wrap:anywhere]">
+                                        {unavailableReasons.map((reason) => (
+                                          <li key={reason}>{reason}</li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      '当前构筑不可用，请进入编辑器检查卡牌与数量。'
+                                    )
+                                  }
+                                >
+                                  <AlertTriangle
+                                    size={13}
+                                    aria-hidden="true"
+                                    className="shrink-0 text-[var(--semantic-warning)]"
+                                  />
+                                  待调整
+                                </DeckStatusHint>
+                              )}
                               {!deck.isCloud && (
-                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-warning)]">
-                                  <WifiOff size={10} /> 本机
+                                <span className="inline-flex items-center gap-1.5 whitespace-nowrap border-l border-[var(--border-default)] pl-3">
+                                  <WifiOff size={12} aria-hidden="true" className="shrink-0" />
+                                  本机
                                 </span>
                               )}
                               {cloudDeck?.share_enabled && (
-                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-info)]">
-                                  <Globe size={10} /> 已分享
-                                </span>
-                              )}
-                              {ordinaryValid ? (
-                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-success)]">
-                                  <Check size={10} /> 标准／娱乐均可用
-                                </span>
-                              ) : entertainmentValid ? (
-                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px]">
-                                  标准超限，娱乐可用
-                                </span>
-                              ) : (
-                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px]">
-                                  <Circle size={8} /> 构筑待调整
+                                <span
+                                  className="inline-flex h-4 items-center border-l border-[var(--border-default)] pl-1"
+                                  data-deck-actions-root={deck.id}
+                                >
+                                  <DeckStatusHint
+                                    label={`${deck.name}：已分享，管理分享`}
+                                    details="已开启链接分享"
+                                    menuOpen={openActionsDeckId === deck.id}
+                                    onClick={() =>
+                                      setOpenActionsDeckId((current) =>
+                                        current === deck.id ? null : deck.id
+                                      )
+                                    }
+                                  >
+                                    <Link2 size={14} aria-hidden="true" className="shrink-0" />
+                                  </DeckStatusHint>
                                 </span>
                               )}
                             </div>
@@ -1069,7 +1136,7 @@ export function DeckManager({
                                 className="min-w-0"
                               />
                             </div>
-                            <div className="col-start-2 row-start-1 flex shrink-0 items-center gap-1.5 min-[560px]:row-start-2">
+                            <div className="col-start-2 row-start-1 flex shrink-0 items-center justify-end gap-1.5 min-[560px]:row-start-2">
                               <button
                                 onClick={() => handleEdit(deck)}
                                 className="button-secondary flex min-h-10 shrink-0 items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold"
