@@ -380,6 +380,19 @@ export function projectPlayerViewState(
               return seat ? [seat] : [];
             }),
             deadlineAt: game.entranceRuntime.pending.deadlineAt,
+            ...(game.entranceRuntime.pending.bokuhikaSuccess
+              ? {
+                  bokuhikaSuccess: {
+                    sourceObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.bokuhikaSuccess.sourceCardId
+                    ),
+                    normalizedNames: [
+                      ...game.entranceRuntime.pending.bokuhikaSuccess.normalizedNames,
+                    ],
+                    scoreBonus: game.entranceRuntime.pending.bokuhikaSuccess.scoreBonus,
+                  },
+                }
+              : {}),
             ...(game.entranceRuntime.pending.shizukuRole
               ? {
                   shizukuRole: {

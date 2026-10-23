@@ -1,0 +1,79 @@
+.bokuhika-playback {
+  position: fixed;
+  inset: 0;
+  z-index: 160;
+}
+.bokuhika-playback .card-entrance-skip {
+  z-index: 161;
+}
+.bokuhika-scene {
+  position: fixed;
+  inset: 0;
+  z-index: 160;
+  pointer-events: none;
+  overflow: hidden;
+}
+.bokuhika-scene canvas,
+.bokuhika-shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.bokuhika-shade {
+  background: radial-gradient(ellipse at 50% 46%, #29223c 0%, #100f21 48%, #050812 100%);
+}
+.bokuhika-simple {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(276px, 52.8vw);
+}
+.bokuhika-simple img {
+  display: block;
+  width: 100%;
+  border-radius: 10px;
+  box-shadow: 0 0 22px #f1c2cf44;
+}
+.bokuhika-cast {
+  position: absolute;
+  inset: 0;
+}
+.bokuhika-portrait {
+  position: absolute;
+  isolation: isolate;
+}
+.bokuhika-portrait-frame {
+  position: absolute;
+  inset: 6%;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 2px solid var(--member-color);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--member-color) 40%, transparent);
+  background: #161526;
+}
+.bokuhika-portrait-frame svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.bokuhika-portrait-seal {
+  position: absolute;
+  inset: -1%;
+  width: 102%;
+  height: 102%;
+  fill: none;
+  stroke: var(--member-color);
+  stroke-width: 1.2;
+  filter: drop-shadow(0 0 3px var(--member-color));
+}
+.bokuhika-portrait-seal path {
+  fill: var(--member-color);
+  stroke: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bokuhika-scene * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

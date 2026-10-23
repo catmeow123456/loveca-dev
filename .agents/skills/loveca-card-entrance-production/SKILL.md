@@ -9,6 +9,7 @@ description: 制作、接入或调优 Loveca 卡牌专属登场演出，包括�
 
 ## 按需读取
 
+- 从原型到正常对局的完整交付、包含起动／换曲／歌曲的专属演出时：[专属动画制作与接入](../loveca-special-animation-production/SKILL.md)。本 skill 继续负责人物素材、动作与登场落场细节。
 - 动画设计与规则反馈边界：[motion-system-design](../motion-system-design/SKILL.md)。本任务是已获用户授权的专属演出，不套用普通移牌的短时长上限。
 - 设计、制作或调优人物动作时：[人物动作质量与验收](references/portrait-quality.md)。包含动作选择、眼部表情、形变边界、已验证案例及新窗口任务提示；只改落场或开关时无需加载。
 - 调整对战开关或操作入口时：[battle-interaction-design](../battle-interaction-design/SKILL.md)。沿用现有 UI；明显改版才加载 [frontend-design](../frontend-design/SKILL.md)。

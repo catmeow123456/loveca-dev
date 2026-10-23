@@ -1,0 +1,4 @@
+interface:
+  display_name: "Loveca 专属动画制作与接入"
+  short_description: "制作角色与歌曲专属演出，核实原型、正常对局接入和发布状态"
+  default_prompt: "使用 $loveca-special-animation-production 为指定卡牌制作或接入专属动画，并验证正常对战的触发与结算。"

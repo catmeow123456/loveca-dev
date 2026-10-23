@@ -145,6 +145,11 @@ export interface MatchViewState {
     readonly objectIds: readonly string[];
     readonly waitingSeats: readonly Seat[];
     readonly deadlineAt: number;
+    readonly bokuhikaSuccess?: {
+      readonly sourceObjectId: string;
+      readonly normalizedNames: readonly string[];
+      readonly scoreBonus: number;
+    };
     readonly shizukuRole?: {
       readonly hostObjectId: string;
       readonly sourceObjectId: string;

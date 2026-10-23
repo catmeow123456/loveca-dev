@@ -81,6 +81,12 @@ export interface EntranceWait {
   readonly cardIds: readonly string[];
   readonly waitingPlayerIds: readonly string[];
   readonly deadlineAt: number;
+  /** Public scoring identities at the selected confirmation or ordered resolution boundary. */
+  readonly bokuhikaSuccess?: {
+    readonly sourceCardId: string;
+    readonly normalizedNames: readonly string[];
+    readonly scoreBonus: number;
+  };
   /** A public member was stacked and its printed HEART successfully adopted. */
   readonly shizukuRole?: {
     readonly hostCardId: string;

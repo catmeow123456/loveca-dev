@@ -21,6 +21,8 @@ import { HonokaMemoryPlayback } from './HonokaMemoryPlayback';
 import { getShizukuRole } from '@/lib/shizukuRole';
 import { ShizukuRolePlayback } from './ShizukuRolePlayback';
 import './cardEntrance.css';
+import { getBokuhikaPresentation } from '@/lib/bokuhikaPresentation';
+import { BokuhikaPlayback } from '../song-animation/BokuhikaPlayback';
 
 export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
   const view = useGameStore((s) => s.playerViewState);
@@ -81,6 +83,9 @@ function SynchronizedEntrance({
   const [transfer] = useState(() =>
     getAbilityTransferSource(view, useGameStore.getState().getCardImagePath)
   );
+  const [song] = useState(() => getBokuhikaPresentation(view));
+  const [songDone, setSongDone] = useState(false);
+  const activeSong = playVisuals && viewerWaiting && !songDone ? song : null;
   const [rinaSwap] = useState(() =>
     getRinaLiveSwapSource(view, useGameStore.getState().getCardImagePath)
   );
@@ -94,7 +99,11 @@ function SynchronizedEntrance({
   const activeRole = playVisuals && viewerWaiting && !roleDone ? role : undefined;
   // Snapshot only public, already-present stage cards. No historical event replay on mount.
   const [queue] = useState(() =>
-    (wait.abilityTransfer || wait.rinaLiveSwap || wait.honokaMemory || wait.shizukuRole
+    (wait.abilityTransfer ||
+    wait.rinaLiveSwap ||
+    wait.honokaMemory ||
+    wait.shizukuRole ||
+    wait.bokuhikaSuccess
       ? []
       : wait.objectIds
     ).flatMap((objectId) => {
@@ -135,7 +144,8 @@ function SynchronizedEntrance({
   const activeMemory = playVisuals && viewerWaiting && !memoryDone ? memory : undefined;
   const activeTransfer = playVisuals && viewerWaiting && !transferDone ? transfer : undefined;
   const active = playVisuals && viewerWaiting ? queue[index] : undefined;
-  const done = !active && !activeTransfer && !activeSwap && !activeMemory && !activeRole;
+  const done =
+    !active && !activeTransfer && !activeSwap && !activeMemory && !activeRole && !activeSong;
 
   useCardEntranceBarrier(view, done);
 
@@ -176,7 +186,13 @@ function SynchronizedEntrance({
   return (
     <>
       <div className="absolute inset-0 z-[59]" aria-hidden="true" />
-      {activeRole ? (
+      {activeSong ? (
+        <BokuhikaPlayback
+          contribution={activeSong}
+          reduced={reduced}
+          onDone={() => setSongDone(true)}
+        />
+      ) : activeRole ? (
         <ShizukuRolePlayback
           source={activeRole}
           images={images}
