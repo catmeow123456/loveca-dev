@@ -1,79 +1,70 @@
 # Loveca 文档地图
 
 > 文档类型：总览文档
-> 适用范围：`docs/` 与根目录长期文档的阅读入口、分类和维护边界
-> 当前状态：现行文档导航；新增长期文档时应同步更新
+> 适用范围：文档导航、总领文档职责与专题归属
+> 当前状态：现行阅读与维护入口
 
-本文档用于说明 Loveca 文档从哪里读起、每类文档承担什么责任，以及哪些文档不应作为当前实现的权威来源。
+快速了解项目能做什么，从[项目现状](current-state.md)开始；确定下一步做什么，读[项目待办](../PROJECT_PROGRESS_TODO.md)。本文负责定位资料和分配维护职责，不记录产品完成状态。
 
-## 主阅读路径
+## 总领文档的职责
 
-新维护者优先按以下顺序阅读：
+| 文档 | 回答的问题 | 维护内容 | 内容边界 |
+| --- | --- | --- | --- |
+| [根 README](../README.md) | 项目是什么，如何运行？ | 项目介绍、环境、启动命令与主入口 | 不维护能力完成清单、架构详解或任务排序 |
+| [项目现状](current-state.md) | 现在能做什么，主要边界在哪里？ | 产品级能力摘要、关键限制及专题链接 | 不复制实现参数、单卡清单、完整验收矩阵或生产部署状态 |
+| [总体需求](PROJECT_REQUIREMENTS.md) | 产品需要满足什么？ | 用户与角色、核心规则、跨领域产品约束及范围 | 不记录施工进度、代码字段或专题全部细则；实现尚未满足的要求仍是要求 |
+| [系统设计](system-design.md) | 当前系统如何实现这些要求？ | 分层、状态机、模块职责、持久化与关键代码入口 | 不承担产品现状总表、阶段计划或完整专题设计 |
+| [运行时链路](runtime-data-flow-and-algorithm-chain.md) | 命令、状态、投影和记录怎样串联？ | 横向数据流、算法链路、热路径与跨模块不变量 | 不重复系统模块全景、字段大全或单卡结算 |
+| [项目待办](../PROJECT_PROGRESS_TODO.md) | 接下来推进什么，何时算完成？ | 有优先级的任务、完成条件、阻塞与待决事项 | 不维护当前基线、综合限制清单、开发原则或实验流水 |
+| 本文档 | 某类事实去哪里读、在哪里改？ | 文档导航、职责分工与专题归属 | 不复述各专题的当前能力、部署结果或待办 |
+| [文档编写规范](doc_writing_guide.md) | 文档如何写和维护？ | 类型、状态、引用和更新半径的通用约定 | 不另建项目状态、任务或职责表 |
+| [AGENTS.md](../AGENTS.md)／[CLAUDE.md](../CLAUDE.md) | Agent 如何在仓库内工作？ | AGENTS 维护共享工作边界、任务路由与验证要求；CLAUDE 导入共享入口 | 不复制产品现状、架构或命令手册；仅工具专属配置留在各工具入口 |
 
-1. [根目录 README](../README.md)：项目是什么、主要模块、运行与部署注意。当前基线和下一步见[项目进度及待办](../PROJECT_PROGRESS_TODO.md)。
-2. [项目总体需求](PROJECT_REQUIREMENTS.md)：产品、规则和工程目标，不展开代码实现。
-3. [官方规则参考](../detail_rules.md)：综合规则中文参考资料；产品需求会提炼其中的项目范围。
-4. [系统设计](system-design.md)：当前代码架构、模块职责、关键流程和代码路径。
-5. [运行时数据结构与算法链路](runtime-data-flow-and-algorithm-chain.md)：权威状态、玩家视图、命令、卡效、LIVE、recorder/replay 与性能热路径之间如何串联。
-6. [开发规范](coding-standard/dev-standard.md)：共享引擎、服务端、联机边界和测试规范。
-7. [文档编写规范](doc_writing_guide.md)：文档分类、状态标注和维护规则。
+总体需求给出产品目标，系统设计与专题解释实现；现状页提炼能力摘要，待办选择下一步行动。详细领域契约由对应专题维护，其余入口引用该事实。专题同时包含需求和设计时，应明确区分目标、实现和未落地方案。
 
-## 当前权威文档
-
-这些文档描述长期项目事实，代码变化后应优先判断是否需要同步：
-
-| 文档                                                                 | 类型     | 维护边界                                                                                               |
-| -------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
-| [README](../README.md)                                               | 总览文档 | 项目入口、模块目录、运行与部署入口                                                                     |
-| [项目总体需求](PROJECT_REQUIREMENTS.md)                              | 需求文档 | 产品目标、规则需求和功能边界                                                                           |
-| [系统设计](system-design.md)                                         | 设计文档 | 当前架构、状态机、数据流和关键代码路径                                                                 |
-| [运行时数据结构与算法链路](runtime-data-flow-and-algorithm-chain.md) | 设计文档 | 权威状态、玩家视图、命令、卡效、LIVE、recorder/replay 与性能热路径的横向链路；不维护系统全景和字段大全 |
+更新时按内容归属选择文档：产品目标改变时更新需求；实现结构改变时更新设计；能力或关键限制改变时同步现状摘要；任务完成、优先级或阻塞改变时更新待办。局部重构、测试补充或同构卡效追加通常只更新直接受影响的源码、测试和专题。
 
 ## 规则与运行入口
 
-| 文档                                       | 类型     | 说明                                                            |
-| ------------------------------------------ | -------- | --------------------------------------------------------------- |
-| [官方规则参考](../detail_rules.md)         | 专题说明 | 外部综合规则资料；项目产品范围以 `PROJECT_REQUIREMENTS.md` 为准 |
-| [Web 客户端说明](../client/README.md)      | 总览文档 | 客户端目录、常用命令和后端依赖                                  |
-| [Drizzle 数据库迁移](../drizzle/README.md) | 专题说明 | 迁移目录、基线说明和数据库结构变更流程                          |
+- [官方规则参考](../detail_rules.md)：外部规则资料；项目产品范围由总体需求定义。
+- [Web 客户端说明](../client/README.md)：客户端命令、目录与后端依赖。
+- [Drizzle 数据库迁移](../drizzle/README.md)：迁移目录、基线与执行流程。
 
 ## 专题文档
 
-这些文档描述某个局部能力的当前事实或专项约束：
+按当前任务定位专题；有专题索引时，优先由索引选择所需章节，无需通读全部链接。
 
-| 主题           | 推荐入口                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | 说明                                                                                                         |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 对战模式目的   | [对战模式目的与边界](battle-mode-purpose-and-boundaries.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | 本地调试、对墙打、正式联机、联机观战、历史回放、远程调试联机的目的、受众和能力边界                           |
-| 联机模式       | [专题索引](online-mode/README.md)、[准备文档](online-mode/preparation.md)、[房间状态机与生命周期](online-mode/room-exit-and-recovery.md)、[快捷表情需求与设计](online-mode/match-emote-requirements-design.md)、[边界规范](online-mode/boundary-standard.md)、[远程撤销恢复实施记录与剩余计划](online-mode/remote-undo-requirements-design.md)                                                                                                                                                                                                                                                                                                                                                                                                              | 联机首版能力、房间恢复、局内通信、玩家视角投影、自由拖拽、运行期同步、远程撤销恢复和编码边界                 |
-| 社区对战大厅 | [需求](online-mode/community-lobby-requirements.md)、[业务与 UI 设计](online-mode/community-lobby-design.md)、[调研背景](online-mode/community-lobby-research.md) | 标准／娱乐规则、同模式找人、建房与大厅 UI；生产切换和真实账号验收尚未完成 |
-| 赛季排位       | [专题索引](matchmaking-and-ladder/README.md)、[首版当前状态与上线边界](matchmaking-and-ladder/RANKED_INITIAL_IMPLEMENTATION.md)、[数据与结算设计](matchmaking-and-ladder/RANKED_R2_DATA_AND_SETTLEMENT_DESIGN.md)、[卡组分类与环境饼图](matchmaking-and-ladder/RANKED_DECK_CLASSIFIER.md)、[V4 评分设计](matchmaking-and-ladder/RANKED_V4_RATING_DESIGN.md)、[评分参数修订与全量回算](matchmaking-and-ladder/RANKED_RATING_PARAMETER_REVISION.md)、[管理员 API](matchmaking-and-ladder/RANKED_ADMIN_API.md)、[历史 V2→V3 停机迁移](matchmaking-and-ladder/RANKED_V3_ACTIVE_SEASON_MIGRATION.md)、[影子报告分析](matchmaking-and-ladder/RANKED_SHADOW_REPORT_ANALYSIS_2026-07-30.md)、[影子报告运行说明](matchmaking-and-ladder/RANKED_SHADOW_REPORT_RUNBOOK.md) | 赛季生命周期、固定时段候场、Glicko 与成长池结算、参数修订、全量重建、玩家/管理员边界、卡组分类与历史迁移说明 |
-| 轮换主题牌桌   | [策划与设计](matchmaking-and-ladder/ROTATING_THEME_TABLE_DESIGN.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 固定时段非计分活动、服务端预组、组合分配、开局前恢复、运营指标与生产开放边界                                 |
-| 赛季活动封面   | [需求与设计](matchmaking-and-ladder/SEASON_ACTIVITY_COVER_REQUIREMENTS_AND_DESIGN.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | 排位赛季与主题牌桌共用的大封面、双端构图、赛季管理员权限、公共图片生命周期与验收边界；首批开发基线已实现     |
-| 对局记录与回放 | [专题索引](match-replay/README.md)、[需求](match-replay/requirements.md)、[设计](match-replay/design.md)、[序列化与复水契约](match-replay/serialization-contract.md)、[紧急数据库重建 Runbook](match-replay/emergency-retention-database-rebuild-runbook.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 历史对局保存、玩家视角回放、卡组快照、卡效复盘、确定性重演需求和架构承接，以及空间不足时的停机重建边界       |
-| UI 设计        | [专题索引](ui-design/README.md)、[产品视觉系统](ui-design/product-visual-system.md)、[UI 开发规范](ui-design/standard.md)、[移动端适配需求](ui-design/mobile-adaptation-requirements.md)、[游戏桌 UI 现状](ui-design/game-table/current-state.md)、[对局入口选组现状](ui-design/deck-selection-entry-current-state.md)                                                                                                                                                                                                                                                                                                                                                                                                                                          | 产品视觉方向、页面原型、前端实现规范、移动端适配、游戏桌交互和对局入口选组设计                               |
-| 平台运维       | [专题索引](platform-operations/README.md)、[平台状态、维护开关与公告](platform-operations/site-status-and-announcements.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | 平台维护开关、公开状态、首页公告、管理员公告管理和维护期间新对局限制                                         |
-| 卡组管理       | [卡组管理需求](deck-management/requirements.md)、[卡组管理设计](deck-management/design.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | 浏览器本地/云端卡组、DeckLog、分享、游戏入口选组                                                             |
-| 卡牌数据管理   | [卡牌数据管理需求](card-data-management/requirements.md)、[卡牌数据管理设计](card-data-management/design.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 管理后台、卡牌 CRUD、发布状态和字段边界                                                                      |
-| 运营管理中心   | [需求](admin-center/requirements.md)、[设计](admin-center/design.md)、[赛季管理员角色](admin-center/season-admin-role.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 管理模块统一入口、运行时配置分层、AI 私密配置与服务端提取安全边界，以及赛季管理员的当前上线门槛              |
-| 卡牌数据规范   | [卡牌数据规范](card-data-management/data-spec.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `cards` 表字段、同步脚本和管理端输入约束                                                                     |
-| 卡牌同步       | [专题索引](card-data-sync/README.md)、[同步需求](card-data-sync/requirements.md)、[同步设计](card-data-sync/design.md)、[CloudBase 新卡同步脚本](card-data-sync/cloudbase-new-card-sync.md)、[llocg_db 与 Loveca Excel 格式差异调查](card-data-sync/llocg-vs-xlsx-format-audit-20260626.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `llocg_db`、Loveca Excel 与 CloudBase 到当前 `cards` 表的同步管线、格式差异和接入边界                        |
-| 卡牌效果自动化 | [卡效框架入口](card-effect-framework/README.md)、[目标架构](card-effect-framework/target_architecture.md)、[模块边界](card-effect-framework/module_boundaries.md)、[卡效实现指南](card-effect-framework/card_effect_implementation_guide.md)、[迁移路线](card-effect-framework/migration_roadmap.md)、[旧文档索引](card-effect-framework/legacy_doc_index.md)、[卡效完成状态登记册](card-effect-reuse-audit/existing_module_map.md)                                                                                                                                                                                                                                                                                                                             | 卡效系统最终目标、runner 去中心化边界、新卡效实现入口、迁移计划、旧文档权威关系和已实现基础编号              |
-| MinIO 与图片   | [MinIO 需求与设计](minio-requirements.md)、[图片优化方案](image_optimization.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | 对象存储、图片上传、压缩和访问 URL                                                                           |
-| 游戏资产目录   | [需求与设计](game-assets/requirements-and-design.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 当前卡图、音乐和其他公共图片只读目录、对象检查、盘点脚本与后续公共资源迁移边界                         |
-| 玩家桌面壁纸   | [需求与安全边界](player-wallpaper/requirements.md)、[实现设计](player-wallpaper/design.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | 当前观看者私有壁纸、双布局裁切、私有对象存储、每日发布与共享桌面背景层                                       |
-| 新手引导教程   | [需求](tutorial/requirements.md)、[两套对局模型对应关系](tutorial/match-model-correspondence.md)、[首版动画与引导层设计](tutorial/animation-design.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | 基础 LIVE 教程的产品范围、权威规则与隐藏信息边界、动画独立性，以及 lltcgweb 到 Loveca 的模型映射与迁移边界 |
-| Excel 界面 | [实现与验收](frontend-app-architecture/excel-mode.md) | 文字工作表、共享控制与同步、遮挡、资源策略及首版待验收项 |
-| 二维回收动效 | [实现与验收](frontend-app-architecture/recovery-animation.md) | 回收时间轴、实时手牌落点、撤销去重与本地真实卡效验收 |
-| 起动水墨动效 | [实现与验收](frontend-app-architecture/ability-activation-animation.md) | 真实卡牌透视浮起、卡沿水墨波纹、提交前时序与取消 |
-| 成员强化反馈 | [实现与验收](frontend-app-architecture/member-feedback.md) | 成员心／刀流光、实际增量、公开事件与二维验收 |
-| 前端外层观测   | [阶段 A 观测基线](frontend-app-architecture/phase-a-observability-baseline.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | 站内导航、关键数据就绪、API/document 请求与前端构建体积的固定观测契约                                        |
-| 生产发布       | [生产发布 Runbook](production-release-runbook.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | 当前自托管发布步骤、部署检查、健康检查与回滚边界                                                             |
-| 对墙打模式     | [对墙打模式需求](solitaire-mode-requirements.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | 本地调试模式与对墙打模式边界                                                                                 |
-| 成员下方堆叠   | [成员下方堆叠](special-member-stacking.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `memberBelow` 的卡效创建、生命周期和投影边界                                                                 |
-
-版本迁移：[3.10.5 → 3.10.6](../drizzle/migration-notes/3.10.5-to-3.10.6.md) 汇总 AI 对战来源、计费字段、配置与回退边界；生产操作仍按发布 Runbook 执行。
-
-AI 专题入口：[本地 AI 自对弈与策略迭代](ai-battle/self-play.md)维护双 AI、完整归档、跨轮预算和复盘步骤；[LIVE 概率辅助](ai-battle/live-probability.md)维护通用概率基线、只读批量条件查询与估算边界；[本地 Codex 接入](ai-battle/local-codex.md)维护本机订阅测试的环境配置、预算及归档启用步骤；[支持矩阵](ai-battle/support-matrix.md)维护构筑与窗口边界；[运行与观测说明](ai-battle/runtime-and-observation.md)维护实现、权限与证据契约；[token 计费与费用展示](ai-battle/token-billing-proposal.md)维护 API 模型的价格快照、单步提示、整局持久累计与未知用量口径，部署需执行 [0040 迁移](../drizzle/migration-notes/ai-battle-billing.md)；[数据库决定归档迁移](../drizzle/migration-notes/ai-battle-evidence.md)维护 0041 的结构、执行顺序及回退边界；[完整环境验证](ai-battle/full-environment-validation.md)维护复现条件。
+| 主题 | 阅读入口 |
+| --- | --- |
+| 对战模式目的 | [对战模式目的与边界](battle-mode-purpose-and-boundaries.md) |
+| 联机模式 | [专题索引](online-mode/README.md)、[准备文档](online-mode/preparation.md)、[房间状态机与生命周期](online-mode/room-exit-and-recovery.md)、[快捷表情需求与设计](online-mode/match-emote-requirements-design.md)、[边界规范](online-mode/boundary-standard.md)、[远程撤销恢复实施记录与剩余计划](online-mode/remote-undo-requirements-design.md) |
+| 社区对战大厅 | [需求](online-mode/community-lobby-requirements.md)、[业务与 UI 设计](online-mode/community-lobby-design.md)、[调研背景](online-mode/community-lobby-research.md) |
+| 赛季排位 | [专题索引](matchmaking-and-ladder/README.md)、[首版当前状态与上线边界](matchmaking-and-ladder/RANKED_INITIAL_IMPLEMENTATION.md)、[数据与结算设计](matchmaking-and-ladder/RANKED_R2_DATA_AND_SETTLEMENT_DESIGN.md)、[卡组分类与环境饼图](matchmaking-and-ladder/RANKED_DECK_CLASSIFIER.md)、[V4 评分设计](matchmaking-and-ladder/RANKED_V4_RATING_DESIGN.md)、[评分参数修订与全量回算](matchmaking-and-ladder/RANKED_RATING_PARAMETER_REVISION.md)、[管理员 API](matchmaking-and-ladder/RANKED_ADMIN_API.md)、[历史 V2→V3 停机迁移](matchmaking-and-ladder/RANKED_V3_ACTIVE_SEASON_MIGRATION.md)、[影子报告分析](matchmaking-and-ladder/RANKED_SHADOW_REPORT_ANALYSIS_2026-07-30.md)、[影子报告运行说明](matchmaking-and-ladder/RANKED_SHADOW_REPORT_RUNBOOK.md) |
+| 轮换主题牌桌 | [策划与设计](matchmaking-and-ladder/ROTATING_THEME_TABLE_DESIGN.md) |
+| 赛季活动封面 | [需求与设计](matchmaking-and-ladder/SEASON_ACTIVITY_COVER_REQUIREMENTS_AND_DESIGN.md) |
+| 对局记录与回放 | [专题索引](match-replay/README.md)、[需求](match-replay/requirements.md)、[设计](match-replay/design.md)、[序列化与复水契约](match-replay/serialization-contract.md)、[紧急数据库重建 Runbook](match-replay/emergency-retention-database-rebuild-runbook.md) |
+| AI 对战 | [运行与观测](ai-battle/runtime-and-observation.md)、[支持矩阵](ai-battle/support-matrix.md)、[本地自对弈](ai-battle/self-play.md)、[本地 Codex 接入](ai-battle/local-codex.md)、[完整环境验证](ai-battle/full-environment-validation.md) |
+| UI 设计 | [专题索引](ui-design/README.md)、[产品视觉系统](ui-design/product-visual-system.md)、[UI 开发规范](ui-design/standard.md)、[移动端适配需求](ui-design/mobile-adaptation-requirements.md)、[游戏桌 UI 现状](ui-design/game-table/current-state.md)、[对局入口选组现状](ui-design/deck-selection-entry-current-state.md) |
+| 平台运维 | [专题索引](platform-operations/README.md)、[平台状态、维护开关与公告](platform-operations/site-status-and-announcements.md) |
+| 卡组管理 | [卡组管理需求](deck-management/requirements.md)、[卡组管理设计](deck-management/design.md) |
+| 卡牌数据管理 | [卡牌数据管理需求](card-data-management/requirements.md)、[卡牌数据管理设计](card-data-management/design.md) |
+| 运营管理中心 | [需求](admin-center/requirements.md)、[设计](admin-center/design.md)、[赛季管理员角色](admin-center/season-admin-role.md) |
+| 卡牌数据规范 | [卡牌数据规范](card-data-management/data-spec.md) |
+| 卡牌同步 | [专题索引](card-data-sync/README.md)、[同步需求](card-data-sync/requirements.md)、[同步设计](card-data-sync/design.md)、[CloudBase 新卡同步脚本](card-data-sync/cloudbase-new-card-sync.md)、[llocg_db 与 Loveca Excel 格式差异调查](card-data-sync/llocg-vs-xlsx-format-audit-20260626.md) |
+| 卡牌效果自动化 | [卡效框架入口](card-effect-framework/README.md)、[目标架构](card-effect-framework/target_architecture.md)、[模块边界](card-effect-framework/module_boundaries.md)、[卡效实现指南](card-effect-framework/card_effect_implementation_guide.md)、[迁移路线](card-effect-framework/migration_roadmap.md)、[旧文档索引](card-effect-framework/legacy_doc_index.md)、[卡效完成状态登记册](card-effect-reuse-audit/existing_module_map.md) |
+| MinIO 与图片 | [MinIO 需求与设计](minio-requirements.md)、[图片优化方案](image_optimization.md) |
+| 游戏资产目录 | [需求与设计](game-assets/requirements-and-design.md) |
+| 玩家桌面壁纸 | [需求与安全边界](player-wallpaper/requirements.md)、[实现设计](player-wallpaper/design.md) |
+| 新手引导教程 | [需求](tutorial/requirements.md)、[两套对局模型对应关系](tutorial/match-model-correspondence.md)、[首版动画与引导层设计](tutorial/animation-design.md) |
+| Excel 界面 | [实现与验收](frontend-app-architecture/excel-mode.md) |
+| 二维回收动效 | [实现与验收](frontend-app-architecture/recovery-animation.md) |
+| 起动水墨动效 | [实现与验收](frontend-app-architecture/ability-activation-animation.md) |
+| 成员强化反馈 | [实现与验收](frontend-app-architecture/member-feedback.md) |
+| 前端外层观测 | [阶段 A 观测基线](frontend-app-architecture/phase-a-observability-baseline.md) |
+| 生产发布 | [生产发布 Runbook](production-release-runbook.md) |
+| 对墙打模式 | [对墙打模式需求](solitaire-mode-requirements.md) |
+| 成员下方堆叠 | [成员下方堆叠](special-member-stacking.md) |
+| 卡牌专属演出 | [素材与实现](../client/src/components/game/card-entrance/README.md)、[发布与验收](card-entrance-production-rollout.md) |
 
 ## 编码标准
 
@@ -88,9 +79,7 @@ AI 专题入口：[本地 AI 自对弈与策略迭代](ai-battle/self-play.md)�
 
 这些文档可以解释背景或后续方向，但不应替代当前事实文档：
 
-AI 历史实验保留用于解释策略限制与输入设计，不能作为当前验收结论：[模型验证](ai-battle/model-validation.md)、[初次真人复盘](ai-battle/reviews/2026-09-09-d0f78580.md)、[提示修正复测](ai-battle/reviews/2026-09-09-d0f78580-retest.md)、[换手选择调查](ai-battle/reviews/2026-09-09-995a9195-77.md)、[中后期决策抽样](ai-battle/reviews/2026-09-09-316b7939.md)、[手牌规划复测](ai-battle/reviews/2026-09-09-hand-planning.md)、[绿莲费用衔接](ai-battle/reviews/2026-09-09-c530c1a3-28.md)、[绿莲补场取舍](ai-battle/reviews/2026-09-09-3a5522fa-73.md)、[绿莲资源顺序](ai-battle/reviews/2026-09-10-3d6b3a8c-58-69.md)。
-
-能力资源与回合规划的历史依据：[空费与回合规划复测](ai-battle/reviews/2026-09-10-f978-planning.md)、[回收腾位与空过调查](ai-battle/reviews/2026-09-10-188ba3ad-141.md)、[通用自送回收提示复测](ai-battle/reviews/2026-09-10-general-self-recovery-prompt.md)。这些记录保留当时的实验条件、策略失败与推断边界；当前实现仍以 AI 专题文档为准。
+AI 历史实验与单局复盘由[模型验证记录](ai-battle/model-validation.md)集中导航，用于解释输入设计与策略限制，不作为当前能力或验收结论。
 
 | 文档                                                             | 当前用途                                                                       |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -101,20 +90,9 @@ AI 历史实验保留用于解释策略限制与输入设计，不能作为当�
 | [文档重构需求](archive/documentation-refactor-requirements.md)   | 已归档的阶段性文档重构需求；不作为当前实现事实来源                             |
 | [前端外层架构重构需求与设计](frontend-app-architecture/requirements-and-design.md) | 实施中的 Router、Query、运行时拆包与缓存治理计划；当前观测事实以阶段 A 专题为准 |
 
-## 进度入口
+## 维护与旧入口
 
-进度只维护当前基线与仍有效缺口；已完成施工过程使用 Git 历史追溯，不作为长期设计正文：
-
-| 文档                           | 当前用途                                     |
-| ------------------------------ | -------------------------------------------- |
-| [当前进度及待办](../PROJECT_PROGRESS_TODO.md) | 当前基线、有效缺口与下一步的唯一进度入口 |
-| [旧进度入口](../progress.md) | 仅重定向到当前进度和文档地图，不再独立维护状态 |
-
-## 维护规则
-
-- 描述当前实现时，优先引用当前权威文档和代码路径。
-- 描述计划、建议或未落地能力时，必须明确标注状态。
-- 已完成的阶段任务和一次性 checklist 不进入主阅读路径。
-- 新增长期文档时，应在本文档登记分类、用途和维护边界。
-- 同一事实只保留一个权威描述；能力边界与验收要求随对应专题维护，部署差异归部署 Runbook 或数据库迁移说明，待修事项归 `PROJECT_PROGRESS_TODO.md`，其他文档用链接引用。
-- 局部代码重构、命名调整、测试补充或组件内部整理通常不要求同步修改长期文档。
+- 新增长期文档时先确定权威归属，确需新增才登记到相应专题或本文档；已有专题入口应继续承接细分导航。
+- 能力边界与完整验收要求归专题，部署差异与执行记录归 Runbook／迁移说明，任务状态归项目待办；总领文档之间用链接连接。
+- 历史与计划资料必须标明用途，不能替代当前事实；过程追溯使用 Git 或明确归档的实验记录。
+- [旧进度入口](../progress.md)只重定向，不再维护项目状态。开发与文档检查分别见[开发规范](coding-standard/dev-standard.md)和[文档编写规范](doc_writing_guide.md)。

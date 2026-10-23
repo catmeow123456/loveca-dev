@@ -48,5 +48,5 @@ description: Implement, review, or fix Loveca Battle card effects; audit card te
 - 对本次行为变化运行 focused tests，覆盖适用的正常结算、可选不发动/跳过、无目标、非法或 stale 输入及 continuation。条件参考中的回归仅在触及对应契约时适用；普通卡效复用不要求重跑全部底座测试。
 - 涉及卡文或操作字段时，保留完整卡文/关键规则动作的精确契约断言，并运行 `tests/unit/card-effect-tokens.test.ts`、`tests/unit/card-effect-text-governance.test.ts`。不要为普通装饰文案添加重复测试。
 - 使用 `pnpm test:run <相关测试>`；必要时做根或 client TypeScript 检查，最后检查 `git diff --check`。不固定要求全量 build/E2E，检查通过后只因新变更、失败或未解决风险扩大验证。
-- 每张卡/效果段落地后更新唯一主登记册：基础编号、费用/分数、卡名、全罕度覆盖、完整/部分实现、复用模块与测试。新增 helper、family 或事件边界只更新受影响的设计/覆盖/gap 章节；同构追加不触发全套文档刷新。进度文件仅反映当前基线、缺口与下一步。
+- 每张卡/效果段落地后更新唯一主登记册：基础编号、费用/分数、卡名、全罕度覆盖、完整/部分实现、复用模块与测试。新增 helper、family 或事件边界只更新受影响的设计/覆盖/gap 章节；同构追加不触发全套文档刷新。[项目待办](../../../PROJECT_PROGRESS_TODO.md)只维护任务、完成条件与阻塞，产品级能力摘要见[项目现状](../../../docs/current-state.md)。
 - 交付聚焦请求的结果、验证和未解决项。卡号同时附费用/分数与卡名；引用实际代码或记录作为证据。不要以 runner 行数、shadow 结果或单卡成功宣称全局框架完成。

@@ -23,6 +23,8 @@ Love Live 卡牌游戏的开源实现，包含游戏引擎、自托管 API 服�
 
 ## 文档入口
 
+- [项目现状](docs/current-state.md)：当前能力与关键边界
+- [项目待办](PROJECT_PROGRESS_TODO.md)：下一步任务、完成条件与待决事项
 - [文档地图](docs/README.md)
 - [项目总体需求](docs/PROJECT_REQUIREMENTS.md)
 - [官方规则参考](detail_rules.md)

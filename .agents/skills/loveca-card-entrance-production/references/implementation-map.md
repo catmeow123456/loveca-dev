@@ -9,7 +9,7 @@
 | 实现入口 | 后续卡牌需要检查的内容 |
 | --- | --- |
 | [GameBoard.tsx](../../../../client/src/components/game/GameBoard.tsx) | `CardEntranceLayer`、`canShowCardEntrance`：生产模式边界、权威等待时交互屏蔽、桌面／窄屏本机开关 |
-| [CardEntranceToggle.tsx](../../../../client/src/components/game/card-entrance/CardEntranceToggle.tsx) | 共用登场开关；不要每张卡新增一个玩家开关 |
+| [BattleEffectsToggle.tsx](../../../../client/src/components/game/BattleEffectsToggle.tsx) | 共用对战特效开关；不要每张卡新增一个玩家开关 |
 | [card-entrance.ts](../../../../src/shared/card-entrance.ts)、[权威捕获](../../../../src/application/card-entrance.ts)、[game-session.ts](../../../../src/application/game-session.ts) | 共享卡号身份、原子步骤边界捕获、双席 ACK／超时、撤销代际与结算恢复 |
 | [CardEntranceLayer.tsx](../../../../client/src/components/game/card-entrance/CardEntranceLayer.tsx) | 消费 `match.entrance`、顺序播放、完成确认、等待另一席与遮挡；图片与卡名跟随当前 profile |
 | [cardEntranceProfiles.ts](../../../../client/src/lib/cardEntranceProfiles.ts)、[CardEntrancePortrait.tsx](../../../../client/src/components/game/card-entrance/CardEntrancePortrait.tsx) | 全部角色的基础编号、卡名、取景、光晕与形变配置；登记内绑定按需素材，共用人物绘制 |

@@ -14,6 +14,16 @@
 
 社区对战大厅的新增休闲准备表、本地接入边界与生产排空要求见 [`migration-notes/community-lobby.md`](migration-notes/community-lobby.md)。
 
+## 迁移说明入口
+
+版本升级记录与专题切换流程在本目录集中定位；文档描述各自版本的前提，不代表目标环境当前状态。执行时仍需按[生产 Runbook](../docs/production-release-runbook.md)核对实际迁移记录。
+
+| 范围 | 说明 |
+| --- | --- |
+| 版本升级汇总 | [3.9.9 → 3.10.0](migration-notes/3.9.9-to-3.10.0.md)、[3.10.4 → 3.10.5](migration-notes/3.10.4-to-3.10.5.md)、[3.10.5 → 3.10.6](migration-notes/3.10.5-to-3.10.6.md)、[3.11.1 → 3.11.2](migration-notes/3.11.1-to-3.11.2.md)、[3.11.2 → 3.11.3](migration-notes/3.11.2-to-3.11.3.md) |
+| 卡牌同步 | [任务持久化](migration-notes/card-sync-jobs.md)、[同步加固](migration-notes/card-sync-hardening.md)、[CloudBase 新卡生产切换](migration-notes/cloudbase-new-card-sync-production.md) |
+| 排位卡组分类 | [结构、种子与首次发布](migration-notes/ranked-deck-classifier-production.md) |
+
 ## 当前基线
 
 - `0000_baseline_current_schema.sql` 是 no-op 基线，只用于登记接入 Drizzle 时已经存在的基础结构。

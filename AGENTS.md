@@ -1,6 +1,6 @@
 # Loveca Battle Agent Guide
 
-本文件保留全仓库适用的约束。按当前任务定位代码与文档；不要求每次开发先通读进度、卡牌登记册或框架手册。
+本文件是各类 coding agent 共用的仓库约束入口，`CLAUDE.md` 直接导入本文件。共享约束只在此维护，专用约定归对应 skill。按当前任务定位代码与文档；不要求每次开发先通读进度、卡牌登记册或框架手册。
 
 ## 工作范围与边界
 
@@ -23,8 +23,9 @@
 
 ## 按任务定位
 
-- 仓库路径使用当前 checkout 根目录（`git rev-parse --show-toplevel`），不依赖作者机器的绝对路径。模块当前边界以 [文档导航](docs/README.md) 与 [项目待办](PROJECT_PROGRESS_TODO.md) 所列专题文档为准。
-- 当前进度与下一步：检索 [PROJECT_PROGRESS_TODO.md](PROJECT_PROGRESS_TODO.md) 的相关章节，不把整份进度作为所有任务的前置阅读。
+- 仓库路径使用当前 checkout 根目录（`git rev-parse --show-toplevel`），不依赖作者机器的绝对路径。文档职责与专题归属见[文档地图](docs/README.md)，模块详细边界以对应专题为准。
+- 环境与启动命令见[根 README](README.md)，客户端命令见[客户端说明](client/README.md)，开发与测试约束见[开发规范](docs/coding-standard/dev-standard.md)；脚本定义以根和客户端的 `package.json` 为准。
+- 需要了解整体能力时读[项目现状](docs/current-state.md)；下一步任务、完成条件与阻塞检索[项目待办](PROJECT_PROGRESS_TODO.md)。两者都不是所有任务的前置阅读，不在待办中重写实现基线。
 - 权威状态与规则：`src/application/game-session.ts`、`src/application/game-service.ts`、`src/domain/entities/game.ts`、`src/domain/entities/zone.ts`；登场费用由 `src/domain/rules/cost-calculator.ts` 计算。
 - 玩家视图与桌面：`src/online/projector.ts`、`client/src/store/gameStore.ts`、`client/src/components/game/GameBoard.tsx`、`client/src/components/game/PlayerArea.tsx`。对战模式、观战与回放只读边界见 [模式说明](docs/battle-mode-purpose-and-boundaries.md)。
 
@@ -46,8 +47,8 @@
 
 - 测试验证规则不变量、权威状态、接口契约与完整操作结果；不要用覆盖数字或普通提示文案代替行为。可访问名称可用于定位；完整卡文、关键规则按钮和错误指引属于契约时保留窄文本断言。
 - 按变更影响选择 focused tests；共享调度、事件或规则修改覆盖相关回归。涉及类型或编译链路再做对应 TypeScript 检查；全量测试、前端 build 和 E2E 仅在影响面需要时运行。纯文档改动检查格式、链接与声明的一致性即可。
-- 常用命令：`pnpm test:run <相关测试路径>`、`pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b`、`git diff --check`。通过后只因新修改、失败或未解决风险扩大或重跑；修复本次引入的失败，既有失败明确报告。
-- 文档只更新受影响的权威说明；进度文件仅在当前基线或下一步变化时更新，不为普通局部修改刷新整套文档。历史过程由 Git 追溯。
+- 常用命令：`pnpm test:run <相关测试路径>`、`git diff --check`；类型检查按影响范围使用 `pnpm typecheck:shared`、`pnpm typecheck:server` 或 `pnpm typecheck:client`，根目录 `tsc --noEmit` 不包含服务端。通过后只因新修改、失败或未解决风险扩大或重跑；修复本次引入的失败，既有失败明确报告。
+- 文档只更新受影响的权威说明；产品能力或关键边界变化时同步现状摘要，任务、完成条件或阻塞变化时更新待办，不为普通局部修改刷新整套文档。历史过程由 Git 追溯。
 - 聊天提及卡号时同时写费用/分数与卡名，例如 `PL!SP-bp4-008-P` 费用 13「若菜四季」、`PL!-sd1-019-SD` 分数 4「START:DASH!!」。
 - commit message 与 PR title 使用中文，具体检查与文案流程见对应 skill。
 - 完成意味着请求范围内工作落地、相关检查通过、登记与说明准确；交付说明行为变化、验证和仍未解决的问题，不把局部实现写成全框架完成。

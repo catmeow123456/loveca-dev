@@ -3,13 +3,15 @@
 > 文档类型：设计文档  
 > 适用范围：Loveca 当前代码架构与关键流程设计（基于现状实现）  
 > 当前状态：现行系统设计；字段级 schema 以 `src/server/db/schema.ts` 和 `drizzle/` 增量迁移为准，初始化函数与触发器以 `docker/init.sql` 为准
-> 最后更新：2026-09-07
+> 最后更新：2026-10-23
 
 ---
 
 ## 1. 设计目标与范围
 
-本文档用于描述 Loveca 的系统设计方案，重点覆盖：
+本文回答当前系统如何实现产品要求。产品目标见[总体需求](PROJECT_REQUIREMENTS.md)，能力覆盖见[项目现状](current-state.md)，工作排序见[项目待办](../PROJECT_PROGRESS_TODO.md)；各文档职责以[文档地图](README.md#总领文档的职责)为准。
+
+重点覆盖：
 
 - 对局引擎分层与状态机设计
 - 规则处理与动作执行链路
@@ -245,32 +247,9 @@ flowchart TD
 
 ## 5. 动作执行链路设计
 
-```mermaid
-sequenceDiagram
-    participant UI as 前端组件
-    participant Store as gameStore
-    participant Session as GameSession
-    participant Service as GameService
-    participant Handler as ActionHandler
-    participant Rule as RuleActions
+前端操作转换为 `GameCommand`，本地经 `GameSession.executeCommand()` 执行，远程经服务端鉴权、座位映射与命令队列进入同一会话入口。会话层组织规则动作、卡效与自动推进，`GameService` 和规则处理器维护权威状态。
 
-    UI->>Store: 发起动作
-    Store->>Session: dispatch(action)
-    Session->>Service: processAction
-    Service->>Handler: 执行对应处理器
-    Handler-->>Service: 返回新状态
-    Service->>Rule: 执行检查时机与规则处理
-    Rule-->>Service: 返回修正后状态
-    Service-->>Session: 操作结果
-    Session-->>Store: 更新权威状态快照
-    Store-->>UI: 重渲染
-```
-
-关键设计点：
-
-- 动作是唯一状态入口，避免绕过规则层改状态
-- 规则处理在动作后统一执行，保障状态一致性
-- 会话层负责自动推进，不把流程控制分散到组件层
+界面读取 `PlayerViewState` 投影：本地由 `getPlayerViewState()` 生成，远程由快照返回。组件不接收完整权威状态再自行隐藏私密数据，也不绕过命令入口改状态。逐步时序、记录和增量事件路径统一见[运行时主命令链路](runtime-data-flow-and-algorithm-chain.md#3-主命令链路)。
 
 代码路径：
 
@@ -535,15 +514,9 @@ erDiagram
 管理员更正按稳定顺序重建派生投影。字段、事务和更正链细节见
 [赛季排位数据与结算设计](matchmaking-and-ladder/RANKED_R2_DATA_AND_SETTLEMENT_DESIGN.md)。
 
-玩家徽章以持久规则和幂等授予记录分离活动配置、资格来源与玩家所有权。排位赛季和娱乐
-模式活动各自最多配置一枚徽章；赛季管理员上传图片后建立该活动的 3 场资格规则，上传当下
-会在同一事务补发已达标玩家，之后分别在评分结算与娱乐模式权威对局封存事务中继续幂等
-授予。图片替换只切换活动规则的不可变对象引用，不新建授予记录；个人中心只通过本人端点
-读取。首届排位既有静态图片在停机迁移中上传对象存储，运行时不再读取仓库静态目录。
+玩家徽章以持久规则和幂等授予记录分离活动配置、资格来源与玩家所有权；排位结算和主题对局封存分别触发幂等授予，图片使用不可变对象引用。资格规则、补发、资源替换与迁移细节见[活动徽章说明](../drizzle/migration-notes/activity-badges.md)。
 
-轮换主题牌桌在同一持久票据/预留状态机上增加独立 `THEME` 队列与活动环境身份。网站与管理界面统一把该玩法呈现为非计分“娱乐模式”，内部继续保留主题牌桌技术命名，并复用排位的周期、开放窗口、生命周期和管理页结构；管理员可将合法云端卡组或 YAML 复制为不可变服务端预组，并在未结束活动中继续新增、编辑或移出卡组。每副当前预组自动形成同卡组内战，并与池内既有卡组形成等权组合；编辑以退休旧预组、创建同 `deckKey` 新版本和重建未来组合实现，删除以退休版本和停用组合实现，不回写不可变分配记录或票据锁组。赛季管理员在草稿中配置 `X 选 1`；`X=1` 保持单击候场交互，`X>1` 时玩家端在独立选组弹层中展示由预留 ID 与启用对阵图确定性生成的候选，并通过卡组选择栏与完整卡册确认本局预组。候选不持久化、不建立曝光审计，服务端只校验最终选择仍可用并把预组版本锁入主题票据；入队要求活动处于 `ACTIVE`，最后一个可分配组合消失时在同一数据库语句中自动暂停新入队，双方确认后冻结选择、组合与锁组再创建房间，配置失效时冻结失败关闭并按无过错口径释放预留。玩家本期战绩与当前卡组版本的两两对阵胜负由 `theme_table_assignments` 关联 `match_records` 的权威终局实时聚合；对阵关系图以预组为节点、以两端着色连线和胜局比标签表达关系，按真实分配座位还原卡组胜负，不新增评分投影、结算流水或排行榜。自组对局不绘制为自环，平局计入完成局数，中断与损坏记录不计入，退休卡组版本不混入当前卡组池图。主题房间禁用原房再战，赛后返回娱乐模式入口重新候场，确保每局都有新的分配事实。开局前责任方离场或未到场时，恢复服务终结旧预留，并在活动仍开放时为无过错方创建保留原 `joinedAt` 与已选预组的新票据。详细边界见[轮换主题牌桌策划与设计](matchmaking-and-ladder/ROTATING_THEME_TABLE_DESIGN.md)。
-
-`X 选 1` 的当前权威时序为“先匹配，后选组”：主题票据以未选组占位进入 FIFO 队列，预留形成后再以预留 ID 和启用对阵图确定性生成双方候选。`X=1` 直接走确认界面，`X>1` 使用独立选组弹层；刷新可重建同一候选。不建立 offer/history 表，最终选择写入现有票据卡组快照。
+轮换主题牌桌复用持久票据与预留状态机，并使用独立 `THEME` 队列和活动环境身份。先匹配形成预留，再生成稳定预组候选；最终选择锁入现有票据快照，历史分配不随预组编辑而改变。主题对局记录胜负，不写入排位评分投影；开局前恢复由主题恢复服务处理。玩家流程、候选算法、卡组版本与运营验收边界由[主题牌桌需求与设计](matchmaking-and-ladder/ROTATING_THEME_TABLE_DESIGN.md)维护。
 
 代码路径：
 
@@ -593,54 +566,31 @@ graph TD
 
 ---
 
-## 10. 当前落地边界（设计视角）
+## 10. 专题模块与实现入口
 
-### 10.1 已落地
+本章用于从系统架构定位专题模块，具体参数、交互契约及验收条件由所链接的专题维护。阶段计划、部署记录与产品完成状态分别在计划专题、Runbook 和项目现状页维护。
 
-- 管理员 AI 对战调试：`src/server/services/ai-battle-service.ts` 管理本人会话，`src/server/ai-battle/` 提供可见输入、异步模型驱动和有界证据；采样与条件提交复用 `src/server/services/online-match-service.ts` 的单场命令队列。`src/server/routes/ai-battle.ts` 与 `client/src/components/admin/AiBattleAdminPage.tsx` 接入管理员权限和共享牌桌，观察入口为 `client/src/components/admin/AiBattleObservationPanel.tsx`。构筑、模型、失败和保留边界见 [AI 运行与观测说明](ai-battle/runtime-and-observation.md)。
-- 配置化阶段/子阶段驱动的主流程
-- 动作处理器体系与规则动作校正链路
-- Live 结算主流程、手动判定确认与分数确认链路
-- 四章新手教程：`TutorialSessionService` 使用真实 `GameSession`、确定性随机决策带和正式命令建立临时权威会话，HTTP transport 只返回教程玩家投影、公开对象绑定及本人命令回执；前端以 `TutorialBattleSurface` 复用共享牌桌，并由独立引导层处理步骤、聚焦、响应式和 reduced-motion。教程会话不写正式对局记录，进程内 TTL、访客限流与现有牌桌占用保护构成当前运行边界
-- 本地双人调试模式与对墙打模式：`client/src/components/pages/GameSetupPage.tsx` 按快速匹配、活动对战和其他对战组织对战大厅、赛季排位、娱乐模式、对墙打和双人调试入口，并保留本地模式的分步选组；`client/src/lib/debugPerspective.ts` 与 `client/src/store/gameStore.ts` 在本地双人调试的 `RULES` 模式下按玩家视图权限自动跟随当前操作方，`client/src/components/game/GameBoard.tsx` 同时为桌面和移动端保留显式视角切换与确认式重开入口
-- 认证、卡组、卡牌、图片管理 API
-- 版本化 PT 限制表：`src/domain/rules/deck-point-table.ts` 定义显式规则快照，`src/server/services/deck-point-table-service.ts` 以 PostgreSQL 事务维护 `DRAFT / SCHEDULED / ACTIVE / RETIRED` 状态、revision 乐观锁和审计日志。定时版本以 `Asia/Shanghai` 解析精确到秒的本地时间；排期改到当前/过去、立即发布及 ACTIVE 废弃替换都在单事务中切换，且任何成功操作提交前强制校验有且仅有一张 ACTIVE 表。`/api/deck-point-tables/current` 仅暴露玩家校验所需字段，卡组保存和对局准入始终以服务端 ACTIVE 表为权威；`client/src/store/deckPointTableStore.ts` 只将内置的已确认表用作离线/启动失败展示回退。管理员通过 `DeckPointTablesAdminPage` 完成任意状态表的编辑、差异预览、发布、取消排期、废弃/替换、删除已退役表和历史复制。
-- 平台状态、公告与玩家入口配置：`src/server/site-status.ts` 定义 `NORMAL / RESTRICTING_NEW_GAMES / MAINTENANCE` 三态公开契约，`src/server/services/site-announcement-service.ts` 以数据库为权威协调状态、公告与独立公开快照，`src/server/services/public-site-status-snapshot-service.ts` 将维护门禁原子写入前端版本目录之外的持久文件，`src/server/services/readiness-service.ts` 在恢复开放前检查数据库与必要表。`src/server/services/battle-timeout-config-service.ts` 在同一平台单例行维护玩家操作超时与断线重连期限；`src/server/routes/site-announcements.ts` 提供管理员状态、公告、入口和对战时限 API，`src/server/routes/app-config.ts` 通过 `/api/config` 暴露公开 `siteStatus`、`features.battleEntries` 与 `features.battleTimeouts`。新联机对局在 `src/server/services/online-room-service.ts` 开局时冻结当时配置，进行中对局继续使用自身快照；入口位只控制 `HomePage` 和 `GameSetupPage` 的导航发现，不改变赛季生命周期、队列运行态，也不卸载跨页面候场层。相关数据库增量由 `drizzle/0027_add_player_battle_entry_visibility.sql`、`drizzle/0029_maintenance_mode_three_state.sql` 与 `drizzle/0030_add_global_battle_timeout_config.sql` 提供
-- 云端卡组与离线模式并存：已登录玩家使用服务端卡组记录；离线访客通过 `client/src/lib/localDeckStorage.ts` 把版本化 `LocalDeck` 列表保存到当前浏览器，并在 `DeckManager` / `DeckSelector` 中复用同一构筑校验与对局加载链路
-- 正式联机房间：休闲持久准备与排位／主题独立准入在双方确认后绑定运行房间，复用猜拳、先后手、GameSession 权威对局和玩家视角同步。返回页面、正常终局、认输、离房、赛后再战、观战结束及超时清理统一由[房间状态机与生命周期](online-mode/room-exit-and-recovery.md)说明；不再将底层保留的旧准备／重开路径列为当前玩家能力。
-- 单局文字与快捷表情通信：`src/online/chat-types.ts` 以 `TEXT | EMOTE` 判别联合维护共享条目契约和表情资源快照；`src/server/services/match-emote-catalog-service.ts` 通过数据库不可变版本和 active pointer 管理 1–12 项运营目录，重编码后的内容寻址 WebP 由对象存储提供，管理员可在 `MatchEmotesAdminPage` 排序、改名、停用和替换资源，`/api/config` 公开当前启用目录。`src/server/services/online-match-chat-runtime.ts` 维护按 `matchId` 隔离的有界内存消息、幂等标识、游标分页、文本校验、综合限频和表情冷却；新表情发送直接校验目录版本与启用状态并固化资源快照。`src/server/services/online-match-service.ts` 复用参与者身份与观战会话/代际授权，`src/server/services/online-room-service.ts` 阻止已退出成员被迟到轮询重新激活，`src/server/routes/online.ts` 提供当前房间成员读写和观战只读 REST 入口。前端由 `client/src/components/game/MatchChat.tsx` 独立轮询并渲染共同时间流，`client/src/components/game/MatchEmoteVisual.tsx` 按 reduced-motion、页面可见性与视口状态选择静态或动画资源，`GameBoard` / `PlayerArea` 只声明席位身份锚点。目录与资源元数据持久化；局内消息不写入 `GameState`、公共事件、历史记录或回放，重开、双方离开销毁旧对局运行态或 API 服务重启后不恢复
-- 运营角色与管理中心开发基线：`src/shared/auth/permissions.ts` 定义 `user / season_admin / admin` 和显式权限矩阵，`src/server/middleware/require-permission.ts` 为特权请求复核数据库当前角色。`client/src/components/admin/AdminCenterPage.tsx` 按权限投影平台运营中心或赛季运营中心，平台管理员可通过 `client/src/components/admin/UserAdminPage.tsx` 分页检索账号，并在角色下拉菜单中直接保存变更。赛季管理员复用平台管理员历史页查看全部历史记录及双方玩家视角的只读回放，列表可按排位赛季或娱乐模式活动筛选，但原始回放包导出继续要求 `platform.manage`。`src/server/services/admin-user-service.ts` 负责角色并发保护、最后管理员保护和刷新令牌撤销；角色修改不要求原因或持久审计。数据库增量由 `drizzle/0028_add_season_admin_role.sql` 提供赛季管理审计表骨架。排位、主题赛季和入口权限已经下放，但全部赛季写操作持久审计、破坏性操作原因与完整 E2E 尚未完成，因此当前不得向真实运营账号分配 `season_admin`
-- AI 私密配置：`src/server/services/ai-effect-extraction-service.ts` 以 PostgreSQL 单例和 revision 事务审计保存运行时配置，使用部署主密钥加密 API Key。Base URL 与 Key 由卡效提取和 AI 对战共用；对战通过 `src/server/ai-battle/configuration.ts` 在开局时读取并冻结，每次请求复用上游允许列表、DNS 私网阻断和 HTTPS 校验。卡效提取另有禁重定向、超时、大小、并发和管理员级限频；浏览器只向 `/api/ai-effect-extraction/admin/extract` 提交 `cardCode`，服务端读取 `cards` 与 MinIO 卡图，返回文本只进入 `CardEditModal` 待确认状态。模型及对战请求边界见 [AI 运行与观测说明](ai-battle/runtime-and-observation.md)。
-- 社区对战大厅：休闲准入与持久准备由 `src/server/services/casual-table-service.ts` 和 `casual-table-repository.ts` 管理，跨模式占用继续复用 `gameplay-participation-service.ts`；绑定后使用原联机房间、MatchService、权威命令及桌面。`client/src/components/pages/CasualLobbyPage.tsx` 与 `client/src/components/casual-table/CasualTableGlobalLayer.tsx` 承担大厅和跨页面协调，旧休闲票据及普通房间创建／加入入口已退役。模型、并发与赛后边界见[大厅设计](online-mode/community-lobby-design.md)，生产切换见[迁移说明](../drizzle/migration-notes/community-lobby.md)。
-- 赛季排位首版：`src/server/services/public-table-service.ts` 复用票据/预留状态机并以 `queueKind + seasonId + competitiveEnvironmentId` 隔离活动队列；休闲准入使用独立房间模型；`src/server/services/online-room-service.ts` 按房间代际去重开局并补偿预留、赛季、占用和票据绑定，断线裁定以持久状态和在线代际共同防止重连竞态。`src/server/services/ranked-player-service.ts` 提供赛季总览、固定窗口准入、个人战绩和排行榜，`src/server/services/ranked-rating-service.ts`、`src/server/rating/ranked-rating.ts` 与 `src/server/rating/ranked-ledger.ts` 负责权威结果幂等结算、版本化积分调度、迟到结果重建和追加式更正，`src/server/services/ranked-runtime-service.ts` 先排空可靠结算，再终止到期运行态并执行平台无结果收口。前端由 `client/src/store/rankedStore.ts`、`client/src/components/pages/RankedPage.tsx` 和 `client/src/components/ranked/RankedGlobalLayer.tsx` 提供跨页面候场闭环；管理员由 `client/src/components/admin/RankedAdminPage.tsx` 管理赛季及纯文本公告、查看候场/运行/结算健康与赛季经营分布、按用户查询当前评分、RD、场数与独立定级/参榜进度，并在排名上下文表中为目标及上下各最多 3 名逐行展示胜负与当前 `ACTIVE` 发布口径下的最常用卡组分类、按状态分页检索排位对局并核对双方加减分，以及执行带签名预览的异常结算和参数回算，聚合读取由 `src/server/services/ranked-admin-service.ts` 提供。玩家上下文以单条 SQL 读取当前 `ledgerRevision`、榜单窗口中每名玩家的有效排位结果与当前分类发布/assignment，在 API 层分别聚合胜负与最常用分类，不创建额外排名、胜负或最常用投影副本。排位基线、评分修订和赛季公告数据库结构分别由 `drizzle/0010_add_ranked_system.sql`、`drizzle/0017_add_ranked_rating_revisions.sql`、`drizzle/0018_add_ranked_season_announcement.sql` 提供。名为 V1 的首个生产赛季当前使用 `GLICKO1_PER_MATCH_V3`；未来新赛季默认 V4，使用 `ratingScale=800 / minimumRD=100 / 5 场定级 / 1800 中心成长池`，详见 [V4 评分设计](matchmaking-and-ladder/RANKED_V4_RATING_DESIGN.md)。V2→V3 停机迁移文档保留为历史运维与审计资料
-- 排位单方操作超时：`src/online/ranked-stall.ts` 从权威 `GameState` 识别当前唯一责任玩家和稳定等待键；`src/server/services/online-match-service.ts` 按对局冻结的 `battleTimeouts` 维护不进入 checkpoint/回放的窗口开始时间、截止时间与代际，只有责任玩家成功命令才复位；`src/server/services/online-room-service.ts` 复用排位持久裁定权并在数据库等待后复核等待键、责任玩家、代际和截止时间，再执行权威判负。玩家快照只增加责任席位、窗口开始时间、截止时间和终局判负原因，`client/src/components/game/RankedStallNotice.tsx` 最多在最后 1 分钟提供非阻塞提示；非排位、观战和历史回放不启用该计时
-- 轮换主题牌桌第一版：`src/server/services/theme-table-admin-service.ts` 冻结主题赛季和服务端预组，支持未结束赛季的云端卡组/YAML 加入、版本化编辑和移出卡组池，并自动生成同卡组内战及不同当前预组间的等权组合；旧预组通过 `retired_at` 留存供既有分配审计。`src/server/services/theme-table-deck-choice.ts` 按预留 ID 与启用组合图确定性生成双方候选，`src/server/services/theme-table-player-service.ts` 在确认时校验最终选择并把预组快照锁入票据，按主题分配与权威终局聚合本人胜负，不建立主题积分或榜单。`src/server/services/theme-table-allocation-service.ts` 在双方确认后的事务内冻结与双方锁定卡组对应的启用组合和分配记录，`src/server/services/theme-table-recovery-service.ts` 处理开局前责任方离场或未到场后的无过错回队。玩家入口由 `client/src/store/themeTableStore.ts`、`client/src/components/pages/ThemeTablePage.tsx`、`client/src/components/theme-table/ThemeTableGlobalLayer.tsx` 与 `X 选 1` 选组弹层 `client/src/components/theme-table/ThemeDeckChoiceDialog.tsx` 提供；卡组池使用响应式卡图卡册并复用 `CardDetailDrawer`，抽屉统一通过 `useDialogAccessibility` 约束焦点、关闭和滚动。管理员界面复用 `AdminPageHeader`、`AdminViewTabs`、`SeasonOpenWindowsFields` 和共享 `CardEditor`，主页面位于 `client/src/components/admin/ThemeTableAdminPage.tsx`。数据库结构由 `drizzle/0026_add_theme_table_v1.sql` 与 `drizzle/0036_add_theme_deck_choice.sql` 提供；当前仅为开发/内测基线
-- 赛季环境卡牌与卡组统计：`src/server/services/ranked-deck-observation-service.ts` 在排位注册的可串行化事务中原子保存双方主卡组最小事实，以基础卡号合并罕度并生成稳定构筑指纹；`src/server/services/ranked-environment-service.ts` 只聚合最终 `SETTLED` 且两席事实完整的对局，目标接口在不读取卡组分类发布/assignment 的前提下，为使用占比、胜者构成和高排名玩家三个 TAB 各自独立计算 Top 30。使用占比和胜者构成支持卡牌板块自身的玩家等权/对局等权设置，高排名玩家固定先归一化每名玩家后再玩家等权；胜者构成表达胜方卡组包含了哪些卡，不是卡牌胜率。其上的 `deck-classifier-engine / release / admin-service / worker` 以人工覆盖、精确样板、严格规则、加权相似度的顺序生成版本化派生结果，新发布只有全量成功才原子替换旧 `ACTIVE`；`ranked-deck-archetype-environment-service.ts` 通过 `/api/ranked/environment/decks` 提供玩家等权、对局等权、胜者构成、胜率、非镜像胜率及当前排行榜前 N 名玩家的等权赛季卡组构成。单例展示设置为卡组与卡牌分别保存展示内容/基础计权，只共享 N；任一板块全部关闭时只在自身聚合前返回空结果。`client/src/components/pages/RankedPage.tsx` 分别按两组启用内容展示最多三个 TAB、样本量、覆盖率和明细表格；管理员可从排位对局详情将同一长期事实直接导入分类样板。长期事实由 `drizzle/0020_add_ranked_deck_observations.sql` 提供，开发分支分类结构最终由单一 `0032_add_deck_classifier.sql` 提供；能量卡组与逐张实例不属于长期事实。详见[赛季排位卡组分类与环境饼图](matchmaking-and-ladder/RANKED_DECK_CLASSIFIER.md)
-- 活动徽章：`src/server/services/activity-badge-service.ts`、`src/server/routes/activity-badges.ts` 与 `drizzle/0035_add_activity_badges.sql` 让赛季管理员按排位赛季／娱乐模式活动上传和替换徽章，并以 revision、幂等指纹、公开不可变对象和管理审计原子切换当前图。`src/server/player-badges/award.ts` 在排位评分事务、娱乐模式对局封存事务及首次上传补发中，按活动的 3 场规则幂等授予并固定资格对局证据；图片替换不重复授予。`src/server/services/player-badge-service.ts` 与 `/api/player-badges/me` 只提供本人读取，`client/src/components/player-badges/BadgeShelf.tsx` 在个人中心展示；首届静态图迁移见 `drizzle/migration-notes/activity-badges.md`
-- 玩家游戏桌壁纸：`src/server/services/player-wallpaper-service.ts`、`src/server/routes/player-wallpapers.ts` 与 `drizzle/0024_add_player_wallpapers.sql` 在独立私有 MinIO bucket 和 PostgreSQL 中维护本人壁纸、北京时间每日发布额度、幂等结果与管理员移除审计；`client/src/store/playerWallpaperStore.ts` 只在当前账号会话内加载鉴权 Blob，`client/src/components/game/BoardBackground.tsx` 为个人中心预览和所有共享 `GameBoard` 提供同一背景层。壁纸不进入权威对局、玩家投影、checkpoint、历史或回放；详细边界见[玩家游戏桌壁纸设计](player-wallpaper/design.md)
-- 赛季活动大封面：`src/server/services/activity-cover-service.ts` 与 `drizzle/0034_add_activity_covers.sql` 以 `activityType + activityId` 保存排位／娱乐模式的单行当前配置、revision、最后一次幂等和公共不可变对象引用；发布先写入规范化母图及宽屏／紧凑成品，再在同一 PostgreSQL 事务中切换引用并写入 `management_audit_logs`。`src/server/services/static-image-processing-service.ts` 为活动封面与玩家壁纸提供无业务归属的图片校验、规范化、裁切和共享处理并发底座；`src/server/routes/activity-covers.ts` 按活动类型复核当前权限。玩家主投影只返回当前布局资源与显示参数，`client/src/components/activity-cover/ActivityCoverHero.tsx` 负责响应式切槽和默认视觉降级，管理页共用 `ActivityCoverEditor.tsx`。封面不进入赛季竞技环境、候场、房间、对局、历史或回放；孤立对象扫描、真实对象存储集成和完整视觉／E2E 仍是生产上线前边界，详见[活动大封面需求与设计](matchmaking-and-ladder/SEASON_ACTIVITY_COVER_REQUIREMENTS_AND_DESIGN.md)
-- 赛季内评分参数修订：`src/server/services/ranked-rating-revision-service.ts` 以受限白名单从 V3/V4 当前冻结 config 构造唯一新修订，签名 dry-run 绑定 config 哈希、流水 revision、原因和操作人；应用在暂停排位且运行态/冻结环境校验通过后，以可串行化事务追加每场最新指令、重建玩家投影和单局 before/after 快照，并将完整新旧 config 与预览摘要保存在 `ranked_rating_revisions`。详见[参数修订与全量回算](matchmaking-and-ladder/RANKED_RATING_PARAMETER_REVISION.md)。
-- 维护期间新对局限制：`src/server/middleware/require-gameplay-available.ts` 会在维护或限制新开局状态下拦截新建/加入房间、准备开局、开局流程、重开接受和服务端对墙打创建/重开；进行中对局的快照、命令、观战、回放和离开入口不被主动中断
-- 服务端可记录对墙打：`src/server/services/solitaire-match-service.ts` 复用 recorded match 链路创建 `GameMode.SOLITAIRE` 权威对局，并在重开时封存旧局、沿用锁定卡组快照创建新的 `matchId`；`client/src/lib/solitaireMatchRecovery.ts` 在同一浏览器标签页保存当前对墙打 matchId 并在刷新或重开后同步恢复目标，`src/server/services/solitaire-runtime-recovery-service.ts` 可在运行态缺失时从最新 authority checkpoint 和公共事件尾部恢复运行中对墙打，`src/server/routes/battle.ts` 提供对墙打创建、重开、运行中快照/命令/推进/离开、公共事件增量读取，以及中性历史读取入口
-- 面向联机的 `PlayerViewState` 脱敏投影、可见性策略和命令权限投影
-- 运行中对局公共日志：`src/application/game-session.ts` 维护 `PublicEvent` 序列；正式联机 `/api/online/matches/:matchId/public-events`、正式联机观战 `/api/online/spectator-links/:token/public-events` 与对墙打 `/api/battle/solitaire-matches/:matchId/public-events` 按 `afterSeq` 返回公共事件增量，单次响应受 `ONLINE_PUBLIC_EVENTS_MAX_BATCH` 保护并在截断时返回 `truncated/droppedEventCount`，运行中 snapshot 继续只承载当前玩家视图，并以 `currentPublicSeq` 暴露公共日志增量水位。权威状态提交产生的公开 `HAND -> WAITING_ROOM` 移动可携带同席位共享的 `movementBatchId`；前端以独立于规则状态和对局日志游标的临时队列，将公开牌面向实时双方固定展示 1180ms，连续批次串行播放且入队时立即遮挡目标实体，并在补拉、重复轮询、重连和撤销序号回退时分别处理合批、去重、跳过历史与重置；自客户端首次接收入队起等待超过 5 秒的批次会解除遮挡并丢弃，TTL 只使用客户端单调时钟，不与服务端事件时间戳相减。公共日志或弃牌播放泵更新不递增玩家视图动画 generation，避免取消已排程的普通飞牌。该展示不引入确认命令、持久化历史或规则等待，观战与历史回放不播放；教程因没有公共事件增量而保留玩家视图差分 fallback
-- 对局记录与回放阶段性闭环：`src/server/services/match-recorder-service.ts` 写入历史根记录、卡组快照、timeline、authority checkpoint、public/private event 与部分 decision record；`src/server/services/match-replay-read-service.ts` 按参与者玩家视角读取正式联机与服务端可记录对墙打的历史列表、详情、timeline 与只读 checkpoint 投影；完整回放默认保留 10 天，`src/server/services/replay-retention.ts` 统一停机脚本与管理员页面使用的候选统计、排位观察阻断、批量行锁和元数据降级语义，`drizzle/data-migrations/purge-expired-match-replay-data.ts` 保留默认 dry-run 的停机入口。`src/server/services/platform-operations-service.ts`、`ranked-analysis-export.ts` 与 `client/src/components/admin/PlatformOperationsPage.tsx` 提供平台管理员预览、显式确认清理和赛季匿名原始分析 ZIP 下载；导出查询边界只包含 `ranked_*` 规范化事实，卡组来自长期 `ranked_deck_observations`，不触及 checkpoint、完整对局记录或回放数据。`client/src/components/pages/MatchRecordsPage.tsx` 可打开只读 `GameBoard` 回放节点，并为已清理记录只展示元信息
-
-### 10.2 规划中
-
-- WebSocket/SSE 等实时传输增强（当前正式联机使用短间隔 HTTP 轮询）
-- 对局记录与回放后续增强：正式联机进程重启后恢复运行中对局、对墙打恢复后的更细粒度追赶、完整随机记录、完整决策覆盖、自由拖拽/手动处理原因结构化、确定性重演、逐命令动画、公开分享回放与长期兼容策略
-- 更完整的自动能力编排与检查时机接线
-- 更高覆盖的性能与稳定性专项测试
-- V4 新赛季上线前的历史对局回放验证、外部告警渠道和跨日运营趋势
-- 轮换主题牌桌的真实预组试打、完整组合指标与告警、进行中房间跨进程恢复、双浏览器验收和生产开放
+| 模块 | 架构职责与关键入口 | 专题 |
+| --- | --- | --- |
+| AI 对战 | `src/server/services/ai-battle-service.ts` 管理会话，`src/server/ai-battle/` 负责可见输入与模型驱动；命令仍提交到共享 MatchService 队列。 | [运行与观测](ai-battle/runtime-and-observation.md) |
+| 新手教程 | `src/server/services/tutorial-session-service.ts` 持有临时权威会话；客户端独立引导层组合共享牌桌，只读取公开步骤与可见对象。 | [教程需求](tutorial/requirements.md)、[模型对应关系](tutorial/match-model-correspondence.md) |
+| 对局入口与练习 | `client/src/components/pages/HomePage.tsx` 提供玩法入口，`CasualLobbyPage.tsx` 承担休闲流程，`GameSetupPage.tsx` 仅负责对墙打／双人调试选组与确认；本地视角由 `client/src/lib/debugPerspective.ts` 协调。 | [模式说明](battle-mode-purpose-and-boundaries.md)、[大厅设计](online-mode/community-lobby-design.md) |
+| PT 与卡组准入 | `src/server/services/deck-point-table-service.ts` 管理发布身份及事务，客户端展示与服务端准入分别使用各自的可信边界。 | [卡组设计](deck-management/design.md) |
+| 平台状态 | `src/server/site-status.ts` 定义三态；`site-announcement-service.ts` 协调数据库与独立公开快照，`readiness-service.ts` 验证恢复依赖，准入中间件执行新对局门禁。 | [维护与公告](platform-operations/site-status-and-announcements.md) |
+| 休闲房间 | `src/server/services/casual-table-service.ts` 与 `casual-table-repository.ts` 持久管理准入和准备，绑定后沿用 OnlineRoomService／MatchService；`CasualTableGlobalLayer` 协调跨页面状态。 | [大厅设计](online-mode/community-lobby-design.md)、[生命周期](online-mode/room-exit-and-recovery.md) |
+| 局内通信 | `src/server/services/online-match-chat-runtime.ts` 持有单局有界消息；`match-emote-catalog-service.ts` 管理目录与资源。消息不进入规则状态或回放。 | [文字与快捷表情](online-mode/match-emote-requirements-design.md) |
+| 赛季与主题 | 排位的生命周期、评分和查询各归对应 service；主题由 Player／Admin／Allocation／Recovery services 承担活动准入与分配，开局后复用正式对局服务。入口为 `src/server/routes/ranked.ts` 与 `src/server/routes/theme-table.ts`。 | [排位架构](matchmaking-and-ladder/RANKED_R2_DATA_AND_SETTLEMENT_DESIGN.md)、[主题设计](matchmaking-and-ladder/ROTATING_THEME_TABLE_DESIGN.md) |
+| 卡组环境 | `src/server/services/ranked-deck-observation-service.ts` 保存长期事实，分类引擎、发布与 worker 生成版本化派生结果；展示不读取完整回放负载。 | [卡组分类与环境](matchmaking-and-ladder/RANKED_DECK_CLASSIFIER.md) |
+| 壁纸与活动资源 | `src/server/services/player-wallpaper-service.ts` 管理私有展示偏好，`activity-cover-service.ts` 与 `activity-badge-service.ts` 管理公共活动资源；不进入权威对局状态。 | [壁纸](player-wallpaper/design.md)、[封面](matchmaking-and-ladder/SEASON_ACTIVITY_COVER_REQUIREMENTS_AND_DESIGN.md)、[徽章迁移](../drizzle/migration-notes/activity-badges.md) |
+| 对墙打恢复 | `src/server/services/solitaire-match-service.ts` 创建可记录对局，`solitaire-runtime-recovery-service.ts` 从 authority checkpoint 恢复；正式联机运行态仍在进程内，不能复用该入口重建缺失对局。 | [模式说明](battle-mode-purpose-and-boundaries.md)、[房间恢复](online-mode/room-exit-and-recovery.md) |
+| 记录、回放与清理 | `src/server/services/match-recorder-service.ts` 写入记录，`match-replay-read-service.ts` 返回授权视角投影，`replay-retention.ts` 处理清理边界；`platform-operations-service.ts` 提供管理操作入口。 | [回放设计](match-replay/design.md)、[序列化契约](match-replay/serialization-contract.md) |
 
 ---
 
 ## 11. 文档维护约定
 
-- 本文档为“设计文档”，新增已实现模块时需补充对应代码路径
+- 本文档维护当前架构与代码入口；规划中的模块只在对应专题明确标为计划，不加入当前结构充数
 - 本文档维护系统全景、分层职责、状态机和模块入口；运行时数据结构关系、命令/卡效/LIVE/recorder 链路和跨模块不变量维护在 `docs/runtime-data-flow-and-algorithm-chain.md`
 - 架构和流程图统一使用 Mermaid
-- 需求变更先更新需求文档，再同步更新本设计文档
+- 产品目标变更更新需求，架构或模块职责变化更新本文；具体能力与任务状态分别维护在项目现状和项目待办
 - 与外部系统强耦合时，需在相关模块文档中补充原始链接
