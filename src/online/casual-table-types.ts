@@ -32,6 +32,8 @@ export interface SealedPoolView {
     readonly rare: string;
     readonly cost: number | null;
     readonly score: number | null;
+    /** Printed Live requirement after sealed rules conversion, before card effects. */
+    readonly baseRequiredHearts: number | null;
     readonly groupNames: readonly string[];
     readonly cardText: string;
   }[];

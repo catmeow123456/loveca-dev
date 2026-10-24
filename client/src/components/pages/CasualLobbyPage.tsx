@@ -1645,7 +1645,7 @@ export function CasualLobbyPage({
                           <input
                             name="spectatorEnabled"
                             type="checkbox"
-                            defaultChecked={table?.spectatorEnabled ?? false}
+                            defaultChecked={table?.spectatorEnabled ?? true}
                           />
                           开放我的观战视角
                         </label>
