@@ -22,3 +22,4 @@ const portraits: Readonly<Record<string, string>> = {
   'PL!-bp5-009-P': nico,
 };
 export const bokuhikaPortraitImage = (code: string): string => portraits[code];
+export const bokuhikaImageUrls = [song, ...Object.values(portraits)];

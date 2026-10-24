@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { EffectImageCache } from '@/lib/effectImageCache';
 import { GameBoard } from '@/components/game/GameBoard';
 import { applyTheme } from '@/lib/theme';
 import { BokuhikaScene } from '@/components/game/song-animation/BokuhikaScene';
@@ -18,6 +19,8 @@ import './preview.css';
 const params = new URLSearchParams(location.search);
 applyTheme('dark');
 function App() {
+  const images = useMemo(() => new EffectImageCache(), []);
+  useEffect(() => () => images.clear(), [images]);
   const [elapsed, setElapsed] = useState(0),
     [active, setActive] = useState(false),
     [playing, setPlaying] = useState(false),
@@ -211,6 +214,8 @@ function App() {
       {active && (
         <>
           <BokuhikaScene
+            images={images}
+            onUnavailable={stop}
             key={serial}
             imageUrl={bokuhikaSongImage}
             elapsed={elapsed}

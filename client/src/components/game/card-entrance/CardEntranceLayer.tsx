@@ -21,8 +21,9 @@ import { HonokaMemoryPlayback } from './HonokaMemoryPlayback';
 import { getShizukuRole } from '@/lib/shizukuRole';
 import { ShizukuRolePlayback } from './ShizukuRolePlayback';
 import './cardEntrance.css';
-import { getBokuhikaPresentation } from '@/lib/bokuhikaPresentation';
+import { getBokuhikaPresentation, shouldPreloadBokuhika } from '@/lib/bokuhikaPresentation';
 import { BokuhikaPlayback } from '../song-animation/BokuhikaPlayback';
+import { bokuhikaImageUrls } from '../song-animation/bokuhikaAssets';
 
 export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
   const view = useGameStore((s) => s.playerViewState);
@@ -37,11 +38,21 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
   const reduced = !!useReducedMotion();
   const imagePath = useGameStore((s) => s.getCardImagePath);
   const images = useMemo(() => new EffectImageCache(), [contextKey]);
+  // The ten fixed song images have their own bounded queue; a stall cannot starve card effects.
+  const songImages = useMemo(() => new EffectImageCache(), [contextKey]);
   const warmImages = enabled && !!view && !view.match.endInfo;
+  const warmSong = warmImages && shouldPreloadBokuhika(view);
   const imageKey = warmImages
     ? JSON.stringify(collectSpecialEffectImageUrls(view, imagePath, reduced))
     : '[]';
   useEffect(() => () => images.clear(), [images]);
+  useEffect(() => {
+    const timer = warmSong ? setTimeout(() => songImages.preload(bokuhikaImageUrls), 0) : null;
+    return () => {
+      if (timer !== null) clearTimeout(timer);
+      songImages.clear();
+    };
+  }, [songImages, warmSong]);
   useEffect(() => {
     if (!warmImages) {
       images.clear();
@@ -62,6 +73,7 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
       view={view}
       enabled={enabled}
       images={images}
+      songImages={songImages}
     />
   ) : null;
 }
@@ -70,10 +82,12 @@ function SynchronizedEntrance({
   view,
   enabled,
   images,
+  songImages,
 }: {
   view: PlayerViewState;
   enabled: boolean;
   images: EffectImageCache;
+  songImages: EffectImageCache;
 }) {
   const wait = view.match.entrance!;
   const textOnly = useTextPresentation();
@@ -188,6 +202,7 @@ function SynchronizedEntrance({
       <div className="absolute inset-0 z-[59]" aria-hidden="true" />
       {activeSong ? (
         <BokuhikaPlayback
+          images={songImages}
           contribution={activeSong}
           reduced={reduced}
           onDone={() => setSongDone(true)}

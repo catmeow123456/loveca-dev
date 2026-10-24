@@ -2,14 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import { BokuhikaScene } from './BokuhikaScene';
 import { BOKUHIKA_SUCCESS_DURATION, type BokuhikaContribution } from './bokuhikaCast';
 import { bokuhikaSongImage, bokuhikaPortraitImage } from './bokuhikaAssets';
+import type { EffectImageCache } from '@/lib/effectImageCache';
 
 /** Only owns playback; the shared barrier acknowledges it without submitting an effect confirmation. */
 export function BokuhikaPlayback({
   contribution,
+  images,
   reduced,
   onDone,
 }: {
   contribution: BokuhikaContribution;
+  images: EffectImageCache;
   reduced: boolean;
   onDone: () => void;
 }) {
@@ -36,12 +39,14 @@ export function BokuhikaPlayback({
   return (
     <div className="bokuhika-playback" role="status" aria-label="仆光 LIVE 成功演出">
       <BokuhikaScene
+        images={images}
         imageUrl={bokuhikaSongImage}
         portraitUrl={bokuhikaPortraitImage}
         contribution={contribution}
         elapsed={reduced ? 1950 : elapsed}
         reducedMotion={reduced}
         onReady={() => setReady(true)}
+        onUnavailable={() => done.current()}
       />
       <button
         className="card-entrance-skip"

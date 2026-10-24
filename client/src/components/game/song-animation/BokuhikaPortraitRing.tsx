@@ -5,6 +5,8 @@ import { progress, smooth } from './bokuhikaDrawing';
 interface Props {
   contribution: BokuhikaContribution;
   imageUrl: (code: string) => string;
+  onImageLoad: (cardCode: string) => void;
+  onImageError: () => void;
   elapsed: number;
   reducedMotion: boolean;
   center: readonly [number, number];
@@ -17,6 +19,8 @@ interface Props {
 export function BokuhikaPortraitRing({
   contribution,
   imageUrl,
+  onImageLoad,
+  onImageError,
   elapsed,
   reducedMotion,
   center,
@@ -143,6 +147,8 @@ export function BokuhikaPortraitRing({
               <svg viewBox={`${x} ${y} ${cropSize} ${cropSize}`} aria-hidden="true">
                 <image
                   href={imageUrl(member.cardCode)}
+                  onLoad={() => onImageLoad(member.cardCode)}
+                  onError={onImageError}
                   width="1000"
                   height="1400"
                   preserveAspectRatio="none"

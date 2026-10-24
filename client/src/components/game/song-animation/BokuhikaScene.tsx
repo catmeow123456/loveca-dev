@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BOKUHIKA_FLOWER_DURATION,
   createBokuhikaRenderer,
@@ -7,8 +7,13 @@ import {
 } from './bokuhikaDrawing';
 import './bokuhika.css';
 import { BokuhikaPortraitRing } from './BokuhikaPortraitRing';
-import { BOKUHIKA_SUCCESS_DURATION, type BokuhikaContribution } from './bokuhikaCast';
-import { ENTRANCE_LOAD_TIMEOUT_MS } from '@/lib/cardEntranceAssets';
+import {
+  BOKUHIKA_CAST,
+  BOKUHIKA_SUCCESS_DURATION,
+  type BokuhikaContribution,
+} from './bokuhikaCast';
+import type { EffectImageCache } from '@/lib/effectImageCache';
+import { prepareBokuhikaImages } from './bokuhikaLoading';
 
 export interface BokuhikaSceneProps {
   /** Public card image only; the caller owns eligibility and timing. */
@@ -16,6 +21,8 @@ export interface BokuhikaSceneProps {
   elapsed: number;
   reducedMotion?: boolean;
   onReady?: () => void;
+  onUnavailable: () => void;
+  images: EffectImageCache;
   /** Names come from the selected effect's rule evaluation. */
   contribution: BokuhikaContribution;
   portraitUrl: (cardCode: string) => string;
@@ -27,6 +34,8 @@ export function BokuhikaScene({
   elapsed,
   reducedMotion = false,
   onReady,
+  onUnavailable,
+  images,
   contribution,
   portraitUrl,
 }: BokuhikaSceneProps) {
@@ -37,38 +46,56 @@ export function BokuhikaScene({
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
+  const unavailable = useRef(onUnavailable);
+  unavailable.current = onUnavailable;
+  const urls = useMemo(
+    () => [imageUrl, ...BOKUHIKA_CAST.map((member) => portraitUrl(member.cardCode))],
+    [imageUrl, portraitUrl]
+  );
+  // SVG images can use a separate browser resource cache from HTMLImageElement.decode().
+  // Keep the actual portrait nodes hidden until their load events also complete.
+  const portraitLoads = useMemo(() => {
+    let resolve!: () => void, reject!: (error: Error) => void;
+    const promise = new Promise<void>((yes, no) => {
+      resolve = yes;
+      reject = no;
+    });
+    const loaded = new Set<string>();
+    return {
+      promise,
+      complete: (code: string) => {
+        loaded.add(code);
+        if (loaded.size === BOKUHIKA_CAST.length) resolve();
+      },
+      fail: () => reject(new Error('Bokuhika portrait unavailable')),
+    };
+  }, [urls]);
   useEffect(() => {
     const resize = () => setSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener('resize', resize);
     return () => window.removeEventListener('resize', resize);
   }, []);
   useEffect(() => {
-    let cancelled = false,
-      finished = false;
-    const image = new Image();
+    const controller = new AbortController();
     setReady(false);
     setFallback(false);
-    const finish = (failed: boolean) => {
-      if (cancelled || finished) return;
-      finished = true;
-      window.clearTimeout(timeout);
-      setFallback(failed);
-      setReady(true);
-      onReadyRef.current?.();
-    };
-    image.onload = () => {
-      if (cancelled || finished) return;
-      try {
-        renderer.current =
-          petals.current && !reducedMotion ? createBokuhikaRenderer(petals.current, image) : null;
-        finish(!renderer.current && !reducedMotion);
-      } catch {
-        finish(true);
+    prepareBokuhikaImages(images, urls, controller.signal, portraitLoads.promise).then(
+      ([image]) => {
+        if (controller.signal.aborted) return;
+        try {
+          renderer.current =
+            petals.current && !reducedMotion ? createBokuhikaRenderer(petals.current, image) : null;
+          setFallback(!renderer.current && !reducedMotion);
+        } catch {
+          setFallback(true);
+        }
+        setReady(true);
+        onReadyRef.current?.();
+      },
+      () => {
+        if (!controller.signal.aborted) unavailable.current();
       }
-    };
-    image.onerror = () => finish(true);
-    image.src = imageUrl;
-    const timeout = window.setTimeout(() => finish(true), ENTRANCE_LOAD_TIMEOUT_MS);
+    );
     const contextLost = (e: Event) => {
       e.preventDefault();
       setFallback(true);
@@ -76,15 +103,12 @@ export function BokuhikaScene({
     const canvas = petals.current;
     canvas?.addEventListener('webglcontextlost', contextLost);
     return () => {
-      cancelled = true;
-      window.clearTimeout(timeout);
-      image.onload = null;
-      image.onerror = null;
+      controller.abort();
       renderer.current?.dispose();
       renderer.current = null;
       canvas?.removeEventListener('webglcontextlost', contextLost);
     };
-  }, [imageUrl, reducedMotion]);
+  }, [images, urls, portraitLoads, reducedMotion]);
   const center: readonly [number, number] = [size.width / 2, size.height * 0.49];
   const castScale = Math.min((size.width - 28) / 800, (size.height - 180) / 760, 1.05);
   const scale = castScale * 0.77;
@@ -118,14 +142,17 @@ export function BokuhikaScene({
     >
       <div className="bokuhika-shade" style={{ opacity: opacity * (simple ? 0.55 : 0.78) }} />
       <canvas ref={petals} aria-hidden="true" style={{ display: simple ? 'none' : undefined }} />
-      {simple && (
+      {ready && simple && (
         <div className="bokuhika-simple" style={{ opacity, top: center[1] }}>
           <img src={imageUrl} alt="我们是合而为一的光芒" />
         </div>
       )}
       <BokuhikaPortraitRing
+        key={urls.join('|')}
         contribution={contribution}
         imageUrl={portraitUrl}
+        onImageLoad={portraitLoads.complete}
+        onImageError={portraitLoads.fail}
         elapsed={elapsed}
         reducedMotion={simple}
         center={center}
