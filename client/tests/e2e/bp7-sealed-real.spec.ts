@@ -69,10 +69,10 @@ async function startBattle(first: Page, second: Page) {
       ).toBeVisible();
     })
   );
-  await first.getByRole('button', { name: '保留手牌', exact: true }).click();
-  await second.getByRole('button', { name: '保留手牌', exact: true }).click();
+  await first.getByRole('button', { name: '保留全部手牌', exact: true }).click();
+  await second.getByRole('button', { name: '保留全部手牌', exact: true }).click();
   for (const page of [first, second])
-    await expect(page.getByRole('button', { name: '保留手牌', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '保留全部手牌', exact: true })).toHaveCount(0);
 }
 
 test('two players open, build, reconnect, battle, retain a pool and rebox on desktop/mobile', async ({
