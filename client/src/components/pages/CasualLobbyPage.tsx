@@ -1,4 +1,6 @@
 import { SealedBuilder, SealedRematchControls } from '@/components/casual-table/SealedBuilder';
+import { SealedFormatLabel } from '@/components/casual-table/SealedFormatLabel';
+import { SEALED_BP7_DECK_NAME } from '@game/shared/sealed-format';
 import type { CasualFormat } from '@game/online/casual-table-types';
 import {
   CasualRuleBadge,
@@ -676,7 +678,7 @@ export function CasualLobbyPage({
             <ArrowLeft size={16} />
             返回首页
           </button>
-          <h1>{table?.state === 'BUILDING' ? 'BP7 开盒赛' : '对战大厅'}</h1>
+          <h1>{table?.state === 'BUILDING' ? <SealedFormatLabel /> : '对战大厅'}</h1>
         </div>
         {!localSetupBlocked && (
           <details className="casual-practice">
@@ -764,7 +766,7 @@ export function CasualLobbyPage({
                       aria-label="复制邀请"
                       onClick={() =>
                         void copy(
-                          `${casualRuleName(table.ruleMode)}${table.ruleMode === 'UNLIMITED' ? '（PT 不限）' : ''} · 房间 ${table.roomCode}\n${window.location.origin}/?page=battle-lobby&room=${table.roomCode}`,
+                          `${table.format === 'SEALED_BP7' ? SEALED_BP7_DECK_NAME : `${casualRuleName(table.ruleMode)}${table.ruleMode === 'UNLIMITED' ? '（PT 不限）' : ''}`} · 房间 ${table.roomCode}\n${window.location.origin}/?page=battle-lobby&room=${table.roomCode}`,
                           'invite'
                         )
                       }
@@ -812,7 +814,7 @@ export function CasualLobbyPage({
                 {table.state !== 'BUILDING' && (
                   <div className="casual-current-deck">
                     <p className="casual-muted">
-                      {table.ownDeck?.name}
+                      {table.format === 'SEALED_BP7' ? <SealedFormatLabel /> : table.ownDeck?.name}
                       {table.ownDeck && table.format !== 'SEALED_BP7' && (
                         <>
                           {' '}
@@ -1081,7 +1083,7 @@ export function CasualLobbyPage({
                 disabled={busy || Boolean(flow)}
                 onClick={() => setPreferredFormat('SEALED_BP7')}
               >
-                BP7 开盒赛
+                <SealedFormatLabel />
               </button>
             </div>
           )}
@@ -1100,7 +1102,11 @@ export function CasualLobbyPage({
           <div className="casual-room-heading">
             <h2 id="casual-rooms-title">
               <CasualRuleMark mode={ruleMode} />
-              {format === 'SEALED_BP7' ? 'BP7 开盒赛' : casualRuleName(ruleMode)}房间
+              {format === 'SEALED_BP7' ? (
+                <SealedFormatLabel suffix="房间" />
+              ) : (
+                `${casualRuleName(ruleMode)}房间`
+              )}
             </h2>
             {snapshot &&
               snapshotMatchesMode &&
@@ -1448,7 +1454,7 @@ export function CasualLobbyPage({
                             disabled={Boolean(snapshot?.unavailableReason)}
                             onClick={() => open('JOIN', preview)}
                           >
-                            {preview.format === 'SEALED_BP7' ? '加入开盒赛' : '选择卡组并加入'}
+                            {preview.format === 'SEALED_BP7' ? '加入开盒战' : '选择卡组并加入'}
                           </button>
                         ) : preview.spectatorViews.length ? (
                           <button
@@ -1489,7 +1495,7 @@ export function CasualLobbyPage({
                           <Search size={20} aria-hidden="true" />
                           <div>
                             <strong>
-                              {sealedSelection ? '寻找开盒赛对手' : '寻找正在等候的对手'}
+                              {sealedSelection ? '寻找开盒战对手' : '寻找正在等候的对手'}
                             </strong>
                             <p>优先加入公开房间；暂无对手时，为你创建房间等待。</p>
                           </div>
@@ -1508,13 +1514,15 @@ export function CasualLobbyPage({
                         <p>选择本次卡组。双方同意后仍需在新轮次各自确认开局。</p>
                       )}
                       {sealedSelection ? (
-                        <section className="sealed-format-summary" aria-label="开盒赛玩法">
+                        <section className="sealed-format-summary" aria-label="开盒战玩法">
                           <div className="sealed-format-heading">
                             <span className="sealed-format-icon">
                               <PackageOpen size={23} aria-hidden="true" />
                             </span>
                             <div>
-                              <h3>BP7 开盒赛</h3>
+                              <h3>
+                                <SealedFormatLabel />
+                              </h3>
                               <p>双方各开一盒，用开出的卡牌组牌，无需预选卡组。</p>
                             </div>
                           </div>
@@ -1679,7 +1687,7 @@ export function CasualLobbyPage({
                                   ? `按${casualRuleName(selectionMode)}加入`
                                   : '加入房间'
                               : flow.kind === 'CREATE'
-                                ? `创建${sealedSelection ? '开盒赛' : selectionMode === 'UNLIMITED' ? '娱乐' : '标准'}房间`
+                                ? `创建${sealedSelection ? '开盒战' : selectionMode === 'UNLIMITED' ? '娱乐' : '标准'}房间`
                                 : flow.kind === 'FIND'
                                   ? '开始找对手'
                                   : '确认'}

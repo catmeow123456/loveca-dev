@@ -2,6 +2,7 @@ import type { AnyCardData } from '../entities/card.js';
 import type { DeckConfig } from '../../application/game-service.js';
 import { CardType } from '../../shared/types/enums.js';
 import { getBaseCardCode } from '../../shared/utils/card-code.js';
+import { SEALED_BP7_PRODUCT_LABEL } from '../../shared/sealed-format.js';
 
 export const SEALED_BOX_VERSION = 'BP7_SIMULATED_V1';
 export const SEALED_BUILDING_MS = 15 * 60 * 1000;
@@ -63,7 +64,8 @@ export function generateBp7Box(
     buckets.set(rare, bucket);
   }
   for (const rare of Object.keys(types)) {
-    if (!buckets.get(rare)?.size) throw new SealedBoxError(`BP7 卡池缺少 ${rare}，暂时无法开盒`);
+    if (!buckets.get(rare)?.size)
+      throw new SealedBoxError(`${SEALED_BP7_PRODUCT_LABEL}卡池缺少 ${rare}，暂时无法开盒`);
   }
   const basicEnergy = cards.find(
     (card) => card.cardCode === 'LL-E-001-SD' && card.cardType === CardType.ENERGY
@@ -74,7 +76,8 @@ export function generateBp7Box(
     const candidates = [...buckets.get(rare)!.entries()].filter(
       ([base]) => types[rare] !== CardType.LIVE || (liveCounts.get(base) ?? 0) < 4
     );
-    if (!candidates.length) throw new SealedBoxError('BP7 Live 卡池不足以生成合法卡组');
+    if (!candidates.length)
+      throw new SealedBoxError(`${SEALED_BP7_PRODUCT_LABEL} Live 卡池不足以生成合法卡组`);
     const [base, prints] = candidates[randomInt(candidates.length)];
     const card = prints[randomInt(prints.length)];
     if (card.cardType === CardType.LIVE) liveCounts.set(base, (liveCounts.get(base) ?? 0) + 1);

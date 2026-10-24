@@ -16,7 +16,7 @@ export const casualEntrySchema = z
     ) {
       ctx.addIssue({
         code: 'custom',
-        message: '自由构筑需要卡组，开盒赛不选择账号卡组且不限制 PT',
+        message: '自由构筑需要卡组，开盒战不选择账号卡组且不限制 PT',
       });
     }
   });
