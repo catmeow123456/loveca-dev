@@ -1933,6 +1933,10 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     expect(building.tableId).not.toBe(constructed.tableId);
     expect(building.confirmationExpiresAt).toBe(now + 900_000);
     expect(building.sealedPool!.cards).toHaveLength(50);
+    for (const card of building.sealedPool!.cards) {
+      // Fixture Lives have two pink + one blue printed hearts, projected as three gray.
+      expect(card.baseRequiredHearts).toBe(card.cardType === CardType.LIVE ? 3 : null);
+    }
     const other = await current(0);
     expect(JSON.stringify(building)).not.toContain(other.sealedPool!.poolId);
     expect(loadDeck).toHaveBeenCalledTimes(1);

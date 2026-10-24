@@ -1,7 +1,21 @@
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowDownUp, Check, ChevronDown, Clock3, Info, ZoomIn } from 'lucide-react';
-import { ActionButton, SelectMenu } from '@/components/common';
+import { createPortal } from 'react-dom';
+import {
+  ArrowDownUp,
+  ChartColumn,
+  Check,
+  ChevronDown,
+  Clock3,
+  Heart,
+  Info,
+  RotateCcw,
+  X,
+  ZoomIn,
+} from 'lucide-react';
+import { ActionButton, ConfirmDialog, SelectMenu } from '@/components/common';
+import { getPresentationPortalRoot } from '@/lib/appPresentation';
+import { SEALED_DRAFT_LEAVE_EVENT } from '@/lib/sealedDraftNavigation';
 import { getGroupDisplayName } from '@/components/deck-editor/filter-constants';
 import type { CasualTableOwnView, SealedPoolView } from '@game/online/casual-table-types';
 import { CardType } from '@game/shared/types/enums';
@@ -71,8 +85,9 @@ function Builder({
   const [sort, setSort] = useState<MemberSort>('COST_ASC');
   const [tab, setTab] = useState<'POOL' | 'DECK'>('POOL');
   const [detail, setDetail] = useState<PoolCard | null>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useDialogAccessibility({ isOpen: detail !== null, dialogRef, onEscape: () => setDetail(null) });
+  const [showLives, setShowLives] = useState(false);
+  const [confirmExit, setConfirmExit] = useState(false);
+  const [exiting, setExiting] = useState(false);
   const confirmed = table.members.find((member) => member.userId === userId)?.confirmed === true;
   const remaining = Math.max(0, Math.ceil(((table.confirmationExpiresAt ?? now) - now) / 1000));
   const groups = [...new Set(pool.cards.flatMap((card) => card.groupNames))];
@@ -84,6 +99,28 @@ function Builder({
       pool.cards.filter((card) => card.cardType === CardType.MEMBER).map((card) => card.rare)
     ),
   ];
+  useEffect(() => {
+    if (!dirty) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    const beforeLeave = (event: Event) => {
+      if (
+        dirtyRef.current &&
+        !window.confirm('还有未保存的选牌，离开后这些修改可能丢失。确定离开吗？')
+      ) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    window.addEventListener(SEALED_DRAFT_LEAVE_EVENT, beforeLeave);
+    return () => {
+      window.removeEventListener('beforeunload', beforeUnload);
+      window.removeEventListener(SEALED_DRAFT_LEAVE_EVENT, beforeLeave);
+    };
+  }, [dirty]);
   useEffect(() => {
     if (!dirtyRef.current) {
       setSelected(pool.selectedIndices);
@@ -190,6 +227,16 @@ function Builder({
       return order || a.index - b.index;
     });
   const fixed = pool.cards.filter((card) => card.cardType !== CardType.MEMBER);
+  const lives = fixed.filter((card) => card.cardType === CardType.LIVE);
+  const selectedMembers = pool.cards.filter((card) => selected.includes(card.index));
+  const costDistribution = [...new Set(selectedMembers.map((card) => card.cost))]
+    .sort((a, b) => (a ?? Infinity) - (b ?? Infinity))
+    .map((value) => ({
+      cost: value,
+      count: selectedMembers.filter((card) => card.cost === value).length,
+    }));
+  const maxCostCount = Math.max(1, ...costDistribution.map((bucket) => bucket.count));
+  const hasFilters = Boolean(group || cost || rare);
   return (
     <section className="sealed-builder" aria-label="开盒战组牌">
       <div className="sealed-build-toolbar">
@@ -203,10 +250,18 @@ function Builder({
               <small>/24</small>
             </strong>
           </div>
-          <span className="sealed-live-count">
+          <button
+            type="button"
+            className="sealed-live-count"
+            disabled={!building}
+            title={building ? '查看本局固定 Live' : '进入组牌后查看本局固定 Live'}
+            onClick={() => setShowLives(true)}
+            aria-haspopup="dialog"
+          >
             <Check size={14} aria-hidden="true" />
             Live 6/6
-          </span>
+            <ChevronDown size={13} aria-hidden="true" />
+          </button>
         </div>
         <div className="sealed-build-actions">
           <span
@@ -281,7 +336,7 @@ function Builder({
             variant="ghost"
             size="compact"
             disabled={busy}
-            onClick={() => void mutate('cancel', { target: table }).catch(() => undefined)}
+            onClick={() => setConfirmExit(true)}
           >
             退出本轮
           </ActionButton>
@@ -383,6 +438,62 @@ function Builder({
               />
             </div>
           </div>
+          <div className="sealed-filter-feedback">
+            <div className="sealed-filter-status">
+              <span role="status">
+                当前展示 {members.length} /{' '}
+                {tab === 'DECK'
+                  ? selected.length
+                  : pool.cards.filter((card) => card.cardType === CardType.MEMBER).length}{' '}
+                张{hasFilters ? ' · 已筛选' : ''}
+              </span>
+              {hasFilters && (
+                <ActionButton
+                  variant="ghost"
+                  size="compact"
+                  onClick={() => {
+                    setGroup('');
+                    setCost('');
+                    setRare('');
+                  }}
+                >
+                  <RotateCcw size={13} aria-hidden="true" />
+                  重置筛选
+                </ActionButton>
+              )}
+            </div>
+            {tab === 'DECK' && (
+              <details className="sealed-cost-summary">
+                <summary>
+                  <ChartColumn size={15} aria-hidden="true" />
+                  费用分布<span>全部已选 {selected.length} 张</span>
+                  <ChevronDown size={14} aria-hidden="true" />
+                </summary>
+                {selected.length ? (
+                  <ul className="sealed-cost-chart" aria-label="已选成员费用分布">
+                    {costDistribution.map((bucket) => (
+                      <li
+                        key={bucket.cost ?? 'unknown'}
+                        aria-label={`${bucket.cost === null ? '未知费用' : `费用 ${bucket.cost}`}：${bucket.count} 张`}
+                      >
+                        <strong>
+                          {bucket.count}
+                          <small> 张</small>
+                        </strong>
+                        <span className="sealed-cost-bar-track" aria-hidden="true">
+                          <span style={{ height: `${(bucket.count / maxCostCount) * 100}%` }} />
+                        </span>
+                        <span>{bucket.cost ?? '未知'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>选择成员后，这里会显示费用分布。</p>
+                )}
+                <small>按全部已选成员统计，不受当前筛选影响。</small>
+              </details>
+            )}
+          </div>
           <div className="sealed-card-grid">{members.map((card) => cardTile(card, true))}</div>
           {!members.length && <p>当前筛选下没有成员卡。</p>}
           <details className="sealed-fixed">
@@ -391,32 +502,115 @@ function Builder({
           </details>
         </>
       )}
+      {showLives && (
+        <SealedPanel title="本局固定 Live" onClose={() => setShowLives(false)} wide>
+          <p className="sealed-live-note">
+            这 6 张 Live 自动加入卡组。以下为印刷需求转灰后的基础需求；对战中的卡效增减另行计算。
+          </p>
+          <div className="sealed-live-list">
+            {lives.map((card) => (
+              <article className="sealed-live-preview" key={card.index}>
+                <button
+                  className="sealed-live-image"
+                  aria-label={`查看 ${card.name} ${card.rare}`}
+                  onClick={() => setDetail(card)}
+                >
+                  <PresentationImage src={resolveCardImagePath(card)} alt="" />
+                  <ZoomIn size={14} aria-hidden="true" />
+                </button>
+                <div>
+                  <strong>{card.name}</strong>
+                  <LiveFacts card={card} />
+                  <p>{card.cardText || '无卡文'}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </SealedPanel>
+      )}
       {detail && (
-        <div
-          className="sealed-detail"
-          role="dialog"
-          aria-modal="true"
-          aria-label={detail.name}
-          onClick={() => setDetail(null)}
-        >
-          <div ref={dialogRef} tabIndex={-1} onClick={(event) => event.stopPropagation()}>
-            <button
-              className="button-secondary"
-              autoFocus
-              onClick={() => setDetail(null)}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') setDetail(null);
-              }}
-            >
-              关闭详情
-            </button>
+        <SealedPanel title={detail.name} onClose={() => setDetail(null)}>
+          <div className="sealed-card-detail">
             <PresentationImage src={resolveCardImagePath(detail)} alt={detail.name} />
-            <strong>{detail.name}</strong>
+            {detail.cardType === CardType.LIVE && (
+              <>
+                <LiveFacts card={detail} />
+                <small>基础需求已转灰，对战时另行计算卡效增减；原卡面保持不变。</small>
+              </>
+            )}
             <p>{detail.cardText || '无卡文'}</p>
           </div>
-        </div>
+        </SealedPanel>
       )}
+      <ConfirmDialog
+        isOpen={confirmExit}
+        title="退出本轮开盒战？"
+        message="退出会取消双方本轮开盒战，本轮牌池和组牌进度将无法继续使用，不记作对局败北。"
+        confirmLabel="确认退出"
+        cancelLabel="继续组牌"
+        isConfirming={busy || exiting}
+        onCancel={() => setConfirmExit(false)}
+        onConfirm={() => {
+          if (busy || exiting) return;
+          setExiting(true);
+          void mutate('cancel', { target: table }).catch(() => {
+            setExiting(false);
+            setConfirmExit(false);
+          });
+        }}
+      />
     </section>
+  );
+}
+
+function LiveFacts({ card }: { card: PoolCard }) {
+  return (
+    <div className="sealed-live-facts">
+      <span>
+        分数 <strong>{card.score}</strong>
+      </span>
+      <span>
+        <Heart size={14} fill="currentColor" aria-hidden="true" />
+        灰心需求 <strong>{card.baseRequiredHearts}</strong>
+      </span>
+    </div>
+  );
+}
+
+function SealedPanel({
+  title,
+  onClose,
+  children,
+  wide = false,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  wide?: boolean;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogAccessibility({ isOpen: true, dialogRef, onEscape: onClose });
+  return createPortal(
+    <div className="sealed-detail" onClick={onClose}>
+      <div
+        ref={dialogRef}
+        className={`modal-surface sealed-panel${wide ? ' sealed-panel--wide' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="sealed-panel-header">
+          <h3>{title}</h3>
+          <button type="button" className="button-icon" aria-label="关闭详情" onClick={onClose}>
+            <X size={18} aria-hidden="true" />
+          </button>
+        </div>
+        <div className="sealed-panel-content">{children}</div>
+      </div>
+    </div>,
+    getPresentationPortalRoot()
   );
 }
 

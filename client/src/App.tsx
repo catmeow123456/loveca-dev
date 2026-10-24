@@ -62,6 +62,7 @@ import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCasualTableStore } from '@/store/casualTableStore';
 import { CASUAL_NAVIGATION_EVENT, CASUAL_PAGE_EVENT } from '@/lib/casualNavigation';
+import { canLeaveSealedDraft } from '@/lib/sealedDraftNavigation';
 import { useRankedStore } from '@/store/rankedStore';
 import { usePlayerWallpaperStore } from '@/store/playerWallpaperStore';
 import { useThemeTableStore } from '@/store/themeTableStore';
@@ -426,6 +427,7 @@ function AppContent() {
   const [initialAdminHistoryPosition] = useState(initializeAdminHistoryPosition);
   const adminHistoryPositionRef = useRef(initialAdminHistoryPosition);
   const setCurrentPage = useCallback((nextPage: AppPage) => {
+    if (currentPageRef.current !== nextPage && !canLeaveSealedDraft()) return false;
     if (nextPage !== 'match-records') setHomeHistoryMatchId(null);
     const previousPage = currentPageRef.current;
     if (previousPage !== nextPage) {
@@ -433,6 +435,7 @@ function AppContent() {
       currentPageRef.current = nextPage;
     }
     setCurrentPageState(nextPage);
+    return true;
   }, []);
   const openLocalSetup = (
     mode: GameMode.SOLITAIRE | GameMode.DEBUG,
@@ -526,10 +529,13 @@ function AppContent() {
     const navigate = (event: Event) => {
       const page = (event as CustomEvent<'battle-lobby' | 'online-room' | 'ranked' | 'theme-table'>)
         .detail;
-      window.history.pushState(null, '', `/?page=${page}`);
-      setCurrentPathname('/');
-      if (page === 'online-room') void enterOnlineRoom();
-      else setCurrentPage(page);
+      const updateLocation = () => {
+        if (currentPageRef.current !== page) return;
+        window.history.pushState(null, '', `/?page=${page}`);
+        setCurrentPathname('/');
+      };
+      if (page === 'online-room') void enterOnlineRoom().then(updateLocation);
+      else if (setCurrentPage(page)) updateLocation();
     };
     window.addEventListener(CASUAL_NAVIGATION_EVENT, navigate);
     return () => window.removeEventListener(CASUAL_NAVIGATION_EVENT, navigate);
@@ -1272,6 +1278,7 @@ function AppContent() {
     onHistory: () => setCurrentPage('match-records'),
   };
   const handleSignOut = () => {
+    if (!canLeaveSealedDraft()) return;
     void signOut().finally(() => {
       setCurrentPage('home');
       setAuthPage('landing');

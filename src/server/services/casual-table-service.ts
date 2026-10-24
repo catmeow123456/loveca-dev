@@ -1,6 +1,7 @@
 import { casualEntrySchema } from '../../online/casual-table-schemas.js';
 import { SEALED_BP7_DECK_NAME } from '../../shared/sealed-format.js';
 import type { AnyCardData } from '../../domain/entities/card.js';
+import { baseLiveRequirement } from '../../domain/rules/battle-ruleset.js';
 import { CardType } from '../../shared/types/enums.js';
 import { fromTransport, toTransport } from '../../online/serde.js';
 import type {
@@ -2085,6 +2086,11 @@ function projectSealedPool(seat: CasualSeatRow): SealedPoolView {
       imageFilename: card.imageFilename,
       cost: card.cardType === CardType.MEMBER ? card.cost : null,
       score: card.cardType === CardType.LIVE ? card.score : null,
+      baseRequiredHearts:
+        card.cardType === CardType.LIVE
+          ? baseLiveRequirement({ rulesetId: 'SEALED_HALF_GRAY_V1' }, card.requirements)
+              .totalRequired
+          : null,
       groupNames: card.groupNames ?? [],
       cardText: card.cardTextCn ?? card.cardTextJp ?? card.cardText ?? '',
     })),

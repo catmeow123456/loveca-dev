@@ -203,8 +203,46 @@ test('two players open, build, reconnect, battle, retain a pool and rebox on des
       await expect(page.locator('.sealed-card-grid').first().locator('.sealed-card')).toHaveCount(
         20
       );
-      await page.getByRole('button', { name: '罕度', exact: true }).click();
-      await page.getByRole('option', { name: '全部罕度', exact: true }).click();
+      await expect(page.locator('.sealed-filter-status')).toContainText('当前展示 20 /');
+      await page.getByRole('button', { name: '重置筛选', exact: true }).click();
+      await expect(page.getByRole('button', { name: '重置筛选', exact: true })).toHaveCount(0);
+      expect(await memberCosts()).toEqual(ascending);
+      await page.getByRole('button', { name: 'Live 6/6', exact: true }).click();
+      const livePanel = page.getByRole('dialog', { name: '本局固定 Live', exact: true });
+      await expect(livePanel.locator('.sealed-live-preview')).toHaveCount(6);
+      await expect
+        .poll(() =>
+          livePanel
+            .locator('.sealed-live-image img')
+            .evaluateAll((images) =>
+              images.every((image) => (image as HTMLImageElement).naturalWidth > 0)
+            )
+        )
+        .toBe(true);
+      const lives = before[i].sealedPool.cards.filter(
+        (card: { cardType: string }) => card.cardType === 'LIVE'
+      );
+      for (let n = 0; n < lives.length; n++) {
+        const preview = livePanel.locator('.sealed-live-preview').nth(n);
+        expect(lives[n].baseRequiredHearts).toBeGreaterThanOrEqual(0);
+        await expect(preview.locator('.sealed-live-facts')).toContainText(
+          `灰心需求 ${lives[n].baseRequiredHearts}`
+        );
+        await expect(preview.locator('.sealed-live-facts')).toContainText(`分数 ${lives[n].score}`);
+      }
+      await page.screenshot({
+        path: info.outputPath(i === 0 ? 'desktop-live-preview.png' : 'mobile-live-preview.png'),
+      });
+      await livePanel
+        .getByRole('button', { name: /^查看 / })
+        .first()
+        .click();
+      await expect(page.getByRole('dialog')).toHaveCount(2);
+      await page.keyboard.press('Escape');
+      await expect(livePanel).toBeVisible();
+      await expect(livePanel.getByRole('button', { name: /^查看 / }).first()).toBeFocused();
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('button', { name: 'Live 6/6', exact: true })).toBeFocused();
       const groupFilter = page.getByRole('button', { name: '团体', exact: true });
       await groupFilter.press('ArrowDown');
       await expect(page.getByRole('listbox', { name: '团体', exact: true })).toBeVisible();
@@ -223,7 +261,65 @@ test('two players open, build, reconnect, battle, retain a pool and rebox on des
       await expect(firstCard).toHaveAttribute('aria-pressed', 'true');
       await firstCard.press('Space');
       await expect(firstCard).toHaveAttribute('aria-pressed', 'false');
+      if (i === 0) {
+        // Failed saves retain the local draft and guard both app navigation and refresh.
+        await expect(page.locator('.sealed-save-status')).toContainText('已自动保存');
+        const draftRoute = '**/api/casual-tables/sealed/draft';
+        await page.route(draftRoute, (route) =>
+          route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: JSON.stringify({ data: null, error: { message: '测试保存失败' } }),
+          })
+        );
+        await firstCard.click();
+        await expect(page.getByRole('button', { name: '重试保存', exact: true })).toBeVisible();
+        const navigationWarning = page.waitForEvent('dialog');
+        const leave = page.getByRole('button', { name: '返回首页', exact: true }).click();
+        const warning = await navigationWarning;
+        expect(warning.message()).toContain('未保存');
+        await warning.dismiss();
+        await leave;
+        await expect(firstCard).toHaveAttribute('aria-pressed', 'true');
+        const refreshWarning = page.waitForEvent('dialog');
+        const reload = page.reload().catch(() => undefined);
+        const refreshDialog = await refreshWarning;
+        expect(refreshDialog.type()).toBe('beforeunload');
+        await refreshDialog.dismiss();
+        await reload;
+        await expect(firstCard).toHaveAttribute('aria-pressed', 'true');
+        await page.unroute(draftRoute);
+        await page.getByRole('button', { name: '重试保存', exact: true }).click();
+        await expect(page.locator('.sealed-save-status')).toContainText('已自动保存');
+        expect(
+          await page.evaluate(() =>
+            window.dispatchEvent(new Event('beforeunload', { cancelable: true }))
+          )
+        ).toBe(true);
+        await firstCard.click();
+      }
       await selectMembers(page);
+      await page.getByRole('button', { name: '已选成员 24', exact: true }).click();
+      await page.locator('.sealed-cost-summary summary').click();
+      const distribution = page.getByRole('list', { name: '已选成员费用分布' });
+      expect(
+        (await distribution.locator('li strong').allTextContents()).reduce(
+          (sum, value) => sum + parseInt(value),
+          0
+        )
+      ).toBe(24);
+      await page.screenshot({
+        path: info.outputPath(
+          i === 0 ? 'desktop-cost-distribution.png' : 'mobile-cost-distribution.png'
+        ),
+      });
+      const counts = await distribution.locator('li').allTextContents();
+      await page.getByRole('button', { name: '罕度', exact: true }).click();
+      await page.getByRole('option', { name: 'N', exact: true }).click();
+      expect(await distribution.locator('li').allTextContents()).toEqual(counts);
+      await page.getByRole('button', { name: '重置筛选', exact: true }).click();
+      await page.locator('.sealed-cost-summary summary').click();
+      await page.getByRole('button', { name: /^成员牌池 / }).click();
     }
     await second.reload();
     await expect(second.getByRole('button', { name: '准备对战', exact: true })).toBeEnabled();
@@ -241,7 +337,7 @@ test('two players open, build, reconnect, battle, retain a pool and rebox on des
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)
       ).toBe(true);
       const grid = await page.locator('.sealed-card-grid').first().boundingBox();
-      expect(grid!.y).toBeLessThan(i === 0 ? 370 : 500);
+      expect(grid!.y).toBeLessThan(i === 0 ? 370 : 540);
       await page.screenshot({
         path: info.outputPath(i === 0 ? 'desktop-builder.png' : 'mobile-builder.png'),
       });
@@ -293,6 +389,17 @@ test('two players open, build, reconnect, battle, retain a pool and rebox on des
       expect(after.sealedPool.selectedIndices).toEqual([]);
     }
     await first.getByRole('button', { name: '退出本轮', exact: true }).click();
+    const exitDialog = first.getByRole('dialog', { name: '退出本轮开盒战？' });
+    await expect(exitDialog).toContainText('取消双方本轮');
+    await expect(exitDialog).toHaveCSS('opacity', '1');
+    await first.screenshot({ path: info.outputPath('exit-confirmation.png') });
+    await exitDialog.getByRole('button', { name: '继续组牌', exact: true }).click();
+    expect((await own(1)).state).toBe('BUILDING');
+    await first.getByRole('button', { name: '退出本轮', exact: true }).click();
+    await first
+      .getByRole('dialog', { name: '退出本轮开盒战？' })
+      .getByRole('button', { name: '确认退出', exact: true })
+      .click();
     await expect.poll(() => own(1)).toBeNull();
     expect(errors).toEqual([]);
   } finally {
