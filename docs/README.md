@@ -38,7 +38,7 @@
 | --- | --- |
 | 对战模式目的 | [对战模式目的与边界](battle-mode-purpose-and-boundaries.md) |
 | 联机模式 | [专题索引](online-mode/README.md)、[准备文档](online-mode/preparation.md)、[房间状态机与生命周期](online-mode/room-exit-and-recovery.md)、[快捷表情需求与设计](online-mode/match-emote-requirements-design.md)、[边界规范](online-mode/boundary-standard.md)、[远程撤销恢复实施记录与剩余计划](online-mode/remote-undo-requirements-design.md) |
-| 社区对战大厅 | [需求](online-mode/community-lobby-requirements.md)、[业务与 UI 设计](online-mode/community-lobby-design.md)、[调研背景](online-mode/community-lobby-research.md) |
+| 社区对战大厅 | [需求](online-mode/community-lobby-requirements.md)、[业务与 UI 设计](online-mode/community-lobby-design.md)、[调研背景](online-mode/community-lobby-research.md)、[开盒战（七弹）](online-mode/bp7-sealed.md) |
 | 赛季排位 | [专题索引](matchmaking-and-ladder/README.md)、[首版当前状态与上线边界](matchmaking-and-ladder/RANKED_INITIAL_IMPLEMENTATION.md)、[数据与结算设计](matchmaking-and-ladder/RANKED_R2_DATA_AND_SETTLEMENT_DESIGN.md)、[卡组分类与环境饼图](matchmaking-and-ladder/RANKED_DECK_CLASSIFIER.md)、[V4 评分设计](matchmaking-and-ladder/RANKED_V4_RATING_DESIGN.md)、[评分参数修订与全量回算](matchmaking-and-ladder/RANKED_RATING_PARAMETER_REVISION.md)、[管理员 API](matchmaking-and-ladder/RANKED_ADMIN_API.md)、[历史 V2→V3 停机迁移](matchmaking-and-ladder/RANKED_V3_ACTIVE_SEASON_MIGRATION.md)、[影子报告分析](matchmaking-and-ladder/RANKED_SHADOW_REPORT_ANALYSIS_2026-07-30.md)、[影子报告运行说明](matchmaking-and-ladder/RANKED_SHADOW_REPORT_RUNBOOK.md) |
 | 轮换主题牌桌 | [策划与设计](matchmaking-and-ladder/ROTATING_THEME_TABLE_DESIGN.md) |
 | 赛季活动封面 | [需求与设计](matchmaking-and-ladder/SEASON_ACTIVITY_COVER_REQUIREMENTS_AND_DESIGN.md) |

@@ -316,6 +316,13 @@
       "when": 1792724280750,
       "tag": "0044_add_casual_rule_modes",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1792765463552,
+      "tag": "0045_add_bp7_sealed",
+      "breakpoints": true
     }
   ]
 }

@@ -1,3 +1,4 @@
+import type { CasualFormat } from '../../online/casual-table-types.js';
 import type { CasualRuleMode } from '../../domain/rules/deck-construction.js';
 import { randomInt, randomUUID } from 'node:crypto';
 import { createSurrenderCommand } from '../../application/game-commands.js';
@@ -109,6 +110,7 @@ interface OnlineRoomState {
     readonly tableId: string;
     readonly roundId: string;
     readonly ruleMode: CasualRuleMode;
+    readonly format: CasualFormat;
   };
   casualRetirementPending?: boolean;
   openingExpiresAt: number | null;
@@ -165,6 +167,7 @@ export interface CreatePublicTableRoomInput {
 }
 
 export interface CreateCasualTableRuntimeInput {
+  readonly format: CasualFormat;
   readonly ruleMode: CasualRuleMode;
   readonly tableId: string;
   readonly roundId: string;
@@ -526,7 +529,12 @@ export class OnlineRoomService {
       rankedSeasonId: null,
       themeTableVersionId: null,
       closedToNewMembers: true,
-      casualTable: { tableId: input.tableId, roundId: input.roundId, ruleMode: input.ruleMode },
+      casualTable: {
+        tableId: input.tableId,
+        roundId: input.roundId,
+        ruleMode: input.ruleMode,
+        format: input.format,
+      },
       openingExpiresAt: input.openingExpiresAt,
       openingArrivalExpiresAt: now + 60_000,
       endInfo: null,
@@ -2023,6 +2031,7 @@ export class OnlineRoomService {
       originKind: room.originKind,
       originLabel: room.originLabel,
       casualRuleMode: room.casualTable?.ruleMode ?? null,
+      rulesetId: room.casualTable?.format === 'SEALED_BP7' ? 'SEALED_HALF_GRAY_V1' : 'STANDARD',
     };
 
     const match = await this.matchService.createMatch(params);

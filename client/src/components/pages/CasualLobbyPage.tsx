@@ -1,3 +1,7 @@
+import { SealedBuilder, SealedRematchControls } from '@/components/casual-table/SealedBuilder';
+import { SealedFormatLabel } from '@/components/casual-table/SealedFormatLabel';
+import { SEALED_BP7_DECK_NAME } from '@game/shared/sealed-format';
+import type { CasualFormat } from '@game/online/casual-table-types';
 import {
   CasualRuleBadge,
   CasualRuleMark,
@@ -34,6 +38,9 @@ import {
   Copy,
   Hash,
   Plus,
+  PackageOpen,
+  Heart,
+  Trophy,
   RefreshCw,
   Search,
   Swords,
@@ -96,6 +103,7 @@ interface Flow {
 const names = {
   WAITING: '等待加入',
   RESERVED: '双方准备',
+  BUILDING: '开盒组牌',
   OPENING: '开局中',
   PLAYING: '对战中',
   ENDED: '已结束',
@@ -142,8 +150,13 @@ export function CasualLobbyPage({
   const getCardImagePath = useGameStore((state) => state.getCardImagePath);
   const preferredMode = useCasualRuleMode(userId);
   const ruleMode = table?.ruleMode ?? preferredMode;
+  const [preferredFormat, setPreferredFormat] = useState<CasualFormat>('CONSTRUCTED');
+  const format: CasualFormat =
+    table?.format ?? (ruleMode === 'UNLIMITED' ? preferredFormat : 'CONSTRUCTED');
   const [flow, setFlow] = useState<Flow | null>(null);
   const selectionMode = flow?.kind === 'JOIN' ? flow.row!.ruleMode : ruleMode;
+  const selectionFormat = flow?.kind === 'JOIN' ? flow.row!.format : format;
+  const sealedSelection = selectionFormat === 'SEALED_BP7';
   const lastDeck = readLastUsedDeckId(casualDeckPreferenceKey(userId, selectionMode));
   const pointTable = useDeckPointTableRules();
   const pointTableDisplayReady = useDeckPointTableDisplayReady();
@@ -234,7 +247,7 @@ export function CasualLobbyPage({
   const readRef = useRef<(applyOrder?: boolean, more?: boolean) => Promise<void>>(() =>
     Promise.resolve()
   );
-  const queryKey = `${ruleMode}:${debouncedSearch}`;
+  const queryKey = `${ruleMode}:${format}:${debouncedSearch}`;
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
@@ -256,7 +269,7 @@ export function CasualLobbyPage({
       setReading(true);
       const promise = (async () => {
         try {
-          const params: CasualLobbyQuery = { search: debouncedSearch, ruleMode };
+          const params: CasualLobbyQuery = { search: debouncedSearch, ruleMode, format };
           let next = await getCasualLobby(
             more && snapshot?.nextCursor ? { ...params, cursor: snapshot.nextCursor } : params
           );
@@ -267,7 +280,7 @@ export function CasualLobbyPage({
             incoming.push(...next.rooms);
           }
           if (epoch !== readEpoch.current) return;
-          incoming = incoming.filter((row) => row.ruleMode === ruleMode);
+          incoming = incoming.filter((row) => row.ruleMode === ruleMode && row.format === format);
           incoming = [...new Map(incoming.map((row) => [row.tableId, row])).values()];
           latest.current = incoming;
           setSnapshot(next);
@@ -309,7 +322,7 @@ export function CasualLobbyPage({
       readPromise.current = promise;
       return promise;
     },
-    [queryKey, debouncedSearch, ruleMode, snapshot?.nextCursor]
+    [queryKey, debouncedSearch, ruleMode, format, snapshot?.nextCursor]
   );
   useLayoutEffect(() => {
     readRef.current = read;
@@ -515,14 +528,15 @@ export function CasualLobbyPage({
       return;
     }
     const deckId = chosen?.cloudDeck?.id;
-    if (!deckId) {
+    if (!sealedSelection && !deckId) {
       setLocalError('请选择一副合法云端卡组');
       return;
     }
     const entry = {
       requestId: flow.requestId,
       ruleMode: selectionMode,
-      deckId,
+      format: selectionFormat,
+      ...(sealedSelection ? {} : { deckId }),
       spectatorEnabled: data.has('spectatorEnabled'),
     };
     let path = '',
@@ -572,7 +586,9 @@ export function CasualLobbyPage({
         return;
     }
     if (await action(path, body)) {
-      writeLastUsedDeckId(casualDeckPreferenceKey(userId, selectionMode), deckId);
+      if (!sealedSelection && deckId)
+        writeLastUsedDeckId(casualDeckPreferenceKey(userId, selectionMode), deckId);
+      setPreferredFormat(selectionFormat);
       writeCasualRuleMode(userId, selectionMode);
       setFlow(null);
     }
@@ -604,8 +620,8 @@ export function CasualLobbyPage({
   const ended = table?.runtime?.status === 'ENDED';
   const rematch = table?.runtime?.rematch;
   const ownError = localError ?? storeError;
-  const visibleRows = rows.filter((row) => row.ruleMode === ruleMode);
-  const snapshotMatchesMode = loadedSearch?.startsWith(`${ruleMode}:`) ?? false;
+  const visibleRows = rows.filter((row) => row.ruleMode === ruleMode && row.format === format);
+  const snapshotMatchesMode = loadedSearch?.startsWith(`${ruleMode}:${format}:`) ?? false;
   const stale = snapshot && now - snapshot.snapshotAt > 10_000;
   const localSetupBlocked = !hydrated || busy || Boolean(table || status?.otherParticipation);
   const createDeckPickerOpen = flow?.kind === 'CREATE' && deckPickerOpen;
@@ -638,15 +654,31 @@ export function CasualLobbyPage({
     />
   );
 
+  const roomCodeAction = table ? (
+    <button
+      className="casual-copy-code button-ghost"
+      aria-label="复制房间号"
+      title={copyFeedback?.kind === 'code' ? '房间号已复制' : '复制房间号'}
+      onClick={() => void copy(table.roomCode, 'code')}
+    >
+      <span className="casual-code">{table.roomCode}</span>
+      {copyFeedback?.kind === 'code' ? (
+        <Check size={14} aria-hidden="true" className="casual-copy-complete" />
+      ) : (
+        <Copy size={14} aria-hidden="true" />
+      )}
+    </button>
+  ) : null;
+
   return (
-    <main className="casual-lobby">
+    <main className={`casual-lobby${table?.state === 'BUILDING' ? ' casual-lobby--sealed' : ''}`}>
       <header className="casual-heading">
         <div>
           <button className="button-ghost casual-home" onClick={onBack}>
             <ArrowLeft size={16} />
             返回首页
           </button>
-          <h1>对战大厅</h1>
+          <h1>{table?.state === 'BUILDING' ? <SealedFormatLabel /> : '对战大厅'}</h1>
         </div>
         {!localSetupBlocked && (
           <details className="casual-practice">
@@ -683,21 +715,7 @@ export function CasualLobbyPage({
                 {table && <CasualRuleBadge mode={table.ruleMode} showMark={false} />}
               </div>
             </div>
-            {table && (
-              <button
-                className="casual-copy-code button-ghost"
-                aria-label="复制房间号"
-                title={copyFeedback?.kind === 'code' ? '房间号已复制' : '复制房间号'}
-                onClick={() => void copy(table.roomCode, 'code')}
-              >
-                <span className="casual-code">{table.roomCode}</span>
-                {copyFeedback?.kind === 'code' ? (
-                  <Check size={14} aria-hidden="true" className="casual-copy-complete" />
-                ) : (
-                  <Copy size={14} aria-hidden="true" />
-                )}
-              </button>
-            )}
+            {roomCodeAction}
           </div>
         )}
         {!hydrated ? (
@@ -748,7 +766,7 @@ export function CasualLobbyPage({
                       aria-label="复制邀请"
                       onClick={() =>
                         void copy(
-                          `${casualRuleName(table.ruleMode)}${table.ruleMode === 'UNLIMITED' ? '（PT 不限）' : ''} · 房间 ${table.roomCode}\n${window.location.origin}/?page=battle-lobby&room=${table.roomCode}`,
+                          `${table.format === 'SEALED_BP7' ? SEALED_BP7_DECK_NAME : `${casualRuleName(table.ruleMode)}${table.ruleMode === 'UNLIMITED' ? '（PT 不限）' : ''}`} · 房间 ${table.roomCode}\n${window.location.origin}/?page=battle-lobby&room=${table.roomCode}`,
                           'invite'
                         )
                       }
@@ -772,13 +790,15 @@ export function CasualLobbyPage({
                       ? confirmed
                         ? '你已确认，等待对手'
                         : '对手已加入，请确认开局'
-                      : table.state === 'BOOTSTRAPPING'
-                        ? '双方已确认，正在开局'
-                        : ended
-                          ? '本局已结束'
-                          : table.runtime?.status === 'OPENING'
-                            ? '正在等待开局'
-                            : '你的房间正在对战'}
+                      : table.state === 'BUILDING'
+                        ? '开盒并组建本局卡组'
+                        : table.state === 'BOOTSTRAPPING'
+                          ? '双方已确认，正在开局'
+                          : ended
+                            ? '本局已结束'
+                            : table.runtime?.status === 'OPENING'
+                              ? '正在等待开局'
+                              : '你的房间正在对战'}
                   </h3>
                 )}
                 {(table.state !== 'WAITING' || table.members.length > 1) && (
@@ -791,48 +811,50 @@ export function CasualLobbyPage({
                       .join(' · ')}
                   </p>
                 )}
-                <div className="casual-current-deck">
-                  <p className="casual-muted">
-                    {table.ownDeck?.name}
-                    {table.ownDeck && (
-                      <>
-                        {' '}
-                        ·{' '}
-                        {table.ruleMode === 'UNLIMITED'
-                          ? `${table.ownDeck.pointTotal} PT`
-                          : casualPointSummary(
-                              table.ownDeck.pointTotal,
-                              table.ownDeck.pointLimit,
-                              table.ruleMode
-                            )}
-                      </>
-                    )}
-                    {pending && (
-                      <>
-                        <span aria-hidden="true">
+                {table.state !== 'BUILDING' && (
+                  <div className="casual-current-deck">
+                    <p className="casual-muted">
+                      {table.format === 'SEALED_BP7' ? <SealedFormatLabel /> : table.ownDeck?.name}
+                      {table.ownDeck && table.format !== 'SEALED_BP7' && (
+                        <>
                           {' '}
-                          · 剩余{' '}
-                          {Math.max(
-                            0,
-                            Math.ceil(((table.confirmationExpiresAt ?? now) - now) / 1000)
-                          )}{' '}
-                          秒
-                        </span>
-                        <span className="sr-only">请在本轮确认期限内确认</span>
-                      </>
+                          ·{' '}
+                          {table.ruleMode === 'UNLIMITED'
+                            ? `${table.ownDeck.pointTotal} PT`
+                            : casualPointSummary(
+                                table.ownDeck.pointTotal,
+                                table.ownDeck.pointLimit,
+                                table.ruleMode
+                              )}
+                        </>
+                      )}
+                      {pending && (
+                        <>
+                          <span aria-hidden="true">
+                            {' '}
+                            · 剩余{' '}
+                            {Math.max(
+                              0,
+                              Math.ceil(((table.confirmationExpiresAt ?? now) - now) / 1000)
+                            )}{' '}
+                            秒
+                          </span>
+                          <span className="sr-only">请在本轮确认期限内确认</span>
+                        </>
+                      )}
+                    </p>
+                    {table.state === 'WAITING' && table.format !== 'SEALED_BP7' && (
+                      <ActionButton
+                        variant="ghost"
+                        className="casual-current-deck-change"
+                        disabled={busy}
+                        onClick={() => open('DECK')}
+                      >
+                        更换卡组
+                      </ActionButton>
                     )}
-                  </p>
-                  {table.state === 'WAITING' && (
-                    <ActionButton
-                      variant="ghost"
-                      className="casual-current-deck-change"
-                      disabled={busy}
-                      onClick={() => open('DECK')}
-                    >
-                      更换卡组
-                    </ActionButton>
-                  )}
-                </div>
+                  </div>
+                )}
                 {table.discoverability === 'UNLISTED' && table.state === 'WAITING' && (
                   <p className="casual-muted">不会出现在公开列表；知道房间号或链接的玩家可加入。</p>
                 )}
@@ -844,7 +866,7 @@ export function CasualLobbyPage({
                   </p>
                 )}
               </div>
-              {table.state !== 'WAITING' && (
+              {table.state !== 'WAITING' && table.state !== 'BUILDING' && (
                 <div className="casual-actions">
                   {pending && (
                     <>
@@ -866,7 +888,10 @@ export function CasualLobbyPage({
                   )}
                   {activeRuntime && (
                     <>
-                      {ended && table.canRematch && !rematch && (
+                      {ended && table.format === 'SEALED_BP7' && (
+                        <SealedRematchControls table={table} userId={userId} now={now} />
+                      )}
+                      {ended && table.format !== 'SEALED_BP7' && table.canRematch && !rematch && (
                         <button
                           className="button-primary"
                           disabled={busy}
@@ -945,6 +970,14 @@ export function CasualLobbyPage({
                 </div>
               )}
             </div>
+            {table.state === 'BUILDING' && (
+              <SealedBuilder
+                table={table}
+                userId={userId}
+                now={now}
+                roomCodeAction={roomCodeAction}
+              />
+            )}
             {table.state !== 'BOOTSTRAPPING' && (
               <div className="casual-current-footer">
                 <label className="casual-check">
@@ -1034,6 +1067,26 @@ export function CasualLobbyPage({
             disabled={!hydrated || busy || Boolean(flow)}
             onChange={switchRule}
           />
+          {ruleMode === 'UNLIMITED' && (
+            <div className="casual-format-selector" role="group" aria-label="娱乐玩法">
+              <button
+                className={format === 'CONSTRUCTED' ? 'button-primary' : 'button-ghost'}
+                aria-pressed={format === 'CONSTRUCTED'}
+                disabled={busy || Boolean(flow)}
+                onClick={() => setPreferredFormat('CONSTRUCTED')}
+              >
+                自由构筑
+              </button>
+              <button
+                className={format === 'SEALED_BP7' ? 'button-primary' : 'button-ghost'}
+                aria-pressed={format === 'SEALED_BP7'}
+                disabled={busy || Boolean(flow)}
+                onClick={() => setPreferredFormat('SEALED_BP7')}
+              >
+                <SealedFormatLabel />
+              </button>
+            </div>
+          )}
           <button
             className="button-primary casual-find"
             disabled={!hydrated || busy || Boolean(snapshot?.unavailableReason)}
@@ -1049,7 +1102,11 @@ export function CasualLobbyPage({
           <div className="casual-room-heading">
             <h2 id="casual-rooms-title">
               <CasualRuleMark mode={ruleMode} />
-              {casualRuleName(ruleMode)}房间
+              {format === 'SEALED_BP7' ? (
+                <SealedFormatLabel suffix="房间" />
+              ) : (
+                `${casualRuleName(ruleMode)}房间`
+              )}
             </h2>
             {snapshot &&
               snapshotMatchesMode &&
@@ -1397,7 +1454,7 @@ export function CasualLobbyPage({
                             disabled={Boolean(snapshot?.unavailableReason)}
                             onClick={() => open('JOIN', preview)}
                           >
-                            选择卡组并加入
+                            {preview.format === 'SEALED_BP7' ? '加入开盒战' : '选择卡组并加入'}
                           </button>
                         ) : preview.spectatorViews.length ? (
                           <button
@@ -1430,14 +1487,24 @@ export function CasualLobbyPage({
                     )}
                     <div className="casual-room-settings" hidden={createDeckPickerOpen}>
                       <CasualRuleBadge mode={selectionMode} />
-                      {flow.kind !== 'CREATE' && <p>{casualRuleDescription(selectionMode)}</p>}
+                      {flow.kind !== 'CREATE' && !sealedSelection && (
+                        <p>{casualRuleDescription(selectionMode)}</p>
+                      )}
                       {flow.kind === 'FIND' && (
-                        <p>优先加入正在等人的公开房间，没有对手时会创建房间等待。</p>
+                        <div className="casual-match-hint">
+                          <Search size={20} aria-hidden="true" />
+                          <div>
+                            <strong>
+                              {sealedSelection ? '寻找开盒战对手' : '寻找正在等候的对手'}
+                            </strong>
+                            <p>优先加入公开房间；暂无对手时，为你创建房间等待。</p>
+                          </div>
+                        </div>
                       )}
                       {flow.kind === 'JOIN' && (
                         <p>
-                          {flow.row?.members[0]?.displayName} · {flow.row?.roomCode}
-                          。选组期间不占座。
+                          {flow.row?.members[0]?.displayName} · {flow.row?.roomCode}。
+                          {sealedSelection ? '双方确认后开盒。' : '选组期间不占座。'}
                           {flow.source
                             ? '成功加入后才取消原等待；目标失效时保留原房间。'
                             : '加入后由双方确认开局。'}
@@ -1446,7 +1513,57 @@ export function CasualLobbyPage({
                       {['REMATCH', 'ACCEPT'].includes(flow.kind) && (
                         <p>选择本次卡组。双方同意后仍需在新轮次各自确认开局。</p>
                       )}
-                      {(chosen || flow.kind === 'CREATE') && !deckPickerOpen ? (
+                      {sealedSelection ? (
+                        <section className="sealed-format-summary" aria-label="开盒战玩法">
+                          <div className="sealed-format-heading">
+                            <span className="sealed-format-icon">
+                              <PackageOpen size={23} aria-hidden="true" />
+                            </span>
+                            <div>
+                              <h3>
+                                <SealedFormatLabel />
+                              </h3>
+                              <p>双方各开一盒，用开出的卡牌组牌，无需预选卡组。</p>
+                            </div>
+                          </div>
+                          <dl className="sealed-format-facts">
+                            <div>
+                              <dt>每人一盒</dt>
+                              <dd>
+                                50 <small>张</small>
+                              </dd>
+                              <dd className="sealed-fact-detail">10 包 × 5 张</dd>
+                            </div>
+                            <div>
+                              <dt>开盒及组牌</dt>
+                              <dd>
+                                15 <small>分钟</small>
+                              </dd>
+                              <dd className="sealed-fact-detail">双方共用倒计时</dd>
+                            </div>
+                            <div>
+                              <dt>本局卡组</dt>
+                              <dd>
+                                24 <small>＋</small> 6
+                              </dd>
+                              <dd className="sealed-fact-detail">成员 ＋ 固定 Live</dd>
+                            </div>
+                          </dl>
+                          <div className="sealed-format-rules">
+                            <span>
+                              <Heart size={15} aria-hidden="true" />
+                              印刷必要心视为灰心
+                            </span>
+                            <span>
+                              <Trophy size={15} aria-hidden="true" />
+                              两首 Live 获胜
+                            </span>
+                          </div>
+                          <p className="sealed-format-note">
+                            能量自动补足 12 张 · 模拟封入，非官方概率
+                          </p>
+                        </section>
+                      ) : (chosen || flow.kind === 'CREATE') && !deckPickerOpen ? (
                         <div className="casual-selected-deck">
                           {chosen?.previewCardCodes[0] && (
                             <PresentationImage
@@ -1528,7 +1645,7 @@ export function CasualLobbyPage({
                           <input
                             name="spectatorEnabled"
                             type="checkbox"
-                            defaultChecked={table?.spectatorEnabled ?? false}
+                            defaultChecked={table?.spectatorEnabled ?? true}
                           />
                           开放我的观战视角
                         </label>
@@ -1556,7 +1673,7 @@ export function CasualLobbyPage({
                           type="submit"
                           disabled={
                             busy ||
-                            !chosen ||
+                            (!sealedSelection && !chosen) ||
                             (['FIND', 'CREATE', 'JOIN', 'CONTINUE'].includes(flow.kind) &&
                               Boolean(snapshot?.unavailableReason))
                           }
@@ -1570,7 +1687,7 @@ export function CasualLobbyPage({
                                   ? `按${casualRuleName(selectionMode)}加入`
                                   : '加入房间'
                               : flow.kind === 'CREATE'
-                                ? `创建${selectionMode === 'UNLIMITED' ? '娱乐' : '标准'}房间`
+                                ? `创建${sealedSelection ? '开盒战' : selectionMode === 'UNLIMITED' ? '娱乐' : '标准'}房间`
                                 : flow.kind === 'FIND'
                                   ? '开始找对手'
                                   : '确认'}

@@ -1,3 +1,4 @@
+import { victoryLiveCount, type BattleRulesetId } from '../rules/battle-ruleset.js';
 /**
  * Loveca 游戏状态实体定义
  * 基于 detail_rules.md 第 7、8 章游戏流程
@@ -23,13 +24,7 @@ import {
   createEmptyResolutionZone,
   createEmptyInspectionZone,
 } from './zone.js';
-import {
-  PlayerState,
-  createPlayerState,
-  hasReachedVictoryCondition,
-  getSuccessLiveCount,
-  needsRefresh,
-} from './player.js';
+import { PlayerState, createPlayerState, getSuccessLiveCount, needsRefresh } from './player.js';
 import type { GameEvent } from '../events/game-events.js';
 import type { ManualOperationMode } from '../../shared/types/manual-operation-mode.js';
 
@@ -841,6 +836,7 @@ export type PendingSpecialMemberPlayState = PendingSpecialMemberPlayBaseState &
  * 包含完整的游戏状态信息
  */
 export interface GameState {
+  readonly rulesetId: BattleRulesetId;
   /** 游戏唯一 ID */
   readonly gameId: string;
   /** 最近一次生成通用公开展示 token 的运行时 epoch；仅用于权威恢复后的防重放。 */
@@ -1089,12 +1085,14 @@ export function createGameState(
   player1Id: string,
   player1Name: string,
   player2Id: string,
-  player2Name: string
+  player2Name: string,
+  rulesetId: BattleRulesetId = 'STANDARD'
 ): GameState {
   const now = Date.now();
 
   return {
     gameId,
+    rulesetId,
     manualOperationMode: 'RULES',
     createdAt: now,
 
@@ -1252,7 +1250,7 @@ export function isPlayerTurn(game: GameState, playerId: string): boolean {
  */
 export function checkVictoryCondition(game: GameState): string | null {
   for (const player of game.players) {
-    if (hasReachedVictoryCondition(player)) {
+    if (player.successZone.cardIds.length >= victoryLiveCount(game)) {
       return player.id;
     }
   }

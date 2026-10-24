@@ -327,6 +327,7 @@ export function projectPlayerViewState(
   const manualOperationSwitchBlockedReason = getManualOperationModeSwitchBlockedReason(game);
   const match: MatchViewState = {
     matchId: game.gameId,
+    rulesetId: game.rulesetId,
     viewerSeat,
     participants: {
       FIRST: { id: game.players[0].id, name: game.players[0].name },
@@ -498,6 +499,23 @@ export function projectPlayerViewState(
     allowRulesModeSuccessLiveSkip: options.allowRulesModeSuccessLiveSkip === true,
   });
   const activeEffectCardSelection = projectActiveEffectCardSelection(game, viewerSeat, objects);
+  if (game.rulesetId === 'SEALED_HALF_GRAY_V1') {
+    for (const [id, object] of Object.entries(objects)) {
+      const requirement = object.frontInfo?.requiredHearts;
+      if (requirement)
+        objects[id] = {
+          ...object,
+          frontInfo: {
+            ...object.frontInfo!,
+            requiredHearts: {
+              ...requirement,
+              colorRequirements: { [HeartColor.GRAY]: requirement.totalRequired },
+            },
+          },
+        };
+    }
+  }
+
   const publicCardSelectionAutoAdvanceAt = game.activeEffect?.publicCardSelectionAutoAdvanceAt;
   const publicEffectChoiceAutoAdvanceAt = game.activeEffect?.publicEffectChoiceAutoAdvanceAt;
   const publicRevealAutoAdvanceAt = game.activeEffect?.publicRevealAutoAdvanceAt;

@@ -1,4 +1,5 @@
 import { useTextPresentation } from '@/lib/appPresentation';
+import { SEALED_MODE_NAME } from '@game/shared/sealed-format';
 /**
  * 阶段指示器
  * 显示当前游戏阶段、子阶段和回合数，提供阶段流转按钮
@@ -334,6 +335,9 @@ export const PhaseIndicator = memo(function PhaseIndicator({
         className="excel-phase-controls"
       >
         <p>
+          {matchView?.rulesetId === 'SEALED_HALF_GRAY_V1'
+            ? `${SEALED_MODE_NAME} · 两首获胜 · `
+            : ''}
           回合 {currentTurnCount ?? turnNumber ?? '-'} · {info.name} ·{' '}
           {subPhaseConfig?.display.name ?? ''}
         </p>
@@ -394,6 +398,9 @@ export const PhaseIndicator = memo(function PhaseIndicator({
               className={cn('h-2.5 w-2.5 shrink-0 rounded-full', info.colorClass)}
             />
             <span className="shrink-0 text-[11px] font-bold text-[var(--text-muted)]">
+              {matchView?.rulesetId === 'SEALED_HALF_GRAY_V1'
+                ? `${SEALED_MODE_NAME} · 两首获胜 · `
+                : ''}
               T{currentTurnCount ?? turnNumber ?? '-'}
             </span>
             <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
@@ -478,6 +485,9 @@ export const PhaseIndicator = memo(function PhaseIndicator({
       >
         <div className="battle-phase-summary flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-2.5">
           <span className="font-mono text-[11px] font-bold tabular-nums text-[var(--text-muted)]">
+            {matchView?.rulesetId === 'SEALED_HALF_GRAY_V1'
+              ? `${SEALED_MODE_NAME} · 两首获胜 · `
+              : ''}
             T{currentTurnCount ?? turnNumber ?? '-'}
           </span>
           <span className="h-4 w-px bg-[var(--border-subtle)]" aria-hidden="true" />

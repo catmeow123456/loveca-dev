@@ -19,6 +19,10 @@ const service = vi.hoisted(() => ({
   respondRematch: vi.fn(),
   leave: vi.fn(),
   continuePublic: vi.fn(),
+  saveSealedDraft: vi.fn(),
+  setSealedReady: vi.fn(),
+  requestSealedRematch: vi.fn(),
+  respondSealedRematch: vi.fn(),
 }));
 const availability = vi.hoisted(() => ({ getGameplayRestriction: vi.fn() }));
 vi.mock('../../src/server/services/site-announcement-service.js', () => ({
@@ -57,6 +61,7 @@ const target = {
   revision: 1,
 };
 const entry = {
+  format: 'CONSTRUCTED',
   ruleMode: 'NORMAL',
   requestId: '33333333-3333-4333-8333-333333333333',
   deckId: '44444444-4444-4444-8444-444444444444',
@@ -193,5 +198,48 @@ describe('casual table HTTP contract', () => {
     });
     expect((await request('/spectate', { target, seat: 'OPPONENT_PRIVATE' })).status).toBe(400);
     expect(service.spectate).not.toHaveBeenCalled();
+  });
+  it('accepts sealed entries without account decks and rejects mixed format parameters', async () => {
+    service.findOpponent.mockResolvedValue({ state: 'WAITING', format: 'SEALED_BP7' });
+    const sealed = {
+      format: 'SEALED_BP7',
+      ruleMode: 'UNLIMITED',
+      requestId: entry.requestId,
+      spectatorEnabled: false,
+    };
+    expect((await request('/find', sealed)).status).toBe(200);
+    expect(service.findOpponent).toHaveBeenCalledWith('viewer', sealed);
+    expect((await request('/find', { ...sealed, deckId: entry.deckId })).status).toBe(400);
+    expect((await request('/find', { ...sealed, ruleMode: 'NORMAL' })).status).toBe(400);
+    expect((await request('/find', { ...sealed, format: 'CONSTRUCTED' })).status).toBe(400);
+  });
+  it('validates sealed draft and consent commands before forwarding the authenticated identity', async () => {
+    service.saveSealedDraft.mockResolvedValue({ state: 'BUILDING' });
+    service.respondSealedRematch.mockResolvedValue({ state: 'BUILDING' });
+    expect(
+      (await request('/sealed/draft', { target, draftRevision: 1, indices: [0, 1, 2] })).status
+    ).toBe(200);
+    expect(service.saveSealedDraft).toHaveBeenCalledWith('viewer', target, 1, [0, 1, 2]);
+    expect(
+      (await request('/sealed/draft', { target, draftRevision: 1, indices: [50] })).status
+    ).toBe(400);
+    expect(
+      (
+        await request('/sealed/rematch/respond', {
+          target,
+          requestId: entry.requestId,
+          accept: true,
+        })
+      ).status
+    ).toBe(200);
+    expect(service.respondSealedRematch).toHaveBeenCalledWith(
+      'viewer',
+      target,
+      entry.requestId,
+      true
+    );
+    expect(
+      (await request('/sealed/ready', { target, draftRevision: 1, ready: true }, false)).status
+    ).toBe(401);
   });
 });
