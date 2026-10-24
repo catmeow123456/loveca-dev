@@ -89,6 +89,7 @@ export function DeckStatsRow({
       <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
         <UserRound size={size === 'sm' ? 12 : 14} />
         <span>
+          <span className="sr-only">成员 </span>
           {stats.memberCount}
           {showMax && '/48'}
         </span>
@@ -96,6 +97,7 @@ export function DeckStatsRow({
       <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
         <Layers3 size={size === 'sm' ? 12 : 14} />
         <span>
+          <span className="sr-only">LIVE </span>
           {stats.liveCount}
           {showMax && '/12'}
         </span>
@@ -103,6 +105,7 @@ export function DeckStatsRow({
       <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
         <Zap size={size === 'sm' ? 12 : 14} />
         <span>
+          <span className="sr-only">能量 </span>
           {stats.energyCount}
           {showMax && '/12'}
         </span>
@@ -112,6 +115,7 @@ export function DeckStatsRow({
       >
         <Star size={size === 'sm' ? 12 : 14} />
         <span>
+          <span className="sr-only">点数 </span>
           {stats.pointTotal}
           {showMax && `/${pointTable.pointLimit}`}pt
         </span>

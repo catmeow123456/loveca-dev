@@ -72,7 +72,7 @@ export function SectionHeading({
   );
 }
 
-type ActionButtonVariant = 'primary' | 'secondary' | 'ghost' | 'icon';
+type ActionButtonVariant = 'primary' | 'secondary' | 'ghost' | 'icon' | 'danger';
 type ActionButtonSize = 'compact' | 'default';
 
 export interface ActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -85,6 +85,7 @@ const ACTION_BUTTON_VARIANT_CLASS: Record<ActionButtonVariant, string> = {
   secondary: 'button-secondary',
   ghost: 'button-ghost',
   icon: 'button-icon',
+  danger: 'button-danger',
 };
 
 export const ActionButton = forwardRef<HTMLButtonElement, ActionButtonProps>(function ActionButton(

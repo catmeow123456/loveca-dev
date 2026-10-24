@@ -464,6 +464,10 @@ select {
   border-radius: var(--battle-radius-region);
 }
 
+.battle-mobile-seat-summary {
+  z-index: calc(var(--z-battle-chrome) - 1);
+}
+
 .battle-table .battle-mobile-seat-summary > button,
 .battle-table .battle-toolbar-control,
 .battle-table .battle-phase-surface button,
@@ -1639,6 +1643,16 @@ select {
 .ui-action-button:focus-visible {
   outline: 2px solid var(--accent-primary);
   outline-offset: -2px;
+}
+
+.button-danger {
+  border: 1px solid var(--semantic-error);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--semantic-error);
+}
+.button-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--semantic-error) 10%, transparent);
 }
 
 .ui-status-badge {

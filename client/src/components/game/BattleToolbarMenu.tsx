@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { Settings2 } from 'lucide-react';
+import { BookOpen, Settings2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/common';
 import { PresentationModeButton } from '@/components/common/PresentationModeButton';
 import { BattleEffectsToggle } from './BattleEffectsToggle';
@@ -96,6 +96,7 @@ export function BattleSettingsMenu({
   showBattleEffects,
   battleEffectsEnabled,
   onBattleEffectsChange,
+  onShowHelp,
 }: {
   compact?: boolean;
   showMemberOverwrite: boolean;
@@ -104,12 +105,26 @@ export function BattleSettingsMenu({
   showBattleEffects: boolean;
   battleEffectsEnabled: boolean;
   onBattleEffectsChange: (enabled: boolean) => void;
+  onShowHelp?: () => void;
 }) {
   return (
     <div className="battle-toolbar-settings ml-auto shrink-0">
       <BattleToolbarMenu label="对战设置" icon={<Settings2 size={16} />} compact={compact}>
-        {() => (
+        {(close) => (
           <>
+            {onShowHelp && (
+              <button
+                type="button"
+                className="button-ghost flex min-h-11 w-full items-center gap-2 px-2"
+                onClick={() => {
+                  close();
+                  onShowHelp();
+                }}
+              >
+                <BookOpen size={16} aria-hidden="true" />
+                操作提示
+              </button>
+            )}
             <div className="flex min-h-12 items-center justify-between gap-4 px-2">
               <span>Excel 模式</span>
               <PresentationModeButton compact />

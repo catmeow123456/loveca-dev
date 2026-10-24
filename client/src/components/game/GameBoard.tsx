@@ -350,6 +350,7 @@ export interface GameBoardProps {
   showDesktopPublicBattleLogButton?: boolean;
   desktopHeaderActions?: ReactNode;
   headerOverlay?: ReactNode;
+  onShowHelp?: () => void;
   mobileHeaderActions?: ReactNode;
   /** 移动端位于阶段浮层上方的入口，仍随桌面背景一起受模态隔离。 */
   mobileFloatingHeaderActions?: ReactNode;
@@ -376,6 +377,7 @@ export function useBattleInteractionController({
   showDesktopPublicBattleLogButton = true,
   desktopHeaderActions,
   headerOverlay,
+  onShowHelp,
   mobileHeaderActions,
   mobileFloatingHeaderActions,
   resultAnimationAutoComplete = true,
@@ -2648,6 +2650,7 @@ export function useBattleInteractionController({
     undoButtonLabel,
     mobileUndoButtonLabel,
     headerOverlay,
+    onShowHelp,
     mobileFloatingHeaderActions,
     shouldShowWinnerAnimation,
     showResultVisuals,
@@ -2858,6 +2861,7 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
     undoButtonLabel,
     mobileUndoButtonLabel,
     headerOverlay,
+    onShowHelp,
     mobileFloatingHeaderActions,
     shouldShowWinnerAnimation,
     showResultVisuals,
@@ -4590,7 +4594,11 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
         {!isReadOnly && <RankedStallNotice stall={rankedStall} viewerSeat={viewerSeat} />}
 
         {!isMobileBattlefield && (
-          <header className="battle-desktop-toolbar" aria-label="对战工具栏">
+          <header
+            data-battle-phase-access
+            className="battle-desktop-toolbar"
+            aria-label="对战工具栏"
+          >
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               {desktopHeaderActions}
               {(showLeaveLocalGameButton || showRestartGameButton) && (
@@ -4645,6 +4653,7 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
             </div>
             {!isReadOnly && <DebugControl />}
             <BattleSettingsMenu
+              onShowHelp={onShowHelp}
               showMemberOverwrite={!isReadOnly}
               askMemberOverwrite={askMemberOverwrite}
               onAskMemberOverwriteChange={changeAskMemberOverwrite}
@@ -4673,9 +4682,17 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
             mobilePortalTarget={boardRoot}
           />
           {isMobileBattlefield ? (
-            <div className="relative z-10 flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:hidden">
+            <div
+              className={cn(
+                'relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:hidden',
+                !(mulliganPanelOpen && mulliganPanelVisible) && 'z-10'
+              )}
+            >
               <div className="battle-mobile-header safe-top shrink-0 px-2.5 pt-2.5">
-                <div className="battle-mobile-phase-header relative z-[var(--z-battle-chrome)] rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_30%,transparent)] px-2.5 py-1.5 shadow-none backdrop-blur-[2px]">
+                <div
+                  data-battle-phase-access
+                  className="battle-mobile-phase-header relative z-[var(--z-battle-chrome)] rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_30%,transparent)] px-2.5 py-1.5 shadow-none backdrop-blur-[2px]"
+                >
                   <div className="flex items-center justify-between gap-2">
                     {showLeaveLocalGameButton || showRestartGameButton ? (
                       <div className="flex shrink-0 items-center gap-1">
@@ -4722,6 +4739,7 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                     </div>
 
                     <BattleSettingsMenu
+                      onShowHelp={onShowHelp}
                       compact
                       showMemberOverwrite={!isReadOnly}
                       askMemberOverwrite={askMemberOverwrite}
@@ -4733,7 +4751,10 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                   </div>
                 </div>
 
-                <div className="battle-mobile-seat-summary relative z-[95] mt-1.5 grid grid-cols-2 items-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_18%,transparent)] px-1.5 py-1.5 shadow-none backdrop-blur-[2px]">
+                <div
+                  data-battle-phase-access
+                  className="battle-mobile-seat-summary relative mt-1.5 grid grid-cols-2 items-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_18%,transparent)] px-1.5 py-1.5 shadow-none backdrop-blur-[2px]"
+                >
                   {capabilities.canSwitchPerspective ? (
                     (['FIRST', 'SECOND'] as const).map((seat) => {
                       const identity = getPlayerIdentityForSeat(seat);
@@ -5195,12 +5216,18 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
         </div>
 
         {isMobileBattlefield && mobileFloatingHeaderActions && (
-          <div className="absolute left-5 top-[calc(env(safe-area-inset-top)+1rem)] z-[var(--z-battle-chrome)]">
+          <div
+            data-battle-phase-access
+            className="absolute left-5 top-[calc(env(safe-area-inset-top)+1rem)] z-[var(--z-battle-chrome)]"
+          >
             {mobileFloatingHeaderActions}
           </div>
         )}
         {isMobileBattlefield && headerOverlay && (
-          <div className="absolute left-2 top-[calc(env(safe-area-inset-top)+4rem)] z-[var(--z-battle-action-menu)] flex max-h-[calc(100%-5rem)] max-w-[calc(100%-1rem)] flex-col items-start gap-2 overflow-y-auto">
+          <div
+            data-battle-phase-access
+            className="absolute left-2 top-[calc(env(safe-area-inset-top)+4rem)] z-[var(--z-battle-action-menu)] flex max-h-[calc(100%-5rem)] max-w-[calc(100%-1rem)] flex-col items-start gap-2 overflow-y-auto"
+          >
             {headerOverlay}
           </div>
         )}

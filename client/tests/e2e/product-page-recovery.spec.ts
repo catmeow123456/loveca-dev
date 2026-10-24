@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { DECK_RECORD, prepareVisualPage } from '../visual/support/mockApp';
 
 for (const mode of ['对墙打', '双人调试'] as const) {
-  test(`${mode}的短屏选组列表可以滚到最后一副并完成确认`, async ({ page }) => {
+  test(`${mode}的短屏选组列表可以滚到最后一副并直接开局`, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await prepareVisualPage(page, 'light', true);
     await page.route('**/api/decks', (route) =>
@@ -19,10 +19,8 @@ for (const mode of ['对墙打', '双人调试'] as const) {
     );
     await page.goto('/?page=game-setup');
     if (mode === '双人调试') {
-      await page
-        .getByRole('group', { name: '练习与调试模式' })
-        .getByRole('button', { name: mode })
-        .click();
+      await page.getByRole('button', { name: '切换模式', exact: true }).click();
+      await page.getByRole('option', { name: mode, exact: true }).click();
     }
 
     const titles =
@@ -50,14 +48,13 @@ for (const mode of ['对墙打', '双人调试'] as const) {
         .toBe(true);
       await lastDeck.click();
       await expect(lastDeck).toHaveAttribute('aria-pressed', 'true');
-      const next = page.getByRole('button', { name: /^下一步：/ });
-      await expect(next).toBeInViewport({ ratio: 1 });
-      await next.click();
+      await expect(page.getByRole('button', { name: '开始对局', exact: true })).toBeInViewport({
+        ratio: 1,
+      });
+      if (titles.length > 1 && title === titles[0])
+        await page.getByRole('tab', { name: /Player 2/ }).click();
     }
-    const confirmation = page.getByRole('region', { name: '对局确认' });
-    await expect(confirmation.getByText('准备页卡组 6', { exact: true })).toHaveCount(
-      titles.length
-    );
+    await expect(page.locator('.game-setup-selection')).toContainText('准备页卡组 6');
     await expect(page.getByRole('button', { name: '开始对局', exact: true })).toBeEnabled();
   });
 }

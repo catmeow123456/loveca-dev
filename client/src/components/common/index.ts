@@ -11,6 +11,9 @@ export {
   type DeckStatsData,
 } from './DeckStats';
 export { ConfirmDialog } from './ConfirmDialog';
+export { DialogShell, type DialogShellProps } from './DialogShell';
+export { Tabs, type TabOption, type TabsProps } from './Tabs';
+export { Disclosure, type DisclosureProps } from './Disclosure';
 export { PageHeader } from './PageHeader';
 export { SelectMenu, type SelectMenuOption, type SelectMenuProps } from './SelectMenu';
 export { ProductFrame, type ProductNavigationHandlers, type ProductNavKey } from './ProductFrame';

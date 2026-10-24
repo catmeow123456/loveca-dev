@@ -166,7 +166,6 @@ test('server solitaire: draft across renderer and cover, outcome, return', async
   const assets = media(page, true);
   await login(page, 1, true);
   await page.getByRole('button', { name: '对墙打', exact: true }).click();
-  await page.getByRole('button', { name: '下一步：确认对局', exact: true }).click();
   await page.getByRole('button', { name: '开始对局', exact: true }).click();
   await briefing(page);
   const board = page.getByTestId('excel-battle');

@@ -1,7 +1,6 @@
 import { getPresentationPortalRoot, useTextPresentation } from '@/lib/appPresentation';
-import { memo, useRef, useState, type ReactNode } from 'react';
+import { memo, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { motion } from 'framer-motion';
 import {
   BookOpen,
   Hand,
@@ -9,12 +8,12 @@ import {
   MousePointer2,
   RotateCcw,
   type LucideIcon,
-  X,
   Zap,
 } from 'lucide-react';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
+import { ActionButton, DialogShell, Tabs } from '@/components/common';
 
-export type PreMatchBriefingMode = 'online' | 'solitaire';
+export type PreMatchBriefingMode = 'online' | 'solitaire' | 'debug';
 
 interface PreMatchBriefingModalProps {
   isOpen: boolean;
@@ -59,10 +58,11 @@ function PreMatchBriefingContent({
 }: Pick<PreMatchBriefingModalProps, 'mode' | 'onClose'>) {
   const textOnly = useTextPresentation();
   const [activePageIndex, setActivePageIndex] = useState(0);
+  const tabsId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   useDialogAccessibility({
-    isOpen: true,
+    isOpen: textOnly,
     dialogRef,
     initialFocusRef: closeButtonRef,
     onEscape: onClose,
@@ -107,136 +107,76 @@ function PreMatchBriefingContent({
       getPresentationPortalRoot()
     );
 
-  const modalContent = (
-    <>
-      <div className="modal-backdrop z-[190]" />
-
-      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-        <motion.div
-          ref={dialogRef}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="pre-match-briefing-title"
-          tabIndex={-1}
-          className="modal-surface modal-accent-indigo flex w-[min(94vw,760px)] max-h-[88vh] flex-col overflow-hidden"
-          initial={{ opacity: 0, scale: 0.96, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: 12 }}
-        >
-          <div className="modal-header flex items-center justify-between gap-3 px-6 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,var(--bg-surface))] text-[var(--accent-primary)]">
-                <BookOpen size={18} />
-              </div>
-              <div>
-                <div
-                  id="pre-match-briefing-title"
-                  className="text-base font-semibold text-[var(--text-primary)]"
-                >
-                  {content.title}
-                </div>
-                <div className="text-xs text-[var(--text-secondary)]">{content.subtitle}</div>
-              </div>
-            </div>
-            <button
-              ref={closeButtonRef}
-              type="button"
-              onClick={onClose}
-              className="button-icon h-8 w-8"
-              title="关闭"
-              aria-label="关闭玩前须知"
-            >
-              <X size={14} />
-            </button>
-          </div>
-
-          <div className="cute-scrollbar flex-1 overflow-y-auto px-6 py-5 text-sm leading-relaxed text-[var(--text-primary)]">
-            <div className="mb-4 grid grid-cols-3 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-1.5">
-              {content.pages.map((page, index) => {
-                const isActive = index === currentPageIndex;
-                return (
-                  <button
-                    key={page.title}
-                    type="button"
-                    onClick={() => setActivePageIndex(index)}
-                    className={`min-h-9 rounded-md px-2 text-xs font-semibold transition-colors ${
-                      isActive
-                        ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,var(--bg-surface))] text-[var(--text-primary)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent-primary)_38%,transparent)]'
-                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]'
-                    }`}
-                  >
-                    {page.title}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mb-2">
-              <div className="text-base font-bold text-[var(--text-primary)]">
-                {currentPage.title}
-              </div>
-              <div className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
-                {currentPage.summary}
-              </div>
-            </div>
-
-            <div className="divide-y divide-[var(--border-subtle)]">
-              {currentPage.sections.map((section) => {
-                const Icon = section.icon;
-                return (
-                  <section key={section.title} className="py-4 first:pt-0 last:pb-0">
-                    <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
-                      <Icon size={14} className="text-[var(--accent-primary)]" />
-                      {section.title}
-                    </div>
-                    <ul className="list-disc space-y-1.5 pl-5 text-[var(--text-secondary)]">
-                      {section.items.map((item, index) => (
-                        <li key={index}>{item}</li>
-                      ))}
-                    </ul>
-                  </section>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex justify-end border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--accent-primary)_6%,transparent)] px-6 py-4">
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={onClose}
-                className="button-ghost inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[var(--border-default)] px-4 text-sm font-semibold sm:w-auto"
-              >
-                跳过提示
-              </button>
-              {currentPageIndex > 0 && (
-                <button
-                  type="button"
-                  onClick={goToPreviousPage}
-                  className="button-ghost inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[var(--border-default)] px-4 text-sm font-semibold sm:w-auto"
-                >
-                  上一页
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={goToNextPageOrClose}
-                className="button-primary inline-flex min-h-10 w-full items-center justify-center gap-2 px-5 text-sm font-semibold sm:w-auto sm:shrink-0"
-              >
-                {nextPage ? `下一页：${nextPage.title}` : content.actionLabel}
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      </div>
-    </>
+  return (
+    <DialogShell
+      isOpen
+      title={content.title}
+      description={content.subtitle}
+      icon={<BookOpen size={20} />}
+      onClose={onClose}
+      closeLabel="关闭玩前须知"
+      closeOnBackdrop={false}
+      contentKey={currentPageIndex}
+      navigation={
+        <Tabs
+          id={tabsId}
+          panelId={`${tabsId}-panel`}
+          label="提示主题"
+          value={String(currentPageIndex)}
+          options={content.pages.map((page, index) => ({
+            value: String(index),
+            label: page.title,
+          }))}
+          onChange={(value) => setActivePageIndex(Number(value))}
+        />
+      }
+      footer={
+        <>
+          <ActionButton variant="ghost" onClick={onClose} className="mr-auto">
+            跳过提示
+          </ActionButton>
+          {currentPageIndex > 0 && (
+            <ActionButton variant="ghost" onClick={goToPreviousPage}>
+              上一页
+            </ActionButton>
+          )}
+          <ActionButton
+            onClick={goToNextPageOrClose}
+            aria-label={nextPage ? `下一页：${nextPage.title}` : content.actionLabel}
+          >
+            {nextPage ? '下一页' : mode === 'solitaire' ? '开始模拟' : '进入对局'}
+          </ActionButton>
+        </>
+      }
+    >
+      <section
+        id={`${tabsId}-panel`}
+        role="tabpanel"
+        aria-labelledby={`${tabsId}-${currentPageIndex}`}
+        tabIndex={0}
+      >
+        <p className="mb-4 text-sm text-[var(--text-secondary)]">{currentPage.summary}</p>
+        <div className="divide-y divide-[var(--border-subtle)]">
+          {currentPage.sections.map((section) => {
+            const Icon = section.icon;
+            return (
+              <section key={section.title} className="py-4 first:pt-0 last:pb-0">
+                <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                  <Icon size={16} className="text-[var(--accent-primary)]" aria-hidden="true" />
+                  {section.title}
+                </h3>
+                <ul className="list-disc space-y-2 pl-5 text-[var(--text-secondary)]">
+                  {section.items.map((item, index) => (
+                    <li key={index}>{item}</li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
+      </section>
+    </DialogShell>
   );
-
-  if (typeof document === 'undefined') {
-    return modalContent;
-  }
-
-  return createPortal(modalContent, getPresentationPortalRoot());
 }
 
 export default PreMatchBriefingModal;
@@ -390,14 +330,23 @@ function createEffectPage(mode: PreMatchBriefingMode): BriefingPage {
             '页面卡住或刷新后，一般可以回到原来的房间和对局；如果状态有争议，先和对手确认再继续。',
           ],
         }
-      : {
-          title: '单人模拟',
-          icon: Hand,
-          items: [
-            '对手侧会自动处理一部分无输入流程；如果你要验证某段卡效，可以用手动区域操作把局面摆到需要的位置。',
-            '手动处理完一段卡文后，确认各区域和卡牌状态都符合文本，再继续推进下一步。',
-          ],
-        };
+      : mode === 'debug'
+        ? {
+            title: '双人调试',
+            icon: Hand,
+            items: [
+              '在同一设备操作双方；规则模式会在命令完成后跟随当前操作方，也可用视角入口切换。',
+              '每个视角仍只显示该玩家可见的信息；调试对局不会保存到历史。',
+            ],
+          }
+        : {
+            title: '单人模拟',
+            icon: Hand,
+            items: [
+              '对手侧会自动处理一部分无输入流程；如果你要验证某段卡效，可以用手动区域操作把局面摆到需要的位置。',
+              '手动处理完一段卡文后，确认各区域和卡牌状态都符合文本，再继续推进下一步。',
+            ],
+          };
 
   const sections: BriefingSection[] = [
     {
@@ -420,7 +369,7 @@ function createEffectPage(mode: PreMatchBriefingMode): BriefingPage {
   }
 
   return {
-    title: mode === 'online' ? '效果和协作' : '效果和模拟',
+    title: mode === 'online' ? '效果和协作' : mode === 'debug' ? '效果和调试' : '效果和模拟',
     summary:
       mode === 'online'
         ? '自动化未覆盖的卡文先沟通，再用共享桌面把结果落实。'
@@ -434,6 +383,14 @@ function getBriefingPages(mode: PreMatchBriefingMode): readonly BriefingPage[] {
 }
 
 function getBriefingContent(mode: PreMatchBriefingMode): BriefingContent {
+  if (mode === 'debug') {
+    return {
+      title: '双人调试操作提示',
+      subtitle: '阶段、区域和双方视角操作',
+      pages: getBriefingPages(mode),
+      actionLabel: '我知道了，继续调试',
+    };
+  }
   if (mode === 'solitaire') {
     return {
       title: '对墙打模拟提示',

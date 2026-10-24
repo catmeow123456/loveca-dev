@@ -190,8 +190,6 @@ test.describe('前端外层稳定性闭环', () => {
       .getByRole('button', { name: '双人调试', exact: true })
       .click();
     await expect(page.getByRole('heading', { name: '选择 Player 1 的卡组' })).toBeVisible();
-    await page.getByRole('button', { name: '下一步：选择 P2 卡组' }).click();
-    await page.getByRole('button', { name: '下一步：确认对局' }).click();
     await page.getByRole('button', { name: '开始对局' }).click();
 
     await expect(page.getByRole('banner', { name: '对战工具栏' })).toBeVisible();

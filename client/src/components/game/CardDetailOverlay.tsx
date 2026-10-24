@@ -8,7 +8,7 @@ import { PresentationImage } from '@/components/excel/PresentationRoot';
  * 桌面端悬停显示右侧详情，紧凑视口显示带遮罩的底部详情抽屉
  */
 
-import { memo, useCallback, useEffect } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
@@ -24,6 +24,7 @@ import {
 import { Card } from '@/components/card/Card';
 import { CardLocalizedEffect, CardLocalizedName } from '@/components/card/CardLocalizedInfo';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import type {
   AnyCardData,
   BladeHearts,
@@ -343,17 +344,6 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [card, closeDetail]);
 
-  useEffect(() => {
-    if (!card || !shouldUseCompactDrawer || typeof document === 'undefined') return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [card, shouldUseCompactDrawer]);
-
   if (textOnly)
     return card ? (
       <section className="excel-detail-dialog" role="dialog" aria-label="卡牌详情">
@@ -416,6 +406,8 @@ function MobileCardDetailDrawer({
   onClose: () => void;
 }) {
   const localizedName = getCardLocalizedInfo(card.cardData);
+  const dialogRef = useRef<HTMLElement>(null);
+  useDialogAccessibility({ isOpen: true, dialogRef, onEscape: onClose });
 
   return (
     <>
@@ -429,6 +421,7 @@ function MobileCardDetailDrawer({
       />
 
       <motion.section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={`${localizedName.title} 卡牌详情`}
@@ -471,7 +464,7 @@ function MobileCardDetailDrawer({
   );
 }
 
-function CardDetailContent({
+export function CardDetailContent({
   card,
   density,
 }: {

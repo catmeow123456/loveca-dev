@@ -134,12 +134,8 @@ test.describe('联机对局快捷表情', () => {
         })
       );
       // 双方各拉取一次房间视图标记到场，房间才会进入开局猜拳阶段。
-      await apiData(
-        await request.get(`/api/online/rooms/${roomCode}`, { headers: firstHeaders })
-      );
-      await apiData(
-        await request.get(`/api/online/rooms/${roomCode}`, { headers: secondHeaders })
-      );
+      await apiData(await request.get(`/api/online/rooms/${roomCode}`, { headers: firstHeaders }));
+      await apiData(await request.get(`/api/online/rooms/${roomCode}`, { headers: secondHeaders }));
       await apiData(
         await request.post(`/api/online/rooms/${roomCode}/opening-rps`, {
           headers: firstHeaders,
@@ -366,11 +362,11 @@ async function attachPlayerToRoom(page: Page, roomCode: string): Promise<void> {
 }
 
 async function finishOpeningMulligan(firstPage: Page, secondPage: Page): Promise<void> {
-  const firstKeepHand = firstPage.getByRole('button', { name: '保留手牌' });
+  const firstKeepHand = firstPage.getByRole('button', { name: '保留全部手牌' });
   await expect(firstKeepHand).toBeEnabled();
   await firstKeepHand.click();
 
-  const secondKeepHand = secondPage.getByRole('button', { name: '保留手牌' });
+  const secondKeepHand = secondPage.getByRole('button', { name: '保留全部手牌' });
   await expect(secondKeepHand).toBeEnabled();
   await secondKeepHand.click();
 

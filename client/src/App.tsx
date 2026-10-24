@@ -655,7 +655,7 @@ function AppContent() {
   const connectRemoteSession = useGameStore((s) => s.connectRemoteSession);
   const applyRemoteSnapshot = useGameStore((s) => s.applyRemoteSnapshot);
   const initDeckStore = useDeckStore((s) => s.init);
-  const [gameBriefingAcknowledged, setGameBriefingAcknowledged] = useState(false);
+  const [gameHelpRequested, setGameHelpRequested] = useState(false);
   const [isLeaveCurrentGameConfirmOpen, setIsLeaveCurrentGameConfirmOpen] = useState(false);
   const [isLeavingCurrentGame, setIsLeavingCurrentGame] = useState(false);
   const [isRestartCurrentGameConfirmOpen, setIsRestartCurrentGameConfirmOpen] = useState(false);
@@ -663,7 +663,6 @@ function AppContent() {
   const [isOnlineRoomImmersive, setIsOnlineRoomImmersive] = useState(false);
   const [isOnlineDebugImmersive, setIsOnlineDebugImmersive] = useState(false);
   const [isAiBattleImmersive, setIsAiBattleImmersive] = useState(false);
-  const gameBriefingKeyRef = useRef<string | null>(null);
   const solitaireRestoreAttemptedRef = useRef(false);
 
   useEffect(() => {
@@ -906,17 +905,7 @@ function AppContent() {
   const emailFeature = appConfig.features.email;
 
   useEffect(() => {
-    if (!gameBriefingKey) {
-      gameBriefingKeyRef.current = null;
-      return;
-    }
-
-    if (gameBriefingKeyRef.current === gameBriefingKey) {
-      return;
-    }
-
-    gameBriefingKeyRef.current = gameBriefingKey;
-    setGameBriefingAcknowledged(false);
+    setGameHelpRequested(false);
   }, [gameBriefingKey]);
 
   useEffect(() => {
@@ -1420,12 +1409,18 @@ function AppContent() {
 
   // 游戏进行中
   if (effectivePage === 'game' && matchView) {
-    const gameBriefingMode = capabilities.surface === 'SOLITAIRE' ? 'solitaire' : null;
+    const gameBriefingMode =
+      capabilities.surface === 'SOLITAIRE'
+        ? 'solitaire'
+        : capabilities.surface === 'LOCAL_DEBUG'
+          ? 'debug'
+          : null;
 
     return withPublicTableLayer(
       <BattleViewportShell>
         <AppSurfaceTiming surface="game" dataSource="battle-view" />
         <GameBoard
+          onShowHelp={gameBriefingMode ? () => setGameHelpRequested(true) : undefined}
           onRestartGame={
             currentGameRestartCopy
               ? () => {
@@ -1446,9 +1441,11 @@ function AppContent() {
         />
         {gameBriefingMode && (
           <PreMatchBriefingModal
-            isOpen={!gameBriefingAcknowledged}
+            isOpen={gameHelpRequested}
             mode={gameBriefingMode}
-            onClose={() => setGameBriefingAcknowledged(true)}
+            onClose={() => {
+              setGameHelpRequested(false);
+            }}
           />
         )}
         {currentGameLeaveConfirmCopy && (

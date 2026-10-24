@@ -467,7 +467,7 @@ test.describe('AI 管理员共享牌桌与只读观察', () => {
       expect(f.service.getSession(f.owner, id).enableThinking).toBe(true);
       await expect(page.locator('.ai-battle-toolbar')).toBeVisible();
       await page.screenshot({ path: '../output/playwright/ai-battle/board-opening-1600.png' });
-      await page.getByRole('button', { name: '保留手牌', exact: true }).click();
+      await page.getByRole('button', { name: '保留全部手牌', exact: true }).click();
       await expect
         .poll(
           () =>

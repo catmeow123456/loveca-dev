@@ -38,7 +38,7 @@ export function ExcelDeckSelector({
     : [];
   const card = cardCode ? cards.get(cardCode) : undefined;
   return (
-    <section className="excel-deck-selector">
+    <section className="excel-deck-selector" aria-label={title}>
       <h2>{title}</h2>
       {onRefresh && (
         <button onClick={onRefresh} disabled={loading}>

@@ -1181,6 +1181,7 @@ export function OnlineRoomPage({
     return (
       <BattleViewportShell>
         <GameBoard
+          onShowHelp={() => setBriefingAcknowledged(false)}
           judgmentPanelVisible={briefingAcknowledged || isMatchCompleted}
           desktopHeaderActions={roomHeaderActions}
           headerOverlay={roomHeaderOverlay}

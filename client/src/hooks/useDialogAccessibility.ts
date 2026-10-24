@@ -17,7 +17,7 @@ let bodyPositionBeforeLock = '';
 let bodyTopBeforeLock = '';
 let bodyWidthBeforeLock = '';
 let bodyScrollPosition = { x: 0, y: 0 };
-const openDialogStack: symbol[] = [];
+const openDialogStack: Array<{ token: symbol; ref: RefObject<HTMLElement | null> }> = [];
 
 function lockBodyScroll(): () => void {
   if (bodyScrollLockCount === 0) {
@@ -75,6 +75,8 @@ interface UseDialogAccessibilityOptions {
   readonly returnFocusRef?: RefObject<HTMLElement | null>;
   readonly onEscape?: () => void;
   readonly closeOnEscape?: boolean;
+  /** 阶段面板可保留房间、视角等明确开放的工具区；普通模态不传。 */
+  readonly additionalFocusRoots?: () => readonly HTMLElement[];
 }
 
 export function useDialogAccessibility({
@@ -84,6 +86,7 @@ export function useDialogAccessibility({
   returnFocusRef,
   onEscape,
   closeOnEscape = true,
+  additionalFocusRoots,
 }: UseDialogAccessibilityOptions): void {
   const covered = useAppPresentation((state) => state.covered);
   const textOnly = useTextPresentation();
@@ -101,7 +104,7 @@ export function useDialogAccessibility({
     }
 
     const dialogToken = Symbol('dialog');
-    openDialogStack.push(dialogToken);
+    openDialogStack.push({ token: dialogToken, ref: dialogRef });
     const previouslyFocused =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const fallbackReturnTarget = returnFocusRef?.current;
@@ -112,7 +115,7 @@ export function useDialogAccessibility({
     focusWithoutScrolling(focusTarget ?? dialog);
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (openDialogStack.at(-1) !== dialogToken) {
+      if (openDialogStack.at(-1)?.token !== dialogToken) {
         return;
       }
       const currentDialog = dialogRef.current;
@@ -132,6 +135,26 @@ export function useDialogAccessibility({
       }
 
       const focusableElements = getFocusableElements(currentDialog);
+      if (additionalFocusRoots) {
+        const scopedElements = Array.from(
+          new Set([...focusableElements, ...additionalFocusRoots().flatMap(getFocusableElements)])
+        );
+        if (scopedElements.length === 0) {
+          event.preventDefault();
+          focusWithoutScrolling(currentDialog);
+          return;
+        }
+        const index = scopedElements.indexOf(document.activeElement as HTMLElement);
+        const next =
+          index < 0
+            ? event.shiftKey
+              ? scopedElements.length - 1
+              : 0
+            : (index + (event.shiftKey ? -1 : 1) + scopedElements.length) % scopedElements.length;
+        event.preventDefault();
+        focusWithoutScrolling(scopedElements[next]);
+        return;
+      }
       if (focusableElements.length === 0) {
         event.preventDefault();
         focusWithoutScrolling(currentDialog);
@@ -159,7 +182,7 @@ export function useDialogAccessibility({
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      const dialogIndex = openDialogStack.lastIndexOf(dialogToken);
+      const dialogIndex = openDialogStack.findIndex((entry) => entry.token === dialogToken);
       const wasTopDialog = dialogIndex >= 0 && dialogIndex === openDialogStack.length - 1;
       if (dialogIndex >= 0) {
         openDialogStack.splice(dialogIndex, 1);
@@ -171,9 +194,14 @@ export function useDialogAccessibility({
         !previouslyFocused.closest('.worksheet-cover')
           ? previouslyFocused
           : fallbackReturnTarget;
-      if (wasTopDialog && returnTarget?.isConnected) {
-        focusWithoutScrolling(returnTarget);
+      if (wasTopDialog) {
+        if (returnTarget?.isConnected) focusWithoutScrolling(returnTarget);
+        else {
+          const underlyingDialog = openDialogStack.at(-1)?.ref.current;
+          if (underlyingDialog)
+            focusWithoutScrolling(getFocusableElements(underlyingDialog)[0] ?? underlyingDialog);
+        }
       }
     };
-  }, [dialogRef, initialFocusRef, returnFocusRef, isOpen, covered, textOnly]);
+  }, [dialogRef, initialFocusRef, returnFocusRef, isOpen, covered, textOnly, additionalFocusRoots]);
 }

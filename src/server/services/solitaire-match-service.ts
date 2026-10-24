@@ -35,7 +35,7 @@ import { revalidateRuntimeDeckPointSnapshot } from './deck-point-snapshot-valida
 const DEFAULT_SOLITAIRE_OPPONENT_DECK_PATH =
   process.env.SOLITAIRE_DEFAULT_OPPONENT_DECK_PATH ?? 'assets/decks/缪预组.yaml';
 const SOLITAIRE_SYSTEM_USER_ID = 'system:solitaire-opponent';
-const SOLITAIRE_SYSTEM_DISPLAY_NAME = '对手 (AI)';
+const SOLITAIRE_SYSTEM_DISPLAY_NAME = '对手（模拟）';
 
 interface SolitaireMatchServiceDeps {
   readonly now?: () => number;

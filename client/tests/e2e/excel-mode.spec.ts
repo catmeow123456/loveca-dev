@@ -160,19 +160,19 @@ test('practice and debug enter deck selection directly and retain progress acros
   await page.locator('summary').filter({ hasText: '练习与调试' }).click();
   await page.getByRole('button', { name: '对墙打', exact: true }).click();
   await expect(page.getByRole('heading', { name: '选择己方卡组', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '下一步：确认对局' }).click();
-  await expect(page.getByRole('region', { name: '对局确认' })).toContainText('在线记录');
+  await page.getByText('对局说明', { exact: true }).click();
+  await expect(page.getByRole('note')).toContainText('保存至历史');
+  await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: '开始对局', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: '上一步', exact: true }).click();
   await page.getByRole('button', { name: '取消准备', exact: true }).click();
   await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
 
   await page.locator('summary').filter({ hasText: '练习与调试' }).click();
   await page.getByRole('button', { name: '双人调试', exact: true }).click();
   await expect(page.getByRole('heading', { name: '选择 Player 1 的卡组' })).toBeVisible();
-  await page.getByRole('button', { name: '下一步：选择 P2 卡组' }).click();
-  await expect(page.getByRole('heading', { name: '选择 Player 2 的卡组' })).toBeVisible();
-  const selectedDeck = await page.getByRole('row', { selected: true }).innerText();
+  if (page.viewportSize()!.width < 768) await page.getByRole('tab', { name: /Player 2/ }).click();
+  const p2 = page.getByRole('region', { name: '选择 Player 2 的卡组', exact: true });
+  const selectedDeck = await p2.getByRole('row', { selected: true }).innerText();
   expect(media).toEqual([]);
   expect(await page.evaluate(() => (window as any).excelAudioCalls)).toBe(0);
   await page.locator('.excel-view-menu summary').click();
@@ -184,13 +184,13 @@ test('practice and debug enter deck selection directly and retain progress acros
   await expect(page.getByRole('heading', { name: '选择 Player 2 的卡组' })).toBeVisible();
   await page.getByRole('button', { name: '切换到 Excel 模式', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-presentation', 'excel');
-  await expect(page.getByRole('row', { selected: true })).toHaveText(selectedDeck, {
+  await expect(p2.getByRole('row', { selected: true })).toHaveText(selectedDeck, {
     useInnerText: true,
   });
   await expect(page.getByRole('heading', { name: '选择 Player 2 的卡组' })).toBeVisible();
-  await page.getByRole('button', { name: '下一步：确认对局' }).click();
-  await expect(page.getByRole('region', { name: '对局确认' })).toContainText('本地模拟');
-  await expect(page.getByRole('region', { name: '对局确认' })).toContainText('对方卡组');
+  await page.getByText('对局说明', { exact: true }).click();
+  await expect(page.getByRole('note')).toContainText('不保存');
+  await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: '开始对局', exact: true })).toBeEnabled();
   await page.screenshot({ path: info.outputPath('excel-debug-confirm.png'), fullPage: true });
 
@@ -211,17 +211,18 @@ test('empty practice decks cannot advance and retain access to deck management',
   await page.route('**/api/decks', (route) => route.fulfill({ json: { data: [], error: null } }));
   const media = observeMedia(page);
   await page.goto('/?page=battle-lobby');
+  await page.locator('summary').filter({ hasText: '练习与调试' }).click();
   await page.getByRole('button', { name: '对墙打', exact: true }).click();
-  await expect(page.getByRole('button', { name: '下一步：确认对局' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '开始对局' })).toBeDisabled();
   await expect(page.getByRole('button', { name: '管理卡组', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '双人调试', exact: true }).click();
   await expect(page.getByRole('heading', { name: '选择 Player 1 的卡组' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '下一步：选择 P2 卡组' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '开始对局' })).toBeDisabled();
   await page.screenshot({
     path: info.outputPath('excel-empty-practice-decks.png'),
     fullPage: true,
   });
-  await page.getByRole('button', { name: '管理卡组', exact: true }).click();
+  await page.getByRole('button', { name: '管理卡组', exact: true }).first().click();
   await expect(page.getByRole('heading', { name: '此页面使用普通界面' })).toBeVisible();
   expect(media).toEqual([]);
 });

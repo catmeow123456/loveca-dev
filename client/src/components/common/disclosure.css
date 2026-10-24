@@ -1,0 +1,36 @@
+.ui-disclosure {
+  position: relative;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+.ui-disclosure > summary {
+  width: fit-content;
+  min-height: 36px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+.ui-disclosure > summary:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
+}
+.ui-disclosure-content {
+  padding: 4px 0 12px;
+}
+.ui-disclosure-popover {
+  position: fixed;
+  z-index: 210;
+  visibility: hidden;
+  width: min(320px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  padding: 14px 16px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-md);
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}

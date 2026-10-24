@@ -1277,7 +1277,7 @@ test.describe('focused browser regressions', () => {
     await expect(page.getByRole('button', { name: /赛季排位/ })).toBeVisible();
   });
 
-  test('手机端对墙打确认页的开始与返回操作互不遮挡', async ({ page }, testInfo) => {
+  test('手机短视口选组页的开始与取消操作互不遮挡', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile-390x844', '短视口回归只需执行一次');
 
     await page.setViewportSize({ width: 390, height: 667 });
@@ -1286,20 +1286,18 @@ test.describe('focused browser regressions', () => {
     await expect(page.getByRole('heading', { name: '选择己方卡组', exact: true })).toBeVisible();
 
     await expect(page.getByRole('button', { name: 'E2E 移动验收卡组' })).toBeVisible();
-    await page.getByRole('button', { name: '下一步：确认对局' }).click();
     await waitForStableApp(page);
 
-    const previousButton = page.getByRole('button', { name: '上一步' });
+    const previousButton = page.getByRole('button', { name: '取消准备' });
     const startButton = page.getByRole('button', { name: '开始对局' });
     await expect(previousButton).toBeVisible();
     await expect(startButton).toBeVisible();
-    await expect(page.getByText('在线记录：本局会保存到历史并可复盘')).toBeVisible();
-    await expectElementWithinVisualViewport(page, 'button:has-text("上一步")', '对墙打上一步');
+    await expectElementWithinVisualViewport(page, 'button:has-text("取消准备")', '对墙打取消准备');
     await expectElementWithinVisualViewport(page, 'button:has-text("开始对局")', '对墙打开始对局');
 
     const actionGeometry = await page.evaluate(() => {
       const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button'));
-      const previous = buttons.find((button) => button.textContent?.trim() === '上一步');
+      const previous = buttons.find((button) => button.textContent?.trim() === '取消准备');
       const start = buttons.find((button) => button.textContent?.trim() === '开始对局');
       if (!previous || !start) return null;
 
@@ -1331,10 +1329,10 @@ test.describe('focused browser regressions', () => {
       startReceivesPointer: true,
     });
     await startButton.click({ trial: true });
-    await attachScreenshot(page, testInfo, 'game-setup-solitaire-mobile-confirm');
+    await attachScreenshot(page, testInfo, 'game-setup-solitaire-mobile-start');
 
     await previousButton.click();
-    await expect(page.getByText('选择己方卡组', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
   });
 
   test('新建卡组默认包含 12 张能量卡', async ({ page }, testInfo) => {
@@ -1651,8 +1649,10 @@ test.describe('focused browser regressions', () => {
 
     if ((page.viewportSize()?.width ?? 0) < 768) {
       await page.getByRole('button', { name: '导入', exact: true }).click();
-      await page.getByRole('dialog', { name: '导入卡组' })
-        .getByRole('button', { name: /从小能苗导入/ }).click();
+      await page
+        .getByRole('dialog', { name: '导入卡组' })
+        .getByRole('button', { name: /从小能苗导入/ })
+        .click();
     } else {
       await page.getByRole('button', { name: '从小能苗导入' }).click();
     }
@@ -1669,15 +1669,9 @@ test.describe('focused browser regressions', () => {
       'description: 从复制的文本导入',
       'main_deck:',
       '  members:',
-      ...MEMBER_CARDS.flatMap((card) => [
-        `    - card_code: ${card.card_code}`,
-        '      count: 4',
-      ]),
+      ...MEMBER_CARDS.flatMap((card) => [`    - card_code: ${card.card_code}`, '      count: 4']),
       '  lives:',
-      ...LIVE_CARDS.flatMap((card) => [
-        `    - card_code: ${card.card_code}`,
-        '      count: 1',
-      ]),
+      ...LIVE_CARDS.flatMap((card) => [`    - card_code: ${card.card_code}`, '      count: 1']),
       'energy_deck:',
       `  - card_code: ${ENERGY_CARD.card_code}`,
       '    count: 12',

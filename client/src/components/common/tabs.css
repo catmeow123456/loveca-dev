@@ -1,0 +1,42 @@
+.ui-choice-control {
+  display: flex;
+  min-width: 0;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
+  background: var(--bg-overlay);
+}
+.ui-choice-label {
+  display: inline-flex;
+  flex: 1;
+  min-width: 0;
+  min-height: var(--control-height);
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.ui-choice-label[aria-selected='true'] {
+  border-color: var(--border-active);
+  background: var(--bg-surface);
+  color: var(--accent-primary);
+}
+.ui-choice-label:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
+}
+.ui-choice-label:hover {
+  background: var(--bg-surface);
+}
+.ui-choice-control:disabled .ui-choice-label {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

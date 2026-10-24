@@ -149,3 +149,17 @@
     transition: none;
   }
 }
+
+.deck-selector-grid-root {
+  container: deck-selector / inline-size;
+}
+.deck-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@container deck-selector (min-width: 640px) {
+  .deck-selector-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

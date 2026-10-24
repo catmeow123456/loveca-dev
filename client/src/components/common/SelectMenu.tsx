@@ -13,6 +13,7 @@ export interface SelectMenuOption<Value extends string> {
 
 export interface SelectMenuProps<Value extends string> {
   readonly label: string;
+  readonly triggerLabel?: ReactNode;
   readonly value: Value;
   readonly options: readonly SelectMenuOption<Value>[];
   readonly onChange: (value: Value) => void;
@@ -24,6 +25,7 @@ export interface SelectMenuProps<Value extends string> {
 
 export function SelectMenu<Value extends string>({
   label,
+  triggerLabel,
   value,
   options,
   onChange,
@@ -134,10 +136,10 @@ export function SelectMenu<Value extends string>({
         className={`group inline-flex h-10 min-w-0 items-center justify-between gap-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 text-left text-sm font-medium text-[var(--text-primary)] shadow-sm transition-[border-color,box-shadow,background-color] hover:border-[color:color-mix(in_srgb,var(--accent-primary)_45%,var(--border-default))] hover:bg-[var(--bg-elevated)] focus-visible:border-[var(--accent-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)] disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
       >
         <span className="flex min-w-0 items-center gap-2">
-          {selectedOption?.leading ? (
+          {!triggerLabel && selectedOption?.leading ? (
             <span className="shrink-0">{selectedOption.leading}</span>
           ) : null}
-          <span className="truncate">{selectedOption?.label ?? '暂无选项'}</span>
+          <span className="truncate">{triggerLabel ?? selectedOption?.label ?? '暂无选项'}</span>
         </span>
         {loading ? (
           <Loader2 size={14} className="shrink-0 animate-spin text-[var(--accent-primary)]" />

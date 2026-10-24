@@ -91,17 +91,23 @@
 
 组件统一从 `client/src/components/common` 导出，按职责使用：
 
-| 层次 | 当前模块 | 职责 |
-| --- | --- | --- |
-| 视觉基础 | `VisualPrimitives.tsx` | `ActionButton`、`TextInput`、`Panel`、`SectionHeading`、`StatusBadge`；标题通过 `size="compact"` 支持紧凑工具区 |
-| 异步反馈 | `AsyncFeedback.tsx` | `LoadingState`、`EmptyState`、`ErrorNotice`；统一可读状态、空结果和可选重试入口 |
-| 页面外壳与通用交互 | `ProductFrame`、`ProductHeader`、`PageHeader`、`ConfirmDialog`、`SelectMenu` | 导航、页面标题、确认与选择交互 |
-| 业务组件 | `DeckSelector`、`DeckStats`、`CasualRuleSelector` | 卡组、构筑与模式等领域展示，复用基础控件 |
-| 交互行为 | `hooks/useDialogAccessibility.ts` | 对话框焦点、Escape 与背景交互隔离 |
+| 层次               | 当前模块                                                                                                          | 职责                                                                                                                                |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 视觉基础           | `VisualPrimitives.tsx`                                                                                            | `ActionButton`、`TextInput`、`Panel`、`SectionHeading`、`StatusBadge`；按钮含危险操作变体，标题通过 `size="compact"` 支持紧凑工具区 |
+| 异步反馈           | `AsyncFeedback.tsx`                                                                                               | `LoadingState`、`EmptyState`、`ErrorNotice`；统一可读状态、空结果和可选重试入口                                                     |
+| 页面外壳与通用交互 | `ProductFrame`、`ProductHeader`、`PageHeader`、`DialogShell`、`ConfirmDialog`、`SelectMenu`、`Tabs`、`Disclosure` | 导航、页面标题、对话框、页签与模式单选                                                                                              |
+| 业务组件           | `DeckSelector`、`DeckStats`、`CasualRuleSelector`                                                                 | 卡组、构筑与模式等领域展示，复用基础控件                                                                                            |
+| 交互行为           | `hooks/useDialogAccessibility.ts`                                                                                 | 对话框焦点、Escape 与背景交互隔离                                                                                                   |
 
 基础组件不读取接口、不维护业务请求或决定重试动作。调用方提供状态内容、`onRetry` 和 `retryDisabled`；`EmptyState` 的后续操作通过 `action` 传入。加载和空状态可选 `plain` / `panel` 外观，外部间距由调用方控制。历史页与卡组选择器已共用这组异步反馈。
 
 `panel` 状态使用轻量底色、实线细边框和面板圆角，不用深色占位块或虚线扩大视觉重量。模式、来源等分类优先使用普通辅助文字；真正的完成、警告与错误状态复用 `StatusBadge`。历史页的节点切换和手机回放入口复用 `ActionButton`，不另设按钮字阶。
+
+`DialogShell` 统一标题、固定导航、独立滚动正文和底部操作，复用共享焦点管理；提示内容切换时重置正文滚动，`ConfirmDialog` 只决定确认语义。`Tabs` 提供页签状态与方向键导航；`SelectMenu` 承担按需展开的模式切换；`Disclosure` 使用原生 details/summary 展开少数用户需要的说明；操作区附近用 `variant="popover"` 将内容放入独立浮层，正文内容可保留内联展开。
+
+常驻内容只保留当前选择、必要状态与主操作；换牌规则及对局记录等低频说明按需展开，错误与阻塞原因直接可见。对墙打与双人调试在选组页直接开始，不设独立确认页；双人调试桌面并排选择双方卡组，窄屏用页内玩家切换保留两侧选择。依据 [NN/g 渐进式披露](https://www.nngroup.com/articles/progressive-disclosure/)与 [GOV.UK Details](https://design-system.service.gov.uk/components/details/)，这里按本项目任务作出信息分层判断，尚未进行用户研究。
+
+换牌保留专用阶段面板：桌面卡牌详情在预留的右侧空间显示，可关闭；悬停、选牌与展开说明不改变卡牌、面板或确认按钮的位置，手机长按使用共享详情抽屉；Tab 只进入选牌和明确开放的房间、视角、设置工具区。关闭嵌套提示或详情后回到原操作或仍打开的阶段面板，不把必要的房间入口锁在普通模态之外。底部保留正常内边距，安全区不能覆盖这段留白。未选牌时主操作为保留全部手牌，选牌后为更换对应张数；教程保留指定候选和确认步骤。
 
 页面 CSS 只设置页面结构与业务布局，不用宽泛的 `button`、`input`、`h2` 后代选择器覆盖共享组件的尺寸、排版和状态。原生选择条目仍可保留专用组件，不为统一外观将所有可点击内容都改成普通操作按钮。优先扩展已有组件的明确变体，出现实际复用需求时再提取组件，不为一次性结构建立通用配置框架。
 

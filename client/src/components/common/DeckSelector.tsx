@@ -3,7 +3,7 @@ import type { CasualRuleMode } from '@game/online/casual-table-types';
 import { useTextPresentation } from '@/lib/appPresentation';
 import { ExcelDeckSelector } from '@/components/excel/ExcelDeckSelector';
 import { PresentationImage } from '@/components/excel/PresentationRoot';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Check, Database, History, Layers3, RefreshCw } from 'lucide-react';
 import { ActionButton, TextInput } from './VisualPrimitives';
 import { EmptyState, ErrorNotice, LoadingState } from './AsyncFeedback';
@@ -37,6 +37,7 @@ interface DeckSelectorProps {
   error?: string | null;
   onRefresh?: () => void;
   title?: string;
+  headerAction?: ReactNode;
   subtitle?: string;
   emptyText?: string;
   density?: DeckSelectorDensity;
@@ -59,6 +60,7 @@ export function DeckSelector({
   error = null,
   onRefresh,
   title = '选择卡组',
+  headerAction,
   subtitle = '',
   emptyText = '还没有可用卡组。',
   density = 'comfortable',
@@ -181,7 +183,9 @@ export function DeckSelector({
     <section
       ref={sectionRef}
       className={
-        isList ? 'deck-selector-list' : 'surface-panel-frosted flex h-full flex-col overflow-hidden'
+        isList
+          ? 'deck-selector-list'
+          : 'surface-panel-frosted deck-selector-grid-root flex h-full flex-col overflow-hidden'
       }
       aria-label={title}
     >
@@ -200,17 +204,20 @@ export function DeckSelector({
             <p className="mt-0.5 truncate text-sm text-[var(--text-muted)]">{subtitle}</p>
           )}
         </div>
-        {onRefresh && (
-          <ActionButton
-            variant="icon"
-            onClick={onRefresh}
-            disabled={isLoading || isRefreshing}
-            className="shrink-0"
-            aria-label="刷新卡组"
-          >
-            <RefreshCw size={16} className={isLoading || isRefreshing ? 'animate-spin' : ''} />
-          </ActionButton>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {headerAction}
+          {onRefresh && (
+            <ActionButton
+              variant="icon"
+              onClick={onRefresh}
+              disabled={isLoading || isRefreshing}
+              className="shrink-0"
+              aria-label="刷新卡组"
+            >
+              <RefreshCw size={16} className={isLoading || isRefreshing ? 'animate-spin' : ''} />
+            </ActionButton>
+          )}
+        </div>
       </div>
 
       {isList && displayDecks.length >= 6 && (
@@ -271,7 +278,7 @@ export function DeckSelector({
               ? 'deck-selector-rows'
               : selectableDecks.length === 1
                 ? 'mx-auto grid max-w-[280px] grid-cols-1 gap-3'
-                : 'grid grid-cols-2 gap-3 sm:grid-cols-3'
+                : 'deck-selector-grid'
           }
         >
           {(isList ? matchingDecks : selectableDecks).map((deck) => {
