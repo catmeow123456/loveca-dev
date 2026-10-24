@@ -303,6 +303,43 @@ describe('battle animation events', () => {
     });
   });
 
+  it.each([0, 12])(
+    'keeps scrolled hand sources outside a %ipx faded edge with their dimensions and pose',
+    (fade) => {
+      const elements = [-80, 180, 420].map((left, index) => {
+        const element = fakeAnchorElement({ objectId: `obj_${index}`, left, top: 400 });
+        return Object.assign(element, {
+          offsetWidth: 48,
+          offsetHeight: 67.2,
+          closest: (selector: string) => {
+            if (selector === '[data-hand-viewport]')
+              return {
+                getBoundingClientRect: () => ({ left: 100, right: 300 }),
+                dataset: { handFadeStart: String(fade), handFadeEnd: String(fade) },
+              };
+            if (selector === '[data-hand-card-slot]')
+              return { dataset: { handCardRotation: '-5' } };
+            return null;
+          },
+        });
+      });
+      const collected = withFakeDocument(
+        {
+          querySelectorAll: (selector: string) =>
+            selector === '[data-object-id]'
+              ? (elements as unknown as NodeListOf<HTMLElement>)
+              : ([] as unknown as NodeListOf<HTMLElement>),
+        },
+        collectBattleAnimationAnchors
+      );
+      expect([...collected.cards.values()]).toEqual([
+        expect.objectContaining({ left: 100 + fade, width: 48, height: 67.2, rotation: -5 }),
+        expect.objectContaining({ left: 181, width: 48, height: 67.2, rotation: -5 }),
+        expect.objectContaining({ left: 252 - fade, width: 48, height: 67.2, rotation: -5 }),
+      ]);
+    }
+  );
+
   it('collects object locations across lists, slots, overlays, and memberBelow', () => {
     const state = viewState({
       zones: {

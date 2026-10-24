@@ -224,7 +224,52 @@ html {
     color 300ms ease;
 }
 
+.battle-hand-browse {
+  position: absolute;
+  top: calc(50% + 10px);
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 32px;
+  padding: 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--bg-frosted) 35%, transparent);
+  opacity: 0.75;
+  cursor: pointer;
+  transition: opacity 120ms ease-out;
+}
+
+.battle-hand-browse:hover,
+.battle-hand-browse:focus-visible {
+  opacity: 1;
+}
+
+.battle-hand-browse:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
+}
+
+.battle-hand-browse:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
 @media (max-width: 767px) {
+  .battle-hand-zone[data-battle-ui-anchor='self-hand'] {
+    --battle-hand-card-width: 56px;
+    --battle-hand-card-height: 78.4px;
+    height: 108px;
+    padding: 0;
+  }
+
+  .battle-drag-hand-card {
+    width: 56px;
+    height: 78.4px;
+  }
+
   html {
     scrollbar-gutter: auto;
   }
@@ -586,11 +631,11 @@ select {
   }
 
   .battle-mobile-tabletop-content {
-    /* Keep the stage and all three resource piles within the available battle height. */
-    --battle-mobile-stage-card-width: clamp(
-      44px,
-      calc((100cqh - 152px) * 35 / 74),
-      clamp(58px, 18vw, 82px)
+    /* Keep compact cards readable; the tabletop scrolls when height is insufficient. */
+    --battle-mobile-stage-column-width: calc((100cqw - 5.5rem - 10px) / 3);
+    --battle-mobile-stage-card-width: min(
+      clamp(58px, calc((100cqh - 152px) * 35 / 74), clamp(58px, 18vw, 82px)),
+      var(--battle-mobile-stage-column-width)
     );
     --battle-mobile-resource-card-height: clamp(40px, calc((100cqh - 200px) / 3), 72px);
   }
@@ -669,6 +714,71 @@ select {
   }
 }
 
+/* Reserve all playing zones on short phones; hand growth is horizontal. */
+@media (max-width: 767px) and (max-height: 640px) {
+  .battle-mobile-phase-header :is(button, .h-9) {
+    height: 32px;
+    min-height: 32px;
+  }
+
+  .battle-mobile-workspace {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 104px);
+  }
+
+  .battle-mobile-actions {
+    bottom: calc(env(safe-area-inset-bottom) + 72px);
+  }
+
+  .battle-mobile-surface [data-battle-ui-anchor='self-area'] {
+    padding: 4px;
+  }
+
+  .battle-mobile-tabletop-content {
+    --battle-mobile-resource-card-height: clamp(24px, calc((100cqh - 168px) / 3), 48px);
+    padding-block: 1px;
+  }
+
+  [data-mobile-battle-core] {
+    gap: 8px;
+    padding-block: 1px;
+  }
+
+  .battle-live-requirements {
+    bottom: -12px;
+  }
+
+  .battle-support-zone {
+    height: 80px;
+  }
+
+  .battle-success-zone {
+    --battle-success-width: 70px;
+    --battle-success-height: 50px;
+    --battle-success-step-y: 4px;
+    width: 80px;
+  }
+
+  .battle-hand-zone[data-battle-ui-anchor='self-hand'] {
+    --battle-hand-card-width: 48px;
+    --battle-hand-card-height: 67.2px;
+    height: 96px;
+  }
+
+  .battle-drag-hand-card {
+    width: 48px;
+    height: 67.2px;
+  }
+
+  .battle-mobile-player-communication {
+    width: 28px;
+  }
+
+  [data-match-emote-launcher] {
+    width: 28px;
+    height: 28px;
+  }
+}
+
 @media (min-width: 768px) {
   .battle-live-zone {
     --battle-live-extension: 8px;
@@ -694,15 +804,35 @@ select {
     bottom: auto;
   }
 
-  .battle-hand-zone {
+  .battle-table {
     --battle-hand-card-width: clamp(
       60px,
       calc(60px + (var(--battle-viewport-height) - 768px) * 15 / 132),
       75px
     );
     --battle-hand-card-height: calc(var(--battle-hand-card-width) * 7 / 5);
-    --battle-hand-max-step: calc(var(--battle-hand-card-width) * 64 / 75);
-    height: clamp(96px, calc(96px + (var(--battle-viewport-height) - 768px) * 16 / 132), 112px);
+  }
+
+  .battle-hand-zone {
+    height: calc(
+      clamp(96px, calc(96px + (var(--battle-viewport-height) - 768px) * 16 / 132), 112px) +
+        var(--battle-hand-clearance, 0px)
+    );
+    padding: 0 var(--battle-hand-end, 0px) var(--battle-hand-clearance, 0px)
+      var(--battle-hand-start, 0px);
+  }
+
+  .battle-hand-viewport {
+    top: -12px;
+  }
+
+  .battle-hand-browse {
+    top: 50%;
+  }
+
+  .battle-drag-hand-card {
+    width: var(--battle-hand-card-width);
+    height: var(--battle-hand-card-height);
   }
 
   .battle-success-zone {

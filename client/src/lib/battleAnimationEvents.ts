@@ -9,6 +9,17 @@ export interface BattleAnimationRect {
   readonly top: number;
   readonly width: number;
   readonly height: number;
+  readonly rotation?: number;
+}
+
+export const BATTLE_ANIMATION_DRAG_RELEASE = 'battle-animation-drag-release';
+
+export function notifyBattleAnimationDragRelease(objectId: string, rect: DOMRect): void {
+  document.dispatchEvent(
+    new CustomEvent(BATTLE_ANIMATION_DRAG_RELEASE, {
+      detail: { objectId, rect: { ...rectFromDomRect(rect), rotation: 0 } },
+    })
+  );
 }
 
 export interface BattleAnimationCardAnchor extends BattleAnimationRect {
@@ -275,6 +286,31 @@ export function getDiscardPresentationBatchLayout({
   };
 }
 
+/** Use the same visible hand edge for ordinary movement and live recovery targets. */
+export function measureBattleAnimationCardRect(element: HTMLElement): BattleAnimationRect {
+  const rect = rectFromDomRect(element.getBoundingClientRect());
+  const handViewport = element.closest<HTMLElement>('[data-hand-viewport]');
+  if (!handViewport) return rect;
+  const viewport = handViewport.getBoundingClientRect();
+  const width = element.offsetWidth;
+  const height = element.offsetHeight;
+  const visibleLeft = viewport.left + Number(handViewport.dataset?.handFadeStart ?? 0);
+  const visibleRight = viewport.right - Number(handViewport.dataset?.handFadeEnd ?? 0);
+  return {
+    left: clampNumber(
+      rect.left + (rect.width - width) / 2,
+      visibleLeft,
+      Math.max(visibleLeft, visibleRight - width)
+    ),
+    top: rect.top + (rect.height - height) / 2,
+    width,
+    height,
+    rotation: Number(
+      element.closest<HTMLElement>('[data-hand-card-slot]')?.dataset.handCardRotation ?? 0
+    ),
+  };
+}
+
 export function collectBattleAnimationAnchors(): BattleAnimationAnchorMaps {
   const cards = new Map<string, BattleAnimationCardAnchor>();
   const zones = new Map<string, BattleAnimationRect>();
@@ -288,7 +324,7 @@ export function collectBattleAnimationAnchors(): BattleAnimationAnchorMaps {
       return;
     }
     cards.set(objectId, {
-      ...rectFromDomRect(element.getBoundingClientRect()),
+      ...measureBattleAnimationCardRect(element),
       imageSrc: findRenderedImageSrc(element),
     });
   });

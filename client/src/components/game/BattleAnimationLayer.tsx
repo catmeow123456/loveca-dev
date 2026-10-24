@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { getDeckBackUrl } from '@/lib/imageService';
 import {
   collectBattleAnimationAnchors,
+  BATTLE_ANIMATION_DRAG_RELEASE,
   collectBattleObjectLocations,
   createBattleAnimationEventsFromViewDiff,
   createDiscardPresentationBatchEvent,
@@ -111,6 +112,66 @@ export function BattleAnimationLayer() {
   const visibleDiscardSeatsRef = useRef(new Map<string, BattleAnimationSeat>());
   const pendingRecoveriesRef = useRef<PendingRecoveryPresentation[]>([]);
   const recentDiscardSourceAnchorsRef = useRef(new Map<string, RecentDiscardSourceAnchor>());
+
+  useEffect(() => {
+    let released: {
+      objectId: string;
+      rect: BattleAnimationRect;
+      view: PlayerViewState | null;
+    } | null = null;
+    const refresh = () => {
+      // Do not replace the old snapshot with newly committed DOM before its diff.
+      if (previousViewRef.current !== useGameStore.getState().playerViewState) return;
+      if (released?.view !== previousViewRef.current) released = null;
+      const anchors = collectBattleAnimationAnchors();
+      const anchor = released && anchors.cards.get(released.objectId);
+      previousAnchorsRef.current =
+        released && anchor
+          ? {
+              ...anchors,
+              cards: new Map(anchors.cards).set(released.objectId, { ...anchor, ...released.rect }),
+            }
+          : anchors;
+    };
+    const onPointerDown = () => {
+      released = null;
+      refresh();
+    };
+    const onDragRelease = (event: Event) => {
+      const { objectId, rect } = (
+        event as CustomEvent<{ objectId: string; rect: BattleAnimationRect }>
+      ).detail;
+      // Retain the release pose while awaiting the command, including a remote ACK.
+      released = { objectId, rect, view: previousViewRef.current };
+      refresh();
+    };
+    const unsubscribe = useGameStore.subscribe((state, previous) => {
+      if (
+        state.ui.battleFeedbackEvents !== previous.ui.battleFeedbackEvents &&
+        state.ui.battleFeedbackEvents.some(
+          (event) =>
+            event.tone === 'error' &&
+            !previous.ui.battleFeedbackEvents.some((old) => old.id === event.id)
+        )
+      ) {
+        released = null;
+        refresh();
+      }
+    });
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('scroll', refresh, true);
+    document.addEventListener('transitionend', refresh);
+    window.addEventListener('resize', refresh);
+    document.addEventListener(BATTLE_ANIMATION_DRAG_RELEASE, onDragRelease);
+    return () => {
+      unsubscribe();
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('scroll', refresh, true);
+      document.removeEventListener('transitionend', refresh);
+      window.removeEventListener('resize', refresh);
+      document.removeEventListener(BATTLE_ANIMATION_DRAG_RELEASE, onDragRelease);
+    };
+  }, []);
 
   useEffect(() => {
     const scheduledEventTimeouts = scheduledEventTimeoutsRef.current;
@@ -842,8 +903,8 @@ function MovingCard({
   const toCenter = getRectCenter(event.toRect);
   const fromRect = normalizeCardMoveRect(event, event.fromRect, 'from');
   const toRect = normalizeCardMoveRect(event, event.toRect, 'to');
-  const startRotate = getCardMoveRotation(event.fromZoneType);
-  const endRotate = getCardMoveRotation(event.toZoneType);
+  const startRotate = event.fromRect.rotation ?? getCardMoveRotation(event.fromZoneType);
+  const endRotate = event.toRect.rotation ?? getCardMoveRotation(event.toZoneType);
   const startWidth = clamp(fromRect.width || toRect.width, 12, 140);
   const startHeight = clamp(fromRect.height || toRect.height, 16, 196);
   const endWidth = clamp(toRect.width || fromRect.width, 12, 140);
@@ -872,6 +933,7 @@ function MovingCard({
   return (
     <motion.div
       data-battle-card-move={event.render.objectId}
+      data-battle-card-move-target={JSON.stringify(event.toRect)}
       className="fixed overflow-hidden rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_82%,white)] bg-[var(--bg-overlay)] shadow-[0_10px_28px_rgba(0,0,0,0.34),0_1px_0_rgba(255,255,255,0.08)_inset]"
       style={{
         width: startWidth,
@@ -1029,7 +1091,7 @@ export function DiscardPresentationBatch({
               transformOrigin: 'center center',
               willChange: 'transform, width, height, opacity',
             }}
-            initial={{ opacity: 0.94, x: 0, y: 0, rotate: 0 }}
+            initial={{ opacity: 0.94, x: 0, y: 0, rotate: card.fromRect.rotation ?? 0 }}
             animate={{
               ...getWaitingRoomCardKeyframes(
                 {
@@ -1037,7 +1099,7 @@ export function DiscardPresentationBatch({
                   top: startTop,
                   width: startWidth,
                   height: startHeight,
-                  rotation: 0,
+                  rotation: card.fromRect.rotation ?? 0,
                 },
                 revealRect,
                 { left: endLeft, top: endTop, width: endWidth, height: endHeight, rotation: 0 }

@@ -75,6 +75,7 @@ import { Card } from '@/components/card/Card';
 import { CardEffectText } from '@/components/card/CardEffectText';
 import { CardModifierBadgeStack } from '@/components/card/CardModifierBadgeStack';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
+import { HandLayout } from './HandLayout';
 import { DraggableCard, DroppableZone } from './interaction';
 import {
   WaitingRoomJudgmentStatsDetail,
@@ -404,7 +405,63 @@ export const PlayerArea = memo(function PlayerArea({
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
   const isMobileBoard = useMediaQuery('(max-width: 767px)');
   const desktopCoreRef = useRef<HTMLDivElement>(null);
+  const desktopHandRowRef = useRef<HTMLDivElement>(null);
   const hasPlayerIdentity = playerIdentity !== null;
+  useLayoutEffect(() => {
+    const row = desktopHandRowRef.current;
+    if (isMobileBoard || !hasPlayerIdentity || !row) return;
+    const hand = row.querySelector<HTMLElement>('.battle-hand-zone');
+    const energy = row.querySelector<HTMLElement>('[data-battle-ui-anchor="self-energy-zone"]');
+    let phase = row
+      .closest('[data-battle-ui-anchor="battle-board"]')
+      ?.querySelector<HTMLElement>('[data-battle-ui-anchor="phase-controls"]');
+    const summary = row.parentElement?.querySelector<HTMLElement>('[data-hand-owner-summary]');
+    if (!hand || !energy) return;
+    const measure = () => {
+      const bounds = row.getBoundingClientRect();
+      const start = Math.max(16, energy.getBoundingClientRect().right - bounds.left + 12);
+      const end = phase ? Math.max(16, bounds.right - phase.getBoundingClientRect().left + 12) : 16;
+      // A narrow desktop puts cards above the fixed phase toolbar instead of
+      // collapsing the browsing window between two large sets of controls.
+      const stacked = bounds.width - start - end < 180;
+      hand.style.setProperty('--battle-hand-start', `${start}px`);
+      hand.style.setProperty(
+        '--battle-hand-end',
+        `${stacked && summary ? Math.max(16, bounds.right - summary.getBoundingClientRect().left + 12) : stacked ? 16 : end}px`
+      );
+      hand.style.setProperty(
+        '--battle-hand-clearance',
+        stacked && phase ? `${phase.getBoundingClientRect().height + 8}px` : '0px'
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    observer.observe(energy);
+    if (phase) observer.observe(phase);
+    if (summary) observer.observe(summary);
+    // The phase controls are portalled into a later sibling's ref on first mount.
+    // Bind after that commit, while keeping all geometry scoped to this board.
+    let mounted = true;
+    queueMicrotask(() => {
+      if (!mounted) return;
+      const controls = row
+        .closest('[data-battle-ui-anchor="battle-board"]')
+        ?.querySelector<HTMLElement>('[data-battle-ui-anchor="phase-controls"]');
+      if (controls && controls !== phase) {
+        phase = controls;
+        observer.observe(controls);
+        measure();
+      }
+    });
+    window.addEventListener('resize', measure);
+    return () => {
+      mounted = false;
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [isMobileBoard, hasPlayerIdentity]);
+
   useLayoutEffect(() => {
     const core = desktopCoreRef.current;
     if (isMobileBoard || !hasPlayerIdentity || !core) return;
@@ -1251,7 +1308,13 @@ export const PlayerArea = memo(function PlayerArea({
                 }}
                 onDoubleClick={handleDoubleClick}
               >
-                <CardDetailPressTarget cardId={card.instanceId} className="h-full w-full">
+                <CardDetailPressTarget
+                  cardId={card.instanceId}
+                  className={cn(
+                    'h-full w-full',
+                    isMobileBoard && 'flex items-center justify-center'
+                  )}
+                >
                   <Card
                     cardData={card.cardData as AnyCardData}
                     instanceId={card.instanceId}
@@ -1264,7 +1327,13 @@ export const PlayerArea = memo(function PlayerArea({
                       isActionableNow: canActivateAbility,
                     })}
                     limitedActivatedHighlight={limitedActivatedHighlight}
-                    className={getActiveEffectTaskCardClass(card.instanceId)}
+                    className={cn(
+                      isMobileBoard && 'aspect-[5/7] h-auto',
+                      isMobileBoard &&
+                        orientation === OrientationState.WAITING &&
+                        'mx-auto w-[min(100%,calc((var(--battle-mobile-stage-column-width)_-_2px)*5/7))]',
+                      getActiveEffectTaskCardClass(card.instanceId)
+                    )}
                     onClick={() => {
                       if (confirmActiveEffectCardFromTable(card.instanceId)) {
                         return;
@@ -2722,9 +2791,6 @@ export const PlayerArea = memo(function PlayerArea({
         visibleBackCount <= 1
           ? 0
           : Math.min(isMobileBoard ? 24 : 52, backSpread / (visibleBackCount - 1));
-      const maxBackRotation = isMobileBoard ? 12 : 16;
-      const backRotationStep =
-        visibleBackCount <= 1 ? 0 : Math.min(3, maxBackRotation / ((visibleBackCount - 1) / 2));
       return (
         <div
           data-animation-zone-id={getDroppableId(ZoneType.HAND)}
@@ -2737,7 +2803,7 @@ export const PlayerArea = memo(function PlayerArea({
               className="absolute bottom-1 h-[84px] w-[60px] overflow-hidden battle-card-face shadow-md md:h-[var(--battle-hand-card-height)] md:w-[var(--battle-hand-card-width)]"
               style={{
                 left: `calc(50% + ${(idx - (visibleBackCount - 1) / 2) * backStep}px)`,
-                transform: `translateX(-50%) rotate(${(idx - (visibleBackCount - 1) / 2) * backRotationStep}deg) scale(${backScale})`,
+                transform: `translateX(-50%) scale(${backScale})`,
                 zIndex: idx,
               }}
             >
@@ -2754,37 +2820,107 @@ export const PlayerArea = memo(function PlayerArea({
     }
 
     // 己方手牌显示正面 (带拖拽，使用纯 CSS 避免动画导致的布局问题)
-    const handCount = handCardIds.length;
-    const handScale =
-      handCount > 14
-        ? isMobileBoard
-          ? 0.68
-          : 0.78
-        : handCount > 10
-          ? isMobileBoard
-            ? 0.76
-            : 0.86
-          : handCount > 6
-            ? isMobileBoard
-              ? 0.84
-              : 0.94
-            : 0.96;
-    const handSpread = isMobileBoard ? 320 : 720;
-    const handMaxStep = isMobileBoard
-      ? handCount <= 6
-        ? 40
-        : handCount <= 10
-          ? 32
-          : 24
-      : handCount <= 6
-        ? 64
-        : handCount <= 10
-          ? 54
-          : 42;
-    const handStep = handCount <= 1 ? 0 : Math.min(handMaxStep, handSpread / (handCount - 1));
-    const maxHandRotation = isMobileBoard ? 25 : 16;
-    const handRotationStep =
-      handCount <= 1 ? 0 : Math.min(isMobileBoard ? 4 : 2, maxHandRotation / ((handCount - 1) / 2));
+    const renderHandCard = (cardId: string) => {
+      const card = getVisibleCardPresentation(cardId);
+      if (!card) return null;
+
+      // 结果阶段切走后，这里会自动退化为只读展示。
+      const isDraggable = canDragFromHand;
+      const isHandCardSelected = selectedCardId === card.instanceId;
+      const activatedAbilityConfigs = getActivatedAbilityUiConfigs(
+        card.cardCode,
+        CardAbilitySourceZone.HAND
+      );
+      const canActivateHandAbility =
+        activatedAbilityConfigs.length > 0 &&
+        viewerSeat === playerSeat &&
+        canActivateAbilityCommand &&
+        isHandCardSelected;
+      const contextualActions =
+        !suppressSelectedHandCardActionMenu &&
+        isHandCardSelected &&
+        selectedHandCardActionCardId === card.instanceId &&
+        onSelectedHandCardAction
+          ? selectedHandCardActions
+          : [];
+      const handCardMenuItems: readonly CardActionMenuItem[] = [
+        ...(canActivateHandAbility
+          ? activatedAbilityConfigs.map((config) => ({
+              id: `ability:${config.abilityInstanceId ?? config.abilityId}`,
+              text: config.text,
+              title: config.title,
+              execute: () =>
+                activateCardAbility(card.instanceId, config.abilityId, config.abilityInstanceId),
+            }))
+          : []),
+        ...contextualActions.map((action) => ({
+          id: `context:${action.id}`,
+          text: action.text,
+          title: action.title,
+          align: action.align,
+          execute: () => onSelectedHandCardAction?.(card.instanceId, action.id),
+        })),
+      ];
+      const canShowHandCardActionMenu =
+        !suppressSelectedHandCardActionMenu && handCardMenuItems.length > 0;
+
+      return (
+        <div key={cardId} className="relative">
+          <div
+            className={cn(
+              isDragging
+                ? 'transition-none'
+                : 'transition-transform duration-200 motion-reduce:transition-none md:hover:-translate-y-1'
+            )}
+          >
+            <DraggableCard
+              id={cardId}
+              disabled={!isDraggable}
+              className="touch-pan-x"
+              data={{ cardId, cardCode: card.cardCode, fromZone: ZoneType.HAND }}
+            >
+              <CardDetailPressTarget cardId={card.instanceId}>
+                <Card
+                  cardData={card.cardData as AnyCardData}
+                  instanceId={card.instanceId}
+                  imagePath={card.imagePath}
+                  size="sm"
+                  faceUp={true}
+                  selected={isHandCardSelected}
+                  effectVisualState={getEffectVisualState(card, {
+                    isActionableNow: canShowHandCardActionMenu,
+                  })}
+                  className={cn(
+                    'h-[var(--battle-hand-card-height,105px)] w-[var(--battle-hand-card-width,75px)]',
+                    getActiveEffectTaskCardClass(card.instanceId)
+                  )}
+                  onClick={() => {
+                    if (isChoosingHandCardToReturn) {
+                      handleReturnHandCard(card.instanceId);
+                      return;
+                    }
+                    if (confirmActiveEffectCardFromTable(card.instanceId)) {
+                      return;
+                    }
+                    if (allowGeneralOwnZoneInteraction) {
+                      toggleSelectedCard(card.instanceId);
+                    }
+                  }}
+                  showHover={false}
+                />
+              </CardDetailPressTarget>
+            </DraggableCard>
+            {canShowHandCardActionMenu && (
+              <CardActionMenu
+                suspended={interactionSuspended || activatingCardId === card.instanceId}
+                items={handCardMenuItems}
+                placement={isOpponent ? 'below' : 'above'}
+              />
+            )}
+          </div>
+        </div>
+      );
+    };
 
     return (
       <DroppableZone
@@ -2793,125 +2929,15 @@ export const PlayerArea = memo(function PlayerArea({
         battleUiAnchor={getBattleHandAnchor(battlePlayerSide)}
         disabled={!allowGeneralOwnZoneInteraction && !canReceiveInspectionDrop}
         disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
-        className="battle-hand-zone relative h-[118px] w-full overflow-visible px-3 py-2 md:px-4 md:pr-72"
+        className="battle-hand-zone relative h-[118px] w-full overflow-visible"
         activeClassName="ring-2 ring-cyan-500 bg-cyan-500/20"
       >
-        {handCardIds.map((cardId, idx) => {
-          const card = getVisibleCardPresentation(cardId);
-          if (!card) return null;
-
-          // 结果阶段切走后，这里会自动退化为只读展示。
-          const isDraggable = canDragFromHand;
-          const isHandCardSelected = selectedCardId === card.instanceId;
-          const activatedAbilityConfigs = getActivatedAbilityUiConfigs(
-            card.cardCode,
-            CardAbilitySourceZone.HAND
-          );
-          const canActivateHandAbility =
-            activatedAbilityConfigs.length > 0 &&
-            viewerSeat === playerSeat &&
-            canActivateAbilityCommand &&
-            isHandCardSelected;
-          const contextualActions =
-            !suppressSelectedHandCardActionMenu &&
-            isHandCardSelected &&
-            selectedHandCardActionCardId === card.instanceId &&
-            onSelectedHandCardAction
-              ? selectedHandCardActions
-              : [];
-          const handCardMenuItems: readonly CardActionMenuItem[] = [
-            ...(canActivateHandAbility
-              ? activatedAbilityConfigs.map((config) => ({
-                  id: `ability:${config.abilityInstanceId ?? config.abilityId}`,
-                  text: config.text,
-                  title: config.title,
-                  execute: () =>
-                    activateCardAbility(
-                      card.instanceId,
-                      config.abilityId,
-                      config.abilityInstanceId
-                    ),
-                }))
-              : []),
-            ...contextualActions.map((action) => ({
-              id: `context:${action.id}`,
-              text: action.text,
-              title: action.title,
-              align: action.align,
-              execute: () => onSelectedHandCardAction?.(card.instanceId, action.id),
-            })),
-          ];
-          const canShowHandCardActionMenu =
-            !suppressSelectedHandCardActionMenu && handCardMenuItems.length > 0;
-
-          return (
-            <div
-              key={cardId}
-              data-recovery-hand-card={`obj_${cardId}`}
-              className={cn(
-                'absolute bottom-3 md:bottom-1',
-                isDragging ? 'transition-none' : 'transition-[left,transform] duration-300 ease-out'
-              )}
-              style={{
-                left: `calc(50% + ${idx - (handCount - 1) / 2} * min(${handStep}px, var(--battle-hand-max-step, ${handStep}px)))`,
-                transform: `translateX(-50%) rotate(${(idx - (handCount - 1) / 2) * handRotationStep}deg) scale(${handScale})`,
-                zIndex: activatingCardId === cardId ? handCount + 1 : idx,
-              }}
-            >
-              <div
-                className={cn(
-                  isDragging
-                    ? 'transition-none'
-                    : 'transition-transform duration-200 hover:-translate-y-5 hover:scale-105'
-                )}
-              >
-                <DraggableCard
-                  id={cardId}
-                  disabled={!isDraggable}
-                  data={{ cardId, cardCode: card.cardCode, fromZone: ZoneType.HAND }}
-                >
-                  <CardDetailPressTarget cardId={card.instanceId}>
-                    <Card
-                      cardData={card.cardData as AnyCardData}
-                      instanceId={card.instanceId}
-                      imagePath={card.imagePath}
-                      size="sm"
-                      faceUp={true}
-                      selected={isHandCardSelected}
-                      effectVisualState={getEffectVisualState(card, {
-                        isActionableNow: canShowHandCardActionMenu,
-                      })}
-                      className={cn(
-                        'md:h-[var(--battle-hand-card-height)] md:w-[var(--battle-hand-card-width)]',
-                        getActiveEffectTaskCardClass(card.instanceId)
-                      )}
-                      onClick={() => {
-                        if (isChoosingHandCardToReturn) {
-                          handleReturnHandCard(card.instanceId);
-                          return;
-                        }
-                        if (confirmActiveEffectCardFromTable(card.instanceId)) {
-                          return;
-                        }
-                        if (allowGeneralOwnZoneInteraction) {
-                          toggleSelectedCard(card.instanceId);
-                        }
-                      }}
-                      showHover={false}
-                    />
-                  </CardDetailPressTarget>
-                </DraggableCard>
-                {canShowHandCardActionMenu && (
-                  <CardActionMenu
-                    suspended={interactionSuspended || activatingCardId === card.instanceId}
-                    items={handCardMenuItems}
-                    placement={isOpponent ? 'below' : 'above'}
-                  />
-                )}
-              </div>
-            </div>
-          );
-        })}
+        <HandLayout
+          cardIds={handCardIds}
+          selectedCardId={selectedCardId}
+          suspended={interactionSuspended || isDragging}
+          renderCard={renderHandCard}
+        />
       </DroppableZone>
     );
   };
@@ -2950,10 +2976,14 @@ export const PlayerArea = memo(function PlayerArea({
   );
 
   const renderMobileTabletop = (reversed: boolean = false) => (
-    <div className="battle-mobile-tabletop h-full min-h-0" data-mobile-tabletop>
+    <div
+      className="battle-mobile-tabletop h-full min-h-0 overflow-y-auto overscroll-contain"
+      data-mobile-tabletop
+    >
       <div className="battle-mobile-tabletop-content flex h-full min-h-0 flex-col gap-1 px-0.5 py-1">
         {reversed && renderMobileSupportRow()}
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_64px] items-center gap-2">
+        {/* 保留两列的内容高度；矮屏在战场内滚动，不将资源列挤入下方区域。 */}
+        <div className="grid min-h-min flex-1 grid-cols-[minmax(0,1fr)_4rem] items-start gap-2">
           <div className="min-w-0 overflow-visible">{renderMobileBattleCore(reversed)}</div>
           {renderMobileResourcesRail()}
         </div>
@@ -3150,7 +3180,10 @@ export const PlayerArea = memo(function PlayerArea({
       </div>
 
       {/* 玩家信息 - 紧凑 */}
-      <div className="absolute right-4 bottom-[72px] z-20 flex max-w-[240px] items-center gap-2">
+      <div
+        data-hand-owner-summary
+        className="absolute right-4 bottom-[72px] z-20 flex max-w-[240px] items-center gap-2"
+      >
         <div
           data-player-identity-seat={playerSeat}
           className={cn(
@@ -3167,7 +3200,10 @@ export const PlayerArea = memo(function PlayerArea({
       </div>
 
       {/* 己方：手牌和能量区在最下方 */}
-      <div className="relative z-10 flex w-full flex-shrink-0 items-center gap-2">
+      <div
+        ref={desktopHandRowRef}
+        className="relative z-10 flex w-full flex-shrink-0 items-center gap-2"
+      >
         {/* 能量区 - 左下角 */}
         <div className="absolute left-2 bottom-2 z-50">{renderEnergyZone()}</div>
         {/* 手牌区 - 居中 */}

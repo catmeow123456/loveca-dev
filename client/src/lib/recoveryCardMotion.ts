@@ -1,4 +1,8 @@
-import type { BattleAnimationRect, BattleAnimationSeat } from './battleAnimationEvents';
+import {
+  measureBattleAnimationCardRect,
+  type BattleAnimationRect,
+  type BattleAnimationSeat,
+} from './battleAnimationEvents';
 import { RECOVERY_DURATION_MS } from './battleAnimationSequencing';
 import { sampleWaitingRoomCardPose } from './waitingRoomCardPresentation';
 
@@ -47,8 +51,9 @@ export function measureRecoveryHandPose(objectId: string): RecoveryCardPose | nu
   ).find((node) => node.dataset.recoveryHandCard === objectId);
   const card = wrapper?.querySelector<HTMLElement>('[data-object-id]');
   if (!wrapper || !card) return null;
-  const bounds = card.getBoundingClientRect();
+  const bounds = measureBattleAnimationCardRect(card);
   if (bounds.width <= 0 || bounds.height <= 0) return null;
+  if (bounds.rotation !== undefined) return { ...bounds, rotation: bounds.rotation };
   const matrix = new DOMMatrixReadOnly(getComputedStyle(wrapper).transform);
   return recoveryPoseFromBounds(bounds, (Math.atan2(matrix.b, matrix.a) * 180) / Math.PI);
 }

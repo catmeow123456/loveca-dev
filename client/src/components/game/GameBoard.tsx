@@ -26,7 +26,6 @@ import {
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
   pointerWithin,
   rectIntersection,
   useSensor,
@@ -41,6 +40,8 @@ import { EffectFeedbackLayer } from './EffectFeedbackLayer';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore, type VisibleCardPresentation } from '@/store/gameStore';
 import { PlayerArea, type SelectedHandCardAction } from './PlayerArea';
+import { BattlePointerSensor } from './interaction/BattlePointerSensor';
+import { notifyBattleAnimationDragRelease } from '@/lib/battleAnimationEvents';
 import { GameLog, GameLogContent } from './GameLog';
 import {
   PublicBattleLogButton,
@@ -405,7 +406,7 @@ export function useBattleInteractionController({
 
   // 配置拖拽传感器：需要移动 5px 才开始拖拽，避免与双击冲突
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(BattlePointerSensor, {
       activationConstraint: {
         distance: 5,
       },
@@ -2010,6 +2011,13 @@ export function useBattleInteractionController({
         readBattleViewportSignature(),
         dragViewportInvalidatedRef.current
       );
+      if (!dropInvalidatedByViewport && over && active.data.current?.fromZone === ZoneType.HAND) {
+        const preview = document.querySelector<HTMLElement>(
+          '[data-battle-drag-card] [data-card-surface]'
+        );
+        if (preview)
+          notifyBattleAnimationDragRelease(`obj_${cardId}`, preview.getBoundingClientRect());
+      }
       clearDragInteractionState();
 
       if (isReadOnly) return;
@@ -4565,7 +4573,6 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
       onClick={handleBattlefieldBackgroundClick}
     >
       <BoardBackground {...tableWallpaper} className="-z-10" />
-      <BattleAnimationLayer />
       <EffectFeedbackLayer />
       <div ref={attachEntranceSurface} className="contents" />
       <div
@@ -4837,7 +4844,7 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 px-2 pb-[104px] pt-1.5">
+              <div className="battle-mobile-workspace min-h-0 flex-1 px-2 pb-[calc(env(safe-area-inset-bottom)+4.5rem+32px)] pt-1.5">
                 <motion.div
                   key={`mobile-perspective-${selfSeat}`}
                   data-perspective-surface="mobile-self"
@@ -5229,7 +5236,9 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
         />
 
         {/* 拖拽覆盖层 - 显示正在拖拽的卡牌 */}
-        <DragOverlay dropAnimation={entranceWaiting ? null : undefined}>
+        <DragOverlay
+          dropAnimation={entranceWaiting || activeDragFromZone === ZoneType.HAND ? null : undefined}
+        >
           {activeCard ? (
             <DragOverlayCard card={activeCard} fromZone={activeDragFromZone} />
           ) : activeCardId ? (
@@ -5243,6 +5252,8 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
           ) : null}
         </DragOverlay>
       </div>
+      {/* Measure after the hand has followed incoming cards in its layout effect. */}
+      <BattleAnimationLayer />
     </div>
   );
   return (
@@ -5352,11 +5363,16 @@ function DragOverlayCard({
       size="sm"
       faceUp={true}
       showHover={false}
+      className={fromZone === ZoneType.HAND ? 'battle-drag-hand-card' : undefined}
     />
   );
 
   if (!isHorizontalDragPreviewZone(fromZone)) {
-    return cardContent;
+    return (
+      <div data-battle-drag-card={card.instanceId} data-battle-animation-ignore="true">
+        {cardContent}
+      </div>
+    );
   }
 
   return (
