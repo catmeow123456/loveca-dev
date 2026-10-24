@@ -52,7 +52,6 @@ import { PhaseBanner } from './PhaseBanner';
 import { LiveResultAnimation, type LiveScoreInfo } from './LiveResultAnimation';
 import { DebugControl } from './DebugControl';
 import { BattleSettingsMenu, BattleToolbarMenu } from './BattleToolbarMenu';
-import { MemberOverwriteToggle } from './MemberOverwriteToggle';
 import { MemberOverwriteDialog } from './MemberOverwriteDialog';
 import { readAskMemberOverwrite, saveAskMemberOverwrite } from '@/lib/memberOverwriteChoice';
 import { useMemberOverwriteChoice } from '@/hooks/useMemberOverwriteChoice';
@@ -69,14 +68,12 @@ import { EffectChoicePanel } from './EffectChoicePanel';
 import { Card } from '@/components/card/Card';
 import { CardEffectText } from '@/components/card/CardEffectText';
 import { MulliganPanel } from './MulliganPanel';
-import { ThemeToggle } from '@/components/common';
 import { canPresentCardEntrance } from '@/lib/cardEntrancePolicy';
 import {
   BattleEffectsContext,
   readBattleEffectsEnabled,
   saveBattleEffectsEnabled,
 } from '@/lib/battleEffects';
-import { BattleEffectsToggle } from './BattleEffectsToggle';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { parseZoneId } from '@/lib/zoneUtils';
 import { getDragActionDescriptor, type SpecialDragTarget } from '@/lib/battleDragAction';
@@ -4671,7 +4668,7 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
           {isMobileBattlefield ? (
             <div className="relative z-10 flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:hidden">
               <div className="battle-mobile-header safe-top shrink-0 px-2.5 pt-2.5">
-                <div className="battle-mobile-phase-header rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_30%,transparent)] px-2.5 py-1.5 shadow-none backdrop-blur-[2px]">
+                <div className="battle-mobile-phase-header relative z-[var(--z-battle-chrome)] rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_30%,transparent)] px-2.5 py-1.5 shadow-none backdrop-blur-[2px]">
                   <div className="flex items-center justify-between gap-2">
                     {showLeaveLocalGameButton || showRestartGameButton ? (
                       <div className="flex shrink-0 items-center gap-1">
@@ -4707,7 +4704,7 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                       <div className="h-9 w-9 shrink-0" />
                     )}
 
-                    <div className="min-w-0 text-center">
+                    <div className="min-w-0 flex-1 text-center">
                       <div className="truncate text-[13px] font-bold text-[var(--text-primary)]">
                         {phaseInfo?.name ?? currentPhase}阶段
                       </div>
@@ -4717,23 +4714,15 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                       </div>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-1">
-                      {!isReadOnly && (
-                        <MemberOverwriteToggle
-                          enabled={askMemberOverwrite}
-                          onChange={changeAskMemberOverwrite}
-                          className="h-9 w-9"
-                        />
-                      )}
-                      {!isReadOnly && (
-                        <BattleEffectsToggle
-                          enabled={battleEffectsEnabled}
-                          onChange={changeBattleEffectsEnabled}
-                          className="h-9 w-9"
-                        />
-                      )}
-                      <ThemeToggle className="h-9 w-9" />
-                    </div>
+                    <BattleSettingsMenu
+                      compact
+                      showMemberOverwrite={!isReadOnly}
+                      askMemberOverwrite={askMemberOverwrite}
+                      onAskMemberOverwriteChange={changeAskMemberOverwrite}
+                      showBattleEffects={!isReadOnly}
+                      battleEffectsEnabled={battleEffectsEnabled}
+                      onBattleEffectsChange={changeBattleEffectsEnabled}
+                    />
                   </div>
                 </div>
 

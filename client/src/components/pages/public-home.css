@@ -50,6 +50,8 @@
 
 .public-home__header .product-brand {
   width: max-content;
+  min-width: 0;
+  flex-shrink: 0;
   color: inherit;
 }
 
@@ -162,6 +164,7 @@
 .public-home__login-button,
 .public-home__register-button {
   display: inline-flex;
+  white-space: nowrap;
   min-height: 2.5rem;
   align-items: center;
   justify-content: center;

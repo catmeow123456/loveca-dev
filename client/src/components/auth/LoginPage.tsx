@@ -132,10 +132,14 @@ export function LoginPage({
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
+          <label
+            htmlFor="login-username"
+            className="mb-2 block text-sm font-medium text-[var(--text-primary)]"
+          >
             用户名或邮箱
           </label>
           <input
+            id="login-username"
             type="text"
             value={usernameOrEmail}
             onChange={(e) => setUsernameOrEmail(e.target.value)}
@@ -146,9 +150,15 @@ export function LoginPage({
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">密码</label>
+          <label
+            htmlFor="login-password"
+            className="mb-2 block text-sm font-medium text-[var(--text-primary)]"
+          >
+            密码
+          </label>
           <div className="relative">
             <input
+              id="login-password"
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}

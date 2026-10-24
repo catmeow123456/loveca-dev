@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProductBrand } from './ProductBrand';
+import { PresentationModeButton } from './PresentationModeButton';
 
 interface ProductHeaderProps {
   brandAriaLabel: string;
@@ -36,6 +37,7 @@ export function ProductHeader({
         {navigation}
 
         <div className="product-header-actions">
+          <PresentationModeButton />
           {actions}
           {mobileNavigation ? (
             <button

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
   BookOpen,
   Clock3,
@@ -13,7 +13,14 @@ import type {
   ThemePrebuiltDeckView,
 } from '@game/online/theme-table-types';
 import type { AnyCardData } from '@game/domain/entities/card';
-import { ActionButton, PageHeader, Panel, StatusBadge } from '@/components/common';
+import {
+  ActionButton,
+  ErrorNotice,
+  LoadingState,
+  PageHeader,
+  Panel,
+  StatusBadge,
+} from '@/components/common';
 import { CardDetailDrawer } from '@/components/deck-editor/CardDetailDrawer';
 import { ThemeDeckGallery } from '@/components/theme-table/ThemeDeckGallery';
 import { ActivityCoverHero } from '@/components/activity-cover/ActivityCoverHero';
@@ -31,21 +38,28 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     void refresh().catch(() => undefined);
   }, [refresh]);
-  if (!overview && loading) {
-    return <CenteredState icon={<Loader2 className="animate-spin" />} title="正在读取本期节目单" />;
-  }
   if (!overview?.event) {
     return (
       <div className="app-shell min-h-screen">
         <PageHeader title="主题牌桌" onBack={onBack} backLabel="返回大厅" />
-        <main className="mx-auto max-w-lg px-4 py-16">
-          <Panel padding="spacious" className="text-center">
-            <Sparkles className="mx-auto text-[var(--accent-primary)]" />
-            <h1 className="mt-3 text-xl font-semibold">下一期主题牌桌正在编排</h1>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              当前没有公开活动。你仍可前往对战大厅使用自己的卡组对战。
-            </p>
-          </Panel>
+        <main className="mx-auto w-full max-w-lg px-4 py-5">
+          {error ? (
+            <ErrorNotice
+              message={error}
+              onRetry={() => void refresh().catch(() => undefined)}
+              retryDisabled={loading}
+            />
+          ) : !overview ? (
+            <LoadingState variant="panel" label="正在读取本期节目单" />
+          ) : (
+            <Panel padding="spacious" className="text-center">
+              <Sparkles className="mx-auto text-[var(--accent-primary)]" />
+              <h1 className="mt-3 text-xl font-semibold">下一期主题牌桌正在编排</h1>
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                当前没有公开活动。你仍可前往对战大厅使用自己的卡组对战。
+              </p>
+            </Panel>
+          )}
         </main>
       </div>
     );
@@ -55,7 +69,9 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
   const handleJoin = async () => {
     try {
       await join();
-    } catch {}
+    } catch {
+      // The store exposes the error beside the join action.
+    }
   };
   return (
     <div className="app-shell theme-table-page min-h-screen">
@@ -561,17 +577,6 @@ function ThemeDeckBrowser({
           <span>卡表版本 {selectedDeck.contentHash.slice(0, 12)}</span>
         </footer>
       </article>
-    </div>
-  );
-}
-
-function CenteredState({ icon, title }: { icon: ReactNode; title: string }) {
-  return (
-    <div className="app-shell flex min-h-screen items-center justify-center">
-      <div className="text-center text-[var(--text-secondary)]">
-        {icon}
-        <p className="mt-3">{title}</p>
-      </div>
     </div>
   );
 }

@@ -78,10 +78,14 @@ export function ForgotPasswordPage({ onSwitchToLogin }: ForgotPasswordPageProps)
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* 邮箱输入 */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
+          <label
+            htmlFor="forgot-password-email"
+            className="mb-2 block text-sm font-medium text-[var(--text-primary)]"
+          >
             邮箱地址
           </label>
           <input
+            id="forgot-password-email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}

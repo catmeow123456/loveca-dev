@@ -206,6 +206,70 @@ html[data-presentation='excel'] #app-overlays button {
   border-bottom-color: var(--excel-accent);
   font-weight: 600;
 }
+.excel-ribbon-tabs[data-interactive] {
+  overflow: visible;
+  pointer-events: auto;
+}
+.excel-view-menu {
+  position: relative;
+  z-index: 1;
+}
+.excel-view-menu summary {
+  cursor: pointer;
+  line-height: 28px;
+  padding: 0 6px;
+}
+.excel-view-menu summary:focus-visible {
+  outline: 2px solid var(--excel-accent);
+  outline-offset: -2px;
+}
+.excel-view-menu[open] summary,
+.excel-view-menu summary:hover {
+  background: var(--excel-surface);
+  color: var(--excel-accent);
+}
+.excel-view-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 248px;
+  max-width: calc(100vw - 80px);
+  padding: 4px;
+  border: 1px solid var(--excel-control-border);
+  background: var(--excel-surface);
+  color: var(--excel-text);
+}
+.excel-view-heading {
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--excel-muted);
+}
+.excel-app .excel-view-dropdown button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 0;
+  text-align: left;
+}
+.excel-view-dropdown button > span {
+  width: 14px;
+}
+.excel-view-dropdown button[aria-pressed='true'] {
+  color: var(--excel-accent);
+}
+.excel-view-dropdown button:hover,
+.excel-view-dropdown button:focus-visible {
+  background: var(--excel-selected);
+}
+.excel-view-dropdown kbd {
+  margin-left: auto;
+  font: inherit;
+  font-size: 11px;
+  color: var(--excel-muted);
+}
 .excel-ribbon {
   display: flex;
   align-items: center;
@@ -690,6 +754,9 @@ html[data-excel-theme='dark'] .worksheet-cover {
   }
   .excel-ribbon-tabs {
     gap: 16px;
+  }
+  .excel-ribbon-tabs[data-interactive] > span {
+    display: none;
   }
 }
 html[data-presentation='excel'] .normal-only {

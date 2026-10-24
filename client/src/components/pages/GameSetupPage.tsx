@@ -357,7 +357,7 @@ export function GameSetupPage({
     const steps = isDebugMode ? [1, 2, 3] : [1, 2];
     const labels = isDebugMode ? ['P1', 'P2', '确认'] : ['卡组', '确认'];
     return (
-      <div className="mx-auto mb-4 w-full max-w-2xl sm:mb-5">
+      <div className="mx-auto mb-3 w-full max-w-2xl shrink-0 sm:mb-4">
         <ol
           className="grid gap-1 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_58%,transparent)] p-1"
           style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
@@ -517,8 +517,8 @@ export function GameSetupPage({
       backLabel="返回大厅"
       onBack={onBack}
     >
-      <main className="relative z-10 flex flex-1 flex-col overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-5 sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+1.5rem)] sm:pt-6">
-        <div className="mx-auto mb-4 flex gap-2" role="group" aria-label="练习与调试模式">
+      <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+1.5rem)] sm:pt-5">
+        <div className="mx-auto mb-3 flex shrink-0 gap-2" role="group" aria-label="练习与调试模式">
           {(
             [
               [GameMode.SOLITAIRE, '对墙打', Target],
@@ -543,14 +543,16 @@ export function GameSetupPage({
         </div>
         {renderStepIndicator()}
 
-        <motion.h2
-          key={currentStep}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-5 text-center text-xl font-semibold text-[var(--text-primary)] sm:mb-6 sm:text-2xl"
-        >
-          {getStepTitle()}
-        </motion.h2>
+        {isConfirmStep && (
+          <motion.h2
+            key={currentStep}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-3 shrink-0 text-center text-xl font-semibold text-[var(--text-primary)] sm:mb-4 sm:text-2xl"
+          >
+            {getStepTitle()}
+          </motion.h2>
+        )}
 
         <div className="flex-1 min-h-0 relative">
           <AnimatePresence mode="wait">
@@ -563,11 +565,7 @@ export function GameSetupPage({
                 exit={{ opacity: 0, x: 20 }}
                 className="absolute inset-0 flex items-start justify-center"
               >
-                <div
-                  className={`w-full max-w-3xl ${
-                    deckDisplayItems.length > 6 || (!offlineMode && isLoadingCloud) ? 'h-full' : ''
-                  }`}
-                >
+                <div className="flex max-h-full min-h-0 w-full max-w-3xl flex-col">
                   <DeckSelector
                     cloudDecks={cloudDecks}
                     localDecks={offlineMode ? localDecks : []}
@@ -577,7 +575,7 @@ export function GameSetupPage({
                     isRefreshing={!offlineMode && isRefreshingCloud}
                     error={offlineMode ? null : cloudError}
                     onRefresh={offlineMode ? undefined : refreshCloudDecks}
-                    title="可用卡组"
+                    title={getStepTitle()}
                     emptyText={
                       offlineMode
                         ? '还没有可用的本地卡组。先从示例卡组创建一副。'
@@ -601,11 +599,7 @@ export function GameSetupPage({
                 exit={{ opacity: 0, x: 20 }}
                 className="absolute inset-0 flex items-start justify-center"
               >
-                <div
-                  className={`w-full max-w-3xl ${
-                    deckDisplayItems.length > 6 || (!offlineMode && isLoadingCloud) ? 'h-full' : ''
-                  }`}
-                >
+                <div className="flex max-h-full min-h-0 w-full max-w-3xl flex-col">
                   <DeckSelector
                     cloudDecks={cloudDecks}
                     localDecks={offlineMode ? localDecks : []}
@@ -615,7 +609,7 @@ export function GameSetupPage({
                     isRefreshing={!offlineMode && isRefreshingCloud}
                     error={offlineMode ? null : cloudError}
                     onRefresh={offlineMode ? undefined : refreshCloudDecks}
-                    title="可用卡组"
+                    title={getStepTitle()}
                     emptyText={
                       offlineMode
                         ? '还没有可用的本地卡组。先从示例卡组创建一副。'
@@ -764,22 +758,15 @@ export function GameSetupPage({
 
         <div
           className={cn(
-            'sticky bottom-0 mt-5 w-full self-center rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] p-3 shadow-[var(--shadow-md)] backdrop-blur-xl sm:static sm:mt-6 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none',
+            'mt-3 w-full shrink-0 self-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-3 sm:mt-4 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0',
             'max-w-2xl'
           )}
         >
-          <div
-            className={cn(
-              'gap-2',
-              isConfirmStep
-                ? 'grid grid-cols-[auto_minmax(0,1fr)] sm:flex sm:justify-between'
-                : 'flex flex-col-reverse sm:flex-row sm:justify-between'
-            )}
-          >
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 sm:flex sm:justify-between">
             <ActionButton
               variant="ghost"
               onClick={handlePrev}
-              className="border border-[var(--border-default)] px-6"
+              className="border border-[var(--border-default)] px-3 sm:px-6"
             >
               <ChevronLeft size={16} />
               {currentStep === 1 ? '取消准备' : '上一步'}
@@ -789,7 +776,10 @@ export function GameSetupPage({
               <ActionButton
                 onClick={handleNext}
                 disabled={!canProceed()}
-                className={cn('px-6', !canProceed() && 'cursor-not-allowed opacity-50')}
+                className={cn(
+                  'min-w-0 px-3 sm:px-6',
+                  !canProceed() && 'cursor-not-allowed opacity-50'
+                )}
               >
                 {getNextButtonLabel()}
                 <ChevronRight size={16} />

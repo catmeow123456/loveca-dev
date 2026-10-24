@@ -84,10 +84,14 @@ export function ResetPasswordPage({ onSwitchToLogin, token }: ResetPasswordPageP
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* 新密码输入 */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
+          <label
+            htmlFor="reset-password"
+            className="mb-2 block text-sm font-medium text-[var(--text-primary)]"
+          >
             新密码
           </label>
           <input
+            id="reset-password"
             type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
@@ -99,10 +103,14 @@ export function ResetPasswordPage({ onSwitchToLogin, token }: ResetPasswordPageP
 
         {/* 确认密码输入 */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
+          <label
+            htmlFor="reset-confirm-password"
+            className="mb-2 block text-sm font-medium text-[var(--text-primary)]"
+          >
             确认新密码
           </label>
           <input
+            id="reset-confirm-password"
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}

@@ -16,6 +16,7 @@ import {
   useTextPresentation,
 } from '@/lib/appPresentation';
 import { ExcelRibbon, ExcelRibbonTabs } from './ExcelRibbon';
+import { ExcelViewMenu } from './ExcelViewMenu';
 import { WorksheetCover } from './WorksheetCover';
 import './excel.css';
 
@@ -104,7 +105,7 @@ export function PresentationToolbar() {
   return (
     <div className="excel-toolbar">
       <div className="excel-toolbar-top">
-        <ExcelRibbonTabs />
+        <ExcelRibbonTabs viewMenu={<ExcelViewMenu />} />
         <div className="excel-toolbar-actions">
           <button
             type="button"

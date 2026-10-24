@@ -165,6 +165,7 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
   const selectedRecord =
     records.find((candidate) => candidate.matchId === selectedMatchId) ??
     (detail?.matchId === selectedMatchId ? detail : null);
+  const showRecordDetails = records.length > 0 || selectedMatchId !== null;
 
   useEffect(() => {
     hasManagementHistoryAccessRef.current = hasManagementHistoryAccess;
@@ -976,10 +977,18 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
       />
 
       <main className="relative z-10 flex-1 px-3 pb-24 pt-4 sm:px-4 sm:pb-24 lg:px-5 lg:pb-4 xl:px-6">
-        <div className="mx-auto grid w-full max-w-[1480px] items-start gap-4 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
+        <div
+          className={`mx-auto grid w-full items-start gap-4 ${
+            showRecordDetails
+              ? 'max-w-[1480px] lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]'
+              : 'max-w-3xl'
+          }`}
+        >
           <section
             aria-label="对局列表"
-            className={`product-workbench min-w-0 flex-col overflow-hidden p-3 sm:p-4 lg:sticky lg:top-[5.75rem] lg:flex lg:h-[calc(100dvh-6.5rem)] ${mobileDetailOpen ? 'hidden' : 'flex'}`}
+            className={`product-workbench min-w-0 flex-col overflow-hidden p-3 sm:p-4 lg:flex ${
+              records.length > 0 ? 'lg:sticky lg:top-[5.75rem] lg:h-[calc(100dvh-6.5rem)]' : ''
+            } ${mobileDetailOpen && showRecordDetails ? 'hidden' : 'flex'}`}
           >
             <PanelTitle
               icon={<History size={16} />}
@@ -1068,233 +1077,235 @@ export function MatchRecordsPage({ onBack, initialMatchId = null }: MatchRecords
             )}
           </section>
 
-          <section
-            aria-label="对局详情"
-            className={`min-w-0 gap-4 lg:grid ${mobileDetailOpen ? 'grid' : 'hidden'}`}
-          >
-            <div
-              ref={detailHeadingRef}
-              tabIndex={-1}
-              className="min-w-0 focus:outline-none lg:hidden"
+          {showRecordDetails && (
+            <section
+              aria-label="对局详情"
+              className={`min-w-0 gap-4 lg:grid ${mobileDetailOpen ? 'grid' : 'hidden'}`}
             >
-              <ActionButton variant="ghost" onClick={() => setMobileDetailOpen(false)}>
-                <ArrowLeft size={16} /> 返回对局列表
-              </ActionButton>
-            </div>
-            {contextError ? (
-              <ErrorNotice
-                className="mt-3"
-                message={contextError}
-                retryDisabled={isLoadingContext || isLoadingNode || isExporting}
-                onRetry={() => {
-                  if (failedReplayNode) handleRetryReplayNode();
-                  else if (detailErrorActionRef.current === 'open') void handleOpenReplayBoard();
-                  else if (detailErrorActionRef.current === 'export')
-                    void handleExportSelectedRecord();
-                  else if (detailErrorActionRef.current === 'ai-export')
-                    void handleExportAiEvidence();
-                  else if (selectedMatchId) void loadMatchContext(selectedMatchId);
-                }}
-              />
-            ) : null}
-
-            <Panel as="section" padding="compact" className="min-w-0">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <PanelTitle
-                  icon={<ShieldCheck size={16} />}
-                  title={selectedRecord ? formatRecordTitle(selectedRecord) : '未选择对局'}
-                  detail={
-                    selectedRecord ? formatDateTime(selectedRecord.startedAt) : '请选择一条记录'
-                  }
-                />
-                {hasManagementHistoryAccess && selectedRecord ? (
-                  <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <SeatSegmentedControl value={adminViewerSeat} onChange={setAdminViewerSeat} />
-                    {canExport ? (
-                      <button
-                        type="button"
-                        onClick={() => void handleExportSelectedRecord()}
-                        disabled={isExporting || selectedRecord.completeness === 'METADATA_ONLY'}
-                        className="button-ghost inline-flex h-9 items-center justify-center gap-1.5 border border-[var(--border-default)] px-3 text-xs font-semibold disabled:opacity-50"
-                        title={
-                          selectedRecord.completeness === 'METADATA_ONLY'
-                            ? '该记录的回放数据已清理'
-                            : '导出回放'
-                        }
-                      >
-                        <Download size={14} />
-                        导出
-                      </button>
-                    ) : null}
-                    {selectedRecord.originKind === 'AI_DEBUG' &&
-                    profile &&
-                    hasPermission(profile.role, 'rules.manage') ? (
-                      <button
-                        type="button"
-                        onClick={() => void handleExportAiEvidence()}
-                        disabled={isExporting}
-                        className="button-ghost inline-flex h-9 items-center justify-center gap-1.5 border border-[var(--border-default)] px-3 text-xs font-semibold disabled:opacity-50"
-                      >
-                        <Download size={14} />
-                        导出 AI 决定材料
-                      </button>
-                    ) : null}
-                  </div>
-                ) : null}
+              <div
+                ref={detailHeadingRef}
+                tabIndex={-1}
+                className="min-w-0 focus:outline-none lg:hidden"
+              >
+                <ActionButton variant="ghost" onClick={() => setMobileDetailOpen(false)}>
+                  <ArrowLeft size={16} /> 返回对局列表
+                </ActionButton>
               </div>
-              {selectedRecord?.partialReasonSummary ? (
-                <PartialRecordNotice detail={selectedRecord.partialReasonSummary} />
-              ) : null}
-              {selectedRecord?.originKind === 'AI_DEBUG' &&
-                profile &&
-                hasPermission(profile.role, 'rules.manage') &&
-                detail?.matchId === selectedRecord.matchId && (
-                  <AiRecordedBilling
-                    key={selectedRecord.matchId}
-                    matchId={selectedRecord.matchId}
-                  />
-                )}
-              {selectedRecord ? (
-                <MatchRecordSummary
-                  detail={detail?.matchId === selectedRecord.matchId ? detail : null}
-                  record={selectedRecord}
-                  viewerSeat={
-                    hasManagementHistoryAccess ? adminViewerSeat : selectedRecord.viewerSeat
-                  }
-                  loading={isLoadingContext}
-                />
-              ) : (
-                <EmptyState
-                  variant="panel"
+              {contextError ? (
+                <ErrorNotice
                   className="mt-3"
-                  title="未选择对局"
-                  description="从左侧选择一条历史记录。"
+                  message={contextError}
+                  retryDisabled={isLoadingContext || isLoadingNode || isExporting}
+                  onRetry={() => {
+                    if (failedReplayNode) handleRetryReplayNode();
+                    else if (detailErrorActionRef.current === 'open') void handleOpenReplayBoard();
+                    else if (detailErrorActionRef.current === 'export')
+                      void handleExportSelectedRecord();
+                    else if (detailErrorActionRef.current === 'ai-export')
+                      void handleExportAiEvidence();
+                    else if (selectedMatchId) void loadMatchContext(selectedMatchId);
+                  }}
                 />
-              )}
-            </Panel>
+              ) : null}
 
-            {selectedMatchId ? (
               <Panel as="section" padding="compact" className="min-w-0">
-                <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                   <PanelTitle
-                    icon={<Eye size={16} />}
-                    title="对局回放"
-                    detail={replay ? formatSeatPerspective(replay.viewerSeat) : ''}
+                    icon={<ShieldCheck size={16} />}
+                    title={selectedRecord ? formatRecordTitle(selectedRecord) : '未选择对局'}
+                    detail={
+                      selectedRecord ? formatDateTime(selectedRecord.startedAt) : '请选择一条记录'
+                    }
                   />
-                  {replay ? (
-                    <ActionButton
-                      onClick={() => void handleOpenReplayBoard()}
-                      disabled={isLoadingNode}
-                    >
-                      <Eye size={15} /> 打开桌面回放
-                    </ActionButton>
+                  {hasManagementHistoryAccess && selectedRecord ? (
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      <SeatSegmentedControl value={adminViewerSeat} onChange={setAdminViewerSeat} />
+                      {canExport ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleExportSelectedRecord()}
+                          disabled={isExporting || selectedRecord.completeness === 'METADATA_ONLY'}
+                          className="button-ghost inline-flex h-9 items-center justify-center gap-1.5 border border-[var(--border-default)] px-3 text-xs font-semibold disabled:opacity-50"
+                          title={
+                            selectedRecord.completeness === 'METADATA_ONLY'
+                              ? '该记录的回放数据已清理'
+                              : '导出回放'
+                          }
+                        >
+                          <Download size={14} />
+                          导出
+                        </button>
+                      ) : null}
+                      {selectedRecord.originKind === 'AI_DEBUG' &&
+                      profile &&
+                      hasPermission(profile.role, 'rules.manage') ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleExportAiEvidence()}
+                          disabled={isExporting}
+                          className="button-ghost inline-flex h-9 items-center justify-center gap-1.5 border border-[var(--border-default)] px-3 text-xs font-semibold disabled:opacity-50"
+                        >
+                          <Download size={14} />
+                          导出 AI 决定材料
+                        </button>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
-                {isLoadingContext && !replay ? (
-                  <LoadingState variant="panel" className="mt-3" label="读取回放" />
-                ) : replay ? (
-                  <>
-                    <div className="mt-4 max-w-sm">
-                      <CheckpointNavigator
-                        currentIndex={currentCheckpointIndex}
-                        total={checkpointEntries.length}
-                        canPrevious={canGoPreviousCheckpoint && !isLoadingNode}
-                        canNext={canGoNextCheckpoint && !isLoadingNode}
-                        onPrevious={() => handleStepCheckpoint(-1)}
-                        onNext={() => handleStepCheckpoint(1)}
-                      />
-                    </div>
-                    {replay.partialReasonSummary ? (
-                      <PartialRecordNotice detail={replay.partialReasonSummary} compact />
-                    ) : null}
-                    {timeline.length > 0 ? (
-                      <VirtualizedTimeline
-                        key={selectedMatchId}
-                        timeline={timeline}
-                        checkpointSeq={checkpointSeq}
-                        onSelect={handleSelectTimeline}
-                      />
-                    ) : (
-                      <p className="mt-4 text-sm text-[var(--text-muted)]">
-                        这场对局暂无可读进程。
-                      </p>
-                    )}
-                  </>
-                ) : !contextError ? (
+                {selectedRecord?.partialReasonSummary ? (
+                  <PartialRecordNotice detail={selectedRecord.partialReasonSummary} />
+                ) : null}
+                {selectedRecord?.originKind === 'AI_DEBUG' &&
+                  profile &&
+                  hasPermission(profile.role, 'rules.manage') &&
+                  detail?.matchId === selectedRecord.matchId && (
+                    <AiRecordedBilling
+                      key={selectedRecord.matchId}
+                      matchId={selectedRecord.matchId}
+                    />
+                  )}
+                {selectedRecord ? (
+                  <MatchRecordSummary
+                    detail={detail?.matchId === selectedRecord.matchId ? detail : null}
+                    record={selectedRecord}
+                    viewerSeat={
+                      hasManagementHistoryAccess ? adminViewerSeat : selectedRecord.viewerSeat
+                    }
+                    loading={isLoadingContext}
+                  />
+                ) : (
                   <EmptyState
                     variant="panel"
                     className="mt-3"
-                    title={
-                      selectedRecord?.completeness === 'METADATA_ONLY'
-                        ? '回放数据已清理'
-                        : '暂无可用回放'
-                    }
-                    description={
-                      selectedRecord?.completeness === 'METADATA_ONLY'
-                        ? '完整回放保留最近 10 天，该对局仅保留结果和卡组来源等信息。'
-                        : '这场对局尚无可读取的回放。'
-                    }
+                    title="未选择对局"
+                    description="从左侧选择一条历史记录。"
                   />
-                ) : null}
-              </Panel>
-            ) : null}
-
-            {replay ? (
-              <Panel as="section" padding="compact" className="min-w-0">
-                <button
-                  type="button"
-                  onClick={handleToggleDebugDetails}
-                  className="flex w-full items-center justify-between gap-3 text-left"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="text-[var(--accent-primary)]">
-                      <ListTree size={16} />
-                    </span>
-                    <span className="text-sm font-bold text-[var(--text-primary)]">调试详情</span>
-                  </span>
-                  <span className="text-xs text-[var(--text-muted)]">
-                    {debugDetailsOpen ? '收起' : '展开'}
-                  </span>
-                </button>
-                {debugDetailsOpen && isLoadingAudit ? (
-                  <LoadingState variant="panel" className="mt-3" label="读取审计详情" />
-                ) : debugDetailsOpen && auditError ? (
-                  <div className="mt-3 rounded-lg border border-[color:var(--semantic-error)]/40 bg-[color:var(--semantic-error)]/10 px-3 py-2 text-xs text-[var(--semantic-error)]">
-                    {auditError}
-                  </div>
-                ) : debugDetailsOpen ? (
-                  <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    <ReplayStagePanel replay={replay} />
-                    <ReplayMetricGrid replay={replay} />
-                    <VisibleEventList
-                      events={auditPublicEvents}
-                      hasMore={Boolean(auditPages.PUBLIC_EVENTS?.nextCursor)}
-                      loadingMore={loadingMoreAuditKind === 'PUBLIC_EVENTS'}
-                      onLoadMore={() => void handleLoadMoreAudit('PUBLIC_EVENTS')}
-                    />
-                    <PrivateEventList
-                      events={auditPrivateEvents}
-                      hasMore={Boolean(auditPages.PRIVATE_EVENTS?.nextCursor)}
-                      loadingMore={loadingMoreAuditKind === 'PRIVATE_EVENTS'}
-                      onLoadMore={() => void handleLoadMoreAudit('PRIVATE_EVENTS')}
-                    />
-                    <DecisionRecordList
-                      decisions={auditDecisions}
-                      hasMore={Boolean(auditPages.DECISIONS?.nextCursor)}
-                      loadingMore={loadingMoreAuditKind === 'DECISIONS'}
-                      onLoadMore={() => void handleLoadMoreAudit('DECISIONS')}
-                    />
-                    <ZoneList zones={visibleZones} />
-                    <FrontCardList cards={visibleFrontCards} />
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">
-                    按需查看阶段、事件、决策与卡牌投影等审计信息。
-                  </p>
                 )}
               </Panel>
-            ) : null}
-          </section>
+
+              {selectedMatchId ? (
+                <Panel as="section" padding="compact" className="min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                    <PanelTitle
+                      icon={<Eye size={16} />}
+                      title="对局回放"
+                      detail={replay ? formatSeatPerspective(replay.viewerSeat) : ''}
+                    />
+                    {replay ? (
+                      <ActionButton
+                        onClick={() => void handleOpenReplayBoard()}
+                        disabled={isLoadingNode}
+                      >
+                        <Eye size={15} /> 打开桌面回放
+                      </ActionButton>
+                    ) : null}
+                  </div>
+                  {isLoadingContext && !replay ? (
+                    <LoadingState variant="panel" className="mt-3" label="读取回放" />
+                  ) : replay ? (
+                    <>
+                      <div className="mt-4 max-w-sm">
+                        <CheckpointNavigator
+                          currentIndex={currentCheckpointIndex}
+                          total={checkpointEntries.length}
+                          canPrevious={canGoPreviousCheckpoint && !isLoadingNode}
+                          canNext={canGoNextCheckpoint && !isLoadingNode}
+                          onPrevious={() => handleStepCheckpoint(-1)}
+                          onNext={() => handleStepCheckpoint(1)}
+                        />
+                      </div>
+                      {replay.partialReasonSummary ? (
+                        <PartialRecordNotice detail={replay.partialReasonSummary} compact />
+                      ) : null}
+                      {timeline.length > 0 ? (
+                        <VirtualizedTimeline
+                          key={selectedMatchId}
+                          timeline={timeline}
+                          checkpointSeq={checkpointSeq}
+                          onSelect={handleSelectTimeline}
+                        />
+                      ) : (
+                        <p className="mt-4 text-sm text-[var(--text-muted)]">
+                          这场对局暂无可读进程。
+                        </p>
+                      )}
+                    </>
+                  ) : !contextError ? (
+                    <EmptyState
+                      variant="panel"
+                      className="mt-3"
+                      title={
+                        selectedRecord?.completeness === 'METADATA_ONLY'
+                          ? '回放数据已清理'
+                          : '暂无可用回放'
+                      }
+                      description={
+                        selectedRecord?.completeness === 'METADATA_ONLY'
+                          ? '完整回放保留最近 10 天，该对局仅保留结果和卡组来源等信息。'
+                          : '这场对局尚无可读取的回放。'
+                      }
+                    />
+                  ) : null}
+                </Panel>
+              ) : null}
+
+              {replay ? (
+                <Panel as="section" padding="compact" className="min-w-0">
+                  <button
+                    type="button"
+                    onClick={handleToggleDebugDetails}
+                    className="flex w-full items-center justify-between gap-3 text-left"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="text-[var(--accent-primary)]">
+                        <ListTree size={16} />
+                      </span>
+                      <span className="text-sm font-bold text-[var(--text-primary)]">调试详情</span>
+                    </span>
+                    <span className="text-xs text-[var(--text-muted)]">
+                      {debugDetailsOpen ? '收起' : '展开'}
+                    </span>
+                  </button>
+                  {debugDetailsOpen && isLoadingAudit ? (
+                    <LoadingState variant="panel" className="mt-3" label="读取审计详情" />
+                  ) : debugDetailsOpen && auditError ? (
+                    <div className="mt-3 rounded-lg border border-[color:var(--semantic-error)]/40 bg-[color:var(--semantic-error)]/10 px-3 py-2 text-xs text-[var(--semantic-error)]">
+                      {auditError}
+                    </div>
+                  ) : debugDetailsOpen ? (
+                    <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      <ReplayStagePanel replay={replay} />
+                      <ReplayMetricGrid replay={replay} />
+                      <VisibleEventList
+                        events={auditPublicEvents}
+                        hasMore={Boolean(auditPages.PUBLIC_EVENTS?.nextCursor)}
+                        loadingMore={loadingMoreAuditKind === 'PUBLIC_EVENTS'}
+                        onLoadMore={() => void handleLoadMoreAudit('PUBLIC_EVENTS')}
+                      />
+                      <PrivateEventList
+                        events={auditPrivateEvents}
+                        hasMore={Boolean(auditPages.PRIVATE_EVENTS?.nextCursor)}
+                        loadingMore={loadingMoreAuditKind === 'PRIVATE_EVENTS'}
+                        onLoadMore={() => void handleLoadMoreAudit('PRIVATE_EVENTS')}
+                      />
+                      <DecisionRecordList
+                        decisions={auditDecisions}
+                        hasMore={Boolean(auditPages.DECISIONS?.nextCursor)}
+                        loadingMore={loadingMoreAuditKind === 'DECISIONS'}
+                        onLoadMore={() => void handleLoadMoreAudit('DECISIONS')}
+                      />
+                      <ZoneList zones={visibleZones} />
+                      <FrontCardList cards={visibleFrontCards} />
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">
+                      按需查看阶段、事件、决策与卡牌投影等审计信息。
+                    </p>
+                  )}
+                </Panel>
+              ) : null}
+            </section>
+          )}
         </div>
       </main>
       {replay && mobileDetailOpen ? (

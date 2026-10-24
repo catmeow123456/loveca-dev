@@ -1,16 +1,19 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Settings2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/common';
+import { PresentationModeButton } from '@/components/common/PresentationModeButton';
 import { BattleEffectsToggle } from './BattleEffectsToggle';
 import { MemberOverwriteToggle } from './MemberOverwriteToggle';
 
 export function BattleToolbarMenu({
   label,
   icon,
+  compact = false,
   children,
 }: {
   label: string;
   icon: ReactNode;
+  compact?: boolean;
   children: (close: () => void) => ReactNode;
 }) {
   const id = useId();
@@ -55,7 +58,12 @@ export function BattleToolbarMenu({
       <button
         ref={triggerRef}
         type="button"
-        className="battle-toolbar-control button-ghost inline-flex h-11 items-center justify-center gap-2 px-3 text-sm"
+        className={
+          compact
+            ? 'button-icon h-10 w-10'
+            : 'battle-toolbar-control button-ghost inline-flex h-11 items-center justify-center gap-2 px-3 text-sm'
+        }
+        title={compact ? label : undefined}
         aria-label={label}
         aria-expanded={open}
         aria-controls={id}
@@ -63,7 +71,7 @@ export function BattleToolbarMenu({
         onClick={() => setOpen((value) => !value)}
       >
         {icon}
-        <span>{label}</span>
+        {!compact && <span>{label}</span>}
       </button>
       {open && (
         <div
@@ -81,6 +89,7 @@ export function BattleToolbarMenu({
 }
 
 export function BattleSettingsMenu({
+  compact = false,
   showMemberOverwrite,
   askMemberOverwrite,
   onAskMemberOverwriteChange,
@@ -88,6 +97,7 @@ export function BattleSettingsMenu({
   battleEffectsEnabled,
   onBattleEffectsChange,
 }: {
+  compact?: boolean;
   showMemberOverwrite: boolean;
   askMemberOverwrite: boolean;
   onAskMemberOverwriteChange: (enabled: boolean) => void;
@@ -97,9 +107,13 @@ export function BattleSettingsMenu({
 }) {
   return (
     <div className="battle-toolbar-settings ml-auto shrink-0">
-      <BattleToolbarMenu label="对战设置" icon={<Settings2 size={16} />}>
+      <BattleToolbarMenu label="对战设置" icon={<Settings2 size={16} />} compact={compact}>
         {() => (
           <>
+            <div className="flex min-h-12 items-center justify-between gap-4 px-2">
+              <span>Excel 模式</span>
+              <PresentationModeButton compact />
+            </div>
             {showMemberOverwrite && (
               <div className="flex min-h-12 items-center justify-between gap-4 px-2">
                 <span>覆盖登场时询问</span>

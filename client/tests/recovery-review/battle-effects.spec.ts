@@ -71,7 +71,7 @@ for (const mobile of [false, true]) {
     await page.goto('/activation.html');
     await toggle(page, false);
     await page.reload();
-    if (!mobile) await page.getByRole('button', { name: '对战设置', exact: true }).click();
+    await page.getByRole('button', { name: '对战设置', exact: true }).click();
     await expect(page.getByRole('switch', { name: '对战特效' })).toHaveAttribute(
       'aria-checked',
       'false'

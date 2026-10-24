@@ -156,10 +156,14 @@ export function RegisterPage({
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* 用户名输入 */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
+          <label
+            htmlFor="register-username"
+            className="mb-2 block text-sm font-medium text-[var(--text-primary)]"
+          >
             用户名 <span className="text-red-500">*</span>
           </label>
           <input
+            id="register-username"
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -171,10 +175,14 @@ export function RegisterPage({
 
         {/* 显示名称输入 */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
+          <label
+            htmlFor="register-display-name"
+            className="mb-2 block text-sm font-medium text-[var(--text-primary)]"
+          >
             显示昵称 <span className="text-[var(--text-muted)]">(可选)</span>
           </label>
           <input
+            id="register-display-name"
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
@@ -185,7 +193,10 @@ export function RegisterPage({
 
         {/* 邮箱输入 */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
+          <label
+            htmlFor="register-email"
+            className="mb-2 block text-sm font-medium text-[var(--text-primary)]"
+          >
             邮箱{' '}
             {emailVerificationRequired ? (
               <span className="text-red-500">*</span>
@@ -194,6 +205,7 @@ export function RegisterPage({
             )}
           </label>
           <input
+            id="register-email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -205,10 +217,14 @@ export function RegisterPage({
 
         {/* 密码输入 */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
+          <label
+            htmlFor="register-password"
+            className="mb-2 block text-sm font-medium text-[var(--text-primary)]"
+          >
             密码 <span className="text-red-500">*</span>
           </label>
           <input
+            id="register-password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -220,10 +236,14 @@ export function RegisterPage({
 
         {/* 确认密码输入 */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
+          <label
+            htmlFor="register-confirm-password"
+            className="mb-2 block text-sm font-medium text-[var(--text-primary)]"
+          >
             确认密码 <span className="text-red-500">*</span>
           </label>
           <input
+            id="register-confirm-password"
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}

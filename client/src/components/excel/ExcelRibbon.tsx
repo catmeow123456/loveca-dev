@@ -1,12 +1,28 @@
-/** Decorative spreadsheet chrome: deliberately no controls, handlers or tab stops. */
-export function ExcelRibbonTabs() {
+import type { ReactNode } from 'react';
+
+/** Only an explicitly supplied View menu is interactive; cover chrome stays decorative. */
+export function ExcelRibbonTabs({ viewMenu }: { viewMenu?: ReactNode }) {
   return (
-    <div className="excel-ribbon-tabs" aria-hidden="true" inert>
-      {['开始', '插入', '数据', '公式', '协作', '视图', '效率工具'].map((label, index) => (
-        <span key={label} className={index === 0 ? 'excel-ribbon-tab-active' : undefined}>
-          {label}
-        </span>
-      ))}
+    <div
+      className="excel-ribbon-tabs"
+      aria-hidden={viewMenu ? undefined : true}
+      inert={!viewMenu}
+      data-interactive={viewMenu ? true : undefined}
+    >
+      {['开始', '插入', '数据', '公式', '协作', '视图', '效率工具'].map((label, index) =>
+        label === '视图' && viewMenu ? (
+          <div key={label}>{viewMenu}</div>
+        ) : (
+          <span
+            key={label}
+            aria-hidden="true"
+            inert
+            className={index === 0 ? 'excel-ribbon-tab-active' : undefined}
+          >
+            {label}
+          </span>
+        )
+      )}
     </div>
   );
 }

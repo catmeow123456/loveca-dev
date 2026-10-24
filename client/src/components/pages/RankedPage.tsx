@@ -4,6 +4,8 @@ import { BookOpen, DoorOpen, Loader2, Medal, Search, ShieldCheck, Swords, X } fr
 import {
   ActionButton,
   DeckSelector,
+  ErrorNotice,
+  LoadingState,
   PageHeader,
   Panel,
   SelectMenu,
@@ -248,6 +250,14 @@ export function RankedPage({
 
       <main className="relative z-10 flex flex-1 justify-center px-4 py-5 sm:px-6">
         <div className="w-full max-w-4xl">
+          {!overview && error ? (
+            <ErrorNotice
+              className="mb-4"
+              message={error}
+              onRetry={() => void refresh().catch(() => undefined)}
+              retryDisabled={loading}
+            />
+          ) : null}
           {active ? (
             <QueueState
               status={status}
@@ -281,10 +291,14 @@ export function RankedPage({
                   menuMinWidth={256}
                 />
               ) : null}
-              <SeasonSummary
-                overview={displayedOverview}
-                onOpenSeasonNotice={() => setIsSeasonNoticeOpen(true)}
-              />
+              {displayedOverview ? (
+                <SeasonSummary
+                  overview={displayedOverview}
+                  onOpenSeasonNotice={() => setIsSeasonNoticeOpen(true)}
+                />
+              ) : !error ? (
+                <LoadingState variant="panel" label="正在读取赛季" />
+              ) : null}
               {!historicalOverview && overview?.availability.canJoin ? (
                 <>
                   <div
@@ -703,12 +717,9 @@ function SeasonSummary({
   overview,
   onOpenSeasonNotice,
 }: {
-  overview: ReturnType<typeof useRankedStore.getState>['overview'];
+  overview: RankedOverviewView;
   onOpenSeasonNotice: () => void;
 }) {
-  if (!overview) {
-    return <Panel className="text-sm text-[var(--text-muted)]">正在读取赛季…</Panel>;
-  }
   const player = overview.player;
   const cover = overview.season?.cover ?? {
     mode: 'DEFAULT' as const,

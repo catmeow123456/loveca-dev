@@ -414,7 +414,11 @@ test('ordered selection retains draft across renderer, reorders and removes stal
   await choices.nth(0).click();
   await choices.nth(1).click();
   await page.getByRole('button', { name: '第 2 项上移', exact: true }).click();
-  await page.keyboard.press('Control+Alt+e');
+  await page.locator('.excel-view-menu summary').click();
+  await page
+    .getByRole('group', { name: '界面模式' })
+    .getByRole('button', { name: '普通界面' })
+    .click();
   await expect(page.locator('html')).toHaveAttribute('data-presentation', 'normal');
   await expect(page.getByRole('list', { name: '已选顺序' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /第 \d+ 项[上下]移/ })).toHaveCount(0);
@@ -422,8 +426,15 @@ test('ordered selection retains draft across renderer, reorders and removes stal
   const normalChoices = page.locator('button.group');
   await normalChoices.nth(0).click();
   await normalChoices.nth(0).click();
-  await page.keyboard.press('Control+Alt+e');
+  expect(await submissions(page)).toEqual([]);
+  // On phones the effect sheet covers the toolbar; collapsing it keeps the draft.
+  if (page.viewportSize()!.width < 768)
+    await page.getByRole('button', { name: '隐藏', exact: true }).click();
+  await page.getByRole('button', { name: '对战设置', exact: true }).click();
+  await page.getByRole('button', { name: '切换到 Excel 模式', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-presentation', 'excel');
+  if (page.viewportSize()!.width < 768)
+    await page.getByRole('button', { name: '展开效果', exact: true }).click();
   await expect(page.getByRole('list', { name: '已选顺序' }).getByRole('listitem')).toHaveCount(2);
   await page.getByRole('button', { name: '确认选择', exact: true }).click();
   await expect

@@ -40,23 +40,39 @@ function observeMedia(page: Page) {
   return media;
 }
 
-test('mode switches only by shortcut, persists, and never dismisses the cover', async ({
+test('mode controls and shortcut persist the choice and never dismiss the cover', async ({
   page,
 }, info) => {
   await excel(page);
   await installVisualApiMocks(page, false);
   await page.goto('/');
-  await expect(
-    page.getByRole('button', { name: /^(表格界面|普通界面|切换普通界面)$/ })
-  ).toHaveCount(0);
-  await page.keyboard.press('Control+Alt+e');
+  const view = page.locator('.excel-view-menu summary');
+  const modes = page.getByRole('group', { name: '界面模式', exact: true });
+  await view.focus();
+  await page.keyboard.press('Enter');
+  await expect(modes.getByRole('button', { name: 'Excel 界面', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
+  await page.screenshot({ path: info.outputPath('excel-view-menu.png'), fullPage: true });
+  await page.keyboard.press('Escape');
+  await expect(modes).toBeHidden();
+  await expect(view).toBeFocused();
+  await view.click();
+  await page.getByRole('button', { name: '夜间模式', exact: true }).click();
+  await expect(modes).toBeHidden();
+  await view.click();
+  await expect(modes).toBeInViewport();
+  await page.screenshot({ path: info.outputPath('excel-view-menu-dark.png'), fullPage: true });
+  await modes.getByRole('button', { name: '普通界面' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-presentation', 'normal');
-  await expect(page.locator('.excel-toolbar, .presentation-switch')).toHaveCount(0);
+  await expect(page.locator('.excel-toolbar')).toHaveCount(0);
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-presentation', 'normal');
-  await expect(page.getByRole('button', { name: '表格界面', exact: true })).toHaveCount(0);
+  const switchButton = page.getByRole('button', { name: '切换到 Excel 模式', exact: true });
+  await expect(switchButton).toBeInViewport();
   await page.screenshot({
-    path: info.outputPath('normal-without-mode-button.png'),
+    path: info.outputPath('normal-mode-button.png'),
     fullPage: true,
   });
   await page.evaluate(() => {
@@ -72,12 +88,17 @@ test('mode switches only by shortcut, persists, and never dismisses the cover', 
       );
   });
   await expect(page.locator('html')).toHaveAttribute('data-presentation', 'normal');
-  await page.keyboard.press('Control+Alt+e');
+  await switchButton.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('html')).toHaveAttribute('data-presentation', 'excel');
+  await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-presentation', 'excel');
   await page.getByRole('button', { name: '登录账号', exact: true }).click();
   await page.getByPlaceholder('输入你的用户名或邮箱').fill('输入不触发切换');
   await page.keyboard.press('Control+Alt+e');
   await expect(page.locator('html')).toHaveAttribute('data-presentation', 'normal');
+  await expect(page.getByPlaceholder('输入你的用户名或邮箱')).toHaveValue('输入不触发切换');
+  await expect(switchButton).toBeVisible();
   await page.keyboard.press('Control+Alt+x');
   const cover = page.getByRole('region', { name: '工作记录工作表' });
   await expect(cover).toBeVisible();
@@ -136,6 +157,7 @@ test('practice and debug enter deck selection directly and retain progress acros
   await installVisualApiMocks(page, true);
   const media = observeMedia(page);
   await page.goto('/?page=battle-lobby');
+  await page.locator('summary').filter({ hasText: '练习与调试' }).click();
   await page.getByRole('button', { name: '对墙打', exact: true }).click();
   await expect(page.getByRole('heading', { name: '选择己方卡组', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '下一步：确认对局' }).click();
@@ -145,6 +167,7 @@ test('practice and debug enter deck selection directly and retain progress acros
   await page.getByRole('button', { name: '取消准备', exact: true }).click();
   await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
 
+  await page.locator('summary').filter({ hasText: '练习与调试' }).click();
   await page.getByRole('button', { name: '双人调试', exact: true }).click();
   await expect(page.getByRole('heading', { name: '选择 Player 1 的卡组' })).toBeVisible();
   await page.getByRole('button', { name: '下一步：选择 P2 卡组' }).click();
@@ -152,10 +175,14 @@ test('practice and debug enter deck selection directly and retain progress acros
   const selectedDeck = await page.getByRole('row', { selected: true }).innerText();
   expect(media).toEqual([]);
   expect(await page.evaluate(() => (window as any).excelAudioCalls)).toBe(0);
-  await page.keyboard.press('Control+Alt+e');
+  await page.locator('.excel-view-menu summary').click();
+  await page
+    .getByRole('group', { name: '界面模式' })
+    .getByRole('button', { name: '普通界面' })
+    .click();
   await expect(page.locator('html')).toHaveAttribute('data-presentation', 'normal');
   await expect(page.getByRole('heading', { name: '选择 Player 2 的卡组' })).toBeVisible();
-  await page.keyboard.press('Control+Alt+e');
+  await page.getByRole('button', { name: '切换到 Excel 模式', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-presentation', 'excel');
   await expect(page.getByRole('row', { selected: true })).toHaveText(selectedDeck, {
     useInnerText: true,
