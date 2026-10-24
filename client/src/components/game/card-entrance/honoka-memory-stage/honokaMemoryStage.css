@@ -37,7 +37,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: fill;
+  object-fit: contain;
   max-width: none;
 }
 .honoka-memory-card-sheen {
@@ -91,8 +91,7 @@
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
-.honoka-memory-recovery-cue,
-.honoka-memory-recovery-label {
+.honoka-memory-recovery-cue {
   position: absolute;
   transform: translate(-50%, -50%);
   color: #ffe6c2;
@@ -101,31 +100,6 @@
     0 1px 3px #000,
     0 1px 8px #000;
   white-space: nowrap;
-}
-.honoka-memory-passage {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  perspective: 400px;
-  border: 2px solid #d2ae80;
-  border-bottom: 4px solid #a07c58;
-  box-shadow: 0 12px 8px #090c1933;
-  border-radius: 45% 45% 0 0;
-  background: radial-gradient(ellipse at bottom, #e7bd7b40, transparent 72%);
-}
-.honoka-memory-passage i {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 50%;
-  background: linear-gradient(90deg, #6e3645, #cd9271 4%, #603749 15%, #281f33 94%, #c69a70);
-  border: 1px solid #dbb57c;
-  transform-origin: left center;
-  border-radius: 80% 0 0 0;
-}
-.honoka-memory-passage i + i {
-  left: 50%;
-  transform-origin: right center;
-  border-radius: 0 80% 0 0;
 }
 .honoka-memory-reduced {
   position: absolute;

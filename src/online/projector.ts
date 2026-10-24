@@ -441,19 +441,6 @@ export function projectPlayerViewState(
                     scoreGranted: game.entranceRuntime.pending.honokaMemory.scoreGranted,
                     heartGranted: game.entranceRuntime.pending.honokaMemory.heartGranted,
                     recoveryReady: game.entranceRuntime.pending.honokaMemory.recoveryReady,
-                    ...(game.entranceRuntime.pending.honokaMemory.recovered
-                      ? {
-                          recovered: {
-                            objectId: createPublicObjectId(
-                              game.entranceRuntime.pending.honokaMemory.recovered.cardId
-                            ),
-                            cardCode: game.entranceRuntime.pending.honokaMemory.recovered.cardCode,
-                            name: game.entranceRuntime.pending.honokaMemory.recovered.name,
-                            landscape:
-                              game.entranceRuntime.pending.honokaMemory.recovered.landscape,
-                          },
-                        }
-                      : {}),
                   },
                 }
               : {}),

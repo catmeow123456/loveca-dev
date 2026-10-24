@@ -58,7 +58,7 @@ describe('22-cost Honoka public LIVE presentation', () => {
     }
   );
   it.each(['recovery-member', 'recovery-live'])(
-    'keeps selection public and only presents the successfully recovered %s',
+    'keeps selection public and returns %s through ordinary recovery without another barrier',
     (selected) => {
       const f = prepareHonokaMemory({ draw: true });
       f.start();
@@ -75,25 +75,14 @@ describe('22-cost Honoka public LIVE presentation', () => {
       expect(f.session.state!.players[0].hand.cardIds.filter((id) => id === selected)).toHaveLength(
         1
       );
-      const wait = f.session.state!.entranceRuntime!.pending!;
-      expect(wait.id).not.toBe(rewardsId);
-      expect(wait.honokaMemory).toMatchObject({
-        part: 'recovery',
-        scoreGranted: false,
-        heartGranted: false,
-        recovered: { cardId: selected },
-      });
+      expect(f.session.state!.entranceRuntime!.pending).toBeNull();
+      expect(f.session.state!.activeEffect).toBeNull();
+      expect(f.session.state!.entranceRuntime!.resumePendingEffects).toBeUndefined();
       expect(f.ack('p2', rewardsId).success).toBe(false);
       const opponent = f.session.getPlayerViewState('p2')!;
       expect(opponent.objects[`obj_${selected}`]?.frontInfo).toBeUndefined();
       expect(JSON.stringify(opponent)).not.toContain('PRIVATE-HAND-CODE');
-      const cue = getHonokaMemoryPresentation(opponent, (c) => c)!.cue;
-      expect(cue.recovered?.code).toBe(selected);
-      expect(cue.recovered?.landscape).toBe(selected === 'recovery-live');
-      expect(cue.memories).toEqual([]);
-      f.ack();
-      f.ack('p2');
-      expect(f.session.state!.entranceRuntime!.pending).toBeNull();
+      expect(getHonokaMemoryPresentation(opponent, (c) => c)).toBeUndefined();
       expect(rewards(f)).toHaveLength(2);
       expect(f.session.getPlayerViewState('p2')!.match.entrance).toBeUndefined();
     }
@@ -120,13 +109,9 @@ describe('22-cost Honoka public LIVE presentation', () => {
     expect(f.session.state!.entranceRuntime?.pending ?? null).toBeNull();
     expect(f.session.getPlayerViewState('p1')!.match.entrance).toBeUndefined();
   });
-  it('resumes a serialized timeout once, retaining its public snapshot but not replaying completed windows', () => {
+  it('resumes a serialized rewards timeout once, then completes ordinary recovery without replay', () => {
     const f = prepareHonokaMemory({ draw: true });
     f.start();
-    f.ack();
-    f.ack('p2');
-    f.confirm('recovery-live');
-    confirmPublicSelectionIfNeeded(f.session);
     const wait = f.session.state!.entranceRuntime!.pending!;
     const restored = createGameSession({ cardEntrance: 'REMOTE', now: f.now });
     const state = rehydrateAuthorityGameState(
@@ -136,14 +121,21 @@ describe('22-cost Honoka public LIVE presentation', () => {
       authorityState: state,
       currentPublicSeq: f.session.getCurrentPublicEventSeq(),
     });
-    expect(
-      restored.getPlayerViewState('p2')!.match.entrance?.honokaMemory?.recovered?.cardCode
-    ).toBe('recovery-live');
+    expect(restored.getPlayerViewState('p2')!.match.entrance?.honokaMemory?.recoveryReady).toBe(
+      true
+    );
     f.advance(ENTRANCE_WAIT_LIMIT_MS - 1);
     expect(restored.expireCardEntrance()).toBe(false);
     f.advance(1);
     expect(restored.expireCardEntrance()).toBe(true);
     expect(restored.expireCardEntrance()).toBe(false);
+    expect(
+      restored.executeCommand(
+        createConfirmEffectStepCommand('p1', restored.state!.activeEffect!.id, 'recovery-live')
+      ).success
+    ).toBe(true);
+    confirmPublicSelectionIfNeeded(restored);
+    expect(restored.state!.entranceRuntime!.pending).toBeNull();
     expect(
       restored.state!.players[0].hand.cardIds.filter((id) => id === 'recovery-live')
     ).toHaveLength(1);
@@ -183,6 +175,35 @@ describe('22-cost Honoka public LIVE presentation', () => {
     expect(f.session.state!.entranceRuntime!.pending).toBeNull();
     expect(f.session.state!.entranceRuntime!.resumePendingEffects).toBeUndefined();
     expect(f.session.state!.liveResolution.playerScores.get('p1')).toBe(2);
+  });
+  it('continues an ordered batch after ordinary recovery without an extra ACK', () => {
+    const f = prepareHonokaMemory({ secondHonoka: true, draw: true });
+    f.start();
+    expect(
+      f.session.executeCommand(
+        createConfirmEffectStepCommand(
+          'p1',
+          f.session.state!.activeEffect!.id,
+          undefined,
+          undefined,
+          true
+        )
+      ).success
+    ).toBe(true);
+    for (const selected of ['recovery-live', 'recovery-member']) {
+      expect(f.session.state!.entranceRuntime!.pending!.honokaMemory?.part).toBe('rewards');
+      f.ack();
+      f.ack('p2');
+      expect(f.confirm(selected).success).toBe(true);
+      confirmPublicSelectionIfNeeded(f.session);
+      expect(f.session.state!.players[0].hand.cardIds.filter((id) => id === selected)).toHaveLength(
+        1
+      );
+    }
+    expect(f.session.state!.entranceRuntime!.pending).toBeNull();
+    expect(f.session.state!.pendingAbilities).toEqual([]);
+    expect(f.session.state!.activeEffect).toBeNull();
+    expect(rewards(f)).toHaveLength(4);
   });
   it('LOCAL completion releases both seats and a missing target never borrows another member', () => {
     const f = prepareHonokaMemory({ mode: 'LOCAL' });

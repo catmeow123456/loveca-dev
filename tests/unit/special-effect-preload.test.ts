@@ -105,14 +105,10 @@ describe('public special-effect preload candidates', () => {
         ...v.match,
         entrance: {
           rinaLiveSwap: { liveCardCode: 'returned-public-live' },
-          honokaMemory: { recovered: { cardCode: 'recovered-public-member' } },
         },
       },
     } as PlayerViewState;
-    expect(collect(updated).slice(1, 3)).toEqual([
-      '/images/returned-public-live.png',
-      '/images/recovered-public-member.png',
-    ]);
+    expect(collect(updated)[1]).toBe('/images/returned-public-live.png');
     expect(collect(updated)).not.toContain('/images/hand.png');
   });
   it('skips unrelated matches and card decoding in reduced motion', () => {

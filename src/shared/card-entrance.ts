@@ -102,20 +102,14 @@ export interface EntranceWait {
     readonly phase: 'RETURN' | 'PLACE';
     readonly liveIndex: number;
   };
-  /** Resolved LIVE rewards, or an already-public card successfully recovered to hand. */
+  /** Resolved LIVE rewards before the existing public recovery selection. */
   readonly honokaMemory?: {
     readonly sourceCardId: string;
     readonly memoryCardIds: readonly string[];
-    readonly part: 'rewards' | 'recovery';
+    readonly part: 'rewards';
     readonly scoreGranted: boolean;
     readonly heartGranted: boolean;
     readonly recoveryReady: boolean;
-    readonly recovered?: {
-      readonly cardId: string;
-      readonly cardCode: string;
-      readonly name: string;
-      readonly landscape: boolean;
-    };
   };
   /** Successful acquisition, after its discard cost and before invocation. */
   readonly abilityTransfer?: {

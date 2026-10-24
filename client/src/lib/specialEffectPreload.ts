@@ -27,7 +27,6 @@ export function collectSpecialEffectImageUrls(
   }
   // These faces were public before the movement, even though the destination is hidden.
   if (wait?.rinaLiveSwap) urls.add(imagePath(wait.rinaLiveSwap.liveCardCode));
-  if (wait?.honokaMemory?.recovered) urls.add(imagePath(wait.honokaMemory.recovered.cardCode));
   for (const id of wait?.honokaMemory?.memoryObjectIds ?? []) face(id);
   if (wait?.abilityTransfer) face(wait.abilityTransfer.sourceObjectId);
   for (const relay of wait?.kahoRelays ?? []) face(relay.source.objectId);

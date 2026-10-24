@@ -2,13 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { getEntranceStageTarget, sameEntranceTarget } from '@/lib/cardEntranceLanding';
 import { collectBattleAnimationAnchors } from '@/lib/battleAnimationEvents';
-import {
-  BATTLE_UI_ANCHORS,
-  getBattleHandAnchor,
-  getBattleLiveZoneAnchor,
-  getBattleSuccessLiveZoneAnchor,
-  getBattleWaitingRoomAnchor,
-} from '@/lib/battleUiAnchors';
+import { BATTLE_UI_ANCHORS, getBattleSuccessLiveZoneAnchor } from '@/lib/battleUiAnchors';
 import { ENTRANCE_LOAD_TIMEOUT_MS } from '@/lib/cardEntranceAssets';
 import type { EffectImageCache } from '@/lib/effectImageCache';
 import type { HonokaMemoryPresentation } from '@/lib/honokaMemoryPresentation';
@@ -62,9 +56,7 @@ export function HonokaMemoryPlayback({
       return;
     }
     let cancelled = false;
-    const urls = [
-      ...new Set([...cue.memories, ...(cue.recovered ? [cue.recovered] : [])].map((f) => f.image)),
-    ];
+    const urls = [...new Set(cue.memories.map((f) => f.image))];
     const timeout = setTimeout(() => {
       if (!cancelled) {
         cancelled = true;
@@ -93,33 +85,17 @@ export function HonokaMemoryPlayback({
   }, [images, cue, reduced]);
 
   useLayoutEffect(() => {
-    if (reduced || !cue.recovered) return;
-    const store = useGameStore.getState();
-    const eventId = `honoka-memory:${cue.id}:${cue.recovered.objectId}`;
-    store.addBattleAnimationOcclusions([
-      { eventId, objectId: cue.recovered.objectId, suppressDefaultMovement: true },
-    ]);
-    return () => store.removeBattleAnimationOcclusion(eventId);
-  }, [cue, reduced]);
-
-  useLayoutEffect(() => {
     if (!ready || !valid) return;
     let raf = requestAnimationFrame(() => {
       const cards = collectBattleAnimationAnchors().cards;
       const board = anchor(BATTLE_UI_ANCHORS.BOARD);
       const member = rect(cards.get(target.objectId));
       const success = anchor(getBattleSuccessLiveZoneAnchor(side));
-      const live = anchor(getBattleLiveZoneAnchor(side));
-      const waiting = anchor(getBattleWaitingRoomAnchor(side));
-      // The opponent's recovered card remains hidden; target the public hand zone only.
-      const hand =
-        (side === 'self' && cue.recovered ? rect(cards.get(cue.recovered.objectId)) : undefined) ??
-        anchor(getBattleHandAnchor(side));
-      if (!board || !member || !success || !live || !waiting || !hand) {
+      if (!board || !member || !success) {
         done.current();
         return;
       }
-      const layout = { board, member, success, live, waiting, hand, sourceSide: side };
+      const layout = { board, member, success, sourceSide: side };
       const start = performance.now();
       const tick = (now: number) => {
         const elapsed = now - start;

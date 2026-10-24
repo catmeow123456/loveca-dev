@@ -11,7 +11,7 @@ import {
   addPlayerScoreLiveModifierForTargetMember,
 } from '../../../../domain/rules/live-modifiers.js';
 import type { EntranceWait } from '../../../../shared/card-entrance.js';
-import { CardType, HeartColor } from '../../../../shared/types/enums.js';
+import { HeartColor } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   groupAliasIs,
@@ -190,8 +190,6 @@ function finishMuseCardRecovery(
   if (!currentCandidates.includes(selectedCardId)) {
     return game;
   }
-  // Snapshot only this validated public waiting-room card, before it becomes hidden.
-  const recovered = getCardById(game, selectedCardId)!;
   const recovery = recoverCardsFromWaitingRoomToHandForPlayer(game, player.id, [selectedCardId], {
     candidateCardIds: effect.selectableCardIds ?? [],
     exactCount: 1,
@@ -218,27 +216,8 @@ function finishMuseCardRecovery(
       recoveredCardIds: recovery.movedCardIds,
     }
   );
-  const presented = presentHonokaMemory(
-    resolved,
-    {
-      sourceCardId: effect.sourceCardId,
-      memoryCardIds: [],
-      part: 'recovery',
-      scoreGranted: false,
-      heartGranted: false,
-      recoveryReady: false,
-      recovered: {
-        cardId: selectedCardId,
-        cardCode: recovered.data.cardCode,
-        name: recovered.data.nameCn || recovered.data.nameJp || recovered.data.name,
-        landscape: recovered.data.cardType === CardType.LIVE,
-      },
-    },
-    effect.metadata?.orderedResolution === true
-  );
-  return presented !== resolved
-    ? presented
-    : continuePendingCardEffects(resolved, effect.metadata?.orderedResolution === true);
+  // Use the shared WAITING_ROOM → HAND presentation; no dedicated recovery barrier.
+  return continuePendingCardEffects(resolved, effect.metadata?.orderedResolution === true);
 }
 
 /** Cosmetic wait at an atomic result boundary. The existing session owns ACK/timeout/resume. */
@@ -255,12 +234,7 @@ function presentHonokaMemory(
     game.isEnded ||
     !source ||
     !isValidSourceOnStage(game, source.ownerId, source.instanceId) ||
-    !(
-      presentation.scoreGranted ||
-      presentation.heartGranted ||
-      presentation.recoveryReady ||
-      presentation.recovered
-    )
+    !(presentation.scoreGranted || presentation.heartGranted || presentation.recoveryReady)
   )
     return game;
   const generation = runtime.generation + 1;
