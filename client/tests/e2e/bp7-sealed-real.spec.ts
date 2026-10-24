@@ -37,7 +37,7 @@ async function login(page: Page, username: string) {
   await page.getByRole('button', { name: '登录', exact: true }).click();
   await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
   await page.getByRole('radio', { name: /PT 不限/ }).check();
-  await page.getByRole('button', { name: 'BP7 开盒赛', exact: true }).click();
+  await page.getByRole('button', { name: '开盒战 七弹', exact: true }).click();
 }
 async function selectMembers(page: Page) {
   for (let i = 0; i < 24; i++)
@@ -63,7 +63,7 @@ async function startBattle(first: Page, second: Page) {
       await expect(page.getByTitle('打开房间操作')).toBeVisible();
       await expect(
         page
-          .getByText(/开盒赛 · 两首获胜/)
+          .getByText(/开盒战 · 两首获胜/)
           .filter({ visible: true })
           .first()
       ).toBeVisible();
@@ -136,7 +136,7 @@ test('two players open, build, reconnect, battle, retain a pool and rebox on des
     await login(second, users[1].username);
     for (const [i, page] of [first, second].entries()) {
       await page.getByRole('button', { name: '找对手', exact: true }).click();
-      await expect(page.getByRole('region', { name: '开盒赛玩法' })).toBeVisible();
+      await expect(page.getByRole('region', { name: '开盒战玩法' })).toBeVisible();
       await page.screenshot({
         path: info.outputPath(i === 0 ? 'desktop-find-opponent.png' : 'mobile-find-opponent.png'),
       });
@@ -146,7 +146,7 @@ test('two players open, build, reconnect, battle, retain a pool and rebox on des
     await first.getByRole('button', { name: '创建房间', exact: true }).click();
     await first
       .getByRole('dialog')
-      .getByRole('button', { name: '创建开盒赛房间', exact: true })
+      .getByRole('button', { name: '创建开盒战房间', exact: true })
       .click();
     await expect(first.getByRole('status', { name: '正在公开等人' })).toBeVisible();
     const code = (await first.locator('.casual-current-top .casual-code').innerText()).trim();
@@ -155,12 +155,12 @@ test('two players open, build, reconnect, battle, retain a pool and rebox on des
     await second.getByRole('dialog').getByRole('button', { name: '查找房间', exact: true }).click();
     await second
       .getByRole('dialog')
-      .getByRole('button', { name: '加入开盒赛', exact: true })
+      .getByRole('button', { name: '加入开盒战', exact: true })
       .click();
     await second.getByRole('dialog').getByRole('button', { name: '加入房间', exact: true }).click();
     await first.getByRole('button', { name: '确认开局', exact: true }).click();
     await second.getByRole('button', { name: '确认开局', exact: true }).click();
-    await expect(first.getByRole('region', { name: 'BP7 开盒组牌' })).toBeVisible();
+    await expect(first.getByRole('region', { name: '开盒战组牌' })).toBeVisible();
     const before = [await own(0), await own(1)];
     expect(before[0].sealedPool.poolId).not.toBe(before[1].sealedPool.poolId);
     await first.getByRole('button', { name: '打开第 1 包', exact: true }).click();
@@ -168,6 +168,25 @@ test('two players open, build, reconnect, battle, retain a pool and rebox on des
     await first.screenshot({ path: info.outputPath('desktop-open-pack.png'), fullPage: true });
     for (const [i, page] of [first, second].entries()) {
       await page.getByRole('button', { name: '全部打开并组牌', exact: true }).click();
+      const memberCosts = async () =>
+        (
+          await page
+            .locator('.sealed-card-grid')
+            .first()
+            .locator('.sealed-card-caption small')
+            .allTextContents()
+        ).map((caption) => Number(caption.match(/费用 (\d+)/)![1]));
+      const ascending = await memberCosts();
+      expect(ascending).toEqual([...ascending].sort((a, b) => a - b));
+      await page.getByRole('button', { name: '排序', exact: true }).click();
+      await page.getByRole('option', { name: '费用降序', exact: true }).click();
+      expect(await memberCosts()).toEqual([...ascending].reverse());
+      await page.getByRole('button', { name: '排序', exact: true }).click();
+      await page.screenshot({
+        path: info.outputPath(i === 0 ? 'desktop-sort-menu.png' : 'mobile-sort-menu.png'),
+        animations: 'disabled',
+      });
+      await page.getByRole('option', { name: '费用升序', exact: true }).click();
       await expect
         .poll(() =>
           page
@@ -321,7 +340,7 @@ test('random matchmaking cancels both builders at the shared deadline without cr
     for (const page of pages)
       await page.getByRole('button', { name: '确认开局', exact: true }).click();
     for (const page of pages)
-      await expect(page.getByRole('region', { name: 'BP7 开盒组牌' })).toBeVisible();
+      await expect(page.getByRole('region', { name: '开盒战组牌' })).toBeVisible();
     for (let pack = 1; pack <= 10; pack++) {
       await pages[0].getByRole('button', { name: `打开第 ${pack} 包`, exact: true }).click();
       await expect(pages[0].locator('.sealed-card')).toHaveCount(5);

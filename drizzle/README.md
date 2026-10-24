@@ -44,7 +44,7 @@ pnpm db:migrate
 
 ## 现有数据库
 
-BP7 开盒赛升级除结构迁移 `0045_add_bp7_sealed.sql` 外，还必须停写并迁移历史 checkpoint。命令、dry-run、原子回滚及版本边界见 [BP7 开盒赛迁移说明](../docs/online-mode/bp7-sealed.md#数据迁移)。
+开盒战（七弹）升级除结构迁移 `0045_add_bp7_sealed.sql` 外，还必须停写并迁移历史 checkpoint。命令、dry-run、原子回滚及版本边界见 [开盒战（七弹）迁移说明](../docs/online-mode/bp7-sealed.md#数据迁移)。
 
 在确认目标数据库已完成备份、满足对应 migration notes 前提且迁移记录与实际结构一致后，执行：
 

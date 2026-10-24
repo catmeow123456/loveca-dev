@@ -16,7 +16,6 @@
   font-size: 1.25rem;
 }
 .casual-lobby--sealed .casual-current.ui-panel {
-  max-width: none;
   padding-top: 16px;
 }
 .casual-lobby--sealed .casual-current-top,
@@ -192,18 +191,19 @@
   font-variant-numeric: tabular-nums;
 }
 .sealed-filter-menus {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(100px, 1fr)) minmax(140px, 1.2fr);
   gap: 8px;
-  flex: 1;
+  flex: 1 1 520px;
   min-width: 0;
+  max-width: 700px;
 }
 .sealed-builder .sealed-filter-menu {
   min-height: 40px;
   justify-content: space-between;
   padding: 8px 12px;
   font-weight: 500;
-  min-width: 110px;
-  max-width: 220px;
+  min-width: 0;
 }
 .sealed-card-grid {
   display: grid;
@@ -380,6 +380,7 @@
   }
   .sealed-filter-menus {
     flex-basis: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
   }
   .sealed-builder .sealed-filter-menu {

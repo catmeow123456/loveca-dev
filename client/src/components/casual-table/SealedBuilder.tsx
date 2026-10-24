@@ -1,6 +1,6 @@
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Check, ChevronDown, Clock3, Info, ZoomIn } from 'lucide-react';
+import { ArrowDownUp, Check, ChevronDown, Clock3, Info, ZoomIn } from 'lucide-react';
 import { ActionButton, SelectMenu } from '@/components/common';
 import { getGroupDisplayName } from '@/components/deck-editor/filter-constants';
 import type { CasualTableOwnView, SealedPoolView } from '@game/online/casual-table-types';
@@ -11,6 +11,13 @@ import { PresentationImage } from '@/components/excel/PresentationRoot';
 import './sealed-builder.css';
 
 type PoolCard = SealedPoolView['cards'][number];
+const MEMBER_SORT_OPTIONS = [
+  { value: 'COST_ASC', label: '费用升序' },
+  { value: 'COST_DESC', label: '费用降序' },
+  { value: 'CARD_CODE', label: '卡号顺序' },
+  { value: 'OPENING', label: '开盒顺序' },
+] as const;
+type MemberSort = (typeof MEMBER_SORT_OPTIONS)[number]['value'];
 interface SealedBuilderProps {
   table: CasualTableOwnView;
   userId: string;
@@ -61,6 +68,7 @@ function Builder({
   const [group, setGroup] = useState('');
   const [cost, setCost] = useState('');
   const [rare, setRare] = useState('');
+  const [sort, setSort] = useState<MemberSort>('COST_ASC');
   const [tab, setTab] = useState<'POOL' | 'DECK'>('POOL');
   const [detail, setDetail] = useState<PoolCard | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -160,17 +168,30 @@ function Builder({
       </article>
     );
   }
-  const members = pool.cards.filter(
-    (card) =>
-      card.cardType === CardType.MEMBER &&
-      (!group || card.groupNames.includes(group)) &&
-      (!cost || card.cost === Number(cost)) &&
-      (!rare || card.rare === rare) &&
-      (tab === 'POOL' || selected.includes(card.index))
-  );
+  const members = pool.cards
+    .filter(
+      (card) =>
+        card.cardType === CardType.MEMBER &&
+        (!group || card.groupNames.includes(group)) &&
+        (!cost || card.cost === Number(cost)) &&
+        (!rare || card.rare === rare) &&
+        (tab === 'POOL' || selected.includes(card.index))
+    )
+    .sort((a, b) => {
+      let order = 0;
+      if (sort === 'COST_ASC' || sort === 'COST_DESC') {
+        // Unknown costs stay last in either direction; ties retain the opening order.
+        if (a.cost === null && b.cost !== null) return 1;
+        if (b.cost === null && a.cost !== null) return -1;
+        order = ((a.cost ?? 0) - (b.cost ?? 0)) * (sort === 'COST_ASC' ? 1 : -1);
+      } else if (sort === 'CARD_CODE') {
+        order = a.cardCode.localeCompare(b.cardCode, 'en', { numeric: true });
+      }
+      return order || a.index - b.index;
+    });
   const fixed = pool.cards.filter((card) => card.cardType !== CardType.MEMBER);
   return (
-    <section className="sealed-builder" aria-label="BP7 开盒组牌">
+    <section className="sealed-builder" aria-label="开盒战组牌">
       <div className="sealed-build-toolbar">
         <div className="sealed-build-counts">
           <div
@@ -316,7 +337,7 @@ function Builder({
                 已选成员 <span>{selected.length}</span>
               </button>
             </div>
-            <div className="sealed-filter-menus" role="group" aria-label="筛选成员">
+            <div className="sealed-filter-menus" role="group" aria-label="筛选与排序">
               <SelectMenu
                 label="团体"
                 value={group}
@@ -348,6 +369,17 @@ function Builder({
                   { value: '', label: '全部罕度' },
                   ...rares.map((value) => ({ value, label: value })),
                 ]}
+              />
+              <SelectMenu<MemberSort>
+                label="排序"
+                value={sort}
+                onChange={setSort}
+                className="sealed-filter-menu sealed-sort-menu"
+                menuMinWidth={176}
+                options={MEMBER_SORT_OPTIONS.map((option) => ({
+                  ...option,
+                  leading: <ArrowDownUp size={14} aria-hidden="true" />,
+                }))}
               />
             </div>
           </div>

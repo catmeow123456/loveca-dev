@@ -140,8 +140,29 @@
 .casual-announcements {
   margin-bottom: 20px;
 }
+.sealed-format-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  vertical-align: middle;
+}
+.sealed-product-tag {
+  padding: 2px 7px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.button-primary .sealed-product-tag {
+  border-color: color-mix(in srgb, currentColor 28%, transparent);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  color: inherit;
+}
 .casual-current.ui-panel {
-  max-width: 880px;
   padding: 20px 24px;
   border-color: color-mix(in srgb, var(--accent-primary) 20%, var(--border-default));
   border-top: 2px solid color-mix(in srgb, var(--accent-primary) 65%, var(--border-default));

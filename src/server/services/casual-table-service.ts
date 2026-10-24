@@ -1,4 +1,5 @@
 import { casualEntrySchema } from '../../online/casual-table-schemas.js';
+import { SEALED_BP7_DECK_NAME } from '../../shared/sealed-format.js';
 import type { AnyCardData } from '../../domain/entities/card.js';
 import { CardType } from '../../shared/types/enums.js';
 import { fromTransport, toTransport } from '../../online/serde.js';
@@ -1943,7 +1944,7 @@ function makeSeat(
     seat: 0,
     user_id: userId,
     source_deck_id: deck?.deckId ?? null,
-    deck_name: deck?.deckName ?? 'BP7 开盒赛',
+    deck_name: deck?.deckName ?? SEALED_BP7_DECK_NAME,
     runtime_deck: encoded ? (JSON.parse(encoded.json) as unknown) : null,
     point_table_version: deck?.pointValidation.pointTableVersion ?? 'SEALED_BP7_V1',
     point_total: deck?.pointValidation.pointTotal ?? 0,
