@@ -18,7 +18,12 @@ import { getAbilityTransferSource, getKahoRelaySource } from '@/lib/ginkoFlowerT
 import { AbilityTransferPlayback } from './AbilityTransferPlayback';
 import { getHonokaMemoryPresentation } from '@/lib/honokaMemoryPresentation';
 import { HonokaMemoryPlayback } from './HonokaMemoryPlayback';
+import { getShizukuRole } from '@/lib/shizukuRole';
+import { ShizukuRolePlayback } from './ShizukuRolePlayback';
 import './cardEntrance.css';
+import { getBokuhikaPresentation, shouldPreloadBokuhika } from '@/lib/bokuhikaPresentation';
+import { BokuhikaPlayback } from '../song-animation/BokuhikaPlayback';
+import { bokuhikaImageUrls } from '../song-animation/bokuhikaAssets';
 
 export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
   const view = useGameStore((s) => s.playerViewState);
@@ -33,11 +38,21 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
   const reduced = !!useReducedMotion();
   const imagePath = useGameStore((s) => s.getCardImagePath);
   const images = useMemo(() => new EffectImageCache(), [contextKey]);
+  // The ten fixed song images have their own bounded queue; a stall cannot starve card effects.
+  const songImages = useMemo(() => new EffectImageCache(), [contextKey]);
   const warmImages = enabled && !!view && !view.match.endInfo;
+  const warmSong = warmImages && shouldPreloadBokuhika(view);
   const imageKey = warmImages
     ? JSON.stringify(collectSpecialEffectImageUrls(view, imagePath, reduced))
     : '[]';
   useEffect(() => () => images.clear(), [images]);
+  useEffect(() => {
+    const timer = warmSong ? setTimeout(() => songImages.preload(bokuhikaImageUrls), 0) : null;
+    return () => {
+      if (timer !== null) clearTimeout(timer);
+      songImages.clear();
+    };
+  }, [songImages, warmSong]);
   useEffect(() => {
     if (!warmImages) {
       images.clear();
@@ -58,6 +73,7 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
       view={view}
       enabled={enabled}
       images={images}
+      songImages={songImages}
     />
   ) : null;
 }
@@ -66,10 +82,12 @@ function SynchronizedEntrance({
   view,
   enabled,
   images,
+  songImages,
 }: {
   view: PlayerViewState;
   enabled: boolean;
   images: EffectImageCache;
+  songImages: EffectImageCache;
 }) {
   const wait = view.match.entrance!;
   const textOnly = useTextPresentation();
@@ -79,6 +97,9 @@ function SynchronizedEntrance({
   const [transfer] = useState(() =>
     getAbilityTransferSource(view, useGameStore.getState().getCardImagePath)
   );
+  const [song] = useState(() => getBokuhikaPresentation(view));
+  const [songDone, setSongDone] = useState(false);
+  const activeSong = playVisuals && viewerWaiting && !songDone ? song : null;
   const [rinaSwap] = useState(() =>
     getRinaLiveSwapSource(view, useGameStore.getState().getCardImagePath)
   );
@@ -87,39 +108,47 @@ function SynchronizedEntrance({
   const [memory] = useState(() =>
     getHonokaMemoryPresentation(view, useGameStore.getState().getCardImagePath)
   );
+  const [role] = useState(() => getShizukuRole(view, useGameStore.getState().getCardImagePath));
+  const [roleDone, setRoleDone] = useState(false);
+  const activeRole = playVisuals && viewerWaiting && !roleDone ? role : undefined;
   // Snapshot only public, already-present stage cards. No historical event replay on mount.
   const [queue] = useState(() =>
-    (wait.abilityTransfer || wait.rinaLiveSwap || wait.honokaMemory ? [] : wait.objectIds).flatMap(
-      (objectId) => {
-        const target = getEntranceStageTarget(view, objectId);
-        const profile = target && getCardEntranceProfile(target.cardCode);
-        return target && profile
-          ? [
-              {
-                id: `${wait.id}:${objectId}`,
-                target,
-                profile,
-                imagePath: useGameStore.getState().getCardImagePath(target.cardCode),
-                kahoSource: getKahoRelaySource(
-                  view,
-                  objectId,
-                  useGameStore.getState().getCardImagePath
-                ),
-                waitingReturn: getWaitingReturnSource(
-                  view,
-                  objectId,
-                  useGameStore.getState().getCardImagePath
-                ),
-                relaySources: getDoubleRelaySources(
-                  view,
-                  objectId,
-                  useGameStore.getState().getCardImagePath
-                ),
-              },
-            ]
-          : [];
-      }
-    )
+    (wait.abilityTransfer ||
+    wait.rinaLiveSwap ||
+    wait.honokaMemory ||
+    wait.shizukuRole ||
+    wait.bokuhikaSuccess
+      ? []
+      : wait.objectIds
+    ).flatMap((objectId) => {
+      const target = getEntranceStageTarget(view, objectId);
+      const profile = target && getCardEntranceProfile(target.cardCode);
+      return target && profile
+        ? [
+            {
+              id: `${wait.id}:${objectId}`,
+              target,
+              profile,
+              imagePath: useGameStore.getState().getCardImagePath(target.cardCode),
+              kahoSource: getKahoRelaySource(
+                view,
+                objectId,
+                useGameStore.getState().getCardImagePath
+              ),
+              waitingReturn: getWaitingReturnSource(
+                view,
+                objectId,
+                useGameStore.getState().getCardImagePath
+              ),
+              relaySources: getDoubleRelaySources(
+                view,
+                objectId,
+                useGameStore.getState().getCardImagePath
+              ),
+            },
+          ]
+        : [];
+    })
   );
   const [index, setIndex] = useState(0);
   const [landedId, setLandedId] = useState<string | null>(null);
@@ -129,7 +158,8 @@ function SynchronizedEntrance({
   const activeMemory = playVisuals && viewerWaiting && !memoryDone ? memory : undefined;
   const activeTransfer = playVisuals && viewerWaiting && !transferDone ? transfer : undefined;
   const active = playVisuals && viewerWaiting ? queue[index] : undefined;
-  const done = !active && !activeTransfer && !activeSwap && !activeMemory;
+  const done =
+    !active && !activeTransfer && !activeSwap && !activeMemory && !activeRole && !activeSong;
 
   useCardEntranceBarrier(view, done);
 
@@ -170,7 +200,21 @@ function SynchronizedEntrance({
   return (
     <>
       <div className="absolute inset-0 z-[59]" aria-hidden="true" />
-      {activeSwap ? (
+      {activeSong ? (
+        <BokuhikaPlayback
+          images={songImages}
+          contribution={activeSong}
+          reduced={reduced}
+          onDone={() => setSongDone(true)}
+        />
+      ) : activeRole ? (
+        <ShizukuRolePlayback
+          source={activeRole}
+          images={images}
+          reduced={reduced}
+          onDone={() => setRoleDone(true)}
+        />
+      ) : activeSwap ? (
         <RinaLivePlayback
           source={activeSwap}
           images={images}

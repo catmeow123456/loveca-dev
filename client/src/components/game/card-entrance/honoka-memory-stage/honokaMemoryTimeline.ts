@@ -17,8 +17,7 @@ export interface HonokaMemoryCue {
   scoreGranted: boolean;
   heartGranted: boolean;
   recoveryReady: boolean;
-  recovered?: MemoryCardFace;
-  part: 'rewards' | 'recovery';
+  part: 'rewards';
 }
 export interface MemoryRect {
   x: number;
@@ -31,11 +30,8 @@ export interface MemoryLayout {
   board: MemoryRect;
   member: MemoryRect;
   success: MemoryRect;
-  live: MemoryRect;
-  waiting: MemoryRect;
-  hand: MemoryRect;
 }
-export const memoryTiming = { rewards: 1400, recovery: 1000, reduced: 420 } as const;
+export const memoryTiming = { rewards: 1400, reduced: 420 } as const;
 export const clamp = (v: number) => Math.max(0, Math.min(1, v));
 export const progress = (t: number, start: number, duration: number) =>
   clamp((t - start) / duration);
@@ -48,8 +44,6 @@ export function memoryDuration(cue: HonokaMemoryCue, reduced: boolean) {
 export function hasMemoryPresentation(cue: HonokaMemoryCue) {
   return (
     supportsHonokaMemory(cue.source.code) &&
-    (cue.part === 'recovery'
-      ? !!cue.recovered
-      : cue.scoreGranted || cue.heartGranted || cue.recoveryReady)
+    (cue.scoreGranted || cue.heartGranted || cue.recoveryReady)
   );
 }

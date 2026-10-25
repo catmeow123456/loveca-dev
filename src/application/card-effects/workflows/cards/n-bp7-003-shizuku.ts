@@ -9,6 +9,7 @@ import {
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, GamePhase, TriggerCondition, ZoneType } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
+import { isShizukuSec } from '../../../../shared/card-entrance.js';
 import { selectDifferentNamedCards } from '../../../../shared/utils/card-identity.js';
 import { and, costLte, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import {
@@ -36,11 +37,7 @@ import {
 const REVEAL_MILLED_STEP = 'N_BP7_003_REVEAL_MILLED_FIVE';
 const SELECT_MEMBER_STEP = 'N_BP7_003_SELECT_WAITING_MEMBER_TO_STACK';
 const MILL_COUNT = 5;
-const eligibleWaitingMember = and(
-  typeIs(CardType.MEMBER),
-  costLte(17),
-  groupAliasIs('虹ヶ咲')
-);
+const eligibleWaitingMember = and(typeIs(CardType.MEMBER), costLte(17), groupAliasIs('虹ヶ咲'));
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -55,18 +52,13 @@ export function registerNBp7003ShizukuWorkflowHandlers(deps: {
   registerActiveEffectStepHandler(
     N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID,
     REVEAL_MILLED_STEP,
-    (game, _input, context) =>
-      finishMillReveal(game, context.continuePendingCardEffects)
+    (game, _input, context) => finishMillReveal(game, context.continuePendingCardEffects)
   );
   registerActiveEffectStepHandler(
     N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID,
     SELECT_MEMBER_STEP,
     (game, input, context) =>
-      finishStackedMember(
-        game,
-        input.selectedCardId ?? null,
-        context.continuePendingCardEffects
-      )
+      finishStackedMember(game, input.selectedCardId ?? null, context.continuePendingCardEffects)
   );
   registerPendingAbilityStarterHandler(
     N_BP7_003_LIVE_START_DIFFERENT_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
@@ -237,11 +229,11 @@ function finishStackedMember(
     return game;
   }
   const player = getPlayerById(game, effect.controllerId);
-  const sourceSlot = player
-    ? getSourceMemberSlot(game, player.id, effect.sourceCardId)
-    : null;
+  const sourceSlot = player ? getSourceMemberSlot(game, player.id, effect.sourceCardId) : null;
   const selectedCard = getCardById(game, selectedCardId);
-  const stillEligible = getEligibleWaitingMembers(game, effect.controllerId).includes(selectedCardId);
+  const stillEligible = getEligibleWaitingMembers(game, effect.controllerId).includes(
+    selectedCardId
+  );
   const stackResult =
     player && sourceSlot !== null && selectedCard && stillEligible
       ? stackMemberCardBelowStageMember(game, {
@@ -267,15 +259,54 @@ function finishStackedMember(
           abilityId: effect.abilityId,
         })
       : game;
-  const state = addAction({ ...stateWithReplacement, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    step: stackResult ? 'STACK_MEMBER_AND_REPLACE_PRINTED_HEARTS' : 'PAID_TARGET_STALE',
-    movedCardIds: effect.metadata?.milledCardIds,
-    refreshCount: effect.metadata?.refreshCount,
-    stackedCardId: stackResult?.movedCardId ?? null,
-    replacementHearts,
-  });
+  const state = addAction(
+    { ...stateWithReplacement, activeEffect: null },
+    'RESOLVE_ABILITY',
+    effect.controllerId,
+    {
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: stackResult ? 'STACK_MEMBER_AND_REPLACE_PRINTED_HEARTS' : 'PAID_TARGET_STALE',
+      movedCardIds: effect.metadata?.milledCardIds,
+      refreshCount: effect.metadata?.refreshCount,
+      stackedCardId: stackResult?.movedCardId ?? null,
+      replacementHearts,
+    }
+  );
+  // The stack and replacement are one atomic result. Pause only after both succeeded.
+  const runtime = state.entranceRuntime;
+  const host = getCardById(state, effect.sourceCardId);
+  if (
+    stackResult &&
+    replacementHearts &&
+    runtime &&
+    !runtime.pending &&
+    !state.isEnded &&
+    host &&
+    isShizukuSec(host.data.cardCode)
+  ) {
+    const generation = runtime.generation + 1;
+    return {
+      ...state,
+      entranceRuntime: {
+        ...runtime,
+        generation,
+        seenSequence: state.eventSequence,
+        resumePendingEffects: false,
+        pending: {
+          id: `shizuku-role:${state.gameId}:${state.actionSequence}:${generation}`,
+          cardIds: [effect.sourceCardId],
+          waitingPlayerIds: state.players.map((p) => p.id),
+          deadlineAt: 0,
+          shizukuRole: {
+            hostCardId: effect.sourceCardId,
+            sourceCardId: stackResult.movedCardId,
+            hearts: replacementHearts,
+          },
+        },
+      },
+    };
+  }
   return continuePendingCardEffects(state, false);
 }
 
@@ -302,14 +333,19 @@ function resolveLiveStartBlade(
         })
       : null;
   return continuePendingCardEffects(
-    addAction(bladeResult?.gameState ?? stateWithoutPending, 'RESOLVE_ABILITY', ability.controllerId, {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: sourceValid ? 'GAIN_BLADE_BY_DIFFERENT_MEMBER_BELOW' : 'SOURCE_NOT_ON_STAGE',
-      differentNameCount: sourceValid ? count : 0,
-      bladeBonus: bladeResult?.bladeBonus ?? 0,
-    }),
+    addAction(
+      bladeResult?.gameState ?? stateWithoutPending,
+      'RESOLVE_ABILITY',
+      ability.controllerId,
+      {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: sourceValid ? 'GAIN_BLADE_BY_DIFFERENT_MEMBER_BELOW' : 'SOURCE_NOT_ON_STAGE',
+        differentNameCount: sourceValid ? count : 0,
+        bladeBonus: bladeResult?.bladeBonus ?? 0,
+      }
+    ),
     orderedResolution
   );
 }

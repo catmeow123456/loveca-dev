@@ -1,6 +1,6 @@
 import type { PlayerViewState } from '@game/online/types';
 import { ZoneType } from '@game/shared/types/enums';
-import { MODIFIER_ICON_SOURCE } from './modifierIconAssets';
+import { MODIFIER_ICON_SOURCE, HEART_ICON_SOURCE_BY_COLOR } from './modifierIconAssets';
 import { EFFECT_IMAGE_CACHE_LIMIT } from './effectImageCache';
 
 /** Public cards and explicit public movement snapshots only, never hidden registry identities. */
@@ -10,7 +10,8 @@ export function collectSpecialEffectImageUrls(
   reduced: boolean
 ): string[] {
   const ids = view.match.entranceAssetIds ?? [];
-  if (!ids.some((id) => id === 'ginko' || id === 'rina' || id === 'honoka')) return [];
+  if (!ids.some((id) => id === 'ginko' || id === 'rina' || id === 'honoka' || id === 'shizuku'))
+    return [];
   const urls = new Set<string>();
   if (ids.includes('honoka')) urls.add(MODIFIER_ICON_SOURCE.heart_all);
   if (reduced) return [...urls];
@@ -20,9 +21,12 @@ export function collectSpecialEffectImageUrls(
       urls.add(imagePath(object.frontInfo.cardCode));
   };
   const wait = view.match.entrance;
+  if (wait?.shizukuRole) {
+    face(wait.shizukuRole.sourceObjectId);
+    for (const heart of wait.shizukuRole.hearts) urls.add(HEART_ICON_SOURCE_BY_COLOR[heart.color]);
+  }
   // These faces were public before the movement, even though the destination is hidden.
   if (wait?.rinaLiveSwap) urls.add(imagePath(wait.rinaLiveSwap.liveCardCode));
-  if (wait?.honokaMemory?.recovered) urls.add(imagePath(wait.honokaMemory.recovered.cardCode));
   for (const id of wait?.honokaMemory?.memoryObjectIds ?? []) face(id);
   if (wait?.abilityTransfer) face(wait.abilityTransfer.sourceObjectId);
   for (const relay of wait?.kahoRelays ?? []) face(relay.source.objectId);

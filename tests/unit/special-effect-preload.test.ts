@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { PlayerViewState, ViewZoneState } from '../../src/online/types';
 import { collectSpecialEffectImageUrls } from '../../client/src/lib/specialEffectPreload';
-import { MODIFIER_ICON_SOURCE } from '../../client/src/lib/modifierIconAssets';
+import {
+  MODIFIER_ICON_SOURCE,
+  HEART_ICON_SOURCE_BY_COLOR,
+} from '../../client/src/lib/modifierIconAssets';
 import { EFFECT_IMAGE_CACHE_LIMIT } from '../../client/src/lib/effectImageCache';
 
 const imagePath = (code: string) => `/images/${code}.png`;
@@ -42,11 +45,37 @@ const collect = (v: PlayerViewState, reduced = false) =>
   collectSpecialEffectImageUrls(v, imagePath, reduced);
 
 describe('public special-effect preload candidates', () => {
-  it.each(['ginko', 'rina', 'honoka'] as const)('warms public cards for a %s-only match', (id) => {
+  it.each(['ginko', 'rina', 'honoka', 'shizuku'] as const)(
+    'warms public cards for a %s-only match',
+    (id) => {
+      const v = view();
+      expect(collect({ ...v, match: { ...v.match, entranceAssetIds: [id] } })).toContain(
+        '/images/waiting.png'
+      );
+    }
+  );
+
+  it('prioritizes the public Shizuku role and its actual HEART assets', () => {
     const v = view();
-    expect(collect({ ...v, match: { ...v.match, entranceAssetIds: [id] } })).toContain(
-      '/images/waiting.png'
-    );
+    const updated = {
+      ...v,
+      match: {
+        ...v.match,
+        entranceAssetIds: ['shizuku'],
+        entrance: {
+          shizukuRole: {
+            hostObjectId: 'member',
+            sourceObjectId: 'waiting',
+            hearts: [{ color: 'BLUE', count: 2 }],
+          },
+        },
+      },
+    } as PlayerViewState;
+    expect(collect(updated).slice(0, 2)).toEqual([
+      '/images/waiting.png',
+      HEART_ICON_SOURCE_BY_COLOR.BLUE,
+    ]);
+    expect(collect(updated, true)).toEqual([]);
   });
 
   it('keeps the current copied ability source ahead of other waiting-room candidates', () => {
@@ -76,14 +105,10 @@ describe('public special-effect preload candidates', () => {
         ...v.match,
         entrance: {
           rinaLiveSwap: { liveCardCode: 'returned-public-live' },
-          honokaMemory: { recovered: { cardCode: 'recovered-public-member' } },
         },
       },
     } as PlayerViewState;
-    expect(collect(updated).slice(1, 3)).toEqual([
-      '/images/returned-public-live.png',
-      '/images/recovered-public-member.png',
-    ]);
+    expect(collect(updated)[1]).toBe('/images/returned-public-live.png');
     expect(collect(updated)).not.toContain('/images/hand.png');
   });
   it('skips unrelated matches and card decoding in reduced motion', () => {

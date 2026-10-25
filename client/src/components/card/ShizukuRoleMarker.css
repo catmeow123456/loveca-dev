@@ -1,0 +1,32 @@
+.shizuku-role-marker {
+  position: absolute;
+  right: 3%;
+  bottom: 4%;
+  width: 30%;
+  min-width: 20px;
+  max-width: 34px;
+  aspect-ratio: 80 / 72;
+  z-index: 25;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px #081a30) drop-shadow(0 0 4px #bfdfe94d);
+}
+.shizuku-role-marker[data-receiving] {
+  opacity: 0;
+}
+.shizuku-role-marker svg {
+  animation: shizuku-bookmark-breathe 3.6s ease-in-out infinite;
+}
+@keyframes shizuku-bookmark-breathe {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.09) drop-shadow(0 0 3px #d1edff55);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shizuku-role-marker svg {
+    animation: none;
+  }
+}

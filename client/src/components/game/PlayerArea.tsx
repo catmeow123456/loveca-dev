@@ -1219,7 +1219,8 @@ export const PlayerArea = memo(function PlayerArea({
             return (
               <div
                 key={memberCardId}
-                className="absolute inset-0"
+                data-battle-stacked-member={`obj_${memberCardId}`}
+                className={cn('absolute inset-0', getBattleAnimationOcclusionClass(memberCardId))}
                 style={{
                   transform: `translate(${offsetPercent}%, ${offsetPercent}%)`,
                   zIndex: getMemberBelowCardZIndex(energyBelowIds.length, reverseIndex),

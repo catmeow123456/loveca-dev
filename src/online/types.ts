@@ -145,6 +145,16 @@ export interface MatchViewState {
     readonly objectIds: readonly string[];
     readonly waitingSeats: readonly Seat[];
     readonly deadlineAt: number;
+    readonly bokuhikaSuccess?: {
+      readonly sourceObjectId: string;
+      readonly normalizedNames: readonly string[];
+      readonly scoreBonus: number;
+    };
+    readonly shizukuRole?: {
+      readonly hostObjectId: string;
+      readonly sourceObjectId: string;
+      readonly hearts: readonly HeartIcon[];
+    };
     readonly rinaLiveSwap?: {
       readonly hostObjectId: string;
       readonly liveObjectId: string;
@@ -157,17 +167,10 @@ export interface MatchViewState {
     readonly honokaMemory?: {
       readonly sourceObjectId: string;
       readonly memoryObjectIds: readonly string[];
-      readonly part: 'rewards' | 'recovery';
+      readonly part: 'rewards';
       readonly scoreGranted: boolean;
       readonly heartGranted: boolean;
       readonly recoveryReady: boolean;
-      /** Snapshot of the selected public waiting-room face; never a hidden-hand lookup. */
-      readonly recovered?: {
-        readonly objectId: string;
-        readonly cardCode: string;
-        readonly name: string;
-        readonly landscape: boolean;
-      };
     };
     readonly abilityTransfer?: {
       readonly hostObjectId: string;
@@ -318,6 +321,8 @@ export interface ViewCardObject {
   readonly hasRemainingLimitedActivatedAbility?: boolean;
   /** Public stage member currently retains an earned ON_ENTER ability for this LIVE. */
   readonly hasTemporaryOnEnterAbility?: boolean;
+  /** Current printed HEART replacement from Shizuku; derived, never persisted separately. */
+  readonly hasTemporaryHeartRole?: boolean;
 }
 
 export interface ViewCommandScope {

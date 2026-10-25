@@ -4562,7 +4562,7 @@ export function getCheerCardEffectiveBladeHearts(
   );
 }
 
-function getLatestMemberOriginalHeartReplacementModifier(
+export function getLatestMemberOriginalHeartReplacementModifier(
   playerId: string,
   memberCardId: string,
   liveModifiers: readonly LiveModifierState[]

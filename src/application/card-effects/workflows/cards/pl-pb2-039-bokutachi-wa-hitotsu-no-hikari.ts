@@ -17,8 +17,9 @@ import {
 } from '../../ability-ids.js';
 import {
   getAbilityEffectText,
-  registerManualConfirmablePendingAbilityStarterHandler,
+  maybeStartConfirmablePendingAbilityConfirmation,
 } from '../../runtime/workflow-helpers.js';
+import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerLiveStartCheerCountWorkflowHandlers } from '../shared/live-start-cheer-count.js';
 
 const BASE_CARD_CODE = 'PL!-pb2-039';
@@ -42,25 +43,65 @@ export function registerPlPb2039BokutachiWaHitotsuNoHikariWorkflowHandlers(): vo
       },
     },
   ]);
-  registerManualConfirmablePendingAbilityStarterHandler(
+  registerPendingAbilityStarterHandler(
     LIVE_SUCCESS_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveLiveSuccessScore(
-        game,
-        ability,
-        options.orderedResolution === true,
-        context.continuePendingCardEffects
-      ),
-    (game, ability) => {
+    (game, ability, options, context) => {
       const evaluation = getLiveSuccessContext(game, ability);
-      return {
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
         effectText: `${getAbilityEffectText(ability.abilityId)}（当前舞台与本次声援中共有${
           evaluation.differentNameCount
         }名不同名称的『μ’s』成员，实际此LIVE[スコア]+${evaluation.scoreBonus}。）`,
         stepText: '确认后结算此效果。',
-      };
+      });
+      if (confirmation) return presentLiveSuccess(confirmation, ability, evaluation);
+      return resolveLiveSuccessScore(
+        game,
+        ability,
+        options.orderedResolution === true,
+        (resolved, ordered) => {
+          // Batch resolution has no manual confirmation. Present the applied result,
+          // then continue the remaining batch through the existing one-shot barrier.
+          if (ordered && !options.skipManualConfirmation) {
+            const presented = presentLiveSuccess(resolved, ability, evaluation, ordered);
+            if (presented !== resolved) return presented;
+          }
+          return context.continuePendingCardEffects(resolved, ordered);
+        }
+      );
     }
   );
+}
+
+/** Pause the selected confirmation, or the continuation of an already-resolved ordered effect. */
+function presentLiveSuccess(
+  game: GameState,
+  ability: PendingAbilityState,
+  evaluation: ReturnType<typeof getLiveSuccessContext>,
+  resumePendingEffects?: boolean
+): GameState {
+  const runtime = game.entranceRuntime;
+  if (!runtime || runtime.pending || game.isEnded || !evaluation.sourceInLiveZone) return game;
+  const generation = runtime.generation + 1;
+  return {
+    ...game,
+    entranceRuntime: {
+      ...runtime,
+      generation,
+      seenSequence: game.eventSequence,
+      ...(resumePendingEffects !== undefined ? { resumePendingEffects } : {}),
+      pending: {
+        id: `bokuhika-success:${game.gameId}:${game.actionSequence}:${generation}`,
+        cardIds: [ability.sourceCardId],
+        waitingPlayerIds: game.players.map((player) => player.id),
+        deadlineAt: 0,
+        bokuhikaSuccess: {
+          sourceCardId: ability.sourceCardId,
+          normalizedNames: [...evaluation.normalizedNames],
+          scoreBonus: evaluation.scoreBonus,
+        },
+      },
+    },
+  };
 }
 
 function getLiveStartContext(game: GameState, ability: PendingAbilityState) {

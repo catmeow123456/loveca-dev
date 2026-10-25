@@ -32,7 +32,6 @@ export function getHonokaMemoryPresentation(
   };
   const source = face(memory.sourceObjectId);
   if (!source) return undefined;
-  const recovered = memory.recovered;
   const cue: HonokaMemoryCue = {
     id: wait.id,
     source,
@@ -44,17 +43,6 @@ export function getHonokaMemoryPresentation(
     scoreGranted: memory.scoreGranted,
     heartGranted: memory.heartGranted,
     recoveryReady: memory.recoveryReady,
-    ...(recovered
-      ? {
-          recovered: {
-            objectId: recovered.objectId,
-            code: recovered.cardCode,
-            name: recovered.name,
-            image: imagePath(recovered.cardCode),
-            landscape: recovered.landscape,
-          },
-        }
-      : {}),
   };
   return hasMemoryPresentation(cue)
     ? {

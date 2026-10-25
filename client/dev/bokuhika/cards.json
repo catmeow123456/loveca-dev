@@ -1,0 +1,467 @@
+[
+  {
+    "cardCode": "PL!-pb2-039-L",
+    "cardType": "LIVE",
+    "nameJp": "僕たちはひとつの光",
+    "nameCn": "我们是合而为一的光芒",
+    "groupNames": ["μ’s"],
+    "unitName": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GRAY"
+      },
+      {
+        "effect": "HEART",
+        "heartColor": "GRAY"
+      }
+    ],
+    "score": 9,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 9
+      },
+      {
+        "color": "YELLOW",
+        "count": 9
+      },
+      {
+        "color": "PURPLE",
+        "count": 9
+      },
+      {
+        "color": "RAINBOW",
+        "count": 9
+      }
+    ],
+    "cardTextJp": "【ライブ開始時】自分の成功ライブカード置き場に『μ’s』のカードが2枚以上ある場合、ライブ終了時まで、エールによって公開される自分のカードの枚数が10枚増える。\n\n【ライブ成功時】自分のステージのメンバーとエールにより公開された自分のメンバーカードの中にある、名前の異なる『μ’s』のメンバー1人につき、このカードのスコアを+1する。",
+    "cardTextCn": "【LIVE开始时】自己的成功LIVE卡区存在大于等于2张『μ’s』的卡片的场合，LIVE结束时为止，因声援被公开的自己的卡片的张数增加10张。\n\n【LIVE成功时】自己的舞台的成员和因声援被公开的自己的成员卡中，每存在1名名称不同的『μ’s』的成员卡，此卡的分数+1。"
+  },
+  {
+    "cardCode": "PL!-sd1-001-SD",
+    "cardType": "MEMBER",
+    "nameJp": "高坂穂乃果",
+    "nameCn": "高坂穗乃果",
+    "groupNames": ["μ’s"],
+    "unitName": "「Printemps」",
+    "cost": 11,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】自分の成功ライブカード置き場にカードが2枚以上ある場合、自分の控え室からライブカードを1枚手札に加える。\n\n【常時】自分の成功ライブカード置き場にあるカード1枚につき、[ブレード]を得る。",
+    "cardTextCn": "【登场】自己的成功LIVE卡区中的卡片大于等于2张的场合，从自己的休息室将1张LIVE卡加入手牌。\n\n【常时】每存在1张自己的成功LIVE卡区中的卡片，获得[ブレード]。"
+  },
+  {
+    "cardCode": "PL!-sd1-002-SD",
+    "cardType": "MEMBER",
+    "nameJp": "絢瀬絵里",
+    "nameCn": "绚濑绘里",
+    "groupNames": ["μ’s"],
+    "unitName": "「BiBi」",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【起動】このメンバーをステージから控え室に置く：自分の控え室からメンバーカードを1枚手札に加える。",
+    "cardTextCn": "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。"
+  },
+  {
+    "cardCode": "PL!-sd1-003-SD",
+    "cardType": "MEMBER",
+    "nameJp": "南ことり",
+    "nameCn": "南琴梨（南小鸟）",
+    "groupNames": ["μ’s"],
+    "unitName": "「Printemps」",
+    "cost": 13,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】自分の控え室からコスト4以下の「μ's」のメンバーカードを1枚手札に加える。\n\n【ライブ開始時】手札を1枚控え室に置いてもよい：[桃ハート]か[黄ハート]か[紫ハート]のうち、1つを選ぶ。ライブ終了時まで、選んだハートを1つ得る。",
+    "cardTextCn": "【登场】从自己的休息室将1张费用小于等于4的『μ's』的成员卡加入手牌。\n\n【LIVE开始时】可以将1张手牌放置入休息室：选择[桃ハート]或[黄ハート]或[紫ハート]中的1种，LIVE结束时为止，获得1个选择了的Heart。"
+  },
+  {
+    "cardCode": "PL!-sd1-004-SD",
+    "cardType": "MEMBER",
+    "nameJp": "園田海未",
+    "nameCn": "园田海未",
+    "groupNames": ["μ’s"],
+    "unitName": "「lilywhite」",
+    "cost": 11,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】自分のデッキの上からカードを5枚見る。その中から「μ's」のライブカードを1枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【登场】检视自己卡组顶的5张卡。可以将1张其中的『μ's』的LIVE卡公开并加入手牌。其余的卡片放置入休息室。"
+  },
+  {
+    "cardCode": "PL!-sd1-005-SD",
+    "cardType": "MEMBER",
+    "nameJp": "星空凛",
+    "nameCn": "星空凛",
+    "groupNames": ["μ’s"],
+    "unitName": "「lilywhite」",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【起動】このメンバーをステージから控え室に置く：自分の控え室からライブカードを1枚手札に加える。",
+    "cardTextCn": "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。"
+  },
+  {
+    "cardCode": "PL!-sd1-006-SD",
+    "cardType": "MEMBER",
+    "nameJp": "西木野真姫",
+    "nameCn": "西木野真姬",
+    "groupNames": ["μ’s"],
+    "unitName": "「BiBi」",
+    "cost": 9,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】手札のライブカードを1枚公開してもよい：自分の成功ライブカード置き場にあるカードを1枚手札に加える。そうした場合、これにより公開したカードを自分の成功ライブカード置き場に置く。",
+    "cardTextCn": "【登场】可以将1张手牌中的LIVE卡公开：将1张自己的成功LIVE卡区中的卡片加入手牌。如此做的场合，将因此公开的卡放置入自己的成功LIVE卡区。"
+  },
+  {
+    "cardCode": "PL!-sd1-007-SD",
+    "cardType": "MEMBER",
+    "nameJp": "東條希",
+    "nameCn": "东条希",
+    "groupNames": ["μ’s"],
+    "unitName": "「lilywhite」",
+    "cost": 7,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】自分のデッキの上からカードを5枚控え室に置く。それらの中にライブカードがある場合、カードを1枚引く。",
+    "cardTextCn": "【登场】将自己卡组顶的5张卡放置入休息室。其中有LIVE卡的场合，抽1张卡。"
+  },
+  {
+    "cardCode": "PL!-sd1-008-SD",
+    "cardType": "MEMBER",
+    "nameJp": "小泉花陽",
+    "nameCn": "小泉花阳",
+    "groupNames": ["μ’s"],
+    "unitName": "「Printemps」",
+    "cost": 4,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【起動】【ターン1回】[E][E]：自分のデッキの上からカードを10枚控え室に置く。",
+    "cardTextCn": "【起动】【1回合1次】[E][E]：将自己卡组顶的10张卡放置入休息室。"
+  },
+  {
+    "cardCode": "PL!-sd1-009-SD",
+    "cardType": "MEMBER",
+    "nameJp": "矢澤にこ",
+    "nameCn": "矢泽日香（矢泽妮可）",
+    "groupNames": ["μ’s"],
+    "unitName": "「BiBi」",
+    "cost": 15,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【ライブ開始時】自分の控え室に「μ's」のカードが25枚以上ある場合、ライブ終了時まで、「【常時】ライブの合計スコアを+1する。」を得る。",
+    "cardTextCn": "【LIVE开始时】自己的休息室中存在大于等于25张『μ's』的卡片的场合，LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。"
+  },
+  {
+    "cardCode": "PL!-sd1-010-SD",
+    "cardType": "MEMBER",
+    "nameJp": "高坂穂乃果",
+    "nameCn": "高坂穗乃果",
+    "groupNames": ["μ’s"],
+    "unitName": "「Printemps」",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": null,
+    "cardTextCn": null
+  },
+  {
+    "cardCode": "PL!-sd1-013-SD",
+    "cardType": "MEMBER",
+    "nameJp": "園田海未",
+    "nameCn": "园田海未",
+    "groupNames": ["μ’s"],
+    "unitName": "「lilywhite」",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": null,
+    "cardTextCn": null
+  },
+  {
+    "cardCode": "PL!-sd1-016-SD",
+    "cardType": "MEMBER",
+    "nameJp": "東條希",
+    "nameCn": "东条希",
+    "groupNames": ["μ’s"],
+    "unitName": "「lilywhite」",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分のデッキの上からカードを3枚見る。その中から1枚を手札に加え、残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。"
+  },
+  {
+    "cardCode": "PL!-sd1-019-SD",
+    "cardType": "LIVE",
+    "nameJp": "START:DASH!!",
+    "nameCn": "开始: 前进!!",
+    "groupNames": ["μ’s"],
+    "unitName": null,
+    "cost": null,
+    "blade": null,
+    "hearts": null,
+    "bladeHearts": [
+      {
+        "effect": "SCORE"
+      }
+    ],
+    "score": 1,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "cardTextJp": "【ライブ成功時】自分のデッキの上からカードを3枚見る。その中から好きな枚数を好きな順番でデッキの上に置き、残りを控え室に置く。",
+    "cardTextCn": "【LIVE成功时】检视自己卡组顶的3张卡。将其中任意张数的卡片按任意顺序放置于卡组顶，其余的卡片放置入休息室。"
+  },
+  {
+    "cardCode": "PL!-sd1-020-SD",
+    "cardType": "LIVE",
+    "nameJp": "きっと青春が聞こえる",
+    "nameCn": "终将听到青春的声音",
+    "groupNames": ["μ’s"],
+    "unitName": null,
+    "cost": null,
+    "blade": null,
+    "hearts": null,
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 2,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 3
+      }
+    ],
+    "cardTextJp": null,
+    "cardTextCn": null
+  }
+]

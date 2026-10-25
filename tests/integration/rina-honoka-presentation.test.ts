@@ -36,7 +36,7 @@ describe('Rina and Honoka sharing the LIVE presentation barrier', () => {
       );
       expect(f.confirm(first).success).toBe(true);
       const waits: string[] = [];
-      const finishPresentation = (kind: 'RETURN' | 'PLACE' | 'rewards' | 'recovery') => {
+      const finishPresentation = (kind: 'RETURN' | 'PLACE' | 'rewards') => {
         const wait = session.state!.entranceRuntime!.pending!;
         expect(wait.rinaLiveSwap?.phase ?? wait.honokaMemory?.part).toBe(kind);
         expect(waits).not.toContain(wait.id);
@@ -91,10 +91,10 @@ describe('Rina and Honoka sharing the LIVE presentation barrier', () => {
         finishPresentation('rewards');
         expect(f.confirm('recovery-member').success).toBe(true);
         advanceSelection();
-        finishPresentation('recovery');
+        expect(session.state!.entranceRuntime!.pending).toBeNull();
       };
       for (const run of first === 'rina' ? [rina, honoka] : [honoka, rina]) run();
-      expect(waits).toHaveLength(4);
+      expect(waits).toHaveLength(3);
       expect(session.state!.entranceRuntime!.pending).toBeNull();
       expect(session.state!.entranceRuntime!.resumePendingEffects).toBeUndefined();
       expect(session.state!.pendingAbilities).toEqual([]);

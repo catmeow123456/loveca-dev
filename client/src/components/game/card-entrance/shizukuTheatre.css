@@ -1,0 +1,141 @@
+.card-entrance-presentation[data-shizuku-sec] .card-entrance {
+  background: transparent;
+}
+.card-entrance-presentation[data-shizuku-sec] .card-entrance-light {
+  display: none;
+}
+.shizuku-entrance-light {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 48%, #15283c70, #080e20c4 78%);
+}
+.shizuku-entrance-light > svg {
+  width: 100%;
+  height: 100%;
+}
+@media (max-width: 600px) {
+  .shizuku-entrance-light > svg {
+    /* Follow the portrait's responsive height instead of aiming below its feet. */
+    height: calc((7% + var(--entrance-mobile-height, 76%)) / 0.81);
+  }
+}
+.shizuku-role-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 69;
+  pointer-events: none;
+}
+.shizuku-role-scene,
+.shizuku-role-spots {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+.shizuku-role-source,
+.shizuku-role-projection {
+  position: absolute;
+  border-radius: 5px;
+  overflow: hidden;
+  backface-visibility: hidden;
+}
+.shizuku-role-source {
+  box-shadow:
+    1px 2px 0 #a9b8c3,
+    2px 4px 0 #36495b,
+    0 12px 22px #06132366;
+  transform-origin: 50% 80%;
+}
+.shizuku-role-source img,
+.shizuku-role-projection img {
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+}
+.shizuku-source-sheen {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 25%, #eaf7ff6b 46%, transparent 70%);
+  mix-blend-mode: screen;
+}
+.shizuku-role-source-shadow {
+  position: absolute;
+  border-radius: 50%;
+  background: #060f2170;
+  filter: blur(7px);
+}
+.shizuku-role-projection {
+  mask-image: radial-gradient(ellipse 75% 73% at 50% 48%, #000 38%, #000c 65%, transparent 96%);
+  filter: saturate(0.7) brightness(1.3);
+  mix-blend-mode: screen;
+}
+.shizuku-projection-light {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, #b5d9ff00 12%, #e9f8ff4d 48%, #a3caff12 72%, transparent);
+  mix-blend-mode: screen;
+}
+.shizuku-projection-image {
+  width: 100%;
+  height: 100%;
+}
+.shizuku-role-receive {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 5px;
+  box-shadow:
+    0 0 9px #beddf52e,
+    inset 0 0 8px #e3f1ff33;
+}
+.shizuku-role-scan {
+  position: absolute;
+  top: -5%;
+  width: 32%;
+  height: 110%;
+  transform: skewX(-12deg);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #a9d4f222 22%,
+    #f2faff99 50%,
+    #cceaff22 78%,
+    transparent
+  );
+  mix-blend-mode: screen;
+  filter: blur(1px);
+}
+.shizuku-role-hearts {
+  position: absolute;
+}
+.shizuku-role-heart {
+  position: absolute;
+  object-fit: contain;
+  filter: drop-shadow(0 0 3px #e4f5ffb0);
+}
+.shizuku-role-seal {
+  position: absolute;
+  filter: drop-shadow(0 1px 2px #162a4266) drop-shadow(0 0 5px #b7dff54d);
+}
+.shizuku-role-static {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #e3f2fc;
+  background: #14273cee;
+  border: 1px solid #9bbbd0;
+  border-radius: 5px;
+  padding: 5px 9px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.shizuku-role-static span {
+  width: 23px;
+  height: 23px;
+}

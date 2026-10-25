@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "../../node_modules/.tmp/bokuhika-preview.tsbuildinfo"
+  },
+  "include": ["*.ts", "*.tsx", "../../src/vite-env.d.ts"]
+}

@@ -1,5 +1,9 @@
 import type { SlotPosition, OrientationState } from './types/enums.js';
 import type { PendingAbilityState } from '../domain/entities/game.js';
+import type { HeartIcon } from '../domain/entities/card.js';
+
+/** Only the new theatre presentation is print-specific; rules remain shared by base code. */
+export const isShizukuSec = (code: string) => code === 'PL!N-bp7-003-SEC';
 
 /** Public entrance identity shared by authority and cosmetic registry. */
 export const entranceCards = {
@@ -77,6 +81,18 @@ export interface EntranceWait {
   readonly cardIds: readonly string[];
   readonly waitingPlayerIds: readonly string[];
   readonly deadlineAt: number;
+  /** Public scoring identities at the selected confirmation or ordered resolution boundary. */
+  readonly bokuhikaSuccess?: {
+    readonly sourceCardId: string;
+    readonly normalizedNames: readonly string[];
+    readonly scoreBonus: number;
+  };
+  /** A public member was stacked and its printed HEART successfully adopted. */
+  readonly shizukuRole?: {
+    readonly hostCardId: string;
+    readonly sourceCardId: string;
+    readonly hearts: readonly HeartIcon[];
+  };
   /** Successful public LIVE movement commanded by the current Rina stage object. */
   readonly rinaLiveSwap?: {
     readonly hostCardId: string;
@@ -86,20 +102,14 @@ export interface EntranceWait {
     readonly phase: 'RETURN' | 'PLACE';
     readonly liveIndex: number;
   };
-  /** Resolved LIVE rewards, or an already-public card successfully recovered to hand. */
+  /** Resolved LIVE rewards before the existing public recovery selection. */
   readonly honokaMemory?: {
     readonly sourceCardId: string;
     readonly memoryCardIds: readonly string[];
-    readonly part: 'rewards' | 'recovery';
+    readonly part: 'rewards';
     readonly scoreGranted: boolean;
     readonly heartGranted: boolean;
     readonly recoveryReady: boolean;
-    readonly recovered?: {
-      readonly cardId: string;
-      readonly cardCode: string;
-      readonly name: string;
-      readonly landscape: boolean;
-    };
   };
   /** Successful acquisition, after its discard cost and before invocation. */
   readonly abilityTransfer?: {
