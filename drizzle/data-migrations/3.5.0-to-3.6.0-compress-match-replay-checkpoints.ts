@@ -19,19 +19,23 @@ import type {
   ReplayCompression,
   ReplaySerializedPayloadEnvelope,
 } from '../../src/online/replay-types.js';
-import {
-  LEGACY_GAME_STATE_SCHEMA_VERSION,
-  SUPPORTED_GAME_STATE_SCHEMA_VERSIONS,
-} from '../../src/server/services/replay-constants.js';
+import { LEGACY_GAME_STATE_SCHEMA_VERSION } from '../../src/server/services/replay-constants.js';
 import {
   ReplayPayloadSerializationError,
   compressLegacyReplayPayloadEnvelopeForMigration,
+  migrateBattleRulesetCheckpoint,
   rehydrateAuthorityGameState,
-  rehydrateLegacyAuthorityGameStateForMigration,
   stableJsonStringify,
 } from '../../src/server/services/replay-payload-serialization.js';
 
 type MigrationMode = 'dry-run' | 'apply';
+
+// Compression migration must still accept historical schemas after live readers advance.
+const COMPRESSION_MIGRATION_GAME_STATE_VERSIONS = [
+  'GAME_STATE_V1',
+  'GAME_STATE_V2',
+  'GAME_STATE_V3',
+];
 
 export interface CompressReplayCheckpointArgs {
   readonly mode: MigrationMode;
@@ -425,7 +429,7 @@ function analyzeCheckpointRow(row: CheckpointRow): AnalyzeRowResult {
     }
     if (
       row.schema_version !== envelope.sourceSchemaVersion ||
-      !SUPPORTED_GAME_STATE_SCHEMA_VERSIONS.some(
+      !COMPRESSION_MIGRATION_GAME_STATE_VERSIONS.some(
         (supportedVersion) => supportedVersion === envelope.sourceSchemaVersion
       )
     ) {
@@ -444,7 +448,8 @@ function analyzeCheckpointRow(row: CheckpointRow): AnalyzeRowResult {
           `未压缩历史 checkpoint 只支持 ${LEGACY_GAME_STATE_SCHEMA_VERSION}`
         );
       }
-      const authorityState = rehydrateLegacyAuthorityGameStateForMigration(envelope);
+      // Validate an explicitly migrated copy; compression below preserves the original schema/hash.
+      const authorityState = rehydrateAuthorityGameState(migrateBattleRulesetCheckpoint(envelope));
       const validationError = validateAuthorityState(row, authorityState);
       if (validationError) {
         return validationError;
@@ -475,7 +480,7 @@ function analyzeCheckpointRow(row: CheckpointRow): AnalyzeRowResult {
     }
 
     if (isCurrentEnvelope(envelope, row.payload_compression)) {
-      const authorityState = rehydrateAuthorityGameState(envelope);
+      const authorityState = rehydrateAuthorityGameState(migrateBattleRulesetCheckpoint(envelope));
       const validationError = validateAuthorityState(row, authorityState);
       if (validationError) {
         return validationError;

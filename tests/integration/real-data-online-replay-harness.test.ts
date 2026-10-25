@@ -21,7 +21,8 @@ import type {
 import { projectPlayerViewState } from '../../src/online/projector';
 import {
   rehydrateAuthorityGameState,
-  rehydrateLegacyAuthorityGameStateForMigration,
+  migrateBattleRulesetCheckpoint,
+  stableJsonStringify,
 } from '../../src/server/services/replay-payload-serialization';
 import { LEGACY_GAME_STATE_SCHEMA_VERSION } from '../../src/server/services/replay-constants';
 import { GameMode, type SlotPosition } from '../../src/shared/types/enums';
@@ -104,16 +105,17 @@ const LEGACY_DYNAMIC_CHECK_TIMING_SELECTION_ALLOWED_DIFF_PATHS = new Set([
   '$.players[0].waitingRoom.length',
 ]);
 // Exact snapshots of the eight legacy decisions that now stop at a dynamic queue
-// selection. Any path or value change produces a different signature and is not skipped.
+// selection, hashed with canonical object keys so explicit checkpoint migration does
+// not change the signature. Any path, value or array-order change is still rejected.
 const LEGACY_DYNAMIC_CHECK_TIMING_SELECTION_MISMATCH_SHA256 = new Set([
-  '20abfe744fea78cf561573bb05813e6869cc396390fda4ed5be84543c6a0c947',
-  '8230c30333a967f1769270ff7fef5753adb6ebdc92bad23f01c4a71189b96701',
-  '775733a6ac60d290425d16a2cec4745024350db6bcb84fcbda833975d734fdf4',
-  '5a40aeeec9ebca37982a17b971195fed06cd364c7fdeed3eb252121a28e553d6',
-  'e4e4ee929383fdda63ba0eefe8750562cd622ade97c3db21b092e5808c167e88',
-  '8ed83080427fcc1666f9e42c9d982bc67b0190f1b5d433ee92706ed3840c2053',
-  'd83d07b49420a713bcdf2a4687808b72f9a52efd0fa63637d7c0fb72f1157b86',
-  'ba3994c1a1f259e62afdf4ca4403f4879b8679338c5d913421348716c9e3d056',
+  '2973fe5451d1c5bf8f3798ebe6930bf9d3d22c949e321f8a2fa227c728277408',
+  'ee7818f556937294935733105903a3bed06ef258bcba91675ba402e773218c52',
+  '8d90edaa3a25470044e0e64c9bc3ac17eabdeab08004d6bd3c4f51df190a6231',
+  'a366a67535100b58bcc0083c47f461c392a110635fe8a5b8ea95f310e405e85f',
+  '67a788e0f5596517b1c849f037d6596fcc09aa7d926c2df397a7f08caeb2d974',
+  '2828049babee916c5254b52542e917d2cfdeab8d6c29b961587a34e721f12725',
+  '754b1194d681ffa5fc8b851fd761e278eacd9f805af591aafc7c452635a28846',
+  'e45949ced0b43a46eac704da98f74b1fbf38d36afb0e349bc12f4811ef2a2a8e',
 ]);
 const REFRESH_AWARE_MILL_ABILITY_IDS = new Set([
   'PL!HS-bp5-001-SEC:on-enter-mill-four-gain-blade-if-live',
@@ -662,6 +664,28 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
     expect(hasOnlyAllowedLegacyDynamicCheckTimingSelectionDiffPaths(mismatch.diffs)).toBe(true);
     expect(isLegacyDynamicCheckTimingReplayMismatch(decision, mismatch)).toBe(false);
     const baseSignature = createReplayMismatchSignature(decision, mismatch);
+    const reverseObjectKeys = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(reverseObjectKeys);
+      if (!value || typeof value !== 'object') return value;
+      return Object.fromEntries(
+        Object.entries(value)
+          .reverse()
+          .map(([key, entry]) => [key, reverseObjectKeys(entry)])
+      );
+    };
+    expect(
+      createReplayMismatchSignature(decision, {
+        diffs: mismatch.diffs.map(reverseObjectKeys),
+        actual: reverseObjectKeys(mismatch.actual),
+        expected: reverseObjectKeys(mismatch.expected),
+      })
+    ).toBe(baseSignature);
+    expect(
+      createReplayMismatchSignature(decision, {
+        ...mismatch,
+        diffs: [...mismatch.diffs].reverse(),
+      })
+    ).not.toBe(baseSignature);
     for (const path of [
       '$.players[0].hand.length',
       '$.players[0].waitingRoom.length',
@@ -1381,10 +1405,7 @@ function readCheckpoint(row: Record<string, string | null>):
       phase: readRequired(row, 'phase'),
       subPhase: readRequired(row, 'sub_phase'),
       schemaVersion,
-      state:
-        payloadCompression === 'NONE'
-          ? rehydrateLegacyAuthorityGameStateForMigration(payload)
-          : rehydrateAuthorityGameState(payload),
+      state: rehydrateAuthorityGameState(migrateBattleRulesetCheckpoint(payload)),
     };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -2394,7 +2415,7 @@ function createReplayMismatchSignature(
 ): string {
   return createHash('sha256')
     .update(
-      JSON.stringify({
+      stableJsonStringify({
         decisionId: decision.decisionId,
         diffs: mismatch.diffs,
         actual: mismatch.actual,
@@ -3057,6 +3078,7 @@ function summarizeReplayPlayerZones(player: PlayerState): unknown {
 function normalizeEngineState(state: GameState): unknown {
   return {
     gameId: state.gameId,
+    rulesetId: state.rulesetId,
     players: state.players.map(normalizePlayerState),
     cardRegistry: [...state.cardRegistry.entries()]
       .map(([cardId, card]) => [
