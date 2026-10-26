@@ -1,0 +1,396 @@
+{
+  "PL!-bp8-004-P": {
+    "cardCode": "PL!-bp8-004-P",
+    "cardType": "MEMBER",
+    "nameCn": "园田海未",
+    "nameJp": "園田海未",
+    "rare": "P",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cost": 7,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【起動】【ターン１回】控え室にあるブレードハートを持たない『μ’s』のメンバーカード２枚を好きな順番でデッキの下に置く：ライブ終了時まで、このメンバーのコストを＋２する。",
+    "cardTextCn": "【起动】【１回合１次】将存在于自己的休息室的２张不持有BLADE HEART的『μ’s』的成员卡按任意顺序放置于卡组底：LIVE结束时为止，此成员的费用＋２。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!-bp8-004-P"
+    }
+  },
+  "PL!-bp8-006-P": {
+    "cardCode": "PL!-bp8-006-P",
+    "cardType": "MEMBER",
+    "nameCn": "西木野真姬",
+    "nameJp": "西木野真姫",
+    "rare": "P",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cost": 15,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 3
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【起動】[E][E]このカードを控え室からデッキの一番下に置く：自分の控え室から『μ’s』のライブカードを１枚手札に加える。この能力は、このカードが控え室にある場合のみ起動できる。",
+    "cardTextCn": "【起动】[E][E]将此卡从休息室放置于卡组底：将存在于自己的休息室的１张『μ’s』的LIVE卡加入手牌。此能力仅可在此卡存在于休息室的场合起动。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!-bp8-006-P"
+    }
+  },
+  "PL!-bp8-010-N": {
+    "cardCode": "PL!-bp8-010-N",
+    "cardType": "MEMBER",
+    "nameCn": "高坂穂乃果",
+    "nameJp": "高坂穗乃果",
+    "rare": "N",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "YELLOW",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【起動】【ターン１回】このメンバーをウェイトにする：自分の控え室にあるカードを２枚まで好きな順番でデッキの下に置く。（ウェイト状態のメンバーが持つ[ブレード]は、エールで公開する枚数を増やさない。）",
+    "cardTextCn": "【起动】【１回合１次】将此成员变为待机状态：将存在于自己的休息室的至多２张卡片按任意顺序放置于卡组底。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!-bp8-010-N"
+    }
+  },
+  "PL!-bp8-018-N": {
+    "cardCode": "PL!-bp8-018-N",
+    "cardType": "MEMBER",
+    "nameCn": "矢泽日香（矢泽妮可）",
+    "nameJp": "矢澤にこ",
+    "rare": "N",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cost": 4,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【ライブ開始時】[E]支払ってもよい：ライブ終了時まで、[ブレード][ブレード]を得る。",
+    "cardTextCn": "【LIVE开始时】可以支付[E]：LIVE结束时为止，获得[ブレード][ブレード]。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!-bp8-018-N"
+    }
+  },
+  "PL!HS-bp8-014-N": {
+    "cardCode": "PL!HS-bp8-014-N",
+    "cardType": "MEMBER",
+    "nameCn": "安养寺姬芽",
+    "nameJp": "安養寺姫芽",
+    "rare": "N",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】自分のステージにほかの『蓮ノ空』のメンバーがいる場合、カードを１枚引く。\n\n【自動】このメンバーがステージから控え室に置かれたとき、手札を２枚控え室に置く。",
+    "cardTextCn": "【登场】自己的舞台存在其他的『莲之空』的成员的场合，抽１张卡。\n\n【自动】此卡从舞台被放置入休息室时，将２张手牌放置入休息室。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!HS-bp8-014-N"
+    }
+  },
+  "PL!N-bp8-006-R": {
+    "cardCode": "PL!N-bp8-006-R",
+    "cardType": "MEMBER",
+    "nameCn": "近江彼方",
+    "nameJp": "近江彼方",
+    "rare": "R",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cost": 5,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】手札を１枚控え室に置いてもよい：自分のデッキの上からカードを５枚見る。その中から『虹ヶ咲』のメンバーカードを１枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将１张手牌放置入休息室：检视自己的卡组顶的５张卡片。可以将其中的１张『虹咲』的成员卡公开并加入手牌。其余的放置入休息室。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!N-bp8-006-R"
+    }
+  },
+  "PL!N-bp8-012-R": {
+    "cardCode": "PL!N-bp8-012-R",
+    "cardType": "MEMBER",
+    "nameCn": "钟岚珠",
+    "nameJp": "鐘嵐珠",
+    "rare": "R",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "unitName": "「R3BIRTH」",
+    "unitNameRaw": "R3BIRTH",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 3
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【ライブ成功時】カードを１枚引く。",
+    "cardTextCn": "【LIVE成功时】抽１张卡。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!N-bp8-012-R"
+    }
+  },
+  "PL!N-bp8-018-N": {
+    "cardCode": "PL!N-bp8-018-N",
+    "cardType": "MEMBER",
+    "nameCn": "近江彼方",
+    "nameJp": "近江彼方",
+    "rare": "N",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cost": 7,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【ライブ開始時】手札のコスト１１以上のブレードハートを持たない『虹ヶ咲』のメンバーカードを１枚公開してもよい：これにより公開したカードをデッキの一番下に置く。その後、相手のステージにいるコスト１１以下のメンバー１人をウェイトにする。（ウェイト状態のメンバーが持つ[ブレード]は、エールで公開する枚数を増やさない。）",
+    "cardTextCn": "【LIVE开始时】可以将手牌的１张费用大于等于１１的不持有BLADE HEART的『虹咲』的成员卡公开：将因此公开的卡片放置于卡组底。此后，将存在于对方的舞台的１名费用小于等于１１的成员变为待机状态。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!N-bp8-018-N"
+    }
+  },
+  "PL!N-bp8-031-SECL": {
+    "cardCode": "PL!N-bp8-031-SECL",
+    "cardType": "LIVE",
+    "nameCn": "Eutopia",
+    "nameJp": "Eutopia",
+    "rare": "SECL",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": 1,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 4
+      }
+    ],
+    "cardTextJp": "【ライブ成功時】自分と相手のステージの中で、ほかのすべてのメンバーより多くのハートを持つメンバーは、ライブ終了時まで、『【常時】ライブの合計スコアを＋１する。』を得る。",
+    "cardTextCn": "【LIVE成功时】自己和对方的舞台中，持有的HEART的数量多于所有其他成员的成员，LIVE结束时为止，获得『【常时】LIVE的合计分数＋１。』。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!N-bp8-031-SECL"
+    }
+  },
+  "PL!S-cl1-013-CL": {
+    "cardCode": "PL!S-cl1-013-CL",
+    "cardType": "LIVE",
+    "nameCn": "WATER BLUE NEW WORLD",
+    "nameJp": "WATER BLUE NEW WORLD",
+    "rare": "CL",
+    "status": "PUBLISHED",
+    "workNames": null,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GRAY"
+      },
+      {
+        "effect": "HEART",
+        "heartColor": "GRAY"
+      }
+    ],
+    "score": 10,
+    "requirements": [
+      {
+        "color": "BLUE",
+        "count": 15
+      },
+      {
+        "color": "RAINBOW",
+        "count": 9
+      }
+    ],
+    "cardTextJp": "【ライブ開始時】自分の控え室からブレードハートを持たない『Aqours』のメンバーカードを６枚まで選ぶ。それらをシャッフルし、デッキの一番下に置く。ライブ終了時まで、自分のステージいる『Aqours』のメンバー１人は、これによりデッキの下に置いたカード２枚につき、[青ハート][青ハート]を得る。",
+    "cardTextCn": "【LIVE开始时】选择存在于自己的休息室的至多６张不持有BLADE HEART的『Aqours』的成员卡。将那些卡片混洗，放置于卡组底。LIVE结束时为止，存在于自己的舞台的１名『Aqours』的成员，每有２张因此放置于卡组底的卡片，获得[青ハート][青ハート]。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "parseWarnings": [
+        "PL!S-cl1-013-CL row 73 blade_hearts: unsupported blade heart value"
+      ],
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!S-cl1-013-CL"
+    }
+  }
+}

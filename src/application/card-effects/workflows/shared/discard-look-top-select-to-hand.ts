@@ -20,6 +20,7 @@ import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.j
 import {
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
+  N_BP8_006_ON_ENTER_DISCARD_LOOK_TOP_FIVE_NIJIGASAKI_MEMBER_ABILITY_ID,
   PL_PB2_032_ON_ENTER_DISCARD_LOOK_TOP_FIVE_NO_BLADE_MUSE_MEMBER_ABILITY_ID,
   N_BP7_018_ON_ENTER_DISCARD_LOOK_TOP_FIVE_NO_BLADE_NIJIGASAKI_MEMBER_ABILITY_ID,
   N_SD2_012_ON_ENTER_DISCARD_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID,
@@ -97,6 +98,15 @@ const DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS: readonly {
   readonly publicSelectorLabel?: string;
   readonly effectTextAbilityId?: string;
 }[] = [
+  {
+    baseCardCode: 'PL!N-bp8-006',
+    alias: '虹ヶ咲',
+    selectorKind: 'GROUP',
+    topCount: 5,
+    memberOnly: true,
+    publicSelectorLabel: '虹咲',
+    effectTextAbilityId: N_BP8_006_ON_ENTER_DISCARD_LOOK_TOP_FIVE_NIJIGASAKI_MEMBER_ABILITY_ID,
+  },
   { baseCardCode: 'PL!HS-bp1-009', alias: 'みらくらぱーく！', selectorKind: 'UNIT', topCount: 5 },
   { baseCardCode: 'PL!HS-pb1-018', alias: 'DOLLCHESTRA', selectorKind: 'UNIT', topCount: 5 },
   {
@@ -205,6 +215,7 @@ export function registerDiscardLookTopSelectToHandWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
   for (const abilityId of [
+    N_BP8_006_ON_ENTER_DISCARD_LOOK_TOP_FIVE_NIJIGASAKI_MEMBER_ABILITY_ID,
     GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
     BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
     PL_N_BP3_012_ON_ENTER_DISCARD_LOOK_TOP_NIJIGASAKI_CARD_ABILITY_ID,

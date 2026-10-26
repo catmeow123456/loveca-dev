@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID as ENERGY_BLADE,
+  PL_BP8_018_LIVE_START_PAY_ONE_ENERGY_GAIN_TWO_BLADE_ABILITY_ID as NICO_ENERGY_BLADE,
   BP6_021_LIVE_SUCCESS_SEND_MUSE_MEMBER_SCORE_RECOVER_MUSE_LIVE_ABILITY_ID as RUSH,
   BP5_009_ACTIVATED_DISCARD_TWO_RECOVER_PURPLE_REQUIREMENT_LIVE_ABILITY_ID as PURPLE_LIVE,
   N_BP1_005_LIVE_START_DISCARD_GAIN_ONE_BLADE_ABILITY_ID as DISCARD_BLADE,
@@ -76,6 +77,7 @@ import {
   ZoneType,
 } from '../../src/shared/types/enums';
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
+import { getOctober26CardData } from '../helpers/october-26-card-effects';
 
 const P1 = 'player1';
 const P2 = 'player2';
@@ -95,6 +97,13 @@ interface AbilityCase {
   readonly timing: 'ACTIVATED' | 'LIVE_START';
 }
 const CASES: readonly AbilityCase[] = [
+  {
+    abilityId: NICO_ENERGY_BLADE,
+    code: 'PL!-bp8-018-N',
+    name: '矢澤にこ',
+    cost: 4,
+    timing: 'LIVE_START',
+  },
   { abilityId: MUSE_LIVE, code: 'PL!-PR-017-PR', name: '矢澤にこ', cost: 2, timing: 'ACTIVATED' },
   { abilityId: WAIT_HEART, code: 'PL!-bp3-009-P', name: '矢澤にこ', cost: 2, timing: 'ACTIVATED' },
   {
@@ -192,6 +201,7 @@ function member(
       cost,
       blade: 1,
       hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+      ...(code === 'PL!-bp8-018-N' ? (getOctober26CardData(code) as MemberCardData) : {}),
     },
     owner,
     id
@@ -424,6 +434,7 @@ function complete(session: GameSession, entry: AbilityCase): void {
       if (session.state!.activeEffect) confirm(session, { card: OPPONENT });
       break;
     case ENERGY_BLADE:
+    case NICO_ENERGY_BLADE:
       confirm(session, { option: 'pay' });
       break;
     case DISCARD_BLADE:
@@ -491,6 +502,7 @@ function assertOutcome(session: GameSession, entry: AbilityCase, direct = false)
       );
       break;
     case ENERGY_BLADE:
+    case NICO_ENERGY_BLADE:
       expect(player.energyZone.cardStates.get('energy-0')?.orientation).toBe(
         OrientationState.WAITING
       );
@@ -583,7 +595,7 @@ describe('LL-bp8-001 费用15「矢泽日香（矢泽妮可）&宫下爱&赛拉�
       assertOutcome(session, entry, direct);
     }
   });
-  it('完整池为14唯一能力；三个成员别名、组合名与其他罕度都支持，排除AUTO和常时', () => {
+  it('完整池为15唯一能力；三个成员别名、组合名与其他罕度都支持，排除AUTO和常时', () => {
     const session = setup(cardCase(ENTRY_SCORE), false, 0, 'SEC');
     const cards = CASES.map((entry, index) => member(entry.code, `grant-${index}`, entry.name));
     const other = member('PL!SP-bp5-020-N', 'not-granted', '鬼塚夏美');
@@ -599,7 +611,7 @@ describe('LL-bp8-001 费用15「矢泽日香（矢泽妮可）&宫下爱&赛拉�
     expect(new Set(grants.map((copy) => copy.definition.abilityId))).toEqual(
       new Set(CASES.map((entry) => entry.abilityId))
     );
-    expect(grants).toHaveLength(14);
+    expect(grants).toHaveLength(15);
     expect(
       getActivatedAbilityUiConfigs(`LL-bp8-001-SEC`, undefined, {
         game,
@@ -691,24 +703,92 @@ describe('LL-bp8-001 费用15「矢泽日香（矢泽妮可）&宫下爱&赛拉�
       session.state!.liveResolution.liveModifiers
     );
   });
+  it('两张bp8日香分别支付1能量，两份实例各结算并给实际宿主合计4 BLADE', () => {
+    const session = setup(cardCase(NICO_ENERGY_BLADE), false, 2);
+    enqueue(session);
+    const pending = session.state!.pendingAbilities;
+    expect(pending).toHaveLength(2);
+    expect(new Set(pending.map((a) => a.abilityInstanceId)).size).toBe(2);
+    setState(session, resolvePendingCardEffects(roundtrip(session.state!)).gameState);
+    confirm(session, { option: pending[1]!.id });
+    confirm(session, { option: 'pay' });
+    if (session.state!.activeEffect?.abilityId === 'system:select-pending-card-effect')
+      confirm(session, { option: pending[0]!.id });
+    confirm(session, { option: 'pay' });
+    const modifiers = session.state!.liveResolution.liveModifiers.filter(
+      (m) => m.kind === 'BLADE' && m.abilityId === NICO_ENERGY_BLADE
+    );
+    expect(modifiers).toHaveLength(2);
+    expect(modifiers.every((m) => m.sourceCardId === HOST)).toBe(true);
+    expect(modifiers.reduce((sum, m) => sum + (m.kind === 'BLADE' ? m.countDelta : 0), 0)).toBe(4);
+    expect(
+      session
+        .state!.actionHistory.filter(
+          (a) => a.type === 'PAY_COST' && a.payload.abilityId === NICO_ENERGY_BLADE
+        )
+        .map((a) => a.payload.energyCardIds)
+    ).toEqual([['energy-0'], ['energy-1']]);
+    expect(session.state!.activeEffect).toBeNull();
+    expect(session.state!.pendingAbilities).toEqual([]);
+  });
+  it('bp8日香授予经特殊能量选择和保存恢复仍保留实例与宿主身份', () => {
+    const entry = cardCase(NICO_ENERGY_BLADE);
+    const session = setup(entry);
+    const instanceId = granted(session, entry.abilityId).abilityInstanceId;
+    setState(session, {
+      ...session.state!,
+      energyActivePhaseSkips: [
+        { playerId: P1, energyCardId: 'energy-1', sourceCardId: 'marker', abilityId: 'marker' },
+      ],
+    });
+    start(session, entry);
+    confirm(session, { option: 'pay' });
+    expect(session.state!.activeEffect?.stepId).toBe('COMMON_ENERGY_OPERATION_SELECTION');
+    setState(session, roundtrip(session.state!));
+    expect(session.state!.activeEffect).toMatchObject({
+      sourceCardId: HOST,
+      abilityInstanceId: instanceId,
+      metadata: { grantingMemberBelowCardId: BELOW },
+    });
+    confirm(session, { card: 'energy-1' });
+    expect(session.state!.players[0].energyZone.cardStates.get('energy-1')?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    expect(
+      session.state!.actionHistory.filter((a) => a.type === 'PAY_COST').at(-1)?.payload
+        .energyCardIds
+    ).toEqual(['energy-1']);
+    expect(session.state!.liveResolution.liveModifiers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'BLADE',
+          abilityId: NICO_ENERGY_BLADE,
+          sourceCardId: HOST,
+          countDelta: 2,
+        }),
+      ])
+    );
+    expect(session.state!.activeEffect).toBeNull();
+  });
   it.each([false, true])(
     '已触发pending后宿主离场/重登场(%s)，仍支付玩家费用而自身奖励不转移',
     (reenter) => {
-      for (const abilityId of [ENERGY_BLADE, DISCARD_BLADE, DISCARD_HEART]) {
+      for (const abilityId of [ENERGY_BLADE, NICO_ENERGY_BLADE, DISCARD_BLADE, DISCARD_HEART]) {
         const entry = cardCase(abilityId);
         const session = setup(entry);
         enqueue(session);
         leaveHost(session, reenter);
         setState(session, resolvePendingCardEffects(session.state!).gameState);
         if (session.state!.activeEffect?.metadata?.confirmOnlyPendingAbility) confirm(session);
-        if (abilityId === ENERGY_BLADE) confirm(session, { option: 'pay' });
+        if (abilityId === ENERGY_BLADE || abilityId === NICO_ENERGY_BLADE)
+          confirm(session, { option: 'pay' });
         if (abilityId === DISCARD_BLADE) confirm(session, { card: HAND[0] });
         if (abilityId === DISCARD_HEART) {
           confirm(session, { cards: HAND.slice(0, 2) });
           confirm(session, { option: HeartColor.PINK });
         }
         const player = session.state!.players[0];
-        if (abilityId === ENERGY_BLADE) {
+        if (abilityId === ENERGY_BLADE || abilityId === NICO_ENERGY_BLADE) {
           expect(player.energyZone.cardStates.get('energy-0')?.orientation).toBe(
             OrientationState.WAITING
           );

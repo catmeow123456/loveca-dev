@@ -7,6 +7,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import {
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
+  HS_BP8_014_ON_ENTER_OTHER_HASUNOSORA_DRAW_ONE_ABILITY_ID,
   N_BP7_013_ON_ENTER_THREE_AZUNA_DRAW_ONE_ABILITY_ID,
   N_SD2_010_ON_ENTER_DRAW_TWO_ABILITY_ID,
   PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
@@ -26,7 +27,13 @@ import {
   successLiveScoreForCardEffectAtLeast,
   sumSuccessfulLiveScoreForCardEffect,
 } from '../../../effects/conditions.js';
-import { and, cardNameAliasIs, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
+import {
+  and,
+  cardNameAliasIs,
+  groupAliasIs,
+  typeIs,
+  unitAliasIs,
+} from '../../../effects/card-selectors.js';
 import { CardType } from '../../../../shared/types/enums.js';
 import { SlotPosition } from '../../../../shared/types/enums.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
@@ -53,6 +60,7 @@ interface MemberOnEnterDrawConfig {
   readonly minSuccessLiveScore?: number;
   readonly minWaitingRoomCount?: number;
   readonly requiredOtherStageUnitAlias?: string;
+  readonly requiredOtherStageGroupAlias?: string;
   readonly bonusDrawCount?: number;
   readonly bonusStageMemberName?: string;
   readonly minStageMemberEffectiveCost?: number;
@@ -64,6 +72,12 @@ interface MemberOnEnterDrawConfig {
 const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
 
 const MEMBER_ON_ENTER_DRAW_CONFIGS: readonly MemberOnEnterDrawConfig[] = [
+  {
+    abilityId: HS_BP8_014_ON_ENTER_OTHER_HASUNOSORA_DRAW_ONE_ABILITY_ID,
+    drawCount: 1,
+    actionStep: 'OTHER_HASUNOSORA_STAGE_MEMBER_DRAW_ONE',
+    requiredOtherStageGroupAlias: '蓮ノ空',
+  },
   {
     abilityId: PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
     drawCount: 1,
@@ -339,6 +353,27 @@ function resolveMemberOnEnterDraw(
       orderedResolution
     );
   }
+  const hasRequiredOtherStageGroupMember =
+    config.requiredOtherStageGroupAlias === undefined ||
+    hasStageMemberMatching(
+      game,
+      player.id,
+      and(typeIs(CardType.MEMBER), groupAliasIs(config.requiredOtherStageGroupAlias)),
+      { excludeCardId: ability.sourceCardId }
+    );
+  if (!hasRequiredOtherStageGroupMember) {
+    return continuePendingCardEffects(
+      addAction(stateAfterUseRecord, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: 'OTHER_STAGE_GROUP_MEMBER_CONDITION_NOT_MET',
+        requiredOtherStageGroupAlias: config.requiredOtherStageGroupAlias,
+        hasRequiredOtherStageGroupMember,
+      }),
+      orderedResolution
+    );
+  }
   const qualifyingStageUnitMemberCardIds =
     config.requiredStageUnitAlias === undefined
       ? []
@@ -401,6 +436,12 @@ function resolveMemberOnEnterDraw(
       requiredSuccessLiveCardCount: config.minSuccessLiveCardCount,
       requiredOtherStageUnitAlias: config.requiredOtherStageUnitAlias,
       hasRequiredOtherStageUnitMember,
+      ...(config.requiredOtherStageGroupAlias !== undefined
+        ? {
+            requiredOtherStageGroupAlias: config.requiredOtherStageGroupAlias,
+            hasRequiredOtherStageGroupMember,
+          }
+        : {}),
       requiredStageUnitAlias: config.requiredStageUnitAlias,
       minStageUnitMemberCount: config.minStageUnitMemberCount,
       qualifyingStageUnitMemberCardIds,
