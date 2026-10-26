@@ -54,6 +54,9 @@ import { LiveResultAnimation, type LiveScoreInfo } from './LiveResultAnimation';
 import { DebugControl } from './DebugControl';
 import { BattleSettingsMenu, BattleToolbarMenu } from './BattleToolbarMenu';
 import { MemberOverwriteDialog } from './MemberOverwriteDialog';
+import { MemberPlayOptionDialog } from './MemberPlayOptionDialog';
+import { BattleCardCandidateGrid } from './BattleCardCandidateGrid';
+import { BattleEffectOptionList } from './BattleEffectOptionList';
 import { readAskMemberOverwrite, saveAskMemberOverwrite } from '@/lib/memberOverwriteChoice';
 import { useMemberOverwriteChoice } from '@/hooks/useMemberOverwriteChoice';
 import { CardDetailOverlay } from './CardDetailOverlay';
@@ -65,7 +68,7 @@ import { AbilityActivationProvider } from './AbilityActivationMotion';
 import { BattleActionFeedbackLayer } from './BattleActionFeedbackLayer';
 import { BoardBackground } from './BoardBackground';
 import { RankedStallNotice } from './RankedStallNotice';
-import { EffectChoicePanel } from './EffectChoicePanel';
+import { EffectChoiceActions, EffectChoicePanel } from './EffectChoicePanel';
 import { Card } from '@/components/card/Card';
 import { CardEffectText } from '@/components/card/CardEffectText';
 import { MulliganPanel } from './MulliganPanel';
@@ -126,6 +129,7 @@ import { BATTLE_UI_ANCHORS } from '@/lib/battleUiAnchors';
 import { getMemberPlayOptions, type MemberPlayOptionView } from '@/lib/memberPlayOptions';
 import { isJudgmentPanelAvailable } from '@/lib/judgmentPanelAvailability';
 import { buildInspectionZoneInteractionKey } from '@/lib/inspectionZoneUi';
+import { getActiveEffectVisibilityLabel } from '@/lib/activeEffectVisibilityUi';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { usePlayerTableWallpaper } from '@/hooks/usePlayerTableWallpaper';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
@@ -848,22 +852,24 @@ export function useBattleInteractionController({
     activeEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
   const activeEffectSelectableObjectsFaceDown = activeEffect?.selectableObjectsFaceDown === true;
   const isActiveEffectOrderSelectionWindow = activeEffect?.abilityId === ABILITY_ORDER_SELECTION_ID;
+  const activeEffectOrderCandidateCount =
+    activeEffect?.selectableOptions?.length ?? activeEffectSelectableCardIds.length;
   const activeEffectTitle = isActiveEffectOrderSelectionWindow
     ? '选择效果发动顺序'
     : activeEffectSourceLabel;
   const activeEffectDescription = isActiveEffectOrderSelectionWindow
     ? '选择下一个要处理的效果，或按当前队列顺序依次处理。'
     : (activeEffect?.effectText ?? '');
+  const activeEffectInspectionCount = activeEffect?.inspectionObjectIds?.length ?? 0;
   const activeEffectBadgeLabel = isActiveEffectOrderSelectionWindow
-    ? `队列 ${activeEffectSelectableCardIds.length} 个`
-    : `${activeEffect?.inspectionObjectIds?.length ?? activeEffect?.revealedObjectIds?.length ?? 0} 张`;
+    ? `队列 ${activeEffectOrderCandidateCount} 个`
+    : getActiveEffectVisibilityLabel(activeEffect, playerViewState?.objects ?? {});
   const activeEffectSelectionLabel = isActiveEffectOrderSelectionWindow
     ? '请选择下一个要处理的效果'
     : (activeEffect?.selectionLabel ?? '请选择要处理的卡牌');
   const isActiveEffectInspectionWindow =
     matchView?.window?.windowType === 'INSPECTION' &&
     typeof matchView.window.context?.activeEffectId === 'string';
-  const activeEffectInspectionCount = activeEffect?.inspectionObjectIds?.length ?? 0;
   const successLiveSelection = matchView?.liveResult?.successLiveSelection ?? null;
   const successLiveSelectionCardIds =
     successLiveSelection?.candidateObjectIds.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
@@ -879,9 +885,6 @@ export function useBattleInteractionController({
   const [successLiveSelectionCollapsed, setSuccessLiveSelectionCollapsed] = useKeyedState(
     successLiveSelectionKey,
     false
-  );
-  const activeEffectHasEnergyCandidates = activeEffectSelectableCardIds.some(
-    (cardId) => getKnownCardType(cardId) === CardType.ENERGY
   );
   const isPublicRevealAutoAdvance = isPublicRevealAutoAdvanceView(activeEffect);
   const publicRevealDisplayKey = isPublicRevealAutoAdvance
@@ -993,7 +996,7 @@ export function useBattleInteractionController({
     (!activeEffectUsesCardOptionSelection || !!activeEffectSelectedCardId) &&
     canConfirmEffectChoiceSelection(activeEffectChoice, normalizedActiveEffectChoiceSelection);
   const activeEffectSelectableBadgeLabel = isActiveEffectOrderSelectionWindow
-    ? `队列 ${activeEffectSelectableCardIds.length} 个`
+    ? `队列 ${activeEffectOrderCandidateCount} 个`
     : `${
         activeEffectUsesImmediateOrderedSingleSelect
           ? '点击卡牌即结算'
@@ -1003,7 +1006,10 @@ export function useBattleInteractionController({
               ? `已选 ${activeEffectSelectedCardId ? 1 : 0} / 1`
               : `候选 ${activeEffectSelectableCardIds.length} 张`
       }${
-        !activeEffectUsesImmediateOrderedSingleSelect && activeEffectMinSelectableCards > 0
+        activeEffectUsesOrderedMultiSelect &&
+        !activeEffectUsesImmediateOrderedSingleSelect &&
+        activeEffectMinSelectableCards > 0 &&
+        activeEffectMinSelectableCards !== activeEffectMaxSelectableCards
           ? `｜至少 ${activeEffectMinSelectableCards}`
           : ''
       }`;
@@ -2498,6 +2504,7 @@ export function useBattleInteractionController({
     handleOpenJudgmentPanel,
     overwriteChoice,
     getVisibleCardPresentation,
+    getSeatMemberSlotCardId,
     activeMemberPlayOptionSelection,
     activeMemberPlayOption,
     setMemberPlayOptionSelection,
@@ -2556,7 +2563,6 @@ export function useBattleInteractionController({
     activeEffectSelectableCardIds,
     activeEffectSelectionLabel,
     activeEffectSelectableBadgeLabel,
-    activeEffectHasEnergyCandidates,
     activeEffectSelectableObjectsFaceDown,
     activeEffectOrderedSelection,
     formatActiveEffectCardCompactLabel,
@@ -2709,6 +2715,7 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
     handleOpenJudgmentPanel,
     overwriteChoice,
     getVisibleCardPresentation,
+    getSeatMemberSlotCardId,
     activeMemberPlayOptionSelection,
     activeMemberPlayOption,
     setMemberPlayOptionSelection,
@@ -2767,7 +2774,6 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
     activeEffectSelectableCardIds,
     activeEffectSelectionLabel,
     activeEffectSelectableBadgeLabel,
-    activeEffectHasEnergyCandidates,
     activeEffectSelectableObjectsFaceDown,
     activeEffectOrderedSelection,
     formatActiveEffectCardCompactLabel,
@@ -3014,6 +3020,36 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
     confirmEffectStep(activeEffect.id, cardId);
   };
 
+  const showActiveEffectCardSelection =
+    showOrdinaryActiveEffectControls && activeEffectSelectableCardIds.length > 0;
+  const activeEffectStepLabel = showActiveEffectCardSelection
+    ? activeEffectSelectionLabel
+    : showOrdinaryActiveEffectControls
+      ? (activeEffect?.selectionLabel ?? activeEffect?.stepText)
+      : activeEffect?.stepText;
+  const activeEffectChoiceProgress =
+    activeEffectChoice?.mode === 'MULTI' && showOrdinaryActiveEffectControls
+      ? `${showActiveEffectCardSelection ? '效果' : '已选'} ${normalizedActiveEffectChoiceSelection.length} / ${activeEffectChoice.maxSelections}${
+          activeEffectChoice.minSelections > 0 &&
+          activeEffectChoice.minSelections !== activeEffectChoice.maxSelections
+            ? `｜至少 ${activeEffectChoice.minSelections}`
+            : ''
+        }`
+      : null;
+  const activeEffectStepProgress = isActiveEffectOrderSelectionWindow
+    ? null
+    : [
+        showActiveEffectCardSelection ? activeEffectSelectableBadgeLabel : null,
+        activeEffectChoiceProgress,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+  const activeEffectCardClickSubmits =
+    showActiveEffectCardSelection &&
+    canConfirmActiveEffect &&
+    (activeEffectUsesImmediateOrderedSingleSelect ||
+      (!activeEffectUsesOrderedMultiSelect && !activeEffectUsesCardOptionSelection));
+
   const interactionPanels = (
     <>
       {textOnly && selectionDraftInvalidated && (
@@ -3039,108 +3075,44 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
       )}
 
       {activeMemberPlayOptionSelection && activeMemberPlayOption && (
-        <>
-          <button
-            type="button"
-            aria-label={`取消${activeMemberPlayOption.label}`}
-            className="modal-backdrop fixed inset-0 z-[93]"
-            onClick={() => setMemberPlayOptionSelection(null)}
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={activeMemberPlayOption.title}
-            className="battle-overlay-surface pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(92vw,460px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
-          >
-            <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
-              {activeMemberPlayOption.label}
-            </div>
-            <div className="mt-1 text-sm font-semibold">
-              {selectedCardPresentation
-                ? formatCardCompactLabel(selectedCardPresentation.cardData as AnyCardData)
-                : '成员登场'}
-            </div>
-            <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-              {activeMemberPlayOption.description}
-            </p>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              {MEMBER_SLOT_ORDER.map((slot) => {
-                const isAvailable = activeMemberPlayOption.targetSlots.includes(slot);
-                const selectedOrderIndex = memberPlaySelectedSlots.indexOf(slot);
-                const isSelected = selectedOrderIndex >= 0;
-                const isDisabled =
-                  !isAvailable ||
-                  (activeMemberPlayOption.kind === 'DOUBLE_RELAY' &&
-                    !isSelected &&
-                    memberPlaySelectedSlots.length >= activeMemberPlayOption.selection.maxTargets);
-                return (
-                  <button
-                    key={slot}
-                    type="button"
-                    disabled={isDisabled}
-                    onClick={() => handleSelectMemberPlayOptionSlot(slot)}
-                    className={cn(
-                      'button-secondary relative inline-flex min-h-11 items-center justify-center px-2 text-sm font-semibold',
-                      isSelected &&
-                        'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)]',
-                      isDisabled && 'cursor-not-allowed opacity-40'
-                    )}
-                  >
-                    {MEMBER_SLOT_LABELS[slot]}
-                    {activeMemberPlayOption.kind === 'DOUBLE_RELAY' && isSelected && (
-                      <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
-                        {selectedOrderIndex + 1}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-            <div
-              className={cn(
-                'mt-4 flex items-center gap-3',
-                activeMemberPlayOption.kind === 'DOUBLE_RELAY' ? 'justify-between' : 'justify-end'
-              )}
-            >
-              <button
-                type="button"
-                onClick={() => setMemberPlayOptionSelection(null)}
-                className="button-secondary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
-              >
-                取消
-              </button>
-              {activeMemberPlayOption.kind === 'DOUBLE_RELAY' && (
-                <button
-                  type="button"
-                  disabled={!canConfirmMemberPlayOption}
-                  onClick={handleConfirmMemberPlayOption}
-                  className={cn(
-                    'button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold',
-                    !canConfirmMemberPlayOption && 'cursor-not-allowed opacity-50'
-                  )}
-                >
-                  <Repeat2 className="h-4 w-4" aria-hidden="true" />
-                  {activeMemberPlayOption.label}登场
-                </button>
-              )}
-            </div>
-          </div>
-        </>
+        <MemberPlayOptionDialog
+          option={activeMemberPlayOption}
+          cardLabel={
+            selectedCardPresentation
+              ? formatCardCompactLabel(selectedCardPresentation.cardData as AnyCardData)
+              : '成员登场'
+          }
+          slots={MEMBER_SLOT_ORDER.map((slot) => {
+            const cardId = getSeatMemberSlotCardId(viewerSeat, slot);
+            const card = cardId ? getVisibleCardPresentation(cardId) : null;
+            return {
+              slot,
+              label: MEMBER_SLOT_LABELS[slot],
+              card,
+              cardLabel: card ? formatCardCompactLabel(card.cardData as AnyCardData) : '空位',
+            };
+          })}
+          selectedSlots={memberPlaySelectedSlots}
+          canConfirm={canConfirmMemberPlayOption}
+          onSelectSlot={handleSelectMemberPlayOptionSlot}
+          onConfirm={handleConfirmMemberPlayOption}
+          onCancel={() => setMemberPlayOptionSelection(null)}
+        />
       )}
 
       {!entranceWaiting && showSuccessLiveSelectionModal && successLiveSelectionCollapsed && (
         <div
           data-battle-animation-ignore="true"
           data-battle-ui-anchor={BATTLE_UI_ANCHORS.SUCCESS_LIVE_SELECTION}
-          className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[94] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]"
+          className="pointer-events-auto fixed bottom-[var(--battle-mobile-overlay-bottom)] left-4 right-4 z-[94] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))] md:bottom-20"
         >
           <div className="flex items-center gap-3">
             <div className="min-w-0 flex-1">
               <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
-                成功 Live
+                成功 LIVE
               </div>
               <div className="mt-0.5 truncate text-sm font-semibold">
-                选择放置入成功 LIVE 卡区的 Live
+                选择要放置入成功 LIVE 区的卡牌
               </div>
               <div className="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]">
                 {successLiveSelectionCardIds.length} 张候选
@@ -3161,118 +3133,92 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
       {!entranceWaiting && showSuccessLiveSelectionModal && !successLiveSelectionCollapsed && (
         <div
           data-battle-animation-ignore="true"
-          data-battle-ui-anchor={BATTLE_UI_ANCHORS.SUCCESS_LIVE_SELECTION}
-          className="battle-overlay-surface pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(94vw,760px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+          className="pointer-events-none fixed inset-x-2 bottom-[var(--battle-mobile-overlay-bottom)] top-[max(0.75rem,env(safe-area-inset-top))] z-[94] flex items-end justify-center md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-[min(94vw,760px)] md:-translate-x-1/2 md:-translate-y-1/2"
         >
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
-                成功 Live
-              </div>
-              <div className="mt-1 text-sm font-semibold">选择放置入成功 LIVE 卡区的 Live</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSuccessLiveSelectionCollapsed(true)}
-              className="button-secondary inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 px-2 text-xs font-semibold"
-            >
-              <EyeOff className="h-4 w-4" aria-hidden="true" />
-              隐藏
-            </button>
-          </div>
           <div
-            data-battle-ui-anchor={BATTLE_UI_ANCHORS.SUCCESS_LIVE_CANDIDATES}
-            className={
-              textOnly
-                ? 'excel-candidate-surface'
-                : 'grid max-h-[var(--battle-viewport-height-52)] grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3'
-            }
+            data-battle-ui-anchor={BATTLE_UI_ANCHORS.SUCCESS_LIVE_SELECTION}
+            className="battle-overlay-surface pointer-events-auto flex max-h-full w-full flex-col overflow-hidden rounded-lg border border-[var(--border-active)] bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] md:max-h-[88vh]"
           >
-            {textOnly ? (
-              <ExcelCandidateTable
-                label="成功 LIVE 候选卡牌"
-                candidates={successLiveSelectionCardIds.map((cardId) => {
-                  const card = selectExcelCard(playerViewState, `obj_${cardId}`);
-                  return { id: cardId, card, disabled: !card || isReadOnly };
-                })}
-                onSelect={(cardId) => {
-                  setHoveredCard(null);
-                  selectSuccessCard(cardId);
-                }}
-              />
-            ) : (
-              successLiveSelectionCardIds.map((cardId) => {
-                const presentation = getVisibleCardPresentation(cardId);
-                const cardData = presentation?.cardData;
-                const label = cardData
-                  ? formatCardCompactLabel(cardData as AnyCardData)
-                  : '选择此卡';
-                return (
-                  <button
-                    key={cardId}
-                    data-battle-ui-object-id={cardId}
-                    type="button"
-                    disabled={!presentation}
-                    onClick={() => {
-                      setHoveredCard(null);
-                      selectSuccessCard(cardId);
-                    }}
-                    className={cn(
-                      'group flex min-w-0 flex-col items-center gap-1 rounded-lg border border-transparent p-1.5 transition-colors',
-                      presentation
-                        ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
-                        : 'cursor-not-allowed opacity-50'
-                    )}
-                    title={label}
-                  >
-                    {presentation ? (
-                      <CardDetailPressTarget
-                        cardId={presentation.instanceId}
-                        title={label}
-                        className="flex justify-center"
-                      >
-                        <Card
-                          cardData={presentation.cardData as AnyCardData}
-                          instanceId={presentation.instanceId}
-                          imagePath={presentation.imagePath}
-                          size="sm"
-                          faceUp={true}
-                          showHover={false}
-                          className="shadow-sm transition-transform group-hover:scale-[1.02]"
-                        />
-                      </CardDetailPressTarget>
-                    ) : (
-                      <div className="battle-card-face flex aspect-[5/7] w-full items-center justify-center border border-dashed border-[var(--border-subtle)] text-xs text-[var(--text-muted)]">
-                        不可见
-                      </div>
-                    )}
-                    <span className="line-clamp-2 min-h-8 text-center text-[11px] leading-4 text-[var(--text-secondary)]">
-                      {label}
-                    </span>
-                  </button>
-                );
-              })
-            )}
-          </div>
-          {successLiveSelection?.canSkipToWaitingRoom === true && (
-            <div className="mt-3 flex justify-end">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-subtle)] p-3">
+              <div>
+                <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
+                  成功 LIVE
+                </div>
+                <div className="mt-1 text-sm font-semibold">选择要放置入成功 LIVE 区的卡牌</div>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  点击卡牌即放置入成功 LIVE 卡区
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => skipSuccessLiveSelection()}
-                className="button-secondary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
+                onClick={() => setSuccessLiveSelectionCollapsed(true)}
+                className="button-secondary inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 px-2 text-xs font-semibold"
               >
-                <DoorOpen className="h-4 w-4" aria-hidden="true" />
-                全部放置入休息室
+                <EyeOff className="h-4 w-4" aria-hidden="true" />
+                隐藏
               </button>
             </div>
-          )}
+            <div
+              data-battle-ui-anchor={BATTLE_UI_ANCHORS.SUCCESS_LIVE_CANDIDATES}
+              className={
+                textOnly
+                  ? 'excel-candidate-surface'
+                  : 'touch-scroll cute-scrollbar min-h-0 overflow-y-auto p-3'
+              }
+            >
+              {textOnly ? (
+                <ExcelCandidateTable
+                  label="成功 LIVE 候选卡牌"
+                  candidates={successLiveSelectionCardIds.map((cardId) => {
+                    const card = selectExcelCard(playerViewState, `obj_${cardId}`);
+                    return { id: cardId, card, disabled: !card || isReadOnly };
+                  })}
+                  onSelect={(cardId) => {
+                    setHoveredCard(null);
+                    selectSuccessCard(cardId);
+                  }}
+                />
+              ) : (
+                <BattleCardCandidateGrid
+                  label="成功 LIVE 候选卡牌"
+                  candidates={successLiveSelectionCardIds.map((cardId) => {
+                    const presentation = getVisibleCardPresentation(cardId);
+                    return {
+                      id: cardId,
+                      presentation,
+                      label: presentation
+                        ? formatCardCompactLabel(presentation.cardData as AnyCardData)
+                        : '不可见',
+                      disabled: isReadOnly,
+                    };
+                  })}
+                  onSelect={(cardId) => {
+                    setHoveredCard(null);
+                    selectSuccessCard(cardId);
+                  }}
+                />
+              )}
+            </div>
+            {successLiveSelection?.canSkipToWaitingRoom === true && (
+              <div className="flex shrink-0 justify-end border-t border-[var(--border-subtle)] p-3">
+                <button
+                  type="button"
+                  onClick={() => skipSuccessLiveSelection()}
+                  className="button-secondary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
+                >
+                  <DoorOpen className="h-4 w-4" aria-hidden="true" />
+                  全部放置入休息室
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {!isActiveEffectUiSuspended && activeEffect && activeEffectCollapsed && (
         <div
           data-battle-animation-ignore="true"
-          className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[95] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]"
+          className="pointer-events-auto fixed bottom-[var(--battle-mobile-overlay-bottom)] left-4 right-4 z-[95] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))] md:bottom-20"
         >
           <div className="flex items-center gap-3">
             <div className="min-w-0 flex-1">
@@ -3301,27 +3247,33 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
       {!isActiveEffectUiSuspended && activeEffect && !activeEffectCollapsed && (
         <div
           data-battle-animation-ignore="true"
-          className="pointer-events-auto fixed inset-x-2 bottom-[max(0.75rem,env(safe-area-inset-bottom))] top-[max(0.75rem,env(safe-area-inset-top))] z-[95] flex items-end justify-center sm:inset-x-4 md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-[min(94vw,900px)] md:-translate-x-1/2 md:-translate-y-1/2"
+          className="pointer-events-none fixed inset-x-2 bottom-[var(--battle-mobile-overlay-bottom)] top-[max(0.75rem,env(safe-area-inset-top))] z-[95] flex items-end justify-center sm:inset-x-4 md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-[min(94vw,900px)] md:-translate-x-1/2 md:-translate-y-1/2"
         >
           <motion.div
             data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_PANEL}
-            className="battle-overlay-surface flex max-h-[calc(var(--battle-viewport-height)_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_1.5rem)] w-full flex-col overflow-hidden rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl md:max-h-[88vh] md:p-4"
+            className="battle-overlay-surface pointer-events-auto flex max-h-full w-full flex-col overflow-hidden rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl md:max-h-[88vh] md:p-4"
             initial={{ opacity: 0, y: 12, scale: 0.985 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.99 }}
             transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
           >
             <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-subtle)] p-3 md:mb-3 md:border-b-0 md:p-0">
-              <div>
+              <div className="min-w-0 flex-1">
                 <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
                   处理中的效果
                 </div>
                 <div className="mt-1 text-sm font-semibold">{activeEffectTitle}</div>
+                {activeEffectBadgeLabel && (
+                  <div
+                    role="status"
+                    aria-label="卡牌可见状态"
+                    className="mt-1 text-[11px] leading-relaxed text-[var(--text-secondary)]"
+                  >
+                    {activeEffectBadgeLabel}
+                  </div>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <div className="rounded border border-[var(--border-default)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
-                  {activeEffectBadgeLabel}
-                </div>
                 <button
                   type="button"
                   onClick={() => setActiveEffectCollapsed(true)}
@@ -3332,7 +3284,100 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                 </button>
               </div>
             </div>
+            {activeEffectStepLabel && (
+              <div
+                role="group"
+                aria-label="当前效果步骤"
+                className="shrink-0 border-b border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] px-3 py-2.5 md:mb-3 md:rounded md:border md:px-3"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                  <CardEffectText
+                    text={activeEffectStepLabel}
+                    className="min-w-0 flex-1 basis-40 text-[13px] font-semibold leading-relaxed"
+                  />
+                  {activeEffectStepProgress && (
+                    <span
+                      role="status"
+                      className="shrink-0 text-xs font-semibold leading-relaxed text-[var(--text-secondary)]"
+                    >
+                      {activeEffectStepProgress}
+                    </span>
+                  )}
+                </div>
+                {activeEffectCardClickSubmits && (
+                  <CardEffectText
+                    text={`点击卡牌即${activeEffect.confirmSelectionLabel ?? '提交选择'}`}
+                    className="mt-1 text-xs text-[var(--text-secondary)]"
+                  />
+                )}
+              </div>
+            )}
             <div className="touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-0 md:py-0">
+              {isPublicCardSelectionAutoAdvance && (
+                <div className="mb-3 md:mb-4">
+                  <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
+                    本次公开的选择
+                  </div>
+                  {textOnly ? (
+                    <>
+                      <ExcelPublicCardTable
+                        label="本次公开的选择"
+                        cardIds={publicCardSelectionDisplayEntries.map((entry) => entry.cardId)}
+                        view={playerViewState}
+                      />
+                      <p className="mt-2 text-xs">即将自动继续处理</p>
+                    </>
+                  ) : (
+                    <div className="rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_8%,var(--bg-surface))] p-3">
+                      <div className="flex items-center gap-3 overflow-x-auto pb-1">
+                        <div className="shrink-0">
+                          <div className="mb-1.5 text-center text-[10px] font-semibold text-[var(--text-muted)]">
+                            发动效果的卡牌
+                          </div>
+                          <BattleCardCandidateGrid
+                            label="发动效果的卡牌"
+                            readOnly
+                            layout="row"
+                            candidates={[
+                              {
+                                id: activeEffect.sourceObjectId,
+                                label: activeEffectSourceLabel,
+                                presentation: activeEffectSource,
+                              },
+                            ]}
+                          />
+                        </div>
+                        <ChevronRight
+                          className="h-8 w-8 shrink-0 text-[var(--accent-primary)]"
+                          aria-label="选择"
+                        />
+                        <BattleCardCandidateGrid
+                          label="本次公开的选择"
+                          readOnly
+                          layout="row"
+                          candidates={publicCardSelectionDisplayEntries.map((entry) => {
+                            const presentation = getVisibleCardPresentation(entry.cardId);
+                            return {
+                              id: entry.cardId,
+                              presentation,
+                              label: presentation
+                                ? formatCardCompactLabel(presentation.cardData as AnyCardData)
+                                : '已选择的卡牌',
+                              selectionOrder: entry.order ?? undefined,
+                            };
+                          })}
+                        />
+                      </div>
+                      <div className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--border-subtle)]">
+                        <div className="h-full w-full animate-pulse rounded-full bg-[var(--accent-primary)]" />
+                      </div>
+                      <div className="mt-1.5 text-center text-[11px] font-semibold text-[var(--text-secondary)]">
+                        即将自动继续处理
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-2.5 md:p-3">
                 <CardEffectText
                   text={activeEffectDescription}
@@ -3341,6 +3386,9 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                 {showActiveEffectChoicePanel && activeEffectChoice && (
                   <EffectChoicePanel
                     activeEffect={activeEffect}
+                    showSelectionSummary={false}
+                    showActions={false}
+                    readOnly={isReadOnly}
                     selectedOptionIds={normalizedActiveEffectChoiceSelection}
                     canChoose={
                       canConfirmActiveEffect &&
@@ -3494,112 +3542,6 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                   </div>
                 </div>
               )}
-              {isPublicCardSelectionAutoAdvance && (
-                <div className="mt-3 md:mt-4">
-                  <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
-                    本次公开的选择
-                  </div>
-                  {textOnly ? (
-                    <>
-                      <ExcelPublicCardTable
-                        label="本次公开的选择"
-                        cardIds={publicCardSelectionDisplayEntries.map((entry) => entry.cardId)}
-                        view={playerViewState}
-                      />
-                      <p className="mt-2 text-xs">即将自动继续处理</p>
-                    </>
-                  ) : (
-                    <div className="rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_8%,var(--bg-surface))] p-3">
-                      <div className="flex items-center gap-3 overflow-x-auto pb-1">
-                        <div className="flex shrink-0 flex-col items-center gap-1.5">
-                          <span className="text-[10px] font-semibold text-[var(--text-muted)]">
-                            发动效果的卡牌
-                          </span>
-                          {activeEffectSource ? (
-                            <CardDetailPressTarget
-                              cardId={activeEffectSource.instanceId}
-                              title={activeEffectSourceLabel}
-                              className="flex flex-col items-center gap-1"
-                            >
-                              <Card
-                                cardData={activeEffectSource.cardData as AnyCardData}
-                                instanceId={activeEffectSource.instanceId}
-                                imagePath={activeEffectSource.imagePath}
-                                size="sm"
-                                faceUp={true}
-                                showHover={false}
-                                className="h-[105px] w-[75px]"
-                              />
-                              <span className="line-clamp-2 w-24 text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
-                                {activeEffectSourceLabel}
-                              </span>
-                            </CardDetailPressTarget>
-                          ) : (
-                            <div className="battle-card-face flex h-[105px] w-[75px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
-                              ?
-                            </div>
-                          )}
-                        </div>
-                        <ChevronRight
-                          className="h-8 w-8 shrink-0 text-[var(--accent-primary)]"
-                          aria-label="选择"
-                        />
-                        <div className="flex shrink-0 items-start gap-2">
-                          {publicCardSelectionDisplayEntries.map((entry) => {
-                            const presentation = getVisibleCardPresentation(entry.cardId);
-                            const cardData = presentation?.cardData;
-                            const label = cardData
-                              ? formatCardCompactLabel(cardData as AnyCardData)
-                              : '已选择的卡牌';
-                            return (
-                              <CardDetailPressTarget
-                                key={entry.cardId}
-                                cardId={presentation?.instanceId ?? null}
-                                disabled={!presentation}
-                                title={label}
-                                className="relative flex w-24 shrink-0 flex-col items-center gap-1"
-                              >
-                                {entry.order !== null && (
-                                  <span className="absolute right-1 top-5 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-white/70 bg-[var(--accent-primary)] px-1 text-[11px] font-bold text-white shadow">
-                                    {entry.order}
-                                  </span>
-                                )}
-                                <span className="text-[10px] font-semibold text-[var(--text-muted)]">
-                                  {entry.order === null ? '选择的卡牌' : `第 ${entry.order} 张`}
-                                </span>
-                                {presentation ? (
-                                  <Card
-                                    cardData={presentation.cardData as AnyCardData}
-                                    instanceId={presentation.instanceId}
-                                    imagePath={presentation.imagePath}
-                                    size="sm"
-                                    faceUp={true}
-                                    showHover={false}
-                                    className="h-[105px] w-[75px]"
-                                  />
-                                ) : (
-                                  <div className="battle-card-face flex h-[105px] w-[75px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
-                                    ?
-                                  </div>
-                                )}
-                                <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
-                                  {label}
-                                </span>
-                              </CardDetailPressTarget>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--border-subtle)]">
-                        <div className="h-full w-full animate-pulse rounded-full bg-[var(--accent-primary)]" />
-                      </div>
-                      <div className="mt-1.5 text-center text-[11px] font-semibold text-[var(--text-secondary)]">
-                        即将自动继续处理
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
               {!isPublicCardSelectionAutoAdvance && activeEffectRevealedCardIds.length > 0 && (
                 <div className="mt-3 md:mt-4">
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[var(--text-secondary)]">
@@ -3625,100 +3567,43 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                       view={playerViewState}
                     />
                   ) : (
-                    <div
-                      className={cn(
-                        'grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2 rounded-lg border bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-2 md:max-h-[32vh] md:grid-cols-[repeat(auto-fill,minmax(76px,1fr))] md:gap-3 md:overflow-y-auto md:p-3',
-                        isPublicRevealAutoAdvance
-                          ? 'border-[var(--border-active)]'
-                          : 'border-[var(--border-subtle)]'
-                      )}
-                    >
-                      {activeEffectRevealedCardIds.map((cardId) => {
+                    <BattleCardCandidateGrid
+                      label={isPublicRevealAutoAdvance ? '本次公开的卡牌' : '已公开的卡牌'}
+                      readOnly
+                      candidates={activeEffectRevealedCardIds.map((cardId) => {
                         const presentation = getVisibleCardPresentation(cardId);
-                        const cardData = presentation?.cardData;
-                        const label = cardData
-                          ? formatCardCompactLabel(cardData as AnyCardData)
-                          : '已公开卡牌';
-                        const entranceDelayMs = isPublicRevealAutoAdvance
-                          ? (publicRevealDisplayEntries.find((entry) => entry.cardId === cardId)
-                              ?.entranceDelayMs ?? 0)
-                          : 0;
-                        const entranceTiming = getPublicRevealEntranceTiming(
-                          { cardId, entranceDelayMs },
-                          prefersReducedMotion
-                        );
-
-                        return (
-                          <motion.div
-                            key={
-                              isPublicRevealAutoAdvance
-                                ? `${publicRevealDisplayKey}:${cardId}`
-                                : cardId
-                            }
-                            initial={
-                              isPublicRevealAutoAdvance && entranceTiming.shouldAnimate
-                                ? { opacity: 0, y: 8, scale: 0.97 }
-                                : false
-                            }
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            transition={{
-                              duration: entranceTiming.durationSeconds,
-                              delay: entranceTiming.delaySeconds,
-                              ease: [0.2, 0.8, 0.2, 1],
-                            }}
-                            className="min-w-0"
-                          >
-                            <CardDetailPressTarget
-                              cardId={presentation?.instanceId ?? null}
-                              disabled={!presentation}
-                              title={label}
-                              className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] p-1.5"
-                            >
-                              {presentation ? (
-                                <Card
-                                  cardData={presentation.cardData as AnyCardData}
-                                  instanceId={presentation.instanceId}
-                                  imagePath={presentation.imagePath}
-                                  size="sm"
-                                  faceUp={true}
-                                  showHover={false}
-                                  className="h-[90px] w-[64px] md:h-[105px] md:w-[75px]"
-                                />
-                              ) : (
-                                <div className="battle-card-face flex h-[90px] w-[64px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
-                                  ?
-                                </div>
-                              )}
-                              <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
-                                {label}
-                              </span>
-                            </CardDetailPressTarget>
-                          </motion.div>
-                        );
+                        const entrance = isPublicRevealAutoAdvance
+                          ? publicRevealDisplayEntries.find((entry) => entry.cardId === cardId)
+                          : undefined;
+                        return {
+                          id: cardId,
+                          presentation,
+                          label: presentation
+                            ? formatCardCompactLabel(presentation.cardData as AnyCardData)
+                            : '已公开卡牌',
+                          entrance: entrance
+                            ? {
+                                key: `${publicRevealDisplayKey}:${cardId}`,
+                                timing: getPublicRevealEntranceTiming(
+                                  entrance,
+                                  prefersReducedMotion
+                                ),
+                              }
+                            : undefined,
+                        };
                       })}
-                    </div>
+                    />
                   )}
                 </div>
               )}
-              {showOrdinaryActiveEffectControls && activeEffectSelectableCardIds.length > 0 && (
+              {showActiveEffectCardSelection && (
                 <div className="mt-3 md:mt-4">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[var(--text-secondary)]">
-                    <CardEffectText as="span" text={activeEffectSelectionLabel} />
-                    <span className="rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_76%,transparent)] px-2 py-1 text-[11px] text-[var(--text-primary)]">
-                      {activeEffectSelectableBadgeLabel}
-                    </span>
-                  </div>
                   <div
                     data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_SELECTION}
                     className={
                       textOnly
                         ? 'excel-candidate-surface'
-                        : cn(
-                            'grid gap-2 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-2 md:max-h-[46vh] md:gap-3 md:overflow-y-auto md:p-3',
-                            activeEffectHasEnergyCandidates
-                              ? 'grid-cols-[repeat(auto-fill,minmax(90px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(105px,1fr))]'
-                              : 'grid-cols-[repeat(auto-fill,minmax(64px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(76px,1fr))]'
-                          )
+                        : 'cute-scrollbar py-1 md:max-h-[46vh] md:overflow-y-auto'
                     }
                   >
                     {textOnly ? (
@@ -3751,178 +3636,150 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                         onSelect={handleActiveEffectCardSelect}
                       />
                     ) : (
-                      activeEffectSelectableCardIds.map((cardId, candidateIndex) => {
-                        const presentation = getVisibleCardPresentation(cardId);
-                        const cardData = presentation?.cardData;
-                        const candidateObjectId =
-                          activeEffect?.selectableObjectIds?.[candidateIndex];
-                        const candidateObject = candidateObjectId
-                          ? playerViewState?.objects[candidateObjectId]
-                          : undefined;
-                        const isEnergyCandidate = cardData?.cardType === CardType.ENERGY;
-                        const isWaitingEnergy =
-                          isEnergyCandidate &&
-                          candidateObject?.orientation === OrientationState.WAITING;
-                        const skipsNextActivePhase = candidateObject?.skipsNextActivePhase === true;
-                        const candidateCanBeSelected =
-                          activeEffectSelectableObjectsFaceDown || presentation !== null;
-                        const selectedOrderIndex = activeEffectOrderedSelection.indexOf(cardId);
-                        const isOrderedSelected = selectedOrderIndex >= 0;
-                        const isSingleSelected = activeEffectSelectedCardId === cardId;
-                        const label = activeEffectSelectableObjectsFaceDown
-                          ? `第${candidateIndex + 1}张手牌`
-                          : cardData
-                            ? formatActiveEffectCardCompactLabel(cardId, cardData as AnyCardData)
-                            : '选择此卡';
-                        const energyStatusLabel = isEnergyCandidate
-                          ? `；当前状态：${isWaitingEnergy ? '等待' : '活跃'}`
-                          : '';
-                        const candidateTitle = `${label}${energyStatusLabel}${
-                          skipsNextActivePhase ? '；下次活跃阶段不会自动变为活跃' : ''
-                        }`;
-                        if (isReadOnly) {
-                          return (
-                            <CardDetailPressTarget
-                              key={cardId}
-                              cardId={
-                                activeEffectSelectableObjectsFaceDown
-                                  ? null
-                                  : (presentation?.instanceId ?? null)
-                              }
-                              disabled={activeEffectSelectableObjectsFaceDown || !presentation}
-                              title={candidateTitle}
-                              className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_70%,transparent)] p-1.5"
-                            >
-                              {activeEffectSelectableObjectsFaceDown ? (
-                                <div className="h-[90px] w-[64px] overflow-hidden rounded-lg shadow md:h-[105px] md:w-[75px]">
-                                  <PresentationImage
-                                    src="/back.jpg"
-                                    alt="不可见的手牌"
-                                    className="h-full w-full object-cover"
-                                  />
-                                </div>
-                              ) : presentation ? (
-                                <div
-                                  className={cn(
-                                    'battle-card-face h-[90px] w-[64px] transition-transform md:h-[105px] md:w-[75px]',
-                                    isWaitingEnergy && 'rotate-90',
-                                    skipsNextActivePhase &&
-                                      'ring-2 ring-red-500 ring-offset-2 ring-offset-[var(--bg-surface)]'
-                                  )}
-                                >
-                                  <Card
-                                    cardData={presentation.cardData as AnyCardData}
-                                    instanceId={presentation.instanceId}
-                                    imagePath={presentation.imagePath}
-                                    size="sm"
-                                    faceUp={true}
-                                    showHover={false}
-                                    className={cn(
-                                      'h-full w-full transition-[filter,opacity]',
-                                      isWaitingEnergy && 'opacity-60 grayscale'
-                                    )}
-                                  />
-                                </div>
-                              ) : (
-                                <div className="battle-card-face flex h-[90px] w-[64px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
-                                  ?
-                                </div>
-                              )}
-                              <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
-                                {label}
-                              </span>
-                            </CardDetailPressTarget>
-                          );
-                        }
-                        return (
-                          <button
-                            key={cardId}
-                            type="button"
-                            disabled={!canConfirmActiveEffect || !candidateCanBeSelected}
-                            onClick={() => handleActiveEffectCardSelect(cardId)}
-                            className={`group relative flex min-w-0 flex-col items-center gap-1 rounded-lg border p-1.5 transition-colors ${
-                              isOrderedSelected || isSingleSelected
-                                ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
-                                : 'border-transparent'
-                            } ${
-                              canConfirmActiveEffect && candidateCanBeSelected
-                                ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
-                                : 'cursor-not-allowed opacity-50'
-                            }`}
-                            title={candidateTitle}
-                          >
-                            {isOrderedSelected && (
-                              <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-[11px] font-bold text-white shadow">
-                                {selectedOrderIndex + 1}
-                              </span>
-                            )}
-                            {isSingleSelected && (
-                              <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-white shadow">
-                                <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                              </span>
-                            )}
-                            {activeEffectSelectableObjectsFaceDown ? (
-                              <div className="h-[90px] w-[64px] overflow-hidden rounded-lg shadow md:h-[105px] md:w-[75px]">
-                                <PresentationImage
-                                  src="/back.jpg"
-                                  alt="不可见的手牌"
-                                  className="h-full w-full object-cover"
-                                />
-                              </div>
-                            ) : presentation ? (
-                              <CardDetailPressTarget
-                                cardId={presentation.instanceId}
-                                className="flex h-[90px] w-[90px] items-center justify-center md:h-[105px] md:w-[105px]"
-                                title={candidateTitle}
-                              >
-                                <div
-                                  className={cn(
-                                    'battle-card-face h-[90px] w-[64px] transition-transform md:h-[105px] md:w-[75px]',
-                                    isWaitingEnergy && 'rotate-90',
-                                    skipsNextActivePhase &&
-                                      'ring-2 ring-red-500 ring-offset-2 ring-offset-[var(--bg-surface)]'
-                                  )}
-                                >
-                                  <Card
-                                    cardData={presentation.cardData as AnyCardData}
-                                    instanceId={presentation.instanceId}
-                                    imagePath={presentation.imagePath}
-                                    size="sm"
-                                    faceUp={true}
-                                    showHover={false}
-                                    className={cn(
-                                      'h-full w-full transition-[filter,opacity]',
-                                      isWaitingEnergy && 'opacity-60 grayscale'
-                                    )}
-                                  />
-                                </div>
-                              </CardDetailPressTarget>
-                            ) : (
-                              <div className="battle-card-face flex h-[90px] w-[64px] items-center justify-center border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
-                                ?
-                              </div>
-                            )}
-                            <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
-                              {label}
-                            </span>
-                          </button>
-                        );
-                      })
+                      <BattleCardCandidateGrid
+                        label="效果候选卡牌"
+                        readOnly={isReadOnly}
+                        candidates={activeEffectSelectableCardIds.map((cardId, candidateIndex) => {
+                          const presentation = activeEffectSelectableObjectsFaceDown
+                            ? null
+                            : getVisibleCardPresentation(cardId);
+                          const candidateObjectId =
+                            activeEffect.selectableObjectIds?.[candidateIndex];
+                          const candidateObject = candidateObjectId
+                            ? playerViewState?.objects[candidateObjectId]
+                            : undefined;
+                          const selectedIndex = activeEffectOrderedSelection.indexOf(cardId);
+                          const hasSelection =
+                            activeEffectUsesOrderedMultiSelect ||
+                            activeEffectUsesCardOptionSelection;
+                          return {
+                            id: cardId,
+                            label: presentation
+                              ? formatActiveEffectCardCompactLabel(
+                                  cardId,
+                                  presentation.cardData as AnyCardData
+                                )
+                              : '选择此卡',
+                            presentation,
+                            concealed: activeEffectSelectableObjectsFaceDown,
+                            disabled: !canConfirmActiveEffect,
+                            selected:
+                              !isReadOnly && hasSelection
+                                ? activeEffectUsesOrderedMultiSelect
+                                  ? selectedIndex >= 0
+                                  : activeEffectSelectedCardId === cardId
+                                : undefined,
+                            selectionOrder:
+                              !isReadOnly &&
+                              activeEffectUsesOrderedMultiSelect &&
+                              selectedIndex >= 0
+                                ? selectedIndex + 1
+                                : undefined,
+                            orientation: candidateObject?.orientation,
+                            skipsNextActivePhase: candidateObject?.skipsNextActivePhase,
+                          };
+                        })}
+                        onSelect={handleActiveEffectCardSelect}
+                      />
                     )}
                   </div>
+                </div>
+              )}
+              {showLegacyActiveEffectControls && activeEffectSelectableOptions.length > 0 && (
+                <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
+                  <BattleEffectOptionList
+                    label={isActiveEffectOrderSelectionWindow ? '效果发动顺序' : '效果选项'}
+                    readOnly={isReadOnly}
+                    options={activeEffectSelectableOptions.map((option) => ({
+                      id: option.id,
+                      text: option.label,
+                      disabled:
+                        !canConfirmActiveEffect ||
+                        (activeEffectUsesCardOptionSelection && !activeEffectSelectedCardId),
+                    }))}
+                    onSelect={(optionId) =>
+                      confirmEffectStep(
+                        activeEffect.id,
+                        activeEffectUsesCardOptionSelection
+                          ? activeEffectSelectedCardId
+                          : undefined,
+                        undefined,
+                        undefined,
+                        optionId
+                      )
+                    }
+                  />
                 </div>
               )}
             </div>
             <div
               data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_CONFIRM}
               className={cn(
-                'flex shrink-0 gap-2 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 md:mt-4 md:border-t-0 md:bg-transparent md:p-0',
+                'flex shrink-0 gap-2 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 empty:hidden md:mt-4 md:border-t-0 md:bg-transparent md:p-0',
                 isActiveEffectOrderSelectionWindow
                   ? 'flex-col items-stretch justify-start'
                   : 'flex-wrap justify-end',
                 isReadOnly && 'hidden'
               )}
             >
+              {showActiveEffectChoicePanel && (
+                <EffectChoiceActions
+                  activeEffect={activeEffect}
+                  selectedOptionIds={normalizedActiveEffectChoiceSelection}
+                  canChoose={
+                    canConfirmActiveEffect &&
+                    !isPublicEffectChoiceAutoAdvance &&
+                    (!activeEffectUsesCardOptionSelection || !!activeEffectSelectedCardId)
+                  }
+                  canConfirmMulti={canConfirmActiveEffectChoice}
+                  onConfirmMulti={() =>
+                    confirmEffectChoice(activeEffect.id, {
+                      selectedCardId: activeEffectUsesCardOptionSelection
+                        ? activeEffectSelectedCardId
+                        : undefined,
+                      selectedEffectOptionIds: normalizedActiveEffectChoiceSelection,
+                    })
+                  }
+                  onSkip={() => confirmEffectStep(activeEffect.id, null)}
+                />
+              )}
+              {showLegacyActiveEffectControls &&
+                activeEffect.canSkipSelection &&
+                (activeEffectSelectableCardIds.length > 0 ||
+                  activeEffectSelectableSlots.length > 0 ||
+                  activeEffectSelectableOptions.length > 0 ||
+                  !!activeEffectStageFormation ||
+                  !!activeEffectNumericInput ||
+                  activeEffect.canResolveInOrder) && (
+                  <button
+                    type="button"
+                    disabled={!canConfirmActiveEffect}
+                    onClick={() => confirmEffectStep(activeEffect.id, null)}
+                    className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
+                      canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    {activeEffect.skipSelectionLabel ?? '不加入'}
+                  </button>
+                )}
+              {showLegacyActiveEffectControls &&
+                activeEffectSelectableCardIds.length === 0 &&
+                activeEffectSelectableSlots.length === 0 &&
+                activeEffectSelectableOptions.length === 0 &&
+                !activeEffectStageFormation &&
+                !activeEffectNumericInput &&
+                activeEffect.canSkipSelection && (
+                  <button
+                    type="button"
+                    disabled={!canConfirmActiveEffect}
+                    onClick={() => confirmEffectStep(activeEffect.id, null)}
+                    className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
+                      canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    {activeEffect.skipSelectionLabel ?? '继续处理'}
+                  </button>
+                )}
               {isPublicCardSelectionAutoAdvance && publicSelectionFallbackReady && (
                 <button
                   type="button"
@@ -4013,48 +3870,6 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                     </button>
                   );
                 })}
-              {showLegacyActiveEffectControls &&
-                activeEffectSelectableOptions.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    disabled={
-                      !canConfirmActiveEffect ||
-                      (activeEffectUsesCardOptionSelection && !activeEffectSelectedCardId)
-                    }
-                    onClick={() =>
-                      confirmEffectStep(
-                        activeEffect.id,
-                        activeEffectUsesCardOptionSelection
-                          ? activeEffectSelectedCardId
-                          : undefined,
-                        undefined,
-                        undefined,
-                        option.id
-                      )
-                    }
-                    className={cn(
-                      'button-secondary inline-flex min-h-10 items-center px-3 text-sm font-semibold',
-                      isActiveEffectOrderSelectionWindow
-                        ? 'w-full justify-start py-3 text-left leading-relaxed'
-                        : 'justify-center',
-                      canConfirmActiveEffect &&
-                        (!activeEffectUsesCardOptionSelection || activeEffectSelectedCardId)
-                        ? ''
-                        : 'cursor-not-allowed opacity-50'
-                    )}
-                  >
-                    <CardEffectText
-                      as="span"
-                      text={option.label}
-                      className={cn(
-                        isActiveEffectOrderSelectionWindow
-                          ? 'block w-full whitespace-pre-line break-normal text-left leading-relaxed'
-                          : 'inline-flex items-center justify-center gap-1 whitespace-normal break-normal'
-                      )}
-                    />
-                  </button>
-                ))}
               {showLegacyActiveEffectControls && activeEffectNumericInput && (
                 <div className="flex min-w-[180px] flex-col gap-1">
                   <label className="text-xs font-semibold text-[var(--text-secondary)]">
@@ -4199,25 +4014,6 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                 </button>
               )}
               {showLegacyActiveEffectControls &&
-                activeEffect.canSkipSelection &&
-                (activeEffectSelectableCardIds.length > 0 ||
-                  activeEffectSelectableSlots.length > 0 ||
-                  activeEffectSelectableOptions.length > 0 ||
-                  !!activeEffectStageFormation ||
-                  !!activeEffectNumericInput ||
-                  activeEffect.canResolveInOrder) && (
-                  <button
-                    type="button"
-                    disabled={!canConfirmActiveEffect}
-                    onClick={() => confirmEffectStep(activeEffect.id, null)}
-                    className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
-                      canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                    }`}
-                  >
-                    {activeEffect.skipSelectionLabel ?? '不加入'}
-                  </button>
-                )}
-              {showLegacyActiveEffectControls &&
                 activeEffectSelectableCardIds.length === 0 &&
                 activeEffectSelectableSlots.length === 0 &&
                 activeEffectSelectableOptions.length === 0 &&
@@ -4236,130 +4032,109 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                     {activeEffect.confirmSelectionLabel ?? '继续处理'}
                   </button>
                 )}
-              {showLegacyActiveEffectControls &&
-                activeEffectSelectableCardIds.length === 0 &&
-                activeEffectSelectableSlots.length === 0 &&
-                activeEffectSelectableOptions.length === 0 &&
-                !activeEffectStageFormation &&
-                !activeEffectNumericInput &&
-                activeEffect.canSkipSelection && (
-                  <button
-                    type="button"
-                    disabled={!canConfirmActiveEffect}
-                    onClick={() => confirmEffectStep(activeEffect.id, null)}
-                    className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
-                      canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                    }`}
-                  >
-                    {activeEffect.skipSelectionLabel ?? '继续处理'}
-                  </button>
-                )}
             </div>
           </motion.div>
         </div>
       )}
 
       {!entranceWaiting && pendingSpecialMemberPlay && (
-        <div className="battle-overlay-surface pointer-events-auto fixed left-1/2 top-1/2 z-[97] w-[min(94vw,720px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
-          {controlsPendingSpecialPlay ? (
-            <>
-              <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
-                {pendingSpecialMemberPlay.selectionLabel}
-              </div>
-              <p className="mt-2 text-sm leading-relaxed">{pendingSpecialMemberPlay.stepText}</p>
-              <div
-                className={
-                  textOnly
-                    ? 'excel-candidate-surface mt-3'
-                    : 'mt-3 grid max-h-[48vh] grid-cols-[repeat(auto-fill,minmax(78px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] p-3'
-                }
-              >
-                {textOnly ? (
-                  <ExcelCandidateTable
-                    label="特殊登场支付候选卡牌"
-                    candidates={pendingSpecialPlayCandidateIds.map((cardId) => {
-                      const card = selectExcelCard(playerViewState, `obj_${cardId}`);
-                      return {
-                        id: cardId,
-                        card,
-                        disabled: !card || isReadOnly || pendingSpecialPlayRequiredCount === 0,
-                        selected: specialPlayPaymentSelection.includes(cardId),
-                        order: specialPlayPaymentSelection.indexOf(cardId) + 1,
-                      };
-                    })}
-                    onSelect={handleToggleSpecialPlayPayment}
-                  />
-                ) : (
-                  pendingSpecialPlayCandidateIds.map((cardId) => {
-                    const presentation = getVisibleCardPresentation(cardId);
-                    if (!presentation) return null;
-                    const selected = specialPlayPaymentSelection.includes(cardId);
-                    return (
-                      <button
-                        key={cardId}
-                        type="button"
-                        disabled={pendingSpecialPlayRequiredCount === 0}
-                        onClick={() => handleToggleSpecialPlayPayment(cardId)}
-                        className={cn(
-                          'relative flex min-w-0 flex-col items-center rounded-lg border p-1.5 transition-colors',
-                          selected
-                            ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)]'
-                            : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]',
-                          pendingSpecialPlayRequiredCount === 0 && 'cursor-default'
-                        )}
-                        title={formatCardCompactLabel(presentation.cardData as AnyCardData)}
-                      >
-                        <div className="h-[105px] w-[75px] overflow-hidden rounded-lg">
-                          <Card
-                            cardData={presentation.cardData as AnyCardData}
-                            instanceId={presentation.instanceId}
-                            imagePath={presentation.imagePath}
-                            size="sm"
-                            faceUp={true}
-                            showHover={false}
-                            className="h-full w-full"
-                          />
-                        </div>
-                        {selected && pendingSpecialPlayRequiredCount > 0 && (
-                          <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
-                            {specialPlayPaymentSelection.indexOf(cardId) + 1}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-              <div className="mt-4 flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => cancelSpecialMemberPlay(pendingSpecialMemberPlay.id)}
-                  className="button-secondary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
-                >
-                  取消
-                </button>
-                <button
-                  type="button"
-                  disabled={specialPlayPaymentSelection.length !== pendingSpecialPlayRequiredCount}
-                  onClick={() =>
-                    confirmSpecialMemberPlay(
-                      pendingSpecialMemberPlay.id,
-                      specialPlayPaymentSelection
-                    )
-                  }
-                  className={cn(
-                    'button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold',
-                    specialPlayPaymentSelection.length !== pendingSpecialPlayRequiredCount &&
-                      'cursor-not-allowed opacity-50'
-                  )}
-                >
-                  {pendingSpecialMemberPlay.confirmSelectionLabel}
-                </button>
-              </div>
-            </>
-          ) : (
-            <p className="text-center text-sm font-semibold">等待对方完成特殊登场</p>
-          )}
+        <div className="pointer-events-none fixed inset-x-2 bottom-[var(--battle-mobile-overlay-bottom)] top-[max(0.75rem,env(safe-area-inset-top))] z-[97] flex items-end justify-center md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-[min(94vw,720px)] md:-translate-x-1/2 md:-translate-y-1/2">
+          <div
+            role="region"
+            aria-label="特殊登场支付"
+            className="battle-overlay-surface pointer-events-auto flex max-h-full w-full flex-col overflow-hidden rounded-lg border border-[var(--border-active)] bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] md:max-h-[88vh]"
+          >
+            {controlsPendingSpecialPlay ? (
+              <>
+                <div className="shrink-0 border-b border-[var(--border-subtle)] p-3">
+                  <div className="text-sm font-semibold">
+                    {pendingSpecialMemberPlay.selectionLabel}
+                  </div>
+                  <div role="status" className="mt-1 text-xs text-[var(--text-secondary)]">
+                    {pendingSpecialPlayRequiredCount > 0
+                      ? `已选 ${specialPlayPaymentSelection.length} / ${pendingSpecialPlayRequiredCount}`
+                      : `共 ${pendingSpecialPlayCandidateIds.length} 张`}
+                  </div>
+                </div>
+                <div className="touch-scroll cute-scrollbar min-h-0 overflow-y-auto p-3">
+                  <p className="mb-3 text-[13px] leading-relaxed">
+                    {pendingSpecialMemberPlay.stepText}
+                  </p>
+                  <div className={textOnly ? 'excel-candidate-surface mt-3' : undefined}>
+                    {textOnly ? (
+                      <ExcelCandidateTable
+                        label="特殊登场支付候选卡牌"
+                        candidates={pendingSpecialPlayCandidateIds.map((cardId) => {
+                          const card = selectExcelCard(playerViewState, `obj_${cardId}`);
+                          return {
+                            id: cardId,
+                            card,
+                            disabled: !card || isReadOnly || pendingSpecialPlayRequiredCount === 0,
+                            selected: specialPlayPaymentSelection.includes(cardId),
+                            order: specialPlayPaymentSelection.indexOf(cardId) + 1,
+                          };
+                        })}
+                        onSelect={handleToggleSpecialPlayPayment}
+                      />
+                    ) : (
+                      <BattleCardCandidateGrid
+                        label="特殊登场支付候选卡牌"
+                        candidates={pendingSpecialPlayCandidateIds.flatMap((cardId) => {
+                          const presentation = getVisibleCardPresentation(cardId);
+                          if (!presentation) return [];
+                          const selected = specialPlayPaymentSelection.includes(cardId);
+                          return [
+                            {
+                              id: cardId,
+                              presentation,
+                              label: formatCardCompactLabel(presentation.cardData as AnyCardData),
+                              disabled: pendingSpecialPlayRequiredCount === 0 || isReadOnly,
+                              selected,
+                              selectionOrder:
+                                selected && pendingSpecialPlayRequiredCount > 0
+                                  ? specialPlayPaymentSelection.indexOf(cardId) + 1
+                                  : undefined,
+                            },
+                          ];
+                        })}
+                        onSelect={handleToggleSpecialPlayPayment}
+                      />
+                    )}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[var(--border-subtle)] p-3">
+                  <button
+                    type="button"
+                    onClick={() => cancelSpecialMemberPlay(pendingSpecialMemberPlay.id)}
+                    className="button-secondary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      specialPlayPaymentSelection.length !== pendingSpecialPlayRequiredCount
+                    }
+                    onClick={() =>
+                      confirmSpecialMemberPlay(
+                        pendingSpecialMemberPlay.id,
+                        specialPlayPaymentSelection
+                      )
+                    }
+                    className={cn(
+                      'button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold',
+                      specialPlayPaymentSelection.length !== pendingSpecialPlayRequiredCount &&
+                        'cursor-not-allowed opacity-50'
+                    )}
+                  >
+                    {pendingSpecialMemberPlay.confirmSelectionLabel}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="p-4 text-center text-sm font-semibold">等待对方完成特殊登场</p>
+            )}
+          </div>
         </div>
       )}
 
@@ -4668,19 +4443,44 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
           data-battle-workspace
           className="relative flex min-h-0 flex-1"
         >
-          <JudgmentPanel
-            isOpen={
-              isMobileBattlefield
-                ? !entranceWaiting &&
-                  judgmentPanelVisible &&
-                  isJudgmentPanelRelevant &&
-                  judgmentPanelOpen
-                : showDesktopJudgment
+          <div
+            data-battle-auxiliary-rail
+            data-open={
+              !isMobileBattlefield &&
+              (showDesktopJudgment || showDesktopPublicLog || showDesktopDebugLog)
             }
-            onClose={handleJudgmentPanelClose}
-            docked={!isMobileBattlefield && canDockBattlePanel}
-            mobilePortalTarget={boardRoot}
-          />
+            className={
+              !isMobileBattlefield && canDockBattlePanel ? 'battle-auxiliary-rail' : 'contents'
+            }
+          >
+            <JudgmentPanel
+              isOpen={
+                isMobileBattlefield
+                  ? !entranceWaiting &&
+                    judgmentPanelVisible &&
+                    isJudgmentPanelRelevant &&
+                    judgmentPanelOpen
+                  : showDesktopJudgment
+              }
+              onClose={handleJudgmentPanelClose}
+              docked={!isMobileBattlefield && canDockBattlePanel}
+              mobilePortalTarget={boardRoot}
+            />
+            {!isMobileBattlefield && (
+              <>
+                {!entranceWaiting && canShowPublicBattleLog && (
+                  <PublicBattleLogPanel docked={canDockBattlePanel} />
+                )}
+                {canShowDebugLog && (
+                  <GameLog
+                    isOpen={showDesktopDebugLog}
+                    onClose={() => setDesktopDebugLogOpen(false)}
+                    docked={canDockBattlePanel}
+                  />
+                )}
+              </>
+            )}
+          </div>
           {isMobileBattlefield ? (
             <div
               className={cn(
@@ -5101,16 +4901,6 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
             </div>
           ) : (
             <>
-              {!entranceWaiting && canShowPublicBattleLog && (
-                <PublicBattleLogPanel docked={canDockBattlePanel} />
-              )}
-              {canShowDebugLog && (
-                <GameLog
-                  isOpen={showDesktopDebugLog}
-                  onClose={() => setDesktopDebugLogOpen(false)}
-                  docked={canDockBattlePanel}
-                />
-              )}
               <div data-battle-tabletop className="relative flex min-h-0 min-w-0 flex-1 flex-col">
                 {/* 对手区域 (顶部) - 包含成员槽位和对手 Live 区 */}
                 <motion.div

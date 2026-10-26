@@ -20,6 +20,8 @@ import { GameService } from '../../src/application/game-service';
 import { N_BP5_029_LIVE_START_REVEAL_KASUMI_HEARTS_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import { getMemberEffectiveHeartIcons } from '../../src/domain/rules/live-modifiers';
+import { projectPlayerViewState } from '../../src/online/projector';
+import { getActiveEffectVisibilityLabel } from '../../client/src/lib/activeEffectVisibilityUi';
 import {
   BladeHeartEffect,
   CardType,
@@ -238,6 +240,26 @@ function advancePublicRevealDwell(game: GameState): GameState {
 }
 
 describe('PL!N-bp5-029-L 無敵級*ビリーバー live-start workflow', () => {
+  it('keeps the public visibility label for both players when reveal returns to card selection', () => {
+    const scenario = setupMutekikyuScenario();
+    const publicReveal = startLiveStartFromCheckTiming(scenario.game);
+    const selecting = advancePublicRevealDwell(publicReveal);
+    for (const state of [publicReveal, selecting]) {
+      for (const viewer of [PLAYER1, PLAYER2]) {
+        const view = projectPlayerViewState(state, viewer);
+        expect(getActiveEffectVisibilityLabel(view.activeEffect, view.objects)).toBe('公开 4 张');
+        expect(view.activeEffect?.revealedObjectIds).toHaveLength(4);
+        for (const objectId of view.activeEffect!.revealedObjectIds!) {
+          expect(view.objects[objectId]?.publiclyRevealed).toBe(true);
+        }
+        if (viewer === PLAYER2) expect(view.activeEffect?.inspectionObjectIds).toBeUndefined();
+      }
+    }
+    expect(
+      projectPlayerViewState(selecting, PLAYER1).activeEffect?.inspectionObjectIds
+    ).toHaveLength(4);
+  });
+
   it('queues from the real LIVE_START timing path when stage Kasumi is present', () => {
     const scenario = setupMutekikyuScenario();
     const publicReveal = startLiveStartFromCheckTiming(scenario.game);

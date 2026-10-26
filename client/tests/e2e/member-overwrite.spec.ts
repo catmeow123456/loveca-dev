@@ -282,3 +282,104 @@ test('single legal mode never prompts and stale choices cannot pay', async ({ pa
   await expect(page.getByRole('dialog', { name: '选择登场方式' })).not.toBeVisible();
   await expect.poll(() => result(page)).toMatchObject({ hand: ['incoming'], waiting: [], paid: 0 });
 });
+
+test('320 safe area: double relay shows members and preserves ordered placement', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'tablet-1024x768', '一次覆盖短屏与安全区');
+  await page.setViewportSize({ width: 320, height: 568 });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', {
+    insets: { top: 44, bottom: 34, left: 0, right: 0 },
+  });
+  await openBoard(page);
+  await page.evaluate(async (repoRoot) => {
+    const path = performance
+      .getEntriesByType('resource')
+      .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+    const [{ useGameStore }, { prepareDoubleRelayScenario }] = await Promise.all([
+      import(path),
+      import(`/@fs${repoRoot}tests/helpers/double-relay-entrance-fixture.ts`),
+    ]);
+    const store = useGameStore.getState();
+    const fixture = prepareDoubleRelayScenario(0, store.gameSession);
+    store.loadCardData(fixture.cardData);
+    useGameStore.setState({ viewingPlayerId: 'p1', remoteSession: null, replaySession: null });
+    store.syncState();
+  }, root);
+  const source = page
+    .locator('[data-battle-ui-anchor="self-hand"] [data-card-id="arrival"]')
+    .first();
+  await source.click();
+  await page.getByRole('button', { name: '双换手', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '选择双换手区域', exact: true });
+  const confirm = dialog.getByRole('button', { name: '双换手登场', exact: true });
+  await expect(confirm).toBeDisabled();
+  await expect(dialog.locator('[data-card-id]')).toHaveCount(3);
+  await dialog.getByRole('button', { name: /^中心/ }).click();
+  await expect(confirm).toBeDisabled();
+  await dialog.getByRole('button', { name: /^左侧/ }).click();
+  await expect(dialog.getByRole('button', { name: /^中心/ })).toHaveAccessibleName(/登场位置/);
+  await expect(dialog.getByRole('button', { name: /^左侧/ })).toHaveAccessibleName(/追加换手/);
+  await expect(confirm).toBeInViewport();
+  const box = (await dialog.boundingBox())!;
+  expect(box.y).toBeGreaterThanOrEqual(44);
+  expect(box.y + box.height).toBeLessThanOrEqual(568 - 34);
+  await page.screenshot({
+    path: `${root}output/playwright/member-choice-refinement/double-relay-320-safe34.png`,
+  });
+  await confirm.click();
+  await expect(dialog).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const path = performance
+          .getEntriesByType('resource')
+          .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+        const state = (await import(path)).useGameStore.getState().gameSession.state;
+        const player = state.players[0];
+        return {
+          center: player.memberSlots.slots.CENTER,
+          left: player.memberSlots.slots.LEFT,
+          waiting: player.waitingRoom.cardIds,
+          paid: [...player.energyZone.cardStates.values()].filter(
+            (entry) => entry.orientation === 'WAITING'
+          ).length,
+        };
+      })
+    )
+    .toMatchObject({
+      center: 'arrival',
+      left: null,
+      waiting: expect.arrayContaining(['relay-left', 'relay-center']),
+      paid: 7,
+    });
+});
+
+test('320 safe area: overwrite payment and cancel stay visible without changing state', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'tablet-1024x768', '一次覆盖短屏与安全区');
+  await page.setViewportSize({ width: 320, height: 568 });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', {
+    insets: { top: 44, bottom: 34, left: 0, right: 0 },
+  });
+  await openBoard(page);
+  await togglePreference(page);
+  await overwrite(page);
+  const dialog = page.getByRole('dialog', { name: '选择登场方式' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /换手登场/ })).toBeInViewport();
+  await expect(dialog.getByRole('button', { name: /全款登场/ })).toBeInViewport();
+  await expect(dialog.getByRole('button', { name: '取消', exact: true })).toBeInViewport();
+  const box = (await dialog.boundingBox())!;
+  expect(box.y).toBeGreaterThanOrEqual(44);
+  expect(box.y + box.height).toBeLessThanOrEqual(568 - 34);
+  await page.screenshot({
+    path: `${root}output/playwright/member-choice-refinement/overwrite-320-safe34.png`,
+  });
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(() => result(page)).toMatchObject({ hand: ['incoming'], waiting: [], paid: 0 });
+});

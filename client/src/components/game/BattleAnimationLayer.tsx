@@ -956,7 +956,7 @@ function MovingCard({
       exit={{ opacity: 0, scale: 0.995, transition: { duration: 0.05 } }}
       transition={{
         duration: BATTLE_CARD_MOVE_DURATION_MS / 1000,
-        ease: [0.22, 1, 0.36, 1],
+        ease: event.toZoneType === ZoneType.HAND ? [0.4, 0, 0.2, 1] : [0.22, 1, 0.36, 1],
       }}
       onAnimationComplete={onDone}
     >

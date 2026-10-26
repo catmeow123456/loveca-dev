@@ -9,7 +9,6 @@ import {
   createSequencedBattleAnimationEvents,
   getBattleAnimationEventDurationMs,
 } from '../../client/src/lib/battleAnimationSequencing';
-import { sampleWaitingRoomCardPose } from '../../client/src/lib/waitingRoomCardPresentation';
 import { getDiscardPresentationBatchLayout } from '../../client/src/lib/battleAnimationEvents';
 import { createBattleAnimationHistory } from '../../client/src/lib/battleAnimationHistory';
 import type { BattleAnimationEvent } from '../../client/src/lib/battleAnimationEvents';
@@ -53,18 +52,26 @@ describe('2D recovery choreography', () => {
     );
     expect(getBattleAnimationEventDurationMs(scheduled[0].event, true, false)).toBe(120);
   });
-  it('reverses the discard geometry and timing, holds the same reveal pose and lands exactly', () => {
+  it('keeps the pickup, public hold and exact hand endpoint', () => {
     expect(sampleRecoveryMotion(from, to, 0, reveal).pose).toEqual(from);
     expect(sampleRecoveryMotion(from, to, 160, reveal).pose).toEqual(reveal);
     expect(sampleRecoveryMotion(from, to, 879, reveal).pose).toEqual(reveal);
     expect(sampleRecoveryMotion(from, to, RECOVERY_DURATION_MS, reveal).pose).toEqual(to);
-    for (const time of [1, 80, 159, 300, 880, 1000, 1179]) {
-      expect(sampleRecoveryMotion(from, to, time, reveal).pose).toEqual(
-        sampleWaitingRoomCardPose(to, reveal, from, RECOVERY_DURATION_MS - time)
-      );
-    }
     expect(getBattleAnimationEventDurationMs(event)).toBe(1180);
     expect(getBattleAnimationEventDurationMs(event, true)).toBe(120);
+  });
+  it('accelerates away from rest and brakes before both the reveal hold and hand landing', () => {
+    const pose = (time: number) => sampleRecoveryMotion(from, to, time, reveal).pose;
+    const distance = (a: ReturnType<typeof pose>, b: ReturnType<typeof pose>) =>
+      Math.hypot(a.left - b.left, a.top - b.top);
+    for (const [start, middle, end] of [
+      [0, 80, 160],
+      [880, 1030, RECOVERY_DURATION_MS],
+    ]) {
+      const cruising = distance(pose(middle), pose(middle + 1));
+      expect(distance(pose(start), pose(start + 1))).toBeLessThan(cruising * 0.05);
+      expect(distance(pose(end - 1), pose(end))).toBeLessThan(cruising * 0.05);
+    }
   });
   it.each([-25, -12, 0, 12, 25])(
     'recovers actual scaled dimensions at fan angle %s',

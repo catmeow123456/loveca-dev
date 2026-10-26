@@ -3,21 +3,47 @@ import {
   type BattleAnimationRect,
   type BattleAnimationSeat,
 } from './battleAnimationEvents';
-import { RECOVERY_DURATION_MS } from './battleAnimationSequencing';
-import { sampleWaitingRoomCardPose } from './waitingRoomCardPresentation';
+import { easeInOut } from 'framer-motion';
+import {
+  RECOVERY_DURATION_MS,
+  WAITING_ROOM_REVEAL_COLLECT_DURATION_MS,
+  WAITING_ROOM_REVEAL_HOLD_DURATION_MS,
+  WAITING_ROOM_REVEAL_MOVE_DURATION_MS,
+} from './battleAnimationSequencing';
 
 export interface RecoveryCardPose extends BattleAnimationRect {
   readonly rotation: number;
 }
 
-/** Reverse the discard path; the live hand pose remains the exact final destination. */
+/** Reuse the public reveal pose and dwell, braking into both stops instead of reversing easing. */
 export function sampleRecoveryMotion(
   from: RecoveryCardPose,
   to: RecoveryCardPose,
   elapsed: number,
   reveal: RecoveryCardPose
 ) {
-  return { pose: sampleWaitingRoomCardPose(to, reveal, from, RECOVERY_DURATION_MS - elapsed) };
+  if (elapsed <= 0) return { pose: from };
+  if (elapsed >= RECOVERY_DURATION_MS) return { pose: to };
+  const pickupEnd = WAITING_ROOM_REVEAL_COLLECT_DURATION_MS;
+  const holdEnd = pickupEnd + WAITING_ROOM_REVEAL_HOLD_DURATION_MS;
+  if (elapsed >= pickupEnd && elapsed <= holdEnd) return { pose: reveal };
+  const start = elapsed < pickupEnd ? from : reveal;
+  const end = elapsed < pickupEnd ? reveal : to;
+  const fraction =
+    elapsed < pickupEnd
+      ? elapsed / pickupEnd
+      : (elapsed - holdEnd) / WAITING_ROOM_REVEAL_MOVE_DURATION_MS;
+  const progress = easeInOut(fraction);
+  const mix = (key: keyof RecoveryCardPose) => start[key] + (end[key] - start[key]) * progress;
+  return {
+    pose: {
+      left: mix('left'),
+      top: mix('top'),
+      width: mix('width'),
+      height: mix('height'),
+      rotation: mix('rotation'),
+    },
+  };
 }
 
 /** BoundingClientRect includes fan rotation and all ancestor scales. Undo the rotation only. */

@@ -23,8 +23,18 @@ export function RecoveryCardMotion({
   imagePath: string;
   onDone: () => void;
 }) {
-  const from =
-    measureRecoveryZonePose(event.toSeat, 'waiting-room') ?? portraitRecoveryPose(event.fromRect);
+  const from = useRef(
+    measureRecoveryZonePose(event.toSeat, 'waiting-room') ?? portraitRecoveryPose(event.fromRect)
+  ).current;
+  const reveal = useRef(
+    getDiscardPresentationBatchLayout({
+      count: event.recoveryGroup?.count ?? 1,
+      toRect: from,
+      toSeat: event.toSeat ?? 'FIRST',
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    }).cards[event.recoveryGroup?.index ?? 0]
+  ).current;
   const left = useMotionValue(from.left),
     top = useMotionValue(from.top);
   const width = useMotionValue(from.width),
@@ -38,7 +48,6 @@ export function RecoveryCardMotion({
 
   useAnimationFrame((elapsed) => {
     if (completed.current) return;
-    const source = measureRecoveryZonePose(event.toSeat, 'waiting-room') ?? from;
     const target =
       event.render.toSurface === 'FRONT'
         ? measureRecoveryHandPose(event.render.objectId)
@@ -49,14 +58,7 @@ export function RecoveryCardMotion({
       finish.current();
       return;
     }
-    const reveal = getDiscardPresentationBatchLayout({
-      count: event.recoveryGroup?.count ?? 1,
-      toRect: source,
-      toSeat: event.toSeat ?? 'FIRST',
-      viewportWidth: window.innerWidth,
-      viewportHeight: window.innerHeight,
-    }).cards[event.recoveryGroup?.index ?? 0];
-    const { pose } = sampleRecoveryMotion(source, target, elapsed, reveal);
+    const { pose } = sampleRecoveryMotion(from, target, elapsed, reveal);
     left.set(pose.left);
     top.set(pose.top);
     width.set(pose.width);
@@ -64,8 +66,7 @@ export function RecoveryCardMotion({
     rotation.set(pose.rotation);
     if (elapsed >= RECOVERY_DURATION_MS) {
       // Commit the exact endpoint for one painted frame before swapping to the real hand.
-      // The reversed ease-out accelerates into the hand, so removing in this same frame
-      // would drop its final pose and leave a visible last-frame jump.
+      // Removing in this same frame would drop the endpoint before it is painted.
       if (landed.current) {
         completed.current = true;
         finish.current();

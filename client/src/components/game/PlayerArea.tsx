@@ -419,16 +419,22 @@ export const PlayerArea = memo(function PlayerArea({
     if (!hand || !energy) return;
     const measure = () => {
       const bounds = row.getBoundingClientRect();
-      const start = Math.max(16, energy.getBoundingClientRect().right - bounds.left + 12);
-      const end = phase ? Math.max(16, bounds.right - phase.getBoundingClientRect().left + 12) : 16;
-      // A narrow desktop puts cards above the fixed phase toolbar instead of
-      // collapsing the browsing window between two large sets of controls.
-      const stacked = bounds.width - start - end < 180;
-      hand.style.setProperty('--battle-hand-start', `${start}px`);
-      hand.style.setProperty(
-        '--battle-hand-end',
-        `${stacked && summary ? Math.max(16, bounds.right - summary.getBoundingClientRect().left + 12) : stacked ? 16 : end}px`
+      // LIVE and the hand row share the player's center line. Symmetric insets
+      // preserve that alignment while clearing the energy pile and owner summary.
+      const sideInset = Math.max(
+        16,
+        energy.getBoundingClientRect().right - bounds.left + 12,
+        summary ? bounds.right - summary.getBoundingClientRect().left + 12 : 0
       );
+      const dockInset = Math.max(
+        sideInset,
+        phase ? bounds.right - phase.getBoundingClientRect().left + 12 : 0
+      );
+      const stacked = bounds.width - dockInset * 2 - 48 < 100;
+      const inset = stacked ? sideInset : dockInset;
+      hand.style.setProperty('--battle-hand-start', `${inset}px`);
+      hand.style.setProperty('--battle-hand-end', `${inset}px`);
+      // Narrow desktops lift the hand instead of squeezing its browsing window.
       hand.style.setProperty(
         '--battle-hand-clearance',
         stacked && phase ? `${phase.getBoundingClientRect().height + 8}px` : '0px'
@@ -3147,7 +3153,8 @@ export const PlayerArea = memo(function PlayerArea({
       )}
     >
       {/* 主区域 - 绝对定位布局（成员槽和Live区在顶部，靠近中央分隔线） */}
-      <div ref={desktopCoreRef} className="relative mb-[0.5px] min-h-0 flex-1 px-2">
+      {/* Reserve a small gap for the shallow fan's upper corners. */}
+      <div ref={desktopCoreRef} className="relative mb-[3.5px] min-h-0 flex-1 px-2">
         {/* 左侧区域 - 绝对定位固定在左边 */}
         <div className="absolute left-2 top-0 flex w-[92px] justify-center sm:w-[120px] md:w-[150px]">
           {renderSuccessZone()}

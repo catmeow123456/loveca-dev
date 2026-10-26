@@ -19,7 +19,7 @@ export const WAITING_ROOM_REVEAL_DURATION_MS =
   WAITING_ROOM_REVEAL_MOVE_DURATION_MS +
   WAITING_ROOM_REVEAL_HOLD_DURATION_MS +
   WAITING_ROOM_REVEAL_COLLECT_DURATION_MS;
-// Same presentation played backwards: pile → reveal → hand.
+// Same public pose and dwell, with a smooth pickup and landing: pile → reveal → hand.
 export const RECOVERY_DURATION_MS = WAITING_ROOM_REVEAL_DURATION_MS;
 export const DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS = 800;
 export const DISCARD_PRESENTATION_REDUCED_MOTION_FADE_MS = 80;

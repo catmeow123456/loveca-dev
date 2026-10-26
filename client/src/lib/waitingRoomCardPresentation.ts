@@ -17,7 +17,7 @@ export const WAITING_ROOM_CARD_TIMES = [
 ];
 export const WAITING_ROOM_CARD_EASING = ['easeOut', 'linear', 'easeInOut'] as const;
 
-/** Discard and recovery share the same geometry, layout and easing; recovery samples backwards. */
+/** Discard keyframes; recovery reuses the public reveal geometry with its own landing easing. */
 export function getWaitingRoomCardKeyframes(
   from: DiscardPresentationCardLayout,
   reveal: DiscardPresentationCardLayout,

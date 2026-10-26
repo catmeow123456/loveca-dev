@@ -296,6 +296,8 @@ export function measureBattleAnimationCardRect(element: HTMLElement): BattleAnim
   const height = element.offsetHeight;
   const visibleLeft = viewport.left + Number(handViewport.dataset?.handFadeStart ?? 0);
   const visibleRight = viewport.right - Number(handViewport.dataset?.handFadeEnd ?? 0);
+  const slot = element.closest<HTMLElement>('[data-hand-card-slot]');
+  const transform = slot ? new DOMMatrixReadOnly(getComputedStyle(slot).transform) : null;
   return {
     left: clampNumber(
       rect.left + (rect.width - width) / 2,
@@ -305,9 +307,8 @@ export function measureBattleAnimationCardRect(element: HTMLElement): BattleAnim
     top: rect.top + (rect.height - height) / 2,
     width,
     height,
-    rotation: Number(
-      element.closest<HTMLElement>('[data-hand-card-slot]')?.dataset.handCardRotation ?? 0
-    ),
+    // The fan may be reflowing: use the painted angle, not its eventual target.
+    rotation: transform ? (Math.atan2(transform.b, transform.a) * 180) / Math.PI : 0,
   };
 }
 

@@ -346,6 +346,12 @@ select {
   }
 }
 
+/* Full-screen boards use viewport coordinates for both DOM cards and fixed flight layers. */
+html:has(.battle-viewport-shell) {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
 .battle-viewport-shell {
   --battle-viewport-width: 100vw;
   --battle-viewport-height: 100vh;
@@ -391,6 +397,8 @@ select {
 }
 
 .battle-table {
+  /* Clear the 32px mobile action row, its safe-bottom padding, and an 8px gap. */
+  --battle-mobile-overlay-bottom: calc(2 * env(safe-area-inset-bottom) + 4.5rem + 40px);
   --card-radius: 4px;
   --battle-radius-mini: 3px;
   --battle-radius-control: 6px;
@@ -412,6 +420,52 @@ select {
 
 .battle-card-face {
   border-radius: var(--card-radius);
+}
+
+.battle-card-candidate-grid {
+  --candidate-portrait-width: 70px;
+  --candidate-portrait-height: 98px;
+  --candidate-tile-width: calc(var(--candidate-portrait-width) + 10px);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, var(--candidate-tile-width));
+  gap: 8px;
+  justify-content: center;
+  align-content: start;
+  align-items: start;
+}
+
+.battle-card-candidate-grid--landscape {
+  --candidate-tile-width: calc(var(--candidate-portrait-height) + 10px);
+}
+
+.battle-card-candidate-grid--row {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--candidate-tile-width);
+  justify-content: start;
+}
+
+.battle-card-candidate-art {
+  width: var(--candidate-portrait-width);
+  height: var(--candidate-portrait-height);
+  flex-shrink: 0;
+}
+
+.battle-card-candidate-art--landscape {
+  width: var(--candidate-portrait-height);
+  height: var(--candidate-portrait-width);
+}
+
+.battle-card-candidate-grid--mixed-orientation .battle-card-candidate-frame {
+  width: var(--candidate-portrait-height);
+  height: var(--candidate-portrait-height);
+}
+
+@media (min-width: 768px) {
+  .battle-card-candidate-grid {
+    --candidate-portrait-width: 75px;
+    --candidate-portrait-height: 105px;
+  }
 }
 
 .battle-card-mini,
@@ -861,6 +915,30 @@ select {
 .battle-toolbar-settings .battle-toolbar-menu {
   right: 0;
   left: auto;
+}
+
+.battle-auxiliary-rail {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 0;
+  width: 0;
+  transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.battle-auxiliary-rail[data-open='true'] {
+  width: 420px;
+}
+
+.battle-auxiliary-rail > .battle-side-panel[data-docked='true'] {
+  position: absolute;
+  right: 0;
+  left: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .battle-auxiliary-rail {
+    transition: none;
+  }
 }
 
 .battle-side-panel {

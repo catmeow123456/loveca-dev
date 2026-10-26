@@ -2,7 +2,11 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useReducedMotion } from 'framer-motion';
 
-/** One overlapping row at every count; excess cards extend horizontally. */
+type HandPose = { x: number; y: number; rotation: number };
+const handTransform = ({ x, y, rotation }: HandPose) =>
+  `translate(${x}px, ${y}px) rotate(${rotation}deg)`;
+
+/** A shallow fan through twelve cards; larger hands retain a browsable overlapping row. */
 export function HandLayout({
   cardIds,
   selectedCardId,
@@ -20,6 +24,16 @@ export function HandLayout({
   const previousIds = useRef(cardIds);
   const followingEnd = useRef(true);
   const previousSelection = useRef({ cardId: selectedCardId, width: 0, cardWidth: 0 });
+  const previousLayout = useRef<{
+    ids: readonly string[];
+    selected: string | null;
+    poses: Map<string, HandPose>;
+    width: number;
+    cardWidth: number;
+  } | null>(null);
+  const slotAnimations = useRef(new Map<HTMLElement, { animation: Animation; end: number }>());
+  const scrollAdjustment = useRef(0);
+  const lastScrollLeft = useRef(0);
   const [size, setSize] = useState({ width: 0, cardWidth: 56 });
   const [scrollLeft, setScrollLeft] = useState(0);
   const [unseenCards, setUnseenCards] = useState<readonly string[]>([]);
@@ -32,7 +46,11 @@ export function HandLayout({
     const measure = () => {
       // Resolve responsive clamp()/calc() values even while the hand is empty.
       const cardWidth = parseFloat(getComputedStyle(cardSize).width);
-      setSize({ width: viewport.clientWidth, cardWidth });
+      setSize((current) =>
+        current.width === viewport.clientWidth && current.cardWidth === cardWidth
+          ? current
+          : { width: viewport.clientWidth, cardWidth }
+      );
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -59,29 +77,63 @@ export function HandLayout({
   }, []);
 
   const count = cardIds.length;
+  const fan = count <= 12;
   const padding = 16;
   const edgeFade = 12;
-  const step = Math.max(
-    Math.max(30, size.cardWidth * 0.55),
-    Math.min(
-      size.cardWidth * 0.72,
-      (size.width - padding * 2 - size.cardWidth) / Math.max(1, count - 1)
-    )
-  );
+  const maxAngle = Math.min(10, Math.max(0, count - 1) * 2);
+  // Leave room for the rotated corners, including the selection ring.
+  const fanPadding = padding + (size.cardWidth * 1.4 * Math.sin((maxAngle * Math.PI) / 180)) / 2;
+  const step = fan
+    ? Math.max(
+        0,
+        Math.min(
+          size.cardWidth * 0.72,
+          (size.width - fanPadding * 2 - size.cardWidth) / Math.max(1, count - 1)
+        )
+      )
+    : Math.max(
+        Math.max(30, size.cardWidth * 0.55),
+        Math.min(
+          size.cardWidth * 0.72,
+          (size.width - padding * 2 - size.cardWidth) / Math.max(1, count - 1)
+        )
+      );
   const spread = Math.max(0, count - 1) * step;
-  const contentWidth = Math.max(size.width, spread + size.cardWidth + padding * 2);
+  const contentWidth = fan
+    ? size.width
+    : Math.max(size.width, spread + size.cardWidth + padding * 2);
   const origin = (contentWidth - spread - size.cardWidth) / 2;
   const maxScroll = Math.max(0, contentWidth - size.width);
   const hasBefore = scrollLeft > 1;
   const hasAfter = scrollLeft < maxScroll - 1;
+  const poses = new Map(
+    cardIds.map((id, index) => {
+      const position = count <= 1 ? 0 : (index * 2) / (count - 1) - 1;
+      return [
+        id,
+        {
+          x: origin + index * step,
+          // Every card rotates about a center on the same horizontal line.
+          // The shared clearance keeps the outer corners inside the viewport.
+          y: -4 - (id === selectedCardId ? 5 : 0),
+          rotation: fan ? position * maxAngle : 0,
+        },
+      ];
+    })
+  );
 
   // Follow incoming cards only if the player was already at the end. Browsing old
   // cards must survive draws, selections, and unrelated authoritative updates.
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
+    // Shrinking the canvas can clamp scrollLeft before layout effects run.
+    const before = lastScrollLeft.current;
     const gainedCards = cardIds.filter((id) => !previousIds.current.includes(id));
-    if (gainedCards.length && followingEnd.current) viewport.scrollLeft = maxScroll;
+    if (fan) viewport.scrollLeft = 0;
+    else if (gainedCards.length && followingEnd.current) viewport.scrollLeft = maxScroll;
+    scrollAdjustment.current = viewport.scrollLeft - before;
+    lastScrollLeft.current = viewport.scrollLeft;
     const atEnd = viewport.scrollLeft >= maxScroll - 2;
     setUnseenCards((current) => {
       if (atEnd) return current.length ? [] : current;
@@ -94,7 +146,7 @@ export function HandLayout({
     previousIds.current = cardIds;
     setScrollLeft(viewport.scrollLeft);
     followingEnd.current = atEnd;
-  }, [cardIds, maxScroll]);
+  }, [cardIds, maxScroll, fan]);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
@@ -115,19 +167,85 @@ export function HandLayout({
     if (!viewport || !canvas || !selectedCardId) return;
     const index = cardIds.indexOf(selectedCardId);
     if (index < 0) return;
+    const before = viewport.scrollLeft;
     const left = origin + index * step - padding;
     const right = left + size.cardWidth + padding * 2;
     const revealSelection = () => {
+      if (fan) return;
       if (left < viewport.scrollLeft) viewport.scrollLeft = left;
       else if (right > viewport.scrollLeft + size.width) viewport.scrollLeft = right - size.width;
     };
     revealSelection();
+    scrollAdjustment.current += viewport.scrollLeft - before;
+    lastScrollLeft.current = viewport.scrollLeft;
     // A resize measured by our first observer can commit before the browser has
     // updated the canvas's scroll range. Recheck when that layout actually lands.
     const observer = new ResizeObserver(revealSelection);
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, [selectedCardId, suspended, size.width, size.cardWidth, cardIds, origin, step]);
+  }, [selectedCardId, suspended, size.width, size.cardWidth, cardIds, origin, step, fan]);
+
+  useLayoutEffect(() => {
+    const previous = previousLayout.current;
+    const canvas = canvasRef.current;
+    const scrollDelta = scrollAdjustment.current;
+    scrollAdjustment.current = 0;
+    if (!canvas) return;
+    const contentChanged =
+      previous &&
+      (previous.selected !== selectedCardId ||
+        previous.ids.length !== cardIds.length ||
+        previous.ids.some((id, index) => id !== cardIds[index]));
+    const resized = previous?.width !== size.width || previous?.cardWidth !== size.cardWidth;
+    const now = performance.now();
+    const animations = slotAnimations.current;
+    for (const [slot, running] of animations) {
+      if (!slot.isConnected || reduceMotion) {
+        running.animation.cancel();
+        animations.delete(slot);
+      }
+    }
+    canvas.querySelectorAll<HTMLElement>('[data-hand-card-slot]').forEach((slot, index) => {
+      const id = cardIds[index];
+      const pose = poses.get(id)!;
+      const oldPose = previous?.poses.get(id);
+      const running = animations.get(slot);
+      // A resize follows the container directly. An in-flight reflow may retarget,
+      // but keeps its original deadline instead of restarting a 200ms chase per frame.
+      const duration = contentChanged ? 200 : resized && running ? running.end - now : 0;
+      if (!contentChanged && !resized) return;
+      let from = oldPose ? handTransform({ ...oldPose, x: oldPose.x + scrollDelta }) : null;
+      if (running) {
+        const current = new DOMMatrix(getComputedStyle(slot).transform);
+        current.e += scrollDelta;
+        from = current.toString();
+        running.animation.cancel();
+        animations.delete(slot);
+      }
+      if (!from || !previous?.width || reduceMotion || duration <= 0) return;
+      const animation = slot.animate([{ transform: from }, { transform: handTransform(pose) }], {
+        duration,
+        easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      });
+      animations.set(slot, { animation, end: now + duration });
+      animation.onfinish = () => animations.delete(slot);
+    });
+    previousLayout.current = {
+      ids: cardIds,
+      selected: selectedCardId,
+      poses,
+      width: size.width,
+      cardWidth: size.cardWidth,
+    };
+  });
+
+  useLayoutEffect(() => {
+    const animations = slotAnimations.current;
+    return () => {
+      for (const { animation } of animations.values()) animation.cancel();
+      animations.clear();
+    };
+  }, []);
 
   const browse = (direction: number) => {
     viewportRef.current?.scrollBy({
@@ -137,7 +255,10 @@ export function HandLayout({
   };
 
   return (
-    <div className="battle-hand-layout relative h-full min-w-0">
+    <div
+      className="battle-hand-layout relative h-full min-w-0"
+      data-hand-layout={fan ? 'fan' : 'row'}
+    >
       <div
         ref={viewportRef}
         data-hand-viewport
@@ -149,6 +270,7 @@ export function HandLayout({
         }}
         onScroll={(event) => {
           const viewport = event.currentTarget;
+          lastScrollLeft.current = viewport.scrollLeft;
           setScrollLeft(viewport.scrollLeft);
           followingEnd.current =
             viewport.scrollLeft >= viewport.scrollWidth - viewport.clientWidth - 2;
@@ -163,16 +285,16 @@ export function HandLayout({
         <div ref={canvasRef} className="relative h-full" style={{ width: contentWidth }}>
           {cardIds.map((cardId, index) => {
             const selected = selectedCardId === cardId;
+            const pose = poses.get(cardId)!;
             return (
               <div
                 key={cardId}
                 data-hand-card-slot
-                data-hand-card-rotation={0}
+                data-hand-card-rotation={pose.rotation}
                 data-recovery-hand-card={`obj_${cardId}`}
-                className="absolute bottom-1 transition-[left,transform] duration-200 ease-out motion-reduce:transition-none"
+                className="absolute bottom-1 left-0 origin-center"
                 style={{
-                  left: origin + index * step,
-                  transform: selected ? 'translateY(-5px)' : undefined,
+                  transform: handTransform(pose),
                   zIndex: selected ? count + 1 : index,
                 }}
               >

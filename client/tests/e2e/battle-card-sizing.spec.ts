@@ -384,12 +384,14 @@ async function placeLive(page: Page, mobile: boolean) {
   await expect(source).toHaveCount(0);
   await expect(target.locator('[data-card-id="p1-incoming"]')).toBeVisible();
   await expect
-    .poll(async () => (await target.locator('[data-card-id="p1-incoming"]').boundingBox())!.width)
-    .toBeCloseTo(
-      (await anchor(page, 'self-live-zone').locator('[data-card-id="p1-live0"]').boundingBox())!
-        .width,
-      0
-    );
+    .poll(async () => {
+      const incoming = (await target.locator('[data-card-id="p1-incoming"]').boundingBox())!;
+      const existing = (await anchor(page, 'self-live-zone')
+        .locator('[data-card-id="p1-live0"]')
+        .boundingBox())!;
+      return Math.abs(incoming.width - existing.width);
+    })
+    .toBeLessThan(0.5);
   const after = (await anchor(page, 'self-stage-center').boundingBox())!;
   expect(after.width).toBeCloseTo(original.width, 1);
   expect(after.height).toBeCloseTo(original.height, 1);
@@ -1484,6 +1486,293 @@ async function browseHand(page: Page, end: boolean) {
   ).toBeDisabled();
 }
 
+for (const count of [5, 30]) {
+  for (const width of [1366, 1024, 768, 1600]) {
+    test(`desktop: phase changes keep the hand stable at ${width}px with ${count} cards`, async ({
+      page,
+    }, info) => {
+      test.skip(info.project.name !== 'tablet-1024x768');
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.setViewportSize({ width, height: width === 1600 ? 900 : 768 });
+      await openPopulatedBoard(page, true, 2, 30);
+      await arrangeHandCount(page, count, true);
+      await page.mouse.move(0, 0);
+      await page.waitForTimeout(250);
+      await browseHand(page, true);
+      const geometry = () =>
+        handViewport(page).evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          const first = element.querySelector('[data-hand-card-slot]')!.getBoundingClientRect();
+          return { x: rect.x, width: rect.width, cardX: first.x, scroll: element.scrollLeft };
+        });
+      const before = await geometry();
+      const live = (await anchor(page, 'self-live-zone').boundingBox())!;
+      expect(before.x + before.width / 2, 'hand and LIVE share a center line').toBeCloseTo(
+        live.x + live.width / 2,
+        0
+      );
+      const result = await page.evaluate(async (repoRoot) => {
+        const path = performance
+          .getEntriesByType('resource')
+          .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+        const [{ useGameStore }, { createEndPhaseCommand }] = await Promise.all([
+          import(path),
+          import(`/@fs${repoRoot}src/application/game-commands.ts`),
+        ]);
+        const store = useGameStore.getState();
+        const before = store.gameSession.state.players[0].hand.cardIds;
+        const result = store.gameSession.executeCommand(createEndPhaseCommand('p1'));
+        store.syncState();
+        return { ...result, before, after: store.gameSession.state.players[0].hand.cardIds };
+      }, root);
+      expect(result.success, result.error).toBe(true);
+      expect(result.after).toEqual(result.before);
+      await page.waitForTimeout(250);
+      const after = await geometry();
+      await page.screenshot({
+        path: `${root}output/playwright/phase-hand-stability/${width}-${count}.png`,
+      });
+      expect(after.x, `${width}px / ${count} hand cards: viewport x`).toBeCloseTo(before.x, 0);
+      expect(after.width, `${width}px / ${count} hand cards: viewport width`).toBeCloseTo(
+        before.width,
+        0
+      );
+      expect(after.cardX, `${width}px / ${count} hand cards: first card x`).toBeCloseTo(
+        before.cardX,
+        0
+      );
+      expect(after.scroll, `${width}px / ${count} hand cards: browsing position`).toBeCloseTo(
+        before.scroll,
+        0
+      );
+    });
+  }
+}
+
+for (const count of [5, 12, 30]) {
+  test(`hand: draw launches smoothly and lands on the settled hand with ${count} cards`, async ({
+    page,
+  }, info) => {
+    test.skip(info.project.name !== 'tablet-1024x768');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await openPopulatedBoard(page, true, 2, 30);
+    await arrangeHandCount(page, count, true);
+    await page.getByRole('button', { name: /^(规则|规则模式)$/ }).click();
+    await browseHand(page, true);
+    const id = await page.evaluate(async () => {
+      const path = performance
+        .getEntriesByType('resource')
+        .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+      const { useGameStore } = await import(path);
+      const id = useGameStore.getState().gameSession.state.players[0].mainDeck.cardIds[0];
+      const { measureRecoveryHandPose } = await import('/src/lib/recoveryCardMotion.ts');
+      const capture = {
+        frames: [] as { t: number; x: number; y: number }[],
+        done: false,
+        eventTarget: null as any,
+        target: null as any,
+      };
+      Object.assign(window, { drawMotionCapture: capture });
+      const start = performance.now();
+      const sample = () => {
+        const moving = document.querySelector<HTMLElement>(`[data-battle-card-move="obj_${id}"]`);
+        if (moving) {
+          const box = moving.getBoundingClientRect();
+          capture.frames.push({
+            t: performance.now(),
+            x: box.x + box.width / 2,
+            y: box.y + box.height / 2,
+          });
+          capture.target = measureRecoveryHandPose(`obj_${id}`);
+          capture.eventTarget = JSON.parse(moving.dataset.battleCardMoveTarget!);
+        } else if (capture.frames.length || performance.now() - start > 4000) {
+          capture.done = true;
+          return;
+        }
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+      return id;
+    });
+    await page.getByRole('button', { name: '从主卡组抽一张牌', exact: true }).click();
+    await page.waitForFunction(() => (window as any).drawMotionCapture.done);
+    const { frames, target, eventTarget } = await page.evaluate(
+      () =>
+        (window as any).drawMotionCapture as {
+          frames: { t: number; x: number; y: number }[];
+          target: { left: number; top: number; width: number; height: number };
+          eventTarget: unknown;
+        }
+    );
+    expect(frames.length).toBeGreaterThan(5);
+    const first = frames[0];
+    const last = frames.at(-1)!;
+    const early = frames.find((frame) => frame.t - first.t >= 60)!;
+    const distance = (a: typeof first, b: typeof first) => Math.hypot(a.x - b.x, a.y - b.y);
+    expect(
+      distance(first, early) / distance(first, last),
+      'launch must accelerate instead of jumping through most of the path'
+    ).toBeLessThan(0.3);
+    expect(last.x, JSON.stringify({ target, eventTarget, last })).toBeCloseTo(
+      target.left + target.width / 2,
+      0
+    );
+    expect(last.y).toBeCloseTo(target.top + target.height / 2, 0);
+    await expect(anchor(page, 'self-hand').locator(`[data-card-id="${id}"]`)).toBeVisible();
+    await expect(anchor(page, 'self-hand').locator('[data-card-id]')).toHaveCount(count + 1);
+  });
+}
+
+test('hand: small fans fit their viewport and 12↔13 cards reflow without a scroll jump', async ({
+  page,
+}, info) => {
+  test.skip(!['mobile-390x844', 'tablet-1024x768'].includes(info.project.name));
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const mobile = info.project.name === 'mobile-390x844';
+  await page.setViewportSize({ width: mobile ? 320 : 1024, height: mobile ? 568 : 768 });
+  await openPopulatedBoard(page, true, 2, 30);
+  for (const [width, height, count] of mobile
+    ? [1, 2, 5, 12].map((count) => [320, 568, count])
+    : [1024, 1600, 768].flatMap((width) =>
+        [1, 2, 5, 12].map((count) => [width, width === 1600 ? 900 : 768, count])
+      )) {
+    await page.setViewportSize({ width, height });
+    await arrangeHandCount(page, count, true);
+    await expect(async () => {
+      const geometry = await handViewport(page).evaluate((viewport) => {
+        const bounds = viewport.getBoundingClientRect();
+        const cards = Array.from(viewport.querySelectorAll<HTMLElement>('[data-hand-card-slot]'));
+        return {
+          viewport: {
+            left: bounds.left,
+            right: bounds.right,
+            top: bounds.top,
+            bottom: bounds.bottom,
+          },
+          scrollable: viewport.scrollWidth > viewport.clientWidth,
+          cards: cards.map((card) => {
+            const rect = card.getBoundingClientRect();
+            const matrix = new DOMMatrixReadOnly(getComputedStyle(card).transform);
+            return {
+              left: rect.left,
+              right: rect.right,
+              top: rect.top,
+              bottom: rect.bottom,
+              rotation: (Math.atan2(matrix.b, matrix.a) * 180) / Math.PI,
+            };
+          }),
+        };
+      });
+      expect(geometry.scrollable).toBe(false);
+      for (const card of geometry.cards) {
+        expect(Math.abs(card.rotation)).toBeLessThanOrEqual(10.01);
+        expect(card.left).toBeGreaterThanOrEqual(geometry.viewport.left);
+        expect(card.right).toBeLessThanOrEqual(geometry.viewport.right);
+        expect(card.top).toBeGreaterThanOrEqual(geometry.viewport.top);
+        expect(card.bottom).toBeLessThanOrEqual(geometry.viewport.bottom);
+        expect((card.top + card.bottom) / 2).toBeCloseTo(
+          (geometry.cards[0].top + geometry.cards[0].bottom) / 2,
+          1
+        );
+      }
+      expect(geometry.cards[0].rotation).toBeCloseTo(-Math.min(10, (count - 1) * 2), 1);
+      expect(geometry.cards.at(-1)!.rotation).toBeCloseTo(Math.min(10, (count - 1) * 2), 1);
+    }).toPass();
+  }
+  await page.screenshot({
+    path: `${root}output/playwright/hand-fan-${mobile ? 'mobile' : 'desktop'}.png`,
+  });
+  await page.setViewportSize({ width: mobile ? 320 : 1024, height: mobile ? 568 : 768 });
+  await page.getByRole('button', { name: /^(规则|规则模式)$/ }).click();
+  const capture = async (action: () => Promise<unknown>) => {
+    await page.evaluate(() => {
+      const frames: { t: number; x: number; rotation: number }[] = [];
+      Object.assign(window, { handReflowCapture: { frames, done: false } });
+      const start = performance.now();
+      const sample = () => {
+        const slot = document.querySelector<HTMLElement>(
+          '[data-battle-ui-anchor="self-hand"] [data-hand-card-slot]'
+        )!;
+        const box = slot.getBoundingClientRect();
+        const matrix = new DOMMatrixReadOnly(getComputedStyle(slot).transform);
+        frames.push({
+          // WAAPI poses use the document timeline; a busy main thread can run a
+          // callback late without advancing the pose until the next animation tick.
+          t: Number(document.timeline.currentTime),
+          x: box.x + box.width / 2,
+          rotation: (Math.atan2(matrix.b, matrix.a) * 180) / Math.PI,
+        });
+        if (performance.now() - start > 550) (window as any).handReflowCapture.done = true;
+        else requestAnimationFrame(sample);
+      };
+      sample();
+    });
+    await action();
+    await page.waitForFunction(() => (window as any).handReflowCapture.done);
+    return page.evaluate(
+      () => (window as any).handReflowCapture.frames as { t: number; x: number; rotation: number }[]
+    );
+  };
+  const draw = () => page.getByRole('button', { name: '从主卡组抽一张牌', exact: true }).click();
+  const drawn = await page.evaluate(async () => {
+    const path = performance
+      .getEntriesByType('resource')
+      .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+    const { useGameStore } = await import(path);
+    return useGameStore.getState().gameSession.state.players[0].mainDeck.cardIds[0];
+  });
+  const opened = await capture(draw);
+  await expect(anchor(page, 'self-hand').locator('[data-hand-layout]')).toHaveAttribute(
+    'data-hand-layout',
+    'row'
+  );
+  expect(
+    await handViewport(page).evaluate((viewport) =>
+      Array.from(viewport.querySelectorAll<HTMLElement>('[data-hand-card-slot]')).map((slot) => {
+        const matrix = new DOMMatrixReadOnly(getComputedStyle(slot).transform);
+        return (Math.atan2(matrix.b, matrix.a) * 180) / Math.PI;
+      })
+    )
+  ).toEqual(Array(13).fill(0));
+  const closed = await capture(async () => {
+    const result = await page.evaluate(async (id) => {
+      const path = performance
+        .getEntriesByType('resource')
+        .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+      const { useGameStore } = await import(path);
+      return useGameStore.getState().moveOwnedCardToZone(id, 'HAND', 'MAIN_DECK');
+    }, drawn);
+    expect(result.success).toBe(true);
+  });
+  await expect(anchor(page, 'self-hand').locator('[data-hand-layout]')).toHaveAttribute(
+    'data-hand-layout',
+    'fan'
+  );
+  for (const frames of [opened, closed]) {
+    const start = frames[0],
+      end = frames.at(-1)!;
+    expect(Math.abs(end.rotation - start.rotation)).toBeGreaterThan(9);
+    expect(frames.some((frame) => frame.rotation > -9 && frame.rotation < -1)).toBe(true);
+    for (let i = 1; i < frames.length; i++) {
+      const progress = (frames[i].rotation - start.rotation) / (end.rotation - start.rotation);
+      // Translation and rotation share one interpolation. A scroll snap would
+      // move the card center without the corresponding change in angle.
+      expect(frames[i].x).toBeCloseTo(start.x + (end.x - start.x) * progress, 0);
+      if (frames[i].t - frames[i - 1].t < 35) {
+        const maxProgress = ((frames[i].t - frames[i - 1].t) * 3) / 200 + 0.05;
+        expect(Math.abs(frames[i].rotation - frames[i - 1].rotation) / 10).toBeLessThan(
+          maxProgress
+        );
+      }
+    }
+  }
+  await expect(anchor(page, 'self-hand').locator('[data-card-id]')).toHaveCount(12);
+  await page.screenshot({
+    path: `${root}output/playwright/hand-fan-${mobile ? 'mobile' : 'desktop'}.png`,
+  });
+});
+
 test('hand: height-only resizing keeps the selected card fully visible', async ({ page }, info) => {
   test.skip(!['mobile-390x844', 'tablet-1024x768'].includes(info.project.name));
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -1600,7 +1889,7 @@ test('hand: enhanced recovery lands inside the visible window without interrupti
   }
 });
 
-test('phone: one overlapping hand remains usable at 9, 10, 11, 20 and 30 cards', async ({
+test('phone: fan and scrollable hand remain usable at 9, 12, 13, 20 and 30 cards', async ({
   page,
 }, info) => {
   test.skip(info.project.name !== 'mobile-390x844');
@@ -1617,9 +1906,13 @@ test('phone: one overlapping hand remains usable at 9, 10, 11, 20 and 30 cards',
       fontSize
     );
     let previousCardWidth = 0;
-    for (const count of [9, 10, 11, 20, 30, 11, 10, 9]) {
+    for (const count of [9, 12, 13, 20, 30, 13, 12, 9]) {
       await arrangeHandCount(page, count);
       await expect(anchor(page, 'self-hand').locator('[data-card-id]')).toHaveCount(count);
+      await expect(anchor(page, 'self-hand').locator('[data-hand-layout]')).toHaveAttribute(
+        'data-hand-layout',
+        count <= 12 ? 'fan' : 'row'
+      );
       await expect(async () => {
         const viewport = (await handViewport(page).boundingBox())!;
         const support = (await page.locator('[data-mobile-battle-support-row]').boundingBox())!;
@@ -1653,7 +1946,8 @@ test('phone: one overlapping hand remains usable at 9, 10, 11, 20 and 30 cards',
         // its entire face and ring into the opaque part of the hand.
         await viewport.evaluate((element) => {
           const slot = element.querySelectorAll<HTMLElement>('[data-hand-card-slot]')[3];
-          element.scrollLeft = slot.offsetLeft + 12;
+          element.scrollLeft +=
+            slot.getBoundingClientRect().left - element.getBoundingClientRect().left + 12;
         });
         const partial = anchor(page, 'self-hand').locator('[data-card-id="p1-hand4"]');
         const card = (await partial.boundingBox())!;
@@ -1672,7 +1966,7 @@ test('phone: one overlapping hand remains usable at 9, 10, 11, 20 and 30 cards',
       await last.tap();
       await expect(last).toHaveClass(/ring-yellow-400/);
       await page.getByRole('button', { name: '取消手牌选择' }).click();
-      if ([10, 11, 30].includes(count))
+      if ([12, 13, 30].includes(count))
         await page.screenshot({
           path: `${root}output/playwright/continuous-hand-${width}x${height}-font${fontSize}-${count}.png`,
         });
@@ -1687,7 +1981,7 @@ test('phone: large hand draw, LIVE, discard and entry retain command outcomes an
   test.skip(info.project.name !== 'mobile-390x844');
   await page.setViewportSize({ width: 320, height: 568 });
   await openPopulatedBoard(page, true, 2, 30);
-  await arrangeHandCount(page, 9);
+  await arrangeHandCount(page, 13);
   await page.getByRole('button', { name: '规则', exact: true }).click();
   await page.evaluate(() => {
     (window as any).handMoves = [];
@@ -1715,7 +2009,7 @@ test('phone: large hand draw, LIVE, discard and entry retain command outcomes an
   const oldScroll = await handViewport(page).evaluate((element) => element.scrollLeft);
   await page.getByRole('button', { name: '从主卡组抽一张牌', exact: true }).click();
   await page.getByRole('button', { name: '从主卡组抽一张牌', exact: true }).click();
-  await expect(anchor(page, 'self-hand').locator('[data-card-id]')).toHaveCount(11);
+  await expect(anchor(page, 'self-hand').locator('[data-card-id]')).toHaveCount(15);
   expect(await handViewport(page).evaluate((element) => element.scrollLeft)).toBe(oldScroll);
   await expect(page.locator('[data-hand-new-cards]')).toHaveText('+2');
   await expect
@@ -1794,7 +2088,7 @@ test('phone: large hand draw, LIVE, discard and entry retain command outcomes an
   // At the end, incoming cards follow the hand; automatic removal of an offscreen
   // card uses the visible edge, not a stale source from an earlier scroll position.
   for (let i = 0; i < 3; i++) await page.getByRole('button', { name: '从主卡组抽一张牌' }).click();
-  await expect(anchor(page, 'self-hand').locator('[data-card-id]')).toHaveCount(11);
+  await expect(anchor(page, 'self-hand').locator('[data-card-id]')).toHaveCount(15);
   await expect(page.getByRole('button', { name: '向后浏览手牌' })).toBeDisabled();
   await expect(page.locator('[data-hand-new-cards]')).toHaveCount(0);
   await expect(page.locator('[data-battle-card-move]')).toHaveCount(0);

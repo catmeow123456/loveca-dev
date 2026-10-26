@@ -21,7 +21,7 @@ import {
   getPhaseCompletionTimeGateRemainingMs,
   isPhaseCompletionTimeGateHint,
 } from '@/lib/phaseCompletionTimeGate';
-import { getPhaseConfig, getSubPhaseConfig, isUserActionRequired } from '@game/shared/phase-config';
+import { getPhaseConfig, isUserActionRequired } from '@game/shared/phase-config';
 
 interface PhaseIndicatorProps {
   phase: GamePhase;
@@ -235,10 +235,8 @@ export const PhaseIndicator = memo(function PhaseIndicator({
   // 判断是否是先攻玩家的回合
   const isFirstPlayerTurn = activeSeat === 'FIRST';
 
-  // 从配置中获取阶段和子阶段信息
+  // 从配置中获取主阶段信息
   const phaseConfig = getPhaseConfig(phase);
-  const subPhaseConfig =
-    currentSubPhase !== SubPhase.NONE ? getSubPhaseConfig(currentSubPhase) : null;
 
   const info = phaseConfig?.display ?? { name: phase, colorClass: 'bg-slate-500' };
   const actionConfig = getPhaseActionConfig(phase, currentSubPhase, isFirstPlayerTurn);
@@ -334,17 +332,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
         className="excel-phase-controls"
       >
         <p>
-          回合 {currentTurnCount ?? turnNumber ?? '-'} · {info.name} ·{' '}
-          {subPhaseConfig?.display.name ?? ''}
-        </p>
-        <p>
-          {isReadOnly
-            ? '只读'
-            : isInspectionWindow
-              ? '当前正在检视'
-              : isMyTurn
-                ? '我方行动'
-                : '等待对手'}
+          回合 {currentTurnCount ?? turnNumber ?? '-'} · {info.name}
         </p>
         {showActionButton && (
           <button
@@ -378,7 +366,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
   return (
     <div
       data-battle-ui-anchor={BATTLE_UI_ANCHORS.PHASE_CONTROLS}
-      className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] left-1/2 z-[var(--z-phase-indicator)] w-[calc(100vw-1rem)] max-w-[360px] -translate-x-1/2 md:bottom-4 md:left-auto md:right-4 md:top-auto md:w-auto md:max-w-[calc(100vw-2rem)] md:translate-x-0 md:translate-y-0"
+      className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] left-1/2 z-[var(--z-phase-indicator)] w-[calc(100vw-1rem)] max-w-[360px] -translate-x-1/2 md:bottom-4 md:left-auto md:right-4 md:top-auto md:w-[360px] md:max-w-[calc(100vw-2rem)] md:translate-x-0 md:translate-y-0"
     >
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -400,13 +388,8 @@ export const PhaseIndicator = memo(function PhaseIndicator({
               <span className="shrink-0 text-xs font-bold text-[var(--text-primary)]">
                 {info.name}
               </span>
-              {subPhaseConfig && (
-                <span className="min-w-0 truncate text-[11px] text-[var(--text-secondary)]">
-                  {subPhaseConfig.display.icon} {subPhaseConfig.display.name}
-                </span>
-              )}
             </div>
-            {showActionButton ? (
+            {showActionButton && (
               <motion.button
                 data-battle-ui-anchor={BATTLE_UI_ANCHORS.PHASE_PRIMARY_ACTION}
                 whileTap={isPhaseCompletionTimeGateLocked ? undefined : { scale: 0.98 }}
@@ -440,22 +423,6 @@ export const PhaseIndicator = memo(function PhaseIndicator({
                 <span className="inline-flex shrink-0 align-middle">{mainButtonIcon}</span>
                 <span className="truncate">{actionButtonText}</span>
               </motion.button>
-            ) : (
-              <span
-                className={cn(
-                  'shrink-0 rounded px-1.5 py-0.5 text-[10px]',
-                  isMyTurn
-                    ? 'text-[var(--semantic-success)]'
-                    : 'bg-[var(--bg-overlay)] text-[var(--text-muted)]'
-                )}
-                style={
-                  isMyTurn
-                    ? { background: 'color-mix(in srgb, var(--semantic-success) 16%, transparent)' }
-                    : undefined
-                }
-              >
-                {isReadOnly ? '回放' : isInspectionWindow ? '检视' : isMyTurn ? '我方' : '对手'}
-              </span>
             )}
           </div>
         </div>
@@ -476,7 +443,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="battle-phase-surface hidden min-h-12 items-center gap-2 rounded-xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] p-1.5 shadow-[var(--shadow-lg)] backdrop-blur-xl md:flex"
       >
-        <div className="battle-phase-summary flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-2.5">
+        <div className="battle-phase-summary flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-2.5">
           <span className="font-mono text-[11px] font-bold tabular-nums text-[var(--text-muted)]">
             T{currentTurnCount ?? turnNumber ?? '-'}
           </span>
@@ -488,26 +455,13 @@ export const PhaseIndicator = memo(function PhaseIndicator({
             className={cn('h-2.5 w-2.5 shrink-0 rounded-full', info.colorClass)}
             aria-hidden="true"
           />
-          <span className="whitespace-nowrap text-xs font-bold text-[var(--text-primary)]">
-            {info.name}阶段
+          <span
+            title={`${info.name}阶段`}
+            className="truncate text-xs font-bold text-[var(--text-primary)]"
+          >
+            {info.name}
           </span>
-          {subPhaseConfig && (
-            <span className="max-w-28 truncate text-[11px] font-medium text-[var(--text-secondary)]">
-              {subPhaseConfig.display.icon} {subPhaseConfig.display.name}
-            </span>
-          )}
         </div>
-
-        <span
-          className={cn(
-            'inline-flex h-8 shrink-0 items-center rounded-md border px-2 text-[11px] font-semibold',
-            isMyTurn
-              ? 'border-emerald-300/30 bg-emerald-500/10 text-[var(--semantic-success)]'
-              : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-[var(--text-muted)]'
-          )}
-        >
-          {isReadOnly ? '回放' : isInspectionWindow ? '检视' : isMyTurn ? '我方行动' : '对手行动'}
-        </span>
 
         {showActionButton && (
           <motion.button

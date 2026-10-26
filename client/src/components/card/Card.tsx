@@ -66,6 +66,8 @@ export interface CardProps {
   className?: string;
   /** 是否启用 framer-motion 的 layout 动画（默认关闭以减少大范围重排抖动） */
   enableLayoutAnimation?: boolean;
+  /** 初次显示时是否翻牌；静态候选预览可直接显示已知牌面。 */
+  animateInitialFlip?: boolean;
 }
 
 // ============================================
@@ -254,6 +256,7 @@ export const Card = memo(function Card({
   onMouseLeave,
   className,
   enableLayoutAnimation = false,
+  animateInitialFlip = true,
 }: CardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -326,7 +329,7 @@ export const Card = memo(function Card({
       data-object-id={instanceId ? `obj_${instanceId}` : undefined}
       data-limited-activated-highlight={limitedActivatedHighlight ? 'true' : undefined}
     >
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="wait" initial={animateInitialFlip}>
         {faceUp ? (
           <motion.div
             key="front"

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   collectBattleAnimationAnchors,
   collectBattleObjectLocations,
@@ -306,6 +306,14 @@ describe('battle animation events', () => {
   it.each([0, 12])(
     'keeps scrolled hand sources outside a %ipx faded edge with their dimensions and pose',
     (fade) => {
+      vi.stubGlobal('getComputedStyle', () => ({ transform: 'painted-transform' }));
+      vi.stubGlobal(
+        'DOMMatrixReadOnly',
+        class {
+          a = Math.cos((-5 * Math.PI) / 180);
+          b = Math.sin((-5 * Math.PI) / 180);
+        }
+      );
       const elements = [-80, 180, 420].map((left, index) => {
         const element = fakeAnchorElement({ objectId: `obj_${index}`, left, top: 400 });
         return Object.assign(element, {
@@ -318,25 +326,30 @@ describe('battle animation events', () => {
                 dataset: { handFadeStart: String(fade), handFadeEnd: String(fade) },
               };
             if (selector === '[data-hand-card-slot]')
-              return { dataset: { handCardRotation: '-5' } };
+              return { dataset: { handCardRotation: '-10' } };
             return null;
           },
         });
       });
-      const collected = withFakeDocument(
-        {
-          querySelectorAll: (selector: string) =>
-            selector === '[data-object-id]'
-              ? (elements as unknown as NodeListOf<HTMLElement>)
-              : ([] as unknown as NodeListOf<HTMLElement>),
-        },
-        collectBattleAnimationAnchors
-      );
-      expect([...collected.cards.values()]).toEqual([
-        expect.objectContaining({ left: 100 + fade, width: 48, height: 67.2, rotation: -5 }),
-        expect.objectContaining({ left: 181, width: 48, height: 67.2, rotation: -5 }),
-        expect.objectContaining({ left: 252 - fade, width: 48, height: 67.2, rotation: -5 }),
-      ]);
+      try {
+        const collected = withFakeDocument(
+          {
+            querySelectorAll: (selector: string) =>
+              selector === '[data-object-id]'
+                ? (elements as unknown as NodeListOf<HTMLElement>)
+                : ([] as unknown as NodeListOf<HTMLElement>),
+          },
+          collectBattleAnimationAnchors
+        );
+        expect([...collected.cards.values()]).toEqual([
+          expect.objectContaining({ left: 100 + fade, width: 48, height: 67.2 }),
+          expect.objectContaining({ left: 181, width: 48, height: 67.2 }),
+          expect.objectContaining({ left: 252 - fade, width: 48, height: 67.2 }),
+        ]);
+        for (const card of collected.cards.values()) expect(card.rotation).toBeCloseTo(-5);
+      } finally {
+        vi.unstubAllGlobals();
+      }
     }
   );
 
