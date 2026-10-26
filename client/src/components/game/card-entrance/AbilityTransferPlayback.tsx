@@ -21,14 +21,23 @@ export function AbilityTransferPlayback({
   source,
   reduced,
   onDone,
+  onReceived,
+  onDismissNotice,
 }: {
   source: AbilityTransferSource;
   reduced: boolean;
   onDone: () => void;
+  onReceived: () => void;
+  onDismissNotice: () => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const done = useRef(onDone);
   done.current = onDone;
+  const received = useRef(onReceived);
+  received.current = onReceived;
+  const dismissNotice = useRef(onDismissNotice);
+  dismissNotice.current = onDismissNotice;
+  const announced = useRef(false);
   const [ready, setReady] = useState<{
     startedAt: number;
     from?: { x: number; y: number };
@@ -95,7 +104,6 @@ export function AbilityTransferPlayback({
       done.current();
       return;
     }
-    const received = layer.querySelector<HTMLElement>('.ginko-transfer-received')!;
     const halo = layer.querySelector<HTMLElement>('.ginko-transfer-halo')!;
     const canvas = layer.querySelector('canvas')!;
     const ctx = canvas.getContext('2d');
@@ -111,15 +119,13 @@ export function AbilityTransferPlayback({
       width: `${target.width}px`,
       height: `${target.height}px`,
     });
-    const labelX = Math.max(100, Math.min(window.innerWidth - 100, to.x));
-    Object.assign(received.style, {
-      left: `${labelX}px`,
-      top: `${Math.min(window.innerHeight - 64, target.top + target.height + 34)}px`,
-    });
     canvas.width = window.innerWidth * devicePixelRatio;
     canvas.height = window.innerHeight * devicePixelRatio;
     ctx.scale(devicePixelRatio, devicePixelRatio);
-    const cancel = () => done.current();
+    const cancel = () => {
+      dismissNotice.current();
+      done.current();
+    };
     window.addEventListener('resize', cancel);
     window.addEventListener('scroll', cancel, true);
     let raf = 0;
@@ -127,6 +133,10 @@ export function AbilityTransferPlayback({
       const t = ginkoFlowerTimeline.copy,
         elapsed = now - startedAt;
       const duration = reduced ? t.reduced : t.total;
+      if (!announced.current && (reduced || elapsed >= t.receive)) {
+        announced.current = true;
+        received.current();
+      }
       if (elapsed >= duration) {
         layer.style.visibility = 'hidden';
         if (now >= ready.releaseAfter) {
@@ -139,7 +149,6 @@ export function AbilityTransferPlayback({
       const finish = flowerEase((elapsed - t.receive) / (t.total - t.receive));
       layer.dataset.phase =
         reduced || elapsed >= t.receive ? 'received' : elapsed < t.extract ? 'extract' : 'transfer';
-      received.style.opacity = reduced ? '1' : String(flowerEase((elapsed - t.receive) / 90));
       halo.style.opacity = reduced ? '.7' : String(Math.sin(Math.PI * finish));
       ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
       if (!reduced)
@@ -170,13 +179,11 @@ export function AbilityTransferPlayback({
     >
       <canvas aria-hidden="true" />
       <div className="ginko-transfer-halo" aria-hidden="true" />
-      <div className="ginko-transfer-received">
-        获得【登场】<span>· {source.name}</span>
-      </div>
       <button
         className="card-entrance-skip"
         onClick={(e) => {
           e.stopPropagation();
+          onDismissNotice();
           onDone();
         }}
       >

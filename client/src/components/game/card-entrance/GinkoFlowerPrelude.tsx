@@ -64,7 +64,8 @@ export function GinkoFlowerPrelude({
       }
       layer.dataset.phase =
         elapsed < t.charge ? 'charge' : elapsed < t.arrive ? 'travel' : 'receive';
-      const departure = flowerEase((elapsed - t.charge) / 350);
+      const departureMs = 350;
+      const departure = flowerEase((elapsed - t.charge) / departureMs);
       const revealAt = t.arrive;
       const arrival = flowerEase((elapsed - revealAt) / (t.portraitAt - revealAt));
       const x = from.x + (waitRect.left + waitRect.width / 2 - from.x) * departure;
@@ -72,7 +73,7 @@ export function GinkoFlowerPrelude({
       face.style.left = `${x}px`;
       face.style.top = `${y}px`;
       face.style.transform = `translate(-50%, -50%) rotate(${geometry.rotation * (1 - departure)}deg) scale(${1 - departure * 0.3})`;
-      face.style.opacity = String(1 - flowerEase((elapsed - 520) / 80));
+      face.style.opacity = String(1 - flowerEase((elapsed - (t.charge + departureMs - 80)) / 80));
       face.style.boxShadow = 'none';
       backdrop.style.opacity = String(1 - arrival);
       ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);

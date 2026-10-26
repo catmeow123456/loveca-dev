@@ -2,20 +2,26 @@ import { getRinaLiveSwapSource } from '@/lib/rinaLiveSwap';
 import { RinaLivePlayback } from './rina-sec/RinaLivePlayback';
 import { useCardEntranceBarrier, useWindowVisualEligibility } from '../BattleRuntime';
 import { useTextPresentation } from '@/lib/appPresentation';
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
 import { cardEntranceProfiles, getCardEntranceProfile } from '@/lib/cardEntranceProfiles';
 import { EffectImageCache } from '@/lib/effectImageCache';
 import { collectSpecialEffectImageUrls } from '@/lib/specialEffectPreload';
 import { preloadEntranceProfiles } from '@/lib/cardEntrancePreload';
-import { getEntranceStageTarget } from '@/lib/cardEntranceLanding';
+import { getEntranceStageTarget, sameEntranceTarget } from '@/lib/cardEntranceLanding';
 import { CardEntrancePlayback } from './CardEntrancePlayback';
+import { EntranceWaitNotice } from './EntranceWaitNotice';
 import type { PlayerViewState } from '@game/online/types';
 import { getDoubleRelaySources } from '@/lib/doubleRelayEntrance';
 import { getWaitingReturnSource } from '@/lib/waitingReturnEntrance';
-import { getAbilityTransferSource, getKahoRelaySource } from '@/lib/ginkoFlowerTransfer';
+import {
+  getAbilityTransferSource,
+  getKahoRelaySource,
+  type AbilityTransferSource,
+} from '@/lib/ginkoFlowerTransfer';
 import { AbilityTransferPlayback } from './AbilityTransferPlayback';
+import { GinkoTransferNotice } from './GinkoTransferNotice';
 import { getHonokaMemoryPresentation } from '@/lib/honokaMemoryPresentation';
 import { HonokaMemoryPlayback } from './HonokaMemoryPlayback';
 import { getShizukuRole } from '@/lib/shizukuRole';
@@ -36,6 +42,27 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
       : '[]';
   const matchId = view?.match.matchId;
   const reduced = !!useReducedMotion();
+  const [notice, setNotice] = useState<{
+    contextKey: string;
+    windowId: string;
+    source: AbilityTransferSource;
+  } | null>(null);
+  const dismissNotice = useCallback(() => setNotice(null), []);
+  const showNotice =
+    enabled &&
+    view &&
+    !view.match.endInfo &&
+    notice &&
+    notice.contextKey === contextKey &&
+    (!wait || wait.id === notice.windowId) &&
+    view.objects[notice.source.hostObjectId]?.hasTemporaryOnEnterAbility &&
+    sameEntranceTarget(
+      notice.source.target,
+      getEntranceStageTarget(view, notice.source.hostObjectId)
+    );
+  useEffect(() => {
+    if (!showNotice) dismissNotice();
+  }, [showNotice, dismissNotice]);
   const imagePath = useGameStore((s) => s.getCardImagePath);
   const images = useMemo(() => new EffectImageCache(), [contextKey]);
   // The ten fixed song images have their own bounded queue; a stall cannot starve card effects.
@@ -67,15 +94,29 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
     if (!ids.size) return;
     return preloadEntranceProfiles(cardEntranceProfiles.filter((profile) => ids.has(profile.id)));
   }, [matchId, preloadKey]);
-  return view && wait && !view.match.endInfo ? (
-    <SynchronizedEntrance
-      key={`${contextKey}:${wait.id}`}
-      view={view}
-      enabled={enabled}
-      images={images}
-      songImages={songImages}
-    />
-  ) : null;
+  return (
+    <>
+      {view && wait && !view.match.endInfo && (
+        <SynchronizedEntrance
+          key={`${contextKey}:${wait.id}`}
+          view={view}
+          enabled={enabled}
+          images={images}
+          songImages={songImages}
+          onTransferReceived={(source) => setNotice({ contextKey, windowId: wait.id, source })}
+          onDismissNotice={dismissNotice}
+        />
+      )}
+      {showNotice && notice && (
+        <GinkoTransferNotice
+          key={`${notice.contextKey}:${notice.windowId}`}
+          source={notice.source}
+          reduced={reduced}
+          onDone={dismissNotice}
+        />
+      )}
+    </>
+  );
 }
 
 function SynchronizedEntrance({
@@ -83,11 +124,15 @@ function SynchronizedEntrance({
   enabled,
   images,
   songImages,
+  onTransferReceived,
+  onDismissNotice,
 }: {
   view: PlayerViewState;
   enabled: boolean;
   images: EffectImageCache;
   songImages: EffectImageCache;
+  onTransferReceived: (source: AbilityTransferSource) => void;
+  onDismissNotice: () => void;
 }) {
   const wait = view.match.entrance!;
   const textOnly = useTextPresentation();
@@ -232,6 +277,8 @@ function SynchronizedEntrance({
         <AbilityTransferPlayback
           source={activeTransfer}
           reduced={reduced}
+          onReceived={() => onTransferReceived(activeTransfer)}
+          onDismissNotice={onDismissNotice}
           onDone={() => setTransferDone(true)}
         />
       ) : active ? (
@@ -248,12 +295,7 @@ function SynchronizedEntrance({
           onDone={() => setIndex((current) => (current === index ? current + 1 : current))}
         />
       ) : (
-        <div
-          role="status"
-          className="absolute left-1/2 top-1/2 z-[60] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-slate-950/85 px-5 py-3 text-white shadow-lg"
-        >
-          等待对方演出结束
-        </div>
+        <EntranceWaitNotice viewerWaiting={viewerWaiting} />
       )}
     </>
   );

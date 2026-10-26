@@ -1,5 +1,5 @@
 export interface SerialPollingSchedulerOptions {
-  readonly intervalMs: number;
+  readonly intervalMs: number | (() => number);
   readonly poll: () => Promise<void>;
   readonly runImmediately?: boolean;
   readonly setTimer?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
@@ -7,7 +7,7 @@ export interface SerialPollingSchedulerOptions {
 }
 
 export class SerialPollingScheduler {
-  private readonly intervalMs: number;
+  private readonly intervalMs: number | (() => number);
   private readonly poll: () => Promise<void>;
   private readonly runImmediately: boolean;
   private readonly setTimer: NonNullable<SerialPollingSchedulerOptions['setTimer']>;
@@ -29,7 +29,21 @@ export class SerialPollingScheduler {
       return;
     }
     this.running = true;
-    this.schedule(this.runImmediately ? 0 : this.intervalMs);
+    this.schedule(this.runImmediately ? 0 : this.getIntervalMs());
+  }
+
+  /** Re-time the next poll without starting a second request while one is in flight. */
+  refreshInterval(): void {
+    if (!this.running) return;
+    if (this.timer !== null) {
+      this.clearTimer(this.timer);
+      this.timer = null;
+    }
+    this.schedule(this.getIntervalMs());
+  }
+
+  private getIntervalMs(): number {
+    return typeof this.intervalMs === 'function' ? this.intervalMs() : this.intervalMs;
   }
 
   dispose(): void {
@@ -44,10 +58,13 @@ export class SerialPollingScheduler {
     if (!this.running || this.timer !== null || this.inFlight) {
       return;
     }
-    this.timer = this.setTimer(() => {
-      this.timer = null;
-      void this.runPoll();
-    }, Math.max(0, delayMs));
+    this.timer = this.setTimer(
+      () => {
+        this.timer = null;
+        void this.runPoll();
+      },
+      Math.max(0, delayMs)
+    );
   }
 
   private async runPoll(): Promise<void> {
@@ -59,7 +76,7 @@ export class SerialPollingScheduler {
       await this.poll();
     } finally {
       this.inFlight = false;
-      this.schedule(this.intervalMs);
+      this.schedule(this.getIntervalMs());
     }
   }
 }

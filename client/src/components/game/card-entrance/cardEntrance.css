@@ -4,6 +4,40 @@
   font-weight: 900;
   font-display: swap;
 }
+.card-entrance-wait {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  z-index: 60;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #0f172acc;
+  color: #e2e8f0;
+  font-size: 12px;
+  line-height: 1.5;
+  pointer-events: none;
+  animation: entrance-wait-appear 160ms ease-out both;
+}
+@keyframes entrance-wait-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (max-width: 767px) {
+  .card-entrance-wait {
+    bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-entrance-wait {
+    animation: none;
+  }
+}
 .ginko-flower-prelude,
 .ginko-ability-transfer {
   position: fixed;
@@ -41,7 +75,9 @@
   opacity: 0;
 }
 .ginko-transfer-received {
-  position: absolute;
+  position: fixed;
+  z-index: var(--z-battle-chrome);
+  pointer-events: none;
   transform: translate(-50%, -100%);
   max-width: min(300px, calc(100vw - 20px));
   width: max-content;

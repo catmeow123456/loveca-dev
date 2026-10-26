@@ -66,4 +66,54 @@ describe('async request control', () => {
     gate.invalidate();
     expect(gate.isCurrent(second)).toBe(false);
   });
+
+  it('re-times a pending poll when the interval changes, then restores the ordinary cadence', async () => {
+    let interval = 800;
+    const poll = vi.fn().mockResolvedValue(undefined);
+    const scheduler = new SerialPollingScheduler({ intervalMs: () => interval, poll });
+    scheduler.start();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(100);
+    interval = 200;
+    scheduler.refreshInterval();
+    await vi.advanceTimersByTimeAsync(199);
+    expect(poll).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(poll).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(poll).toHaveBeenCalledTimes(3);
+
+    interval = 800;
+    scheduler.refreshInterval();
+    await vi.advanceTimersByTimeAsync(799);
+    expect(poll).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(poll).toHaveBeenCalledTimes(4);
+    scheduler.dispose();
+    scheduler.refreshInterval();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(poll).toHaveBeenCalledTimes(4);
+  });
+
+  it('an interval change during a slow request cannot overlap requests or extend fast polling', async () => {
+    let interval = 800;
+    const first = deferred();
+    const poll = vi.fn().mockReturnValueOnce(first.promise).mockResolvedValue(undefined);
+    const scheduler = new SerialPollingScheduler({ intervalMs: () => interval, poll });
+    scheduler.start();
+    await vi.advanceTimersByTimeAsync(0);
+    interval = 200;
+    scheduler.refreshInterval();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(poll).toHaveBeenCalledTimes(1);
+    interval = 800;
+    scheduler.refreshInterval();
+    first.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(799);
+    expect(poll).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(poll).toHaveBeenCalledTimes(2);
+    scheduler.dispose();
+  });
 });
