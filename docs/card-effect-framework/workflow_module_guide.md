@@ -438,13 +438,25 @@ Preferred tests:
 
 Workflow extraction should preserve existing tests. If behavior changes are intended, they must be a separate, explicitly reviewed change.
 
-# conditional LIVE draw-one family
+# LIVE draw-one family
 
-`workflows/shared/conditional-live-draw-one.ts` is the behavior-named family proven across `PL!N-bp4-003`, `PL!S-bp3-005`, `PL!-bp4-001`, and `PL!-bp4-023`. It owns the shared LIVE_START/LIVE_SUCCESS and STAGE_MEMBER/LIVE_CARD pending lifecycle, source-safe resolution, confirm-only/manual bridge, ordered continuation, real-time condition reread, and one-card draw through `drawCardsForPlayer`.
+`workflows/shared/live-draw-one.ts` is the behavior-named family proven across `PL!N-bp4-003`, `PL!S-bp3-005`, `PL!-bp4-001`, `PL!-bp4-023`, `PL!S-PR-046`, and `PL!N-bp8-012`. It owns the shared LIVE_START/LIVE_SUCCESS and STAGE_MEMBER/LIVE_CARD pending lifecycle, source-safe resolution, confirm-only/manual bridge, ordered continuation, real-time condition reread, and one-card draw through `drawCardsForPlayer`.
 
-Its finite discriminated-union configuration has only the ability id, expected base card codes, source kind, condition type, exact action/no-op step labels, and condition-specific structured values needed for confirmation text. The proven conditions are LIVE score, event-inclusive cheer counts, stage effective-cost totals, a specified remaining-HEART color with existing rebalance semantics, and `OPPONENT_REVEALED_CHEER_HAS_LIVE`; it is not a general condition callback or DSL.
+Its finite discriminated-union configuration has only the ability id, expected base card codes, source kind, condition type, exact action/no-op step labels, and condition-specific structured values needed for confirmation text. The proven conditions are LIVE score, event-inclusive cheer counts, stage effective-cost totals, a specified remaining-HEART color with existing rebalance semantics, `OPPONENT_REVEALED_CHEER_HAS_LIVE`, and the unconditional `ALWAYS` variant; it is not a general condition callback or DSL.
 
-`PL!S-PR-046` 费用5「渡边曜」使用新增有限条件 `OPPONENT_REVEALED_CHEER_HAS_LIVE`：确认与结算均通过 `selectCurrentLiveRevealedCheerCardIds` 查询对方本次声援历史中的 LIVE，已移出处理区的公开对象仍计入。仅该配置设置 `requireSourceInZoneAtResolution: false`，已诱发能力不因来源离场而取消，仍校验来源卡身份；该配置轴默认要求来源仍在原区域，旧卡保持既有行为。抽1、confirm-only 与 ordered continuation 沿用原流程，没有新增状态字段或任意回调配置。
+`PL!S-PR-046` 费用5「渡边曜」使用有限条件 `OPPONENT_REVEALED_CHEER_HAS_LIVE`：确认与结算均通过 `selectCurrentLiveRevealedCheerCardIds` 查询对方本次声援历史中的 LIVE，已移出处理区的公开对象仍计入。该配置与 `PL!N-bp8-012` 费用4「钟岚珠」设置 `requireSourceInZoneAtResolution: false`，已诱发能力不因来源离场而取消，仍校验来源卡身份；其他旧配置保留原有区域门槛。岚珠的 `ALWAYS` 分支只显示完整卡文与普通确认，不附资源数量或动态条件文案。抽1、confirm-only 与 ordered continuation 沿用原流程，没有新增状态字段或任意回调配置。
+
+# ON_ENTER draw 与零抽弃手组合
+
+`member-on-enter-draw.ts` 的其他成员条件保留两个结构化身份轴：已有 `requiredOtherStageUnitAlias` 与 `PL!HS-bp8-014` 费用2「安养寺姬芽」新增的 `requiredOtherStageGroupAlias`。两者都只扫描己方主舞台槽并按实际 `sourceCardId` 排除本人；不同实体的同名成员可满足，memberBelow、对方舞台与模板卡不能满足。姬芽登场被费用17吟子复制或正常委托时，仍按实际宿主排除本人，并在结算时读取当前其他莲之空成员。
+
+`draw-then-discard.ts` 同时组合固定抽牌与强制精确弃手。姬芽离场是 `drawCount: 0, discardCount: 2` 的实际样本：组合层对0抽直接保留状态和空 `drawnCardIds`，不调用也不改变拒绝非正数的全局draw原语；之后按 `min(2, 当前手牌数)` 强制弃手并产生一次 grouped `HAND -> WAITING_ROOM` 事件。弃手是效果，不记录 `PAY_COST`；0手可确认续行。离场目的地在definition限定休息室，结算不要求来源仍留在那里。10/26新复制来源使用独立真实字段fixture和增量行为矩阵，10/20的64基础编号／53-ID夹具与门禁保持冻结。
+
+# 双方舞台唯一最高有效 HEART query
+
+`domain/rules/live-modifiers.ts` 的纯 `selectUniqueStageMemberWithMostEffectiveHearts(game, liveModifiers)` 由调用方传入同一份修正值快照，扫描双方主舞台顶层成员并返回唯一严格最高者、玩家与数量；并列或无成员返回null，单独一名成员可为最高者。原「HEART最多」常时判断复用此query时传既有持久修正快照，避免递归调用 `collectLiveModifiers`；`PL!N-bp8-031` 分数1「Eutopia」在确认与结算时传当前完整收集结果。Eutopia结算后授予目标成员常时合计分数+1，不持续重选最高者；目标离场按既有成员绑定SCORE边界清理，不能将该奖励绑定到来源LIVE或写成不随成员离场清理的玩家分数。
+
+Eutopia授予时的分数草案增量与既有成员绑定SCORE离场扣回，均按本次 `liveResults` 中成功且注册卡为该玩家所属LIVE的事实判断，与最终胜负判定一致。成功LIVE随后回手不抹去该事实；仅检查当前LIVE区／成功区会导致漏加或漏扣。旧成功区卡但没有本次成功记录，不获得草案增量。这里不新增持久字段或修改结果阶段初始化，已有玩家手动调整按增量保留。
 
 # conditional-live-modifier 的成员登场次数配置
 

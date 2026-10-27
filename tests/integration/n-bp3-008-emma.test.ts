@@ -14,10 +14,12 @@ import { registerCards, type GameState } from '../../src/domain/entities/game';
 import {
   createActivateAbilityCommand,
   createConfirmEffectStepCommand,
+  createEndPhaseCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import { GameService, type DeckConfig } from '../../src/application/game-service';
 import {
+  N_SD2_010_AUTO_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_GAIN_TWO_BLADE_ABILITY_ID,
   PL_N_BP3_008_ACTIVATED_WAIT_OTHER_NIJIGASAKI_DRAW_ONE_ABILITY_ID,
   PL_N_BP3_008_LIVE_START_DISCARD_TWO_ACTIVATE_OTHER_MEMBER_GAIN_GREEN_HEART_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
@@ -87,6 +89,7 @@ function createDeck(): DeckConfig {
 interface StageMemberConfig {
   readonly cardCode: string;
   readonly name: string;
+  readonly cost?: number;
   readonly orientation: OrientationState;
   readonly groupNames?: readonly string[];
 }
@@ -126,7 +129,7 @@ function setupEmmaScenario(options: EmmaScenarioOptions = {}): EmmaScenario {
         createMemberCard(
           options.left.cardCode,
           options.left.name,
-          1,
+          options.left.cost ?? 1,
           options.left.groupNames?.[0]
         ),
         PLAYER1,
@@ -138,7 +141,7 @@ function setupEmmaScenario(options: EmmaScenarioOptions = {}): EmmaScenario {
         createMemberCard(
           options.right.cardCode,
           options.right.name,
-          1,
+          options.right.cost ?? 1,
           options.right.groupNames?.[0]
         ),
         PLAYER1,
@@ -358,6 +361,98 @@ describe('PL!N-bp3-008 Emma workflow', () => {
       )
     ).toBe(true);
   });
+
+  it.each([
+    { target: 'Shioriko', resolution: 'pay' },
+    { target: 'Shioriko', resolution: 'skip' },
+    { target: 'another member', resolution: 'pay' },
+    { target: 'another member', resolution: 'skip' },
+  ])(
+    'resumes Shioriko after Emma waits $target and draws, then allows $resolution and phase advance',
+    ({ target, resolution }) => {
+      const scenario = setupEmmaScenario({
+        left: {
+          cardCode: 'PL!N-sd2-010-SD2',
+          name: '三船栞子',
+          cost: 17,
+          orientation: OrientationState.ACTIVE,
+        },
+        right:
+          target === 'another member'
+            ? {
+                cardCode: 'PL!N-emma-target',
+                name: '近江彼方',
+                orientation: OrientationState.ACTIVE,
+              }
+            : undefined,
+        handCount: 0,
+        mainDeckCount: 5,
+      });
+      const targetId = target === 'Shioriko' ? scenario.leftId! : scenario.rightId!;
+      const shiorikoAbilityId =
+        N_SD2_010_AUTO_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_GAIN_TWO_BLADE_ABILITY_ID;
+
+      expect(scenario.session.manualOperationMode).toBe('RULES');
+      expect(activateEmma(scenario).success).toBe(true);
+      expect(confirmEffectCard(scenario.session, targetId).success).toBe(true);
+
+      const afterEmma = scenario.session.state!;
+      expect(orientation(scenario, targetId)).toBe(OrientationState.WAITING);
+      expect(afterEmma.players[0].hand.cardIds).toEqual([scenario.drawCardIds[0]]);
+      expect(afterEmma.activeEffect).toMatchObject({
+        abilityId: shiorikoAbilityId,
+        sourceCardId: scenario.leftId,
+        selectableCardIds: [scenario.drawCardIds[0]],
+        canSkipSelection: true,
+      });
+      const emmaFinishedIndex = afterEmma.actionHistory.findIndex(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            PL_N_BP3_008_ACTIVATED_WAIT_OTHER_NIJIGASAKI_DRAW_ONE_ABILITY_ID &&
+          action.payload.step === 'WAIT_OTHER_NIJIGASAKI_DRAW_ONE'
+      );
+      const shiorikoStartedIndex = afterEmma.actionHistory.findIndex(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === shiorikoAbilityId &&
+          action.payload.step === 'START_OPTIONAL_DISCARD'
+      );
+      expect(emmaFinishedIndex).toBeGreaterThanOrEqual(0);
+      expect(shiorikoStartedIndex).toBeGreaterThan(emmaFinishedIndex);
+
+      expect(
+        confirmEffectCard(scenario.session, resolution === 'pay' ? scenario.drawCardIds[0]! : null)
+          .success
+      ).toBe(true);
+
+      const finished = scenario.session.state!;
+      expect(finished.activeEffect).toBeNull();
+      expect(finished.pendingAbilities).toEqual([]);
+      expect(finished.pendingChoice).toBeNull();
+      expect(finished.pendingCostPayment).toBeNull();
+      expect(finished.checkTimingContext).toBeNull();
+      if (resolution === 'pay') {
+        expect(orientation(scenario, targetId)).toBe(OrientationState.ACTIVE);
+        expect(finished.players[0].hand.cardIds).toEqual([]);
+        expect(finished.players[0].waitingRoom.cardIds).toContain(scenario.drawCardIds[0]);
+        expect(finished.liveResolution.liveModifiers).toContainEqual(
+          expect.objectContaining({
+            kind: 'BLADE',
+            target: 'TARGET_MEMBER',
+            targetMemberCardId: targetId,
+            countDelta: 2,
+            abilityId: shiorikoAbilityId,
+          })
+        );
+      } else {
+        expect(orientation(scenario, targetId)).toBe(OrientationState.WAITING);
+        expect(finished.players[0].hand.cardIds).toEqual([scenario.drawCardIds[0]]);
+        expect(finished.liveResolution.liveModifiers).toEqual([]);
+      }
+      expect(scenario.session.executeCommand(createEndPhaseCommand(PLAYER1)).success).toBe(true);
+    }
+  );
 
   it('does not allow self, already waiting members, or non-Nijigasaki members as activated cost targets', () => {
     const withNonNijigasaki = setupEmmaScenario({

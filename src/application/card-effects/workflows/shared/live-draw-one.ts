@@ -24,6 +24,7 @@ import {
 } from '../../runtime/workflow-helpers.js';
 import {
   S_PR_046_LIVE_SUCCESS_OPPONENT_CHEER_LIVE_DRAW_ONE_ABILITY_ID,
+  N_BP8_012_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID,
   PL_BP4_001_LIVE_START_LOWER_STAGE_COST_DRAW_ONE_ABILITY_ID,
   PL_BP4_023_LIVE_SUCCESS_PINK_REMAINING_HEART_DRAW_ONE_ABILITY_ID,
   PL_N_BP4_003_LIVE_SUCCESS_HIGHER_SCORE_DRAW_ABILITY_ID,
@@ -32,7 +33,19 @@ import {
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-type ConditionalLiveDrawConfig =
+type LiveDrawConfig =
+  | {
+      readonly abilityId: typeof N_BP8_012_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID;
+      readonly expectedBaseCardCodes: readonly ['PL!N-bp8-012'];
+      readonly sourceKind: 'STAGE_MEMBER';
+      readonly requireSourceInZoneAtResolution: false;
+      readonly conditionType: 'ALWAYS';
+      readonly actionStep: 'DRAW_ONE';
+      readonly noOpSteps: {
+        readonly sourceMissing: 'SOURCE_IDENTITY_INVALID';
+        readonly conditionNotMet: 'SOURCE_IDENTITY_INVALID';
+      };
+    }
   | {
       readonly abilityId: typeof S_PR_046_LIVE_SUCCESS_OPPONENT_CHEER_LIVE_DRAW_ONE_ABILITY_ID;
       readonly expectedBaseCardCodes: readonly ['PL!S-PR-046'];
@@ -90,7 +103,19 @@ type ConditionalLiveDrawConfig =
       };
     };
 
-const CONDITIONAL_LIVE_DRAW_CONFIGS: readonly ConditionalLiveDrawConfig[] = [
+const LIVE_DRAW_CONFIGS: readonly LiveDrawConfig[] = [
+  {
+    abilityId: N_BP8_012_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID,
+    expectedBaseCardCodes: ['PL!N-bp8-012'],
+    sourceKind: 'STAGE_MEMBER',
+    requireSourceInZoneAtResolution: false,
+    conditionType: 'ALWAYS',
+    actionStep: 'DRAW_ONE',
+    noOpSteps: {
+      sourceMissing: 'SOURCE_IDENTITY_INVALID',
+      conditionNotMet: 'SOURCE_IDENTITY_INVALID',
+    },
+  },
   {
     abilityId: S_PR_046_LIVE_SUCCESS_OPPONENT_CHEER_LIVE_DRAW_ONE_ABILITY_ID,
     expectedBaseCardCodes: ['PL!S-PR-046'],
@@ -150,6 +175,7 @@ const CONDITIONAL_LIVE_DRAW_CONFIGS: readonly ConditionalLiveDrawConfig[] = [
 ];
 
 type EvaluatedCondition =
+  | { readonly conditionType: 'ALWAYS'; readonly conditionMet: true }
   | {
       readonly conditionType: 'OPPONENT_REVEALED_CHEER_HAS_LIVE';
       readonly opponentRevealedLiveCardIds: readonly string[];
@@ -186,7 +212,7 @@ type EvaluatedCondition =
       readonly conditionMet: boolean;
     };
 
-interface ConditionalLiveDrawContext {
+interface LiveDrawContext {
   readonly sourceSlot: ReturnType<typeof getSourceMemberSlot>;
   readonly sourceOnStage: boolean;
   readonly sourceInLiveZone: boolean;
@@ -195,20 +221,14 @@ interface ConditionalLiveDrawContext {
   readonly condition: EvaluatedCondition;
 }
 
-export function registerConditionalLiveDrawOneWorkflowHandlers(): void {
-  for (const config of CONDITIONAL_LIVE_DRAW_CONFIGS) {
+export function registerLiveDrawOneWorkflowHandlers(): void {
+  for (const config of LIVE_DRAW_CONFIGS) {
     registerManualConfirmablePendingAbilityStarterHandler(
       config.abilityId,
       (game, ability, options, context) =>
-        resolveConditionalLiveDrawOne(
-          game,
-          ability,
-          config,
-          options,
-          context.continuePendingCardEffects
-        ),
+        resolveLiveDrawOne(game, ability, config, options, context.continuePendingCardEffects),
       (game, ability) => {
-        const config = CONDITIONAL_LIVE_DRAW_CONFIGS.find(
+        const config = LIVE_DRAW_CONFIGS.find(
           (candidate) => candidate.abilityId === ability.abilityId
         );
         if (!config) {
@@ -220,10 +240,10 @@ export function registerConditionalLiveDrawOneWorkflowHandlers(): void {
   }
 }
 
-function resolveConditionalLiveDrawOne(
+function resolveLiveDrawOne(
   game: GameState,
   ability: PendingAbilityState,
-  config: ConditionalLiveDrawConfig,
+  config: LiveDrawConfig,
   options: PendingAbilityStarterOptions,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
@@ -232,7 +252,7 @@ function resolveConditionalLiveDrawOne(
     return game;
   }
 
-  const context = getConditionalLiveDrawContext(game, ability, config);
+  const context = getLiveDrawContext(game, ability, config);
   const canDraw =
     context.sourceValid && context.sourceCardMatchesExpectedBase && context.condition.conditionMet;
   const resolutionBaseState =
@@ -266,11 +286,11 @@ function resolveConditionalLiveDrawOne(
   );
 }
 
-function getConditionalLiveDrawContext(
+function getLiveDrawContext(
   game: GameState,
   ability: Pick<PendingAbilityState, 'controllerId' | 'sourceCardId'>,
-  config: ConditionalLiveDrawConfig
-): ConditionalLiveDrawContext {
+  config: LiveDrawConfig
+): LiveDrawContext {
   const player = getPlayerById(game, ability.controllerId);
   const sourceSlot = player ? getSourceMemberSlot(game, player.id, ability.sourceCardId) : null;
   const sourceCard = getCardById(game, ability.sourceCardId);
@@ -303,8 +323,11 @@ function getConditionalLiveDrawContext(
 function evaluateCondition(
   game: GameState,
   playerId: string,
-  conditionType: ConditionalLiveDrawConfig['conditionType']
+  conditionType: LiveDrawConfig['conditionType']
 ): EvaluatedCondition {
+  if (conditionType === 'ALWAYS') {
+    return { conditionType, conditionMet: true };
+  }
   if (conditionType === 'OPPONENT_REVEALED_CHEER_HAS_LIVE') {
     const opponent = getOpponent(game, playerId);
     const opponentRevealedLiveCardIds = opponent
@@ -395,9 +418,12 @@ function evaluateCondition(
 function getConfirmationConfig(
   game: GameState,
   ability: PendingAbilityState,
-  config: ConditionalLiveDrawConfig
+  config: LiveDrawConfig
 ): { readonly effectText: string; readonly stepText: string } {
-  const context = getConditionalLiveDrawContext(game, ability, config);
+  const context = getLiveDrawContext(game, ability, config);
+  if (context.condition.conditionType === 'ALWAYS') {
+    return { effectText: getAbilityEffectText(ability.abilityId), stepText: '确认后结算此效果。' };
+  }
   if (context.condition.conditionType === 'OPPONENT_REVEALED_CHEER_HAS_LIVE') {
     const actualDrawCount =
       context.sourceValid && context.sourceCardMatchesExpectedBase && context.condition.conditionMet
@@ -472,11 +498,20 @@ function getActualDrawCount(game: GameState, playerId: string): number {
 
 function createActionPayload(
   ability: PendingAbilityState,
-  config: ConditionalLiveDrawConfig,
-  context: ConditionalLiveDrawContext,
+  config: LiveDrawConfig,
+  context: LiveDrawContext,
   canDraw: boolean,
   drawnCardIds: readonly string[]
 ): Readonly<Record<string, unknown>> {
+  if (context.condition.conditionType === 'ALWAYS') {
+    return {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: canDraw ? config.actionStep : config.noOpSteps.sourceMissing,
+      drawnCardIds,
+    };
+  }
   if (context.condition.conditionType === 'OPPONENT_REVEALED_CHEER_HAS_LIVE') {
     return {
       pendingAbilityId: ability.id,

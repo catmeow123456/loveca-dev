@@ -55,7 +55,7 @@ queued bridge 的回归覆盖单 pending 确认前不结算、多 pending ordere
 - LIVE开始按触发时的每份授予分别产生带实例标识的 pending；后续使用 `isDirectOrGrantedTriggeredAbilitySource` 校验捕获身份，不能因下方卡在触发后移除而取消已诱发能力。两份同 abilityId 必须分别排序、结算并叠加；SCORE replacement 也按实例区分。
 - 宿主生命周期失效不反向阻止不依赖宿主的合法费用，且旧调用不能向重登的新对象授予自身奖励。待机费用与“此成员获得常时分数”等自身效果绑定宿主；后者随宿主离场清理。动态确认文案需反映实际可结算结果。
 - 修改相关能力时扩展 `tests/integration/sp-pb2-005-ren-granted-activated-abilities.test.ts` 的显式能力清单：原卡直发、合法宿主、缺授予/无关成员、下方移除、次数隔离、同能力双实例、伪造/错配/移除实例拒绝；多阶段路径完成后续支付/确认且不丢身份。
-- LL授予路径另维护 `tests/integration/ll-bp8-001-granted-member-below-abilities.test.ts` 的14种唯一能力清单，覆盖原卡／宿主完整结算、双实例叠加、触发前后授予移除、费用与规则对象生命周期。
+- LL授予路径另维护 `tests/integration/ll-bp8-001-granted-member-below-abilities.test.ts` 的15种唯一能力清单，覆盖原卡／宿主完整结算、双实例叠加、触发前后授予移除、费用与规则对象生命周期。
 - 在本次修改的 workflow 范围搜索 `isDirectOrGrantedActivatedAbilitySource`、`isDirectOrGrantedTriggeredAbilitySource`、`cardCodeMatchesBase`、`doesCardAbilityDefinitionMatchCardCode`，核对残留 direct-only gate 是否为非目标能力；无需每次全库扫描并报告。
 
 授予入口：`src/application/card-effects/runtime/granted-member-below-abilities.ts`。公开/定时恢复涉及的其他不变量见 [公开与可见性](reveal-and-visibility.md)。

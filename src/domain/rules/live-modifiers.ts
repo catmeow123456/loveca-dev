@@ -2736,14 +2736,35 @@ function sourceHasStrictlyMostEffectiveHeartsOnStage(
   playerId: string,
   sourceCardId: string
 ): boolean {
-  const liveModifiers = game.liveResolution.liveModifiers;
-  const sourceHeartCount = countEffectiveMemberHearts(game, playerId, sourceCardId, liveModifiers);
-  const otherStageMemberHeartCounts = game.players.flatMap((player) =>
-    getAllMemberCardIds(player.memberSlots)
-      .filter((cardId) => cardId !== sourceCardId)
-      .map((cardId) => countEffectiveMemberHearts(game, player.id, cardId, liveModifiers))
+  // Continuous collection must not recursively call collectLiveModifiers.
+  const leader = selectUniqueStageMemberWithMostEffectiveHearts(
+    game,
+    game.liveResolution.liveModifiers
   );
-  return otherStageMemberHeartCounts.every((heartCount) => sourceHeartCount > heartCount);
+  return leader?.playerId === playerId && leader.memberCardId === sourceCardId;
+}
+
+/** Resolve all members against one caller-supplied snapshot; ties have no recipient. */
+export function selectUniqueStageMemberWithMostEffectiveHearts(
+  game: GameState,
+  liveModifiers: readonly LiveModifierState[]
+): { readonly playerId: string; readonly memberCardId: string; readonly heartCount: number } | null {
+  let leader: { playerId: string; memberCardId: string; heartCount: number } | null = null;
+  let tied = false;
+  for (const player of game.players) {
+    for (const memberCardId of getAllMemberCardIds(player.memberSlots)) {
+      const card = getCardById(game, memberCardId);
+      if (!card || !isMemberCardData(card.data)) continue;
+      const heartCount = countEffectiveMemberHearts(game, player.id, memberCardId, liveModifiers);
+      if (leader === null || heartCount > leader.heartCount) {
+        leader = { playerId: player.id, memberCardId, heartCount };
+        tied = false;
+      } else if (heartCount === leader.heartCount) {
+        tied = true;
+      }
+    }
+  }
+  return tied ? null : leader;
 }
 
 function countEffectiveMemberHearts(
@@ -3674,13 +3695,14 @@ function setMemberBoundLiveModifiersAfterRemoval(
   let changed = false;
   for (const [playerId, removedBonus] of removedScoreByPlayer) {
     const score = playerScores.get(playerId);
-    const player = getPlayerById(game, playerId);
-    // A pre-judgment draft or failed LIVE never included this SCORE bonus.
-    const hasJudgedSuccessfulLive =
-      player &&
-      [...player.liveZone.cardIds, ...player.successZone.cardIds].some(
-        (cardId) => game.liveResolution.liveResults.get(cardId) === true
-      );
+    // A successful LIVE can return to hand without losing its judged score draft.
+    // The current LIVE's result fact, rather than its present zone, controls subtraction.
+    const hasJudgedSuccessfulLive = [...game.liveResolution.liveResults].some(
+      ([cardId, success]) => {
+        const card = getCardById(game, cardId);
+        return success === true && card?.ownerId === playerId && isLiveCardData(card.data);
+      }
+    );
     if (score === undefined || !hasJudgedSuccessfulLive || removedBonus === 0) continue;
     playerScores.set(playerId, Math.max(0, score - removedBonus));
     changed = true;

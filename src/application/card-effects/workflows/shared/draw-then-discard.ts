@@ -3,6 +3,7 @@ import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { SlotPosition, ZoneType } from '../../../../shared/types/enums.js';
 import {
   HS_BP2_015_LEAVE_STAGE_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+  HS_BP8_014_LEAVE_STAGE_DISCARD_TWO_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   HS_BP6_030_LIVE_START_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
@@ -81,6 +82,14 @@ const DRAW_THEN_DISCARD_WORKFLOWS: readonly {
   readonly requiredStageMemberGroup?: string;
   readonly confirmSelectionLabel?: string;
 }[] = [
+  {
+    abilityId: HS_BP8_014_LEAVE_STAGE_DISCARD_TWO_ABILITY_ID,
+    drawCount: 0,
+    discardCount: 2,
+    stepId: 'HS_BP8_014_LEAVE_STAGE_SELECT_DISCARD_TWO',
+    requiresLeaveStageToWaitingRoom: true,
+    confirmSelectionLabel: '放置入休息室',
+  },
   {
     abilityId: N_BP8_011_DECK_REFRESH_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
     drawCount: 2,
@@ -330,7 +339,10 @@ export function startDrawThenDiscardCardsWorkflow(
           pendingAbilityId: config.ability.id,
         })
       : game;
-  const drawResult = drawCardsForPlayer(stateBeforeDraw, player.id, config.drawCount);
+  const drawResult =
+    config.drawCount === 0
+      ? { gameState: stateBeforeDraw, drawnCardIds: [] as readonly string[] }
+      : drawCardsForPlayer(stateBeforeDraw, player.id, config.drawCount);
   if (!drawResult) {
     return game;
   }

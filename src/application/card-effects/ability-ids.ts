@@ -2138,3 +2138,25 @@ export const PL_BP8_011_LIVE_START_SUCCESS_SCORE_SIX_WAIT_ORIGINAL_BLADE_THREE_A
   'PL!-bp8-011:live-start-success-score-six-wait-original-blade-three';
 export const PL_BP8_021_AUTO_ENTER_SUCCESS_LOOK_TOP_FOUR_MUSE_MEMBER_ABILITY_ID =
   'PL!-bp8-021:auto-enter-success-look-top-four-muse-member';
+
+export const PL_BP8_004_ACTIVATED_BOTTOM_TWO_NO_BLADE_HEART_MUSE_GAIN_COST_ABILITY_ID =
+  'PL!-bp8-004:activated-bottom-two-no-blade-heart-muse-gain-cost';
+export const PL_BP8_006_ACTIVATED_WAITING_ROOM_PAY_TWO_BOTTOM_SELF_RECOVER_MUSE_LIVE_ABILITY_ID =
+  'PL!-bp8-006:activated-waiting-room-pay-two-bottom-self-recover-muse-live';
+export const PL_BP8_010_ACTIVATED_WAIT_SELF_BOTTOM_UP_TO_TWO_WAITING_CARDS_ABILITY_ID =
+  'PL!-bp8-010:activated-wait-self-bottom-up-to-two-waiting-cards';
+export const PL_BP8_018_LIVE_START_PAY_ONE_ENERGY_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!-bp8-018:live-start-pay-one-energy-gain-two-blade';
+export const HS_BP8_014_ON_ENTER_OTHER_HASUNOSORA_DRAW_ONE_ABILITY_ID =
+  'PL!HS-bp8-014:on-enter-other-hasunosora-draw-one';
+export const HS_BP8_014_LEAVE_STAGE_DISCARD_TWO_ABILITY_ID =
+  'PL!HS-bp8-014:leave-stage-discard-two';
+export const N_BP8_006_ON_ENTER_DISCARD_LOOK_TOP_FIVE_NIJIGASAKI_MEMBER_ABILITY_ID =
+  'PL!N-bp8-006:on-enter-discard-look-top-five-nijigasaki-member';
+export const N_BP8_012_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID = 'PL!N-bp8-012:live-success-draw-one';
+export const N_BP8_018_LIVE_START_REVEAL_HIGH_COST_NIJIGASAKI_HAND_BOTTOM_WAIT_OPPONENT_ABILITY_ID =
+  'PL!N-bp8-018:live-start-reveal-high-cost-nijigasaki-hand-bottom-wait-opponent';
+export const N_BP8_031_LIVE_SUCCESS_MOST_HEART_MEMBER_GAIN_SCORE_ABILITY_ID =
+  'PL!N-bp8-031:live-success-most-heart-member-gain-score';
+export const S_CL1_013_LIVE_START_RECYCLE_AQOURS_GAIN_BLUE_HEART_ABILITY_ID =
+  'PL!S-cl1-013:live-start-recycle-aqours-gain-blue-heart';

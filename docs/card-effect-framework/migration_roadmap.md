@@ -849,7 +849,7 @@ Do not:
 
 # conditional LIVE draw-one promotion
 
-`PL!N-bp4-003`, `PL!S-bp3-005`, `PL!-bp4-001`, and `PL!-bp4-023` now share `workflows/shared/conditional-live-draw-one.ts`. The family preserves the two existing action/payload contracts while widening only the proven axes for LIVE_START/LIVE_SUCCESS, STAGE_MEMBER/LIVE_CARD, effective stage-cost totals, and specified-color remaining HEART rebalance. It retains source-safe resolution, manual/confirm-only and ordered pending semantics, and delegates drawing to `drawCardsForPlayer`.
+`PL!N-bp4-003`, `PL!S-bp3-005`, `PL!-bp4-001`, and `PL!-bp4-023` now share `workflows/shared/live-draw-one.ts`. The family preserves the two existing action/payload contracts while widening only the proven axes for LIVE_START/LIVE_SUCCESS, STAGE_MEMBER/LIVE_CARD, effective stage-cost totals, and specified-color remaining HEART rebalance. It retains source-safe resolution, manual/confirm-only and ordered pending semantics, and delegates drawing to `drawCardsForPlayer`.
 
 The 005 condition reads event-inclusive `selectCurrentLiveRevealedCheerCardIds` facts for both players, so all card types, ordinary/additional cheer, and cards already moved out of `resolutionZone` remain countable; it does not reuse the movable-target selector. No runner condition, card-number branch, pending construction, or draw body was added.
 

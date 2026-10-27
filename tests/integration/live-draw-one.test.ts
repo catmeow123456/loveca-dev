@@ -135,7 +135,7 @@ function setup(options: SetupOptions = {}): {
   );
   const allCards = [source, ...ownCheerCards, ...opponentCheerCards, ...drawCards];
   let game = registerCards(
-    createGameState('conditional-live-draw-one', PLAYER1, 'P1', PLAYER2, 'P2'),
+    createGameState('live-draw-one', PLAYER1, 'P1', PLAYER2, 'P2'),
     allCards
   );
   const movedOwnIndexes = new Set(options.movedOwnIndexes ?? []);

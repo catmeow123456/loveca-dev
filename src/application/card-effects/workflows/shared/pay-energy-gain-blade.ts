@@ -7,6 +7,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import {
   BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
+  PL_BP8_018_LIVE_START_PAY_ONE_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
   HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
@@ -29,6 +30,7 @@ import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflo
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
 import { isCurrentStageMemberAbilitySource } from '../../runtime/source-member.js';
+import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
 
 const DECLINE_OPTION_LABEL = '不发动';
 const HS_SD1_006_LIVE_START_PAY_ENERGY_STEP_ID = 'HS_SD1_006_LIVE_START_PAY_ENERGY';
@@ -58,6 +60,12 @@ interface PayEnergyGainBladeWorkflowConfig {
 }
 
 const PAY_ENERGY_GAIN_BLADE_WORKFLOWS: readonly PayEnergyGainBladeWorkflowConfig[] = [
+  {
+    abilityId: PL_BP8_018_LIVE_START_PAY_ONE_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
+    stepId: 'PL_BP8_018_LIVE_START_PAY_ENERGY',
+    energyCost: { kind: 'FIXED', count: 1 },
+    bladeBonusSource: { kind: 'FIXED', amount: 2 },
+  },
   {
     abilityId: PL_N_BP1_001_LIVE_START_PAY_ONE_ENERGY_GAIN_ONE_BLADE_ABILITY_ID,
     stepId: PL_N_BP1_001_LIVE_START_PAY_ENERGY_STEP_ID,
@@ -172,6 +180,7 @@ function startPayEnergyGainBladeWorkflow(
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
+      sourceLifecycleId: getPendingAbilitySourceLifecycleId(game, ability),
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(config.abilityId),
       stepId: config.stepId,
