@@ -1,7 +1,24 @@
 import path from 'node:path';
+import process from 'node:process';
 import { test, expect, type Page } from '@playwright/test';
+import { installVisualApiMocks } from '../visual/support/mockApp';
+const battleBaseURL = process.env.CHEER_BATTLE_URL ?? 'http://127.0.0.1:5173';
 const play = (page: Page) => page.getByRole('button', { name: '播放三张声援', exact: true });
 const originalCards = (page: Page) => page.locator('#judgment-panel [data-cheer-card-id]');
+async function openOrdinaryBattle(page: Page) {
+  await installVisualApiMocks(page, false);
+  await page.route('**/site-status.json*', (route) =>
+    route.fulfill({
+      json: {
+        schemaVersion: 1,
+        availability: 'OPEN',
+        generatedAt: new Date().toISOString(),
+        maintenance: null,
+      },
+    })
+  );
+  await page.goto(`${battleBaseURL}/?page=game`);
+}
 async function prepare(page: Page) {
   await page.goto('/cheer.html');
   await expect(play(page)).toBeEnabled();
@@ -145,11 +162,11 @@ test('closing the panel during flight releases the presentation', async ({ page 
 // Exercise the ordinary App -> GameBoard, with no review context or play button.
 // Only the initial local position is seeded; automatic and additional cheer use real commands.
 for (const narrow of [false, true])
-  test(`5173 normal battle automatic and additional cheer ${narrow ? 'mobile' : 'desktop'}`, async ({
+  test(`normal battle automatic and additional cheer ${narrow ? 'mobile' : 'desktop'}`, async ({
     page,
   }, info) => {
     if (narrow) await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('http://127.0.0.1:5173/?page=game');
+    await openOrdinaryBattle(page);
     await page.evaluate(async () => {
       const fixturePath = '/tests/recovery-review/cheerFixture.ts';
       const authPath = '/src/store/authStore.ts';
@@ -162,6 +179,7 @@ for (const narrow of [false, true])
     await expect(page.locator('[data-battle-ui-anchor="self-main-deck"]')).toBeVisible();
     await page.waitForTimeout(350);
     await clock(page);
+    await expect(page.locator('#judgment-panel')).not.toBeVisible();
     const result = await page.evaluate(async () => {
       const fixturePath = '/tests/recovery-review/cheerFixture.ts';
       const { cheerReviewStore: useGameStore } = await import(fixturePath);
@@ -189,6 +207,30 @@ for (const narrow of [false, true])
     expect(chipBounds!.x + chipBounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
     await motionTime(page, 280);
     await page.screenshot({ path: info.outputPath('normal-battle-flight.png') });
+    await motionTime(page, 620);
+    const notice = page.locator('[data-cheer-live-success]');
+    await expect(notice).toBeVisible();
+    // A visible DOM node can still be clipped outside the sliding panel. Check the actual title
+    // against both the panel's scroll viewport and the screen after automatic entry has settled.
+    const title = await notice.locator('.cheer-success-title').boundingBox();
+    const panel = await page.locator('#judgment-panel').boundingBox();
+    const viewport = await page.locator('#judgment-panel .touch-scroll').boundingBox();
+    expect(title).not.toBeNull();
+    expect(panel).not.toBeNull();
+    expect(viewport).not.toBeNull();
+    expect(title!.x).toBeGreaterThanOrEqual(Math.max(0, panel!.x, viewport!.x));
+    expect(title!.y).toBeGreaterThanOrEqual(Math.max(0, panel!.y, viewport!.y));
+    expect(title!.x + title!.width).toBeLessThanOrEqual(
+      Math.min(page.viewportSize()!.width, panel!.x + panel!.width, viewport!.x + viewport!.width)
+    );
+    expect(title!.y + title!.height).toBeLessThanOrEqual(
+      Math.min(
+        page.viewportSize()!.height,
+        panel!.y + panel!.height,
+        viewport!.y + viewport!.height
+      )
+    );
+    await page.screenshot({ path: info.outputPath('normal-battle-live-success.png') });
     await page.clock.runFor(1600);
     await final(page);
     await page.screenshot({ path: info.outputPath('normal-battle-settled.png') });
@@ -273,11 +315,11 @@ test('large cheer batch uses effective heart colors and finishes within the half
 });
 
 for (const narrow of [false, true])
-  test(`5173 twenty-card automatic batch never shows final results before the reveal ${narrow ? 'mobile' : 'desktop'}`, async ({
+  test(`twenty-card automatic batch never shows final results before the reveal ${narrow ? 'mobile' : 'desktop'}`, async ({
     page,
   }, info) => {
     if (narrow) await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('http://127.0.0.1:5173/?page=game');
+    await openOrdinaryBattle(page);
     await page.evaluate(async () => {
       const fixturePath = '/tests/recovery-review/cheerFixture.ts';
       const authPath = '/src/store/authStore.ts';
