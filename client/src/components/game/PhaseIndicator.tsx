@@ -332,10 +332,8 @@ export const PhaseIndicator = memo(function PhaseIndicator({
         data-battle-ui-anchor={BATTLE_UI_ANCHORS.PHASE_CONTROLS}
         className="excel-phase-controls"
       >
+        {matchView?.rulesetId === 'SEALED_HALF_GRAY_V1' && <p>{SEALED_MODE_NAME} · 两首获胜</p>}
         <p>
-          {matchView?.rulesetId === 'SEALED_HALF_GRAY_V1'
-            ? `${SEALED_MODE_NAME} · 两首获胜 · `
-            : ''}
           回合 {currentTurnCount ?? turnNumber ?? '-'} · {info.name}
         </p>
         {showActionButton && (
@@ -372,6 +370,13 @@ export const PhaseIndicator = memo(function PhaseIndicator({
       data-battle-ui-anchor={BATTLE_UI_ANCHORS.PHASE_CONTROLS}
       className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] left-1/2 z-[var(--z-phase-indicator)] w-[calc(100vw-1rem)] max-w-[360px] -translate-x-1/2 md:bottom-4 md:left-auto md:right-4 md:top-auto md:w-[360px] md:max-w-[calc(100vw-2rem)] md:translate-x-0 md:translate-y-0"
     >
+      {matchView?.rulesetId === 'SEALED_HALF_GRAY_V1' && (
+        <div className="mb-0.5 flex justify-end">
+          <span className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-2 py-px text-[11px] leading-none font-semibold text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">
+            {SEALED_MODE_NAME} · 两首获胜
+          </span>
+        </div>
+      )}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -386,9 +391,6 @@ export const PhaseIndicator = memo(function PhaseIndicator({
               className={cn('h-2.5 w-2.5 shrink-0 rounded-full', info.colorClass)}
             />
             <span className="shrink-0 text-[11px] font-bold text-[var(--text-muted)]">
-              {matchView?.rulesetId === 'SEALED_HALF_GRAY_V1'
-                ? `${SEALED_MODE_NAME} · 两首获胜 · `
-                : ''}
               T{currentTurnCount ?? turnNumber ?? '-'}
             </span>
             <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
@@ -452,9 +454,6 @@ export const PhaseIndicator = memo(function PhaseIndicator({
       >
         <div className="battle-phase-summary flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-2.5">
           <span className="font-mono text-[11px] font-bold tabular-nums text-[var(--text-muted)]">
-            {matchView?.rulesetId === 'SEALED_HALF_GRAY_V1'
-              ? `${SEALED_MODE_NAME} · 两首获胜 · `
-              : ''}
             T{currentTurnCount ?? turnNumber ?? '-'}
           </span>
           <span className="h-4 w-px bg-[var(--border-subtle)]" aria-hidden="true" />
