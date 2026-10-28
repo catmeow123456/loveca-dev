@@ -174,12 +174,23 @@ test.describe('联机对局快捷表情', () => {
         secondPage.locator('[data-mobile-player-status-seat][data-mobile-active-player="true"]')
       ).toHaveCount(1);
       await expect(mobileSelfStatus).toHaveAttribute('aria-pressed', 'true');
+      const mobileEmoteLauncher = secondPage.getByRole('button', {
+        name: '快捷表情',
+        exact: true,
+      });
+      await expect(mobileEmoteLauncher).toBeVisible();
+      await mobileEmoteLauncher.click();
+      await expect(secondPage.getByRole('dialog', { name: '快捷表情' })).toBeVisible();
       await mobileOpponentStatus.click();
       await expect(secondPage.getByText('对手战场', { exact: true })).toBeVisible();
       await expect(mobileOpponentStatus).toHaveAttribute('aria-pressed', 'true');
+      await expect(mobileEmoteLauncher).toBeHidden();
+      await expect(secondPage.getByRole('dialog', { name: '快捷表情' })).toBeHidden();
       await mobileSelfStatus.click();
       await expect(secondPage.getByText('对手战场', { exact: true })).toBeHidden();
       await expect(mobileSelfStatus).toHaveAttribute('aria-pressed', 'true');
+      await expect(mobileEmoteLauncher).toBeVisible();
+      await expect(secondPage.getByRole('dialog', { name: '快捷表情' })).toBeHidden();
 
       const firstChatButton = firstPage.getByRole('button', { name: '局内聊天', exact: true });
       await firstChatButton.click();

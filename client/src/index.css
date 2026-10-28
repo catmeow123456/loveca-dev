@@ -964,6 +964,11 @@ html:has(.battle-viewport-shell) {
 }
 
 @media (max-width: 767px) {
+  /* The launcher is portalled outside the board's stacking context. */
+  html:has(.battle-mobile-drawer) [data-match-emote-portal] {
+    visibility: hidden;
+  }
+
   .battle-side-panel {
     position: fixed;
     inset: 0;

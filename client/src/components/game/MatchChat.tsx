@@ -249,10 +249,17 @@ export const MatchChat = memo(function MatchChat({
         setIsEmoteMenuOpen(false);
       }
     };
+    const closeOnFocusOutside = (event: FocusEvent) => {
+      if (event.target instanceof Node && !emoteAnchorRootRef.current?.contains(event.target)) {
+        setIsEmoteMenuOpen(false);
+      }
+    };
     document.addEventListener('pointerdown', closeFromOutside);
+    document.addEventListener('focusin', closeOnFocusOutside);
     return () => {
       window.clearTimeout(focusTimer);
       document.removeEventListener('pointerdown', closeFromOutside);
+      document.removeEventListener('focusin', closeOnFocusOutside);
     };
   }, [isEmoteMenuOpen]);
 
@@ -656,6 +663,7 @@ function IdentityAnchorPortal({
   }
   return createPortal(
     <div
+      data-match-emote-portal={kind === 'launcher' ? '' : undefined}
       className={cn(
         'fixed z-[var(--z-battle-communication-preview)]',
         kind === 'launcher' && 'z-[var(--z-battle-chat)]'
