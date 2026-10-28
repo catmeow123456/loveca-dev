@@ -1,3 +1,6 @@
+.app-shell:has(> .product-frame-content > .casual-lobby--sealed) {
+  overflow: clip;
+}
 .casual-lobby.casual-lobby--sealed {
   max-width: 1800px;
   padding-top: 12px;
@@ -17,6 +20,7 @@
 }
 .casual-lobby--sealed .casual-current.ui-panel {
   padding-top: 16px;
+  overflow: visible;
 }
 .casual-lobby--sealed .casual-current-top,
 .casual-lobby--sealed .casual-current-body {
