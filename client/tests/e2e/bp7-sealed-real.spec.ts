@@ -168,6 +168,30 @@ test('two players open, build, reconnect, battle, retain a pool and rebox on des
     await first.screenshot({ path: info.outputPath('desktop-open-pack.png'), fullPage: true });
     for (const [i, page] of [first, second].entries()) {
       await page.getByRole('button', { name: '全部打开并组牌', exact: true }).click();
+      const scrollArea = page.locator('.product-frame-content');
+      const toolbar = page.locator('.sealed-build-toolbar');
+      await scrollArea.evaluate((element) => {
+        element.scrollTop = 600;
+      });
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const area = document.querySelector('.product-frame-content')!;
+            const bar = document.querySelector('.sealed-build-toolbar')!;
+            const shell = document.querySelector('.app-shell')!;
+            return {
+              scrolled: area.scrollTop > 0,
+              toolbarAtTop:
+                Math.abs(bar.getBoundingClientRect().top - area.getBoundingClientRect().top) < 2,
+              shellOverflow: getComputedStyle(shell).overflowY,
+            };
+          })
+        )
+        .toEqual({ scrolled: true, toolbarAtTop: true, shellOverflow: 'clip' });
+      await expect(toolbar.getByRole('button', { name: '准备对战' })).toBeInViewport();
+      await scrollArea.evaluate((element) => {
+        element.scrollTop = 0;
+      });
       const memberCosts = async () =>
         (
           await page
