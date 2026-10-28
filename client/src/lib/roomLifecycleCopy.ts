@@ -11,6 +11,8 @@ export function getOpeningEndMessage(reason: OnlineRoomEndReason, themeRequeued 
 
 export function getCasualClosureMessage(reason: string): string {
   switch (reason) {
+    case 'SEALED_BUILDING_EXPIRED':
+      return '15 分钟组牌时间已结束，本轮已取消，不计败北。';
     case 'OPENING_ARRIVAL_TIMEOUT':
     case 'OPENING_TIMEOUT':
     case 'DECK_POINT_TABLE_CHANGED':

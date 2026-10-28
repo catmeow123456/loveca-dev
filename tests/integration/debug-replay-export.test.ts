@@ -25,7 +25,7 @@ import {
   debugReplayService,
 } from '../../src/server/services/debug-replay-service';
 import {
-  compressLegacyReplayPayloadEnvelopeForMigration,
+  migrateBattleRulesetCheckpoint,
   rehydrateAuthorityGameState,
 } from '../../src/server/services/replay-payload-serialization';
 
@@ -408,10 +408,7 @@ function migrateLegacyFixtureBundleForTest(bundle: DebugReplayBundle): DebugRepl
     ...bundle,
     checkpoints: bundle.checkpoints.map((checkpoint) => ({
       ...checkpoint,
-      payloadEnvelope: compressLegacyReplayPayloadEnvelopeForMigration(
-        checkpoint.payloadEnvelope,
-        'AUTHORITY_GAME_STATE'
-      ),
+      payloadEnvelope: migrateBattleRulesetCheckpoint(checkpoint.payloadEnvelope),
     })),
   };
 }

@@ -98,10 +98,12 @@ export function playCheerMotion(options: {
   // All copies live inside the panel, so they move with its entrance animation.
   // Build them synchronously before paint; no final face/count is exposed first.
   panel.append(root);
-  const panelBounds = panel.getBoundingClientRect();
   const width = panel.clientWidth;
   const height = panel.clientHeight;
   const localRect = (node: Element) => {
+    // The panel can finish sliding in before a later success notice is created.
+    // Measure both rectangles together so they use the same viewport origin.
+    const panelBounds = panel.getBoundingClientRect();
     const rect = node.getBoundingClientRect();
     return {
       x: rect.x - panelBounds.x - panel.clientLeft,

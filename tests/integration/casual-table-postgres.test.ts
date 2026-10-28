@@ -1,3 +1,4 @@
+import { sealedCards, seededRandom } from '../helpers/sealed-cards';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
@@ -76,7 +77,13 @@ function deck(prefix: string): DeckConfig {
   };
 }
 function entry(index: number, ruleMode: CasualRuleMode = 'NORMAL'): CasualTableEntryInput {
-  return { ruleMode, requestId: randomUUID(), deckId: decks[index], spectatorEnabled: index === 0 };
+  return {
+    format: 'CONSTRUCTED',
+    ruleMode,
+    requestId: randomUUID(),
+    deckId: decks[index],
+    spectatorEnabled: index === 0,
+  };
 }
 async function create(
   index: number,
@@ -104,6 +111,8 @@ function newService(overrides: Partial<ConstructorParameters<typeof CasualTableS
     runtime,
     now: () => now,
     loadDeck,
+    loadSealedCards: async () => sealedCards(),
+    randomInt: seededRandom(42),
     getPointTable: () => Promise.resolve(rules),
     assertGameplayAvailable: async () => {},
     getGameplayRestriction: () => Promise.resolve(null),
@@ -137,6 +146,12 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
       'utf8'
     );
     await database.query(migration.replaceAll('"public".', `"${schema}".`));
+    await database.query(
+      "ALTER TABLE casual_tables ADD CONSTRAINT casual_tables_environment_check CHECK(environment_id IN ('CASUAL_TABLE_V1', 'CASUAL_UNLIMITED_PT_V1'))"
+    );
+    await database.query(
+      await readFile(new URL('../../drizzle/0045_add_bp7_sealed.sql', import.meta.url), 'utf8')
+    );
   });
   afterAll(async () => {
     await database?.end();
@@ -1092,6 +1107,7 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
       await database.query('INSERT INTO profiles VALUES ($1,$2,$2)', [userId, `访客${index}`]);
       await database.query('INSERT INTO decks VALUES ($1)', [deckId]);
       await service.create(userId, {
+        format: 'CONSTRUCTED',
         ruleMode: 'NORMAL',
         requestId: randomUUID(),
         deckId,
@@ -1873,4 +1889,154 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     expect((await current(1)).runtime?.departedUserIds).toEqual([users[0]]);
     expect((await service.getCurrent(users[0])).table).toBeNull();
   });
+  const sealedEntry = (): CasualTableEntryInput => ({
+    format: 'SEALED_BP7',
+    ruleMode: 'UNLIMITED',
+    requestId: randomUUID(),
+    spectatorEnabled: false,
+  });
+  async function sealedBuilding() {
+    const first = await service.findOpponent(users[0], sealedEntry());
+    const paired = await service.findOpponent(users[1], sealedEntry());
+    expect(paired.tableId).toBe(first.tableId);
+    expect(paired.sealedPool).toBeNull();
+    await service.confirm(users[0], paired);
+    return service.confirm(users[1], paired);
+  }
+  async function selectSealed(index: number) {
+    const own = await current(index);
+    const indices = own
+      .sealedPool!.cards.filter((card) => card.cardType === CardType.MEMBER)
+      .slice(0, 24)
+      .map((card) => card.index);
+    return service.saveSealedDraft(users[index], own, own.sealedPool!.draftRevision, indices);
+  }
+  async function sealedBound() {
+    await sealedBuilding();
+    const first = await selectSealed(0);
+    const second = await selectSealed(1);
+    const results = await Promise.all([
+      service.setSealedReady(users[0], first, first.sealedPool!.draftRevision, true),
+      service.setSealedReady(users[1], second, second.sealedPool!.draftRevision, true),
+    ]);
+    expect(results.some((result) => result.state === 'BOUND')).toBe(true);
+    return current(0);
+  }
+  it('separates sealed matching, freezes both pools once and restores only the caller pool/draft', async () => {
+    const constructed = await service.create(users[2], {
+      ...entry(2, 'UNLIMITED'),
+      note: '',
+      discoverability: 'PUBLIC',
+    });
+    const building = await sealedBuilding();
+    expect(building.state).toBe('BUILDING');
+    expect(building.tableId).not.toBe(constructed.tableId);
+    expect(building.confirmationExpiresAt).toBe(now + 900_000);
+    expect(building.sealedPool!.cards).toHaveLength(50);
+    for (const card of building.sealedPool!.cards) {
+      // Fixture Lives have two pink + one blue printed hearts, projected as three gray.
+      expect(card.baseRequiredHearts).toBe(card.cardType === CardType.LIVE ? 3 : null);
+    }
+    const other = await current(0);
+    expect(JSON.stringify(building)).not.toContain(other.sealedPool!.poolId);
+    expect(loadDeck).toHaveBeenCalledTimes(1);
+    const saved = await selectSealed(0);
+    service = newService();
+    expect((await current(0)).sealedPool).toEqual(saved.sealedPool);
+    expect((await service.confirm(users[0], building)).sealedPool).toEqual(saved.sealedPool);
+    expect(
+      (await service.list(users[3], { ruleMode: 'UNLIMITED', format: 'SEALED_BP7' })).rooms.map(
+        (r) => r.tableId
+      )
+    ).toEqual([building.tableId]);
+    expect(
+      JSON.stringify(await service.list(users[3], { ruleMode: 'UNLIMITED', format: 'SEALED_BP7' }))
+    ).not.toContain('sealedPool');
+  });
+  it('rejects invalid/stale selections, locks ready drafts and boots a half-deck match once', async () => {
+    const building = await sealedBuilding();
+    await expect(
+      service.saveSealedDraft(users[1], building, building.sealedPool!.draftRevision, [0, 0])
+    ).rejects.toThrow();
+    await expect(
+      service.setSealedReady(users[1], building, building.sealedPool!.draftRevision, true)
+    ).rejects.toThrow('24');
+    const first = await selectSealed(0);
+    await expect(
+      service.saveSealedDraft(users[0], first, first.sealedPool!.draftRevision - 1, [])
+    ).rejects.toMatchObject({ code: 'CASUAL_STATE_CHANGED' });
+    await service.setSealedReady(users[0], first, first.sealedPool!.draftRevision, true);
+    await expect(
+      service.saveSealedDraft(users[0], first, first.sealedPool!.draftRevision, [])
+    ).rejects.toThrow();
+    await service.setSealedReady(users[0], first, first.sealedPool!.draftRevision, false);
+    const second = await selectSealed(1);
+    await Promise.all([
+      service.setSealedReady(users[0], first, first.sealedPool!.draftRevision, true),
+      service.setSealedReady(users[1], second, second.sealedPool!.draftRevision, true),
+    ]);
+    const bound = await current(0);
+    expect(bound.state).toBe('BOUND');
+    await service.setSealedReady(users[1], second, second.sealedPool!.draftRevision, true);
+    expect((await current(0)).roomGeneration).toBe(bound.roomGeneration);
+    await runtime.getRoomView(bound.roomCode, users[0]);
+    await runtime.getRoomView(bound.roomCode, users[1]);
+    await runtime.submitOpeningRps(bound.roomCode, users[0], 'ROCK');
+    await runtime.submitOpeningRps(bound.roomCode, users[1], 'SCISSORS');
+    const room = await runtime.chooseOpeningTurnOrder(bound.roomCode, users[0], 'SELF_FIRST');
+    const match = matches.getMatch(room.matchId!)!;
+    expect(match.session.state!.rulesetId).toBe('SEALED_HALF_GRAY_V1');
+    expect(match.deckSnapshots.FIRST.mainDeck).toHaveLength(30);
+    expect(match.deckSnapshots.FIRST.energyDeck).toHaveLength(12);
+  });
+  it('keeps a construction pool through disconnects but cancels timeout/exit without a match', async () => {
+    const building = await sealedBuilding();
+    now += 120_000;
+    expect((await current(1)).sealedPool).toEqual(building.sealedPool);
+    now += 780_001;
+    expect((await service.getCurrent(users[0])).table).toBeNull();
+    expect((await service.getCurrent(users[1])).notice?.reason).toBe('SEALED_BUILDING_EXPIRED');
+    expect(runtime.listCasualTableRuntimes()).toHaveLength(0);
+    const next = await sealedBuilding();
+    await service.cancel(users[0], next);
+    expect((await service.getCurrent(users[1])).table).toBeNull();
+  });
+  it.each(['SAME_POOL', 'REBOX'] as const)(
+    'requires both players consent for sealed rematch %s',
+    async (kind) => {
+      const bound = await sealedBound();
+      await runtime.getRoomView(bound.roomCode, users[0]);
+      await runtime.getRoomView(bound.roomCode, users[1]);
+      await runtime.submitOpeningRps(bound.roomCode, users[0], 'ROCK');
+      await runtime.submitOpeningRps(bound.roomCode, users[1], 'SCISSORS');
+      const room = await runtime.chooseOpeningTurnOrder(bound.roomCode, users[0], 'SELF_FIRST');
+      await matches.executeCommand(room.matchId!, users[0], createSurrenderCommand('ignored'));
+      const before = await current(0);
+      const requested = await service.requestSealedRematch(users[0], before, randomUUID(), kind);
+      expect(requested.sealedPool).toEqual(before.sealedPool);
+      await expect(
+        service.respondSealedRematch(users[0], requested, requested.sealedRematch!.requestId, true)
+      ).rejects.toThrow();
+      await service.respondSealedRematch(
+        users[1],
+        await current(1),
+        requested.sealedRematch!.requestId,
+        true
+      );
+      const after = await current(0);
+      expect(after.state).toBe('BUILDING');
+      expect(after.roundId).not.toBe(before.roundId);
+      if (kind === 'SAME_POOL') {
+        expect(after.sealedPool!.poolId).toBe(before.sealedPool!.poolId);
+        expect(after.sealedPool!.selectedIndices).toEqual(before.sealedPool!.selectedIndices);
+      } else {
+        expect(after.sealedPool!.poolId).not.toBe(before.sealedPool!.poolId);
+        expect(after.sealedPool!.selectedIndices).toEqual([]);
+      }
+      await expect(
+        service.respondSealedRematch(users[1], requested, requested.sealedRematch!.requestId, true)
+      ).rejects.toThrow();
+      expect((await current(0)).sealedPool).toEqual(after.sealedPool);
+    }
+  );
 });

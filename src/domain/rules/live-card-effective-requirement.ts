@@ -1,3 +1,4 @@
+import { baseLiveRequirement } from './battle-ruleset.js';
 import { isLiveCardData } from '../entities/card.js';
 import { getCardById, getPlayerById, type GameState } from '../entities/game.js';
 import { HeartColor } from '../../shared/types/enums.js';
@@ -35,7 +36,7 @@ export function findOwnSuccessOrCurrentLiveCardsWithExactEffectiveRequiredHeartC
       }
 
       const effectiveRequirement = applyHeartRequirementModifiers(
-        card.data.requirements,
+        baseLiveRequirement(game, card.data.requirements),
         getLiveCardRequirementModifiers(game.liveResolution, liveCardId, liveModifiers)
       );
       return (

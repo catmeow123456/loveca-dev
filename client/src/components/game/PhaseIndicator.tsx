@@ -1,4 +1,5 @@
 import { useTextPresentation } from '@/lib/appPresentation';
+import { SEALED_MODE_NAME } from '@game/shared/sealed-format';
 /**
  * 阶段指示器
  * 显示当前游戏阶段、子阶段和回合数，提供阶段流转按钮
@@ -331,6 +332,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
         data-battle-ui-anchor={BATTLE_UI_ANCHORS.PHASE_CONTROLS}
         className="excel-phase-controls"
       >
+        {matchView?.rulesetId === 'SEALED_HALF_GRAY_V1' && <p>{SEALED_MODE_NAME} · 两首获胜</p>}
         <p>
           回合 {currentTurnCount ?? turnNumber ?? '-'} · {info.name}
         </p>
@@ -368,6 +370,13 @@ export const PhaseIndicator = memo(function PhaseIndicator({
       data-battle-ui-anchor={BATTLE_UI_ANCHORS.PHASE_CONTROLS}
       className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] left-1/2 z-[var(--z-phase-indicator)] w-[calc(100vw-1rem)] max-w-[360px] -translate-x-1/2 md:bottom-4 md:left-auto md:right-4 md:top-auto md:w-[360px] md:max-w-[calc(100vw-2rem)] md:translate-x-0 md:translate-y-0"
     >
+      {matchView?.rulesetId === 'SEALED_HALF_GRAY_V1' && (
+        <div className="mb-0.5 flex justify-end">
+          <span className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-2 py-px text-[11px] leading-none font-semibold text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">
+            {SEALED_MODE_NAME} · 两首获胜
+          </span>
+        </div>
+      )}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

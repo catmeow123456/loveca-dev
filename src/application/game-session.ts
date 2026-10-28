@@ -1,3 +1,4 @@
+import type { BattleRulesetId } from '../domain/rules/battle-ruleset.js';
 /**
  * 游戏会话管理
  *
@@ -285,6 +286,7 @@ export type GameSessionEvent =
  * 游戏会话选项
  */
 export interface GameSessionOptions {
+  rulesetId?: BattleRulesetId;
   /** LOCAL has one presentation viewer; REMOTE requires both participant acknowledgments. */
   cardEntrance?: 'LOCAL' | 'REMOTE';
   /** 游戏模式（默认调试模式） */
@@ -538,7 +540,8 @@ export class GameSession {
       player1Id,
       player1Name,
       player2Id,
-      player2Name
+      player2Name,
+      this.options.rulesetId ?? 'STANDARD'
     );
     const state = this.options.cardEntrance
       ? {

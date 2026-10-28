@@ -12,6 +12,7 @@ import {
 } from '../../drizzle/data-migrations/3.5.0-to-3.6.0-compress-match-replay-checkpoints';
 import {
   rehydrateAuthorityGameState,
+  migrateBattleRulesetCheckpoint,
   serializeReplayPayload,
   stableJsonStringify,
   toReplayJsonValue,
@@ -306,6 +307,56 @@ describe('compress-match-replay-checkpoints', () => {
     expect(harness.calls.some((call) => call.text === 'BEGIN')).toBe(false);
   });
 
+  it.each(['STANDARD', 'SEALED_HALF_GRAY_V1'] as const)(
+    'leaves compressed V3 %s checkpoints unchanged',
+    async (rulesetId) => {
+      const payload = serializeReplayPayload(
+        { ...createMinimalState('match-1'), rulesetId },
+        'AUTHORITY_GAME_STATE',
+        'GAME_STATE_V3'
+      );
+      const harness = createHarness([createRow({ schema_version: 'GAME_STATE_V3', payload })]);
+      const before = JSON.stringify(harness.rows);
+      const report = await runCheckpointCompressionMigration(
+        harness.client,
+        parseArgs(['--apply', '--yes'])
+      );
+
+      expect(report.blockingErrors).toEqual([]);
+      expect(report.stats.alreadyMigratedCheckpointCount).toBe(1);
+      expect(report.applied.updatedCount).toBe(0);
+      expect(JSON.stringify(harness.rows)).toBe(before);
+      expect(rehydrateAuthorityGameState(harness.rows[0].payload).rulesetId).toBe(rulesetId);
+    }
+  );
+
+  it.each([
+    ['GAME_STATE_V1', 'SEALED_HALF_GRAY_V1'],
+    ['GAME_STATE_V2', 'UNKNOWN'],
+    ['GAME_STATE_V3', undefined],
+    ['GAME_STATE_V4', 'STANDARD'],
+  ] as const)(
+    'rejects incompatible schema %s and ruleset %s without writing',
+    async (version, rulesetId) => {
+      const payload = serializeReplayPayload(
+        { ...createMinimalState('match-1'), rulesetId },
+        'AUTHORITY_GAME_STATE',
+        version
+      );
+      const harness = createHarness([createRow({ schema_version: version, payload })]);
+      const before = JSON.stringify(harness.rows);
+      const report = await runCheckpointCompressionMigration(
+        harness.client,
+        parseArgs(['--apply', '--yes'])
+      );
+
+      expect(report.blockingErrors).toHaveLength(1);
+      expect(report.applied.updatedCount).toBe(0);
+      expect(harness.calls.some((call) => call.text === 'BEGIN')).toBe(false);
+      expect(JSON.stringify(harness.rows)).toBe(before);
+    }
+  );
+
   it('apply rewrites legacy checkpoints in a single transaction and is rerunnable', async () => {
     const legacySourceCardId = 'legacy-beneficiary';
     const legacyState = {
@@ -349,9 +400,12 @@ describe('compress-match-replay-checkpoints', () => {
     expect(harness.rows[0].payload.sourceSchemaVersion).toBe('GAME_STATE_V1');
     expect(harness.rows[0].payload_hash).toBe(originalPayloadHash);
     expect(harness.rows[0].payload.payloadHash).toBe(originalPayloadHash);
-    expect(
-      rehydrateAuthorityGameState(harness.rows[0].payload).liveResolution.liveModifiers
-    ).toEqual([
+    // Compression alone must not infer a ruleset or silently upgrade the snapshot.
+    expect(() => rehydrateAuthorityGameState(harness.rows[0].payload)).toThrow('rulesetId');
+    const migrated = migrateBattleRulesetCheckpoint(harness.rows[0].payload);
+    expect(migrated.sourceSchemaVersion).toBe('GAME_STATE_V3');
+    expect(rehydrateAuthorityGameState(migrated).rulesetId).toBe('STANDARD');
+    expect(rehydrateAuthorityGameState(migrated).liveResolution.liveModifiers).toEqual([
       expect.objectContaining({
         target: 'TARGET_MEMBER',
         targetMemberCardId: legacySourceCardId,

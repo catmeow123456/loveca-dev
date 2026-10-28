@@ -1,3 +1,4 @@
+import type { BattleRulesetId } from '../../domain/rules/battle-ruleset.js';
 import type { CasualRuleMode } from '../../domain/rules/deck-construction.js';
 import { randomUUID } from 'node:crypto';
 import type { RandomIntegerSource } from '../../shared/random-source.js';
@@ -128,6 +129,7 @@ export interface CreateOnlineMatchPlayerParams {
 }
 
 export interface CreateOnlineMatchParams {
+  readonly rulesetId?: BattleRulesetId;
   readonly casualRuleMode?: CasualRuleMode | null;
   readonly roomCode: string;
   readonly matchMode?: MatchMode;
@@ -504,6 +506,7 @@ export class OnlineMatchService {
     const matchId = this.idGenerator();
     const automationGameMode = params.automationGameMode ?? 'DEBUG';
     const session = createGameSession({
+      rulesetId: params.rulesetId ?? 'STANDARD',
       cardEntrance:
         params.originKind === 'AI_DEBUG'
           ? undefined
