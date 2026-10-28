@@ -5,7 +5,7 @@ import { SEALED_MODE_NAME } from '@game/shared/sealed-format';
  * 显示当前游戏阶段、子阶段和回合数，提供阶段流转按钮
  */
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import { BarChart3, Check, Mic, Sparkles, Trophy, Undo2 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
@@ -30,6 +30,8 @@ interface PhaseIndicatorProps {
   /** 打开判定面板的回调 */
   onOpenJudgment?: () => void;
 }
+
+export const DESKTOP_PHASE_DOCK_MAX_WIDTH = 360;
 
 function usePhaseCompletionTimeGateCountdown(actionHint: ViewCommandHint | null): number | null {
   const availability = isPhaseCompletionTimeGateHint(actionHint) ? actionHint.availability : null;
@@ -368,7 +370,10 @@ export const PhaseIndicator = memo(function PhaseIndicator({
   return (
     <div
       data-battle-ui-anchor={BATTLE_UI_ANCHORS.PHASE_CONTROLS}
-      className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] left-1/2 z-[var(--z-phase-indicator)] w-[calc(100vw-1rem)] max-w-[360px] -translate-x-1/2 md:bottom-4 md:left-auto md:right-4 md:top-auto md:w-[360px] md:max-w-[calc(100vw-2rem)] md:translate-x-0 md:translate-y-0"
+      style={
+        { '--desktop-phase-dock-max-width': `${DESKTOP_PHASE_DOCK_MAX_WIDTH}px` } as CSSProperties
+      }
+      className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] left-1/2 z-[var(--z-phase-indicator)] w-[calc(100vw-1rem)] max-w-[360px] -translate-x-1/2 md:bottom-4 md:left-auto md:right-4 md:top-auto md:w-max md:max-w-[min(var(--desktop-phase-dock-max-width),calc(100vw-2rem))] md:translate-x-0 md:translate-y-0"
     >
       {matchView?.rulesetId === 'SEALED_HALF_GRAY_V1' && (
         <div className="mb-0.5 flex justify-end">
@@ -450,9 +455,9 @@ export const PhaseIndicator = memo(function PhaseIndicator({
         initial={{ opacity: 0, x: 18, scale: 0.98 }}
         animate={{ opacity: 1, x: 0, scale: 1 }}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="battle-phase-surface hidden min-h-12 items-center gap-2 rounded-xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] p-1.5 shadow-[var(--shadow-lg)] backdrop-blur-xl md:flex"
+        className="battle-phase-surface hidden min-h-12 items-center gap-1.5 rounded-xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] p-1 shadow-[var(--shadow-lg)] backdrop-blur-xl md:flex"
       >
-        <div className="battle-phase-summary flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-2.5">
+        <div className="battle-phase-summary flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-2">
           <span className="font-mono text-[11px] font-bold tabular-nums text-[var(--text-muted)]">
             T{currentTurnCount ?? turnNumber ?? '-'}
           </span>
@@ -493,7 +498,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
                 : undefined
             }
             className={cn(
-              'inline-flex h-9 max-w-40 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r px-3 font-bold text-white shadow-md',
+              'inline-flex h-9 max-w-40 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r px-2 font-bold text-white shadow-md',
               actionConfig.buttonStyle,
               isPhaseCompletionTimeGateLocked && 'cursor-not-allowed opacity-60'
             )}
@@ -511,7 +516,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
             onClick={handleUndoAction}
             aria-disabled={!canUndoLastStep}
             className={cn(
-              'inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2.5 font-semibold transition active:scale-[0.98]',
+              'inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2 font-semibold transition active:scale-[0.98]',
               canUndoLastStep
                 ? 'border-[var(--border-default)] bg-[var(--bg-overlay)] text-[var(--text-primary)] hover:border-[var(--accent-primary)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-overlay))]'
                 : 'cursor-help border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_40%,transparent)] text-[var(--text-muted)]'

@@ -75,7 +75,8 @@ import { Card } from '@/components/card/Card';
 import { CardEffectText } from '@/components/card/CardEffectText';
 import { CardModifierBadgeStack } from '@/components/card/CardModifierBadgeStack';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
-import { HandLayout } from './HandLayout';
+import { HandLayout, minimumDesktopHandViewportWidth } from './HandLayout';
+import { DESKTOP_PHASE_DOCK_MAX_WIDTH } from './PhaseIndicator';
 import { DraggableCard, DroppableZone } from './interaction';
 import {
   WaitingRoomJudgmentStatsDetail,
@@ -411,6 +412,7 @@ export const PlayerArea = memo(function PlayerArea({
     const row = desktopHandRowRef.current;
     if (isMobileBoard || !hasPlayerIdentity || !row) return;
     const hand = row.querySelector<HTMLElement>('.battle-hand-zone');
+    const cardSize = hand?.querySelector<HTMLElement>('[data-hand-card-size]');
     const energy = row.querySelector<HTMLElement>('[data-battle-ui-anchor="self-energy-zone"]');
     let phase = row
       .closest('[data-battle-ui-anchor="battle-board"]')
@@ -428,9 +430,15 @@ export const PlayerArea = memo(function PlayerArea({
       );
       const dockInset = Math.max(
         sideInset,
-        phase ? bounds.right - phase.getBoundingClientRect().left + 12 : 0
+        // Reserve the dock's maximum desktop width so changing phases cannot
+        // shift the hand when the dock's visible contents change.
+        phase
+          ? bounds.right - phase.getBoundingClientRect().right + DESKTOP_PHASE_DOCK_MAX_WIDTH + 12
+          : 0
       );
-      const stacked = bounds.width - dockInset * 2 - 48 < 100;
+      const cardWidth = cardSize ? parseFloat(getComputedStyle(cardSize).width) : 60;
+      const stacked =
+        bounds.width - dockInset * 2 - 48 < minimumDesktopHandViewportWidth(cardWidth);
       const inset = stacked ? sideInset : dockInset;
       hand.style.setProperty('--battle-hand-start', `${inset}px`);
       hand.style.setProperty('--battle-hand-end', `${inset}px`);
@@ -444,6 +452,7 @@ export const PlayerArea = memo(function PlayerArea({
     const observer = new ResizeObserver(measure);
     observer.observe(row);
     observer.observe(energy);
+    if (cardSize) observer.observe(cardSize);
     if (phase) observer.observe(phase);
     if (summary) observer.observe(summary);
     // The phase controls are portalled into a later sibling's ref on first mount.
@@ -2943,6 +2952,7 @@ export const PlayerArea = memo(function PlayerArea({
           cardIds={handCardIds}
           selectedCardId={selectedCardId}
           suspended={interactionSuspended || isDragging}
+          desktop={!isMobileBoard}
           renderCard={renderHandCard}
         />
       </DroppableZone>

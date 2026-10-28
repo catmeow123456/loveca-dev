@@ -1486,6 +1486,77 @@ async function browseHand(page: Page, end: boolean) {
   ).toBeDisabled();
 }
 
+test('desktop: phase dock fits its visible controls without shifting the twelve-card hand', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'tablet-1024x768');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await openPopulatedBoard(page, true, 2, 12);
+  await arrangeHandCount(page, 12, true);
+  const dock = page.locator('[data-desktop-phase-dock]');
+  const inspectDock = async () => {
+    const sizes = await dock.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const children = [...element.children] as HTMLElement[];
+      return {
+        width: element.getBoundingClientRect().width,
+        expected:
+          children.reduce((sum, child) => sum + child.getBoundingClientRect().width, 0) +
+          (children.length - 1) * parseFloat(style.columnGap) +
+          parseFloat(style.paddingLeft) +
+          parseFloat(style.paddingRight) +
+          parseFloat(style.borderLeftWidth) +
+          parseFloat(style.borderRightWidth),
+        clippedText: children.some((child) =>
+          [...child.querySelectorAll<HTMLElement>('.truncate')].some(
+            (text) => text.scrollWidth > text.clientWidth + 1
+          )
+        ),
+      };
+    });
+    expect(sizes.width).toBeLessThan(360);
+    expect(sizes.width).toBeCloseTo(sizes.expected, 0);
+    expect(sizes.clippedText).toBe(false);
+  };
+  await inspectDock();
+  const before = await handViewport(page).boundingBox();
+  const result = await page.evaluate(async (repoRoot) => {
+    const path = performance
+      .getEntriesByType('resource')
+      .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+    const [{ useGameStore }, { createEndPhaseCommand }] = await Promise.all([
+      import(path),
+      import(`/@fs${repoRoot}src/application/game-commands.ts`),
+    ]);
+    const store = useGameStore.getState();
+    const outcome = store.gameSession.executeCommand(createEndPhaseCommand('p1'));
+    store.syncState();
+    return outcome;
+  }, root);
+  expect(result.success, result.error).toBe(true);
+  await inspectDock();
+  const after = await handViewport(page).boundingBox();
+  expect(after!.x).toBeCloseTo(before!.x, 0);
+  expect(after!.width).toBeCloseTo(before!.width, 0);
+  await page.evaluate(async () => {
+    const storePath = performance
+      .getEntriesByType('resource')
+      .find((entry) => entry.name.includes('/src/store/gameStore.ts'))!.name;
+    const { useGameStore } = await import(storePath);
+    const store = useGameStore.getState();
+    Object.assign(store.gameSession.state, { currentPhase: 'GAME_END', currentSubPhase: 'NONE' });
+    store.syncState();
+  });
+  await expect(dock).toContainText('游戏结束');
+  await inspectDock();
+  await page.screenshot({ path: `${root}output/playwright/phase-dock-compact-1024.png` });
+  for (const width of [768, 1366]) {
+    await page.setViewportSize({ width, height: 768 });
+    await inspectDock();
+  }
+});
+
 for (const count of [5, 30]) {
   for (const width of [1366, 1024, 768, 1600]) {
     test(`desktop: phase changes keep the hand stable at ${width}px with ${count} cards`, async ({
@@ -1664,11 +1735,13 @@ test('hand: small fans fit their viewport and 12↔13 cards reflow without a scr
           }),
         };
       });
-      expect(geometry.scrollable).toBe(false);
+      if (mobile) expect(geometry.scrollable).toBe(false);
       for (const card of geometry.cards) {
         expect(Math.abs(card.rotation)).toBeLessThanOrEqual(10.01);
-        expect(card.left).toBeGreaterThanOrEqual(geometry.viewport.left);
-        expect(card.right).toBeLessThanOrEqual(geometry.viewport.right);
+        if (!geometry.scrollable) {
+          expect(card.left).toBeGreaterThanOrEqual(geometry.viewport.left);
+          expect(card.right).toBeLessThanOrEqual(geometry.viewport.right);
+        }
         expect(card.top).toBeGreaterThanOrEqual(geometry.viewport.top);
         expect(card.bottom).toBeLessThanOrEqual(geometry.viewport.bottom);
         expect((card.top + card.bottom) / 2).toBeCloseTo(
@@ -1679,6 +1752,33 @@ test('hand: small fans fit their viewport and 12↔13 cards reflow without a scr
       expect(geometry.cards[0].rotation).toBeCloseTo(-Math.min(10, (count - 1) * 2), 1);
       expect(geometry.cards.at(-1)!.rotation).toBeCloseTo(Math.min(10, (count - 1) * 2), 1);
     }).toPass();
+    if (!mobile) {
+      const viewport = handViewport(page);
+      const spacing = await viewport.evaluate((element) => {
+        const cards = [...element.querySelectorAll<HTMLElement>('[data-hand-card-slot]')];
+        const positions = cards.map(
+          (card) => new DOMMatrixReadOnly(getComputedStyle(card).transform).e
+        );
+        const cardWidth = (element.querySelector('[data-hand-card-size]') as HTMLElement)
+          .offsetWidth;
+        return { positions, cardWidth, scrollable: element.scrollWidth > element.clientWidth + 1 };
+      });
+      for (let index = 1; index < spacing.positions.length; index++) {
+        expect(spacing.positions[index] - spacing.positions[index - 1]).toBeGreaterThanOrEqual(
+          spacing.cardWidth * 0.55 - 0.1
+        );
+      }
+      if (spacing.scrollable) {
+        await browseHand(page, false);
+        const bounds = (await viewport.boundingBox())!;
+        const first = (await viewport.locator('[data-hand-card-slot]').first().boundingBox())!;
+        expect(first.x).toBeGreaterThanOrEqual(bounds.x);
+        await browseHand(page, true);
+        const last = (await viewport.locator('[data-hand-card-slot]').last().boundingBox())!;
+        expect(last.x + last.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+        await browseHand(page, false);
+      }
+    }
   }
   await page.screenshot({
     path: `${root}output/playwright/hand-fan-${mobile ? 'mobile' : 'desktop'}.png`,
@@ -2290,12 +2390,14 @@ test('desktop: large hand edges, wheel browsing and card commands share the hand
   const source = anchor(page, 'self-hand').locator('[data-card-id="p1-draw0"]');
   const a = (await source.boundingBox())!;
   const target = anchor(page, 'self-waiting-room');
-  const b = (await target.boundingBox())!;
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
   await page.mouse.down();
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2 - 12, { steps: 3 });
+  const b = (await target.boundingBox())!;
   await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 15 });
-  await expect(target).toHaveClass(/ring-slate-500/);
+  await expect(target, 'waiting-room drop hit should not be intercepted').toHaveClass(
+    /ring-slate-500/
+  );
   await page.mouse.up();
   await expect(source).toHaveCount(0);
   await expect

@@ -328,6 +328,18 @@ const battleCollisionDetection: CollisionDetection = (args) => {
     if (inspectionCollision) {
       return [inspectionCollision];
     }
+
+    // A hand-sized drag preview can overlap adjacent resource zones. When the
+    // pointer is directly inside a legal zone, prefer that zone over the
+    // larger-area rectangle match so the visible hover target and command agree.
+    const pointerZoneCollision = pointerCollisions.find((collision) => {
+      const targetId = String(collision.id);
+      const parsedTarget = parseZoneId(targetId);
+      return parsedTarget !== null && parsedTarget.zoneType !== ZoneType.INSPECTION_ZONE;
+    });
+    if (pointerZoneCollision) {
+      return [pointerZoneCollision];
+    }
   }
 
   return rectIntersection(args);

@@ -5,17 +5,26 @@ import { useReducedMotion } from 'framer-motion';
 type HandPose = { x: number; y: number; rotation: number };
 const handTransform = ({ x, y, rotation }: HandPose) =>
   `translate(${x}px, ${y}px) rotate(${rotation}deg)`;
+const desktopMinimumStep = (cardWidth: number) => cardWidth * 0.55;
+const fanEdgePadding = (cardWidth: number, angle: number) =>
+  16 + (cardWidth * 1.4 * Math.sin((angle * Math.PI) / 180)) / 2;
+
+export function minimumDesktopHandViewportWidth(cardWidth: number): number {
+  return cardWidth + 11 * desktopMinimumStep(cardWidth) + 2 * fanEdgePadding(cardWidth, 10);
+}
 
 /** A shallow fan through twelve cards; larger hands retain a browsable overlapping row. */
 export function HandLayout({
   cardIds,
   selectedCardId,
   suspended,
+  desktop,
   renderCard,
 }: {
   readonly cardIds: readonly string[];
   readonly selectedCardId: string | null;
   readonly suspended: boolean;
+  readonly desktop: boolean;
   readonly renderCard: (cardId: string, index: number) => ReactNode;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -82,10 +91,10 @@ export function HandLayout({
   const edgeFade = 12;
   const maxAngle = Math.min(10, Math.max(0, count - 1) * 2);
   // Leave room for the rotated corners, including the selection ring.
-  const fanPadding = padding + (size.cardWidth * 1.4 * Math.sin((maxAngle * Math.PI) / 180)) / 2;
+  const fanPadding = fanEdgePadding(size.cardWidth, maxAngle);
   const step = fan
     ? Math.max(
-        0,
+        desktop && count > 1 ? desktopMinimumStep(size.cardWidth) : 0,
         Math.min(
           size.cardWidth * 0.72,
           (size.width - fanPadding * 2 - size.cardWidth) / Math.max(1, count - 1)
@@ -100,7 +109,9 @@ export function HandLayout({
       );
   const spread = Math.max(0, count - 1) * step;
   const contentWidth = fan
-    ? size.width
+    ? desktop
+      ? Math.max(size.width, spread + size.cardWidth + fanPadding * 2)
+      : size.width
     : Math.max(size.width, spread + size.cardWidth + padding * 2);
   const origin = (contentWidth - spread - size.cardWidth) / 2;
   const maxScroll = Math.max(0, contentWidth - size.width);
@@ -130,7 +141,7 @@ export function HandLayout({
     // Shrinking the canvas can clamp scrollLeft before layout effects run.
     const before = lastScrollLeft.current;
     const gainedCards = cardIds.filter((id) => !previousIds.current.includes(id));
-    if (fan) viewport.scrollLeft = 0;
+    if (maxScroll <= 1) viewport.scrollLeft = 0;
     else if (gainedCards.length && followingEnd.current) viewport.scrollLeft = maxScroll;
     scrollAdjustment.current = viewport.scrollLeft - before;
     lastScrollLeft.current = viewport.scrollLeft;
@@ -146,7 +157,7 @@ export function HandLayout({
     previousIds.current = cardIds;
     setScrollLeft(viewport.scrollLeft);
     followingEnd.current = atEnd;
-  }, [cardIds, maxScroll, fan]);
+  }, [cardIds, maxScroll]);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
@@ -171,7 +182,7 @@ export function HandLayout({
     const left = origin + index * step - padding;
     const right = left + size.cardWidth + padding * 2;
     const revealSelection = () => {
-      if (fan) return;
+      if (maxScroll <= 1) return;
       if (left < viewport.scrollLeft) viewport.scrollLeft = left;
       else if (right > viewport.scrollLeft + size.width) viewport.scrollLeft = right - size.width;
     };
@@ -183,7 +194,7 @@ export function HandLayout({
     const observer = new ResizeObserver(revealSelection);
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, [selectedCardId, suspended, size.width, size.cardWidth, cardIds, origin, step, fan]);
+  }, [selectedCardId, suspended, size.width, size.cardWidth, cardIds, origin, step, maxScroll]);
 
   useLayoutEffect(() => {
     const previous = previousLayout.current;
@@ -279,6 +290,7 @@ export function HandLayout({
       >
         <span
           ref={cardSizeRef}
+          data-hand-card-size
           aria-hidden="true"
           className="pointer-events-none invisible absolute h-0 w-[var(--battle-hand-card-width,56px)]"
         />
