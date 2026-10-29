@@ -6,6 +6,7 @@ import {
   CardSyncPreviewStaleError,
   type CardSyncEngine,
   type CardSyncEngineApplyItem,
+  type CardSyncForceImport,
 } from './card-sync-engine.js';
 import {
   CARD_SYNC_LEASE_DURATION_SECONDS,
@@ -26,6 +27,8 @@ interface ClaimedApplyRun {
   readonly sourceHash: string;
   readonly previewCandidateCardCodes: readonly string[];
   readonly cardCodes: readonly string[];
+  readonly forceImports: readonly CardSyncForceImport[];
+  readonly forceImport: boolean;
   readonly leaseToken: string;
   readonly leaseGeneration: number;
 }
@@ -119,6 +122,8 @@ export class CardSyncWorker {
         expectedSourceHash: run.sourceHash,
         expectedCandidateCardCodes: run.previewCandidateCardCodes,
         selectedCardCodes: run.cardCodes,
+        forceImports: run.forceImports,
+        forceImport: run.forceImport,
         execution: {
           token: run.leaseToken,
           generation: run.leaseGeneration,
@@ -240,15 +245,21 @@ async function claimNextApplyRun(): Promise<ClaimedApplyRun | null> {
     const previewCandidateCardCodes = readCardCodeList(
       row.source_summary?.previewCandidateCardCodes
     );
+    const forceImports = (row.source_summary?.forceImports ?? []) as CardSyncForceImport[];
+    const forceImport = row.source_summary?.forceImport === true;
+    const forcedCodes = new Set(forceImports.map((choice) => choice.cardCode));
     const previewCandidateCodeSet = new Set(previewCandidateCardCodes ?? []);
     if (
       cardCodes.length !== items.rows.length ||
       cardCodes.length === 0 ||
       new Set(cardCodes).size !== cardCodes.length ||
       !previewCandidateCardCodes ||
-      previewCandidateCardCodes.length === 0 ||
+      (previewCandidateCardCodes.length === 0 && forceImports.length === 0) ||
       new Set(previewCandidateCardCodes).size !== previewCandidateCardCodes.length ||
-      cardCodes.some((cardCode) => !previewCandidateCodeSet.has(cardCode))
+      cardCodes.some(
+        (cardCode) => !previewCandidateCodeSet.has(cardCode) && !forcedCodes.has(cardCode)
+      ) ||
+      (forceImports.length > 0 && !forceImport)
     ) {
       await client.query(
         `UPDATE card_sync_runs
@@ -287,6 +298,8 @@ async function claimNextApplyRun(): Promise<ClaimedApplyRun | null> {
       sourceHash: row.source_hash,
       previewCandidateCardCodes,
       cardCodes,
+      forceImports,
+      forceImport,
       leaseToken,
       leaseGeneration,
     };

@@ -323,6 +323,13 @@
       "when": 1792765463552,
       "tag": "0045_add_bp7_sealed",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1793282314983,
+      "tag": "0046_allow_card_sync_overrides",
+      "breakpoints": true
     }
   ]
 }

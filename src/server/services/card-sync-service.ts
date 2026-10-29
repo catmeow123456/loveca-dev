@@ -5,6 +5,7 @@ import {
   CardSyncEngineError,
   type CardSyncEngine,
   type CardSyncEnginePreview,
+  type CardSyncForceImport,
 } from './card-sync-engine.js';
 
 const PREVIEW_TTL_MS = 15 * 60 * 1000;
@@ -170,6 +171,7 @@ export class CardSyncService {
     readonly requestId: string;
     readonly idempotencyKey: string;
     readonly now?: Date;
+    readonly imageCheck?: 'NONE' | 'LINK' | 'DECODE';
   }): Promise<CardSyncRunView> {
     const now = input.now ?? new Date();
     const inserted = await pool.query<{ id: string }>(
@@ -186,6 +188,15 @@ export class CardSyncService {
     }
     const runId = inserted.rows[0].id;
 
+    // Preview performs read-only probes in the background; HTTP requests remain short.
+    void this.finishPreview(runId, input.imageCheck ?? 'LINK').catch(() => undefined);
+    return this.getRun(runId);
+  }
+
+  private async finishPreview(
+    runId: string,
+    imageCheck: 'NONE' | 'LINK' | 'DECODE'
+  ): Promise<void> {
     try {
       const configuration = this.engine.getConfigurationStatus();
       if (!configuration.configured) {
@@ -195,8 +206,15 @@ export class CardSyncService {
           503
         );
       }
-      const preview = normalizePreview(await this.engine.preview());
-      const expiresAt = new Date(now.getTime() + PREVIEW_TTL_MS);
+      const preview = normalizePreview(
+        await this.engine.preview(async (progress) => {
+          await pool.query(
+            `UPDATE card_sync_runs SET source_summary = $2, updated_at = NOW() WHERE id = $1 AND status = 'RUNNING'`,
+            [runId, { progress, imageCheck }]
+          );
+        }, imageCheck)
+      );
+      const expiresAt = new Date(Date.now() + PREVIEW_TTL_MS);
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
@@ -210,6 +228,7 @@ export class CardSyncService {
             preview.sourceHash,
             {
               generatedAt: preview.generatedAt,
+              imageCheck,
               counts: preview.counts,
               policy: CARD_SYNC_POLICY,
             },
@@ -225,11 +244,9 @@ export class CardSyncService {
       } finally {
         client.release();
       }
-      return this.getRun(runId);
     } catch (error) {
       const serviceError = toPreviewServiceError(error);
       await this.markRunFailed(runId, serviceError.code, serviceError.message);
-      throw serviceError;
     }
   }
 
@@ -239,6 +256,8 @@ export class CardSyncService {
     readonly idempotencyKey: string;
     readonly previewRunId: string;
     readonly cardCodes: readonly string[];
+    readonly forceImports?: readonly CardSyncForceImport[];
+    readonly forceImport?: boolean;
     readonly now?: Date;
   }): Promise<CardSyncRunView> {
     const now = input.now ?? new Date();
@@ -259,7 +278,10 @@ export class CardSyncService {
           ORDER BY ordinal ASC`,
         [input.previewRunId]
       );
-      if (candidates.rows.length === 0) {
+      const forceImports = input.forceImports ?? [];
+      if (forceImports.length && !input.forceImport)
+        throw new CardSyncServiceError('SELECTION_INVALID', '请确认强制导入提示', 400);
+      if (candidates.rows.length === 0 && forceImports.length === 0) {
         throw new CardSyncServiceError('NO_CANDIDATES', '当前预览没有可同步的新卡', 409);
       }
       const candidateCodes = candidates.rows.map((candidate) => candidate.card_code);
@@ -268,7 +290,10 @@ export class CardSyncService {
       }
       const selectedCodes = input.cardCodes.map((cardCode) => cardCode.trim());
       const selectedCodeSet = new Set(selectedCodes);
-      if (selectedCodes.length === 0 || selectedCodeSet.size !== selectedCodes.length) {
+      if (
+        (selectedCodes.length === 0 && forceImports.length === 0) ||
+        selectedCodeSet.size !== selectedCodes.length
+      ) {
         throw new CardSyncServiceError(
           'SELECTION_INVALID',
           '请至少选择一张新卡，且不要重复选择',
@@ -285,9 +310,40 @@ export class CardSyncService {
           409
         );
       }
+      if (forceImports.length) {
+        const review = await client.query<CardSyncRunItemRow>(
+          `SELECT * FROM card_sync_run_items WHERE run_id = $1 AND kind = 'BLOCKED' ORDER BY ordinal ASC`,
+          [input.previewRunId]
+        );
+        const seenSources = new Set<string>();
+        for (const choice of forceImports) {
+          const item = review.rows.find((item) => item.summary?.sourceKey === choice.sourceKey);
+          if (!item || seenSources.has(choice.sourceKey) || selectedCodeSet.has(choice.cardCode)) {
+            throw new CardSyncServiceError(
+              'SELECTION_INVALID',
+              '所选记录已变化或导入编号重复；请核对编号后重试',
+              409
+            );
+          }
+          seenSources.add(choice.sourceKey);
+          selectedCodeSet.add(choice.cardCode);
+          selectedCandidates.push({
+            ...item,
+            card_code: choice.cardCode,
+            summary: {
+              ...item.summary,
+              name: choice.name,
+              cardType: choice.cardType,
+              forceImport: true,
+            },
+          });
+        }
+      }
       const applySourceSummary = {
         ...(preview!.source_summary ?? {}),
         previewCandidateCardCodes: candidateCodes,
+        forceImports,
+        forceImport: input.forceImport === true,
         selectedCardCodes: selectedCandidates.map((candidate) => candidate.card_code),
       };
 
@@ -324,6 +380,9 @@ export class CardSyncService {
           !existing ||
           existing.preview_run_id !== input.previewRunId ||
           !existingSelectedCodes ||
+          (existing.source_summary?.forceImport === true) !== (input.forceImport === true) ||
+          JSON.stringify(existing.source_summary?.forceImports ?? []) !==
+            JSON.stringify(forceImports) ||
           !sameCardCodes(
             existingSelectedCodes,
             selectedCandidates.map((item) => item.card_code!)
@@ -422,7 +481,14 @@ async function insertPreviewItems(
         runId,
         ordinal++,
         blocked.cardCode,
-        { code: safeCode(blocked.code) },
+        {
+          code: safeCode(blocked.code),
+          name: blocked.name,
+          sourceKey: blocked.sourceKey,
+          cardType: blocked.cardType,
+          suggestedCardCode: blocked.suggestedCardCode,
+          imageIssue: blocked.imageIssue,
+        },
         sanitizeDiagnostic(blocked.message),
       ]
     );

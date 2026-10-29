@@ -323,4 +323,110 @@ describe('cardSyncRouter', () => {
     expect(duplicateResponse.statusCode).toBe(400);
     expect(service.enqueueApply).not.toHaveBeenCalled();
   });
+  it('returns background progress and full error identities, and accepts confirmed review-only import', async () => {
+    const review = previewRun();
+    const service = {
+      getStatus: vi.fn(),
+      listRuns: vi.fn(),
+      getRun: vi.fn().mockResolvedValue({
+        ...review,
+        status: 'RUNNING',
+        sourceSummary: { progress: { checked: 12, total: 200 } },
+      }),
+      createPreview: vi.fn(),
+      enqueueApply: vi.fn().mockResolvedValue(applyRun()),
+    };
+    const worker = { notify: vi.fn() };
+    const router = createCardSyncRouter(service as never, worker);
+    const progress = await invokeRoute(router, '/previews/:runId', 'get', {
+      params: { runId: PREVIEW_ID },
+    });
+    expect(progress.body.data).toMatchObject({
+      status: 'RUNNING',
+      progress: { checked: 12, total: 200 },
+    });
+    service.getRun.mockResolvedValue({
+      ...review,
+      items: [
+        {
+          ...review.items[1],
+          cardCode: 'SPECIAL-ad2-001-NEW',
+          summary: {
+            name: '完整卡名',
+            sourceKey: 'row:5',
+            suggestedCardCode: 'SPECIAL-ad2-001-NEW',
+            cardType: 'MEMBER',
+            imageIssue: true,
+          },
+        },
+      ],
+    } as never);
+    const completed = await invokeRoute(router, '/previews/:runId', 'get', {
+      params: { runId: PREVIEW_ID },
+    });
+    expect(completed.body.data.blocked[0]).toMatchObject({
+      cardCode: 'SPECIAL-ad2-001-NEW',
+      name: '完整卡名',
+      sourceKey: 'row:5',
+      imageIssue: true,
+    });
+    const forceImports = [
+      { sourceKey: 'row:5', cardCode: 'SPECIAL-ad2-001-NEW', name: '完整卡名', cardType: 'MEMBER' },
+    ];
+    const result = await invokeRoute(router, '/runs', 'post', {
+      body: {
+        previewId: PREVIEW_ID,
+        idempotencyKey: 'confirmed-import',
+        cardCodes: [],
+        forceImport: true,
+        forceImports,
+      },
+    });
+    expect(result.statusCode).toBe(202);
+    expect(service.enqueueApply).toHaveBeenCalledWith(
+      expect.objectContaining({ forceImport: true, forceImports, cardCodes: [] })
+    );
+    expect(worker.notify).toHaveBeenCalledOnce();
+  });
+
+  it.each(['custom value', '自定义：特典/01', 'FUTURE-'.repeat(24)])(
+    'accepts a manually confirmed nonstandard identifier unchanged: %s',
+    async (cardCode) => {
+      const service = { enqueueApply: vi.fn().mockResolvedValue(applyRun()) };
+      const router = createCardSyncRouter(service as never, { notify: vi.fn() });
+      const choice = { sourceKey: 'row:5', cardCode, name: '测试卡', cardType: 'MEMBER' };
+      const response = await invokeRoute(router, '/runs', 'post', {
+        body: {
+          previewId: PREVIEW_ID,
+          idempotencyKey: 'manual-custom-identifier',
+          cardCodes: [],
+          forceImport: true,
+          forceImports: [choice],
+        },
+      });
+      expect(response.statusCode).toBe(202);
+      expect(service.enqueueApply).toHaveBeenCalledWith(
+        expect.objectContaining({ forceImport: true, forceImports: [choice] })
+      );
+    }
+  );
+
+  it.each(['', '   ', '\t\n'])(
+    'still rejects an empty confirmed identifier: %j',
+    async (cardCode) => {
+      const service = { enqueueApply: vi.fn() };
+      const router = createCardSyncRouter(service as never, { notify: vi.fn() });
+      const response = await invokeRoute(router, '/runs', 'post', {
+        body: {
+          previewId: PREVIEW_ID,
+          idempotencyKey: 'empty-confirmed-identifier',
+          cardCodes: [],
+          forceImport: true,
+          forceImports: [{ sourceKey: 'row:5', cardCode, name: '测试卡', cardType: 'MEMBER' }],
+        },
+      });
+      expect(response.statusCode).toBe(400);
+      expect(service.enqueueApply).not.toHaveBeenCalled();
+    }
+  );
 });
