@@ -5,6 +5,9 @@ import { ActionButton, SelectMenu, TextInput } from '@/components/common';
 import {
   applyReplayRetention,
   exportRankedAnalysis,
+  fetchReplayRetentionJob,
+  isTerminalReplayRetentionPollError,
+  type ReplayRetentionJob,
   previewReplayRetention,
   type ReplayRetentionReport,
 } from '@/lib/platformOperationsClient';
@@ -12,6 +15,7 @@ import { fetchRankedSeasons, type RankedAdminSeason } from '@/lib/rankedAdminCli
 
 export function PlatformOperationsPage({ onBack }: { onBack: () => void }) {
   const [preview, setPreview] = useState<ReplayRetentionReport | null>(null);
+  const [retentionJob, setRetentionJob] = useState<ReplayRetentionJob | null>(null);
   const [confirmation, setConfirmation] = useState('');
   const [seasonId, setSeasonId] = useState('');
   const [seasons, setSeasons] = useState<RankedAdminSeason[]>([]);
@@ -61,25 +65,74 @@ export function PlatformOperationsPage({ onBack }: { onBack: () => void }) {
     }, 0);
     return () => window.clearTimeout(timeoutId);
   }, [loadSeasons, refresh]);
+  useEffect(() => {
+    const jobId = retentionJob?.id;
+    if (!jobId || retentionJob.status === 'SUCCEEDED' || retentionJob.status === 'FAILED') return;
+    let cancelled = false;
+    let timeoutId: number | undefined;
+    const schedulePoll = (delayMs: number) => {
+      if (!cancelled) timeoutId = window.setTimeout(() => void poll(), delayMs);
+    };
+    const poll = async () => {
+      try {
+        const next = await fetchReplayRetentionJob(jobId);
+        if (cancelled) return;
+        setRetentionJob(next);
+        if (next.status === 'SUCCEEDED') {
+          setWorking('preview');
+          try {
+            setPreview(await previewReplayRetention());
+            setMessage(
+              `已清理 ${next.report?.metadataRowsUpdated ?? next.progress.metadataRowsUpdated} 局过期回放；数据库会优先复用空间，物理磁盘不会立即缩小。`
+            );
+          } catch (error) {
+            setMessage(
+              `已清理 ${next.report?.metadataRowsUpdated ?? next.progress.metadataRowsUpdated} 局过期回放，但刷新预览失败：${error instanceof Error ? error.message : '未知错误'}`
+            );
+          } finally {
+            setWorking(null);
+          }
+          return;
+        }
+        if (next.status === 'FAILED') {
+          setMessage(next.error?.message ?? '清理回放数据失败');
+          setWorking(null);
+          return;
+        }
+        schedulePoll(1000);
+      } catch (error) {
+        if (cancelled) return;
+        if (isTerminalReplayRetentionPollError(error)) {
+          setRetentionJob(null);
+          setWorking(null);
+          setMessage(
+            `${error instanceof Error ? error.message : '读取回放清理进度失败'}。无法继续查询任务状态，请刷新预览后再决定是否重新清理。`
+          );
+          return;
+        }
+        setMessage(
+          `${error instanceof Error ? error.message : '读取回放清理进度失败'}，将自动重试。`
+        );
+        schedulePoll(2000);
+      }
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
+  }, [retentionJob?.id, retentionJob?.status]);
   const purge = async () => {
     setWorking('purge');
+    setRetentionJob(null);
+    setMessage(null);
     try {
-      const result = await applyReplayRetention(confirmation);
+      const job = await applyReplayRetention(confirmation);
       setConfirmation('');
-      try {
-        setPreview(await previewReplayRetention());
-        setMessage(
-          `已清理 ${result.metadataRowsUpdated} 局过期回放；数据库会优先复用空间，物理磁盘不会立即缩小。`
-        );
-      } catch (error) {
-        setPreview(result);
-        setMessage(
-          `已清理 ${result.metadataRowsUpdated} 局过期回放，但刷新预览失败：${error instanceof Error ? error.message : '未知错误'}`
-        );
-      }
+      setRetentionJob(job);
+      setMessage('清理任务已启动，正在按批次处理过期对局。');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '清理失败');
-    } finally {
       setWorking(null);
     }
   };
@@ -108,8 +161,9 @@ export function PlatformOperationsPage({ onBack }: { onBack: () => void }) {
             <div>
               <h3 className="text-sm font-bold text-[var(--text-primary)]">回放保留清理</h3>
               <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
-                只处理已封存、早于 {preview?.retentionDays ?? 10}{' '}
-                天且仍含回放数据的对局；保留对局元数据与排位卡组观察。清理会释放可复用数据库空间，不会立即缩小磁盘卷。
+                只处理已封存、早于 {preview?.retentionDays ?? 10} 天且仍含回放数据的对局；当前按每批
+                100
+                局独立事务处理，保留对局元数据与排位卡组观察。清理会释放可复用数据库空间，不会立即缩小磁盘卷。
               </p>
             </div>
           </div>
@@ -141,6 +195,7 @@ export function PlatformOperationsPage({ onBack }: { onBack: () => void }) {
               刷新预览
             </ActionButton>
           </div>
+          {retentionJob ? <ReplayRetentionProgressView job={retentionJob} /> : null}
           <div className="mt-4 border-t border-[var(--border-subtle)] pt-4">
             <div className="flex items-start gap-2 text-xs text-[var(--text-secondary)]">
               <ShieldAlert size={15} className="mt-0.5 text-[var(--semantic-warning)]" />
@@ -237,6 +292,59 @@ export function PlatformOperationsPage({ onBack }: { onBack: () => void }) {
           </p>
         ) : null}
       </main>
+    </div>
+  );
+}
+
+function ReplayRetentionProgressView({ job }: { job: ReplayRetentionJob }) {
+  const total = job.progress.candidateMatchCount;
+  const processed = Math.min(
+    job.progress.processedMatchCount,
+    total || job.progress.processedMatchCount
+  );
+  const percent =
+    total > 0 ? Math.round((processed / total) * 100) : job.status === 'SUCCEEDED' ? 100 : null;
+  const phaseLabel =
+    job.status === 'QUEUED'
+      ? '排队中'
+      : job.status === 'RUNNING'
+        ? job.progress.phase === 'preparing'
+          ? '统计候选数据'
+          : '分批清理中'
+        : job.status === 'SUCCEEDED'
+          ? '已完成'
+          : '失败';
+  return (
+    <div
+      className="mt-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3"
+      role="status"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <span className="font-semibold text-[var(--text-primary)]">
+          回放清理进度 · {phaseLabel}
+        </span>
+        <span className="text-[var(--text-secondary)]">
+          {total > 0
+            ? `${processed.toLocaleString()} / ${total.toLocaleString()} 局`
+            : '正在读取候选对局'}
+        </span>
+      </div>
+      <div
+        className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--bg-elevated)]"
+        role="progressbar"
+        aria-label="回放清理进度"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent ?? undefined}
+      >
+        <div
+          className={`h-full rounded-full bg-[var(--accent-primary)] transition-[width] duration-300 ${percent === null ? 'w-1/3 animate-pulse' : ''}`}
+          style={percent === null ? undefined : { width: `${percent}%` }}
+        />
+      </div>
+      {job.error ? (
+        <p className="mt-2 text-xs text-[var(--semantic-error)]">{job.error.message}</p>
+      ) : null}
     </div>
   );
 }

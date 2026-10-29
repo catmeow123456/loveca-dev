@@ -23,15 +23,16 @@ describe('purge-expired-match-replay-data', () => {
 
   it('reports replay rows without mutating in dry-run mode', async () => {
     const calls: string[] = [];
+    const progress: Array<{ phase: string; processedMatchCount: number }> = [];
     const client: PurgeReplayQueryClient = {
       async query<T>(text: string) {
         await Promise.resolve();
         calls.push(text);
-        if (text.includes('SELECT record.match_id,')) {
+        if (text.includes('candidate_match_count')) {
           return {
             rows: [
               {
-                match_id: 'old-match',
+                candidate_match_count: 1,
                 replay_rows: 12,
                 checkpoint_rows: 4,
                 event_rows: 7,
@@ -43,29 +44,46 @@ describe('purge-expired-match-replay-data', () => {
         if (text.includes('JOIN ranked_matches AS ranked_match')) {
           return { rows: [{ count: '0' }] as T[] };
         }
-        return { rows: [{ count: '1' }] as T[] };
+        throw new Error(`unexpected query: ${text}`);
       },
     };
 
-    const report = await runPurgeReplayMigration(client, parseArgs(['--dry-run']));
+    const report = await runPurgeReplayMigration(client, parseArgs(['--dry-run']), (update) =>
+      progress.push({ phase: update.phase, processedMatchCount: update.processedMatchCount })
+    );
 
     expect(report.candidateMatchCount).toBe(1);
     expect(report.replayRows).toBe(12);
     expect(report.blockedRankedMatchCount).toBe(0);
     expect(report.metadataRowsUpdated).toBe(0);
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(2);
     expect(calls.join('\n')).not.toContain('DELETE FROM');
+    expect(progress).toEqual([
+      { phase: 'preparing', processedMatchCount: 0 },
+      { phase: 'completed', processedMatchCount: 1 },
+    ]);
   });
 
   it('reports ranked candidates without two complete deck observations in dry-run mode', async () => {
     const client: PurgeReplayQueryClient = {
       async query<T>(text: string) {
         await Promise.resolve();
-        if (text.includes('SELECT record.match_id,')) return { rows: [] as T[] };
+        if (text.includes('candidate_match_count'))
+          return {
+            rows: [
+              {
+                candidate_match_count: 2,
+                replay_rows: 0,
+                checkpoint_rows: 0,
+                event_rows: 0,
+                decision_rows: 0,
+              },
+            ] as T[],
+          };
         if (text.includes('JOIN ranked_matches AS ranked_match')) {
           return { rows: [{ count: '2' }] as T[] };
         }
-        return { rows: [{ count: '2' }] as T[] };
+        throw new Error(`unexpected query: ${text}`);
       },
     };
 
@@ -82,7 +100,18 @@ describe('purge-expired-match-replay-data', () => {
       async query<T>(text: string) {
         await Promise.resolve();
         calls.push(text);
-        if (text.includes('SELECT record.match_id,')) return { rows: [] as T[] };
+        if (text.includes('candidate_match_count'))
+          return {
+            rows: [
+              {
+                candidate_match_count: 0,
+                replay_rows: 0,
+                checkpoint_rows: 0,
+                event_rows: 0,
+                decision_rows: 0,
+              },
+            ] as T[],
+          };
         if (text.includes('JOIN ranked_matches AS ranked_match')) {
           return { rows: [{ count: '1' }] as T[] };
         }
@@ -100,12 +129,24 @@ describe('purge-expired-match-replay-data', () => {
 
   it('deletes replay children and marks metadata in batches', async () => {
     const calls: string[] = [];
+    const progress: string[] = [];
     let purgedBatch = false;
     const client: PurgeReplayQueryClient = {
       async query<T>(text: string) {
         await Promise.resolve();
         calls.push(text);
-        if (text.includes('SELECT record.match_id,')) return { rows: [] as T[] };
+        if (text.includes('candidate_match_count'))
+          return {
+            rows: [
+              {
+                candidate_match_count: 1,
+                replay_rows: 12,
+                checkpoint_rows: 4,
+                event_rows: 7,
+                decision_rows: 1,
+              },
+            ] as T[],
+          };
         if (text.includes('JOIN ranked_matches AS ranked_match')) {
           return { rows: [{ count: '0' }] as T[] };
         }
@@ -119,7 +160,11 @@ describe('purge-expired-match-replay-data', () => {
       },
     };
 
-    const report = await runPurgeReplayMigration(client, parseArgs(['--apply', '--yes']));
+    const report = await runPurgeReplayMigration(
+      client,
+      parseArgs(['--apply', '--yes']),
+      (update) => progress.push(`${update.phase}:${update.processedMatchCount}`)
+    );
 
     expect(report.metadataRowsUpdated).toBe(1);
     expect(report.blockedRankedMatchCount).toBe(0);
@@ -130,5 +175,6 @@ describe('purge-expired-match-replay-data', () => {
     expect(calls.some((call) => call.includes("second_observation.seat = 'SECOND'"))).toBe(true);
     expect(calls.some((call) => call.includes('FOR UPDATE OF record SKIP LOCKED'))).toBe(true);
     expect(calls).toContain('COMMIT');
+    expect(progress).toEqual(['preparing:0', 'purging:1', 'purging:1', 'completed:1']);
   });
 });

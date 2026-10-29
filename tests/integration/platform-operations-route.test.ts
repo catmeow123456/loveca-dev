@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   poolQuery: vi.fn(),
   previewReplayRetention: vi.fn(),
   applyReplayRetention: vi.fn(),
+  startReplayRetention: vi.fn(),
+  getReplayRetentionJob: vi.fn(),
   exportRankedAnalysis: vi.fn(),
 }));
 
@@ -24,6 +26,8 @@ vi.mock('../../src/server/services/platform-operations-service.js', () => ({
   platformOperationsService: {
     previewReplayRetention: mocks.previewReplayRetention,
     applyReplayRetention: mocks.applyReplayRetention,
+    startReplayRetention: mocks.startReplayRetention,
+    getReplayRetentionJob: mocks.getReplayRetentionJob,
     exportRankedAnalysis: mocks.exportRankedAnalysis,
   },
 }));
@@ -131,18 +135,29 @@ describe('platformOperationsRouter', () => {
   });
 
   it('passes the validated confirmation to the destructive operation', async () => {
-    mocks.applyReplayRetention.mockResolvedValue({ metadataRowsUpdated: 2 });
+    mocks.startReplayRetention.mockReturnValue({ id: 'job-1', status: 'QUEUED' });
 
     const response = await invoke('/replay-retention/apply', 'post', {
       body: { confirmation: '清理10天前回放数据' },
     });
 
     expect(response.statusCode).toBe(200);
-    expect(mocks.applyReplayRetention).toHaveBeenCalledWith(
+    expect(mocks.startReplayRetention).toHaveBeenCalledWith(
       '清理10天前回放数据',
       '11111111-1111-4111-8111-111111111111'
     );
-    expect(response.body).toMatchObject({ data: { metadataRowsUpdated: 2 }, error: null });
+    expect(response.body).toMatchObject({ data: { id: 'job-1', status: 'QUEUED' }, error: null });
+  });
+
+  it('returns a replay retention job status for polling', async () => {
+    mocks.getReplayRetentionJob.mockReturnValue({ id: 'job-1', status: 'RUNNING' });
+
+    const response = await invoke('/replay-retention/apply/:jobId', 'get', {
+      params: { jobId: 'job-1' },
+    });
+
+    expect(mocks.getReplayRetentionJob).toHaveBeenCalledWith('job-1');
+    expect(response.body).toMatchObject({ data: { id: 'job-1', status: 'RUNNING' }, error: null });
   });
 
   it('rejects an invalid season identifier before generating an analysis export', async () => {

@@ -34,32 +34,49 @@ describe.skipIf(!url)('BP7 checkpoint migration', () => {
         'PLAYER_VIEW_STATE',
         'PLAYER_VIEW_STATE_V1'
       );
-      const ids = [randomUUID(), randomUUID(), randomUUID()];
-      for (const [index, envelope] of [legacy, sealed, view].entries())
+      const legacyId = '00000000-0000-4000-8000-000000000001';
+      const viewId = '00000000-0000-4000-8000-000000000002';
+      const sealedId = '00000000-0000-4000-8000-000000000003';
+      for (const [id, envelope] of [
+        [legacyId, legacy],
+        [sealedId, sealed],
+        [viewId, view],
+      ] as const)
         await client.query('INSERT INTO match_checkpoints VALUES ($1,$2,$3,$4,$5)', [
-          ids[index],
+          id,
           envelope,
           envelope.sourceSchemaVersion,
           envelope.payloadHash,
           envelope.compression,
         ]);
-      expect(await migrateBp7Checkpoints(client)).toMatchObject({
+      const dryRunProgress: Array<{ scanned: number; changed: number; total: number }> = [];
+      expect(
+        await migrateBp7Checkpoints(client, false, {
+          batchSize: 2,
+          onProgress: ({ scanned, changed, total }) =>
+            dryRunProgress.push({ scanned, changed, total }),
+        })
+      ).toMatchObject({
         scanned: 3,
         changed: 2,
         mode: 'dry-run',
       });
+      expect(dryRunProgress).toEqual([
+        { scanned: 2, changed: 2, total: 3 },
+        { scanned: 3, changed: 2, total: 3 },
+      ]);
       expect(
-        (await client.query('SELECT payload_hash FROM match_checkpoints WHERE id=$1', [ids[0]]))
+        (await client.query('SELECT payload_hash FROM match_checkpoints WHERE id=$1', [legacyId]))
           .rows[0].payload_hash
       ).toBe(legacy.payloadHash);
       expect(await migrateBp7Checkpoints(client, true)).toMatchObject({ scanned: 3, changed: 2 });
       const migrated = (
-        await client.query('SELECT payload FROM match_checkpoints WHERE id=$1', [ids[0]])
+        await client.query('SELECT payload FROM match_checkpoints WHERE id=$1', [legacyId])
       ).rows[0].payload;
       expect(rehydrateAuthorityGameState(migrated).rulesetId).toBe('STANDARD');
       expect(
-        (await client.query('SELECT payload FROM match_checkpoints WHERE id=$1', [ids[1]])).rows[0]
-          .payload
+        (await client.query('SELECT payload FROM match_checkpoints WHERE id=$1', [sealedId]))
+          .rows[0].payload
       ).toEqual(sealed);
       expect(await migrateBp7Checkpoints(client, true)).toMatchObject({ changed: 0 });
       await client.query('TRUNCATE match_checkpoints');

@@ -95,7 +95,7 @@ custom archive 的恢复可在有多核和足够 I/O 的暂存机并行运行；
    ```
 
 2. 比较报告与源库的 dry-run；候选数和 blocker 结论必须一致。若不一致，停止并查明原因。
-3. 明确授权后才在暂存库执行：
+3. 明确授权后才在暂存库执行。脚本按 `--batch-size` 逐批独立事务处理，并在 stderr 输出候选统计和已处理局数，便于长任务观察：
 
    ```bash
    pnpm exec tsx drizzle/data-migrations/purge-expired-match-replay-data.ts \

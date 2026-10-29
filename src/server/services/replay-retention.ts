@@ -5,6 +5,7 @@ export interface ReplayRetentionOptions {
   readonly retentionDays: number;
   readonly batchSize: number;
   readonly cutoff: string;
+  readonly onProgress?: (progress: ReplayRetentionProgress) => void;
 }
 
 export interface ReplayRetentionQueryClient {
@@ -14,8 +15,8 @@ export interface ReplayRetentionQueryClient {
   ): Promise<{ readonly rows: T[]; readonly rowCount?: number | null }>;
 }
 
-interface CandidateRow {
-  readonly match_id: string;
+interface CandidateSummaryRow {
+  readonly candidate_match_count: number | string;
   readonly replay_rows: number | string;
   readonly checkpoint_rows: number | string;
   readonly event_rows: number | string;
@@ -36,6 +37,21 @@ export interface ReplayRetentionReport {
   readonly decisionRows: number;
   readonly blockedRankedMatchCount: number;
   readonly metadataRowsUpdated: number;
+  readonly processedMatchCount: number;
+}
+
+export type ReplayRetentionProgressPhase = 'preparing' | 'purging' | 'completed';
+
+export interface ReplayRetentionProgress {
+  readonly phase: ReplayRetentionProgressPhase;
+  readonly candidateMatchCount: number;
+  readonly processedMatchCount: number;
+  readonly metadataRowsUpdated: number;
+  readonly replayRows: number;
+  readonly checkpointRows: number;
+  readonly eventRows: number;
+  readonly decisionRows: number;
+  readonly blockedRankedMatchCount: number;
 }
 
 export class ReplayRetentionError extends Error {
@@ -52,32 +68,46 @@ export async function runReplayRetention(
   queryClient: ReplayRetentionQueryClient,
   options: ReplayRetentionOptions
 ): Promise<ReplayRetentionReport> {
-  const candidates = await queryClient.query<CandidateRow>(candidateSql(), [options.cutoff]);
-  const totals = candidates.rows.reduce(
-    (result, row) => ({
-      candidateMatchCount: result.candidateMatchCount + 1,
-      replayRows: result.replayRows + number(row.replay_rows),
-      checkpointRows: result.checkpointRows + number(row.checkpoint_rows),
-      eventRows: result.eventRows + number(row.event_rows),
-      decisionRows: result.decisionRows + number(row.decision_rows),
-    }),
-    { candidateMatchCount: 0, replayRows: 0, checkpointRows: 0, eventRows: 0, decisionRows: 0 }
-  );
+  const summary = await queryClient.query<CandidateSummaryRow>(candidateSummarySql(), [
+    options.cutoff,
+  ]);
+  const summaryRow = summary.rows[0];
+  const totals = {
+    candidateMatchCount: number(summaryRow?.candidate_match_count ?? 0),
+    replayRows: number(summaryRow?.replay_rows ?? 0),
+    checkpointRows: number(summaryRow?.checkpoint_rows ?? 0),
+    eventRows: number(summaryRow?.event_rows ?? 0),
+    decisionRows: number(summaryRow?.decision_rows ?? 0),
+  };
   const blockerCount = await queryClient.query<CountRow>(rankedObservationBlockerCountSql(), [
     options.cutoff,
   ]);
   const blockedRankedMatchCount = number(blockerCount.rows[0]?.count ?? 0);
+  emitProgress(options, {
+    phase: 'preparing',
+    ...totals,
+    processedMatchCount: 0,
+    metadataRowsUpdated: 0,
+    blockedRankedMatchCount,
+  });
 
   if (options.mode === 'dry-run') {
-    const count = await queryClient.query<CountRow>(countSql(), [options.cutoff]);
-    return {
+    const report = {
       ...totals,
       retentionDays: options.retentionDays,
       cutoff: options.cutoff,
-      candidateMatchCount: number(count.rows[0]?.count ?? totals.candidateMatchCount),
       blockedRankedMatchCount,
       metadataRowsUpdated: 0,
+      processedMatchCount: 0,
     };
+    emitProgress(options, {
+      phase: 'completed',
+      ...totals,
+      processedMatchCount: totals.candidateMatchCount,
+      metadataRowsUpdated: 0,
+      blockedRankedMatchCount,
+    });
+    return report;
   }
 
   if (blockedRankedMatchCount > 0) {
@@ -99,6 +129,13 @@ export async function runReplayRetention(
       await queryClient.query('COMMIT');
       const count = number(updated.rows[0]?.count ?? updated.rowCount ?? 0);
       metadataRowsUpdated += count;
+      emitProgress(options, {
+        phase: 'purging',
+        ...totals,
+        processedMatchCount: metadataRowsUpdated,
+        metadataRowsUpdated,
+        blockedRankedMatchCount,
+      });
       if (count === 0) break;
     } catch (error) {
       await queryClient.query('ROLLBACK');
@@ -106,37 +143,40 @@ export async function runReplayRetention(
     }
   }
 
-  return {
+  const report = {
     ...totals,
     retentionDays: options.retentionDays,
     cutoff: options.cutoff,
     blockedRankedMatchCount,
     metadataRowsUpdated,
+    processedMatchCount: metadataRowsUpdated,
   };
+  emitProgress(options, {
+    phase: 'completed',
+    ...totals,
+    processedMatchCount: metadataRowsUpdated,
+    metadataRowsUpdated,
+    blockedRankedMatchCount,
+  });
+  return report;
 }
 
-function candidateSql(): string {
-  return `SELECT record.match_id,
-    (SELECT count(*) FROM match_timeline_entries WHERE match_id = record.match_id) +
-    (SELECT count(*) FROM match_checkpoints WHERE match_id = record.match_id) +
-    (SELECT count(*) FROM match_record_public_events WHERE match_id = record.match_id) +
-    (SELECT count(*) FROM match_record_private_events WHERE match_id = record.match_id) AS replay_rows,
-    (SELECT count(*) FROM match_checkpoints WHERE match_id = record.match_id) AS checkpoint_rows,
-    (SELECT count(*) FROM match_record_public_events WHERE match_id = record.match_id) +
-    (SELECT count(*) FROM match_record_private_events WHERE match_id = record.match_id) AS event_rows,
-    (SELECT count(*) FROM match_decision_records WHERE match_id = record.match_id) AS decision_rows
+function candidateSummarySql(): string {
+  return `SELECT count(*)::int AS candidate_match_count,
+    COALESCE(sum((SELECT count(*) FROM match_timeline_entries WHERE match_id = record.match_id)), 0)::bigint +
+    COALESCE(sum((SELECT count(*) FROM match_checkpoints WHERE match_id = record.match_id)), 0)::bigint +
+    COALESCE(sum((SELECT count(*) FROM match_record_public_events WHERE match_id = record.match_id)), 0)::bigint +
+    COALESCE(sum((SELECT count(*) FROM match_record_private_events WHERE match_id = record.match_id)), 0)::bigint AS replay_rows,
+    COALESCE(sum((SELECT count(*) FROM match_checkpoints WHERE match_id = record.match_id)), 0)::bigint AS checkpoint_rows,
+    COALESCE(sum((SELECT count(*) FROM match_record_public_events WHERE match_id = record.match_id)), 0)::bigint +
+    COALESCE(sum((SELECT count(*) FROM match_record_private_events WHERE match_id = record.match_id)), 0)::bigint AS event_rows,
+    COALESCE(sum((SELECT count(*) FROM match_decision_records WHERE match_id = record.match_id)), 0)::bigint AS decision_rows
     FROM match_records record
     WHERE record.status <> 'IN_PROGRESS'
       AND record.sealed_at IS NOT NULL
       AND record.sealed_at < $1
       AND record.completeness <> 'METADATA_ONLY'
-    ORDER BY record.sealed_at ASC, record.match_id ASC`;
-}
-
-function countSql(): string {
-  return `SELECT count(*) FROM match_records record
-    WHERE record.status <> 'IN_PROGRESS' AND record.sealed_at IS NOT NULL
-      AND record.sealed_at < $1 AND record.completeness <> 'METADATA_ONLY'`;
+    `;
 }
 
 function rankedObservationBlockerCountSql(): string {
@@ -210,4 +250,12 @@ function number(value: number | string): number {
     throw new Error(`Invalid numeric replay retention result: ${String(value)}`);
   }
   return parsed;
+}
+
+function emitProgress(options: ReplayRetentionOptions, progress: ReplayRetentionProgress): void {
+  try {
+    options.onProgress?.(progress);
+  } catch {
+    // Progress reporting must never change the database operation result.
+  }
 }

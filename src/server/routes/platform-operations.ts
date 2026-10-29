@@ -20,11 +20,11 @@ platformOperationsRouter.get('/replay-retention/preview', async (_req, res) => {
 platformOperationsRouter.post(
   '/replay-retention/apply',
   validate(z.object({ confirmation: z.string().max(40) })),
-  async (req, res) => {
+  (req, res) => {
     try {
       const { confirmation } = req.body as { confirmation: string };
       res.json({
-        data: await platformOperationsService.applyReplayRetention(confirmation, req.user!.id),
+        data: platformOperationsService.startReplayRetention(confirmation, req.user!.id),
         error: null,
       });
     } catch (error) {
@@ -32,6 +32,16 @@ platformOperationsRouter.post(
     }
   }
 );
+platformOperationsRouter.get('/replay-retention/apply/:jobId', (req, res) => {
+  try {
+    res.json({
+      data: platformOperationsService.getReplayRetentionJob(req.params.jobId),
+      error: null,
+    });
+  } catch (error) {
+    respond(res, error, '读取回放清理进度失败');
+  }
+});
 platformOperationsRouter.post(
   '/ranked-analysis-export',
   validate(z.object({ seasonId: z.string().uuid() })),
@@ -53,9 +63,12 @@ function respond(res: Response, error: unknown, fallback: string): void {
     const status =
       error.code === 'CONFIRMATION_REQUIRED'
         ? 400
-        : error.code === 'RANKED_OBSERVATION_BLOCKED'
-          ? 409
-          : 500;
+        : error.code === 'REPLAY_RETENTION_JOB_NOT_FOUND'
+          ? 404
+          : error.code === 'RANKED_OBSERVATION_BLOCKED' ||
+              error.code === 'REPLAY_RETENTION_IN_PROGRESS'
+            ? 409
+            : 500;
     res.status(status).json({ data: null, error: { code: error.code, message: error.message } });
     return;
   }
