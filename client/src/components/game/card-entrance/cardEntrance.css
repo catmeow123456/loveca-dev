@@ -220,10 +220,10 @@
   right: auto;
   top: 6%;
   bottom: auto;
-  height: 86%;
+  height: var(--entrance-desktop-height, 86%);
   max-width: none;
   transform: translateX(calc(var(--entrance-art-center, -62%) + var(--entrance-x, 0px)));
-  mask-image: linear-gradient(#000 64%, #0008 82%, transparent 98%);
+  mask-image: var(--entrance-art-mask, linear-gradient(#000 64%, #0008 82%, transparent 98%));
 }
 .card-entrance--centered .card-entrance-name {
   left: 50%;
@@ -302,7 +302,7 @@
 
 @media (max-width: 600px) {
   .card-entrance--centered .card-entrance-art {
-    top: 7%;
+    top: var(--entrance-mobile-top, 7%);
     height: var(--entrance-mobile-height, 76%);
   }
   .card-entrance--centered .card-entrance-name {

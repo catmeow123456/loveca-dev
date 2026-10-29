@@ -135,6 +135,9 @@ export function CardEntrancePlayback({
         {
           '--entrance-art-center': profile.center,
           '--entrance-mobile-height': profile.mobileHeight,
+          '--entrance-desktop-height': profile.desktopHeight,
+          '--entrance-mobile-top': profile.mobileTop,
+          '--entrance-art-mask': profile.artMask,
           '--entrance-light': profile.light,
         } as CSSProperties
       }

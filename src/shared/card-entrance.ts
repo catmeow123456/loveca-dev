@@ -47,6 +47,12 @@ export const entranceCards = {
   hanamaru: 'PL!S-bp7-016',
   keke: 'PL!SP-bp7-013',
   'sumire-pb2': 'PL!SP-pb2-026',
+  yoshiko: 'PL!S-bp6-006',
+  'maki-bp8': 'PL!-bp8-006',
+  'dia-cl1': 'PL!S-cl1-004',
+  'royal-trio': 'LL-bp6-001',
+  mari: 'PL!S-bp6-008',
+  kosuzu: 'PL!HS-bp6-013',
 } as const;
 export type EntranceAssetId = keyof typeof entranceCards;
 

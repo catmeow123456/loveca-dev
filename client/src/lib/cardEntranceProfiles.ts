@@ -1,6 +1,7 @@
 import { entranceCards } from '@game/shared/card-entrance';
 import type { EntranceBlinkProfile } from './cardEntranceBlink';
 import type { EntranceMotionTiming } from './cardEntranceArticulation';
+import type { EntranceArmJoint } from './cardEntranceArmJoints';
 
 /** Two registered atlas panels: repaired body plus an intact arm or second character. */
 export interface EntranceArmLayers extends EntranceMotionTiming {
@@ -14,6 +15,8 @@ export interface EntranceArmLayers extends EntranceMotionTiming {
   pivot: readonly [number, number];
   offset: readonly [number, number];
   angles: readonly [number, number];
+  /** Separate wrist settling when the hand turns about its own contact point. */
+  rotationMotion?: EntranceMotionTiming;
   /** Optional torso lead; absent preserves the hand's existing timing. */
   bodyMotion?: EntranceMotionTiming;
   bodyPivot: readonly [number, number];
@@ -25,6 +28,8 @@ export interface EntranceArmLayers extends EntranceMotionTiming {
   armTravel?: readonly [number, number];
   /** Start nearer the final gesture without moving the shoulder attachment. */
   armTravelStart?: readonly [number, number];
+  /** One or two real arm chains; hands and props retain the atlas rigid transform. */
+  joints?: readonly EntranceArmJoint[];
   /** Pin the sleeve's shoulder; the radius must exclude the rigid hand and prop. */
   sleeveAnchor?: readonly [number, number, number];
   /** Let the repaired sleeve/torso cover the joint's attachment cap. */
@@ -46,24 +51,28 @@ export interface EntranceAttachedPart extends EntranceMotionTiming {
   pivot: readonly [number, number];
   angles: readonly [number, number];
 }
+export interface EntrancePortraitMotion extends EntranceMotionTiming {
+  pivot: readonly [number, number];
+  blendY: readonly [number, number];
+  anchorX?: readonly [number, number];
+  fixedCorner?: readonly [number, number, number, number];
+  angle: number;
+  travel: readonly [number, number];
+  attachedPart?: EntranceAttachedPart;
+}
 /** Cosmetic profiles only; card abilities remain in the shared rules engine. */
 export interface EntranceMeshProfile {
   armLayers?: EntranceArmLayers;
+  /** Atlas people placed in a shared portrait, back to front, with independent settling. */
+  portraitLayers?: readonly {
+    crop: readonly [number, number, number, number];
+    placement: readonly [number, number, number, number];
+    motion: Omit<EntrancePortraitMotion, 'attachedPart'>;
+  }[];
   /** Intact-image gesture alongside group sway; use atlas layers for detached limbs. */
   attachedPart?: EntranceAttachedPart;
   /** Intact portrait: head, hands and props share one move; blend only in soft clothing. */
-  portraitMotion?: EntranceMotionTiming & {
-    pivot: readonly [number, number];
-    blendY: readonly [number, number];
-    /** Optional left-side anchor; keeps a foreground knee still without warping a low hand. */
-    anchorX?: readonly [number, number];
-    /** Pin a lower-left foreground object; x and y transition ranges in source UVs. */
-    fixedCorner?: readonly [number, number, number, number];
-    angle: number;
-    travel: readonly [number, number];
-    /** An intact limb in the same image; the soft polygon boundary belongs in sleeve or empty space. */
-    attachedPart?: EntranceAttachedPart;
-  };
+  portraitMotion?: EntrancePortraitMotion;
   /** One slow local fabric rise/fall; the ellipse must exclude contact points and silhouette. */
   clothBreath?: {
     /** Center x/y and radius x/y in source UVs; zero displacement outside. */
@@ -98,6 +107,11 @@ export interface CardEntranceProfile {
   blink?: { loadArt: () => Promise<{ default: string }>; faces: readonly EntranceBlinkProfile[] };
   center: string;
   mobileHeight: string;
+  /** Wide source crops can fit the desktop without changing established portraits. */
+  desktopHeight?: string;
+  /** Keep wide source crops centered and their lower contact edge visible. */
+  mobileTop?: string;
+  artMask?: string;
   /** Preserve wider group artwork without stretching older portraits. */
   artAspectRatio?: string;
   nameLayout?: 'group' | 'long';
@@ -119,6 +133,13 @@ export function defineEntranceProfiles(entries: readonly CardEntranceProfile[]) 
   }
   return entries;
 }
+// One group pose: the side portraits lean inward together and settle with Kotori.
+const royalTrioTiming: EntranceMotionTiming = {
+  start: 0.28,
+  duration: 1.08,
+  easing: 'smoothstep',
+};
+
 export const cardEntranceProfiles = defineEntranceProfiles([
   {
     id: 'ginko',
@@ -2254,6 +2275,285 @@ export const cardEntranceProfiles = defineEntranceProfiles([
         travel: [0.002, 0],
       },
       rightHair: [0.87, 0.94, 0.43, 0.49, 0.7, 0.75],
+    },
+  },
+  {
+    id: 'yoshiko',
+    baseCode: entranceCards.yoshiko,
+    name: '津岛善子',
+    loadArt: () => import('../components/game/card-entrance/yoshiko.png'),
+    center: '-50%',
+    mobileHeight: 'min(76%, 108vw)',
+    artAspectRatio: '1062 / 1480',
+    light: '#b5a0f077',
+    mesh: {
+      // Keep head, V hands and jacket rigid; only the skirt blends into the planted pose.
+      hair: [0.23, 0.31, 0.37, 0.42],
+      hairEnd: [0.45, 0.49],
+      hem: [0.22, 0.38, 0.74, 0.83],
+      hemEnd: [0.91, 0.96],
+      strength: [0, 0.9, 0.9],
+      portraitMotion: {
+        start: 0.28,
+        duration: 0.9,
+        easing: 'smoothstep',
+        pivot: [0.5, 0.67],
+        blendY: [0.69, 0.84],
+        angle: -0.034,
+        travel: [0, 0],
+      },
+    },
+  },
+  {
+    id: 'maki-bp8',
+    baseCode: entranceCards['maki-bp8'],
+    name: '西木野真姬',
+    loadArt: () => import('../components/game/card-entrance/maki-bp8.png'),
+    center: '-50%',
+    mobileHeight: 'min(74%, 106vw)',
+    artAspectRatio: '749 / 1050',
+    light: '#ef9dbb77',
+    mesh: {
+      // Both gloves and the gift share one layer; the repaired torso remains behind them.
+      hair: [0.14, 0.2, 0.32, 0.37],
+      hairEnd: [0.5, 0.55],
+      hem: [0.26, 0.4, 0.87, 0.94],
+      strength: [0, 0.6, 0.25],
+      armLayers: {
+        bodyCrop: [0, 0, 0.5, 1],
+        armCrop: [0.5, 0, 0.5, 1],
+        armPlacement: [0, 0, 1, 1],
+        pivot: [0.68, 0.57],
+        offset: [0.073, -0.002],
+        angles: [0.004, -0.004],
+        start: 0.3,
+        duration: 0.94,
+        easing: 'smoothstep',
+        bodyMotion: { start: 0.2, duration: 0.95, easing: 'smoothstep' },
+        bodyPivot: [0.51, 0.79],
+        bodyBlendY: [0.8, 0.96],
+        bodyAngle: 0.008,
+        bodyLift: 0.002,
+        armTravelStart: [0, 0.004],
+        armTravel: [-0.006, -0.018],
+        joints: [
+          {
+            shoulder: [0.17, 0.65],
+            elbow: [0.205, 0.855],
+            wrist: [0.49, 0.73],
+            shoulderFollow: 0.55,
+            region: [
+              [0, 0.55],
+              [0.28, 0.55],
+              [0.31, 0.72],
+              [0.52, 0.68],
+              [0.58, 0.8],
+              [0.2, 0.93],
+              [0.09, 0.86],
+            ],
+            feather: 0.018,
+          },
+          {
+            // The upper arm is on the body panel; locate its shoulder above the elbow.
+            shoulder: [0.73, 0.64],
+            elbow: [0.61, 0.9],
+            wrist: [0.81, 0.73],
+            shoulderFollow: 0.65,
+            region: [
+              [0.6, 0.76],
+              [0.76, 0.76],
+              [0.86, 0.69],
+              [0.95, 0.73],
+              [0.83, 0.87],
+              [0.61, 0.97],
+              [0.53, 0.93],
+              [0.54, 0.86],
+            ],
+            feather: 0.018,
+          },
+        ],
+        rigidBodyFollow: true,
+      },
+    },
+  },
+  {
+    id: 'dia-cl1',
+    baseCode: entranceCards['dia-cl1'],
+    name: '黑泽黛雅',
+    loadArt: () => import('../components/game/card-entrance/dia-cl1.png'),
+    center: '-50%',
+    mobileHeight: 'min(75%, 108vw)',
+    artAspectRatio: '1061 / 1482',
+    light: '#f7df9977',
+    mesh: {
+      // Shoulder follows the torso; a small elbow bend carries the intact forearm and hand.
+      hair: [0.15, 0.25, 0.36, 0.43],
+      hairEnd: [0.58, 0.65],
+      hem: [0.4, 0.58, 0.79, 0.89],
+      hemEnd: [0.97, 1],
+      strength: [0, 1.2, 0.45],
+      armLayers: {
+        bodyCrop: [0, 0, 824 / 1499, 1],
+        armCrop: [824 / 1499, 0, 675 / 1499, 1],
+        armPlacement: [0, 0, 675 / 824, 1],
+        pivot: [0.258, 0.833],
+        offset: [-0.103, -0.128],
+        angles: [0, 0],
+        start: 0.35,
+        duration: 0.95,
+        easing: 'smoothstep',
+        bodyMotion: { start: 0.18, duration: 0.9, easing: 'smoothstep' },
+        bodyPivot: [0.55, 0.62],
+        bodyBlendY: [0.73, 0.86],
+        bodyAngle: -0.016,
+        bodyLift: 0.002,
+        joints: [
+          {
+            shoulder: [0.468, 0.555],
+            elbow: [0.48, 0.724],
+            wrist: [0.258, 0.833],
+            rotation: { upper: 0, elbow: 0.085 },
+            region: [
+              [0, 0],
+              [1, 0],
+              [1, 1],
+              [0, 1],
+            ],
+            feather: 0.018,
+          },
+        ],
+        rigidBodyFollow: true,
+      },
+    },
+  },
+  {
+    id: 'royal-trio',
+    baseCode: entranceCards['royal-trio'],
+    name: '南琴梨&黑泽黛雅&徒町小铃',
+    nameLayout: 'group',
+    mobileSkipPosition: 'below-name',
+    loadArt: () => import('../components/game/card-entrance/royal-trio.png'),
+    center: '-50%',
+    mobileHeight: 'min(73%, 105vw)',
+    artAspectRatio: '613 / 855',
+    light: '#d8e5b877',
+    mesh: {
+      // Full head/shoulder poses remain rigid; blend into soft skirts below the hands.
+      hair: [0, 0.01, 0.99, 1],
+      hairEnd: [0.99, 1],
+      hem: [0, 0.01, 0.99, 1],
+      strength: [0, 0, 0],
+      portraitLayers: [
+        {
+          crop: [0, 0, 495 / 1983, 697 / 793],
+          placement: [-0.375, 0.01, 0.98, 0.98],
+          motion: {
+            ...royalTrioTiming,
+            pivot: [0.14, 0.71],
+            blendY: [0.64, 0.91],
+            angle: 0.04,
+            travel: [0.003, -0.008],
+          },
+        },
+        {
+          crop: [995 / 1983, 0, 490 / 1983, 697 / 793],
+          placement: [0.46, 0.045, 0.94, 0.94],
+          motion: {
+            ...royalTrioTiming,
+            pivot: [0.85, 0.72],
+            blendY: [0.66, 0.92],
+            angle: -0.05,
+            travel: [-0.012, 0.001],
+          },
+        },
+        {
+          // Preserve the original lower crop; exclude the generated extra thigh area.
+          crop: [531 / 1983, 0, 455 / 1983, 697 / 793],
+          placement: [0.0215, 0.015, 0.904, 0.985],
+          motion: {
+            ...royalTrioTiming,
+            pivot: [0.55, 0.53],
+            blendY: [0.38, 0.52],
+            angle: 0.016,
+            travel: [0, 0],
+          },
+        },
+        {
+          // An intact forearm over repaired hair; pivot lies inside the stationary cuff.
+          crop: [1685 / 1983, 195 / 793, 110 / 1983, 225 / 793],
+          placement: [0.245, 0.281, 0.183, 0.266],
+          motion: {
+            ...royalTrioTiming,
+            start: 0.32,
+            duration: 1.04,
+            pivot: [0.332, 0.527],
+            blendY: [1, 1.01],
+            angle: 0.085,
+            travel: [0, 0],
+          },
+        },
+      ],
+    },
+  },
+  {
+    id: 'mari',
+    baseCode: entranceCards.mari,
+    name: '小原鞠莉',
+    loadArt: () => import('../components/game/card-entrance/mari.png'),
+    center: '-50%',
+    mobileHeight: 'min(76%, 108vw)',
+    artAspectRatio: '749 / 1050',
+    light: '#e3bcf777',
+    mesh: {
+      hair: [0.3, 0.38, 0.37, 0.44],
+      hairEnd: [0.54, 0.6],
+      hem: [0.3, 0.45, 0.79, 0.87],
+      hemEnd: [0.97, 1],
+      strength: [0, 0.8, 0.4],
+      armLayers: {
+        bodyCrop: [0, 0, 0.5, 1],
+        armCrop: [0.5, 0, 0.5, 1],
+        armPlacement: [0, 0, 1, 1],
+        pivot: [0.47, 0.61],
+        offset: [0.132, 0.006],
+        angles: [-0.09, 0.025],
+        start: 0.36,
+        duration: 0.7,
+        easing: 'smoothstep',
+        bodyMotion: { start: 0.15, duration: 0.86, easing: 'smoothstep' },
+        bodyPivot: [0.59, 0.69],
+        bodyBlendY: [0.71, 0.86],
+        bodyAngle: 0.016,
+        bodyLift: 0.002,
+        rigidBodyFollow: true,
+      },
+    },
+  },
+  {
+    id: 'kosuzu',
+    baseCode: entranceCards.kosuzu,
+    name: '徒町小铃',
+    loadArt: () => import('../components/game/card-entrance/kosuzu.png'),
+    center: '-50%',
+    mobileHeight: 'min(55%, 62vw)',
+    desktopHeight: 'min(62%, 60vw)',
+    mobileTop: '35%',
+    artMask: 'linear-gradient(#000 88%, transparent 100%)',
+    artAspectRatio: '1538 / 1023',
+    light: '#c0d0a866',
+    mesh: {
+      // Sleeping close-up: keep both hand contacts and the closed face fixed.
+      // Only far lower hair tips and the exposed right shoulder fabric breathe.
+      hair: [0.14, 0.25, 0.84, 0.9],
+      hairEnd: [0.96, 1],
+      hem: [0, 0.01, 0.99, 1],
+      strength: [0, 0.2, 0],
+      clothBreath: {
+        region: [1, 0.53, 0.16, 0.27],
+        travel: [-0.012, -0.008],
+        start: 0.18,
+        duration: 1.5,
+      },
     },
   },
 ]);
