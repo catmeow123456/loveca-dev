@@ -3,7 +3,7 @@
 > 文档类型：总览文档
 > 适用范围：快速了解当前项目能力、主要限制与专题阅读入口
 > 当前状态：仓库开发基线速览；实现与验收细节以所链接的专题为准
-> 更新时间：2026-10-29
+> 更新时间：2026-10-30
 
 Loveca 已具备共享规则引擎、Web 对战桌、卡组管理、联机与观战、历史回放、赛季玩法和管理员 AI 调试。核心对局流程可以通过规则命令推进，卡效仍按卡池和真实构筑分批补齐。
 
@@ -20,7 +20,7 @@ Loveca 已具备共享规则引擎、Web 对战桌、卡组管理、联机与观
 | 主题牌桌 | 已接入独立候场、服务端预组候选选择与组合分配；仍处于开发／内测基线，真实组合试打、恢复和运营验收未闭环。 | [主题牌桌设计](matchmaking-and-ladder/ROTATING_THEME_TABLE_DESIGN.md) |
 | 历史与回放 | 正式联机和服务端对墙打可按授权玩家视角查看历史节点；回放有保留期，清理后保留元信息。完整随机／决策记录、确定性重演和逐命令动画仍属后续方向。 | [回放专题](match-replay/README.md) |
 | AI 对战 | 支持管理员真人对 AI、网页双 AI 观战和本地 CLI 自对弈，提供决定材料、计费与归档；规则窗口覆盖及策略强度有独立边界，不能由少量试打推定整局质量。 | [支持矩阵](ai-battle/support-matrix.md)、[运行与观测](ai-battle/runtime-and-observation.md)、[自对弈](ai-battle/self-play.md) |
-| 界面与移动端 | 非对局页面已进入共享视觉系统，手机牌桌已有响应式布局和登场、盖牌等点击路径；成员自由横置等触控入口、资源整理和完整手机流程仍有缺口。 | [视觉系统](ui-design/product-visual-system.md)、[游戏桌现状](ui-design/game-table/current-state.md)、[移动端差距](ui-design/mobile-adaptation-gap-analysis.md) |
+| 界面与移动端 | 非对局页面已进入共享视觉系统，手机牌桌已有响应式布局和登场、盖牌等点击路径；13 费赛拉丝已接入沿用原选牌与公开结算的专属检视，以及仅对拥有起动能力且实际受禁止的成员显示的卡面交叉锁链。成员自由横置等触控入口、资源整理和完整手机流程仍有缺口。 | [视觉系统](ui-design/product-visual-system.md)、[游戏桌现状](ui-design/game-table/current-state.md)、[赛拉丝专属外观](../client/src/components/game/seras-inspection/README.md)、[移动端差距](ui-design/mobile-adaptation-gap-analysis.md) |
 | 新手教程 | 四章教程已使用真实规则、私密场景和共享牌桌，支持检查点、退出与重开；人工通关及多视口体验仍待验收。 | [教程需求](tutorial/requirements.md) |
 | 账号与卡组 | 已实现账号与个人资料、云端／浏览器本地卡组、编辑、分享复制及导入；账号数据、离线存储和对局冻结快照各有明确边界。 | [系统设计](system-design.md#8-服务端与数据设计)、[卡组设计](deck-management/design.md) |
 | 运营与资源 | 维护状态、运营管理、候场曲库、壁纸、活动封面与徽章已有实现；赛季管理员委派和资源功能开放仍受各专题前置条件约束。 | [平台运维](platform-operations/README.md)、[赛季管理员](admin-center/season-admin-role.md)、[壁纸设计](player-wallpaper/design.md)、[活动封面](matchmaking-and-ladder/SEASON_ACTIVITY_COVER_REQUIREMENTS_AND_DESIGN.md) |

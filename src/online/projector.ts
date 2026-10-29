@@ -58,6 +58,7 @@ import {
   projectLiveModifierCompatibility,
 } from '../domain/rules/live-modifiers.js';
 import { getMemberEffectiveCost } from '../domain/rules/member-effective-cost.js';
+import { getStageMemberActivatedAbilityProhibitionForView } from '../application/card-effects/runtime/activated-ability-prohibition-status.js';
 import {
   canLiveCardEnterSuccessZone,
   getCurrentSuccessLiveSettlementPlayerId,
@@ -977,6 +978,9 @@ function addMemberSlotZones(
             : undefined,
           activatedAbilityUiConfig: activatedAbilityUiConfigs[0],
           activatedAbilityUiConfigs,
+          activatedAbilityProhibition: !game.isEnded
+            ? getStageMemberActivatedAbilityProhibitionForView(game, playerId, occupantId)
+            : undefined,
           hasRemainingLimitedActivatedAbility: hasRemainingLimitedActivatedAbility || undefined,
           hasTemporaryHeartRole:
             (!game.isEnded &&
@@ -1178,6 +1182,7 @@ function upsertViewObject(
     | 'hasRemainingLimitedActivatedAbility'
     | 'hasTemporaryOnEnterAbility'
     | 'hasTemporaryHeartRole'
+    | 'activatedAbilityProhibition'
   > & {
     readonly knownCardType?: ViewCardObject['cardType'];
   }
@@ -1203,6 +1208,8 @@ function upsertViewObject(
     hasTemporaryOnEnterAbility:
       surface === 'FRONT' ? metadata?.hasTemporaryOnEnterAbility : undefined,
     hasTemporaryHeartRole: surface === 'FRONT' ? metadata?.hasTemporaryHeartRole : undefined,
+    activatedAbilityProhibition:
+      surface === 'FRONT' ? metadata?.activatedAbilityProhibition : undefined,
   };
 }
 

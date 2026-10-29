@@ -16,6 +16,7 @@ import {
   lazy,
   Suspense,
   useState,
+  useMemo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -56,6 +57,9 @@ import { BattleSettingsMenu, BattleToolbarMenu } from './BattleToolbarMenu';
 import { MemberOverwriteDialog } from './MemberOverwriteDialog';
 import { MemberPlayOptionDialog } from './MemberPlayOptionDialog';
 import { BattleCardCandidateGrid } from './BattleCardCandidateGrid';
+import { SerasInspectionCards, SerasTheatreDecor } from './seras-inspection/SerasInspection';
+import { SerasLockSeal } from './seras-inspection/SerasLockSeal';
+import { getSerasInspectionPhase, getSerasRevealElapsed } from '@/lib/serasInspection';
 import { BattleEffectOptionList } from './BattleEffectOptionList';
 import { readAskMemberOverwrite, saveAskMemberOverwrite } from '@/lib/memberOverwriteChoice';
 import { useMemberOverwriteChoice } from '@/hooks/useMemberOverwriteChoice';
@@ -3034,11 +3038,30 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
 
   const showActiveEffectCardSelection =
     showOrdinaryActiveEffectControls && activeEffectSelectableCardIds.length > 0;
-  const activeEffectStepLabel = showActiveEffectCardSelection
-    ? activeEffectSelectionLabel
-    : showOrdinaryActiveEffectControls
-      ? (activeEffect?.selectionLabel ?? activeEffect?.stepText)
-      : activeEffect?.stepText;
+  const serasPhase = getSerasInspectionPhase(
+    activeEffect,
+    activeEffectSource?.cardCode ?? activeEffect?.sourceCardDisplayCode,
+    !textOnly && battleEffectsEnabled && canShowCardEntrance
+  );
+  const serasCardIds =
+    serasPhase === 'reveal'
+      ? activeEffectRevealedCardIds
+      : (activeEffect?.inspectionObjectIds ?? []).map((id) => id.replace(/^obj_/, ''));
+  const serasRevealReceipt = useMemo(
+    () => ({
+      time: performance.now(),
+      remaining: activeEffect?.publicRevealAutoAdvanceAfterMs,
+    }),
+    [publicRevealDisplayKey, activeEffect?.publicRevealAutoAdvanceAfterMs]
+  );
+  const activeEffectStepLabel =
+    serasPhase === 'inspection' && !canConfirmActiveEffect
+      ? '对方正在检视卡组顶的卡牌'
+      : showActiveEffectCardSelection
+        ? activeEffectSelectionLabel
+        : showOrdinaryActiveEffectControls
+          ? (activeEffect?.selectionLabel ?? activeEffect?.stepText)
+          : activeEffect?.stepText;
   const activeEffectChoiceProgress =
     activeEffectChoice?.mode === 'MULTI' && showOrdinaryActiveEffectControls
       ? `${showActiveEffectCardSelection ? '效果' : '已选'} ${normalizedActiveEffectChoiceSelection.length} / ${activeEffectChoice.maxSelections}${
@@ -3262,19 +3285,49 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
           className="pointer-events-none fixed inset-x-2 bottom-[var(--battle-mobile-overlay-bottom)] top-[max(0.75rem,env(safe-area-inset-top))] z-[95] flex items-end justify-center sm:inset-x-4 md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-[min(94vw,900px)] md:-translate-x-1/2 md:-translate-y-1/2"
         >
           <motion.div
+            key={serasPhase ? `${matchView.matchId}:${activeEffect.id}` : undefined}
             data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_PANEL}
-            className="battle-overlay-surface pointer-events-auto flex max-h-full w-full flex-col overflow-hidden rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl md:max-h-[88vh] md:p-4"
+            data-seras-phase={serasPhase ?? undefined}
+            data-reduced={prefersReducedMotion}
+            style={
+              serasPhase
+                ? ({
+                    '--seras-reveal-offset': `-${getSerasRevealElapsed((serasRevealReceipt.remaining ?? 0) - (performance.now() - serasRevealReceipt.time))}ms`,
+                  } as React.CSSProperties)
+                : undefined
+            }
+            className={cn(
+              'battle-overlay-surface pointer-events-auto flex max-h-full w-full flex-col overflow-hidden rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl md:max-h-[88vh] md:p-4',
+              serasPhase && 'seras-theatre'
+            )}
             initial={{ opacity: 0, y: 12, scale: 0.985 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.99 }}
             transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
           >
-            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-subtle)] p-3 md:mb-3 md:border-b-0 md:p-0">
+            {serasPhase && (
+              <SerasTheatreDecor
+                selected={activeEffectOrderedSelection.length > 0 || serasPhase === 'reveal'}
+              />
+            )}
+            <div
+              className={cn(
+                'flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-subtle)] p-3 md:mb-3 md:border-b-0 md:p-0',
+                serasPhase && 'seras-panel-header'
+              )}
+            >
               <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
-                  处理中的效果
+                {!serasPhase && (
+                  <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
+                    处理中的效果
+                  </div>
+                )}
+                <div
+                  className={cn('mt-1 text-sm font-semibold', serasPhase && 'seras-panel-title')}
+                  title={activeEffectTitle}
+                >
+                  {activeEffectTitle}
                 </div>
-                <div className="mt-1 text-sm font-semibold">{activeEffectTitle}</div>
                 {activeEffectBadgeLabel && (
                   <div
                     role="status"
@@ -3324,7 +3377,61 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                 )}
               </div>
             )}
-            <div className="touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-0 md:py-0">
+            <div
+              className={cn(
+                'touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-0 md:py-0',
+                serasPhase && 'seras-panel-scroll'
+              )}
+            >
+              {serasPhase && (
+                <>
+                  <div className="seras-effect-description" aria-label="当前登场效果">
+                    <CardEffectText text={activeEffectDescription} />
+                  </div>
+                  {serasPhase === 'inspection' && !canConfirmActiveEffect && (
+                    <div className="seras-private-wait" role="status">
+                      <span>等待对方选曲</span>
+                      <p>
+                        检视牌仅由效果发动方查看。
+                        <br />
+                        选中的 LIVE 公开后会在这里展示。
+                      </p>
+                    </div>
+                  )}
+                  <SerasInspectionCards
+                    key={`${activeEffect.id}:${serasPhase}`}
+                    phase={serasPhase}
+                    canSelect={canConfirmActiveEffect && !isReadOnly && serasPhase === 'inspection'}
+                    onSelect={handleActiveEffectCardSelect}
+                    cards={serasCardIds.map((id) => ({
+                      id,
+                      presentation: getVisibleCardPresentation(id),
+                      eligible:
+                        canConfirmActiveEffect &&
+                        serasPhase === 'inspection' &&
+                        activeEffectSelectableCardIds.includes(id),
+                      selected: activeEffectUsesOrderedMultiSelect
+                        ? activeEffectOrderedSelection.includes(id)
+                        : activeEffectSelectedCardId === id,
+                    }))}
+                  />
+                  <details className="seras-rules">
+                    <summary>查看原卡文</summary>
+                    {activeEffectOriginalTextCn && (
+                      <CardEffectText
+                        text={activeEffectOriginalTextCn}
+                        className="mt-3 text-xs leading-relaxed"
+                      />
+                    )}
+                    {activeEffectOriginalTextJp && (
+                      <CardEffectText
+                        text={activeEffectOriginalTextJp}
+                        className="mt-3 text-xs leading-relaxed"
+                      />
+                    )}
+                  </details>
+                </>
+              )}
               {isPublicCardSelectionAutoAdvance && (
                 <div className="mb-3 md:mb-4">
                   <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
@@ -3390,89 +3497,91 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                   )}
                 </div>
               )}
-              <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-2.5 md:p-3">
-                <CardEffectText
-                  text={activeEffectDescription}
-                  className="text-[13px] leading-relaxed md:text-sm"
-                />
-                {showActiveEffectChoicePanel && activeEffectChoice && (
-                  <EffectChoicePanel
-                    activeEffect={activeEffect}
-                    showSelectionSummary={false}
-                    showActions={false}
-                    readOnly={isReadOnly}
-                    selectedOptionIds={normalizedActiveEffectChoiceSelection}
-                    canChoose={
-                      canConfirmActiveEffect &&
-                      !isPublicEffectChoiceAutoAdvance &&
-                      (!activeEffectUsesCardOptionSelection || !!activeEffectSelectedCardId)
-                    }
-                    canConfirmMulti={canConfirmActiveEffectChoice}
-                    onSelectSingle={(optionId) =>
-                      confirmEffectChoice(activeEffect.id, {
-                        selectedCardId: activeEffectUsesCardOptionSelection
-                          ? activeEffectSelectedCardId
-                          : undefined,
-                        selectedEffectOptionIds: [optionId],
-                      })
-                    }
-                    onToggleMulti={(optionId) =>
-                      setActiveEffectChoiceSelection((current) => [
-                        ...toggleEffectChoiceSelection(activeEffectChoice, current, optionId),
-                      ])
-                    }
-                    onConfirmMulti={() =>
-                      confirmEffectChoice(activeEffect.id, {
-                        selectedCardId: activeEffectUsesCardOptionSelection
-                          ? activeEffectSelectedCardId
-                          : undefined,
-                        selectedEffectOptionIds: normalizedActiveEffectChoiceSelection,
-                      })
-                    }
-                    onSkip={() => confirmEffectStep(activeEffect.id, null)}
+              {!serasPhase && (
+                <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-2.5 md:p-3">
+                  <CardEffectText
+                    text={activeEffectDescription}
+                    className="text-[13px] leading-relaxed md:text-sm"
                   />
-                )}
-                {!isActiveEffectOrderSelectionWindow && hasActiveEffectOriginalText && (
-                  <div className="mt-3 border-t border-[var(--border-subtle)] pt-2.5 md:pt-3">
-                    <button
-                      type="button"
-                      onClick={() => setActiveEffectOriginalTextExpanded((expanded) => !expanded)}
-                      className="button-secondary inline-flex min-h-8 items-center justify-center px-2.5 text-xs font-semibold"
-                    >
-                      {activeEffectOriginalTextExpanded ? '收起原卡文' : '查看原卡文'}
-                    </button>
-                    {activeEffectOriginalTextExpanded && (
-                      <div className="mt-3 space-y-3">
-                        <div className="text-[10px] font-semibold text-[var(--text-muted)]">
-                          原卡文
+                  {showActiveEffectChoicePanel && activeEffectChoice && (
+                    <EffectChoicePanel
+                      activeEffect={activeEffect}
+                      showSelectionSummary={false}
+                      showActions={false}
+                      readOnly={isReadOnly}
+                      selectedOptionIds={normalizedActiveEffectChoiceSelection}
+                      canChoose={
+                        canConfirmActiveEffect &&
+                        !isPublicEffectChoiceAutoAdvance &&
+                        (!activeEffectUsesCardOptionSelection || !!activeEffectSelectedCardId)
+                      }
+                      canConfirmMulti={canConfirmActiveEffectChoice}
+                      onSelectSingle={(optionId) =>
+                        confirmEffectChoice(activeEffect.id, {
+                          selectedCardId: activeEffectUsesCardOptionSelection
+                            ? activeEffectSelectedCardId
+                            : undefined,
+                          selectedEffectOptionIds: [optionId],
+                        })
+                      }
+                      onToggleMulti={(optionId) =>
+                        setActiveEffectChoiceSelection((current) => [
+                          ...toggleEffectChoiceSelection(activeEffectChoice, current, optionId),
+                        ])
+                      }
+                      onConfirmMulti={() =>
+                        confirmEffectChoice(activeEffect.id, {
+                          selectedCardId: activeEffectUsesCardOptionSelection
+                            ? activeEffectSelectedCardId
+                            : undefined,
+                          selectedEffectOptionIds: normalizedActiveEffectChoiceSelection,
+                        })
+                      }
+                      onSkip={() => confirmEffectStep(activeEffect.id, null)}
+                    />
+                  )}
+                  {!isActiveEffectOrderSelectionWindow && hasActiveEffectOriginalText && (
+                    <div className="mt-3 border-t border-[var(--border-subtle)] pt-2.5 md:pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setActiveEffectOriginalTextExpanded((expanded) => !expanded)}
+                        className="button-secondary inline-flex min-h-8 items-center justify-center px-2.5 text-xs font-semibold"
+                      >
+                        {activeEffectOriginalTextExpanded ? '收起原卡文' : '查看原卡文'}
+                      </button>
+                      {activeEffectOriginalTextExpanded && (
+                        <div className="mt-3 space-y-3">
+                          <div className="text-[10px] font-semibold text-[var(--text-muted)]">
+                            原卡文
+                          </div>
+                          {activeEffectOriginalTextCn && (
+                            <div>
+                              <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
+                                中文
+                              </div>
+                              <CardEffectText
+                                text={activeEffectOriginalTextCn}
+                                className="text-xs leading-relaxed text-[var(--text-secondary)]"
+                              />
+                            </div>
+                          )}
+                          {activeEffectOriginalTextJp && (
+                            <div>
+                              <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
+                                日文
+                              </div>
+                              <CardEffectText
+                                text={activeEffectOriginalTextJp}
+                                className="text-xs leading-relaxed text-[var(--text-secondary)]"
+                              />
+                            </div>
+                          )}
                         </div>
-                        {activeEffectOriginalTextCn && (
-                          <div>
-                            <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
-                              中文
-                            </div>
-                            <CardEffectText
-                              text={activeEffectOriginalTextCn}
-                              className="text-xs leading-relaxed text-[var(--text-secondary)]"
-                            />
-                          </div>
-                        )}
-                        {activeEffectOriginalTextJp && (
-                          <div>
-                            <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
-                              日文
-                            </div>
-                            <CardEffectText
-                              text={activeEffectOriginalTextJp}
-                              className="text-xs leading-relaxed text-[var(--text-secondary)]"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               {showOrdinaryActiveEffectControls && activeEffectStageFormation && (
                 <div className="mt-3 md:mt-4">
                   <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
@@ -3554,61 +3663,63 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                   </div>
                 </div>
               )}
-              {!isPublicCardSelectionAutoAdvance && activeEffectRevealedCardIds.length > 0 && (
-                <div className="mt-3 md:mt-4">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[var(--text-secondary)]">
-                    <span>{isPublicRevealAutoAdvance ? '本次公开的卡牌' : '已公开的卡牌'}</span>
-                    {isPublicRevealAutoAdvance && (
-                      <span
-                        role="status"
-                        aria-live="polite"
-                        className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] px-2 py-1 text-[11px] text-[var(--text-primary)]"
-                      >
+              {!serasPhase &&
+                !isPublicCardSelectionAutoAdvance &&
+                activeEffectRevealedCardIds.length > 0 && (
+                  <div className="mt-3 md:mt-4">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[var(--text-secondary)]">
+                      <span>{isPublicRevealAutoAdvance ? '本次公开的卡牌' : '已公开的卡牌'}</span>
+                      {isPublicRevealAutoAdvance && (
                         <span
-                          className="h-1.5 w-1.5 rounded-full bg-[var(--accent-primary)] motion-safe:animate-pulse"
-                          aria-hidden="true"
-                        />
-                        公开展示中，即将自动继续
-                      </span>
+                          role="status"
+                          aria-live="polite"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] px-2 py-1 text-[11px] text-[var(--text-primary)]"
+                        >
+                          <span
+                            className="h-1.5 w-1.5 rounded-full bg-[var(--accent-primary)] motion-safe:animate-pulse"
+                            aria-hidden="true"
+                          />
+                          公开展示中，即将自动继续
+                        </span>
+                      )}
+                    </div>
+                    {textOnly ? (
+                      <ExcelPublicCardTable
+                        label={isPublicRevealAutoAdvance ? '本次公开的卡牌' : '已公开的卡牌'}
+                        cardIds={activeEffectRevealedCardIds}
+                        view={playerViewState}
+                      />
+                    ) : (
+                      <BattleCardCandidateGrid
+                        label={isPublicRevealAutoAdvance ? '本次公开的卡牌' : '已公开的卡牌'}
+                        readOnly
+                        candidates={activeEffectRevealedCardIds.map((cardId) => {
+                          const presentation = getVisibleCardPresentation(cardId);
+                          const entrance = isPublicRevealAutoAdvance
+                            ? publicRevealDisplayEntries.find((entry) => entry.cardId === cardId)
+                            : undefined;
+                          return {
+                            id: cardId,
+                            presentation,
+                            label: presentation
+                              ? formatCardCompactLabel(presentation.cardData as AnyCardData)
+                              : '已公开卡牌',
+                            entrance: entrance
+                              ? {
+                                  key: `${publicRevealDisplayKey}:${cardId}`,
+                                  timing: getPublicRevealEntranceTiming(
+                                    entrance,
+                                    prefersReducedMotion
+                                  ),
+                                }
+                              : undefined,
+                          };
+                        })}
+                      />
                     )}
                   </div>
-                  {textOnly ? (
-                    <ExcelPublicCardTable
-                      label={isPublicRevealAutoAdvance ? '本次公开的卡牌' : '已公开的卡牌'}
-                      cardIds={activeEffectRevealedCardIds}
-                      view={playerViewState}
-                    />
-                  ) : (
-                    <BattleCardCandidateGrid
-                      label={isPublicRevealAutoAdvance ? '本次公开的卡牌' : '已公开的卡牌'}
-                      readOnly
-                      candidates={activeEffectRevealedCardIds.map((cardId) => {
-                        const presentation = getVisibleCardPresentation(cardId);
-                        const entrance = isPublicRevealAutoAdvance
-                          ? publicRevealDisplayEntries.find((entry) => entry.cardId === cardId)
-                          : undefined;
-                        return {
-                          id: cardId,
-                          presentation,
-                          label: presentation
-                            ? formatCardCompactLabel(presentation.cardData as AnyCardData)
-                            : '已公开卡牌',
-                          entrance: entrance
-                            ? {
-                                key: `${publicRevealDisplayKey}:${cardId}`,
-                                timing: getPublicRevealEntranceTiming(
-                                  entrance,
-                                  prefersReducedMotion
-                                ),
-                              }
-                            : undefined,
-                        };
-                      })}
-                    />
-                  )}
-                </div>
-              )}
-              {showActiveEffectCardSelection && (
+                )}
+              {!serasPhase && showActiveEffectCardSelection && (
                 <div className="mt-3 md:mt-4">
                   <div
                     data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_SELECTION}
@@ -3728,6 +3839,8 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
               data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_CONFIRM}
               className={cn(
                 'flex shrink-0 gap-2 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 empty:hidden md:mt-4 md:border-t-0 md:bg-transparent md:p-0',
+                serasPhase && 'seras-panel-footer',
+                serasPhase && !canConfirmActiveEffect && 'hidden',
                 isActiveEffectOrderSelectionWindow
                   ? 'flex-col items-stretch justify-start'
                   : 'flex-wrap justify-end',
@@ -5069,7 +5182,23 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
           dropAnimation={entranceWaiting || activeDragFromZone === ZoneType.HAND ? null : undefined}
         >
           {activeCard ? (
-            <DragOverlayCard card={activeCard} fromZone={activeDragFromZone} />
+            <DragOverlayCard
+              card={activeCard}
+              fromZone={activeDragFromZone}
+              faceOverlay={
+                activeDragFromZone === ZoneType.MEMBER_SLOT ? (
+                  <SerasLockSeal
+                    objectId={`obj_${activeCard.instanceId}`}
+                    prohibition={
+                      playerViewState?.objects[`obj_${activeCard.instanceId}`]
+                        ?.activatedAbilityProhibition
+                    }
+                    viewIdentity={`${playerViewState?.match.matchId}:${playerViewState?.match.viewerSeat}`}
+                    enabled={!textOnly && battleEffectsEnabled && canShowCardEntrance}
+                  />
+                ) : undefined
+              }
+            />
           ) : activeCardId ? (
             <div className="battle-card-face h-[112px] w-[80px] overflow-hidden shadow-lg">
               <PresentationImage
@@ -5180,9 +5309,11 @@ function resolveSpecialDragTarget(targetId: string): SpecialDragTarget | null {
 function DragOverlayCard({
   card,
   fromZone,
+  faceOverlay,
 }: {
   readonly card: VisibleCardPresentation;
   readonly fromZone: ZoneType | null;
+  readonly faceOverlay?: ReactNode;
 }) {
   const cardContent = (
     <Card
@@ -5192,6 +5323,7 @@ function DragOverlayCard({
       size="sm"
       faceUp={true}
       showHover={false}
+      faceOverlay={faceOverlay}
       className={fromZone === ZoneType.HAND ? 'battle-drag-hand-card' : undefined}
     />
   );

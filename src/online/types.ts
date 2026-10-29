@@ -325,6 +325,8 @@ export interface ViewCardObject {
   readonly hasTemporaryOnEnterAbility?: boolean;
   /** Current printed HEART replacement from Shizuku; derived, never persisted separately. */
   readonly hasTemporaryHeartRole?: boolean;
+  /** Public prohibition of a possessed native/granted stage activated ability. */
+  readonly activatedAbilityProhibition?: 'SERAS_LOW_COST';
 }
 
 export interface ViewCommandScope {

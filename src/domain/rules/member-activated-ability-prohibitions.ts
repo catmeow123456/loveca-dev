@@ -6,11 +6,11 @@ import { cardNameAliasMatches } from '../../shared/utils/card-identity.js';
 import { getMemberEffectiveCost } from './member-effective-cost.js';
 
 /** Applies to the actual stage source, including a host exercising a granted ability. */
-export function isStageMemberActivatedAbilityProhibited(
+export function getStageMemberActivatedAbilityProhibition(
   game: GameState,
   playerId: string,
   sourceCardId: string
-): boolean {
+): 'SERAS_LOW_COST' | undefined {
   const player = getPlayerById(game, playerId);
   const source = getCardById(game, sourceCardId);
   if (
@@ -21,9 +21,9 @@ export function isStageMemberActivatedAbilityProhibited(
     !Object.values(player.memberSlots.slots).includes(sourceCardId) ||
     getMemberEffectiveCost(game, playerId, sourceCardId) > 4
   )
-    return false;
+    return undefined;
 
-  return game.players.some((controller) => {
+  const prohibited = game.players.some((controller) => {
     const stage = Object.values(controller.memberSlots.slots).flatMap((id) => {
       const card = id ? getCardById(game, id) : null;
       return card && card.ownerId === controller.id && isMemberCardData(card.data) ? [card] : [];
@@ -38,4 +38,13 @@ export function isStageMemberActivatedAbilityProhibited(
       )
     );
   });
+  return prohibited ? 'SERAS_LOW_COST' : undefined;
+}
+
+export function isStageMemberActivatedAbilityProhibited(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): boolean {
+  return getStageMemberActivatedAbilityProhibition(game, playerId, sourceCardId) !== undefined;
 }

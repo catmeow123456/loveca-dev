@@ -1,0 +1,458 @@
+.seras-theatre.battle-overlay-surface {
+  --seras-curtain-width: 28px;
+  --seras-backdrop-feather: 32px;
+  --text-primary: #f6eee2;
+  --text-secondary: #c6b8bc;
+  --text-muted: #b5a6af;
+  --accent-primary: #dac19a;
+  --border-active: #c3a0e2;
+  --border-subtle: #65515e;
+  --bg-surface: #1e1420;
+  --bg-frosted: #1c121c;
+  position: relative;
+  isolation: isolate;
+  border: 1px solid transparent;
+  border-radius: 18px 18px 0 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow: visible;
+  padding: 44px 44px 28px;
+}
+/* Fade the backdrop independently so controls and card art keep their full opacity. */
+.seras-theatre::before {
+  content: '';
+  position: absolute;
+  inset: -8px -8px -36px;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 22%, #241525, #140d19 65%, #100b16);
+  mask-image:
+    linear-gradient(
+      to right,
+      transparent,
+      #000 var(--seras-backdrop-feather),
+      #000 calc(100% - var(--seras-backdrop-feather)),
+      transparent
+    ),
+    linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 64px), transparent);
+  mask-composite: intersect;
+}
+.seras-theatre > :not(.seras-decor) {
+  position: relative;
+  z-index: 1;
+}
+.seras-decor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 18px 18px 0 0;
+  z-index: 2;
+}
+.seras-curtain {
+  position: absolute;
+  top: 12px;
+  height: 76%;
+  width: var(--seras-curtain-width);
+  opacity: 0.95;
+  background: repeating-linear-gradient(
+    90deg,
+    #240d19 0px,
+    #572037 18px,
+    #7a334b 32px,
+    #48182d 48px,
+    #260c1a 64px
+  );
+  transform: none;
+  border-right: 1px solid #96704699;
+  border-radius: 0 0 70% 0;
+  mask-image: linear-gradient(to bottom, #000 0%, #000 24%, transparent 100%);
+}
+.seras-curtain--left {
+  left: 0;
+  transform-origin: left top;
+}
+.seras-curtain--right {
+  right: 0;
+  transform-origin: right top;
+  border-radius: 0 0 0 70%;
+  border-right: 0;
+  border-left: 1px solid #96704699;
+}
+.seras-valance {
+  position: absolute;
+  top: -70px;
+  left: -10%;
+  width: 120%;
+  height: 106px;
+  border-radius: 0 0 50% 50%;
+  border-bottom: 2px solid #b68c59;
+  background: repeating-linear-gradient(100deg, #300d1b, #772039 6%, #431024 10%);
+  box-shadow:
+    0 4px 0 #281721,
+    0 5px 0 #77604a;
+}
+.seras-arch {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 44px;
+  fill: none;
+  stroke: #b99566;
+  stroke-width: 0.65;
+  opacity: 0.55;
+}
+.seras-mask {
+  position: absolute;
+  top: 10px;
+  right: 4px;
+  width: 124px;
+  height: 108px;
+  filter: drop-shadow(-2px 5px 3px #0009);
+  opacity: 0.88;
+}
+.seras-theatre .seras-panel-header {
+  min-height: 76px;
+  padding-right: 84px;
+  border: 0;
+}
+.seras-theatre [aria-label='当前效果步骤'] {
+  background: #1b121bc9;
+  border: 1px solid #695044;
+  border-left: 2px solid #c3a0e2;
+}
+.seras-theatre .seras-panel-scroll {
+  padding: 0;
+}
+.seras-effect-description {
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border-top: 1px solid #9d795e66;
+  border-bottom: 1px solid #9d795e66;
+  background: linear-gradient(100deg, #b28c5910, transparent 85%);
+  color: #f1e3cf;
+  font-family: 'Baskerville', 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'SimSun', serif;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.85;
+  letter-spacing: 0.025em;
+}
+.seras-theatre .seras-panel-footer {
+  background: transparent;
+  border-color: #685144;
+  margin-top: 14px;
+  padding: 12px 0 0;
+}
+.seras-theatre .button-primary {
+  background: #d9c3a1;
+  color: #231524;
+  border: 1px solid #e9d2b4;
+  box-shadow: 0 2px 12px #ac718333;
+}
+.seras-theatre .button-secondary {
+  background: #291c29;
+  color: #f1dfe2;
+  border: 1px solid #8b737d;
+}
+.seras-theatre .button-primary:disabled {
+  opacity: 0.45;
+}
+.seras-rules {
+  font-size: 12px;
+  line-height: 1.65;
+  margin-top: 14px;
+  color: #c6b8bc;
+}
+.seras-rules summary {
+  cursor: pointer;
+  width: fit-content;
+  padding: 5px 0;
+  color: #ddc7a8;
+}
+.seras-rules p {
+  margin: 8px 0;
+}
+.seras-score-gallery {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+  padding: 14px 4px 10px;
+}
+.seras-score {
+  text-align: center;
+  min-width: 0;
+  position: relative;
+}
+.seras-score-position {
+  font:
+    11px Georgia,
+    serif;
+  letter-spacing: 0.24em;
+  color: #b99b78;
+  margin-bottom: 8px;
+}
+.seras-score-art {
+  height: 184px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.seras-score-card {
+  display: block;
+  width: 118px;
+  height: 165.2px;
+  position: relative;
+  border-radius: 7px;
+  box-shadow: 0 8px 15px #0009;
+  transform: translateY(0);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
+}
+.seras-score-card--live {
+  width: 142px;
+  height: 101.43px;
+}
+.seras-card-orientation {
+  width: 118px;
+  height: 165.2px;
+}
+.seras-score-card--live .seras-card-orientation {
+  width: 101.43px;
+  height: 142px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+.seras-theatre .seras-card-face {
+  width: 100%;
+  height: 100%;
+}
+.seras-card-back {
+  height: 100%;
+  width: 100%;
+  border-radius: 6px;
+  object-fit: cover;
+}
+.seras-score[data-eligible='true'] .seras-score-card {
+  outline: 1px solid #c2a0e1;
+  outline-offset: 4px;
+}
+.seras-score[data-selected='true'] .seras-score-card {
+  outline: 2px solid #ead1ff;
+  box-shadow: 0 4px 30px #a877b64d;
+  transform: translateY(-8px);
+}
+.seras-score-card:not([aria-disabled='true']):hover {
+  transform: translateY(-6px);
+  box-shadow: 0 6px 28px #a877b64d;
+  cursor: pointer;
+}
+.seras-score-card:focus-visible {
+  outline: 3px solid #f5e9d1;
+  outline-offset: 5px;
+}
+.seras-score-label {
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 8px;
+  min-height: 36px;
+  color: #ede4e7;
+  overflow-wrap: anywhere;
+}
+button.seras-score-label {
+  width: 100%;
+  cursor: pointer;
+}
+button.seras-score-label:hover {
+  color: #e7c9a0;
+}
+.seras-private-wait {
+  padding: 36px 12px 20px;
+  text-align: center;
+}
+.seras-private-wait span {
+  color: #e7c9a0;
+  letter-spacing: 0.15em;
+  font-size: 17px;
+}
+.seras-private-wait p {
+  color: #c6b8bc;
+  font-size: 12px;
+  line-height: 1.8;
+  margin-top: 12px;
+}
+.seras-score-status {
+  color: #ad9ca9;
+  font-size: 11px;
+  margin-top: 4px;
+}
+.seras-score[data-eligible='true'] .seras-score-status {
+  color: #dfc6fa;
+}
+.seras-decor[data-selected='true'] .seras-mask-lens {
+  filter: brightness(1.25);
+}
+.seras-theatre[data-seras-phase='reveal'] .seras-score-gallery {
+  grid-template-columns: 1fr;
+  padding: 12px 0;
+}
+.seras-theatre[data-seras-phase='reveal'] .seras-score-art {
+  height: 230px;
+  perspective: 900px;
+}
+.seras-theatre[data-seras-phase='reveal'] .seras-score-card--live {
+  width: 300px;
+  height: 214.29px;
+  outline: 1px solid #ddc49b;
+  outline-offset: 5px;
+}
+.seras-theatre[data-seras-phase='reveal'] .seras-card-orientation {
+  width: 214.29px;
+  height: 300px;
+}
+.seras-theatre[data-seras-phase='reveal'] .seras-score-label {
+  min-height: 0;
+  font-size: 14px;
+  color: #e6cda6;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .seras-theatre:not([data-reduced='true'])[data-seras-phase='inspection'] .seras-curtain {
+    animation: seras-curtain-open 0.65s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .seras-theatre:not([data-reduced='true'])[data-seras-phase='inspection'] > :not(.seras-decor) {
+    animation: seras-content-reveal 0.65s ease-out both;
+  }
+  .seras-theatre:not([data-reduced='true'])[data-seras-phase='reveal'] .seras-score-art {
+    animation: seras-reveal 0.8s cubic-bezier(0.2, 0.7, 0.25, 1) both;
+    animation-delay: var(--seras-reveal-offset, 0ms);
+  }
+}
+@keyframes seras-curtain-open {
+  from {
+    width: 50%;
+    height: 100%;
+  }
+  to {
+    width: var(--seras-curtain-width);
+    height: 76%;
+  }
+}
+@keyframes seras-content-reveal {
+  0%,
+  70% {
+    opacity: 0;
+    pointer-events: none;
+  }
+  100% {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+@keyframes seras-reveal {
+  0% {
+    opacity: 0.35;
+    transform: translateY(15px) rotateY(-12deg) scale(0.94);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-4px) rotateY(3deg) scale(1.025);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .seras-score-card {
+    transition: none;
+  }
+  .seras-score-card:not([aria-disabled='true']):hover,
+  .seras-score[data-selected='true'] .seras-score-card {
+    transform: none;
+  }
+}
+@media (max-width: 900px) {
+  .seras-theatre.battle-overlay-surface {
+    --seras-curtain-width: 18px;
+    padding: 44px 30px 24px;
+  }
+  .seras-theatre .seras-panel-header {
+    padding-right: 98px;
+  }
+  .seras-score-gallery {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .seras-score-art {
+    height: 166px;
+  }
+}
+@media (max-width: 560px) {
+  .seras-theatre.battle-overlay-surface {
+    --seras-curtain-width: 10px;
+    --seras-backdrop-feather: 20px;
+    padding: 42px 18px 20px;
+  }
+  .seras-theatre .seras-panel-header {
+    min-height: 82px;
+    padding: 6px 68px 8px 0;
+    gap: 6px;
+  }
+  .seras-panel-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  .seras-effect-description {
+    padding: 10px;
+    font-size: 14px;
+  }
+  .seras-mask {
+    right: 3px;
+    top: 10px;
+    width: 80px;
+    height: 70px;
+  }
+  .seras-score-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .seras-score-art {
+    height: 160px;
+  }
+  .seras-score-card {
+    width: 106px;
+    height: 148.4px;
+  }
+  .seras-card-orientation {
+    width: 106px;
+    height: 148.4px;
+  }
+  .seras-score-card--live {
+    --seras-live-width: min(130px, calc((100vw - 74px) / 2));
+    width: var(--seras-live-width);
+    height: calc(var(--seras-live-width) / 1.4);
+  }
+  .seras-score-card--live .seras-card-orientation {
+    width: calc(var(--seras-live-width) / 1.4);
+    height: var(--seras-live-width);
+  }
+  .seras-theatre[data-seras-phase='reveal'] .seras-score-card--live {
+    width: 260px;
+    height: 185.71px;
+  }
+  .seras-theatre[data-seras-phase='reveal'] .seras-card-orientation {
+    width: 185.71px;
+    height: 260px;
+  }
+  .seras-theatre[data-seras-phase='reveal'] .seras-score-art {
+    height: 208px;
+  }
+}

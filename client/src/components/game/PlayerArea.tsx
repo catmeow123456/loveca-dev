@@ -1,4 +1,7 @@
-import { getPresentationPortalRoot } from '@/lib/appPresentation';
+import { getPresentationPortalRoot, useTextPresentation } from '@/lib/appPresentation';
+import { useBattleEffectsEnabled } from '@/lib/battleEffects';
+import { canPresentCardEntrance } from '@/lib/cardEntrancePolicy';
+import { SerasLockSeal, SERAS_LOCK_DESCRIPTION } from './seras-inspection/SerasLockSeal';
 /**
  * 玩家区域组件
  * 显示成员槽位、能量区、卡组、手牌、成功 Live 区、Live 区等
@@ -515,6 +518,10 @@ export const PlayerArea = memo(function PlayerArea({
   const isDragging = useGameStore((s) => s.ui.isDragging);
   const capabilities = useGameStore(useShallow((s) => s.getBattleSurfaceCapabilities()));
   const isReadOnly = capabilities.isReadOnly;
+  const battleEffectsEnabled = useBattleEffectsEnabled();
+  const textOnly = useTextPresentation();
+  const showSpecialSeals =
+    battleEffectsEnabled && !textOnly && canPresentCardEntrance(capabilities);
   const canOpenInspection = useGameStore((s) => s.canUseAction(GameCommandType.OPEN_INSPECTION));
   const canRevealInspectedCard = useGameStore((s) =>
     s.canUseAction(GameCommandType.REVEAL_INSPECTED_CARD)
@@ -877,6 +884,17 @@ export const PlayerArea = memo(function PlayerArea({
           ?.enteredStageThisTurn === true,
     },
   ] as const;
+  const sealViewIdentity = `${matchView?.matchId}:${viewerSeat}:${playerSeat}`;
+  const previousSealStage = useRef<{
+    identity: string;
+    cardIds: readonly (string | null)[];
+  } | null>(null);
+  useLayoutEffect(() => {
+    previousSealStage.current = {
+      identity: sealViewIdentity,
+      cardIds: memberSlotSnapshots.map((slot) => slot.cardId),
+    };
+  });
   const selectedBattleActionIntents =
     !isOpponent && viewerSeat === playerSeat && selectedCardId
       ? buildBattleActionIntents({
@@ -1309,7 +1327,12 @@ export const PlayerArea = memo(function PlayerArea({
               zIndex: getMainMemberCardZIndex(energyBelowIds.length, memberBelowIds.length),
             }}
             activeClassName="ring-2 ring-rose-500 bg-rose-500/20 border-rose-500"
-            title={selectedSlotAction?.target.label}
+            title={
+              selectedSlotAction?.target.label ??
+              (cardViewObject?.activatedAbilityProhibition === 'SERAS_LOW_COST'
+                ? SERAS_LOCK_DESCRIPTION
+                : undefined)
+            }
             onClick={handleSlotClick}
           >
             {card && (
@@ -1343,6 +1366,19 @@ export const PlayerArea = memo(function PlayerArea({
                       isActionableNow: canActivateAbility,
                     })}
                     limitedActivatedHighlight={limitedActivatedHighlight}
+                    faceOverlay={
+                      <SerasLockSeal
+                        objectId={cardViewObject?.publicObjectId ?? null}
+                        prohibition={cardViewObject?.activatedAbilityProhibition}
+                        viewIdentity={sealViewIdentity}
+                        enabled={showSpecialSeals}
+                        coveredByMovement={battleAnimationOccludedObjectIds.has(`obj_${cardId}`)}
+                        animateOnMount={
+                          previousSealStage.current?.identity === sealViewIdentity &&
+                          !previousSealStage.current.cardIds.includes(cardId)
+                        }
+                      />
+                    }
                     className={cn(
                       isMobileBoard && 'aspect-[5/7] h-auto',
                       isMobileBoard &&
