@@ -123,6 +123,43 @@ test('操作提示可以重开，页签支持方向键，翻页重置滚动且�
   ).toBe(true);
 });
 
+test('操作提示关闭与翻页按钮分组，窄屏保持同一行', async ({ page }, info) => {
+  test.skip(info.project.name !== 'tablet-1024x768');
+  await openDebug(page);
+  await page.getByRole('button', { name: '对战设置', exact: true }).click();
+  await page.getByRole('button', { name: '操作提示', exact: true }).click();
+  const help = page.getByRole('dialog', { name: '双人调试操作提示' });
+  for (const width of [320, 390, 1024]) {
+    await page.setViewportSize({ width, height: 768 });
+    await help.getByRole('tab', { name: '区域操作' }).click();
+    const skip = (await help.getByRole('button', { name: '跳过提示' }).boundingBox())!;
+    const never = (await help.getByRole('button', { name: '不再自动提示' }).boundingBox())!;
+    const previous = (await help.getByRole('button', { name: '上一页' }).boundingBox())!;
+    const next = (await help.getByRole('button', { name: '下一页：效果和调试' }).boundingBox())!;
+    const dialog = (await help.boundingBox())!;
+    expect(skip.y).toBe(never.y);
+    expect(previous.y).toBe(next.y);
+    expect(skip.x + skip.width).toBeLessThanOrEqual(never.x);
+    expect(previous.x + previous.width).toBeLessThanOrEqual(next.x);
+    for (const button of [skip, never, previous, next]) {
+      expect(button.x).toBeGreaterThanOrEqual(dialog.x);
+      expect(button.x + button.width).toBeLessThanOrEqual(dialog.x + dialog.width);
+      expect(button.y + button.height).toBeLessThanOrEqual(dialog.y + dialog.height);
+    }
+    expect(skip.y).toBe(next.y);
+    expect(never.x + never.width).toBeLessThanOrEqual(previous.x);
+    if (width !== 390) await page.screenshot({ path: info.outputPath(`briefing-${width}.png`) });
+    await help.getByRole('button', { name: '下一页：效果和调试' }).click();
+    const finish = (await help.getByRole('button', { name: '我知道了，继续调试' }).boundingBox())!;
+    const lastPrevious = (await help.getByRole('button', { name: '上一页' }).boundingBox())!;
+    expect(finish.y).toBe(lastPrevious.y);
+    expect(finish.x + finish.width).toBeLessThanOrEqual(dialog.x + dialog.width);
+    await help.getByRole('button', { name: '上一页' }).click();
+  }
+  await help.getByRole('button', { name: '跳过提示' }).click();
+  await expect(help).toHaveCount(0);
+});
+
 test('选组页直接开局，说明不推移主操作；失败保留卡组并可重试', async ({ page }) => {
   const longName = '长名称卡组 · 成员登场与 LIVE 结算的完整选择确认检查';
   await installVisualApiMocks(page, true);

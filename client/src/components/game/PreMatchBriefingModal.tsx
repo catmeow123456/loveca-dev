@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import { ActionButton, DialogShell, Tabs } from '@/components/common';
+import { hideAutomaticBattleHelp } from '@/lib/battleHelpPreference';
 
 export type PreMatchBriefingMode = 'online' | 'solitaire' | 'debug';
 
@@ -74,6 +75,10 @@ function PreMatchBriefingContent({
   const currentPage = content.pages[currentPageIndex];
   const nextPage = content.pages[currentPageIndex + 1];
   const goToPreviousPage = () => setActivePageIndex((index) => Math.max(0, index - 1));
+  const dismissPermanently = () => {
+    hideAutomaticBattleHelp();
+    onClose();
+  };
   const goToNextPageOrClose = () => {
     if (nextPage) {
       setActivePageIndex((index) => Math.min(lastPageIndex, index + 1));
@@ -102,6 +107,7 @@ function PreMatchBriefingContent({
           <button ref={closeButtonRef} onClick={onClose}>
             跳过提示
           </button>
+          <button onClick={dismissPermanently}>不再自动提示</button>
         </section>
       </div>,
       getPresentationPortalRoot()
@@ -131,22 +137,29 @@ function PreMatchBriefingContent({
         />
       }
       footer={
-        <>
-          <ActionButton variant="ghost" onClick={onClose} className="mr-auto">
-            跳过提示
-          </ActionButton>
-          {currentPageIndex > 0 && (
-            <ActionButton variant="ghost" onClick={goToPreviousPage}>
-              上一页
+        <div className="battle-briefing-actions flex w-full items-center justify-between gap-1 sm:gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <ActionButton variant="ghost" onClick={onClose}>
+              跳过提示
             </ActionButton>
-          )}
-          <ActionButton
-            onClick={goToNextPageOrClose}
-            aria-label={nextPage ? `下一页：${nextPage.title}` : content.actionLabel}
-          >
-            {nextPage ? '下一页' : mode === 'solitaire' ? '开始模拟' : '进入对局'}
-          </ActionButton>
-        </>
+            <ActionButton variant="ghost" onClick={dismissPermanently}>
+              不再自动提示
+            </ActionButton>
+          </div>
+          <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-2">
+            {currentPageIndex > 0 && (
+              <ActionButton variant="ghost" onClick={goToPreviousPage}>
+                上一页
+              </ActionButton>
+            )}
+            <ActionButton
+              onClick={goToNextPageOrClose}
+              aria-label={nextPage ? `下一页：${nextPage.title}` : content.actionLabel}
+            >
+              {nextPage ? '下一页' : mode === 'solitaire' ? '开始模拟' : '进入对局'}
+            </ActionButton>
+          </div>
+        </div>
       }
     >
       <section

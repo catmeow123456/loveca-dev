@@ -260,14 +260,8 @@ async function assertCardGeometry(page: Page, width: number, height: number) {
       }
       const hand = (await anchor(page, `${side}-hand`).boundingBox())!;
       if (width >= 768) {
-        const clearance = await anchor(page, `${side}-hand`).evaluate(
-          (element) =>
-            parseFloat(
-              (element as HTMLElement).style.getPropertyValue('--battle-hand-clearance')
-            ) || 0
-        );
-        expect(hand.height - clearance).toBeGreaterThanOrEqual(96);
-        expect(hand.height - clearance).toBeLessThanOrEqual(112);
+        expect(hand.height).toBeGreaterThanOrEqual(96);
+        expect(hand.height).toBeLessThanOrEqual(112);
         if (side === 'self') {
           const handCardSize = await anchor(page, 'self-hand')
             .locator('[data-card-id="p1-hand1"]')
@@ -1486,6 +1480,36 @@ async function browseHand(page: Page, end: boolean) {
   ).toBeDisabled();
 }
 
+test('desktop: hand stays beside the phase dock until the mobile breakpoint', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'tablet-1024x768');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 768, height: 768 });
+  await openPopulatedBoard(page, true, 2, 12);
+  for (const width of [768, 1024, 1366]) {
+    await page.setViewportSize({ width, height: 768 });
+    await expect(async () => {
+      const hand = (await anchor(page, 'self-hand').boundingBox())!;
+      const viewport = (await handViewport(page).boundingBox())!;
+      const energy = (await anchor(page, 'self-energy-zone').boundingBox())!;
+      const dock = (await anchor(page, 'phase-controls').boundingBox())!;
+      expect(hand.height).toBeLessThanOrEqual(112);
+      expect(viewport.width).toBeGreaterThan(100);
+      expect(viewport.x).toBeGreaterThanOrEqual(energy.x + energy.width);
+      expect(viewport.x + viewport.width).toBeLessThanOrEqual(dock.x);
+    }).toPass();
+    await browseHand(page, false);
+    await browseHand(page, true);
+  }
+  await page.setViewportSize({ width: 767, height: 768 });
+  await expect(page.locator('[data-mobile-tabletop]').first()).toBeVisible();
+  await page.setViewportSize({ width: 768, height: 768 });
+  await expect(anchor(page, 'phase-controls')).toBeVisible();
+  await expect(page.locator('[data-desktop-phase-dock]')).toBeVisible();
+  await page.screenshot({ path: `${root}output/playwright/phase-hand-768.png` });
+});
+
 test('desktop: phase dock fits its visible controls without shifting the twelve-card hand', async ({
   page,
 }, info) => {
@@ -1578,10 +1602,12 @@ for (const count of [5, 30]) {
         });
       const before = await geometry();
       const live = (await anchor(page, 'self-live-zone').boundingBox())!;
-      expect(before.x + before.width / 2, 'hand and LIVE share a center line').toBeCloseTo(
-        live.x + live.width / 2,
-        0
-      );
+      if (width >= 1600) {
+        expect(before.x + before.width / 2, 'hand and LIVE share a center line').toBeCloseTo(
+          live.x + live.width / 2,
+          0
+        );
+      }
       const result = await page.evaluate(async (repoRoot) => {
         const path = performance
           .getEntriesByType('resource')
