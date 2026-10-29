@@ -1742,6 +1742,34 @@ html[data-presentation='excel']
   margin: 8px 0;
   font-weight: 600;
 }
+.excel-cheer-table td,
+.excel-cheer-table button {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.excel-cheer-table td {
+  height: 30px;
+  padding: 0 8px;
+  vertical-align: middle;
+}
+.excel-cheer-table button {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+.excel-cheer-table tbody tr:has(button:focus-visible) {
+  outline: 2px dashed var(--excel-accent);
+  outline-offset: -2px;
+}
+.excel-app .excel-cheer-table button[aria-pressed],
+.excel-app .excel-cheer-table button:focus-visible {
+  outline: none;
+}
 .excel-app [class*='text-slate-'],
 .excel-app [class*='text-white'] {
   color: var(--excel-secondary);

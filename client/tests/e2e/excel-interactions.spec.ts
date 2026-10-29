@@ -694,6 +694,126 @@ test('real cost payment and text-only LIVE judgment', async ({ page }, info) => 
     .toBe(true);
   await page.screenshot({ path: info.outputPath('excel-judgment.png'), fullPage: true });
 });
+test('Excel cheer rows show printed and replaced judgment, separate effect hearts and gray requirements', async ({
+  page,
+}, info) => {
+  const assets: string[] = [];
+  page.on('request', (request) => {
+    if (['image', 'media'].includes(request.resourceType())) assets.push(request.url());
+  });
+  await prepare(page);
+  await page.evaluate(() => (window as any).excelReview.judgmentDetails());
+  const judgment = page.getByRole('region', { name: '应援与 LIVE 判定' });
+  const cards = judgment.getByRole('table', { name: '应援牌', exact: true });
+  await expect(cards.getByRole('columnheader')).toHaveText(['名称', '卡号', '判定']);
+  const rows = cards.locator('tbody tr');
+  await expect(rows).toHaveCount(4);
+  await expect(rows.nth(0).getByRole('cell').last()).toHaveText('蓝 2（修正）');
+  await expect(rows.nth(1).getByRole('cell').last()).toHaveText('—');
+  await expect(rows.nth(2).getByRole('cell').last()).toHaveText('紫 2');
+  await expect(rows.nth(3).getByRole('cell').last()).toHaveText('彩虹 1、抽卡 +2、分数 +1');
+  const detail = page.getByRole('region', { name: '选中卡牌', exact: true });
+  await rows.nth(0).getByRole('button').focus();
+  await page.keyboard.press('Enter');
+  await expect(detail).toContainText('印刷判定：黄 1、绿 1');
+  await expect(detail).toContainText('本次判定：蓝 2（效果修正）');
+  await expect(detail).toContainText('印刷费用 4；光棒 1');
+  const hearts = judgment.getByRole('table', { name: '心数与 LIVE 需求', exact: true });
+  await expect(
+    hearts
+      .getByRole('row')
+      .filter({ has: page.getByRole('rowheader', { name: '绿', exact: true }) })
+  ).toHaveText('绿4（成员 2 / 判心 0 / 效果 2）');
+  await expect(
+    hearts
+      .getByRole('row')
+      .filter({ has: page.getByRole('rowheader', { name: '蓝', exact: true }) })
+  ).toHaveText('蓝2（成员 0 / 判心 2）');
+  await expect(hearts.getByRole('rowheader', { name: '彩虹', exact: true })).toBeVisible();
+  await expect(judgment.getByText(/灰心需求LIVE.*需求 粉 5、灰心 7/)).toBeVisible();
+  await expect(judgment).toContainText('抽卡 +2');
+  await expect(
+    page
+      .getByRole('navigation', { name: '工作表' })
+      .getByRole('button', { name: '对局', exact: true })
+  ).toHaveAttribute('aria-current', 'page');
+  // Compact rows remain one line; full values are available by selecting the card.
+  for (const row of await rows.all())
+    expect((await row.boundingBox())!.height).toBeLessThanOrEqual(36);
+  await page.screenshot({ path: info.outputPath('excel-cheer-light.png'), fullPage: true });
+  await page.keyboard.press('Control+Alt+x');
+  await expect(judgment).toBeHidden();
+  await page.keyboard.press('Control+Alt+x');
+  await expect(detail).toContainText('本次判定：蓝 2（效果修正）');
+  await page.getByRole('button', { name: '夜间模式', exact: true }).click();
+  await page.screenshot({ path: info.outputPath('excel-cheer-dark.png'), fullPage: true });
+  await rows.nth(3).getByRole('button').click();
+  await expect(detail).toContainText('印刷判定：彩虹 1、抽卡 +2、分数 +1');
+  await expect(detail).not.toContainText('本次判定');
+  await rows.nth(1).getByRole('button').click();
+  await expect(detail).toContainText('印刷判定：—');
+  await rows.nth(2).getByRole('button').click();
+  await expect(detail).toContainText('印刷判定：紫 2');
+  await page
+    .getByRole('navigation', { name: '工作表' })
+    .getByRole('button', { name: '详情', exact: true })
+    .click();
+  await expect(page.locator('.excel-full-details')).toContainText('印刷判定：紫 2');
+  expect(assets).toEqual([]);
+});
+
+test('ordinary judgment keeps its card layout and totals after Excel inspection, theme and cover', async ({
+  page,
+}, info) => {
+  await prepare(page);
+  await page.evaluate(() => {
+    const fixture = (window as any).excelReview;
+    fixture.cheer(false, 3, true);
+    for (let i = 0; i < 3; i++) fixture.store().revealCheerCard();
+  });
+  await page.keyboard.press('Control+Alt+e');
+  const ordinary = page.locator('#judgment-panel');
+  await expect(ordinary.locator('[data-cheer-card-id]')).toHaveCount(3);
+  const read = () =>
+    ordinary.evaluate((root) => ({
+      text: root.textContent,
+      appearance: [root, ...root.querySelectorAll('button,img,[data-cheer-total]')].map(
+        (element) => {
+          const style = getComputedStyle(element);
+          return [
+            'color',
+            'background-color',
+            'font-size',
+            'border-radius',
+            'padding',
+            'display',
+          ].map((key) => style.getPropertyValue(key));
+        }
+      ),
+    }));
+  // Capture the settled ordinary theme, not an intermediate CSS color transition.
+  await page.evaluate(async () => {
+    await Promise.all(
+      document
+        .getAnimations()
+        .filter((animation) => animation instanceof CSSTransition)
+        .map((animation) => animation.finished.catch(() => undefined))
+    );
+  });
+  const before = await read();
+  await page.keyboard.press('Control+Alt+e');
+  await expect(page.locator('.excel-cheer-table')).toBeVisible();
+  await page.getByRole('button', { name: '夜间模式', exact: true }).click();
+  await page.keyboard.press('Control+Alt+x');
+  await page.keyboard.press('Control+Alt+x');
+  await page.keyboard.press('Control+Alt+e');
+  await expect.poll(read).toEqual(before);
+  await expect(ordinary.locator('[data-cheer-card-id]')).toHaveCount(3);
+  await expect(ordinary.locator('[data-cheer-total]')).toContainText('总计 6');
+  await expect(page.locator('.excel-cheer-table,.excel-judgment-details')).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath('ordinary-judgment.png'), fullPage: true });
+});
+
 test('headless entrance retries same token while covered', async ({ page }) => {
   const assets: string[] = [];
   page.on('request', (r) => {

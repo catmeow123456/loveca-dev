@@ -1,6 +1,8 @@
 import type { AnyCardData } from '@game/domain/entities/card';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { CardEffectText } from '@/components/card/CardEffectText';
+import { formatTextJudgment } from '@/lib/excelCardView';
+import { CardType } from '@game/shared/types/enums';
 
 export function TextCard({
   card,
@@ -48,6 +50,16 @@ export function TextCard({
   );
 }
 
+export function TextJudgmentDetails({ printed, current }: { printed?: string; current?: string }) {
+  if (printed === undefined) return null;
+  return (
+    <div className="excel-judgment-details">
+      <p>印刷判定：{printed}</p>
+      {current !== undefined && current !== printed && <p>本次判定：{current}（效果修正）</p>}
+    </div>
+  );
+}
+
 export function TextCardDetails({ card }: { card: AnyCardData }) {
   const text = getCardLocalizedInfo(card);
   return (
@@ -56,6 +68,9 @@ export function TextCardDetails({ card }: { card: AnyCardData }) {
       <p>{card.cardCode}</p>
       {'cost' in card && <p>印刷费用：{card.cost}</p>}
       {'score' in card && <p>印刷分数：{card.score}</p>}
+      {card.cardType !== CardType.ENERGY && (
+        <TextJudgmentDetails printed={formatTextJudgment(card.bladeHearts)} />
+      )}
       {text.effectCn && <CardEffectText text={text.effectCn} />}
       {text.effectJp && <CardEffectText text={text.effectJp} />}
       {!text.hasEffect && <p>没有卡牌效果文本。</p>}

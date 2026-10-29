@@ -8,6 +8,7 @@ import { formatTextHearts, selectExcelCard, type ExcelCardRow } from '@/lib/exce
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { CardEffectText } from '@/components/card/CardEffectText';
 import { ExcelCardTable } from './ExcelCardTable';
+import { TextJudgmentDetails } from './TextCard';
 import { ExcelBlankRows, ExcelColumnHeadings } from './ExcelRibbon';
 import { PublicBattleLogContent } from '@/components/game/PublicBattleLog';
 import type { SelectedHandCardAction } from '@/components/game/PlayerArea';
@@ -564,6 +565,10 @@ export function ExcelBattleBoard({
                     </h2>
                     <p>{selected.front.cardCode}</p>
                     <p>{selected.metrics}</p>
+                    <TextJudgmentDetails
+                      printed={selected.printedJudgment}
+                      current={selected.currentJudgment}
+                    />
                     {selected.state && <p>{selected.state}</p>}
                     {selected.front.cardTextCn && (
                       <CardEffectText text={selected.front.cardTextCn} />
@@ -702,6 +707,10 @@ export function ExcelBattleBoard({
                     : '能量'}{' '}
                 · {selected.metrics}
               </p>
+              <TextJudgmentDetails
+                printed={selected.printedJudgment}
+                current={selected.currentJudgment}
+              />
               {selected.state && <p>{selected.state}</p>}
               <fieldset
                 disabled={pending || !!view.match.entrance || !!view.match.endInfo}
