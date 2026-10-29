@@ -1,8 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
 import {
   ReplayRetentionError,
   runReplayRetention,
+  type ReplayRetentionProgress,
   type ReplayRetentionReport,
 } from './replay-retention.js';
 import {
@@ -18,14 +20,32 @@ import {
 
 const RETENTION_DAYS = 10;
 const RETENTION_BATCH_SIZE = 100;
+const MAX_REPLAY_RETENTION_JOBS = 20;
 export const REPLAY_RETENTION_CONFIRMATION = '清理10天前回放数据';
 
 export type { ReplayRetentionReport } from './replay-retention.js';
 
+export type ReplayRetentionJobStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+
+export interface ReplayRetentionJob {
+  readonly id: string;
+  readonly status: ReplayRetentionJobStatus;
+  readonly progress: ReplayRetentionProgress;
+  readonly report: ReplayRetentionReport | null;
+  readonly error: { readonly code: string; readonly message: string } | null;
+  readonly startedAt: string;
+  readonly updatedAt: string;
+  readonly completedAt: string | null;
+}
+
 export class PlatformOperationsServiceError extends Error {
   constructor(
     readonly code:
-      'CONFIRMATION_REQUIRED' | 'RANKED_OBSERVATION_BLOCKED' | 'ANALYSIS_EXPORT_UNAVAILABLE',
+      | 'CONFIRMATION_REQUIRED'
+      | 'RANKED_OBSERVATION_BLOCKED'
+      | 'REPLAY_RETENTION_IN_PROGRESS'
+      | 'REPLAY_RETENTION_JOB_NOT_FOUND'
+      | 'ANALYSIS_EXPORT_UNAVAILABLE',
     message: string
   ) {
     super(message);
@@ -35,6 +55,9 @@ const cutoffFor = (now: Date) =>
   new Date(now.getTime() - RETENTION_DAYS * 86_400_000).toISOString();
 
 export class PlatformOperationsService {
+  private readonly replayRetentionJobs = new Map<string, ReplayRetentionJob>();
+  private activeReplayRetentionJobId: string | null = null;
+
   async previewReplayRetention(now = new Date()): Promise<ReplayRetentionReport> {
     const cutoff = cutoffFor(now);
     const client = await pool.connect();
@@ -90,6 +113,170 @@ export class PlatformOperationsService {
       client.release();
     }
   }
+
+  startReplayRetention(
+    confirmation: string,
+    adminUserId: string,
+    now = new Date()
+  ): ReplayRetentionJob {
+    if (confirmation !== REPLAY_RETENTION_CONFIRMATION)
+      throw new PlatformOperationsServiceError(
+        'CONFIRMATION_REQUIRED',
+        `请输入“${REPLAY_RETENTION_CONFIRMATION}”以确认`
+      );
+
+    if (this.activeReplayRetentionJobId) {
+      const active = this.replayRetentionJobs.get(this.activeReplayRetentionJobId);
+      if (active && (active.status === 'QUEUED' || active.status === 'RUNNING')) {
+        throw new PlatformOperationsServiceError(
+          'REPLAY_RETENTION_IN_PROGRESS',
+          '已有一项回放清理正在进行，请等待当前任务完成'
+        );
+      }
+    }
+
+    this.pruneReplayRetentionJobs();
+    const timestamp = now.toISOString();
+    const job: ReplayRetentionJob = {
+      id: randomUUID(),
+      status: 'QUEUED',
+      progress: {
+        phase: 'preparing',
+        candidateMatchCount: 0,
+        processedMatchCount: 0,
+        metadataRowsUpdated: 0,
+        replayRows: 0,
+        checkpointRows: 0,
+        eventRows: 0,
+        decisionRows: 0,
+        blockedRankedMatchCount: 0,
+      },
+      report: null,
+      error: null,
+      startedAt: timestamp,
+      updatedAt: timestamp,
+      completedAt: null,
+    };
+    this.replayRetentionJobs.set(job.id, job);
+    this.activeReplayRetentionJobId = job.id;
+    void this.executeReplayRetentionJob(job.id, adminUserId, now);
+    return job;
+  }
+
+  getReplayRetentionJob(jobId: string): ReplayRetentionJob {
+    const job = this.replayRetentionJobs.get(jobId);
+    if (!job)
+      throw new PlatformOperationsServiceError(
+        'REPLAY_RETENTION_JOB_NOT_FOUND',
+        '回放清理任务不存在或已过期'
+      );
+    return job;
+  }
+
+  private async executeReplayRetentionJob(
+    jobId: string,
+    adminUserId: string,
+    now: Date
+  ): Promise<void> {
+    const job = this.replayRetentionJobs.get(jobId);
+    if (!job) return;
+    const cutoff = cutoffFor(now);
+    this.updateReplayRetentionJob(jobId, { status: 'RUNNING' });
+    const client = await pool.connect().catch((error: unknown) => {
+      console.error('[PlatformOperations] Replay retention job connection failed:', {
+        jobId,
+        adminUserId,
+        error,
+      });
+      this.failReplayRetentionJob(jobId, 'INTERNAL_ERROR', '清理回放数据失败，请稍后重试');
+      return null;
+    });
+    if (!client) {
+      if (this.activeReplayRetentionJobId === jobId) this.activeReplayRetentionJobId = null;
+      return;
+    }
+    try {
+      const report = await runReplayRetention(client, {
+        mode: 'apply',
+        retentionDays: RETENTION_DAYS,
+        batchSize: RETENTION_BATCH_SIZE,
+        cutoff,
+        onProgress: (progress) => this.updateReplayRetentionJob(jobId, { progress }),
+      });
+      this.updateReplayRetentionJob(jobId, {
+        status: 'SUCCEEDED',
+        report,
+        completedAt: new Date().toISOString(),
+        progress: {
+          phase: 'completed',
+          candidateMatchCount: report.candidateMatchCount,
+          processedMatchCount: report.processedMatchCount,
+          metadataRowsUpdated: report.metadataRowsUpdated,
+          replayRows: report.replayRows,
+          checkpointRows: report.checkpointRows,
+          eventRows: report.eventRows,
+          decisionRows: report.decisionRows,
+          blockedRankedMatchCount: report.blockedRankedMatchCount,
+        },
+      });
+      console.info(
+        JSON.stringify({
+          event: 'replay-retention-applied',
+          adminUserId,
+          cutoff,
+          candidateMatchCount: report.candidateMatchCount,
+          metadataRowsUpdated: report.metadataRowsUpdated,
+        })
+      );
+    } catch (error) {
+      if (error instanceof ReplayRetentionError) {
+        this.failReplayRetentionJob(
+          jobId,
+          'RANKED_OBSERVATION_BLOCKED',
+          `有 ${error.blockedRankedMatchCount} 局排位对局缺少完整卡组观察，不能清理`
+        );
+      } else {
+        this.failReplayRetentionJob(jobId, 'INTERNAL_ERROR', '清理回放数据失败，请稍后重试');
+        console.error('[PlatformOperations] Replay retention job failed:', error);
+      }
+    } finally {
+      client.release();
+      if (this.activeReplayRetentionJobId === jobId) this.activeReplayRetentionJobId = null;
+    }
+  }
+
+  private updateReplayRetentionJob(
+    jobId: string,
+    patch: Partial<
+      Pick<ReplayRetentionJob, 'status' | 'progress' | 'report' | 'error' | 'completedAt'>
+    >
+  ): void {
+    const current = this.replayRetentionJobs.get(jobId);
+    if (!current) return;
+    this.replayRetentionJobs.set(jobId, {
+      ...current,
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  private failReplayRetentionJob(jobId: string, code: string, message: string): void {
+    this.updateReplayRetentionJob(jobId, {
+      status: 'FAILED',
+      error: { code, message },
+      completedAt: new Date().toISOString(),
+    });
+  }
+
+  private pruneReplayRetentionJobs(): void {
+    if (this.replayRetentionJobs.size < MAX_REPLAY_RETENTION_JOBS) return;
+    for (const [id, job] of this.replayRetentionJobs) {
+      if (job.status === 'QUEUED' || job.status === 'RUNNING') continue;
+      this.replayRetentionJobs.delete(id);
+      if (this.replayRetentionJobs.size < MAX_REPLAY_RETENTION_JOBS) break;
+    }
+  }
+
   async exportRankedAnalysis(
     seasonId: string,
     adminUserId: string,

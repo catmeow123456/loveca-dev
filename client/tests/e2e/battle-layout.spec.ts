@@ -14,7 +14,7 @@ declare global {
 
 // Exercise the production room page and shared board using a projected, in-memory match.
 // All account, room, and match HTTP requests stay inside browser routes.
-async function openJudgmentRoom(page: Page, local = false) {
+async function openJudgmentRoom(page: Page, local = false, dismissHelp = true) {
   await installVisualApiMocks(page, true);
   await page.route('**/site-status.json*', (route) =>
     route.fulfill({
@@ -182,10 +182,42 @@ async function openJudgmentRoom(page: Page, local = false) {
     const { openCasualDestination } = await import(path);
     openCasualDestination('online-room', 'LAYOUT');
   });
-  await page.getByRole('button', { name: '跳过提示', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: '应援/判定区', exact: true })).toBeVisible();
+  if (dismissHelp) {
+    await page.getByRole('button', { name: '跳过提示', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: '应援/判定区', exact: true })).toBeVisible();
+  }
   return snapshot;
 }
+
+test('联机操作提示可以永久关闭并从设置重新打开', async ({ page }, info) => {
+  test.skip(info.project.name !== 'tablet-1024x768');
+  await openJudgmentRoom(page, false, false);
+  const help = page.getByRole('dialog', { name: '联机对局提示' });
+  await expect(help).toBeVisible();
+  await help.getByRole('button', { name: '不再自动提示' }).click();
+  await expect(help).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: '应援/判定区', exact: true })).toBeVisible();
+  const reopenRoom = async () => {
+    await page.goto('/?page=battle-lobby');
+    await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
+    await page.evaluate(async () => {
+      const { openCasualDestination } = await import('/src/lib/casualNavigation.ts');
+      openCasualDestination('online-room', 'LAYOUT');
+    });
+  };
+  await reopenRoom();
+  await expect(page.getByRole('dialog', { name: '应援/判定区', exact: true })).toBeVisible();
+  await expect(help).toHaveCount(0);
+  await page.getByRole('button', { name: '对战设置', exact: true }).click();
+  const settings = page.getByRole('dialog', { name: '对战设置' });
+  await expect(settings.locator('button').last()).toHaveText('操作提示');
+  await settings.getByRole('button', { name: '操作提示', exact: true }).click();
+  await expect(help).toBeVisible();
+  await help.getByRole('button', { name: '跳过提示' }).click();
+  await reopenRoom();
+  await expect(page.getByRole('dialog', { name: '应援/判定区', exact: true })).toBeVisible();
+  await expect(help).toHaveCount(0);
+});
 
 async function expectNoOverlap(first: Locator, second: Locator) {
   const [a, b] = await Promise.all([first.boundingBox(), second.boundingBox()]);

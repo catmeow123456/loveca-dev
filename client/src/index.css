@@ -872,12 +872,8 @@ html:has(.battle-viewport-shell) {
   }
 
   .battle-hand-zone {
-    height: calc(
-      clamp(96px, calc(96px + (var(--battle-viewport-height) - 768px) * 16 / 132), 112px) +
-        var(--battle-hand-clearance, 0px)
-    );
-    padding: 0 var(--battle-hand-end, 0px) var(--battle-hand-clearance, 0px)
-      var(--battle-hand-start, 0px);
+    height: clamp(96px, calc(96px + (var(--battle-viewport-height) - 768px) * 16 / 132), 112px);
+    padding: 0 var(--battle-hand-end, 0px) 0 var(--battle-hand-start, 0px);
   }
 
   .battle-hand-viewport {

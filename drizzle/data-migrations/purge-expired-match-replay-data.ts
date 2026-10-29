@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import {
   runReplayRetention,
+  type ReplayRetentionProgress,
   type ReplayRetentionMode,
   type ReplayRetentionQueryClient,
   type ReplayRetentionReport,
@@ -78,9 +79,10 @@ export function parseArgs(argv: readonly string[], now = new Date()): PurgeRepla
 
 export async function runPurgeReplayMigration(
   queryClient: PurgeReplayQueryClient,
-  args: PurgeReplayArgs
+  args: PurgeReplayArgs,
+  onProgress?: (progress: ReplayRetentionProgress) => void
 ): Promise<PurgeReplayReport> {
-  const report = await runReplayRetention(queryClient, args);
+  const report = await runReplayRetention(queryClient, { ...args, onProgress });
   return {
     ...report,
     script: 'purge-expired-match-replay-data',
@@ -103,7 +105,15 @@ async function main(): Promise<void> {
   const client = new pg.Client({ connectionString: databaseUrl });
   await client.connect();
   try {
-    const report = await runPurgeReplayMigration(client, args);
+    const report = await runPurgeReplayMigration(client, args, (progress) => {
+      const total = progress.candidateMatchCount;
+      const processed = progress.processedMatchCount;
+      const percent = total === 0 ? 100 : Math.floor((processed / total) * 100);
+      const phase = progress.phase === 'preparing' ? 'preparing' : progress.phase;
+      console.error(
+        `[replay-retention] ${phase}: ${processed}/${total} matches (${percent}%), ${progress.metadataRowsUpdated} updated`
+      );
+    });
     console.log(JSON.stringify(report, null, 2));
   } finally {
     await client.end();

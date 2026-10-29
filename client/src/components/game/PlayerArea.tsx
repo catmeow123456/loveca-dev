@@ -421,15 +421,12 @@ export const PlayerArea = memo(function PlayerArea({
     if (!hand || !energy) return;
     const measure = () => {
       const bounds = row.getBoundingClientRect();
-      // LIVE and the hand row share the player's center line. Symmetric insets
-      // preserve that alignment while clearing the energy pile and owner summary.
-      const sideInset = Math.max(
+      // Keep the hand centered on wide screens; use the space between the
+      // energy pile and dock on narrower screens.
+      const start = Math.max(16, energy.getBoundingClientRect().right - bounds.left + 12);
+      const end = Math.max(
         16,
-        energy.getBoundingClientRect().right - bounds.left + 12,
-        summary ? bounds.right - summary.getBoundingClientRect().left + 12 : 0
-      );
-      const dockInset = Math.max(
-        sideInset,
+        summary ? bounds.right - summary.getBoundingClientRect().left + 12 : 0,
         // Reserve the dock's maximum desktop width so changing phases cannot
         // shift the hand when the dock's visible contents change.
         phase
@@ -437,16 +434,11 @@ export const PlayerArea = memo(function PlayerArea({
           : 0
       );
       const cardWidth = cardSize ? parseFloat(getComputedStyle(cardSize).width) : 60;
-      const stacked =
-        bounds.width - dockInset * 2 - 48 < minimumDesktopHandViewportWidth(cardWidth);
-      const inset = stacked ? sideInset : dockInset;
-      hand.style.setProperty('--battle-hand-start', `${inset}px`);
-      hand.style.setProperty('--battle-hand-end', `${inset}px`);
-      // Narrow desktops lift the hand instead of squeezing its browsing window.
-      hand.style.setProperty(
-        '--battle-hand-clearance',
-        stacked && phase ? `${phase.getBoundingClientRect().height + 8}px` : '0px'
-      );
+      const centeredInset = Math.max(start, end);
+      const centered =
+        bounds.width - centeredInset * 2 - 48 >= minimumDesktopHandViewportWidth(cardWidth);
+      hand.style.setProperty('--battle-hand-start', `${centered ? centeredInset : start}px`);
+      hand.style.setProperty('--battle-hand-end', `${centered ? centeredInset : end}px`);
     };
     measure();
     const observer = new ResizeObserver(measure);

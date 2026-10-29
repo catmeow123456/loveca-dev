@@ -36,6 +36,7 @@ import {
 import { ConfirmDialog, DeckSelector, type DeckDisplayItem, PageHeader } from '@/components/common';
 import { BattleViewportShell, GameBoard, MatchChat } from '@/components/game';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
+import { readHideAutomaticBattleHelp } from '@/lib/battleHelpPreference';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import { ThemeDeckAssignmentIntro } from '@/components/theme-table/ThemeDeckAssignmentIntro';
@@ -196,7 +197,7 @@ export function OnlineRoomPage({
   const [isBootstrappingMatch, setIsBootstrappingMatch] = useState(false);
   const [matchBootstrapError, setMatchBootstrapError] = useState<string | null>(null);
   const [matchBootstrapRetryToken, setMatchBootstrapRetryToken] = useState(0);
-  const [briefingAcknowledged, setBriefingAcknowledged] = useState(false);
+  const [briefingAcknowledged, setBriefingAcknowledged] = useState(readHideAutomaticBattleHelp);
   const [isUpdatingSpectatorEntry, setIsUpdatingSpectatorEntry] = useState(false);
   const [isRoomPanelOpen, setIsRoomPanelOpen] = useState(false);
   const roomTriggerRef = useRef<HTMLButtonElement>(null);
@@ -255,7 +256,10 @@ export function OnlineRoomPage({
   );
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setBriefingAcknowledged(false), 0);
+    const timer = window.setTimeout(
+      () => setBriefingAcknowledged(readHideAutomaticBattleHelp()),
+      0
+    );
     return () => window.clearTimeout(timer);
   }, [room?.matchId]);
 

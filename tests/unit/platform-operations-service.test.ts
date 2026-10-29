@@ -35,11 +35,11 @@ describe('platformOperationsService', () => {
 
   it('previews the same ten-day retention policy used by the maintenance script', async () => {
     mocks.query.mockImplementation((sql: string) => {
-      if (sql.includes('SELECT record.match_id,')) {
+      if (sql.includes('candidate_match_count')) {
         return {
           rows: [
             {
-              match_id: 'old-match',
+              candidate_match_count: 1,
               replay_rows: 12,
               checkpoint_rows: 4,
               event_rows: 7,
@@ -49,7 +49,6 @@ describe('platformOperationsService', () => {
         };
       }
       if (sql.includes('JOIN ranked_matches AS ranked_match')) return { rows: [{ count: 0 }] };
-      if (sql.startsWith('SELECT count(*) FROM match_records')) return { rows: [{ count: 1 }] };
       throw new Error(`unexpected query: ${sql}`);
     });
 
@@ -79,7 +78,19 @@ describe('platformOperationsService', () => {
 
   it('blocks deletion when a ranked candidate lacks both long-term deck observations', async () => {
     mocks.query.mockImplementation((sql: string) => {
-      if (sql.includes('SELECT record.match_id,')) return { rows: [] };
+      if (sql.includes('candidate_match_count')) {
+        return {
+          rows: [
+            {
+              candidate_match_count: 0,
+              replay_rows: 0,
+              checkpoint_rows: 0,
+              event_rows: 0,
+              decision_rows: 0,
+            },
+          ],
+        };
+      }
       if (sql.includes('JOIN ranked_matches AS ranked_match')) return { rows: [{ count: 2 }] };
       throw new Error(`unexpected query: ${sql}`);
     });
@@ -101,7 +112,19 @@ describe('platformOperationsService', () => {
   it('purges eligible records in locked batches and releases the client', async () => {
     let purgedBatch = false;
     mocks.query.mockImplementation((sql: string) => {
-      if (sql.includes('SELECT record.match_id,')) return { rows: [] };
+      if (sql.includes('candidate_match_count')) {
+        return {
+          rows: [
+            {
+              candidate_match_count: 3,
+              replay_rows: 0,
+              checkpoint_rows: 0,
+              event_rows: 0,
+              decision_rows: 0,
+            },
+          ],
+        };
+      }
       if (sql.includes('JOIN ranked_matches AS ranked_match')) return { rows: [{ count: 0 }] };
       if (sql === 'BEGIN' || sql === 'COMMIT') return { rows: [] };
       if (sql.includes('WITH selected')) {
@@ -124,6 +147,51 @@ describe('platformOperationsService', () => {
     expect(statements.some((sql) => sql.includes('DELETE FROM match_decision_records'))).toBe(true);
     expect(console.info).toHaveBeenCalledWith(expect.stringContaining('"adminUserId":"admin-1"'));
     expect(mocks.release).toHaveBeenCalledOnce();
+  });
+
+  it('runs replay retention as a pollable background job with batch progress', async () => {
+    let purgedBatch = false;
+    mocks.query.mockImplementation((sql: string) => {
+      if (sql.includes('candidate_match_count')) {
+        return {
+          rows: [
+            {
+              candidate_match_count: 2,
+              replay_rows: 10,
+              checkpoint_rows: 4,
+              event_rows: 5,
+              decision_rows: 1,
+            },
+          ],
+        };
+      }
+      if (sql.includes('JOIN ranked_matches AS ranked_match')) return { rows: [{ count: 0 }] };
+      if (sql === 'BEGIN' || sql === 'COMMIT') return { rows: [] };
+      if (sql.includes('WITH selected')) {
+        if (purgedBatch) return { rows: [{ count: 0 }] };
+        purgedBatch = true;
+        return { rows: [{ count: 2 }] };
+      }
+      throw new Error(`unexpected query: ${sql}`);
+    });
+
+    const job = platformOperationsService.startReplayRetention(
+      REPLAY_RETENTION_CONFIRMATION,
+      'admin-1',
+      new Date('2026-08-20T00:00:00.000Z')
+    );
+    expect(job.status).toBe('QUEUED');
+
+    await vi.waitFor(() => {
+      expect(platformOperationsService.getReplayRetentionJob(job.id).status).toBe('SUCCEEDED');
+    });
+    const completed = platformOperationsService.getReplayRetentionJob(job.id);
+    expect(completed.progress).toMatchObject({
+      candidateMatchCount: 2,
+      processedMatchCount: 2,
+      phase: 'completed',
+    });
+    expect(completed.report?.metadataRowsUpdated).toBe(2);
   });
 
   it('exports ranked analysis only from normalized ranked tables', async () => {

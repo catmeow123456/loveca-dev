@@ -112,19 +112,6 @@ export function BattleSettingsMenu({
       <BattleToolbarMenu label="对战设置" icon={<Settings2 size={16} />} compact={compact}>
         {(close) => (
           <>
-            {onShowHelp && (
-              <button
-                type="button"
-                className="button-ghost flex min-h-11 w-full items-center gap-2 px-2"
-                onClick={() => {
-                  close();
-                  onShowHelp();
-                }}
-              >
-                <BookOpen size={16} aria-hidden="true" />
-                操作提示
-              </button>
-            )}
             <div className="flex min-h-12 items-center justify-between gap-4 px-2">
               <span>Excel 模式</span>
               <PresentationModeButton compact />
@@ -150,6 +137,19 @@ export function BattleSettingsMenu({
                   onChange={onBattleEffectsChange}
                 />
               </div>
+            )}
+            {onShowHelp && (
+              <button
+                type="button"
+                className="button-ghost flex min-h-11 w-full items-center gap-2 px-2"
+                onClick={() => {
+                  close();
+                  onShowHelp();
+                }}
+              >
+                <BookOpen size={16} aria-hidden="true" />
+                操作提示
+              </button>
             )}
           </>
         )}

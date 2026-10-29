@@ -84,4 +84,10 @@
   .ui-dialog-footer {
     padding: 12px 16px;
   }
+
+  .battle-briefing-actions .ui-action-button {
+    padding-inline: 4px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
 }
