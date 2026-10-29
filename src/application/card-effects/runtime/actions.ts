@@ -23,6 +23,8 @@ import {
   addBladeLiveModifierForPlayer as addBladeLiveModifierForPlayerRule,
   addBladeLiveModifierForSourceMember as addBladeLiveModifierForSourceMemberRule,
   addBladeLiveModifierForTargetMember as addBladeLiveModifierForTargetMemberRule,
+  collectLiveModifiers,
+  getPlayerLiveScoreModifier,
   removeLiveCardBoundLiveModifiers,
 } from '../../../domain/rules/live-modifiers.js';
 import { CardType, FaceState, OrientationState, ZoneType } from '../../../shared/types/enums.js';
@@ -346,14 +348,38 @@ export function clearRemainingHeartsForPlayer(
   const lostHearts = game.liveResolution.playerRemainingHearts.get(playerId) ?? [];
   const playerRemainingHearts = new Map(game.liveResolution.playerRemainingHearts);
   playerRemainingHearts.set(playerId, []);
+  let state = updateLiveResolution(game, (liveResolution) => ({
+    ...liveResolution,
+    playerRemainingHearts,
+  }));
+  const lostTotalCount = lostHearts.reduce((total, heart) => total + heart.count, 0);
+  if (lostTotalCount > 0) {
+    // Continuous SCORE may depend on either player's current surplus. Adjust only
+    // already-judged successful players, preserving other rewards/manual drafts.
+    const judgedPlayers = game.players.filter((player) =>
+      game.liveResolution.playerScores.has(player.id) &&
+      [...game.liveResolution.liveResults].some(([cardId, success]) => {
+        const card = getCardById(game, cardId);
+        return success && card?.ownerId === player.id && isLiveCardData(card.data);
+      })
+    );
+    if (judgedPlayers.length > 0) {
+      const beforeModifiers = collectLiveModifiers(game);
+      const afterModifiers = collectLiveModifiers(state);
+      const playerScores = new Map(state.liveResolution.playerScores);
+      for (const player of judgedPlayers) {
+        const delta = getPlayerLiveScoreModifier(state.liveResolution, player.id, afterModifiers) -
+          getPlayerLiveScoreModifier(game.liveResolution, player.id, beforeModifiers);
+        if (delta !== 0) playerScores.set(player.id, Math.max(0, playerScores.get(player.id)! + delta));
+      }
+      state = updateLiveResolution(state, (liveResolution) => ({ ...liveResolution, playerScores }));
+    }
+  }
 
   return {
-    gameState: updateLiveResolution(game, (liveResolution) => ({
-      ...liveResolution,
-      playerRemainingHearts,
-    })),
+    gameState: state,
     lostHearts,
-    lostTotalCount: lostHearts.reduce((total, heart) => total + heart.count, 0),
+    lostTotalCount,
   };
 }
 

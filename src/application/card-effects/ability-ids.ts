@@ -2160,3 +2160,28 @@ export const N_BP8_031_LIVE_SUCCESS_MOST_HEART_MEMBER_GAIN_SCORE_ABILITY_ID =
   'PL!N-bp8-031:live-success-most-heart-member-gain-score';
 export const S_CL1_013_LIVE_START_RECYCLE_AQOURS_GAIN_BLUE_HEART_ABILITY_ID =
   'PL!S-cl1-013:live-start-recycle-aqours-gain-blue-heart';
+
+export const N_BP8_005_CONTINUOUS_HAND_COST_INCREASE_BY_ENERGY_DECK_ABILITY_ID =
+  'PL!N-bp8-005:continuous-hand-cost-increase-by-energy-deck';
+export const N_BP8_005_CONTINUOUS_STAGE_RED_HEARTS_ABILITY_ID =
+  'PL!N-bp8-005:continuous-stage-red-hearts';
+export const N_BP8_005_ACTIVATED_TAP_ENERGY_STACK_ENERGY_BELOW_RECOVER_NIJIGASAKI_MEMBER_ABILITY_ID =
+  'PL!N-bp8-005:activated-tap-energy-stack-energy-below-recover-nijigasaki-member';
+export const N_BP8_017_ACTIVATED_SELF_TO_WAITING_RECOVER_LIVE_ABILITY_ID =
+  'PL!N-bp8-017:activated-self-to-waiting-recover-live';
+export const HS_BP8_007_CONTINUOUS_LOW_COST_ACTIVATED_PROHIBITION_ABILITY_ID =
+  'PL!HS-bp8-007:continuous-low-cost-activated-prohibition';
+export const HS_BP8_007_ON_ENTER_LOOK_TOP_FIVE_PURPLE_REQUIREMENT_LIVE_ABILITY_ID =
+  'PL!HS-bp8-007:on-enter-look-top-five-purple-requirement-live';
+export const HS_BP8_008_CONTINUOUS_OPPONENT_WAIT_PROTECTION_ABILITY_ID =
+  'PL!HS-bp8-008:continuous-opponent-wait-protection';
+export const HS_BP8_008_ACTIVATED_DISCARD_REPLAY_OTHER_EDELNOTE_MEMBER_ABILITY_ID =
+  'PL!HS-bp8-008:activated-discard-replay-other-edelnote-member';
+export const HS_BP8_015_ON_ENTER_WAIT_LOOK_TOP_TWO_ARRANGE_ABILITY_ID =
+  'PL!HS-bp8-015:on-enter-wait-look-top-two-arrange';
+export const PL_BP8_025_LIVE_START_NICO_STRICT_ATTRIBUTE_LEADS_SCORE_ABILITY_ID =
+  'PL!-bp8-025:live-start-nico-strict-attribute-leads-score';
+export const HS_BP8_023_LIVE_START_EDELNOTE_SUCCESS_SCORE_REQUIREMENT_ABILITY_ID =
+  'PL!HS-bp8-023:live-start-edelnote-success-score-requirement';
+export const N_BP8_029_LIVE_SUCCESS_RED_REMAINING_HEART_SCORE_CLEAR_ABILITY_ID =
+  'PL!N-bp8-029:live-success-red-remaining-heart-score-clear';

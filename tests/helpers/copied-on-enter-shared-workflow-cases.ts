@@ -3,6 +3,16 @@ import * as IDs from '../../src/application/card-effects/ability-ids';
 // Each entry is exercised in copied-on-enter-shared-workflows.test.ts with native and real host results.
 export const SHARED_COPY_SOURCE_CASES = [
   {
+    code: 'PL!HS-bp8-007-SEC', representativeCardCode: 'PL!HS-bp8-007-SEC',
+    abilityId: IDs.HS_BP8_007_ON_ENTER_LOOK_TOP_FIVE_PURPLE_REQUIREMENT_LIVE_ABILITY_ID,
+    workflowPath: 'src/application/card-effects/workflows/shared/look-top-select-to-hand.ts',
+  },
+  {
+    code: 'PL!HS-bp8-015-N', representativeCardCode: 'PL!HS-bp8-015-N',
+    abilityId: IDs.HS_BP8_015_ON_ENTER_WAIT_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
+    workflowPath: 'src/application/card-effects/workflows/shared/on-enter-wait-look-top-two-arrange.ts',
+  },
+  {
     code: 'PL!HS-PR-001-PR',
     representativeCardCode: 'PL!HS-PR-001-PR',
     abilityId: IDs.GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,

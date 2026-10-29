@@ -32,6 +32,7 @@ import {
   resolvePublicRevealDwellStep,
 } from './public-reveal-dwell.js';
 import type { DelegatePendingAbility, PendingAbilityStarterOptions } from './starter-registry.js';
+import type { ActivatedAbilityResolutionOptions } from './activated-registry.js';
 import {
   isActiveEffectSelectionValid,
   queryCardSelection,
@@ -65,7 +66,8 @@ export interface ActiveEffectStepHandlerContext {
     game: GameState,
     playerId: string,
     cardId: string,
-    abilityId: string
+    abilityId: string,
+    options?: ActivatedAbilityResolutionOptions
   ) => GameState | null;
   readonly resolvePendingAbilityStarter: (
     game: GameState,

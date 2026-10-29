@@ -3207,5 +3207,91 @@
     "nameCn": "鬼冢冬毬",
     "cardText": "【LIVE成功时】因声援被公开的对方的卡片的张数大于等于12张的场合，LIVE的合计分数＋１。",
     "copyAbilityIds": []
+  },
+  "PL!HS-bp8-007-SEC": {
+    "cardCode": "PL!HS-bp8-007-SEC",
+    "cardType": "MEMBER",
+    "cost": 13,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 4
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【常時】自分のステージにアクティブ状態の「桂城泉」がいるかぎり、自分と相手のステージにいるコスト４以下のメンバーの【起動】能力は起動できない。\n\n【登場】自分のデッキの上からカードを５枚見る。その中から必要ハートに[紫ハート]を含むライブカードを１枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【常时】只要自己的舞台上存在活跃状态的「桂城泉」，存在于自己和对方的舞台的费用小于等于４的成员的【起动】能力不能起动。\n\n【登场】检视自己的卡组顶的５张卡片。可以将其中的１张必要HEART包含[紫ハート]的LIVE卡公开并加入手牌。其余的放置入休息室。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!HS-bp8-007-SEC"
+    },
+    "nameJp": "セラス 柳田 リリエンフェルト",
+    "nameCn": "赛拉丝·柳田·利林费尔德",
+    "name": "赛拉丝·柳田·利林费尔德",
+    "cardText": "【常时】只要自己的舞台上存在活跃状态的「桂城泉」，存在于自己和对方的舞台的费用小于等于４的成员的【起动】能力不能起动。\n\n【登场】检视自己的卡组顶的５张卡片。可以将其中的１张必要HEART包含[紫ハート]的LIVE卡公开并加入手牌。其余的放置入休息室。",
+    "copyAbilityIds": [
+      "PL!HS-bp8-007:on-enter-look-top-five-purple-requirement-live"
+    ]
+  },
+  "PL!HS-bp8-015-N": {
+    "cardCode": "PL!HS-bp8-015-N",
+    "cardType": "MEMBER",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【登場】このメンバーをウェイトにしてもよい：自分のデッキの上からカードを２枚見る。その中から好きな枚数を好きな順番でデッキの上に置き、残りを控え室に置く。（ウェイト状態のメンバーが持つ[ブレード]は、エールで公開する枚数を増やさない。）",
+    "cardTextCn": "【登场】将此成员变为待机状态：检视自己的卡组顶的２张卡片。可以将其中的任意张数的卡片按任意顺序放置于卡组顶，其余的放置入休息室。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!HS-bp8-015-N"
+    },
+    "nameJp": "セラス 柳田 リリエンフェルト",
+    "nameCn": "赛拉丝·柳田·利林费尔德",
+    "name": "赛拉丝·柳田·利林费尔德",
+    "cardText": "【登场】将此成员变为待机状态：检视自己的卡组顶的２张卡片。可以将其中的任意张数的卡片按任意顺序放置于卡组顶，其余的放置入休息室。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）",
+    "copyAbilityIds": [
+      "PL!HS-bp8-015:on-enter-wait-look-top-two-arrange"
+    ]
   }
 }

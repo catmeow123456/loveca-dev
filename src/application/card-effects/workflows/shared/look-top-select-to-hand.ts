@@ -32,6 +32,7 @@ import {
   SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID,
   SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID,
   UMI_ON_ENTER_ABILITY_ID,
+  HS_BP8_007_ON_ENTER_LOOK_TOP_FIVE_PURPLE_REQUIREMENT_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   finishSkippedActiveEffect,
@@ -55,6 +56,7 @@ import {
   groupIs,
   hasNoAbilityOrContinuousAbility,
   liveTotalRequiredHeartGte,
+  liveRequiresHeartColor,
   memberHasPrintedHeartColorAtLeast,
   memberHasHeartColor,
   typeIs,
@@ -229,6 +231,28 @@ function createNamedMemberLookTopTwoConfig(params: {
 }
 
 const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandWorkflowConfig[] = [
+  {
+    abilityId: HS_BP8_007_ON_ENTER_LOOK_TOP_FIVE_PURPLE_REQUIREMENT_LIVE_ABILITY_ID,
+    topCount: 5,
+    selector: liveRequiresHeartColor(HeartColor.PURPLE),
+    countRule: { minCount: 0, maxCount: 1 },
+    revealSelectedBeforeHand: true,
+    selectStepId: 'HS_BP8_007_SELECT_PURPLE_REQUIREMENT_LIVE',
+    revealStepId: 'HS_BP8_007_REVEAL_PURPLE_REQUIREMENT_LIVE',
+    selectStepText: '请选择要公开并加入手牌的必要Heart包含[紫ハート]的LIVE卡。',
+    noTargetStepText: '没有可加入手牌的必要Heart包含[紫ハート]的LIVE卡。确认后将全部检视牌放置入休息室。',
+    selectionLabel: '选择要公开并加入手牌的LIVE卡',
+    confirmSelectionLabel: '公开并加入手牌',
+    skipSelectionLabel: '全部放置入休息室',
+    revealStepText: '已公开选择的LIVE卡。展示结束后加入手牌，其余检视牌放置入休息室。',
+    includeInspectedCardIdsInFinishAction: true,
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 5,
+    },
+  },
   {
     abilityId: N_SD2_009_ON_ENTER_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID,
     topCount: 3,
