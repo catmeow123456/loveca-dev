@@ -1,3 +1,5 @@
+import { VALID_RARITIES } from '../../src/shared/utils/card-code';
+import { getOctober29DraftRow, OCTOBER_29_TARGET_BASES } from '../helpers/october-29-draft-effects';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
@@ -17182,4 +17184,53 @@ describe('October 21 μ’s draft ability classifications', () => {
       }
     }
   );
+});
+
+
+describe('October 29 eight-card definitions and migrated A song for You! full text', () => {
+  it.each([...OCTOBER_29_TARGET_BASES, 'PL!-bp5-022'])(
+    '%s preserves every complete authorized paragraph for all 27 rarities', (base) => {
+      const row = getOctober29DraftRow(base);
+      const paragraphs = row.cardTextCn.split(/\n\n+/).map((text) => text.trim());
+      if (base === 'PL!HS-bp8-015') paragraphs[0] = paragraphs[0].replace('【登场】将', '【登场】可以将');
+      const native = getCardAbilityDefinitions(row.cardCode);
+      expect(native).toHaveLength(paragraphs.length);
+      expect(native.map((definition) => definition.effectText)).toEqual(paragraphs);
+      for (const rarity of VALID_RARITIES) {
+        const definitions = getCardAbilityDefinitions(`${base}-${rarity}`);
+        expect(definitions.map((definition) => definition.abilityId)).toEqual(native.map((definition) => definition.abilityId));
+        definitions.forEach((definition, index) => {
+          expect(definition.baseCardCodes).toEqual([base]);
+          expect(definition.cardCodes).toBeUndefined();
+          expect(definition.implemented).toBe(true);
+          expect(definition.effectText).toBe(paragraphs[index]);
+          if (definition.category === CardAbilityCategory.ACTIVATED) {
+            expect(definition.activatedUi?.text).toBe(paragraphs[index]);
+            expect(definition.activatedUi?.abilityId).toBe(definition.abilityId);
+          }
+        });
+      }
+    }
+  );
+  it('registers the twelve new abilities at their actual timing and source zone', () => {
+    const definitions = OCTOBER_29_TARGET_BASES.flatMap((base) => getCardAbilityDefinitions(getOctober29DraftRow(base).cardCode));
+    expect(definitions).toHaveLength(12);
+    expect(new Set(definitions.map((definition) => definition.abilityId)).size).toBe(12);
+    const counts = new Map<CardAbilityCategory, number>();
+    for (const definition of definitions) {
+      counts.set(definition.category, (counts.get(definition.category) ?? 0) + 1);
+      expect(definition.queued).toBe(![CardAbilityCategory.CONTINUOUS, CardAbilityCategory.ACTIVATED].includes(definition.category));
+      if (definition.category === CardAbilityCategory.ON_ENTER) {
+        expect(definition.sourceZone).toBe(CardAbilitySourceZone.PLAYED_MEMBER);
+        expect(definition.triggerCondition).toBe(TriggerCondition.ON_ENTER_STAGE);
+      }
+      if (definition.category === CardAbilityCategory.LIVE_START || definition.category === CardAbilityCategory.LIVE_SUCCESS) {
+        expect(definition.sourceZone).toBe(CardAbilitySourceZone.LIVE_CARD);
+      }
+    }
+    expect(Object.fromEntries(counts)).toEqual({ CONTINUOUS: 4, ACTIVATED: 3, ON_ENTER: 2, LIVE_START: 2, LIVE_SUCCESS: 1 });
+    expect(definitions.filter((definition) => definition.activatedUi)).toHaveLength(3);
+    const circle = getCardAbilityDefinitions('PL!N-bp8-029-SECL')[0];
+    expect(circle.remainingHeartAllocationPreference).toEqual({ color: HeartColor.RED, minCounts: [2, 4, 6] });
+  });
 });

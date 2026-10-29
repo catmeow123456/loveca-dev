@@ -1,4 +1,5 @@
 import type { GameState } from '../../../domain/entities/game.js';
+import { isStageMemberActivatedAbilityProhibited } from '../../../domain/rules/member-activated-ability-prohibitions.js';
 import { EnergySelectionRequiredError } from '../../effects/energy-selection.js';
 import { createActivatedAbilityEnergySelectionWindow } from './energy-operation-selection.js';
 import { getAbilityEffectText } from './workflow-helpers.js';
@@ -9,6 +10,11 @@ export type ActivatedAbilityHandler = (
   cardId: string,
   abilityId: string
 ) => GameState;
+
+export interface ActivatedAbilityResolutionOptions {
+  /** This invocation already opened its authoritative cost-selection window. */
+  readonly resumeStartedActivation?: boolean;
+}
 
 const activatedAbilityHandlers = new Map<string, ActivatedAbilityHandler>();
 type ActivatedAbilityAvailabilityQuery = (
@@ -35,6 +41,7 @@ export function queryActivatedAbilityStart(
   cardId: string,
   abilityId: string
 ): boolean | undefined {
+  if (isStageMemberActivatedAbilityProhibited(game, playerId, cardId)) return false;
   return availabilityQueries.get(abilityId)?.(game, playerId, cardId);
 }
 
@@ -42,11 +49,15 @@ export function resolveActivatedAbilityWithRegistry(
   game: GameState,
   playerId: string,
   cardId: string,
-  abilityId: string
+  abilityId: string,
+  options: ActivatedAbilityResolutionOptions = {}
 ): GameState | null {
   const handler = activatedAbilityHandlers.get(abilityId);
   if (!handler) return null;
-  if (queryActivatedAbilityStart(game, playerId, cardId, abilityId) === false) return game;
+  const available = options.resumeStartedActivation
+    ? availabilityQueries.get(abilityId)?.(game, playerId, cardId)
+    : queryActivatedAbilityStart(game, playerId, cardId, abilityId);
+  if (available === false) return game;
   try {
     return handler(game, playerId, cardId, abilityId);
   } catch (error) {

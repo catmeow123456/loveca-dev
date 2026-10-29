@@ -19,6 +19,7 @@ import {
   HS_CL1_008_ACTIVATED_SELF_SACRIFICE_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
   N_BP7_015_ACTIVATED_SELF_SACRIFICE_RECOVER_MEMBER_ABILITY_ID,
   N_BP7_021_ACTIVATED_SELF_SACRIFICE_RECOVER_LIVE_ABILITY_ID,
+  N_BP8_017_ACTIVATED_SELF_TO_WAITING_RECOVER_LIVE_ABILITY_ID,
   PB1_019_ACTIVATED_ABILITY_ID,
   PL_PB2_007_ACTIVATED_SELF_SACRIFICE_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
   PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
@@ -116,6 +117,16 @@ interface SelfSacrificeWaitingRoomToHandWorkflowConfig {
 
 const SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly SelfSacrificeWaitingRoomToHandWorkflowConfig[] =
   [
+    {
+      abilityId: N_BP8_017_ACTIVATED_SELF_TO_WAITING_RECOVER_LIVE_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!N-bp8-017'],
+      stepId: 'N_BP8_017_SELECT_WAITING_ROOM_LIVE',
+      selectablePredicate: typeIs(CardType.LIVE),
+      selectionRequiredWhenHasTargets: true,
+      stepText: '请选择自己的休息室中1张LIVE卡加入手牌。',
+      selectionLabel: '选择要加入手牌的LIVE卡',
+      confirmSelectionLabel: '加入手牌',
+    },
     {
       abilityId: S_CL1_009_ACTIVATED_SELF_SACRIFICE_RECOVER_MEMBER_ABILITY_ID,
       expectedBaseCardCodes: ['PL!S-cl1-009'],

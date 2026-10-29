@@ -308,7 +308,7 @@ describe('PL!-bp5 LIVE start requirement modifiers', () => {
     });
 
     const preview = resolvePendingCardEffects(game).gameState;
-    expect(preview.activeEffect?.effectText).toContain('成功LIVE 0张');
+    expect(preview.activeEffect?.effectText).toContain('成功LIVE卡区的卡片0张');
     const state = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
 
     expect(state.liveResolution.liveModifiers).toEqual([]);

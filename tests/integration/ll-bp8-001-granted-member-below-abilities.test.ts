@@ -8,6 +8,8 @@ import {
   N_SD1_005_ACTIVATED_DISCARD_TWO_RECOVER_NIJIGASAKI_MEMBER_ABILITY_ID as NIJI_MEMBER,
   N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID as DISCARD_HEART,
   N_SD2_017_LIVE_START_PAY_ENERGY_ACTIVATE_STAGE_MEMBER_ABILITY_ID as ACTIVATE_MEMBER,
+  N_BP8_005_ACTIVATED_TAP_ENERGY_STACK_ENERGY_BELOW_RECOVER_NIJIGASAKI_MEMBER_ABILITY_ID as AI_STACK_RECOVER,
+  N_BP8_017_ACTIVATED_SELF_TO_WAITING_RECOVER_LIVE_ABILITY_ID as AI_SELF_RECOVER_LIVE,
   NICO_LIVE_START_SCORE_ABILITY_ID as MUSE_SCORE,
   PB1_019_ACTIVATED_ABILITY_ID as RECOVER_MEMBER,
   PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID as WAIT_HEART,
@@ -78,6 +80,7 @@ import {
 } from '../../src/shared/types/enums';
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { getOctober26CardData } from '../helpers/october-26-card-effects';
+import { getOctober29MemberData } from '../helpers/october-29-draft-effects';
 
 const P1 = 'player1';
 const P2 = 'player2';
@@ -97,6 +100,20 @@ interface AbilityCase {
   readonly timing: 'ACTIVATED' | 'LIVE_START';
 }
 const CASES: readonly AbilityCase[] = [
+  {
+    abilityId: AI_STACK_RECOVER,
+    code: 'PL!N-bp8-005-SEC',
+    name: '宮下愛',
+    cost: 10,
+    timing: 'ACTIVATED',
+  },
+  {
+    abilityId: AI_SELF_RECOVER_LIVE,
+    code: 'PL!N-bp8-017-N',
+    name: '宮下愛',
+    cost: 2,
+    timing: 'ACTIVATED',
+  },
   {
     abilityId: NICO_ENERGY_BLADE,
     code: 'PL!-bp8-018-N',
@@ -202,6 +219,8 @@ function member(
       blade: 1,
       hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
       ...(code === 'PL!-bp8-018-N' ? (getOctober26CardData(code) as MemberCardData) : {}),
+      ...(code.startsWith('PL!N-bp8-005-') ? getOctober29MemberData('PL!N-bp8-005') : {}),
+      ...(code.startsWith('PL!N-bp8-017-') ? getOctober29MemberData('PL!N-bp8-017') : {}),
     },
     owner,
     id
@@ -407,6 +426,12 @@ function start(session: GameSession, entry: AbilityCase, direct = false): void {
 }
 function complete(session: GameSession, entry: AbilityCase): void {
   switch (entry.abilityId) {
+    case AI_STACK_RECOVER:
+      confirm(session, { card: TARGET });
+      break;
+    case AI_SELF_RECOVER_LIVE:
+      confirm(session, { card: LIVE });
+      break;
     case MUSE_LIVE:
       confirm(session, { card: LIVE });
       break;
@@ -465,6 +490,15 @@ function assertOutcome(session: GameSession, entry: AbilityCase, direct = false)
         item.kind === kind && item.abilityId === entry.abilityId && item.sourceCardId === HOST
     );
   switch (entry.abilityId) {
+    case AI_STACK_RECOVER:
+      expect(player.hand.cardIds).toContain(TARGET);
+      expect(player.memberSlots.energyBelow[SlotPosition.CENTER]).toEqual(['energy-0']);
+      expect(player.memberSlots.slots[SlotPosition.CENTER]).toBe(HOST);
+      break;
+    case AI_SELF_RECOVER_LIVE:
+      expect(player.hand.cardIds).toContain(LIVE);
+      expect(player.waitingRoom.cardIds).toContain(HOST);
+      break;
     case MUSE_LIVE:
       expect(player.hand.cardIds).toContain(LIVE);
       expect(player.waitingRoom.cardIds).toContain(HOST);
@@ -595,7 +629,7 @@ describe('LL-bp8-001 费用15「矢泽日香（矢泽妮可）&宫下爱&赛拉�
       assertOutcome(session, entry, direct);
     }
   });
-  it('完整池为15唯一能力；三个成员别名、组合名与其他罕度都支持，排除AUTO和常时', () => {
+  it('完整池为17唯一能力；三个成员别名、组合名与其他罕度都支持，排除AUTO和常时', () => {
     const session = setup(cardCase(ENTRY_SCORE), false, 0, 'SEC');
     const cards = CASES.map((entry, index) => member(entry.code, `grant-${index}`, entry.name));
     const other = member('PL!SP-bp5-020-N', 'not-granted', '鬼塚夏美');
@@ -611,14 +645,14 @@ describe('LL-bp8-001 费用15「矢泽日香（矢泽妮可）&宫下爱&赛拉�
     expect(new Set(grants.map((copy) => copy.definition.abilityId))).toEqual(
       new Set(CASES.map((entry) => entry.abilityId))
     );
-    expect(grants).toHaveLength(15);
+    expect(grants).toHaveLength(17);
     expect(
       getActivatedAbilityUiConfigs(`LL-bp8-001-SEC`, undefined, {
         game,
         playerId: P1,
         sourceCardId: HOST,
       })
-    ).toHaveLength(5);
+    ).toHaveLength(7);
   });
   it.each(['PL!HS-sd1-015-SD', 'PL!N-bp4-017-N'])('%s共享回收成员起动也能完整结算', (code) => {
     const entry = {

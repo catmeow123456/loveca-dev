@@ -88,7 +88,7 @@ function setup(
         name: `合成${id}`,
         cardType: CardType.LIVE,
         score: 3,
-        requirements: createHeartRequirement({ [HeartColor.GREEN]: 1 }),
+        requirements: createHeartRequirement({ [entry.abilityId === IDs.HS_BP8_007_ON_ENTER_LOOK_TOP_FIVE_PURPLE_REQUIREMENT_LIVE_ABILITY_ID ? HeartColor.PURPLE : HeartColor.GREEN]: 1 }),
         groupNames: ['蓮ノ空'],
       },
       P1,
@@ -101,7 +101,8 @@ function setup(
   const deck = Array.from({ length: 20 }, (_, i) =>
     options.deckLive !== false &&
     (entry.abilityId === IDs.HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID ||
-      entry.abilityId === IDs.BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID) &&
+      entry.abilityId === IDs.BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID ||
+      entry.abilityId === IDs.HS_BP8_007_ON_ENTER_LOOK_TOP_FIVE_PURPLE_REQUIREMENT_LIVE_ABILITY_ID) &&
     i === 0
       ? live(`deck-${i}`)
       : member(`deck-${i}`)
@@ -249,6 +250,8 @@ function outcome(game: GameState, abilityId: string) {
 const RESOURCE_RESULTS: Readonly<
   Record<string, { normal: readonly number[]; free?: readonly number[] }>
 > = {
+  [IDs.HS_BP8_007_ON_ENTER_LOOK_TOP_FIVE_PURPLE_REQUIREMENT_LIVE_ABILITY_ID]: { normal: [4, 15, 14] },
+  [IDs.HS_BP8_015_ON_ENTER_WAIT_LOOK_TOP_TWO_ARRANGE_ABILITY_ID]: { normal: [3, 19, 11] },
   [IDs.GENERIC_DISCARD_LOOK_TOP_ABILITY_ID]: { normal: [3, 17, 13], free: [4, 17, 12] },
   [IDs.BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID]: { normal: [3, 15, 15], free: [4, 15, 14] },
   [IDs.HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID]: { normal: [3, 17, 13] },

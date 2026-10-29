@@ -24,7 +24,6 @@ export function collectRemainingHeartAllocationPreferences(
       const preference = definition.remainingHeartAllocationPreference;
       if (
         !preference ||
-        preference.minCount < 1 ||
         !definition.implemented ||
         definition.category !== CardAbilityCategory.LIVE_SUCCESS ||
         definition.sourceZone !== CardAbilitySourceZone.LIVE_CARD ||
@@ -39,7 +38,10 @@ export function collectRemainingHeartAllocationPreferences(
         return [];
       }
 
-      return [{ color: preference.color, minCount: preference.minCount }];
+      const thresholds = preference.minCounts ?? [preference.minCount];
+      return thresholds
+        .filter((minCount) => Number.isInteger(minCount) && minCount > 0)
+        .map((minCount) => ({ color: preference.color, minCount }));
     });
   });
 }

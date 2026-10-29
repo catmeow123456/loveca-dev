@@ -104,7 +104,7 @@ export interface PlayCostModifierApplication {
   readonly id: string;
   /** 展示/调试用说明 */
   readonly label: string;
-  /** 减少的费用 */
+  /** 费用减少量；负数表示费用增加。 */
   readonly amount: number;
   /** 修正来源卡牌 ID */
   readonly sourceCardId?: string;
@@ -124,6 +124,8 @@ export interface AvailableResources {
   readonly handCardIds?: readonly string[];
   /** 自己成功 LIVE 卡区中的 LIVE 卡 */
   readonly successLiveCards?: readonly SuccessLiveCardInfo[];
+  /** 自己能量卡组中的当前卡片数。 */
+  readonly energyDeckCardCount?: number;
 }
 
 // ============================================
@@ -165,6 +167,18 @@ export class CostCalculator {
     resources: AvailableResources
   ): PlayCostModifierApplication[] {
     const modifiers: PlayCostModifierApplication[] = [];
+
+    if (cardCodeMatchesBase(memberData.cardCode, 'PL!N-bp8-005') && isSourceCardInHand(resources)) {
+      const count = resources.energyDeckCardCount ?? 0;
+      if (count > 0) {
+        modifiers.push({
+          id: 'PL!N-bp8-005:continuous-hand-cost-increase-by-energy-deck',
+          label: '自己的能量卡组每有1张卡，此卡费用增加1',
+          amount: -count,
+          sourceCardId: resources.sourceCardId,
+        });
+      }
+    }
 
     if (cardCodeMatchesBase(memberData.cardCode, 'LL-bp2-001')) {
       const sourceCardId = resources.sourceCardId;

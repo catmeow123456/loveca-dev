@@ -1,6 +1,6 @@
 import sourceRows from '../fixtures/october-20-on-enter-copy-sources.json';
 
-// Frozen from the user-designated 2026-10-20 export; tests never read external data.
+// October 20 baseline plus the two authorized October 29 ON_ENTER sources; no external runtime reads.
 export const COPY_SOURCE_MEMBERS = Object.values(sourceRows).filter(
   (row) => row.copyAbilityIds.length > 0
 );
@@ -38,7 +38,9 @@ export const COPY_SOURCE_ABILITY_IDS = [
   'PL!HS-bp8-001:on-enter-mill-three-all-cerise-activate-energy',
   'PL!HS-bp8-003:on-enter-both-discard-to-six',
   'PL!HS-bp8-006:on-enter-discard-hasunosora-choose-heart-or-arrange',
+  'PL!HS-bp8-007:on-enter-look-top-five-purple-requirement-live',
   'PL!HS-bp8-012:on-enter-shuffle-waiting-members-bottom-cerise-gain-heart',
+  'PL!HS-bp8-015:on-enter-wait-look-top-two-arrange',
   'PL!HS-cl1-002-CL:on-enter-pay-energy-recover-dollchestra-card',
   'PL!HS-cl1-004-CL:on-enter-mill-three-or-wait-opponent-low-cost',
   'PL!HS-cl1-006-CL:on-enter-gain-three-blade',

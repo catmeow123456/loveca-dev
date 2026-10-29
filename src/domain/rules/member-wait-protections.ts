@@ -6,7 +6,8 @@ import {
   type MemberWaitProtectionState,
 } from '../entities/game.js';
 import type { MemberStateChangeCause } from '../events/game-events.js';
-import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
+import { cardBelongsToGroup, cardNameAliasMatches } from '../../shared/utils/card-identity.js';
+import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
 
 export function addMemberWaitProtectionUntilLiveEnd(
   game: GameState,
@@ -33,17 +34,12 @@ export function isMemberWaitProtectedFromChange(
   memberCardId: string,
   cause: MemberStateChangeCause | undefined
 ): boolean {
-  if (
-    cause?.kind !== 'CARD_EFFECT' ||
-    cause.playerId === affectedPlayerId
-  ) {
+  if (cause?.kind !== 'CARD_EFFECT' || cause.playerId === affectedPlayerId) {
     return false;
   }
   const protections = (game.memberWaitProtections ?? []).filter(
     (candidate) => candidate.affectedPlayerId === affectedPlayerId
   );
-  if (protections.length === 0) return false;
-
   const player = getPlayerById(game, affectedPlayerId);
   const card = getCardById(game, memberCardId);
   if (
@@ -56,6 +52,20 @@ export function isMemberWaitProtectedFromChange(
     return false;
   }
   const memberData = card.data;
+
+  if (
+    cardCodeMatchesBase(memberData.cardCode, 'PL!HS-bp8-008') &&
+    Object.values(player.memberSlots.slots).some((id) => {
+      const partner = id ? getCardById(game, id) : null;
+      return (
+        partner !== null &&
+        partner.ownerId === affectedPlayerId &&
+        isMemberCardData(partner.data) &&
+        cardNameAliasMatches(partner.data, 'セラス 柳田 リリエンフェルト')
+      );
+    })
+  )
+    return true;
 
   return protections.some(
     (protection) =>

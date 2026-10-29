@@ -4308,6 +4308,8 @@ export class GameSession {
 
     if (plan.costModifierAmount > 0) {
       parts.push(`费用减少 ${plan.costModifierAmount}`);
+    } else if (plan.costModifierAmount < 0) {
+      parts.push(`费用增加 ${-plan.costModifierAmount}`);
     }
 
     if (plan.relayDiscount > 0) {

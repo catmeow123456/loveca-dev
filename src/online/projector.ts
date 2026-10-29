@@ -976,8 +976,7 @@ function addMemberSlotZones(
             ? buildStageMemberFrontInfo(occupant, effectiveHearts, effectiveBlade, effectiveCost)
             : undefined,
           activatedAbilityUiConfig: activatedAbilityUiConfigs[0],
-          activatedAbilityUiConfigs:
-            activatedAbilityUiConfigs.length > 0 ? activatedAbilityUiConfigs : undefined,
+          activatedAbilityUiConfigs,
           hasRemainingLimitedActivatedAbility: hasRemainingLimitedActivatedAbility || undefined,
           hasTemporaryHeartRole:
             (!game.isEnded &&

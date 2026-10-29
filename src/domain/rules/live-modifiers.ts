@@ -443,6 +443,32 @@ export interface SuppressLiveAbilityOptions {
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
   {
+    baseCardCodes: ['PL!N-bp8-005'],
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!isOwnTopLevelStageMember(game, playerId, sourceCardId)) return [];
+      return game.players.flatMap((player) =>
+        getAllMemberCardIds(player.memberSlots).flatMap((targetMemberCardId) => {
+          const target = getCardById(game, targetMemberCardId);
+          if (
+            !target ||
+            target.ownerId !== player.id ||
+            !isMemberCardData(target.data) ||
+            (player.id === playerId && !cardBelongsToGroup(target.data, '虹ヶ咲'))
+          ) return [];
+          const modifier = createHeartLiveModifierForTargetMember(game, {
+            playerId: player.id,
+            sourceCardId,
+            targetMemberCardId,
+            abilityId: 'PL!N-bp8-005:continuous-stage-red-hearts',
+            hearts: [{ color: HeartColor.RED, count: 1 }],
+          });
+          return modifier ? [modifier] : [];
+        })
+      );
+    },
+  },
+  {
     baseCardCodes: ['PL!HS-bp8-003'],
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     collect: ({ game, playerId, sourceCardId }) => {

@@ -63,6 +63,7 @@ export function buildPlayMemberCostResources(
     sourceCardId,
     handCardIds: [...handCardIds],
     successLiveCards,
+    energyDeckCardCount: player.energyDeck.cardIds.length,
   };
 }
 
