@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Clock3,
   Heart,
+  Gem,
   Info,
   RotateCcw,
   X,
@@ -22,6 +23,8 @@ import { CardType } from '@game/shared/types/enums';
 import { useCasualTableStore } from '@/store/casualTableStore';
 import { resolveCardImagePath } from '@/lib/imageService';
 import { PresentationImage } from '@/components/excel/PresentationRoot';
+import { calculateDeckAnalysis } from '@/lib/deckAnalysis';
+import { SealedDeckStatistics } from './SealedDeckStatistics';
 import './sealed-builder.css';
 
 type PoolCard = SealedPoolView['cards'][number];
@@ -86,6 +89,9 @@ function Builder({
   const [tab, setTab] = useState<'POOL' | 'DECK'>('POOL');
   const [detail, setDetail] = useState<PoolCard | null>(null);
   const [showLives, setShowLives] = useState(false);
+  const [showStatistics, setShowStatistics] = useState(false);
+  const [showTreasure, setShowTreasure] = useState(false);
+  const statisticsButtonRef = useRef<HTMLButtonElement>(null);
   const [confirmExit, setConfirmExit] = useState(false);
   const [exiting, setExiting] = useState(false);
   const confirmed = table.members.find((member) => member.userId === userId)?.confirmed === true;
@@ -229,13 +235,14 @@ function Builder({
   const fixed = pool.cards.filter((card) => card.cardType !== CardType.MEMBER);
   const lives = fixed.filter((card) => card.cardType === CardType.LIVE);
   const selectedMembers = pool.cards.filter((card) => selected.includes(card.index));
-  const costDistribution = [...new Set(selectedMembers.map((card) => card.cost))]
-    .sort((a, b) => (a ?? Infinity) - (b ?? Infinity))
-    .map((value) => ({
-      cost: value,
-      count: selectedMembers.filter((card) => card.cost === value).length,
-    }));
-  const maxCostCount = Math.max(1, ...costDistribution.map((bucket) => bucket.count));
+  const analysis = calculateDeckAnalysis(
+    [...selectedMembers, ...lives].map((card) => ({ ...card, count: 1 }))
+  );
+  const revealedTreasure = pool.treasurePackIndices.filter((index) => index < opened);
+  const closeStatistics = () => {
+    setShowStatistics(false);
+    statisticsButtonRef.current?.focus({ preventScroll: true });
+  };
   const hasFilters = Boolean(group || cost || rare);
   return (
     <section className="sealed-builder" aria-label="开盒战组牌">
@@ -264,6 +271,19 @@ function Builder({
           </button>
         </div>
         <div className="sealed-build-actions">
+          {building && (
+            <button
+              type="button"
+              ref={statisticsButtonRef}
+              className="sealed-statistics-toggle"
+              aria-expanded={showStatistics}
+              aria-controls="sealed-deck-statistics"
+              onClick={() => setShowStatistics(!showStatistics)}
+            >
+              <ChartColumn size={16} aria-hidden="true" />
+              卡组统计
+            </button>
+          )}
           <span
             className={`sealed-deadline${remaining <= 60 ? ' sealed-deadline--urgent' : ''}`}
             aria-label="组牌剩余时间"
@@ -352,6 +372,18 @@ function Builder({
           {error}
         </p>
       )}
+      {revealedTreasure.length > 0 && (
+        <div className="sealed-treasure-notice" role="status">
+          <Gem size={18} aria-hidden="true" />
+          <span>
+            <strong>开出了宝藏包</strong> · 第{' '}
+            {revealedTreasure.map((index) => index + 1).join('、')} 包
+          </span>
+          <button type="button" onClick={() => setShowTreasure(true)}>
+            查看五张卡
+          </button>
+        </div>
+      )}
       {!building ? (
         <>
           <div className="sealed-opening">
@@ -381,126 +413,113 @@ function Builder({
           </div>
         </>
       ) : (
-        <>
-          <div className="sealed-filters">
-            <div className="sealed-pool-tabs" role="group" aria-label="查看牌池或卡组">
-              <button aria-pressed={tab === 'POOL'} onClick={() => setTab('POOL')}>
-                成员牌池{' '}
-                <span>{pool.cards.filter((card) => card.cardType === CardType.MEMBER).length}</span>
-              </button>
-              <button aria-pressed={tab === 'DECK'} onClick={() => setTab('DECK')}>
-                已选成员 <span>{selected.length}</span>
-              </button>
+        <div className={`sealed-workspace${showStatistics ? ' sealed-workspace--statistics' : ''}`}>
+          <div className="sealed-workspace-cards">
+            <div className="sealed-filters">
+              <div className="sealed-pool-tabs" role="group" aria-label="查看牌池或卡组">
+                <button aria-pressed={tab === 'POOL'} onClick={() => setTab('POOL')}>
+                  成员牌池{' '}
+                  <span>
+                    {pool.cards.filter((card) => card.cardType === CardType.MEMBER).length}
+                  </span>
+                </button>
+                <button aria-pressed={tab === 'DECK'} onClick={() => setTab('DECK')}>
+                  已选成员 <span>{selected.length}</span>
+                </button>
+              </div>
+              <div className="sealed-filter-menus" role="group" aria-label="筛选与排序">
+                <SelectMenu
+                  label="团体"
+                  value={group}
+                  onChange={setGroup}
+                  className="sealed-filter-menu"
+                  options={[
+                    { value: '', label: '全部团体' },
+                    ...groups.map((value) => ({ value, label: getGroupDisplayName(value) })),
+                  ]}
+                />
+                <SelectMenu
+                  label="费用"
+                  value={cost}
+                  onChange={setCost}
+                  className="sealed-filter-menu"
+                  menuMinWidth={144}
+                  options={[
+                    { value: '', label: '全部费用' },
+                    ...costs.map((value) => ({ value: String(value), label: `费用 ${value}` })),
+                  ]}
+                />
+                <SelectMenu
+                  label="罕度"
+                  value={rare}
+                  onChange={setRare}
+                  className="sealed-filter-menu"
+                  menuMinWidth={144}
+                  options={[
+                    { value: '', label: '全部罕度' },
+                    ...rares.map((value) => ({ value, label: value })),
+                  ]}
+                />
+                <SelectMenu<MemberSort>
+                  label="排序"
+                  value={sort}
+                  onChange={setSort}
+                  className="sealed-filter-menu sealed-sort-menu"
+                  menuMinWidth={176}
+                  options={MEMBER_SORT_OPTIONS.map((option) => ({
+                    ...option,
+                    leading: <ArrowDownUp size={14} aria-hidden="true" />,
+                  }))}
+                />
+              </div>
             </div>
-            <div className="sealed-filter-menus" role="group" aria-label="筛选与排序">
-              <SelectMenu
-                label="团体"
-                value={group}
-                onChange={setGroup}
-                className="sealed-filter-menu"
-                options={[
-                  { value: '', label: '全部团体' },
-                  ...groups.map((value) => ({ value, label: getGroupDisplayName(value) })),
-                ]}
-              />
-              <SelectMenu
-                label="费用"
-                value={cost}
-                onChange={setCost}
-                className="sealed-filter-menu"
-                menuMinWidth={144}
-                options={[
-                  { value: '', label: '全部费用' },
-                  ...costs.map((value) => ({ value: String(value), label: `费用 ${value}` })),
-                ]}
-              />
-              <SelectMenu
-                label="罕度"
-                value={rare}
-                onChange={setRare}
-                className="sealed-filter-menu"
-                menuMinWidth={144}
-                options={[
-                  { value: '', label: '全部罕度' },
-                  ...rares.map((value) => ({ value, label: value })),
-                ]}
-              />
-              <SelectMenu<MemberSort>
-                label="排序"
-                value={sort}
-                onChange={setSort}
-                className="sealed-filter-menu sealed-sort-menu"
-                menuMinWidth={176}
-                options={MEMBER_SORT_OPTIONS.map((option) => ({
-                  ...option,
-                  leading: <ArrowDownUp size={14} aria-hidden="true" />,
-                }))}
-              />
-            </div>
-          </div>
-          <div className="sealed-filter-feedback">
-            <div className="sealed-filter-status">
-              <span role="status">
-                当前展示 {members.length} /{' '}
-                {tab === 'DECK'
-                  ? selected.length
-                  : pool.cards.filter((card) => card.cardType === CardType.MEMBER).length}{' '}
-                张{hasFilters ? ' · 已筛选' : ''}
-              </span>
-              {hasFilters && (
-                <ActionButton
-                  variant="ghost"
-                  size="compact"
-                  onClick={() => {
-                    setGroup('');
-                    setCost('');
-                    setRare('');
-                  }}
-                >
-                  <RotateCcw size={13} aria-hidden="true" />
-                  重置筛选
-                </ActionButton>
-              )}
-            </div>
-            {tab === 'DECK' && (
-              <details className="sealed-cost-summary">
-                <summary>
-                  <ChartColumn size={15} aria-hidden="true" />
-                  费用分布<span>全部已选 {selected.length} 张</span>
-                  <ChevronDown size={14} aria-hidden="true" />
-                </summary>
-                {selected.length ? (
-                  <ul className="sealed-cost-chart" aria-label="已选成员费用分布">
-                    {costDistribution.map((bucket) => (
-                      <li
-                        key={bucket.cost ?? 'unknown'}
-                        aria-label={`${bucket.cost === null ? '未知费用' : `费用 ${bucket.cost}`}：${bucket.count} 张`}
-                      >
-                        <strong>
-                          {bucket.count}
-                          <small> 张</small>
-                        </strong>
-                        <span className="sealed-cost-bar-track" aria-hidden="true">
-                          <span style={{ height: `${(bucket.count / maxCostCount) * 100}%` }} />
-                        </span>
-                        <span>{bucket.cost ?? '未知'}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>选择成员后，这里会显示费用分布。</p>
+            <div className="sealed-filter-feedback">
+              <div className="sealed-filter-status">
+                <span role="status">
+                  当前展示 {members.length} /{' '}
+                  {tab === 'DECK'
+                    ? selected.length
+                    : pool.cards.filter((card) => card.cardType === CardType.MEMBER).length}{' '}
+                  张{hasFilters ? ' · 已筛选' : ''}
+                </span>
+                {hasFilters && (
+                  <ActionButton
+                    variant="ghost"
+                    size="compact"
+                    onClick={() => {
+                      setGroup('');
+                      setCost('');
+                      setRare('');
+                    }}
+                  >
+                    <RotateCcw size={13} aria-hidden="true" />
+                    重置筛选
+                  </ActionButton>
                 )}
-                <small>按全部已选成员统计，不受当前筛选影响。</small>
-              </details>
-            )}
+              </div>
+            </div>
+            <div className="sealed-card-grid">{members.map((card) => cardTile(card, true))}</div>
+            {!members.length && <p>当前筛选下没有成员卡。</p>}
+            <details className="sealed-fixed">
+              <summary>固定加入的 6 张 Live 与 {fixed.length - 6} 张能量</summary>
+              <div className="sealed-card-grid">{fixed.map((card) => cardTile(card, false))}</div>
+            </details>
           </div>
-          <div className="sealed-card-grid">{members.map((card) => cardTile(card, true))}</div>
-          {!members.length && <p>当前筛选下没有成员卡。</p>}
-          <details className="sealed-fixed">
-            <summary>固定加入的 6 张 Live 与 {fixed.length - 6} 张能量</summary>
-            <div className="sealed-card-grid">{fixed.map((card) => cardTile(card, false))}</div>
-          </details>
-        </>
+          <SealedDeckStatistics
+            open={showStatistics}
+            onClose={closeStatistics}
+            analysis={analysis}
+          />
+        </div>
+      )}
+      {showTreasure && (
+        <SealedPanel title="宝藏包 · 同角色五张卡" onClose={() => setShowTreasure(false)} wide>
+          <div className="sealed-card-grid">
+            {pool.cards
+              .filter((card) => revealedTreasure.includes(Math.floor(card.index / 5)))
+              .map((card) => cardTile(card, false))}
+          </div>
+        </SealedPanel>
       )}
       {showLives && (
         <SealedPanel title="本局固定 Live" onClose={() => setShowLives(false)} wide>

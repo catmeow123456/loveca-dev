@@ -6,7 +6,7 @@ export function sealedCards(): AnyCardData[] {
       Array.from({ length: 4 }, (_, i): AnyCardData => {
         const common = {
           cardCode: `PL!N-${rare === 'SECL' ? 'bp1' : 'bp7'}-${String(i + 1).padStart(3, '0')}-${rare}`,
-          name: `${rare} 测试卡 ${i + 1}`,
+          name: `测试角色 ${i + 1}`,
           product: 'ブースターパック MELLOW MOMENT',
           rare,
           groupNames: ['虹ヶ咲学園スクールアイドル同好会'],

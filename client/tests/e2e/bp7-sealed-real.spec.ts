@@ -324,25 +324,26 @@ test('two players open, build, reconnect, battle, retain a pool and rebox on des
       }
       await selectMembers(page);
       await page.getByRole('button', { name: '已选成员 24', exact: true }).click();
-      await page.locator('.sealed-cost-summary summary').click();
-      const distribution = page.getByRole('list', { name: '已选成员费用分布' });
-      expect(
-        (await distribution.locator('li strong').allTextContents()).reduce(
-          (sum, value) => sum + parseInt(value),
-          0
-        )
-      ).toBe(24);
+      await page.getByRole('button', { name: '卡组统计', exact: true }).click();
+      const statistics = page.locator('#sealed-deck-statistics');
+      await expect(statistics).toContainText('已选 24 张成员 + 固定 6 张 Live');
+      await expect(
+        statistics.getByRole('img', { name: '成员卡费用分布', exact: true })
+      ).toBeVisible();
+      await expect(statistics.getByRole('region', { name: '判定分布' })).toBeVisible();
       await page.screenshot({
         path: info.outputPath(
-          i === 0 ? 'desktop-cost-distribution.png' : 'mobile-cost-distribution.png'
+          i === 0 ? 'desktop-deck-statistics.png' : 'mobile-deck-statistics.png'
         ),
       });
-      const counts = await distribution.locator('li').allTextContents();
+      const counts = await statistics.textContent();
+      await page.getByRole('button', { name: '关闭卡组统计', exact: true }).click();
       await page.getByRole('button', { name: '罕度', exact: true }).click();
       await page.getByRole('option', { name: 'N', exact: true }).click();
-      expect(await distribution.locator('li').allTextContents()).toEqual(counts);
+      await page.getByRole('button', { name: '卡组统计', exact: true }).click();
+      expect(await statistics.textContent()).toEqual(counts);
+      await page.getByRole('button', { name: '关闭卡组统计', exact: true }).click();
       await page.getByRole('button', { name: '重置筛选', exact: true }).click();
-      await page.locator('.sealed-cost-summary summary').click();
       await page.getByRole('button', { name: /^成员牌池 / }).click();
     }
     await second.reload();

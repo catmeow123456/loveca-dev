@@ -1,4 +1,5 @@
 import type { CardType } from '../shared/types/enums.js';
+import type { BladeHearts } from '../domain/entities/card.js';
 export type CasualTableState =
   'WAITING' | 'RESERVED' | 'BUILDING' | 'BOOTSTRAPPING' | 'BOUND' | 'CLOSED';
 export type CasualTableDiscoverability = 'PUBLIC' | 'UNLISTED';
@@ -23,6 +24,7 @@ export interface SealedPoolView {
   readonly version: string;
   readonly draftRevision: number;
   readonly selectedIndices: readonly number[];
+  readonly treasurePackIndices: readonly number[];
   readonly cards: readonly {
     readonly index: number;
     readonly cardCode: string;
@@ -36,6 +38,7 @@ export interface SealedPoolView {
     readonly baseRequiredHearts: number | null;
     readonly groupNames: readonly string[];
     readonly cardText: string;
+    readonly bladeHearts: BladeHearts;
   }[];
 }
 
