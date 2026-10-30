@@ -21,6 +21,7 @@ export const entranceCards = {
   'chisato-natsumi': 'PL!SP-pb2-000',
   'kanan-mari': 'PL!S-pb2-000',
   seras: 'PL!HS-bp6-007',
+  'seras-bp8': 'PL!HS-bp8-007',
   kaho: 'PL!HS-pb1-009',
   rurino: 'PL!HS-pb1-003',
   you: 'PL!S-bp7-005',

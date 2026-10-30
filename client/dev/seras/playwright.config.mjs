@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: '.',
-  testMatch: ['inspection.spec.ts', 'lock.spec.ts'],
+  testMatch: ['inspection.spec.ts', 'lock.spec.ts', 'entrance.spec.ts'],
   timeout: 30000,
   workers: 1,
   use: {

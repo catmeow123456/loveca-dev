@@ -655,6 +655,36 @@ export const cardEntranceProfiles = defineEntranceProfiles([
     },
   },
   {
+    id: 'seras-bp8',
+    baseCode: entranceCards['seras-bp8'],
+    name: '赛拉丝·柳田·利林费尔德',
+    loadArt: () => import('../components/game/card-entrance/seras-bp8.png'),
+    center: '-52%',
+    mobileHeight: 'min(76%, 111vw)',
+    artAspectRatio: '1061 / 1483',
+    light: '#c2578066',
+    nameLayout: 'long',
+    mesh: {
+      // Head, cheek hand and the entire held mask share one rigid upper-body settling pose.
+      portraitMotion: {
+        start: 0.12,
+        duration: 1.12,
+        easing: 'smoothstep',
+        pivot: [0.5, 0.7],
+        blendY: [0.68, 0.86],
+        angle: -0.032,
+        travel: [-0.006, -0.004],
+      },
+      // Follow only the loose right hair tips, above the rigid mask and its hand.
+      hair: [0, 0.01, 1.01, 1.02],
+      hairEnd: [1.03, 1.04],
+      rightHair: [0.86, 0.91, 0.14, 0.18, 0.24, 0.27],
+      hem: [0.59, 0.83, 0.72, 0.82],
+      hemEnd: [0.92, 0.98],
+      strength: [0, 0.16, 0.28],
+    },
+  },
+  {
     id: 'seras',
     blink: {
       loadArt: () => import('../components/game/card-entrance/seras-blink.png'),

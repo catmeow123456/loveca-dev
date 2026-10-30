@@ -13,6 +13,7 @@ applyTheme('dark');
 const params = new URLSearchParams(location.search);
 setupSeras({
   open: params.has('inspect'),
+  entrance: params.has('entrance'),
   opponent: params.has('opponent'),
   noTarget: params.has('empty'),
   lock: params.has('lock'),
@@ -60,6 +61,15 @@ function App() {
           }}
         >
           重置 · 自由拖牌
+        </button>
+        <button
+          onClick={() => {
+            setLock(false);
+            setOpponent(false);
+            setupSeras({ entrance: true });
+          }}
+        >
+          登场预览
         </button>
         <button
           onClick={() => {

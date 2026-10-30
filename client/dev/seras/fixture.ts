@@ -1,6 +1,6 @@
 import { useGameStore } from '@/store/gameStore';
 import { createGameSession } from '@game/application/game-session';
-import { createPlayMemberToSlotCommand } from '@game/application/game-commands';
+import { createPlayMemberToSlotCommand, GameCommandType } from '@game/application/game-commands';
 import {
   createCardInstance,
   createHeartRequirement,
@@ -41,6 +41,7 @@ function data(code: string): AnyCardData {
 /** Real card data and commands. Only the initial deal is deterministic. */
 export function setupSeras({
   open = false,
+  entrance = false,
   noTarget = false,
   opponent = false,
   rare = 'SEC',
@@ -133,11 +134,23 @@ export function setupSeras({
     manualOperationMode: lock ? 'FREE' : 'RULES',
   };
   session.restoreRuntimeState({ authorityState: game, currentPublicSeq: 0 });
-  if (open && !lock) {
+  if ((open || entrance) && !lock) {
     const result = session.executeCommand(
       createPlayMemberToSlotCommand('p1', 'seras', SlotPosition.CENTER)
     );
     if (!result.success) throw new Error(JSON.stringify(result));
+    // The inspection-only shortcut skips via the normal ACK before mounting the fixture.
+    // Real drags and the entrance preview leave the shared entrance barrier intact.
+    const pending = session.state?.entranceRuntime?.pending;
+    if (open && pending) {
+      const ack = session.executeCommand({
+        type: GameCommandType.ACK_CARD_ENTRANCE,
+        playerId: 'p1',
+        entranceId: pending.id,
+        timestamp: Date.now(),
+      });
+      if (!ack.success) throw new Error(JSON.stringify(ack));
+    }
   }
   useGameStore
     .getState()
