@@ -1,3 +1,5 @@
+import { getMiraiReturn, miraiPreloadUrls } from '@/lib/miraiReturn';
+import { MiraiReturnPlayback } from '../song-animation/mirai-return/MiraiReturnPlayback';
 import { getRinaLiveSwapSource } from '@/lib/rinaLiveSwap';
 import { RinaLivePlayback } from './rina-sec/RinaLivePlayback';
 import { useCardEntranceBarrier, useWindowVisualEligibility } from '../BattleRuntime';
@@ -69,6 +71,21 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
   const images = useMemo(() => new EffectImageCache(), [contextKey]);
   // The ten fixed song images have their own bounded queue; a stall cannot starve card effects.
   const songImages = useMemo(() => new EffectImageCache(), [contextKey]);
+  const miraiImages = useMemo(() => new EffectImageCache(), [contextKey]);
+  const miraiKey =
+    enabled && view && !view.match.endInfo
+      ? JSON.stringify(miraiPreloadUrls(view, imagePath))
+      : '[]';
+  useEffect(() => () => miraiImages.clear(), [miraiImages]);
+  useEffect(() => {
+    const urls: string[] = JSON.parse(miraiKey);
+    if (!urls.length) {
+      miraiImages.clear();
+      return;
+    }
+    const timer = setTimeout(() => miraiImages.preload(urls), 0);
+    return () => clearTimeout(timer);
+  }, [miraiImages, miraiKey]);
   const warmImages = enabled && !!view && !view.match.endInfo;
   const warmSong = warmImages && shouldPreloadBokuhika(view);
   const imageKey = warmImages
@@ -105,6 +122,7 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
           enabled={enabled}
           images={images}
           songImages={songImages}
+          miraiImages={miraiImages}
           onTransferReceived={(source) => setNotice({ contextKey, windowId: wait.id, source })}
           onDismissNotice={dismissNotice}
         />
@@ -126,6 +144,7 @@ function SynchronizedEntrance({
   enabled,
   images,
   songImages,
+  miraiImages,
   onTransferReceived,
   onDismissNotice,
 }: {
@@ -133,6 +152,7 @@ function SynchronizedEntrance({
   enabled: boolean;
   images: EffectImageCache;
   songImages: EffectImageCache;
+  miraiImages: EffectImageCache;
   onTransferReceived: (source: AbilityTransferSource) => void;
   onDismissNotice: () => void;
 }) {
@@ -144,6 +164,9 @@ function SynchronizedEntrance({
   const [transfer] = useState(() =>
     getAbilityTransferSource(view, useGameStore.getState().getCardImagePath)
   );
+  const [mirai] = useState(() => getMiraiReturn(view, useGameStore.getState().getCardImagePath));
+  const [miraiDone, setMiraiDone] = useState(false);
+  const activeMirai = playVisuals && viewerWaiting && !miraiDone ? mirai : null;
   const [song] = useState(() => getBokuhikaPresentation(view));
   const [songDone, setSongDone] = useState(false);
   const activeSong = playVisuals && viewerWaiting && !songDone ? song : null;
@@ -176,7 +199,8 @@ function SynchronizedEntrance({
     wait.rinaLiveSwap ||
     wait.honokaMemory ||
     wait.shizukuRole ||
-    wait.bokuhikaSuccess
+    wait.bokuhikaSuccess ||
+    wait.miraiReturn
       ? []
       : wait.objectIds
     ).flatMap((objectId) => {
@@ -225,6 +249,7 @@ function SynchronizedEntrance({
     !activeMemory &&
     !activeRole &&
     !activeSong &&
+    !activeMirai &&
     !activeReplay;
 
   useCardEntranceBarrier(view, done);
@@ -276,7 +301,14 @@ function SynchronizedEntrance({
   return (
     <>
       <div className="absolute inset-0 z-[59]" aria-hidden="true" />
-      {activeReplay ? (
+      {activeMirai ? (
+        <MiraiReturnPlayback
+          source={activeMirai}
+          images={miraiImages}
+          reduced={reduced}
+          onDone={() => setMiraiDone(true)}
+        />
+      ) : activeReplay ? (
         <IzumiReplayPlayback
           source={activeReplay}
           images={images}

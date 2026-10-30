@@ -384,6 +384,27 @@ export function projectPlayerViewState(
               return seat ? [seat] : [];
             }),
             deadlineAt: game.entranceRuntime.pending.deadlineAt,
+            ...(game.entranceRuntime.pending.miraiReturn
+              ? {
+                  miraiReturn: {
+                    sourceObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.miraiReturn.sourceCardId
+                    ),
+                    ownerSeat: getSeatForPlayer(
+                      game,
+                      game.entranceRuntime.pending.miraiReturn.playerId
+                    )!,
+                    members: game.entranceRuntime.pending.miraiReturn.members.map((member) => ({
+                      objectId: createPublicObjectId(member.cardId),
+                      cardCode: member.cardCode,
+                    })),
+                    targetMemberObjectIds:
+                      game.entranceRuntime.pending.miraiReturn.targetMemberCardIds.map(
+                        createPublicObjectId
+                      ),
+                  },
+                }
+              : {}),
             ...(game.entranceRuntime.pending.izumiReplay
               ? {
                   izumiReplay: {

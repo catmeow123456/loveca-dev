@@ -147,6 +147,12 @@ export interface MatchViewState {
     readonly objectIds: readonly string[];
     readonly waitingSeats: readonly Seat[];
     readonly deadlineAt: number;
+    readonly miraiReturn?: {
+      readonly sourceObjectId: string;
+      readonly ownerSeat: Seat;
+      readonly members: readonly { readonly objectId: string; readonly cardCode: string }[];
+      readonly targetMemberObjectIds: readonly string[];
+    };
     readonly izumiReplay?: {
       readonly sourceObjectId: string;
       readonly targetObjectId: string;

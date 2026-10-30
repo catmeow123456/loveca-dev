@@ -615,6 +615,9 @@ export function BattleAnimationLayer() {
                 event={event}
                 suppressMovement={
                   movementOwners.includes(event.render.objectId) ||
+                  !!playerViewState?.match.entrance?.miraiReturn?.members.some(
+                    (m) => m.objectId === event.render.objectId
+                  ) ||
                   playerViewState?.match.entrance?.rinaLiveSwap?.liveObjectId ===
                     event.render.objectId
                 }

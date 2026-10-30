@@ -19,9 +19,7 @@ import {
   SP_BP7_028_LIVE_SUCCESS_ALL_CHEER_LIELLA_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import {
-  addBladeLiveModifierForTargetMember,
-} from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import { shuffleWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -219,19 +217,47 @@ function finishLiveStartSelection(
     state = result.gameState;
   }
 
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'SHUFFLE_NINE_LIELLA_MEMBERS_BOTTOM_ALL_STAGE_GAIN_BLADE',
-      selectedCardIds,
-      movedCardIds: shuffleResult.movedCardIds,
-      targetMemberCardIds,
-      bladeBonusPerMember: 1,
-    }),
-    effect.metadata?.orderedResolution === true
-  );
+  const resolved = addAction(state, 'RESOLVE_ABILITY', player.id, {
+    pendingAbilityId: effect.id,
+    abilityId: effect.abilityId,
+    sourceCardId: effect.sourceCardId,
+    step: 'SHUFFLE_NINE_LIELLA_MEMBERS_BOTTOM_ALL_STAGE_GAIN_BLADE',
+    selectedCardIds,
+    movedCardIds: shuffleResult.movedCardIds,
+    targetMemberCardIds,
+    bladeBonusPerMember: 1,
+  });
+  const runtime = resolved.entranceRuntime;
+  // Movement and BLADE grants stay atomic; the shared barrier resumes the original queue once.
+  if (runtime && !runtime.pending && !resolved.isEnded) {
+    const generation = runtime.generation + 1;
+    return {
+      ...resolved,
+      entranceRuntime: {
+        ...runtime,
+        generation,
+        seenSequence: resolved.eventSequence,
+        resumePendingEffects: effect.metadata?.orderedResolution === true,
+        pending: {
+          id: `mirai-return:${resolved.gameId}:${resolved.actionSequence}:${generation}`,
+          cardIds: [effect.sourceCardId],
+          waitingPlayerIds: resolved.players.map((p) => p.id),
+          deadlineAt: 0,
+          miraiReturn: {
+            sourceCardId: effect.sourceCardId,
+            playerId: player.id,
+            // Snapshot the formerly public set, NEVER the shuffled result's ordering.
+            members: [...selectedCardIds].sort().map((cardId) => ({
+              cardId,
+              cardCode: getCardById(game, cardId)!.data.cardCode,
+            })),
+            targetMemberCardIds,
+          },
+        },
+      },
+    };
+  }
+  return continuePendingCardEffects(resolved, effect.metadata?.orderedResolution === true);
 }
 
 function getLiveSuccessConfirmation(

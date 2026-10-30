@@ -90,6 +90,13 @@ export interface EntranceWait {
   readonly cardIds: readonly string[];
   readonly waitingPlayerIds: readonly string[];
   readonly deadlineAt: number;
+  /** Public nine-card set before shuffling, sorted independently of the hidden deck order. */
+  readonly miraiReturn?: {
+    readonly sourceCardId: string;
+    readonly playerId: string;
+    readonly members: readonly { readonly cardId: string; readonly cardCode: string }[];
+    readonly targetMemberCardIds: readonly string[];
+  };
   /** Successful exact-card exit/re-entry, already committed as one atomic effect. */
   readonly izumiReplay?: {
     readonly sourceCardId: string;

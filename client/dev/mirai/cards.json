@@ -1,0 +1,627 @@
+[
+  {
+    "cardCode": "PL!-sd1-001-SD",
+    "cardType": "MEMBER",
+    "nameJp": "高坂穂乃果",
+    "nameCn": "高坂穗乃果",
+    "workNames": [
+      "ラブライブ！"
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cost": 11,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】自分の成功ライブカード置き場にカードが2枚以上ある場合、自分の控え室からライブカードを1枚手札に加える。\n\n【常時】自分の成功ライブカード置き場にあるカード1枚につき、[ブレード]を得る。",
+    "cardTextCn": "【登场】自己的成功LIVE卡区中的卡片大于等于2张的场合，从自己的休息室将1张LIVE卡加入手牌。\n\n【常时】每存在1张自己的成功LIVE卡区中的卡片，获得[ブレード]。",
+    "imageFilename": "PL!-sd1-001-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/PLSD01/PL!-sd1-001-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！",
+    "productCode": "PLSD01",
+    "sourceExternalId": "998405bc69963cbe0012f9016f1f6999",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!SP-bp7-028-L",
+    "cardType": "LIVE",
+    "nameJp": "未来の音が聴こえる",
+    "nameCn": "能够听见未来的声音",
+    "workNames": null,
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GRAY"
+      },
+      {
+        "effect": "HEART",
+        "heartColor": "GRAY"
+      }
+    ],
+    "score": 8,
+    "requirements": [
+      {
+        "color": "RED",
+        "count": 3
+      },
+      {
+        "color": "YELLOW",
+        "count": 3
+      },
+      {
+        "color": "PURPLE",
+        "count": 3
+      },
+      {
+        "color": "RAINBOW",
+        "count": 12
+      }
+    ],
+    "cardTextJp": "【ライブ開始時】自分の控え室にある『Liella!』のメンバーカードを9枚選び、それらをシャッフルし、デッキの一番下に置いてもよい。そうしたとき、ライブ終了時まで、自分のステージにいるすべてのメンバーは[ブレード]を得る。 \n\n【ライブ成功時】エールにより公開された自分のカードがすべて『Liella!』の場合、このカードのスコアを+1する。",
+    "cardTextCn": "【LIVE开始时】可以选择存在于自己的休息室的9张『Liella!』的成员卡，将那些卡片洗牌，放置于卡组底。如此做时，LIVE结束时为止，存在于自己的舞台的所有成员获得[ブレード]。 \n\n【LIVE成功时】因声援被公开的自己的卡片全部为『Liella!』的场合，此卡的分数+1。",
+    "imageFilename": "PL!SP-bp7-028-L.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/BP07/PL!SP-bp7-028-L.png",
+    "rare": "L",
+    "product": "ブースターパック MELLOW MOMENT",
+    "productCode": "BP07",
+    "sourceExternalId": "1a4410256a5e09f10159219f279b637b",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "fieldConflict": true,
+      "parseWarnings": [
+        "PL!SP-bp7-028-L row 2329 blade_hearts: unsupported blade heart value",
+        "PL!SP-bp7-028-L row 2329 special_hearts: invalid blade heart entry \"double\""
+      ]
+    },
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!SP-sd1-001-SD",
+    "cardType": "MEMBER",
+    "nameJp": "澁谷かのん",
+    "nameCn": "涩谷香音",
+    "workNames": [
+      "ラブライブ！スーパースター!!"
+    ],
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「CatChu!」",
+    "unitNameRaw": "CatChu!",
+    "cost": 11,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】自分のエネルギー6枚につき、カードを1枚引く。",
+    "cardTextCn": "【登场】每存在6张自己的能量，抽1张卡。",
+    "imageFilename": "PL!SP-sd1-001-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/SPSD01/PL!SP-sd1-001-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！スーパースター!!",
+    "productCode": "SPSD01",
+    "sourceExternalId": "791e42c6699636300012e9541500e3b3",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!SP-sd1-002-SD",
+    "cardType": "MEMBER",
+    "nameJp": "唐可可",
+    "nameCn": "唐可可",
+    "workNames": [
+      "ラブライブ！スーパースター!!"
+    ],
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「KALEIDOSCORE」",
+    "unitNameRaw": "KALEIDOSCORE",
+    "cost": 11,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】手札からコスト4以下の『Liella!』のメンバーカードを1枚ステージに登場させてもよい。\n（この効果で既にメンバーがいるエリアにも登場できる。ただし、このターンにステージに登場したメンバーがいるエリアには登場できない。）",
+    "cardTextCn": "【登场】可以从手牌将1张费用小于等于4的『Liella!』的成员卡登场到舞台。\n\n（也可以因此效果登场至已经存在成员的区域。但是，无法登场至此回合登场至舞台的成员所在的区域。）",
+    "imageFilename": "PL!SP-sd1-002-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/SPSD01/PL!SP-sd1-002-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！スーパースター!!",
+    "productCode": "SPSD01",
+    "sourceExternalId": "791e42c6699636300012e9550e13af2b",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!SP-sd1-003-SD",
+    "cardType": "MEMBER",
+    "nameJp": "嵐千砂都",
+    "nameCn": "岚千砂都",
+    "workNames": [
+      "ラブライブ！スーパースター!!"
+    ],
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「5yncri5e!」",
+    "unitNameRaw": "5yncri5e!",
+    "cost": 15,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 3
+      },
+      {
+        "color": "PURPLE",
+        "count": 3
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【ライブ開始時】手札を2枚控え室に置いてもよい：ライブ終了時まで、[ブレード][ブレード][ブレード][ブレード][ブレード]を得る。",
+    "cardTextCn": "【LIVE开始时】可以将2张手牌放置入休息室：LIVE结束时为止，获得[ブレード][ブレード][ブレード][ブレード][ブレード]。",
+    "imageFilename": "PL!SP-sd1-003-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/SPSD01/PL!SP-sd1-003-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！スーパースター!!",
+    "productCode": "SPSD01",
+    "sourceExternalId": "791e42c6699636300012e9567af9fe05",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!SP-sd1-004-SD",
+    "cardType": "MEMBER",
+    "nameJp": "平安名すみれ",
+    "nameCn": "平安名堇",
+    "workNames": [
+      "ラブライブ！スーパースター!!"
+    ],
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「CatChu!」",
+    "unitNameRaw": "CatChu!",
+    "cost": 11,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】ライブ終了時まで、「【常時】ライブの合計スコアを+1する。」を得る。",
+    "cardTextCn": "【登场】LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。",
+    "imageFilename": "PL!SP-sd1-004-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/SPSD01/PL!SP-sd1-004-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！スーパースター!!",
+    "productCode": "SPSD01",
+    "sourceExternalId": "791e42c6699636300012e9574678da11",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!SP-sd1-005-SD",
+    "cardType": "MEMBER",
+    "nameJp": "葉月恋",
+    "nameCn": "叶月恋",
+    "workNames": [
+      "ラブライブ！スーパースター!!"
+    ],
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「KALEIDOSCORE」",
+    "unitNameRaw": "KALEIDOSCORE",
+    "cost": 9,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【起動】【ターン1回】[E][E][E]：自分の控え室からライブカードを1枚手札に加える。",
+    "cardTextCn": "【起动】【1回合1次】[E][E][E]：从自己的休息室将1张LIVE卡加入手牌。",
+    "imageFilename": "PL!SP-sd1-005-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/SPSD01/PL!SP-sd1-005-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！スーパースター!!",
+    "productCode": "SPSD01",
+    "sourceExternalId": "791e42c6699636300012e958521067ce",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!SP-sd1-006-SD",
+    "cardType": "MEMBER",
+    "nameJp": "桜小路きな子",
+    "nameCn": "樱小路希奈子",
+    "workNames": [
+      "ラブライブ！スーパースター!!"
+    ],
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「5yncri5e!」",
+    "unitNameRaw": "5yncri5e!",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【起動】このメンバーをステージから控え室に置く：自分の控え室からライブカードを1枚手札に加える。",
+    "cardTextCn": "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。",
+    "imageFilename": "PL!SP-sd1-006-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/SPSD01/PL!SP-sd1-006-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！スーパースター!!",
+    "productCode": "SPSD01",
+    "sourceExternalId": "791e42c6699636300012e95944565292",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!SP-sd1-007-SD",
+    "cardType": "MEMBER",
+    "nameJp": "米女メイ",
+    "nameCn": "米女芽衣",
+    "workNames": [
+      "ラブライブ！スーパースター!!"
+    ],
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「CatChu!」",
+    "unitNameRaw": "CatChu!",
+    "cost": 7,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】[E][E]支払ってもよい：自分の控え室から『Liella!』のメンバーカードを1枚手札に加える。",
+    "cardTextCn": "【登场】可以支付[E][E]：从自己的休息室将1张『Liella!』的成员卡加入手牌。",
+    "imageFilename": "PL!SP-sd1-007-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/SPSD01/PL!SP-sd1-007-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！スーパースター!!",
+    "productCode": "SPSD01",
+    "sourceExternalId": "791e42c6699636300012e95a45af2192",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!SP-sd1-008-SD",
+    "cardType": "MEMBER",
+    "nameJp": "若菜四季",
+    "nameCn": "若菜四季",
+    "workNames": [
+      "ラブライブ！スーパースター!!"
+    ],
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「5yncri5e!」",
+    "unitNameRaw": "5yncri5e!",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】[E]支払ってもよい：自分のデッキの上からカードを3枚見る。その中から1枚を手札に加え、残りを控え室に置く。",
+    "cardTextCn": "【登场】可以支付[E]：检视自己卡组顶的3张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。",
+    "imageFilename": "PL!SP-sd1-008-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/SPSD01/PL!SP-sd1-008-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！スーパースター!!",
+    "productCode": "SPSD01",
+    "sourceExternalId": "791e42c6699636300012e95b5820e4b5",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!SP-sd1-009-SD",
+    "cardType": "MEMBER",
+    "nameJp": "鬼塚夏美",
+    "nameCn": "鬼冢夏美",
+    "workNames": [
+      "ラブライブ！スーパースター!!"
+    ],
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「5yncri5e!」",
+    "unitNameRaw": "5yncri5e!",
+    "cost": 13,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 3
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】[E]支払ってもよい：自分のエネルギーが9枚以上ある場合、自分のデッキの上からカードを5枚見る。その中から1枚を手札に加え、残りを控え室に置く。",
+    "cardTextCn": "【登场】可以支付[E]：自己的能量大于等于9张的场合，检视自己卡组顶的5张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。",
+    "imageFilename": "PL!SP-sd1-009-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/SPSD01/PL!SP-sd1-009-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！スーパースター!!",
+    "productCode": "SPSD01",
+    "sourceExternalId": "791e42c6699636300012e95c15dd2b66",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!SP-sd1-010-SD",
+    "cardType": "MEMBER",
+    "nameJp": "ウィーン・マルガレーテ",
+    "nameCn": "薇恩·玛格丽特",
+    "workNames": [
+      "ラブライブ！スーパースター!!"
+    ],
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「KALEIDOSCORE」",
+    "unitNameRaw": "KALEIDOSCORE",
+    "cost": 13,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 3
+      },
+      {
+        "color": "PURPLE",
+        "count": 3
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": null,
+    "cardTextCn": "-",
+    "imageFilename": "PL!SP-sd1-010-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/SPSD01/PL!SP-sd1-010-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！スーパースター!!",
+    "productCode": "SPSD01",
+    "sourceExternalId": "791e42c6699636300012e95d095de759",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!SP-sd1-011-SD",
+    "cardType": "MEMBER",
+    "nameJp": "鬼塚冬毬",
+    "nameCn": "鬼冢冬毬",
+    "workNames": [
+      "ラブライブ！スーパースター!!"
+    ],
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「5yncri5e!」",
+    "unitNameRaw": "5yncri5e!",
+    "cost": 7,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【起動】【ターン1回】[E][E]：自分のエネルギーデッキから、エネルギーカードを1枚ウェイト状態で置く。",
+    "cardTextCn": "【起动】【1回合1次】[E][E]：从自己的能量卡组，将1张能量卡以待机状态放置入能量区。",
+    "imageFilename": "PL!SP-sd1-011-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/SPSD01/PL!SP-sd1-011-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！スーパースター!!",
+    "productCode": "SPSD01",
+    "sourceExternalId": "791e42c6699636300012e95e43b4f2de",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!SP-bp5-009-R",
+    "cardType": "MEMBER",
+    "nameJp": "鬼塚夏美",
+    "nameCn": "鬼冢夏美",
+    "workNames": [
+      "ラブライブ！スーパースター!!"
+    ],
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「5yncri5e!」",
+    "unitNameRaw": "5yncri5e!",
+    "cost": 15,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 3
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【ライブ開始時】自分のデッキの一番上のカードを控え室に置いてもよい。そうした場合、ライブ終了時まで、[ブレード]を得る。これにより控え室に置いたカードがライブカードの場合、このメンバーをウェイトにする。自分はこの手順をさらに4回まで繰り返してもよい。",
+    "cardTextCn": "【LIVE开始时】可以将自己卡组顶的卡片放置入休息室。如此做的场合，LIVE结束时为止，获得[ブレード]。因此被放置入休息室的卡片为LIVE卡的场合，将此成员变为待机状态。自己可以再将此程序重复至多4次。",
+    "imageFilename": "PL!SP-bp5-009-R.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/BP05/PL!SP-bp5-009-R.png",
+    "rare": "R",
+    "product": "ブースターパック Anniversary 2026",
+    "productCode": "BP05",
+    "sourceExternalId": "e4c693bb699e0d03001fcb2970d2cef0",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "status": "PUBLISHED"
+  }
+]
