@@ -1,4 +1,5 @@
 import { isMemberCardData } from '../../../../domain/entities/card.js';
+import { captureIzumiReplay } from '../../../card-entrance.js';
 import {
   addAction,
   getCardById,
@@ -144,7 +145,9 @@ export function registerHsBp8008IzumiWorkflowHandlers(deps: {
         deps.enqueueTriggeredCardEffects
       );
       return finish(
-        played ?? moved.gameState,
+        played
+          ? captureIzumiReplay(game, played, effect, selected, moved.sourceSlot)
+          : moved.gameState,
         effect,
         context.continuePendingCardEffects,
         played ? 'REPLAY_EXACT_MEMBER' : 'REPLAY_TARGET_STALE',
@@ -214,15 +217,15 @@ function finish(
   step: string,
   payload: Record<string, unknown> = {}
 ): GameState {
-  return next(
-    addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      sourceLifecycleId: effect.sourceLifecycleId,
-      step,
-      ...payload,
-    }),
-    false
-  );
+  const state = addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
+    pendingAbilityId: effect.id,
+    abilityId: effect.abilityId,
+    sourceCardId: effect.sourceCardId,
+    sourceLifecycleId: effect.sourceLifecycleId,
+    step,
+    ...payload,
+  });
+  return state.entranceRuntime?.pending?.izumiReplay
+    ? { ...state, entranceRuntime: { ...state.entranceRuntime, resumePendingEffects: false } }
+    : next(state, false);
 }

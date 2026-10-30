@@ -147,6 +147,13 @@ export interface MatchViewState {
     readonly objectIds: readonly string[];
     readonly waitingSeats: readonly Seat[];
     readonly deadlineAt: number;
+    readonly izumiReplay?: {
+      readonly sourceObjectId: string;
+      readonly targetObjectId: string;
+      readonly ownerSeat: Seat;
+      readonly slot: SlotPosition;
+      readonly previousOrientation: OrientationState;
+    };
     readonly bokuhikaSuccess?: {
       readonly sourceObjectId: string;
       readonly normalizedNames: readonly string[];
@@ -327,6 +334,8 @@ export interface ViewCardObject {
   readonly hasTemporaryHeartRole?: boolean;
   /** Public prohibition of a possessed native/granted stage activated ability. */
   readonly activatedAbilityProhibition?: 'SERAS_LOW_COST';
+  /** Public, derived self-protection from opponent WAITING effects; not general immunity. */
+  readonly opponentWaitProtection?: 'IZUMI_EDELNOTE';
 }
 
 export interface ViewCommandScope {

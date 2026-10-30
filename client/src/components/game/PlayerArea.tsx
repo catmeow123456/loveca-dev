@@ -1,3 +1,4 @@
+import { IzumiProtection, IZUMI_PROTECTION_DESCRIPTION } from './izumi-protection/IzumiProtection';
 import { getPresentationPortalRoot, useTextPresentation } from '@/lib/appPresentation';
 import { useBattleEffectsEnabled } from '@/lib/battleEffects';
 import { canPresentCardEntrance } from '@/lib/cardEntrancePolicy';
@@ -1331,7 +1332,9 @@ export const PlayerArea = memo(function PlayerArea({
               selectedSlotAction?.target.label ??
               (cardViewObject?.activatedAbilityProhibition === 'SERAS_LOW_COST'
                 ? SERAS_LOCK_DESCRIPTION
-                : undefined)
+                : cardViewObject?.opponentWaitProtection === 'IZUMI_EDELNOTE'
+                  ? IZUMI_PROTECTION_DESCRIPTION
+                  : undefined)
             }
             onClick={handleSlotClick}
           >
@@ -1367,23 +1370,36 @@ export const PlayerArea = memo(function PlayerArea({
                     })}
                     limitedActivatedHighlight={limitedActivatedHighlight}
                     faceOverlay={
-                      <SerasLockSeal
-                        objectId={cardViewObject?.publicObjectId ?? null}
-                        prohibition={cardViewObject?.activatedAbilityProhibition}
-                        viewIdentity={sealViewIdentity}
-                        enabled={showSpecialSeals}
-                        coveredByMovement={battleAnimationOccludedObjectIds.has(`obj_${cardId}`)}
-                        animateOnMount={
-                          previousSealStage.current?.identity === sealViewIdentity &&
-                          !previousSealStage.current.cardIds.includes(cardId)
-                        }
-                      />
+                      <>
+                        <SerasLockSeal
+                          objectId={cardViewObject?.publicObjectId ?? null}
+                          prohibition={cardViewObject?.activatedAbilityProhibition}
+                          viewIdentity={sealViewIdentity}
+                          enabled={showSpecialSeals}
+                          coveredByMovement={battleAnimationOccludedObjectIds.has(`obj_${cardId}`)}
+                          animateOnMount={
+                            previousSealStage.current?.identity === sealViewIdentity &&
+                            !previousSealStage.current.cardIds.includes(cardId)
+                          }
+                        />
+                        <IzumiProtection
+                          objectId={cardViewObject?.publicObjectId ?? null}
+                          protection={cardViewObject?.opponentWaitProtection}
+                          viewIdentity={sealViewIdentity}
+                          enabled={showSpecialSeals}
+                          coveredByMovement={battleAnimationOccludedObjectIds.has(`obj_${cardId}`)}
+                          animateOnMount={
+                            previousSealStage.current?.identity === sealViewIdentity &&
+                            !previousSealStage.current.cardIds.includes(cardId)
+                          }
+                        />
+                      </>
                     }
                     className={cn(
                       isMobileBoard && 'aspect-[5/7] h-auto',
                       isMobileBoard &&
                         orientation === OrientationState.WAITING &&
-                        'mx-auto w-[min(100%,calc((var(--battle-mobile-stage-column-width)_-_2px)*5/7))]',
+                        'mx-auto w-[min(100%,var(--battle-mobile-waiting-card-width))]',
                       getActiveEffectTaskCardClass(card.instanceId)
                     )}
                     onClick={() => {

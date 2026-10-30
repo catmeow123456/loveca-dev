@@ -1,0 +1,102 @@
+.izumi-protection {
+  position: absolute;
+  inset: 0;
+  z-index: 24;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.izumi-protection-flower {
+  position: absolute;
+  right: 1%;
+  bottom: 2%;
+  width: 28%;
+  min-width: 23px;
+  max-width: 46px;
+  filter: drop-shadow(0 1px 2px #292237cc) drop-shadow(0 0 3px #d8ddff66);
+}
+
+.izumi-protection-flower svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.izumi-protection-halo {
+  transform-origin: 44px 44px;
+  animation: izumi-protection-breathe 3.6s ease-in-out infinite;
+}
+
+.izumi-rose-glint {
+  animation: izumi-rose-glimmer 3.6s ease-in-out infinite;
+}
+
+.izumi-protection-forming {
+  animation: izumi-protection-form 460ms ease-out both;
+}
+
+.izumi-protection-forming .izumi-rose-petal {
+  transform-origin: 44px 43px;
+  animation: izumi-rose-unfold 280ms cubic-bezier(0.2, 0.7, 0.25, 1) var(--petal-delay) both;
+}
+
+.izumi-protection[data-phase='releasing'] .izumi-protection-flower {
+  animation: izumi-protection-release 200ms ease-out both;
+}
+
+.izumi-protection[data-reduced-motion] *,
+.izumi-protection[data-phase='releasing'] svg * {
+  animation: none;
+}
+
+@keyframes izumi-protection-form {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  32% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes izumi-rose-unfold {
+  from {
+    transform: scale(0.4) rotate(-16deg);
+  }
+  to {
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes izumi-protection-breathe {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.91);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes izumi-rose-glimmer {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes izumi-protection-release {
+  to {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}

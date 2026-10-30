@@ -691,6 +691,7 @@ html:has(.battle-viewport-shell) {
   .battle-mobile-tabletop-content {
     /* Keep compact cards readable; the tabletop scrolls when height is insufficient. */
     --battle-mobile-stage-column-width: calc((100cqw - 5.5rem - 10px) / 3);
+    --battle-mobile-waiting-card-width: calc((var(--battle-mobile-stage-column-width) - 2px) * 5 / 7);
     --battle-mobile-stage-card-width: min(
       clamp(58px, calc((100cqh - 152px) * 35 / 74), clamp(58px, 18vw, 82px)),
       var(--battle-mobile-stage-column-width)

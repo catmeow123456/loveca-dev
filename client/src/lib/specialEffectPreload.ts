@@ -2,6 +2,8 @@ import type { PlayerViewState } from '@game/online/types';
 import { ZoneType } from '@game/shared/types/enums';
 import { MODIFIER_ICON_SOURCE, HEART_ICON_SOURCE_BY_COLOR } from './modifierIconAssets';
 import { EFFECT_IMAGE_CACHE_LIMIT } from './effectImageCache';
+import { IZUMI_REPLAY_CARD_BASE } from '@game/shared/card-entrance';
+import { cardCodeMatchesBase } from '@game/shared/utils/card-code';
 
 /** Public cards and explicit public movement snapshots only, never hidden registry identities. */
 export function collectSpecialEffectImageUrls(
@@ -10,7 +12,23 @@ export function collectSpecialEffectImageUrls(
   reduced: boolean
 ): string[] {
   const ids = view.match.entranceAssetIds ?? [];
-  if (!ids.some((id) => id === 'ginko' || id === 'rina' || id === 'honoka' || id === 'shizuku'))
+  const izumiVisible = Object.values(view.table.zones).some(
+    (zone) =>
+      zone.zone === ZoneType.MEMBER_SLOT &&
+      Object.values(zone.slotMap ?? {}).some((id) => {
+        const object = id ? view.objects[id] : undefined;
+        return (
+          object?.surface === 'FRONT' &&
+          object.frontInfo &&
+          cardCodeMatchesBase(object.frontInfo.cardCode, IZUMI_REPLAY_CARD_BASE)
+        );
+      })
+  );
+  if (
+    !izumiVisible &&
+    !view.match.entrance?.izumiReplay &&
+    !ids.some((id) => id === 'ginko' || id === 'rina' || id === 'honoka' || id === 'shizuku')
+  )
     return [];
   const urls = new Set<string>();
   if (ids.includes('honoka')) urls.add(MODIFIER_ICON_SOURCE.heart_all);
@@ -21,6 +39,10 @@ export function collectSpecialEffectImageUrls(
       urls.add(imagePath(object.frontInfo.cardCode));
   };
   const wait = view.match.entrance;
+  if (wait?.izumiReplay) {
+    face(wait.izumiReplay.targetObjectId);
+    face(wait.izumiReplay.sourceObjectId);
+  }
   if (wait?.shizukuRole) {
     face(wait.shizukuRole.sourceObjectId);
     for (const heart of wait.shizukuRole.hearts) urls.add(HEART_ICON_SOURCE_BY_COLOR[heart.color]);

@@ -1,3 +1,4 @@
+import { IzumiProtection } from './izumi-protection/IzumiProtection';
 import { PresentationImage } from '@/components/excel/PresentationRoot';
 import { useSelectionDraft } from '@/hooks/useSelectionDraft';
 import { createPortal } from 'react-dom';
@@ -5187,15 +5188,26 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
               fromZone={activeDragFromZone}
               faceOverlay={
                 activeDragFromZone === ZoneType.MEMBER_SLOT ? (
-                  <SerasLockSeal
-                    objectId={`obj_${activeCard.instanceId}`}
-                    prohibition={
-                      playerViewState?.objects[`obj_${activeCard.instanceId}`]
-                        ?.activatedAbilityProhibition
-                    }
-                    viewIdentity={`${playerViewState?.match.matchId}:${playerViewState?.match.viewerSeat}`}
-                    enabled={!textOnly && battleEffectsEnabled && canShowCardEntrance}
-                  />
+                  <>
+                    <SerasLockSeal
+                      objectId={`obj_${activeCard.instanceId}`}
+                      prohibition={
+                        playerViewState?.objects[`obj_${activeCard.instanceId}`]
+                          ?.activatedAbilityProhibition
+                      }
+                      viewIdentity={`${playerViewState?.match.matchId}:${playerViewState?.match.viewerSeat}`}
+                      enabled={!textOnly && battleEffectsEnabled && canShowCardEntrance}
+                    />
+                    <IzumiProtection
+                      objectId={`obj_${activeCard.instanceId}`}
+                      protection={
+                        playerViewState?.objects[`obj_${activeCard.instanceId}`]
+                          ?.opponentWaitProtection
+                      }
+                      viewIdentity={`${playerViewState?.match.matchId}:${playerViewState?.match.viewerSeat}`}
+                      enabled={!textOnly && battleEffectsEnabled && canShowCardEntrance}
+                    />
+                  </>
                 ) : undefined
               }
             />

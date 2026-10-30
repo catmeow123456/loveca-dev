@@ -58,6 +58,7 @@ import {
   projectLiveModifierCompatibility,
 } from '../domain/rules/live-modifiers.js';
 import { getMemberEffectiveCost } from '../domain/rules/member-effective-cost.js';
+import { hasIzumiOpponentWaitProtection } from '../domain/rules/member-wait-protections.js';
 import { getStageMemberActivatedAbilityProhibitionForView } from '../application/card-effects/runtime/activated-ability-prohibition-status.js';
 import {
   canLiveCardEnterSuccessZone,
@@ -382,6 +383,25 @@ export function projectPlayerViewState(
               return seat ? [seat] : [];
             }),
             deadlineAt: game.entranceRuntime.pending.deadlineAt,
+            ...(game.entranceRuntime.pending.izumiReplay
+              ? {
+                  izumiReplay: {
+                    sourceObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.izumiReplay.sourceCardId
+                    ),
+                    targetObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.izumiReplay.targetCardId
+                    ),
+                    ownerSeat: getSeatForPlayer(
+                      game,
+                      game.entranceRuntime.pending.izumiReplay.playerId
+                    )!,
+                    slot: game.entranceRuntime.pending.izumiReplay.slot,
+                    previousOrientation:
+                      game.entranceRuntime.pending.izumiReplay.previousOrientation,
+                  },
+                }
+              : {}),
             ...(game.entranceRuntime.pending.bokuhikaSuccess
               ? {
                   bokuhikaSuccess: {
@@ -981,6 +1001,10 @@ function addMemberSlotZones(
           activatedAbilityProhibition: !game.isEnded
             ? getStageMemberActivatedAbilityProhibitionForView(game, playerId, occupantId)
             : undefined,
+          opponentWaitProtection:
+            !game.isEnded && hasIzumiOpponentWaitProtection(game, playerId, occupantId)
+              ? 'IZUMI_EDELNOTE'
+              : undefined,
           hasRemainingLimitedActivatedAbility: hasRemainingLimitedActivatedAbility || undefined,
           hasTemporaryHeartRole:
             (!game.isEnded &&
@@ -1183,6 +1207,7 @@ function upsertViewObject(
     | 'hasTemporaryOnEnterAbility'
     | 'hasTemporaryHeartRole'
     | 'activatedAbilityProhibition'
+    | 'opponentWaitProtection'
   > & {
     readonly knownCardType?: ViewCardObject['cardType'];
   }
@@ -1210,6 +1235,7 @@ function upsertViewObject(
     hasTemporaryHeartRole: surface === 'FRONT' ? metadata?.hasTemporaryHeartRole : undefined,
     activatedAbilityProhibition:
       surface === 'FRONT' ? metadata?.activatedAbilityProhibition : undefined,
+    opponentWaitProtection: surface === 'FRONT' ? metadata?.opponentWaitProtection : undefined,
   };
 }
 

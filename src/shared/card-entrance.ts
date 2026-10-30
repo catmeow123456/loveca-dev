@@ -83,11 +83,21 @@ export const ENTRANCE_WAIT_LIMIT_MS = 6000;
 export const DOUBLE_RELAY_ENTRANCE_EXTRA_MS = 1400;
 export const WAITING_RETURN_ENTRANCE_EXTRA_MS = 1300;
 export const KAHO_RELAY_ENTRANCE_EXTRA_MS = 1600;
+export const IZUMI_REPLAY_CARD_BASE = 'PL!HS-bp8-008';
+export const IZUMI_REPLAY_ENTRANCE_EXTRA_MS = 1000;
 export interface EntranceWait {
   readonly id: string;
   readonly cardIds: readonly string[];
   readonly waitingPlayerIds: readonly string[];
   readonly deadlineAt: number;
+  /** Successful exact-card exit/re-entry, already committed as one atomic effect. */
+  readonly izumiReplay?: {
+    readonly sourceCardId: string;
+    readonly targetCardId: string;
+    readonly playerId: string;
+    readonly slot: SlotPosition;
+    readonly previousOrientation: OrientationState;
+  };
   /** Public scoring identities at the selected confirmation or ordered resolution boundary. */
   readonly bokuhikaSuccess?: {
     readonly sourceCardId: string;

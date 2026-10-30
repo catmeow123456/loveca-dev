@@ -30,6 +30,8 @@ import './cardEntrance.css';
 import { getBokuhikaPresentation, shouldPreloadBokuhika } from '@/lib/bokuhikaPresentation';
 import { BokuhikaPlayback } from '../song-animation/BokuhikaPlayback';
 import { bokuhikaImageUrls } from '../song-animation/bokuhikaAssets';
+import { getIzumiReplaySource } from '@/lib/izumiReplay';
+import { IzumiReplayPlayback } from './izumi-replay/IzumiReplayPlayback';
 
 export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
   const view = useGameStore((s) => s.playerViewState);
@@ -154,6 +156,18 @@ function SynchronizedEntrance({
     getHonokaMemoryPresentation(view, useGameStore.getState().getCardImagePath)
   );
   const [role] = useState(() => getShizukuRole(view, useGameStore.getState().getCardImagePath));
+  const [replay] = useState(() =>
+    getIzumiReplaySource(view, useGameStore.getState().getCardImagePath)
+  );
+  const [replayDone, setReplayDone] = useState(false);
+  const activeReplay =
+    playVisuals &&
+    viewerWaiting &&
+    !replayDone &&
+    replay &&
+    !getCardEntranceProfile(replay.target.cardCode)
+      ? replay
+      : undefined;
   const [roleDone, setRoleDone] = useState(false);
   const activeRole = playVisuals && viewerWaiting && !roleDone ? role : undefined;
   // Snapshot only public, already-present stage cards. No historical event replay on mount.
@@ -175,6 +189,7 @@ function SynchronizedEntrance({
               target,
               profile,
               imagePath: useGameStore.getState().getCardImagePath(target.cardCode),
+              izumiReplay: replay?.targetObjectId === objectId ? replay : undefined,
               kahoSource: getKahoRelaySource(
                 view,
                 objectId,
@@ -204,7 +219,13 @@ function SynchronizedEntrance({
   const activeTransfer = playVisuals && viewerWaiting && !transferDone ? transfer : undefined;
   const active = playVisuals && viewerWaiting ? queue[index] : undefined;
   const done =
-    !active && !activeTransfer && !activeSwap && !activeMemory && !activeRole && !activeSong;
+    !active &&
+    !activeTransfer &&
+    !activeSwap &&
+    !activeMemory &&
+    !activeRole &&
+    !activeSong &&
+    !activeReplay;
 
   useCardEntranceBarrier(view, done);
 
@@ -241,11 +262,28 @@ function SynchronizedEntrance({
     return () => store.removeBattleAnimationOcclusion(eventId);
   }, [activeSwap, reduced, wait.id]);
 
+  useLayoutEffect(() => {
+    if (!activeReplay || reduced) return;
+    const store = useGameStore.getState();
+    const eventId = `entrance:${wait.id}:izumi-replay`;
+    store.addBattleAnimationOcclusions([
+      { eventId, objectId: activeReplay.targetObjectId, suppressDefaultMovement: true },
+    ]);
+    return () => store.removeBattleAnimationOcclusion(eventId);
+  }, [activeReplay, reduced, wait.id]);
+
   if (textOnly) return null;
   return (
     <>
       <div className="absolute inset-0 z-[59]" aria-hidden="true" />
-      {activeSong ? (
+      {activeReplay ? (
+        <IzumiReplayPlayback
+          source={activeReplay}
+          images={images}
+          reduced={reduced}
+          onDone={() => setReplayDone(true)}
+        />
+      ) : activeSong ? (
         <BokuhikaPlayback
           images={songImages}
           contribution={activeSong}
@@ -289,6 +327,7 @@ function SynchronizedEntrance({
           relaySources={active.relaySources}
           waitingReturn={active.waitingReturn}
           kahoSource={active.kahoSource}
+          izumiReplay={active.izumiReplay}
           onPreludeDone={() => setReleasedPreludeId(active.id)}
           reduced={reduced}
           onImpact={() => setLandedId(active.id)}

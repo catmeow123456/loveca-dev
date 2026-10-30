@@ -15,9 +15,18 @@ export function getEntranceStageTarget(
   view: PlayerViewState | null,
   objectId: string
 ): EntranceStageTarget | null {
+  const target = getPublicStageMemberTarget(view, objectId);
+  return target && getCardEntranceProfile(target.cardCode) ? target : null;
+}
+
+/** Public stage geometry also serves effect-only members without a portrait profile. */
+export function getPublicStageMemberTarget(
+  view: PlayerViewState | null,
+  objectId: string
+): EntranceStageTarget | null {
   const object = view?.objects[objectId];
   const code = object?.frontInfo?.cardCode;
-  if (!view || object?.surface !== 'FRONT' || !code || !getCardEntranceProfile(code)) return null;
+  if (!view || object?.surface !== 'FRONT' || !code) return null;
   for (const [zoneKey, zone] of Object.entries(view.table.zones)) {
     if (zone.zone !== ZoneType.MEMBER_SLOT) continue;
     for (const [slot, occupant] of Object.entries(zone.slotMap ?? {})) {

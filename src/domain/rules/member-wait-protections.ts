@@ -28,6 +28,31 @@ export function addMemberWaitProtectionUntilLiveEnd(
   return { ...game, memberWaitProtections: [...remaining, next] };
 }
 
+/** The bp8 Izumi's own continuous protection, shared by rule resolution and public status. */
+export function hasIzumiOpponentWaitProtection(
+  game: GameState,
+  playerId: string,
+  memberCardId: string
+): boolean {
+  const player = getPlayerById(game, playerId);
+  const card = getCardById(game, memberCardId);
+  return !!(
+    player &&
+    card?.ownerId === playerId &&
+    isMemberCardData(card.data) &&
+    cardCodeMatchesBase(card.data.cardCode, 'PL!HS-bp8-008') &&
+    Object.values(player.memberSlots.slots).includes(memberCardId) &&
+    Object.values(player.memberSlots.slots).some((id) => {
+      const partner = id ? getCardById(game, id) : null;
+      return (
+        partner?.ownerId === playerId &&
+        isMemberCardData(partner.data) &&
+        cardNameAliasMatches(partner.data, 'セラス 柳田 リリエンフェルト')
+      );
+    })
+  );
+}
+
 export function isMemberWaitProtectedFromChange(
   game: GameState,
   affectedPlayerId: string,
@@ -53,19 +78,7 @@ export function isMemberWaitProtectedFromChange(
   }
   const memberData = card.data;
 
-  if (
-    cardCodeMatchesBase(memberData.cardCode, 'PL!HS-bp8-008') &&
-    Object.values(player.memberSlots.slots).some((id) => {
-      const partner = id ? getCardById(game, id) : null;
-      return (
-        partner !== null &&
-        partner.ownerId === affectedPlayerId &&
-        isMemberCardData(partner.data) &&
-        cardNameAliasMatches(partner.data, 'セラス 柳田 リリエンフェルト')
-      );
-    })
-  )
-    return true;
+  if (hasIzumiOpponentWaitProtection(game, affectedPlayerId, memberCardId)) return true;
 
   return protections.some(
     (protection) =>

@@ -48,10 +48,15 @@ export function setupSeras({
   lock = false,
   lockActive = false,
   lockEntry = false,
+  replay = false,
+  replayPlain = false,
+  protection = false,
 } = {}) {
-  const session = createGameSession({ cardEntrance: 'LOCAL' });
+  // Focused protection review omits the partner's portrait barrier, using the session's
+  // supported no-presentation mode. Normal entrance/replay fixtures still use LOCAL.
+  const session = createGameSession(protection ? {} : { cardEntrance: 'LOCAL' });
   const seras = { ...data(SERAS), cardCode: `PL!HS-bp8-007-${rare}` };
-  const izumi = data('PL!HS-bp8-008-SEC');
+  const izumi = { ...data('PL!HS-bp8-008-SEC'), cardCode: `PL!HS-bp8-008-${rare}` };
   const purple = data('PL!HS-bp8-023-L');
   const icy = data('PL!HS-bp8-020-L');
   const other = data('PL!HS-bp8-017-SECL');
@@ -66,6 +71,14 @@ export function setupSeras({
   const cards = [
     createCardInstance(seras, 'p1', 'seras'),
     createCardInstance(izumi, 'p1', 'hand-izumi'),
+    ...(replay
+      ? [
+          createCardInstance(izumi, 'p1', 'replay-izumi'),
+          ...Array.from({ length: 3 }, (_, i) =>
+            createCardInstance(other, 'p1', `replay-cost-${i}`)
+          ),
+        ]
+      : []),
     ...(lock
       ? [
           createCardInstance(lockEntry ? lowIzumi : honoka, 'p1', 'own-low'),
@@ -92,6 +105,34 @@ export function setupSeras({
       cardStates: new Map(Array.from({ length: 18 }, (_, i) => [`energy-${i}`, up])),
     },
   }));
+  if (replay) {
+    const target = replayPlain ? 'replay-izumi' : 'seras';
+    game = updatePlayer(game, 'p1', (p) => ({
+      ...p,
+      hand: { ...p.hand, cardIds: ['replay-cost-0', 'replay-cost-1', 'replay-cost-2'] },
+      memberSlots: {
+        ...p.memberSlots,
+        slots: { LEFT: 'hand-izumi', CENTER: target, RIGHT: null },
+        cardStates: new Map([
+          ['hand-izumi', up],
+          [target, { ...up, orientation: OrientationState.WAITING }],
+        ]),
+      },
+    }));
+  }
+  if (protection) {
+    game = updatePlayer(game, 'p1', (p) => ({
+      ...p,
+      hand: { ...p.hand, cardIds: ['seras'] },
+      // Empty deck/waiting room lets the real on-enter finish with nothing to inspect.
+      mainDeck: { ...p.mainDeck, cardIds: [] },
+      memberSlots: {
+        ...p.memberSlots,
+        slots: { LEFT: 'hand-izumi', CENTER: null, RIGHT: null },
+        cardStates: new Map([['hand-izumi', up]]),
+      },
+    }));
+  }
   if (lock) {
     game = updatePlayer(game, 'p1', (p) => ({
       ...p,
@@ -131,10 +172,10 @@ export function setupSeras({
     activePlayerIndex: 0,
     waitingPlayerId: null,
     waitingForInput: false,
-    manualOperationMode: lock ? 'FREE' : 'RULES',
+    manualOperationMode: lock || protection ? 'FREE' : 'RULES',
   };
   session.restoreRuntimeState({ authorityState: game, currentPublicSeq: 0 });
-  if ((open || entrance) && !lock) {
+  if ((open || entrance) && !lock && !replay && !protection) {
     const result = session.executeCommand(
       createPlayMemberToSlotCommand('p1', 'seras', SlotPosition.CENTER)
     );
@@ -165,7 +206,7 @@ export function setupSeras({
     getCardImagePath: (code) =>
       code === 'ENERGY'
         ? '/back.jpg'
-        : `/images/large/${code.startsWith('PL!HS-bp8-007-') ? SERAS : code}.webp`,
+        : `/images/large/${code.startsWith('PL!HS-bp8-007-') ? SERAS : code.startsWith('PL!HS-bp8-008-') ? 'PL!HS-bp8-008-SEC' : code}.webp`,
     ui: {
       ...useGameStore.getState().ui,
       battleAnimationOcclusions: [],

@@ -6,10 +6,59 @@ import {
 } from '../domain/entities/game.js';
 import { FaceState, OrientationState, TriggerCondition } from '../shared/types/enums.js';
 import { N_BP7_011_CONTINUOUS_PLAY_SHUFFLE_WAITING_MEMBERS_COST_MINUS_TWO_ABILITY_ID } from './card-effects/ability-ids.js';
-import { entranceCards, isEntranceCard } from '../shared/card-entrance.js';
+import { entranceCards, isEntranceCard, IZUMI_REPLAY_CARD_BASE } from '../shared/card-entrance.js';
 import { cardCodeMatchesBase } from '../shared/utils/card-code.js';
 import { isCurrentStageMemberAbilitySource } from './card-effects/runtime/source-member.js';
 import { cardNameAliasIs } from './effects/card-selectors.js';
+import type { SlotPosition } from '../shared/types/enums.js';
+
+/** Called by Izumi only after the same member successfully returns to its original slot. */
+export function captureIzumiReplay(
+  before: GameState,
+  after: GameState,
+  effect: ActiveEffectState,
+  targetCardId: string,
+  slot: SlotPosition
+): GameState {
+  const runtime = after.entranceRuntime;
+  const source = getCardById(after, effect.sourceCardId);
+  const previous = getPlayerById(before, effect.controllerId);
+  const current = getPlayerById(after, effect.controllerId);
+  if (
+    !runtime ||
+    runtime.pending ||
+    after.isEnded ||
+    !source ||
+    !cardCodeMatchesBase(source.data.cardCode, IZUMI_REPLAY_CARD_BASE) ||
+    previous?.memberSlots.slots[slot] !== targetCardId ||
+    current?.memberSlots.slots[slot] !== targetCardId
+  )
+    return after;
+  const generation = runtime.generation + 1;
+  return {
+    ...after,
+    entranceRuntime: {
+      ...runtime,
+      generation,
+      seenSequence: after.eventSequence,
+      pending: {
+        id: `izumi-replay:${after.gameId}:${after.eventSequence}:${generation}`,
+        cardIds: [targetCardId],
+        waitingPlayerIds: after.players.map((p) => p.id),
+        deadlineAt: 0,
+        izumiReplay: {
+          sourceCardId: effect.sourceCardId,
+          targetCardId,
+          playerId: effect.controllerId,
+          slot,
+          previousOrientation:
+            previous.memberSlots.cardStates.get(targetCardId)?.orientation ??
+            OrientationState.ACTIVE,
+        },
+      },
+    },
+  };
+}
 
 /** Pause only at an atomic effect boundary; never split a cost or a workflow mutation. */
 export function captureCardEntrance(game: GameState): GameState {
