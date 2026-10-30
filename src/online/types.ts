@@ -336,6 +336,11 @@ export interface ViewCardObject {
   readonly activatedAbilityProhibition?: 'SERAS_LOW_COST';
   /** Public, derived self-protection from opponent WAITING effects; not general immunity. */
   readonly opponentWaitProtection?: 'IZUMI_EDELNOTE';
+  /** Public Ai HEART contributions to this stage member, derived from live modifiers. */
+  readonly aiHeartLinks?: readonly {
+    readonly sourceObjectId: string;
+    readonly incarnation: string;
+  }[];
 }
 
 export interface ViewCommandScope {

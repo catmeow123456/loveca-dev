@@ -9,7 +9,12 @@ const repo = path.resolve(root, '../../..');
 const assets = new Map([
   ...rows.map((row) => [
     '/images/large/' + row.cardCode + '.webp',
-    path.join(root, 'images', row.cardCode + '.webp'),
+    path.join(
+      root,
+      'images',
+      row.cardCode +
+        (fs.existsSync(path.join(root, 'images', row.cardCode + '.png')) ? '.png' : '.webp')
+    ),
   ]),
   ['/back.jpg', path.join(repo, 'assets/back.jpg')],
   ['/deck.png', path.join(repo, 'assets/deck.png')],

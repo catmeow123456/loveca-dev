@@ -99,6 +99,8 @@ export type BattleAnimationEvent =
       readonly toRect: BattleAnimationRect;
       /** Opts into enhanced recovery, with the fan position for this seat's batch. */
       readonly recoveryGroup?: { readonly index: number; readonly count: number };
+      /** A confirmed public Ai selection that actually moved to hand, never a guessed target. */
+      readonly aiInvitation?: { readonly sourceObjectId: string; readonly publicCardCode: string };
     }
   | DiscardPresentationBatchEvent
   | {

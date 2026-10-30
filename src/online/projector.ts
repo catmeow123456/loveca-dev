@@ -54,6 +54,7 @@ import {
   getLatestMemberOriginalHeartReplacementModifier,
   getMemberEffectiveBladeCount,
   getMemberEffectiveHeartIcons,
+  getMemberHeartContributionLifecycleId,
   getPlayerLiveScoreModifier,
   projectLiveModifierCompatibility,
 } from '../domain/rules/live-modifiers.js';
@@ -1005,6 +1006,21 @@ function addMemberSlotZones(
             !game.isEnded && hasIzumiOpponentWaitProtection(game, playerId, occupantId)
               ? 'IZUMI_EDELNOTE'
               : undefined,
+          aiHeartLinks: game.isEnded
+            ? undefined
+            : liveModifiers.flatMap((modifier) =>
+                modifier.kind === 'HEART' &&
+                modifier.target === 'TARGET_MEMBER' &&
+                modifier.targetMemberCardId === occupantId &&
+                modifier.abilityId === 'PL!N-bp8-005:continuous-stage-red-hearts'
+                  ? [
+                      {
+                        sourceObjectId: createPublicObjectId(modifier.sourceCardId),
+                        incarnation: `${getMemberHeartContributionLifecycleId(game, modifier.sourceCardId)}:${getMemberHeartContributionLifecycleId(game, occupantId)}`,
+                      },
+                    ]
+                  : []
+              ),
           hasRemainingLimitedActivatedAbility: hasRemainingLimitedActivatedAbility || undefined,
           hasTemporaryHeartRole:
             (!game.isEnded &&
@@ -1208,6 +1224,7 @@ function upsertViewObject(
     | 'hasTemporaryHeartRole'
     | 'activatedAbilityProhibition'
     | 'opponentWaitProtection'
+    | 'aiHeartLinks'
   > & {
     readonly knownCardType?: ViewCardObject['cardType'];
   }
@@ -1236,6 +1253,7 @@ function upsertViewObject(
     activatedAbilityProhibition:
       surface === 'FRONT' ? metadata?.activatedAbilityProhibition : undefined,
     opponentWaitProtection: surface === 'FRONT' ? metadata?.opponentWaitProtection : undefined,
+    aiHeartLinks: surface === 'FRONT' ? metadata?.aiHeartLinks : undefined,
   };
 }
 

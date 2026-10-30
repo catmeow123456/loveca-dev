@@ -7,6 +7,7 @@ export default defineConfig({
     'entrance.spec.ts',
     'izumi.spec.ts',
     'protection.spec.ts',
+    'ai.spec.ts',
   ],
   timeout: 30000,
   workers: 1,

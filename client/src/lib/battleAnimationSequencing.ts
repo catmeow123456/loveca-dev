@@ -1,3 +1,4 @@
+import { AI_INVITATION_MS } from './aiEffects';
 import { ZoneType } from '@game/shared/types/enums';
 import type { BattleAnimationEvent } from './battleAnimationEvents';
 
@@ -87,7 +88,9 @@ export function getBattleAnimationEventDurationMs(
     return prefersReducedMotion
       ? 120
       : recoveryEffectsEnabled
-        ? RECOVERY_DURATION_MS
+        ? event.kind === 'CARD_MOVE' && event.aiInvitation
+          ? AI_INVITATION_MS
+          : RECOVERY_DURATION_MS
         : BATTLE_CARD_MOVE_DURATION_MS;
   }
 

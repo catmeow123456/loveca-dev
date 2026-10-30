@@ -69,6 +69,9 @@ import { CardDetailPressTarget } from './CardDetailPressTarget';
 import { JudgmentPanel } from './JudgmentPanel';
 import { ScoreConfirmModal } from './ScoreConfirmModal';
 import { BattleAnimationLayer } from './BattleAnimationLayer';
+import { isAiRecoveryEffect } from '@/lib/aiEffects';
+import { AiEffectsLayer } from './ai-effects/AiEffectsLayer';
+import { AiRecoveryTrim } from './ai-effects/AiRecoveryTrim';
 import { AbilityActivationProvider } from './AbilityActivationMotion';
 import { BattleActionFeedbackLayer } from './BattleActionFeedbackLayer';
 import { BoardBackground } from './BoardBackground';
@@ -2921,6 +2924,8 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
     return null;
   }
 
+  const showAiRecoveryDecor =
+    !textOnly && battleEffectsEnabled && canShowCardEntrance && isAiRecoveryEffect(playerViewState);
   const selfSeat: Seat = viewerSeat;
   const showDesktopPublicLog = !entranceWaiting && canShowPublicBattleLog && publicLogOpen;
   const showDesktopDebugLog = canShowDebugLog && desktopDebugLogOpen;
@@ -3289,6 +3294,7 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
             key={serasPhase ? `${matchView.matchId}:${activeEffect.id}` : undefined}
             data-battle-ui-anchor={BATTLE_UI_ANCHORS.ACTIVE_EFFECT_PANEL}
             data-seras-phase={serasPhase ?? undefined}
+            data-ai-recovery-panel={showAiRecoveryDecor || undefined}
             data-reduced={prefersReducedMotion}
             style={
               serasPhase
@@ -3306,6 +3312,7 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
             exit={{ opacity: 0, y: 6, scale: 0.99 }}
             transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
           >
+            {showAiRecoveryDecor && <AiRecoveryTrim />}
             {serasPhase && (
               <SerasTheatreDecor
                 selected={activeEffectOrderedSelection.length > 0 || serasPhase === 'reveal'}
@@ -5224,6 +5231,7 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
       </div>
       {/* Measure after the hand has followed incoming cards in its layout effect. */}
       <BattleAnimationLayer />
+      <AiEffectsLayer />
     </div>
   );
   return (
