@@ -33,4 +33,12 @@ describe('card sync job migration', () => {
     expect(sql).toContain('cards_score_non_negative_check');
     expect(sql.match(/NOT VALID/g)).toHaveLength(4);
   });
+  it('removes the obsolete format whitelist without rewriting cards or changing draft constraints', () => {
+    const sql = readFileSync('drizzle/0046_allow_card_sync_overrides.sql', 'utf8');
+    expect(sql).toContain('DROP CONSTRAINT "cards_card_code_format_check"');
+    expect(sql).toContain('cards_card_code_nonempty_check');
+    expect(sql).toContain('NOT VALID');
+    expect(sql).not.toMatch(/UPDATE|DELETE|TRUNCATE/);
+    expect(sql).not.toContain('cards_card_type_check');
+  });
 });

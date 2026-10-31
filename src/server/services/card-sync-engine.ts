@@ -16,7 +16,25 @@ export interface CardSyncEngineCandidate {
   readonly warnings: readonly string[];
 }
 
+export interface CardSyncForceImport {
+  readonly sourceKey: string;
+  readonly cardCode: string;
+  readonly name: string;
+  readonly cardType: CardSyncEngineCardType;
+  readonly skipImage?: boolean;
+}
+
+export interface CardSyncPreviewProgress {
+  readonly checked: number;
+  readonly total: number;
+}
+
 export interface CardSyncEngineBlockedItem {
+  readonly sourceKey?: string;
+  readonly name?: string | null;
+  readonly cardType?: CardSyncEngineCardType | null;
+  readonly suggestedCardCode?: string;
+  readonly imageIssue?: boolean;
   readonly cardCode: string | null;
   readonly code: string;
   readonly message: string;
@@ -48,6 +66,8 @@ export interface CardSyncEngineApplyInput {
   readonly expectedSourceHash: string;
   readonly expectedCandidateCardCodes: readonly string[];
   readonly selectedCardCodes: readonly string[];
+  readonly forceImports?: readonly CardSyncForceImport[];
+  readonly forceImport?: boolean;
   readonly execution: CardSyncExecutionLease;
 }
 
@@ -70,7 +90,10 @@ export interface CardSyncEngineConfigurationStatus {
 
 export interface CardSyncEngine {
   getConfigurationStatus(): CardSyncEngineConfigurationStatus;
-  preview(): Promise<CardSyncEnginePreview>;
+  preview(
+    onProgress?: (progress: CardSyncPreviewProgress) => Promise<void>,
+    imageCheck?: 'NONE' | 'LINK' | 'DECODE'
+  ): Promise<CardSyncEnginePreview>;
   apply(input: CardSyncEngineApplyInput): Promise<CardSyncEngineApplyResult>;
 }
 

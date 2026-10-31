@@ -24,6 +24,7 @@ Loveca 已具备共享规则引擎、Web 对战桌、卡组管理、联机与观
 | 新手教程 | 四章教程已使用真实规则、私密场景和共享牌桌，支持检查点、退出与重开；人工通关及多视口体验仍待验收。 | [教程需求](tutorial/requirements.md) |
 | 账号与卡组 | 已实现账号与个人资料、云端／浏览器本地卡组、编辑、分享复制及导入；账号数据、离线存储和对局冻结快照各有明确边界。 | [系统设计](system-design.md#8-服务端与数据设计)、[卡组设计](deck-management/design.md) |
 | 运营与资源 | 维护状态、运营管理、候场曲库、壁纸、活动封面与徽章已有实现；赛季管理员委派和资源功能开放仍受各专题前置条件约束。 | [平台运维](platform-operations/README.md)、[赛季管理员](admin-center/season-admin-role.md)、[壁纸设计](player-wallpaper/design.md)、[活动封面](matchmaking-and-ladder/SEASON_ACTIVITY_COVER_REQUIREMENTS_AND_DESIGN.md) |
+| 上游新卡同步 | 管理页保留异常卡的完整编号与名称，支持确认后补填并强制导入草稿、失败卡图降级为无图草稿；预览提供不检查、轻量检查、完整检查三档，可筛选卡图异常项。服务器需部署相应逻辑与迁移后生效。 | [同步流程与人工确认](card-data-sync/cloudbase-new-card-sync.md) |
 
 ## 继续阅读
 

@@ -1,11 +1,24 @@
-import type { PlayerViewState, ViewCardObject, ViewFrontCardInfo } from '@game/online/types';
+import type {
+  LiveResultViewState,
+  PlayerViewState,
+  ViewBladeHeartItem,
+  ViewCardObject,
+  ViewFrontCardInfo,
+} from '@game/online/types';
 import { getCardLocalizedInfo } from './cardLocalization';
 import { parseCardEffectText } from './cardEffectTokens';
 import {
   getAdjustedLiveRequirements,
   getRequirementEntriesForDisplay,
 } from './liveJudgmentPreview';
-import { CardType, HeartColor, OrientationState, ZoneType } from '@game/shared/types/enums';
+import {
+  BladeHeartEffect,
+  CardType,
+  GamePhase,
+  HeartColor,
+  OrientationState,
+  ZoneType,
+} from '@game/shared/types/enums';
 
 /** Shared compact text for hand rows and authorized selection candidates. */
 export function getExcelCardSummary(front: ViewFrontCardInfo) {
@@ -47,6 +60,47 @@ export function formatTextHearts(hearts?: readonly { color: HeartColor; count: n
   );
 }
 
+/** Requirement RAINBOW means generic gray hearts; a gained RAINBOW is still a rainbow heart. */
+export function formatTextLiveRequirements(requirements: unknown): string {
+  return (
+    getRequirementEntriesForDisplay(requirements)
+      .map(
+        ({ color, count }) =>
+          `${color === HeartColor.RAINBOW || color === HeartColor.GRAY ? '灰心' : HEART_TEXT[color]} ${count}`
+      )
+      .join('、') || '—'
+  );
+}
+
+/** Only formats authorized printed markers and the owner's projected color replacement. */
+export function formatTextJudgment(
+  markers?: readonly ViewBladeHeartItem[],
+  replacement?: LiveResultViewState['cheerHeartColorReplacements']['FIRST']
+): string {
+  const hearts = new Map<HeartColor, number>();
+  let draw = 0;
+  let score = 0;
+  for (const marker of markers ?? []) {
+    if (marker.effect === BladeHeartEffect.DRAW) draw += 1;
+    if (marker.effect === BladeHeartEffect.SCORE) score += 1;
+    if (marker.effect === BladeHeartEffect.HEART && marker.heartColor) {
+      const color = replacement?.fromColors.includes(marker.heartColor)
+        ? replacement.toColor
+        : marker.heartColor;
+      hearts.set(color, (hearts.get(color) ?? 0) + 1);
+    }
+  }
+  return (
+    [
+      ...Object.values(HeartColor).flatMap((color) =>
+        hearts.has(color) ? [`${HEART_TEXT[color]} ${hearts.get(color)}`] : []
+      ),
+      ...(draw ? [`抽卡 +${draw}`] : []),
+      ...(score ? [`分数 +${score}`] : []),
+    ].join('、') || '—'
+  );
+}
+
 export function formatFrontMetrics(front: ViewFrontCardInfo, onStage = false): string {
   const values: string[] = [];
   if (front.cost !== undefined)
@@ -58,9 +112,7 @@ export function formatFrontMetrics(front: ViewFrontCardInfo, onStage = false): s
   if (front.score !== undefined) values.push(`印刷分数 ${front.score}`);
   if (front.requiredHearts)
     values.push(
-      `需求 ${Object.entries(front.requiredHearts.colorRequirements)
-        .map(([color, count]) => `${HEART_TEXT[color as HeartColor] ?? color} ${count}`)
-        .join('、')}；总心 ${front.requiredHearts.totalRequired}`
+      `需求 ${formatTextLiveRequirements(front.requiredHearts)}；总心 ${front.requiredHearts.totalRequired}`
     );
   return values.join('；') || '—';
 }
@@ -74,6 +126,8 @@ export interface ExcelCardRow {
   readonly metrics: string;
   readonly state: string;
   readonly location?: string;
+  readonly printedJudgment?: string;
+  readonly currentJudgment?: string;
 }
 
 /** Accept only a projected identity with an authorized front. Never search the card registry for a hidden object. */
@@ -112,13 +166,14 @@ export function selectExcelCard(view: PlayerViewState, objectId: string): ExcelC
   const scoreDelta =
     result?.liveCardScoreModifiers[cardId] ?? result?.liveCardScoreModifiers[objectId] ?? 0;
   const adjustedRequirements = getAdjustedLiveRequirements(front.requiredHearts, modifiers);
+  const hasJudgment = front.cardType === CardType.MEMBER || front.cardType === CardType.LIVE;
+  const isCheerCard =
+    (view.match.phase === GamePhase.PERFORMANCE_PHASE ||
+      view.match.phase === GamePhase.LIVE_RESULT_PHASE) &&
+    view.table.zones.SHARED_RESOLUTION_ZONE?.objectIds?.includes(objectId);
   const liveMetrics =
     front.score !== undefined
-      ? `当前分数 ${Math.max(0, front.score + scoreDelta)}（印刷 ${front.score}）；当前需求 ${
-          getRequirementEntriesForDisplay(adjustedRequirements)
-            .map((entry) => `${HEART_TEXT[entry.color]} ${entry.count}`)
-            .join('、') || '—'
-        }${adjustedRequirements ? `；总心 ${adjustedRequirements.totalRequired}` : ''}`
+      ? `当前分数 ${Math.max(0, front.score + scoreDelta)}（印刷 ${front.score}）；当前需求 ${formatTextLiveRequirements(adjustedRequirements)}${adjustedRequirements ? `；总心 ${adjustedRequirements.totalRequired}` : ''}`
       : null;
   return {
     objectId,
@@ -130,6 +185,14 @@ export function selectExcelCard(view: PlayerViewState, objectId: string): ExcelC
       ? `${stageZone?.ownerSeat === view.match.viewerSeat ? '我方' : '对方'}${slotLabel}`
       : undefined,
     metrics: liveMetrics ?? formatFrontMetrics(front, onStage),
+    printedJudgment: hasJudgment ? formatTextJudgment(front.bladeHearts) : undefined,
+    currentJudgment:
+      hasJudgment && isCheerCard
+        ? formatTextJudgment(
+            front.bladeHearts,
+            result?.cheerHeartColorReplacements?.[object.ownerSeat]
+          )
+        : undefined,
     state: [
       orientationLabel,
       onStage && object.enteredStageThisTurn ? '本回合登场' : '',

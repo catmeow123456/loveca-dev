@@ -1,5 +1,10 @@
 import { useTextPresentation } from '@/lib/appPresentation';
-import { HEART_TEXT } from '@/lib/excelCardView';
+import {
+  formatTextJudgment,
+  formatTextLiveRequirements,
+  getExcelCardSummary,
+  HEART_TEXT,
+} from '@/lib/excelCardView';
 import { getPresentationPortalRoot } from '@/lib/appPresentation';
 import { PresentationImage } from '@/components/excel/PresentationRoot';
 /**
@@ -928,26 +933,52 @@ export const JudgmentPanel = memo(function JudgmentPanel({
         <p>
           {isViewingActiveSeat ? '当前行动方' : '仅查看'} · 主卡组剩余 {mainDeckCount}
         </p>
-        <table className="excel-table">
+        <table className="excel-table excel-cheer-table">
           <caption>应援牌</caption>
+          <colgroup>
+            <col style={{ width: '30%' }} />
+            <col style={{ width: '32%' }} />
+            <col style={{ width: '38%' }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col">名称</th>
+              <th scope="col">卡号</th>
+              <th scope="col">判定</th>
+            </tr>
+          </thead>
           <tbody>
-            {cheerCards.map(({ id, frontInfo }) => (
-              <tr key={id}>
-                <td>
-                  {frontInfo ? (
-                    <button
-                      aria-pressed={selectedResolutionCardId === id}
-                      onClick={() => toggleSelectedResolutionCard(id)}
-                    >
-                      {getCardLocalizedInfo(frontInfo).title}
-                    </button>
-                  ) : (
-                    '未知卡牌'
-                  )}
-                </td>
-                <td>{frontInfo?.cardCode ?? '未公开'}</td>
-              </tr>
-            ))}
+            {cheerCards.map(({ id, frontInfo, viewObject }) => {
+              const front = viewObject?.surface === 'FRONT' ? frontInfo : null;
+              const printed = front ? formatTextJudgment(front.bladeHearts) : '未公开';
+              const current = front
+                ? formatTextJudgment(front.bladeHearts, cheerHeartColorReplacement)
+                : '未公开';
+              const changed = current !== printed;
+              const name = front ? getExcelCardSummary(front).name : '未知卡牌';
+              return (
+                <tr key={id} aria-selected={selectedResolutionCardId === id}>
+                  <td>
+                    {front ? (
+                      <button
+                        title={name}
+                        aria-pressed={selectedResolutionCardId === id}
+                        onClick={() => toggleSelectedResolutionCard(id)}
+                      >
+                        {name}
+                      </button>
+                    ) : (
+                      '未知卡牌'
+                    )}
+                  </td>
+                  <td title={front?.cardCode}>{front?.cardCode ?? '未公开'}</td>
+                  <td title={front ? `本次判定：${current}；印刷判定：${printed}` : undefined}>
+                    {current}
+                    {changed ? '（修正）' : ''}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {canRevealViewedCheerCard && (
@@ -977,21 +1008,28 @@ export const JudgmentPanel = memo(function JudgmentPanel({
           <tbody>
             {Array.from(totalHearts)
               .filter(([, count]) => count > 0)
-              .map(([color, count]) => (
-                <tr key={color}>
-                  <th>{HEART_TEXT[color]}</th>
-                  <td>
-                    {count}（成员 {memberHearts.get(color) ?? 0} / 判心{' '}
-                    {bladeHearts.get(color) ?? 0}）
-                  </td>
-                </tr>
-              ))}
+              .map(([color, count]) => {
+                const effectBonus = liveHeartBonuses.reduce(
+                  (sum, heart) => sum + (heart.color === color ? heart.count : 0),
+                  0
+                );
+                return (
+                  <tr key={color}>
+                    <th>{HEART_TEXT[color]}</th>
+                    <td>
+                      {count}（成员 {memberHearts.get(color) ?? 0} / 判心{' '}
+                      {(bladeHearts.get(color) ?? 0) - effectBonus}
+                      {effectBonus !== 0 ? ` / 效果 ${effectBonus}` : ''}）
+                    </td>
+                  </tr>
+                );
+              })}
           </tbody>
         </table>
         {liveJudgmentPreview.rows.map((row, index) => (
           <p key={index}>
             {row.isVisible
-              ? `${row.cardName} · 当前分数 ${row.score} · 需求 ${row.requiredHearts.map((heart) => `${HEART_TEXT[heart.color]} ${heart.count}`).join('、')}`
+              ? `${row.cardName} · 当前分数 ${row.score} · 需求 ${formatTextLiveRequirements(row.adjustedRequirements)}`
               : '未知 LIVE'}
           </p>
         ))}

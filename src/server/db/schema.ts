@@ -876,10 +876,7 @@ export const cards = pgTable(
     index('idx_cards_rare').on(table.rare),
     index('idx_cards_status').on(table.status),
     check('cards_card_type_check', sql`${table.cardType} IN ('MEMBER', 'LIVE', 'ENERGY')`),
-    check(
-      'cards_card_code_format_check',
-      sql`${table.cardCode} ~ '^(PL!|PL!S|PL!N|PL!SP|PL!HS|PL!SIM|LL|IKZL|PYHN)-((sd|bp|cl|pb)[0-9]+|PR|E)-([0-9]{3}|E[0-9]{2,})-(SD|SD2|N|R|R[+]|P|P[+]|AR|CL|L|L[+]|SEC|SEC[+]|SECL|SECE|SECS|PR|PR[+]|PP|DUO|SRL|PE|PE[+]|RE|SRE|RM|LLE)$'`
-    ),
+    check('cards_card_code_nonempty_check', sql`length(btrim(${table.cardCode})) > 0`),
     check(
       'cards_name_language_check',
       sql`(${table.nameJp} IS NOT NULL AND btrim(${table.nameJp}) <> '') OR (${table.nameCn} IS NOT NULL AND btrim(${table.nameCn}) <> '')`

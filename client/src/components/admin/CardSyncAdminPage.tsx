@@ -7,7 +7,6 @@ import {
   Loader2,
   RefreshCw,
   ShieldAlert,
-  XCircle,
 } from 'lucide-react';
 import { ActionButton, ConfirmDialog, StatusBadge } from '@/components/common';
 import {
@@ -18,6 +17,9 @@ import {
   newCardSyncIdempotencyKey,
   startCardSyncRun,
   type CardSyncCandidate,
+  type CardSyncBlockedItem,
+  type CardSyncForceImport,
+  type CardSyncImageCheckMode,
   type CardSyncPreview,
   type CardSyncRun,
   type CardSyncRunItemStatus,
@@ -43,6 +45,12 @@ export function CardSyncAdminPage({ onBack }: CardSyncAdminPageProps) {
   const [previewExpired, setPreviewExpired] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [selectedCardCodes, setSelectedCardCodes] = useState<ReadonlySet<string>>(new Set());
+  const [forceItems, setForceItems] = useState<ReadonlyMap<string, CardSyncForceImport>>(new Map());
+  const [forceMode, setForceMode] = useState(false);
+  const [imageCheck, setImageCheck] = useState<CardSyncImageCheckMode>('LINK');
+  const [progress, setProgress] = useState({ checked: 0, total: 0 });
+  const previewController = useRef<AbortController | null>(null);
+  useEffect(() => () => previewController.current?.abort(), []);
   const applyIdempotencyRef = useRef<{
     readonly previewId: string;
     readonly selectionKey: string;
@@ -127,11 +135,24 @@ export function CardSyncAdminPage({ onBack }: CardSyncAdminPageProps) {
   );
 
   const handleCheck = async () => {
+    previewController.current?.abort();
+    const controller = new AbortController();
+    previewController.current = controller;
     setIsChecking(true);
     setMessage(null);
     setIsConfirmOpen(false);
     try {
-      const nextPreview = await createCardSyncPreview();
+      setProgress({ checked: 0, total: 0 });
+      const nextPreview = await createCardSyncPreview(undefined, {
+        imageCheck,
+        onProgress: (value) => {
+          if (!controller.signal.aborted) setProgress(value);
+        },
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      setForceItems(new Map());
+      setForceMode(false);
       setPreview(nextPreview);
       setSelectedCardCodes(
         new Set(
@@ -143,14 +164,15 @@ export function CardSyncAdminPage({ onBack }: CardSyncAdminPageProps) {
       setPreviewExpired(false);
       applyIdempotencyRef.current = null;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '检查上游新卡失败');
+      if (!controller.signal.aborted)
+        setMessage(error instanceof Error ? error.message : '检查上游新卡失败');
     } finally {
-      setIsChecking(false);
+      if (!controller.signal.aborted) setIsChecking(false);
     }
   };
 
   const handleStart = async () => {
-    if (!preview || selectedCandidates.length === 0) return;
+    if (!preview || selectedCandidates.length + forceItems.size === 0) return;
     if (Date.parse(preview.expiresAt) <= Date.now()) {
       setPreviewExpired(true);
       setIsConfirmOpen(false);
@@ -160,20 +182,26 @@ export function CardSyncAdminPage({ onBack }: CardSyncAdminPageProps) {
     setMessage(null);
     try {
       const cardCodes = selectedCandidates.map((candidate) => candidate.cardCode);
-      const selectionKey = cardCodes.join('\u0000');
+      const choices = [...forceItems.values()];
+      const forceImport = forceMode || choices.length > 0;
+      const selectionKey = JSON.stringify({ cardCodes, choices, forceImport });
       const existingKey = applyIdempotencyRef.current;
       const idempotencyKey =
         existingKey?.previewId === preview.id && existingKey.selectionKey === selectionKey
           ? existingKey.key
           : newCardSyncIdempotencyKey();
       applyIdempotencyRef.current = { previewId: preview.id, selectionKey, key: idempotencyKey };
-      const nextRun = await startCardSyncRun(preview.id, cardCodes, idempotencyKey);
+      const nextRun = await startCardSyncRun(preview.id, cardCodes, idempotencyKey, {
+        forceImport,
+        forceImports: choices,
+      });
       setRun(nextRun);
       setStatus((current) =>
         current ? { ...current, activeRun: nextRun, latestRun: nextRun } : current
       );
       setPreview(null);
       setSelectedCardCodes(new Set());
+      setForceItems(new Map());
       setIsConfirmOpen(false);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '创建新卡同步任务失败');
@@ -291,6 +319,50 @@ export function CardSyncAdminPage({ onBack }: CardSyncAdminPageProps) {
           </div>
         </section>
 
+        <div className="flex flex-wrap items-center gap-4 text-sm text-[var(--text-secondary)]">
+          <label className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+            <span className="shrink-0">卡图检查</span>
+            <select
+              aria-label="卡图检查方式"
+              className="input-field w-auto px-3 py-2"
+              value={imageCheck}
+              disabled={isChecking}
+              onChange={(event) => setImageCheck(event.target.value as CardSyncImageCheckMode)}
+            >
+              <option value="NONE">不检查卡图</option>
+              <option value="LINK">轻量检查</option>
+              <option value="DECODE">完整检查</option>
+            </select>
+          </label>
+          <span>
+            {imageCheck === 'NONE'
+              ? '只读取卡牌资料，不请求卡图；卡图在实际导入时处理。'
+              : imageCheck === 'LINK'
+                ? '只检查链接，不下载图片正文；最多同时检查 4 张，重复地址复用结果。'
+                : '下载并解码卡图，耗时较长；最多同时检查 4 张，重复地址复用结果。'}
+          </span>
+          {isChecking && (
+            <>
+              <span role="status">
+                {progress.total
+                  ? `卡图检查 ${progress.checked} / ${progress.total}`
+                  : '正在读取上游卡牌…'}
+              </span>
+              <ActionButton
+                size="compact"
+                variant="secondary"
+                onClick={() => {
+                  previewController.current?.abort();
+                  setIsChecking(false);
+                  setMessage('已停止等待，可切换检查方式后重新检查。');
+                }}
+              >
+                停止等待
+              </ActionButton>
+            </>
+          )}
+        </div>
+
         {message ? (
           <div
             role="alert"
@@ -304,9 +376,13 @@ export function CardSyncAdminPage({ onBack }: CardSyncAdminPageProps) {
           <PreviewPanel
             preview={preview}
             expired={previewExpired}
-            disabled={Boolean(activeRun) || isStarting}
+            disabled={Boolean(activeRun) || isStarting || isChecking}
             selectedCardCodes={selectedCardCodes}
             onSelectionChange={setSelectedCardCodes}
+            forceItems={forceItems}
+            onForceItemsChange={setForceItems}
+            forceMode={forceMode}
+            onForceModeChange={setForceMode}
             onConfirm={() => setIsConfirmOpen(true)}
             onRefresh={() => void handleCheck()}
           />
@@ -317,19 +393,23 @@ export function CardSyncAdminPage({ onBack }: CardSyncAdminPageProps) {
 
       <ConfirmDialog
         isOpen={isConfirmOpen && Boolean(preview)}
-        title="确认导入上游新卡"
+        title={forceItems.size || forceMode ? '确认强制导入草稿' : '确认导入上游新卡'}
         message={
           preview
-            ? `将同步所选 ${selectedCandidates.length} 张新卡为草稿。${
+            ? `将同步所选 ${selectedCandidates.length + forceItems.size} 张新卡为草稿。${
                 selectedWarningCardCount > 0
                   ? `其中 ${selectedWarningCardCount} 张带有警告，请确认已核对占位或缺失字段。`
                   : ''
-              }已有卡牌不会被修改，未选择项和阻断项不会被导入。`
+              }${forceItems.size || forceMode ? '已启用强制导入：忽略所选卡牌的数据检查错误；无法解析的数值留空，卡图失败仍保存无图草稿。请确认所选编号、名称和类型，导入后可在卡牌编辑页补齐。' : ''}已有卡牌不会被修改，未选择项不会导入。`
             : ''
         }
-        confirmLabel={preview ? `同步所选 ${selectedCandidates.length} 张新卡为草稿` : '开始同步'}
+        confirmLabel={
+          preview
+            ? `${forceItems.size || forceMode ? '确认强制导入' : '同步所选'} ${selectedCandidates.length + forceItems.size} 张新卡为草稿`
+            : '开始同步'
+        }
         cancelLabel="继续检查"
-        tone="primary"
+        tone={forceItems.size || forceMode ? 'danger' : 'primary'}
         isConfirming={isStarting}
         onCancel={() => setIsConfirmOpen(false)}
         onConfirm={() => void handleStart()}
@@ -344,6 +424,10 @@ function PreviewPanel({
   disabled,
   selectedCardCodes,
   onSelectionChange,
+  forceItems,
+  onForceItemsChange,
+  forceMode,
+  onForceModeChange,
   onConfirm,
   onRefresh,
 }: {
@@ -352,13 +436,18 @@ function PreviewPanel({
   readonly disabled: boolean;
   readonly selectedCardCodes: ReadonlySet<string>;
   readonly onSelectionChange: (cardCodes: ReadonlySet<string>) => void;
+  readonly forceItems: ReadonlyMap<string, CardSyncForceImport>;
+  readonly onForceItemsChange: (items: ReadonlyMap<string, CardSyncForceImport>) => void;
+  readonly forceMode: boolean;
+  readonly onForceModeChange: (value: boolean) => void;
   readonly onConfirm: () => void;
   readonly onRefresh: () => void;
 }) {
-  const hasCandidates = preview.summary.candidateCount > 0;
+  const [hideImageIssues, setHideImageIssues] = useState(true);
+  const hasCandidates = preview.summary.candidateCount + preview.summary.blockedCount > 0;
   const selectedCount = preview.candidates.reduce(
     (sum, candidate) => sum + (selectedCardCodes.has(candidate.cardCode) ? 1 : 0),
-    0
+    forceItems.size
   );
   const candidateWarnings = useMemo(
     () => preview.candidates.reduce((sum, candidate) => sum + candidate.warnings.length, 0),
@@ -372,7 +461,10 @@ function PreviewPanel({
   };
   const selectAll = () =>
     onSelectionChange(new Set(preview.candidates.map((candidate) => candidate.cardCode)));
-  const clearSelection = () => onSelectionChange(new Set());
+  const clearSelection = () => {
+    onSelectionChange(new Set());
+    onForceItemsChange(new Map());
+  };
 
   return (
     <section
@@ -396,9 +488,13 @@ function PreviewPanel({
                 variant="secondary"
                 size="compact"
                 onClick={selectAll}
-                disabled={disabled || expired || selectedCount === preview.candidates.length}
+                disabled={
+                  disabled ||
+                  expired ||
+                  preview.candidates.every((candidate) => selectedCardCodes.has(candidate.cardCode))
+                }
               >
-                全选
+                全选普通候选
               </ActionButton>
               <ActionButton
                 variant="secondary"
@@ -436,21 +532,33 @@ function PreviewPanel({
         <Metric label="上游卡牌" value={preview.summary.sourceCount} />
         <Metric label="已存在" value={preview.summary.existingCount} />
         <Metric label="可同步" value={preview.summary.candidateCount} tone="success" />
-        <Metric label="已阻断" value={preview.summary.blockedCount} tone="danger" />
+        <Metric label="需确认" value={preview.summary.blockedCount} tone="danger" />
         <Metric label="警告" value={preview.summary.warningCount} tone="warning" />
       </div>
 
       {hasCandidates ? (
         <div className="mx-4 mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-xs sm:mx-5 sm:mb-5">
           <span className="font-semibold text-[var(--text-primary)]">
-            已选择 {selectedCount} / {preview.candidates.length} 张
+            已选择 {selectedCount} / {preview.candidates.length + preview.blocked.length} 张
           </span>
           <span className="text-[var(--text-muted)]">
-            默认选择无警告卡；带警告卡核对后也可手动选择。
+            {preview.imageCheck === 'NONE'
+              ? '本次未检查卡图，默认选择无警告的卡；'
+              : '默认选择无警告且卡图检查通过的卡；'}
+            错误项核对后可选择强制导入。
           </span>
         </div>
       ) : null}
 
+      <label className="mx-4 mb-4 flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+        <input
+          type="checkbox"
+          checked={forceMode}
+          disabled={disabled || expired}
+          onChange={(event) => onForceModeChange(event.target.checked)}
+        />
+        强制导入所选卡牌：卡图失败也保存无图草稿
+      </label>
       {expired ? (
         <div
           role="alert"
@@ -487,32 +595,41 @@ function PreviewPanel({
           ) : null}
         </PreviewList>
 
-        <PreviewList title="阻断项" count={preview.blocked.length} emptyMessage="未发现阻断项。">
-          {preview.blocked.map((item, index) => (
-            <div
-              key={`${item.cardCode ?? 'unknown'}-${index}`}
-              className="border-t border-[var(--border-subtle)] px-4 py-3 first:border-t-0 sm:px-5"
-            >
-              <div className="flex items-start gap-2">
-                <XCircle
-                  size={15}
-                  aria-hidden="true"
-                  className="mt-0.5 shrink-0 text-[var(--semantic-error)]"
+        <PreviewList
+          title="需确认后导入"
+          count={preview.blocked.length}
+          emptyMessage="未发现需确认项。"
+        >
+          <label className="flex items-center gap-2 px-4 py-3 text-xs text-[var(--text-secondary)]">
+            <input
+              type="checkbox"
+              checked={hideImageIssues}
+              onChange={(event) => setHideImageIssues(event.target.checked)}
+            />
+            隐藏卡图异常 / 疑似占位项（{preview.blocked.filter((item) => item.imageIssue).length}{' '}
+            张；取消隐藏后仍可强制导入）
+          </label>
+          <div className="max-h-[36rem] overflow-y-auto">
+            {preview.blocked
+              .filter(
+                (item) =>
+                  !hideImageIssues || !item.imageIssue || forceItems.has(item.sourceKey ?? '')
+              )
+              .map((item, index) => (
+                <ReviewCardRow
+                  key={item.sourceKey ?? index}
+                  item={item}
+                  disabled={disabled || expired}
+                  value={forceItems.get(item.sourceKey ?? '')}
+                  onChange={(value) => {
+                    const next = new Map(forceItems);
+                    if (value) next.set(value.sourceKey, value);
+                    else next.delete(item.sourceKey ?? '');
+                    onForceItemsChange(next);
+                  }}
                 />
-                <div className="min-w-0">
-                  <div className="break-words text-sm font-semibold text-[var(--text-primary)]">
-                    {item.cardCode ?? '无有效卡号'}
-                    {item.name ? ` · ${item.name}` : ''}
-                  </div>
-                  <ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-[var(--text-secondary)]">
-                    {item.reasons.map((reason, reasonIndex) => (
-                      <li key={`${reason}-${reasonIndex}`}>{reason}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          ))}
+              ))}
+          </div>
         </PreviewList>
       </div>
     </section>
@@ -606,6 +723,100 @@ function CandidateRow({
           ) : null}
         </div>
       </div>
+    </article>
+  );
+}
+
+function ReviewCardRow({
+  item,
+  value,
+  disabled,
+  onChange,
+}: {
+  item: CardSyncBlockedItem;
+  value?: CardSyncForceImport;
+  disabled: boolean;
+  onChange: (value?: CardSyncForceImport) => void;
+}) {
+  const defaults: CardSyncForceImport = {
+    sourceKey: item.sourceKey ?? '',
+    cardCode: item.suggestedCardCode ?? item.cardCode ?? '',
+    name: item.name ?? '未命名卡牌',
+    skipImage: item.imageIssue === true,
+    cardType: item.cardType === 'LIVE' || item.cardType === 'ENERGY' ? item.cardType : 'MEMBER',
+  };
+  return (
+    <article className="border-t border-[var(--border-subtle)] px-4 py-3">
+      <label className="flex items-start gap-3 text-sm">
+        <input
+          type="checkbox"
+          checked={!!value}
+          disabled={disabled || !item.sourceKey}
+          onChange={(event) => onChange(event.target.checked ? defaults : undefined)}
+          aria-label={`强制导入 ${item.cardCode ?? item.suggestedCardCode}`}
+        />
+        <span className="min-w-0 break-words">
+          <strong>{item.cardCode ?? '上游未提供编号'}</strong>
+          <span className="block">{item.name ?? '上游未提供名称'}</span>
+        </span>
+      </label>
+      <ul className="mt-2 text-xs text-[var(--semantic-error)]">
+        {item.reasons.map((reason, index) => (
+          <li key={index}>{reason}</li>
+        ))}
+      </ul>
+      {value && (
+        <div className="mt-3 grid gap-2 text-xs">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={value.skipImage === true}
+              onChange={(event) => onChange({ ...value, skipImage: event.target.checked })}
+            />
+            跳过卡图，仅导入文字草稿
+          </label>
+          <label>
+            导入编号
+            <input
+              className="input-field mt-1 w-full px-3 py-2"
+              value={value.cardCode}
+              onChange={(event) => onChange({ ...value, cardCode: event.target.value })}
+              onBlur={() => {
+                if (!value.cardCode.trim()) onChange({ ...value, cardCode: defaults.cardCode });
+              }}
+            />
+          </label>
+          <label>
+            导入名称
+            <input
+              className="input-field mt-1 w-full px-3 py-2"
+              value={value.name}
+              onChange={(event) => onChange({ ...value, name: event.target.value })}
+              onBlur={() => {
+                if (!value.name.trim()) onChange({ ...value, name: defaults.name });
+              }}
+            />
+          </label>
+          <label>
+            导入类型
+            <select
+              aria-label="导入类型"
+              className="input-field ml-2 px-3 py-2"
+              value={value.cardType}
+              onChange={(event) =>
+                onChange({
+                  ...value,
+                  cardType: event.target.value as CardSyncForceImport['cardType'],
+                })
+              }
+            >
+              <option value="MEMBER">成员</option>
+              <option value="LIVE">LIVE</option>
+              <option value="ENERGY">能量</option>
+            </select>
+          </label>
+        </div>
+      )}
     </article>
   );
 }
