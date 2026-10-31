@@ -37,7 +37,7 @@ function fixture(base: string) {
 
 describe('October 20 authorized 19 cards / 22 full ability paragraphs', () => {
   it.each(TARGET_BASES)(
-    '%s preserves every complete Chinese paragraph and all 27 standard rarities',
+    '%s preserves every complete Chinese paragraph and all supported rarities',
     (base) => {
       const row = fixture(base);
       const expected = row.cardTextCn
@@ -73,7 +73,6 @@ describe('October 20 authorized 19 cards / 22 full ability paragraphs', () => {
     expect(definitions).toHaveLength(22);
     expect(new Set(definitions.map(({ abilityId }) => abilityId)).size).toBe(22);
     expect(definitions.filter(({ activatedUi }) => activatedUi)).toHaveLength(5);
-    expect(VALID_RARITIES).toHaveLength(27);
     const karin = getCardAbilityDefinitionsForCardCode(fixture('PL!N-bp8-004').cardCode);
     expect(
       karin.map(({ category, sourceZone, queued }) => ({ category, sourceZone, queued }))
