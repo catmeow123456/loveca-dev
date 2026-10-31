@@ -1,5 +1,18 @@
 # Workflow Module Guide
 
+## 2026-10-29 成功区计数与局部复用
+
+`shared/live-start-success-zone-score-and-requirement.ts` 由旧 `PL!-bp5-022` 分数5「一首给你!你?你!!的歌」与 `PL!HS-bp8-023` 分数3「EdelinieN」证明。固定流程为无交互 LIVE_START、确认时实时查询成功区、同时修改同一来源 LIVE 的 SCORE 和 REQUIREMENT、统一 continuation；配置仅含能力/来源基础编号、可选实体 selector、每张分数、每张必要 HEART 向量和展示标签。计数使用 `countSuccessZoneCardsForCardEffect`，EdelNote 只用结构化身份，不因文本提及而匹配，也不额外限制卡型。旧卡保留 abilityId；SCORE 复用差值同步 helper，REQUIREMENT 只替换同能力/同来源，保留外部 modifier。两者在确认时使用 pending 事件捕获的 LIVE 生命周期，旧来源离区重登不能得到旧奖励。
+
+`PL!-bp8-025` 分数7「日香风♡女子之道」保留单卡编排：强制选择自己顶层舞台日香，以同次有效 modifier 快照比较双方其他顶层成员的有效 HEART、BLADE、费用，每项严格胜出加1。待机成员参与，下方卡不参与，并列不胜出；仅存在被选成员时三项成立，继承既有唯一最多 query 的语义，不声称已有专门 FAQ。它不属于目标成员加 BLADE family；只复用 stage/name selector、来源/目标生命周期、有效属性 query 与来源 LIVE 分数 helper。
+
+`PL!N-bp8-029` 分数1「Circle of Love」保留单卡编排：读取当前红色剩余 HEART，每2个加1分、最多3，随后无条件清空自己的全部剩余 HEART，红0/1也清空。与旧「Landing action Yeah!!」只共享严格颜色 query、clear action 和分数 helper；旧卡的条件清空和动作顺序不同，不晋升整个 workflow。清空不发虚假区域移动事件，后续 pending 读取真实清空后的池。
+
+`shared/on-enter-wait-look-top-two-arrange.ts` 为 `PL!HS-bp8-015` 费用4「赛拉丝·柳田·利林费尔德」有限参数化；旧 `registerPlBp3014RinWorkflowHandlers` 导出和原有 step 标识保留，新增配置仅能力/option step/arrange step。统一正向发动选项与 skip，不可支付时无正向选项；费用前重验来源生命周期，真实自身待机经状态事件 wrapper 入队，已付费用后检视不再依赖来源仍在舞台。吟子初次复制免发动费用，不横置宿主、不伪记支付；后续付费恢复正常条件。休息室普通委托显式 DENY SOURCE_MEMBER_COST_UNPAYABLE；HS007 的独立检视段为 ALLOW SOURCE_INDEPENDENT，两者不能与复制免付费用政策混同。
+
+HS007 登场只扩既有 `look-top-select-to-hand` 的检视5/必要紫 HEART LIVE selector；HS008 弃手后将其他 EdelNote 精确成员离场再原槽返场保留单卡，与旧冬毬只共享 exact replay 动作。宫下爱005的固定 TAP→叠能量→强制回收保留单卡，017直接扩 `self-sacrifice-waiting-room-to-hand` family 的强制 LIVE 回收 selector，费用后无目标仍合法自送；没有为相似局部动作建立通用费用 DSL。
+
+
 ## 2026-10-17 已有family的有限扩展
 
 - `shared/live-start-choose-heart-by-count.ts` 由旧成功区选色family加入费用2「优木雪菜」`PL!N-bp8-007` 后更名。配置仅增加纯 `countHearts` 与玩家计数说明，旧配置继续调用来源相关成功区query；新配置调用 `memberHasEnergyBelow` 统计顶层虹咲成员。有限 `countPayloadKey` 兼容原行动日志：旧成功区配置保留 `successLiveCount`，新能量下方成员计数写 `energyBelowMemberCount`，不将不同计数事实混名。捕获触发来源生命周期，颜色选项窗口与旧step ID不变，0计数仍强制选色；旧来源离台重登不获得奖励。两个旧卡的局部下方能量查询也共用该predicate，未晋升其完整workflow。
@@ -61,7 +74,7 @@ workflow 是卡效流程的主要承载层。它可以是一类同型效果，�
 - LIVE 开始按当前每份授予分别产生 pending；`isDirectOrGrantedTriggeredAbilitySource` 校验已捕获的授予身份，不能因触发后下方卡移除而撤销 pending。触发前已失去的能力不入队。
 - `sourceCardId/sourceLifecycleId`、费用、“此成员”、动作记录与修正继续绑定宿主。旧规则对象失效时不能奖励新宿主，也不能让依赖旧对象的待机费用生效；不依赖宿主的合法费用与其他目标效果分别判断。
 - `abilityInstanceId` 从服务端 UI/query 或 pending 原样贯穿 activeEffect、后续支付/公开恢复与 `ABILITY_USE`，不由业务层解析。每回合次数按宿主生命周期和能力实例计数；两份同能力可分别使用。两份 LIVE 开始可分别排序和结算，SCORE replacement 也按实例区分；来源获得的常时分数加成随宿主离场移除。
-- 原卡与宿主均需执行到完整结果，而非只测入队。Ren 显式能力清单与原有49项回归保留在 `sp-pb2-005-ren-granted-activated-abilities.test.ts`；LL 的14种唯一能力、双实例、费用与生命周期回归见 `ll-bp8-001-granted-member-below-abilities.test.ts`。逐种审查残留 direct-only gate，不扩大其他能力的来源边界。
+- 原卡与宿主均需执行到完整结果，而非只测入队。Ren 显式能力清单与原有49项回归保留在 `sp-pb2-005-ren-granted-activated-abilities.test.ts`；LL 的17种唯一能力、双实例、费用与生命周期回归见 `ll-bp8-001-granted-member-below-abilities.test.ts`。逐种审查残留 direct-only gate，不扩大其他能力的来源边界。
 
 ## Waiting-Room LIVE To Deck Top Segment
 

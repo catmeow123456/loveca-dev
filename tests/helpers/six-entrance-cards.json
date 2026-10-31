@@ -1,0 +1,254 @@
+[
+  {
+    "cardCode": "LL-bp6-001-R+",
+    "name": "南琴梨（南小鸟）&黑泽黛雅&徒町小铃",
+    "cardType": "MEMBER",
+    "cost": 20,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [],
+    "groupNames": ["μ’s", "Aqours", "蓮ノ空"],
+    "unitName": null,
+    "cardText": "【登场】检视自己卡组顶的6张卡。将2张其中的卡片加入手牌，其余的卡片放置入休息室。\n\n【LIVE开始时】可以将手牌的任意张数的「南琴梨（南小鸟）」与「黑泽黛雅」与「徒町小铃」放置入休息室：LIVE结束时为止，因支付此费用被放置入休息室的卡片持有的HEART的颜色每有1种，获得1个那些颜色的HEART。",
+    "nameCn": "南琴梨（南小鸟）&黑泽黛雅&徒町小铃",
+    "nameJp": "南 ことり&黒澤ダイヤ&徒町小鈴",
+    "cardTextCn": "【登场】检视自己卡组顶的6张卡。将2张其中的卡片加入手牌，其余的卡片放置入休息室。\n\n【LIVE开始时】可以将手牌的任意张数的「南琴梨（南小鸟）」与「黑泽黛雅」与「徒町小铃」放置入休息室：LIVE结束时为止，因支付此费用被放置入休息室的卡片持有的HEART的颜色每有1种，获得1个那些颜色的HEART。",
+    "cardTextJp": "【登場】自分のデッキの上からカードを6枚見る。その中からカードを2枚手札に加え、残りを控え室に置く。\n\n【ライブ開始時】手札の「南ことり」と「黒澤ダイヤ」と「徒町小鈴」を、好きな枚数控え室に置いてもよい：ライブ終了時まで、これにより控え室に置いたそれらのカードが持つハートの色1つにつき、その色のハートを1つずを得る。"
+  },
+  {
+    "cardCode": "PL!-bp8-006-P",
+    "name": "西木野真姬",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 3
+      }
+    ],
+    "bladeHearts": [],
+    "groupNames": ["μ’s"],
+    "unitName": "「BiBi」",
+    "cardText": "【起动】[E][E]将此卡从休息室放置于卡组底：将存在于自己的休息室的１张『μ’s』的LIVE卡加入手牌。此能力仅可在此卡存在于休息室的场合起动。",
+    "nameCn": "西木野真姬",
+    "nameJp": "西木野真姫",
+    "cardTextCn": "【起动】[E][E]将此卡从休息室放置于卡组底：将存在于自己的休息室的１张『μ’s』的LIVE卡加入手牌。此能力仅可在此卡存在于休息室的场合起动。",
+    "cardTextJp": "【起動】[E][E]このカードを控え室からデッキの一番下に置く：自分の控え室から『μ’s』のライブカードを１枚手札に加える。この能力は、このカードが控え室にある場合のみ起動できる。"
+  },
+  {
+    "cardCode": "PL!HS-bp6-013-R",
+    "name": "徒町小铃",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "groupNames": ["蓮ノ空"],
+    "unitName": "「DOLLCHESTRA」",
+    "cardText": "【登场】/【LIVE开始时】将存在于对方舞台的1名原本持有的[ブレード]的数量小于等于3的『DOLLCHESTRA』以外的成员变为待机状态。",
+    "nameCn": "徒町小铃",
+    "nameJp": "徒町 小鈴",
+    "cardTextCn": "【登场】/【LIVE开始时】将存在于对方舞台的1名原本持有的[ブレード]的数量小于等于3的『DOLLCHESTRA』以外的成员变为待机状态。",
+    "cardTextJp": "【登場】/【ライブ開始時】相手のステージにいる元々持つ[ブレード]の数が3つ以下の『DOLLCHESTRA』以外のメンバー1人をウェイトにする。"
+  },
+  {
+    "cardCode": "PL!S-bp6-006-P",
+    "name": "津岛善子",
+    "cardType": "MEMBER",
+    "cost": 17,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 3
+      }
+    ],
+    "bladeHearts": [],
+    "groupNames": ["Aqours"],
+    "unitName": "「GuiltyKiss」",
+    "cardText": "【登场】抽2张卡。此后，从休息室登场的场合，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。",
+    "nameCn": "津岛善子",
+    "nameJp": "津島善子",
+    "cardTextCn": "【登场】抽2张卡。此后，从休息室登场的场合，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。",
+    "cardTextJp": "【登場】カードを2枚引く。その後、控え室から登場している場合、ライブ終了時まで、[ブレード][ブレード][ブレード]を得る。"
+  },
+  {
+    "cardCode": "PL!S-bp6-006-R",
+    "name": "津岛善子",
+    "cardType": "MEMBER",
+    "cost": 17,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 3
+      }
+    ],
+    "bladeHearts": [],
+    "groupNames": ["Aqours"],
+    "unitName": "「GuiltyKiss」",
+    "cardText": "【登场】抽2张卡。此后，从休息室登场的场合，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。",
+    "nameCn": "津岛善子",
+    "nameJp": "津島善子",
+    "cardTextCn": "【登场】抽2张卡。此后，从休息室登场的场合，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。",
+    "cardTextJp": "【登場】カードを2枚引く。その後、控え室から登場している場合、ライブ終了時まで、[ブレード][ブレード][ブレード]を得る。"
+  },
+  {
+    "cardCode": "PL!S-bp6-008-P",
+    "name": "小原鞠莉",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "groupNames": ["Aqours"],
+    "unitName": "「GuiltyKiss」",
+    "cardText": "【起动】[E][E]将此成员放置入休息室：从自己的休息室将1名费用小于等于17的『Aqours』的成员卡，登场至此成员所在的区域。",
+    "nameCn": "小原鞠莉",
+    "nameJp": "小原鞠莉",
+    "cardTextCn": "【起动】[E][E]将此成员放置入休息室：从自己的休息室将1名费用小于等于17的『Aqours』的成员卡，登场至此成员所在的区域。",
+    "cardTextJp": "【起動】[E][E]このメンバーをステージから控え室に置く：自分の控え室からコスト17以下の『Aqours』のメンバーカードを1枚、このメンバーがいたエリアに登場させる。"
+  },
+  {
+    "cardCode": "PL!S-bp6-008-R",
+    "name": "小原鞠莉",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "groupNames": ["Aqours"],
+    "unitName": "「GuiltyKiss」",
+    "cardText": "【起动】[E][E]将此成员放置入休息室：从自己的休息室将1名费用小于等于17的『Aqours』的成员卡，登场至此成员所在的区域。",
+    "nameCn": "小原鞠莉",
+    "nameJp": "小原鞠莉",
+    "cardTextCn": "【起动】[E][E]将此成员放置入休息室：从自己的休息室将1名费用小于等于17的『Aqours』的成员卡，登场至此成员所在的区域。",
+    "cardTextJp": "【起動】[E][E]このメンバーをステージから控え室に置く：自分の控え室からコスト17以下の『Aqours』のメンバーカードを1枚、このメンバーがいたエリアに登場させる。"
+  },
+  {
+    "cardCode": "PL!S-cl1-004-CL",
+    "name": "黑泽黛雅",
+    "cardType": "MEMBER",
+    "cost": 15,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 3
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "groupNames": ["Aqours"],
+    "unitName": "「AZALEA」",
+    "cardText": "【自动】【中央】【１回合１次】自己进行声援时，因声援被公开的自己的卡片中存在大于等于２张LIVE卡的场合，将存在于对方的舞台的１名原本持有的HEART的数量小于等于４的成员变为待机状态。",
+    "nameCn": "黑泽黛雅",
+    "nameJp": "黒澤ダイヤ",
+    "cardTextCn": "【自动】【中央】【１回合１次】自己进行声援时，因声援被公开的自己的卡片中存在大于等于２张LIVE卡的场合，将存在于对方的舞台的１名原本持有的HEART的数量小于等于４的成员变为待机状态。",
+    "cardTextJp": "【自動】【センター】【ターン１回】自分がエールしたとき、エールにより公開された自分のカードの中にライブカードが２枚以上ある場合、相手のステージにいる元々持つハートの数が４つ以下のメンバー１人をウェイトにする。"
+  }
+]

@@ -1,21 +1,29 @@
+import { getMiraiReturn, miraiPreloadUrls } from '@/lib/miraiReturn';
+import { MiraiReturnPlayback } from '../song-animation/mirai-return/MiraiReturnPlayback';
 import { getRinaLiveSwapSource } from '@/lib/rinaLiveSwap';
 import { RinaLivePlayback } from './rina-sec/RinaLivePlayback';
 import { useCardEntranceBarrier, useWindowVisualEligibility } from '../BattleRuntime';
 import { useTextPresentation } from '@/lib/appPresentation';
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
 import { cardEntranceProfiles, getCardEntranceProfile } from '@/lib/cardEntranceProfiles';
 import { EffectImageCache } from '@/lib/effectImageCache';
 import { collectSpecialEffectImageUrls } from '@/lib/specialEffectPreload';
 import { preloadEntranceProfiles } from '@/lib/cardEntrancePreload';
-import { getEntranceStageTarget } from '@/lib/cardEntranceLanding';
+import { getEntranceStageTarget, sameEntranceTarget } from '@/lib/cardEntranceLanding';
 import { CardEntrancePlayback } from './CardEntrancePlayback';
+import { EntranceWaitNotice } from './EntranceWaitNotice';
 import type { PlayerViewState } from '@game/online/types';
 import { getDoubleRelaySources } from '@/lib/doubleRelayEntrance';
 import { getWaitingReturnSource } from '@/lib/waitingReturnEntrance';
-import { getAbilityTransferSource, getKahoRelaySource } from '@/lib/ginkoFlowerTransfer';
+import {
+  getAbilityTransferSource,
+  getKahoRelaySource,
+  type AbilityTransferSource,
+} from '@/lib/ginkoFlowerTransfer';
 import { AbilityTransferPlayback } from './AbilityTransferPlayback';
+import { GinkoTransferNotice } from './GinkoTransferNotice';
 import { getHonokaMemoryPresentation } from '@/lib/honokaMemoryPresentation';
 import { HonokaMemoryPlayback } from './HonokaMemoryPlayback';
 import { getShizukuRole } from '@/lib/shizukuRole';
@@ -24,6 +32,8 @@ import './cardEntrance.css';
 import { getBokuhikaPresentation, shouldPreloadBokuhika } from '@/lib/bokuhikaPresentation';
 import { BokuhikaPlayback } from '../song-animation/BokuhikaPlayback';
 import { bokuhikaImageUrls } from '../song-animation/bokuhikaAssets';
+import { getIzumiReplaySource } from '@/lib/izumiReplay';
+import { IzumiReplayPlayback } from './izumi-replay/IzumiReplayPlayback';
 
 export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
   const view = useGameStore((s) => s.playerViewState);
@@ -36,10 +46,46 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
       : '[]';
   const matchId = view?.match.matchId;
   const reduced = !!useReducedMotion();
+  const [notice, setNotice] = useState<{
+    contextKey: string;
+    windowId: string;
+    source: AbilityTransferSource;
+  } | null>(null);
+  const dismissNotice = useCallback(() => setNotice(null), []);
+  const showNotice =
+    enabled &&
+    view &&
+    !view.match.endInfo &&
+    notice &&
+    notice.contextKey === contextKey &&
+    (!wait || wait.id === notice.windowId) &&
+    view.objects[notice.source.hostObjectId]?.hasTemporaryOnEnterAbility &&
+    sameEntranceTarget(
+      notice.source.target,
+      getEntranceStageTarget(view, notice.source.hostObjectId)
+    );
+  useEffect(() => {
+    if (!showNotice) dismissNotice();
+  }, [showNotice, dismissNotice]);
   const imagePath = useGameStore((s) => s.getCardImagePath);
   const images = useMemo(() => new EffectImageCache(), [contextKey]);
   // The ten fixed song images have their own bounded queue; a stall cannot starve card effects.
   const songImages = useMemo(() => new EffectImageCache(), [contextKey]);
+  const miraiImages = useMemo(() => new EffectImageCache(), [contextKey]);
+  const miraiKey =
+    enabled && view && !view.match.endInfo
+      ? JSON.stringify(miraiPreloadUrls(view, imagePath))
+      : '[]';
+  useEffect(() => () => miraiImages.clear(), [miraiImages]);
+  useEffect(() => {
+    const urls: string[] = JSON.parse(miraiKey);
+    if (!urls.length) {
+      miraiImages.clear();
+      return;
+    }
+    const timer = setTimeout(() => miraiImages.preload(urls), 0);
+    return () => clearTimeout(timer);
+  }, [miraiImages, miraiKey]);
   const warmImages = enabled && !!view && !view.match.endInfo;
   const warmSong = warmImages && shouldPreloadBokuhika(view);
   const imageKey = warmImages
@@ -67,15 +113,30 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
     if (!ids.size) return;
     return preloadEntranceProfiles(cardEntranceProfiles.filter((profile) => ids.has(profile.id)));
   }, [matchId, preloadKey]);
-  return view && wait && !view.match.endInfo ? (
-    <SynchronizedEntrance
-      key={`${contextKey}:${wait.id}`}
-      view={view}
-      enabled={enabled}
-      images={images}
-      songImages={songImages}
-    />
-  ) : null;
+  return (
+    <>
+      {view && wait && !view.match.endInfo && (
+        <SynchronizedEntrance
+          key={`${contextKey}:${wait.id}`}
+          view={view}
+          enabled={enabled}
+          images={images}
+          songImages={songImages}
+          miraiImages={miraiImages}
+          onTransferReceived={(source) => setNotice({ contextKey, windowId: wait.id, source })}
+          onDismissNotice={dismissNotice}
+        />
+      )}
+      {showNotice && notice && (
+        <GinkoTransferNotice
+          key={`${notice.contextKey}:${notice.windowId}`}
+          source={notice.source}
+          reduced={reduced}
+          onDone={dismissNotice}
+        />
+      )}
+    </>
+  );
 }
 
 function SynchronizedEntrance({
@@ -83,11 +144,17 @@ function SynchronizedEntrance({
   enabled,
   images,
   songImages,
+  miraiImages,
+  onTransferReceived,
+  onDismissNotice,
 }: {
   view: PlayerViewState;
   enabled: boolean;
   images: EffectImageCache;
   songImages: EffectImageCache;
+  miraiImages: EffectImageCache;
+  onTransferReceived: (source: AbilityTransferSource) => void;
+  onDismissNotice: () => void;
 }) {
   const wait = view.match.entrance!;
   const textOnly = useTextPresentation();
@@ -97,6 +164,9 @@ function SynchronizedEntrance({
   const [transfer] = useState(() =>
     getAbilityTransferSource(view, useGameStore.getState().getCardImagePath)
   );
+  const [mirai] = useState(() => getMiraiReturn(view, useGameStore.getState().getCardImagePath));
+  const [miraiDone, setMiraiDone] = useState(false);
+  const activeMirai = playVisuals && viewerWaiting && !miraiDone ? mirai : null;
   const [song] = useState(() => getBokuhikaPresentation(view));
   const [songDone, setSongDone] = useState(false);
   const activeSong = playVisuals && viewerWaiting && !songDone ? song : null;
@@ -109,6 +179,18 @@ function SynchronizedEntrance({
     getHonokaMemoryPresentation(view, useGameStore.getState().getCardImagePath)
   );
   const [role] = useState(() => getShizukuRole(view, useGameStore.getState().getCardImagePath));
+  const [replay] = useState(() =>
+    getIzumiReplaySource(view, useGameStore.getState().getCardImagePath)
+  );
+  const [replayDone, setReplayDone] = useState(false);
+  const activeReplay =
+    playVisuals &&
+    viewerWaiting &&
+    !replayDone &&
+    replay &&
+    !getCardEntranceProfile(replay.target.cardCode)
+      ? replay
+      : undefined;
   const [roleDone, setRoleDone] = useState(false);
   const activeRole = playVisuals && viewerWaiting && !roleDone ? role : undefined;
   // Snapshot only public, already-present stage cards. No historical event replay on mount.
@@ -117,7 +199,8 @@ function SynchronizedEntrance({
     wait.rinaLiveSwap ||
     wait.honokaMemory ||
     wait.shizukuRole ||
-    wait.bokuhikaSuccess
+    wait.bokuhikaSuccess ||
+    wait.miraiReturn
       ? []
       : wait.objectIds
     ).flatMap((objectId) => {
@@ -130,6 +213,7 @@ function SynchronizedEntrance({
               target,
               profile,
               imagePath: useGameStore.getState().getCardImagePath(target.cardCode),
+              izumiReplay: replay?.targetObjectId === objectId ? replay : undefined,
               kahoSource: getKahoRelaySource(
                 view,
                 objectId,
@@ -159,7 +243,14 @@ function SynchronizedEntrance({
   const activeTransfer = playVisuals && viewerWaiting && !transferDone ? transfer : undefined;
   const active = playVisuals && viewerWaiting ? queue[index] : undefined;
   const done =
-    !active && !activeTransfer && !activeSwap && !activeMemory && !activeRole && !activeSong;
+    !active &&
+    !activeTransfer &&
+    !activeSwap &&
+    !activeMemory &&
+    !activeRole &&
+    !activeSong &&
+    !activeMirai &&
+    !activeReplay;
 
   useCardEntranceBarrier(view, done);
 
@@ -196,11 +287,35 @@ function SynchronizedEntrance({
     return () => store.removeBattleAnimationOcclusion(eventId);
   }, [activeSwap, reduced, wait.id]);
 
+  useLayoutEffect(() => {
+    if (!activeReplay || reduced) return;
+    const store = useGameStore.getState();
+    const eventId = `entrance:${wait.id}:izumi-replay`;
+    store.addBattleAnimationOcclusions([
+      { eventId, objectId: activeReplay.targetObjectId, suppressDefaultMovement: true },
+    ]);
+    return () => store.removeBattleAnimationOcclusion(eventId);
+  }, [activeReplay, reduced, wait.id]);
+
   if (textOnly) return null;
   return (
     <>
       <div className="absolute inset-0 z-[59]" aria-hidden="true" />
-      {activeSong ? (
+      {activeMirai ? (
+        <MiraiReturnPlayback
+          source={activeMirai}
+          images={miraiImages}
+          reduced={reduced}
+          onDone={() => setMiraiDone(true)}
+        />
+      ) : activeReplay ? (
+        <IzumiReplayPlayback
+          source={activeReplay}
+          images={images}
+          reduced={reduced}
+          onDone={() => setReplayDone(true)}
+        />
+      ) : activeSong ? (
         <BokuhikaPlayback
           images={songImages}
           contribution={activeSong}
@@ -232,6 +347,8 @@ function SynchronizedEntrance({
         <AbilityTransferPlayback
           source={activeTransfer}
           reduced={reduced}
+          onReceived={() => onTransferReceived(activeTransfer)}
+          onDismissNotice={onDismissNotice}
           onDone={() => setTransferDone(true)}
         />
       ) : active ? (
@@ -242,18 +359,14 @@ function SynchronizedEntrance({
           relaySources={active.relaySources}
           waitingReturn={active.waitingReturn}
           kahoSource={active.kahoSource}
+          izumiReplay={active.izumiReplay}
           onPreludeDone={() => setReleasedPreludeId(active.id)}
           reduced={reduced}
           onImpact={() => setLandedId(active.id)}
           onDone={() => setIndex((current) => (current === index ? current + 1 : current))}
         />
       ) : (
-        <div
-          role="status"
-          className="absolute left-1/2 top-1/2 z-[60] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-slate-950/85 px-5 py-3 text-white shadow-lg"
-        >
-          等待对方演出结束
-        </div>
+        <EntranceWaitNotice viewerWaiting={viewerWaiting} />
       )}
     </>
   );

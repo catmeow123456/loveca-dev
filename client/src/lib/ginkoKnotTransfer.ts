@@ -46,12 +46,13 @@ export function paintAbilityKnot(
   const knot = { x: to.x, y: Math.max(42 * scale, target.top - 62 * scale) };
   const t = ginkoFlowerTimeline.copy;
   const silkTime =
-    elapsed <= 220
+    elapsed <= t.extract
       ? elapsed
-      : elapsed <= 650
-        ? 220 + ((elapsed - 220) / 430) * (t.receive - 220)
-        : t.receive + ((elapsed - 650) / 230) * (t.total - t.receive);
-  if (elapsed < 880) paintAbilitySilk(ctx, from, knot, silkTime);
+      : elapsed <= t.silkArrive
+        ? t.extract + ((elapsed - t.extract) / (t.silkArrive - t.extract)) * (t.receive - t.extract)
+        : t.receive +
+          ((elapsed - t.silkArrive) / (t.silkEnd - t.silkArrive)) * (t.total - t.receive);
+  if (elapsed < t.silkEnd) paintAbilitySilk(ctx, from, knot, silkTime);
   if (elapsed < knotTiming.start) return;
   const dock = ease(elapsed, knotTiming.dock, knotTiming.end);
   // Measure the invisible DOM marker so horizontal cards and both seats land exactly.
@@ -79,7 +80,14 @@ export function paintAbilityKnot(
   const first = clamp((elapsed - knotTiming.start) / (knotTiming.first - knotTiming.start));
   const second = clamp((elapsed - knotTiming.first) / (knotTiming.second - knotTiming.first));
   const third = clamp((elapsed - knotTiming.second) / (knotTiming.tied - knotTiming.second));
-  drawKnot(ctx, first, second, third, ease(elapsed, 850, 1050), ease(elapsed, 960, 1050));
+  drawKnot(
+    ctx,
+    first,
+    second,
+    third,
+    ease(elapsed, knotTiming.tied - 200, knotTiming.tied),
+    ease(elapsed, knotTiming.tied - 90, knotTiming.tied)
+  );
   if (elapsed < knotTiming.tied) {
     const active =
       elapsed < knotTiming.first

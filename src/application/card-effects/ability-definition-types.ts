@@ -78,11 +78,13 @@ export interface OnLeaveStageTriggerFilter {
   };
 }
 
-export interface RemainingHeartAllocationPreferenceDefinition {
+export type RemainingHeartAllocationPreferenceDefinition = {
   readonly color: HeartColor;
-  readonly minCount: number;
   readonly requiredStageGroupAlias?: string;
-}
+} & (
+  | { readonly minCount: number; readonly minCounts?: never }
+  | { readonly minCounts: readonly number[]; readonly minCount?: never }
+);
 
 export type WaitingRoomOnEnterDelegationPolicy =
   | {

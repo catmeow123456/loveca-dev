@@ -7,7 +7,7 @@ import { PresentationImage } from '@/components/excel/PresentationRoot';
  * 显示成员卡、Live 卡、能量卡的通用组件
  */
 
-import { memo, useState } from 'react';
+import { memo, useState, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
@@ -54,6 +54,8 @@ export interface CardProps {
   effectVisualState?: CardEffectVisualState;
   /** 己方主要阶段仍有剩余次数的每回合受限起动效果提示 */
   limitedActivatedHighlight?: boolean;
+  /** Optional public stage ornament, attached to the physical card's rotation/drag surface. */
+  faceOverlay?: ReactNode;
   /** 点击事件 */
   onClick?: () => void;
   /** 双击事件 */
@@ -250,6 +252,7 @@ export const Card = memo(function Card({
   count = undefined,
   effectVisualState = 'none',
   limitedActivatedHighlight = false,
+  faceOverlay,
   onClick,
   onDoubleClick,
   onMouseEnter,
@@ -394,6 +397,7 @@ export const Card = memo(function Card({
         )}
       </AnimatePresence>
 
+      {faceUp && faceOverlay}
       {effectVisualState !== 'none' && <CardEffectMarker state={effectVisualState} />}
       {faceUp && instanceId && isShizukuSec(cardData.cardCode) && (
         <ShizukuRoleMarker objectId={`obj_${instanceId}`} />

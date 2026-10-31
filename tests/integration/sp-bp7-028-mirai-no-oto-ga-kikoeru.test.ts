@@ -11,6 +11,7 @@ import { registerSpBp7028MiraiNoOtoGaKikoeruWorkflowHandlers } from '../../src/a
 import {
   createAutoAdvancePublicCardSelectionCommand,
   createConfirmEffectStepCommand,
+  GameCommandType,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import {
@@ -131,7 +132,7 @@ function pending(
   };
 }
 
-function setupLiveStart(candidateCount: number) {
+function setupLiveStart(candidateCount: number, animation?: 'LOCAL' | 'REMOTE') {
   let now = 20_000;
   const source = sourceLive();
   const candidates = Array.from({ length: candidateCount }, (_, index) =>
@@ -178,8 +179,9 @@ function setupLiveStart(candidateCount: number) {
     ...game,
     pendingAbilities: [pending(LIVE_START_ABILITY_ID, source.instanceId)],
   }).gameState;
-  const session = createGameSession({ now: () => now });
-  session.createGame('sp-bp7-028-session', P1, 'P1', P2, 'P2');
+  const session = createGameSession({ now: () => now, cardEntrance: animation });
+  const initial = session.createGame('sp-bp7-028-session', P1, 'P1', P2, 'P2');
+  if (animation) game = { ...game, entranceRuntime: initial.entranceRuntime };
   (session as unknown as { authorityState: GameState }).authorityState = game;
   return {
     session,
@@ -462,5 +464,77 @@ describe('PL!SP-bp7-028-L 分数8「能够听见未来的声音」', () => {
       emptySelecting.activeEffect!.id
     );
     expect(emptyResolved.liveResolution.playerScores.get(P1)).toBe(8);
+  });
+});
+
+describe('未来音九音归途 presentation boundary', () => {
+  it.each(['LOCAL', 'REMOTE'] as const)(
+    'commits once and waits for the appropriate viewer ACKs in %s',
+    (mode) => {
+      const f = setupLiveStart(10, mode);
+      const ids = f.candidates
+        .slice(0, 9)
+        .map((c) => c.instanceId)
+        .reverse();
+      expect(select(f.session, ids).success).toBe(true);
+      expect(f.session.state!.entranceRuntime!.pending).toBeNull();
+      expect(expire(f.session, f.setNow).success).toBe(true);
+      const state = f.session.state!,
+        wait = state.entranceRuntime!.pending!;
+      expect(wait.miraiReturn!.members.map((m) => m.cardId)).toEqual([...ids].sort());
+      expect(wait.miraiReturn!.targetMemberCardIds).toEqual(
+        f.stageMembers.map((m) => m.instanceId)
+      );
+      expect(bladeModifiers(state)).toHaveLength(3);
+      const deck = [...state.players[0].mainDeck.cardIds];
+      for (const playerId of [P1, P2]) {
+        const view = f.session.getPlayerViewState(playerId)!;
+        expect(view.match.entrance!.miraiReturn!.members.map((m) => m.cardCode)).toEqual(
+          [...ids].sort().map((id) => `TEST-${id}`)
+        );
+        expect(JSON.stringify(view.match.entrance)).not.toContain('deck-top');
+        expect(JSON.stringify(view.match.entrance)).not.toContain('resumePendingEffects');
+      }
+      const ack = (playerId: string) =>
+        f.session.executeCommand({
+          type: GameCommandType.ACK_CARD_ENTRANCE,
+          playerId,
+          entranceId: wait.id,
+          timestamp: wait.deadlineAt - 1,
+        });
+      expect(ack('outsider').success).toBe(false);
+      expect(ack(P1).success).toBe(true);
+      if (mode === 'REMOTE') {
+        expect(f.session.state!.entranceRuntime!.pending).not.toBeNull();
+        expect(ack(P2).success).toBe(true);
+      }
+      expect(f.session.state!.entranceRuntime!.pending).toBeNull();
+      expect(f.session.state!.entranceRuntime!.resumePendingEffects).toBeUndefined();
+      expect(ack(P1).success).toBe(false);
+      expect(f.session.state!.players[0].mainDeck.cardIds).toEqual(deck);
+      expect(bladeModifiers(f.session.state!)).toHaveLength(3);
+    }
+  );
+  it('expires without replaying the move or grants, and declines without presentation', () => {
+    const f = setupLiveStart(9, 'REMOTE');
+    select(
+      f.session,
+      f.candidates.map((c) => c.instanceId)
+    );
+    expire(f.session, f.setNow);
+    const wait = f.session.state!.entranceRuntime!.pending!,
+      deck = [...f.session.state!.players[0].mainDeck.cardIds];
+    f.setNow(wait.deadlineAt);
+    expect(f.session.expireCardEntrance()).toBe(true);
+    expect(f.session.expireCardEntrance()).toBe(false);
+    expect(f.session.state!.players[0].mainDeck.cardIds).toEqual(deck);
+    expect(bladeModifiers(f.session.state!)).toHaveLength(3);
+    const declined = setupLiveStart(9, 'LOCAL');
+    select(declined.session, []);
+    expect(declined.session.state!.entranceRuntime!.pending).toBeNull();
+    expect(bladeModifiers(declined.session.state!)).toHaveLength(0);
+    const short = setupLiveStart(8, 'LOCAL');
+    expect(short.game.activeEffect).toBeNull();
+    expect(short.game.entranceRuntime!.pending).toBeNull();
   });
 });

@@ -17,6 +17,7 @@
 | [cardEntranceTimeline.ts](../../../../client/src/lib/cardEntranceTimeline.ts) | 共用毫秒时间线、CSS 冲击时长、推导的总时长；人物、飞牌和结束计时使用同一开始时刻 |
 | [cardEntranceMesh.ts](../../../../client/src/lib/cardEntranceMesh.ts) | 基于当前素材的局部形变；新图的脸、发束和衣料分区需重新核对 |
 | [cardEntranceArticulation.ts](../../../../client/src/lib/cardEntranceArticulation.ts) | 人物时钟上的手臂、身体与衣发跟随进度；可选身体独立起势与缓动，不新增播放器或计时器 |
+| [cardEntranceArmJoints.ts](../../../../client/src/lib/cardEntranceArmJoints.ts) | 可选肩／肘／腕约束；按图片比例计算刚性变换，手部路径驱动或固定肩点的关节转角驱动 |
 | [CardLanding.tsx](../../../../client/src/components/game/card-entrance/CardLanding.tsx)、[cardEntranceLanding.ts](../../../../client/src/lib/cardEntranceLanding.ts) | 真实落点、横置尺寸、飞行／压落时序、邻卡深度变化、结束与取消清理 |
 | [cardEntrance.css](../../../../client/src/components/game/card-entrance/cardEntrance.css) | 人物居中取景、卡名、平面圆环、减少动态；颜色与构图参数可能需要因卡调整 |
 | [BattleAnimationLayer.tsx](../../../../client/src/components/game/BattleAnimationLayer.tsx)、[gameStore.ts](../../../../client/src/store/gameStore.ts) | `battleAnimationOcclusions` 与 `suppressDefaultMovement` 的共用所有权；触地或取消必须释放 |
@@ -30,6 +31,8 @@
 如果新卡需要另一侧发束、独立部件、不同长宽比或新动作，先判断现有绘制假设是否成立，再扩展确有需要的配置或专属绘制能力；不能只替换图片后强套现有左侧发束遮罩。只有真实需求出现时，才增加逐卡时间线、落地配色、骨骼或音效等能力。
 
 已有 `armLayers` 支持身体与完整手臂或第二人物图集。`bodyPlacement`／`independentBody` 处理双人构图，`behindBody` 控制前后绘制；`bodyMotion`／`easing` 处理动作先后与速度，`bodyBlendY` 定义躯干软过渡，`rigidBodyFollow` 保持整条手臂和道具的统一权重，`sleeveAnchor` 仅用于局部连接，`armTravelStart` 可让起始姿态靠近目标。按实际需要选用，缺省行为与坐标含义读源码；不把全部配置视为新卡必填项。形变和接触的视觉边界见[人物质量参考](portrait-quality.md)，不能只以字段名称判断其作用区域安全。
+
+`armLayers.joints` 在已分离的手臂图集中限定关节作用区域，可由完整手与道具的路径驱动，或使用 `rotation` 固定肩点并控制肩／肘转角；`shoulderFollow` 与 `rotationMotion` 仅在当前动作需要时使用。它维护两段长度和连接，不自动保证自然度。`portraitLayers` 则按配置顺序绘制多个裁切层，各层有画面内 placement 和动作参数，适合需要不同遮挡与运动的多人构图。两者仍共用一个画布、资源加载和人物时钟，未配置的旧卡沿用原分支。
 
 图片、卡名与参数必须跟随当前队列条目。回归混合角色连续进场、取消后下一条、旧卡罕度和来源失效，避免串素材、回调或遮挡。保留彼方已确认的参数，新增角色的调参应只影响自身。
 
@@ -62,6 +65,7 @@
 
 - [card-entrance-assets.test.ts](../../../../tests/unit/card-entrance-assets.test.ts)：全登记素材解析、冲突、加载／解码／取消／超时与时间线衔接。
 - [card-entrance-articulation.test.ts](../../../../tests/unit/card-entrance-articulation.test.ts)：动作进度不反转、身体可提前、衣发收势和减少动态固定姿态；不证明素材关节或实际观感自然。
+- [card-entrance-arm-joints.test.ts](../../../../tests/unit/card-entrance-arm-joints.test.ts)：不同宽高比下的两段长度、原弯曲方向、可达范围与固定肩点；不证明视觉上的连接区域选择正确。
 
 - [card-entrance-synchronization.test.ts](../../../../tests/integration/card-entrance-synchronization.test.ts)、[online-card-entrance.test.ts](../../../../tests/integration/online-card-entrance.test.ts)：真实卡效延后、两席确认／超时、排位时钟、越权与过期确认。
 - [作者部署说明](../../../../docs/card-entrance-production-rollout.md)：前后端同版本发布、素材分发、生产烟测与回退边界；读该文不代表取得生产操作授权。

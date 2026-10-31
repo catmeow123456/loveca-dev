@@ -3,9 +3,11 @@ import { getEntranceStageTarget } from './cardEntranceLanding';
 import type { DoubleRelaySource, RelayPoint } from './doubleRelayEntrance';
 
 export const ginkoFlowerTimeline = {
-  relay: { charge: 250, arrive: 1350, portraitAt: 1550 },
-  copy: { extract: 220, receive: 1180, total: 1450, reduced: 200 },
-  knot: { start: 570, first: 720, second: 870, tied: 1050, dock: 1180, end: 1450 },
+  relay: { charge: 150, arrive: 1100, portraitAt: 1300 },
+  copy: { extract: 150, silkArrive: 500, silkEnd: 730, receive: 1030, total: 1250, reduced: 200 },
+  notice: { hold: 1000, fade: 200 },
+  // Keep all three stitches and the complete-knot hold; tighten the approach and docking.
+  knot: { start: 420, first: 570, second: 720, tied: 900, dock: 1030, end: 1250 },
 } as const;
 export const flowerClamp = (n: number) => Math.max(0, Math.min(1, n));
 export const flowerEase = (n: number) => {

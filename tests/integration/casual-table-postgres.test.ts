@@ -9,7 +9,12 @@ import type { DeckConfig } from '../../src/application/game-service';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { toDeckPointTableRules } from '../../src/domain/rules/deck-point-table';
 import { getBaseCardCode } from '../../src/shared/utils/card-code';
-import { CardType, GameEndReason, HeartColor } from '../../src/shared/types/enums';
+import {
+  BladeHeartEffect,
+  CardType,
+  GameEndReason,
+  HeartColor,
+} from '../../src/shared/types/enums';
 import type {
   CasualRuleMode,
   CasualTableEntryInput,
@@ -1952,6 +1957,55 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     expect(
       JSON.stringify(await service.list(users[3], { ruleMode: 'UNLIMITED', format: 'SEALED_BP7' }))
     ).not.toContain('sealedPool');
+  });
+  it('restores treasure and judgment data from frozen private pools without loading the catalog', async () => {
+    service = newService({
+      randomInt: () => 0,
+      loadSealedCards: () =>
+        Promise.resolve(
+          sealedCards().map((card) =>
+            card.cardType === CardType.MEMBER
+              ? {
+                  ...card,
+                  bladeHearts: [
+                    { effect: BladeHeartEffect.HEART, heartColor: HeartColor.GRAY },
+                    { effect: BladeHeartEffect.HEART, heartColor: HeartColor.GRAY },
+                  ],
+                }
+              : card
+          )
+        ),
+    });
+    const building = await sealedBuilding();
+    expect(building.sealedPool!.treasurePackIndices).toEqual([0]);
+    expect(building.sealedPool!.cards[0].bladeHearts).toHaveLength(2);
+    expect(
+      building.sealedPool!.cards.filter((card) => card.cardType === CardType.ENERGY)
+    ).toHaveLength(3);
+    const saved = await selectSealed(0);
+    service = newService({
+      loadSealedCards: () => Promise.reject(new Error('catalog unavailable')),
+    });
+    expect((await current(0)).sealedPool).toEqual(saved.sealedPool);
+    const publicView = JSON.stringify(
+      await service.list(users[2], { format: 'SEALED_BP7', ruleMode: 'UNLIMITED' })
+    );
+    expect(publicView).not.toContain('treasurePackIndices');
+    expect(publicView).not.toContain('bladeHearts');
+  });
+  it('keeps V1 collation provenance and saved cards in the unchanged pool schema', async () => {
+    service = newService({ randomInt: (upper) => (upper === 10000 ? 9999 : upper === 60 ? 1 : 0) });
+    await sealedBuilding();
+    await database.query(
+      `UPDATE casual_table_seats SET sealed_pool = jsonb_set(sealed_pool, '{pool,version}', '"BP7_SIMULATED_V1"')`
+    );
+    const saved = await selectSealed(0);
+    expect(saved.sealedPool!.version).toBe('BP7_SIMULATED_V1');
+    expect(saved.sealedPool!.treasurePackIndices).toEqual([]);
+    service = newService({
+      loadSealedCards: () => Promise.reject(new Error('must not regenerate')),
+    });
+    expect((await current(0)).sealedPool).toEqual(saved.sealedPool);
   });
   it('rejects invalid/stale selections, locks ready drafts and boots a half-deck match once', async () => {
     const building = await sealedBuilding();

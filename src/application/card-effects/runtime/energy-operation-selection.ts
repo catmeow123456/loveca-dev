@@ -15,6 +15,7 @@ import type {
   ActiveEffectStepHandlerInput,
 } from './step-registry.js';
 import type { PendingAbilityStarterOptions } from './starter-registry.js';
+import { canResumeActivatedAbilityEnergyPayment } from './activated-ability-energy-resume-validator.js';
 
 export const ENERGY_OPERATION_SELECTION_STEP_ID = 'COMMON_ENERGY_OPERATION_SELECTION';
 
@@ -152,6 +153,13 @@ export function resolveEnergyOperationSelectionStep(
   const continuation = game.activeEffect?.metadata?.energySelectionContinuation as
     EnergySelectionContinuation | undefined;
   if (!continuation) return game;
+  if (
+    continuation.kind === 'ACTIVATED_ABILITY' &&
+    game.activeEffect &&
+    !canResumeActivatedAbilityEnergyPayment(game, game.activeEffect)
+  ) {
+    return context.continuePendingCardEffects({ ...game, activeEffect: null }, false);
+  }
   const selectedEnergyCardIds =
     input.selectedCardIds ?? (input.selectedCardId ? [input.selectedCardId] : []);
   if (
@@ -183,16 +191,17 @@ export function resolveEnergyOperationSelectionStep(
   ];
   const gameWithoutWindow = { ...game, activeEffect: null };
   if (continuation.kind === 'ACTIVATED_ABILITY') {
-    return (
-      withEnergySelectionResolutions(resolutions, () =>
-        context.resolveActivatedAbility(
-          gameWithoutWindow,
-          continuation.playerId,
-          continuation.cardId,
-          continuation.abilityId
-        )
-      ) ?? game
+    const resumed = withEnergySelectionResolutions(resolutions, () =>
+      context.resolveActivatedAbility(
+        gameWithoutWindow,
+        continuation.playerId,
+        continuation.cardId,
+        continuation.abilityId,
+        { resumeStartedActivation: true }
+      )
     );
+    if (!resumed) return game;
+    return resumed.activeEffect ? resumed : context.continuePendingCardEffects(resumed, false);
   }
   if (continuation.kind === 'PENDING_ABILITY') {
     return (

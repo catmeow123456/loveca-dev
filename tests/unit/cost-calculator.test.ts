@@ -12,6 +12,50 @@ import {
 } from '../../src/domain/rules/cost-calculator';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 
+describe('PL!N-bp8-005 费用10「宫下爱」手牌动态加费', () => {
+  const calculator = new CostCalculator();
+  it.each(['SEC', 'R', 'P+'])('%s只按自己energyDeck张数增加手牌当前费用', (rarity) => {
+    const member = createMockMemberData(10, '宫下爱', `PL!N-bp8-005-${rarity}`);
+    for (const count of [0, 1, 7]) {
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 20 }, (_, i) => `e${i}`),
+        stageMembers: [],
+        sourceCardId: 'ai',
+        handCardIds: ['ai'],
+        energyDeckCardCount: count,
+      };
+      expect(calculator.calculateCurrentHandCardCost(member, resources).currentCost).toBe(
+        10 + count
+      );
+      expect(calculator.calculateModifiedPlayCost(member, resources).modifiedCost).toBe(10 + count);
+      expect(calculator.calculateModifiedPlayCost(member, resources).modifierAmount).toBe(
+        count === 0 ? 0 : -count
+      );
+    }
+  });
+  it('来源不在手牌和其他基础编号不应用此修正；换手先加费再减免', () => {
+    const member = createMockMemberData(10, '宫下爱', 'PL!N-bp8-005-SEC');
+    const resources: AvailableResources = {
+      activeEnergyIds: Array.from({ length: 12 }, (_, i) => `e${i}`),
+      stageMembers: [createStageMemberInfo('relay', 4, SlotPosition.CENTER)],
+      sourceCardId: 'ai',
+      handCardIds: ['ai'],
+      energyDeckCardCount: 3,
+    };
+    const plan = calculator
+      .checkCanPayCost(member, SlotPosition.CENTER, resources)
+      .availablePlans.find((candidate) => candidate.isRelay)!;
+    expect(plan).toMatchObject({ modifiedCost: 13, relayDiscount: 4, actualEnergyCost: 9 });
+    expect(
+      calculator.calculateCurrentHandCardCost(member, { ...resources, handCardIds: [] }).currentCost
+    ).toBe(10);
+    expect(
+      calculator.calculateCurrentHandCardCost({ ...member, cardCode: 'PL!N-bp8-017-N' }, resources)
+        .currentCost
+    ).toBe(10);
+  });
+});
+
 // ============================================
 // 测试辅助函数
 // ============================================

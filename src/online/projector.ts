@@ -54,10 +54,13 @@ import {
   getLatestMemberOriginalHeartReplacementModifier,
   getMemberEffectiveBladeCount,
   getMemberEffectiveHeartIcons,
+  getMemberHeartContributionLifecycleId,
   getPlayerLiveScoreModifier,
   projectLiveModifierCompatibility,
 } from '../domain/rules/live-modifiers.js';
 import { getMemberEffectiveCost } from '../domain/rules/member-effective-cost.js';
+import { hasIzumiOpponentWaitProtection } from '../domain/rules/member-wait-protections.js';
+import { getStageMemberActivatedAbilityProhibitionForView } from '../application/card-effects/runtime/activated-ability-prohibition-status.js';
 import {
   canLiveCardEnterSuccessZone,
   getCurrentSuccessLiveSettlementPlayerId,
@@ -381,6 +384,46 @@ export function projectPlayerViewState(
               return seat ? [seat] : [];
             }),
             deadlineAt: game.entranceRuntime.pending.deadlineAt,
+            ...(game.entranceRuntime.pending.miraiReturn
+              ? {
+                  miraiReturn: {
+                    sourceObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.miraiReturn.sourceCardId
+                    ),
+                    ownerSeat: getSeatForPlayer(
+                      game,
+                      game.entranceRuntime.pending.miraiReturn.playerId
+                    )!,
+                    members: game.entranceRuntime.pending.miraiReturn.members.map((member) => ({
+                      objectId: createPublicObjectId(member.cardId),
+                      cardCode: member.cardCode,
+                    })),
+                    targetMemberObjectIds:
+                      game.entranceRuntime.pending.miraiReturn.targetMemberCardIds.map(
+                        createPublicObjectId
+                      ),
+                  },
+                }
+              : {}),
+            ...(game.entranceRuntime.pending.izumiReplay
+              ? {
+                  izumiReplay: {
+                    sourceObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.izumiReplay.sourceCardId
+                    ),
+                    targetObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.izumiReplay.targetCardId
+                    ),
+                    ownerSeat: getSeatForPlayer(
+                      game,
+                      game.entranceRuntime.pending.izumiReplay.playerId
+                    )!,
+                    slot: game.entranceRuntime.pending.izumiReplay.slot,
+                    previousOrientation:
+                      game.entranceRuntime.pending.izumiReplay.previousOrientation,
+                  },
+                }
+              : {}),
             ...(game.entranceRuntime.pending.bokuhikaSuccess
               ? {
                   bokuhikaSuccess: {
@@ -976,8 +1019,29 @@ function addMemberSlotZones(
             ? buildStageMemberFrontInfo(occupant, effectiveHearts, effectiveBlade, effectiveCost)
             : undefined,
           activatedAbilityUiConfig: activatedAbilityUiConfigs[0],
-          activatedAbilityUiConfigs:
-            activatedAbilityUiConfigs.length > 0 ? activatedAbilityUiConfigs : undefined,
+          activatedAbilityUiConfigs,
+          activatedAbilityProhibition: !game.isEnded
+            ? getStageMemberActivatedAbilityProhibitionForView(game, playerId, occupantId)
+            : undefined,
+          opponentWaitProtection:
+            !game.isEnded && hasIzumiOpponentWaitProtection(game, playerId, occupantId)
+              ? 'IZUMI_EDELNOTE'
+              : undefined,
+          aiHeartLinks: game.isEnded
+            ? undefined
+            : liveModifiers.flatMap((modifier) =>
+                modifier.kind === 'HEART' &&
+                modifier.target === 'TARGET_MEMBER' &&
+                modifier.targetMemberCardId === occupantId &&
+                modifier.abilityId === 'PL!N-bp8-005:continuous-stage-red-hearts'
+                  ? [
+                      {
+                        sourceObjectId: createPublicObjectId(modifier.sourceCardId),
+                        incarnation: `${getMemberHeartContributionLifecycleId(game, modifier.sourceCardId)}:${getMemberHeartContributionLifecycleId(game, occupantId)}`,
+                      },
+                    ]
+                  : []
+              ),
           hasRemainingLimitedActivatedAbility: hasRemainingLimitedActivatedAbility || undefined,
           hasTemporaryHeartRole:
             (!game.isEnded &&
@@ -1179,6 +1243,9 @@ function upsertViewObject(
     | 'hasRemainingLimitedActivatedAbility'
     | 'hasTemporaryOnEnterAbility'
     | 'hasTemporaryHeartRole'
+    | 'activatedAbilityProhibition'
+    | 'opponentWaitProtection'
+    | 'aiHeartLinks'
   > & {
     readonly knownCardType?: ViewCardObject['cardType'];
   }
@@ -1204,6 +1271,10 @@ function upsertViewObject(
     hasTemporaryOnEnterAbility:
       surface === 'FRONT' ? metadata?.hasTemporaryOnEnterAbility : undefined,
     hasTemporaryHeartRole: surface === 'FRONT' ? metadata?.hasTemporaryHeartRole : undefined,
+    activatedAbilityProhibition:
+      surface === 'FRONT' ? metadata?.activatedAbilityProhibition : undefined,
+    opponentWaitProtection: surface === 'FRONT' ? metadata?.opponentWaitProtection : undefined,
+    aiHeartLinks: surface === 'FRONT' ? metadata?.aiHeartLinks : undefined,
   };
 }
 

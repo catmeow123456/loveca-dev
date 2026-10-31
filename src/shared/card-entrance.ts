@@ -21,6 +21,7 @@ export const entranceCards = {
   'chisato-natsumi': 'PL!SP-pb2-000',
   'kanan-mari': 'PL!S-pb2-000',
   seras: 'PL!HS-bp6-007',
+  'seras-bp8': 'PL!HS-bp8-007',
   kaho: 'PL!HS-pb1-009',
   rurino: 'PL!HS-pb1-003',
   you: 'PL!S-bp7-005',
@@ -47,6 +48,12 @@ export const entranceCards = {
   hanamaru: 'PL!S-bp7-016',
   keke: 'PL!SP-bp7-013',
   'sumire-pb2': 'PL!SP-pb2-026',
+  yoshiko: 'PL!S-bp6-006',
+  'maki-bp8': 'PL!-bp8-006',
+  'dia-cl1': 'PL!S-cl1-004',
+  'royal-trio': 'LL-bp6-001',
+  mari: 'PL!S-bp6-008',
+  kosuzu: 'PL!HS-bp6-013',
 } as const;
 export type EntranceAssetId = keyof typeof entranceCards;
 
@@ -76,11 +83,28 @@ export const ENTRANCE_WAIT_LIMIT_MS = 6000;
 export const DOUBLE_RELAY_ENTRANCE_EXTRA_MS = 1400;
 export const WAITING_RETURN_ENTRANCE_EXTRA_MS = 1300;
 export const KAHO_RELAY_ENTRANCE_EXTRA_MS = 1600;
+export const IZUMI_REPLAY_CARD_BASE = 'PL!HS-bp8-008';
+export const IZUMI_REPLAY_ENTRANCE_EXTRA_MS = 1000;
 export interface EntranceWait {
   readonly id: string;
   readonly cardIds: readonly string[];
   readonly waitingPlayerIds: readonly string[];
   readonly deadlineAt: number;
+  /** Public nine-card set before shuffling, sorted independently of the hidden deck order. */
+  readonly miraiReturn?: {
+    readonly sourceCardId: string;
+    readonly playerId: string;
+    readonly members: readonly { readonly cardId: string; readonly cardCode: string }[];
+    readonly targetMemberCardIds: readonly string[];
+  };
+  /** Successful exact-card exit/re-entry, already committed as one atomic effect. */
+  readonly izumiReplay?: {
+    readonly sourceCardId: string;
+    readonly targetCardId: string;
+    readonly playerId: string;
+    readonly slot: SlotPosition;
+    readonly previousOrientation: OrientationState;
+  };
   /** Public scoring identities at the selected confirmation or ordered resolution boundary. */
   readonly bokuhikaSuccess?: {
     readonly sourceCardId: string;

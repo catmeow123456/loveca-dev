@@ -6,7 +6,8 @@ import {
   type MemberWaitProtectionState,
 } from '../entities/game.js';
 import type { MemberStateChangeCause } from '../events/game-events.js';
-import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
+import { cardBelongsToGroup, cardNameAliasMatches } from '../../shared/utils/card-identity.js';
+import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
 
 export function addMemberWaitProtectionUntilLiveEnd(
   game: GameState,
@@ -27,23 +28,43 @@ export function addMemberWaitProtectionUntilLiveEnd(
   return { ...game, memberWaitProtections: [...remaining, next] };
 }
 
+/** The bp8 Izumi's own continuous protection, shared by rule resolution and public status. */
+export function hasIzumiOpponentWaitProtection(
+  game: GameState,
+  playerId: string,
+  memberCardId: string
+): boolean {
+  const player = getPlayerById(game, playerId);
+  const card = getCardById(game, memberCardId);
+  return !!(
+    player &&
+    card?.ownerId === playerId &&
+    isMemberCardData(card.data) &&
+    cardCodeMatchesBase(card.data.cardCode, 'PL!HS-bp8-008') &&
+    Object.values(player.memberSlots.slots).includes(memberCardId) &&
+    Object.values(player.memberSlots.slots).some((id) => {
+      const partner = id ? getCardById(game, id) : null;
+      return (
+        partner?.ownerId === playerId &&
+        isMemberCardData(partner.data) &&
+        cardNameAliasMatches(partner.data, 'セラス 柳田 リリエンフェルト')
+      );
+    })
+  );
+}
+
 export function isMemberWaitProtectedFromChange(
   game: GameState,
   affectedPlayerId: string,
   memberCardId: string,
   cause: MemberStateChangeCause | undefined
 ): boolean {
-  if (
-    cause?.kind !== 'CARD_EFFECT' ||
-    cause.playerId === affectedPlayerId
-  ) {
+  if (cause?.kind !== 'CARD_EFFECT' || cause.playerId === affectedPlayerId) {
     return false;
   }
   const protections = (game.memberWaitProtections ?? []).filter(
     (candidate) => candidate.affectedPlayerId === affectedPlayerId
   );
-  if (protections.length === 0) return false;
-
   const player = getPlayerById(game, affectedPlayerId);
   const card = getCardById(game, memberCardId);
   if (
@@ -56,6 +77,8 @@ export function isMemberWaitProtectedFromChange(
     return false;
   }
   const memberData = card.data;
+
+  if (hasIzumiOpponentWaitProtection(game, affectedPlayerId, memberCardId)) return true;
 
   return protections.some(
     (protection) =>

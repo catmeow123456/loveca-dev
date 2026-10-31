@@ -4229,10 +4229,9 @@ describe('sample card effect runner', () => {
       abilityId: PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID,
       sourceCardId: shiorikoCard.instanceId,
       stepId: 'PL_BP3_014_ON_ENTER_OPTION',
-      selectableOptions: [
-        { id: 'activate', label: '发动' },
-        { id: 'decline', label: '不发动' },
-      ],
+      selectableOptions: [{ id: 'activate', label: '发动' }],
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
     });
     expect(session.state?.activeEffect?.selectableCardIds).toBeUndefined();
     expect(
@@ -4312,7 +4311,7 @@ describe('sample card effect runner', () => {
         undefined,
         undefined,
         undefined,
-        'decline'
+        undefined
       )
     );
 
@@ -4419,10 +4418,9 @@ describe('sample card effect runner', () => {
       abilityId: PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID,
       sourceCardId: rinkiCard.instanceId,
       stepId: 'PL_BP3_014_ON_ENTER_OPTION',
-      selectableOptions: [
-        { id: 'activate', label: '发动' },
-        { id: 'decline', label: '不发动' },
-      ],
+      selectableOptions: [{ id: 'activate', label: '发动' }],
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
     });
     expect(
       session.state?.players[0].memberSlots.cardStates.get(rinkiCard.instanceId)?.orientation

@@ -315,79 +315,6 @@
   color: var(--text-secondary);
   font-size: 0.75rem;
 }
-.sealed-cost-summary {
-  padding: 0 8px;
-  border-radius: 10px;
-  background: transparent;
-  font-size: 0.75rem;
-}
-.sealed-cost-summary summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 28px;
-  cursor: pointer;
-  list-style: none;
-  font-weight: 600;
-}
-.sealed-cost-summary summary::-webkit-details-marker {
-  display: none;
-}
-.sealed-cost-summary summary > span {
-  display: none;
-  margin-left: auto;
-  color: var(--text-secondary);
-  font-weight: 400;
-}
-.sealed-cost-summary[open] {
-  flex-basis: 100%;
-  background: var(--bg-elevated);
-  padding: 4px 12px;
-}
-.sealed-cost-summary[open] summary > span {
-  display: inline;
-}
-.sealed-cost-summary[open] summary > svg:last-child {
-  transform: rotate(180deg);
-}
-.sealed-cost-summary > small {
-  display: block;
-  padding-bottom: 10px;
-  color: var(--text-secondary);
-}
-.sealed-cost-chart {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(36px, 1fr));
-  gap: 8px;
-  padding: 8px 0;
-  margin: 0;
-  list-style: none;
-}
-.sealed-cost-chart li {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-secondary);
-}
-.sealed-cost-chart strong {
-  color: var(--text-primary);
-  font-variant-numeric: tabular-nums;
-}
-.sealed-cost-chart small {
-  font-weight: 400;
-}
-.sealed-cost-bar-track {
-  display: flex;
-  align-items: end;
-  width: min(100%, 32px);
-  height: 44px;
-}
-.sealed-cost-bar-track > span {
-  width: 100%;
-  border-radius: 4px 4px 0 0;
-  background: var(--accent-primary);
-}
 .sealed-detail {
   position: fixed;
   inset: 0;
@@ -591,4 +518,112 @@
     padding-inline: 6px;
     font-size: 0.75rem;
   }
+}
+
+.sealed-statistics-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.8125rem;
+}
+.sealed-statistics-toggle[aria-expanded='true'] {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 7%, var(--bg-surface));
+}
+.sealed-workspace,
+.sealed-workspace-cards {
+  min-width: 0;
+}
+.sealed-statistics {
+  min-width: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  overflow: hidden;
+  color: var(--text-primary);
+}
+.sealed-statistics-content {
+  padding: 12px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.sealed-statistics-note {
+  margin: 0 0 16px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.7;
+}
+@media (min-width: 1200px) {
+  .sealed-workspace--statistics {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 304px;
+    gap: 20px;
+    align-items: start;
+  }
+  .sealed-statistics {
+    position: sticky;
+    top: 76px;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - 180px);
+    margin-top: 12px;
+  }
+}
+.sealed-statistics-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: #0009;
+  display: flex;
+  justify-content: flex-end;
+}
+.sealed-statistics-drawer-wrap {
+  width: min(400px, 100%);
+  height: 100%;
+}
+.sealed-statistics--drawer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px 0 0 16px;
+  box-shadow: var(--shadow-lg);
+}
+.sealed-statistics--drawer .sealed-panel-header {
+  padding-top: max(12px, env(safe-area-inset-top));
+  flex-shrink: 0;
+}
+.sealed-statistics--drawer .sealed-statistics-content {
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+.sealed-treasure-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 6px 0;
+  border: 1px solid color-mix(in srgb, var(--semantic-warning) 40%, var(--border-subtle));
+  background: color-mix(in srgb, var(--semantic-warning) 7%, var(--bg-surface));
+  border-radius: 10px;
+  font-size: 0.8125rem;
+}
+.sealed-treasure-notice > svg {
+  color: var(--semantic-warning);
+}
+.sealed-treasure-notice button {
+  margin-left: auto;
+  padding: 5px 8px;
+  border-radius: 6px;
+  color: var(--accent-primary);
+  cursor: pointer;
+  background: var(--bg-surface);
 }

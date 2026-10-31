@@ -1,14 +1,27 @@
 import {
   addAction,
   getPlayerById,
+  type ActiveEffectState,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { OrientationState } from '../../../../shared/types/enums.js';
-import { PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID } from '../../ability-ids.js';
+import {
+  PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID,
+  HS_BP8_015_ON_ENTER_WAIT_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
+} from '../../ability-ids.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import {
+  enqueueMemberStateChangedTriggersFromOrientationResult,
+  type EnqueueTriggeredCardEffectsForMemberStateChanged,
+} from '../../runtime/member-state-changed-triggers.js';
+import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
+import { isCurrentStageMemberAbilitySource } from '../../runtime/source-member.js';
+import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
+import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { queryCardSelection, queryOptionSelection } from '../../runtime/selection-query.js';
 import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import {
@@ -16,167 +29,191 @@ import {
   startArrangeInspectedDeckEdgeWorkflow,
 } from './arrange-inspected-deck-edge.js';
 
-const DECLINE_OPTION_LABEL = '不发动';
-const PL_BP3_014_ON_ENTER_OPTION_STEP_ID = 'PL_BP3_014_ON_ENTER_OPTION';
-const PL_BP3_014_ON_ENTER_ARRANGE_STEP_ID = 'PL_BP3_014_ON_ENTER_ARRANGE_TOP_TWO';
-
-type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
+type Continue = (game: GameState, orderedResolution: boolean) => GameState;
+interface Config {
+  readonly abilityId: string;
+  readonly optionStepId: string;
+  readonly arrangeStepId: string;
+}
+const CONFIGS: readonly Config[] = [
+  {
+    abilityId: PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID,
+    optionStepId: 'PL_BP3_014_ON_ENTER_OPTION',
+    arrangeStepId: 'PL_BP3_014_ON_ENTER_ARRANGE_TOP_TWO',
+  },
+  {
+    abilityId: HS_BP8_015_ON_ENTER_WAIT_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
+    optionStepId: 'HS_BP8_015_ON_ENTER_OPTION',
+    arrangeStepId: 'HS_BP8_015_ON_ENTER_ARRANGE_TOP_TWO',
+  },
+];
 
 export function registerPlBp3014RinWorkflowHandlers(deps: {
-  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom &
+    EnqueueTriggeredCardEffectsForMemberStateChanged;
 }): void {
-  registerPendingAbilityStarterHandler(
-    PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID,
-    (game, ability, options) =>
-      startPlBp3014RinOptionWorkflow(game, ability, options.orderedResolution === true)
-  );
-  registerActiveEffectStepHandler(
-    PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID,
-    PL_BP3_014_ON_ENTER_OPTION_STEP_ID,
-    (game, input, context) => {
-      if (input.selectedOptionId === 'decline') {
-        return finishPlBp3014RinDeclineWorkflow(game, context.continuePendingCardEffects);
-      }
-      return input.selectedOptionId === 'activate'
-        ? finishPlBp3014RinActivateWorkflow(game, context.continuePendingCardEffects)
-        : game;
-    }
-  );
-  registerActiveEffectStepHandler(
-    PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID,
-    PL_BP3_014_ON_ENTER_ARRANGE_STEP_ID,
-    (game, input, context) =>
-      finishArrangeInspectedDeckEdgeWorkflow(
-        game,
-        input.selectedCardIds ?? [],
-        context.continuePendingCardEffects,
-        deps.enqueueTriggeredCardEffects
-      )
+  for (const config of CONFIGS) {
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) => {
+      if (isAbilityActivationCostWaived(ability))
+        return arrange(
+          game,
+          ability,
+          config,
+          options.orderedResolution === true,
+          context.continuePendingCardEffects,
+          true
+        );
+      const sourceLifecycleId = getPendingAbilitySourceLifecycleId(game, ability);
+      const canPay = canWaitSource(game, { ...ability, sourceLifecycleId });
+      return startPendingActiveEffect(game, {
+        ability,
+        playerId: ability.controllerId,
+        activeEffect: {
+          id: ability.id,
+          abilityId: ability.abilityId,
+          sourceCardId: ability.sourceCardId,
+          sourceLifecycleId,
+          controllerId: ability.controllerId,
+          effectText: getAbilityEffectText(config.abilityId),
+          stepId: config.optionStepId,
+          stepText: canPay
+            ? '可以将此成员变为待机状态，检视卡组顶2张并调整卡组顶。'
+            : '当前无法支付“将此成员变为待机状态”的费用，可以不发动。',
+          awaitingPlayerId: ability.controllerId,
+          selectableOptions: canPay ? [{ id: 'activate', label: '发动' }] : [],
+          canSkipSelection: true,
+          skipSelectionLabel: '不发动',
+          metadata: { orderedResolution: options.orderedResolution === true },
+        },
+        actionPayload: {
+          sourceCardId: ability.sourceCardId,
+          step: 'START_SOURCE_ORIENTATION_OPTION',
+        },
+      });
+    });
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.optionStepId,
+      (game, input, context) => {
+        const effect = game.activeEffect!;
+        if (input.selectedOptionId == null)
+          return finish(game, effect, context.continuePendingCardEffects, 'SKIP');
+        if (input.selectedOptionId !== 'activate') return game;
+        if (!canWaitSource(game, effect))
+          return finish(game, effect, context.continuePendingCardEffects, 'SOURCE_COST_UNPAYABLE');
+        const payment = payImmediateEffectCosts(game, effect.controllerId, effect.sourceCardId, [
+          { kind: 'SET_SOURCE_MEMBER_ORIENTATION', orientation: OrientationState.WAITING },
+        ]);
+        if (!payment)
+          return finish(game, effect, context.continuePendingCardEffects, 'SOURCE_COST_UNPAYABLE');
+        const withTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
+          game,
+          payment,
+          deps.enqueueTriggeredCardEffects,
+          {
+            prepareGameStateBeforeEnqueue: (state, result) =>
+              recordPayCostAction(state, effect.controllerId, {
+                pendingAbilityId: effect.id,
+                abilityId: effect.abilityId,
+                sourceCardId: effect.sourceCardId,
+                sourceSlot: result.sourceSlot,
+                orientedMemberCardIds: result.orientedMemberCardIds,
+              }),
+          }
+        );
+        const ability: PendingAbilityState = {
+          id: effect.id,
+          abilityId: effect.abilityId,
+          sourceCardId: effect.sourceCardId,
+          controllerId: effect.controllerId,
+          sourceLifecycleId: effect.sourceLifecycleId,
+          onEnterInvocation: effect.onEnterInvocation,
+          mandatory: true,
+          timingId: 'ON_ENTER_STAGE',
+          eventIds: [],
+        };
+        return arrange(
+          { ...withTriggers.gameState, activeEffect: null },
+          ability,
+          config,
+          effect.metadata?.orderedResolution === true,
+          context.continuePendingCardEffects,
+          false
+        );
+      },
+      queryOptionSelection
+    );
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.arrangeStepId,
+      (game, input, context) =>
+        finishArrangeInspectedDeckEdgeWorkflow(
+          game,
+          input.selectedCardIds ?? [],
+          context.continuePendingCardEffects,
+          deps.enqueueTriggeredCardEffects
+        ),
+      queryCardSelection
+    );
+  }
+}
+
+function canWaitSource(
+  game: GameState,
+  source: Pick<ActiveEffectState, 'controllerId' | 'sourceCardId' | 'sourceLifecycleId'>
+): boolean {
+  return (
+    isCurrentStageMemberAbilitySource(game, source) &&
+    getPlayerById(game, source.controllerId)?.memberSlots.cardStates.get(source.sourceCardId)
+      ?.orientation === OrientationState.ACTIVE
   );
 }
 
-function startPlBp3014RinOptionWorkflow(
+function arrange(
   game: GameState,
   ability: PendingAbilityState,
-  orderedResolution: boolean
+  config: Config,
+  ordered: boolean,
+  next: Continue,
+  waived: boolean
 ): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  return {
-    ...game,
-    activeEffect: {
-      id: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      controllerId: ability.controllerId,
-      effectText: getAbilityEffectText(PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID),
-      stepId: PL_BP3_014_ON_ENTER_OPTION_STEP_ID,
-      stepText: '可以将此成员变为待机状态：检视卡组顶2张并调整卡组顶。',
-      awaitingPlayerId: player.id,
-      selectableOptions: [
-        { id: 'activate', label: '发动' },
-        { id: 'decline', label: DECLINE_OPTION_LABEL },
-      ],
-      metadata: {
-        orderedResolution,
-      },
-    },
-  };
-}
-
-function finishPlBp3014RinDeclineWorkflow(
-  game: GameState,
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !== PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID ||
-    effect.stepId !== PL_BP3_014_ON_ENTER_OPTION_STEP_ID
-  ) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const state = {
-    ...game,
-    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== effect.id),
-    activeEffect: null,
-  };
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'SKIP',
-    }),
-    effect.metadata?.orderedResolution === true
-  );
-}
-
-function finishPlBp3014RinActivateWorkflow(
-  game: GameState,
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !== PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID ||
-    effect.stepId !== PL_BP3_014_ON_ENTER_OPTION_STEP_ID
-  ) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  const pendingAbility = game.pendingAbilities.find(
-    (ability) =>
-      ability.id === effect.id &&
-      ability.abilityId === effect.abilityId &&
-      ability.sourceCardId === effect.sourceCardId
-  );
-  if (!player || !pendingAbility) {
-    return game;
-  }
-
-  const sourceWaitPayment = payImmediateEffectCosts(game, player.id, pendingAbility.sourceCardId, [
-    { kind: 'SET_SOURCE_MEMBER_ORIENTATION', orientation: OrientationState.WAITING },
-  ]);
-  if (!sourceWaitPayment) {
-    return game;
-  }
-
-  const stateAfterCost = recordPayCostAction(sourceWaitPayment.gameState, player.id, {
-    pendingAbilityId: pendingAbility.id,
-    abilityId: pendingAbility.abilityId,
-    sourceCardId: pendingAbility.sourceCardId,
-    sourceSlot: sourceWaitPayment.sourceSlot,
-    orientedMemberCardIds: sourceWaitPayment.orientedMemberCardIds,
-  });
-
   return startArrangeInspectedDeckEdgeWorkflow(
-    { ...stateAfterCost, activeEffect: null },
+    game,
     {
-      ability: pendingAbility,
-      playerId: player.id,
-      effectText: getAbilityEffectText(PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID),
+      ability,
+      playerId: ability.controllerId,
+      effectText: getAbilityEffectText(config.abilityId),
       inspectCount: 2,
       requestedInspectCount: 2,
       sourceActionLabel: '登场',
-      sourceOrientationCost: 'WAITING',
-      stepId: PL_BP3_014_ON_ENTER_ARRANGE_STEP_ID,
-      stepText: '请检视卡组顶2张。选择任意张数的卡牌按顺序放置于卡组顶，其余的卡牌放入休息室。',
-      selectionLabel: '选择要放回卡组顶的卡牌',
+      ...(waived ? {} : { sourceOrientationCost: 'WAITING' as const }),
+      stepId: config.arrangeStepId,
+      stepText: '选择任意张数的卡片，按卡组顶从上到下的顺序排列；其余卡片放置入休息室。',
+      selectionLabel: '按放置顺序选择卡片',
+      confirmSelectionLabel: '按此顺序放置于卡组顶',
       selectMin: 0,
       selectMax: 2,
       selectedDestination: 'MAIN_DECK_TOP',
       unselectedDestination: 'WAITING_ROOM',
-      orderedResolution: effect.metadata?.orderedResolution === true,
+      orderedResolution: ordered,
     },
-    continuePendingCardEffects
+    next
+  );
+}
+
+function finish(
+  game: GameState,
+  effect: ActiveEffectState,
+  next: Continue,
+  step: string
+): GameState {
+  return next(
+    addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step,
+    }),
+    effect.metadata?.orderedResolution === true
   );
 }

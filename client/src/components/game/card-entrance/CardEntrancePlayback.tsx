@@ -17,6 +17,8 @@ import { CardEntrancePortrait } from './CardEntrancePortrait';
 import { CardLanding, type LandingPresentation } from './CardLanding';
 import { useGameStore } from '@/store/gameStore';
 import { getEntranceStageTarget, sameEntranceTarget } from '@/lib/cardEntranceLanding';
+import { izumiReplayTiming, type IzumiReplaySource } from '@/lib/izumiReplay';
+import { IzumiReplayPrelude } from './izumi-replay/IzumiReplayPrelude';
 
 const NO_RELAY_SOURCES: readonly DoubleRelaySource[] = [];
 
@@ -28,6 +30,7 @@ export function CardEntrancePlayback({
   relaySources = NO_RELAY_SOURCES,
   waitingReturn,
   kahoSource,
+  izumiReplay,
   onPreludeDone,
   onImpact,
   onDone,
@@ -38,6 +41,7 @@ export function CardEntrancePlayback({
   relaySources?: readonly DoubleRelaySource[];
   waitingReturn?: WaitingReturnSource;
   kahoSource?: DoubleRelaySource;
+  izumiReplay?: IzumiReplaySource;
   onPreludeDone?: () => void;
   onImpact: () => void;
   onDone: () => void;
@@ -47,16 +51,19 @@ export function CardEntrancePlayback({
   const returning = !reduced && !!waitingReturn;
   const [preludeDone, setPreludeDone] = useState(false);
   const kahoRelay = !reduced && !!kahoSource;
+  const replaying = !reduced && !!izumiReplay;
   const kahoTiming = ginkoFlowerTimeline.relay;
-  const portraitOffset = rina
-    ? rinaSecTiming.portraitAt
-    : kahoRelay
-      ? kahoTiming.portraitAt
-      : returning
-        ? waitingReturnTimeline.portraitAt
-        : fusion
-          ? doubleRelayTimeline.portraitAt
-          : 0;
+  const portraitOffset = replaying
+    ? izumiReplayTiming.portraitAt
+    : rina
+      ? rinaSecTiming.portraitAt
+      : kahoRelay
+        ? kahoTiming.portraitAt
+        : returning
+          ? waitingReturnTimeline.portraitAt
+          : fusion
+            ? doubleRelayTimeline.portraitAt
+            : 0;
   const done = useRef(onDone);
   done.current = onDone;
   const sourceValid = useGameStore((state) =>
@@ -85,13 +92,15 @@ export function CardEntrancePlayback({
       reduced ? null : presentation.imagePath,
       controller.signal,
       undefined,
-      kahoRelay
-        ? [kahoSource.imagePath]
-        : returning
-          ? [...waitingReturn.facePaths, getCardBackUrl()]
-          : fusion
-            ? relaySources.map((s) => s.imagePath)
-            : []
+      replaying
+        ? [izumiReplay.imagePath, ...(izumiReplay.hostImagePath ? [izumiReplay.hostImagePath] : [])]
+        : kahoRelay
+          ? [kahoSource.imagePath]
+          : returning
+            ? [...waitingReturn.facePaths, getCardBackUrl()]
+            : fusion
+              ? relaySources.map((s) => s.imagePath)
+              : []
     )
       .then((assets) => {
         if (!controller.signal.aborted) setReady({ ...assets, startedAt: performance.now() });
@@ -111,6 +120,8 @@ export function CardEntrancePlayback({
     waitingReturn,
     kahoRelay,
     kahoSource,
+    replaying,
+    izumiReplay,
   ]);
   useEffect(() => {
     if (!ready) return;
@@ -135,10 +146,23 @@ export function CardEntrancePlayback({
         {
           '--entrance-art-center': profile.center,
           '--entrance-mobile-height': profile.mobileHeight,
+          '--entrance-desktop-height': profile.desktopHeight,
+          '--entrance-mobile-top': profile.mobileTop,
+          '--entrance-art-mask': profile.artMask,
           '--entrance-light': profile.light,
         } as CSSProperties
       }
     >
+      {replaying && (
+        <IzumiReplayPrelude
+          source={izumiReplay}
+          startedAt={ready?.startedAt ?? null}
+          portrait
+          reduced={false}
+          onDone={() => {}}
+          onInvalid={() => done.current()}
+        />
+      )}
       {kahoRelay && !preludeDone && (
         <GinkoFlowerPrelude
           source={kahoSource}

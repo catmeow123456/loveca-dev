@@ -1,0 +1,83 @@
+@import '../../src/index.css';
+@source '../../src';
+@source './preview.tsx';
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: #170f1c;
+  color: #f5eee8;
+}
+.mirai-test-board {
+  height: calc(100dvh - var(--mirai-qa-height, 50px));
+}
+.mirai-test-board .battle-viewport-shell {
+  --battle-viewport-height: calc(100dvh - var(--mirai-qa-height, 50px)) !important;
+}
+.mirai-test-board [data-battle-ui-anchor='phase-controls'] {
+  bottom: calc(var(--mirai-qa-height, 50px) + env(safe-area-inset-bottom) + 8px);
+}
+.mirai-test-board .battle-mobile-actions {
+  bottom: calc(var(--mirai-qa-height, 50px) + env(safe-area-inset-bottom) + 4.5rem);
+}
+.mirai-test-board .battle-table {
+  --battle-mobile-overlay-bottom: calc(
+    var(--mirai-qa-height, 50px) + 2 * env(safe-area-inset-bottom) + 4.5rem + 40px
+  );
+}
+.mirai-qa {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  min-height: 50px;
+  z-index: 150;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: #1b121eed;
+  border-top: 1px solid #715566;
+  font-size: 12px;
+}
+.mirai-qa button,
+.mirai-qa summary {
+  cursor: pointer;
+  padding: 6px 10px;
+  border: 1px solid #816477;
+  border-radius: 5px;
+  background: #382334;
+}
+.mirai-qa details > div {
+  position: absolute;
+  bottom: 54px;
+  right: 12px;
+  width: min(340px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: #241727;
+  border: 1px solid #816477;
+  border-radius: 8px;
+}
+.mirai-qa p {
+  color: #c4adb8;
+  line-height: 1.6;
+}
+[data-preview-reduced='true'] .mirai-theatre * {
+  animation: none !important;
+  transition: none !important;
+}
+@media (max-width: 560px) {
+  .mirai-qa {
+    gap: 5px;
+    font-size: 10px;
+  }
+  .mirai-qa strong {
+    display: none;
+  }
+}

@@ -235,7 +235,7 @@ describe('PL!SP-bp7-008 若菜四季', () => {
     const objectId = createPublicObjectId(waiting.source.instanceId);
     expect(
       session.getPlayerViewState(P1).objects[objectId]?.activatedAbilityUiConfigs
-    ).toBeUndefined();
+    ).toEqual([]);
     const rejected = session.executeCommand(
       createActivateAbilityCommand(
         P1,

@@ -141,7 +141,7 @@ defineAbility({
 
 `baseCardCodes` 是卡效登记的默认且规范形态：同一基础编号的不同罕度具有相同卡牌类型与完整卡效，罕度后缀不是 effect boundary。尤其 BP7 必须使用 `baseCardCodes` 或等价基础编号 matcher；公开 API / Excel 当前只出现某一罕度或本地卡库缺失都不是 exact 登记理由，`cardCodes` 也不能用于隔离尚未发现的罕度。
 
-`remainingHeartAllocationPreference` 是 `LIVE_SUCCESS / LIVE_CARD` definition 的窄声明字段，用于存在余 Heart 条件的已实现能力在 LIVE 判定前表达 `{ color, minCount, requiredStageGroupAlias? }`。它不是额外需求或结算步骤：收集器只接受 `implemented` 且触发条件为 `ON_LIVE_SUCCESS` 的 definition，舞台团体条件在收集时实时检查；`HeartPool` 仍先保证原 LIVE 需求合法，再在合法方案中最大化可满足的偏好数量并按 definition 顺序稳定裁决。workflow 结算只读取判定后的 `playerRemainingHearts`，不得把 `RAINBOW`/All 当作指定颜色，也不得再次消费或重分配 Heart。
+`remainingHeartAllocationPreference` 是 `LIVE_SUCCESS / LIVE_CARD` definition 的窄声明字段，用于存在余 Heart 条件的已实现能力在 LIVE 判定前表达 `{ color, minCount, requiredStageGroupAlias? }`；10/29新增互斥的 `minCounts` 阈值数组，旧单阈值配置保持不变。Circle of Love 声明红色 `[2,4,6]`，collector 按数组顺序展开成现有 scalar preference，`HeartPool` 算法不改，也不增加通用分数优化器。它不是额外需求或结算步骤：收集器只接受 `implemented` 且触发条件为 `ON_LIVE_SUCCESS` 的 definition，舞台团体条件在收集时实时检查；`HeartPool` 仍先保证原 LIVE 需求合法，再在合法方案中最大化可满足的偏好数量并按 definition 顺序稳定裁决。workflow 读取判定后的当前 `playerRemainingHearts`，不得把 `RAINBOW`/All 当作指定颜色，也不得重跑分配或再次消费判定所需 HEART；卡文明示失去剩余 HEART 时才调用 `clearRemainingHeartsForPlayer`，后续能力不得从判定原池恢复已失去的资源。
 
 ## 4. Framework layers
 

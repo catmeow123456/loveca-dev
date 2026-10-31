@@ -1,0 +1,450 @@
+{
+  "PL!-bp5-022-L": {
+    "cardCode": "PL!-bp5-022-L",
+    "cardType": "LIVE",
+    "nameCn": "一首给你!你?你!!的歌",
+    "nameJp": "A song for You! You? You!!",
+    "rare": "L",
+    "status": "PUBLISHED",
+    "workNames": [
+      "ラブライブ！"
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": null,
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      },
+      {
+        "effect": "DRAW"
+      }
+    ],
+    "score": 5,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      },
+      {
+        "color": "RAINBOW",
+        "count": 6
+      }
+    ],
+    "cardTextJp": "【ライブ開始時】自分の成功ライブカード置き場にあるカード1枚につき、このカードのスコアを+2し、必要ハートを[桃ハート][黄ハート][紫ハート][無ハート]増やす。",
+    "cardTextCn": "【LIVE开始时】每存在1张自己的成功LIVE卡区中的卡片，此卡的分数+2，必要HEART增加[桃ハート][黄ハート][紫ハート][無ハート]。",
+    "sourceFlags": {
+      "fieldConflict": true
+    }
+  },
+  "PL!-bp5-022-SRL": {
+    "cardCode": "PL!-bp5-022-SRL",
+    "cardType": "LIVE",
+    "nameCn": "一首给你!你?你!!的歌",
+    "nameJp": "A song for You! You? You!!",
+    "rare": "SRL",
+    "status": "PUBLISHED",
+    "workNames": [
+      "ラブライブ！"
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "DRAW"
+      },
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": 5,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      },
+      {
+        "color": "RAINBOW",
+        "count": 6
+      }
+    ],
+    "cardTextJp": "【ライブ開始時】自分の成功ライブカード置き場にあるカード1枚につき、このカードのスコアを+2し、必要ハートを[桃ハート][黄ハート][紫ハート][無ハート]増やす。",
+    "cardTextCn": "【LIVE开始时】每存在1张自己的成功LIVE卡区中的卡片，此卡的分数+2，必要HEART增加[桃ハート][黄ハート][紫ハート][無ハート]。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "parseWarnings": [
+        "PL!-bp5-022-SRL row 112 blade_hearts: unsupported blade heart value"
+      ],
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!-bp5-022-SRL"
+    }
+  },
+  "PL!-bp8-025-L": {
+    "cardCode": "PL!-bp8-025-L",
+    "cardType": "LIVE",
+    "nameCn": "日香风♡女子之道",
+    "nameJp": "にこぷり♡女子道",
+    "rare": "L",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "SCORE"
+      }
+    ],
+    "score": 7,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 5
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      },
+      {
+        "color": "RAINBOW",
+        "count": 7
+      }
+    ],
+    "cardTextJp": "【ライブ開始時】自分のステージにいる「矢澤にこ」１人を選ぶ。自分と相手のステージの中で、そのメンバーが、ほかのすべてのメンバーより多くのハートを持つ場合、このカードのスコアを＋１する。その後、多くの[ブレード]を持つ場合、コストが高い場合についても同じことを行う。",
+    "cardTextCn": "【LIVE开始时】选择存在于自己的舞台的１名「矢泽日香（矢泽妮可）」。自己和对方的舞台中，该成员持有的HEART多于其他所有成员的场合，此卡的分数＋１。此后，该成员持有的[ブレード]多于其他所有成员的场合，此卡的分数＋１；该成员的费用高于其他所有成员的场合，此卡的分数＋１。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!-bp8-025-L"
+    }
+  },
+  "PL!HS-bp8-007-SEC": {
+    "cardCode": "PL!HS-bp8-007-SEC",
+    "cardType": "MEMBER",
+    "nameCn": "赛拉丝·柳田·利林费尔德",
+    "nameJp": "セラス 柳田 リリエンフェルト",
+    "rare": "SEC",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cost": 13,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 4
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【常時】自分のステージにアクティブ状態の「桂城泉」がいるかぎり、自分と相手のステージにいるコスト４以下のメンバーの【起動】能力は起動できない。\n\n【登場】自分のデッキの上からカードを５枚見る。その中から必要ハートに[紫ハート]を含むライブカードを１枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【常时】只要自己的舞台上存在活跃状态的「桂城泉」，存在于自己和对方的舞台的费用小于等于４的成员的【起动】能力不能起动。\n\n【登场】检视自己的卡组顶的５张卡片。可以将其中的１张必要HEART包含[紫ハート]的LIVE卡公开并加入手牌。其余的放置入休息室。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!HS-bp8-007-SEC"
+    }
+  },
+  "PL!HS-bp8-008-SEC": {
+    "cardCode": "PL!HS-bp8-008-SEC",
+    "cardType": "MEMBER",
+    "nameCn": "桂城泉",
+    "nameJp": "桂城泉",
+    "rare": "SEC",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【常時】自分のステージに「セラス 柳田 リリエンフェルト」がいるかぎり、このメンバーは、相手のカードの効果によってはウェイトしない。\n\n【起動】【ターン１回】手札を１枚控え室に置く：自分のステージにいるこのメンバー以外の『Edel Note』のメンバー１人を控え室に置く。そうしたとき、自分の控え室から、これによりステージから控え室に置いたメンバーカードを１枚、そのメンバーがいたエリアに登場させる。",
+    "cardTextCn": "【常时】只要自己的舞台上存在「赛拉丝·柳田·利林费尔德」，此成员，不会因对方的卡片的效果变为待机状态。\n\n【起动】【１回合１次】将１张手牌放置入休息室：将存在于自己的舞台的１名此成员以外的『Edel Note』的成员放置入休息室。如此做时，从自己的休息室，将１张因此从舞台放置入休息室的成员卡，登场至该成员所在的区域。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!HS-bp8-008-SEC"
+    }
+  },
+  "PL!HS-bp8-015-N": {
+    "cardCode": "PL!HS-bp8-015-N",
+    "cardType": "MEMBER",
+    "nameCn": "赛拉丝·柳田·利林费尔德",
+    "nameJp": "セラス 柳田 リリエンフェルト",
+    "rare": "N",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】このメンバーをウェイトにしてもよい：自分のデッキの上からカードを２枚見る。その中から好きな枚数を好きな順番でデッキの上に置き、残りを控え室に置く。（ウェイト状態のメンバーが持つ[ブレード]は、エールで公開する枚数を増やさない。）",
+    "cardTextCn": "【登场】将此成员变为待机状态：检视自己的卡组顶的２张卡片。可以将其中的任意张数的卡片按任意顺序放置于卡组顶，其余的放置入休息室。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!HS-bp8-015-N"
+    }
+  },
+  "PL!HS-bp8-023-L": {
+    "cardCode": "PL!HS-bp8-023-L",
+    "cardType": "LIVE",
+    "nameCn": "EdelinieN",
+    "nameJp": "EdelinieN",
+    "rare": "L",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": 3,
+    "requirements": [
+      {
+        "color": "PURPLE",
+        "count": 4
+      },
+      {
+        "color": "RAINBOW",
+        "count": 2
+      }
+    ],
+    "cardTextJp": "【ライブ開始時】自分の成功ライブカード置き場にある『Edel Note』のカード１枚につき、このカードのスコアを＋３し、必要ハートを[紫ハート][紫ハート][紫ハート][無ハート][無ハート][無ハート]増やす。",
+    "cardTextCn": "【LIVE开始时】存在于自己的成功LIVE卡区的『Edel Note』的卡片每有１张，此卡的分数＋３，必要HEART增加[紫ハート][紫ハート][紫ハート][無ハート][無ハート][無ハート]。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!HS-bp8-023-L"
+    }
+  },
+  "PL!N-bp8-005-SEC": {
+    "cardCode": "PL!N-bp8-005-SEC",
+    "cardType": "MEMBER",
+    "nameCn": "宫下爱",
+    "nameJp": "宮下愛",
+    "rare": "SEC",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cost": 10,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【常時】手札にあるこのメンバーカードのコストは、自分のエネルギーデッキのカード１枚につき、１増える。\n\n【常時】自分のステージにいるすべての『虹ヶ咲』のメンバーと相手のステージにいるすべてのメンバーは[赤ハート]を得る。\n\n【起動】【ターン１回】[E]エネルギー置き場にあるエネルギー１枚をこのメンバーの下に置く：自分の控え室から『虹ヶ咲』のメンバーカード１枚を手札に加える。",
+    "cardTextCn": "【常时】自己的能量卡组的卡片每有１张，手牌的此成员卡的费用加１。\n\n【常时】存在于自己的舞台的所有『虹咲』的成员，和存在于对方的舞台的所有成员，获得[赤ハート]。\n\n【起动】【１回合１次】[E]将存在于能量区的１张能量卡放置于此成员的下方：从自己的休息室将１张『虹咲』的成员卡加入手牌。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!N-bp8-005-SEC"
+    }
+  },
+  "PL!N-bp8-017-N": {
+    "cardCode": "PL!N-bp8-017-N",
+    "cardType": "MEMBER",
+    "nameCn": "宫下爱",
+    "nameJp": "宮下愛",
+    "rare": "N",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【起動】このメンバーをステージから控え室に置く：自分の控え室からライブカードを１枚手札に加える。",
+    "cardTextCn": "【起动】将此成员从舞台放置入休息室：从自己的休息室将１张LIVE卡加入手牌。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!N-bp8-017-N"
+    }
+  },
+  "PL!N-bp8-029-L": {
+    "cardCode": "PL!N-bp8-029-L",
+    "cardType": "LIVE",
+    "nameCn": "Circle of Love",
+    "nameJp": "Circle of Love",
+    "rare": "L",
+    "status": "DRAFT",
+    "workNames": null,
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": 1,
+    "requirements": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "RAINBOW",
+        "count": 1
+      }
+    ],
+    "cardTextJp": "【ライブ成功時】自分が持つ余剰ハートの[赤ハート]２つにつき、このカードのスコアを＋１する。その後、自分は余剰ハートをすべて失う。この能力ではスコアを＋３までしか増えない。",
+    "cardTextCn": "【LIVE成功时】自己持有的剩余HEART每有２个[赤ハート]，此卡的分数＋１。此后，自己失去所有剩余HEART。此能力至多能使分数＋３。",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!N-bp8-029-L"
+    }
+  }
+}

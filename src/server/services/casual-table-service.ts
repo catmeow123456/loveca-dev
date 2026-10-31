@@ -15,6 +15,8 @@ import {
   validateSealedDraft,
   SealedBoxError,
   SEALED_BUILDING_MS,
+  SEALED_BOX_VERSIONS,
+  treasurePackIndices,
   type SealedPool,
 } from '../../domain/rules/sealed-box.js';
 import { getPublishedCardRegistry } from './card-registry-service.js';
@@ -2066,7 +2068,7 @@ function assertFormat(table: CasualTableRow, format: CasualFormat): void {
 }
 function readSealedSnapshot(seat: CasualSeatRow): { poolId: string; pool: SealedPool } {
   const snapshot = fromTransport<{ poolId: string; pool: SealedPool }>(seat.sealed_pool);
-  if (!snapshot?.poolId || snapshot.pool?.version !== 'BP7_SIMULATED_V1')
+  if (!snapshot?.poolId || !SEALED_BOX_VERSIONS.includes(snapshot.pool?.version))
     throw new SealedBoxError('开盒牌池无效');
   return snapshot;
 }
@@ -2077,6 +2079,7 @@ function projectSealedPool(seat: CasualSeatRow): SealedPoolView {
     version: pool.version,
     draftRevision: seat.draft_revision,
     selectedIndices: seat.sealed_draft,
+    treasurePackIndices: treasurePackIndices(pool),
     cards: pool.packs.flat().map((card, index) => ({
       index,
       cardCode: card.cardCode,
@@ -2093,6 +2096,7 @@ function projectSealedPool(seat: CasualSeatRow): SealedPoolView {
           : null,
       groupNames: card.groupNames ?? [],
       cardText: card.cardTextCn ?? card.cardTextJp ?? card.cardText ?? '',
+      bladeHearts: 'bladeHearts' in card ? (card.bladeHearts ?? []) : [],
     })),
   };
 }

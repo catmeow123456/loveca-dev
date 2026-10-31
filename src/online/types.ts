@@ -147,6 +147,19 @@ export interface MatchViewState {
     readonly objectIds: readonly string[];
     readonly waitingSeats: readonly Seat[];
     readonly deadlineAt: number;
+    readonly miraiReturn?: {
+      readonly sourceObjectId: string;
+      readonly ownerSeat: Seat;
+      readonly members: readonly { readonly objectId: string; readonly cardCode: string }[];
+      readonly targetMemberObjectIds: readonly string[];
+    };
+    readonly izumiReplay?: {
+      readonly sourceObjectId: string;
+      readonly targetObjectId: string;
+      readonly ownerSeat: Seat;
+      readonly slot: SlotPosition;
+      readonly previousOrientation: OrientationState;
+    };
     readonly bokuhikaSuccess?: {
       readonly sourceObjectId: string;
       readonly normalizedNames: readonly string[];
@@ -325,6 +338,15 @@ export interface ViewCardObject {
   readonly hasTemporaryOnEnterAbility?: boolean;
   /** Current printed HEART replacement from Shizuku; derived, never persisted separately. */
   readonly hasTemporaryHeartRole?: boolean;
+  /** Public prohibition of a possessed native/granted stage activated ability. */
+  readonly activatedAbilityProhibition?: 'SERAS_LOW_COST';
+  /** Public, derived self-protection from opponent WAITING effects; not general immunity. */
+  readonly opponentWaitProtection?: 'IZUMI_EDELNOTE';
+  /** Public Ai HEART contributions to this stage member, derived from live modifiers. */
+  readonly aiHeartLinks?: readonly {
+    readonly sourceObjectId: string;
+    readonly incarnation: string;
+  }[];
 }
 
 export interface ViewCommandScope {

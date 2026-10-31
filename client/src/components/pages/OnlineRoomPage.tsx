@@ -83,6 +83,7 @@ import {
   type OnlineRoomPostMatchActionState,
 } from '@/lib/onlineRoomPostMatch';
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
+import { getOnlineMatchPollInterval } from '@/lib/onlineMatchPolling';
 import { ApiClientError } from '@/lib/apiClient';
 import { formatBattleTimeoutSeconds, type BattleTimeoutConfig } from '@game/online/ranked-policy';
 import type { ThemeTableEventView } from '@game/online/theme-table-types';
@@ -96,7 +97,6 @@ import type {
 } from '@game/online';
 
 const ROOM_POLL_INTERVAL_MS = 1200;
-const MATCH_POLL_INTERVAL_MS = 800;
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
 
 type OpeningRpsChoiceView = NonNullable<OnlineRoomView['openingRps']>['choices'][number];
@@ -432,36 +432,41 @@ export function OnlineRoomPage({
     }
 
     let cancelled = false;
-    let polling = false;
-
-    const pollMatch = async () => {
-      if (polling) {
-        return;
-      }
-
-      polling = true;
-      try {
-        await syncRemoteState();
-        if (!cancelled) {
-          setMatchSyncError(null);
-        }
-      } catch (pollError) {
-        if (!cancelled) {
-          setMatchSyncError(pollError instanceof Error ? pollError.message : '同步联机对局失败');
-        }
-      } finally {
-        polling = false;
-      }
+    const entrance = () => {
+      const view = useGameStore.getState().playerViewState;
+      return view?.match.matchId === room.matchId && !view.match.endInfo
+        ? view.match.entrance
+        : undefined;
     };
-
-    void pollMatch();
-    const timer = window.setInterval(() => {
-      void pollMatch();
-    }, MATCH_POLL_INTERVAL_MS);
+    const scheduler = new SerialPollingScheduler({
+      intervalMs: () => getOnlineMatchPollInterval(entrance()),
+      poll: async () => {
+        try {
+          await syncRemoteState();
+          if (!cancelled) setMatchSyncError(null);
+        } catch (pollError) {
+          if (!cancelled) {
+            setMatchSyncError(pollError instanceof Error ? pollError.message : '同步联机对局失败');
+          }
+        }
+      },
+    });
+    // Command responses can open/close a window between polls. ACK-only snapshots must not
+    // keep postponing the next poll; each window/deadline change re-times it just once.
+    let current = entrance();
+    const unsubscribe = useGameStore.subscribe(() => {
+      const next = entrance();
+      if (next?.id !== current?.id || next?.deadlineAt !== current?.deadlineAt) {
+        current = next;
+        scheduler.refreshInterval();
+      }
+    });
+    scheduler.start();
 
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      unsubscribe();
+      scheduler.dispose();
     };
   }, [remoteSession?.matchId, room?.matchId, room?.status, syncRemoteState]);
 

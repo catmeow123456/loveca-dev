@@ -1,11 +1,9 @@
-import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { addAction, getCardById, getPlayerById, type GameState, type PendingAbilityState } from '../../../../domain/entities/game.js';
 import type { EnterStageEvent, EnterWaitingRoomEvent, LeaveStageEvent } from '../../../../domain/events/game-events.js';
-import { OrientationState, SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
+import { SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
 import { and, cardNameAliasIs, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
-import { clearPreviousStageMemberInstanceState, playMembersFromWaitingRoomToEmptySlots } from '../../../effects/member-state.js';
 import { SP_PB1_011_ON_ENTER_REPLAY_OTHER_LIELLA_MEMBER_ABILITY_ID } from '../../ability-ids.js';
-import { getNewEnterStageEvents } from '../../runtime/events.js';
+import { replayExactWaitingRoomMemberToOriginalSlotAndEnqueueTriggers } from '../../runtime/replay-exact-stage-member.js';
 import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../runtime/leave-stage-triggers.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -64,16 +62,9 @@ function finish(game: GameState, selectedCardId: string | null, next: Continue, 
     enterWaitingRoomEventId: moved.enterWaitingRoomEvent.eventId,
     leaveStageEventIds: moved.leaveStageEvents.map((event) => event.eventId),
   });
-  const current = getPlayerById(state, player.id);
-  const exactCard = getCardById(state, selectedCardId);
-  if (!current?.waitingRoom.cardIds.includes(selectedCardId) || current.memberSlots.slots[moved.sourceSlot] !== null || !exactCard || !isMemberCardData(exactCard.data)) {
-    return resolve({ ...state, activeEffect: null }, player.id, effect, next, { step: 'REPLAY_TARGET_STALE', targetCardId: selectedCardId, targetSlot: moved.sourceSlot });
-  }
-  state = clearPreviousStageMemberInstanceState(state, player.id, selectedCardId);
-  const played = playMembersFromWaitingRoomToEmptySlots(state, player.id, [{ cardId: selectedCardId, toSlot: moved.sourceSlot }], OrientationState.ACTIVE);
+  const played = replayExactWaitingRoomMemberToOriginalSlotAndEnqueueTriggers(state, player.id, selectedCardId, moved.sourceSlot, enqueue);
   if (!played) return resolve({ ...state, activeEffect: null }, player.id, effect, next, { step: 'REPLAY_FAILED', targetCardId: selectedCardId });
-  state = addAction(played.gameState, 'RESOLVE_ABILITY', player.id, { pendingAbilityId: effect.id, abilityId: effect.abilityId, sourceCardId: effect.sourceCardId, step: 'REPLAY_EXACT_MEMBER', targetCardId: selectedCardId, targetSlot: moved.sourceSlot, playedCardId: selectedCardId });
-  state = enqueue(state, [TriggerCondition.ON_ENTER_STAGE], { enterStageEvents: getNewEnterStageEvents(moved.gameState, state) });
+  state = addAction(played, 'RESOLVE_ABILITY', player.id, { pendingAbilityId: effect.id, abilityId: effect.abilityId, sourceCardId: effect.sourceCardId, step: 'REPLAY_EXACT_MEMBER', targetCardId: selectedCardId, targetSlot: moved.sourceSlot, playedCardId: selectedCardId });
   return next({ ...state, activeEffect: null }, effect.metadata?.orderedResolution === true);
 }
 

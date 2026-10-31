@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AnimatePresence, MotionConfigContext, motion, useReducedMotion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { getDeckBackUrl } from '@/lib/imageService';
@@ -40,6 +40,9 @@ import {
   type PublicDiscardRevealBatch,
   type PublicDiscardRevealQueueState,
 } from '@/lib/publicDiscardRevealQueue';
+import { withAiRecoveryPresentation } from '@/lib/aiEffects';
+import { canPresentCardEntrance } from '@/lib/cardEntrancePolicy';
+import { AiInvitationMotion } from './ai-effects/AiInvitationMotion';
 import { RecoveryCardMotion } from './RecoveryCardMotion';
 import {
   getWaitingRoomCardKeyframes,
@@ -69,7 +72,14 @@ export interface RecentDiscardSourceAnchor {
 
 export function BattleAnimationLayer() {
   const effectsEnabled = useBattleEffectsEnabled();
-  const reduceMotion = useReducedMotion();
+  const prefersReducedMotion = useReducedMotion();
+  const motionConfig = useContext(MotionConfigContext);
+  const reduceMotion =
+    motionConfig.reducedMotion === 'always' ||
+    (motionConfig.reducedMotion !== 'never' && !!prefersReducedMotion);
+  const canPresentAi = useGameStore((s) =>
+    canPresentCardEntrance(s.getBattleSurfaceCapabilities())
+  );
   const { playerViewState, publicBattleLog, remoteSessionSource, isReadOnly, getCardImagePath } =
     useGameStore(
       useShallow((s) => ({
@@ -292,13 +302,19 @@ export function BattleAnimationLayer() {
       });
       nextEvents.push(
         ...animationHistory.current.accept(
-          createBattleAnimationEventsFromViewDiff({
+          withAiRecoveryPresentation(
             previousViewState,
-            nextViewState: playerViewState,
-            previousAnchors,
+            playerViewState,
+            createBattleAnimationEventsFromViewDiff({
+              previousViewState,
+              nextViewState: playerViewState,
+              previousAnchors,
+              nextAnchors,
+              enableWaitingRoomRevealFallback: remoteSessionSource === 'TUTORIAL',
+            }),
             nextAnchors,
-            enableWaitingRoomRevealFallback: remoteSessionSource === 'TUTORIAL',
-          })
+            canPresentAi
+          )
         )
       );
     }
@@ -542,6 +558,7 @@ export function BattleAnimationLayer() {
   }, [
     addBattleAnimationOcclusions,
     discardPumpGeneration,
+    canPresentAi,
     effectsEnabled,
     isReadOnly,
     playerViewState,
@@ -598,6 +615,9 @@ export function BattleAnimationLayer() {
                 event={event}
                 suppressMovement={
                   movementOwners.includes(event.render.objectId) ||
+                  !!playerViewState?.match.entrance?.miraiReturn?.members.some(
+                    (m) => m.objectId === event.render.objectId
+                  ) ||
                   playerViewState?.match.entrance?.rinaLiveSwap?.liveObjectId ===
                     event.render.objectId
                 }
@@ -927,7 +947,11 @@ function MovingCard({
   }
 
   if (isEnhancedRecovery(event)) {
-    return <RecoveryCardMotion event={event} imagePath={imagePath} onDone={onDone} />;
+    return event.aiInvitation ? (
+      <AiInvitationMotion event={event} onDone={onDone} />
+    ) : (
+      <RecoveryCardMotion event={event} imagePath={imagePath} onDone={onDone} />
+    );
   }
 
   return (

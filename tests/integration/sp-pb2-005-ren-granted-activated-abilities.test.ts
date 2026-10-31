@@ -20,6 +20,8 @@ import {
   SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_SD2_002_ACTIVATED_PAY_TWO_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID,
   SP_SD2_006_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_LIELLA_LIVE_ABILITY_ID,
+  N_BP8_005_ACTIVATED_TAP_ENERGY_STACK_ENERGY_BELOW_RECOVER_NIJIGASAKI_MEMBER_ABILITY_ID,
+  N_BP8_017_ACTIVATED_SELF_TO_WAITING_RECOVER_LIVE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { CardAbilitySourceZone } from '../../src/application/card-effects/ability-definition-types';
 import { getActivatedAbilityUiConfigs } from '../../src/application/card-effect-runner';
@@ -58,6 +60,7 @@ import {
 } from '../../src/shared/types/enums';
 import { createPublicObjectId } from '../../src/online/projector';
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
+import { getOctober29MemberData } from '../helpers/october-29-draft-effects';
 
 const P1 = 'player1';
 const P2 = 'player2';
@@ -396,6 +399,30 @@ function hasWorkflowEvidence(scenario: Scenario): boolean {
 }
 
 describe('PL!SP-pb2-005 费用20、分数—「葉月 恋」获得下方 Liella! 成员起动能力的来源契约', () => {
+  it.each([
+    [
+      'PL!N-bp8-005',
+      N_BP8_005_ACTIVATED_TAP_ENERGY_STACK_ENERGY_BELOW_RECOVER_NIJIGASAKI_MEMBER_ABILITY_ID,
+    ],
+    ['PL!N-bp8-017', N_BP8_017_ACTIVATED_SELF_TO_WAITING_RECOVER_LIVE_ABILITY_ID],
+  ])('%s宫下爱起动不因LL授予接通而被恋取得', (base, abilityId) => {
+    const cardCase = { label: base, directCode: getOctober29MemberData(base).cardCode, abilityId };
+    const scenario = setupScenario(cardCase, 'REN');
+    const game = scenario.session.state!;
+    const card = game.cardRegistry.get(scenario.grantedCardId!)!;
+    setSessionState(scenario.session, {
+      ...game,
+      cardRegistry: new Map(game.cardRegistry).set(card.instanceId, {
+        ...card,
+        data: getOctober29MemberData(base),
+      }),
+    });
+    expect(
+      getGrantedActivatedAbilityDefinitions(scenario.session.state!, P1, scenario.sourceId)
+    ).toEqual([]);
+    expect(activate(scenario, 'forged-ai-instance').success).toBe(false);
+    expect(scenario.session.state!.activeEffect).toBeNull();
+  });
   it.each(CASES)('$label：原卡直发与合法恋宿主都进入对应 production workflow', (cardCase) => {
     for (const sourceMode of ['DIRECT', 'REN'] as const) {
       const scenario = setupScenario(cardCase, sourceMode);

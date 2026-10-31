@@ -1,4 +1,5 @@
 import { getPlayerById, type GameState } from '../../../domain/entities/game.js';
+import { isStageMemberActivatedAbilityProhibited } from '../../../domain/rules/member-activated-ability-prohibitions.js';
 import type { OrientationState } from '../../../shared/types/enums.js';
 import type {
   ActivatedAbilityUiConfig,
@@ -15,8 +16,9 @@ export function isActivatedAbilityDefinitionAvailableForSource(
     sourceCardId
   )?.orientation;
   return (
-    definition.requiredSourceOrientation === undefined ||
-    orientation === definition.requiredSourceOrientation
+    !isStageMemberActivatedAbilityProhibited(game, playerId, sourceCardId) &&
+    (definition.requiredSourceOrientation === undefined ||
+      orientation === definition.requiredSourceOrientation)
   );
 }
 
@@ -36,8 +38,11 @@ export function isActivatedAbilityUiConfigAvailableForSource(
   sourceCardId: string,
   config: ActivatedAbilityUiConfig
 ): boolean {
-  return isActivatedAbilityUiConfigAvailableForOrientation(
-    config,
-    getPlayerById(game, playerId)?.memberSlots.cardStates.get(sourceCardId)?.orientation
+  return (
+    !isStageMemberActivatedAbilityProhibited(game, playerId, sourceCardId) &&
+    isActivatedAbilityUiConfigAvailableForOrientation(
+      config,
+      getPlayerById(game, playerId)?.memberSlots.cardStates.get(sourceCardId)?.orientation
+    )
   );
 }
