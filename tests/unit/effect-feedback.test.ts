@@ -38,10 +38,10 @@ const member: MemberCardData = {
   blade: 1,
   hearts: [{ color: HeartColor.PINK, count: 1 }],
 };
-function fixture() {
+function fixture(target = member) {
   let game = registerCards(createGameState('feedback', 'p1', 'A', 'p2', 'B'), [
     createCardInstance(member, 'p1', 'source'),
-    createCardInstance(member, 'p1', 'target'),
+    createCardInstance(target, 'p1', 'target'),
     createCardInstance(member, 'p2', 'opponent'),
     createCardInstance(
       {
@@ -97,6 +97,69 @@ function blade(game: GameState, delta = 1, target = 'target', source = 'source')
 }
 
 describe('authority effect feedback', () => {
+  it.each([null, undefined, {}])(
+    'omits invalid Heart metrics (%s) while retaining other stat and member feedback',
+    (hearts) => {
+      const before = fixture({ ...member, hearts: hearts as MemberCardData['hearts'] });
+      let after = blade(before);
+      for (const targetMemberCardId of ['target', 'source']) {
+        after = addLiveModifier(after, {
+          kind: 'HEART',
+          target: 'TARGET_MEMBER',
+          playerId: 'p1',
+          sourceCardId: 'source',
+          targetMemberCardId,
+          hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+        });
+      }
+      const targets = buildEffectFeedbackEvents(before, after, options).flatMap(
+        (event) => event.targets
+      );
+      expect(targets).toEqual([
+        {
+          objectId: 'obj_target',
+          zoneKey: 'FIRST_MEMBER_LEFT',
+          changes: [{ kind: 'BLADE', delta: 1 }],
+        },
+        {
+          objectId: 'obj_source',
+          zoneKey: 'FIRST_MEMBER_CENTER',
+          changes: [{ kind: 'HEART', color: HeartColor.YELLOW, delta: 1 }],
+        },
+      ]);
+      expect((after.cardRegistry.get('target')!.data as MemberCardData).hearts).toBe(hearts);
+    }
+  );
+  it('does not turn a Heart list becoming invalid or valid into a gain or loss', () => {
+    const valid = fixture();
+    const invalid = registerCards(valid, [
+      createCardInstance(
+        { ...member, hearts: null as unknown as MemberCardData['hearts'] },
+        'p1',
+        'target'
+      ),
+    ]);
+    expect(buildEffectFeedbackEvents(valid, invalid, options)).toEqual([]);
+    expect(buildEffectFeedbackEvents(invalid, valid, options)).toEqual([]);
+  });
+  it('still reports Heart grants for a valid empty printed list', () => {
+    const before = fixture({ ...member, hearts: [] });
+    const after = addLiveModifier(before, {
+      kind: 'HEART',
+      target: 'TARGET_MEMBER',
+      playerId: 'p1',
+      sourceCardId: 'source',
+      targetMemberCardId: 'target',
+      hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+    });
+    expect(buildEffectFeedbackEvents(before, after, options)[0]?.targets).toEqual([
+      {
+        objectId: 'obj_target',
+        zoneKey: 'FIRST_MEMBER_LEFT',
+        changes: [{ kind: 'HEART', color: HeartColor.YELLOW, delta: 1 }],
+      },
+    ]);
+  });
   it('keeps source and multiple targets together and reports clamped effective deltas', () => {
     const before = fixture();
     const after = blade(blade(before, -5), 2, 'source');

@@ -1,5 +1,5 @@
 import type { GameState, LiveModifierState } from '../domain/entities/game.js';
-import { isLiveCardData, type HeartIcon } from '../domain/entities/card.js';
+import { isLiveCardData, isMemberCardData, type HeartIcon } from '../domain/entities/card.js';
 import {
   collectLiveModifiers,
   getMemberEffectiveBladeCount,
@@ -285,7 +285,16 @@ function readMetrics(
         undefined,
         lifecycleId
       );
-      addHearts(target, getMemberEffectiveHeartIcons(game, player.id, id, modifiers), lifecycleId);
+      const card = game.cardRegistry.get(id);
+      // An invalid printed Heart list is unknown, not zero. Omit its Heart
+      // metrics without changing authority data or suppressing other feedback.
+      if (card && isMemberCardData(card.data) && Array.isArray(card.data.hearts)) {
+        addHearts(
+          target,
+          getMemberEffectiveHeartIcons(game, player.id, id, modifiers),
+          lifecycleId
+        );
+      }
     }
     const liveTarget = { zoneKey: `${seat}_LIVE_ZONE` as ViewZoneKey };
     add(
