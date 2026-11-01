@@ -13,7 +13,7 @@ const invoke = (page: Page, name: string) =>
 async function prepare(page: Page, input: Parameters<typeof prepareRemoteFeedback>[0]) {
   // Exercise the ordinary App, shared board and remote store ingestion. Only the transport
   // is replaced: no account, API, database or AI model is used by these isolated tests.
-  await page.route('**/api/**', (route) => {
+  await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/config')
       return route.fulfill({
@@ -28,7 +28,13 @@ async function prepare(page: Page, input: Parameters<typeof prepareRemoteFeedbac
           },
         },
       });
-    if (path === '/api/cards') return route.fulfill({ json: { data: [] } });
+    if (path === '/api/cards/published') {
+      const catalog = await page.evaluate(
+        async ({ path, input }) => (await import(path)).createRemoteFeedbackCatalog(input),
+        { path: fixtureUrl, input }
+      );
+      return route.fulfill({ json: { data: catalog, error: null } });
+    }
     return route.abort();
   });
   await page.route('**/site-status.json*', (route) =>
@@ -95,7 +101,15 @@ async function prepare(page: Page, input: Parameters<typeof prepareRemoteFeedbac
       ].join('\n'),
     });
   });
+  const catalogResponse = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/api/cards/published'
+  );
   await page.goto(process.env.FEEDBACK_APP_URL ?? 'http://127.0.0.1:5173/?page=game');
+  expect((await catalogResponse).status()).toBe(200);
+  await page.waitForFunction(
+    async (path) => (await import(path)).useGameStore.getState().cardDataRegistry.size > 0,
+    '/src/store/gameStore.ts'
+  );
   await page.evaluate(
     async ({ path, input }) => (await import(path)).prepareRemoteFeedback(input),
     { path: fixtureUrl, input }

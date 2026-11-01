@@ -167,7 +167,7 @@ MAIN 的普通登场选项按同一张手牌实例归入 `space.memberPlays`，�
 
 浏览器夹具 `client/tests/e2e/ai-battle-ui.spec.ts` 覆盖宽屏／窄屏、日夜主题、键盘、观察导出、恢复和结束失败重试。完整数据库、HTTP、真实模型及截图的验证边界与复现步骤统一见[完整环境验证](full-environment-validation.md)。
 
-`client/tests/e2e/ai-battle-self-play-ui.spec.ts` 使用本机公开 `/api/cards` 的冻结快照（通过 `LOVECA_AI_UI_CARDS` 指定）、真实规则／驱动和假模型验证双 AI 自动建局、双方视角切换、观察、结束与窄屏布局，以及弹窗拦截和建局失败，不消耗真实模型额度。权限、只读投影、双方共享计费和清理由 `tests/integration/ai-battle-admin-route.test.ts` 覆盖。
+`client/tests/e2e/ai-battle-self-play-ui.spec.ts` 使用本机公开 `/api/cards/published` 的冻结响应（通过 `LOVECA_AI_UI_CARDS` 指定，格式为 `{ data: { schemaVersion: 1, cards }, error: null }`，不再读取旧数组格式）、真实规则／驱动和假模型验证双 AI 自动建局、双方视角切换、观察、结束与窄屏布局，以及弹窗拦截和建局失败，不消耗真实模型额度。权限、只读投影、双方共享计费和清理由 `tests/integration/ai-battle-admin-route.test.ts` 覆盖。
 
 ## 模型调用计费
 

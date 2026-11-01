@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test';
+import { publicCardCatalogSchema } from '../../../../src/shared/public-card-catalog';
 
 const NOW = '2026-07-31T12:00:00.000Z';
 
@@ -81,6 +82,7 @@ const LIVE_CARDS = Array.from({ length: 12 }, (_, index) => {
 });
 const ENERGY_CARD = makeCard('LL-E-001-SD', 'ENERGY', '视觉验收能量', 1);
 const CARD_RECORDS = [...MEMBER_CARDS, ...LIVE_CARDS, ENERGY_CARD];
+const CATALOG = publicCardCatalogSchema.parse({ schemaVersion: 1, cards: CARD_RECORDS });
 
 export const DECK_RECORD = {
   id: 'visual-deck',
@@ -211,8 +213,8 @@ export async function installVisualApiMocks(page: Page, authenticated: boolean) 
       return;
     }
 
-    if (url.pathname === '/api/cards' && request.method() === 'GET') {
-      await fulfill(route, CARD_RECORDS);
+    if (url.pathname === '/api/cards/published' && request.method() === 'GET') {
+      await fulfill(route, CATALOG);
       return;
     }
 

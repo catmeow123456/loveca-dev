@@ -7,15 +7,23 @@ import './service-status-page.css';
 interface ServiceStatusPageProps {
   readonly kind: 'MAINTENANCE' | 'UNAVAILABLE';
   readonly maintenance?: PublicSiteMaintenanceStatus | null;
+  readonly onRetry?: () => void;
+  readonly retrying?: boolean;
 }
 
-export function ServiceStatusPage({ kind, maintenance = null }: ServiceStatusPageProps) {
+export function ServiceStatusPage({
+  kind,
+  maintenance = null,
+  onRetry,
+  retrying = false,
+}: ServiceStatusPageProps) {
   const textOnly = useTextPresentation();
   const [adminMessage, setAdminMessage] = useState<string | null>(null);
   const isMaintenance = kind === 'MAINTENANCE';
 
   const checkStatus = () => {
-    window.location.reload();
+    if (onRetry) onRetry();
+    else window.location.reload();
   };
 
   const openAdminRecovery = async () => {
@@ -41,7 +49,9 @@ export function ServiceStatusPage({ kind, maintenance = null }: ServiceStatusPag
       <main className="excel-entry">
         <h1>{isMaintenance ? '服务维护中' : '连接暂不可用'}</h1>
         <p>{maintenance?.summary ?? '请检查网络，或稍后重试。'}</p>
-        <button onClick={checkStatus}>重新连接</button>
+        <button onClick={checkStatus} disabled={retrying}>
+          {retrying ? '正在检查…' : '重新连接'}
+        </button>
       </main>
     );
   return (
@@ -68,9 +78,14 @@ export function ServiceStatusPage({ kind, maintenance = null }: ServiceStatusPag
         </p>
 
         <div className="service-status-actions">
-          <button type="button" className="button-primary" onClick={checkStatus}>
+          <button
+            type="button"
+            className="button-primary"
+            onClick={checkStatus}
+            disabled={retrying}
+          >
             <RefreshCw size={16} />
-            {isMaintenance ? '再试一次' : '重新连接'}
+            {retrying ? '正在检查…' : isMaintenance ? '再试一次' : '重新连接'}
           </button>
           <button
             type="button"

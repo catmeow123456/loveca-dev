@@ -1,4 +1,9 @@
 import type { UserRole } from '@game/shared/auth/permissions';
+import {
+  recordCatalogAttempt,
+  startCatalogDiagnostics,
+  type CatalogAttemptDiagnostic,
+} from './appPerformance';
 
 // ============================================
 // Configuration
@@ -96,6 +101,7 @@ export interface ApiResponse<T = unknown> {
   total?: number;
   status?: number;
   retryAfterMs?: number;
+  requestId?: string;
 }
 
 export interface ApiUploadProgress {
@@ -108,18 +114,21 @@ export class ApiClientError extends Error {
   readonly code: string;
   readonly status?: number;
   readonly retryAfterMs?: number;
+  readonly requestId?: string;
 
   constructor(input: {
     readonly code: string;
     readonly message: string;
     readonly status?: number;
     readonly retryAfterMs?: number;
+    readonly requestId?: string;
   }) {
     super(input.message);
     this.name = 'ApiClientError';
     this.code = input.code;
     this.status = input.status;
     this.retryAfterMs = input.retryAfterMs;
+    this.requestId = input.requestId;
   }
 }
 
@@ -132,6 +141,7 @@ export function toApiClientError<T>(
     message: response.error?.message ?? fallbackMessage,
     status: response.status,
     retryAfterMs: response.error?.retryAfterMs ?? response.retryAfterMs,
+    requestId: response.requestId,
   });
 }
 
@@ -159,6 +169,8 @@ export function getApiBaseUrl(): string {
 
 const REQUEST_TIMEOUT = 15000; // 15 seconds
 const NETWORK_RETRY_DELAY = 300;
+// Keep the existing per-attempt limit; the catalog alone may retry a timeout.
+const CATALOG_TOTAL_TIMEOUT = 31_000;
 const AUTH_REFRESH_LOCK = 'loveca-auth-refresh';
 export const AUTHORIZATION_STALE_EVENT = 'loveca:authorization-stale';
 
@@ -177,12 +189,17 @@ function observeAuthorizationBoundary<T>(response: ApiResponse<T>): ApiResponse<
 }
 
 /** Safely parse JSON from a response, returning an error ApiResponse for non-JSON bodies */
-async function safeResponseJson<T>(response: Response): Promise<ApiResponse<T>> {
+async function safeResponseJson<T>(
+  response: Response,
+  diagnostic?: CatalogAttemptDiagnostic
+): Promise<ApiResponse<T>> {
   const contentType = response.headers.get('content-type') || '';
   if (!contentType.includes('json')) {
+    await response.body?.cancel().catch(() => undefined);
     return {
       data: null,
       status: response.status,
+      requestId: diagnostic?.requestId,
       retryAfterMs: readRetryAfterMs(response.headers.get('retry-after')),
       error: {
         code: 'INVALID_RESPONSE',
@@ -190,11 +207,29 @@ async function safeResponseJson<T>(response: Response): Promise<ApiResponse<T>> 
       },
     };
   }
+  // Read outside the parse catch: interrupted transfers must not become JSON errors.
+  let text: string | undefined;
+  if (diagnostic) {
+    diagnostic.phase = 'body';
+    const started = Date.now();
+    text = await response.text();
+    diagnostic.bodyMs = Date.now() - started;
+    diagnostic.phase = 'parse';
+  }
   try {
-    const body = (await response.json()) as ApiResponse<T>;
+    const started = Date.now();
+    const body = (diagnostic ? JSON.parse(text!) : await response.json()) as ApiResponse<T>;
+    if (
+      diagnostic &&
+      (!body || typeof body !== 'object' || !('data' in body) || !('error' in body))
+    ) {
+      throw new SyntaxError('Invalid API envelope');
+    }
+    if (diagnostic) diagnostic.parseMs = Date.now() - started;
     return {
       ...body,
       status: response.status,
+      requestId: response.headers.get('x-request-id') ?? undefined,
       retryAfterMs:
         body.error?.retryAfterMs ?? readRetryAfterMs(response.headers.get('retry-after')),
     };
@@ -205,6 +240,7 @@ async function safeResponseJson<T>(response: Response): Promise<ApiResponse<T>> 
     return {
       data: null,
       status: response.status,
+      requestId: diagnostic?.requestId,
       retryAfterMs: readRetryAfterMs(response.headers.get('retry-after')),
       error: {
         code: 'INVALID_RESPONSE',
@@ -330,7 +366,7 @@ async function sendApiRequest<T>(
     const response = await fetch(buildApiUrl(path), {
       ...options,
       headers,
-      credentials: 'include', // Send httpOnly cookies
+      credentials: options.credentials ?? 'include',
       cache: options.cache ?? (isSafeMethod(options.method) ? 'no-store' : undefined),
       signal: controller.signal,
     });
@@ -345,9 +381,26 @@ function sendJsonApiRequest<T>(
   path: string,
   options: RequestInit,
   headers: Record<string, string>,
-  timeoutMs = REQUEST_TIMEOUT
+  timeoutMs = REQUEST_TIMEOUT,
+  diagnostic?: CatalogAttemptDiagnostic
 ): Promise<{ readonly response: Response; readonly body: ApiResponse<T> }> {
-  return sendApiRequest(path, options, headers, safeResponseJson<T>, timeoutMs);
+  const started = Date.now();
+  return sendApiRequest(
+    path,
+    options,
+    headers,
+    (response) => {
+      if (diagnostic) {
+        diagnostic.headersMs = Date.now() - started;
+        diagnostic.status = response.status;
+        const requestId = response.headers.get('x-request-id');
+        if (requestId && /^[A-Za-z0-9._:-]{8,128}$/.test(requestId))
+          diagnostic.requestId = requestId;
+      }
+      return safeResponseJson<T>(response, diagnostic);
+    },
+    timeoutMs
+  );
 }
 
 async function readBlobApiResponse(response: Response): Promise<ApiResponse<Blob>> {
@@ -390,7 +443,8 @@ function waitForRefreshOrAbort(
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
-  timeoutMs = REQUEST_TIMEOUT
+  timeoutMs = REQUEST_TIMEOUT,
+  publicCatalog = false
 ): Promise<ApiResponse<T>> {
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -402,31 +456,87 @@ async function apiFetch<T>(
     headers['Content-Type'] = headers['Content-Type'] ?? 'application/json';
   }
 
-  if (accessToken) {
+  if (accessToken && !publicCatalog) {
     headers['Authorization'] = `Bearer ${accessToken}`;
   }
+
+  const deadline = publicCatalog ? Date.now() + CATALOG_TOTAL_TIMEOUT : Infinity;
+  let diagnostic: CatalogAttemptDiagnostic | undefined;
+  const send = async (attempt: number) => {
+    if (options.signal?.aborted || Date.now() >= deadline) throw createAbortError();
+    const started = Date.now();
+    diagnostic = publicCatalog
+      ? { attempt, phase: 'headers', outcome: 'NETWORK_ERROR', elapsedMs: 0 }
+      : undefined;
+    try {
+      const result = await sendJsonApiRequest<T>(
+        path,
+        options,
+        headers,
+        Math.min(timeoutMs, deadline - started),
+        diagnostic
+      );
+      if (Date.now() > deadline) throw createAbortError();
+      if (diagnostic) {
+        diagnostic.outcome =
+          result.body.error?.code === 'INVALID_RESPONSE'
+            ? 'INVALID_RESPONSE'
+            : result.body.error || !result.response.ok
+              ? 'HTTP_ERROR'
+              : 'SUCCESS';
+        diagnostic.phase = 'complete';
+      }
+      return result;
+    } catch (error) {
+      if (diagnostic)
+        diagnostic.outcome = options.signal?.aborted
+          ? 'ABORTED'
+          : isAbortError(error)
+            ? 'TIMEOUT'
+            : 'NETWORK_ERROR';
+      throw error;
+    } finally {
+      if (diagnostic) {
+        diagnostic.elapsedMs = Date.now() - started;
+        recordCatalogAttempt(diagnostic);
+      }
+    }
+  };
 
   try {
     let result: { readonly response: Response; readonly body: ApiResponse<T> };
     try {
-      result = await sendJsonApiRequest<T>(path, options, headers, timeoutMs);
+      result = await send(1);
     } catch (err) {
-      if (options.signal?.aborted) {
+      if (
+        options.signal?.aborted ||
+        !isSafeMethod(options.method) ||
+        (publicCatalog && diagnostic?.status !== undefined && diagnostic.status >= 400) ||
+        (isAbortError(err) && !publicCatalog)
+      )
         throw err;
-      }
-      if (!isAbortError(err) && isSafeMethod(options.method)) {
-        await wait(NETWORK_RETRY_DELAY, options.signal);
-        result = await sendJsonApiRequest<T>(path, options, headers, timeoutMs);
-      } else {
-        throw err;
-      }
+      const delay = NETWORK_RETRY_DELAY + (publicCatalog ? Math.floor(Math.random() * 300) : 0);
+      if (Date.now() + delay >= deadline) throw createAbortError();
+      await wait(delay, options.signal);
+      result = await send(2);
     }
 
-    const body = observeAuthorizationBoundary(result.body);
+    const body = publicCatalog
+      ? result.response.ok
+        ? result.body
+        : {
+            ...result.body,
+            data: null,
+            error: result.body.error ?? {
+              code: 'HTTP_ERROR',
+              message: `卡牌服务返回错误 (${result.response.status})`,
+            },
+          }
+      : observeAuthorizationBoundary(result.body);
 
     // Auto-refresh protected API requests on 401. This also covers tab restores where
     // the in-memory access token was lost but the httpOnly refresh cookie still exists.
-    if (result.response.status === 401 && shouldAttemptTokenRefresh(path)) {
+    if (!publicCatalog && result.response.status === 401 && shouldAttemptTokenRefresh(path)) {
       const refreshed = await waitForRefreshOrAbort(tryRefreshToken(), options.signal);
       if (refreshed) {
         // Retry with new token
@@ -447,17 +557,23 @@ async function apiFetch<T>(
     if (options.signal?.aborted) {
       return {
         data: null,
+        requestId: diagnostic?.requestId,
+        status: diagnostic?.status,
         error: { code: 'ABORTED', message: '请求已取消' },
       };
     }
     if (isAbortError(err)) {
       return {
         data: null,
+        requestId: diagnostic?.requestId,
+        status: diagnostic?.status,
         error: { code: 'TIMEOUT', message: '请求超时，请检查网络连接' },
       };
     }
     return {
       data: null,
+      requestId: diagnostic?.requestId,
+      status: diagnostic?.status,
       error: {
         code: 'NETWORK_ERROR',
         message: getNetworkErrorMessage(path, err),
@@ -686,6 +802,22 @@ function shouldAttemptTokenRefresh(path: string): boolean {
 // ============================================
 
 export const apiClient = {
+  getPublishedCards(
+    options: { readonly signal?: AbortSignal; readonly reload?: boolean } = {}
+  ): Promise<ApiResponse<unknown>> {
+    startCatalogDiagnostics();
+    return apiFetch(
+      '/api/cards/published',
+      {
+        method: 'GET',
+        credentials: 'omit',
+        cache: options.reload ? 'reload' : 'no-cache',
+        signal: options.signal,
+      },
+      REQUEST_TIMEOUT,
+      true
+    );
+  },
   get<T>(path: string, options: { readonly signal?: AbortSignal } = {}): Promise<ApiResponse<T>> {
     return apiFetch<T>(path, { method: 'GET', signal: options.signal });
   },

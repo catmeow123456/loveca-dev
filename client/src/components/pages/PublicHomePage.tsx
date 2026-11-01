@@ -33,6 +33,8 @@ interface PublicHomePageProps {
   onTryOffline: () => void;
   onTutorial: () => void;
   serviceAvailable: boolean;
+  onRetryService?: () => void;
+  retryingService?: boolean;
   siteStatus: PublicSiteStatus;
 }
 
@@ -136,6 +138,8 @@ export function PublicHomePage({
   onTryOffline,
   onTutorial,
   serviceAvailable,
+  onRetryService,
+  retryingService = false,
   siteStatus,
 }: PublicHomePageProps) {
   const textOnly = useTextPresentation();
@@ -184,6 +188,11 @@ export function PublicHomePage({
             </tr>
           </tbody>
         </table>
+        {!serviceAvailable && onRetryService && (
+          <button onClick={onRetryService} disabled={retryingService}>
+            {retryingService ? '正在重试…' : '重试加载卡牌'}
+          </button>
+        )}
         {siteStatus.maintenance && <p>服务维护中，请按当前服务状态操作。</p>}
         <LegalNotice />
       </main>
@@ -314,6 +323,15 @@ export function PublicHomePage({
               <div className="public-home__service-note" role="status">
                 <span aria-hidden="true" />
                 云端服务暂不可用；仍可查看首页或体验离线对局。
+                {onRetryService && (
+                  <button
+                    onClick={onRetryService}
+                    disabled={retryingService}
+                    className="button-secondary"
+                  >
+                    {retryingService ? '正在重试…' : '重试加载卡牌'}
+                  </button>
+                )}
               </div>
             ) : null}
           </motion.div>

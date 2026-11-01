@@ -7,7 +7,7 @@
  */
 
 import { z } from 'zod/v4';
-import { HeartColor } from '../../shared/types/enums';
+import { HeartColor } from '../../shared/types/enums.js';
 
 // ============================================
 // 基础类型 Schema

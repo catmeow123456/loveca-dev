@@ -10,7 +10,8 @@ import { readFrozenMuseDeck } from '../../../tests/helpers/ai-curated-decks';
 import { createMemoryAiBilling } from '../../../tests/helpers/ai-battle-billing';
 import { aiTestResponse } from '../../../tests/helpers/ai-battle-test-policy';
 import type { AnyCardData } from '../../../src/domain/entities/card';
-import type { CardDbRecord } from '../../src/lib/cardService';
+import { createPublicCardCatalog } from '../support/publicCardCatalog';
+import type { PublicCardRecord } from '../../../src/shared/public-card-catalog';
 
 const OWNER = 'ai-ui-admin';
 const NOW = '2026-09-09T06:00:00.000Z';
@@ -31,7 +32,7 @@ export async function aiBrowserFixture(
   page: Page,
   archiveDirectory?: string,
   published?: {
-    readonly records: readonly CardDbRecord[];
+    readonly catalog: { readonly schemaVersion: 1; readonly cards: readonly PublicCardRecord[] };
     readonly cards: readonly AnyCardData[];
   }
 ) {
@@ -63,6 +64,7 @@ export async function aiBrowserFixture(
     const deck = readFrozenMuseDeck().deck;
     registry.load([...deck.mainDeck, ...deck.energyDeck]);
   }
+  const catalog = published?.catalog ?? createPublicCardCatalog(registry.getAll());
   const matches = new OnlineMatchService({ recorder: null });
   const traces = new AiBattleTraceStore();
   const state = { modelCalls: 0, writes: [] as string[], snapshots: 0, failNextEnd: false };
@@ -169,8 +171,7 @@ export async function aiBrowserFixture(
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
-    if (path === '/api/cards')
-      return published ? fulfill(route, published.records) : route.fallback();
+    if (path === '/api/cards/published') return fulfill(route, catalog);
     if (path === '/api/config')
       return fulfill(route, {
         features: {

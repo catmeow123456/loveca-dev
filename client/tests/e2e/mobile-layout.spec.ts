@@ -3,6 +3,10 @@ import { Buffer } from 'node:buffer';
 import type { RankedOverviewView } from '../../../src/online/ranked-types';
 import type { ThemeTableOverviewView } from '../../../src/online/theme-table-types';
 import type { DeckRecord } from '../../src/lib/apiClient';
+import { publicCardCatalogSchema } from '../../../src/shared/public-card-catalog';
+
+// Keep API reads under the route fixtures in production previews as well.
+test.use({ serviceWorkers: 'block' });
 
 type ApiError = { code: string; message: string } | null;
 type CardDbRecord = {
@@ -467,6 +471,10 @@ async function installApiMocks(
   }
 ) {
   let currentBattleEntryVisibility = { ...battleEntryVisibility };
+  const catalog = publicCardCatalogSchema.parse({
+    schemaVersion: 1,
+    cards: cardRecords.filter((card) => card.status === 'PUBLISHED'),
+  });
 
   await page.route('**/site-status.json*', async (route) => {
     await route.fulfill({
@@ -734,8 +742,8 @@ async function installApiMocks(
       return;
     }
 
-    if (url.pathname === '/api/cards' && method === 'GET') {
-      await fulfillApi(route, cardRecords);
+    if (url.pathname === '/api/cards/published' && method === 'GET') {
+      await fulfillApi(route, catalog);
       return;
     }
 
@@ -760,8 +768,9 @@ async function installApiMocks(
 
     if (/^\/api\/cards\/[^/]+$/.test(url.pathname)) {
       const cardCode = decodeURIComponent(url.pathname.split('/').at(-1) ?? '');
-      const card = cardRecords.find((record) => record.card_code === cardCode) ?? cardRecords[0];
-      await fulfillApi(route, card);
+      const card = cardRecords.find((record) => record.card_code === cardCode);
+      if (card) await fulfillApi(route, card);
+      else await fulfillApi(route, null, 404, { code: 'NOT_FOUND', message: '卡牌不存在' });
       return;
     }
 
@@ -968,7 +977,9 @@ test.describe('focused browser regressions', () => {
     const firstCardButton = page.getByRole('button', { name: /^编辑 移动验收成员/ }).first();
     await expect(firstCardButton).toBeVisible();
     expect(
-      cardRequests.filter((request) => request.method === 'GET' && request.path === '/api/cards')
+      cardRequests.filter(
+        (request) => request.method === 'GET' && request.path === '/api/cards/published'
+      )
     ).toHaveLength(0);
     expect(
       cardRequests.filter(
@@ -1022,7 +1033,11 @@ test.describe('focused browser regressions', () => {
 
     await page.setViewportSize({ width: 1280, height: 560 });
     await installApiMocks(page, true, PRODUCT_FILTER_CARD_RECORDS);
+    const catalogResponse = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === '/api/cards/published'
+    );
     await page.goto('/?page=deck-manager&openDeckId=e2e-deck');
+    expect((await catalogResponse).status()).toBe(200);
     await expect(page.getByPlaceholder('搜索卡牌名称或编号...')).toBeVisible();
 
     await page.getByRole('button', { name: '收录商品', exact: true }).click();

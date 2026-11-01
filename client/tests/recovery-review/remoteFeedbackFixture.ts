@@ -12,6 +12,7 @@ import {
   type ContinuousFeedbackScenarioId,
 } from '../../../tests/helpers/continuous-feedback-fixture';
 import { getMemberEffectiveCost } from '@game/domain/rules/member-effective-cost';
+import { createPublicCardCatalog } from '../support/publicCardCatalog';
 import {
   getMemberEffectiveBladeCount,
   getMemberEffectiveHeartIcons,
@@ -39,6 +40,18 @@ const snapshot = (inline = true): RemoteSnapshot => ({
   ...(inline ? { publicEvents: fixture.session.getPublicEventsSince(0) } : {}),
 });
 
+function createScenario(input: Parameters<typeof prepareRemoteFeedback>[0]) {
+  return input.scenario === 'continuous-nico' || input.scenario === 'continuous-opponent'
+    ? prepareContinuousFeedbackScenario(input.scenario, { sourceWaiting: input.sourceWaiting })
+    : prepareEffectFeedbackScenario(input.scenario);
+}
+
+export function createRemoteFeedbackCatalog(input: Parameters<typeof prepareRemoteFeedback>[0]) {
+  return createPublicCardCatalog(
+    createScenario(input).cards.map((card) => card.data as AnyCardData)
+  );
+}
+
 export async function prepareRemoteFeedback(input: {
   source: 'ONLINE' | 'SOLITAIRE' | 'AI_DEBUG';
   scenario: FeedbackScenarioId | ContinuousFeedbackScenarioId;
@@ -46,10 +59,7 @@ export async function prepareRemoteFeedback(input: {
   revision?: number;
   sourceWaiting?: boolean;
 }) {
-  fixture =
-    input.scenario === 'continuous-nico' || input.scenario === 'continuous-opponent'
-      ? prepareContinuousFeedbackScenario(input.scenario, { sourceWaiting: input.sourceWaiting })
-      : prepareEffectFeedbackScenario(input.scenario);
+  fixture = createScenario(input);
   revision = input.revision ?? 1;
   source = input.source;
   seat = input.seat ?? 'FIRST';

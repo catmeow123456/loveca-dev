@@ -74,8 +74,13 @@ import { ThemeTableGlobalLayer } from '@/components/theme-table/ThemeTableGlobal
 import { MatchmakingAudioLayer } from '@/components/matchmaking/MatchmakingAudioLayer';
 import { hasAnyManagementPermission, hasPermission } from '@game/shared/auth/permissions';
 import type { DeckClassifierTemplateImportSource } from '@/components/admin/DeckClassifierAdminPage';
-import { AUTHORIZATION_STALE_EVENT } from '@/lib/apiClient';
-import { markAppDataReady, markAppSurfaceReady, startAppNavigation } from '@/lib/appPerformance';
+import { AUTHORIZATION_STALE_EVENT, ApiClientError } from '@/lib/apiClient';
+import {
+  markAppDataReady,
+  markAppSurfaceReady,
+  startAppNavigation,
+  formatCatalogDiagnostics,
+} from '@/lib/appPerformance';
 import {
   loadPublicSiteStatusSnapshot,
   type PublicSiteStatusSnapshotResult,
@@ -415,6 +420,9 @@ function AppContent() {
   const [isLoading, setIsLoading] = useState(!isInitialAuthActionPage);
   const [cardDataInitialized, setCardDataInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cardLoadAttempt, setCardLoadAttempt] = useState(0);
+  const [cardDiagnostic, setCardDiagnostic] = useState('');
+  const cardRetryInFlight = useRef(false);
   const [authPage, setAuthPage] = useState<AuthPage>(initialAuthRequest.page);
   const [authToken, setAuthToken] = useState<string | null>(initialAuthRequest.token);
   const [currentPage, setCurrentPageState] = useState<AppPage>(getInitialPage);
@@ -547,6 +555,8 @@ function AppContent() {
   const [configInitialized, setConfigInitialized] = useState(false);
   const [configLoadFailed, setConfigLoadFailed] = useState(false);
   const [publicSnapshot, setPublicSnapshot] = useState<PublicSiteStatusSnapshotResult | null>(null);
+  const [checkingStartupStatus, setCheckingStartupStatus] = useState(false);
+  const startupStatusRetry = useRef<Promise<boolean> | null>(null);
   const appConfigRenderKeyRef = useRef(buildPublicAppConfigRenderKey(DEFAULT_APP_CONFIG));
   const publicConfigRefreshInFlightRef = useRef<Promise<boolean> | null>(null);
   const publicConfigLastAttemptAtRef = useRef<number | null>(null);
@@ -598,6 +608,46 @@ function AppContent() {
     ]);
     setPublicSnapshot(snapshot);
   }, [refreshPublicConfigInBackground]);
+
+  const retryStartupStatus = useCallback((): Promise<boolean> => {
+    if (startupStatusRetry.current) return startupStatusRetry.current;
+    setCheckingStartupStatus(true);
+    startupStatusRetry.current = Promise.allSettled([
+      loadPublicAppConfig(),
+      loadPublicSiteStatusSnapshot(),
+    ])
+      .then(([config, snapshot]) => {
+        setConfigInitialized(true);
+        setConfigLoadFailed(config.status === 'rejected');
+        if (config.status === 'fulfilled') setAppConfigIfChanged(config.value);
+        const nextSnapshot: PublicSiteStatusSnapshotResult =
+          snapshot.status === 'fulfilled'
+            ? snapshot.value
+            : { kind: 'UNAVAILABLE', snapshot: null };
+        setPublicSnapshot(nextSnapshot);
+        return (
+          config.status === 'fulfilled' &&
+          nextSnapshot.kind === 'VALID' &&
+          nextSnapshot.snapshot.availability === 'OPEN' &&
+          config.value.siteStatus.lifecycle !== 'MAINTENANCE'
+        );
+      })
+      .finally(() => {
+        startupStatusRetry.current = null;
+        setCheckingStartupStatus(false);
+      });
+    return startupStatusRetry.current;
+  }, [setAppConfigIfChanged]);
+
+  const retryCardData = useCallback(async () => {
+    if (cardRetryInFlight.current) return;
+    cardRetryInFlight.current = true;
+    if (await retryStartupStatus()) {
+      setCardLoadAttempt((attempt) => attempt + 1);
+    } else {
+      cardRetryInFlight.current = false;
+    }
+  }, [retryStartupStatus]);
 
   // 防止 React 19 Strict Mode 下重复初始化
   const authInitRef = useRef(false);
@@ -828,7 +878,7 @@ function AppContent() {
       setError(null);
       try {
         // 从数据库加载已上线的卡牌数据（仅 PUBLISHED）
-        const cards = await cardService.getAllCards(true, 'PUBLISHED');
+        const cards = await cardService.getPublishedCards(cardLoadAttempt > 0);
 
         // 图片映射暂时为空（后续可从数据库或 CDN 获取）
         const imageMap = new Map<string, string>();
@@ -848,9 +898,18 @@ function AppContent() {
           setCardDataInitialized(true);
         } else {
           console.error('[App] 卡牌数据加载失败:', err);
-          setError(err instanceof Error ? err.message : '未知错误');
+          setError(
+            err instanceof ApiClientError && err.code === 'TIMEOUT'
+              ? '卡牌数据下载超时，请检查网络后重试。'
+              : err instanceof ApiClientError && err.code === 'INVALID_CATALOG'
+                ? err.message
+                : '暂时无法加载完整卡牌数据，请稍后重试。'
+          );
+          setCardDiagnostic(formatCatalogDiagnostics());
         }
         setIsLoading(false);
+      } finally {
+        if (!cancelled) cardRetryInFlight.current = false;
       }
     };
 
@@ -862,6 +921,7 @@ function AppContent() {
     authInitialized,
     authPage,
     cardDataInitialized,
+    cardLoadAttempt,
     currentPage,
     initDeckStore,
     loadCardData,
@@ -1040,7 +1100,12 @@ function AppContent() {
 
   if (!maintenanceRecoveryAllowed && (snapshotMaintenance || apiMaintenance)) {
     return (
-      <ServiceStatusPage kind="MAINTENANCE" maintenance={snapshotMaintenance ?? apiMaintenance} />
+      <ServiceStatusPage
+        kind="MAINTENANCE"
+        maintenance={snapshotMaintenance ?? apiMaintenance}
+        onRetry={() => void retryStartupStatus()}
+        retrying={checkingStartupStatus}
+      />
     );
   }
 
@@ -1049,7 +1114,13 @@ function AppContent() {
     publicSnapshot &&
     (configLoadFailed || publicSnapshot.kind !== 'VALID')
   ) {
-    return <ServiceStatusPage kind="UNAVAILABLE" />;
+    return (
+      <ServiceStatusPage
+        kind="UNAVAILABLE"
+        onRetry={() => void retryStartupStatus()}
+        retrying={checkingStartupStatus}
+      />
+    );
   }
 
   // 等待独立公开快照、公开配置与认证初始化。维护快照一旦读取成功会在上方立即接管页面。
@@ -1085,8 +1156,20 @@ function AppContent() {
 
   // 已进入账户/离线会话后仍保持原有启动失败边界；公开首页可以在卡牌 API
   // 暂时不可用时继续展示，并把状态降级到相关操作附近。
-  if (error && isAuthenticated && currentPageRequiresCardData) {
-    return <StartupErrorPage error={error} siteStatus={appConfig.siteStatus} />;
+  if (
+    error &&
+    (isAuthenticated || shareId || spectatorToken || spectatorLobbyRequested) &&
+    currentPageRequiresCardData
+  ) {
+    return (
+      <StartupErrorPage
+        error={error}
+        siteStatus={appConfig.siteStatus}
+        onRetry={() => void retryCardData()}
+        retrying={checkingStartupStatus}
+        diagnostic={cardDiagnostic}
+      />
+    );
   }
 
   // 未登录且不是离线模式，显示登录/注册页面
@@ -1204,6 +1287,8 @@ function AppContent() {
                 enterOfflineMode('Guest');
               }}
               serviceAvailable={!error}
+              onRetryService={() => void retryCardData()}
+              retryingService={checkingStartupStatus || isLoading}
               siteStatus={appConfig.siteStatus}
             />
           </>
@@ -1912,7 +1997,28 @@ function AppContent() {
   );
 }
 
-function StartupErrorPage({ siteStatus }: { error: string; siteStatus: PublicSiteStatus }) {
+function StartupErrorPage({
+  siteStatus,
+  error,
+  onRetry,
+  retrying,
+  diagnostic,
+}: {
+  error: string;
+  siteStatus: PublicSiteStatus;
+  onRetry: () => void;
+  retrying: boolean;
+  diagnostic: string;
+}) {
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'manual'>('idle');
+  const copyDiagnostic = async () => {
+    try {
+      await navigator.clipboard.writeText(diagnostic);
+      setCopyState('copied');
+    } catch {
+      setCopyState('manual');
+    }
+  };
   const maintenance = siteStatus.maintenance;
   const visibleMaintenance =
     maintenance &&
@@ -1945,12 +2051,25 @@ function StartupErrorPage({ siteStatus }: { error: string; siteStatus: PublicSit
         ) : null}
 
         <h2 className="mb-4 text-xl font-bold text-[var(--semantic-error)]">服务暂时不可用</h2>
-        <p className="mb-4 text-sm leading-6 text-[var(--text-secondary)]">
-          当前无法完成页面初始化。请稍后重新加载；如果问题持续，请查看平台公告。
-        </p>
-        <button onClick={() => window.location.reload()} className="button-primary px-4 py-2">
-          重新加载
-        </button>
+        <p className="mb-2 text-sm leading-6 text-[var(--text-secondary)]">{error}</p>
+        <p className="mb-4 text-sm text-[var(--text-secondary)]">登录、卡组和设置会保留。</p>
+        <div className="flex flex-wrap justify-center gap-3" aria-busy={retrying}>
+          <button onClick={onRetry} disabled={retrying} className="button-primary px-4 py-2">
+            {retrying ? '正在检查服务…' : '重试加载'}
+          </button>
+          <button onClick={() => void copyDiagnostic()} className="button-secondary px-4 py-2">
+            {copyState === 'copied' ? '诊断已复制' : '复制诊断'}
+          </button>
+        </div>
+        {copyState === 'manual' && (
+          <textarea
+            aria-label="诊断信息"
+            readOnly
+            value={diagnostic}
+            className="mt-4 h-40 w-full rounded border p-2 text-xs"
+            onFocus={(event) => event.target.select()}
+          />
+        )}
       </div>
     </div>
   );

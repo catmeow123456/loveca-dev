@@ -3,7 +3,9 @@
  * Provides card data CRUD operations via self-hosted API
  */
 
-import { apiClient, isApiConfigured } from './apiClient';
+import { apiClient, isApiConfigured, ApiClientError, toApiClientError } from './apiClient';
+import { publicCardCatalogSchema, type PublicCardRecord } from '@game/shared/public-card-catalog';
+import { recordCatalogValidationFailure } from './appPerformance';
 import type {
   AnyCardData,
   MemberCardData,
@@ -14,9 +16,7 @@ import type {
   BladeHearts,
 } from '@game/domain/entities/card';
 import { createHeartRequirement } from '@game/domain/entities/card';
-import { inheritMissingBladeHeartsByBase } from '@game/domain/card-data/blade-heart-inheritance';
 import { CardType, HeartColor, BladeHeartEffect } from '@game/shared/types/enums';
-import { cleanLocalizedText } from './cardLocalization';
 
 // ============================================
 // Database record type
@@ -119,7 +119,10 @@ export interface AdminCardListParams {
 // Data conversion
 // ============================================
 
-function dbRecordToCardData(record: CardDbRecord): AnyCardData {
+function dbRecordToCardData(
+  record: PublicCardRecord &
+    Partial<Pick<CardDbRecord, 'image_source_uri' | 'source_external_id' | 'source_flags'>>
+): AnyCardData {
   const name = record.name_cn?.trim() || record.name_jp?.trim() || record.card_code;
   const cardText = record.card_text_cn?.trim() || record.card_text_jp?.trim() || undefined;
 
@@ -144,7 +147,7 @@ function dbRecordToCardData(record: CardDbRecord): AnyCardData {
     sourceFlags: record.source_flags ?? undefined,
   };
 
-  const convertBladeHearts = (items: BladeHeartItem[] | null): BladeHearts | undefined => {
+  const convertBladeHearts = (items: PublicCardRecord['blade_hearts']): BladeHearts | undefined => {
     if (!items || items.length === 0) return undefined;
     return items.map((item) => ({
       effect: item.effect as BladeHeartEffect,
@@ -226,43 +229,37 @@ function cardDataToDbUpdate(data: CardUpdateInput): Partial<CardDbRecord> {
 // ============================================
 
 class CardService {
-  private cache: Map<string, AnyCardData> = new Map();
-  private cacheExpiry: number = 0;
+  private publishedLoad: Promise<AnyCardData[]> | null = null;
+
+  // Only share an in-flight read. Later loads must revalidate with the server;
+  // HTTP caching handles reuse without retaining stale application snapshots.
+  getPublishedCards(reload = false): Promise<AnyCardData[]> {
+    if (this.publishedLoad) return this.publishedLoad;
+    this.publishedLoad = apiClient
+      .getPublishedCards({ reload })
+      .then((result) => {
+        if (result.error) throw toApiClientError(result, '获取卡牌数据失败');
+        const parsed = publicCardCatalogSchema.safeParse(result.data);
+        if (!parsed.success) {
+          recordCatalogValidationFailure();
+          throw new ApiClientError({
+            code: 'INVALID_CATALOG',
+            message: '卡牌数据不完整或格式异常，请重试。',
+            status: result.status,
+            requestId: result.requestId,
+          });
+        }
+        return parsed.data.cards.map(dbRecordToCardData);
+      })
+      .finally(() => {
+        this.publishedLoad = null;
+      });
+    return this.publishedLoad;
+  }
+
   private statusCache: Map<string, 'DRAFT' | 'PUBLISHED'> = new Map();
   private statusCacheExpiry: number = 0;
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-  async getAllCards(
-    forceRefresh = false,
-    statusFilter?: 'DRAFT' | 'PUBLISHED' | 'all'
-  ): Promise<AnyCardData[]> {
-    if (!statusFilter && !forceRefresh && this.cache.size > 0 && Date.now() < this.cacheExpiry) {
-      return Array.from(this.cache.values());
-    }
-
-    if (!isApiConfigured) {
-      console.warn('API not configured, cannot fetch card data');
-      return [];
-    }
-
-    const statusParam = statusFilter ? `?status=${statusFilter}` : '';
-    const result = await apiClient.get<CardDbRecord[]>(`/api/cards${statusParam}`);
-
-    if (result.error) {
-      throw new Error(`获取卡牌数据失败: ${result.error.message}`);
-    }
-
-    const data = inheritMissingBladeHeartsByBase(result.data ?? []);
-    const cards = data.map(dbRecordToCardData);
-
-    if (!statusFilter) {
-      this.cache.clear();
-      cards.forEach((card) => this.cache.set(card.cardCode, card));
-      this.cacheExpiry = Date.now() + this.CACHE_TTL;
-    }
-
-    return cards;
-  }
 
   async getAdminCards(params: AdminCardListParams): Promise<AdminCardListPage> {
     if (!isApiConfigured) {
@@ -307,11 +304,6 @@ class CardService {
   }
 
   async getCardByCode(cardCode: string): Promise<AnyCardData | null> {
-    const cached = this.cache.get(cardCode);
-    if (cached && Date.now() < this.cacheExpiry) {
-      return cached;
-    }
-
     if (!isApiConfigured) return null;
 
     const result = await apiClient.get<CardDbRecord>(`/api/cards/${encodeURIComponent(cardCode)}`);
@@ -324,7 +316,6 @@ class CardService {
     if (!result.data) return null;
 
     const card = dbRecordToCardData(result.data);
-    this.cache.set(cardCode, card);
     return card;
   }
 
@@ -340,7 +331,6 @@ class CardService {
     if (result.error) throw new Error(`更新卡牌失败: ${result.error.message}`);
 
     const card = dbRecordToCardData(result.data!);
-    this.cache.set(cardCode, card);
     return card;
   }
 
@@ -378,7 +368,6 @@ class CardService {
     if (result.error) throw new Error(`创建卡牌失败: ${result.error.message}`);
 
     const card = dbRecordToCardData(result.data!);
-    this.cache.set(card.cardCode, card);
     return card;
   }
 
@@ -387,8 +376,6 @@ class CardService {
 
     const result = await apiClient.delete(`/api/cards/${encodeURIComponent(cardCode)}`);
     if (result.error) throw new Error(`删除卡牌失败: ${result.error.message}`);
-
-    this.cache.delete(cardCode);
   }
 
   async exportCards(): Promise<AnyCardData[]> {
@@ -420,30 +407,7 @@ class CardService {
     return { success, failed, errors };
   }
 
-  async getCardsByType(type: CardType): Promise<AnyCardData[]> {
-    const allCards = await this.getAllCards();
-    return allCards.filter((card) => card.cardType === type);
-  }
-
-  async getCardsByGroup(groupName: string): Promise<AnyCardData[]> {
-    const allCards = await this.getAllCards();
-    return allCards.filter((card) => card.groupNames?.includes(groupName) === true);
-  }
-
-  async searchCards(query: string): Promise<AnyCardData[]> {
-    const allCards = await this.getAllCards();
-    const lowerQuery = query.toLowerCase();
-    return allCards.filter(
-      (card) =>
-        card.cardCode.toLowerCase().includes(lowerQuery) ||
-        cleanLocalizedText(card.nameCn)?.toLowerCase().includes(lowerQuery) ||
-        cleanLocalizedText(card.nameJp)?.toLowerCase().includes(lowerQuery)
-    );
-  }
-
   clearCache(): void {
-    this.cache.clear();
-    this.cacheExpiry = 0;
     this.statusCache.clear();
     this.statusCacheExpiry = 0;
   }
@@ -489,14 +453,6 @@ class CardService {
     this.statusCacheExpiry = Date.now() + this.CACHE_TTL;
 
     return new Map(this.statusCache);
-  }
-
-  getCacheStatus(): { size: number; expiry: Date; isExpired: boolean } {
-    return {
-      size: this.cache.size,
-      expiry: new Date(this.cacheExpiry),
-      isExpired: Date.now() >= this.cacheExpiry,
-    };
   }
 }
 

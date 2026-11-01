@@ -2,15 +2,18 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import { aiBrowserFixture } from './ai-battle-fixture';
 import { createHeartRequirement, type AnyCardData } from '../../../src/domain/entities/card';
-import { CardType, HeartColor } from '../../../src/shared/types/enums';
-import type { CardDbRecord } from '../../src/lib/cardService';
+import { BladeHeartEffect, CardType, HeartColor } from '../../../src/shared/types/enums';
+import { publicCardCatalogSchema } from '../../../src/shared/public-card-catalog';
+
+test.use({ serviceWorkers: 'block' });
 
 // Read a frozen snapshot of the local public card API. No database writes or model calls.
 async function publishedFixture() {
   const path = process.env.LOVECA_AI_UI_CARDS;
-  if (!path) throw new Error('LOVECA_AI_UI_CARDS must point to a local public /api/cards snapshot');
-  const { data: records } = JSON.parse(await readFile(path, 'utf8')) as { data: CardDbRecord[] };
-  const cards = records.map((r): AnyCardData => {
+  if (!path)
+    throw new Error('LOVECA_AI_UI_CARDS must point to a local /api/cards/published snapshot');
+  const catalog = publicCardCatalogSchema.parse(JSON.parse(await readFile(path, 'utf8')).data);
+  const cards = catalog.cards.map((r): AnyCardData => {
     const base = {
       cardCode: r.card_code,
       name: r.name_cn ?? r.name_jp ?? r.card_code,
@@ -22,9 +25,11 @@ async function publishedFixture() {
       cardTextCn: r.card_text_cn ?? undefined,
       cardTextJp: r.card_text_jp ?? undefined,
       imageFilename: r.image_filename ?? undefined,
-      imageSourceUri: r.image_source_uri ?? undefined,
       rare: r.rare ?? undefined,
-      bladeHearts: r.blade_hearts ?? undefined,
+      bladeHearts: r.blade_hearts?.map((heart) => ({
+        ...heart,
+        effect: heart.effect as BladeHeartEffect,
+      })),
     };
     if (r.card_type === 'MEMBER')
       return {
@@ -51,11 +56,12 @@ async function publishedFixture() {
       };
     return { ...base, cardType: CardType.ENERGY };
   });
-  return { records, cards };
+  return { catalog, cards };
 }
 
 test.describe('管理员双 AI 建局与共享观战窗口', () => {
-  test.beforeEach(async ({}, info) => {
+  test.beforeEach(async ({ browser }, info) => {
+    void browser;
     test.skip(info.project.name !== 'tablet-1024x768', '显式验证宽屏和窄屏');
     await mkdir('../output/playwright/ai-battle', { recursive: true });
   });
@@ -115,11 +121,13 @@ test.describe('管理员双 AI 建局与共享观战窗口', () => {
         await page.getByRole('button', { name: '关闭决定观察', exact: true }).click();
         await expect
           .poll(() =>
-            f.service.exportDecisions(f.owner, sessions[0]!.matchId).decisions.some(
-              (decision) =>
-                decision.purpose === 'LIVE_SET' &&
-                decision.events.some((event) => event.stage === 'MODEL_VALIDATION')
-            )
+            f.service
+              .exportDecisions(f.owner, sessions[0]!.matchId)
+              .decisions.some(
+                (decision) =>
+                  decision.purpose === 'LIVE_SET' &&
+                  decision.events.some((event) => event.stage === 'MODEL_VALIDATION')
+              )
           )
           .toBe(true);
         expect(f.service.getSession(f.owner, sessions[0]!.matchId).consecutiveFailures).toBe(0);

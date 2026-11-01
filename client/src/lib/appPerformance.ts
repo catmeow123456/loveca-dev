@@ -8,6 +8,7 @@ export const APP_PERFORMANCE_ENTRY_NAMES = {
   backgroundRefreshComplete: `${APP_PERFORMANCE_PREFIX}data:background-refresh-complete`,
   navigationToSurface: `${APP_PERFORMANCE_PREFIX}measure:navigation-to-surface`,
   navigationToData: `${APP_PERFORMANCE_PREFIX}measure:navigation-to-data`,
+  catalogAttempt: `${APP_PERFORMANCE_PREFIX}startup:catalog-attempt`,
 } as const;
 
 export type AppNavigationTrigger = 'document-load' | 'app-page-state';
@@ -28,6 +29,60 @@ interface ActiveNavigation {
 
 let activeNavigation: ActiveNavigation | null = null;
 let navigationSequence = 0;
+
+export interface CatalogAttemptDiagnostic {
+  attempt: number;
+  phase: 'headers' | 'body' | 'parse' | 'validation' | 'complete';
+  outcome:
+    | 'SUCCESS'
+    | 'TIMEOUT'
+    | 'ABORTED'
+    | 'NETWORK_ERROR'
+    | 'INVALID_RESPONSE'
+    | 'INVALID_CATALOG'
+    | 'HTTP_ERROR';
+  elapsedMs: number;
+  headersMs?: number;
+  bodyMs?: number;
+  parseMs?: number;
+  status?: number;
+  requestId?: string;
+}
+
+let catalogAttempts: CatalogAttemptDiagnostic[] = [];
+
+export function startCatalogDiagnostics(): void {
+  catalogAttempts = [];
+  getPerformance()?.clearMarks(APP_PERFORMANCE_ENTRY_NAMES.catalogAttempt);
+}
+
+export function recordCatalogAttempt(attempt: CatalogAttemptDiagnostic): void {
+  catalogAttempts = [...catalogAttempts, { ...attempt }].slice(-2);
+  mark(APP_PERFORMANCE_ENTRY_NAMES.catalogAttempt, { ...attempt });
+}
+
+export function recordCatalogValidationFailure(): void {
+  const last = catalogAttempts.at(-1);
+  if (last) {
+    last.phase = 'validation';
+    last.outcome = 'INVALID_CATALOG';
+    mark(APP_PERFORMANCE_ENTRY_NAMES.catalogAttempt, { ...last });
+  }
+}
+
+// Deliberately excludes navigation entries: those can contain auth/share URL parameters.
+export function formatCatalogDiagnostics(): string {
+  return JSON.stringify(
+    {
+      build: typeof __APP_BUILD_ID__ === 'undefined' ? 'development' : __APP_BUILD_ID__,
+      capturedAt: new Date().toISOString(),
+      source: 'published-card-catalog',
+      attempts: catalogAttempts,
+    },
+    null,
+    2
+  );
+}
 
 function getPerformance(): Performance | null {
   const candidate = globalThis.performance;

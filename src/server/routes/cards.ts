@@ -12,9 +12,35 @@ import {
   setCardImageVersionMetadata,
 } from '../../shared/card-image-version-metadata.js';
 import { getBaseCardCode } from '../../shared/utils/card-code.js';
+import { publicCardCatalogSchema } from '../../shared/public-card-catalog.js';
 
 export const cardsRouter = Router();
 const requireCardsManage = requirePermission('cards.manage');
+
+// Identity-independent representation. Express derives an ETag from the complete
+// validated body and handles conditional GETs; every revalidation reads current DB data.
+cardsRouter.get('/published', async (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const { rows } = await pool.query<CardRouteRecord>(
+      `SELECT card_code, card_type, name_jp, name_cn, work_names, group_names,
+              unit_name, unit_name_raw, cost, blade,
+              COALESCE(hearts, '[]'::jsonb) AS hearts, blade_hearts, score,
+              COALESCE(requirements, '[]'::jsonb) AS requirements,
+              card_text_jp, card_text_cn, image_filename, rare,
+              product, product_code
+         FROM cards WHERE status = 'PUBLISHED' ORDER BY card_code`
+    );
+    const data = publicCardCatalogSchema.parse({
+      schemaVersion: 1,
+      cards: inheritMissingBladeHeartsByBase(rows),
+    });
+    res.setHeader('Cache-Control', 'public, no-cache');
+    res.json({ data, error: null });
+  } catch (error) {
+    next(error);
+  }
+});
 
 function hasLanguageName(value: { name_jp?: string | null; name_cn?: string | null }): boolean {
   return Boolean(value.name_jp?.trim() || value.name_cn?.trim());
@@ -131,38 +157,6 @@ function buildAdminCardFilter(
 function toIsoString(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
-
-// ============================================
-// GET /api/cards
-// ============================================
-
-cardsRouter.get('/', async (req, res, next) => {
-  try {
-    const isAdmin = req.user
-      ? Boolean(await readCurrentAuthorizedRole(req.user.id, req.user.role, 'cards.manage'))
-      : false;
-    const statusFilter = req.query.status as string | undefined;
-
-    let query: string;
-    const params: unknown[] = [];
-
-    if (isAdmin && statusFilter === 'all') {
-      query = 'SELECT * FROM cards ORDER BY card_code';
-    } else if (isAdmin && statusFilter) {
-      query = 'SELECT * FROM cards WHERE status = $1 ORDER BY card_code';
-      params.push(statusFilter);
-    } else {
-      // Non-admin: only PUBLISHED
-      query = "SELECT * FROM cards WHERE status = 'PUBLISHED' ORDER BY card_code";
-    }
-
-    const { rows } = await pool.query<CardRouteRecord>(query, params);
-    const cards = inheritMissingBladeHeartsByBase(rows);
-    res.json({ data: cards, total: cards.length, error: null });
-  } catch (err) {
-    next(err);
-  }
-});
 
 // ============================================
 // GET /api/cards/admin

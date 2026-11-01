@@ -143,18 +143,6 @@ describe('cardsRouter', () => {
     vi.clearAllMocks();
   });
 
-  it('赛季管理员通过公开列表仍只能读取已发布卡牌', async () => {
-    poolQueryMock.mockResolvedValueOnce({ rows: [] } as never);
-
-    const response = await invokeRoute('/', 'get', {
-      user: { id: 'season-admin-1', role: 'season_admin' },
-      query: { status: 'all' },
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(poolQueryMock.mock.calls[0]?.[0]).toContain("WHERE status = 'PUBLISHED'");
-  });
-
   it('赛季管理员不能通过单卡公开接口读取草稿', async () => {
     poolQueryMock.mockResolvedValueOnce({
       rows: [{ card_code: 'DRAFT-1', card_type: 'MEMBER', status: 'DRAFT' }],
