@@ -1,4 +1,9 @@
-import type { EffectFeedbackPublicEvent, EffectFeedbackTarget, PublicEvent } from '@game/online';
+import type {
+  EffectFeedbackChange,
+  EffectFeedbackPublicEvent,
+  EffectFeedbackTarget,
+  PublicEvent,
+} from '@game/online';
 
 export const EFFECT_FEEDBACK_DURATION_MS = 1250;
 export const EFFECT_FEEDBACK_MAX_BATCH = 8;
@@ -59,20 +64,29 @@ export function consumeEffectFeedback(
   };
 }
 
-/** Pending abilities and payment state changes never use the benefit light. */
+export function isEffectFeedbackGain(change: EffectFeedbackChange): boolean {
+  return (
+    (change.kind === 'HEART' || change.kind === 'BLADE' || change.kind === 'COST') &&
+    change.delta > 0
+  );
+}
+
+/** Passive stat gains use the same target light as an explicit grant. */
 export function hasEffectFeedbackGlow(
   mode: EffectFeedbackPublicEvent['mode'],
   changes: EffectFeedbackTarget['changes']
 ): boolean {
-  return (
-    mode === 'APPLIED' &&
-    changes.some(
-      (change) =>
-        (change.kind === 'HEART' ||
-          change.kind === 'BLADE' ||
-          change.kind === 'SCORE' ||
-          change.kind === 'REQUIREMENT') &&
-        change.delta !== 0
-    )
+  return changes.some(
+    (change) =>
+      isEffectFeedbackGain(change) ||
+      (mode === 'APPLIED' && change.kind !== 'COST' && change.delta !== 0)
   );
+}
+
+/** Updating a continuous value must not suggest that its source activated again. */
+export function hasEffectFeedbackSourceGlow(
+  mode: EffectFeedbackPublicEvent['mode'],
+  changes: EffectFeedbackTarget['changes']
+): boolean {
+  return mode === 'APPLIED' && hasEffectFeedbackGlow(mode, changes);
 }

@@ -1,3 +1,5 @@
+import { captureMemberLastKnownInformation } from '../../domain/rules/member-last-known-information.js';
+import type { MemberLastKnownInformation } from '../../domain/events/game-events.js';
 /**
  * 打出成员卡动作处理器
  *
@@ -44,6 +46,7 @@ interface RelayReplacementExecution {
   readonly slot: SlotPosition;
   readonly ownerId: string;
   readonly effectiveCost: number;
+  readonly lastKnownInformation?: MemberLastKnownInformation;
 }
 
 /**
@@ -101,6 +104,7 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
       slot: targetSlot,
       ownerId: existingCard.ownerId,
       effectiveCost: getMemberEffectiveCost(game, playerId, existingCardId),
+      lastKnownInformation: captureMemberLastKnownInformation(game, playerId, existingCardId),
     };
   }
   const removedMembers =
@@ -320,6 +324,7 @@ function collectReplacementsFromSlots(
       slot,
       ownerId: replacementCard.ownerId,
       effectiveCost: getMemberEffectiveCost(game, action.playerId, cardId),
+      lastKnownInformation: captureMemberLastKnownInformation(game, action.playerId, cardId),
     });
   }
 
@@ -343,7 +348,8 @@ function emitRemovedMemberEvents(
         ZoneType.WAITING_ROOM,
         removal.ownerId,
         controllerId,
-        replacingCardId
+        replacingCardId,
+        removal.lastKnownInformation
       )
     );
   }

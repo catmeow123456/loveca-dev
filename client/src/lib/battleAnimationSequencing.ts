@@ -1,3 +1,4 @@
+import { CARE_MOVE_MS } from './careMovementPresentation';
 import { AI_INVITATION_MS } from './aiEffects';
 import { ZoneType } from '@game/shared/types/enums';
 import type { BattleAnimationEvent } from './battleAnimationEvents';
@@ -55,7 +56,12 @@ export function createSequencedBattleAnimationEvents(
     }
   }
   return events.map((event) => {
-    const delayMs = hasStageEntryMove ? getStageEntrySequencedDelay(event) : 0;
+    const delayMs =
+      event.kind === 'CARD_MOVE' && event.careMovement
+        ? event.careMovement.delayMs
+        : hasStageEntryMove
+          ? getStageEntrySequencedDelay(event)
+          : 0;
     if (recoveryEffectsEnabled && event.kind === 'CARD_MOVE' && isRecoveryCardMove(event)) {
       const seat = event.toSeat ?? '';
       const index = recoveryCounts.get(seat) ?? 0;
@@ -74,6 +80,8 @@ export function getBattleAnimationEventDurationMs(
   prefersReducedMotion = false,
   recoveryEffectsEnabled = true
 ): number {
+  if (event.kind === 'CARD_MOVE' && event.careMovement)
+    return prefersReducedMotion ? 120 : CARE_MOVE_MS[event.careMovement.kind];
   if (event.kind === 'DISCARD_PRESENTATION_BATCH') {
     return prefersReducedMotion
       ? DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS

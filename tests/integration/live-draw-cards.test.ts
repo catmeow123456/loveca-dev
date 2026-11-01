@@ -19,12 +19,14 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { createCheerEvent } from '../../src/domain/events/game-events';
+import { createCheerEvent, createLiveSuccessEvent } from '../../src/domain/events/game-events';
 import {
+  enqueueTriggeredCardEffects,
   confirmActiveEffectStep,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import {
+  N_BP8_025_LIVE_SUCCESS_DRAW_ENERGY_BELOW_NIJIGASAKI_COUNT_ABILITY_ID as NIJI_DRAW,
   PL_BP4_001_LIVE_START_LOWER_STAGE_COST_DRAW_ONE_ABILITY_ID,
   PL_BP4_023_LIVE_SUCCESS_PINK_REMAINING_HEART_DRAW_ONE_ABILITY_ID,
   PL_N_BP4_003_LIVE_SUCCESS_HIGHER_SCORE_DRAW_ABILITY_ID,
@@ -37,7 +39,11 @@ import {
   CardAbilityCategory,
   CardAbilitySourceZone,
 } from '../../src/application/card-effects/ability-definition-types';
-import { placeCardInSlot } from '../../src/domain/entities/zone';
+import {
+  addEnergyBelowMember,
+  addMemberBelowMember,
+  placeCardInSlot,
+} from '../../src/domain/entities/zone';
 import {
   CardType,
   FaceState,
@@ -46,6 +52,8 @@ import {
   SlotPosition,
   TriggerCondition,
 } from '../../src/shared/types/enums';
+
+import { getOctober31LiveData } from '../helpers/october-31-draft-effects';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -228,7 +236,11 @@ function start005(game: GameState, sourceId: string, id = 'pending'): GameState 
   return resolvePendingCardEffects({
     ...game,
     pendingAbilities: [
-      pendingAbility(S_BP3_005_LIVE_SUCCESS_FEWER_REVEALED_CHEER_CARDS_DRAW_ONE_ABILITY_ID, sourceId, id),
+      pendingAbility(
+        S_BP3_005_LIVE_SUCCESS_FEWER_REVEALED_CHEER_CARDS_DRAW_ONE_ABILITY_ID,
+        sourceId,
+        id
+      ),
     ],
   }).gameState;
 }
@@ -253,7 +265,7 @@ function latest005Payload(game: GameState): Readonly<Record<string, unknown>> {
 const SHARED_PLAYER_VISIBLE_INTERNAL_WORDS =
   /此成员已不在舞台|来源不在舞台|来源在舞台|来源不在LIVE区|来源在LIVE区|source|pending|payload|stale|eventId|trigger/i;
 
-describe('shared conditional LIVE draw-one workflow', () => {
+describe('shared conditional LIVE draw-cards workflow', () => {
   it('registers one implemented P/R definition and does not match another card', () => {
     for (const cardCode of ['PL!S-bp3-005-P', 'PL!S-bp3-005-R']) {
       const matches = getCardAbilityDefinitionsForCardCode(cardCode).filter(
@@ -295,9 +307,7 @@ describe('shared conditional LIVE draw-one workflow', () => {
     expect(started.activeEffect?.effectText).toBe(
       `【LIVE成功时】因声援被公开的自己的卡片的张数，少于因声援被公开的对方的卡片的张数的场合，抽1张卡。（本次自己因声援公开${own}张，对方${opponent}张，满足条件，实际抽1张卡。）`
     );
-    expect(started.activeEffect?.stepText).not.toMatch(
-      SHARED_PLAYER_VISIBLE_INTERNAL_WORDS
-    );
+    expect(started.activeEffect?.stepText).not.toMatch(SHARED_PLAYER_VISIBLE_INTERNAL_WORDS);
     expect(started.players[0].hand.cardIds).toEqual([]);
     const resolved = confirm005(started);
     expect(resolved.players[0].hand.cardIds).toEqual(drawIds.slice(0, 1));
@@ -309,29 +319,30 @@ describe('shared conditional LIVE draw-one workflow', () => {
     { own: 1, opponent: 1 },
     { own: 2, opponent: 1 },
     { own: 2, opponent: 2 },
-  ])('does not draw when own revealed cheer count is not lower ($own vs $opponent)', ({ own, opponent }) => {
-    const { game, sourceId, drawIds } = setup({
-      ownCardTypes: Array.from({ length: own }, () => CardType.MEMBER),
-      opponentCardTypes: Array.from({ length: opponent }, () => CardType.MEMBER),
-    });
-    const started = start005(game, sourceId);
-    expect(started.activeEffect?.effectText).toBe(
-      `【LIVE成功时】因声援被公开的自己的卡片的张数，少于因声援被公开的对方的卡片的张数的场合，抽1张卡。（本次自己因声援公开${own}张，对方${opponent}张，未满足条件，实际抽0张卡。）`
-    );
-    expect(started.activeEffect?.stepText).not.toMatch(
-      SHARED_PLAYER_VISIBLE_INTERNAL_WORDS
-    );
-    const resolved = confirm005(started);
-    expect(resolved.players[0].hand.cardIds).toEqual([]);
-    expect(resolved.players[0].mainDeck.cardIds).toEqual(drawIds);
-    expect(latest005Payload(resolved)).toMatchObject({
-      ownRevealedCheerCount: own,
-      opponentRevealedCheerCount: opponent,
-      conditionMet: false,
-      drawnCardIds: [],
-      step: 'REVEALED_CHEER_COUNT_NOT_LOWER',
-    });
-  });
+  ])(
+    'does not draw when own revealed cheer count is not lower ($own vs $opponent)',
+    ({ own, opponent }) => {
+      const { game, sourceId, drawIds } = setup({
+        ownCardTypes: Array.from({ length: own }, () => CardType.MEMBER),
+        opponentCardTypes: Array.from({ length: opponent }, () => CardType.MEMBER),
+      });
+      const started = start005(game, sourceId);
+      expect(started.activeEffect?.effectText).toBe(
+        `【LIVE成功时】因声援被公开的自己的卡片的张数，少于因声援被公开的对方的卡片的张数的场合，抽1张卡。（本次自己因声援公开${own}张，对方${opponent}张，未满足条件，实际抽0张卡。）`
+      );
+      expect(started.activeEffect?.stepText).not.toMatch(SHARED_PLAYER_VISIBLE_INTERNAL_WORDS);
+      const resolved = confirm005(started);
+      expect(resolved.players[0].hand.cardIds).toEqual([]);
+      expect(resolved.players[0].mainDeck.cardIds).toEqual(drawIds);
+      expect(latest005Payload(resolved)).toMatchObject({
+        ownRevealedCheerCount: own,
+        opponentRevealedCheerCount: opponent,
+        conditionMet: false,
+        drawnCardIds: [],
+        step: 'REVEALED_CHEER_COUNT_NOT_LOWER',
+      });
+    }
+  );
 
   it('treats an opponent without a LIVE as zero revealed cheer cards', () => {
     const { game, sourceId } = setup({
@@ -426,12 +437,8 @@ describe('shared conditional LIVE draw-one workflow', () => {
       '【LIVE成功时】因声援被公开的自己的卡片的张数，少于因声援被公开的对方的卡片的张数的场合，抽1张卡。（本次自己因声援公开1张，对方2张，满足条件，实际抽0张卡。）'
     );
     expect(started.activeEffect?.stepText).toBe('确认后按当前声援公开张数结算此效果。');
-    expect(started.activeEffect?.effectText).not.toMatch(
-      SHARED_PLAYER_VISIBLE_INTERNAL_WORDS
-    );
-    expect(started.activeEffect?.stepText).not.toMatch(
-      SHARED_PLAYER_VISIBLE_INTERNAL_WORDS
-    );
+    expect(started.activeEffect?.effectText).not.toMatch(SHARED_PLAYER_VISIBLE_INTERNAL_WORDS);
+    expect(started.activeEffect?.stepText).not.toMatch(SHARED_PLAYER_VISIBLE_INTERNAL_WORDS);
     const resolved = confirm005(started);
     expect(resolved.players[0].hand.cardIds).toEqual([]);
     expect(resolved.pendingAbilities).toEqual([]);
@@ -443,10 +450,7 @@ describe('shared conditional LIVE draw-one workflow', () => {
       sourceSlot: null,
       step: 'SOURCE_NOT_ON_STAGE',
       ownRevealedCheerCardIds: ['s-bp3-005-own-cheer-0'],
-      opponentRevealedCheerCardIds: [
-        's-bp3-005-opponent-cheer-0',
-        's-bp3-005-opponent-cheer-1',
-      ],
+      opponentRevealedCheerCardIds: ['s-bp3-005-opponent-cheer-0', 's-bp3-005-opponent-cheer-1'],
       ownRevealedCheerCount: 1,
       opponentRevealedCheerCount: 2,
       conditionMet: true,
@@ -535,14 +539,7 @@ describe('shared conditional LIVE draw-one workflow', () => {
       ...game,
       pendingAbilities: [first, second],
     }).gameState;
-    state = confirmActiveEffectStep(
-      state,
-      PLAYER1,
-      state.activeEffect!.id,
-      null,
-      null,
-      true
-    );
+    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, null, null, true);
     expect(state.activeEffect).toBeNull();
     expect(state.pendingAbilities).toEqual([]);
     expect(state.players[0].hand.cardIds).toEqual(drawIds);
@@ -591,14 +588,16 @@ function bp4Live(cardCode = 'PL!-bp4-023-L'): LiveCardData {
   };
 }
 
-function setupBp4001(options: {
-  readonly sourceCardCode?: string;
-  readonly ownCostDelta?: number;
-  readonly opponentCosts?: readonly number[];
-  readonly opponentWaitingIndexes?: readonly number[];
-  readonly memberBelowCost?: number;
-  readonly deckCount?: number;
-} = {}) {
+function setupBp4001(
+  options: {
+    readonly sourceCardCode?: string;
+    readonly ownCostDelta?: number;
+    readonly opponentCosts?: readonly number[];
+    readonly opponentWaitingIndexes?: readonly number[];
+    readonly memberBelowCost?: number;
+    readonly deckCount?: number;
+  } = {}
+) {
   const source = createCardInstance(
     bp4Member(options.sourceCardCode ?? 'PL!-bp4-001-P', 9, '高坂穂乃果'),
     PLAYER1,
@@ -665,18 +664,16 @@ function setupBp4001(options: {
   return { game, source, opponents, memberBelow, draws };
 }
 
-function setupBp4023(options: {
-  readonly sourceCardCode?: string;
-  readonly remainingHearts?: readonly HeartIcon[];
-  readonly liveJudgmentHearts?: readonly HeartIcon[];
-  readonly deckCount?: number;
-  readonly sourceInLiveZone?: boolean;
-} = {}) {
-  const source = createCardInstance(
-    bp4Live(options.sourceCardCode),
-    PLAYER1,
-    'bp4-023-source'
-  );
+function setupBp4023(
+  options: {
+    readonly sourceCardCode?: string;
+    readonly remainingHearts?: readonly HeartIcon[];
+    readonly liveJudgmentHearts?: readonly HeartIcon[];
+    readonly deckCount?: number;
+    readonly sourceInLiveZone?: boolean;
+  } = {}
+) {
+  const source = createCardInstance(bp4Live(options.sourceCardCode), PLAYER1, 'bp4-023-source');
   const draws = Array.from({ length: options.deckCount ?? 2 }, (_, index) =>
     createCardInstance(bp4Member(`bp4-023-draw-${index}`, 1), PLAYER1, `bp4-023-draw-${index}`)
   );
@@ -738,13 +735,19 @@ function latestPayload(game: GameState, abilityId: string): Readonly<Record<stri
   return (
     [...game.actionHistory]
       .reverse()
-      .find(
-        (action) => action.type === 'RESOLVE_ABILITY' && action.payload.abilityId === abilityId
-      )?.payload ?? {}
+      .find((action) => action.type === 'RESOLVE_ABILITY' && action.payload.abilityId === abilityId)
+      ?.payload ?? {}
   );
 }
 
 describe('existing shared conditional draw compatibility', () => {
+  it.each(['P', 'R'])('PL!N-bp4-003 %s keeps the complete October 31 Chinese paragraph', (rare) => {
+    expect(
+      getCardAbilityDefinitionsForCardCode(`PL!N-bp4-003-${rare}`).find(
+        (d) => d.abilityId === PL_N_BP4_003_LIVE_SUCCESS_HIGHER_SCORE_DRAW_ABILITY_ID
+      )?.effectText
+    ).toBe('【LIVE成功时】LIVE的合计分数比对方高的场合，抽1张卡。');
+  });
   it('preserves PL!N-bp4-003-P/R 费用4「桜坂しずく」 exact action payload', () => {
     const scenario = setupBp4001({ sourceCardCode: 'PL!N-bp4-003-P' });
     const game = {
@@ -767,25 +770,27 @@ describe('existing shared conditional draw compatibility', () => {
         )
       )
     );
-    expect(latestPayload(resolved, PL_N_BP4_003_LIVE_SUCCESS_HIGHER_SCORE_DRAW_ABILITY_ID)).toEqual({
-      pendingAbilityId: 'pending',
-      abilityId: PL_N_BP4_003_LIVE_SUCCESS_HIGHER_SCORE_DRAW_ABILITY_ID,
-      sourceCardId: scenario.source.instanceId,
-      sourceSlot: SlotPosition.CENTER,
-      step: 'DRAW_ONE',
-      sourceOnStage: true,
-      ownScore: 2,
-      opponentScore: 1,
-      scoreHigherThanOpponent: true,
-      drawnCardIds: [scenario.draws[0]!.instanceId],
-    });
+    expect(latestPayload(resolved, PL_N_BP4_003_LIVE_SUCCESS_HIGHER_SCORE_DRAW_ABILITY_ID)).toEqual(
+      {
+        pendingAbilityId: 'pending',
+        abilityId: PL_N_BP4_003_LIVE_SUCCESS_HIGHER_SCORE_DRAW_ABILITY_ID,
+        sourceCardId: scenario.source.instanceId,
+        sourceSlot: SlotPosition.CENTER,
+        step: 'DRAW_ONE',
+        sourceOnStage: true,
+        ownScore: 2,
+        opponentScore: 1,
+        scoreHigherThanOpponent: true,
+        drawnCardIds: [scenario.draws[0]!.instanceId],
+      }
+    );
   });
 });
 
 describe('PL!-bp4-001-P / PL!-bp4-001-R 费用9「高坂穂乃果」', () => {
   const abilityId = PL_BP4_001_LIVE_START_LOWER_STAGE_COST_DRAW_ONE_ABILITY_ID;
 
-  it.each(['PL!-bp4-001-P', 'PL!-bp4-001-R']) (
+  it.each(['PL!-bp4-001-P', 'PL!-bp4-001-R'])(
     'enters and resolves through the real LIVE_START definition path for %s',
     (sourceCardCode) => {
       const scenario = setupBp4001({ sourceCardCode, ownCostDelta: -1 });
@@ -921,7 +926,10 @@ describe('PL!-bp4-001-P / PL!-bp4-001-R 费用9「高坂穂乃果」', () => {
           },
         }));
     const resolved = confirmDirect(
-      startDirect(game, directPending(abilityId, scenario.source.instanceId, TriggerCondition.ON_LIVE_START))
+      startDirect(
+        game,
+        directPending(abilityId, scenario.source.instanceId, TriggerCondition.ON_LIVE_START)
+      )
     );
     expect(resolved.players[0].hand.cardIds).toEqual([]);
     expect(resolved.pendingAbilities).toEqual([]);
@@ -935,14 +943,30 @@ describe('PL!-bp4-001-P / PL!-bp4-001-R 费用9「高坂穂乃果」', () => {
     );
     expect(started.activeEffect?.effectText).toContain('满足条件，实际抽0张卡');
     const resolved = confirmDirect(started);
-    expect(latestPayload(resolved, abilityId)).toMatchObject({ conditionMet: true, drawnCardIds: [] });
+    expect(latestPayload(resolved, abilityId)).toMatchObject({
+      conditionMet: true,
+      drawnCardIds: [],
+    });
   });
 
   it('supports manual point selection and ordered batches', () => {
     const manual = setupBp4001({ ownCostDelta: -1, deckCount: 2 });
-    const first = directPending(abilityId, manual.source.instanceId, TriggerCondition.ON_LIVE_START, 'first');
-    const second = directPending(abilityId, manual.source.instanceId, TriggerCondition.ON_LIVE_START, 'second');
-    const chooser = resolvePendingCardEffects({ ...manual.game, pendingAbilities: [first, second] }).gameState;
+    const first = directPending(
+      abilityId,
+      manual.source.instanceId,
+      TriggerCondition.ON_LIVE_START,
+      'first'
+    );
+    const second = directPending(
+      abilityId,
+      manual.source.instanceId,
+      TriggerCondition.ON_LIVE_START,
+      'second'
+    );
+    const chooser = resolvePendingCardEffects({
+      ...manual.game,
+      pendingAbilities: [first, second],
+    }).gameState;
     const manuallyStarted = confirmActiveEffectStep(
       chooser,
       PLAYER1,
@@ -961,8 +985,18 @@ describe('PL!-bp4-001-P / PL!-bp4-001-R 费用9「高坂穂乃果」', () => {
     let orderedState = resolvePendingCardEffects({
       ...ordered.game,
       pendingAbilities: [
-        directPending(abilityId, ordered.source.instanceId, TriggerCondition.ON_LIVE_START, 'ordered-1'),
-        directPending(abilityId, ordered.source.instanceId, TriggerCondition.ON_LIVE_START, 'ordered-2'),
+        directPending(
+          abilityId,
+          ordered.source.instanceId,
+          TriggerCondition.ON_LIVE_START,
+          'ordered-1'
+        ),
+        directPending(
+          abilityId,
+          ordered.source.instanceId,
+          TriggerCondition.ON_LIVE_START,
+          'ordered-2'
+        ),
       ],
     }).gameState;
     orderedState = confirmActiveEffectStep(
@@ -1073,9 +1107,7 @@ describe('PL!-bp4-023-L 分数3「もぎゅっと"love"で接近中！」', () =
     expect(started.liveResolution.playerRemainingHearts.get(PLAYER1)).toEqual([
       createHeartIcon(HeartColor.RAINBOW, 1),
     ]);
-    expect(started.activeEffect?.effectText).toContain(
-      '当前持有至少1个粉色剩余HEART，抽1张卡。'
-    );
+    expect(started.activeEffect?.effectText).toContain('当前持有至少1个粉色剩余HEART，抽1张卡。');
     const resolved = confirmDirect(started);
     expect(resolved.players[0].hand.cardIds).toEqual([scenario.draws[0]!.instanceId]);
     expect(resolved.liveResolution.playerRemainingHearts.get(PLAYER1)).toEqual([
@@ -1160,11 +1192,12 @@ describe('PL!-bp4-023-L 分数3「もぎゅっと"love"で接近中！」', () =
       scenario.game,
       directPending(abilityId, scenario.source.instanceId, TriggerCondition.ON_LIVE_SUCCESS)
     );
-    expect(started.activeEffect?.effectText).toContain(
-      '当前持有至少1个粉色剩余HEART，抽0张卡。'
-    );
+    expect(started.activeEffect?.effectText).toContain('当前持有至少1个粉色剩余HEART，抽0张卡。');
     const resolved = confirmDirect(started);
-    expect(latestPayload(resolved, abilityId)).toMatchObject({ conditionMet: true, drawnCardIds: [] });
+    expect(latestPayload(resolved, abilityId)).toMatchObject({
+      conditionMet: true,
+      drawnCardIds: [],
+    });
   });
 
   it('supports manual point selection and ordered batches', () => {
@@ -1172,9 +1205,22 @@ describe('PL!-bp4-023-L 分数3「もぎゅっと"love"で接近中！」', () =
       remainingHearts: [createHeartIcon(HeartColor.PINK, 1)],
       deckCount: 2,
     });
-    const first = directPending(abilityId, manual.source.instanceId, TriggerCondition.ON_LIVE_SUCCESS, 'first');
-    const second = directPending(abilityId, manual.source.instanceId, TriggerCondition.ON_LIVE_SUCCESS, 'second');
-    const chooser = resolvePendingCardEffects({ ...manual.game, pendingAbilities: [first, second] }).gameState;
+    const first = directPending(
+      abilityId,
+      manual.source.instanceId,
+      TriggerCondition.ON_LIVE_SUCCESS,
+      'first'
+    );
+    const second = directPending(
+      abilityId,
+      manual.source.instanceId,
+      TriggerCondition.ON_LIVE_SUCCESS,
+      'second'
+    );
+    const chooser = resolvePendingCardEffects({
+      ...manual.game,
+      pendingAbilities: [first, second],
+    }).gameState;
     const manuallyStarted = confirmActiveEffectStep(
       chooser,
       PLAYER1,
@@ -1196,8 +1242,18 @@ describe('PL!-bp4-023-L 分数3「もぎゅっと"love"で接近中！」', () =
     let orderedState = resolvePendingCardEffects({
       ...ordered.game,
       pendingAbilities: [
-        directPending(abilityId, ordered.source.instanceId, TriggerCondition.ON_LIVE_SUCCESS, 'ordered-1'),
-        directPending(abilityId, ordered.source.instanceId, TriggerCondition.ON_LIVE_SUCCESS, 'ordered-2'),
+        directPending(
+          abilityId,
+          ordered.source.instanceId,
+          TriggerCondition.ON_LIVE_SUCCESS,
+          'ordered-1'
+        ),
+        directPending(
+          abilityId,
+          ordered.source.instanceId,
+          TriggerCondition.ON_LIVE_SUCCESS,
+          'ordered-2'
+        ),
       ],
     }).gameState;
     orderedState = confirmActiveEffectStep(
@@ -1216,5 +1272,169 @@ describe('PL!-bp4-023-L 分数3「もぎゅっと"love"で接近中！」', () =
     expect(orderedState.liveResolution.playerRemainingHearts.get(PLAYER1)).toEqual([
       createHeartIcon(HeartColor.PINK, 1),
     ]);
+  });
+});
+
+function setupNijiDraw(count: number, deckCount = 8) {
+  const source = createCardInstance(getOctober31LiveData('PL!N-bp8-025'), PLAYER1, 'niji-live');
+  const members = Array.from({ length: 3 }, (_, i) =>
+    createCardInstance(
+      { ...sourceMember(`TEST-NIJI-${i}`), groupNames: ['虹咲'] },
+      PLAYER1,
+      `niji-${i}`
+    )
+  );
+  const energy = Array.from({ length: 6 }, (_, i) =>
+    createCardInstance(
+      { cardCode: `E-${i}`, name: 'Energy', cardType: CardType.ENERGY },
+      PLAYER1,
+      `niji-energy-${i}`
+    )
+  );
+  const draws = Array.from({ length: deckCount }, (_, i) =>
+    createCardInstance(sourceMember(`DRAW-${i}`), PLAYER1, `niji-draw-${i}`)
+  );
+  let game = registerCards(createGameState('nijiiro', PLAYER1, 'P1', PLAYER2, 'P2'), [
+    source,
+    ...members,
+    ...energy,
+    ...draws,
+  ]);
+  game = updatePlayer(game, PLAYER1, (p) => {
+    let slots = p.memberSlots;
+    for (const [i, slot] of [
+      SlotPosition.LEFT,
+      SlotPosition.CENTER,
+      SlotPosition.RIGHT,
+    ].entries()) {
+      slots = placeCardInSlot(slots, slot, members[i].instanceId, {
+        orientation: i % 2 ? OrientationState.WAITING : OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      });
+      if (i < count) {
+        slots = addEnergyBelowMember(slots, slot, energy[i * 2].instanceId);
+        slots = addEnergyBelowMember(slots, slot, energy[i * 2 + 1].instanceId);
+      }
+    }
+    return {
+      ...p,
+      memberSlots: slots,
+      liveZone: { ...p.liveZone, cardIds: [source.instanceId] },
+      mainDeck: { ...p.mainDeck, cardIds: draws.map((c) => c.instanceId) },
+    };
+  });
+  return { game, source, members, energy, draws };
+}
+function startNijiDraw(game: GameState, sourceId = 'niji-live') {
+  const event = createLiveSuccessEvent(PLAYER1, [sourceId], 4);
+  return resolvePendingCardEffects(
+    enqueueTriggeredCardEffects(emitGameEvent(game, event), [TriggerCondition.ON_LIVE_SUCCESS], {
+      liveSuccessEvents: [event],
+    })
+  ).gameState;
+}
+
+describe('PL!N-bp8-025 分数4「虹色Passions！」有限动态抽牌', () => {
+  it.each(['SECL', 'L', 'OTHER'])('%s基础编号全罕度完整正文', (rare) => {
+    const definition = getCardAbilityDefinitionsForCardCode(`PL!N-bp8-025-${rare}`)[0];
+    expect(definition.effectText).toBe(
+      '【LIVE成功时】存在于自己的舞台的，下方存在能量卡的『虹咲』的成员每有１人，抽１张卡。'
+    );
+    expect(definition.queued).toBe(true);
+    expect(definition.sourceZone).toBe(CardAbilitySourceZone.LIVE_CARD);
+  });
+  it.each([0, 1, 2, 3])('%i人按成员人数抽牌，单人多能量不多计，ACTIVE/WAITING均计', (count) => {
+    const sample = setupNijiDraw(count);
+    const started = startNijiDraw(sample.game);
+    expect(started.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
+    expect(started.activeEffect?.effectText).toContain(`当前符合条件的虹咲成员有${count}人`);
+    expect(started.players[0].hand.cardIds).toEqual([]);
+    const result = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+    expect(result.players[0].hand.cardIds).toEqual(
+      sample.draws.slice(0, count).map((c) => c.instanceId)
+    );
+    expect(result.activeEffect).toBeNull();
+    expect(result.pendingAbilities).toEqual([]);
+  });
+  it('确认时实时重算人数，其他团体与下方成员不计，已诱发LIVE离区仍抽牌', () => {
+    const sample = setupNijiDraw(3);
+    let started = startNijiDraw(sample.game);
+    started = registerCards(started, [
+      createCardInstance(
+        { ...sample.members[0].data, groupNames: ['Aqours'] },
+        PLAYER1,
+        sample.members[0].instanceId
+      ),
+    ]);
+    started = updatePlayer(started, PLAYER1, (p) => ({
+      ...p,
+      liveZone: { ...p.liveZone, cardIds: [] },
+      waitingRoom: { ...p.waitingRoom, cardIds: [sample.source.instanceId] },
+      memberSlots: addMemberBelowMember(
+        { ...p.memberSlots, slots: { ...p.memberSlots.slots, [SlotPosition.RIGHT]: null } },
+        SlotPosition.CENTER,
+        sample.members[2].instanceId
+      ),
+    }));
+    const result = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+    expect(result.players[0].hand.cardIds).toEqual([sample.draws[0].instanceId]);
+    expect(result.pendingAbilities).toEqual([]);
+  });
+  it('空牌库0张仍消费pending，跨牌库刷新保留逐张抽牌', () => {
+    const empty = setupNijiDraw(3, 0);
+    const started = startNijiDraw(empty.game);
+    expect(started.activeEffect?.effectText).toContain('实际抽0张卡');
+    const ended = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+    expect(ended.pendingAbilities).toEqual([]);
+    expect(ended.activeEffect).toBeNull();
+    const sample = setupNijiDraw(3, 4);
+    const game = updatePlayer(sample.game, PLAYER1, (p) => ({
+      ...p,
+      mainDeck: { ...p.mainDeck, cardIds: [sample.draws[0].instanceId] },
+      waitingRoom: { ...p.waitingRoom, cardIds: sample.draws.slice(1).map((c) => c.instanceId) },
+    }));
+    const refreshed = startNijiDraw(game);
+    const result = confirmActiveEffectStep(refreshed, PLAYER1, refreshed.activeEffect!.id);
+    expect(result.players[0].hand.cardIds).toHaveLength(3);
+    expect(result.players[0].hand.cardIds[0]).toBe(sample.draws[0].instanceId);
+  });
+  it('手动点选先确认，顺序发动连续处理两个来源且不逐个确认', () => {
+    const sample = setupNijiDraw(2);
+    const other = createCardInstance(sample.source.data, PLAYER1, 'niji-live-2');
+    let game = registerCards(sample.game, [other]);
+    game = updatePlayer(game, PLAYER1, (p) => ({
+      ...p,
+      liveZone: { ...p.liveZone, cardIds: [sample.source.instanceId, other.instanceId] },
+    }));
+    const event = createLiveSuccessEvent(PLAYER1, [sample.source.instanceId, other.instanceId], 8);
+    const queued = enqueueTriggeredCardEffects(
+      emitGameEvent(game, event),
+      [TriggerCondition.ON_LIVE_SUCCESS],
+      { liveSuccessEvents: [event] }
+    );
+    const chooser = resolvePendingCardEffects(queued).gameState;
+    const first = chooser.pendingAbilities[0];
+    const manual = confirmActiveEffectStep(
+      chooser,
+      PLAYER1,
+      chooser.activeEffect!.id,
+      null,
+      null,
+      false,
+      first.id
+    );
+    expect(manual.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
+    expect(manual.players[0].hand.cardIds).toEqual([]);
+    const ordered = confirmActiveEffectStep(
+      chooser,
+      PLAYER1,
+      chooser.activeEffect!.id,
+      null,
+      null,
+      true
+    );
+    expect(ordered.players[0].hand.cardIds).toHaveLength(4);
+    expect(ordered.pendingAbilities).toEqual([]);
+    expect(ordered.activeEffect).toBeNull();
   });
 });

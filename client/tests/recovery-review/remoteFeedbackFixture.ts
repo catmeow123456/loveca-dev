@@ -7,10 +7,21 @@ import {
 import type { RemoteSnapshot, RemoteSessionSource } from '@/lib/remoteMatchClient';
 import type { PublicEventsResponse, Seat } from '@game/online';
 import type { AnyCardData } from '@game/domain/entities/card';
+import {
+  prepareContinuousFeedbackScenario,
+  type ContinuousFeedbackScenarioId,
+} from '../../../tests/helpers/continuous-feedback-fixture';
+import { getMemberEffectiveCost } from '@game/domain/rules/member-effective-cost';
+import {
+  getMemberEffectiveBladeCount,
+  getMemberEffectiveHeartIcons,
+} from '@game/domain/rules/live-modifiers';
 
 // Isolated browser transport fixture. The authority is a real GameSession; no account,
 // API, database or model is contacted. The ordinary App and remote snapshot/log readers run.
-let fixture: ReturnType<typeof prepareEffectFeedbackScenario>;
+let fixture:
+  | ReturnType<typeof prepareEffectFeedbackScenario>
+  | ReturnType<typeof prepareContinuousFeedbackScenario>;
 let revision = 1;
 let source: RemoteSessionSource;
 let seat: Seat;
@@ -30,11 +41,15 @@ const snapshot = (inline = true): RemoteSnapshot => ({
 
 export async function prepareRemoteFeedback(input: {
   source: 'ONLINE' | 'SOLITAIRE' | 'AI_DEBUG';
-  scenario: FeedbackScenarioId;
+  scenario: FeedbackScenarioId | ContinuousFeedbackScenarioId;
   seat?: Seat;
   revision?: number;
+  sourceWaiting?: boolean;
 }) {
-  fixture = prepareEffectFeedbackScenario(input.scenario);
+  fixture =
+    input.scenario === 'continuous-nico' || input.scenario === 'continuous-opponent'
+      ? prepareContinuousFeedbackScenario(input.scenario, { sourceWaiting: input.sourceWaiting })
+      : prepareEffectFeedbackScenario(input.scenario);
   revision = input.revision ?? 1;
   source = input.source;
   seat = input.seat ?? 'FIRST';
@@ -116,6 +131,11 @@ export function readRemoteFeedback() {
       .getPublicEventsSince(0)
       .filter((event) => event.type === 'EffectFeedback'),
     eventRequests,
+    sourceStats: {
+      cost: getMemberEffectiveCost(fixture.session.state!, 'p1', 'source'),
+      blade: getMemberEffectiveBladeCount(fixture.session.state!, 'p1', 'source'),
+      hearts: getMemberEffectiveHeartIcons(fixture.session.state!, 'p1', 'source'),
+    },
     deadline: effect?.publicCardSelectionAutoAdvanceAt ?? effect?.publicEffectChoiceAutoAdvanceAt,
   };
 }

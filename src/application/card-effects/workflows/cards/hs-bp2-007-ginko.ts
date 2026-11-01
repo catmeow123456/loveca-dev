@@ -9,14 +9,10 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { getCardNameCandidates } from '../../../../shared/utils/card-identity.js';
-import { CardType, HeartColor } from '../../../../shared/types/enums.js';
-import { cardNameAliasAny, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
+import { HeartColor } from '../../../../shared/types/enums.js';
+import { cardNameAliasAny } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
-import { selectWaitingRoomCardIds } from '../../../effects/zone-selection.js';
-import {
-  HS_BP2_007_LIVE_START_DISCARD_MEMBER_TARGET_SAME_NAME_GREEN_HEART_BLADE_ABILITY_ID,
-  HS_BP2_007_ON_ENTER_LOWER_COST_CERISE_RELAY_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
-} from '../../ability-ids.js';
+import { HS_BP2_007_LIVE_START_DISCARD_MEMBER_TARGET_SAME_NAME_GREEN_HEART_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
   finishSkippedActiveEffect,
@@ -31,13 +27,7 @@ import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
-import { evaluateRelayEnterLowerCostUnitCondition } from '../shared/relay-enter-lower-cost-unit.js';
-import {
-  finishWaitingRoomToHandWorkflow,
-  startWaitingRoomToHandWorkflow,
-} from '../shared/waiting-room-to-hand.js';
 
-const SELECT_WAITING_ROOM_LIVE_STEP_ID = 'HS_BP2_007_SELECT_WAITING_ROOM_LIVE';
 const SELECT_DISCARD_HAND_STEP_ID = 'HS_BP2_007_SELECT_DISCARD_HAND';
 const SELECT_SAME_NAME_TARGET_STEP_ID = 'HS_BP2_007_SELECT_SAME_NAME_TARGET';
 
@@ -46,28 +36,6 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 export function registerHsBp2007GinkoWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
-  registerPendingAbilityStarterHandler(
-    HS_BP2_007_ON_ENTER_LOWER_COST_CERISE_RELAY_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
-    (game, ability, options, context) =>
-      startOnEnterRecoverLive(
-        game,
-        ability,
-        options.orderedResolution === true,
-        context.continuePendingCardEffects
-      )
-  );
-  registerActiveEffectStepHandler(
-    HS_BP2_007_ON_ENTER_LOWER_COST_CERISE_RELAY_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
-    SELECT_WAITING_ROOM_LIVE_STEP_ID,
-    (game, input, context) =>
-      finishWaitingRoomToHandWorkflow(
-        game,
-        input.selectedCardId ?? null,
-        input.selectedCardIds,
-        context.continuePendingCardEffects
-      )
-  );
-
   registerPendingAbilityStarterHandler(
     HS_BP2_007_LIVE_START_DISCARD_MEMBER_TARGET_SAME_NAME_GREEN_HEART_BLADE_ABILITY_ID,
     (game, ability, options, context) =>
@@ -97,73 +65,6 @@ export function registerHsBp2007GinkoWorkflowHandlers(deps: {
     (game, input, context) =>
       finishSameNameTarget(game, input.selectedCardId ?? null, context.continuePendingCardEffects)
   );
-}
-
-function startOnEnterRecoverLive(
-  game: GameState,
-  ability: PendingAbilityState,
-  orderedResolution: boolean,
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player || getSourceMemberSlot(game, ability.controllerId, ability.sourceCardId) === null) {
-    return consumePendingNoOp(
-      game,
-      ability,
-      orderedResolution,
-      continuePendingCardEffects,
-      'SOURCE_LEFT_STAGE'
-    );
-  }
-
-  const condition = evaluateRelayEnterLowerCostUnitCondition(
-    game,
-    {
-      sourceCardId: ability.sourceCardId,
-      controllerId: ability.controllerId,
-      relayReplacements: ability.metadata?.relayReplacements,
-    },
-    'Cerise Bouquet'
-  );
-  if (!condition.conditionMet) {
-    return consumePendingNoOp(
-      game,
-      ability,
-      orderedResolution,
-      continuePendingCardEffects,
-      condition.reason,
-      {
-        sourceEffectiveCost: condition.sourceEffectiveCost,
-        relayReplacementCardIds: condition.relayReplacementCardIds,
-        matchingRelayReplacementCardIds: condition.matchingRelayReplacementCardIds,
-        capturedReplacementEffectiveCosts: condition.capturedReplacementEffectiveCosts,
-      }
-    );
-  }
-
-  const selectableCardIds = getWaitingRoomHasunosoraLiveCardIds(game, player.id);
-  if (selectableCardIds.length === 0) {
-    return consumePendingNoOp(
-      game,
-      ability,
-      orderedResolution,
-      continuePendingCardEffects,
-      'NO_WAITING_ROOM_HASUNOSORA_LIVE_TARGET'
-    );
-  }
-
-  return startWaitingRoomToHandWorkflow(game, {
-    ability,
-    effectText: getAbilityEffectText(ability.abilityId),
-    stepId: SELECT_WAITING_ROOM_LIVE_STEP_ID,
-    stepText: '请选择自己的休息室中1张『莲之空』的LIVE卡加入手牌。',
-    selectionLabel: '选择要加入手牌的LIVE卡',
-    confirmSelectionLabel: '加入手牌',
-    candidateBuilder: getWaitingRoomHasunosoraLiveCardIds,
-    countRule: { exactCount: 1 },
-    optional: false,
-    orderedResolution,
-  });
 }
 
 function startLiveStartDiscard(
@@ -366,14 +267,6 @@ function finishSameNameTarget(
       bladeBonus: bladeResult.bladeBonus,
     }),
     effect.metadata?.orderedResolution === true
-  );
-}
-
-function getWaitingRoomHasunosoraLiveCardIds(game: GameState, playerId: string): readonly string[] {
-  return selectWaitingRoomCardIds(
-    game,
-    playerId,
-    (card) => typeIs(CardType.LIVE)(card) && groupAliasIs('蓮ノ空')(card)
   );
 }
 

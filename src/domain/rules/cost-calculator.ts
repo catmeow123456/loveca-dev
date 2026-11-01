@@ -132,6 +132,19 @@ export interface AvailableResources {
 // 费用计算器类
 // ============================================
 
+/** Public conditional status: this waiting member supplies +1 reduction when relaying into μ’s. */
+export function hasKotoriWaitingMuseRelayBonus(
+  memberData: MemberCardData,
+  orientation: OrientationState | undefined,
+  stageMembers: readonly Pick<StageMemberInfo, 'data'>[]
+): boolean {
+  return (
+    orientation === OrientationState.WAITING &&
+    isMuseMember(memberData) &&
+    stageMembers.some((member) => cardCodeMatchesBase(member.data.cardCode, 'PL!-bp8-003'))
+  );
+}
+
 /**
  * 费用计算器
  * 处理成员卡播放时的费用计算和换手逻辑
@@ -154,11 +167,31 @@ export class CostCalculator {
    *
    * @param relayMemberData 被换手的成员卡数据
    * @param effectiveCost 被换手成员当前有效费用；未提供时使用印刷费用
-   * @returns 减免的费用（等于被换手成员的费用）
+   * @param context 当前舞台和换手双方，供常时能力替换减免值
+   * @returns 减免的费用；默认等于被换手成员的有效费用
    */
-  calculateRelayDiscount(relayMemberData: MemberCardData, effectiveCost?: number): number {
+  calculateRelayDiscount(
+    relayMemberData: MemberCardData,
+    effectiveCost?: number,
+    context?: {
+      readonly incomingMemberData: MemberCardData;
+      readonly relayMemberOrientation: OrientationState;
+      readonly stageMembers: readonly StageMemberInfo[];
+    }
+  ): number {
     // Rules 1.3.2.2/1.3.2.4 permit negative values in subtraction (9.6.2.3.2).
-    return effectiveCost ?? relayMemberData.cost;
+    const memberCost = effectiveCost ?? relayMemberData.cost;
+    // PL!-bp8-003 replaces the reduction value, without changing either member's cost.
+    // Multiple copies grant the same replacement; they do not add successive bonuses.
+    const usesMuseWaitingReplacement =
+      context &&
+      isMuseMember(context.incomingMemberData) &&
+      hasKotoriWaitingMuseRelayBonus(
+        relayMemberData,
+        context.relayMemberOrientation,
+        context.stageMembers
+      );
+    return usesMuseWaitingReplacement ? memberCost + 1 : memberCost;
   }
 
   /** 计算会改变手牌中成员卡自身当前费用的常时修正。 */
@@ -478,10 +511,12 @@ export class CostCalculator {
         };
       }
 
-      const relayDiscount = doubleRelayPlan.replacements.reduce(
-        (sum, replacement) => sum + replacement.effectiveCost,
-        0
-      );
+      const relayDiscount = doubleRelayPlan.replacements.reduce((sum, replacement) => {
+        const stageMember = resources.stageMembers.find(
+          (member) => member.cardId === replacement.cardId
+        )!;
+        return sum + this.calculateStageMemberRelayDiscount(stageMember, memberData, resources);
+      }, 0);
       const actualCost = Math.max(0, modifiedCost - relayDiscount);
       requiredEnergyCosts.push(actualCost);
 
@@ -506,7 +541,11 @@ export class CostCalculator {
       canMemberBeRelayedAway(targetMember.data, memberData)
     ) {
       const targetReplacement = this.createRelayReplacementPlan(targetMember);
-      const relayDiscount = targetReplacement.effectiveCost;
+      const relayDiscount = this.calculateStageMemberRelayDiscount(
+        targetMember,
+        memberData,
+        resources
+      );
       const actualCost = Math.max(0, modifiedCost - relayDiscount);
       requiredEnergyCosts.push(actualCost);
 
@@ -587,8 +626,20 @@ export class CostCalculator {
     return {
       cardId: stageMember.cardId,
       slot: stageMember.position,
-      effectiveCost: this.calculateRelayDiscount(stageMember.data, stageMember.effectiveCost),
+      effectiveCost: stageMember.effectiveCost ?? stageMember.data.cost,
     };
+  }
+
+  private calculateStageMemberRelayDiscount(
+    stageMember: StageMemberInfo,
+    incomingMemberData: MemberCardData,
+    resources: AvailableResources
+  ): number {
+    return this.calculateRelayDiscount(stageMember.data, stageMember.effectiveCost, {
+      incomingMemberData,
+      relayMemberOrientation: stageMember.orientation,
+      stageMembers: resources.stageMembers,
+    });
   }
 
   private createDoubleRelayPlan(
@@ -713,7 +764,7 @@ export class CostCalculator {
       canMemberBeRelayedAway(targetSlotMember.data, memberData);
     const possibleRelayDiscount =
       modifiedCost > 0 && targetSlotMember
-        ? this.calculateRelayDiscount(targetSlotMember.data, targetSlotMember.effectiveCost)
+        ? this.calculateStageMemberRelayDiscount(targetSlotMember, memberData, resources)
         : 0;
 
     return {

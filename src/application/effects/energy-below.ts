@@ -63,6 +63,13 @@ export interface MoveAllEnergyBelowMemberToEnergyZoneByCardEffectResult {
   readonly energyPlacedEvent: EnergyPlacedByCardEffectEvent;
 }
 
+export interface MoveSelectedEnergyBelowMemberToEnergyZoneByCardEffectConfig extends Omit<
+  MoveAllEnergyBelowMemberToEnergyZoneByCardEffectConfig,
+  'expectedEnergyCardIds'
+> {
+  readonly selectedEnergyCardIds: readonly string[];
+}
+
 /**
  * Moves the complete, caller-snapshotted energy-below stack of one current top-level member
  * into its owner's energy zone as WAITING/FACE_UP energy.
@@ -77,9 +84,30 @@ export function moveAllEnergyBelowMemberToEnergyZoneByCardEffect(
   config: MoveAllEnergyBelowMemberToEnergyZoneByCardEffectConfig
 ): MoveAllEnergyBelowMemberToEnergyZoneByCardEffectResult | null {
   const expectedEnergyCardIds = [...config.expectedEnergyCardIds];
+  const player = getPlayerById(game, config.playerId);
+  const targetSlot = player ? findMemberSlot(player, config.targetMemberCardId) : null;
+  if (!player || targetSlot === null) return null;
+  const currentEnergyCardIds = player.memberSlots.energyBelow[targetSlot] ?? [];
   if (
-    expectedEnergyCardIds.length === 0 ||
-    new Set(expectedEnergyCardIds).size !== expectedEnergyCardIds.length
+    currentEnergyCardIds.length !== expectedEnergyCardIds.length ||
+    currentEnergyCardIds.some((cardId, index) => cardId !== expectedEnergyCardIds[index])
+  )
+    return null;
+  return moveSelectedEnergyBelowMemberToEnergyZoneByCardEffect(game, {
+    ...config,
+    selectedEnergyCardIds: expectedEnergyCardIds,
+  });
+}
+
+/** Moves only the selected current energy cards, preserving the rest of the stack and markers. */
+export function moveSelectedEnergyBelowMemberToEnergyZoneByCardEffect(
+  game: GameState,
+  config: MoveSelectedEnergyBelowMemberToEnergyZoneByCardEffectConfig
+): MoveAllEnergyBelowMemberToEnergyZoneByCardEffectResult | null {
+  const selectedEnergyCardIds = [...config.selectedEnergyCardIds];
+  if (
+    selectedEnergyCardIds.length === 0 ||
+    new Set(selectedEnergyCardIds).size !== selectedEnergyCardIds.length
   ) {
     return null;
   }
@@ -100,12 +128,14 @@ export function moveAllEnergyBelowMemberToEnergyZoneByCardEffect(
 
   const currentEnergyCardIds = player.memberSlots.energyBelow[targetSlot] ?? [];
   if (
-    currentEnergyCardIds.length !== expectedEnergyCardIds.length ||
-    currentEnergyCardIds.some((cardId, index) => cardId !== expectedEnergyCardIds[index])
+    selectedEnergyCardIds.some(
+      (cardId) =>
+        !currentEnergyCardIds.includes(cardId) || player.energyZone.cardIds.includes(cardId)
+    )
   ) {
     return null;
   }
-  for (const energyCardId of expectedEnergyCardIds) {
+  for (const energyCardId of selectedEnergyCardIds) {
     const energyCard = getCardById(game, energyCardId);
     if (!energyCard || energyCard.ownerId !== player.id || !isEnergyCardData(energyCard.data)) {
       return null;
@@ -118,10 +148,12 @@ export function moveAllEnergyBelowMemberToEnergyZoneByCardEffect(
       ...currentPlayer.memberSlots,
       energyBelow: {
         ...currentPlayer.memberSlots.energyBelow,
-        [targetSlot]: [],
+        [targetSlot]: (currentPlayer.memberSlots.energyBelow[targetSlot] ?? []).filter(
+          (cardId) => !selectedEnergyCardIds.includes(cardId)
+        ),
       },
     },
-    energyZone: expectedEnergyCardIds.reduce(
+    energyZone: selectedEnergyCardIds.reduce(
       (energyZone, energyCardId) =>
         addCardToStatefulZone(energyZone, energyCardId, {
           orientation: OrientationState.WAITING,
@@ -132,7 +164,7 @@ export function moveAllEnergyBelowMemberToEnergyZoneByCardEffect(
   }));
   const energyPlacedEvent = createEnergyPlacedByCardEffectEvent(
     player.id,
-    expectedEnergyCardIds,
+    selectedEnergyCardIds,
     OrientationState.WAITING,
     config.cause
   );
@@ -144,7 +176,7 @@ export function moveAllEnergyBelowMemberToEnergyZoneByCardEffect(
       { energyPlacedByCardEffectEvents: [energyPlacedEvent] }
     ),
     targetSlot,
-    movedEnergyCardIds: expectedEnergyCardIds,
+    movedEnergyCardIds: selectedEnergyCardIds,
     energyPlacedEvent,
   };
 }

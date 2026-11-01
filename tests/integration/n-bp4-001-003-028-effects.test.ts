@@ -36,7 +36,7 @@ const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
 const SHARED_PLAYER_VISIBLE_INTERNAL_WORDS =
   /此成员已不在舞台|来源不在舞台|来源在舞台|来源不在LIVE区|来源在LIVE区|source|pending|payload|stale|eventId|trigger/i;
-const N_BP4_003_EFFECT_TEXT = '【LIVE成功时】LIVE的合计[スコア]比对方高的场合，抽1张卡。';
+const N_BP4_003_EFFECT_TEXT = '【LIVE成功时】LIVE的合计分数比对方高的场合，抽1张卡。';
 
 function createNijigasakiMember(
   cardCode: string,

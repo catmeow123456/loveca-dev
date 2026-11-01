@@ -2185,3 +2185,29 @@ export const HS_BP8_023_LIVE_START_EDELNOTE_SUCCESS_SCORE_REQUIREMENT_ABILITY_ID
   'PL!HS-bp8-023:live-start-edelnote-success-score-requirement';
 export const N_BP8_029_LIVE_SUCCESS_RED_REMAINING_HEART_SCORE_CLEAR_ABILITY_ID =
   'PL!N-bp8-029:live-success-red-remaining-heart-score-clear';
+
+export const PL_BP8_009_CONTINUOUS_DISTINCT_MEMBER_BELOW_COSTS_COST_PINK_HEART_BLADE_ABILITY_ID =
+  'PL!-bp8-009:continuous-distinct-member-below-costs-cost-pink-heart-blade';
+export const PL_BP8_009_ACTIVATED_PAY_TWO_ENERGY_STACK_HAND_MEMBER_BELOW_ABILITY_ID =
+  'PL!-bp8-009:activated-pay-two-energy-stack-hand-member-below';
+export const PL_BP8_015_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID =
+  'PL!-bp8-015:live-success-draw-one-discard-one';
+export const N_BP8_003_LIVE_SUCCESS_LOOK_TOP_FIVE_NO_BLADE_HEART_NIJIGASAKI_MEMBER_ABILITY_ID =
+  'PL!N-bp8-003:live-success-look-top-five-no-blade-heart-nijigasaki-member';
+export const N_BP8_021_ACTIVATED_DISCARD_TWO_PLACE_NIJIGASAKI_LIVE_REDUCE_NEXT_LIVE_SET_LIMIT_ABILITY_ID =
+  'PL!N-bp8-021:activated-discard-two-place-nijigasaki-live-reduce-next-live-set-limit';
+export const N_BP8_025_LIVE_SUCCESS_DRAW_ENERGY_BELOW_NIJIGASAKI_COUNT_ABILITY_ID =
+  'PL!N-bp8-025:live-success-draw-energy-below-nijigasaki-count';
+export const HS_BP8_011_ON_ENTER_LOWER_COST_RELAY_RECOVER_MIRACRA_LIVE_ABILITY_ID =
+  'PL!HS-bp8-011:on-enter-lower-cost-relay-recover-miracra-live';
+export const SP_PR_033_LIVE_SUCCESS_DISCARD_RECOVER_LIELLA_CHEER_BY_SOURCE_BLADE_ABILITY_ID =
+  'PL!SP-PR-033:live-success-discard-recover-liella-cheer-by-source-blade';
+
+export const PL_BP8_003_CONTINUOUS_MUSE_WAITING_RELAY_COST_PLUS_ONE_ABILITY_ID =
+  'PL!-bp8-003:continuous-muse-waiting-relay-cost-plus-one';
+export const PL_BP8_003_ACTIVATED_WAIT_DISCARD_LOOK_TOP_TWO_ABILITY_ID =
+  'PL!-bp8-003:activated-wait-discard-look-top-two';
+export const N_BP8_001_ON_ENTER_STACK_ENERGY_SELF_AND_OTHER_NIJIGASAKI_ABILITY_ID =
+  'PL!N-bp8-001:on-enter-stack-energy-self-and-other-nijigasaki';
+export const N_BP8_001_LIVE_SUCCESS_RETURN_ONE_ENERGY_BELOW_DRAW_DISCARD_ABILITY_ID =
+  'PL!N-bp8-001:live-success-return-one-energy-below-draw-discard';

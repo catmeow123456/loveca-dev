@@ -1,3 +1,4 @@
+import { captureMemberLastKnownInformation } from '../../domain/rules/member-last-known-information.js';
 import type { GameState } from '../../domain/entities/game.js';
 import {
   emitGameEvent,
@@ -143,6 +144,11 @@ export function payImmediateEffectCosts(
           return null;
         }
         const sourceCard = getCardById(state, sourceCardId);
+        const lastKnownInformation = captureMemberLastKnownInformation(
+          state,
+          playerId,
+          sourceCardId
+        );
         const memberBelowCardIds = player.memberSlots.memberBelow[slot] ?? [];
         const cardIdsForWaitingRoom = [sourceCardId, ...memberBelowCardIds];
         state = updatePlayer(state, playerId, (currentPlayer) => {
@@ -178,7 +184,9 @@ export function payImmediateEffectCosts(
               slot,
               ZoneType.WAITING_ROOM,
               sourceCard.ownerId,
-              playerId
+              playerId,
+              undefined,
+              lastKnownInformation
             )
           );
         }

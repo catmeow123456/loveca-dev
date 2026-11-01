@@ -10,16 +10,18 @@ import { getBattleLiveZoneAnchor } from '@/lib/battleUiAnchors';
 import { CardEffectText } from '@/components/card/CardEffectText';
 import {
   consumeEffectFeedback,
-  hasEffectFeedbackGlow,
+  hasEffectFeedbackSourceGlow,
+  isEffectFeedbackGain,
   EFFECT_FEEDBACK_DURATION_MS,
   type EffectFeedbackCursor,
 } from '@/lib/effectFeedback';
 import {
   effectFeedbackTargetKey,
-  groupEffectFeedbackChanges,
+  getEffectFeedbackPresentationChanges,
   isEffectFeedbackTargetCurrent,
   replaceFeedbackPresentations,
   type FeedbackPresentation,
+  type FeedbackPresentationUpdate,
 } from '@/lib/effectFeedbackPresentation';
 import {
   HEART_ICON_SOURCE_BY_COLOR,
@@ -98,12 +100,7 @@ function sourceTarget(id: string, view: PlayerViewState): EffectFeedbackTarget |
 }
 type MountedFeedback = FeedbackPresentation & { host: HTMLElement };
 function hasGain(item: FeedbackPresentation) {
-  return (
-    item.event.mode === 'APPLIED' &&
-    item.target.changes.some(
-      (change) => (change.kind === 'HEART' || change.kind === 'BLADE') && change.delta > 0
-    )
-  );
+  return item.target.changes.some(isEffectFeedbackGain);
 }
 
 /** A single active-frame sampler validates identity; card-local portals inherit all transforms. */
@@ -146,15 +143,18 @@ export function EffectFeedbackLayer({ enabled: requested = true }: { readonly en
     if (result.reset || !enabled || readOnly || view.match.entrance) clear();
     if (!enabled || readOnly || view.match.entrance) return;
     const now = performance.now();
-    const additions: MountedFeedback[] = [];
+    const updates: FeedbackPresentationUpdate<MountedFeedback>[] = [];
     for (const event of result.events) {
+      const targets: MountedFeedback[] = [];
       for (const target of event.targets) {
         if (!isEffectFeedbackTargetCurrent(target, view)) continue;
-        const host = findHost(target, view);
-        const changes = groupEffectFeedbackChanges(target.changes);
-        if (!host || !changes.length) continue;
         const key = effectFeedbackTargetKey(target);
-        additions.push({
+        // Even a quiet loss supersedes the previous gain on this public target.
+        updates.push({ key, remove: true });
+        const host = findHost(target, view);
+        const changes = getEffectFeedbackPresentationChanges(event.mode, target.changes);
+        if (!host || !changes.length) continue;
+        targets.push({
           id: `${event.eventId}:${key}`,
           key,
           event,
@@ -165,18 +165,19 @@ export function EffectFeedbackLayer({ enabled: requested = true }: { readonly en
           endsAt: now + (reduced ? 240 : EFFECT_FEEDBACK_DURATION_MS),
         });
       }
+      updates.push(...targets);
       const source = event.sourceObjectId && sourceTarget(event.sourceObjectId, view);
       if (
         !source ||
         reduced ||
         !isEffectFeedbackTargetCurrent(source, view) ||
-        event.targets.some((t) => t.objectId === source.objectId) ||
-        !event.targets.some((t) => hasEffectFeedbackGlow(event.mode, t.changes))
+        targets.some((p) => p.target.objectId === source.objectId) ||
+        !targets.some((p) => hasEffectFeedbackSourceGlow(event.mode, p.target.changes))
       )
         continue;
       const host = findHost(source, view);
       if (host)
-        additions.push({
+        updates.push({
           id: `${event.eventId}:source`,
           key: `source:${source.objectId}`,
           event,
@@ -188,8 +189,8 @@ export function EffectFeedbackLayer({ enabled: requested = true }: { readonly en
         });
     }
     // Target replacement is synchronous, with no queue or cross-event arithmetic.
-    if (additions.length) {
-      const retained = replaceFeedbackPresentations(active.current, additions);
+    if (updates.length) {
+      const retained = replaceFeedbackPresentations(active.current, updates);
       const targetIds = new Set(retained.filter((p) => !p.source).map((p) => p.target.objectId));
       active.current = retained.filter((p) => !p.source || !targetIds.has(p.target.objectId));
       setPlaying(active.current);
@@ -278,7 +279,9 @@ function Change({ change }: { change: EffectFeedbackChange }) {
         ? HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR[change.color]
         : change.kind === 'BLADE'
           ? MODIFIER_ICON_SOURCE.blade
-          : undefined;
+          : change.kind === 'COST'
+            ? MODIFIER_ICON_SOURCE.cost
+            : undefined;
   return (
     <span
       className="effect-result-value"

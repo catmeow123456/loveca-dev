@@ -1,3 +1,7 @@
+import { registerNBp8001AyumuWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-001-ayumu.js';
+import { registerNBp8021RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-021-rina.js';
+import { registerRelayEnterLowerCostRecoverLiveWorkflowHandlers } from './card-effects/workflows/shared/relay-enter-lower-cost-recover-live.js';
+import { registerPlBp8009NicoWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-009-nico.js';
 import { registerNBp8005AiWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-005-ai.js';
 import { registerHsBp8008IzumiWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-008-izumi.js';
 import { registerPlBp8025NicoPuriJoshiDouWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-025-nico-puri-joshi-dou.js';
@@ -304,7 +308,7 @@ import { registerNBp3027LaBellaPatriaWorkflowHandlers } from './card-effects/wor
 import { registerNBp4004KarinWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-004-karin.js';
 import { registerNBp4001AyumuWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-001-ayumu.js';
 import { registerNBp4002KasumiWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-002-kasumi.js';
-import { registerLiveDrawOneWorkflowHandlers } from './card-effects/workflows/shared/live-draw-one.js';
+import { registerLiveDrawCardsWorkflowHandlers } from './card-effects/workflows/shared/live-draw-cards.js';
 import { registerOnEnterGainLiveTotalScoreWorkflowHandlers } from './card-effects/workflows/shared/on-enter-gain-live-total-score.js';
 import { registerPlBp4020LoveWingBellWorkflowHandlers } from './card-effects/workflows/cards/pl-bp4-020-love-wing-bell.js';
 import { registerNBp4009RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-009-rina.js';
@@ -1165,7 +1169,8 @@ registerNBp3025AwakeningPromiseWorkflowHandlers();
 registerNBp3027LaBellaPatriaWorkflowHandlers();
 registerNBp4001AyumuWorkflowHandlers();
 registerNBp4002KasumiWorkflowHandlers({ enqueueTriggeredCardEffects });
-registerLiveDrawOneWorkflowHandlers();
+registerLiveDrawCardsWorkflowHandlers();
+registerPlBp8009NicoWorkflowHandlers();
 registerPlBp8004UmiWorkflowHandlers();
 registerNBp8018KanataWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp8031EutopiaWorkflowHandlers();
@@ -1272,6 +1277,9 @@ registerLiveSuccessDiscardRecoverCheerWorkflowHandlers({
   enqueueTriggeredCardEffects,
 });
 registerNPr026RinaWorkflowHandlers();
+registerNBp8001AyumuWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp8021RinaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerRelayEnterLowerCostRecoverLiveWorkflowHandlers();
 registerPlBp3014RinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp5007SetsunaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp2009NatsumiWorkflowHandlers({ enqueueTriggeredCardEffects });

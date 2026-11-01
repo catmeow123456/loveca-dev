@@ -6,8 +6,13 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { isMemberCardData } from '../../../../domain/entities/card.js';
+import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
+import { groupAliasIs } from '../../../effects/card-selectors.js';
+import {
+  getStageMemberCardIdsMatching,
+  memberHasEnergyBelow,
+} from '../../../effects/stage-targets.js';
 import { sumStageMemberEffectiveCostMatching } from '../../../effects/conditions.js';
 import {
   getRemainingHeartCount,
@@ -25,6 +30,7 @@ import {
 import {
   S_PR_046_LIVE_SUCCESS_OPPONENT_CHEER_LIVE_DRAW_ONE_ABILITY_ID,
   N_BP8_012_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID,
+  N_BP8_025_LIVE_SUCCESS_DRAW_ENERGY_BELOW_NIJIGASAKI_COUNT_ABILITY_ID,
   PL_BP4_001_LIVE_START_LOWER_STAGE_COST_DRAW_ONE_ABILITY_ID,
   PL_BP4_023_LIVE_SUCCESS_PINK_REMAINING_HEART_DRAW_ONE_ABILITY_ID,
   PL_N_BP4_003_LIVE_SUCCESS_HIGHER_SCORE_DRAW_ABILITY_ID,
@@ -34,6 +40,18 @@ import {
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 type LiveDrawConfig =
+  | {
+      readonly abilityId: typeof N_BP8_025_LIVE_SUCCESS_DRAW_ENERGY_BELOW_NIJIGASAKI_COUNT_ABILITY_ID;
+      readonly expectedBaseCardCodes: readonly ['PL!N-bp8-025'];
+      readonly sourceKind: 'LIVE_CARD';
+      readonly requireSourceInZoneAtResolution: false;
+      readonly conditionType: 'OWN_NIJIGASAKI_WITH_ENERGY_BELOW';
+      readonly actionStep: 'DRAW_BY_ENERGY_BELOW_NIJIGASAKI_COUNT';
+      readonly noOpSteps: {
+        readonly sourceMissing: 'SOURCE_IDENTITY_INVALID';
+        readonly conditionNotMet: 'NO_ENERGY_BELOW_NIJIGASAKI_MEMBER';
+      };
+    }
   | {
       readonly abilityId: typeof N_BP8_012_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID;
       readonly expectedBaseCardCodes: readonly ['PL!N-bp8-012'];
@@ -105,6 +123,18 @@ type LiveDrawConfig =
 
 const LIVE_DRAW_CONFIGS: readonly LiveDrawConfig[] = [
   {
+    abilityId: N_BP8_025_LIVE_SUCCESS_DRAW_ENERGY_BELOW_NIJIGASAKI_COUNT_ABILITY_ID,
+    expectedBaseCardCodes: ['PL!N-bp8-025'],
+    sourceKind: 'LIVE_CARD',
+    requireSourceInZoneAtResolution: false,
+    conditionType: 'OWN_NIJIGASAKI_WITH_ENERGY_BELOW',
+    actionStep: 'DRAW_BY_ENERGY_BELOW_NIJIGASAKI_COUNT',
+    noOpSteps: {
+      sourceMissing: 'SOURCE_IDENTITY_INVALID',
+      conditionNotMet: 'NO_ENERGY_BELOW_NIJIGASAKI_MEMBER',
+    },
+  },
+  {
     abilityId: N_BP8_012_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID,
     expectedBaseCardCodes: ['PL!N-bp8-012'],
     sourceKind: 'STAGE_MEMBER',
@@ -175,6 +205,12 @@ const LIVE_DRAW_CONFIGS: readonly LiveDrawConfig[] = [
 ];
 
 type EvaluatedCondition =
+  | {
+      readonly conditionType: 'OWN_NIJIGASAKI_WITH_ENERGY_BELOW';
+      readonly memberCardIds: readonly string[];
+      readonly requestedDrawCount: number;
+      readonly conditionMet: boolean;
+    }
   | { readonly conditionType: 'ALWAYS'; readonly conditionMet: true }
   | {
       readonly conditionType: 'OPPONENT_REVEALED_CHEER_HAS_LIVE';
@@ -221,12 +257,12 @@ interface LiveDrawContext {
   readonly condition: EvaluatedCondition;
 }
 
-export function registerLiveDrawOneWorkflowHandlers(): void {
+export function registerLiveDrawCardsWorkflowHandlers(): void {
   for (const config of LIVE_DRAW_CONFIGS) {
     registerManualConfirmablePendingAbilityStarterHandler(
       config.abilityId,
       (game, ability, options, context) =>
-        resolveLiveDrawOne(game, ability, config, options, context.continuePendingCardEffects),
+        resolveLiveDrawCards(game, ability, config, options, context.continuePendingCardEffects),
       (game, ability) => {
         const config = LIVE_DRAW_CONFIGS.find(
           (candidate) => candidate.abilityId === ability.abilityId
@@ -240,7 +276,7 @@ export function registerLiveDrawOneWorkflowHandlers(): void {
   }
 }
 
-function resolveLiveDrawOne(
+function resolveLiveDrawCards(
   game: GameState,
   ability: PendingAbilityState,
   config: LiveDrawConfig,
@@ -271,7 +307,13 @@ function resolveLiveDrawOne(
   let drawnCardIds: readonly string[] = [];
 
   if (canDraw) {
-    const drawResult = drawCardsForPlayer(state, player.id, 1);
+    const drawResult = drawCardsForPlayer(
+      state,
+      player.id,
+      context.condition.conditionType === 'OWN_NIJIGASAKI_WITH_ENERGY_BELOW'
+        ? context.condition.requestedDrawCount
+        : 1
+    );
     if (!drawResult) {
       return game;
     }
@@ -311,7 +353,9 @@ function getLiveDrawContext(
       'requireSourceInZoneAtResolution' in config && !config.requireSourceInZoneAtResolution
         ? sourceCard !== null &&
           sourceCard.ownerId === ability.controllerId &&
-          isMemberCardData(sourceCard.data)
+          (config.sourceKind === 'LIVE_CARD'
+            ? isLiveCardData(sourceCard.data)
+            : isMemberCardData(sourceCard.data))
         : config.sourceKind === 'STAGE_MEMBER'
           ? sourceOnStage
           : sourceInLiveZone,
@@ -325,6 +369,20 @@ function evaluateCondition(
   playerId: string,
   conditionType: LiveDrawConfig['conditionType']
 ): EvaluatedCondition {
+  if (conditionType === 'OWN_NIJIGASAKI_WITH_ENERGY_BELOW') {
+    const memberCardIds = getStageMemberCardIdsMatching(
+      game,
+      playerId,
+      groupAliasIs('虹ヶ咲'),
+      memberHasEnergyBelow
+    );
+    return {
+      conditionType,
+      memberCardIds,
+      requestedDrawCount: memberCardIds.length,
+      conditionMet: memberCardIds.length > 0,
+    };
+  }
   if (conditionType === 'ALWAYS') {
     return { conditionType, conditionMet: true };
   }
@@ -421,6 +479,20 @@ function getConfirmationConfig(
   config: LiveDrawConfig
 ): { readonly effectText: string; readonly stepText: string } {
   const context = getLiveDrawContext(game, ability, config);
+  if (context.condition.conditionType === 'OWN_NIJIGASAKI_WITH_ENERGY_BELOW') {
+    const requested =
+      context.sourceValid && context.sourceCardMatchesExpectedBase
+        ? context.condition.requestedDrawCount
+        : 0;
+    const actual =
+      requested > 0
+        ? (drawCardsForPlayer(game, ability.controllerId, requested)?.drawnCardIds.length ?? 0)
+        : 0;
+    return {
+      effectText: `${getAbilityEffectText(ability.abilityId)}（当前符合条件的虹咲成员有${context.condition.requestedDrawCount}人，实际抽${actual}张卡。）`,
+      stepText: '确认后按当前下方存在能量卡的虹咲成员人数抽牌。',
+    };
+  }
   if (context.condition.conditionType === 'ALWAYS') {
     return { effectText: getAbilityEffectText(ability.abilityId), stepText: '确认后结算此效果。' };
   }
@@ -503,6 +575,21 @@ function createActionPayload(
   canDraw: boolean,
   drawnCardIds: readonly string[]
 ): Readonly<Record<string, unknown>> {
+  if (context.condition.conditionType === 'OWN_NIJIGASAKI_WITH_ENERGY_BELOW') {
+    return {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: canDraw
+        ? config.actionStep
+        : context.sourceValid && context.sourceCardMatchesExpectedBase
+          ? config.noOpSteps.conditionNotMet
+          : config.noOpSteps.sourceMissing,
+      memberCardIds: context.condition.memberCardIds,
+      requestedDrawCount: context.condition.requestedDrawCount,
+      drawnCardIds,
+    };
+  }
   if (context.condition.conditionType === 'ALWAYS') {
     return {
       pendingAbilityId: ability.id,

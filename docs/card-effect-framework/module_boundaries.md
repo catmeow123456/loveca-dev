@@ -45,6 +45,12 @@ Examples:
 
 费用 query 必须区分“卡牌本身的当前费用”和“登场时实际支付的费用”。卡效读取手牌成员卡的费用时使用 `getHandMemberEffectiveCost`；它包含 `LL-bp2-001` 这类“手牌中的此卡费用减少”的常时修正，但不包含 `PL!SP-bp5-003` 这类“从手牌登场所需费用减少”。只有实际生成登场支付方案时才使用 `getHandMemberEffectivePlayCost` / `calculateModifiedPlayCost`。直接读取 `card.data.cost` 仅表示印刷／原本费用，不能用于要求当前费用的卡效条件。
 
+### 来源成员的当前与最终数值
+
+`domain/rules/member-last-known-information.ts` 在顶层成员真正离场前读取有效BLADE／有效费用，随同一个 `LeaveStageEvent.memberLastKnownInformation` 保存这两项不可从离场后状态恢复的值。普通／双换手、重复成员、卡效覆盖、自送费用、卡效离场与手动离场调用同一捕获；同槽／槽位内移动不创建快照。双换手从同一个移牌前场面捕获所有旧成员。
+
+`card-effects/runtime/source-member-information.ts` 是只读适配：调用方传已捕获的sourceLifecycleId，同对象在场用当前domain query，否则按leave事件sequence恢复原entry身份并取精确旧快照。无匹配值返回null，workflow写明确诊断后续行；不以印刷值、触发时值或最新同实体对象回退。千砂都来源BLADE阈值与瑠璃乃／旧吟子来源费用比较是本批实际读取者，不扩成全属性最终信息系统。公开窗口以原effect continuation保留该身份，恢复后再校验。
+
 ### 供动作选择读取的能力资源
 
 `card-effects/runtime/ability-resource-query.ts` 是只读注册/分发入口。workflow 注册当前费用、目标与有限登场条件收益，复用实际 resolver 的 activation query、selector 和条件，不在 AI adapter 复制卡号规则。`selectWaitingRoomTargetsAfterSourceCost` 只查询来源自送后可进入休息室的来源/下方成员与当前休息室，不支付、不排队、不试执行命令。

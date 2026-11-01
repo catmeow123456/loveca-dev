@@ -1,0 +1,280 @@
+[
+  {
+    "cardCode": "PL!-bp8-009-SEC",
+    "cardType": "MEMBER",
+    "nameJp": "矢澤にこ",
+    "nameCn": "矢泽日香（矢泽妮可）",
+    "workNames": null,
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【常時】このメンバーの下に置かれているコストの異なるメンバーカード１枚につき、このメンバーのコストを＋２し、[桃ハート][ブレード]を得る。\n\n【起動】【ターン２回】[E][E]：自分の手札からメンバーカード１枚をこのメンバーの下に置く。",
+    "cardTextCn": "【常时】放置于此成员下方的费用各不相同的成员卡每有１张，此成员的费用＋２，获得[桃ハート][ブレード]。\n\n【起动】【１回合２次】[E][E]：从自己的手牌将１张成员卡放置于此成员的下方。",
+    "imageFilename": "PL!-bp8-009-SEC-9b361799f3876e451f30f3df.webp",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/BP08/PL!-bp8-009-SEC.png",
+    "rare": "SEC",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08"
+  },
+  {
+    "cardCode": "PL!-sd1-002-SD",
+    "cardType": "MEMBER",
+    "nameJp": "絢瀬絵里",
+    "nameCn": "绚濑绘里",
+    "workNames": [
+      "ラブライブ！"
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【起動】このメンバーをステージから控え室に置く：自分の控え室からメンバーカードを1枚手札に加える。",
+    "cardTextCn": "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。",
+    "imageFilename": "PL!-sd1-002-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/PLSD01/PL!-sd1-002-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！",
+    "productCode": "PLSD01"
+  },
+  {
+    "cardCode": "PL!-sd1-005-SD",
+    "cardType": "MEMBER",
+    "nameJp": "星空凛",
+    "nameCn": "星空凛",
+    "workNames": [
+      "ラブライブ！"
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【起動】このメンバーをステージから控え室に置く：自分の控え室からライブカードを1枚手札に加える。",
+    "cardTextCn": "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。",
+    "imageFilename": "PL!-sd1-005-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/PLSD01/PL!-sd1-005-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！",
+    "productCode": "PLSD01"
+  },
+  {
+    "cardCode": "PL!-sd1-006-SD",
+    "cardType": "MEMBER",
+    "nameJp": "西木野真姫",
+    "nameCn": "西木野真姬",
+    "workNames": [
+      "ラブライブ！"
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cost": 9,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】手札のライブカードを1枚公開してもよい：自分の成功ライブカード置き場にあるカードを1枚手札に加える。そうした場合、これにより公開したカードを自分の成功ライブカード置き場に置く。",
+    "cardTextCn": "【登场】可以将1张手牌中的LIVE卡公开：将1张自己的成功LIVE卡区中的卡片加入手牌。如此做的场合，将因此公开的卡放置入自己的成功LIVE卡区。",
+    "imageFilename": "PL!-sd1-006-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/PLSD01/PL!-sd1-006-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！",
+    "productCode": "PLSD01"
+  },
+  {
+    "cardCode": "PL!-sd1-007-SD",
+    "cardType": "MEMBER",
+    "nameJp": "東條希",
+    "nameCn": "东条希",
+    "workNames": [
+      "ラブライブ！"
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cost": 7,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】自分のデッキの上からカードを5枚控え室に置く。それらの中にライブカードがある場合、カードを1枚引く。",
+    "cardTextCn": "【登场】将自己卡组顶的5张卡放置入休息室。其中有LIVE卡的场合，抽1张卡。",
+    "imageFilename": "PL!-sd1-007-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/PLSD01/PL!-sd1-007-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！",
+    "productCode": "PLSD01"
+  },
+  {
+    "cardCode": "PL!-sd1-008-SD",
+    "cardType": "MEMBER",
+    "nameJp": "小泉花陽",
+    "nameCn": "小泉花阳",
+    "workNames": [
+      "ラブライブ！"
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cost": 4,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【起動】【ターン1回】[E][E]：自分のデッキの上からカードを10枚控え室に置く。",
+    "cardTextCn": "【起动】【1回合1次】[E][E]：将自己卡组顶的10张卡放置入休息室。",
+    "imageFilename": "PL!-sd1-008-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/PLSD01/PL!-sd1-008-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！",
+    "productCode": "PLSD01"
+  },
+  {
+    "cardCode": "PL!-sd1-019-SD",
+    "cardType": "LIVE",
+    "nameJp": "START:DASH!!",
+    "nameCn": "开始: 前进!!",
+    "workNames": [
+      "ラブライブ！"
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": null,
+    "bladeHearts": [
+      {
+        "effect": "SCORE"
+      }
+    ],
+    "score": 1,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "cardTextJp": "【ライブ成功時】自分のデッキの上からカードを3枚見る。その中から好きな枚数を好きな順番でデッキの上に置き、残りを控え室に置く。",
+    "cardTextCn": "【LIVE成功时】检视自己卡组顶的3张卡。将其中任意张数的卡片按任意顺序放置于卡组顶，其余的卡片放置入休息室。",
+    "imageFilename": "PL!-pb1-019-SD.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/PLSD01/PL!-sd1-019-SD.png",
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！",
+    "productCode": "PLSD01"
+  }
+]

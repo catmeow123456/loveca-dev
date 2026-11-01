@@ -1,17 +1,17 @@
 import { motion } from 'framer-motion';
 import type { EffectFeedbackChange } from '@game/online';
 import type { FeedbackPresentation } from '@/lib/effectFeedbackPresentation';
-import { hasEffectFeedbackGlow } from '@/lib/effectFeedback';
+import { hasEffectFeedbackGlow, isEffectFeedbackGain } from '@/lib/effectFeedback';
 
-/** A single card-local sheen; HEART and BLADE differ only by colour and their result icon. */
+/** A single card-local sheen; stat gains differ only by colour and their result icon. */
 function GainSheen({
   color,
-  blade,
+  kind,
   lane,
   count,
 }: {
   color: string;
-  blade: boolean;
+  kind: 'heart' | 'blade' | 'cost';
   lane: number;
   count: number;
 }) {
@@ -19,7 +19,7 @@ function GainSheen({
   const delay = 0.1 + Math.min(lane, 5) * 0.035;
   return (
     <div
-      data-effect-gain-radiance={blade ? 'blade' : 'heart'}
+      data-effect-gain-radiance={kind}
       style={{ position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 'inherit' }}
     >
       <motion.div
@@ -68,10 +68,11 @@ export function EffectResultArt({
       />
     );
   if (!hasEffectFeedbackGlow(item.event.mode, item.target.changes)) return null;
-  const gains = item.target.changes.filter(
-    (change) => (change.kind === 'HEART' || change.kind === 'BLADE') && change.delta > 0
-  );
-  const others = item.target.changes.filter((change) => !gains.includes(change));
+  const gains = item.target.changes.filter(isEffectFeedbackGain);
+  const others =
+    item.event.mode === 'APPLIED'
+      ? item.target.changes.filter((change) => !gains.includes(change))
+      : [];
   return (
     <div
       className={'effect-result-art' + (item.target.objectId ? '' : ' effect-result-art--zone')}
@@ -82,7 +83,7 @@ export function EffectResultArt({
         <GainSheen
           key={index}
           color={colorFor(change)}
-          blade={change.kind === 'BLADE'}
+          kind={change.kind === 'COST' ? 'cost' : change.kind === 'BLADE' ? 'blade' : 'heart'}
           lane={index}
           count={gains.length}
         />

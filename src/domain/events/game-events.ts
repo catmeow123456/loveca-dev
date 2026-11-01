@@ -142,6 +142,11 @@ export interface EnterStageEvent extends CardMoveEvent {
 /**
  * 成员离场事件
  */
+export interface MemberLastKnownInformation {
+  readonly effectiveBlade: number;
+  readonly effectiveCost: number;
+}
+
 export interface LeaveStageEvent extends CardMoveEvent {
   readonly eventType: TriggerCondition.ON_LEAVE_STAGE;
   readonly fromZone: ZoneType.MEMBER_SLOT;
@@ -149,6 +154,8 @@ export interface LeaveStageEvent extends CardMoveEvent {
   readonly fromSlot: SlotPosition;
   /** 换手时替换登场的成员 ID */
   readonly replacingCardId?: string;
+  /** Rule 9.11 values captured immediately before this stage rules object leaves. */
+  readonly memberLastKnownInformation?: MemberLastKnownInformation;
 }
 
 /**
@@ -670,7 +677,8 @@ export function createLeaveStageEvent(
   toZone: ZoneType,
   ownerId: string,
   controllerId: string,
-  replacingCardId?: string
+  replacingCardId?: string,
+  memberLastKnownInformation?: MemberLastKnownInformation
 ): LeaveStageEvent {
   return {
     eventId: generateEventId(),
@@ -684,6 +692,7 @@ export function createLeaveStageEvent(
     controllerId,
     triggerPlayerId: controllerId,
     replacingCardId,
+    memberLastKnownInformation,
   };
 }
 

@@ -16,6 +16,7 @@ import {
 } from '../../../../shared/types/enums.js';
 import {
   BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
+  N_BP8_003_LIVE_SUCCESS_LOOK_TOP_FIVE_NO_BLADE_HEART_NIJIGASAKI_MEMBER_ABILITY_ID,
   HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID,
   HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
   PL_S_BP5_007_LIVE_SUCCESS_LOOK_TOP_GREEN_HEART_MEMBER_ABILITY_ID,
@@ -54,11 +55,13 @@ import {
   costGte,
   groupAliasIs,
   groupIs,
+  hasBladeHeart,
   hasNoAbilityOrContinuousAbility,
   liveTotalRequiredHeartGte,
   liveRequiresHeartColor,
   memberHasPrintedHeartColorAtLeast,
   memberHasHeartColor,
+  not,
   typeIs,
 } from '../../../effects/card-selectors.js';
 import { inspectTopCards } from '../../../effects/look-top.js';
@@ -232,6 +235,30 @@ function createNamedMemberLookTopTwoConfig(params: {
 
 const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandWorkflowConfig[] = [
   {
+    abilityId: N_BP8_003_LIVE_SUCCESS_LOOK_TOP_FIVE_NO_BLADE_HEART_NIJIGASAKI_MEMBER_ABILITY_ID,
+    topCount: 5,
+    selector: and(typeIs(CardType.MEMBER), groupAliasIs('虹ヶ咲'), not(hasBladeHeart())),
+    countRule: { minCount: 0, maxCount: 1 },
+    revealSelectedBeforeHand: true,
+    selectStepId: 'N_BP8_003_SELECT_NO_BLADE_HEART_NIJIGASAKI_MEMBER',
+    revealStepId: 'N_BP8_003_REVEAL_NO_BLADE_HEART_NIJIGASAKI_MEMBER',
+    selectStepText: '请选择至多1张不持有BLADE HEART的虹咲成员卡公开并加入手牌。',
+    noTargetStepText:
+      '没有可加入手牌的不持有BLADE HEART的虹咲成员卡。确认后将全部检视牌放置入休息室。',
+    selectionLabel: '选择要公开并加入手牌的虹咲成员卡',
+    confirmSelectionLabel: '公开并加入手牌',
+    skipSelectionLabel: '全部放置入休息室',
+    revealStepText: '已公开所选虹咲成员卡。展示结束后加入手牌，其余检视牌放置入休息室。',
+    noCardsMode: 'open-selection',
+    includeInspectedCardIdsInFinishAction: true,
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: 'LIVE成功',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 5,
+    },
+  },
+  {
     abilityId: HS_BP8_007_ON_ENTER_LOOK_TOP_FIVE_PURPLE_REQUIREMENT_LIVE_ABILITY_ID,
     topCount: 5,
     selector: liveRequiresHeartColor(HeartColor.PURPLE),
@@ -240,7 +267,8 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
     selectStepId: 'HS_BP8_007_SELECT_PURPLE_REQUIREMENT_LIVE',
     revealStepId: 'HS_BP8_007_REVEAL_PURPLE_REQUIREMENT_LIVE',
     selectStepText: '请选择要公开并加入手牌的必要Heart包含[紫ハート]的LIVE卡。',
-    noTargetStepText: '没有可加入手牌的必要Heart包含[紫ハート]的LIVE卡。确认后将全部检视牌放置入休息室。',
+    noTargetStepText:
+      '没有可加入手牌的必要Heart包含[紫ハート]的LIVE卡。确认后将全部检视牌放置入休息室。',
     selectionLabel: '选择要公开并加入手牌的LIVE卡',
     confirmSelectionLabel: '公开并加入手牌',
     skipSelectionLabel: '全部放置入休息室',

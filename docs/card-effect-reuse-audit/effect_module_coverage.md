@@ -187,3 +187,12 @@ energyBelow 继续随主成员移动/交换，并在离场、换手或替换时�
 
 本批没有建立任意 relay predicate、区域分数 AST、目的地 callback 或奖励 DSL。
 以上卡牌按基础编号覆盖全部罕度；表中的 `-PR` 只表示当前公开印刷，不是 definition、workflow gate 或 continuous registry 的规则边界。
+
+
+## 2026-10-31 narrow runtime and family additions
+
+- `member-last-known-information.ts` / `source-member-information.ts`: effectiveBLADE/effectiveCost only, stage-exit event capture plus exact-lifecycle current/final query. Proving callers: SP-PR-033 and HS-bp8-011/HS-bp2-007. Tests: `source-member-information.test.ts`, including six real event sites, double relay, re-entry and current-format authority serialization.
+- `live-draw-cards.ts`: renamed family with six retained fixed/conditional one-card callers and one stage/energy-below count branch. `relay-enter-lower-cost-recover-live.ts`: second real lower-cost-relay recovery sample promotes the old single-card ON_ENTER paragraph; unit constraint and recovery selector are the only family axes.
+- `draw-then-discard.ts` and `look-top-select-to-hand.ts` gain ordinary configuration samples. `live-success-discard-recover-cheer.ts` gains sourceBLADE/optional recovery axes while retaining the existing public selection lifecycle and old mandatory branches.
+
+Card status and exact proving cards remain in `existing_module_map.md`.

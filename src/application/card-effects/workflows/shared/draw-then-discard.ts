@@ -2,6 +2,7 @@ import { addAction, getPlayerById, type GameState } from '../../../../domain/ent
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { SlotPosition, ZoneType } from '../../../../shared/types/enums.js';
 import {
+  PL_BP8_015_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   HS_BP2_015_LEAVE_STAGE_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
   HS_BP8_014_LEAVE_STAGE_DISCARD_TWO_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
@@ -82,6 +83,13 @@ const DRAW_THEN_DISCARD_WORKFLOWS: readonly {
   readonly requiredStageMemberGroup?: string;
   readonly confirmSelectionLabel?: string;
 }[] = [
+  {
+    abilityId: PL_BP8_015_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+    drawCount: 1,
+    discardCount: 1,
+    stepId: 'PL_BP8_015_LIVE_SUCCESS_SELECT_DISCARD',
+    confirmSelectionLabel: '放置入休息室',
+  },
   {
     abilityId: HS_BP8_014_LEAVE_STAGE_DISCARD_TWO_ABILITY_ID,
     drawCount: 0,

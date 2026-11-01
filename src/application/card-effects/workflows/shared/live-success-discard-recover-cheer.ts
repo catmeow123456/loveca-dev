@@ -9,7 +9,14 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { groupAliasIs, type CardSelector } from '../../../effects/card-selectors.js';
+import {
+  and,
+  groupAliasIs,
+  memberPrintedBladeLte,
+  type CardSelector,
+} from '../../../effects/card-selectors.js';
+import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
+import { queryAbilitySourceMemberInformation } from '../../runtime/source-member-information.js';
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import {
   moveRevealedCheerCards,
@@ -19,6 +26,7 @@ import {
   N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
   SP_PR_016_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
   PL_BP8_008_LIVE_SUCCESS_DISCARD_RECOVER_MUSE_CHEER_ABILITY_ID,
+  SP_PR_033_LIVE_SUCCESS_DISCARD_RECOVER_LIELLA_CHEER_BY_SOURCE_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
@@ -50,8 +58,18 @@ interface DiscardRecoverCheerConfig {
   readonly abilityId: string;
   readonly recoveryPredicate: CardSelector;
   readonly recoveryStepText: string;
+  readonly sourceBladeThreshold?: boolean;
+  readonly optionalRecovery?: boolean;
 }
 const DISCARD_RECOVER_CHEER_CONFIGS: readonly DiscardRecoverCheerConfig[] = [
+  {
+    abilityId: SP_PR_033_LIVE_SUCCESS_DISCARD_RECOVER_LIELLA_CHEER_BY_SOURCE_BLADE_ABILITY_ID,
+    recoveryPredicate: groupAliasIs('Liella!'),
+    recoveryStepText:
+      '请选择至多1张BLADE数量小于等于此成员的Liella!声援成员卡加入手牌。也可以不加入。',
+    sourceBladeThreshold: true,
+    optionalRecovery: true,
+  },
   ...[
     N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
     SP_PR_016_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
@@ -166,17 +184,20 @@ function startLiveSuccessDiscardRecoverCheer(
   return startPendingActiveEffect(game, {
     ability,
     playerId: player.id,
-    activeEffect: createOptionalDiscardHandToWaitingRoomActiveEffect({
-      ability,
-      playerId: player.id,
-      effectText: getAbilityEffectText(config.abilityId),
-      stepId: SELECT_DISCARD_STEP_ID,
-      selectableCardIds: player.hand.cardIds,
-      orderedResolution: options.orderedResolution === true,
-      metadata: {
-        sourceSlot,
-      },
-    }),
+    activeEffect: {
+      ...createOptionalDiscardHandToWaitingRoomActiveEffect({
+        ability,
+        playerId: player.id,
+        effectText: getAbilityEffectText(config.abilityId),
+        stepId: SELECT_DISCARD_STEP_ID,
+        selectableCardIds: player.hand.cardIds,
+        orderedResolution: options.orderedResolution === true,
+        metadata: {
+          sourceSlot,
+        },
+      }),
+      sourceLifecycleId: getPendingAbilitySourceLifecycleId(game, ability),
+    },
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       sourceSlot,
@@ -223,10 +244,14 @@ function finishDiscardCost(
   }
 
   const discardedCardId = discardResult.discardedCardIds[0] ?? discardCardId;
+  const recoveryPredicate = getRecoveryPredicate(discardResult.gameState, effect, config);
+  if (!recoveryPredicate) {
+    return finishUnavailableSourceInformation(discardResult.gameState, continuePendingCardEffects);
+  }
   const selectableCardIds = selectRevealedCheerCardIds(
     discardResult.gameState,
     player.id,
-    config.recoveryPredicate
+    recoveryPredicate
   );
   if (selectableCardIds.length === 0) {
     return continuePendingCardEffects(
@@ -256,7 +281,8 @@ function finishDiscardCost(
         selectableCardMode: 'SINGLE',
         selectionLabel: '选择要加入手牌的声援公开卡',
         confirmSelectionLabel: '加入手牌',
-        canSkipSelection: false,
+        canSkipSelection: config.optionalRecovery === true,
+        skipSelectionLabel: config.optionalRecovery ? '不加入' : undefined,
         metadata: {
           ...effect.metadata,
           sourceSlot,
@@ -293,19 +319,27 @@ function finishRecoverRevealedCheer(
     !effect ||
     effect.abilityId !== config.abilityId ||
     effect.stepId !== SELECT_REVEALED_CHEER_STEP_ID ||
-    selectedCardId === null ||
-    effect.selectableCardIds?.includes(selectedCardId) !== true
+    (selectedCardId !== null && effect.selectableCardIds?.includes(selectedCardId) !== true)
   ) {
     return game;
+  }
+
+  if (selectedCardId === null) {
+    return config.optionalRecovery
+      ? finishSkippedActiveEffect(game, continuePendingCardEffects, {
+          step: 'DECLINE_RECOVER_CHEER',
+        })
+      : game;
   }
 
   const player = getPlayerById(game, effect.controllerId);
   if (!player) {
     return game;
   }
-  if (
-    !selectRevealedCheerCardIds(game, player.id, config.recoveryPredicate).includes(selectedCardId)
-  ) {
+  const recoveryPredicate = getRecoveryPredicate(game, effect, config);
+  if (!recoveryPredicate)
+    return finishUnavailableSourceInformation(game, continuePendingCardEffects);
+  if (!selectRevealedCheerCardIds(game, player.id, recoveryPredicate).includes(selectedCardId)) {
     if (!wasRestoredAfterPublicCardSelectionConfirmation(effect)) return game;
     return continuePendingCardEffects(
       addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
@@ -337,6 +371,33 @@ function finishRecoverRevealedCheer(
     }),
     effect.metadata?.orderedResolution === true
   );
+}
+
+function getRecoveryPredicate(
+  game: GameState,
+  effect: NonNullable<GameState['activeEffect']>,
+  config: DiscardRecoverCheerConfig
+): CardSelector | null {
+  if (!config.sourceBladeThreshold) return config.recoveryPredicate;
+  if (!effect.sourceLifecycleId) return null;
+  const information = queryAbilitySourceMemberInformation(game, {
+    abilityId: effect.abilityId,
+    sourceCardId: effect.sourceCardId,
+    controllerId: effect.controllerId,
+    sourceLifecycleId: effect.sourceLifecycleId,
+  });
+  return information
+    ? and(config.recoveryPredicate, memberPrintedBladeLte(information.effectiveBlade))
+    : null;
+}
+
+function finishUnavailableSourceInformation(
+  game: GameState,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  return finishSkippedActiveEffect(game, continuePendingCardEffects, {
+    step: 'SOURCE_MEMBER_INFORMATION_UNAVAILABLE',
+  });
 }
 
 function isLowCostMemberOrLowScoreLive(card: CardInstance): boolean {

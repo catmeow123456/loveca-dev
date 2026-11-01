@@ -1,3 +1,4 @@
+import { KotoriRelayHeart } from './kotori-ayumu-effects/KotoriRelayHeart';
 import { IzumiProtection, IZUMI_PROTECTION_DESCRIPTION } from './izumi-protection/IzumiProtection';
 import { getPresentationPortalRoot, useTextPresentation } from '@/lib/appPresentation';
 import { useBattleEffectsEnabled } from '@/lib/battleEffects';
@@ -1192,7 +1193,8 @@ export const PlayerArea = memo(function PlayerArea({
             return (
               <div
                 key={energyCardId}
-                className="absolute inset-0"
+                data-object-id={`obj_${energyCardId}`}
+                className={cn('absolute inset-0', getBattleAnimationOcclusionClass(energyCardId))}
                 style={{
                   transform: `translate(-${offsetPercent}%, ${offsetPercent}%)`,
                   // 越后渲染的在越上层，所以 reverseIndex 越大 z-index 越高
@@ -1384,6 +1386,12 @@ export const PlayerArea = memo(function PlayerArea({
                             previousSealStage.current?.identity === sealViewIdentity &&
                             !previousSealStage.current.cardIds.includes(cardId)
                           }
+                        />
+                        <KotoriRelayHeart
+                          objectId={cardViewObject?.publicObjectId ?? null}
+                          active={cardViewObject?.kotoriMuseRelayBonus}
+                          enabled={showSpecialSeals}
+                          coveredByMovement={battleAnimationOccludedObjectIds.has(`obj_${cardId}`)}
                         />
                       </>
                     }
@@ -2844,6 +2852,9 @@ export const PlayerArea = memo(function PlayerArea({
     if (isOpponent) {
       // 对手手牌显示背面 - 使用真实卡背图片，无动画以避免回合切换时的跳动
       const visibleBackCount = Math.min(displayedHandCount, isMobileBoard ? 8 : 10);
+      const arrivingBacks = battleAnimationOcclusions.filter(
+        (o) => o.anonymousHandSeat === playerSeat
+      ).length;
       const backScale =
         visibleBackCount > 7 ? (isMobileBoard ? 0.78 : 0.84) : isMobileBoard ? 0.88 : 0.94;
       const backSpread = isMobileBoard ? 164 : 440;
@@ -2865,6 +2876,7 @@ export const PlayerArea = memo(function PlayerArea({
                 left: `calc(50% + ${(idx - (visibleBackCount - 1) / 2) * backStep}px)`,
                 transform: `translateX(-50%) scale(${backScale})`,
                 zIndex: idx,
+                visibility: idx >= visibleBackCount - arrivingBacks ? 'hidden' : undefined,
               }}
             >
               <img src="/back.jpg" alt="Card Back" className="w-full h-full object-cover" />

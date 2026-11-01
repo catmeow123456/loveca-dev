@@ -2,17 +2,24 @@ import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { getCardById, type GameState } from '../../../../domain/entities/game.js';
 import { unitAliasIs } from '../../../effects/card-selectors.js';
 import { getMemberEffectiveCost } from '../../../effects/conditions.js';
+import { queryAbilitySourceMemberInformation } from '../../runtime/source-member-information.js';
 
 export interface RelayEnterLowerCostUnitContext {
   readonly sourceCardId: string;
   readonly controllerId: string;
   readonly relayReplacements: unknown;
+  readonly abilityId?: string;
+  readonly sourceLifecycleId?: string;
 }
 
 export interface RelayEnterLowerCostUnitCondition {
   readonly conditionMet: boolean;
   readonly reason:
-    'MATCHED' | 'SOURCE_NOT_MEMBER' | 'NOT_RELAY_ENTER' | 'NO_LOWER_COST_UNIT_REPLACEMENT';
+    | 'MATCHED'
+    | 'SOURCE_NOT_MEMBER'
+    | 'SOURCE_INFORMATION_UNAVAILABLE'
+    | 'NOT_RELAY_ENTER'
+    | 'NO_LOWER_COST_UNIT_REPLACEMENT';
   readonly sourceEffectiveCost: number | null;
   readonly relayReplacementCardIds: readonly string[];
   readonly matchingRelayReplacementCardIds: readonly string[];
@@ -27,7 +34,7 @@ interface RelayReplacement {
 export function evaluateRelayEnterLowerCostUnitCondition(
   game: GameState,
   context: RelayEnterLowerCostUnitContext,
-  requiredUnitAlias: string
+  requiredUnitAlias?: string
 ): RelayEnterLowerCostUnitCondition {
   const sourceCard = getCardById(game, context.sourceCardId);
   if (!sourceCard || !isMemberCardData(sourceCard.data)) {
@@ -41,16 +48,30 @@ export function evaluateRelayEnterLowerCostUnitCondition(
     };
   }
 
-  const sourceEffectiveCost = getMemberEffectiveCost(
-    game,
-    context.controllerId,
-    context.sourceCardId
-  );
+  const sourceEffectiveCost =
+    context.abilityId && context.sourceLifecycleId
+      ? (queryAbilitySourceMemberInformation(game, {
+          abilityId: context.abilityId,
+          sourceCardId: context.sourceCardId,
+          controllerId: context.controllerId,
+          sourceLifecycleId: context.sourceLifecycleId,
+        })?.effectiveCost ?? null)
+      : getMemberEffectiveCost(game, context.controllerId, context.sourceCardId);
   const replacements = parseRelayReplacements(context.relayReplacements);
   const relayReplacementCardIds = replacements.map((replacement) => replacement.cardId);
   const capturedReplacementEffectiveCosts = replacements.map(
     (replacement) => replacement.effectiveCost
   );
+  if (sourceEffectiveCost === null) {
+    return {
+      conditionMet: false,
+      reason: 'SOURCE_INFORMATION_UNAVAILABLE',
+      sourceEffectiveCost,
+      relayReplacementCardIds,
+      matchingRelayReplacementCardIds: [],
+      capturedReplacementEffectiveCosts,
+    };
+  }
   if (replacements.length === 0) {
     return {
       conditionMet: false,
@@ -62,12 +83,13 @@ export function evaluateRelayEnterLowerCostUnitCondition(
     };
   }
 
-  const requiredUnitSelector = unitAliasIs(requiredUnitAlias);
+  const requiredUnitSelector =
+    requiredUnitAlias === undefined ? undefined : unitAliasIs(requiredUnitAlias);
   const matchingRelayReplacementCardIds = replacements.flatMap((replacement): string[] => {
     const replacedCard = getCardById(game, replacement.cardId);
     return replacedCard &&
       isMemberCardData(replacedCard.data) &&
-      requiredUnitSelector(replacedCard) &&
+      (!requiredUnitSelector || requiredUnitSelector(replacedCard)) &&
       replacement.effectiveCost < sourceEffectiveCost
       ? [replacement.cardId]
       : [];

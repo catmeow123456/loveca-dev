@@ -24,6 +24,22 @@ export function groupEffectFeedbackChanges(
   }
   return [...groups.values()];
 }
+/** Continuous losses stay quiet; existing explicit results retain both signs. */
+export function getEffectFeedbackPresentationChanges(
+  mode: EffectFeedbackPublicEvent['mode'],
+  changes: readonly EffectFeedbackChange[]
+): EffectFeedbackChange[] {
+  return groupEffectFeedbackChanges(
+    changes.filter((change) => {
+      if (
+        change.kind === 'COST' ||
+        (mode === 'UPDATE' && (change.kind === 'HEART' || change.kind === 'BLADE'))
+      )
+        return change.delta > 0;
+      return change.delta !== 0;
+    })
+  );
+}
 export function effectFeedbackTargetKey(target: EffectFeedbackTarget): string {
   return target.objectId ? `card:${target.objectId}` : `zone:${target.zoneKey}`;
 }
@@ -50,12 +66,18 @@ export interface FeedbackPresentation {
   readonly startedAt: number;
   readonly endsAt: number;
 }
-/** New results immediately replace the same target; unrelated targets keep playing. */
+export type FeedbackPresentationUpdate<T extends FeedbackPresentation> =
+  T | { readonly key: string; readonly remove: true };
+
+/** Ordered results replace or clear the same target; unrelated targets keep playing. */
 export function replaceFeedbackPresentations<T extends FeedbackPresentation>(
   current: readonly T[],
-  additions: readonly T[]
+  updates: readonly FeedbackPresentationUpdate<T>[]
 ) {
   const items = new Map(current.map((item) => [item.key, item]));
-  for (const item of additions) items.set(item.key, item);
+  for (const item of updates) {
+    if ('remove' in item) items.delete(item.key);
+    else items.set(item.key, item);
+  }
   return [...items.values()];
 }

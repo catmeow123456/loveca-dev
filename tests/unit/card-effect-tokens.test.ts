@@ -5,6 +5,16 @@ import {
 } from '../../client/src/lib/cardEffectTokens';
 
 describe('parseCardEffectText', () => {
+  it('renders the exact fullwidth twice-per-turn limit exported for BP8 Nico', () => {
+    const text = '【起动】【１回合２次】[E][E]：从自己的手牌将１张成员卡放置于此成员的下方。';
+    expect(getUnknownCardEffectPlaceholders(text)).toEqual([]);
+    expect(parseCardEffectText(text).find((part) => part.kind === 'limit')).toEqual({
+      kind: 'limit',
+      raw: '【１回合２次】',
+      label: '１回合２次',
+    });
+    expect(parseCardEffectText(text).filter((part) => part.kind === 'cost')).toHaveLength(2);
+  });
   it('maps the exact double-gray blade-heart token without rewriting the card paragraph', () => {
     expect(getUnknownCardEffectPlaceholders('[ダブル無色ブレード]')).toEqual([]);
     expect(parseCardEffectText('[ダブル無色ブレード]')).toEqual([

@@ -1,3 +1,4 @@
+import { captureMemberLastKnownInformation } from '../../../domain/rules/member-last-known-information.js';
 import { isMemberCardData } from '../../../domain/entities/card.js';
 import {
   emitGameEvent,
@@ -108,6 +109,10 @@ export function playMemberFromZoneToStageSlotWithReplacement(
     return null;
   }
 
+  const removedMemberLastKnownInformation = duplicateMemberRuleRemovedCardId
+    ? captureMemberLastKnownInformation(game, player.id, duplicateMemberRuleRemovedCardId)
+    : undefined;
+
   let movedToWaitingRoomCardIds: readonly string[] = [];
   let returnedEnergyCardIds: readonly string[] = [];
   let state = game;
@@ -178,7 +183,9 @@ export function playMemberFromZoneToStageSlotWithReplacement(
       options.toSlot,
       ZoneType.WAITING_ROOM,
       removedMemberCard.ownerId,
-      player.id
+      player.id,
+      undefined,
+      removedMemberLastKnownInformation
     );
     state = emitGameEvent(state, leaveStageEvent);
     leaveStageEvents.push(leaveStageEvent);

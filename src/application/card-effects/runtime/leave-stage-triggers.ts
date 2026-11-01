@@ -1,3 +1,4 @@
+import { captureMemberLastKnownInformation } from '../../../domain/rules/member-last-known-information.js';
 import type { GameState } from '../../../domain/entities/game.js';
 import {
   emitGameEvent,
@@ -131,6 +132,7 @@ export function sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
     return null;
   }
 
+  const lastKnownInformation = captureMemberLastKnownInformation(game, player.id, memberCardId);
   let movedToWaitingRoomCardIds: readonly string[] = [memberCardId];
   let state = updatePlayer(game, player.id, (currentPlayer) => {
     const energyReturnResult = returnEnergyBelowMemberToEnergyDeckForPlayer(
@@ -160,7 +162,9 @@ export function sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
       sourceSlot,
       ZoneType.WAITING_ROOM,
       memberCard.ownerId,
-      player.id
+      player.id,
+      undefined,
+      lastKnownInformation
     )
   );
   const enterWaitingRoomEvent = createEnterWaitingRoomEvent(

@@ -1,0 +1,161 @@
+.care-card-trim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  opacity: var(--care-trim-opacity, 1);
+  filter: drop-shadow(0 2px 3px #38203955);
+}
+.care-feather-wing {
+  transform: rotate(var(--care-wing-angle, 0deg));
+  transform-origin: 0 0;
+}
+.care-bell {
+  transform: rotate(var(--care-bell-angle, 0deg));
+  transform-origin: 0 0;
+}
+.care-candy-wrap {
+  transform: translateX(var(--care-wrap-open, 0px));
+  opacity: var(--care-wrap-opacity, 1);
+}
+.care-flight-card {
+  position: fixed;
+  pointer-events: none;
+  z-index: 96;
+  transform-origin: center;
+  will-change: transform, width, height;
+}
+.care-flight-face {
+  width: 100%;
+  height: 100%;
+  border: 1px solid #eed6c6;
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--bg-overlay);
+  box-shadow: 0 10px 24px #130e244d;
+}
+.care-flight-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.kotori-gauze-wing {
+  transform-origin: 0 0;
+  animation: kotori-gauze-flight var(--kotori-flight-duration) cubic-bezier(0.3, 0.6, 0.4, 1)
+    var(--kotori-flight-delay) both;
+}
+.kotori-gauze-tail {
+  transform-origin: 0 4px;
+  animation: kotori-gauze-tail var(--kotori-flight-duration) ease-in-out var(--kotori-flight-delay)
+    both;
+}
+[data-held] .kotori-gauze-wing,
+[data-held] .kotori-gauze-tail {
+  animation-play-state: paused;
+}
+@keyframes kotori-gauze-flight {
+  0% {
+    transform: rotate(24deg) scaleX(0.25);
+    opacity: 0;
+  }
+  12% {
+    transform: rotate(-12deg) scaleX(0.9);
+    opacity: 1;
+  }
+  26% {
+    transform: rotate(6deg) scaleX(1);
+  }
+  43% {
+    transform: rotate(-6deg) scaleX(0.94);
+  }
+  66% {
+    transform: rotate(2deg) scaleX(1);
+  }
+  84% {
+    transform: rotate(-4deg) scaleX(0.95);
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(28deg) scaleX(0.3);
+    opacity: 0;
+  }
+}
+@keyframes kotori-gauze-tail {
+  0%,
+  100% {
+    transform: rotate(12deg);
+  }
+  20%,
+  58% {
+    transform: rotate(-9deg);
+  }
+  39%,
+  82% {
+    transform: rotate(6deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kotori-gauze-wing,
+  .kotori-gauze-tail {
+    animation: none;
+  }
+}
+
+.care-kotori-discard {
+  overflow: visible;
+}
+.care-kotori-discard > img {
+  border-radius: inherit;
+}
+
+.care-flight-occlusion {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+.care-flight-card[data-care-flight='AYUMU_GIVE'] .care-flight-face {
+  border: 2px solid #818cf880;
+  border-radius: var(--battle-card-radius, 8px);
+  background: #1e293b;
+}
+
+.kotori-relay-heart {
+  position: absolute;
+  bottom: 2%;
+  right: 2%;
+  width: 22%;
+  min-width: 20px;
+  max-width: 36px;
+  z-index: 24;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px #302033bb);
+}
+.kotori-relay-heart svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+.kotori-relay-heart-halo {
+  animation: kotori-heart-breathe 3.6s ease-in-out infinite;
+}
+.kotori-relay-heart[data-reduced-motion] .kotori-relay-heart-halo {
+  animation: none;
+  opacity: 0.4;
+}
+@keyframes kotori-heart-breathe {
+  0%,
+  100% {
+    opacity: 0.23;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kotori-relay-heart-halo {
+    animation: none;
+    opacity: 0.4;
+  }
+}

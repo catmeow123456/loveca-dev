@@ -342,11 +342,18 @@ export interface ViewCardObject {
   readonly activatedAbilityProhibition?: 'SERAS_LOW_COST';
   /** Public, derived self-protection from opponent WAITING effects; not general immunity. */
   readonly opponentWaitProtection?: 'IZUMI_EDELNOTE';
+  /** Conditional +1 relay reduction into μ’s, derived from own stage and WAITING state. */
+  readonly kotoriMuseRelayBonus?: boolean;
   /** Public Ai HEART contributions to this stage member, derived from live modifiers. */
   readonly aiHeartLinks?: readonly {
     readonly sourceObjectId: string;
     readonly incarnation: string;
   }[];
+  /** Nico's public, derived number of distinct effective costs below this stage incarnation. */
+  readonly nicoEvidence?: {
+    readonly costKinds: number;
+    readonly incarnation: string;
+  };
 }
 
 export interface ViewCommandScope {
@@ -689,7 +696,7 @@ export interface CardEffectSummaryPublicEvent extends BasePublicEvent {
 /** Public member/LIVE numerical changes for non-blocking presentation. */
 export type EffectFeedbackChange =
   | { readonly kind: 'HEART' | 'REQUIREMENT'; readonly color: HeartColor; readonly delta: number }
-  | { readonly kind: 'BLADE' | 'SCORE'; readonly delta: number };
+  | { readonly kind: 'BLADE' | 'SCORE' | 'COST'; readonly delta: number };
 
 export interface EffectFeedbackTarget {
   readonly objectId?: string;

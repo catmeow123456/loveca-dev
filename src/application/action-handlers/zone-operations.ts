@@ -1,3 +1,4 @@
+import { captureMemberLastKnownInformation } from '../../domain/rules/member-last-known-information.js';
 /**
  * 区域操作辅助函数
  *
@@ -682,6 +683,15 @@ export function moveCardUniversal(
       ? [...(playerBeforeMove?.memberSlots.memberBelow[replacementSlot] ?? [])]
       : [];
 
+  const directLeavingLastKnownInformation =
+    directLeavingSlot !== undefined
+      ? captureMemberLastKnownInformation(game, playerId, cardId)
+      : undefined;
+  const displacedMemberLastKnownInformation =
+    displacedMemberCardId !== null
+      ? captureMemberLastKnownInformation(game, playerId, displacedMemberCardId)
+      : undefined;
+
   // 从来源区域移除
   if (fromZone === ZoneType.RESOLUTION_ZONE) {
     state = removeCardFromResolutionZone(state, cardId);
@@ -733,7 +743,15 @@ export function moveCardUniversal(
   ) {
     state = emitGameEvent(
       state,
-      createLeaveStageEvent(cardId, directLeavingSlot, toZone, cardBeforeMove.ownerId, playerId)
+      createLeaveStageEvent(
+        cardId,
+        directLeavingSlot,
+        toZone,
+        cardBeforeMove.ownerId,
+        playerId,
+        undefined,
+        directLeavingLastKnownInformation
+      )
     );
 
     const waitingRoomCardIds = playerAfterMove?.waitingRoom.cardIds ?? [];
@@ -787,7 +805,9 @@ export function moveCardUniversal(
         replacementSlot,
         ZoneType.WAITING_ROOM,
         displacedMember?.ownerId ?? playerId,
-        playerId
+        playerId,
+        undefined,
+        displacedMemberLastKnownInformation
       )
     );
 

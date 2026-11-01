@@ -1,12 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
 import { addEnergyBelowMember, addMemberBelowMember, placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
 import {
   placeEnergyFromEnergyDeckBelowStageMember,
+  moveSelectedEnergyBelowMemberToEnergyZoneByCardEffect,
   returnEnergyBelowMemberToEnergyDeck,
   stackEnergyFromEnergyZoneBelowMember,
+  type EnqueueTriggeredCardEffectsForEnergyBelowPlacement,
 } from '../../src/application/effects/energy-below';
 import {
   CardType,
@@ -14,6 +16,7 @@ import {
   HeartColor,
   OrientationState,
   SlotPosition,
+  TriggerCondition,
 } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'p1';
@@ -83,11 +86,18 @@ describe('energy below application helpers', () => {
       energyZone: { ...player.energyZone, cardIds: [], cardStates: new Map() },
       energyDeck: { ...player.energyDeck, cardIds: energies.map((energy) => energy.instanceId) },
     }));
-    const result = placeEnergyFromEnergyDeckBelowStageMember(deckState, PLAYER1, host.instanceId, 1);
+    const result = placeEnergyFromEnergyDeckBelowStageMember(
+      deckState,
+      PLAYER1,
+      host.instanceId,
+      1
+    );
     expect(result?.placedEnergyCardIds).toEqual([energies[0].instanceId]);
     expect(result?.targetSlot).toBe(SlotPosition.CENTER);
     expect(result?.gameState.players[0].energyDeck.cardIds).toEqual([energies[1].instanceId]);
-    expect(result?.gameState.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([energies[0].instanceId]);
+    expect(result?.gameState.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([
+      energies[0].instanceId,
+    ]);
     expect(result?.gameState.eventLog).toEqual(deckState.eventLog);
   });
 
@@ -95,7 +105,11 @@ describe('energy below application helpers', () => {
     const { game, host } = setupEnergyBelowState({ energyCount: 0 });
     const moved = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
-      memberSlots: placeCardInSlot(removeCardFromSlot(player.memberSlots, SlotPosition.CENTER), SlotPosition.RIGHT, host.instanceId),
+      memberSlots: placeCardInSlot(
+        removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+        SlotPosition.RIGHT,
+        host.instanceId
+      ),
     }));
     expect(placeEnergyFromEnergyDeckBelowStageMember(moved, PLAYER1, host.instanceId, 1)).toEqual({
       gameState: moved,
@@ -110,9 +124,15 @@ describe('energy below application helpers', () => {
     expect(placeEnergyFromEnergyDeckBelowStageMember(game, PLAYER2, host.instanceId, 1)).toBeNull();
     const below = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
-      memberSlots: addMemberBelowMember(player.memberSlots, SlotPosition.CENTER, waitingRoomCard.instanceId),
+      memberSlots: addMemberBelowMember(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        waitingRoomCard.instanceId
+      ),
     }));
-    expect(placeEnergyFromEnergyDeckBelowStageMember(below, PLAYER1, waitingRoomCard.instanceId, 1)).toBeNull();
+    expect(
+      placeEnergyFromEnergyDeckBelowStageMember(below, PLAYER1, waitingRoomCard.instanceId, 1)
+    ).toBeNull();
   });
   it('prefers a later WAITING energy over an earlier ACTIVE energy', () => {
     const { game, energies, waitingRoomCard } = setupEnergyBelowState({ energyCount: 2 });
@@ -243,5 +263,87 @@ describe('energy below application helpers', () => {
       energies[0].instanceId,
       energies[1].instanceId,
     ]);
+  });
+
+  it('returns only selected energy as WAITING/FACE_UP, preserves remaining stack/markers and emits once', () => {
+    const { game, host, energies } = setupEnergyBelowState({ energyCount: 3 });
+    let stacked = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      energyZone: {
+        ...player.energyZone,
+        cardIds: [energies[2].instanceId],
+        cardStates: new Map(),
+      },
+      memberSlots: {
+        ...player.memberSlots,
+        energyBelow: {
+          ...player.memberSlots.energyBelow,
+          [SlotPosition.CENTER]: energies.slice(0, 2).map((card) => card.instanceId),
+        },
+      },
+    }));
+    stacked = {
+      ...stacked,
+      energyActivePhaseSkips: [
+        {
+          playerId: PLAYER1,
+          energyCardId: energies[2].instanceId,
+          sourceCardId: host.instanceId,
+          abilityId: 'marker',
+        },
+      ],
+    };
+    const enqueue = vi.fn<EnqueueTriggeredCardEffectsForEnergyBelowPlacement>((state) => state);
+    const config = {
+      playerId: PLAYER1,
+      targetMemberCardId: host.instanceId,
+      selectedEnergyCardIds: [energies[1].instanceId],
+      cause: {
+        kind: 'CARD_EFFECT' as const,
+        playerId: PLAYER1,
+        sourceCardId: host.instanceId,
+        abilityId: 'selected-return',
+      },
+      enqueueTriggeredCardEffects: enqueue,
+    };
+    const result = moveSelectedEnergyBelowMemberToEnergyZoneByCardEffect(stacked, config)!;
+    expect(result.movedEnergyCardIds).toEqual([energies[1].instanceId]);
+    expect(result.gameState.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([
+      energies[0].instanceId,
+    ]);
+    expect(result.gameState.players[0].energyZone.cardIds).toEqual([
+      energies[2].instanceId,
+      energies[1].instanceId,
+    ]);
+    expect(result.gameState.players[0].energyZone.cardStates.get(energies[1].instanceId)).toEqual({
+      orientation: OrientationState.WAITING,
+      face: FaceState.FACE_UP,
+    });
+    expect(result.gameState.energyActivePhaseSkips).toEqual(stacked.energyActivePhaseSkips);
+    expect(result.energyPlacedEvent.placedEnergyCardIds).toEqual([energies[1].instanceId]);
+    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(enqueue.mock.calls[0]?.[1]).toEqual([TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT]);
+    expect(
+      moveSelectedEnergyBelowMemberToEnergyZoneByCardEffect(result.gameState, config)
+    ).toBeNull();
+    expect(
+      moveSelectedEnergyBelowMemberToEnergyZoneByCardEffect(stacked, {
+        ...config,
+        selectedEnergyCardIds: [energies[0].instanceId, energies[0].instanceId],
+      })
+    ).toBeNull();
+    expect(
+      moveSelectedEnergyBelowMemberToEnergyZoneByCardEffect(stacked, {
+        ...config,
+        selectedEnergyCardIds: [energies[0].instanceId, 'missing'],
+      })
+    ).toBeNull();
+    expect(
+      moveSelectedEnergyBelowMemberToEnergyZoneByCardEffect(stacked, {
+        ...config,
+        playerId: PLAYER2,
+      })
+    ).toBeNull();
+    expect(enqueue).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,0 +1,319 @@
+{
+  "PL!-bp8-009-SEC": {
+    "cardCode": "PL!-bp8-009-SEC",
+    "cardType": "MEMBER",
+    "nameJp": "矢澤にこ",
+    "nameCn": "矢泽日香（矢泽妮可）",
+    "workNames": null,
+    "groupNames": ["μ’s"],
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【常時】このメンバーの下に置かれているコストの異なるメンバーカード１枚につき、このメンバーのコストを＋２し、[桃ハート][ブレード]を得る。\n\n【起動】【ターン２回】[E][E]：自分の手札からメンバーカード１枚をこのメンバーの下に置く。",
+    "cardTextCn": "【常时】放置于此成员下方的费用各不相同的成员卡每有１张，此成员的费用＋２，获得[桃ハート][ブレード]。\n\n【起动】【１回合２次】[E][E]：从自己的手牌将１张成员卡放置于此成员的下方。",
+    "imageFilename": "PL!-bp8-009-SEC-9b361799f3876e451f30f3df.webp",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/BP08/PL!-bp8-009-SEC.png",
+    "rare": "SEC",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "sourceExternalId": "95a7b0886abcd3900023f7b759b08965",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!-bp8-009-SEC"
+    },
+    "status": "DRAFT"
+  },
+  "PL!-bp8-015-N": {
+    "cardCode": "PL!-bp8-015-N",
+    "cardType": "MEMBER",
+    "nameJp": "西木野真姫",
+    "nameCn": "西木野真姬",
+    "workNames": null,
+    "groupNames": ["μ’s"],
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【ライブ開始時】カードを１枚引き、手札を１枚控え室に置く。",
+    "cardTextCn": "【LIVE成功时】抽１张卡，将１张手牌放置入休息室。",
+    "imageFilename": "PL!-bp8-015-N-9b361799f3876e451f30f3df.webp",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/BP08/PL!-bp8-015-N.png",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "sourceExternalId": "95a7b0886abcd3900023f75a29455f7b",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!-bp8-015-N"
+    },
+    "status": "DRAFT"
+  },
+  "PL!HS-bp8-011-N": {
+    "cardCode": "PL!HS-bp8-011-N",
+    "cardType": "MEMBER",
+    "nameJp": "大沢瑠璃乃",
+    "nameCn": "大泽瑠璃乃",
+    "workNames": null,
+    "groupNames": ["蓮ノ空"],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】このメンバーよりコストが低いメンバーからバトンタッチして登場した場合、自分の控え室から『みらくらぱーく!』のライブカード１枚を手札に加える。",
+    "cardTextCn": "【登场】因与小于此成员费用的成员换手登场的场合，从自己的休息室将１张『Mira-Cra Park!』的LIVE卡加入手牌。",
+    "imageFilename": "PL!HS-bp8-011-N-9b361799f3876e451f30f3df.webp",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/BP08/PL!HS-bp8-011-N.png",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "sourceExternalId": "95a7b0886abcd3900023f78e7a0099f3",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!HS-bp8-011-N"
+    },
+    "status": "DRAFT"
+  },
+  "PL!N-bp8-003-R": {
+    "cardCode": "PL!N-bp8-003-R",
+    "cardType": "MEMBER",
+    "nameJp": "桜坂しずく",
+    "nameCn": "樱坂雫",
+    "workNames": null,
+    "groupNames": ["虹ヶ咲"],
+    "unitName": "「A・ZU・NA」",
+    "unitNameRaw": "A・ZU・NA",
+    "cost": 7,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【ライブ成功時】自分のデッキの上からカードを５枚見る。その中からブレードハートを持たない『虹ヶ咲』のメンバーカードを１枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【LIVE成功时】检视自己的卡组顶的５张卡片。可以将其中的１张不持有BLADE HEART的『虹咲』的成员卡公开并加入手牌。其余的放置入休息室。",
+    "imageFilename": "PL!N-bp8-003-R-9b361799f3876e451f30f3df.webp",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/BP08/PL!N-bp8-003-R.png",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "sourceExternalId": "95a7b0886abcd3900023f7674d3d9dae",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!N-bp8-003-R"
+    },
+    "status": "DRAFT"
+  },
+  "PL!N-bp8-021-N": {
+    "cardCode": "PL!N-bp8-021-N",
+    "cardType": "MEMBER",
+    "nameJp": "天王寺璃奈",
+    "nameCn": "天王寺璃奈",
+    "workNames": null,
+    "groupNames": ["虹ヶ咲"],
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【起動】【ターン１回】手札を２枚控え室に置く：自分のライブカード置き場にカードがない場合、自分の控え室から『虹ヶ咲』のライブカードを１枚、表向きでライブカード置き場に置く。次のライブカードセットフェイズで自分がライブカード置き場に置けるカード枚数の上限が１枚減る。",
+    "cardTextCn": "【起动】【１回合１次】将２张手牌放置入休息室：自己的LIVE卡区不存在卡片的场合，从自己的休息室将１张『虹咲』的LIVE卡，表侧表示放置于LIVE卡区。下次LIVE卡设置阶段，自己可以放置于LIVE卡的卡片张数上限减少１张。",
+    "imageFilename": "PL!N-bp8-021-N-9b361799f3876e451f30f3df.webp",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/BP08/PL!N-bp8-021-N.png",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "sourceExternalId": "95a7b0886abcd3900023f77933090be2",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!N-bp8-021-N"
+    },
+    "status": "DRAFT"
+  },
+  "PL!N-bp8-025-SECL": {
+    "cardCode": "PL!N-bp8-025-SECL",
+    "cardType": "LIVE",
+    "nameJp": "虹色Passions！",
+    "nameCn": "虹色Passions！",
+    "workNames": null,
+    "groupNames": ["虹ヶ咲"],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 4,
+    "requirements": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 6
+      }
+    ],
+    "cardTextJp": "【ライブ成功時】自分のステージにいるエネルギーカードが下にある『虹ヶ咲』のメンバー１人につき、カードを１枚引く。",
+    "cardTextCn": "【LIVE成功时】存在于自己的舞台的，下方存在能量卡的『虹咲』的成员每有１人，抽１张卡。",
+    "imageFilename": "PL!N-bp8-025-SECL-9b361799f3876e451f30f3df.webp",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/BP08/PL!N-bp8-025-SECL.png",
+    "rare": "SECL",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "sourceExternalId": "c782c5b26ae48d7400c158c66d82c886",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!N-bp8-025-SECL"
+    },
+    "status": "DRAFT"
+  },
+  "PL!SP-PR-033-PR": {
+    "cardCode": "PL!SP-PR-033-PR",
+    "cardType": "MEMBER",
+    "nameJp": "嵐千砂都",
+    "nameCn": "岚千砂都",
+    "workNames": null,
+    "groupNames": ["Liella!"],
+    "unitName": "「5yncri5e!」",
+    "unitNameRaw": "5yncri5e!",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【ライブ成功時】手札を１枚控え室に置いてもよい：エールにより公開された自分のカードの中から、このメンバーが持つ[ブレード]の数以下の[ブレード]を持つ『Liella!』のメンバーカード１枚を手札に加えてもよい。",
+    "cardTextCn": "【LIVE成功时】可以将１张手牌放置入休息室：可以从因声援被公开的自己的卡片中，将１张持有的[ブレード]的数量小于等于该成员的『Liella!』的成员卡加入手牌。",
+    "imageFilename": "PL!SP-PR-033-PR-9b361799f3876e451f30f3df.webp",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/PR/PL!SP-PR-033-PR.png",
+    "rare": "PR",
+    "product": "PRカード",
+    "productCode": "PR",
+    "sourceExternalId": "c782c5b26adf465500568f0a0810e4af",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "PL!SP-PR-033-PR"
+    },
+    "status": "DRAFT"
+  }
+}

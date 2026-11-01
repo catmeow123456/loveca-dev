@@ -1,3 +1,5 @@
+import { getOctober31DraftRow, OCTOBER_31_TARGET_BASES } from '../helpers/october-31-draft-effects';
+import { getCardAbilityDefinitionsForCardCode } from '../../src/application/card-effects/definitions/lookup';
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -370,4 +372,23 @@ describe('card effect display text governance', () => {
       []
     );
   });
+});
+
+
+describe('October 31 authorized complete Chinese card text', () => {
+  it.each(OCTOBER_31_TARGET_BASES)(
+    '%s preserves every exported paragraph and activated UI text',
+    (base) => {
+      const row = getOctober31DraftRow(base);
+      const paragraphs = row.cardTextCn.split(/\n\n+/).map((text) => text.trim());
+      const definitions = getCardAbilityDefinitionsForCardCode(row.cardCode);
+      expect(definitions.map((d) => d.effectText)).toEqual(paragraphs);
+      definitions.forEach((definition, index) => {
+        if (definition.activatedUi) {
+          expect(definition.activatedUi.text).toBe(paragraphs[index]);
+          expect(definition.activatedUi.abilityId).toBe(definition.abilityId);
+        }
+      });
+    }
+  );
 });

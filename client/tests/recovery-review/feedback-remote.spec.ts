@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
 import type { prepareRemoteFeedback, readRemoteFeedback } from './remoteFeedbackFixture';
 
 const fixtureUrl = '/tests/recovery-review/remoteFeedbackFixture.ts';
@@ -42,6 +43,22 @@ async function prepare(page: Page, input: Parameters<typeof prepareRemoteFeedbac
   );
   // Reuse the review server's existing local card-art cache, including synthetic energy backs.
   await page.route(/\/images\/(?:medium|thumb|large|static)\//, async (route) => {
+    // These two legacy fixture images are supplied by the review server, but may
+    // be absent from an ordinary App server. Reuse those same local files.
+    const pathname = decodeURIComponent(new URL(route.request().url()).pathname);
+    if (pathname.endsWith('/ENERGY.webp'))
+      return route.fulfill({
+        path: fileURLToPath(new URL('../../../assets/back.jpg', import.meta.url)),
+      });
+    if (pathname.endsWith('/PL!N-PR-036-PR.webp'))
+      return route.fulfill({
+        path: fileURLToPath(
+          new URL(
+            '../../../../animation-prototypes/effect-feedback-20261003/shizuku-pr036.webp',
+            import.meta.url
+          )
+        ),
+      });
     const url = new URL(
       new URL(route.request().url()).pathname,
       process.env.FEEDBACK_REVIEW_URL ?? 'http://127.0.0.1:5186'
@@ -84,7 +101,8 @@ async function prepare(page: Page, input: Parameters<typeof prepareRemoteFeedbac
     { path: fixtureUrl, input }
   );
   if (input.seat === 'SECOND' && page.viewportSize()!.width < 768) {
-    await page.getByRole('button', { name: '隐藏', exact: true }).click();
+    const hide = page.getByRole('button', { name: '隐藏', exact: true });
+    if (await hide.isVisible()) await hide.click();
     await page.getByRole('button', { name: /查看对手战场/ }).click();
   }
   await expect(page.locator('[data-object-id="obj_source"]').first()).toBeVisible();
@@ -256,4 +274,123 @@ test('opponent mobile sees mixed gains; reduced motion clears without sheen', as
   await page.screenshot({ path: info.outputPath('opponent-reduced.png') });
   await page.clock.runFor(300);
   await expect(badges(page)).toHaveCount(0);
+});
+
+for (const variant of ['desktop', 'opponent-mobile-waiting', 'reduced-mobile'] as const) {
+  test(`continuous Nico ${variant}: net cost/heart/blade gain and duplicate-cost silence`, async ({
+    page,
+  }, info) => {
+    const mobile = variant !== 'desktop';
+    const reduced = variant === 'reduced-mobile';
+    if (mobile) await page.setViewportSize({ width: 390, height: 844 });
+    if (reduced) await page.emulateMedia({ reducedMotion: 'reduce' });
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await prepare(page, {
+      source: 'ONLINE',
+      scenario: 'continuous-nico',
+      seat: variant === 'opponent-mobile-waiting' ? 'SECOND' : 'FIRST',
+      sourceWaiting: variant === 'opponent-mobile-waiting',
+    });
+    expect((await snapshot(page)).sourceStats).toMatchObject({ cost: 17, blade: 7 });
+    await invoke(page, 'stepRemoteFeedback');
+    await page.clock.runFor(16);
+    // Paying energy is not a member cost increase.
+    await expect(badges(page)).toHaveCount(0);
+    await invoke(page, 'stepRemoteFeedback');
+    await page.clock.runFor(16);
+    const state = await snapshot(page);
+    expect(state.sourceStats).toMatchObject({ cost: 19, blade: 8 });
+    expect(state.sourceStats.hearts).toContainEqual({ color: 'PINK', count: 4 });
+    expect(state.authorityEvents).toHaveLength(1);
+    expect(state.authorityEvents[0]).toMatchObject({
+      mode: 'UPDATE',
+      targets: [
+        {
+          objectId: 'obj_source',
+          changes: expect.arrayContaining([
+            { kind: 'COST', delta: 2 },
+            { kind: 'BLADE', delta: 1 },
+            { kind: 'HEART', color: 'PINK', delta: 1 },
+          ]),
+        },
+      ],
+    });
+    await expect(badges(page)).toHaveCount(1);
+    await expect(badges(page).locator('b')).toHaveText(['+2', '+1', '+1']);
+    await expect(badges(page).locator('img')).toHaveCount(3);
+    await expect(page.locator('[data-effect-source-light]')).toHaveCount(0);
+    for (const kind of ['cost', 'heart', 'blade'])
+      await expect(page.locator(`[data-effect-gain-radiance="${kind}"]`)).toHaveCount(
+        reduced ? 0 : 1
+      );
+    await sampleAt(page, reduced ? 100 : 400);
+    const rows = await badges(page)
+      .locator('.effect-result-value')
+      .evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const rect = node.getBoundingClientRect();
+          return { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right };
+        })
+      );
+    for (let i = 0; i < rows.length; i++) {
+      expect(rows[i]!.left).toBeGreaterThanOrEqual(0);
+      expect(rows[i]!.right).toBeLessThanOrEqual(page.viewportSize()!.width);
+      if (i > 0) expect(rows[i]!.top).toBeGreaterThanOrEqual(rows[i - 1]!.bottom);
+    }
+    await page.screenshot({ path: info.outputPath('continuous-gain.png') });
+    await page.clock.runFor(1300);
+    await expect(badges(page)).toHaveCount(0);
+    await expect(art(page)).toHaveCount(0);
+    // The second, same-cost card really goes below the member, without another gain.
+    await invoke(page, 'stepRemoteFeedback');
+    await invoke(page, 'stepRemoteFeedback');
+    await page.clock.runFor(32);
+    expect((await snapshot(page)).authorityEvents).toEqual(state.authorityEvents);
+    expect((await snapshot(page)).sourceStats).toEqual(state.sourceStats);
+    await expect(badges(page)).toHaveCount(0);
+    await invoke(page, 'reconnect');
+    await invoke(page, 'pollLogAgain');
+    await page.clock.runFor(1500);
+    await expect(badges(page)).toHaveCount(0);
+    await expect(art(page)).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath('settled.png') });
+    expect(errors).toEqual([]);
+  });
+}
+
+test('continuous opponent condition: two existing families gain only their net increase, decreases stay silent', async ({
+  page,
+}, info) => {
+  await prepare(page, { source: 'ONLINE', scenario: 'continuous-opponent' });
+  expect((await snapshot(page)).sourceStats.blade).toBe(2);
+  await invoke(page, 'stepRemoteFeedback');
+  await page.clock.runFor(16);
+  expect((await snapshot(page)).sourceStats.blade).toBe(3);
+  await expect(badges(page)).toHaveCount(2);
+  await expect(badges(page)).toHaveText(['+1', '+1']);
+  await expect(page.locator('[data-effect-gain-radiance="heart"]')).toHaveCount(1);
+  await expect(page.locator('[data-effect-gain-radiance="blade"]')).toHaveCount(1);
+  await expect(page.locator('[data-effect-source-light]')).toHaveCount(0);
+  await sampleAt(page, 400);
+  await page.screenshot({ path: info.outputPath('two-families-gain.png') });
+  // Reverse the condition while the positive feedback is still on screen.
+  await invoke(page, 'stepRemoteFeedback');
+  await page.clock.runFor(32);
+  const decreased = await snapshot(page);
+  expect(decreased.sourceStats.blade).toBe(2);
+  expect(decreased.authorityEvents.at(-1)?.targets.flatMap((t) => t.changes)).toEqual(
+    expect.arrayContaining([
+      { kind: 'BLADE', delta: -1 },
+      { kind: 'HEART', color: 'PURPLE', delta: -1 },
+    ])
+  );
+  await expect(badges(page)).toHaveCount(0);
+  await expect(art(page)).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath('negative-silent.png') });
+  // A later positive transition still plays; a filtered negative does not poison the cursor.
+  await invoke(page, 'stepRemoteFeedback');
+  await page.clock.runFor(32);
+  await expect(badges(page)).toHaveCount(2);
+  await expect(badges(page)).toHaveText(['+1', '+1']);
 });

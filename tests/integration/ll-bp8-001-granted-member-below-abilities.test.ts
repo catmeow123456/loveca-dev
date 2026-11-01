@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID as ENERGY_BLADE,
+  PL_BP8_009_ACTIVATED_PAY_TWO_ENERGY_STACK_HAND_MEMBER_BELOW_ABILITY_ID as NICO_STACK,
   PL_BP8_018_LIVE_START_PAY_ONE_ENERGY_GAIN_TWO_BLADE_ABILITY_ID as NICO_ENERGY_BLADE,
   BP6_021_LIVE_SUCCESS_SEND_MUSE_MEMBER_SCORE_RECOVER_MUSE_LIVE_ABILITY_ID as RUSH,
   BP5_009_ACTIVATED_DISCARD_TWO_RECOVER_PURPLE_REQUIREMENT_LIVE_ABILITY_ID as PURPLE_LIVE,
@@ -81,6 +82,7 @@ import {
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { getOctober26CardData } from '../helpers/october-26-card-effects';
 import { getOctober29MemberData } from '../helpers/october-29-draft-effects';
+import { getOctober31MemberData } from '../helpers/october-31-draft-effects';
 
 const P1 = 'player1';
 const P2 = 'player2';
@@ -100,6 +102,13 @@ interface AbilityCase {
   readonly timing: 'ACTIVATED' | 'LIVE_START';
 }
 const CASES: readonly AbilityCase[] = [
+  {
+    abilityId: NICO_STACK,
+    code: 'PL!-bp8-009-SEC',
+    name: '矢澤にこ',
+    cost: 11,
+    timing: 'ACTIVATED',
+  },
   {
     abilityId: AI_STACK_RECOVER,
     code: 'PL!N-bp8-005-SEC',
@@ -221,6 +230,7 @@ function member(
       ...(code === 'PL!-bp8-018-N' ? (getOctober26CardData(code) as MemberCardData) : {}),
       ...(code.startsWith('PL!N-bp8-005-') ? getOctober29MemberData('PL!N-bp8-005') : {}),
       ...(code.startsWith('PL!N-bp8-017-') ? getOctober29MemberData('PL!N-bp8-017') : {}),
+      ...(code.startsWith('PL!-bp8-009-') ? getOctober31MemberData('PL!-bp8-009') : {}),
     },
     owner,
     id
@@ -426,6 +436,9 @@ function start(session: GameSession, entry: AbilityCase, direct = false): void {
 }
 function complete(session: GameSession, entry: AbilityCase): void {
   switch (entry.abilityId) {
+    case NICO_STACK:
+      confirm(session, { card: HAND[0] });
+      break;
     case AI_STACK_RECOVER:
       confirm(session, { card: TARGET });
       break;
@@ -490,6 +503,16 @@ function assertOutcome(session: GameSession, entry: AbilityCase, direct = false)
         item.kind === kind && item.abilityId === entry.abilityId && item.sourceCardId === HOST
     );
   switch (entry.abilityId) {
+    case NICO_STACK:
+      expect(player.hand.cardIds).not.toContain(HAND[0]);
+      expect(player.memberSlots.memberBelow[SlotPosition.CENTER]).toContain(HAND[0]);
+      expect(player.energyZone.cardStates.get('energy-0')?.orientation).toBe(
+        OrientationState.WAITING
+      );
+      expect(player.energyZone.cardStates.get('energy-1')?.orientation).toBe(
+        OrientationState.WAITING
+      );
+      break;
     case AI_STACK_RECOVER:
       expect(player.hand.cardIds).toContain(TARGET);
       expect(player.memberSlots.energyBelow[SlotPosition.CENTER]).toEqual(['energy-0']);
@@ -629,7 +652,7 @@ describe('LL-bp8-001 费用15「矢泽日香（矢泽妮可）&宫下爱&赛拉�
       assertOutcome(session, entry, direct);
     }
   });
-  it('完整池为17唯一能力；三个成员别名、组合名与其他罕度都支持，排除AUTO和常时', () => {
+  it('完整池为18唯一能力；三个成员别名、组合名与其他罕度都支持，排除AUTO和常时', () => {
     const session = setup(cardCase(ENTRY_SCORE), false, 0, 'SEC');
     const cards = CASES.map((entry, index) => member(entry.code, `grant-${index}`, entry.name));
     const other = member('PL!SP-bp5-020-N', 'not-granted', '鬼塚夏美');
@@ -645,14 +668,14 @@ describe('LL-bp8-001 费用15「矢泽日香（矢泽妮可）&宫下爱&赛拉�
     expect(new Set(grants.map((copy) => copy.definition.abilityId))).toEqual(
       new Set(CASES.map((entry) => entry.abilityId))
     );
-    expect(grants).toHaveLength(17);
+    expect(grants).toHaveLength(18);
     expect(
       getActivatedAbilityUiConfigs(`LL-bp8-001-SEC`, undefined, {
         game,
         playerId: P1,
         sourceCardId: HOST,
       })
-    ).toHaveLength(7);
+    ).toHaveLength(8);
   });
   it.each(['PL!HS-sd1-015-SD', 'PL!N-bp4-017-N'])('%s共享回收成员起动也能完整结算', (code) => {
     const entry = {

@@ -22,7 +22,7 @@ import {
   stackMemberCardBelowStageMember,
 } from '../../runtime/actions.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
-import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
+import { moveExactTopDeckCardsToWaitingRoomAsCostAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -47,7 +47,10 @@ export function registerNBp7003ShizukuWorkflowHandlers(deps: {
   registerActivatedAbilityHandler(
     N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID,
     (game, playerId, sourceCardId) =>
-      startActivatedShizuku(game, playerId, sourceCardId, deps.enqueueTriggeredCardEffects)
+      startActivatedShizuku(game, playerId, sourceCardId, deps.enqueueTriggeredCardEffects),
+    (game, playerId, sourceCardId) =>
+      (getValidSourceController(game, playerId, sourceCardId)?.mainDeck.cardIds.length ?? 0) >=
+      MILL_COUNT
   );
   registerActiveEffectStepHandler(
     N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID,
@@ -81,15 +84,9 @@ export function registerNBp7003ShizukuWorkflowHandlers(deps: {
   );
 }
 
-function startActivatedShizuku(
-  game: GameState,
-  playerId: string,
-  sourceCardId: string,
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
-): GameState {
+function getValidSourceController(game: GameState, playerId: string, sourceCardId: string) {
   const player = getPlayerById(game, playerId);
   const source = getCardById(game, sourceCardId);
-  const sourceSlot = getSourceMemberSlot(game, playerId, sourceCardId);
   if (
     game.activeEffect ||
     game.currentPhase !== GamePhase.MAIN_PHASE ||
@@ -99,12 +96,26 @@ function startActivatedShizuku(
     source.ownerId !== playerId ||
     !cardCodeMatchesBase(source.data.cardCode, 'PL!N-bp7-003') ||
     !isMemberCardData(source.data) ||
-    sourceSlot === null
+    getSourceMemberSlot(game, playerId, sourceCardId) === null
   ) {
+    return null;
+  }
+  return player;
+}
+
+function startActivatedShizuku(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+): GameState {
+  const player = getValidSourceController(game, playerId, sourceCardId);
+  const sourceSlot = getSourceMemberSlot(game, playerId, sourceCardId);
+  if (!player || player.mainDeck.cardIds.length < MILL_COUNT || sourceSlot === null) {
     return game;
   }
 
-  const millResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
+  const millResult = moveExactTopDeckCardsToWaitingRoomAsCostAndEnqueueTriggers(
     game,
     playerId,
     MILL_COUNT,
@@ -143,7 +154,7 @@ function startActivatedShizuku(
           N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID
         ),
         stepId: REVEAL_MILLED_STEP,
-        stepText: `已将卡组顶合计${millResult.movedCardIds.length}张放置入休息室。${millResult.refreshCount > 0 ? '期间发生卡组更新。' : ''}`,
+        stepText: `已将卡组顶合计${millResult.movedCardIds.length}张放置入休息室。${millResult.refreshCount > 0 ? '支付费用后发生卡组更新。' : ''}`,
         awaitingPlayerId: playerId,
         revealedCardIds: [...new Set(millResult.movedCardIds)],
         confirmSelectionLabel: '确认公开结果',

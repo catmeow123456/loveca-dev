@@ -1,0 +1,79 @@
+@import '../../src/index.css';
+@source '../../src';
+@source './preview.tsx';
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: #170f1c;
+  color: #f5eee8;
+}
+.nico-test-board {
+  height: calc(100dvh - var(--nico-qa-height, 50px));
+}
+.nico-test-board .battle-viewport-shell {
+  --battle-viewport-height: calc(100dvh - var(--nico-qa-height, 50px)) !important;
+}
+.nico-test-board [data-battle-ui-anchor='phase-controls'] {
+  bottom: calc(var(--nico-qa-height, 50px) + env(safe-area-inset-bottom) + 8px);
+}
+.nico-test-board .battle-mobile-actions {
+  bottom: calc(var(--nico-qa-height, 50px) + env(safe-area-inset-bottom) + 4.5rem);
+}
+.nico-test-board .battle-table {
+  --battle-mobile-overlay-bottom: calc(
+    var(--nico-qa-height, 50px) + 2 * env(safe-area-inset-bottom) + 4.5rem + 40px
+  );
+}
+.nico-qa {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  min-height: 50px;
+  z-index: 150;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: #1b121eed;
+  border-top: 1px solid #715566;
+  font-size: 12px;
+}
+.nico-qa button,
+.nico-qa summary {
+  cursor: pointer;
+  padding: 6px 10px;
+  border: 1px solid #816477;
+  border-radius: 5px;
+  background: #382334;
+}
+.nico-qa details > div {
+  position: absolute;
+  bottom: 54px;
+  right: 12px;
+  width: min(340px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: #241727;
+  border: 1px solid #816477;
+  border-radius: 8px;
+}
+.nico-qa p {
+  color: #c4adb8;
+  line-height: 1.6;
+}
+@media (max-width: 560px) {
+  .nico-qa {
+    gap: 5px;
+    font-size: 10px;
+  }
+  .nico-qa strong {
+    display: none;
+  }
+}

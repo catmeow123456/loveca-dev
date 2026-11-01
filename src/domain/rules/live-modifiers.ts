@@ -40,7 +40,10 @@ import {
 import { toPlayerLocalSlotForControllerPerspective } from '../../shared/utils/slot-perspective.js';
 import { hasMemberPositionMovedThisTurn } from './member-turn-state.js';
 import { countMemberCardsBelowSourceMember } from './member-below-queries.js';
-import { getMemberEffectiveCost } from './member-effective-cost.js';
+import {
+  countDistinctMemberEffectiveCostsBelowSourceMember,
+  getMemberEffectiveCost,
+} from './member-effective-cost.js';
 import { applyHeartRequirementModifiers } from './live-requirement-modifiers.js';
 import { hasLiveWithoutLiveStartOrSuccessAbility } from './live-zone-ability.js';
 import {
@@ -538,6 +541,32 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         countDelta: 1,
       });
       return modifier ? [modifier] : [];
+    },
+  },
+  {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    baseCardCodes: ['PL!-bp8-009'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      const count = countDistinctMemberEffectiveCostsBelowSourceMember(
+        game,
+        playerId,
+        sourceCardId
+      );
+      if (count === 0) return [];
+      const abilityId = 'PL!-bp8-009:continuous-distinct-member-below-costs-cost-pink-heart-blade';
+      const heart = createHeartLiveModifierForSourceMember(game, {
+        playerId,
+        sourceCardId,
+        abilityId,
+        hearts: [{ color: HeartColor.PINK, count }],
+      });
+      const blade = createBladeLiveModifierForSourceMember(game, {
+        playerId,
+        sourceCardId,
+        abilityId,
+        countDelta: count,
+      });
+      return [...(heart ? [heart] : []), ...(blade ? [blade] : [])];
     },
   },
   {

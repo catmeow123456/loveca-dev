@@ -1,3 +1,11 @@
+import {
+  getCareWindowGate,
+  matchesCareDiscardGate,
+  withCareMovementPresentation,
+  type CareWindowGate,
+} from '@/lib/careMovementPresentation';
+import { CareCardFlight } from './kotori-ayumu-effects/CareCardFlight';
+import { CareCardTrim } from './kotori-ayumu-effects/CareDecor';
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, MotionConfigContext, motion, useReducedMotion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
@@ -46,6 +54,7 @@ import { AiInvitationMotion } from './ai-effects/AiInvitationMotion';
 import { RecoveryCardMotion } from './RecoveryCardMotion';
 import {
   getWaitingRoomCardKeyframes,
+  sampleWaitingRoomCardPose,
   WAITING_ROOM_CARD_CLASS_NAME,
   WAITING_ROOM_CARD_TIMES,
   WAITING_ROOM_CARD_EASING,
@@ -118,6 +127,7 @@ export function BattleAnimationLayer() {
   const discardQueueRef = useRef<PublicDiscardRevealQueueState>(
     createPublicDiscardRevealQueueState()
   );
+  const careGateRef = useRef<CareWindowGate | null>(null);
   const activeDiscardEventIdRef = useRef<string | null>(null);
   const visibleDiscardSeatsRef = useRef(new Map<string, BattleAnimationSeat>());
   const pendingRecoveriesRef = useRef<PendingRecoveryPresentation[]>([]);
@@ -198,6 +208,11 @@ export function BattleAnimationLayer() {
 
   useLayoutEffect(() => {
     if (effectsEnabled) return;
+    if (careGateRef.current) {
+      activeOcclusionEventIdsRef.current.delete(careGateRef.current.eventId);
+      removeBattleAnimationOcclusion(careGateRef.current.eventId);
+      careGateRef.current = null;
+    }
     recoveryEffectGenerationRef.current++;
     for (const timeout of recoveryEffectTimeoutsRef.current) {
       window.clearTimeout(timeout);
@@ -210,8 +225,12 @@ export function BattleAnimationLayer() {
     }
     recoveryEffectOcclusionIdsRef.current.clear();
     pendingRecoveriesRef.current = [];
-    // Cancel only the enhanced recovery. Base moves, flips and public reveals stay alive.
-    setEvents((current) => current.filter((event) => !isEnhancedRecovery(event)));
+    // Cancel optional decorated movement. Base moves, flips and public reveals stay alive.
+    setEvents((current) =>
+      current.filter(
+        (event) => !isEnhancedRecovery(event) && !(event.kind === 'CARD_MOVE' && event.careMovement)
+      )
+    );
   }, [effectsEnabled, removeBattleAnimationOcclusion]);
 
   useLayoutEffect(() => {
@@ -254,6 +273,7 @@ export function BattleAnimationLayer() {
     if (timelineReset) {
       setTimelineGeneration((current) => current + 1);
       recentDiscardSourceAnchorsRef.current.clear();
+      careGateRef.current = null;
       activeDiscardEventIdRef.current = null;
       visibleDiscardSeatsRef.current.clear();
       pendingRecoveriesRef.current = [];
@@ -281,6 +301,40 @@ export function BattleAnimationLayer() {
       });
     }
 
+    // A choice already awaits the player in authority. Only its UI is deferred until
+    // the physical payment/return has finished; no extra command, ACK or rule timer.
+    const careGate =
+      effectsEnabled && canPresentAi && !timelineReset && playerViewChanged
+        ? getCareWindowGate(previousViewState, playerViewState)
+        : null;
+    const oldGate = careGateRef.current;
+    if (
+      oldGate &&
+      (careGate ||
+        playerViewState?.activeEffect?.id !== oldGate.effectId ||
+        playerViewState.activeEffect.stepId !== oldGate.stepId)
+    ) {
+      activeOcclusionEventIdsRef.current.delete(oldGate.eventId);
+      removeBattleAnimationOcclusion(oldGate.eventId);
+      careGateRef.current = null;
+    }
+    if (careGate) {
+      careGateRef.current = careGate;
+      addBattleAnimationOcclusions([
+        {
+          eventId: careGate.eventId,
+          objectId: '',
+          effectSurface: { effectId: careGate.effectId, stepId: careGate.stepId },
+        },
+      ]);
+      activeOcclusionEventIdsRef.current.add(careGate.eventId);
+      // Missing/backfilled public logs cannot leave an invisible selection indefinitely.
+      schedule(() => {
+        activeOcclusionEventIdsRef.current.delete(careGate.eventId);
+        removeBattleAnimationOcclusion(careGate.eventId);
+        if (careGateRef.current?.eventId === careGate.eventId) careGateRef.current = null;
+      }, 2500);
+    }
     const nextAnchors = collectBattleAnimationAnchors();
     const nextEvents: BattleAnimationEvent[] = [];
     const discardClockNow = getDiscardPresentationMonotonicNow();
@@ -302,18 +356,25 @@ export function BattleAnimationLayer() {
       });
       nextEvents.push(
         ...animationHistory.current.accept(
-          withAiRecoveryPresentation(
+          withCareMovementPresentation(
             previousViewState,
             playerViewState,
-            createBattleAnimationEventsFromViewDiff({
+            withAiRecoveryPresentation(
               previousViewState,
-              nextViewState: playerViewState,
-              previousAnchors,
+              playerViewState,
+              createBattleAnimationEventsFromViewDiff({
+                previousViewState,
+                nextViewState: playerViewState,
+                previousAnchors,
+                nextAnchors,
+                enableWaitingRoomRevealFallback: remoteSessionSource === 'TUTORIAL',
+              }),
               nextAnchors,
-              enableWaitingRoomRevealFallback: remoteSessionSource === 'TUTORIAL',
-            }),
+              canPresentAi
+            ),
+            previousAnchors,
             nextAnchors,
-            canPresentAi
+            effectsEnabled && canPresentAi
           )
         )
       );
@@ -404,6 +465,15 @@ export function BattleAnimationLayer() {
           }
         }
         if (discardEvent) {
+          const gate = careGateRef.current;
+          if (
+            effectsEnabled &&
+            gate &&
+            pendingBatch &&
+            matchesCareDiscardGate(gate, pendingBatch)
+          ) {
+            discardEvent = { ...discardEvent, kotoriCare: true, careWindowGateId: gate.eventId };
+          }
           discardQueueRef.current = dequeuePublicDiscardRevealBatch(discardQueueRef.current).state;
           activeDiscardEventIdRef.current = discardEvent.id;
           nextEvents.push(discardEvent);
@@ -476,7 +546,9 @@ export function BattleAnimationLayer() {
                 false,
                 isEnhancedRecovery(scheduledEvent.event)
               ),
-              recoveryEffect: isEnhancedRecovery(scheduledEvent.event),
+              anonymousHandSeat: scheduledEvent.event.anonymousHandSeat,
+              recoveryEffect:
+                isEnhancedRecovery(scheduledEvent.event) || !!scheduledEvent.event.careMovement,
             },
           ];
         }
@@ -489,6 +561,7 @@ export function BattleAnimationLayer() {
               scheduledEvent.event,
               Boolean(reduceMotion)
             ),
+            anonymousHandSeat: undefined,
             recoveryEffect: false,
           }));
         }
@@ -498,6 +571,7 @@ export function BattleAnimationLayer() {
         moveOcclusions.map((occlusion) => ({
           eventId: occlusion.eventId,
           objectId: occlusion.objectId,
+          anonymousHandSeat: occlusion.anonymousHandSeat,
         }))
       );
       for (const occlusion of moveOcclusions) {
@@ -531,7 +605,10 @@ export function BattleAnimationLayer() {
             // scheduled pickup; leaving the hand cancels it in RecoveryCardMotion instead.
             const eligibleEvents = delayedEvents.filter(
               (event) =>
-                (!isEnhancedRecovery(event) ||
+                (!(
+                  isEnhancedRecovery(event) ||
+                  (event.kind === 'CARD_MOVE' && event.careMovement)
+                ) ||
                   recoveryEffectGenerationRef.current === recoveryEffectGeneration) &&
                 (viewDiffGenerationRef.current === viewDiffGeneration || isRecoveryCardMove(event))
             );
@@ -548,7 +625,10 @@ export function BattleAnimationLayer() {
             setEvents((current) => [...current.slice(-12), ...eligibleEvents]);
           },
           delayMs,
-          delayedEvents.every(isEnhancedRecovery)
+          delayedEvents.every(
+            (event) =>
+              isEnhancedRecovery(event) || (event.kind === 'CARD_MOVE' && !!event.careMovement)
+          )
         );
       }
     }
@@ -569,6 +649,24 @@ export function BattleAnimationLayer() {
   ]);
 
   const removeEvent = (event: BattleAnimationEvent) => {
+    if (
+      (event.kind === 'CARD_MOVE' || event.kind === 'DISCARD_PRESENTATION_BATCH') &&
+      event.careWindowGateId
+    ) {
+      const gateId = event.careWindowGateId;
+      const release = () => {
+        activeOcclusionEventIdsRef.current.delete(gateId);
+        removeBattleAnimationOcclusion(gateId);
+        if (careGateRef.current?.eventId === gateId) careGateRef.current = null;
+      };
+      if (event.kind === 'DISCARD_PRESENTATION_BATCH') {
+        const timer = window.setTimeout(() => {
+          scheduledEventTimeoutsRef.current.delete(timer);
+          release();
+        }, DISCARD_EXIT_DURATION_MS);
+        scheduledEventTimeoutsRef.current.add(timer);
+      } else release();
+    }
     removeOcclusionsForAnimationEvents({
       events: [event],
       activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
@@ -881,7 +979,7 @@ function removeOcclusionsForAnimationEvents({
 
 function getAnimationOcclusionEventIds(event: BattleAnimationEvent): readonly string[] {
   if (event.kind === 'CARD_MOVE') {
-    return [event.id];
+    return event.careWindowGateId ? [event.id, event.careWindowGateId] : [event.id];
   }
   if (event.kind === 'DISCARD_PRESENTATION_BATCH') {
     return event.cards.map((card) => `${event.id}:${card.render.objectId}`);
@@ -910,7 +1008,7 @@ function MovingCard({
   readonly onDone: () => void;
 }) {
   const effectsEnabled = useBattleEffectsEnabled();
-  const cancelled = !effectsEnabled && isEnhancedRecovery(event);
+  const cancelled = !effectsEnabled && (isEnhancedRecovery(event) || !!event.careMovement);
   const finish = useRef(onDone);
   finish.current = onDone;
   useLayoutEffect(() => {
@@ -946,6 +1044,9 @@ function MovingCard({
     );
   }
 
+  if (event.careMovement && effectsEnabled) {
+    return <CareCardFlight event={event} imagePath={imagePath} onDone={onDone} />;
+  }
   if (isEnhancedRecovery(event)) {
     return event.aiInvitation ? (
       <AiInvitationMotion event={event} onDone={onDone} />
@@ -999,12 +1100,17 @@ export function DiscardPresentationBatch({
   getCardImagePath,
   reduceMotion,
   onDone,
+  timeScale = 1,
+  holdAt,
 }: {
   readonly event: DiscardPresentationBatchEvent;
   readonly getCardImagePath: (cardCode: string) => string;
   readonly reduceMotion: boolean | null;
   readonly onDone: () => void;
+  readonly timeScale?: number;
+  readonly holdAt?: number;
 }) {
+  const effectsEnabled = useBattleEffectsEnabled();
   const [presentationStartedAt] = useState(getDiscardPresentationMonotonicNow);
   const revealAt =
     presentationStartedAt +
@@ -1037,13 +1143,13 @@ export function DiscardPresentationBatch({
         aria-hidden="true"
         className="pointer-events-none fixed inset-0"
         initial={{ opacity: 0 }}
-        animate={{ opacity: [0, 1, 1, 0] }}
+        animate={{ opacity: holdAt === undefined ? [0, 1, 1, 0] : 1 }}
         transition={{
-          duration: DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS / 1000,
+          duration: DISCARD_PRESENTATION_REDUCED_MOTION_DURATION_MS / 1000 / timeScale,
           times: [0, fadeTime, 1 - fadeTime, 1],
           ease: 'linear',
         }}
-        onAnimationComplete={onDone}
+        onAnimationComplete={holdAt === undefined ? onDone : undefined}
       >
         <DiscardPresentationLabel
           count={event.cards.length}
@@ -1080,7 +1186,7 @@ export function DiscardPresentationBatch({
         initial={{ opacity: 0, y: 2 }}
         animate={{ opacity: [0, 1, 1, 0], y: [2, 0, 0, -1] }}
         transition={{
-          duration: WAITING_ROOM_REVEAL_DURATION_MS / 1000,
+          duration: WAITING_ROOM_REVEAL_DURATION_MS / 1000 / timeScale,
           times: WAITING_ROOM_CARD_TIMES,
           ease: 'linear',
         }}
@@ -1102,11 +1208,32 @@ export function DiscardPresentationBatch({
         const endLeft = toCenter.x - endWidth / 2;
         const endTop = toCenter.y - endHeight / 2;
 
+        const fromPose = {
+          left: startLeft,
+          top: startTop,
+          width: startWidth,
+          height: startHeight,
+          rotation: card.fromRect.rotation ?? 0,
+        };
+        const toPose = {
+          left: endLeft,
+          top: endTop,
+          width: endWidth,
+          height: endHeight,
+          rotation: 0,
+        };
+        const held =
+          holdAt === undefined
+            ? null
+            : sampleWaitingRoomCardPose(fromPose, revealRect, toPose, holdAt);
         return (
           <motion.div
             key={card.render.objectId}
             data-discard-presentation-object-id={card.render.objectId}
-            className={WAITING_ROOM_CARD_CLASS_NAME}
+            className={cn(
+              WAITING_ROOM_CARD_CLASS_NAME,
+              event.kotoriCare && effectsEnabled && 'care-kotori-discard'
+            )}
             style={{
               width: startWidth,
               height: startHeight,
@@ -1115,33 +1242,45 @@ export function DiscardPresentationBatch({
               transformOrigin: 'center center',
               willChange: 'transform, width, height, opacity',
             }}
-            initial={{ opacity: 0.94, x: 0, y: 0, rotate: card.fromRect.rotation ?? 0 }}
-            animate={{
-              ...getWaitingRoomCardKeyframes(
-                {
-                  left: startLeft,
-                  top: startTop,
-                  width: startWidth,
-                  height: startHeight,
-                  rotation: card.fromRect.rotation ?? 0,
-                },
-                revealRect,
-                { left: endLeft, top: endTop, width: endWidth, height: endHeight, rotation: 0 }
-              ),
-              opacity: [0.94, 1, 1, 1],
-              scale: [0.985, 1, 1, 1],
-            }}
+            initial={
+              held ? false : { opacity: 0.94, x: 0, y: 0, rotate: card.fromRect.rotation ?? 0 }
+            }
+            animate={
+              held
+                ? { ...held, rotate: held.rotation, opacity: 1, scale: 1 }
+                : {
+                    ...getWaitingRoomCardKeyframes(
+                      {
+                        left: startLeft,
+                        top: startTop,
+                        width: startWidth,
+                        height: startHeight,
+                        rotation: card.fromRect.rotation ?? 0,
+                      },
+                      revealRect,
+                      {
+                        left: endLeft,
+                        top: endTop,
+                        width: endWidth,
+                        height: endHeight,
+                        rotation: 0,
+                      }
+                    ),
+                    opacity: [0.94, 1, 1, 1],
+                    scale: [0.985, 1, 1, 1],
+                  }
+            }
             exit={{
               opacity: 0,
               scale: 0.995,
               transition: { duration: DISCARD_EXIT_DURATION_MS / 1000 },
             }}
             transition={{
-              duration: WAITING_ROOM_REVEAL_DURATION_MS / 1000,
+              duration: WAITING_ROOM_REVEAL_DURATION_MS / 1000 / timeScale,
               times: WAITING_ROOM_CARD_TIMES,
               ease: [...WAITING_ROOM_CARD_EASING],
             }}
-            onAnimationComplete={index === 0 ? onDone : undefined}
+            onAnimationComplete={index === 0 && holdAt === undefined ? onDone : undefined}
           >
             <img
               src={resolveDiscardPresentationImagePath(card.render, getCardImagePath)}
@@ -1149,6 +1288,14 @@ export function DiscardPresentationBatch({
               className="h-full w-full object-cover"
               draggable={false}
             />
+            {event.kotoriCare && effectsEnabled && (
+              <CareCardTrim
+                kind="KOTORI_DISCARD"
+                discardDuration={WAITING_ROOM_REVEAL_DURATION_MS}
+                timeScale={timeScale}
+                holdAt={holdAt}
+              />
+            )}
           </motion.div>
         );
       })}
