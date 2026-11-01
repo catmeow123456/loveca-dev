@@ -132,6 +132,19 @@ export interface AvailableResources {
 // 费用计算器类
 // ============================================
 
+/** Public conditional status: this waiting member supplies +1 reduction when relaying into μ’s. */
+export function hasKotoriWaitingMuseRelayBonus(
+  memberData: MemberCardData,
+  orientation: OrientationState | undefined,
+  stageMembers: readonly Pick<StageMemberInfo, 'data'>[]
+): boolean {
+  return (
+    orientation === OrientationState.WAITING &&
+    isMuseMember(memberData) &&
+    stageMembers.some((member) => cardCodeMatchesBase(member.data.cardCode, 'PL!-bp8-003'))
+  );
+}
+
 /**
  * 费用计算器
  * 处理成员卡播放时的费用计算和换手逻辑
@@ -171,11 +184,12 @@ export class CostCalculator {
     // PL!-bp8-003 replaces the reduction value, without changing either member's cost.
     // Multiple copies grant the same replacement; they do not add successive bonuses.
     const usesMuseWaitingReplacement =
-      context?.relayMemberOrientation === OrientationState.WAITING &&
-      isMuseMember(relayMemberData) &&
+      context &&
       isMuseMember(context.incomingMemberData) &&
-      context.stageMembers.some((member) =>
-        cardCodeMatchesBase(member.data.cardCode, 'PL!-bp8-003')
+      hasKotoriWaitingMuseRelayBonus(
+        relayMemberData,
+        context.relayMemberOrientation,
+        context.stageMembers
       );
     return usesMuseWaitingReplacement ? memberCost + 1 : memberCost;
   }

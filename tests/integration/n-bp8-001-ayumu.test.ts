@@ -1,3 +1,15 @@
+import { careAnimationEvents } from '../helpers/care-animation-events';
+import {
+  getCareWindowGate,
+  matchesCareDiscardGate,
+  CARE_MOVE_MS,
+} from '../../client/src/lib/careMovementPresentation';
+import {
+  createSequencedBattleAnimationEvents,
+  getBattleAnimationEventDurationMs,
+} from '../../client/src/lib/battleAnimationSequencing';
+import { projectPlayerViewState } from '../../src/online/projector';
+import { getCareEffectCues, isCareEffectCurrent } from '../../client/src/lib/kotoriAyumuEffects';
 import { describe, expect, it } from 'vitest';
 import {
   confirmActiveEffectStep,
@@ -682,5 +694,141 @@ describe('PL!N-bp8-001 费用2「上原步梦」', () => {
     );
     expect(continued.activeEffect?.abilityId).toBe(MIA_REFRESH);
     expect(continued.players[0].waitingRoom.cardIds).toContain(drawn);
+  });
+});
+
+describe('步梦猫铃赠礼公开演出', () => {
+  it.each(['SEC', 'R', 'R+', 'UNSEEN'])('%s只在实际放置完成后向两名公开目标赠礼', (rarity) => {
+    const game = startEnter(setup({ sourceCode: `PL!N-bp8-001-${rarity}`, energyCount: 2 }));
+    const next = ruleChoose(game, null, 'SELF_AND_OTHER');
+    for (const viewer of [P1, P2]) {
+      const before = projectPlayerViewState(game, viewer, { seq: 1 });
+      const after = projectPlayerViewState(next, viewer, { seq: 2 });
+      const cues = getCareEffectCues(before, after);
+      expect(cues).toMatchObject([
+        {
+          kind: 'AYUMU_GIVE',
+          sourceId: 'obj_ayumu',
+          targets: expect.arrayContaining([
+            { memberId: 'obj_ayumu', energyId: expect.any(String) },
+            { memberId: 'obj_other', energyId: expect.any(String) },
+          ]),
+        },
+      ]);
+      expect(cues[0].targets).toHaveLength(2);
+      const { events } = careAnimationEvents(before, after);
+      const flights = events.filter((e) => e.kind === 'CARD_MOVE');
+      expect(flights).toHaveLength(2);
+      expect(new Set(flights.map((e) => e.render.objectId)).size).toBe(2);
+      expect(flights.every((e) => e.careMovement?.kind === 'AYUMU_GIVE')).toBe(true);
+      for (const target of cues[0].targets) {
+        const flight = flights.find((e) => e.render.objectId === target.energyId)!;
+        expect(flight.careMovement?.receiver?.objectId).toBe(target.memberId);
+        expect(flight.careMovement?.receiver?.rect.width).toBeGreaterThan(0);
+      }
+      expect(events.filter((e) => e.kind === 'ZONE_PULSE' && e.id.includes('stack:'))).toEqual([]);
+      expect(getCareWindowGate(before, after)).toBeNull();
+      expect(isCareEffectCurrent(after, cues[0])).toBe(true);
+      expect(getCareEffectCues(null, after)).toEqual([]);
+      expect(getCareEffectCues(after, after)).toEqual([]);
+      expect(getCareEffectCues(after, before)).toEqual([]);
+    }
+    expect(next.activeEffect).toBeNull();
+    expect(next.players[0].energyZone.cardIds).toHaveLength(0);
+  });
+  it.each(['SELF_ONLY', 'OTHER_ONLY'])('只为%s实际接收方绘制；不放置无演出', (option) => {
+    const game = startEnter(setup({ energyCount: 2 }));
+    const before = projectPlayerViewState(game, P1, { seq: 1 });
+    const next = ruleChoose(game, null, option);
+    const cues = getCareEffectCues(before, projectPlayerViewState(next, P1, { seq: 2 }));
+    expect(cues[0].targets).toHaveLength(1);
+    expect(cues[0].targets[0].memberId).toBe(option === 'SELF_ONLY' ? 'obj_ayumu' : 'obj_other');
+    const skipped = ruleChoose(game, null);
+    expect(getCareEffectCues(before, projectPlayerViewState(skipped, P1, { seq: 2 }))).toEqual([]);
+  });
+  it('特殊能量全部选择前无演出，不把选择阶段误当放置', () => {
+    const game = startEnter(setup({ energyCount: 3, special: [0, 1] }));
+    const before = projectPlayerViewState(game, P1, { seq: 1 });
+    const selecting = ruleChoose(game, null, 'SELF_AND_OTHER');
+    expect(selecting.activeEffect?.stepId).toBe('N_BP8_001_SELECT_PLACEMENT_ENERGY');
+    expect(getCareEffectCues(before, projectPlayerViewState(selecting, P1, { seq: 2 }))).toEqual(
+      []
+    );
+    expect(selecting.players[0].energyZone.cardIds).toHaveLength(3);
+  });
+  it('回收实际能量后双方播放，抽弃继续原流程且不增加等待', () => {
+    const started = startSuccess(setup({ belowCount: 1 }));
+    const selecting = ruleChoose(started, 'other');
+    const next = ruleChoose(selecting, 'below-0');
+    expect(next.activeEffect?.stepId).toBe('N_BP8_001_DISCARD_AFTER_RETURN_ENERGY');
+    expect(next.players[0].hand.cardIds).toHaveLength(2);
+    expect(next.players[0].energyZone.cardStates.get('below-0')?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    for (const viewer of [P1, P2]) {
+      const before = projectPlayerViewState(selecting, viewer, { seq: 1 });
+      const after = projectPlayerViewState(next, viewer, { seq: 2 });
+      const cues = getCareEffectCues(before, after);
+      expect(cues).toMatchObject([
+        { kind: 'AYUMU_RETURN', targets: [{ memberId: 'obj_other', energyId: 'obj_below-0' }] },
+      ]);
+      expect(isCareEffectCurrent(after, cues[0])).toBe(true);
+      const { events } = careAnimationEvents(before, after);
+      const flights = events.filter((e) => e.kind === 'CARD_MOVE');
+      expect(flights).toHaveLength(2);
+      const scheduled = createSequencedBattleAnimationEvents(flights);
+      expect(
+        scheduled.map((e) => [
+          e.event.kind === 'CARD_MOVE' && e.event.careMovement?.kind,
+          e.delayMs,
+        ])
+      ).toEqual([
+        ['AYUMU_RETURN', 0],
+        ['AYUMU_DRAW', CARE_MOVE_MS.AYUMU_RETURN],
+      ]);
+      expect(getBattleAnimationEventDurationMs(flights[0])).toBe(CARE_MOVE_MS.AYUMU_RETURN);
+      expect(flights[0].toRect.rotation).toBe(90); // waiting energy must land sideways
+      expect(flights[1].careWindowGateId).toBe(getCareWindowGate(before, after)!.eventId);
+      if (viewer === P2) {
+        expect(flights[1].render.surface).toBe('BACK');
+        expect(flights[1].render.cardCode).toBeUndefined();
+        expect(JSON.stringify(flights)).not.toContain('obj_deck-0');
+      }
+      expect(
+        matchesCareDiscardGate(getCareWindowGate(before, after), {
+          movementBatchId: 'other',
+          ownerSeat: 'FIRST',
+          eventIds: [],
+          cards: [],
+          firstSeq: 2,
+          lastSeq: 2,
+          receivedAt: 0,
+        })
+      ).toBe(false);
+      const disabled = careAnimationEvents(before, after, false);
+      expect(disabled.events).toEqual(disabled.ordinary);
+      const removed = updatePlayer(next, P1, (p) => ({
+        ...p,
+        memberSlots: removeCardFromSlot(p.memberSlots, SlotPosition.LEFT),
+      }));
+      expect(
+        isCareEffectCurrent(projectPlayerViewState(removed, viewer, { seq: 3 }), cues[0])
+      ).toBe(false);
+      expect(
+        getCareEffectCues(
+          before,
+          projectPlayerViewState(ruleChoose(selecting, null), viewer, { seq: 2 })
+        )
+      ).toEqual([]);
+    }
+    const finished = ruleChoose(next, 'hand');
+    expect(finished.players[0].hand.cardIds).toHaveLength(1);
+    expect(finished.activeEffect).toBeNull();
+    expect(
+      getCareEffectCues(
+        projectPlayerViewState(next, P1, { seq: 2 }),
+        projectPlayerViewState(finished, P1, { seq: 3 })
+      )
+    ).toEqual([]);
   });
 });

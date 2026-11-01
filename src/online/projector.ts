@@ -64,6 +64,7 @@ import {
 } from '../domain/rules/member-effective-cost.js';
 import { cardCodeMatchesBase } from '../shared/utils/card-code.js';
 import { hasIzumiOpponentWaitProtection } from '../domain/rules/member-wait-protections.js';
+import { hasKotoriWaitingMuseRelayBonus } from '../domain/rules/cost-calculator.js';
 import { getStageMemberActivatedAbilityProhibitionForView } from '../application/card-effects/runtime/activated-ability-prohibition-status.js';
 import {
   canLiveCardEnterSuccessZone,
@@ -966,6 +967,10 @@ function addMemberSlotZones(
   zones: Partial<Record<ViewZoneKey, ViewZoneState>>
 ): void {
   const liveModifiers = collectLiveModifiersForViewer(game, viewerSeat);
+  const stageMembers = Object.values(zone.slots).flatMap((id) => {
+    const card = id ? game.cardRegistry.get(id) : undefined;
+    return card && isMemberCardData(card.data) ? [{ data: card.data }] : [];
+  });
 
   for (const slot of [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT]) {
     const occupantId = zone.slots[slot];
@@ -1031,6 +1036,11 @@ function addMemberSlotZones(
             !game.isEnded && hasIzumiOpponentWaitProtection(game, playerId, occupantId)
               ? 'IZUMI_EDELNOTE'
               : undefined,
+          kotoriMuseRelayBonus:
+            (!game.isEnded &&
+              isMemberCardData(occupant.data) &&
+              hasKotoriWaitingMuseRelayBonus(occupant.data, state?.orientation, stageMembers)) ||
+            undefined,
           aiHeartLinks: game.isEnded
             ? undefined
             : liveModifiers.flatMap((modifier) =>
@@ -1260,6 +1270,7 @@ function upsertViewObject(
     | 'hasTemporaryHeartRole'
     | 'activatedAbilityProhibition'
     | 'opponentWaitProtection'
+    | 'kotoriMuseRelayBonus'
     | 'aiHeartLinks'
     | 'nicoEvidence'
   > & {
@@ -1290,6 +1301,7 @@ function upsertViewObject(
     activatedAbilityProhibition:
       surface === 'FRONT' ? metadata?.activatedAbilityProhibition : undefined,
     opponentWaitProtection: surface === 'FRONT' ? metadata?.opponentWaitProtection : undefined,
+    kotoriMuseRelayBonus: surface === 'FRONT' ? metadata?.kotoriMuseRelayBonus : undefined,
     aiHeartLinks: surface === 'FRONT' ? metadata?.aiHeartLinks : undefined,
     nicoEvidence: surface === 'FRONT' ? metadata?.nicoEvidence : undefined,
   };

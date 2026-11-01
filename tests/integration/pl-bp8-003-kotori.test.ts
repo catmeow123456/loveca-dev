@@ -1,3 +1,13 @@
+import { careAnimationEvents } from '../helpers/care-animation-events';
+import {
+  getCareWindowGate,
+  matchesCareDiscardGate,
+  CARE_MOVE_MS,
+} from '../../client/src/lib/careMovementPresentation';
+import {
+  createSequencedBattleAnimationEvents,
+  getBattleAnimationEventDurationMs,
+} from '../../client/src/lib/battleAnimationSequencing';
 import { describe, expect, it } from 'vitest';
 import {
   createCardInstance,
@@ -8,6 +18,7 @@ import {
 } from '../../src/domain/entities/card';
 import {
   createGameState,
+  markGameEnded,
   emitGameEvent,
   registerCards,
   updatePlayer,
@@ -36,11 +47,13 @@ import {
   createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
-import { createPublicObjectId } from '../../src/online/projector';
+import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
+import { getCareEffectCues, isCareEffectCurrent } from '../../client/src/lib/kotoriAyumuEffects';
 import {
   CardType,
   FaceState,
   GamePhase,
+  GameEndReason,
   OrientationState,
   SlotPosition,
   SubPhase,
@@ -722,4 +735,107 @@ describe('PL!-bp8-003 费用4「南小鸟」', () => {
       });
     }
   );
+});
+
+describe('小鸟心意诊笺公开演出', () => {
+  it.each(['SEC', 'R', 'R+', 'UNSEEN'])('由%s实际起动驱动，双方演出不含私密检视身份', (rarity) => {
+    const s = setup({ sourceCode: `PL!-bp8-003-${rarity}` });
+    const initial = [P1, P2].map((id) => projectPlayerViewState(s.session.state!, id, { seq: 1 }));
+    activate(s);
+    const activated = [P1, P2].map((id) =>
+      projectPlayerViewState(s.session.state!, id, { seq: 2 })
+    );
+    activated.forEach((view, i) => expect(getCareEffectCues(initial[i], view)).toEqual([]));
+    confirm(s, 'discard');
+    const inspecting = [P1, P2].map((id) =>
+      projectPlayerViewState(s.session.state!, id, { seq: 3 })
+    );
+    inspecting.forEach((view, i) => {
+      expect(getCareEffectCues(activated[i], view)).toMatchObject([
+        { kind: 'KOTORI_INSPECT', sourceId: 'obj_kotori', targets: [] },
+      ]);
+      expect(getCareEffectCues(null, view)).toEqual([]);
+      const gate = getCareWindowGate(activated[i], view)!;
+      expect(gate).toMatchObject({
+        kind: 'KOTORI_INSPECT',
+        effectId: view.activeEffect!.id,
+        stepId: 'DISCARD_LOOK_SELECT_TAKE',
+      });
+      const batch = {
+        movementBatchId: 'payment',
+        ownerSeat: gate.ownerSeat,
+        eventIds: ['paid'],
+        cards: [],
+        firstSeq: 3,
+        lastSeq: 3,
+        receivedAt: 99999,
+      };
+      expect(matchesCareDiscardGate(gate, batch)).toBe(true); // log may arrive after the view
+      expect(matchesCareDiscardGate(gate, { ...batch, firstSeq: 2 })).toBe(false);
+      expect(matchesCareDiscardGate(gate, { ...batch, lastSeq: 4 })).toBe(false);
+      expect(matchesCareDiscardGate(gate, { ...batch, ownerSeat: 'SECOND' })).toBe(false);
+      expect(getCareWindowGate(null, view)).toBeNull();
+      expect(getCareWindowGate(view, view)).toBeNull();
+    });
+    expect(inspecting[1].activeEffect?.inspectionObjectIds).toBeUndefined();
+    expect(inspecting[1].objects.obj_target?.frontInfo).toBeUndefined();
+    confirm(s, 'target');
+    const completed = [P1, P2].map((id) =>
+      projectPlayerViewState(s.session.state!, id, { seq: 4 })
+    );
+    completed.forEach((view, i) => {
+      const cues = getCareEffectCues(inspecting[i], view);
+      expect(cues).toMatchObject([{ kind: 'KOTORI_KEEP', sourceId: 'obj_kotori', targets: [] }]);
+      expect(JSON.stringify(cues)).not.toContain('obj_target');
+      expect(isCareEffectCurrent(view, cues[0])).toBe(true);
+      const { events } = careAnimationEvents(inspecting[i], view);
+      const flights = events.filter((e) => e.kind === 'CARD_MOVE');
+      expect(flights).toHaveLength(1); // replaces, rather than follows, the ordinary selected-card move
+      expect(flights[0].careMovement?.kind).toBe('KOTORI_KEEP');
+      expect(getBattleAnimationEventDurationMs(flights[0])).toBe(CARE_MOVE_MS.KOTORI_KEEP);
+      expect(createSequencedBattleAnimationEvents(flights)[0].delayMs).toBe(0);
+      if (i === 0) expect(flights[0].render.objectId).toBe('obj_target');
+      else {
+        expect(flights[0].render).toMatchObject({ surface: 'BACK' });
+        expect(flights[0].render.cardCode).toBeUndefined();
+        expect(JSON.stringify(flights)).not.toContain('obj_target');
+        expect(flights[0].anonymousHandSeat).toBe('FIRST');
+      }
+      const disabled = careAnimationEvents(inspecting[i], view, false);
+      expect(disabled.events).toEqual(disabled.ordinary);
+      expect(getCareWindowGate(inspecting[i], view)).toBeNull();
+      expect(getCareEffectCues(view, view)).toEqual([]);
+      expect(getCareEffectCues(view, inspecting[i])).toEqual([]);
+    });
+    expect(completed[1].objects.obj_target?.frontInfo).toBeUndefined();
+    expect(s.session.state?.players[0].hand.cardIds).toEqual(['target']);
+    expect(s.session.state?.activeEffect).toBeNull();
+    const ended = projectPlayerViewState(
+      markGameEnded(s.session.state!, GameEndReason.VICTORY_CONDITION, P1),
+      P1,
+      { seq: 5 }
+    );
+    expect(getCareEffectCues(inspecting[0], ended)).toEqual([]);
+  });
+  it('不发动和无变化不产生动画；移走来源清除演出', () => {
+    const s = setup();
+    activate(s);
+    const before = projectPlayerViewState(s.session.state!, P1, { seq: 1 });
+    confirm(s, null);
+    const after = projectPlayerViewState(s.session.state!, P1, { seq: 2 });
+    expect(getCareEffectCues(before, after)).toEqual([]);
+    const left = updatePlayer(s.session.state!, P1, (p) => ({
+      ...p,
+      memberSlots: removeCardFromSlot(p.memberSlots, SlotPosition.CENTER),
+    }));
+    expect(
+      isCareEffectCurrent(projectPlayerViewState(left, P1, { seq: 3 }), {
+        kind: 'KOTORI_KEEP',
+        key: 'test',
+        sourceId: 'obj_kotori',
+        ownerSeat: 'FIRST',
+        targets: [],
+      })
+    ).toBe(false);
+  });
 });

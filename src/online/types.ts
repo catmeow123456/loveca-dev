@@ -342,6 +342,8 @@ export interface ViewCardObject {
   readonly activatedAbilityProhibition?: 'SERAS_LOW_COST';
   /** Public, derived self-protection from opponent WAITING effects; not general immunity. */
   readonly opponentWaitProtection?: 'IZUMI_EDELNOTE';
+  /** Conditional +1 relay reduction into μ’s, derived from own stage and WAITING state. */
+  readonly kotoriMuseRelayBonus?: boolean;
   /** Public Ai HEART contributions to this stage member, derived from live modifiers. */
   readonly aiHeartLinks?: readonly {
     readonly sourceObjectId: string;

@@ -1,3 +1,4 @@
+import { KotoriRelayHeart } from './kotori-ayumu-effects/KotoriRelayHeart';
 import { IzumiProtection } from './izumi-protection/IzumiProtection';
 import { PresentationImage } from '@/components/excel/PresentationRoot';
 import { useSelectionDraft } from '@/hooks/useSelectionDraft';
@@ -72,6 +73,7 @@ import { BattleAnimationLayer } from './BattleAnimationLayer';
 import { isAiRecoveryEffect } from '@/lib/aiEffects';
 import { AiEffectsLayer } from './ai-effects/AiEffectsLayer';
 import { NicoEffectsLayer } from './nico-effects/NicoEffectsLayer';
+import { getCareWindowGate } from '@/lib/careMovementPresentation';
 import { AiRecoveryTrim } from './ai-effects/AiRecoveryTrim';
 import { AbilityActivationProvider } from './AbilityActivationMotion';
 import { BattleActionFeedbackLayer } from './BattleActionFeedbackLayer';
@@ -1143,6 +1145,17 @@ export function useBattleInteractionController({
     activeEffectSuspension?.effectId === activeEffect.id;
   const isActiveEffectUiSuspended =
     entranceWaiting ||
+    (!textOnly &&
+      battleEffectsEnabled &&
+      canShowCardEntrance &&
+      (!!getCareWindowGate(previousViewStateRef.current, playerViewState) ||
+        battleAnimationOcclusions.some(
+          (o) =>
+            !!activeEffect &&
+            !!o.effectSurface &&
+            o.effectSurface.effectId === activeEffect.id &&
+            o.effectSurface.stepId === activeEffect.stepId
+        ))) ||
     (!textOnly &&
       !isPublicRevealAutoAdvance &&
       !!activeEffect &&
@@ -5213,6 +5226,14 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                           ?.opponentWaitProtection
                       }
                       viewIdentity={`${playerViewState?.match.matchId}:${playerViewState?.match.viewerSeat}`}
+                      enabled={!textOnly && battleEffectsEnabled && canShowCardEntrance}
+                    />
+                    <KotoriRelayHeart
+                      objectId={`obj_${activeCard.instanceId}`}
+                      active={
+                        playerViewState?.objects[`obj_${activeCard.instanceId}`]
+                          ?.kotoriMuseRelayBonus
+                      }
                       enabled={!textOnly && battleEffectsEnabled && canShowCardEntrance}
                     />
                   </>

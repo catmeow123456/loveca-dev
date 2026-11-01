@@ -237,6 +237,10 @@ export interface RemoteUndoResponseOptions {
 }
 
 export interface BattleAnimationOcclusion {
+  /** Hide one anonymous back while its public count-only arrival is presented. */
+  readonly anonymousHandSeat?: 'FIRST' | 'SECOND';
+  /** Cosmetic selection surface gate; no authority state or rule delay. */
+  readonly effectSurface?: { readonly effectId: string; readonly stepId: string };
   /** A dedicated presentation owns this card’s movement until it releases the occlusion. */
   readonly suppressDefaultMovement?: boolean;
   readonly eventId: string;

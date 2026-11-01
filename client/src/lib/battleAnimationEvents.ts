@@ -1,3 +1,4 @@
+import type { CareMovementKind } from './careMovementPresentation';
 import type { PlayerViewState, ViewCardObject, ViewZoneKey } from '@game/online';
 import { OrientationState, ZoneType } from '@game/shared/types/enums';
 
@@ -61,6 +62,8 @@ export interface DiscardPresentationCard {
 export interface DiscardPresentationBatchEvent {
   readonly id: string;
   readonly kind: 'DISCARD_PRESENTATION_BATCH';
+  readonly kotoriCare?: boolean;
+  readonly careWindowGateId?: string;
   readonly cards: readonly DiscardPresentationCard[];
   readonly toSeat: BattleAnimationSeat;
   readonly toZoneKey?: ViewZoneKey;
@@ -97,6 +100,15 @@ export type BattleAnimationEvent =
       readonly toZoneKey?: ViewZoneKey;
       readonly fromRect: BattleAnimationRect;
       readonly toRect: BattleAnimationRect;
+      /** Decoration is carried by the physical move, not a second overlay flight. */
+      readonly careMovement?: {
+        readonly kind: CareMovementKind;
+        readonly delayMs: number;
+        /** Public receiving member masks the energy card as it slides below. */
+        readonly receiver?: { readonly objectId: string; readonly rect: BattleAnimationRect };
+      };
+      readonly careWindowGateId?: string;
+      readonly anonymousHandSeat?: BattleAnimationSeat;
       /** Opts into enhanced recovery, with the fan position for this seat's batch. */
       readonly recoveryGroup?: { readonly index: number; readonly count: number };
       /** A confirmed public Ai selection that actually moved to hand, never a guessed target. */
