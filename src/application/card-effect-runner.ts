@@ -1,3 +1,4 @@
+import { registerNBp8001AyumuWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-001-ayumu.js';
 import { registerNBp8021RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-021-rina.js';
 import { registerRelayEnterLowerCostRecoverLiveWorkflowHandlers } from './card-effects/workflows/shared/relay-enter-lower-cost-recover-live.js';
 import { registerPlBp8009NicoWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-009-nico.js';
@@ -1276,6 +1277,7 @@ registerLiveSuccessDiscardRecoverCheerWorkflowHandlers({
   enqueueTriggeredCardEffects,
 });
 registerNPr026RinaWorkflowHandlers();
+registerNBp8001AyumuWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp8021RinaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerRelayEnterLowerCostRecoverLiveWorkflowHandlers();
 registerPlBp3014RinWorkflowHandlers({ enqueueTriggeredCardEffects });

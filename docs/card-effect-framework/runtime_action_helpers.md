@@ -689,8 +689,10 @@ helper 不校验效果来源区域、不创建/消费 pending、不决定确认�
 
 helper 不决定来源卡号、pending 生命周期或后续弃牌，也不直接扫描/入队 ON_ENTER_HAND definition。真实调用者目前仅为 `PL!N-bp7-030-L` 分数0「Cheer Mode」：单卡 workflow 在回手后从实时手牌强制弃1张，再由统一 continuation 扫描未处理事件。若刚回手的来源又被弃置，结算结束时它已不在 HAND，现有来源区域规则不会为其创建伪 ON_ENTER_HAND pending；本批没有扩大这一全局触发语义。
 
-## 成员下方全部能量放置入能量区（2026-07-27）
+## 成员下方能量放置入能量区（2026-11-01）
 
-`effects/energy-below.ts#moveAllEnergyBelowMemberToEnergyZoneByCardEffect` 是“一名当前己方顶层成员下方的完整能量堆 → 己方能量区”的窄原子动作。调用者必须提供选择窗口建立时锁定的完整 `expectedEnergyCardIds`；helper 逐项重验成员实例、槽位、顺序、owner 与 ENERGY 类型，任一事实变化就整体拒绝，不移动子集。
+`effects/energy-below.ts#moveSelectedEnergyBelowMemberToEnergyZoneByCardEffect` 是“一名当前己方顶层成员下方的指定能量 → 己方能量区”的窄原子动作。调用者提供非空、无重复的 `selectedEnergyCardIds`；helper 重验己方顶层成员、当前下方区域、owner 与 ENERGY 类型，任一卡失效就整体拒绝。成功后仅移走选中卡，其余下方能量顺序及未涉及的 marker 保留。
 
-成功时所有能量以 `WAITING / FACE_UP` 加入能量区，清空该槽位的 energyBelow，并用实际完整 IDs 与必填 `CARD_EFFECT` cause 发出、转发恰好一个 `ON_ENERGY_PLACED_BY_CARD_EFFECT` event。helper 不选择目标、不检查来源卡号或奖励门槛、不创建/消费 pending，也不写 SCORE；这些职责由当前唯一调用者 `PL!N-bp7-029-L` 分数7「Burn!!」的单卡 workflow 持有。
+`moveAllEnergyBelowMemberToEnergyZoneByCardEffect` 保留完整堆快照入口：先核对当前完整下方集合及顺序与 `expectedEnergyCardIds` 一致，再委托选定卡动作；不因新增子集入口改变旧卡的整体校验。
+
+实际移动的能量以 `WAITING / FACE_UP` 加入能量区，并用实际 IDs 与必填 `CARD_EFFECT` cause 发出、转发恰好一个 `ON_ENERGY_PLACED_BY_CARD_EFFECT` event。helper 不选择目标、不检查来源卡号或奖励门槛、不创建/消费 pending，也不写奖励；调用 workflow 负责目标生命周期与 continuation。`PL!N-bp7-029-L` 分数7「Burn!!」仍移回全部并判断加分；`PL!N-bp8-001` 费用2「上原步梦」只移回选中1张，实际成功后抽1弃1。

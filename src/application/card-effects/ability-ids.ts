@@ -2202,3 +2202,12 @@ export const HS_BP8_011_ON_ENTER_LOWER_COST_RELAY_RECOVER_MIRACRA_LIVE_ABILITY_I
   'PL!HS-bp8-011:on-enter-lower-cost-relay-recover-miracra-live';
 export const SP_PR_033_LIVE_SUCCESS_DISCARD_RECOVER_LIELLA_CHEER_BY_SOURCE_BLADE_ABILITY_ID =
   'PL!SP-PR-033:live-success-discard-recover-liella-cheer-by-source-blade';
+
+export const PL_BP8_003_CONTINUOUS_MUSE_WAITING_RELAY_COST_PLUS_ONE_ABILITY_ID =
+  'PL!-bp8-003:continuous-muse-waiting-relay-cost-plus-one';
+export const PL_BP8_003_ACTIVATED_WAIT_DISCARD_LOOK_TOP_TWO_ABILITY_ID =
+  'PL!-bp8-003:activated-wait-discard-look-top-two';
+export const N_BP8_001_ON_ENTER_STACK_ENERGY_SELF_AND_OTHER_NIJIGASAKI_ABILITY_ID =
+  'PL!N-bp8-001:on-enter-stack-energy-self-and-other-nijigasaki';
+export const N_BP8_001_LIVE_SUCCESS_RETURN_ONE_ENERGY_BELOW_DRAW_DISCARD_ABILITY_ID =
+  'PL!N-bp8-001:live-success-return-one-energy-below-draw-discard';

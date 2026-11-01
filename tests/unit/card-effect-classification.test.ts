@@ -1,4 +1,11 @@
 import { getOctober31DraftRow, OCTOBER_31_TARGET_BASES } from '../helpers/october-31-draft-effects';
+import november01DraftRows from '../fixtures/november-01-draft-effects.json';
+import {
+  PL_BP8_003_CONTINUOUS_MUSE_WAITING_RELAY_COST_PLUS_ONE_ABILITY_ID,
+  PL_BP8_003_ACTIVATED_WAIT_DISCARD_LOOK_TOP_TWO_ABILITY_ID,
+  N_BP8_001_ON_ENTER_STACK_ENERGY_SELF_AND_OTHER_NIJIGASAKI_ABILITY_ID,
+  N_BP8_001_LIVE_SUCCESS_RETURN_ONE_ENERGY_BELOW_DRAW_DISCARD_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids.js';
 import { VALID_RARITIES } from '../../src/shared/utils/card-code';
 import { getOctober29DraftRow, OCTOBER_29_TARGET_BASES } from '../helpers/october-29-draft-effects';
 import { readFileSync } from 'node:fs';
@@ -17275,6 +17282,101 @@ describe('October 31 seven-card / eight-ability full-rarity classification', () 
             expect(definition.queued).toBe(true);
           }
         }
+      }
+    }
+  );
+});
+
+describe('November 1 Kotori and Ayumu definitions preserve all four authorized paragraphs', () => {
+  const cards = [
+    {
+      base: 'PL!-bp8-003',
+      row: november01DraftRows['PL!-bp8-003-SEC'],
+      name: '南琴梨（南小鸟）',
+      cost: 4,
+      abilities: [
+        {
+          abilityId: PL_BP8_003_CONTINUOUS_MUSE_WAITING_RELAY_COST_PLUS_ONE_ABILITY_ID,
+          category: CardAbilityCategory.CONTINUOUS,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          queued: false,
+        },
+        {
+          abilityId: PL_BP8_003_ACTIVATED_WAIT_DISCARD_LOOK_TOP_TWO_ABILITY_ID,
+          category: CardAbilityCategory.ACTIVATED,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          queued: false,
+          perTurnLimit: 1,
+          requiredSourceOrientation: OrientationState.ACTIVE,
+        },
+      ],
+    },
+    {
+      base: 'PL!N-bp8-001',
+      row: november01DraftRows['PL!N-bp8-001-SEC'],
+      name: '上原步梦',
+      cost: 2,
+      abilities: [
+        {
+          abilityId: N_BP8_001_ON_ENTER_STACK_ENERGY_SELF_AND_OTHER_NIJIGASAKI_ABILITY_ID,
+          category: CardAbilityCategory.ON_ENTER,
+          sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+          queued: true,
+          triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+          delegatedOnEnterFromWaitingRoomPolicy: {
+            decision: 'ALLOW',
+            reason: 'SOURCE_INDEPENDENT',
+          },
+        },
+        {
+          abilityId: N_BP8_001_LIVE_SUCCESS_RETURN_ONE_ENERGY_BELOW_DRAW_DISCARD_ABILITY_ID,
+          category: CardAbilityCategory.LIVE_SUCCESS,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          queued: true,
+          triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+        },
+      ],
+    },
+  ];
+
+  it.each(cards)(
+    '$base keeps the authorized member identity and exact full paragraphs for every rarity',
+    ({ base, row, name, cost, abilities }) => {
+      expect(row).toMatchObject({
+        cardCode: `${base}-SEC`,
+        rare: 'SEC',
+        status: 'DRAFT',
+        cardType: CardType.MEMBER,
+        nameCn: name,
+        cost,
+        score: null,
+      });
+      const paragraphs = row.cardTextCn.split(/\n\n+/).map((text) => text.trim());
+      expect(paragraphs).toHaveLength(2);
+      expect(row.cardTextJp.split(/\n\n+/)).toHaveLength(2);
+
+      for (const rarity of [...VALID_RARITIES, 'UNSEEN']) {
+        const definitions = getCardAbilityDefinitions(`${base}-${rarity}`);
+        expect(definitions.map((definition) => definition.abilityId)).toEqual(
+          abilities.map((ability) => ability.abilityId)
+        );
+        definitions.forEach((definition, index) => {
+          expect(definition).toMatchObject({
+            ...abilities[index],
+            baseCardCodes: [base],
+            implemented: true,
+          });
+          expect(definition.cardCodes).toBeUndefined();
+          expect(definition.effectText).toBe(paragraphs[index]);
+          if (!definition.queued) expect(definition.triggerCondition).toBeUndefined();
+          if (definition.category === CardAbilityCategory.ACTIVATED) {
+            expect(definition.activatedUi?.abilityId).toBe(definition.abilityId);
+            expect(definition.activatedUi?.text).toBe(paragraphs[index]);
+            expect(definition.activatedUi?.requiredSourceOrientation).toBe(OrientationState.ACTIVE);
+          } else {
+            expect(definition.activatedUi).toBeUndefined();
+          }
+        });
       }
     }
   );

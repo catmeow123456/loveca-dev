@@ -1,4 +1,10 @@
 import {
+  PL_BP8_003_CONTINUOUS_MUSE_WAITING_RELAY_COST_PLUS_ONE_ABILITY_ID,
+  PL_BP8_003_ACTIVATED_WAIT_DISCARD_LOOK_TOP_TWO_ABILITY_ID,
+  N_BP8_001_ON_ENTER_STACK_ENERGY_SELF_AND_OTHER_NIJIGASAKI_ABILITY_ID,
+  N_BP8_001_LIVE_SUCCESS_RETURN_ONE_ENERGY_BELOW_DRAW_DISCARD_ABILITY_ID,
+} from '../ability-ids.js';
+import {
   PL_BP8_009_CONTINUOUS_DISTINCT_MEMBER_BELOW_COSTS_COST_PINK_HEART_BLADE_ABILITY_ID,
   PL_BP8_009_ACTIVATED_PAY_TWO_ENERGY_STACK_HAND_MEMBER_BELOW_ABILITY_ID,
   PL_BP8_015_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
@@ -3070,7 +3076,70 @@ const HS_BP8_011_ON_ENTER_LOWER_COST_RELAY_RECOVER_MIRACRA_LIVE_EFFECT_TEXT =
 const SP_PR_033_LIVE_SUCCESS_DISCARD_RECOVER_LIELLA_CHEER_BY_SOURCE_BLADE_EFFECT_TEXT =
   '【LIVE成功时】可以将１张手牌放置入休息室：可以从因声援被公开的自己的卡片中，将１张持有的[ブレード]的数量小于等于该成员的『Liella!』的成员卡加入手牌。';
 
+const PL_BP8_003_CONTINUOUS_MUSE_WAITING_RELAY_COST_PLUS_ONE_EFFECT_TEXT =
+  '【常时】存在于自己的舞台的『μ’s』的成员，获得『【常时】待机状态的此成员与『μ’s』的成员换手登场时减少的值，变为此成员的费用加１。』。';
+
+const PL_BP8_003_ACTIVATED_WAIT_DISCARD_LOOK_TOP_TWO_EFFECT_TEXT =
+  '【起动】【１回合１次】将此成员变为待机状态，将１张手牌放置入休息室：检视自己的卡组顶的２张卡片。将其中的１张卡片加入手牌，其余的放置入休息室。';
+
+const N_BP8_001_ON_ENTER_STACK_ENERGY_SELF_AND_OTHER_NIJIGASAKI_EFFECT_TEXT =
+  '【登场】将存在于自己的能量区的能量卡，至多各１张放置于此成员和存在于自己的舞台的其他的１名『虹咲』的成员的下方。';
+
+const N_BP8_001_LIVE_SUCCESS_RETURN_ONE_ENERGY_BELOW_DRAW_DISCARD_EFFECT_TEXT =
+  '【LIVE成功时】可以将存在于自己的舞台的１名成员的下方的１张能量卡，以待机状态放置于自己的能量区。如此做时，抽１张卡，将１张手牌放置入休息室。';
+
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
+  {
+    abilityId: PL_BP8_003_CONTINUOUS_MUSE_WAITING_RELAY_COST_PLUS_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-003'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: PL_BP8_003_CONTINUOUS_MUSE_WAITING_RELAY_COST_PLUS_ONE_EFFECT_TEXT,
+    notes: '常时换手减免由费用计算层按当前场面收集；同一基础编号的全部罕度共享此能力。',
+  },
+  {
+    abilityId: PL_BP8_003_ACTIVATED_WAIT_DISCARD_LOOK_TOP_TWO_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-003'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    requiredSourceOrientation: OrientationState.ACTIVE,
+    queued: false,
+    implemented: true,
+    effectText: PL_BP8_003_ACTIVATED_WAIT_DISCARD_LOOK_TOP_TWO_EFFECT_TEXT,
+    perTurnLimit: 1,
+    activatedUi: {
+      abilityId: PL_BP8_003_ACTIVATED_WAIT_DISCARD_LOOK_TOP_TWO_ABILITY_ID,
+      title: '待机并弃1张手牌，检视卡组顶2张',
+      text: PL_BP8_003_ACTIVATED_WAIT_DISCARD_LOOK_TOP_TWO_EFFECT_TEXT,
+      requiredSourceOrientation: OrientationState.ACTIVE,
+    },
+  },
+  {
+    abilityId: N_BP8_001_ON_ENTER_STACK_ENERGY_SELF_AND_OTHER_NIJIGASAKI_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp8-001'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: N_BP8_001_ON_ENTER_STACK_ENERGY_SELF_AND_OTHER_NIJIGASAKI_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'SOURCE_INDEPENDENT',
+    },
+  },
+  {
+    abilityId: N_BP8_001_LIVE_SUCCESS_RETURN_ONE_ENERGY_BELOW_DRAW_DISCARD_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp8-001'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: N_BP8_001_LIVE_SUCCESS_RETURN_ONE_ENERGY_BELOW_DRAW_DISCARD_EFFECT_TEXT,
+  },
   {
     abilityId: PL_BP8_009_CONTINUOUS_DISTINCT_MEMBER_BELOW_COSTS_COST_PINK_HEART_BLADE_ABILITY_ID,
     baseCardCodes: ['PL!-bp8-009'],

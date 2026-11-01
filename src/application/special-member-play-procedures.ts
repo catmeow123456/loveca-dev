@@ -212,6 +212,18 @@ function playAfterProcedure<TPublicEvent>(
       useRelay && replacedMemberCardId
         ? getMemberEffectiveCost(game, pending.playerId, replacedMemberCardId)
         : 0;
+    const resources = buildPlayMemberCostResources(game, pending.playerId, pending.sourceCardId);
+    const relayMember = resources?.stageMembers.find(
+      (member) => member.cardId === replacedMemberCardId
+    );
+    const relayDiscount =
+      useRelay && relayMember && resources
+        ? costCalculator.calculateRelayDiscount(relayMember.data, effectiveCost, {
+            incomingMemberData: sourceCard.data,
+            relayMemberOrientation: relayMember.orientation,
+            stageMembers: resources.stageMembers,
+          })
+        : 0;
     const relayReplacements =
       useRelay && replacedMemberCardId
         ? [
@@ -248,7 +260,7 @@ function playAfterProcedure<TPublicEvent>(
         manualOperationMode: 'FREE',
         relayReplacement: useRelay ? replacedMemberCardId : null,
         relayReplacements,
-        relayDiscount: useRelay ? effectiveCost : 0,
+        relayDiscount,
         paidEnergyCardIds: [],
         paidEnergyCount: 0,
       },
