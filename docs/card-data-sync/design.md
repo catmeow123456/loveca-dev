@@ -73,7 +73,7 @@ flowchart LR
 
 Loveca 文本/来源同步同样先标准化卡牌编号，但它只匹配数据库已有记录。来源类型必须映射为 `MEMBER`、`LIVE` 或 `ENERGY`；缺失或非法类型的整行会报告并跳过。source-only 卡号会报告并跳过，DB-only 卡不受影响；输入内部出现标准化重复卡号时，整组跳过并输出 warning，避免用遍历顺序决定覆盖结果。
 
-CloudBase 新卡导入同样先标准化卡牌编号。DB 已存在卡号跳过，不做 update；输入内部标准化重复卡号整组跳过；候选内部图片 basename 冲突或与 DB 已有图片 basename 冲突时跳过，避免覆盖生产图片或让两个卡号解析到同一对象。
+CloudBase 命令行新卡导入同样先标准化卡牌编号。DB 已存在卡号跳过，不做 update；输入内部标准化重复卡号整组跳过；候选内部图片 basename 冲突或与 DB 已有图片 basename 冲突时跳过，避免覆盖生产图片或让两个卡号解析到同一对象。
 
 ## 4. 字段转换边界
 
@@ -168,3 +168,9 @@ Loveca Excel 卡效占位符调查脚本的运行命令是 `pnpm exec tsx src/sc
 - [llocg_db 卡牌同步](./llocg-db-requirements.md)
 - [llocg_db 与 Loveca Excel 格式差异调查](./llocg-vs-xlsx-format-audit-20260626.md)
 - [卡牌数据管理设计](../card-data-management/design.md)
+
+### 管理页预览与人工确认
+
+管理页使用 `card-sync-review-plan.ts` 建立逐来源记录的预览：普通候选与需确认项都保留身份，错误项以来源行键关联，避免重复或缺失卡号丢失记录。人工补填与强制确认写入任务摘要，worker 复核同一上游快照后执行。格式白名单保留为提示，数据库迁移移除格式否决；默认草稿状态和既有卡不覆盖保持一致。
+
+`card-sync-image-check.ts` 管理共享并发、重复地址合并和短时结果缓存。支持不检查、轻量 HEAD、完整下载解码三档，默认轻量检查；预览异步返回运行状态并轮询进度。管理入口使用独立对象 basename，因此不依赖其他卡牌的旧图片元数据。强制无图导入仍通过原任务租约和参数化入库，结果标明无图及待修复原因。详细行为见 [管理页说明](cloudbase-new-card-sync.md#管理页人工确认与卡图检查)。

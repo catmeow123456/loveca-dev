@@ -2,6 +2,8 @@
 
 > 适用范围：`0033_harden_card_sync.sql`、运营管理中心“上游新卡同步”
 
+> 后续变更：`0046_allow_card_sync_overrides.sql` 移除本文 `0033` 的卡号格式白名单，支持管理页人工确认导入。下列旧卡号约束检查与 VALIDATE 语句仅适用于尚未执行 `0046` 的版本；其他租约和数值约束仍保留。
+
 ## 迁移内容
 
 `0033` 为 `card_sync_runs` 增加 lease generation、随机 token 和到期时间，用于心跳、超时回收和旧 worker fencing。迁移同时为 `cards` 增加规范卡号以及 `cost` / `blade` / `score` 非负约束。它不连接 CloudBase、不执行卡牌同步，也不修改任何 CloudBase 数据。

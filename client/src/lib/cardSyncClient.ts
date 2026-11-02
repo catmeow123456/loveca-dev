@@ -3,6 +3,7 @@ import { apiClient } from '@/lib/apiClient';
 const CARD_SYNC_PREVIEW_TIMEOUT_MS = 60_000;
 
 export type CardSyncConfiguration = 'READY' | 'NOT_CONFIGURED';
+export type CardSyncImageCheckMode = 'NONE' | 'LINK' | 'DECODE';
 export type CardSyncRunStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED';
 export type CardSyncRunItemStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'SKIPPED';
 
@@ -15,7 +16,18 @@ export interface CardSyncCandidate {
   readonly warnings: readonly string[];
 }
 
+export interface CardSyncForceImport {
+  readonly sourceKey: string;
+  readonly cardCode: string;
+  readonly name: string;
+  readonly cardType: 'MEMBER' | 'LIVE' | 'ENERGY';
+  readonly skipImage?: boolean;
+}
 export interface CardSyncBlockedItem {
+  readonly sourceKey?: string;
+  readonly suggestedCardCode?: string;
+  readonly cardType?: string | null;
+  readonly imageIssue?: boolean;
   readonly cardCode?: string | null;
   readonly name?: string | null;
   readonly reasons: readonly string[];
@@ -23,6 +35,7 @@ export interface CardSyncBlockedItem {
 
 export interface CardSyncPreview {
   readonly id: string;
+  readonly imageCheck: CardSyncImageCheckMode;
   readonly createdAt: string;
   readonly expiresAt: string;
   readonly summary: {
@@ -92,29 +105,52 @@ export function fetchCardSyncStatus(): Promise<CardSyncStatus> {
   );
 }
 
-export function createCardSyncPreview(
-  idempotencyKey = newCardSyncIdempotencyKey()
+export async function createCardSyncPreview(
+  idempotencyKey = newCardSyncIdempotencyKey(),
+  options: {
+    imageCheck?: CardSyncImageCheckMode;
+    onProgress?: (progress: { checked: number; total: number }) => void;
+    signal?: AbortSignal;
+  } = {}
 ): Promise<CardSyncPreview> {
-  return requireData(
-    apiClient.post<CardSyncPreview>(
+  type Pending = { id: string; status: 'RUNNING'; progress: { checked: number; total: number } };
+  let result = await requireData(
+    apiClient.post<CardSyncPreview | Pending>(
       '/api/admin/card-sync/previews',
-      { idempotencyKey },
+      { idempotencyKey, ...(options.imageCheck ? { imageCheck: options.imageCheck } : {}) },
       CARD_SYNC_PREVIEW_TIMEOUT_MS
     ),
     '检查上游新卡失败'
   );
+  const deadline = Date.now() + 30 * 60_000;
+  while ('status' in result && result.status === 'RUNNING') {
+    if (options.signal?.aborted) throw new Error('已停止等待检查结果');
+    if (Date.now() > deadline) throw new Error('检查尚未完成，请稍后重新检查');
+    options.onProgress?.(result.progress);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    if (options.signal?.aborted) throw new Error('已停止等待检查结果');
+    result = await requireData(
+      apiClient.get<CardSyncPreview | Pending>(
+        `/api/admin/card-sync/previews/${encodeURIComponent(result.id)}`
+      ),
+      '读取检查进度失败'
+    );
+  }
+  return result as CardSyncPreview;
 }
 
 export function startCardSyncRun(
   previewId: string,
   cardCodes: readonly string[],
-  idempotencyKey: string
+  idempotencyKey: string,
+  options: { forceImport?: boolean; forceImports?: readonly CardSyncForceImport[] } = {}
 ): Promise<CardSyncRun> {
   return requireData(
     apiClient.post<CardSyncRun>('/api/admin/card-sync/runs', {
       previewId,
       cardCodes,
       idempotencyKey,
+      ...options,
     }),
     '创建新卡同步任务失败'
   );

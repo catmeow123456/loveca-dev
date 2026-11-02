@@ -344,4 +344,90 @@ describe('CardSyncService', () => {
       '[已脱敏地址] SecretKey=[已脱敏]'
     );
   });
+  it('enqueues review-only selections with explicit confirmation and persists the override context', async () => {
+    const query = vi.fn((sql: string) => {
+      if (sql.includes('FOR SHARE')) return Promise.resolve({ rows: [previewRow()] });
+      if (sql.includes("kind = 'CANDIDATE'")) return Promise.resolve({ rows: [] });
+      if (sql.includes("kind = 'BLOCKED'"))
+        return Promise.resolve({
+          rows: [{ card_code: 'BAD', summary: { sourceKey: 'row:5', name: '原始名称' } }],
+        });
+      if (sql.includes('INSERT INTO card_sync_runs'))
+        return Promise.resolve({ rows: [{ id: 'apply' }] });
+      return Promise.resolve({ rows: [], rowCount: 1 });
+    });
+    mocks.connect.mockResolvedValue({ query, release: vi.fn() });
+    const service = new CardSyncService(engine());
+    vi.spyOn(service, 'getRun').mockResolvedValue({ id: 'apply' } as never);
+    const forceImports = [
+      { sourceKey: 'row:5', cardCode: 'MY-CARD', name: '确认名称', cardType: 'LIVE' as const },
+    ];
+    const request = {
+      actorUserId: ACTOR_ID,
+      requestId: 'req',
+      idempotencyKey: 'key',
+      previewRunId: PREVIEW_ID,
+      cardCodes: [],
+      forceImports,
+      now: new Date('2026-08-22T10:02:00Z'),
+    };
+    await expect(service.enqueueApply(request)).rejects.toMatchObject({
+      code: 'SELECTION_INVALID',
+    });
+    await expect(service.enqueueApply({ ...request, forceImport: true })).resolves.toMatchObject({
+      id: 'apply',
+    });
+    const context = query.mock.calls.find(([sql]) => sql.includes('INSERT INTO card_sync_runs'));
+    expect(context).toBeDefined();
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO card_sync_runs'),
+      expect.arrayContaining([
+        expect.objectContaining({
+          forceImport: true,
+          forceImports,
+          selectedCardCodes: ['MY-CARD'],
+        }),
+      ])
+    );
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO card_sync_run_items'),
+      expect.arrayContaining(['MY-CARD', expect.objectContaining({ name: '确认名称' })])
+    );
+  });
+
+  it('returns a running preview before a slow image scan finishes', async () => {
+    const mockEngine = engine();
+    let finish!: (value: Awaited<ReturnType<CardSyncEngine['preview']>>) => void;
+    vi.spyOn(mockEngine, 'preview').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    mocks.query.mockResolvedValue({ rows: [{ id: PREVIEW_ID }] });
+    const transaction = {
+      query: vi.fn().mockResolvedValue({ rows: [], rowCount: 1 }),
+      release: vi.fn(),
+    };
+    mocks.connect.mockResolvedValue(transaction);
+    const service = new CardSyncService(mockEngine);
+    vi.spyOn(service, 'getRun').mockResolvedValue({ id: PREVIEW_ID, status: 'RUNNING' } as never);
+    await expect(
+      service.createPreview({
+        actorUserId: ACTOR_ID,
+        requestId: 'req',
+        idempotencyKey: 'preview-key',
+        imageCheck: 'LINK',
+      })
+    ).resolves.toMatchObject({ status: 'RUNNING' });
+    expect(transaction.query).not.toHaveBeenCalled();
+    finish({
+      sourceHash: 'a'.repeat(64),
+      generatedAt: new Date().toISOString(),
+      counts: { source: 200, existing: 200, candidates: 0, blocked: 0 },
+      candidates: [],
+      blocked: [],
+    });
+    await vi.waitFor(() => expect(transaction.query).toHaveBeenCalledWith('COMMIT'));
+  });
 });

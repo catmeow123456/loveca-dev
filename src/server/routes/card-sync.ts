@@ -14,20 +14,42 @@ import {
 import type { CardSyncWorker } from '../services/card-sync-worker.js';
 
 const idempotencyKeySchema = z.string().trim().min(8).max(160);
-const createPreviewSchema = z.object({ idempotencyKey: idempotencyKeySchema }).strict();
+const createPreviewSchema = z
+  .object({
+    idempotencyKey: idempotencyKeySchema,
+    imageCheck: z.enum(['NONE', 'LINK', 'DECODE']).optional(),
+  })
+  .strict();
 const createRunSchema = z
   .object({
     previewId: z.string().uuid(),
     idempotencyKey: idempotencyKeySchema,
     cardCodes: z
-      .array(z.string().trim().min(1).max(160))
-      .min(1)
+      .array(z.string().trim().min(1))
       .max(5_000)
       .refine((cardCodes) => new Set(cardCodes).size === cardCodes.length, {
         message: 'cardCodes 不能包含重复卡号',
       }),
+    forceImport: z.boolean().optional(),
+    forceImports: z
+      .array(
+        z
+          .object({
+            sourceKey: z.string().min(1).max(160),
+            cardCode: z.string().trim().min(1),
+            name: z.string().trim().min(1).max(1000),
+            cardType: z.enum(['MEMBER', 'LIVE', 'ENERGY']),
+            skipImage: z.boolean().optional(),
+          })
+          .strict()
+      )
+      .max(5000)
+      .optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => value.cardCodes.length + (value.forceImports?.length ?? 0) > 0, {
+    message: '请选择卡牌',
+  });
 
 type CardSyncRouteService = Pick<
   CardSyncService,
@@ -103,11 +125,12 @@ export function createCardSyncRouter(
 
   router.post('/previews', validate(createPreviewSchema), async (req, res) => {
     try {
-      const { idempotencyKey } = req.body as z.infer<typeof createPreviewSchema>;
+      const { idempotencyKey, imageCheck } = req.body as z.infer<typeof createPreviewSchema>;
       const run = await service.createPreview({
         actorUserId: req.user!.id,
         requestId: req.requestId ?? randomUUID(),
         idempotencyKey,
+        imageCheck,
       });
       res.status(201).json({ data: toPreviewDto(run), error: null });
     } catch (error) {
@@ -115,15 +138,37 @@ export function createCardSyncRouter(
     }
   });
 
+  router.get('/previews/:runId', async (req, res) => {
+    try {
+      const parsed = z.string().uuid().safeParse(req.params.runId);
+      if (!parsed.success) {
+        res
+          .status(400)
+          .json({ data: null, error: { code: 'VALIDATION_ERROR', message: '预览编号无效' } });
+        return;
+      }
+      const run = await service.getRun(parsed.data);
+      if (run.actorUserId !== req.user!.id)
+        throw new CardSyncServiceError('PREVIEW_FORBIDDEN', '只能查看自己创建的预览', 403);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ data: toPreviewDto(run), error: null });
+    } catch (error) {
+      respond(res, error, '读取检查进度失败');
+    }
+  });
+
   router.post('/runs', validate(createRunSchema), async (req, res) => {
     try {
-      const { previewId, idempotencyKey, cardCodes } = req.body as z.infer<typeof createRunSchema>;
+      const { previewId, idempotencyKey, cardCodes, forceImports, forceImport } =
+        req.body as z.infer<typeof createRunSchema>;
       const run = await service.enqueueApply({
         actorUserId: req.user!.id,
         requestId: req.requestId ?? randomUUID(),
         idempotencyKey,
         previewRunId: previewId,
         cardCodes,
+        forceImports,
+        forceImport,
       });
       worker.notify();
       res.status(202).json({ data: toRunDto(run), error: null });
@@ -138,9 +183,18 @@ export function createCardSyncRouter(
 export const cardSyncRouter = createCardSyncRouter();
 
 export function toPreviewDto(run: CardSyncRunView) {
-  if (run.kind !== 'PREVIEW' || run.status !== 'SUCCEEDED' || !run.previewExpiresAt) {
-    throw new CardSyncServiceError('PREVIEW_INVALID', '预览尚未成功完成', 409);
-  }
+  if (run.kind !== 'PREVIEW')
+    throw new CardSyncServiceError('PREVIEW_INVALID', '预览记录不存在', 404);
+  if (run.status === 'FAILED')
+    throw new CardSyncServiceError('PREVIEW_FAILED', run.error?.message ?? '检查失败，请重试', 502);
+  if (run.status !== 'SUCCEEDED')
+    return {
+      id: run.id,
+      status: 'RUNNING' as const,
+      progress: run.sourceSummary?.progress ?? { checked: 0, total: 0 },
+    };
+  if (!run.previewExpiresAt)
+    throw new CardSyncServiceError('PREVIEW_INVALID', '预览有效期缺失', 409);
   const counts = readCounts(run.sourceSummary);
   const candidates = run.items
     .filter((item) => item.kind === 'CANDIDATE')
@@ -154,12 +208,18 @@ export function toPreviewDto(run: CardSyncRunView) {
     .filter((item) => item.kind === 'BLOCKED')
     .map((item) => ({
       cardCode: item.cardCode,
+      name: readString(item.summary, 'name'),
+      sourceKey: readString(item.summary, 'sourceKey'),
+      cardType: readString(item.summary, 'cardType'),
+      suggestedCardCode: readString(item.summary, 'suggestedCardCode'),
+      imageIssue: item.summary?.imageIssue === true,
       reasons: item.message ? [item.message] : ['上游数据校验未通过'],
     }));
   return {
     id: run.id,
     createdAt: run.createdAt,
     expiresAt: run.previewExpiresAt,
+    imageCheck: run.sourceSummary?.imageCheck ?? 'NONE',
     summary: {
       sourceCount: counts.source,
       existingCount: counts.existing,

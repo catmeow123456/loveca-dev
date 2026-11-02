@@ -15,12 +15,11 @@ import {
   type CardSyncEngineBlockedItem,
   type CardSyncEngineConfigurationStatus,
   type CardSyncEnginePreview,
+  type CardSyncPreviewProgress,
 } from './card-sync-engine.js';
 import { leaseIdentity, lockAndRenewCardSyncLease } from './card-sync-lease.js';
 import {
   DEFAULT_CLOUDBASE_BATCH_SIZE,
-  buildCloudbaseCardSnapshot,
-  buildPreparedCandidates,
   createCloudbaseAppWithCredentials,
   processCandidateImage,
   readCloudbaseDocuments,
@@ -29,10 +28,17 @@ import {
   type CardInsertRecord,
   type CloudBaseApp,
   type ExistingCardRow,
-  type ExistingImageMetadataIssue,
   type PreparedCandidate,
   type TransformResult,
 } from '../../scripts/sync-cards-cloudbase-new.js';
+
+import {
+  buildCardSyncReviewEntries,
+  reviewBlockedItem,
+  forceReviewCandidate,
+  type ReviewEntry,
+} from './card-sync-review-plan.js';
+import { cardSyncImageChecker, type ImageCheckMode } from './card-sync-image-check.js';
 
 const CONFIGURATION_KEYS = [
   'CLOUDBASE_ENV_ID',
@@ -47,6 +53,7 @@ interface SyncPlan {
   readonly existingCount: number;
   readonly candidates: readonly PreparedCandidate[];
   readonly blocked: readonly CardSyncEngineBlockedItem[];
+  readonly entries: readonly ReviewEntry[];
 }
 
 function readCredential(primary: string): string | null {
@@ -102,115 +109,62 @@ function nameFor(transform: TransformResult): string | null {
   return transform.record?.name_cn ?? transform.record?.name_jp ?? null;
 }
 
-function blockedFromSnapshot(
-  snapshot: ReturnType<typeof buildCloudbaseCardSnapshot>,
-  candidatesSkipped: ReturnType<typeof buildPreparedCandidates>['skipped'],
-  existingImageMetadataIssues: readonly ExistingImageMetadataIssue[]
-): CardSyncEngineBlockedItem[] {
-  const blocked: CardSyncEngineBlockedItem[] = snapshot.invalidRows.map((row) => ({
-    cardCode: null,
-    code: row.reason === 'missing card_code' ? 'MISSING_CARD_CODE' : 'INVALID_CARD_CODE',
-    message:
-      row.reason === 'missing card_code'
-        ? `上游第 ${row.rowNumber} 条记录缺少卡牌编号`
-        : `上游第 ${row.rowNumber} 条记录的卡牌编号不符合规范`,
-  }));
-
-  for (const [cardCode] of snapshot.duplicateRows) {
-    blocked.push({
-      cardCode,
-      code: 'DUPLICATE_CARD_CODE',
-      message: '上游存在重复卡牌编号',
-    });
-  }
-
-  for (const transform of snapshot.transforms) {
-    if (transform.record) continue;
-    blocked.push({
-      cardCode: transform.row.cardCode,
-      code: 'INVALID_CARD_DATA',
-      message: transform.errors.length > 0 ? transform.errors.join('；') : '卡牌字段无法转换',
-    });
-  }
-
-  for (const skipped of candidatesSkipped) {
-    const code =
-      skipped.reason === 'duplicateImageBaseName'
-        ? 'DUPLICATE_IMAGE_NAME'
-        : skipped.reason === 'imageBaseNameAlreadyUsed'
-          ? 'IMAGE_NAME_CONFLICT'
-          : 'CANDIDATE_BLOCKED';
-    blocked.push({
-      cardCode: skipped.cardCode,
-      code,
-      message:
-        code === 'DUPLICATE_IMAGE_NAME'
-          ? '多个上游新卡会写入相同的图片文件名'
-          : code === 'IMAGE_NAME_CONFLICT'
-            ? '图片文件名已被现有卡牌使用'
-            : '该卡牌暂不能同步',
-    });
-  }
-  for (const issue of existingImageMetadataIssues) {
-    blocked.push({
-      cardCode: issue.cardCode,
-      code: 'EXISTING_IMAGE_METADATA_INVALID',
-      message: `现有卡牌的版本化图片标记无效：${issue.reason}`,
-    });
-  }
-  return blocked;
-}
-
-async function buildSyncPlan(): Promise<SyncPlan> {
+async function buildSyncPlan(
+  checkImages = false,
+  mode: ImageCheckMode = 'LINK',
+  onProgress?: (progress: CardSyncPreviewProgress) => Promise<void>
+): Promise<SyncPlan> {
   const cloudbase = createConfiguredCloudbase();
   const documents = await readCloudbaseDocuments(
     cloudbase.database().collection(CARD_SYNC_POLICY.collection),
     null,
     DEFAULT_CLOUDBASE_BATCH_SIZE
   );
-  const snapshot = buildCloudbaseCardSnapshot(documents, CARD_SYNC_POLICY.status);
   const existingResult = await pool.query<ExistingCardRow>(
     'SELECT card_code, image_filename, source_flags FROM cards ORDER BY card_code'
   );
-  const planned = buildPreparedCandidates(snapshot.transforms, existingResult.rows);
-  const blocked = blockedFromSnapshot(
-    snapshot,
-    planned.skipped,
-    planned.existingImageMetadataIssues
-  );
-  const candidates: PreparedCandidate[] = [];
-
-  for (const candidate of planned.existingImageMetadataIssues.length > 0 ? [] : planned.prepared) {
-    if (!candidate.imagePlan.sourceUri || !candidate.imagePlan.imageBaseName) {
-      blocked.push({
-        cardCode: candidate.record.card_code,
-        code: 'MISSING_IMAGE',
-        message: '上游未提供可同步的卡图',
-      });
-      continue;
-    }
-    candidates.push(candidate);
+  const { entries, existingCount } = buildCardSyncReviewEntries(documents, existingResult.rows);
+  const blocked = entries
+    .filter((entry) => entry.issues.length)
+    .map((entry) => reviewBlockedItem(entry));
+  const ready = entries.filter((entry) => !entry.issues.length);
+  const results = new Map<string, string>();
+  if (checkImages) {
+    let cursor = 0;
+    let checked = 0;
+    await onProgress?.({ checked, total: ready.length });
+    await Promise.all(
+      Array.from({ length: Math.min(4, ready.length) }, async () => {
+        while (cursor < ready.length) {
+          const entry = ready[cursor++]!;
+          const result = await cardSyncImageChecker.check(
+            cloudbase,
+            entry.candidate.imagePlan.sourceUri!,
+            mode
+          );
+          if (result.state !== 'OK') results.set(entry.sourceKey, result.message);
+          checked++;
+          if (checked % 4 === 0 || checked === ready.length)
+            await onProgress?.({ checked, total: ready.length });
+        }
+      })
+    );
   }
-
+  for (const entry of ready) {
+    const issue = results.get(entry.sourceKey);
+    if (issue) blocked.push(reviewBlockedItem(entry, issue));
+  }
   return {
     cloudbase,
     sourceHash: sourceHashFor(documents),
     sourceCount: documents.length,
-    existingCount: planned.existingSkipped.length,
-    candidates,
+    existingCount,
+    entries,
     blocked,
+    candidates: ready
+      .filter((entry) => !results.has(entry.sourceKey))
+      .map((entry) => entry.candidate),
   };
-}
-
-function candidateCodes(plan: SyncPlan): string[] {
-  return plan.candidates
-    .map((candidate) => candidate.record.card_code)
-    .sort((a, b) => a.localeCompare(b, 'en'));
-}
-
-function sameStrings(left: readonly string[], right: readonly string[]): boolean {
-  if (left.length !== right.length) return false;
-  return left.every((value, index) => value === right[index]);
 }
 
 function messageForFailure(error: unknown, fallback: string): string {
@@ -310,11 +264,53 @@ async function rollbackTransaction(client: PoolClient): Promise<boolean> {
   }
 }
 
+async function insertWithoutImage(
+  candidate: PreparedCandidate,
+  actorUserId: string,
+  input: CardSyncEngineApplyInput,
+  imageMessage: string
+): Promise<CardSyncEngineApplyItem> {
+  const record = {
+    ...candidate.record,
+    image_filename: null,
+    source_flags: {
+      ...candidate.record.source_flags,
+      forceImported: true,
+      missingImage: true,
+      imageImportIssue: imageMessage,
+    },
+  };
+  const client = await pool.connect();
+  let destroyClient = false;
+  try {
+    await client.query('BEGIN');
+    await lockAndRenewCardSyncLease(client, leaseIdentity(input.runId, input.execution));
+    const inserted = await insertCard(client, record, actorUserId);
+    await client.query('COMMIT');
+    return {
+      cardCode: record.card_code,
+      result: inserted ? 'SUCCEEDED' : 'SKIPPED',
+      message: inserted ? `已按确认导入无图草稿；${imageMessage}` : '卡牌已存在，未覆盖现有数据',
+    };
+  } catch (error) {
+    destroyClient = !(await rollbackTransaction(client));
+    if (error instanceof CardSyncLeaseLostError) throw error;
+    return {
+      cardCode: record.card_code,
+      result: 'FAILED',
+      message: messageForFailure(error, '草稿写入失败'),
+    };
+  } finally {
+    client.release(destroyClient);
+  }
+}
+
 async function applyCandidate(
   candidate: PreparedCandidate,
   cloudbase: CloudBaseApp,
   actorUserId: string,
-  input: CardSyncEngineApplyInput
+  input: CardSyncEngineApplyInput,
+  force = false
 ): Promise<CardSyncEngineApplyItem> {
   const cardCode = candidate.record.card_code;
   await input.execution.assertCurrent();
@@ -337,6 +333,14 @@ async function applyCandidate(
     });
   }
   await input.execution.assertCurrent();
+  if (!image.ok && force) {
+    return insertWithoutImage(
+      candidate,
+      actorUserId,
+      input,
+      `${image.sourceFlag ?? 'imageFailed'}：${messageForFailure(new Error(image.error ?? ''), '卡图处理失败')}`
+    );
+  }
   if (!image.ok) {
     return {
       cardCode,
@@ -344,7 +348,7 @@ async function applyCandidate(
       message:
         image.cleanupFailures.length > 0
           ? '卡图处理失败，且部分对象清理失败，需要人工检查'
-          : '卡图下载、处理或上传失败',
+          : `${image.sourceFlag ?? 'imageFailed'}：${messageForFailure(new Error(image.error ?? ''), '卡图处理失败')}；可重新检查后选择强制导入无图草稿`,
     };
   }
   if (!image.imageFilename) {
@@ -435,8 +439,11 @@ async function applyCandidate(
 export const cloudbaseCardSyncEngine: CardSyncEngine = {
   getConfigurationStatus: getCloudbaseCardSyncConfigurationStatus,
 
-  async preview(): Promise<CardSyncEnginePreview> {
-    const plan = await buildSyncPlan();
+  async preview(onProgress, imageCheck = 'LINK'): Promise<CardSyncEnginePreview> {
+    const plan =
+      imageCheck === 'NONE'
+        ? await buildSyncPlan()
+        : await buildSyncPlan(true, imageCheck, onProgress);
     return {
       sourceHash: plan.sourceHash,
       generatedAt: new Date().toISOString(),
@@ -459,27 +466,44 @@ export const cloudbaseCardSyncEngine: CardSyncEngine = {
 
   async apply(input: CardSyncEngineApplyInput): Promise<CardSyncEngineApplyResult> {
     const plan = await buildSyncPlan();
-    const expectedCodes = [...input.expectedCandidateCardCodes].sort((a, b) =>
-      a.localeCompare(b, 'en')
+    const expectedCodeSet = new Set(input.expectedCandidateCardCodes);
+    const forceChoices = input.forceImports ?? [];
+    const forcedCodeSet = new Set(forceChoices.map((choice) => choice.cardCode));
+    const selectedCodes = input.selectedCardCodes;
+    const bySource = new Map(plan.entries.map((entry) => [entry.sourceKey, entry]));
+    const regular = plan.candidates.filter(
+      (candidate) =>
+        selectedCodes.includes(candidate.record.card_code) &&
+        !forcedCodeSet.has(candidate.record.card_code)
     );
-    const selectedCodes = [...input.selectedCardCodes].sort((a, b) => a.localeCompare(b, 'en'));
-    const expectedCodeSet = new Set(expectedCodes);
     if (
       plan.sourceHash !== input.expectedSourceHash ||
-      !sameStrings(candidateCodes(plan), expectedCodes) ||
-      selectedCodes.length === 0 ||
+      !selectedCodes.length ||
       new Set(selectedCodes).size !== selectedCodes.length ||
-      selectedCodes.some((cardCode) => !expectedCodeSet.has(cardCode))
+      (forceChoices.length > 0 && !input.forceImport) ||
+      forceChoices.some(
+        (choice) => !bySource.has(choice.sourceKey) || !selectedCodes.includes(choice.cardCode)
+      ) ||
+      regular.some((candidate) => !expectedCodeSet.has(candidate.record.card_code)) ||
+      regular.length + forceChoices.length !== selectedCodes.length
     ) {
       throw new CardSyncPreviewStaleError();
     }
-
-    const selectedCodeSet = new Set(selectedCodes);
     const items: CardSyncEngineApplyItem[] = [];
-    for (const candidate of plan.candidates) {
-      if (!selectedCodeSet.has(candidate.record.card_code)) continue;
+    for (const candidate of regular) {
       await input.execution.assertCurrent();
-      items.push(await applyCandidate(candidate, plan.cloudbase, input.actorUserId, input));
+      items.push(
+        await applyCandidate(candidate, plan.cloudbase, input.actorUserId, input, input.forceImport)
+      );
+    }
+    for (const choice of forceChoices) {
+      await input.execution.assertCurrent();
+      const candidate = forceReviewCandidate(bySource.get(choice.sourceKey)!, choice);
+      items.push(
+        choice.skipImage
+          ? await insertWithoutImage(candidate, input.actorUserId, input, '按管理员选择跳过卡图')
+          : await applyCandidate(candidate, plan.cloudbase, input.actorUserId, input, true)
+      );
     }
     return { sourceHash: plan.sourceHash, items };
   },
