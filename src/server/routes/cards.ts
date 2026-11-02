@@ -25,8 +25,8 @@ cardsRouter.get('/published', async (_req, res, next) => {
     const { rows } = await pool.query<CardRouteRecord>(
       `SELECT card_code, card_type, name_jp, name_cn, work_names, group_names,
               unit_name, unit_name_raw, cost, blade,
-              COALESCE(hearts, '[]'::jsonb) AS hearts, blade_hearts, score,
-              COALESCE(requirements, '[]'::jsonb) AS requirements,
+              COALESCE(NULLIF(hearts, 'null'::jsonb), '[]'::jsonb) AS hearts, blade_hearts, score,
+              COALESCE(NULLIF(requirements, 'null'::jsonb), '[]'::jsonb) AS requirements,
               card_text_jp, card_text_cn, image_filename, rare,
               product, product_code
          FROM cards WHERE status = 'PUBLISHED' ORDER BY card_code`
