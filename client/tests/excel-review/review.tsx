@@ -8,10 +8,19 @@ import { prepareRecoveryScenario } from '../../../tests/helpers/recovery-animati
 import { prepareGinkoScenario } from '../../../tests/helpers/ginko-entrance-fixture';
 import { prepareCheer } from '../recovery-review/cheerFixture';
 import type { ActiveEffectViewState, ViewZoneKey, ViewZoneState } from '@game/online/types';
-import type { AnyCardData } from '@game/domain/entities/card';
+import {
+  createCardInstance,
+  createHeartRequirement,
+  isLiveCardData,
+  isMemberCardData,
+  type AnyCardData,
+} from '@game/domain/entities/card';
+import { registerCards, updatePlayer, type GameState } from '@game/domain/entities/game';
 import { GameCommandType } from '@game/application/game-commands';
 import {
   GamePhase,
+  BladeHeartEffect,
+  CardType,
   HeartColor,
   OrientationState,
   SlotPosition,
@@ -51,6 +60,94 @@ function handDetails() {
     };
   }
   useGameStore.setState({ playerViewState: { ...view, objects } });
+}
+function judgmentDetails() {
+  prepareCheer(false, 4, true);
+  const session = store().gameSession;
+  const base = session.state!;
+  const member = base.cardRegistry.get('cheer-0')!.data;
+  const otherMember = base.cardRegistry.get('cheer-1')!.data;
+  const liveCard = base.cardRegistry.get('live-0')!.data;
+  if (!isMemberCardData(member) || !isMemberCardData(otherMember) || !isLiveCardData(liveCard)) {
+    throw new Error('Unexpected cheer fixture card types');
+  }
+  // Explicit synthetic cards exercise text contracts without changing the shared rule fixture.
+  const data: AnyCardData[] = [
+    {
+      ...member,
+      cardCode: 'EXCEL-CHEER-0',
+      nameCn: '双色判定成员',
+      bladeHearts: [
+        { effect: BladeHeartEffect.HEART, heartColor: HeartColor.YELLOW },
+        { effect: BladeHeartEffect.HEART, heartColor: HeartColor.GREEN },
+      ],
+    },
+    {
+      ...otherMember,
+      cardCode: 'EXCEL-CHEER-1',
+      nameCn: '复合判定成员',
+      bladeHearts: [
+        { effect: BladeHeartEffect.HEART, heartColor: HeartColor.RAINBOW },
+        { effect: BladeHeartEffect.DRAW },
+        { effect: BladeHeartEffect.DRAW },
+        { effect: BladeHeartEffect.SCORE },
+      ],
+    },
+    {
+      ...member,
+      cardCode: 'EXCEL-CHEER-2',
+      nameCn: '无判定成员',
+      bladeHearts: [],
+    },
+    {
+      ...liveCard,
+      cardCode: 'EXCEL-CHEER-3',
+      nameCn: '判定LIVE',
+      bladeHearts: [
+        { effect: BladeHeartEffect.HEART, heartColor: HeartColor.PURPLE },
+        { effect: BladeHeartEffect.HEART, heartColor: HeartColor.PURPLE },
+      ],
+    },
+  ];
+  const live: AnyCardData = {
+    cardType: CardType.LIVE,
+    cardCode: 'EXCEL-LIVE',
+    name: '灰心需求LIVE',
+    nameCn: '灰心需求LIVE',
+    score: 5,
+    requirements: createHeartRequirement({ [HeartColor.PINK]: 5, [HeartColor.RAINBOW]: 7 }),
+  };
+  const registered = registerCards(base, [
+    ...data.map((card, index) => createCardInstance(card, 'p1', `cheer-${index}`)),
+    createCardInstance(live, 'p1', 'live-0'),
+    createCardInstance(base.cardRegistry.get('remaining')!.data, 'p1', 'draw-filler'),
+  ]);
+  // Reveal DRAW last: its two cards enter the hand immediately through the real command path.
+  const state = updatePlayer(registered, 'p1', (player) => ({
+    ...player,
+    mainDeck: {
+      ...player.mainDeck,
+      cardIds: ['cheer-0', 'cheer-2', 'cheer-3', 'cheer-1', 'remaining', 'draw-filler'],
+    },
+  }));
+  (session as unknown as { authorityState: GameState }).authorityState = {
+    ...state,
+    liveResolution: {
+      ...state.liveResolution,
+      liveModifiers: [
+        ...state.liveResolution.liveModifiers,
+        {
+          kind: 'HEART',
+          target: 'PLAYER',
+          playerId: 'p1',
+          hearts: [{ color: HeartColor.GREEN, count: 2 }],
+        },
+      ],
+    },
+  };
+  store().loadCardData([...data, live]);
+  store().syncState();
+  for (let index = 0; index < 4; index++) store().revealCheerCard();
 }
 function selection(kind: string) {
   recovery();
@@ -596,6 +693,7 @@ function formation() {
   selection,
   submissions,
   cheer: prepareCheer,
+  judgmentDetails,
   store,
   expireCandidate: () => {
     const view = store().playerViewState!;

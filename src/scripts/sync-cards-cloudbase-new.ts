@@ -38,7 +38,12 @@ import { normalizeCardSyncGroupNames } from './card-sync-group-names.js';
 
 const require = createRequire(import.meta.url);
 const cloudbaseSDK = require('@cloudbase/node-sdk') as {
-  init(config: { env: string; secretId: string; secretKey: string }): CloudBaseApp;
+  init(config: {
+    env: string;
+    secretId: string;
+    secretKey: string;
+    timeout?: number;
+  }): CloudBaseApp;
 };
 
 export type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
@@ -97,6 +102,8 @@ export interface SourceRow {
 }
 
 export interface InvalidSourceRow {
+  readonly cardCode: string | null;
+  readonly name: string | null;
   readonly rowNumber: number;
   readonly sourceId: string | null;
   readonly reason: string;
@@ -679,6 +686,7 @@ export function createCloudbaseAppWithCredentials(credentials: CloudbaseCredenti
     env: credentials.envId,
     secretId: credentials.secretId,
     secretKey: credentials.secretKey,
+    timeout: 20_000,
   });
 }
 
@@ -719,6 +727,16 @@ export async function readCloudbaseDocuments(
   return documents;
 }
 
+export function readCloudbaseIdentity(document: Record<string, unknown>) {
+  return {
+    cardCode: getScalarField(document, FIELD_ALIASES.cardCode),
+    name:
+      getScalarField(document, FIELD_ALIASES.nameCn) ??
+      getScalarField(document, FIELD_ALIASES.nameJp),
+    cardType: parseCardType(getField(document, FIELD_ALIASES.cardType)),
+  };
+}
+
 export function cloudbaseDocumentToRow(
   document: Record<string, unknown>,
   rowNumber: number
@@ -729,6 +747,8 @@ export function cloudbaseDocumentToRow(
     return {
       rowNumber,
       sourceId,
+      cardCode: null,
+      name: readCloudbaseIdentity(document).name,
       reason: 'missing card_code',
     };
   }
@@ -739,6 +759,8 @@ export function cloudbaseDocumentToRow(
     return {
       rowNumber,
       sourceId,
+      cardCode: rawCode,
+      name: readCloudbaseIdentity(document).name,
       reason: `invalid card_code: ${validation.errors.join('; ')}`,
     };
   }
@@ -836,7 +858,7 @@ function parseIntegerField(
     return null;
   }
   if (typeof value === 'number' && Number.isInteger(value)) {
-    if (Number.isSafeInteger(value) && value >= 0) return value;
+    if (Number.isSafeInteger(value) && value >= 0 && value <= 2147483647) return value;
     if (value < 0) errors.push(`${context}: expected a non-negative integer`);
     else warnings.push(`${context}: invalid integer ${JSON.stringify(value)}`);
     return null;
@@ -845,7 +867,7 @@ function parseIntegerField(
   if (raw && /^-?\d+$/.test(raw)) {
     const parsed = Number(raw);
     if (Number.isSafeInteger(parsed)) {
-      if (parsed >= 0) return parsed;
+      if (parsed >= 0 && parsed <= 2147483647) return parsed;
       errors.push(`${context}: expected a non-negative integer`);
       return null;
     }
@@ -1296,18 +1318,22 @@ function buildSourceFlags(
   };
 }
 
-export function transformRow(row: SourceRow, status: CardStatus): TransformResult {
+export function transformRow(
+  row: SourceRow,
+  status: CardStatus,
+  override?: { readonly cardType: CardType; readonly name: string }
+): TransformResult {
   const warnings: string[] = [];
   const errors: string[] = [];
   const document = row.document;
   const context = `${row.cardCode} row ${row.rowNumber}`;
-  const cardType = parseCardType(getField(document, FIELD_ALIASES.cardType));
+  const cardType = override?.cardType ?? parseCardType(getField(document, FIELD_ALIASES.cardType));
   if (!cardType) {
     errors.push('missing or invalid card_type');
   }
 
   const nameJp = getScalarField(document, FIELD_ALIASES.nameJp);
-  const nameCn = getScalarField(document, FIELD_ALIASES.nameCn);
+  const nameCn = override?.name ?? getScalarField(document, FIELD_ALIASES.nameCn);
   if (!nameJp && !nameCn) {
     errors.push('missing name_jp/name_cn');
   }
@@ -1392,7 +1418,7 @@ export function transformRow(row: SourceRow, status: CardStatus): TransformResul
     warnings
   );
 
-  if (errors.length > 0) {
+  if (errors.length > 0 && !override) {
     return {
       row,
       record: null,
@@ -1435,7 +1461,11 @@ export function transformRow(row: SourceRow, status: CardStatus): TransformResul
     product: getScalarField(document, FIELD_ALIASES.product),
     product_code: getScalarField(document, FIELD_ALIASES.productCode),
     source_external_id: getScalarField(document, FIELD_ALIASES.sourceExternalId) ?? row.sourceId,
-    source_flags: buildSourceFlags(sourceFlags, missingRuleFields, warnings),
+    source_flags: buildSourceFlags(
+      override ? { ...sourceFlags, forceImported: true } : sourceFlags,
+      missingRuleFields,
+      [...warnings, ...errors]
+    ),
     status,
   };
 
@@ -1729,11 +1759,7 @@ async function readPinnedHttpsImage(
   });
 }
 
-async function downloadImageBuffer(
-  cloudbase: CloudBaseApp,
-  sourceUri: string,
-  signal?: AbortSignal
-): Promise<Buffer> {
+async function resolveImageUrl(cloudbase: CloudBaseApp, sourceUri: string): Promise<URL> {
   let url = sourceUri;
   if (!/^https?:\/\//i.test(sourceUri)) {
     const response = await cloudbase.getTempFileURL({
@@ -1746,9 +1772,67 @@ async function downloadImageBuffer(
     url = item.tempFileURL;
   }
 
-  const parsed = parseSafeImageUrl(url);
+  return parseSafeImageUrl(url);
+}
+
+async function downloadImageBuffer(
+  cloudbase: CloudBaseApp,
+  sourceUri: string,
+  signal?: AbortSignal
+): Promise<Buffer> {
+  const parsed = await resolveImageUrl(cloudbase, sourceUri);
   const addresses = await resolvePublicImageAddresses(parsed.hostname);
   return readPinnedHttpsImage(parsed, addresses, signal);
+}
+
+/** HEAD never downloads the card body; still uses the same public-address pinning. */
+export async function inspectImageLink(cloudbase: CloudBaseApp, sourceUri: string): Promise<void> {
+  const parsed = await resolveImageUrl(cloudbase, sourceUri);
+  const addresses = await resolvePublicImageAddresses(parsed.hostname);
+  await new Promise<void>((resolve, reject) => {
+    const request = httpsRequest(
+      parsed,
+      {
+        method: 'HEAD',
+        lookup: createPinnedLookup(addresses),
+        signal: AbortSignal.timeout(8_000),
+        headers: { Accept: 'image/*' },
+      },
+      (response) => {
+        response.resume();
+        const status = response.statusCode ?? 0;
+        if (status < 200 || status >= 300) {
+          reject(new Error(`image link HTTP ${status}`));
+          return;
+        }
+        const type = response.headers['content-type'] ?? '';
+        if (type && !type.startsWith('image/') && !type.startsWith('application/octet-stream')) {
+          reject(new Error('image link returned non-image content'));
+          return;
+        }
+        if (response.headers['content-length'] === '0') {
+          reject(new Error('image link is empty'));
+          return;
+        }
+        resolve();
+      }
+    );
+    request.on('error', reject);
+    request.end();
+  });
+}
+
+export async function inspectCandidateImage(
+  cloudbase: CloudBaseApp,
+  sourceUri: string,
+  imageLoader = downloadImageBuffer
+): Promise<{ width: number; height: number }> {
+  const input = await imageLoader(cloudbase, sourceUri, AbortSignal.timeout(25_000));
+  const decoder = sharp(input, { limitInputPixels: 8 * 1024 * 1024, sequentialRead: true });
+  const metadata = await decoder.metadata();
+  await decoder.resize(1, 1).raw().toBuffer();
+  if (!metadata.width || !metadata.height) throw new Error('image has no dimensions');
+  return { width: metadata.width, height: metadata.height };
 }
 
 async function compressImageBuffers(

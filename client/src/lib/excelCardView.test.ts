@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import type { PlayerViewState, ViewCardObject } from '@game/online/types';
-import { CardType, HeartColor, OrientationState, ZoneType } from '@game/shared/types/enums';
-import { selectExcelCard } from './excelCardView';
+import {
+  BladeHeartEffect,
+  CardType,
+  GamePhase,
+  HeartColor,
+  OrientationState,
+  ZoneType,
+} from '@game/shared/types/enums';
+import {
+  formatFrontMetrics,
+  formatTextHearts,
+  formatTextJudgment,
+  formatTextLiveRequirements,
+  selectExcelCard,
+} from './excelCardView';
 const emptyZones: PlayerViewState['table']['zones'] = {
   SHARED_RESOLUTION_ZONE: {
     zone: ZoneType.RESOLUTION_ZONE,
@@ -182,5 +195,121 @@ describe('Excel projected card rows', () => {
     expect(row.metrics).toContain('当前分数 5（印刷 2）');
     expect(row.metrics).toContain('绿 1');
     expect(live.frontInfo?.score).toBe(2);
+  });
+});
+
+describe('Excel judgment information', () => {
+  const markers = [
+    { effect: BladeHeartEffect.HEART, heartColor: HeartColor.YELLOW },
+    { effect: BladeHeartEffect.HEART, heartColor: HeartColor.YELLOW },
+    { effect: BladeHeartEffect.HEART, heartColor: HeartColor.RAINBOW },
+    { effect: BladeHeartEffect.DRAW },
+    { effect: BladeHeartEffect.DRAW },
+    { effect: BladeHeartEffect.SCORE },
+  ];
+  const replacement = { fromColors: [HeartColor.YELLOW], toColor: HeartColor.BLUE };
+  it('counts all printed markers, preserves rainbow hearts and never replaces draw or score', () => {
+    expect(formatTextJudgment(markers)).toBe('黄 2、彩虹 1、抽卡 +2、分数 +1');
+    expect(formatTextJudgment(markers, replacement)).toBe('蓝 2、彩虹 1、抽卡 +2、分数 +1');
+    expect(markers[0].heartColor).toBe(HeartColor.YELLOW);
+    expect(formatTextJudgment([])).toBe('—');
+    expect(formatTextJudgment()).toBe('—');
+  });
+  it.each([CardType.MEMBER, CardType.LIVE])(
+    'applies only the cheer owner replacement for %s, never to cards in other zones',
+    (cardType) => {
+      const card: ViewCardObject = {
+        ...front,
+        ownerSeat: 'SECOND',
+        controllerSeat: 'FIRST',
+        frontInfo: { ...front.frontInfo!, cardType, bladeHearts: markers },
+      };
+      const state = view(
+        { 'obj_public-a': card },
+        {
+          cheerHeartColorReplacements: {
+            FIRST: { fromColors: [HeartColor.YELLOW], toColor: HeartColor.PURPLE },
+            SECOND: replacement,
+          },
+        }
+      );
+      const projected: PlayerViewState = {
+        ...state,
+        match: { ...state.match, phase: GamePhase.PERFORMANCE_PHASE },
+        table: {
+          zones: {
+            SHARED_RESOLUTION_ZONE: {
+              ...emptyZones.SHARED_RESOLUTION_ZONE,
+              objectIds: ['obj_public-a'],
+            },
+          },
+        },
+      };
+      const row = selectExcelCard(projected, 'obj_public-a')!;
+      expect(row.printedJudgment).toBe('黄 2、彩虹 1、抽卡 +2、分数 +1');
+      expect(row.currentJudgment).toBe('蓝 2、彩虹 1、抽卡 +2、分数 +1');
+      expect(
+        selectExcelCard(
+          { ...projected, match: { ...projected.match, phase: GamePhase.LIVE_RESULT_PHASE } },
+          'obj_public-a'
+        )!.currentJudgment
+      ).toBe(row.currentJudgment);
+      for (const zone of [
+        ZoneType.HAND,
+        ZoneType.WAITING_ROOM,
+        ZoneType.LIVE_ZONE,
+        ZoneType.MEMBER_SLOT,
+      ]) {
+        const otherZone = {
+          ...projected,
+          table: {
+            zones: {
+              ...emptyZones,
+              FIRST_HAND: { zone, count: 1, ordered: false, objectIds: ['obj_public-a'] },
+            },
+          },
+        } as PlayerViewState;
+        expect(selectExcelCard(otherZone, 'obj_public-a')!.currentJudgment).toBeUndefined();
+        expect(selectExcelCard(otherZone, 'obj_public-a')!.printedJudgment).toBe(
+          row.printedJudgment
+        );
+      }
+      expect(
+        selectExcelCard(
+          { ...projected, objects: { 'obj_public-a': { ...card, surface: 'BACK' } } },
+          'obj_public-a'
+        )
+      ).toBeNull();
+    }
+  );
+  it('labels generic LIVE requirements as gray while gained rainbow hearts remain rainbow', () => {
+    for (const color of [HeartColor.GRAY, HeartColor.RAINBOW]) {
+      const requirements = { colorRequirements: { PINK: 5, [color]: 7 }, totalRequired: 12 };
+      expect(formatTextLiveRequirements(requirements)).toBe('粉 5、灰心 7');
+      expect(
+        formatFrontMetrics({
+          cardCode: 'LIVE',
+          cardType: CardType.LIVE,
+          score: 5,
+          requiredHearts: requirements,
+        })
+      ).toContain('需求 粉 5、灰心 7；总心 12');
+      const live = {
+        ...front,
+        frontInfo: {
+          cardCode: 'LIVE',
+          cardType: CardType.LIVE,
+          score: 5,
+          requiredHearts: requirements,
+        },
+      };
+      expect(selectExcelCard(view({ 'obj_public-a': live }), 'obj_public-a')!.metrics).toContain(
+        '当前需求 粉 5、灰心 7；总心 12'
+      );
+    }
+    expect(formatTextHearts([{ color: HeartColor.RAINBOW, count: 1 }])).toBe('彩虹 1');
+    expect(
+      formatTextJudgment([{ effect: BladeHeartEffect.HEART, heartColor: HeartColor.RAINBOW }])
+    ).toBe('彩虹 1');
   });
 });

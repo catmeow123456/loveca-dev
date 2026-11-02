@@ -29,13 +29,14 @@ export const VALID_PREFIXES = [
 ] as const;
 
 /** 新的数字编号商品无需逐个登记，固定代号仍显式限定。 */
-export const NUMBERED_PRODUCT_PREFIXES = ['sd', 'bp', 'cl', 'pb'] as const;
+export const NUMBERED_PRODUCT_PREFIXES = ['sd', 'bp', 'cl', 'pb', 'ad'] as const;
 export const FIXED_PRODUCTS = ['PR', 'E'] as const;
 
 const NUMBERED_PRODUCT_PATTERN = new RegExp(`^(?:${NUMBERED_PRODUCT_PREFIXES.join('|')})\\d+$`);
 
 /** 有效的稀有度 */
 export const VALID_RARITIES = [
+  'AD',
   'SD',
   'SD2',
   'N',
