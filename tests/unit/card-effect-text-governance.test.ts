@@ -1,3 +1,14 @@
+import {
+  PL_BP8_014_ON_ENTER_BOTTOM_TWO_NO_BLADE_HEART_MUSE_DRAW_ONE_ABILITY_ID,
+  PL_BP8_022_LIVE_SUCCESS_FIVE_YELLOW_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
+  HS_AD2_001_CONTINUOUS_THREE_DIFFERENT_NAMES_GAIN_TWO_BLADE_ABILITY_ID,
+  HS_AD2_001_AUTO_ON_CHEER_TWO_NO_BLADE_HEART_ADDITIONAL_CHEER_ABILITY_ID,
+  HS_AD2_001_LIVE_SUCCESS_MORE_REVEALED_CHEER_DRAW_ONE_ABILITY_ID,
+  PYHN_AD2_001_CONTINUOUS_AQOURS_IDENTITY_ABILITY_ID,
+  PYHN_AD2_001_LIVE_START_DRAW_ONE_PLACE_HAND_TOP_ABILITY_ID,
+  PYHN_AD2_001_LIVE_SUCCESS_TWO_NO_BLADE_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
+import { getNovember02DraftRow, NOVEMBER_02_TARGET_BASES } from '../helpers/november-02-draft-effects';
 import { getOctober31DraftRow, OCTOBER_31_TARGET_BASES } from '../helpers/october-31-draft-effects';
 import { getCardAbilityDefinitionsForCardCode } from '../../src/application/card-effects/definitions/lookup';
 import { describe, expect, it } from 'vitest';
@@ -389,6 +400,73 @@ describe('October 31 authorized complete Chinese card text', () => {
           expect(definition.activatedUi.abilityId).toBe(definition.abilityId);
         }
       });
+    }
+  );
+});
+
+
+describe('November 02 authorized complete Chinese paragraphs', () => {
+  const cases = [
+    {
+      abilityId: PL_BP8_014_ON_ENTER_BOTTOM_TWO_NO_BLADE_HEART_MUSE_DRAW_ONE_ABILITY_ID,
+      base: 'PL!-bp8-014',
+      paragraph: 0,
+      text: '【登场】可以将存在于休息室的２张不持有BLADE HEART的『μ’s』的成员卡按任意顺序放置于卡组底：抽１张卡。',
+    },
+    {
+      abilityId: PL_BP8_022_LIVE_SUCCESS_FIVE_YELLOW_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
+      base: 'PL!-bp8-022',
+      paragraph: 0,
+      text: '【LIVE成功时】因声援被公开的自己的卡片中存在大于等于５张持有[黄ブレード]的卡片的场合，此卡的分数＋１。',
+    },
+    {
+      abilityId: HS_AD2_001_CONTINUOUS_THREE_DIFFERENT_NAMES_GAIN_TWO_BLADE_ABILITY_ID,
+      base: 'PL!HS-ad2-001',
+      paragraph: 0,
+      text: '【常时】只要自己的舞台上存在３名名称各不相同的成员，获得[ブレード][ブレード]。',
+    },
+    {
+      abilityId: HS_AD2_001_AUTO_ON_CHEER_TWO_NO_BLADE_HEART_ADDITIONAL_CHEER_ABILITY_ID,
+      base: 'PL!HS-ad2-001',
+      paragraph: 1,
+      text: '【自动】【１回合１次】自己进行声援时，因声援被公开的自己的卡片中存在大于等于２张不持有BLADE HEART的卡片的场合，追加进行１张卡片的声援。',
+    },
+    {
+      abilityId: HS_AD2_001_LIVE_SUCCESS_MORE_REVEALED_CHEER_DRAW_ONE_ABILITY_ID,
+      base: 'PL!HS-ad2-001',
+      paragraph: 2,
+      text: '【LIVE成功时】因声援被公开的自己的卡片的张数，比因声援被公开的对方的卡片的张数多的场合，抽１张卡。',
+    },
+    {
+      abilityId: PYHN_AD2_001_CONTINUOUS_AQOURS_IDENTITY_ABILITY_ID,
+      base: 'PYHN-ad2-001',
+      paragraph: 0,
+      text: '【常时】存在于所有领域的此卡视为『Aqours』。',
+    },
+    {
+      abilityId: PYHN_AD2_001_LIVE_START_DRAW_ONE_PLACE_HAND_TOP_ABILITY_ID,
+      base: 'PYHN-ad2-001',
+      paragraph: 1,
+      text: '【LIVE开始时】抽１张卡，将１张手牌放置于卡组顶。',
+    },
+    {
+      abilityId: PYHN_AD2_001_LIVE_SUCCESS_TWO_NO_BLADE_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
+      base: 'PYHN-ad2-001',
+      paragraph: 2,
+      text: '【LIVE成功时】因声援被公开的自己的卡片中存在大于等于２张不持有BLADE HEART的卡片的场合，此卡的分数＋１。',
+    },
+  ];
+  it.each(cases)(
+    '$base preserves the complete paragraph for $abilityId',
+    ({ abilityId, base, paragraph, text }) => {
+      expect(getNovember02DraftRow(base).cardTextCn.split(/\n\n+/)[paragraph]).toBe(text);
+      for (const rare of ['AD', 'N', 'L', 'SEC', 'UNSEEN']) {
+        const definition = getCardAbilityDefinitionsForCardCode(`${base}-${rare}`).find(
+          (candidate) => candidate.abilityId === abilityId
+        );
+        expect(definition?.effectText).toBe(text);
+        expect(definition?.activatedUi).toBeUndefined();
+      }
     }
   );
 });

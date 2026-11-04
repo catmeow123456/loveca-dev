@@ -1,0 +1,176 @@
+{
+  "PL!-bp8-014-N": {
+    "cardCode": "PL!-bp8-014-N",
+    "cardType": "MEMBER",
+    "nameJp": "星空凛",
+    "nameCn": "星空凛",
+    "workNames": null,
+    "groupNames": ["μ’s"],
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cost": 7,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】控え室にあるブレードハートを持たない『μ’s』のメンバーカード２枚を好きな順番でデッキの下に置いてもよい：カードを１枚引く。",
+    "cardTextCn": "【登场】可以将存在于休息室的２张不持有BLADE HEART的『μ’s』的成员卡按任意顺序放置于卡组底：抽１张卡。",
+    "rare": "N",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "sync-8546e544677073ca1399974d"
+    },
+    "status": "DRAFT"
+  },
+  "PL!-bp8-022-L": {
+    "cardCode": "PL!-bp8-022-L",
+    "cardType": "LIVE",
+    "nameJp": "Hello,星を数えて",
+    "nameCn": "Hello，细数繁星",
+    "workNames": null,
+    "groupNames": ["μ’s"],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": 3,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 3
+      }
+    ],
+    "cardTextJp": "【ライブ成功時】エールにより公開された自分のカードの中に[黄ブレード]を持つカードが５枚以上ある場合、このカードのスコアを＋１する。",
+    "cardTextCn": "【LIVE成功时】因声援被公开的自己的卡片中存在大于等于５张持有[黄ブレード]的卡片的场合，此卡的分数＋１。",
+    "rare": "L",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "sync-fc58e7339ef0101468538f3a"
+    },
+    "status": "DRAFT"
+  },
+  "PL!HS-ad2-001-AD": {
+    "cardCode": "PL!HS-ad2-001-AD",
+    "cardType": "MEMBER",
+    "nameJp": "乙宗梢",
+    "nameCn": "乙宗梢",
+    "workNames": null,
+    "groupNames": ["蓮ノ空"],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cost": 11,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 4
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【常時】自分のステージに名前の異なるメンバーが３人いるかぎり、[ブレード][ブレード]を得る。\n\n【自動】【ターン１回】自分がエールしたとき、エールにより公開された自分のカードの中にブレードハートを持たないカードが２枚以上ある場合、追加で１枚エールを行う。\n\n【ライブ成功時】エールにより公開された自分のカードの枚数が、相手がエールによって公開したカードの枚数より多い場合、カードを１枚引く。",
+    "cardTextCn": "【常时】只要自己的舞台上存在３名名称各不相同的成员，获得[ブレード][ブレード]。\n\n【自动】【１回合１次】自己进行声援时，因声援被公开的自己的卡片中存在大于等于２张不持有BLADE HEART的卡片的场合，追加进行１张卡片的声援。\n\n【LIVE成功时】因声援被公开的自己的卡片的张数，比因声援被公开的对方的卡片的张数多的场合，抽１张卡。",
+    "rare": "AD",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "sync-28fbf6e3491dbd8061ba6bdf"
+    },
+    "status": "DRAFT"
+  },
+  "PYHN-ad2-001-AD": {
+    "cardCode": "PYHN-ad2-001-AD",
+    "cardType": "LIVE",
+    "nameJp": "Deep Blue",
+    "nameCn": "Deep Blue",
+    "workNames": null,
+    "groupNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "DRAW"
+      }
+    ],
+    "score": 6,
+    "requirements": [
+      {
+        "color": "GREEN",
+        "count": 3
+      },
+      {
+        "color": "BLUE",
+        "count": 5
+      },
+      {
+        "color": "RAINBOW",
+        "count": 5
+      }
+    ],
+    "cardTextJp": "【常時】すべての領域にあるこのカードは『Aqours』として扱う。\n\n【ライブ開始時】カードを１枚引き、手札を１枚デッキの一番上に置く。\n\n【ライブ成功時】エールにより公開された自分のカードの中にブレードハートを持たないカードが２枚以上ある場合、このカードのスコアを＋１する。",
+    "cardTextCn": "【常时】存在于所有领域的此卡视为『Aqours』。\n\n【LIVE开始时】抽１张卡，将１张手牌放置于卡组顶。\n\n【LIVE成功时】因声援被公开的自己的卡片中存在大于等于２张不持有BLADE HEART的卡片的场合，此卡的分数＋１。",
+    "rare": "AD",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "sync-536f097b692a015e31bcee94"
+    },
+    "status": "DRAFT"
+  }
+}

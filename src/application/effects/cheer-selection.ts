@@ -118,6 +118,25 @@ export function selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts(
   });
 }
 
+/** Count historical current-LIVE facts using effective judgment, without treating invalid lists as empty. */
+export function selectCurrentLiveRevealedCheerCardIdsWithoutBladeHearts(
+  game: GameState,
+  playerId: string,
+  options: CurrentLiveRevealedCheerCardSelectionOptions = {}
+): readonly string[] {
+  return selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts(game, playerId, {
+    ...options,
+    predicate: (card) => {
+      const printed = 'bladeHearts' in card.data ? card.data.bladeHearts : undefined;
+      return (
+        (printed === undefined || Array.isArray(printed)) && (options.predicate?.(card) ?? true)
+      );
+    },
+  })
+    .filter(({ effectiveBladeHearts }) => effectiveBladeHearts.length === 0)
+    .map(({ cardId }) => cardId);
+}
+
 /**
  * Collects structured Blade Heart colors from the current LIVE's event-inclusive revealed-cheer
  * facts. Cards moved out of the resolution zone remain facts; DRAW/SCORE Blade Hearts never count.

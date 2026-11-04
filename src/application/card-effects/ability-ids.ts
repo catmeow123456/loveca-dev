@@ -2211,3 +2211,20 @@ export const N_BP8_001_ON_ENTER_STACK_ENERGY_SELF_AND_OTHER_NIJIGASAKI_ABILITY_I
   'PL!N-bp8-001:on-enter-stack-energy-self-and-other-nijigasaki';
 export const N_BP8_001_LIVE_SUCCESS_RETURN_ONE_ENERGY_BELOW_DRAW_DISCARD_ABILITY_ID =
   'PL!N-bp8-001:live-success-return-one-energy-below-draw-discard';
+
+export const PL_BP8_014_ON_ENTER_BOTTOM_TWO_NO_BLADE_HEART_MUSE_DRAW_ONE_ABILITY_ID =
+  'PL!-bp8-014:on-enter-bottom-two-no-blade-heart-muse-draw-one';
+export const PL_BP8_022_LIVE_SUCCESS_FIVE_YELLOW_CHEER_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!-bp8-022:live-success-five-yellow-cheer-this-live-score';
+export const HS_AD2_001_CONTINUOUS_THREE_DIFFERENT_NAMES_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!HS-ad2-001:continuous-three-different-names-gain-two-blade';
+export const HS_AD2_001_AUTO_ON_CHEER_TWO_NO_BLADE_HEART_ADDITIONAL_CHEER_ABILITY_ID =
+  'PL!HS-ad2-001:auto-on-cheer-two-no-blade-heart-additional-cheer';
+export const HS_AD2_001_LIVE_SUCCESS_MORE_REVEALED_CHEER_DRAW_ONE_ABILITY_ID =
+  'PL!HS-ad2-001:live-success-more-revealed-cheer-draw-one';
+export const PYHN_AD2_001_CONTINUOUS_AQOURS_IDENTITY_ABILITY_ID =
+  'PYHN-ad2-001:continuous-aqours-identity';
+export const PYHN_AD2_001_LIVE_START_DRAW_ONE_PLACE_HAND_TOP_ABILITY_ID =
+  'PYHN-ad2-001:live-start-draw-one-place-hand-top';
+export const PYHN_AD2_001_LIVE_SUCCESS_TWO_NO_BLADE_CHEER_THIS_LIVE_SCORE_ABILITY_ID =
+  'PYHN-ad2-001:live-success-two-no-blade-cheer-this-live-score';

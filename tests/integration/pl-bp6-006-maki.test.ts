@@ -4,6 +4,7 @@ import {
   createCardInstance,
   createHeartIcon,
   createHeartRequirement,
+  isMemberCardData,
 } from '../../src/domain/entities/card';
 import {
   createGameState,
@@ -12,24 +13,34 @@ import {
   updatePlayer,
   type GameState,
 } from '../../src/domain/entities/game';
-import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
-import { BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
+import {
+  BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
+  MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import {
   createActivateAbilityCommand,
+  createAutoAdvancePublicCardSelectionCommand,
   createAutoAdvancePublicEffectChoiceCommand,
   createConfirmEffectStepCommand,
+  GameCommandType,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import { enqueueTriggeredCardEffects } from '../../src/application/card-effect-runner';
 import { PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-effect-choice-confirmation';
 import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
+import { PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-card-selection-confirmation';
 import { recordAbilityUseForContext } from '../../src/application/card-effects/runtime/workflow-helpers';
 import { playMembersFromWaitingRoomToEmptySlots } from '../../src/application/effects/member-state';
 import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
 import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
-import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
+import {
+  advancePublicRevealDwellIfNeeded,
+  confirmPublicSelectionIfNeeded,
+} from '../helpers/public-card-selection-confirmation';
 import {
   CardType,
+  BladeHeartEffect,
   FaceState,
   GamePhase,
   HeartColor,
@@ -44,6 +55,29 @@ import {
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
 
+// PL!-bp6-006, copied from the authorized 2026-11-02 export; no DB fixture lookup.
+const MAKI_DATA: Omit<MemberCardData, 'cardCode'> = {
+  name: '西木野真姬',
+  nameCn: '西木野真姬',
+  nameJp: '西木野真姫',
+  groupNames: ['μ’s'],
+  workNames: ['ラブライブ！'],
+  unitName: '「BiBi」',
+  cardType: CardType.MEMBER,
+  cost: 17,
+  blade: 4,
+  hearts: [
+    createHeartIcon(HeartColor.PINK, 2),
+    createHeartIcon(HeartColor.YELLOW, 2),
+    createHeartIcon(HeartColor.PURPLE, 3),
+  ],
+  bladeHearts: [{ effect: BladeHeartEffect.HEART, heartColor: HeartColor.PURPLE }],
+  cardTextCn:
+    '【起动】【1回合1次】将1张手牌放置入休息室：指定1个任意HEART的颜色。此后，公开自己的卡组顶的5张卡片。因此被公开的卡片中包含持有指定颜色HEART的成员卡和必要HEART包含指定颜色HEART的LIVE卡合计5张的场合，从中将1张『μ’s』的卡片加入手牌，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。被公开的其余卡牌放置入休息室。',
+  cardTextJp:
+    '【起動】【ターン1回】手札を1枚控え室に置く：好きなハートの色を1つ指定する。その後、自分のデッキの上からカードを5枚公開する。公開されたカードの中に指定した色のハートを持つメンバーカードと必要ハートに指定した色を含むライブカードが合計5枚含まれる場合、その中から『μ’s』のカードを1枚手札に加え、ライブ終了時まで、[ブレード][ブレード][ブレード]を得る。公開した残りのカードを控え室に置く。',
+};
+
 function createMemberCard(
   cardCode: string,
   options: {
@@ -53,14 +87,16 @@ function createMemberCard(
     readonly cost?: number;
   } = {}
 ): MemberCardData {
+  const sourceData = cardCode.startsWith('PL!-bp6-006-') ? MAKI_DATA : undefined;
   return {
+    ...sourceData,
     cardCode,
-    name: options.name ?? cardCode,
-    groupNames: options.groupNames ?? ["μ's"],
+    name: options.name ?? sourceData?.name ?? cardCode,
+    groupNames: options.groupNames ?? sourceData?.groupNames ?? ["μ's"],
     cardType: CardType.MEMBER,
-    cost: options.cost ?? 2,
-    blade: 1,
-    hearts: options.hearts ?? [createHeartIcon(HeartColor.PINK, 1)],
+    cost: options.cost ?? sourceData?.cost ?? 2,
+    blade: sourceData?.blade ?? 1,
+    hearts: options.hearts ?? sourceData?.hearts ?? [createHeartIcon(HeartColor.PINK, 1)],
   };
 }
 
@@ -107,10 +143,10 @@ function setPlayerZones(
   return updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     hand: zones.hand
-      ? zones.hand.reduce((zone, cardId) => addCardToZone(zone, cardId), {
+      ? {
           ...player.hand,
-          cardIds: [],
-        })
+          cardIds: [...zones.hand],
+        }
       : player.hand,
     mainDeck: zones.mainDeck
       ? {
@@ -139,15 +175,18 @@ function enterWaitingRoomEvents(game: GameState): readonly {
   }[];
 }
 
-function createMainPhaseSession(state: GameState): ReturnType<typeof createGameSession> {
-  const session = createGameSession();
+function createMainPhaseSession(
+  state: GameState,
+  now?: () => number
+): ReturnType<typeof createGameSession> {
+  const session = createGameSession(now ? { now } : undefined);
   session.createGame(state.gameId, PLAYER1, 'P1', PLAYER2, 'P2');
   (session as unknown as { authorityState: GameState }).authorityState = {
     ...state,
     turnCount: 1,
     currentPhase: GamePhase.MAIN_PHASE,
     currentSubPhase: SubPhase.NONE,
-    currentTurnType: TurnType.NORMAL,
+    currentTurnType: TurnType.FIRST_PLAYER_TURN,
     activePlayerIndex: 0,
     waitingPlayerId: null,
     isStarted: true,
@@ -187,7 +226,423 @@ function chooseHeartColor(session: ReturnType<typeof createGameSession>, color: 
   return session.executeCommand(createAutoAdvancePublicEffectChoiceCommand(PLAYER1, effectId, 0));
 }
 
+function advanceToPublicMuseSelection(
+  session: ReturnType<typeof createGameSession>,
+  revealedCardIds: readonly string[],
+  candidateCardIds: readonly string[]
+): void {
+  const revealedObjectIds = revealedCardIds.map(createPublicObjectId);
+  const candidateObjectIds = candidateCardIds.map(createPublicObjectId);
+  for (const viewerId of [PLAYER1, PLAYER2]) {
+    const view = projectPlayerViewState(session.state!, viewerId);
+    expect(view.activeEffect?.revealedObjectIds).toEqual(revealedObjectIds);
+    for (const objectId of revealedObjectIds) {
+      expect(view.objects[objectId]?.surface).toBe('FRONT');
+    }
+  }
+
+  expect(advancePublicRevealDwellIfNeeded(session)?.success).toBe(true);
+  expect(session.state?.inspectionZone.revealedCardIds).toEqual(revealedCardIds);
+  for (const viewerId of [PLAYER1, PLAYER2]) {
+    const view = projectPlayerViewState(session.state!, viewerId);
+    expect(view.activeEffect?.revealedObjectIds ?? []).toEqual([]);
+    expect(view.activeEffect).toMatchObject({
+      selectableObjectIds: candidateObjectIds,
+      selectableObjectMode: 'SINGLE',
+      stepText: "请选择1张『μ's』卡加入手牌，其余公开卡放置入休息室。",
+    });
+    for (const objectId of revealedObjectIds) {
+      expect(view.objects[objectId]).toMatchObject({ surface: 'FRONT', publiclyRevealed: true });
+    }
+    expect(
+      view.permissions.availableCommands.some(
+        (hint) => hint.command === GameCommandType.CONFIRM_EFFECT_STEP && hint.enabled
+      )
+    ).toBe(viewerId === PLAYER1);
+  }
+}
+
+function setupMuseSelection() {
+  let now = 10_000;
+  const source = createCardInstance(createMemberCard('PL!-bp6-006-P'), PLAYER1, 'source');
+  const cost = createCardInstance(createMemberCard('cost'), PLAYER1, 'cost');
+  const privateHand = createCardInstance(createMemberCard('private-hand'), PLAYER1, 'private-hand');
+  const topCards = [
+    createCardInstance(
+      createMemberCard('muse-member', { hearts: [createHeartIcon(HeartColor.RED, 1)] }),
+      PLAYER1,
+      'muse-member'
+    ),
+    createCardInstance(
+      createMemberCard('aqours-member', {
+        groupNames: ['Aqours'],
+        hearts: [createHeartIcon(HeartColor.RED, 1)],
+      }),
+      PLAYER1,
+      'aqours-member'
+    ),
+    createCardInstance(
+      createLiveCard('aqours-live', {
+        groupNames: ['Aqours'],
+        requirements: { [HeartColor.RED]: 1 },
+      }),
+      PLAYER1,
+      'aqours-live'
+    ),
+    createCardInstance(
+      createLiveCard('muse-live', { requirements: { [HeartColor.RED]: 1 } }),
+      PLAYER1,
+      'muse-live'
+    ),
+    createCardInstance(
+      createMemberCard('muse-member-2', { hearts: [createHeartIcon(HeartColor.RED, 1)] }),
+      PLAYER1,
+      'muse-member-2'
+    ),
+  ];
+  const tail = createCardInstance(createMemberCard('deck-tail'), PLAYER1, 'deck-tail');
+  let game = registerCards(createGameState('maki-selection', PLAYER1, 'P1', PLAYER2, 'P2'), [
+    source,
+    cost,
+    privateHand,
+    ...topCards,
+    tail,
+  ]);
+  game = placeStageMember(game, source.instanceId);
+  game = setPlayerZones(game, {
+    hand: [cost.instanceId, privateHand.instanceId],
+    mainDeck: [...topCards.map((card) => card.instanceId), tail.instanceId],
+  });
+  const session = createMainPhaseSession(game, () => now);
+  expect(
+    session.executeCommand(
+      createActivateAbilityCommand(
+        PLAYER1,
+        source.instanceId,
+        BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID
+      )
+    ).success
+  ).toBe(true);
+  expect(
+    session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, cost.instanceId)
+    ).success
+  ).toBe(true);
+  expect(chooseHeartColor(session, HeartColor.RED).success).toBe(true);
+  advancePublicRevealDwellIfNeeded(session);
+  expect(session.state?.activeEffect?.selectableCardIds).toEqual([
+    'muse-member',
+    'muse-live',
+    'muse-member-2',
+  ]);
+  return { session, topCards, setNow: (value: number) => (now = value) };
+}
+
 describe('PL!-bp6-006 Maki workflow', () => {
+  it('displays only the selected μ’s card for two seconds before P2 advances the complete result once', () => {
+    const { session, topCards, setNow } = setupMuseSelection();
+    const effectId = session.state!.activeEffect!.id;
+    const beforeSelection = session.state!;
+    expect(
+      session.executeCommand(createConfirmEffectStepCommand(PLAYER2, effectId, 'muse-live')).success
+    ).toBe(false);
+    expect(session.state).toEqual(beforeSelection);
+    const selected = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, effectId, 'muse-live')
+    );
+    expect(selected.success, selected.error).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      stepId: PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
+      stepText: "已选择这张『μ's』卡。展示结束后加入手牌，其余公开卡放置入休息室。",
+      revealedCardIds: ['muse-live'],
+      publicCardSelectionAutoAdvanceAt: 12_000,
+    });
+    expect(session.state?.activeEffect?.selectableCardIds).toBeUndefined();
+    expect(session.state?.activeEffect?.confirmSelectionLabel).toBeUndefined();
+    expect(session.state?.inspectionZone.cardIds).toEqual(topCards.map((card) => card.instanceId));
+    expect(session.state?.players).toEqual(beforeSelection.players);
+    expect(session.state?.liveResolution.liveModifiers).toEqual([]);
+    expect(session.state?.pendingAbilities).toEqual(beforeSelection.pendingAbilities);
+    expect(session.state?.actionHistory).toEqual(beforeSelection.actionHistory);
+    expect(
+      session.state?.actionHistory.filter((action) => action.payload.step === 'ABILITY_USE')
+    ).toHaveLength(1);
+    for (const viewerId of [PLAYER1, PLAYER2]) {
+      const view = projectPlayerViewState(session.state!, viewerId, { now: 10_000 });
+      const selectedObjectId = createPublicObjectId('muse-live');
+      expect(view.activeEffect).toMatchObject({
+        revealedObjectIds: [selectedObjectId],
+        publicCardSelectionAutoAdvanceAfterMs: 2_000,
+      });
+      expect(view.objects[selectedObjectId]?.surface).toBe('FRONT');
+    }
+    const opponentView = projectPlayerViewState(session.state!, PLAYER2);
+    expect(opponentView.objects[createPublicObjectId('private-hand')]).toBeUndefined();
+    expect(
+      Object.values(opponentView.objects).some(
+        (object) => object.frontInfo?.cardCode === 'private-hand'
+      )
+    ).toBe(false);
+
+    setNow(11_999);
+    const beforeEarlyAdvance = session.state;
+    expect(
+      session.executeCommand(createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 12_000))
+        .success
+    ).toBe(false);
+    expect(session.state).toEqual(beforeEarlyAdvance);
+    expect(session.executeCommand(createConfirmEffectStepCommand(PLAYER1, effectId)).success).toBe(
+      false
+    );
+    expect(session.state).toEqual(beforeEarlyAdvance);
+    setNow(12_000);
+    const advance = createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 12_000);
+    const completed = session.executeCommand(advance);
+    expect(completed.success, completed.error).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    const player = getPlayerById(session.state!, PLAYER1)!;
+    expect(player.hand.cardIds).toEqual(['private-hand', 'muse-live']);
+    expect(player.waitingRoom.cardIds).toEqual([
+      'cost',
+      'muse-member',
+      'aqours-member',
+      'aqours-live',
+      'muse-member-2',
+    ]);
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
+      playerId: PLAYER1,
+      countDelta: 3,
+      sourceCardId: 'source',
+      abilityId: BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
+    });
+    const movedEvents = enterWaitingRoomEvents(session.state!).filter(
+      (event) => event.fromZone === ZoneType.MAIN_DECK
+    );
+    expect(movedEvents).toHaveLength(1);
+    expect(movedEvents[0]?.cardInstanceIds).toEqual([
+      'muse-member',
+      'aqours-member',
+      'aqours-live',
+      'muse-member-2',
+    ]);
+    const opponentAfterMove = projectPlayerViewState(session.state!, PLAYER2);
+    expect(opponentAfterMove.objects[createPublicObjectId('muse-live')]).toBeUndefined();
+    expect(
+      Object.values(opponentAfterMove.objects).some(
+        (object) => object.frontInfo?.cardCode === 'muse-live'
+      )
+    ).toBe(false);
+    for (const cardId of ['muse-member', 'aqours-member', 'aqours-live', 'muse-member-2']) {
+      expect(opponentAfterMove.objects[createPublicObjectId(cardId)]?.surface).toBe('FRONT');
+    }
+    const completedState = session.state;
+    expect(session.executeCommand(advance).success).toBe(false);
+    expect(session.state).toEqual(completedState);
+  });
+
+  it.each(['aqours-member', 'aqours-live', 'private-hand', 'not-a-card'])(
+    'rejects non-candidate %s without another display or partial movement',
+    (cardId) => {
+      const { session } = setupMuseSelection();
+      const before = session.state;
+      const result = session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, cardId)
+      );
+      expect(result.success).toBe(false);
+      expect(session.state).toEqual(before);
+    }
+  );
+
+  it('keeps a queued ability pending until the selected card finishes displaying', () => {
+    const { session, setNow } = setupMuseSelection();
+    const queued = {
+      id: 'queued-draw',
+      abilityId: MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
+      sourceCardId: 'source',
+      controllerId: PLAYER1,
+      mandatory: true,
+      timingId: TriggerCondition.ON_ENTER_STAGE,
+      eventIds: [],
+    };
+    (session as unknown as { authorityState: GameState }).authorityState = {
+      ...session.state!,
+      pendingAbilities: [queued],
+    };
+    const effectId = session.state!.activeEffect!.id;
+    expect(
+      session.executeCommand(createConfirmEffectStepCommand(PLAYER1, effectId, 'muse-member'))
+        .success
+    ).toBe(true);
+    expect(session.state?.pendingAbilities).toEqual([queued]);
+    expect(getPlayerById(session.state!, PLAYER1)?.mainDeck.cardIds).toEqual(['deck-tail']);
+    expect(
+      session.state?.actionHistory.some((action) => action.payload.pendingAbilityId === queued.id)
+    ).toBe(false);
+    setNow(12_000);
+    const completed = session.executeCommand(
+      createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 12_000)
+    );
+    expect(completed.success, completed.error).toBe(true);
+    expect(session.state?.pendingAbilities).toEqual([]);
+    expect(getPlayerById(session.state!, PLAYER1)?.hand.cardIds).toEqual([
+      'private-hand',
+      'muse-member',
+      'deck-tail',
+    ]);
+    expect(
+      session.state?.actionHistory.filter(
+        (action) =>
+          action.payload.pendingAbilityId === queued.id &&
+          action.payload.step === 'ON_ENTER_DRAW_ONE'
+      )
+    ).toHaveLength(1);
+  });
+
+  it.each(['moved', 'not-revealed', 'foreign-owner', 'foreign-context'])(
+    'rejects a %s selected card before creating a display',
+    (invalidity) => {
+      const { session } = setupMuseSelection();
+      const state = session.state!;
+      const registry = new Map(state.cardRegistry);
+      if (invalidity === 'foreign-owner') {
+        registry.set('muse-member', { ...registry.get('muse-member')!, ownerId: PLAYER2 });
+      }
+      (session as unknown as { authorityState: GameState }).authorityState = {
+        ...state,
+        cardRegistry: registry,
+        inspectionZone: {
+          ...state.inspectionZone,
+          cardIds:
+            invalidity === 'moved'
+              ? state.inspectionZone.cardIds.filter((id) => id !== 'muse-member')
+              : state.inspectionZone.cardIds,
+          revealedCardIds:
+            invalidity === 'not-revealed'
+              ? state.inspectionZone.revealedCardIds.filter((id) => id !== 'muse-member')
+              : state.inspectionZone.revealedCardIds,
+        },
+        inspectionContext:
+          invalidity === 'foreign-context'
+            ? { ...state.inspectionContext!, ownerPlayerId: PLAYER2 }
+            : state.inspectionContext,
+      };
+      const before = session.state;
+      expect(
+        session.executeCommand(
+          createConfirmEffectStepCommand(PLAYER1, state.activeEffect!.id, 'muse-member')
+        ).success
+      ).toBe(false);
+      expect(session.state).toEqual(before);
+    }
+  );
+
+  it.each([
+    'selected-moved',
+    'unselected-moved',
+    'unselected-not-revealed',
+    'unselected-foreign-owner',
+    'unselected-color-changed',
+    'selected-not-muse',
+    'foreign-context',
+  ])('does not partially settle when %s during the selected-card display', (invalidity) => {
+    const { session, setNow } = setupMuseSelection();
+    const effectId = session.state!.activeEffect!.id;
+    expect(
+      session.executeCommand(createConfirmEffectStepCommand(PLAYER1, effectId, 'muse-member'))
+        .success
+    ).toBe(true);
+    const state = session.state!;
+    const registry = new Map(state.cardRegistry);
+    if (invalidity === 'unselected-foreign-owner') {
+      registry.set('muse-member-2', { ...registry.get('muse-member-2')!, ownerId: PLAYER2 });
+    }
+    if (invalidity === 'unselected-color-changed') {
+      const card = registry.get('muse-member-2')!;
+      if (!isMemberCardData(card.data)) throw new Error('Expected a member test fixture');
+      const changedMemberData: MemberCardData = {
+        ...card.data,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      };
+      registry.set(card.instanceId, {
+        ...card,
+        data: changedMemberData,
+      });
+    }
+    if (invalidity === 'selected-not-muse') {
+      const card = registry.get('muse-member')!;
+      registry.set(card.instanceId, { ...card, data: { ...card.data, groupNames: ['Aqours'] } });
+    }
+    const removedCardId = invalidity === 'selected-moved' ? 'muse-member' : 'muse-member-2';
+    const invalidated: GameState = {
+      ...state,
+      cardRegistry: registry,
+      inspectionZone: {
+        ...state.inspectionZone,
+        cardIds:
+          invalidity === 'selected-moved' || invalidity === 'unselected-moved'
+            ? state.inspectionZone.cardIds.filter((id) => id !== removedCardId)
+            : state.inspectionZone.cardIds,
+        revealedCardIds:
+          invalidity === 'unselected-not-revealed'
+            ? state.inspectionZone.revealedCardIds.filter((id) => id !== 'muse-member-2')
+            : state.inspectionZone.revealedCardIds,
+      },
+      inspectionContext:
+        invalidity === 'foreign-context'
+          ? { ...state.inspectionContext!, ownerPlayerId: PLAYER2 }
+          : state.inspectionContext,
+    };
+    (session as unknown as { authorityState: GameState }).authorityState = invalidated;
+    setNow(12_000);
+    const completed = session.executeCommand(
+      createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 12_000)
+    );
+    expect(completed.success, completed.error).toBe(true);
+    expect(session.state?.players).toEqual(invalidated.players);
+    expect(session.state?.inspectionZone).toEqual(invalidated.inspectionZone);
+    expect(session.state?.liveResolution.liveModifiers).toEqual([]);
+    expect(session.state?.actionHistory).toEqual(invalidated.actionHistory);
+    expect(session.state?.pendingAbilities).toEqual(invalidated.pendingAbilities);
+    expect(session.state?.activeEffect?.stepId).toBe('BP6_006_SELECT_MUSE_REVEALED_CARD');
+  });
+
+  it('still takes the selected card when Maki leaves the stage during display, without the source BLADE bonus', () => {
+    const { session, setNow } = setupMuseSelection();
+    const effectId = session.state!.activeEffect!.id;
+    expect(
+      session.executeCommand(createConfirmEffectStepCommand(PLAYER1, effectId, 'muse-member'))
+        .success
+    ).toBe(true);
+    (session as unknown as { authorityState: GameState }).authorityState = updatePlayer(
+      session.state!,
+      PLAYER1,
+      (player) => ({
+        ...player,
+        memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+        waitingRoom: { ...player.waitingRoom, cardIds: [...player.waitingRoom.cardIds, 'source'] },
+      })
+    );
+    setNow(12_000);
+    const completed = session.executeCommand(
+      createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 12_000)
+    );
+    expect(completed.success, completed.error).toBe(true);
+    expect(getPlayerById(session.state!, PLAYER1)?.hand.cardIds).toEqual([
+      'private-hand',
+      'muse-member',
+    ]);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.liveResolution.liveModifiers).toEqual([]);
+    expect(session.state?.actionHistory.at(-1)?.payload).toMatchObject({
+      step: 'TAKE_MUSE_CARD_GAIN_BLADE',
+      bladeApplied: false,
+      bladeBonus: 0,
+    });
+  });
+
   it.each([OrientationState.ACTIVE, OrientationState.WAITING])(
     'PL!-bp6-006 cannot activate without a hand card while %s and does not consume turn once',
     (orientation) => {
@@ -363,20 +818,11 @@ describe('PL!-bp6-006 Maki workflow', () => {
         revealedCardIds: revealedCards.map((card) => card.instanceId),
       });
       expect(session.state?.activeEffect?.selectableCardIds).toBeUndefined();
-      const revealedObjectIds = revealedCards.map((card) => createPublicObjectId(card.instanceId));
-      for (const viewerId of [PLAYER1, PLAYER2]) {
-        const view = projectPlayerViewState(session.state!, viewerId);
-        expect(view.activeEffect?.revealedObjectIds).toEqual(revealedObjectIds);
-        for (const objectId of revealedObjectIds) {
-          expect(view.objects[objectId]?.surface).toBe('FRONT');
-        }
-      }
-      advancePublicRevealDwellIfNeeded(session);
-      expect(session.state?.activeEffect?.selectableCardIds).toEqual([
-        revealedCards[0]!.instanceId,
-        revealedCards[1]!.instanceId,
-        revealedCards[3]!.instanceId,
-      ]);
+      advanceToPublicMuseSelection(
+        session,
+        revealedCards.map((card) => card.instanceId),
+        [revealedCards[0]!.instanceId, revealedCards[1]!.instanceId, revealedCards[3]!.instanceId]
+      );
       session.executeCommand(
         createConfirmEffectStepCommand(
           PLAYER1,
@@ -384,6 +830,11 @@ describe('PL!-bp6-006 Maki workflow', () => {
           revealedCards[0]!.instanceId
         )
       );
+      expect(session.state?.activeEffect).toMatchObject({
+        stepId: PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
+        revealedCardIds: [revealedCards[0]!.instanceId],
+      });
+      confirmPublicSelectionIfNeeded(session);
 
       const player = getPlayerById(session.state!, PLAYER1)!;
       expect(player.hand.cardIds).toEqual([revealedCards[0]!.instanceId]);
@@ -499,15 +950,15 @@ describe('PL!-bp6-006 Maki workflow', () => {
     );
     expect(chooseHeartColor(session, HeartColor.RED).success).toBe(true);
 
-    const inspectedCardIds = session.state!.actionHistory.findLast(
-      (action) => action.payload.step === 'REVEAL_TOP_FIVE_CONFIRM_RESULT'
-    )?.payload.inspectedCardIds as readonly string[];
+    const inspectedCardIds = [...session.state!.actionHistory]
+      .reverse()
+      .find((action) => action.payload.step === 'REVEAL_TOP_FIVE_CONFIRM_RESULT')?.payload
+      .inspectedCardIds as readonly string[];
     expect(inspectedCardIds).toHaveLength(5);
     expect(inspectedCardIds.slice(0, 2)).toEqual(mainDeckCards.map((card) => card.instanceId));
     expect(session.state!.activeEffect!.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
-    advancePublicRevealDwellIfNeeded(session);
-    const selectedCardId = session.state!.activeEffect!.selectableCardIds![0]!;
-    expect(session.state!.activeEffect!.selectableCardIds).toHaveLength(5);
+    advanceToPublicMuseSelection(session, inspectedCardIds, inspectedCardIds);
+    const selectedCardId = inspectedCardIds[0]!;
     expect(
       session.state!.actionHistory.some(
         (action) =>
@@ -522,6 +973,14 @@ describe('PL!-bp6-006 Maki workflow', () => {
     session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, selectedCardId)
     );
+    for (const viewerId of [PLAYER1, PLAYER2]) {
+      const view = projectPlayerViewState(session.state!, viewerId);
+      expect(view.activeEffect).toMatchObject({
+        stepId: PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
+        revealedObjectIds: [createPublicObjectId(selectedCardId)],
+      });
+    }
+    confirmPublicSelectionIfNeeded(session);
 
     const player = getPlayerById(session.state!, PLAYER1)!;
     expect(player.hand.cardIds).toEqual([selectedCardId]);

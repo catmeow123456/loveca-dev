@@ -1,4 +1,14 @@
 import {
+  PL_BP8_014_ON_ENTER_BOTTOM_TWO_NO_BLADE_HEART_MUSE_DRAW_ONE_ABILITY_ID,
+  PL_BP8_022_LIVE_SUCCESS_FIVE_YELLOW_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
+  HS_AD2_001_CONTINUOUS_THREE_DIFFERENT_NAMES_GAIN_TWO_BLADE_ABILITY_ID,
+  HS_AD2_001_AUTO_ON_CHEER_TWO_NO_BLADE_HEART_ADDITIONAL_CHEER_ABILITY_ID,
+  HS_AD2_001_LIVE_SUCCESS_MORE_REVEALED_CHEER_DRAW_ONE_ABILITY_ID,
+  PYHN_AD2_001_CONTINUOUS_AQOURS_IDENTITY_ABILITY_ID,
+  PYHN_AD2_001_LIVE_START_DRAW_ONE_PLACE_HAND_TOP_ABILITY_ID,
+  PYHN_AD2_001_LIVE_SUCCESS_TWO_NO_BLADE_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
+} from '../ability-ids.js';
+import {
   PL_BP8_003_CONTINUOUS_MUSE_WAITING_RELAY_COST_PLUS_ONE_ABILITY_ID,
   PL_BP8_003_ACTIVATED_WAIT_DISCARD_LOOK_TOP_TWO_ABILITY_ID,
   N_BP8_001_ON_ENTER_STACK_ENERGY_SELF_AND_OTHER_NIJIGASAKI_ABILITY_ID,
@@ -3089,6 +3099,92 @@ const N_BP8_001_LIVE_SUCCESS_RETURN_ONE_ENERGY_BELOW_DRAW_DISCARD_EFFECT_TEXT =
   '【LIVE成功时】可以将存在于自己的舞台的１名成员的下方的１张能量卡，以待机状态放置于自己的能量区。如此做时，抽１张卡，将１张手牌放置入休息室。';
 
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
+  {
+    abilityId: PL_BP8_014_ON_ENTER_BOTTOM_TWO_NO_BLADE_HEART_MUSE_DRAW_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-014'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【登场】可以将存在于休息室的２张不持有BLADE HEART的『μ’s』的成员卡按任意顺序放置于卡组底：抽１张卡。',
+    delegatedOnEnterFromWaitingRoomPolicy: { decision: 'ALLOW', reason: 'SOURCE_INDEPENDENT' },
+  },
+  {
+    abilityId: PL_BP8_022_LIVE_SUCCESS_FIVE_YELLOW_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-022'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE成功时】因声援被公开的自己的卡片中存在大于等于５张持有[黄ブレード]的卡片的场合，此卡的分数＋１。',
+  },
+  {
+    abilityId: HS_AD2_001_CONTINUOUS_THREE_DIFFERENT_NAMES_GAIN_TWO_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-ad2-001'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: '【常时】只要自己的舞台上存在３名名称各不相同的成员，获得[ブレード][ブレード]。',
+  },
+  {
+    abilityId: HS_AD2_001_AUTO_ON_CHEER_TWO_NO_BLADE_HEART_ADDITIONAL_CHEER_ABILITY_ID,
+    baseCardCodes: ['PL!HS-ad2-001'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_CHEER,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【自动】【１回合１次】自己进行声援时，因声援被公开的自己的卡片中存在大于等于２张不持有BLADE HEART的卡片的场合，追加进行１张卡片的声援。',
+    perTurnLimit: 1,
+    skipQueueWhenTurnLimitReached: true,
+  },
+  {
+    abilityId: HS_AD2_001_LIVE_SUCCESS_MORE_REVEALED_CHEER_DRAW_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-ad2-001'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE成功时】因声援被公开的自己的卡片的张数，比因声援被公开的对方的卡片的张数多的场合，抽１张卡。',
+  },
+  {
+    abilityId: PYHN_AD2_001_CONTINUOUS_AQOURS_IDENTITY_ABILITY_ID,
+    baseCardCodes: ['PYHN-ad2-001'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.ANYWHERE,
+    queued: false,
+    implemented: true,
+    effectText: '【常时】存在于所有领域的此卡视为『Aqours』。',
+  },
+  {
+    abilityId: PYHN_AD2_001_LIVE_START_DRAW_ONE_PLACE_HAND_TOP_ABILITY_ID,
+    baseCardCodes: ['PYHN-ad2-001'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: '【LIVE开始时】抽１张卡，将１张手牌放置于卡组顶。',
+  },
+  {
+    abilityId: PYHN_AD2_001_LIVE_SUCCESS_TWO_NO_BLADE_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
+    baseCardCodes: ['PYHN-ad2-001'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE成功时】因声援被公开的自己的卡片中存在大于等于２张不持有BLADE HEART的卡片的场合，此卡的分数＋１。',
+  },
   {
     abilityId: PL_BP8_003_CONTINUOUS_MUSE_WAITING_RELAY_COST_PLUS_ONE_ABILITY_ID,
     baseCardCodes: ['PL!-bp8-003'],
