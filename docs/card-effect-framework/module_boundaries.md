@@ -79,6 +79,8 @@ Current examples:
 - `discardHandCardsToWaitingRoomForPlayer`
 - `discardOneHandCardToWaitingRoomForPlayer`
 
+`playMemberBelowCardToEmptySlot` 在下方成员登场的原子区域变更后、登场事件与后续能力入队前，调用 domain 的 `refreshJudgedContinuousLiveScoreDrafts(before, after)`。该 helper 仅将前后常时合计 SCORE 的差额应用到结果阶段尚未确认、已有成功判定的分数草案；以本次成功事实判断，不要求成功卡仍在 LIVE 区，也不依赖全局 `isInLive`。持久化奖励、单张 LIVE 的 SCORE 和手动调整不重新计算；此接线只覆盖下方成员登场，不代表所有舞台移动均已同步。
+
 ## Active Effect Runtime
 
 Target locations:
@@ -86,6 +88,7 @@ Target locations:
 - `src/application/card-effects/runtime/active-effect.ts`
 - `src/application/card-effects/runtime/step-registry.ts`
 - `src/application/card-effects/runtime/public-reveal-dwell.ts`
+- `src/application/card-effects/runtime/public-card-selection-confirmation.ts`
 
 Rules:
 
@@ -94,6 +97,8 @@ Rules:
 - 通过 registry 把 `abilityId + stepId` 分发给 workflow step handler。
 - `public-reveal-dwell.ts` 只负责“隐藏卡牌刚变为双方公开”后的权威定时展示与原 step/下一交互恢复：无输入原 step 使用 `withPublicRevealDwell`，真实下一交互使用 `createPublicRevealDwellBeforeNextEffect`。
 - dwell 只接受本次明确公开的 cardIds，不决定公开集合、不移动卡、不写奖励、不推进 pending，也不包装已有 public-card-selection / public-effect-choice 自动展示。
+- `public-card-selection-confirmation.ts` 展示已公开来源中最终选定的卡牌，再恢复原选择输入。`REVEALED_INSPECTION` 要求所选卡属于本次 effect 的检视集合，仍在当前检视区且已公开，检视上下文与卡牌归属匹配来源玩家；创建与恢复均校验，失效恢复原选择且不执行移动。可选 `stepText` 说明本次展示结束后的真实后果，不改变旧来源默认文案。
+- `PL!-bp6-006` 费用17「西木野真姬」使用上述检视来源展示最终选中的1张 μ’s 卡。整批5张的颜色条件、μ’s 入手限制与余牌去向仍由单卡 workflow 校验；普通私密检视不因此公开，原有首次公开5张的 dwell 仍独立保留。 进入选牌步骤时仅清除该 effect 上前一步的公开展示列表，保留完整检视集合和检视区公开事实；共享界面使用公开候选列表显示一组合法卡牌，点击说明优先采用当前 `stepText`。
 - 不写卡文条件。
 
 ## Workflow

@@ -12,7 +12,8 @@ import { setMemberOrientation, type SetMemberOrientationResult } from './member-
 import { getStageMemberCardIdsMatching, type StageMemberStatePredicate } from './stage-targets.js';
 
 export interface StageMemberOrientationTargetSelectionConfig {
-  readonly ability: PendingAbilityState;
+  readonly ability: Pick<PendingAbilityState, 'id' | 'abilityId' | 'sourceCardId' | 'controllerId'> &
+    Partial<PendingAbilityState>;
   readonly effectText: string;
   readonly stepId: string;
   readonly stepText: string;

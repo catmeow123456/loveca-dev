@@ -3393,7 +3393,10 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                 </div>
                 {activeEffectCardClickSubmits && (
                   <CardEffectText
-                    text={`点击卡牌即${activeEffect.confirmSelectionLabel ?? '提交选择'}`}
+                    text={
+                      activeEffect.stepText ||
+                      `点击卡牌即${activeEffect.confirmSelectionLabel ?? '提交选择'}`
+                    }
                     className="mt-1 text-xs text-[var(--text-secondary)]"
                   />
                 )}

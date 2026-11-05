@@ -30,13 +30,14 @@ export type PublicCardSelectionDestination =
   | 'LIVE_ZONE'
   | 'WAITING_ROOM';
 
-export type PublicCardSelectionSource = 'WAITING_ROOM' | 'REVEALED_CHEER';
+export type PublicCardSelectionSource = 'WAITING_ROOM' | 'REVEALED_CHEER' | 'REVEALED_INSPECTION';
 
 export interface PublicCardSelectionConfirmationConfig {
   readonly destination: PublicCardSelectionDestination;
   readonly source?: PublicCardSelectionSource;
   readonly ordered?: boolean;
   readonly sourcePlayerId?: string;
+  readonly stepText?: string;
   readonly distinctGroupAssignment?: boolean;
   readonly groups?: readonly {
     readonly candidateCardIds: readonly string[];
@@ -88,7 +89,12 @@ export function getPublicCardSelectionConfirmationConfig(
   ) {
     return null;
   }
-  if (source !== undefined && source !== 'WAITING_ROOM' && source !== 'REVEALED_CHEER') {
+  if (
+    source !== undefined &&
+    source !== 'WAITING_ROOM' &&
+    source !== 'REVEALED_CHEER' &&
+    source !== 'REVEALED_INSPECTION'
+  ) {
     return null;
   }
   const groups = Array.isArray(candidate.groups)
@@ -118,6 +124,7 @@ export function getPublicCardSelectionConfirmationConfig(
     ordered: candidate.ordered === true,
     sourcePlayerId:
       typeof candidate.sourcePlayerId === 'string' ? candidate.sourcePlayerId : undefined,
+    stepText: typeof candidate.stepText === 'string' ? candidate.stepText : undefined,
     distinctGroupAssignment: candidate.distinctGroupAssignment === true,
     groups,
   };
@@ -179,7 +186,16 @@ export function createPublicCardSelectionConfirmationWindowForCardIds(
   }
   const copy = getConfirmationCopy(config);
   const continuation: PublicCardSelectionConfirmationContinuation = {
-    originalEffect,
+    originalEffect:
+      config.source === 'REVEALED_INSPECTION'
+        ? {
+            ...originalEffect,
+            metadata: {
+              ...originalEffect.metadata,
+              publicCardSelectionConfirmation: config,
+            },
+          }
+        : originalEffect,
     originalInput,
   };
   return {
@@ -192,7 +208,7 @@ export function createPublicCardSelectionConfirmationWindowForCardIds(
       controllerId: originalEffect.controllerId,
       effectText: originalEffect.effectText,
       stepId: PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
-      stepText: copy.stepText,
+      stepText: config.stepText ?? copy.stepText,
       awaitingPlayerId: originalEffect.awaitingPlayerId,
       revealedCardIds: selectedCardIds,
       publicCardSelectionOrdered: config.ordered === true,
@@ -213,6 +229,16 @@ function selectedCardsRemainInConfiguredSource(
   if ((config.source ?? 'WAITING_ROOM') === 'REVEALED_CHEER') {
     const movableCardIdSet = new Set(selectRevealedCheerCardIds(game, sourcePlayerId));
     return selectedCardIds.every((cardId) => movableCardIdSet.has(cardId));
+  }
+  if (config.source === 'REVEALED_INSPECTION') {
+    if (game.inspectionContext?.ownerPlayerId !== sourcePlayerId) return false;
+    return selectedCardIds.every(
+      (cardId) =>
+        originalEffect.inspectionCardIds?.includes(cardId) === true &&
+        game.inspectionZone.cardIds.includes(cardId) &&
+        game.inspectionZone.revealedCardIds.includes(cardId) &&
+        getCardById(game, cardId)?.ownerId === sourcePlayerId
+    );
   }
   const sourcePlayer = game.players.find((player) => player.id === sourcePlayerId);
   return selectedCardIds.every((cardId) => {
@@ -308,6 +334,20 @@ export function resolvePublicCardSelectionConfirmationStep(
   const continuation = game.activeEffect?.metadata?.publicCardSelectionConfirmationContinuation as
     PublicCardSelectionConfirmationContinuation | undefined;
   if (!continuation) return game;
+  const config = getPublicCardSelectionConfirmationConfig(continuation.originalEffect);
+  const revealedCardIds = game.activeEffect?.revealedCardIds ?? [];
+  if (
+    config?.source === 'REVEALED_INSPECTION' &&
+    (revealedCardIds.length === 0 ||
+      !selectedCardsRemainInConfiguredSource(
+        game,
+        continuation.originalEffect,
+        revealedCardIds,
+        config
+      ))
+  ) {
+    return { ...game, activeEffect: continuation.originalEffect };
+  }
   const restoredEffect: ActiveEffectState = {
     ...continuation.originalEffect,
     metadata: {

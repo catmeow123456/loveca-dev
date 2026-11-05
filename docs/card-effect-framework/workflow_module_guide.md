@@ -1,5 +1,27 @@
 # Workflow Module Guide
 
+## 2026-11-04 状态连动、弃手回收与同费用登场
+
+`PL!-bp8-020` 分数1「蓝莓♡小火车」由 `cards/pl-bp8-020-buruberi-torein.ts` 编排强制活跃己方待机南琴梨，再强制待机对方有效费用≤4的成员。复用结构化名称、舞台方向选择、活跃禁止／待机保护、目标生命周期与状态事件；只有第一步真实改变方向才进入第二步。后一步无目标保留前一步，两个步骤产生的新能力等整段完成再结算；来源LIVE离区不取消已诱发的独立成员动作。与现有单步活跃／待机 family 仅共享原语，不为这一张卡扩展通用条件步骤。
+
+`PL!HS-bp8-016` 费用2「桂城泉」扩展 `shared/discard-cost-recover-live-or-gain-blade.ts` 的诱发弃手回收LIVE子族，增加默认1的 `discardCount`，本卡配置为2。精确数量和整批目标校验先于一次弃手移动及事件，付款后才重扫自己的休息室；刚弃入的莲之空分数≤3 LIVE可回收，没有目标不退款。沿用公开选择确认、到期重验和统一continuation；旧弃1手牌的输入、日志与条件保持原语义。
+
+`PL!HS-bp8-021` 分数2「Mira-Creation」由 `cards/hs-bp8-021-mira-creation.ts` 编排可选舞台成员回手、私密同费用手牌选择和空槽登场。返回对象使用离场前有效费用快照，手牌候选用 `getHandMemberEffectiveCost` 读取当前费用，不读印刷费用或登场支付费用。`PL!HS-bp6-006` 费用20「安养寺姬芽」回手后若仍有其他Mira-Cra Park!成员，手牌费用变为18／16，不能按原舞台20费再次入选；无其他同组成员时可同卡重登。隐藏区域的条件选牌可选择不登场，已发生的回手不回滚；有无合格手牌均打开同一私密窗口，避免对手从步骤有无推断手牌条件。
+
+`runtime/return-stage-member-to-hand.ts` 仅处理真实顶层成员回手动作、最终信息、旧实例状态清理和精确离场／入手／下方成员入休息室事件。按用户2026-11-04明确约定，下方成员随上方离场立即进休息室，下方能量立即回能量卡组，同槽重登也不继承；该约定不是已确认的官方同槽继承裁定，不据此扩展全局检查时点规则。下方能量移动不伪造 `ENERGY_ZONE -> ENERGY_DECK` 事件。登场复用 `playMemberFromZoneToEmptySlot`，派发真实 `enterStageEvents` 并传 `onEnterSources: []`，仅禁止该次自身【登场】能力，其他舞台AUTO仍正常入队。无需新增持久抑制字段，runner仅作新workflow注册。
+
+## 2026-11-02 声援条件与来源 LIVE 分数
+
+`shared/live-success-cheer-condition-source-score.ts` 由 `PL!-bp8-022` 分数3「Hello，细数繁星」与 `PYHN-ad2-001` 分数6「Deep Blue」两条成功段证明。固定流程为无交互 LIVE_SUCCESS、实时统计本次声援公开卡、达到门槛时给予来源 LIVE 分数+1、统一 continuation；有限配置为能力/基础编号、`HEART_COLOR` 或 `NO_BLADE_HEART` 条件、门槛与计数说明。按实体卡计数而非图标数量，使用有效判心和包含已移走卡的历史公开事实，已发生的追加声援参与计数。捕获 pending 对应的来源生命周期，只有原正面 LIVE 仍有效才调用 `replaceSourceLiveCardScoreModifierAndRefresh`；无效旧来源不清除重登新对象的奖励。此 family 不接玩家合计分数，也未迁移其他旧卡。
+
+`effects/cheer-selection.ts#selectCurrentLiveRevealedCheerCardIdsWithoutBladeHearts` 为上述歌曲与 `PL!HS-ad2-001` 费用11「乙宗梢」共用的纯查询：先排除非法非数组判心数据，再查询当前 LIVE 有效判心为空的历史公开卡，并保留调用方 selector。领域缺省值/空数组表示无判心，显式 null 等非法领域值不算；导出 null 仍经既有数据映射变成领域缺省值，不改写原始 JSON。DRAW、SCORE、ALL 均不是无判心。
+
+梢的追加声援留在 `cards/hs-ad2-001-kozue.ts`：`pending.eventIds` 验证自己的普通声援诱发，结算另查本次 LIVE 累计事实；条件失败仍记录原来源生命周期的 turn1，来源离台/重登不取消已诱发效果。单个/手动选择使用动态确认，ordered batch 连续处理；追加通过既有声援动作标记 `additional: true`，即时处理 DRAW 后统一续行，不再次诱发 ON_CHEER。仅有一个新样本，不建立追加声援 shared family。
+
+`PL!-bp8-014` 费用7「星空凛」保留 `cards/pl-bp8-014-rin.ts`：可选恰2张无判心 μ’s 成员按序置底费用，公开恢复后重验整批、事件安全移动并记录支付，再抽1；来源离场不阻止独立费用/抽牌，免费登场委托只豁免费用。与旧起动、自身奖励和小队分组置底的整体流程不同，仅复用选择、公开、移动和抽牌原语。
+
+Deep Blue 的抽1回顶同样保留薄单卡 `cards/pyhn-ad2-001-deep-blue.ts`，强制选择当前手牌且仅自己可见；全领域 Aqours 身份在共享 `card-identity` 按基础编号赋予，团体匹配、团体键和主要团体查询一致，不修改印刷数据或泛解析正文。
+
 ## 2026-10-29 成功区计数与局部复用
 
 `shared/live-start-success-zone-score-and-requirement.ts` 由旧 `PL!-bp5-022` 分数5「一首给你!你?你!!的歌」与 `PL!HS-bp8-023` 分数3「EdelinieN」证明。固定流程为无交互 LIVE_START、确认时实时查询成功区、同时修改同一来源 LIVE 的 SCORE 和 REQUIREMENT、统一 continuation；配置仅含能力/来源基础编号、可选实体 selector、每张分数、每张必要 HEART 向量和展示标签。计数使用 `countSuccessZoneCardsForCardEffect`，EdelNote 只用结构化身份，不因文本提及而匹配，也不额外限制卡型。旧卡保留 abilityId；SCORE 复用差值同步 helper，REQUIREMENT 只替换同能力/同来源，保留外部 modifier。两者在确认时使用 pending 事件捕获的 LIVE 生命周期，旧来源离区重登不能得到旧奖励。
@@ -455,11 +477,13 @@ Workflow extraction should preserve existing tests. If behavior changes are inte
 
 # LIVE draw-cards family
 
-`workflows/shared/live-draw-cards.ts` is the behavior-named family proven across seven base numbers: `PL!N-bp4-003`, `PL!S-bp3-005`, `PL!-bp4-001`, `PL!-bp4-023`, `PL!S-PR-046`, `PL!N-bp8-012`, and `PL!N-bp8-025`. The former draw-one family retains its six fixed/conditional one-card branches and action contracts; 虹色Passions！adds a finite dynamic draw-count branch. It owns the shared LIVE_START/LIVE_SUCCESS and STAGE_MEMBER/LIVE_CARD pending lifecycle, source-safe resolution, confirm-only/manual bridge, ordered continuation, real-time condition/count reread, and sequential drawing through `drawCardsForPlayer`.
+`workflows/shared/live-draw-cards.ts` is the behavior-named family proven across eight base numbers: `PL!N-bp4-003`, `PL!S-bp3-005`, `PL!-bp4-001`, `PL!-bp4-023`, `PL!S-PR-046`, `PL!N-bp8-012`, `PL!N-bp8-025`, and `PL!HS-ad2-001`. The former draw-one family retains its fixed/conditional one-card branches and action contracts; 虹色Passions！adds a finite dynamic draw-count branch, and 乙宗梢 adds the strict-greater counterpart to the existing cheer-count comparison. It owns the shared LIVE_START/LIVE_SUCCESS and STAGE_MEMBER/LIVE_CARD pending lifecycle, source-safe resolution, confirm-only/manual bridge, ordered continuation, real-time condition/count reread, and sequential drawing through `drawCardsForPlayer`.
 
 Its finite discriminated-union configuration has only the ability id, expected base card codes, source kind, condition type, exact action/no-op step labels, and condition-specific structured values needed for confirmation text. The proven conditions are LIVE score, event-inclusive cheer counts, stage effective-cost totals, a specified remaining-HEART color with existing rebalance semantics, `OPPONENT_REVEALED_CHEER_HAS_LIVE`, the unconditional `ALWAYS` variant, and `OWN_NIJIGASAKI_WITH_ENERGY_BELOW` for the current own-stage count. The last branch counts each top-level Nijigasaki member with an actual energy card below once, including WAITING members, draws one per member, and safely continues for zero; it is not a general condition callback or DSL.
 
 `PL!S-PR-046` 费用5「渡边曜」使用有限条件 `OPPONENT_REVEALED_CHEER_HAS_LIVE`：确认与结算均通过 `selectCurrentLiveRevealedCheerCardIds` 查询对方本次声援历史中的 LIVE，已移出处理区的公开对象仍计入。该配置与 `PL!N-bp8-012` 费用4「钟岚珠」设置 `requireSourceInZoneAtResolution: false`，已诱发能力不因来源离场而取消，仍校验来源卡身份；其他旧配置保留原有区域门槛。岚珠的 `ALWAYS` 分支只显示完整卡文与普通确认，不附资源数量或动态条件文案。`PL!N-bp8-025` 分数4「虹色Passions！」同样关闭来源区域门槛，已诱发后的独立抽牌不因来源LIVE离区取消；确认实时显示成员计数与实际抽牌数。confirm-only 与 ordered continuation 沿用原流程，没有新增状态字段或任意回调配置。
+
+`PL!HS-ad2-001` 费用11「乙宗梢」使用 `OWN_REVEALED_CHEER_COUNT_MORE_THAN_OPPONENT`，与既有严格小于条件共用双方当前 LIVE 公开事实计数，追加和已移走卡仍计。双方相等不抽，对方没有公开卡按0计；确认后结算重新计算。梢配置关闭来源区域门槛，已诱发后的独立抽牌不因来源离台取消，旧配置的来源语义不变。
 
 # ON_ENTER draw 与零抽弃手组合
 

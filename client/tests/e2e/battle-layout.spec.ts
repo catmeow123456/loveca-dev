@@ -475,11 +475,190 @@ async function openPublicDisplayBoard(page: Page) {
   await page.clock.pauseAt(time + 1000);
 }
 
+async function startMakiPublicSelection(page: Page, museCount: number) {
+  await page.evaluate(
+    async ({ repoRoot, museCount }) => {
+      const [{ useGameStore }, cards, games, zones, enums, abilities] = await Promise.all([
+        import(window.battleLayoutStoreUrl),
+        import(`/@fs${repoRoot}src/domain/entities/card.ts`),
+        import(`/@fs${repoRoot}src/domain/entities/game.ts`),
+        import(`/@fs${repoRoot}src/domain/entities/zone.ts`),
+        import(`/@fs${repoRoot}src/shared/types/enums.ts`),
+        import(`/@fs${repoRoot}src/application/card-effects/ability-ids.ts`),
+      ]);
+      const store = useGameStore.getState();
+      const { CardType, FaceState, GamePhase, HeartColor, OrientationState, SlotPosition } = enums;
+      // Source fields from the authorized 2026-11-02 export. All five auxiliary
+      // cards match purple so the fixture isolates group eligibility.
+      const maki = {
+        cardCode: 'PL!-bp6-006-P',
+        name: '西木野真姬',
+        nameCn: '西木野真姬',
+        nameJp: '西木野真姫',
+        groupNames: ['μ’s'],
+        workNames: ['ラブライブ！'],
+        unitName: '「BiBi」',
+        cardType: CardType.MEMBER,
+        cost: 17,
+        blade: 4,
+        hearts: [
+          cards.createHeartIcon(HeartColor.PINK, 2),
+          cards.createHeartIcon(HeartColor.YELLOW, 2),
+          cards.createHeartIcon(HeartColor.PURPLE, 3),
+        ],
+        bladeHearts: [{ effect: enums.BladeHeartEffect.HEART, heartColor: HeartColor.PURPLE }],
+        cardTextCn:
+          '【起动】【1回合1次】将1张手牌放置入休息室：指定1个任意HEART的颜色。此后，公开自己的卡组顶的5张卡片。因此被公开的卡片中包含持有指定颜色HEART的成员卡和必要HEART包含指定颜色HEART的LIVE卡合计5张的场合，从中将1张『μ’s』的卡片加入手牌，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。被公开的其余卡牌放置入休息室。',
+        cardTextJp:
+          '【起動】【ターン1回】手札を1枚控え室に置く：好きなハートの色を1つ指定する。その後、自分のデッキの上からカードを5枚公開する。公開されたカードの中に指定した色のハートを持つメンバーカードと必要ハートに指定した色を含むライブカードが合計5枚含まれる場合、その中から『μ’s』のカードを1枚手札に加え、ライブ終了時まで、[ブレード][ブレード][ブレード]を得る。公開した残りのカードを控え室に置く。',
+      };
+      const deckCards = Array.from({ length: 6 }, (_, index) => ({
+        cardCode: `LAYOUT-MAKI-DECK-${index}`,
+        name: `${index < museCount ? 'μ’s' : 'Aqours'} 测试成员 ${index + 1}`,
+        groupNames: [index < museCount ? 'μ’s' : 'Aqours'],
+        cardType: CardType.MEMBER,
+        cost: 2,
+        blade: 1,
+        hearts: [cards.createHeartIcon(HeartColor.PURPLE, 1)],
+      }));
+      const deck = deckCards.map((data, index) =>
+        cards.createCardInstance(data, 'p1', `top-${index}`)
+      );
+      const state = games.registerCards(
+        games.createGameState('maki-layout', 'p1', '己方', 'p2', '对方'),
+        [
+          cards.createCardInstance(maki, 'p1', 'maki'),
+          cards.createCardInstance(deckCards[5], 'p1', 'discard-cost'),
+          ...deck,
+        ]
+      );
+      store.gameSession.authorityState = games.updatePlayer(
+        {
+          ...state,
+          isStarted: true,
+          turnCount: 1,
+          currentPhase: GamePhase.MAIN_PHASE,
+          manualOperationMode: 'RULES',
+        },
+        'p1',
+        (player: (typeof state.players)[0]) => ({
+          ...player,
+          memberSlots: zones.placeCardInSlot(player.memberSlots, SlotPosition.CENTER, 'maki', {
+            orientation: OrientationState.ACTIVE,
+            face: FaceState.FACE_UP,
+          }),
+          hand: { ...player.hand, cardIds: ['discard-cost'] },
+          mainDeck: { ...player.mainDeck, cardIds: deck.map((card) => card.instanceId) },
+        })
+      );
+      store.loadCardData([maki, ...deckCards]);
+      store.setViewingPlayer('p1');
+      store.activateCardAbility(
+        'maki',
+        abilities.BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID
+      );
+    },
+    { repoRoot: root, museCount }
+  );
+}
+
 test.describe('对战工具栏与辅助面板', () => {
   test.beforeEach(async ({ page }, info) => {
     test.skip(info.project.name !== 'tablet-1024x768', '一个 project 内覆盖完整尺寸矩阵');
     await page.emulateMedia({ reducedMotion: 'reduce' });
   });
+
+  for (const museCount of [3, 5]) {
+    test(`真姬公开选牌：双方只看到一组 ${museCount} 张候选`, async ({ page }) => {
+      await openPublicDisplayBoard(page);
+      await startMakiPublicSelection(page, museCount);
+      const panel = page.locator('[data-battle-ui-anchor="active-effect-panel"]');
+      const candidates = panel.getByRole('group', { name: '效果候选卡牌', exact: true });
+      const revealed = panel.getByRole('group', { name: '本次公开的卡牌', exact: true });
+      const selected = panel.getByRole('group', { name: '本次公开的选择', exact: true });
+      const allIds = Array.from({ length: 5 }, (_, index) => `top-${index}`);
+      const candidateIds = allIds.slice(0, museCount);
+      const visibleIds = (grid: Locator) =>
+        grid
+          .locator('[data-battle-ui-object-id]')
+          .evaluateAll((tiles) =>
+            tiles.map((tile) => tile.getAttribute('data-battle-ui-object-id'))
+          );
+      const viewAs = (playerId: 'p1' | 'p2') =>
+        page.evaluate(async (playerId) => {
+          const { useGameStore } = await import(window.battleLayoutStoreUrl);
+          useGameStore.getState().setViewingPlayer(playerId);
+        }, playerId);
+      const timeUntilDeadline = async () => {
+        const { deadline } = await readPublicDisplay(page);
+        expect(deadline).not.toBeNull();
+        return deadline! - (await page.evaluate(() => Date.now()));
+      };
+
+      await candidates.locator('[data-battle-ui-object-id="discard-cost"]').click();
+      await panel.getByRole('button', { name: /紫.*作为Heart颜色/ }).click();
+      await page.clock.runFor(await timeUntilDeadline());
+      for (const playerId of ['p1', 'p2'] as const) {
+        await viewAs(playerId);
+        await expect(revealed.locator('[data-card-surface] img')).toHaveCount(5);
+        expect(await visibleIds(revealed)).toEqual(allIds);
+        await expect(candidates).toHaveCount(0);
+      }
+      await page.clock.runFor(await timeUntilDeadline());
+
+      for (const [playerId, side] of [
+        ['p1', 'actor'],
+        ['p2', 'opponent'],
+      ] as const) {
+        await viewAs(playerId);
+        await expect(candidates).toHaveCount(1);
+        await expect(candidates.locator('[data-card-surface] img')).toHaveCount(museCount);
+        expect(await visibleIds(candidates)).toEqual(candidateIds);
+        await expect(panel.getByRole('group', { name: '已公开的卡牌', exact: true })).toHaveCount(
+          0
+        );
+        await expect(revealed).toHaveCount(0);
+        await expect(candidates.locator('button:enabled')).toHaveCount(
+          playerId === 'p1' ? museCount : 0
+        );
+        if (playerId === 'p1') {
+          await expect(panel.getByRole('group', { name: '当前效果步骤' })).toContainText(
+            "请选择1张『μ's』卡加入手牌，其余公开卡放置入休息室。"
+          );
+          await expect(panel.getByText('点击卡牌即加入手牌', { exact: true })).toHaveCount(0);
+        }
+        await page.screenshot({
+          path: `../output/playwright/maki-public-selection/${museCount}-${side}.png`,
+        });
+      }
+
+      await viewAs('p1');
+      await candidates.getByRole('button').nth(1).click();
+      for (const playerId of ['p1', 'p2'] as const) {
+        await viewAs(playerId);
+        await expect(selected.locator('[data-card-surface] img')).toHaveCount(1);
+        expect(await visibleIds(selected)).toEqual(['top-1']);
+        await expect(selected.getByRole('button')).toHaveCount(0);
+        await expect(candidates).toHaveCount(0);
+      }
+      expect(await timeUntilDeadline()).toBe(2000);
+      await page.clock.runFor(1999);
+      expect(await readUndoPosition(page)).toEqual({
+        hand: [],
+        waitingRoom: ['discard-cost'],
+        effectStep: 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION',
+      });
+      await page.clock.runFor(1);
+      await expect
+        .poll(() => readUndoPosition(page))
+        .toEqual({
+          hand: ['top-1'],
+          waitingRoom: ['discard-cost', 'top-0', 'top-2', 'top-3', 'top-4'],
+          effectStep: null,
+        });
+      await expect(panel).toHaveCount(0);
+    });
+  }
 
   test('公开展示：正常动态逐张入场并在原卡位结束', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 640 });
@@ -712,7 +891,7 @@ test.describe('对战工具栏与辅助面板', () => {
       await expect(panel).toBeVisible();
       await expect(undo).toBeEnabled();
       await expect(panel.getByRole('group', { name: '当前效果步骤' })).toContainText(
-        '点击卡牌即加入手牌'
+        '请选择自己休息室1张「虹ヶ咲」LIVE卡加入手牌。'
       );
       await expect(panel.getByText('0 张', { exact: true })).toHaveCount(0);
       await expect(panel.locator('[data-battle-ui-anchor="active-effect-confirm"]')).toBeHidden();
@@ -1218,9 +1397,19 @@ test.describe('对战工具栏与辅助面板', () => {
     await openJudgmentRoom(page, true);
     await prepareUndoEffect(page, 'single');
     const panel = page.locator('[data-battle-ui-anchor="active-effect-panel"]');
-    await expect(panel.getByRole('group', { name: '当前效果步骤' })).toContainText(
-      '点击卡牌即加入手牌'
-    );
+    const step = panel.getByRole('group', { name: '当前效果步骤' });
+    await expect(step).toContainText('请选择自己休息室1张「虹ヶ咲」LIVE卡加入手牌。');
+    await page.evaluate(async () => {
+      const { useGameStore } = await import(window.battleLayoutStoreUrl);
+      const store = useGameStore.getState();
+      const state = store.gameSession.state;
+      store.gameSession.authorityState = {
+        ...state,
+        activeEffect: { ...state.activeEffect, stepText: undefined },
+      };
+      store.syncState();
+    });
+    await expect(step).toContainText('点击卡牌即加入手牌');
     await expect(panel.locator('[data-battle-ui-anchor="active-effect-confirm"]')).toBeHidden();
     await panel.getByRole('button', { name: /Dream with You/ }).click();
     await expect.poll(async () => (await readUndoPosition(page)).hand).toContain('recover-a');

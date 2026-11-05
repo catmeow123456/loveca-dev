@@ -5,7 +5,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { isMemberCardData } from '../../../../domain/entities/card.js';
+import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import { CardType, TriggerCondition } from '../../../../shared/types/enums.js';
 import {
   and,
@@ -23,6 +23,7 @@ import {
 import {
   N_BP1_005_LIVE_START_DISCARD_GAIN_ONE_BLADE_ABILITY_ID,
   N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+  HS_BP8_016_LIVE_SUCCESS_DISCARD_TWO_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID,
   HS_BP8_010_LIVE_START_DISCARD_HASUNOSORA_COST_TWENTY_FIVE_RECOVER_DOLLCHESTRA_LIVE_ABILITY_ID,
   N_SD2_011_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
   N_SD1_004_LIVE_START_DISCARD_GAIN_TWO_BLADE_ABILITY_ID,
@@ -35,6 +36,7 @@ import {
 } from '../../runtime/active-effect.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import {
+  discardHandCardsToWaitingRoomAndEnqueueTriggers,
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
@@ -95,6 +97,7 @@ const DISCARD_GAIN_BLADE_CONFIGS: readonly DiscardGainBladeConfig[] = [
 interface TriggeredDiscardRecoverLiveConfig {
   readonly abilityId: string;
   readonly discardStepId: string;
+  readonly discardCount?: number;
   readonly recoveryStepId: string;
   readonly recoveryCondition: (game: GameState, playerId: string, sourceCardId: string) => boolean;
   readonly recoverySelector?: CardSelector;
@@ -102,6 +105,7 @@ interface TriggeredDiscardRecoverLiveConfig {
   readonly recoverySelectionLabel?: string;
   readonly conditionNotMetReason?: string;
   readonly noTargetReason?: string;
+  readonly noHandActionStep?: string;
   readonly startActionStep: string;
   readonly selectActionStep: string;
   readonly conditionNotMetActionStep: string;
@@ -109,6 +113,25 @@ interface TriggeredDiscardRecoverLiveConfig {
 }
 
 const TRIGGERED_DISCARD_RECOVER_LIVE_CONFIGS: readonly TriggeredDiscardRecoverLiveConfig[] = [
+  {
+    abilityId: HS_BP8_016_LIVE_SUCCESS_DISCARD_TWO_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID,
+    discardStepId: 'HS_BP8_016_SELECT_TWO_HAND_CARDS_TO_DISCARD',
+    discardCount: 2,
+    recoveryStepId: 'HS_BP8_016_SELECT_WAITING_ROOM_LOW_SCORE_HASUNOSORA_LIVE',
+    recoveryCondition: () => true,
+    recoverySelector: and(
+      groupAliasIs('蓮ノ空'),
+      (card) => isLiveCardData(card.data) && card.data.score <= 3
+    ),
+    recoveryStepText: '请选择自己的休息室中1张分数小于等于3的『莲之空』LIVE卡加入手牌。',
+    recoverySelectionLabel: '选择要加入手牌的莲之空LIVE卡',
+    startActionStep: 'START_SELECT_DISCARD_FOR_LOW_SCORE_HASUNOSORA_LIVE_RECOVERY',
+    selectActionStep: 'DISCARD_SELECT_LOW_SCORE_HASUNOSORA_LIVE',
+    conditionNotMetActionStep: 'DISCARD_COST_RECOVERY_CONDITION_NOT_MET',
+    noHandActionStep: 'NOT_ENOUGH_HAND_TO_DISCARD',
+    noTargetActionStep: 'DISCARD_COST_NO_LOW_SCORE_HASUNOSORA_LIVE_TARGET',
+    noTargetReason: 'NO_LOW_SCORE_HASUNOSORA_LIVE_TARGET',
+  },
   {
     abilityId:
       HS_BP8_010_LIVE_START_DISCARD_HASUNOSORA_COST_TWENTY_FIVE_RECOVER_DOLLCHESTRA_LIVE_ABILITY_ID,
@@ -202,16 +225,19 @@ export function registerNDiscardRecoverAndBladeWorkflowHandlers(deps: {
     registerActiveEffectStepHandler(
       config.abilityId,
       config.discardStepId,
-      (game, input, context) =>
-        input.selectedCardId
+      (game, input, context) => {
+        const selectedCardIds =
+          input.selectedCardIds ?? (input.selectedCardId ? [input.selectedCardId] : []);
+        return selectedCardIds.length > 0
           ? finishTriggeredDiscardCost(
               game,
-              input.selectedCardId,
+              selectedCardIds,
               config,
               context.continuePendingCardEffects,
               deps.enqueueTriggeredCardEffects
             )
-          : finishSkippedActiveEffect(game, context.continuePendingCardEffects),
+          : finishSkippedActiveEffect(game, context.continuePendingCardEffects);
+      },
       queryCardSelection
     );
     registerActiveEffectStepHandler(
@@ -353,13 +379,17 @@ function startTriggeredDiscardRecoverLive(
   if (!player) {
     return game;
   }
-  if (player.hand.cardIds.length === 0) {
+  const discardCount = config.discardCount ?? 1;
+  if (player.hand.cardIds.length < discardCount) {
     if (
       ability.timingId === TriggerCondition.ON_LIVE_START ||
       ability.timingId === TriggerCondition.ON_LIVE_SUCCESS
     ) {
       const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
-        stepText: '没有可用于支付费用的手牌，不执行后续回收。',
+        stepText:
+          discardCount === 1
+            ? '没有可用于支付费用的手牌，不执行后续回收。'
+            : `手牌不足${discardCount}张，无法支付费用。`,
       });
       if (confirmation) return confirmation;
     }
@@ -369,7 +399,7 @@ function startTriggeredDiscardRecoverLive(
       player.id,
       orderedResolution,
       {
-        step: 'NO_OP_DISCARD_RECOVER_NIJIGASAKI_LIVE',
+        step: config.noHandActionStep ?? 'NO_OP_DISCARD_RECOVER_NIJIGASAKI_LIVE',
         reason: 'NO_HAND',
       },
       continuePendingCardEffects
@@ -384,8 +414,12 @@ function startTriggeredDiscardRecoverLive(
       playerId: player.id,
       effectText: getAbilityEffectText(config.abilityId),
       stepId: config.discardStepId,
-      stepText: '可以将1张手牌放置入休息室。',
-      selectionLabel: '选择要放置入休息室的手牌',
+      discardCount,
+      stepText: `可以将${discardCount}张手牌放置入休息室。`,
+      selectionLabel:
+        discardCount === 1
+          ? '选择要放置入休息室的手牌'
+          : `选择要放置入休息室的${discardCount}张手牌`,
       confirmSelectionLabel: '放置入休息室',
       skipSelectionLabel: '不发动',
       selectableCardIds: player.hand.cardIds,
@@ -402,7 +436,7 @@ function startTriggeredDiscardRecoverLive(
 
 function finishTriggeredDiscardCost(
   game: GameState,
-  selectedCardId: string,
+  selectedCardIds: readonly string[],
   config: TriggeredDiscardRecoverLiveConfig,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
@@ -413,18 +447,17 @@ function finishTriggeredDiscardCost(
     !effect ||
     effect.abilityId !== config.abilityId ||
     effect.stepId !== config.discardStepId ||
-    !player ||
-    effect.selectableCardIds?.includes(selectedCardId) !== true ||
-    !player.hand.cardIds.includes(selectedCardId)
+    !player
   ) {
     return game;
   }
 
-  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
+  const discardResult = discardHandCardsToWaitingRoomAndEnqueueTriggers(
     game,
     player.id,
-    selectedCardId,
+    selectedCardIds,
     {
+      count: config.discardCount ?? 1,
       candidateCardIds: effect.selectableCardIds ?? [],
     },
     enqueueTriggeredCardEffects
@@ -432,6 +465,12 @@ function finishTriggeredDiscardCost(
   if (!discardResult) {
     return game;
   }
+  const discardPayload = {
+    ...(discardResult.discardedCardIds.length === 1
+      ? { discardedCardId: discardResult.discardedCardIds[0] }
+      : {}),
+    discardedCardIds: discardResult.discardedCardIds,
+  };
 
   const stateAfterCost = addAction(discardResult.gameState, 'PAY_COST', player.id, {
     pendingAbilityId: effect.id,
@@ -449,8 +488,7 @@ function finishTriggeredDiscardCost(
       {
         step: config.conditionNotMetActionStep,
         reason: config.conditionNotMetReason ?? 'OTHER_PRINTED_COST_ELEVEN_MEMBER_NOT_FOUND',
-        discardedCardId: discardResult.discardedCardIds[0] ?? selectedCardId,
-        discardedCardIds: discardResult.discardedCardIds,
+        ...discardPayload,
         selectedCardIds: [],
       }
     );
@@ -471,8 +509,7 @@ function finishTriggeredDiscardCost(
       {
         step: config.noTargetActionStep,
         reason: config.noTargetReason ?? 'NO_NIJIGASAKI_LIVE_TARGET',
-        discardedCardId: discardResult.discardedCardIds[0] ?? selectedCardId,
-        discardedCardIds: discardResult.discardedCardIds,
+        ...discardPayload,
         selectableCardIds,
         selectedCardIds: [],
       }
@@ -513,8 +550,7 @@ function finishTriggeredDiscardCost(
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: config.selectActionStep,
-      discardedCardId: discardResult.discardedCardIds[0] ?? selectedCardId,
-      discardedCardIds: discardResult.discardedCardIds,
+      ...discardPayload,
       selectableCardIds,
     }
   );

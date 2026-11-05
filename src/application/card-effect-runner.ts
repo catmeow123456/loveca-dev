@@ -1,3 +1,7 @@
+import { registerPlBp8014RinWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-014-rin.js';
+import { registerHsAd2001KozueWorkflowHandlers } from './card-effects/workflows/cards/hs-ad2-001-kozue.js';
+import { registerPyhnAd2001DeepBlueWorkflowHandlers } from './card-effects/workflows/cards/pyhn-ad2-001-deep-blue.js';
+import { registerLiveSuccessCheerConditionSourceScoreWorkflowHandlers } from './card-effects/workflows/shared/live-success-cheer-condition-source-score.js';
 import { registerNBp8001AyumuWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-001-ayumu.js';
 import { registerNBp8021RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-021-rina.js';
 import { registerRelayEnterLowerCostRecoverLiveWorkflowHandlers } from './card-effects/workflows/shared/relay-enter-lower-cost-recover-live.js';
@@ -622,6 +626,8 @@ import { registerPlBp8017HanayoWorkflowHandlers } from './card-effects/workflows
 import { registerHsBp8006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-006-hime.js';
 import { registerHsBp8002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-002-sayaka.js';
 import { registerHsBp8020IcyWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-020-icy.js';
+import { registerHsBp8021MiraCreationWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-021-mira-creation.js';
+import { registerPlBp8020BuruberiToreinWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-020-buruberi-torein.js';
 import { registerNamedHandDiscardLiveStartWorkflowHandlers } from './card-effects/workflows/shared/named-hand-discard-live-start.js';
 import { registerMemberOnEnterDrawWorkflowHandlers } from './card-effects/workflows/shared/member-on-enter-draw.js';
 import { registerOnMoveGainBladeWorkflowHandlers } from './card-effects/workflows/shared/on-move-gain-blade.js';
@@ -1094,6 +1100,8 @@ registerPlBp8017HanayoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp8006HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp8002SayakaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp8020IcyWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp8021MiraCreationWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlBp8020BuruberiToreinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerKarinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNozomiOnEnterWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -1277,6 +1285,10 @@ registerLiveSuccessDiscardRecoverCheerWorkflowHandlers({
   enqueueTriggeredCardEffects,
 });
 registerNPr026RinaWorkflowHandlers();
+registerPlBp8014RinWorkflowHandlers();
+registerHsAd2001KozueWorkflowHandlers();
+registerPyhnAd2001DeepBlueWorkflowHandlers();
+registerLiveSuccessCheerConditionSourceScoreWorkflowHandlers();
 registerNBp8001AyumuWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp8021RinaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerRelayEnterLowerCostRecoverLiveWorkflowHandlers();

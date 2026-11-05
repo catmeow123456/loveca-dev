@@ -1,9 +1,11 @@
 import { baseLiveRequirement } from './battle-ruleset.js';
 import {
   BladeHeartEffect,
+  GamePhase,
   HeartColor,
   OrientationState,
   SlotPosition,
+  SubPhase,
   TriggerCondition,
   ZoneType,
 } from '../../shared/types/enums.js';
@@ -445,6 +447,20 @@ export interface SuppressLiveAbilityOptions {
 }
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
+  {
+    baseCardCodes: ['PL!HS-ad2-001'],
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!hasAtLeastDifferentNamedStageMembers(game, playerId, 3)) return [];
+      const modifier = createBladeLiveModifierForSourceMember(game, {
+        playerId,
+        sourceCardId,
+        abilityId: 'PL!HS-ad2-001:continuous-three-different-names-gain-two-blade',
+        countDelta: 2,
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
   {
     baseCardCodes: ['PL!N-bp8-005'],
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
@@ -3751,19 +3767,67 @@ function setMemberBoundLiveModifiersAfterRemoval(
   let changed = false;
   for (const [playerId, removedBonus] of removedScoreByPlayer) {
     const score = playerScores.get(playerId);
-    // A successful LIVE can return to hand without losing its judged score draft.
-    // The current LIVE's result fact, rather than its present zone, controls subtraction.
-    const hasJudgedSuccessfulLive = [...game.liveResolution.liveResults].some(
-      ([cardId, success]) => {
-        const card = getCardById(game, cardId);
-        return success === true && card?.ownerId === playerId && isLiveCardData(card.data);
-      }
-    );
-    if (score === undefined || !hasJudgedSuccessfulLive || removedBonus === 0) continue;
+    if (score === undefined || !hasJudgedSuccessfulLive(game, playerId) || removedBonus === 0)
+      continue;
     playerScores.set(playerId, Math.max(0, score - removedBonus));
     changed = true;
   }
   return changed ? { ...state, liveResolution: { ...state.liveResolution, playerScores } } : state;
+}
+
+function hasJudgedSuccessfulLive(game: GameState, playerId: string): boolean {
+  // A successful LIVE can return to hand while its result still contributes to the draft.
+  for (const [cardId, success] of game.liveResolution.liveResults) {
+    if (success !== true) continue;
+    const card = getCardById(game, cardId);
+    if (card?.ownerId === playerId && isLiveCardData(card.data)) return true;
+  }
+  return false;
+}
+
+function collectContinuousPlayerScoreBonuses(game: GameState): ReadonlyMap<string, number> {
+  const bonuses = new Map<string, number>();
+  for (const modifier of collectContinuousLiveModifiers(game)) {
+    if (modifier.kind === 'SCORE' && modifier.liveCardId === undefined) {
+      bonuses.set(modifier.playerId, (bonuses.get(modifier.playerId) ?? 0) + modifier.countDelta);
+    }
+  }
+  return bonuses;
+}
+
+/** Apply the continuous player SCORE delta from an atomic state change to open score drafts. */
+export function refreshJudgedContinuousLiveScoreDrafts(
+  before: GameState,
+  after: GameState
+): GameState {
+  if (
+    after.currentPhase !== GamePhase.LIVE_RESULT_PHASE ||
+    (after.currentSubPhase !== SubPhase.RESULT_FIRST_SUCCESS_EFFECTS &&
+      after.currentSubPhase !== SubPhase.RESULT_SECOND_SUCCESS_EFFECTS &&
+      after.currentSubPhase !== SubPhase.RESULT_SCORE_CONFIRM)
+  ) {
+    return after;
+  }
+
+  const { playerScores, scoreConfirmedBy } = after.liveResolution;
+  const judgedScores = [...playerScores].filter(
+    ([playerId]) => !scoreConfirmedBy.includes(playerId) && hasJudgedSuccessfulLive(after, playerId)
+  );
+  if (judgedScores.length === 0) return after;
+
+  const beforeBonuses = collectContinuousPlayerScoreBonuses(before);
+  const afterBonuses = collectContinuousPlayerScoreBonuses(after);
+  let updatedScores: Map<string, number> | undefined;
+  for (const [playerId, score] of judgedScores) {
+    const delta = (afterBonuses.get(playerId) ?? 0) - (beforeBonuses.get(playerId) ?? 0);
+    if (delta === 0) continue;
+    updatedScores ??= new Map(playerScores);
+    updatedScores.set(playerId, Math.max(0, score + delta));
+  }
+
+  return updatedScores
+    ? { ...after, liveResolution: { ...after.liveResolution, playerScores: updatedScores } }
+    : after;
 }
 
 export function suppressLiveAbility(

@@ -10,7 +10,7 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { GamePhase, HeartColor } from '../../../../shared/types/enums.js';
+import { GamePhase, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import { groupAliasIs, memberHasHeartColor } from '../../../effects/card-selectors.js';
 import { inspectTopCards } from '../../../effects/look-top.js';
 import { BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID } from '../../ability-ids.js';
@@ -24,6 +24,7 @@ import {
   moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers,
 } from '../../runtime/inspection-waiting-room-triggers.js';
 import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
+import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -338,7 +339,7 @@ function finishBp6006ConfirmRevealedResult(
     !effect ||
     effect.stepId !== BP6_006_CONFIRM_REVEALED_RESULT_STEP_ID ||
     selectedHeartColor === null ||
-    inspectedCardIds.some((cardId) => !game.inspectionZone.cardIds.includes(cardId))
+    !areBp6006CardsStillPubliclyInspected(game, effect.controllerId, inspectedCardIds)
   ) {
     return game;
   }
@@ -391,7 +392,8 @@ function finishBp6006ConfirmRevealedResult(
       activeEffect: {
         ...effect,
         stepId: BP6_006_SELECT_MUSE_REVEALED_CARD_STEP_ID,
-        stepText: "条件满足。请选择1张公开的『μ's』卡加入手牌，其余放置入休息室。",
+        stepText: "请选择1张『μ's』卡加入手牌，其余公开卡放置入休息室。",
+        revealedCardIds: undefined,
         selectableCardIds: museCandidateCardIds,
         selectableCardVisibility: 'PUBLIC',
         selectableCardMode: 'SINGLE',
@@ -405,6 +407,11 @@ function finishBp6006ConfirmRevealedResult(
           selectedHeartColor,
           matchingColorCardIds,
           museCandidateCardIds,
+          publicCardSelectionConfirmation: {
+            source: 'REVEALED_INSPECTION',
+            destination: 'HAND',
+            stepText: "已选择这张『μ's』卡。展示结束后加入手牌，其余公开卡放置入休息室。",
+          },
         },
       },
     },
@@ -433,6 +440,7 @@ function finishBp6006SelectMuseCard(
   if (
     !effect ||
     effect.stepId !== BP6_006_SELECT_MUSE_REVEALED_CARD_STEP_ID ||
+    !wasRestoredAfterPublicCardSelectionConfirmation(effect) ||
     !selectedCardId ||
     !effect.selectableCardIds?.includes(selectedCardId) ||
     !effect.inspectionCardIds?.includes(selectedCardId)
@@ -440,14 +448,30 @@ function finishBp6006SelectMuseCard(
     return game;
   }
   const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
+  const selectedHeartColor = effect.metadata?.selectedHeartColor;
+  const inspectedCardIds = effect.inspectionCardIds;
+  const selectedCard = getCardById(game, selectedCardId);
+  if (
+    !player ||
+    typeof selectedHeartColor !== 'string' ||
+    !isNormalHeartColor(selectedHeartColor) ||
+    !inspectedCardIds ||
+    inspectedCardIds.length !== 5 ||
+    !areBp6006CardsStillPubliclyInspected(game, player.id, inspectedCardIds) ||
+    inspectedCardIds.some((cardId) => {
+      const card = getCardById(game, cardId);
+      return !card || !isCardMatchingBp6006ColorCondition(card, selectedHeartColor);
+    }) ||
+    !selectedCard ||
+    !groupAliasIs(MUSE)(selectedCard)
+  ) {
     return game;
   }
 
   const moveResult = moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers(
     game,
     player.id,
-    effect.inspectionCardIds,
+    inspectedCardIds,
     selectedCardId,
     enqueueTriggeredCardEffects
   );
@@ -484,6 +508,24 @@ function finishBp6006SelectMuseCard(
       bladeApplied,
     }),
     false
+  );
+}
+
+function areBp6006CardsStillPubliclyInspected(
+  game: GameState,
+  playerId: string,
+  inspectedCardIds: readonly string[]
+): boolean {
+  return (
+    game.inspectionContext?.ownerPlayerId === playerId &&
+    game.inspectionContext.sourceZone === ZoneType.MAIN_DECK &&
+    new Set(inspectedCardIds).size === inspectedCardIds.length &&
+    inspectedCardIds.every(
+      (cardId) =>
+        game.inspectionZone.cardIds.includes(cardId) &&
+        game.inspectionZone.revealedCardIds.includes(cardId) &&
+        getCardById(game, cardId)?.ownerId === playerId
+    )
   );
 }
 
