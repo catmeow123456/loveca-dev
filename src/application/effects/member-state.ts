@@ -15,6 +15,7 @@ import { isMemberEffectActivationProhibited } from '../../domain/rules/member-ef
 import { isMemberWaitProtectedFromChange } from '../../domain/rules/member-wait-protections.js';
 import { resolveMemberEntryOrientation } from '../../domain/rules/member-entry-orientation.js';
 import { removeMemberActivePhaseSkipsForMembers } from '../../domain/rules/member-active-skips.js';
+import { refreshJudgedContinuousLiveScoreDrafts } from '../../domain/rules/live-modifiers.js';
 
 export interface SetMemberOrientationResult {
   readonly gameState: GameState;
@@ -878,7 +879,7 @@ export function playMemberBelowCardToEmptySlot(
     };
   });
   gameState = emitGameEvent(
-    gameState,
+    refreshJudgedContinuousLiveScoreDrafts(game, gameState),
     createEnterStageEvent(options.cardId, ZoneType.MEMBER_SLOT, options.toSlot, playerId, playerId)
   );
 

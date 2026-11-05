@@ -18,6 +18,7 @@ import {
   moveRevealedCheerCards,
   selectCurrentLiveDifferentNamedStageAndCheerMembers,
   selectCurrentLiveRevealedCheerCardIds,
+  selectCurrentLiveRevealedCheerCardIdsWithoutBladeHearts,
 } from '../../src/application/effects/cheer-selection';
 import { revealCheerCardsFromMainDeck } from '../../src/application/effects/cheer';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
@@ -28,9 +29,72 @@ import {
   OrientationState,
   SlotPosition,
 } from '../../src/shared/types/enums';
+import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
+
+describe('effective current-LIVE no-Blade-Heart fact query', () => {
+  it('excludes malformed lists before color replacement and retains historical facts and caller filters', () => {
+    const rows = [
+      ['empty', []],
+      ['absent', undefined],
+      ['null', null],
+      ['string', 'not-a-list'],
+      ['object', { effect: 'HEART', heartColor: 'RED' }],
+      ['icon', [{ effect: 'HEART', heartColor: 'RED' }]],
+    ] as const;
+    const cards = rows.map(([id, bladeHearts]) => {
+      const data: MemberCardData = {
+        cardType: CardType.MEMBER,
+        cardCode: `TEST-${id}`,
+        name: id,
+        cost: 1,
+        blade: 1,
+        hearts: [],
+        bladeHearts: bladeHearts as unknown as MemberCardData['bladeHearts'],
+      };
+      return createCardInstance(data, PLAYER1, id);
+    });
+    const ids = cards.map((card) => card.instanceId);
+    let game = registerCards(
+      createGameState('invalid-cheer-lists', PLAYER1, 'P1', PLAYER2, 'P2'),
+      cards
+    );
+    game = { ...game, liveResolution: { ...game.liveResolution, firstPlayerCheerCardIds: ids } };
+    game = emitGameEvent(game, createCheerEvent(PLAYER1, ids, ids.length));
+    game = addLiveModifier(game, {
+      kind: 'CHEER_CARD_HEART_COLOR_REPLACEMENT',
+      playerId: PLAYER1,
+      fromColors: [HeartColor.RED],
+      toColor: HeartColor.PURPLE,
+      sourceCardId: 'replacement',
+      abilityId: 'replacement',
+    });
+    expect(game.resolutionZone.cardIds).toEqual([]);
+    expect(selectCurrentLiveRevealedCheerCardIdsWithoutBladeHearts(game, PLAYER1)).toEqual([
+      'empty',
+      'absent',
+    ]);
+    expect(
+      selectCurrentLiveRevealedCheerCardIdsWithoutBladeHearts(game, PLAYER1, {
+        predicate: (card) => card.instanceId !== 'empty',
+      })
+    ).toEqual(['absent']);
+    expect(
+      selectCurrentLiveRevealedCheerCardIdsWithoutBladeHearts(game, PLAYER1, {
+        eventScope: 'ADDITIONAL_ONLY',
+      })
+    ).toEqual([]);
+    expect(selectCurrentLiveRevealedCheerCardIdsWithoutBladeHearts(game, PLAYER2)).toEqual([]);
+    expect(
+      selectCurrentLiveRevealedCheerCardIdsWithoutBladeHearts(
+        { ...game, liveResolution: { ...game.liveResolution, firstPlayerCheerCardIds: [] } },
+        PLAYER1
+      )
+    ).toEqual([]);
+  });
+});
 
 function live(cardCode: string, groupNames: readonly string[]): LiveCardData {
   return {

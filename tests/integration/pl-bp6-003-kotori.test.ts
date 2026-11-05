@@ -1,19 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import type { MemberCardData, PendingAbilityState } from '../../src/domain/entities/card';
-import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
+import {
+  createCardInstance,
+  createHeartIcon,
+  createHeartRequirement,
+  type LiveCardData,
+  type MemberCardData,
+} from '../../src/domain/entities/card';
 import {
   createGameState,
   registerCards,
   updatePlayer,
   type GameState,
+  type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { addMemberBelowMember, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   createAutoAdvancePublicEffectChoiceCommand,
   createAutoAdvancePublicRevealCommand,
   createConfirmEffectStepCommand,
+  createConfirmStepCommand,
+  createSubmitScoreCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { GameService } from '../../src/application/game-service';
+import {
+  BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
+  BP6_007_LIVE_SUCCESS_REVEAL_TOP_HAND_NO_BLADE_MEMBER_SCORE_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import { PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-effect-choice-confirmation';
 import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
@@ -24,14 +37,97 @@ import {
 import {
   CardType,
   FaceState,
+  GamePhase,
   HeartColor,
   OrientationState,
   SlotPosition,
+  SubPhase,
   TriggerCondition,
+  TurnType,
 } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
+
+// Identity and stats copied from references/cards_export_2026-11-02.json.
+const KOTORI: MemberCardData = {
+  cardCode: 'PL!-bp6-003-P',
+  name: '南琴梨（南小鸟）',
+  groupNames: ['μ’s'],
+  cardType: CardType.MEMBER,
+  cost: 15,
+  blade: 7,
+  hearts: [
+    createHeartIcon(HeartColor.PINK, 1),
+    createHeartIcon(HeartColor.YELLOW, 3),
+    createHeartIcon(HeartColor.PURPLE, 1),
+  ],
+};
+const HANAYO: MemberCardData = {
+  cardCode: 'PL!-bp6-017-N',
+  name: '小泉花阳',
+  groupNames: ['μ’s'],
+  cardType: CardType.MEMBER,
+  cost: 2,
+  blade: 0,
+  hearts: [createHeartIcon(HeartColor.PINK, 1), createHeartIcon(HeartColor.YELLOW, 1)],
+};
+const ELI: MemberCardData = {
+  cardCode: 'PL!-bp6-002-P',
+  name: '绚濑绘里',
+  groupNames: ['μ’s'],
+  cardType: CardType.MEMBER,
+  cost: 2,
+  blade: 1,
+  hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+};
+const NICO: MemberCardData = {
+  cardCode: 'PL!-bp3-009-R+',
+  name: '矢泽日香（矢泽妮可）',
+  groupNames: ['μ’s'],
+  cardType: CardType.MEMBER,
+  cost: 2,
+  blade: 2,
+  hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+};
+const NOZOMI: MemberCardData = {
+  cardCode: 'PL!-bp6-007-P',
+  name: '东条希',
+  groupNames: ['μ’s'],
+  cardType: CardType.MEMBER,
+  cost: 11,
+  blade: 4,
+  hearts: [
+    createHeartIcon(HeartColor.PINK, 2),
+    createHeartIcon(HeartColor.YELLOW, 1),
+    createHeartIcon(HeartColor.PURPLE, 1),
+  ],
+};
+const ARASHI: LiveCardData = {
+  cardCode: 'PL!-pb2-038-L',
+  name: '正因为是暴风雨中的爱恋',
+  groupNames: ['μ’s'],
+  cardType: CardType.LIVE,
+  score: 5,
+  requirements: createHeartRequirement({
+    [HeartColor.PINK]: 3,
+    [HeartColor.YELLOW]: 3,
+    [HeartColor.PURPLE]: 2,
+    [HeartColor.RAINBOW]: 5,
+  }),
+};
+const MYSTERY: LiveCardData = {
+  cardCode: 'PL!-bp4-025-L',
+  name: '来自微热的神秘',
+  groupNames: ['μ’s'],
+  cardType: CardType.LIVE,
+  score: 5,
+  requirements: createHeartRequirement({
+    [HeartColor.PINK]: 3,
+    [HeartColor.PURPLE]: 3,
+    [HeartColor.RAINBOW]: 6,
+  }),
+};
 
 function createMember(
   cardCode: string,
@@ -59,11 +155,7 @@ function setupKotoriGame(options: {
   readonly memberBelowCards?: readonly ReturnType<typeof createCardInstance>[];
   readonly pendingAbilityId: string;
 }): GameState {
-  const source = createCardInstance(
-    createMember('PL!-bp6-003-P', '南ことり', { cost: 15 }),
-    PLAYER1,
-    'kotori-source'
-  );
+  const source = createCardInstance(KOTORI, PLAYER1, 'kotori-source');
   const handCandidates = options.handCandidates ?? [];
   const memberBelowCards = options.memberBelowCards ?? [];
   let game = createGameState('bp6-003-kotori', PLAYER1, 'P1', PLAYER2, 'P2');
@@ -150,6 +242,7 @@ function confirmEffect(
 function advancePublicRevealDwell(session: ReturnType<typeof createSessionWithState>) {
   const effect = session.state!.activeEffect!;
   expect(effect.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+  expect(effect.awaitingPlayerId).toBe(PLAYER1);
   expect(effect.publicRevealGeneration).toEqual(expect.any(String));
 
   (session as unknown as { authorityState: GameState }).authorityState = {
@@ -160,12 +253,7 @@ function advancePublicRevealDwell(session: ReturnType<typeof createSessionWithSt
     },
   };
   return session.executeCommand(
-    createAutoAdvancePublicRevealCommand(
-      effect.awaitingPlayerId,
-      effect.id,
-      0,
-      effect.publicRevealGeneration!
-    )
+    createAutoAdvancePublicRevealCommand(PLAYER1, effect.id, 0, effect.publicRevealGeneration!)
   );
 }
 
@@ -209,6 +297,112 @@ function activeFaceUp() {
     orientation: OrientationState.ACTIVE,
     face: FaceState.FACE_UP,
   };
+}
+
+function startJudgedKotoriLive(options: {
+  readonly solo?: boolean;
+  readonly priorArashi?: boolean;
+  readonly nozomiOnStage?: boolean;
+  readonly judgedScore: number;
+}) {
+  const belowMember = createCardInstance(options.solo ? ELI : HANAYO, PLAYER1, 'below-member');
+  const leftMember = createCardInstance(
+    options.nozomiOnStage ? NOZOMI : HANAYO,
+    PLAYER1,
+    'left-member'
+  );
+  const priorArashi = createCardInstance(ARASHI, PLAYER1, 'prior-arashi');
+  const ownLive = createCardInstance(options.solo ? MYSTERY : ARASHI, PLAYER1, 'own-live');
+  const opponentLive = createCardInstance(MYSTERY, PLAYER2, 'opponent-live');
+  const topCard = createCardInstance(options.solo ? HANAYO : NICO, PLAYER1, 'deck-top');
+  let game = setupKotoriGame({
+    memberBelowCards: [belowMember],
+    pendingAbilityId: BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
+  });
+  game = registerCards(game, [leftMember, priorArashi, ownLive, opponentLive, topCard]);
+  game = updatePlayer(game, PLAYER1, (player) => ({
+    ...player,
+    memberSlots: options.solo
+      ? player.memberSlots
+      : placeCardInSlot(
+          player.memberSlots,
+          SlotPosition.LEFT,
+          leftMember.instanceId,
+          activeFaceUp()
+        ),
+    liveZone: {
+      ...player.liveZone,
+      cardIds: [ownLive.instanceId],
+      cardStates: new Map([[ownLive.instanceId, activeFaceUp()]]),
+    },
+    successZone: {
+      ...player.successZone,
+      cardIds: options.priorArashi ? [priorArashi.instanceId] : [],
+    },
+    mainDeck: { ...player.mainDeck, cardIds: [topCard.instanceId] },
+  }));
+  game = updatePlayer(game, PLAYER2, (player) => ({
+    ...player,
+    liveZone: {
+      ...player.liveZone,
+      cardIds: [opponentLive.instanceId],
+      cardStates: new Map([[opponentLive.instanceId, activeFaceUp()]]),
+    },
+  }));
+  // Both players have accepted their performance judgments. Let the normal phase transition
+  // dispatch the first player's success effects while carrying the existing score drafts.
+  const advanced = new GameService().advancePhase({
+    ...game,
+    isStarted: true,
+    currentPhase: GamePhase.PERFORMANCE_PHASE,
+    currentTurnType: TurnType.SECOND_PLAYER_TURN,
+    activePlayerIndex: 1,
+    pendingAbilities: [],
+    liveResolution: {
+      ...game.liveResolution,
+      isInLive: false,
+      liveResults: new Map([
+        [ownLive.instanceId, true],
+        [opponentLive.instanceId, true],
+      ]),
+      playerScores: new Map([
+        [PLAYER1, options.judgedScore],
+        [PLAYER2, 5],
+      ]),
+    },
+  });
+  expect(advanced.success, advanced.error).toBe(true);
+  const session = createSessionWithState(advanced.gameState);
+  expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_FIRST_SUCCESS_EFFECTS);
+  expect(session.manualOperationMode).toBe('RULES');
+  return { session, belowMemberId: belowMember.instanceId };
+}
+
+function expectKotoriLiveDraft(
+  session: ReturnType<typeof createSessionWithState>,
+  score: number,
+  modifier: number
+) {
+  expect(session.state?.liveResolution.playerScores.get(PLAYER1)).toBe(score);
+  expect(session.getPlayerViewState(PLAYER1)?.match.liveResult).toMatchObject({
+    scores: { FIRST: score, SECOND: 5 },
+    scoreModifiers: { FIRST: modifier, SECOND: 0 },
+  });
+}
+
+function playKotoriMemberBelow(
+  session: ReturnType<typeof createSessionWithState>,
+  belowMemberId: string
+) {
+  expect(session.state?.activeEffect).toMatchObject({
+    abilityId: BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
+    selectableCardIds: [belowMemberId],
+  });
+  const selection = confirmEffect(session, belowMemberId);
+  expect(selection.success, selection.error).toBe(true);
+  const entry = confirmEffect(session, undefined, SlotPosition.RIGHT);
+  expect(entry.success, entry.error).toBe(true);
+  expect(session.state?.players[0].memberSlots.slots[SlotPosition.RIGHT]).toBe(belowMemberId);
 }
 
 describe('PL!-bp6-003 Kotori memberBelow workflow', () => {
@@ -415,5 +609,98 @@ describe('PL!-bp6-003 Kotori memberBelow workflow', () => {
         (action) => action.payload.step === 'NO_EMPTY_MEMBER_SLOT'
       )
     ).toBe(true);
+  });
+
+  it('drops the continuous LIVE score from 6 to 5 on entry and compares the corrected draft', () => {
+    const { session, belowMemberId } = startJudgedKotoriLive({ judgedScore: 6 });
+    expect(session.state?.liveResolution.isInLive).toBe(false);
+    expectKotoriLiveDraft(session, 6, 1);
+
+    playKotoriMemberBelow(session, belowMemberId);
+    expectKotoriLiveDraft(session, 5, 0);
+    expect(session.getPlayerViewState(PLAYER2)?.match.liveResult).toMatchObject({
+      scores: { FIRST: 5, SECOND: 5 },
+      scoreModifiers: { FIRST: 0, SECOND: 0 },
+    });
+
+    for (const [playerId, subPhase] of [
+      [PLAYER1, SubPhase.RESULT_FIRST_SUCCESS_EFFECTS],
+      [PLAYER2, SubPhase.RESULT_SECOND_SUCCESS_EFFECTS],
+    ] as const) {
+      const result = session.executeCommand(createConfirmStepCommand(playerId, subPhase));
+      expect(result.success, result.error).toBe(true);
+    }
+    expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SCORE_CONFIRM);
+    for (const playerId of [PLAYER1, PLAYER2]) {
+      const result = session.executeCommand(createSubmitScoreCommand(playerId));
+      expect(result.success, result.error).toBe(true);
+    }
+    expect(session.state?.liveResolution.liveWinnerIds).toEqual([PLAYER1, PLAYER2]);
+    expect(session.getPlayerViewState(PLAYER2)?.match.liveResult?.winnerSeats).toEqual([
+      'FIRST',
+      'SECOND',
+    ]);
+  });
+
+  it('adds the success-zone continuous score on the second member and exposes it during ON_ENTER', () => {
+    const { session, belowMemberId } = startJudgedKotoriLive({
+      solo: true,
+      priorArashi: true,
+      judgedScore: 5,
+    });
+    expectKotoriLiveDraft(session, 5, 0);
+
+    playKotoriMemberBelow(session, belowMemberId);
+    expect(session.state?.activeEffect).toMatchObject({
+      abilityId: BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
+      sourceCardId: belowMemberId,
+      selectableCardIds: ['deck-top'],
+    });
+    expectKotoriLiveDraft(session, 6, 1);
+    expect(confirmEffect(session, 'deck-top').success).toBe(true);
+    const reveal = advancePublicRevealDwell(session);
+    expect(reveal.success, reveal.error).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).toContain('deck-top');
+    expectKotoriLiveDraft(session, 6, 1);
+  });
+
+  it('preserves an earlier score reward and removes only one bonus from duplicate sources', () => {
+    const { session, belowMemberId } = startJudgedKotoriLive({
+      priorArashi: true,
+      nozomiOnStage: true,
+      judgedScore: 7, // 5 printed, 1 continuous, and 1 already included from cheer.
+    });
+    expectKotoriLiveDraft(session, 7, 1);
+
+    expect(confirmEffect(session, 'left-member').success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      BP6_007_LIVE_SUCCESS_REVEAL_TOP_HAND_NO_BLADE_MEMBER_SCORE_ABILITY_ID
+    );
+    if (session.state?.activeEffect?.metadata?.confirmOnlyPendingAbility === true) {
+      expect(confirmEffect(session).success).toBe(true);
+    }
+    const reveal = advancePublicRevealDwell(session);
+    expect(reveal.success, reveal.error).toBe(true);
+    expectKotoriLiveDraft(session, 8, 2);
+
+    playKotoriMemberBelow(session, belowMemberId);
+    expectKotoriLiveDraft(session, 7, 1);
+    expect(session.state?.liveResolution.liveModifiers).toEqual([
+      expect.objectContaining({
+        kind: 'SCORE',
+        countDelta: 1,
+        abilityId: BP6_007_LIVE_SUCCESS_REVEAL_TOP_HAND_NO_BLADE_MEMBER_SCORE_ABILITY_ID,
+      }),
+    ]);
+  });
+
+  it('keeps the draft and continuous bonus when Kotori declines to play the below member', () => {
+    const { session, belowMemberId } = startJudgedKotoriLive({ judgedScore: 6 });
+    expect(confirmEffect(session, null).success).toBe(true);
+    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([
+      belowMemberId,
+    ]);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.RIGHT]).toBeNull();
+    expectKotoriLiveDraft(session, 6, 1);
   });
 });

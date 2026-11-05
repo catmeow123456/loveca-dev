@@ -28,6 +28,7 @@ import {
   registerManualConfirmablePendingAbilityStarterHandler,
 } from '../../runtime/workflow-helpers.js';
 import {
+  HS_AD2_001_LIVE_SUCCESS_MORE_REVEALED_CHEER_DRAW_ONE_ABILITY_ID,
   S_PR_046_LIVE_SUCCESS_OPPONENT_CHEER_LIVE_DRAW_ONE_ABILITY_ID,
   N_BP8_012_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID,
   N_BP8_025_LIVE_SUCCESS_DRAW_ENERGY_BELOW_NIJIGASAKI_COUNT_ABILITY_ID,
@@ -40,6 +41,18 @@ import {
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 type LiveDrawConfig =
+  | {
+      readonly abilityId: typeof HS_AD2_001_LIVE_SUCCESS_MORE_REVEALED_CHEER_DRAW_ONE_ABILITY_ID;
+      readonly expectedBaseCardCodes: readonly ['PL!HS-ad2-001'];
+      readonly sourceKind: 'STAGE_MEMBER';
+      readonly requireSourceInZoneAtResolution: false;
+      readonly conditionType: 'OWN_REVEALED_CHEER_COUNT_MORE_THAN_OPPONENT';
+      readonly actionStep: 'DRAW_ONE';
+      readonly noOpSteps: {
+        readonly sourceMissing: 'SOURCE_IDENTITY_INVALID';
+        readonly conditionNotMet: 'REVEALED_CHEER_COUNT_NOT_HIGHER';
+      };
+    }
   | {
       readonly abilityId: typeof N_BP8_025_LIVE_SUCCESS_DRAW_ENERGY_BELOW_NIJIGASAKI_COUNT_ABILITY_ID;
       readonly expectedBaseCardCodes: readonly ['PL!N-bp8-025'];
@@ -122,6 +135,18 @@ type LiveDrawConfig =
     };
 
 const LIVE_DRAW_CONFIGS: readonly LiveDrawConfig[] = [
+  {
+    abilityId: HS_AD2_001_LIVE_SUCCESS_MORE_REVEALED_CHEER_DRAW_ONE_ABILITY_ID,
+    expectedBaseCardCodes: ['PL!HS-ad2-001'],
+    sourceKind: 'STAGE_MEMBER',
+    requireSourceInZoneAtResolution: false,
+    conditionType: 'OWN_REVEALED_CHEER_COUNT_MORE_THAN_OPPONENT',
+    actionStep: 'DRAW_ONE',
+    noOpSteps: {
+      sourceMissing: 'SOURCE_IDENTITY_INVALID',
+      conditionNotMet: 'REVEALED_CHEER_COUNT_NOT_HIGHER',
+    },
+  },
   {
     abilityId: N_BP8_025_LIVE_SUCCESS_DRAW_ENERGY_BELOW_NIJIGASAKI_COUNT_ABILITY_ID,
     expectedBaseCardCodes: ['PL!N-bp8-025'],
@@ -225,7 +250,9 @@ type EvaluatedCondition =
       readonly conditionMet: boolean;
     }
   | {
-      readonly conditionType: 'OWN_REVEALED_CHEER_COUNT_LESS_THAN_OPPONENT';
+      readonly conditionType:
+        | 'OWN_REVEALED_CHEER_COUNT_LESS_THAN_OPPONENT'
+        | 'OWN_REVEALED_CHEER_COUNT_MORE_THAN_OPPONENT';
       readonly ownRevealedCheerCardIds: readonly string[];
       readonly opponentRevealedCheerCardIds: readonly string[];
       readonly ownRevealedCheerCount: number;
@@ -469,7 +496,10 @@ function evaluateCondition(
     opponentRevealedCheerCardIds,
     ownRevealedCheerCount,
     opponentRevealedCheerCount,
-    conditionMet: ownRevealedCheerCount < opponentRevealedCheerCount,
+    conditionMet:
+      conditionType === 'OWN_REVEALED_CHEER_COUNT_MORE_THAN_OPPONENT'
+        ? ownRevealedCheerCount > opponentRevealedCheerCount
+        : ownRevealedCheerCount < opponentRevealedCheerCount,
   };
 }
 
@@ -547,7 +577,7 @@ function getConfirmationConfig(
 
   const { ownRevealedCheerCount, opponentRevealedCheerCount, conditionMet } = context.condition;
   const actualDrawCount =
-    context.sourceOnStage && context.sourceCardMatchesExpectedBase && conditionMet
+    context.sourceValid && context.sourceCardMatchesExpectedBase && conditionMet
       ? getActualDrawCount(game, ability.controllerId)
       : 0;
   const previewText = `本次自己因声援公开${ownRevealedCheerCount}张，对方${opponentRevealedCheerCount}张，${conditionMet ? '满足条件' : '未满足条件'}，实际抽${actualDrawCount}张卡。`;
@@ -682,10 +712,13 @@ function createActionPayload(
     };
   }
 
-  if (config.conditionType !== 'OWN_REVEALED_CHEER_COUNT_LESS_THAN_OPPONENT') {
+  if (
+    config.conditionType !== 'OWN_REVEALED_CHEER_COUNT_LESS_THAN_OPPONENT' &&
+    config.conditionType !== 'OWN_REVEALED_CHEER_COUNT_MORE_THAN_OPPONENT'
+  ) {
     throw new Error(`Mismatched conditional draw config: ${config.abilityId}`);
   }
-  const noOpStep = !context.sourceOnStage
+  const noOpStep = !context.sourceValid
     ? config.noOpSteps.sourceMissing
     : config.noOpSteps.conditionNotMet;
   return {

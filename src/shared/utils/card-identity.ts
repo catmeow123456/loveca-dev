@@ -578,7 +578,15 @@ function getStructuredGroupIdentityNames(card: CardIdentityLike): readonly Group
 function getStructuredGroupIdentityNamesInOrder(
   card: CardIdentityLike
 ): readonly GroupIdentityName[] {
-  return getIdentityNamesFromTexts(getStructuredIdentityTextCandidates(card));
+  // Deep Blue's printed continuous identity applies in every zone and to every rarity.
+  const grantedNames: readonly GroupIdentityName[] =
+    card.cardCode && getBaseCardCode(card.cardCode) === 'PYHN-ad2-001' ? ['Aqours'] : [];
+  return [
+    ...new Set([
+      ...getIdentityNamesFromTexts(getStructuredIdentityTextCandidates(card)),
+      ...grantedNames,
+    ]),
+  ];
 }
 
 function getGroupIdentityNamesForNameMapping(

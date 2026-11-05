@@ -11,6 +11,7 @@ import {
   emitGameEvent,
   registerCards,
   updatePlayer,
+  type ActiveEffectState,
   type GameState,
 } from '../../src/domain/entities/game';
 import {
@@ -27,14 +28,17 @@ import {
 import { registerActiveEffectStepHandler } from '../../src/application/card-effects/runtime/step-registry';
 import {
   getPublicCardSelectionDisplayDurationMs,
+  attachPublicCardSelectionAutoAdvanceDeadline,
   createPublicCardSelectionConfirmationWindow,
+  createPublicCardSelectionConfirmationWindowForCardIds,
   getPublicCardSelectionConfirmationConfig,
   PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
 } from '../../src/application/card-effects/runtime/public-card-selection-confirmation';
 import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
-import { CardType, HeartColor } from '../../src/shared/types/enums';
+import { CardType, HeartColor, ZoneType } from '../../src/shared/types/enums';
 import { createCheerEvent } from '../../src/domain/events/game-events';
 import { moveRevealedCheerCards } from '../../src/application/effects/cheer-selection';
+import { moveInspectedSelectionToHandRestToWaitingRoom } from '../../src/application/effects/look-top';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -42,6 +46,10 @@ const ABILITY_ID = 'test:public-waiting-room-selection';
 const STEP_ID = 'SELECT_WAITING_ROOM_CARDS';
 const CHEER_ABILITY_ID = 'test:public-revealed-cheer-selection';
 const CHEER_STEP_ID = 'SELECT_REVEALED_CHEER_CARDS';
+const INSPECTION_ABILITY_ID = 'test:public-revealed-inspection-selection';
+const INSPECTION_STEP_ID = 'SELECT_REVEALED_INSPECTION_CARD';
+const INSPECTION_CONFIRMATION_TEXT =
+  '已选择的卡牌已向双方公开。展示结束后，将所选卡牌加入手牌，其余公开的卡牌放置入休息室。';
 
 function member(id: string): ReturnType<typeof createCardInstance> {
   const data: MemberCardData = {
@@ -113,6 +121,133 @@ function setupRevealedCheer(count = 2) {
       now = value;
     },
   };
+}
+
+function setupRevealedInspection() {
+  let now = 10_000;
+  let resolutionCount = 0;
+  const cards = [member('inspection-selected'), member('inspection-rest')];
+  const cardIds = cards.map((card) => card.instanceId);
+  const source = member('inspection-source');
+  let game = registerCards(
+    createGameState('public-inspection-selection-test', PLAYER1, 'P1', PLAYER2, 'P2'),
+    [...cards, source]
+  );
+  const effect: ActiveEffectState = {
+    id: 'public-inspection-selection-effect',
+    abilityId: INSPECTION_ABILITY_ID,
+    sourceCardId: source.instanceId,
+    controllerId: PLAYER1,
+    awaitingPlayerId: PLAYER1,
+    effectText: '从公开的卡牌中选1张加入手牌，其余放置入休息室。',
+    stepId: INSPECTION_STEP_ID,
+    stepText: '选择要加入手牌的公开卡牌。',
+    inspectionCardIds: cardIds,
+    selectableCardIds: cardIds,
+    metadata: {
+      publicCardSelectionConfirmation: {
+        source: 'REVEALED_INSPECTION',
+        destination: 'HAND',
+        stepText: INSPECTION_CONFIRMATION_TEXT,
+      },
+    },
+  };
+  game = {
+    ...game,
+    inspectionContext: { ownerPlayerId: PLAYER1, sourceZone: ZoneType.MAIN_DECK },
+    inspectionZone: { ...game.inspectionZone, cardIds, revealedCardIds: cardIds },
+    activeEffect: effect,
+  };
+  registerActiveEffectStepHandler(INSPECTION_ABILITY_ID, INSPECTION_STEP_ID, (state, input) => {
+    resolutionCount += 1;
+    const moved = moveInspectedSelectionToHandRestToWaitingRoom(
+      state,
+      PLAYER1,
+      state.activeEffect?.inspectionCardIds ?? [],
+      input.selectedCardId ?? null
+    );
+    return moved ? { ...moved.gameState, activeEffect: null } : state;
+  });
+  const session = createGameSession({ now: () => now });
+  session.createGame('public-inspection-selection-session', PLAYER1, 'P1', PLAYER2, 'P2');
+  (session as unknown as { authorityState: GameState }).authorityState = game;
+  return {
+    game,
+    effect,
+    session,
+    cardIds,
+    getResolutionCount: () => resolutionCount,
+    setNow: (value: number) => {
+      now = value;
+    },
+  };
+}
+
+const INVALID_INSPECTION_CASES = [
+  'private card',
+  'outside current inspection',
+  'missing current inspection',
+  'outside inspection zone',
+  'foreign owner',
+  'foreign context',
+  'missing context',
+] as const;
+
+function invalidateInspectionSelection(
+  game: GameState,
+  effect: ActiveEffectState,
+  cardId: string,
+  invalidation: (typeof INVALID_INSPECTION_CASES)[number]
+): { game: GameState; effect: ActiveEffectState } {
+  switch (invalidation) {
+    case 'private card':
+      return {
+        game: {
+          ...game,
+          inspectionZone: {
+            ...game.inspectionZone,
+            revealedCardIds: game.inspectionZone.revealedCardIds.filter((id) => id !== cardId),
+          },
+        },
+        effect,
+      };
+    case 'outside current inspection':
+      return {
+        game,
+        effect: {
+          ...effect,
+          inspectionCardIds: effect.inspectionCardIds?.filter((id) => id !== cardId),
+        },
+      };
+    case 'missing current inspection':
+      return { game, effect: { ...effect, inspectionCardIds: undefined } };
+    case 'outside inspection zone':
+      return {
+        game: {
+          ...game,
+          inspectionZone: {
+            ...game.inspectionZone,
+            cardIds: game.inspectionZone.cardIds.filter((id) => id !== cardId),
+          },
+        },
+        effect,
+      };
+    case 'foreign owner': {
+      const registry = new Map(game.cardRegistry);
+      registry.set(cardId, { ...registry.get(cardId)!, ownerId: PLAYER2 });
+      return { game: { ...game, cardRegistry: registry }, effect };
+    }
+    case 'foreign context':
+      return {
+        game: {
+          ...game,
+          inspectionContext: { ...game.inspectionContext!, ownerPlayerId: PLAYER2 },
+        },
+        effect,
+      };
+    case 'missing context':
+      return { game: { ...game, inspectionContext: null }, effect };
+  }
 }
 
 function setup(
@@ -302,16 +437,18 @@ describe('public waiting-room card selection confirmation', () => {
     expect(session.state?.resolutionZone.cardIds).toEqual(cardIds);
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
     const expectedObjectIds = cardIds.map(createPublicObjectId);
-    expect(projectPlayerViewState(session.state!, PLAYER1, { now: 10_000 }).activeEffect)
-      .toMatchObject({
-        revealedObjectIds: expectedObjectIds,
-        publicCardSelectionAutoAdvanceAfterMs: 2_300,
-      });
-    expect(projectPlayerViewState(session.state!, PLAYER2, { now: 10_000 }).activeEffect)
-      .toMatchObject({
-        revealedObjectIds: expectedObjectIds,
-        publicCardSelectionAutoAdvanceAfterMs: 2_300,
-      });
+    expect(
+      projectPlayerViewState(session.state!, PLAYER1, { now: 10_000 }).activeEffect
+    ).toMatchObject({
+      revealedObjectIds: expectedObjectIds,
+      publicCardSelectionAutoAdvanceAfterMs: 2_300,
+    });
+    expect(
+      projectPlayerViewState(session.state!, PLAYER2, { now: 10_000 }).activeEffect
+    ).toMatchObject({
+      revealedObjectIds: expectedObjectIds,
+      publicCardSelectionAutoAdvanceAfterMs: 2_300,
+    });
 
     setNow(12_300);
     const advanced = session.executeCommand(
@@ -370,9 +507,8 @@ describe('public waiting-room card selection confirmation', () => {
     const { session, cardIds, setNow } = setup();
     const effectId = session.state!.activeEffect!.id;
     expect(
-      session.executeCommand(
-        createAutoAdvancePublicCardSelectionCommand(PLAYER1, effectId, 12_000)
-      ).success
+      session.executeCommand(createAutoAdvancePublicCardSelectionCommand(PLAYER1, effectId, 12_000))
+        .success
     ).toBe(false);
     const opponentAttempt = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER2, effectId, cardIds[0])
@@ -433,12 +569,11 @@ describe('public waiting-room card selection confirmation', () => {
 
     setNow(12_000);
     expect(
-      session.getPlayerViewState(PLAYER2)?.activeEffect
-        ?.publicCardSelectionAutoAdvanceAfterMs
+      session.getPlayerViewState(PLAYER2)?.activeEffect?.publicCardSelectionAutoAdvanceAfterMs
     ).toBe(0);
-    expect(
-      session.executeCommand(createConfirmEffectStepCommand(PLAYER2, effectId)).success
-    ).toBe(false);
+    expect(session.executeCommand(createConfirmEffectStepCommand(PLAYER2, effectId)).success).toBe(
+      false
+    );
     const confirmed = session.executeCommand(
       createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 12_000)
     );
@@ -540,9 +675,8 @@ describe('public waiting-room card selection confirmation', () => {
     setNow(12_000);
 
     expect(
-      session.executeCommand(
-        createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 12_000)
-      ).success
+      session.executeCommand(createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 12_000))
+        .success
     ).toBe(true);
     expect(session.state?.activeEffect?.stepId).toBe(STEP_ID);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
@@ -589,9 +723,8 @@ describe('public waiting-room card selection confirmation', () => {
     setNow(nextDeadline);
 
     expect(
-      session.executeCommand(
-        createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 12_000)
-      ).success
+      session.executeCommand(createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 12_000))
+        .success
     ).toBe(false);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(cardIds);
     expect(
@@ -601,4 +734,262 @@ describe('public waiting-room card selection confirmation', () => {
     ).toBe(true);
     expect(session.state?.players[0].hand.cardIds).toEqual(cardIds);
   });
+});
+
+describe('public revealed-inspection card selection confirmation', () => {
+  it('preserves a configured step text and retains the default for absent or non-string text', () => {
+    const { game, effect, cardIds } = setupRevealedInspection();
+    const config = getPublicCardSelectionConfirmationConfig(effect);
+    expect(config).toMatchObject({
+      source: 'REVEALED_INSPECTION',
+      destination: 'HAND',
+      stepText: INSPECTION_CONFIRMATION_TEXT,
+    });
+    expect(
+      createPublicCardSelectionConfirmationWindow(
+        game,
+        effect,
+        { selectedCardId: cardIds[0] },
+        config!
+      )?.activeEffect?.stepText
+    ).toBe(INSPECTION_CONFIRMATION_TEXT);
+
+    for (const stepText of [undefined, 17]) {
+      const defaultConfig = getPublicCardSelectionConfirmationConfig({
+        ...effect,
+        metadata: {
+          publicCardSelectionConfirmation: { ...config, stepText },
+        },
+      });
+      expect(defaultConfig?.stepText).toBeUndefined();
+      expect(
+        createPublicCardSelectionConfirmationWindow(
+          game,
+          effect,
+          { selectedCardId: cardIds[0] },
+          defaultConfig!
+        )?.activeEffect?.stepText
+      ).toBe('已选择的卡牌已向双方公开，即将自动加入手牌。');
+    }
+  });
+
+  it.each(INVALID_INSPECTION_CASES)(
+    'rejects a %s before either public-window entry point',
+    (reason) => {
+      const { game, effect, cardIds } = setupRevealedInspection();
+      const invalid = invalidateInspectionSelection(game, effect, cardIds[0], reason);
+      const config = getPublicCardSelectionConfirmationConfig(effect)!;
+      const originalInput = { selectedCardId: cardIds[0] };
+      expect(
+        createPublicCardSelectionConfirmationWindow(
+          invalid.game,
+          invalid.effect,
+          originalInput,
+          config
+        )
+      ).toBeNull();
+      expect(
+        createPublicCardSelectionConfirmationWindowForCardIds(
+          invalid.game,
+          invalid.effect,
+          originalInput,
+          config,
+          [cardIds[0]]
+        )
+      ).toBeNull();
+      expect(invalid.game.players[0].hand.cardIds).toEqual([]);
+      expect(invalid.game.players[0].waitingRoom.cardIds).toEqual([]);
+    }
+  );
+
+  it('requires context and card ownership to match the configured source player', () => {
+    const { game, effect, cardIds } = setupRevealedInspection();
+    const config = {
+      ...getPublicCardSelectionConfirmationConfig(effect)!,
+      sourcePlayerId: PLAYER2,
+    };
+    expect(
+      createPublicCardSelectionConfirmationWindow(
+        game,
+        effect,
+        { selectedCardId: cardIds[0] },
+        config
+      )
+    ).toBeNull();
+
+    const foreign = invalidateInspectionSelection(game, effect, cardIds[0], 'foreign owner');
+    const sourceGame = {
+      ...foreign.game,
+      inspectionContext: { ...game.inspectionContext!, ownerPlayerId: PLAYER2 },
+    };
+    expect(
+      createPublicCardSelectionConfirmationWindow(
+        sourceGame,
+        effect,
+        { selectedCardId: cardIds[0] },
+        config
+      )?.activeEffect?.revealedCardIds
+    ).toEqual([cardIds[0]]);
+  });
+
+  it('retains an explicitly supplied inspection source for revalidation after a direct window', () => {
+    const { game, effect, session, cardIds, setNow, getResolutionCount } =
+      setupRevealedInspection();
+    const originalEffect = { ...effect, metadata: undefined };
+    const window = createPublicCardSelectionConfirmationWindowForCardIds(
+      game,
+      originalEffect,
+      { selectedCardId: cardIds[0] },
+      { source: 'REVEALED_INSPECTION', destination: 'HAND' },
+      [cardIds[0]]
+    )!;
+    const displayed = attachPublicCardSelectionAutoAdvanceDeadline(window, 10_000);
+    (session as unknown as { authorityState: GameState }).authorityState = {
+      ...displayed,
+      inspectionZone: {
+        ...displayed.inspectionZone,
+        revealedCardIds: [cardIds[1]],
+      },
+    };
+    setNow(12_000);
+    const advanced = session.executeCommand(
+      createAutoAdvancePublicCardSelectionCommand(PLAYER2, effect.id, 12_000)
+    );
+    expect(advanced.success, advanced.error).toBe(true);
+    expect(getResolutionCount()).toBe(0);
+    expect(session.state?.activeEffect).toMatchObject({ stepId: INSPECTION_STEP_ID });
+    expect(getPublicCardSelectionConfirmationConfig(session.state!.activeEffect!)?.source).toBe(
+      'REVEALED_INSPECTION'
+    );
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.inspectionZone.cardIds).toEqual(cardIds);
+  });
+
+  it('shows exactly the chosen card to both players before moving, keeps its deadline and merges undo', () => {
+    const { session, cardIds, setNow, getResolutionCount } = setupRevealedInspection();
+    const effectId = session.state!.activeEffect!.id;
+    const selected = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, effectId, cardIds[0])
+    );
+    expect(selected.success, selected.error).toBe(true);
+    const selectionUndo = session.getUndoAvailability(PLAYER1);
+    expect(session.state?.activeEffect).toMatchObject({
+      stepId: PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
+      revealedCardIds: [cardIds[0]],
+      publicCardSelectionAutoAdvanceAt: 12_000,
+      stepText: INSPECTION_CONFIRMATION_TEXT,
+    });
+    expect(session.state?.inspectionZone.cardIds).toEqual(cardIds);
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(getResolutionCount()).toBe(0);
+
+    setNow(11_000);
+    for (const playerId of [PLAYER1, PLAYER2]) {
+      const view = session.getPlayerViewState(playerId)!;
+      expect(view.activeEffect).toMatchObject({
+        revealedObjectIds: [createPublicObjectId(cardIds[0])],
+        publicCardSelectionAutoAdvanceAt: 12_000,
+        publicCardSelectionAutoAdvanceAfterMs: 1_000,
+      });
+      expect(view.objects[createPublicObjectId(cardIds[0])]).toMatchObject({
+        surface: 'FRONT',
+        publiclyRevealed: true,
+      });
+      expect(view.activeEffect?.confirmSelectionLabel).toBeUndefined();
+      expect(
+        session.executeCommand(
+          createAutoAdvancePublicCardSelectionCommand(playerId, effectId, 12_000)
+        ).success
+      ).toBe(false);
+    }
+    expect(getResolutionCount()).toBe(0);
+    setNow(12_000);
+    const advanced = session.executeCommand(
+      createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 12_000)
+    );
+    expect(advanced.success, advanced.error).toBe(true);
+    expect(getResolutionCount()).toBe(1);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([cardIds[0]]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([cardIds[1]]);
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.inspectionContext).toBeNull();
+    expect(
+      session.executeCommand(createAutoAdvancePublicCardSelectionCommand(PLAYER1, effectId, 12_000))
+        .success
+    ).toBe(false);
+    expect(getResolutionCount()).toBe(1);
+
+    const resolvedUndo = session.getUndoAvailability(PLAYER1);
+    expect(resolvedUndo.entry?.undoEntryId).toBe(selectionUndo.entry?.undoEntryId);
+    const undone = session.undoLastStepForPlayer(PLAYER1, resolvedUndo.entry!.undoEntryId);
+    expect(undone.success, undone.error).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({ stepId: INSPECTION_STEP_ID });
+    expect(session.state?.activeEffect?.publicCardSelectionAutoAdvanceAt).toBeUndefined();
+    expect(session.state?.activeEffect?.revealedCardIds).toBeUndefined();
+    expect(session.state?.inspectionZone.cardIds).toEqual(cardIds);
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(
+      session.executeCommand(createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 12_000))
+        .success
+    ).toBe(false);
+  });
+
+  it.each(INVALID_INSPECTION_CASES)(
+    'restores the selection without calling its handler for a %s at deadline',
+    (reason) => {
+      const { session, effect, cardIds, setNow, getResolutionCount } = setupRevealedInspection();
+      expect(
+        session.executeCommand(createConfirmEffectStepCommand(PLAYER1, effect.id, cardIds[0]))
+          .success
+      ).toBe(true);
+      const invalidated = invalidateInspectionSelection(session.state!, effect, cardIds[0], reason);
+      const invalid =
+        reason === 'missing context'
+          ? {
+              ...invalidated,
+              game: {
+                ...invalidated.game,
+                inspectionZone: {
+                  ...invalidated.game.inspectionZone,
+                  cardIds: [],
+                  revealedCardIds: [],
+                },
+              },
+            }
+          : invalidated;
+      const windowEffect = session.state!.activeEffect!;
+      const continuation = windowEffect.metadata!.publicCardSelectionConfirmationContinuation as {
+        readonly originalEffect: ActiveEffectState;
+        readonly originalInput: { readonly selectedCardId: string };
+      };
+      (session as unknown as { authorityState: GameState }).authorityState = {
+        ...invalid.game,
+        activeEffect: {
+          ...windowEffect,
+          metadata: {
+            ...windowEffect.metadata,
+            publicCardSelectionConfirmationContinuation: {
+              ...continuation,
+              originalEffect: invalid.effect,
+            },
+          },
+        },
+      };
+      setNow(12_000);
+      const advanced = session.executeCommand(
+        createAutoAdvancePublicCardSelectionCommand(PLAYER2, effect.id, 12_000)
+      );
+      expect(advanced.success, advanced.error).toBe(true);
+      expect(getResolutionCount()).toBe(0);
+      expect(session.state?.activeEffect).toEqual(invalid.effect);
+      expect(session.state?.activeEffect?.revealedCardIds).toBeUndefined();
+      expect(session.state?.players[0].hand.cardIds).toEqual([]);
+      expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+      expect(session.state?.inspectionZone).toEqual(invalid.game.inspectionZone);
+    }
+  );
 });

@@ -7,6 +7,7 @@ import {
   cardNameMatchesAnyAlias,
   cardsShareUnitIdentity,
   getCardGroupIdentityKeys,
+  getKnownCardGroupIdentityName,
   getCardNameCandidates,
   getCardUnitIdentities,
   getSharedCardUnitIdentity,
@@ -427,5 +428,30 @@ describe('card identity helpers', () => {
         groupName: '蓮ノ空',
       })
     ).toEqual([]);
+  });
+});
+
+
+describe('PYHN-ad2-001 Deep Blue all-zone Aqours identity', () => {
+  it.each(['AD', 'L', 'SEC', 'UNSEEN'])(
+    'all three group queries agree for %s without adding schema fields',
+    (rare) => {
+      const card = { cardCode: `PYHN-ad2-001-${rare}`, name: 'Deep Blue' };
+      expect(cardBelongsToGroup(card, 'Aqours')).toBe(true);
+      expect(cardBelongsToGroup(card, 'ラブライブ！サンシャイン!!')).toBe(true);
+      expect(getCardGroupIdentityKeys(card)).toEqual(['aqours']);
+      expect(getKnownCardGroupIdentityName(card)).toBe('Aqours');
+      expect(cardBelongsToGroup(card, '虹ヶ咲')).toBe(false);
+    }
+  );
+  it('does not grant the identity from a display name or neighboring base number', () => {
+    for (const card of [
+      { name: 'Deep Blue' },
+      { cardCode: 'PYHN-ad2-002-AD', name: 'Deep Blue' },
+    ]) {
+      expect(cardBelongsToGroup(card, 'Aqours')).toBe(false);
+      expect(getCardGroupIdentityKeys(card)).toEqual([]);
+      expect(getKnownCardGroupIdentityName(card)).toBeNull();
+    }
   });
 });

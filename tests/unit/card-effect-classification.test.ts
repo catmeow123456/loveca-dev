@@ -1,3 +1,14 @@
+import {
+  PL_BP8_014_ON_ENTER_BOTTOM_TWO_NO_BLADE_HEART_MUSE_DRAW_ONE_ABILITY_ID,
+  PL_BP8_022_LIVE_SUCCESS_FIVE_YELLOW_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
+  HS_AD2_001_CONTINUOUS_THREE_DIFFERENT_NAMES_GAIN_TWO_BLADE_ABILITY_ID,
+  HS_AD2_001_AUTO_ON_CHEER_TWO_NO_BLADE_HEART_ADDITIONAL_CHEER_ABILITY_ID,
+  HS_AD2_001_LIVE_SUCCESS_MORE_REVEALED_CHEER_DRAW_ONE_ABILITY_ID,
+  PYHN_AD2_001_CONTINUOUS_AQOURS_IDENTITY_ABILITY_ID,
+  PYHN_AD2_001_LIVE_START_DRAW_ONE_PLACE_HAND_TOP_ABILITY_ID,
+  PYHN_AD2_001_LIVE_SUCCESS_TWO_NO_BLADE_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
+import { getNovember02DraftRow, NOVEMBER_02_TARGET_BASES } from '../helpers/november-02-draft-effects';
 import { getOctober31DraftRow, OCTOBER_31_TARGET_BASES } from '../helpers/october-31-draft-effects';
 import november01DraftRows from '../fixtures/november-01-draft-effects.json';
 import {
@@ -17380,4 +17391,101 @@ describe('November 1 Kotori and Ayumu definitions preserve all four authorized p
       }
     }
   );
+});
+
+
+describe('November 02 four-card eight-ability classification', () => {
+  const expected = [
+    {
+      abilityId: PL_BP8_014_ON_ENTER_BOTTOM_TWO_NO_BLADE_HEART_MUSE_DRAW_ONE_ABILITY_ID,
+      base: 'PL!-bp8-014',
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    },
+    {
+      abilityId: PL_BP8_022_LIVE_SUCCESS_FIVE_YELLOW_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
+      base: 'PL!-bp8-022',
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    },
+    {
+      abilityId: HS_AD2_001_CONTINUOUS_THREE_DIFFERENT_NAMES_GAIN_TWO_BLADE_ABILITY_ID,
+      base: 'PL!HS-ad2-001',
+      category: CardAbilityCategory.CONTINUOUS,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: undefined,
+    },
+    {
+      abilityId: HS_AD2_001_AUTO_ON_CHEER_TWO_NO_BLADE_HEART_ADDITIONAL_CHEER_ABILITY_ID,
+      base: 'PL!HS-ad2-001',
+      category: CardAbilityCategory.AUTO,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_CHEER,
+    },
+    {
+      abilityId: HS_AD2_001_LIVE_SUCCESS_MORE_REVEALED_CHEER_DRAW_ONE_ABILITY_ID,
+      base: 'PL!HS-ad2-001',
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    },
+    {
+      abilityId: PYHN_AD2_001_CONTINUOUS_AQOURS_IDENTITY_ABILITY_ID,
+      base: 'PYHN-ad2-001',
+      category: CardAbilityCategory.CONTINUOUS,
+      sourceZone: CardAbilitySourceZone.ANYWHERE,
+      triggerCondition: undefined,
+    },
+    {
+      abilityId: PYHN_AD2_001_LIVE_START_DRAW_ONE_PLACE_HAND_TOP_ABILITY_ID,
+      base: 'PYHN-ad2-001',
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+    },
+    {
+      abilityId: PYHN_AD2_001_LIVE_SUCCESS_TWO_NO_BLADE_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
+      base: 'PYHN-ad2-001',
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    },
+  ];
+  it.each(expected)('$base registers $abilityId with exact timing for all rarities', (item) => {
+    for (const rare of [...VALID_RARITIES, 'UNSEEN']) {
+      const definition = getCardAbilityDefinitions(`${item.base}-${rare}`).find(
+        (candidate) => candidate.abilityId === item.abilityId
+      );
+      expect(definition).toMatchObject({
+        abilityId: item.abilityId,
+        baseCardCodes: [item.base],
+        category: item.category,
+        sourceZone: item.sourceZone,
+        queued: item.category !== CardAbilityCategory.CONTINUOUS,
+        implemented: true,
+      });
+      expect(definition?.cardCodes).toBeUndefined();
+      expect(definition?.triggerCondition).toBe(item.triggerCondition);
+      expect(definition?.activatedUi).toBeUndefined();
+      expect(definition?.perTurnLimit).toBe(
+        item.category === CardAbilityCategory.AUTO ? 1 : undefined
+      );
+    }
+  });
+  it('registers only the eight authorized paragraphs and preserves delegated Rin ownership', () => {
+    const definitions = NOVEMBER_02_TARGET_BASES.flatMap((base) =>
+      getCardAbilityDefinitions(getNovember02DraftRow(base).cardCode)
+    );
+    expect(definitions).toHaveLength(8);
+    expect(new Set(definitions.map((definition) => definition.abilityId)).size).toBe(8);
+    expect(
+      definitions.find(
+        (definition) =>
+          definition.abilityId ===
+          PL_BP8_014_ON_ENTER_BOTTOM_TWO_NO_BLADE_HEART_MUSE_DRAW_ONE_ABILITY_ID
+      )?.delegatedOnEnterFromWaitingRoomPolicy
+    ).toEqual({ decision: 'ALLOW', reason: 'SOURCE_INDEPENDENT' });
+  });
 });
