@@ -28,6 +28,7 @@ import { HomePage } from '@/components/pages/HomePage';
 import { LegalPage } from '@/components/pages/LegalPage';
 import { PublicHomePage } from '@/components/pages/PublicHomePage';
 import { ServiceStatusPage } from '@/components/pages/ServiceStatusPage';
+import { StartupUpdateCheck } from '@/components/common/StartupUpdateCheck';
 import { resolveLegalDocumentPath } from '@/lib/legalPages';
 import {
   LoginPage,
@@ -2061,6 +2062,7 @@ function StartupErrorPage({
             {copyState === 'copied' ? '诊断已复制' : '复制诊断'}
           </button>
         </div>
+        <StartupUpdateCheck />
         {copyState === 'manual' && (
           <textarea
             aria-label="诊断信息"

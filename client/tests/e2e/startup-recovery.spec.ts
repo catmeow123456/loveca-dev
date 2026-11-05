@@ -170,3 +170,51 @@ test('完整但无效的卡池不自动循环重试，游客可继续浏览并�
   await expect.poll(() => calls).toBe(2);
   await expect(page.getByRole('button', { name: '重试加载卡牌' })).toHaveCount(0);
 });
+
+test('启动失败时可重新唤起暂缓的版本更新，检查失败不刷新或清空页面', async ({ page }, testInfo) => {
+  await installVisualApiMocks(page, true);
+  let documents = 0;
+  page.on('request', (request) => {
+    if (request.resourceType() === 'document') documents++;
+  });
+  await page.addInitScript(() => {
+    sessionStorage.setItem('loveca.app.update.deferred-build', 'recovery-next-build');
+    localStorage.setItem('loveca.local-decks.v1', 'preserved-decks');
+  });
+  let versionAvailable = false;
+  await page.route('**/version.json?*', (route) =>
+    versionAvailable
+      ? route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ buildId: 'recovery-next-build' }),
+        })
+      : route.fulfill({ status: 503, body: 'unavailable' })
+  );
+  await page.route('**/api/cards/published', (route) =>
+    route.fulfill({ status: 503, body: 'unavailable' })
+  );
+  await page.goto('/?page=deck-manager');
+  await expect(page.getByRole('heading', { name: '服务暂时不可用' })).toBeVisible();
+  await page.getByRole('button', { name: '检查版本更新', exact: true }).click();
+  await expect(
+    page.getByText('暂时无法检查版本，请检查网络后重试。', { exact: true })
+  ).toBeVisible();
+  expect(documents).toBe(1);
+  expect(
+    await page.evaluate(() => sessionStorage.getItem('loveca.app.update.deferred-build'))
+  ).toBe('recovery-next-build');
+  versionAvailable = true;
+  await page.getByRole('button', { name: '检查版本更新', exact: true }).click();
+  await expect(page.getByRole('button', { name: '立即更新', exact: true })).toBeVisible();
+  await expect(page.getByText('发现新版，请通过更新提示完成升级。', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '立即更新', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  expect(documents).toBe(1);
+  expect(await page.evaluate(() => localStorage.getItem('loveca.local-decks.v1'))).toBe(
+    'preserved-decks'
+  );
+  await page.screenshot({
+    path: testInfo.outputPath('startup-update-confirm.png'),
+    fullPage: true,
+  });
+});

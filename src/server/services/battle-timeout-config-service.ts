@@ -19,7 +19,7 @@ import { pool } from '../db/pool.js';
 
 const SITE_STATUS_CONFIG_ID = 'default';
 
-interface BattleTimeoutConfigRow {
+export interface BattleTimeoutConfigRow {
   readonly player_action_timeout_seconds: number;
   readonly reconnect_grace_period_seconds: number;
   readonly double_disconnect_no_contest_window_seconds: number;
@@ -175,7 +175,8 @@ function validateConfig(input: AdminBattleTimeoutSettings): void {
   }
   if (
     !Number.isInteger(battle.doubleDisconnectNoContestWindowSeconds) ||
-    battle.doubleDisconnectNoContestWindowSeconds < DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_SECONDS_MIN ||
+    battle.doubleDisconnectNoContestWindowSeconds <
+      DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_SECONDS_MIN ||
     battle.doubleDisconnectNoContestWindowSeconds > DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_SECONDS_MAX
   ) {
     throw new BattleTimeoutConfigServiceError(
@@ -220,7 +221,7 @@ function validateConfig(input: AdminBattleTimeoutSettings): void {
   }
 }
 
-function mapBattleTimeoutRow(row: BattleTimeoutConfigRow | undefined): BattleTimeoutConfig {
+export function mapBattleTimeoutRow(row: BattleTimeoutConfigRow | undefined): BattleTimeoutConfig {
   return row
     ? {
         playerActionTimeoutSeconds: row.player_action_timeout_seconds,
@@ -230,7 +231,9 @@ function mapBattleTimeoutRow(row: BattleTimeoutConfigRow | undefined): BattleTim
     : DEFAULT_BATTLE_TIMEOUT_CONFIG;
 }
 
-function mapRoomLifecycleRow(row: RoomLifecycleTimeoutConfigRow | undefined): RoomLifecycleTimeoutConfig {
+function mapRoomLifecycleRow(
+  row: RoomLifecycleTimeoutConfigRow | undefined
+): RoomLifecycleTimeoutConfig {
   return row
     ? {
         roomDestroyAfterAllAbsentSeconds: row.room_destroy_after_all_absent_seconds,

@@ -1,29 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Request, Response } from 'express';
 
+const mocks = vi.hoisted(() => ({ startupConfig: vi.fn(), catalog: vi.fn() }));
+
 vi.mock('../../src/server/services/site-announcement-service.js', () => ({
   siteAnnouncementService: {
-    getPublicSiteStatus: vi.fn(),
-    getPlayerBattleEntryVisibility: vi.fn(),
+    getPublicStartupConfig: mocks.startupConfig,
   },
 }));
 
 vi.mock('../../src/server/services/match-emote-catalog-service.js', () => ({
   matchEmoteCatalogService: {
-    getPublicCatalog: vi.fn(),
-  },
-}));
-
-vi.mock('../../src/server/services/battle-timeout-config-service.js', () => ({
-  battleTimeoutConfigService: {
-    getConfig: vi.fn(),
+    getPublicCatalog: mocks.catalog,
   },
 }));
 
 import { appConfigRouter } from '../../src/server/routes/app-config';
-import { siteAnnouncementService } from '../../src/server/services/site-announcement-service';
-import { matchEmoteCatalogService } from '../../src/server/services/match-emote-catalog-service';
-import { battleTimeoutConfigService } from '../../src/server/services/battle-timeout-config-service';
 
 function createMockResponse() {
   const headers = new Map<string, string>();
@@ -56,7 +48,9 @@ function createMockResponse() {
 function findRouteHandler(path: string, method: 'get') {
   const layer = appConfigRouter.stack.find(
     (candidate) =>
-      'route' in candidate && candidate.route?.path === path && candidate.route.methods[method]
+      'route' in candidate &&
+      candidate.route?.path === path &&
+      candidate.route.stack.some((handler) => handler.method === method)
   );
   if (!layer?.route) {
     throw new Error(`Route not found: ${method.toUpperCase()} ${path}`);
@@ -84,24 +78,23 @@ describe('appConfigRouter', () => {
   });
 
   it('returns public config with no-store cache control', async () => {
-    vi.mocked(siteAnnouncementService.getPublicSiteStatus).mockResolvedValue({
-      lifecycle: 'NORMAL',
-      generatedAt: '2026-07-08T08:00:00.000Z',
-      maintenance: null,
-      announcements: [],
+    mocks.startupConfig.mockResolvedValue({
+      siteStatus: {
+        lifecycle: 'NORMAL',
+        generatedAt: '2026-07-08T08:00:00.000Z',
+        maintenance: null,
+        announcements: [],
+      },
+      battleEntries: { ranked: true, themeTable: false },
+      battleTimeouts: {
+        playerActionTimeoutSeconds: 240,
+        reconnectGracePeriodSeconds: 90,
+        doubleDisconnectNoContestWindowSeconds: 10,
+      },
     });
-    vi.mocked(matchEmoteCatalogService.getPublicCatalog).mockResolvedValue({
+    mocks.catalog.mockResolvedValue({
       version: '00000000-0000-4000-8000-000000000201',
       items: [],
-    });
-    vi.mocked(siteAnnouncementService.getPlayerBattleEntryVisibility).mockResolvedValue({
-      ranked: true,
-      themeTable: false,
-    });
-    vi.mocked(battleTimeoutConfigService.getConfig).mockResolvedValue({
-      playerActionTimeoutSeconds: 240,
-      reconnectGracePeriodSeconds: 90,
-      doubleDisconnectNoContestWindowSeconds: 10,
     });
 
     const response = await invokeRoute('/', 'get');

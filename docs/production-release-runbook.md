@@ -165,3 +165,24 @@ curl -fsS http://127.0.0.1:4173/manifest.webmanifest >/dev/null
 - 执行过的迁移与一次性脚本及结果。
 - API、前端、域名和业务 smoke 结果。
 - 任何 hotfix、失败、回滚或遗留事项。
+
+## 9. 启动请求诊断日志
+
+仓库 [`loveca.conf`](../loveca.conf) 保留原访问日志，另将已发布卡池、公开配置、站点快照和登录恢复请求写入 `/var/log/nginx/loveca.startup-diagnostic.log`（逐行 JSON）。生产配置同步并通过 `nginx -t` 后，需要 reload 才开始记录；历史日志无法补出耗时。`map` 和 `log_format` 必须由 `http` 块加载，不能放在 `server` 块内。配置备份应放在 `/etc/nginx/sites-enabled/` 之外，避免被通配 include 加载。
+
+卡池采样包含当前 `GET /api/cards/published`，以及用于观察旧页面残留请求的 `GET /api/cards?status=PUBLISHED`。发布时核对实际客户端路径与采样规则同步；旧接口的 404 不代表新卡池故障，也不能因旧接口不再出现而认定新接口没有下载中断。接入新规则前，普通访问日志只有状态与字节数，无法补出历史请求耗时或完成状态。
+
+日志记录来源 IP、路径、状态、发送字节数、请求总耗时、上游连接/首包/响应耗时、上游响应长度、压缩协商、请求完成状态及请求 ID。新日志不记录查询串、Cookie、Authorization 或请求/响应正文。确认主机的 logrotate 规则覆盖 `/var/log/nginx/*.log`；本机现有规则按天轮转，保留 14 份。
+
+分析时结合以下字段，不能仅以 HTTP `200` 判断浏览器加载成功：
+
+- `request_completion` 为 `OK` 表示 Nginx 侧请求完成，空字符串表示未完成；它不能证明浏览器已成功解压、解析或渲染。
+- `request_time` 与 `upstream_response_time` 对照可帮助定位等待阶段，但总耗时与上游耗时的差值不是精确的网络下载耗时，代理缓冲和并行收发也会影响它。
+- `body_bytes_sent` 是发往客户端的正文大小；开启 gzip 时，不能直接与未压缩的 `upstream_response_length` 比较。应同时看 `content_encoding`、`gzip_ratio` 和同期同一卡池的正常响应。
+- 连续出现接近前端超时预算的未完成请求，且上游耗时较短，才支持客户端等待超时或传输问题的判断；立即刷新、页面关闭也可能产生未完成请求。来源 IP 的注册地区与运营商不能确认具体用户、物理位置或 Wi-Fi/移动网络类型。
+
+变更日志配置时先检查配置并验证正常请求、客户端中断与非采样路径，再按当次授权 reload。新增日志仅用于定位问题，不改变 API 超时、重试、压缩或业务行为。
+
+服务端 `api-runtime-stats` 记录连接池总数、空闲数、等待数，以及本统计周期的事件循环延迟（毫秒，mean/p99/max）；`api-request-error` 补充错误请求 ID 与当时的相同指标。事件循环未取得样本时为 `null`，错误记录不重置统计周期。
+
+公开配置的站点设置查询与登录续期的连接获取使用 `startup-database-operation`：仅失败或耗时达到 1 秒时记录，区分 `acquire`（等待/建立数据库连接）与 `query`（已获连接后的执行）。登录续期当前只采集 `acquire`；它的事务及加密耗时仍需结合请求总耗时调查。记录包含请求 ID、阶段耗时、结果和运行指标，不包含 SQL、查询参数、Cookie、令牌或连接串。通过 `upstream_request_id` 与 Nginx 记录关联；这些指标用于定位等待阶段，不能单凭一次连接超时断言连接泄漏或直接提高连接池上限。

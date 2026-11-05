@@ -140,7 +140,11 @@ export class AppUpdateCoordinator {
     });
   }
 
-  async checkVersionManifest(fetcher: VersionFetcher = fetch): Promise<void> {
+  async checkVersionManifest(
+    fetcher: VersionFetcher = fetch,
+    options: { readonly manual?: boolean } = {}
+  ): Promise<'available' | 'current' | 'failed' | 'busy'> {
+    if (this.state.status === 'PREPARING' || this.state.status === 'APPLYING') return 'busy';
     const previousStatus = this.state.status;
     if (previousStatus === 'IDLE') {
       this.setState({ ...this.state, status: 'CHECKING' });
@@ -165,16 +169,33 @@ export class AppUpdateCoordinator {
       }
 
       const latestBuildId = payload.buildId.trim();
+      // The user may have started applying an update while the manifest was in flight.
+      if (['PREPARING', 'APPLYING'].includes(this.getState().status)) return 'busy';
+      // An explicit check from a failure page must reopen a previously deferred
+      // update. Background checks continue to respect the user's deferral.
+      if (options.manual) {
+        this.writeDeferredBuildId('');
+        this.setState({ ...this.state, deferredBuildId: null });
+      }
       if (latestBuildId !== this.state.currentBuildId) {
         this.markUpdateAvailable({ latestBuildId });
-      } else if (this.state.status === 'CHECKING') {
+      } else if (this.state.status === 'CHECKING' || options.manual) {
         this.setState({ ...this.state, status: 'IDLE', latestBuildId, error: null });
       }
+      if (options.manual && (this.state.waitingWorkerAvailable || this.workerAlreadyControlsPage)) {
+        this.markUpdateAvailable({ latestBuildId });
+      }
+      return latestBuildId !== this.state.currentBuildId ||
+        this.state.waitingWorkerAvailable ||
+        this.workerAlreadyControlsPage
+        ? 'available'
+        : 'current';
     } catch (error) {
       this.warn('[version] background version check failed:', error);
       if (this.state.status === 'CHECKING') {
         this.setState({ ...this.state, status: 'IDLE' });
       }
+      return 'failed';
     } finally {
       globalThis.clearTimeout(timeoutId);
     }

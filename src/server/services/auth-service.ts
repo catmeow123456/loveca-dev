@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { config } from '../config.js';
 import { pool } from '../db/pool.js';
+import { connectWithDiagnostics } from '../db/diagnostics.js';
 import {
   CURRENT_PASSWORD_HASH_PREFIX,
   readCurrentBcryptHash,
@@ -152,7 +153,7 @@ export async function rotateRefreshToken(
   tokenId: string,
   rawToken: string
 ): Promise<RotatedRefreshToken | null> {
-  const client = await pool.connect();
+  const client = await connectWithDiagnostics('auth-refresh');
   try {
     await client.query('BEGIN');
     const matched = await findLockedRefreshToken(client, tokenId, rawToken);

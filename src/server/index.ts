@@ -2,6 +2,12 @@ import { readLocalCodexConfig } from './ai-battle/local-codex-config.js';
 import { assertSecurityConfiguration, config } from './config.js';
 import { createApp } from './app.js';
 import { pool } from './db/pool.js';
+import {
+  readRuntimeDiagnostics,
+  resetRuntimeDiagnosticsWindow,
+  startRuntimeDiagnostics,
+  stopRuntimeDiagnostics,
+} from './runtime-diagnostics.js';
 import { ensureBucket, ensurePrivateWallpaperBucket } from './services/minio-service.js';
 import { onlineMatchService } from './services/online-match-service.js';
 import { onlineRoomService } from './services/online-room-service.js';
@@ -63,9 +69,11 @@ function logRuntimeStats() {
       JSON.stringify({
         event: 'api-runtime-stats',
         memory: process.memoryUsage(),
+        ...readRuntimeDiagnostics(),
         matches: onlineMatchService.getRuntimeStats(),
       })
     );
+    resetRuntimeDiagnosticsWindow();
   } catch (err) {
     console.error('Runtime stats logging failed:', err);
   }
@@ -74,6 +82,7 @@ function logRuntimeStats() {
 async function main() {
   readLocalCodexConfig();
   assertSecurityConfiguration();
+  startRuntimeDiagnostics();
 
   // Verify database connection
   try {
@@ -106,6 +115,7 @@ async function main() {
     console.log(`API server listening on port ${config.port} (${config.nodeEnv})`);
   });
   server.on('close', () => {
+    stopRuntimeDiagnostics();
     cardSyncWorker.stop();
     deckClassificationWorker.stop();
   });

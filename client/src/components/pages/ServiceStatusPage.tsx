@@ -1,5 +1,6 @@
 import { useTextPresentation } from '@/lib/appPresentation';
 import { useState } from 'react';
+import { StartupUpdateCheck } from '@/components/common/StartupUpdateCheck';
 import { RefreshCw, ShieldCheck } from 'lucide-react';
 import type { PublicSiteMaintenanceStatus } from '@/lib/appConfig';
 import './service-status-page.css';
@@ -52,6 +53,7 @@ export function ServiceStatusPage({
         <button onClick={checkStatus} disabled={retrying}>
           {retrying ? '正在检查…' : '重新连接'}
         </button>
+        {!isMaintenance && <StartupUpdateCheck />}
       </main>
     );
   return (
@@ -96,6 +98,8 @@ export function ServiceStatusPage({
             运营入口
           </button>
         </div>
+
+        {!isMaintenance && <StartupUpdateCheck />}
 
         {adminMessage ? (
           <div className="service-status-check" role="status">

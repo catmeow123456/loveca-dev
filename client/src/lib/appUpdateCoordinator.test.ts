@@ -26,6 +26,58 @@ function createCoordinator() {
 }
 
 describe('AppUpdateCoordinator', () => {
+  it('reopens a deferred update only after a successful explicit check, without reloading', async () => {
+    const { coordinator, reload } = createCoordinator();
+    const fetcher = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ buildId: 'build-new' }),
+    }));
+    coordinator.markUpdateAvailable({ latestBuildId: 'build-new' });
+    coordinator.deferCurrentUpdate();
+    await coordinator.checkVersionManifest(fetcher);
+    expect(coordinator.getState().status).toBe('IDLE');
+    await expect(coordinator.checkVersionManifest(fetcher, { manual: true })).resolves.toBe(
+      'available'
+    );
+    expect(coordinator.getState()).toMatchObject({ status: 'AVAILABLE', deferredBuildId: null });
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed explicit check without applying stale update information', async () => {
+    const { coordinator, reload } = createCoordinator();
+    coordinator.markUpdateAvailable({ latestBuildId: 'build-new' });
+    coordinator.deferCurrentUpdate();
+    await expect(
+      coordinator.checkVersionManifest(
+        vi.fn(async () => {
+          throw new Error('offline');
+        }),
+        { manual: true }
+      )
+    ).resolves.toBe('failed');
+    expect(coordinator.getState()).toMatchObject({ status: 'IDLE', deferredBuildId: 'build-new' });
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('keeps the active-match guard when a manual check reopens an update', async () => {
+    const { coordinator, reload } = createCoordinator();
+    const prepareUpdate = vi.fn(async () => 'reload' as const);
+    coordinator.setServiceWorkerActions({ prepareUpdate, applyWaitingWorker: vi.fn() });
+    coordinator.setCanApplyUpdateNow(() => false);
+    await coordinator.checkVersionManifest(
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ buildId: 'build-new' }),
+      })),
+      { manual: true }
+    );
+    await expect(coordinator.applyCurrentUpdate()).resolves.toBe(false);
+    expect(prepareUpdate).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
   it('marks a different version manifest as available without navigating', async () => {
     const { coordinator, reload } = createCoordinator();
 

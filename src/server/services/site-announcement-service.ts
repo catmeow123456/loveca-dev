@@ -1,4 +1,9 @@
 import { pool } from '../db/pool.js';
+import { queryWithDiagnostics } from '../db/diagnostics.js';
+import {
+  mapBattleTimeoutRow,
+  type BattleTimeoutConfigRow,
+} from './battle-timeout-config-service.js';
 import {
   SITE_ANNOUNCEMENT_TYPES,
   SITE_STATUS_LIFECYCLES,
@@ -80,7 +85,7 @@ interface SiteAnnouncementRow {
   updated_at: Date | string;
 }
 
-interface SiteStatusConfigRow {
+interface SiteStatusConfigRow extends BattleTimeoutConfigRow {
   id: string;
   lifecycle: SiteStatusLifecycle;
   title: string | null;
@@ -118,6 +123,33 @@ export class SiteAnnouncementServiceError extends Error {
 export class SiteAnnouncementService {
   async getPublicSiteStatus(now: Date = new Date()): Promise<PublicSiteStatus> {
     const configuredStatus = await this.getConfiguredSiteStatus(now);
+    return this.withPublicAnnouncements(configuredStatus, now);
+  }
+
+  // These three public projections share one authoritative row. Read it once
+  // per request, without retaining stale maintenance or gameplay settings.
+  async getPublicStartupConfig(now: Date = new Date()) {
+    const { rows } = await queryWithDiagnostics<SiteStatusConfigRow>(
+      'startup-config',
+      'SELECT * FROM site_status_config WHERE id = $1 LIMIT 1',
+      [SITE_STATUS_CONFIG_ID]
+    );
+    const row = rows[0];
+    const configuredStatus = row ? mapSiteStatusConfigRow(row, now) : buildNormalSiteStatus(now);
+    return {
+      siteStatus: await this.withPublicAnnouncements(configuredStatus, now),
+      battleEntries: {
+        ranked: row?.ranked_entry_visible ?? true,
+        themeTable: row?.theme_table_entry_visible ?? true,
+      },
+      battleTimeouts: mapBattleTimeoutRow(row),
+    };
+  }
+
+  private async withPublicAnnouncements(
+    configuredStatus: PublicSiteStatus,
+    now: Date
+  ): Promise<PublicSiteStatus> {
     try {
       const announcements = await this.listPublicAnnouncements(now);
       return {
