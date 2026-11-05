@@ -1,5 +1,15 @@
 # Workflow Module Guide
 
+## 2026-11-04 状态连动、弃手回收与同费用登场
+
+`PL!-bp8-020` 分数1「蓝莓♡小火车」由 `cards/pl-bp8-020-buruberi-torein.ts` 编排强制活跃己方待机南琴梨，再强制待机对方有效费用≤4的成员。复用结构化名称、舞台方向选择、活跃禁止／待机保护、目标生命周期与状态事件；只有第一步真实改变方向才进入第二步。后一步无目标保留前一步，两个步骤产生的新能力等整段完成再结算；来源LIVE离区不取消已诱发的独立成员动作。与现有单步活跃／待机 family 仅共享原语，不为这一张卡扩展通用条件步骤。
+
+`PL!HS-bp8-016` 费用2「桂城泉」扩展 `shared/discard-cost-recover-live-or-gain-blade.ts` 的诱发弃手回收LIVE子族，增加默认1的 `discardCount`，本卡配置为2。精确数量和整批目标校验先于一次弃手移动及事件，付款后才重扫自己的休息室；刚弃入的莲之空分数≤3 LIVE可回收，没有目标不退款。沿用公开选择确认、到期重验和统一continuation；旧弃1手牌的输入、日志与条件保持原语义。
+
+`PL!HS-bp8-021` 分数2「Mira-Creation」由 `cards/hs-bp8-021-mira-creation.ts` 编排可选舞台成员回手、私密同费用手牌选择和空槽登场。返回对象使用离场前有效费用快照，手牌候选用 `getHandMemberEffectiveCost` 读取当前费用，不读印刷费用或登场支付费用。`PL!HS-bp6-006` 费用20「安养寺姬芽」回手后若仍有其他Mira-Cra Park!成员，手牌费用变为18／16，不能按原舞台20费再次入选；无其他同组成员时可同卡重登。隐藏区域的条件选牌可选择不登场，已发生的回手不回滚；有无合格手牌均打开同一私密窗口，避免对手从步骤有无推断手牌条件。
+
+`runtime/return-stage-member-to-hand.ts` 仅处理真实顶层成员回手动作、最终信息、旧实例状态清理和精确离场／入手／下方成员入休息室事件。按用户2026-11-04明确约定，下方成员随上方离场立即进休息室，下方能量立即回能量卡组，同槽重登也不继承；该约定不是已确认的官方同槽继承裁定，不据此扩展全局检查时点规则。下方能量移动不伪造 `ENERGY_ZONE -> ENERGY_DECK` 事件。登场复用 `playMemberFromZoneToEmptySlot`，派发真实 `enterStageEvents` 并传 `onEnterSources: []`，仅禁止该次自身【登场】能力，其他舞台AUTO仍正常入队。无需新增持久抑制字段，runner仅作新workflow注册。
+
 ## 2026-11-02 声援条件与来源 LIVE 分数
 
 `shared/live-success-cheer-condition-source-score.ts` 由 `PL!-bp8-022` 分数3「Hello，细数繁星」与 `PYHN-ad2-001` 分数6「Deep Blue」两条成功段证明。固定流程为无交互 LIVE_SUCCESS、实时统计本次声援公开卡、达到门槛时给予来源 LIVE 分数+1、统一 continuation；有限配置为能力/基础编号、`HEART_COLOR` 或 `NO_BLADE_HEART` 条件、门槛与计数说明。按实体卡计数而非图标数量，使用有效判心和包含已移走卡的历史公开事实，已发生的追加声援参与计数。捕获 pending 对应的来源生命周期，只有原正面 LIVE 仍有效才调用 `replaceSourceLiveCardScoreModifierAndRefresh`；无效旧来源不清除重登新对象的奖励。此 family 不接玩家合计分数，也未迁移其他旧卡。

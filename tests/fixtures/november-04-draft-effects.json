@@ -1,0 +1,162 @@
+{
+  "PL!-bp8-020-L": {
+    "cardCode": "PL!-bp8-020-L",
+    "cardType": "LIVE",
+    "nameJp": "ぶる〜べりぃ♡とれいん",
+    "nameCn": "蓝莓♡小火车",
+    "workNames": null,
+    "groupNames": ["μ’s"],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "SCORE"
+      }
+    ],
+    "score": 1,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 1
+      }
+    ],
+    "cardTextJp": "【ライブ開始時】自分のステージにいるウェイト状態の「南ことり」１人をアクティブにする。そうしたとき、相手のステージにいるコスト４以下のメンバー１人をウェイトにする。",
+    "cardTextCn": "【LIVE开始时】将存在于自己的舞台的１名待机状态的「南琴梨（南小鸟）」变为活跃状态。如此做时，将存在于对方的舞台的１名费用小于等于４的成员变为待机状态。",
+    "rare": "L",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "sync-8de60ac4e7fb900d423b8714"
+    },
+    "status": "DRAFT"
+  },
+  "PL!HS-bp8-016-N": {
+    "cardCode": "PL!HS-bp8-016-N",
+    "cardType": "MEMBER",
+    "nameJp": "桂城泉",
+    "nameCn": "桂城泉",
+    "workNames": null,
+    "groupNames": ["蓮ノ空"],
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【ライブ成功時】手札を2枚控え室に置いてもよい：自分の控え室からスコア３以下の『蓮ノ空』のライブカードを１枚手札に加える。",
+    "cardTextCn": "【LIVE成功时】可以将２张手牌放置入休息室：从自己的休息室将１张分数小于等于３的『莲之空』的LIVE卡加入手牌。",
+    "rare": "N",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "sync-7802af3177854d50fbcea131"
+    },
+    "status": "DRAFT"
+  },
+  "PL!HS-bp8-021-SECL": {
+    "cardCode": "PL!HS-bp8-021-SECL",
+    "cardType": "LIVE",
+    "nameJp": "みらくりえーしょん",
+    "nameCn": "Mira-Creation",
+    "workNames": null,
+    "groupNames": ["蓮ノ空"],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 2,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 3
+      },
+      {
+        "color": "RAINBOW",
+        "count": 2
+      }
+    ],
+    "cardTextJp": "【ライブ開始時】自分のステージにいる『みらくらぱーく!』のメンバー１人を手札に戻してもよい。そうしたとき、自分の手札から、これにより手札に戻したメンバーと同じコストを持つ『みらくらぱーく!』のメンバーカード１枚を、自分のステージのメンバーのいないエリアに登場させる。これにより登場したメンバーの【登場】能力は発動しない。",
+    "cardTextCn": "【LIVE开始时】可以将存在于自己的舞台的１名『Mira-Cra Park!』的成员放回手牌。如此做时，从自己的手牌，将１张与因此放回手牌的成员持有相同费用的『Mira-Cra Park!』的成员卡，登场至自己的舞台上不存在成员的区域。因此登场的成员的【登场】能力不会发动。",
+    "rare": "SECL",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "sync-78216b18e73f54e7a7736f94"
+    },
+    "status": "DRAFT"
+  },
+  "PL!HS-bp6-006-P": {
+    "cardCode": "PL!HS-bp6-006-P",
+    "cardType": "MEMBER",
+    "nameJp": "安養寺 姫芽",
+    "nameCn": "安养寺姬芽",
+    "workNames": ["蓮ノ空女学院スクールアイドルクラブ"],
+    "groupNames": ["蓮ノ空"],
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cost": 20,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 6
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【常時】手札にあるこのメンバーカードのコストは、自分のステージにいる『みらくらぱーく!』のメンバー1人につき、2少なくなる。\n\n【常時】このメンバーは『みらくらぱーく!』以外のメンバカードとのバトンタッチで控え室に置けない。\n\n【ライブ成功時】このメンバをウェイトにし、次のターンのアクティブフェイズにアクティブしない。",
+    "cardTextCn": "【常时】自己的舞台每存在1名『Mira-Cra Park!』的成员，手牌的此成员卡的费用，减少2。\n\n【常时】此成员无法因与『Mira-Cra Park!』以外的成员卡的换手放置入休息室。\n\n【LIVE成功时】将此成员变为待机状态，此成员在下个回合的活跃阶段不会变为活跃状态。",
+    "rare": "P",
+    "sourceFlags": {
+      "fieldConflict": true
+    },
+    "status": "PUBLISHED"
+  }
+}

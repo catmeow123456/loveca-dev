@@ -2228,3 +2228,10 @@ export const PYHN_AD2_001_LIVE_START_DRAW_ONE_PLACE_HAND_TOP_ABILITY_ID =
   'PYHN-ad2-001:live-start-draw-one-place-hand-top';
 export const PYHN_AD2_001_LIVE_SUCCESS_TWO_NO_BLADE_CHEER_THIS_LIVE_SCORE_ABILITY_ID =
   'PYHN-ad2-001:live-success-two-no-blade-cheer-this-live-score';
+
+export const PL_BP8_020_LIVE_START_ACTIVATE_KOTORI_WAIT_OPPONENT_ABILITY_ID =
+  'PL!-bp8-020:live-start-activate-kotori-wait-opponent';
+export const HS_BP8_016_LIVE_SUCCESS_DISCARD_TWO_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID =
+  'PL!HS-bp8-016:live-success-discard-two-recover-low-score-hasunosora-live';
+export const HS_BP8_021_LIVE_START_RETURN_MIRACRA_MEMBER_PLAY_SAME_COST_ABILITY_ID =
+  'PL!HS-bp8-021:live-start-return-miracra-member-play-same-cost';

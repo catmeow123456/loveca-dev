@@ -1,4 +1,9 @@
 import {
+  PL_BP8_020_LIVE_START_ACTIVATE_KOTORI_WAIT_OPPONENT_ABILITY_ID,
+  HS_BP8_016_LIVE_SUCCESS_DISCARD_TWO_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID,
+  HS_BP8_021_LIVE_START_RETURN_MIRACRA_MEMBER_PLAY_SAME_COST_ABILITY_ID,
+} from '../ability-ids.js';
+import {
   PL_BP8_014_ON_ENTER_BOTTOM_TWO_NO_BLADE_HEART_MUSE_DRAW_ONE_ABILITY_ID,
   PL_BP8_022_LIVE_SUCCESS_FIVE_YELLOW_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
   HS_AD2_001_CONTINUOUS_THREE_DIFFERENT_NAMES_GAIN_TWO_BLADE_ABILITY_ID,
@@ -3099,6 +3104,45 @@ const N_BP8_001_LIVE_SUCCESS_RETURN_ONE_ENERGY_BELOW_DRAW_DISCARD_EFFECT_TEXT =
   '【LIVE成功时】可以将存在于自己的舞台的１名成员的下方的１张能量卡，以待机状态放置于自己的能量区。如此做时，抽１张卡，将１张手牌放置入休息室。';
 
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
+  {
+    abilityId: PL_BP8_020_LIVE_START_ACTIVATE_KOTORI_WAIT_OPPONENT_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-020'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE开始时】将存在于自己的舞台的１名待机状态的「南琴梨（南小鸟）」变为活跃状态。如此做时，将存在于对方的舞台的１名费用小于等于４的成员变为待机状态。',
+    notes:
+      '单卡 workflow；选择并活跃己方待机的南琴梨，成功后使对方有效费用不超过4的一名可被待机的成员进入待机状态。',
+  },
+  {
+    abilityId: HS_BP8_016_LIVE_SUCCESS_DISCARD_TWO_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp8-016'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE成功时】可以将２张手牌放置入休息室：从自己的休息室将１张分数小于等于３的『莲之空』的LIVE卡加入手牌。',
+    notes:
+      '复用弃手费用后回收 LIVE 的 shared workflow；可选弃两张手牌，支付后从己方休息室强制回收1张印刷分数不超过3的莲之空 LIVE。',
+  },
+  {
+    abilityId: HS_BP8_021_LIVE_START_RETURN_MIRACRA_MEMBER_PLAY_SAME_COST_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp8-021'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE开始时】可以将存在于自己的舞台的１名『Mira-Cra Park!』的成员放回手牌。如此做时，从自己的手牌，将１张与因此放回手牌的成员持有相同费用的『Mira-Cra Park!』的成员卡，登场至自己的舞台上不存在成员的区域。因此登场的成员的【登场】能力不会发动。',
+    notes:
+      '单卡 workflow；记录所选成员回手前的舞台有效费用，离场时立即清理下方牌。按回手后的实际手牌费用匹配成员，在己方空槽登场且免除该次登场能力。',
+  },
   {
     abilityId: PL_BP8_014_ON_ENTER_BOTTOM_TWO_NO_BLADE_HEART_MUSE_DRAW_ONE_ABILITY_ID,
     baseCardCodes: ['PL!-bp8-014'],
