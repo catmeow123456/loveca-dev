@@ -1,4 +1,4 @@
-import { getBaseCardCode, normalizeCardCode } from '../../../shared/utils/card-code.js';
+import { getBaseCardCode } from '../../../shared/utils/card-code.js';
 import type { SlotPosition, TriggerCondition } from '../../../shared/types/enums.js';
 import type {
   CardAbilityCategory,
@@ -8,27 +8,15 @@ import type {
 import { CARD_ABILITY_DEFINITIONS } from './index.js';
 
 const definitionsByAbilityId = new Map<string, CardAbilityDefinition>();
-const definitionsByExactCardCode = new Map<string, CardAbilityDefinition[]>();
 const definitionsByBaseCardCode = new Map<string, CardAbilityDefinition[]>();
-const definitionOrder = new Map<CardAbilityDefinition, number>();
-const exactCardCodeSetsByDefinition = new Map<CardAbilityDefinition, ReadonlySet<string>>();
 const baseCardCodeSetsByDefinition = new Map<CardAbilityDefinition, ReadonlySet<string>>();
 
-for (const [index, definition] of CARD_ABILITY_DEFINITIONS.entries()) {
-  definitionOrder.set(definition, index);
+for (const definition of CARD_ABILITY_DEFINITIONS) {
   if (!definitionsByAbilityId.has(definition.abilityId)) {
     definitionsByAbilityId.set(definition.abilityId, definition);
   }
 
-  const exactCardCodes = new Set((definition.cardCodes ?? []).map(normalizeCardCode));
-  exactCardCodeSetsByDefinition.set(definition, exactCardCodes);
-  for (const cardCode of exactCardCodes) {
-    appendDefinition(definitionsByExactCardCode, cardCode, definition);
-  }
-
-  const baseCardCodes = new Set(
-    (definition.baseCardCodes ?? []).map((cardCode) => getBaseCardCode(normalizeCardCode(cardCode)))
-  );
+  const baseCardCodes = new Set(definition.baseCardCodes);
   baseCardCodeSetsByDefinition.set(definition, baseCardCodes);
   for (const baseCardCode of baseCardCodes) {
     appendDefinition(definitionsByBaseCardCode, baseCardCode, definition);
@@ -60,20 +48,7 @@ export function getCardAbilityDefinitionsForCardCode(
     return [];
   }
 
-  const normalizedCardCode = normalizeCardCode(cardCode);
-  const baseCardCode = getBaseCardCode(normalizedCardCode);
-  const exactDefinitions = definitionsByExactCardCode.get(normalizedCardCode) ?? [];
-  const baseDefinitions = definitionsByBaseCardCode.get(baseCardCode) ?? [];
-  if (exactDefinitions.length === 0) {
-    return baseDefinitions;
-  }
-  if (baseDefinitions.length === 0) {
-    return exactDefinitions;
-  }
-
-  return [...new Set([...exactDefinitions, ...baseDefinitions])].sort(
-    (left, right) => (definitionOrder.get(left) ?? 0) - (definitionOrder.get(right) ?? 0)
-  );
+  return definitionsByBaseCardCode.get(getBaseCardCode(cardCode)) ?? [];
 }
 
 export interface ImplementedQueuedAbilityDefinitionQuery {
@@ -121,12 +96,7 @@ export function doesCardAbilityDefinitionMatchCardCode(
   definition: CardAbilityDefinition,
   cardCode: string
 ): boolean {
-  const normalizedCardCode = normalizeCardCode(cardCode);
-  const baseCardCode = getBaseCardCode(normalizedCardCode);
-  return (
-    exactCardCodeSetsByDefinition.get(definition)?.has(normalizedCardCode) === true ||
-    baseCardCodeSetsByDefinition.get(definition)?.has(baseCardCode) === true
-  );
+  return baseCardCodeSetsByDefinition.get(definition)?.has(getBaseCardCode(cardCode)) === true;
 }
 
 function appendDefinition(

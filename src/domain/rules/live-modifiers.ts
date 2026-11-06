@@ -28,11 +28,7 @@ import type {
 import { getCardById, getOpponent, getPlayerById } from '../entities/game.js';
 import { findMemberSlot } from '../entities/player.js';
 import { getAllMemberCardIds } from '../entities/zone.js';
-import {
-  cardCodeMatchesBase,
-  getBaseCardCode,
-  normalizeCardCode,
-} from '../../shared/utils/card-code.js';
+import { cardCodeMatchesBase, getBaseCardCode } from '../../shared/utils/card-code.js';
 import {
   cardBelongsToGroup,
   cardBelongsToUnit,
@@ -121,8 +117,7 @@ const OPPONENT_LIVE_ZONE_CONTENTS_VISIBILITY = {
 } as const;
 
 interface ContinuousLiveModifierDefinition {
-  readonly cardCodes?: readonly string[];
-  readonly baseCardCodes?: readonly string[];
+  readonly baseCardCodes: readonly string[];
   /**
    * Information used to decide whether this definition's modifiers may be projected.
    * This is intentionally required so every new continuous definition is reviewed.
@@ -1478,7 +1473,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
   },
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
-    cardCodes: ['PL!HS-bp5-016-N'],
+    baseCardCodes: ['PL!HS-bp5-016'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasOpponentWaitingStageMembers(game, playerId, 2)
         ? collectHsBp5016IzumiPurpleHeartModifier(game, playerId, sourceCardId)
@@ -2191,15 +2186,13 @@ export function collectLiveModifiers(game: GameState): readonly LiveModifierStat
 
 /** Read-only registry projection used by governance tests and architecture audits. */
 export function getContinuousLiveModifierVisibilityDeclarations(): readonly {
-  readonly cardCodes?: readonly string[];
-  readonly baseCardCodes?: readonly string[];
+  readonly baseCardCodes: readonly string[];
   readonly visibility: ContinuousLiveModifierVisibility;
 }[] {
   return [
     ...CONTINUOUS_LIVE_MODIFIER_DEFINITIONS,
     ...LIVE_CARD_ZONE_CONTINUOUS_LIVE_MODIFIER_DEFINITIONS,
-  ].map(({ cardCodes, baseCardCodes, visibility }) => ({
-    cardCodes,
+  ].map(({ baseCardCodes, visibility }) => ({
     baseCardCodes,
     visibility,
   }));
@@ -2587,11 +2580,8 @@ function doesContinuousDefinitionMatchCardCode(
   definition: ContinuousLiveModifierDefinition,
   cardCode: string
 ): boolean {
-  const normalizedCardCode = normalizeCardCode(cardCode);
-  const baseCardCode = getBaseCardCode(normalizedCardCode);
-  return (
-    definition.cardCodes?.map(normalizeCardCode).includes(normalizedCardCode) === true ||
-    definition.baseCardCodes?.map(normalizeCardCode).includes(baseCardCode) === true
+  return definition.baseCardCodes.some((baseCardCode) =>
+    cardCodeMatchesBase(cardCode, baseCardCode)
   );
 }
 

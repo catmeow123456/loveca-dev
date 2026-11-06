@@ -552,7 +552,7 @@ manual confirm-only 预览与最终结算都实时重算数量和来源 LIVE 状
 
 `workflows/shared/live-start-target-member-gain-blade.ts` 由 `PL!S-bp2-025-L` 分数1「青空Jumping Heart」的旧单卡 workflow 在加入第二、第三个真实基础编号时晋升。当前样本为：025 从己方 LIVE 区来源、成功 LIVE 卡区至少2张、任选己方主舞台成员 BLADE +2；`PL!-bp4-014-N` 费用9「星空 凛」从己方主舞台来源、己方 LIVE 区存在印刷文本不持有 LIVE_START/LIVE_SUCCESS 的 LIVE、排除来源自身后 BLADE +2；`PL!-bp4-024-L` 分数2「小夜啼鳥恋詩」从己方 LIVE 区来源、无额外条件、只选结构化 μ's 主舞台成员 BLADE +1；`PL!N-bp7-025-SECL` 分数1「Colorful Dreams! Colorful Smiles!」选择结构化虹咲成员 BLADE +1；`PL!SP-bp7-025-L` 分数3「Memories」选择拥有「嵐千砂都」姓名身份的成员 BLADE +1。
 
-稳定配置轴仅为 `abilityId`、来源区域（`STAGE_MEMBER` / `LIVE_CARD`）、可选 exact 来源卡号、BLADE 数量、有限目标身份（`ANY / GROUP_ALIAS / CARD_NAME_ALIAS`）、是否排除来源、三种有限条件判别与已映射 BLADE 玩家文案。团体使用 `groupAliasIs`，姓名使用 `cardNameAliasIs` 读取卡牌全部结构化姓名组件；family 不接受任意 selector callback、条件 AST、modifier 类型或通用步骤 DSL。所有目标都通过 `getStageMemberCardIdsMatching` 只扫描 LEFT/CENTER/RIGHT 顶层成员。BLADE 写入使用显式 `addBladeLiveModifierForTargetMember`：`sourceCardId` 保留真实发动的 LIVE/成员实例，受益者始终写入 `targetMemberCardId`，即使二者是同一实例也不折叠为 SOURCE；已结算 modifier 不随来源离区清除，但随目标离场、替换或实例重登清除。
+稳定配置轴仅为 `abilityId`、来源区域（`STAGE_MEMBER` / `LIVE_CARD`）、可选来源基础编号、BLADE 数量、有限目标身份（`ANY / GROUP_ALIAS / CARD_NAME_ALIAS`）、是否排除来源、三种有限条件判别与已映射 BLADE 玩家文案。团体使用 `groupAliasIs`，姓名使用 `cardNameAliasIs` 读取卡牌全部结构化姓名组件；family 不接受任意 selector callback、条件 AST、modifier 类型或通用步骤 DSL。所有目标都通过 `getStageMemberCardIdsMatching` 只扫描 LEFT/CENTER/RIGHT 顶层成员。BLADE 写入使用显式 `addBladeLiveModifierForTargetMember`：`sourceCardId` 保留真实发动的 LIVE/成员实例，受益者始终写入 `targetMemberCardId`，即使二者是同一实例也不折叠为 SOURCE；已结算 modifier 不随来源离区清除，但随目标离场、替换或实例重登清除。
 
 0目标消费 pending no-op，单目标自动结算，多目标打开不可跳过的单选窗口且不叠 confirm-only。确认时重新扫描来源区域、条件和目标，不信任旧 selectable 快照；原合法目标、来源或条件 stale 时清窗且不写 BLADE，再通过统一 continuation 返回检查时点。
 
@@ -598,7 +598,7 @@ family 复用 direct top-mill 的公开结果形状：实际卡组底移动与�
 # BP7 memberBelow 与委托序列边界（2026-07-18）
 
 - 卡效将成员放到舞台主成员下方时，workflow 先用结构化 selector 产生候选并处理公开/交互，最后才调用 `stackMemberCardBelowStageMember`。helper 仅做 `HAND / WAITING_ROOM -> memberBelow` 原子移动和 stale 防线。
-- 普通 continuous collector 仍只扫描舞台顶层成员；memberBelow 来源必须 exact 登记。所有 BLADE / HEART modifier 必须显式声明 `PLAYER / SOURCE_MEMBER / TARGET_MEMBER`，不允许通过缺失 target、来源卡类型或 source/target ID 相等性推断作用域。`SOURCE_MEMBER` 表示来源成员本身就是受益者；选择或指定成员即使选中来源自身也仍为 `TARGET_MEMBER`，并分别保存真实 `sourceCardId` 与 `targetMemberCardId`。能力指定受益成员时使用对应 `...ForTargetMember` 具名入口；source 离场不清除已授予的 TARGET，target 离场才清除，PLAYER 不绑定成员。
+- 普通 continuous collector 仍只扫描舞台顶层成员；memberBelow 来源必须显式登记其基础编号。所有 BLADE / HEART modifier 必须显式声明 `PLAYER / SOURCE_MEMBER / TARGET_MEMBER`，不允许通过缺失 target、来源卡类型或 source/target ID 相等性推断作用域。`SOURCE_MEMBER` 表示来源成员本身就是受益者；选择或指定成员即使选中来源自身也仍为 `TARGET_MEMBER`，并分别保存真实 `sourceCardId` 与 `targetMemberCardId`。能力指定受益成员时使用对应 `...ForTargetMember` 具名入口；source 离场不清除已授予的 TARGET，target 离场才清除，PLAYER 不绑定成员。
 - 舞台成员的窄 ON_ENTER 查询只兼容已实现 queued definition 的历史 `PLAYED_MEMBER / STAGE_MEMBER` 两种 sourceZone，并按真实 source slot 检查 `requiredSourceSlots`。`PL!S-pb1-001`、`PL!S-pb1-002`、`PL!S-bp5-004` 有 focused 合法样本；这不是等待室虚拟登场 policy。
 - `delegated-ability-sequence` 只接受已选定的 queued ON_ENTER pending 列表，每个子项重验真实舞台实例、槽位和当前 definition。进展只认真实 `activeEffect`、游戏终局、sequence 清空，或 remaining/resolved/skipped 实际继续推进；仅新增 actionHistory 或替换 pending 数组不算进展。子项 stale、starter 缺失或委托无进展均记录 no-op 并继续，审计分别保存 pending ID 与 abilityId。它不伪造登场事件、不支付普通登场费用、不接受任意 timing 或卡文解析。
 
@@ -630,12 +630,12 @@ family 的有限配置轴仅为 `abilityId` / `baseCardCode`、可选的团体+�
 
 # LIVE 成功时能量差加分 family（2026-07-25）
 
-`workflows/shared/live-success-energy-difference-score.ts` 由第二个真实样本 `PL!SP-bp7-024` 分数2「WE WILL!!」触发晋升；旧 `PL!S-bp6-022-L` 分数7「近未来ハッピーエンド」的比较切片已从 Aqours 大 workflow 迁入。两个样本固定为无输入 queued LIVE_SUCCESS、比较双方当前能量张数、条件成立时仅给来源 LIVE `[スコア]+1`：
+`workflows/shared/live-success-energy-difference-score.ts` 由第二个真实样本 `PL!SP-bp7-024` 分数2「WE WILL!!」触发晋升；旧 `PL!S-bp6-022` 分数7「近未来ハッピーエンド」的比较切片已从 Aqours 大 workflow 迁入。两个样本固定为无输入 queued LIVE_SUCCESS、比较双方当前能量张数、条件成立时仅给来源 LIVE `[スコア]+1`：
 
-- `PL!S-bp6-022-L` 保持旧 exact `L` 来源覆盖，对方至少多1张时成立。
+- `PL!S-bp6-022` 按基础编号覆盖全部罕度，对方至少多1张时成立。
 - `PL!SP-bp7-024` 按基础编号覆盖，自己至少多2张时成立。
 
-有限配置轴仅为 `abilityId`、exact/base 来源覆盖、领先方 `SELF / OPPONENT`、最小差值与稳定 action step；分数奖励固定为1，不接受任意比较 callback、奖励公式、modifier 类型或条件 DSL。manual confirm-only 实时展示双方能量数量、满足状态与实际 `[スコア]+1/+0`，手动 pending 点选使用同一 bridge，ordered batch 自动结算。最终 resolver 重验来源 owner、LIVE 类型、配置卡号与当前 LIVE 区，再重算比较；SCORE 使用 `liveCardId + sourceCardId + abilityId` replacement，并仅按新旧 modifier 差值刷新 `playerScores`，因此重复进入不会累计。来源门禁只用于引擎安全，不进入玩家文案。runner 只负责 import/register。
+有限配置轴仅为 `abilityId`、来源基础编号、领先方 `SELF / OPPONENT`、最小差值与稳定 action step；分数奖励固定为1，不接受任意比较 callback、奖励公式、modifier 类型或条件 DSL。manual confirm-only 实时展示双方能量数量、满足状态与实际 `[スコア]+1/+0`，手动 pending 点选使用同一 bridge，ordered batch 自动结算。最终 resolver 重验来源 owner、LIVE 类型、配置卡号与当前 LIVE 区，再重算比较；SCORE 使用 `liveCardId + sourceCardId + abilityId` replacement，并仅按新旧 modifier 差值刷新 `playerScores`，因此重复进入不会累计。来源门禁只用于引擎安全，不进入玩家文案。runner 只负责 import/register。
 
 # BP7 第三、第四批 workflow 边界（2026-07-23）
 

@@ -1,138 +1,194 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+import type { CardAbilityDefinition } from '../../src/application/card-effects/ability-definition-types';
+import { CARD_ABILITY_DEFINITIONS } from '../../src/application/card-effects/definitions';
 import {
-  CARD_ABILITY_DEFINITIONS,
-  getCardAbilityDefinitions,
-} from '../../src/application/card-effect-runner';
-import { getBaseCardCode, normalizeCardCode } from '../../src/shared/utils/card-code';
+  doesCardAbilityDefinitionMatchCardCode,
+  getCardAbilityDefinitionsForCardCode,
+  getImplementedQueuedAbilityDefinitionsForCardCode,
+  type ImplementedQueuedAbilityDefinitionQuery,
+} from '../../src/application/card-effects/definitions/lookup';
+import { getContinuousLiveModifierVisibilityDeclarations } from '../../src/domain/rules/live-modifiers';
+import {
+  normalizeCardCode,
+  parseCardCode,
+  VALID_RARITIES,
+  validateCardCode,
+} from '../../src/shared/utils/card-code';
 
-interface LlocgCardRecord {
-  readonly detail?: {
-    readonly card_number?: string;
-  };
-}
+const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
+const ruleSourceDirectories = ['src/application', 'src/domain', 'src/shared'];
 
-function loadCardCodeFamilies(): Map<string, readonly string[]> {
-  const cards = {
-    ...loadLlocgCards('../../llocg_db/json/cards_cn.json'),
-    ...loadLlocgCards('../../llocg_db/json/cards.json'),
-  };
-  const families = new Map<string, string[]>();
+// These print-specific references select a default energy print or a cosmetic presentation.
+const printReferencesOutsideCardEffects = new Set([
+  'src/domain/card-data/deck-defaults.ts:LL-E-001-SD',
+  'src/domain/rules/sealed-box.ts:LL-E-001-SD',
+  'src/shared/card-entrance.ts:PL!N-bp7-003-SEC',
+]);
 
-  for (const [rawCardCode, record] of Object.entries(cards)) {
-    const sourceCardCode = record.detail?.card_number ?? rawCardCode;
-    if (!sourceCardCode) {
-      continue;
+function collectTypeScriptFiles(directory: string): string[] {
+  return readdirSync(path.join(repoRoot, directory), { withFileTypes: true }).flatMap((entry) => {
+    const file = path.posix.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      return collectTypeScriptFiles(file);
     }
-    const cardCode = normalizeCardCode(sourceCardCode);
-    const baseCardCode = getBaseCardCode(cardCode);
-    families.set(baseCardCode, [...(families.get(baseCardCode) ?? []), cardCode]);
-  }
-
-  return new Map(
-    [...families.entries()].map(([baseCardCode, cardCodes]) => [
-      baseCardCode,
-      [...new Set(cardCodes)].sort(),
-    ])
-  );
+    return entry.isFile() && entry.name.endsWith('.ts') ? [file] : [];
+  });
 }
 
-function loadLlocgCards(relativePath: string): Record<string, LlocgCardRecord> {
-  const url = new URL(relativePath, import.meta.url);
-  if (!existsSync(url)) {
-    return {};
+function isFullCardCodeLiteral(text: string): boolean {
+  const parsed = parseCardCode(normalizeCardCode(text));
+  if (!parsed || !/^[\w!+]+$/.test(parsed.rarity)) {
+    return false;
   }
-  return JSON.parse(readFileSync(url, 'utf8')) as Record<string, LlocgCardRecord>;
+  // Recognize future print suffixes as well as the rarities known to card-data validation.
+  const base = [parsed.prefix, parsed.product, parsed.seq].join('-');
+  return validateCardCode(`${base}-${VALID_RARITIES[0]}`).valid;
+}
+
+function findPrintReferences(file: string): string[] {
+  const source = ts.createSourceFile(
+    file,
+    readFileSync(path.join(repoRoot, file), 'utf8'),
+    ts.ScriptTarget.Latest,
+    true
+  );
+  const violations: string[] = [];
+  function visit(node: ts.Node): void {
+    if (
+      ts.isStringLiteralLike(node) &&
+      isFullCardCodeLiteral(node.text) &&
+      !printReferencesOutsideCardEffects.has(`${file}:${node.text}`)
+    ) {
+      const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
+      violations.push(`${file}:${line + 1} ${node.text}`);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  return violations;
 }
 
 describe('card effect rarity synchronization', () => {
-  it('covers both PL!HS-bp1-007 rarities through the shared base code', () => {
-    const definition = CARD_ABILITY_DEFINITIONS.find(
-      (ability) => ability.abilityId === 'PL!SP-bp5-020:activated-pay-two-energy-draw-one'
-    );
-    expect(definition?.baseCardCodes).toContain('PL!HS-bp1-007');
-    const cardCodeFamily = loadCardCodeFamilies().get('PL!HS-bp1-007');
+  it('registers every ability and continuous modifier by a nonempty list of canonical base codes', () => {
+    const declarations = getContinuousLiveModifierVisibilityDeclarations();
+    expect(declarations.length).toBeGreaterThan(0);
+    const registrations = [
+      ...CARD_ABILITY_DEFINITIONS.map((definition) => ({
+        label: definition.abilityId,
+        binding: definition,
+      })),
+      ...declarations.map((binding, index) => ({
+        label: `continuous modifier #${index + 1}`,
+        binding,
+      })),
+    ];
 
-    // The card data submodule is optional in focused CI and production checkouts.
-    if (!cardCodeFamily) {
-      return;
-    }
-
-    expect(cardCodeFamily).toEqual([
-      'PL!HS-bp1-007-P',
-      'PL!HS-bp1-007-R',
-    ]);
-  });
-
-  it('does not partially cover same-base multi-rarity cards with exact cardCodes', () => {
-    const families = loadCardCodeFamilies();
-    const partialExactMatches: string[] = [];
-
-    for (const definition of CARD_ABILITY_DEFINITIONS) {
-      const exactCardCodes = new Set((definition.cardCodes ?? []).map(normalizeCardCode));
-      const baseCardCodes = new Set((definition.baseCardCodes ?? []).map(normalizeCardCode));
-
-      for (const baseCardCode of baseCardCodes) {
-        expect(getBaseCardCode(baseCardCode)).toBe(baseCardCode);
+    const violations: string[] = [];
+    for (const { label, binding } of registrations) {
+      if (Object.hasOwn(binding, 'cardCodes')) {
+        violations.push(`${label} declares cardCodes`);
       }
-
-      for (const cardCode of exactCardCodes) {
-        const baseCardCode = getBaseCardCode(cardCode);
-        const siblingCardCodes = families.get(baseCardCode) ?? [];
-        const missingSiblingCardCodes = siblingCardCodes.filter(
-          (siblingCardCode) => !exactCardCodes.has(siblingCardCode)
-        );
-
-        if (
-          siblingCardCodes.length > 1 &&
-          !baseCardCodes.has(baseCardCode) &&
-          missingSiblingCardCodes.length > 0
-        ) {
-          partialExactMatches.push(
-            `${definition.abilityId}: ${cardCode} misses ${missingSiblingCardCodes.join(', ')}`
-          );
+      const bases = binding.baseCardCodes ?? [];
+      if (bases.length === 0) {
+        violations.push(`${label} has no baseCardCodes`);
+      }
+      for (const base of bases) {
+        const result = validateCardCode(`${base}-${VALID_RARITIES[0]}`);
+        if (!result.valid) {
+          violations.push(`${label} has invalid base ${base}: ${result.errors.join(', ')}`);
         }
       }
     }
 
-    expect(partialExactMatches).toEqual([]);
+    expect(violations, 'Card effect registrations must use baseCardCodes for every print.').toEqual(
+      []
+    );
   });
 
-  it('registers API-only bp7 cards by base code and resolves every rarity through the same definitions', () => {
-    const bp7ExactCardCodes = CARD_ABILITY_DEFINITIONS.flatMap((definition) =>
-      (definition.cardCodes ?? []).filter((cardCode) =>
-        normalizeCardCode(cardCode).includes('-bp7-')
-      )
-    );
-    expect(bp7ExactCardCodes).toEqual([]);
-
-    const bp7Definitions = CARD_ABILITY_DEFINITIONS.filter((definition) =>
-      (definition.baseCardCodes ?? []).some((cardCode) =>
-        normalizeCardCode(cardCode).includes('-bp7-')
-      )
-    );
-    expect(bp7Definitions.length).toBeGreaterThan(0);
-
-    const bp7BaseCardCodes = [
-      ...new Set(
-        bp7Definitions.flatMap((definition) =>
-          (definition.baseCardCodes ?? [])
-            .map(normalizeCardCode)
-            .filter((cardCode) => cardCode.includes('-bp7-'))
-        )
-      ),
-    ];
-
-    for (const baseCardCode of bp7BaseCardCodes) {
-      expect(getBaseCardCode(baseCardCode)).toBe(baseCardCode);
-      const normalRarityAbilityIds = getCardAbilityDefinitions(`${baseCardCode}-N`).map(
-        (definition) => definition.abilityId
-      );
-      const specialRarityAbilityIds = getCardAbilityDefinitions(`${baseCardCode}-SECL`).map(
-        (definition) => definition.abilityId
-      );
-      expect(normalRarityAbilityIds).toEqual(specialRarityAbilityIds);
-      expect(normalRarityAbilityIds.length).toBeGreaterThan(0);
+  it('resolves the complete registered ability list for each rarity of every base code', () => {
+    const byBase = new Map<string, CardAbilityDefinition[]>();
+    for (const definition of CARD_ABILITY_DEFINITIONS) {
+      for (const base of new Set(definition.baseCardCodes)) {
+        const group = byBase.get(base) ?? [];
+        group.push(definition);
+        byBase.set(base, group);
+      }
     }
+
+    const unknownRarity = 'FUTURE_RARITY';
+    const rarities = new Set([
+      ...VALID_RARITIES,
+      ...VALID_RARITIES.map((rarity) => rarity.replaceAll('+', '＋')),
+    ]);
+
+    expect(byBase.size).toBeGreaterThan(0);
+    for (const [base, expected] of byBase) {
+      const expectedIds = expected.map((definition) => definition.abilityId);
+      const queuedQueries = new Map<
+        string,
+        { query: ImplementedQueuedAbilityDefinitionQuery; expectedQueuedIds: string[] }
+      >();
+      for (const definition of expected) {
+        const { category, sourceZone, triggerCondition } = definition;
+        if (!definition.implemented || !definition.queued || triggerCondition === undefined) {
+          continue;
+        }
+        const key = `${category}:${sourceZone}:${triggerCondition}`;
+        const group = queuedQueries.get(key) ?? {
+          query: { category, sourceZone, triggerCondition, ignoreRequiredSourceSlots: true },
+          expectedQueuedIds: [],
+        };
+        group.expectedQueuedIds.push(definition.abilityId);
+        queuedQueries.set(key, group);
+      }
+      const unknownPrint = `${base}-${unknownRarity}`;
+      // Compare all definitions here to detect matches leaking across different bases.
+      for (const cardCode of [base, unknownPrint]) {
+        const matches = CARD_ABILITY_DEFINITIONS.filter((definition) =>
+          doesCardAbilityDefinitionMatchCardCode(definition, cardCode)
+        );
+        expect(
+          matches.map((definition) => definition.abilityId),
+          cardCode
+        ).toEqual(expectedIds);
+      }
+      const cardCodes = [
+        base,
+        unknownPrint,
+        ...Array.from(rarities, (rarity) => `${base}-${rarity}`),
+      ];
+      for (const cardCode of cardCodes) {
+        const definitions = getCardAbilityDefinitionsForCardCode(cardCode);
+        expect(
+          definitions.map((definition) => definition.abilityId),
+          cardCode
+        ).toEqual(expectedIds);
+        for (const { query, expectedQueuedIds } of queuedQueries.values()) {
+          expect(
+            getImplementedQueuedAbilityDefinitionsForCardCode(cardCode, query).map(
+              (definition) => definition.abilityId
+            ),
+            `${cardCode} ${query.category} ${query.sourceZone} ${query.triggerCondition}`
+          ).toEqual(expectedQueuedIds);
+        }
+        for (const definition of expected) {
+          expect(
+            doesCardAbilityDefinitionMatchCardCode(definition, cardCode),
+            `${cardCode} should match ${definition.abilityId}`
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('keeps complete print codes out of rule implementations', () => {
+    const violations = ruleSourceDirectories
+      .flatMap(collectTypeScriptFiles)
+      .flatMap(findPrintReferences);
+    expect(violations, 'Use a base card code when selecting a card effect.').toEqual([]);
   });
 });

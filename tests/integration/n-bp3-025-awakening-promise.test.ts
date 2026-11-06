@@ -283,16 +283,15 @@ describe('PL!N-bp3-025 Awakening Promise', () => {
     ]);
   });
 
-  it('locks the exact L rarity definition and base card code', () => {
-    const definitions = getCardAbilityDefinitionsForCardCode('PL!N-bp3-025-L');
-    expect(
-      definitions.some(
-        (ability: { abilityId: string; cardCodes?: readonly string[]; baseCardCodes?: readonly string[] }) =>
-          ability.abilityId ===
-            PL_N_BP3_025_LIVE_START_RETURN_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID &&
-          ability.cardCodes?.includes('PL!N-bp3-025-L') === true &&
-          ability.baseCardCodes?.includes('PL!N-bp3-025') === true
-      )
-    ).toBe(true);
-  });
+  it.each(['PL!N-bp3-025-L', 'PL!N-bp3-025-SEC'])(
+    'registers one Awakening Promise ability for %s through the base card code',
+    (cardCode) => {
+      const definitions = getCardAbilityDefinitionsForCardCode(cardCode).filter(
+        (ability) =>
+          ability.abilityId === PL_N_BP3_025_LIVE_START_RETURN_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID
+      );
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0].baseCardCodes).toEqual(['PL!N-bp3-025']);
+    }
+  );
 });

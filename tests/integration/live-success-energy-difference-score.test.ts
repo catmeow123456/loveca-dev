@@ -12,10 +12,12 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { addCardToZone } from '../../src/domain/entities/zone';
+import { addCardToZone, removeCardFromStatefulZone } from '../../src/domain/entities/zone';
+import { createLiveSuccessEvent } from '../../src/domain/events/game-events';
 import {
   ABILITY_ORDER_SELECTION_ID,
   confirmActiveEffectStep,
+  enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import {
@@ -36,16 +38,32 @@ import {
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
 
-function liveCard(cardCode: string, score: number): LiveCardData {
-  return {
-    cardCode,
-    name: cardCode === 'PL!SP-bp7-024-SECL' ? 'WE WILL!!' : 'Dreamin’ Go! Go!!',
-    groupNames: cardCode.startsWith('PL!SP') ? ['Liella!'] : ['Aqours'],
-    cardType: CardType.LIVE,
-    score,
-    requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),
-  };
-}
+const WE_WILL_LIVE: LiveCardData = {
+  cardCode: 'PL!SP-bp7-024-SECL',
+  name: 'WE WILL!!',
+  groupNames: ['Liella!'],
+  cardType: CardType.LIVE,
+  score: 2,
+  requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),
+};
+
+// L is from the 2026-11-06 export; SECL is a synthetic rarity of the same card.
+const HAPPY_END_LIVE: LiveCardData = {
+  cardCode: 'PL!S-bp6-022-L',
+  name: '近未来ハッピーエンド',
+  groupNames: ['Aqours'],
+  cardType: CardType.LIVE,
+  score: 7,
+  requirements: createHeartRequirement({
+    [HeartColor.RED]: 5,
+    [HeartColor.GREEN]: 2,
+    [HeartColor.BLUE]: 2,
+    [HeartColor.RAINBOW]: 7,
+  }),
+};
+
+const HAPPY_END_ABILITY_ID = S_BP6_022_LIVE_SUCCESS_OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE_ABILITY_ID;
+const SYNTHETIC_HAPPY_END_CODE = 'PL!S-bp6-022-SECL';
 
 function energyCard(cardCode: string): EnergyCardData {
   return {
@@ -69,8 +87,7 @@ function pending(abilityId: string, sourceCardId: string, index = 0): PendingAbi
 }
 
 function setup(options: {
-  readonly sourceCardCode?: string;
-  readonly sourceScore?: number;
+  readonly sourceLive?: LiveCardData;
   readonly abilityId?: string;
   readonly ownEnergyCount: number;
   readonly opponentEnergyCount: number;
@@ -81,12 +98,11 @@ function setup(options: {
   readonly secondSourceCardId?: string;
   readonly spareOpponentEnergyCardId: string;
 } {
-  const sourceCardCode = options.sourceCardCode ?? 'PL!SP-bp7-024-SECL';
-  const sourceScore = options.sourceScore ?? 2;
+  const sourceLive = options.sourceLive ?? WE_WILL_LIVE;
   const abilityId = options.abilityId ?? SP_BP7_024_LIVE_SUCCESS_ENERGY_TWO_MORE_SCORE_ABILITY_ID;
-  const source = createCardInstance(liveCard(sourceCardCode, sourceScore), PLAYER1, 'source');
+  const source = createCardInstance(sourceLive, PLAYER1, 'source');
   const secondSource = options.secondSource
-    ? createCardInstance(liveCard(sourceCardCode, sourceScore), PLAYER1, 'second-source')
+    ? createCardInstance(sourceLive, PLAYER1, 'second-source')
     : null;
   const ownEnergy = Array.from({ length: options.ownEnergyCount }, (_, index) =>
     createCardInstance(energyCard(`own-energy-${index}`), PLAYER1, `own-energy-${index}`)
@@ -152,7 +168,7 @@ function setup(options: {
         [source.instanceId, true],
         ...(secondSource ? ([[secondSource.instanceId, true]] as const) : []),
       ]),
-      playerScores: new Map([[PLAYER1, sourceScore + (secondSource ? sourceScore : 0)]]),
+      playerScores: new Map([[PLAYER1, sourceLive.score * (secondSource ? 2 : 1)]]),
     },
     pendingAbilities: [
       pending(abilityId, source.instanceId),
@@ -167,10 +183,13 @@ function setup(options: {
   };
 }
 
-function resolveSingle(game: GameState): GameState {
+function resolveSingle(
+  game: GameState,
+  abilityId = SP_BP7_024_LIVE_SUCCESS_ENERGY_TWO_MORE_SCORE_ABILITY_ID
+): GameState {
   const started = resolvePendingCardEffects(game).gameState;
   expect(started.activeEffect).toMatchObject({
-    abilityId: SP_BP7_024_LIVE_SUCCESS_ENERGY_TWO_MORE_SCORE_ABILITY_ID,
+    abilityId,
     metadata: { confirmOnlyPendingAbility: true },
   });
   return confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
@@ -361,32 +380,120 @@ describe('LIVE_SUCCESS energy-difference SCORE shared workflow', () => {
     });
   });
 
-  it('preserves the old exact PL!S-bp6-022-L inverse comparison', () => {
-    const { game, sourceCardId } = setup({
-      sourceCardCode: 'PL!S-bp6-022-L',
-      sourceScore: 7,
-      abilityId: S_BP6_022_LIVE_SUCCESS_OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE_ABILITY_ID,
+  describe.each([HAPPY_END_LIVE.cardCode, SYNTHETIC_HAPPY_END_CODE])('%s', (cardCode) => {
+    it.each([
+      { opponentEnergyCount: 3, expectedBonus: 1, step: 'OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE' },
+      { opponentEnergyCount: 2, expectedBonus: 0, step: 'NO_OPPONENT_ENERGY_MORE' },
+      { opponentEnergyCount: 1, expectedBonus: 0, step: 'NO_OPPONENT_ENERGY_MORE' },
+    ])(
+      'triggers on LIVE success with 2 own and $opponentEnergyCount opposing energy',
+      ({ opponentEnergyCount, expectedBonus, step }) => {
+        const { game, sourceCardId } = setup({
+          sourceLive: { ...HAPPY_END_LIVE, cardCode },
+          abilityId: HAPPY_END_ABILITY_ID,
+          ownEnergyCount: 2,
+          opponentEnergyCount,
+        });
+        const withTrigger = enqueueTriggeredCardEffects(
+          { ...game, pendingAbilities: [] },
+          [TriggerCondition.ON_LIVE_SUCCESS],
+          { liveSuccessEvents: [createLiveSuccessEvent(PLAYER1, [sourceCardId], 7)] }
+        );
+        expect(withTrigger.pendingAbilities).toEqual([
+          expect.objectContaining({ abilityId: HAPPY_END_ABILITY_ID, sourceCardId }),
+        ]);
+
+        const started = resolvePendingCardEffects(withTrigger).gameState;
+        expect(started.activeEffect?.effectText).toContain(
+          `当前自己能量2张，对方能量${opponentEnergyCount}张，${
+            expectedBonus > 0 ? '满足条件' : '未满足条件'
+          }，实际[スコア]+${expectedBonus}`
+        );
+        const resolved = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+
+        expect(resolved.pendingAbilities).toEqual([]);
+        expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(7 + expectedBonus);
+        expect(scoreModifiers(resolved, HAPPY_END_ABILITY_ID)).toEqual(
+          expectedBonus > 0
+            ? [
+                {
+                  kind: 'SCORE',
+                  playerId: PLAYER1,
+                  countDelta: 1,
+                  liveCardId: sourceCardId,
+                  sourceCardId,
+                  abilityId: HAPPY_END_ABILITY_ID,
+                },
+              ]
+            : []
+        );
+        expect(
+          abilityActions(resolved, HAPPY_END_ABILITY_ID).map((action) => action.payload)
+        ).toEqual([expect.objectContaining({ step, scoreBonus: expectedBonus })]);
+      }
+    );
+  });
+
+  it('rejects a different base card even when the queued ability and energy counts match', () => {
+    const { game } = setup({
+      sourceLive: { ...HAPPY_END_LIVE, cardCode: 'PL!-bp6-022-L' },
+      abilityId: HAPPY_END_ABILITY_ID,
       ownEnergyCount: 2,
       opponentEnergyCount: 3,
     });
-    const started = resolvePendingCardEffects(game).gameState;
-    expect(started.activeEffect?.effectText).toContain(
-      '当前自己能量2张，对方能量3张，满足条件，实际[スコア]+1'
-    );
-    const resolved = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+    const resolved = resolveSingle(game, HAPPY_END_ABILITY_ID);
 
-    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(8);
-    expect(
-      scoreModifiers(
-        resolved,
-        S_BP6_022_LIVE_SUCCESS_OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE_ABILITY_ID
-      )
-    ).toEqual([
-      expect.objectContaining({
-        countDelta: 1,
-        liveCardId: sourceCardId,
-        sourceCardId,
-      }),
-    ]);
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+    expect(scoreModifiers(resolved, HAPPY_END_ABILITY_ID)).toEqual([]);
+    expect(abilityActions(resolved, HAPPY_END_ABILITY_ID).at(-1)?.payload).toMatchObject({
+      step: 'SOURCE_LIVE_NOT_IN_OWN_LIVE_ZONE',
+      scoreBonus: 0,
+    });
+  });
+
+  it('replaces SCORE on re-entry and removes it when the source leaves LIVE', () => {
+    const { game, sourceCardId } = setup({
+      sourceLive: { ...HAPPY_END_LIVE, cardCode: SYNTHETIC_HAPPY_END_CODE },
+      abilityId: HAPPY_END_ABILITY_ID,
+      ownEnergyCount: 2,
+      opponentEnergyCount: 3,
+    });
+    const first = resolveSingle(game, HAPPY_END_ABILITY_ID);
+    const repeated = resolveSingle(
+      {
+        ...first,
+        pendingAbilities: [pending(HAPPY_END_ABILITY_ID, sourceCardId, 1)],
+      },
+      HAPPY_END_ABILITY_ID
+    );
+
+    expect(repeated.liveResolution.playerScores.get(PLAYER1)).toBe(8);
+    expect(scoreModifiers(repeated, HAPPY_END_ABILITY_ID)).toHaveLength(1);
+    expect(abilityActions(repeated, HAPPY_END_ABILITY_ID).at(-1)?.payload).toMatchObject({
+      scoreBonus: 1,
+      scoreDelta: 0,
+    });
+
+    const withoutSource = updatePlayer(repeated, PLAYER1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, sourceCardId),
+      waitingRoom: addCardToZone(player.waitingRoom, sourceCardId),
+    }));
+    const stale = resolveSingle(
+      {
+        ...withoutSource,
+        pendingAbilities: [pending(HAPPY_END_ABILITY_ID, sourceCardId, 2)],
+      },
+      HAPPY_END_ABILITY_ID
+    );
+    expect(stale.pendingAbilities).toEqual([]);
+    expect(stale.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+    expect(scoreModifiers(stale, HAPPY_END_ABILITY_ID)).toEqual([]);
+    expect(abilityActions(stale, HAPPY_END_ABILITY_ID).at(-1)?.payload).toMatchObject({
+      step: 'SOURCE_LIVE_NOT_IN_OWN_LIVE_ZONE',
+      scoreBonus: 0,
+      scoreDelta: -1,
+    });
   });
 });
