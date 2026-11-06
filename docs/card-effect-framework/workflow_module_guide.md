@@ -1,5 +1,13 @@
 # Workflow Module Guide
 
+## 2026-11-06 手牌自身公开与声援移动触发
+
+`cards/n-bp8-008-emma-verde.ts` 是手牌来源的起动流程：直接公开固定来源支付费用，复用Public Reveal Dwell延后置底，再实时检查己方舞台团体条件并强制选择对方当前有效费用≤2的合法待机目标。公开是费用，置底和待机是效果；无后续目标不阻止支付，公开后来源失效也不取消独立的后续条件处理。目标使用既有保护和生命周期查询；重登或候选失效后刷新窗口身份，旧请求不能直接操作新对象。它与 `n-bp8-018-kanata.ts` 只共享公开、置底及成员状态动作，不把不同来源、费用及触发方式强并为family。现有HAND起动菜单直接读取definition，无客户端卡号特判。
+
+所有卡效声援移牌调用 `runtime/revealed-cheer-movement-triggers.ts#moveRevealedCheerCardsAndEnqueueTriggers`。低层 `effects/cheer-selection.ts#moveRevealedCheerCards` 仍负责当前声援/处理区/公开/归属的全批校验及实际移动；wrapper对非空成功批次生成 `ON_REVEALED_CHEER_CARDS_MOVED` 事件，保存实际卡牌、HAND/MAIN_DECK_TOP/MAIN_DECK_BOTTOM/WAITING_ROOM去向和显式卡效来源。随后就地读取当前正面LIVE监听者、捕获生命周期、检查次数与pending占位并入队。无监听者也记录派发；没有扫描旧移动记录的恢复路径，后进场来源不会追溯触发。规则结算清理不经过该卡效入口。wrapper不调用resolver，后续追加/重做声援仍属于原效果，结束后通过统一continuation将新能力放回实时待机池。
+
+`cards/hs-bp8-018-holiday-holiday.ts` 是该事件的首个规则消费者，验证pending所绑定的己方卡效移动事实，并按捕获的来源LIVE生命周期记录turn1与自评分数。独立来源可各自触发；来源离区或重登后旧pending不奖励新对象。其确认使用完整原文，因为移动条件已在诱发时成立，不将来源安全校验写入玩家文案。`replaceSourceLiveCardScoreModifierAndRefresh` 的具名 `refreshPlayerScore` 选项允许只替换来源修正；新卡仅在该来源已判定成功、已有玩家分数且尚未确认时同步草案，判定前由后续LIVE判定自然读取卡片分数。原caller默认行为保持。
+
 ## 2026-11-04 状态连动、弃手回收与同费用登场
 
 `PL!-bp8-020` 分数1「蓝莓♡小火车」由 `cards/pl-bp8-020-buruberi-torein.ts` 编排强制活跃己方待机南琴梨，再强制待机对方有效费用≤4的成员。复用结构化名称、舞台方向选择、活跃禁止／待机保护、目标生命周期与状态事件；只有第一步真实改变方向才进入第二步。后一步无目标保留前一步，两个步骤产生的新能力等整段完成再结算；来源LIVE离区不取消已诱发的独立成员动作。与现有单步活跃／待机 family 仅共享原语，不为这一张卡扩展通用条件步骤。

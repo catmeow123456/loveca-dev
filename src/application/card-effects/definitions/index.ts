@@ -1,4 +1,8 @@
 import {
+  HS_BP8_018_AUTO_REVEALED_CHEER_MOVED_SOURCE_SCORE_ABILITY_ID,
+  N_BP8_008_ACTIVATED_REVEAL_SELF_HAND_BOTTOM_WAIT_OPPONENT_ABILITY_ID,
+} from '../ability-ids.js';
+import {
   PL_BP8_020_LIVE_START_ACTIVATE_KOTORI_WAIT_OPPONENT_ABILITY_ID,
   HS_BP8_016_LIVE_SUCCESS_DISCARD_TWO_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID,
   HS_BP8_021_LIVE_START_RETURN_MIRACRA_MEMBER_PLAY_SAME_COST_ABILITY_ID,
@@ -3103,7 +3107,37 @@ const N_BP8_001_ON_ENTER_STACK_ENERGY_SELF_AND_OTHER_NIJIGASAKI_EFFECT_TEXT =
 const N_BP8_001_LIVE_SUCCESS_RETURN_ONE_ENERGY_BELOW_DRAW_DISCARD_EFFECT_TEXT =
   '【LIVE成功时】可以将存在于自己的舞台的１名成员的下方的１张能量卡，以待机状态放置于自己的能量区。如此做时，抽１张卡，将１张手牌放置入休息室。';
 
+const N_BP8_008_ACTIVATED_REVEAL_SELF_HAND_BOTTOM_WAIT_OPPONENT_EFFECT_TEXT =
+  '【起动】将手牌的此卡公开：将此卡放置于卡组底。此后，自己的舞台上存在『虹咲』的成员的场合，将存在于对方的舞台的１名费用小于等于２的成员变为待机状态。此能力仅在此卡存在于手牌的场合才能起动。';
+
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
+  {
+    abilityId: N_BP8_008_ACTIVATED_REVEAL_SELF_HAND_BOTTOM_WAIT_OPPONENT_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp8-008'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.HAND,
+    queued: false,
+    implemented: true,
+    effectText: N_BP8_008_ACTIVATED_REVEAL_SELF_HAND_BOTTOM_WAIT_OPPONENT_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: N_BP8_008_ACTIVATED_REVEAL_SELF_HAND_BOTTOM_WAIT_OPPONENT_ABILITY_ID,
+      text: N_BP8_008_ACTIVATED_REVEAL_SELF_HAND_BOTTOM_WAIT_OPPONENT_EFFECT_TEXT,
+      title: '公开此卡并放置于卡组底',
+    },
+  },
+  {
+    abilityId: HS_BP8_018_AUTO_REVEALED_CHEER_MOVED_SOURCE_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp8-018'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_REVEALED_CHEER_CARDS_MOVED,
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    skipQueueWhenTurnLimitReached: true,
+    effectText:
+      '【自动】【１回合１次】因声援公开的自己的卡片，因自己的卡片的效果移动至任意领域时，此卡的分数＋１。',
+  },
   {
     abilityId: PL_BP8_020_LIVE_START_ACTIVATE_KOTORI_WAIT_OPPONENT_ABILITY_ID,
     baseCardCodes: ['PL!-bp8-020'],
@@ -5749,7 +5783,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: S_BP5_019_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      '单卡 LIVE_SUCCESS workflow `s-bp5-019-not-alone-not-hitori.ts`；先重查自己或对方成功LIVE区是否有2张以上卡，满足时选择本次声援公开、仍在 resolutionZone 且 revealed 的自己成员卡至多2张加入手牌。移动复用 selectRevealedCheerCardIds / moveRevealedCheerCards，允许选择0张，非法或 stale 目标不移动。',
+      '单卡 LIVE_SUCCESS workflow `s-bp5-019-not-alone-not-hitori.ts`；先重查自己或对方成功LIVE区是否有2张以上卡，满足时用 selectRevealedCheerCardIds 选择本次声援公开、仍在 resolutionZone 且 revealed 的自己成员卡至多2张。moveRevealedCheerCardsAndEnqueueTriggers 移动入手，记录移动事件并将匹配的能力入队，允许选择0张，非法或 stale 目标不移动。',
   },
   {
     abilityId: S_BP5_022_LIVE_START_MOVED_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
@@ -11751,7 +11785,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_S_PB1_003_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      '单卡 workflow `s-pb1-003-kanan.ts` 的 LIVE_SUCCESS 段；选择目标复用 selectRevealedCheerCardIds，只允许本次自己的声援公开、仍在 resolutionZone 且 revealed 的自己 LIVE 卡；移动入手复用 moveRevealedCheerCards(..., HAND)。无 LIVE 目标时消费 pending no-op；非法或 stale 目标不移动。',
+      '单卡 workflow `s-pb1-003-kanan.ts` 的 LIVE_SUCCESS 段；选择目标复用 selectRevealedCheerCardIds，只允许本次自己的声援公开、仍在 resolutionZone 且 revealed 的自己 LIVE 卡。moveRevealedCheerCardsAndEnqueueTriggers 移动入手，记录移动事件并将匹配的能力入队。无 LIVE 目标时消费 pending no-op；非法或 stale 目标不移动。',
   },
   {
     abilityId: PL_S_PB1_005_CONTINUOUS_OPPONENT_ENERGY_MORE_GAIN_THREE_BLADE_ABILITY_ID,
@@ -11986,7 +12020,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_PB1_031_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      "单卡 LIVE_SUCCESS workflow `pl-pb1-031-kaguya-no-shiro-de-odoritai.ts`；真实可选弃1手交互，不套 confirm-only。弃手通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 入休息室并入队触发；支付后用 selectRevealedCheerCardIds + moveRevealedCheerCards 从本次声援公开且仍在 resolutionZone/revealed 的自己『μ's』成员卡中选择1张加入手牌。",
+      "单卡 LIVE_SUCCESS workflow `pl-pb1-031-kaguya-no-shiro-de-odoritai.ts`；真实可选弃1手交互，不套 confirm-only。弃手通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 入休息室并入队触发；支付后用 selectRevealedCheerCardIds 从本次声援公开且仍在 resolutionZone/revealed 的自己『μ's』成员卡中选择1张，再用 moveRevealedCheerCardsAndEnqueueTriggers 移动入手，记录移动事件并将匹配的能力入队。",
   },
   {
     abilityId: PL_BP4_001_LIVE_START_LOWER_STAGE_COST_DRAW_ONE_ABILITY_ID,
@@ -13304,7 +13338,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: SP_BP4_006_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      '单卡 workflow `sp-bp4-006-kinako.ts`；条件用 selectCurrentLiveRevealedCheerCardIds 读取本次 LIVE 因声援公开的事实，并按不同名 Liella! 成员计数；实际入手目标只从当前仍在 resolutionZone 且 revealed 的 Liella! LIVE 中选择，移动复用 moveRevealedCheerCards(..., HAND)。',
+      '单卡 workflow `sp-bp4-006-kinako.ts`；条件用 selectCurrentLiveRevealedCheerCardIds 读取本次 LIVE 因声援公开的事实，并按不同名 Liella! 成员计数；实际入手目标只从当前仍在 resolutionZone 且 revealed 的 Liella! LIVE 中选择，再用 moveRevealedCheerCardsAndEnqueueTriggers 移动入手，记录移动事件并将匹配的能力入队。',
   },
   {
     abilityId: SP_BP4_023_LIVE_START_SELECT_NAMED_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID,
@@ -13516,7 +13550,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: S_SD1_019_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      '复用 shared revealed-cheer-selection；只允许本次自己声援公开且仍在处理区、revealed 的 Aqours LIVE 卡加入手牌，移动使用 moveRevealedCheerCards(..., HAND)，保留真实选择窗口。',
+      '复用 shared revealed-cheer-selection；只允许本次自己声援公开且仍在处理区、revealed 的 Aqours LIVE 卡加入手牌。moveRevealedCheerCardsAndEnqueueTriggers 移动入手，记录移动事件并将匹配的能力入队，保留真实选择窗口。',
   },
   {
     abilityId: S_SD1_020_LIVE_SUCCESS_DRAW_AQOURS_STAGE_COUNT_DISCARD_DRAWN_COUNT_ABILITY_ID,

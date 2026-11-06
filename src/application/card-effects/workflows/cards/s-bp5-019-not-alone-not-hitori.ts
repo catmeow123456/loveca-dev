@@ -6,10 +6,10 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import {
-  moveRevealedCheerCards,
   selectRevealedCheerCardIds,
 } from '../../../effects/cheer-selection.js';
 import { S_BP5_019_LIVE_SUCCESS_SUCCESS_ZONE_TWO_REVEALED_CHEER_MEMBER_TO_HAND_ABILITY_ID } from '../../ability-ids.js';
+import { moveRevealedCheerCardsAndEnqueueTriggers } from '../../runtime/revealed-cheer-movement-triggers.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -171,7 +171,13 @@ function finishSBp5019NotAloneNotHitoriSelection(
     );
   }
 
-  const moveResult = moveRevealedCheerCards(game, player.id, uniqueSelectedCardIds, 'HAND');
+  const moveResult = moveRevealedCheerCardsAndEnqueueTriggers(
+    game,
+    player.id,
+    uniqueSelectedCardIds,
+    'HAND',
+    effect
+  );
   if (!moveResult) {
     return game;
   }

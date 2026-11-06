@@ -627,6 +627,8 @@ import { registerHsBp8006HimeWorkflowHandlers } from './card-effects/workflows/c
 import { registerHsBp8002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-002-sayaka.js';
 import { registerHsBp8020IcyWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-020-icy.js';
 import { registerHsBp8021MiraCreationWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-021-mira-creation.js';
+import { registerHsBp8018HolidayHolidayWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-018-holiday-holiday.js';
+import { registerNBp8008EmmaVerdeWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-008-emma-verde.js';
 import { registerPlBp8020BuruberiToreinWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-020-buruberi-torein.js';
 import { registerNamedHandDiscardLiveStartWorkflowHandlers } from './card-effects/workflows/shared/named-hand-discard-live-start.js';
 import { registerMemberOnEnterDrawWorkflowHandlers } from './card-effects/workflows/shared/member-on-enter-draw.js';
@@ -1101,6 +1103,8 @@ registerHsBp8006HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp8002SayakaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp8020IcyWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp8021MiraCreationWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp8018HolidayHolidayWorkflowHandlers();
+registerNBp8008EmmaVerdeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlBp8020BuruberiToreinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerKarinWorkflowHandlers({ enqueueTriggeredCardEffects });

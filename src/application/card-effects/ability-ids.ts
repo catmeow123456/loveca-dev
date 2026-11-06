@@ -2235,3 +2235,8 @@ export const HS_BP8_016_LIVE_SUCCESS_DISCARD_TWO_RECOVER_LOW_SCORE_HASUNOSORA_LI
   'PL!HS-bp8-016:live-success-discard-two-recover-low-score-hasunosora-live';
 export const HS_BP8_021_LIVE_START_RETURN_MIRACRA_MEMBER_PLAY_SAME_COST_ABILITY_ID =
   'PL!HS-bp8-021:live-start-return-miracra-member-play-same-cost';
+
+export const N_BP8_008_ACTIVATED_REVEAL_SELF_HAND_BOTTOM_WAIT_OPPONENT_ABILITY_ID =
+  'PL!N-bp8-008:activated-reveal-self-hand-bottom-wait-opponent';
+export const HS_BP8_018_AUTO_REVEALED_CHEER_MOVED_SOURCE_SCORE_ABILITY_ID =
+  'PL!HS-bp8-018:auto-revealed-cheer-moved-source-score';

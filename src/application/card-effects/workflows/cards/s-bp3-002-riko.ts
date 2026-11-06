@@ -1,7 +1,8 @@
 import { addAction, getCardById, getPlayerById, type GameState, type PendingAbilityState } from '../../../../domain/entities/game.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { moveRevealedCheerCards, selectRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
+import { selectRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import { S_BP3_002_LIVE_SUCCESS_HIGHER_SCORE_SELF_REVEALED_CHEER_TO_HAND_ABILITY_ID } from '../../ability-ids.js';
+import { moveRevealedCheerCardsAndEnqueueTriggers } from '../../runtime/revealed-cheer-movement-triggers.js';
 import { registerPendingAbilityStarterHandler, type PendingAbilityStarterOptions } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText, maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
@@ -88,7 +89,13 @@ function finishSBp3002Riko(game: GameState, selectedOptionId: string | null, con
   const comparison = getScoreComparison(game, effect.controllerId);
   if (!sourceIsCurrentRevealedCheer(game, effect)) return noOp({ ...game, activeEffect: null }, ability, ordered, continuePendingCardEffects, { step: 'SOURCE_NOT_CURRENT_REVEALED_CHEER', declined: false });
   if (!comparison.conditionMet) return noOp({ ...game, activeEffect: null }, ability, ordered, continuePendingCardEffects, { step: 'CONDITION_NOT_MET', declined: false });
-  const moved = moveRevealedCheerCards(game, effect.controllerId, [effect.sourceCardId], 'HAND');
+  const moved = moveRevealedCheerCardsAndEnqueueTriggers(
+    game,
+    effect.controllerId,
+    [effect.sourceCardId],
+    'HAND',
+    effect
+  );
   if (!moved) return noOp({ ...game, activeEffect: null }, ability, ordered, continuePendingCardEffects, { step: 'SOURCE_NOT_CURRENT_REVEALED_CHEER', declined: false });
   return continuePendingCardEffects(addAction({ ...moved.gameState, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
     pendingAbilityId: effect.id, abilityId: effect.abilityId, sourceCardId: effect.sourceCardId,

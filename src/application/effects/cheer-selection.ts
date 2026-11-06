@@ -12,7 +12,7 @@ import {
   updatePlayer,
   updateResolutionZone,
 } from '../../domain/entities/game.js';
-import type { CheerEvent } from '../../domain/events/game-events.js';
+import type { CheerEvent, RevealedCheerCardDestination } from '../../domain/events/game-events.js';
 import { addCardToZone } from '../../domain/entities/zone.js';
 import { getCheerCardEffectiveBladeHearts } from '../../domain/rules/live-modifiers.js';
 import {
@@ -29,8 +29,6 @@ import {
 
 export type CheerCardPredicate = (card: CardInstance) => boolean;
 export type CurrentLiveRevealedCheerEventScope = 'ALL' | 'NON_ADDITIONAL' | 'ADDITIONAL_ONLY';
-export type RevealedCheerCardDestination =
-  'HAND' | 'MAIN_DECK_TOP' | 'MAIN_DECK_BOTTOM' | 'WAITING_ROOM';
 
 export interface CurrentLiveRevealedCheerCardSelectionOptions {
   readonly predicate?: CheerCardPredicate;
@@ -412,6 +410,7 @@ export function selectCurrentLiveDifferentNamedStageAndCheerMembers(
   };
 }
 
+/** Movement primitive. Card effects use moveRevealedCheerCardsAndEnqueueTriggers. */
 export function moveRevealedCheerCards(
   game: GameState,
   playerId: string,
@@ -430,6 +429,10 @@ export function moveRevealedCheerCards(
     uniqueCardIds.some((cardId) => !movableCardIdSet.has(cardId))
   ) {
     return null;
+  }
+
+  if (uniqueCardIds.length === 0) {
+    return { gameState: game, movedCardIds: [] };
   }
 
   let state = updateResolutionZone(game, (zone) => ({

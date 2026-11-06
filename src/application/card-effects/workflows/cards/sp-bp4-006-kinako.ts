@@ -9,10 +9,10 @@ import { CardType } from '../../../../shared/types/enums.js';
 import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import {
   countCurrentLiveRevealedDifferentNamedCheerCards,
-  moveRevealedCheerCards,
   selectRevealedCheerCardIds,
 } from '../../../effects/cheer-selection.js';
 import { SP_BP4_006_LIVE_SUCCESS_DIFFERENT_LIELLA_CHEER_LIVE_TO_HAND_ABILITY_ID } from '../../ability-ids.js';
+import { moveRevealedCheerCardsAndEnqueueTriggers } from '../../runtime/revealed-cheer-movement-triggers.js';
 import {
   registerPendingAbilityStarterHandler,
   type PendingAbilityStarterOptions,
@@ -143,7 +143,13 @@ function finishSpBp4006KinakoLiveSelection(
     return game;
   }
 
-  const moveResult = moveRevealedCheerCards(game, player.id, [selectedCardId], 'HAND');
+  const moveResult = moveRevealedCheerCardsAndEnqueueTriggers(
+    game,
+    player.id,
+    [selectedCardId],
+    'HAND',
+    effect
+  );
   if (!moveResult) {
     return game;
   }
