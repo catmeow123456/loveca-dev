@@ -108,7 +108,8 @@ export function registerNBp8026SolitudeRainWorkflowHandlers(): void {
         effect.metadata?.orderedResolution === true,
         runtime.continuePendingCardEffects,
         count,
-        scoreGranted
+        scoreGranted,
+        converted && isCurrentLiveCardAbilitySource(game, effect) ? id : undefined
       );
     },
     queryCardSelection
@@ -129,25 +130,52 @@ function finish(
   ordered: boolean,
   continuation: Continue,
   convertedHeartCount: number,
-  scoreGranted = false
+  scoreGranted = false,
+  targetCardId?: string
 ): GameState {
-  return continuation(
-    addAction(
-      {
-        ...game,
-        pendingAbilities: game.pendingAbilities.filter((pending) => pending.id !== ability.id),
-      },
-      'RESOLVE_ABILITY',
-      ability.controllerId,
-      {
-        pendingAbilityId: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        step: 'SNAPSHOT_RED_BLUE_TO_PURPLE',
-        convertedHeartCount,
-        scoreBonus: Number(scoreGranted),
-      }
-    ),
-    ordered
+  const resolved = addAction(
+    {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter((pending) => pending.id !== ability.id),
+    },
+    'RESOLVE_ABILITY',
+    ability.controllerId,
+    {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: 'SNAPSHOT_RED_BLUE_TO_PURPLE',
+      convertedHeartCount,
+      scoreBonus: Number(scoreGranted),
+      ...(targetCardId ? { targetCardId } : {}),
+    }
   );
+  const runtime = resolved.entranceRuntime;
+  // Selection and both rule mutations are complete. Pause only the continuation,
+  // including a valid zero-Heart result; stale selections never create a cue.
+  if (targetCardId && runtime && !runtime.pending && !resolved.isEnded) {
+    const generation = runtime.generation + 1;
+    return {
+      ...resolved,
+      entranceRuntime: {
+        ...runtime,
+        generation,
+        seenSequence: resolved.eventSequence,
+        resumePendingEffects: ordered,
+        pending: {
+          id: `solitude-rain:${resolved.gameId}:${resolved.actionSequence}:${generation}`,
+          cardIds: [ability.sourceCardId],
+          waitingPlayerIds: resolved.players.map((player) => player.id),
+          deadlineAt: 0,
+          solitudeRain: {
+            sourceCardId: ability.sourceCardId,
+            targetCardId,
+            convertedHeartCount,
+            scoreBonus: Number(scoreGranted),
+          },
+        },
+      },
+    };
+  }
+  return continuation(resolved, ordered);
 }

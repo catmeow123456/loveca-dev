@@ -90,6 +90,13 @@ export interface EntranceWait {
   readonly cardIds: readonly string[];
   readonly waitingPlayerIds: readonly string[];
   readonly deadlineAt: number;
+  /** Completed, fixed conversion. Counts are authority results, not client eligibility inputs. */
+  readonly solitudeRain?: {
+    readonly sourceCardId: string;
+    readonly targetCardId: string;
+    readonly convertedHeartCount: number;
+    readonly scoreBonus: number;
+  };
   /** Public nine-card set before shuffling, sorted independently of the hidden deck order. */
   readonly miraiReturn?: {
     readonly sourceCardId: string;

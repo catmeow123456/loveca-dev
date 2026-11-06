@@ -1427,7 +1427,18 @@ export const PlayerArea = memo(function PlayerArea({
                 可选
               </span>
             )}
-            {card && <CardModifierBadgeStack modifierDelta={card.modifierDelta} />}
+            {card && (
+              <CardModifierBadgeStack
+                modifierDelta={card.modifierDelta}
+                className={
+                  showSpecialSeals &&
+                  matchView?.entrance?.solitudeRain?.targetObjectId ===
+                    cardViewObject?.publicObjectId
+                    ? 'invisible'
+                    : undefined
+                }
+              />
+            )}
             {card && canActivateAbility && (
               <CardActionMenu
                 suspended={interactionSuspended || activatingCardId === card.instanceId}

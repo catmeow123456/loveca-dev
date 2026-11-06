@@ -389,6 +389,21 @@ export function projectPlayerViewState(
               return seat ? [seat] : [];
             }),
             deadlineAt: game.entranceRuntime.pending.deadlineAt,
+            ...(game.entranceRuntime.pending.solitudeRain
+              ? {
+                  solitudeRain: {
+                    sourceObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.solitudeRain.sourceCardId
+                    ),
+                    targetObjectId: createPublicObjectId(
+                      game.entranceRuntime.pending.solitudeRain.targetCardId
+                    ),
+                    convertedHeartCount:
+                      game.entranceRuntime.pending.solitudeRain.convertedHeartCount,
+                    scoreBonus: game.entranceRuntime.pending.solitudeRain.scoreBonus,
+                  },
+                }
+              : {}),
             ...(game.entranceRuntime.pending.miraiReturn
               ? {
                   miraiReturn: {

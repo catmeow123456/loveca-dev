@@ -147,6 +147,12 @@ export interface MatchViewState {
     readonly objectIds: readonly string[];
     readonly waitingSeats: readonly Seat[];
     readonly deadlineAt: number;
+    readonly solitudeRain?: {
+      readonly sourceObjectId: string;
+      readonly targetObjectId: string;
+      readonly convertedHeartCount: number;
+      readonly scoreBonus: number;
+    };
     readonly miraiReturn?: {
       readonly sourceObjectId: string;
       readonly ownerSeat: Seat;

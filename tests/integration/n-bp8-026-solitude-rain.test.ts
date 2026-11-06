@@ -27,10 +27,7 @@ const TEXT =
 function setup(count: number) {
   const song = live('PL!N-bp8-026-SECL', 'song');
   const target = member('TARGET', 'target', P1, {
-    hearts: [
-      { color: H.RED, count },
-      { color: H.PURPLE, count: 7 },
-    ],
+    hearts: [...(count ? [{ color: H.RED, count }] : []), { color: H.PURPLE, count: 7 }],
   });
   return {
     song,
@@ -69,7 +66,7 @@ describe('PL!N-bp8-026 分数6「Solitude Rain」 fixed conversion under the cur
       expect(getLiveCardScoreModifier(session.state!.liveResolution, song.instanceId)).toBe(0);
     }
   );
-  it.each([4, 5])(
+  it.each([0, 4, 5])(
     'converts exactly the present red/blue Hearts and assesses the threshold immediately at %i',
     (count) => {
       const { session, song } = setup(count);
