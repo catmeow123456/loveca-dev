@@ -1,5 +1,5 @@
 import { pool } from '../db/pool.js';
-import { classifyDeck, type DeckClassificationResult } from './deck-classifier-engine.js';
+import { prepareDeckClassifierAsync, type DeckClassificationResult } from './deck-classifier-engine.js';
 import {
   hashDeckClassifierSnapshot,
   readDeckClassifierSnapshot,
@@ -109,6 +109,11 @@ export class DeckClassificationWorker {
   }
 
   private async execute(run: ClaimedClassificationRun): Promise<void> {
+    const started = performance.now();
+    const timings = { prepareMs: 0, classifyMs: 0, persistMs: 0 };
+    let outcome = 'FAILED';
+    let processed = 0;
+    let fingerprints = 0;
     const heartbeat = setInterval(() => {
       void pool
         .query(
@@ -132,10 +137,16 @@ export class DeckClassificationWorker {
       const [observationsResult, overridesResult, existingResult] = await Promise.all([
         pool.query<ObservationRow>(
           `SELECT match_id, seat, deck_fingerprint, main_deck_cards
-           FROM ranked_deck_observations
+           FROM ranked_deck_observations AS observation
            WHERE ($1::uuid IS NULL OR season_id = $1)
+             AND ($2::boolean = false OR NOT EXISTS (
+               SELECT 1 FROM deck_classification_assignments AS assignment
+               WHERE assignment.release_id = $3
+                 AND assignment.match_id = observation.match_id
+                 AND assignment.seat = observation.seat
+             ))
            ORDER BY match_id ASC, seat ASC`,
-          [run.scopeSeasonId]
+          [run.scopeSeasonId, run.trigger === 'AUTO_NEW_OBSERVATIONS', run.releaseId]
         ),
         pool.query<OverrideDecisionRow>(
           `SELECT DISTINCT ON (deck_fingerprint)
@@ -146,7 +157,7 @@ export class DeckClassificationWorker {
            ORDER BY deck_fingerprint, applies_to_future_releases ASC, created_at DESC`,
           [run.releaseId]
         ),
-        pool.query<ExistingAssignmentRow>(
+        run.trigger === 'AUTO_NEW_OBSERVATIONS' ? Promise.resolve({ rows: [] }) : pool.query<ExistingAssignmentRow>(
           `SELECT assignment.match_id, assignment.seat, assignment.status,
                   assignment.archetype_id, assignment.method
            FROM deck_classification_assignments AS assignment
@@ -164,25 +175,45 @@ export class DeckClassificationWorker {
         existingResult.rows.map((assignment) => [assignmentKey(assignment), assignment])
       );
       const byFingerprint = new Map<string, PersistedAssignment>();
-      const assignments = observationsResult.rows.map((observation) => {
+      const prepareStarted = performance.now();
+      const classify = await prepareDeckClassifierAsync(snapshot);
+      timings.prepareMs = performance.now() - prepareStarted;
+      const classifyStarted = performance.now();
+      const assignments: PersistedAssignment[] = [];
+      let sliceStarted = performance.now();
+      for (const observation of observationsResult.rows) {
         let classification = byFingerprint.get(observation.deck_fingerprint);
         if (!classification) {
           const override = overrides.get(observation.deck_fingerprint);
           classification = override
             ? assignmentFromOverride(override)
             : assignmentFromClassifier(
-                classifyDeck(readTemplateCards(observation.main_deck_cards), snapshot)
+                classify(readTemplateCards(observation.main_deck_cards))
               );
           byFingerprint.set(observation.deck_fingerprint, classification);
         }
-        return { ...classification, matchId: observation.match_id, seat: observation.seat };
-      });
+        assignments.push({ ...classification, matchId: observation.match_id, seat: observation.seat });
+        if (performance.now() - sliceStarted >= 10) {
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          sliceStarted = performance.now();
+        }
+      }
+      timings.classifyMs = performance.now() - classifyStarted;
+      processed = assignments.length;
+      fingerprints = byFingerprint.size;
       const counts = countAssignments(assignments, existing);
+      const persistStarted = performance.now();
       await persistClassificationRun(run, assignments, counts);
+      timings.persistMs = performance.now() - persistStarted;
+      outcome = 'SUCCEEDED';
     } catch (error) {
       await failClassificationRun(run, error);
     } finally {
       clearInterval(heartbeat);
+      console.info('[DeckClassifier] Run completed', {
+        trigger: run.trigger, outcome, processed, fingerprints, ...timings,
+        totalMs: performance.now() - started,
+      });
     }
   }
 }

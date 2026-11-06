@@ -329,9 +329,26 @@ export function calculateDeckDistance(
   );
 }
 
+export async function prepareDeckClassifierAsync(snapshot: DeckClassifierSnapshot) {
+  const templates: PreparedTemplate[] = [];
+  const invalidTemplateIds: string[] = [];
+  for (const template of snapshot.templates ?? []) {
+    const prepared = prepareTemplates([template]);
+    templates.push(...prepared.templates);
+    invalidTemplateIds.push(...prepared.invalidTemplateIds);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+  const prepared = {
+    templates: templates.sort((a, b) => compareStrings(a.templateId, b.templateId)),
+    invalidTemplateIds: invalidTemplateIds.sort(compareStrings),
+  };
+  return (cards: readonly DeckCardInput[]) => classifyDeck(cards, snapshot, prepared);
+}
+
 export function classifyDeck(
   cards: readonly DeckCardInput[],
-  snapshot: DeckClassifierSnapshot
+  snapshot: DeckClassifierSnapshot,
+  prepared?: ReturnType<typeof prepareTemplates>
 ): DeckClassificationResult {
   const normalized = normalizeDeck(cards);
   if (!normalized.valid) {
@@ -349,7 +366,7 @@ export function classifyDeck(
 
   const deck = normalized.deck;
   const deckFingerprint = fingerprintNormalizedDeck(deck);
-  const preparedTemplates = prepareTemplates(snapshot.templates ?? []);
+  const preparedTemplates = prepared ?? prepareTemplates(snapshot.templates ?? []);
   if (preparedTemplates.invalidTemplateIds.length > 0) {
     return resultFor({
       snapshot,

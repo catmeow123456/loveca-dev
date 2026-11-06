@@ -58,7 +58,7 @@ function recoverClient() {
   return client((sql) => ({ rows: sql.includes('SELECT id, release_id') ? [] : [] }));
 }
 
-function claimClient(snapshot: ReturnType<typeof releaseSnapshot>, configHash: string) {
+function claimClient(snapshot: ReturnType<typeof releaseSnapshot>, configHash: string, auto = false) {
   return client((sql) => {
     if (sql.includes('SELECT run.id, run.release_id')) {
       return {
@@ -66,8 +66,8 @@ function claimClient(snapshot: ReturnType<typeof releaseSnapshot>, configHash: s
           {
             id: 'run-1',
             release_id: 'release-new',
-            release_status: 'BUILDING',
-            trigger: 'RELEASE_PUBLISHED',
+            release_status: auto ? 'ACTIVE' : 'BUILDING',
+            trigger: auto ? 'AUTO_NEW_OBSERVATIONS' : 'RELEASE_PUBLISHED',
             scope_season_id: null,
             snapshot_json: snapshot,
             config_hash: configHash,
@@ -110,6 +110,36 @@ describe('DeckClassificationWorker', () => {
       expect.stringContaining('excluded_count = $8'),
       ['run-1', 0, 0, 0, 0, 0, 0, 0, 0],
     ]);
+  });
+
+  it('persists both missing seats with the same fingerprint in an automatic run', async () => {
+    const snapshot = releaseSnapshot();
+    const persist = client((sql) => ({
+      rows: sql.startsWith('SELECT status') ? [{ status: 'RUNNING' }] : [],
+    }));
+    poolMocks.connect
+      .mockResolvedValueOnce(recoverClient())
+      .mockResolvedValueOnce(claimClient(snapshot, hashDeckClassifierSnapshot(snapshot), true))
+      .mockResolvedValueOnce(persist);
+    poolMocks.query.mockImplementation(async (sql: string, values: unknown[]) => {
+      if (sql.includes('FROM ranked_deck_observations AS observation')) {
+        expect(sql).toContain('NOT EXISTS');
+        expect(values).toEqual([null, true, 'release-new']);
+        return { rows: ['FIRST', 'SECOND'].map(seat => ({
+          match_id: 'new-match', seat, deck_fingerprint: 'same',
+          main_deck_cards: snapshot.templates[0].cards,
+        })) };
+      }
+      return { rows: [] };
+    });
+    await new DeckClassificationWorker().runOnce();
+    const write = persist.query.mock.calls.find(([sql]) =>
+      sql.includes('INSERT INTO deck_classification_assignments'));
+    const assignments = JSON.parse(String(write?.[1]?.[2]));
+    expect(assignments).toHaveLength(2);
+    expect(assignments.map((row: { seat: string }) => row.seat)).toEqual(['FIRST', 'SECOND']);
+    expect(assignments.every((row: { method: string }) => row.method === 'EXACT')).toBe(true);
+    expect(persist.query.mock.calls.some(([sql]) => sql.includes("SET status = 'ACTIVE'"))).toBe(false);
   });
 
   it('marks a tampered build failed without superseding the serving release', async () => {
