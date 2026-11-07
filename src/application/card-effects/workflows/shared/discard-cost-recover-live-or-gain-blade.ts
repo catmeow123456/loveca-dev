@@ -15,6 +15,7 @@ import {
   type CardSelector,
 } from '../../../effects/card-selectors.js';
 import { sumStageMemberEffectiveCostMatching } from '../../../effects/conditions.js';
+import { hasWaitingRoomSelectionReenteredAfter } from '../../../effects/waiting-room-selection-lifecycle.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
@@ -28,6 +29,7 @@ import {
   N_SD2_011_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
   N_SD1_004_LIVE_START_DISCARD_GAIN_TWO_BLADE_ABILITY_ID,
   PL_N_PB1_001_ON_ENTER_OPTIONAL_DISCARD_IF_OTHER_COST_ELEVEN_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+  S_AD2_003_ON_ENTER_DISCARD_RECOVER_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
@@ -113,6 +115,20 @@ interface TriggeredDiscardRecoverLiveConfig {
 }
 
 const TRIGGERED_DISCARD_RECOVER_LIVE_CONFIGS: readonly TriggeredDiscardRecoverLiveConfig[] = [
+  {
+    abilityId: S_AD2_003_ON_ENTER_DISCARD_RECOVER_LIVE_ABILITY_ID,
+    discardStepId: 'S_AD2_003_SELECT_DISCARD_FOR_LIVE',
+    recoveryStepId: 'S_AD2_003_SELECT_WAITING_ROOM_LIVE',
+    recoveryCondition: () => true,
+    recoverySelector: typeIs(CardType.LIVE),
+    recoveryStepText: '请选择自己的休息室中1张LIVE卡加入手牌。',
+    recoverySelectionLabel: '选择要加入手牌的LIVE卡',
+    startActionStep: 'START_SELECT_DISCARD_FOR_LIVE_RECOVERY',
+    selectActionStep: 'DISCARD_SELECT_LIVE',
+    conditionNotMetActionStep: 'DISCARD_COST_RECOVERY_CONDITION_NOT_MET',
+    noTargetActionStep: 'DISCARD_COST_NO_LIVE_TARGET',
+    noTargetReason: 'NO_LIVE_TARGET',
+  },
   {
     abilityId: HS_BP8_016_LIVE_SUCCESS_DISCARD_TWO_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID,
     discardStepId: 'HS_BP8_016_SELECT_TWO_HAND_CARDS_TO_DISCARD',
@@ -250,6 +266,13 @@ export function registerNDiscardRecoverAndBladeWorkflowHandlers(deps: {
               game,
               effect.controllerId,
               config.recoverySelector ?? nijigasakiLive
+            ).filter(
+              (cardId) =>
+                !hasWaitingRoomSelectionReenteredAfter(
+                  game,
+                  [cardId],
+                  effect.metadata?.waitingSelectionSequence
+                )
             )
           : [];
         return finishWaitingRoomToHandWorkflow(
@@ -535,6 +558,7 @@ function finishTriggeredDiscardCost(
           ...effect.metadata,
           orderedResolution: effect.metadata?.orderedResolution === true,
           discardedHandCardIds: discardResult.discardedCardIds,
+          waitingSelectionSequence: stateAfterCost.eventLog.at(-1)?.sequence ?? 0,
         },
         zoneSelection: createWaitingRoomToHandSelectionConfig({
           minCount: 1,

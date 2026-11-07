@@ -1,3 +1,4 @@
+import { getCurrentTurnLiveZoneEntries } from '../../src/application/effects/current-turn-live-zone-entries';
 import { describe, expect, it } from 'vitest';
 import {
   createConfirmStepCommand,
@@ -103,6 +104,11 @@ describe('规则模式玩家命令防火墙', () => {
     const setResult = session.executeCommand(createSetLiveCardCommand(P1, cardId, true));
     expect(setResult.success, setResult.error).toBe(true);
     expect(getLiveSetCardCountForPlayer(session.state!, P1)).toBe(1);
+    expect(getCurrentTurnLiveZoneEntries(session.state!, P1)).toHaveLength(1);
+    const entryEventId = session.state!.eventLog.find(
+      (entry) =>
+        entry.event.eventType === 'ON_ENTER_LIVE_ZONE' && entry.event.cardInstanceId === cardId
+    )!.event.eventId;
 
     const unsetHint = session
       .getPlayerViewState(P1)!
@@ -123,10 +129,64 @@ describe('规则模式玩家命令防火墙', () => {
     expect(session.state!.players[0].hand.cardIds).toContain(cardId);
     expect(session.state!.players[0].liveZone.cardIds).not.toContain(cardId);
     expect(getLiveSetCardCountForPlayer(session.state!, P1)).toBe(0);
+    expect(getCurrentTurnLiveZoneEntries(session.state!, P1)).toHaveLength(0);
+    expect(session.state!.actionHistory.at(-1)).toMatchObject({
+      type: 'UNSET_LIVE_CARD',
+      playerId: P1,
+      payload: { cardId, entryEventId },
+    });
+    const historyLength = session.state!.actionHistory.length;
 
     const repeatedUnset = session.executeCommand(createUnsetLiveCardCommand(P1, cardId));
     expect(repeatedUnset.success).toBe(false);
     expect(repeatedUnset.error).toContain('Live 区');
+    expect(session.state!.actionHistory).toHaveLength(historyLength);
+    expect(session.executeCommand(createSetLiveCardCommand(P1, cardId, true)).success).toBe(true);
+    expect(getCurrentTurnLiveZoneEntries(session.state!, P1)).toHaveLength(1);
+  });
+
+  it('盖牌撤回的undo/checkpoint及确认抽牌清空选择均保留精确入区次数', () => {
+    const session = createInitializedSession();
+    const cardId = findOwnedCardId(session.state!, CardType.MEMBER);
+    forceCardIntoHand(session.state!, P1, cardId);
+    forceWindow(session.state!, GamePhase.LIVE_SET_PHASE, SubPhase.LIVE_SET_FIRST_PLAYER);
+    expect(session.executeCommand(createSetLiveCardCommand(P1, cardId, true)).success).toBe(true);
+    expect(session.executeCommand(createUnsetLiveCardCommand(P1, cardId)).success).toBe(true);
+    expect(getCurrentTurnLiveZoneEntries(session.state!, P1)).toHaveLength(0);
+    expect(session.undoLastStep().success).toBe(true);
+    expect(getCurrentTurnLiveZoneEntries(session.state!, P1)).toHaveLength(1);
+    expect(session.state!.players[0].liveZone.cardIds).toContain(cardId);
+    session.restoreRuntimeState({
+      authorityState: structuredClone(session.state!),
+      currentPublicSeq: 0,
+    });
+    expect(session.executeCommand(createUnsetLiveCardCommand(P1, cardId)).success).toBe(true);
+    expect(getCurrentTurnLiveZoneEntries(session.state!, P1)).toHaveLength(0);
+    expect(session.executeCommand(createSetLiveCardCommand(P1, cardId, true)).success).toBe(true);
+    expect(getCurrentTurnLiveZoneEntries(session.state!, P1)).toHaveLength(1);
+    const confirmed = session.executeCommand(
+      createConfirmStepCommand(P1, SubPhase.LIVE_SET_FIRST_PLAYER)
+    );
+    expect(confirmed.success, confirmed.error).toBe(true);
+    expect(getLiveSetCardCountForPlayer(session.state!, P1)).toBe(0);
+    expect(getCurrentTurnLiveZoneEntries(session.state!, P1)).toHaveLength(1);
+  });
+
+  it('缺少SET动作关联的旧状态不可猜测撤回来源，失败不写UNSET', () => {
+    const session = createInitializedSession();
+    const cardId = findOwnedCardId(session.state!, CardType.MEMBER);
+    forceCardIntoHand(session.state!, P1, cardId);
+    forceWindow(session.state!, GamePhase.LIVE_SET_PHASE, SubPhase.LIVE_SET_FIRST_PLAYER);
+    expect(session.executeCommand(createSetLiveCardCommand(P1, cardId, true)).success).toBe(true);
+    const game = {
+      ...session.state!,
+      eventLog: session.state!.eventLog.map((entry) => ({ ...entry, causedByActionId: undefined })),
+    };
+    session.restoreRuntimeState({ authorityState: game, currentPublicSeq: 0 });
+    const historyLength = session.state!.actionHistory.length;
+    expect(session.executeCommand(createUnsetLiveCardCommand(P1, cardId)).success).toBe(false);
+    expect(session.state!.actionHistory).toHaveLength(historyLength);
+    expect(session.state!.players[0].liveZone.cardIds).toContain(cardId);
   });
 
   it('不能通过撤回盖牌命令取回非本轮盖下的 Live 区卡牌', () => {
@@ -208,8 +268,20 @@ describe('规则模式玩家命令防火墙', () => {
     );
     expect(memberIds.length).toBeGreaterThanOrEqual(2);
     const [manualMemberId, incomingMemberId] = memberIds as [string, string, ...string[]];
-    player.hand.cardIds = player.hand.cardIds.filter((cardId) => cardId !== manualMemberId);
-    player.waitingRoom.cardIds = [...player.waitingRoom.cardIds, manualMemberId];
+    session.restoreRuntimeState({
+      authorityState: updatePlayer(session.state!, P1, (currentPlayer) => ({
+        ...currentPlayer,
+        hand: {
+          ...currentPlayer.hand,
+          cardIds: currentPlayer.hand.cardIds.filter((cardId) => cardId !== manualMemberId),
+        },
+        waitingRoom: {
+          ...currentPlayer.waitingRoom,
+          cardIds: [...currentPlayer.waitingRoom.cardIds, manualMemberId],
+        },
+      })),
+      currentPublicSeq: 0,
+    });
 
     session.setManualOperationMode('FREE');
     const moved = session.executeCommand(

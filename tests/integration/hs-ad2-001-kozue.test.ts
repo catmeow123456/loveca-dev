@@ -49,9 +49,9 @@ import {
   ZoneType,
 } from '../../src/shared/types/enums';
 import {
-  createNovember02DraftCard,
-  getNovember02MemberData,
-} from '../helpers/november-02-draft-effects';
+  createNovember07DraftCard,
+  getNovember07MemberData,
+} from '../helpers/november-07-draft-effects';
 
 const P1 = 'p1';
 const P2 = 'p2';
@@ -77,7 +77,7 @@ function member(id: string, bladeHearts?: BladeHearts, owner = P1, name = id) {
 
 function setup(sourceCount = 1): GameState {
   const sources = Array.from({ length: sourceCount }, (_, index) =>
-    createNovember02DraftCard(BASE, P1, index === 0 ? 'source' : 'source2')
+    createNovember07DraftCard(BASE, P1, index === 0 ? 'source' : 'source2')
   );
   const liveData: LiveCardData = {
     cardCode: 'TEST-LIVE',
@@ -229,7 +229,7 @@ describe('PL!HS-ad2-001 费用11「乙宗梢」', () => {
 
   it('covers another printing and stops collecting once the source leaves the main stage', () => {
     const source = createCardInstance(
-      { ...getNovember02MemberData(BASE), cardCode: `${BASE}-P` },
+      { ...getNovember07MemberData(BASE), cardCode: `${BASE}-P` },
       P1,
       'source'
     );

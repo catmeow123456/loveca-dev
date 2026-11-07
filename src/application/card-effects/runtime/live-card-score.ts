@@ -1,7 +1,7 @@
 import type { GameState, LiveModifierState } from '../../../domain/entities/game.js';
 import { replaceLiveModifier } from '../../../domain/rules/live-modifiers.js';
 
-/** Replace this ability's self-score bonus and synchronize the judged score by its delta. */
+/** Replace this ability's self-score bonus and optionally apply its delta to the player score. */
 export function replaceSourceLiveCardScoreModifierAndRefresh(
   game: GameState,
   context: {
@@ -9,7 +9,8 @@ export function replaceSourceLiveCardScoreModifierAndRefresh(
     readonly controllerId: string;
     readonly sourceCardId: string;
   },
-  scoreBonus: number
+  scoreBonus: number,
+  options: { readonly refreshPlayerScore?: boolean } = {}
 ): GameState {
   const matches = (modifier: LiveModifierState) =>
     modifier.kind === 'SCORE' &&
@@ -43,7 +44,7 @@ export function replaceSourceLiveCardScoreModifierAndRefresh(
     replacement
   );
   const delta = scoreBonus - previousScoreBonus;
-  if (delta === 0) return state;
+  if (delta === 0 || options.refreshPlayerScore === false) return state;
   const playerScores = new Map(state.liveResolution.playerScores);
   playerScores.set(context.controllerId, (playerScores.get(context.controllerId) ?? 0) + delta);
   return { ...state, liveResolution: { ...state.liveResolution, playerScores } };

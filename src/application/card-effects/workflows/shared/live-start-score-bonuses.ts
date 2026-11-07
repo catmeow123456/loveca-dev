@@ -1,3 +1,17 @@
+import { getCurrentTurnLiveZoneEntries } from '../../../effects/current-turn-live-zone-entries.js';
+import {
+  collectLiveModifiers,
+  getMemberEffectiveHeartIcons,
+} from '../../../../domain/rules/live-modifiers.js';
+import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
+import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
+import { isCurrentLiveCardAbilitySource } from '../../runtime/source-live.js';
+import { replaceSourceLiveCardScoreModifierAndRefresh } from '../../runtime/live-card-score.js';
+import {
+  PL_BP8_019_LIVE_START_TURN_LIVE_ENTRY_AT_MOST_ONE_GAIN_SCORE_ABILITY_ID,
+  HS_AD2_004_LIVE_START_GREEN_BLUE_MEMBERS_GAIN_SCORE_ABILITY_ID,
+  HS_BP8_019_LIVE_START_CERISE_DECK_THIRTY_FIVE_GAIN_SCORE_ABILITY_ID,
+} from '../../ability-ids.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -76,6 +90,49 @@ const ENERGY_THRESHOLD_SCORE_BONUS_CONFIGS: readonly EnergyThresholdScoreBonusCo
 ];
 
 export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
+  for (const config of LIVE_OBJECT_SCORE_CONFIGS) {
+    registerManualConfirmablePendingAbilityStarterHandler(
+      config.abilityId,
+      (game, ability, options, context) => {
+        const result = config.evaluate(game, ability.controllerId);
+        const sourceValid = isCurrentLiveCardAbilitySource(game, {
+          ...ability,
+          sourceLifecycleId: getPendingAbilitySourceLifecycleId(game, ability),
+        });
+        const bonus = sourceValid ? result.scoreBonus : 0;
+        const state = sourceValid
+          ? replaceSourceLiveCardScoreModifierAndRefresh(
+              consumePendingAbility(game, ability),
+              ability,
+              bonus,
+              { refreshPlayerScore: false }
+            )
+          : consumePendingAbility(game, ability);
+        return context.continuePendingCardEffects(
+          addAction(state, 'RESOLVE_ABILITY', ability.controllerId, {
+            pendingAbilityId: ability.id,
+            abilityId: ability.abilityId,
+            sourceCardId: ability.sourceCardId,
+            step: 'LIVE_OBJECT_SCORE_BONUS',
+            sourceValid,
+            scoreBonus: bonus,
+            ...result.facts,
+          }),
+          options.orderedResolution === true
+        );
+      },
+      (game, ability) => {
+        const result = config.evaluate(game, ability.controllerId);
+        const sourceValid = isCurrentLiveCardAbilitySource(game, {
+          ...ability,
+          sourceLifecycleId: getPendingAbilitySourceLifecycleId(game, ability),
+        });
+        return {
+          effectText: `${getAbilityEffectText(ability.abilityId)}（${result.text}，实际[スコア]+${sourceValid ? result.scoreBonus : 0}。）`,
+        };
+      }
+    );
+  }
   for (const config of ENERGY_THRESHOLD_SCORE_BONUS_CONFIGS) {
     registerManualConfirmablePendingAbilityStarterHandler(
       config.abilityId,
@@ -1466,3 +1523,65 @@ function refreshPlayerScoreDraft(game: GameState, playerId: string, scoreBonus: 
     },
   };
 }
+
+/** The three new self-score effects share confirmation and source-object semantics. */
+const LIVE_OBJECT_SCORE_CONFIGS: readonly {
+  readonly abilityId: string;
+  readonly evaluate: (
+    game: GameState,
+    playerId: string
+  ) => {
+    readonly scoreBonus: number;
+    readonly text: string;
+    readonly facts: Readonly<Record<string, unknown>>;
+  };
+}[] = [
+  {
+    abilityId: PL_BP8_019_LIVE_START_TURN_LIVE_ENTRY_AT_MOST_ONE_GAIN_SCORE_ABILITY_ID,
+    evaluate: (game, playerId) => {
+      const entryCount = getCurrentTurnLiveZoneEntries(game, playerId).length;
+      return {
+        scoreBonus: entryCount <= 1 ? 2 : 0,
+        text: `此回合放置于自己LIVE区的卡片${entryCount}张`,
+        facts: { entryCount },
+      };
+    },
+  },
+  {
+    abilityId: HS_AD2_004_LIVE_START_GREEN_BLUE_MEMBERS_GAIN_SCORE_ABILITY_ID,
+    evaluate: (game, playerId) => {
+      const modifiers = collectLiveModifiers(game);
+      const memberIds = getStageMemberCardIdsMatching(
+        game,
+        playerId,
+        (card) => card.ownerId === playerId
+      ).filter((id) => {
+        const hearts = getMemberEffectiveHeartIcons(game, playerId, id, modifiers);
+        return [HeartColor.GREEN, HeartColor.BLUE].every((color) =>
+          hearts.some((heart) => heart.color === color && heart.count > 0)
+        );
+      });
+      return {
+        scoreBonus: memberIds.length,
+        text: `同时持有绿色与蓝色Heart的成员${memberIds.length}名`,
+        facts: { memberIds },
+      };
+    },
+  },
+  {
+    abilityId: HS_BP8_019_LIVE_START_CERISE_DECK_THIRTY_FIVE_GAIN_SCORE_ABILITY_ID,
+    evaluate: (game, playerId) => {
+      const deckCount = getPlayerById(game, playerId)?.mainDeck.cardIds.length ?? 0;
+      const memberIds = getStageMemberCardIdsMatching(
+        game,
+        playerId,
+        unitAliasIs('スリーズブーケ')
+      );
+      return {
+        scoreBonus: memberIds.length > 0 && deckCount >= 35 ? 2 : 0,
+        text: `Cerise Bouquet成员${memberIds.length}名，卡组${deckCount}张`,
+        facts: { memberIds, deckCount },
+      };
+    },
+  },
+];

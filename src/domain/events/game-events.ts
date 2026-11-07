@@ -304,6 +304,28 @@ export interface CardEffectCause {
   readonly pendingAbilityId?: string;
 }
 
+const REVEALED_CHEER_DESTINATION_ZONES = {
+  HAND: ZoneType.HAND,
+  MAIN_DECK_TOP: ZoneType.MAIN_DECK,
+  MAIN_DECK_BOTTOM: ZoneType.MAIN_DECK,
+  WAITING_ROOM: ZoneType.WAITING_ROOM,
+} as const;
+
+export type RevealedCheerCardDestination = keyof typeof REVEALED_CHEER_DESTINATION_ZONES;
+
+/** One completed card-effect move of cards revealed by cheer. */
+export interface RevealedCheerCardsMovedEvent extends BaseGameEvent {
+  readonly eventType: TriggerCondition.ON_REVEALED_CHEER_CARDS_MOVED;
+  /** Owner of the moved cheer cards. */
+  readonly playerId: string;
+  readonly controllerId: string;
+  readonly movedCardIds: readonly string[];
+  readonly fromZone: ZoneType.RESOLUTION_ZONE;
+  readonly toZone: (typeof REVEALED_CHEER_DESTINATION_ZONES)[RevealedCheerCardDestination];
+  readonly destination: RevealedCheerCardDestination;
+  readonly cause: CardEffectCause;
+}
+
 export interface EnergyPlacedByCardEffectEvent extends BaseGameEvent {
   readonly eventType: TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT;
   readonly targetPlayerId: string;
@@ -479,6 +501,7 @@ export type GameEvent =
   | LiveSuccessEvent
   | LiveFailEvent
   | CheerEvent
+  | RevealedCheerCardsMovedEvent
   | RelayEvent
   | DrawEvent
   | PayCostEvent
@@ -881,6 +904,30 @@ export function createEnergyMovedToDeckEvent(
     turnCount,
     triggerPlayerId: playerId,
   };
+}
+
+export function createRevealedCheerCardsMovedEvent(
+  playerId: string,
+  movedCardIds: readonly string[],
+  destination: RevealedCheerCardDestination,
+  cause: CardEffectCause
+): RevealedCheerCardsMovedEvent {
+  if (movedCardIds.length === 0) {
+    throw new Error('A revealed cheer movement event requires at least one moved card');
+  }
+  return Object.freeze({
+    eventId: generateEventId(),
+    eventType: TriggerCondition.ON_REVEALED_CHEER_CARDS_MOVED,
+    timestamp: Date.now(),
+    playerId,
+    controllerId: cause.playerId,
+    movedCardIds: Object.freeze([...movedCardIds]),
+    fromZone: ZoneType.RESOLUTION_ZONE,
+    toZone: REVEALED_CHEER_DESTINATION_ZONES[destination],
+    destination,
+    cause: Object.freeze({ ...cause }),
+    triggerPlayerId: playerId,
+  });
 }
 
 export function createWaitingRoomCardsMovedToMainDeckEvent(

@@ -1,3 +1,4 @@
+import { getCurrentTurnSetLiveEntryEventId } from './effects/current-turn-live-zone-entries.js';
 import type { BattleRulesetId } from '../domain/rules/battle-ruleset.js';
 /**
  * 游戏会话管理
@@ -3027,6 +3028,15 @@ export class GameSession {
       return { success: false, gameState: state, error: '玩家不存在' };
     }
 
+    const entryEventId = getCurrentTurnSetLiveEntryEventId(state, command.playerId, command.cardId);
+    if (entryEventId === null) {
+      return {
+        success: false,
+        gameState: state,
+        error: '无法确认此卡本次 Live 设置阶段的盖牌记录',
+      };
+    }
+
     const result = this.gameService.processAction(
       state,
       createManualMoveCardAction(
@@ -3044,10 +3054,11 @@ export class GameSession {
     const remainingLiveSetCardIds = getLiveSetCardIdsForPlayer(state, command.playerId).filter(
       (cardId) => cardId !== command.cardId
     );
-    const gameState = setLiveSetCardIdsForPlayer(
-      result.gameState,
+    const gameState = addAction(
+      setLiveSetCardIdsForPlayer(result.gameState, command.playerId, remainingLiveSetCardIds),
+      'UNSET_LIVE_CARD',
       command.playerId,
-      remainingLiveSetCardIds
+      { cardId: command.cardId, entryEventId }
     );
 
     return {

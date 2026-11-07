@@ -1,3 +1,4 @@
+import { moveRevealedCheerCardsAndEnqueueTriggers } from '../../runtime/revealed-cheer-movement-triggers.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
@@ -8,6 +9,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
+import type { RevealedCheerCardDestination } from '../../../../domain/events/game-events.js';
 import { TriggerCondition } from '../../../../shared/types/enums.js';
 import {
   and,
@@ -23,12 +25,10 @@ import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js
 import { getOwnAqoursStageMemberCommonHeartColors } from '../../../effects/stage-member-common-hearts.js';
 import { revealCheerCardsFromMainDeck } from '../../../effects/cheer.js';
 import {
-  moveRevealedCheerCards,
   evaluateCurrentLiveRevealedCheerCardCondition,
   selectRevealedCheerCardIds,
   selectCurrentLiveRevealedCheerCardIds,
   type CheerCardPredicate,
-  type RevealedCheerCardDestination,
 } from '../../../effects/cheer-selection.js';
 import {
   PL_PB2_037_LIVE_SUCCESS_SAME_UNIT_CHEER_MEMBER_TO_HAND_ABILITY_ID,
@@ -733,7 +733,13 @@ function finishRevealedCheerSelectionWorkflow(
     );
   }
 
-  const moveResult = moveRevealedCheerCards(game, player.id, uniqueSelectedCardIds, destination);
+  const moveResult = moveRevealedCheerCardsAndEnqueueTriggers(
+    game,
+    player.id,
+    uniqueSelectedCardIds,
+    destination,
+    effect
+  );
   if (!moveResult) {
     return refreshOrFinishStaleRevealedCheerSelection(
       game,

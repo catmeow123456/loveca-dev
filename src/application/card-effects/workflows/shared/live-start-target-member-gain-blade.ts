@@ -1,3 +1,5 @@
+import { countOpponentStageMembersWithDifferentName } from '../../../effects/opponent-different-name-members.js';
+import { getStageMemberLifecycleId } from '../../runtime/ability-source-lifecycle.js';
 import {
   addAction,
   getCardById,
@@ -20,6 +22,7 @@ import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js
 import {
   PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
   PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
+  PL_BP8_024_LIVE_START_TARGET_MUSE_GAIN_BLADE_PER_DIFFERENT_OPPONENT_NAME_ABILITY_ID,
   N_BP7_025_LIVE_START_TARGET_NIJIGASAKI_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
   S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
   SP_BP7_025_LIVE_START_TARGET_CHISATO_GAIN_ONE_BLADE_ABILITY_ID,
@@ -28,7 +31,10 @@ import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 
 const SELECT_MEMBER_STEP_ID = 'LIVE_START_TARGET_MEMBER_GAIN_BLADE_SELECT_MEMBER';
 
@@ -50,7 +56,9 @@ interface LiveStartTargetMemberGainBladeConfig {
   readonly abilityId: string;
   readonly sourceZone: SourceZone;
   readonly sourceBaseCardCode?: string;
-  readonly bladeAmount: number;
+  readonly bladeAmount: number | 'OPPONENT_DIFFERENT_NAME_MEMBER_COUNT';
+  readonly independentOfSource?: boolean;
+  readonly alwaysSelectTarget?: boolean;
   readonly targetIdentity: TargetMemberIdentity;
   readonly excludeSourceMember: boolean;
   readonly condition: LiveStartTargetMemberGainBladeCondition;
@@ -58,6 +66,18 @@ interface LiveStartTargetMemberGainBladeConfig {
 }
 
 const CONFIGS: readonly LiveStartTargetMemberGainBladeConfig[] = [
+  {
+    abilityId: PL_BP8_024_LIVE_START_TARGET_MUSE_GAIN_BLADE_PER_DIFFERENT_OPPONENT_NAME_ABILITY_ID,
+    sourceZone: 'LIVE_CARD',
+    sourceBaseCardCode: 'PL!-bp8-024',
+    bladeAmount: 'OPPONENT_DIFFERENT_NAME_MEMBER_COUNT',
+    independentOfSource: true,
+    alwaysSelectTarget: true,
+    targetIdentity: { type: 'GROUP_ALIAS', value: "μ's" },
+    excludeSourceMember: false,
+    condition: { type: 'NONE' },
+    bladeCopy: '[ブレード]',
+  },
   {
     abilityId: S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
     sourceZone: 'LIVE_CARD',
@@ -110,15 +130,30 @@ const CONFIGS: readonly LiveStartTargetMemberGainBladeConfig[] = [
 
 export function registerLiveStartTargetMemberGainBladeWorkflowHandlers(): void {
   for (const config of CONFIGS) {
-    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
-      startLiveStartTargetMemberGainBlade(
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) => {
+      if (
+        config.alwaysSelectTarget &&
+        getCurrentTargetMemberCardIds(game, ability.controllerId, ability.sourceCardId, config)
+          .length === 0
+      ) {
+        const confirmation = maybeStartConfirmablePendingAbilityConfirmation(
+          game,
+          ability,
+          options,
+          {
+            effectText: `${getAbilityEffectText(ability.abilityId)}（当前自己舞台上没有可选择的μ’s成员，实际不增加BLADE。）`,
+          }
+        );
+        if (confirmation) return confirmation;
+      }
+      return startLiveStartTargetMemberGainBlade(
         game,
         ability,
         config,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
-    );
+      );
+    });
     registerActiveEffectStepHandler(
       config.abilityId,
       SELECT_MEMBER_STEP_ID,
@@ -147,7 +182,10 @@ function startLiveStartTargetMemberGainBlade(
   }
 
   const stateWithoutPending = removePendingAbility(game, ability.id);
-  if (!isSourceValid(stateWithoutPending, player.id, ability.sourceCardId, config)) {
+  if (
+    !config.independentOfSource &&
+    !isSourceValid(stateWithoutPending, player.id, ability.sourceCardId, config)
+  ) {
     return continueNoOp(
       stateWithoutPending,
       ability,
@@ -184,7 +222,7 @@ function startLiveStartTargetMemberGainBlade(
       { step: 'NO_STAGE_MEMBER_TARGET' }
     );
   }
-  if (targetMemberCardIds.length === 1) {
+  if (targetMemberCardIds.length === 1 && !config.alwaysSelectTarget) {
     return applyBladeAndContinue(
       stateWithoutPending,
       ability,
@@ -216,7 +254,12 @@ function startLiveStartTargetMemberGainBlade(
         selectionLabel: `选择获得${config.bladeCopy}的成员`,
         confirmSelectionLabel: `获得${config.bladeCopy}`,
         canSkipSelection: false,
-        metadata: { orderedResolution },
+        metadata: {
+          orderedResolution,
+          targetLifecycles: Object.fromEntries(
+            targetMemberCardIds.map((id) => [id, getStageMemberLifecycleId(game, id)])
+          ),
+        },
       },
     },
     'RESOLVE_ABILITY',
@@ -251,7 +294,10 @@ function finishTargetMemberSelection(
     : [];
   const validSelection =
     player !== null &&
-    isSourceValid(game, player.id, effect.sourceCardId, config) &&
+    (config.independentOfSource || isSourceValid(game, player.id, effect.sourceCardId, config)) &&
+    (effect.metadata?.targetLifecycles as Readonly<Record<string, string>> | undefined)?.[
+      selectedCardId
+    ] === getStageMemberLifecycleId(game, selectedCardId) &&
     conditionMatches(game, player.id, config.condition) &&
     currentTargetMemberCardIds.includes(selectedCardId);
 
@@ -269,12 +315,20 @@ function finishTargetMemberSelection(
     );
   }
 
+  const bladeAmount = getBladeAmount(game, player.id, selectedCardId, config);
+  if (bladeAmount === 0) {
+    return finishSelectionWithoutBlade(game, effect, player.id, continuePendingCardEffects, {
+      step: 'TARGET_MEMBER_GAIN_BLADE',
+      targetMemberCardId: selectedCardId,
+      bladeBonus: 0,
+    });
+  }
   const bladeResult = addBladeLiveModifierForTargetMember(game, {
     playerId: player.id,
     sourceCardId: effect.sourceCardId,
     targetMemberCardId: selectedCardId,
     abilityId: effect.abilityId,
-    amount: config.bladeAmount,
+    amount: bladeAmount,
   });
   if (!bladeResult) {
     return finishSelectionWithoutBlade(game, effect, player.id, continuePendingCardEffects, {
@@ -290,7 +344,7 @@ function finishTargetMemberSelection(
       sourceCardId: effect.sourceCardId,
       step: 'TARGET_MEMBER_GAIN_BLADE',
       targetMemberCardId: selectedCardId,
-      bladeBonus: config.bladeAmount,
+      bladeBonus: bladeAmount,
     }),
     effect.metadata?.orderedResolution === true
   );
@@ -306,12 +360,20 @@ function applyBladeAndContinue(
   continuePendingCardEffects: ContinuePendingCardEffects,
   step: string
 ): GameState {
+  const bladeAmount = getBladeAmount(game, playerId, targetMemberCardId, config);
+  if (bladeAmount === 0) {
+    return continueNoOp(game, ability, playerId, orderedResolution, continuePendingCardEffects, {
+      step,
+      targetMemberCardId,
+      bladeBonus: 0,
+    });
+  }
   const bladeResult = addBladeLiveModifierForTargetMember(game, {
     playerId,
     sourceCardId: ability.sourceCardId,
     targetMemberCardId,
     abilityId: ability.abilityId,
-    amount: config.bladeAmount,
+    amount: bladeAmount,
   });
   if (!bladeResult) {
     return continueNoOp(game, ability, playerId, orderedResolution, continuePendingCardEffects, {
@@ -326,7 +388,7 @@ function applyBladeAndContinue(
       sourceCardId: ability.sourceCardId,
       step,
       targetMemberCardId,
-      bladeBonus: config.bladeAmount,
+      bladeBonus: bladeAmount,
     }),
     orderedResolution
   );
@@ -449,4 +511,15 @@ function removePendingAbility(game: GameState, pendingAbilityId: string): GameSt
       (candidate) => candidate.id !== pendingAbilityId
     ),
   };
+}
+
+function getBladeAmount(
+  game: GameState,
+  playerId: string,
+  targetId: string,
+  config: LiveStartTargetMemberGainBladeConfig
+): number {
+  return config.bladeAmount === 'OPPONENT_DIFFERENT_NAME_MEMBER_COUNT'
+    ? countOpponentStageMembersWithDifferentName(game, playerId, targetId)
+    : config.bladeAmount;
 }

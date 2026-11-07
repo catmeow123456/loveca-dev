@@ -17,6 +17,7 @@ import {
 } from '../../src/application/game-commands';
 import { PL_N_BP4_021_ON_ENTER_WAITING_ROOM_CARD_TO_DECK_TOP_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import { PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-card-selection-confirmation';
+import { createEnterWaitingRoomEvent } from '../../src/domain/events/game-events';
 import {
   CardType,
   FaceState,
@@ -48,7 +49,10 @@ function createMember(cardCode: string): MemberCardData {
   };
 }
 
-function setup(cardCode: string, waitingCount = 1): {
+function setup(
+  cardCode: string,
+  waitingCount = 1
+): {
   state: GameState;
   targetIds: string[];
   deckTopId: string;
@@ -175,9 +179,8 @@ describe('shared on-enter waiting-room card to deck-top workflow', () => {
       expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
       expect(session.state?.players[0].mainDeck.cardIds).toEqual([targetIds[0], deckTopId]);
       expect(
-        session.executeCommand(
-          createAutoAdvancePublicCardSelectionCommand(PLAYER1, effectId, 0)
-        ).success
+        session.executeCommand(createAutoAdvancePublicCardSelectionCommand(PLAYER1, effectId, 0))
+          .success
       ).toBe(false);
       expect(session.state?.players[0].mainDeck.cardIds).toEqual([targetIds[0], deckTopId]);
     }
@@ -188,7 +191,8 @@ describe('shared on-enter waiting-room card to deck-top workflow', () => {
     const session = attachSession(state);
     const effectId = session.state!.activeEffect!.id;
     expect(
-      session.executeCommand(createConfirmEffectStepCommand(PLAYER1, effectId, targetIds[0])).success
+      session.executeCommand(createConfirmEffectStepCommand(PLAYER1, effectId, targetIds[0]))
+        .success
     ).toBe(true);
     const staleState = updatePlayer(session.state!, PLAYER1, (player) => ({
       ...player,
@@ -201,11 +205,34 @@ describe('shared on-enter waiting-room card to deck-top workflow', () => {
       createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 0)
     );
     expect(result.success, result.error).toBe(true);
-    expect(session.state?.activeEffect?.stepId).not.toBe(PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID);
+    expect(session.state?.activeEffect?.stepId).not.toBe(
+      PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID
+    );
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([deckTopId]);
     expect(session.state?.players[0].hand.cardIds).toEqual(targetIds);
   });
 
+  it('rejects a reentered waiting-room rules object during public confirmation', () => {
+    const { state, targetIds, deckTopId } = setup(CARD_CODES[0]);
+    const session = attachSession(state);
+    const effectId = session.state!.activeEffect!.id;
+    expect(
+      session.executeCommand(createConfirmEffectStepCommand(PLAYER1, effectId, targetIds[0]))
+        .success
+    ).toBe(true);
+    (session as unknown as { authorityState: GameState }).authorityState = emitGameEvent(
+      session.state!,
+      createEnterWaitingRoomEvent(targetIds, ZoneType.HAND, PLAYER1, PLAYER1)
+    );
+    expirePublicWindow(session);
+    expect(
+      session.executeCommand(createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 0))
+        .success
+    ).toBe(true);
+    expect(session.state!.activeEffect).toBeNull();
+    expect(session.state!.players[0].waitingRoom.cardIds).toEqual(targetIds);
+    expect(session.state!.players[0].mainDeck.cardIds).toEqual([deckTopId]);
+  });
   it('rejects non-candidate, duplicate, and stale selection payloads without advancing', () => {
     const { state, targetIds, deckTopId } = setup(CARD_CODES[1], 2);
     const session = attachSession(state);

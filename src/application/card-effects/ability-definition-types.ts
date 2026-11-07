@@ -103,8 +103,8 @@ export type WaitingRoomOnEnterDelegationPolicy =
 
 export interface CardAbilityDefinition {
   readonly abilityId: string;
-  readonly cardCodes?: readonly string[];
-  readonly baseCardCodes?: readonly string[];
+  readonly cardCodes?: never;
+  readonly baseCardCodes: readonly string[];
   readonly category: CardAbilityCategory;
   readonly sourceZone: CardAbilitySourceZone;
   readonly triggerCondition?: TriggerCondition;

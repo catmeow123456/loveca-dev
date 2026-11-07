@@ -17,6 +17,7 @@ import { sumSuccessfulLiveScoreForCardEffect } from '../../../../domain/rules/su
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import {
   PL_PB2_029_ON_ENTER_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID,
+  N_BP8_016_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_TWO_OR_LESS_ABILITY_ID,
   PL_BP8_011_LIVE_START_SUCCESS_SCORE_SIX_WAIT_ORIGINAL_BLADE_THREE_ABILITY_ID,
   PL_PB2_029_LIVE_START_ONLY_MUSE_WAIT_LOW_ORIGINAL_BLADE_ABILITY_ID,
   PL_PB2_024_LIVE_START_ONLY_BIBI_WAIT_LOW_COST_OPPONENT_ABILITY_ID,
@@ -140,6 +141,20 @@ const lowBladeNonDollchestraOpponentMemberSelector = and(
 );
 
 const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[] = [
+  {
+    abilityId: N_BP8_016_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_TWO_OR_LESS_ABILITY_ID,
+    effectTextAbilityId: N_BP8_016_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_TWO_OR_LESS_ABILITY_ID,
+    stepId: 'N_BP8_016_SELECT_OPPONENT_ORIGINAL_BLADE_TWO_MEMBER',
+    stepText: '请选择对方舞台上1名原本持有的[ブレード]数量小于等于2的成员变为待机状态。',
+    selectionLabel: '选择要变为待机状态的成员',
+    selector: typeIs(CardType.MEMBER),
+    statePredicate: (game, playerId, cardId) =>
+      getMemberOriginalBladeCount(game, playerId, cardId) <= 2,
+    startActionStep: 'START_SELECT_OPPONENT_ORIGINAL_BLADE_TWO_MEMBER',
+    trackTargetLifecycle: true,
+    consumeStaleSelectionAsNoOp: true,
+    confirmNoTargetWithRealtimeText: true,
+  },
   {
     abilityId: PL_BP8_011_LIVE_START_SUCCESS_SCORE_SIX_WAIT_ORIGINAL_BLADE_THREE_ABILITY_ID,
     effectTextAbilityId:

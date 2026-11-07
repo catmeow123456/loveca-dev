@@ -8,10 +8,10 @@ import {
 } from '../../../../domain/entities/game.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import {
-  moveRevealedCheerCards,
   selectRevealedCheerCardIds,
 } from '../../../effects/cheer-selection.js';
 import { PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID } from '../../ability-ids.js';
+import { moveRevealedCheerCardsAndEnqueueTriggers } from '../../runtime/revealed-cheer-movement-triggers.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
@@ -167,7 +167,13 @@ function finishNBp1026PoppinUpSelection(
     return game;
   }
 
-  const moveResult = moveRevealedCheerCards(game, player.id, [selectedCardId], 'HAND');
+  const moveResult = moveRevealedCheerCardsAndEnqueueTriggers(
+    game,
+    player.id,
+    [selectedCardId],
+    'HAND',
+    effect
+  );
   if (!moveResult) {
     return game;
   }

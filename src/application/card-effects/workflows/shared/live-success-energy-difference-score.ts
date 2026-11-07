@@ -24,8 +24,7 @@ type LeadingPlayer = 'SELF' | 'OPPONENT';
 
 interface EnergyDifferenceScoreConfig {
   readonly abilityId: string;
-  readonly cardCodes?: readonly string[];
-  readonly baseCardCodes?: readonly string[];
+  readonly baseCardCodes: readonly string[];
   readonly leadingPlayer: LeadingPlayer;
   readonly minDifference: number;
   readonly conditionMetStep: string;
@@ -37,7 +36,7 @@ const SCORE_BONUS = 1;
 const CONFIGS: readonly EnergyDifferenceScoreConfig[] = [
   {
     abilityId: S_BP6_022_LIVE_SUCCESS_OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!S-bp6-022-L'],
+    baseCardCodes: ['PL!S-bp6-022'],
     leadingPlayer: 'OPPONENT',
     minDifference: 1,
     conditionMetStep: 'OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE',
@@ -192,11 +191,8 @@ function isValidSourceLive(
   ) {
     return false;
   }
-  return (
-    config.cardCodes?.includes(source.data.cardCode) === true ||
-    config.baseCardCodes?.some((baseCardCode) =>
-      cardCodeMatchesBase(source.data.cardCode, baseCardCode)
-    ) === true
+  return config.baseCardCodes.some((baseCardCode) =>
+    cardCodeMatchesBase(source.data.cardCode, baseCardCode)
   );
 }
 

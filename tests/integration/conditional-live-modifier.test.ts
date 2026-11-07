@@ -14,7 +14,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { createEnterStageEvent } from '../../src/domain/events/game-events';
+import { createEnterStageEvent, createLiveStartEvent } from '../../src/domain/events/game-events';
 import {
   addCardToStatefulZone,
   addCardToZone,
@@ -64,6 +64,8 @@ import {
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
+// Both printings appear in the 2026-11-06 export.
+const BIRDCAGE_CARD_CODES = ['PL!HS-bp5-020-L', 'PL!HS-bp5-020-SECL'] as const;
 
 function createLive(cardCode: string, name: string, score = 1): LiveCardData {
   return {
@@ -1260,12 +1262,8 @@ describe('conditional live modifier workflow', () => {
     ).toBe(true);
   });
 
-  it('adds SCORE +1 to PL!HS-bp5-020-L when two high-cost Hasunosora members are on stage', () => {
-    const live = createCardInstance(
-      createLive('PL!HS-bp5-020-L', 'バアドケージ'),
-      PLAYER1,
-      'birdcage-live'
-    );
+  it.each(BIRDCAGE_CARD_CODES)('adds SCORE +1 to %s for two eligible members', (cardCode) => {
+    const live = createCardInstance(createLive(cardCode, 'バアドケージ'), PLAYER1, 'birdcage-live');
     const stageMembers = [
       {
         card: createCardInstance(
@@ -1285,16 +1283,21 @@ describe('conditional live modifier workflow', () => {
       },
     ];
 
-    const state = expectAutoResolved(runLiveStart(setupLiveStartState({ live, stageMembers })));
+    const game = setupLiveStartState({ live, stageMembers });
+    const state = expectAutoResolved(
+      runLiveStart(emitGameEvent(game, createLiveStartEvent(PLAYER1, [live.instanceId])))
+    );
 
-    expect(state.liveResolution.liveModifiers).toContainEqual({
-      kind: 'SCORE',
-      playerId: PLAYER1,
-      countDelta: 1,
-      liveCardId: live.instanceId,
-      sourceCardId: live.instanceId,
-      abilityId: HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
-    });
+    expect(state.liveResolution.liveModifiers).toEqual([
+      {
+        kind: 'SCORE',
+        playerId: PLAYER1,
+        countDelta: 1,
+        liveCardId: live.instanceId,
+        sourceCardId: live.instanceId,
+        abilityId: HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
+      },
+    ]);
     expect(
       state.actionHistory.some(
         (action) =>
@@ -1308,9 +1311,9 @@ describe('conditional live modifier workflow', () => {
     ).toBe(true);
   });
 
-  it('does not add SCORE to PL!HS-bp5-020-L with only one high-cost Hasunosora member', () => {
+  it.each(BIRDCAGE_CARD_CODES)('%s gives no SCORE for one eligible member', (cardCode) => {
     const live = createCardInstance(
-      createLive('PL!HS-bp5-020-L', 'バアドケージ'),
+      createLive(cardCode, 'バアドケージ'),
       PLAYER1,
       'birdcage-live-false'
     );
@@ -1336,17 +1339,33 @@ describe('conditional live modifier workflow', () => {
         ),
         slot: SlotPosition.CENTER,
       },
+      {
+        card: createCardInstance(
+          createMember({ cardCode: 'PL!HS-test-low', name: 'Below threshold', cost: 9 }),
+          PLAYER1,
+          'low-cost'
+        ),
+        slot: SlotPosition.RIGHT,
+      },
     ];
 
-    const state = expectAutoResolved(runLiveStart(setupLiveStartState({ live, stageMembers })));
+    const game = setupLiveStartState({ live, stageMembers });
+    const state = expectAutoResolved(
+      runLiveStart(emitGameEvent(game, createLiveStartEvent(PLAYER1, [live.instanceId])))
+    );
 
+    expect(state.liveResolution.liveModifiers).toEqual([]);
     expect(
-      state.liveResolution.liveModifiers.some(
-        (modifier) =>
-          modifier.kind === 'SCORE' &&
-          modifier.abilityId === HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID
+      state.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID &&
+          action.payload.conditionMet === false &&
+          action.payload.highCostHasunosoraMemberCount === 1 &&
+          action.payload.scoreBonus === 0
       )
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('reduces PL!HS-bp2-024-L+ requirement when Sayaka effective cost is higher than Kosuzu', () => {

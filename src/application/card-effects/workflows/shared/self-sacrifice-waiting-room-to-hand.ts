@@ -578,12 +578,5 @@ function finishPostRecovery(
 }
 
 function getCardAbilityBaseCardCodes(abilityId: string): readonly string[] {
-  const definition = findCardAbilityDefinitionById(abilityId);
-  if (!definition) {
-    return [];
-  }
-  if (definition.baseCardCodes && definition.baseCardCodes.length > 0) {
-    return definition.baseCardCodes;
-  }
-  return definition.cardCodes ?? [];
+  return findCardAbilityDefinitionById(abilityId)?.baseCardCodes ?? [];
 }

@@ -6,17 +6,21 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import type { CardInstance } from '../../../../domain/entities/card.js';
-import { ZoneType } from '../../../../shared/types/enums.js';
-import { groupAliasIs } from '../../../effects/card-selectors.js';
+import { CardType, ZoneType } from '../../../../shared/types/enums.js';
+import { and, costLte, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import {
   N_BP7_011_LIVE_SUCCESS_NIJIGASAKI_WAITING_CARD_TO_DECK_TOP_ABILITY_ID,
   PL_N_BP4_021_ON_ENTER_WAITING_ROOM_CARD_TO_DECK_TOP_ABILITY_ID,
+  HS_BP8_009_ON_ENTER_OPTIONAL_RECOVER_LOW_COST_MEMBER_TO_DECK_TOP_ABILITY_ID,
 } from '../../ability-ids.js';
 import { moveWaitingRoomCardsToDeckTopAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
+import { hasWaitingRoomSelectionReenteredAfter } from '../../../effects/waiting-room-selection-lifecycle.js';
 
 const SELECT_WAITING_ROOM_CARD_TO_DECK_TOP_STEP_ID = 'SELECT_WAITING_ROOM_CARD_TO_DECK_TOP';
 
@@ -26,10 +30,17 @@ interface WaitingRoomCardToDeckTopConfig {
   readonly abilityId: string;
   readonly selector: (card: CardInstance) => boolean;
   readonly stepText: string;
+  readonly skipSelectionLabel?: string;
 }
 
 const isNijigasakiCard = groupAliasIs('虹ヶ咲');
 const CONFIGS: readonly WaitingRoomCardToDeckTopConfig[] = [
+  {
+    abilityId: HS_BP8_009_ON_ENTER_OPTIONAL_RECOVER_LOW_COST_MEMBER_TO_DECK_TOP_ABILITY_ID,
+    selector: and(typeIs(CardType.MEMBER), costLte(9)),
+    stepText: '可以选择自己休息室1张费用小于等于9的成员卡放置于卡组顶。',
+    skipSelectionLabel: '不发动',
+  },
   {
     abilityId: PL_N_BP4_021_ON_ENTER_WAITING_ROOM_CARD_TO_DECK_TOP_ABILITY_ID,
     selector: () => true,
@@ -82,7 +93,7 @@ function startWaitingRoomCardToDeckTop(
   };
   const selectableCardIds = player.waitingRoom.cardIds.filter((cardId) => {
     const card = getCardById(game, cardId);
-    return card !== null && config.selector(card);
+    return card !== null && card.ownerId === player.id && config.selector(card);
   });
   if (selectableCardIds.length === 0) {
     return continuePendingCardEffects(
@@ -96,43 +107,39 @@ function startWaitingRoomCardToDeckTop(
     );
   }
 
-  return addAction(
-    {
-      ...stateWithoutPending,
-      activeEffect: {
-        id: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        controllerId: ability.controllerId,
-        effectText: getAbilityEffectText(ability.abilityId),
-        stepId: SELECT_WAITING_ROOM_CARD_TO_DECK_TOP_STEP_ID,
-        stepText: config.stepText,
-        awaitingPlayerId: player.id,
-        selectableCardIds,
-        selectableCardVisibility: 'PUBLIC',
-        selectableCardMode: 'SINGLE',
-        selectionLabel: '选择要放置于卡组顶的卡',
-        confirmSelectionLabel: '放置于卡组顶',
-        canSkipSelection: true,
-        skipSelectionLabel: '不放置',
-        metadata: {
-          publicCardSelectionConfirmation: { destination: 'MAIN_DECK_TOP' },
-          orderedResolution,
-          sourceZone: ZoneType.WAITING_ROOM,
-          destination: ZoneType.MAIN_DECK,
-        },
+  return startPendingActiveEffect(game, {
+    ability,
+    playerId: player.id,
+    activeEffect: {
+      id: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      controllerId: ability.controllerId,
+      effectText: getAbilityEffectText(ability.abilityId),
+      stepId: SELECT_WAITING_ROOM_CARD_TO_DECK_TOP_STEP_ID,
+      stepText: config.stepText,
+      awaitingPlayerId: player.id,
+      selectableCardIds,
+      selectableCardVisibility: 'PUBLIC',
+      selectableCardMode: 'SINGLE',
+      selectionLabel: '选择要放置于卡组顶的卡',
+      confirmSelectionLabel: '放置于卡组顶',
+      canSkipSelection: true,
+      skipSelectionLabel: config.skipSelectionLabel ?? '不放置',
+      metadata: {
+        publicCardSelectionConfirmation: { source: 'WAITING_ROOM', destination: 'MAIN_DECK_TOP' },
+        orderedResolution,
+        waitingSelectionSequence: game.eventLog.at(-1)?.sequence ?? 0,
+        sourceZone: ZoneType.WAITING_ROOM,
+        destination: ZoneType.MAIN_DECK,
       },
     },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
+    actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'SELECT_WAITING_ROOM_CARD_TO_DECK_TOP',
       selectableCardIds,
-    }
-  );
+    },
+  });
 }
 
 function finishWaitingRoomCardToDeckTopSelection(
@@ -165,14 +172,32 @@ function finishWaitingRoomCardToDeckTopSelection(
   }
 
   const selectedCard = getCardById(game, selectedCardId);
+  const reentered = hasWaitingRoomSelectionReenteredAfter(
+    game,
+    [selectedCardId],
+    effect.metadata?.waitingSelectionSequence
+  );
   if (
     effect.selectableCardIds?.includes(selectedCardId) !== true ||
     !selectedCard ||
     selectedCard.ownerId !== player.id ||
     !player.waitingRoom.cardIds.includes(selectedCardId) ||
-    !config.selector(selectedCard)
-  )
-    return game;
+    !config.selector(selectedCard) ||
+    reentered
+  ) {
+    if (!wasRestoredAfterPublicCardSelectionConfirmation(effect)) return game;
+    return continuePendingCardEffects(
+      addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: 'STALE_WAITING_ROOM_CARD_TO_DECK_TOP',
+        selectedCardId,
+        movedCardIds: [],
+      }),
+      effect.metadata?.orderedResolution === true
+    );
+  }
 
   const moveResult = moveWaitingRoomCardsToDeckTopAndEnqueueTriggers(
     game,
