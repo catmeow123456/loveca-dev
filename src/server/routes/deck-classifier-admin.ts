@@ -10,10 +10,21 @@ import {
   type DeckClassifierAdminService,
   type DeckClassifierOperator,
 } from '../services/deck-classifier-admin-service.js';
-import { deckClassificationWorker } from '../services/deck-classification-worker.js';
+import {
+  deckClassifierProcess,
+  DeckClassifierProcessError,
+} from '../services/deck-classifier-process-runtime.js';
+import type {
+  DeckClassificationScopeMode,
+  DeckClassifierPreviewView,
+} from '../../online/deck-classifier-types.js';
 
 interface DeckClassifierWorkerNotifier {
   notify(): void;
+  preview(
+    revision: number,
+    scopeMode: DeckClassificationScopeMode
+  ): Promise<DeckClassifierPreviewView>;
 }
 
 const uuidSchema = z.string().uuid();
@@ -196,10 +207,14 @@ const settingsSchema = z
   })
   .strict();
 
-const previewSchema = z.object({ expectedDraftRevision: expectedDraftRevisionSchema }).strict();
+const scopeModeSchema = z.enum(['RECENT', 'FULL']);
+const previewSchema = z
+  .object({ expectedDraftRevision: expectedDraftRevisionSchema, scopeMode: scopeModeSchema })
+  .strict();
 
 const publishSchema = z
   .object({
+    scopeMode: scopeModeSchema,
     expectedDraftRevision: expectedDraftRevisionSchema,
     reason: reasonSchema,
     idempotencyKey: idempotencyKeySchema,
@@ -208,6 +223,7 @@ const publishSchema = z
 
 const reclassifySchema = z
   .object({
+    scopeMode: scopeModeSchema,
     seasonId: uuidSchema.nullable().default(null),
     reason: reasonSchema,
     idempotencyKey: idempotencyKeySchema,
@@ -257,7 +273,7 @@ const candidateQuerySchema = z
 
 export function createDeckClassifierAdminRouter(
   service: DeckClassifierAdminService = deckClassifierAdminService,
-  worker: DeckClassifierWorkerNotifier = deckClassificationWorker
+  worker: DeckClassifierWorkerNotifier = deckClassifierProcess
 ): Router {
   const router = Router();
   router.use(requireAuth, requirePermission('season.deck_classifier.manage'));
@@ -405,7 +421,7 @@ export function createDeckClassifierAdminRouter(
   router.post('/preview', async (req, res) => {
     const input = readBody(req, res, previewSchema);
     if (!input) return;
-    await respond(res, () => service.previewRelease(input.expectedDraftRevision));
+    await respond(res, () => worker.preview(input.expectedDraftRevision, input.scopeMode));
   });
 
   router.post('/releases', async (req, res) => {
@@ -418,7 +434,8 @@ export function createDeckClassifierAdminRouter(
           input.expectedDraftRevision,
           input.reason,
           input.idempotencyKey,
-          readOperator(req)
+          readOperator(req),
+          input.scopeMode
         );
         worker.notify();
         return result;
@@ -437,7 +454,8 @@ export function createDeckClassifierAdminRouter(
           input.seasonId,
           input.reason,
           input.idempotencyKey,
-          readOperator(req)
+          readOperator(req),
+          input.scopeMode
         );
         worker.notify();
         return run;
@@ -525,7 +543,10 @@ async function respond(
     const data = await operation();
     res.status(statusCode).json({ data, error: null });
   } catch (error) {
-    if (error instanceof DeckClassifierAdminServiceError) {
+    if (
+      error instanceof DeckClassifierAdminServiceError ||
+      error instanceof DeckClassifierProcessError
+    ) {
       res.status(error.statusCode).json({
         data: null,
         error: { code: error.code, message: error.message },

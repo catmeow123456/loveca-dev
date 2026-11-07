@@ -604,3 +604,85 @@ test('YAML 文件限制、预览失败重试、重复提示和过期预览', asy
   ).toBeDisabled();
   await page.getByRole('button', { name: '取消 YAML 导入', exact: true }).click();
 });
+
+test('近期200场为默认范围，预览、发布与手动重算使用明确选择', async ({ page }, testInfo) => {
+  const state = await setup(page);
+  const requests: Array<{ action: string; scopeMode: string }> = [];
+  const release = {
+    id: 'test-release',
+    version: 2,
+    status: 'ACTIVE' as const,
+    configHash: 'test',
+    reason: '范围验收',
+    publishedAt: NOW,
+    activatedAt: NOW,
+  };
+  const run = (scopeMode: 'RECENT' | 'FULL') => ({
+    id: 'test-run',
+    releaseId: release.id,
+    releaseVersion: 2,
+    status: 'SUCCEEDED' as const,
+    trigger: 'MANUAL_RECLASSIFY' as const,
+    scopeMode,
+    scopeSeasonId: null,
+    reason: '范围验收',
+    totalCount: 400,
+    processedCount: 400,
+    classifiedCount: 400,
+    unknownCount: 0,
+    ambiguousCount: 0,
+    invalidCount: 0,
+    excludedCount: 0,
+    changedCount: 2,
+    errorMessage: null,
+    createdAt: NOW,
+    startedAt: NOW,
+    finishedAt: NOW,
+  });
+  await page.route('**/api/admin/deck-classifier/{preview,releases,runs}', async (route) => {
+    const action = new URL(route.request().url()).pathname.split('/').at(-1)!;
+    const { scopeMode } = route.request().postDataJSON();
+    requests.push({ action, scopeMode });
+    if (action === 'preview')
+      return reply(route, {
+        uniqueFingerprintCount: 2,
+        observationCount: scopeMode === 'RECENT' ? 400 : 410,
+        classifiedCount: 400,
+        unknownCount: 0,
+        ambiguousCount: 0,
+        invalidCount: 0,
+        excludedCount: 0,
+        changedCount: 2,
+        coverageRate: 1,
+        archetypeCounts: [],
+      });
+    state.overview = { ...state.overview, activeRelease: release, runs: [run(scopeMode)] };
+    return reply(route, action === 'releases' ? { release, run: run(scopeMode) } : run(scopeMode));
+  });
+  await page.getByRole('tab', { name: '发布与展示口径', exact: true }).click();
+  const scope = page.getByLabel('处理范围', { exact: true });
+  await expect(scope).toHaveValue('RECENT');
+  await expect(scope.locator('option:checked')).toHaveText('最近 200 场排位对局');
+  await page.getByRole('button', { name: '预览所选范围', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '草稿分类预览' })).toBeVisible();
+  await scope.selectOption('FULL');
+  await expect(page.getByRole('heading', { name: '草稿分类预览' })).toHaveCount(0);
+  await page.getByRole('button', { name: '预览所选范围', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '草稿分类预览' })).toBeVisible();
+  await page.getByRole('button', { name: '发布新版本', exact: true }).click();
+  await expect(page.getByRole('button', { name: '重分类当前版本', exact: true })).toBeEnabled();
+  await scope.selectOption('RECENT');
+  await page.getByRole('button', { name: '重分类当前版本', exact: true }).click();
+  await expect(page.getByText('所选范围重分类已完成，页面数据已刷新')).toBeVisible();
+  expect(requests).toEqual([
+    { action: 'preview', scopeMode: 'RECENT' },
+    { action: 'preview', scopeMode: 'FULL' },
+    { action: 'releases', scopeMode: 'FULL' },
+    { action: 'runs', scopeMode: 'RECENT' },
+  ]);
+  await scope.scrollIntoViewIfNeeded();
+  await scope
+    .locator('..')
+    .locator('..')
+    .screenshot({ path: testInfo.outputPath('classification-window.png') });
+});

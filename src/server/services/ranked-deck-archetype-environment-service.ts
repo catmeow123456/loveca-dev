@@ -528,7 +528,8 @@ const DECK_ARCHETYPE_STATS_QUERY = `WITH season_settings AS MATERIALIZED (
   JOIN deck_classification_assignments AS assignment
     ON assignment.match_id = observation.match_id
    AND assignment.seat = observation.seat
-   AND assignment.release_id = $2
+   AND assignment.is_current = true
+   AND EXISTS (SELECT 1 FROM deck_classifier_releases WHERE id = $2::uuid AND status = 'ACTIVE')
   LEFT JOIN top_ranked_players AS top_player ON top_player.user_id = observation.user_id
   WHERE assignment.status IN ('CLASSIFIED', 'UNKNOWN', 'AMBIGUOUS')
 ), analyzable_matches AS MATERIALIZED (

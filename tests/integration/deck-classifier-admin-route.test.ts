@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   publishRelease: vi.fn(),
   setOverride: vi.fn(),
   notify: vi.fn(),
+  preview: vi.fn(),
 }));
 
 vi.mock('../../src/server/db/pool.js', () => ({
@@ -51,8 +52,9 @@ vi.mock('../../src/server/services/deck-classifier-admin-service.js', () => ({
   },
 }));
 
-vi.mock('../../src/server/services/deck-classification-worker.js', () => ({
-  deckClassificationWorker: { notify: mocks.notify },
+vi.mock('../../src/server/services/deck-classifier-process-runtime.js', () => ({
+  DeckClassifierProcessError: class extends Error {},
+  deckClassifierProcess: { notify: mocks.notify, preview: mocks.preview },
 }));
 
 import { deckClassifierAdminRouter } from '../../src/server/routes/deck-classifier-admin';
@@ -124,6 +126,27 @@ function toError(value: unknown): Error {
 
 describe('deckClassifierAdminRouter', () => {
   afterEach(() => vi.clearAllMocks());
+
+  it('dispatches preview to the child process with an explicit scope', async () => {
+    mocks.preview.mockResolvedValue({ observationCount: 1000 });
+    const response = await invoke('/preview', 'post', {
+      expectedDraftRevision: 4,
+      scopeMode: 'RECENT',
+    });
+    expect(response.statusCode).toBe(200);
+    expect(mocks.preview).toHaveBeenCalledWith(4, 'RECENT');
+    expect(mocks.publishRelease).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing or unsupported scope before dispatching classification work', async () => {
+    for (const body of [
+      { expectedDraftRevision: 4 },
+      { expectedDraftRevision: 4, scopeMode: 'ALL' },
+    ]) {
+      expect((await invoke('/preview', 'post', body)).statusCode).toBe(400);
+    }
+    expect(mocks.preview).not.toHaveBeenCalled();
+  });
 
   it('allows a current season administrator through the module permission boundary', async () => {
     mocks.poolQuery.mockResolvedValue({ rows: [{ role: 'season_admin' }], rowCount: 1 });
@@ -257,6 +280,7 @@ describe('deckClassifierAdminRouter', () => {
   it('publishes with the authenticated season administrator and wakes the worker', async () => {
     mocks.publishRelease.mockResolvedValue({ release: { id: 'release-1' }, run: { id: 'run-1' } });
     const response = await invoke('/releases', 'post', {
+      scopeMode: 'FULL',
       expectedDraftRevision: 4,
       reason: '发布经复核的分类版本',
       idempotencyKey: 'deck-classifier:publish:test-1',
@@ -271,7 +295,8 @@ describe('deckClassifierAdminRouter', () => {
         actorUserId: '22222222-2222-4222-8222-222222222222',
         actorRole: 'season_admin',
         requestId: 'request-1',
-      }
+      },
+      'FULL'
     );
     expect(mocks.notify).toHaveBeenCalledOnce();
   });

@@ -16,7 +16,7 @@ import { publicTableService } from './services/public-table-service.js';
 import { rankedRuntimeService } from './services/ranked-runtime-service.js';
 import { playerWallpaperService } from './services/player-wallpaper-service.js';
 import { cardSyncWorker } from './services/card-sync-runtime.js';
-import { deckClassificationWorker } from './services/deck-classification-worker.js';
+import { deckClassifierProcess } from './services/deck-classifier-process-runtime.js';
 
 const TOKEN_CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
 const RUNTIME_CLEANUP_INTERVAL = readPositiveIntEnv('API_RUNTIME_CLEANUP_INTERVAL_MS', 10 * 1000);
@@ -107,7 +107,7 @@ async function main() {
   setInterval(() => void cleanupExpiredRuntimeState(), RUNTIME_CLEANUP_INTERVAL).unref();
   setInterval(logRuntimeStats, RUNTIME_STATS_LOG_INTERVAL).unref();
   cardSyncWorker.start();
-  deckClassificationWorker.start();
+  deckClassifierProcess.start();
 
   const app = createApp();
 
@@ -117,7 +117,7 @@ async function main() {
   server.on('close', () => {
     stopRuntimeDiagnostics();
     cardSyncWorker.stop();
-    deckClassificationWorker.stop();
+    deckClassifierProcess.stop();
   });
 }
 

@@ -2593,6 +2593,7 @@ export const deckClassificationRuns = pgTable(
       .references(() => deckClassifierReleases.id, { onDelete: 'restrict' }),
     status: text('status').$type<DeckClassificationRunStatus>().notNull().default('QUEUED'),
     trigger: text('trigger').$type<DeckClassificationRunTrigger>().notNull(),
+    scopeMode: text('scope_mode').$type<'RECENT' | 'FULL'>().notNull().default('RECENT'),
     scopeSeasonId: uuid('scope_season_id').references(() => rankedSeasons.id, {
       onDelete: 'restrict',
     }),
@@ -2624,6 +2625,10 @@ export const deckClassificationRuns = pgTable(
     check(
       'deck_classification_runs_status_check',
       sql`${table.status} IN ('QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED')`
+    ),
+    check(
+      'deck_classification_runs_scope_mode_check',
+      sql`${table.scopeMode} IN ('RECENT', 'FULL')`
     ),
     check(
       'deck_classification_runs_trigger_check',
@@ -2707,6 +2712,7 @@ export const deckClassificationAssignments = pgTable(
       .notNull()
       .references(() => deckClassifierReleases.id, { onDelete: 'restrict' }),
     runId: uuid('run_id').notNull(),
+    isCurrent: boolean('is_current').notNull().default(false),
     archetypeId: uuid('archetype_id').references(() => deckArchetypes.id, {
       onDelete: 'restrict',
     }),
@@ -2740,6 +2746,9 @@ export const deckClassificationAssignments = pgTable(
       table.archetypeId
     ),
     index('idx_deck_classification_assignments_run').on(table.runId),
+    uniqueIndex('uq_deck_classification_assignments_current')
+      .on(table.matchId, table.seat)
+      .where(sql`${table.isCurrent} = true`),
     check('deck_classification_assignments_seat_check', sql`${table.seat} IN ('FIRST', 'SECOND')`),
     check(
       'deck_classification_assignments_status_check',

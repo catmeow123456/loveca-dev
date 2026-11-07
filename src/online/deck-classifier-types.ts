@@ -1,6 +1,8 @@
 import type { MatchRecordSummaryView } from './replay-types.js';
 
 export const DECK_CLASSIFIER_YAML_MAX_BYTES = 64 * 1024;
+export const DECK_CLASSIFIER_RECENT_MATCH_LIMIT = 200;
+export type DeckClassificationScopeMode = 'RECENT' | 'FULL';
 
 export interface DeckClassifierYamlPreviewView {
   readonly suggestedName: string;
@@ -180,6 +182,7 @@ export interface DeckClassificationRunView {
   readonly trigger:
     'RELEASE_PUBLISHED' | 'MANUAL_RECLASSIFY' | 'MANUAL_OVERRIDE' | 'AUTO_NEW_OBSERVATIONS';
   readonly scopeSeasonId: string | null;
+  readonly scopeMode: DeckClassificationScopeMode;
   readonly reason: string;
   readonly totalCount: number;
   readonly processedCount: number;

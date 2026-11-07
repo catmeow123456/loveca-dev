@@ -58,7 +58,11 @@ function recoverClient() {
   return client((sql) => ({ rows: sql.includes('SELECT id, release_id') ? [] : [] }));
 }
 
-function claimClient(snapshot: ReturnType<typeof releaseSnapshot>, configHash: string, auto = false) {
+function claimClient(
+  snapshot: ReturnType<typeof releaseSnapshot>,
+  configHash: string,
+  auto = false
+) {
   return client((sql) => {
     if (sql.includes('SELECT run.id, run.release_id')) {
       return {
@@ -69,6 +73,7 @@ function claimClient(snapshot: ReturnType<typeof releaseSnapshot>, configHash: s
             release_status: auto ? 'ACTIVE' : 'BUILDING',
             trigger: auto ? 'AUTO_NEW_OBSERVATIONS' : 'RELEASE_PUBLISHED',
             scope_season_id: null,
+            scope_mode: auto ? 'RECENT' : 'FULL',
             snapshot_json: snapshot,
             config_hash: configHash,
           },
@@ -81,7 +86,7 @@ function claimClient(snapshot: ReturnType<typeof releaseSnapshot>, configHash: s
 }
 
 describe('DeckClassificationWorker', () => {
-  afterEach(() => vi.clearAllMocks());
+  afterEach(() => vi.resetAllMocks());
 
   it('atomically supersedes the old release only after a complete build succeeds', async () => {
     const snapshot = releaseSnapshot();
@@ -112,34 +117,51 @@ describe('DeckClassificationWorker', () => {
     ]);
   });
 
-  it('persists both missing seats with the same fingerprint in an automatic run', async () => {
+  it('reclassifies both selected seats even when they already have assignments', async () => {
     const snapshot = releaseSnapshot();
-    const persist = client((sql) => ({
-      rows: sql.startsWith('SELECT status') ? [{ status: 'RUNNING' }] : [],
-    }));
+    let page = 0;
+    const persist = client((sql, values) => {
+      if (sql.startsWith('SELECT status')) return { rows: [{ status: 'RUNNING' }] };
+      if (sql.startsWith('CREATE TEMP TABLE')) expect(values).toEqual([null, 'RECENT', 200]);
+      if (sql.includes('SELECT count(*) AS count FROM deck_classification_targets'))
+        return { rows: [{ count: '2' }] };
+      if (sql.includes('FROM deck_classification_targets AS target') && page++ === 0) {
+        return {
+          rows: ['FIRST', 'SECOND'].map((seat) => ({
+            match_id: 'match',
+            seat,
+            deck_fingerprint: 'same',
+            main_deck_cards: snapshot.templates[0].cards,
+          })),
+        };
+      }
+      if (sql.includes('SELECT assignment.match_id'))
+        return {
+          rows: ['FIRST', 'SECOND'].map((seat) => ({
+            match_id: 'match',
+            seat,
+            status: 'UNKNOWN',
+            archetype_id: null,
+            method: 'UNKNOWN',
+          })),
+        };
+      return { rows: [] };
+    });
     poolMocks.connect
       .mockResolvedValueOnce(recoverClient())
       .mockResolvedValueOnce(claimClient(snapshot, hashDeckClassifierSnapshot(snapshot), true))
       .mockResolvedValueOnce(persist);
-    poolMocks.query.mockImplementation(async (sql: string, values: unknown[]) => {
-      if (sql.includes('FROM ranked_deck_observations AS observation')) {
-        expect(sql).toContain('NOT EXISTS');
-        expect(values).toEqual([null, true, 'release-new']);
-        return { rows: ['FIRST', 'SECOND'].map(seat => ({
-          match_id: 'new-match', seat, deck_fingerprint: 'same',
-          main_deck_cards: snapshot.templates[0].cards,
-        })) };
-      }
-      return { rows: [] };
-    });
     await new DeckClassificationWorker().runOnce();
     const write = persist.query.mock.calls.find(([sql]) =>
-      sql.includes('INSERT INTO deck_classification_assignments'));
+      sql.includes('INSERT INTO deck_classification_assignments')
+    );
     const assignments = JSON.parse(String(write?.[1]?.[2]));
     expect(assignments).toHaveLength(2);
-    expect(assignments.map((row: { seat: string }) => row.seat)).toEqual(['FIRST', 'SECOND']);
     expect(assignments.every((row: { method: string }) => row.method === 'EXACT')).toBe(true);
-    expect(persist.query.mock.calls.some(([sql]) => sql.includes("SET status = 'ACTIVE'"))).toBe(false);
+    expect(persist.query.mock.calls).toContainEqual([
+      expect.stringContaining('excluded_count = $8'),
+      ['run-1', 2, 2, 2, 0, 0, 0, 0, 2],
+    ]);
   });
 
   it('marks a tampered build failed without superseding the serving release', async () => {
@@ -150,6 +172,7 @@ describe('DeckClassificationWorker', () => {
     poolMocks.connect
       .mockResolvedValueOnce(recover)
       .mockResolvedValueOnce(claim)
+      .mockResolvedValueOnce(fail)
       .mockResolvedValueOnce(fail);
 
     await expect(new DeckClassificationWorker().runOnce()).resolves.toBe(true);
@@ -166,13 +189,13 @@ describe('DeckClassificationWorker', () => {
       rows: sql.includes('SELECT run.id, run.release_id') ? [] : [],
     }));
     const queue = client((sql) => {
-      if (sql.includes('max(observation.observed_at)')) {
+      if (sql.includes('AS missing_key')) {
         return {
           rows: [
             {
               release_id: 'release-active',
               missing_count: 2,
-              latest_observed_at: '2026-08-23T00:00:00.000Z',
+              missing_key: 'missing-seat-set',
             },
           ],
         };

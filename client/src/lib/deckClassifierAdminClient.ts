@@ -1,3 +1,4 @@
+import type { DeckClassificationScopeMode } from '../../../src/online/deck-classifier-types';
 import type { DeckClassifierMatchCandidatePageView } from '@game/online/deck-classifier-types';
 import type { DeckClassifierYamlPreviewView } from '@game/online/deck-classifier-types';
 import { buildAdminMatchRecordSearch, type AdminMatchRecordFilters } from './onlineClient';
@@ -253,15 +254,19 @@ export const deleteDeckClassifierRule = (
     '删除卡组识别规则失败'
   );
 
-export const previewDeckClassifierRelease = (expectedDraftRevision: number) =>
+export const previewDeckClassifierRelease = (
+  expectedDraftRevision: number,
+  scopeMode: DeckClassificationScopeMode
+) =>
   requireData<DeckClassifierPreviewView>(
-    apiClient.post('/api/admin/deck-classifier/preview', { expectedDraftRevision }),
+    apiClient.post('/api/admin/deck-classifier/preview', { expectedDraftRevision, scopeMode }),
     '生成分类预览失败'
   );
 
 export const publishDeckClassifierRelease = (
   expectedDraftRevision: number,
   reason: string,
+  scopeMode: DeckClassificationScopeMode,
   idempotencyKey = createIdempotencyKey('publish')
 ) =>
   requireData<{
@@ -269,6 +274,7 @@ export const publishDeckClassifierRelease = (
     readonly run: DeckClassificationRunView;
   }>(
     apiClient.post('/api/admin/deck-classifier/releases', {
+      scopeMode,
       expectedDraftRevision,
       reason,
       idempotencyKey,
@@ -279,10 +285,12 @@ export const publishDeckClassifierRelease = (
 export const reclassifyDecks = (
   seasonId: string | null,
   reason: string,
+  scopeMode: DeckClassificationScopeMode,
   idempotencyKey = createIdempotencyKey('reclassify')
 ) =>
   requireData<DeckClassificationRunView>(
     apiClient.post('/api/admin/deck-classifier/runs', {
+      scopeMode,
       seasonId,
       reason,
       idempotencyKey,
