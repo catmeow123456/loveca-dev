@@ -61,6 +61,8 @@
 
 声援移牌统一经过 `runtime/revealed-cheer-movement-triggers.ts`：一批非空实际移动生成一个不可变 `ON_REVEALED_CHEER_CARDS_MOVED` 事件，明确牌所有者、卡效控制者、来源、目标区域和具体卡牌；即时捕获监听者并记录派发，绝不在动作中启动新resolver，也不回放历史移动给之后进入LIVE区的卡。9处既有卡效移动调用已迁入该入口，原公开选择、排序、追加及重做声援语义保留；低层移动原语仅供该wrapper与纯动作测试使用。没有建立只有单一样本的新shared workflow。runner仅增加两张卡的薄注册。
 
+历史回放验证：2026-06-27 V1 夹具早于声援移动事件及对应派发记录。`tests/helpers/legacy-replay-history.ts` 仅对该夹具中可由原始命令、区域变化和结算记录证明的三类声援移动补齐比较用预期历史；新增事件与派发的原始引用在去除随机 ID 前单独校验，随后仍比较完整状态。原始压缩夹具和生产运行时不做兼容改写；验证入口为 `tests/integration/real-data-online-replay-harness.test.ts`、`tests/unit/legacy-replay-history.test.ts` 和 `tests/unit/legacy-replay-cheer-history.test.ts`。本次 CI 修复经主窗口独立验收7文件84项通过，包含真实对局回放、历史记录反例及 Holiday/声援共享回归；维持45条实际命令回放、425条既有跳过，未新增跳过分类，shared/server/client类型检查通过。
+
 卡文/全罕度入口为 `tests/unit/november-06-card-definitions.test.ts` 及全库 `card-effect-rarity-sync.test.ts`。艾玛的三层为导出中文、definition和手牌起动UI；Holiday无起动UI。原排除与整卡暂缓范围保持，不据本批处理橙心或开发其他DRAFT卡。
 
 ## 2026-11-04 新增 DRAFT 三卡
