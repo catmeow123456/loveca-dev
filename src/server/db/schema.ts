@@ -2552,11 +2552,16 @@ export const deckClassifierSettings = pgTable(
     cardShowWinner: boolean('card_show_winner').notNull().default(false),
     cardShowTopRanked: boolean('card_show_top_ranked').notNull().default(false),
     topRankedPlayerCount: integer('top_ranked_player_count').notNull().default(30),
+    recentMatchLimit: integer('recent_match_limit').notNull().default(200),
     draftRevision: integer('draft_revision').notNull().default(0),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    check(
+      'deck_classifier_settings_recent_match_limit_check',
+      sql`${table.recentMatchLimit} BETWEEN 1 AND 10000`
+    ),
     check('deck_classifier_settings_singleton_check', sql`${table.id} = 1`),
     check('deck_classifier_settings_draft_revision_check', sql`${table.draftRevision} >= 0`),
     check(
@@ -2593,6 +2598,7 @@ export const deckClassificationRuns = pgTable(
       .references(() => deckClassifierReleases.id, { onDelete: 'restrict' }),
     status: text('status').$type<DeckClassificationRunStatus>().notNull().default('QUEUED'),
     trigger: text('trigger').$type<DeckClassificationRunTrigger>().notNull(),
+    matchLimit: integer('match_limit'),
     scopeSeasonId: uuid('scope_season_id').references(() => rankedSeasons.id, {
       onDelete: 'restrict',
     }),
@@ -2624,6 +2630,10 @@ export const deckClassificationRuns = pgTable(
     check(
       'deck_classification_runs_status_check',
       sql`${table.status} IN ('QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED')`
+    ),
+    check(
+      'deck_classification_runs_match_limit_check',
+      sql`${table.matchLimit} IS NULL OR ${table.matchLimit} BETWEEN 1 AND 10000`
     ),
     check(
       'deck_classification_runs_trigger_check',
@@ -2707,6 +2717,7 @@ export const deckClassificationAssignments = pgTable(
       .notNull()
       .references(() => deckClassifierReleases.id, { onDelete: 'restrict' }),
     runId: uuid('run_id').notNull(),
+    isCurrent: boolean('is_current').notNull().default(false),
     archetypeId: uuid('archetype_id').references(() => deckArchetypes.id, {
       onDelete: 'restrict',
     }),
@@ -2740,6 +2751,9 @@ export const deckClassificationAssignments = pgTable(
       table.archetypeId
     ),
     index('idx_deck_classification_assignments_run').on(table.runId),
+    uniqueIndex('uq_deck_classification_assignments_current')
+      .on(table.matchId, table.seat)
+      .where(sql`${table.isCurrent} = true`),
     check('deck_classification_assignments_seat_check', sql`${table.seat} IN ('FIRST', 'SECOND')`),
     check(
       'deck_classification_assignments_status_check',

@@ -1,3 +1,4 @@
+import { DECK_CLASSIFIER_MAX_RECENT_MATCH_LIMIT } from '../../../../src/online/deck-classifier-types';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Archive, Loader2, Pencil, Plus, RefreshCw, Rocket, RotateCcw, Trash2 } from 'lucide-react';
 import type {
@@ -31,6 +32,7 @@ import {
   updateDeckClassifierArchetype,
   updateDeckClassifierArchetypeDisplay,
   updateDeckClassifierDisplaySettings,
+  updateDeckClassifierExecutionSettings,
   updateDeckClassifierRule,
   updateDeckClassifierTemplate,
   waitForDeckClassificationRun,
@@ -54,6 +56,8 @@ import { DeckClassifierGroupSelect } from './DeckClassifierGroupSelect';
 import { DeckClassifierYamlImport } from './DeckClassifierYamlImport';
 import { AdminPageHeader } from './AdminPageHeader';
 import { AdminViewTabs } from './AdminViewTabs';
+
+type DeckClassificationScopeMode = 'RECENT' | 'FULL';
 
 type Tab = 'overview' | 'archetypes' | 'templates' | 'rules' | 'review';
 
@@ -119,6 +123,7 @@ export function DeckClassifierAdminPage({
 }) {
   const [tab, setTab] = useState<Tab>(initialTemplateImport ? 'templates' : 'overview');
   const [overview, setOverview] = useState<DeckClassifierOverviewView | null>(null);
+  const [scopeMode, setScopeMode] = useState<DeckClassificationScopeMode>('RECENT');
   const [preview, setPreview] = useState<DeckClassifierPreviewView | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -172,6 +177,7 @@ export function DeckClassifierAdminPage({
     try {
       const next = await fetchDeckClassifierOverview();
       setOverview(next);
+      setPreview(null);
       setTemplateArchetypeId((current) =>
         next.archetypes.some((entry) => entry.id === current && entry.lifecycle === 'ACTIVE')
           ? current
@@ -422,7 +428,7 @@ export function DeckClassifierAdminPage({
                 </label>
                 <p className="mt-2 text-xs text-[var(--text-muted)]">
                   草稿修订 #{overview.draftRevision}
-                  。名称、样板和规则只有发布并完成全量分类后才会原子替换玩家正在看的版本。
+                  。名称、样板和规则在所选范围分类成功后生效；范围外的历史保留原分类结果。
                   代表卡和颜色属于展示设置，单独保存后即时生效。
                 </p>
               </Panel>
@@ -431,6 +437,11 @@ export function DeckClassifierAdminPage({
                 <OverviewTab
                   key={`${overview.displayMode}:${overview.visibleSections.join(',')}:${overview.cardDisplayMode}:${overview.cardVisibleSections.join(',')}:${overview.topRankedPlayerCount}`}
                   overview={overview}
+                  scopeMode={scopeMode}
+                  onScopeChange={(mode) => {
+                    setScopeMode(mode);
+                    setPreview(null);
+                  }}
                   preview={preview}
                   busy={busy}
                   reason={reason}
@@ -438,13 +449,24 @@ export function DeckClassifierAdminPage({
                     setBusy(true);
                     setError(null);
                     try {
-                      setPreview(await previewDeckClassifierRelease(overview.draftRevision));
+                      setPreview(
+                        await previewDeckClassifierRelease(
+                          overview.draftRevision,
+                          scopeMode === 'FULL' ? null : overview.recentMatchLimit
+                        )
+                      );
                     } catch (previewError) {
                       setError(readError(previewError));
                     } finally {
                       setBusy(false);
                     }
                   }}
+                  onExecutionSettings={(recentMatchLimit) =>
+                    run(async () => {
+                      await updateDeckClassifierExecutionSettings(recentMatchLimit, reason);
+                      setPreview(null);
+                    }, '日常重算场数已保存，将用于后续新任务')
+                  }
                   onDisplaySettings={(settings) =>
                     run(
                       () =>
@@ -457,15 +479,25 @@ export function DeckClassifierAdminPage({
                   }
                   onPublish={() =>
                     run(
-                      () => publishDeckClassifierRelease(overview.draftRevision, reason),
+                      () =>
+                        publishDeckClassifierRelease(
+                          overview.draftRevision,
+                          reason,
+                          scopeMode === 'FULL' ? null : overview.recentMatchLimit
+                        ),
                       '新分类版本已进入后台构建；旧版本会继续服务到新版本完整成功'
                     )
                   }
                   onReclassify={() =>
                     runClassificationOperation(
-                      () => reclassifyDecks(null, reason),
-                      '已创建全量重分类任务，正在处理…',
-                      '全量重分类已完成，页面数据已刷新'
+                      () =>
+                        reclassifyDecks(
+                          null,
+                          reason,
+                          scopeMode === 'FULL' ? null : overview.recentMatchLimit
+                        ),
+                      '已创建所选范围的重分类任务，正在处理…',
+                      '所选范围重分类已完成，页面数据已刷新'
                     )
                   }
                 />
@@ -672,7 +704,7 @@ export function DeckClassifierAdminPage({
                           reason,
                         }),
                       '人工分类设置已保存，正在重分类…',
-                      '人工分类已生效，待处理队列已刷新'
+                      '近期对局的人工分类已更新，待处理队列已刷新'
                     )
                   }
                   onAddTemplate={(fingerprint, archetypeId, name, sourceNote) =>
@@ -693,7 +725,7 @@ export function DeckClassifierAdminPage({
                     runClassificationOperation(
                       () => revokeDeckClassificationOverride(overrideId, reason),
                       '人工分类锁定已撤销，正在重分类…',
-                      '人工分类锁定已撤销，分类结果已刷新'
+                      '人工分类锁定已撤销，近期分类结果已刷新'
                     )
                   }
                 />
@@ -713,15 +745,20 @@ export function DeckClassifierAdminPage({
 
 function OverviewTab({
   overview,
+  scopeMode,
+  onScopeChange,
   preview,
   busy,
   reason,
   onPreview,
   onDisplaySettings,
+  onExecutionSettings,
   onPublish,
   onReclassify,
 }: {
   overview: DeckClassifierOverviewView;
+  scopeMode: DeckClassificationScopeMode;
+  onScopeChange: (mode: DeckClassificationScopeMode) => void;
   preview: DeckClassifierPreviewView | null;
   busy: boolean;
   reason: string;
@@ -733,10 +770,23 @@ function OverviewTab({
     readonly cardVisibleSections: readonly DeckEnvironmentSection[];
     readonly topRankedPlayerCount: number;
   }) => Promise<boolean>;
+  onExecutionSettings: (recentMatchLimit: number) => Promise<boolean>;
   onPublish: () => Promise<boolean>;
   onReclassify: () => Promise<boolean>;
 }) {
   const active = overview.activeRelease;
+  const [recentMatchLimit, setRecentMatchLimit] = useState(String(overview.recentMatchLimit));
+  useEffect(
+    () => setRecentMatchLimit(String(overview.recentMatchLimit)),
+    [overview.recentMatchLimit]
+  );
+  const parsedRecentMatchLimit = Number(recentMatchLimit);
+  const recentMatchLimitValid =
+    Number.isInteger(parsedRecentMatchLimit) &&
+    parsedRecentMatchLimit >= 1 &&
+    parsedRecentMatchLimit <= DECK_CLASSIFIER_MAX_RECENT_MATCH_LIMIT;
+  const executionSettingsDirty = parsedRecentMatchLimit !== overview.recentMatchLimit;
+  const classificationDisabled = busy || executionSettingsDirty || !recentMatchLimitValid;
   const [visibleSections, setVisibleSections] = useState<readonly DeckEnvironmentSection[]>(
     overview.visibleSections
   );
@@ -833,13 +883,82 @@ function OverviewTab({
             {active ? '服务中' : '未发布'}
           </StatusBadge>
         </div>
+        <div className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+          <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,16rem)_auto]">
+            <label className="block text-sm font-semibold" htmlFor="deck-classifier-recent-limit">
+              日常重算场数
+              <TextInput
+                id="deck-classifier-recent-limit"
+                className="mt-2 w-full"
+                type="number"
+                min={1}
+                max={DECK_CLASSIFIER_MAX_RECENT_MATCH_LIMIT}
+                step={1}
+                value={recentMatchLimit}
+                disabled={busy}
+                invalid={!recentMatchLimitValid}
+                onChange={(event) => setRecentMatchLimit(event.target.value)}
+                aria-describedby="deck-classifier-recent-help"
+              />
+            </label>
+            <ActionButton
+              size="compact"
+              className="justify-self-start"
+              disabled={
+                busy ||
+                !recentMatchLimitValid ||
+                !executionSettingsDirty ||
+                reason.trim().length < 5
+              }
+              onClick={() => void onExecutionSettings(parsedRecentMatchLimit)}
+            >
+              保存场数
+            </ActionButton>
+          </div>
+          <p
+            id="deck-classifier-recent-help"
+            className="mt-3 text-xs leading-relaxed text-[var(--text-muted)]"
+          >
+            默认 200 场，可设置 1～10000
+            场，每场包含双方卡组。保存后用于新增观察、人工分类及近期操作的新任务，已排队任务保持原范围。
+          </p>
+          {executionSettingsDirty ? (
+            <p className="mt-2 text-xs text-[var(--text-secondary)]">
+              {recentMatchLimitValid
+                ? '场数尚未保存，请先保存再预览、发布或重算。'
+                : '请输入 1～10000 的整数。'}
+            </p>
+          ) : null}
+        </div>
+        <div className="mt-4 text-sm">
+          <label htmlFor="deck-classifier-scope">处理范围</label>
+          <select
+            id="deck-classifier-scope"
+            className="mt-1 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2"
+            value={scopeMode}
+            disabled={busy}
+            onChange={(event) => onScopeChange(event.target.value as DeckClassificationScopeMode)}
+          >
+            <option value="RECENT">最近 {overview.recentMatchLimit} 场排位对局</option>
+            <option value="FULL">全部历史排位对局</option>
+          </select>
+        </div>
+        <p className="mt-2 text-xs text-[var(--text-muted)]">
+          范围同时用于预览、发布和手动重分类，每场包含双方卡组。近期模式保留更早对局的原分类；
+          全量模式按新规则统一历史结果，耗时较长。首次发布若需覆盖已有历史，请选择全部历史。
+        </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <ActionButton variant="secondary" size="compact" disabled={busy} onClick={onPreview}>
-            <RefreshCw size={15} /> 全量预览
+          <ActionButton
+            variant="secondary"
+            size="compact"
+            disabled={classificationDisabled}
+            onClick={onPreview}
+          >
+            <RefreshCw size={15} /> 预览所选范围
           </ActionButton>
           <ActionButton
             size="compact"
-            disabled={busy || reason.trim().length < 5}
+            disabled={classificationDisabled || reason.trim().length < 5}
             onClick={() => void onPublish()}
           >
             <Rocket size={15} /> 发布新版本
@@ -847,7 +966,7 @@ function OverviewTab({
           <ActionButton
             variant="ghost"
             size="compact"
-            disabled={busy || !active || reason.trim().length < 5}
+            disabled={classificationDisabled || !active || reason.trim().length < 5}
             onClick={() => void onReclassify()}
           >
             <RotateCcw size={15} /> 重分类当前版本
@@ -857,16 +976,16 @@ function OverviewTab({
 
       {preview ? (
         <Panel padding="compact" className="lg:col-span-2">
-          <h2 className="text-base font-semibold">草稿全量预览</h2>
+          <h2 className="text-base font-semibold">草稿分类预览</h2>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
             <Metric label="唯一构筑" value={preview.uniqueFingerprintCount} />
-            <Metric label="卡组观察场次" value={preview.observationCount} />
+            <Metric label="卡组观察席位" value={preview.observationCount} />
             <Metric label="已识别" value={preview.classifiedCount} />
             <Metric label="未识别" value={preview.unknownCount} />
             <Metric label="冲突" value={preview.ambiguousCount} />
             <Metric label="非法" value={preview.invalidCount} />
             <Metric label="人工排除" value={preview.excludedCount} />
-            <Metric label="变化场次" value={preview.changedCount} />
+            <Metric label="变化席位" value={preview.changedCount} />
           </div>
           <p className="mt-3 text-xs text-[var(--text-muted)]">
             识别覆盖 {(preview.coverageRate * 100).toFixed(1)}
@@ -888,7 +1007,9 @@ function OverviewTab({
               >
                 <StatusBadge tone={runTone(run.status)}>{run.status}</StatusBadge>
                 <span className="min-w-0 truncate">
-                  版本 {run.releaseVersion} · {run.reason}
+                  版本 {run.releaseVersion} ·{' '}
+                  {run.matchLimit === null ? '全部历史' : `最近 ${run.matchLimit} 场`} ·{' '}
+                  {run.reason}
                 </span>
                 <span className="text-xs tabular-nums text-[var(--text-muted)]">
                   {run.processedCount}/{run.totalCount} · 变化 {run.changedCount}
@@ -2107,6 +2228,10 @@ function ReviewTab({
         <h2 className="text-base font-semibold">
           未识别与冲突队列（{overview.reviewQueue.length}）
         </h2>
+        <p className="mt-2 text-xs text-[var(--text-muted)]">
+          人工指定或撤销后会重算最近 {overview.recentMatchLimit} 场。更早对局保留原结果；
+          如需一起纠正，请到“发布与展示口径”选择全部历史并重分类当前版本。
+        </p>
         <div className="mt-3 space-y-3">
           {overview.reviewQueue.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)]">当前没有待复核构筑</p>

@@ -1,5 +1,13 @@
+import type { PoolClient } from 'pg';
+import {
+  CLASSIFICATION_OBSERVATIONS_QUERY,
+  readRecentMatchLimit,
+} from './deck-classification-scope.js';
 import { pool } from '../db/pool.js';
-import { prepareDeckClassifierAsync, type DeckClassificationResult } from './deck-classifier-engine.js';
+import {
+  prepareDeckClassifierAsync,
+  type DeckClassificationResult,
+} from './deck-classifier-engine.js';
 import {
   hashDeckClassifierSnapshot,
   readDeckClassifierSnapshot,
@@ -17,6 +25,7 @@ interface ClaimedClassificationRun {
   readonly trigger:
     'RELEASE_PUBLISHED' | 'MANUAL_RECLASSIFY' | 'MANUAL_OVERRIDE' | 'AUTO_NEW_OBSERVATIONS';
   readonly scopeSeasonId: string | null;
+  readonly matchLimit: number | null;
   readonly snapshotJson: unknown;
   readonly configHash: string;
 }
@@ -110,108 +119,139 @@ export class DeckClassificationWorker {
 
   private async execute(run: ClaimedClassificationRun): Promise<void> {
     const started = performance.now();
-    const timings = { prepareMs: 0, classifyMs: 0, persistMs: 0 };
+    const timings = { readMs: 0, prepareMs: 0, classifyMs: 0, persistMs: 0 };
+    const counts: RunCounts = {
+      total: 0,
+      processed: 0,
+      classified: 0,
+      unknown: 0,
+      ambiguous: 0,
+      invalid: 0,
+      excluded: 0,
+      changed: 0,
+    };
     let outcome = 'FAILED';
-    let processed = 0;
-    let fingerprints = 0;
-    const heartbeat = setInterval(() => {
-      void pool
-        .query(
-          `UPDATE deck_classification_runs SET updated_at = NOW()
-           WHERE id = $1 AND status = 'RUNNING'`,
-          [run.id]
-        )
-        .catch((error) => {
-          console.error('[DeckClassifier] Run heartbeat failed', {
-            runId: run.id,
-            ...safeError(error),
-          });
-        });
-    }, 30_000);
-    heartbeat.unref();
+    const client = await pool.connect();
     try {
       const snapshot = readDeckClassifierSnapshot(run.snapshotJson);
       if (hashDeckClassifierSnapshot(snapshot) !== run.configHash) {
         throw new Error('卡组分类发布快照哈希校验失败');
       }
-      const [observationsResult, overridesResult, existingResult] = await Promise.all([
-        pool.query<ObservationRow>(
-          `SELECT match_id, seat, deck_fingerprint, main_deck_cards
-           FROM ranked_deck_observations AS observation
-           WHERE ($1::uuid IS NULL OR season_id = $1)
-             AND ($2::boolean = false OR NOT EXISTS (
-               SELECT 1 FROM deck_classification_assignments AS assignment
-               WHERE assignment.release_id = $3
-                 AND assignment.match_id = observation.match_id
-                 AND assignment.seat = observation.seat
-             ))
-           ORDER BY match_id ASC, seat ASC`,
-          [run.scopeSeasonId, run.trigger === 'AUTO_NEW_OBSERVATIONS', run.releaseId]
-        ),
-        pool.query<OverrideDecisionRow>(
-          `SELECT DISTINCT ON (deck_fingerprint)
-             id, deck_fingerprint, target_status, archetype_id, reason
-           FROM deck_classification_overrides
-           WHERE revoked_at IS NULL
-             AND (applies_to_future_releases = true OR release_id = $1)
-           ORDER BY deck_fingerprint, applies_to_future_releases ASC, created_at DESC`,
-          [run.releaseId]
-        ),
-        run.trigger === 'AUTO_NEW_OBSERVATIONS' ? Promise.resolve({ rows: [] }) : pool.query<ExistingAssignmentRow>(
-          `SELECT assignment.match_id, assignment.seat, assignment.status,
-                  assignment.archetype_id, assignment.method
-           FROM deck_classification_assignments AS assignment
-           JOIN ranked_deck_observations AS observation
-             ON observation.match_id = assignment.match_id AND observation.seat = assignment.seat
-           WHERE assignment.release_id = $1
-             AND ($2::uuid IS NULL OR observation.season_id = $2)`,
-          [run.releaseId, run.scopeSeasonId]
-        ),
-      ]);
-      const overrides = new Map(
-        overridesResult.rows.map((override) => [override.deck_fingerprint, override])
+      // A single transaction publishes both the selected results and release switch.
+      // Recovery skips this locked run; process death rolls back the entire operation.
+      await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
+      const locked = await client.query<{ status: string }>(
+        'SELECT status FROM deck_classification_runs WHERE id = $1 FOR UPDATE',
+        [run.id]
       );
-      const existing = new Map(
-        existingResult.rows.map((assignment) => [assignmentKey(assignment), assignment])
+      if (locked.rows[0]?.status !== 'RUNNING') throw new Error('分类任务状态已变化');
+      const readStarted = performance.now();
+      // Freeze the input once, including full runs, without loading all JSON into Node.
+      await client.query(
+        `CREATE TEMP TABLE deck_classification_targets ON COMMIT DROP AS
+        ${CLASSIFICATION_OBSERVATIONS_QUERY}`,
+        [run.scopeSeasonId, run.matchLimit]
       );
-      const byFingerprint = new Map<string, PersistedAssignment>();
+      await client.query('CREATE UNIQUE INDEX ON deck_classification_targets (match_id, seat)');
+      const total = await client.query<{ count: string }>(
+        'SELECT count(*) AS count FROM deck_classification_targets'
+      );
+      counts.total = Number(total.rows[0]?.count ?? 0);
+      const overridesResult = await client.query<OverrideDecisionRow>(
+        `SELECT DISTINCT ON (deck_fingerprint)
+           id, deck_fingerprint, target_status, archetype_id, reason
+         FROM deck_classification_overrides
+         WHERE revoked_at IS NULL AND (applies_to_future_releases = true OR release_id = $1)
+         ORDER BY deck_fingerprint, applies_to_future_releases ASC, created_at DESC`,
+        [run.releaseId]
+      );
+      const overrides = new Map(overridesResult.rows.map((row) => [row.deck_fingerprint, row]));
+      timings.readMs += performance.now() - readStarted;
       const prepareStarted = performance.now();
       const classify = await prepareDeckClassifierAsync(snapshot);
       timings.prepareMs = performance.now() - prepareStarted;
-      const classifyStarted = performance.now();
-      const assignments: PersistedAssignment[] = [];
-      let sliceStarted = performance.now();
-      for (const observation of observationsResult.rows) {
-        let classification = byFingerprint.get(observation.deck_fingerprint);
-        if (!classification) {
-          const override = overrides.get(observation.deck_fingerprint);
-          classification = override
-            ? assignmentFromOverride(override)
-            : assignmentFromClassifier(
-                classify(readTemplateCards(observation.main_deck_cards))
-              );
-          byFingerprint.set(observation.deck_fingerprint, classification);
+      const byFingerprint = new Map<string, PersistedAssignment>();
+      let cursor: ObservationRow | undefined;
+      while (true) {
+        const pageStarted = performance.now();
+        const page = await client.query<ObservationRow>(
+          `SELECT target.match_id, target.seat, target.deck_fingerprint, target.main_deck_cards
+           FROM deck_classification_targets AS target
+           WHERE ($1::text IS NULL OR (target.match_id, target.seat) > ($1, $2::text))
+           ORDER BY target.match_id, target.seat LIMIT 250`,
+          [cursor?.match_id ?? null, cursor?.seat ?? null]
+        );
+        if (page.rows.length === 0) break;
+        const existingResult = await client.query<ExistingAssignmentRow>(
+          `SELECT assignment.match_id, assignment.seat, assignment.status, assignment.archetype_id, assignment.method
+           FROM deck_classification_assignments AS assignment
+           WHERE assignment.is_current = true AND assignment.match_id = ANY($1::text[])`,
+          [page.rows.map((row) => row.match_id)]
+        );
+        timings.readMs += performance.now() - pageStarted;
+        const classifyStarted = performance.now();
+        const assignments: PersistedAssignment[] = [];
+        let sliceStarted = performance.now();
+        for (const observation of page.rows) {
+          let classification = byFingerprint.get(observation.deck_fingerprint);
+          if (!classification) {
+            const override = overrides.get(observation.deck_fingerprint);
+            classification = override
+              ? assignmentFromOverride(override)
+              : assignmentFromClassifier(classify(readTemplateCards(observation.main_deck_cards)));
+            // Bound full-history task memory; recent tasks retain every unique deck.
+            if (byFingerprint.size >= 10_000) byFingerprint.clear();
+            byFingerprint.set(observation.deck_fingerprint, classification);
+          }
+          assignments.push({
+            ...classification,
+            matchId: observation.match_id,
+            seat: observation.seat,
+          });
+          if (performance.now() - sliceStarted >= 10) {
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            sliceStarted = performance.now();
+          }
         }
-        assignments.push({ ...classification, matchId: observation.match_id, seat: observation.seat });
-        if (performance.now() - sliceStarted >= 10) {
-          await new Promise<void>((resolve) => setImmediate(resolve));
-          sliceStarted = performance.now();
+        const batchCounts = countAssignments(
+          assignments,
+          new Map(existingResult.rows.map((row) => [assignmentKey(row), row]))
+        );
+        for (const key of [
+          'processed',
+          'classified',
+          'unknown',
+          'ambiguous',
+          'invalid',
+          'excluded',
+          'changed',
+        ] as const) {
+          counts[key] += batchCounts[key];
         }
+        timings.classifyMs += performance.now() - classifyStarted;
+        const persistStarted = performance.now();
+        await persistClassificationBatch(client, run, assignments);
+        await client.query('UPDATE deck_classification_runs SET updated_at = NOW() WHERE id = $1', [
+          run.id,
+        ]);
+        timings.persistMs += performance.now() - persistStarted;
+        cursor = page.rows[page.rows.length - 1];
       }
-      timings.classifyMs = performance.now() - classifyStarted;
-      processed = assignments.length;
-      fingerprints = byFingerprint.size;
-      const counts = countAssignments(assignments, existing);
-      const persistStarted = performance.now();
-      await persistClassificationRun(run, assignments, counts);
-      timings.persistMs = performance.now() - persistStarted;
+      await completeClassificationRun(client, run, counts);
+      await client.query('COMMIT');
       outcome = 'SUCCEEDED';
     } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
       await failClassificationRun(run, error);
     } finally {
-      clearInterval(heartbeat);
+      client.release();
       console.info('[DeckClassifier] Run completed', {
-        trigger: run.trigger, outcome, processed, fingerprints, ...timings,
+        runId: run.id,
+        matchLimit: run.matchLimit,
+        trigger: run.trigger,
+        outcome,
+        ...counts,
+        ...timings,
         totalMs: performance.now() - started,
       });
     }
@@ -227,7 +267,7 @@ export async function recoverInterruptedClassificationRuns(): Promise<number> {
        FROM deck_classification_runs
        WHERE status = 'RUNNING'
          AND updated_at < NOW() - INTERVAL '${STALE_RUN_INTERVAL}'
-       FOR UPDATE`
+       FOR UPDATE SKIP LOCKED`
     );
     if (interrupted.rows.length === 0) {
       await client.query('COMMIT');
@@ -278,11 +318,12 @@ async function claimNextClassificationRun(): Promise<ClaimedClassificationRun | 
       release_status: ClaimedClassificationRun['releaseStatus'];
       trigger: ClaimedClassificationRun['trigger'];
       scope_season_id: string | null;
+      match_limit: number | null;
       snapshot_json: unknown;
       config_hash: string;
     }>(
       `SELECT run.id, run.release_id, release.status AS release_status,
-              run.trigger, run.scope_season_id, release.snapshot_json, release.config_hash
+              run.trigger, run.scope_season_id, run.match_limit, release.snapshot_json, release.config_hash
        FROM deck_classification_runs AS run
        JOIN deck_classifier_releases AS release ON release.id = run.release_id
        WHERE run.status = 'QUEUED'
@@ -317,6 +358,7 @@ async function claimNextClassificationRun(): Promise<ClaimedClassificationRun | 
       releaseStatus: row.release_status,
       trigger: row.trigger,
       scopeSeasonId: row.scope_season_id,
+      matchLimit: row.match_limit,
       snapshotJson: row.snapshot_json,
       configHash: row.config_hash,
     };
@@ -329,25 +371,20 @@ async function claimNextClassificationRun(): Promise<ClaimedClassificationRun | 
   }
 }
 
-async function persistClassificationRun(
+async function persistClassificationBatch(
+  client: PoolClient,
   run: ClaimedClassificationRun,
-  assignments: readonly PersistedAssignment[],
-  counts: RunCounts
+  batch: readonly PersistedAssignment[]
 ): Promise<void> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const locked = await client.query<{ status: string }>(
-      'SELECT status FROM deck_classification_runs WHERE id = $1 FOR UPDATE',
-      [run.id]
-    );
-    if (locked.rows[0]?.status !== 'RUNNING') {
-      throw new Error('分类任务状态已变化');
-    }
-    for (let offset = 0; offset < assignments.length; offset += 250) {
-      const batch = assignments.slice(offset, offset + 250);
-      await client.query(
-        `WITH input AS (
+  await client.query(
+    `UPDATE deck_classification_assignments AS assignment SET is_current = false
+     FROM jsonb_to_recordset($2::jsonb) AS target(match_id text, seat text)
+     WHERE assignment.match_id = target.match_id AND assignment.seat = target.seat
+       AND assignment.is_current = true AND assignment.release_id <> $1`,
+    [run.releaseId, JSON.stringify(batch.map((row) => ({ match_id: row.matchId, seat: row.seat })))]
+  );
+  await client.query(
+    `WITH input AS (
            SELECT *
            FROM jsonb_to_recordset($3::jsonb) AS row(
              match_id text,
@@ -363,12 +400,13 @@ async function persistClassificationRun(
          )
          INSERT INTO deck_classification_assignments (
            match_id, seat, release_id, run_id, archetype_id, status, method,
-           best_distance, second_distance, margin, evidence, classified_at, updated_at
+           best_distance, second_distance, margin, evidence, classified_at, updated_at, is_current
          )
          SELECT match_id, seat, $1, $2, archetype_id, status, method,
-                best_distance, second_distance, margin, evidence, NOW(), NOW()
+                best_distance, second_distance, margin, evidence, NOW(), NOW(), true
          FROM input
          ON CONFLICT (match_id, seat, release_id) DO UPDATE SET
+           is_current = true,
            run_id = EXCLUDED.run_id,
            archetype_id = EXCLUDED.archetype_id,
            status = EXCLUDED.status,
@@ -379,58 +417,57 @@ async function persistClassificationRun(
            evidence = EXCLUDED.evidence,
            classified_at = EXCLUDED.classified_at,
            updated_at = NOW()`,
-        [run.releaseId, run.id, stableJsonStringify(batch.map(toPersistedJson))]
-      );
+    [run.releaseId, run.id, stableJsonStringify(batch.map(toPersistedJson))]
+  );
+}
+
+async function completeClassificationRun(
+  client: PoolClient,
+  run: ClaimedClassificationRun,
+  counts: RunCounts
+): Promise<void> {
+  if (run.releaseStatus === 'BUILDING') {
+    if (run.trigger !== 'RELEASE_PUBLISHED' || run.scopeSeasonId !== null) {
+      throw new Error('构建中的分类版本只能由发布任务激活');
     }
-    if (run.releaseStatus === 'BUILDING') {
-      if (run.trigger !== 'RELEASE_PUBLISHED' || run.scopeSeasonId !== null) {
-        throw new Error('构建中的分类版本只能由全量发布任务激活');
-      }
-      if (counts.processed !== counts.total || counts.invalid > 0) {
-        throw new Error('新分类版本未能完整处理所有有效卡组观察');
-      }
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('deck-classifier-release'))");
-      await client.query(
-        `UPDATE deck_classifier_releases
+    if (counts.processed !== counts.total || counts.invalid > 0) {
+      throw new Error('新分类版本未能完整处理所选范围内的有效卡组观察');
+    }
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('deck-classifier-release'))");
+    await client.query(
+      `UPDATE deck_classifier_releases
             SET status = 'SUPERSEDED'
           WHERE status = 'ACTIVE' AND id <> $1`,
-        [run.releaseId]
-      );
-      const activated = await client.query(
-        `UPDATE deck_classifier_releases
+      [run.releaseId]
+    );
+    const activated = await client.query(
+      `UPDATE deck_classifier_releases
             SET status = 'ACTIVE', activated_at = NOW()
           WHERE id = $1 AND status = 'BUILDING'
           RETURNING id`,
-        [run.releaseId]
-      );
-      if (!activated.rows[0]) throw new Error('新分类版本激活失败');
-    }
-    await client.query(
-      `UPDATE deck_classification_runs
+      [run.releaseId]
+    );
+    if (!activated.rows[0]) throw new Error('新分类版本激活失败');
+  }
+  await client.query(
+    `UPDATE deck_classification_runs
           SET status = 'SUCCEEDED', total_count = $2, processed_count = $3,
               classified_count = $4, unknown_count = $5, ambiguous_count = $6,
               invalid_count = $7, excluded_count = $8, changed_count = $9,
               finished_at = NOW(), updated_at = NOW(), error_message = NULL
         WHERE id = $1`,
-      [
-        run.id,
-        counts.total,
-        counts.processed,
-        counts.classified,
-        counts.unknown,
-        counts.ambiguous,
-        counts.invalid,
-        counts.excluded,
-        counts.changed,
-      ]
-    );
-    await client.query('COMMIT');
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw error;
-  } finally {
-    client.release();
-  }
+    [
+      run.id,
+      counts.total,
+      counts.processed,
+      counts.classified,
+      counts.unknown,
+      counts.ambiguous,
+      counts.invalid,
+      counts.excluded,
+      counts.changed,
+    ]
+  );
 }
 
 async function failClassificationRun(run: ClaimedClassificationRun, error: unknown): Promise<void> {
@@ -467,34 +504,38 @@ async function queueMissingObservationRun(): Promise<boolean> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('deck-classifier-auto-queue'))");
+    const matchLimit = await readRecentMatchLimit(client);
     const missing = await client.query<{
       release_id: string;
       missing_count: number | string;
-      latest_observed_at: Date | string;
+      missing_key: string;
     }>(
-      `SELECT release.id AS release_id, count(*) AS missing_count,
-              max(observation.observed_at) AS latest_observed_at
+      `WITH recent_observations AS (${CLASSIFICATION_OBSERVATIONS_QUERY})
+       SELECT release.id AS release_id, count(*) AS missing_count,
+              md5(string_agg(observation.match_id || ':' || observation.seat, ','
+                ORDER BY observation.match_id, observation.seat)) AS missing_key
        FROM deck_classifier_releases AS release
-       JOIN ranked_deck_observations AS observation ON TRUE
+       JOIN recent_observations AS observation ON TRUE
        LEFT JOIN deck_classification_assignments AS assignment
-         ON assignment.release_id = release.id
-        AND assignment.match_id = observation.match_id
-        AND assignment.seat = observation.seat
+         ON assignment.is_current = true
+        AND assignment.match_id = observation.match_id AND assignment.seat = observation.seat
        WHERE release.status = 'ACTIVE' AND assignment.match_id IS NULL
-       GROUP BY release.id
-       LIMIT 1`
+         AND NOT EXISTS (SELECT 1 FROM deck_classifier_releases WHERE status = 'BUILDING')
+         AND NOT EXISTS (SELECT 1 FROM deck_classification_runs WHERE status IN ('QUEUED', 'RUNNING'))
+       GROUP BY release.id LIMIT 1`,
+      [null, matchLimit]
     );
     const row = missing.rows[0];
     if (!row || Number(row.missing_count) <= 0) {
       await client.query('COMMIT');
       return false;
     }
-    const suffix = new Date(row.latest_observed_at).getTime();
     const queued = await client.query<{ id: string }>(
       `INSERT INTO deck_classification_runs (
-         release_id, trigger, request_id, idempotency_key, reason
+         release_id, trigger, request_id, idempotency_key, reason, match_limit
        )
-       VALUES ($1, 'AUTO_NEW_OBSERVATIONS', $2, $2, '自动补分类新增排位卡组观察')
+       VALUES ($1, 'AUTO_NEW_OBSERVATIONS', $2, $2, $3, $4)
        ON CONFLICT (idempotency_key) DO UPDATE
          SET status = 'QUEUED', total_count = 0, processed_count = 0,
              classified_count = 0, unknown_count = 0, ambiguous_count = 0,
@@ -503,7 +544,12 @@ async function queueMissingObservationRun(): Promise<boolean> {
              updated_at = NOW()
          WHERE deck_classification_runs.status = 'FAILED'
        RETURNING id`,
-      [row.release_id, `deck-classifier:auto:${row.release_id}:${suffix}:${row.missing_count}`]
+      [
+        row.release_id,
+        `deck-classifier:recent:${row.release_id}:${matchLimit}:${row.missing_key}`,
+        `新增排位观察触发最近 ${matchLimit} 场重分类`,
+        matchLimit,
+      ]
     );
     await client.query('COMMIT');
     return Boolean(queued.rows[0]);

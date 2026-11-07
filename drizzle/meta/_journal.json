@@ -330,6 +330,13 @@
       "when": 1793282314983,
       "tag": "0046_allow_card_sync_overrides",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793987175784,
+      "tag": "0047_deck_classifier_recent_window",
+      "breakpoints": true
     }
   ]
 }

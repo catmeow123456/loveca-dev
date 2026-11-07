@@ -1,3 +1,4 @@
+import { DECK_CLASSIFIER_MAX_RECENT_MATCH_LIMIT } from '../../online/deck-classifier-types.js';
 import { randomUUID } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
@@ -10,10 +11,15 @@ import {
   type DeckClassifierAdminService,
   type DeckClassifierOperator,
 } from '../services/deck-classifier-admin-service.js';
-import { deckClassificationWorker } from '../services/deck-classification-worker.js';
+import {
+  deckClassifierProcess,
+  DeckClassifierProcessError,
+} from '../services/deck-classifier-process-runtime.js';
+import type { DeckClassifierPreviewView } from '../../online/deck-classifier-types.js';
 
 interface DeckClassifierWorkerNotifier {
   notify(): void;
+  preview(revision: number, matchLimit: number | null): Promise<DeckClassifierPreviewView>;
 }
 
 const uuidSchema = z.string().uuid();
@@ -196,10 +202,21 @@ const settingsSchema = z
   })
   .strict();
 
-const previewSchema = z.object({ expectedDraftRevision: expectedDraftRevisionSchema }).strict();
+const recentMatchLimitSchema = z.number().int().min(1).max(DECK_CLASSIFIER_MAX_RECENT_MATCH_LIMIT);
+const matchLimitSchema = recentMatchLimitSchema.nullable();
+const executionSettingsSchema = z
+  .object({
+    recentMatchLimit: recentMatchLimitSchema,
+    reason: reasonSchema,
+  })
+  .strict();
+const previewSchema = z
+  .object({ expectedDraftRevision: expectedDraftRevisionSchema, matchLimit: matchLimitSchema })
+  .strict();
 
 const publishSchema = z
   .object({
+    matchLimit: matchLimitSchema,
     expectedDraftRevision: expectedDraftRevisionSchema,
     reason: reasonSchema,
     idempotencyKey: idempotencyKeySchema,
@@ -208,6 +225,7 @@ const publishSchema = z
 
 const reclassifySchema = z
   .object({
+    matchLimit: matchLimitSchema,
     seasonId: uuidSchema.nullable().default(null),
     reason: reasonSchema,
     idempotencyKey: idempotencyKeySchema,
@@ -257,7 +275,7 @@ const candidateQuerySchema = z
 
 export function createDeckClassifierAdminRouter(
   service: DeckClassifierAdminService = deckClassifierAdminService,
-  worker: DeckClassifierWorkerNotifier = deckClassificationWorker
+  worker: DeckClassifierWorkerNotifier = deckClassifierProcess
 ): Router {
   const router = Router();
   router.use(requireAuth, requirePermission('season.deck_classifier.manage'));
@@ -291,6 +309,12 @@ export function createDeckClassifierAdminRouter(
     const input = readBody(req, res, settingsSchema);
     if (!input) return;
     await respond(res, () => service.updateDisplaySettings(input, readOperator(req)));
+  });
+
+  router.put('/execution-settings', async (req, res) => {
+    const input = readBody(req, res, executionSettingsSchema);
+    if (!input) return;
+    await respond(res, () => service.updateExecutionSettings(input, readOperator(req)));
   });
 
   router.post('/archetypes', async (req, res) => {
@@ -405,7 +429,7 @@ export function createDeckClassifierAdminRouter(
   router.post('/preview', async (req, res) => {
     const input = readBody(req, res, previewSchema);
     if (!input) return;
-    await respond(res, () => service.previewRelease(input.expectedDraftRevision));
+    await respond(res, () => worker.preview(input.expectedDraftRevision, input.matchLimit));
   });
 
   router.post('/releases', async (req, res) => {
@@ -418,7 +442,8 @@ export function createDeckClassifierAdminRouter(
           input.expectedDraftRevision,
           input.reason,
           input.idempotencyKey,
-          readOperator(req)
+          readOperator(req),
+          input.matchLimit
         );
         worker.notify();
         return result;
@@ -437,7 +462,8 @@ export function createDeckClassifierAdminRouter(
           input.seasonId,
           input.reason,
           input.idempotencyKey,
-          readOperator(req)
+          readOperator(req),
+          input.matchLimit
         );
         worker.notify();
         return run;
@@ -525,7 +551,10 @@ async function respond(
     const data = await operation();
     res.status(statusCode).json({ data, error: null });
   } catch (error) {
-    if (error instanceof DeckClassifierAdminServiceError) {
+    if (
+      error instanceof DeckClassifierAdminServiceError ||
+      error instanceof DeckClassifierProcessError
+    ) {
       res.status(error.statusCode).json({
         data: null,
         error: { code: error.code, message: error.message },

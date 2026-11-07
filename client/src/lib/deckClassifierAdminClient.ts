@@ -253,15 +253,25 @@ export const deleteDeckClassifierRule = (
     '删除卡组识别规则失败'
   );
 
-export const previewDeckClassifierRelease = (expectedDraftRevision: number) =>
+export const updateDeckClassifierExecutionSettings = (recentMatchLimit: number, reason: string) =>
+  requireData<{ readonly recentMatchLimit: number }>(
+    apiClient.put('/api/admin/deck-classifier/execution-settings', { recentMatchLimit, reason }),
+    '保存日常重算场数失败'
+  );
+
+export const previewDeckClassifierRelease = (
+  expectedDraftRevision: number,
+  matchLimit: number | null
+) =>
   requireData<DeckClassifierPreviewView>(
-    apiClient.post('/api/admin/deck-classifier/preview', { expectedDraftRevision }),
+    apiClient.post('/api/admin/deck-classifier/preview', { expectedDraftRevision, matchLimit }),
     '生成分类预览失败'
   );
 
 export const publishDeckClassifierRelease = (
   expectedDraftRevision: number,
   reason: string,
+  matchLimit: number | null,
   idempotencyKey = createIdempotencyKey('publish')
 ) =>
   requireData<{
@@ -269,6 +279,7 @@ export const publishDeckClassifierRelease = (
     readonly run: DeckClassificationRunView;
   }>(
     apiClient.post('/api/admin/deck-classifier/releases', {
+      matchLimit,
       expectedDraftRevision,
       reason,
       idempotencyKey,
@@ -279,10 +290,12 @@ export const publishDeckClassifierRelease = (
 export const reclassifyDecks = (
   seasonId: string | null,
   reason: string,
+  matchLimit: number | null,
   idempotencyKey = createIdempotencyKey('reclassify')
 ) =>
   requireData<DeckClassificationRunView>(
     apiClient.post('/api/admin/deck-classifier/runs', {
+      matchLimit,
       seasonId,
       reason,
       idempotencyKey,

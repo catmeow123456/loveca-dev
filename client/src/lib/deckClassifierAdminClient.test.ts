@@ -9,6 +9,7 @@ const BASE_RUN: DeckClassificationRunView = {
   status: 'QUEUED',
   trigger: 'MANUAL_OVERRIDE',
   scopeSeasonId: null,
+  matchLimit: 200,
   reason: '人工复核卡组分类',
   totalCount: 0,
   processedCount: 0,

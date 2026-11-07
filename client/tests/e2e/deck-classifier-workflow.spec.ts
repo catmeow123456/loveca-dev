@@ -43,6 +43,7 @@ function overview(): DeckClassifierOverviewView {
     cardDisplayMode: 'BOTH',
     cardVisibleSections: ['USAGE'],
     topRankedPlayerCount: 30,
+    recentMatchLimit: 200,
     draftRevision: 1,
     activeRelease: null,
     archetypes: [
@@ -603,4 +604,129 @@ test('YAML 文件限制、预览失败重试、重复提示和过期预览', asy
     page.getByRole('button', { name: '确认导入 YAML 样板', exact: true })
   ).toBeDisabled();
   await page.getByRole('button', { name: '取消 YAML 导入', exact: true }).click();
+});
+
+test('近期场数默认200且可保存，任务保留创建范围并支持全量', async ({ page }, testInfo) => {
+  const state = await setup(page);
+  const requests: Array<{ action: string; matchLimit: number | null }> = [];
+  const settingsUpdates: number[] = [];
+  let failSettingsOnce = true;
+  await page.route('**/api/admin/deck-classifier/execution-settings', async (route) => {
+    const { recentMatchLimit } = route.request().postDataJSON();
+    if (failSettingsOnce) {
+      failSettingsOnce = false;
+      return route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: null,
+          error: { code: 'TEST_SAVE_FAILED', message: '模拟保存失败' },
+        }),
+      });
+    }
+    settingsUpdates.push(recentMatchLimit);
+    state.overview = { ...state.overview, recentMatchLimit };
+    return reply(route, { recentMatchLimit });
+  });
+  const release = {
+    id: 'test-release',
+    version: 2,
+    status: 'ACTIVE' as const,
+    configHash: 'test',
+    reason: '范围验收',
+    publishedAt: NOW,
+    activatedAt: NOW,
+  };
+  const run = (matchLimit: number | null) => ({
+    id: 'test-run',
+    releaseId: release.id,
+    releaseVersion: 2,
+    status: 'SUCCEEDED' as const,
+    trigger: 'MANUAL_RECLASSIFY' as const,
+    matchLimit,
+    scopeSeasonId: null,
+    reason: '范围验收',
+    totalCount: (matchLimit ?? 205) * 2,
+    processedCount: (matchLimit ?? 205) * 2,
+    classifiedCount: (matchLimit ?? 205) * 2,
+    unknownCount: 0,
+    ambiguousCount: 0,
+    invalidCount: 0,
+    excludedCount: 0,
+    changedCount: 2,
+    errorMessage: null,
+    createdAt: NOW,
+    startedAt: NOW,
+    finishedAt: NOW,
+  });
+  await page.route('**/api/admin/deck-classifier/{preview,releases,runs}', async (route) => {
+    const action = new URL(route.request().url()).pathname.split('/').at(-1)!;
+    const { matchLimit } = route.request().postDataJSON();
+    requests.push({ action, matchLimit });
+    if (action === 'preview')
+      return reply(route, {
+        uniqueFingerprintCount: 2,
+        observationCount: (matchLimit ?? 205) * 2,
+        classifiedCount: (matchLimit ?? 205) * 2,
+        unknownCount: 0,
+        ambiguousCount: 0,
+        invalidCount: 0,
+        excludedCount: 0,
+        changedCount: 2,
+        coverageRate: 1,
+        archetypeCounts: [],
+      });
+    state.overview = { ...state.overview, activeRelease: release, runs: [run(matchLimit)] };
+    return reply(
+      route,
+      action === 'releases' ? { release, run: run(matchLimit) } : run(matchLimit)
+    );
+  });
+  await page.getByRole('tab', { name: '发布与展示口径', exact: true }).click();
+  const scope = page.getByLabel('处理范围', { exact: true });
+  await expect(scope).toHaveValue('RECENT');
+  await expect(scope.locator('option:checked')).toHaveText('最近 200 场排位对局');
+  const limit = page.getByLabel('日常重算场数', { exact: true });
+  const saveLimit = page.getByRole('button', { name: '保存场数', exact: true });
+  await expect(limit).toHaveValue('200');
+  await limit.fill('0');
+  await expect(saveLimit).toBeDisabled();
+  await limit.fill('120');
+  await expect(page.getByRole('button', { name: '预览所选范围', exact: true })).toBeDisabled();
+  await saveLimit.click();
+  await expect(page.getByText('模拟保存失败', { exact: true })).toBeVisible();
+  await expect(limit).toHaveValue('120');
+  await expect(scope.locator('option:checked')).toHaveText('最近 200 场排位对局');
+  await saveLimit.click();
+  await expect(scope.locator('option:checked')).toHaveText('最近 120 场排位对局');
+  await page.reload();
+  await page.getByRole('tab', { name: '发布与展示口径', exact: true }).click();
+  await expect(limit).toHaveValue('120');
+  await page.getByRole('button', { name: '预览所选范围', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '草稿分类预览' })).toBeVisible();
+  await scope.selectOption('FULL');
+  await expect(page.getByRole('heading', { name: '草稿分类预览' })).toHaveCount(0);
+  await page.getByRole('button', { name: '预览所选范围', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '草稿分类预览' })).toBeVisible();
+  await page.getByRole('button', { name: '发布新版本', exact: true }).click();
+  await expect(page.getByRole('button', { name: '重分类当前版本', exact: true })).toBeEnabled();
+  await scope.selectOption('RECENT');
+  await page.getByRole('button', { name: '重分类当前版本', exact: true }).click();
+  await expect(page.getByText('所选范围重分类已完成，页面数据已刷新')).toBeVisible();
+  expect(requests).toEqual([
+    { action: 'preview', matchLimit: 120 },
+    { action: 'preview', matchLimit: null },
+    { action: 'releases', matchLimit: null },
+    { action: 'runs', matchLimit: 120 },
+  ]);
+  await limit.fill('200');
+  await saveLimit.click();
+  await expect(scope.locator('option:checked')).toHaveText('最近 200 场排位对局');
+  await expect(page.getByText(/版本 2 · 最近 120 场/)).toBeVisible();
+  expect(settingsUpdates).toEqual([120, 200]);
+  await scope.scrollIntoViewIfNeeded();
+  await scope
+    .locator('..')
+    .locator('..')
+    .screenshot({ path: testInfo.outputPath('classification-window.png') });
 });

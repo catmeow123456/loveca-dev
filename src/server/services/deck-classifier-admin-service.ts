@@ -1,3 +1,9 @@
+import { DECK_CLASSIFIER_DEFAULT_RECENT_MATCH_LIMIT } from '../../online/deck-classifier-types.js';
+import {
+  CLASSIFICATION_OBSERVATIONS_QUERY,
+  readRecentMatchLimit,
+  assertRecentMatchLimit,
+} from './deck-classification-scope.js';
 import type { PoolClient } from 'pg';
 import type { DeckClassifierYamlPreviewView } from '../../online/deck-classifier-types.js';
 import { parseClassifierYaml } from './deck-classifier-yaml.js';
@@ -24,13 +30,14 @@ import {
   loadDeckClassifierCardCatalog,
 } from './deck-classifier-card-catalog.js';
 import {
-  classifyDeck,
+  prepareDeckClassifierAsync,
   fingerprintNormalizedDeck,
   normalizeDeck,
 } from './deck-classifier-engine.js';
 import {
   buildDeckClassifierSnapshot,
   hashDeckClassifierSnapshot,
+  readDeckClassifierSnapshot,
   readRuleConditions,
   readTemplateCards,
   type DraftArchetypeRow,
@@ -192,6 +199,7 @@ interface RunRow {
   readonly status: DeckClassificationRunView['status'];
   readonly trigger: DeckClassificationRunView['trigger'];
   readonly scope_season_id: string | null;
+  readonly match_limit: number | null;
   readonly reason: string;
   readonly total_count: number | string;
   readonly processed_count: number | string;
@@ -226,6 +234,7 @@ interface ObservationFingerprintRow {
 }
 
 interface PriorAssignmentRow {
+  readonly occurrence_count: number | string;
   readonly deck_fingerprint: string;
   readonly status: string;
   readonly archetype_id: string | null;
@@ -324,11 +333,12 @@ export class DeckClassifierAdminService {
           card_show_top_ranked: boolean;
           top_ranked_player_count: number;
           draft_revision: number;
+          recent_match_limit: number;
         }>(
           `SELECT display_mode, show_usage, show_winner, show_top_ranked,
                   card_display_mode, card_show_usage, card_show_winner,
                   card_show_top_ranked,
-                  top_ranked_player_count, draft_revision
+                  top_ranked_player_count, draft_revision, recent_match_limit
            FROM deck_classifier_settings WHERE id = 1`
         ),
         pool.query<ArchetypeRow>(ARCHETYPES_QUERY),
@@ -370,6 +380,8 @@ export class DeckClassifierAdminService {
     const releaseViews = releases.rows.map(toReleaseView);
     const currentSettings = settings.rows[0];
     return {
+      recentMatchLimit:
+        currentSettings?.recent_match_limit ?? DECK_CLASSIFIER_DEFAULT_RECENT_MATCH_LIMIT,
       displayMode: currentSettings?.display_mode ?? 'HIDDEN',
       visibleSections: currentSettings ? readVisibleSections(currentSettings) : [],
       cardDisplayMode: currentSettings?.card_display_mode ?? 'PLAYER_EQUAL',
@@ -403,20 +415,22 @@ export class DeckClassifierAdminService {
        ), grouped AS (
          SELECT
            observation.deck_fingerprint,
-           assignment.status,
+           (array_agg(assignment.status ORDER BY assignment.classified_at DESC,
+             observation.match_id DESC, observation.seat DESC))[1] AS status,
            count(*) AS occurrence_count,
            count(DISTINCT observation.user_id) AS player_count,
            count(DISTINCT observation.season_id) AS season_count,
            min(observation.observed_at) AS first_observed_at,
            max(observation.observed_at) AS last_observed_at,
-           (array_agg(assignment.evidence ORDER BY assignment.classified_at DESC))[1] AS evidence
+           (array_agg(assignment.evidence ORDER BY assignment.classified_at DESC,
+             observation.match_id DESC, observation.seat DESC))[1] AS evidence
          FROM deck_classification_assignments AS assignment
-         JOIN active_release ON active_release.id = assignment.release_id
+         JOIN active_release ON assignment.is_current = true
          JOIN ranked_deck_observations AS observation
            ON observation.match_id = assignment.match_id
           AND observation.seat = assignment.seat
          WHERE assignment.status IN ('UNKNOWN', 'AMBIGUOUS')
-         GROUP BY observation.deck_fingerprint, assignment.status
+         GROUP BY observation.deck_fingerprint
        ), sample_observation AS (
          SELECT DISTINCT ON (observation.deck_fingerprint)
            observation.deck_fingerprint,
@@ -433,6 +447,37 @@ export class DeckClassifierAdminService {
       [Math.max(1, Math.min(500, limit))]
     );
     return result.rows.map(toReviewView);
+  }
+
+  async updateExecutionSettings(
+    input: { readonly recentMatchLimit: number; readonly reason: string },
+    operator: DeckClassifierOperator
+  ): Promise<{ readonly recentMatchLimit: number }> {
+    assertRecentMatchLimit(input.recentMatchLimit);
+    return withTransaction(async (client) => {
+      const before = await client.query(
+        'SELECT recent_match_limit FROM deck_classifier_settings WHERE id = 1 FOR UPDATE'
+      );
+      const updated = await client.query<{ recent_match_limit: number }>(
+        `UPDATE deck_classifier_settings SET recent_match_limit = $1, updated_by = $2,
+         updated_at = NOW() WHERE id = 1 RETURNING recent_match_limit`,
+        [input.recentMatchLimit, operator.actorUserId]
+      );
+      const row = requireRow(
+        updated.rows[0],
+        'DECK_CLASSIFIER_SETTINGS_NOT_FOUND',
+        '卡组分类设置不存在'
+      );
+      await writeClassifierAudit(client, operator, {
+        action: 'EXECUTION_SETTINGS_UPDATED',
+        targetType: 'SETTINGS',
+        targetId: 'global',
+        reason: input.reason,
+        before: before.rows[0],
+        after: { recentMatchLimit: row.recent_match_limit },
+      });
+      return { recentMatchLimit: row.recent_match_limit };
+    });
   }
 
   async updateDisplaySettings(
@@ -766,7 +811,7 @@ export class DeckClassifierAdminService {
          JOIN deck_classification_assignments AS assignment
            ON assignment.match_id = observation.match_id
           AND assignment.seat = observation.seat
-          AND assignment.release_id = release.id
+          AND assignment.is_current = true
          WHERE observation.deck_fingerprint = $1
            AND assignment.status IN ('UNKNOWN', 'AMBIGUOUS')
          ORDER BY observation.observed_at DESC, observation.match_id ASC, observation.seat ASC
@@ -993,7 +1038,11 @@ export class DeckClassifierAdminService {
     });
   }
 
-  async previewRelease(expectedDraftRevision: number): Promise<DeckClassifierPreviewView> {
+  async previewRelease(
+    expectedDraftRevision: number,
+    matchLimit: number | null
+  ): Promise<DeckClassifierPreviewView> {
+    if (matchLimit !== null) assertRecentMatchLimit(matchLimit);
     const client = await pool.connect();
     try {
       await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
@@ -1004,23 +1053,25 @@ export class DeckClassifierAdminService {
         client.query<ObservationFingerprintRow>(
           `SELECT deck_fingerprint, (array_agg(main_deck_cards ORDER BY observed_at DESC))[1] AS main_deck_cards,
                   count(*) AS occurrence_count
-           FROM ranked_deck_observations
+           FROM (${CLASSIFICATION_OBSERVATIONS_QUERY}) AS selected
            GROUP BY deck_fingerprint
-           ORDER BY deck_fingerprint`
+           ORDER BY deck_fingerprint`,
+          [null, matchLimit]
         ),
         client.query<PriorAssignmentRow>(
-          `SELECT DISTINCT ON (observation.deck_fingerprint)
-             observation.deck_fingerprint, assignment.status, assignment.archetype_id
-           FROM deck_classification_assignments AS assignment
-           JOIN deck_classifier_releases AS release
-             ON release.id = assignment.release_id AND release.status = 'ACTIVE'
-           JOIN ranked_deck_observations AS observation
-             ON observation.match_id = assignment.match_id AND observation.seat = assignment.seat
-           ORDER BY observation.deck_fingerprint, assignment.classified_at DESC`
+          `WITH selected AS (${CLASSIFICATION_OBSERVATIONS_QUERY})
+           SELECT observation.deck_fingerprint, assignment.status, assignment.archetype_id,
+                  count(*) AS occurrence_count
+           FROM selected AS observation
+           JOIN deck_classification_assignments AS assignment
+             ON assignment.match_id = observation.match_id AND assignment.seat = observation.seat
+            AND assignment.is_current = true
+           GROUP BY observation.deck_fingerprint, assignment.status, assignment.archetype_id`,
+          [null, matchLimit]
         ),
         loadOverrides(client, null),
       ]);
-      const result = previewClassifications(
+      const result = await previewClassifications(
         snapshot,
         observations.rows,
         priorAssignments.rows,
@@ -1040,16 +1091,22 @@ export class DeckClassifierAdminService {
     expectedDraftRevision: number,
     reason: string,
     idempotencyKey: string,
-    operator: DeckClassifierOperator
+    operator: DeckClassifierOperator,
+    matchLimit: number | null
   ): Promise<{
     readonly release: DeckClassifierReleaseView;
     readonly run: DeckClassificationRunView;
   }> {
+    if (matchLimit !== null) assertRecentMatchLimit(matchLimit);
     return withTransaction(async (client) => {
       await client.query("SELECT pg_advisory_xact_lock(hashtext('deck-classifier-release'))");
       const priorRun = await findClassificationRunByIdempotency(client, idempotencyKey);
       if (priorRun) {
-        if (priorRun.trigger !== 'RELEASE_PUBLISHED' || priorRun.scope_season_id !== null) {
+        if (
+          priorRun.trigger !== 'RELEASE_PUBLISHED' ||
+          priorRun.scope_season_id !== null ||
+          priorRun.match_limit !== matchLimit
+        ) {
           throw classifierError(
             'DECK_CLASSIFICATION_IDEMPOTENCY_CONFLICT',
             '同一幂等键已用于不同的分类任务',
@@ -1094,6 +1151,7 @@ export class DeckClassifierAdminService {
         releaseId: releaseRow.id,
         trigger: 'RELEASE_PUBLISHED',
         scopeSeasonId: null,
+        matchLimit,
         reason,
         operator,
         idempotencyKey,
@@ -1103,7 +1161,7 @@ export class DeckClassifierAdminService {
         targetType: 'RELEASE',
         targetId: releaseRow.id,
         reason,
-        after: { version, configHash, runId: run.id },
+        after: { version, configHash, matchLimit, runId: run.id },
       });
       return { release: toReleaseView(releaseRow), run };
     });
@@ -1113,14 +1171,17 @@ export class DeckClassifierAdminService {
     scopeSeasonId: string | null,
     reason: string,
     idempotencyKey: string,
-    operator: DeckClassifierOperator
+    operator: DeckClassifierOperator,
+    matchLimit: number | null
   ): Promise<DeckClassificationRunView> {
+    if (matchLimit !== null) assertRecentMatchLimit(matchLimit);
     return withTransaction(async (client) => {
       const priorRun = await findClassificationRunByIdempotency(client, idempotencyKey);
       if (priorRun) {
         if (
           priorRun.trigger !== 'MANUAL_RECLASSIFY' ||
-          priorRun.scope_season_id !== scopeSeasonId
+          priorRun.scope_season_id !== scopeSeasonId ||
+          priorRun.match_limit !== matchLimit
         ) {
           throw classifierError(
             'DECK_CLASSIFICATION_IDEMPOTENCY_CONFLICT',
@@ -1135,6 +1196,7 @@ export class DeckClassifierAdminService {
         releaseId: active.id,
         trigger: 'MANUAL_RECLASSIFY',
         scopeSeasonId,
+        matchLimit,
         reason,
         operator,
         idempotencyKey,
@@ -1144,7 +1206,7 @@ export class DeckClassifierAdminService {
         targetType: 'RUN',
         targetId: run.id,
         reason,
-        after: { releaseId: active.id, scopeSeasonId },
+        after: { releaseId: active.id, scopeSeasonId, matchLimit },
       });
       return run;
     });
@@ -1249,6 +1311,7 @@ export class DeckClassifierAdminService {
         releaseId: active.id,
         trigger: 'MANUAL_OVERRIDE',
         scopeSeasonId: null,
+        matchLimit: await readRecentMatchLimit(client),
         reason: input.reason,
         operator,
         idempotencyKey: input.idempotencyKey,
@@ -1322,6 +1385,7 @@ export class DeckClassifierAdminService {
         releaseId: active.id,
         trigger: 'MANUAL_OVERRIDE',
         scopeSeasonId: null,
+        matchLimit: await readRecentMatchLimit(client),
         reason,
         operator,
         idempotencyKey,
@@ -1398,6 +1462,7 @@ async function loadDraftSnapshot(
     loadDeckClassifierCardCatalog(client),
   ]);
   try {
+    if (archetypes.rows.length === 0) throw new Error('至少需要一个有效且唯一的卡组分类名称');
     for (const template of templates.rows) {
       assertTemplateCardsInCatalog(
         readTemplateCards(template.cards),
@@ -1412,9 +1477,35 @@ async function loadDraftSnapshot(
         `规则 ${rule.id}`
       );
     }
+    const retained = await client.query<{ snapshot_json: unknown; config_hash: string }>(
+      `SELECT release.snapshot_json, release.config_hash
+       FROM deck_classifier_releases AS release
+       WHERE release.status = 'ACTIVE' OR EXISTS (
+         SELECT 1 FROM deck_classification_assignments AS assignment
+         WHERE assignment.is_current = true AND assignment.release_id = release.id
+       )
+       ORDER BY release.version DESC`
+    );
+    const metadata = new Map(archetypes.rows.map((row) => [row.id, row]));
+    for (const row of retained.rows) {
+      const prior = readDeckClassifierSnapshot(row.snapshot_json);
+      if (hashDeckClassifierSnapshot(prior) !== row.config_hash)
+        throw new Error('历史分类快照哈希校验失败');
+      for (const archetype of prior.archetypes) {
+        if (metadata.has(archetype.id)) continue;
+        metadata.set(archetype.id, {
+          id: archetype.id,
+          archetype_key: archetype.archetypeKey,
+          name: archetype.name,
+          group_name: archetype.groupName,
+          description: archetype.description,
+          sort_order: archetype.sortOrder,
+        });
+      }
+    }
     return buildDeckClassifierSnapshot({
       releaseVersion,
-      archetypes: archetypes.rows,
+      archetypes: [...metadata.values()],
       templates: templates.rows,
       rules: rules.rows,
     });
@@ -1445,14 +1536,17 @@ async function loadOverrides(
   return result.rows;
 }
 
-function previewClassifications(
+async function previewClassifications(
   snapshot: StoredDeckClassifierSnapshot,
   observations: readonly ObservationFingerprintRow[],
   priorAssignments: readonly PriorAssignmentRow[],
   overrides: readonly OverrideRow[]
-): DeckClassifierPreviewView {
+): Promise<DeckClassifierPreviewView> {
   const priorByFingerprint = new Map(
-    priorAssignments.map((row) => [row.deck_fingerprint, `${row.status}:${row.archetype_id ?? ''}`])
+    priorAssignments.map((row) => [
+      `${row.deck_fingerprint}:${row.status}:${row.archetype_id ?? ''}`,
+      readCount(row.occurrence_count),
+    ])
   );
   const archetypeNames = new Map(snapshot.archetypes.map((entry) => [entry.id, entry.name]));
   const archetypeCounts = new Map<string, number>();
@@ -1467,19 +1561,17 @@ function previewClassifications(
     overrides.map((override) => [override.deck_fingerprint, override])
   );
 
+  const classify = await prepareDeckClassifierAsync(snapshot);
   for (const observation of observations) {
     const occurrences = readCount(observation.occurrence_count);
     observationCount += occurrences;
     const override = overridesByFingerprint.get(observation.deck_fingerprint);
-    const result = override
-      ? null
-      : classifyDeck(readObservationCards(observation.main_deck_cards), snapshot);
+    const result = override ? null : classify(readObservationCards(observation.main_deck_cards));
     const decision = override?.target_status ?? result?.decision ?? 'INVALID';
     const archetypeId = override?.archetype_id ?? result?.archetypeId ?? null;
     const resultKey = `${decision}:${archetypeId ?? ''}`;
-    if ((priorByFingerprint.get(observation.deck_fingerprint) ?? null) !== resultKey) {
-      changedCount += occurrences;
-    }
+    changedCount +=
+      occurrences - (priorByFingerprint.get(`${observation.deck_fingerprint}:${resultKey}`) ?? 0);
     if (decision === 'CLASSIFIED' && archetypeId) {
       classifiedCount += occurrences;
       archetypeCounts.set(archetypeId, (archetypeCounts.get(archetypeId) ?? 0) + occurrences);
@@ -1520,6 +1612,7 @@ async function insertClassificationRun(
     readonly releaseId: string;
     readonly trigger: DeckClassificationRunView['trigger'];
     readonly scopeSeasonId: string | null;
+    readonly matchLimit: number | null;
     readonly reason: string;
     readonly operator: DeckClassifierOperator;
     readonly idempotencyKey: string;
@@ -1527,9 +1620,9 @@ async function insertClassificationRun(
 ): Promise<DeckClassificationRunView> {
   const inserted = await client.query<{ id: string }>(
     `INSERT INTO deck_classification_runs (
-       release_id, trigger, scope_season_id, requested_by, request_id, idempotency_key, reason
+       release_id, trigger, scope_season_id, requested_by, request_id, idempotency_key, reason, match_limit
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT (idempotency_key) DO NOTHING
      RETURNING id`,
     [
@@ -1540,6 +1633,7 @@ async function insertClassificationRun(
       input.operator.requestId,
       input.idempotencyKey,
       input.reason,
+      input.matchLimit,
     ]
   );
   const runId = inserted.rows[0]?.id;
@@ -1558,7 +1652,8 @@ async function insertClassificationRun(
     if (
       row.release_id !== input.releaseId ||
       row.trigger !== input.trigger ||
-      row.scope_season_id !== input.scopeSeasonId
+      row.scope_season_id !== input.scopeSeasonId ||
+      row.match_limit !== input.matchLimit
     ) {
       throw classifierError(
         'DECK_CLASSIFICATION_IDEMPOTENCY_CONFLICT',
@@ -1802,6 +1897,7 @@ function toRunView(row: RunRow): DeckClassificationRunView {
     status: row.status,
     trigger: row.trigger,
     scopeSeasonId: row.scope_season_id,
+    matchLimit: row.match_limit,
     reason: row.reason,
     totalCount: readCount(row.total_count),
     processedCount: readCount(row.processed_count),

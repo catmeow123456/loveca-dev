@@ -1253,7 +1253,7 @@ export class RankedAdminService {
          JOIN deck_classification_assignments AS assignment
            ON assignment.match_id = observation.match_id
           AND assignment.seat = observation.seat
-          AND assignment.release_id = release.id
+          AND assignment.is_current = true
           AND assignment.status = 'CLASSIFIED'
          GROUP BY observation.user_id, assignment.archetype_id
        ), deck_summaries AS MATERIALIZED (
@@ -1974,7 +1974,8 @@ const RANKED_ADMIN_DECK_STATISTICS_QUERY = `WITH settled_matches AS MATERIALIZED
   JOIN deck_classification_assignments AS assignment
     ON assignment.match_id = observation.match_id
    AND assignment.seat = observation.seat
-   AND assignment.release_id = $2
+   AND assignment.is_current = true
+   AND EXISTS (SELECT 1 FROM deck_classifier_releases WHERE id = $2::uuid AND status = 'ACTIVE')
 ), candidate_rows AS MATERIALIZED (
   SELECT *
   FROM assigned_rows
@@ -2063,7 +2064,7 @@ const RANKED_ADMIN_PLAYER_LIST_QUERY = `WITH season AS MATERIALIZED (
   JOIN deck_classification_assignments AS assignment
     ON assignment.match_id = observation.match_id
    AND assignment.seat = observation.seat
-   AND assignment.release_id = release.id
+   AND assignment.is_current = true
    AND assignment.status = 'CLASSIFIED'
   GROUP BY observation.user_id, assignment.archetype_id
 ), deck_summaries AS MATERIALIZED (
