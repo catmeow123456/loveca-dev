@@ -11,7 +11,7 @@ export interface CasualTableCommandTarget {
   readonly revision: number;
 }
 
-export type CasualFormat = 'CONSTRUCTED' | 'SEALED_BP7';
+export type CasualFormat = 'CONSTRUCTED' | 'SEALED_BP7' | 'HEXTECH';
 export type SealedRematchKind = 'SAME_POOL' | 'REBOX';
 export interface SealedRematch {
   readonly requestId: string;
@@ -137,6 +137,8 @@ export interface CasualRoomSummary extends CasualTableCommandTarget {
 
 export interface CasualLobbyQuery {
   readonly format?: CasualFormat;
+  /** Moves this format ahead of others without hiding other formats. */
+  readonly preferredFormat?: CasualFormat;
   readonly ruleMode?: CasualRuleMode;
   readonly filter?: 'ALL' | 'WAITING' | 'PLAYING';
   readonly search?: string;

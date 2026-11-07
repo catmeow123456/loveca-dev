@@ -3,6 +3,7 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 import { getLegacyPersistedBladeAudit } from '../../application/card-effects/legacy-persisted-blade-scopes.js';
 import { getLegacyPersistedHeartAudit } from '../../application/card-effects/legacy-persisted-heart-scopes.js';
 import type { GameState, LiveModifierState } from '../../domain/entities/game.js';
+import { assertValidHextechState } from '../../domain/hextech/state.js';
 import { projectLiveModifierCompatibility } from '../../domain/rules/live-modifiers.js';
 import { fromTransport, toTransport } from '../../online/serde.js';
 import type {
@@ -177,6 +178,16 @@ function normalizePersistedAuthorityGameState(
   }
 
   const liveResolution = state.liveResolution as unknown;
+  try {
+    assertValidHextechState(
+      state.hextech,
+      state.players.map((player) => player.id),
+      state.rulesetId,
+      state.turnCount
+    );
+  } catch {
+    throw new ReplayPayloadSerializationError('AUTHORITY_GAME_STATE 海克斯状态无效', 'CORRUPTED');
+  }
   if (!isRecord(liveResolution) || !Array.isArray(liveResolution.liveModifiers)) {
     throw new ReplayPayloadSerializationError(
       'AUTHORITY_GAME_STATE 缺少有效的 liveResolution.liveModifiers',

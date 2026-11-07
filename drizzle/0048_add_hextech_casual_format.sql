@@ -1,0 +1,2 @@
+ALTER TABLE "casual_tables" DROP CONSTRAINT "casual_tables_environment_check";--> statement-breakpoint
+ALTER TABLE "casual_tables" ADD CONSTRAINT "casual_tables_environment_check" CHECK ("casual_tables"."environment_id" IN ('CASUAL_TABLE_V1', 'CASUAL_UNLIMITED_PT_V1', 'CASUAL_SEALED_BP7_V1', 'CASUAL_HEXTECH_V1'));

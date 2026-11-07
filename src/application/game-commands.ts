@@ -2,6 +2,8 @@ import { SlotPosition, SubPhase, ZoneType } from '../shared/types/enums.js';
 import type { CardDefinedSpecialMemberPlayMode } from '../shared/rules/member-play-options.js';
 
 export enum GameCommandType {
+  REROLL_HEXTECH = 'REROLL_HEXTECH',
+  SELECT_HEXTECH = 'SELECT_HEXTECH',
   ACK_CARD_ENTRANCE = 'ACK_CARD_ENTRANCE',
   MULLIGAN = 'MULLIGAN',
   SET_LIVE_CARD = 'SET_LIVE_CARD',
@@ -335,7 +337,15 @@ export interface AckCardEntranceCommand extends BaseGameCommand {
   readonly entranceId: string;
 }
 
+export interface HextechCommand extends BaseGameCommand {
+  readonly type: GameCommandType.REROLL_HEXTECH | GameCommandType.SELECT_HEXTECH;
+  readonly selectionTurn: number;
+  readonly slot: number;
+  readonly expectedDefinitionId: string;
+}
+
 export type GameCommand =
+  | HextechCommand
   | AckCardEntranceCommand
   | MulliganCommand
   | SetLiveCardCommand

@@ -52,6 +52,8 @@ import {
   PublicBattleLogPanel,
 } from './PublicBattleLog';
 import { PhaseIndicator } from './PhaseIndicator';
+import { HextechSummary } from './HextechSummary';
+import { HextechSelectionPanel } from './HextechSelectionPanel';
 import { PhaseBanner } from './PhaseBanner';
 import { LiveResultAnimation, type LiveScoreInfo } from './LiveResultAnimation';
 import { DebugControl } from './DebugControl';
@@ -2975,7 +2977,6 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
   const phaseInfo = getPhaseConfig(currentPhase)?.display;
   const subPhaseInfo =
     currentSubPhase !== SubPhase.NONE ? getSubPhaseConfig(currentSubPhase)?.display : null;
-  const turnNumber = currentTurnCount ?? matchView.turnCount;
   const showMobileFreePlay = capabilities.showFreePlayControl;
   const primaryMobileLogPanel: MobileBattlePanel | null = canShowPublicBattleLog
     ? 'publicLog'
@@ -4339,6 +4340,9 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
       {!isReadOnly && !entranceWaiting && <ScoreConfirmModal />}
 
       {/* 换牌面板 */}
+      {matchView?.hextech?.selection && (
+        <HextechSelectionPanel match={matchView} readOnly={isReadOnly} />
+      )}
       <MulliganPanel
         isOpen={!isReadOnly && mulliganPanelOpen && mulliganPanelVisible}
         selectableCardIds={mulliganSelectableCardIds}
@@ -4526,6 +4530,7 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
           >
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               {desktopHeaderActions}
+              {matchView && <HextechSummary match={matchView} />}
               {(showLeaveLocalGameButton || showRestartGameButton) && (
                 <BattleToolbarMenu label="房间" icon={<DoorOpen size={16} />}>
                   {(close) => (
@@ -4641,7 +4646,7 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
               <div className="battle-mobile-header safe-top shrink-0 px-2.5 pt-2.5">
                 <div
                   data-battle-phase-access
-                  className="battle-mobile-phase-header relative z-[var(--z-battle-chrome)] rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_30%,transparent)] px-2.5 py-1.5 shadow-none backdrop-blur-[2px]"
+                  className="battle-mobile-phase-header relative z-[var(--z-battle-chrome)] rounded-xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_94%,transparent)] px-2.5 py-0.5 shadow-none backdrop-blur-[2px]"
                 >
                   <div className="flex items-center justify-between gap-2">
                     {showLeaveLocalGameButton || showRestartGameButton ? (
@@ -4674,30 +4679,21 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                       <div data-mobile-header-actions className="flex shrink-0 items-center gap-1">
                         {mobileHeaderActions}
                       </div>
-                    ) : (
-                      <div className="h-9 w-9 shrink-0" />
-                    )}
+                    ) : null}
 
-                    <div className="min-w-0 flex-1 text-center">
-                      <div className="truncate text-[13px] font-bold text-[var(--text-primary)]">
-                        {phaseInfo?.name ?? currentPhase}阶段
-                      </div>
-                      <div className="truncate text-[10px] text-[var(--text-muted)]">
-                        T{turnNumber}
-                        {subPhaseInfo ? ` · ${subPhaseInfo.name}` : ''}
-                      </div>
+                    <div className="ml-auto flex shrink-0 items-center gap-2">
+                      {matchView && <HextechSummary match={matchView} />}
+                      <BattleSettingsMenu
+                        onShowHelp={onShowHelp}
+                        compact
+                        showMemberOverwrite={!isReadOnly}
+                        askMemberOverwrite={askMemberOverwrite}
+                        onAskMemberOverwriteChange={changeAskMemberOverwrite}
+                        showBattleEffects={!isReadOnly}
+                        battleEffectsEnabled={battleEffectsEnabled}
+                        onBattleEffectsChange={changeBattleEffectsEnabled}
+                      />
                     </div>
-
-                    <BattleSettingsMenu
-                      onShowHelp={onShowHelp}
-                      compact
-                      showMemberOverwrite={!isReadOnly}
-                      askMemberOverwrite={askMemberOverwrite}
-                      onAskMemberOverwriteChange={changeAskMemberOverwrite}
-                      showBattleEffects={!isReadOnly}
-                      battleEffectsEnabled={battleEffectsEnabled}
-                      onBattleEffectsChange={changeBattleEffectsEnabled}
-                    />
                   </div>
                 </div>
 

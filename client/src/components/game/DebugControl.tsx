@@ -15,7 +15,6 @@ import { GameMode } from '@game/shared/types/enums';
 export const DebugControl = memo(function DebugControl() {
   // 状态选择器
   const matchView = useGameStore((s) => s.getMatchView());
-  const currentTurnCount = useGameStore((s) => s.getTurnCountView());
   const currentViewingPlayer = useGameStore((s) => s.getViewingPlayerIdentity());
   const otherPlayer = useGameStore((s) => s.getOpponentPlayerIdentity());
   const freePlayEnabled = useGameStore((s) => s.freePlayEnabled);
@@ -81,17 +80,6 @@ export const DebugControl = memo(function DebugControl() {
           <span className="text-[11px] text-[var(--text-muted)]">模式</span>
           <span className="text-sm font-semibold text-[var(--text-primary)]">{modeLabel}</span>
         </div>
-      </div>
-
-      {/* 分隔线 */}
-      <div className={cn('h-5 w-px shrink-0 bg-[var(--border-default)]')} />
-
-      {/* 回合数 */}
-      <div className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm">
-        <span className="text-xs text-[var(--text-muted)]">回合:</span>
-        <span className="font-bold text-[var(--text-primary)]">
-          T{currentTurnCount ?? matchView.turnCount}
-        </span>
       </div>
 
       {capabilities.canSwitchPerspective && (

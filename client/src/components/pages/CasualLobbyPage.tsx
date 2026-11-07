@@ -108,6 +108,11 @@ const names = {
   PLAYING: '对战中',
   ENDED: '已结束',
 };
+const formatNames: Record<CasualFormat, string> = {
+  CONSTRUCTED: '自由构筑',
+  SEALED_BP7: '开盒战',
+  HEXTECH: '海克斯',
+};
 const duration = (since: number, now: number) => {
   const seconds = Math.max(0, Math.floor((now - since) / 1000));
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
@@ -151,12 +156,15 @@ export function CasualLobbyPage({
   const preferredMode = useCasualRuleMode(userId);
   const ruleMode = table?.ruleMode ?? preferredMode;
   const [preferredFormat, setPreferredFormat] = useState<CasualFormat>('CONSTRUCTED');
+  const [focusedFormat, setFocusedFormat] = useState<CasualFormat | null>(null);
+  const prioritizedFormat = ruleMode === 'UNLIMITED' ? (focusedFormat ?? undefined) : undefined;
   const format: CasualFormat =
     table?.format ?? (ruleMode === 'UNLIMITED' ? preferredFormat : 'CONSTRUCTED');
   const [flow, setFlow] = useState<Flow | null>(null);
   const selectionMode = flow?.kind === 'JOIN' ? flow.row!.ruleMode : ruleMode;
   const selectionFormat = flow?.kind === 'JOIN' ? flow.row!.format : format;
   const sealedSelection = selectionFormat === 'SEALED_BP7';
+  const hextechSelection = selectionFormat === 'HEXTECH';
   const lastDeck = readLastUsedDeckId(casualDeckPreferenceKey(userId, selectionMode));
   const pointTable = useDeckPointTableRules();
   const pointTableDisplayReady = useDeckPointTableDisplayReady();
@@ -247,7 +255,7 @@ export function CasualLobbyPage({
   const readRef = useRef<(applyOrder?: boolean, more?: boolean) => Promise<void>>(() =>
     Promise.resolve()
   );
-  const queryKey = `${ruleMode}:${format}:${debouncedSearch}`;
+  const queryKey = `${ruleMode}:${prioritizedFormat ?? 'ALL'}:${debouncedSearch}`;
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
@@ -269,7 +277,11 @@ export function CasualLobbyPage({
       setReading(true);
       const promise = (async () => {
         try {
-          const params: CasualLobbyQuery = { search: debouncedSearch, ruleMode, format };
+          const params: CasualLobbyQuery = {
+            search: debouncedSearch,
+            ruleMode,
+            preferredFormat: prioritizedFormat,
+          };
           let next = await getCasualLobby(
             more && snapshot?.nextCursor ? { ...params, cursor: snapshot.nextCursor } : params
           );
@@ -280,7 +292,7 @@ export function CasualLobbyPage({
             incoming.push(...next.rooms);
           }
           if (epoch !== readEpoch.current) return;
-          incoming = incoming.filter((row) => row.ruleMode === ruleMode && row.format === format);
+          incoming = incoming.filter((row) => row.ruleMode === ruleMode);
           incoming = [...new Map(incoming.map((row) => [row.tableId, row])).values()];
           latest.current = incoming;
           setSnapshot(next);
@@ -322,7 +334,7 @@ export function CasualLobbyPage({
       readPromise.current = promise;
       return promise;
     },
-    [queryKey, debouncedSearch, ruleMode, format, snapshot?.nextCursor]
+    [queryKey, debouncedSearch, ruleMode, prioritizedFormat, snapshot?.nextCursor]
   );
   useLayoutEffect(() => {
     readRef.current = read;
@@ -334,8 +346,6 @@ export function CasualLobbyPage({
     const resetTimer = window.setTimeout(() => {
       setPendingCount(0);
       setListError(null);
-      setSnapshot(null);
-      setRows([]);
       void poll(true);
     }, 0);
     let stopped = false;
@@ -620,8 +630,14 @@ export function CasualLobbyPage({
   const ended = table?.runtime?.status === 'ENDED';
   const rematch = table?.runtime?.rematch;
   const ownError = localError ?? storeError;
-  const visibleRows = rows.filter((row) => row.ruleMode === ruleMode && row.format === format);
-  const snapshotMatchesMode = loadedSearch?.startsWith(`${ruleMode}:${format}:`) ?? false;
+  const visibleRows = rows
+    .filter((row) => row.ruleMode === ruleMode)
+    .sort((a, b) =>
+      prioritizedFormat
+        ? Number(b.format === prioritizedFormat) - Number(a.format === prioritizedFormat)
+        : 0
+    );
+  const snapshotMatchesMode = loadedSearch?.startsWith(`${ruleMode}:`) ?? false;
   const stale = snapshot && now - snapshot.snapshotAt > 10_000;
   const localSetupBlocked = !hydrated || busy || Boolean(table || status?.otherParticipation);
   const createDeckPickerOpen = flow?.kind === 'CREATE' && deckPickerOpen;
@@ -766,7 +782,7 @@ export function CasualLobbyPage({
                       aria-label="复制邀请"
                       onClick={() =>
                         void copy(
-                          `${table.format === 'SEALED_BP7' ? SEALED_BP7_DECK_NAME : `${casualRuleName(table.ruleMode)}${table.ruleMode === 'UNLIMITED' ? '（PT 不限）' : ''}`} · 房间 ${table.roomCode}\n${window.location.origin}/?page=battle-lobby&room=${table.roomCode}`,
+                          `${table.format === 'SEALED_BP7' ? SEALED_BP7_DECK_NAME : table.format === 'HEXTECH' ? '海克斯对战（PT 不限）' : `${casualRuleName(table.ruleMode)}${table.ruleMode === 'UNLIMITED' ? '（PT 不限）' : ''}`} · 房间 ${table.roomCode}\n${window.location.origin}/?page=battle-lobby&room=${table.roomCode}`,
                           'invite'
                         )
                       }
@@ -814,7 +830,14 @@ export function CasualLobbyPage({
                 {table.state !== 'BUILDING' && (
                   <div className="casual-current-deck">
                     <p className="casual-muted">
-                      {table.format === 'SEALED_BP7' ? <SealedFormatLabel /> : table.ownDeck?.name}
+                      {table.format === 'SEALED_BP7' ? (
+                        <SealedFormatLabel />
+                      ) : (
+                        <>
+                          {table.format === 'HEXTECH' && '海克斯 · '}
+                          {table.ownDeck?.name}
+                        </>
+                      )}
                       {table.ownDeck && table.format !== 'SEALED_BP7' && (
                         <>
                           {' '}
@@ -1067,26 +1090,6 @@ export function CasualLobbyPage({
             disabled={!hydrated || busy || Boolean(flow)}
             onChange={switchRule}
           />
-          {ruleMode === 'UNLIMITED' && (
-            <div className="casual-format-selector" role="group" aria-label="娱乐玩法">
-              <button
-                className={format === 'CONSTRUCTED' ? 'button-primary' : 'button-ghost'}
-                aria-pressed={format === 'CONSTRUCTED'}
-                disabled={busy || Boolean(flow)}
-                onClick={() => setPreferredFormat('CONSTRUCTED')}
-              >
-                自由构筑
-              </button>
-              <button
-                className={format === 'SEALED_BP7' ? 'button-primary' : 'button-ghost'}
-                aria-pressed={format === 'SEALED_BP7'}
-                disabled={busy || Boolean(flow)}
-                onClick={() => setPreferredFormat('SEALED_BP7')}
-              >
-                <SealedFormatLabel />
-              </button>
-            </div>
-          )}
           <button
             className="button-primary casual-find"
             disabled={!hydrated || busy || Boolean(snapshot?.unavailableReason)}
@@ -1102,11 +1105,7 @@ export function CasualLobbyPage({
           <div className="casual-room-heading">
             <h2 id="casual-rooms-title">
               <CasualRuleMark mode={ruleMode} />
-              {format === 'SEALED_BP7' ? (
-                <SealedFormatLabel suffix="房间" />
-              ) : (
-                `${casualRuleName(ruleMode)}房间`
-              )}
+              {casualRuleName(ruleMode)}房间
             </h2>
             {snapshot &&
               snapshotMatchesMode &&
@@ -1134,6 +1133,37 @@ export function CasualLobbyPage({
             </button>
           </div>
         </div>
+        {ruleMode === 'UNLIMITED' && (
+          <div className="casual-room-priority">
+            <div className="casual-format-tags" role="group" aria-label="优先显示的娱乐玩法">
+              <button
+                type="button"
+                aria-pressed={focusedFormat === null}
+                onClick={() => setFocusedFormat(null)}
+              >
+                全部
+              </button>
+              {(Object.keys(formatNames) as CasualFormat[]).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={focusedFormat === value}
+                  onClick={() => {
+                    setFocusedFormat(value);
+                    setPreferredFormat(value);
+                  }}
+                >
+                  {formatNames[value]}
+                </button>
+              ))}
+            </div>
+            <p className="casual-priority-hint" role="status">
+              {focusedFormat
+                ? `${formatNames[focusedFormat]}优先显示，其他房间仍可加入或观战`
+                : '展示全部玩法，点标签可优先显示'}
+            </p>
+          </div>
+        )}
         <div className="casual-toolbar">
           <label className="casual-search">
             <Search size={16} />
@@ -1212,10 +1242,25 @@ export function CasualLobbyPage({
               </div>
               <ul className="casual-room-list" aria-label="公开房间列表">
                 {visibleRows.map((row) => (
-                  <li className="casual-row" key={row.tableId}>
+                  <li
+                    className={`casual-row${prioritizedFormat === row.format ? ' casual-row--preferred' : ''}`}
+                    key={row.tableId}
+                  >
                     <div className="casual-identity">
                       <strong>{row.members.map((member) => member.displayName).join(' · ')}</strong>
                       <div className="casual-room-details">
+                        {ruleMode === 'UNLIMITED' && (
+                          <span className="casual-room-format">
+                            {prioritizedFormat === row.format && (
+                              <span className="sr-only">优先显示：</span>
+                            )}
+                            {row.format === 'SEALED_BP7' ? (
+                              <SealedFormatLabel />
+                            ) : (
+                              formatNames[row.format]
+                            )}
+                          </span>
+                        )}
                         <span className="casual-code">
                           {row.roomCode}
                           {row.isMine ? ' · 我的房间' : ''}
@@ -1487,6 +1532,35 @@ export function CasualLobbyPage({
                     )}
                     <div className="casual-room-settings" hidden={createDeckPickerOpen}>
                       <CasualRuleBadge mode={selectionMode} />
+                      {selectionMode === 'UNLIMITED' && ['CREATE', 'FIND'].includes(flow.kind) && (
+                        <div className="casual-format-selector" role="group" aria-label="娱乐玩法">
+                          {(Object.keys(formatNames) as CasualFormat[]).map((value) => (
+                            <ActionButton
+                              key={value}
+                              type="button"
+                              variant={selectionFormat === value ? 'primary' : 'ghost'}
+                              aria-pressed={selectionFormat === value}
+                              disabled={busy}
+                              onClick={() => setPreferredFormat(value)}
+                            >
+                              {formatNames[value]}
+                            </ActionButton>
+                          ))}
+                        </div>
+                      )}
+                      {hextechSelection && (
+                        <section className="sealed-format-summary" aria-label="海克斯玩法">
+                          <h3>海克斯对战</h3>
+                          <p>
+                            第 1／3／5 回合开始时，系统自动随机稀有度。双方同时各选 1 项， 每人有 3
+                            项候选，每项可重抽 1 次。双方都确认后继续对局。
+                          </p>
+                          <p>
+                            银／金／彩各
+                            1/3。双方锁定后公开并生效，后续轮次可重复取得。使用自选卡组，PT 不限。
+                          </p>
+                        </section>
+                      )}
                       {flow.kind !== 'CREATE' && !sealedSelection && (
                         <p>{casualRuleDescription(selectionMode)}</p>
                       )}
@@ -1495,7 +1569,11 @@ export function CasualLobbyPage({
                           <Search size={20} aria-hidden="true" />
                           <div>
                             <strong>
-                              {sealedSelection ? '寻找开盒战对手' : '寻找正在等候的对手'}
+                              {sealedSelection
+                                ? '寻找开盒战对手'
+                                : hextechSelection
+                                  ? '寻找海克斯对手'
+                                  : '寻找正在等候的对手'}
                             </strong>
                             <p>优先加入公开房间；暂无对手时，为你创建房间等待。</p>
                           </div>
@@ -1687,7 +1765,7 @@ export function CasualLobbyPage({
                                   ? `按${casualRuleName(selectionMode)}加入`
                                   : '加入房间'
                               : flow.kind === 'CREATE'
-                                ? `创建${sealedSelection ? '开盒战' : selectionMode === 'UNLIMITED' ? '娱乐' : '标准'}房间`
+                                ? `创建${sealedSelection ? '开盒战' : hextechSelection ? '海克斯' : selectionMode === 'UNLIMITED' ? '娱乐' : '标准'}房间`
                                 : flow.kind === 'FIND'
                                   ? '开始找对手'
                                   : '确认'}

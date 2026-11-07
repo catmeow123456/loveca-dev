@@ -129,6 +129,7 @@ export interface CreateOnlineMatchPlayerParams {
 }
 
 export interface CreateOnlineMatchParams {
+  readonly hextechRoundSelection?: boolean;
   readonly rulesetId?: BattleRulesetId;
   readonly casualRuleMode?: CasualRuleMode | null;
   readonly roomCode: string;
@@ -506,6 +507,7 @@ export class OnlineMatchService {
     const matchId = this.idGenerator();
     const automationGameMode = params.automationGameMode ?? 'DEBUG';
     const session = createGameSession({
+      hextechRoundSelection: params.hextechRoundSelection,
       rulesetId: params.rulesetId ?? 'STANDARD',
       cardEntrance:
         params.originKind === 'AI_DEBUG'
@@ -4293,6 +4295,17 @@ function buildReadonlySpectatorSnapshot(
       ...snapshot.playerViewState,
       match: {
         ...snapshot.playerViewState.match,
+        ...(snapshot.playerViewState.match.hextech?.selection
+          ? {
+              hextech: {
+                ...snapshot.playerViewState.match.hextech,
+                selection: {
+                  ...snapshot.playerViewState.match.hextech.selection,
+                  ownOffer: undefined,
+                },
+              },
+            }
+          : {}),
         manualOperation: {
           ...buildManualOperationModeView(match),
           canSwitchNow: false,

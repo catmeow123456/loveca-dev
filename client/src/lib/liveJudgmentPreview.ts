@@ -39,6 +39,8 @@ export interface LiveJudgmentPreviewResult {
 type RequirementModifier = {
   readonly color: HeartColor;
   readonly countDelta: number;
+  readonly clearGeneric?: true;
+  readonly addToEachRequiredColor?: number;
 };
 
 const HEART_COLORS = Object.values(HeartColor);

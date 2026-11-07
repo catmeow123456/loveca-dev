@@ -14,6 +14,8 @@ export interface PlayerCommandPolicyDecision {
 }
 
 const COMMAND_CATEGORIES = {
+  [GameCommandType.REROLL_HEXTECH]: 'FLOW_INPUT',
+  [GameCommandType.SELECT_HEXTECH]: 'FLOW_INPUT',
   [GameCommandType.ACK_CARD_ENTRANCE]: 'NORMAL_RULE_ACTION',
   [GameCommandType.MULLIGAN]: 'NORMAL_RULE_ACTION',
   [GameCommandType.SET_LIVE_CARD]: 'NORMAL_RULE_ACTION',
@@ -78,6 +80,21 @@ export function getPlayerCommandPolicyDecision(
 
   if (commandType === GameCommandType.SURRENDER) {
     return decision(category, !state.isEnded, state.isEnded ? '对局已结束，不能再认输' : null);
+  }
+
+  const hextech = state.hextech?.draft?.pending;
+  const isHextech =
+    commandType === GameCommandType.REROLL_HEXTECH ||
+    commandType === GameCommandType.SELECT_HEXTECH;
+  if (hextech || isHextech) {
+    const index = state.players.findIndex((player) => player.id === playerId);
+    const allowed =
+      !state.isEnded &&
+      index >= 0 &&
+      !!hextech &&
+      isHextech &&
+      hextech.offers[index]?.selectedIndex === undefined;
+    return decision(category, allowed, '请先完成海克斯选择');
   }
 
   if (commandType === GameCommandType.ACK_CARD_ENTRANCE) {

@@ -19,6 +19,8 @@ import {
   updatePlayer,
 } from '../../domain/entities/game.js';
 import { removeCardFromZone, shuffleZone } from '../../domain/entities/zone.js';
+import { applyInitialHextechGrants } from '../hextech/acquire.js';
+import { openHextechSelection } from '../hextech/selection.js';
 
 /**
  * 处理换牌动作（Mulligan）
@@ -108,6 +110,8 @@ export const handleMulligan: ActionHandler<MulliganAction> = (
   if (isAllMulliganCompleted(state)) {
     // 换牌阶段结束，进入活跃阶段
     state = markMulliganCompleted(state);
+    state = applyInitialHextechGrants(state);
+    state = openHextechSelection(state, ctx.randomInt);
   }
 
   return success(state);

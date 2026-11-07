@@ -1,5 +1,10 @@
 import { getCurrentTurnSetLiveEntryEventId } from './effects/current-turn-live-zone-entries.js';
 import type { BattleRulesetId } from '../domain/rules/battle-ruleset.js';
+import { getHextechDefinition, HEXTECH_RULES_VERSION } from '../domain/hextech/catalog.js';
+import { assertValidHextechState, type InitialHextechSetup } from '../domain/hextech/state.js';
+import { validateInitialHextechSetup } from './hextech/acquire.js';
+import { applyHextechCommand, validateHextechCommand } from './hextech/selection.js';
+import { secureRandomInt } from '../shared/random-source.js';
 /**
  * 游戏会话管理
  *
@@ -288,6 +293,7 @@ export type GameSessionEvent =
  * 游戏会话选项
  */
 export interface GameSessionOptions {
+  readonly hextechRoundSelection?: boolean;
   rulesetId?: BattleRulesetId;
   /** LOCAL has one presentation viewer; REMOTE requires both participant acknowledgments. */
   cardEntrance?: 'LOCAL' | 'REMOTE';
@@ -520,8 +526,18 @@ export class GameSession {
     player1Id: string,
     player1Name: string,
     player2Id: string,
-    player2Name: string
+    player2Name: string,
+    initialHextech?: InitialHextechSetup
   ): GameState {
+    if (initialHextech !== undefined) {
+      if (this.options.hextechRoundSelection) throw new Error('海克斯随机选择不能同时使用预设授予');
+      validateInitialHextechSetup(initialHextech);
+      if ((this.options.rulesetId ?? 'STANDARD') !== 'STANDARD') {
+        throw new Error('首批海克斯仅支持标准规则');
+      }
+    }
+    if (this.options.hextechRoundSelection && (this.options.rulesetId ?? 'STANDARD') !== 'STANDARD')
+      throw new Error('海克斯仅支持标准规则');
     this.publicEvents = [];
     this.publicEventSeq = 0;
     this.retainedPublicEventFloorSeq = 0;
@@ -537,7 +553,7 @@ export class GameSession {
     this.undoEntrySeq = 0;
     this.publicRevealGenerationSeq = 0;
     this.publicRevealGenerationEpoch = 0;
-    const initialState = this.gameService.createGame(
+    const baseState = this.gameService.createGame(
       gameId,
       player1Id,
       player1Name,
@@ -545,6 +561,24 @@ export class GameSession {
       player2Name,
       this.options.rulesetId ?? 'STANDARD'
     );
+    const initialState: GameState =
+      initialHextech === undefined && !this.options.hextechRoundSelection
+        ? baseState
+        : {
+            ...baseState,
+            hextech: {
+              rulesVersion: HEXTECH_RULES_VERSION,
+              owned: [],
+              ...(initialHextech
+                ? {
+                    initialGrants: [
+                      [...initialHextech[0]],
+                      [...initialHextech[1]],
+                    ] as InitialHextechSetup,
+                  }
+                : { draft: { completedRounds: 0 } }),
+            },
+          };
     const state = this.options.cardEntrance
       ? {
           ...initialState,
@@ -611,6 +645,8 @@ export class GameSession {
       };
     }
 
+    if (this.authorityState.hextech?.draft?.pending)
+      return { success: false, gameState: this.authorityState, error: '请先完成海克斯选择' };
     const undoDraft = this.captureUndoDraft(action.playerId, action.type);
     const result = this.gameService.processAction(this.authorityState, action);
 
@@ -692,9 +728,13 @@ export class GameSession {
           command.publicEffectChoiceAutoAdvanceAt !== undefined ||
           command.publicRevealAutoAdvanceAt !== undefined ||
           command.publicRevealGeneration !== undefined));
-    const undoDraft = isPublicSelectionAutoAdvance
-      ? null
-      : this.captureUndoDraft(command.playerId, command.type);
+    const isHextechCommand =
+      command.type === GameCommandType.REROLL_HEXTECH ||
+      command.type === GameCommandType.SELECT_HEXTECH;
+    const undoDraft =
+      isPublicSelectionAutoAdvance || isHextechCommand
+        ? null
+        : this.captureUndoDraft(command.playerId, command.type);
     const result = this.applyCommand(this.authorityState, command);
     if (!result.success) {
       this.recordCommand(command, 'REJECTED', result.error);
@@ -727,7 +767,9 @@ export class GameSession {
     this.recordCommand(command, 'ACCEPTED');
 
     this.runPostCommitAutomation(command.playerId);
-    if (undoDraft) {
+    if (isHextechCommand) {
+      this.undoHistory = [];
+    } else if (undoDraft) {
       this.finalizeUndoEntry(undoDraft);
     } else {
       this.extendLatestUndoEntryThroughAutomaticContinuation();
@@ -950,6 +992,12 @@ export class GameSession {
   }
 
   restoreRuntimeState(input: RestoreRuntimeStateInput): void {
+    assertValidHextechState(
+      input.authorityState.hextech,
+      input.authorityState.players.map((player) => player.id),
+      input.authorityState.rulesetId,
+      input.authorityState.turnCount
+    );
     let authorityState = this.cloneForUndo(input.authorityState);
     getManualOperationMode(authorityState);
     const retainedPublicEvents = this.cloneForUndo([
@@ -1040,7 +1088,10 @@ export class GameSession {
       return;
     }
 
-    if (this.getUndoBoundaryKey(this.authorityState) !== draft.boundaryKey) {
+    if (
+      this.authorityState.hextech?.draft?.pending ||
+      this.getUndoBoundaryKey(this.authorityState) !== draft.boundaryKey
+    ) {
       this.undoHistory = [];
       return;
     }
@@ -1202,7 +1253,11 @@ export class GameSession {
   }
 
   private runPostCommitAutomation(triggerPlayerId: string): void {
-    if (!this.authorityState || this.authorityState.entranceRuntime?.pending) {
+    if (
+      !this.authorityState ||
+      this.authorityState.entranceRuntime?.pending ||
+      this.authorityState.hextech?.draft?.pending
+    ) {
       return;
     }
 
@@ -1238,6 +1293,7 @@ export class GameSession {
     while (
       this.authorityState &&
       !this.authorityState.entranceRuntime?.pending &&
+      !this.authorityState.hextech?.draft?.pending &&
       iterations < MAX_MODE_AUTOMATION_ITERATIONS &&
       this.authorityState.currentPhase !== GamePhase.GAME_END
     ) {
@@ -1643,6 +1699,12 @@ export class GameSession {
       return policyDecision.reason ?? '当前不能执行该操作';
     }
 
+    if (
+      command.type === GameCommandType.REROLL_HEXTECH ||
+      command.type === GameCommandType.SELECT_HEXTECH
+    ) {
+      return validateHextechCommand(state, command);
+    }
     const canActError = this.validateCommandActor(state, command);
     if (canActError) {
       return canActError;
@@ -2788,6 +2850,27 @@ export class GameSession {
 
   private applyCommand(state: GameState, command: GameCommand): CommandExecutionResult {
     switch (command.type) {
+      case GameCommandType.REROLL_HEXTECH:
+      case GameCommandType.SELECT_HEXTECH: {
+        let next = applyHextechCommand(state, command, this.options.randomInt ?? secureRandomInt);
+        const selection = next.hextech!.draft!.pending;
+        if (!selection) next = this.gameService.resumeHextechTurnStart(next);
+        return {
+          success: true,
+          gameState: next,
+          declarationType: command.type,
+          sealedAuditRecords: [
+            {
+              type:
+                command.type === GameCommandType.SELECT_HEXTECH
+                  ? 'HEXTECH_SELECTION_LOCKED'
+                  : 'HEXTECH_RANDOM_RESULT',
+              actorSeat: getSeatForPlayer(state, command.playerId)!,
+              payload: { command, selection: selection ?? null },
+            },
+          ],
+        };
+      }
       case GameCommandType.ACK_CARD_ENTRANCE: {
         const runtime = state.entranceRuntime!;
         const pending = runtime.pending!;
@@ -5252,6 +5335,7 @@ export class GameSession {
       iterations < MAX_AUTO_ADVANCE_ITERATIONS &&
       currentState.currentPhase !== GamePhase.GAME_END &&
       !currentState.waitingForInput &&
+      !currentState.hextech?.draft?.pending &&
       !hasPendingAbilityOrChoice(currentState)
     ) {
       // 对墙打模式：如果活跃玩家是对手，仍然自动推进（活跃/能量/抽卡阶段无实际操作意义）
@@ -5342,7 +5426,7 @@ export class GameSession {
     this.authorityState = authoritativeNextState;
     this.recordPublicStateTransition(previousState, authoritativeNextState, options);
     this.recordPrivateStateTransition(authoritativeNextState, options);
-    this.recordSealedAuditTransition(authoritativeNextState, options);
+    this.recordSealedAuditTransition(previousState, authoritativeNextState, options);
     this.recordAuthoritySnapshot(authoritativeNextState);
   }
 
@@ -5428,9 +5512,35 @@ export class GameSession {
       this.appendPublicEvent(nextState, attachMovementBatchId(event));
     }
 
+    const selection = nextState.hextech?.draft?.pending;
+    if (selection && selection.turn !== previousState?.hextech?.draft?.pending?.turn) {
+      this.appendPublicEvent(nextState, {
+        type: 'HextechSelectionStarted',
+        source: 'SYSTEM',
+        turn: selection.turn,
+        rarity: selection.rarity,
+      });
+    }
+
     if (previousState) {
       for (const event of buildDeckRefreshPublicEvents(previousState, nextState)) {
         this.appendPublicEvent(nextState, attachMovementBatchId(event));
+      }
+      const previousHextechIds = new Set(
+        previousState.hextech?.owned.map((owned) => owned.instanceId)
+      );
+      for (const owned of nextState.hextech?.owned ?? []) {
+        if (previousHextechIds.has(owned.instanceId)) continue;
+        const definition = getHextechDefinition(owned.definitionId)!;
+        this.appendPublicEvent(nextState, {
+          type: 'HextechAcquired',
+          source: 'SYSTEM',
+          ownerSeat: getSeatForPlayer(nextState, owned.playerId)!,
+          instanceId: owned.instanceId,
+          definitionId: owned.definitionId,
+          name: definition.name,
+          rulesText: definition.rulesText,
+        });
       }
     }
 
@@ -5552,7 +5662,18 @@ export class GameSession {
     }
   }
 
-  private recordSealedAuditTransition(state: GameState, options: StateTransitionOptions): void {
+  private recordSealedAuditTransition(
+    previousState: GameState | null,
+    state: GameState,
+    options: StateTransitionOptions
+  ): void {
+    const selection = state.hextech?.draft?.pending;
+    if (selection && selection.turn !== previousState?.hextech?.draft?.pending?.turn) {
+      this.appendSealedAuditRecord(state, {
+        type: 'HEXTECH_RANDOM_RESULT',
+        payload: { reason: 'ROUND_START', selection },
+      });
+    }
     for (const record of options.sealedAuditRecords ?? []) {
       this.appendSealedAuditRecord(state, record);
     }

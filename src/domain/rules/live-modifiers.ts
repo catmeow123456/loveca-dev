@@ -1,4 +1,5 @@
 import { baseLiveRequirement } from './battle-ruleset.js';
+import { collectHextechLiveModifiers } from '../hextech/modifiers.js';
 import {
   BladeHeartEffect,
   GamePhase,
@@ -2199,7 +2200,7 @@ export function getContinuousLiveModifierVisibilityDeclarations(): readonly {
 }
 
 function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierState[] {
-  const modifiers: LiveModifierState[] = [];
+  const modifiers: LiveModifierState[] = [...collectHextechLiveModifiers(game)];
 
   for (const player of game.players) {
     const successLiveCount = player.successZone.cardIds.length;
@@ -4468,7 +4469,11 @@ function collectMemberHeartContributions(
     if (game.liveResolution.liveModifiers.includes(modifier)) {
       contributionKey = `persistent:${'heartContributionId' in modifier ? modifier.heartContributionId : undefined}`;
     } else {
-      const key = `continuous:${modifier.sourceCardId}:${modifier.abilityId}:${modifier.target}:${memberCardId}:${getMemberHeartContributionLifecycleId(game, modifier.sourceCardId ?? memberCardId)}`;
+      const sourceId =
+        ('sourceHextechInstanceId' in modifier ? modifier.sourceHextechInstanceId : undefined) ??
+        modifier.sourceCardId ??
+        memberCardId;
+      const key = `continuous:${sourceId}:${modifier.abilityId}:${modifier.target}:${memberCardId}:${getMemberHeartContributionLifecycleId(game, modifier.sourceCardId ?? memberCardId)}`;
       const ordinal = continuousOrdinals.get(key) ?? 0;
       continuousOrdinals.set(key, ordinal + 1);
       contributionKey = `${key}:${ordinal}`;

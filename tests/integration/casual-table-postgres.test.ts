@@ -17,6 +17,7 @@ import {
 } from '../../src/shared/types/enums';
 import type {
   CasualRuleMode,
+  CasualFormat,
   CasualTableEntryInput,
   CasualTableOwnView,
 } from '../../src/online/casual-table-types';
@@ -156,6 +157,12 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     );
     await database.query(
       await readFile(new URL('../../drizzle/0045_add_bp7_sealed.sql', import.meta.url), 'utf8')
+    );
+    await database.query(
+      await readFile(
+        new URL('../../drizzle/0048_add_hextech_casual_format.sql', import.meta.url),
+        'utf8'
+      )
     );
   });
   afterAll(async () => {
@@ -341,6 +348,42 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     const paired = await service.join(users[1], changed, entry(1, 'UNLIMITED'));
     expect((await confirmPair(paired)).ruleMode).toBe('UNLIMITED');
     expect(loadDeck).toHaveBeenCalledWith(users[0], decks[0], 'UNLIMITED');
+  });
+
+  it('海克斯按玩法隔离匹配，支持换组、正式开局及再战', async () => {
+    const hexEntry = (index: number) => ({
+      ...entry(index, 'UNLIMITED'),
+      format: 'HEXTECH' as const,
+    });
+    const ordinary = await create(2, 'PUBLIC', 'UNLIMITED');
+    const hex = await service.findOpponent(users[0], hexEntry(0));
+    expect(hex.tableId).not.toBe(ordinary.tableId);
+    expect(hex.format).toBe('HEXTECH');
+    expect(hex.ruleMode).toBe('UNLIMITED');
+    await expect(service.join(users[1], hex, entry(1, 'UNLIMITED'))).rejects.toThrow();
+    const changed = await service.changeDeck(users[0], hex, decks[0]);
+    const paired = await service.join(users[1], changed, hexEntry(1));
+    const bound = await confirmPair(paired);
+    await runtime.getRoomView(bound.roomCode, users[0]);
+    await runtime.getRoomView(bound.roomCode, users[1]);
+    await runtime.submitOpeningRps(bound.roomCode, users[0], 'ROCK');
+    await runtime.submitOpeningRps(bound.roomCode, users[1], 'SCISSORS');
+    const opened = await runtime.chooseOpeningTurnOrder(bound.roomCode, users[0], 'SELF_FIRST');
+    const match = matches.getMatch(opened.matchId!)!;
+    expect(match.session.state!.hextech!.draft).toEqual({ completedRounds: 0 });
+    expect(match.session.state!.rulesetId).toBe('STANDARD');
+    await matches.executeCommand(match.matchId, users[0], createSurrenderCommand('ignored'));
+    const requested = await service.requestRematch(users[0], await current(0), decks[0], false);
+    const next = await service.respondRematch(
+      users[1],
+      await current(1),
+      requested.runtime!.rematch!.requestId,
+      decks[1],
+      false
+    );
+    expect(next.format).toBe('HEXTECH');
+    expect(next.roundId).not.toBe(bound.roundId);
+    expect((await service.getCurrent(users[2])).table!.format).toBe('CONSTRUCTED');
   });
 
   it('preserves entertainment through a PT rollover at final opening and a rematch with ordinary decks', async () => {
@@ -1105,32 +1148,99 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     }
   );
 
-  it('paginates more than fifty rooms without losing or duplicating rows and fences changed filters', async () => {
-    for (let index = 0; index < 54; index++) {
-      const userId = randomUUID();
-      const deckId = randomUUID();
-      await database.query('INSERT INTO profiles VALUES ($1,$2,$2)', [userId, `访客${index}`]);
-      await database.query('INSERT INTO decks VALUES ($1)', [deckId]);
-      await service.create(userId, {
-        format: 'CONSTRUCTED',
-        ruleMode: 'NORMAL',
-        requestId: randomUUID(),
-        deckId,
-        spectatorEnabled: false,
-        discoverability: 'PUBLIC',
-        note: '',
-      });
+  it.each(['NORMAL', 'UNLIMITED'] as const)(
+    'paginates %s rooms with format priority without losing rows and fences changed queries',
+    async (ruleMode) => {
+      for (let index = 0; index < 54; index++) {
+        const userId = randomUUID();
+        const deckId = randomUUID();
+        await database.query('INSERT INTO profiles VALUES ($1,$2,$2)', [userId, `访客${index}`]);
+        await database.query('INSERT INTO decks VALUES ($1)', [deckId]);
+        const format: CasualFormat =
+          ruleMode === 'NORMAL'
+            ? 'CONSTRUCTED'
+            : (['CONSTRUCTED', 'SEALED_BP7', 'HEXTECH'] as const)[index % 3];
+        await service.create(userId, {
+          format,
+          ruleMode,
+          requestId: randomUUID(),
+          ...(format === 'SEALED_BP7' ? {} : { deckId }),
+          spectatorEnabled: false,
+          discoverability: 'PUBLIC',
+          note: '',
+        });
+      }
+      const query = {
+        ruleMode,
+        ...(ruleMode === 'UNLIMITED' ? { preferredFormat: 'HEXTECH' as const } : {}),
+      };
+      const first = await service.list(users[0], query);
+      expect(first.rooms).toHaveLength(50);
+      expect(first.nextCursor).toBeTruthy();
+      const second = await service.list(users[0], { ...query, cursor: first.nextCursor! });
+      expect(second.rooms).toHaveLength(4);
+      expect(new Set([...first.rooms, ...second.rooms].map((row) => row.tableId)).size).toBe(54);
+      if (ruleMode === 'UNLIMITED') {
+        expect(first.rooms.slice(0, 18).every((room) => room.format === 'HEXTECH')).toBe(true);
+        expect(
+          [...first.rooms.slice(18), ...second.rooms].every((room) => room.format !== 'HEXTECH')
+        ).toBe(true);
+        await expect(
+          service.list(users[0], {
+            ...query,
+            preferredFormat: 'SEALED_BP7',
+            cursor: first.nextCursor!,
+          })
+        ).rejects.toMatchObject({ code: 'CASUAL_CURSOR_EXPIRED' });
+      }
+      await expect(
+        service.list(users[0], { ...query, cursor: first.nextCursor!, filter: 'WAITING' })
+      ).rejects.toMatchObject({ code: 'CASUAL_CURSOR_EXPIRED' });
+    },
+    20_000
+  );
+
+  it('lists every entertainment format together and prioritizes tags without hiding rooms or standard rules', async () => {
+    const normal = await service.create(users[0], {
+      ...entry(0),
+      note: '',
+      discoverability: 'PUBLIC',
+    });
+    const constructed = await service.create(users[1], {
+      ...entry(1, 'UNLIMITED'),
+      note: '',
+      discoverability: 'PUBLIC',
+    });
+    const sealed = await service.create(users[2], {
+      format: 'SEALED_BP7',
+      ruleMode: 'UNLIMITED',
+      requestId: randomUUID(),
+      spectatorEnabled: false,
+      discoverability: 'PUBLIC',
+      note: '',
+    });
+    const hextech = await service.create(users[3], {
+      ...entry(3, 'UNLIMITED'),
+      format: 'HEXTECH',
+      note: '',
+      discoverability: 'PUBLIC',
+    });
+    const ids = [constructed.tableId, sealed.tableId, hextech.tableId].sort();
+    for (const preferredFormat of [undefined, 'CONSTRUCTED', 'SEALED_BP7', 'HEXTECH'] as const) {
+      const lobby = await service.list(users[4], { ruleMode: 'UNLIMITED', preferredFormat });
+      expect(lobby.rooms.map((room) => room.tableId).sort()).toEqual(ids);
+      expect(lobby.counts).toEqual({ waiting: 3, preparing: 0, playing: 0 });
+      if (preferredFormat) expect(lobby.rooms[0].format).toBe(preferredFormat);
     }
-    const first = await service.list(users[0]);
-    expect(first.rooms).toHaveLength(50);
-    expect(first.nextCursor).toBeTruthy();
-    const second = await service.list(users[0], { cursor: first.nextCursor! });
-    expect(second.rooms).toHaveLength(4);
-    expect(new Set([...first.rooms, ...second.rooms].map((row) => row.tableId)).size).toBe(54);
-    await expect(
-      service.list(users[0], { cursor: first.nextCursor!, filter: 'WAITING' })
-    ).rejects.toMatchObject({ code: 'CASUAL_CURSOR_EXPIRED' });
-  }, 20_000);
+    expect((await service.list(users[4])).rooms.map((room) => room.tableId)).toEqual([
+      normal.tableId,
+    ]);
+    expect(
+      (await service.list(users[4], { ruleMode: 'UNLIMITED', format: 'HEXTECH' })).rooms.map(
+        (room) => room.tableId
+      )
+    ).toEqual([hextech.tableId]);
+  });
 
   it('projects actual game status and rechecks revoked spectator permissions', async () => {
     const { bound, matchId } = await started();
