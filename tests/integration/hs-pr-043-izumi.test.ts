@@ -57,6 +57,7 @@ describe('PL!HS-PR-043 费用7「桂城泉」', () => {
     'pays exactly two in order and checks moved ordinary Heart total %i',
     (total) => {
       const started = setup(total);
+      expect(started.activeEffect?.autoSubmitSingleSelection).not.toBe(true);
       expect(started.activeEffect).toMatchObject({
         minSelectableCards: 2,
         maxSelectableCards: 2,

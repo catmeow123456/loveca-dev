@@ -1,4 +1,26 @@
 import {
+  S_AD2_003_ON_ENTER_DISCARD_RECOVER_LIVE_ABILITY_ID,
+  S_AD2_003_AUTO_ON_CHEER_BLADE_HEART_CARD_THRESHOLDS_GAIN_GREEN_BLUE_ABILITY_ID,
+  SP_AD1_003_LIVE_START_YELLOW_PURPLE_SIX_REDUCE_SOURCE_COLORLESS_REQUIREMENT_ABILITY_ID,
+  SP_AD1_003_AUTO_ON_CHEER_ALL_BLADE_HEART_ADDITIONAL_CHEER_ABILITY_ID,
+  PL_BP8_019_LIVE_START_TURN_LIVE_ENTRY_AT_MOST_ONE_GAIN_SCORE_ABILITY_ID,
+  PL_BP8_024_LIVE_START_TARGET_MUSE_GAIN_BLADE_PER_DIFFERENT_OPPONENT_NAME_ABILITY_ID,
+  HS_AD2_004_LIVE_START_GREEN_BLUE_MEMBERS_GAIN_SCORE_ABILITY_ID,
+  HS_BP8_019_LIVE_START_PAY_ENERGY_RECYCLE_LOW_COST_MEMBERS_ABILITY_ID,
+  HS_BP8_019_LIVE_START_CERISE_DECK_THIRTY_FIVE_GAIN_SCORE_ABILITY_ID,
+  HS_BP8_022_LIVE_START_OPPONENT_DRAW_TARGET_MIRAKURA_GAIN_PINK_HEART_ABILITY_ID,
+  HS_BP8_022_LIVE_SUCCESS_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
+  HS_BP8_009_ON_ENTER_OPTIONAL_RECOVER_LOW_COST_MEMBER_TO_DECK_TOP_ABILITY_ID,
+  N_BP8_014_LIVE_START_WAITING_ROOM_NO_BLADE_HEART_MEMBER_BOTTOM_GAIN_BLADE_ABILITY_ID,
+  N_BP8_016_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_TWO_OR_LESS_ABILITY_ID,
+  N_BP8_024_AUTO_BATON_TOUCH_NIJIGASAKI_PLACE_ENERGY_UNDER_ENTERED_MEMBER_ABILITY_ID,
+  N_BP8_027_LIVE_SUCCESS_CHOOSE_WAITING_ROOM_TOP_OR_ENERGY_UNDER_NIJIGASAKI_ABILITY_ID,
+} from '../ability-ids.js';
+import {
+  HS_BP8_018_AUTO_REVEALED_CHEER_MOVED_SOURCE_SCORE_ABILITY_ID,
+  N_BP8_008_ACTIVATED_REVEAL_SELF_HAND_BOTTOM_WAIT_OPPONENT_ABILITY_ID,
+} from '../ability-ids.js';
+import {
   PL_BP8_020_LIVE_START_ACTIVATE_KOTORI_WAIT_OPPONENT_ABILITY_ID,
   HS_BP8_016_LIVE_SUCCESS_DISCARD_TWO_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID,
   HS_BP8_021_LIVE_START_RETURN_MIRACRA_MEMBER_PLAY_SAME_COST_ABILITY_ID,
@@ -3103,7 +3125,223 @@ const N_BP8_001_ON_ENTER_STACK_ENERGY_SELF_AND_OTHER_NIJIGASAKI_EFFECT_TEXT =
 const N_BP8_001_LIVE_SUCCESS_RETURN_ONE_ENERGY_BELOW_DRAW_DISCARD_EFFECT_TEXT =
   '【LIVE成功时】可以将存在于自己的舞台的１名成员的下方的１张能量卡，以待机状态放置于自己的能量区。如此做时，抽１张卡，将１张手牌放置入休息室。';
 
+const N_BP8_008_ACTIVATED_REVEAL_SELF_HAND_BOTTOM_WAIT_OPPONENT_EFFECT_TEXT =
+  '【起动】将手牌的此卡公开：将此卡放置于卡组底。此后，自己的舞台上存在『虹咲』的成员的场合，将存在于对方的舞台的１名费用小于等于２的成员变为待机状态。此能力仅在此卡存在于手牌的场合才能起动。';
+
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
+  {
+    abilityId: S_AD2_003_ON_ENTER_DISCARD_RECOVER_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!S-ad2-003'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: '【登场】可以将１张手牌放置于休息室：从自己的休息室将１张LIVE卡加入手牌。',
+    delegatedOnEnterFromWaitingRoomPolicy: { decision: 'ALLOW', reason: 'SOURCE_INDEPENDENT' },
+  },
+  {
+    abilityId: S_AD2_003_AUTO_ON_CHEER_BLADE_HEART_CARD_THRESHOLDS_GAIN_GREEN_BLUE_ABILITY_ID,
+    baseCardCodes: ['PL!S-ad2-003'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_CHEER,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【自动】【１回合１次】自己进行声援时，因声援被公开的自己的卡片中存在大于等于５张持有BLADE HEART的卡片的场合，LIVE结束时为止，获得[緑ハート]。大于等于１０张的场合，再获得[青ハート]。',
+    perTurnLimit: 1,
+    skipQueueWhenTurnLimitReached: true,
+  },
+  {
+    abilityId:
+      SP_AD1_003_LIVE_START_YELLOW_PURPLE_SIX_REDUCE_SOURCE_COLORLESS_REQUIREMENT_ABILITY_ID,
+    baseCardCodes: ['PL!SP-ad1-003'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE开始时】存在于自己的舞台的成员持有的HEART中，[黄ハート]和[紫ハート]合计大于等于６个的场合，此卡的必要HEART减少[無ハート]。',
+  },
+  {
+    abilityId: SP_AD1_003_AUTO_ON_CHEER_ALL_BLADE_HEART_ADDITIONAL_CHEER_ABILITY_ID,
+    baseCardCodes: ['PL!SP-ad1-003'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_CHEER,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【自动】【１回合１次】自己进行声援时，因声援被公开的自己的卡片中存在持有[ALLブレード]的卡片的场合，追加进行１张卡片的声援。',
+    perTurnLimit: 1,
+    skipQueueWhenTurnLimitReached: true,
+  },
+  {
+    abilityId: PL_BP8_019_LIVE_START_TURN_LIVE_ENTRY_AT_MOST_ONE_GAIN_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-019'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE开始时】此回合，放置于自己的LIVE卡区的卡片的张数小于等于１张的场合，此卡的分数＋２。',
+  },
+  {
+    abilityId: PL_BP8_024_LIVE_START_TARGET_MUSE_GAIN_BLADE_PER_DIFFERENT_OPPONENT_NAME_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-024'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE开始时】选择存在于自己的舞台的１名『μ’s』的成员。LIVE结束时为止，每有１名存在于对方的舞台的与该成员名称不相同的成员，该成员获得[ブレード]。',
+  },
+  {
+    abilityId: HS_AD2_004_LIVE_START_GREEN_BLUE_MEMBERS_GAIN_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-ad2-004'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE开始时】每有１名存在于自己的舞台的同时持有[緑ハート]和[青ハート]的成员，此卡的分数＋１。',
+  },
+  {
+    abilityId: HS_BP8_019_LIVE_START_PAY_ENERGY_RECYCLE_LOW_COST_MEMBERS_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp8-019'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE开始时】可以支付[E]：将存在于自己的休息室的所有费用小于等于９的成员混洗，放置于卡组底。',
+  },
+  {
+    abilityId: HS_BP8_019_LIVE_START_CERISE_DECK_THIRTY_FIVE_GAIN_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp8-019'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE开始时】自己的舞台上存在『Cerise Bouquet』的成员，且自己的卡组的卡片大于等于３５张的场合，此卡的分数＋２。',
+  },
+  {
+    abilityId: HS_BP8_022_LIVE_START_OPPONENT_DRAW_TARGET_MIRAKURA_GAIN_PINK_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp8-022'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE开始时】自己可以选择让对方抽１张卡。如此做时，LIVE结束时为止，存在于自己的舞台的１名费用大于等于１０的『Mira-Cra Park!』的成员，获得[桃ハート]。',
+  },
+  {
+    abilityId: HS_BP8_022_LIVE_SUCCESS_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp8-022'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: '【LIVE成功时】从自己的休息室将１张『莲之空』的LIVE卡加入手牌。',
+  },
+  {
+    abilityId: HS_BP8_009_ON_ENTER_OPTIONAL_RECOVER_LOW_COST_MEMBER_TO_DECK_TOP_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp8-009'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: '【登场】可以将存在于自己的休息室的１张费用小于等于９的成员卡放置于卡组顶。',
+    delegatedOnEnterFromWaitingRoomPolicy: { decision: 'ALLOW', reason: 'SOURCE_INDEPENDENT' },
+  },
+  {
+    abilityId: N_BP8_014_LIVE_START_WAITING_ROOM_NO_BLADE_HEART_MEMBER_BOTTOM_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp8-014'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE开始时】可以将存在于休息室的１张不持有BLADE HEART的成员卡放置于卡组底：LIVE结束时为止，获得[ブレード][ブレード]。',
+  },
+  {
+    abilityId: N_BP8_016_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_TWO_OR_LESS_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp8-016'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【登场】将存在于对方的舞台的１名原本持有的[ブレード]的数量小于等于２的成员变为待机状态。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）',
+    delegatedOnEnterFromWaitingRoomPolicy: { decision: 'ALLOW', reason: 'SOURCE_INDEPENDENT' },
+  },
+  {
+    abilityId: N_BP8_024_AUTO_BATON_TOUCH_NIJIGASAKI_PLACE_ENERGY_UNDER_ENTERED_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp8-024'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【自动】此成员从舞台被放置入休息室时，此成员曾与『虹咲』的成员进行换手的场合，从自己的能量卡组，将１张能量卡放置于因此换手登场的成员的下方。',
+    triggerToZones: [ZoneType.WAITING_ROOM],
+    onLeaveStageTriggerFilter: {
+      relayReplacementMember: { groupAliases: ['虹ヶ咲'], minPrintedCost: 0 },
+    },
+  },
+  {
+    abilityId: N_BP8_027_LIVE_SUCCESS_CHOOSE_WAITING_ROOM_TOP_OR_ENERGY_UNDER_NIJIGASAKI_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp8-027'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE成功时】从以下选择１项。\n・将存在于自己的休息室的１张『虹咲』的卡片放置于卡组顶。\n・从自己的能量卡组，将１张能量卡放置于存在于自己的舞台的『虹咲』的成员的下方。',
+  },
+
+  {
+    abilityId: N_BP8_008_ACTIVATED_REVEAL_SELF_HAND_BOTTOM_WAIT_OPPONENT_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp8-008'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.HAND,
+    queued: false,
+    implemented: true,
+    effectText: N_BP8_008_ACTIVATED_REVEAL_SELF_HAND_BOTTOM_WAIT_OPPONENT_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: N_BP8_008_ACTIVATED_REVEAL_SELF_HAND_BOTTOM_WAIT_OPPONENT_ABILITY_ID,
+      text: N_BP8_008_ACTIVATED_REVEAL_SELF_HAND_BOTTOM_WAIT_OPPONENT_EFFECT_TEXT,
+      title: '公开此卡并放置于卡组底',
+    },
+  },
+  {
+    abilityId: HS_BP8_018_AUTO_REVEALED_CHEER_MOVED_SOURCE_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp8-018'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_REVEALED_CHEER_CARDS_MOVED,
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    skipQueueWhenTurnLimitReached: true,
+    effectText:
+      '【自动】【１回合１次】因声援公开的自己的卡片，因自己的卡片的效果移动至任意领域时，此卡的分数＋１。',
+  },
   {
     abilityId: PL_BP8_020_LIVE_START_ACTIVATE_KOTORI_WAIT_OPPONENT_ABILITY_ID,
     baseCardCodes: ['PL!-bp8-020'],
@@ -4992,7 +5230,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
-    cardCodes: ['PL!-PR-017-PR'],
+    baseCardCodes: ['PL!-PR-017'],
     category: CardAbilityCategory.ACTIVATED,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
@@ -5284,7 +5522,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP1_022_LIVE_SUCCESS_CHEER_HASUNOSORA_MEMBER_SCORE_ABILITY_ID,
-    cardCodes: ['PL!HS-bp1-022-L'],
+    baseCardCodes: ['PL!HS-bp1-022'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -5296,7 +5534,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP1_021_LIVE_SUCCESS_HASUNOSORA_LIVE_REVEALED_CHEER_TO_HAND_ABILITY_ID,
-    cardCodes: ['PL!HS-bp1-021-L'],
+    baseCardCodes: ['PL!HS-bp1-021'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -5360,7 +5598,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_PB1_021_LIVE_SUCCESS_DOLLCHESTRA_LIVE_ZONE_DRAW_ABILITY_ID,
-    cardCodes: ['PL!HS-pb1-021-N'],
+    baseCardCodes: ['PL!HS-pb1-021'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -5741,7 +5979,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP5_019_LIVE_SUCCESS_SUCCESS_ZONE_TWO_REVEALED_CHEER_MEMBER_TO_HAND_ABILITY_ID,
-    cardCodes: ['PL!S-bp5-019-L'],
+    baseCardCodes: ['PL!S-bp5-019'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -5749,11 +5987,11 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: S_BP5_019_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      '单卡 LIVE_SUCCESS workflow `s-bp5-019-not-alone-not-hitori.ts`；先重查自己或对方成功LIVE区是否有2张以上卡，满足时选择本次声援公开、仍在 resolutionZone 且 revealed 的自己成员卡至多2张加入手牌。移动复用 selectRevealedCheerCardIds / moveRevealedCheerCards，允许选择0张，非法或 stale 目标不移动。',
+      '单卡 LIVE_SUCCESS workflow `s-bp5-019-not-alone-not-hitori.ts`；先重查自己或对方成功LIVE区是否有2张以上卡，满足时用 selectRevealedCheerCardIds 选择本次声援公开、仍在 resolutionZone 且 revealed 的自己成员卡至多2张。moveRevealedCheerCardsAndEnqueueTriggers 移动入手，记录移动事件并将匹配的能力入队，允许选择0张，非法或 stale 目标不移动。',
   },
   {
     abilityId: S_BP5_022_LIVE_START_MOVED_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
-    cardCodes: ['PL!S-bp5-022-L'],
+    baseCardCodes: ['PL!S-bp5-022'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -5765,7 +6003,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP5_022_LIVE_SUCCESS_MORE_CHEER_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!S-bp5-022-L'],
+    baseCardCodes: ['PL!S-bp5-022'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -5777,7 +6015,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP5_023_LIVE_START_STAGE_AQOURS_SAINTSNOW_COST_STACK_LIVE_ABILITY_ID,
-    cardCodes: ['PL!S-bp5-023-L'],
+    baseCardCodes: ['PL!S-bp5-023'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -5789,7 +6027,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP5_020_LIVE_SUCCESS_LOSE_REMAINING_HEARTS_SCORE_ABILITY_ID,
-    cardCodes: ['PL!S-bp5-020-L'],
+    baseCardCodes: ['PL!S-bp5-020'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -5898,7 +6136,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP2_014_ON_ENTER_DRAW_CANNOT_LIVE_ABILITY_ID,
-    cardCodes: ['PL!HS-bp2-014-N'],
+    baseCardCodes: ['PL!HS-bp2-014'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -6120,7 +6358,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: LL_BP1_001_ON_ENTER_RECOVER_MEMBER_ABILITY_ID,
-    cardCodes: ['LL-bp1-001-R+'],
+    baseCardCodes: ['LL-bp1-001'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -6131,7 +6369,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: LL_BP1_001_LIVE_START_DISCARD_SCORE_ABILITY_ID,
-    cardCodes: ['LL-bp1-001-R+'],
+    baseCardCodes: ['LL-bp1-001'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -6142,7 +6380,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID,
-    cardCodes: ['LL-bp2-001-R+'],
+    baseCardCodes: ['LL-bp2-001'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -7215,7 +7453,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!HS-bp2-020-L'],
+    baseCardCodes: ['PL!HS-bp2-020'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -7239,7 +7477,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP5_017_LIVE_START_PAY_ENERGY_DIFFERENT_UNITS_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!HS-bp5-017-L'],
+    baseCardCodes: ['PL!HS-bp5-017'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -7251,7 +7489,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP5_018_LIVE_START_DIFFERENT_NAMES_AND_COSTS_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!HS-bp5-018-L'],
+    baseCardCodes: ['PL!HS-bp5-018'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -7310,7 +7548,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID,
-    cardCodes: ['PL!HS-bp5-013-N'],
+    baseCardCodes: ['PL!HS-bp5-013'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -7322,7 +7560,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP5_016_ON_ENTER_DISCARD_WAIT_OPPONENT_LOW_COST_MEMBERS_ABILITY_ID,
-    cardCodes: ['PL!HS-bp5-016-N'],
+    baseCardCodes: ['PL!HS-bp5-016'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -7334,7 +7572,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP5_016_CONTINUOUS_OPPONENT_TWO_WAITING_PURPLE_HEART_ABILITY_ID,
-    cardCodes: ['PL!HS-bp5-016-N'],
+    baseCardCodes: ['PL!HS-bp5-016'],
     category: CardAbilityCategory.CONTINUOUS,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
@@ -7360,7 +7598,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID,
-    cardCodes: ['PL!HS-bp2-012-N'],
+    baseCardCodes: ['PL!HS-bp2-012'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
@@ -7372,7 +7610,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
-    cardCodes: ['PL!HS-bp2-013-N'],
+    baseCardCodes: ['PL!HS-bp2-013'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
@@ -7383,7 +7621,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP6_019_LEAVE_STAGE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
-    cardCodes: ['PL!HS-bp6-019-N'],
+    baseCardCodes: ['PL!HS-bp6-019'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
@@ -7395,7 +7633,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP2_015_LEAVE_STAGE_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
-    cardCodes: ['PL!HS-bp2-015-N'],
+    baseCardCodes: ['PL!HS-bp2-015'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
@@ -7546,7 +7784,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_PB1_022_CONTINUOUS_RURINO_GAIN_TWO_PINK_HEART_ABILITY_ID,
-    cardCodes: ['PL!HS-pb1-022-N'],
+    baseCardCodes: ['PL!HS-pb1-022'],
     category: CardAbilityCategory.CONTINUOUS,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
@@ -7557,7 +7795,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_PB1_022_CONTINUOUS_MEGU_GAIN_TWO_BLADE_ABILITY_ID,
-    cardCodes: ['PL!HS-pb1-022-N'],
+    baseCardCodes: ['PL!HS-pb1-022'],
     category: CardAbilityCategory.CONTINUOUS,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
@@ -7580,7 +7818,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_PB1_025_LIVE_START_HASUNOSORA_WAITING_TARGET_GREEN_HEART_ABILITY_ID,
-    cardCodes: ['PL!HS-pb1-025-L'],
+    baseCardCodes: ['PL!HS-pb1-025'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -7592,7 +7830,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_PB1_025_LIVE_SUCCESS_HAND_SIX_RECOVER_MEMBER_ABILITY_ID,
-    cardCodes: ['PL!HS-pb1-025-L'],
+    baseCardCodes: ['PL!HS-pb1-025'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -7604,7 +7842,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_PB1_027_LIVE_SUCCESS_OPTIONAL_MILL_TOP_FOUR_IF_CERISE_MEMBER_ABILITY_ID,
-    cardCodes: ['PL!HS-pb1-027-L'],
+    baseCardCodes: ['PL!HS-pb1-027'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -7823,7 +8061,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_SD1_013_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
-    cardCodes: ['PL!S-sd1-013-SD'],
+    baseCardCodes: ['PL!S-sd1-013'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -7835,7 +8073,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
-    cardCodes: ['PL!S-bp6-012-N'],
+    baseCardCodes: ['PL!S-bp6-012'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -7847,7 +8085,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP6_013_ON_ENTER_GAIN_TWO_BLADE_ABILITY_ID,
-    cardCodes: ['PL!S-bp6-013-N'],
+    baseCardCodes: ['PL!S-bp6-013'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -7859,7 +8097,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
-    cardCodes: ['PL!S-bp6-015-N'],
+    baseCardCodes: ['PL!S-bp6-015'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -7871,7 +8109,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP6_017_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
-    cardCodes: ['PL!S-bp6-017-N'],
+    baseCardCodes: ['PL!S-bp6-017'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -8477,7 +8715,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: LL_BP5_001_LIVE_SUCCESS_CHEER_LIVE_OR_STAGE_HEARTS_OR_MOVED_SCORE_ABILITY_ID,
-    cardCodes: ['LL-bp5-001-L'],
+    baseCardCodes: ['LL-bp5-001'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -8489,7 +8727,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: LL_BP5_002_LIVE_START_THREE_DIFFERENT_GROUPS_CENTER_ALL_HEART_ABILITY_ID,
-    cardCodes: ['LL-bp5-002-L'],
+    baseCardCodes: ['LL-bp5-002'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -8501,7 +8739,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: LL_BP5_002_LIVE_SUCCESS_RECOVER_DIFFERENT_GROUP_CARD_ABILITY_ID,
-    cardCodes: ['LL-bp5-002-L'],
+    baseCardCodes: ['LL-bp5-002'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -10021,7 +10259,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_SD1_001_AUTO_ON_CHEER_LIVE_COUNT_GAIN_RED_HEART_ABILITY_ID,
-    cardCodes: ['PL!S-sd1-001-SD'],
+    baseCardCodes: ['PL!S-sd1-001'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_CHEER,
@@ -10034,7 +10272,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_SD1_002_ON_ENTER_DISCARD_RECOVER_AQOURS_CARD_ABILITY_ID,
-    cardCodes: ['PL!S-sd1-002-SD'],
+    baseCardCodes: ['PL!S-sd1-002'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -10046,7 +10284,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID,
-    cardCodes: ['PL!S-sd1-003-SD'],
+    baseCardCodes: ['PL!S-sd1-003'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -10058,7 +10296,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_SD1_004_LIVE_START_DRAW_ONE_HAND_TWO_TO_DECK_TOP_ABILITY_ID,
-    cardCodes: ['PL!S-sd1-004-SD'],
+    baseCardCodes: ['PL!S-sd1-004'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -10070,7 +10308,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP6_011_ON_ENTER_FROM_WAITING_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
-    cardCodes: ['PL!S-bp6-011-N'],
+    baseCardCodes: ['PL!S-bp6-011'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -10082,7 +10320,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP6_016_ON_ENTER_FROM_WAITING_LOOK_TOP_THREE_TAKE_ONE_ABILITY_ID,
-    cardCodes: ['PL!S-bp6-016-N'],
+    baseCardCodes: ['PL!S-bp6-016'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -10106,7 +10344,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID,
-    cardCodes: ['PL!S-bp5-015-N'],
+    baseCardCodes: ['PL!S-bp5-015'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -10118,7 +10356,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP5_016_LIVE_START_HIGHER_COST_THAN_ALL_OPPONENT_STAGE_GAIN_TWO_BLADE_ABILITY_ID,
-    cardCodes: ['PL!S-bp5-016-N'],
+    baseCardCodes: ['PL!S-bp5-016'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -10130,7 +10368,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP5_017_LIVE_START_BLUE_REQUIREMENT_GAIN_BLUE_HEART_ABILITY_ID,
-    cardCodes: ['PL!S-bp5-017-N'],
+    baseCardCodes: ['PL!S-bp5-017'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -10154,7 +10392,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_SD1_005_ACTIVATED_PAY_ENERGY_DISCARD_RECOVER_AQOURS_LIVE_ABILITY_ID,
-    cardCodes: ['PL!S-sd1-005-SD'],
+    baseCardCodes: ['PL!S-sd1-005'],
     category: CardAbilityCategory.ACTIVATED,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
@@ -10171,7 +10409,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_SD1_006_ON_ENTER_DISCARD_PLAY_LOW_COST_AQOURS_MEMBER_ABILITY_ID,
-    cardCodes: ['PL!S-sd1-006-SD'],
+    baseCardCodes: ['PL!S-sd1-006'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -10283,7 +10521,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID,
-    cardCodes: ['PL!S-bp6-020-L'],
+    baseCardCodes: ['PL!S-bp6-020'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -10295,7 +10533,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP6_020_GRANTED_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID,
-    cardCodes: ['PL!S-bp6-020-L'],
+    baseCardCodes: ['PL!S-bp6-020'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -10354,7 +10592,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
-    cardCodes: ['PL!S-sd1-022-SD'],
+    baseCardCodes: ['PL!S-sd1-022'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -10390,7 +10628,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP6_022_LIVE_SUCCESS_OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!S-bp6-022-L'],
+    baseCardCodes: ['PL!S-bp6-022'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -10398,11 +10636,11 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: S_BP6_022_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      '迁入 live-success-energy-difference-score shared workflow；保持 exact `PL!S-bp6-022-L` 覆盖。LIVE_SUCCESS 时比较双方能量数量，对方至少多1张则以来源 LIVE + ability identity replacement 写 [スコア]+1，并按新旧差值刷新 playerScores。',
+      '迁入 live-success-energy-difference-score shared workflow；按基础编号 `PL!S-bp6-022` 覆盖全部罕度。LIVE_SUCCESS 时比较双方能量数量，对方至少多1张则以来源 LIVE + ability identity replacement 写 [スコア]+1，并按新旧差值刷新 playerScores。',
   },
   {
     abilityId: S_BP6_023_LIVE_SUCCESS_OWN_CHEER_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!S-bp6-023-L'],
+    baseCardCodes: ['PL!S-bp6-023'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -10414,7 +10652,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP6_024_LIVE_SUCCESS_OPPONENT_LOSE_REMAINING_HEARTS_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!S-bp6-024-L'],
+    baseCardCodes: ['PL!S-bp6-024'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -10711,7 +10949,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_N_BP1_028_LIVE_START_PAY_TWO_ENERGY_NIJIGASAKI_STAGE_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!N-bp1-028-L'],
+    baseCardCodes: ['PL!N-bp1-028'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -11372,7 +11610,6 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_N_BP3_025_LIVE_START_RETURN_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID,
-    cardCodes: ['PL!N-bp3-025-L'],
     baseCardCodes: ['PL!N-bp3-025'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
@@ -11386,7 +11623,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   {
     abilityId:
       PL_N_BP3_027_LIVE_SUCCESS_GREEN_SURPLUS_NIJIGASAKI_MEMBER_PLACE_WAITING_ENERGY_ABILITY_ID,
-    cardCodes: ['PL!N-bp3-027-L'],
+    baseCardCodes: ['PL!N-bp3-027'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -11752,7 +11989,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_S_PB1_003_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      '单卡 workflow `s-pb1-003-kanan.ts` 的 LIVE_SUCCESS 段；选择目标复用 selectRevealedCheerCardIds，只允许本次自己的声援公开、仍在 resolutionZone 且 revealed 的自己 LIVE 卡；移动入手复用 moveRevealedCheerCards(..., HAND)。无 LIVE 目标时消费 pending no-op；非法或 stale 目标不移动。',
+      '单卡 workflow `s-pb1-003-kanan.ts` 的 LIVE_SUCCESS 段；选择目标复用 selectRevealedCheerCardIds，只允许本次自己的声援公开、仍在 resolutionZone 且 revealed 的自己 LIVE 卡。moveRevealedCheerCardsAndEnqueueTriggers 移动入手，记录移动事件并将匹配的能力入队。无 LIVE 目标时消费 pending no-op；非法或 stale 目标不移动。',
   },
   {
     abilityId: PL_S_PB1_005_CONTINUOUS_OPPONENT_ENERGY_MORE_GAIN_THREE_BLADE_ABILITY_ID,
@@ -11846,7 +12083,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_S_PB1_019_LIVE_START_AQOURS_RED_HEART_SUPPRESS_SUCCESS_ABILITY_ID,
-    cardCodes: ['PL!S-pb1-019-L'],
+    baseCardCodes: ['PL!S-pb1-019'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -11858,7 +12095,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_S_PB1_019_LIVE_SUCCESS_PLACE_OPPONENT_WAITING_ENERGY_ABILITY_ID,
-    cardCodes: ['PL!S-pb1-019-L'],
+    baseCardCodes: ['PL!S-pb1-019'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -11870,7 +12107,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_S_PB1_020_LIVE_START_AQOURS_GREEN_HEART_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!S-pb1-020-L'],
+    baseCardCodes: ['PL!S-pb1-020'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -11883,7 +12120,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   {
     abilityId:
       PL_S_PB1_021_LIVE_SUCCESS_AQOURS_BLUE_HEART_OPPONENT_NO_SURPLUS_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!S-pb1-021-L'],
+    baseCardCodes: ['PL!S-pb1-021'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -11987,7 +12224,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_PB1_031_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      "单卡 LIVE_SUCCESS workflow `pl-pb1-031-kaguya-no-shiro-de-odoritai.ts`；真实可选弃1手交互，不套 confirm-only。弃手通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 入休息室并入队触发；支付后用 selectRevealedCheerCardIds + moveRevealedCheerCards 从本次声援公开且仍在 resolutionZone/revealed 的自己『μ's』成员卡中选择1张加入手牌。",
+      "单卡 LIVE_SUCCESS workflow `pl-pb1-031-kaguya-no-shiro-de-odoritai.ts`；真实可选弃1手交互，不套 confirm-only。弃手通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 入休息室并入队触发；支付后用 selectRevealedCheerCardIds 从本次声援公开且仍在 resolutionZone/revealed 的自己『μ's』成员卡中选择1张，再用 moveRevealedCheerCardsAndEnqueueTriggers 移动入手，记录移动事件并将匹配的能力入队。",
   },
   {
     abilityId: PL_BP4_001_LIVE_START_LOWER_STAGE_COST_DRAW_ONE_ABILITY_ID,
@@ -12433,7 +12670,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP2_021_LIVE_START_RELAY_ENTERED_HASUNOSORA_GREEN_REQUIREMENT_ABILITY_ID,
-    cardCodes: ['PL!HS-bp2-021-L'],
+    baseCardCodes: ['PL!HS-bp2-021'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -12446,7 +12683,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP2_023_LIVE_START_RELAY_ENTERED_HASUNOSORA_BLUE_REQUIREMENT_ABILITY_ID,
-    cardCodes: ['PL!HS-bp2-023-L'],
+    baseCardCodes: ['PL!HS-bp2-023'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -12459,7 +12696,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP2_025_LIVE_START_RELAY_ENTERED_HASUNOSORA_PINK_REQUIREMENT_ABILITY_ID,
-    cardCodes: ['PL!HS-bp2-025-L'],
+    baseCardCodes: ['PL!HS-bp2-025'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -12472,7 +12709,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
-    cardCodes: ['PL!HS-bp5-020-L'],
+    baseCardCodes: ['PL!HS-bp5-020'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -12508,7 +12745,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   {
     abilityId:
       HS_BP5_022_LIVE_START_PAY_TWO_ENERGY_HIGH_COST_EDELNOTE_PLAY_LOW_COST_OR_REDUCE_PURPLE_REQUIREMENT_ABILITY_ID,
-    cardCodes: ['PL!HS-bp5-022-L'],
+    baseCardCodes: ['PL!HS-bp5-022'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -12801,7 +13038,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_PB1_030_LIVE_START_EDELNOTE_MEMBER_BLADE_DIFFERENT_NAME_PURPLE_HEART_ABILITY_ID,
-    cardCodes: ['PL!HS-pb1-030-L'],
+    baseCardCodes: ['PL!HS-pb1-030'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -12825,7 +13062,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_SD1_002_LIVE_START_DISCARD_TWO_LOOK_TOP_MEMBER_HAND_GAIN_HEART_BLADE_ABILITY_ID,
-    cardCodes: ['PL!HS-sd1-002-SD'],
+    baseCardCodes: ['PL!HS-sd1-002'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -12837,7 +13074,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_SD1_003_LIVE_START_PAY_ENERGY_TARGET_OTHER_HASUNOSORA_HEART_BLADE_ABILITY_ID,
-    cardCodes: ['PL!HS-sd1-003-SD'],
+    baseCardCodes: ['PL!HS-sd1-003'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -12906,7 +13143,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_SD1_008_ON_ENTER_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
-    cardCodes: ['PL!HS-sd1-008-SD'],
+    baseCardCodes: ['PL!HS-sd1-008'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -12918,7 +13155,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_SD1_008_LIVE_START_DISCARD_TWO_HASUNOSORA_CHOOSE_HEART_TARGET_ABILITY_ID,
-    cardCodes: ['PL!HS-sd1-008-SD'],
+    baseCardCodes: ['PL!HS-sd1-008'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -12942,7 +13179,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_SD1_017_LIVE_SUCCESS_HASUNOSORA_STAGE_DRAW_DISCARD_ABILITY_ID,
-    cardCodes: ['PL!HS-sd1-017-SD'],
+    baseCardCodes: ['PL!HS-sd1-017'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -12966,7 +13203,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_SD1_020_LIVE_START_DISCARD_UP_TO_THREE_HASUNOSORA_MEMBERS_TARGET_BLADE_ABILITY_ID,
-    cardCodes: ['PL!HS-sd1-020-SD'],
+    baseCardCodes: ['PL!HS-sd1-020'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -13083,7 +13320,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_PR_016_ON_ENTER_GAIN_ONE_BLADE_ABILITY_ID,
-    cardCodes: ['PL!S-PR-016-PR', 'PL!S-PR-020-PR', 'PL!S-PR-021-PR'],
+    baseCardCodes: ['PL!S-PR-016', 'PL!S-PR-020', 'PL!S-PR-021'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -13091,7 +13328,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: S_PR_016_ON_ENTER_EFFECT_TEXT,
     notes:
-      'shared on-enter-source-member-gain-live-modifier workflow；三张 PR 同文 exact cardCodes 共用 abilityId，来源仍在己方舞台且来源卡合法时复用 addBladeLiveModifierForSourceMember 写 SOURCE_MEMBER BLADE +1。来源离场、非法 pending 或 controller 缺失均消费 pending no-op。',
+      'shared on-enter-source-member-gain-live-modifier workflow；三张同文 PR 卡的基础编号共用 abilityId，各自覆盖全部罕度。来源仍在己方舞台且来源卡合法时复用 addBladeLiveModifierForSourceMember 写 SOURCE_MEMBER BLADE +1。来源离场、非法 pending 或 controller 缺失均消费 pending no-op。',
   },
   {
     abilityId: N_SD1_009_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
@@ -13305,7 +13542,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: SP_BP4_006_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      '单卡 workflow `sp-bp4-006-kinako.ts`；条件用 selectCurrentLiveRevealedCheerCardIds 读取本次 LIVE 因声援公开的事实，并按不同名 Liella! 成员计数；实际入手目标只从当前仍在 resolutionZone 且 revealed 的 Liella! LIVE 中选择，移动复用 moveRevealedCheerCards(..., HAND)。',
+      '单卡 workflow `sp-bp4-006-kinako.ts`；条件用 selectCurrentLiveRevealedCheerCardIds 读取本次 LIVE 因声援公开的事实，并按不同名 Liella! 成员计数；实际入手目标只从当前仍在 resolutionZone 且 revealed 的 Liella! LIVE 中选择，再用 moveRevealedCheerCardsAndEnqueueTriggers 移动入手，记录移动事件并将匹配的能力入队。',
   },
   {
     abilityId: SP_BP4_023_LIVE_START_SELECT_NAMED_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID,
@@ -13498,7 +13735,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP6_032_LIVE_SUCCESS_LOW_COST_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
-    cardCodes: ['PL!HS-bp6-032-L'],
+    baseCardCodes: ['PL!HS-bp6-032'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -13509,7 +13746,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_SD1_019_LIVE_SUCCESS_AQOURS_LIVE_REVEALED_CHEER_TO_HAND_ABILITY_ID,
-    cardCodes: ['PL!S-sd1-019-SD'],
+    baseCardCodes: ['PL!S-sd1-019'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -13517,11 +13754,11 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: S_SD1_019_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      '复用 shared revealed-cheer-selection；只允许本次自己声援公开且仍在处理区、revealed 的 Aqours LIVE 卡加入手牌，移动使用 moveRevealedCheerCards(..., HAND)，保留真实选择窗口。',
+      '复用 shared revealed-cheer-selection；只允许本次自己声援公开且仍在处理区、revealed 的 Aqours LIVE 卡加入手牌。moveRevealedCheerCardsAndEnqueueTriggers 移动入手，记录移动事件并将匹配的能力入队，保留真实选择窗口。',
   },
   {
     abilityId: S_SD1_020_LIVE_SUCCESS_DRAW_AQOURS_STAGE_COUNT_DISCARD_DRAWN_COUNT_ABILITY_ID,
-    cardCodes: ['PL!S-sd1-020-SD'],
+    baseCardCodes: ['PL!S-sd1-020'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -13533,7 +13770,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_CL1_001_LIVE_START_LOOK_TOP_ONE_OPTIONAL_WAITING_ROOM_ABILITY_ID,
-    cardCodes: ['PL!HS-cl1-001-CL'],
+    baseCardCodes: ['PL!HS-cl1-001'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -13545,7 +13782,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_CL1_002_ON_ENTER_PAY_ENERGY_RECOVER_DOLLCHESTRA_CARD_ABILITY_ID,
-    cardCodes: ['PL!HS-cl1-002-CL'],
+    baseCardCodes: ['PL!HS-cl1-002'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -13553,11 +13790,11 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: HS_CL1_002_ON_ENTER_EFFECT_TEXT,
     notes:
-      '单卡 ON_ENTER workflow；可选支付1张 ACTIVE 能量后，复用 WAITING_ROOM -> HAND zone-selection 回收 DOLLCHESTRA 卡（成员或LIVE）。cards.json rare_list 当前仅 CL，故窄登记 exact cardCodes。',
+      '单卡 ON_ENTER workflow；可选支付1张 ACTIVE 能量后，复用 WAITING_ROOM -> HAND zone-selection 回收 DOLLCHESTRA 卡（成员或LIVE）。按基础编号覆盖全部罕度。',
   },
   {
     abilityId: HS_CL1_003_ACTIVATED_WAIT_SELF_MIRACRA_MEMBER_GAIN_BLADE_ABILITY_ID,
-    cardCodes: ['PL!HS-cl1-003-CL'],
+    baseCardCodes: ['PL!HS-cl1-003'],
     category: CardAbilityCategory.ACTIVATED,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
@@ -13574,7 +13811,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_CL1_004_ON_ENTER_MILL_THREE_OR_WAIT_OPPONENT_LOW_COST_ABILITY_ID,
-    cardCodes: ['PL!HS-cl1-004-CL'],
+    baseCardCodes: ['PL!HS-cl1-004'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -13586,7 +13823,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_CL1_006_ON_ENTER_GAIN_THREE_BLADE_ABILITY_ID,
-    cardCodes: ['PL!HS-cl1-006-CL'],
+    baseCardCodes: ['PL!HS-cl1-006'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -13610,7 +13847,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_CL1_010_LIVE_START_HIGH_COST_HASUNOSORA_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
-    cardCodes: ['PL!HS-cl1-010-CL'],
+    baseCardCodes: ['PL!HS-cl1-010'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -13622,7 +13859,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_CL1_011_LIVE_SUCCESS_PAY_ENERGY_RECOVER_MEMBER_OR_HASUNOSORA_LIVE_ABILITY_ID,
-    cardCodes: ['PL!HS-cl1-011-CL'],
+    baseCardCodes: ['PL!HS-cl1-011'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -13635,7 +13872,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   {
     abilityId:
       HS_CL1_012_LIVE_SUCCESS_EQUAL_SCORE_REVEALED_CHEER_HIGH_COST_MEMBER_TO_HAND_ABILITY_ID,
-    cardCodes: ['PL!HS-cl1-012-CL'],
+    baseCardCodes: ['PL!HS-cl1-012'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -13659,7 +13896,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!N-bp3-026-L'],
+    baseCardCodes: ['PL!N-bp3-026'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -13683,7 +13920,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_N_BP3_031_LIVE_SUCCESS_WAITING_STAGE_MEMBERS_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!N-bp3-031-L'],
+    baseCardCodes: ['PL!N-bp3-031'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -13878,7 +14115,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_N_BP4_025_LIVE_START_CHEER_HEART_COLORS_TO_BLUE_ABILITY_ID,
-    cardCodes: ['PL!N-bp4-025-L'],
+    baseCardCodes: ['PL!N-bp4-025'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -13890,7 +14127,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_N_BP4_025_LIVE_SUCCESS_NIJIGASAKI_CHEER_PRINTED_SIX_HEART_COLORS_SCORE_ABILITY_ID,
-    cardCodes: ['PL!N-bp4-025-L'],
+    baseCardCodes: ['PL!N-bp4-025'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -13902,7 +14139,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_N_BP4_026_AUTO_WAITING_TO_HAND_PLACE_DIVE_LIVE_ABILITY_ID,
-    cardCodes: ['PL!N-bp4-026-L'],
+    baseCardCodes: ['PL!N-bp4-026'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.HAND,
     triggerCondition: TriggerCondition.ON_ENTER_HAND,
@@ -13916,7 +14153,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_N_BP4_026_AUTO_FACE_UP_LIVE_ZONE_NIJIGASAKI_MEMBER_BLADE_ABILITY_ID,
-    cardCodes: ['PL!N-bp4-026-L'],
+    baseCardCodes: ['PL!N-bp4-026'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_ENTER_LIVE_ZONE,
@@ -14095,7 +14332,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: N_BP5_013_LIVE_START_ENERGY_BELOW_MEMBER_GAIN_PINK_HEART_ABILITY_ID,
-    cardCodes: ['PL!N-bp5-013-N'],
+    baseCardCodes: ['PL!N-bp5-013'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -14107,7 +14344,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: N_BP5_014_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
-    cardCodes: ['PL!N-bp5-014-N'],
+    baseCardCodes: ['PL!N-bp5-014'],
     category: CardAbilityCategory.ACTIVATED,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
@@ -14184,7 +14421,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: N_BP5_026_LIVE_START_STAGE_SIX_HEARTS_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!N-bp5-026-L'],
+    baseCardCodes: ['PL!N-bp5-026'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -14196,7 +14433,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: N_BP5_026_LIVE_SUCCESS_SCORE_THREE_RECOVER_NIJIGASAKI_CARD_ABILITY_ID,
-    cardCodes: ['PL!N-bp5-026-L'],
+    baseCardCodes: ['PL!N-bp5-026'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -14208,7 +14445,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: N_BP5_028_LIVE_START_RED_HEART_MEMBER_THIS_LIVE_SCORE_REQUIREMENT_ABILITY_ID,
-    cardCodes: ['PL!N-bp5-028-L'],
+    baseCardCodes: ['PL!N-bp5-028'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -14220,7 +14457,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: N_BP5_029_LIVE_START_REVEAL_KASUMI_HEARTS_ABILITY_ID,
-    cardCodes: ['PL!N-bp5-029-L'],
+    baseCardCodes: ['PL!N-bp5-029'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -14461,7 +14698,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   {
     abilityId:
       HS_BP6_029_LIVE_START_HASUNOSORA_COST_LOOK_TOP_TWO_HAND_REDUCE_REQUIREMENT_ABILITY_ID,
-    cardCodes: ['PL!HS-bp6-029-L'],
+    baseCardCodes: ['PL!HS-bp6-029'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -14485,7 +14722,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP6_011_ACTIVATED_WAIT_SELF_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
-    cardCodes: ['PL!HS-bp6-011-R'],
+    baseCardCodes: ['PL!HS-bp6-011'],
     category: CardAbilityCategory.ACTIVATED,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
@@ -14531,7 +14768,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
-    cardCodes: ['PL!N-bp4-018-N'],
+    baseCardCodes: ['PL!N-bp4-018'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_MEMBER_STATE_CHANGED,
@@ -14809,7 +15046,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
-    cardCodes: ['PL!HS-sd1-013-SD'],
+    baseCardCodes: ['PL!HS-sd1-013'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -14908,7 +15145,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
-    cardCodes: ['PL!S-bp2-021-L'],
+    baseCardCodes: ['PL!S-bp2-021'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -14920,7 +15157,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP2_022_LIVE_SUCCESS_DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE_ABILITY_ID,
-    cardCodes: ['PL!S-bp2-022-L'],
+    baseCardCodes: ['PL!S-bp2-022'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -14932,7 +15169,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
-    cardCodes: ['PL!S-bp2-025-L'],
+    baseCardCodes: ['PL!S-bp2-025'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -15258,9 +15495,9 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText:
-      '【自动】此成员从舞台被放置入休息室时，此成员与『虹ヶ咲』成员进行了换手的场合，从自己的能量卡组将1张能量卡放置于因此换手登场的成员下方。',
+      '【自动】此成员从舞台放置入休息室时，此成员与『虹咲』的成员进行了换手的场合，从自己的能量卡组，将1张能量卡放置于此换手登场的成员下方。',
     notes:
-      '按基础编号覆盖同卡全部罕度；只绑定真实 LeaveStageEvent.replacingCardId，replacement 必须是结构化虹咲成员；结算时按实例查找当前顶层槽位，不要求来源仍在休息室。',
+      'shared/relay-replacement-place-energy-below.ts；只绑定真实 LeaveStageEvent.replacingCardId，replacement 必须是结构化虹咲成员；结算时按实例及生命周期查找当前顶层槽位，不要求来源仍在休息室。',
   },
   {
     abilityId: N_BP7_027_LIVE_SUCCESS_SELECT_NIJIGASAKI_HIGHEST_BLADE_SCORE_ABILITY_ID,
@@ -16274,9 +16511,9 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText:
-      '【LIVE开始时】可以从自己的休息室将3张『Liella!』成员卡按任意顺序放置于卡组底。如此做时，因此放置于卡组底的卡中存在至少1张不持有BLADE HEART的成员卡的场合，直到LIVE结束时为止，获得[ブレード][ブレード]。',
+      '【LIVE开始时】可以从自己的休息室将3张『Liella!』的成员卡按任意顺序放置于卡组底。因此放置于卡组底的卡片中存在大于等于1张不持有BLADE HEART的成员卡的场合，LIVE结束时为止，获得[ブレード][ブレード]。',
     notes:
-      '单卡 workflow sp-bp7-004-sumire.ts；按基础编号覆盖同卡全部罕度；整体可选发动，但发动时必须恰好3张；公开确认到期后完整重验并按实际 movedCardIds 判断 BLADE HEART 奖励。',
+      'shared/ordered-waiting-members-bottom-gain-blade.ts；基础编号全罕度；整体可选发动，发动时恰好3张；公开确认到期后完整重验，按实际 movedCardIds 的印刷 BLADE HEART 判断原来源成员 BLADE 奖励。',
   },
   {
     abilityId: N_BP7_011_AUTO_DECK_TO_WAITING_DISCARD_ONE_RECOVER_SELF_ABILITY_ID,

@@ -15,11 +15,11 @@ import {
   memberPrintedBladeLte,
   type CardSelector,
 } from '../../../effects/card-selectors.js';
+import { moveRevealedCheerCardsAndEnqueueTriggers } from '../../runtime/revealed-cheer-movement-triggers.js';
 import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
 import { queryAbilitySourceMemberInformation } from '../../runtime/source-member-information.js';
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import {
-  moveRevealedCheerCards,
   selectRevealedCheerCardIds,
 } from '../../../effects/cheer-selection.js';
 import {
@@ -353,7 +353,13 @@ function finishRecoverRevealedCheer(
       effect.metadata?.orderedResolution === true
     );
   }
-  const moveResult = moveRevealedCheerCards(game, player.id, [selectedCardId], 'HAND');
+  const moveResult = moveRevealedCheerCardsAndEnqueueTriggers(
+    game,
+    player.id,
+    [selectedCardId],
+    'HAND',
+    effect
+  );
   if (!moveResult) {
     return game;
   }

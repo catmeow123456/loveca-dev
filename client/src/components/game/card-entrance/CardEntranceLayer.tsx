@@ -1,3 +1,5 @@
+import { getSolitudeRain, solitudeRainPreloadUrls } from '@/lib/solitudeRain';
+import { SolitudeRainPlayback } from '../song-animation/solitude-rain/SolitudeRainPlayback';
 import { getMiraiReturn, miraiPreloadUrls } from '@/lib/miraiReturn';
 import { MiraiReturnPlayback } from '../song-animation/mirai-return/MiraiReturnPlayback';
 import { getRinaLiveSwapSource } from '@/lib/rinaLiveSwap';
@@ -86,6 +88,19 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
     const timer = setTimeout(() => miraiImages.preload(urls), 0);
     return () => clearTimeout(timer);
   }, [miraiImages, miraiKey]);
+  const rainImages = useMemo(() => new EffectImageCache(), [contextKey]);
+  const rainKey =
+    enabled && view && !view.match.endInfo ? JSON.stringify(solitudeRainPreloadUrls(view)) : '[]';
+  useEffect(() => () => rainImages.clear(), [rainImages]);
+  useEffect(() => {
+    const urls: string[] = JSON.parse(rainKey);
+    if (!urls.length) {
+      rainImages.clear();
+      return;
+    }
+    const timer = setTimeout(() => rainImages.preload(urls), 0);
+    return () => clearTimeout(timer);
+  }, [rainImages, rainKey]);
   const warmImages = enabled && !!view && !view.match.endInfo;
   const warmSong = warmImages && shouldPreloadBokuhika(view);
   const imageKey = warmImages
@@ -123,6 +138,7 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
           images={images}
           songImages={songImages}
           miraiImages={miraiImages}
+          rainImages={rainImages}
           onTransferReceived={(source) => setNotice({ contextKey, windowId: wait.id, source })}
           onDismissNotice={dismissNotice}
         />
@@ -145,6 +161,7 @@ function SynchronizedEntrance({
   images,
   songImages,
   miraiImages,
+  rainImages,
   onTransferReceived,
   onDismissNotice,
 }: {
@@ -153,6 +170,7 @@ function SynchronizedEntrance({
   images: EffectImageCache;
   songImages: EffectImageCache;
   miraiImages: EffectImageCache;
+  rainImages: EffectImageCache;
   onTransferReceived: (source: AbilityTransferSource) => void;
   onDismissNotice: () => void;
 }) {
@@ -164,6 +182,9 @@ function SynchronizedEntrance({
   const [transfer] = useState(() =>
     getAbilityTransferSource(view, useGameStore.getState().getCardImagePath)
   );
+  const [rain] = useState(() => getSolitudeRain(view));
+  const [rainDone, setRainDone] = useState(false);
+  const activeRain = playVisuals && viewerWaiting && !rainDone ? rain : null;
   const [mirai] = useState(() => getMiraiReturn(view, useGameStore.getState().getCardImagePath));
   const [miraiDone, setMiraiDone] = useState(false);
   const activeMirai = playVisuals && viewerWaiting && !miraiDone ? mirai : null;
@@ -200,7 +221,8 @@ function SynchronizedEntrance({
     wait.honokaMemory ||
     wait.shizukuRole ||
     wait.bokuhikaSuccess ||
-    wait.miraiReturn
+    wait.miraiReturn ||
+    wait.solitudeRain
       ? []
       : wait.objectIds
     ).flatMap((objectId) => {
@@ -249,6 +271,7 @@ function SynchronizedEntrance({
     !activeMemory &&
     !activeRole &&
     !activeSong &&
+    !activeRain &&
     !activeMirai &&
     !activeReplay;
 
@@ -301,7 +324,14 @@ function SynchronizedEntrance({
   return (
     <>
       <div className="absolute inset-0 z-[59]" aria-hidden="true" />
-      {activeMirai ? (
+      {activeRain ? (
+        <SolitudeRainPlayback
+          source={activeRain}
+          images={rainImages}
+          reduced={reduced}
+          onDone={() => setRainDone(true)}
+        />
+      ) : activeMirai ? (
         <MiraiReturnPlayback
           source={activeMirai}
           images={miraiImages}

@@ -9,10 +9,10 @@ import {
 import { CardType } from '../../../../shared/types/enums.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import {
-  moveRevealedCheerCards,
   selectRevealedCheerCardIds,
 } from '../../../effects/cheer-selection.js';
 import { PL_PB1_031_LIVE_SUCCESS_DISCARD_HAND_RECOVER_MUSE_MEMBER_CHEER_ABILITY_ID } from '../../ability-ids.js';
+import { moveRevealedCheerCardsAndEnqueueTriggers } from '../../runtime/revealed-cheer-movement-triggers.js';
 import {
   finishSkippedActiveEffect,
   createOptionalDiscardHandToWaitingRoomActiveEffect,
@@ -263,7 +263,13 @@ function finishKaguyaRecoverMuseCheer(
     return game;
   }
 
-  const moveResult = moveRevealedCheerCards(game, player.id, [selectedCardId], 'HAND');
+  const moveResult = moveRevealedCheerCardsAndEnqueueTriggers(
+    game,
+    player.id,
+    [selectedCardId],
+    'HAND',
+    effect
+  );
   if (!moveResult) {
     return game;
   }

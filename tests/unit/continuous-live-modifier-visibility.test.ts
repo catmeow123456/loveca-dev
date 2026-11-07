@@ -22,9 +22,10 @@ describe('continuous live modifier visibility governance', () => {
       .flatMap((declaration) => {
         const visibility = declaration.visibility;
         if (visibility.kind !== 'PLAYER_LIVE_ZONE_CONTENTS') return [];
-        return [...(declaration.cardCodes ?? []), ...(declaration.baseCardCodes ?? [])].map(
-          (cardCode) => ({ cardCode, player: visibility.player })
-        );
+        return declaration.baseCardCodes.map((cardCode) => ({
+          cardCode,
+          player: visibility.player,
+        }));
       })
       .sort((left, right) => left.cardCode.localeCompare(right.cardCode));
 

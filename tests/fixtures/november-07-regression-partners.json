@@ -1,0 +1,305 @@
+{
+  "PL!HS-ad2-001-AD": {
+    "cardCode": "PL!HS-ad2-001-AD",
+    "cardType": "MEMBER",
+    "nameJp": "乙宗梢",
+    "nameCn": "乙宗梢",
+    "workNames": null,
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cost": 11,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 4
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【常時】自分のステージに名前の異なるメンバーが３人いるかぎり、[ブレード][ブレード]を得る。\n\n【自動】【ターン１回】自分がエールしたとき、エールにより公開された自分のカードの中にブレードハートを持たないカードが２枚以上ある場合、追加で１枚エールを行う。\n\n【ライブ成功時】エールにより公開された自分のカードの枚数が、相手がエールによって公開したカードの枚数より多い場合、カードを１枚引く。",
+    "cardTextCn": "【常时】只要自己的舞台上存在３名名称各不相同的成员，获得[ブレード][ブレード]。\n\n【自动】【１回合１次】自己进行声援时，因声援被公开的自己的卡片中存在大于等于２张不持有BLADE HEART的卡片的场合，追加进行１张卡片的声援。\n\n【LIVE成功时】因声援被公开的自己的卡片的张数，比因声援被公开的对方的卡片的张数多的场合，抽１张卡。",
+    "rare": "AD",
+    "status": "DRAFT"
+  },
+  "PL!N-bp7-019-N": {
+    "cardCode": "PL!N-bp7-019-N",
+    "cardType": "MEMBER",
+    "nameJp": "優木せつ菜",
+    "nameCn": "优木雪菜",
+    "workNames": null,
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "unitName": "「A・ZU・NA」",
+    "unitNameRaw": "A・ZU・NA",
+    "cost": 9,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【自動】このメンバーがステージから控え室に置かれたとき、このメンバーが『虹ヶ咲』のメンバーとバトンタッチしていた場合、自分のエネルギーデッキから、エネルギーカード1枚をこのバトンタッチで登場したメンバーの下に置く。",
+    "cardTextCn": "【自动】此成员从舞台放置入休息室时，此成员与『虹咲』的成员进行了换手的场合，从自己的能量卡组，将1张能量卡放置于此换手登场的成员下方。",
+    "rare": "N",
+    "status": "PUBLISHED"
+  },
+  "PL!SP-bp7-004-P": {
+    "cardCode": "PL!SP-bp7-004-P",
+    "cardType": "MEMBER",
+    "nameJp": "平安名すみれ",
+    "nameCn": "平安名堇",
+    "workNames": null,
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「CatChu!」",
+    "unitNameRaw": "CatChu!",
+    "cost": 13,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 3
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【ライブ開始時】自分の控え室から『Liella!』のメンバーカード3枚を好きな順番でデッキの一番下に置いてもよい。これによりデッキの下に置いたカードの中にブレードハートを持たないメンバーカードが1枚以上ある場合、ライブ終了時まで、[ブレード][ブレード]を得る。",
+    "cardTextCn": "【LIVE开始时】可以从自己的休息室将3张『Liella!』的成员卡按任意顺序放置于卡组底。因此放置于卡组底的卡片中存在大于等于1张不持有BLADE HEART的成员卡的场合，LIVE结束时为止，获得[ブレード][ブレード]。",
+    "rare": "P",
+    "status": "PUBLISHED"
+  },
+  "PL!SP-bp7-004-R": {
+    "cardCode": "PL!SP-bp7-004-R",
+    "cardType": "MEMBER",
+    "nameJp": "平安名すみれ",
+    "nameCn": "平安名堇",
+    "workNames": [
+      "ラブライブ！スーパースター!!"
+    ],
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「CatChu!」",
+    "unitNameRaw": "CatChu!",
+    "cost": 13,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 3
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【ライブ開始時】自分の控え室から『Liella!』のメンバーカード3枚を好きな順番でデッキの一番下に置いてもよい。これによりデッキの下に置いたカードの中にブレードハートを持たないメンバーカードが1枚以上ある場合、ライブ終了時まで、[ブレード][ブレード]を得る。",
+    "cardTextCn": "【LIVE开始时】可以从自己的休息室将3张『Liella!』的成员卡按任意顺序放置于卡组底。因此放置于卡组底的卡片中存在大于等于1张不持有BLADE HEART的成员卡的场合，LIVE结束时为止，获得[ブレード][ブレード]。",
+    "rare": "R",
+    "status": "PUBLISHED"
+  },
+  "PL!S-bp7-005-P": {
+    "cardCode": "PL!S-bp7-005-P",
+    "cardType": "MEMBER",
+    "nameJp": "渡辺曜",
+    "nameCn": "渡边曜",
+    "workNames": [
+      "ラブライブ！サンシャイン!!"
+    ],
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「CYaRon！」",
+    "unitNameRaw": "CYaRon！",
+    "cost": 15,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】自分の控え室にあるメンバーカード1枚を、自分のステージにいるメンバー1人の下に置く。 \n\n【常時】自分のステージにいる、メンバーカードが下に置かれている『Aqours』のメンバーは、[ブレード]を得る。 \n\n【起動】【センター】【ターン1回】手札を2枚控え室に置く：このメンバーと自分のステージにいるほかの『Aqours』のメンバー1人を選ぶ。それらが持つ【登場】能力それぞれ1つを発動させる。",
+    "cardTextCn": "【登场】将存在于自己的休息室的1张成员卡，放置于存在于自己的舞台的1名成员的下方。 \n\n【常时】存在于自己的舞台的，下方放置有成员卡的『Aqours』的成员，获得[ブレード]。 \n\n【起动】【中央】【1回合1次】将2张手牌放置入休息室：选择此成员和存在于自己的舞台的1名其他的『Aqours』的成员。将其持有的【登场】能力分别发动1个。",
+    "rare": "P",
+    "status": "PUBLISHED"
+  },
+  "PL!S-bp7-005-P+": {
+    "cardCode": "PL!S-bp7-005-P+",
+    "cardType": "MEMBER",
+    "nameJp": "渡辺曜",
+    "nameCn": "渡边曜",
+    "workNames": [
+      "ラブライブ！サンシャイン!!"
+    ],
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「CYaRon！」",
+    "unitNameRaw": "CYaRon！",
+    "cost": 15,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】自分の控え室にあるメンバーカード1枚を、自分のステージにいるメンバー1人の下に置く。 \n\n【常時】自分のステージにいる、メンバーカードが下に置かれている『Aqours』のメンバーは、[ブレード]を得る。 \n\n【起動】【センター】【ターン1回】手札を2枚控え室に置く：このメンバーと自分のステージにいるほかの『Aqours』のメンバー1人を選ぶ。それらが持つ【登場】能力それぞれ1つを発動させる。",
+    "cardTextCn": "【登场】将存在于自己的休息室的1张成员卡，放置于存在于自己的舞台的1名成员的下方。 \n\n【常时】存在于自己的舞台的，下方放置有成员卡的『Aqours』的成员，获得[ブレード]。 \n\n【起动】【中央】【1回合1次】将2张手牌放置入休息室：选择此成员和存在于自己的舞台的1名其他的『Aqours』的成员。将其持有的【登场】能力分别发动1个。",
+    "rare": "P+",
+    "status": "PUBLISHED"
+  },
+  "PL!S-bp7-005-R+": {
+    "cardCode": "PL!S-bp7-005-R+",
+    "cardType": "MEMBER",
+    "nameJp": "渡辺曜",
+    "nameCn": "渡边曜",
+    "workNames": [
+      "ラブライブ！サンシャイン!!"
+    ],
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「CYaRon！」",
+    "unitNameRaw": "CYaRon！",
+    "cost": 15,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】自分の控え室にあるメンバーカード1枚を、自分のステージにいるメンバー1人の下に置く。 \n\n【常時】自分のステージにいる、メンバーカードが下に置かれている『Aqours』のメンバーは、[ブレード]を得る。 \n\n【起動】【センター】【ターン1回】手札を2枚控え室に置く：このメンバーと自分のステージにいるほかの『Aqours』のメンバー1人を選ぶ。それらが持つ【登場】能力それぞれ1つを発動させる。",
+    "cardTextCn": "【登场】将存在于自己的休息室的1张成员卡，放置于存在于自己的舞台的1名成员的下方。 \n\n【常时】存在于自己的舞台的，下方放置有成员卡的『Aqours』的成员，获得[ブレード]。 \n\n【起动】【中央】【1回合1次】将2张手牌放置入休息室：选择此成员和存在于自己的舞台的1名其他的『Aqours』的成员。将其持有的【登场】能力分别发动1个。",
+    "rare": "R+",
+    "status": "PUBLISHED"
+  },
+  "PL!S-bp7-005-SEC": {
+    "cardCode": "PL!S-bp7-005-SEC",
+    "cardType": "MEMBER",
+    "nameJp": "渡辺曜",
+    "nameCn": "渡边曜",
+    "workNames": null,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「CYaRon！」",
+    "unitNameRaw": "CYaRon！",
+    "cost": 15,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】自分の控え室にあるメンバーカード1枚を、自分のステージにいるメンバー1人の下に置く。 \n\n【常時】自分のステージにいる、メンバーカードが下に置かれている『Aqours』のメンバーは、[ブレード]を得る。 \n\n【起動】【センター】【ターン1回】手札を2枚控え室に置く：このメンバーと自分のステージにいるほかの『Aqours』のメンバー1人を選ぶ。それらが持つ【登場】能力それぞれ1つを発動させる。",
+    "cardTextCn": "【登场】将存在于自己的休息室的1张成员卡，放置于存在于自己的舞台的1名成员的下方。 \n\n【常时】存在于自己的舞台的，下方放置有成员卡的『Aqours』的成员，获得[ブレード]。 \n\n【起动】【中央】【1回合1次】将2张手牌放置入休息室：选择此成员和存在于自己的舞台的1名其他的『Aqours』的成员。将其持有的【登场】能力分别发动1个。",
+    "rare": "SEC",
+    "status": "PUBLISHED"
+  }
+}

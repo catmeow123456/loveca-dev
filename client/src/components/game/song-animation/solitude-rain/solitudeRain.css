@@ -1,0 +1,16 @@
+.solitude-rain-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 69;
+  pointer-events: none;
+  overflow: hidden;
+}
+.solitude-rain-layer canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.solitude-rain-value {
+  position: absolute;
+  pointer-events: none;
+}

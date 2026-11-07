@@ -66,7 +66,7 @@ function fixtureAbility(
 ): CardAbilityDefinition {
   return {
     abilityId: 'fixture-ability',
-    cardCodes: ['PL!FIX-bp1-001-N'],
+    baseCardCodes: ['PL!FIX-bp1-001'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -99,7 +99,7 @@ function expectMatch(
 }
 
 describe('trigger matcher', () => {
-  it.each(['PL!SP-bp4-011-P', 'PL!SP-bp4-011-SEC'])(
+  it.each(['PL!SP-bp4-011-P', 'PL!SP-bp4-011-SEC', 'PL!SP-bp4-011-R＋'])(
     'matches %s cost 7 Onitsuka Tomari on-enter trigger without requiring a target',
     (cardCode) => {
       const ability = findTomariAbility(TriggerCondition.ON_ENTER_STAGE);
@@ -415,21 +415,21 @@ describe('trigger matcher', () => {
   it('expresses sampled live-start, live-success, and cheer trigger shapes with fixture abilities', () => {
     const liveStartAbility = fixtureAbility({
       abilityId: 'fixture-live-start-live-card',
-      cardCodes: ['PL!FIX-bp1-010-L'],
+      baseCardCodes: ['PL!FIX-bp1-010'],
       category: CardAbilityCategory.LIVE_START,
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
       triggerCondition: TriggerCondition.ON_LIVE_START,
     });
     const liveSuccessAbility = fixtureAbility({
       abilityId: 'fixture-live-success-stage-member',
-      cardCodes: ['PL!FIX-bp1-011-N'],
+      baseCardCodes: ['PL!FIX-bp1-011'],
       category: CardAbilityCategory.LIVE_SUCCESS,
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
     });
     const cheerAbility = fixtureAbility({
       abilityId: 'fixture-cheer-live-card',
-      cardCodes: ['PL!FIX-bp1-012-L'],
+      baseCardCodes: ['PL!FIX-bp1-012'],
       category: CardAbilityCategory.AUTO,
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
       triggerCondition: TriggerCondition.ON_CHEER,
@@ -486,13 +486,13 @@ describe('trigger matcher', () => {
   it('expresses sampled leave-stage and state-change trigger shapes with fixture abilities', () => {
     const leaveStageAbility = fixtureAbility({
       abilityId: 'fixture-leave-stage',
-      cardCodes: ['PL!FIX-bp1-020-N'],
+      baseCardCodes: ['PL!FIX-bp1-020'],
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
     });
     const stateChangeAbility = fixtureAbility({
       abilityId: 'fixture-member-state-change',
-      cardCodes: ['PL!FIX-bp1-021-N'],
+      baseCardCodes: ['PL!FIX-bp1-021'],
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       triggerCondition: TriggerCondition.ON_MEMBER_STATE_CHANGED,
     });

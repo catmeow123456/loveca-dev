@@ -1,0 +1,148 @@
+{
+  "PL!N-bp8-008-P": {
+    "cardCode": "PL!N-bp8-008-P",
+    "cardType": "MEMBER",
+    "nameJp": "エマ・ヴェルデ",
+    "nameCn": "艾玛·维尔德",
+    "workNames": null,
+    "groupNames": ["虹ヶ咲"],
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cost": 13,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【起動】このカードを手札から公開する：このカードをデッキの一番下に置く。その後、自分のステージに『虹ヶ咲』のメンバーがいる場合、相手のステージにいるコスト２以下のメンバー１人をウェイトにする。この能力は、このカードが手札にある場合のみ起動できる。",
+    "cardTextCn": "【起动】将手牌的此卡公开：将此卡放置于卡组底。此后，自己的舞台上存在『虹咲』的成员的场合，将存在于对方的舞台的１名费用小于等于２的成员变为待机状态。此能力仅在此卡存在于手牌的场合才能起动。",
+    "rare": "P",
+    "status": "DRAFT"
+  },
+  "PL!HS-bp8-018-SECL": {
+    "cardCode": "PL!HS-bp8-018-SECL",
+    "cardType": "LIVE",
+    "nameJp": "Holiday∞Holiday",
+    "nameCn": "Holiday∞Holiday",
+    "workNames": null,
+    "groupNames": ["蓮ノ空"],
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 3,
+    "requirements": [
+      {
+        "color": "GREEN",
+        "count": 4
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 2
+      }
+    ],
+    "cardTextJp": "【自動】【ターン１回】エールによって公開された自分のカードが、自分のカードの効果によっていずれかの領域に移動したとき、このカードのスコアを＋１する。",
+    "cardTextCn": "【自动】【１回合１次】因声援公开的自己的卡片，因自己的卡片的效果移动至任意领域时，此卡的分数＋１。",
+    "rare": "SECL",
+    "status": "DRAFT"
+  },
+  "PL!-pb1-015-R": {
+    "cardCode": "PL!-pb1-015-R",
+    "cardType": "MEMBER",
+    "nameJp": "西木野真姫",
+    "nameCn": "西木野真姬",
+    "workNames": ["ラブライブ！"],
+    "groupNames": ["μ’s"],
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cost": 11,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 3
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextJp": "【登場】/【ライブ開始時】【センター】『BiBi』のメンバー1人をウェイトにしてもよい：相手は、自身のステージにいるアクティブ状態のメンバー1人をウェイトにする。（この能力はセンターエリアにいる場合のみ発動する。）\n\n【自動】【ターン1回】自分のカードの効果によって、相手のステージにいるアクティブ状態のコスト4以下のメンバーがウェイト状態になったとき、カードを1枚引く。",
+    "cardTextCn": "【登场】/【LIVE开始时】【中央】可以将1名『BiBi』的成员变为待机状态：对方将1名存在于自身舞台的活跃状态的成员变为待机状态。(此能力仅可在存在于中央区域的场合发动)\n\n【自动】【1回合1次】因自己的卡片的效果，存在于对方舞台的活跃状态的费用小于等于4的成员变为待机状态时，抽1张卡。",
+    "rare": "R",
+    "status": "PUBLISHED"
+  },
+  "PL!S-bp3-020-L": {
+    "cardCode": "PL!S-bp3-020-L",
+    "cardType": "LIVE",
+    "nameJp": "ダイスキだったらダイジョウブ！",
+    "nameCn": "最喜欢的话就没问题!",
+    "workNames": ["ラブライブ！サンシャイン!!"],
+    "groupNames": ["Aqours"],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": null,
+    "bladeHearts": [
+      {
+        "effect": "SCORE"
+      }
+    ],
+    "score": 1,
+    "requirements": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "cardTextJp": "【自動】[ターン1回]エールにより自分のカードを1枚以上公開したとき、それらのカードの中にブレードハートを持つカードが2枚以下の場合、それらのカードをすべて控え室に置いてもよい。そのエールで得たブレードハートを失い、もう一度エールを行う。",
+    "cardTextCn": "【自动】［1回合1次］因声援被公开大于等于1张自己的卡片时，那些卡片中持有BLADE HEART的卡片小于等于2张的场合，可以将那些卡片全部放置入休息室。 失去因此次声援获得的BLADE HEART，再次执行一次声援。",
+    "rare": "L",
+    "status": "PUBLISHED"
+  }
+}

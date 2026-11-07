@@ -338,6 +338,8 @@ export enum TriggerCondition {
   ON_ENERGY_MOVED_TO_DECK = 'ON_ENERGY_MOVED_TO_DECK',
   /** 休息室中的卡牌被放置入主卡组 */
   ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK = 'ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK',
+  /** 因声援公开的卡牌被卡片效果移出处理区 */
+  ON_REVEALED_CHEER_CARDS_MOVED = 'ON_REVEALED_CHEER_CARDS_MOVED',
 
   // ---- Live 相关触发 ----
   /** Live 开始时 */

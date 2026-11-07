@@ -5,7 +5,7 @@ import {
   SlotPosition,
   TriggerCondition,
 } from '../../shared/types/enums.js';
-import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code.js';
+import { getBaseCardCode } from '../../shared/utils/card-code.js';
 
 export type TriggerSourceCardRequirement = 'none' | 'event-subject' | 'event-card-list';
 export type TriggerControllerRequirement = 'none' | 'same-controller' | 'different-controller';
@@ -83,13 +83,7 @@ function doesAbilityDefinitionMatchSourceCard(
   ability: CardAbilityDefinition,
   sourceCardCode: string
 ): boolean {
-  const normalizedSourceCardCode = normalizeCardCode(sourceCardCode);
-  const sourceBaseCardCode = getBaseCardCode(normalizedSourceCardCode);
-
-  return (
-    ability.cardCodes?.map(normalizeCardCode).includes(normalizedSourceCardCode) === true ||
-    ability.baseCardCodes?.map(normalizeCardCode).includes(sourceBaseCardCode) === true
-  );
+  return ability.baseCardCodes.includes(getBaseCardCode(sourceCardCode));
 }
 
 function doesSourceSlotSatisfyAbility(

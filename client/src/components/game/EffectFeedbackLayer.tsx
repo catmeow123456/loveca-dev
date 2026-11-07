@@ -261,7 +261,7 @@ export function EffectFeedbackLayer({ enabled: requested = true }: { readonly en
                 }}
               >
                 {item.target.changes.map((change, i) => (
-                  <Change key={i} change={change} />
+                  <EffectFeedbackValue key={i} change={change} />
                 ))}
               </motion.div>
             </div>
@@ -271,7 +271,8 @@ export function EffectFeedbackLayer({ enabled: requested = true }: { readonly en
     </div>
   );
 }
-function Change({ change }: { change: EffectFeedbackChange }) {
+/** Shared standard number/icon treatment, also timed by dedicated successful-effect scenes. */
+export function EffectFeedbackValue({ change }: { change: EffectFeedbackChange }) {
   const icon =
     change.kind === 'HEART'
       ? HEART_ICON_SOURCE_BY_COLOR[change.color]

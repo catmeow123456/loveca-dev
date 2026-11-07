@@ -26,7 +26,10 @@ import {
 } from '../../src/server/services/replay-payload-serialization';
 import { LEGACY_GAME_STATE_SCHEMA_VERSION } from '../../src/server/services/replay-constants';
 import { GameMode, type SlotPosition } from '../../src/shared/types/enums';
-import { withLegacyReplayHistory } from '../helpers/legacy-replay-history';
+import {
+  getLegacyReplayHistoryLinkIssues,
+  withLegacyReplayHistory,
+} from '../helpers/legacy-replay-history';
 
 const LEGACY_FIXTURE_PATH =
   'data/20260627-cst_20260627T183253Z/loveca-match-replay-2026-06-27-cst-online-only.sql.gz';
@@ -1981,6 +1984,19 @@ function buildEngineReplayAudit(
       before: beforeCheckpoint.state,
       expected: afterCheckpoint.state,
     });
+    const historyLinkIssues = getLegacyReplayHistoryLinkIssues(expectedState, result.gameState);
+    if (historyLinkIssues.length > 0) {
+      audit.failedExecutions.push({
+        matchId: decision.matchId,
+        decisionId: decision.decisionId,
+        decisionType: decision.decisionType,
+        commandType,
+        beforeCheckpointSeq: beforeCheckpoint.checkpointSeq,
+        afterCheckpointSeq: afterCheckpoint.checkpointSeq,
+        error: historyLinkIssues.join('; '),
+      });
+      continue;
+    }
     const expectedNormalized = normalizeEngineState(expectedState);
     const actualNormalized = alignUnrecoverableLegacyBladeSourceProvenance(
       normalizeEngineState(result.gameState),

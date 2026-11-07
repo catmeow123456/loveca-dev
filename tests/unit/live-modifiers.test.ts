@@ -27,6 +27,7 @@ import {
   placeCardInSlot,
   removeCardFromSlot,
   removeMemberBelowMember,
+  toggleMemberOrientation,
 } from '../../src/domain/entities/zone';
 import {
   addHeartLiveModifierForSourceMember,
@@ -3770,16 +3771,21 @@ describe('live modifier helpers', () => {
     ).toBe(false);
   });
 
-  it('adds purple Heart to PL!HS-bp5-016 when opponent has at least two WAITING members', () => {
+  // N is from the 2026-11-06 export; P is a synthetic rarity of the same card.
+  it.each(['N', 'P'])('PL!HS-bp5-016-%s gains one purple Heart', (rarity) => {
+    const originalHearts = [
+      createHeartIcon(HeartColor.GREEN, 1),
+      createHeartIcon(HeartColor.BLUE, 1),
+      createHeartIcon(HeartColor.PURPLE, 2),
+    ];
     const izumi = createCardInstance(
       {
-        cardCode: 'PL!HS-bp5-016-N',
-        name: '桂城 泉',
-        unitName: 'EdelNote',
+        cardCode: `PL!HS-bp5-016-${rarity}`,
+        name: '桂城泉',
         cardType: CardType.MEMBER,
         cost: 9,
         blade: 2,
-        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+        hearts: originalHearts,
       },
       'p1',
       'bp5-016-izumi'
@@ -3818,19 +3824,36 @@ describe('live modifier helpers', () => {
 
     const modifiers = collectLiveModifiers(game);
 
-    expect(modifiers).toContainEqual({
-      kind: 'HEART',
-      target: 'SOURCE_MEMBER',
-      playerId: 'p1',
-      hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
-      sourceCardId: izumi.instanceId,
-      abilityId: HS_BP5_016_CONTINUOUS_ABILITY_ID,
-    });
+    expect(
+      modifiers.filter((modifier) => modifier.abilityId === HS_BP5_016_CONTINUOUS_ABILITY_ID)
+    ).toEqual([
+      {
+        kind: 'HEART',
+        target: 'SOURCE_MEMBER',
+        playerId: 'p1',
+        hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+        sourceCardId: izumi.instanceId,
+        abilityId: HS_BP5_016_CONTINUOUS_ABILITY_ID,
+      },
+    ]);
     expect(getMemberEffectiveHeartIcons(game, 'p1', izumi.instanceId, modifiers)).toEqual([
-      createHeartIcon(HeartColor.GREEN, 1),
+      ...originalHearts,
       createHeartIcon(HeartColor.PURPLE, 1),
     ]);
     expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
+
+    const oneWaiting = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: toggleMemberOrientation(player.memberSlots, opponentMembers[0]!.instanceId),
+    }));
+    expect(getMemberEffectiveHeartIcons(oneWaiting, 'p1', izumi.instanceId)).toEqual(originalHearts);
+
+    const offStage = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+      waitingRoom: addCardToZone(player.waitingRoom, izumi.instanceId),
+    }));
+    expect(getMemberEffectiveHeartIcons(offStage, 'p1', izumi.instanceId)).toEqual(originalHearts);
   });
 
   it('does not add PL!HS-bp5-016 purple Heart with fewer than two opponent WAITING members', () => {

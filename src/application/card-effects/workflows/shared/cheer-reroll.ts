@@ -9,12 +9,12 @@ import {
 import type { CheerEvent } from '../../../../domain/events/game-events.js';
 import { TriggerCondition } from '../../../../shared/types/enums.js';
 import { revealCheerCardsFromMainDeck } from '../../../effects/cheer.js';
-import { moveRevealedCheerCards } from '../../../effects/cheer-selection.js';
 import { hasBladeHeart } from '../../../effects/card-selectors.js';
 import {
   S_BP2_004_AUTO_ON_CHEER_NO_LIVE_REROLL_ABILITY_ID,
   S_BP3_020_AUTO_ON_CHEER_AT_MOST_TWO_BLADE_HEART_REROLL_ABILITY_ID,
 } from '../../ability-ids.js';
+import { moveRevealedCheerCardsAndEnqueueTriggers } from '../../runtime/revealed-cheer-movement-triggers.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { createPublicCardSelectionConfirmationWindowForCardIds } from '../../runtime/public-card-selection-confirmation.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
@@ -284,7 +284,13 @@ function finishOnCheerRerollAfterPublicDisplay(
       movableCardIds,
     });
   }
-  const moveResult = moveRevealedCheerCards(game, player.id, movableCardIds, 'WAITING_ROOM');
+  const moveResult = moveRevealedCheerCardsAndEnqueueTriggers(
+    game,
+    player.id,
+    movableCardIds,
+    'WAITING_ROOM',
+    effect
+  );
   if (!moveResult || moveResult.movedCardIds.length === 0) {
     return game;
   }

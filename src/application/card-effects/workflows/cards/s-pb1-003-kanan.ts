@@ -9,7 +9,6 @@ import {
 import { replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, OrientationState, SlotPosition } from '../../../../shared/types/enums.js';
 import {
-  moveRevealedCheerCards,
   selectRevealedCheerCardIds,
 } from '../../../effects/cheer-selection.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
@@ -17,6 +16,7 @@ import {
   PL_S_PB1_003_LIVE_START_PAY_TWO_ENERGY_ORIGINAL_HEART_GREEN_ABILITY_ID,
   PL_S_PB1_003_LIVE_SUCCESS_RECOVER_REVEALED_CHEER_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
+import { moveRevealedCheerCardsAndEnqueueTriggers } from '../../runtime/revealed-cheer-movement-triggers.js';
 import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
@@ -303,7 +303,13 @@ function finishRecoverRevealedCheerLive(
   if (!currentSelectableCardIds.includes(selectedCardId)) {
     return game;
   }
-  const moveResult = moveRevealedCheerCards(game, player.id, [selectedCardId], 'HAND');
+  const moveResult = moveRevealedCheerCardsAndEnqueueTriggers(
+    game,
+    player.id,
+    [selectedCardId],
+    'HAND',
+    effect
+  );
   if (!moveResult) {
     return game;
   }

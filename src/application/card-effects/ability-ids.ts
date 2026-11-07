@@ -2235,3 +2235,41 @@ export const HS_BP8_016_LIVE_SUCCESS_DISCARD_TWO_RECOVER_LOW_SCORE_HASUNOSORA_LI
   'PL!HS-bp8-016:live-success-discard-two-recover-low-score-hasunosora-live';
 export const HS_BP8_021_LIVE_START_RETURN_MIRACRA_MEMBER_PLAY_SAME_COST_ABILITY_ID =
   'PL!HS-bp8-021:live-start-return-miracra-member-play-same-cost';
+
+export const N_BP8_008_ACTIVATED_REVEAL_SELF_HAND_BOTTOM_WAIT_OPPONENT_ABILITY_ID =
+  'PL!N-bp8-008:activated-reveal-self-hand-bottom-wait-opponent';
+export const HS_BP8_018_AUTO_REVEALED_CHEER_MOVED_SOURCE_SCORE_ABILITY_ID =
+  'PL!HS-bp8-018:auto-revealed-cheer-moved-source-score';
+
+export const S_AD2_003_ON_ENTER_DISCARD_RECOVER_LIVE_ABILITY_ID =
+  'PL!S-ad2-003:on-enter-discard-recover-live';
+export const S_AD2_003_AUTO_ON_CHEER_BLADE_HEART_CARD_THRESHOLDS_GAIN_GREEN_BLUE_ABILITY_ID =
+  'PL!S-ad2-003:auto-on-cheer-blade-heart-card-thresholds-gain-green-blue';
+export const SP_AD1_003_LIVE_START_YELLOW_PURPLE_SIX_REDUCE_SOURCE_COLORLESS_REQUIREMENT_ABILITY_ID =
+  'PL!SP-ad1-003:live-start-yellow-purple-six-reduce-source-colorless-requirement';
+export const SP_AD1_003_AUTO_ON_CHEER_ALL_BLADE_HEART_ADDITIONAL_CHEER_ABILITY_ID =
+  'PL!SP-ad1-003:auto-on-cheer-all-blade-heart-additional-cheer';
+export const PL_BP8_019_LIVE_START_TURN_LIVE_ENTRY_AT_MOST_ONE_GAIN_SCORE_ABILITY_ID =
+  'PL!-bp8-019:live-start-turn-live-entry-at-most-one-gain-score';
+export const PL_BP8_024_LIVE_START_TARGET_MUSE_GAIN_BLADE_PER_DIFFERENT_OPPONENT_NAME_ABILITY_ID =
+  'PL!-bp8-024:live-start-target-muse-gain-blade-per-different-opponent-name';
+export const HS_AD2_004_LIVE_START_GREEN_BLUE_MEMBERS_GAIN_SCORE_ABILITY_ID =
+  'PL!HS-ad2-004:live-start-green-blue-members-gain-score';
+export const HS_BP8_019_LIVE_START_PAY_ENERGY_RECYCLE_LOW_COST_MEMBERS_ABILITY_ID =
+  'PL!HS-bp8-019:live-start-pay-energy-recycle-low-cost-members';
+export const HS_BP8_019_LIVE_START_CERISE_DECK_THIRTY_FIVE_GAIN_SCORE_ABILITY_ID =
+  'PL!HS-bp8-019:live-start-cerise-deck-thirty-five-gain-score';
+export const HS_BP8_022_LIVE_START_OPPONENT_DRAW_TARGET_MIRAKURA_GAIN_PINK_HEART_ABILITY_ID =
+  'PL!HS-bp8-022:live-start-opponent-draw-target-mirakura-gain-pink-heart';
+export const HS_BP8_022_LIVE_SUCCESS_RECOVER_HASUNOSORA_LIVE_ABILITY_ID =
+  'PL!HS-bp8-022:live-success-recover-hasunosora-live';
+export const HS_BP8_009_ON_ENTER_OPTIONAL_RECOVER_LOW_COST_MEMBER_TO_DECK_TOP_ABILITY_ID =
+  'PL!HS-bp8-009:on-enter-optional-recover-low-cost-member-to-deck-top';
+export const N_BP8_014_LIVE_START_WAITING_ROOM_NO_BLADE_HEART_MEMBER_BOTTOM_GAIN_BLADE_ABILITY_ID =
+  'PL!N-bp8-014:live-start-waiting-room-no-blade-heart-member-bottom-gain-blade';
+export const N_BP8_016_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_TWO_OR_LESS_ABILITY_ID =
+  'PL!N-bp8-016:on-enter-wait-opponent-original-blade-two-or-less';
+export const N_BP8_024_AUTO_BATON_TOUCH_NIJIGASAKI_PLACE_ENERGY_UNDER_ENTERED_MEMBER_ABILITY_ID =
+  'PL!N-bp8-024:auto-baton-touch-nijigasaki-place-energy-under-entered-member';
+export const N_BP8_027_LIVE_SUCCESS_CHOOSE_WAITING_ROOM_TOP_OR_ENERGY_UNDER_NIJIGASAKI_ABILITY_ID =
+  'PL!N-bp8-027:live-success-choose-waiting-room-top-or-energy-under-nijigasaki';
