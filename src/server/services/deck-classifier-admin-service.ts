@@ -1,8 +1,9 @@
+import { DECK_CLASSIFIER_DEFAULT_RECENT_MATCH_LIMIT } from '../../online/deck-classifier-types.js';
 import {
-  DECK_CLASSIFIER_RECENT_MATCH_LIMIT,
-  type DeckClassificationScopeMode,
-} from '../../online/deck-classifier-types.js';
-import { CLASSIFICATION_OBSERVATIONS_QUERY } from './deck-classification-scope.js';
+  CLASSIFICATION_OBSERVATIONS_QUERY,
+  readRecentMatchLimit,
+  assertRecentMatchLimit,
+} from './deck-classification-scope.js';
 import type { PoolClient } from 'pg';
 import type { DeckClassifierYamlPreviewView } from '../../online/deck-classifier-types.js';
 import { parseClassifierYaml } from './deck-classifier-yaml.js';
@@ -198,7 +199,7 @@ interface RunRow {
   readonly status: DeckClassificationRunView['status'];
   readonly trigger: DeckClassificationRunView['trigger'];
   readonly scope_season_id: string | null;
-  readonly scope_mode: DeckClassificationScopeMode;
+  readonly match_limit: number | null;
   readonly reason: string;
   readonly total_count: number | string;
   readonly processed_count: number | string;
@@ -332,11 +333,12 @@ export class DeckClassifierAdminService {
           card_show_top_ranked: boolean;
           top_ranked_player_count: number;
           draft_revision: number;
+          recent_match_limit: number;
         }>(
           `SELECT display_mode, show_usage, show_winner, show_top_ranked,
                   card_display_mode, card_show_usage, card_show_winner,
                   card_show_top_ranked,
-                  top_ranked_player_count, draft_revision
+                  top_ranked_player_count, draft_revision, recent_match_limit
            FROM deck_classifier_settings WHERE id = 1`
         ),
         pool.query<ArchetypeRow>(ARCHETYPES_QUERY),
@@ -378,6 +380,8 @@ export class DeckClassifierAdminService {
     const releaseViews = releases.rows.map(toReleaseView);
     const currentSettings = settings.rows[0];
     return {
+      recentMatchLimit:
+        currentSettings?.recent_match_limit ?? DECK_CLASSIFIER_DEFAULT_RECENT_MATCH_LIMIT,
       displayMode: currentSettings?.display_mode ?? 'HIDDEN',
       visibleSections: currentSettings ? readVisibleSections(currentSettings) : [],
       cardDisplayMode: currentSettings?.card_display_mode ?? 'PLAYER_EQUAL',
@@ -443,6 +447,37 @@ export class DeckClassifierAdminService {
       [Math.max(1, Math.min(500, limit))]
     );
     return result.rows.map(toReviewView);
+  }
+
+  async updateExecutionSettings(
+    input: { readonly recentMatchLimit: number; readonly reason: string },
+    operator: DeckClassifierOperator
+  ): Promise<{ readonly recentMatchLimit: number }> {
+    assertRecentMatchLimit(input.recentMatchLimit);
+    return withTransaction(async (client) => {
+      const before = await client.query(
+        'SELECT recent_match_limit FROM deck_classifier_settings WHERE id = 1 FOR UPDATE'
+      );
+      const updated = await client.query<{ recent_match_limit: number }>(
+        `UPDATE deck_classifier_settings SET recent_match_limit = $1, updated_by = $2,
+         updated_at = NOW() WHERE id = 1 RETURNING recent_match_limit`,
+        [input.recentMatchLimit, operator.actorUserId]
+      );
+      const row = requireRow(
+        updated.rows[0],
+        'DECK_CLASSIFIER_SETTINGS_NOT_FOUND',
+        '卡组分类设置不存在'
+      );
+      await writeClassifierAudit(client, operator, {
+        action: 'EXECUTION_SETTINGS_UPDATED',
+        targetType: 'SETTINGS',
+        targetId: 'global',
+        reason: input.reason,
+        before: before.rows[0],
+        after: { recentMatchLimit: row.recent_match_limit },
+      });
+      return { recentMatchLimit: row.recent_match_limit };
+    });
   }
 
   async updateDisplaySettings(
@@ -1005,8 +1040,9 @@ export class DeckClassifierAdminService {
 
   async previewRelease(
     expectedDraftRevision: number,
-    scopeMode: DeckClassificationScopeMode = 'RECENT'
+    matchLimit: number | null
   ): Promise<DeckClassifierPreviewView> {
+    if (matchLimit !== null) assertRecentMatchLimit(matchLimit);
     const client = await pool.connect();
     try {
       await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
@@ -1020,7 +1056,7 @@ export class DeckClassifierAdminService {
            FROM (${CLASSIFICATION_OBSERVATIONS_QUERY}) AS selected
            GROUP BY deck_fingerprint
            ORDER BY deck_fingerprint`,
-          [null, scopeMode, DECK_CLASSIFIER_RECENT_MATCH_LIMIT]
+          [null, matchLimit]
         ),
         client.query<PriorAssignmentRow>(
           `WITH selected AS (${CLASSIFICATION_OBSERVATIONS_QUERY})
@@ -1031,7 +1067,7 @@ export class DeckClassifierAdminService {
              ON assignment.match_id = observation.match_id AND assignment.seat = observation.seat
             AND assignment.is_current = true
            GROUP BY observation.deck_fingerprint, assignment.status, assignment.archetype_id`,
-          [null, scopeMode, DECK_CLASSIFIER_RECENT_MATCH_LIMIT]
+          [null, matchLimit]
         ),
         loadOverrides(client, null),
       ]);
@@ -1056,11 +1092,12 @@ export class DeckClassifierAdminService {
     reason: string,
     idempotencyKey: string,
     operator: DeckClassifierOperator,
-    scopeMode: DeckClassificationScopeMode = 'RECENT'
+    matchLimit: number | null
   ): Promise<{
     readonly release: DeckClassifierReleaseView;
     readonly run: DeckClassificationRunView;
   }> {
+    if (matchLimit !== null) assertRecentMatchLimit(matchLimit);
     return withTransaction(async (client) => {
       await client.query("SELECT pg_advisory_xact_lock(hashtext('deck-classifier-release'))");
       const priorRun = await findClassificationRunByIdempotency(client, idempotencyKey);
@@ -1068,7 +1105,7 @@ export class DeckClassifierAdminService {
         if (
           priorRun.trigger !== 'RELEASE_PUBLISHED' ||
           priorRun.scope_season_id !== null ||
-          priorRun.scope_mode !== scopeMode
+          priorRun.match_limit !== matchLimit
         ) {
           throw classifierError(
             'DECK_CLASSIFICATION_IDEMPOTENCY_CONFLICT',
@@ -1114,7 +1151,7 @@ export class DeckClassifierAdminService {
         releaseId: releaseRow.id,
         trigger: 'RELEASE_PUBLISHED',
         scopeSeasonId: null,
-        scopeMode,
+        matchLimit,
         reason,
         operator,
         idempotencyKey,
@@ -1124,7 +1161,7 @@ export class DeckClassifierAdminService {
         targetType: 'RELEASE',
         targetId: releaseRow.id,
         reason,
-        after: { version, configHash, scopeMode, runId: run.id },
+        after: { version, configHash, matchLimit, runId: run.id },
       });
       return { release: toReleaseView(releaseRow), run };
     });
@@ -1135,15 +1172,16 @@ export class DeckClassifierAdminService {
     reason: string,
     idempotencyKey: string,
     operator: DeckClassifierOperator,
-    scopeMode: DeckClassificationScopeMode = 'RECENT'
+    matchLimit: number | null
   ): Promise<DeckClassificationRunView> {
+    if (matchLimit !== null) assertRecentMatchLimit(matchLimit);
     return withTransaction(async (client) => {
       const priorRun = await findClassificationRunByIdempotency(client, idempotencyKey);
       if (priorRun) {
         if (
           priorRun.trigger !== 'MANUAL_RECLASSIFY' ||
           priorRun.scope_season_id !== scopeSeasonId ||
-          priorRun.scope_mode !== scopeMode
+          priorRun.match_limit !== matchLimit
         ) {
           throw classifierError(
             'DECK_CLASSIFICATION_IDEMPOTENCY_CONFLICT',
@@ -1158,7 +1196,7 @@ export class DeckClassifierAdminService {
         releaseId: active.id,
         trigger: 'MANUAL_RECLASSIFY',
         scopeSeasonId,
-        scopeMode,
+        matchLimit,
         reason,
         operator,
         idempotencyKey,
@@ -1168,7 +1206,7 @@ export class DeckClassifierAdminService {
         targetType: 'RUN',
         targetId: run.id,
         reason,
-        after: { releaseId: active.id, scopeSeasonId, scopeMode },
+        after: { releaseId: active.id, scopeSeasonId, matchLimit },
       });
       return run;
     });
@@ -1273,7 +1311,7 @@ export class DeckClassifierAdminService {
         releaseId: active.id,
         trigger: 'MANUAL_OVERRIDE',
         scopeSeasonId: null,
-        scopeMode: 'RECENT',
+        matchLimit: await readRecentMatchLimit(client),
         reason: input.reason,
         operator,
         idempotencyKey: input.idempotencyKey,
@@ -1347,7 +1385,7 @@ export class DeckClassifierAdminService {
         releaseId: active.id,
         trigger: 'MANUAL_OVERRIDE',
         scopeSeasonId: null,
-        scopeMode: 'RECENT',
+        matchLimit: await readRecentMatchLimit(client),
         reason,
         operator,
         idempotencyKey,
@@ -1574,7 +1612,7 @@ async function insertClassificationRun(
     readonly releaseId: string;
     readonly trigger: DeckClassificationRunView['trigger'];
     readonly scopeSeasonId: string | null;
-    readonly scopeMode: DeckClassificationScopeMode;
+    readonly matchLimit: number | null;
     readonly reason: string;
     readonly operator: DeckClassifierOperator;
     readonly idempotencyKey: string;
@@ -1582,7 +1620,7 @@ async function insertClassificationRun(
 ): Promise<DeckClassificationRunView> {
   const inserted = await client.query<{ id: string }>(
     `INSERT INTO deck_classification_runs (
-       release_id, trigger, scope_season_id, requested_by, request_id, idempotency_key, reason, scope_mode
+       release_id, trigger, scope_season_id, requested_by, request_id, idempotency_key, reason, match_limit
      )
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT (idempotency_key) DO NOTHING
@@ -1595,7 +1633,7 @@ async function insertClassificationRun(
       input.operator.requestId,
       input.idempotencyKey,
       input.reason,
-      input.scopeMode,
+      input.matchLimit,
     ]
   );
   const runId = inserted.rows[0]?.id;
@@ -1615,7 +1653,7 @@ async function insertClassificationRun(
       row.release_id !== input.releaseId ||
       row.trigger !== input.trigger ||
       row.scope_season_id !== input.scopeSeasonId ||
-      row.scope_mode !== input.scopeMode
+      row.match_limit !== input.matchLimit
     ) {
       throw classifierError(
         'DECK_CLASSIFICATION_IDEMPOTENCY_CONFLICT',
@@ -1859,7 +1897,7 @@ function toRunView(row: RunRow): DeckClassificationRunView {
     status: row.status,
     trigger: row.trigger,
     scopeSeasonId: row.scope_season_id,
-    scopeMode: row.scope_mode,
+    matchLimit: row.match_limit,
     reason: row.reason,
     totalCount: readCount(row.total_count),
     processedCount: readCount(row.processed_count),

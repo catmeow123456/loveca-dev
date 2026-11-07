@@ -17,7 +17,7 @@ Loveca 已具备共享规则引擎、Web 对战桌、卡组管理、联机与观
 | 规则与卡效 | 登场、换手、费用、LIVE、声援、判定和卡效队列已接入共享规则链路；全卡池自动裁判尚未完成，单卡完成状态由主登记册维护。 | [运行时链路](runtime-data-flow-and-algorithm-chain.md)、[卡效登记册](card-effect-reuse-audit/existing_module_map.md) |
 | 练习与调试 | 对墙打自动处理系统对手流程，双人调试可在同一设备操作双方；服务端对墙打可记录历史，本地离线对局不写正式历史。 | [模式说明](battle-mode-purpose-and-boundaries.md)、[对墙打需求](solitaire-mode-requirements.md) |
 | 社区大厅与联机 | 标准／娱乐休闲房间、锁组确认、猜拳、认输、请求式撤销、赛后再战与逐人授权观战已有开发基线；娱乐自由构筑放开总 PT，另有七弹开盒战：半副灰心规则、冻结牌池与草稿恢复、双方同意再战；新增每盒 1/60 的模拟宝藏包及组牌统计（费用、判定、Live）。持久准备记录不等于进行中对局可跨进程恢复。 | [大厅设计](online-mode/community-lobby-design.md)、[开盒战](online-mode/bp7-sealed.md)、[房间生命周期](online-mode/room-exit-and-recovery.md) |
-| 赛季排位 | 赛季、候场、评分结算、更正、重建、卡组分类与环境统计已实现；卡组分类默认重算最近 200 场，支持显式全量及历史结果保留，计算与预览在独立子进程执行；新赛季默认 V4，评分与运营增量仍需按专题完成相应验收。 | [排位专题](matchmaking-and-ladder/README.md)、[当前实现边界](matchmaking-and-ladder/RANKED_INITIAL_IMPLEMENTATION.md) |
+| 赛季排位 | 赛季、候场、评分结算、更正、重建、卡组分类与环境统计已实现；卡组分类默认重算最近 200 场（场数可配置），支持显式全量及历史结果保留，计算与预览在独立子进程执行；新赛季默认 V4，评分与运营增量仍需按专题完成相应验收。 | [排位专题](matchmaking-and-ladder/README.md)、[当前实现边界](matchmaking-and-ladder/RANKED_INITIAL_IMPLEMENTATION.md) |
 | 主题牌桌 | 已接入独立候场、服务端预组候选选择与组合分配；仍处于开发／内测基线，真实组合试打、恢复和运营验收未闭环。 | [主题牌桌设计](matchmaking-and-ladder/ROTATING_THEME_TABLE_DESIGN.md) |
 | 历史与回放 | 正式联机和服务端对墙打可按授权玩家视角查看历史节点；回放有保留期，清理后保留元信息。完整随机／决策记录、确定性重演和逐命令动画仍属后续方向。 | [回放专题](match-replay/README.md) |
 | AI 对战 | 支持管理员真人对 AI、网页双 AI 观战和本地 CLI 自对弈，提供决定材料、计费与归档；规则窗口覆盖及策略强度有独立边界，不能由少量试打推定整局质量。 | [支持矩阵](ai-battle/support-matrix.md)、[运行与观测](ai-battle/runtime-and-observation.md)、[自对弈](ai-battle/self-play.md) |

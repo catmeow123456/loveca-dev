@@ -36,15 +36,15 @@ describe('API classification process supervisor', () => {
       expect.objectContaining({ env: expect.objectContaining({ DECK_CLASSIFIER_PROCESS: '1' }) })
     );
     expect(child.send).toHaveBeenCalledWith({ kind: 'notify' }, expect.any(Function));
-    const result = runtime.preview(7, 'FULL');
+    const result = runtime.preview(7, null);
     const request = child.send.mock.calls[1]?.[0] as { id: string };
     expect(request).toEqual({
       kind: 'preview',
       id: expect.any(String),
       revision: 7,
-      scopeMode: 'FULL',
+      matchLimit: null,
     });
-    await expect(runtime.preview(7, 'RECENT')).rejects.toMatchObject({ statusCode: 409 });
+    await expect(runtime.preview(7, 200)).rejects.toMatchObject({ statusCode: 409 });
     child.emit('message', {
       kind: 'preview-result',
       id: request.id,
@@ -55,7 +55,7 @@ describe('API classification process supervisor', () => {
 
   it('restarts after a crash and rejects the pending preview without losing durable jobs', async () => {
     runtime.start();
-    const result = runtime.preview(7, 'RECENT');
+    const result = runtime.preview(7, 200);
     const rejected = expect(result).rejects.toMatchObject({ statusCode: 503 });
     child.emit('exit', 1);
     child.emit('close', 1);
@@ -75,12 +75,12 @@ describe('API classification process supervisor', () => {
 
   it('does not kill a durable task when a preview times out, and bounds pending previews', async () => {
     runtime.start();
-    const result = runtime.preview(7, 'FULL');
+    const result = runtime.preview(7, null);
     const rejected = expect(result).rejects.toMatchObject({ statusCode: 504 });
     await vi.advanceTimersByTimeAsync(300_000);
     await rejected;
     expect(child.kill).not.toHaveBeenCalled();
-    await expect(runtime.preview(7, 'RECENT')).rejects.toMatchObject({ statusCode: 409 });
+    await expect(runtime.preview(7, 200)).rejects.toMatchObject({ statusCode: 409 });
   });
 
   it('stops and force terminates an unresponsive child without restarting it', async () => {

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   listTemplateMatchCandidates: vi.fn(),
   getClassificationRun: vi.fn(),
   updateDisplaySettings: vi.fn(),
+  updateExecutionSettings: vi.fn(),
   createArchetype: vi.fn(),
   createTemplateFromMatch: vi.fn(),
   previewTemplateYaml: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock('../../src/server/services/deck-classifier-admin-service.js', () => ({
     listTemplateMatchCandidates: mocks.listTemplateMatchCandidates,
     getClassificationRun: mocks.getClassificationRun,
     updateDisplaySettings: mocks.updateDisplaySettings,
+    updateExecutionSettings: mocks.updateExecutionSettings,
     createArchetype: mocks.createArchetype,
     createTemplateFromMatch: mocks.createTemplateFromMatch,
     previewTemplateYaml: mocks.previewTemplateYaml,
@@ -127,21 +129,47 @@ function toError(value: unknown): Error {
 describe('deckClassifierAdminRouter', () => {
   afterEach(() => vi.clearAllMocks());
 
+  it('saves the configured daily limit without starting a classification task', async () => {
+    mocks.updateExecutionSettings.mockResolvedValue({ recentMatchLimit: 120 });
+    const response = await invoke('/execution-settings', 'put', {
+      recentMatchLimit: 120,
+      reason: '调整重算场数',
+    });
+    expect(response.statusCode).toBe(200);
+    expect(mocks.updateExecutionSettings).toHaveBeenCalledWith(
+      { recentMatchLimit: 120, reason: '调整重算场数' },
+      expect.any(Object)
+    );
+    expect(mocks.notify).not.toHaveBeenCalled();
+  });
+
+  it.each([0, -1, 1.5, 10001, null, '200'])(
+    'rejects invalid daily limit %s',
+    async (recentMatchLimit) => {
+      const response = await invoke('/execution-settings', 'put', {
+        recentMatchLimit,
+        reason: '调整重算场数',
+      });
+      expect(response.statusCode).toBe(400);
+      expect(mocks.updateExecutionSettings).not.toHaveBeenCalled();
+    }
+  );
+
   it('dispatches preview to the child process with an explicit scope', async () => {
     mocks.preview.mockResolvedValue({ observationCount: 1000 });
     const response = await invoke('/preview', 'post', {
       expectedDraftRevision: 4,
-      scopeMode: 'RECENT',
+      matchLimit: 200,
     });
     expect(response.statusCode).toBe(200);
-    expect(mocks.preview).toHaveBeenCalledWith(4, 'RECENT');
+    expect(mocks.preview).toHaveBeenCalledWith(4, 200);
     expect(mocks.publishRelease).not.toHaveBeenCalled();
   });
 
   it('rejects a missing or unsupported scope before dispatching classification work', async () => {
     for (const body of [
       { expectedDraftRevision: 4 },
-      { expectedDraftRevision: 4, scopeMode: 'ALL' },
+      { expectedDraftRevision: 4, matchLimit: 'ALL' },
     ]) {
       expect((await invoke('/preview', 'post', body)).statusCode).toBe(400);
     }
@@ -280,7 +308,7 @@ describe('deckClassifierAdminRouter', () => {
   it('publishes with the authenticated season administrator and wakes the worker', async () => {
     mocks.publishRelease.mockResolvedValue({ release: { id: 'release-1' }, run: { id: 'run-1' } });
     const response = await invoke('/releases', 'post', {
-      scopeMode: 'FULL',
+      matchLimit: null,
       expectedDraftRevision: 4,
       reason: '发布经复核的分类版本',
       idempotencyKey: 'deck-classifier:publish:test-1',
@@ -296,7 +324,7 @@ describe('deckClassifierAdminRouter', () => {
         actorRole: 'season_admin',
         requestId: 'request-1',
       },
-      'FULL'
+      null
     );
     expect(mocks.notify).toHaveBeenCalledOnce();
   });

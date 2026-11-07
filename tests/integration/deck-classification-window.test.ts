@@ -1,7 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DeckClassificationScopeMode } from '../../src/online/deck-classifier-types';
 
 const mocks = vi.hoisted(() => ({ connect: vi.fn(), query: vi.fn() }));
 vi.mock('../../src/server/db/pool.js', () => ({ pool: mocks }));
@@ -88,7 +87,7 @@ CREATE TABLE deck_archetypes (id uuid, color_key text DEFAULT '#123456', represe
 CREATE TABLE deck_archetype_templates (id uuid, archetype_id uuid, cards jsonb, enabled boolean DEFAULT true);
 CREATE TABLE deck_archetype_rules (id uuid, archetype_id uuid, priority integer, definition jsonb, enabled boolean);
 CREATE TABLE cards (card_code text, card_type text, image_filename text);
-CREATE TABLE deck_classifier_settings (id integer, display_mode text, show_usage boolean, show_winner boolean, show_top_ranked boolean, top_ranked_player_count integer, draft_revision integer DEFAULT 1);
+CREATE TABLE deck_classifier_settings (id integer, display_mode text, show_usage boolean, show_winner boolean, show_top_ranked boolean, top_ranked_player_count integer, draft_revision integer DEFAULT 1, updated_by uuid, updated_at timestamptz DEFAULT now());
 INSERT INTO deck_classifier_settings(id, display_mode, show_usage, show_winner, show_top_ranked, top_ranked_player_count) VALUES (1, 'BOTH', true, true, true, 30);
 `;
 
@@ -154,13 +153,9 @@ describe('classification windows, migration and atomic history retention (Postgr
     vi.resetAllMocks();
   });
 
-  async function queue(
-    scope: DeckClassificationScopeMode,
-    release = oldRelease,
-    trigger = 'MANUAL_RECLASSIFY'
-  ) {
+  async function queue(scope: number | null, release = oldRelease, trigger = 'MANUAL_RECLASSIFY') {
     const result = await db.query<{ id: string }>(
-      `INSERT INTO deck_classification_runs(release_id,scope_mode,trigger)
+      `INSERT INTO deck_classification_runs(release_id,match_limit,trigger)
       VALUES ($1,$2,$3) RETURNING id`,
       [release, scope, trigger]
     );
@@ -189,11 +184,11 @@ describe('classification windows, migration and atomic history retention (Postgr
         )
       ).rows
     ).toEqual([{ count: 410 }]);
-    expect((await db.query('SELECT scope_mode FROM deck_classification_runs')).rows).toEqual([
-      { scope_mode: 'FULL' },
+    expect((await db.query('SELECT match_limit FROM deck_classification_runs')).rows).toEqual([
+      { match_limit: null },
     ]);
     await addRelease();
-    const run = await queue('RECENT', newRelease, 'RELEASE_PUBLISHED');
+    const run = await queue(200, newRelease, 'RELEASE_PUBLISHED');
     await expect(
       db.query(
         `INSERT INTO deck_classification_assignments(match_id,seat,release_id,run_id,status,method,is_current)
@@ -204,7 +199,7 @@ describe('classification windows, migration and atomic history retention (Postgr
   });
 
   it('recomputes 200 whole matches and gives identical selected results to a full run', async () => {
-    const run = await queue('RECENT');
+    const run = await queue(200);
     await new DeckClassificationWorker().runOnce();
     expect(
       (
@@ -225,7 +220,7 @@ describe('classification windows, migration and atomic history retention (Postgr
       ).rows
     ).toEqual([{ count: 10 }]);
     const recent = await recentResults();
-    await queue('FULL');
+    await queue(null);
     await new DeckClassificationWorker().runOnce();
     expect(await recentResults()).toEqual(recent);
     expect(
@@ -238,9 +233,91 @@ describe('classification windows, migration and atomic history retention (Postgr
     ).toEqual([{ count: 410 }]);
   });
 
+  it('saves the daily limit without queuing work, and freezes each new automatic task limit', async () => {
+    const service = new DeckClassifierAdminService();
+    const operator = {
+      actorUserId: firstUser,
+      actorRole: 'admin' as const,
+      requestId: 'settings-test',
+    };
+    expect(
+      (await db.query('SELECT recent_match_limit FROM deck_classifier_settings')).rows
+    ).toEqual([{ recent_match_limit: 200 }]);
+    await service.updateExecutionSettings(
+      { recentMatchLimit: 120, reason: '调整近期场数' },
+      operator
+    );
+    expect((await db.query('SELECT draft_revision FROM deck_classifier_settings')).rows).toEqual([
+      { draft_revision: 1 },
+    ]);
+    expect(
+      (await db.query("SELECT id FROM deck_classification_runs WHERE status='QUEUED'")).rows
+    ).toEqual([]);
+    await db.query("DELETE FROM deck_classification_assignments WHERE match_id='match-0204'");
+    const worker = new DeckClassificationWorker();
+    await worker.runOnce();
+    const queued = (
+      await db.query<{ id: string; match_limit: number }>(
+        "SELECT id,match_limit FROM deck_classification_runs WHERE status='QUEUED'"
+      )
+    ).rows[0]!;
+    expect(queued.match_limit).toBe(120);
+    await service.updateExecutionSettings(
+      { recentMatchLimit: 50, reason: '再次调整场数' },
+      operator
+    );
+    await worker.runOnce();
+    expect(
+      (
+        await db.query(
+          'SELECT match_limit,total_count,status FROM deck_classification_runs WHERE id=$1',
+          [queued.id]
+        )
+      ).rows
+    ).toEqual([{ match_limit: 120, total_count: 240, status: 'SUCCEEDED' }]);
+    await db.query("DELETE FROM deck_classification_assignments WHERE match_id='match-0203'");
+    await worker.runOnce();
+    expect(
+      (await db.query("SELECT match_limit FROM deck_classification_runs WHERE status='QUEUED'"))
+        .rows
+    ).toEqual([{ match_limit: 50 }]);
+    const manual = await service.queueReclassification(
+      null,
+      '近期任务范围测试',
+      'custom-limit',
+      operator,
+      150
+    );
+    expect(manual.matchLimit).toBe(150);
+    await expect(
+      service.queueReclassification(null, '近期任务范围测试', 'custom-limit', operator, 151)
+    ).rejects.toMatchObject({ code: 'DECK_CLASSIFICATION_IDEMPOTENCY_CONFLICT' });
+    expect(await service.previewRelease(1, 150)).toMatchObject({ observationCount: 300 });
+    expect(await service.previewRelease(1, null)).toMatchObject({ observationCount: 410 });
+  });
+
+  it('rejects invalid configured or persisted task limits', async () => {
+    const service = new DeckClassifierAdminService();
+    const operator = {
+      actorUserId: firstUser,
+      actorRole: 'admin' as const,
+      requestId: 'settings-test',
+    };
+    for (const recentMatchLimit of [0, -1, 1.5, 10001]) {
+      await expect(
+        service.updateExecutionSettings({ recentMatchLimit, reason: '非法场数测试' }, operator)
+      ).rejects.toThrow('整数');
+    }
+    await expect(
+      db.query('UPDATE deck_classifier_settings SET recent_match_limit=0')
+    ).rejects.toMatchObject({ code: '23514' });
+    await expect(queue(0)).rejects.toMatchObject({ code: '23514' });
+    await expect(queue(10001)).rejects.toMatchObject({ code: '23514' });
+  });
+
   it('keeps older source versions in player statistics after a recent-only release', async () => {
     await addRelease();
-    await queue('RECENT', newRelease, 'RELEASE_PUBLISHED');
+    await queue(200, newRelease, 'RELEASE_PUBLISHED');
     await new DeckClassificationWorker().runOnce();
     expect(
       (
@@ -270,7 +347,7 @@ describe('classification windows, migration and atomic history retention (Postgr
       "UPDATE ranked_deck_observations SET season_id=$1 WHERE match_id < 'match-0005'",
       [smallSeason]
     );
-    const run = await queue('RECENT');
+    const run = await queue(200);
     await db.query('UPDATE deck_classification_runs SET scope_season_id=$1 WHERE id=$2', [
       smallSeason,
       run,
@@ -294,7 +371,7 @@ describe('classification windows, migration and atomic history retention (Postgr
 
   it('rolls back earlier batches and preserves the serving version when a build contains invalid data', async () => {
     await addRelease();
-    const run = await queue('RECENT', newRelease, 'RELEASE_PUBLISHED');
+    const run = await queue(200, newRelease, 'RELEASE_PUBLISHED');
     await db.query(
       `UPDATE ranked_deck_observations SET deck_fingerprint='invalid', main_deck_cards=$1
       WHERE match_id='match-0204'`,
@@ -331,8 +408,9 @@ describe('classification windows, migration and atomic history retention (Postgr
     await db.query("DELETE FROM deck_classification_assignments WHERE match_id='match-0204'");
     expect(await worker.runOnce()).toBe(true);
     expect(
-      (await db.query("SELECT scope_mode FROM deck_classification_runs WHERE status='QUEUED'")).rows
-    ).toEqual([{ scope_mode: 'RECENT' }]);
+      (await db.query("SELECT match_limit FROM deck_classification_runs WHERE status='QUEUED'"))
+        .rows
+    ).toEqual([{ match_limit: 200 }]);
     await worker.runOnce();
     expect(await worker.runOnce()).toBe(false);
   });
@@ -341,7 +419,6 @@ describe('classification windows, migration and atomic history retention (Postgr
     await db.query('UPDATE ranked_deck_observations SET observed_at=$1', ['2026-01-01']);
     await db.query(`CREATE TEMP TABLE frozen_targets AS ${CLASSIFICATION_OBSERVATIONS_QUERY}`, [
       null,
-      'RECENT',
       200,
     ]);
     await db.query(`INSERT INTO ranked_deck_observations SELECT 'newer-match',seat,season_id,user_id,deck_fingerprint,main_deck_cards,now()
@@ -367,9 +444,9 @@ describe('classification windows, migration and atomic history retention (Postgr
       '发布近期窗口测试',
       'publish-window-test',
       operator,
-      'RECENT'
+      200
     );
-    expect(published.run.scopeMode).toBe('RECENT');
+    expect(published.run.matchLimit).toBe(200);
     const stored = await db.query<{ snapshot_json: ReturnType<typeof snapshot> }>(
       'SELECT snapshot_json FROM deck_classifier_releases WHERE id=$1',
       [published.release.id]
@@ -378,18 +455,11 @@ describe('classification windows, migration and atomic history retention (Postgr
       '历史分类'
     );
     expect(
-      (
-        await service.publishRelease(
-          1,
-          '发布近期窗口测试',
-          'publish-window-test',
-          operator,
-          'RECENT'
-        )
-      ).run.id
+      (await service.publishRelease(1, '发布近期窗口测试', 'publish-window-test', operator, 200))
+        .run.id
     ).toBe(published.run.id);
     await expect(
-      service.publishRelease(1, '发布近期窗口测试', 'publish-window-test', operator, 'FULL')
+      service.publishRelease(1, '发布近期窗口测试', 'publish-window-test', operator, null)
     ).rejects.toMatchObject({ statusCode: 409, code: 'DECK_CLASSIFICATION_IDEMPOTENCY_CONFLICT' });
     await new DeckClassificationWorker().runOnce();
     expect(
@@ -404,20 +474,20 @@ describe('classification windows, migration and atomic history retention (Postgr
       '统一全量历史',
       'full-window-test',
       operator,
-      'FULL'
+      null
     );
-    expect(full.scopeMode).toBe('FULL');
+    expect(full.matchLimit).toBe(null);
     await expect(
-      service.queueReclassification(null, '统一全量历史', 'full-window-test', operator, 'RECENT')
+      service.queueReclassification(null, '统一全量历史', 'full-window-test', operator, 200)
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
   it('counts actual changed seats in a preview when the same deck has mixed historical results', async () => {
-    await queue('RECENT');
+    await queue(200);
     await new DeckClassificationWorker().runOnce();
     const service = new DeckClassifierAdminService();
-    const recent = await service.previewRelease(1, 'RECENT');
-    const full = await service.previewRelease(1, 'FULL');
+    const recent = await service.previewRelease(1, 200);
+    const full = await service.previewRelease(1, null);
     expect(recent).toMatchObject({
       observationCount: 400,
       classifiedCount: 400,
@@ -428,7 +498,7 @@ describe('classification windows, migration and atomic history retention (Postgr
 
   it('shows one review item for a deck with different unresolved historical classifications', async () => {
     await addRelease();
-    await queue('RECENT', newRelease, 'RELEASE_PUBLISHED');
+    await queue(200, newRelease, 'RELEASE_PUBLISHED');
     await new DeckClassificationWorker().runOnce();
     await db.query(
       `UPDATE deck_classification_assignments SET archetype_id=NULL,

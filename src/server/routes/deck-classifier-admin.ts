@@ -1,3 +1,4 @@
+import { DECK_CLASSIFIER_MAX_RECENT_MATCH_LIMIT } from '../../online/deck-classifier-types.js';
 import { randomUUID } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
@@ -14,17 +15,11 @@ import {
   deckClassifierProcess,
   DeckClassifierProcessError,
 } from '../services/deck-classifier-process-runtime.js';
-import type {
-  DeckClassificationScopeMode,
-  DeckClassifierPreviewView,
-} from '../../online/deck-classifier-types.js';
+import type { DeckClassifierPreviewView } from '../../online/deck-classifier-types.js';
 
 interface DeckClassifierWorkerNotifier {
   notify(): void;
-  preview(
-    revision: number,
-    scopeMode: DeckClassificationScopeMode
-  ): Promise<DeckClassifierPreviewView>;
+  preview(revision: number, matchLimit: number | null): Promise<DeckClassifierPreviewView>;
 }
 
 const uuidSchema = z.string().uuid();
@@ -207,14 +202,21 @@ const settingsSchema = z
   })
   .strict();
 
-const scopeModeSchema = z.enum(['RECENT', 'FULL']);
+const recentMatchLimitSchema = z.number().int().min(1).max(DECK_CLASSIFIER_MAX_RECENT_MATCH_LIMIT);
+const matchLimitSchema = recentMatchLimitSchema.nullable();
+const executionSettingsSchema = z
+  .object({
+    recentMatchLimit: recentMatchLimitSchema,
+    reason: reasonSchema,
+  })
+  .strict();
 const previewSchema = z
-  .object({ expectedDraftRevision: expectedDraftRevisionSchema, scopeMode: scopeModeSchema })
+  .object({ expectedDraftRevision: expectedDraftRevisionSchema, matchLimit: matchLimitSchema })
   .strict();
 
 const publishSchema = z
   .object({
-    scopeMode: scopeModeSchema,
+    matchLimit: matchLimitSchema,
     expectedDraftRevision: expectedDraftRevisionSchema,
     reason: reasonSchema,
     idempotencyKey: idempotencyKeySchema,
@@ -223,7 +225,7 @@ const publishSchema = z
 
 const reclassifySchema = z
   .object({
-    scopeMode: scopeModeSchema,
+    matchLimit: matchLimitSchema,
     seasonId: uuidSchema.nullable().default(null),
     reason: reasonSchema,
     idempotencyKey: idempotencyKeySchema,
@@ -307,6 +309,12 @@ export function createDeckClassifierAdminRouter(
     const input = readBody(req, res, settingsSchema);
     if (!input) return;
     await respond(res, () => service.updateDisplaySettings(input, readOperator(req)));
+  });
+
+  router.put('/execution-settings', async (req, res) => {
+    const input = readBody(req, res, executionSettingsSchema);
+    if (!input) return;
+    await respond(res, () => service.updateExecutionSettings(input, readOperator(req)));
   });
 
   router.post('/archetypes', async (req, res) => {
@@ -421,7 +429,7 @@ export function createDeckClassifierAdminRouter(
   router.post('/preview', async (req, res) => {
     const input = readBody(req, res, previewSchema);
     if (!input) return;
-    await respond(res, () => worker.preview(input.expectedDraftRevision, input.scopeMode));
+    await respond(res, () => worker.preview(input.expectedDraftRevision, input.matchLimit));
   });
 
   router.post('/releases', async (req, res) => {
@@ -435,7 +443,7 @@ export function createDeckClassifierAdminRouter(
           input.reason,
           input.idempotencyKey,
           readOperator(req),
-          input.scopeMode
+          input.matchLimit
         );
         worker.notify();
         return result;
@@ -455,7 +463,7 @@ export function createDeckClassifierAdminRouter(
           input.reason,
           input.idempotencyKey,
           readOperator(req),
-          input.scopeMode
+          input.matchLimit
         );
         worker.notify();
         return run;

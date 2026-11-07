@@ -1,5 +1,5 @@
 {
-  "id": "b1584a37-20d9-4d1b-aaba-4363eb0b6f24",
+  "id": "ca36d4e9-59a9-4de8-a9ff-21c86c7593da",
   "prevId": "f01e4369-a363-4a5b-acbd-6f4d64ea517d",
   "version": "7",
   "dialect": "postgresql",
@@ -2730,12 +2730,11 @@
           "primaryKey": false,
           "notNull": true
         },
-        "scope_mode": {
-          "name": "scope_mode",
-          "type": "text",
+        "match_limit": {
+          "name": "match_limit",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'RECENT'"
+          "notNull": false
         },
         "scope_season_id": {
           "name": "scope_season_id",
@@ -2981,9 +2980,9 @@
           "name": "deck_classification_runs_status_check",
           "value": "\"deck_classification_runs\".\"status\" IN ('QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED')"
         },
-        "deck_classification_runs_scope_mode_check": {
-          "name": "deck_classification_runs_scope_mode_check",
-          "value": "\"deck_classification_runs\".\"scope_mode\" IN ('RECENT', 'FULL')"
+        "deck_classification_runs_match_limit_check": {
+          "name": "deck_classification_runs_match_limit_check",
+          "value": "\"deck_classification_runs\".\"match_limit\" IS NULL OR \"deck_classification_runs\".\"match_limit\" BETWEEN 1 AND 10000"
         },
         "deck_classification_runs_trigger_check": {
           "name": "deck_classification_runs_trigger_check",
@@ -3253,6 +3252,13 @@
           "notNull": true,
           "default": 30
         },
+        "recent_match_limit": {
+          "name": "recent_match_limit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 200
+        },
         "draft_revision": {
           "name": "draft_revision",
           "type": "integer",
@@ -3294,6 +3300,10 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "deck_classifier_settings_recent_match_limit_check": {
+          "name": "deck_classifier_settings_recent_match_limit_check",
+          "value": "\"deck_classifier_settings\".\"recent_match_limit\" BETWEEN 1 AND 10000"
+        },
         "deck_classifier_settings_singleton_check": {
           "name": "deck_classifier_settings_singleton_check",
           "value": "\"deck_classifier_settings\".\"id\" = 1"

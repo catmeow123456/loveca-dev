@@ -73,7 +73,7 @@ function claimClient(
             release_status: auto ? 'ACTIVE' : 'BUILDING',
             trigger: auto ? 'AUTO_NEW_OBSERVATIONS' : 'RELEASE_PUBLISHED',
             scope_season_id: null,
-            scope_mode: auto ? 'RECENT' : 'FULL',
+            match_limit: auto ? 200 : null,
             snapshot_json: snapshot,
             config_hash: configHash,
           },
@@ -122,7 +122,7 @@ describe('DeckClassificationWorker', () => {
     let page = 0;
     const persist = client((sql, values) => {
       if (sql.startsWith('SELECT status')) return { rows: [{ status: 'RUNNING' }] };
-      if (sql.startsWith('CREATE TEMP TABLE')) expect(values).toEqual([null, 'RECENT', 200]);
+      if (sql.startsWith('CREATE TEMP TABLE')) expect(values).toEqual([null, 200]);
       if (sql.includes('SELECT count(*) AS count FROM deck_classification_targets'))
         return { rows: [{ count: '2' }] };
       if (sql.includes('FROM deck_classification_targets AS target') && page++ === 0) {
@@ -189,6 +189,8 @@ describe('DeckClassificationWorker', () => {
       rows: sql.includes('SELECT run.id, run.release_id') ? [] : [],
     }));
     const queue = client((sql) => {
+      if (sql.startsWith('SELECT recent_match_limit'))
+        return { rows: [{ recent_match_limit: 200 }] };
       if (sql.includes('AS missing_key')) {
         return {
           rows: [

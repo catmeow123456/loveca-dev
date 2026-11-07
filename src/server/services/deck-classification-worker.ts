@@ -1,9 +1,8 @@
 import type { PoolClient } from 'pg';
 import {
-  DECK_CLASSIFIER_RECENT_MATCH_LIMIT,
-  type DeckClassificationScopeMode,
-} from '../../online/deck-classifier-types.js';
-import { CLASSIFICATION_OBSERVATIONS_QUERY } from './deck-classification-scope.js';
+  CLASSIFICATION_OBSERVATIONS_QUERY,
+  readRecentMatchLimit,
+} from './deck-classification-scope.js';
 import { pool } from '../db/pool.js';
 import {
   prepareDeckClassifierAsync,
@@ -26,7 +25,7 @@ interface ClaimedClassificationRun {
   readonly trigger:
     'RELEASE_PUBLISHED' | 'MANUAL_RECLASSIFY' | 'MANUAL_OVERRIDE' | 'AUTO_NEW_OBSERVATIONS';
   readonly scopeSeasonId: string | null;
-  readonly scopeMode: DeckClassificationScopeMode;
+  readonly matchLimit: number | null;
   readonly snapshotJson: unknown;
   readonly configHash: string;
 }
@@ -151,7 +150,7 @@ export class DeckClassificationWorker {
       await client.query(
         `CREATE TEMP TABLE deck_classification_targets ON COMMIT DROP AS
         ${CLASSIFICATION_OBSERVATIONS_QUERY}`,
-        [run.scopeSeasonId, run.scopeMode, DECK_CLASSIFIER_RECENT_MATCH_LIMIT]
+        [run.scopeSeasonId, run.matchLimit]
       );
       await client.query('CREATE UNIQUE INDEX ON deck_classification_targets (match_id, seat)');
       const total = await client.query<{ count: string }>(
@@ -248,7 +247,7 @@ export class DeckClassificationWorker {
       client.release();
       console.info('[DeckClassifier] Run completed', {
         runId: run.id,
-        scopeMode: run.scopeMode,
+        matchLimit: run.matchLimit,
         trigger: run.trigger,
         outcome,
         ...counts,
@@ -319,12 +318,12 @@ async function claimNextClassificationRun(): Promise<ClaimedClassificationRun | 
       release_status: ClaimedClassificationRun['releaseStatus'];
       trigger: ClaimedClassificationRun['trigger'];
       scope_season_id: string | null;
-      scope_mode: DeckClassificationScopeMode;
+      match_limit: number | null;
       snapshot_json: unknown;
       config_hash: string;
     }>(
       `SELECT run.id, run.release_id, release.status AS release_status,
-              run.trigger, run.scope_season_id, run.scope_mode, release.snapshot_json, release.config_hash
+              run.trigger, run.scope_season_id, run.match_limit, release.snapshot_json, release.config_hash
        FROM deck_classification_runs AS run
        JOIN deck_classifier_releases AS release ON release.id = run.release_id
        WHERE run.status = 'QUEUED'
@@ -359,7 +358,7 @@ async function claimNextClassificationRun(): Promise<ClaimedClassificationRun | 
       releaseStatus: row.release_status,
       trigger: row.trigger,
       scopeSeasonId: row.scope_season_id,
-      scopeMode: row.scope_mode,
+      matchLimit: row.match_limit,
       snapshotJson: row.snapshot_json,
       configHash: row.config_hash,
     };
@@ -506,6 +505,7 @@ async function queueMissingObservationRun(): Promise<boolean> {
   try {
     await client.query('BEGIN');
     await client.query("SELECT pg_advisory_xact_lock(hashtext('deck-classifier-auto-queue'))");
+    const matchLimit = await readRecentMatchLimit(client);
     const missing = await client.query<{
       release_id: string;
       missing_count: number | string;
@@ -524,7 +524,7 @@ async function queueMissingObservationRun(): Promise<boolean> {
          AND NOT EXISTS (SELECT 1 FROM deck_classifier_releases WHERE status = 'BUILDING')
          AND NOT EXISTS (SELECT 1 FROM deck_classification_runs WHERE status IN ('QUEUED', 'RUNNING'))
        GROUP BY release.id LIMIT 1`,
-      [null, 'RECENT', DECK_CLASSIFIER_RECENT_MATCH_LIMIT]
+      [null, matchLimit]
     );
     const row = missing.rows[0];
     if (!row || Number(row.missing_count) <= 0) {
@@ -533,9 +533,9 @@ async function queueMissingObservationRun(): Promise<boolean> {
     }
     const queued = await client.query<{ id: string }>(
       `INSERT INTO deck_classification_runs (
-         release_id, trigger, request_id, idempotency_key, reason, scope_mode
+         release_id, trigger, request_id, idempotency_key, reason, match_limit
        )
-       VALUES ($1, 'AUTO_NEW_OBSERVATIONS', $2, $2, $3, 'RECENT')
+       VALUES ($1, 'AUTO_NEW_OBSERVATIONS', $2, $2, $3, $4)
        ON CONFLICT (idempotency_key) DO UPDATE
          SET status = 'QUEUED', total_count = 0, processed_count = 0,
              classified_count = 0, unknown_count = 0, ambiguous_count = 0,
@@ -546,8 +546,9 @@ async function queueMissingObservationRun(): Promise<boolean> {
        RETURNING id`,
       [
         row.release_id,
-        `deck-classifier:recent:${row.release_id}:${row.missing_key}`,
-        `新增排位观察触发最近 ${DECK_CLASSIFIER_RECENT_MATCH_LIMIT} 场重分类`,
+        `deck-classifier:recent:${row.release_id}:${matchLimit}:${row.missing_key}`,
+        `新增排位观察触发最近 ${matchLimit} 场重分类`,
+        matchLimit,
       ]
     );
     await client.query('COMMIT');

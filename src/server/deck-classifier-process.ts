@@ -16,7 +16,7 @@ function send(message: DeckClassifierProcessResponse): void {
 process.on('message', (message: DeckClassifierProcessRequest) => {
   if (message.kind === 'notify') deckClassificationWorker.notify();
   else if (message.kind === 'preview') {
-    void deckClassifierAdminService.previewRelease(message.revision, message.scopeMode).then(
+    void deckClassifierAdminService.previewRelease(message.revision, message.matchLimit).then(
       (result) => send({ kind: 'preview-result', id: message.id, result }),
       (error: unknown) =>
         send({

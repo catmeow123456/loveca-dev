@@ -2552,11 +2552,16 @@ export const deckClassifierSettings = pgTable(
     cardShowWinner: boolean('card_show_winner').notNull().default(false),
     cardShowTopRanked: boolean('card_show_top_ranked').notNull().default(false),
     topRankedPlayerCount: integer('top_ranked_player_count').notNull().default(30),
+    recentMatchLimit: integer('recent_match_limit').notNull().default(200),
     draftRevision: integer('draft_revision').notNull().default(0),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    check(
+      'deck_classifier_settings_recent_match_limit_check',
+      sql`${table.recentMatchLimit} BETWEEN 1 AND 10000`
+    ),
     check('deck_classifier_settings_singleton_check', sql`${table.id} = 1`),
     check('deck_classifier_settings_draft_revision_check', sql`${table.draftRevision} >= 0`),
     check(
@@ -2593,7 +2598,7 @@ export const deckClassificationRuns = pgTable(
       .references(() => deckClassifierReleases.id, { onDelete: 'restrict' }),
     status: text('status').$type<DeckClassificationRunStatus>().notNull().default('QUEUED'),
     trigger: text('trigger').$type<DeckClassificationRunTrigger>().notNull(),
-    scopeMode: text('scope_mode').$type<'RECENT' | 'FULL'>().notNull().default('RECENT'),
+    matchLimit: integer('match_limit'),
     scopeSeasonId: uuid('scope_season_id').references(() => rankedSeasons.id, {
       onDelete: 'restrict',
     }),
@@ -2627,8 +2632,8 @@ export const deckClassificationRuns = pgTable(
       sql`${table.status} IN ('QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED')`
     ),
     check(
-      'deck_classification_runs_scope_mode_check',
-      sql`${table.scopeMode} IN ('RECENT', 'FULL')`
+      'deck_classification_runs_match_limit_check',
+      sql`${table.matchLimit} IS NULL OR ${table.matchLimit} BETWEEN 1 AND 10000`
     ),
     check(
       'deck_classification_runs_trigger_check',

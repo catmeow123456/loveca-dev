@@ -1,12 +1,12 @@
 # 0047：近期分类窗口与历史结果保留
 
-本迁移新增 `deck_classification_runs.scope_mode` 和 `deck_classification_assignments.is_current`。应用只读取迁移后的格式，前端的预览、发布、重分类请求须明确发送 `scopeMode: RECENT | FULL`。`RECENT` 固定为最近 200 场完整对局，日常自动任务和人工覆盖采用近期范围。
+本迁移新增设置 `deck_classifier_settings.recent_match_limit`（默认 200，范围 1～10000）、任务 `deck_classification_runs.match_limit`（数字为近期场数，`NULL` 为全部历史）和结果 `deck_classification_assignments.is_current`。应用只读取迁移后的格式；前端的预览、发布、重分类请求必须明确发送 `matchLimit`，不再发送范围枚举。日常场数可在“卡组分类”独立保存，自动任务和人工覆盖在入队时读取并保存该值；后续修改设置不改变已排队或执行中的任务。
 
 ## 迁移与部署
 
 按[生产部署 Runbook](../../docs/production-release-runbook.md)停机、备份、验证迁移并部署前后端；本说明不授权执行生产操作。停止全部旧 API 实例及分类进程后，通过 `pnpm db:migrate` 执行 `0047_deck_classifier_recent_window.sql`，不使用 `db:push`。
 
-- 既有任务的范围初始化为 `FULL`，保留历史语义；尚在排队的自动补分类与人工覆盖任务改为 `RECENT`，新任务默认近期。
+- 既有任务的 `match_limit` 初始化为 `NULL`，保留全历史范围语义；尚在排队的自动补分类与人工覆盖任务设为 200。日常设置初始化为 200，后续新任务显式保存具体场数或全量标记。
 - 只从曾经成功服务的 `ACTIVE / SUPERSEDED` 发布及 `SUCCEEDED` 任务中，为每个席位选择版本最新的结果设置 `is_current=true`；不重写原来源版本、任务、证据或分类时间。失败/构建中的结果不成为当前结果。
 - 部分唯一索引确保一个席位至多一条当前结果。后续分类在单个事务内切换所选席位的当前结果并完成任务；较久历史继续保留原判断。
 - API 通过 `fork` 启动编译产物 `dist/server/deck-classifier-process.js`，无需增加 Compose 服务。候选镜像须包含该文件及其生产依赖；分类连接池最多 4 条，需计入每个 API 实例的数据库连接预算。进程退出自动重启，父进程退出时子进程关闭。
@@ -16,7 +16,8 @@
 在迁移演练库中检查当前结果数量、来源版本和唯一性；下列查询为只读：
 
 ```sql
-SELECT scope_mode, status, count(*) FROM deck_classification_runs GROUP BY scope_mode, status;
+SELECT recent_match_limit FROM deck_classifier_settings WHERE id = 1;
+SELECT match_limit, status, count(*) FROM deck_classification_runs GROUP BY match_limit, status;
 SELECT release_id, count(*) FROM deck_classification_assignments WHERE is_current GROUP BY release_id;
 SELECT match_id, seat, count(*) FROM deck_classification_assignments
 WHERE is_current GROUP BY match_id, seat HAVING count(*) > 1;

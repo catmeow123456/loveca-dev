@@ -1,10 +1,7 @@
 import { fork, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import type {
-  DeckClassificationScopeMode,
-  DeckClassifierPreviewView,
-} from '../../online/deck-classifier-types.js';
+import type { DeckClassifierPreviewView } from '../../online/deck-classifier-types.js';
 import type {
   DeckClassifierProcessRequest,
   DeckClassifierProcessResponse,
@@ -62,10 +59,7 @@ export class DeckClassifierProcessRuntime {
     if (this.child?.connected) this.send({ kind: 'notify' });
   }
 
-  preview(
-    revision: number,
-    scopeMode: DeckClassificationScopeMode
-  ): Promise<DeckClassifierPreviewView> {
+  preview(revision: number, matchLimit: number | null): Promise<DeckClassifierPreviewView> {
     if (!this.child?.connected) return Promise.reject(processError('分类服务暂不可用，请稍后重试'));
     if (this.pending)
       return Promise.reject(
@@ -82,7 +76,7 @@ export class DeckClassifierProcessRuntime {
       }, 5 * 60_000);
       timer.unref();
       this.pending = { id, resolve, reject, timer };
-      this.send({ kind: 'preview', id, revision, scopeMode });
+      this.send({ kind: 'preview', id, revision, matchLimit });
     });
   }
 

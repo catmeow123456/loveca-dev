@@ -85,11 +85,11 @@ describe('deck classifier release card-catalog barrier', () => {
   });
 
   it('rejects an otherwise valid draft before preview when a template card is unknown', async () => {
-    await expect(new DeckClassifierAdminService().previewRelease(7)).rejects.toMatchObject({
+    await expect(new DeckClassifierAdminService().previewRelease(7, 200)).rejects.toMatchObject({
       code: 'DECK_CLASSIFIER_DRAFT_INVALID',
       statusCode: 400,
     });
-    await expect(new DeckClassifierAdminService().previewRelease(7)).rejects.toThrow(
+    await expect(new DeckClassifierAdminService().previewRelease(7, 200)).rejects.toThrow(
       '不存在于卡牌目录'
     );
     expect(mocks.query).not.toHaveBeenCalledWith(expect.stringContaining('INSERT INTO'));
