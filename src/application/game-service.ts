@@ -31,6 +31,7 @@ import {
 } from '../shared/types/enums.js';
 import { secureRandomInt, type RandomIntegerSource } from '../shared/random-source.js';
 import { openHextechSelection } from './hextech/selection.js';
+import { getHextechDrawPhaseBonus } from '../domain/hextech/bonuses.js';
 import type {
   GameState,
   GameAction as GameHistoryAction,
@@ -1175,7 +1176,8 @@ export class GameService {
 
       case 'DRAW_CARD':
         let state = game;
-        for (let i = 0; i < autoAction.count; i++) {
+        const drawCount = autoAction.count + getHextechDrawPhaseBonus(game, autoAction.playerId);
+        for (let i = 0; i < drawCount; i++) {
           state = this.drawCard(state, autoAction.playerId);
         }
         return state;

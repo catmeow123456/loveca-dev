@@ -14,6 +14,12 @@ export type HextechEffect =
   | { readonly kind: 'DECAYING_CHEER_COUNT'; readonly initialCount: number }
   | { readonly kind: 'PAINTER_LIVE_REQUIREMENTS' }
   | { readonly kind: 'CENTER_GROUP_BONUS' }
+  | { readonly kind: 'COST_579_GRAY_BLADE_HEART' }
+  | { readonly kind: 'PERFECT_CHEER_SCORE' }
+  | { readonly kind: 'GROWING_BLADE' }
+  | { readonly kind: 'ACQUIRE_AND_TURN_DRAW' }
+  | { readonly kind: 'LIVE_CRITICAL_BLADE_HEART' }
+  | { readonly kind: 'ACQUIRE_CLEAR_SUCCESS_ZONES' }
   | { readonly kind: 'ACQUIRE_DRAW'; readonly count: number };
 
 export interface HextechDefinition {
@@ -135,6 +141,48 @@ export const HEXTECH_DEFINITIONS = [
     rulesText:
       '中央成员为μ’s：粉黄紫心各+1；Aqours：红绿蓝心各+1；Liella!：红黄紫心各+1；蓮ノ空：粉绿蓝心各+1；虹ヶ咲：棒+4',
     effect: { kind: 'CENTER_GROUP_BONUS' },
+  },
+  {
+    id: 'refuse-to-gamble',
+    name: '拒绝赌博',
+    rarity: 'SILVER',
+    rulesText: '己方印刷费用为5、7、9的成员，其判定视为1个灰心',
+    effect: { kind: 'COST_579_GRAY_BLADE_HEART' },
+  },
+  {
+    id: 'not-a-single-miss',
+    name: '压根没漏儿',
+    rarity: 'GOLD',
+    rulesText: '本次声援公开的牌全部持有判定时，每公开5张，成功LIVE的合计分数+1',
+    effect: { kind: 'PERFECT_CHEER_SCORE' },
+  },
+  {
+    id: 'demon-form',
+    name: '恶魔形态',
+    rarity: 'PRISMATIC',
+    rulesText: '取得时按第1／2／3轮获得1／2／3棒；此后每过1回合再获得1棒',
+    effect: { kind: 'GROWING_BLADE' },
+  },
+  {
+    id: 'incoming-wealth',
+    name: '来财',
+    rarity: 'PRISMATIC',
+    rulesText: '取得时按第1／2／3轮抽1／2／3张；从下一回合起，自己的抽牌阶段额外抽1张',
+    effect: { kind: 'ACQUIRE_AND_TURN_DRAW' },
+  },
+  {
+    id: 'critical-hit',
+    name: '关键暴击',
+    rarity: 'PRISMATIC',
+    rulesText: '己方持有判定的LIVE，其判定整体变为加2分',
+    effect: { kind: 'LIVE_CRITICAL_BLADE_HEART' },
+  },
+  {
+    id: 'table-flip',
+    name: '掀桌',
+    rarity: 'PRISMATIC',
+    rulesText: '取得时，将双方成功区的所有LIVE放入各自休息室',
+    effect: { kind: 'ACQUIRE_CLEAR_SUCCESS_ZONES' },
   },
 ] as const satisfies readonly HextechDefinition[];
 

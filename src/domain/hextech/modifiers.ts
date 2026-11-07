@@ -7,6 +7,7 @@ import {
   type GroupIdentityKey,
 } from '../../shared/utils/card-identity.js';
 import { getHextechDefinition } from './catalog.js';
+import { getHextechAcquisitionStage, getHextechPerfectCheerScore } from './bonuses.js';
 
 const CENTER_GROUP_HEART_BONUSES: Partial<Record<GroupIdentityKey, readonly HeartIcon[]>> = {
   muse: [
@@ -43,7 +44,10 @@ function hasThreeStageMembersInSameGroup(game: GameState, playerId: string): boo
 }
 
 /** Match-long ownership is authoritative; LIVE cleanup must not erase these bonuses. */
-export function collectHextechLiveModifiers(game: GameState): readonly LiveModifierState[] {
+export function collectHextechLiveModifiers(
+  game: GameState,
+  ordinaryModifiers: readonly LiveModifierState[]
+): readonly LiveModifierState[] {
   return (game.hextech?.owned ?? []).flatMap((owned): LiveModifierState[] => {
     const effect = getHextechDefinition(owned.definitionId)?.effect;
     const source = {
@@ -78,6 +82,20 @@ export function collectHextechLiveModifiers(game: GameState): readonly LiveModif
       case 'DECAYING_CHEER_COUNT': {
         const count = Math.max(0, effect.initialCount - (game.turnCount - owned.acquiredTurn));
         return count > 0 ? [{ ...source, kind: 'CHEER_COUNT', countDelta: count }] : [];
+      }
+      case 'GROWING_BLADE':
+        return [
+          {
+            ...source,
+            kind: 'BLADE',
+            target: 'PLAYER',
+            countDelta:
+              getHextechAcquisitionStage(owned.acquiredTurn) + game.turnCount - owned.acquiredTurn,
+          },
+        ];
+      case 'PERFECT_CHEER_SCORE': {
+        const count = getHextechPerfectCheerScore(game, owned.playerId, ordinaryModifiers);
+        return count > 0 ? [{ ...source, kind: 'SCORE', countDelta: count }] : [];
       }
       case 'PAINTER_LIVE_REQUIREMENTS': {
         const player = getPlayerById(game, owned.playerId);

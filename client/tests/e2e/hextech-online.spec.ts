@@ -245,6 +245,14 @@ test('双方真人桌面自动显示稀有度、独立重抽和确认，支持�
     match.session.getPlayerViewState(match.participants.FIRST.playerId)!.match.hextech!.selection!
       .ownOffer
   ).toEqual(expected);
+  const chosen = [
+    { playerId: match.participants.FIRST.playerId, candidate: expected.candidates[1] },
+    {
+      playerId: match.participants.SECOND.playerId,
+      candidate: match.session.getPlayerViewState(match.participants.SECOND.playerId)!.match
+        .hextech!.selection!.ownOffer!.candidates[0],
+    },
+  ];
   await secondDialog.getByRole('radio').nth(0).check();
   await secondDialog.getByRole('button', { name: '锁定选择' }).click();
   await expect(secondDialog.getByText('已锁定，等待对方选择', { exact: true })).toBeVisible();
@@ -259,7 +267,12 @@ test('双方真人桌面自动显示稀有度、独立重抽和确认，支持�
     .locator('summary')
     .filter({ hasText: /^海克斯$/ })
     .click();
-  await expect(page.getByLabel('已持有海克斯')).toContainText('小画家');
+  for (const { playerId, candidate } of chosen) {
+    expect(
+      match.session.state!.hextech!.owned.find((owned) => owned.playerId === playerId)?.definitionId
+    ).toBe(candidate.definitionId);
+    await expect(page.getByLabel('已持有海克斯')).toContainText(candidate.name);
+  }
   expect(errors).toEqual([]);
   await secondContext.close();
 });

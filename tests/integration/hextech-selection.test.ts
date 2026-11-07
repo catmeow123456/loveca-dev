@@ -41,7 +41,7 @@ function setup(rarity?: number) {
   expect(session.initializeGame(deck, deck).success).toBe(true);
   expect(session.executeCommand(createMulliganCommand('p1', [])).success).toBe(true);
   random.mockClear();
-  if (rarity !== undefined) random.mockImplementation((max) => rarity % max);
+  if (rarity !== undefined) random.mockImplementation(() => 0).mockImplementationOnce(() => rarity);
   const lastMulligan = { ...createMulliganCommand('p2', []), idempotencyKey: 'last-mulligan' };
   expect(session.executeCommand(lastMulligan).success).toBe(true);
   return { session, random, lastMulligan };
@@ -153,9 +153,10 @@ describe('海克斯回合选择', () => {
       second: participant('u2'),
     });
     await service.executeCommand(match.matchId, 'u1', createMulliganCommand('u1', []));
+    random.mockImplementation(() => 0).mockImplementationOnce(() => 2);
     await service.executeCommand(match.matchId, 'u2', createMulliganCommand('u2', []));
     const commands = match.session.state!.players.map((player, index) => ({
-      ...choose(match.session, player.id, 2),
+      ...choose(match.session, player.id, 0),
       idempotencyKey: `concurrent-${index}`,
     }));
     const calls = random.mock.calls.length;
@@ -253,9 +254,9 @@ describe('海克斯回合选择', () => {
     ['p1', 'p2'],
     ['p2', 'p1'],
   ])('双方按 %s、%s 顺序确认都只在最后一人确认后公开和结算', (firstLocker, lastLocker) => {
-    const { session } = setup();
-    const command1 = { ...choose(session, firstLocker, 2), idempotencyKey: 'first-lock' };
-    const command2 = { ...choose(session, lastLocker, 2), idempotencyKey: 'last-lock' };
+    const { session } = setup(2);
+    const command1 = { ...choose(session, firstLocker, 0), idempotencyKey: 'first-lock' };
+    const command2 = { ...choose(session, lastLocker, 0), idempotencyKey: 'last-lock' };
     expect(command1.expectedDefinitionId).toBe('pot-of-greatest-greed');
     execute(session, command1);
     expect(session.state!.hextech!.owned).toHaveLength(0);

@@ -1,4 +1,15 @@
-import { addAction, getPlayerById, type GameState } from '../../domain/entities/game.js';
+import {
+  addAction,
+  emitGameEvent,
+  getCardById,
+  getPlayerById,
+  type GameState,
+} from '../../domain/entities/game.js';
+import { isLiveCardData } from '../../domain/entities/card.js';
+import { createEnterWaitingRoomEvent } from '../../domain/events/game-events.js';
+import { getHextechAcquisitionStage } from '../../domain/hextech/bonuses.js';
+import { moveCardBetweenZones } from '../action-handlers/zone-operations.js';
+import { enqueueTriggeredCardEffects } from '../card-effect-runner.js';
 import {
   getHextechDefinition,
   HEXTECH_RULES_VERSION,
@@ -7,7 +18,7 @@ import {
 import type { GameOperationResult } from '../game-service.js';
 import { drawCardsFromMainDeckToHand } from '../effects/draw.js';
 import type { InitialHextechSetup } from '../../domain/hextech/state.js';
-import { GamePhase } from '../../shared/types/enums.js';
+import { GamePhase, TriggerCondition, ZoneType } from '../../shared/types/enums.js';
 
 export function validateInitialHextechSetup(setup: InitialHextechSetup): void {
   if (
@@ -88,6 +99,42 @@ export function acquireHextech(
   };
   if (definition.effect.kind === 'ACQUIRE_DRAW') {
     state = drawCardsFromMainDeckToHand(state, playerId, definition.effect.count)!.gameState;
+  }
+  if (definition.effect.kind === 'ACQUIRE_AND_TURN_DRAW') {
+    state = drawCardsFromMainDeckToHand(
+      state,
+      playerId,
+      getHextechAcquisitionStage(game.turnCount)
+    )!.gameState;
+  }
+  if (definition.effect.kind === 'ACQUIRE_CLEAR_SUCCESS_ZONES') {
+    const events = [];
+    for (const player of game.players) {
+      const ids = player.successZone.cardIds.filter((id) => {
+        const card = getCardById(game, id);
+        return card && isLiveCardData(card.data);
+      });
+      for (const id of ids) {
+        state = moveCardBetweenZones(
+          state,
+          player.id,
+          id,
+          ZoneType.SUCCESS_ZONE,
+          ZoneType.WAITING_ROOM
+        );
+      }
+      if (ids.length > 0) {
+        const event = createEnterWaitingRoomEvent(ids, ZoneType.SUCCESS_ZONE, player.id, player.id);
+        state = emitGameEvent(state, event);
+        events.push(event);
+      }
+    }
+    // Both zones change before any resulting card ability is allowed to resolve.
+    if (events.length > 0) {
+      state = enqueueTriggeredCardEffects(state, [TriggerCondition.ON_ENTER_WAITING_ROOM], {
+        enterWaitingRoomEvents: events,
+      });
+    }
   }
   state = addAction(state, 'HEXTECH_ACQUIRED', playerId, { definitionId, instanceId });
   return { success: true, gameState: state };

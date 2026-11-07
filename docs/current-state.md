@@ -15,7 +15,7 @@ Loveca 已具备共享规则引擎、Web 对战桌、卡组管理、联机与观
 | --- | --- | --- |
 | 启动与访问 | 启动卡池支持有界重试、并发去重、失败原地恢复和简短诊断；独立公开卡池入口使用浏览器 ETag 条件缓存，旧全量列表 GET 已移除。不可变快照、开局版本握手、PWA 调度优化及云端加速仍未实施，地区网络收益待验收。 | [客户端启动说明](../client/README.md#启动恢复与公开卡池缓存) |
 | 规则与卡效 | 登场、换手、费用、LIVE、声援、判定和卡效队列已接入共享规则链路；全卡池自动裁判尚未完成，单卡完成状态由主登记册维护。橙判心按用户确认的临时口径贡献1个无色HEART，仍保留橙色条件／图标身份；普通成员橙心不转换，尚不代表官方橙判心裁定。 | [运行时链路](runtime-data-flow-and-algorithm-chain.md)、[卡效登记册](card-effect-reuse-audit/existing_module_map.md) |
-| 海克斯 | 共 13 项效果已接入共享规则；娱乐大厅新增海克斯玩法，真人对局在第 1／3／5 回合由系统自动随机稀有度，双方同时三选一、逐格重抽，都确认后继续，支持私密候选和重连。本地双人调试仍可指定开局能力；生产尚未开放。 | [真人选择与联机入口](hextech-online.md)、[首批效果](hextech-first-batch.md)、[第二批](hextech-second-batch.md)、[第三批](hextech-third-batch.md) |
+| 海克斯 | 共 19 项效果已接入共享规则；娱乐大厅新增海克斯玩法，真人对局在第 1／3／5 回合由系统自动随机稀有度，双方同时三选一、逐格重抽，都确认后继续，支持私密候选和重连。本地双人调试仍可指定开局能力；生产尚未开放。 | [真人选择与联机入口](hextech-online.md)、[首批效果](hextech-first-batch.md)、[第二批](hextech-second-batch.md)、[第三批](hextech-third-batch.md)、[成长与判定](hextech-fourth-batch.md) |
 | 练习与调试 | 对墙打自动处理系统对手流程，双人调试可在同一设备操作双方；服务端对墙打可记录历史，本地离线对局不写正式历史。 | [模式说明](battle-mode-purpose-and-boundaries.md)、[对墙打需求](solitaire-mode-requirements.md) |
 | 社区大厅与联机 | 标准／娱乐休闲房间、锁组确认、猜拳、认输、请求式撤销、赛后再战与逐人授权观战已有开发基线；娱乐房间统一展示自由构筑、开盒战和海克斯，玩法标签置顶强调且保留其他房间；自由构筑放开总 PT，七弹开盒战支持：半副灰心规则、冻结牌池与草稿恢复、双方同意再战；新增每盒 1/60 的模拟宝藏包及组牌统计（费用、判定、Live）。持久准备记录不等于进行中对局可跨进程恢复。 | [大厅设计](online-mode/community-lobby-design.md)、[开盒战](online-mode/bp7-sealed.md)、[房间生命周期](online-mode/room-exit-and-recovery.md) |
 | 赛季排位 | 赛季、候场、评分结算、更正、重建、卡组分类与环境统计已实现；卡组分类默认重算最近 200 场（场数可配置），支持显式全量及历史结果保留，计算与预览在独立子进程执行；新赛季默认 V4，评分与运营增量仍需按专题完成相应验收。 | [排位专题](matchmaking-and-ladder/README.md)、[当前实现边界](matchmaking-and-ladder/RANKED_INITIAL_IMPLEMENTATION.md) |
