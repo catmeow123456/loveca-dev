@@ -1,5 +1,19 @@
 # Workflow Module Guide
 
+## 2026-11-07 有限family扩样本与LIVE入区事实
+
+费用13「黑泽露比」`PL!S-ad2-003` 的登场追加任意LIVE selector至既有弃手回收family，仍先支付再重扫，不预先用奖励目标阻止支付。AUTO由单卡 `s-ad2-003-ruby.ts` 统计逐卡有效判心列表是否非空，DRAW/SCORE/ALL每卡均只计1，属于门槛5/10的自身双颜色奖励；原规则对象失效不奖励重登对象。Killer的LIVE开始仍为单卡：统计己方顶层成员有效黄/紫总量（含WAITING），只减原正面LIVE自身必要无色；ALL、玩家Heart、下方卡不补指定色。二者复用现有事实查询、来源生命周期、queued确认和modifier，不新增判心DSL。
+
+友情、DEEPNESS及图书馆第二段只将三项新条件加入 `shared/live-start-score-bonuses.ts`，自身分数统一使用来源LIVE身份与 `replaceSourceLiveCardScoreModifierAndRefresh`。SUNNY DAY SONG扩展目标BLADE family的固定量/对手异名人数轴，在目标选择完成时取得快照并写TARGET_MEMBER；之后对手场面变化不重算。图书馆可选能量费用及全体低费用成员混洗置底、朋友场地的对方抽牌后选择己方高费成员分别保留薄单卡编排，不拼为通用步骤解释器。
+
+`effects/current-turn-live-zone-entries.ts`只读本回合跨区LIVE入区事件发生次数，含后续被卡效移走的牌、同实体正常离区后再入区；排除区内移动及上回合。原生SET的入区事件保留 `causedByActionId`，合法UNSET追加带精确 `entryEventId` 的 `UNSET_LIVE_CARD`动作，不删除历史；撤回仅取消对应那次事件。卡效入区不另加SET计数，普通回手不解释为撤回；不增加GameState持久计数或旧历史推测fallback。
+
+费用4「日野下花帆」`PL!HS-bp8-009` 增加成员/费用≤9 selector至休息室置顶family，选择及公开恢复复用统一框架，并用选卡窗口打开后的跨区入休息室事件识别离区重返的规则对象。费用5「中须霞」`PL!N-bp8-014` 扩置底BLADE family为恰1张无判心成员与明确 `movementIsCost`轴；旧堇的置底仍是效果，不记录PAY_COST，合法旧流程保持。费用11「朝香果林」`PL!N-bp8-016`扩待机family原本BLADE≤2 selector，原本值由query应用原本替换；目标保护与生命周期沿用原实现。
+
+岚珠与旧雪菜的两独立ID/正文共用 `shared/relay-replacement-place-energy-below.ts`。真实leave事件绑定controller、来源、WAITING_ROOM去向及 `replacingCardId`，确认与结算均重验目标是己方顶层虹咲，且该替换成员在换手后没有再离场；换手本身的后续入场不误判失效。来源无需仍在休息室，槽位移动不破坏目标。能量只经现有ENERGY_DECK→memberBelow原语，不伪造ENERGY_ZONE或“来源下方能量”事件。分数2「化作约定吧我们的歌」`PL!N-bp8-027`保留二选一单卡，分支各自复用休息室置顶/能量下放，不新增卡组顶第5张目的地。
+
+休息室公开选择的同实体重入安全检查提取为纯query `effects/waiting-room-selection-lifecycle.ts#hasWaitingRoomSelectionReenteredAfter`，由花帆置顶、歌曲置顶、霞置底、露比弃手后回收与朋友成功回收这些本次修改路径共用。选择窗口捕获事件sequence，公开恢复只检查其后 `fromZone !== WAITING_ROOM` 的实际入休息室事实，支持单卡和合法批量卡ID；区内整理不产生新对象。缺失选择anchor按当前状态契约拒绝，没有旧历史猜测fallback。查询不移动、不入队、不推进；失效只影响后续目标，既已支付的费用保持。
+
 ## 2026-11-06 手牌自身公开与声援移动触发
 
 `cards/n-bp8-008-emma-verde.ts` 是手牌来源的起动流程：直接公开固定来源支付费用，复用Public Reveal Dwell延后置底，再实时检查己方舞台团体条件并强制选择对方当前有效费用≤2的合法待机目标。公开是费用，置底和待机是效果；无后续目标不阻止支付，公开后来源失效也不取消独立的后续条件处理。目标使用既有保护和生命周期查询；重登或候选失效后刷新窗口身份，旧请求不能直接操作新对象。它与 `n-bp8-018-kanata.ts` 只共享公开、置底及成员状态动作，不把不同来源、费用及触发方式强并为family。现有HAND起动菜单直接读取definition，无客户端卡号特判。
@@ -24,7 +38,7 @@
 
 `effects/cheer-selection.ts#selectCurrentLiveRevealedCheerCardIdsWithoutBladeHearts` 为上述歌曲与 `PL!HS-ad2-001` 费用11「乙宗梢」共用的纯查询：先排除非法非数组判心数据，再查询当前 LIVE 有效判心为空的历史公开卡，并保留调用方 selector。领域缺省值/空数组表示无判心，显式 null 等非法领域值不算；导出 null 仍经既有数据映射变成领域缺省值，不改写原始 JSON。DRAW、SCORE、ALL 均不是无判心。
 
-梢的追加声援留在 `cards/hs-ad2-001-kozue.ts`：`pending.eventIds` 验证自己的普通声援诱发，结算另查本次 LIVE 累计事实；条件失败仍记录原来源生命周期的 turn1，来源离台/重登不取消已诱发效果。单个/手动选择使用动态确认，ordered batch 连续处理；追加通过既有声援动作标记 `additional: true`，即时处理 DRAW 后统一续行，不再次诱发 ON_CHEER。仅有一个新样本，不建立追加声援 shared family。
+梢的追加声援与分数2「Killer Kyun☆」`PL!SP-ad1-003` 晋升为 `shared/on-cheer-conditional-additional-cheer.ts`。有限配置是能力ID、成员/LIVE来源类型、有效无判心/ALL条件、门槛、追加数量及计数说明。`pending.eventIds`验证自己的普通声援诱发，结算另查本次LIVE累计历史有效判心；先前追加与已移走卡参与条件。条件失败仍记录原来源生命周期的turn1，来源离台/离区或重登不取消独立追加。单个/手动选择动态确认，ordered batch连续处理；追加统一标记 `additional: true`，即时处理DRAW后再continuation，不递归诱发ON_CHEER。
 
 `PL!-bp8-014` 费用7「星空凛」保留 `cards/pl-bp8-014-rin.ts`：可选恰2张无判心 μ’s 成员按序置底费用，公开恢复后重验整批、事件安全移动并记录支付，再抽1；来源离场不阻止独立费用/抽牌，免费登场委托只豁免费用。与旧起动、自身奖励和小队分组置底的整体流程不同，仅复用选择、公开、移动和抽牌原语。
 

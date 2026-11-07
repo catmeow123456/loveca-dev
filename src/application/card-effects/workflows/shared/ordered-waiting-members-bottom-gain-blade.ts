@@ -23,6 +23,7 @@ import {
 import {
   HS_PR_043_LIVE_START_BOTTOM_TWO_MEMBERS_HEART_TWELVE_GAIN_BLADE_ABILITY_ID,
   SP_BP7_004_LIVE_START_BOTTOM_THREE_LIELLA_MEMBERS_GAIN_TWO_BLADE_ABILITY_ID,
+  N_BP8_014_LIVE_START_WAITING_ROOM_NO_BLADE_HEART_MEMBER_BOTTOM_GAIN_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
 import { isCurrentStageMemberAbilitySource } from '../../runtime/source-member.js';
@@ -33,7 +34,13 @@ import { moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtim
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+  recordPayCostAction,
+} from '../../runtime/workflow-helpers.js';
+import type { PendingAbilityStarterOptions } from '../../runtime/starter-registry.js';
+import { hasWaitingRoomSelectionReenteredAfter } from '../../../effects/waiting-room-selection-lifecycle.js';
 
 interface Config {
   readonly abilityId: string;
@@ -44,8 +51,25 @@ interface Config {
   readonly selectionLabel: string;
   readonly rewardCondition: (cards: readonly CardInstance[]) => boolean;
   readonly blade: number;
+  readonly movementIsCost: boolean;
+  readonly confirmNoTarget?: boolean;
+  readonly autoSubmitSingleSelection?: boolean;
 }
 const CONFIGS: readonly Config[] = [
+  {
+    abilityId: N_BP8_014_LIVE_START_WAITING_ROOM_NO_BLADE_HEART_MEMBER_BOTTOM_GAIN_BLADE_ABILITY_ID,
+    stepId: 'N_BP8_014_SELECT_NO_BLADE_HEART_MEMBER_TO_DECK_BOTTOM',
+    count: 1,
+    selector: and(typeIs(CardType.MEMBER), not(hasBladeHeart())),
+    stepText:
+      '可以选择自己休息室1张不持有BLADE HEART的成员卡放置于卡组底，支付此费用后获得[ブレード][ブレード]。',
+    selectionLabel: '选择不持有BLADE HEART的成员卡',
+    rewardCondition: () => true,
+    blade: 2,
+    movementIsCost: true,
+    confirmNoTarget: true,
+    autoSubmitSingleSelection: true,
+  },
   {
     abilityId: SP_BP7_004_LIVE_START_BOTTOM_THREE_LIELLA_MEMBERS_GAIN_TWO_BLADE_ABILITY_ID,
     stepId: 'SP_BP7_004_SELECT_THREE_LIELLA_MEMBERS_TO_DECK_BOTTOM',
@@ -55,6 +79,7 @@ const CONFIGS: readonly Config[] = [
     selectionLabel: '按放置顺序选择3张『Liella!』成员卡',
     rewardCondition: (cards) => cards.some(not(hasBladeHeart())),
     blade: 2,
+    movementIsCost: false,
   },
   {
     abilityId: HS_PR_043_LIVE_START_BOTTOM_TWO_MEMBERS_HEART_TWELVE_GAIN_BLADE_ABILITY_ID,
@@ -69,6 +94,7 @@ const CONFIGS: readonly Config[] = [
         0
       ) >= 12,
     blade: 3,
+    movementIsCost: true,
   },
 ];
 
@@ -77,13 +103,7 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 export function registerOrderedWaitingMembersBottomGainBladeWorkflowHandlers(): void {
   for (const config of CONFIGS) {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
-      startSelection(
-        game,
-        ability,
-        options.orderedResolution === true,
-        context.continuePendingCardEffects,
-        config
-      )
+      startSelection(game, ability, options, context.continuePendingCardEffects, config)
     );
     registerActiveEffectStepHandler(
       config.abilityId,
@@ -103,14 +123,24 @@ export function registerOrderedWaitingMembersBottomGainBladeWorkflowHandlers(): 
 function startSelection(
   game: GameState,
   ability: PendingAbilityState,
-  orderedResolution: boolean,
+  options: PendingAbilityStarterOptions,
   continuePendingCardEffects: ContinuePendingCardEffects,
   config: Config
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) return game;
+  const orderedResolution = options.orderedResolution === true;
   const candidateCardIds = getCurrentCandidates(game, player.id, config);
   if (candidateCardIds.length < config.count) {
+    if (config.confirmNoTarget) {
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText:
+          getAbilityEffectText(ability.abilityId) +
+          '（没有可选择的成员卡，无法支付费用，不获得[ブレード]。）',
+        stepText: '没有可选择的成员卡，确认后不处理。',
+      });
+      if (confirmation) return confirmation;
+    }
     return finishPendingNoMove(
       game,
       ability,
@@ -138,18 +168,20 @@ function startSelection(
       selectableCardMode: 'ORDERED_MULTI',
       minSelectableCards: config.count,
       maxSelectableCards: config.count,
+      autoSubmitSingleSelection: config.autoSubmitSingleSelection,
       selectionLabel: config.selectionLabel,
-      confirmSelectionLabel: '按此顺序放置于卡组底',
+      confirmSelectionLabel: config.count === 1 ? '放置于卡组底' : '按此顺序放置于卡组底',
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
       metadata: {
         publicCardSelectionConfirmation: {
           source: 'WAITING_ROOM',
           destination: 'MAIN_DECK_BOTTOM',
-          ordered: true,
+          ordered: config.count > 1,
         },
         orderedResolution,
         candidateCardIds,
+        waitingSelectionSequence: game.eventLog.at(-1)?.sequence ?? 0,
       },
     },
     actionPayload: {
@@ -189,7 +221,14 @@ function finishSelection(
     return game;
   }
   const currentCandidateSet = new Set(getCurrentCandidates(game, player.id, config));
-  if (selectedCardIds.some((cardId) => !currentCandidateSet.has(cardId))) {
+  if (
+    selectedCardIds.some((cardId) => !currentCandidateSet.has(cardId)) ||
+    hasWaitingRoomSelectionReenteredAfter(
+      game,
+      selectedCardIds,
+      effect.metadata?.waitingSelectionSequence
+    )
+  ) {
     return wasRestoredAfterPublicCardSelectionConfirmation(effect)
       ? finishEffectNoMove(
           game,
@@ -230,15 +269,17 @@ function finishSelection(
         )
       : game;
   }
-  const paidState = recordPayCostAction(moveResult.gameState, effect.controllerId, {
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    pendingAbilityId: effect.id,
-    costType: 'MOVE_WAITING_ROOM_MEMBERS_TO_DECK_BOTTOM',
-    movedCardIds: moveResult.movedCardIds,
-    waitingRoomCardsMovedToMainDeckEventId:
-      moveResult.waitingRoomCardsMovedToMainDeckEvent?.eventId,
-  });
+  const paidState = config.movementIsCost
+    ? recordPayCostAction(moveResult.gameState, effect.controllerId, {
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        pendingAbilityId: effect.id,
+        costType: 'MOVE_WAITING_ROOM_MEMBERS_TO_DECK_BOTTOM',
+        movedCardIds: moveResult.movedCardIds,
+        waitingRoomCardsMovedToMainDeckEventId:
+          moveResult.waitingRoomCardsMovedToMainDeckEvent?.eventId,
+      })
+    : moveResult.gameState;
   const movedCards = moveResult.movedCardIds.flatMap((id) => {
     const card = getCardById(moveResult.gameState, id);
     return card ? [card] : [];

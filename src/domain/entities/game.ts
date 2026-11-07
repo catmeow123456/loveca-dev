@@ -71,6 +71,7 @@ export type GameActionType =
   | 'PLAY_MEMBER'
   | 'PLAY_ABILITY'
   | 'SET_LIVE_CARD'
+  | 'UNSET_LIVE_CARD'
   | 'CHEER'
   | 'LIVE_JUDGMENT'
   | 'PAY_COST'

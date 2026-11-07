@@ -24,11 +24,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import {
-  addCardToStatefulZone,
-  placeCardInSlot,
-  removeCardFromSlot,
-} from '../../src/domain/entities/zone';
+import { addCardToZone, placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
 import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
 import {
   BladeHeartEffect,
@@ -39,6 +35,7 @@ import {
   SlotPosition,
   TriggerCondition,
 } from '../../src/shared/types/enums';
+import { createNovember07DraftCard } from '../helpers/november-07-draft-effects';
 
 const P1 = 'p1';
 const P2 = 'p2';
@@ -87,7 +84,7 @@ function setup(
   } = {}
 ) {
   let now = 20_000;
-  const source = member('PL!SP-bp7-004-P', 'sumire', { hasBladeHeart: true });
+  const source = createNovember07DraftCard('PL!SP-bp7-004-P', P1, 'sumire');
   const candidates = Array.from({ length: candidateCount }, (_, index) =>
     member(`LIELLA-${index}`, `liella-${index}`, {
       hasBladeHeart: options.allSelectedHaveBladeHeart === true || index !== 0,
@@ -120,7 +117,7 @@ function setup(
   }));
   game = updatePlayer(game, P2, (player) => ({
     ...player,
-    waitingRoom: addCardToStatefulZone(player.waitingRoom, opponent.instanceId),
+    waitingRoom: addCardToZone(player.waitingRoom, opponent.instanceId),
   }));
   game = resolvePendingCardEffects({
     ...game,
@@ -187,6 +184,8 @@ describe('PL!SP-bp7-004-P 「平安名堇」', () => {
         triggerCondition: TriggerCondition.ON_LIVE_START,
         queued: true,
         implemented: true,
+        effectText:
+          '【LIVE开始时】可以从自己的休息室将3张『Liella!』的成员卡按任意顺序放置于卡组底。因此放置于卡组底的卡片中存在大于等于1张不持有BLADE HEART的成员卡的场合，LIVE结束时为止，获得[ブレード][ブレード]。',
       })
     );
     expect(getCardAbilityDefinitionsForCardCode('PL!SP-bp7-004-R')).toContainEqual(
@@ -209,6 +208,7 @@ describe('PL!SP-bp7-004-P 「平安名堇」', () => {
     'requires exactly three from %i legal candidates and exposes optional ordered copy',
     (count) => {
       const scenario = setup(count);
+      expect(scenario.game.activeEffect?.autoSubmitSingleSelection).not.toBe(true);
       expect(scenario.game.activeEffect).toMatchObject({
         selectableCardIds: scenario.candidates.map((card) => card.instanceId),
         selectableCardVisibility: 'PUBLIC',
@@ -305,7 +305,7 @@ describe('PL!SP-bp7-004-P 「平安名堇」', () => {
           ...player.waitingRoom,
           cardIds: player.waitingRoom.cardIds.filter((id) => id !== ids[1]),
         },
-        hand: addCardToStatefulZone(player.hand, ids[1]!),
+        hand: addCardToZone(player.hand, ids[1]!),
       })
     );
     expect(expire(scenario.session, scenario.setNow).success).toBe(true);
@@ -328,14 +328,12 @@ describe('PL!SP-bp7-004-P 「平安名堇」', () => {
       scenario.session.state?.actionHistory.filter(
         (action) => action.type === 'PAY_COST' && action.payload.abilityId === ABILITY_ID
       )
-    ).toEqual([
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          movedCardIds: ids,
-          waitingRoomCardsMovedToMainDeckEventId: expect.any(String),
-        }),
-      }),
-    ]);
+    ).toEqual([]);
+    expect(
+      scenario.session.state!.eventLog.filter(
+        ({ event }) => event.eventType === TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK
+      )
+    ).toHaveLength(1);
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).toContain(
       scenario.unselectedNoBladeHeart.instanceId
     );

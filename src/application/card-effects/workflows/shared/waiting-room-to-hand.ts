@@ -1,3 +1,4 @@
+import { hasWaitingRoomSelectionReenteredAfter } from '../../../effects/waiting-room-selection-lifecycle.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
 import { type CardInstance } from '../../../../domain/entities/card.js';
 import {
@@ -9,6 +10,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { CardType } from '../../../../shared/types/enums.js';
 import {
+  HS_BP8_022_LIVE_SUCCESS_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
   HONOKA_ON_ENTER_ABILITY_ID,
   HS_BP2_002_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID,
   HS_PB1_025_LIVE_SUCCESS_HAND_SIX_RECOVER_MEMBER_ABILITY_ID,
@@ -27,7 +29,10 @@ import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/action
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 import {
   and,
   costLte,
@@ -85,6 +90,8 @@ export interface WaitingRoomToHandWorkflowConfig {
   readonly canStart?: (game: GameState, playerId: string) => boolean;
   readonly conditionNotMetActionStep?: string;
   readonly noCandidatesActionStep?: string;
+  readonly confirmNoCandidates?: boolean;
+  readonly trackWaitingRoomTargetLifecycle?: boolean;
 }
 
 interface RegisteredWaitingRoomToHandWorkflowConfig extends Omit<
@@ -95,6 +102,20 @@ interface RegisteredWaitingRoomToHandWorkflowConfig extends Omit<
 }
 
 const WAITING_ROOM_TO_HAND_WORKFLOWS: readonly RegisteredWaitingRoomToHandWorkflowConfig[] = [
+  {
+    abilityId: HS_BP8_022_LIVE_SUCCESS_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
+    stepId: 'HS_BP8_022_SELECT_HASUNOSORA_LIVE',
+    stepText: '请选择自己的休息室中1张『莲之空』LIVE卡加入手牌。',
+    selectionLabel: '选择要加入手牌的莲之空LIVE卡',
+    confirmSelectionLabel: '加入手牌',
+    candidateBuilder: (game, playerId) =>
+      selectWaitingRoomCardIds(game, playerId, and(typeIs(CardType.LIVE), groupAliasIs('蓮ノ空'))),
+    countRule: { exactCount: 1 },
+    optional: false,
+    noCandidatesActionStep: 'NO_WAITING_ROOM_HASUNOSORA_LIVE_TARGET',
+    confirmNoCandidates: true,
+    trackWaitingRoomTargetLifecycle: true,
+  },
   {
     abilityId: LL_BP7_001_ON_ENTER_RECOVER_LIVE_ABILITY_ID,
     stepId: 'LL_BP7_001_SELECT_WAITING_ROOM_LIVE',
@@ -274,6 +295,17 @@ export function registerWaitingRoomToHandWorkflowHandlers(): void {
       }
       const selectableCardIds = config.candidateBuilder(game, player.id);
       if (selectableCardIds.length === 0 && config.noCandidatesActionStep) {
+        if (config.confirmNoCandidates) {
+          const confirmation = maybeStartConfirmablePendingAbilityConfirmation(
+            game,
+            ability,
+            options,
+            {
+              effectText: `${getAbilityEffectText(config.abilityId)}（当前休息室中没有可选择的『莲之空』LIVE卡，实际不加入手牌。）`,
+            }
+          );
+          if (confirmation) return confirmation;
+        }
         return consumeWaitingRoomToHandPending(
           game,
           ability,
@@ -296,6 +328,7 @@ export function registerWaitingRoomToHandWorkflowHandlers(): void {
         countRule: config.countRule,
         optional: config.optional,
         selectionRequiredWhenHasTargets: config.selectionRequiredWhenHasTargets,
+        trackWaitingRoomTargetLifecycle: config.trackWaitingRoomTargetLifecycle,
         orderedResolution,
       });
     });
@@ -312,7 +345,10 @@ export function registerWaitingRoomToHandWorkflowHandlers(): void {
           input.selectedCardId ?? null,
           input.selectedCardIds,
           context.continuePendingCardEffects,
-          { currentCandidateCardIds }
+          {
+            currentCandidateCardIds,
+            trackWaitingRoomTargetLifecycle: config.trackWaitingRoomTargetLifecycle,
+          }
         );
       },
       queryCardSelection
@@ -322,6 +358,7 @@ export function registerWaitingRoomToHandWorkflowHandlers(): void {
 
 export interface FinishWaitingRoomToHandWorkflowOptions {
   readonly currentCandidateCardIds?: readonly string[];
+  readonly trackWaitingRoomTargetLifecycle?: boolean;
 }
 
 export function startWaitingRoomToHandWorkflow(
@@ -359,6 +396,9 @@ export function startWaitingRoomToHandWorkflow(
         selectableCardIds,
         metadata: {
           orderedResolution: config.orderedResolution,
+          ...(config.trackWaitingRoomTargetLifecycle
+            ? { waitingSelectionSequence: game.eventSequence }
+            : {}),
         },
         zoneSelection: createWaitingRoomToHandSelectionConfig({
           minCount: getMinCount(countRule),
@@ -434,8 +474,15 @@ export function finishWaitingRoomToHandWorkflow(
   const currentCandidateCardIdSet = new Set(
     options.currentCandidateCardIds ?? originalCandidateCardIds
   );
-  const currentlyEligibleOriginalCandidateCardIds = originalCandidateCardIds.filter((cardId) =>
-    currentCandidateCardIdSet.has(cardId)
+  const currentlyEligibleOriginalCandidateCardIds = originalCandidateCardIds.filter(
+    (cardId) =>
+      currentCandidateCardIdSet.has(cardId) &&
+      (options.trackWaitingRoomTargetLifecycle !== true ||
+        !hasWaitingRoomSelectionReenteredAfter(
+          game,
+          [cardId],
+          effect.metadata?.waitingSelectionSequence
+        ))
   );
   if (
     wasRestoredAfterPublicCardSelectionConfirmation(effect) &&
