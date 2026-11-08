@@ -128,11 +128,12 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
     if (!ids.size) return;
     return preloadEntranceProfiles(cardEntranceProfiles.filter((profile) => ids.has(profile.id)));
   }, [matchId, preloadKey]);
+  // These siblings overlap while the receipt outlives the playback; their keys must differ.
   return (
     <>
       {view && wait && !view.match.endInfo && (
         <SynchronizedEntrance
-          key={`${contextKey}:${wait.id}`}
+          key={`entrance:${contextKey}:${wait.id}`}
           view={view}
           enabled={enabled}
           images={images}
@@ -145,7 +146,7 @@ export function CardEntranceLayer({ enabled }: { enabled: boolean }) {
       )}
       {showNotice && notice && (
         <GinkoTransferNotice
-          key={`${notice.contextKey}:${notice.windowId}`}
+          key={`notice:${notice.contextKey}:${notice.windowId}`}
           source={notice.source}
           reduced={reduced}
           onDone={dismissNotice}

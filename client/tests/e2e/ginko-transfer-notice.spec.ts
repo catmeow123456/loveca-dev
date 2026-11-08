@@ -5,7 +5,7 @@ import { installVisualApiMocks } from '../visual/support/mockApp';
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 test.use({ serviceWorkers: 'block' });
 
-async function openBoard(page: Page, viewer = 'p1') {
+async function openBoard(page: Page, viewer = 'p1', solitaireFree = false) {
   await installVisualApiMocks(page, false);
   await page.addInitScript(() => localStorage.setItem('loveca-card-entrance-enabled', 'true'));
   await page.route('**/images/**', (route) =>
@@ -25,7 +25,7 @@ async function openBoard(page: Page, viewer = 'p1') {
     )
     .toBe(true);
   await page.evaluate(
-    async ({ repoRoot, viewer }) => {
+    async ({ repoRoot, viewer, solitaireFree }) => {
       const resources = performance.getEntriesByType('resource');
       const storeUrl = resources.find((e) => e.name.includes('/src/store/gameStore.ts'))!.name;
       const reactUrl = resources.find((e) => /\/react\.js(?:\?|$)/.test(e.name))!.name;
@@ -52,13 +52,15 @@ async function openBoard(page: Page, viewer = 'p1') {
       const f = prepareGinkoScenario({ mode: 'REMOTE', relay: 'none' });
       if (!f.play().success || !f.ack('p1').success || !f.ack('p2').success)
         throw new Error('fixture entrance failed');
+      if (solitaireFree && !f.session.setManualOperationMode('FREE').success)
+        throw new Error('fixture free mode failed');
       useGameStore
         .getState()
         .loadCardData([...f.session.state.cardRegistry.values()].map((c: any) => c.data));
       useGameStore.setState({
         gameSession: f.session,
         // Keep the opponent seat fixed instead of DEBUG's automatic action-owner switch.
-        gameMode: viewer === 'p2' ? 'SOLITAIRE' : 'DEBUG',
+        gameMode: viewer === 'p2' || solitaireFree ? 'SOLITAIRE' : 'DEBUG',
         viewingPlayerId: viewer,
         remoteSession: null,
         replaySession: null,
@@ -99,7 +101,7 @@ async function openBoard(page: Page, viewer = 'p1') {
         .createRoot(host)
         .render(React.createElement(BattleViewportShell, null, React.createElement(GameBoard)));
     },
-    { repoRoot, viewer }
+    { repoRoot, viewer, solitaireFree }
   );
   await expect(page.locator('[data-ginko-knot-marker]')).toHaveCount(0);
   // Let the actual stage DOM mount before the real discard/reveal command.
@@ -190,6 +192,68 @@ for (const scenario of ['normal', 'opponent', 'narrow', 'reduced'] as const) {
       body: JSON.stringify(timing),
       contentType: 'application/json',
     });
+  });
+}
+
+for (const motion of ['normal', 'reduced'] as const) {
+  test(`对墙打起动结束后桌面恢复操作：${motion}`, async ({ page }, info) => {
+    test.skip(info.project.name !== 'tablet-1024x768');
+    await page.emulateMedia({ reducedMotion: motion === 'reduced' ? 'reduce' : 'no-preference' });
+    await openBoard(page, 'p1', true);
+    await startTransfer(page);
+    const label = page.locator('.ginko-transfer-received');
+    await expect(label).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => !!(window as any).ginkoNoticeQa.store.getState().playerViewState.match.entrance
+        )
+      )
+      .toBe(false);
+    // The receipt outlives the playback; both siblings must keep independent lifecycles.
+    await expect(label).toBeVisible();
+    await page.getByRole('group', { name: '效果候选卡牌' }).getByRole('button').first().click();
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const state = (window as any).ginkoNoticeQa.f.session.state;
+          return {
+            activeEffect: state.activeEffect,
+            inspected: state.inspectionZone.cardIds.length,
+          };
+        })
+      )
+      .toEqual({ activeEffect: null, inspected: 0 });
+    await expect(label).toHaveCount(0);
+    await expect(page.locator('.ginko-ability-transfer, .card-entrance-wait')).toHaveCount(0);
+
+    // An effect panel can sit above an orphaned blocker. Exercise the actual desk below it.
+    const handCard = page.locator('[data-battle-ui-anchor="self-hand"] [data-card-id="deck-0"]');
+    await handCard.click();
+    await expect
+      .poll(() =>
+        page.evaluate(() => (window as any).ginkoNoticeQa.store.getState().ui.selectedCardId)
+      )
+      .toBe('deck-0');
+    const from = (await handCard.boundingBox())!;
+    const to = (await page.locator('[data-battle-ui-anchor="self-waiting-room"]').boundingBox())!;
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+    await page.mouse.up();
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const player = (window as any).ginkoNoticeQa.f.session.state.players[0];
+          return {
+            inHand: player.hand.cardIds.includes('deck-0'),
+            inWaiting: player.waitingRoom.cardIds.includes('deck-0'),
+          };
+        })
+      )
+      .toEqual({ inHand: false, inWaiting: true });
+    await expect(handCard).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath('desk-operable-after-transfer.png') });
   });
 }
 
