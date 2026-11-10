@@ -72,7 +72,7 @@ export function formatTextLiveRequirements(requirements: unknown): string {
   );
 }
 
-/** Only formats authorized printed markers and the owner's projected color replacement. */
+/** Formats authorized printed or server-projected effective markers. */
 export function formatTextJudgment(
   markers?: readonly ViewBladeHeartItem[],
   replacement?: LiveResultViewState['cheerHeartColorReplacements']['FIRST']
@@ -188,10 +188,7 @@ export function selectExcelCard(view: PlayerViewState, objectId: string): ExcelC
     printedJudgment: hasJudgment ? formatTextJudgment(front.bladeHearts) : undefined,
     currentJudgment:
       hasJudgment && isCheerCard
-        ? formatTextJudgment(
-            front.bladeHearts,
-            result?.cheerHeartColorReplacements?.[object.ownerSeat]
-          )
+        ? formatTextJudgment(result?.effectiveCheerBladeHearts[objectId] ?? front.bladeHearts)
         : undefined,
     state: [
       orientationLabel,

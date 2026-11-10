@@ -102,8 +102,8 @@ describe('November 07 complete authorized card definitions', () => {
       }
     }
   );
-  it('keeps the three orange-heart-dependent cards out of this batch', () => {
+  it('recognizes the three orange-heart cards completed in the November 10 batch', () => {
     for (const base of ['PL!-ad1-001', 'PL!-ad1-004', 'PL!SP-ad1-001'])
-      expect(getCardAbilityDefinitionsForCardCode(base)).toEqual([]);
+      expect(getCardAbilityDefinitionsForCardCode(base).every((definition) => definition.implemented === true)).toBe(true);
   });
 });

@@ -27,6 +27,7 @@ export type PublicCardSelectionDestination =
   | 'MAIN_DECK_TOP'
   | 'MAIN_DECK_BOTTOM'
   | 'MAIN_DECK_POSITION_4'
+  | 'MAIN_DECK_POSITION_5'
   | 'LIVE_ZONE'
   | 'WAITING_ROOM';
 
@@ -84,6 +85,7 @@ export function getPublicCardSelectionConfirmationConfig(
     destination !== 'MAIN_DECK_TOP' &&
     destination !== 'MAIN_DECK_BOTTOM' &&
     destination !== 'MAIN_DECK_POSITION_4' &&
+    destination !== 'MAIN_DECK_POSITION_5' &&
     destination !== 'LIVE_ZONE' &&
     destination !== 'WAITING_ROOM'
   ) {
@@ -394,6 +396,10 @@ function getConfirmationCopy(config: PublicCardSelectionConfirmationConfig): {
         stepText: config.ordered
           ? '已选择的卡牌及放置顺序已向双方公开。'
           : '已选择的卡牌已向双方公开。',
+      };
+    case 'MAIN_DECK_POSITION_5':
+      return {
+        stepText: '已选择的卡牌已向双方公开，展示结束后放置于卡组顶第5张。',
       };
     case 'MAIN_DECK_POSITION_4':
       return {

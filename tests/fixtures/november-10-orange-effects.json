@@ -1,0 +1,211 @@
+{
+  "PL!-ad1-001-AD": {
+    "cardCode": "PL!-ad1-001-AD",
+    "cardType": "MEMBER",
+    "nameJp": "高坂穂乃果",
+    "nameCn": "高坂穗乃果",
+    "workNames": null,
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cost": 11,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】手札を１枚控え室に置いてもよい：自分の控え室から[ALLブレード]か[オレンジブレード]を持つライブカードを１枚手札に加える。\n\n【ライブ開始時】自分の控え室から[オレンジブレード]を持つカードを１枚自分のデッキの一番上から５枚目に置く。",
+    "cardTextCn": "【登场】可以将１张手牌放置入休息室：从自己的休息室将１张持有[ALLブレード]或[オレンジブレード]的LIVE卡加入手牌。\n\n【LIVE开始时】将存在于自己的休息室的１张持有[オレンジブレード]的卡片放置于自己的卡组顶第５张。",
+    "imageFilename": "sync-db5050539692e89cf94bbef2-d42fa674ec9fa3f9c40db25e.webp",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/AD01/PL!-ad1-001-AD.png",
+    "rare": "AD",
+    "product": "Anniversaryデッキ vol.1 Heart Shooters",
+    "productCode": "AD01",
+    "sourceExternalId": "7cc5dc476aeedd4b0012dd040f93bb31",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "sync-db5050539692e89cf94bbef2"
+    },
+    "status": "DRAFT"
+  },
+  "PL!-ad1-004-AD": {
+    "cardCode": "PL!-ad1-004-AD",
+    "cardType": "LIVE",
+    "nameJp": "HEART to HEART!",
+    "nameCn": "HEART to HEART!",
+    "workNames": null,
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 7,
+    "requirements": [
+      {
+        "color": "YELLOW",
+        "count": 4
+      },
+      {
+        "color": "PURPLE",
+        "count": 3
+      },
+      {
+        "color": "RAINBOW",
+        "count": 7
+      }
+    ],
+    "cardTextJp": "【ライブ成功時】エールにより公開された自分のカードの中から、[オレンジブレード]を持つカードを１枚手札に加える。",
+    "cardTextCn": "【LIVE成功时】从因声援被公开的自己的卡片中，将１张持有[オレンジブレード]的卡片加入手牌。",
+    "imageFilename": "sync-36767f2c6d13b56522c4b87a-ba20b56906a7da37ed50a9b7.webp",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/AD01/PL!-ad1-004-AD.png",
+    "rare": "AD",
+    "product": "Anniversaryデッキ vol.1 Heart Shooters",
+    "productCode": "AD01",
+    "sourceExternalId": "0e570c4b6ae1e04b004c506947ba3c2d",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "sync-36767f2c6d13b56522c4b87a"
+    },
+    "status": "DRAFT"
+  },
+  "PL!-bp8-023-SECL": {
+    "cardCode": "PL!-bp8-023-SECL",
+    "cardType": "LIVE",
+    "nameJp": "Snow halation",
+    "nameCn": "Snow halation",
+    "workNames": null,
+    "groupNames": [
+      "μ’s"
+    ],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "ORANGE"
+      }
+    ],
+    "score": 5,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      },
+      {
+        "color": "RAINBOW",
+        "count": 6
+      }
+    ],
+    "cardTextJp": "【ライブ開始時】ライブ終了時まで、エールによって公開される自分のコスト4以下のブレードハートを持たないメンバーカードは[オレンジブレード]を持つ。\n\n【ライブ成功時】エールにより公開された自分のカードの中に[オレンジブレード]を持つカードが6枚以上ある場合、このカードのスコアを+2する。",
+    "cardTextCn": "【LIVE开始时】LIVE结束时为止，因声援被公开的自己的费用小于等于4的不持有BLADE HEART的成员卡获得[オレンジブレード]。\n\n【LIVE成功时】因声援被公开的自己的卡片中存在大于等于6张持有[オレンジブレード]的卡片的场合，此卡的分数+2。",
+    "imageFilename": "PL!-bp8-023-SECL.png",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/BP08/PL!-bp8-023-SECL.png",
+    "rare": "SECL",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "sourceExternalId": "950208346a64778800a5c34e10bbed96",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "parseWarnings": [
+        "PL!-bp8-023-SECL row 2346 blade_hearts: unsupported blade heart value"
+      ]
+    },
+    "status": "DRAFT"
+  },
+  "PL!SP-ad1-001-AD": {
+    "cardCode": "PL!SP-ad1-001-AD",
+    "cardType": "MEMBER",
+    "nameJp": "渋谷かのん",
+    "nameCn": "涩谷香音",
+    "workNames": null,
+    "groupNames": [
+      "Liella!"
+    ],
+    "unitName": "「CatChu!」",
+    "unitNameRaw": "CatChu!",
+    "cost": 13,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【ライブ開始時】手札を１枚控え室に置く。これによりメンバーカードを控え室に置いた場合、自分の控え室からライブカードを１枚手札に加える。ライブカードを控え室に置いた場合、カードを１枚引き、その後、これにより控え室に置いたカードを自分のデッキの一番上から７枚目に置く。\n\n【自動】【ターン１回】自分がエールしたとき、エールにより公開された自分のカードの中に[オレンジブレード]を持つカードがある場合、追加で２枚エールを行う。",
+    "cardTextCn": "【LIVE开始时】将１张手牌放置入休息室。因此将成员卡放置入休息室的场合，从自己的休息室将１张LIVE卡加入手牌。因此将LIVE卡放置入休息室的场合，抽１张卡，此后，将因此放置入休息室的卡片放置于自己的卡组顶的第７张卡的位置。\n\n【自动】【１回合１次】自己进行声援时，因声援被公开的自己的卡片中存在持有[オレンジブレード]的卡片的场合，追加进行２张卡片的声援。",
+    "imageFilename": "sync-4bb5f93d4a6dcf90aff2bd31-ba20b56906a7da37ed50a9b7.webp",
+    "imageSourceUri": "cloud://cloud1-4gcb7ly9845b2f5b.636c-cloud1-4gcb7ly9845b2f5b-1356571968/cardlist/AD01/PL!SP-ad1-001-AD.png",
+    "rare": "AD",
+    "product": "Anniversaryデッキ vol.1 Heart Shooters",
+    "productCode": "AD01",
+    "sourceExternalId": "ffc52b9f6ae1dfe6003c885756b8bbb0",
+    "sourceFlags": {
+      "importedBy": "sync-cards-cloudbase-new",
+      "cloudbaseOnly": true,
+      "imageObjectVersioned": true,
+      "imageOriginalBaseName": "sync-4bb5f93d4a6dcf90aff2bd31"
+    },
+    "status": "DRAFT"
+  }
+}

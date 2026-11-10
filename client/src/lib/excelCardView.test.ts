@@ -216,7 +216,7 @@ describe('Excel judgment information', () => {
     expect(formatTextJudgment()).toBe('—');
   });
   it.each([CardType.MEMBER, CardType.LIVE])(
-    'applies only the cheer owner replacement for %s, never to cards in other zones',
+    'uses the projected effective markers for %s, never for cards in other zones',
     (cardType) => {
       const card: ViewCardObject = {
         ...front,
@@ -230,6 +230,13 @@ describe('Excel judgment information', () => {
           cheerHeartColorReplacements: {
             FIRST: { fromColors: [HeartColor.YELLOW], toColor: HeartColor.PURPLE },
             SECOND: replacement,
+          },
+          effectiveCheerBladeHearts: {
+            'obj_public-a': markers.map((marker) =>
+              marker.heartColor === HeartColor.YELLOW
+                ? { ...marker, heartColor: HeartColor.BLUE }
+                : marker
+            ),
           },
         }
       );
@@ -282,6 +289,40 @@ describe('Excel judgment information', () => {
       ).toBeNull();
     }
   );
+  it('shows granted ORANGE on a printed empty judgment without modifying member hearts', () => {
+    const card: ViewCardObject = {
+      ...front,
+      frontInfo: {
+        ...front.frontInfo!,
+        bladeHearts: [],
+        hearts: [{ color: HeartColor.ORANGE, count: 2 }],
+      },
+    };
+    const state = view(
+      { 'obj_public-a': card },
+      {
+        effectiveCheerBladeHearts: {
+          'obj_public-a': [{ effect: BladeHeartEffect.HEART, heartColor: HeartColor.ORANGE }],
+        },
+      }
+    );
+    const projected: PlayerViewState = {
+      ...state,
+      match: { ...state.match, phase: GamePhase.PERFORMANCE_PHASE },
+      table: {
+        zones: {
+          SHARED_RESOLUTION_ZONE: {
+            ...emptyZones.SHARED_RESOLUTION_ZONE,
+            objectIds: ['obj_public-a'],
+          },
+        },
+      },
+    };
+    const row = selectExcelCard(projected, 'obj_public-a')!;
+    expect(row.printedJudgment).toBe('—');
+    expect(row.currentJudgment).toBe('橙 1');
+    expect(row.front.hearts).toEqual([{ color: HeartColor.ORANGE, count: 2 }]);
+  });
   it('labels generic LIVE requirements as gray while gained rainbow hearts remain rainbow', () => {
     for (const color of [HeartColor.GRAY, HeartColor.RAINBOW]) {
       const requirements = { colorRequirements: { PINK: 5, [color]: 7 }, totalRequired: 12 };

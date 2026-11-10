@@ -4669,14 +4669,30 @@ export function getCheerCardEffectiveBladeHearts(
   liveModifiers: readonly LiveModifierState[] = collectLiveModifiers(game)
 ): readonly BladeHeartItem[] {
   const card = getCardById(game, cardId);
-  if (!card || card.ownerId !== playerId || !('bladeHearts' in card.data)) {
+  if (!card || card.ownerId !== playerId) {
     return [];
   }
 
-  const bladeHearts = (card.data as { readonly bladeHearts?: readonly BladeHeartItem[] })
+  const printedBladeHearts = (card.data as { readonly bladeHearts?: readonly BladeHeartItem[] })
     .bladeHearts;
-  if (!bladeHearts || bladeHearts.length === 0) {
+  // Absent and empty lists both mean no markers. Malformed lists are not cards
+  // without markers and must not receive a grant.
+  if (printedBladeHearts !== undefined && !Array.isArray(printedBladeHearts)) {
     return [];
+  }
+  let bladeHearts: readonly BladeHeartItem[] = printedBladeHearts ?? [];
+  if (bladeHearts.length === 0 && isMemberCardData(card.data)) {
+    const effectiveCost = getMemberEffectiveCost(game, playerId, cardId, liveModifiers);
+    const grant = [...liveModifiers].reverse().find(
+      (modifier) =>
+        modifier.kind === 'CHEER_CARD_BLADE_HEART_GRANT' &&
+        modifier.playerId === playerId &&
+        effectiveCost <= modifier.maxMemberCost
+    );
+    // The card has the granted marker; additional copies do not add markers.
+    if (grant?.kind === 'CHEER_CARD_BLADE_HEART_GRANT') {
+      bladeHearts = [{ effect: BladeHeartEffect.HEART, heartColor: grant.heartColor }];
+    }
   }
 
   const replacement = getLatestCheerCardHeartColorReplacementModifier(playerId, liveModifiers);

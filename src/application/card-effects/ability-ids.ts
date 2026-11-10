@@ -2273,3 +2273,24 @@ export const N_BP8_024_AUTO_BATON_TOUCH_NIJIGASAKI_PLACE_ENERGY_UNDER_ENTERED_ME
   'PL!N-bp8-024:auto-baton-touch-nijigasaki-place-energy-under-entered-member';
 export const N_BP8_027_LIVE_SUCCESS_CHOOSE_WAITING_ROOM_TOP_OR_ENERGY_UNDER_NIJIGASAKI_ABILITY_ID =
   'PL!N-bp8-027:live-success-choose-waiting-room-top-or-energy-under-nijigasaki';
+
+export const PL_AD1_001_ON_ENTER_DISCARD_RECOVER_ALL_OR_ORANGE_LIVE_ABILITY_ID =
+  'PL!-ad1-001:on-enter-discard-recover-all-or-orange-live';
+
+export const PL_AD1_001_LIVE_START_WAITING_ORANGE_TO_FIFTH_ABILITY_ID =
+  'PL!-ad1-001:live-start-waiting-orange-to-fifth';
+
+export const PL_AD1_004_LIVE_SUCCESS_ORANGE_CHEER_TO_HAND_ABILITY_ID =
+  'PL!-ad1-004:live-success-orange-cheer-to-hand';
+
+export const SP_AD1_001_LIVE_START_DISCARD_RECOVER_LIVE_OR_DRAW_AND_SEVENTH_ABILITY_ID =
+  'PL!SP-ad1-001:live-start-discard-recover-live-or-draw-and-seventh';
+
+export const SP_AD1_001_AUTO_ON_CHEER_ORANGE_ADDITIONAL_CHEER_ABILITY_ID =
+  'PL!SP-ad1-001:auto-on-cheer-orange-additional-cheer';
+
+export const PL_BP8_023_LIVE_START_LOW_COST_NO_BLADE_HEART_GAIN_ORANGE_ABILITY_ID =
+  'PL!-bp8-023:live-start-low-cost-no-blade-heart-gain-orange';
+
+export const PL_BP8_023_LIVE_SUCCESS_SIX_ORANGE_CHEER_SCORE_ABILITY_ID =
+  'PL!-bp8-023:live-success-six-orange-cheer-score';

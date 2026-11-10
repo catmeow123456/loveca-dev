@@ -12,6 +12,7 @@ import {
 } from '../../../effects/cheer-selection.js';
 import {
   PL_BP8_022_LIVE_SUCCESS_FIVE_YELLOW_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
+  PL_BP8_023_LIVE_SUCCESS_SIX_ORANGE_CHEER_SCORE_ABILITY_ID,
   PYHN_AD2_001_LIVE_SUCCESS_TWO_NO_BLADE_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
@@ -32,6 +33,7 @@ interface CheerSourceScoreConfig {
   readonly condition: CheerScoreCondition;
   readonly minCount: number;
   readonly countDescription: string;
+  readonly scoreBonus: number;
 }
 
 const CONFIGS: readonly CheerSourceScoreConfig[] = [
@@ -41,6 +43,7 @@ const CONFIGS: readonly CheerSourceScoreConfig[] = [
     condition: { kind: 'HEART_COLOR', color: HeartColor.YELLOW },
     minCount: 5,
     countDescription: '持有[黄ブレード]的卡片',
+    scoreBonus: 1,
   },
   {
     abilityId: PYHN_AD2_001_LIVE_SUCCESS_TWO_NO_BLADE_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
@@ -48,6 +51,15 @@ const CONFIGS: readonly CheerSourceScoreConfig[] = [
     condition: { kind: 'NO_BLADE_HEART' },
     minCount: 2,
     countDescription: '不持有BLADE HEART的卡片',
+    scoreBonus: 1,
+  },
+  {
+    abilityId: PL_BP8_023_LIVE_SUCCESS_SIX_ORANGE_CHEER_SCORE_ABILITY_ID,
+    baseCardCode: 'PL!-bp8-023',
+    condition: { kind: 'HEART_COLOR', color: HeartColor.ORANGE },
+    minCount: 6,
+    countDescription: '持有[オレンジブレード]的卡片',
+    scoreBonus: 2,
   },
 ];
 
@@ -76,7 +88,7 @@ function evaluate(game: GameState, ability: PendingAbilityState, config: CheerSo
     sourceValid,
     matchingCardIds,
     conditionMet,
-    scoreBonus: Number(sourceValid && conditionMet),
+    scoreBonus: sourceValid && conditionMet ? config.scoreBonus : 0,
   };
 }
 

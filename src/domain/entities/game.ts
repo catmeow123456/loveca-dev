@@ -297,6 +297,16 @@ export type LiveModifierState =
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
   | {
+      /** A player rule for otherwise marker-less low-cost MEMBER cheer cards. */
+      readonly kind: 'CHEER_CARD_BLADE_HEART_GRANT';
+      readonly playerId: string;
+      readonly maxMemberCost: number;
+      readonly heartColor: HeartColor;
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
+    }
+  | {
       readonly kind: 'CHEER_CARD_HEART_COLOR_REPLACEMENT';
       readonly playerId: string;
       readonly fromColors: readonly HeartColor[];

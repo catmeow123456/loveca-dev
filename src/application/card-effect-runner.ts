@@ -1,3 +1,6 @@
+import { registerPlAd1001HonokaWorkflowHandlers } from './card-effects/workflows/cards/pl-ad1-001-honoka.js';
+import { registerSpAd1001KanonWorkflowHandlers } from './card-effects/workflows/cards/sp-ad1-001-kanon.js';
+import { registerPlBp8023SnowHalationWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-023-snow-halation.js';
 import { registerKimiToToshokanDeFushigiNaTabiWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-019-kimi-to-toshokan-de-fushigi-na-tabi.js';
 import { registerTomodachiNiNareruBashoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp8-022-tomodachi-ni-nareru-basho.js';
 import { registerNBp8027YakusokuNiNareBokuraNoUtaWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-027-yakusoku-ni-nare-bokura-no-uta.js';
@@ -1301,6 +1304,9 @@ registerTomodachiNiNareruBashoWorkflowHandlers();
 registerNBp8027YakusokuNiNareBokuraNoUtaWorkflowHandlers();
 registerSAd2003RubyWorkflowHandlers();
 registerSpAd1003KillerKyunWorkflowHandlers();
+registerPlAd1001HonokaWorkflowHandlers();
+registerSpAd1001KanonWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlBp8023SnowHalationWorkflowHandlers();
 registerPyhnAd2001DeepBlueWorkflowHandlers();
 registerLiveSuccessCheerConditionSourceScoreWorkflowHandlers();
 registerNBp8001AyumuWorkflowHandlers({ enqueueTriggeredCardEffects });

@@ -3,7 +3,7 @@
 > 文档类型：专题说明
 > 适用范围：已实现卡效的基础编号登记、完成状态、同编号罕度覆盖、复用模块与测试入口
 > 当前状态：卡牌效果完成状态主登记册；新增或完成卡效时优先同步本文档
-> 最后更新：2026-11-07
+> 最后更新：2026-11-10
 
 本文件是卡效完成状态登记册，按“基础编号”记录。Loveca 中同基础编号不同罕度视为同一张卡，例如 `PL!HS-bp1-004-P` / `PL!HS-bp1-004-R+` / `PL!HS-bp1-004-SEC` 均归为 `PL!HS-bp1-004`。
 
@@ -18,6 +18,27 @@
 - 模块覆盖与 helper 边界：`docs/card-effect-reuse-audit/effect_module_coverage.md`
 - 同构批量扩样本：`docs/card-effect-reuse-audit/card_effect_batch_expansions.md`
 - 缺口与下一步：`docs/card-effect-reuse-audit/module_gap_list.md`
+
+## 2026-11-10 橙判心四卡
+
+权威来源仍为只读 `../references/cards_export_2026-11-07.json`，SHA-256 为 `079d9699ce60de59bf9f1a681feeb36207ba42e2d9fe6218dadbc8888e1ee5a6`。本批4个基础编号、4条真实印刷、7段独立能力均以 `baseCardCodes` 覆盖全罕度，完整中文段落与 token 保留原样，无起动UI。局部夹具 `tests/fixtures/november-10-orange-effects.json` 的4条记录共96字段已逐字段核对；该夹具不依赖共享快照或本地数据库版本。
+
+用户已解除这4张卡的暂缓，确认橙判心临时只在声援 HEART 贡献层按1个 GRAY 处理；数据、有效判心条件与图标仍保留 ORANGE，普通成员的橙色 HEART 不转换，也不扩张旧卡明确列举的六色集合。此约定不是官方规则公告。前端只接收当前公开声援卡的有效判心投影；飞行动画、卡下贡献图标和图形／文本统计显示有效橙色，判定预览及动画成功提示另以与后端相同的灰心贡献计算。精确选1张直接提交，可选弃手保留“不发动”，休息室／声援选卡仍保留定时公开恢复。
+
+| 基础编号 | 卡牌与覆盖 | 实现与复用边界 | 验证入口 |
+| --- | --- | --- | --- |
+| `PL!-ad1-001` | 费用11「高坂穗乃果」；AD，基础编号全罕度 | 两段完整已实现。登场扩 `shared/discard-cost-recover-live-or-gain-blade.ts`：可选弃1费用，随后强制回收印刷ALL或橙判心LIVE，后续无目标不阻止费用；登场委托 `ALLOW / SOURCE_INDEPENDENT`。LIVE开始由 `cards/pl-ad1-001-honoka.ts` 强制选择休息室印刷橙判心卡，公开后放第5张，短牌库置底，恢复时拒绝离区重进的新对象。 | `pl-ad1-001-honoka.test.ts`、旧弃手回收family、休息室移动与公开恢复 |
+| `PL!-ad1-004` | 分数7「HEART to HEART!」；AD，基础编号全罕度 | 完整已实现。扩 `shared/revealed-cheer-selection.ts`，强制选择本次己方声援中当前仍公开、可移动且持有有效橙判心的1张卡回手；包含Snow授予的判心，条件历史集合不能替代实际可移动集合。 | `pl-ad1-004-heart-to-heart.test.ts`、旧声援选择family及移动事件 |
+| `PL!SP-ad1-001` | 费用13「涩谷香音」；AD，基础编号全罕度 | 两段完整已实现。`cards/sp-ad1-001-kanon.ts` 强制弃1作为效果：弃成员后强制回收LIVE；弃LIVE后抽1，再只将本次原弃卡放第7张，短牌库置底，抽牌刷新后原卡离开或重进休息室均不误搬。AUTO扩 `shared/on-cheer-conditional-additional-cheer.ts` 的判心颜色配置：历史有效橙存在则追加2，turn1、DRAW即时、追加不递归；保留旧梢与Killer Kyun语义。 | `sp-ad1-001-kanon.test.ts`、旧追加声援family与DRAW顺序 |
+| `PL!-bp8-023` | 分数5「Snow halation」；SECL，基础编号全罕度 | 两段完整已实现。`cards/pl-bp8-023-snow-halation.ts` 写入至LIVE结束的玩家判心授予：费用≤4且无任何判心的声援成员获得1个橙判心，重复Snow不叠加，随后应用既有改色。成功段扩 `shared/live-success-cheer-condition-source-score.ts`，按有效橙判心卡张数≥6给原来源LIVE分数+2；普通移走仍计历史，重做声援沿用既有替换边界。 | `pl-bp8-023-snow-halation.test.ts`、`orange-cheer-hearts.test.ts`、`cheer-effective-projection.test.ts`、前端汇总／文本测试 |
+
+主窗口独立审查实现及测试，分批复跑并去重合计47个文件、1192项测试通过，其中后端45文件1168项、前端2文件24项；测试类型修正后的6文件56项已复跑，不重复计数。`orange-cheer-card-synergy.test.ts` 通过真实规则命令验证Snow授予橙判心→普通4张声援→香音追加2张→HEART to HEART!定时公开回手→Snow仍按6张历史公开卡加2分，并覆盖既有GRAY／ALL不算橙判心的反例。shared／server／client类型检查和12个相关tests/helpers的独立strict检查通过。额外扩大到两个旧投影测试时仍有基线夹具缺`SHARED_RESOLUTION_ZONE`／`rulesetId`的类型问题，已对照HEAD确认，本批只补新增投影字段，不宣称全仓测试类型检查通过。
+
+权威JSON直接逐段审计7段definition正文零差异，起动UI不适用；4基础编号×28种有效罕度共112组匹配通过，独立测试另覆盖无后缀、全角加号及未知罕度。玩家可见能量文案审计5160条候选通过，`git diff --check`通过，runner仅增加6行薄注册至4022行。新增外部测试卡组`../deck/20261110橙判心四卡联动测试.yaml`经实际schema与权威JSON校验：成员48、LIVE12、能量12，本批4张各4张，任何基础编号不超过4张；优先补入费用≤4无判心成员及橙判心／改色联动LIVE。
+
+橙色展示增量验收：主窗口独立复跑客户端2文件27项、相关规则／投影4文件16项，以及 `client/tests/e2e/orange-cheer-display.spec.ts` 3项真实浏览器测试并阅读飞行与终态截图。印刷与Snow授予橙判心的飞行、牌下图标、统计均保留橙色；通用需求按灰贡献满足，指定橙色需求不误成功，普通成员橙心仍可满足指定橙色需求，减少动态模式一致。浏览器使用隔离上下文、本地夹具和真实组件，未更改用户对局。
+
+本批未发现需改写指定中文卡文的翻译或笔误；橙判心规则是上述显式临时约定，非导出数据修订。未完成四卡所有交互的浏览器验收，未修改共享JSON／图片、数据库、服务或其他工作树；仓库外测试卡组与本机环境配置不纳入卡效提交。
 
 ## 2026-11-07 新增 DRAFT 十二卡
 
@@ -48,7 +69,7 @@
 
 主窗口最终合并复跑40个文件920项测试通过，覆盖新卡focused、共享旧卡、盖牌与AI、分类/全罕度/token/完整正文、来源生命周期及声援回归。`pnpm typecheck:all` 的shared/server/client全部通过，17个改动tests/helpers的独立strict TypeScript检查通过；玩家可见能量文案审计5131条候选通过，`git diff --check`通过。直接按权威JSON逐段核对13条新印刷的17个印刷能力段落（对应16段独立能力），正文零差异、均无activated UI，三张橙心暂缓卡仍为0条definition；新夹具13条234字段、旧回归夹具8条144字段零差异，权威文件SHA-256保持上述值。未做浏览器人工验收。
 
-用户排除所有橙心相关效果，整卡跳过费用11「高坂穗乃果」`PL!-ad1-001`、分数7「HEART to HEART!」`PL!-ad1-004`、费用13「涩谷香音」`PL!SP-ad1-001`。本批不新增橙心规则、不新增卡组顶第5张目的地、不修改共享数据/图片、服务、数据库或其他工作树；不提交、推送或创建PR。
+11月7日批次按当时要求整卡跳过费用11「高坂穗乃果」`PL!-ad1-001`、分数7「HEART to HEART!」`PL!-ad1-004`、费用13「涩谷香音」`PL!SP-ad1-001`；这三张现已于11月10日获授权并完成，当前实现见前节。11月7日批次未新增橙心规则或卡组顶第5张目的地，未修改共享数据/图片、服务、数据库或其他工作树。
 
 ## 2026-11-06 新增 DRAFT 两卡
 
@@ -79,7 +100,7 @@ Mira-Creation 的下方牌处理按用户2026-11-04明确约定：上方成员�
 
 主窗口独立审查全部代码与测试，分批复跑20个不同文件，去重合计725项通过，包含补充的Mira换另一成员同槽登场回归和测试类型修正后的4文件34项。shared／server／client及本批新增测试与夹具的直接TypeScript检查通过。权威JSON与fixture的4条记录76字段逐项一致，3段definition全文一致，3基础编号×28种罕度共84组匹配通过；玩家可见能量支付文本审计5047条候选通过，`git diff --check`通过。未做浏览器人工验收；未修改共享JSON／图片、服务、数据库或其他工作树。
 
-原排除及暂缓范围保留，尤其 `PL!-ad1-004`「HEART to HEART!」、`PL!SP-ad1-001`「涩谷香音」继续整卡暂缓；不定义橙心规则，不补做上批排除卡。
+本节历史批次未定义橙心规则或补做排除卡；其中 `PL!-ad1-004` 分数7「HEART to HEART!」、`PL!SP-ad1-001` 费用13「涩谷香音」的暂缓已在11月10日解除并完成，当前实现见前节。
 
 ## 2026-11-02 剩余 DRAFT 四卡
 
@@ -98,7 +119,7 @@ Mira-Creation 的下方牌处理按用户2026-11-04明确约定：上方成员�
 
 主窗口另用直接 `tsc` 复核4个新增integration、fixture helper及声援query/正文测试，全部通过；修复测试类型声明后，凛与声援query的23项行为测试独立复跑通过，不重复计入954项。对全部变更测试文件额外编译仍报告两类基线已有问题：`card-effect-classification.test.ts` 重复导入旧 `S_BP5_023` 能力编号、`card-identity.test.ts` 旧用例传入不属于 `CardIdentityLike` 的 `cardText`；均与HEAD原代码核对确认，不混入本批修复，也不宣称全仓测试类型检查通过。最终 `git diff --check` 通过。
 
-范围保留：`PL!-ad1-004` 分数7「HEART to HEART!」与 `PL!SP-ad1-001` 费用13「涩谷香音」按用户决定整卡暂缓，不据本批推定橙心规则。原排除项继续保留。已实现的 `PL!-bp3-001` 费用13「高坂穗乃果」和 `PL!HS-PR-043` 费用7「桂城泉」不重复开发；穗乃果旧印刷正文差异及LIVE开始来源离场gate疑点不在本批修复。`PL!N-bp3-030` 分数3「Love U my friends」旧印刷中文数字差异不自动统一，本轮未迁移该旧卡。
+本节批次当时暂缓的 `PL!-ad1-004` 分数7「HEART to HEART!」与 `PL!SP-ad1-001` 费用13「涩谷香音」已在11月10日获授权完成，当前状态见前节；本节未推定橙心规则，其他原排除项保持原范围。已实现的 `PL!-bp3-001` 费用13「高坂穗乃果」和 `PL!HS-PR-043` 费用7「桂城泉」不重复开发；穗乃果旧印刷正文差异及LIVE开始来源离场gate疑点不在本批修复。`PL!N-bp3-030` 分数3「Love U my friends」旧印刷中文数字差异不自动统一，本轮未迁移该旧卡。
 
 ## 2026-11-01 BP8 南小鸟与步梦
 
@@ -247,7 +268,7 @@ Mira-Creation 的下方牌处理按用户2026-11-04明确约定：上方成员�
 
 公共登记回归 `october-17-card-definitions.test.ts` 使用独立完整中文字符串，分别精确核对11张 definition 与果南 activated UI、8种虚拟罕度、分类/来源/queued 和黛雅中央/turn1；正文登记核验不代替各行完整行为回归。runner仅同步迁移后的薄import/register，未新增卡牌结算或matcher接线。
 
-本轮最终三层正文审计覆盖27个基础编号、37条 definition 与3项 activated UI，并对27种有效罕度执行729项匹配检查，均通过。按用户明确要求排除分数5「Snow halation」`PL!-bp8-023`（导出印刷 `PL!-bp8-023-SECL`）；指定导出缺失的 `PL!S-cl1-002 / 013` 不参与匹配与正文审计；唯一正文例外仍仅为上述012日文依据支持的“每张LIVE卡”修正。根与client TypeScript检查、`git diff --check` 均通过。主窗口分批独立复跑并去重汇总46个测试文件、1360项测试，全部通过；此数字为分批去重结果，并非单次全suite运行。
+本轮最终三层正文审计覆盖27个基础编号、37条 definition 与3项 activated UI，并对27种有效罕度执行729项匹配检查，均通过。该历史批次按当时要求排除分数5「Snow halation」`PL!-bp8-023`（导出印刷 `PL!-bp8-023-SECL`），现已于11月10日获授权完成，当前状态见前节；指定导出缺失的 `PL!S-cl1-002 / 013` 不参与匹配与正文审计；唯一正文例外仍仅为上述012日文依据支持的“每张LIVE卡”修正。根与client TypeScript检查、`git diff --check` 均通过。主窗口分批独立复跑并去重汇总46个测试文件、1360项测试，全部通过；此数字为分批去重结果，并非单次全suite运行。
 
 ## 2026-10-11 BP8 璃奈与 Stay
 

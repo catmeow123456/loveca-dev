@@ -11,6 +11,7 @@ import {
 import type { HeartRequirement } from '@game/domain/entities/card';
 import type { Seat } from '@game/online';
 import { SubPhase, type HeartColor } from '@game/shared/types/enums';
+import { getCheerHeartContributionColor } from '@game/shared/utils/cheer-hearts';
 import { useGameStore } from '@/store/gameStore';
 import {
   playCheerMotion,
@@ -47,6 +48,7 @@ export function useCheerRevealMotion(input: {
   cards: CheerMotionCard[];
   members: Map<HeartColor, number>;
   totals: Map<HeartColor, number>;
+  judgmentTotals: Map<HeartColor, number>;
   requirements: HeartRequirement | null;
   playerName: string;
 }) {
@@ -61,6 +63,7 @@ export function useCheerRevealMotion(input: {
   const pending = useRef<{
     cards: CheerMotionCard[];
     before: Map<HeartColor, number>;
+    judgmentBefore: Map<HeartColor, number>;
     labels: typeof labels.current;
     firstBatch: boolean;
   } | null>(null);
@@ -134,12 +137,20 @@ export function useCheerRevealMotion(input: {
     // Reopening a panel, reconnecting, changing viewer or undoing never replays old cards.
     if (added.length && (input.isOpen || enteringJudgment)) {
       const before = new Map(input.totals);
+      const judgmentBefore = new Map(input.judgmentTotals);
       for (const card of added)
-        for (const heart of card.hearts)
+        for (const heart of card.hearts) {
           before.set(heart.color, Math.max(0, (before.get(heart.color) ?? 0) - heart.count));
+          const contributionColor = getCheerHeartContributionColor(heart.color);
+          judgmentBefore.set(
+            contributionColor,
+            Math.max(0, (judgmentBefore.get(contributionColor) ?? 0) - heart.count)
+          );
+        }
       pending.current = {
         cards: added,
         before,
+        judgmentBefore,
         labels: prev.seat === next.seat ? oldLabels : [],
         firstBatch: prev.ids[input.seat!].length === 0,
       };
@@ -167,6 +178,7 @@ export function useCheerRevealMotion(input: {
         panel: input.panel.current,
         cards: batch.cards,
         before: batch.before,
+        judgmentBefore: batch.judgmentBefore,
         labels: batch.labels,
         members: input.members,
         speed: config.speed,

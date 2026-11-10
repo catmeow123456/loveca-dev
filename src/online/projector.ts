@@ -21,6 +21,7 @@ import { hasRemainingLimitedActivatedAbilityForStageMember } from '../applicatio
 import { getCurrentTemporaryOnEnterAbilityGrants } from '../application/card-effects/runtime/temporary-on-enter-ability-grants.js';
 import { getMemberPlayOptionsByHandCardId } from '../application/member-play-options.js';
 import { queryNormalMemberPlay } from '../application/normal-member-play.js';
+import { selectRevealedCheerCardIds } from '../application/effects/cheer-selection.js';
 import { getSpecialMemberPlayPendingUiConfig } from '../application/special-member-play-procedures.js';
 import { CardAbilitySourceZone } from '../application/card-effects/ability-definition-types.js';
 import {
@@ -51,6 +52,7 @@ import {
 import { isPlayerActive } from '../shared/phase-config/index.js';
 import {
   collectLiveModifiers,
+  getCheerCardEffectiveBladeHearts,
   getLatestMemberOriginalHeartReplacementModifier,
   getMemberEffectiveBladeCount,
   getMemberEffectiveHeartIcons,
@@ -1374,6 +1376,14 @@ function buildLiveResultView(
       SECOND: secondPlayerId ? (playerHeartBonuses.get(secondPlayerId) ?? []) : [],
     },
     cheerHeartColorReplacements: buildCheerHeartColorReplacementView(game, liveModifiers),
+    effectiveCheerBladeHearts: Object.fromEntries(
+      game.players.flatMap((player) =>
+        selectRevealedCheerCardIds(game, player.id).map((cardId) => [
+          createPublicObjectId(cardId),
+          getCheerCardEffectiveBladeHearts(game, player.id, cardId, liveModifiers),
+        ])
+      )
+    ),
     requirementReductions: Object.fromEntries(
       [...liveRequirementReductions.entries()].map(([cardId, reduction]) => [
         createPublicObjectId(cardId),

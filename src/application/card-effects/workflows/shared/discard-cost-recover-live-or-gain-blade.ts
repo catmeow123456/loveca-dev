@@ -30,6 +30,7 @@ import {
   N_SD1_004_LIVE_START_DISCARD_GAIN_TWO_BLADE_ABILITY_ID,
   PL_N_PB1_001_ON_ENTER_OPTIONAL_DISCARD_IF_OTHER_COST_ELEVEN_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
   S_AD2_003_ON_ENTER_DISCARD_RECOVER_LIVE_ABILITY_ID,
+  PL_AD1_001_ON_ENTER_DISCARD_RECOVER_ALL_OR_ORANGE_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
@@ -100,6 +101,7 @@ interface TriggeredDiscardRecoverLiveConfig {
   readonly abilityId: string;
   readonly discardStepId: string;
   readonly discardCount?: number;
+  readonly autoSubmitSingleSelection?: boolean;
   readonly recoveryStepId: string;
   readonly recoveryCondition: (game: GameState, playerId: string, sourceCardId: string) => boolean;
   readonly recoverySelector?: CardSelector;
@@ -115,6 +117,31 @@ interface TriggeredDiscardRecoverLiveConfig {
 }
 
 const TRIGGERED_DISCARD_RECOVER_LIVE_CONFIGS: readonly TriggeredDiscardRecoverLiveConfig[] = [
+  {
+    abilityId: PL_AD1_001_ON_ENTER_DISCARD_RECOVER_ALL_OR_ORANGE_LIVE_ABILITY_ID,
+    discardStepId: 'PL_AD1_001_SELECT_DISCARD_FOR_LIVE',
+    recoveryStepId: 'PL_AD1_001_SELECT_WAITING_ROOM_ALL_OR_ORANGE_LIVE',
+    autoSubmitSingleSelection: true,
+    recoveryCondition: () => true,
+    recoverySelector: and(
+      typeIs(CardType.LIVE),
+      (card) =>
+        isLiveCardData(card.data) &&
+        card.data.bladeHearts?.some(
+          (heart) =>
+            heart.effect === 'HEART' &&
+            (heart.heartColor === 'RAINBOW' || heart.heartColor === 'ORANGE')
+        ) === true
+    ),
+    recoveryStepText:
+      '请选择自己的休息室中1张持有[ALLブレード]或[オレンジブレード]的LIVE卡加入手牌。',
+    recoverySelectionLabel: '选择要加入手牌的LIVE卡',
+    startActionStep: 'START_SELECT_DISCARD_FOR_ALL_OR_ORANGE_LIVE',
+    selectActionStep: 'DISCARD_SELECT_ALL_OR_ORANGE_LIVE',
+    conditionNotMetActionStep: 'DISCARD_COST_RECOVERY_CONDITION_NOT_MET',
+    noTargetActionStep: 'DISCARD_COST_NO_ALL_OR_ORANGE_LIVE_TARGET',
+    noTargetReason: 'NO_ALL_OR_ORANGE_LIVE_TARGET',
+  },
   {
     abilityId: S_AD2_003_ON_ENTER_DISCARD_RECOVER_LIVE_ABILITY_ID,
     discardStepId: 'S_AD2_003_SELECT_DISCARD_FOR_LIVE',
@@ -432,22 +459,25 @@ function startTriggeredDiscardRecoverLive(
   return startPendingActiveEffect(game, {
     ability,
     playerId: player.id,
-    activeEffect: createOptionalDiscardHandToWaitingRoomActiveEffect({
-      ability,
-      playerId: player.id,
-      effectText: getAbilityEffectText(config.abilityId),
-      stepId: config.discardStepId,
-      discardCount,
-      stepText: `可以将${discardCount}张手牌放置入休息室。`,
-      selectionLabel:
-        discardCount === 1
-          ? '选择要放置入休息室的手牌'
-          : `选择要放置入休息室的${discardCount}张手牌`,
-      confirmSelectionLabel: '放置入休息室',
-      skipSelectionLabel: '不发动',
-      selectableCardIds: player.hand.cardIds,
-      orderedResolution,
-    }),
+    activeEffect: {
+      ...createOptionalDiscardHandToWaitingRoomActiveEffect({
+        ability,
+        playerId: player.id,
+        effectText: getAbilityEffectText(config.abilityId),
+        stepId: config.discardStepId,
+        discardCount,
+        stepText: `可以将${discardCount}张手牌放置入休息室。`,
+        selectionLabel:
+          discardCount === 1
+            ? '选择要放置入休息室的手牌'
+            : `选择要放置入休息室的${discardCount}张手牌`,
+        confirmSelectionLabel: '放置入休息室',
+        skipSelectionLabel: '不发动',
+        selectableCardIds: player.hand.cardIds,
+        orderedResolution,
+      }),
+      autoSubmitSingleSelection: config.autoSubmitSingleSelection,
+    },
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       sourceSlot: ability.sourceSlot,
@@ -542,30 +572,33 @@ function finishTriggeredDiscardCost(
   return addAction(
     {
       ...stateAfterCost,
-      activeEffect: createWaitingRoomToHandEffectState({
-        id: effect.id,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-        controllerId: player.id,
-        effectText: effect.effectText,
-        stepId: config.recoveryStepId,
-        stepText: config.recoveryStepText ?? '请选择自己的休息室中1张『虹ヶ咲』LIVE卡加入手牌。',
-        selectionLabel: config.recoverySelectionLabel ?? '选择要加入手牌的虹咲LIVE卡',
-        confirmSelectionLabel: '加入手牌',
-        awaitingPlayerId: player.id,
-        selectableCardIds,
-        metadata: {
-          ...effect.metadata,
-          orderedResolution: effect.metadata?.orderedResolution === true,
-          discardedHandCardIds: discardResult.discardedCardIds,
-          waitingSelectionSequence: stateAfterCost.eventLog.at(-1)?.sequence ?? 0,
-        },
-        zoneSelection: createWaitingRoomToHandSelectionConfig({
-          minCount: 1,
-          maxCount: 1,
-          optional: false,
+      activeEffect: {
+        ...createWaitingRoomToHandEffectState({
+          id: effect.id,
+          abilityId: effect.abilityId,
+          sourceCardId: effect.sourceCardId,
+          controllerId: player.id,
+          effectText: effect.effectText,
+          stepId: config.recoveryStepId,
+          stepText: config.recoveryStepText ?? '请选择自己的休息室中1张『虹ヶ咲』LIVE卡加入手牌。',
+          selectionLabel: config.recoverySelectionLabel ?? '选择要加入手牌的虹咲LIVE卡',
+          confirmSelectionLabel: '加入手牌',
+          awaitingPlayerId: player.id,
+          selectableCardIds,
+          metadata: {
+            ...effect.metadata,
+            orderedResolution: effect.metadata?.orderedResolution === true,
+            discardedHandCardIds: discardResult.discardedCardIds,
+            waitingSelectionSequence: stateAfterCost.eventLog.at(-1)?.sequence ?? 0,
+          },
+          zoneSelection: createWaitingRoomToHandSelectionConfig({
+            minCount: 1,
+            maxCount: 1,
+            optional: false,
+          }),
         }),
-      }),
+        autoSubmitSingleSelection: config.autoSubmitSingleSelection,
+      },
     },
     'RESOLVE_ABILITY',
     player.id,

@@ -3,6 +3,7 @@ import type { HeartRequirement } from '@game/domain/entities/card';
 import { useGameStore } from '@/store/gameStore';
 import { HEART_ICON_SOURCE_BY_COLOR } from '@/lib/modifierIconAssets';
 import { HeartColor } from '@game/shared/types/enums';
+import { getCheerHeartContributionColor } from '@game/shared/utils/cheer-hearts';
 import './cheerMotion.css';
 
 export interface CheerMotionCard {
@@ -18,6 +19,8 @@ const colors: Partial<Record<HeartColor, string>> = {
   PURPLE: '#c4a4ff',
   GREEN: '#7bdda3',
   YELLOW: '#ffe897',
+  ORANGE: '#ffb070',
+  GRAY: '#cbd5e1',
   RAINBOW: '#e5e0ff',
 };
 const images = new Map<string, HTMLImageElement>();
@@ -82,6 +85,7 @@ export function playCheerMotion(options: {
   cards: CheerMotionCard[];
   members: Map<HeartColor, number>;
   before: Map<HeartColor, number>;
+  judgmentBefore: Map<HeartColor, number>;
   labels: ReturnType<typeof readCheerJudgmentLabels>;
   speed: number;
   requirements: HeartRequirement | null;
@@ -126,6 +130,7 @@ export function playCheerMotion(options: {
   const restores: (() => void)[] = [];
   const animations: Animation[] = [];
   const counts = new Map(options.before);
+  const judgmentCounts = new Map(options.judgmentBefore);
   const masks = new Map<HeartColor, HTMLElement>();
   const tokens: Token[] = [];
   let raf = 0,
@@ -338,7 +343,8 @@ export function playCheerMotion(options: {
   });
   // One threshold for the entire LIVE group, using the same allocation rules as the verdict.
   const isSuccessful = () =>
-    options.requirements !== null && judgeLiveWithHeartCounts(counts, options.requirements).success;
+    options.requirements !== null &&
+    judgeLiveWithHeartCounts(judgmentCounts, options.requirements).success;
   const initiallySuccessful = isSuccessful();
   let successAt: number | null = null;
   let successNotice: HTMLElement | null = null;
@@ -518,6 +524,11 @@ export function playCheerMotion(options: {
         token.arrived = true;
         const value = (counts.get(token.color) ?? 0) + token.amount;
         counts.set(token.color, value);
+        const contributionColor = getCheerHeartContributionColor(token.color);
+        judgmentCounts.set(
+          contributionColor,
+          (judgmentCounts.get(contributionColor) ?? 0) + token.amount
+        );
         const copy = masks.get(token.color);
         if (copy) {
           copy.querySelector('[data-cheer-heart-count]')!.textContent = String(value);
