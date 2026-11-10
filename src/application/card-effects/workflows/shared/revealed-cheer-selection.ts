@@ -1,3 +1,4 @@
+import { getCheerCardEffectiveBladeHearts } from '../../../../domain/rules/live-modifiers.js';
 import { moveRevealedCheerCardsAndEnqueueTriggers } from '../../runtime/revealed-cheer-movement-triggers.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
@@ -47,6 +48,7 @@ import {
   SP_BP2_025_LIVE_SUCCESS_TWO_DISTINCT_NAMED_STAGE_MEMBERS_REVEALED_CHEER_TO_HAND_ABILITY_ID,
   S_CL1_011_LIVE_SUCCESS_COMMON_HEART_AQOURS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
   S_CL1_002_LIVE_SUCCESS_BOTTOM_UP_TO_THREE_AQOURS_CHEER_ABILITY_ID,
+  PL_AD1_004_LIVE_SUCCESS_ORANGE_CHEER_TO_HAND_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   CardAbilityCategory,
@@ -154,6 +156,19 @@ export interface SyncHsBp6027ManualCheerAdjustmentDependencies {
 }
 
 const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflowConfig[] = [
+  {
+    abilityId: PL_AD1_004_LIVE_SUCCESS_ORANGE_CHEER_TO_HAND_ABILITY_ID,
+    stepId: 'PL_AD1_004_SELECT_ORANGE_CHEER_TO_HAND',
+    stepText: '请选择1张持有[オレンジブレード]的声援公开卡加入手牌。',
+    selectionLabel: '选择要加入手牌的橙色判心声援卡',
+    predicateForState: (game, playerId) => (card) =>
+      getCheerCardEffectiveBladeHearts(game, playerId, card.instanceId).some(
+        (heart) => heart.effect === 'HEART' && heart.heartColor === 'ORANGE'
+      ),
+    destination: 'HAND',
+    optional: false,
+    confirmWhenNoTargets: true,
+  },
   {
     abilityId: S_CL1_002_LIVE_SUCCESS_BOTTOM_UP_TO_THREE_AQOURS_CHEER_ABILITY_ID,
     stepId: 'S_CL1_002_SELECT_AQOURS_CHEER_TO_DECK_BOTTOM',

@@ -130,6 +130,7 @@ describe('projected LIVE probability assistance', () => {
       liveResult: {
         heartBonuses: { FIRST: [{ color: C.PINK, count: 1 }], SECOND: [] },
         cheerHeartColorReplacements: { FIRST: null, SECOND: null },
+        effectiveCheerBladeHearts: {},
         requirementModifiers: { l1: [{ color: C.PINK, countDelta: -1 }] },
         requirementReductions: { l1: 1 },
       },

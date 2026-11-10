@@ -18,6 +18,7 @@ import {
 import { revealCheerCardsFromMainDeck } from '../../../effects/cheer.js';
 import {
   HS_AD2_001_AUTO_ON_CHEER_TWO_NO_BLADE_HEART_ADDITIONAL_CHEER_ABILITY_ID,
+  SP_AD1_001_AUTO_ON_CHEER_ORANGE_ADDITIONAL_CHEER_ABILITY_ID,
   SP_AD1_003_AUTO_ON_CHEER_ALL_BLADE_HEART_ADDITIONAL_CHEER_ABILITY_ID,
 } from '../../ability-ids.js';
 import { getPendingAbilitySourceLifecycleId } from '../../runtime/ability-source-lifecycle.js';
@@ -36,6 +37,7 @@ const CONFIGS = [
     additionalCount: 1,
     minimum: 2,
     kind: 'NO_BLADE_HEART',
+    resolutionStep: 'NO_BLADE_HEART_ADDITIONAL_CHEER',
     label: '不持有BLADE HEART',
   },
   {
@@ -43,8 +45,20 @@ const CONFIGS = [
     sourceKind: 'LIVE',
     additionalCount: 1,
     minimum: 1,
-    kind: 'ALL_BLADE_HEART',
+    kind: 'HEART_COLOR',
+    heartColor: HeartColor.RAINBOW,
+    resolutionStep: 'ALL_BLADE_HEART_ADDITIONAL_CHEER',
     label: '持有[ALLブレード]',
+  },
+  {
+    abilityId: SP_AD1_001_AUTO_ON_CHEER_ORANGE_ADDITIONAL_CHEER_ABILITY_ID,
+    sourceKind: 'MEMBER',
+    additionalCount: 2,
+    minimum: 1,
+    kind: 'HEART_COLOR',
+    heartColor: HeartColor.ORANGE,
+    resolutionStep: 'ORANGE_BLADE_HEART_ADDITIONAL_CHEER',
+    label: '持有[オレンジブレード]',
   },
 ] as const;
 
@@ -90,7 +104,7 @@ export function registerOnCheerConditionalAdditionalCheerWorkflowHandlers(): voi
                 effectiveBladeHearts.some(
                   (heart) =>
                     heart.effect === BladeHeartEffect.HEART &&
-                    heart.heartColor === HeartColor.RAINBOW
+                    heart.heartColor === config.heartColor
                 )
               )
               .map(({ cardId }) => cardId);
@@ -140,7 +154,7 @@ export function registerOnCheerConditionalAdditionalCheerWorkflowHandlers(): voi
           abilityId: config.abilityId,
           sourceCardId: ability.sourceCardId,
           sourceLifecycleId: ability.sourceLifecycleId,
-          step: conditionMet ? `${config.kind}_ADDITIONAL_CHEER` : 'CONDITION_NOT_MET',
+          step: conditionMet ? config.resolutionStep : 'CONDITION_NOT_MET',
           cheerEventId: cheerEvent.eventId,
           matchingCardIds,
           conditionMet,

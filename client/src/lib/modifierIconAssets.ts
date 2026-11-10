@@ -4,6 +4,7 @@ import bladeHeartAllIcon from '@/assets/modifier-icons/blade_heart_all.png';
 import bladeHeartBlueIcon from '@/assets/modifier-icons/blade_heart_blue.png';
 import bladeHeartDoubleGrayIcon from '@/assets/modifier-icons/blade_heart_double_gray.svg';
 import bladeHeartGreenIcon from '@/assets/modifier-icons/blade_heart_green.png';
+import bladeHeartOrangeIcon from '@/assets/modifier-icons/blade_heart_orange.png';
 import bladeHeartPinkIcon from '@/assets/modifier-icons/blade_heart_pink.png';
 import bladeHeartPurpleIcon from '@/assets/modifier-icons/blade_heart_purple.png';
 import bladeHeartRedIcon from '@/assets/modifier-icons/blade_heart_red.png';
@@ -35,6 +36,7 @@ export type ModifierIconName =
   | 'blade_heart_green'
   | 'blade_heart_blue'
   | 'blade_heart_purple'
+  | 'blade_heart_orange'
   | 'blade_heart_all'
   | 'blade_heart_double_gray'
   | 'blade'
@@ -56,6 +58,7 @@ export const MODIFIER_ICON_SOURCE: Record<ModifierIconName, string> = {
   blade_heart_green: bladeHeartGreenIcon,
   blade_heart_blue: bladeHeartBlueIcon,
   blade_heart_purple: bladeHeartPurpleIcon,
+  blade_heart_orange: bladeHeartOrangeIcon,
   blade_heart_all: bladeHeartAllIcon,
   blade_heart_double_gray: bladeHeartDoubleGrayIcon,
   blade: bladeIcon,

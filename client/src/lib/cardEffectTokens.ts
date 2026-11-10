@@ -72,7 +72,7 @@ const TOKEN_DEFINITIONS = new Map<string, Omit<CardEffectPlaceholderPart, 'raw'>
   ['[緑ブレード]', { kind: 'blade', label: '緑ブレード', icon: 'blade_heart_green' }],
   ['[青ブレード]', { kind: 'blade', label: '青ブレード', icon: 'blade_heart_blue' }],
   ['[紫ブレード]', { kind: 'blade', label: '紫ブレード', icon: 'blade_heart_purple' }],
-  ['[オレンジブレード]', { kind: 'blade', label: 'オレンジブレード', icon: 'heart_orange' }],
+  ['[オレンジブレード]', { kind: 'blade', label: 'オレンジブレード', icon: 'blade_heart_orange' }],
   ['[桃ハート]', { kind: 'heart', label: '桃ハート', icon: 'heart_pink' }],
   ['[赤ハート]', { kind: 'heart', label: '赤ハート', icon: 'heart_red' }],
   ['[红HEART]', { kind: 'heart', label: '红HEART', icon: 'heart_red' }],

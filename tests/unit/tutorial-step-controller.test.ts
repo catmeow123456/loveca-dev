@@ -92,6 +92,7 @@ function createView(options: {
               scoreModifiers: { FIRST: 0, SECOND: 0 },
               heartBonuses: { FIRST: [], SECOND: [] },
               cheerHeartColorReplacements: { FIRST: null, SECOND: null },
+              effectiveCheerBladeHearts: {},
               requirementReductions: {},
               requirementModifiers: {},
               liveCardScoreModifiers: {},

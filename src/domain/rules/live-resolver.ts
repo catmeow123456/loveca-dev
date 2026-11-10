@@ -4,6 +4,7 @@
  */
 
 import { HeartColor, BladeHeartEffect } from '../../shared/types/enums.js';
+import { getCheerHeartContributionColor } from '../../shared/utils/cheer-hearts.js';
 import type {
   HeartIcon,
   HeartRequirement,
@@ -188,7 +189,10 @@ export class LiveResolver {
             case BladeHeartEffect.HEART:
               // 获得心效果
               if (item.heartColor) {
-                bonusHearts.push({ color: item.heartColor, count: 1 });
+                bonusHearts.push({
+                  color: getCheerHeartContributionColor(item.heartColor),
+                  count: 1,
+                });
               }
               break;
           }

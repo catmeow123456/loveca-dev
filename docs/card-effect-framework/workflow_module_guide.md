@@ -596,6 +596,10 @@ family 复用 direct top-mill 的公开结果形状：实际卡组底移动与�
 
 声援判心条件统一分为四层：`selectCurrentLiveRevealedCheerCardIds` 只提供本次 event-inclusive 公开卡事实；`selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts` 为每张卡应用当前 LIVE modifier 后返回有效判心；`collectCurrentLiveRevealedCheerBladeHeartColors` 处理步梦、Colorful 一类颜色并集；`evaluateDistinctCheerCardsCoverHeartColors` 处理水族馆一类不同实例分配。Love U my friends 一类“存在有效 ALL”的条件直接从逐卡有效判心做窄聚合，不套用颜色并集或不同卡分配。除非卡文明确参照原本/印刷信息，禁止在这类 workflow 中直接读取 `card.data.bladeHearts` 或使用 `hasAllBladeHeart()` 等印刷 selector；印刷 selector 仍可用于成功 LIVE 卡区等不受声援颜色替换影响的区域。新增或修改这类卡效时至少补一组颜色替换 modifier 回归，证明能力仍正常诱发并消费 pending/turn1，但结算条件按有效颜色成立或失败；固定颜色集合还必须覆盖 GRAY/ORANGE 不会意外抬升旧卡阈值。
 
+分数5「Snow halation」`PL!-bp8-023` 的 LIVE 开始段由单卡 `cards/pl-bp8-023-snow-halation.ts` 写入 `CHEER_CARD_BLADE_HEART_GRANT`：仅为费用≤4且无判心的成员补1个橙判心，重复来源不叠加；已有 DRAW、SCORE 或 HEART 均不能触发该授予。它与普通改色分别建模，由 `getCheerCardEffectiveBladeHearts` 先授予再改色，后续历史条件与公开显示共用有效结果。已生效的玩家规则不因来源 LIVE 离区消失。成功段复用 `live-success-cheer-condition-source-score`，按不同公开卡计数，达到6张后只给原来源 LIVE 加2分。
+
+2026-11-10 临时橙判心口径由用户确认：保留 ORANGE 数据、卡文条件及图标身份，仅声援 HEART 规则贡献通过共享 `getCheerHeartContributionColor` 转为 GRAY；不补指定色，不成为 ALL，不修改普通成员的橙色 HEART。前端有效判心来自公开投影，不自行实现 Snow halation 规则；飞行动画、卡下贡献图标和图形／文本统计均保留有效判心颜色，判定预览与动画成功提示另用规则贡献计数，与后端判定一致。显示总数不能直接作为判定色池，普通成员橙心不能随声援判心一起转灰。该约定不是官方裁定，后续正式规则调整应以此贡献边界为入口。
+
 020 与 021 都在移动及标准分组事件入队后打开 Public Reveal Dwell，窗口期间不写必要 Heart、抽牌或 SCORE modifier。020 展示结束后才按公开的实际移动卡是否为结构化 Aqours MEMBER 写来源 LIVE requirement replacement；021 展示结束后才按公开的5张中 MEMBER 数量执行0奖励、抽1或抽1且来源 LIVE SCORE +1。两者都不在移动前预读或展示隐藏底牌，舞台不足3名时 021 仍以动态 confirm-only 说明不移动。两个 workflow 本身不承担从卡组底声援；该机制已由 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」的独立 direction query 与统一 cheer helper 覆盖。本边界仍不实现其他 bp7、不建立任意 bottom reward DSL，也不改变第一批 gain-heart family 的 ownership。
 
 # arrange-inspected-deck-edge 的卡组边缘轴（2026-07-23）

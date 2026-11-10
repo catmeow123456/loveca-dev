@@ -1,4 +1,13 @@
 import {
+  PL_AD1_001_ON_ENTER_DISCARD_RECOVER_ALL_OR_ORANGE_LIVE_ABILITY_ID,
+  PL_AD1_001_LIVE_START_WAITING_ORANGE_TO_FIFTH_ABILITY_ID,
+  PL_AD1_004_LIVE_SUCCESS_ORANGE_CHEER_TO_HAND_ABILITY_ID,
+  SP_AD1_001_LIVE_START_DISCARD_RECOVER_LIVE_OR_DRAW_AND_SEVENTH_ABILITY_ID,
+  SP_AD1_001_AUTO_ON_CHEER_ORANGE_ADDITIONAL_CHEER_ABILITY_ID,
+  PL_BP8_023_LIVE_START_LOW_COST_NO_BLADE_HEART_GAIN_ORANGE_ABILITY_ID,
+  PL_BP8_023_LIVE_SUCCESS_SIX_ORANGE_CHEER_SCORE_ABILITY_ID,
+} from '../ability-ids.js';
+import {
   S_AD2_003_ON_ENTER_DISCARD_RECOVER_LIVE_ABILITY_ID,
   S_AD2_003_AUTO_ON_CHEER_BLADE_HEART_CARD_THRESHOLDS_GAIN_GREEN_BLUE_ABILITY_ID,
   SP_AD1_003_LIVE_START_YELLOW_PURPLE_SIX_REDUCE_SOURCE_COLORLESS_REQUIREMENT_ABILITY_ID,
@@ -3128,7 +3137,102 @@ const N_BP8_001_LIVE_SUCCESS_RETURN_ONE_ENERGY_BELOW_DRAW_DISCARD_EFFECT_TEXT =
 const N_BP8_008_ACTIVATED_REVEAL_SELF_HAND_BOTTOM_WAIT_OPPONENT_EFFECT_TEXT =
   '【起动】将手牌的此卡公开：将此卡放置于卡组底。此后，自己的舞台上存在『虹咲』的成员的场合，将存在于对方的舞台的１名费用小于等于２的成员变为待机状态。此能力仅在此卡存在于手牌的场合才能起动。';
 
+export const PL_AD1_001_ON_ENTER_DISCARD_RECOVER_ALL_OR_ORANGE_LIVE_EFFECT_TEXT =
+  '【登场】可以将１张手牌放置入休息室：从自己的休息室将１张持有[ALLブレード]或[オレンジブレード]的LIVE卡加入手牌。';
+
+export const PL_AD1_001_LIVE_START_WAITING_ORANGE_TO_FIFTH_EFFECT_TEXT =
+  '【LIVE开始时】将存在于自己的休息室的１张持有[オレンジブレード]的卡片放置于自己的卡组顶第５张。';
+
+export const PL_AD1_004_LIVE_SUCCESS_ORANGE_CHEER_TO_HAND_EFFECT_TEXT =
+  '【LIVE成功时】从因声援被公开的自己的卡片中，将１张持有[オレンジブレード]的卡片加入手牌。';
+
+export const SP_AD1_001_LIVE_START_DISCARD_RECOVER_LIVE_OR_DRAW_AND_SEVENTH_EFFECT_TEXT =
+  '【LIVE开始时】将１张手牌放置入休息室。因此将成员卡放置入休息室的场合，从自己的休息室将１张LIVE卡加入手牌。因此将LIVE卡放置入休息室的场合，抽１张卡，此后，将因此放置入休息室的卡片放置于自己的卡组顶的第７张卡的位置。';
+
+export const SP_AD1_001_AUTO_ON_CHEER_ORANGE_ADDITIONAL_CHEER_EFFECT_TEXT =
+  '【自动】【１回合１次】自己进行声援时，因声援被公开的自己的卡片中存在持有[オレンジブレード]的卡片的场合，追加进行２张卡片的声援。';
+
+export const PL_BP8_023_LIVE_START_LOW_COST_NO_BLADE_HEART_GAIN_ORANGE_EFFECT_TEXT =
+  '【LIVE开始时】LIVE结束时为止，因声援被公开的自己的费用小于等于4的不持有BLADE HEART的成员卡获得[オレンジブレード]。';
+
+export const PL_BP8_023_LIVE_SUCCESS_SIX_ORANGE_CHEER_SCORE_EFFECT_TEXT =
+  '【LIVE成功时】因声援被公开的自己的卡片中存在大于等于6张持有[オレンジブレード]的卡片的场合，此卡的分数+2。';
+
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
+  {
+    abilityId: PL_AD1_001_ON_ENTER_DISCARD_RECOVER_ALL_OR_ORANGE_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!-ad1-001'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_AD1_001_ON_ENTER_DISCARD_RECOVER_ALL_OR_ORANGE_LIVE_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: { decision: 'ALLOW', reason: 'SOURCE_INDEPENDENT' },
+  },
+  {
+    abilityId: PL_AD1_001_LIVE_START_WAITING_ORANGE_TO_FIFTH_ABILITY_ID,
+    baseCardCodes: ['PL!-ad1-001'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_AD1_001_LIVE_START_WAITING_ORANGE_TO_FIFTH_EFFECT_TEXT,
+  },
+  {
+    abilityId: PL_AD1_004_LIVE_SUCCESS_ORANGE_CHEER_TO_HAND_ABILITY_ID,
+    baseCardCodes: ['PL!-ad1-004'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: PL_AD1_004_LIVE_SUCCESS_ORANGE_CHEER_TO_HAND_EFFECT_TEXT,
+  },
+  {
+    abilityId: SP_AD1_001_LIVE_START_DISCARD_RECOVER_LIVE_OR_DRAW_AND_SEVENTH_ABILITY_ID,
+    baseCardCodes: ['PL!SP-ad1-001'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: SP_AD1_001_LIVE_START_DISCARD_RECOVER_LIVE_OR_DRAW_AND_SEVENTH_EFFECT_TEXT,
+  },
+  {
+    abilityId: SP_AD1_001_AUTO_ON_CHEER_ORANGE_ADDITIONAL_CHEER_ABILITY_ID,
+    baseCardCodes: ['PL!SP-ad1-001'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_CHEER,
+    queued: true,
+    implemented: true,
+    effectText: SP_AD1_001_AUTO_ON_CHEER_ORANGE_ADDITIONAL_CHEER_EFFECT_TEXT,
+    perTurnLimit: 1,
+    skipQueueWhenTurnLimitReached: true,
+  },
+  {
+    abilityId: PL_BP8_023_LIVE_START_LOW_COST_NO_BLADE_HEART_GAIN_ORANGE_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-023'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_BP8_023_LIVE_START_LOW_COST_NO_BLADE_HEART_GAIN_ORANGE_EFFECT_TEXT,
+  },
+  {
+    abilityId: PL_BP8_023_LIVE_SUCCESS_SIX_ORANGE_CHEER_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!-bp8-023'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: PL_BP8_023_LIVE_SUCCESS_SIX_ORANGE_CHEER_SCORE_EFFECT_TEXT,
+  },
+
   {
     abilityId: S_AD2_003_ON_ENTER_DISCARD_RECOVER_LIVE_ABILITY_ID,
     baseCardCodes: ['PL!S-ad2-003'],

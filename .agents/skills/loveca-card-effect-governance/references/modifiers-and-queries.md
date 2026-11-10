@@ -27,7 +27,7 @@
 
 - GRAY 是实际提供的无色 Heart，只计总数、不补指定色；RAINBOW 仍是可代任意色的 All Heart，不能把无色判心写成 RAINBOW。
 - 必要无色 Heart 的既有结构化投影可使用 RAINBOW/泛用总数语义，规则层也规范化 GRAY 需求。必要 Heart 增减复用 `applyHeartRequirementModifiers`，保留 RAINBOW 条目与 `totalRequired` 两种需求形状。
-- ORANGE 是独立指定色，数据的 `orange` 原样映射。旧卡文本明确的六色/固定颜色集合必须显式列举，不因枚举新增 GRAY/ORANGE 自动扩大。
+- ORANGE 保留独立颜色身份，数据的 `orange` 原样映射。按 2026-11-10 用户确认的临时口径，橙判心仅在声援 HEART 贡献层按一个 GRAY 计入，不能抵指定色或当作 ALL；普通成员 ORANGE HEART 不转换。卡文条件、有效判心及所有展示仍识别 ORANGE，包括飞行动画、卡下贡献图标和图形／文本统计；判定预览及动画成功提示使用单独的规则贡献计数，不能将显示计数直接用于判定，也不能把普通成员橙心一并转灰。不能在卡牌数据或查询入口全局改成 GRAY。旧卡文本明确的六色/固定颜色集合必须显式列举，不因枚举新增 GRAY/ORANGE 自动扩大；此临时口径不代表官方橙判心规则已公布。
 - 前端必要 Heart 修正投影可能以 `obj_<cardId>` 为 key，组件使用 raw cardId；维护判定预览时保留既有 raw/public key 读取语义，不能把此投影差异误当新增业务 fallback。
 - 颜色/需求变更覆盖指定色、无色、All、负修正及当前两种需求数据形状；固定颜色卡另测未列颜色不计入。
 
@@ -36,6 +36,7 @@
 - “本次声援公开过的卡中有/达到N张”等条件读取 CheerEvent 的历史事实；被前序效果从处理区移走的卡仍计入。使用 `selectCurrentLiveRevealedCheerCardIds` 或等价 event-inclusive query。
 - 实际选卡/移动才限制为本次 ID、当前 resolutionZone 且 revealed、owner 正确的交集；`selectRevealedCheerCardIds` 等可移动查询不能反过来决定历史条件是否成立。
 - 本次声援颜色、ALL 等条件读取应用当前 LIVE modifier 的有效判心，优先 `selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts` / `getCheerCardEffectiveBladeHearts`。Dazzling Game 等 `CHEER_CARD_HEART_COLOR_REPLACEMENT` 先于条件判断生效。
+- `CHEER_CARD_BLADE_HEART_GRANT` 为费用门槛内、原本无任何判心的声援成员补一个 HEART 判心，再应用既有颜色替换；重复授予不叠成多个。它是已结算的玩家规则，来源离区不撤销，LIVE 结束清理。前端使用公开声援的有效判心投影，不复制单卡授予规则。
 - 颜色并集用 `collectCurrentLiveRevealedCheerBladeHeartColors`，不同卡分别覆盖颜色用 `evaluateDistinctCheerCardsCoverHeartColors`，其他条件从逐卡有效结果做窄聚合；固定颜色仍显式列举。
 - 除卡文明示印刷/原本信息，不对本次声援卡直接读 `card.data.bladeHearts` 或用 `hasAllBladeHeart()` 等印刷 selector。印刷 selector 可用于成功 LIVE 等静态区域。
 - 诱发条件与结算条件分开：改色后不满足结算条件不等于从未诱发，应正确处理 pending、turn1 和 continuation。

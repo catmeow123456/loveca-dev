@@ -1,4 +1,5 @@
 import { useTextPresentation } from '@/lib/appPresentation';
+import { calculateCheerEffects, summarizeLiveHearts } from '@/lib/cheerEffects';
 import {
   formatTextJudgment,
   formatTextLiveRequirements,
@@ -55,14 +56,7 @@ import {
 import { executeBattleActionPayload } from '@/lib/battleActionExecutor';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
-import {
-  SubPhase,
-  HeartColor,
-  ZoneType,
-  BladeHeartEffect,
-  SlotPosition,
-  CardType,
-} from '@game/shared/types/enums';
+import { SubPhase, HeartColor, ZoneType, SlotPosition, CardType } from '@game/shared/types/enums';
 import { isSuccessEffectSubPhase } from '@game/shared/phase-config';
 import { useGameStore } from '@/store/gameStore';
 import { BATTLE_UI_ANCHORS } from '@/lib/battleUiAnchors';
@@ -75,8 +69,8 @@ import {
   resolveJudgmentViewingSeat,
   type JudgmentViewSelection,
 } from './JudgmentSeatSwitcher';
-import type { BladeHearts, MemberCardData } from '@game/domain/entities/card';
-import type { LiveResultViewState, Seat } from '@game/online';
+import type { MemberCardData } from '@game/domain/entities/card';
+import type { Seat } from '@game/online';
 
 interface JudgmentPanelProps {
   isOpen: boolean;
@@ -90,54 +84,6 @@ const EMPTY_PUBLIC_OBJECT_IDS: readonly string[] = [];
 // ============================================
 // 工具函数
 // ============================================
-
-function calculateCheerEffects(bladeHearts?: BladeHearts): {
-  penLightHearts: { color: HeartColor; count: number }[];
-  drawBonus: number;
-  scoreBonus: number;
-} {
-  const penLightHearts: { color: HeartColor; count: number }[] = [];
-  let drawBonus = 0;
-  let scoreBonus = 0;
-
-  // 处理 bladeHearts 数组
-  if (bladeHearts) {
-    for (const item of bladeHearts) {
-      switch (item.effect) {
-        case BladeHeartEffect.DRAW:
-          drawBonus += 1;
-          break;
-        case BladeHeartEffect.SCORE:
-          scoreBonus += 1;
-          break;
-        case BladeHeartEffect.HEART:
-          if (item.heartColor) {
-            penLightHearts.push({ color: item.heartColor, count: 1 });
-          }
-          break;
-      }
-    }
-  }
-  return { penLightHearts, drawBonus, scoreBonus };
-}
-
-function applyCheerHeartColorReplacement(
-  bladeHearts: BladeHearts | undefined,
-  replacement: LiveResultViewState['cheerHeartColorReplacements'][Seat] | null
-): BladeHearts | undefined {
-  if (!bladeHearts || !replacement) {
-    return bladeHearts;
-  }
-
-  const fromColors = new Set(replacement.fromColors);
-  return bladeHearts.map((item) =>
-    item.effect === BladeHeartEffect.HEART &&
-    item.heartColor !== undefined &&
-    fromColors.has(item.heartColor)
-      ? { ...item, heartColor: replacement.toColor }
-      : item
-  );
-}
 
 function HeartIconValue({
   color,
@@ -466,11 +412,9 @@ export const JudgmentPanel = memo(function JudgmentPanel({
       ? (s.playerViewState?.match.liveResult?.heartBonuses[viewingSeat] ?? [])
       : [];
   });
-  const cheerHeartColorReplacement = useGameStore((s) => {
-    return viewingSeat
-      ? (s.playerViewState?.match.liveResult?.cheerHeartColorReplacements?.[viewingSeat] ?? null)
-      : null;
-  });
+  const effectiveCheerBladeHearts = useGameStore(
+    (s) => s.playerViewState?.match.liveResult?.effectiveCheerBladeHearts
+  );
   const liveRequirementReductions = useGameStore(
     (s) => s.playerViewState?.match.liveResult?.requirementReductions ?? {}
   );
@@ -479,6 +423,9 @@ export const JudgmentPanel = memo(function JudgmentPanel({
   );
   const liveScoreModifiers = useGameStore(
     (s) => s.playerViewState?.match.liveResult?.scoreModifiers ?? { FIRST: 0, SECOND: 0 }
+  );
+  const cheerGrantAbilityIds = useGameStore(
+    (s) => s.playerViewState?.match.liveResult?.cheerBladeHeartGrantAbilityIds
   );
   const liveCardScoreModifiers = useGameStore(
     (s) => s.playerViewState?.match.liveResult?.liveCardScoreModifiers ?? {}
@@ -641,30 +588,26 @@ export const JudgmentPanel = memo(function JudgmentPanel({
               {
                 id,
                 objectId: getPublicObjectId(id),
+                grantedByAbilityId: cheerGrantAbilityIds?.[getPublicObjectId(id)],
                 hearts: calculateCheerEffects(
-                  applyCheerHeartColorReplacement(
-                    frontInfo.bladeHearts as BladeHearts | undefined,
-                    cheerHeartColorReplacement
-                  )
+                  effectiveCheerBladeHearts?.[getPublicObjectId(id)] ?? frontInfo.bladeHearts
                 ).penLightHearts,
               },
             ]
           : []
       ),
-    [cheerCards, cheerHeartColorReplacement]
+    [cheerCards, effectiveCheerBladeHearts, cheerGrantAbilityIds]
   );
 
   // ---- 心数汇总（成员心 + 光棒心） ----
 
-  const { memberHearts, bladeHearts, totalHearts } = useMemo(() => {
+  const { memberHearts, bladeHearts, totalHearts, judgmentHearts } = useMemo(() => {
     const members = new Map<HeartColor, number>();
-    const blades = new Map<HeartColor, number>();
     Object.values(HeartColor).forEach((c) => {
       members.set(c, 0);
-      blades.set(c, 0);
     });
 
-    if (!viewingSeat) return { memberHearts: members, bladeHearts: blades, totalHearts: members };
+    if (!viewingSeat) return { memberHearts: members, ...summarizeLiveHearts(members, []) };
 
     // 成员心
     Object.values(SlotPosition).forEach((slot) => {
@@ -680,37 +623,25 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     });
 
     // 光棒心（从应援牌 - 包括成员卡和 Live 卡）
-    for (const { frontInfo } of cheerCards) {
-      if (!frontInfo) {
-        continue;
-      }
-      const effects = calculateCheerEffects(
-        applyCheerHeartColorReplacement(
-          frontInfo.bladeHearts as BladeHearts | undefined,
-          cheerHeartColorReplacement
-        )
-      );
-      for (const heart of effects.penLightHearts) {
-        blades.set(heart.color, (blades.get(heart.color) ?? 0) + heart.count);
-      }
-    }
-    for (const heart of liveHeartBonuses) {
-      blades.set(heart.color, (blades.get(heart.color) ?? 0) + heart.count);
-    }
-
-    // 合计
-    const total = new Map<HeartColor, number>();
-    Object.values(HeartColor).forEach((c) => {
-      total.set(c, (members.get(c) ?? 0) + (blades.get(c) ?? 0));
-    });
-
-    return { memberHearts: members, bladeHearts: blades, totalHearts: total };
+    const cheerEffects = cheerCards.flatMap(({ id, frontInfo }) =>
+      frontInfo
+        ? [
+            calculateCheerEffects(
+              effectiveCheerBladeHearts?.[getPublicObjectId(id)] ?? frontInfo.bladeHearts
+            ),
+          ]
+        : []
+    );
+    return {
+      memberHearts: members,
+      ...summarizeLiveHearts(members, cheerEffects, liveHeartBonuses),
+    };
   }, [
     viewingSeat,
     getCardFrontInfo,
     getSeatMemberSlotCardId,
     cheerCards,
-    cheerHeartColorReplacement,
+    effectiveCheerBladeHearts,
     liveHeartBonuses,
   ]);
 
@@ -720,22 +651,19 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     let scoreBonus = 0;
 
     // 从应援牌获取
-    for (const { frontInfo } of cheerCards) {
+    for (const { id, frontInfo } of cheerCards) {
       if (!frontInfo) {
         continue;
       }
       const effects = calculateCheerEffects(
-        applyCheerHeartColorReplacement(
-          frontInfo.bladeHearts as BladeHearts | undefined,
-          cheerHeartColorReplacement
-        )
+        effectiveCheerBladeHearts?.[getPublicObjectId(id)] ?? frontInfo.bladeHearts
       );
       drawBonus += effects.drawBonus;
       scoreBonus += effects.scoreBonus;
     }
 
     return { totalDrawBonus: drawBonus, totalCheerScoreBonus: scoreBonus };
-  }, [cheerCards, cheerHeartColorReplacement]);
+  }, [cheerCards, effectiveCheerBladeHearts]);
 
   const liveJudgmentPreview = useMemo(() => {
     const rows = liveCardIds.map((cardId) => {
@@ -788,7 +716,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
         adjustedRequirements: row.adjustedRequirements,
         score: row.score,
       })),
-      hearts: totalHearts,
+      hearts: judgmentHearts,
       drawBonus: totalDrawBonus,
       cheerScoreBonus: totalCheerScoreBonus,
       effectScoreBonus: totalLiveScoreModifier,
@@ -809,7 +737,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     liveCardScoreModifiers,
     totalCheerScoreBonus,
     totalDrawBonus,
-    totalHearts,
+    judgmentHearts,
   ]);
 
   const isPerformanceJudgment = currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT;
@@ -885,6 +813,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     cards: motionCards,
     members: memberHearts,
     totals: totalHearts,
+    judgmentTotals: judgmentHearts,
     requirements: liveJudgmentPreview.mergedRequirements,
     playerName: viewedPlayer?.name ?? '玩家',
   });
@@ -952,7 +881,9 @@ export const JudgmentPanel = memo(function JudgmentPanel({
               const front = viewObject?.surface === 'FRONT' ? frontInfo : null;
               const printed = front ? formatTextJudgment(front.bladeHearts) : '未公开';
               const current = front
-                ? formatTextJudgment(front.bladeHearts, cheerHeartColorReplacement)
+                ? formatTextJudgment(
+                    effectiveCheerBladeHearts?.[getPublicObjectId(id)] ?? front.bladeHearts
+                  )
                 : '未公开';
               const changed = current !== printed;
               const name = front ? getExcelCardSummary(front).name : '未知卡牌';
@@ -1220,10 +1151,8 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                   {cheerCards.map(({ id, frontInfo, viewObject }) => {
                     const effects = frontInfo
                       ? calculateCheerEffects(
-                          applyCheerHeartColorReplacement(
-                            frontInfo.bladeHearts as BladeHearts | undefined,
-                            cheerHeartColorReplacement
-                          )
+                          effectiveCheerBladeHearts?.[getPublicObjectId(id)] ??
+                            frontInfo.bladeHearts
                         )
                       : {
                           penLightHearts: [],

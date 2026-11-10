@@ -245,6 +245,10 @@ export interface LiveResultViewState {
   readonly scores: Readonly<Record<Seat, number>>;
   readonly scoreModifiers: Readonly<Record<Seat, number>>;
   readonly heartBonuses: Readonly<Record<Seat, readonly HeartIcon[]>>;
+  /** Effective markers for current publicly revealed cheer objects only. Keys are public object IDs. */
+  readonly effectiveCheerBladeHearts: Readonly<Record<string, readonly ViewBladeHeartItem[]>>;
+  /** Actual grant provenance for currently public cheer objects only; no private source identity. */
+  readonly cheerBladeHeartGrantAbilityIds?: Readonly<Record<string, string>>;
   readonly cheerHeartColorReplacements: Readonly<
     Record<
       Seat,
