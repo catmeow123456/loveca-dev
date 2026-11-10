@@ -52,7 +52,7 @@ import {
 import { isPlayerActive } from '../shared/phase-config/index.js';
 import {
   collectLiveModifiers,
-  getCheerCardEffectiveBladeHearts,
+  getCheerCardBladeHeartResolution,
   getLatestMemberOriginalHeartReplacementModifier,
   getMemberEffectiveBladeCount,
   getMemberEffectiveHeartIcons,
@@ -1358,6 +1358,13 @@ function buildLiveResultView(
     playerHeartBonuses.set(playerId, hearts);
   }
 
+  const cheerResolutions = game.players.flatMap((player) =>
+    selectRevealedCheerCardIds(game, player.id).map((cardId) => ({
+      objectId: createPublicObjectId(cardId),
+      ...getCheerCardBladeHeartResolution(game, player.id, cardId, liveModifiers),
+    }))
+  );
+
   return {
     scores: {
       FIRST: firstPlayerId ? (game.liveResolution.playerScores.get(firstPlayerId) ?? 0) : 0,
@@ -1377,11 +1384,11 @@ function buildLiveResultView(
     },
     cheerHeartColorReplacements: buildCheerHeartColorReplacementView(game, liveModifiers),
     effectiveCheerBladeHearts: Object.fromEntries(
-      game.players.flatMap((player) =>
-        selectRevealedCheerCardIds(game, player.id).map((cardId) => [
-          createPublicObjectId(cardId),
-          getCheerCardEffectiveBladeHearts(game, player.id, cardId, liveModifiers),
-        ])
+      cheerResolutions.map(({ objectId, bladeHearts }) => [objectId, bladeHearts])
+    ),
+    cheerBladeHeartGrantAbilityIds: Object.fromEntries(
+      cheerResolutions.flatMap(({ objectId, grantedByAbilityId }) =>
+        grantedByAbilityId ? [[objectId, grantedByAbilityId]] : []
       )
     ),
     requirementReductions: Object.fromEntries(

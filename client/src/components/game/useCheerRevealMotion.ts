@@ -1,3 +1,4 @@
+import { MotionConfigContext } from 'framer-motion';
 import { useTextPresentation } from '@/lib/appPresentation';
 import { useBattleEffectsEnabled } from '@/lib/battleEffects';
 import {
@@ -53,6 +54,7 @@ export function useCheerRevealMotion(input: {
   playerName: string;
 }) {
   const config = useContext(CheerMotionContext);
+  const motionConfig = useContext(MotionConfigContext);
   const effectsEnabled = useBattleEffectsEnabled();
   const view = useGameStore((s) => s.playerViewState);
   const epoch = useGameStore((s) => s.publicBattleLog.presentationEpoch);
@@ -182,6 +184,7 @@ export function useCheerRevealMotion(input: {
         labels: batch.labels,
         members: input.members,
         speed: config.speed,
+        reducedMotion: motionConfig.reducedMotion === 'always',
         requirements: input.requirements,
         playerName: input.playerName,
         firstBatch: batch.firstBatch,

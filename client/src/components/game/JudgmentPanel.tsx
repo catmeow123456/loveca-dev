@@ -424,6 +424,9 @@ export const JudgmentPanel = memo(function JudgmentPanel({
   const liveScoreModifiers = useGameStore(
     (s) => s.playerViewState?.match.liveResult?.scoreModifiers ?? { FIRST: 0, SECOND: 0 }
   );
+  const cheerGrantAbilityIds = useGameStore(
+    (s) => s.playerViewState?.match.liveResult?.cheerBladeHeartGrantAbilityIds
+  );
   const liveCardScoreModifiers = useGameStore(
     (s) => s.playerViewState?.match.liveResult?.liveCardScoreModifiers ?? {}
   );
@@ -585,6 +588,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
               {
                 id,
                 objectId: getPublicObjectId(id),
+                grantedByAbilityId: cheerGrantAbilityIds?.[getPublicObjectId(id)],
                 hearts: calculateCheerEffects(
                   effectiveCheerBladeHearts?.[getPublicObjectId(id)] ?? frontInfo.bladeHearts
                 ).penLightHearts,
@@ -592,7 +596,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
             ]
           : []
       ),
-    [cheerCards, effectiveCheerBladeHearts]
+    [cheerCards, effectiveCheerBladeHearts, cheerGrantAbilityIds]
   );
 
   // ---- 心数汇总（成员心 + 光棒心） ----

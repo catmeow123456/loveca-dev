@@ -65,7 +65,7 @@
 | 对墙打模式 | [对墙打模式需求](solitaire-mode-requirements.md) |
 | 成员下方堆叠 | [成员下方堆叠](special-member-stacking.md) |
 | 卡牌专属演出 | [素材与实现](../client/src/components/game/card-entrance/README.md)、[发布与验收](card-entrance-production-rollout.md) |
-| 歌曲专属演出 | [仆光组件契约](../client/src/components/game/song-animation/README.md)、[可操作本地预览](../client/dev/bokuhika/README.md) |
+| 歌曲专属演出 | [仆光组件契约](../client/src/components/game/song-animation/README.md)、[仆光预览](../client/dev/bokuhika/README.md)、[Snow halation演出](../client/src/components/game/song-animation/snow-halation/README.md)、[Snow halation可操作测试局](../client/dev/snow-halation/README.md) |
 
 ## 编码标准
 

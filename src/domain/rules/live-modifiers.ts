@@ -4662,15 +4662,26 @@ export function memberHasMoreEffectiveHeartsThanPrinted(
   return memberHasMoreEffectiveHeartsThanOriginal(game, playerId, memberCardId, liveModifiers);
 }
 
+/** Preserve the existing rule query; presentation attribution shares exactly the same evaluation. */
 export function getCheerCardEffectiveBladeHearts(
   game: GameState,
   playerId: string,
   cardId: string,
   liveModifiers: readonly LiveModifierState[] = collectLiveModifiers(game)
 ): readonly BladeHeartItem[] {
+  return getCheerCardBladeHeartResolution(game, playerId, cardId, liveModifiers).bladeHearts;
+}
+
+/** Attribution describes an actual grant, including grants subsequently recolored. */
+export function getCheerCardBladeHeartResolution(
+  game: GameState,
+  playerId: string,
+  cardId: string,
+  liveModifiers: readonly LiveModifierState[] = collectLiveModifiers(game)
+): { readonly bladeHearts: readonly BladeHeartItem[]; readonly grantedByAbilityId?: string } {
   const card = getCardById(game, cardId);
   if (!card || card.ownerId !== playerId) {
-    return [];
+    return { bladeHearts: [] };
   }
 
   const printedBladeHearts = (card.data as { readonly bladeHearts?: readonly BladeHeartItem[] })
@@ -4678,36 +4689,41 @@ export function getCheerCardEffectiveBladeHearts(
   // Absent and empty lists both mean no markers. Malformed lists are not cards
   // without markers and must not receive a grant.
   if (printedBladeHearts !== undefined && !Array.isArray(printedBladeHearts)) {
-    return [];
+    return { bladeHearts: [] };
   }
+  let grantedByAbilityId: string | undefined;
   let bladeHearts: readonly BladeHeartItem[] = printedBladeHearts ?? [];
   if (bladeHearts.length === 0 && isMemberCardData(card.data)) {
     const effectiveCost = getMemberEffectiveCost(game, playerId, cardId, liveModifiers);
-    const grant = [...liveModifiers].reverse().find(
-      (modifier) =>
-        modifier.kind === 'CHEER_CARD_BLADE_HEART_GRANT' &&
-        modifier.playerId === playerId &&
-        effectiveCost <= modifier.maxMemberCost
-    );
+    const grant = [...liveModifiers]
+      .reverse()
+      .find(
+        (modifier) =>
+          modifier.kind === 'CHEER_CARD_BLADE_HEART_GRANT' &&
+          modifier.playerId === playerId &&
+          effectiveCost <= modifier.maxMemberCost
+      );
     // The card has the granted marker; additional copies do not add markers.
     if (grant?.kind === 'CHEER_CARD_BLADE_HEART_GRANT') {
       bladeHearts = [{ effect: BladeHeartEffect.HEART, heartColor: grant.heartColor }];
+      grantedByAbilityId = grant.abilityId;
     }
   }
 
   const replacement = getLatestCheerCardHeartColorReplacementModifier(playerId, liveModifiers);
   if (!replacement) {
-    return bladeHearts;
+    return { bladeHearts, grantedByAbilityId };
   }
 
   const fromColorSet = new Set(replacement.fromColors);
-  return bladeHearts.map((item) =>
+  bladeHearts = bladeHearts.map((item) =>
     item.effect === BladeHeartEffect.HEART &&
     item.heartColor !== undefined &&
     fromColorSet.has(item.heartColor)
       ? { ...item, heartColor: replacement.toColor }
       : item
   );
+  return { bladeHearts, grantedByAbilityId };
 }
 
 export function getLatestMemberOriginalHeartReplacementModifier(

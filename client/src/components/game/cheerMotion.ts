@@ -1,3 +1,8 @@
+import { hasSnowHalationIgnition } from '@/lib/snowHalation';
+import {
+  drawSnowHeartIgnition,
+  type SnowRect,
+} from './song-animation/snow-halation/snowHalationIgnition';
 import { judgeLiveWithHeartCounts } from '@/lib/liveJudgmentPreview';
 import type { HeartRequirement } from '@game/domain/entities/card';
 import { useGameStore } from '@/store/gameStore';
@@ -9,6 +14,7 @@ import './cheerMotion.css';
 export interface CheerMotionCard {
   id: string;
   objectId: string;
+  grantedByAbilityId?: string;
   hearts: { color: HeartColor; count: number }[];
 }
 
@@ -55,6 +61,8 @@ type Token = {
   arrived: boolean;
   sourceX: number;
   emitted: boolean;
+  snowIgnition: boolean;
+  sourceCard: SnowRect;
 };
 const clamp = (n: number) => Math.max(0, Math.min(1, n));
 const smooth = (n: number) => n * n * (3 - 2 * n);
@@ -88,13 +96,14 @@ export function playCheerMotion(options: {
   judgmentBefore: Map<HeartColor, number>;
   labels: ReturnType<typeof readCheerJudgmentLabels>;
   speed: number;
+  reducedMotion?: boolean;
   requirements: HeartRequirement | null;
   playerName: string;
   firstBatch: boolean;
   phase?: (label: string) => void;
   done: () => void;
 }) {
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduced = options.reducedMotion || matchMedia('(prefers-reduced-motion: reduce)').matches;
   const root = document.createElement('div');
   root.className = 'cheer-motion-overlay';
   root.setAttribute('aria-hidden', 'true');
@@ -226,6 +235,9 @@ export function playCheerMotion(options: {
   const flipDuration = 200;
   const emergeAt = 100;
   const flightDuration = 320;
+  // Spend part of the existing flight window forming the granted heart on its card.
+  // Arrival, the batch stagger, and all ordinary hearts retain their original timings.
+  const snowFormationDuration = Math.min(220 * options.speed, flightDuration * 0.45);
   const arrivalAt = emergeAt + flightDuration;
   const endAt = stagger * Math.max(0, options.cards.length - 1) + arrivalAt + 80;
   root.dataset.cheerMotionState = 'preparing';
@@ -248,7 +260,7 @@ export function playCheerMotion(options: {
     root.append(progress);
   }
 
-  options.cards.forEach(({ id, hearts }, i) => {
+  options.cards.forEach(({ id, hearts, grantedByAbilityId }, i) => {
     const node = panel?.querySelector<HTMLElement>(`[data-cheer-card-id="${CSS.escape(id)}"]`);
     if (!node) return;
     const rect = localRect(node);
@@ -266,6 +278,19 @@ export function playCheerMotion(options: {
     const summary =
       node.parentElement?.querySelector<HTMLElement>('[data-cheer-card-summary]') ?? null;
     const summaryVisibility = summary?.style.visibility ?? '';
+    if (reduced && hearts.some(({ color }) => hasSnowHalationIgnition(grantedByAbilityId, color))) {
+      if (summary)
+        animations.push(summary.animate([{ opacity: 0.4 }, { opacity: 1 }], { duration: 180 }));
+      animations.push(
+        node.animate(
+          [
+            { boxShadow: '0 0 0 2px #ff9b26, 0 0 12px #ff9b2670' },
+            { boxShadow: '0 0 0 2px #ff9b2600, 0 0 12px #ff9b2600' },
+          ],
+          { duration: 260, easing: 'ease-out' }
+        )
+      );
+    }
     if (summary && !reduced) {
       summary.style.visibility = 'hidden';
       restores.push(() => {
@@ -326,13 +351,22 @@ export function playCheerMotion(options: {
       const target = panel?.querySelector<HTMLElement>(`[data-cheer-heart-color="${color}"] img`);
       if (!target) return;
       const to = localRect(target);
+      const snowIgnition = hasSnowHalationIgnition(grantedByAbilityId, color);
+      const sourceOffset = rect.width * (snowIgnition ? 0.5 : 0.092);
       const token: Token = {
         color,
         amount: heart.count,
-        sx: rect.x + rect.width * 0.092,
-        sourceX: rect.x + initialScroll + rect.width * 0.092,
+        sx: rect.x + sourceOffset,
+        sourceX: rect.x + initialScroll + sourceOffset,
         emitted: false,
-        sy: rect.y + rect.height * 0.085 + j * 9,
+        snowIgnition,
+        sourceCard: {
+          x: rect.x + initialScroll,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+        },
+        sy: rect.y + rect.height * (snowIgnition ? 0.48 : 0.085) + j * 9,
         ex: to.x + to.width / 2,
         ey: to.y + to.height / 2,
         delay,
@@ -341,6 +375,7 @@ export function playCheerMotion(options: {
       tokens.push(token);
     });
   });
+  root.dataset.snowHalationIgnitions = String(tokens.filter((token) => token.snowIgnition).length);
   // One threshold for the entire LIVE group, using the same allocation rules as the verdict.
   const isSuccessful = () =>
     options.requirements !== null &&
@@ -474,15 +509,33 @@ export function playCheerMotion(options: {
     progress.textContent = `翻牌 ${flipped}/${options.cards.length}`;
     for (const token of tokens) {
       const local = time - token.delay;
-      if (!token.emitted && (reduced || local >= emergeAt)) {
+      const departAt = emergeAt + (token.snowIgnition ? snowFormationDuration : 0);
+      if (!token.emitted) {
         token.sx = token.sourceX - expectedScroll;
-        token.emitted = true;
+        if (reduced || local >= departAt) token.emitted = true;
       }
-      const p = clamp((local - emergeAt) / flightDuration);
+      const p = clamp((local - departAt) / (arrivalAt - departAt));
       if (!reduced && local >= emergeAt && local < arrivalAt) {
-        const emerge = clamp((local - emergeAt) / 60);
+        const ageMs = (local - emergeAt) / options.speed;
+        const emerge = token.snowIgnition
+          ? clamp((local - emergeAt - snowFormationDuration * 0.12) / (snowFormationDuration * 0.7))
+          : clamp((local - emergeAt) / 60);
         const point = position(token, p);
-        point.y -= (1 - p) * 10 * smooth(emerge);
+        point.y -= (1 - p) * (token.snowIgnition ? 6 : 10) * smooth(emerge);
+        if (token.snowIgnition) {
+          ctx.save();
+          if (strip) {
+            ctx.beginPath();
+            ctx.rect(strip.x, strip.y, strip.width, strip.height);
+            ctx.clip();
+          }
+          drawSnowHeartIgnition(
+            ctx,
+            { ...token.sourceCard, x: token.sourceCard.x - expectedScroll },
+            ageMs
+          );
+          ctx.restore();
+        }
         // A short, tapered wake follows the glyph; never draw the whole route.
         if (p > 0.03)
           for (let k = 12; k >= 1; k--) {
@@ -493,17 +546,24 @@ export function playCheerMotion(options: {
             ctx.beginPath();
             ctx.moveTo(b.x, b.y - (1 - q) * 10);
             ctx.lineTo(a.x, a.y - (1 - q) * 10);
-            ctx.strokeStyle = colors[token.color] ?? '#ffffff';
-            ctx.globalAlpha = (1 - k / 13) * 0.24;
-            ctx.lineWidth = (1 - k / 13) * 3;
+            ctx.strokeStyle = token.snowIgnition
+              ? k < 5
+                ? '#ffe1a2'
+                : '#ff9b38'
+              : (colors[token.color] ?? '#ffffff');
+            ctx.globalAlpha = (1 - k / 13) * (token.snowIgnition ? 0.65 : 0.24);
+            ctx.lineWidth = (1 - k / 13) * (token.snowIgnition ? 4 : 3);
             ctx.lineCap = 'round';
             ctx.stroke();
           }
         const sprite = images.get(HEART_ICON_SOURCE_BY_COLOR[token.color]);
-        const size = (10 + 16 * smooth(emerge)) * (1 - 0.48 * p);
+        const formedSize = Math.max(32, Math.min(42, token.sourceCard.width * 0.56));
+        const size = token.snowIgnition
+          ? (8 + (formedSize - 8) * smooth(emerge)) * (1 - 0.64 * p)
+          : (10 + 16 * smooth(emerge)) * (1 - 0.48 * p);
         ctx.globalAlpha = Math.min(1, emerge * 4) * (p > 0.92 ? (1 - p) / 0.08 : 1);
         ctx.shadowColor = colors[token.color] ?? '#fff';
-        ctx.shadowBlur = 7 * (1 - p);
+        ctx.shadowBlur = (token.snowIgnition ? 14 : 7) * (1 - p);
         if (sprite?.complete && sprite.naturalWidth)
           ctx.drawImage(sprite, point.x - size / 2, point.y - size / 2, size, size);
         else {

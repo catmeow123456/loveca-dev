@@ -1,0 +1,196 @@
+[
+  {
+    "cardCode": "PL!-bp8-023-SECL",
+    "cardType": "LIVE",
+    "nameCn": "Snow halation",
+    "nameJp": "Snow halation",
+    "rare": "SECL",
+    "groupNames": ["μ’s"],
+    "unitName": null,
+    "workNames": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "ORANGE"
+      }
+    ],
+    "score": 5,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      },
+      {
+        "color": "RAINBOW",
+        "count": 6
+      }
+    ],
+    "cardTextCn": "【LIVE开始时】LIVE结束时为止，因声援被公开的自己的费用小于等于4的不持有BLADE HEART的成员卡获得[オレンジブレード]。\n\n【LIVE成功时】因声援被公开的自己的卡片中存在大于等于6张持有[オレンジブレード]的卡片的场合，此卡的分数+2。",
+    "cardTextJp": "【ライブ開始時】ライブ終了時まで、エールによって公開される自分のコスト4以下のブレードハートを持たないメンバーカードは[オレンジブレード]を持つ。\n\n【ライブ成功時】エールにより公開された自分のカードの中に[オレンジブレード]を持つカードが6枚以上ある場合、このカードのスコアを+2する。"
+  },
+  {
+    "cardCode": "PL!-sd1-001-SD",
+    "cardType": "MEMBER",
+    "nameCn": "高坂穗乃果",
+    "nameJp": "高坂穂乃果",
+    "rare": "SD",
+    "groupNames": ["μ’s"],
+    "unitName": "「Printemps」",
+    "workNames": ["ラブライブ！"],
+    "cost": 11,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "cardTextCn": "【登场】自己的成功LIVE卡区中的卡片大于等于2张的场合，从自己的休息室将1张LIVE卡加入手牌。\n\n【常时】每存在1张自己的成功LIVE卡区中的卡片，获得[ブレード]。",
+    "cardTextJp": "【登場】自分の成功ライブカード置き場にカードが2枚以上ある場合、自分の控え室からライブカードを1枚手札に加える。\n\n【常時】自分の成功ライブカード置き場にあるカード1枚につき、[ブレード]を得る。"
+  },
+  {
+    "cardCode": "PL!-sd1-002-SD",
+    "cardType": "MEMBER",
+    "nameCn": "绚濑绘里",
+    "nameJp": "絢瀬絵里",
+    "rare": "SD",
+    "groupNames": ["μ’s"],
+    "unitName": "「BiBi」",
+    "workNames": ["ラブライブ！"],
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextCn": "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。",
+    "cardTextJp": "【起動】このメンバーをステージから控え室に置く：自分の控え室からメンバーカードを1枚手札に加える。"
+  },
+  {
+    "cardCode": "PL!-sd1-009-SD",
+    "cardType": "MEMBER",
+    "nameCn": "矢泽日香（矢泽妮可）",
+    "nameJp": "矢澤にこ",
+    "rare": "SD",
+    "groupNames": ["μ’s"],
+    "unitName": "「BiBi」",
+    "workNames": ["ラブライブ！"],
+    "cost": 15,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextCn": "【LIVE开始时】自己的休息室中存在大于等于25张『μ's』的卡片的场合，LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。",
+    "cardTextJp": "【ライブ開始時】自分の控え室に「μ's」のカードが25枚以上ある場合、ライブ終了時まで、「【常時】ライブの合計スコアを+1する。」を得る。"
+  },
+  {
+    "cardCode": "PL!-sd1-010-SD",
+    "cardType": "MEMBER",
+    "nameCn": "高坂穗乃果",
+    "nameJp": "高坂穂乃果",
+    "rare": "SD",
+    "groupNames": ["μ’s"],
+    "unitName": "「Printemps」",
+    "workNames": ["ラブライブ！"],
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": null,
+    "cardTextCn": null,
+    "cardTextJp": null
+  },
+  {
+    "cardCode": "PL!-sd1-016-SD",
+    "cardType": "MEMBER",
+    "nameCn": "东条希",
+    "nameJp": "東條希",
+    "rare": "SD",
+    "groupNames": ["μ’s"],
+    "unitName": "「lilywhite」",
+    "workNames": ["ラブライブ！"],
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "cardTextCn": "【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。",
+    "cardTextJp": "【登場】手札を1枚控え室に置いてもよい：自分のデッキの上からカードを3枚見る。その中から1枚を手札に加え、残りを控え室に置く。"
+  }
+]

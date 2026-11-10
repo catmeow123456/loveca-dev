@@ -37,6 +37,7 @@ import {
 } from '../../src/application/game-commands';
 import { createConfirmSubPhaseAction, GameActionType } from '../../src/application/actions';
 import { GameService } from '../../src/application/game-service';
+import { createGameSession } from '../../src/application/game-session';
 import { revealCheerCardsFromMainDeck } from '../../src/application/effects/cheer';
 import {
   moveRevealedCheerCards,
@@ -185,6 +186,66 @@ describe('PL!-bp8-023 分数5「Snow halation」', () => {
       expect(
         new Set(grantModifiers(session.state!).map((modifier) => modifier.sourceCardId))
       ).toEqual(new Set([source.instanceId, other!.instanceId]));
+    }
+  );
+
+  it.each([false, true])(
+    'keeps successful scoring free of a dedicated animation wait with ordered=%s',
+    (ordered) => {
+      const cards = Array.from({ length: 6 }, (_, i) => cheer(`orange-${i}`, orange));
+      const { game, source, other } = setup(cards, true);
+      const session = createGameSession({ cardEntrance: 'LOCAL' });
+      const initial = session.createGame('snow-ordinary-score', P1, 'P1', P2, 'P2');
+      const state = facts(
+        {
+          ...game,
+          isStarted: true,
+          manualOperationMode: 'RULES',
+          currentPhase: GamePhase.LIVE_RESULT_PHASE,
+          currentSubPhase: SubPhase.RESULT_FIRST_SUCCESS_EFFECTS,
+          currentTurnType: TurnType.LIVE_PHASE,
+          entranceRuntime: initial.entranceRuntime,
+          liveResolution: { ...game.liveResolution, playerScores: new Map([[P1, 10]]) },
+          pendingAbilities: [source, other!].map((card) => ({
+            id: `pending:${card.instanceId}`,
+            abilityId: SUCCESS,
+            sourceCardId: card.instanceId,
+            controllerId: P1,
+            mandatory: true,
+            timingId: TriggerCondition.ON_LIVE_SUCCESS,
+            eventIds: [],
+          })),
+        },
+        cards
+      );
+      session.restoreRuntimeState({
+        authorityState: resolvePendingCardEffects(state).gameState,
+        currentPublicSeq: 0,
+      });
+      const effect = session.state!.activeEffect!;
+      expect(session.state!.entranceRuntime!.pending).toBeNull();
+      expect(
+        session.executeCommand(
+          createConfirmEffectStepCommand(
+            P1,
+            effect.id,
+            ordered ? undefined : effect.selectableCardIds?.[0],
+            undefined,
+            ordered
+          )
+        ).success
+      ).toBe(true);
+      if (!ordered) {
+        expect(session.state!.liveResolution.playerScores.get(P1)).toBe(10);
+        expect(confirm(session, P1).success).toBe(true);
+        expect(session.state!.liveResolution.playerScores.get(P1)).toBe(12);
+        expect(session.state!.entranceRuntime!.pending).toBeNull();
+        expect(confirm(session, P1).success).toBe(true);
+      }
+      expect(session.state!.liveResolution.playerScores.get(P1)).toBe(14);
+      expect(session.state!.entranceRuntime!.pending).toBeNull();
+      expect(session.state!.activeEffect).toBeNull();
+      expect(session.getPlayerViewState(P1)!.match.entrance).toBeUndefined();
     }
   );
 
