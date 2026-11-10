@@ -55,7 +55,7 @@ describe('parseCardEffectText', () => {
   });
 
   it('maps the official orange Blade Heart and Heart placeholders', () => {
-    const text = '获得[オレンジブレード][オレンジハート][橙HEART]。';
+    const text = '获得[オレンジブレード][オレンジハート][橙ハート][橙HEART]。';
 
     expect(getUnknownCardEffectPlaceholders(text)).toEqual([]);
     expect(parseCardEffectText(text)).toEqual([
@@ -64,7 +64,7 @@ describe('parseCardEffectText', () => {
         kind: 'blade',
         raw: '[オレンジブレード]',
         label: 'オレンジブレード',
-        icon: 'heart_orange',
+        icon: 'blade_heart_orange',
       },
       {
         kind: 'heart',
@@ -72,12 +72,13 @@ describe('parseCardEffectText', () => {
         label: 'オレンジハート',
         icon: 'heart_orange',
       },
+      { kind: 'heart', raw: '[橙ハート]', label: '橙ハート', icon: 'heart_orange' },
       { kind: 'heart', raw: '[橙HEART]', label: '橙HEART', icon: 'heart_orange' },
       { kind: 'text', text: '。' },
     ]);
   });
 
-  it('keeps the six color and ALL Blade Heart icons separate from ordinary Heart icons', () => {
+  it('keeps the seven color and ALL Blade Heart icons separate from ordinary Heart icons', () => {
     const pairs = [
       ['[桃ブレード]', '[桃ハート]', 'blade_heart_pink', 'heart_pink'],
       ['[赤ブレード]', '[赤ハート]', 'blade_heart_red', 'heart_red'],
@@ -85,6 +86,7 @@ describe('parseCardEffectText', () => {
       ['[緑ブレード]', '[緑ハート]', 'blade_heart_green', 'heart_green'],
       ['[青ブレード]', '[青ハート]', 'blade_heart_blue', 'heart_blue'],
       ['[紫ブレード]', '[紫ハート]', 'blade_heart_purple', 'heart_purple'],
+      ['[オレンジブレード]', '[オレンジハート]', 'blade_heart_orange', 'heart_orange'],
       ['[ALLブレード]', '[ALLハート]', 'blade_heart_all', 'heart_all'],
     ] as const;
 
