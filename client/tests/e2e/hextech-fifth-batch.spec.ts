@@ -149,5 +149,27 @@ test('第五批取得检索、会玩与待机彼方在共享牌桌完成真实�
     )
     .toEqual({ orientation: 'WAITING', bonus: 2 });
   await page.screenshot({ path: info.outputPath('hextech-rested.png') });
+  const authorityCursor = () =>
+    page.evaluate(async (path) => {
+      const { useGameStore } = await import(path);
+      const session = useGameStore.getState().gameSession;
+      return {
+        action: session.state.actionSequence,
+        command: session.getCommandLogSince(0).length,
+        public: session.getCurrentPublicEventSeq(),
+      };
+    }, storePath);
+  const beforeBrowse = await authorityCursor();
+  const summary = page.locator('summary').filter({ hasText: /^海克斯$/ });
+  await summary.click();
+  await page.getByRole('button', { name: '查看海克斯池', exact: true }).click();
+  const pool = page.getByRole('dialog', { name: '海克斯池', exact: true });
+  await expect(pool.getByRole('article')).toHaveCount(24);
+  await pool.getByRole('tab', { name: '金色', exact: true }).click();
+  await expect(pool.getByRole('article')).toHaveCount(7);
+  await pool.getByRole('button', { name: '关闭海克斯池', exact: true }).click();
+  await expect(pool).toHaveCount(0);
+  await expect(summary).toBeFocused();
+  expect(await authorityCursor()).toEqual(beforeBrowse);
   expect(errors).toEqual([]);
 });

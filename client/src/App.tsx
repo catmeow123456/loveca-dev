@@ -97,6 +97,9 @@ import {
 import { GameMode } from '@game/shared/types/enums';
 
 const GameBoard = lazy(() => import('@/components/game/GameBoard'));
+const HextechPool = lazy(() =>
+  import('@/components/hextech/HextechPool').then((module) => ({ default: module.HextechPool }))
+);
 const TutorialPage = lazy(() =>
   import('@/components/pages/TutorialPage').then((module) => ({ default: module.TutorialPage }))
 );
@@ -232,6 +235,7 @@ type AuthPage =
   | 'verify-email-change';
 type AppPage =
   | 'home'
+  | 'hextech-pool'
   | 'tutorial'
   | 'account'
   | 'deck-manager'
@@ -263,6 +267,7 @@ type AppPage =
   | 'platform-operations-admin';
 
 const CARD_DATA_INDEPENDENT_PAGES = new Set<AppPage>([
+  'hextech-pool',
   'tutorial',
   'admin-center',
   'card-admin',
@@ -363,6 +368,7 @@ function getInitialPage(): AppPage {
   if (page === 'public-table' || page === 'online-spectator') return 'battle-lobby';
   if (
     page === 'tutorial' ||
+    page === 'hextech-pool' ||
     page === 'deck-manager' ||
     page === 'account' ||
     page === 'game-setup' ||
@@ -1223,6 +1229,17 @@ function AppContent() {
         emoteCatalog={appConfig.matchEmotes}
         onEmoteCatalogStale={refreshAppConfig}
         onBackHome={() => {
+          window.location.href = '/';
+        }}
+      />
+    );
+  }
+
+  if (effectivePage === 'hextech-pool') {
+    return (
+      <HextechPool
+        presentation="page"
+        onClose={() => {
           window.location.href = '/';
         }}
       />

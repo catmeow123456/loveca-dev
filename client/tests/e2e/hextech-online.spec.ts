@@ -34,7 +34,7 @@ test('娱乐模式海克斯标签预选建房玩法并使用自选卡组', async
   });
   await page.goto('/?page=battle-lobby');
   await page.getByRole('radio', { name: '娱乐模式 PT 不限' }).check();
-  await page.getByRole('button', { name: '海克斯', exact: true }).click();
+  await page.getByRole('tab', { name: '海克斯', exact: true }).click();
   await expect(page.getByRole('heading', { name: '娱乐模式房间' })).toBeVisible();
   await page.screenshot({ path: info.outputPath('hextech-lobby.png'), fullPage: true });
   await page.getByRole('button', { name: '创建房间', exact: true }).click();

@@ -69,11 +69,12 @@ test('娱乐房间统一展示，玩法标签只置顶强调，加入其他类�
   });
   await page.goto('/?page=battle-lobby');
   await page.getByRole('radio', { name: '娱乐模式 PT 不限' }).check();
-  const tags = page.getByRole('group', { name: '优先显示的娱乐玩法' });
+  const tags = page.getByRole('tablist', { name: '娱乐玩法' });
   const list = page.getByRole('list', { name: '公开房间列表' });
   const rows = list.getByRole('listitem');
-  await expect(tags.getByRole('button', { name: '全部', exact: true })).toHaveAttribute(
-    'aria-pressed',
+  expect((await tags.boundingBox())!.height).toBeLessThanOrEqual(56);
+  await expect(tags.getByRole('tab', { name: '全部', exact: true })).toHaveAttribute(
+    'aria-selected',
     'true'
   );
   await expect(rows).toHaveCount(3);
@@ -88,7 +89,7 @@ test('娱乐房间统一展示，玩法标签只置顶强调，加入其他类�
     ['开盒战', '开盒房主'],
     ['自由构筑', '自由构筑房主'],
   ] as const) {
-    const tag = tags.getByRole('button', { name, exact: true });
+    const tag = tags.getByRole('tab', { name, exact: true });
     await tag.click();
     await expect(rows.first()).toContainText(owner);
     await expect(rows).toHaveCount(3);
@@ -98,7 +99,7 @@ test('娱乐房间统一展示，玩法标签只置顶强调，加入其他类�
     for (const original of rooms)
       await expect(list.getByText(original.members[0].displayName, { exact: true })).toBeVisible();
   }
-  await tags.getByRole('button', { name: '海克斯', exact: true }).click();
+  await tags.getByRole('tab', { name: '海克斯', exact: true }).click();
   await expect(rows.first()).toContainText('海克斯房主');
   await page.getByRole('button', { name: '刷新房间', exact: true }).click();
   await expect(rows.first()).toContainText('海克斯房主');
@@ -130,7 +131,7 @@ test('娱乐房间统一展示，玩法标签只置顶强调，加入其他类�
   await expect(rows).toHaveCount(2);
   await expect(page.getByText('开盒房主', { exact: true })).toBeVisible();
   await expect(list.locator('.casual-row--preferred')).toHaveCount(0);
-  await tags.getByRole('button', { name: '全部', exact: true }).click();
+  await tags.getByRole('tab', { name: '全部', exact: true }).click();
   await expect(rows.first()).toContainText('自由构筑房主');
   await expect(rows).toHaveCount(2);
   expect(queries.every((query) => !query.has('format'))).toBe(true);

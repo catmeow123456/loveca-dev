@@ -1,6 +1,8 @@
 import { SealedBuilder, SealedRematchControls } from '@/components/casual-table/SealedBuilder';
 import { SealedFormatLabel } from '@/components/casual-table/SealedFormatLabel';
 import { SEALED_BP7_DECK_NAME } from '@game/shared/sealed-format';
+import { HEXTECH_DEFINITIONS } from '@game/domain/hextech/catalog';
+import { HextechPool } from '@/components/hextech/HextechPool';
 import type { CasualFormat } from '@game/online/casual-table-types';
 import {
   CasualRuleBadge,
@@ -37,6 +39,7 @@ import {
   ChevronRight,
   Copy,
   Hash,
+  Hexagon,
   Plus,
   PackageOpen,
   Heart,
@@ -49,7 +52,13 @@ import {
   X,
 } from 'lucide-react';
 import { GameMode } from '@game/shared/types/enums';
-import { ActionButton, DeckSelector, TextInput, type DeckDisplayItem } from '@/components/common';
+import {
+  ActionButton,
+  DeckSelector,
+  Tabs,
+  TextInput,
+  type DeckDisplayItem,
+} from '@/components/common';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import { useCasualTableStore } from '@/store/casualTableStore';
 import { useGameStore } from '@/store/gameStore';
@@ -157,6 +166,9 @@ export function CasualLobbyPage({
   const ruleMode = table?.ruleMode ?? preferredMode;
   const [preferredFormat, setPreferredFormat] = useState<CasualFormat>('CONSTRUCTED');
   const [focusedFormat, setFocusedFormat] = useState<CasualFormat | null>(null);
+  const formatTabsId = useId();
+  const poolLinkRef = useRef<HTMLAnchorElement>(null);
+  const [poolOpen, setPoolOpen] = useState(false);
   const prioritizedFormat = ruleMode === 'UNLIMITED' ? (focusedFormat ?? undefined) : undefined;
   const format: CasualFormat =
     table?.format ?? (ruleMode === 'UNLIMITED' ? preferredFormat : 'CONSTRUCTED');
@@ -1135,33 +1147,45 @@ export function CasualLobbyPage({
         </div>
         {ruleMode === 'UNLIMITED' && (
           <div className="casual-room-priority">
-            <div className="casual-format-tags" role="group" aria-label="优先显示的娱乐玩法">
-              <button
-                type="button"
-                aria-pressed={focusedFormat === null}
-                onClick={() => setFocusedFormat(null)}
-              >
-                全部
-              </button>
-              {(Object.keys(formatNames) as CasualFormat[]).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={focusedFormat === value}
-                  onClick={() => {
-                    setFocusedFormat(value);
-                    setPreferredFormat(value);
-                  }}
-                >
-                  {formatNames[value]}
-                </button>
-              ))}
-            </div>
-            <p className="casual-priority-hint" role="status">
-              {focusedFormat
-                ? `${formatNames[focusedFormat]}优先显示，其他房间仍可加入或观战`
-                : '展示全部玩法，点标签可优先显示'}
-            </p>
+            <Tabs<'ALL' | CasualFormat>
+              id={formatTabsId}
+              panelId="casual-rooms-panel"
+              label="娱乐玩法"
+              className="casual-format-tabs"
+              value={focusedFormat ?? 'ALL'}
+              options={[
+                { value: 'ALL', label: '全部' },
+                ...(Object.keys(formatNames) as CasualFormat[]).map((value) => ({
+                  value,
+                  label: formatNames[value],
+                })),
+              ]}
+              onChange={(value) => {
+                setFocusedFormat(value === 'ALL' ? null : value);
+                if (value !== 'ALL') setPreferredFormat(value);
+              }}
+            />
+            <a
+              ref={poolLinkRef}
+              href="/?page=hextech-pool"
+              className="button-ghost casual-pool-link"
+              aria-haspopup="dialog"
+              onClick={(event) => {
+                if (
+                  event.button ||
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                )
+                  return;
+                event.preventDefault();
+                setPoolOpen(true);
+              }}
+            >
+              <Hexagon size={16} aria-hidden="true" />
+              海克斯池 <span>{HEXTECH_DEFINITIONS.length}</span>
+            </a>
           </div>
         )}
         <div className="casual-toolbar">
@@ -1188,7 +1212,16 @@ export function CasualLobbyPage({
             <RefreshCw size={16} />
           </button>
         </div>
-        <div id="casual-rooms-panel" role="region" aria-label="房间列表" aria-busy={reading}>
+        <div
+          id="casual-rooms-panel"
+          role={ruleMode === 'UNLIMITED' ? 'tabpanel' : 'region'}
+          aria-label={ruleMode === 'UNLIMITED' ? undefined : '房间列表'}
+          aria-labelledby={
+            ruleMode === 'UNLIMITED' ? `${formatTabsId}-${focusedFormat ?? 'ALL'}` : undefined
+          }
+          aria-busy={reading}
+          tabIndex={ruleMode === 'UNLIMITED' ? 0 : undefined}
+        >
           {(listError || stale) && (
             <p role="status" className="casual-error">
               {listError ?? '状态可能已变化'}
@@ -1344,6 +1377,7 @@ export function CasualLobbyPage({
           )}
         </div>
       </section>
+      {poolOpen && <HextechPool onClose={() => setPoolOpen(false)} returnFocusRef={poolLinkRef} />}
       {flow && (
         <LobbyDialog
           title={createDeckPickerOpen ? '选择本局卡组' : title}
