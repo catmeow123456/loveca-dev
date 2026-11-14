@@ -1,5 +1,7 @@
 import { GameCommandType } from '../application/game-commands.js';
 import { getHextechDefinition } from '../domain/hextech/catalog.js';
+import { getHextechActivation, getHextechSearch } from '../application/hextech/abilities.js';
+import { getPlayerById, getCardById } from '../domain/entities/game.js';
 import { isShizukuSec } from '../shared/card-entrance.js';
 import { N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID } from '../application/card-effects/ability-ids.js';
 import {
@@ -346,6 +348,7 @@ export function projectPlayerViewState(
       ? {
           hextech: {
             rulesVersion: game.hextech.rulesVersion,
+            ...buildHextechAbilityView(game, viewerPlayerId),
             ...(!game.isEnded && game.hextech.draft?.pending
               ? {
                   selection: buildHextechSelectionView(game, viewerPlayerId),
@@ -1621,6 +1624,18 @@ function buildPermissionViewState(
   viewerSeat: Seat,
   options: { readonly allowRulesModeSuccessLiveSkip: boolean }
 ): PermissionViewState {
+  const search = getHextechSearch(game);
+  if (search && !game.isEnded)
+    return {
+      availableCommands:
+        search.source.playerId === viewerPlayerId
+          ? [
+              buildCommandHint(GameCommandType.RESOLVE_HEXTECH_SEARCH, {
+                params: { instanceId: search.source.instanceId },
+              }),
+            ]
+          : [],
+    };
   const selection = game.hextech?.draft?.pending;
   if (selection) {
     const ownOffer =
@@ -2206,6 +2221,7 @@ function buildPhaseCommandHint(
         }),
       });
     case GameCommandType.ACTIVATE_ABILITY:
+    case GameCommandType.ACTIVATE_HEXTECH:
       return buildCommandHint(command, {
         scope: createCommandScope({
           zoneKeys: [
@@ -2427,6 +2443,70 @@ function buildSettlementSelectionHint(
         (getManualOperationMode(game) === 'FREE' || options.allowRulesModeSuccessLiveSkip),
     },
   });
+}
+
+function buildHextechAbilityView(
+  game: GameState,
+  viewerPlayerId: string
+): Pick<import('./types.js').HextechViewState, 'abilities' | 'pendingSearch'> {
+  if (game.isEnded) return {};
+  const cards = (playerId: string, ids: readonly string[]) => {
+    const player = getPlayerById(game, playerId)!;
+    return ids
+      .map((id) => {
+        const card = getCardById(game, id)!;
+        return {
+          objectId: createPublicObjectId(id),
+          frontInfo: buildFrontInfo(card),
+          zone: player.hand.cardIds.includes(id)
+            ? '手牌'
+            : player.mainDeck.cardIds.includes(id)
+              ? '主卡组'
+              : player.waitingRoom.cardIds.includes(id)
+                ? '休息室'
+                : '成员区',
+        };
+      })
+      .sort(
+        (a, b) =>
+          a.frontInfo.cardCode.localeCompare(b.frontInfo.cardCode) ||
+          a.objectId.localeCompare(b.objectId)
+      );
+  };
+  const search = getHextechSearch(game);
+  return {
+    ...(search
+      ? {
+          pendingSearch: {
+            instanceId: search.source.instanceId,
+            ownerSeat: getSeatForPlayer(game, search.source.playerId)!,
+            ...(search.source.playerId === viewerPlayerId
+              ? {
+                  requiredCount: search.count,
+                  candidates: cards(viewerPlayerId, search.candidates),
+                }
+              : {}),
+          },
+        }
+      : {}),
+    abilities: (game.hextech?.owned ?? []).flatMap((owned) => {
+      const action = getHextechActivation(game, viewerPlayerId, owned.instanceId);
+      return action
+        ? [
+            {
+              instanceId: owned.instanceId,
+              min: action.min,
+              max: action.max,
+              selectionLabel:
+                action.kind === 'ACTIVATED_DISCARD_DRAW'
+                  ? '请选择要放置入休息室的手牌'
+                  : '请选择要待机的己方成员',
+              candidates: cards(viewerPlayerId, action.candidates),
+            },
+          ]
+        : [];
+    }),
+  };
 }
 
 function buildHextechSelectionView(

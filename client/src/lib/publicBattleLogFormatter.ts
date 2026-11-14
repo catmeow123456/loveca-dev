@@ -598,10 +598,16 @@ function buildSingleEventView(
         actorSeat: event.actingSeat ?? actorSeat,
       });
     case 'PlayerDeclared':
-      if (['REROLL_HEXTECH', 'SELECT_HEXTECH'].includes(event.declarationType)) {
+      if (
+        ['REROLL_HEXTECH', 'SELECT_HEXTECH', 'ACTIVATE_HEXTECH', 'RESOLVE_HEXTECH_SEARCH'].includes(
+          event.declarationType
+        )
+      ) {
         const labels: Record<string, string> = {
           REROLL_HEXTECH: '重抽一项海克斯',
           SELECT_HEXTECH: '锁定海克斯选择',
+          ACTIVATE_HEXTECH: '发动海克斯',
+          RESOLVE_HEXTECH_SEARCH: '完成海克斯检索',
         };
         return buildView({
           events: [event],

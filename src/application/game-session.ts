@@ -1,3 +1,5 @@
+import { hasPendingHextechInput } from '../domain/hextech/state.js';
+import { validateHextechAbilityCommand, applyHextechAbilityCommand } from './hextech/abilities.js';
 import { getCurrentTurnSetLiveEntryEventId } from './effects/current-turn-live-zone-entries.js';
 import type { BattleRulesetId } from '../domain/rules/battle-ruleset.js';
 import { getHextechDefinition, HEXTECH_RULES_VERSION } from '../domain/hextech/catalog.js';
@@ -645,7 +647,7 @@ export class GameSession {
       };
     }
 
-    if (this.authorityState.hextech?.draft?.pending)
+    if (hasPendingHextechInput(this.authorityState))
       return { success: false, gameState: this.authorityState, error: '请先完成海克斯选择' };
     const undoDraft = this.captureUndoDraft(action.playerId, action.type);
     const result = this.gameService.processAction(this.authorityState, action);
@@ -730,7 +732,9 @@ export class GameSession {
           command.publicRevealGeneration !== undefined));
     const isHextechCommand =
       command.type === GameCommandType.REROLL_HEXTECH ||
-      command.type === GameCommandType.SELECT_HEXTECH;
+      command.type === GameCommandType.SELECT_HEXTECH ||
+      command.type === GameCommandType.ACTIVATE_HEXTECH ||
+      command.type === GameCommandType.RESOLVE_HEXTECH_SEARCH;
     const undoDraft =
       isPublicSelectionAutoAdvance || isHextechCommand
         ? null
@@ -1089,7 +1093,7 @@ export class GameSession {
     }
 
     if (
-      this.authorityState.hextech?.draft?.pending ||
+      hasPendingHextechInput(this.authorityState) ||
       this.getUndoBoundaryKey(this.authorityState) !== draft.boundaryKey
     ) {
       this.undoHistory = [];
@@ -1256,7 +1260,7 @@ export class GameSession {
     if (
       !this.authorityState ||
       this.authorityState.entranceRuntime?.pending ||
-      this.authorityState.hextech?.draft?.pending
+      hasPendingHextechInput(this.authorityState)
     ) {
       return;
     }
@@ -1293,7 +1297,7 @@ export class GameSession {
     while (
       this.authorityState &&
       !this.authorityState.entranceRuntime?.pending &&
-      !this.authorityState.hextech?.draft?.pending &&
+      !hasPendingHextechInput(this.authorityState) &&
       iterations < MAX_MODE_AUTOMATION_ITERATIONS &&
       this.authorityState.currentPhase !== GamePhase.GAME_END
     ) {
@@ -1705,6 +1709,11 @@ export class GameSession {
     ) {
       return validateHextechCommand(state, command);
     }
+    if (
+      command.type === GameCommandType.ACTIVATE_HEXTECH ||
+      command.type === GameCommandType.RESOLVE_HEXTECH_SEARCH
+    )
+      return validateHextechAbilityCommand(state, command);
     const canActError = this.validateCommandActor(state, command);
     if (canActError) {
       return canActError;
@@ -2850,11 +2859,27 @@ export class GameSession {
 
   private applyCommand(state: GameState, command: GameCommand): CommandExecutionResult {
     switch (command.type) {
+      case GameCommandType.ACTIVATE_HEXTECH:
+      case GameCommandType.RESOLVE_HEXTECH_SEARCH: {
+        let next = applyHextechAbilityCommand(
+          state,
+          command,
+          this.options.randomInt ?? secureRandomInt
+        );
+        if (!hasPendingHextechInput(next)) {
+          next =
+            command.type === GameCommandType.RESOLVE_HEXTECH_SEARCH &&
+            state.currentPhase === GamePhase.ACTIVE_PHASE
+              ? this.gameService.resumeHextechTurnStart(next)
+              : this.gameService.executeCheckTiming(next).gameState;
+        }
+        return { success: true, gameState: next, declarationType: command.type };
+      }
       case GameCommandType.REROLL_HEXTECH:
       case GameCommandType.SELECT_HEXTECH: {
         let next = applyHextechCommand(state, command, this.options.randomInt ?? secureRandomInt);
         const selection = next.hextech!.draft!.pending;
-        if (!selection) next = this.gameService.resumeHextechTurnStart(next);
+        if (!hasPendingHextechInput(next)) next = this.gameService.resumeHextechTurnStart(next);
         return {
           success: true,
           gameState: next,
@@ -5335,7 +5360,7 @@ export class GameSession {
       iterations < MAX_AUTO_ADVANCE_ITERATIONS &&
       currentState.currentPhase !== GamePhase.GAME_END &&
       !currentState.waitingForInput &&
-      !currentState.hextech?.draft?.pending &&
+      !hasPendingHextechInput(currentState) &&
       !hasPendingAbilityOrChoice(currentState)
     ) {
       // 对墙打模式：如果活跃玩家是对手，仍然自动推进（活跃/能量/抽卡阶段无实际操作意义）

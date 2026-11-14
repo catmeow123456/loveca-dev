@@ -178,15 +178,17 @@ function normalizePersistedAuthorityGameState(
   }
 
   const liveResolution = state.liveResolution as unknown;
-  try {
-    assertValidHextechState(
-      state.hextech,
-      state.players.map((player) => player.id),
-      state.rulesetId,
-      state.turnCount
-    );
-  } catch {
-    throw new ReplayPayloadSerializationError('AUTHORITY_GAME_STATE 海克斯状态无效', 'CORRUPTED');
+  if (state.hextech !== undefined) {
+    try {
+      assertValidHextechState(
+        state.hextech,
+        state.players.map((player) => player.id),
+        state.rulesetId,
+        state.turnCount
+      );
+    } catch {
+      throw new ReplayPayloadSerializationError('AUTHORITY_GAME_STATE 海克斯状态无效', 'CORRUPTED');
+    }
   }
   if (!isRecord(liveResolution) || !Array.isArray(liveResolution.liveModifiers)) {
     throw new ReplayPayloadSerializationError(

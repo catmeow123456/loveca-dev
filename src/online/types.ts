@@ -121,7 +121,25 @@ export interface ViewWindowState {
   readonly context?: Readonly<Record<string, unknown>>;
 }
 
+export interface HextechChoiceCard {
+  readonly objectId: string;
+  readonly frontInfo: ViewFrontCardInfo;
+  readonly zone: string;
+}
 export interface HextechViewState {
+  readonly abilities?: readonly {
+    readonly instanceId: string;
+    readonly selectionLabel: string;
+    readonly min: number;
+    readonly max: number;
+    readonly candidates: readonly HextechChoiceCard[];
+  }[];
+  readonly pendingSearch?: {
+    readonly instanceId: string;
+    readonly ownerSeat: Seat;
+    readonly requiredCount?: number;
+    readonly candidates?: readonly HextechChoiceCard[];
+  };
   readonly rulesVersion: typeof HEXTECH_RULES_VERSION;
   readonly selection?: {
     readonly turn: number;

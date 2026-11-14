@@ -110,7 +110,7 @@ export const handleMulligan: ActionHandler<MulliganAction> = (
   if (isAllMulliganCompleted(state)) {
     // 换牌阶段结束，进入活跃阶段
     state = markMulliganCompleted(state);
-    state = applyInitialHextechGrants(state);
+    state = applyInitialHextechGrants(state, ctx.randomInt);
     state = openHextechSelection(state, ctx.randomInt);
   }
 

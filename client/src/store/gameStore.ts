@@ -464,6 +464,14 @@ export interface GameStore {
     slot: number,
     expectedDefinitionId: string
   ) => CommandDispatchResult;
+  activateHextech: (
+    instanceId: string,
+    selectedCardIds: readonly string[]
+  ) => CommandDispatchResult;
+  resolveHextechSearch: (
+    instanceId: string,
+    selectedCardIds: readonly string[]
+  ) => CommandDispatchResult;
   selectHextech: (
     selectionTurn: number,
     slot: number,
@@ -1480,6 +1488,28 @@ export const useGameStore = create<GameStore>((set, get) => {
         }
       ),
 
+    activateHextech: (instanceId, selectedCardIds) =>
+      runViewerCommand(
+        (playerId) => ({
+          type: GameCommandType.ACTIVATE_HEXTECH,
+          instanceId,
+          selectedCardIds,
+          playerId,
+          timestamp: Date.now(),
+        }),
+        { failureMessage: '发动海克斯失败', logError: true }
+      ),
+    resolveHextechSearch: (instanceId, selectedCardIds) =>
+      runViewerCommand(
+        (playerId) => ({
+          type: GameCommandType.RESOLVE_HEXTECH_SEARCH,
+          instanceId,
+          selectedCardIds,
+          playerId,
+          timestamp: Date.now(),
+        }),
+        { failureMessage: '海克斯检索失败', logError: true }
+      ),
     rerollHextech: (selectionTurn, slot, expectedDefinitionId) =>
       runViewerCommand(
         (playerId) => ({

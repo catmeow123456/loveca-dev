@@ -4295,14 +4295,23 @@ function buildReadonlySpectatorSnapshot(
       ...snapshot.playerViewState,
       match: {
         ...snapshot.playerViewState.match,
-        ...(snapshot.playerViewState.match.hextech?.selection
+        ...(snapshot.playerViewState.match.hextech
           ? {
               hextech: {
                 ...snapshot.playerViewState.match.hextech,
-                selection: {
-                  ...snapshot.playerViewState.match.hextech.selection,
-                  ownOffer: undefined,
-                },
+                abilities: [],
+                pendingSearch: snapshot.playerViewState.match.hextech.pendingSearch
+                  ? {
+                      instanceId: snapshot.playerViewState.match.hextech.pendingSearch.instanceId,
+                      ownerSeat: snapshot.playerViewState.match.hextech.pendingSearch.ownerSeat,
+                    }
+                  : undefined,
+                selection: snapshot.playerViewState.match.hextech.selection
+                  ? {
+                      ...snapshot.playerViewState.match.hextech.selection,
+                      ownOffer: undefined,
+                    }
+                  : undefined,
               },
             }
           : {}),

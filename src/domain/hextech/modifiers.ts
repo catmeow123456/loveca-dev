@@ -1,9 +1,10 @@
 import type { GameState, LiveModifierState } from '../entities/game.js';
 import { getCardById, getPlayerById } from '../entities/game.js';
 import { isLiveCardData, isMemberCardData, type HeartIcon } from '../entities/card.js';
-import { HeartColor, SlotPosition } from '../../shared/types/enums.js';
+import { HeartColor, SlotPosition, OrientationState } from '../../shared/types/enums.js';
 import {
   getCardGroupIdentityKeys,
+  cardNameMatchesAnyAlias,
   type GroupIdentityKey,
 } from '../../shared/utils/card-identity.js';
 import { getHextechDefinition } from './catalog.js';
@@ -96,6 +97,20 @@ export function collectHextechLiveModifiers(
       case 'PERFECT_CHEER_SCORE': {
         const count = getHextechPerfectCheerScore(game, owned.playerId, ordinaryModifiers);
         return count > 0 ? [{ ...source, kind: 'SCORE', countDelta: count }] : [];
+      }
+      case 'WAITING_KANATA_SCORE_AND_REST': {
+        const player = getPlayerById(game, owned.playerId);
+        const hasKanata = Object.values(player?.memberSlots.slots ?? {}).some((id) => {
+          const card = id ? getCardById(game, id) : null;
+          return (
+            !!id &&
+            player?.memberSlots.cardStates.get(id)?.orientation === OrientationState.WAITING &&
+            !!card &&
+            isMemberCardData(card.data) &&
+            cardNameMatchesAnyAlias(card.data, ['近江彼方', '近江 彼方', 'Konoe Kanata'])
+          );
+        });
+        return hasKanata ? [{ ...source, kind: 'SCORE', countDelta: 2 }] : [];
       }
       case 'PAINTER_LIVE_REQUIREMENTS': {
         const player = getPlayerById(game, owned.playerId);

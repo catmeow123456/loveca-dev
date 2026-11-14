@@ -1,3 +1,4 @@
+import { HextechAbilityPanel } from './HextechAbilityPanel';
 import { KotoriRelayHeart } from './kotori-ayumu-effects/KotoriRelayHeart';
 import { IzumiProtection } from './izumi-protection/IzumiProtection';
 import { PresentationImage } from '@/components/excel/PresentationRoot';
@@ -2719,6 +2720,7 @@ export function useBattleInteractionController({
 }
 
 export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
+  const [hextechAbilityInstanceId, setHextechAbilityInstanceId] = useState<string | null>(null);
   const {
     matchView,
     viewerSeat,
@@ -4343,6 +4345,14 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
       {matchView?.hextech?.selection && (
         <HextechSelectionPanel match={matchView} readOnly={isReadOnly} />
       )}
+      {matchView?.hextech && (
+        <HextechAbilityPanel
+          match={matchView}
+          readOnly={isReadOnly}
+          activeInstanceId={hextechAbilityInstanceId}
+          onClose={() => setHextechAbilityInstanceId(null)}
+        />
+      )}
       <MulliganPanel
         isOpen={!isReadOnly && mulliganPanelOpen && mulliganPanelVisible}
         selectableCardIds={mulliganSelectableCardIds}
@@ -4530,7 +4540,12 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
           >
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               {desktopHeaderActions}
-              {matchView && <HextechSummary match={matchView} />}
+              {matchView && (
+                <HextechSummary
+                  match={matchView}
+                  onActivate={isReadOnly ? undefined : setHextechAbilityInstanceId}
+                />
+              )}
               {(showLeaveLocalGameButton || showRestartGameButton) && (
                 <BattleToolbarMenu label="房间" icon={<DoorOpen size={16} />}>
                   {(close) => (
@@ -4682,7 +4697,12 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                     ) : null}
 
                     <div className="ml-auto flex shrink-0 items-center gap-2">
-                      {matchView && <HextechSummary match={matchView} />}
+                      {matchView && (
+                        <HextechSummary
+                          match={matchView}
+                          onActivate={isReadOnly ? undefined : setHextechAbilityInstanceId}
+                        />
+                      )}
                       <BattleSettingsMenu
                         onShowHelp={onShowHelp}
                         compact

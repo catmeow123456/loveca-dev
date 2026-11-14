@@ -26,6 +26,9 @@ export interface OwnedHextech {
 export interface HextechState {
   readonly rulesVersion: typeof HEXTECH_RULES_VERSION;
   readonly owned: readonly OwnedHextech[];
+  /** Acquisition choices retain only their source and outstanding quantity; candidates are derived. */
+  readonly pendingSearch?: { readonly sourceInstanceId: string; readonly count: number };
+  readonly acquisitionQueue?: readonly string[];
   /** Local test setup, consumed after both mulligans and before the first normal turn. */
   readonly initialGrants?: InitialHextechSetup;
   /** Selection progress cannot be inferred from owned instances (future effects can replace them). */
@@ -36,6 +39,14 @@ export interface HextechState {
 }
 
 export type InitialHextechSetup = readonly [readonly HextechId[], readonly HextechId[]];
+
+export function hasPendingHextechInput(game: { readonly hextech?: HextechState }): boolean {
+  return !!(
+    game.hextech?.draft?.pending ||
+    game.hextech?.pendingSearch ||
+    game.hextech?.acquisitionQueue?.length
+  );
+}
 
 /** Absence means disabled in the current format; no legacy shape is accepted or rewritten. */
 export function assertValidHextechState(
@@ -75,6 +86,29 @@ export function assertValidHextechState(
     )
       fail();
     ids.add(owned.instanceId as string);
+  }
+  if (
+    state.acquisitionQueue !== undefined &&
+    (!Array.isArray(state.acquisitionQueue) ||
+      state.acquisitionQueue.length === 0 ||
+      new Set(state.acquisitionQueue).size !== state.acquisitionQueue.length ||
+      state.acquisitionQueue.some((id: unknown) => typeof id !== 'string' || !ids.has(id)))
+  )
+    fail();
+  if (state.pendingSearch !== undefined) {
+    const search = state.pendingSearch as HextechState['pendingSearch'];
+    const owned = (state.owned as OwnedHextech[]).find(
+      (item) => item.instanceId === search?.sourceInstanceId
+    );
+    if (
+      !search ||
+      !owned ||
+      (state.acquisitionQueue as string[] | undefined)?.includes(search.sourceInstanceId) ||
+      getHextechDefinition(owned.definitionId)?.effect.kind !== 'ACQUIRE_MEMBERS_FOR_LIVES' ||
+      !Number.isInteger(search.count) ||
+      search.count < 1
+    )
+      fail();
   }
   if (state.initialGrants !== undefined) {
     const grants = state.initialGrants;

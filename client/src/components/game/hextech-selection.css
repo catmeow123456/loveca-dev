@@ -96,3 +96,40 @@
     align-self: flex-end;
   }
 }
+
+.hextech-choice-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.hextech-choice-card {
+  padding: 8px;
+  border: 2px solid var(--border-default);
+  border-radius: 10px;
+  min-width: 0;
+}
+.hextech-choice-card[data-selected='true'] {
+  border-color: var(--accent-primary);
+}
+.hextech-choice-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+}
+.hextech-choice-card img {
+  width: 100%;
+  aspect-ratio: 5 / 7;
+  object-fit: contain;
+}
+.hextech-choice-card span,
+.hextech-choice-card p {
+  overflow-wrap: anywhere;
+}
+.hextech-choice-card small {
+  color: var(--text-secondary);
+}
+.hextech-choice-card button {
+  min-height: 44px;
+}

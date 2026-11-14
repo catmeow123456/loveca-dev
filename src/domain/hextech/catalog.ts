@@ -20,6 +20,10 @@ export type HextechEffect =
   | { readonly kind: 'ACQUIRE_AND_TURN_DRAW' }
   | { readonly kind: 'LIVE_CRITICAL_BLADE_HEART' }
   | { readonly kind: 'ACQUIRE_CLEAR_SUCCESS_ZONES' }
+  | { readonly kind: 'ACQUIRE_RANDOM_HEXTECH'; readonly rarity: HextechRarity }
+  | { readonly kind: 'ACTIVATED_DISCARD_DRAW' }
+  | { readonly kind: 'WAITING_KANATA_SCORE_AND_REST' }
+  | { readonly kind: 'ACQUIRE_MEMBERS_FOR_LIVES' }
   | { readonly kind: 'ACQUIRE_DRAW'; readonly count: number };
 
 export interface HextechDefinition {
@@ -183,6 +187,43 @@ export const HEXTECH_DEFINITIONS = [
     rarity: 'PRISMATIC',
     rulesText: '取得时，将双方成功区的所有LIVE放入各自休息室',
     effect: { kind: 'ACQUIRE_CLEAR_SUCCESS_ZONES' },
+  },
+  {
+    id: 'upgrade-gold',
+    name: '质变：金',
+    rarity: 'SILVER',
+    rulesText: '取得时，额外随机获得1个已实现的金色海克斯',
+    effect: { kind: 'ACQUIRE_RANDOM_HEXTECH', rarity: 'GOLD' },
+  },
+  {
+    id: 'upgrade-prismatic',
+    name: '质变：彩',
+    rarity: 'GOLD',
+    rulesText: '取得时，额外随机获得1个已实现的彩色海克斯',
+    effect: { kind: 'ACQUIRE_RANDOM_HEXTECH', rarity: 'PRISMATIC' },
+  },
+  {
+    id: 'well-played',
+    name: '会玩',
+    rarity: 'PRISMATIC',
+    rulesText: '【起动】【每回合一次】弃至少1张手牌，抽等量牌；弃光原有手牌时额外抽1张',
+    effect: { kind: 'ACTIVATED_DISCARD_DRAW' },
+  },
+  {
+    id: 'sleep-well',
+    name: '好好睡好好睡',
+    rarity: 'GOLD',
+    rulesText:
+      '己方场上存在待机的近江彼方时，合计分数+2。【起动】【每回合一次】令己方1名活跃成员待机',
+    effect: { kind: 'WAITING_KANATA_SCORE_AND_REST' },
+  },
+  {
+    id: 'crazy-for-live',
+    name: '我为歌狂',
+    rarity: 'SILVER',
+    rulesText:
+      '取得时，弃置手牌中所有成员，然后从主卡组或休息室检索等量LIVE加入手牌；不足时尽量执行',
+    effect: { kind: 'ACQUIRE_MEMBERS_FOR_LIVES' },
   },
 ] as const satisfies readonly HextechDefinition[];
 

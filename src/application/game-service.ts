@@ -1,3 +1,4 @@
+import { hasPendingHextechInput } from '../domain/hextech/state.js';
 import {
   baseLiveRequirement,
   victoryLiveCount,
@@ -337,7 +338,7 @@ export class GameService {
    * @returns 操作结果
    */
   processAction(game: GameState, action: GameAction): GameOperationResult {
-    if (game.hextech?.draft?.pending)
+    if (hasPendingHextechInput(game))
       return { success: false, gameState: game, error: '请先完成海克斯选择' };
     // 验证是否是该玩家的行动时机（依据 phase-config 的 activePlayerStrategy）
     const canActByTiming = isPlayerActiveByConfig(game, action.playerId);
@@ -654,7 +655,7 @@ export class GameService {
    * @returns 操作结果
    */
   advancePhase(game: GameState): GameOperationResult {
-    if (game.hextech?.draft?.pending)
+    if (hasPendingHextechInput(game))
       return { success: false, gameState: game, error: '请先完成海克斯选择' };
     const transition = this.phaseManager.getNextPhase(game);
     let state = game;
@@ -1631,6 +1632,7 @@ export class GameService {
     let state = enqueueTriggeredCardEffects(openCheckTimingContext(game), triggerConditions, {
       triggerEventLogStartIndex: options.triggerEventLogStartIndex,
     });
+    if (hasPendingHextechInput(state)) return { success: true, gameState: state };
     return this.executePendingRuleActionsAndDispatchTriggers(state);
   }
 

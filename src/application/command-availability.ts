@@ -24,6 +24,7 @@ export const MAIN_PHASE_MANUAL_COMMAND_TYPES: readonly GameCommandType[] = [
 // 仅主阶段当前玩家可用的主流程命令。
 // 不要并入 OWN_DESK_FREE_DRAG_COMMAND_TYPES，否则会把起动效果暴露到 Live/判定整理窗口。
 export const MAIN_PHASE_ACTIVE_PLAYER_COMMAND_TYPES: readonly GameCommandType[] = [
+  GameCommandType.ACTIVATE_HEXTECH,
   ...MAIN_PHASE_MANUAL_COMMAND_TYPES,
   GameCommandType.ACTIVATE_ABILITY,
 ] as const;

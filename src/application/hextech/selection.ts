@@ -5,7 +5,7 @@ import { HEXTECH_SELECTION_TURNS, type HextechOffer } from '../../domain/hextech
 import { GamePhase, SubPhase } from '../../shared/types/enums.js';
 import type { RandomIntegerSource } from '../../shared/random-source.js';
 import { GameCommandType, type HextechCommand } from '../game-commands.js';
-import { acquireHextech } from './acquire.js';
+import { acquireHextechBatch } from './acquire.js';
 
 export function openHextechSelection(game: GameState, randomInt: RandomIntegerSource): GameState {
   const draft = game.hextech?.draft;
@@ -97,17 +97,17 @@ export function applyHextechCommand(
     ...game,
     hextech: { ...game.hextech!, draft: { completedRounds: draft.completedRounds + 1 } },
   };
-  for (const index of [game.firstPlayerIndex, 1 - game.firstPlayerIndex]) {
-    const result = acquireHextech(
-      state,
-      game.players[index].id,
-      offers[index].candidates[offers[index].selectedIndex!].definitionId,
-      `hextech:round:${pending.turn}:${index}`
-    );
-    if (!result.success) throw new Error(result.error);
-    state = result.gameState;
-  }
-  return state;
+  const result = acquireHextechBatch(
+    state,
+    [game.firstPlayerIndex, 1 - game.firstPlayerIndex].map((index) => ({
+      playerId: game.players[index].id,
+      definitionId: offers[index].candidates[offers[index].selectedIndex!].definitionId,
+      instanceId: `hextech:round:${pending.turn}:${index}`,
+    })),
+    randomInt
+  );
+  if (!result.success) throw new Error(result.error);
+  return result.gameState;
 }
 
 function rerollPool(rarity: HextechRarity, offer: HextechOffer, oldId: string) {

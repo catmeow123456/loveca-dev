@@ -70,6 +70,7 @@ export const GAME_CONFIG = {
 export type GameActionType =
   | 'DRAW_CARD'
   | 'HEXTECH_ACQUIRED'
+  | 'HEXTECH_ACTIVATED'
   | 'PLAY_MEMBER'
   | 'PLAY_ABILITY'
   | 'SET_LIVE_CARD'
