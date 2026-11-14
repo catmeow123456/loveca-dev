@@ -9,7 +9,7 @@ import {
   rebalanceRemainingHeartColorForPlayer,
 } from '../../src/application/effects/remaining-hearts';
 import { createGameState, registerCards, type GameState } from '../../src/domain/entities/game';
-import { createCardInstance, createHeartRequirement } from '../../src/domain/entities/card';
+import { createCardInstance, createHeartRequirement, type LiveCardData } from '../../src/domain/entities/card';
 import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
 import { CardType } from '../../src/shared/types/enums';
 import { member, stage } from '../helpers/modifier-workflow-fixtures';
@@ -54,7 +54,8 @@ describe('remaining hearts helpers', () => {
     { score: undefined, success: true, expected: undefined },
   ])('synchronizes only an existing successful score draft by continuous delta: $score / $success', ({ score, success, expected }) => {
     const mari = member('PL!S-bp5-008-R', 'mari', PLAYER2);
-    const live = createCardInstance({ cardType: CardType.LIVE, cardCode: 'SYNTHETIC-LIVE', name: 'synthetic-live', score: 1, requirements: createHeartRequirement({}) }, PLAYER2, 'live');
+    const liveData: LiveCardData = { cardType: CardType.LIVE, cardCode: 'SYNTHETIC-LIVE', name: 'synthetic-live', score: 1, requirements: createHeartRequirement({}) };
+    const live = createCardInstance(liveData, PLAYER2, 'live');
     let game: GameState = stage(registerCards(createStateWithRemainingHearts(), [mari, live]), [mari], PLAYER2);
     game = addLiveModifier(game, { kind: 'SCORE', playerId: PLAYER2, sourceCardId: 'other', abilityId: 'other-bonus', countDelta: 7 });
     game = { ...game, liveResolution: { ...game.liveResolution,
@@ -137,6 +138,30 @@ describe('remaining hearts helpers', () => {
     expect(result.gameState.liveResolution.playerRemainingHearts.get(PLAYER1)).toEqual([
       { color: HeartColor.GREEN, count: 1 },
     ]);
+  });
+
+  it('does not replace consumed ORANGE with remaining ALL after judgment', () => {
+    const game = createStateWithRemainingHearts();
+    const state = {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        playerRemainingHearts: new Map([[PLAYER1, [{ color: HeartColor.RAINBOW, count: 1 }]]]),
+        playerLiveJudgmentHearts: new Map([
+          [
+            PLAYER1,
+            [
+              { color: HeartColor.ORANGE, count: 1 },
+              { color: HeartColor.RAINBOW, count: 1 },
+            ],
+          ],
+        ]),
+      },
+    };
+    const result = rebalanceRemainingHeartColorForPlayer(state, PLAYER1, HeartColor.ORANGE, 1);
+    expect(result.rebalancedCount).toBe(0);
+    expect(result.gameState).toBe(state);
+    expect(getRemainingHeartCount(state, PLAYER1, HeartColor.ORANGE)).toBe(0);
   });
 
   it('does not rebalance RAINBOW into a color that was not available during judgment', () => {

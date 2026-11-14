@@ -168,10 +168,13 @@ function setup(entry: Case, mode: Mode, noCostResources = false): GameState {
     timingId: TriggerCondition.ON_ENTER_STAGE,
     eventIds: [],
     sourceSlot: SlotPosition.CENTER,
-    metadata: {
-      fromZone: ZoneType.WAITING_ROOM,
-      relayReplacements: relay.map((c) => ({ cardId: c.instanceId, effectiveCost: 0 })),
-    },
+    metadata:
+      mode === 'NATIVE'
+        ? {
+            fromZone: ZoneType.WAITING_ROOM,
+            relayReplacements: relay.map((c) => ({ cardId: c.instanceId, effectiveCost: 0 })),
+          }
+        : { noEnterStageEvent: true },
     ...(mode === 'NATIVE'
       ? {}
       : {
@@ -280,13 +283,27 @@ function assertConcreteResult(
   game: GameState,
   entry: Case,
   free: boolean,
-  noCostResources = false
+  noCostResources = false,
+  invoked = false
 ) {
   const k = key(entry),
     p = game.players[0],
     enemy = game.players[1];
   const result = RESULTS[k];
-  const expected = free ? (result.free ?? result.normal) : result.normal;
+  const entryConditionUnavailable =
+    invoked &&
+    [
+      'hs-bp2-007-ginko',
+      'hs-bp2-008-kosuzu',
+      'hs-bp2-009-hime',
+      'hs-sd1-005-kosuzu',
+      'hs-bp6-015-seras',
+    ].includes(k);
+  const expected = entryConditionUnavailable
+    ? [3, 20, 14]
+    : free
+      ? (result.free ?? result.normal)
+      : result.normal;
   expect([p.hand.cardIds.length, p.mainDeck.cardIds.length, p.waitingRoom.cardIds.length]).toEqual([
     expected[0] - (noCostResources ? 3 : 0),
     ...expected.slice(1),
@@ -295,9 +312,10 @@ function assertConcreteResult(
     (m) => m.abilityId === entry.abilityId
   );
   const modifier = modifiers[0];
-  if (k === 'hs-bp2-008-kosuzu' || k === 'hs-pb1-012-ginko')
+  if (entryConditionUnavailable) expect(modifier).toBeUndefined();
+  if ((k === 'hs-bp2-008-kosuzu' && !entryConditionUnavailable) || k === 'hs-pb1-012-ginko')
     expect(modifier).toMatchObject({ kind: 'BLADE', sourceCardId: 'actor', countDelta: 2 });
-  if (k === 'hs-bp2-009-hime')
+  if (k === 'hs-bp2-009-hime' && !entryConditionUnavailable)
     expect(modifier).toMatchObject({
       kind: 'HEART',
       sourceCardId: 'actor',
@@ -383,19 +401,19 @@ describe('single ON_ENTER copied definition with real recipient and printed-cost
     '$representativeCardCode $abilityId performs its real effect natively and on a normal-cost host',
     (entry) => {
       assertConcreteResult(settle(setup(entry, 'NATIVE')), entry, false);
-      assertConcreteResult(settle(setup(entry, 'HOST')), entry, false);
+      assertConcreteResult(settle(setup(entry, 'HOST')), entry, false, false, true);
     }
   );
   it.each(SINGLE_COPY_SOURCE_CASES)(
     '$representativeCardCode $abilityId performs its effect with only the activation cost waived',
     (entry) => {
-      assertConcreteResult(settle(setup(entry, 'FREE')), entry, true);
+      assertConcreteResult(settle(setup(entry, 'FREE')), entry, true, false, true);
     }
   );
   it.each(SINGLE_COPY_SOURCE_CASES.filter((entry) => COSTS[key(entry)]))(
     '$representativeCardCode waived cost requires neither hand cards nor active energy',
     (entry) => {
-      assertConcreteResult(settle(setup(entry, 'FREE', true)), entry, true, true);
+      assertConcreteResult(settle(setup(entry, 'FREE', true)), entry, true, true, true);
     }
   );
 });
@@ -469,32 +487,34 @@ describe('single copied ON_ENTER continuation and host facts', () => {
       true
     );
   });
-  it('checks the host entry zone even when the copied non-hand effect is waived', () => {
+  it('does not reuse a previous non-hand entry when the copied condition is invoked', () => {
     const entry = entryFor('hs-bp6-015-seras');
     const initial = setup(entry, 'FREE');
-    const game = settle({
-      ...initial,
-      pendingAbilities: initial.pendingAbilities.map((a) => ({
-        ...a,
-        metadata: { ...a.metadata, fromZone: ZoneType.HAND },
-      })),
-    });
+    const game = settle(
+      emitGameEvent(
+        initial,
+        createEnterStageEvent('actor', ZoneType.WAITING_ROOM, SlotPosition.CENTER, P1, P1)
+      )
+    );
     expect(game.players[0].hand.cardIds).toHaveLength(3);
     expect(game.players[0].mainDeck.cardIds).toHaveLength(20);
     expect(game.players[0].waitingRoom.cardIds).toHaveLength(14);
   });
   it.each(['hs-bp2-007-ginko', 'hs-bp2-008-kosuzu', 'hs-bp2-009-hime', 'hs-sd1-005-kosuzu'])(
-    '%s does not invent relay replacements when the host did not relay',
+    '%s cannot reuse the host earlier relay for its invocation',
     (name) => {
       const entry = entryFor(name);
       const initial = setup(entry, 'FREE');
-      const game = settle({
-        ...initial,
-        pendingAbilities: initial.pendingAbilities.map((a) => ({
-          ...a,
-          metadata: { ...a.metadata, relayReplacements: [] },
-        })),
-      });
+      const game = settle(
+        emitGameEvent(
+          initial,
+          createEnterStageEvent('actor', ZoneType.HAND, SlotPosition.CENTER, P1, P1, {
+            relayReplacements: [
+              { cardId: 'relay-cerise', slot: SlotPosition.CENTER, effectiveCost: 0 },
+            ],
+          })
+        )
+      );
       expect(game.players[0].hand.cardIds).toHaveLength(3);
       expect(
         game.liveResolution.liveModifiers.filter((m) => m.abilityId === entry.abilityId)

@@ -90,6 +90,31 @@ describe('live judgment preview', () => {
     ).toEqual([]);
   });
 
+  it('reports the orange deficit despite surplus ALL and permits orange to pay generic demand', () => {
+    const orangeAndGeneric = requirement({ [HeartColor.ORANGE]: 1, [HeartColor.GRAY]: 1 });
+    const input = {
+      liveCards: [{ cardId: 'orange-live', adjustedRequirements: orangeAndGeneric, score: 4 }],
+      drawBonus: 0,
+      cheerScoreBonus: 0,
+      effectScoreBonus: 0,
+    };
+    expect(
+      buildLiveJudgmentPreview({ ...input, hearts: hearts({ [HeartColor.RAINBOW]: 4 }) })
+    ).toMatchObject({
+      status: 'FAILURE',
+      requirementDeficit: [{ color: HeartColor.ORANGE, count: 1 }],
+    });
+    expect(
+      buildLiveJudgmentPreview({ ...input, hearts: hearts({ [HeartColor.ORANGE]: 2 }) })
+    ).toMatchObject({ status: 'SUCCESS', requirementDeficit: [] });
+    expect(
+      buildLiveJudgmentPreview({
+        ...input,
+        hearts: hearts({ [HeartColor.ORANGE]: 1, [HeartColor.RAINBOW]: 1 }),
+      })
+    ).toMatchObject({ status: 'SUCCESS', requirementDeficit: [] });
+  });
+
   it('calculates preview success and scores only after all Live requirements are visible', () => {
     const preview = buildLiveJudgmentPreview({
       liveCards: [

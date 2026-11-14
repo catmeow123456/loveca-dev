@@ -91,6 +91,19 @@ describe('conditional LIVE probability, no card effects', () => {
     });
     expect(ready(s)).toMatchObject({ successProbability: 0, colorInsufficientProbability: 1 });
   });
+  it('counts orange cheers as orange while ALL remains unable to pay orange requirements', () => {
+    const s = scenario({
+      deck: [
+        { count: 1, hearts: { ORANGE: 1 } },
+        { count: 1, hearts: { RAINBOW: 1 } },
+      ],
+      requirements: { ORANGE: 1 },
+    });
+    expect(ready(s)).toMatchObject({ successProbability: 0.5, colorInsufficientProbability: 0.5 });
+    expect(ready({ ...s, requirements: { GRAY: 1 } }).successProbability).toBe(1);
+    expect(ready({ ...s, requirements: { RED: 1 } }).successProbability).toBe(0.5);
+  });
+
   it('keeps multiple HEART contributions on the same card correlated', () => {
     const s = scenario({
       deck: [

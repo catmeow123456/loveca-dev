@@ -505,6 +505,8 @@ export interface ActiveEffectViewState {
   readonly autoSubmitSingleSelection?: boolean;
   readonly selectableSlots?: readonly string[];
   readonly selectableOptions?: readonly { readonly id: string; readonly label: string }[];
+  /** 当前等待玩家的通用选项建议初值，允许改选并须显式确认。 */
+  readonly defaultSelectedOptionId?: string;
   readonly effectChoice?: {
     readonly mode: 'SINGLE' | 'MULTI';
     readonly options: readonly {

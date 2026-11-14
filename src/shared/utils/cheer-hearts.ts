@@ -1,6 +1,6 @@
 import { HeartColor } from '../types/enums.js';
 
-/** Orange remains a marker identity but contributes one colorless cheer Heart. */
+/** A cheer HEART contributes its effective color, including ORANGE. */
 export function getCheerHeartContributionColor(color: HeartColor): HeartColor {
-  return color === HeartColor.ORANGE ? HeartColor.GRAY : color;
+  return color;
 }

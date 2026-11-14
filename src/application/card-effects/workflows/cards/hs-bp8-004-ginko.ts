@@ -34,8 +34,6 @@ import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js'
 import {
   addTemporaryOnEnterAbilityGrant,
   getCopyableOnEnterDefinitions,
-  getHostEnterStageEventIds,
-  getHostEnterStageMetadata,
 } from '../../runtime/temporary-on-enter-ability-grants.js';
 import {
   getAbilityEffectText,
@@ -290,9 +288,10 @@ function grantAndInvoke(
     controllerId: effect.controllerId,
     mandatory: true,
     timingId: TriggerCondition.ON_ENTER_STAGE,
-    eventIds: getHostEnterStageEventIds(game, effect.sourceCardId),
+    // Invoking an ability does not make the host enter the stage again.
+    eventIds: [],
     sourceSlot: slot,
-    metadata: getHostEnterStageMetadata(game, effect.sourceCardId),
+    metadata: { noEnterStageEvent: true },
     onEnterInvocation: {
       definitionSourceCardCode: paidCard.data.cardCode,
       waiveActivationCosts: true,

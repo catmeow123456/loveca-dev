@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   HS_BP8_004_ON_ENTER_DRAW_RELAY_KAHO_DRAW_ONE_ABILITY_ID as ON_ENTER,
+  HS_BP2_007_ON_ENTER_LOWER_COST_CERISE_RELAY_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
   HS_BP8_004_ACTIVATED_DISCARD_LOW_COST_HASUNOSORA_GAIN_ON_ENTER_ABILITY_ID as ACTIVATED,
 } from '../../src/application/card-effects/ability-ids';
 import {
@@ -15,10 +16,7 @@ import { clearPreviousStageMemberInstanceState } from '../../src/application/eff
 import { getStageMemberDelegatableOnEnterDefinitions } from '../../src/application/card-effects/runtime/delegatable-definitions';
 import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
 import {
-  getHostEnterStageEventIds,
-  getHostEnterStageMetadata,
-} from '../../src/application/card-effects/runtime/temporary-on-enter-ability-grants';
-import {
+  getCopyableOnEnterDefinitions,
   getCurrentTemporaryOnEnterAbilityGrants,
   getTemporaryOnEnterAbilityInvocation,
 } from '../../src/application/card-effects/runtime/temporary-on-enter-ability-grants';
@@ -357,8 +355,8 @@ describe('PL!HS-bp8-004 费用17「百生吟子」', () => {
           mandatory: true,
           timingId: TriggerCondition.ON_ENTER_STAGE,
           sourceSlot: SlotPosition.CENTER,
-          eventIds: getHostEnterStageEventIds(game, 'ginko'),
-          metadata: getHostEnterStageMetadata(game, 'ginko'),
+          eventIds: [],
+          metadata: { noEnterStageEvent: true },
           onEnterInvocation: invocation,
         },
       ],
@@ -375,18 +373,66 @@ describe('PL!HS-bp8-004 费用17「百生吟子」', () => {
       canSkipSelection: true,
     });
   });
-  it('uses host cost seventeen and real relay facts for a copied lower-cost-Cerise condition', () => {
+  it('Q344 RULES: copying cost13 Kosuzu after an eligible relay does not trigger its relay recovery', () => {
+    const session = setup('PL!HS-sd1-005-SD');
+    play(session);
+    const entry = session.state!.eventLog.find(
+      ({ event }) =>
+        event.eventType === TriggerCondition.ON_ENTER_STAGE && event.cardInstanceId === 'ginko'
+    )!.event;
+    expect(entry).toMatchObject({
+      relayReplacements: [expect.objectContaining({ cardId: 'relay-source' })],
+    });
+    const entryCount = session.state!.eventLog.filter(
+      ({ event }) => event.eventType === TriggerCondition.ON_ENTER_STAGE
+    ).length;
+    activate(session);
+    pay(session);
+    expect(session.state!.activeEffect).toBeNull();
+    expect(session.state!.pendingAbilities).toEqual([]);
+    expect(session.state!.players[0].hand.cardIds).toEqual(['deck-0', 'deck-1']);
+    expect(session.state!.players[0].waitingRoom.cardIds).toEqual(
+      expect.arrayContaining(['waiting-live', 'copy-source', 'relay-source'])
+    );
+    expect(getCurrentTemporaryOnEnterAbilityGrants(session.state!, P1, 'ginko')).toEqual([
+      expect.objectContaining({ definitionSourceCardCode: 'PL!HS-sd1-005-SD' }),
+    ]);
+    expect(
+      session.state!.eventLog.filter(
+        ({ event }) => event.eventType === TriggerCondition.ON_ENTER_STAGE
+      )
+    ).toHaveLength(entryCount);
+    expect(
+      session.state!.actionHistory.filter(
+        (action) => action.type === 'PAY_COST' && action.payload.abilityId === ACTIVATED
+      )
+    ).toHaveLength(1);
+  });
+  it('Q342 offers only the ON_ENTER segment of cost11 Ginko, whose LIVE_START segment is not granted', () => {
+    const definitions = getCopyableOnEnterDefinitions('PL!HS-bp2-007-P');
+    expect(definitions.map((definition) => definition.abilityId)).toEqual([
+      HS_BP2_007_ON_ENTER_LOWER_COST_CERISE_RELAY_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
+    ]);
     const session = setup('PL!HS-bp2-007-P');
     play(session);
     activate(session);
     pay(session);
-    expect(session.state!.activeEffect).toMatchObject({
-      sourceCardId: 'ginko',
-      selectableCardIds: ['waiting-live'],
-      onEnterInvocation: { definitionSourceCardCode: 'PL!HS-bp2-007-P' },
-    });
+    expect(
+      getCurrentTemporaryOnEnterAbilityGrants(session.state!, P1, 'ginko').map(
+        (grant) => grant.abilityId
+      )
+    ).toEqual([HS_BP2_007_ON_ENTER_LOWER_COST_CERISE_RELAY_RECOVER_HASUNOSORA_LIVE_ABILITY_ID]);
   });
-  it('does not replace real hand-entry facts with a later stage-slot movement event', () => {
+  it('does not reuse historical relay facts for a copied lower-cost-Cerise condition', () => {
+    const session = setup('PL!HS-bp2-007-P');
+    play(session);
+    activate(session);
+    pay(session);
+    expect(session.state!.activeEffect).toBeNull();
+    expect(session.state!.players[0].waitingRoom.cardIds).toContain('waiting-live');
+    expect(getCurrentTemporaryOnEnterAbilityGrants(session.state!, P1, 'ginko')).toHaveLength(1);
+  });
+  it('does not turn historical entry or later stage movement into a copied entry condition', () => {
     const session = setup('PL!HS-PR-038-PR');
     play(session);
     activate(session);
@@ -417,6 +463,6 @@ describe('PL!HS-bp8-004 费用17「百生吟子」', () => {
       )
     ).toHaveLength(enterEventCount);
     expect(getCurrentTemporaryOnEnterAbilityGrants(session.state!, P1, 'ginko')).toHaveLength(1);
-    expect(getHostEnterStageMetadata(session.state!, 'ginko')?.fromZone).toBe(ZoneType.HAND);
+    expect(session.state!.activeEffect).toBeNull();
   });
 });

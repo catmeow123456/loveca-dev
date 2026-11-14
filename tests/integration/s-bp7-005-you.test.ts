@@ -9,20 +9,36 @@ import {
   PL_S_PB1_001_ON_ENTER_OPPONENT_HAND_TWO_MORE_RECOVER_LIVE_ABILITY_ID,
   PL_S_PB1_002_ON_ENTER_OPPONENT_DISCARD_LIVE_OR_SOURCE_SCORE_ABILITY_ID,
   S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID,
+  S_BP6_011_ON_ENTER_FROM_WAITING_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
   S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID,
   S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
   S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import {
+  createActivateAbilityCommand,
+  createConfirmEffectStepCommand,
+} from '../../src/application/game-commands';
+import { createGameSession } from '../../src/application/game-session';
+import invocationRows from '../fixtures/november-11-on-enter-invocation.json';
+import { createEnterStageEvent } from '../../src/domain/events/game-events';
 import { GameService } from '../../src/application/game-service';
-import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
+import {
+  createCardInstance,
+  createHeartIcon,
+  createHeartRequirement,
+  type LiveCardData,
+  type MemberCardData,
+} from '../../src/domain/entities/card';
 import {
   createGameState,
+  emitGameEvent,
+  type GameState,
   registerCards,
   updatePlayer,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import {
-  addCardToStatefulZone,
+  addCardToZone,
   addMemberBelowMember,
   placeCardInSlot,
   removeCardFromSlot,
@@ -36,25 +52,23 @@ import {
   OrientationState,
   SlotPosition,
   TriggerCondition,
+  ZoneType,
 } from '../../src/shared/types/enums';
 
 const P1 = 'p1';
 const P2 = 'p2';
 
 function member(code: string, id: string, cost = 15) {
-  return createCardInstance(
-    {
-      cardCode: code,
-      name: id,
-      groupNames: ['Aqours'],
-      cardType: CardType.MEMBER,
-      cost,
-      blade: 1,
-      hearts: [createHeartIcon(HeartColor.BLUE, 1)],
-    },
-    P1,
-    id
-  );
+  const memberData: MemberCardData = {
+    cardCode: code,
+    name: id,
+    groupNames: ['Aqours'],
+    cardType: CardType.MEMBER,
+    cost,
+    blade: 1,
+    hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+  };
+  return createCardInstance(memberData, P1, id);
 }
 
 function energy(id: string, ownerId = P1) {
@@ -62,26 +76,20 @@ function energy(id: string, ownerId = P1) {
 }
 
 function live(id: string, ownerId = P1) {
-  return createCardInstance(
-    {
-      cardCode: id,
-      name: id,
-      groupNames: ['Aqours'],
-      cardType: CardType.LIVE,
-      score: 1,
-      requiredHearts: [],
-    },
-    ownerId,
-    id
-  );
+  const liveData: LiveCardData = {
+    cardCode: id,
+    name: id,
+    groupNames: ['Aqours'],
+    cardType: CardType.LIVE,
+    score: 1,
+    requirements: createHeartRequirement({}),
+  };
+  return createCardInstance(liveData, ownerId, id);
 }
 
 describe('PL!S-bp7-005-SEC 渡边曜', () => {
   it('常时效果以每张曜为真实来源、以每名下方有成员的 Aqours host 为显式目标，且实时影响实际声援数', () => {
-    const sources = [
-      member('PL!S-bp7-005-SEC', 'you-a'),
-      member('PL!S-bp7-005-SEC', 'you-b'),
-    ];
+    const sources = [member('PL!S-bp7-005-SEC', 'you-a'), member('PL!S-bp7-005-SEC', 'you-b')];
     const host = member('PL!S-test-host', 'aqours-host');
     const belowCards = [
       member('PL!S-test-below-a', 'below-a'),
@@ -89,10 +97,12 @@ describe('PL!S-bp7-005-SEC 渡边曜', () => {
       member('PL!S-test-below-host', 'below-host'),
     ];
     const cheerCards = Array.from({ length: 10 }, (_, index) => energy(`cheer-${index}`));
-    let game = registerCards(
-      createGameState('you-continuous-targets', P1, 'P1', P2, 'P2'),
-      [...sources, host, ...belowCards, ...cheerCards]
-    );
+    let game = registerCards(createGameState('you-continuous-targets', P1, 'P1', P2, 'P2'), [
+      ...sources,
+      host,
+      ...belowCards,
+      ...cheerCards,
+    ]);
     game = updatePlayer(game, P1, (player) => {
       let memberSlots = placeCardInSlot(
         placeCardInSlot(
@@ -200,7 +210,7 @@ describe('PL!S-bp7-005-SEC 渡边曜', () => {
     let game = registerCards(createGameState('you-enter', P1, 'P1', P2, 'P2'), [you, host, below]);
     game = updatePlayer(game, P1, (player) => ({
       ...player,
-      waitingRoom: addCardToStatefulZone(player.waitingRoom, below.instanceId),
+      waitingRoom: addCardToZone(player.waitingRoom, below.instanceId),
       memberSlots: placeCardInSlot(
         placeCardInSlot(player.memberSlots, SlotPosition.CENTER, you.instanceId, {
           orientation: OrientationState.ACTIVE,
@@ -221,7 +231,10 @@ describe('PL!S-bp7-005-SEC 渡边曜', () => {
       eventIds: [],
       sourceSlot: SlotPosition.CENTER,
     };
-    const selectingMember = resolvePendingCardEffects({ ...game, pendingAbilities: [pending] }).gameState;
+    const selectingMember = resolvePendingCardEffects({
+      ...game,
+      pendingAbilities: [pending],
+    }).gameState;
     const selectingHost = confirmActiveEffectStep(
       selectingMember,
       P1,
@@ -237,9 +250,7 @@ describe('PL!S-bp7-005-SEC 渡边曜', () => {
       selectingHost.activeEffect!.id,
       host.instanceId
     );
-    expect(done.players[0].memberSlots.memberBelow[SlotPosition.RIGHT]).toEqual([
-      below.instanceId,
-    ]);
+    expect(done.players[0].memberSlots.memberBelow[SlotPosition.RIGHT]).toEqual([below.instanceId]);
   });
 
   it('已入队 ON_ENTER 在来源曜离场后仍只重验当前休息室成员与当前 host', () => {
@@ -253,7 +264,7 @@ describe('PL!S-bp7-005-SEC 渡边曜', () => {
     ]);
     game = updatePlayer(game, P1, (player) => ({
       ...player,
-      waitingRoom: addCardToStatefulZone(player.waitingRoom, below.instanceId),
+      waitingRoom: addCardToZone(player.waitingRoom, below.instanceId),
       memberSlots: placeCardInSlot(
         placeCardInSlot(player.memberSlots, SlotPosition.CENTER, you.instanceId),
         SlotPosition.RIGHT,
@@ -289,9 +300,7 @@ describe('PL!S-bp7-005-SEC 渡边曜', () => {
       selectingHost.activeEffect!.id,
       host.instanceId
     );
-    expect(done.players[0].memberSlots.memberBelow[SlotPosition.RIGHT]).toEqual([
-      below.instanceId,
-    ]);
+    expect(done.players[0].memberSlots.memberBelow[SlotPosition.RIGHT]).toEqual([below.instanceId]);
   });
 
   it('弃实际2手后允许选择两个 ON_ENTER 的顺序，子能力连续完成再回到全局', () => {
@@ -307,7 +316,7 @@ describe('PL!S-bp7-005-SEC 渡边曜', () => {
     ]);
     game = updatePlayer(game, P1, (player) => ({
       ...player,
-      hand: discarded.reduce((zone, card) => addCardToStatefulZone(zone, card.instanceId), player.hand),
+      hand: discarded.reduce((zone, card) => addCardToZone(zone, card.instanceId), player.hand),
       mainDeck: { ...player.mainDeck, cardIds: [drawn.instanceId] },
       memberSlots: placeCardInSlot(
         placeCardInSlot(player.memberSlots, SlotPosition.CENTER, you.instanceId, {
@@ -390,17 +399,26 @@ describe('PL!S-bp7-005-SEC 渡边曜', () => {
         S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID,
       ])
     );
-    expect(done.actionHistory.some((action) => action.payload.abilityId === S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID)).toBe(true);
+    expect(
+      done.actionHistory.some(
+        (action) =>
+          action.payload.abilityId === S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID
+      )
+    ).toBe(true);
   });
 
   it('手牌不足2时不能发动且不消耗 turn1', () => {
     const you = member('PL!S-bp7-005-SEC', 'you');
     const target = member('PL!S-bp7-002-P', 'target', 9);
     const one = energy('one');
-    let game = registerCards(createGameState('you-short-hand', P1, 'P1', P2, 'P2'), [you, target, one]);
+    let game = registerCards(createGameState('you-short-hand', P1, 'P1', P2, 'P2'), [
+      you,
+      target,
+      one,
+    ]);
     game = updatePlayer(game, P1, (player) => ({
       ...player,
-      hand: addCardToStatefulZone(player.hand, one.instanceId),
+      hand: addCardToZone(player.hand, one.instanceId),
       memberSlots: placeCardInSlot(
         placeCardInSlot(player.memberSlots, SlotPosition.CENTER, you.instanceId),
         SlotPosition.RIGHT,
@@ -464,12 +482,9 @@ describe('PL!S-bp7-005-SEC 渡边曜', () => {
       );
       game = updatePlayer(game, P1, (player) => ({
         ...player,
-        hand: discarded.reduce(
-          (zone, card) => addCardToStatefulZone(zone, card.instanceId),
-          player.hand
-        ),
+        hand: discarded.reduce((zone, card) => addCardToZone(zone, card.instanceId), player.hand),
         waitingRoom: waitingLive
-          ? addCardToStatefulZone(player.waitingRoom, waitingLive.instanceId)
+          ? addCardToZone(player.waitingRoom, waitingLive.instanceId)
           : player.waitingRoom,
         memberSlots: placeCardInSlot(
           placeCardInSlot(player.memberSlots, SlotPosition.CENTER, you.instanceId),
@@ -480,7 +495,7 @@ describe('PL!S-bp7-005-SEC 渡边曜', () => {
       game = updatePlayer(game, P2, (player) => ({
         ...player,
         hand: opponentCards.reduce(
-          (zone, card) => addCardToStatefulZone(zone, card.instanceId),
+          (zone, card) => addCardToZone(zone, card.instanceId),
           player.hand
         ),
       }));
@@ -523,6 +538,301 @@ describe('PL!S-bp7-005-SEC 渡边曜', () => {
         abilityId: expectedAbilityId,
         sourceCardId: target.instanceId,
       });
+    }
+  );
+});
+
+// Narrow member snapshot from the user-designated cards_export_2026-11-07.json.
+function invocationMemberData(cardCode: string): MemberCardData {
+  const data = invocationRows[cardCode as keyof typeof invocationRows];
+  expect(data).toBeDefined();
+  return structuredClone(data) as unknown as MemberCardData;
+}
+function createYouRulesSession(targetCode: string | null, sourceCode = 'PL!S-bp7-005-SEC') {
+  const you = createCardInstance(invocationMemberData(sourceCode), P1, 'rules-you');
+  const target = targetCode
+    ? createCardInstance(invocationMemberData(targetCode), P1, 'rules-target')
+    : null;
+  const below = createCardInstance(invocationMemberData('PL!S-sd1-008-SD'), P1, 'rules-below');
+  const discarded = [energy('rules-discard-1'), energy('rules-discard-2')];
+  const deck = [energy('rules-deck-1'), energy('rules-deck-2'), energy('rules-deck-3')];
+  let game = registerCards(createGameState('you-qa-rules', P1, 'P1', P2, 'P2'), [
+    you,
+    below,
+    ...discarded,
+    ...deck,
+    ...(target ? [target] : []),
+  ]);
+  game = updatePlayer(game, P1, (player) => ({
+    ...player,
+    hand: { ...player.hand, cardIds: discarded.map((card) => card.instanceId) },
+    waitingRoom: { ...player.waitingRoom, cardIds: [below.instanceId] },
+    mainDeck: { ...player.mainDeck, cardIds: deck.map((card) => card.instanceId) },
+    memberSlots: target
+      ? placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.CENTER, you.instanceId),
+          SlotPosition.RIGHT,
+          target.instanceId
+        )
+      : placeCardInSlot(player.memberSlots, SlotPosition.CENTER, you.instanceId),
+  }));
+  game = {
+    ...game,
+    currentPhase: GamePhase.MAIN_PHASE,
+    activePlayerIndex: 0,
+    manualOperationMode: 'RULES',
+  };
+  const session = createGameSession();
+  session.createGame('you-qa-rules', P1, 'P1', P2, 'P2');
+  (session as unknown as { authorityState: GameState }).authorityState = game;
+  return session;
+}
+function payYouRulesCost(session: ReturnType<typeof createYouRulesSession>) {
+  const started = session.executeCommand(
+    createActivateAbilityCommand(
+      P1,
+      'rules-you',
+      S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID
+    )
+  );
+  expect(started.success, started.error).toBe(true);
+  const beforeInvalid = session.state!;
+  const invalid = session.executeCommand(
+    createConfirmEffectStepCommand(
+      P1,
+      session.state!.activeEffect!.id,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ['rules-discard-1', 'rules-discard-1']
+    )
+  );
+  expect(invalid.success).toBe(false);
+  expect(session.state!.players[0].hand.cardIds).toEqual(beforeInvalid.players[0].hand.cardIds);
+  expect(session.state!.actionHistory.filter((action) => action.type === 'PAY_COST')).toEqual([]);
+  const paid = session.executeCommand(
+    createConfirmEffectStepCommand(
+      P1,
+      session.state!.activeEffect!.id,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ['rules-discard-1', 'rules-discard-2']
+    )
+  );
+  expect(paid.success, paid.error).toBe(true);
+}
+function finishYouRulesStack(session: ReturnType<typeof createYouRulesSession>) {
+  expect(session.state!.activeEffect?.abilityId).toBe(
+    S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID
+  );
+  for (const cardId of ['rules-below', 'rules-you']) {
+    const result = session.executeCommand(
+      createConfirmEffectStepCommand(P1, session.state!.activeEffect!.id, cardId)
+    );
+    expect(result.success, result.error).toBe(true);
+  }
+  expect(session.state!.activeEffect).toBeNull();
+  expect(session.state!.delegatedAbilitySequence ?? null).toBeNull();
+}
+
+describe('PL!S-bp7-005 费用15「渡边曜」Q306–308 RULES commands', () => {
+  it('Q306 rejects activation with no other Aqours and leaves both cost and turn limit unused', () => {
+    const session = createYouRulesSession(null);
+    const before = session.state!;
+    expect(
+      session.executeCommand(
+        createActivateAbilityCommand(
+          P1,
+          'rules-you',
+          S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID
+        )
+      ).success
+    ).toBe(false);
+    expect(session.state!.players[0].hand.cardIds).toEqual(before.players[0].hand.cardIds);
+    expect(
+      session.state!.actionHistory.filter((action) => action.payload.step === 'ABILITY_USE')
+    ).toEqual([]);
+    expect(session.state!.activeEffect).toBeNull();
+  });
+  it.each(['PL!S-bp7-005-P', 'PL!S-bp7-005-P+', 'PL!S-bp7-005-R+', 'PL!S-bp7-005-SEC'])(
+    'Q307 %s selects an Aqours with only LIVE_START, skips its absent ON_ENTER, and completes You',
+    (sourceCode) => {
+      const session = createYouRulesSession('PL!S-sd1-004-SD', sourceCode);
+      payYouRulesCost(session);
+      expect(session.state!.activeEffect?.selectableCardIds).toEqual(['rules-target']);
+      const beforeInvalid = session.state!;
+      expect(
+        session.executeCommand(
+          createConfirmEffectStepCommand(P1, session.state!.activeEffect!.id, 'rules-you')
+        ).success
+      ).toBe(false);
+      expect(session.state!.players[0].hand.cardIds).toEqual([]);
+      expect(session.state!.activeEffect).toEqual(beforeInvalid.activeEffect);
+      expect(
+        session.executeCommand(
+          createConfirmEffectStepCommand(P1, session.state!.activeEffect!.id, 'rules-target')
+        ).success
+      ).toBe(true);
+      finishYouRulesStack(session);
+      expect(session.state!.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toContain(
+        'rules-below'
+      );
+      expect(session.state!.actionHistory).toContainEqual(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            step: 'START_DELEGATED_ON_ENTER_SEQUENCE',
+            delegatedAbilityIds: [
+              S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,
+            ],
+            delegatedSourceCardIds: ['rules-you'],
+          }),
+        })
+      );
+      expect(
+        session.state!.actionHistory.filter((action) => action.type === 'PAY_COST')
+      ).toHaveLength(1);
+      expect(
+        session.executeCommand(
+          createActivateAbilityCommand(
+            P1,
+            'rules-you',
+            S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID
+          )
+        ).success
+      ).toBe(false);
+      expect(
+        session.state!.eventLog.filter(
+          ({ event }) => event.eventType === TriggerCondition.ON_ENTER_STAGE
+        )
+      ).toEqual([]);
+    }
+  );
+  it('Q307 preserves the paid cost and finishes if the chosen target has left before confirmation', () => {
+    const session = createYouRulesSession('PL!S-sd1-004-SD');
+    payYouRulesCost(session);
+    const stale = updatePlayer(session.state!, P1, (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.RIGHT),
+      waitingRoom: addCardToZone(player.waitingRoom, 'rules-target'),
+    }));
+    (session as unknown as { authorityState: GameState }).authorityState = stale;
+    const result = session.executeCommand(
+      createConfirmEffectStepCommand(P1, session.state!.activeEffect!.id, 'rules-target')
+    );
+    expect(result.success, result.error).toBe(true);
+    expect(session.state!.activeEffect).toBeNull();
+    expect(session.state!.delegatedAbilitySequence ?? null).toBeNull();
+    expect(session.state!.players[0].hand.cardIds).toEqual([]);
+    expect(session.state!.players[0].waitingRoom.cardIds).toContain('rules-below');
+    expect(
+      session.state!.actionHistory.filter((action) => action.type === 'PAY_COST')
+    ).toHaveLength(1);
+  });
+  it.each(['rules-you', 'rules-target'])(
+    'keeps the paid selection bound to its original lifecycle when %s leaves and re-enters',
+    (reenteredCardId) => {
+      const session = createYouRulesSession('PL!S-bp6-011-N');
+      payYouRulesCost(session);
+      expect(
+        session.executeCommand(
+          createConfirmEffectStepCommand(P1, session.state!.activeEffect!.id, 'rules-target')
+        ).success
+      ).toBe(true);
+      const reentered = emitGameEvent(
+        session.state!,
+        createEnterStageEvent(
+          reenteredCardId,
+          ZoneType.WAITING_ROOM,
+          reenteredCardId === 'rules-you' ? SlotPosition.CENTER : SlotPosition.RIGHT,
+          P1,
+          P1
+        )
+      );
+      (session as unknown as { authorityState: GameState }).authorityState = reentered;
+      expect(
+        session.executeCommand(
+          createConfirmEffectStepCommand(
+            P1,
+            session.state!.activeEffect!.id,
+            undefined,
+            undefined,
+            undefined,
+            'source-first'
+          )
+        ).success
+      ).toBe(true);
+      expect(session.state!.activeEffect).toBeNull();
+      expect(session.state!.delegatedAbilitySequence ?? null).toBeNull();
+      expect(session.state!.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
+      expect(
+        session.state!.actionHistory.filter((action) => action.type === 'PAY_COST')
+      ).toHaveLength(1);
+    }
+  );
+  it.each(['source-first', 'target-first'])(
+    'Q308 %s does not treat an earlier waiting-room entry as the invoked Riko entry, and continues the other ability',
+    (order) => {
+      const session = createYouRulesSession('PL!S-bp6-011-N');
+      const withHistory = emitGameEvent(
+        session.state!,
+        createEnterStageEvent('rules-target', ZoneType.WAITING_ROOM, SlotPosition.RIGHT, P1, P1)
+      );
+      (session as unknown as { authorityState: GameState }).authorityState = withHistory;
+      payYouRulesCost(session);
+      expect(
+        session.executeCommand(
+          createConfirmEffectStepCommand(P1, session.state!.activeEffect!.id, 'rules-target')
+        ).success
+      ).toBe(true);
+      const ordered = session.executeCommand(
+        createConfirmEffectStepCommand(
+          P1,
+          session.state!.activeEffect!.id,
+          undefined,
+          undefined,
+          undefined,
+          order
+        )
+      );
+      expect(ordered.success, ordered.error).toBe(true);
+      finishYouRulesStack(session);
+      expect(session.state!.players[0].hand.cardIds).toEqual([]);
+      expect(session.state!.players[0].mainDeck.cardIds).toEqual([
+        'rules-deck-1',
+        'rules-deck-2',
+        'rules-deck-3',
+      ]);
+      expect(session.state!.actionHistory).toContainEqual(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            abilityId: S_BP6_011_ON_ENTER_FROM_WAITING_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+            step: 'ON_ENTER_SOURCE_ZONE_MISMATCH',
+            actualFromZone: null,
+          }),
+        })
+      );
+      expect(
+        session.state!.eventLog.filter(
+          ({ event }) => event.eventType === TriggerCondition.ON_ENTER_STAGE
+        )
+      ).toHaveLength(1);
+      const complete = session.state!.actionHistory.find(
+        (action) => action.payload.step === 'DELEGATED_ABILITY_SEQUENCE_COMPLETE'
+      );
+      expect(complete?.payload.resolvedAbilityIds).toEqual(
+        order === 'source-first'
+          ? [
+              S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,
+              S_BP6_011_ON_ENTER_FROM_WAITING_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+            ]
+          : [
+              S_BP6_011_ON_ENTER_FROM_WAITING_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+              S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,
+            ]
+      );
     }
   );
 });

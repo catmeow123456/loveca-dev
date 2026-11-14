@@ -378,8 +378,8 @@ describe('PL!-bp8-023 分数5「Snow halation」', () => {
     const rerolled = liveResolver.processCheer([
       { cardId: 'reroll', bladeHearts: getCheerCardEffectiveBladeHearts(state, P1, 'reroll') },
     ]);
-    expect(rerolled.bonusHearts.getColorCount(HeartColor.GRAY)).toBe(1);
-    expect(rerolled.bonusHearts.getColorCount(HeartColor.ORANGE)).toBe(0);
+    expect(rerolled.bonusHearts.getColorCount(HeartColor.GRAY)).toBe(0);
+    expect(rerolled.bonusHearts.getColorCount(HeartColor.ORANGE)).toBe(1);
     const session = sessionFor({
       ...state,
       manualOperationMode: 'FREE',
@@ -441,13 +441,13 @@ describe('PL!-bp8-023 分数5「Snow halation」', () => {
     expect(judged.success).toBe(true);
     expect(judged.gameState.liveResolution.liveResults.get(source.instanceId)).toBe(true);
     expect(judged.gameState.liveResolution.playerLiveJudgmentHearts.get(P1)).toContainEqual({
-      color: HeartColor.GRAY,
+      color: HeartColor.ORANGE,
       count: 6,
     });
     expect(
       judged.gameState.liveResolution.playerLiveJudgmentHearts
         .get(P1)
-        ?.some((heart) => heart.color === HeartColor.ORANGE)
+        ?.some((heart) => heart.color === HeartColor.GRAY)
     ).toBe(false);
     const scored = success(judged.gameState, source);
     expect(confirm(scored, P1).success).toBe(true);

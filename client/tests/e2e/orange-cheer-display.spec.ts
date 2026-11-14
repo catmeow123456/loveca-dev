@@ -160,17 +160,17 @@ async function authoritativeJudgment(page: Page, success: boolean, memberOrange 
   }, fixturePath);
   expect(result.command).toMatchObject({ success: true });
   expect(result.result).toBe(success);
-  expect(result.hearts).toContainEqual({ color: 'GRAY', count: 2 });
-  expect(result.hearts?.filter((heart: { color: string }) => heart.color === 'ORANGE')).toEqual(
-    memberOrange ? [{ color: 'ORANGE', count: 1 }] : []
-  );
+  expect(result.hearts?.filter((heart: { color: string }) => heart.color === 'GRAY')).toEqual([]);
+  expect(result.hearts?.filter((heart: { color: string }) => heart.color === 'ORANGE')).toEqual([
+    { color: 'ORANGE', count: memberOrange ? 3 : 2 },
+  ]);
 }
 
 async function screenshot(page: Page, info: TestInfo, name: string) {
   await page.screenshot({ path: info.outputPath(name) });
 }
 
-test('printed and Snow-granted orange stay orange in flight, per-card icons and totals while generic judgment uses gray', async ({
+test('printed and Snow-granted orange stay orange in flight, per-card icons and totals while orange Hearts satisfy generic demand', async ({
   page,
 }, info) => {
   await openIsolatedBattle(page);
@@ -213,7 +213,7 @@ test('printed and Snow-granted orange stay orange in flight, per-card icons and 
   await authoritativeJudgment(page, true);
 });
 
-test('orange cheer cannot fill a specified orange requirement or produce a false LIVE-success animation', async ({
+test('orange cheer fills an orange requirement and produces the matching LIVE-success animation', async ({
   page,
 }, info) => {
   await openIsolatedBattle(page);
@@ -222,15 +222,15 @@ test('orange cheer cannot fill a specified orange requirement or produce a false
   await pauseClock(page);
   await reveal(page);
   await motionTime(page, 510);
-  await expect(page.locator('[data-cheer-live-success]')).toHaveCount(0);
+  await expect(page.locator('[data-cheer-live-success]')).toBeVisible();
   await page.clock.runFor(3000);
   await expectOrangeDisplay(page, 2);
-  await expect(panel(page).locator('[data-cheer-outcome]')).toContainText('判定失败');
-  await screenshot(page, info, 'orange-specific-failed.png');
-  await authoritativeJudgment(page, false);
+  await expect(panel(page).locator('[data-cheer-outcome]')).toContainText('判定成功');
+  await screenshot(page, info, 'orange-specific-success.png');
+  await authoritativeJudgment(page, true);
 });
 
-test('reduced motion retains orange displays and separates ordinary member orange from cheer contributions', async ({
+test('reduced motion retains orange display and judgment contributions from members and cheers', async ({
   page,
 }, info) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -240,10 +240,10 @@ test('reduced motion retains orange displays and separates ordinary member orang
   await pauseClock(page);
   await reveal(page);
   await page.clock.runFor(400);
-  await expect(page.locator('[data-cheer-live-success]')).toHaveCount(0);
+  await expect(page.locator('[data-cheer-live-success]')).toBeVisible();
   await expectOrangeDisplay(page, 2);
-  await expect(panel(page).locator('[data-cheer-outcome]')).toContainText('判定失败');
-  await authoritativeJudgment(page, false);
+  await expect(panel(page).locator('[data-cheer-outcome]')).toContainText('判定成功');
+  await authoritativeJudgment(page, true);
   await seed(page, 'ORANGE', true);
   await page.clock.runFor(400);
   await reveal(page);

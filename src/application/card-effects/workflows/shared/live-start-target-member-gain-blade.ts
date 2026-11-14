@@ -1,4 +1,4 @@
-import { countOpponentStageMembersWithDifferentName } from '../../../effects/opponent-different-name-members.js';
+import { getOpponentDifferentNameMemberCountChoices } from '../../../effects/opponent-different-name-members.js';
 import { getStageMemberLifecycleId } from '../../runtime/ability-source-lifecycle.js';
 import {
   addAction,
@@ -30,13 +30,14 @@ import {
 import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { queryCardSelection } from '../../runtime/selection-query.js';
+import { queryCardSelection, queryOptionSelection } from '../../runtime/selection-query.js';
 import {
   getAbilityEffectText,
   maybeStartConfirmablePendingAbilityConfirmation,
 } from '../../runtime/workflow-helpers.js';
 
 const SELECT_MEMBER_STEP_ID = 'LIVE_START_TARGET_MEMBER_GAIN_BLADE_SELECT_MEMBER';
+const SELECT_MEMBER_NAME_STEP_ID = 'LIVE_START_TARGET_MEMBER_GAIN_BLADE_SELECT_MEMBER_NAME';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -166,6 +167,20 @@ export function registerLiveStartTargetMemberGainBladeWorkflowHandlers(): void {
         ),
       queryCardSelection
     );
+    if (config.bladeAmount === 'OPPONENT_DIFFERENT_NAME_MEMBER_COUNT') {
+      registerActiveEffectStepHandler(
+        config.abilityId,
+        SELECT_MEMBER_NAME_STEP_ID,
+        (game, input, context) =>
+          finishTargetMemberNameSelection(
+            game,
+            input.selectedOptionId ?? null,
+            config,
+            context.continuePendingCardEffects
+          ),
+        queryOptionSelection
+      );
+    }
   }
 }
 
@@ -222,13 +237,17 @@ function startLiveStartTargetMemberGainBlade(
       { step: 'NO_STAGE_MEMBER_TARGET' }
     );
   }
-  if (targetMemberCardIds.length === 1 && !config.alwaysSelectTarget) {
+  if (
+    targetMemberCardIds.length === 1 &&
+    !config.alwaysSelectTarget &&
+    typeof config.bladeAmount === 'number'
+  ) {
     return applyBladeAndContinue(
       stateWithoutPending,
       ability,
       player.id,
       targetMemberCardIds[0],
-      config,
+      config.bladeAmount,
       orderedResolution,
       continuePendingCardEffects,
       'AUTO_TARGET_MEMBER_GAIN_BLADE'
@@ -315,36 +334,158 @@ function finishTargetMemberSelection(
     );
   }
 
-  const bladeAmount = getBladeAmount(game, player.id, selectedCardId, config);
+  if (config.bladeAmount === 'OPPONENT_DIFFERENT_NAME_MEMBER_COUNT') {
+    const nameChoices = getOpponentDifferentNameMemberCountChoices(game, player.id, selectedCardId);
+    if (new Set(nameChoices.map((choice) => choice.count)).size > 1) {
+      const preferredName = nameChoices.reduce((preferred, choice) =>
+        choice.count > preferred.count ? choice : preferred
+      );
+      return addAction(
+        {
+          ...game,
+          activeEffect: {
+            ...effect,
+            stepId: SELECT_MEMBER_NAME_STEP_ID,
+            stepText:
+              '请选择这名成员本次比较时使用的姓名。对方每有1名姓名不同的成员，该成员获得1个[ブレード]。',
+            selectableCardIds: undefined,
+            selectableCardVisibility: undefined,
+            selectableCardMode: undefined,
+            selectableOptions: nameChoices.map((choice) => ({
+              id: choice.normalizedName,
+              label: `视为「${choice.name}」：获得${choice.count}个[ブレード]`,
+            })),
+            defaultSelectedOptionId: preferredName.normalizedName,
+            selectionLabel: '选择本次比较使用的姓名',
+            confirmSelectionLabel: '获得[ブレード]',
+            canSkipSelection: false,
+            metadata: { ...effect.metadata, targetMemberCardId: selectedCardId },
+          },
+        },
+        'RESOLVE_ABILITY',
+        player.id,
+        {
+          pendingAbilityId: effect.id,
+          abilityId: effect.abilityId,
+          sourceCardId: effect.sourceCardId,
+          step: 'SELECT_TARGET_MEMBER_NAME',
+          targetMemberCardId: selectedCardId,
+        }
+      );
+    }
+    return applySelectedTargetBladeAndContinue(
+      game,
+      effect,
+      player.id,
+      selectedCardId,
+      nameChoices[0]?.count ?? 0,
+      continuePendingCardEffects,
+      nameChoices[0]?.normalizedName
+    );
+  }
+  return applySelectedTargetBladeAndContinue(
+    game,
+    effect,
+    player.id,
+    selectedCardId,
+    config.bladeAmount,
+    continuePendingCardEffects
+  );
+}
+
+function finishTargetMemberNameSelection(
+  game: GameState,
+  selectedName: string | null,
+  config: LiveStartTargetMemberGainBladeConfig,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.abilityId !== config.abilityId ||
+    effect.stepId !== SELECT_MEMBER_NAME_STEP_ID ||
+    selectedName === null ||
+    !effect.selectableOptions?.some((option) => option.id === selectedName)
+  ) {
+    return game;
+  }
+  const targetMemberCardId = effect.metadata?.targetMemberCardId;
+  const player = getPlayerById(game, effect.controllerId);
+  if (
+    !player ||
+    typeof targetMemberCardId !== 'string' ||
+    (effect.metadata?.targetLifecycles as Readonly<Record<string, string>> | undefined)?.[
+      targetMemberCardId
+    ] !== getStageMemberLifecycleId(game, targetMemberCardId) ||
+    !getCurrentTargetMemberCardIds(game, player.id, effect.sourceCardId, config).includes(
+      targetMemberCardId
+    )
+  ) {
+    return finishSelectionWithoutBlade(
+      game,
+      effect,
+      effect.controllerId,
+      continuePendingCardEffects,
+      { step: 'STALE_OR_INVALID_MEMBER_SELECTION', targetMemberCardId }
+    );
+  }
+  const choice = getOpponentDifferentNameMemberCountChoices(
+    game,
+    player.id,
+    targetMemberCardId
+  ).find((candidate) => candidate.normalizedName === selectedName);
+  if (!choice) return game;
+  return applySelectedTargetBladeAndContinue(
+    game,
+    effect,
+    player.id,
+    targetMemberCardId,
+    choice.count,
+    continuePendingCardEffects,
+    choice.normalizedName
+  );
+}
+
+function applySelectedTargetBladeAndContinue(
+  game: GameState,
+  effect: NonNullable<GameState['activeEffect']>,
+  playerId: string,
+  targetMemberCardId: string,
+  bladeAmount: number,
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  selectedMemberName?: string
+): GameState {
   if (bladeAmount === 0) {
-    return finishSelectionWithoutBlade(game, effect, player.id, continuePendingCardEffects, {
+    return finishSelectionWithoutBlade(game, effect, playerId, continuePendingCardEffects, {
       step: 'TARGET_MEMBER_GAIN_BLADE',
-      targetMemberCardId: selectedCardId,
+      targetMemberCardId,
       bladeBonus: 0,
+      selectedMemberName,
     });
   }
   const bladeResult = addBladeLiveModifierForTargetMember(game, {
-    playerId: player.id,
+    playerId,
     sourceCardId: effect.sourceCardId,
-    targetMemberCardId: selectedCardId,
+    targetMemberCardId,
     abilityId: effect.abilityId,
     amount: bladeAmount,
   });
   if (!bladeResult) {
-    return finishSelectionWithoutBlade(game, effect, player.id, continuePendingCardEffects, {
+    return finishSelectionWithoutBlade(game, effect, playerId, continuePendingCardEffects, {
       step: 'TARGET_MEMBER_NO_LONGER_VALID',
-      selectedCardId,
+      targetMemberCardId,
     });
   }
 
   return continuePendingCardEffects(
-    addAction({ ...bladeResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+    addAction({ ...bladeResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', playerId, {
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: 'TARGET_MEMBER_GAIN_BLADE',
-      targetMemberCardId: selectedCardId,
+      targetMemberCardId,
       bladeBonus: bladeAmount,
+      selectedMemberName,
     }),
     effect.metadata?.orderedResolution === true
   );
@@ -355,12 +496,11 @@ function applyBladeAndContinue(
   ability: PendingAbilityState,
   playerId: string,
   targetMemberCardId: string,
-  config: LiveStartTargetMemberGainBladeConfig,
+  bladeAmount: number,
   orderedResolution: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects,
   step: string
 ): GameState {
-  const bladeAmount = getBladeAmount(game, playerId, targetMemberCardId, config);
   if (bladeAmount === 0) {
     return continueNoOp(game, ability, playerId, orderedResolution, continuePendingCardEffects, {
       step,
@@ -511,15 +651,4 @@ function removePendingAbility(game: GameState, pendingAbilityId: string): GameSt
       (candidate) => candidate.id !== pendingAbilityId
     ),
   };
-}
-
-function getBladeAmount(
-  game: GameState,
-  playerId: string,
-  targetId: string,
-  config: LiveStartTargetMemberGainBladeConfig
-): number {
-  return config.bladeAmount === 'OPPONENT_DIFFERENT_NAME_MEMBER_COUNT'
-    ? countOpponentStageMembersWithDifferentName(game, playerId, targetId)
-    : config.bladeAmount;
 }

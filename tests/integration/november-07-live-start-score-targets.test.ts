@@ -48,7 +48,10 @@ import {
   enqueueTriggeredCardEffects,
 } from '../../src/application/card-effect-runner';
 import * as IDs from '../../src/application/card-effects/ability-ids';
-import { countOpponentStageMembersWithDifferentName } from '../../src/application/effects/opponent-different-name-members';
+import {
+  countOpponentStageMembersWithDifferentName,
+  getOpponentDifferentNameMemberCountChoices,
+} from '../../src/application/effects/opponent-different-name-members';
 import {
   createNovember07DraftCard,
   getNovember07LiveData,
@@ -342,6 +345,14 @@ describe('November 07 self LIVE scores', () => {
 });
 
 describe('SUNNY DAY SONG target blade', () => {
+  const duo = () =>
+    member('own', P1, {
+      cardCode: 'PL!-pb2-000-R',
+      name: '星空凛&小泉花阳',
+      cost: 15,
+      blade: 7,
+      groupNames: ['μ’s'],
+    });
   it.each(['PL!-bp8-024-L', 'PL!-bp8-024-SECL'])(
     '%s uses identical all-rarity effects and preserves printed requirements',
     (code) => {
@@ -367,17 +378,176 @@ describe('SUNNY DAY SONG target blade', () => {
       ).toBe(3);
     }
   );
-  it('compares structured combination names and aliases without distinct-opponent deduplication', () => {
+  it.each(['PL!-bp8-024-L', 'PL!-bp8-024-SECL'])(
+    '%s follows Q331: Rin/Hanayo DUO versus Rin and Hanayo always gains exactly one blade',
+    (code) => {
+      let game = run(
+        pending(
+          setup(
+            code,
+            [duo()],
+            [member('rin', P2, { name: '星空 凛' }), member('hanayo', P2, { name: '小泉花陽' })]
+          ),
+          SUNNY
+        )
+      );
+      expectDirectCardSubmissionWindow(game, ['own']);
+      expect(getOpponentDifferentNameMemberCountChoices(game, P1, 'own')).toEqual([
+        { name: '星空凛', normalizedName: '星空凛', count: 1 },
+        { name: '小泉花阳', normalizedName: '小泉花陽', count: 1 },
+      ]);
+      game = submitSingleCardCommand(game, 'own');
+      expect(game.activeEffect).toBeNull();
+      expect(getMemberEffectiveBladeCount(game, P1, 'own')).toBe(8);
+    }
+  );
+  it('counts all three differently named members even when their names repeat', () => {
     const game = setup(
       'PL!-bp8-024',
-      [member('own', P1, { name: '高坂穂乃果＆南ことり', groupNames: ["μ's"] })],
+      [member('own', P1, { name: '高坂穂乃果', groupNames: ["μ's"] })],
+      ['one', 'two', 'three'].map((id) => member(id, P2, { name: '南小鸟' }))
+    );
+    expect(countOpponentStageMembersWithDifferentName(game, P1, 'own', '高坂穗乃果')).toBe(3);
+    expect(countOpponentStageMembersWithDifferentName(game, P1, 'own', '星空凛')).toBe(0);
+    expect(getMemberEffectiveBladeCount(confirm(run(pending(game, SUNNY)), 'own'), P1, 'own')).toBe(
+      4
+    );
+  });
+  it('retains structured has-name comparison for opposing combinations without choosing for them', () => {
+    const game = setup(
+      'PL!-bp8-024',
+      [duo()],
       [
-        member('same-combo', P2, { name: '南小鸟＆园田海未' }),
-        member('different1', P2, { name: '星空凛' }),
-        member('different2', P2, { name: '星空凛' }),
+        member('opposing-duo', P2, { name: '星空 凛＆小泉花陽' }),
+        member('other-duo', P2, { name: '南小鸟＆园田海未' }),
       ]
     );
-    expect(countOpponentStageMembersWithDifferentName(game, P1, 'own')).toBe(2);
+    expect(countOpponentStageMembersWithDifferentName(game, P1, 'own', '星空凛')).toBe(1);
+    expect(countOpponentStageMembersWithDifferentName(game, P1, 'own', '小泉花阳')).toBe(1);
+  });
+  it.each([
+    ['星空凛', 8],
+    ['小泉花陽', 9],
+  ])('lets the player fix DUO identity to %s for the entire count', (name, expectedBlade) => {
+    let game = run(
+      pending(
+        setup(
+          'PL!-bp8-024',
+          [duo()],
+          [
+            member('rin1', P2, { name: '星空凛' }),
+            member('rin2', P2, { name: '星空 凛' }),
+            member('hanayo', P2, { name: '小泉花陽' }),
+          ]
+        ),
+        SUNNY
+      )
+    );
+    game = submitSingleCardCommand(game, 'own');
+    const effect = projectPlayerViewState(game, P1).activeEffect!;
+    expect(effect.selectableObjectIds ?? []).toEqual([]);
+    expect(effect.selectableOptions).toEqual([
+      { id: '星空凛', label: '视为「星空凛」：获得1个[ブレード]' },
+      { id: '小泉花陽', label: '视为「小泉花阳」：获得2个[ブレード]' },
+    ]);
+    expect(effect.defaultSelectedOptionId).toBe('小泉花陽');
+    expect(projectPlayerViewState(game, P2).activeEffect?.defaultSelectedOptionId).toBeUndefined();
+    expect(getMemberEffectiveBladeCount(game, P1, 'own')).toBe(7);
+    expect(effect.selectionLabel).toBe('选择本次比较使用的姓名');
+    expect(effect.confirmSelectionLabel).toBe('获得[ブレード]');
+    expect(effect.canSkipSelection).toBe(false);
+    expect(confirm(game, null)).toBe(game);
+    expect(confirm(game, null, 'forged')).toBe(game);
+    const result = confirm(game, null, name);
+    expect(result.activeEffect).toBeNull();
+    expect(getMemberEffectiveBladeCount(result, P1, 'own')).toBe(expectedBlade);
+  });
+  it('recommends the identity with the greatest bonus regardless of candidate order', () => {
+    let game = confirm(
+      run(
+        pending(
+          setup(
+            'PL!-bp8-024',
+            [duo()],
+            [
+              member('hanayo1', P2, { name: '小泉花陽' }),
+              member('hanayo2', P2, { name: '小泉花阳' }),
+              member('rin', P2, { name: '星空凛' }),
+            ]
+          ),
+          SUNNY
+        )
+      ),
+      'own'
+    );
+    expect(game.activeEffect?.defaultSelectedOptionId).toBe('星空凛');
+    expect(getMemberEffectiveBladeCount(game, P1, 'own')).toBe(7);
+    expect(confirm(game, null)).toBe(game);
+    game = confirm(game, null, game.activeEffect!.defaultSelectedOptionId);
+    expect(game.activeEffect).toBeNull();
+    expect(getMemberEffectiveBladeCount(game, P1, 'own')).toBe(9);
+  });
+  it('allows the player to choose an identity that grants zero additional blades', () => {
+    const game = confirm(
+      run(pending(setup('PL!-bp8-024', [duo()], [member('rin', P2, { name: '星空凛' })]), SUNNY)),
+      'own'
+    );
+    expect(game.activeEffect?.defaultSelectedOptionId).toBe('小泉花陽');
+    expect(game.activeEffect?.selectableOptions).toEqual([
+      { id: '星空凛', label: '视为「星空凛」：获得0个[ブレード]' },
+      { id: '小泉花陽', label: '视为「小泉花阳」：获得1个[ブレード]' },
+    ]);
+    const result = confirm(game, null, '星空凛');
+    expect(result.activeEffect).toBeNull();
+    expect(getMemberEffectiveBladeCount(result, P1, 'own')).toBe(7);
+    expect(result.liveResolution.liveModifiers).toEqual([]);
+  });
+  it('snapshots at name-choice completion, permits a departed source, and locks the result', () => {
+    let game = confirm(
+      run(
+        pending(
+          setup(
+            'PL!-bp8-024',
+            [duo()],
+            [member('rin1', P2, { name: '星空凛' }), member('rin2', P2, { name: '星空凛' })]
+          ),
+          SUNNY
+        )
+      ),
+      'own'
+    );
+    expect(game.activeEffect?.selectableOptions?.map((option) => option.id)).toEqual([
+      '星空凛',
+      '小泉花陽',
+    ]);
+    game = updatePlayer(game, P1, (p) => ({ ...p, liveZone: { ...p.liveZone, cardIds: [] } }));
+    game = registerCards(game, [member('hanayo', P2, { name: '小泉花阳' })]);
+    game = updatePlayer(game, P2, (p) => ({
+      ...p,
+      memberSlots: placeCardInSlot(p.memberSlots, SlotPosition.RIGHT, 'hanayo', face),
+    }));
+    game = confirm(game, null, '星空凛');
+    expect(getMemberEffectiveBladeCount(game, P1, 'own')).toBe(8);
+    game = updatePlayer(game, P2, (p) => ({
+      ...p,
+      memberSlots: { ...p.memberSlots, slots: { LEFT: null, CENTER: null, RIGHT: null } },
+    }));
+    expect(getMemberEffectiveBladeCount(game, P1, 'own')).toBe(8);
+  });
+  it('rejects a departed or re-entered DUO target during its name choice', () => {
+    const game = confirm(
+      run(pending(setup('PL!-bp8-024', [duo()], [member('rin', P2, { name: '星空凛' })]), SUNNY)),
+      'own'
+    );
+    const reentered = confirm(targetReenters(game, 'own'), null, '小泉花陽');
+    expect(reentered.activeEffect).toBeNull();
+    expect(getMemberEffectiveBladeCount(reentered, P1, 'own')).toBe(7);
+    const departed = updatePlayer(game, P1, (p) => ({
+      ...p,
+      memberSlots: { ...p.memberSlots, slots: { LEFT: null, CENTER: null, RIGHT: null } },
+    }));
+    expect(confirm(departed, null, '小泉花陽').activeEffect).toBeNull();
+    expect(getMemberEffectiveBladeCount(departed, P1, 'own')).toBe(7);
   });
   it('selects target, counts at completion once, allows departed source, and locks bonus', () => {
     let game = setup(

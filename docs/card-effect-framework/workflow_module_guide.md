@@ -4,7 +4,7 @@
 
 费用13「黑泽露比」`PL!S-ad2-003` 的登场追加任意LIVE selector至既有弃手回收family，仍先支付再重扫，不预先用奖励目标阻止支付。AUTO由单卡 `s-ad2-003-ruby.ts` 统计逐卡有效判心列表是否非空，DRAW/SCORE/ALL每卡均只计1，属于门槛5/10的自身双颜色奖励；原规则对象失效不奖励重登对象。Killer的LIVE开始仍为单卡：统计己方顶层成员有效黄/紫总量（含WAITING），只减原正面LIVE自身必要无色；ALL、玩家Heart、下方卡不补指定色。二者复用现有事实查询、来源生命周期、queued确认和modifier，不新增判心DSL。
 
-友情、DEEPNESS及图书馆第二段只将三项新条件加入 `shared/live-start-score-bonuses.ts`，自身分数统一使用来源LIVE身份与 `replaceSourceLiveCardScoreModifierAndRefresh`。SUNNY DAY SONG扩展目标BLADE family的固定量/对手异名人数轴，在目标选择完成时取得快照并写TARGET_MEMBER；之后对手场面变化不重算。图书馆可选能量费用及全体低费用成员混洗置底、朋友场地的对方抽牌后选择己方高费成员分别保留薄单卡编排，不拼为通用步骤解释器。
+友情、DEEPNESS及图书馆第二段只将三项新条件加入 `shared/live-start-score-bonuses.ts`，自身分数统一使用来源LIVE身份与 `replaceSourceLiveCardScoreModifierAndRefresh`。SUNNY DAY SONG扩展目标BLADE family的固定量/对手异名人数轴，目标DUO依Q331固定一个姓名比较；各姓名结果不同时显示每项BLADE数并默认预选最大项，可改选后确认；相同时直接结算。在最后选择完成时取得快照并写TARGET_MEMBER；之后对手场面变化不重算。姓名选择沿用选项query及目标生命周期，不改变通用身份匹配。`defaultSelectedOptionId`仅为等待玩家投影中的UI建议：通用选项控件显式启用草稿与确认，后端仍要求提交选项；无该字段的流程维持点击即提交，切换效果/步骤/候选重置草稿。图书馆可选能量费用及全体低费用成员混洗置底、朋友场地的对方抽牌后选择己方高费成员分别保留薄单卡编排，不拼为通用步骤解释器。
 
 `effects/current-turn-live-zone-entries.ts`只读本回合跨区LIVE入区事件发生次数，含后续被卡效移走的牌、同实体正常离区后再入区；排除区内移动及上回合。原生SET的入区事件保留 `causedByActionId`，合法UNSET追加带精确 `entryEventId` 的 `UNSET_LIVE_CARD`动作，不删除历史；撤回仅取消对应那次事件。卡效入区不另加SET计数，普通回手不解释为撤回；不增加GameState持久计数或旧历史推测fallback。
 
@@ -598,7 +598,7 @@ family 复用 direct top-mill 的公开结果形状：实际卡组底移动与�
 
 分数5「Snow halation」`PL!-bp8-023` 的 LIVE 开始段由单卡 `cards/pl-bp8-023-snow-halation.ts` 写入 `CHEER_CARD_BLADE_HEART_GRANT`：仅为费用≤4且无判心的成员补1个橙判心，重复来源不叠加；已有 DRAW、SCORE 或 HEART 均不能触发该授予。它与普通改色分别建模，由 `getCheerCardEffectiveBladeHearts` 先授予再改色，后续历史条件与公开显示共用有效结果。已生效的玩家规则不因来源 LIVE 离区消失。成功段复用 `live-success-cheer-condition-source-score`，按不同公开卡计数，达到6张后只给原来源 LIVE 加2分。
 
-2026-11-10 临时橙判心口径由用户确认：保留 ORANGE 数据、卡文条件及图标身份，仅声援 HEART 规则贡献通过共享 `getCheerHeartContributionColor` 转为 GRAY；不补指定色，不成为 ALL，不修改普通成员的橙色 HEART。前端有效判心来自公开投影，不自行实现 Snow halation 规则；飞行动画、卡下贡献图标和图形／文本统计均保留有效判心颜色，判定预览与动画成功提示另用规则贡献计数，与后端判定一致。显示总数不能直接作为判定色池，普通成员橙心不能随声援判心一起转灰。该约定不是官方裁定，后续正式规则调整应以此贡献边界为入口。
+橙判心遵循官方2026-11-11 Q283–Q286与综合规则1.09：共享 `getCheerHeartContributionColor` 保留 ORANGE，普通成员橙心与声援橙心均可支付橙色或无色需求；ALL不能补橙色，任选颜色仍限普通六色。HeartPool、缺口、剩余心分配与前端预览共用该边界。前端有效判心仍来自公开投影，不自行实现 Snow halation 规则；飞行动画、卡下贡献图标和图形／文本统计保留有效颜色，动画成功提示使用同一正式分配规则。旧临时灰心贡献口径已移除。
 
 020 与 021 都在移动及标准分组事件入队后打开 Public Reveal Dwell，窗口期间不写必要 Heart、抽牌或 SCORE modifier。020 展示结束后才按公开的实际移动卡是否为结构化 Aqours MEMBER 写来源 LIVE requirement replacement；021 展示结束后才按公开的5张中 MEMBER 数量执行0奖励、抽1或抽1且来源 LIVE SCORE +1。两者都不在移动前预读或展示隐藏底牌，舞台不足3名时 021 仍以动态 confirm-only 说明不移动。两个 workflow 本身不承担从卡组底声援；该机制已由 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」的独立 direction query 与统一 cheer helper 覆盖。本边界仍不实现其他 bp7、不建立任意 bottom reward DSL，也不改变第一批 gain-heart family 的 ownership。
 

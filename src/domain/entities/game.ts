@@ -765,6 +765,8 @@ export interface ActiveEffectState {
   readonly selectableSlots?: readonly SlotPosition[];
   /** 当前步骤可选择的通用选项 */
   readonly selectableOptions?: readonly { readonly id: string; readonly label: string }[];
+  /** 通用选项的建议初值；允许改选，仍须显式确认后提交。 */
+  readonly defaultSelectedOptionId?: string;
   /** 真实卡文中的单选/多选效果分支，与通用 selectableOptions 分开。 */
   readonly effectChoice?: ActiveEffectChoiceState;
   /** 当前步骤的站位变换交互状态 */

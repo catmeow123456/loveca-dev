@@ -147,10 +147,9 @@ function resolveOnEnterSourceMemberLiveModifier(
     ...ability,
     sourceLifecycleId: getPendingAbilitySourceLifecycleId(game, ability),
   });
-  // Native trigger filtering already checks this condition; copied ON_ENTER must use the host's captured entry origin.
+  // Only the entry that triggered this ability can satisfy an entry-origin condition.
   const nonHandOriginMet =
     config.abilityId !== HS_PR_038_ON_ENTER_NON_HAND_GAIN_PURPLE_HEART_ABILITY_ID ||
-    !ability.onEnterInvocation ||
     (typeof ability.metadata?.fromZone === 'string' && ability.metadata.fromZone !== ZoneType.HAND);
   const qualifyingStageUnitMemberCardIds =
     config.requiredStageUnitAlias === undefined
