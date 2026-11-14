@@ -1,4 +1,5 @@
 import { victoryLiveCount, type BattleRulesetId } from '../rules/battle-ruleset.js';
+import type { HextechState } from '../hextech/state.js';
 /**
  * Loveca 游戏状态实体定义
  * 基于 detail_rules.md 第 7、8 章游戏流程
@@ -68,6 +69,8 @@ export const GAME_CONFIG = {
  */
 export type GameActionType =
   | 'DRAW_CARD'
+  | 'HEXTECH_ACQUIRED'
+  | 'HEXTECH_ACTIVATED'
   | 'PLAY_MEMBER'
   | 'PLAY_ABILITY'
   | 'SET_LIVE_CARD'
@@ -193,6 +196,10 @@ export interface GameEventLogEntry {
 export interface LiveRequirementModifierState {
   readonly color: HeartColor;
   readonly countDelta: number;
+  /** Generic/gray requirement is zero after all additive requirement modifiers. */
+  readonly clearGeneric?: true;
+  /** Increase each currently required ordinary color after additive modifiers. */
+  readonly addToEachRequiredColor?: number;
 }
 
 export interface SuccessLivePlacementRestrictionState {
@@ -219,6 +226,7 @@ export type LiveModifierState =
       readonly kind: 'SCORE';
       readonly playerId: string;
       readonly countDelta: number;
+      readonly sourceHextechInstanceId?: string;
       /** 指定时表示“此 Live 卡分数”修正；未指定时表示玩家 LIVE 合计分数修正 */
       readonly liveCardId?: string;
       /** 指定时表示此玩家总分修正由该成员实例获得，并在该实例离场时失去。 */
@@ -245,6 +253,7 @@ export type LiveModifierState =
       readonly target: 'PLAYER';
       readonly playerId: string;
       readonly hearts: readonly HeartIcon[];
+      readonly sourceHextechInstanceId?: string;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
@@ -256,7 +265,8 @@ export type LiveModifierState =
       readonly targetMemberCardId: string;
       readonly hearts: readonly HeartIcon[];
       readonly heartContributionId?: string;
-      readonly sourceCardId: string;
+      readonly sourceHextechInstanceId?: string;
+      readonly sourceCardId?: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
@@ -332,6 +342,7 @@ export type LiveModifierState =
       readonly countDelta: number;
       /** Concrete recipient member; sourceCardId remains the ability source. */
       readonly targetMemberCardId: string;
+      readonly sourceHextechInstanceId?: string;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
@@ -341,6 +352,7 @@ export type LiveModifierState =
       readonly target: 'PLAYER';
       readonly playerId: string;
       readonly countDelta: number;
+      readonly sourceHextechInstanceId?: string;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
@@ -358,6 +370,7 @@ export type LiveModifierState =
       readonly kind: 'CHEER_COUNT';
       readonly playerId: string;
       readonly countDelta: number;
+      readonly sourceHextechInstanceId?: string;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
@@ -384,6 +397,7 @@ export type LiveModifierState =
       readonly kind: 'REQUIREMENT';
       readonly liveCardId: string;
       readonly modifiers: readonly LiveRequirementModifierState[];
+      readonly sourceHextechInstanceId?: string;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
@@ -848,6 +862,8 @@ export type PendingSpecialMemberPlayState = PendingSpecialMemberPlayBaseState &
  */
 export interface GameState {
   readonly rulesetId: BattleRulesetId;
+  /** Absent when Hextech is disabled; independent of LIVE temporary modifiers. */
+  readonly hextech?: HextechState;
   /** 游戏唯一 ID */
   readonly gameId: string;
   /** 最近一次生成通用公开展示 token 的运行时 epoch；仅用于权威恢复后的防重放。 */

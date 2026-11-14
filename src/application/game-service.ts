@@ -1,3 +1,4 @@
+import { hasPendingHextechInput } from '../domain/hextech/state.js';
 import {
   baseLiveRequirement,
   victoryLiveCount,
@@ -30,6 +31,8 @@ import {
   EffectWindowType,
 } from '../shared/types/enums.js';
 import { secureRandomInt, type RandomIntegerSource } from '../shared/random-source.js';
+import { openHextechSelection } from './hextech/selection.js';
+import { getHextechDrawPhaseBonus } from '../domain/hextech/bonuses.js';
 import type {
   GameState,
   GameAction as GameHistoryAction,
@@ -335,6 +338,8 @@ export class GameService {
    * @returns 操作结果
    */
   processAction(game: GameState, action: GameAction): GameOperationResult {
+    if (hasPendingHextechInput(game))
+      return { success: false, gameState: game, error: '请先完成海克斯选择' };
     // 验证是否是该玩家的行动时机（依据 phase-config 的 activePlayerStrategy）
     const canActByTiming = isPlayerActiveByConfig(game, action.playerId);
 
@@ -650,6 +655,8 @@ export class GameService {
    * @returns 操作结果
    */
   advancePhase(game: GameState): GameOperationResult {
+    if (hasPendingHextechInput(game))
+      return { success: false, gameState: game, error: '请先完成海克斯选择' };
     const transition = this.phaseManager.getNextPhase(game);
     let state = game;
 
@@ -695,22 +702,45 @@ export class GameService {
       state = clearMemberWaitProtectionsUntilLiveEnd(state);
     }
 
-    // 执行阶段自动处理
-    for (const autoAction of transition.autoActions) {
-      state = this.executeAutoAction(state, autoAction);
-    }
+    state = openHextechSelection(state, this.randomInt);
+    if (state.hextech?.draft?.pending)
+      return {
+        success: true,
+        gameState: addAction(state, 'PHASE_CHANGE', null, {
+          from: game.currentPhase,
+          to: transition.newPhase,
+        }),
+      };
+    return this.executePhaseEntry(state, transition, game.currentPhase);
+  }
 
-    // 记录阶段变更
-    state = addAction(state, 'PHASE_CHANGE', null, {
-      from: game.currentPhase,
-      to: transition.newPhase,
-    });
+  /** Resume exactly the suspended ACTIVE entry, without incrementing the turn again. */
+  resumeHextechTurnStart(game: GameState): GameState {
+    if (game.isEnded) return game;
+    const entry = this.phaseManager.getPhaseEntryEffects(game);
+    const entered = this.executePhaseEntry(game, entry).gameState;
+    return this.executeCheckTiming(entered, entry.triggeredConditions).gameState;
+  }
+
+  private executePhaseEntry(
+    state: GameState,
+    transition: {
+      readonly autoActions: readonly PhaseAutoAction[];
+      readonly triggeredConditions: readonly TriggerCondition[];
+    },
+    previousPhase?: GamePhase
+  ): GameOperationResult {
+    const newPhase = state.currentPhase;
+    for (const autoAction of transition.autoActions)
+      state = this.executeAutoAction(state, autoAction);
+    if (previousPhase !== undefined)
+      state = addAction(state, 'PHASE_CHANGE', null, { from: previousPhase, to: newPhase });
 
     // 触发相关能力
     state = this.triggerAbilities(state, transition.triggeredConditions);
 
     // 配置驱动的子阶段初始化
-    const initialSubPhase = this.resolveInitialSubPhase(state, transition.newPhase);
+    const initialSubPhase = this.resolveInitialSubPhase(state, newPhase);
     state = { ...state, currentSubPhase: initialSubPhase };
 
     // 同步 activePlayerIndex（Phase 2: applySubPhaseTransition 已处理新子阶段的情况，
@@ -728,7 +758,7 @@ export class GameService {
     }
 
     // 执行子阶段入口的自动处理
-    state = this.executeSubPhaseEntryActions(state, transition.newPhase);
+    state = this.executeSubPhaseEntryActions(state, newPhase);
 
     if (this.shouldAutoSkipPerformancePhase(state)) {
       return this.advancePhase(state);
@@ -1147,7 +1177,8 @@ export class GameService {
 
       case 'DRAW_CARD':
         let state = game;
-        for (let i = 0; i < autoAction.count; i++) {
+        const drawCount = autoAction.count + getHextechDrawPhaseBonus(game, autoAction.playerId);
+        for (let i = 0; i < drawCount; i++) {
           state = this.drawCard(state, autoAction.playerId);
         }
         return state;
@@ -1601,6 +1632,7 @@ export class GameService {
     let state = enqueueTriggeredCardEffects(openCheckTimingContext(game), triggerConditions, {
       triggerEventLogStartIndex: options.triggerEventLogStartIndex,
     });
+    if (hasPendingHextechInput(state)) return { success: true, gameState: state };
     return this.executePendingRuleActionsAndDispatchTriggers(state);
   }
 

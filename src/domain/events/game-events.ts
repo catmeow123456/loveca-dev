@@ -421,6 +421,11 @@ export interface MemberStateChangedEvent extends BaseGameEvent {
 
 export type MemberStateChangeCause =
   | {
+      readonly kind: 'HEXTECH_EFFECT';
+      readonly playerId: string;
+      readonly sourceHextechInstanceId: string;
+    }
+  | {
       readonly kind: 'PLAYER_ACTION';
       readonly playerId: string;
     }

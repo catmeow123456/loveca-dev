@@ -1,4 +1,6 @@
 import { baseLiveRequirement } from './battle-ruleset.js';
+import { collectHextechLiveModifiers } from '../hextech/modifiers.js';
+import { getHextechBladeHearts } from '../hextech/bonuses.js';
 import {
   BladeHeartEffect,
   GamePhase,
@@ -2300,7 +2302,12 @@ function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierS
     }
   }
 
-  return modifiers;
+  // Conditional Hextech scores read the ordinary effective cheer rules without
+  // recursively collecting their own score modifiers. Preserve modifier order.
+  return [
+    ...collectHextechLiveModifiers(game, [...game.liveResolution.liveModifiers, ...modifiers]),
+    ...modifiers,
+  ];
 }
 
 function collectTwoMuseStageNonStackingScoreModifier(
@@ -4468,7 +4475,11 @@ function collectMemberHeartContributions(
     if (game.liveResolution.liveModifiers.includes(modifier)) {
       contributionKey = `persistent:${'heartContributionId' in modifier ? modifier.heartContributionId : undefined}`;
     } else {
-      const key = `continuous:${modifier.sourceCardId}:${modifier.abilityId}:${modifier.target}:${memberCardId}:${getMemberHeartContributionLifecycleId(game, modifier.sourceCardId ?? memberCardId)}`;
+      const sourceId =
+        ('sourceHextechInstanceId' in modifier ? modifier.sourceHextechInstanceId : undefined) ??
+        modifier.sourceCardId ??
+        memberCardId;
+      const key = `continuous:${sourceId}:${modifier.abilityId}:${modifier.target}:${memberCardId}:${getMemberHeartContributionLifecycleId(game, modifier.sourceCardId ?? memberCardId)}`;
       const ordinal = continuousOrdinals.get(key) ?? 0;
       continuousOrdinals.set(key, ordinal + 1);
       contributionKey = `${key}:${ordinal}`;
@@ -4692,7 +4703,7 @@ export function getCheerCardBladeHeartResolution(
     return { bladeHearts: [] };
   }
   let grantedByAbilityId: string | undefined;
-  let bladeHearts: readonly BladeHeartItem[] = printedBladeHearts ?? [];
+  let bladeHearts: readonly BladeHeartItem[] = getHextechBladeHearts(game, playerId, card.data);
   if (bladeHearts.length === 0 && isMemberCardData(card.data)) {
     const effectiveCost = getMemberEffectiveCost(game, playerId, cardId, liveModifiers);
     const grant = [...liveModifiers]

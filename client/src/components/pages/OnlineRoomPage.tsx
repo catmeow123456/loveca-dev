@@ -1049,7 +1049,10 @@ export function OnlineRoomPage({
           <span className="hidden text-sm font-semibold sm:inline">
             房间 {activeBattleContext.room.roomCode}
             {activeBattleContext.room.casualTable?.ruleMode === 'UNLIMITED' && (
-              <span className="ml-1">· 娱乐 · PT 不限</span>
+              <span className="ml-1">
+                · {activeBattleContext.room.casualTable.format === 'HEXTECH' ? '海克斯' : '娱乐'} ·
+                PT 不限
+              </span>
             )}
           </span>
           <span className="text-sm font-semibold sm:hidden">
@@ -1937,6 +1940,11 @@ function OnlineOpeningStage({
                       开局猜拳
                     </h1>
                     {room.casualTable && <CasualRuleBadge mode={room.casualTable.ruleMode} />}
+                    {room.casualTable?.format === 'HEXTECH' && (
+                      <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                        海克斯对战 · 第 1／3／5 回合各选一项强化
+                      </p>
+                    )}
                     <p className="mt-1 max-w-2xl text-xs font-semibold text-[var(--text-secondary)] sm:mt-2 sm:text-sm sm:leading-relaxed">
                       {statusText}
                     </p>

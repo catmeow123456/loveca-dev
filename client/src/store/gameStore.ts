@@ -16,6 +16,7 @@ import { create } from 'zustand';
 import type { AnyCardData, MemberCardData, LiveCardData } from '@game/domain/entities/card';
 import { createHeartRequirement } from '@game/domain/entities/card';
 import type { DeckConfig } from '@game/application/game-service';
+import type { InitialHextechSetup } from '@game/domain/hextech/state';
 import {
   GameSession,
   createGameSession,
@@ -219,6 +220,7 @@ export interface CommandDispatchResult {
 }
 
 interface LocalGameRestartSetup {
+  readonly initialHextech?: InitialHextechSetup;
   readonly player1Id: string;
   readonly player1Name: string;
   readonly player2Id: string;
@@ -336,7 +338,8 @@ export interface GameStore {
     player1Id: string,
     player1Name: string,
     player2Id: string,
-    player2Name: string
+    player2Name: string,
+    initialHextech?: InitialHextechSetup
   ) => void;
   /** 初始化游戏（设置卡组） */
   initializeGame: (player1Deck: DeckConfig, player2Deck: DeckConfig) => void;
@@ -456,6 +459,24 @@ export interface GameStore {
   ) => CommandDispatchResult;
   /** 本方登场演出完成或跳过；服务器决定是否继续。 */
   acknowledgeCardEntrance: (entranceId: string) => CommandDispatchResult;
+  rerollHextech: (
+    selectionTurn: number,
+    slot: number,
+    expectedDefinitionId: string
+  ) => CommandDispatchResult;
+  activateHextech: (
+    instanceId: string,
+    selectedCardIds: readonly string[]
+  ) => CommandDispatchResult;
+  resolveHextechSearch: (
+    instanceId: string,
+    selectedCardIds: readonly string[]
+  ) => CommandDispatchResult;
+  selectHextech: (
+    selectionTurn: number,
+    slot: number,
+    expectedDefinitionId: string
+  ) => CommandDispatchResult;
   expireLocalCardEntrance: () => void;
   /** 公共选卡展示到期后的无交互推进。 */
   autoAdvancePublicCardSelection: (
@@ -976,10 +997,18 @@ export const useGameStore = create<GameStore>((set, get) => {
       get().addLog(`已加载 ${cards.length} 张卡牌数据`, 'info');
     },
 
-    createGame: (gameId, player1Id, player1Name, player2Id, player2Name) => {
+    createGame: (gameId, player1Id, player1Name, player2Id, player2Name, initialHextech) => {
       const { gameSession } = get();
-      gameSession.createGame(gameId, player1Id, player1Name, player2Id, player2Name);
+      gameSession.createGame(
+        gameId,
+        player1Id,
+        player1Name,
+        player2Id,
+        player2Name,
+        initialHextech
+      );
       pendingLocalGameIdentity = {
+        initialHextech: initialHextech ? structuredClone(initialHextech) : undefined,
         player1Id,
         player1Name,
         player2Id,
@@ -1132,7 +1161,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         setup.player1Id,
         setup.player1Name,
         setup.player2Id,
-        setup.player2Name
+        setup.player2Name,
+        setup.initialHextech
       );
       const initialized = gameSession.initializeGame(
         cloneDeckConfig(setup.player1Deck),
@@ -1149,6 +1179,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
 
       pendingLocalGameIdentity = {
+        initialHextech: setup.initialHextech,
         player1Id: setup.player1Id,
         player1Name: setup.player1Name,
         player2Id: setup.player2Id,
@@ -1457,6 +1488,52 @@ export const useGameStore = create<GameStore>((set, get) => {
         }
       ),
 
+    activateHextech: (instanceId, selectedCardIds) =>
+      runViewerCommand(
+        (playerId) => ({
+          type: GameCommandType.ACTIVATE_HEXTECH,
+          instanceId,
+          selectedCardIds,
+          playerId,
+          timestamp: Date.now(),
+        }),
+        { failureMessage: '发动海克斯失败', logError: true }
+      ),
+    resolveHextechSearch: (instanceId, selectedCardIds) =>
+      runViewerCommand(
+        (playerId) => ({
+          type: GameCommandType.RESOLVE_HEXTECH_SEARCH,
+          instanceId,
+          selectedCardIds,
+          playerId,
+          timestamp: Date.now(),
+        }),
+        { failureMessage: '海克斯检索失败', logError: true }
+      ),
+    rerollHextech: (selectionTurn, slot, expectedDefinitionId) =>
+      runViewerCommand(
+        (playerId) => ({
+          type: GameCommandType.REROLL_HEXTECH,
+          playerId,
+          selectionTurn,
+          slot,
+          expectedDefinitionId,
+          timestamp: Date.now(),
+        }),
+        { failureMessage: '重抽海克斯失败', logError: true }
+      ),
+    selectHextech: (selectionTurn, slot, expectedDefinitionId) =>
+      runViewerCommand(
+        (playerId) => ({
+          type: GameCommandType.SELECT_HEXTECH,
+          playerId,
+          selectionTurn,
+          slot,
+          expectedDefinitionId,
+          timestamp: Date.now(),
+        }),
+        { failureMessage: '锁定海克斯失败', logError: true }
+      ),
     acknowledgeCardEntrance: (entranceId) =>
       runViewerCommand(
         (playerId) => ({

@@ -95,6 +95,17 @@ beforeEach(() => {
   availability.getGameplayRestriction.mockResolvedValue(null);
 });
 describe('casual table HTTP contract', () => {
+  it('accepts format priority without imposing a format filter on the entertainment list', async () => {
+    service.list.mockResolvedValue({ rooms: [] });
+    expect((await request('/rooms?ruleMode=UNLIMITED&preferredFormat=HEXTECH')).status).toBe(200);
+    expect(service.list).toHaveBeenCalledWith('viewer', {
+      ruleMode: 'UNLIMITED',
+      preferredFormat: 'HEXTECH',
+      spectatable: false,
+    });
+    expect((await request('/rooms?preferredFormat=unknown')).status).toBe(400);
+    expect(service.list).toHaveBeenCalledTimes(1);
+  });
   it('forwards an optional normalized room code and preserves actionable creation conflicts', async () => {
     service.create.mockResolvedValue({ roomCode: 'FRIENDS42', state: 'WAITING' });
     const input = { ...entry, discoverability: 'UNLISTED', note: '', roomCode: '  friends42  ' };
@@ -212,6 +223,14 @@ describe('casual table HTTP contract', () => {
     expect((await request('/find', { ...sealed, deckId: entry.deckId })).status).toBe(400);
     expect((await request('/find', { ...sealed, ruleMode: 'NORMAL' })).status).toBe(400);
     expect((await request('/find', { ...sealed, format: 'CONSTRUCTED' })).status).toBe(400);
+  });
+  it('海克斯需要娱乐规则和账号卡组，拒绝混合或缺失参数', async () => {
+    const hextech = { ...entry, format: 'HEXTECH', ruleMode: 'UNLIMITED' };
+    service.findOpponent.mockResolvedValue({ state: 'WAITING', format: 'HEXTECH' });
+    expect((await request('/find', hextech)).status).toBe(200);
+    expect(service.findOpponent).toHaveBeenCalledWith('viewer', hextech);
+    expect((await request('/find', { ...hextech, ruleMode: 'NORMAL' })).status).toBe(400);
+    expect((await request('/find', { ...hextech, deckId: undefined })).status).toBe(400);
   });
   it('validates sealed draft and consent commands before forwarding the authenticated identity', async () => {
     service.saveSealedDraft.mockResolvedValue({ state: 'BUILDING' });

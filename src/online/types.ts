@@ -1,4 +1,5 @@
 import type { BattleRulesetId } from '../domain/rules/battle-ruleset.js';
+import type { HEXTECH_RULES_VERSION, HextechId, HextechRarity } from '../domain/hextech/catalog.js';
 import {
   BladeHeartEffect,
   CardType,
@@ -120,8 +121,54 @@ export interface ViewWindowState {
   readonly context?: Readonly<Record<string, unknown>>;
 }
 
+export interface HextechChoiceCard {
+  readonly objectId: string;
+  readonly frontInfo: ViewFrontCardInfo;
+  readonly zone: string;
+}
+export interface HextechViewState {
+  readonly abilities?: readonly {
+    readonly instanceId: string;
+    readonly selectionLabel: string;
+    readonly min: number;
+    readonly max: number;
+    readonly candidates: readonly HextechChoiceCard[];
+  }[];
+  readonly pendingSearch?: {
+    readonly instanceId: string;
+    readonly ownerSeat: Seat;
+    readonly requiredCount?: number;
+    readonly candidates?: readonly HextechChoiceCard[];
+  };
+  readonly rulesVersion: typeof HEXTECH_RULES_VERSION;
+  readonly selection?: {
+    readonly turn: number;
+    readonly rarity: HextechRarity;
+    readonly lockedSeats: readonly Seat[];
+    readonly ownOffer?: {
+      readonly selectedIndex?: number;
+      readonly candidates: readonly {
+        readonly definitionId: HextechId;
+        readonly name: string;
+        readonly rulesText: string;
+        readonly rerolled: boolean;
+      }[];
+    };
+  };
+  readonly owned: readonly {
+    readonly instanceId: string;
+    readonly definitionId: HextechId;
+    readonly ownerSeat: Seat;
+    readonly name: string;
+    readonly rarity: HextechRarity;
+    readonly rulesText: string;
+    readonly acquiredTurn: number;
+  }[];
+}
+
 export interface MatchViewState {
   readonly rulesetId: BattleRulesetId;
+  readonly hextech?: HextechViewState;
   readonly matchId: string;
   readonly viewerSeat: Seat;
   readonly participants: Readonly<Record<Seat, ViewParticipant>>;
@@ -261,7 +308,15 @@ export interface LiveResultViewState {
   /** 当前仅投影无色/All 必要 Heart 减少；彩色/增加修正应升级为 modifier 列表 */
   readonly requirementReductions: Readonly<Record<string, number>>;
   readonly requirementModifiers: Readonly<
-    Record<string, readonly { color: HeartColor; countDelta: number }[]>
+    Record<
+      string,
+      readonly {
+        color: HeartColor;
+        countDelta: number;
+        clearGeneric?: true;
+        addToEachRequiredColor?: number;
+      }[]
+    >
   >;
   readonly liveCardScoreModifiers: Readonly<Record<string, number>>;
   readonly winnerSeats: readonly Seat[];
@@ -673,6 +728,21 @@ export interface DeckRefreshedPublicEvent extends BasePublicEvent {
   readonly mainDeckCountAfter: number;
 }
 
+export interface HextechSelectionStartedPublicEvent extends BasePublicEvent {
+  readonly type: 'HextechSelectionStarted';
+  readonly turn: number;
+  readonly rarity: HextechRarity;
+}
+
+export interface HextechAcquiredPublicEvent extends BasePublicEvent {
+  readonly type: 'HextechAcquired';
+  readonly ownerSeat: Seat;
+  readonly instanceId: string;
+  readonly definitionId: HextechId;
+  readonly name: string;
+  readonly rulesText: string;
+}
+
 export type CardEffectSummaryKind =
   | 'SELF_SACRIFICE_RECOVER_FROM_WAITING_ROOM'
   | 'DISCARD_LOOK_TOP_SELECT_TO_HAND'
@@ -722,6 +792,8 @@ export interface EffectFeedbackPublicEvent extends BasePublicEvent {
 }
 
 export type PublicEvent =
+  | HextechSelectionStartedPublicEvent
+  | HextechAcquiredPublicEvent
   | EffectFeedbackPublicEvent
   | PhaseStartedPublicEvent
   | SubPhaseStartedPublicEvent
@@ -735,6 +807,8 @@ export type PublicEvent =
   | CardEffectSummaryPublicEvent;
 
 export type PublicEventDraft =
+  | Omit<HextechSelectionStartedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
+  | Omit<HextechAcquiredPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
   | Omit<EffectFeedbackPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
   | Omit<PhaseStartedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
   | Omit<SubPhaseStartedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>

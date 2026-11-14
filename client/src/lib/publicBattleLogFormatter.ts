@@ -1,4 +1,5 @@
 import type { AnyCardData } from '@game/domain/entities/card';
+import { HEXTECH_RARITY_LABELS } from '@game/domain/hextech/catalog';
 import { ZoneType } from '@game/shared/types/enums';
 import type { PublicCardInfo, PublicEvent, PublicZoneRef, Seat } from '@game/online';
 import { getCardLocalizedInfo } from './cardLocalization';
@@ -443,6 +444,29 @@ function buildSingleEventView(
     case 'CardMovedPublic':
     case 'CardRevealedAndMoved':
       return buildAdjacentMoveGroup([event], 0, new Set(), options).view;
+    case 'HextechSelectionStarted':
+      return buildView({
+        events: [event],
+        options,
+        type: event.type,
+        keyEvent: true,
+        title: `T${event.turn} 海克斯选择`,
+        detail: `系统随机：${HEXTECH_RARITY_LABELS[event.rarity]}色海克斯`,
+        cards: [],
+        hiddenCardCount: 0,
+      });
+    case 'HextechAcquired':
+      return buildView({
+        events: [event],
+        options,
+        type: event.type,
+        keyEvent: true,
+        title: `${formatSeatName(event.ownerSeat, options)} 取得「${event.name}」`,
+        detail: event.rulesText,
+        cards: [],
+        hiddenCardCount: 0,
+        actorSeat: event.ownerSeat,
+      });
     case 'DeckRefreshed':
       return buildView({
         events: [event],
@@ -574,6 +598,29 @@ function buildSingleEventView(
         actorSeat: event.actingSeat ?? actorSeat,
       });
     case 'PlayerDeclared':
+      if (
+        ['REROLL_HEXTECH', 'SELECT_HEXTECH', 'ACTIVATE_HEXTECH', 'RESOLVE_HEXTECH_SEARCH'].includes(
+          event.declarationType
+        )
+      ) {
+        const labels: Record<string, string> = {
+          REROLL_HEXTECH: '重抽一项海克斯',
+          SELECT_HEXTECH: '锁定海克斯选择',
+          ACTIVATE_HEXTECH: '发动海克斯',
+          RESOLVE_HEXTECH_SEARCH: '完成海克斯检索',
+        };
+        return buildView({
+          events: [event],
+          options,
+          type: event.type,
+          keyEvent: true,
+          title: `${actorSeat ? formatSeatName(actorSeat, options) : '玩家'}${labels[event.declarationType]}`,
+          detail: null,
+          cards,
+          hiddenCardCount: 0,
+          actorSeat,
+        });
+      }
       if (event.declarationType === 'SURRENDER') {
         return buildView({
           events: [event],
@@ -855,11 +902,7 @@ function shouldHideEventForArrangeInspectedDeckTopSummary(
           isWithinHiddenInspectionMoveBudget(event, summary, events, 'BEFORE');
   }
 
-  if (
-    event.from?.zone !== ZoneType.INSPECTION_ZONE ||
-    !isCompleted ||
-    !isNearbyAfterSummary
-  ) {
+  if (event.from?.zone !== ZoneType.INSPECTION_ZONE || !isCompleted || !isNearbyAfterSummary) {
     return false;
   }
 
@@ -1113,9 +1156,7 @@ function isDiscardLookTopCostMove(
     event.to?.zone === ZoneType.WAITING_ROOM &&
     Boolean(
       event.card &&
-        summary.discardedCostCards?.some(
-          (card) => card.publicObjectId === event.card?.publicObjectId
-        )
+      summary.discardedCostCards?.some((card) => card.publicObjectId === event.card?.publicObjectId)
     )
   );
 }

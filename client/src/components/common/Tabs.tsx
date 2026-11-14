@@ -12,6 +12,7 @@ export interface TabsProps<Value extends string> {
   options: readonly TabOption<Value>[];
   onChange: (value: Value) => void;
   className?: string;
+  variant?: 'segmented' | 'underline';
 }
 
 export function Tabs<Value extends string>({
@@ -20,6 +21,7 @@ export function Tabs<Value extends string>({
   options,
   onChange,
   className,
+  variant = 'segmented',
   id,
   panelId,
 }: TabsProps<Value> & { id: string; panelId: string }) {
@@ -27,7 +29,11 @@ export function Tabs<Value extends string>({
   return (
     <div
       ref={rootRef}
-      className={cn('ui-choice-control', className)}
+      className={cn(
+        'ui-choice-control',
+        variant === 'underline' && 'ui-choice-control--underline',
+        className
+      )}
       role="tablist"
       aria-label={label}
     >
