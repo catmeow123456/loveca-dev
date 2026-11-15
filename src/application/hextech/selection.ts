@@ -51,7 +51,7 @@ export function validateHextechCommand(game: GameState, command: HextechCommand)
     return '海克斯选择窗口已失效';
   const index = game.players.findIndex((player) => player.id === command.playerId);
   const offer = pending.offers[index];
-  if (!offer || offer.selectedIndex !== undefined) return '海克斯选择已锁定';
+  if (!offer || offer.selectedIndex !== undefined) return '海克斯选择已确认，无法更改';
   if (
     !Number.isInteger(command.slot) ||
     command.slot < 0 ||
