@@ -1532,7 +1532,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           expectedDefinitionId,
           timestamp: Date.now(),
         }),
-        { failureMessage: '锁定海克斯失败', logError: true }
+        { failureMessage: '确认海克斯选择失败', logError: true }
       ),
     acknowledgeCardEntrance: (entranceId) =>
       runViewerCommand(

@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { CircleHelp, RefreshCw, Check, LockKeyhole, UserRound } from 'lucide-react';
+import { CircleHelp, RefreshCw, Check, UserRound } from 'lucide-react';
 import { DialogShell, ActionButton } from '@/components/common';
 import { HextechEmblem } from '@/components/hextech/HextechEmblem';
 import { useGameStore } from '@/store/gameStore';
@@ -37,7 +37,7 @@ export function HextechSelectionPanel({
     choice?.key === key && offer?.candidates[choice.slot]?.definitionId === choice.definitionId
       ? choice.slot
       : null;
-  const status = locked ? '等待对方选择' : readOnly ? '等待双方选择' : '选择一项海克斯';
+  const status = locked ? '已确认，等待对方选择' : readOnly ? '等待双方选择' : '选择一项海克斯';
 
   return (
     <>
@@ -69,7 +69,7 @@ export function HextechSelectionPanel({
                   className="hextech-player-progress"
                   data-locked={seatLocked}
                   role="img"
-                  aria-label={`${match.participants[seat].name} · ${seatLocked ? '已锁定' : '选择中'}`}
+                  aria-label={`${match.participants[seat].name} · ${seatLocked ? '已确认' : '选择中'}`}
                   title={match.participants[seat].name}
                 >
                   <span className="hextech-player-marker" aria-hidden="true">
@@ -97,8 +97,8 @@ export function HextechSelectionPanel({
         footer={
           <div className="hextech-selection-footer">
             <p role="status">
-              {locked && <LockKeyhole size={15} aria-hidden="true" />}
-              {busy ? '正在提交…' : locked || readOnly ? status : '锁定后不可更改'}
+              {locked && <Check size={16} aria-hidden="true" />}
+              {busy ? '正在处理…' : locked || readOnly ? status : '每项可重抽一次，确认后无法更改'}
             </p>
             {!readOnly && offer && !locked && (
               <ActionButton
@@ -108,8 +108,7 @@ export function HextechSelectionPanel({
                   select(selection.turn, selectedSlot, offer.candidates[selectedSlot].definitionId)
                 }
               >
-                <LockKeyhole size={16} aria-hidden="true" />
-                锁定选择
+                确认选择
               </ActionButton>
             )}
           </div>
@@ -124,7 +123,7 @@ export function HextechSelectionPanel({
             aria-label="海克斯选择规则说明"
           >
             系统随机稀有度，双方同时选择。候选仅自己可见，每项可重抽一次，可能与其他项重复。
-            双方锁定后公开并生效。
+            双方确认后公开并生效。
           </div>
         )}
         {offer && (
@@ -158,17 +157,19 @@ export function HextechSelectionPanel({
                     </div>
                     <p>{candidate.rulesText}</p>
                   </label>
-                  <button
-                    type="button"
-                    className="button-ghost hextech-reroll"
-                    disabled={readOnly || locked || busy || !canReroll || candidate.rerolled}
-                    aria-label={`重抽第 ${slot + 1} 项：${candidate.name}，剩余 ${candidate.rerolled ? 0 : 1} 次`}
-                    title={candidate.rerolled ? '本项重抽次数已用完' : '重抽此项，剩余 1 次'}
-                    onClick={() => reroll(selection.turn, slot, candidate.definitionId)}
-                  >
-                    <RefreshCw size={14} aria-hidden="true" />
-                    <span aria-hidden="true">{candidate.rerolled ? 0 : 1}</span>
-                  </button>
+                  {!locked && (
+                    <button
+                      type="button"
+                      className="button-ghost hextech-reroll"
+                      disabled={readOnly || locked || busy || !canReroll || candidate.rerolled}
+                      aria-label={`重抽第 ${slot + 1} 项：${candidate.name}，剩余 ${candidate.rerolled ? 0 : 1} 次`}
+                      title={candidate.rerolled ? '本项重抽次数已用完' : '重抽此项，剩余 1 次'}
+                      onClick={() => reroll(selection.turn, slot, candidate.definitionId)}
+                    >
+                      <RefreshCw size={14} aria-hidden="true" />
+                      <span aria-hidden="true">重抽 · {candidate.rerolled ? '0/1' : '1/1'}</span>
+                    </button>
+                  )}
                 </article>
               );
             })}

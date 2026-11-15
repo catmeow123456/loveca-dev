@@ -265,19 +265,21 @@ test('双方真人桌面自动显示稀有度、独立重抽和确认，支持�
     },
   ];
   await secondDialog.getByRole('radio').nth(0).check();
-  await expect(secondDialog.getByText('锁定后不可更改', { exact: true })).toBeVisible();
-  await secondDialog.getByRole('button', { name: '锁定选择' }).click();
-  await expect(secondDialog.getByText('等待对方选择', { exact: true })).toBeVisible();
+  await expect(
+    secondDialog.getByText('每项可重抽一次，确认后无法更改', { exact: true })
+  ).toBeVisible();
+  await second.screenshot({ path: info.outputPath('hextech-selected.png') });
+  await secondDialog.getByRole('button', { name: '确认选择' }).click();
+  await expect(secondDialog.getByText('已确认，等待对方选择', { exact: true })).toBeVisible();
   await expect(secondDialog.getByRole('radio').nth(0)).toBeChecked();
   for (const control of await secondDialog.getByRole('radio').all())
     await expect(control).toBeDisabled();
-  for (const control of await secondDialog.getByRole('button', { name: /^重抽第/ }).all())
-    await expect(control).toBeDisabled();
+  await expect(secondDialog.getByRole('button', { name: /^重抽第/ })).toHaveCount(0);
   await second.screenshot({ path: info.outputPath('hextech-locked-waiting.png') });
   expect(match.session.state!.hextech!.owned).toHaveLength(0);
-  await expect(firstDialog.getByRole('img', { name: '后攻玩家 · 已锁定' })).toBeVisible();
+  await expect(firstDialog.getByRole('img', { name: '后攻玩家 · 已确认' })).toBeVisible();
   await firstDialog.getByRole('radio').nth(1).check();
-  await firstDialog.getByRole('button', { name: '锁定选择' }).click();
+  await firstDialog.getByRole('button', { name: '确认选择' }).click();
   await expect(firstDialog).toHaveCount(0);
   await expect(secondDialog).toHaveCount(0);
   expect(match.session.state!.hextech!.owned).toHaveLength(2);

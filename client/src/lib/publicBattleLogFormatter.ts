@@ -605,7 +605,7 @@ function buildSingleEventView(
       ) {
         const labels: Record<string, string> = {
           REROLL_HEXTECH: '重抽一项海克斯',
-          SELECT_HEXTECH: '锁定海克斯选择',
+          SELECT_HEXTECH: '确认海克斯选择',
           ACTIVATE_HEXTECH: '发动海克斯',
           RESOLVE_HEXTECH_SEARCH: '完成海克斯检索',
         };
