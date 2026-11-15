@@ -1,0 +1,28 @@
+.hextech-emblem {
+  display: block;
+  flex: none;
+  width: 28px;
+  height: 32px;
+  color: var(--accent-primary);
+}
+.hextech-emblem-shell {
+  fill: color-mix(in srgb, currentColor 10%, transparent);
+}
+.hextech-emblem-core {
+  fill: color-mix(in srgb, currentColor 18%, transparent);
+}
+.hextech-emblem[data-rarity='SILVER'] {
+  color: var(--text-secondary);
+}
+.hextech-emblem[data-rarity='GOLD'] {
+  color: var(--accent-gold);
+}
+.hextech-emblem[data-rarity='PRISMATIC'] {
+  color: var(--heart-purple);
+}
+.hextech-emblem[data-rarity='PRISMATIC'] .hextech-emblem-shell {
+  stroke: var(--brand-ready-aqua);
+}
+.hextech-emblem[data-rarity='PRISMATIC'] .hextech-emblem-facet {
+  stroke: var(--brand-coral);
+}

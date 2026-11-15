@@ -136,10 +136,6 @@
   );
 }
 .hextech-pool-item > header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
   margin-bottom: 8px;
 }
 .hextech-pool-item h4 {
@@ -159,14 +155,6 @@
   display: block;
   margin-bottom: 3px;
   color: var(--text-secondary);
-  font-size: 11px;
-}
-.hextech-pool-rarity {
-  flex: none;
-  padding: 1px 7px;
-  border-radius: 4px;
-  color: var(--text-primary);
-  background: var(--bg-elevated);
   font-size: 11px;
 }
 .hextech-pool-empty {

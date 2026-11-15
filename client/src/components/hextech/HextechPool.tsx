@@ -166,7 +166,6 @@ export function HextechPool({
                   <article key={item.id} className="hextech-pool-item" data-rarity={tier}>
                     <header>
                       <h4>{item.name}</h4>
-                      <span className="hextech-pool-rarity">{HEXTECH_RARITY_LABELS[tier]}色</span>
                     </header>
                     {item.effect.kind === 'ACQUIRE_DRAW' && <small>取得时</small>}
                     <p>{item.rulesText}</p>

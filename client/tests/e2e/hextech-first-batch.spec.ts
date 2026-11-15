@@ -14,6 +14,7 @@ async function readState(page: Page) {
     const state = store.gameSession.state;
     return {
       phase: state.currentPhase,
+      viewerSeat: store.getViewerSeat(),
       counts: state.players.map(
         (player: { hand: { cardIds: string[] } }) => player.hand.cardIds.length
       ),
@@ -71,6 +72,16 @@ test('双人调试指定首批海克斯，换牌后取得并能查看；重开�
   await page.screenshot({ path: info.outputPath('hextech-board.png') });
   await page.keyboard.press('Escape');
   await expect(held).toHaveCount(0);
+  if ((page.viewportSize()?.width ?? 0) >= 1024) {
+    const beforeSwitch = await readState(page);
+    const perspectives = page.getByRole('radiogroup', { name: '调试视角' });
+    await perspectives.getByRole('radio', { name: /^P2 视角/ }).check();
+    await expect.poll(() => readState(page)).toEqual({ ...beforeSwitch, viewerSeat: 'SECOND' });
+    await perspectives.getByRole('radio', { name: /^P2 视角/ }).press('ArrowLeft');
+    await expect(perspectives.getByRole('radio', { name: /^P1 视角/ })).toBeChecked();
+    await expect.poll(() => readState(page)).toEqual(beforeSwitch);
+    await page.screenshot({ path: info.outputPath('hextech-debug-toolbar.png') });
+  }
   const restarted = await page.evaluate(async () => {
     const path = performance
       .getEntriesByType('resource')

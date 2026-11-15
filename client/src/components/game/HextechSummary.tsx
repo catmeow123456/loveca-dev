@@ -1,8 +1,11 @@
 import { useRef, useState } from 'react';
+import { ChevronDown, Zap } from 'lucide-react';
 import { ActionButton, Disclosure } from '@/components/common';
 import { HextechPool } from '@/components/hextech/HextechPool';
+import { HextechEmblem } from '@/components/hextech/HextechEmblem';
 import type { MatchViewState } from '@game/online/types';
 import { HEXTECH_RARITY_LABELS } from '@game/domain/hextech/catalog';
+import './hextech-summary.css';
 
 export function HextechSummary({
   match,
@@ -15,10 +18,24 @@ export function HextechSummary({
   const [poolOpen, setPoolOpen] = useState(false);
   const summaryRef = useRef<HTMLElement>(null);
   if (!match.hextech) return null;
+  const canActivate = Boolean(onActivate && match.hextech.abilities?.length);
   return (
     <>
       <Disclosure
-        summary="海克斯"
+        className="hextech-summary"
+        data-ready={canActivate}
+        summary={
+          <>
+            <HextechEmblem />
+            <span>海克斯</span>
+            {canActivate && (
+              <span className="hextech-summary-ready" role="img" aria-label="有可发动的海克斯">
+                <Zap size={14} aria-hidden="true" />
+              </span>
+            )}
+            <ChevronDown className="hextech-summary-chevron" size={14} aria-hidden="true" />
+          </>
+        }
         variant="popover"
         open={open}
         onToggle={(event) => {

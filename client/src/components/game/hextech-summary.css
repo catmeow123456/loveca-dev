@@ -1,0 +1,40 @@
+.hextech-summary > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 3px 10px 3px 6px;
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 35%, var(--border-default));
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--accent-primary) 7%, var(--bg-surface));
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  list-style: none;
+}
+.hextech-summary > summary::-webkit-details-marker {
+  display: none;
+}
+.hextech-summary > summary:hover,
+.hextech-summary[open] > summary {
+  border-color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 13%, var(--bg-surface));
+}
+.hextech-summary-chevron {
+  color: var(--text-secondary);
+}
+.hextech-summary[open] .hextech-summary-chevron {
+  transform: rotate(180deg);
+}
+.hextech-summary[data-ready='true'] > summary {
+  border-color: var(--accent-primary);
+}
+.hextech-summary-ready {
+  display: flex;
+  color: var(--accent-primary);
+}
+@media (max-width: 639px) {
+  .hextech-summary > summary {
+    min-height: 44px;
+  }
+}
