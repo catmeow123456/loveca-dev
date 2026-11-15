@@ -7,12 +7,15 @@ import type {
 } from '../../online/casual-table-types.js';
 
 export const SEALED_ENVIRONMENT_ID = 'CASUAL_SEALED_BP7_V1';
+export const HEXTECH_ENVIRONMENT_ID = 'CASUAL_HEXTECH_V1';
 export function casualFormat(environmentId: string): CasualFormat {
   if (environmentId === SEALED_ENVIRONMENT_ID) return 'SEALED_BP7';
+  if (environmentId === HEXTECH_ENVIRONMENT_ID) return 'HEXTECH';
   casualRuleMode(environmentId);
   return 'CONSTRUCTED';
 }
 export function casualEnvironment(ruleMode: CasualRuleMode, format: CasualFormat): string {
+  if (format === 'HEXTECH') return HEXTECH_ENVIRONMENT_ID;
   return format === 'SEALED_BP7' ? SEALED_ENVIRONMENT_ID : CASUAL_ENVIRONMENTS[ruleMode];
 }
 export const CASUAL_ENVIRONMENT_ID = 'CASUAL_TABLE_V1';
@@ -23,7 +26,11 @@ export const CASUAL_ENVIRONMENTS: Record<CasualRuleMode, string> = {
 
 export function casualRuleMode(environmentId: string): CasualRuleMode {
   if (environmentId === CASUAL_ENVIRONMENTS.NORMAL) return 'NORMAL';
-  if (environmentId === SEALED_ENVIRONMENT_ID || environmentId === CASUAL_ENVIRONMENTS.UNLIMITED)
+  if (
+    environmentId === HEXTECH_ENVIRONMENT_ID ||
+    environmentId === SEALED_ENVIRONMENT_ID ||
+    environmentId === CASUAL_ENVIRONMENTS.UNLIMITED
+  )
     return 'UNLIMITED';
   throw new Error(`Unknown casual rule environment: ${environmentId}`);
 }
@@ -97,8 +104,13 @@ export async function readCasualLobby(
   userId: string,
   anchor: number,
   ruleMode: CasualRuleMode,
-  format: CasualFormat
+  format?: CasualFormat
 ): Promise<CasualLobbyRow[]> {
+  const formats: CasualFormat[] =
+    ruleMode === 'UNLIMITED' ? ['CONSTRUCTED', 'SEALED_BP7', 'HEXTECH'] : ['CONSTRUCTED'];
+  const environments = formats
+    .filter((entry) => !format || entry === format)
+    .map((entry) => casualEnvironment(ruleMode, entry));
   const client = await database.connect();
   try {
     const result = await client.query<CasualLobbyRow>(
@@ -116,9 +128,9 @@ export async function readCasualLobby(
        LEFT JOIN casual_table_seats AS seat ON seat.table_id = tables.id
        LEFT JOIN profiles AS profile ON profile.id = seat.user_id
        WHERE tables.discoverability = 'PUBLIC' AND tables.state <> 'CLOSED'
-         AND tables.created_at <= $2 AND tables.environment_id = $3
+         AND tables.created_at <= $2 AND tables.environment_id = ANY($3::text[])
        GROUP BY tables.id`,
-      [userId, new Date(anchor), casualEnvironment(ruleMode, format)]
+      [userId, new Date(anchor), environments]
     );
     return result.rows;
   } finally {

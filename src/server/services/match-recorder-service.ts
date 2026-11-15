@@ -1423,6 +1423,10 @@ function buildTransitionDedupeKey(
 
 function summarizePublicEvent(event: PublicEvent): string {
   switch (event.type) {
+    case 'HextechSelectionStarted':
+      return `海克斯选择：第 ${event.turn} 回合`;
+    case 'HextechAcquired':
+      return `取得海克斯：${event.name}`;
     case 'EffectFeedback':
       return '成员心／刀反馈';
     case 'PhaseStarted':

@@ -14,6 +14,10 @@ export interface PlayerCommandPolicyDecision {
 }
 
 const COMMAND_CATEGORIES = {
+  [GameCommandType.REROLL_HEXTECH]: 'FLOW_INPUT',
+  [GameCommandType.SELECT_HEXTECH]: 'FLOW_INPUT',
+  [GameCommandType.ACTIVATE_HEXTECH]: 'NORMAL_RULE_ACTION',
+  [GameCommandType.RESOLVE_HEXTECH_SEARCH]: 'FLOW_INPUT',
   [GameCommandType.ACK_CARD_ENTRANCE]: 'NORMAL_RULE_ACTION',
   [GameCommandType.MULLIGAN]: 'NORMAL_RULE_ACTION',
   [GameCommandType.SET_LIVE_CARD]: 'NORMAL_RULE_ACTION',
@@ -79,6 +83,37 @@ export function getPlayerCommandPolicyDecision(
   if (commandType === GameCommandType.SURRENDER) {
     return decision(category, !state.isEnded, state.isEnded ? '对局已结束，不能再认输' : null);
   }
+
+  const hextech = state.hextech?.draft?.pending;
+  const isHextech =
+    commandType === GameCommandType.REROLL_HEXTECH ||
+    commandType === GameCommandType.SELECT_HEXTECH;
+  if (hextech || isHextech) {
+    const index = state.players.findIndex((player) => player.id === playerId);
+    const allowed =
+      !state.isEnded &&
+      index >= 0 &&
+      !!hextech &&
+      isHextech &&
+      hextech.offers[index]?.selectedIndex === undefined;
+    return decision(category, allowed, '请先完成海克斯选择');
+  }
+  const search = state.hextech?.pendingSearch;
+  if (search || commandType === GameCommandType.RESOLVE_HEXTECH_SEARCH) {
+    const source = state.hextech?.owned.find(
+      (item) => item.instanceId === search?.sourceInstanceId
+    );
+    return decision(
+      category,
+      !state.isEnded &&
+        !!search &&
+        source?.playerId === playerId &&
+        commandType === GameCommandType.RESOLVE_HEXTECH_SEARCH,
+      '请先完成海克斯取得效果'
+    );
+  }
+  if (state.hextech?.acquisitionQueue?.length)
+    return decision(category, false, '请先完成海克斯取得效果');
 
   if (commandType === GameCommandType.ACK_CARD_ENTRANCE) {
     const allowed =
@@ -193,6 +228,7 @@ function getRulesModeTimingBlockedReason(
         ? null
         : '只能在自己的主要阶段登场成员';
     case GameCommandType.ACTIVATE_ABILITY:
+    case GameCommandType.ACTIVATE_HEXTECH:
       return state.currentPhase === GamePhase.MAIN_PHASE && state.currentSubPhase === SubPhase.NONE
         ? null
         : '当前不是可发动起动效果的主阶段';

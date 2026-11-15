@@ -1672,7 +1672,7 @@ export const casualTables = pgTable(
     ),
     check(
       'casual_tables_environment_check',
-      sql`${table.environmentId} IN ('CASUAL_TABLE_V1', 'CASUAL_UNLIMITED_PT_V1', 'CASUAL_SEALED_BP7_V1')`
+      sql`${table.environmentId} IN ('CASUAL_TABLE_V1', 'CASUAL_UNLIMITED_PT_V1', 'CASUAL_SEALED_BP7_V1', 'CASUAL_HEXTECH_V1')`
     ),
     check('casual_tables_note_check', sql`char_length(${table.note}) <= 40`),
     check(

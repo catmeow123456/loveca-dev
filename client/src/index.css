@@ -740,7 +740,6 @@ html:has(.battle-viewport-shell) {
     padding-top: max(6px, env(safe-area-inset-top));
   }
 
-  .battle-mobile-phase-header,
   .battle-mobile-seat-summary,
   .battle-mobile-seat-summary > :is(button, div) {
     padding-block: 4px;

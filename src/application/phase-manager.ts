@@ -224,6 +224,17 @@ export class PhaseManager {
     }
   }
 
+  getPhaseEntryEffects(
+    game: GameState
+  ): Pick<PhaseTransitionResult, 'autoActions' | 'triggeredConditions'> {
+    return {
+      autoActions: getPhaseAutoActions(game.currentPhase).map((config) =>
+        this.convertAutoAction(config, game.players[game.activePlayerIndex].id)
+      ),
+      triggeredConditions: getPhaseTriggerConditions(game.currentPhase),
+    };
+  }
+
   /**
    * 检查是否可以结束当前阶段
    *

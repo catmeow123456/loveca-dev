@@ -1,4 +1,7 @@
 import { GameCommandType } from '../application/game-commands.js';
+import { getHextechDefinition } from '../domain/hextech/catalog.js';
+import { getHextechActivation, getHextechSearch } from '../application/hextech/abilities.js';
+import { getPlayerById, getCardById } from '../domain/entities/game.js';
 import { isShizukuSec } from '../shared/card-entrance.js';
 import { N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID } from '../application/card-effects/ability-ids.js';
 import {
@@ -341,6 +344,31 @@ export function projectPlayerViewState(
   const match: MatchViewState = {
     matchId: game.gameId,
     rulesetId: game.rulesetId,
+    ...(game.hextech
+      ? {
+          hextech: {
+            rulesVersion: game.hextech.rulesVersion,
+            ...buildHextechAbilityView(game, viewerPlayerId),
+            ...(!game.isEnded && game.hextech.draft?.pending
+              ? {
+                  selection: buildHextechSelectionView(game, viewerPlayerId),
+                }
+              : {}),
+            owned: game.hextech.owned.map((owned) => {
+              const definition = getHextechDefinition(owned.definitionId)!;
+              return {
+                instanceId: owned.instanceId,
+                definitionId: owned.definitionId,
+                ownerSeat: getSeatForPlayer(game, owned.playerId)!,
+                name: definition.name,
+                rarity: definition.rarity,
+                rulesText: definition.rulesText,
+                acquiredTurn: owned.acquiredTurn,
+              };
+            }),
+          },
+        }
+      : {}),
     viewerSeat,
     participants: {
       FIRST: { id: game.players[0].id, name: game.players[0].name },
@@ -1064,7 +1092,8 @@ function addMemberSlotZones(
                 modifier.kind === 'HEART' &&
                 modifier.target === 'TARGET_MEMBER' &&
                 modifier.targetMemberCardId === occupantId &&
-                modifier.abilityId === 'PL!N-bp8-005:continuous-stage-red-hearts'
+                modifier.abilityId === 'PL!N-bp8-005:continuous-stage-red-hearts' &&
+                modifier.sourceCardId !== undefined
                   ? [
                       {
                         sourceObjectId: createPublicObjectId(modifier.sourceCardId),
@@ -1595,6 +1624,38 @@ function buildPermissionViewState(
   viewerSeat: Seat,
   options: { readonly allowRulesModeSuccessLiveSkip: boolean }
 ): PermissionViewState {
+  const search = getHextechSearch(game);
+  if (search && !game.isEnded)
+    return {
+      availableCommands:
+        search.source.playerId === viewerPlayerId
+          ? [
+              buildCommandHint(GameCommandType.RESOLVE_HEXTECH_SEARCH, {
+                params: { instanceId: search.source.instanceId },
+              }),
+            ]
+          : [],
+    };
+  const selection = game.hextech?.draft?.pending;
+  if (selection) {
+    const ownOffer =
+      selection.offers[game.players.findIndex((player) => player.id === viewerPlayerId)];
+    const commands = [
+      GameCommandType.SELECT_HEXTECH,
+      ...(ownOffer?.candidates.some((candidate) => !candidate.rerolled)
+        ? [GameCommandType.REROLL_HEXTECH]
+        : []),
+    ];
+    return {
+      availableCommands: filterCommandHintsByPolicy(
+        game,
+        viewerPlayerId,
+        commands.map((command) =>
+          buildCommandHint(command, { params: { selectionTurn: selection.turn } })
+        )
+      ),
+    };
+  }
   const pendingSpecialPlay = game.pendingSpecialMemberPlay ?? null;
   if (pendingSpecialPlay) {
     const pendingUi = getSpecialMemberPlayPendingUiConfig(pendingSpecialPlay);
@@ -2160,6 +2221,7 @@ function buildPhaseCommandHint(
         }),
       });
     case GameCommandType.ACTIVATE_ABILITY:
+    case GameCommandType.ACTIVATE_HEXTECH:
       return buildCommandHint(command, {
         scope: createCommandScope({
           zoneKeys: [
@@ -2381,6 +2443,92 @@ function buildSettlementSelectionHint(
         (getManualOperationMode(game) === 'FREE' || options.allowRulesModeSuccessLiveSkip),
     },
   });
+}
+
+function buildHextechAbilityView(
+  game: GameState,
+  viewerPlayerId: string
+): Pick<import('./types.js').HextechViewState, 'abilities' | 'pendingSearch'> {
+  if (game.isEnded) return {};
+  const cards = (playerId: string, ids: readonly string[]) => {
+    const player = getPlayerById(game, playerId)!;
+    return ids
+      .map((id) => {
+        const card = getCardById(game, id)!;
+        return {
+          objectId: createPublicObjectId(id),
+          frontInfo: buildFrontInfo(card),
+          zone: player.hand.cardIds.includes(id)
+            ? '手牌'
+            : player.mainDeck.cardIds.includes(id)
+              ? '主卡组'
+              : player.waitingRoom.cardIds.includes(id)
+                ? '休息室'
+                : '成员区',
+        };
+      })
+      .sort(
+        (a, b) =>
+          a.frontInfo.cardCode.localeCompare(b.frontInfo.cardCode) ||
+          a.objectId.localeCompare(b.objectId)
+      );
+  };
+  const search = getHextechSearch(game);
+  return {
+    ...(search
+      ? {
+          pendingSearch: {
+            instanceId: search.source.instanceId,
+            ownerSeat: getSeatForPlayer(game, search.source.playerId)!,
+            ...(search.source.playerId === viewerPlayerId
+              ? {
+                  requiredCount: search.count,
+                  candidates: cards(viewerPlayerId, search.candidates),
+                }
+              : {}),
+          },
+        }
+      : {}),
+    abilities: (game.hextech?.owned ?? []).flatMap((owned) => {
+      const action = getHextechActivation(game, viewerPlayerId, owned.instanceId);
+      return action
+        ? [
+            {
+              instanceId: owned.instanceId,
+              min: action.min,
+              max: action.max,
+              selectionLabel:
+                action.kind === 'ACTIVATED_DISCARD_DRAW'
+                  ? '请选择要放置入休息室的手牌'
+                  : '请选择要待机的己方成员',
+              candidates: cards(viewerPlayerId, action.candidates),
+            },
+          ]
+        : [];
+    }),
+  };
+}
+
+function buildHextechSelectionView(
+  game: GameState,
+  viewerPlayerId: string
+): NonNullable<import('./types.js').HextechViewState['selection']> {
+  const pending = game.hextech!.draft!.pending!;
+  const offer = pending.offers[game.players.findIndex((player) => player.id === viewerPlayerId)];
+  return {
+    turn: pending.turn,
+    rarity: pending.rarity,
+    lockedSeats: pending.offers.flatMap((entry, index) =>
+      entry.selectedIndex === undefined ? [] : [getSeatByPlayerIndex(index)]
+    ),
+    ownOffer: {
+      selectedIndex: offer.selectedIndex,
+      candidates: offer.candidates.map((candidate) => {
+        const definition = getHextechDefinition(candidate.definitionId)!;
+        return { ...candidate, name: definition.name, rulesText: definition.rulesText };
+      }),
+    },
+  };
 }
 
 function buildCommandHint(

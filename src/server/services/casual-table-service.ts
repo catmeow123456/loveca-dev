@@ -187,7 +187,8 @@ export class CasualTableService {
     const parsed = parse(
       z.object({
         ruleMode: ruleModeSchema.default('NORMAL'),
-        format: z.enum(['CONSTRUCTED', 'SEALED_BP7']).default('CONSTRUCTED'),
+        format: z.enum(['CONSTRUCTED', 'SEALED_BP7', 'HEXTECH']).optional(),
+        preferredFormat: z.enum(['CONSTRUCTED', 'SEALED_BP7', 'HEXTECH']).optional(),
         filter: z.enum(['ALL', 'WAITING', 'PLAYING']).optional(),
         search: z.string().trim().max(80).optional(),
         spectatable: z.boolean().optional(),
@@ -200,6 +201,7 @@ export class CasualTableService {
     const signature = JSON.stringify([
       parsed.ruleMode,
       parsed.format,
+      parsed.preferredFormat,
       parsed.filter ?? 'ALL',
       parsed.search ?? '',
       parsed.spectatable ?? false,
@@ -265,9 +267,13 @@ export class CasualTableService {
               value.toLocaleLowerCase().includes(parsed.search!.toLocaleLowerCase())
             ))
       )
-      .sort((a, b) => compareLobbyKeys(lobbyKey(a), lobbyKey(b)));
+      .sort((a, b) =>
+        compareLobbyKeys(lobbyKey(a, parsed.preferredFormat), lobbyKey(b, parsed.preferredFormat))
+      );
     const remaining = after
-      ? filtered.filter((row) => compareLobbyKeys(lobbyKey(row), after!) > 0)
+      ? filtered.filter(
+          (row) => compareLobbyKeys(lobbyKey(row, parsed.preferredFormat), after!) > 0
+        )
       : filtered;
     const rooms = remaining.slice(0, 50);
     return {
@@ -278,7 +284,11 @@ export class CasualTableService {
       nextCursor:
         remaining.length > 50
           ? Buffer.from(
-              JSON.stringify({ anchor, signature, after: lobbyKey(rooms[rooms.length - 1]) })
+              JSON.stringify({
+                anchor,
+                signature,
+                after: lobbyKey(rooms[rooms.length - 1], parsed.preferredFormat),
+              })
             ).toString('base64url')
           : null,
     };
@@ -523,7 +533,7 @@ export class CasualTableService {
     parse(targetSchema, target);
     parse(entrySchema, input);
     parse(z.boolean(), publishNewRoom);
-    if (input.format !== 'CONSTRUCTED') throw changed();
+    if (input.format === 'SEALED_BP7') throw changed();
     await this.assertGameplayAvailable();
     const [deck, rules] = await Promise.all([
       this.loadEntryDeck(userId, input),
@@ -846,7 +856,7 @@ export class CasualTableService {
     const ruleMode = await withCasualAdmission(this.database, async (client) => {
       const table = await this.requireTable(client, target);
       await this.requireOwnSeat(client, table, userId);
-      assertFormat(table, 'CONSTRUCTED');
+      if (casualFormat(table.environment_id) === 'SEALED_BP7') throw changed();
       return casualRuleMode(table.environment_id);
     });
     return this.loadDeck(userId, deckId, ruleMode);
@@ -1924,7 +1934,7 @@ export class CasualTableService {
         participants.rowCount === 2 &&
         runtime.departedUserIds.length === 0,
       canContinuePublic:
-        casualFormat(table.environment_id) === 'CONSTRUCTED' &&
+        casualFormat(table.environment_id) !== 'SEALED_BP7' &&
         runtime?.status === 'ENDED' &&
         participants.rowCount === 1,
     };
@@ -2051,9 +2061,15 @@ export const casualTableService = new CasualTableService({
   loadRoomLifecycleTimeoutConfig: () => battleTimeoutConfigService.getRoomLifecycleTimeoutConfig(),
 });
 
-function lobbyKey(row: CasualRoomSummary): [number, number, string] {
+function lobbyKey(
+  row: CasualRoomSummary,
+  preferredFormat?: CasualFormat
+): [number, number, string] {
+  // Four status ranks per group keep the preferred format together across pages.
+  const formatRank = preferredFormat && row.format !== preferredFormat ? 4 : 0;
   return [
-    { WAITING: 0, RESERVED: 1, BUILDING: 1, OPENING: 1, PLAYING: 2, ENDED: 3 }[row.status],
+    formatRank +
+      { WAITING: 0, RESERVED: 1, BUILDING: 1, OPENING: 1, PLAYING: 2, ENDED: 3 }[row.status],
     row.since,
     row.tableId,
   ];

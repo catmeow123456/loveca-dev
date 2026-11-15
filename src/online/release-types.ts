@@ -1,4 +1,5 @@
 import type { CasualRuleMode } from '../domain/rules/deck-construction.js';
+import type { CasualFormat } from './casual-table-types.js';
 import type { Seat } from './types.js';
 import type { RemoteCommandResult, RemoteMatchSnapshot } from './remote-match-types.js';
 import type { MatchOriginKind } from './replay-types.js';
@@ -74,6 +75,7 @@ export interface OnlineRoomEndView {
 
 export interface OnlineRoomView {
   readonly casualTable?: {
+    readonly format: CasualFormat;
     readonly tableId: string;
     readonly roundId: string;
     readonly ruleMode: CasualRuleMode;

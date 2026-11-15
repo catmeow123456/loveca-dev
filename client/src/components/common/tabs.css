@@ -40,3 +40,33 @@
   cursor: not-allowed;
   opacity: 0.5;
 }
+
+.ui-choice-control--underline {
+  gap: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.ui-choice-control--underline .ui-choice-label {
+  position: relative;
+  flex: none;
+  min-width: 44px;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-weight: 400;
+}
+.ui-choice-control--underline .ui-choice-label[aria-selected='true'] {
+  background: none;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.ui-choice-control--underline .ui-choice-label[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: var(--accent-primary);
+}

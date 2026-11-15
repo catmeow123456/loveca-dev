@@ -1,4 +1,6 @@
 import { useTextPresentation } from '@/lib/appPresentation';
+import { InitialHextechPicker } from '@/components/game/InitialHextechPicker';
+import type { InitialHextechSetup } from '@game/domain/hextech/state';
 /**
  * GameSetupPage - 对墙打与双人调试的卡组准备
  * 在同一页选择卡组并开始（双人调试同时准备双方卡组）
@@ -83,6 +85,7 @@ export function GameSetupPage({
   const [hasManualSelectedP1Deck, setHasManualSelectedP1Deck] = useState(false);
   const [hasManualSelectedP2Deck, setHasManualSelectedP2Deck] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
+  const [initialHextech, setInitialHextech] = useState<InitialHextechSetup>([[], []]);
   const [error, setError] = useState<string | null>(null);
   const isDebugMode = gameMode === GameMode.DEBUG;
   const offlineMode = useAuthStore((s) => s.offlineMode);
@@ -277,7 +280,14 @@ export function GameSetupPage({
       // 创建游戏会话
       const p2Name =
         gameMode === GameMode.SOLITAIRE ? '对手（模拟）' : (selectedP2Deck?.name ?? 'Player 2');
-      createGame(createLocalGameId(), 'player-1', p1Config.player_name, 'player-2', p2Name);
+      createGame(
+        createLocalGameId(),
+        'player-1',
+        p1Config.player_name,
+        'player-2',
+        p2Name,
+        isDebugMode && initialHextech.some((items) => items.length > 0) ? initialHextech : undefined
+      );
 
       // 初始化游戏
       initializeGame(
@@ -422,6 +432,13 @@ export function GameSetupPage({
             </div>
           ))}
         </div>
+        {isDebugMode && (
+          <InitialHextechPicker
+            value={initialHextech}
+            onChange={setInitialHextech}
+            disabled={isStarting}
+          />
+        )}
         {error && <ErrorNotice message={error} className="game-setup-error" />}
         <footer className="game-setup-footer">
           <ActionButton variant="ghost" disabled={isStarting} onClick={onBack}>

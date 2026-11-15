@@ -1,0 +1,44 @@
+.battle-perspective-switch {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+}
+.battle-perspective-switch label {
+  position: relative;
+  cursor: pointer;
+}
+.battle-perspective-switch input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.battle-perspective-switch label > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  border-bottom: 2px solid transparent;
+  border-radius: 4px 4px 0 0;
+  font-size: 13px;
+}
+.battle-perspective-switch input:checked + span {
+  color: var(--text-primary);
+  border-bottom-color: var(--text-primary);
+  background: var(--bg-elevated);
+  font-weight: 600;
+}
+.battle-perspective-switch input:focus-visible + span {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+.battle-perspective-switch label:hover > span {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+}

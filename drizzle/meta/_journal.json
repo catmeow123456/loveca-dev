@@ -337,6 +337,13 @@
       "when": 1793987175784,
       "tag": "0047_deck_classifier_recent_window",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1794070261138,
+      "tag": "0048_add_hextech_casual_format",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,10 @@ import type { HeartRequirement } from '../entities/card.js';
 export interface HeartRequirementModifier {
   readonly color: HeartColor;
   readonly countDelta: number;
+  /** Clear generic/gray requirements after every additive modifier is applied. */
+  readonly clearGeneric?: true;
+  /** Increase each currently required ordinary color after additive modifiers. */
+  readonly addToEachRequiredColor?: number;
 }
 
 /**
@@ -38,8 +42,12 @@ export function applyHeartRequirementModifiers(
     requirement.totalRequired - specificRequiredTotal,
     explicitGeneric
   );
+  let clearGeneric = false;
+  let addToEachRequiredColor = 0;
 
   for (const modifier of modifiers) {
+    clearGeneric ||= modifier.clearGeneric === true;
+    addToEachRequiredColor += modifier.addToEachRequiredColor ?? 0;
     if (modifier.countDelta === 0) {
       continue;
     }
@@ -55,6 +63,19 @@ export function applyHeartRequirementModifiers(
       colorRequirements.set(modifier.color, next);
     } else {
       colorRequirements.delete(modifier.color);
+    }
+  }
+
+  if (clearGeneric) {
+    genericRequired = 0;
+  }
+  if (addToEachRequiredColor !== 0) {
+    for (const [color, count] of colorRequirements) {
+      if (count > 0) {
+        const next = Math.max(0, count + addToEachRequiredColor);
+        if (next > 0) colorRequirements.set(color, next);
+        else colorRequirements.delete(color);
+      }
     }
   }
 

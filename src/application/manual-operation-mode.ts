@@ -1,3 +1,4 @@
+import { hasPendingHextechInput } from '../domain/hextech/state.js';
 import type { GameState } from '../domain/entities/game.js';
 import { hasPendingAbilityOrChoice } from '../domain/entities/game.js';
 import { SubPhase } from '../shared/types/enums.js';
@@ -23,6 +24,8 @@ export function getManualOperationModeSwitchBlockedReason(state: GameState): str
   if (state.isEnded) {
     return '对局已结束，不能切换操作模式';
   }
+
+  if (hasPendingHextechInput(state)) return '请先完成海克斯选择';
 
   if (hasPendingAbilityOrChoice(state) || (state.delegatedAbilitySequence ?? null) !== null) {
     return '请先处理当前卡牌效果或费用';

@@ -13,6 +13,9 @@ export interface DialogShellProps {
   description?: ReactNode;
   icon?: ReactNode;
   navigation?: ReactNode;
+  headerNavigation?: ReactNode;
+  headerActions?: ReactNode;
+  className?: string;
   children?: ReactNode;
   footer?: ReactNode;
   onClose: () => void;
@@ -31,6 +34,9 @@ export function DialogShell({
   description,
   icon,
   navigation,
+  headerNavigation,
+  headerActions,
+  className,
   children,
   footer,
   onClose,
@@ -68,7 +74,7 @@ export function DialogShell({
         aria-modal="true"
         aria-labelledby={`${id}-title`}
         tabIndex={-1}
-        className={cn('modal-surface ui-dialog', `ui-dialog--${size}`)}
+        className={cn('modal-surface ui-dialog', `ui-dialog--${size}`, className)}
       >
         <header className="modal-header ui-dialog-header">
           {icon && (
@@ -82,6 +88,8 @@ export function DialogShell({
             </h2>
             {description && <div className="ui-dialog-description">{description}</div>}
           </div>
+          {headerNavigation}
+          {headerActions}
           <ActionButton
             ref={closeRef}
             variant="icon"
