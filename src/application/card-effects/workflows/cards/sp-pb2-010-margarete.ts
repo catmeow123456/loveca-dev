@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -173,7 +174,7 @@ function finishLiveStartDecision(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -223,7 +224,7 @@ function finishLiveStartDiscard(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -348,7 +349,7 @@ function finishSelectedEnergyReturn(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.stepId !== LIVE_START_SELECT_RETURN_ENERGY_STEP_ID ||
@@ -452,7 +453,7 @@ function finishLiveSuccessOption(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -546,7 +547,7 @@ function returnEnergyFromZoneToDeck(
 function finishPendingEffect(
   game: GameState,
   playerId: string,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   payload: Record<string, unknown>,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
@@ -599,7 +600,7 @@ function finishPendingAbility(
 }
 
 function effectToPendingAbility(
-  effect: NonNullable<GameState['activeEffect']>
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>
 ): PendingAbilityState {
   return {
     id: effect.id,

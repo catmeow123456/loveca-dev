@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -317,7 +318,7 @@ function finishDirectMillTopDecision(
   config: DirectMillTopConfig,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -365,7 +366,7 @@ function finishDirectMillTopWorkflow(
   continuePendingCardEffects: ContinuePendingCardEffects,
   config: DirectMillTopConfig
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.stepId) {
     return game;
   }

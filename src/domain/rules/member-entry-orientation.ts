@@ -1,3 +1,4 @@
+import { isCardAbilitySuppressedByDarkHextech } from '../hextech/suppression.js';
 import { calculateTotalHearts, isMemberCardData } from '../entities/card.js';
 import { getCardById, getPlayerById, type GameState } from '../entities/game.js';
 import { OrientationState, SlotPosition } from '../../shared/types/enums.js';
@@ -50,7 +51,11 @@ export function resolveMemberEntryOrientation(
     );
     const sourceCardId = sourcePlayer.memberSlots.slots[sourceSlot];
     const sourceCard = sourceCardId ? getCardById(game, sourceCardId) : null;
-    if (!sourceCard || !isMemberCardData(sourceCard.data)) {
+    if (
+      !sourceCard ||
+      isCardAbilitySuppressedByDarkHextech(game, sourceCard.instanceId) ||
+      !isMemberCardData(sourceCard.data)
+    ) {
       continue;
     }
 

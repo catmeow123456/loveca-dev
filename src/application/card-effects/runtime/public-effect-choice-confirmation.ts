@@ -1,3 +1,5 @@
+import type { ResolvingEffectState } from '../../../domain/entities/game.js';
+import { getCardActiveEffect } from '../../../domain/entities/game.js';
 import type { ActiveEffectState, GameState } from '../../../domain/entities/game.js';
 import { EnergySelectionRequiredError } from '../../effects/energy-selection.js';
 import { createActiveEffectEnergySelectionWindow } from './energy-operation-selection.js';
@@ -107,8 +109,9 @@ export function createPublicEffectChoiceConfirmationWindow(
 }
 
 export function isPublicEffectChoiceAutoAdvanceEffect(
-  effect: ActiveEffectState | null | undefined
+  effect: ResolvingEffectState | null | undefined
 ): effect is ActiveEffectState {
+  if (effect?.sourceCardId === undefined) return false;
   return (
     effect?.stepId === PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID &&
     effect.metadata?.publicEffectChoiceConfirmationContinuation !== undefined
@@ -116,7 +119,7 @@ export function isPublicEffectChoiceAutoAdvanceEffect(
 }
 
 export function getPublicEffectChoiceAutoAdvanceMetadata(
-  effect: ActiveEffectState | null | undefined
+  effect: ResolvingEffectState | null | undefined
 ): PublicEffectChoiceAutoAdvanceMetadata | null {
   if (!isPublicEffectChoiceAutoAdvanceEffect(effect)) return null;
   if (
@@ -132,7 +135,7 @@ export function attachPublicEffectChoiceAutoAdvanceDeadline(
   game: GameState,
   now: number
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!isPublicEffectChoiceAutoAdvanceEffect(effect)) return game;
   if (getPublicEffectChoiceAutoAdvanceMetadata(effect)) return game;
   return {

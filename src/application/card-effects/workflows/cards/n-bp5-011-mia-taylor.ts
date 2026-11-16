@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -152,7 +153,7 @@ function startMiaDistinctLiveRecovery(
 }
 
 function startMiaRecoverySelection(game: GameState, selectedOptionId: string | null): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== N_BP5_011_ON_ENTER_CHOOSE_DISTINCT_LIVE_RECOVERY_ABILITY_ID ||
@@ -230,7 +231,7 @@ function finishMiaLiveRecovery(
   selectedCardIds: readonly string[] | undefined,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== N_BP5_011_ON_ENTER_CHOOSE_DISTINCT_LIVE_RECOVERY_ABILITY_ID ||
@@ -382,7 +383,7 @@ function getWaitingRoomLiveCardIds(game: GameState, playerId: string): readonly 
 }
 
 function getNumberMetadata(
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   key: string
 ): number {
   const value = effect.metadata?.[key];

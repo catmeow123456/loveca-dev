@@ -1,3 +1,5 @@
+import { appendTriggeredAbility, recordTriggeredAbility } from '../../runtime/enqueue-pending-ability.js';
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -210,8 +212,8 @@ function enqueueMemberWaitedDiscardActivateObservers(
             triggerTurnType: game.currentTurnType,
           },
         };
-        state = addAction(
-          { ...state, pendingAbilities: [...state.pendingAbilities, pendingAbility] },
+        state = recordTriggeredAbility(
+          { ...state, pendingAbilities: appendTriggeredAbility(state, pendingAbility) },
           'TRIGGER_ABILITY',
           player.id,
           {
@@ -299,7 +301,7 @@ function finishMemberWaitedDiscardActivate(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== config.abilityId ||
@@ -407,7 +409,7 @@ function finishMemberWaitedTargetSelection(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== config.abilityId ||
@@ -458,7 +460,7 @@ function resolveMemberWaitedDiscardActivateTarget(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (!effect || effect.abilityId !== config.abilityId || !player) {
     return game;
@@ -542,7 +544,7 @@ function finishPaidEffectWithoutTarget(
   continuePendingCardEffects: ContinuePendingCardEffects,
   step: string
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (!effect || effect.abilityId !== config.abilityId || !player) {
     return game;

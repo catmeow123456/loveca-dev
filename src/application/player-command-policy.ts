@@ -112,6 +112,7 @@ export function getPlayerCommandPolicyDecision(
       '请先完成海克斯取得效果'
     );
   }
+  if (state.hextech?.pendingAcquisition) return decision(category, !state.isEnded && commandType === GameCommandType.CONFIRM_EFFECT_STEP && state.activeEffect?.awaitingPlayerId === playerId, '请先完成海克斯取得效果');
   if (state.hextech?.acquisitionQueue?.length)
     return decision(category, false, '请先完成海克斯取得效果');
 

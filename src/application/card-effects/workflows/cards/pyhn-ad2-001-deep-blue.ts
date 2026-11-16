@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import { addAction, getCardById, getPlayerById } from '../../../../domain/entities/game.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
@@ -100,7 +101,7 @@ export function registerPyhnAd2001DeepBlueWorkflowHandlers(): void {
     ABILITY_ID,
     SELECT_HAND_STEP,
     (game, input, runtime) => {
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       if (!effect || !input.selectedCardId) return game;
       const move = moveHandCardToDeckTopForPlayer(game, effect.controllerId, input.selectedCardId, {
         candidateCardIds: effect.selectableCardIds ?? [],

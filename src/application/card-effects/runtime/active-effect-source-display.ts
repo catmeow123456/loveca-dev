@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../domain/entities/game.js';
 import type { GameState } from '../../../domain/entities/game.js';
 import { findCardZone } from '../../../domain/entities/player.js';
 import { isZoneCardPublicFront } from '../../../online/visibility.js';
@@ -40,10 +41,10 @@ function isCardPublicFront(game: GameState, cardId: string): boolean {
  * after that source leaves a public zone. Hidden sources never gain a snapshot.
  */
 export function preserveActiveEffectSourceDisplay(before: GameState, after: GameState): GameState {
-  const effect = after.activeEffect;
+  const effect = getCardActiveEffect(after);
   if (!effect || effect.sourceCardDisplayCode) return after;
 
-  const previousEffect = before.activeEffect;
+  const previousEffect = getCardActiveEffect(before);
   if (
     previousEffect?.id === effect.id &&
     previousEffect?.sourceCardId === effect.sourceCardId &&

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { queryOptionSelection, queryCardSelection } from '../../runtime/selection-query.js';
 import { isMemberCardData, type CardInstance } from '../../../../domain/entities/card.js';
 import {
@@ -781,7 +782,7 @@ function finishOptionalSourceOrientationLookTopWorkflow(
     readonly enqueueMemberStateChangedCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged;
   }
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -1022,7 +1023,7 @@ export function resolveLookTopSelectToHandSelection(
   >,
   customSelectionValidator?: LookTopSelectSelectionValidator
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }
@@ -1055,7 +1056,7 @@ export function finishRevealedLookTopSelectToHandWorkflow(
   >,
   customSelectionValidator?: LookTopSelectSelectionValidator
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }
@@ -1076,7 +1077,7 @@ function revealLookTopSelectToHandSelection(
   selectedCardIds: readonly string[],
   metadata: LookTopSelectToHandMetadata
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || !metadata.revealStepId || !metadata.revealStepText) {
     return game;
   }
@@ -1135,7 +1136,7 @@ function finishLookTopSelectToHandWorkflow(
     'continuePendingCardEffects' | 'enqueueTriggeredCardEffects'
   >
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }
@@ -1204,7 +1205,7 @@ function validateLookTopSelection(
   metadata: LookTopSelectToHandMetadata,
   customSelectionValidator?: LookTopSelectSelectionValidator
 ): boolean {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
   if (!effect || uniqueSelectedCardIds.length !== selectedCardIds.length) {
     return false;

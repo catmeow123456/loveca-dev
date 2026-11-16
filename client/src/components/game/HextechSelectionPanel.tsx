@@ -122,7 +122,7 @@ export function HextechSelectionPanel({
             role="note"
             aria-label="海克斯选择规则说明"
           >
-            系统随机稀有度，双方同时选择。候选仅自己可见，每项可重抽一次，可能与其他项重复。
+            系统随机稀有度，双方同时选择。候选仅自己可见，每项可重抽一次。{match.hextech?.rulesVersion === 'DARK_HEXTECH_V1' ? '候选不重复，且排除自己已持有的能力。' : '重抽可能与其他项重复。'}
             双方确认后公开并生效。
           </div>
         )}

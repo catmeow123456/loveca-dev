@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -37,7 +38,7 @@ export function registerPlPb2013UmiWorkflowHandlers(deps: {
     checkRevealed(game, deps.enqueueTriggeredCardEffects, context.continuePendingCardEffects)
   );
   registerActiveEffectStepHandler(ABILITY_ID, SELECT_LIVE, (game, input, context) => {
-    const effect = game.activeEffect;
+    const effect = getCardActiveEffect(game);
     if (!effect || effect.stepId !== SELECT_LIVE) return game;
     if (!isCurrentRevealValid(game, effect) || !allLilyWhite(game, effect))
       return finish(game, effect, context.continuePendingCardEffects, 'REVEALED_TOP_CHANGED');
@@ -121,7 +122,7 @@ function allLilyWhite(game: GameState, effect: ActiveEffectState): boolean {
 }
 
 function checkRevealed(game: GameState, enqueue: Enqueue, continuation: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== CHECK_REVEAL) return game;
   if (!isCurrentRevealValid(game, effect))
     return finish(game, effect, continuation, 'REVEALED_TOP_CHANGED');

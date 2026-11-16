@@ -1,15 +1,15 @@
+import { getCardActiveEffect } from '../../../domain/entities/game.js';
 import type {
   ActiveEffectState,
   GameAction,
   GameState,
   PendingAbilityState,
 } from '../../../domain/entities/game.js';
-import { TriggerCondition, ZoneType } from '../../../shared/types/enums.js';
+import { getCardLifecycleId } from '../../../domain/rules/card-lifecycle.js';
+export { getStageMemberLifecycleId } from '../../../domain/rules/card-lifecycle.js';
 import { CardAbilitySourceZone } from '../ability-definition-types.js';
 import { findCardAbilityDefinitionById } from '../definitions/lookup.js';
 import { preserveActiveEffectSourceDisplay } from './active-effect-source-display.js';
-
-const SOURCE_LIFECYCLE_PREFIX = 'source-lifecycle';
 
 interface AbilityInvocationContext {
   readonly abilityId: string;
@@ -36,20 +36,6 @@ function getLifecycleEntryKind(abilityId: string): 'STAGE_MEMBER' | 'LIVE_CARD' 
   return null;
 }
 
-function getReferenceEventSequence(
-  game: GameState,
-  eventIds: readonly string[] | undefined
-): number | undefined {
-  if (!eventIds || eventIds.length === 0) {
-    return undefined;
-  }
-  const eventIdSet = new Set(eventIds);
-  const sequences = game.eventLog
-    .filter((entry) => eventIdSet.has(entry.event.eventId))
-    .map((entry) => entry.sequence);
-  return sequences.length > 0 ? Math.min(...sequences) : undefined;
-}
-
 /**
  * Returns the rules-object lifecycle for a per-turn-limited ability source.
  *
@@ -66,45 +52,6 @@ export function getAbilitySourceLifecycleId(
   eventIds?: readonly string[]
 ): string {
   return getCardLifecycleId(game, getLifecycleEntryKind(abilityId), sourceCardId, eventIds);
-}
-
-/** Current stage rules object, independent of the selecting ability's source zone. */
-export function getStageMemberLifecycleId(game: GameState, cardId: string): string {
-  return getCardLifecycleId(game, 'STAGE_MEMBER', cardId);
-}
-
-function getCardLifecycleId(
-  game: GameState,
-  entryKind: 'STAGE_MEMBER' | 'LIVE_CARD' | null,
-  sourceCardId: string,
-  eventIds?: readonly string[]
-): string {
-  const referenceSequence = getReferenceEventSequence(game, eventIds);
-  const entry = [...game.eventLog].reverse().find((candidate) => {
-    if (referenceSequence !== undefined && candidate.sequence > referenceSequence) {
-      return false;
-    }
-    const event = candidate.event;
-    if (entryKind === 'STAGE_MEMBER') {
-      return (
-        event.eventType === TriggerCondition.ON_ENTER_STAGE &&
-        event.cardInstanceId === sourceCardId &&
-        event.fromZone !== ZoneType.MEMBER_SLOT
-      );
-    }
-    if (entryKind === 'LIVE_CARD') {
-      return (
-        event.eventType === TriggerCondition.ON_ENTER_LIVE_ZONE &&
-        event.cardInstanceId === sourceCardId &&
-        event.fromZone !== ZoneType.LIVE_ZONE
-      );
-    }
-    return false;
-  });
-
-  return entry
-    ? `${SOURCE_LIFECYCLE_PREFIX}:event:${entry.event.eventId}`
-    : `${SOURCE_LIFECYCLE_PREFIX}:initial:${entryKind ?? 'OTHER'}:${sourceCardId}`;
 }
 
 export function getPendingAbilitySourceLifecycleId(
@@ -143,7 +90,10 @@ export function capturePendingAbilitySourceLifecycles(game: GameState): GameStat
   const capturedByPendingId = new Map<string, string>();
   let pendingChanged = false;
   const pendingAbilities = game.pendingAbilities.map((ability) => {
-    if (!hasPerTurnLimit(ability.abilityId) && ability.abilityInstanceId === undefined) {
+    if (
+      ability.sourceCardId === undefined ||
+      (!hasPerTurnLimit(ability.abilityId) && ability.abilityInstanceId === undefined)
+    ) {
       return ability;
     }
     const sourceLifecycleId = getPendingAbilitySourceLifecycleId(game, ability);
@@ -264,7 +214,7 @@ export function propagateAbilityInvocationContext(
     context.sourceLifecycleId ??
     getAbilitySourceLifecycleId(before, context.abilityId, context.sourceCardId, context.eventIds);
 
-  let activeEffect = after.activeEffect;
+  let activeEffect = getCardActiveEffect(after);
   const activeEffectMatchesAbilityInstance =
     activeEffect !== null &&
     (context.abilityInstanceId !== undefined

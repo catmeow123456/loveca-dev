@@ -1,3 +1,4 @@
+import type { HextechPool } from '../domain/hextech/catalog.js';
 import type { CardType } from '../shared/types/enums.js';
 import type { BladeHearts } from '../domain/entities/card.js';
 export type CasualTableState =
@@ -44,6 +45,7 @@ export interface SealedPoolView {
 
 export interface CasualTableEntryInput {
   readonly format: CasualFormat;
+  readonly hextechPool?: HextechPool;
   readonly ruleMode: CasualRuleMode;
   readonly requestId: string;
   readonly deckId?: string;
@@ -60,6 +62,7 @@ export interface CreateCasualTableInput extends CasualTableEntryInput {
 /** Private preparation projection. Only the caller's deck identity is included. */
 export interface CasualTableOwnView extends CasualTableCommandTarget {
   readonly format: CasualFormat;
+  readonly hextechPool?: HextechPool;
   readonly sealedPool: SealedPoolView | null;
   readonly sealedRematch: SealedRematch | null;
   readonly ruleMode: CasualRuleMode;
@@ -124,6 +127,7 @@ export interface CasualRuntimeView {
 
 export interface CasualRoomSummary extends CasualTableCommandTarget {
   readonly format: CasualFormat;
+  readonly hextechPool?: HextechPool;
   readonly ruleMode: CasualRuleMode;
   readonly roomCode: string;
   readonly note: string;

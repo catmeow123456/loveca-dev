@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -140,7 +141,7 @@ function recycle(
   selectedIds: readonly string[],
   continuation: Continue
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== RECYCLE) return game;
   const original = effect.metadata?.candidateCardIds;
   const current = new Set(candidates(game, effect.controllerId));
@@ -223,7 +224,7 @@ function openTarget(
 }
 
 function grantHearts(game: GameState, id: string | null, continuation: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== ABILITY_ID ||

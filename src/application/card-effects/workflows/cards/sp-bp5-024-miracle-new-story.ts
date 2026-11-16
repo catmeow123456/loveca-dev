@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   isLiveCardData,
   isMemberCardData,
@@ -122,7 +123,7 @@ function finishChooseHeartForMovedMembers(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== SP_BP5_024_LIVE_START_CHOOSE_HEART_FOR_MOVED_STAGE_MEMBERS_ABILITY_ID ||

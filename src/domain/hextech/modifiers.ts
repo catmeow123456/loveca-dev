@@ -1,3 +1,4 @@
+import { collectDarkHextechModifiers } from './dark-modifiers.js';
 import type { GameState, LiveModifierState } from '../entities/game.js';
 import { getCardById, getPlayerById } from '../entities/game.js';
 import { isLiveCardData, isMemberCardData, type HeartIcon } from '../entities/card.js';
@@ -57,6 +58,8 @@ export function collectHextechLiveModifiers(
       abilityId: `hextech:${owned.definitionId}`,
     };
     switch (effect?.kind) {
+      case 'DARK':
+        return collectDarkHextechModifiers(game, owned, effect.effect);
       case 'HEART':
         return [{ ...source, kind: 'HEART', target: 'PLAYER', hearts: effect.hearts }];
       case 'BLADE':

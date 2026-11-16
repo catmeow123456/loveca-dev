@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -211,7 +212,7 @@ function finishChikaBottomInspection(
 }
 
 function getExpectedEffect(game: GameState): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   return effect?.abilityId === S_BP7_010_ON_ENTER_LOOK_BOTTOM_ONE_OPTIONAL_DECK_FOURTH_ABILITY_ID &&
     effect.stepId === CHOOSE_DECK_DESTINATION_STEP_ID
     ? effect

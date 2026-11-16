@@ -1,3 +1,4 @@
+import { appendTriggeredAbility, recordTriggeredAbility } from './enqueue-pending-ability.js';
 import {
   addAction,
   getCardById,
@@ -172,10 +173,10 @@ function enqueueSingleEnergyPlacedByCardEffectCardEffect(
       },
     };
 
-    state = addAction(
+    state = recordTriggeredAbility(
       {
         ...state,
-        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+        pendingAbilities: appendTriggeredAbility(state, pendingAbility),
       },
       'TRIGGER_ABILITY',
       pendingAbility.controllerId,

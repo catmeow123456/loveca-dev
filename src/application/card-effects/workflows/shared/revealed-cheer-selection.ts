@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { getCheerCardEffectiveBladeHearts } from '../../../../domain/rules/live-modifiers.js';
 import { moveRevealedCheerCardsAndEnqueueTriggers } from '../../runtime/revealed-cheer-movement-triggers.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
@@ -454,7 +455,7 @@ export function syncHsBp6027ManualCheerAdjustment(
   options: SyncHsBp6027ManualCheerAdjustmentOptions = {},
   dependencies: SyncHsBp6027ManualCheerAdjustmentDependencies
 ): GameState {
-  const activeEffect = game.activeEffect;
+  const activeEffect = getCardActiveEffect(game);
   if (isHsBp6027CheerSelectionEffect(activeEffect)) {
     return refreshHsBp6027ManualCheerSelection(
       game,
@@ -671,7 +672,7 @@ function finishRevealedCheerSelectionWorkflow(
   selectedCardIdOrIds: string | readonly string[] | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.metadata?.cheerRevealedCardSelection !== true) {
     return game;
   }

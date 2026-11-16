@@ -50,10 +50,12 @@ test('娱乐模式海克斯标签预选建房玩法并使用自选卡组', async
     expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   }
   await page.screenshot({ path: info.outputPath('hextech-create-dialog.png'), fullPage: true });
+  await dialog.getByRole('button', { name: '黑暗池 · 24 项', exact: true }).click();
   await dialog.getByRole('button', { name: '创建海克斯房间', exact: true }).click();
   expect(writes).toEqual([
     expect.objectContaining({
       format: 'HEXTECH',
+      hextechPool: 'DARK',
       ruleMode: 'UNLIMITED',
       deckId: expect.any(String),
     }),
@@ -62,7 +64,7 @@ test('娱乐模式海克斯标签预选建房玩法并使用自选卡组', async
 
 // Real OnlineMatchService and shared OnlineRoomPage/GameBoard; only HTTP and persistence
 // are isolated. No account decks, active local rooms or production APIs are changed.
-test('双方真人桌面自动显示稀有度、独立重抽和确认，支持后攻先确认及重连', async ({
+for (const pool of ['NORMAL', 'DARK'] as const) test(`${pool}池双方真人桌面独立重抽和确认，支持后攻先确认及重连`, async ({
   page,
   browser,
 }, info) => {
@@ -101,6 +103,7 @@ test('双方真人桌面自动显示稀有度、独立重抽和确认，支持�
   const match = await service.createMatch({
     roomCode: 'HEX123',
     hextechRoundSelection: true,
+    hextechPool: pool,
     casualRuleMode: 'UNLIMITED',
     first: participant('first-user', '先攻玩家'),
     second: participant('second-user', '后攻玩家'),
@@ -121,7 +124,7 @@ test('双方真人桌面自动显示稀有度、独立重抽和确认，支持�
     const seat = index === 0 ? 'FIRST' : 'SECOND';
     const userId = index === 0 ? 'first-user' : 'second-user';
     const room: OnlineRoomView = {
-      casualTable: { format: 'HEXTECH', ruleMode: 'UNLIMITED', tableId: 'table', roundId: 'round' },
+      casualTable: { hextechPool: pool, format: 'HEXTECH', ruleMode: 'UNLIMITED', tableId: 'table', roundId: 'round' },
       roomCode: 'HEX123',
       originKind: 'ONLINE_ROOM',
       status: 'IN_GAME',
@@ -285,7 +288,7 @@ test('双方真人桌面自动显示稀有度、独立重抽和确认，支持�
   expect(match.session.state!.hextech!.owned).toHaveLength(2);
   await page
     .locator('summary')
-    .filter({ hasText: /^海克斯$/ })
+    .filter({ hasText: pool === 'DARK' ? /^黑暗海克斯$/ : /^海克斯$/ })
     .click();
   for (const { playerId, candidate } of chosen) {
     expect(

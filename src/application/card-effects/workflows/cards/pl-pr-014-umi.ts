@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -115,7 +116,7 @@ function revealSelectedHandCards(
   selectionTokens: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== SELECT_HAND_CARDS_STEP_ID) return game;
   const opponent = getOpponent(game, effect.controllerId);
   if (!opponent) return game;
@@ -188,7 +189,7 @@ function finishResolution(
   game: GameState,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== CONFIRM_REVEALED_HAND_CARDS_STEP_ID) return game;
   const player = getPlayerById(game, effect.controllerId);
   if (!player || typeof effect.metadata?.revealedHadLive !== 'boolean') return game;

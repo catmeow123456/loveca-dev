@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -150,7 +151,7 @@ function startHanamaruLiveStartWorkflow(
 }
 
 function startDiscardCostSelection(game: GameState): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (!effect || !player || effect.stepId !== PAY_OR_DISCARD_STEP_ID) {
     return game;
@@ -191,7 +192,7 @@ function finishPayEnergyCost(
   game: GameState,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (!effect || !player || effect.stepId !== PAY_OR_DISCARD_STEP_ID) {
     return game;
@@ -229,7 +230,7 @@ function finishDiscardCost(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
   if (
@@ -273,7 +274,7 @@ function finishDiscardCost(
 
 function continueAfterCost(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   continuePendingCardEffects: ContinuePendingCardEffects,
   costKind: 'PAY_ENERGY' | 'DISCARD_HAND',
   payload: Readonly<Record<string, unknown>>
@@ -346,7 +347,7 @@ function finishTargetSelection(
   selectedCardIds: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
   const maxCount = effect?.maxSelectableCards ?? 0;

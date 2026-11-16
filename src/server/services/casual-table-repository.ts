@@ -1,3 +1,4 @@
+import type { HextechPool } from '../../domain/hextech/catalog.js';
 import type { CasualFormat, SealedRematch } from '../../online/casual-table-types.js';
 import type { Pool, PoolClient } from 'pg';
 import type {
@@ -8,14 +9,18 @@ import type {
 
 export const SEALED_ENVIRONMENT_ID = 'CASUAL_SEALED_BP8_V1';
 export const HEXTECH_ENVIRONMENT_ID = 'CASUAL_HEXTECH_V1';
+export const DARK_HEXTECH_ENVIRONMENT_ID = 'CASUAL_DARK_HEXTECH_V1';
+export function casualHextechPool(environmentId: string): HextechPool | undefined {
+  return environmentId === DARK_HEXTECH_ENVIRONMENT_ID ? 'DARK' : environmentId === HEXTECH_ENVIRONMENT_ID ? 'NORMAL' : undefined;
+}
 export function casualFormat(environmentId: string): CasualFormat {
   if (environmentId === SEALED_ENVIRONMENT_ID) return 'SEALED_BP8';
-  if (environmentId === HEXTECH_ENVIRONMENT_ID) return 'HEXTECH';
+  if (casualHextechPool(environmentId)) return 'HEXTECH';
   casualRuleMode(environmentId);
   return 'CONSTRUCTED';
 }
-export function casualEnvironment(ruleMode: CasualRuleMode, format: CasualFormat): string {
-  if (format === 'HEXTECH') return HEXTECH_ENVIRONMENT_ID;
+export function casualEnvironment(ruleMode: CasualRuleMode, format: CasualFormat, hextechPool: HextechPool = 'NORMAL'): string {
+  if (format === 'HEXTECH') return hextechPool === 'DARK' ? DARK_HEXTECH_ENVIRONMENT_ID : HEXTECH_ENVIRONMENT_ID;
   return format === 'SEALED_BP8' ? SEALED_ENVIRONMENT_ID : CASUAL_ENVIRONMENTS[ruleMode];
 }
 export const CASUAL_ENVIRONMENT_ID = 'CASUAL_TABLE_V1';
@@ -28,6 +33,7 @@ export function casualRuleMode(environmentId: string): CasualRuleMode {
   if (environmentId === CASUAL_ENVIRONMENTS.NORMAL) return 'NORMAL';
   if (
     environmentId === HEXTECH_ENVIRONMENT_ID ||
+    environmentId === DARK_HEXTECH_ENVIRONMENT_ID ||
     environmentId === SEALED_ENVIRONMENT_ID ||
     environmentId === CASUAL_ENVIRONMENTS.UNLIMITED
   )
@@ -110,7 +116,7 @@ export async function readCasualLobby(
     ruleMode === 'UNLIMITED' ? ['CONSTRUCTED', 'SEALED_BP8', 'HEXTECH'] : ['CONSTRUCTED'];
   const environments = formats
     .filter((entry) => !format || entry === format)
-    .map((entry) => casualEnvironment(ruleMode, entry));
+    .flatMap((entry) => entry === 'HEXTECH' ? [HEXTECH_ENVIRONMENT_ID, DARK_HEXTECH_ENVIRONMENT_ID] : [casualEnvironment(ruleMode, entry)]);
   const client = await database.connect();
   try {
     const result = await client.query<CasualLobbyRow>(

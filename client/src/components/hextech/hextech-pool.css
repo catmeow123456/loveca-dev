@@ -228,3 +228,21 @@
     line-height: 1.75;
   }
 }
+
+.hextech-pool-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 16px;
+  min-width: 0;
+}
+@media (max-width: 639px) {
+  .hextech-pool-filters {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding-block: 4px;
+  }
+  .hextech-pool-filters .hextech-pool-tabs {
+    gap: 16px;
+  }
+}

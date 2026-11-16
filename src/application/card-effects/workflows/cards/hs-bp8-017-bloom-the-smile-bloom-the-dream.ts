@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -47,7 +48,7 @@ export function registerHsBp8017BloomTheSmileBloomTheDreamWorkflowHandlers(deps:
     ABILITY_ID,
     DISCARD_STEP,
     (game, input, context) => {
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       if (!effect || !input.selectedCardId) return game;
       const discard = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
         game,
@@ -99,7 +100,7 @@ export function registerHsBp8017BloomTheSmileBloomTheDreamWorkflowHandlers(deps:
     ABILITY_ID,
     TARGET_STEP,
     (game, input, context) => {
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       if (
         !effect ||
         !input.selectedCardId ||

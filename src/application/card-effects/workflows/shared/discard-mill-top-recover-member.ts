@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -92,7 +93,7 @@ export function registerDiscardMillTopRecoverMemberWorkflowHandlers(deps: {
         : finishWithoutPayment(game, config, context.continuePendingCardEffects)
     );
     registerActiveEffectStepHandler(config.abilityId, config.recoverStepId, (game, input, context) => {
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       const currentCandidateCardIds = effect
         ? selectWaitingRoomCardIds(game, effect.controllerId, config.recoverSelector)
         : [];
@@ -155,7 +156,7 @@ function finishWithoutPayment(
   config: DiscardMillTopRecoverMemberConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.discardStepId) {
     return game;
   }
@@ -178,7 +179,7 @@ function finishDiscardMillTopRecoverMember(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -82,7 +83,7 @@ export function registerPlPb2018NicoWorkflowHandlers(deps: {
     });
   });
   registerActiveEffectStepHandler(ACTIVATE_DRAW, SELECT_ACTIVATE, (game, input, context) => {
-    const effect = game.activeEffect!;
+    const effect = getCardActiveEffect(game)!;
     const ordered = effect.metadata?.orderedResolution === true;
     if (!sourceIsEligible(game, effect))
       return finish(game, effect, ordered, context.continuePendingCardEffects, 'SOURCE_INVALID');
@@ -202,7 +203,7 @@ export function registerPlPb2018NicoWorkflowHandlers(deps: {
       });
     });
     registerActiveEffectStepHandler(abilityId, SELECT_DISCARD, (game, input, context) => {
-      const effect = game.activeEffect!;
+      const effect = getCardActiveEffect(game)!;
       const ordered = effect.metadata?.orderedResolution === true;
       if (!sourceIsEligible(game, effect))
         return finish(game, effect, ordered, context.continuePendingCardEffects, 'SOURCE_INVALID');
@@ -259,7 +260,7 @@ export function registerPlPb2018NicoWorkflowHandlers(deps: {
       return startWaitTarget(paid, effect, context.continuePendingCardEffects);
     });
     registerActiveEffectStepHandler(abilityId, SELECT_WAIT, (game, input, context) => {
-      const effect = game.activeEffect!;
+      const effect = getCardActiveEffect(game)!;
       const ordered = effect.metadata?.orderedResolution === true;
       if (!ownStageOnlyBibi(game, effect.controllerId))
         return finish(

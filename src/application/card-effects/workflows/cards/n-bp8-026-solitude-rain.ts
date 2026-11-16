@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   type GameState,
@@ -72,7 +73,7 @@ export function registerNBp8026SolitudeRainWorkflowHandlers(): void {
     ABILITY_ID,
     STEP_ID,
     (game, input, runtime) => {
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       const id = input.selectedCardId;
       if (!effect || effect.stepId !== STEP_ID || !id || !effect.selectableCardIds?.includes(id))
         return game;

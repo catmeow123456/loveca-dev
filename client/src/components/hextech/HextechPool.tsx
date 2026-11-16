@@ -2,7 +2,8 @@ import { useId, useRef, useState, type RefObject } from 'react';
 import { ArrowLeft, Search, X } from 'lucide-react';
 import { ActionButton, DialogShell, Tabs, TextInput } from '@/components/common';
 import {
-  HEXTECH_DEFINITIONS,
+  getHextechDefinitions,
+  type HextechPool as HextechPoolKind,
   HEXTECH_RARITY_LABELS,
   type HextechRarity,
 } from '@game/domain/hextech/catalog';
@@ -20,12 +21,16 @@ const DRAW_KINDS = new Set(['ACQUIRE_DRAW', 'ACQUIRE_AND_TURN_DRAW', 'ACTIVATED_
 export function HextechPool({
   onClose,
   presentation = 'dialog',
+  initialPool = 'NORMAL',
   returnFocusRef,
 }: {
   onClose: () => void;
   presentation?: 'dialog' | 'page';
+  initialPool?: HextechPoolKind;
   returnFocusRef?: RefObject<HTMLElement | null>;
 }) {
+  const [pool, setPool] = useState<HextechPoolKind>(initialPool);
+  const definitions = getHextechDefinitions(pool);
   const id = useId();
   const panelId = `${id}-results`;
   const [rarity, setRarity] = useState<RarityFilter>('ALL');
@@ -35,14 +40,14 @@ export function HextechPool({
   const toggleRef = useRef<HTMLButtonElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const term = query.trim().toLocaleLowerCase();
-  const matches = HEXTECH_DEFINITIONS.filter(
+  const matches = definitions.filter(
     (item) =>
       (rarity === 'ALL' || item.rarity === rarity) &&
       `${item.name} ${item.rulesText} ${DRAW_KINDS.has(item.effect.kind) ? '抽牌' : ''}`
         .toLocaleLowerCase()
         .includes(term)
   );
-  const total = HEXTECH_DEFINITIONS.length;
+  const total = definitions.length;
   const scrollToTop = () => resultsRef.current?.scrollTo({ top: 0 });
   const closeSearch = () => {
     setSearchOpen(false);
@@ -59,19 +64,35 @@ export function HextechPool({
     </>
   );
   const tabs = (
-    <Tabs<RarityFilter>
-      id={id}
-      panelId={panelId}
-      label="海克斯稀有度"
-      value={rarity}
-      options={OPTIONS}
-      variant="underline"
-      className="hextech-pool-tabs"
-      onChange={(value) => {
-        setRarity(value);
-        scrollToTop();
-      }}
-    />
+    <div className="hextech-pool-filters">
+      <Tabs<HextechPoolKind>
+        id={`${id}-pool`}
+        panelId={panelId}
+        label="海克斯卡池"
+        value={pool}
+        options={[
+          { value: 'NORMAL', label: '普通池' },
+          { value: 'DARK', label: '黑暗池' },
+        ]}
+        onChange={(value) => {
+          setPool(value);
+          scrollToTop();
+        }}
+      />
+      <Tabs<RarityFilter>
+        id={id}
+        panelId={panelId}
+        label="海克斯稀有度"
+        value={rarity}
+        options={OPTIONS}
+        variant="underline"
+        className="hextech-pool-tabs"
+        onChange={(value) => {
+          setRarity(value);
+          scrollToTop();
+        }}
+      />
+    </div>
   );
   const searchButton = (
     <ActionButton
@@ -169,6 +190,7 @@ export function HextechPool({
                     </header>
                     {item.effect.kind === 'ACQUIRE_DRAW' && <small>取得时</small>}
                     <p>{item.rulesText}</p>
+                    {item.group && <small>{item.group === 'DISRUPTION' ? '干扰' : '双刃剑'}</small>}
                   </article>
                 ))}
               </div>

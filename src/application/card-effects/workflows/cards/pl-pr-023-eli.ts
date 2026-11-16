@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -194,7 +195,7 @@ function payWaitMemberCost(
   selectedCardId: string | null,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_PR_023_ACTIVATED_WAIT_OWN_MEMBER_DISCARD_DRAW_ONE_ABILITY_ID ||
@@ -287,7 +288,7 @@ function payDiscardCostAndDraw(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_PR_023_ACTIVATED_WAIT_OWN_MEMBER_DISCARD_DRAW_ONE_ABILITY_ID ||

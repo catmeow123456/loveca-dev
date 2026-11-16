@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   isMemberCardData,
   type CardInstance,
@@ -210,7 +211,7 @@ function startMutekikyuBeliever(
   );
   return startPendingActiveEffect(stateWithDwell, {
     ability,
-    activeEffect: stateWithDwell.activeEffect!,
+    activeEffect: getCardActiveEffect(stateWithDwell)!,
     playerId: player.id,
     actionPayload: {
       sourceCardId: ability.sourceCardId,
@@ -474,7 +475,7 @@ function moveInspectionAndFinishWithoutHeart(
 }
 
 function getActiveMutekikyuEffect(game: GameState, stepId: string): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== N_BP5_029_LIVE_START_REVEAL_KASUMI_HEARTS_ABILITY_ID ||

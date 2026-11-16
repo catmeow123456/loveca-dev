@@ -1,3 +1,5 @@
+import { appendTriggeredAbility, recordTriggeredAbility } from '../../runtime/enqueue-pending-ability.js';
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -119,7 +121,7 @@ function enqueueKosuzuWithoutOtherDollchestra(
         ability.sourceCardId === source.sourceCardId &&
         getPendingAbilitySourceLifecycleId(state, ability) === sourceLifecycleId
     );
-    const effect = state.activeEffect;
+    const effect = getCardActiveEffect(state);
     const active =
       effect?.abilityId === ABILITY_ID &&
       effect.controllerId === source.playerId &&
@@ -138,8 +140,8 @@ function enqueueKosuzuWithoutOtherDollchestra(
       timingId: 'STATE_CONDITION',
       eventIds: context.eventIds,
     };
-    state = addAction(
-      { ...state, pendingAbilities: [...state.pendingAbilities, ability] },
+    state = recordTriggeredAbility(
+      { ...state, pendingAbilities: appendTriggeredAbility(state, ability) },
       'TRIGGER_ABILITY',
       source.playerId,
       {

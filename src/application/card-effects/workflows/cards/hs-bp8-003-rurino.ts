@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getActivePlayer,
@@ -53,7 +54,7 @@ export function registerHsBp8003RurinoWorkflowHandlers(deps: {
     ABILITY_ID,
     STEP_ID,
     (game, input, runtime) => {
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       if (!effect || effect.stepId !== STEP_ID || !effect.awaitingPlayerId) return game;
       const ids = input.selectedCardIds ?? (input.selectedCardId ? [input.selectedCardId] : []);
       const player = getPlayerById(game, effect.awaitingPlayerId);

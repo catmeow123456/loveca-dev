@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -81,7 +82,7 @@ function finish(
   targetCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (!effect || effect.stepId !== SELECT_OPPONENT_MEMBER_STEP_ID || !player || !targetCardId ||
       effect.selectableCardIds?.includes(targetCardId) !== true) return game;
@@ -132,7 +133,7 @@ function finish(
 
 function consumeActive(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   continuePendingCardEffects: ContinuePendingCardEffects,
   reason: string

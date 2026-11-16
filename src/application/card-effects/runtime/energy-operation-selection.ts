@@ -155,7 +155,7 @@ export function resolveEnergyOperationSelectionStep(
   if (!continuation) return game;
   if (
     continuation.kind === 'ACTIVATED_ABILITY' &&
-    game.activeEffect &&
+    game.activeEffect?.sourceCardId !== undefined &&
     !canResumeActivatedAbilityEnergyPayment(game, game.activeEffect)
   ) {
     return context.continuePendingCardEffects({ ...game, activeEffect: null }, false);

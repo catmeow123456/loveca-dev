@@ -1,3 +1,4 @@
+import type { HextechPool } from '@game/domain/hextech/catalog';
 import { useTextPresentation } from '@/lib/appPresentation';
 import { InitialHextechPicker } from '@/components/game/InitialHextechPicker';
 import type { InitialHextechSetup } from '@game/domain/hextech/state';
@@ -85,6 +86,8 @@ export function GameSetupPage({
   const [hasManualSelectedP1Deck, setHasManualSelectedP1Deck] = useState(false);
   const [hasManualSelectedP2Deck, setHasManualSelectedP2Deck] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
+  const [hextechPool, setHextechPool] = useState<HextechPool>('NORMAL');
+  const [hextechDraft, setHextechDraft] = useState(false);
   const [initialHextech, setInitialHextech] = useState<InitialHextechSetup>([[], []]);
   const [error, setError] = useState<string | null>(null);
   const isDebugMode = gameMode === GameMode.DEBUG;
@@ -286,7 +289,10 @@ export function GameSetupPage({
         p1Config.player_name,
         'player-2',
         p2Name,
-        isDebugMode && initialHextech.some((items) => items.length > 0) ? initialHextech : undefined
+        isDebugMode && !hextechDraft && initialHextech.some((items) => items.length > 0)
+          ? initialHextech
+          : undefined,
+        isDebugMode ? { pool: hextechPool, roundSelection: hextechDraft } : undefined
       );
 
       // 初始化游戏
@@ -433,11 +439,37 @@ export function GameSetupPage({
           ))}
         </div>
         {isDebugMode && (
-          <InitialHextechPicker
-            value={initialHextech}
-            onChange={setInitialHextech}
-            disabled={isStarting}
-          />
+          <section aria-label="本地海克斯设置">
+            <label>
+              海克斯卡池{' '}
+              <select
+                value={hextechPool}
+                disabled={isStarting}
+                onChange={(event) => {
+                  setHextechPool(event.target.value as HextechPool);
+                  setInitialHextech([[], []]);
+                }}
+              >
+                <option value="NORMAL">普通池</option>
+                <option value="DARK">黑暗池 · 24 项</option>
+              </select>
+            </label>
+            <label className="ml-4">
+              <input
+                type="checkbox"
+                checked={hextechDraft}
+                disabled={isStarting}
+                onChange={(event) => setHextechDraft(event.target.checked)}
+              />{' '}
+              第 1／3／5 回合随机三选一
+            </label>
+            <InitialHextechPicker
+              pool={hextechPool}
+              value={initialHextech}
+              onChange={setInitialHextech}
+              disabled={isStarting || hextechDraft}
+            />
+          </section>
         )}
         {error && <ErrorNotice message={error} className="game-setup-error" />}
         <footer className="game-setup-footer">

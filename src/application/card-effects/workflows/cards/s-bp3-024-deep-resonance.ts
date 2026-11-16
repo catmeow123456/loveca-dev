@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -146,7 +147,7 @@ function finishBranch(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!isEffectStep(effect, BRANCH_STEP_ID) || !selectedOptionId) return game;
   const context = getContext(game, effect);
   if (!context.sourceLiveInOwnLiveZone || !context.conditionMet)
@@ -197,7 +198,7 @@ function finishBlade(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!isEffectStep(effect, BLADE_STEP_ID) || !selectedCardId) return game;
   const context = getContext(game, effect);
   if (!context.sourceLiveInOwnLiveZone || !context.conditionMet)
@@ -232,7 +233,7 @@ function finishWait(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!isEffectStep(effect, WAIT_STEP_ID) || !selectedCardId) return game;
   const context = getContext(game, effect);
   if (!context.sourceLiveInOwnLiveZone || !context.conditionMet)
@@ -367,9 +368,9 @@ function formatContext(context: Context): string {
   return `${center}；己方可获得[BLADE]的目标${context.ownBladeTargetIds.length}名；对方费用小于等于4且非待机状态的合法目标${context.opponentWaitTargetIds.length}名`;
 }
 function isEffectStep(
-  effect: GameState['activeEffect'],
+  effect: ReturnType<typeof getCardActiveEffect>,
   stepId: string
-): effect is NonNullable<GameState['activeEffect']> {
+): effect is NonNullable<ReturnType<typeof getCardActiveEffect>> {
   return (
     !!effect &&
     effect.abilityId ===
@@ -401,7 +402,7 @@ function finishPending(
 }
 function finishActive(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   step: string,
   continuePendingCardEffects: ContinuePendingCardEffects,
   payload: object

@@ -1,3 +1,4 @@
+import type { HextechPool } from '../../domain/hextech/catalog.js';
 import type { CasualFormat } from '../../online/casual-table-types.js';
 import type { CasualRuleMode } from '../../domain/rules/deck-construction.js';
 import { randomInt, randomUUID } from 'node:crypto';
@@ -111,6 +112,7 @@ interface OnlineRoomState {
     readonly roundId: string;
     readonly ruleMode: CasualRuleMode;
     readonly format: CasualFormat;
+  readonly hextechPool?: HextechPool;
   };
   casualRetirementPending?: boolean;
   openingExpiresAt: number | null;
@@ -168,6 +170,7 @@ export interface CreatePublicTableRoomInput {
 
 export interface CreateCasualTableRuntimeInput {
   readonly format: CasualFormat;
+  readonly hextechPool?: HextechPool;
   readonly ruleMode: CasualRuleMode;
   readonly tableId: string;
   readonly roundId: string;
@@ -534,6 +537,7 @@ export class OnlineRoomService {
         roundId: input.roundId,
         ruleMode: input.ruleMode,
         format: input.format,
+        hextechPool: input.hextechPool,
       },
       openingExpiresAt: input.openingExpiresAt,
       openingArrivalExpiresAt: now + 60_000,
@@ -2032,6 +2036,7 @@ export class OnlineRoomService {
       originLabel: room.originLabel,
       casualRuleMode: room.casualTable?.ruleMode ?? null,
       hextechRoundSelection: room.casualTable?.format === 'HEXTECH',
+      hextechPool: room.casualTable?.hextechPool,
       rulesetId: room.casualTable?.format === 'SEALED_BP8' ? 'SEALED_HALF_GRAY_V1' : 'STANDARD',
     };
 

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -104,7 +105,7 @@ function getMemberCandidates(game: GameState, playerId: string): readonly string
 }
 
 function chooseBranch(game: GameState, ids: readonly string[], next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== ABILITY ||
@@ -164,7 +165,7 @@ function chooseBranch(game: GameState, ids: readonly string[], next: Continue): 
 }
 
 function finishTarget(game: GameState, id: string | null, next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== ABILITY ||

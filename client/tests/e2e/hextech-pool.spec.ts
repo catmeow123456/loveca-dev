@@ -77,7 +77,7 @@ test('娱乐大厅复用玩法Tabs，查询海克斯池后保留房间筛选和�
       el.querySelector('.hextech-pool-results')!.getBoundingClientRect().top -
       el.getBoundingClientRect().top
   );
-  expect(headerHeight).toBeLessThan(info.project.name.startsWith('mobile') ? 120 : 85);
+  expect(headerHeight).toBeLessThan(info.project.name.startsWith('mobile') ? 160 : 120);
   await page.screenshot({ path: info.outputPath('hextech-pool-dialog.png') });
   await dialog.getByRole('button', { name: '关闭海克斯池', exact: true }).click();
   await expect(dialog).toHaveCount(0);

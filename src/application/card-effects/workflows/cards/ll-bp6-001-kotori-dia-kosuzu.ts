@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   isMemberCardData,
 } from '../../../../domain/entities/card.js';
@@ -185,7 +186,7 @@ function finishLlBp6001LiveStart(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== LL_BP6_001_SELECT_NAMED_MEMBERS_STEP_ID) {
     return game;
   }

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   isLiveCardData,
   isMemberCardData,
@@ -170,7 +171,7 @@ function finishBp6006DiscardCost(
   selectedCardId: string | null,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.stepId !== BP6_006_SELECT_DISCARD_COST_STEP_ID ||
@@ -248,7 +249,7 @@ function finishBp6006DiscardCost(
 }
 
 function finishBp6006ChooseColor(game: GameState, selectedOptionId: string | null): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const selectedColor = isNormalHeartColor(selectedOptionId)
     ? (selectedOptionId as HeartColor)
     : null;
@@ -328,7 +329,7 @@ function finishBp6006ConfirmRevealedResult(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const selectedHeartColor =
     typeof effect?.metadata?.selectedHeartColor === 'string' &&
     isNormalHeartColor(effect.metadata.selectedHeartColor)
@@ -436,7 +437,7 @@ function finishBp6006SelectMuseCard(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.stepId !== BP6_006_SELECT_MUSE_REVEALED_CARD_STEP_ID ||

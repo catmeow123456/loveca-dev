@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import type { CardInstance } from '../../../../domain/entities/card.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
@@ -141,7 +142,7 @@ function startHsBp6025LiveStartTargetSelection(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_BP6_025_LIVE_START_DISCARD_TARGET_HASUNOSORA_BLUE_HEART_ABILITY_ID ||
@@ -224,7 +225,7 @@ function finishHsBp6025LiveStartTarget(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_BP6_025_LIVE_START_DISCARD_TARGET_HASUNOSORA_BLUE_HEART_ABILITY_ID ||
@@ -353,7 +354,7 @@ function finishHsBp6025LiveSuccessRecovery(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_BP6_025_LIVE_SUCCESS_STAGE_TWO_RECOVER_LOW_SCORE_LIVE_ABILITY_ID ||

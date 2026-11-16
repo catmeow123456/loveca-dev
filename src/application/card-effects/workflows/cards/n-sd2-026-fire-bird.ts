@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { createHeartIcon, isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -114,7 +115,7 @@ function finishFireBirdTargetSelection(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==
@@ -232,7 +233,7 @@ function finishPendingNoOp(
 
 function finishActiveEffectNoOp(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   continuePendingCardEffects: ContinuePendingCardEffects,
   step: string,

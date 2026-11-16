@@ -1,3 +1,4 @@
+import { isCardAbilitySuppressedByDarkHextech } from '../hextech/suppression.js';
 import { isLiveCardData } from '../entities/card.js';
 import { getCardById, getPlayerById, type GameState } from '../entities/game.js';
 import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
@@ -20,6 +21,7 @@ export function isLiveCardProhibitedFromSuccessZone(game: GameState, cardId: str
   const card = getCardById(game, cardId);
   return (
     card !== null &&
+    !isCardAbilitySuppressedByDarkHextech(game, cardId) &&
     isLiveCardData(card.data) &&
     cardCodeMatchesBase(card.data.cardCode, 'PL!S-bp2-024')
   );

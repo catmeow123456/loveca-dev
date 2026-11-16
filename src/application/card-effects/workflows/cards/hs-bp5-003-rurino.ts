@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData, type CardInstance } from '../../../../domain/entities/card.js';
 import type {
   EnterWaitingRoomEvent,
@@ -201,7 +202,7 @@ function startHsBp5003RurinoPositionSlotSelection(
   game: GameState,
   selectedMemberCardId: string
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID ||
@@ -271,7 +272,7 @@ function finishHsBp5003RurinoPositionChange(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID ||
@@ -408,7 +409,7 @@ function startHsBp5003RurinoSameGroupMemberSelection(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID ||
@@ -511,7 +512,7 @@ function finishHsBp5003RurinoTargetMemberHeart(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID ||

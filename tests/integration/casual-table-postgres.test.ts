@@ -167,6 +167,7 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     await database.query(
       await readFile(new URL('../../drizzle/0049_switch_sealed_to_bp8.sql', import.meta.url), 'utf8')
     );
+    await database.query(await readFile(new URL('../../drizzle/0050_add_dark_hextech_pool.sql', import.meta.url), 'utf8'));
   });
   afterAll(async () => {
     await database?.end();
@@ -353,15 +354,18 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     expect(loadDeck).toHaveBeenCalledWith(users[0], decks[0], 'UNLIMITED');
   });
 
-  it('海克斯按玩法隔离匹配，支持换组、正式开局及再战', async () => {
+  it.each(['NORMAL', 'DARK'] as const)('%s海克斯按卡池隔离匹配，支持换组、正式开局及再战', async (pool) => {
     const hexEntry = (index: number) => ({
       ...entry(index, 'UNLIMITED'),
       format: 'HEXTECH' as const,
+      hextechPool: pool,
     });
     const ordinary = await create(2, 'PUBLIC', 'UNLIMITED');
     const hex = await service.findOpponent(users[0], hexEntry(0));
     expect(hex.tableId).not.toBe(ordinary.tableId);
     expect(hex.format).toBe('HEXTECH');
+    expect(hex.hextechPool).toBe(pool);
+    await expect(service.join(users[1], hex, { ...hexEntry(1), hextechPool: pool === 'DARK' ? 'NORMAL' : 'DARK' })).rejects.toThrow();
     expect(hex.ruleMode).toBe('UNLIMITED');
     await expect(service.join(users[1], hex, entry(1, 'UNLIMITED'))).rejects.toThrow();
     const changed = await service.changeDeck(users[0], hex, decks[0]);
@@ -374,6 +378,7 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     const opened = await runtime.chooseOpeningTurnOrder(bound.roomCode, users[0], 'SELF_FIRST');
     const match = matches.getMatch(opened.matchId!)!;
     expect(match.session.state!.hextech!.draft).toEqual({ completedRounds: 0 });
+    expect(match.session.state!.hextech!.rulesVersion).toBe(pool === 'DARK' ? 'DARK_HEXTECH_V1' : 'HEXTECH_V1');
     expect(match.session.state!.rulesetId).toBe('STANDARD');
     await matches.executeCommand(match.matchId, users[0], createSurrenderCommand('ignored'));
     const requested = await service.requestRematch(users[0], await current(0), decks[0], false);
@@ -385,6 +390,7 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
       false
     );
     expect(next.format).toBe('HEXTECH');
+    expect(next.hextechPool).toBe(pool);
     expect(next.roundId).not.toBe(bound.roundId);
     expect((await service.getCurrent(users[2])).table!.format).toBe('CONSTRUCTED');
   });

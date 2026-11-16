@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -132,7 +133,7 @@ function finishHandMemberSelection(
   selectedCardId: string | null | undefined,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -224,7 +225,7 @@ function finishStageSlotSelection(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const selectedCardId = getString(effect?.metadata?.selectedCardId);
   if (
@@ -337,7 +338,7 @@ function createHandSelectionEffect(
   },
   selectableCardIds: readonly string[],
   orderedResolution: boolean
-): NonNullable<GameState['activeEffect']> {
+): NonNullable<ReturnType<typeof getCardActiveEffect>> {
   return {
     id: ability.id,
     abilityId: ability.abilityId,
@@ -363,7 +364,7 @@ function createHandSelectionEffect(
 
 function refreshHandSelection(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   selectableCardIds: readonly string[]
 ): GameState {
   return addAction(
@@ -396,7 +397,7 @@ function refreshHandSelection(
 
 function refreshStageSlotSelection(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   selectedCardId: string,
   selectableSlots: readonly SlotPosition[]
 ): GameState {
@@ -448,7 +449,7 @@ function finishWithoutPlaying(
 
 function finishActiveEffectNoOp(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   continuePendingCardEffects: ContinuePendingCardEffects,
   step: string
 ): GameState {

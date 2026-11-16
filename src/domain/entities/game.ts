@@ -1,3 +1,4 @@
+import { isCardAbilitySuppressedByDarkHextech } from '../hextech/suppression.js';
 import { victoryLiveCount, type BattleRulesetId } from '../rules/battle-ruleset.js';
 import type { HextechState } from '../hextech/state.js';
 /**
@@ -85,6 +86,7 @@ export type GameActionType =
   | 'PHASE_CHANGE'
   | 'TURN_CHANGE'
   | 'TRIGGER_ABILITY'
+  | 'SUPPRESS_ABILITY'
   | 'DISPATCH_TRIGGER_EVENT'
   | 'RESOLVE_ABILITY'
   | 'RULE_ACTION'
@@ -170,6 +172,7 @@ export interface LiveSetLimitReductionState {
  * 与 actionHistory 不同，eventLog 记录“规则上发生了什么事件”，用于后续自动能力触发匹配。
  */
 export interface StageMemberObservation {
+  readonly abilitiesSuppressed?: boolean;
   readonly playerId: string;
   readonly sourceCardId: string;
   readonly sourceSlot: SlotPosition;
@@ -613,6 +616,17 @@ export interface PendingAbilityState {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
+/** A real non-card source in the same check-timing queue. */
+export interface HextechPendingAbilityState extends Omit<PendingAbilityState, 'sourceCardId'> {
+  readonly sourceKind: 'HEXTECH';
+  readonly sourceHextechInstanceId: string;
+  readonly sourceCardId?: never;
+}
+export type QueuedAbilityState = PendingAbilityState | HextechPendingAbilityState;
+export function isCardPendingAbility(ability: QueuedAbilityState): ability is PendingAbilityState {
+  return ability.sourceCardId !== undefined;
+}
+
 /** Serializable authority state for one complete rules 9.5.3 check timing. */
 export interface CheckTimingContextState {
   readonly id: string;
@@ -787,6 +801,18 @@ export interface ActiveEffectState {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
+export interface HextechActiveEffectState extends Omit<ActiveEffectState, 'sourceCardId'> {
+  readonly sourceKind: 'HEXTECH';
+  readonly sourceHextechInstanceId: string;
+  readonly sourceCardId?: never;
+}
+export type ResolvingEffectState = ActiveEffectState | HextechActiveEffectState;
+export function getCardActiveEffect(
+  game: Pick<GameState, 'activeEffect'>
+): ActiveEffectState | null {
+  return game.activeEffect?.sourceCardId !== undefined ? game.activeEffect : null;
+}
+
 export type PendingCostPaymentSource = 'PLAY_MEMBER' | 'ACTIVATE_ABILITY';
 
 export interface PendingCostPaymentState {
@@ -942,7 +968,7 @@ export interface GameState {
   /**
    * 已经由检查时点发现、等待执行的能力队列
    */
-  readonly pendingAbilities: readonly PendingAbilityState[];
+  readonly pendingAbilities: readonly QueuedAbilityState[];
 
   /** Forced delegated abilities resolve here before returning to the global pending pool. */
   readonly delegatedAbilitySequence?: DelegatedAbilitySequenceState | null;
@@ -958,7 +984,7 @@ export interface GameState {
   /**
    * 正在分步处理的卡牌效果。
    */
-  readonly activeEffect: ActiveEffectState | null;
+  readonly activeEffect: ResolvingEffectState | null;
 
   /**
    * 正在等待玩家支付的费用。
@@ -1481,7 +1507,18 @@ export function getStageMemberObservations(game: GameState): readonly StageMembe
   return game.players.flatMap((player) =>
     [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT].flatMap((sourceSlot) => {
       const sourceCardId = player.memberSlots.slots[sourceSlot];
-      return sourceCardId ? [{ playerId: player.id, sourceCardId, sourceSlot }] : [];
+      return sourceCardId
+        ? [
+            {
+              playerId: player.id,
+              sourceCardId,
+              sourceSlot,
+              ...(isCardAbilitySuppressedByDarkHextech(game, sourceCardId)
+                ? { abilitiesSuppressed: true }
+                : {}),
+            },
+          ]
+        : [];
     })
   );
 }

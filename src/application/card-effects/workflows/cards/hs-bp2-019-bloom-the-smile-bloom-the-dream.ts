@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   isLiveCardData,
   type HeartRequirement,
@@ -289,7 +290,7 @@ function finishActiveEffectNoOp(
 }
 
 function getRequirementPatternEffect(game: GameState): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   return effect?.abilityId ===
     HS_BP2_019_LIVE_START_CHOOSE_HASUNOSORA_REQUIREMENT_PATTERN_ABILITY_ID &&
     effect.stepId === SELECT_REQUIREMENT_PATTERN_STEP_ID

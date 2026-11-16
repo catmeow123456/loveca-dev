@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { addAction, getCardById, getPlayerById, type GameState } from '../../../../domain/entities/game.js';
 import { addPlayerScoreLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
@@ -93,7 +94,7 @@ function finishSBp3001Chika(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged,
   continuePendingCardEffects: (game: GameState, orderedResolution: boolean) => GameState
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== S_BP3_001_ACTIVATED_WAIT_OWN_MEMBER_GRANT_PLAYER_SCORE_ABILITY_ID || effect.stepId !== SELECT_WAIT_COST_TARGET_STEP_ID || !selectedCardId) return game;
   if (!sourceIsValid(game, effect.controllerId, effect.sourceCardId)) return { ...game, activeEffect: null };
   const currentTargets = getOwnActiveMemberCardIds(game, effect.controllerId);

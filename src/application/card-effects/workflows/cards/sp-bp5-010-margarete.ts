@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -29,12 +30,7 @@ export function registerSpBp5010MargareteWorkflowHandlers(deps: {
   registerPendingAbilityStarterHandler(
     SP_BP5_010_ON_ENTER_BOTH_CENTER_POSITION_CHANGE_ABILITY_ID,
     (game, ability, options, context) =>
-      startSpBp5010MargareteOnEnter(
-        game,
-        ability,
-        options,
-        context.continuePendingCardEffects
-      )
+      startSpBp5010MargareteOnEnter(game, ability, options, context.continuePendingCardEffects)
   );
   registerActiveEffectStepHandler(
     SP_BP5_010_ON_ENTER_BOTH_CENTER_POSITION_CHANGE_ABILITY_ID,
@@ -60,10 +56,16 @@ function startSpBp5010MargareteOnEnter(
   );
   const targetIndex = findNextPlayerIndexWithCenter(game, playerIds, 0);
   if (targetIndex === null) {
-    return consumePendingWithoutPrompt(game, ability, options.orderedResolution === true, {
-      step: 'NO_CENTER_MEMBERS_POSITION_CHANGE',
-      playerIds,
-    }, continuePendingCardEffects);
+    return consumePendingWithoutPrompt(
+      game,
+      ability,
+      options.orderedResolution === true,
+      {
+        step: 'NO_CENTER_MEMBERS_POSITION_CHANGE',
+        playerIds,
+      },
+      continuePendingCardEffects
+    );
   }
 
   return startPendingActiveEffect(game, {
@@ -91,14 +93,11 @@ function finishSpBp5010MargaretePositionChange(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberSlotMoved
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== STEP_ID) {
     return game;
   }
-  if (
-    selectedSlot !== SlotPosition.LEFT &&
-    selectedSlot !== SlotPosition.RIGHT
-  ) {
+  if (selectedSlot !== SlotPosition.LEFT && selectedSlot !== SlotPosition.RIGHT) {
     return game;
   }
 
@@ -146,16 +145,13 @@ function finishSpBp5010MargaretePositionChange(
   }
 
   return moveResult.gameState.activeEffect === null
-    ? continuePendingCardEffects(
-        moveResult.gameState,
-        effect.metadata?.orderedResolution === true
-      )
+    ? continuePendingCardEffects(moveResult.gameState, effect.metadata?.orderedResolution === true)
     : moveResult.gameState;
 }
 
 function prepareStateAfterMove(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   payload: Readonly<Record<string, unknown>>
 ): GameState {
   const playerIds = getPlayerIdsFromEffect(effect);
@@ -184,7 +180,7 @@ function advanceToNextTargetOrFinish(
   continuePendingCardEffects: ContinuePendingCardEffects,
   payload: Readonly<Record<string, unknown>>
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }
@@ -200,7 +196,7 @@ function createPositionChangePrompt(
   playerIds: readonly string[],
   targetIndex: number,
   orderedResolution: boolean
-): NonNullable<GameState['activeEffect']> {
+): NonNullable<ReturnType<typeof getCardActiveEffect>> {
   return {
     id: ability.id,
     abilityId: ability.abilityId,
@@ -224,9 +220,9 @@ function createPositionChangePrompt(
 
 function createPositionChangePromptFromEffect(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   targetIndex: number
-): NonNullable<GameState['activeEffect']> {
+): NonNullable<ReturnType<typeof getCardActiveEffect>> {
   const playerIds = getPlayerIdsFromEffect(effect);
   return {
     ...effect,
@@ -281,12 +277,14 @@ function getOpponentPlayerId(game: GameState, playerId: string): string | null {
   return game.players.find((player) => player.id !== playerId)?.id ?? null;
 }
 
-function getPlayerIdsFromEffect(effect: NonNullable<GameState['activeEffect']>): readonly string[] {
+function getPlayerIdsFromEffect(
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>
+): readonly string[] {
   const playerIds = effect.metadata?.playerIds;
   return Array.isArray(playerIds) ? playerIds.filter(isString) : [effect.controllerId];
 }
 
-function getTargetIndex(effect: NonNullable<GameState['activeEffect']>): number {
+function getTargetIndex(effect: NonNullable<ReturnType<typeof getCardActiveEffect>>): number {
   const value = effect.metadata?.targetIndex;
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0;
 }

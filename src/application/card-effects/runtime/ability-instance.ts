@@ -6,7 +6,7 @@ export function hasAbilityInstance(game: GameState, pendingAbilityId: string): b
     game.activeEffect?.id === pendingAbilityId ||
     game.actionHistory.some(
       (action) =>
-        action.type === 'RESOLVE_ABILITY' && action.payload.pendingAbilityId === pendingAbilityId
+        (action.type === 'RESOLVE_ABILITY' || action.type === 'SUPPRESS_ABILITY') && action.payload.pendingAbilityId === pendingAbilityId
     )
   );
 }

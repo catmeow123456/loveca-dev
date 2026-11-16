@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -142,7 +143,7 @@ function startYoshikoOnEnterPlayLowCostMembers(
 }
 
 function startYoshikoWaitingRoomSelectionAfterCost(game: GameState): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }
@@ -218,7 +219,7 @@ function startYoshikoSelectStageSlot(
   explicitlySkipped: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }
@@ -303,7 +304,7 @@ function finishYoshikoSelectStageSlot(
   continuePendingCardEffects: ContinuePendingCardEffects,
   dependencies: YoshikoPlayLowCostMembersWorkflowDependencies
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || selectedSlot === null) {
     return game;
   }

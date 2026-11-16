@@ -9,7 +9,7 @@ import {
   getPlayerById,
   markGameEnded,
   type GameState,
-  type PendingAbilityState,
+  type QueuedAbilityState,
 } from '../../../domain/entities/game.js';
 import {
   applyRuleActionResult,
@@ -106,8 +106,8 @@ export function processCheckTimingRuleActions(
 
 export function getCheckTimingAbilityCandidates(
   game: GameState,
-  supportedAbilities: readonly PendingAbilityState[]
-): readonly PendingAbilityState[] {
+  supportedAbilities: readonly QueuedAbilityState[]
+): readonly QueuedAbilityState[] {
   const activePlayerId =
     game.checkTimingContext?.activePlayerId ?? game.players[game.activePlayerIndex]?.id;
   if (activePlayerId) {

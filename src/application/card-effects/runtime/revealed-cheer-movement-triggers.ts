@@ -1,3 +1,4 @@
+import { appendTriggeredAbility, recordTriggeredAbility } from './enqueue-pending-ability.js';
 import {
   addAction,
   emitGameEvent,
@@ -113,8 +114,8 @@ function enqueueMovementTriggers(game: GameState, event: RevealedCheerCardsMoved
         timingId: TIMING,
         eventIds: [event.eventId],
       };
-      state = addAction(
-        { ...state, pendingAbilities: [...state.pendingAbilities, pending] },
+      state = recordTriggeredAbility(
+        { ...state, pendingAbilities: appendTriggeredAbility(state, pending) },
         'TRIGGER_ABILITY',
         player.id,
         {

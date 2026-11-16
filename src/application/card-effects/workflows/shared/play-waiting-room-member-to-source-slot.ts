@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
@@ -259,7 +260,7 @@ function finishPlayMemberToSourceSlot(
   continuePendingCardEffects: ContinuePendingCardEffects,
   dependencies: PlayWaitingRoomMemberToSourceSlotWorkflowDependencies
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== config.abilityId ||

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { addAction, getCardById, getPlayerById, type GameState } from '../../../../domain/entities/game.js';
 import { canPlayMemberInStageSlotThisTurn } from '../../../../domain/rules/member-turn-state.js';
@@ -117,7 +118,7 @@ function selectMember(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== ABILITY_ID ||
@@ -156,7 +157,7 @@ function selectSlot(
   enqueue: EnqueueCardEffectPlacementTriggers,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const selectedCardId =
     typeof effect?.metadata?.selectedCardId === 'string' ? effect.metadata.selectedCardId : null;
   if (
@@ -216,7 +217,7 @@ function getEmptyLegalSlots(game: GameState, playerId: string): readonly SlotPos
 
 function resolveNoPlay(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   reason: string,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {

@@ -44,6 +44,7 @@ export function getCareEffectCues(
   const effect = before.activeEffect;
   if (!effect || ![KOTORI, AYUMU_ENTER, AYUMU_RETURN].includes(effect.abilityId)) return [];
   const sourceId = effect.sourceObjectId;
+  if (!sourceId) return [];
   const source = after.objects[sourceId];
   const code = source?.frontInfo?.cardCode;
   const previousStage = stage(before, sourceId);

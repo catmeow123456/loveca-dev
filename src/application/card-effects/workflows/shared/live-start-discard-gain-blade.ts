@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -159,7 +160,7 @@ function finishLiveStartDiscardGainBlade(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.stepId) return game;
   const player = getPlayerById(game, effect.controllerId);
   const sourceSlot = player ? getSourceMemberSlot(game, player.id, effect.sourceCardId) : null;
@@ -245,7 +246,7 @@ function skipPendingAbility(
 }
 
 function consumeActiveEffectNoOp(game: GameState, continuePendingCardEffects: ContinuePendingCardEffects, step: string): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) return game;
   return continuePendingCardEffects(
     addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {

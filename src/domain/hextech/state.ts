@@ -1,6 +1,10 @@
 import {
   getHextechDefinition,
   HEXTECH_RULES_VERSION,
+  DARK_HEXTECH_RULES_VERSION,
+  hextechPoolForVersion,
+  isHextechInPool,
+  type HextechRulesVersion,
   type HextechId,
   type HextechRarity,
 } from './catalog.js';
@@ -24,7 +28,32 @@ export interface OwnedHextech {
 }
 
 export interface HextechState {
-  readonly rulesVersion: typeof HEXTECH_RULES_VERSION;
+  readonly rulesVersion: HextechRulesVersion;
+  /** Match-scoped uses survive snapshots and cross-timing activations. */
+  readonly uses?: readonly { readonly instanceId: string; readonly turn: number }[];
+  readonly silencedMembers?: readonly {
+    readonly memberCardId: string;
+    readonly playerId: string;
+    readonly lifecycleId: string;
+    readonly turn: number;
+    readonly sourceInstanceId: string;
+  }[];
+  readonly columnLocks?: readonly {
+    readonly memberCardId: string;
+    readonly playerId: string;
+    readonly lifecycleId: string;
+    readonly sourceInstanceId: string;
+  }[];
+  /** Frozen before reveal cleanup; null is a deliberate empty/non-LIVE first slot. */
+  readonly liveSlots?: readonly {
+    readonly playerId: string;
+    readonly turn: number;
+    readonly cardIds: readonly string[];
+  }[];
+  readonly pendingAcquisition?: {
+    readonly sourceInstanceId: string;
+    readonly kind: 'REWRITE_SCRIPT' | 'COLUMN_LOCK';
+  };
   readonly owned: readonly OwnedHextech[];
   /** Acquisition choices retain only their source and outstanding quantity; candidates are derived. */
   readonly pendingSearch?: { readonly sourceInstanceId: string; readonly count: number };
@@ -44,6 +73,7 @@ export function hasPendingHextechInput(game: { readonly hextech?: HextechState }
   return !!(
     game.hextech?.draft?.pending ||
     game.hextech?.pendingSearch ||
+    game.hextech?.pendingAcquisition ||
     game.hextech?.acquisitionQueue?.length
   );
 }
@@ -63,10 +93,14 @@ export function assertValidHextechState(
   const state = value as Record<string, unknown>;
   if (
     rulesetId !== 'STANDARD' ||
-    state.rulesVersion !== HEXTECH_RULES_VERSION ||
+    ![HEXTECH_RULES_VERSION, DARK_HEXTECH_RULES_VERSION].includes(
+      state.rulesVersion as typeof HEXTECH_RULES_VERSION
+    ) ||
     !Array.isArray(state.owned)
   )
     fail();
+  const pool = hextechPoolForVersion(state.rulesVersion as HextechRulesVersion);
+  const definitionOwners = new Set<string>();
   const ids = new Set<string>();
   for (const entry of state.owned as unknown[]) {
     if (!entry || typeof entry !== 'object') fail();
@@ -76,7 +110,7 @@ export function assertValidHextechState(
       !owned.instanceId ||
       ids.has(owned.instanceId) ||
       typeof owned.definitionId !== 'string' ||
-      !getHextechDefinition(owned.definitionId) ||
+      !isHextechInPool(owned.definitionId, pool) ||
       typeof owned.playerId !== 'string' ||
       !playerIds.includes(owned.playerId) ||
       typeof owned.acquiredTurn !== 'number' ||
@@ -85,6 +119,9 @@ export function assertValidHextechState(
       owned.acquiredTurn > turnCount
     )
       fail();
+    const ownerKey = `${owned.playerId}:${owned.definitionId}`;
+    if (pool === 'DARK' && definitionOwners.has(ownerKey)) fail();
+    definitionOwners.add(ownerKey);
     ids.add(owned.instanceId as string);
   }
   if (
@@ -95,6 +132,99 @@ export function assertValidHextechState(
       state.acquisitionQueue.some((id: unknown) => typeof id !== 'string' || !ids.has(id)))
   )
     fail();
+  if (state.uses !== undefined) {
+    if (!Array.isArray(state.uses)) fail();
+    const useKeys = new Set<string>();
+    for (const use of state.uses as NonNullable<HextechState['uses']>) {
+      const owned = (state.owned as OwnedHextech[]).find(
+        (entry) => entry.instanceId === use?.instanceId
+      );
+      const activation = owned ? getHextechDefinition(owned.definitionId)?.activation : undefined;
+      if (
+        !owned ||
+        !activation ||
+        !Number.isInteger(use.turn) ||
+        use.turn < owned.acquiredTurn ||
+        use.turn > turnCount
+      )
+        fail();
+      const key = `${use.instanceId}:${activation!.limit === 'MATCH' ? 'match' : use.turn}`;
+      if (useKeys.has(key)) fail();
+      useKeys.add(key);
+    }
+  }
+  if (state.pendingAcquisition !== undefined) {
+    const pending = state.pendingAcquisition as HextechState['pendingAcquisition'];
+    const owned = (state.owned as OwnedHextech[]).find(
+      (entry) => entry.instanceId === pending?.sourceInstanceId
+    );
+    if (
+      !pending ||
+      !ids.has(pending.sourceInstanceId) ||
+      !['REWRITE_SCRIPT', 'COLUMN_LOCK'].includes(pending.kind) ||
+      state.pendingSearch ||
+      (state.acquisitionQueue as string[] | undefined)?.includes(pending.sourceInstanceId) ||
+      owned?.definitionId !==
+        (pending.kind === 'REWRITE_SCRIPT' ? 'dark-rewrite-script' : 'dark-silent-column')
+    )
+      fail();
+  }
+  if (
+    pool !== 'DARK' &&
+    [state.uses, state.pendingAcquisition, state.silencedMembers, state.columnLocks].some(
+      (field) => field !== undefined
+    )
+  )
+    fail();
+  for (const field of ['silencedMembers', 'columnLocks'] as const) {
+    const entries = state[field];
+    if (entries === undefined) continue;
+    if (!Array.isArray(entries)) fail();
+    for (const value of entries as readonly unknown[]) {
+      if (!value || typeof value !== 'object') fail();
+      const entry = value as Record<string, unknown>;
+      if (
+        !(state.owned as OwnedHextech[]).some(
+          (owned) =>
+            owned.instanceId === entry.sourceInstanceId &&
+            owned.definitionId ===
+              (field === 'columnLocks' ? 'dark-silent-column' : 'dark-silent-spotlight') &&
+            (field !== 'columnLocks' || owned.playerId === entry.playerId)
+        ) ||
+        typeof entry.playerId !== 'string' ||
+        !playerIds.includes(entry.playerId) ||
+        typeof entry.memberCardId !== 'string' ||
+        !entry.memberCardId ||
+        typeof entry.lifecycleId !== 'string' ||
+        !entry.lifecycleId ||
+        (field === 'silencedMembers' &&
+          (typeof entry.turn !== 'number' ||
+            !Number.isInteger(entry.turn) ||
+            entry.turn < 1 ||
+            entry.turn > turnCount))
+      )
+        fail();
+    }
+  }
+  if (state.liveSlots !== undefined) {
+    if (!Array.isArray(state.liveSlots)) fail();
+    const seats = new Set<string>();
+    for (const value of state.liveSlots as readonly unknown[]) {
+      if (!value || typeof value !== 'object') fail();
+      const entry = value as Record<string, unknown>;
+      if (
+        typeof entry.playerId !== 'string' ||
+        !playerIds.includes(entry.playerId) ||
+        seats.has(entry.playerId) ||
+        entry.turn !== turnCount ||
+        !Array.isArray(entry.cardIds) ||
+        entry.cardIds.some((id: unknown) => typeof id !== 'string') ||
+        new Set(entry.cardIds).size !== entry.cardIds.length
+      )
+        fail();
+      seats.add(entry.playerId as string);
+    }
+  }
   if (state.pendingSearch !== undefined) {
     const search = state.pendingSearch as HextechState['pendingSearch'];
     const owned = (state.owned as OwnedHextech[]).find(
@@ -121,7 +251,7 @@ export function assertValidHextechState(
         (list: unknown) =>
           !Array.isArray(list) ||
           new Set(list).size !== list.length ||
-          list.some((id: unknown) => typeof id !== 'string' || !getHextechDefinition(id))
+          list.some((id: unknown) => typeof id !== 'string' || !isHextechInPool(id, pool))
       )
     )
       fail();
@@ -152,7 +282,7 @@ export function assertValidHextechState(
         pending.offers.length !== 2
       )
         fail();
-      for (const offer of pending.offers) {
+      for (const [playerIndex, offer] of pending.offers.entries()) {
         if (
           !offer ||
           !Array.isArray(offer.candidates) ||
@@ -163,11 +293,20 @@ export function assertValidHextechState(
               offer.selectedIndex > 2))
         )
           fail();
+        if (
+          pool === 'DARK' &&
+          (new Set(offer.candidates.map((entry) => entry.definitionId)).size !== 3 ||
+            offer.candidates.some((entry) =>
+              definitionOwners.has(`${playerIds[playerIndex]}:${entry.definitionId}`)
+            ))
+        )
+          fail();
         for (const candidate of offer.candidates) {
           if (
             !candidate ||
             typeof candidate.rerolled !== 'boolean' ||
-            getHextechDefinition(candidate.definitionId)?.rarity !== pending.rarity
+            getHextechDefinition(candidate.definitionId)?.rarity !== pending.rarity ||
+            !isHextechInPool(candidate.definitionId, pool)
           )
             fail();
         }

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { addAction, getCardById, getPlayerById, type GameState, type PendingAbilityState } from '../../../../domain/entities/game.js';
 import { selectDifferentNamedCards } from '../../../../shared/utils/card-identity.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
@@ -80,7 +81,7 @@ function start(game: GameState, ability: PendingAbilityState, ordered: boolean, 
 }
 
 function chooseBranch(game: GameState, option: string | null, next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.stepId !== CHOOSE_BRANCH_STEP_ID ||
@@ -126,7 +127,7 @@ function beginPlacement(game: GameState, ability: PendingAbilityState, ordered: 
 }
 
 function placeBelow(game: GameState, targetCardId: string | null, next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== SELECT_TARGET_STEP_ID || !targetCardId || effect.selectableCardIds?.includes(targetCardId) !== true) return game;
   return resolvePlacement(game, pendingFromEffect(effect), targetCardId, effect.metadata?.orderedResolution === true, next);
 }
@@ -169,6 +170,6 @@ function getNijigasakiTargets(game: GameState, playerId: string): readonly strin
   return getStageMemberCardIdsMatching(game, playerId, (card) => typeIs(CardType.MEMBER)(card) && groupAliasIs('虹ヶ咲')(card));
 }
 
-function pendingFromEffect(effect: NonNullable<GameState['activeEffect']>): PendingAbilityState {
+function pendingFromEffect(effect: NonNullable<ReturnType<typeof getCardActiveEffect>>): PendingAbilityState {
   return { id: effect.id, abilityId: effect.abilityId, sourceCardId: effect.sourceCardId, controllerId: effect.controllerId, mandatory: true, timingId: '', eventIds: [] };
 }

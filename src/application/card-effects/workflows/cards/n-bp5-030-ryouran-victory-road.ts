@@ -1,3 +1,4 @@
+import { appendTriggeredAbility, recordTriggeredAbility } from '../../runtime/enqueue-pending-ability.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -131,10 +132,10 @@ function enqueueNBp5030ResolvedAbilityObserver(
       },
     };
 
-    state = addAction(
+    state = recordTriggeredAbility(
       {
         ...state,
-        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+        pendingAbilities: appendTriggeredAbility(state, pendingAbility),
       },
       'TRIGGER_ABILITY',
       player.id,

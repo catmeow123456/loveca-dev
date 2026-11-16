@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { hasWaitingRoomSelectionReenteredAfter } from '../../../effects/waiting-room-selection-lifecycle.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
 import { type CardInstance } from '../../../../domain/entities/card.js';
@@ -336,7 +337,7 @@ export function registerWaitingRoomToHandWorkflowHandlers(): void {
       config.abilityId,
       config.stepId,
       (game, input, context) => {
-        const effect = game.activeEffect;
+        const effect = getCardActiveEffect(game);
         const currentCandidateCardIds = effect
           ? config.candidateBuilder(game, effect.controllerId)
           : [];
@@ -451,7 +452,7 @@ export function finishWaitingRoomToHandWorkflow(
   continuePendingCardEffects: ContinuePendingCardEffects,
   options: FinishWaitingRoomToHandWorkflowOptions = {}
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }

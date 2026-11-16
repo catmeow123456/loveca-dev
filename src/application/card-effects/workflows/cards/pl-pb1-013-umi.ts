@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import { addAction, getCardById, getOpponent, getPlayerById, type GameState, type LiveModifierState } from '../../../../domain/entities/game.js';
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
@@ -46,7 +47,7 @@ function startAbility(game: GameState, playerId: string, sourceCardId: string): 
 }
 
 function revealSelectedHandCard(game: GameState, selectedSelectionToken: string | null): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== PL_PB1_013_ACTIVATED_PAY_TWO_ENERGY_REVEAL_HAND_LIVE_SCORE_ABILITY_ID || effect.stepId !== SELECT_HAND_CARD_STEP_ID) return game;
   const initialCandidateCardIds = stringArray(effect.metadata?.initialCandidateCardIds);
   const selectedCardId = resolveBlindCardSelectionToken(initialCandidateCardIds, selectedSelectionToken);
@@ -73,7 +74,7 @@ function revealSelectedHandCard(game: GameState, selectedSelectionToken: string 
 }
 
 function finishResolution(game: GameState): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== PL_PB1_013_ACTIVATED_PAY_TWO_ENERGY_REVEAL_HAND_LIVE_SCORE_ABILITY_ID || effect.stepId !== CONFIRM_REVEALED_HAND_CARD_STEP_ID || typeof effect.metadata?.revealedHandCardId !== 'string') return game;
   const player = getPlayerById(game, effect.controllerId);
   const revealedCard = getCardById(game, effect.metadata.revealedHandCardId);

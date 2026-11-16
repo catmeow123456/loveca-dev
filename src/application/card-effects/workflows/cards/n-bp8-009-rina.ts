@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { captureRinaLiveSwap } from '../../../card-entrance.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
@@ -79,7 +80,7 @@ export function registerNBp8009RinaWorkflowHandlers(
     N_BP8_009_ACTIVATED_BOTTOM_HAND_DRAW_TWO_ABILITY_ID,
     NO_HAND_DRAW_STEP,
     (game, _input, context) =>
-      game.activeEffect
+      game.activeEffect?.sourceCardId !== undefined
         ? context.continuePendingCardEffects(
             drawTwo(game, game.activeEffect.controllerId, game.activeEffect.sourceCardId),
             false
@@ -195,7 +196,7 @@ function finishHandSelection(
   selectedCardId: string | null | undefined,
   continuePending: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) return game;
   const candidates = getHandCandidates(game, effect.controllerId);
   if (!selectedCardId || !effect.selectableCardIds?.includes(selectedCardId)) return game;
@@ -296,7 +297,7 @@ function payBottomCost(
   dependencies: NBp8009RinaWorkflowDependencies,
   continuePending: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) return game;
   if (!optionId) return finish(game, 'DECLINE_BOTTOM_COST', {}, continuePending);
   if (optionId !== PAY_BOTTOM_OPTION) return game;
@@ -378,7 +379,7 @@ function selectLiveToTop(
   input: ActiveEffectStepHandlerInput,
   continuePending: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || !hasOnlyCardInput(input)) return game;
   if (input.selectedCardId && !effect.selectableCardIds?.includes(input.selectedCardId))
     return game;
@@ -433,7 +434,7 @@ function selectWaitingLive(
   input: ActiveEffectStepHandlerInput,
   continuePending: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || !hasOnlyCardInput(input)) return game;
   if (input.selectedCardId && !effect.selectableCardIds?.includes(input.selectedCardId))
     return game;
@@ -479,7 +480,7 @@ function finish(
   payload: Readonly<Record<string, unknown>>,
   continuePending: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) return game;
   const state = addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
     pendingAbilityId: effect.id,

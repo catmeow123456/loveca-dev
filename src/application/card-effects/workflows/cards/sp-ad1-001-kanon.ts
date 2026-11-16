@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -141,7 +142,7 @@ function discardAndResolve(
   continuePending: Continue,
   enqueue: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const selectedCardId = selectedSingleCard(input);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const card = selectedCardId ? getCardById(game, selectedCardId) : null;
@@ -245,7 +246,7 @@ function recoverLive(
   input: ActiveEffectStepHandlerInput,
   continuePending: Continue
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const selectedCardId = selectedSingleCard(input);
   if (!effect) return game;
   const currentCandidateCardIds = liveCandidates(game, effect.controllerId).filter(

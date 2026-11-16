@@ -1,3 +1,4 @@
+import { appendTriggeredAbility, recordTriggeredAbility } from './enqueue-pending-ability.js';
 import {
   addAction,
   emitGameEvent,
@@ -135,8 +136,8 @@ export function enqueueEnergyPlacedBelowMemberCardEffects(
               cause: event.cause,
             },
           };
-          state = addAction(
-            { ...state, pendingAbilities: [...state.pendingAbilities, pending] },
+          state = recordTriggeredAbility(
+            { ...state, pendingAbilities: appendTriggeredAbility(state, pending) },
             'TRIGGER_ABILITY',
             player.id,
             {

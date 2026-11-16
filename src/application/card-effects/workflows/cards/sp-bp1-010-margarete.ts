@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { getCardById, getPlayerById, type GameState } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
@@ -146,7 +147,7 @@ function payCompositeCostAndInspect(
   continuePendingCardEffects: (game: GameState, orderedResolution: boolean) => GameState,
   deps: { readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom }
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const submittedIds = selectedCardIds ?? (selectedCardId ? [selectedCardId] : []);
   const discardCardId = submittedIds[0] ?? null;

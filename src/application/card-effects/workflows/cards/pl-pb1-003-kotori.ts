@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { addAction, getPlayerById, type GameState, type PendingAbilityState } from '../../../../domain/entities/game.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import { and, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
@@ -34,7 +35,7 @@ function start(game: GameState, ability: PendingAbilityState, orderedResolution:
 }
 
 function finish(game: GameState, selectedOptionId: string | null, continuePendingCardEffects: ContinuePendingCardEffects, enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== PL_PB1_003_ON_ENTER_WAIT_SELF_ACTIVATE_PRINTEMPS_COUNT_ENERGY_ABILITY_ID || effect.stepId !== WAIT_SELF_COST_STEP_ID) return game;
   const player = getPlayerById(game, effect.controllerId);
   if (!player) return game;

@@ -1,3 +1,10 @@
+import { isDarkColumnLockActive } from '../domain/hextech/suppression.js';
+import {
+  getDarkLockedColumns,
+  isFirstLiveSlotMuted,
+  isCardAbilitySuppressedByDarkHextech,
+} from '../domain/hextech/suppression.js';
+import { getDarkHextechUsage } from '../application/hextech/dark-abilities.js';
 import { GameCommandType } from '../application/game-commands.js';
 import { getHextechDefinition } from '../domain/hextech/catalog.js';
 import { getHextechActivation, getHextechSearch } from '../application/hextech/abilities.js';
@@ -44,6 +51,7 @@ import type { CardInstance, HeartRequirement } from '../domain/entities/card.js'
 import { isLiveCardData, isMemberCardData } from '../domain/entities/card.js';
 import {
   EffectWindowType,
+  OrientationState,
   FaceState,
   GameMode,
   GamePhase,
@@ -348,6 +356,11 @@ export function projectPlayerViewState(
       ? {
           hextech: {
             rulesVersion: game.hextech.rulesVersion,
+            restrictions: game.players.map((player) => ({
+              seat: getSeatForPlayer(game, player.id)!,
+              lockedColumns: getDarkLockedColumns(game, player.id),
+              firstLiveSlotMuted: isFirstLiveSlotMuted(game, player.id),
+            })),
             ...buildHextechAbilityView(game, viewerPlayerId),
             ...(!game.isEnded && game.hextech.draft?.pending
               ? {
@@ -364,6 +377,25 @@ export function projectPlayerViewState(
                 rarity: definition.rarity,
                 rulesText: definition.rulesText,
                 acquiredTurn: owned.acquiredTurn,
+                ...(definition.effect.kind === 'DARK'
+                  ? {
+                      statusText: darkHextechStatus(
+                        game,
+                        owned.playerId,
+                        owned.instanceId,
+                        definition.effect.effect
+                      ),
+                    }
+                  : {}),
+                ...(definition.activation
+                  ? {
+                      usage: {
+                        limit: definition.activation.limit,
+                        sharedTimings: definition.activation.timings.length > 1,
+                        used: getDarkHextechUsage(game, owned.instanceId)?.used ?? false,
+                      },
+                    }
+                  : {}),
               };
             }),
           },
@@ -635,11 +667,27 @@ export function projectPlayerViewState(
     const object = objects[publicObjectId];
     if (object) objects[publicObjectId] = { ...object, skipsNextActivePhase: true };
   }
+  for (const player of game.players) {
+    for (const id of [...Object.values(player.memberSlots.slots), ...player.liveZone.cardIds]) {
+      if (!id) continue;
+      const objectId = createPublicObjectId(id);
+      const object = objects[objectId];
+      if (object?.surface === 'FRONT' && isCardAbilitySuppressedByDarkHextech(game, id))
+        objects[objectId] = { ...object, abilitiesSuppressed: true };
+    }
+  }
   const activeEffect = game.activeEffect
     ? {
         id: game.activeEffect.id,
         abilityId: game.activeEffect.abilityId,
-        sourceObjectId: createPublicObjectId(game.activeEffect.sourceCardId),
+        sourceObjectId:
+          game.activeEffect.sourceCardId !== undefined
+            ? createPublicObjectId(game.activeEffect.sourceCardId)
+            : undefined,
+        sourceHextechInstanceId:
+          game.activeEffect.sourceCardId === undefined
+            ? game.activeEffect.sourceHextechInstanceId
+            : undefined,
         sourceCardDisplayCode: game.activeEffect.sourceCardDisplayCode,
         controllerSeat: getSeatForPlayer(game, game.activeEffect.controllerId),
         effectText: game.activeEffect.effectText,
@@ -2502,9 +2550,11 @@ function buildHextechAbilityView(
               min: action.min,
               max: action.max,
               selectionLabel:
-                action.kind === 'ACTIVATED_DISCARD_DRAW'
-                  ? '请选择要放置入休息室的手牌'
-                  : '请选择要待机的己方成员',
+                action.kind === 'DARK'
+                  ? '继续后依次选择合法目标和支付代价；完成前可以放弃。'
+                  : action.kind === 'ACTIVATED_DISCARD_DRAW'
+                    ? '请选择要放置入休息室的手牌'
+                    : '请选择要待机的己方成员',
               candidates: cards(viewerPlayerId, action.candidates),
             },
           ]
@@ -2577,4 +2627,56 @@ function getOwnedCardIds(
   viewerPlayerId: string
 ): readonly string[] {
   return cardIds.filter((cardId) => game.cardRegistry.get(cardId)?.ownerId === viewerPlayerId);
+}
+
+/** Conditional status uses the same visibility boundary as LIVE modifier inspection. */
+function darkHextechStatus(
+  game: GameState,
+  ownerId: string,
+  instanceId: string,
+  effect: string
+): string | undefined {
+  const target = game.players.find((player) =>
+    ['solo-exam', 'multi-song-tax', 'double-exam', 'reserve-inspection', 'center-noise'].includes(
+      effect
+    )
+      ? player.id !== ownerId
+      : player.id === ownerId
+  )!;
+  if (['solo-exam', 'multi-song-tax', 'double-exam', 'all-in-song'].includes(effect)) {
+    if (
+      target.liveZone.cardIds.some(
+        (id) => target.liveZone.cardStates.get(id)?.face === FaceState.FACE_DOWN
+      )
+    )
+      return '等待翻牌后判定';
+    const count = target.liveZone.cardIds.filter((id) => {
+      const card = getCardById(game, id);
+      return card && isLiveCardData(card.data);
+    }).length;
+    return (['solo-exam', 'all-in-song'].includes(effect) ? count === 1 : count >= 2)
+      ? '当前条件成立'
+      : '当前条件未成立';
+  }
+  if (effect === 'reserve-inspection')
+    return target.energyZone.cardIds.filter(
+      (id) => target.energyZone.cardStates.get(id)?.orientation !== OrientationState.WAITING
+    ).length >= 2
+      ? '当前条件成立：对方至少2张活跃能量'
+      : '当前条件未成立：对方活跃能量不足2张';
+  if (effect === 'silent-column') {
+    const lock = game.hextech?.columnLocks?.find((entry) => entry.sourceInstanceId === instanceId);
+    return lock
+      ? isDarkColumnLockActive(game, lock)
+        ? '纵列封锁生效中'
+        : '封锁暂时无效'
+      : '未绑定成员或来源已离场';
+  }
+  if (['borrow-now', 'burning-stage', 'farewell-gift'].includes(effect))
+    return game.hextech?.uses?.some(
+      (use) => use.instanceId === instanceId && use.turn === game.turnCount
+    )
+      ? '本回合临时效果生效中'
+      : '本回合尚未发动';
+  return undefined;
 }

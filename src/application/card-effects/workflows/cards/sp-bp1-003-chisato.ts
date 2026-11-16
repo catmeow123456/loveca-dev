@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -229,7 +230,7 @@ function finishRevealedHandMembers(game: GameState): GameState {
 }
 
 function getChisatoEffect(game: GameState, stepId: string): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   return effect?.abilityId === ABILITY_ID && effect.stepId === stepId ? effect : null;
 }
 

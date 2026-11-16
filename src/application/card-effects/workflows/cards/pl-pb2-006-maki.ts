@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -227,7 +228,7 @@ function finishLiveStartActivation(
   deps: WorkflowDeps,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==
@@ -381,7 +382,7 @@ function finishDiscardCost(
   deps: WorkflowDeps,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.stepId !== SELECT_HAND_DISCARD_STEP_ID ||
@@ -488,7 +489,7 @@ function finishOpponentTarget(
   deps: WorkflowDeps,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.stepId !== SELECT_OPPONENT_MEMBER_STEP_ID ||

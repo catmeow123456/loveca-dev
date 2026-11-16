@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { addAction, getCardById, getPlayerById, type GameState, type PendingAbilityState } from '../../../../domain/entities/game.js';
 import type { EnterStageEvent, EnterWaitingRoomEvent, LeaveStageEvent } from '../../../../domain/events/game-events.js';
 import { SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
@@ -47,7 +48,7 @@ function start(game: GameState, ability: PendingAbilityState, ordered: boolean, 
 }
 
 function finish(game: GameState, selectedCardId: string | null, next: Continue, enqueue: Enqueue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== STEP) return game;
   const player = getPlayerById(game, effect.controllerId);
   if (!player) return game;
@@ -73,6 +74,6 @@ function consume(game: GameState, ability: PendingAbilityState, ordered: boolean
   const player = getPlayerById(game, ability.controllerId);
   return player ? next(addAction(state, 'RESOLVE_ABILITY', player.id, { pendingAbilityId: ability.id, abilityId: ability.abilityId, sourceCardId: ability.sourceCardId, step }), ordered) : next(state, ordered);
 }
-function resolve(game: GameState, playerId: string, effect: NonNullable<GameState['activeEffect']>, next: Continue, payload: Record<string, unknown>): GameState {
+function resolve(game: GameState, playerId: string, effect: NonNullable<ReturnType<typeof getCardActiveEffect>>, next: Continue, payload: Record<string, unknown>): GameState {
   return next(addAction(game, 'RESOLVE_ABILITY', playerId, { pendingAbilityId: effect.id, abilityId: effect.abilityId, sourceCardId: effect.sourceCardId, ...payload }), effect.metadata?.orderedResolution === true);
 }

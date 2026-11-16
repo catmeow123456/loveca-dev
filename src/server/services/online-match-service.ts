@@ -1,3 +1,4 @@
+import type { HextechPool } from '../../domain/hextech/catalog.js';
 import type { BattleRulesetId } from '../../domain/rules/battle-ruleset.js';
 import type { CasualRuleMode } from '../../domain/rules/deck-construction.js';
 import { randomUUID } from 'node:crypto';
@@ -130,6 +131,7 @@ export interface CreateOnlineMatchPlayerParams {
 
 export interface CreateOnlineMatchParams {
   readonly hextechRoundSelection?: boolean;
+  readonly hextechPool?: HextechPool;
   readonly rulesetId?: BattleRulesetId;
   readonly casualRuleMode?: CasualRuleMode | null;
   readonly roomCode: string;
@@ -508,6 +510,7 @@ export class OnlineMatchService {
     const automationGameMode = params.automationGameMode ?? 'DEBUG';
     const session = createGameSession({
       hextechRoundSelection: params.hextechRoundSelection,
+      hextechPool: params.hextechPool,
       rulesetId: params.rulesetId ?? 'STANDARD',
       cardEntrance:
         params.originKind === 'AI_DEBUG'
@@ -4321,6 +4324,9 @@ function buildReadonlySpectatorSnapshot(
           disabledReason: '观战模式为只读',
         },
       },
+      ...(match.session.state?.activeEffect?.sourceCardId === undefined && match.session.state?.activeEffect?.selectableCardVisibility === 'AWAITING_PLAYER_ONLY' && snapshot.playerViewState.activeEffect
+        ? { activeEffect: { ...snapshot.playerViewState.activeEffect, selectableObjectIds: undefined, inspectionObjectIds: undefined, revealedObjectIds: undefined } }
+        : {}),
       permissions: { availableCommands: [] },
     },
     spectatorView: buildSpectatorViewState(link, session),

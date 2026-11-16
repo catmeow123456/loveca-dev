@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -106,7 +107,7 @@ function startSpBp7003ChisatoActivated(
 }
 
 function revealSelectedHandMember(game: GameState, selectedCardId: string | null): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==
@@ -152,7 +153,7 @@ function revealSelectedHandMember(game: GameState, selectedCardId: string | null
 }
 
 function stackRevealedMemberAndDrawTwo(game: GameState): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==

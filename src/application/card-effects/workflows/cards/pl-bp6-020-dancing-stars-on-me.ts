@@ -1,3 +1,5 @@
+import { appendTriggeredAbility, recordTriggeredAbility } from '../../runtime/enqueue-pending-ability.js';
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -147,10 +149,10 @@ function enqueueBp6020DancingStarsResolvedAbilityObserver(
       },
     };
 
-    state = addAction(
+    state = recordTriggeredAbility(
       {
         ...state,
-        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+        pendingAbilities: appendTriggeredAbility(state, pendingAbility),
       },
       'TRIGGER_ABILITY',
       player.id,
@@ -251,7 +253,7 @@ function finishResolvedLiveStartPositionChange(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberSlotMoved
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== BP6_020_AUTO_CENTER_MUSE_LIVE_START_RESOLVED_POSITION_CHANGE_ABILITY_ID ||

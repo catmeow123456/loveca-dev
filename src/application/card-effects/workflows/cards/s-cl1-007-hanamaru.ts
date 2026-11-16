@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -35,7 +36,7 @@ export function registerSCl1007HanamaruWorkflowHandlers(deps: {
     (game, input, context) => {
       if (!input.selectedCardId)
         return finishSkippedActiveEffect(game, context.continuePendingCardEffects);
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== STEP_ID) return game;
       const discard = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
         game,

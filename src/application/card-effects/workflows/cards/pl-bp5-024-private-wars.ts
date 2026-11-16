@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -178,7 +179,7 @@ function finishPrivateWarsBranchSelection(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_BP5_024_LIVE_START_PRIVATE_WARS_CHOICE_ABILITY_ID ||
@@ -270,7 +271,7 @@ function finishPrivateWarsActivateWaitingMember(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_BP5_024_LIVE_START_PRIVATE_WARS_CHOICE_ABILITY_ID ||
@@ -379,7 +380,7 @@ function finishPrivateWarsWaitOpponentMember(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_BP5_024_LIVE_START_PRIVATE_WARS_CHOICE_ABILITY_ID ||
@@ -498,7 +499,7 @@ function finishPrivateWarsPendingNoop(
 function finishPrivateWarsActiveNoop(
   game: GameState,
   playerId: string,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   payload: Record<string, unknown>,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {

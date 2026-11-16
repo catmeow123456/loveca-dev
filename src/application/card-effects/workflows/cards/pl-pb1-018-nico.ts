@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -210,7 +211,7 @@ function startPlPb1018NicoSelectEmptySlot(
   continuePendingCardEffects: ContinuePendingCardEffects,
   dependencies: PlPb1018NicoWorkflowDependencies
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const workflow = getNicoWorkflowContextFromActiveEffect(game);
   const currentPlayerId = getNicoCurrentPlayerId(game);
   const remainingPlayerIds = getNicoRemainingPlayerIds(game);
@@ -428,7 +429,7 @@ function getEmptyMemberSlots(game: GameState, playerId: string): SlotPosition[] 
 }
 
 function getNicoWorkflowContextFromActiveEffect(game: GameState): NicoWorkflowContext | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_PB1_018_ON_ENTER_BOTH_PLAY_LOW_COST_MEMBERS_WAITING_ABILITY_ID

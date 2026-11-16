@@ -1,3 +1,4 @@
+import { isCardAbilitySuppressedByDarkHextech } from '../hextech/suppression.js';
 import { isMemberCardData } from '../entities/card.js';
 import {
   getCardById,
@@ -34,27 +35,29 @@ export function getMemberEffectiveCost(
   }
 
   let effectiveCost = card.data.cost;
-  if (isBp4008HanayoStageCostBonusActive(game, playerId, memberCardId)) {
-    effectiveCost += BP4_008_SUCCESS_SCORE_COST_BONUS;
+  if (!isCardAbilitySuppressedByDarkHextech(game, memberCardId)) {
+    if (isBp4008HanayoStageCostBonusActive(game, playerId, memberCardId)) {
+      effectiveCost += BP4_008_SUCCESS_SCORE_COST_BONUS;
+    }
+    effectiveCost += getSpPb2006MemberBelowLiellaCostBonus(game, playerId, memberCardId);
+    if (
+      card.ownerId === playerId &&
+      cardCodeMatchesBase(card.data.cardCode, 'PL!-bp8-009') &&
+      isMemberOnPlayerStage(game, playerId, memberCardId)
+    ) {
+      effectiveCost +=
+        2 *
+        countDistinctMemberEffectiveCostsBelowSourceMember(
+          game,
+          playerId,
+          memberCardId,
+          liveModifiers
+        );
+    }
+    effectiveCost += getSpPb1010StageEnergyCostBonus(game, playerId, memberCardId);
+    effectiveCost += getSpBp7002StageEnergyLeadCostBonus(game, playerId, memberCardId);
+    effectiveCost += getSBp3016SuccessLiveCountStageCostBonus(game, playerId, memberCardId);
   }
-  effectiveCost += getSpPb2006MemberBelowLiellaCostBonus(game, playerId, memberCardId);
-  if (
-    card.ownerId === playerId &&
-    cardCodeMatchesBase(card.data.cardCode, 'PL!-bp8-009') &&
-    isMemberOnPlayerStage(game, playerId, memberCardId)
-  ) {
-    effectiveCost +=
-      2 *
-      countDistinctMemberEffectiveCostsBelowSourceMember(
-        game,
-        playerId,
-        memberCardId,
-        liveModifiers
-      );
-  }
-  effectiveCost += getSpPb1010StageEnergyCostBonus(game, playerId, memberCardId);
-  effectiveCost += getSpBp7002StageEnergyLeadCostBonus(game, playerId, memberCardId);
-  effectiveCost += getSBp3016SuccessLiveCountStageCostBonus(game, playerId, memberCardId);
   effectiveCost += getLiveMemberCostModifier(liveModifiers, playerId, memberCardId);
   effectiveCost = getLiveMemberCostSetValue(liveModifiers, playerId, memberCardId) ?? effectiveCost;
   return effectiveCost;

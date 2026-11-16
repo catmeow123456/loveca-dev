@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { addAction, getCardById, getPlayerById, type GameState, type PendingAbilityState } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
@@ -51,7 +52,7 @@ function startRelay(game: GameState, ability: PendingAbilityState, orderedResolu
 }
 
 function finishRelay(game: GameState, cardId: string | null, continuePending: ContinuePending): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== SELECT_RELAY || !cardId || !effect.selectableCardIds?.includes(cardId)) return game;
   const ability: PendingAbilityState = { id: effect.id, abilityId: effect.abilityId, sourceCardId: effect.sourceCardId, controllerId: effect.controllerId, mandatory: true, timingId: '', eventIds: [] };
   return recoverAndContinue(game, ability, cardId, effect.metadata?.orderedResolution === true, continuePending, effect.selectableCardIds);
@@ -97,7 +98,7 @@ function startActivated(game: GameState, playerId: string, cardId: string): Game
 }
 
 function payDiscard(game: GameState, cardId: string | null, delegate: Parameters<typeof delegateWaitingRoomMemberOnEnterAbility>[2], enqueue: EnqueueTriggeredCardEffectsForEnterWaitingRoom): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== SELECT_HAND || !cardId || !effect.selectableCardIds?.includes(cardId) || !handCandidates(game, effect.controllerId).includes(cardId)) return game;
   const discard = discardOneHandCardToWaitingRoomAndEnqueueTriggers(game, effect.controllerId, cardId, { candidateCardIds: effect.selectableCardIds }, enqueue);
   if (!discard) return game;
@@ -112,7 +113,7 @@ function payDiscard(game: GameState, cardId: string | null, delegate: Parameters
 }
 
 function delegateSelected(game: GameState, abilityId: string | null, delegate: Parameters<typeof delegateWaitingRoomMemberOnEnterAbility>[2], continuePending: ContinuePending): GameState {
-  const effect = game.activeEffect; const cardId = typeof effect?.metadata?.delegatedTargetCardId === 'string' ? effect.metadata.delegatedTargetCardId : null;
+  const effect = getCardActiveEffect(game); const cardId = typeof effect?.metadata?.delegatedTargetCardId === 'string' ? effect.metadata.delegatedTargetCardId : null;
   if (!effect || effect.stepId !== SELECT_ABILITY || !abilityId || !cardId) return game;
   if (!getWaitingRoomOnEnterTarget(game, effect.controllerId, cardId)?.definitions.some((d) => d.abilityId === abilityId)) {
     return continuePending(
@@ -129,5 +130,5 @@ function delegateSelected(game: GameState, abilityId: string | null, delegate: P
   }
   return delegateWaitingRoomMemberOnEnterAbility(game, params(effect, cardId, abilityId), delegate);
 }
-function params(effect: NonNullable<GameState['activeEffect']>, cardId: string, abilityId: string) { return { controllerId: effect.controllerId, parentAbilityId: effect.abilityId, parentSourceCardId: effect.sourceCardId, parentEffectId: effect.id, targetCardId: cardId, delegatedAbilityId: abilityId, orderedResolution: false }; }
+function params(effect: NonNullable<ReturnType<typeof getCardActiveEffect>>, cardId: string, abilityId: string) { return { controllerId: effect.controllerId, parentAbilityId: effect.abilityId, parentSourceCardId: effect.sourceCardId, parentEffectId: effect.id, targetCardId: cardId, delegatedAbilityId: abilityId, orderedResolution: false }; }
 function finishPendingNoop(game: GameState, ability: PendingAbilityState, orderedResolution: boolean, continuePending: ContinuePending, step: string): GameState { return continuePending(addAction({ ...game, pendingAbilities: game.pendingAbilities.filter((p) => p.id !== ability.id) }, 'RESOLVE_ABILITY', ability.controllerId, { pendingAbilityId: ability.id, abilityId: ability.abilityId, sourceCardId: ability.sourceCardId, step }), orderedResolution); }

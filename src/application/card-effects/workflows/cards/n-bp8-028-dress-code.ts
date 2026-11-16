@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -86,7 +87,7 @@ export function registerNBp8028DressCodeWorkflowHandlers(deps: {
     ABILITY_ID,
     STEP_ID,
     (game, _input, runtime) => {
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== STEP_ID) return game;
       const milled =
         typeof effect.metadata?.milledCardId === 'string'

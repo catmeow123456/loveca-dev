@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -110,7 +111,7 @@ function finishButterflyPayment(
   game: GameState,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==
@@ -221,7 +222,7 @@ function finishActiveNoOp(
   continuePendingCardEffects: ContinuePendingCardEffects,
   reason: string
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) return game;
   return continuePendingCardEffects(
     addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', playerId, {

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { getStageMemberLifecycleId } from '../../runtime/ability-source-lifecycle.js';
 import { getTemporaryOnEnterAbilityInvocation } from '../../runtime/temporary-on-enter-ability-grants.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
@@ -196,7 +197,7 @@ function selectOnEnterMember(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.stepId !== ENTER_SELECT_MEMBER ||
@@ -241,7 +242,7 @@ function finishOnEnterHost(
   hostCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const selectedMemberCardId = getStringMetadata(effect, 'selectedWaitingMemberCardId');
   if (!effect || effect.stepId !== ENTER_SELECT_HOST || !hostCardId || !selectedMemberCardId)
     return game;
@@ -331,7 +332,7 @@ function payDiscardTwo(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== ACT_DISCARD_TWO || selectedCardIds.length !== 2) return game;
   const player = getPlayerById(game, effect.controllerId);
   if (!player || player.memberSlots.slots[SlotPosition.CENTER] !== effect.sourceCardId) return game;
@@ -398,7 +399,7 @@ function selectOtherMember(
   continuePendingCardEffects: ContinuePendingCardEffects,
   delegatePendingAbility: Parameters<typeof startDelegatedAbilitySequence>[2]
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.stepId !== ACT_SELECT_OTHER ||
@@ -447,7 +448,7 @@ function selectDelegatedAbility(
   continuePendingCardEffects: ContinuePendingCardEffects,
   delegatePendingAbility: Parameters<typeof startDelegatedAbilitySequence>[2]
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const expectedStep = sourceSelection ? ACT_SELECT_SOURCE_ABILITY : ACT_SELECT_TARGET_ABILITY;
   if (!effect || effect.stepId !== expectedStep || !abilityId) return game;
   const sourceDefinitions = getStageOnEnterDefinitions(
@@ -569,7 +570,7 @@ function startSelectedSequence(
   continuePendingCardEffects: ContinuePendingCardEffects,
   delegatePendingAbility: Parameters<typeof startDelegatedAbilitySequence>[2]
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.stepId !== ACT_SELECT_ORDER ||

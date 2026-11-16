@@ -1,11 +1,27 @@
+import { DARK_HEXTECH_DEFINITIONS } from './dark-catalog.js';
 import type { HeartIcon } from '../entities/card.js';
 import { HeartColor } from '../../shared/types/enums.js';
 
 export const HEXTECH_RULES_VERSION = 'HEXTECH_V1' as const;
+export const DARK_HEXTECH_RULES_VERSION = 'DARK_HEXTECH_V1' as const;
+export type HextechRulesVersion = typeof HEXTECH_RULES_VERSION | typeof DARK_HEXTECH_RULES_VERSION;
+export type HextechPool = 'NORMAL' | 'DARK';
+export type HextechTiming = 'ACTIVATED' | 'OWN_LIVE_START';
+export interface HextechActivationDefinition {
+  readonly timings: readonly HextechTiming[];
+  readonly limit: 'TURN' | 'MATCH';
+  readonly energy: number;
+  readonly discard: number;
+  readonly restOwn: boolean;
+  readonly target:
+    'OPPONENT_ACTIVE' | 'OPPONENT_MEMBER' | 'OPPONENT_WAITING' | 'NONE' | 'OWN_MEMBER';
+  readonly maxPrintedCost?: number;
+}
 export type HextechRarity = 'SILVER' | 'GOLD' | 'PRISMATIC';
 export const HEXTECH_RARITY_LABELS = { SILVER: '银', GOLD: '金', PRISMATIC: '彩' } as const;
 
 export type HextechEffect =
+  | { readonly kind: 'DARK'; readonly effect: string }
   | { readonly kind: 'HEART'; readonly hearts: readonly HeartIcon[] }
   | { readonly kind: 'BLADE'; readonly count: number }
   | { readonly kind: 'SCORE'; readonly count: number }
@@ -32,6 +48,8 @@ export interface HextechDefinition {
   readonly rarity: HextechRarity;
   readonly rulesText: string;
   readonly effect: HextechEffect;
+  readonly group?: 'DISRUPTION' | 'DOUBLE_EDGED';
+  readonly activation?: HextechActivationDefinition;
 }
 
 /** Only complete, supported effects belong here. IDs are independent of display names. */
@@ -227,10 +245,29 @@ export const HEXTECH_DEFINITIONS = [
   },
 ] as const satisfies readonly HextechDefinition[];
 
-export type HextechId = (typeof HEXTECH_DEFINITIONS)[number]['id'];
+export type HextechId =
+  (typeof HEXTECH_DEFINITIONS)[number]['id'] | (typeof DARK_HEXTECH_DEFINITIONS)[number]['id'];
+export { DARK_HEXTECH_DEFINITIONS };
+export function getHextechDefinitions(
+  pool: HextechPool = 'NORMAL'
+): readonly (HextechDefinition & { readonly id: HextechId })[] {
+  return pool === 'DARK' ? DARK_HEXTECH_DEFINITIONS : HEXTECH_DEFINITIONS;
+}
+export function hextechPoolForVersion(version: HextechRulesVersion): HextechPool {
+  return version === DARK_HEXTECH_RULES_VERSION ? 'DARK' : 'NORMAL';
+}
+export function hextechRulesVersion(pool: HextechPool): HextechRulesVersion {
+  return pool === 'DARK' ? DARK_HEXTECH_RULES_VERSION : HEXTECH_RULES_VERSION;
+}
+export function isHextechInPool(id: string, pool: HextechPool): boolean {
+  return getHextechDefinitions(pool).some((entry) => entry.id === id);
+}
 
 const definitionsById = new Map<string, HextechDefinition>(
-  HEXTECH_DEFINITIONS.map((definition) => [definition.id, definition])
+  [...HEXTECH_DEFINITIONS, ...DARK_HEXTECH_DEFINITIONS].map((definition) => [
+    definition.id,
+    definition,
+  ])
 );
 
 export function getHextechDefinition(id: string): HextechDefinition | undefined {

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -109,12 +110,15 @@ export function registerSpBp5001KanonWorkflowHandlers(deps: {
         context.continuePendingCardEffects
       )
     );
-    registerActiveEffectStepHandler(config.abilityId, PAY_DECISION_STEP_ID, (game, input, context) =>
-      finishPayEnergyDecision(
-        game,
-        input.selectedOptionId ?? null,
-        context.continuePendingCardEffects
-      )
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      PAY_DECISION_STEP_ID,
+      (game, input, context) =>
+        finishPayEnergyDecision(
+          game,
+          input.selectedOptionId ?? null,
+          context.continuePendingCardEffects
+        )
     );
     registerActiveEffectStepHandler(
       config.abilityId,
@@ -126,13 +130,16 @@ export function registerSpBp5001KanonWorkflowHandlers(deps: {
           context.continuePendingCardEffects
         )
     );
-    registerActiveEffectStepHandler(config.abilityId, WAIT_OPPONENT_STEP_ID, (game, input, context) =>
-      finishWaitOpponentLowCostMember(
-        game,
-        input.selectedCardId ?? null,
-        context.continuePendingCardEffects,
-        deps.enqueueTriggeredCardEffects
-      )
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      WAIT_OPPONENT_STEP_ID,
+      (game, input, context) =>
+        finishWaitOpponentLowCostMember(
+          game,
+          input.selectedCardId ?? null,
+          context.continuePendingCardEffects,
+          deps.enqueueTriggeredCardEffects
+        )
     );
   }
 
@@ -185,8 +192,7 @@ function startPayEnergyChoice(
     });
   }
 
-  const canPay =
-    getEnergySelectionCandidates(game, player.id, 'TAP_ACTIVE_ENERGY').length >= 1;
+  const canPay = getEnergySelectionCandidates(game, player.id, 'TAP_ACTIVE_ENERGY').length >= 1;
   if (!canPay) {
     return consumePendingNoop(game, ability, orderedResolution, continuePendingCardEffects, {
       step: 'SKIP_NO_ACTIVE_ENERGY',
@@ -234,7 +240,7 @@ function finishPayEnergyDecision(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== PAY_DECISION_STEP_ID) {
     return game;
   }
@@ -355,12 +361,16 @@ function finishPaidEffectOption(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== EFFECT_OPTION_STEP_ID) {
     return game;
   }
   const player = getPlayerById(game, effect.controllerId);
-  if (!player || !selectedOptionId || effect.selectableOptions?.some((option) => option.id === selectedOptionId) !== true) {
+  if (
+    !player ||
+    !selectedOptionId ||
+    effect.selectableOptions?.some((option) => option.id === selectedOptionId) !== true
+  ) {
     return game;
   }
 
@@ -425,7 +435,7 @@ function finishWaitOpponentLowCostMember(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== WAIT_OPPONENT_STEP_ID) {
     return game;
   }
@@ -434,7 +444,11 @@ function finishWaitOpponentLowCostMember(
   if (!player || !targetMetadata) {
     return game;
   }
-  const orientationChange = resolveStageMemberOrientationTargetSelection(game, effect, selectedCardId);
+  const orientationChange = resolveStageMemberOrientationTargetSelection(
+    game,
+    effect,
+    selectedCardId
+  );
   if (!orientationChange) {
     return game;
   }
@@ -560,7 +574,7 @@ function finishActivatedCostChoice(
   selectedOptionId: string | null,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== SP_BP5_001_ACTIVATED_WAIT_SELF_OR_DISCARD_ACTIVATE_ENERGY_ABILITY_ID ||
@@ -597,12 +611,18 @@ function finishActivatedCostChoice(
   if (selectedOptionId !== WAIT_SELF_COST_OPTION_ID) {
     return game;
   }
-  const waitResult = setMemberOrientation(game, player.id, effect.sourceCardId, OrientationState.WAITING, {
-    kind: 'CARD_EFFECT',
-    playerId: player.id,
-    sourceCardId: effect.sourceCardId,
-    abilityId: effect.abilityId,
-  });
+  const waitResult = setMemberOrientation(
+    game,
+    player.id,
+    effect.sourceCardId,
+    OrientationState.WAITING,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: player.id,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+    }
+  );
   if (!waitResult || waitResult.previousOrientation !== OrientationState.ACTIVE) {
     return game;
   }
@@ -624,15 +644,10 @@ function finishActivatedCostChoice(
         }),
     }
   );
-  return finishActivatedAfterCost(
-    stateWithMemberStateTriggers.gameState,
-    effect,
-    player.id,
-    {
-      costType: WAIT_SELF_COST_OPTION_ID,
-      waitedMemberCardId: effect.sourceCardId,
-    }
-  );
+  return finishActivatedAfterCost(stateWithMemberStateTriggers.gameState, effect, player.id, {
+    costType: WAIT_SELF_COST_OPTION_ID,
+    waitedMemberCardId: effect.sourceCardId,
+  });
 }
 
 function finishActivatedDiscardCost(
@@ -640,7 +655,7 @@ function finishActivatedDiscardCost(
   selectedCardId: string | null,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== SP_BP5_001_ACTIVATED_WAIT_SELF_OR_DISCARD_ACTIVATE_ENERGY_ABILITY_ID ||
@@ -682,7 +697,7 @@ function finishActivatedDiscardCost(
 
 function finishActivatedAfterCost(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   payload: Record<string, unknown>
 ): GameState {
@@ -758,16 +773,15 @@ function hasLegalOpponentWaitTarget(game: GameState, playerId: string): boolean 
   if (!opponent) {
     return false;
   }
-  return getStageMemberCardIdsMatching(
-    game,
-    opponent.id,
-    lowCostOpponentMemberSelector
-  ).some((cardId) => opponent.memberSlots.cardStates.get(cardId)?.orientation !== OrientationState.WAITING);
+  return getStageMemberCardIdsMatching(game, opponent.id, lowCostOpponentMemberSelector).some(
+    (cardId) =>
+      opponent.memberSlots.cardStates.get(cardId)?.orientation !== OrientationState.WAITING
+  );
 }
 
 function createOpponentWaitSelection(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>
 ) {
   const opponent = getOpponent(game, effect.controllerId);
   const triggerCondition =
@@ -805,7 +819,7 @@ function createOpponentWaitSelection(
 }
 
 function getSourceSlotFromMetadata(
-  metadata: NonNullable<GameState['activeEffect']>['metadata']
+  metadata: NonNullable<ReturnType<typeof getCardActiveEffect>>['metadata']
 ): SlotPosition | undefined {
   const sourceSlot = metadata?.sourceSlot;
   return sourceSlot === SlotPosition.LEFT ||
@@ -816,5 +830,7 @@ function getSourceSlotFromMetadata(
 }
 
 function getStringArray(value: unknown): readonly string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { addAction, getCardById, getPlayerById, updateLiveResolution, type GameState, type LiveModifierState, type PendingAbilityState } from '../../../../domain/entities/game.js';
 import { addHeartLiveModifierForSourceMember, replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
@@ -56,7 +57,7 @@ function start(game: GameState, ability: PendingAbilityState, ordered: boolean, 
 }
 
 function finish(game: GameState, selected: readonly string[], cont: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== PL_N_BP3_009_LIVE_START_BOTTOM_TWO_WAITING_MEMBERS_COST_SUM_REWARD_ABILITY_ID || effect.stepId !== SELECT_STEP_ID) return game;
   const current = candidates(game, effect.controllerId);
   if (!sourceValid(game, effect.controllerId, effect.sourceCardId)) return consumeEffect(game, effect, cont, 'SOURCE_LEFT_STAGE');
@@ -96,6 +97,6 @@ function replacePlayerScore(game: GameState, playerId: string, sourceCardId: str
 function consume(game: GameState, ability: PendingAbilityState, ordered: boolean, cont: Continue, step: string): GameState {
   return cont(addAction({ ...game, pendingAbilities: game.pendingAbilities.filter((x) => x.id !== ability.id) }, 'RESOLVE_ABILITY', ability.controllerId, { pendingAbilityId: ability.id, abilityId: ability.abilityId, sourceCardId: ability.sourceCardId, step }), ordered);
 }
-function consumeEffect(game: GameState, effect: NonNullable<GameState['activeEffect']>, cont: Continue, step: string): GameState {
+function consumeEffect(game: GameState, effect: NonNullable<ReturnType<typeof getCardActiveEffect>>, cont: Continue, step: string): GameState {
   return cont(addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, { pendingAbilityId: effect.id, abilityId: effect.abilityId, sourceCardId: effect.sourceCardId, step }), effect.metadata?.orderedResolution === true);
 }

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -230,7 +231,7 @@ function choosePlayer(
   targetPlayerId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const config = effect ? CONFIG_BY_ABILITY_ID.get(effect.abilityId) : undefined;
   const controller = effect ? getPlayerById(game, effect.controllerId) : null;
   const opponent = controller ? getOpponent(game, controller.id) : null;
@@ -296,7 +297,7 @@ function finish(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const config = effect ? CONFIG_BY_ABILITY_ID.get(effect.abilityId) : undefined;
   if (
     !effect ||

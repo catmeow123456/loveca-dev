@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -548,7 +549,7 @@ function getSpPb1001Effect(
   abilityId: string,
   stepId: string
 ): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   return effect?.abilityId === abilityId && effect.stepId === stepId ? effect : null;
 }
 

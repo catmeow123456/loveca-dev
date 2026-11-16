@@ -1,3 +1,4 @@
+import { isCardAbilitySuppressedByDarkHextech } from '../hextech/suppression.js';
 import { isMemberCardData } from '../entities/card.js';
 import { getCardById, getPlayerById, type GameState } from '../entities/game.js';
 import { OrientationState } from '../../shared/types/enums.js';
@@ -10,7 +11,8 @@ export function getStageMemberActivatedAbilityProhibition(
   game: GameState,
   playerId: string,
   sourceCardId: string
-): 'SERAS_LOW_COST' | undefined {
+): 'SERAS_LOW_COST' | 'DARK_HEXTECH' | undefined {
+  if (isCardAbilitySuppressedByDarkHextech(game, sourceCardId)) return 'DARK_HEXTECH';
   const player = getPlayerById(game, playerId);
   const source = getCardById(game, sourceCardId);
   if (
@@ -29,7 +31,11 @@ export function getStageMemberActivatedAbilityProhibition(
       return card && card.ownerId === controller.id && isMemberCardData(card.data) ? [card] : [];
     });
     return (
-      stage.some((card) => cardCodeMatchesBase(card.data.cardCode, 'PL!HS-bp8-007')) &&
+      stage.some(
+        (card) =>
+          !isCardAbilitySuppressedByDarkHextech(game, card.instanceId) &&
+          cardCodeMatchesBase(card.data.cardCode, 'PL!HS-bp8-007')
+      ) &&
       stage.some(
         (card) =>
           cardNameAliasMatches(card.data, '桂城泉') &&

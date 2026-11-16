@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -58,7 +59,7 @@ export function registerLlBp8001NicoAiSerasWorkflowHandlers(deps: {
     registerActiveEffectStepHandler(abilityId, STACK_STEP, (game, _input, context) =>
       finishInspection(
         game,
-        getSelectedCardId(game.activeEffect),
+        getSelectedCardId(getCardActiveEffect(game)),
         context.continuePendingCardEffects,
         deps.enqueueTriggeredCardEffects
       )
@@ -180,7 +181,7 @@ function finishInspection(
   continuation: Continue,
   enqueue: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || !ABILITY_IDS.includes(effect.abilityId)) return game;
   let state = game;
   const stacked =
@@ -246,11 +247,8 @@ function sourceHostIsCurrent(
 }
 
 function getEffect(game: GameState, stepId: string): ActiveEffectState | null {
-  return game.activeEffect &&
-    ABILITY_IDS.includes(game.activeEffect.abilityId) &&
-    game.activeEffect.stepId === stepId
-    ? game.activeEffect
-    : null;
+  const effect = getCardActiveEffect(game);
+  return effect && ABILITY_IDS.includes(effect.abilityId) && effect.stepId === stepId ? effect : null;
 }
 function getInspectedIds(effect: ActiveEffectState): readonly string[] {
   const value = effect.metadata?.inspectedCardIds;

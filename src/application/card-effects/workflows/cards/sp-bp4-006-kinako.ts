@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -127,7 +128,7 @@ function finishSpBp4006KinakoLiveSelection(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== SP_BP4_006_LIVE_SUCCESS_DIFFERENT_LIELLA_CHEER_LIVE_TO_HAND_ABILITY_ID ||

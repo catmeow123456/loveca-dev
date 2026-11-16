@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import type { CardInstance } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -133,7 +134,7 @@ function startHsBp6018SayakaTargetSelection(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_BP6_018_LEAVE_STAGE_DISCARD_TARGET_BLUE_HEART_BLADE_ABILITY_ID ||
@@ -212,7 +213,7 @@ function finishHsBp6018SayakaTarget(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_BP6_018_LEAVE_STAGE_DISCARD_TARGET_BLUE_HEART_BLADE_ABILITY_ID ||

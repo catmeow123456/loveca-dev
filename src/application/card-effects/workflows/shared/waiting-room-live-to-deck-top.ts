@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -82,7 +83,7 @@ export function finishWaitingRoomLiveToDeckTopSelection(
   config: WaitingRoomLiveToDeckTopConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.stepId)
     return game;
   const player = getPlayerById(game, effect.controllerId);

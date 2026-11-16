@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   getAbilitySourceLifecycleId,
   getPendingAbilitySourceLifecycleId,
@@ -290,7 +291,7 @@ function startLiveStartDiscardGainHeartChoice(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== config.abilityId) {
     return game;
   }
@@ -451,7 +452,7 @@ function finishLiveStartDiscardGainHeartBonus(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }
@@ -515,7 +516,7 @@ function finishLiveStartDiscardGainHeartBonus(
 
 function startTargetMemberSelection(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   heartColor: HeartColor,
   continuePendingCardEffects: ContinuePendingCardEffects,
@@ -575,7 +576,7 @@ function finishLiveStartDiscardGainHeartTarget(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const selectedColor = effect?.metadata?.selectedHeartColor;
   if (
@@ -647,7 +648,7 @@ function finishLiveStartDiscardGainHeartTarget(
 
 function getOtherStageMemberCardIdsForEffect(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>
 ): readonly string[] {
   const groupAlias = effect.metadata?.heartRecipientGroupAlias;
   if (groupAlias !== undefined && typeof groupAlias !== 'string') return [];
@@ -673,7 +674,7 @@ function isSourceMemberOnMainStage(
 
 function finishWithoutHeartModifier(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   continuePendingCardEffects: ContinuePendingCardEffects,
   reason: string

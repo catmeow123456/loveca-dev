@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { addAction, getPlayerById, type GameState } from '../../../../domain/entities/game.js';
 import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, OrientationState } from '../../../../shared/types/enums.js';
@@ -80,7 +81,7 @@ export function registerPlPb2028HonokaWorkflowHandlers(deps: {
     ABILITY_ID,
     STEP_ID,
     (game, input, context) => {
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       if (!effect || effect.abilityId !== ABILITY_ID) return game;
       const option = input.selectedOptionId ?? null;
       if (option !== null && option !== OPTION_ID) return game;

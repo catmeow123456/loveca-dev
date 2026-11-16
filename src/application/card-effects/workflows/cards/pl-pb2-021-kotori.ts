@@ -1,3 +1,4 @@
+import { appendTriggeredAbility, recordTriggeredAbility } from '../../runtime/enqueue-pending-ability.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -75,8 +76,8 @@ export function registerPlPb2021KotoriWorkflowHandlers(deps: {
         timingId: TriggerCondition.ON_MEMBER_STATE_CHANGED,
         eventIds: [event.eventId],
       };
-      state = addAction(
-        { ...state, pendingAbilities: [...state.pendingAbilities, ability] },
+      state = recordTriggeredAbility(
+        { ...state, pendingAbilities: appendTriggeredAbility(state, ability) },
         'TRIGGER_ABILITY',
         event.controllerId,
         {

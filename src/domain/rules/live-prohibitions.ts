@@ -1,3 +1,4 @@
+import { isCardAbilitySuppressedByDarkHextech } from '../hextech/suppression.js';
 import {
   getCardById,
   updatePlayer,
@@ -90,7 +91,7 @@ export function collectContinuousLiveProhibitionSources(
   const sources: ContinuousLiveProhibitionSource[] = [];
   for (const sourceCardId of ownTopLevelMemberIds) {
     const sourceCard = getCardById(game, sourceCardId);
-    if (!sourceCard) {
+    if (!sourceCard || isCardAbilitySuppressedByDarkHextech(game, sourceCardId)) {
       continue;
     }
 

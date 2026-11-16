@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -201,7 +202,7 @@ function startInspectionAfterDiscard(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.stepId !== SELECT_DISCARD_STEP_ID ||
@@ -269,7 +270,7 @@ function finishInspectedMemberSelection(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== SELECT_INSPECTED_MEMBER_STEP_ID) {
     return game;
   }
@@ -419,7 +420,7 @@ function finishRevealedMemberToHandWithoutEmptySlot(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== REVEAL_SELECTED_TO_HAND_STEP_ID) {
     return game;
   }
@@ -456,7 +457,7 @@ function finishDestinationSelection(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== SELECT_DESTINATION_STEP_ID) {
     return game;
   }
@@ -546,7 +547,7 @@ function finishPlaySelectedMemberToSlot(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.stepId !== SELECT_EMPTY_SLOT_STEP_ID ||
@@ -603,7 +604,7 @@ function finishPlaySelectedMemberToSlot(
 
 function moveSelectedInspectedMemberToHandAndFinish(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   selectedCardId: string,
   continuePendingCardEffects: ContinuePendingCardEffects,

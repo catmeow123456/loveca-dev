@@ -164,7 +164,7 @@
 .hextech-selection-reopen {
   position: fixed;
   z-index: 90;
-  top: 64px;
+  top: calc(var(--battle-toolbar-height, 96px) + 12px);
   left: 50%;
   transform: translateX(-50%);
   display: flex;

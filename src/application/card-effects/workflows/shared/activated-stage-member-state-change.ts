@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -184,7 +185,7 @@ function finishBp6008ActivateOtherMember(
   continuePendingCardEffects: ContinuePendingCardEffects,
   deps: { readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects }
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== BP6_008_ACTIVATED_WAIT_SELF_ACTIVATE_OTHER_MEMBER_ABILITY_ID
@@ -338,7 +339,7 @@ function finishBp6010WaitOpponentMember(
   continuePendingCardEffects: ContinuePendingCardEffects,
   deps: { readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects }
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==

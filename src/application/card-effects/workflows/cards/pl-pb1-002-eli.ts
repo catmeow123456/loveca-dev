@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getOpponent,
@@ -156,7 +157,7 @@ function finishEliWaitSelfCost(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     !isFirstEffectAbilityId(effect.abilityId) ||
@@ -235,7 +236,7 @@ function finishEliWaitSelfCost(
 
 function transitionToOpponentTargetSelection(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   orderedResolution: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects
@@ -333,7 +334,7 @@ function finishEliWaitOpponentLowOriginalBladeMember(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     !isFirstEffectAbilityId(effect.abilityId) ||

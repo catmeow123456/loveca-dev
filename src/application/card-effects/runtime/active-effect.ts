@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -238,7 +239,7 @@ export function revealHandCardsForActiveEffect(
   game: GameState,
   options: RevealHandCardsForActiveEffectOptions
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const selectedCardIds = [...options.selectedCardIds];
   if (
     !effect ||
@@ -328,7 +329,7 @@ export function finishConfirmOnlyPendingAbilityEffect(
   game: GameState,
   continuePendingAbility: ContinueConfirmOnlyPendingAbility
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.metadata?.confirmOnlyPendingAbility !== true) {
     return game;
   }
@@ -338,7 +339,7 @@ export function finishConfirmOnlyPendingAbilityEffect(
       ability.abilityId === effect.abilityId &&
       ability.sourceCardId === effect.sourceCardId
   );
-  if (!pendingAbility) {
+  if (!pendingAbility || pendingAbility.sourceCardId === undefined) {
     return game;
   }
   return continuePendingAbility({ ...game, activeEffect: null }, pendingAbility, {
@@ -352,7 +353,7 @@ export function finishSkippedActiveEffect(
   continuePendingCardEffects: ContinuePendingCardEffects,
   options: FinishSkippedActiveEffectOptions = {}
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }

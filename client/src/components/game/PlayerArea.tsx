@@ -772,7 +772,7 @@ export const PlayerArea = memo(function PlayerArea({
       canMoveInspectedToBottom ||
       canReorderInspectedCard);
   const visibleActiveEffect = suppressActiveEffectVisuals ? null : activeEffect;
-  const activeEffectSourceCardId = visibleActiveEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
+  const activeEffectSourceCardId = visibleActiveEffect?.sourceObjectId?.replace(/^obj_/, '') ?? null;
   const activeEffectSelectableCardIdSet = new Set(
     visibleActiveEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? []
   );
@@ -1325,7 +1325,7 @@ export const PlayerArea = memo(function PlayerArea({
             activeClassName="ring-2 ring-rose-500 bg-rose-500/20 border-rose-500"
             title={
               selectedSlotAction?.target.label ??
-              (cardViewObject?.activatedAbilityProhibition === 'SERAS_LOW_COST'
+              (cardViewObject?.abilitiesSuppressed ? '全部能力无效；保留基础心、棒及其他来源已施加的效果' : cardViewObject?.activatedAbilityProhibition === 'SERAS_LOW_COST'
                 ? SERAS_LOCK_DESCRIPTION
                 : cardViewObject?.opponentWaitProtection === 'IZUMI_EDELNOTE'
                   ? IZUMI_PROTECTION_DESCRIPTION
@@ -1366,6 +1366,7 @@ export const PlayerArea = memo(function PlayerArea({
                     limitedActivatedHighlight={limitedActivatedHighlight}
                     faceOverlay={
                       <>
+                        {cardViewObject?.abilitiesSuppressed && <span className="pointer-events-none absolute bottom-0 left-0 right-0 rounded bg-black/85 text-center text-[10px] text-rose-200">能力无效</span>}
                         <SerasLockSeal
                           objectId={cardViewObject?.publicObjectId ?? null}
                           prohibition={cardViewObject?.activatedAbilityProhibition}
@@ -2301,6 +2302,9 @@ export const PlayerArea = memo(function PlayerArea({
 
   // 桌面空槽保留成员列宽，LIVE 实卡在槽位中保持横牌比例并居中。
   const renderLiveSlot = (slotIndex: number) => {
+    const restriction = matchView?.hextech?.restrictions?.find((entry) => entry.seat === playerSeat);
+    const locked = restriction?.lockedColumns.includes([SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT][slotIndex]);
+    const firstMuted = slotIndex === 0 && restriction?.firstLiveSlotMuted;
     const cardId = liveCardIds[slotIndex];
     return (
       <div
@@ -2308,7 +2312,7 @@ export const PlayerArea = memo(function PlayerArea({
         data-battle-live-slot={slotIndex}
         className={cn(
           'h-[var(--battle-live-slot-height)] w-[var(--battle-live-width)] shrink-0 md:w-[var(--battle-stage-column-width,140px)]',
-          'battle-card-slot flex items-center justify-center',
+          'battle-card-slot relative flex items-center justify-center',
           'border border-dashed',
           cardId
             ? 'border-transparent bg-transparent'
@@ -2317,6 +2321,7 @@ export const PlayerArea = memo(function PlayerArea({
               : 'border-slate-600/30 bg-slate-800/30'
         )}
       >
+        {(locked || firstMuted) && <span className="pointer-events-none absolute -top-4 left-0 z-10 text-[9px] text-rose-300" title={locked ? '此纵列上的成员和 LIVE 能力无效；封锁来源离场即解除' : '按原盖牌顺序封锁第1格 LIVE；首格成员时落空'}>{locked ? '纵列效果无效' : '首格封麦（盖牌顺序）'}</span>}
         {cardId ? (
           renderLiveCard(cardId)
         ) : (

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -212,7 +213,7 @@ function finishHandMemberSelection(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const config = effect ? CONFIGS[effect.abilityId] : undefined;
   if (!effect || !config || effect.stepId !== SELECT_HAND_MEMBER_STEP_ID) {
     return game;
@@ -324,7 +325,7 @@ function finishPlayHandMemberToSlot(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const config = effect ? CONFIGS[effect.abilityId] : undefined;
   if (
     !effect ||

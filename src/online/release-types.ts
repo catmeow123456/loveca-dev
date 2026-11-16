@@ -1,3 +1,4 @@
+import type { HextechPool } from '../domain/hextech/catalog.js';
 import type { CasualRuleMode } from '../domain/rules/deck-construction.js';
 import type { CasualFormat } from './casual-table-types.js';
 import type { Seat } from './types.js';
@@ -76,6 +77,7 @@ export interface OnlineRoomEndView {
 export interface OnlineRoomView {
   readonly casualTable?: {
     readonly format: CasualFormat;
+  readonly hextechPool?: HextechPool;
     readonly tableId: string;
     readonly roundId: string;
     readonly ruleMode: CasualRuleMode;

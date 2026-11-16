@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import type { CardInstance } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -116,7 +117,7 @@ function startHsBp6010SayakaTargetSelection(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_BP6_010_LIVE_START_DISCARD_DOLLCHESTRA_DRAW_TARGET_COST_ABILITY_ID ||
@@ -203,7 +204,7 @@ function finishHsBp6010SayakaCostTarget(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_BP6_010_LIVE_START_DISCARD_DOLLCHESTRA_DRAW_TARGET_COST_ABILITY_ID ||

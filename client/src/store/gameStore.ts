@@ -1,3 +1,4 @@
+import type { HextechPool } from '@game/domain/hextech/catalog';
 import { reportBattleConnection } from '@/lib/battleConnection';
 import { beginBattleCommandSubmission, battleCommandIdentity } from '@/lib/battleCommandSubmission';
 import { allowPresentationAssets } from '@/lib/appPresentation';
@@ -221,6 +222,7 @@ export interface CommandDispatchResult {
 
 interface LocalGameRestartSetup {
   readonly initialHextech?: InitialHextechSetup;
+  readonly hextechSetup?: { readonly pool: HextechPool; readonly roundSelection: boolean };
   readonly player1Id: string;
   readonly player1Name: string;
   readonly player2Id: string;
@@ -339,7 +341,8 @@ export interface GameStore {
     player1Name: string,
     player2Id: string,
     player2Name: string,
-    initialHextech?: InitialHextechSetup
+    initialHextech?: InitialHextechSetup,
+    hextechSetup?: LocalGameRestartSetup['hextechSetup']
   ) => void;
   /** 初始化游戏（设置卡组） */
   initializeGame: (player1Deck: DeckConfig, player2Deck: DeckConfig) => void;
@@ -997,7 +1000,15 @@ export const useGameStore = create<GameStore>((set, get) => {
       get().addLog(`已加载 ${cards.length} 张卡牌数据`, 'info');
     },
 
-    createGame: (gameId, player1Id, player1Name, player2Id, player2Name, initialHextech) => {
+    createGame: (
+      gameId,
+      player1Id,
+      player1Name,
+      player2Id,
+      player2Name,
+      initialHextech,
+      hextechSetup
+    ) => {
       const { gameSession } = get();
       gameSession.createGame(
         gameId,
@@ -1005,9 +1016,11 @@ export const useGameStore = create<GameStore>((set, get) => {
         player1Name,
         player2Id,
         player2Name,
-        initialHextech
+        initialHextech,
+        hextechSetup
       );
       pendingLocalGameIdentity = {
+        hextechSetup,
         initialHextech: initialHextech ? structuredClone(initialHextech) : undefined,
         player1Id,
         player1Name,
@@ -1162,7 +1175,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         setup.player1Name,
         setup.player2Id,
         setup.player2Name,
-        setup.initialHextech
+        setup.initialHextech,
+        setup.hextechSetup
       );
       const initialized = gameSession.initializeGame(
         cloneDeckConfig(setup.player1Deck),
@@ -1180,6 +1194,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       pendingLocalGameIdentity = {
         initialHextech: setup.initialHextech,
+        hextechSetup: setup.hextechSetup,
         player1Id: setup.player1Id,
         player1Name: setup.player1Name,
         player2Id: setup.player2Id,

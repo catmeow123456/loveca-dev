@@ -1,6 +1,10 @@
 import { emitGameEvent, type GameState } from '../../domain/entities/game.js';
 import { createTurnStartEvent } from '../../domain/events/game-events.js';
-import { HEXTECH_DEFINITIONS, type HextechRarity } from '../../domain/hextech/catalog.js';
+import {
+  getHextechDefinitions,
+  hextechPoolForVersion,
+  type HextechRarity,
+} from '../../domain/hextech/catalog.js';
 import { HEXTECH_SELECTION_TURNS, type HextechOffer } from '../../domain/hextech/state.js';
 import { GamePhase, SubPhase } from '../../shared/types/enums.js';
 import type { RandomIntegerSource } from '../../shared/random-source.js';
@@ -18,8 +22,8 @@ export function openHextechSelection(game: GameState, randomInt: RandomIntegerSo
   )
     return game;
   const rarity = (['SILVER', 'GOLD', 'PRISMATIC'] as const)[randomInt(3)];
-  const drawOffer = (): HextechOffer => {
-    const pool = HEXTECH_DEFINITIONS.filter((entry) => entry.rarity === rarity);
+  const drawOffer = (playerId: string): HextechOffer => {
+    const pool = eligiblePool(game, playerId, rarity);
     if (pool.length < 3) throw new Error('海克斯候选池不足三项');
     return {
       candidates: Array.from({ length: 3 }, () => ({
@@ -39,7 +43,11 @@ export function openHextechSelection(game: GameState, randomInt: RandomIntegerSo
       ...game.hextech!,
       draft: {
         ...draft,
-        pending: { turn: game.turnCount, rarity, offers: [drawOffer(), drawOffer()] },
+        pending: {
+          turn: game.turnCount,
+          rarity,
+          offers: [drawOffer(game.players[0].id), drawOffer(game.players[1].id)],
+        },
       },
     },
   };
@@ -77,7 +85,7 @@ export function applyHextechCommand(
   const offer = offers[playerIndex];
   if (command.type === GameCommandType.REROLL_HEXTECH) {
     const old = offer.candidates[command.slot];
-    const pool = rerollPool(pending.rarity, offer, old.definitionId);
+    const pool = rerollPool(game, command.playerId, pending.rarity, offer, old.definitionId);
     const replacement = pool[randomInt(pool.length)];
     offers[playerIndex] = {
       candidates: offer.candidates.map((candidate, index) =>
@@ -110,8 +118,25 @@ export function applyHextechCommand(
   return result.gameState;
 }
 
-function rerollPool(rarity: HextechRarity, offer: HextechOffer, oldId: string) {
-  const pool = HEXTECH_DEFINITIONS.filter((entry) => entry.rarity === rarity && entry.id !== oldId);
+function eligiblePool(game: GameState, playerId: string, rarity: HextechRarity) {
+  const pool = hextechPoolForVersion(game.hextech!.rulesVersion);
+  const owned = new Set(
+    game
+      .hextech!.owned.filter((entry) => entry.playerId === playerId)
+      .map((entry) => entry.definitionId)
+  );
+  return getHextechDefinitions(pool).filter(
+    (entry) => entry.rarity === rarity && (pool !== 'DARK' || !owned.has(entry.id))
+  );
+}
+function rerollPool(
+  game: GameState,
+  playerId: string,
+  rarity: HextechRarity,
+  offer: HextechOffer,
+  oldId: string
+) {
+  const pool = eligiblePool(game, playerId, rarity).filter((entry) => entry.id !== oldId);
   const fresh = pool.filter(
     (entry) => !offer.candidates.some((candidate) => candidate.definitionId === entry.id)
   );

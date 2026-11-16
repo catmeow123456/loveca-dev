@@ -1,3 +1,5 @@
+import type { ResolvingEffectState } from '../../../domain/entities/game.js';
+import { getCardActiveEffect } from '../../../domain/entities/game.js';
 import {
   getCardById,
   type ActiveEffectState,
@@ -252,8 +254,9 @@ function selectedCardsRemainInConfiguredSource(
 }
 
 export function isPublicCardSelectionAutoAdvanceEffect(
-  effect: ActiveEffectState | null | undefined
+  effect: ResolvingEffectState | null | undefined
 ): effect is ActiveEffectState {
+  if (effect?.sourceCardId === undefined) return false;
   return (
     effect?.stepId === PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID &&
     effect.metadata?.publicCardSelectionConfirmationContinuation !== undefined
@@ -261,7 +264,7 @@ export function isPublicCardSelectionAutoAdvanceEffect(
 }
 
 export function getPublicCardSelectionAutoAdvanceMetadata(
-  effect: ActiveEffectState | null | undefined
+  effect: ResolvingEffectState | null | undefined
 ): PublicCardSelectionAutoAdvanceMetadata | null {
   if (!isPublicCardSelectionAutoAdvanceEffect(effect)) return null;
   if (
@@ -280,7 +283,7 @@ export function attachPublicCardSelectionAutoAdvanceDeadline(
   game: GameState,
   now: number
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!isPublicCardSelectionAutoAdvanceEffect(effect)) return game;
   if (getPublicCardSelectionAutoAdvanceMetadata(effect)) return game;
   return {

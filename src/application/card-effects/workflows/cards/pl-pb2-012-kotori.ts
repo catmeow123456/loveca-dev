@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -56,7 +57,7 @@ export function registerPlPb2012KotoriWorkflowHandlers(deps: {
 }): void {
   registerActivatedAbilityHandler(ABILITY_ID, start);
   registerActiveEffectStepHandler(ABILITY_ID, CHOOSE_COST, (game, input) => {
-    const effect = game.activeEffect;
+    const effect = getCardActiveEffect(game);
     const branch = input.selectedOptionId;
     if (
       !effect ||
@@ -205,7 +206,7 @@ function payCost(
   enqueue: Enqueue,
   continuation: Continue
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     ![DISCARD_COST, WAIT_COST].includes(effect.stepId) ||

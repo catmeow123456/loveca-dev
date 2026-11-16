@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getOpponent,
@@ -284,7 +285,7 @@ function resolveEmmaPunch(
 }
 
 function getActiveEffect(game: GameState, stepId: string): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   return effect?.abilityId === ABILITY_ID && effect.stepId === stepId ? effect : null;
 }
 

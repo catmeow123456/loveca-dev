@@ -1,3 +1,5 @@
+import type { ResolvingEffectState } from '../../../domain/entities/game.js';
+import { getCardActiveEffect } from '../../../domain/entities/game.js';
 import type { ActiveEffectState, GameState } from '../../../domain/entities/game.js';
 import { EnergySelectionRequiredError } from '../../effects/energy-selection.js';
 import { createActiveEffectEnergySelectionWindow } from './energy-operation-selection.js';
@@ -128,8 +130,9 @@ export function createPublicRevealDwellBeforeNextEffect(
 }
 
 export function isPublicRevealDwellEffect(
-  effect: ActiveEffectState | null | undefined
+  effect: ResolvingEffectState | null | undefined
 ): effect is PublicRevealDwellActiveEffect {
+  if (effect?.sourceCardId === undefined) return false;
   return (
     effect?.stepId === PUBLIC_REVEAL_DWELL_STEP_ID &&
     readPublicRevealDwellContinuation(effect) !== null
@@ -137,7 +140,7 @@ export function isPublicRevealDwellEffect(
 }
 
 export function getPublicRevealAutoAdvanceMetadata(
-  effect: ActiveEffectState | null | undefined
+  effect: ResolvingEffectState | null | undefined
 ): PublicRevealAutoAdvanceMetadata | null {
   if (!isPublicRevealDwellEffect(effect)) return null;
   if (
@@ -163,7 +166,7 @@ export function attachPublicRevealAutoAdvanceAuthority(
   now: number,
   createGeneration: () => string
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!isPublicRevealDwellEffect(effect)) return game;
   if (getPublicRevealAutoAdvanceMetadata(effect)) return game;
 
@@ -251,7 +254,7 @@ function createPublicRevealDwellEffect(
 }
 
 function readPublicRevealDwellContinuation(
-  effect: ActiveEffectState | null | undefined
+  effect: ResolvingEffectState | null | undefined
 ): PublicRevealDwellContinuation | null {
   const value = effect?.metadata?.[PUBLIC_REVEAL_DWELL_CONTINUATION_METADATA_KEY];
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;

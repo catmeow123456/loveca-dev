@@ -1,3 +1,4 @@
+import { isCardAbilitySuppressedByDarkHextech } from '../hextech/suppression.js';
 import { isLiveCardData, isMemberCardData } from '../entities/card.js';
 import type { GameState } from '../entities/game.js';
 import { getCardById, getPlayerById } from '../entities/game.js';
@@ -85,6 +86,7 @@ export function sumSuccessfulLiveScoreForCardEffect(
       card !== null &&
       card.ownerId === controllerId &&
       isMemberCardData(card.data) &&
+      !isCardAbilitySuppressedByDarkHextech(game, card.instanceId) &&
       cardCodeMatchesBase(card.data.cardCode, BP8_013_UMI_BASE_CARD_CODE)
     );
   }).length;

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -106,7 +107,7 @@ function finishDrawOnePlaceHandBottomWorkflow(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== S_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID) {
     return game;
   }

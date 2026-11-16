@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   getAbilityTemplateCardCode,
   isAbilityActivationCostWaived,
@@ -406,7 +407,7 @@ function startDiscardLookTopInspection(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || !effect.selectableCardIds?.includes(discardCardId)) {
     return game;
   }

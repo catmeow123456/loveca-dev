@@ -16,7 +16,8 @@ export function getHextechDrawPhaseBonus(game: GameState, playerId: string): num
     (owned) =>
       owned.playerId === playerId &&
       owned.acquiredTurn < game.turnCount &&
-      getHextechDefinition(owned.definitionId)?.effect.kind === 'ACQUIRE_AND_TURN_DRAW'
+      (getHextechDefinition(owned.definitionId)?.effect.kind === 'ACQUIRE_AND_TURN_DRAW' ||
+        owned.definitionId === 'dark-greed-contract')
   ).length;
 }
 

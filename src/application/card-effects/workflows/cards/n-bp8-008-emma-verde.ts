@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -109,7 +110,7 @@ function revealSource(game: GameState, playerId: string, cardId: string): GameSt
 }
 
 function placeBottom(game: GameState, continuation: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) return game;
   const { controllerId, sourceCardId } = effect;
   // Paying the reveal is independent of the move and the later target selection.
@@ -167,7 +168,7 @@ function waitTarget(
   continuation: Continue,
   enqueue: EnqueueTriggeredCardEffectsForMemberStateChanged
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || !id || !effect.selectableCardIds?.includes(id)) return game;
   const currentEffect = createTargetEffect(game, effect);
   if (!currentEffect) return continuation({ ...game, activeEffect: null }, false);

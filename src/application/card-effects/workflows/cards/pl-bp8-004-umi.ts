@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { addAction, getCardById, type GameState } from '../../../../domain/entities/game.js';
 import { addMemberCostLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
@@ -98,7 +99,7 @@ function start(game: GameState, playerId: string, cardId: string): GameState {
 }
 
 function finish(game: GameState, selected: readonly string[], next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== SELECT_STEP) return game;
   if (selected.length === 0) return next({ ...game, activeEffect: null }, false);
   if (

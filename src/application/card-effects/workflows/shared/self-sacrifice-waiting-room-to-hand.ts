@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   isLiveCardData,
@@ -411,7 +412,7 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
   selectedCardIds: readonly string[] | undefined,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }
@@ -483,7 +484,7 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
 function finishPostRecovery(
   game: GameState,
   playerId: string,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   config: SelfSacrificeWaitingRoomToHandWorkflowConfig | undefined,
   recoveredCardIds: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects
