@@ -5,9 +5,9 @@ export function sealedCards(): AnyCardData[] {
     ...['N', 'R', 'P', 'R+', 'P+', 'SEC', 'L', 'SECL', 'PE', 'PE+', 'SECE', 'LLE'].flatMap((rare) =>
       Array.from({ length: 4 }, (_, i): AnyCardData => {
         const common = {
-          cardCode: `PL!N-${rare === 'SECL' ? 'bp1' : 'bp7'}-${String(i + 1).padStart(3, '0')}-${rare}`,
+          cardCode: `PL!N-${rare === 'SECL' ? 'bp1' : 'bp8'}-${String(i + 1).padStart(3, '0')}-${rare}`,
           name: `测试角色 ${i + 1}`,
-          product: 'ブースターパック MELLOW MOMENT',
+          product: 'ブースターパック まじかる♡とり～と',
           rare,
           groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
         };

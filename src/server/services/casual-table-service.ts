@@ -1,5 +1,5 @@
 import { casualEntrySchema } from '../../online/casual-table-schemas.js';
-import { SEALED_BP7_DECK_NAME } from '../../shared/sealed-format.js';
+import { SEALED_BP8_DECK_NAME } from '../../shared/sealed-format.js';
 import type { AnyCardData } from '../../domain/entities/card.js';
 import { baseLiveRequirement } from '../../domain/rules/battle-ruleset.js';
 import { CardType } from '../../shared/types/enums.js';
@@ -10,7 +10,7 @@ import type {
   SealedRematchKind,
 } from '../../online/casual-table-types.js';
 import {
-  generateBp7Box,
+  generateBp8Box,
   buildSealedDeck,
   validateSealedDraft,
   SealedBoxError,
@@ -187,8 +187,8 @@ export class CasualTableService {
     const parsed = parse(
       z.object({
         ruleMode: ruleModeSchema.default('NORMAL'),
-        format: z.enum(['CONSTRUCTED', 'SEALED_BP7', 'HEXTECH']).optional(),
-        preferredFormat: z.enum(['CONSTRUCTED', 'SEALED_BP7', 'HEXTECH']).optional(),
+        format: z.enum(['CONSTRUCTED', 'SEALED_BP8', 'HEXTECH']).optional(),
+        preferredFormat: z.enum(['CONSTRUCTED', 'SEALED_BP8', 'HEXTECH']).optional(),
         filter: z.enum(['ALL', 'WAITING', 'PLAYING']).optional(),
         search: z.string().trim().max(80).optional(),
         spectatable: z.boolean().optional(),
@@ -533,7 +533,7 @@ export class CasualTableService {
     parse(targetSchema, target);
     parse(entrySchema, input);
     parse(z.boolean(), publishNewRoom);
-    if (input.format === 'SEALED_BP7') throw changed();
+    if (input.format === 'SEALED_BP8') throw changed();
     await this.assertGameplayAvailable();
     const [deck, rules] = await Promise.all([
       this.loadEntryDeck(userId, input),
@@ -611,7 +611,7 @@ export class CasualTableService {
     userId: string,
     input: CasualTableEntryInput
   ): Promise<OwnedDeckSummary | null> {
-    return input.format === 'SEALED_BP7'
+    return input.format === 'SEALED_BP8'
       ? null
       : this.loadDeck(userId, input.deckId!, input.ruleMode);
   }
@@ -624,7 +624,7 @@ export class CasualTableService {
   ): Promise<void> {
     for (const seat of seats) {
       const snapshot = cards
-        ? { poolId: randomUUID(), pool: generateBp7Box(cards, this.randomInt) }
+        ? { poolId: randomUUID(), pool: generateBp8Box(cards, this.randomInt) }
         : readSealedSnapshot(seat);
       const draft = cards ? [] : seat.sealed_draft;
       validateSealedDraft(snapshot.pool, draft);
@@ -661,7 +661,7 @@ export class CasualTableService {
     await this.cleanupExpiredState();
     return withCasualAdmission(this.database, async (client) => {
       const table = await this.requireTable(client, target);
-      assertFormat(table, 'SEALED_BP7');
+      assertFormat(table, 'SEALED_BP8');
       const own = await this.requireOwnSeat(client, table, userId);
       if (
         table.state !== 'BUILDING' ||
@@ -701,7 +701,7 @@ export class CasualTableService {
     await this.cleanupExpiredState();
     const result = await withCasualAdmission(this.database, async (client) => {
       const table = await this.requireTable(client, target);
-      assertFormat(table, 'SEALED_BP7');
+      assertFormat(table, 'SEALED_BP8');
       const own = await this.requireOwnSeat(client, table, userId);
       if (own.draft_revision !== draftRevision) throw changed();
       if (ready && own.confirmed_at && (table.state === 'BOOTSTRAPPING' || table.state === 'BOUND'))
@@ -752,7 +752,7 @@ export class CasualTableService {
     await this.assertGameplayAvailable();
     return withCasualAdmission(this.database, async (client) => {
       const table = await this.requireTable(client, target);
-      assertFormat(table, 'SEALED_BP7');
+      assertFormat(table, 'SEALED_BP8');
       await this.requireOwnSeat(client, table, userId);
       await this.requirePostMatch(client, table, true);
       if (table.sealed_rematch && table.sealed_rematch.expiresAt > this.now()) {
@@ -789,7 +789,7 @@ export class CasualTableService {
     if (accept) await this.assertGameplayAvailable();
     const rebox = await withCasualAdmission(this.database, async (client) => {
       const table = await this.requireTable(client, target);
-      assertFormat(table, 'SEALED_BP7');
+      assertFormat(table, 'SEALED_BP8');
       await this.requireOwnSeat(client, table, userId);
       return accept && table.sealed_rematch?.kind === 'REBOX';
     });
@@ -856,7 +856,7 @@ export class CasualTableService {
     const ruleMode = await withCasualAdmission(this.database, async (client) => {
       const table = await this.requireTable(client, target);
       await this.requireOwnSeat(client, table, userId);
-      if (casualFormat(table.environment_id) === 'SEALED_BP7') throw changed();
+      if (casualFormat(table.environment_id) === 'SEALED_BP8') throw changed();
       return casualRuleMode(table.environment_id);
     });
     return this.loadDeck(userId, deckId, ruleMode);
@@ -1201,7 +1201,7 @@ export class CasualTableService {
       await this.requireOwnSeat(client, table, userId);
       return casualFormat(table.environment_id);
     });
-    const cards = format === 'SEALED_BP7' ? await this.loadSealedCards() : null;
+    const cards = format === 'SEALED_BP8' ? await this.loadSealedCards() : null;
     await this.assertGameplayAvailable();
     const [rules, lifecycle] = await Promise.all([
       this.getPointTable(),
@@ -1382,7 +1382,7 @@ export class CasualTableService {
           seats.some(
             (seat) =>
               !seat.confirmed_at ||
-              (casualFormat(table.environment_id) !== 'SEALED_BP7' &&
+              (casualFormat(table.environment_id) !== 'SEALED_BP8' &&
                 !isAlive(seat, this.now(), lifecycle.heartbeatGraceMs)) ||
               !seat.runtime_deck ||
               !reviewSeat(seat, rules, table.environment_id)
@@ -1723,7 +1723,7 @@ export class CasualTableService {
     timeout: boolean,
     lifecycle: CasualLifecycleWindows
   ): Promise<void> {
-    if (casualFormat(table.environment_id) === 'SEALED_BP7') {
+    if (casualFormat(table.environment_id) === 'SEALED_BP8') {
       await this.close(client, table, reason);
       return;
     }
@@ -1809,7 +1809,12 @@ export class CasualTableService {
   ): Promise<CasualTableRow> {
     await this.cleanupCommittedRetirements(client, target.tableId);
     const table = await readCasualTable(client, target.tableId);
-    if (!table || table.round_id !== target.roundId || target.revision > table.revision)
+    if (
+      !table ||
+      table.environment_id === 'CASUAL_SEALED_BP7_V1' ||
+      table.round_id !== target.roundId ||
+      target.revision > table.revision
+    )
       throw changed();
     return table;
   }
@@ -1934,7 +1939,7 @@ export class CasualTableService {
         participants.rowCount === 2 &&
         runtime.departedUserIds.length === 0,
       canContinuePublic:
-        casualFormat(table.environment_id) !== 'SEALED_BP7' &&
+        casualFormat(table.environment_id) !== 'SEALED_BP8' &&
         runtime?.status === 'ENDED' &&
         participants.rowCount === 1,
     };
@@ -1957,9 +1962,9 @@ function makeSeat(
     seat: 0,
     user_id: userId,
     source_deck_id: deck?.deckId ?? null,
-    deck_name: deck?.deckName ?? SEALED_BP7_DECK_NAME,
+    deck_name: deck?.deckName ?? SEALED_BP8_DECK_NAME,
     runtime_deck: encoded ? (JSON.parse(encoded.json) as unknown) : null,
-    point_table_version: deck?.pointValidation.pointTableVersion ?? 'SEALED_BP7_V1',
+    point_table_version: deck?.pointValidation.pointTableVersion ?? 'SEALED_BP8_V1',
     point_total: deck?.pointValidation.pointTotal ?? 0,
     point_limit: deck?.pointValidation.pointLimit ?? 0,
     locked_at: new Date(now),

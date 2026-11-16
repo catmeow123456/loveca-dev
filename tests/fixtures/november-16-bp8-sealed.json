@@ -1,0 +1,6265 @@
+[
+  {
+    "cardCode": "LL-E-001-SD",
+    "cardType": "ENERGY",
+    "nameJp": "エネルギーカード",
+    "nameCn": "能量",
+    "cost": null,
+    "blade": null,
+    "hearts": null,
+    "bladeHearts": null,
+    "score": null,
+    "requirements": null,
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": [
+      "ラブライブ！"
+    ],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "SD",
+    "product": "スタートデッキ ラブライブ！",
+    "productCode": "PLSD01",
+    "imageFilename": "LL-E-001-SD.png",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "LL-bp8-001-R+",
+    "cardType": "MEMBER",
+    "nameJp": "矢澤にこ&宮下愛&セラス 柳田 リリエンフェルト",
+    "nameCn": "矢泽日香（矢泽妮可）&宫下爱&赛拉丝·柳田·利林费尔德",
+    "cost": 15,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s",
+      "虹ヶ咲",
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【登場】/【ライブ成功時】自分のデッキの上からカードを６枚見る。その中からメンバーカードを１枚公開し、このメンバーの下に置いてもよい。残りを控え室に置く。\n\n【常時】このメンバーは、このメンバーの下に置かれている「矢澤にこ」、「宮下愛」、「セラス 柳田 リリエンフェルト」のメンバーカードが持つ【起動】能力と【ライブ開始時】能力をすべて得る。",
+    "cardTextCn": "【登场】/【LIVE成功时】检视自己的卡组顶的６张卡片。可以将其中的１张成员卡公开，放置于此成员的下方。其余的放置入休息室。\n\n【常时】此成员，获得放置于此成员下方的「矢泽日香（矢泽妮可）」、「宫下爱」、「赛拉丝·柳田·利林费尔德」的成员卡持有的所有【起动】能力和【LIVE开始时】能力。",
+    "rare": "R+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "LL-bp8-001-R2-dc693a5b78c48130b2414846.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "LL-bp8-E11-LLE",
+    "cardType": "ENERGY",
+    "nameJp": "絢瀬絵里&大沢瑠璃乃",
+    "nameCn": "绚濑絵里&大泽瑠璃乃",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s",
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "LLE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "LL-bp8-E11-LLE-37ffe04935fa2d6dd195a376.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "LL-bp8-E33-LLE",
+    "cardType": "ENERGY",
+    "nameJp": "東條希&エマ・ヴェルデ",
+    "nameCn": "东条希&艾玛·维尔德",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s",
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "LLE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "LL-bp8-E33-LLE-2189e379339b8b3a618b2b92.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "LL-bp8-E44-LLE",
+    "cardType": "ENERGY",
+    "nameJp": "小泉花陽&日野下花帆",
+    "nameCn": "小泉花阳&日野下花帆",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s",
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "LLE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "LL-bp8-E44-LLE-2189e379339b8b3a618b2b92.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp3-026-SECL",
+    "cardType": "LIVE",
+    "nameJp": "Oh,Love&Peace!",
+    "nameCn": "哦,爱与和平!",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 6,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 5
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      },
+      {
+        "color": "RAINBOW",
+        "count": 6
+      }
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": [
+      "ラブライブ！"
+    ],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ開始時】手札を２枚控え室に置いてもよい：ライブ終了時まで、自分のステージにいるメンバー１人は、[ブレード][ブレード][ブレード]を得る。\n\n【ライブ成功時】自分のステージにいるメンバーが持つハートの総数が、相手のステージにいるメンバーが持つハートの総数より多い場合、このカードのスコアを＋１する。",
+    "cardTextCn": "【LIVE开始时】可以将２张手牌放置入休息室：LIVE结束时为止，存在于自己的舞台的１名成员，获得[ブレード][ブレード][ブレード]。\n\n【LIVE成功时】存在于自己的舞台的成员持有的HEART的总数，多于对方的舞台的成员持有的HEART的总数的场合，此卡的分数＋１。",
+    "rare": "SECL",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-7827eb1afcd4041b8d3b6976-39103f21de26076db4274e45.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-001-P",
+    "cardType": "MEMBER",
+    "nameJp": "高坂穗乃果",
+    "nameCn": "高坂穂乃果",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cardTextJp": "【常時】自分の成功ライブカード置き場にあるカードのスコアの合計が６以上であるかぎり、自分のライブカード置き場にあるすべての元々のスコアが４以下の『μ’s』のライブカードの必要ハートを[無ハート]減らす。",
+    "cardTextCn": "【常时】只要存在于自己的成功LIVE卡区的卡片的分数合计大于等于６，存在于自己的LIVE卡区的原本的分数小于等于４的『μ’s』的LIVE卡的必要HEART减少[無ハート]。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-47648739691b876499b328b5-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-001-R",
+    "cardType": "MEMBER",
+    "nameJp": "高坂穂乃果",
+    "nameCn": "高坂穗乃果",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cardTextJp": "【常時】自分の成功ライブカード置き場にあるカードのスコアの合計が６以上であるかぎり、自分のライブカード置き場にあるすべての元々のスコアが４以下の『μ’s』のライブカードの必要ハートを[無ハート]減らす。",
+    "cardTextCn": "【常时】只要存在于自己的成功LIVE卡区的卡片的分数合计大于等于６，存在于自己的LIVE卡区的原本的分数小于等于４的『μ’s』的LIVE卡的必要HEART减少[無ハート]。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-001-R-5616d50d0f770e66ec97a4de.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-002-P",
+    "cardType": "MEMBER",
+    "nameJp": "絢瀬絵里",
+    "nameCn": "绚濑绘里",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cardTextJp": "【自動】このメンバーがステージから控え室に置かれたとき、このカードをデッキの一番下に置いてもよい。そうしたとき、相手のステージにいる元々持つハートの数が４つ以下のメンバー１人をウェイトにする。",
+    "cardTextCn": "【自动】此成员从舞台被放置入休息室时，可以将此卡放置于卡组底。如此做时，将存在于对方的舞台的１名原本持有的HEART的数量小于等于４的成员变为待机状态。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-002-P-e7fd0aab00a272fd5cbcd042.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-002-R",
+    "cardType": "MEMBER",
+    "nameJp": "絢瀬絵里",
+    "nameCn": "绚濑绘里",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cardTextJp": "【自動】このメンバーがステージから控え室に置かれたとき、このカードをデッキの一番下に置いてもよい。そうしたとき、相手のステージにいる元々持つハートの数が４つ以下のメンバー１人をウェイトにする。",
+    "cardTextCn": "【自动】此成员从舞台被放置入休息室时，可以将此卡放置于卡组底。如此做时，将存在于对方的舞台的１名原本持有的HEART的数量小于等于４的成员变为待机状态。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-3cb6bfba955e9c226b5f1118-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-003-P",
+    "cardType": "MEMBER",
+    "nameJp": "南ことり",
+    "nameCn": "南琴梨（南小鸟）",
+    "cost": 4,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cardTextJp": "【常時】自分のステージにいる『μ’s』のメンバーは、『【常時】ウェイト状態のこのメンバーが『μ’s』のメンバーとバトンタッチするときに減る値は、このメンバーのコストに１足した値に等しくなる。』を得る。\n\n【起動】【ターン１回】このメンバーをウェイトにし、手札を１枚控え室に置く：自分のデッキの上からカードを２枚見る。その中から１枚を手札に加える、残りを控え室に置く。",
+    "cardTextCn": "【常时】存在于自己的舞台的『μ’s』的成员，获得『【常时】待机状态的此成员与『μ’s』的成员换手登场时减少的值，变为此成员的费用加１。』。\n\n【起动】【１回合１次】将此成员变为待机状态，将１张手牌放置入休息室：检视自己的卡组顶的２张卡片。将其中的１张卡片加入手牌，其余的放置入休息室。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-a05b5ecd864420d88c93fbd2-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-003-P+",
+    "cardType": "MEMBER",
+    "nameJp": "南ことり",
+    "nameCn": "南琴梨（南小鸟）",
+    "cost": 4,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cardTextJp": "【常時】自分のステージにいる『μ’s』のメンバーは、『【常時】ウェイト状態のこのメンバーが『μ’s』のメンバーとバトンタッチするときに減る値は、このメンバーのコストに１足した値に等しくなる。』を得る。\n\n【起動】【ターン１回】このメンバーをウェイトにし、手札を１枚控え室に置く：自分のデッキの上からカードを２枚見る。その中から１枚を手札に加える、残りを控え室に置く。",
+    "cardTextCn": "【常时】存在于自己的舞台的『μ’s』的成员，获得『【常时】待机状态的此成员与『μ’s』的成员换手登场时减少的值，变为此成员的费用加１。』。\n\n【起动】【１回合１次】将此成员变为待机状态，将１张手牌放置入休息室：检视自己的卡组顶的２张卡片。将其中的１张卡片加入手牌，其余的放置入休息室。",
+    "rare": "P+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-05fa24bd830ddb342a6d52ca-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-003-R+",
+    "cardType": "MEMBER",
+    "nameJp": "南ことり",
+    "nameCn": "南琴梨（南小鸟）",
+    "cost": 4,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cardTextJp": "【常時】自分のステージにいる『μ’s』のメンバーは、『【常時】ウェイト状態のこのメンバーが『μ’s』のメンバーとバトンタッチするときに減る値は、このメンバーのコストに１足した値に等しくなる。』を得る。\n\n【起動】【ターン１回】このメンバーをウェイトにし、手札を１枚控え室に置く：自分のデッキの上からカードを２枚見る。その中から１枚を手札に加える、残りを控え室に置く。",
+    "cardTextCn": "【常时】存在于自己的舞台的『μ’s』的成员，获得『【常时】待机状态的此成员与『μ’s』的成员换手登场时减少的值，变为此成员的费用加１。』。\n\n【起动】【１回合１次】将此成员变为待机状态，将１张手牌放置入休息室：检视自己的卡组顶的２张卡片。将其中的１张卡片加入手牌，其余的放置入休息室。",
+    "rare": "R+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-a5b370b6cda22f356fe298a0-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-003-SEC",
+    "cardType": "MEMBER",
+    "nameJp": "南ことり",
+    "nameCn": "南琴梨（南小鸟）",
+    "cost": 4,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cardTextJp": "【常時】自分のステージにいる『μ’s』のメンバーは、『【常時】ウェイト状態のこのメンバーが『μ’s』のメンバーとバトンタッチするときに減る値は、このメンバーのコストに１足した値に等しくなる。』を得る。\n\n【起動】【ターン１回】このメンバーをウェイトにし、手札を１枚控え室に置く：自分のデッキの上からカードを２枚見る。その中から１枚を手札に加える、残りを控え室に置く。",
+    "cardTextCn": "【常时】存在于自己的舞台的『μ’s』的成员，获得『【常时】待机状态的此成员与『μ’s』的成员换手登场时减少的值，变为此成员的费用加１。』。\n\n【起动】【１回合１次】将此成员变为待机状态，将１张手牌放置入休息室：检视自己的卡组顶的２张卡片。将其中的１张卡片加入手牌，其余的放置入休息室。",
+    "rare": "SEC",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-003-SEC-28dcb9b8cb03582380ad5fa5.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-004-P",
+    "cardType": "MEMBER",
+    "nameJp": "園田海未",
+    "nameCn": "园田海未",
+    "cost": 7,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cardTextJp": "【起動】【ターン１回】控え室にあるブレードハートを持たない『μ’s』のメンバーカード２枚を好きな順番でデッキの下に置く：ライブ終了時まで、このメンバーのコストを＋２する。",
+    "cardTextCn": "【起动】【１回合１次】将存在于自己的休息室的２张不持有BLADE HEART的『μ’s』的成员卡按任意顺序放置于卡组底：LIVE结束时为止，此成员的费用＋２。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-004-P-37ffe04935fa2d6dd195a376.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-004-R",
+    "cardType": "MEMBER",
+    "nameJp": "園田海未",
+    "nameCn": "园田海未",
+    "cost": 7,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cardTextJp": "【起動】【ターン１回】控え室にあるブレードハートを持たない『μ’s』のメンバーカード２枚を好きな順番でデッキの下に置く：ライブ終了時まで、このメンバーのコストを＋２する。",
+    "cardTextCn": "【起动】【１回合１次】将存在于自己的休息室的２张不持有BLADE HEART的『μ’s』的成员卡按任意顺序放置于卡组底：LIVE结束时为止，此成员的费用＋２。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-cd16842920db076448774d08-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-005-P",
+    "cardType": "MEMBER",
+    "nameJp": "星空凛",
+    "nameCn": "星空凛",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cardTextJp": "【自動】このメンバーがステージから控え室に置かれたとき、このカードをデッキの一番下に置いてもよい。そうしたとき、自分の控え室から必要ハートに[黄ハート]を含むライブカードを1枚手札に加え、手札を1枚控え室に置く。\n\n【ライブ開始時】ライブ終了時まで、エールによって公開される自分のカードが持つ[桃ブレード]、[赤ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]、[ALLブレード]は、すべて[黄ブレード]になる。",
+    "cardTextCn": "【自动】此成员从舞台被放置入休息室时，可以将此卡放置于卡组底。如此做时，从自己的休息室将1张必要HEART包含[黄ハート]的LIVE卡加入手牌，将1张手牌放置入休息室。\n\n【LIVE开始时】LIVE结束时为止，因声援被公开的自己的卡片持有的[桃ブレード]、[赤ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]、[ALLブレード]，全部变为[黄ブレード]。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-005-P.png",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-005-P+",
+    "cardType": "MEMBER",
+    "nameJp": "星空凛",
+    "nameCn": "星空凛",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cardTextJp": "【自動】このメンバーがステージから控え室に置かれたとき、このカードをデッキの一番下に置いてもよい。そうしたとき、自分の控え室から必要ハートに[黄ハート]を含むライブカードを１枚手札に加え、手札を１枚控え室に置く。\n\n【ライブ開始時】ライブ終了時まで、エールによって公開される自分のカードが持つ[桃ブレード]、[赤ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]、[ALLブレード]は、すべて[黄ブレード]になる。",
+    "cardTextCn": "【自动】此成员从舞台被放置入休息室时，可以将此卡放置于卡组底。如此做时，从自己的休息室将１张必要HEART包含[黄ハート]的LIVE卡加入手牌，将１张手牌放置入休息室。\n\n【LIVE开始时】LIVE结束时为止，因声援被公开的自己的卡片持有的[桃ブレード]、[赤ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]、[ALLブレード]，全部变为[黄ブレード]。",
+    "rare": "P+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-b24a9574432498be43ce0507-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-005-R+",
+    "cardType": "MEMBER",
+    "nameJp": "星空凛",
+    "nameCn": "星空凛",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cardTextJp": "【自動】このメンバーがステージから控え室に置かれたとき、このカードをデッキの一番下に置いてもよい。そうしたとき、自分の控え室から必要ハートに[黄ハート]を含むライブカードを１枚手札に加え、手札を１枚控え室に置く。\n\n【ライブ開始時】ライブ終了時まで、エールによって公開される自分のカードが持つ[桃ブレード]、[赤ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]、[ALLブレード]は、すべて[黄ブレード]になる。",
+    "cardTextCn": "【自动】此成员从舞台被放置入休息室时，可以将此卡放置于卡组底。如此做时，从自己的休息室将１张必要HEART包含[黄ハート]的LIVE卡加入手牌，将１张手牌放置入休息室。\n\n【LIVE开始时】LIVE结束时为止，因声援被公开的自己的卡片持有的[桃ブレード]、[赤ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]、[ALLブレード]，全部变为[黄ブレード]。",
+    "rare": "R+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-7d7f03271309ee81ca22667e-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-005-SEC",
+    "cardType": "MEMBER",
+    "nameJp": "星空凛",
+    "nameCn": "星空凛",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cardTextJp": "【自動】このメンバーがステージから控え室に置かれたとき、このカードをデッキの一番下に置いてもよい。そうしたとき、自分の控え室から必要ハートに[黄ハート]を含むライブカードを１枚手札に加え、手札を１枚控え室に置く。\n\n【ライブ開始時】ライブ終了時まで、エールによって公開される自分のカードが持つ[桃ブレード]、[赤ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]、[ALLブレード]は、すべて[黄ブレード]になる。",
+    "cardTextCn": "【自动】此成员从舞台被放置入休息室时，可以将此卡放置于卡组底。如此做时，从自己的休息室将１张必要HEART包含[黄ハート]的LIVE卡加入手牌，将１张手牌放置入休息室。\n\n【LIVE开始时】LIVE结束时为止，因声援被公开的自己的卡片持有的[桃ブレード]、[赤ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]、[ALLブレード]，全部变为[黄ブレード]。",
+    "rare": "SEC",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-b71623b20ae12efafe5d4eb4-ba20b56906a7da37ed50a9b7.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-006-P",
+    "cardType": "MEMBER",
+    "nameJp": "西木野真姫",
+    "nameCn": "西木野真姬",
+    "cost": 15,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 3
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cardTextJp": "【起動】[E][E]このカードを控え室からデッキの一番下に置く：自分の控え室から『μ’s』のライブカードを１枚手札に加える。この能力は、このカードが控え室にある場合のみ起動できる。",
+    "cardTextCn": "【起动】[E][E]将此卡从休息室放置于卡组底：将存在于自己的休息室的１张『μ’s』的LIVE卡加入手牌。此能力仅可在此卡存在于休息室的场合起动。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-006-P-37ffe04935fa2d6dd195a376.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-006-R",
+    "cardType": "MEMBER",
+    "nameJp": "西木野真姫",
+    "nameCn": "西木野真姬",
+    "cost": 15,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 3
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cardTextJp": "【起動】[E][E]このカードを控え室からデッキの一番下に置く：自分の控え室から『μ’s』のライブカードを１枚手札に加える。この能力は、このカードが控え室にある場合のみ起動できる。",
+    "cardTextCn": "【起动】[E][E]将此卡从休息室放置于卡组底：将存在于自己的休息室的１张『μ’s』的LIVE卡加入手牌。此能力仅可在此卡存在于休息室的场合起动。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-77107469cd8892424b4854db-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-007-P",
+    "cardType": "MEMBER",
+    "nameJp": "東條希",
+    "nameCn": "东条希",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cardTextJp": "【登場】自分のデッキの上からカードを４枚控え室に置く。それらの中に『μ’s』のライブカードがある場合、ライブ終了時まで、[ブレード]を得る。",
+    "cardTextCn": "【登场】将自己的卡组顶的４张卡片放置入休息室。那些卡片中存在『μ’s』的LIVE卡的场合，LIVE结束时为止，获得[ブレード]。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-a4ff4f39ef5e38b70f18e780-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-007-R",
+    "cardType": "MEMBER",
+    "nameJp": "東條希",
+    "nameCn": "东条希",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cardTextJp": "【登場】自分のデッキの上からカードを４枚控え室に置く。それらの中に『μ’s』のライブカードがある場合、ライブ終了時まで、[ブレード]を得る。",
+    "cardTextCn": "【登场】将自己的卡组顶的４张卡片放置入休息室。那些卡片中存在『μ’s』的LIVE卡的场合，LIVE结束时为止，获得[ブレード]。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-007-R-e1a88a1753346b98b079c88b.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-008-P",
+    "cardType": "MEMBER",
+    "nameJp": "小泉花陽",
+    "nameCn": "小泉花阳",
+    "cost": 13,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cardTextJp": "【ライブ成功時】手札を１枚控え室に置いてもよい：エールにより公開された自分のカードの中から『μ’s』のカードを１枚手札に加える。",
+    "cardTextCn": "【LIVE成功时】可以将１张手牌放置入休息室：从因声援被公开的自己的卡片中，将１张『μ’s』的卡片加入手牌。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-008-P-5616d50d0f770e66ec97a4de.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-008-R",
+    "cardType": "MEMBER",
+    "nameJp": "小泉花陽",
+    "nameCn": "小泉花阳",
+    "cost": 13,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cardTextJp": "【ライブ成功時】手札を１枚控え室に置いてもよい：エールにより公開された自分のカードの中から『μ’s』のカードを１枚手札に加える。",
+    "cardTextCn": "【LIVE成功时】可以将１张手牌放置入休息室：从因声援被公开的自己的卡片中，将１张『μ’s』的卡片加入手牌。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-977821f165dada0d4fb02a7a-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-009-P",
+    "cardType": "MEMBER",
+    "nameJp": "矢澤にこ",
+    "nameCn": "矢泽日香（矢泽妮可）",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cardTextJp": "【常時】このメンバーの下に置かれているコストの異なるメンバーカード１枚につき、このメンバーのコストを＋２し、[桃ハート][ブレード]を得る。\n\n【起動】【ターン２回】[E][E]：自分の手札からメンバーカード１枚をこのメンバーの下に置く。",
+    "cardTextCn": "【常时】放置于此成员下方的费用各不相同的成员卡每有１张，此成员的费用＋２，获得[桃ハート][ブレード]。\n\n【起动】【１回合２次】[E][E]：从自己的手牌将１张成员卡放置于此成员的下方。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-2517e4488e7cd29dff881415-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-009-P+",
+    "cardType": "MEMBER",
+    "nameJp": "矢澤にこ",
+    "nameCn": "矢泽日香（矢泽妮可）",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cardTextJp": "【常時】このメンバーの下に置かれているコストの異なるメンバーカード１枚につき、このメンバーのコストを＋２し、[桃ハート][ブレード]を得る。\n\n【起動】【ターン２回】[E][E]：自分の手札からメンバーカード１枚をこのメンバーの下に置く。",
+    "cardTextCn": "【常时】放置于此成员下方的费用各不相同的成员卡每有１张，此成员的费用＋２，获得[桃ハート][ブレード]。\n\n【起动】【１回合２次】[E][E]：从自己的手牌将１张成员卡放置于此成员的下方。",
+    "rare": "P+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-1219a6575cd11881674cd3a4-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-009-R+",
+    "cardType": "MEMBER",
+    "nameJp": "矢澤にこ",
+    "nameCn": "矢泽日香（矢泽妮可）",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cardTextJp": "【常時】このメンバーの下に置かれているコストの異なるメンバーカード１枚につき、このメンバーのコストを＋２し、[桃ハート][ブレード]を得る。\n\n【起動】【ターン２回】[E][E]：自分の手札からメンバーカード１枚をこのメンバーの下に置く。",
+    "cardTextCn": "【常时】放置于此成员下方的费用各不相同的成员卡每有１张，此成员的费用＋２，获得[桃ハート][ブレード]。\n\n【起动】【１回合２次】[E][E]：从自己的手牌将１张成员卡放置于此成员的下方。",
+    "rare": "R+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-4a9d975d12fa33981d4c6e20-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-009-SEC",
+    "cardType": "MEMBER",
+    "nameJp": "矢澤にこ",
+    "nameCn": "矢泽日香（矢泽妮可）",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cardTextJp": "【常時】このメンバーの下に置かれているコストの異なるメンバーカード１枚につき、このメンバーのコストを＋２し、[桃ハート][ブレード]を得る。\n\n【起動】【ターン２回】[E][E]：自分の手札からメンバーカード１枚をこのメンバーの下に置く。",
+    "cardTextCn": "【常时】放置于此成员下方的费用各不相同的成员卡每有１张，此成员的费用＋２，获得[桃ハート][ブレード]。\n\n【起动】【１回合２次】[E][E]：从自己的手牌将１张成员卡放置于此成员的下方。",
+    "rare": "SEC",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-009-SEC-9b361799f3876e451f30f3df.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-010-N",
+    "cardType": "MEMBER",
+    "nameJp": "高坂穗乃果",
+    "nameCn": "高坂穂乃果",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "YELLOW",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cardTextJp": "【起動】【ターン１回】このメンバーをウェイトにする：自分の控え室にあるカードを２枚まで好きな順番でデッキの下に置く。（ウェイト状態のメンバーが持つ[ブレード]は、エールで公開する枚数を増やさない。）",
+    "cardTextCn": "【起动】【１回合１次】将此成员变为待机状态：将存在于自己的休息室的至多２张卡片按任意顺序放置于卡组底。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-010-N-b4932b08dd124438e7ee23cc.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-011-N",
+    "cardType": "MEMBER",
+    "nameJp": "絢瀬絵里",
+    "nameCn": "绚濑绘里",
+    "cost": 5,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cardTextJp": "【ライブ開始時】自分の成功ライブカード置き場にあるカードのスコアの合計が６以上の場合、相手のステージにいる元々持つ[ブレード]の数が３つ以下のメンバー１人をウェイトにする。（ウェイト状態のメンバーが持つ[ブレード]は、エールで公開する枚数を増やさない。）",
+    "cardTextCn": "【LIVE开始时】存在于自己的成功LIVE卡区的卡片的分数合计大于等于６的场合，将存在于对方的舞台的１名原本持有的[ブレード]的数量小于等于３的成员变为待机状态。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-011-N-e7fd0aab00a272fd5cbcd042.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-012-N",
+    "cardType": "MEMBER",
+    "nameJp": "南ことり",
+    "nameCn": "南琴梨（南小鸟）",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cardTextJp": "【起動】【ターン１回】このメンバーをウェイトにし、手札を２枚控え室に置く：自分の控え室から『μ’s』のライブカードを１枚手札に加える。（ウェイト状態のメンバーが持つ[ブレード]は、エールで公開する枚数を増やさない。）",
+    "cardTextCn": "【起动】【１回合１次】将此成员变为待机状态，将２张手牌放置入休息室：从自己的休息室将１张『μ’s』的LIVE卡加入手牌。(待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。)",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-012-N-2189e379339b8b3a618b2b92.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-013-N",
+    "cardType": "MEMBER",
+    "nameJp": "園田海未",
+    "nameCn": "园田海未",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cardTextJp": "【常時】自分のカードの効果によって成功ライブカード置き場にあるライブカードのスコアの合計を参照するとき、自分の成功ライブカード置き場にカードがあるかぎり、その合計の値を+２する。",
+    "cardTextCn": "【常时】因自己的卡片的效果参照存在于成功LIVE卡区的LIVE的卡的分数的合计值时，只要自己的成功LIVE卡区存在卡片，该合计值+２。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-013-N-dabfd1dc06673e9eeeeb901c.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-014-N",
+    "cardType": "MEMBER",
+    "nameJp": "星空凛",
+    "nameCn": "星空凛",
+    "cost": 7,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cardTextJp": "【登場】控え室にあるブレードハートを持たない『μ’s』のメンバーカード２枚を好きな順番でデッキの下に置いてもよい：カードを１枚引く。",
+    "cardTextCn": "【登场】可以将存在于休息室的２张不持有BLADE HEART的『μ’s』的成员卡按任意顺序放置于卡组底：抽１张卡。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-8546e544677073ca1399974d-ba20b56906a7da37ed50a9b7.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-015-N",
+    "cardType": "MEMBER",
+    "nameJp": "西木野真姫",
+    "nameCn": "西木野真姬",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cardTextJp": "【ライブ成功時】カードを１枚引き、手札を１枚控え室に置く。",
+    "cardTextCn": "【LIVE成功时】抽１张卡，将１张手牌放置入休息室。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-015-N-9b361799f3876e451f30f3df.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-016-N",
+    "cardType": "MEMBER",
+    "nameJp": "東條希",
+    "nameCn": "东条希",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-fc613fdbdf6e1f02ae36aa24-4bde3f828d610041af647c45.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-017-N",
+    "cardType": "MEMBER",
+    "nameJp": "小泉花陽",
+    "nameCn": "小泉花阳",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cardTextJp": "【登場】手札のブレードハートを持たないメンバーカードを１枚公開してもよい：これにより公開したカードを自分のデッキの一番下に置く。その後、自分のデッキの上からカードを５枚見る。その中から『μ’s』のカードを１枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将手牌的1张不持有BLADE HEART的成员卡公开：将因此公开的卡片放置于自己的卡组底。此后，检视自己的卡组顶的5张卡片。可以将其中的1张『μ’s』的卡片公开并加入手牌。其余的放置入休息室。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-017-N-e1a88a1753346b98b079c88b.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-018-N",
+    "cardType": "MEMBER",
+    "nameJp": "矢澤にこ",
+    "nameCn": "矢泽日香（矢泽妮可）",
+    "cost": 4,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cardTextJp": "【ライブ開始時】[E]支払ってもよい：ライブ終了時まで、[ブレード][ブレード]を得る。",
+    "cardTextCn": "【LIVE开始时】可以支付[E]：LIVE结束时为止，获得[ブレード][ブレード]。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-018-N-37ffe04935fa2d6dd195a376.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-019-L",
+    "cardType": "LIVE",
+    "nameJp": "友情ノーチェンジ",
+    "nameCn": "友情永不变",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GRAY"
+      },
+      {
+        "effect": "HEART",
+        "heartColor": "GRAY"
+      }
+    ],
+    "score": 1,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 1
+      }
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ開始時】このターン、自分のライブカード置き場に置かれたカードの枚数が1枚以下の場合、このカードのスコアを＋２する。",
+    "cardTextCn": "【LIVE开始时】此回合，放置于自己的LIVE卡区的卡片的张数小于等于１张的场合，此卡的分数＋２。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-996b6731ac25308ae7e1e760-d42fa674ec9fa3f9c40db25e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-020-L",
+    "cardType": "LIVE",
+    "nameJp": "ぶる〜べりぃ♡とれいん",
+    "nameCn": "蓝莓♡小火车",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "SCORE"
+      }
+    ],
+    "score": 1,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 1
+      }
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ開始時】自分のステージにいるウェイト状態の「南ことり」１人をアクティブにする。そうしたとき、相手のステージにいるコスト４以下のメンバー１人をウェイトにする。",
+    "cardTextCn": "【LIVE开始时】将存在于自己的舞台的１名待机状态的「南琴梨（南小鸟）」变为活跃状态。如此做时，将存在于对方的舞台的１名费用小于等于４的成员变为待机状态。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-8de60ac4e7fb900d423b8714-4bde3f828d610041af647c45.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-021-L",
+    "cardType": "LIVE",
+    "nameJp": "それは僕たちの奇跡",
+    "nameCn": "我们的奇迹",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 2,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      },
+      {
+        "color": "RAINBOW",
+        "count": 2
+      }
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【自動】このカードが成功ライブカード置き場に置かれたとき、自分の成功ライブカード置き場にあるカードが１枚以下の場合、自分のデッキの上からカードを４枚見る。その中から『μ’s』のメンバーカードを1枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【自动】此卡被放置入成功LIVE卡区时，存在于自己的成功LIVE卡区的卡片小于等于１张的场合，检视自己的卡组顶的４张卡片。可以将其中的１张『μ’s』的成员卡公开并加入手牌。其余的放置入休息室。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-56e2c5475317995ed960084d-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-021-SECL",
+    "cardType": "LIVE",
+    "nameJp": "それは僕たちの奇跡",
+    "nameCn": "我们的奇迹",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 2,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      },
+      {
+        "color": "RAINBOW",
+        "count": 2
+      }
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【自動】このカードが成功ライブカード置き場に置かれたとき、自分の成功ライブカード置き場にあるカードが１枚以下の場合、自分のデッキの上からカードを４枚見る。その中から『μ’s』のメンバーカードを1枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【自动】此卡被放置入成功LIVE卡区时，存在于自己的成功LIVE卡区的卡片小于等于１张的场合，检视自己的卡组顶的４张卡片。可以将其中的１张『μ’s』的成员卡公开并加入手牌。其余的放置入休息室。",
+    "rare": "SECL",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-021-SECL-e7fd0aab00a272fd5cbcd042.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-022-L",
+    "cardType": "LIVE",
+    "nameJp": "Hello,星を数えて",
+    "nameCn": "Hello，细数繁星",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": 3,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 3
+      }
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ成功時】エールにより公開された自分のカードの中に[黄ブレード]を持つカードが５枚以上ある場合、このカードのスコアを＋１する。",
+    "cardTextCn": "【LIVE成功时】因声援被公开的自己的卡片中存在大于等于５张持有[黄ブレード]的卡片的场合，此卡的分数＋１。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-fc58e7339ef0101468538f3a-ba20b56906a7da37ed50a9b7.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-023-L",
+    "cardType": "LIVE",
+    "nameJp": "Snow halation",
+    "nameCn": "Snow halation",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "ORANGE"
+      }
+    ],
+    "score": 5,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      },
+      {
+        "color": "RAINBOW",
+        "count": 6
+      }
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ開始時】ライブ終了時まで、エールによって公開される自分のコスト４以下のブレードハートを持たないメンバーカードは[オレンジブレード]を持つ。\n\n【ライブ成功時】エールにより公開された自分のカードの中に[オレンジブレード]を持つカードが６枚以上ある場合、このカードのスコアを＋２する。",
+    "cardTextCn": "【LIVE开始时】LIVE结束时为止，因声援被公开的自己的费用小于等于４的不持有BLADE HEART的成员卡获得[オレンジブレード]。\n\n【LIVE成功时】因声援被公开的自己的卡片中存在大于等于６张持有[オレンジブレード]的卡片的场合，此卡的分数＋２。",
+    "rare": "SECL",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-4730bf4429040499ccc539e4-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-023-SECL",
+    "cardType": "LIVE",
+    "nameJp": "Snow halation",
+    "nameCn": "Snow halation",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "ORANGE"
+      }
+    ],
+    "score": 5,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      },
+      {
+        "color": "RAINBOW",
+        "count": 6
+      }
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ開始時】ライブ終了時まで、エールによって公開される自分のコスト4以下のブレードハートを持たないメンバーカードは[オレンジブレード]を持つ。\n\n【ライブ成功時】エールにより公開された自分のカードの中に[オレンジブレード]を持つカードが6枚以上ある場合、このカードのスコアを+2する。",
+    "cardTextCn": "【LIVE开始时】LIVE结束时为止，因声援被公开的自己的费用小于等于4的不持有BLADE HEART的成员卡获得[オレンジブレード]。\n\n【LIVE成功时】因声援被公开的自己的卡片中存在大于等于6张持有[オレンジブレード]的卡片的场合，此卡的分数+2。",
+    "rare": "SECL",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-023-SECL.png",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-024-L",
+    "cardType": "LIVE",
+    "nameJp": "SUNNY DAY SONG",
+    "nameCn": "SUNNY DAY SONG",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      },
+      {
+        "effect": "DRAW"
+      }
+    ],
+    "score": 6,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 3
+      },
+      {
+        "color": "YELLOW",
+        "count": 3
+      },
+      {
+        "color": "PURPLE",
+        "count": 3
+      },
+      {
+        "color": "RAINBOW",
+        "count": 5
+      }
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ開始時】自分のステージにいる『μ’s』のメンバー１人を選ぶ。ライブ終了時まで、そのメンバーは、相手のステージにいるそのメンバーと名前の異なるメンバー１人につき、[ブレード]を得る。",
+    "cardTextCn": "【LIVE开始时】选择存在于自己的舞台的１名『μ’s』的成员。LIVE结束时为止，每有１名存在于对方的舞台的与该成员名称不相同的成员，该成员获得[ブレード]。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-c9995febde60d6985b113175-d42fa674ec9fa3f9c40db25e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-024-SECL",
+    "cardType": "LIVE",
+    "nameJp": "SUNNY DAY SONG",
+    "nameCn": "SUNNY DAY SONG",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      },
+      {
+        "effect": "DRAW"
+      }
+    ],
+    "score": 6,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 3
+      },
+      {
+        "color": "YELLOW",
+        "count": 3
+      },
+      {
+        "color": "PURPLE",
+        "count": 3
+      },
+      {
+        "color": "RAINBOW",
+        "count": 5
+      }
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ開始時】自分のステージにいる『μ’s』のメンバー１人を選ぶ。ライブ終了時まで、そのメンバーは、相手のステージにいるそのメンバーと名前の異なるメンバー１人につき、[ブレード]を得る。",
+    "cardTextCn": "【LIVE开始时】选择存在于自己的舞台的１名『μ’s』的成员。LIVE结束时为止，每有１名存在于对方的舞台的与该成员名称不相同的成员，该成员获得[ブレード]。",
+    "rare": "SECL",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-4af5c31895b2b7623175a1e6-d42fa674ec9fa3f9c40db25e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-025-L",
+    "cardType": "LIVE",
+    "nameJp": "にこぷり♡女子道",
+    "nameCn": "日香风♡女子之道",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "SCORE"
+      }
+    ],
+    "score": 7,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 5
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      },
+      {
+        "color": "RAINBOW",
+        "count": 7
+      }
+    ],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ開始時】自分のステージにいる「矢澤にこ」１人を選ぶ。自分と相手のステージの中で、そのメンバーが、ほかのすべてのメンバーより多くのハートを持つ場合、このカードのスコアを＋１する。その後、多くの[ブレード]を持つ場合、コストが高い場合についても同じことを行う。",
+    "cardTextCn": "【LIVE开始时】选择存在于自己的舞台的１名「矢泽日香（矢泽妮可）」。自己和对方的舞台中，该成员持有的HEART多于其他所有成员的场合，此卡的分数＋１。此后，该成员持有的[ブレード]多于其他所有成员的场合，此卡的分数＋１；该成员的费用高于其他所有成员的场合，此卡的分数＋１。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-025-L-04081d52e1aba927a267825e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-E01-SECE",
+    "cardType": "ENERGY",
+    "nameJp": "南ことり",
+    "nameCn": "南琴梨（南小鸟）",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「Printemps」",
+    "unitNameRaw": "Printemps",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "SECE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-5cb5a2ec87486067f4cff1f8-4bde3f828d610041af647c45.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-E02-SECE",
+    "cardType": "ENERGY",
+    "nameJp": "星空凛",
+    "nameCn": "星空凛",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「lilywhite」",
+    "unitNameRaw": "lily white",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "SECE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-18d07fa4e0468b87cd3f5ca1-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-E03-SECE",
+    "cardType": "ENERGY",
+    "nameJp": "矢澤にこ",
+    "nameCn": "矢泽日香（矢泽妮可）",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "SECE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-E03-SECE-9b361799f3876e451f30f3df.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!-bp8-E04-PE",
+    "cardType": "ENERGY",
+    "nameJp": "西木野真姫",
+    "nameCn": "西木野真姬",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-775e26110fb57ede8f27bcd3-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!-bp8-E04-PE+",
+    "cardType": "ENERGY",
+    "nameJp": "西木野真姫",
+    "nameCn": "西木野真姬",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "μ’s"
+    ],
+    "workNames": null,
+    "unitName": "「BiBi」",
+    "unitNameRaw": "BiBi",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!-bp8-E04-PE2-37ffe04935fa2d6dd195a376.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp5-020-SECL",
+    "cardType": "LIVE",
+    "nameJp": "バアドケージ",
+    "nameCn": "鸟笼",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "SCORE"
+      }
+    ],
+    "score": 1,
+    "requirements": [
+      {
+        "color": "BLUE",
+        "count": 2
+      },
+      {
+        "color": "RAINBOW",
+        "count": 1
+      }
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": [
+      "蓮ノ空女学院スクールアイドルクラブ"
+    ],
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【ライブ開始時】自分のステージにコスト１０以上の『蓮ノ空』のメンバーが２人以上いる場合、このカードのスコアを＋１する。",
+    "cardTextCn": "【LIVE开始时】自己的舞台中存在大于等于２名费用大于等于１０的『莲之空』的成员的场合，此卡的分数＋１。",
+    "rare": "SECL",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-fa931924711f62c61d8a6fb8-39103f21de26076db4274e45.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-001-P",
+    "cardType": "MEMBER",
+    "nameJp": "日野下花帆",
+    "nameCn": "日野下花帆",
+    "cost": 13,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】自分のデッキの上からカードを3枚控え室に置く。それらがすべて『スリーズブーケ』のカードの場合、エネルギーを2枚アクティブにする。\n\n【自動】【ターン1回】自分の控え室にあるカードがデッキに置かれたとき、ライブ終了時まで、[ブレード][ブレード][ブレード]を得る。",
+    "cardTextCn": "【登场】将自己的卡组顶的3张卡片放置入休息室。那些卡片全部为『Cerise Bouquet』的卡片的场合，将2张能量变为活跃状态。\n\n【自动】【1回合1次】存在于自己的休息室的卡片被放置于卡组时，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-001-P.png",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-001-R",
+    "cardType": "MEMBER",
+    "nameJp": "日野下花帆",
+    "nameCn": "日野下花帆",
+    "cost": 13,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】自分のデッキの上からカードを３枚控え室に置く。それらがすべて『スリーズブーケ』のカードの場合、エネルギーを２枚アクティブにする。\n\n【自動】【ターン１回】自分の控え室にあるカードがデッキに置かれたとき、ライブ終了時まで、[ブレード][ブレード][ブレード]を得る。",
+    "cardTextCn": "【登场】将自己的卡组顶的３张卡片放置入休息室。那些卡片全部为『Cerise Bouquet』的卡片的场合，将２张能量变为活跃状态。\n\n【自动】【１回合１次】存在于自己的休息室的卡片被放置于卡组时，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-a21a71562bb9a6a7b8169549-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-002-P",
+    "cardType": "MEMBER",
+    "nameJp": "村野さやか",
+    "nameCn": "村野沙耶香",
+    "cost": 11,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【常時】このメンバーのコスト５につき、[ブレード]を得る。\n\n【ライブ開始時】手札を１枚控え室に置いてもよい：ライブ終了時まで、このメンバーのコストを＋５する。その後、このメンバーのコストが２０以上の場合、このメンバーをアクティブにし、カードを１枚引く。",
+    "cardTextCn": "【常时】此成员的费用每有5，获得[ブレード]。\n\n【LIVE开始时】可以将１张手牌放置入休息室：LIVE结束时为止，此成员的费用＋５。此后，此成员的费用大于等于２０的场合，将此成员变为活跃状态，抽1张卡。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-002-P-e1a88a1753346b98b079c88b.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-002-R",
+    "cardType": "MEMBER",
+    "nameJp": "村野さやか",
+    "nameCn": "村野沙耶香",
+    "cost": 11,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【常時】このメンバーのコスト５につき、[ブレード]を得る。\n\n【ライブ開始時】手札を１枚控え室に置いてもよい：ライブ終了時まで、このメンバーのコストを＋５する。その後、このメンバーのコストが２０以上の場合、このメンバーをアクティブにし、カードを１枚引く。",
+    "cardTextCn": "【常时】此成员的费用每有5，获得[ブレード]。\n\n【LIVE开始时】可以将１张手牌放置入休息室：LIVE结束时为止，此成员的费用＋５。此后，此成员的费用大于等于２０的场合，将此成员变为活跃状态，抽1张卡。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-11ae977b345e39b4f0b510c4-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-003-P",
+    "cardType": "MEMBER",
+    "nameJp": "大沢瑠璃乃",
+    "nameCn": "大泽瑠璃乃",
+    "cost": 10,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 3
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】自分と相手はそれぞれ自身の手札の枚数を６枚になるまで手札を控え室に置く。\n\n【常時】自分の手札が７枚より少ないかぎり、その差に等しい数の[ブレード]を得る。",
+    "cardTextCn": "【登场】自己和对方分别将手牌放置入休息室直至自身的手牌数变为６张。\n\n【常时】只要自己的手牌少于７张，获得等同于差值数的[ブレード]。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-003-P-2189e379339b8b3a618b2b92.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-003-R",
+    "cardType": "MEMBER",
+    "nameJp": "大沢瑠璃乃",
+    "nameCn": "大泽瑠璃乃",
+    "cost": 10,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 3
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】自分と相手はそれぞれ自身の手札の枚数を６枚になるまで手札を控え室に置く。\n\n【常時】自分の手札が７枚より少ないかぎり、その差に等しい数の[ブレード]を得る。",
+    "cardTextCn": "【登场】自己和对方分别将手牌放置入休息室直至自身的手牌数变为６张。\n\n【常时】只要自己的手牌少于７张，获得等同于差值数的[ブレード]。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-6720afa0a608b02e9da8f5c7-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-004-P",
+    "cardType": "MEMBER",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cost": 17,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 4
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】カードを１枚引く。「日野下花帆」とバトンタッチして登場した場合、さらにカードを１枚引く。\n\n【起動】【ターン１回】手札を１枚控え室に置く：これにより控え室に置いたカードがコスト１３以下の『蓮ノ空』のメンバーカードの場合、ライブ終了時まで、このメンバーは、そのカードが持つ【登場】能力１つを得る。その【登場】能力をコストを支払わずに発動させる。",
+    "cardTextCn": "【登场】抽１张卡。 与「日野下花帆」进行换手登场的场合，再抽１张卡。\n\n【起动】【１回合１次】将１张手牌放置入休息室：因此将费用小于等于１３的『莲之空』的成员卡放置入休息室的场合，LIVE结束时为止，此卡获得那张卡的１个【登场】能力。不支付费用发动那个【登场】能力。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-a260506e19041c7ee30145b2-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-004-P+",
+    "cardType": "MEMBER",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cost": 17,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 4
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】カードを１枚引く。「日野下花帆」とバトンタッチして登場した場合、さらにカードを１枚引く。\n\n【起動】【ターン１回】手札を１枚控え室に置く：これにより控え室に置いたカードがコスト１３以下の『蓮ノ空』のメンバーカードの場合、ライブ終了時まで、このメンバーは、そのカードが持つ【登場】能力１つを得る。その【登場】能力をコストを支払わずに発動させる。",
+    "cardTextCn": "【登场】抽１张卡。 与「日野下花帆」进行换手登场的场合，再抽１张卡。\n\n【起动】【１回合１次】将１张手牌放置入休息室：因此将费用小于等于１３的『莲之空』的成员卡放置入休息室的场合，LIVE结束时为止，此卡获得那张卡的１个【登场】能力。不支付费用发动那个【登场】能力。",
+    "rare": "P+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-8cc3e76d5a75c84962ce0d75-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-004-R+",
+    "cardType": "MEMBER",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cost": 17,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 4
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】カードを１枚引く。「日野下花帆」とバトンタッチして登場した場合、さらにカードを１枚引く。\n\n【起動】【ターン１回】手札を１枚控え室に置く：これにより控え室に置いたカードがコスト１３以下の『蓮ノ空』のメンバーカードの場合、ライブ終了時まで、このメンバーは、そのカードが持つ【登場】能力１つを得る。その【登場】能力をコストを支払わずに発動させる。",
+    "cardTextCn": "【登场】抽１张卡。 与「日野下花帆」进行换手登场的场合，再抽１张卡。\n\n【起动】【１回合１次】将１张手牌放置入休息室：因此将费用小于等于１３的『莲之空』的成员卡放置入休息室的场合，LIVE结束时为止，此卡获得那张卡的１个【登场】能力。不支付费用发动那个【登场】能力。",
+    "rare": "R+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-14f223f86528d3f271cadfbd-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-004-SEC",
+    "cardType": "MEMBER",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cost": 17,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 4
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】カードを１枚引く。「日野下花帆」とバトンタッチして登場した場合、さらにカードを１枚引く。\n\n【起動】【ターン１回】手札を１枚控え室に置く：これにより控え室に置いたカードがコスト１３以下の『蓮ノ空』のメンバーカードの場合、ライブ終了時まで、このメンバーは、そのカードが持つ【登場】能力１つを得る。その【登場】能力をコストを支払わずに発動させる。",
+    "cardTextCn": "【登场】抽１张卡。 与「日野下花帆」进行换手登场的场合，再抽１张卡。\n\n【起动】【１回合１次】将１张手牌放置入休息室：因此将费用小于等于１３的『莲之空』的成员卡放置入休息室的场合，LIVE结束时为止，此卡获得那张卡的１个【登场】能力。不支付费用发动那个【登场】能力。",
+    "rare": "SEC",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-004-SEC-2189e379339b8b3a618b2b92.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-005-P",
+    "cardType": "MEMBER",
+    "nameJp": "徒町小鈴",
+    "nameCn": "徒町小铃",
+    "cost": 0,
+    "blade": 1,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【常時】自分のステージに『DOLLCHESTRA』のメンバーがいないかぎり、このカードをプレイできない。\n\n【自動】自分のステージにほかの『DOLLCHESTRA』のメンバーがいないとき、このメンバーを控え室に置く。",
+    "cardTextCn": "【常时】只要自己的舞台上不存在『DOLLCHESTRA』的成员，无法打出此卡。\n\n【自动】自己的舞台上不存在其他的『DOLLCHESTRA』的成员时，将此成员放置入休息室。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-005-P-dabfd1dc06673e9eeeeb901c.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-005-R",
+    "cardType": "MEMBER",
+    "nameJp": "徒町小鈴",
+    "nameCn": "徒町小铃",
+    "cost": 0,
+    "blade": 1,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【常時】自分のステージに『DOLLCHESTRA』のメンバーがいないかぎり、このカードをプレイできない。\n\n【自動】自分のステージにほかの『DOLLCHESTRA』のメンバーがいないとき、このメンバーを控え室に置く。",
+    "cardTextCn": "【常时】只要自己的舞台上不存在『DOLLCHESTRA』的成员，无法打出此卡。\n\n【自动】自己的舞台上不存在其他的『DOLLCHESTRA』的成员时，将此成员放置入休息室。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-7bd171eef66667d7c2337b82-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-006-P",
+    "cardType": "MEMBER",
+    "nameJp": "安養寺姫芽",
+    "nameCn": "安养寺姬芽",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】手札の『蓮ノ空』のカードを１枚控え室に置いてもよい：以下から１つを選ぶ。\n・[桃ハート]か[緑ハート]か[青ハート]か[紫ハート]のうち、１つを選ぶ。ライブ終了時まで、選んだハートを１つ得る。\n・自分のデッキの上からカードを３枚見る。その中から好きな枚数を好きな順番でデッキの上に置き、残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将手牌的１张『莲之空』的卡片放置入休息室：从以下选择１项。\n・选择[桃ハート]或[緑ハート]或[青ハート]或[紫ハート]中的１种。LIVE结束时为止，获得１个选择的HEART。\n・检视自己的卡组顶的3张卡片。可以将其中的任意张按任意顺序放置于卡组顶，其余的放置入休息室。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-5bad418819c282b80e5b03b9-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-006-R",
+    "cardType": "MEMBER",
+    "nameJp": "安養寺姫芽",
+    "nameCn": "安养寺姬芽",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】手札の『蓮ノ空』のカードを１枚控え室に置いてもよい：以下から１つを選ぶ。\n・[桃ハート]か[緑ハート]か[青ハート]か[紫ハート]のうち、１つを選ぶ。ライブ終了時まで、選んだハートを１つ得る。\n・自分のデッキの上からカードを３枚見る。その中から好きな枚数を好きな順番でデッキの上に置き、残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将手牌的１张『莲之空』的卡片放置入休息室：从以下选择１项。\n・选择[桃ハート]或[緑ハート]或[青ハート]或[紫ハート]中的１种。LIVE结束时为止，获得１个选中的HEART。\n・检视自己的卡组顶的3张卡片。可以将其中的任意张按任意顺序放置于卡组顶，其余的放置入休息室。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-006-R-e1a88a1753346b98b079c88b.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-007-P",
+    "cardType": "MEMBER",
+    "nameJp": "セラス 柳田 リリエンフェルト",
+    "nameCn": "赛拉丝·柳田·利林费尔德",
+    "cost": 13,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 4
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【常時】自分のステージにアクティブ状態の「桂城泉」がいるかぎり、自分と相手のステージにいるコスト４以下のメンバーの【起動】能力は起動できない。\n\n【登場】自分のデッキの上からカードを５枚見る。その中から必要ハートに[紫ハート]を含むライブカードを１枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【常时】只要自己的舞台上存在活跃状态的「桂城泉」，存在于自己和对方的舞台的费用小于等于４的成员的【起动】能力不能起动。\n\n【登场】检视自己的卡组顶的５张卡片。可以将其中的１张必要HEART包含[紫ハート]的LIVE卡公开并加入手牌。其余的放置入休息室。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-ea5438cb960436c3d438222d-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-007-P+",
+    "cardType": "MEMBER",
+    "nameJp": "セラス 柳田 リリエンフェルト",
+    "nameCn": "赛拉丝·柳田·利林费尔德",
+    "cost": 13,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 4
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【常時】自分のステージにアクティブ状態の「桂城泉」がいるかぎり、自分と相手のステージにいるコスト４以下のメンバーの【起動】能力は起動できない。\n\n【登場】自分のデッキの上からカードを５枚見る。その中から必要ハートに[紫ハート]を含むライブカードを１枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【常时】只要自己的舞台上存在活跃状态的「桂城泉」，存在于自己和对方的舞台的费用小于等于４的成员的【起动】能力不能起动。\n\n【登场】检视自己的卡组顶的５张卡片。可以将其中的１张必要HEART包含[紫ハート]的LIVE卡公开并加入手牌。其余的放置入休息室。",
+    "rare": "P+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-768396d1704f174d3e36d112-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-007-R+",
+    "cardType": "MEMBER",
+    "nameJp": "セラス 柳田 リリエンフェルト",
+    "nameCn": "赛拉丝·柳田·利林费尔德",
+    "cost": 13,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 4
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【常時】自分のステージにアクティブ状態の「桂城泉」がいるかぎり、自分と相手のステージにいるコスト４以下のメンバーの【起動】能力は起動できない。\n\n【登場】自分のデッキの上からカードを５枚見る。その中から必要ハートに[紫ハート]を含むライブカードを１枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【常时】只要自己的舞台上存在活跃状态的「桂城泉」，存在于自己和对方的舞台的费用小于等于４的成员的【起动】能力不能起动。\n\n【登场】检视自己的卡组顶的５张卡片。可以将其中的１张必要HEART包含[紫ハート]的LIVE卡公开并加入手牌。其余的放置入休息室。",
+    "rare": "R+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-c91de6b68945718be1f7b36c-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-007-SEC",
+    "cardType": "MEMBER",
+    "nameJp": "セラス 柳田 リリエンフェルト",
+    "nameCn": "赛拉丝·柳田·利林费尔德",
+    "cost": 13,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 4
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【常時】自分のステージにアクティブ状態の「桂城泉」がいるかぎり、自分と相手のステージにいるコスト４以下のメンバーの【起動】能力は起動できない。\n\n【登場】自分のデッキの上からカードを５枚見る。その中から必要ハートに[紫ハート]を含むライブカードを１枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【常时】只要自己的舞台上存在活跃状态的「桂城泉」，存在于自己和对方的舞台的费用小于等于４的成员的【起动】能力不能起动。\n\n【登场】检视自己的卡组顶的５张卡片。可以将其中的１张必要HEART包含[紫ハート]的LIVE卡公开并加入手牌。其余的放置入休息室。",
+    "rare": "SEC",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-007-SEC-04081d52e1aba927a267825e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-008-P",
+    "cardType": "MEMBER",
+    "nameJp": "桂城泉",
+    "nameCn": "桂城泉",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【常時】自分のステージに「セラス 柳田 リリエンフェルト」がいるかぎり、このメンバーは、相手のカードの効果によってはウェイトしない。\n\n【起動】【ターン１回】手札を１枚控え室に置く：自分のステージにいるこのメンバー以外の『Edel Note』のメンバー１人を控え室に置く。そうしたとき、自分の控え室から、これによりステージから控え室に置いたメンバーカードを１枚、そのメンバーがいたエリアに登場させる。",
+    "cardTextCn": "【常时】只要自己的舞台上存在「赛拉丝·柳田·利林费尔德」，此成员，不会因对方的卡片的效果变为待机状态。\n\n【起动】【１回合１次】将１张手牌放置入休息室：将存在于自己的舞台的１名此成员以外的『Edel Note』的成员放置入休息室。如此做时，从自己的休息室，将１张因此从舞台放置入休息室的成员卡，登场至该成员所在的区域。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-fcd6ddc50b30d540d0b24e4a-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-008-P+",
+    "cardType": "MEMBER",
+    "nameJp": "桂城泉",
+    "nameCn": "桂城泉",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【常時】自分のステージに「セラス 柳田 リリエンフェルト」がいるかぎり、このメンバーは、相手のカードの効果によってはウェイトしない。\n\n【起動】【ターン１回】手札を１枚控え室に置く：自分のステージにいるこのメンバー以外の『Edel Note』のメンバー１人を控え室に置く。そうしたとき、自分の控え室から、これによりステージから控え室に置いたメンバーカードを１枚、そのメンバーがいたエリアに登場させる。",
+    "cardTextCn": "【常时】只要自己的舞台上存在「赛拉丝·柳田·利林费尔德」，此成员，不会因对方的卡片的效果变为待机状态。\n\n【起动】【１回合１次】将１张手牌放置入休息室：将存在于自己的舞台的１名此成员以外的『Edel Note』的成员放置入休息室。如此做时，从自己的休息室，将１张因此从舞台放置入休息室的成员卡，登场至该成员所在的区域。",
+    "rare": "P+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-b2a52cbf45e4e172db8b007a-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-008-R+",
+    "cardType": "MEMBER",
+    "nameJp": "桂城泉",
+    "nameCn": "桂城泉",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【常時】自分のステージに「セラス 柳田 リリエンフェルト」がいるかぎり、このメンバーは、相手のカードの効果によってはウェイトしない。\n\n【起動】【ターン１回】手札を１枚控え室に置く：自分のステージにいるこのメンバー以外の『Edel Note』のメンバー１人を控え室に置く。そうしたとき、自分の控え室から、これによりステージから控え室に置いたメンバーカードを１枚、そのメンバーがいたエリアに登場させる。",
+    "cardTextCn": "【常时】只要自己的舞台上存在「赛拉丝·柳田·利林费尔德」，此成员，不会因对方的卡片的效果变为待机状态。\n\n【起动】【１回合１次】将１张手牌放置入休息室：将存在于自己的舞台的１名此成员以外的『Edel Note』的成员放置入休息室。如此做时，从自己的休息室，将１张因此从舞台放置入休息室的成员卡，登场至该成员所在的区域。",
+    "rare": "R+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-a011992d4db1a394d9274a17-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-008-SEC",
+    "cardType": "MEMBER",
+    "nameJp": "桂城泉",
+    "nameCn": "桂城泉",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【常時】自分のステージに「セラス 柳田 リリエンフェルト」がいるかぎり、このメンバーは、相手のカードの効果によってはウェイトしない。\n\n【起動】【ターン１回】手札を１枚控え室に置く：自分のステージにいるこのメンバー以外の『Edel Note』のメンバー１人を控え室に置く。そうしたとき、自分の控え室から、これによりステージから控え室に置いたメンバーカードを１枚、そのメンバーがいたエリアに登場させる。",
+    "cardTextCn": "【常时】只要自己的舞台上存在「赛拉丝·柳田·利林费尔德」，此成员，不会因对方的卡片的效果变为待机状态。\n\n【起动】【１回合１次】将１张手牌放置入休息室：将存在于自己的舞台的１名此成员以外的『Edel Note』的成员放置入休息室。如此做时，从自己的休息室，将１张因此从舞台放置入休息室的成员卡，登场至该成员所在的区域。",
+    "rare": "SEC",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-008-SEC-04081d52e1aba927a267825e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-009-N",
+    "cardType": "MEMBER",
+    "nameJp": "日野下花帆",
+    "nameCn": "日野下花帆",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】自分の控え室からコスト９以下のメンバーカード１枚をデッキの一番上に置いてもよい。",
+    "cardTextCn": "【登场】可以将存在于自己的休息室的１张费用小于等于９的成员卡放置于卡组顶。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-426023da8def9ed0b181bda7-d42fa674ec9fa3f9c40db25e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-010-N",
+    "cardType": "MEMBER",
+    "nameJp": "村野さやか",
+    "nameCn": "村野沙耶香",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【ライブ開始時】手札を1枚控え室に置いてもよい：自分のステージにいる『蓮ノ空』のメンバーのコストが合計２５以上の場合、自分の控え室から『DOLLCHESTRA』のライブカード１枚を手札に加える。",
+    "cardTextCn": "【LIVE开始时】可以将１张手牌放置入休息室：存在于自己的舞台的『莲之空』的成员的费用合计大于等于２５的场合，从自己的休息室将１张『DOLLCHESTRA』的LIVE卡加入手牌。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-010-N-5616d50d0f770e66ec97a4de.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-011-N",
+    "cardType": "MEMBER",
+    "nameJp": "大沢瑠璃乃",
+    "nameCn": "大泽瑠璃乃",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】このメンバーよりコストが低いメンバーからバトンタッチして登場した場合、自分の控え室から『みらくらぱーく!』のライブカード１枚を手札に加える。",
+    "cardTextCn": "【登场】因与小于此成员费用的成员换手登场的场合，从自己的休息室将１张『Mira-Cra Park!』的LIVE卡加入手牌。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-011-N-9b361799f3876e451f30f3df.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-012-N",
+    "cardType": "MEMBER",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cost": 7,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【登場】自分の控え室にあるすべてのメンバーカードをシャッフルし、デッキの下に置く。これにより『スリーズブーケ』のメンバーカードが３枚以上デッキの下に置かれた場合、ライブ終了時まで、[緑ハート][緑ハート]を得る。",
+    "cardTextCn": "【登场】将存在于自己的休息室的所有成员卡混洗，放置于卡组底。因此将大于等于３张『Cerise Bouquet』的成员卡放置于卡组底的场合，LIVE结束时为止，获得[緑ハート][緑ハート]。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-012-N-2189e379339b8b3a618b2b92.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-013-N",
+    "cardType": "MEMBER",
+    "nameJp": "徒町小鈴",
+    "nameCn": "徒町小铃",
+    "cost": 9,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 4
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【ライブ開始時】自分のライブカード置き場に『DOLLCHESTRA』のカードがある場合、ライブ終了時まで、[ブレード][ブレード][ブレード]を得る。",
+    "cardTextCn": "【LIVE开始时】自己的LIVE卡区存在『DOLLCHESTRA』的卡片的场合，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-013-N-dc818a4ef622a049327054b4.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-014-N",
+    "cardType": "MEMBER",
+    "nameJp": "安養寺姫芽",
+    "nameCn": "安养寺姬芽",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【登場】自分のステージにほかの『蓮ノ空』のメンバーがいる場合、カードを１枚引く。\n\n【自動】このメンバーがステージから控え室に置かれたとき、手札を２枚控え室に置く。",
+    "cardTextCn": "【登场】自己的舞台存在其他的『莲之空』的成员的场合，抽１张卡。\n\n【自动】此卡从舞台被放置入休息室时，将２张手牌放置入休息室。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-014-N-37ffe04935fa2d6dd195a376.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-015-N",
+    "cardType": "MEMBER",
+    "nameJp": "セラス 柳田 リリエンフェルト",
+    "nameCn": "赛拉丝·柳田·利林费尔德",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【登場】このメンバーをウェイトにしてもよい：自分のデッキの上からカードを２枚見る。その中から好きな枚数を好きな順番でデッキの上に置き、残りを控え室に置く。（ウェイト状態のメンバーが持つ[ブレード]は、エールで公開する枚数を増やさない。）",
+    "cardTextCn": "【登场】将此成员变为待机状态：检视自己的卡组顶的２张卡片。可以将其中的任意张数的卡片按任意顺序放置于卡组顶，其余的放置入休息室。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-015-N-04081d52e1aba927a267825e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-016-N",
+    "cardType": "MEMBER",
+    "nameJp": "桂城泉",
+    "nameCn": "桂城泉",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【ライブ成功時】手札を2枚控え室に置いてもよい：自分の控え室からスコア３以下の『蓮ノ空』のライブカードを１枚手札に加える。",
+    "cardTextCn": "【LIVE成功时】可以将２张手牌放置入休息室：从自己的休息室将１张分数小于等于３的『莲之空』的LIVE卡加入手牌。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-7802af3177854d50fbcea131-4bde3f828d610041af647c45.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-017-L",
+    "cardType": "LIVE",
+    "nameJp": "Bloom the smile, Bloom the dream!",
+    "nameCn": "Bloom the smile, Bloom the dream!",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GRAY"
+      },
+      {
+        "effect": "HEART",
+        "heartColor": "GRAY"
+      }
+    ],
+    "score": 0,
+    "requirements": [
+      {
+        "color": "RAINBOW",
+        "count": 4
+      }
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ開始時】自分のライブカード置き場にカードが２枚以上あり、かつ『蓮ノ空』のみの場合、このカードを手札に戻し、手札を１枚控え室に置く。そうしたとき、自分のライブカード置き場にあるカード１枚のスコアを＋１し、必要ハートを[無ハート][無ハート]増やす。",
+    "cardTextCn": "【LIVE开始时】存在于自己的LIVE卡区的卡片大于等于２张，且仅为『莲之空』的场合，将此卡放回手牌，将１张手牌放置入休息室。如此做时，存在于自己的LIVE卡区的１张卡片的分数＋１，必要HEART增加[無ハート][無ハート]。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-2c5daaa4953b782d07e27b31-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-017-SECL",
+    "cardType": "LIVE",
+    "nameJp": "Bloom the smile, Bloom the dream!",
+    "nameCn": "Bloom the smile, Bloom the dream!",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GRAY"
+      },
+      {
+        "effect": "HEART",
+        "heartColor": "GRAY"
+      }
+    ],
+    "score": 0,
+    "requirements": [
+      {
+        "color": "RAINBOW",
+        "count": 4
+      }
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ開始時】自分のライブカード置き場にカードが２枚以上あり、かつ『蓮ノ空』のみの場合、このカードを手札に戻し、手札を１枚控え室に置く。そうしたとき、自分のライブカード置き場にあるカード１枚のスコアを＋１し、必要ハートを[無ハート][無ハート]増やす。",
+    "cardTextCn": "【LIVE开始时】存在于自己的LIVE卡区的卡片大于等于２张，且仅为『莲之空』的场合，将此卡放回手牌，将１张手牌放置入休息室。如此做时，存在于自己的LIVE卡区的１张卡片的分数＋１，必要HEART增加[無ハート][無ハート]。",
+    "rare": "SECL",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-017-SECL-2189e379339b8b3a618b2b92.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-018-L",
+    "cardType": "LIVE",
+    "nameJp": "Holiday∞Holiday",
+    "nameCn": "Holiday∞Holiday",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 3,
+    "requirements": [
+      {
+        "color": "GREEN",
+        "count": 4
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 2
+      }
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【自動】【ターン１回】エールによって公開された自分のカードが、自分のカードの効果によっていずれかの領域に移動したとき、このカードのスコアを＋１する。",
+    "cardTextCn": "【自动】【１回合１次】因声援公开的自己的卡片，因自己的卡片的效果移动至任意领域时，此卡的分数＋１。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-17ed425c07ad1688ed79310e-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-018-SECL",
+    "cardType": "LIVE",
+    "nameJp": "Holiday∞Holiday",
+    "nameCn": "Holiday∞Holiday",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 3,
+    "requirements": [
+      {
+        "color": "GREEN",
+        "count": 4
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 2
+      }
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【自動】【ターン１回】エールによって公開された自分のカードが、自分のカードの効果によっていずれかの領域に移動したとき、このカードのスコアを＋１する。",
+    "cardTextCn": "【自动】【１回合１次】因声援公开的自己的卡片，因自己的卡片的效果移动至任意领域时，此卡的分数＋１。",
+    "rare": "SECL",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-48e2c88134acd3b973dc98cd-3ad4708be30884d21c15b890.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-019-L",
+    "cardType": "LIVE",
+    "nameJp": "不思議と君とライブラリー",
+    "nameCn": "与你在图书馆的奇妙之旅",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      },
+      {
+        "effect": "DRAW"
+      }
+    ],
+    "score": 6,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 6
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 6
+      }
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": "【ライブ開始時】[E]支払ってもよい：自分の控え室にあるすべてのコスト９以下のメンバーカードをシャッフルし、デッキの下に置く。\n\n【ライブ開始時】自分のステージにいる『スリーズブーケ』のメンバーがおり、かつ自分のデッキにカードが３５枚以上ある場合、このカードのスコアを＋２する。",
+    "cardTextCn": "【LIVE开始时】可以支付[E]：将存在于自己的休息室的所有费用小于等于９的成员混洗，放置于卡组底。\n\n【LIVE开始时】自己的舞台上存在『Cerise Bouquet』的成员，且自己的卡组的卡片大于等于３５张的场合，此卡的分数＋２。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-4cbf82c92dbb1b1d6ad69d3c-d42fa674ec9fa3f9c40db25e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-020-L",
+    "cardType": "LIVE",
+    "nameJp": "アイシイ",
+    "nameCn": "Icy",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "score": 5,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 5
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 5
+      }
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": "【ライブ開始時】メンバー２人をウェイトにしてもい：このカードの必要ハートを[無ハート][無ハート][無ハート]減らす。これによりウェイトにしたメンバーは、次のターンのアクティブフェイズにアクティブしない。\n\n【ライブ開始時】ライブ終了時まで、『DOLLCHESTRA』のメンバー１人のコストを＋５する。その後、自分のステージにいる『蓮ノ空』のメンバーのコストが合計３０以上の場合、このカードのスコアを＋１する。",
+    "cardTextCn": "【LIVE开始时】可以将２名成员变为待机状态：此卡的必要HEART减少[無ハート][無ハート][無ハート]。因此变为待机状态的成员，在下个活跃阶段不会变为活跃状态。\n\n【LIVE开始时】LIVE结束时为止，１名『DOLLCHESTRA』的成员的费用＋５。此后，存在于自己的舞台的『莲之空』的成员的费用合计大于等于３０的场合，此卡的分数＋１。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-020-L-e1a88a1753346b98b079c88b.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-021-L",
+    "cardType": "LIVE",
+    "nameJp": "みらくりえーしょん",
+    "nameCn": "Mira-Creation",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 2,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 3
+      },
+      {
+        "color": "RAINBOW",
+        "count": 2
+      }
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【ライブ開始時】自分のステージにいる『みらくらぱーく!』のメンバー１人を手札に戻してもよい。そうしたとき、自分の手札から、これにより手札に戻したメンバーと同じコストを持つ『みらくらぱーく!』のメンバーカード１枚を、自分のステージのメンバーのいないエリアに登場させる。これにより登場したメンバーの【登場】能力は発動しない。",
+    "cardTextCn": "【LIVE开始时】可以将存在于自己的舞台的１名『Mira-Cra Park!』的成员放回手牌。如此做时，从自己的手牌，将１张与因此放回手牌的成员持有相同费用的『Mira-Cra Park!』的成员卡，登场至自己的舞台上不存在成员的区域。因此登场的成员的【登场】能力不会发动。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-5aa53a1c31373f7d69aa4dd7-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-021-SECL",
+    "cardType": "LIVE",
+    "nameJp": "みらくりえーしょん",
+    "nameCn": "Mira-Creation",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 2,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 3
+      },
+      {
+        "color": "RAINBOW",
+        "count": 2
+      }
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【ライブ開始時】自分のステージにいる『みらくらぱーく!』のメンバー１人を手札に戻してもよい。そうしたとき、自分の手札から、これにより手札に戻したメンバーと同じコストを持つ『みらくらぱーく!』のメンバーカード１枚を、自分のステージのメンバーのいないエリアに登場させる。これにより登場したメンバーの【登場】能力は発動しない。",
+    "cardTextCn": "【LIVE开始时】可以将存在于自己的舞台的１名『Mira-Cra Park!』的成员放回手牌。如此做时，从自己的手牌，将１张与因此放回手牌的成员持有相同费用的『Mira-Cra Park!』的成员卡，登场至自己的舞台上不存在成员的区域。因此登场的成员的【登场】能力不会发动。",
+    "rare": "SECL",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-78216b18e73f54e7a7736f94-4bde3f828d610041af647c45.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-022-L",
+    "cardType": "LIVE",
+    "nameJp": "トモダチになれる場所",
+    "nameCn": "让我们成为朋友的地方",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": 3,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 3
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 3
+      }
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": "【ライブ開始時】自分は、相手がカードを1枚引くことを選らんてもよい。そうしたとき、ライブ終了時まで、自分のステージにいるコスト１０以上の『みらくらぱーく!』のメンバー１人は、[桃ハート]を得る。\n\n【ライブ成功時】自分の控え室から『蓮ノ空』のライブカードを1枚手札に加える。",
+    "cardTextCn": "【LIVE开始时】自己可以选择让对方抽１张卡。如此做时，LIVE结束时为止，存在于自己的舞台的１名费用大于等于１０的『Mira-Cra Park!』的成员，获得[桃ハート]。\n\n【LIVE成功时】从自己的休息室将１张『莲之空』的LIVE卡加入手牌。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-d2f54975376c62c5f037c96a-d42fa674ec9fa3f9c40db25e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-023-L",
+    "cardType": "LIVE",
+    "nameJp": "EdelinieN",
+    "nameCn": "EdelinieN",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      }
+    ],
+    "score": 3,
+    "requirements": [
+      {
+        "color": "PURPLE",
+        "count": 4
+      },
+      {
+        "color": "RAINBOW",
+        "count": 2
+      }
+    ],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": "【ライブ開始時】自分の成功ライブカード置き場にある『Edel Note』のカード１枚につき、このカードのスコアを＋３し、必要ハートを[紫ハート][紫ハート][紫ハート][無ハート][無ハート][無ハート]増やす。",
+    "cardTextCn": "【LIVE开始时】存在于自己的成功LIVE卡区的『Edel Note』的卡片每有１张，此卡的分数＋３，必要HEART增加[紫ハート][紫ハート][紫ハート][無ハート][無ハート][無ハート]。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-023-L-04081d52e1aba927a267825e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-E01-SECE",
+    "cardType": "ENERGY",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "SECE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-69d66b10d6f7f4f331b0983c-3ad4708be30884d21c15b890.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-E02-SECE",
+    "cardType": "ENERGY",
+    "nameJp": "セラス 柳田 リリエンフェルト",
+    "nameCn": "赛拉丝·柳田·利林费尔德",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "SECE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-d63aa87ff067f8e0c9c9c488-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-E03-SECE",
+    "cardType": "ENERGY",
+    "nameJp": "桂城泉",
+    "nameCn": "桂城泉",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「EdelNote」",
+    "unitNameRaw": "Edel Note",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "SECE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-172babb3a32dc031404df6dc-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-E04-PE",
+    "cardType": "ENERGY",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-beb0cd61a34f6bedc58d7c85-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-E04-PE+",
+    "cardType": "ENERGY",
+    "nameJp": "百生吟子",
+    "nameCn": "百生吟子",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「スリーズブーケ」",
+    "unitNameRaw": "スリーズブーケ",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-E04-PE2-2189e379339b8b3a618b2b92.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-E05-PE",
+    "cardType": "ENERGY",
+    "nameJp": "徒町小鈴",
+    "nameCn": "徒町小铃",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-97d15da54bdaecd4bde6f69d-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-E05-PE+",
+    "cardType": "ENERGY",
+    "nameJp": "徒町小鈴",
+    "nameCn": "徒町小铃",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!HS-bp8-E05-PE2-04081d52e1aba927a267825e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!HS-bp8-E06-PE",
+    "cardType": "ENERGY",
+    "nameJp": "安養寺姫芽",
+    "nameCn": "安养寺姬芽",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-4a2832a92cb4f4305deb3ee1-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!HS-bp8-E06-PE+",
+    "cardType": "ENERGY",
+    "nameJp": "安養寺姫芽",
+    "nameCn": "安养寺姬芽",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "workNames": null,
+    "unitName": "「みらくらぱーく！」",
+    "unitNameRaw": "みらくらぱーく!",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-d7bc1db2fedadf04e0fd32c2-4bde3f828d610041af647c45.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp3-030-SECL",
+    "cardType": "LIVE",
+    "nameJp": "Love U my friends",
+    "nameCn": "Love U my friends",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 3,
+    "requirements": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ成功時】エールにより公開された自分のカードの中に[ALLブレード]を持つカードが１枚以上ある場合、このカードのスコアを+１する。",
+    "cardTextCn": "【LIVE成功时】因声援被公开的自己的卡片中持有[ALLブレード]的卡片大于等于１张的场合，此卡的分数+１。",
+    "rare": "SECL",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp3-030-SECL-dc693a5b78c48130b2414846.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-001-P",
+    "cardType": "MEMBER",
+    "nameJp": "上原歩夢",
+    "nameCn": "上原步梦",
+    "cost": 2,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「A・ZU・NA」",
+    "unitNameRaw": "A・ZU・NA",
+    "cardTextJp": "【登場】このメンバーと自分のステージにいるほかの『虹ヶ咲』のメンバー１人の下に、自分のエネルギー置き場にあるエネルギーをそれぞれ１枚まで置く。\n\n【ライブ成功時】自分のステージにいるメンバー１人の下にあるエネルギーカード１枚を、自分のエネルギー置き場にウェイト状態で置いてもよい。そうしたとき、カードを１枚引き、手札を１枚控え室に置く。",
+    "cardTextCn": "【登场】将存在于自己的能量区的能量卡，至多各１张放置于此成员和存在于自己的舞台的其他的１名『虹咲』的成员的下方。\n\n【LIVE成功时】可以将存在于自己的舞台的１名成员的下方的１张能量卡，以待机状态放置于自己的能量区。如此做时，抽１张卡，将１张手牌放置入休息室。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-d31cd07ba4c44dd67f84cd08-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-001-P+",
+    "cardType": "MEMBER",
+    "nameJp": "上原歩夢",
+    "nameCn": "上原步梦",
+    "cost": 2,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「A・ZU・NA」",
+    "unitNameRaw": "A・ZU・NA",
+    "cardTextJp": "【登場】このメンバーと自分のステージにいるほかの『虹ヶ咲』のメンバー１人の下に、自分のエネルギー置き場にあるエネルギーをそれぞれ１枚まで置く。\n\n【ライブ成功時】自分のステージにいるメンバー１人の下にあるエネルギーカード１枚を、自分のエネルギー置き場にウェイト状態で置いてもよい。そうしたとき、カードを１枚引き、手札を１枚控え室に置く。",
+    "cardTextCn": "【登场】将存在于自己的能量区的能量卡，至多各１张放置于此成员和存在于自己的舞台的其他的１名『虹咲』的成员的下方。\n\n【LIVE成功时】可以将存在于自己的舞台的１名成员的下方的１张能量卡，以待机状态放置于自己的能量区。如此做时，抽１张卡，将１张手牌放置入休息室。",
+    "rare": "P+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-06c0b57dabf94b0c0464f5aa-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-001-R+",
+    "cardType": "MEMBER",
+    "nameJp": "上原歩夢",
+    "nameCn": "上原步梦",
+    "cost": 2,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「A・ZU・NA」",
+    "unitNameRaw": "A・ZU・NA",
+    "cardTextJp": "【登場】このメンバーと自分のステージにいるほかの『虹ヶ咲』のメンバー１人の下に、自分のエネルギー置き場にあるエネルギーをそれぞれ１枚まで置く。\n\n【ライブ成功時】自分のステージにいるメンバー１人の下にあるエネルギーカード１枚を、自分のエネルギー置き場にウェイト状態で置いてもよい。そうしたとき、カードを１枚引き、手札を１枚控え室に置く。",
+    "cardTextCn": "【登场】将存在于自己的能量区的能量卡，至多各１张放置于此成员和存在于自己的舞台的其他的１名『虹咲』的成员的下方。\n\n【LIVE成功时】可以将存在于自己的舞台的１名成员的下方的１张能量卡，以待机状态放置于自己的能量区。如此做时，抽１张卡，将１张手牌放置入休息室。",
+    "rare": "R+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-4f901c3ce8a468dc5ae42738-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-001-SEC",
+    "cardType": "MEMBER",
+    "nameJp": "上原歩夢",
+    "nameCn": "上原步梦",
+    "cost": 2,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「A・ZU・NA」",
+    "unitNameRaw": "A・ZU・NA",
+    "cardTextJp": "【登場】このメンバーと自分のステージにいるほかの『虹ヶ咲』のメンバー１人の下に、自分のエネルギー置き場にあるエネルギーをそれぞれ１枚まで置く。\n\n【ライブ成功時】自分のステージにいるメンバー１人の下にあるエネルギーカード１枚を、自分のエネルギー置き場にウェイト状態で置いてもよい。そうしたとき、カードを１枚引き、手札を１枚控え室に置く。",
+    "cardTextCn": "【登场】将存在于自己的能量区的能量卡，至多各１张放置于此成员和存在于自己的舞台的其他的１名『虹咲』的成员的下方。\n\n【LIVE成功时】可以将存在于自己的舞台的１名成员的下方的１张能量卡，以待机状态放置于自己的能量区。如此做时，抽１张卡，将１张手牌放置入休息室。",
+    "rare": "SEC",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-001-SEC-28dcb9b8cb03582380ad5fa5.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-002-P",
+    "cardType": "MEMBER",
+    "nameJp": "中須かすみ",
+    "nameCn": "中须霞",
+    "cost": 17,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": "【起動】[E]このカードを控え室からデッキの一番下に置く：ライブ終了時まで、自分のステージにいる『虹ヶ咲』のメンバー1人は、[黄ハート]を得る。この能力は、このカードが控え室にある場合のみ起動できる。",
+    "cardTextCn": "【起动】[E]将此卡放置于卡组底：LIVE结束时为止，存在于自己的舞台的1名『虹咲』的成员，获得[黄ハート]。此能力仅可在此卡存在于休息室的场合起动。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-002-P.png",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-002-R",
+    "cardType": "MEMBER",
+    "nameJp": "中須かすみ",
+    "nameCn": "中须霞",
+    "cost": 17,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": "【起動】[E]このカードを控え室からデッキの一番下に置く：ライブ終了時まで、自分のステージにいる『虹ヶ咲』のメンバー１人は、[黄ハート]を得る。この能力は、このカードが控え室にある場合のみ起動できる。",
+    "cardTextCn": "【起动】[E]将此卡放置于卡组底：LIVE结束时为止，存在于自己的舞台的１名『虹咲』的成员，获得[黄ハート]。此能力仅可在此卡存在于休息室的场合起动。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-d2362b06f4436c57444618d9-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-003-P",
+    "cardType": "MEMBER",
+    "nameJp": "桜坂しずく",
+    "nameCn": "樱坂雫",
+    "cost": 7,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「A・ZU・NA」",
+    "unitNameRaw": "A・ZU・NA",
+    "cardTextJp": "【ライブ成功時】自分のデッキの上からカードを５枚見る。その中からブレードハートを持たない『虹ヶ咲』のメンバーカードを１枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【LIVE成功时】检视自己的卡组顶的５张卡片。可以将其中的１张不持有BLADE HEART的『虹咲』的成员卡公开并加入手牌。其余的放置入休息室。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-1ac76034e1c648c1a27f3127-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-003-R",
+    "cardType": "MEMBER",
+    "nameJp": "桜坂しずく",
+    "nameCn": "樱坂雫",
+    "cost": 7,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「A・ZU・NA」",
+    "unitNameRaw": "A・ZU・NA",
+    "cardTextJp": "【ライブ成功時】自分のデッキの上からカードを５枚見る。その中からブレードハートを持たない『虹ヶ咲』のメンバーカードを１枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【LIVE成功时】检视自己的卡组顶的５张卡片。可以将其中的１张不持有BLADE HEART的『虹咲』的成员卡公开并加入手牌。其余的放置入休息室。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-003-R-9b361799f3876e451f30f3df.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-004-P",
+    "cardType": "MEMBER",
+    "nameJp": "朝香果林",
+    "nameCn": "朝香果林",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cardTextJp": "【起動】[E][E]このカードを手札から控え室に置く：自分の控え室からブレードハートを持つメンバーカードを１枚手札に加える。この能力は、このカードが手札にある場合のみ起動できる。\n\n【ライブ開始時】手札の『虹ヶ咲』のメンバーカードを１枚を公開してもよい：これにより公開したカードをデッキの一番上に置く。その後、好きなハートの色を１つ指定する。ライブ終了時まで、そのハートを１つ得る。",
+    "cardTextCn": "【起动】[E][E]将此卡从手牌放置入休息室：从自己的休息室将１张持有BLADE HEART的成员卡加入手牌。此能力仅可在此卡存在于手牌的场合起动。\n\n【LIVE开始时】可以将手牌的１张『虹咲』的成员卡公开：将因此公开的卡片放置于卡组顶。此后，指定１个任意HEART的颜色。LIVE结束时为止，获得１个指定颜色的HEART。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-621b7bf23ccd2ec30125f18a-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-004-P+",
+    "cardType": "MEMBER",
+    "nameJp": "朝香果林",
+    "nameCn": "朝香果林",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cardTextJp": "【起動】[E][E]このカードを手札から控え室に置く：自分の控え室からブレードハートを持つメンバーカードを１枚手札に加える。この能力は、このカードが手札にある場合のみ起動できる。\n\n【ライブ開始時】手札の『虹ヶ咲』のメンバーカードを１枚を公開してもよい：これにより公開したカードをデッキの一番上に置く。その後、好きなハートの色を１つ指定する。ライブ終了時まで、そのハートを１つ得る。",
+    "cardTextCn": "【起动】[E][E]将此卡从手牌放置入休息室：从自己的休息室将１张持有BLADE HEART的成员卡加入手牌。此能力仅可在此卡存在于手牌的场合起动。\n\n【LIVE开始时】可以将手牌的１张『虹咲』的成员卡公开：将因此公开的卡片放置于卡组顶。此后，指定１个任意HEART的颜色。LIVE结束时为止，获得１个指定颜色的HEART。",
+    "rare": "P+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-12caed8ec938c88153ba9e99-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-004-R+",
+    "cardType": "MEMBER",
+    "nameJp": "朝香果林",
+    "nameCn": "朝香果林",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cardTextJp": "【起動】[E][E]このカードを手札から控え室に置く：自分の控え室からブレードハートを持つメンバーカードを１枚手札に加える。この能力は、このカードが手札にある場合のみ起動できる。\n\n【ライブ開始時】手札の『虹ヶ咲』のメンバーカードを１枚を公開してもよい：これにより公開したカードをデッキの一番上に置く。その後、好きなハートの色を１つ指定する。ライブ終了時まで、そのハートを１つ得る。",
+    "cardTextCn": "【起动】[E][E]将此卡从手牌放置入休息室：从自己的休息室将１张持有BLADE HEART的成员卡加入手牌。此能力仅可在此卡存在于手牌的场合起动。\n\n【LIVE开始时】可以将手牌的１张『虹咲』的成员卡公开：将因此公开的卡片放置于卡组顶。此后，指定１个任意HEART的颜色。LIVE结束时为止，获得１个指定颜色的HEART。",
+    "rare": "R+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-e5103a67e311eeaa15b91141-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-004-SEC",
+    "cardType": "MEMBER",
+    "nameJp": "朝香果林",
+    "nameCn": "朝香果林",
+    "cost": 9,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cardTextJp": "【起動】[E][E]このカードを手札から控え室に置く：自分の控え室からブレードハートを持つメンバーカードを１枚手札に加える。この能力は、このカードが手札にある場合のみ起動できる。\n\n【ライブ開始時】手札の『虹ヶ咲』のメンバーカードを１枚を公開してもよい：これにより公開したカードをデッキの一番上に置く。その後、好きなハートの色を１つ指定する。ライブ終了時まで、そのハートを１つ得る。",
+    "cardTextCn": "【起动】[E][E]将此卡从手牌放置入休息室：从自己的休息室将１张持有BLADE HEART的成员卡加入手牌。此能力仅可在此卡存在于手牌的场合起动。\n\n【LIVE开始时】可以将手牌的１张『虹咲』的成员卡公开：将因此公开的卡片放置于卡组顶。此后，指定１个任意HEART的颜色。LIVE结束时为止，获得１个指定颜色的HEART。",
+    "rare": "SEC",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-004-SEC-2189e379339b8b3a618b2b92.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-005-P",
+    "cardType": "MEMBER",
+    "nameJp": "宮下愛",
+    "nameCn": "宫下爱",
+    "cost": 10,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cardTextJp": "【常時】手札にあるこのメンバーカードのコストは、自分のエネルギーデッキのカード１枚につき、１増える。\n\n【常時】自分のステージにいるすべての『虹ヶ咲』のメンバーと相手のステージにいるすべてのメンバーは[赤ハート]を得る。\n\n【起動】【ターン１回】[E]エネルギー置き場にあるエネルギー１枚をこのメンバーの下に置く：自分の控え室から『虹ヶ咲』のメンバーカード１枚を手札に加える。",
+    "cardTextCn": "【常时】自己的能量卡组的卡片每有１张，手牌的此成员卡的费用加１。\n\n【常时】存在于自己的舞台的所有『虹咲』的成员，和存在于对方的舞台的所有成员，获得[赤ハート]。\n\n【起动】【１回合１次】[E]将存在于能量区的１张能量卡放置于此成员的下方：从自己的休息室将１张『虹咲』的成员卡加入手牌。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-9ae495702bde4940e3f1bca9-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-005-P+",
+    "cardType": "MEMBER",
+    "nameJp": "宮下愛",
+    "nameCn": "宫下爱",
+    "cost": 10,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cardTextJp": "【常時】手札にあるこのメンバーカードのコストは、自分のエネルギーデッキのカード１枚につき、１増える。\n\n【常時】自分のステージにいるすべての『虹ヶ咲』のメンバーと相手のステージにいるすべてのメンバーは[赤ハート]を得る。\n\n【起動】【ターン１回】[E]エネルギー置き場にあるエネルギー１枚をこのメンバーの下に置く：自分の控え室から『虹ヶ咲』のメンバーカード１枚を手札に加える。",
+    "cardTextCn": "【常时】自己的能量卡组的卡片每有１张，手牌的此成员卡的费用加１。\n\n【常时】存在于自己的舞台的所有『虹咲』的成员，和存在于对方的舞台的所有成员，获得[赤ハート]。\n\n【起动】【１回合１次】[E]将存在于能量区的１张能量卡放置于此成员的下方：从自己的休息室将１张『虹咲』的成员卡加入手牌。",
+    "rare": "P+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-083fa96f65c9115c5653430f-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-005-R+",
+    "cardType": "MEMBER",
+    "nameJp": "宮下愛",
+    "nameCn": "宫下爱",
+    "cost": 10,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cardTextJp": "【常時】手札にあるこのメンバーカードのコストは、自分のエネルギーデッキのカード１枚につき、１増える。\n\n【常時】自分のステージにいるすべての『虹ヶ咲』のメンバーと相手のステージにいるすべてのメンバーは[赤ハート]を得る。\n\n【起動】【ターン１回】[E]エネルギー置き場にあるエネルギー１枚をこのメンバーの下に置く：自分の控え室から『虹ヶ咲』のメンバーカード１枚を手札に加える。",
+    "cardTextCn": "【常时】自己的能量卡组的卡片每有１张，手牌的此成员卡的费用加１。\n\n【常时】存在于自己的舞台的所有『虹咲』的成员，和存在于对方的舞台的所有成员，获得[赤ハート]。\n\n【起动】【１回合１次】[E]将存在于能量区的１张能量卡放置于此成员的下方：从自己的休息室将１张『虹咲』的成员卡加入手牌。",
+    "rare": "R+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-c506db1aab19512b440a3f36-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-005-SEC",
+    "cardType": "MEMBER",
+    "nameJp": "宮下愛",
+    "nameCn": "宫下爱",
+    "cost": 10,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cardTextJp": "【常時】手札にあるこのメンバーカードのコストは、自分のエネルギーデッキのカード１枚につき、１増える。\n\n【常時】自分のステージにいるすべての『虹ヶ咲』のメンバーと相手のステージにいるすべてのメンバーは[赤ハート]を得る。\n\n【起動】【ターン１回】[E]エネルギー置き場にあるエネルギー１枚をこのメンバーの下に置く：自分の控え室から『虹ヶ咲』のメンバーカード１枚を手札に加える。",
+    "cardTextCn": "【常时】自己的能量卡组的卡片每有１张，手牌的此成员卡的费用加１。\n\n【常时】存在于自己的舞台的所有『虹咲』的成员，和存在于对方的舞台的所有成员，获得[赤ハート]。\n\n【起动】【１回合１次】[E]将存在于能量区的１张能量卡放置于此成员的下方：从自己的休息室将１张『虹咲』的成员卡加入手牌。",
+    "rare": "SEC",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-005-SEC-b72780ee5be9d4dc93e44b7d.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-006-P",
+    "cardType": "MEMBER",
+    "nameJp": "近江彼方",
+    "nameCn": "近江彼方",
+    "cost": 5,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": "【登場】手札を１枚控え室に置いてもよい：自分のデッキの上からカードを５枚見る。その中から『虹ヶ咲』のメンバーカードを１枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将１张手牌放置入休息室：检视自己的卡组顶的５张卡片。可以将其中的１张『虹咲』的成员卡公开并加入手牌。其余的放置入休息室。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-2474735aad322fb21c5d25f4-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-006-R",
+    "cardType": "MEMBER",
+    "nameJp": "近江彼方",
+    "nameCn": "近江彼方",
+    "cost": 5,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": "【登場】手札を１枚控え室に置いてもよい：自分のデッキの上からカードを５枚見る。その中から『虹ヶ咲』のメンバーカードを１枚公開して手札に加えてもよい。残りを控え室に置く。",
+    "cardTextCn": "【登场】可以将１张手牌放置入休息室：检视自己的卡组顶的５张卡片。可以将其中的１张『虹咲』的成员卡公开并加入手牌。其余的放置入休息室。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-006-R-b4932b08dd124438e7ee23cc.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-007-P",
+    "cardType": "MEMBER",
+    "nameJp": "優木せつ菜",
+    "nameCn": "优木雪菜",
+    "cost": 2,
+    "blade": 2,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「A・ZU・NA」",
+    "unitNameRaw": "A・ZU・NA",
+    "cardTextJp": "【ライブ開始時】[桃ハート]か[赤ハート]か[黄ハート]のうち、1つを選ぶ。ライブ終了時まで、自分のステージにいるエネルギーカードが下にある『虹ヶ咲』のメンバー１人につき、選んだハートを１つを得る",
+    "cardTextCn": "【LIVE开始时】选择[桃ハート]或[赤ハート]或[黄ハート]中的１种。LIVE结束时为止，存在于自己的舞台的下方存在能量卡的『虹咲』的成员每有１名，获得１个选择的HEART。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-0e4722c757f1f6334cec9603-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-007-R",
+    "cardType": "MEMBER",
+    "nameJp": "優木せつ菜",
+    "nameCn": "优木雪菜",
+    "cost": 2,
+    "blade": 2,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「A・ZU・NA」",
+    "unitNameRaw": "A・ZU・NA",
+    "cardTextJp": "【ライブ開始時】[桃ハート]か[赤ハート]か[黄ハート]のうち、1つを選ぶ。ライブ終了時まで、自分のステージにいるエネルギーカードが下にある『虹ヶ咲』のメンバー１人につき、選んだハートを１つを得る",
+    "cardTextCn": "【LIVE开始时】选择[桃ハート]或[赤ハート]或[黄ハート]中的１种。LIVE结束时为止，存在于自己的舞台的下方存在能量卡的『虹咲』的成员每有１名，获得１个选择的HEART。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-007-R-5616d50d0f770e66ec97a4de.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-008-P",
+    "cardType": "MEMBER",
+    "nameJp": "エマ・ヴェルデ",
+    "nameCn": "艾玛·维尔德",
+    "cost": 13,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": "【起動】このカードを手札から公開する：このカードをデッキの一番下に置く。その後、自分のステージに『虹ヶ咲』のメンバーがいる場合、相手のステージにいるコスト２以下のメンバー１人をウェイトにする。この能力は、このカードが手札にある場合のみ起動できる。",
+    "cardTextCn": "【起动】将手牌的此卡公开：将此卡放置于卡组底。此后，自己的舞台上存在『虹咲』的成员的场合，将存在于对方的舞台的１名费用小于等于２的成员变为待机状态。此能力仅在此卡存在于手牌的场合才能起动。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-e51704737a980ed979ae00a6-39103f21de26076db4274e45.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-008-R",
+    "cardType": "MEMBER",
+    "nameJp": "エマ・ヴェルデ",
+    "nameCn": "艾玛·维尔德",
+    "cost": 13,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": "【起動】このカードを手札から公開する：このカードをデッキの一番下に置く。その後、自分のステージに『虹ヶ咲』のメンバーがいる場合、相手のステージにいるコスト２以下のメンバー１人をウェイトにする。この能力は、このカードが手札にある場合のみ起動できる。",
+    "cardTextCn": "【起动】将手牌的此卡公开：将此卡放置于卡组底。此后，自己的舞台上存在『虹咲』的成员的场合，将存在于对方的舞台的１名费用小于等于２的成员变为待机状态。此能力仅在此卡存在于手牌的场合才能起动。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-ee88639fea630dec32a3122d-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-009-P",
+    "cardType": "MEMBER",
+    "nameJp": "天王寺璃奈",
+    "nameCn": "天王寺璃奈",
+    "cost": 15,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": "【起動】【ターン１回】手札を１枚デッキの一番下に置く、カードを２枚引く。\n\n【ライブ開始時】デッキの一番下のカードを控え室に置いてもよい：これにより控え室に置いたカードがライブカードの場合、自分のライブカード置き場にあるスコア２以下の『虹ヶ咲』のライブカード１枚をデッキの一番上に置く。そうしたとき、自分の控え室からライブカード１枚を表向きでライブカード置き場に置く。",
+    "cardTextCn": "【起动】【１回合１次】将１张手牌放置于卡组底，抽２张卡。\n\n【LIVE开始时】可以将卡组底的卡片放置入休息室：因此放置入休息室的卡片是LIVE卡的场合，将存在于自己的LIVE卡区的１张分数小于等于２的『虹咲』的LIVE卡放置于卡组顶。如此做时，从自己的休息室将１张LIVE卡正面放置于LIVE卡区。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-94d949aa7d447fe11932c7da-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-009-P+",
+    "cardType": "MEMBER",
+    "nameJp": "天王寺璃奈",
+    "nameCn": "天王寺璃奈",
+    "cost": 15,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": "【起動】【ターン１回】手札を１枚デッキの一番下に置く、カードを２枚引く。\n\n【ライブ開始時】デッキの一番下のカードを控え室に置いてもよい：これにより控え室に置いたカードがライブカードの場合、自分のライブカード置き場にあるスコア２以下の『虹ヶ咲』のライブカード１枚をデッキの一番上に置く。そうしたとき、自分の控え室からライブカード１枚を表向きでライブカード置き場に置く。",
+    "cardTextCn": "【起动】【１回合１次】将１张手牌放置于卡组底，抽２张卡。\n\n【LIVE开始时】可以将卡组底的卡片放置入休息室：因此放置入休息室的卡片是LIVE卡的场合，将存在于自己的LIVE卡区的１张分数小于等于２的『虹咲』的LIVE卡放置于卡组顶。如此做时，从自己的休息室将１张LIVE卡正面放置于LIVE卡区。",
+    "rare": "P+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-4d0332f408ace39c8b3cf53b-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-009-R+",
+    "cardType": "MEMBER",
+    "nameJp": "天王寺璃奈",
+    "nameCn": "天王寺璃奈",
+    "cost": 15,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": "【起動】【ターン１回】手札を１枚デッキの一番下に置く、カードを２枚引く。\n\n【ライブ開始時】デッキの一番下のカードを控え室に置いてもよい：これにより控え室に置いたカードがライブカードの場合、自分のライブカード置き場にあるスコア２以下の『虹ヶ咲』のライブカード１枚をデッキの一番上に置く。そうしたとき、自分の控え室からライブカード１枚を表向きでライブカード置き場に置く。",
+    "cardTextCn": "【起动】【１回合１次】将１张手牌放置于卡组底，抽２张卡。\n\n【LIVE开始时】可以将卡组底的卡片放置入休息室：因此放置入休息室的卡片是LIVE卡的场合，将存在于自己的LIVE卡区的１张分数小于等于２的『虹咲』的LIVE卡放置于卡组顶。如此做时，从自己的休息室将１张LIVE卡正面放置于LIVE卡区。",
+    "rare": "R+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-06c7f1ef82963c434860c5ef-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-009-SEC",
+    "cardType": "MEMBER",
+    "nameJp": "天王寺璃奈",
+    "nameCn": "天王寺璃奈",
+    "cost": 15,
+    "blade": 7,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": "【起動】【ターン１回】手札を１枚デッキの一番下に置く、カードを２枚引く。\n\n【ライブ開始時】デッキの一番下のカードを控え室に置いてもよい：これにより控え室に置いたカードがライブカードの場合、自分のライブカード置き場にあるスコア２以下の『虹ヶ咲』のライブカード１枚をデッキの一番上に置く。そうしたとき、自分の控え室からライブカード１枚を表向きでライブカード置き場に置く。",
+    "cardTextCn": "【起动】【１回合１次】将１张手牌放置于卡组底，抽２张卡。\n\n【LIVE开始时】可以将卡组底的卡片放置入休息室：因此放置入休息室的卡片是LIVE卡的场合，将存在于自己的LIVE卡区的１张分数小于等于２的『虹咲』的LIVE卡放置于卡组顶。如此做时，从自己的休息室将１张LIVE卡正面放置于LIVE卡区。",
+    "rare": "SEC",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-009-SEC-f5f4e99cfc8b5c2b7ec670f2.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-010-P",
+    "cardType": "MEMBER",
+    "nameJp": "三船栞子",
+    "nameCn": "三船栞子",
+    "cost": 9,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「R3BIRTH」",
+    "unitNameRaw": "R3BIRTH",
+    "cardTextJp": "【ライブ成功時】エールにより公開された自分のカードの中にブレードハートを持たない『虹ヶ咲』のメンバーカードが３枚以上ある場合、ライブの合計スコアを＋１する。",
+    "cardTextCn": "【LIVE成功时】因声援被公开的自己的卡片中存在大于等于3张不持有BLADE HEART的『虹咲』的成员的场合，LIVE的合计分数＋１。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-010-P-2189e379339b8b3a618b2b92.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-010-R",
+    "cardType": "MEMBER",
+    "nameJp": "三船栞子",
+    "nameCn": "三船栞子",
+    "cost": 9,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「R3BIRTH」",
+    "unitNameRaw": "R3BIRTH",
+    "cardTextJp": "【ライブ成功時】エールにより公開された自分のカードの中にブレードハートを持たない『虹ヶ咲』のメンバーカードが３枚以上ある場合、ライブの合計スコアを＋１する。",
+    "cardTextCn": "【LIVE成功时】因声援被公开的自己的卡片中存在大于等于3张不持有BLADE HEART的『虹咲』的成员的场合，LIVE的合计分数＋１。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-2657f6542634df01a78bf616-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-011-P",
+    "cardType": "MEMBER",
+    "nameJp": "ミア・テイラー",
+    "nameCn": "米娅·泰勒",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「R3BIRTH」",
+    "unitNameRaw": "R3BIRTH",
+    "cardTextJp": "【自動】【ターン１回】自分のデッキがリフレッシュしたとき、カードを２枚引き、手札を１枚控え室に置く。\n\n【ライブ成功時】自分のデッキの上からカードを５枚控え室に置いてもよい。",
+    "cardTextCn": "【自动】【１回合１次】自己的卡组更新时，抽２张卡，将１张手牌放置入休息室。\n\n【LIVE成功时】可以将自己的卡组顶的５张卡片放置入休息室。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-011-P-dabfd1dc06673e9eeeeb901c.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-011-R",
+    "cardType": "MEMBER",
+    "nameJp": "ミア・テイラー",
+    "nameCn": "米娅·泰勒",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「R3BIRTH」",
+    "unitNameRaw": "R3BIRTH",
+    "cardTextJp": "【自動】【ターン１回】自分のデッキがリフレッシュしたとき、カードを２枚引き、手札を１枚控え室に置く。\n\n【ライブ成功時】自分のデッキの上からカードを５枚控え室に置いてもよい。",
+    "cardTextCn": "【自动】【１回合１次】自己的卡组更新时，抽２张卡，将１张手牌放置入休息室。\n\n【LIVE成功时】可以将自己的卡组顶的５张卡片放置入休息室。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-895eaf1d029359b270aaf41f-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-012-P",
+    "cardType": "MEMBER",
+    "nameJp": "鐘嵐珠",
+    "nameCn": "钟岚珠",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 3
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「R3BIRTH」",
+    "unitNameRaw": "R3BIRTH",
+    "cardTextJp": "【ライブ成功時】カードを１枚引く。",
+    "cardTextCn": "【LIVE成功时】抽１张卡。",
+    "rare": "P",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-e0e29b41b3e78ec331ccd3ce-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-012-R",
+    "cardType": "MEMBER",
+    "nameJp": "鐘嵐珠",
+    "nameCn": "钟岚珠",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 3
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「R3BIRTH」",
+    "unitNameRaw": "R3BIRTH",
+    "cardTextJp": "【ライブ成功時】カードを１枚引く。",
+    "cardTextCn": "【LIVE成功时】抽１张卡。",
+    "rare": "R",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-012-R-37ffe04935fa2d6dd195a376.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-013-N",
+    "cardType": "MEMBER",
+    "nameJp": "上原歩夢",
+    "nameCn": "上原步梦",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「A・ZU・NA」",
+    "unitNameRaw": "A・ZU・NA",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-5dd9b6e5e5f3e0cda189e271-4bde3f828d610041af647c45.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-014-N",
+    "cardType": "MEMBER",
+    "nameJp": "中須かすみ",
+    "nameCn": "中须霞",
+    "cost": 5,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": "【ライブ開始時】控え室にあるブレードハートを持たないメンバーカードを１枚デッキの一番下に置いてもよい：ライブ終了時まで、[ブレード][ブレード]を得る。",
+    "cardTextCn": "【LIVE开始时】可以将存在于休息室的１张不持有BLADE HEART的成员卡放置于卡组底：LIVE结束时为止，获得[ブレード][ブレード]。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-09531b76926e1331b8563123-d42fa674ec9fa3f9c40db25e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-015-N",
+    "cardType": "MEMBER",
+    "nameJp": "桜坂しずく",
+    "nameCn": "樱坂雫",
+    "cost": 13,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 3
+      },
+      {
+        "color": "BLUE",
+        "count": 3
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「A・ZU・NA」",
+    "unitNameRaw": "A・ZU・NA",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-015-N-9021baec2d418c3771c6d701.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-016-N",
+    "cardType": "MEMBER",
+    "nameJp": "朝香果林",
+    "nameCn": "朝香果林",
+    "cost": 11,
+    "blade": 3,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cardTextJp": "【登場】相手のステージにいる元々持つ[ブレード]の数が２つ以下のメンバー１人をウェイトにする。（ウェイト状態のメンバーが持つ[ブレード]は、エールで公開する枚数を増やさない。）",
+    "cardTextCn": "【登场】将存在于对方的舞台的１名原本持有的[ブレード]的数量小于等于２的成员变为待机状态。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-f810f531a726a662e33b82f8-d42fa674ec9fa3f9c40db25e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-017-N",
+    "cardType": "MEMBER",
+    "nameJp": "宮下愛",
+    "nameCn": "宫下爱",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cardTextJp": "【起動】このメンバーをステージから控え室に置く：自分の控え室からライブカードを１枚手札に加える。",
+    "cardTextCn": "【起动】将此成员从舞台放置入休息室：从自己的休息室将１张LIVE卡加入手牌。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-017-N-04081d52e1aba927a267825e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-018-N",
+    "cardType": "MEMBER",
+    "nameJp": "近江彼方",
+    "nameCn": "近江彼方",
+    "cost": 7,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "PURPLE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": "【ライブ開始時】手札のコスト１１以上のブレードハートを持たない『虹ヶ咲』のメンバーカードを１枚公開してもよい：これにより公開したカードをデッキの一番下に置く。その後、相手のステージにいるコスト１１以下のメンバー１人をウェイトにする。（ウェイト状態のメンバーが持つ[ブレード]は、エールで公開する枚数を増やさない。）",
+    "cardTextCn": "【LIVE开始时】可以将手牌的１张费用大于等于１１的不持有BLADE HEART的『虹咲』的成员卡公开：将因此公开的卡片放置于卡组底。此后，将存在于对方的舞台的１名费用小于等于１１的成员变为待机状态。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-018-N-37ffe04935fa2d6dd195a376.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-019-N",
+    "cardType": "MEMBER",
+    "nameJp": "優木せつ菜",
+    "nameCn": "优木雪菜",
+    "cost": 4,
+    "blade": 3,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「A・ZU・NA」",
+    "unitNameRaw": "A・ZU・NA",
+    "cardTextJp": "【ライブ開始時】好きなハートの色を１つ指定する。自分のステージに『虹ヶ咲』のメンバーが３人以上おり、それらのメンバーが持つハートの中にその色のハートがない場合、ライブ終了時まで、そのハートを１つ得る。",
+    "cardTextCn": "【LIVE开始时】指定一个任意HEART的颜色。自己的舞台上存在大于等于３名『虹咲』的成员，且那些成员持有的HEART中不存在该颜色的HEART的场合，LIVE结束时为止，获得一个该颜色的HEART。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-019-N-9021baec2d418c3771c6d701.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-020-N",
+    "cardType": "MEMBER",
+    "nameJp": "エマ・ヴェルデ",
+    "nameCn": "艾玛·维尔德",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-244f20f8b7cf22b881421048-3ad4708be30884d21c15b890.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-021-N",
+    "cardType": "MEMBER",
+    "nameJp": "天王寺璃奈",
+    "nameCn": "天王寺璃奈",
+    "cost": 11,
+    "blade": 4,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": "【起動】【ターン１回】手札を２枚控え室に置く：自分のライブカード置き場にカードがない場合、自分の控え室から『虹ヶ咲』のライブカードを１枚、表向きでライブカード置き場に置く。次のライブカードセットフェイズで自分がライブカード置き場に置けるカード枚数の上限が１枚減る。",
+    "cardTextCn": "【起动】【１回合１次】将２张手牌放置入休息室：自己的LIVE卡区不存在卡片的场合，从自己的休息室将１张『虹咲』的LIVE卡，表侧表示放置于LIVE卡区。下次LIVE卡设置阶段，自己可以放置于LIVE卡的卡片张数上限减少１张。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-021-N-9b361799f3876e451f30f3df.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-022-N",
+    "cardType": "MEMBER",
+    "nameJp": "三船栞子",
+    "nameCn": "三船栞子",
+    "cost": 13,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「R3BIRTH」",
+    "unitNameRaw": "R3BIRTH",
+    "cardTextJp": "【常時】自分のステージにいるほかの『虹ヶ咲』のメンバー１人につき、[ブレード]を得る。",
+    "cardTextCn": "【常时】每有１名存在于自己的舞台的其他的『虹咲』的成员，获得[ブレード]。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-022-N-dc693a5b78c48130b2414846.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-023-N",
+    "cardType": "MEMBER",
+    "nameJp": "ミア・テイラー",
+    "nameCn": "米娅·泰勒",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "YELLOW",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "YELLOW"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「R3BIRTH」",
+    "unitNameRaw": "R3BIRTH",
+    "cardTextJp": "【ライブ開始時】手札の『虹ヶ咲』のカードを１枚控え室に置いてもよい：ライブ終了時まで、[黄ハート]を得る。",
+    "cardTextCn": "【LIVE开始时】可以将手牌的１张『虹咲』的卡片放置入休息室：LIVE结束时为止，获得[黄ハート]。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-023-N-e1a88a1753346b98b079c88b.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-024-N",
+    "cardType": "MEMBER",
+    "nameJp": "鐘嵐珠",
+    "nameCn": "钟岚珠",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "PINK",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「R3BIRTH」",
+    "unitNameRaw": "R3BIRTH",
+    "cardTextJp": "【自動】このメンバーがステージから控え室に置かれたとき、このメンバーが『虹ヶ咲』のメンバーとバトンタッチしていた場合、自分のエネルギーデッキから、エネルギーカード１枚をこのバトンタッチで登場したメンバーの下に置く。",
+    "cardTextCn": "【自动】此成员从舞台被放置入休息室时，此成员曾与『虹咲』的成员进行换手的场合，从自己的能量卡组，将１张能量卡放置于因此换手登场的成员的下方。",
+    "rare": "N",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-97d07406750ea55b6774c81e-d42fa674ec9fa3f9c40db25e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-025-L",
+    "cardType": "LIVE",
+    "nameJp": "虹色Passions！",
+    "nameCn": "虹色Passions！",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 4,
+    "requirements": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 6
+      }
+    ],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ成功時】自分のステージにいるエネルギーカードが下にある『虹ヶ咲』のメンバー１人につき、カードを１枚引く。",
+    "cardTextCn": "【LIVE成功时】存在于自己的舞台的，下方存在能量卡的『虹咲』的成员每有１人，抽１张卡。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-6ef96ae5c523dbbe52243963-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-025-SECL",
+    "cardType": "LIVE",
+    "nameJp": "虹色Passions！",
+    "nameCn": "虹色Passions！",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 4,
+    "requirements": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 6
+      }
+    ],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ成功時】自分のステージにいるエネルギーカードが下にある『虹ヶ咲』のメンバー１人につき、カードを１枚引く。",
+    "cardTextCn": "【LIVE成功时】存在于自己的舞台的，下方存在能量卡的『虹咲』的成员每有１人，抽１张卡。",
+    "rare": "SECL",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-025-SECL-9b361799f3876e451f30f3df.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-026-L",
+    "cardType": "LIVE",
+    "nameJp": "Solitude Rain",
+    "nameCn": "Solitude Rain",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      },
+      {
+        "effect": "DRAW"
+      }
+    ],
+    "score": 6,
+    "requirements": [
+      {
+        "color": "PURPLE",
+        "count": 7
+      },
+      {
+        "color": "RAINBOW",
+        "count": 6
+      }
+    ],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ開始時】自分のステージにいる『虹ヶ咲』のメンバー１人を選ぶ。ライブ終了時まで、そのメンバーが持つ[赤ハート]と[青ハート]は、すべて[紫ハート]になる。これにより５つ以上のハートが[紫ハート]になった場合、このカードのスコアを＋１する。",
+    "cardTextCn": "【LIVE开始时】选择存在于自己的舞台的1名『虹咲』的成员。LIVE结束时为止，该成员持有的[赤ハート]和[青ハート]，全部变为[紫ハート]。因此将大于等于５个HEART变为[紫ハート]的场合，此卡的分数＋１。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-a22aa5e9e1bb314bbdfffa5e-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-026-SECL",
+    "cardType": "LIVE",
+    "nameJp": "Solitude Rain",
+    "nameCn": "Solitude Rain",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PURPLE"
+      },
+      {
+        "effect": "DRAW"
+      }
+    ],
+    "score": 6,
+    "requirements": [
+      {
+        "color": "PURPLE",
+        "count": 7
+      },
+      {
+        "color": "RAINBOW",
+        "count": 6
+      }
+    ],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ開始時】自分のステージにいる『虹ヶ咲』のメンバー１人を選ぶ。ライブ終了時まで、そのメンバーが持つ[赤ハート]と[青ハート]は、すべて[紫ハート]になる。これにより５つ以上のハートが[紫ハート]になった場合、このカードのスコアを＋１する。",
+    "cardTextCn": "【LIVE开始时】选择存在于自己的舞台的1名『虹咲』的成员。LIVE结束时为止，该成员持有的[赤ハート]和[青ハート]，全部变为[紫ハート]。因此将大于等于５个HEART变为[紫ハート]的场合，此卡的分数＋１。",
+    "rare": "SECL",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-026-SECL-9021baec2d418c3771c6d701.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-027-L",
+    "cardType": "LIVE",
+    "nameJp": "約束になれ僕らの歌",
+    "nameCn": "化作约定吧我们的歌",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 2,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 1
+      },
+      {
+        "color": "YELLOW",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 4
+      }
+    ],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ成功時】以下から１つを選ぶ。\n・自分の控え室にある『虹ヶ咲』のカード１枚をデッキの一番上に置く。\n・自分のエネルギーデッキから、エネルギーカード１枚を自分のステージにいる『虹ヶ咲』のメンバーの下に置く。",
+    "cardTextCn": "【LIVE成功时】从以下选择１项。\n・将存在于自己的休息室的１张『虹咲』的卡片放置于卡组顶。\n・从自己的能量卡组，将１张能量卡放置于存在于自己的舞台的『虹咲』的成员的下方。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-f9ab724ea544c8d794a395c4-d42fa674ec9fa3f9c40db25e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-028-L",
+    "cardType": "LIVE",
+    "nameJp": "Dress Code",
+    "nameCn": "Dress Code",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 4,
+    "requirements": [
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 10
+      }
+    ],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ開始時】自分のデッキの一番上のカードを控え室に置く。これにより控え室に置いたカードがメンバーカードの場合、そのメンバーカードが持つハートの色が、自分のステージにいるすべてのメンバーが持つハートの色の中にすべて含まれる場合、その含まれるハートの色１つにつき、このカードの必要ハートを[無ハート]減らす。",
+    "cardTextCn": "【LIVE开始时】将自己的卡组顶的卡片放置入休息室。因此放置入休息室的卡片是成员卡的场合，存在于自己的舞台的所有成员持有的HEART的颜色，包含该成员卡持有的所有HEART的颜色的场合，包含的颜色每有１种，此卡的必要HEART减少[無ハート]。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-028-L-2189e379339b8b3a618b2b92.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-029-L",
+    "cardType": "LIVE",
+    "nameJp": "Circle of Love",
+    "nameCn": "Circle of Love",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": 1,
+    "requirements": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "RAINBOW",
+        "count": 1
+      }
+    ],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ成功時】自分が持つ余剰ハートの[赤ハート]２つにつき、このカードのスコアを＋１する。その後、自分は余剰ハートをすべて失う。この能力ではスコアを＋３までしか増えない。",
+    "cardTextCn": "【LIVE成功时】自己持有的剩余HEART每有２个[赤ハート]，此卡的分数＋１。此后，自己失去所有剩余HEART。此能力至多能使分数＋３。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-029-L-b72780ee5be9d4dc93e44b7d.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-030-L",
+    "cardType": "LIVE",
+    "nameJp": "Stay",
+    "nameCn": "Stay",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 6,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 3
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "YELLOW",
+        "count": 3
+      },
+      {
+        "color": "RAINBOW",
+        "count": 6
+      }
+    ],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【自動】このカードが控え室からライブカード置き場に置かれたとき、このカードの必要ハートを[無ハート][無ハート][無ハート]減らす。\n\n【ライブ成功時】自分のデッキの上からカードを５枚控え室に置く。それらの中にコスト９以上のブレードハートを持たない『虹ヶ咲』のメンバーカードがある場合、このカードのスコアを＋１する。",
+    "cardTextCn": "【自动】此卡从休息室被放置于LIVE卡区时，此卡的必要HEART减少[無ハート][無ハート][無ハート]。\n\n【LIVE成功时】将自己的卡组顶的５张卡片放置入休息室。那些卡片中存在费用大于等于9的不持有BLADE HEART的『虹咲』的成员卡的场合，此卡的分数＋１。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-030-L-f5f4e99cfc8b5c2b7ec670f2.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-031-L",
+    "cardType": "LIVE",
+    "nameJp": "Eutopia",
+    "nameCn": "Eutopia",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": 1,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 4
+      }
+    ],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ成功時】自分と相手のステージの中で、ほかのすべてのメンバーより多くのハートを持つメンバーは、ライブ終了時まで、『【常時】ライブの合計スコアを＋１する。』を得る。",
+    "cardTextCn": "【LIVE成功时】自己和对方的舞台中，持有的HEART的数量多于所有其他成员的成员，LIVE结束时为止，获得『【常时】LIVE的合计分数＋１。』。",
+    "rare": "L",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-144444c1a2bc6a42b4464b84-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-031-SECL",
+    "cardType": "LIVE",
+    "nameJp": "Eutopia",
+    "nameCn": "Eutopia",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "PINK"
+      }
+    ],
+    "score": 1,
+    "requirements": [
+      {
+        "color": "PINK",
+        "count": 4
+      }
+    ],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": "【ライブ成功時】自分と相手のステージの中で、ほかのすべてのメンバーより多くのハートを持つメンバーは、ライブ終了時まで、『【常時】ライブの合計スコアを＋１する。』を得る。",
+    "cardTextCn": "【LIVE成功时】自己和对方的舞台中，持有的HEART的数量多于所有其他成员的成员，LIVE结束时为止，获得『【常时】LIVE的合计分数＋１。』。",
+    "rare": "SECL",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-031-SECL-37ffe04935fa2d6dd195a376.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-E01-SECE",
+    "cardType": "ENERGY",
+    "nameJp": "上原歩夢",
+    "nameCn": "上原步梦",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「A・ZU・NA」",
+    "unitNameRaw": "A・ZU・NA",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "SECE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-1fe93ad09a3ebf281078b2ce-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-E02-SECE",
+    "cardType": "ENERGY",
+    "nameJp": "朝香果林",
+    "nameCn": "朝香果林",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "SECE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-8086cb6a649217cfb69b8bda-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-E03-SECE",
+    "cardType": "ENERGY",
+    "nameJp": "宮下愛",
+    "nameCn": "宫下爱",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "SECE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-8f8f72f81242c411d401d590-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-E04-SECE",
+    "cardType": "ENERGY",
+    "nameJp": "天王寺璃奈",
+    "nameCn": "天王寺璃奈",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "SECE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-E04-SECE-37ffe04935fa2d6dd195a376.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-E05-PE",
+    "cardType": "ENERGY",
+    "nameJp": "朝香果林",
+    "nameCn": "朝香果林",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-0c2df0e70936d5eb6d9729c2-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-E05-PE+",
+    "cardType": "ENERGY",
+    "nameJp": "朝香果林",
+    "nameCn": "朝香果林",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「DiverDiva」",
+    "unitNameRaw": "DiverDiva",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-E05-PE2-04081d52e1aba927a267825e.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-E06-PE",
+    "cardType": "ENERGY",
+    "nameJp": "エマ・ヴェルデ",
+    "nameCn": "艾玛·维尔德",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-958ee5f97b4a76262d8ff00c-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-E06-PE+",
+    "cardType": "ENERGY",
+    "nameJp": "エマ・ヴェルデ",
+    "nameCn": "艾玛·维尔德",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": null,
+    "unitNameRaw": null,
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-E06-PE2-2189e379339b8b3a618b2b92.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-E07-PE",
+    "cardType": "ENERGY",
+    "nameJp": "天王寺璃奈",
+    "nameCn": "天王寺璃奈",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-371c0fd03ab676a9e0cd0777-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-E07-PE+",
+    "cardType": "ENERGY",
+    "nameJp": "天王寺璃奈",
+    "nameCn": "天王寺璃奈",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「QU4RTZ」",
+    "unitNameRaw": "QU4RTZ",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "PL!N-bp8-E07-PE2-2189e379339b8b3a618b2b92.webp",
+    "status": "PUBLISHED"
+  },
+  {
+    "cardCode": "PL!N-bp8-E08-PE",
+    "cardType": "ENERGY",
+    "nameJp": "三船栞子",
+    "nameCn": "三船栞子",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「R3BIRTH」",
+    "unitNameRaw": "R3BIRTH",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-ced978f18a6bb09a7f689d35-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!N-bp8-E08-PE+",
+    "cardType": "ENERGY",
+    "nameJp": "三船栞子",
+    "nameCn": "三船栞子",
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "groupNames": [
+      "虹ヶ咲"
+    ],
+    "workNames": null,
+    "unitName": "「R3BIRTH」",
+    "unitNameRaw": "R3BIRTH",
+    "cardTextJp": null,
+    "cardTextCn": null,
+    "rare": "PE+",
+    "product": "ブースターパック まじかる♡とり～と",
+    "productCode": "BP08",
+    "imageFilename": "sync-d039eeb1274be218bd5ccdc1-b62cf8f2122ad4c296822abf.webp",
+    "status": "DRAFT"
+  }
+]

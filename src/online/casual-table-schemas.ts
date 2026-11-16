@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const casualEntrySchema = z
   .object({
-    format: z.enum(['CONSTRUCTED', 'SEALED_BP7', 'HEXTECH']),
+    format: z.enum(['CONSTRUCTED', 'SEALED_BP8', 'HEXTECH']),
     ruleMode: z.enum(['NORMAL', 'UNLIMITED']),
     requestId: z.uuid(),
     deckId: z.uuid().optional(),
@@ -10,7 +10,7 @@ export const casualEntrySchema = z
   })
   .superRefine((entry, ctx) => {
     if (
-      (entry.format === 'SEALED_BP7' ? entry.deckId !== undefined : !entry.deckId) ||
+      (entry.format === 'SEALED_BP8' ? entry.deckId !== undefined : !entry.deckId) ||
       (entry.format !== 'CONSTRUCTED' && entry.ruleMode !== 'UNLIMITED')
     ) {
       ctx.addIssue({

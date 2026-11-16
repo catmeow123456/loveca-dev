@@ -1671,8 +1671,12 @@ export const casualTables = pgTable(
       sql`${table.revision} > 0 AND ${table.bootstrapAttempts} BETWEEN 0 AND 3`
     ),
     check(
+      'casual_tables_retired_bp7_check',
+      sql`${table.environmentId} <> 'CASUAL_SEALED_BP7_V1' OR ${table.state} = 'CLOSED'`
+    ),
+    check(
       'casual_tables_environment_check',
-      sql`${table.environmentId} IN ('CASUAL_TABLE_V1', 'CASUAL_UNLIMITED_PT_V1', 'CASUAL_SEALED_BP7_V1', 'CASUAL_HEXTECH_V1')`
+      sql`${table.environmentId} IN ('CASUAL_TABLE_V1', 'CASUAL_UNLIMITED_PT_V1', 'CASUAL_SEALED_BP7_V1', 'CASUAL_SEALED_BP8_V1', 'CASUAL_HEXTECH_V1')`
     ),
     check('casual_tables_note_check', sql`char_length(${table.note}) <= 40`),
     check(

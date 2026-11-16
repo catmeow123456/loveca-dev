@@ -34,8 +34,8 @@ casualTablesRouter.get('/rooms', async (req, res) => {
     const query = z
       .object({
         ruleMode: ruleMode.optional(),
-        format: z.enum(['CONSTRUCTED', 'SEALED_BP7', 'HEXTECH']).optional(),
-        preferredFormat: z.enum(['CONSTRUCTED', 'SEALED_BP7', 'HEXTECH']).optional(),
+        format: z.enum(['CONSTRUCTED', 'SEALED_BP8', 'HEXTECH']).optional(),
+        preferredFormat: z.enum(['CONSTRUCTED', 'SEALED_BP8', 'HEXTECH']).optional(),
         filter: z.enum(['ALL', 'WAITING', 'PLAYING']).optional(),
         search: z.string().max(80).optional(),
         spectatable: z.enum(['true', 'false']).optional(),

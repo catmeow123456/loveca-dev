@@ -2032,7 +2032,7 @@ export class OnlineRoomService {
       originLabel: room.originLabel,
       casualRuleMode: room.casualTable?.ruleMode ?? null,
       hextechRoundSelection: room.casualTable?.format === 'HEXTECH',
-      rulesetId: room.casualTable?.format === 'SEALED_BP7' ? 'SEALED_HALF_GRAY_V1' : 'STANDARD',
+      rulesetId: room.casualTable?.format === 'SEALED_BP8' ? 'SEALED_HALF_GRAY_V1' : 'STANDARD',
     };
 
     const match = await this.matchService.createMatch(params);

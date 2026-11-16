@@ -269,6 +269,6 @@ LIVE 判定必须区分心需求达成、最终比分、成功区放置资格和
 
 - [原始策划工作簿](sources/hextech-design-source.xlsx)：原始 125 项效果和名称，保留原文用于追溯。
 - [开发基线的真人选择与联机说明](https://github.com/catmeow123456/loveca-dev/blob/976310f943e06084340468f6a659f1fd7fa13f50/docs/hextech-online.md)：首版实现、各批次细则、持久化和已完成验证；固定版本引用用于区分需求与主分支、生产状态。
-- [Loveca 总体需求](../PROJECT_REQUIREMENTS.md)、[开盒战规则](../online-mode/bp7-sealed.md)：基础产品范围及独立玩法的规则边界。
+- [Loveca 总体需求](../PROJECT_REQUIREMENTS.md)、[开盒战规则](../online-mode/sealed.md)：基础产品范围及独立玩法的规则边界。
 - [对战模式目的与边界](../battle-mode-purpose-and-boundaries.md)、[回放序列化契约](../match-replay/serialization-contract.md)：本地、联机、观战、回放和恢复边界。
 - [系统设计](../system-design.md)、[运行时链路](../runtime-data-flow-and-algorithm-chain.md)：共享架构、命令、状态与投影的设计说明。

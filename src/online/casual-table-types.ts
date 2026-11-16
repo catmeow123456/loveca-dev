@@ -11,7 +11,7 @@ export interface CasualTableCommandTarget {
   readonly revision: number;
 }
 
-export type CasualFormat = 'CONSTRUCTED' | 'SEALED_BP7' | 'HEXTECH';
+export type CasualFormat = 'CONSTRUCTED' | 'SEALED_BP8' | 'HEXTECH';
 export type SealedRematchKind = 'SAME_POOL' | 'REBOX';
 export interface SealedRematch {
   readonly requestId: string;
