@@ -1,0 +1,69 @@
+import { useRef, useState } from 'react';
+import { isMemberCardData } from '@game/domain/entities/card';
+import { DialogShell } from '@/components/common/DialogShell';
+import { getCardLocalizedInfo } from '@/lib/cardLocalization';
+import { useGameStore } from '@/store/gameStore';
+import { BattleCardCandidateGrid } from './BattleCardCandidateGrid';
+
+/** Read-only inspection of the current viewer's projected member stack. */
+export function MemberBelowViewer({
+  cardIds,
+  memberName,
+}: {
+  cardIds: readonly string[];
+  memberName: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const getPresentation = useGameStore((state) => state.getVisibleCardPresentation);
+  const setHoveredCard = useGameStore((state) => state.setHoveredCard);
+  const close = () => {
+    setOpen(false);
+    setHoveredCard(null);
+  };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label={`查看${memberName}下方的${cardIds.length}张成员卡`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        className="absolute bottom-0 right-1 z-30 min-h-6 rounded-full border border-amber-300/45 bg-amber-950/85 px-2 py-1 text-[10px] font-medium text-amber-400 shadow-sm backdrop-blur hover:bg-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+        onPointerDown={(event) => event.stopPropagation()}
+        onDoubleClick={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          setHoveredCard(null);
+          setOpen(true);
+        }}
+      >
+        M×{cardIds.length}
+      </button>
+      <DialogShell
+        isOpen={open}
+        title="下方成员"
+        description={`${memberName} · ${cardIds.length}张`}
+        onClose={close}
+        closeLabel="关闭下方成员"
+        returnFocusRef={buttonRef}
+      >
+        <BattleCardCandidateGrid
+          label="下方成员卡列表"
+          readOnly
+          candidates={cardIds.map((id) => {
+            const presentation = getPresentation(id);
+            return {
+              id,
+              presentation,
+              label: presentation
+                ? `${isMemberCardData(presentation.cardData) ? `${presentation.cardData.cost} ` : ''}${getCardLocalizedInfo(presentation.cardData).title}`
+                : '未公开成员',
+            };
+          })}
+        />
+      </DialogShell>
+    </>
+  );
+}

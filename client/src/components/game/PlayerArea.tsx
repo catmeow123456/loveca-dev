@@ -80,6 +80,7 @@ import { Card } from '@/components/card/Card';
 import { CardEffectText } from '@/components/card/CardEffectText';
 import { CardModifierBadgeStack } from '@/components/card/CardModifierBadgeStack';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
+import { MemberBelowViewer } from './MemberBelowViewer';
 import { HandLayout, minimumDesktopHandViewportWidth } from './HandLayout';
 import { DESKTOP_PHASE_DOCK_MAX_WIDTH } from './PhaseIndicator';
 import { DraggableCard, DroppableZone } from './interaction';
@@ -1462,11 +1463,11 @@ export const PlayerArea = memo(function PlayerArea({
 
         {/* 堆叠成员卡数量指示器 */}
         {memberBelowIds.length > 0 && (
-          <div className="pointer-events-none absolute right-1 top-full z-30 -mt-1 rounded-full border border-amber-300/45 bg-amber-950/85 px-1.5 py-0.5 shadow-sm backdrop-blur">
-            <span className="text-[10px] text-amber-400 font-medium">
-              M×{memberBelowIds.length}
-            </span>
-          </div>
+          <MemberBelowViewer
+            key={`${matchView?.matchId}:${viewerSeat}:${cardId}`}
+            cardIds={memberBelowIds}
+            memberName={card ? getCardLocalizedInfo(card.cardData).title : '成员'}
+          />
         )}
       </div>
     );
