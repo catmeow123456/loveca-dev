@@ -127,7 +127,12 @@ export interface HextechChoiceCard {
   readonly zone: string;
 }
 export interface HextechViewState {
-  readonly restrictions?: readonly { readonly seat: Seat; readonly lockedColumns: readonly SlotPosition[]; readonly firstLiveSlotMuted: boolean }[];
+  readonly restrictions?: readonly {
+    readonly seat: Seat;
+    readonly lockedColumns: readonly SlotPosition[];
+    readonly firstLiveSlotMuted: boolean;
+    readonly liveSlotGrayRequirementIncreases: readonly number[];
+  }[];
   readonly abilities?: readonly {
     readonly instanceId: string;
     readonly selectionLabel: string;
@@ -165,7 +170,11 @@ export interface HextechViewState {
     readonly rulesText: string;
     readonly acquiredTurn: number;
     readonly statusText?: string;
-    readonly usage?: { readonly limit: 'TURN' | 'MATCH'; readonly used: boolean; readonly sharedTimings: boolean };
+    readonly usage?: {
+      readonly limit: 'TURN' | 'MATCH';
+      readonly used: boolean;
+      readonly sharedTimings: boolean;
+    };
   }[];
 }
 

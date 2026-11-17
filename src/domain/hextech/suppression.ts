@@ -60,6 +60,14 @@ export function isFirstLiveSlotMuted(game: GameState, playerId: string): boolean
   );
 }
 
+/** Public placement hints and rule modifiers use the same original-slot increases. */
+export function getDarkLiveSlotGrayRequirementIncreases(
+  game: GameState,
+  playerId: string
+): readonly number[] {
+  return isFirstLiveSlotMuted(game, playerId) ? [0, 1, 1] : [0, 0, 0];
+}
+
 /** Queries sources only. Never filter already-resolved modifiers or already-queued abilities here. */
 export function isCardAbilitySuppressedByDarkHextech(game: GameState, cardId: string): boolean {
   if (!game.hextech) return false;

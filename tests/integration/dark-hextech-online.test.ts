@@ -1,7 +1,10 @@
 import { acquireHextechBatch } from '../../src/application/hextech/acquire';
 import { DARK_HEXTECH_RULES_VERSION } from '../../src/domain/hextech/catalog';
 import { GameCommandType } from '../../src/application/game-commands';
-import { GamePhase } from '../../src/shared/types/enums';
+import { GamePhase, SlotPosition, SubPhase } from '../../src/shared/types/enums';
+import { registerCards, updatePlayer } from '../../src/domain/entities/game';
+import { placeCardInSlot } from '../../src/domain/entities/zone';
+import { getMemberEffectiveBladeCount } from '../../src/domain/rules/live-modifiers';
 import { sealedCards, seededRandom } from '../helpers/sealed-cards';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -10,7 +13,11 @@ import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSurrenderCommand } from '../../src/application/game-commands';
 import type { DeckConfig } from '../../src/application/game-service';
-import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
+import {
+  createCardInstance,
+  createHeartIcon,
+  createHeartRequirement,
+} from '../../src/domain/entities/card';
 import { toDeckPointTableRules } from '../../src/domain/rules/deck-point-table';
 import { CardType, HeartColor } from '../../src/shared/types/enums';
 import type {
@@ -328,5 +335,96 @@ describe('黑暗海克斯卡池数据库与联机链路', () => {
     expect(match.session.state!.players.map((player) => player.hand.cardIds.length)).toEqual([
       6, 6,
     ]);
+  });
+
+  it('站位事故只接受取得者选择，快照保留目的位置步骤，重复请求不重复减棒', async () => {
+    const participant = (index: number) => ({
+      userId: users[index],
+      displayName: `玩家${index}`,
+      deckId: decks[index],
+      deckName: '测试卡组',
+      deck: deck(users[index]),
+      pointValidation: { pointTableVersion: 'test', pointTotal: 0, pointLimit: 9 },
+    });
+    const match = await matches.createMatch({
+      roomCode: 'MOVE99',
+      first: participant(0),
+      second: participant(1),
+      hextechPool: 'DARK',
+    });
+    let state = match.session.state!;
+    const [firstId, secondId] = state.players.map((player) => player.id);
+    const member = {
+      cardCode: 'MOVE-M',
+      name: '测试成员',
+      cardType: CardType.MEMBER as const,
+      cost: 15,
+      blade: 3,
+      hearts: [],
+    };
+    state = registerCards(state, [
+      createCardInstance(member, secondId, 'move-target'),
+      createCardInstance(member, secondId, 'move-swapped'),
+    ]);
+    state = updatePlayer(state, secondId, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, 'move-target'),
+        SlotPosition.RIGHT,
+        'move-swapped'
+      ),
+    }));
+    state = acquireHextechBatch(
+      {
+        ...state,
+        turnCount: 1,
+        currentPhase: GamePhase.ACTIVE_PHASE,
+        currentSubPhase: SubPhase.NONE,
+        hextech: { rulesVersion: DARK_HEXTECH_RULES_VERSION, owned: [] },
+      },
+      [{ playerId: firstId, definitionId: 'dark-position-mishap', instanceId: 'move' }],
+      () => 0
+    ).gameState;
+    match.session.restoreRuntimeState({ authorityState: state, currentPublicSeq: 0 });
+    const effectId = state.activeEffect!.id;
+    const choose = {
+      type: GameCommandType.CONFIRM_EFFECT_STEP as const,
+      playerId: firstId,
+      effectId,
+      selectedCardId: 'move-target',
+      timestamp: 1,
+      idempotencyKey: 'move-target',
+    };
+    expect(
+      (await matches.executeCommand(match.matchId, users[1], { ...choose, playerId: secondId }))
+        ?.success
+    ).toBe(false);
+    expect((await matches.executeCommand(match.matchId, users[0], choose))?.success).toBe(true);
+    const snapshot = await matches.getMatchSnapshot(match.matchId, users[0]);
+    expect(snapshot).toHaveProperty(
+      'playerViewState.activeEffect.stepId',
+      'HEXTECH_POSITION_DESTINATION'
+    );
+    expect(snapshot).toHaveProperty('playerViewState.activeEffect.selectableOptions', [
+      { id: SlotPosition.CENTER, label: '移至对方中央' },
+      { id: SlotPosition.RIGHT, label: '移至对方右侧（你视角左侧）' },
+    ]);
+    const finish = {
+      type: GameCommandType.CONFIRM_EFFECT_STEP as const,
+      playerId: firstId,
+      effectId,
+      selectedOptionId: SlotPosition.RIGHT,
+      timestamp: 2,
+      idempotencyKey: 'move-finish',
+    };
+    expect((await matches.executeCommand(match.matchId, users[0], finish))?.success).toBe(true);
+    await matches.executeCommand(match.matchId, users[0], finish);
+    state = match.session.state!;
+    expect(state.players[1].memberSlots.slots.RIGHT).toBe('move-target');
+    expect(state.players[1].memberSlots.slots.LEFT).toBe('move-swapped');
+    expect(getMemberEffectiveBladeCount(state, secondId, 'move-target')).toBe(1);
+    expect(getMemberEffectiveBladeCount(state, secondId, 'move-swapped')).toBe(3);
+    expect(state.liveResolution.liveModifiers).toHaveLength(1);
+    expect(state.hextech?.pendingAcquisition).toBeUndefined();
   });
 });

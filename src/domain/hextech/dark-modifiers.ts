@@ -5,8 +5,9 @@ import {
   type LiveModifierState,
 } from '../entities/game.js';
 import { isLiveCardData } from '../entities/card.js';
-import { HeartColor, OrientationState, SlotPosition } from '../../shared/types/enums.js';
+import { HeartColor, OrientationState } from '../../shared/types/enums.js';
 import type { OwnedHextech } from './state.js';
+import { getDarkLiveSlots, getDarkLiveSlotGrayRequirementIncreases } from './suppression.js';
 
 export function collectDarkHextechModifiers(
   game: GameState,
@@ -18,8 +19,8 @@ export function collectDarkHextechModifiers(
     'solo-exam',
     'multi-song-tax',
     'reserve-inspection',
-    'center-noise',
     'double-exam',
+    'first-slot-mute',
   ].includes(effect);
   const playerId = isOpponent ? opponent.id : owned.playerId;
   const player = getPlayerById(game, playerId)!;
@@ -50,8 +51,11 @@ export function collectDarkHextechModifiers(
     target: 'PLAYER',
     hearts: [{ color: HeartColor.RAINBOW, count }],
   });
-  const requirement = (countDelta: number): LiveModifierState[] =>
-    lives.map((liveCardId) => ({
+  const requirement = (
+    countDelta: number,
+    cardIds: readonly string[] = lives
+  ): LiveModifierState[] =>
+    cardIds.map((liveCardId) => ({
       ...source,
       kind: 'REQUIREMENT',
       liveCardId,
@@ -66,6 +70,14 @@ export function collectDarkHextechModifiers(
       return lives.length === 1 ? requirement(2) : [];
     case 'multi-song-tax':
       return lives.length >= 2 ? [score(-1, true)] : [];
+    case 'first-slot-mute': {
+      const increases = getDarkLiveSlotGrayRequirementIncreases(game, playerId);
+      return getDarkLiveSlots(game, playerId).flatMap((cardId, index) =>
+        increases[index] > 0 && lives.includes(cardId)
+          ? requirement(increases[index], [cardId])
+          : []
+      );
+    }
     case 'restless-cheer':
       return [cheer(4), score(-1)];
     case 'lopsided-stage':
@@ -93,20 +105,6 @@ export function collectDarkHextechModifiers(
       return usedThisTurn ? [cheer(6), score(3), ...requirement(2)] : [];
     case 'bet-on-victory':
       return [score(3), cheer(-3)];
-    case 'center-noise': {
-      const memberId = player.memberSlots.slots[SlotPosition.CENTER];
-      return memberId
-        ? [
-            {
-              ...source,
-              kind: 'BLADE',
-              target: 'TARGET_MEMBER',
-              targetMemberCardId: memberId,
-              countDelta: -2,
-            },
-          ]
-        : [];
-    }
     case 'lower-the-bar':
       return [score(-1), ...requirement(-2)];
     case 'double-exam':
@@ -114,7 +112,7 @@ export function collectDarkHextechModifiers(
     case 'hearts-for-score':
       return [hearts(5), score(-2)];
     case 'farewell-gift':
-      return usedThisTurn ? [hearts(5), score(2)] : [];
+      return usedThisTurn ? [hearts(3), score(2)] : [];
     default:
       return [];
   }

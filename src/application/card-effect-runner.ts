@@ -3457,7 +3457,7 @@ export function confirmActiveEffectStep(
   }
   if (effect.sourceCardId === undefined)
     return game.hextech?.pendingAcquisition
-      ? finishDarkAcquisitionStep(game, effect, selectedCardId, selectedCardIds)
+      ? finishDarkAcquisitionStep(game, effect, selectedCardId, selectedCardIds, selectedOptionId)
       : finishDarkHextechAbilityStep(
           game,
           effect,

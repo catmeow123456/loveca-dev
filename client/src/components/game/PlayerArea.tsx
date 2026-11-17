@@ -108,6 +108,7 @@ import {
   OrientationState,
   HeartColor,
   ZoneType,
+  GamePhase,
   SubPhase,
 } from '@game/shared/types/enums';
 import type { Seat } from '@game/online';
@@ -2303,8 +2304,28 @@ export const PlayerArea = memo(function PlayerArea({
   // 桌面空槽保留成员列宽，LIVE 实卡在槽位中保持横牌比例并居中。
   const renderLiveSlot = (slotIndex: number) => {
     const restriction = matchView?.hextech?.restrictions?.find((entry) => entry.seat === playerSeat);
-    const locked = restriction?.lockedColumns.includes([SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT][slotIndex]);
-    const firstMuted = slotIndex === 0 && restriction?.firstLiveSlotMuted;
+    const locked = restriction?.lockedColumns.includes(
+      [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT][slotIndex]
+    );
+    // 表演后歌曲可能因成员清理而左移；盖牌位提示不能标在当前实卡位置上。
+    const showPlacementHints =
+      currentPhase !== GamePhase.PERFORMANCE_PHASE && currentPhase !== GamePhase.LIVE_RESULT_PHASE;
+    const firstMuted = showPlacementHints && slotIndex === 0 && restriction?.firstLiveSlotMuted;
+    const grayIncrease = showPlacementHints
+      ? (restriction?.liveSlotGrayRequirementIncreases[slotIndex] ?? 0)
+      : 0;
+    const restrictionLabels = [
+      locked ? '纵列效果无效' : '',
+      firstMuted ? '首格封麦' : '',
+      grayIncrease > 0 ? `灰心+${grayIncrease}` : '',
+    ].filter(Boolean);
+    const restrictionDetails = [
+      locked ? '此纵列上的成员和 LIVE 能力无效；封锁来源离场即解除' : '',
+      firstMuted ? '按翻牌前盖牌顺序封锁第1格 LIVE；首格成员时落空' : '',
+      grayIncrease > 0
+        ? `原第${slotIndex + 1}格 LIVE 灰心需求+${grayIncrease}；成员牌清理后不顺延`
+        : '',
+    ].filter(Boolean);
     const cardId = liveCardIds[slotIndex];
     return (
       <div
@@ -2321,7 +2342,14 @@ export const PlayerArea = memo(function PlayerArea({
               : 'border-slate-600/30 bg-slate-800/30'
         )}
       >
-        {(locked || firstMuted) && <span className="pointer-events-none absolute -top-4 left-0 z-10 text-[9px] text-rose-300" title={locked ? '此纵列上的成员和 LIVE 能力无效；封锁来源离场即解除' : '按原盖牌顺序封锁第1格 LIVE；首格成员时落空'}>{locked ? '纵列效果无效' : '首格封麦（盖牌顺序）'}</span>}
+        {restrictionLabels.length > 0 && (
+          <span
+            className="pointer-events-none absolute -top-4 left-0 z-10 rounded bg-slate-950/85 px-1 py-0.5 text-[10px] leading-none text-rose-100"
+            title={restrictionDetails.join('；')}
+          >
+            {restrictionLabels.join(' · ')}
+          </span>
+        )}
         {cardId ? (
           renderLiveCard(cardId)
         ) : (

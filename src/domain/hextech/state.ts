@@ -52,7 +52,7 @@ export interface HextechState {
   }[];
   readonly pendingAcquisition?: {
     readonly sourceInstanceId: string;
-    readonly kind: 'REWRITE_SCRIPT' | 'COLUMN_LOCK';
+    readonly kind: 'REWRITE_SCRIPT' | 'COLUMN_LOCK' | 'POSITION_MISHAP';
   };
   readonly owned: readonly OwnedHextech[];
   /** Acquisition choices retain only their source and outstanding quantity; candidates are derived. */
@@ -161,11 +161,15 @@ export function assertValidHextechState(
     if (
       !pending ||
       !ids.has(pending.sourceInstanceId) ||
-      !['REWRITE_SCRIPT', 'COLUMN_LOCK'].includes(pending.kind) ||
+      !['REWRITE_SCRIPT', 'COLUMN_LOCK', 'POSITION_MISHAP'].includes(pending.kind) ||
       state.pendingSearch ||
       (state.acquisitionQueue as string[] | undefined)?.includes(pending.sourceInstanceId) ||
       owned?.definitionId !==
-        (pending.kind === 'REWRITE_SCRIPT' ? 'dark-rewrite-script' : 'dark-silent-column')
+        {
+          REWRITE_SCRIPT: 'dark-rewrite-script',
+          COLUMN_LOCK: 'dark-silent-column',
+          POSITION_MISHAP: 'dark-position-mishap',
+        }[pending.kind]
     )
       fail();
   }

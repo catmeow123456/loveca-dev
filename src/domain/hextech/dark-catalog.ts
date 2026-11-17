@@ -144,7 +144,7 @@ export const DARK_HEXTECH_DEFINITIONS = [
     rarity: 'PRISMATIC',
     group: 'DISRUPTION',
     rulesText:
-      '【常时】对方第1格LIVE在本次表演中的全部能力无效，保留印刷分数、必要心等基础属性。位置按对方视角从左起计算；第1格是成员牌时不顺延。',
+      '【常时】对方第1格LIVE在本次表演中的全部能力无效，保留印刷分数、必要心等基础属性；第2、3格LIVE各自灰心需求+1。格位按对方翻牌前的盖牌顺序计算；成员牌清理后不顺延。',
     effect: { kind: 'DARK', effect: 'first-slot-mute' },
   },
   {
@@ -217,12 +217,13 @@ export const DARK_HEXTECH_DEFINITIONS = [
     effect: { kind: 'DARK', effect: 'bet-on-victory' },
   },
   {
-    id: 'dark-center-noise',
-    name: '场地抽签落空',
+    id: 'dark-position-mishap',
+    name: '站位事故',
     rarity: 'SILVER',
     group: 'DISRUPTION',
-    rulesText: '【常时】对方中央成员的棒−2。',
-    effect: { kind: 'DARK', effect: 'center-noise' },
+    rulesText:
+      '【获得时】可以选择对方1名舞台成员，将其移动至对方另一个成员区域；目标区域已有成员时，两者交换位置。被选择的成员棒−2，直到本回合LIVE结束。无支付代价，不限制成员费用。获得时对方没有舞台成员则不处理，不保留至之后发动。',
+    effect: { kind: 'DARK', effect: 'position-mishap' },
   },
   {
     id: 'dark-lower-the-bar',
@@ -263,7 +264,7 @@ export const DARK_HEXTECH_DEFINITIONS = [
     rarity: 'PRISMATIC',
     group: 'DOUBLE_EDGED',
     rulesText:
-      '【自己的 LIVE 开始时】【每局一次】可以将己方1名舞台成员送回手牌；本回合自己获得5个万能心，LIVE合计分数+2。',
+      '【自己的 LIVE 开始时】【每局一次】可以将己方1名舞台成员送回手牌；本回合自己获得3个万能心，LIVE合计分数+2。',
     effect: { kind: 'DARK', effect: 'farewell-gift' },
     activation: {
       timings: ['OWN_LIVE_START'],

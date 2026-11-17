@@ -34,6 +34,7 @@ import {
 } from '../../src/application/card-effect-runner';
 import { appendTriggeredAbility } from '../../src/application/card-effects/runtime/enqueue-pending-ability';
 import { returnStageMemberToHandAndEnqueueTriggers } from '../../src/application/card-effects/runtime/return-stage-member-to-hand';
+import { moveMemberBetweenSlotsAndEnqueueTriggers } from '../../src/application/card-effects/runtime/member-slot-moved-triggers';
 import {
   createCardInstance,
   createHeartRequirement,
@@ -53,6 +54,8 @@ import {
   placeCardInSlot,
   addCardToStatefulZone,
   removeCardFromZone,
+  addEnergyBelowMember,
+  addMemberBelowMember,
 } from '../../src/domain/entities/zone';
 import { createLiveStartEvent, createEnterStageEvent } from '../../src/domain/events/game-events';
 import { DARK_HEXTECH_DEFINITIONS } from '../../src/domain/hextech/dark-catalog';
@@ -72,12 +75,14 @@ import {
 } from '../../src/domain/rules/live-modifiers';
 import {
   CardType,
+  FaceState,
   HeartColor,
   GamePhase,
   SubPhase,
   SlotPosition,
   OrientationState,
   ZoneType,
+  TriggerCondition,
 } from '../../src/shared/types/enums';
 import { projectPlayerViewState } from '../../src/online/projector';
 import {
@@ -215,6 +220,13 @@ describe('黑暗海克斯规则与真实来源', () => {
     expect(
       DARK_HEXTECH_DEFINITIONS.find((entry) => entry.id === 'dark-silent-spotlight')
     ).toMatchObject({ activation: { energy: 2, discard: 1 } });
+    expect(getHextechDefinition('dark-position-mishap')).toMatchObject({
+      name: '站位事故',
+      rarity: 'SILVER',
+      group: 'DISRUPTION',
+    });
+    expect(getHextechDefinition('dark-position-mishap')?.activation).toBeUndefined();
+    expect(getHextechDefinition('dark-center-noise')).toBeUndefined();
   });
   it('取消不扣资源/次数，原子支付后双时点共享额度', () => {
     const initial = fixture(['dark-silent-spotlight']);
@@ -372,26 +384,37 @@ describe('黑暗海克斯规则与真实来源', () => {
     );
     expect(muted(state, 'p2-left')).toBe(false);
   });
-  it('第一格成员被清理后不会封到后续歌曲，成功区也不被封锁', () => {
+  it('第一格成员被清理后不顺延封麦，后两格仍各加1灰心；重连保持原格位', () => {
     let state = fixture(['dark-first-slot-mute']);
     state = updatePlayer(state, 'p2', (player) => ({
       ...player,
-      liveZone: { ...player.liveZone, cardIds: ['p2-hand-0', 'p2-live-0'] },
+      liveZone: { ...player.liveZone, cardIds: ['p2-hand-0', 'p2-live-0', 'p2-live-1'] },
     }));
     state = freezeDarkLiveSlots(state, 'p2');
     state = updatePlayer(state, 'p2', (player) => ({
       ...player,
-      liveZone: { ...player.liveZone, cardIds: ['p2-live-0'] },
+      liveZone: { ...player.liveZone, cardIds: ['p2-live-0', 'p2-live-1'] },
     }));
-    expect(muted(state, 'p2-live-0')).toBe(false);
+    state = roundTrip(state);
+    for (const cardId of ['p2-live-0', 'p2-live-1']) {
+      expect(muted(state, cardId)).toBe(false);
+      expect(
+        getLiveCardRequirementModifiers(state.liveResolution, cardId, collectLiveModifiers(state))
+      ).toEqual([{ color: HeartColor.GRAY, countDelta: 1 }]);
+    }
     const direct = fixture(['dark-first-slot-mute']);
     expect(muted(direct, 'p2-live-0')).toBe(true);
-    state = updatePlayer(direct, 'p2', (player) => ({
+    state = updatePlayer(state, 'p2', (player) => ({
       ...player,
       liveZone: { ...player.liveZone, cardIds: [] },
-      successZone: { ...player.successZone, cardIds: ['p2-live-0'] },
+      successZone: { ...player.successZone, cardIds: ['p2-live-0', 'p2-live-1'] },
     }));
-    expect(muted(state, 'p2-live-0')).toBe(false);
+    for (const cardId of ['p2-live-0', 'p2-live-1']) {
+      expect(muted(state, cardId)).toBe(false);
+      expect(
+        getLiveCardRequirementModifiers(state.liveResolution, cardId, collectLiveModifiers(state))
+      ).toEqual([]);
+    }
   });
   it('沉默只阻止后续入队，不撤销已入队与已结算加成', () => {
     const ability: PendingAbilityState = {
@@ -533,7 +556,321 @@ describe('重写剧本的共享处理与网络快照', () => {
   });
 });
 
+describe('站位事故：获得时一次性移动', () => {
+  const acquire = (state = fixture()) =>
+    acquireHextechBatch(state, [owned('dark-position-mishap')], () => 0).gameState;
+  const select = (state: GameState, cardId?: string | null, slot?: SlotPosition) =>
+    confirmActiveEffectStep(
+      state,
+      state.activeEffect!.controllerId,
+      state.activeEffect!.id,
+      cardId,
+      undefined,
+      undefined,
+      slot
+    );
+  const move = (state: GameState) =>
+    select(select(state, 'p2-left'), undefined, SlotPosition.CENTER);
+
+  it('交换携带双方下方卡，保持状态，仅所选成员减2棒且不支付资源', () => {
+    let state = updatePlayer(fixture(), 'p2', (player) => ({
+      ...player,
+      hand: removeCardFromZone(player.hand, 'p2-hand-0'),
+      energyZone: removeCardFromZone(player.energyZone, 'p2-energy-0'),
+      memberSlots: addMemberBelowMember(
+        addEnergyBelowMember(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, 'p2-left', {
+            orientation: OrientationState.WAITING,
+            face: FaceState.FACE_UP,
+          }),
+          SlotPosition.LEFT,
+          'p2-energy-0'
+        ),
+        SlotPosition.CENTER,
+        'p2-hand-0'
+      ),
+    }));
+    const before = state.players.map((p) => ({ hand: p.hand, energy: p.energyZone }));
+    state = move(acquire(state));
+    const slots = state.players[1].memberSlots;
+    expect(slots.slots).toEqual({ LEFT: 'p2-center', CENTER: 'p2-left', RIGHT: 'p2-right' });
+    expect(slots.energyBelow.CENTER).toEqual(['p2-energy-0']);
+    expect(slots.memberBelow.LEFT).toEqual(['p2-hand-0']);
+    expect(slots.cardStates.get('p2-left')?.orientation).toBe(OrientationState.WAITING);
+    expect(slots.cardStates.get('p2-center')?.orientation).toBe(OrientationState.ACTIVE);
+    expect(getMemberEffectiveBladeCount(state, 'p2', 'p2-left')).toBe(1);
+    expect(getMemberEffectiveBladeCount(state, 'p2', 'p2-center')).toBe(3);
+    expect(state.players.map((p) => ({ hand: p.hand, energy: p.energyZone }))).toEqual(before);
+    expect(state.eventLog.map((entry) => entry.event.eventType)).toEqual([
+      TriggerCondition.ON_MEMBER_SLOT_MOVED,
+      TriggerCondition.ON_MEMBER_SLOT_MOVED,
+    ]);
+    expect(
+      state.eventLog.every(
+        (entry) => 'cause' in entry.event && entry.event.cause?.kind === 'HEXTECH_EFFECT'
+      )
+    ).toBe(true);
+    state = roundTrip(state);
+    expect(getMemberEffectiveBladeCount(state, 'p2', 'p2-left')).toBe(1);
+    expect(state.hextech?.pendingAcquisition).toBeUndefined();
+    expect(startDarkHextechAbility(state, 'p1:dark-position-mishap')).toBe(state);
+    expect(projectPlayerViewState(state, 'p1').match.hextech?.owned[0].statusText).toContain(
+      '棒−2'
+    );
+  });
+
+  it('可移至空位，不限制费用，棒数最低为0', () => {
+    let state = registerCards(fixture(), [
+      {
+        ...fixture().cardRegistry.get('p2-left')!,
+        data: { ...member, cost: 20, blade: 1 },
+      },
+    ]);
+    state = returnStageMemberToHandAndEnqueueTriggers(
+      state,
+      'p2',
+      'p2-center',
+      enqueueTriggeredCardEffects
+    )!.gameState;
+    state = move(acquire(state));
+    expect(state.players[1].memberSlots.slots.LEFT).toBeNull();
+    expect(state.players[1].memberSlots.slots.CENTER).toBe('p2-left');
+    expect(getMemberEffectiveBladeCount(state, 'p2', 'p2-left')).toBe(0);
+  });
+
+  it.each([false, true])('可在选择目的位置前后放弃（已选成员：%s），以后不能补发动', (selected) => {
+    let state = acquire();
+    if (selected) state = select(state, 'p2-left');
+    state = select(state, null);
+    expect(state.activeEffect).toBeNull();
+    expect(state.players[1].memberSlots.slots.LEFT).toBe('p2-left');
+    expect(state.liveResolution.liveModifiers).toEqual([]);
+    expect(startDarkHextechAbility(state, 'p1:dark-position-mishap')).toBe(state);
+  });
+
+  it('开局对方无人时直接完成取得，并继续后续取得效果', () => {
+    const session = createGameSession({ randomInt: () => 0 });
+    session.createGame('mishap-empty', 'p1', '甲', 'p2', '乙', [
+      ['dark-position-mishap', 'dark-greed-contract'],
+      [],
+    ]);
+    expect(session.initializeGame(deck, deck).success).toBe(true);
+    for (const playerId of ['p1', 'p2'])
+      expect(session.executeCommand(createMulliganCommand(playerId, [])).success).toBe(true);
+    expect(session.state!.hextech?.pendingAcquisition).toBeUndefined();
+    expect(session.state!.hextech?.acquisitionQueue).toBeUndefined();
+    expect(session.state!.activeEffect).toBeNull();
+    expect(session.state!.players[0].hand.cardIds).toHaveLength(12);
+    expect(session.state!.liveResolution.liveModifiers).toEqual([]);
+  });
+
+  it('拒绝己方目标、原地移动和离场重登场后的陈旧目标', () => {
+    let state = acquire();
+    expect(select(state, 'p1-left')).toBe(state);
+    state = select(state, 'p2-left');
+    expect(select(state, undefined, SlotPosition.LEFT)).toBe(state);
+    state = returnStageMemberToHandAndEnqueueTriggers(
+      state,
+      'p2',
+      'p2-left',
+      enqueueTriggeredCardEffects
+    )!.gameState;
+    state = updatePlayer(state, 'p2', (player) => ({
+      ...player,
+      hand: removeCardFromZone(player.hand, 'p2-left'),
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.LEFT, 'p2-left'),
+    }));
+    state = emitGameEvent(
+      state,
+      createEnterStageEvent('p2-left', SlotPosition.LEFT, 'p2', 'p2', ZoneType.HAND)
+    );
+    expect(select(state, undefined, SlotPosition.CENTER)).toBe(state);
+    expect(state.liveResolution.liveModifiers).toEqual([]);
+    expect(select(state, null).hextech?.pendingAcquisition).toBeUndefined();
+  });
+
+  it('双方取得按顺序处理，两个选择步骤重连后通过共享命令继续且不重复移动', () => {
+    const session = createGameSession({ randomInt: () => 0 });
+    const state = acquireHextechBatch(
+      { ...fixture(), currentPhase: GamePhase.ACTIVE_PHASE },
+      [owned('dark-position-mishap'), owned('dark-position-mishap', 'p2')],
+      () => 0
+    ).gameState;
+    session.restoreRuntimeState({ authorityState: roundTrip(state), currentPublicSeq: 0 });
+    for (const [playerId, target] of [
+      ['p1', 'p2-left'],
+      ['p2', 'p1-left'],
+    ]) {
+      const effectId = session.state!.activeEffect!.id;
+      expect(session.state!.activeEffect!.controllerId).toBe(playerId);
+      expect(
+        session.executeCommand({
+          type: GameCommandType.CONFIRM_EFFECT_STEP,
+          playerId,
+          effectId,
+          selectedCardId: target,
+          timestamp: 1,
+        }).success
+      ).toBe(true);
+      session.restoreRuntimeState({
+        authorityState: roundTrip(session.state!),
+        currentPublicSeq: 0,
+      });
+      const command = {
+        type: GameCommandType.CONFIRM_EFFECT_STEP as const,
+        playerId,
+        effectId,
+        selectedOptionId: SlotPosition.CENTER,
+        timestamp: 2,
+      };
+      expect(session.executeCommand(command).success).toBe(true);
+      expect(session.executeCommand(command).success).toBe(false);
+    }
+    expect(session.state!.hextech?.pendingAcquisition).toBeUndefined();
+    expect(session.state!.hextech?.acquisitionQueue).toBeUndefined();
+    expect(session.state!.players.map((p) => p.memberSlots.slots.CENTER)).toEqual([
+      'p1-left',
+      'p2-left',
+    ]);
+    expect(session.state!.liveResolution.liveModifiers).toHaveLength(2);
+  });
+
+  it('移动诱发在完整换位减棒后入队并正常结算', () => {
+    let state = fixture();
+    state = registerCards(state, [
+      {
+        ...state.cardRegistry.get('p2-left')!,
+        data: {
+          ...member,
+          cardCode: 'PL!SP-sd2-011-SD2',
+          name: '鬼塚冬毬',
+          groupNames: ['Liella!'],
+          unitName: '5yncri5e!',
+        },
+      },
+    ]);
+    state = move(acquire(state));
+    expect(
+      state.pendingAbilities.filter((ability) => ability.sourceCardId === 'p2-left')
+    ).toHaveLength(1);
+    expect(getMemberEffectiveBladeCount(state, 'p2', 'p2-left')).toBe(1);
+    state = resolvePendingCardEffects(state).gameState;
+    expect(getMemberEffectiveBladeCount(state, 'p2', 'p2-left')).toBe(2);
+  });
+
+  it('减棒随成员换位保留、离场消失；本回合LIVE结束清除减棒但保留位置', () => {
+    const moved = move(acquire());
+    let state = moveMemberBetweenSlotsAndEnqueueTriggers(
+      moved,
+      'p2',
+      'p2-left',
+      SlotPosition.RIGHT,
+      enqueueTriggeredCardEffects
+    )!.gameState;
+    expect(getMemberEffectiveBladeCount(state, 'p2', 'p2-left')).toBe(1);
+    state = returnStageMemberToHandAndEnqueueTriggers(
+      state,
+      'p2',
+      'p2-left',
+      enqueueTriggeredCardEffects
+    )!.gameState;
+    state = updatePlayer(state, 'p2', (player) => ({
+      ...player,
+      hand: removeCardFromZone(player.hand, 'p2-left'),
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, 'p2-left'),
+    }));
+    expect(getMemberEffectiveBladeCount(state, 'p2', 'p2-left')).toBe(3);
+    const ended = new GameService().finalizeLiveResult({
+      ...moved,
+      currentPhase: GamePhase.LIVE_RESULT_PHASE,
+      currentSubPhase: SubPhase.RESULT_SETTLEMENT,
+    });
+    expect(ended.success).toBe(true);
+    expect(getMemberEffectiveBladeCount(ended.gameState, 'p2', 'p2-left')).toBe(3);
+    expect(ended.gameState.players[1].memberSlots.slots.CENTER).toBe('p2-left');
+  });
+});
+
 describe('黑暗池条件、数值与反制边界', () => {
+  it('开场失声只封对方首格，第二、三格各加1灰心且保留能力', () => {
+    let state = fixture(['dark-first-slot-mute']);
+    for (const playerId of ['p1', 'p2']) {
+      state = updatePlayer(state, playerId, (player) => ({
+        ...player,
+        liveZone: {
+          ...player.liveZone,
+          cardIds: [0, 1, 2].map((index) => `${playerId}-live-${index}`),
+        },
+      }));
+    }
+    const modifiers = collectLiveModifiers(state);
+    for (const playerId of ['p1', 'p2']) {
+      for (const index of [0, 1, 2]) {
+        const cardId = `${playerId}-live-${index}`;
+        expect(muted(state, cardId)).toBe(playerId === 'p2' && index === 0);
+        expect(getLiveCardRequirementModifiers(state.liveResolution, cardId, modifiers)).toEqual(
+          playerId === 'p2' && index > 0 ? [{ color: HeartColor.GRAY, countDelta: 1 }] : []
+        );
+      }
+    }
+  });
+  it('盖牌前公开格位规则，但隐藏对手实际歌曲的需求修正直到翻牌', () => {
+    let state = fixture(['dark-first-slot-mute']);
+    const cardIds = ['p2-live-0', 'p2-hand-0', 'p2-live-1'];
+    state = updatePlayer(state, 'p2', (player) => ({
+      ...player,
+      liveZone: {
+        ...player.liveZone,
+        cardIds,
+        cardStates: new Map(
+          cardIds.map((id) => [
+            id,
+            {
+              orientation: OrientationState.ACTIVE,
+              face: FaceState.FACE_DOWN,
+            },
+          ])
+        ),
+      },
+    }));
+    const opponentView = projectPlayerViewState(state, 'p1');
+    const ownView = projectPlayerViewState(state, 'p2');
+    expect(opponentView.match.hextech?.restrictions).toEqual([
+      {
+        seat: 'FIRST',
+        lockedColumns: [],
+        firstLiveSlotMuted: false,
+        liveSlotGrayRequirementIncreases: [0, 0, 0],
+      },
+      {
+        seat: 'SECOND',
+        lockedColumns: [],
+        firstLiveSlotMuted: true,
+        liveSlotGrayRequirementIncreases: [0, 1, 1],
+      },
+    ]);
+    expect(opponentView.match.liveResult?.requirementModifiers).toEqual({});
+    const expected = { 'obj_p2-live-1': [{ color: HeartColor.GRAY, countDelta: 1 }] };
+    expect(ownView.match.liveResult?.requirementModifiers).toEqual(expected);
+    state = updatePlayer(state, 'p2', (player) => ({
+      ...player,
+      liveZone: {
+        ...player.liveZone,
+        cardStates: new Map(
+          cardIds.map((id) => [
+            id,
+            {
+              orientation: OrientationState.ACTIVE,
+              face: FaceState.FACE_UP,
+            },
+          ])
+        ),
+      },
+    }));
+    expect(projectPlayerViewState(state, 'p1').match.liveResult?.requirementModifiers).toEqual(
+      expected
+    );
+  });
   it.each([
     ['dark-solo-exam', 'p2', 1, 2, 0],
     ['dark-solo-exam', 'p2', 2, 0, 0],
@@ -743,6 +1080,90 @@ describe('黑暗池条件、数值与反制边界', () => {
 });
 
 describe('同局面彩色效果对照：真实 LIVE 判定、零额外判心', () => {
+  it.each([
+    [0, 6, true],
+    [1, 5, true],
+    [1, 6, false],
+    [2, 5, true],
+    [2, 6, false],
+  ] as const)(
+    '开场失声下原索引%i的%i灰心歌曲，6基础心的判定结果为%s',
+    (slotIndex, requirement, success) => {
+      let state = fixture(['dark-first-slot-mute']);
+      state = registerCards(state, [
+        {
+          ...state.cardRegistry.get('p2-live-0')!,
+          data: {
+            ...song,
+            requirements: createHeartRequirement({ [HeartColor.GRAY]: requirement }),
+          },
+        },
+      ]);
+      state = updatePlayer(state, 'p2', (player) => ({
+        ...player,
+        liveZone: {
+          ...player.liveZone,
+          cardIds: [...Array.from({ length: slotIndex }, (_, i) => `p2-hand-${i}`), 'p2-live-0'],
+        },
+      }));
+      state = freezeDarkLiveSlots(state, 'p2');
+      state = updatePlayer(state, 'p2', (player) => ({
+        ...player,
+        liveZone: { ...player.liveZone, cardIds: ['p2-live-0'] },
+      }));
+      state = {
+        ...state,
+        activePlayerIndex: 1,
+        currentPhase: GamePhase.PERFORMANCE_PHASE,
+        currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+        liveResolution: { ...state.liveResolution, performingPlayerId: 'p2', isInLive: true },
+      };
+      const result = new GameService().processAction(state, {
+        type: 'CONFIRM_JUDGMENT',
+        playerId: 'p2',
+        timestamp: 1,
+        judgmentResults: new Map(),
+      });
+      expect(result.success, result.error).toBe(true);
+      expect(result.gameState.liveResolution.liveResults.get('p2-live-0')).toBe(success);
+      expect(result.gameState.liveResolution.playerScores.get('p2')).toBe(success ? 3 : 0);
+    }
+  );
+
+  it.each([
+    [7, true, 5],
+    [8, false, 0],
+  ] as const)(
+    '谢幕馈赠回手2心成员后，%i灰心歌曲的成功状态为%s、得%i分',
+    (requirement, success, score) => {
+      let state = fixture(['dark-farewell-gift']);
+      state = registerCards(state, [
+        {
+          ...state.cardRegistry.get('p1-live-0')!,
+          data: {
+            ...song,
+            requirements: createHeartRequirement({ [HeartColor.GRAY]: requirement }),
+          },
+        },
+      ]);
+      state = {
+        ...state,
+        currentPhase: GamePhase.PERFORMANCE_PHASE,
+        currentSubPhase: SubPhase.PERFORMANCE_LIVE_START_EFFECTS,
+        liveResolution: { ...state.liveResolution, performingPlayerId: 'p1', isInLive: true },
+      };
+      state = activate(state, 'dark-farewell-gift', [['p1-center']]);
+      expect(state.players[0].memberSlots.slots[SlotPosition.CENTER]).toBeNull();
+      const result = new GameService().processAction(
+        { ...state, currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT },
+        { type: 'CONFIRM_JUDGMENT', playerId: 'p1', timestamp: 1, judgmentResults: new Map() }
+      );
+      expect(result.success, result.error).toBe(true);
+      expect(result.gameState.liveResolution.liveResults.get('p1-live-0')).toBe(success);
+      expect(result.gameState.liveResolution.playerScores.get('p1')).toBe(score);
+    }
+  );
+
   it.each([
     ['dark-first-slot-mute', 'p2', 3, 3],
     ['dark-forced-encore', 'p2', 3, 0],

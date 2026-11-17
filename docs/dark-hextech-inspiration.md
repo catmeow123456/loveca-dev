@@ -7,12 +7,11 @@
 | 名称（原工作名） | 原作事件与来源 | 机制连接及应对 |
 | --- | --- | --- |
 | 突然断电（寂静纵列） | Sunshine!! 第一季第 3 话，初次演出途中遇到雷雨停电。[当集剧情评论](https://teleani.blog62.fc2.com/blog-entry-1948.html) | 获得时给己方舞台成员绑定纵列封锁；双方同列成员与 LIVE 的能力无效。可以换位、安排其他列的 LIVE、让来源离场，或用寂静聚光灯暂时关掉封锁。 |
-| 开场失声（一号位封麦） | Superstar!! 第一季第 3 话，香音的登台紧张与停电转折。[当集剧情梳理](https://lovelive-you.blog.jp/anime/superstar/1st/ep3) | 对手原盖牌第 1 格 LIVE 能力无效；可以把关键歌曲放在后格，或首格放成员让封锁落空。不是让对手不能表演。 |
+| 开场失声（一号位封麦） | Superstar!! 第一季第 3 话，香音的登台紧张与停电转折。[当集剧情梳理](https://lovelive-you.blog.jp/anime/superstar/1st/ep3) | 对手原盖牌第 1 格 LIVE 能力无效，第 2、3 格 LIVE 各自灰心需求+1。关键歌曲后放或首格放成员可避开封麦，但后格仍需多准备1灰心；格位在成员牌清理后不顺延。 |
 | 活动费见底（多唱加税） | Sunshine!! 第二季第 4 话，两场舞台花掉活动经费，只余 5 日元。[官方剧情简介](https://www.lovelive-anime.jp/uranohoshi/story.php) | 对手同时表演至少两张 LIVE 时总分 −1；单曲不受影响。 |
 | 两头赶场（双曲加试） | Sunshine!! 第二季第 3 话，说明会延期后与预选撞期，抽签出场顺序又打乱赶场计划。[官方剧情简介](https://www.lovelive-anime.jp/uranohoshi/story.php) | 对手同时表演至少两张 LIVE 时，每张灰心 +1；用单曲或多准备心应对。 |
 | 挑战大招（高压应援） | Sunshine!! 第二季第 6 话，为弥补本校应援人数不足，千歌挑战高难度动作。[官方剧情简介](https://www.lovelive-anime.jp/uranohoshi/story.php) | 自己声援 +6，但每张 LIVE 灰心 +2；更多声援伴随更高完成门槛。 |
 | 雨中的屋顶（燃尽舞台） | 初代第一季第 11 话，学园祭抽签失利改在屋顶演出；穗乃果过度投入，雨中演出后倒下。[授权发行平台简介](https://tv.apple.com/jp/episode/%E6%9C%80%E9%AB%98%E3%81%AE%E3%83%A9%E3%82%A4%E3%83%96/umc.cmc.1j3dqo7p79vrynpw0b50k5wqq?showId=umc.cmc.4qvy0goo0vadrqqibh9lx3b6w)、[剧情评论补充](https://note.com/tokiori/n/n32fa944cacce) | LIVE 开始时弃 2；当回合声援 +6、总分 +3，每张灰心 +2。表达一次性冲刺及风险。 |
-| 场地抽签落空（中央噪声） | 同上，学园祭场地抽签落空是明确的剧情困难。[授权发行平台简介](https://tv.apple.com/jp/episode/%E6%9C%80%E9%AB%98%E3%81%AE%E3%83%A9%E3%82%A4%E3%83%96/umc.cmc.1j3dqo7p79vrynpw0b50k5wqq?showId=umc.cmc.4qvy0goo0vadrqqibh9lx3b6w) | 对手中央成员棒 −2；可通过站位分配把损失转给较不重要的成员。 |
 | 从零再出发（降低门槛） | Sunshine!! 第一季第 8 话，东京活动的失败和零票冲击。[当集讨论与考据](https://the-history-of-lovelive.blog.jp/archives/1059471015.html)、[系列分集梳理](https://en.wikipedia.org/wiki/Love_Live%21_Sunshine%21%21_%28TV_series%29) | 每张自己的 LIVE 灰心 −2、总分 −1；降低目标换取稳定完成。没有将“零票”照搬成强行归零。 |
 | 还差两人（以分换心） | Sunshine!! 第二季第 7 话，入学意愿人数到 98，未达 100 的目标。[官方简介确认目标和期限](https://www.lovelive-anime.jp/uranohoshi/story.php)、[分集梳理补充实际人数](https://en.wikipedia.org/wiki/Love_Live%21_Sunshine%21%21_%28TV_series%29) | 自己万能心 +5、总分 −2；准备更充分，却要承受最后两分的缺口。 |
 
@@ -26,6 +25,8 @@
 ## 首版卡池与规则
 
 权威目录是 `src/domain/hextech/dark-catalog.ts`，24 项，每个稀有度 4 项干扰、4 项双刃剑。重写剧本为金色；寂静聚光灯费用固定为 2 能量并弃 1 张手牌。
+
+银色“站位事故”为自拟舞台事故名称，不对应某个已核实的原作场景；它替换原“场地抽签落空”。获得时可移动对方1名成员，目的格已有成员则交换，仅所选成员棒−2直到本回合LIVE结束。没有目标或选择放弃时不保留至之后发动，避免持续针对站位卡组。
 
 纵列按双方面对面的物理列计算：自己的左对应对方的右；自己的右对应对方的左。封锁绑定获得时选择的舞台规则对象，待机不解除，换位跟随，离场后消失，重新登场不恢复。来源自己的其他能力被无效；纵列封锁本身不受任何纵列封锁关闭，但单独的寂静聚光灯可以关闭它。
 

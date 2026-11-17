@@ -169,6 +169,8 @@ export function continueHextechAcquisitions(
       state = startDarkAcquisition(state, instanceId, 'REWRITE_SCRIPT');
     if (definitionId === 'dark-silent-column')
       state = startDarkAcquisition(state, instanceId, 'COLUMN_LOCK');
+    if (definitionId === 'dark-position-mishap')
+      state = startDarkAcquisition(state, instanceId, 'POSITION_MISHAP');
     if (definition.effect.kind === 'ACQUIRE_RANDOM_HEXTECH') {
       const rarity = definition.effect.rarity;
       const pool = HEXTECH_DEFINITIONS.filter((item) => item.rarity === rarity);

@@ -1,6 +1,7 @@
 import { isDarkColumnLockActive } from '../domain/hextech/suppression.js';
 import {
   getDarkLockedColumns,
+  getDarkLiveSlotGrayRequirementIncreases,
   isFirstLiveSlotMuted,
   isCardAbilitySuppressedByDarkHextech,
 } from '../domain/hextech/suppression.js';
@@ -37,7 +38,6 @@ import { CardAbilitySourceZone } from '../application/card-effects/ability-defin
 import {
   getLiveSetCardIdsForPlayer,
   hasPendingAbilityOrChoice,
-  type ActiveEffectState,
   type GameState,
   type LiveModifierState,
 } from '../domain/entities/game.js';
@@ -360,6 +360,10 @@ export function projectPlayerViewState(
               seat: getSeatForPlayer(game, player.id)!,
               lockedColumns: getDarkLockedColumns(game, player.id),
               firstLiveSlotMuted: isFirstLiveSlotMuted(game, player.id),
+              liveSlotGrayRequirementIncreases: getDarkLiveSlotGrayRequirementIncreases(
+                game,
+                player.id
+              ),
             })),
             ...buildHextechAbilityView(game, viewerPlayerId),
             ...(!game.isEnded && game.hextech.draft?.pending
@@ -2637,9 +2641,7 @@ function darkHextechStatus(
   effect: string
 ): string | undefined {
   const target = game.players.find((player) =>
-    ['solo-exam', 'multi-song-tax', 'double-exam', 'reserve-inspection', 'center-noise'].includes(
-      effect
-    )
+    ['solo-exam', 'multi-song-tax', 'double-exam', 'reserve-inspection'].includes(effect)
       ? player.id !== ownerId
       : player.id === ownerId
   )!;
@@ -2671,6 +2673,19 @@ function darkHextechStatus(
         ? '纵列封锁生效中'
         : '封锁暂时无效'
       : '未绑定成员或来源已离场';
+  }
+  if (effect === 'position-mishap') {
+    if (game.hextech?.pendingAcquisition?.sourceInstanceId === instanceId)
+      return '正在处理获得时换位';
+    if (game.hextech?.acquisitionQueue?.includes(instanceId)) return '等待处理获得时效果';
+    return game.liveResolution.liveModifiers.some(
+      (modifier) =>
+        modifier.kind === 'BLADE' &&
+        'sourceHextechInstanceId' in modifier &&
+        modifier.sourceHextechInstanceId === instanceId
+    )
+      ? '所选成员棒−2，直到本回合LIVE结束'
+      : '获得时效果已处理';
   }
   if (['borrow-now', 'burning-stage', 'farewell-gift'].includes(effect))
     return game.hextech?.uses?.some(
