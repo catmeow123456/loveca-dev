@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -91,7 +92,7 @@ function startSelectTargetPlayer(
 }
 
 function startSelectWaitingMembers(game: GameState, selectedOptionId: string | null): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     !isSupportedAbilityId(effect.abilityId) ||
@@ -147,7 +148,7 @@ function finishSelectWaitingMembers(
   selectedCardIds: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     !isSupportedAbilityId(effect.abilityId) ||

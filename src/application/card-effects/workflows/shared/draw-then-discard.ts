@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { addAction, getPlayerById, type GameState } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { SlotPosition, ZoneType } from '../../../../shared/types/enums.js';
@@ -428,7 +429,7 @@ export function finishDrawThenDiscardCardsWorkflow(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }

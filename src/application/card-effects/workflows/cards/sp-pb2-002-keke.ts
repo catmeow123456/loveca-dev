@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   isMemberCardData,
   type CardInstance,
@@ -173,7 +174,7 @@ function finishDiscardLiellaCost(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const selectedCard = selectedCardId ? getCardById(game, selectedCardId) : null;
   if (
@@ -225,7 +226,7 @@ function finishDiscardLiellaCost(
 
 function startOptionSelection(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   discardedCardId: string,
   discardedNoBladeHeartMember: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects
@@ -298,7 +299,7 @@ function resolveSelectedOption(
   selectedOptionIds: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const discardedNoBladeHeartMember = effect?.metadata?.discardedNoBladeHeartMember === true;
   if (
@@ -415,7 +416,7 @@ function finishHeartTargetSelection(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -473,7 +474,7 @@ function finishHeartTargetSelection(
 function finishWithPayload(
   game: GameState,
   playerId: string,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   payload: Record<string, unknown>,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {

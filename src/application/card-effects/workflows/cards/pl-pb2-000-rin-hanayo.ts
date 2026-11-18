@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -366,7 +367,7 @@ function parseRelayReplacementSnapshots(value: unknown): readonly RelayReplaceme
 }
 
 function getRinHanayoEffect(game: GameState): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   return effect?.abilityId ===
     PL_PB2_000_ON_ENTER_DOUBLE_MUSE_RELAY_RECOVER_LIVE_GAIN_SCORE_ABILITY_ID &&
     effect.stepId === SELECT_MUSE_LIVE_STEP_ID

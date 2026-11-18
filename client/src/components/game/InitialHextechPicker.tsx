@@ -1,6 +1,7 @@
 import { Disclosure } from '@/components/common';
 import {
-  HEXTECH_DEFINITIONS,
+  getHextechDefinitions,
+  type HextechPool,
   HEXTECH_RARITY_LABELS,
   type HextechId,
 } from '@game/domain/hextech/catalog';
@@ -10,10 +11,12 @@ export function InitialHextechPicker({
   value,
   onChange,
   disabled,
+  pool = 'NORMAL',
 }: {
   value: InitialHextechSetup;
   onChange: (value: InitialHextechSetup) => void;
   disabled: boolean;
+  pool?: HextechPool;
 }) {
   const count = value[0].length + value[1].length;
   const toggle = (seat: 0 | 1, id: HextechId) => {
@@ -35,7 +38,7 @@ export function InitialHextechPicker({
           <fieldset key={seat} disabled={disabled} className="min-w-0">
             <legend className="mb-2 font-bold">Player {seat + 1} 的海克斯</legend>
             <div className="grid gap-1">
-              {HEXTECH_DEFINITIONS.map((definition) => (
+              {getHextechDefinitions(pool).map((definition) => (
                 <label
                   key={definition.id}
                   className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-[var(--border-default)] p-2"
@@ -43,8 +46,8 @@ export function InitialHextechPicker({
                   <input
                     type="checkbox"
                     className="mt-1"
-                    checked={value[seat].includes(definition.id)}
-                    onChange={() => toggle(seat, definition.id)}
+                    checked={value[seat].includes(definition.id as HextechId)}
+                    onChange={() => toggle(seat, definition.id as HextechId)}
                   />
                   <span className="min-w-0 text-sm">
                     <span className="block font-medium">

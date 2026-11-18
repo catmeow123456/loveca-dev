@@ -1,3 +1,4 @@
+import { startDarkAcquisition } from './dark-acquire.js';
 import {
   addAction,
   emitGameEvent,
@@ -12,7 +13,8 @@ import { moveCardBetweenZones } from '../action-handlers/zone-operations.js';
 import { enqueueTriggeredCardEffects } from '../card-effect-runner.js';
 import {
   getHextechDefinition,
-  HEXTECH_RULES_VERSION,
+  hextechPoolForVersion,
+  isHextechInPool,
   HEXTECH_DEFINITIONS,
   type HextechId,
 } from '../../domain/hextech/catalog.js';
@@ -105,14 +107,20 @@ function registerHextech(
   const definition = getHextechDefinition(definitionId);
   if (
     !game.hextech ||
-    game.hextech.rulesVersion !== HEXTECH_RULES_VERSION ||
+    !isHextechInPool(definitionId, hextechPoolForVersion(game.hextech.rulesVersion)) ||
     game.rulesetId !== 'STANDARD' ||
     !game.isStarted ||
     game.isEnded ||
     !getPlayerById(game, playerId) ||
     !definition ||
     !instanceId ||
-    game.hextech.owned.some((owned) => owned.instanceId === instanceId)
+    game.hextech.owned.some(
+      (owned) =>
+        owned.instanceId === instanceId ||
+        (hextechPoolForVersion(game.hextech!.rulesVersion) === 'DARK' &&
+          owned.playerId === playerId &&
+          owned.definitionId === definitionId)
+    )
   ) {
     return { success: false, gameState: game, error: '无法取得该海克斯' };
   }
@@ -142,7 +150,11 @@ export function continueHextechAcquisitions(
   randomInt: RandomIntegerSource
 ): GameState {
   let state = game;
-  while (state.hextech?.acquisitionQueue?.length && !state.hextech.pendingSearch) {
+  while (
+    state.hextech?.acquisitionQueue?.length &&
+    !state.hextech.pendingSearch &&
+    !state.hextech.pendingAcquisition
+  ) {
     const [instanceId, ...remaining] = state.hextech.acquisitionQueue;
     const owned = state.hextech.owned.find((item) => item.instanceId === instanceId)!;
     const { playerId, definitionId } = owned;
@@ -151,6 +163,14 @@ export function continueHextechAcquisitions(
       ...state,
       hextech: { ...state.hextech, acquisitionQueue: remaining.length ? remaining : undefined },
     };
+    if (definitionId === 'dark-greed-contract')
+      state = drawCardsFromMainDeckToHand(state, playerId, 5)!.gameState;
+    if (definitionId === 'dark-rewrite-script')
+      state = startDarkAcquisition(state, instanceId, 'REWRITE_SCRIPT');
+    if (definitionId === 'dark-silent-column')
+      state = startDarkAcquisition(state, instanceId, 'COLUMN_LOCK');
+    if (definitionId === 'dark-position-mishap')
+      state = startDarkAcquisition(state, instanceId, 'POSITION_MISHAP');
     if (definition.effect.kind === 'ACQUIRE_RANDOM_HEXTECH') {
       const rarity = definition.effect.rarity;
       const pool = HEXTECH_DEFINITIONS.filter((item) => item.rarity === rarity);

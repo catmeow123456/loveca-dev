@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -84,7 +85,7 @@ export function registerPlBp8025NicoPuriJoshiDouWorkflowHandlers(): void {
     ABILITY_ID,
     STEP_ID,
     (game, input, runtime) => {
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       const targetId = input.selectedCardId;
       if (!effect || !targetId || !effect.selectableCardIds?.includes(targetId)) return game;
       const captured = effect.metadata?.targetLifecycles as

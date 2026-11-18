@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -270,7 +271,7 @@ function startLive(
   });
 }
 function revealHand(game: GameState, selectedId: string | null, next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== LIVE_START || effect.stepId !== REVEAL) return game;
   if (selectedId === null)
     return finishSkippedActiveEffect(game, next, { step: 'DECLINE_REVEAL_HAND' });
@@ -298,7 +299,7 @@ function revealHand(game: GameState, selectedId: string | null, next: Continue):
   });
 }
 function placeTop(game: GameState): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== LIVE_START || effect.stepId !== PLACE_TOP) return game;
   const selectedId = effect.metadata?.revealedHandCardId;
   if (typeof selectedId !== 'string') return game;
@@ -343,7 +344,7 @@ function placeTop(game: GameState): GameState {
   );
 }
 function chooseColor(game: GameState, color: string | null, next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== LIVE_START ||

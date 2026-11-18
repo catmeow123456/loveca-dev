@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -24,7 +25,7 @@ const ENERGY_OPTION_ID = 'energy';
 const MEMBER_RECOVERY_OPTION_ID = 'member-recovery';
 const PRINTED_OPTION_IDS = [ENERGY_OPTION_ID, MEMBER_RECOVERY_OPTION_ID] as const;
 
-type ActiveEffect = NonNullable<GameState['activeEffect']>;
+type ActiveEffect = NonNullable<ReturnType<typeof getCardActiveEffect>>;
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 export function registerNBp4030DaydreamMermaidWorkflowHandlers(): void {
@@ -147,7 +148,7 @@ function finishOptionSelection(
   selectedOptionIds: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -272,7 +273,7 @@ function finishWaitingMemberSelection(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||

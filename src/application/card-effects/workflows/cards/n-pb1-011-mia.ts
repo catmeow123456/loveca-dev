@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -143,7 +144,7 @@ function finishMiaRecovery(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==
@@ -166,10 +167,10 @@ function finishMiaRecovery(
 function resolveMiaRecovery(
   game: GameState,
   selectedCardIds: readonly string[],
-  metadata: NonNullable<GameState['activeEffect']>['metadata'] | undefined,
+  metadata: NonNullable<ReturnType<typeof getCardActiveEffect>>['metadata'] | undefined,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_N_PB1_011_ACTIVATED_STACK_ENERGY_BELOW_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID

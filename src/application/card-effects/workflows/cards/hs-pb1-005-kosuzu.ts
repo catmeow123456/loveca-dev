@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -104,7 +105,7 @@ function finishChooseNumberRevealTop(
   selectedNumber: number | null | undefined,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID ||
@@ -170,7 +171,7 @@ function finishRevealedTopResolution(
   game: GameState,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID ||

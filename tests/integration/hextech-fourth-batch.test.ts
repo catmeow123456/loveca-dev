@@ -10,8 +10,13 @@ import {
   type GameCommand,
 } from '../../src/application/game-commands';
 import { acquireHextech } from '../../src/application/hextech/acquire';
+import { openHextechSelection } from '../../src/application/hextech/selection';
 import { revealCheerCardsFromMainDeck } from '../../src/application/effects/cheer';
-import { selectCurrentLiveRevealedCheerCardIdsWithoutBladeHearts } from '../../src/application/effects/cheer-selection';
+import {
+  hasEffectiveCheerScoreBladeHeart,
+  selectCurrentLiveRevealedCheerCardIdsWithoutBladeHearts,
+} from '../../src/application/effects/cheer-selection';
+import { hasScoreBladeHeart } from '../../src/application/effects/card-selectors';
 import {
   createCardInstance,
   createHeartRequirement,
@@ -21,6 +26,7 @@ import {
 } from '../../src/domain/entities/card';
 import {
   createEmptyLiveResolutionState,
+  getCardById,
   registerCards,
   updatePlayer,
   type GameState,
@@ -52,6 +58,7 @@ import {
 const gray = { effect: BladeHeartEffect.HEART, heartColor: HeartColor.GRAY } as const;
 const red = { effect: BladeHeartEffect.HEART, heartColor: HeartColor.RED } as const;
 const score = { effect: BladeHeartEffect.SCORE } as const;
+const critical = { effect: BladeHeartEffect.CRITICAL_SCORE } as const;
 const draw = { effect: BladeHeartEffect.DRAW } as const;
 const member: MemberCardData = {
   cardCode: 'TEST-M',
@@ -231,10 +238,10 @@ describe('海克斯第四批：成长、判定替换和取得移动', () => {
       });
       expect(
         view.match.liveResult?.effectiveCheerBladeHearts[createPublicObjectId('cheer-1')]
-      ).toEqual([score, score]);
+      ).toEqual([critical]);
       expect(
         view.match.liveResult?.effectiveCheerBladeHearts[createPublicObjectId('cheer-3')]
-      ).toEqual([score, score]);
+      ).toEqual([critical]);
       expect(view.match.liveResult?.scoreModifiers.FIRST).toBe(1);
     }
     const result = judge(game);
@@ -251,11 +258,12 @@ describe('海克斯第四批：成长、判定替换和取得移动', () => {
   it('灰判不能补指定颜色，关键暴击不让空判LIVE或失败LIVE凭空得分', () => {
     let game = withCheerDeck(
       begin(['refuse-to-gamble', 'critical-hit']).state!,
-      [{ ...member, cost: 9 }, song],
+      [{ ...member, cost: 9 }, song, { ...song, bladeHearts: [score] }],
       { ...song, requirements: createHeartRequirement({ [HeartColor.BLUE]: 1 }) }
     );
-    game = revealCheerCardsFromMainDeck(game, 'p1', 2).gameState;
+    game = revealCheerCardsFromMainDeck(game, 'p1', 3).gameState;
     expect(getCheerCardEffectiveBladeHearts(game, 'p1', 'cheer-1')).toEqual([]);
+    expect(getCheerCardEffectiveBladeHearts(game, 'p1', 'cheer-2')).toEqual([critical]);
     expect(judge(game).liveResolution.playerScores.get('p1')).toBe(0);
     const hidden = {
       ...game,
@@ -265,6 +273,43 @@ describe('海克斯第四批：成长、判定替换和取得移动', () => {
       projectPlayerViewState(hidden, 'p2').objects[createPublicObjectId('cheer-0')].frontInfo
     ).toBeUndefined();
   });
+
+  it.each([
+    { printed: [draw] },
+    { printed: [red] },
+    { printed: [score] },
+    { printed: [draw, red, score] },
+  ])(
+    '关键暴击替换整组判定，不算SCORE，重复取得不叠加且恢复后仍只加2分：$printed',
+    ({ printed }) => {
+      let game = withCheerDeck(grant(begin(['critical-hit']).state!, 'critical-hit', 'duplicate'), [
+        { ...song, bladeHearts: printed },
+      ]);
+      const opponent = createCardInstance({ ...song, bladeHearts: printed }, 'p2', 'other');
+      game = registerCards(game, [opponent]);
+      const before = game.players[0].hand.cardIds.length;
+      game = revealCheerCardsFromMainDeck(game, 'p1', 1).gameState;
+      expect(game.players[0].hand.cardIds).toHaveLength(before);
+      for (const state of [game, roundTrip(game)]) {
+        expect(getCheerCardEffectiveBladeHearts(state, 'p1', 'cheer-0')).toEqual([critical]);
+        expect(hasEffectiveCheerScoreBladeHeart(state, 'p1', 'cheer-0')).toBe(false);
+        expect(selectCurrentLiveRevealedCheerCardIdsWithoutBladeHearts(state, 'p1')).toEqual([]);
+        expect(getCheerCardEffectiveBladeHearts(state, 'p2', 'other')).toEqual(printed);
+        expect(judge(state).liveResolution.playerScores.get('p1')).toBe(5);
+        // Static-zone selectors and card fronts retain the printed information.
+        expect(hasScoreBladeHeart()(getCardById(state, 'cheer-0')!)).toBe(printed.includes(score));
+        for (const playerId of ['p1', 'p2']) {
+          const view = projectPlayerViewState(state, playerId);
+          expect(view.objects[createPublicObjectId('cheer-0')].frontInfo?.bladeHearts).toEqual(
+            printed
+          );
+          expect(
+            view.match.liveResult?.effectiveCheerBladeHearts[createPublicObjectId('cheer-0')]
+          ).toEqual([critical]);
+        }
+      }
+    }
+  );
 
   it('未启用海克斯的对局与恢复视图仍投影己方颜色替换，并保留印刷判定', () => {
     let game = withCheerDeck(begin().state!, [
@@ -350,8 +395,8 @@ describe('海克斯第四批：成长、判定替换和取得移动', () => {
         expect(result.effectiveCheerBladeHearts).toMatchObject({
           'obj_cheer-0': [orange],
           'obj_cheer-1': [gray],
-          'obj_cheer-2': [score, score],
-          'obj_cheer-3': [score, score],
+          'obj_cheer-2': [critical],
+          'obj_cheer-3': [critical],
           'obj_cheer-4': [gray],
         });
         expect(result.cheerBladeHeartGrantAbilityIds).toEqual({
@@ -618,24 +663,45 @@ describe('海克斯第四批：成长、判定替换和取得移动', () => {
     'table-flip',
   ] as const)('%s 可以从真人候选中取得，并在双方确认后向双方公开', (id) => {
     const definition = HEXTECH_DEFINITIONS.find((item) => item.id === id)!;
-    const pool = HEXTECH_DEFINITIONS.filter((item) => item.rarity === definition.rarity);
+    const selectionTurn = id === 'table-flip' ? 3 : 1;
+    const pool = HEXTECH_DEFINITIONS.filter(
+      (item) =>
+        item.rarity === definition.rarity && (selectionTurn !== 1 || item.id !== 'table-flip')
+    );
     let sampling = false;
     let step = 0;
+    const randomInt = (max: number) => {
+      if (!sampling) return max - 1;
+      const call = step++;
+      if (call === 0) return ['SILVER', 'GOLD', 'PRISMATIC'].indexOf(definition.rarity);
+      if (call === 1 || call === 4) return pool.findIndex((item) => item.id === id);
+      return 0;
+    };
     const session = createGameSession({
       hextechRoundSelection: true,
-      randomInt: (max) => {
-        if (!sampling) return max - 1;
-        const call = step++;
-        if (call === 0) return ['SILVER', 'GOLD', 'PRISMATIC'].indexOf(definition.rarity);
-        if (call === 1 || call === 4) return pool.findIndex((item) => item.id === id);
-        return 0;
-      },
+      randomInt,
     });
     session.createGame(`select-${id}`, 'p1', '甲', 'p2', '乙');
     expect(session.initializeGame(deck, deck).success).toBe(true);
     execute(session, createMulliganCommand('p1', []));
-    sampling = true;
+    sampling = selectionTurn === 1;
     execute(session, createMulliganCommand('p2', []));
+    if (selectionTurn === 3) {
+      sampling = true;
+      const state = session.state!;
+      session.restoreRuntimeState({
+        authorityState: openHextechSelection(
+          {
+            ...state,
+            turnCount: selectionTurn,
+            currentPhase: GamePhase.ACTIVE_PHASE,
+            hextech: { ...state.hextech!, draft: { completedRounds: 1 } },
+          },
+          randomInt
+        ),
+        currentPublicSeq: session.getCurrentPublicEventSeq(),
+      });
+    }
     for (const playerId of ['p2', 'p1']) {
       const candidate =
         session.getPlayerViewState(playerId)!.match.hextech!.selection!.ownOffer!.candidates[0];
@@ -643,7 +709,7 @@ describe('海克斯第四批：成长、判定替换和取得移动', () => {
       execute(session, {
         type: GameCommandType.SELECT_HEXTECH,
         playerId,
-        selectionTurn: 1,
+        selectionTurn,
         slot: 0,
         expectedDefinitionId: candidate.definitionId,
         timestamp: 1,

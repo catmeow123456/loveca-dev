@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getOpponent,
@@ -165,7 +166,7 @@ function finishHsCl1004OptionSelection(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_CL1_004_ON_ENTER_MILL_THREE_OR_WAIT_OPPONENT_LOW_COST_ABILITY_ID ||
@@ -322,7 +323,7 @@ function finishHsCl1004WaitOpponentSelection(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_CL1_004_ON_ENTER_MILL_THREE_OR_WAIT_OPPONENT_LOW_COST_ABILITY_ID ||

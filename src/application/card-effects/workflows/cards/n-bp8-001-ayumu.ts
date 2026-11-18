@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isEnergyCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -193,7 +194,7 @@ function startEnter(
 }
 
 function chooseAllocation(game: GameState, option: string | null, next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ENTER || effect.stepId !== ALLOCATION) return game;
   if (option === null) return finish(game, effect, next, 'DECLINE_STACK_ENERGY');
   if (!effect.selectableOptions?.some((item) => item.id === option)) return game;
@@ -227,7 +228,7 @@ function chooseAllocation(game: GameState, option: string | null, next: Continue
 }
 
 function chooseOther(game: GameState, id: string | null, next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ENTER || effect.stepId !== OTHER || !id) return game;
   const lifecycles = effect.metadata?.targetLifecycles as
     Readonly<Record<string, string>> | undefined;
@@ -316,7 +317,7 @@ function collectPlacementEnergy(
 }
 
 function choosePlacementEnergy(game: GameState, id: string | null, next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== ENTER ||
@@ -516,7 +517,7 @@ function startReturn(
 }
 
 function chooseReturnMember(game: GameState, id: string | null, next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== SUCCESS || effect.stepId !== MEMBER) return game;
   if (id === null) return finish(game, effect, next, 'DECLINE_RETURN_ENERGY');
   if (!effect.selectableCardIds?.includes(id)) return game;
@@ -558,7 +559,7 @@ function returnOneEnergy(
   enqueue: Enqueue,
   next: Continue
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== SUCCESS || effect.stepId !== ENERGY) return game;
   if (id === null) return finish(game, effect, next, 'DECLINE_RETURN_ENERGY');
   if (!effect.selectableCardIds?.includes(id)) return game;

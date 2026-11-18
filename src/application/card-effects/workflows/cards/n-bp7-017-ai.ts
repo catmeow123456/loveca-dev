@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -90,7 +91,7 @@ function finishNBp7017Ai(
   targetCardId: string,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== N_BP7_017_ON_ENTER_PLACE_ENERGY_BELOW_NIJIGASAKI_MEMBER_ABILITY_ID ||

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -157,7 +158,7 @@ function start(
 }
 
 function finish(game: GameState, selected: readonly string[], next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== SELECT_STEP) return game;
   if (
     selected.length > 2 ||

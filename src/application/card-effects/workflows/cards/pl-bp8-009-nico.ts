@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -89,7 +90,7 @@ function start(game: GameState, playerId: string, sourceCardId: string): GameSta
 }
 
 function payAndSelect(game: GameState): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== PAY_STEP) return game;
   const payment = payImmediateEffectCosts(game, effect.controllerId, effect.sourceCardId, [
     { kind: 'TAP_ACTIVE_ENERGY', count: 2 },
@@ -131,7 +132,7 @@ function payAndSelect(game: GameState): GameState {
 }
 
 function finishSelection(game: GameState, cardId: string | null, next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== SELECT_STEP) return game;
   if (cardId === null || !isCurrentStageMemberAbilitySource(game, effect)) {
     return next(finish(game, effect, 'NO_MEMBER_STACKED'), false);

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { addAction, getCardById, getPlayerById, type GameState } from '../../../../domain/entities/game.js';
 import type { EnterStageEvent, EnterWaitingRoomEvent, LeaveStageEvent } from '../../../../domain/events/game-events.js';
@@ -134,7 +135,7 @@ function finishWorkflow(
   continuePendingCardEffects: ContinuePendingCardEffects,
   dependencies: { readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects }
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || selectedCardId === null || !effect.selectableCardIds?.includes(selectedCardId)) return game;
   const player = getPlayerById(game, effect.controllerId);
   const sourceSlot = effect.metadata?.sourceSlot;

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -44,7 +45,7 @@ export function registerNBp8021RinaWorkflowHandlers(deps: {
     ABILITY,
     DISCARD_STEP,
     (game, input, context) => {
-      const effect = game.activeEffect!;
+      const effect = getCardActiveEffect(game)!;
       const ids = input.selectedCardIds ?? (input.selectedCardId ? [input.selectedCardId] : []);
       if (ids.length === 0)
         return context.continuePendingCardEffects({ ...game, activeEffect: null }, false);
@@ -100,7 +101,7 @@ export function registerNBp8021RinaWorkflowHandlers(deps: {
     ABILITY,
     PLACE_STEP,
     (game, input, context) => {
-      const effect = game.activeEffect!;
+      const effect = getCardActiveEffect(game)!;
       const player = getPlayerById(game, effect.controllerId);
       if (!player) return game;
       const candidates = waitingLiveIds(game, player.id);

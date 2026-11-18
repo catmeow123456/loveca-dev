@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { captureIzumiReplay } from '../../../card-entrance.js';
 import {
@@ -81,7 +82,7 @@ export function registerHsBp8008IzumiWorkflowHandlers(deps: {
     ABILITY_ID,
     DISCARD,
     (game, input, context) => {
-      const effect = game.activeEffect!;
+      const effect = getCardActiveEffect(game)!;
       const selected = input.selectedCardId;
       if (selected == null)
         return finish(game, effect, context.continuePendingCardEffects, 'DECLINE');
@@ -122,7 +123,7 @@ export function registerHsBp8008IzumiWorkflowHandlers(deps: {
     ABILITY_ID,
     TARGET,
     (game, input, context) => {
-      const effect = game.activeEffect!;
+      const effect = getCardActiveEffect(game)!;
       const targets = eligibleTargets(game, effect);
       if (targets.length === 0)
         return finish(game, effect, context.continuePendingCardEffects, 'NO_TARGET');

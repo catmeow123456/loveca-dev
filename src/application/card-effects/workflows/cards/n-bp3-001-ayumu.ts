@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { addAction, getPlayerById, type GameState, type PendingAbilityState } from '../../../../domain/entities/game.js';
 import { CardType } from '../../../../shared/types/enums.js';
 import { stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers } from '../../runtime/energy-below-placement-triggers.js';
@@ -54,7 +55,7 @@ function start(game: GameState, ability: PendingAbilityState, orderedResolution:
 }
 
 function finish(game: GameState, continuePending: ContinuePending): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== PL_N_BP3_001_LIVE_START_STACK_ENERGY_DRAW_STAGE_GAIN_TWO_BLADE_ABILITY_ID || effect.stepId !== STEP_ID) return game;
   const player = getPlayerById(game, effect.controllerId);
   const sourceSlot = player ? getSourceMemberSlot(game, player.id, effect.sourceCardId) : null;
@@ -87,7 +88,7 @@ function finish(game: GameState, continuePending: ContinuePending): GameState {
 }
 
 function finishStale(game: GameState, continuePending: ContinuePending, step: string): GameState {
-  const effect = game.activeEffect!;
+  const effect = getCardActiveEffect(game)!;
   return continuePending(addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
     pendingAbilityId: effect.id, abilityId: effect.abilityId, sourceCardId: effect.sourceCardId,
     step, stackedEnergyCardIds: [], drawnCardIds: [], targetMemberCardIds: [], appliedTargetMemberCardIds: [], bladeBonusPerMember: 2,

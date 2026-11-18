@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -96,7 +97,7 @@ function finishSelection(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== SELECT_STEP_ID) return game;
   if (!sourceMatches(game, effect.controllerId, effect.sourceCardId)) {
     return finish(game, effect, 'SOURCE_NO_LONGER_CURRENT', continuePendingCardEffects);

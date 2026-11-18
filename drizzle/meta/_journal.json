@@ -351,6 +351,13 @@
       "when": 1794840525627,
       "tag": "0049_switch_sealed_to_bp8",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794844448992,
+      "tag": "0050_add_dark_hextech_pool",
+      "breakpoints": true
     }
   ]
 }

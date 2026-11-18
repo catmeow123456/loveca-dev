@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { addAction, getCardById, getPlayerById, type GameState, type PendingAbilityState } from '../../../../domain/entities/game.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { selectRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
@@ -80,7 +81,7 @@ function startSBp3002Riko(game: GameState, ability: PendingAbilityState, options
 }
 
 function finishSBp3002Riko(game: GameState, selectedOptionId: string | null, continuePendingCardEffects: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== S_BP3_002_LIVE_SUCCESS_HIGHER_SCORE_SELF_REVEALED_CHEER_TO_HAND_ABILITY_ID || effect.stepId !== SELECT_MOVE_TO_HAND_STEP_ID) return game;
   const ability = { id: effect.id, abilityId: effect.abilityId, sourceCardId: effect.sourceCardId, controllerId: effect.controllerId };
   const ordered = effect.metadata?.orderedResolution === true;

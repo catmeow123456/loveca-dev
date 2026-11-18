@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -214,7 +215,7 @@ function finishSpSd2020NatsumiLiveStart(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||

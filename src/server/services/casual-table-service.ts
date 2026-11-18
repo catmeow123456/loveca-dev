@@ -1,3 +1,4 @@
+import type { HextechPool } from '../../domain/hextech/catalog.js';
 import { casualEntrySchema } from '../../online/casual-table-schemas.js';
 import { SEALED_BP8_DECK_NAME } from '../../shared/sealed-format.js';
 import type { AnyCardData } from '../../domain/entities/card.js';
@@ -23,6 +24,7 @@ import { getPublishedCardRegistry } from './card-registry-service.js';
 import {
   casualEnvironment,
   casualFormat,
+  casualHextechPool,
   SEALED_ENVIRONMENT_ID,
 } from './casual-table-repository.js';
 import { randomInt, randomUUID } from 'node:crypto';
@@ -546,7 +548,7 @@ export class CasualTableService {
       await this.requireOwnSeat(client, table, userId);
       await this.requirePostMatch(client, table, false);
       assertRuleMode(table, input.ruleMode);
-      assertFormat(table, input.format);
+      assertFormat(table, input.format, input.hextechPool);
       const others = await client.query(
         'SELECT user_id FROM gameplay_participations WHERE casual_table_id = $1 AND user_id <> $2',
         [table.id, userId]
@@ -581,6 +583,7 @@ export class CasualTableService {
             note: '',
             ruleMode: casualRuleMode(table.environment_id),
             format: casualFormat(table.environment_id),
+            hextechPool: casualHextechPool(table.environment_id),
           },
           this.now()
         );
@@ -939,6 +942,7 @@ export class CasualTableService {
       roomCode: table.room_code,
       ruleMode: casualRuleMode(table.environment_id),
       format: casualFormat(table.environment_id),
+      hextechPool: casualHextechPool(table.environment_id),
       note: table.note,
       status:
         view?.status ??
@@ -997,7 +1001,8 @@ export class CasualTableService {
         input.requestId,
         find,
         input.ruleMode,
-        input.format
+        input.format,
+        input.hextechPool
       );
     });
     if (existing) return existing;
@@ -1015,7 +1020,8 @@ export class CasualTableService {
         input.requestId,
         find,
         input.ruleMode,
-        input.format
+        input.format,
+        input.hextechPool
       );
       if (retry) return retry;
       let table: CasualTableRow | null = null;
@@ -1023,7 +1029,7 @@ export class CasualTableService {
         const candidates = await client.query<CasualTableRow>(
           `SELECT * FROM casual_tables WHERE environment_id = $1 AND state = 'WAITING'
              AND discoverability = 'PUBLIC' ORDER BY waiting_since, id FOR UPDATE`,
-          [casualEnvironment(input.ruleMode, input.format)]
+          [casualEnvironment(input.ruleMode, input.format, input.hextechPool)]
         );
         table = candidates.rows[0] ?? null;
       }
@@ -1067,7 +1073,7 @@ export class CasualTableService {
       await this.sweep(client, initialRules, initialLifecycle);
       const table = await this.requireTable(client, target);
       assertRuleMode(table, input.ruleMode);
-      assertFormat(table, input.format);
+      assertFormat(table, input.format, input.hextechPool);
       const seats = await readCasualSeats(client, table.id);
       return seats.some((seat) => seat.user_id === userId) && table.state !== 'WAITING'
         ? this.project(client, table, userId)
@@ -1084,7 +1090,7 @@ export class CasualTableService {
       await this.sweep(client, rules, lifecycle);
       const table = await this.requireTable(client, target);
       assertRuleMode(table, input.ruleMode);
-      assertFormat(table, input.format);
+      assertFormat(table, input.format, input.hextechPool);
       const seats = await readCasualSeats(client, table.id);
       if (seats.some((seat) => seat.user_id === userId) && table.state !== 'WAITING') {
         return this.project(client, table, userId);
@@ -1133,7 +1139,7 @@ export class CasualTableService {
       assertRevision(from, source);
       assertRevision(to, destination);
       assertRuleMode(to, input.ruleMode);
-      assertFormat(to, input.format);
+      assertFormat(to, input.format, input.hextechPool);
       const seats = await readCasualSeats(client, from.id);
       const participation = await readCasualParticipation(client, userId);
       if (
@@ -1403,6 +1409,7 @@ export class CasualTableService {
           roomCode: table.room_code,
           ruleMode: casualRuleMode(table.environment_id),
           format: casualFormat(table.environment_id),
+          hextechPool: casualHextechPool(table.environment_id),
           originKind: seats[1].continue_public ? 'PUBLIC_TABLE' : 'ONLINE_ROOM',
           openingExpiresAt: this.now() + PUBLIC_TABLE_OPENING_TTL_MS,
           members: [runtimeMember(seats[0]), runtimeMember(seats[1])],
@@ -1453,14 +1460,15 @@ export class CasualTableService {
     requestId: string,
     find: boolean,
     ruleMode: CasualRuleMode,
-    format: CasualFormat
+    format: CasualFormat,
+    hextechPool?: HextechPool
   ): Promise<CasualTableOwnView | null> {
     const participation = await readCasualParticipation(client, userId);
     if (participation?.casual_table_id) {
       const table = await readCasualTable(client, participation.casual_table_id);
       if (table && table.state !== 'CLOSED' && (find || table.creation_key === requestId)) {
         assertRuleMode(table, ruleMode);
-        assertFormat(table, format);
+        assertFormat(table, format, hextechPool);
         return this.project(client, table, userId);
       }
     }
@@ -1511,7 +1519,7 @@ export class CasualTableService {
     userId: string,
     input: Pick<
       CreateCasualTableInput,
-      'requestId' | 'discoverability' | 'note' | 'ruleMode' | 'roomCode' | 'format'
+      'requestId' | 'discoverability' | 'note' | 'ruleMode' | 'roomCode' | 'format' | 'hextechPool'
     >,
     waitingSince: number
   ): Promise<CasualTableRow> {
@@ -1548,7 +1556,7 @@ export class CasualTableService {
       room_code: roomCode,
       discoverability: input.discoverability,
       note: input.note,
-      environment_id: casualEnvironment(input.ruleMode, input.format),
+      environment_id: casualEnvironment(input.ruleMode, input.format, input.hextechPool),
       state: 'WAITING',
       round_id: randomUUID(),
       revision: 1,
@@ -1769,6 +1777,7 @@ export class CasualTableService {
           requestId: randomUUID(),
           ruleMode: casualRuleMode(table.environment_id),
           format: casualFormat(table.environment_id),
+          hextechPool: casualHextechPool(table.environment_id),
           discoverability: 'PUBLIC',
           note: '',
         },
@@ -1910,6 +1919,7 @@ export class CasualTableService {
       roomCode: table.room_code,
       ruleMode: casualRuleMode(table.environment_id),
       format: casualFormat(table.environment_id),
+      hextechPool: casualHextechPool(table.environment_id),
       discoverability: table.discoverability,
       note: table.note,
       state: table.state,
@@ -2083,8 +2093,15 @@ function compareLobbyKeys(a: [number, number, string], b: [number, number, strin
   return a[0] - b[0] || a[1] - b[1] || a[2].localeCompare(b[2]);
 }
 
-function assertFormat(table: CasualTableRow, format: CasualFormat): void {
-  if (casualFormat(table.environment_id) !== format)
+function assertFormat(
+  table: CasualTableRow,
+  format: CasualFormat,
+  hextechPool: HextechPool = 'NORMAL'
+): void {
+  if (
+    casualFormat(table.environment_id) !== format ||
+    (format === 'HEXTECH' && casualHextechPool(table.environment_id) !== hextechPool)
+  )
     throw new CasualTableServiceError('CASUAL_FORMAT_MISMATCH', '房间玩法已变化，请按实际玩法加入');
 }
 function readSealedSnapshot(seat: CasualSeatRow): { poolId: string; pool: SealedPool } {

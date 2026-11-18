@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   type ActiveEffectState,
@@ -112,7 +113,7 @@ function start(
 }
 
 function finish(game: GameState, selected: readonly string[], next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== SELECT_STEP) return game;
   if (selected.length === 0) return finishWithoutPayment(game, effect, 'DECLINED', next);
   if (

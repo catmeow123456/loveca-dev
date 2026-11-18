@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { addAction, getCardById, getPlayerById, type GameState, type PendingAbilityState } from '../../../../domain/entities/game.js';
 import { and, costLte, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { CardType } from '../../../../shared/types/enums.js';
@@ -51,7 +52,7 @@ function start(game: GameState, ability: PendingAbilityState, orderedResolution:
 }
 
 function selectTarget(game: GameState, cardId: string | null, continuePending: ContinuePending, delegate: Parameters<typeof delegateWaitingRoomMemberOnEnterAbility>[2]): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== SELECT_TARGET || !cardId || !effect.selectableCardIds?.includes(cardId)) return game;
   const target = getWaitingRoomOnEnterTarget(game, effect.controllerId, cardId);
   if (!target) return finishStale(game, continuePending);
@@ -63,7 +64,7 @@ function selectTarget(game: GameState, cardId: string | null, continuePending: C
 }
 
 function selectAbility(game: GameState, abilityId: string | null, continuePending: ContinuePending, delegate: Parameters<typeof delegateWaitingRoomMemberOnEnterAbility>[2]): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const cardId = typeof effect?.metadata?.delegatedTargetCardId === 'string' ? effect.metadata.delegatedTargetCardId : null;
   if (!effect || effect.stepId !== SELECT_ABILITY || !cardId || !abilityId) return game;
   const target = getWaitingRoomOnEnterTarget(game, effect.controllerId, cardId);
@@ -71,13 +72,13 @@ function selectAbility(game: GameState, abilityId: string | null, continuePendin
   return delegateWaitingRoomMemberOnEnterAbility(game, delegationParams(effect, cardId, abilityId), delegate);
 }
 
-function delegationParams(effect: NonNullable<GameState['activeEffect']>, cardId: string, abilityId: string) {
+function delegationParams(effect: NonNullable<ReturnType<typeof getCardActiveEffect>>, cardId: string, abilityId: string) {
   return { controllerId: effect.controllerId, parentAbilityId: effect.abilityId, parentSourceCardId: effect.sourceCardId, parentEffectId: effect.id,
     targetCardId: cardId, delegatedAbilityId: abilityId, orderedResolution: effect.metadata?.orderedResolution === true };
 }
 
 function finishStale(game: GameState, continuePending: ContinuePending): GameState {
-  const effect = game.activeEffect!;
+  const effect = getCardActiveEffect(game)!;
   return continuePending(addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, { abilityId: effect.abilityId, sourceCardId: effect.sourceCardId, step: 'WAITING_MEMBER_OR_ABILITY_NOT_AVAILABLE' }), effect.metadata?.orderedResolution === true);
 }
 

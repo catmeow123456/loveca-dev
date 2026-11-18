@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../domain/entities/game.js';
 import type {
   ActiveEffectState,
   GameState,
@@ -98,7 +99,8 @@ export function registerActiveEffectStepHandler(
 }
 
 export function queryActiveEffectSelection(game: GameState) {
-  const effect = game.activeEffect;
+  if (game.activeEffect?.sourceCardId === undefined && game.activeEffect) return queryCardSelection(game);
+  const effect = getCardActiveEffect(game);
   // This shared pre-step owns an exact-count energy selection, independent of the
   // original workflow. Its resolver still rechecks the selected energy before resuming.
   if (effect?.stepId === ENERGY_OPERATION_SELECTION_STEP_ID) return queryCardSelection(game);
@@ -114,7 +116,7 @@ export function resolveActiveEffectStepWithRegistry(
   input: ActiveEffectStepHandlerInput,
   context: ActiveEffectStepHandlerContext
 ): GameState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) return null;
   if (effect.stepId === ENERGY_OPERATION_SELECTION_STEP_ID) {
     return resolveEnergyOperationSelectionStep(

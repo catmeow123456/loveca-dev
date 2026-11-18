@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
@@ -391,7 +392,7 @@ function startInspectionAfterWaitDiscardCost(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== config.abilityId ||

@@ -4,7 +4,7 @@ import { ActionButton, Disclosure } from '@/components/common';
 import { HextechPool } from '@/components/hextech/HextechPool';
 import { HextechEmblem } from '@/components/hextech/HextechEmblem';
 import type { MatchViewState } from '@game/online/types';
-import { HEXTECH_RARITY_LABELS } from '@game/domain/hextech/catalog';
+import { HEXTECH_RARITY_LABELS, hextechPoolForVersion } from '@game/domain/hextech/catalog';
 import './hextech-summary.css';
 
 export function HextechSummary({
@@ -27,7 +27,7 @@ export function HextechSummary({
         summary={
           <>
             <HextechEmblem />
-            <span>海克斯</span>
+            <span>{hextechPoolForVersion(match.hextech.rulesVersion) === 'DARK' ? '黑暗海克斯' : '海克斯'}</span>
             {canActivate && (
               <span className="hextech-summary-ready" role="img" aria-label="有可发动的海克斯">
                 <Zap size={14} aria-hidden="true" />
@@ -70,6 +70,8 @@ export function HextechSummary({
                           {HEXTECH_RARITY_LABELS[item.rarity]} · {item.name}
                         </div>
                         <p className="text-[var(--text-secondary)]">{item.rulesText}</p>
+                        {item.statusText && <p className="text-[var(--text-secondary)]">{item.statusText}</p>}
+                        {item.usage && <p>{item.usage.limit === 'MATCH' ? '本局' : '本回合'}{item.usage.used ? '已使用' : '未使用'}{item.usage.sharedTimings ? ' · 双时点共享次数' : ''}</p>}
                         {onActivate &&
                           match.hextech?.abilities?.some(
                             (ability) => ability.instanceId === item.instanceId
@@ -93,7 +95,7 @@ export function HextechSummary({
           })}
         </div>
       </Disclosure>
-      {poolOpen && <HextechPool onClose={() => setPoolOpen(false)} returnFocusRef={summaryRef} />}
+      {poolOpen && <HextechPool initialPool={hextechPoolForVersion(match.hextech.rulesVersion)} onClose={() => setPoolOpen(false)} returnFocusRef={summaryRef} />}
     </>
   );
 }

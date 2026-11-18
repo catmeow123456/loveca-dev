@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -115,7 +116,7 @@ function startOpponentChoiceStep(
   game: GameState,
   selectedCardIds: readonly string[] | undefined
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==
@@ -179,7 +180,7 @@ function finishOpponentChoiceRecovery(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==

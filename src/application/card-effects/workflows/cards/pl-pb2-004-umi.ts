@@ -6,7 +6,8 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { revealCheerCardsFromMainDeck } from '../../../effects/cheer.js';
-import { and, groupAliasIs, hasScoreBladeHeart } from '../../../effects/card-selectors.js';
+import { groupAliasIs } from '../../../effects/card-selectors.js';
+import { hasEffectiveCheerScoreBladeHeart } from '../../../effects/cheer-selection.js';
 import { PL_PB2_004_AUTO_ON_CHEER_MUSE_SCORE_ADDITIONAL_CHEER_ABILITY_ID } from '../../ability-ids.js';
 import { getLatestOwnNormalCheerEventByIds } from '../../runtime/cheer-events.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
@@ -23,7 +24,6 @@ import {
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 const MUSE = "μ's";
-const scoreMuseCard = and(groupAliasIs(MUSE), hasScoreBladeHeart());
 
 export function registerPlPb2004UmiWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
@@ -72,7 +72,12 @@ function resolvePlPb2004UmiOnCheer(
 
   const matchingCardIds = cheerEvent.revealedCardIds.filter((cardId) => {
     const card = getCardById(game, cardId);
-    return card !== null && card.ownerId === player.id && scoreMuseCard(card);
+    return (
+      card !== null &&
+      card.ownerId === player.id &&
+      groupAliasIs(MUSE)(card) &&
+      hasEffectiveCheerScoreBladeHeart(game, player.id, cardId)
+    );
   });
   const additionalCheerCount = matchingCardIds.length;
   const resultText =

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   calculateTotalHearts,
   isMemberCardData,
@@ -198,7 +199,7 @@ function finishSelection(
   continuePendingCardEffects: ContinuePendingCardEffects,
   config: Config
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.stepId)
     return game;
   const player = getPlayerById(game, effect.controllerId);

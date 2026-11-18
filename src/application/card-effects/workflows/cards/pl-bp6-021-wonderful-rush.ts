@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import type { LiveModifierState } from '../../../../domain/entities/game.js';
 import {
   addAction,
@@ -126,7 +127,7 @@ function finishWonderfulRushMemberCost(
   continuePendingCardEffects: ContinuePendingCardEffects,
   deps: { readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForLeaveStage }
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== BP6_021_LIVE_SUCCESS_SEND_MUSE_MEMBER_SCORE_RECOVER_MUSE_LIVE_ABILITY_ID ||

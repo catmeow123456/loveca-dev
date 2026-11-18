@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
 import { queryConfirmSelection, queryCardSelection } from '../../runtime/selection-query.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
@@ -162,7 +163,7 @@ function revealHsBp5KahoActivatedHandLive(
   game: GameState,
   selectedHandLiveCardId: string | null
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID ||
@@ -204,7 +205,7 @@ function revealHsBp5KahoActivatedHandLive(
 }
 
 function startHsBp5KahoActivatedSelectSameNameLive(game: GameState): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID ||

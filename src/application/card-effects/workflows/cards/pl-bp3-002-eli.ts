@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -134,7 +135,7 @@ function finishEliDiscardCost(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -222,7 +223,7 @@ function finishEliWaitOpponentMembers(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const opponent = player ? getOpponent(game, player.id) : null;
   if (

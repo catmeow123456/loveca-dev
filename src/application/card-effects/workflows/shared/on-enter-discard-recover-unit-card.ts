@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
 import {
   addAction,
@@ -220,7 +221,7 @@ function finishDiscardForUnitRecovery(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const waived =
     config.hasPrintedActivationCost === true && !!effect && isAbilityActivationCostWaived(effect);
@@ -331,7 +332,7 @@ function finishActiveEffect(
   continuePendingCardEffects: ContinuePendingCardEffects,
   payload: Readonly<Record<string, unknown>>
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (!effect || !player) {
     return game;

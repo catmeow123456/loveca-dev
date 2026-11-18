@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData, type CardInstance } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -211,7 +212,7 @@ function finishStageFormationChangeWorkflow(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberSlotMoved
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }

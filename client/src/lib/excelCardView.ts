@@ -80,9 +80,11 @@ export function formatTextJudgment(
   const hearts = new Map<HeartColor, number>();
   let draw = 0;
   let score = 0;
+  let criticalScore = 0;
   for (const marker of markers ?? []) {
     if (marker.effect === BladeHeartEffect.DRAW) draw += 1;
     if (marker.effect === BladeHeartEffect.SCORE) score += 1;
+    if (marker.effect === BladeHeartEffect.CRITICAL_SCORE) criticalScore += 2;
     if (marker.effect === BladeHeartEffect.HEART && marker.heartColor) {
       const color = replacement?.fromColors.includes(marker.heartColor)
         ? replacement.toColor
@@ -97,6 +99,7 @@ export function formatTextJudgment(
       ),
       ...(draw ? [`抽卡 +${draw}`] : []),
       ...(score ? [`分数 +${score}`] : []),
+      ...(criticalScore ? [`分数 +${criticalScore}（非 SCORE）`] : []),
     ].join('、') || '—'
   );
 }

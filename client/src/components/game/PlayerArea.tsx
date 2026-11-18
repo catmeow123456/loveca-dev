@@ -108,6 +108,7 @@ import {
   OrientationState,
   HeartColor,
   ZoneType,
+  GamePhase,
   SubPhase,
 } from '@game/shared/types/enums';
 import type { Seat } from '@game/online';
@@ -772,7 +773,7 @@ export const PlayerArea = memo(function PlayerArea({
       canMoveInspectedToBottom ||
       canReorderInspectedCard);
   const visibleActiveEffect = suppressActiveEffectVisuals ? null : activeEffect;
-  const activeEffectSourceCardId = visibleActiveEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
+  const activeEffectSourceCardId = visibleActiveEffect?.sourceObjectId?.replace(/^obj_/, '') ?? null;
   const activeEffectSelectableCardIdSet = new Set(
     visibleActiveEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? []
   );
@@ -1325,7 +1326,7 @@ export const PlayerArea = memo(function PlayerArea({
             activeClassName="ring-2 ring-rose-500 bg-rose-500/20 border-rose-500"
             title={
               selectedSlotAction?.target.label ??
-              (cardViewObject?.activatedAbilityProhibition === 'SERAS_LOW_COST'
+              (cardViewObject?.abilitiesSuppressed ? '全部能力无效；保留基础心、棒及其他来源已施加的效果' : cardViewObject?.activatedAbilityProhibition === 'SERAS_LOW_COST'
                 ? SERAS_LOCK_DESCRIPTION
                 : cardViewObject?.opponentWaitProtection === 'IZUMI_EDELNOTE'
                   ? IZUMI_PROTECTION_DESCRIPTION
@@ -1366,6 +1367,7 @@ export const PlayerArea = memo(function PlayerArea({
                     limitedActivatedHighlight={limitedActivatedHighlight}
                     faceOverlay={
                       <>
+                        {cardViewObject?.abilitiesSuppressed && <span className="pointer-events-none absolute bottom-0 left-0 right-0 rounded bg-black/85 text-center text-[10px] text-rose-200">能力无效</span>}
                         <SerasLockSeal
                           objectId={cardViewObject?.publicObjectId ?? null}
                           prohibition={cardViewObject?.activatedAbilityProhibition}
@@ -2301,6 +2303,29 @@ export const PlayerArea = memo(function PlayerArea({
 
   // 桌面空槽保留成员列宽，LIVE 实卡在槽位中保持横牌比例并居中。
   const renderLiveSlot = (slotIndex: number) => {
+    const restriction = matchView?.hextech?.restrictions?.find((entry) => entry.seat === playerSeat);
+    const locked = restriction?.lockedColumns.includes(
+      [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT][slotIndex]
+    );
+    // 表演后歌曲可能因成员清理而左移；盖牌位提示不能标在当前实卡位置上。
+    const showPlacementHints =
+      currentPhase !== GamePhase.PERFORMANCE_PHASE && currentPhase !== GamePhase.LIVE_RESULT_PHASE;
+    const firstMuted = showPlacementHints && slotIndex === 0 && restriction?.firstLiveSlotMuted;
+    const grayIncrease = showPlacementHints
+      ? (restriction?.liveSlotGrayRequirementIncreases[slotIndex] ?? 0)
+      : 0;
+    const restrictionLabels = [
+      locked ? '纵列效果无效' : '',
+      firstMuted ? '首格封麦' : '',
+      grayIncrease > 0 ? `灰心+${grayIncrease}` : '',
+    ].filter(Boolean);
+    const restrictionDetails = [
+      locked ? '此纵列上的成员和 LIVE 能力无效；封锁来源离场即解除' : '',
+      firstMuted ? '按翻牌前盖牌顺序封锁第1格 LIVE；首格成员时落空' : '',
+      grayIncrease > 0
+        ? `原第${slotIndex + 1}格 LIVE 灰心需求+${grayIncrease}；成员牌清理后不顺延`
+        : '',
+    ].filter(Boolean);
     const cardId = liveCardIds[slotIndex];
     return (
       <div
@@ -2308,7 +2333,7 @@ export const PlayerArea = memo(function PlayerArea({
         data-battle-live-slot={slotIndex}
         className={cn(
           'h-[var(--battle-live-slot-height)] w-[var(--battle-live-width)] shrink-0 md:w-[var(--battle-stage-column-width,140px)]',
-          'battle-card-slot flex items-center justify-center',
+          'battle-card-slot relative flex items-center justify-center',
           'border border-dashed',
           cardId
             ? 'border-transparent bg-transparent'
@@ -2317,6 +2342,14 @@ export const PlayerArea = memo(function PlayerArea({
               : 'border-slate-600/30 bg-slate-800/30'
         )}
       >
+        {restrictionLabels.length > 0 && (
+          <span
+            className="pointer-events-none absolute -top-4 left-0 z-10 rounded bg-slate-950/85 px-1 py-0.5 text-[10px] leading-none text-rose-100"
+            title={restrictionDetails.join('；')}
+          >
+            {restrictionLabels.join(' · ')}
+          </span>
+        )}
         {cardId ? (
           renderLiveCard(cardId)
         ) : (

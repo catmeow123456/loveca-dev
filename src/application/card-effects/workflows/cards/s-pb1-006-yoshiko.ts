@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -288,7 +289,7 @@ function getPlayerHandLiveCardIds(game: GameState, playerId: string): readonly s
 }
 
 function getYoshikoActiveEffect(game: GameState, stepId: string): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== stepId) {
     return null;
   }

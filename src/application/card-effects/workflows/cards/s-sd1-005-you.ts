@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData, type CardInstance } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -143,7 +144,7 @@ function finishSSd1005DiscardCost(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -238,7 +239,7 @@ function finishSSd1005DiscardCost(
 
 function finishActiveEffect(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   continuePendingCardEffects: ContinuePendingCardEffects,
   payload: Readonly<Record<string, unknown>>
 ): GameState {

@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const casualEntrySchema = z
   .object({
     format: z.enum(['CONSTRUCTED', 'SEALED_BP8', 'HEXTECH']),
+    hextechPool: z.enum(['NORMAL', 'DARK']).optional(),
     ruleMode: z.enum(['NORMAL', 'UNLIMITED']),
     requestId: z.uuid(),
     deckId: z.uuid().optional(),
@@ -11,7 +12,8 @@ export const casualEntrySchema = z
   .superRefine((entry, ctx) => {
     if (
       (entry.format === 'SEALED_BP8' ? entry.deckId !== undefined : !entry.deckId) ||
-      (entry.format !== 'CONSTRUCTED' && entry.ruleMode !== 'UNLIMITED')
+      (entry.format !== 'CONSTRUCTED' && entry.ruleMode !== 'UNLIMITED') ||
+      (entry.hextechPool !== undefined && entry.format !== 'HEXTECH')
     ) {
       ctx.addIssue({
         code: 'custom',

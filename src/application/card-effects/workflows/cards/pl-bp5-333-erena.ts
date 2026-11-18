@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getOpponent,
@@ -121,7 +122,7 @@ function finishErenaDecline(
   game: GameState,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_BP5_333_ON_ENTER_WAIT_SELF_WAIT_OPPONENT_LOW_COST_ABILITY_ID ||
@@ -145,7 +146,7 @@ function finishErenaPaySelfWait(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_BP5_333_ON_ENTER_WAIT_SELF_WAIT_OPPONENT_LOW_COST_ABILITY_ID ||
@@ -249,7 +250,7 @@ function finishErenaWaitOpponentMember(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_BP5_333_ON_ENTER_WAIT_SELF_WAIT_OPPONENT_LOW_COST_ABILITY_ID ||
@@ -360,7 +361,7 @@ function finishErenaPendingNoop(
 
 function finishErenaActiveNoop(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   payload: Record<string, unknown>,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {

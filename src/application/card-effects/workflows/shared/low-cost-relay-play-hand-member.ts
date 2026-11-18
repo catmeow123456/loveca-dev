@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -175,7 +176,7 @@ function finishHandMemberSelection(
   selectedCardId: string | null | undefined,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== SELECT_HAND_MEMBER_STEP_ID) {
     return game;
   }
@@ -279,7 +280,7 @@ function finishPlayHandMemberToSlot(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== SELECT_EMPTY_SLOT_STEP_ID || selectedSlot === null) {
     return game;
   }
@@ -369,7 +370,7 @@ function finishPlayHandMemberToSlot(
 
 function refreshHandSelectionOrFinish(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   selectableCardIds: readonly string[],
   emptySlots: readonly SlotPosition[],
@@ -419,7 +420,7 @@ function refreshHandSelectionOrFinish(
 
 function refreshSlotSelectionOrFinish(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   emptySlots: readonly SlotPosition[],
   continuePendingCardEffects: ContinuePendingCardEffects,
@@ -460,7 +461,7 @@ function refreshSlotSelectionOrFinish(
 
 function finishActiveEffectNoOp(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   continuePendingCardEffects: ContinuePendingCardEffects,
   step: string,

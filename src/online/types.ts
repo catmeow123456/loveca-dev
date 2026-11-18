@@ -1,5 +1,5 @@
 import type { BattleRulesetId } from '../domain/rules/battle-ruleset.js';
-import type { HEXTECH_RULES_VERSION, HextechId, HextechRarity } from '../domain/hextech/catalog.js';
+import type { HextechRulesVersion, HextechId, HextechRarity } from '../domain/hextech/catalog.js';
 import {
   BladeHeartEffect,
   CardType,
@@ -127,6 +127,12 @@ export interface HextechChoiceCard {
   readonly zone: string;
 }
 export interface HextechViewState {
+  readonly restrictions?: readonly {
+    readonly seat: Seat;
+    readonly lockedColumns: readonly SlotPosition[];
+    readonly firstLiveSlotMuted: boolean;
+    readonly liveSlotGrayRequirementIncreases: readonly number[];
+  }[];
   readonly abilities?: readonly {
     readonly instanceId: string;
     readonly selectionLabel: string;
@@ -140,7 +146,7 @@ export interface HextechViewState {
     readonly requiredCount?: number;
     readonly candidates?: readonly HextechChoiceCard[];
   };
-  readonly rulesVersion: typeof HEXTECH_RULES_VERSION;
+  readonly rulesVersion: HextechRulesVersion;
   readonly selection?: {
     readonly turn: number;
     readonly rarity: HextechRarity;
@@ -163,6 +169,12 @@ export interface HextechViewState {
     readonly rarity: HextechRarity;
     readonly rulesText: string;
     readonly acquiredTurn: number;
+    readonly statusText?: string;
+    readonly usage?: {
+      readonly limit: 'TURN' | 'MATCH';
+      readonly used: boolean;
+      readonly sharedTimings: boolean;
+    };
   }[];
 }
 
@@ -383,6 +395,7 @@ export interface ViewFrontCardInfo {
 }
 
 export interface ViewCardObject {
+  readonly abilitiesSuppressed?: boolean;
   readonly publicObjectId: string;
   readonly ownerSeat: Seat;
   readonly controllerSeat: Seat;
@@ -404,7 +417,7 @@ export interface ViewCardObject {
   /** Current printed HEART replacement from Shizuku; derived, never persisted separately. */
   readonly hasTemporaryHeartRole?: boolean;
   /** Public prohibition of a possessed native/granted stage activated ability. */
-  readonly activatedAbilityProhibition?: 'SERAS_LOW_COST';
+  readonly activatedAbilityProhibition?: 'SERAS_LOW_COST' | 'DARK_HEXTECH';
   /** Public, derived self-protection from opponent WAITING effects; not general immunity. */
   readonly opponentWaitProtection?: 'IZUMI_EDELNOTE';
   /** Conditional +1 relay reduction into μ’s, derived from own stage and WAITING state. */
@@ -470,7 +483,8 @@ export interface PlayerViewState {
 export interface ActiveEffectViewState {
   readonly id: string;
   readonly abilityId: string;
-  readonly sourceObjectId: string;
+  readonly sourceObjectId?: string;
+  readonly sourceHextechInstanceId?: string;
   /** 来源曾公开时由服务端保留的展示编号；不改变来源对象当前牌区的可见性。 */
   readonly sourceCardDisplayCode?: string;
   readonly controllerSeat: Seat | null;

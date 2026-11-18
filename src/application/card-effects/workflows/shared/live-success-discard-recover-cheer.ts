@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   isLiveCardData,
   isMemberCardData,
@@ -214,7 +215,7 @@ function finishDiscardCost(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== config.abilityId ||
@@ -314,7 +315,7 @@ function finishRecoverRevealedCheer(
   config: DiscardRecoverCheerConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== config.abilityId ||
@@ -381,7 +382,7 @@ function finishRecoverRevealedCheer(
 
 function getRecoveryPredicate(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   config: DiscardRecoverCheerConfig
 ): CardSelector | null {
   if (!config.sourceBladeThreshold) return config.recoveryPredicate;

@@ -41,6 +41,12 @@ test('娱乐模式海克斯标签预选建房玩法并使用自选卡组', async
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('region', { name: '海克斯玩法' })).toBeVisible();
   await expect(dialog.getByText(/第 1／3／5 回合开始时/)).toBeVisible();
+  await expect(dialog.getByRole('region', { name: '海克斯玩法' })).toContainText(
+    '银／金／彩各1/3'
+  );
+  await expect(dialog.getByRole('region', { name: '海克斯玩法' })).toContainText(
+    '首轮初始候选和重抽不出现「掀桌」，第3、5回合恢复入池'
+  );
   const formats = dialog.getByRole('group', { name: '娱乐玩法' });
   await formats.getByRole('button', { name: '自由构筑', exact: true }).click();
   await expect(dialog.getByRole('region', { name: '海克斯玩法' })).toHaveCount(0);
@@ -50,10 +56,18 @@ test('娱乐模式海克斯标签预选建房玩法并使用自选卡组', async
     expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   }
   await page.screenshot({ path: info.outputPath('hextech-create-dialog.png'), fullPage: true });
+  await dialog.getByRole('button', { name: '黑暗池 · 24 项', exact: true }).click();
+  const darkRules = dialog.getByRole('region', { name: '海克斯玩法' });
+  await expect(darkRules).toContainText('第1回合55%／35%／10%');
+  await expect(darkRules).toContainText('第3回合25%／50%／25%');
+  await expect(darkRules).toContainText('第5回合各1/3');
+  await expect(darkRules).toContainText('至少1项干扰和1项双刃剑');
+  await expect(darkRules).toContainText('首轮不出现「站位事故」「突然断电」');
   await dialog.getByRole('button', { name: '创建海克斯房间', exact: true }).click();
   expect(writes).toEqual([
     expect.objectContaining({
       format: 'HEXTECH',
+      hextechPool: 'DARK',
       ruleMode: 'UNLIMITED',
       deckId: expect.any(String),
     }),
@@ -62,7 +76,7 @@ test('娱乐模式海克斯标签预选建房玩法并使用自选卡组', async
 
 // Real OnlineMatchService and shared OnlineRoomPage/GameBoard; only HTTP and persistence
 // are isolated. No account decks, active local rooms or production APIs are changed.
-test('双方真人桌面自动显示稀有度、独立重抽和确认，支持后攻先确认及重连', async ({
+for (const pool of ['NORMAL', 'DARK'] as const) test(`${pool}池双方真人桌面独立重抽和确认，支持后攻先确认及重连`, async ({
   page,
   browser,
 }, info) => {
@@ -101,6 +115,7 @@ test('双方真人桌面自动显示稀有度、独立重抽和确认，支持�
   const match = await service.createMatch({
     roomCode: 'HEX123',
     hextechRoundSelection: true,
+    hextechPool: pool,
     casualRuleMode: 'UNLIMITED',
     first: participant('first-user', '先攻玩家'),
     second: participant('second-user', '后攻玩家'),
@@ -121,7 +136,7 @@ test('双方真人桌面自动显示稀有度、独立重抽和确认，支持�
     const seat = index === 0 ? 'FIRST' : 'SECOND';
     const userId = index === 0 ? 'first-user' : 'second-user';
     const room: OnlineRoomView = {
-      casualTable: { format: 'HEXTECH', ruleMode: 'UNLIMITED', tableId: 'table', roundId: 'round' },
+      casualTable: { hextechPool: pool, format: 'HEXTECH', ruleMode: 'UNLIMITED', tableId: 'table', roundId: 'round' },
       roomCode: 'HEX123',
       originKind: 'ONLINE_ROOM',
       status: 'IN_GAME',
@@ -228,6 +243,17 @@ test('双方真人桌面自动显示稀有度、独立重抽和确认，支持�
   const beforeRules = match.session.getCurrentPublicEventSeq();
   await firstDialog.getByRole('button', { name: '海克斯选择规则', exact: true }).click();
   await expect(rules).toBeVisible();
+  if (pool === 'DARK') {
+    await expect(rules).toContainText('第1回合55%／35%／10%');
+    await expect(rules).toContainText('第3回合25%／50%／25%');
+    await expect(rules).toContainText('第5回合各1/3');
+    await expect(rules).toContainText('各轮独立抽取，可连续出彩');
+    await expect(rules).toContainText('至少1项干扰和1项双刃剑');
+    await expect(rules).toContainText('首轮不出现「站位事故」「突然断电」');
+  } else {
+    await expect(rules).toContainText('银／金／彩各1/3');
+    await expect(rules).toContainText('首轮初始候选和重抽不出现「掀桌」，第3、5回合恢复入池');
+  }
   await firstDialog.getByRole('button', { name: '海克斯选择规则', exact: true }).click();
   await expect(rules).toHaveCount(0);
   expect(match.session.getCurrentPublicEventSeq()).toBe(beforeRules);
@@ -285,7 +311,7 @@ test('双方真人桌面自动显示稀有度、独立重抽和确认，支持�
   expect(match.session.state!.hextech!.owned).toHaveLength(2);
   await page
     .locator('summary')
-    .filter({ hasText: /^海克斯$/ })
+    .filter({ hasText: pool === 'DARK' ? /^黑暗海克斯$/ : /^海克斯$/ })
     .click();
   for (const { playerId, candidate } of chosen) {
     expect(

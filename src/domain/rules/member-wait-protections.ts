@@ -1,3 +1,4 @@
+import { isCardAbilitySuppressedByDarkHextech } from '../hextech/suppression.js';
 import { isMemberCardData } from '../entities/card.js';
 import {
   getCardById,
@@ -38,6 +39,7 @@ export function hasIzumiOpponentWaitProtection(
   const card = getCardById(game, memberCardId);
   return !!(
     player &&
+    !isCardAbilitySuppressedByDarkHextech(game, memberCardId) &&
     card?.ownerId === playerId &&
     isMemberCardData(card.data) &&
     cardCodeMatchesBase(card.data.cardCode, 'PL!HS-bp8-008') &&
@@ -59,7 +61,10 @@ export function isMemberWaitProtectedFromChange(
   memberCardId: string,
   cause: MemberStateChangeCause | undefined
 ): boolean {
-  if (cause?.kind !== 'CARD_EFFECT' || cause.playerId === affectedPlayerId) {
+  if (
+    (cause?.kind !== 'CARD_EFFECT' && cause?.kind !== 'HEXTECH_EFFECT') ||
+    cause.playerId === affectedPlayerId
+  ) {
     return false;
   }
   const protections = (game.memberWaitProtections ?? []).filter(

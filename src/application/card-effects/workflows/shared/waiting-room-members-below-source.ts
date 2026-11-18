@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -101,7 +102,7 @@ export function registerWaitingRoomMembersBelowSourceWorkflowHandlers(): void {
       });
     });
     registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) => {
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       if (!effect) return game;
       const ordered = effect.metadata?.orderedResolution === true;
       if (!sourceIsCurrent(game, effect)) {

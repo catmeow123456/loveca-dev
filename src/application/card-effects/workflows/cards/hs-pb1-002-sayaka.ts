@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { createHeartIcon, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -154,7 +155,7 @@ function startHsPb1002SayakaActivated(
 }
 
 function revealHsPb1002SayakaHandMember(game: GameState, selectedCardId: string | null): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_PB1_002_ACTIVATED_REVEAL_SAYAKA_MEMBER_STACK_BELOW_ABILITY_ID ||
@@ -182,7 +183,7 @@ function revealHsPb1002SayakaHandMember(game: GameState, selectedCardId: string 
 }
 
 function finishHsPb1002SayakaStackRevealedMember(game: GameState): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_PB1_002_ACTIVATED_REVEAL_SAYAKA_MEMBER_STACK_BELOW_ABILITY_ID ||

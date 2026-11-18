@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
 import { createWaivedOnEnterCostContinuationState } from '../../runtime/waived-on-enter-cost.js';
 import {
@@ -281,7 +282,7 @@ function finishPlaceWaitingLive(
 
 function finishLiveSetLimitReduction(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   continuePendingCardEffects: ContinuePendingCardEffects,
   placed?: NonNullable<ReturnType<typeof placeWaitingRoomLiveCardInLiveZoneForPlayer>>
 ): GameState {
@@ -337,8 +338,8 @@ function finishPendingAbility(
 function getExpectedActiveEffect(
   game: GameState,
   stepId: string
-): GameState['activeEffect'] | null {
-  const effect = game.activeEffect;
+): ReturnType<typeof getCardActiveEffect> | null {
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -111,7 +112,7 @@ function finish(
   continuation: Continue,
   enqueue: Enqueue
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== ABILITY_ID ||

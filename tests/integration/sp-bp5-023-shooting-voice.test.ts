@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { withCriticalHit } from '../helpers/critical-hit-fixture';
 import type { LiveCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartRequirement } from '../../src/domain/entities/card';
 import {
@@ -185,6 +186,26 @@ function shootingVoiceScoreModifiers(game: GameState) {
 }
 
 describe('PL!SP-bp5-023-L Shooting Voice!! LIVE success workflow', () => {
+  it('does not add the SCORE-conditioned bonus when critical-hit replaced the printed marker', () => {
+    const live = createCardInstance(
+      createLive('test-score-live', { hasScoreBladeHeart: true }),
+      PLAYER1,
+      'critical-live'
+    );
+    const { game, sourceLiveId } = setupState({
+      ownSuccessCount: 2,
+      cheerCards: [live],
+      initialScore: 5,
+    });
+    const state = startAbility(withCriticalHit(game, PLAYER1), sourceLiveId);
+    expect(shootingVoiceScoreModifiers(state)).toEqual([]);
+    expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(5);
+    expect(latestPayload(state)).toMatchObject({
+      conditionMet: false,
+      scoreCheerLiveCardIds: [],
+      scoreBonus: 0,
+    });
+  });
   it('adds SCORE +2 to this LIVE and refreshes playerScores when own success zone has two cards and own cheer reveals a SCORE LIVE', () => {
     const scoreCheerLive = createCardInstance(
       createLive('PL!SP-score-cheer-live', { hasScoreBladeHeart: true }),

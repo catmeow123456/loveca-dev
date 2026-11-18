@@ -143,7 +143,7 @@ export function recordAbilityUseForContext(
   const sourceLifecycleId = tracksSourceLifecycle
     ? (context.sourceLifecycleId ??
       activeLifecycleId ??
-      (pendingAbility
+      (pendingAbility?.sourceCardId !== undefined
         ? getPendingAbilitySourceLifecycleId(game, pendingAbility)
         : getAbilitySourceLifecycleId(game, context.abilityId, context.sourceCardId)))
     : undefined;

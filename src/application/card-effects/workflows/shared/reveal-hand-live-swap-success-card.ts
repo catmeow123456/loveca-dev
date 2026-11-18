@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -133,7 +134,7 @@ function startSelection(
 }
 
 function revealHandLive(game: GameState, handLiveCardId: string, config: SwapConfig): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     !getCardIdsInZoneMatching(
@@ -162,7 +163,7 @@ function selectSuccessCardAfterReveal(
   config: SwapConfig,
   continuePending: Continue
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) return game;
   const selectableCardIds = getCardIdsInZoneMatching(
     game,
@@ -192,7 +193,7 @@ function finishSwap(
   successLiveCardId: string,
   continuePending: Continue
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || !effect.selectableCardIds?.includes(successLiveCardId)) return game;
   const handLiveCardId =
     typeof effect.metadata?.handLiveCardId === 'string' ? effect.metadata.handLiveCardId : null;

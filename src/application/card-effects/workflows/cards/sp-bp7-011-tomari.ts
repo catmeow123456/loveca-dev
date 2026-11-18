@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -89,7 +90,7 @@ function finishDiscardAllDrawSix(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -150,7 +151,7 @@ function finishDiscardAllDrawSix(
 
 function finish(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   continuePendingCardEffects: ContinuePendingCardEffects,
   step: string,

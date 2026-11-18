@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -162,7 +163,7 @@ function startRevealCost(
 }
 
 function payRevealCost(game: GameState, selectedCardId: string): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const card = getCardById(game, selectedCardId);
   if (
@@ -205,7 +206,7 @@ function placeBottomAndInspect(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== PLACE_BOTTOM_STEP_ID)
     return game;
   const player = getPlayerById(game, effect.controllerId);

@@ -1,3 +1,4 @@
+import { isCardAbilitySuppressedByDarkHextech } from '../hextech/suppression.js';
 import { baseLiveRequirement } from './battle-ruleset.js';
 import { collectHextechLiveModifiers } from '../hextech/modifiers.js';
 import { getHextechBladeHearts } from '../hextech/bonuses.js';
@@ -471,7 +472,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
             target.ownerId !== player.id ||
             !isMemberCardData(target.data) ||
             (player.id === playerId && !cardBelongsToGroup(target.data, '虹ヶ咲'))
-          ) return [];
+          )
+            return [];
           const modifier = createHeartLiveModifierForTargetMember(game, {
             playerId: player.id,
             sourceCardId,
@@ -2208,7 +2210,7 @@ function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierS
 
     for (const cardId of getAllMemberCardIds(player.memberSlots)) {
       const card = getCardById(game, cardId);
-      if (!card) {
+      if (!card || isCardAbilitySuppressedByDarkHextech(game, cardId)) {
         continue;
       }
 
@@ -2270,7 +2272,11 @@ function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierS
         sourceZone === 'SUCCESS' ? player.successZone.cardIds : player.liveZone.cardIds;
       for (const cardId of sourceCardIds) {
         const card = getCardById(game, cardId);
-        if (!card || !isLiveCardData(card.data)) {
+        if (
+          !card ||
+          !isLiveCardData(card.data) ||
+          isCardAbilitySuppressedByDarkHextech(game, cardId)
+        ) {
           continue;
         }
 
@@ -2817,7 +2823,11 @@ function sourceHasStrictlyMostEffectiveHeartsOnStage(
 export function selectUniqueStageMemberWithMostEffectiveHearts(
   game: GameState,
   liveModifiers: readonly LiveModifierState[]
-): { readonly playerId: string; readonly memberCardId: string; readonly heartCount: number } | null {
+): {
+  readonly playerId: string;
+  readonly memberCardId: string;
+  readonly heartCount: number;
+} | null {
   let leader: { playerId: string; memberCardId: string; heartCount: number } | null = null;
   let tied = false;
   for (const player of game.players) {

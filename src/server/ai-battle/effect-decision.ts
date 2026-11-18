@@ -65,20 +65,20 @@ export function buildAiEffectDecision(
   const pending = queryPendingAbilityOrder(game);
   if (pending) {
     for (const ability of pending) {
-      const objectId = createPublicObjectId(ability.sourceCardId);
+      const objectId = ability.sourceCardId ? createPublicObjectId(ability.sourceCardId) : undefined;
       const option = visible.selectableOptions?.find((option) => option.id === ability.id);
       if (option) {
         add(
           {
             description: option.label,
             effectText: getAbilityEffectText(ability.abilityId),
-            ...(view.objects[objectId]?.surface === 'FRONT' ? { objectId } : {}),
+            ...(objectId && view.objects[objectId]?.surface === 'FRONT' ? { objectId } : {}),
           },
           { selectedOptionId: option.id }
         );
       } else if (
-        visible.selectableObjectIds?.includes(objectId) &&
-        view.objects[objectId]?.surface === 'FRONT'
+        objectId && visible.selectableObjectIds?.includes(objectId) &&
+        objectId && view.objects[objectId]?.surface === 'FRONT'
       ) {
         add(
           {

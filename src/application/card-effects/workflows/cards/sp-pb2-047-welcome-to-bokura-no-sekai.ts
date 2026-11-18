@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -149,7 +150,7 @@ function finishDiscardCostAndStartTargetSelection(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==
@@ -241,7 +242,7 @@ function finishOpponentTargetSelection(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==
@@ -329,7 +330,7 @@ function createOpponentTargetSelection(
 }
 
 function createPendingAbilityFromEffect(
-  effect: NonNullable<GameState['activeEffect']>
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>
 ): PendingAbilityState {
   return {
     id: effect.id,

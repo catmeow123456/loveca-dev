@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -201,7 +202,7 @@ function finishHsPb1001AutoPayEnergy(
   game: GameState,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (!effect || !player || effect.stepId !== AUTO_PAY_ENERGY_STEP_ID) {
     return game;
@@ -249,7 +250,7 @@ function finishHsPb1001LiveStartPayEnergy(
   game: GameState,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (!effect || !player || effect.stepId !== LIVE_START_PAY_TWO_ENERGY_STEP_ID) {
     return game;
@@ -306,7 +307,7 @@ function finishHsPb1001Decline(
   continuePendingCardEffects: ContinuePendingCardEffects,
   step: string
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (!effect || !player) {
     return game;

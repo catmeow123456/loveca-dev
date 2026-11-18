@@ -1,3 +1,5 @@
+import { appendTriggeredAbility, recordTriggeredAbility } from '../../runtime/enqueue-pending-ability.js';
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -72,8 +74,8 @@ export function registerPlPb2011EliWorkflowHandlers(): void {
             timingId: TriggerCondition.ON_MEMBER_STATE_CHANGED,
             eventIds: [event.eventId],
           };
-          state = addAction(
-            { ...state, pendingAbilities: [...state.pendingAbilities, ability] },
+          state = recordTriggeredAbility(
+            { ...state, pendingAbilities: appendTriggeredAbility(state, ability) },
             'TRIGGER_ABILITY',
             player.id,
             {
@@ -129,7 +131,7 @@ export function registerPlPb2011EliWorkflowHandlers(): void {
     });
   });
   registerActiveEffectStepHandler(ABILITY_ID, STEP_ID, (game, input, context) => {
-    const effect = game.activeEffect;
+    const effect = getCardActiveEffect(game);
     if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== STEP_ID) return game;
     const ordered = effect.metadata?.orderedResolution === true;
     if (!canStack(game, effect))

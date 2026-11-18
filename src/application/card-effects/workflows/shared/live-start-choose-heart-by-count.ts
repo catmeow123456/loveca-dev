@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -237,7 +238,7 @@ function finishLiveStartChooseHeartByCount(
   config: LiveStartChooseHeartByCountConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== config.abilityId ||
@@ -326,7 +327,7 @@ function finishWithoutHeartModifier(
   countPayloadKey: LiveStartChooseHeartByCountConfig['countPayloadKey'],
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -99,7 +100,7 @@ function finishKasumiStackTwoEnergyBelow(
   game: GameState,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_N_PB1_002_ON_ENTER_STACK_TWO_ENERGY_BELOW_ABILITY_ID ||
@@ -160,7 +161,7 @@ function finishInvalidStacking(
   continuePendingCardEffects: ContinuePendingCardEffects,
   step: string
 ): GameState {
-  const effect = game.activeEffect!;
+  const effect = getCardActiveEffect(game)!;
   return continuePendingCardEffects(
     addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
       pendingAbilityId: effect.id,

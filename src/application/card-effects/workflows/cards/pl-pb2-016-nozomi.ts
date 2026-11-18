@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { countSuccessZoneCardsForCardEffect } from '../../../../domain/rules/success-zone-card-queries.js';
 import {
@@ -119,7 +120,7 @@ export function registerPlPb2016NozomiWorkflowHandlers(deps: {
     resolveChoice(game, input.selectedOptionId ?? null, runtime.continuePendingCardEffects)
   );
   registerActiveEffectStepHandler(ABILITY_ID, MEMBER_STEP_ID, (game, input, runtime) => {
-    const effect = game.activeEffect!;
+    const effect = getCardActiveEffect(game)!;
     const context = getRepeatContext(effect);
     if (!input.selectedCardId || !effect.selectableCardIds?.includes(input.selectedCardId))
       return game;
@@ -154,7 +155,7 @@ export function registerPlPb2016NozomiWorkflowHandlers(deps: {
     });
   });
   registerActiveEffectStepHandler(ABILITY_ID, DISCARD_STEP_ID, (game, input, runtime) => {
-    const context = getRepeatContext(game.activeEffect!);
+    const context = getRepeatContext(getCardActiveEffect(game)!);
     return finishDrawThenDiscardCardsWorkflow(
       game,
       input.selectedCardId ?? null,
@@ -226,7 +227,7 @@ function resolveChoice(
   optionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect!;
+  const effect = getCardActiveEffect(game)!;
   const context = getRepeatContext(effect);
   if (!optionId) return game;
   if (optionId === 'blade') {

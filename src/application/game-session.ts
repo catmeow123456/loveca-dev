@@ -1,8 +1,15 @@
+import { continueHextechAcquisitions } from './hextech/acquire.js';
 import { hasPendingHextechInput } from '../domain/hextech/state.js';
 import { validateHextechAbilityCommand, applyHextechAbilityCommand } from './hextech/abilities.js';
 import { getCurrentTurnSetLiveEntryEventId } from './effects/current-turn-live-zone-entries.js';
 import type { BattleRulesetId } from '../domain/rules/battle-ruleset.js';
-import { getHextechDefinition, HEXTECH_RULES_VERSION } from '../domain/hextech/catalog.js';
+import {
+  getHextechDefinition,
+  HEXTECH_RULES_VERSION,
+  hextechRulesVersion,
+  isHextechInPool,
+  type HextechPool,
+} from '../domain/hextech/catalog.js';
 import { assertValidHextechState, type InitialHextechSetup } from '../domain/hextech/state.js';
 import { validateInitialHextechSetup } from './hextech/acquire.js';
 import { applyHextechCommand, validateHextechCommand } from './hextech/selection.js';
@@ -296,6 +303,7 @@ export type GameSessionEvent =
  */
 export interface GameSessionOptions {
   readonly hextechRoundSelection?: boolean;
+  readonly hextechPool?: HextechPool;
   rulesetId?: BattleRulesetId;
   /** LOCAL has one presentation viewer; REMOTE requires both participant acknowledgments. */
   cardEntrance?: 'LOCAL' | 'REMOTE';
@@ -529,16 +537,25 @@ export class GameSession {
     player1Name: string,
     player2Id: string,
     player2Name: string,
-    initialHextech?: InitialHextechSetup
+    initialHextech?: InitialHextechSetup,
+    hextechSetup?: { readonly pool: HextechPool; readonly roundSelection: boolean }
   ): GameState {
+    const hextechRoundSelection =
+      hextechSetup?.roundSelection ?? this.options.hextechRoundSelection;
+    const hextechPool =
+      hextechSetup?.pool ??
+      this.options.hextechPool ??
+      (initialHextech?.flat().some((id) => isHextechInPool(id, 'DARK')) ? 'DARK' : 'NORMAL');
+    if (initialHextech?.flat().some((id) => !isHextechInPool(id, hextechPool)))
+      throw new Error('海克斯预设不能混用不同卡池');
     if (initialHextech !== undefined) {
-      if (this.options.hextechRoundSelection) throw new Error('海克斯随机选择不能同时使用预设授予');
+      if (hextechRoundSelection) throw new Error('海克斯随机选择不能同时使用预设授予');
       validateInitialHextechSetup(initialHextech);
       if ((this.options.rulesetId ?? 'STANDARD') !== 'STANDARD') {
         throw new Error('首批海克斯仅支持标准规则');
       }
     }
-    if (this.options.hextechRoundSelection && (this.options.rulesetId ?? 'STANDARD') !== 'STANDARD')
+    if (hextechRoundSelection && (this.options.rulesetId ?? 'STANDARD') !== 'STANDARD')
       throw new Error('海克斯仅支持标准规则');
     this.publicEvents = [];
     this.publicEventSeq = 0;
@@ -564,12 +581,12 @@ export class GameSession {
       this.options.rulesetId ?? 'STANDARD'
     );
     const initialState: GameState =
-      initialHextech === undefined && !this.options.hextechRoundSelection
+      initialHextech === undefined && !hextechRoundSelection
         ? baseState
         : {
             ...baseState,
             hextech: {
-              rulesVersion: HEXTECH_RULES_VERSION,
+              rulesVersion: hextechRulesVersion(hextechPool),
               owned: [],
               ...(initialHextech
                 ? {
@@ -4806,7 +4823,7 @@ export class GameSession {
       isPublicRevealDwellEffect(state.activeEffect)
         ? (state.activeEffect.awaitingPlayerId ?? command.playerId)
         : command.playerId;
-    const resolvedState = confirmActiveEffectStep(
+    let resolvedState = confirmActiveEffectStep(
       state,
       resolveAsPlayerId,
       command.effectId,
@@ -4828,6 +4845,14 @@ export class GameSession {
       };
     }
 
+    if (state.hextech?.pendingAcquisition && !resolvedState.hextech?.pendingAcquisition) {
+      resolvedState = continueHextechAcquisitions(
+        resolvedState,
+        this.options.randomInt ?? secureRandomInt
+      );
+      if (!hasPendingHextechInput(resolvedState))
+        resolvedState = this.gameService.resumeHextechTurnStart(resolvedState);
+    }
     const now = this.now();
     const nextState = attachPublicEffectChoiceAutoAdvanceDeadline(
       attachPublicCardSelectionAutoAdvanceDeadline(resolvedState, now),

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   isLiveCardData,
@@ -233,7 +234,7 @@ function registerSpSd1007OnEnterOptionalPaymentHandlers(): void {
     SP_SD1_007_ON_ENTER_PAY_TWO_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID,
     SP_SD1_007_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
     (game, input, context) => {
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       const currentCandidateCardIds = effect
         ? selectSpSd1007WaitingRoomMemberCardIds(game, effect.controllerId)
         : [];
@@ -303,7 +304,7 @@ function finishSpSd1007Decline(
   game: GameState,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -328,7 +329,7 @@ function finishSpSd1007Payment(
   game: GameState,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||

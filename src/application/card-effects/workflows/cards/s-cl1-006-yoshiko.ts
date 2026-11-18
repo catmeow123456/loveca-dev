@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -92,7 +93,7 @@ function start(
   });
 }
 function finish(game: GameState, selectedId: string | null, next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY || effect.stepId !== SELECT) return game;
   if (selectedId === null)
     return finishSkippedActiveEffect(game, next, { step: 'DECLINE_BOTTOM_HAND' });

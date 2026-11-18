@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -129,7 +130,7 @@ function finishEffectChoice(
   selectedOptionIds: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !isEffectStep(effect, CHOOSE_EFFECT_STEP_ID) ||
     selectedOptionIds.length !== 1 ||
@@ -212,7 +213,7 @@ function finishWaitTargets(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!isEffectStep(effect, SELECT_WAIT_TARGETS_STEP_ID)) {
     return game;
   }
@@ -361,7 +362,7 @@ function finishActiveEffect(
 }
 
 function isEffectStep(
-  effect: GameState['activeEffect'],
+  effect: ReturnType<typeof getCardActiveEffect>,
   stepId: string
 ): effect is ActiveEffectState {
   return (

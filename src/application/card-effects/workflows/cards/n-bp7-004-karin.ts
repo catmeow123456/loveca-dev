@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { addAction, getCardById, getOpponent, getPlayerById, type GameState } from '../../../../domain/entities/game.js';
 import { collectLiveModifiers, getMemberOriginalBladeCount } from '../../../../domain/rules/live-modifiers.js';
@@ -94,7 +95,7 @@ function finish(
   enqueue: EnqueueTriggeredCardEffectsForMemberStateChanged,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== SELECT_TARGET_STEP_ID || !targetCardId || effect.selectableCardIds?.includes(targetCardId) !== true) return game;
   const opponent = getOpponent(game, effect.controllerId);
   const threshold = typeof effect.metadata?.threshold === 'number' ? effect.metadata.threshold : -1;

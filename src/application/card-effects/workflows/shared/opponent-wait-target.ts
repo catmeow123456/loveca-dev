@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { getStageMemberLifecycleId } from '../../runtime/ability-source-lifecycle.js';
 import {
   addAction,
@@ -778,7 +779,7 @@ function finishOpponentWaitTargetWorkflow(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }

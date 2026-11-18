@@ -6,8 +6,10 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { CardType } from '../../../../shared/types/enums.js';
-import { hasScoreBladeHeart } from '../../../effects/card-selectors.js';
-import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
+import {
+  hasEffectiveCheerScoreBladeHeart,
+  selectCurrentLiveRevealedCheerCardIds,
+} from '../../../effects/cheer-selection.js';
 import { SP_BP5_023_LIVE_SUCCESS_SUCCESS_ZONE_TWO_SCORE_CHEER_THIS_LIVE_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import {
@@ -120,7 +122,7 @@ function selectScoreLiveRevealedCheerCardIds(
 ): readonly string[] {
   return selectCurrentLiveRevealedCheerCardIds(game, playerId, {
     cardTypes: CardType.LIVE,
-    predicate: hasScoreBladeHeart(),
+    predicate: (card) => hasEffectiveCheerScoreBladeHeart(game, playerId, card.instanceId),
   });
 }
 

@@ -549,7 +549,7 @@ function createDecisionInput(
             effectText: view.activeEffect.effectText,
             stepText: view.activeEffect.stepText,
             selectionLabel: view.activeEffect.selectionLabel,
-            ...(view.objects[view.activeEffect.sourceObjectId]?.surface === 'FRONT'
+            ...(view.activeEffect.sourceObjectId && view.objects[view.activeEffect.sourceObjectId]?.surface === 'FRONT'
               ? { sourceObjectId: view.activeEffect.sourceObjectId }
               : {}),
             sourceCardDisplayCode: view.activeEffect.sourceCardDisplayCode,

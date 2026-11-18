@@ -23,7 +23,7 @@ export function aiHeartLinks(view: PlayerViewState | null): AiHeartLink[] {
 export function isAiRecoveryEffect(view: PlayerViewState | null) {
   const effect = view?.activeEffect;
   const code =
-    effect &&
+    effect?.sourceObjectId &&
     (view?.objects[effect.sourceObjectId]?.frontInfo?.cardCode ?? effect.sourceCardDisplayCode);
   return (
     !!effect && effect.abilityId === AI_ID && !!code && cardCodeMatchesBase(code, 'PL!N-bp8-005')
@@ -47,6 +47,7 @@ export function withAiRecoveryPresentation(
   )
     return events;
   const effect = previous.activeEffect!;
+  if (!effect.sourceObjectId) return events;
   const selected = effect.revealedObjectIds;
   if (
     effect.stepId !== 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION' ||

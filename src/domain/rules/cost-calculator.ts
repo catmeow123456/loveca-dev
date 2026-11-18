@@ -72,6 +72,7 @@ export interface CostCheckResult {
  * 舞台成员信息（用于换手计算）
  */
 export interface StageMemberInfo {
+  readonly abilitiesSuppressed?: boolean;
   /** 成员卡 ID */
   readonly cardId: string;
   /** 成员卡数据 */
@@ -136,12 +137,15 @@ export interface AvailableResources {
 export function hasKotoriWaitingMuseRelayBonus(
   memberData: MemberCardData,
   orientation: OrientationState | undefined,
-  stageMembers: readonly Pick<StageMemberInfo, 'data'>[]
+  stageMembers: readonly Pick<StageMemberInfo, 'data' | 'abilitiesSuppressed'>[]
 ): boolean {
   return (
     orientation === OrientationState.WAITING &&
     isMuseMember(memberData) &&
-    stageMembers.some((member) => cardCodeMatchesBase(member.data.cardCode, 'PL!-bp8-003'))
+    stageMembers.some(
+      (member) =>
+        !member.abilitiesSuppressed && cardCodeMatchesBase(member.data.cardCode, 'PL!-bp8-003')
+    )
   );
 }
 
@@ -359,6 +363,7 @@ export class CostCalculator {
     const modifiers: PlayCostModifierApplication[] = [];
 
     for (const stageMember of resources.stageMembers) {
+      if (stageMember.abilitiesSuppressed) continue;
       if (
         isBp5ChisatoCostReducer(stageMember.data) &&
         isCost10LiellaMember(memberData, playBaseCost)

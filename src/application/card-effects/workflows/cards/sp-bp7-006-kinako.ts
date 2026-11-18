@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -140,7 +141,7 @@ function pay(
   next: Continue,
   enqueue: Enqueue
 ): GameState {
-  const e = game.activeEffect;
+  const e = getCardActiveEffect(game);
   if (!e) return game;
   const player = getPlayerById(game, e.controllerId);
   if (!player || findMemberSlot(player, e.sourceCardId) === null) {
@@ -229,7 +230,7 @@ function afterPay(
 }
 
 function activeEffectToPending(
-  effect: NonNullable<GameState['activeEffect']>
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>
 ): PendingAbilityState {
   return {
     id: effect.id,
@@ -242,7 +243,7 @@ function activeEffectToPending(
   };
 }
 function recover(game: GameState, id: string | null, next: Continue): GameState {
-  const e = game.activeEffect;
+  const e = getCardActiveEffect(game);
   if (!e || !id) return game;
   const r = recoverCardsFromWaitingRoomToHandForPlayer(game, e.controllerId, [id], {
     candidateCardIds: e.selectableCardIds ?? [],

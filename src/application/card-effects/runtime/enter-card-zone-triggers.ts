@@ -1,3 +1,4 @@
+import { appendTriggeredAbility, recordTriggeredAbility } from './enqueue-pending-ability.js';
 import {
   addAction,
   getCardById,
@@ -171,10 +172,10 @@ function enqueueSingleEnterHandCardEffect(
       },
     };
 
-    state = addAction(
+    state = recordTriggeredAbility(
       {
         ...state,
-        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+        pendingAbilities: appendTriggeredAbility(state, pendingAbility),
       },
       'TRIGGER_ABILITY',
       pendingAbility.controllerId,
@@ -242,10 +243,10 @@ function enqueueSingleEnterLiveZoneCardEffect(
       },
     };
 
-    state = addAction(
+    state = recordTriggeredAbility(
       {
         ...state,
-        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+        pendingAbilities: appendTriggeredAbility(state, pendingAbility),
       },
       'TRIGGER_ABILITY',
       pendingAbility.controllerId,

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isAbilityActivationCostWaived } from '../../runtime/on-enter-ability-invocation.js';
 import { createWaivedOnEnterCostContinuationState } from '../../runtime/waived-on-enter-cost.js';
 import {
@@ -183,7 +184,7 @@ function payDiscardCost(
   selectedCardId: string | null,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== ABILITY_ID ||
@@ -266,7 +267,7 @@ function chooseEffect(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== CHOOSE_EFFECT_STEP_ID)
     return game;
   if (selectedOptionId === ARRANGE_OPTION_ID) {
@@ -329,7 +330,7 @@ function gainHeart(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const selected = HEART_OPTIONS.find((option) => option.id === selectedOptionId);
   if (
     !effect ||

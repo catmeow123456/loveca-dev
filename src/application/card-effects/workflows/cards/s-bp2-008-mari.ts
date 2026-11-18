@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -115,7 +116,7 @@ function finishWaitingRoomLiveSelection(
   selectedCardIds: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== ON_ENTER_ABILITY_ID ||
@@ -187,7 +188,7 @@ function finishWaitingRoomLiveSelection(
 
 function finishSelection(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   selectedCardIds: readonly string[],
   movedCardIds: readonly string[],

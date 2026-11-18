@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData, type CardInstance } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -134,7 +135,7 @@ function selectCompassTarget(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_PB1_028_LIVE_START_ACTIVATE_DOLLCHESTRA_MEMBER_LIVE_START_ABILITY_ID ||
@@ -203,7 +204,7 @@ function delegateCompassTargetAbility(
   continuePendingCardEffects: ContinuePendingCardEffects,
   delegatePendingAbility: DelegatePendingAbility
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== HS_PB1_028_LIVE_START_ACTIVATE_DOLLCHESTRA_MEMBER_LIVE_START_ABILITY_ID ||

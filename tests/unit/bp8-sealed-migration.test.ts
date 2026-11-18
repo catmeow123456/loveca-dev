@@ -56,4 +56,29 @@ describe('BP8 deployment boundary', () => {
     expect(casualEntrySchema.safeParse(entry).success).toBe(true);
     expect(casualEntrySchema.safeParse({ ...entry, format: 'SEALED_BP7' }).success).toBe(false);
   });
+  it('adds the dark pool after BP8 while preserving the retired BP7 constraint and history', async () => {
+    const db = await database();
+    try {
+      await db.exec("INSERT INTO casual_tables VALUES ('old','CASUAL_SEALED_BP7_V1','CLOSED')");
+      const before = await db.query('SELECT * FROM match_checkpoints');
+      await db.exec(sql);
+      await db.exec(readFileSync('drizzle/0050_add_dark_hextech_pool.sql', 'utf8'));
+      for (const environment of [
+        'CASUAL_SEALED_BP8_V1',
+        'CASUAL_HEXTECH_V1',
+        'CASUAL_DARK_HEXTECH_V1',
+      ]) {
+        await db.query('INSERT INTO casual_tables VALUES ($1, $1, $2)', [environment, 'WAITING']);
+      }
+      await expect(
+        db.exec("UPDATE casual_tables SET state='WAITING' WHERE id='old'")
+      ).rejects.toThrow('casual_tables_retired_bp7_check');
+      expect((await db.query('SELECT * FROM match_checkpoints')).rows).toEqual(before.rows);
+      expect(
+        (await db.query("SELECT environment_id FROM casual_tables WHERE id='old'")).rows
+      ).toEqual([{ environment_id: 'CASUAL_SEALED_BP7_V1' }]);
+    } finally {
+      await db.close();
+    }
+  });
 });

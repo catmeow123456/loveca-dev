@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -143,7 +144,7 @@ function finishSelectLiellaMemberToWait(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== SELECT_LIELLA_MEMBER_STEP_ID) {
     return game;
   }
@@ -267,7 +268,7 @@ function finishSelectOpponentMemberToWait(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== SELECT_OPPONENT_MEMBER_STEP_ID) {
     return game;
   }

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -10,7 +11,8 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addCardToZone } from '../../../../domain/entities/zone.js';
 import {
-  addHeartLiveModifierForSourceMember, addHeartLiveModifierForTargetMember,
+  addHeartLiveModifierForSourceMember,
+  addHeartLiveModifierForTargetMember,
   addLiveModifier,
   getMemberEffectiveBladeCount,
 } from '../../../../domain/rules/live-modifiers.js';
@@ -20,10 +22,7 @@ import {
   SlotPosition,
   TriggerCondition,
 } from '../../../../shared/types/enums.js';
-import {
-  CardAbilityCategory,
-  CardAbilitySourceZone,
-} from '../../ability-definition-types.js';
+import { CardAbilityCategory, CardAbilitySourceZone } from '../../ability-definition-types.js';
 import {
   S_BP3_025_LIVE_START_AQOURS_BLADE_SIX_THIS_LIVE_SCORE_ABILITY_ID,
   S_BP6_004_LIVE_START_RETURN_NO_LIVE_START_AQOURS_LIVE_GAIN_RED_GREEN_HEART_ABILITY_ID,
@@ -36,10 +35,7 @@ import {
   revealHandCardForActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
-import {
-  addBladeLiveModifierForSourceMember,
-  drawCardsForPlayer,
-} from '../../runtime/actions.js';
+import { addBladeLiveModifierForSourceMember, drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { moveLiveZoneCardToDeckTopForPlayer } from '../../runtime/live-zone-deck.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -87,11 +83,7 @@ export function registerSFutureWaterBatch2LiveStartWorkflowHandlers(): void {
     S_SD1_009_LIVE_START_REVEAL_AQOURS_HAND_TOP_BOTTOM_GAIN_BLADE_ABILITY_ID,
     SD1_009_SELECT_HAND_STEP_ID,
     (game, input, context) =>
-      revealSd1009HandCard(
-        game,
-        input.selectedCardId ?? null,
-        context.continuePendingCardEffects
-      )
+      revealSd1009HandCard(game, input.selectedCardId ?? null, context.continuePendingCardEffects)
   );
   registerActiveEffectStepHandler(
     S_SD1_009_LIVE_START_REVEAL_AQOURS_HAND_TOP_BOTTOM_GAIN_BLADE_ABILITY_ID,
@@ -216,9 +208,16 @@ function startSd1009RevealHandTopBottomGainBlade(
     return card ? groupAliasIs(AQOURS)(card) : false;
   });
   if (selectableCardIds.length === 0) {
-    return skipPendingAbility(game, ability, player.id, orderedResolution, continuePendingCardEffects, {
+    return skipPendingAbility(
+      game,
+      ability,
+      player.id,
+      orderedResolution,
+      continuePendingCardEffects,
+      {
         step: 'NO_AQOURS_HAND_CARD_TO_REVEAL',
-    });
+      }
+    );
   }
 
   return startPendingActiveEffect(game, {
@@ -231,8 +230,7 @@ function startSd1009RevealHandTopBottomGainBlade(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: SD1_009_SELECT_HAND_STEP_ID,
-      stepText:
-        '可以公开1张手牌中的『Aqours』卡；若如此做，将其放置到卡组顶或卡组底并获得 BLADE。',
+      stepText: '可以公开1张手牌中的『Aqours』卡；若如此做，将其放置到卡组顶或卡组底并获得 BLADE。',
       awaitingPlayerId: player.id,
       selectableCardIds,
       selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
@@ -255,7 +253,7 @@ function revealSd1009HandCard(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== S_SD1_009_LIVE_START_REVEAL_AQOURS_HAND_TOP_BOTTOM_GAIN_BLADE_ABILITY_ID ||
@@ -313,7 +311,7 @@ function finishSd1009MoveRevealedHandCard(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== S_SD1_009_LIVE_START_REVEAL_AQOURS_HAND_TOP_BOTTOM_GAIN_BLADE_ABILITY_ID ||
@@ -375,9 +373,16 @@ function startBp3025SelectAqoursMember(
     return card ? groupAliasIs(AQOURS)(card) : false;
   });
   if (selectableCardIds.length === 0) {
-    return skipPendingAbility(game, ability, player.id, orderedResolution, continuePendingCardEffects, {
+    return skipPendingAbility(
+      game,
+      ability,
+      player.id,
+      orderedResolution,
+      continuePendingCardEffects,
+      {
         step: 'NO_AQOURS_STAGE_MEMBER',
-    });
+      }
+    );
   }
 
   return startPendingActiveEffect(game, {
@@ -411,7 +416,7 @@ function finishBp3025BladeCheckScore(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== S_BP3_025_LIVE_START_AQOURS_BLADE_SIX_THIS_LIVE_SCORE_ABILITY_ID ||
@@ -463,18 +468,32 @@ function startBp6004SelectLiveToDeckTop(
     return game;
   }
   if (player.liveZone.cardIds.length < 2) {
-    return skipPendingAbility(game, ability, player.id, orderedResolution, continuePendingCardEffects, {
+    return skipPendingAbility(
+      game,
+      ability,
+      player.id,
+      orderedResolution,
+      continuePendingCardEffects,
+      {
         step: 'LIVE_ZONE_LESS_THAN_TWO',
-    });
+      }
+    );
   }
 
   const selectableCardIds = player.liveZone.cardIds.filter((cardId) =>
     isNoLiveStartAqoursLive(game, cardId)
   );
   if (selectableCardIds.length === 0) {
-    return skipPendingAbility(game, ability, player.id, orderedResolution, continuePendingCardEffects, {
+    return skipPendingAbility(
+      game,
+      ability,
+      player.id,
+      orderedResolution,
+      continuePendingCardEffects,
+      {
         step: 'NO_NO_LIVE_START_AQOURS_LIVE',
-    });
+      }
+    );
   }
 
   return startPendingActiveEffect(game, {
@@ -510,7 +529,7 @@ function finishBp6004MoveLiveGainHearts(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==
@@ -590,10 +609,17 @@ function startBp6019AllAqoursScoreDrawPlaceHand(
       return card ? groupAliasIs(AQOURS)(card) : false;
     });
   if (!allStageMembersAreAqours) {
-    return skipPendingAbility(game, ability, player.id, orderedResolution, continuePendingCardEffects, {
+    return skipPendingAbility(
+      game,
+      ability,
+      player.id,
+      orderedResolution,
+      continuePendingCardEffects,
+      {
         step: 'NOT_ALL_STAGE_MEMBERS_AQOURS',
         stageMemberCardIds,
-    });
+      }
+    );
   }
 
   let state = addScoreModifierAndRefresh(game, {
@@ -669,7 +695,7 @@ function finishBp6019PlaceHandTopBottom(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== S_BP6_019_LIVE_START_ALL_AQOURS_SCORE_DRAW_HAND_TOP_BOTTOM_ABILITY_ID ||
@@ -799,7 +825,7 @@ function finishBp6020AdventureTypeChoice(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID ||
@@ -912,7 +938,7 @@ function finishBp6020RedHeartTargetSelection(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID ||

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -146,7 +147,7 @@ function finishWait(
   continuation: Continue,
   enqueue: EnqueueTriggeredCardEffectsForMemberStateChanged
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== WAIT_ABILITY ||
@@ -254,7 +255,7 @@ function finishCost(
   selectedCardId: string | null,
   continuation: Continue
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== COST_ABILITY ||

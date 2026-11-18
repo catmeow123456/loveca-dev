@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -157,7 +158,7 @@ function finishSSd1006WithoutPayment(
   step: string,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== SELECT_DISCARD_STEP_ID) {
     return game;
   }
@@ -180,7 +181,7 @@ function finishSSd1006DiscardCost(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -279,7 +280,7 @@ function startSSd1006SelectStageSlot(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== SELECT_WAITING_ROOM_MEMBER_STEP_ID || !player) {
     return game;
@@ -344,7 +345,7 @@ function finishSSd1006PlayMember(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== SELECT_STAGE_SLOT_STEP_ID || !player) {
     return game;

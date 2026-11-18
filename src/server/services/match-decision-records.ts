@@ -9,9 +9,9 @@ import {
 } from '../../application/game-commands.js';
 import { findCardAbilityDefinitionById } from '../../application/card-effects/definitions/lookup.js';
 import type {
-  ActiveEffectState,
+  ResolvingEffectState,
   GameState,
-  PendingAbilityState,
+  QueuedAbilityState,
 } from '../../domain/entities/game.js';
 import { getCardById } from '../../domain/entities/game.js';
 import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code.js';
@@ -101,7 +101,8 @@ export function buildMatchDecisionRecordsForStateTransition(input: {
       matchId: input.matchId,
       state: input.afterState,
       effect: afterEffect,
-      occurrenceKey: input.transitionOccurrenceKey ?? buildStateTransitionOccurrenceKey(input.afterState),
+      occurrenceKey:
+        input.transitionOccurrenceKey ?? buildStateTransitionOccurrenceKey(input.afterState),
       getSeatForPlayer: input.getSeatForPlayer,
     }),
   ];
@@ -110,7 +111,7 @@ export function buildMatchDecisionRecordsForStateTransition(input: {
 function buildActiveEffectOpenedRecord(input: {
   readonly matchId: string;
   readonly state: GameState;
-  readonly effect: ActiveEffectState;
+  readonly effect: ResolvingEffectState;
   readonly occurrenceKey: string;
   readonly getSeatForPlayer: (playerId: string | null | undefined) => Seat | null;
 }): MatchDecisionRecordInput {
@@ -127,7 +128,7 @@ function buildActiveEffectOpenedRecord(input: {
 function buildActiveEffectSubmittedRecord(input: {
   readonly matchId: string;
   readonly state: GameState | null | undefined;
-  readonly effect: ActiveEffectState;
+  readonly effect: ResolvingEffectState;
   readonly command: ConfirmEffectStepCommand;
   readonly submittedCommandSeq: number | null;
   readonly occurrenceKey: string;
@@ -160,7 +161,7 @@ function buildActiveEffectSubmittedRecord(input: {
 function buildPendingAbilityOrderSubmittedRecord(input: {
   readonly matchId: string;
   readonly state: GameState;
-  readonly effect: ActiveEffectState;
+  readonly effect: ResolvingEffectState;
   readonly command: ConfirmEffectStepCommand;
   readonly submittedCommandSeq: number | null;
   readonly occurrenceKey: string;
@@ -171,7 +172,11 @@ function buildPendingAbilityOrderSubmittedRecord(input: {
   const selectedAbility = selectPendingAbilityCandidate(pendingAbilityCandidates, input.command);
   const selectedSourceCardId = selectedAbility?.sourceCardId ?? input.effect.sourceCardId;
   const selectedAbilityId = selectedAbility?.abilityId ?? input.effect.abilityId;
-  const sourceSummary = summarizeSourceCard(input.state, selectedSourceCardId, selectedAbilityId);
+  const sourceSummary = summarizeSourceCard(
+    input.state,
+    selectedSourceCardId ?? null,
+    selectedAbilityId
+  );
   const abilityDefinition = findCardAbilityDefinitionById(selectedAbilityId);
   const candidates = summarizePendingAbilitySourceCards(input.state, pendingAbilityCandidates);
 
@@ -381,14 +386,16 @@ function buildSelectSuccessLiveDecisionRecord(
 
 function summarizeActiveEffect(
   state: GameState,
-  effect: ActiveEffectState,
+  effect: ResolvingEffectState,
   getSeatForPlayer: (playerId: string | null | undefined) => Seat | null
 ): Omit<
   MatchDecisionRecordInput,
   'decisionId' | 'decisionType' | 'status' | 'transitionSemantics'
 > {
-  const sourceCard = getCardById(state, effect.sourceCardId);
-  const sourceLocation = findCardLocation(state, effect.sourceCardId);
+  const sourceCard = effect.sourceCardId ? getCardById(state, effect.sourceCardId) : null;
+  const sourceLocation = effect.sourceCardId
+    ? findCardLocation(state, effect.sourceCardId)
+    : { zone: null, slot: null };
   const abilityDefinition = findCardAbilityDefinitionById(effect.abilityId);
   const pendingAbilityCandidates = getPendingAbilityOrderCandidates(state, effect);
   const candidates =
@@ -403,8 +410,13 @@ function summarizeActiveEffect(
       pendingAbilityCandidates.length > 0
         ? collectPendingAbilityEventIds(pendingAbilityCandidates)
         : [],
-    sourceType: pendingAbilityCandidates.length > 0 ? 'PENDING_ABILITY_ORDER' : 'CARD_ABILITY',
-    sourceCardObjectId: effect.sourceCardId,
+    sourceType:
+      pendingAbilityCandidates.length > 0
+        ? 'PENDING_ABILITY_ORDER'
+        : effect.sourceCardId
+          ? 'CARD_ABILITY'
+          : 'HEXTECH_ABILITY',
+    sourceCardObjectId: effect.sourceCardId ?? null,
     sourceCardCode: sourceCard ? normalizeCardCode(sourceCard.data.cardCode) : null,
     sourceBaseCardCode: sourceCard ? getBaseCardCode(sourceCard.data.cardCode) : null,
     sourceZone: sourceLocation.zone,
@@ -428,7 +440,7 @@ function summarizeActiveEffect(
 }
 
 function summarizeActiveEffectWithoutState(
-  effect: ActiveEffectState,
+  effect: ResolvingEffectState,
   getSeatForPlayer: (playerId: string | null | undefined) => Seat | null
 ): Omit<
   MatchDecisionRecordInput,
@@ -438,8 +450,8 @@ function summarizeActiveEffectWithoutState(
     decisionSchemaVersion: 1,
     playerId: effect.awaitingPlayerId,
     eventIds: [],
-    sourceType: 'CARD_ABILITY',
-    sourceCardObjectId: effect.sourceCardId,
+    sourceType: effect.sourceCardId ? 'CARD_ABILITY' : 'HEXTECH_ABILITY',
+    sourceCardObjectId: effect.sourceCardId ?? null,
     sourceCardCode: null,
     sourceBaseCardCode: null,
     sourceZone: null,
@@ -461,7 +473,7 @@ function summarizeActiveEffectWithoutState(
 
 function summarizeSourceCard(
   state: GameState,
-  cardId: string,
+  cardId: string | null,
   abilityId?: string
 ): Pick<
   MatchDecisionRecordInput,
@@ -473,8 +485,8 @@ function summarizeSourceCard(
   | 'abilityId'
   | 'visibleCandidates'
 > {
-  const sourceCard = getCardById(state, cardId);
-  const sourceLocation = findCardLocation(state, cardId);
+  const sourceCard = cardId ? getCardById(state, cardId) : null;
+  const sourceLocation = cardId ? findCardLocation(state, cardId) : { zone: null, slot: null };
   return {
     sourceCardObjectId: cardId,
     sourceCardCode: sourceCard ? normalizeCardCode(sourceCard.data.cardCode) : null,
@@ -482,7 +494,7 @@ function summarizeSourceCard(
     sourceZone: sourceLocation.zone,
     sourceSlot: sourceLocation.slot,
     abilityId: abilityId ?? null,
-    visibleCandidates: summarizeCandidateCards(state, [cardId]),
+    visibleCandidates: summarizeCandidateCards(state, cardId ? [cardId] : []),
   };
 }
 
@@ -527,17 +539,17 @@ function summarizeCandidateCards(
 
 function summarizePendingAbilitySourceCards(
   state: GameState,
-  pendingAbilities: readonly PendingAbilityState[]
+  pendingAbilities: readonly QueuedAbilityState[]
 ): readonly MatchDecisionCardSummary[] {
   return pendingAbilities.flatMap((ability) =>
-    summarizeCandidateCards(state, [ability.sourceCardId])
+    summarizeCandidateCards(state, ability.sourceCardId ? [ability.sourceCardId] : [])
   );
 }
 
 function getPendingAbilityOrderCandidates(
   state: GameState,
-  effect: ActiveEffectState
-): readonly PendingAbilityState[] {
+  effect: ResolvingEffectState
+): readonly QueuedAbilityState[] {
   const pendingAbilityIds = getPendingAbilityOrderIds(effect);
   if (pendingAbilityIds.length === 0) {
     return [];
@@ -548,10 +560,10 @@ function getPendingAbilityOrderCandidates(
   );
   return pendingAbilityIds
     .map((abilityId) => pendingAbilityById.get(abilityId))
-    .filter((ability): ability is PendingAbilityState => !!ability);
+    .filter((ability): ability is QueuedAbilityState => !!ability);
 }
 
-function getPendingAbilityOrderIds(effect: ActiveEffectState): readonly string[] {
+function getPendingAbilityOrderIds(effect: ResolvingEffectState): readonly string[] {
   if (!isPendingAbilityOrderSelectionEffect(effect)) {
     return [];
   }
@@ -559,7 +571,7 @@ function getPendingAbilityOrderIds(effect: ActiveEffectState): readonly string[]
   return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [];
 }
 
-function isPendingAbilityOrderSelectionEffect(effect: ActiveEffectState): boolean {
+function isPendingAbilityOrderSelectionEffect(effect: ResolvingEffectState): boolean {
   return (
     effect.abilityId === ABILITY_ORDER_SELECTION_ID &&
     Array.isArray(effect.metadata?.pendingAbilityIds)
@@ -567,9 +579,9 @@ function isPendingAbilityOrderSelectionEffect(effect: ActiveEffectState): boolea
 }
 
 function selectPendingAbilityCandidate(
-  candidates: readonly PendingAbilityState[],
+  candidates: readonly QueuedAbilityState[],
   command: ConfirmEffectStepCommand
-): PendingAbilityState | null {
+): QueuedAbilityState | null {
   if (command.resolveInOrder === true) {
     return candidates[0] ?? null;
   }
@@ -583,7 +595,7 @@ function selectPendingAbilityCandidate(
 }
 
 function collectPendingAbilityEventIds(
-  pendingAbilities: readonly PendingAbilityState[]
+  pendingAbilities: readonly QueuedAbilityState[]
 ): readonly string[] {
   const eventIds: string[] = [];
   const seen = new Set<string>();
@@ -600,7 +612,7 @@ function collectPendingAbilityEventIds(
 
 function summarizePendingAbilityOrderResult(
   command: ConfirmEffectStepCommand,
-  selectedAbility: PendingAbilityState | null
+  selectedAbility: QueuedAbilityState | null
 ): string {
   if (command.resolveInOrder === true) {
     return selectedAbility
@@ -613,7 +625,7 @@ function summarizePendingAbilityOrderResult(
 }
 
 function summarizeVisibleContext(
-  effect: ActiveEffectState,
+  effect: ResolvingEffectState,
   pendingAbilityCandidateCount = 0
 ): MatchDecisionVisibleContextSummary {
   const selectableCardCount =
@@ -662,8 +674,8 @@ function summarizeConfirmEffectStepSubmission(
 }
 
 function summarizeActiveEffectTransition(
-  beforeEffect: ActiveEffectState,
-  afterEffect: ActiveEffectState | null
+  beforeEffect: ResolvingEffectState,
+  afterEffect: ResolvingEffectState | null
 ): string {
   if (!afterEffect) {
     return '效果步骤已完成';
@@ -679,8 +691,8 @@ function isConfirmEffectStepCommand(command: GameCommand): command is ConfirmEff
 }
 
 function isSameActiveEffectDecisionStep(
-  left: ActiveEffectState | null | undefined,
-  right: ActiveEffectState | null | undefined
+  left: ResolvingEffectState | null | undefined,
+  right: ResolvingEffectState | null | undefined
 ): boolean {
   return (
     !!left &&
@@ -695,7 +707,7 @@ function isSameActiveEffectDecisionStep(
 function buildDecisionId(
   matchId: string,
   status: 'opened' | 'submitted',
-  effect: ActiveEffectState,
+  effect: ResolvingEffectState,
   occurrenceKey: string
 ): string {
   return [
@@ -747,7 +759,7 @@ function buildCommandDecisionId(
     .join(':');
 }
 
-function getMinSelectableCards(effect: ActiveEffectState): number | null {
+function getMinSelectableCards(effect: ResolvingEffectState): number | null {
   if (effect.effectChoice) {
     return effect.effectChoice.minSelections;
   }
@@ -760,7 +772,7 @@ function getMinSelectableCards(effect: ActiveEffectState): number | null {
   return null;
 }
 
-function getMaxSelectableCards(effect: ActiveEffectState): number | null {
+function getMaxSelectableCards(effect: ResolvingEffectState): number | null {
   if (effect.effectChoice) {
     return effect.effectChoice.maxSelections;
   }

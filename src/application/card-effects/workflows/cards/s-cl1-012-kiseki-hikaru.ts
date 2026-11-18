@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -137,7 +138,7 @@ function start(
 }
 
 function finish(game: GameState, selected: readonly string[], next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== STEP_ID) return game;
   const ordered = effect.metadata?.orderedResolution === true;
   if (

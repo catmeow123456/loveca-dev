@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import type { CardInstance } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -325,7 +326,7 @@ function getRecoveryCandidateIds(game: GameState, playerId: string): readonly st
 }
 
 function getActiveEffect(game: GameState): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -101,7 +102,7 @@ function finishPositionChangeToCenter(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberSlotMoved
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== S_BP7_018_ON_ENTER_STAGE_MEMBER_POSITION_CHANGE_TO_CENTER_ABILITY_ID ||

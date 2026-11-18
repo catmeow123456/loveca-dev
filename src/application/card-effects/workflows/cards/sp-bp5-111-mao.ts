@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -164,7 +165,7 @@ function finishEnergyCostSelection(
 }
 
 function finishWaitingRoomLiveSelection(game: GameState, selectedCardId: string | null): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== SP_BP5_111_ACTIVATED_RETURN_TWO_ENERGY_RECOVER_LIVE_ABILITY_ID ||
@@ -228,7 +229,7 @@ function getWaitingRoomLiveCandidateIds(game: GameState, playerId: string): read
   return selectWaitingRoomCardIds(game, playerId, typeIs(CardType.LIVE));
 }
 
-function getReturnedEnergyCardIds(effect: NonNullable<GameState['activeEffect']>): readonly string[] {
+function getReturnedEnergyCardIds(effect: NonNullable<ReturnType<typeof getCardActiveEffect>>): readonly string[] {
   const value = effect.metadata?.returnedEnergyCardIds;
   return Array.isArray(value) && value.every((cardId) => typeof cardId === 'string')
     ? value

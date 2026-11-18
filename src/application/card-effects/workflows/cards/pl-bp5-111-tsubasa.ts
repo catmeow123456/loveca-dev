@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -133,7 +134,7 @@ function finishTsubasaDiscardCost(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_BP5_111_ACTIVATED_DISCARD_ACTIVATE_WAITING_MEMBER_RECOVER_LIVE_ABILITY_ID ||
@@ -211,7 +212,7 @@ function finishTsubasaActivateWaitingMember(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_BP5_111_ACTIVATED_DISCARD_ACTIVATE_WAITING_MEMBER_RECOVER_LIVE_ABILITY_ID ||
@@ -328,7 +329,7 @@ function finishTsubasaRecoverLive(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_BP5_111_ACTIVATED_DISCARD_ACTIVATE_WAITING_MEMBER_RECOVER_LIVE_ABILITY_ID ||
@@ -380,7 +381,7 @@ function finishTsubasaRecoverLive(
 
 function finishTsubasaActiveNoop(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   payload: Record<string, unknown>,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {

@@ -143,6 +143,7 @@ export interface EnterStageEvent extends CardMoveEvent {
  * 成员离场事件
  */
 export interface MemberLastKnownInformation {
+  readonly abilitiesSuppressed?: boolean;
   readonly effectiveBlade: number;
   readonly effectiveCost: number;
 }

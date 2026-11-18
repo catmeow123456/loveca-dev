@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { countSuccessZoneCardsForCardEffect } from '../../../../domain/rules/success-zone-card-queries.js';
 import {
@@ -147,7 +148,7 @@ function payAndContinue(
   cont: (game: GameState, ordered: boolean) => GameState,
   enqueue: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== DISCARD_STEP) return game;
   const player = getPlayerById(game, effect.controllerId);
   const count = Number(effect.metadata?.discardCount ?? -1);
@@ -261,7 +262,7 @@ function finishRecovery(
   selectedCardIds: readonly string[] | undefined,
   cont: (game: GameState, ordered: boolean) => GameState
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_PB1_007_ACTIVATED_SUCCESS_COUNT_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID ||

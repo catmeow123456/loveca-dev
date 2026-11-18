@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -176,7 +177,7 @@ function startSpBp4004SumireSelectEmptySlot(
   game: GameState,
   selectedCardId: string | null
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || !selectedCardId || effect.selectableCardIds?.includes(selectedCardId) !== true) {
     return game;
   }
@@ -231,7 +232,7 @@ function finishSpBp4004SumireSelectEmptySlot(
   continuePendingCardEffects: ContinuePendingCardEffects,
   dependencies: SpBp4004SumireWorkflowDependencies
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || selectedSlot === null || effect.selectableSlots?.includes(selectedSlot) !== true) {
     return game;
   }

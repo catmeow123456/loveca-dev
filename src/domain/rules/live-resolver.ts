@@ -166,7 +166,6 @@ export class LiveResolver {
     revealedCards: readonly { cardId: string; bladeHearts?: readonly BladeHeartItem[] }[]
   ): CheerResult {
     let drawCount = 0;
-    let scoreCount = 0;
     const bonusHearts: HeartIcon[] = [];
     const allBladeHearts: BladeHeartItem[] = [];
 
@@ -179,11 +178,6 @@ export class LiveResolver {
             case BladeHeartEffect.DRAW:
               // [卡牌+1] 效果 - 抽 1 张卡
               drawCount += 1;
-              break;
-
-            case BladeHeartEffect.SCORE:
-              // [音符+1] 效果 - 加 1 分
-              scoreCount += 1;
               break;
 
             case BladeHeartEffect.HEART:
@@ -220,6 +214,8 @@ export class LiveResolver {
     for (const item of bladeHearts) {
       if (item.effect === BladeHeartEffect.SCORE) {
         bonusScore += 1;
+      } else if (item.effect === BladeHeartEffect.CRITICAL_SCORE) {
+        bonusScore += 2;
       }
     }
     return bonusScore;

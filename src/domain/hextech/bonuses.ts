@@ -16,7 +16,8 @@ export function getHextechDrawPhaseBonus(game: GameState, playerId: string): num
     (owned) =>
       owned.playerId === playerId &&
       owned.acquiredTurn < game.turnCount &&
-      getHextechDefinition(owned.definitionId)?.effect.kind === 'ACQUIRE_AND_TURN_DRAW'
+      (getHextechDefinition(owned.definitionId)?.effect.kind === 'ACQUIRE_AND_TURN_DRAW' ||
+        owned.definitionId === 'dark-greed-contract')
   ).length;
 }
 
@@ -39,7 +40,7 @@ export function getHextechBladeHearts(
   }
   const printed = card.bladeHearts ?? [];
   if (isLiveCardData(card) && printed.length > 0 && effects.includes('LIVE_CRITICAL_BLADE_HEART')) {
-    return [{ effect: BladeHeartEffect.SCORE }, { effect: BladeHeartEffect.SCORE }];
+    return [{ effect: BladeHeartEffect.CRITICAL_SCORE }];
   }
   return printed;
 }

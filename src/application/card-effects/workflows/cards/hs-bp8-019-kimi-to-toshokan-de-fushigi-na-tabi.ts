@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { addAction, getPlayerById, type GameState } from '../../../../domain/entities/game.js';
 import { CardType } from '../../../../shared/types/enums.js';
 import { and, costLte, typeIs } from '../../../effects/card-selectors.js';
@@ -77,7 +78,7 @@ export function registerKimiToToshokanDeFushigiNaTabiWorkflowHandlers(): void {
       return finishSkippedActiveEffect(game, context.continuePendingCardEffects);
     }
     if (input.selectedOptionId !== 'pay') return game;
-    const effect = game.activeEffect!;
+    const effect = getCardActiveEffect(game)!;
     const payment = payImmediateEffectCosts(game, effect.controllerId, effect.sourceCardId, [
       { kind: 'TAP_ACTIVE_ENERGY', count: 1 },
     ]);

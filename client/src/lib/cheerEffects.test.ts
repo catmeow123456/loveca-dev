@@ -5,6 +5,32 @@ import { formatTextHearts, formatTextJudgment } from './excelCardView';
 import { buildLiveJudgmentPreview } from './liveJudgmentPreview';
 
 describe('effective cheer summaries', () => {
+  it('keeps critical-hit scoring separate from SCORE markers in the effective display', () => {
+    const markers = [{ effect: B.CRITICAL_SCORE }, { effect: B.SCORE }];
+    expect(calculateCheerEffects(markers)).toEqual({
+      penLightHearts: [],
+      judgmentHearts: [],
+      drawBonus: 0,
+      scoreBonus: 3,
+    });
+    expect(formatTextJudgment(markers)).toBe('分数 +1、分数 +2（非 SCORE）');
+    const preview = (hearts: ReadonlyMap<H, number>) =>
+      buildLiveJudgmentPreview({
+        liveCards: [
+          {
+            cardId: 'live',
+            score: 3,
+            adjustedRequirements: { colorRequirements: { RED: 1 }, totalRequired: 1 },
+          },
+        ],
+        hearts,
+        drawBonus: 0,
+        cheerScoreBonus: calculateCheerEffects(markers).scoreBonus,
+        effectScoreBonus: 0,
+      });
+    expect(preview(new Map([[H.RED, 1]]))).toMatchObject({ status: 'SUCCESS', totalScore: 6 });
+    expect(preview(new Map())).toMatchObject({ status: 'FAILURE', totalScore: 0 });
+  });
   it('keeps effective ORANGE for display and judgment contribution', () => {
     const markers = [
       { effect: B.HEART, heartColor: H.ORANGE },

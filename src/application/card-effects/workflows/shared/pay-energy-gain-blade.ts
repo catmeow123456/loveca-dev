@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { queryOptionSelection } from '../../runtime/selection-query.js';
 import {
   addAction,
@@ -213,7 +214,7 @@ function finishPayEnergyGainBladeWorkflow(
   selectedOptionId: string | null | undefined,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.stepId) {
     return game;
   }
@@ -303,7 +304,7 @@ function getStartBladeBonus(
 function getResolvedBladeBonus(
   game: GameState,
   playerId: string,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   config: PayEnergyGainBladeWorkflowConfig,
   paidEnergyCount: number
 ): number {
@@ -371,7 +372,7 @@ function getPayOption(
 function getSelectedEnergyCostCount(
   config: PayEnergyGainBladeWorkflowConfig,
   optionId: string | null | undefined,
-  effect: NonNullable<GameState['activeEffect']>
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>
 ): number {
   if (config.energyCost.kind === 'FIXED') {
     return optionId === 'pay' ? config.energyCost.count : 0;

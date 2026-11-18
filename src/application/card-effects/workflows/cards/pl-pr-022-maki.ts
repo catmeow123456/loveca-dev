@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -160,7 +161,7 @@ function finishPlPr022MakiActivated(
   continuePendingCardEffects: ContinuePendingCardEffects,
   deps: { readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects }
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== PL_PR_022_ACTIVATED_WAIT_SELF_RIN_HANAYO_DRAW_DISCARD_ABILITY_ID ||

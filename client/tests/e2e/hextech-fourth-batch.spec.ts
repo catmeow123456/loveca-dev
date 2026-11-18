@@ -160,7 +160,10 @@ test('第四批本地取得、声援实际判定、普通与表格视图及确�
   const outcome = panel.locator('[data-cheer-outcome]');
   await expect(outcome).toContainText(/分数\s*8/);
   await expect(outcome).toContainText(/抽卡\s*\+0/);
-  await expect(outcome).toContainText(/应援音符 \+4/);
+  await expect(outcome).toContainText(/应援加分 \+4/);
+  await expect(
+    panel.locator('[data-cheer-card-summary] [title="分数 +2（非 SCORE）"]')
+  ).toHaveCount(2);
   await outcome.scrollIntoViewIfNeeded();
   await expect(outcome).toBeInViewport();
   await page.screenshot({ path: info.outputPath('hextech-fourth-judgment.png') });
@@ -171,10 +174,10 @@ test('第四批本地取得、声援实际判定、普通与表格视图及确�
     .getByRole('table', { name: '应援牌', exact: true })
     .getByRole('row')
     .filter({ hasText: 'QA-HEX-DRAW' });
-  await expect(drawRow).toContainText('分数 +2');
+  await expect(drawRow).toContainText('分数 +2（非 SCORE）');
   await expect(drawRow.locator('td[title^="本次判定"]')).toHaveAttribute(
     'title',
-    '本次判定：分数 +2；印刷判定：抽卡 +1'
+    '本次判定：分数 +2（非 SCORE）；印刷判定：抽卡 +1'
   );
   await panel.scrollIntoViewIfNeeded();
   await expect(drawRow).toBeInViewport();

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -192,7 +193,7 @@ function finishActivatedWaitOtherNijigasakiDrawOne(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -315,7 +316,7 @@ function finishLiveStartDiscardTwo(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
   if (
@@ -408,7 +409,7 @@ function finishLiveStartActivateTarget(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||

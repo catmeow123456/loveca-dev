@@ -1,3 +1,4 @@
+import { isCardAbilitySuppressedByDarkHextech } from '../hextech/suppression.js';
 import { getCardById } from '../entities/game.js';
 import type { GameState, MemberActivePhaseSkipState } from '../entities/game.js';
 import { OrientationState, SlotPosition } from '../../shared/types/enums.js';
@@ -99,6 +100,7 @@ export function collectContinuousActivePhaseSkippedMemberCardIds(
     const card = cardId ? getCardById(game, cardId) : null;
     if (
       cardId &&
+      !isCardAbilitySuppressedByDarkHextech(game, cardId) &&
       cardState?.orientation === OrientationState.WAITING &&
       CONTINUOUS_ACTIVE_PHASE_NOT_ACTIVE_BASE_CARD_CODES.some((baseCardCode) =>
         cardCodeMatchesBase(card?.data.cardCode ?? '', baseCardCode)
@@ -114,8 +116,12 @@ export function collectContinuousActivePhaseSkippedMemberCardIds(
     Object.values(SlotPosition).some((slot) => {
       const cardId = opponent.memberSlots.slots[slot];
       const card = cardId ? getCardById(game, cardId) : null;
-      return CONTINUOUS_OPPONENT_ACTIVE_PHASE_NOT_ACTIVE_BASE_CARD_CODES.some((baseCardCode) =>
-        cardCodeMatchesBase(card?.data.cardCode ?? '', baseCardCode)
+      return (
+        !!cardId &&
+        !isCardAbilitySuppressedByDarkHextech(game, cardId) &&
+        CONTINUOUS_OPPONENT_ACTIVE_PHASE_NOT_ACTIVE_BASE_CARD_CODES.some((baseCardCode) =>
+          cardCodeMatchesBase(card?.data.cardCode ?? '', baseCardCode)
+        )
       );
     });
 

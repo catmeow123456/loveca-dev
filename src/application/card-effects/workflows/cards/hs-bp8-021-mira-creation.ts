@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -131,7 +132,7 @@ function finishReturnSelection(
   next: Continue,
   enqueue: Enqueue
 ): GameState {
-  const effect = game.activeEffect!;
+  const effect = getCardActiveEffect(game)!;
   if (selectedCardId == null)
     return finishSkippedActiveEffect(game, next, { step: 'DECLINE_RETURN' });
 
@@ -207,7 +208,7 @@ function finishHandSelection(
   selectedCardId: string | null | undefined,
   next: Continue
 ): GameState {
-  const effect = game.activeEffect!;
+  const effect = getCardActiveEffect(game)!;
   if (selectedCardId == null)
     return finishSkippedActiveEffect(game, next, { step: 'DECLINE_PLAY' });
   const cost = effect.metadata?.returnedCost;
@@ -243,7 +244,7 @@ function finishSlotSelection(
   next: Continue,
   enqueue: Enqueue
 ): GameState {
-  const effect = game.activeEffect!;
+  const effect = getCardActiveEffect(game)!;
   const { returnedCost, selectedCardId } = effect.metadata ?? {};
   if (slot == null || typeof returnedCost !== 'number' || typeof selectedCardId !== 'string')
     return game;

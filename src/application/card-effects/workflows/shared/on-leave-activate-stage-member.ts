@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { addAction, getCardById, getOpponent, getPlayerById, type GameState, type PendingAbilityState } from '../../../../domain/entities/game.js';
 import { OrientationState, ZoneType } from '../../../../shared/types/enums.js';
@@ -39,7 +40,7 @@ function start(game: GameState, ability: PendingAbilityState, ordered: boolean, 
 }
 
 function finish(game: GameState, selectedCardId: string | null | undefined, enqueue: EnqueueTriggeredCardEffectsForMemberStateChanged, next: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== STEP_ID) return game;
   const ordered = effect.metadata?.orderedResolution === true;
   if (selectedCardId === null) return next(addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, { pendingAbilityId: effect.id, abilityId: effect.abilityId, sourceCardId: effect.sourceCardId, step: 'SKIP' }), ordered);

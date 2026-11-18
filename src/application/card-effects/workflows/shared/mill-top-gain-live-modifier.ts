@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { queryConfirmSelection } from '../../runtime/selection-query.js';
 import {
   addAction,
@@ -406,7 +407,7 @@ function finishMillTopGainLiveModifier(
   continuePendingCardEffects: ContinuePendingCardEffects,
   config: MillTopGainLiveModifierConfig
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.stepId) {
     return game;
   }

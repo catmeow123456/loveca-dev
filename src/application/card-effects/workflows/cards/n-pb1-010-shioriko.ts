@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -221,7 +222,7 @@ function resolveActivateOneEnergy(
 }
 
 function getExpectedEffect(game: GameState, stepId: string): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   return effect?.abilityId ===
     PL_N_PB1_010_ON_ENTER_CHOOSE_ACTIVATE_ONE_ENERGY_OR_STACK_NIJIGASAKI_LIVE_TO_DECK_TOP_ABILITY_ID &&
     effect.stepId === stepId

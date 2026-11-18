@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -232,7 +233,7 @@ function finishHandLiveSelection(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== LIVE_START_ABILITY_ID ||
@@ -286,7 +287,7 @@ function finishPlaceRevealedLiveBottom(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== LIVE_START_ABILITY_ID ||
@@ -360,7 +361,7 @@ function finishPlaceRevealedLiveBottom(
 
 function clearStaleActiveEffect(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -95,7 +96,7 @@ function finishChooseEnergyCount(
   selectedNumber: number | null | undefined,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== SP_BP5_025_LIVE_SUCCESS_PAY_ANY_ENERGY_THIS_LIVE_SCORE_ABILITY_ID ||

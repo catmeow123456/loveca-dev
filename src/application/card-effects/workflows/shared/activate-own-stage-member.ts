@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import type { ActiveEffectState, GameState } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
@@ -178,7 +179,7 @@ function finishActivateOwnStageMember(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const config = effect ? CONFIG_BY_ABILITY_ID.get(effect.abilityId) : undefined;
   if (!effect || !config || effect.stepId !== config.stepId) return game;
   const player = getPlayerById(game, effect.controllerId);

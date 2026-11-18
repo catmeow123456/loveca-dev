@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -162,7 +163,7 @@ function finishWaitCost(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== config.abilityId ||
@@ -254,7 +255,7 @@ function finishWaitCost(
 
 function startHeartSelection(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   paidCostCardId: string,
   reward: Extract<LiveModifierReward, { readonly kind: 'CHOOSE_HEART' }>
@@ -307,7 +308,7 @@ function finishHeartSelection(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const selectedColor =
     STANDARD_HEART_COLOR_OPTIONS.find((color) => color === selectedOptionId) ?? null;

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -215,7 +216,7 @@ function finishMillBottomGainSourceMemberHearts(
   config: MillBottomGainSourceMemberHeartsConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.revealStepId) {
     return game;
   }

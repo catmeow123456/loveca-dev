@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { withCriticalHit } from '../helpers/critical-hit-fixture';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -99,7 +100,10 @@ function setupState(options: {
       ...player.liveZone,
       cardIds: [liveZoneLive.instanceId],
       cardStates: new Map([
-        [liveZoneLive.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+        [
+          liveZoneLive.instanceId,
+          { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
+        ],
       ]),
     },
     mainDeck: {
@@ -176,6 +180,17 @@ function latestPayload(game: GameState) {
 }
 
 describe('PL!SP-pb2-004 Sumire live success draw workflow', () => {
+  it('does not draw from a replaced SCORE marker, while the independent score-increase condition still works', () => {
+    for (const liveZoneScoreBonus of [false, true]) {
+      const scenario = setupState({ scoreCheerLive: true, liveZoneScoreBonus });
+      const state = startAbility(withCriticalHit(scenario.game, PLAYER1), scenario.sourceId);
+      expect(state.players[0].hand.cardIds.includes(scenario.drawCardId)).toBe(liveZoneScoreBonus);
+      expect(latestPayload(state)).toMatchObject({
+        conditionMet: liveZoneScoreBonus,
+        scoreCheerLiveCardIds: [],
+      });
+    }
+  });
   it('draws one when own revealed cheer includes a SCORE live card', () => {
     const scenario = setupState({ scoreCheerLive: true });
     const state = startAbility(scenario.game, scenario.sourceId);

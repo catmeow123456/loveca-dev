@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -321,7 +322,7 @@ function finishPartition(
 }
 
 function getNozomiEffect(game: GameState, stepId: string): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   return effect?.abilityId === PL_BP3_007_LIVE_START_DISCARD_TWO_PARTITION_TOP_THREE_ABILITY_ID &&
     effect.stepId === stepId
     ? effect

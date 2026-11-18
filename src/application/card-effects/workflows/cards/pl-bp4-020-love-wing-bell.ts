@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -295,7 +296,7 @@ function otherSlots(currentSlot: SlotPosition): SlotPosition[] {
 }
 
 function getActiveEffect(game: GameState, stepId: string): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   return effect?.abilityId ===
     PL_BP4_020_LIVE_START_ONLY_MUSE_STAGE_TARGET_MEMBER_POSITION_CHANGE_ABILITY_ID &&
     effect.stepId === stepId

@@ -1,3 +1,4 @@
+import { freezeDarkLiveSlots, clearDarkHextechUntilLiveEnd } from '../domain/hextech/suppression.js';
 import { hasPendingHextechInput } from '../domain/hextech/state.js';
 import {
   baseLiveRequirement,
@@ -700,6 +701,7 @@ export class GameService {
       state = clearLiveProhibitionsUntilLiveEnd(state);
       state = clearLiveStartSuppressionsUntilLiveEnd(state);
       state = clearMemberWaitProtectionsUntilLiveEnd(state);
+      state = clearDarkHextechUntilLiveEnd(state);
     }
 
     state = openHextechSelection(state, this.randomInt);
@@ -1648,6 +1650,7 @@ export class GameService {
    * @returns 更新后的游戏状态
    */
   private revealLiveCards(game: GameState): GameState {
+    game = freezeDarkLiveSlots(game, getActivePlayer(game).id);
     const activePlayer = getActivePlayer(game);
     const playerId = activePlayer.id;
 

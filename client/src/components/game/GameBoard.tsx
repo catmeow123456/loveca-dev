@@ -856,7 +856,7 @@ export function useBattleInteractionController({
   );
 
   const mulliganPanelOpen = currentPhase === GamePhase.MULLIGAN_PHASE;
-  const activeEffectSourceCardId = activeEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
+  const activeEffectSourceCardId = activeEffect?.sourceObjectId?.replace(/^obj_/, '') ?? null;
   const activeEffectSource = activeEffectSourceCardId
     ? (getVisibleCardPresentation(activeEffectSourceCardId) ??
       (activeEffect?.sourceCardDisplayCode
@@ -871,7 +871,7 @@ export function useBattleInteractionController({
         activeEffectSource.instanceId,
         activeEffectSource.cardData as AnyCardData
       )
-    : '卡牌效果';
+    : activeEffect?.sourceHextechInstanceId ? (matchView?.hextech?.owned.find((item) => item.instanceId === activeEffect.sourceHextechInstanceId)?.name ?? '海克斯效果') : '卡牌效果';
   const activeEffectLocalizedInfo = activeEffectSource
     ? getCardLocalizedInfo(activeEffectSource.cardData as AnyCardData)
     : null;
@@ -1195,7 +1195,7 @@ export function useBattleInteractionController({
 
     const shouldSuspendActiveEffectForEntry =
       !textOnly &&
-      !!activeEffect &&
+      !!activeEffect?.sourceObjectId &&
       !isPublicRevealAutoAdvance &&
       !entryEffectSuspendedIdsRef.current.has(activeEffect.id) &&
       didObjectMoveIntoMemberSlot(
@@ -3511,13 +3511,13 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                             label="发动效果的卡牌"
                             readOnly
                             layout="row"
-                            candidates={[
+                            candidates={activeEffect.sourceObjectId ? [
                               {
                                 id: activeEffect.sourceObjectId,
                                 label: activeEffectSourceLabel,
                                 presentation: activeEffectSource,
                               },
-                            ]}
+                            ] : []}
                           />
                         </div>
                         <ChevronRight

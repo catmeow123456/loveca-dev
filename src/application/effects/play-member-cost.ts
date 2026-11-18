@@ -1,3 +1,4 @@
+import { isCardAbilitySuppressedByDarkHextech } from '../../domain/hextech/suppression.js';
 import { isLiveCardData, isMemberCardData } from '../../domain/entities/card.js';
 import { getCardById, getPlayerById, type GameState } from '../../domain/entities/game.js';
 import { getActiveEnergyIds } from '../../domain/entities/zone.js';
@@ -41,6 +42,7 @@ export function buildPlayMemberCostResources(
     stageMembers.push({
       cardId,
       data: card.data,
+      abilitiesSuppressed: isCardAbilitySuppressedByDarkHextech(game, cardId),
       effectiveCost: getMemberEffectiveCost(game, playerId, cardId),
       position,
       orientation:

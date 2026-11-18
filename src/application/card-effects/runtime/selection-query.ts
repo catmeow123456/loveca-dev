@@ -1,3 +1,4 @@
+import type { ResolvingEffectState } from '../../../domain/entities/game.js';
 import type { ActiveEffectState, GameState } from '../../../domain/entities/game.js';
 import type { ActiveEffectStepHandlerInput } from './step-registry.js';
 import type { SlotPosition } from '../../../shared/types/enums.js';
@@ -179,6 +180,6 @@ function validSubset(
   );
 }
 
-export function isConfirmOnlyPendingSelection(effect: ActiveEffectState): boolean {
+export function isConfirmOnlyPendingSelection(effect: ResolvingEffectState): boolean {
   return effect.metadata?.confirmOnlyPendingAbility === true;
 }

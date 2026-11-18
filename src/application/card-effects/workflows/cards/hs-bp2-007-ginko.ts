@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -282,7 +283,7 @@ function getSameNameStageMemberIds(
 }
 
 function getLiveStartEffect(game: GameState, stepId: string): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   return effect?.abilityId ===
     HS_BP2_007_LIVE_START_DISCARD_MEMBER_TARGET_SAME_NAME_GREEN_HEART_BLADE_ABILITY_ID &&
     effect.stepId === stepId

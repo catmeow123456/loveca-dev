@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -81,7 +82,7 @@ export function registerPlPb2017HanayoWorkflowHandlers(deps: {
     });
   });
   registerActiveEffectStepHandler(ABILITY_ID, SELECT_BELOW, (game, input, context) => {
-    const effect = game.activeEffect!;
+    const effect = getCardActiveEffect(game)!;
     const ordered = effect.metadata?.orderedResolution === true;
     if (!sourceIsCurrent(game, effect))
       return finish(
@@ -151,7 +152,7 @@ export function registerPlPb2017HanayoWorkflowHandlers(deps: {
     );
   });
   registerActiveEffectStepHandler(ABILITY_ID, SELECT_MEMBER, (game, input, context) => {
-    const effect = game.activeEffect!;
+    const effect = getCardActiveEffect(game)!;
     const ids = getChangeablePrintempsMemberIds(game, effect.controllerId);
     if (ids.length === 0)
       return finish(

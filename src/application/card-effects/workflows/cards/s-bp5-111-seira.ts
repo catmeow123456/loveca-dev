@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -171,7 +172,7 @@ function finishSeiraOpponentWait(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueMemberStateChangedCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== S_BP5_111_AUTO_ON_THIS_MEMBER_MOVED_WAIT_OPPONENT_LOW_PRINTED_BLADE_ABILITY_ID ||
@@ -278,7 +279,7 @@ function finishPendingAbility(
 function finishActiveEffect(
   game: GameState,
   playerId: string,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   payload: Record<string, unknown>,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {

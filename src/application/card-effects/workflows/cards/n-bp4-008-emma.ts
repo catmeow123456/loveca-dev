@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -110,8 +111,7 @@ function startEmmaActivatedWorkflow(
       ...game,
       activeEffect: {
         id: `${PL_N_BP4_008_ACTIVATED_DISCARD_ACTIVATE_ENERGY_OR_NIJIGASAKI_MEMBER_ABILITY_ID}:${sourceCardId}:turn-${game.turnCount}:action-${game.actionHistory.length}`,
-        abilityId:
-          PL_N_BP4_008_ACTIVATED_DISCARD_ACTIVATE_ENERGY_OR_NIJIGASAKI_MEMBER_ABILITY_ID,
+        abilityId: PL_N_BP4_008_ACTIVATED_DISCARD_ACTIVATE_ENERGY_OR_NIJIGASAKI_MEMBER_ABILITY_ID,
         sourceCardId,
         controllerId: player.id,
         effectText: getAbilityEffectText(
@@ -161,7 +161,7 @@ function finishEmmaDiscardCost(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -279,7 +279,7 @@ function finishEmmaTargetTypeSelection(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==
@@ -290,17 +290,12 @@ function finishEmmaTargetTypeSelection(
   ) {
     return game;
   }
-  return beginEmmaTargetSelection(
-    game,
-    effect,
-    selectedOptionId,
-    continuePendingCardEffects
-  );
+  return beginEmmaTargetSelection(game, effect, selectedOptionId, continuePendingCardEffects);
 }
 
 function beginEmmaTargetSelection(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   selectedOptionId: string,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
@@ -341,7 +336,7 @@ function beginEmmaTargetSelection(
 
 function startEmmaConcreteTargetSelection(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   targetType: string,
   selectableCardIds: readonly string[]
 ): GameState {
@@ -383,7 +378,7 @@ function startEmmaConcreteTargetSelection(
 
 function finishEmmaEnergyNoChange(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   continuePendingCardEffects: ContinuePendingCardEffects,
   payload: Readonly<Record<string, unknown>>
 ): GameState {
@@ -405,7 +400,7 @@ function finishEmmaEnergyNoChange(
 
 function finishEmmaActivateEnergy(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   selectedCardId: string,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
@@ -460,7 +455,7 @@ function finishEmmaActivateTarget(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -522,10 +517,7 @@ function finishEmmaActivateTarget(
     }
   );
 
-  return continuePendingCardEffects(
-    { ...triggerResult.gameState, activeEffect: null },
-    false
-  );
+  return continuePendingCardEffects({ ...triggerResult.gameState, activeEffect: null }, false);
 }
 
 function getActivationTypeOptions(
@@ -544,10 +536,7 @@ function getActivationTypeOptions(
   ];
 }
 
-function getWaitingNijigasakiMemberTargetIds(
-  game: GameState,
-  playerId: string
-): readonly string[] {
+function getWaitingNijigasakiMemberTargetIds(game: GameState, playerId: string): readonly string[] {
   const player = getPlayerById(game, playerId);
   if (!player) return [];
   return Object.values(player.memberSlots.slots).filter(
@@ -590,7 +579,9 @@ function isEmmaSourceOnOwnStage(game: GameState, playerId: string, sourceCardId:
   );
 }
 
-function getDiscardedCardIds(metadata: Readonly<Record<string, unknown>> | undefined): readonly string[] {
+function getDiscardedCardIds(
+  metadata: Readonly<Record<string, unknown>> | undefined
+): readonly string[] {
   const value = metadata?.discardedCardIds;
   return Array.isArray(value)
     ? value.filter((candidate): candidate is string => typeof candidate === 'string')

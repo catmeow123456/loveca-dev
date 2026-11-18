@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -193,7 +194,7 @@ function finishLiveStartWaitSelfCenterMuseGainBlade(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.stepId !== WAIT_SELF_COST_STEP_ID ||
@@ -333,7 +334,7 @@ function finishDiscardCostThenGainBlade(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.stepId !== SELECT_DISCARD_COST_STEP_ID ||
@@ -397,7 +398,7 @@ function finishDiscardCostThenGainBlade(
 
 function resolveCenterMuseBladeAfterPaidCosts(
   stateAfterCost: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   config: LiveStartWaitSelfCenterMuseGainBladeConfig,
   sourceSlot: SlotPosition | null,
   continuePendingCardEffects: ContinuePendingCardEffects,

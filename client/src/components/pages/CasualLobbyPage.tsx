@@ -1,8 +1,16 @@
 import { SealedBuilder, SealedRematchControls } from '@/components/casual-table/SealedBuilder';
 import { SealedFormatLabel } from '@/components/casual-table/SealedFormatLabel';
 import { SEALED_BP8_DECK_NAME } from '@game/shared/sealed-format';
-import { HEXTECH_DEFINITIONS } from '@game/domain/hextech/catalog';
+import {
+  HEXTECH_DEFINITIONS,
+  type HextechPool as HextechPoolKind,
+} from '@game/domain/hextech/catalog';
 import { HextechPool } from '@/components/hextech/HextechPool';
+import {
+  DARK_HEXTECH_OFFER_RULES_TEXT,
+  NORMAL_HEXTECH_FIRST_ROUND_RULES_TEXT,
+  getHextechRarityRulesText,
+} from '@game/domain/hextech/selection-rules';
 import type { CasualFormat } from '@game/online/casual-table-types';
 import {
   CasualRuleBadge,
@@ -177,6 +185,11 @@ export function CasualLobbyPage({
   const selectionFormat = flow?.kind === 'JOIN' ? flow.row!.format : format;
   const sealedSelection = selectionFormat === 'SEALED_BP8';
   const hextechSelection = selectionFormat === 'HEXTECH';
+  const [preferredHextechPool, setPreferredHextechPool] = useState<HextechPoolKind>('NORMAL');
+  const selectedHextechPool =
+    flow?.kind === 'JOIN'
+      ? (flow.row!.hextechPool ?? 'NORMAL')
+      : (table?.hextechPool ?? preferredHextechPool);
   const lastDeck = readLastUsedDeckId(casualDeckPreferenceKey(userId, selectionMode));
   const pointTable = useDeckPointTableRules();
   const pointTableDisplayReady = useDeckPointTableDisplayReady();
@@ -558,6 +571,7 @@ export function CasualLobbyPage({
       requestId: flow.requestId,
       ruleMode: selectionMode,
       format: selectionFormat,
+      ...(hextechSelection ? { hextechPool: selectedHextechPool } : {}),
       ...(sealedSelection ? {} : { deckId }),
       spectatorEnabled: data.has('spectatorEnabled'),
     };
@@ -794,7 +808,7 @@ export function CasualLobbyPage({
                       aria-label="复制邀请"
                       onClick={() =>
                         void copy(
-                          `${table.format === 'SEALED_BP8' ? SEALED_BP8_DECK_NAME : table.format === 'HEXTECH' ? '海克斯对战（PT 不限）' : `${casualRuleName(table.ruleMode)}${table.ruleMode === 'UNLIMITED' ? '（PT 不限）' : ''}`} · 房间 ${table.roomCode}\n${window.location.origin}/?page=battle-lobby&room=${table.roomCode}`,
+                          `${table.format === 'SEALED_BP8' ? SEALED_BP8_DECK_NAME : table.format === 'HEXTECH' ? `${table.hextechPool === 'DARK' ? '黑暗' : '普通'}海克斯对战（PT 不限）` : `${casualRuleName(table.ruleMode)}${table.ruleMode === 'UNLIMITED' ? '（PT 不限）' : ''}`} · 房间 ${table.roomCode}\n${window.location.origin}/?page=battle-lobby&room=${table.roomCode}`,
                           'invite'
                         )
                       }
@@ -846,7 +860,8 @@ export function CasualLobbyPage({
                         <SealedFormatLabel />
                       ) : (
                         <>
-                          {table.format === 'HEXTECH' && '海克斯 · '}
+                          {table.format === 'HEXTECH' &&
+                            `${table.hextechPool === 'DARK' ? '黑暗' : '普通'}海克斯 · `}
                           {table.ownDeck?.name}
                         </>
                       )}
@@ -1289,6 +1304,8 @@ export function CasualLobbyPage({
                             )}
                             {row.format === 'SEALED_BP8' ? (
                               <SealedFormatLabel />
+                            ) : row.format === 'HEXTECH' ? (
+                              `${row.hextechPool === 'DARK' ? '黑暗' : '普通'}海克斯`
                             ) : (
                               formatNames[row.format]
                             )}
@@ -1584,14 +1601,37 @@ export function CasualLobbyPage({
                       )}
                       {hextechSelection && (
                         <section className="sealed-format-summary" aria-label="海克斯玩法">
-                          <h3>海克斯对战</h3>
+                          <h3>
+                            海克斯对战 · {selectedHextechPool === 'DARK' ? '黑暗池' : '普通池'}
+                          </h3>
+                          {flow?.kind !== 'JOIN' && (
+                            <div className="flex gap-2" role="group" aria-label="海克斯卡池">
+                              {(['NORMAL', 'DARK'] as const).map((pool) => (
+                                <ActionButton
+                                  key={pool}
+                                  type="button"
+                                  variant={selectedHextechPool === pool ? 'primary' : 'ghost'}
+                                  aria-pressed={selectedHextechPool === pool}
+                                  onClick={() => setPreferredHextechPool(pool)}
+                                >
+                                  {pool === 'DARK' ? '黑暗池 · 24 项' : '普通池'}
+                                </ActionButton>
+                              ))}
+                            </div>
+                          )}
+                          {selectedHextechPool === 'DARK' && (
+                            <p>每档 4 项干扰、4 项双刃剑。仅匹配黑暗池玩家；双时点共用发动次数。</p>
+                          )}
                           <p>
                             第 1／3／5 回合开始时，系统自动随机稀有度。双方同时各选 1 项， 每人有 3
                             项候选，每项可重抽 1 次。双方都确认后继续对局。
                           </p>
                           <p>
-                            银／金／彩各
-                            1/3。双方确认后公开并生效，后续轮次可重复取得。使用自选卡组，PT 不限。
+                            {getHextechRarityRulesText(selectedHextechPool)}双方确认后公开并生效。
+                            {selectedHextechPool === 'DARK'
+                              ? DARK_HEXTECH_OFFER_RULES_TEXT
+                              : `${NORMAL_HEXTECH_FIRST_ROUND_RULES_TEXT}后续轮次可重复取得。`}
+                            使用自选卡组，PT 不限。
                           </p>
                         </section>
                       )}

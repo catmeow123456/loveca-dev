@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -212,7 +213,7 @@ function getValidSourceSlot(game: GameState, playerId: string, sourceCardId: str
 }
 
 function getActiveEffect(game: GameState): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   return effect?.abilityId === ABILITY_ID && effect.stepId === SELECT_COST_STEP_ID ? effect : null;
 }
 

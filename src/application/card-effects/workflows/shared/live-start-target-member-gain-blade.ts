@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { getOpponentDifferentNameMemberCountChoices } from '../../../effects/opponent-different-name-members.js';
 import { getStageMemberLifecycleId } from '../../runtime/ability-source-lifecycle.js';
 import {
@@ -299,7 +300,7 @@ function finishTargetMemberSelection(
   config: LiveStartTargetMemberGainBladeConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== SELECT_MEMBER_STEP_ID) {
     return game;
   }
@@ -399,7 +400,7 @@ function finishTargetMemberNameSelection(
   config: LiveStartTargetMemberGainBladeConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== config.abilityId ||
@@ -448,7 +449,7 @@ function finishTargetMemberNameSelection(
 
 function applySelectedTargetBladeAndContinue(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   targetMemberCardId: string,
   bladeAmount: number,
@@ -628,7 +629,7 @@ function continueNoOp(
 
 function finishSelectionWithoutBlade(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   continuePendingCardEffects: ContinuePendingCardEffects,
   payload: Readonly<Record<string, unknown>>

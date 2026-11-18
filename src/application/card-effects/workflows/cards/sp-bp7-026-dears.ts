@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -109,7 +110,7 @@ function finishEnergyReturnStep(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }
@@ -194,7 +195,7 @@ function isValidDearsSource(game: GameState, playerId: string, sourceCardId: str
 }
 
 function activeEffectToPendingAbility(
-  effect: NonNullable<GameState['activeEffect']>
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>
 ): PendingAbilityState {
   return {
     id: effect.id,

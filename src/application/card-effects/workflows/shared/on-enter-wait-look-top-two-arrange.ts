@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getPlayerById,
@@ -95,7 +96,7 @@ export function registerPlBp3014RinWorkflowHandlers(deps: {
       config.abilityId,
       config.optionStepId,
       (game, input, context) => {
-        const effect = game.activeEffect!;
+        const effect = getCardActiveEffect(game)!;
         if (input.selectedOptionId == null)
           return finish(game, effect, context.continuePendingCardEffects, 'SKIP');
         if (input.selectedOptionId !== 'activate') return game;

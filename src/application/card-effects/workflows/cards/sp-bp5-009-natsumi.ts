@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -37,12 +38,7 @@ export function registerSpBp5009NatsumiWorkflowHandlers(deps: {
   registerPendingAbilityStarterHandler(
     SP_BP5_009_LIVE_START_REPEAT_MILL_GAIN_BLADE_WAIT_IF_LIVE_ABILITY_ID,
     (game, ability, options, context) =>
-      startSpBp5009NatsumiLiveStart(
-        game,
-        ability,
-        options,
-        context.continuePendingCardEffects
-      )
+      startSpBp5009NatsumiLiveStart(game, ability, options, context.continuePendingCardEffects)
   );
   registerActiveEffectStepHandler(
     SP_BP5_009_LIVE_START_REPEAT_MILL_GAIN_BLADE_WAIT_IF_LIVE_ABILITY_ID,
@@ -66,11 +62,17 @@ function startSpBp5009NatsumiLiveStart(
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   if (!canOpenRepeatPrompt(game, ability.controllerId, ability.sourceCardId)) {
-    return consumePendingWithoutPrompt(game, ability, options.orderedResolution === true, {
-      step: 'NO_OP_REPEAT_MILL_TOP',
-      reason: getNoPromptReason(game, ability.controllerId, ability.sourceCardId),
-      refreshCount: 0,
-    }, continuePendingCardEffects);
+    return consumePendingWithoutPrompt(
+      game,
+      ability,
+      options.orderedResolution === true,
+      {
+        step: 'NO_OP_REPEAT_MILL_TOP',
+        reason: getNoPromptReason(game, ability.controllerId, ability.sourceCardId),
+        refreshCount: 0,
+      },
+      continuePendingCardEffects
+    );
   }
 
   return startPendingActiveEffect(game, {
@@ -90,7 +92,7 @@ function finishSpBp5009NatsumiDecline(
   game: GameState,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== STEP_ID) {
     return game;
   }
@@ -125,7 +127,7 @@ function finishSpBp5009NatsumiIteration(
   enqueueEnterWaitingRoomTriggers: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
   enqueueMemberStateChangedTriggers: EnqueueTriggeredCardEffectsForMemberStateChanged
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== STEP_ID) {
     return game;
   }
@@ -210,8 +212,7 @@ function finishSpBp5009NatsumiIteration(
 
   const nextIteration = iteration + 1;
   const shouldContinue =
-    nextIteration < MAX_ITERATIONS &&
-    canOpenRepeatPrompt(state, player.id, effect.sourceCardId);
+    nextIteration < MAX_ITERATIONS && canOpenRepeatPrompt(state, player.id, effect.sourceCardId);
   const stateWithAction = addAction(
     {
       ...state,
@@ -249,7 +250,7 @@ function createRepeatPrompt(
   ability: PendingAbilityState,
   iteration: number,
   orderedResolution: boolean
-): NonNullable<GameState['activeEffect']> {
+): NonNullable<ReturnType<typeof getCardActiveEffect>> {
   return {
     id: ability.id,
     abilityId: ability.abilityId,
@@ -274,10 +275,10 @@ function createRepeatPrompt(
 
 function createRepeatPromptFromEffect(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   iteration: number,
   refreshCount: number
-): NonNullable<GameState['activeEffect']> {
+): NonNullable<ReturnType<typeof getCardActiveEffect>> {
   return {
     ...effect,
     stepText: `要将自己卡组顶的卡片放置入休息室并获得[BLADE]吗？ (${iteration + 1}/${MAX_ITERATIONS})`,
@@ -355,7 +356,7 @@ function finishNoOpActiveEffect(
   continuePendingCardEffects: ContinuePendingCardEffects,
   payload: Readonly<Record<string, unknown>>
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }
@@ -378,7 +379,7 @@ function finishNoOpActiveEffect(
   );
 }
 
-function getIteration(effect: NonNullable<GameState['activeEffect']>): number {
+function getIteration(effect: NonNullable<ReturnType<typeof getCardActiveEffect>>): number {
   const value = effect.metadata?.iteration;
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0;
 }

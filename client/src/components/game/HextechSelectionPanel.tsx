@@ -6,6 +6,11 @@ import { useGameStore } from '@/store/gameStore';
 import { useBattleCommandSubmission } from '@/lib/battleCommandSubmission';
 import { useKeyedState } from '@/hooks/useKeyedState';
 import { HEXTECH_RARITY_LABELS } from '@game/domain/hextech/catalog';
+import {
+  DARK_HEXTECH_OFFER_RULES_TEXT,
+  NORMAL_HEXTECH_FIRST_ROUND_RULES_TEXT,
+  getHextechRarityRulesText,
+} from '@game/domain/hextech/selection-rules';
 import { GameCommandType } from '@game/application/game-commands';
 import type { MatchViewState } from '@game/online/types';
 import './hextech-selection.css';
@@ -18,6 +23,7 @@ export function HextechSelectionPanel({
   readOnly: boolean;
 }) {
   const selection = match.hextech?.selection;
+  const pool = match.hextech?.rulesVersion === 'DARK_HEXTECH_V1' ? 'DARK' : 'NORMAL';
   const key = `${match.matchId}:${selection?.turn}:${match.viewerSeat}`;
   const rulesId = useId();
   const [open, setOpen] = useKeyedState(key, true);
@@ -122,7 +128,11 @@ export function HextechSelectionPanel({
             role="note"
             aria-label="海克斯选择规则说明"
           >
-            系统随机稀有度，双方同时选择。候选仅自己可见，每项可重抽一次，可能与其他项重复。
+            系统随机稀有度，双方同时选择。候选仅自己可见，每项可重抽一次。
+            {getHextechRarityRulesText(pool)}
+            {pool === 'DARK'
+              ? DARK_HEXTECH_OFFER_RULES_TEXT
+              : `${NORMAL_HEXTECH_FIRST_ROUND_RULES_TEXT}重抽可能与其他项重复。`}
             双方确认后公开并生效。
           </div>
         )}

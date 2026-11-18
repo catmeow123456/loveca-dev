@@ -32,6 +32,7 @@ export function getNicoEvidencePresentation(
   if (effect?.abilityId !== NICO_ID || effect.stepId !== 'PL_BP8_009_SELECT_HAND_MEMBER_BELOW')
     return null;
   const hostId = effect.sourceObjectId;
+  if (!hostId) return null;
   const old = before.objects[hostId]?.nicoEvidence;
   const host = after.objects[hostId];
   const status = host?.nicoEvidence;

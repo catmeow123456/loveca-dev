@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -107,7 +108,7 @@ export function startStageMemberUpgradeTargetSelection(
   game: GameState,
   config: StageMemberUpgradeReplacementWorkflowConfig,
   options: {
-    readonly effect: NonNullable<GameState['activeEffect']>;
+    readonly effect: NonNullable<ReturnType<typeof getCardActiveEffect>>;
     readonly playerId: string;
     readonly extraActionPayload?: Readonly<Record<string, unknown>>;
   }
@@ -314,7 +315,7 @@ function finishStageMemberUpgradeTargetSelection(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForStageMemberUpgrade
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
@@ -423,7 +424,7 @@ function finishStageMemberUpgradeReplacementSelection(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForStageMemberUpgrade
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const targetSlot = parseSlotPosition(effect?.metadata?.targetSlot);
   const requiredReplacementCost =

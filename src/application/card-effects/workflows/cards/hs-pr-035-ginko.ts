@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -130,7 +131,7 @@ function finishSelectOpponentWaitingMembers(
   selectedCardIds: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!isExpectedStep(effect, SELECT_WAITING_MEMBERS_STEP_ID)) return game;
   const player = getPlayerById(game, effect.controllerId);
   const opponentPlayerId = getString(effect.metadata?.opponentPlayerId);
@@ -252,7 +253,7 @@ function finishSelectLowBladeMember(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!isExpectedStep(effect, SELECT_LOW_BLADE_MEMBER_STEP_ID) || !selectedCardId) return game;
   const player = getPlayerById(game, effect.controllerId);
   const targetMetadata = getStageMemberOrientationTargetMetadata(effect);

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -99,7 +100,7 @@ export function registerPlBp8002AyaseEliWorkflowHandlers(deps: {
     ABILITY_ID,
     SELECT_TARGET_STEP,
     (game, input, context) => {
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       const selected = input.selectedCardId;
       if (!effect || !selected || !effect.selectableCardIds?.includes(selected)) return game;
       const opponent = getOpponent(game, effect.controllerId);
@@ -146,7 +147,7 @@ export function registerPlBp8002AyaseEliWorkflowHandlers(deps: {
 }
 
 function bottomSelf(game: GameState, continuation: Continue): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) return game;
   const eventIds = effect.metadata?.leaveStageEventIds;
   const ability: PendingAbilityState = {
@@ -231,7 +232,7 @@ function isSourceAvailable(game: GameState, ability: PendingAbilityState): boole
 }
 
 function finish(game: GameState, continuation: Continue, step: string): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) return game;
   return continuation(
     addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {

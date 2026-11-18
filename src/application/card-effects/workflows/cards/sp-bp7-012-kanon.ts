@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -147,7 +148,7 @@ function finishSelectWaitingCards(
   selectedCardIds: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!isExpectedStep(effect)) return game;
   const player = getPlayerById(game, effect.controllerId);
   if (!player) return game;

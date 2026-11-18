@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -190,7 +191,7 @@ export function registerOnCheerConditionalWaitOpponentOriginalHeartWorkflowHandl
       config.abilityId,
       config.stepId,
       (game, input, context) => {
-        const effect = game.activeEffect!;
+        const effect = getCardActiveEffect(game)!;
         const ordered = effect.metadata?.orderedResolution === true;
         const selection = createTargetSelection(game, asPending(effect), ordered, config);
         if (!selection)

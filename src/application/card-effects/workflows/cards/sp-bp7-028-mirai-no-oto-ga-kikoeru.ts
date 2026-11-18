@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -409,7 +410,7 @@ function replaceScoreModifierAndRefresh(
 }
 
 function getLiveStartEffect(game: GameState): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   return effect?.abilityId === LIVE_START_ABILITY_ID && effect.stepId === SELECT_NINE_STEP_ID
     ? effect
     : null;

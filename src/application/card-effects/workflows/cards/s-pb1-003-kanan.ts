@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -354,7 +355,7 @@ function getActiveEffect(
   abilityId: string,
   stepId: string
 ): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== abilityId || effect.stepId !== stepId) {
     return null;
   }

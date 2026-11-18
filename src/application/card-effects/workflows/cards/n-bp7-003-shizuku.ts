@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -181,7 +182,7 @@ function finishMillReveal(
   game: GameState,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== REVEAL_MILLED_STEP) return game;
   const candidateCardIds = getEligibleWaitingMembers(game, effect.controllerId);
   if (candidateCardIds.length === 0) {
@@ -230,7 +231,7 @@ function finishStackedMember(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.stepId !== SELECT_MEMBER_STEP ||

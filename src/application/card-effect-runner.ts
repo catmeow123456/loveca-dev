@@ -1,3 +1,15 @@
+import {
+  appendTriggeredAbility,
+  recordTriggeredAbility,
+} from './card-effects/runtime/enqueue-pending-ability.js';
+import { getHextechDefinition } from '../domain/hextech/catalog.js';
+import {
+  enqueueDarkHextechLiveStart,
+  startDarkHextechAbility,
+  finishDarkHextechAbilityStep,
+} from './hextech/dark-abilities.js';
+import { finishDarkAcquisitionStep } from './hextech/dark-acquire.js';
+import { getCardActiveEffect, type QueuedAbilityState } from '../domain/entities/game.js';
 import { registerPlAd1001HonokaWorkflowHandlers } from './card-effects/workflows/cards/pl-ad1-001-honoka.js';
 import { registerSpAd1001KanonWorkflowHandlers } from './card-effects/workflows/cards/sp-ad1-001-kanon.js';
 import { registerPlBp8023SnowHalationWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-023-snow-halation.js';
@@ -1488,7 +1500,9 @@ registerPlPb2017HanayoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb2018NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb2021KotoriWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNPr036ShizukuWorkflowHandlers();
-registerOnCheerConditionalWaitOpponentOriginalHeartWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerOnCheerConditionalWaitOpponentOriginalHeartWorkflowHandlers({
+  enqueueTriggeredCardEffects,
+});
 registerPlPb2039BokutachiWaHitotsuNoHikariWorkflowHandlers();
 registerPlBp8005RinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpPb2045ZettaiLoverWorkflowHandlers();
@@ -1561,6 +1575,10 @@ export function enqueueTriggeredCardEffects(
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_LIVE_START)) {
+    state = enqueueDarkHextechLiveStart(
+      state,
+      options.liveStartEvents ?? getLatestLiveStartEventsFromLog(state)
+    );
     state = enqueueLiveStartCardEffects(
       state,
       options.liveStartEvents ?? getLatestLiveStartEventsFromLog(state)
@@ -1900,10 +1918,10 @@ function enqueueSingleEnterWaitingRoomCardEffect(
       },
     };
 
-    state = addAction(
+    state = recordTriggeredAbility(
       {
         ...state,
-        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+        pendingAbilities: appendTriggeredAbility(state, pendingAbility),
       },
       'TRIGGER_ABILITY',
       pendingAbility.controllerId,
@@ -2054,10 +2072,10 @@ function enqueueSingleMemberStateChangedCardEffect(
       },
     };
 
-    state = addAction(
+    state = recordTriggeredAbility(
       {
         ...state,
-        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+        pendingAbilities: appendTriggeredAbility(state, pendingAbility),
       },
       'TRIGGER_ABILITY',
       pendingAbility.controllerId,
@@ -2202,10 +2220,10 @@ function enqueueSingleMemberSlotMovedCardEffect(
       },
     };
 
-    state = addAction(
+    state = recordTriggeredAbility(
       {
         ...state,
-        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+        pendingAbilities: appendTriggeredAbility(state, pendingAbility),
       },
       'TRIGGER_ABILITY',
       pendingAbility.controllerId,
@@ -2358,10 +2376,10 @@ function enqueueSingleOnLeaveStageCardEffect(
       },
     };
 
-    state = addAction(
+    state = recordTriggeredAbility(
       {
         ...state,
-        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+        pendingAbilities: appendTriggeredAbility(state, pendingAbility),
       },
       'TRIGGER_ABILITY',
       pendingAbility.controllerId,
@@ -2599,10 +2617,10 @@ function enqueueSingleOnEnterCardEffect(game: GameState, source: OnEnterAbilityS
       metadata: pendingMetadata,
     };
 
-    state = addAction(
+    state = recordTriggeredAbility(
       {
         ...state,
-        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+        pendingAbilities: appendTriggeredAbility(state, pendingAbility),
       },
       'TRIGGER_ABILITY',
       pendingAbility.controllerId,
@@ -2763,10 +2781,10 @@ function enqueueSingleOnEnterStageAutoCardEffect(
       sourceSlot: source.sourceSlot,
     };
 
-    state = addAction(
+    state = recordTriggeredAbility(
       {
         ...state,
-        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+        pendingAbilities: appendTriggeredAbility(state, pendingAbility),
       },
       'TRIGGER_ABILITY',
       pendingAbility.controllerId,
@@ -2957,10 +2975,10 @@ function enqueueLiveStartCardEffects(
         sourceSlot: sourceEntry.sourceSlot ?? undefined,
       };
 
-      state = addAction(
+      state = recordTriggeredAbility(
         {
           ...state,
-          pendingAbilities: [...state.pendingAbilities, pendingAbility],
+          pendingAbilities: appendTriggeredAbility(state, pendingAbility),
         },
         'TRIGGER_ABILITY',
         pendingAbility.controllerId,
@@ -3038,10 +3056,10 @@ function enqueueCheerCardEffects(
           : undefined,
       };
 
-      state = addAction(
+      state = recordTriggeredAbility(
         {
           ...state,
-          pendingAbilities: [...state.pendingAbilities, pendingAbility],
+          pendingAbilities: appendTriggeredAbility(state, pendingAbility),
         },
         'TRIGGER_ABILITY',
         pendingAbility.controllerId,
@@ -3121,10 +3139,10 @@ function enqueueExactStageMemberCheerCardEffects(
           : undefined,
       };
 
-      state = addAction(
+      state = recordTriggeredAbility(
         {
           ...state,
-          pendingAbilities: [...state.pendingAbilities, pendingAbility],
+          pendingAbilities: appendTriggeredAbility(state, pendingAbility),
         },
         'TRIGGER_ABILITY',
         pendingAbility.controllerId,
@@ -3250,10 +3268,10 @@ function enqueueLiveSuccessCardEffects(
         sourceSlot: sourceEntry.sourceSlot ?? undefined,
       };
 
-      state = addAction(
+      state = recordTriggeredAbility(
         {
           ...state,
-          pendingAbilities: [...state.pendingAbilities, pendingAbility],
+          pendingAbilities: appendTriggeredAbility(state, pendingAbility),
         },
         'TRIGGER_ABILITY',
         pendingAbility.controllerId,
@@ -3437,6 +3455,16 @@ export function confirmActiveEffectStep(
       selectedOptionId
     );
   }
+  if (effect.sourceCardId === undefined)
+    return game.hextech?.pendingAcquisition
+      ? finishDarkAcquisitionStep(game, effect, selectedCardId, selectedCardIds, selectedOptionId)
+      : finishDarkHextechAbilityStep(
+          game,
+          effect,
+          selectedCardId,
+          selectedCardIds,
+          continuePendingCardEffects
+        );
   if (effect.metadata?.confirmOnlyPendingAbility === true) {
     return finishConfirmOnlyPendingAbilityEffect(game, startPendingAbilityEffect);
   }
@@ -3470,8 +3498,10 @@ export function confirmActiveEffectStep(
       abilityId: effect.abilityId,
       onEnterInvocation: effect.onEnterInvocation,
       abilityInstanceId: effect.abilityInstanceId,
-      grantingMemberBelowCardId: typeof effect.metadata?.grantingMemberBelowCardId === 'string'
-        ? effect.metadata.grantingMemberBelowCardId : undefined,
+      grantingMemberBelowCardId:
+        typeof effect.metadata?.grantingMemberBelowCardId === 'string'
+          ? effect.metadata.grantingMemberBelowCardId
+          : undefined,
       sourceCardId: effect.sourceCardId,
       sourceLifecycleId: getActiveEffectSourceLifecycleId(game, effect),
     });
@@ -3491,13 +3521,7 @@ export function activateCardAbility(
   if (
     (abilityInstanceId === undefined && isGrantedAbility) ||
     (abilityInstanceId !== undefined &&
-      !isGrantedActivatedAbilityInstance(
-        game,
-        playerId,
-        cardId,
-        abilityId,
-        abilityInstanceId
-      )) ||
+      !isGrantedActivatedAbilityInstance(game, playerId, cardId, abilityId, abilityInstanceId)) ||
     !canUseActivatedAbilityThisTurn(game, playerId, abilityId, cardId, abilityInstanceId)
   ) {
     return game;
@@ -3540,31 +3564,41 @@ function enqueueLatestResolvedEnergyPlacedByCardEffectTriggers(game: GameState):
   );
 }
 
-function getSupportedPendingAbilities(game: GameState): readonly PendingAbilityState[] {
-  return game.pendingAbilities.filter((candidate) =>
-    IMPLEMENTED_QUEUED_ABILITY_IDS.has(candidate.abilityId)
+function getSupportedPendingAbilities(game: GameState): readonly QueuedAbilityState[] {
+  return game.pendingAbilities.filter(
+    (candidate) =>
+      candidate.sourceCardId === undefined ||
+      IMPLEMENTED_QUEUED_ABILITY_IDS.has(candidate.abilityId)
   );
 }
 
 function startAbilityOrderSelection(
   game: GameState,
-  abilities: readonly PendingAbilityState[]
+  abilities: readonly QueuedAbilityState[]
 ): GameState {
   const firstAbility = abilities[0];
   const sourceCardIds = abilities.map((ability) => ability.sourceCardId);
-  const hasDuplicateSourceCards = new Set(sourceCardIds).size !== sourceCardIds.length;
+  const hasDuplicateSourceCards =
+    sourceCardIds.includes(undefined) || new Set(sourceCardIds).size !== sourceCardIds.length;
   return {
     ...game,
     activeEffect: {
       id: `${ABILITY_ORDER_SELECTION_ID}:${firstAbility.timingId}:${firstAbility.controllerId}`,
       abilityId: ABILITY_ORDER_SELECTION_ID,
-      sourceCardId: firstAbility.sourceCardId,
+      ...(firstAbility.sourceCardId !== undefined
+        ? { sourceCardId: firstAbility.sourceCardId }
+        : {
+            sourceKind: 'HEXTECH' as const,
+            sourceHextechInstanceId: firstAbility.sourceHextechInstanceId,
+          }),
       controllerId: firstAbility.controllerId,
       effectText: '请选择下一个要发动的效果。也可以选择“顺序发动”，按当前队列顺序依次处理。',
       stepId: ABILITY_ORDER_SELECTION_STEP_ID,
       stepText: '选择下一个待处理效果',
       awaitingPlayerId: firstAbility.controllerId,
-      selectableCardIds: hasDuplicateSourceCards ? undefined : sourceCardIds,
+      selectableCardIds: hasDuplicateSourceCards
+        ? undefined
+        : sourceCardIds.filter((id): id is string => id !== undefined),
       selectableOptions: hasDuplicateSourceCards
         ? abilities.map((ability, index) => ({
             id: ability.id,
@@ -3640,9 +3674,16 @@ function selectPendingAbilityOrder(
 
 function getAbilityOrderOptionLabel(
   game: GameState,
-  ability: PendingAbilityState,
+  ability: QueuedAbilityState,
   index: number
 ): string {
+  if (ability.sourceCardId === undefined) {
+    const owned = game.hextech?.owned.find(
+      (entry) => entry.instanceId === ability.sourceHextechInstanceId
+    );
+    const definition = owned ? getHextechDefinition(owned.definitionId) : undefined;
+    return `${index + 1}. ${definition?.name ?? '海克斯'}：${definition?.rulesText ?? ''}`;
+  }
   const sourceCard = getCardById(game, ability.sourceCardId);
   const abilityDefinition = findCardAbilityDefinitionById(ability.abilityId);
   const cardName = sourceCard?.data.name ?? '未知卡牌';
@@ -3780,11 +3821,11 @@ function processCheckTimingRuleActionsAndDispatchTriggers(game: GameState): Game
   });
 }
 
-function getCurrentCheckTimingAbilityCandidates(game: GameState): readonly PendingAbilityState[] {
+function getCurrentCheckTimingAbilityCandidates(game: GameState): readonly QueuedAbilityState[] {
   return getCheckTimingAbilityCandidates(game, getSupportedPendingAbilities(game));
 }
 
-function canContinueOrderedResolution(abilities: readonly PendingAbilityState[]): boolean {
+function canContinueOrderedResolution(abilities: readonly QueuedAbilityState[]): boolean {
   if (abilities.length === 0) {
     return false;
   }
@@ -3797,7 +3838,7 @@ function canContinueOrderedResolution(abilities: readonly PendingAbilityState[])
   return batchId !== null && batchIds.every((candidate) => candidate === batchId);
 }
 
-function shouldConfirmSingleLivePendingAbility(ability: PendingAbilityState): boolean {
+function shouldConfirmSingleLivePendingAbility(ability: QueuedAbilityState): boolean {
   return (
     ability.timingId === TriggerCondition.ON_LIVE_START ||
     ability.timingId === TriggerCondition.ON_LIVE_SUCCESS
@@ -3805,7 +3846,7 @@ function shouldConfirmSingleLivePendingAbility(ability: PendingAbilityState): bo
 }
 
 function shouldProcessSameAbilitySourceQueueInOrder(
-  abilities: readonly PendingAbilityState[]
+  abilities: readonly QueuedAbilityState[]
 ): boolean {
   const firstAbility = abilities[0];
   if (!firstAbility) {
@@ -3825,7 +3866,7 @@ function shouldProcessSameAbilitySourceQueueInOrder(
   );
 }
 
-function isImmediateResolvedObserverAbility(ability: PendingAbilityState): boolean {
+function isImmediateResolvedObserverAbility(ability: QueuedAbilityState): boolean {
   return ability.metadata?.resolvedObserverImmediate === true;
 }
 
@@ -3859,9 +3900,16 @@ function isOrderedResolutionEffect(game: GameState): boolean {
 
 function startPendingAbilityEffect(
   game: GameState,
-  ability: PendingAbilityState,
+  ability: QueuedAbilityState,
   options: StartPendingAbilityEffectOptions = {}
 ): GameState {
+  if (ability.sourceCardId === undefined)
+    return startDarkHextechAbility(
+      game,
+      ability.sourceHextechInstanceId,
+      ability,
+      options.orderedResolution === true
+    );
   const registryResult = resolvePendingAbilityStarterWithRegistry(game, ability, options, {
     continuePendingCardEffects,
     delegatePendingAbility,
@@ -3871,8 +3919,10 @@ function startPendingAbilityEffect(
       abilityId: ability.abilityId,
       onEnterInvocation: ability.onEnterInvocation,
       abilityInstanceId: ability.abilityInstanceId,
-      grantingMemberBelowCardId: typeof ability.metadata?.grantingMemberBelowCardId === 'string'
-        ? ability.metadata.grantingMemberBelowCardId : undefined,
+      grantingMemberBelowCardId:
+        typeof ability.metadata?.grantingMemberBelowCardId === 'string'
+          ? ability.metadata.grantingMemberBelowCardId
+          : undefined,
       sourceCardId: ability.sourceCardId,
       sourceLifecycleId: getPendingAbilitySourceLifecycleId(game, ability),
       pendingAbilityId: ability.id,
@@ -3906,7 +3956,7 @@ function finishSelectCardsFromZoneToHandEffect(
   selectedCardId: string | null,
   selectedCardIds: readonly string[] | undefined = undefined
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }

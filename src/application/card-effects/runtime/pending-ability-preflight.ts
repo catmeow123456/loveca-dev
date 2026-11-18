@@ -2,6 +2,7 @@ import {
   addAction,
   type GameState,
   type PendingAbilityState,
+  type QueuedAbilityState,
 } from '../../../domain/entities/game.js';
 import { getPendingAbilitySourceLifecycleId } from './ability-source-lifecycle.js';
 
@@ -37,12 +38,12 @@ export function registerPendingAbilityPreflightHandler(
  */
 export function resolveFirstNonActionablePendingAbilityWithRegistry(
   game: GameState,
-  candidates: readonly PendingAbilityState[]
+  candidates: readonly QueuedAbilityState[]
 ): PendingAbilityPreflightResult {
   for (const candidate of candidates) {
     const ability = game.pendingAbilities.find((pending) => pending.id === candidate.id);
     const handler = ability ? pendingAbilityPreflightHandlers.get(ability.abilityId) : undefined;
-    if (!ability || !handler) {
+    if (!ability || ability.sourceCardId === undefined || !handler) {
       continue;
     }
 

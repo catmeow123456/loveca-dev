@@ -810,6 +810,7 @@ export function clearPreviousStageMemberInstanceState(
   });
   const state = {
     ...removeMemberActivePhaseSkipsForMembers(game, [memberCardId]),
+    ...(game.hextech ? { hextech: { ...game.hextech, columnLocks: game.hextech.columnLocks?.filter((entry) => entry.memberCardId !== memberCardId), silencedMembers: game.hextech.silencedMembers?.filter((entry) => entry.memberCardId !== memberCardId) } } : {}),
     liveResolution: { ...game.liveResolution, liveModifiers },
   };
   return getPlayerById(state, playerId)

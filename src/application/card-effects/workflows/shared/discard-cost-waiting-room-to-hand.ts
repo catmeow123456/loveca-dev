@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -363,7 +364,7 @@ function startDiscardCostWaitingRoomRecoveryAfterDiscard(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }
@@ -531,7 +532,7 @@ function finishConfiguredWaitingRoomToHandWorkflow(
       continuePendingCardEffects
     );
   }
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const printedCost = effect?.metadata?.discardedMemberPrintedCost;
   if (!effect || typeof printedCost !== 'number') return game;
   const currentCandidates = selectWaitingRoomCardIds(

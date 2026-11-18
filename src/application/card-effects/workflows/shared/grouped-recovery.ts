@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { queryCardSelection } from '../../runtime/selection-query.js';
 import {
   addAction,
@@ -401,7 +402,7 @@ function startGroupedRecoveryAfterDiscard(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.discardStepId) {
     return game;
   }
@@ -522,7 +523,7 @@ function finishGroupedRecoveryWorkflow(
   config: GroupedRecoveryWorkflowConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.recoveryStepId) {
     return game;
   }
@@ -645,7 +646,7 @@ function getGroupedRecoverySelectionState(
 function refreshGroupedRecoverySelectionAfterStaleTarget(
   game: GameState,
   playerId: string,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   config: GroupedRecoveryWorkflowConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { addAction, getOpponent, type GameState } from '../../../../domain/entities/game.js';
 import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
@@ -56,7 +57,7 @@ export function registerTomodachiNiNareruBashoWorkflowHandlers(): void {
       return finishSkippedActiveEffect(game, context.continuePendingCardEffects);
     }
     if (input.selectedOptionId !== 'draw') return game;
-    const effect = game.activeEffect!;
+    const effect = getCardActiveEffect(game)!;
     const opponent = getOpponent(game, effect.controllerId);
     if (!opponent) return game;
     const draw = drawCardsFromMainDeckToHand(game, opponent.id, 1);
@@ -102,7 +103,7 @@ export function registerTomodachiNiNareruBashoWorkflowHandlers(): void {
     ABILITY_ID,
     TARGET_STEP,
     (game, input, context) => {
-      const effect = game.activeEffect!;
+      const effect = getCardActiveEffect(game)!;
       const id = input.selectedCardId;
       if (!id || !effect.selectableCardIds?.includes(id)) return game;
       const valid =

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -410,7 +411,7 @@ function finishPendingNoOp(
 }
 
 function getHsSd1008Effect(game: GameState, stepId: string): ActiveEffectState | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   return effect?.abilityId ===
     HS_SD1_008_LIVE_START_DISCARD_TWO_HASUNOSORA_CHOOSE_HEART_TARGET_ABILITY_ID &&
     effect.stepId === stepId

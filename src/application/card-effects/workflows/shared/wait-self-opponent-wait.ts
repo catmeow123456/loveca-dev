@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getOpponent,
@@ -216,7 +217,7 @@ function finishSourceWaitCost(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const config = effect ? CONFIGS.get(effect.abilityId) : undefined;
   if (!effect || !config) {
     return game;
@@ -376,7 +377,7 @@ function finishOpponentWaitTarget(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const config = effect ? CONFIGS.get(effect.abilityId) : undefined;
   if (!effect || !config) {
     return game;

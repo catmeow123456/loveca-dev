@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { createHeartIcon } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -159,7 +160,7 @@ function finishSameUnitHeartBladeWorkflow(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
   const sharedUnitIdentity = getSharedUnitIdentityForCardIds(game, uniqueSelectedCardIds);

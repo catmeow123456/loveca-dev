@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { addAction, getCardById, getPlayerById, type GameState, type PendingAbilityState } from '../../../../domain/entities/game.js';
 import { OrientationState } from '../../../../shared/types/enums.js';
@@ -53,7 +54,7 @@ function start(game: GameState, ability: PendingAbilityState, orderedResolution:
 }
 
 function finishWaitSelf(game: GameState, selectedOptionId: string | null, continuePendingCardEffects: ContinuePendingCardEffects, enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== PL_PB1_017_ON_ENTER_WAIT_SELF_DRAW_DISCARD_UNLESS_PRINTEMPS_RELAY_ABILITY_ID || effect.stepId !== WAIT_SELF_STEP_ID) return game;
   const player = getPlayerById(game, effect.controllerId);
   if (!player) return game;
@@ -91,7 +92,7 @@ function finishWaitSelf(game: GameState, selectedOptionId: string | null, contin
 }
 
 function finishDiscard(game: GameState, selectedCardId: string | null, selectedCardIds: readonly string[] | undefined, continuePendingCardEffects: ContinuePendingCardEffects, enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== PL_PB1_017_ON_ENTER_WAIT_SELF_DRAW_DISCARD_UNLESS_PRINTEMPS_RELAY_ABILITY_ID || effect.stepId !== SELECT_DISCARD_STEP_ID) return game;
   const player = getPlayerById(game, effect.controllerId);
   if (!player) return game;

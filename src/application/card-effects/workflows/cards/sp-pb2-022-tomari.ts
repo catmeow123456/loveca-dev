@@ -1,3 +1,4 @@
+import { appendTriggeredAbility, recordTriggeredAbility } from '../../runtime/enqueue-pending-ability.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -103,8 +104,8 @@ function enqueueSpPb2022MemberSlotMovedObserver(
         },
       };
 
-      state = addAction(
-        { ...state, pendingAbilities: [...state.pendingAbilities, pendingAbility] },
+      state = recordTriggeredAbility(
+        { ...state, pendingAbilities: appendTriggeredAbility(state, pendingAbility) },
         'TRIGGER_ABILITY',
         player.id,
         {

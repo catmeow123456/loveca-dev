@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getOpponent,
@@ -276,7 +277,7 @@ function finishKasumiLookTopOption(
 }
 
 function getKasumiActiveEffect(game: GameState, stepId: string) {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !==
@@ -291,7 +292,7 @@ function getKasumiActiveEffect(game: GameState, stepId: string) {
 function resolveKasumiNoOp(
   game: GameState,
   config: {
-    readonly effect: NonNullable<GameState['activeEffect']>;
+    readonly effect: NonNullable<ReturnType<typeof getCardActiveEffect>>;
     readonly playerId: string;
     readonly continuePendingCardEffects: ContinuePendingCardEffects;
     readonly step: string;

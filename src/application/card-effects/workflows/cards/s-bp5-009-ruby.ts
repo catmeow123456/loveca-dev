@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getCardById,
@@ -118,7 +119,7 @@ function finishSBp5009RubyDecline(
   game: GameState,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== PAY_STEP_ID) {
     return game;
   }
@@ -150,7 +151,7 @@ function finishSBp5009RubyPayEnergy(
   game: GameState,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== PAY_STEP_ID) {
     return game;
   }
@@ -240,7 +241,7 @@ function finishSBp5009RubyRecover(
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== SELECT_WAITING_ROOM_STEP_ID) {
     return game;
   }
@@ -306,7 +307,7 @@ function finishNoOpActiveEffect(
   reason: string,
   payload: Readonly<Record<string, unknown>> = {}
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== ABILITY_ID) {
     return game;
   }

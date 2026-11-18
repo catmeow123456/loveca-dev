@@ -1,3 +1,4 @@
+import { appendTriggeredAbility, recordTriggeredAbility } from './enqueue-pending-ability.js';
 import {
   addAction,
   getCardById,
@@ -70,8 +71,8 @@ export function enqueueEnergyMovedToDeckCardEffects(
             causedByPlayerId: event.cause.playerId,
           },
         };
-        state = addAction(
-          { ...state, pendingAbilities: [...state.pendingAbilities, pending] },
+        state = recordTriggeredAbility(
+          { ...state, pendingAbilities: appendTriggeredAbility(state, pending) },
           'TRIGGER_ABILITY',
           player.id,
           {

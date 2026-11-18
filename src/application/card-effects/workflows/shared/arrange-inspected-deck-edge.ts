@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { queryOptionSelection, queryCardSelection } from '../../runtime/selection-query.js';
 import {
   addAction,
@@ -754,7 +755,7 @@ function finishTopOneOptionalBottom(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const config = ARRANGE_INSPECTED_DECK_EDGE_WORKFLOWS.find(
     (candidate) =>
       candidate.abilityId === effect?.abilityId &&
@@ -804,7 +805,7 @@ function finishArrangeInspectedDeckEdgeTargetPlayerSelection(
   registeredConfig: RegisteredArrangeInspectedDeckEdgeConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || (selectedOptionId !== 'self' && selectedOptionId !== 'opponent')) {
     return game;
   }
@@ -865,7 +866,7 @@ export function finishArrangeInspectedDeckEdgeWorkflow(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) {
     return game;
   }
@@ -947,7 +948,7 @@ function finishArrangeInspectedDeckEdgeUnselectedOrderWorkflow(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const inspectedCardIds = effect?.inspectionCardIds ?? [];
   const firstSelectedCardIds = getStringArrayMetadata(effect?.metadata?.firstSelectedCardIds);
@@ -981,7 +982,7 @@ function finishArrangeInspectedDeckEdgeUnselectedOrderWorkflow(
 
 function finishArrangeInspectedDeckEdgePlacement(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   uniqueSelectedCardIds: readonly string[],
   orderedUnselectedCardIds: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects,

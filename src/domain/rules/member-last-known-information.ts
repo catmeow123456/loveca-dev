@@ -1,3 +1,4 @@
+import { isCardAbilitySuppressedByDarkHextech } from '../hextech/suppression.js';
 import { getCardById, getPlayerById, type GameState } from '../entities/game.js';
 import { isMemberCardData } from '../entities/card.js';
 import { findMemberSlot } from '../entities/player.js';
@@ -21,6 +22,9 @@ export function captureMemberLastKnownInformation(
   )
     return undefined;
   return {
+    ...(isCardAbilitySuppressedByDarkHextech(game, memberCardId)
+      ? { abilitiesSuppressed: true }
+      : {}),
     effectiveBlade: getMemberEffectiveBladeCount(game, controllerId, memberCardId),
     effectiveCost: getMemberEffectiveCost(game, controllerId, memberCardId),
   };

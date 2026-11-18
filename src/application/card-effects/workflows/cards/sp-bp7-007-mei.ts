@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import {
   addAction,
   getOpponent,
@@ -115,7 +116,7 @@ function finish(
     o
   );
 }
-function pending(e: NonNullable<GameState['activeEffect']>): PendingAbilityState {
+function pending(e: NonNullable<ReturnType<typeof getCardActiveEffect>>): PendingAbilityState {
   return {
     id: e.id,
     abilityId: e.abilityId,
@@ -154,7 +155,7 @@ function select(
   n: Continue,
   enq: Enqueue
 ): GameState {
-  const e = g.activeEffect;
+  const e = getCardActiveEffect(g);
   if (!e) return g;
   const player = getPlayerById(g, e.controllerId);
   if (!player || findMemberSlot(player, e.sourceCardId) === null)
@@ -331,7 +332,7 @@ function finishActivateSelection(
   selectedCardIds: readonly string[],
   next: Continue
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== SELECT_ACTIVATE || selectedCardIds.length !== 6) return game;
   const player = getPlayerById(game, effect.controllerId);
   if (!player || findMemberSlot(player, effect.sourceCardId) === null) return game;

@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -49,7 +50,7 @@ export function registerPlAd1001HonokaWorkflowHandlers(): void {
     ABILITY_ID,
     PL_AD1_001_SELECT_ORANGE_TO_FIFTH_STEP_ID,
     (game, input, context) => {
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       if (
         !effect ||
         !input.selectedCardId ||

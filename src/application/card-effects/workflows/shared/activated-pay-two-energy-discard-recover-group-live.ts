@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { addAction, getCardById, getPlayerById, type ActiveEffectState, type GameState } from '../../../../domain/entities/game.js';
 import { CardType, GamePhase, OrientationState } from '../../../../shared/types/enums.js';
@@ -215,7 +216,7 @@ function finishCost(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== config.abilityId ||

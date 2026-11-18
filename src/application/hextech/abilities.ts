@@ -1,3 +1,4 @@
+import { canPayDarkHextech, startDarkHextechAbility } from './dark-abilities.js';
 import { isLiveCardData } from '../../domain/entities/card.js';
 import {
   addAction,
@@ -61,7 +62,14 @@ export function getHextechActivation(game: GameState, playerId: string, instance
     )
   )
     return null;
-  const kind = getHextechDefinition(owned.definitionId)?.effect.kind;
+  const definition = getHextechDefinition(owned.definitionId);
+  const kind = definition?.effect.kind;
+  if (
+    kind === 'DARK' &&
+    definition?.activation?.timings.includes('ACTIVATED') &&
+    canPayDarkHextech(game, instanceId)
+  )
+    return { kind, candidates: [] as readonly string[], min: 0, max: 0 };
   const player = getPlayerById(game, playerId)!;
   if (kind === 'ACTIVATED_DISCARD_DRAW' && player.hand.cardIds.length) {
     return { kind, candidates: player.hand.cardIds, min: 1, max: player.hand.cardIds.length };
@@ -93,7 +101,7 @@ export function validateHextechAbilityCommand(
       search?.source.playerId === command.playerId &&
       search.source.instanceId === command.instanceId &&
       ids.length === search.count &&
-      ids.every((id) => search.candidates.includes(id))
+      ids.every((id: unknown) => typeof id === 'string' && search.candidates.includes(id))
       ? null
       : '海克斯检索已变化或选牌不合法';
   }
@@ -101,7 +109,7 @@ export function validateHextechAbilityCommand(
   return activation &&
     ids.length >= activation.min &&
     ids.length <= activation.max &&
-    ids.every((id) => activation.candidates.includes(id))
+    ids.every((id: unknown) => typeof id === 'string' && activation.candidates.includes(id))
     ? null
     : '当前不能发动该海克斯或选牌不合法';
 }
@@ -138,6 +146,7 @@ export function applyHextechAbilityCommand(
     return continueHextechAcquisitions(state, randomInt);
   }
   const activation = getHextechActivation(game, playerId, instanceId)!;
+  if (activation.kind === 'DARK') return startDarkHextechAbility(game, instanceId);
   let state = addAction(game, 'HEXTECH_ACTIVATED', playerId, { instanceId, turn: game.turnCount });
   if (activation.kind === 'ACTIVATED_DISCARD_DRAW') {
     const allHand = getPlayerById(game, playerId)!.hand.cardIds.length === ids.length;

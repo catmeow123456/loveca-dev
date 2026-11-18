@@ -1,3 +1,5 @@
+import { appendTriggeredAbility, recordTriggeredAbility } from '../../runtime/enqueue-pending-ability.js';
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -140,10 +142,10 @@ function enqueueSpPb2011CenterMemberMovedObserver(
         },
       };
 
-      state = addAction(
+      state = recordTriggeredAbility(
         {
           ...state,
-          pendingAbilities: [...state.pendingAbilities, pendingAbility],
+          pendingAbilities: appendTriggeredAbility(state, pendingAbility),
         },
         'TRIGGER_ABILITY',
         player.id,
@@ -271,7 +273,7 @@ function finishSpPb2011TomariOption(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== SELECT_OPTION_STEP_ID) {
     return game;
   }
@@ -395,7 +397,7 @@ function finishSpPb2011TomariOpponentWait(
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.stepId !== SELECT_OPPONENT_MEMBER_STEP_ID) {
     return game;
   }

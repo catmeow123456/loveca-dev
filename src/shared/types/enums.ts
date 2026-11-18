@@ -63,6 +63,8 @@ export enum BladeHeartEffect {
   HEART = 'HEART',
   /** Live 分数 +1 */
   SCORE = 'SCORE',
+  /** 海克斯关键暴击：成功 LIVE 合计分数 +2，属于判定但不是 SCORE 标 */
+  CRITICAL_SCORE = 'CRITICAL_SCORE',
 }
 
 // ============================================

@@ -1,3 +1,4 @@
+import { appendTriggeredAbility, recordTriggeredAbility } from './enqueue-pending-ability.js';
 import {
   addAction,
   emitGameEvent,
@@ -130,8 +131,8 @@ export function enqueueEnterSuccessZoneCardEffects(
           successZoneCardCountAfter: event.successZoneCardCountAfter,
         },
       };
-      state = addAction(
-        { ...state, pendingAbilities: [...state.pendingAbilities, pending] },
+      state = recordTriggeredAbility(
+        { ...state, pendingAbilities: appendTriggeredAbility(state, pending) },
         'TRIGGER_ABILITY',
         event.controllerId,
         {

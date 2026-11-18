@@ -1202,6 +1202,17 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                           {effects.drawBonus > 0 && (
                             <span className="text-cyan-400">📄+{effects.drawBonus}</span>
                           )}
+                          {effects.scoreBonus > 0 && (
+                            <span
+                              className="text-[var(--accent-gold)]"
+                              title={formatTextJudgment(
+                                effectiveCheerBladeHearts?.[getPublicObjectId(id)] ??
+                                  frontInfo?.bladeHearts
+                              )}
+                            >
+                              +{effects.scoreBonus}分
+                            </span>
+                          )}
                         </div>
                       </CardDetailPressTarget>
                     );
@@ -1309,7 +1320,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                   <div className="inline-flex min-h-7 items-center rounded bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] px-2 py-1 text-[10px] text-[var(--text-secondary)]">
                     分数加成：
                     {liveJudgmentPreview.cheerScoreBonus > 0 &&
-                      ` 应援音符 +${liveJudgmentPreview.cheerScoreBonus}`}
+                      ` 应援加分 +${liveJudgmentPreview.cheerScoreBonus}`}
                     {liveJudgmentPreview.effectScoreBonus > 0 &&
                       ` 卡牌效果 +${liveJudgmentPreview.effectScoreBonus}`}
                   </div>

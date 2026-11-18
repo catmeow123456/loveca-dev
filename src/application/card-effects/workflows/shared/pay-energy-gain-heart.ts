@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import { createHeartIcon } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -203,7 +204,7 @@ function payEnergyForHeartWorkflow(
   config: PayEnergyGainHeartWorkflowConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.payStepId) {
     return game;
   }
@@ -314,7 +315,7 @@ function finishChosenHeartWorkflow(
   selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (
     !effect ||
     effect.abilityId !== config.abilityId ||

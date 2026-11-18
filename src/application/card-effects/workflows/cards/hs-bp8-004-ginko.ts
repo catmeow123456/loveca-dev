@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../../domain/entities/game.js';
 import type { EnterStageEvent } from '../../../../domain/events/game-events.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
@@ -127,7 +128,7 @@ export function registerHsBp8004GinkoWorkflowHandlers(deps: {
     ACTIVATED,
     DISCARD_STEP,
     (game, input, runtime) => {
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       if (!effect || !input.selectedCardId) return game;
       const discarded = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
         game,
@@ -199,7 +200,7 @@ export function registerHsBp8004GinkoWorkflowHandlers(deps: {
     ACTIVATED,
     ABILITY_STEP,
     (game, input, runtime) => {
-      const effect = game.activeEffect;
+      const effect = getCardActiveEffect(game);
       const cardId = effect?.metadata?.discardedCardId;
       if (
         !effect ||

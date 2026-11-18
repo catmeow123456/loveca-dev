@@ -1,3 +1,4 @@
+import { getCardActiveEffect } from '../../../domain/entities/game.js';
 import {
   getPlayerById,
   type GameState,
@@ -103,7 +104,7 @@ export function resolveOptionalEnergyReturn(
   game: GameState,
   config: ResolveOptionalEnergyReturnConfig
 ): OptionalEnergyReturnResult | null {
-  const effect = game.activeEffect;
+  const effect = getCardActiveEffect(game);
   if (!effect) return null;
   const requiredCount = effect.metadata?.requiredEnergyReturnCount;
   if (typeof requiredCount !== 'number' || requiredCount <= 0) return null;
