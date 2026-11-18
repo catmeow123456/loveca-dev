@@ -153,7 +153,8 @@ export const HEXTECH_DEFINITIONS = [
     id: 'little-painter',
     name: '小画家',
     rarity: 'PRISMATIC',
-    rulesText: '三色以上LIVE所需灰心清零；每张LIVE已需的每种颜色心+1',
+    rulesText:
+      '印刷必要心含三种以上不同彩色的LIVE所需灰心清零（灰心不计入三色）；每张LIVE已需的每种彩色心+1',
     effect: { kind: 'PAINTER_LIVE_REQUIREMENTS' },
   },
   {
@@ -196,7 +197,8 @@ export const HEXTECH_DEFINITIONS = [
     id: 'critical-hit',
     name: '关键暴击',
     rarity: 'PRISMATIC',
-    rulesText: '己方持有判定的LIVE，其判定整体变为加2分',
+    rulesText:
+      '己方原本持有判定的LIVE，其声援判定整体变为加2分（仅LIVE成功时计入）；此判定不视为SCORE标，不计入SCORE标数量，也不满足或触发以本次声援SCORE标为条件的效果',
     effect: { kind: 'LIVE_CRITICAL_BLADE_HEART' },
   },
   {

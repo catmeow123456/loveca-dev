@@ -14,14 +14,13 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { hasPlayerRefreshedDeckThisTurn } from '../../../../domain/rules/deck-turn-state.js';
-import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
+import {
+  hasEffectiveCheerScoreBladeHeart,
+  selectCurrentLiveRevealedCheerCardIds,
+} from '../../../effects/cheer-selection.js';
 import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import { getRemainingHeartTotalCount } from '../../../effects/remaining-hearts.js';
-import {
-  CardType,
-  OrientationState,
-  SlotPosition,
-} from '../../../../shared/types/enums.js';
+import { CardType, OrientationState, SlotPosition } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   PL_S_PB1_007_LIVE_SUCCESS_CHEER_LIVE_PLACE_WAITING_ENERGY_ABILITY_ID,
@@ -46,7 +45,7 @@ import {
   maybeStartConfirmablePendingAbilityConfirmation,
   registerManualConfirmablePendingAbilityStarterHandler,
 } from '../../runtime/workflow-helpers.js';
-import { and, groupAliasIs, hasScoreBladeHeart, typeIs } from '../../../effects/card-selectors.js';
+import { groupAliasIs } from '../../../effects/card-selectors.js';
 
 const AQOURS = 'Aqours';
 const MY_MAI_TONIGHT = 'MY舞☆TONIGHT';
@@ -798,11 +797,10 @@ function resolveOpponentRemainingHeartsLiveSuccessScore(
 }
 
 function getRubyLiveSuccessMatchingCardIds(game: GameState, playerId: string): readonly string[] {
-  const cheerCardIds = selectCurrentLiveRevealedCheerCardIds(game, playerId);
-  const isScoreAqoursLive = and(typeIs(CardType.LIVE), groupAliasIs(AQOURS), hasScoreBladeHeart());
-  return cheerCardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && card.ownerId === playerId && isScoreAqoursLive(card);
+  return selectCurrentLiveRevealedCheerCardIds(game, playerId, {
+    cardTypes: CardType.LIVE,
+    groupAliases: [AQOURS],
+    predicate: (card) => hasEffectiveCheerScoreBladeHeart(game, playerId, card.instanceId),
   });
 }
 

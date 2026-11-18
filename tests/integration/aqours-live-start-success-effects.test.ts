@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { withCriticalHit } from '../helpers/critical-hit-fixture';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -298,7 +299,11 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       nonAqoursLive,
       member,
     ]);
-    game = placeLiveZone(game, [sourceLive.instanceId, sameNameLive.instanceId, nonAqoursLive.instanceId]);
+    game = placeLiveZone(game, [
+      sourceLive.instanceId,
+      sameNameLive.instanceId,
+      nonAqoursLive.instanceId,
+    ]);
     game = placeStageMembers(game, [{ cardId: member.instanceId, slot: SlotPosition.CENTER }]);
     game = {
       ...game,
@@ -432,7 +437,9 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       aqoursMember,
     ]);
     game = placeLiveZone(game, [sourceLive.instanceId]);
-    game = placeStageMembers(game, [{ cardId: aqoursMember.instanceId, slot: SlotPosition.CENTER }]);
+    game = placeStageMembers(game, [
+      { cardId: aqoursMember.instanceId, slot: SlotPosition.CENTER },
+    ]);
     game = {
       ...game,
       pendingAbilities: [
@@ -490,7 +497,9 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       game,
       sourceLives.map((card) => card.instanceId)
     );
-    game = placeStageMembers(game, [{ cardId: aqoursMember.instanceId, slot: SlotPosition.CENTER }]);
+    game = placeStageMembers(game, [
+      { cardId: aqoursMember.instanceId, slot: SlotPosition.CENTER },
+    ]);
     game = {
       ...game,
       pendingAbilities: sourceLives.map((sourceLive, index) =>
@@ -591,52 +600,64 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
     ).toBe(false);
   });
 
-  it('PL!S-bp6-009 LIVE_SUCCESS adds total score for non-additional center cheer SCORE Aqours LIVE', () => {
-    const ruby = createCardInstance(
-      createMemberCard('PL!S-bp6-009-P', { name: '黒澤ルビィ', cost: 9 }),
-      PLAYER1,
-      'ruby-live-success'
-    );
-    const scoreAqoursLive = createCardInstance(
-      createLiveCard('PL!S-score-aqours-live', { hasScore: true }),
-      PLAYER1,
-      'score-aqours-live'
-    );
-    let game = registerCards(createGameState('bp6-009-live-success', PLAYER1, 'P1', PLAYER2, 'P2'), [
-      ruby,
-      scoreAqoursLive,
-    ]);
-    game = placeStageMembers(game, [{ cardId: ruby.instanceId, slot: SlotPosition.CENTER }]);
-    game = emitGameEvent(
-      game,
-      createCheerEvent(PLAYER1, [scoreAqoursLive.instanceId], 1, { additional: false })
-    );
-    game = setCurrentCheerCards(game, [scoreAqoursLive.instanceId]);
-    game = {
-      ...game,
-      pendingAbilities: [
-        createPendingAbility(
-          S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
-          ruby.instanceId,
-          TriggerCondition.ON_LIVE_SUCCESS
-        ),
-      ],
-    };
+  it.each([false, true])(
+    'PL!S-bp6-009 counts effective SCORE Aqours LIVE with critical-hit enabled=%s',
+    (criticalHit) => {
+      const ruby = createCardInstance(
+        createMemberCard('PL!S-bp6-009-P', { name: '黒澤ルビィ', cost: 9 }),
+        PLAYER1,
+        'ruby-live-success'
+      );
+      const scoreAqoursLive = createCardInstance(
+        createLiveCard('PL!S-score-aqours-live', { hasScore: true }),
+        PLAYER1,
+        'score-aqours-live'
+      );
+      let game = registerCards(
+        createGameState('bp6-009-live-success', PLAYER1, 'P1', PLAYER2, 'P2'),
+        [ruby, scoreAqoursLive]
+      );
+      game = placeStageMembers(game, [{ cardId: ruby.instanceId, slot: SlotPosition.CENTER }]);
+      game = emitGameEvent(
+        game,
+        createCheerEvent(PLAYER1, [scoreAqoursLive.instanceId], 1, { additional: false })
+      );
+      game = setCurrentCheerCards(game, [scoreAqoursLive.instanceId]);
+      game = {
+        ...game,
+        pendingAbilities: [
+          createPendingAbility(
+            S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
+            ruby.instanceId,
+            TriggerCondition.ON_LIVE_SUCCESS
+          ),
+        ],
+      };
 
-    const preview = resolvePendingCardEffects(game).gameState;
-    expect(preview.activeEffect?.effectText).toContain('当前声援[スコア]Aqours LIVE 1张');
-    expect(preview.activeEffect?.effectText).not.toContain('当前中央声援');
-    const resolved = confirmIfConfirmOnly(preview);
+      const preview = resolvePendingCardEffects(
+        criticalHit ? withCriticalHit(game, PLAYER1) : game
+      ).gameState;
+      expect(preview.activeEffect?.effectText).toContain(
+        `当前声援[スコア]Aqours LIVE ${criticalHit ? 0 : 1}张`
+      );
+      expect(preview.activeEffect?.effectText).not.toContain('当前中央声援');
+      const resolved = confirmIfConfirmOnly(preview);
 
-    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(1);
-    expect(resolved.liveResolution.liveModifiers).toContainEqual({
-      kind: 'SCORE',
-      playerId: PLAYER1,
-      countDelta: 1,
-      sourceCardId: ruby.instanceId,
-      abilityId: S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
-    });
-  });
+      if (criticalHit) {
+        expect(resolved.liveResolution.playerScores.get(PLAYER1) ?? 0).toBe(0);
+        expect(resolved.liveResolution.liveModifiers).toEqual([]);
+        return;
+      }
+      expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(1);
+      expect(resolved.liveResolution.liveModifiers).toContainEqual({
+        kind: 'SCORE',
+        playerId: PLAYER1,
+        countDelta: 1,
+        sourceCardId: ruby.instanceId,
+        abilityId: S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
+      });
+    }
+  );
 
   it.each([
     { slot: SlotPosition.LEFT, expectedPendingCount: 0 },
@@ -735,21 +756,17 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       PLAYER1,
       'no-score-aqours-live'
     );
-    let game = registerCards(createGameState('bp6-009-live-success-miss', PLAYER1, 'P1', PLAYER2, 'P2'), [
-      ruby,
-      scoreAqoursLive,
-      noScoreAqoursLive,
-    ]);
+    let game = registerCards(
+      createGameState('bp6-009-live-success-miss', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [ruby, scoreAqoursLive, noScoreAqoursLive]
+    );
     game = placeStageMembers(game, [{ cardId: ruby.instanceId, slot: SlotPosition.CENTER }]);
     game = emitGameEvent(game, createCheerEvent(PLAYER1, [noScoreAqoursLive.instanceId], 1));
     game = emitGameEvent(
       game,
       createCheerEvent(PLAYER1, [scoreAqoursLive.instanceId], 1, { additional: true })
     );
-    game = setCurrentCheerCards(game, [
-      noScoreAqoursLive.instanceId,
-      scoreAqoursLive.instanceId,
-    ]);
+    game = setCurrentCheerCards(game, [noScoreAqoursLive.instanceId, scoreAqoursLive.instanceId]);
     game = {
       ...game,
       pendingAbilities: [
@@ -863,10 +880,7 @@ describe('PL!S-bp2-022-L 未熟DREAMER', () => {
   });
 
   it('does not add score when only the opponent refreshed or the controller refreshed last global turn', () => {
-    for (const options of [
-      { opponentRefreshed: true },
-      { previousTurnRefreshed: true },
-    ]) {
+    for (const options of [{ opponentRefreshed: true }, { previousTurnRefreshed: true }]) {
       const { game } = createDreamerGame(options);
       const preview = resolvePendingCardEffects(game).gameState;
       expect(preview.activeEffect?.effectText).toContain(

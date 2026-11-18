@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { withCriticalHit } from '../helpers/critical-hit-fixture';
 import type { BladeHearts, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -136,6 +137,21 @@ function abilityUseCount(game: GameState): number {
 }
 
 describe('PL!SP-PR-024 Sumire on-cheer purple Heart workflow', () => {
+  it.each([BladeHeartEffect.SCORE, BladeHeartEffect.DRAW])(
+    'does not gain Heart from a critical-hit judgment replacing %s',
+    (effect) => {
+      const live = createCardInstance(
+        createLive('test-live', { bladeHearts: [{ effect }] }),
+        PLAYER1,
+        'critical-live'
+      );
+      const { game } = setupState([live]);
+      const state = resolveCheer(withCriticalHit(game, PLAYER1), PLAYER1, [live.instanceId]);
+      expect(purpleHeartModifierCount(state)).toBe(0);
+      expect(abilityUseCount(state)).toBe(1);
+      expect(state.pendingAbilities).toEqual([]);
+    }
+  );
   it('gains purple Heart when own normal cheer reveals a score Liella! LIVE', () => {
     const scoreLive = createCardInstance(
       createLive('PL!SP-score-liella-live', { bladeHearts: [{ effect: BladeHeartEffect.SCORE }] }),

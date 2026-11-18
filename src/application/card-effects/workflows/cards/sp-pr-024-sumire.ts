@@ -7,7 +7,8 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor, TriggerCondition } from '../../../../shared/types/enums.js';
-import { and, groupAliasIs, hasScoreBladeHeart, typeIs } from '../../../effects/card-selectors.js';
+import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
+import { hasEffectiveCheerScoreBladeHeart } from '../../../effects/cheer-selection.js';
 import { SP_PR_024_AUTO_ON_CHEER_SCORE_LIELLA_LIVE_GAIN_PURPLE_HEART_ABILITY_ID } from '../../ability-ids.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { getLatestOwnNormalCheerEventByIds } from '../../runtime/cheer-events.js';
@@ -16,7 +17,7 @@ import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-const scoreLiellaLive = and(typeIs(CardType.LIVE), groupAliasIs('Liella!'), hasScoreBladeHeart());
+const liellaLive = and(typeIs(CardType.LIVE), groupAliasIs('Liella!'));
 
 export function registerSpPr024SumireWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
@@ -70,7 +71,12 @@ function resolveSpPr024SumireOnCheer(
 
   const matchingCardIds = cheerEvent.revealedCardIds.filter((cardId) => {
     const card = getCardById(game, cardId);
-    return card !== null && card.ownerId === player.id && scoreLiellaLive(card);
+    return (
+      card !== null &&
+      card.ownerId === player.id &&
+      liellaLive(card) &&
+      hasEffectiveCheerScoreBladeHeart(game, player.id, cardId)
+    );
   });
   const conditionMet = matchingCardIds.length > 0;
 

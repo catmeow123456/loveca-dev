@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { withCriticalHit } from '../helpers/critical-hit-fixture';
 import {
   createCardInstance,
   createHeartIcon,
@@ -210,6 +211,22 @@ function additionalCheerActions(game: GameState) {
 }
 
 describe('PL!-pb2-004 Umi', () => {
+  it('critical-hit excludes replaced LIVE SCORE markers but keeps a member SCORE eligible for additional cheer', () => {
+    const scenario = setupAuto({ matchingCount: 2, deckCount: 3 });
+    const queued = enqueueCheer(
+      withCriticalHit(scenario.game, PLAYER1),
+      PLAYER1,
+      scenario.matchingCardIds
+    );
+    const preview = resolvePendingCardEffects(queued).gameState;
+    expect(preview.activeEffect?.stepText).toBe('确认后追加声援1张。');
+    const state = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(additionalCheerActions(state)).toHaveLength(1);
+    expect(additionalCheerActions(state)[0]?.payload).toMatchObject({
+      cheerCount: 1,
+      cheerCardIds: scenario.deckCardIds.slice(0, 1),
+    });
+  });
   it('registers both independent base-code definitions with exact player text', () => {
     for (const cardCode of ['PL!-pb2-004-PP', 'PL!-pb2-004-R']) {
       const definitions = getCardAbilityDefinitionsForCardCode(cardCode);

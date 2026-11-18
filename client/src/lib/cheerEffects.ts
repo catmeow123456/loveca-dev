@@ -16,6 +16,7 @@ export function calculateCheerEffects(bladeHearts?: readonly ViewBladeHeartItem[
   for (const item of bladeHearts ?? []) {
     if (item.effect === BladeHeartEffect.DRAW) drawBonus += 1;
     if (item.effect === BladeHeartEffect.SCORE) scoreBonus += 1;
+    if (item.effect === BladeHeartEffect.CRITICAL_SCORE) scoreBonus += 2;
     if (item.effect === BladeHeartEffect.HEART && item.heartColor) {
       penLightHearts.push({ color: item.heartColor, count: 1 });
       judgmentHearts.push({ color: getCheerHeartContributionColor(item.heartColor), count: 1 });

@@ -28,6 +28,18 @@ import {
 } from '../../shared/utils/card-identity.js';
 
 export type CheerCardPredicate = (card: CardInstance) => boolean;
+
+/** SCORE conditions during cheer use effective markers, never a replaced printed SCORE. */
+export function hasEffectiveCheerScoreBladeHeart(
+  game: GameState,
+  playerId: string,
+  cardId: string
+): boolean {
+  return getCheerCardEffectiveBladeHearts(game, playerId, cardId).some(
+    (item) => item.effect === BladeHeartEffect.SCORE
+  );
+}
+
 export type CurrentLiveRevealedCheerEventScope = 'ALL' | 'NON_ADDITIONAL' | 'ADDITIONAL_ONLY';
 
 export interface CurrentLiveRevealedCheerCardSelectionOptions {

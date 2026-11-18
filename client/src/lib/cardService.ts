@@ -120,8 +120,9 @@ export interface AdminCardListParams {
 // ============================================
 
 function dbRecordToCardData(
-  record: PublicCardRecord &
-    Partial<Pick<CardDbRecord, 'image_source_uri' | 'source_external_id' | 'source_flags'>>
+  record: Omit<PublicCardRecord, 'blade_hearts'> & {
+    readonly blade_hearts: PublicCardRecord['blade_hearts'] | CardDbRecord['blade_hearts'];
+  } & Partial<Pick<CardDbRecord, 'image_source_uri' | 'source_external_id' | 'source_flags'>>
 ): AnyCardData {
   const name = record.name_cn?.trim() || record.name_jp?.trim() || record.card_code;
   const cardText = record.card_text_cn?.trim() || record.card_text_jp?.trim() || undefined;
@@ -147,7 +148,9 @@ function dbRecordToCardData(
     sourceFlags: record.source_flags ?? undefined,
   };
 
-  const convertBladeHearts = (items: PublicCardRecord['blade_hearts']): BladeHearts | undefined => {
+  const convertBladeHearts = (
+    items: (PublicCardRecord | CardDbRecord)['blade_hearts']
+  ): BladeHearts | undefined => {
     if (!items || items.length === 0) return undefined;
     return items.map((item) => ({
       effect: item.effect as BladeHeartEffect,

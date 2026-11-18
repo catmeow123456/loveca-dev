@@ -40,7 +40,7 @@ export function getHextechBladeHearts(
   }
   const printed = card.bladeHearts ?? [];
   if (isLiveCardData(card) && printed.length > 0 && effects.includes('LIVE_CRITICAL_BLADE_HEART')) {
-    return [{ effect: BladeHeartEffect.SCORE }, { effect: BladeHeartEffect.SCORE }];
+    return [{ effect: BladeHeartEffect.CRITICAL_SCORE }];
   }
   return printed;
 }

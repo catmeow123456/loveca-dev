@@ -7,8 +7,10 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { CardType } from '../../../../shared/types/enums.js';
-import { hasScoreBladeHeart } from '../../../effects/card-selectors.js';
-import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
+import {
+  hasEffectiveCheerScoreBladeHeart,
+  selectCurrentLiveRevealedCheerCardIds,
+} from '../../../effects/cheer-selection.js';
 import { SP_PB2_004_LIVE_SUCCESS_SCORE_CONDITION_DRAW_ABILITY_ID } from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -128,6 +130,6 @@ function getOwnCheerRevealedScoreLiveCardIds(
 ): readonly string[] {
   return selectCurrentLiveRevealedCheerCardIds(game, playerId, {
     cardTypes: CardType.LIVE,
-    predicate: hasScoreBladeHeart(),
+    predicate: (card) => hasEffectiveCheerScoreBladeHeart(game, playerId, card.instanceId),
   });
 }
