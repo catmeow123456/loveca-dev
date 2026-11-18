@@ -10,6 +10,7 @@ import {
   type GameCommand,
 } from '../../src/application/game-commands';
 import { acquireHextech } from '../../src/application/hextech/acquire';
+import { openHextechSelection } from '../../src/application/hextech/selection';
 import { revealCheerCardsFromMainDeck } from '../../src/application/effects/cheer';
 import {
   hasEffectiveCheerScoreBladeHeart,
@@ -662,24 +663,45 @@ describe('海克斯第四批：成长、判定替换和取得移动', () => {
     'table-flip',
   ] as const)('%s 可以从真人候选中取得，并在双方确认后向双方公开', (id) => {
     const definition = HEXTECH_DEFINITIONS.find((item) => item.id === id)!;
-    const pool = HEXTECH_DEFINITIONS.filter((item) => item.rarity === definition.rarity);
+    const selectionTurn = id === 'table-flip' ? 3 : 1;
+    const pool = HEXTECH_DEFINITIONS.filter(
+      (item) =>
+        item.rarity === definition.rarity && (selectionTurn !== 1 || item.id !== 'table-flip')
+    );
     let sampling = false;
     let step = 0;
+    const randomInt = (max: number) => {
+      if (!sampling) return max - 1;
+      const call = step++;
+      if (call === 0) return ['SILVER', 'GOLD', 'PRISMATIC'].indexOf(definition.rarity);
+      if (call === 1 || call === 4) return pool.findIndex((item) => item.id === id);
+      return 0;
+    };
     const session = createGameSession({
       hextechRoundSelection: true,
-      randomInt: (max) => {
-        if (!sampling) return max - 1;
-        const call = step++;
-        if (call === 0) return ['SILVER', 'GOLD', 'PRISMATIC'].indexOf(definition.rarity);
-        if (call === 1 || call === 4) return pool.findIndex((item) => item.id === id);
-        return 0;
-      },
+      randomInt,
     });
     session.createGame(`select-${id}`, 'p1', '甲', 'p2', '乙');
     expect(session.initializeGame(deck, deck).success).toBe(true);
     execute(session, createMulliganCommand('p1', []));
-    sampling = true;
+    sampling = selectionTurn === 1;
     execute(session, createMulliganCommand('p2', []));
+    if (selectionTurn === 3) {
+      sampling = true;
+      const state = session.state!;
+      session.restoreRuntimeState({
+        authorityState: openHextechSelection(
+          {
+            ...state,
+            turnCount: selectionTurn,
+            currentPhase: GamePhase.ACTIVE_PHASE,
+            hextech: { ...state.hextech!, draft: { completedRounds: 1 } },
+          },
+          randomInt
+        ),
+        currentPublicSeq: session.getCurrentPublicEventSeq(),
+      });
+    }
     for (const playerId of ['p2', 'p1']) {
       const candidate =
         session.getPlayerViewState(playerId)!.match.hextech!.selection!.ownOffer!.candidates[0];
@@ -687,7 +709,7 @@ describe('海克斯第四批：成长、判定替换和取得移动', () => {
       execute(session, {
         type: GameCommandType.SELECT_HEXTECH,
         playerId,
-        selectionTurn: 1,
+        selectionTurn,
         slot: 0,
         expectedDefinitionId: candidate.definitionId,
         timestamp: 1,

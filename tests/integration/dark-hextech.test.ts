@@ -872,12 +872,11 @@ describe('黑暗池条件、数值与反制边界', () => {
     );
   });
   it.each([
-    ['dark-solo-exam', 'p2', 1, 2, 0],
+    ['dark-solo-exam', 'p2', 1, 1, 0],
     ['dark-solo-exam', 'p2', 2, 0, 0],
     ['dark-multi-song-tax', 'p2', 1, 0, 0],
     ['dark-multi-song-tax', 'p2', 2, 0, -1],
-    ['dark-double-exam', 'p2', 2, 1, 0],
-    ['dark-high-pressure-cheer', 'p1', 2, 2, 0],
+    ['dark-high-pressure-cheer', 'p1', 2, 1, 0],
     ['dark-lower-the-bar', 'p1', 2, -2, -1],
     ['dark-greed-contract', 'p1', 1, 1, 0],
   ] as const)(
@@ -904,6 +903,31 @@ describe('黑暗池条件、数值与反制边界', () => {
       }
     }
   );
+  it.each(
+    [
+      [],
+      ['p2-live-0'],
+      ['p2-live-0', 'p2-live-1'],
+      ['p2-live-2', 'p2-live-0', 'p2-live-1'],
+      ['p2-hand-0', 'p2-live-2', 'p2-live-0'],
+      ['p2-live-1', 'p2-hand-0', 'p2-live-0'],
+    ].map((cardIds) => ({ cardIds }))
+  )('两头赶场按实际歌曲顺序，从第二首起加灰心：$cardIds', ({ cardIds }) => {
+    let state = fixture(['dark-double-exam']);
+    state = updatePlayer(state, 'p2', (player) => ({
+      ...player,
+      liveZone: { ...player.liveZone, cardIds },
+    }));
+    const modifiers = collectLiveModifiers(state);
+    const songs = cardIds.filter((id) => id.includes('-live-'));
+    for (const cardId of [...cardIds, 'p1-live-0']) {
+      const delta = getLiveCardRequirementModifiers(state.liveResolution, cardId, modifiers).reduce(
+        (sum, item) => sum + item.countDelta,
+        0
+      );
+      expect(delta).toBe(songs.indexOf(cardId) > 0 ? 1 : 0);
+    }
+  });
   it('孤注一曲加在该曲分数，双曲失效；储备检查可通过支付能量规避', () => {
     let state = fixture(['dark-all-in-song', 'dark-reserve-inspection']);
     let modifiers = collectLiveModifiers(state);
@@ -1077,6 +1101,58 @@ describe('黑暗池条件、数值与反制边界', () => {
     expect(getEffectivePerformanceCheerCount(bet, 'p1', 9)).toBe(6);
     expect(getPlayerLiveScoreModifier(bet.liveResolution, 'p1', collectLiveModifiers(bet))).toBe(3);
   });
+});
+
+describe('放宽需求后的真实 LIVE 判定、零额外判心', () => {
+  it.each([
+    ['dark-solo-exam', 'p2', [5], true, 9],
+    ['dark-solo-exam', 'p2', [6], false, 9],
+    ['dark-double-exam', 'p2', [6], true, 9],
+    ['dark-double-exam', 'p2', [2, 3], true, 9],
+    ['dark-double-exam', 'p2', [3, 3], false, 9],
+    ['dark-double-exam', 'p2', [1, 1, 2], true, 9],
+    ['dark-high-pressure-cheer', 'p1', [5], true, 13],
+    ['dark-high-pressure-cheer', 'p1', [6], false, 13],
+    ['dark-high-pressure-cheer', 'p1', [2, 2], true, 13],
+  ] as const)(
+    '%s（%s）：需求%j在6基础心下成功为%s、声援为%i',
+    (id, performer, requirements, success, cheer) => {
+      let state = fixture([id]);
+      const cardIds = requirements.map((_, index) => `${performer}-live-${index}`);
+      state = registerCards(
+        state,
+        requirements.map((gray, index) => ({
+          ...state.cardRegistry.get(cardIds[index])!,
+          data: { ...song, requirements: createHeartRequirement({ [HeartColor.GRAY]: gray }) },
+        }))
+      );
+      state = updatePlayer(state, performer, (player) => ({
+        ...player,
+        liveZone: { ...player.liveZone, cardIds },
+      }));
+      expect(getEffectivePerformanceCheerCount(state, performer, 9)).toBe(cheer);
+      state = {
+        ...state,
+        activePlayerIndex: performer === 'p1' ? 0 : 1,
+        currentPhase: GamePhase.PERFORMANCE_PHASE,
+        currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+        liveResolution: { ...state.liveResolution, performingPlayerId: performer, isInLive: true },
+      };
+      const result = new GameService().processAction(state, {
+        type: 'CONFIRM_JUDGMENT',
+        playerId: performer,
+        timestamp: 1,
+        judgmentResults: new Map(),
+      });
+      expect(result.success, result.error).toBe(true);
+      for (const cardId of cardIds) {
+        expect(result.gameState.liveResolution.liveResults.get(cardId)).toBe(success);
+      }
+      expect(result.gameState.liveResolution.playerScores.get(performer)).toBe(
+        success ? 3 * cardIds.length : 0
+      );
+    }
+  );
 });
 
 describe('同局面彩色效果对照：真实 LIVE 判定、零额外判心', () => {

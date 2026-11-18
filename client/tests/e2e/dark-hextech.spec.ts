@@ -14,6 +14,15 @@ test('黑暗池24项可筛选，最新代价和纵列规则可读', async ({ pag
     '【获得时】'
   );
   await expect(page.getByRole('article').filter({ hasText: '场地抽签落空' })).toHaveCount(0);
+  await expect(page.getByRole('article').filter({ hasText: '独唱附加题' })).toContainText(
+    '该LIVE灰心需求+1'
+  );
+  await expect(page.getByRole('article').filter({ hasText: '两头赶场' })).toContainText(
+    '从第2张起各自灰心需求+1（成员牌不计入顺序）'
+  );
+  await expect(page.getByRole('article').filter({ hasText: '挑战大招' })).toContainText(
+    '基础声援数量+4，每张LIVE灰心需求+1'
+  );
   for (const rarity of ['银色', '金色', '彩色']) {
     await page.getByRole('tab', { name: rarity, exact: true }).click();
     await expect(page.getByRole('article')).toHaveCount(8);

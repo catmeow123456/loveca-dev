@@ -67,7 +67,7 @@ export function collectDarkHextechModifiers(
   );
   switch (effect) {
     case 'solo-exam':
-      return lives.length === 1 ? requirement(2) : [];
+      return lives.length === 1 ? requirement(1) : [];
     case 'multi-song-tax':
       return lives.length >= 2 ? [score(-1, true)] : [];
     case 'first-slot-mute': {
@@ -98,7 +98,7 @@ export function collectDarkHextechModifiers(
           ]
         : [];
     case 'high-pressure-cheer':
-      return [cheer(6), ...requirement(2)];
+      return [cheer(4), ...requirement(1)];
     case 'greed-contract':
       return requirement(1);
     case 'burning-stage':
@@ -108,7 +108,7 @@ export function collectDarkHextechModifiers(
     case 'lower-the-bar':
       return [score(-1), ...requirement(-2)];
     case 'double-exam':
-      return lives.length >= 2 ? requirement(1) : [];
+      return requirement(1, lives.slice(1));
     case 'hearts-for-score':
       return [hearts(5), score(-2)];
     case 'farewell-gift':

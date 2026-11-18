@@ -68,74 +68,83 @@ const execute = (session: GameSession, command: GameCommand) => {
 };
 
 describe('海克斯回合选择', () => {
-  it('真人服务按登录身份校验，候选不外发给对手或观战者，重连和重复请求保留结果', async () => {
-    const service = new OnlineMatchService({ recorder: null, randomInt: (max) => max - 1 });
-    const participant = (userId: string) => ({
-      userId,
-      displayName: userId,
-      deck,
-      pointValidation: { pointTableVersion: 'test', pointTotal: 0, pointLimit: 9 },
-    });
-    const match = await service.createMatch({
-      roomCode: 'HEX123',
-      hextechRoundSelection: true,
-      casualRuleMode: 'UNLIMITED',
-      first: participant('u1'),
-      second: participant('u2'),
-    });
-    await service.executeCommand(match.matchId, 'u1', createMulliganCommand('forged', []));
-    await service.executeCommand(match.matchId, 'u2', createMulliganCommand('forged', []));
-    const firstId = match.session.state!.players[0].id;
-    const secondId = match.session.state!.players[1].id;
-    const before = match.session.getPlayerViewState(firstId)!.match.hextech!.selection!.ownOffer!;
-    const reroll = { ...choose(match.session, firstId, 0, true), idempotencyKey: 'network-retry' };
-    await service.executeCommand(match.matchId, 'u1', reroll);
-    const rerolled = await service.getMatchSnapshot(match.matchId, 'u1');
-    await service.executeCommand(match.matchId, 'u1', reroll);
-    const reconnected = await service.getMatchSnapshot(match.matchId, 'u1');
-    expect(reconnected).toMatchObject({
-      playerViewState: {
-        match: {
-          hextech: {
-            selection: {
-              ownOffer: {
-                candidates: [{ rerolled: true }, { rerolled: false }, { rerolled: false }],
+  it.each(['NORMAL', 'DARK'] as const)(
+    '%s真人服务按登录身份校验，候选不外发给对手或观战者，重连和重复请求保留结果',
+    async (pool) => {
+      const service = new OnlineMatchService({ recorder: null, randomInt: (max) => max - 1 });
+      const participant = (userId: string) => ({
+        userId,
+        displayName: userId,
+        deck,
+        pointValidation: { pointTableVersion: 'test', pointTotal: 0, pointLimit: 9 },
+      });
+      const match = await service.createMatch({
+        roomCode: 'HEX123',
+        hextechPool: pool,
+        hextechRoundSelection: true,
+        casualRuleMode: 'UNLIMITED',
+        first: participant('u1'),
+        second: participant('u2'),
+      });
+      await service.executeCommand(match.matchId, 'u1', createMulliganCommand('forged', []));
+      await service.executeCommand(match.matchId, 'u2', createMulliganCommand('forged', []));
+      const firstId = match.session.state!.players[0].id;
+      const secondId = match.session.state!.players[1].id;
+      const before = match.session.getPlayerViewState(firstId)!.match.hextech!.selection!.ownOffer!;
+      const reroll = {
+        ...choose(match.session, firstId, 0, true),
+        idempotencyKey: 'network-retry',
+      };
+      await service.executeCommand(match.matchId, 'u1', reroll);
+      const rerolled = await service.getMatchSnapshot(match.matchId, 'u1');
+      await service.executeCommand(match.matchId, 'u1', reroll);
+      const reconnected = await service.getMatchSnapshot(match.matchId, 'u1');
+      expect(reconnected).toMatchObject({
+        playerViewState: {
+          match: {
+            hextech: {
+              selection: {
+                ownOffer: {
+                  candidates: [{ rerolled: true }, { rerolled: false }, { rerolled: false }],
+                },
               },
             },
           },
         },
-      },
-    });
-    expect(
-      reconnected && 'playerViewState' in reconnected && reconnected.playerViewState.match.hextech
-    ).toEqual(rerolled && 'playerViewState' in rerolled && rerolled.playerViewState.match.hextech);
-    const other = match.session.getPlayerViewState(secondId)!.match.hextech!.selection!;
-    expect(other.ownOffer!.candidates).toEqual(before.candidates);
-    const link = service.createRoomCodePlayerViewSpectatorLink(
-      match.matchId,
-      'FIRST',
-      ['FIRST', 'SECOND'],
-      'test-generation'
-    )!;
-    const spectator = await service.joinSpectatorLink(link.token, { clientId: 'spectator' });
-    expect(spectator.snapshot).toHaveProperty('playerViewState.match.hextech.selection');
-    expect(JSON.stringify(spectator.snapshot)).not.toContain('candidates');
-    expect(JSON.stringify(match.session.getPublicEventsSince(0))).not.toContain(
-      'flexible-solo-fan'
-    );
-    expect(
-      await service.executeCommand(match.matchId, 'outsider', choose(match.session, firstId, 0))
-    ).toBeNull();
-    const forged = { ...choose(match.session, secondId, 0), playerId: firstId };
-    expect((await service.executeCommand(match.matchId, 'u2', forged))!.success).toBe(true);
-    expect(match.session.getPlayerViewState(firstId)!.match.hextech!.selection).toMatchObject({
-      lockedSeats: ['SECOND'],
-    });
-    expect(match.session.state!.hextech!.draft!.pending!.offers[0].selectedIndex).toBeUndefined();
-    expect(match.session.state!.hextech!.owned).toHaveLength(0);
-    await service.executeCommand(match.matchId, 'u1', choose(match.session, firstId, 0));
-    expect(match.session.state!.hextech!.owned).toHaveLength(2);
-  });
+      });
+      expect(
+        reconnected && 'playerViewState' in reconnected && reconnected.playerViewState.match.hextech
+      ).toEqual(
+        rerolled && 'playerViewState' in rerolled && rerolled.playerViewState.match.hextech
+      );
+      const other = match.session.getPlayerViewState(secondId)!.match.hextech!.selection!;
+      expect(other.ownOffer!.candidates).toEqual(before.candidates);
+      const link = service.createRoomCodePlayerViewSpectatorLink(
+        match.matchId,
+        'FIRST',
+        ['FIRST', 'SECOND'],
+        'test-generation'
+      )!;
+      const spectator = await service.joinSpectatorLink(link.token, { clientId: 'spectator' });
+      expect(spectator.snapshot).toHaveProperty('playerViewState.match.hextech.selection');
+      expect(JSON.stringify(spectator.snapshot)).not.toContain('candidates');
+      expect(JSON.stringify(match.session.getPublicEventsSince(0))).not.toContain(
+        'flexible-solo-fan'
+      );
+      expect(
+        await service.executeCommand(match.matchId, 'outsider', choose(match.session, firstId, 0))
+      ).toBeNull();
+      const forged = { ...choose(match.session, secondId, 0), playerId: firstId };
+      expect((await service.executeCommand(match.matchId, 'u2', forged))!.success).toBe(true);
+      expect(match.session.getPlayerViewState(firstId)!.match.hextech!.selection).toMatchObject({
+        lockedSeats: ['SECOND'],
+      });
+      expect(match.session.state!.hextech!.draft!.pending!.offers[0].selectedIndex).toBeUndefined();
+      expect(match.session.state!.hextech!.owned).toHaveLength(0);
+      await service.executeCommand(match.matchId, 'u1', choose(match.session, firstId, 0));
+      expect(match.session.state!.hextech!.owned).toHaveLength(2);
+    }
+  );
   it('真人双方同时提交确认并重试时，仅结算一次且继续正常回合', async () => {
     const random = vi.fn((max: number) => max - 1);
     const service = new OnlineMatchService({ recorder: null, randomInt: random });
@@ -384,7 +393,7 @@ describe('海克斯回合选择', () => {
                 ...player.energyZone,
                 cardStates: new Map(player.energyZone.cardStates).set(energyId, {
                   ...player.energyZone.cardStates.get(energyId)!,
-                  orientation: OrientationState.WAIT,
+                  orientation: OrientationState.WAITING,
                 }),
               },
             }
@@ -394,12 +403,12 @@ describe('海克斯回合选择', () => {
     session.restoreRuntimeState({ authorityState: pending, currentPublicSeq: 0 });
     expect(session.state!.turnCount).toBe(3);
     expect(session.state!.players[1].energyZone.cardStates.get(energyId)!.orientation).toBe(
-      OrientationState.WAIT
+      OrientationState.WAITING
     );
     const pendingCommand = choose(session, 'p2', 0);
     execute(session, choose(session, 'p1', 0));
     expect(session.state!.players[1].energyZone.cardStates.get(energyId)!.orientation).toBe(
-      OrientationState.WAIT
+      OrientationState.WAITING
     );
     execute(session, createSurrenderCommand('p1'));
     expect(session.state!.isEnded).toBe(true);

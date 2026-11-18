@@ -449,7 +449,7 @@ function finishTargetMemberNameSelection(
 
 function applySelectedTargetBladeAndContinue(
   game: GameState,
-  effect: NonNullable<GameState['activeEffect']>,
+  effect: NonNullable<ReturnType<typeof getCardActiveEffect>>,
   playerId: string,
   targetMemberCardId: string,
   bladeAmount: number,

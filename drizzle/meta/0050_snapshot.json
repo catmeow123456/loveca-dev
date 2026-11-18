@@ -2044,7 +2044,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'\u5176\u4ed6'"
+          "default": "'其他'"
         },
         "description": {
           "name": "description",
@@ -6175,7 +6175,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'\u5728\u7ebf\u623f\u95f4'"
+          "default": "'在线房间'"
         },
         "status": {
           "name": "status",

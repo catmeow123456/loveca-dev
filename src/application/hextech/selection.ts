@@ -2,10 +2,16 @@ import { emitGameEvent, type GameState } from '../../domain/entities/game.js';
 import { createTurnStartEvent } from '../../domain/events/game-events.js';
 import {
   getHextechDefinitions,
+  getHextechDefinition,
   hextechPoolForVersion,
+  type HextechDefinition,
   type HextechRarity,
 } from '../../domain/hextech/catalog.js';
 import { HEXTECH_SELECTION_TURNS, type HextechOffer } from '../../domain/hextech/state.js';
+import {
+  HEXTECH_FIRST_ROUND_EXCLUSIONS,
+  getHextechRarityWeights,
+} from '../../domain/hextech/selection-rules.js';
 import { GamePhase, SubPhase } from '../../shared/types/enums.js';
 import type { RandomIntegerSource } from '../../shared/random-source.js';
 import { GameCommandType, type HextechCommand } from '../game-commands.js';
@@ -21,10 +27,30 @@ export function openHextechSelection(game: GameState, randomInt: RandomIntegerSo
     game.turnCount !== HEXTECH_SELECTION_TURNS[draft.completedRounds]
   )
     return game;
-  const rarity = (['SILVER', 'GOLD', 'PRISMATIC'] as const)[randomInt(3)];
+  const isDark = hextechPoolForVersion(game.hextech!.rulesVersion) === 'DARK';
+  const [silver, gold, prismatic] = getHextechRarityWeights(
+    isDark ? 'DARK' : 'NORMAL',
+    game.turnCount
+  );
+  const roll = randomInt(silver + gold + prismatic);
+  const rarity: HextechRarity =
+    roll < silver ? 'SILVER' : roll < silver + gold ? 'GOLD' : 'PRISMATIC';
   const drawOffer = (playerId: string): HextechOffer => {
-    const pool = eligiblePool(game, playerId, rarity);
+    let pool = eligiblePool(game, playerId, rarity);
     if (pool.length < 3) throw new Error('海克斯候选池不足三项');
+    if (isDark) {
+      // At most eight definitions per tier: sample uniformly from legal mixed triples,
+      // then randomize their positions so no slot is tied to a particular group.
+      const triples: (typeof pool)[] = [];
+      for (let first = 0; first < pool.length - 2; first++)
+        for (let second = first + 1; second < pool.length - 1; second++)
+          for (let third = second + 1; third < pool.length; third++) {
+            const triple = [pool[first], pool[second], pool[third]];
+            if (hasBothDarkGroups(triple)) triples.push(triple);
+          }
+      if (!triples.length) throw new Error('黑暗海克斯候选需要同时包含干扰和双刃剑');
+      pool = triples[randomInt(triples.length)];
+    }
     return {
       candidates: Array.from({ length: 3 }, () => ({
         definitionId: pool.splice(randomInt(pool.length), 1)[0].id,
@@ -126,9 +152,20 @@ function eligiblePool(game: GameState, playerId: string, rarity: HextechRarity) 
       .map((entry) => entry.definitionId)
   );
   return getHextechDefinitions(pool).filter(
-    (entry) => entry.rarity === rarity && (pool !== 'DARK' || !owned.has(entry.id))
+    (entry) =>
+      entry.rarity === rarity &&
+      (pool !== 'DARK' || !owned.has(entry.id)) &&
+      (game.turnCount !== 1 || !HEXTECH_FIRST_ROUND_EXCLUSIONS[pool].includes(entry.id))
   );
 }
+
+function hasBothDarkGroups(entries: readonly HextechDefinition[]): boolean {
+  return (
+    entries.some((entry) => entry.group === 'DISRUPTION') &&
+    entries.some((entry) => entry.group === 'DOUBLE_EDGED')
+  );
+}
+
 function rerollPool(
   game: GameState,
   playerId: string,
@@ -140,5 +177,13 @@ function rerollPool(
   const fresh = pool.filter(
     (entry) => !offer.candidates.some((candidate) => candidate.definitionId === entry.id)
   );
+  if (hextechPoolForVersion(game.hextech!.rulesVersion) === 'DARK') {
+    const retained = offer.candidates
+      .filter((candidate) => candidate.definitionId !== oldId)
+      .map((candidate) => getHextechDefinition(candidate.definitionId)!);
+    const balanced = fresh.filter((entry) => hasBothDarkGroups([...retained, entry]));
+    if (!balanced.length) throw new Error('黑暗海克斯没有满足候选规则的重抽项');
+    return balanced;
+  }
   return fresh.length ? fresh : pool;
 }

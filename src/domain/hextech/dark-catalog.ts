@@ -25,7 +25,7 @@ export const DARK_HEXTECH_DEFINITIONS = [
     name: '独唱附加题',
     rarity: 'SILVER',
     group: 'DISRUPTION',
-    rulesText: '【常时】对方仅表演1张LIVE时，该LIVE灰心需求+2。',
+    rulesText: '【常时】对方仅表演1张LIVE时，该LIVE灰心需求+1。',
     effect: { kind: 'DARK', effect: 'solo-exam' },
   },
   {
@@ -135,7 +135,7 @@ export const DARK_HEXTECH_DEFINITIONS = [
     name: '挑战大招',
     rarity: 'GOLD',
     group: 'DOUBLE_EDGED',
-    rulesText: '【常时】自己的基础声援数量+6，每张LIVE灰心需求+2。',
+    rulesText: '【常时】自己的基础声援数量+4，每张LIVE灰心需求+1。',
     effect: { kind: 'DARK', effect: 'high-pressure-cheer' },
   },
   {
@@ -238,7 +238,8 @@ export const DARK_HEXTECH_DEFINITIONS = [
     name: '两头赶场',
     rarity: 'GOLD',
     group: 'DISRUPTION',
-    rulesText: '【常时】对方同时表演至少2张LIVE时，每张LIVE灰心需求+1。',
+    rulesText:
+      '【常时】对方同时表演至少2张LIVE时，按实际表演的LIVE顺序，从第2张起各自灰心需求+1（成员牌不计入顺序）。',
     effect: { kind: 'DARK', effect: 'double-exam' },
   },
   {

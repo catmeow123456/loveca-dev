@@ -6,6 +6,11 @@ import {
   type HextechPool as HextechPoolKind,
 } from '@game/domain/hextech/catalog';
 import { HextechPool } from '@/components/hextech/HextechPool';
+import {
+  DARK_HEXTECH_OFFER_RULES_TEXT,
+  NORMAL_HEXTECH_FIRST_ROUND_RULES_TEXT,
+  getHextechRarityRulesText,
+} from '@game/domain/hextech/selection-rules';
 import type { CasualFormat } from '@game/online/casual-table-types';
 import {
   CasualRuleBadge,
@@ -1622,10 +1627,10 @@ export function CasualLobbyPage({
                             项候选，每项可重抽 1 次。双方都确认后继续对局。
                           </p>
                           <p>
-                            银／金／彩各 1/3。双方确认后公开并生效。
+                            {getHextechRarityRulesText(selectedHextechPool)}双方确认后公开并生效。
                             {selectedHextechPool === 'DARK'
-                              ? '候选及重抽均排除自己已持有的能力。'
-                              : '后续轮次可重复取得。'}
+                              ? DARK_HEXTECH_OFFER_RULES_TEXT
+                              : `${NORMAL_HEXTECH_FIRST_ROUND_RULES_TEXT}后续轮次可重复取得。`}
                             使用自选卡组，PT 不限。
                           </p>
                         </section>
