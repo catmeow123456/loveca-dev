@@ -5,7 +5,7 @@ import { formatTextHearts, formatTextJudgment } from './excelCardView';
 import { buildLiveJudgmentPreview } from './liveJudgmentPreview';
 
 describe('effective cheer summaries', () => {
-  it('displays effective ORANGE while separating its gray judgment contribution', () => {
+  it('keeps effective ORANGE for display and judgment contribution', () => {
     const markers = [
       { effect: B.HEART, heartColor: H.ORANGE },
       { effect: B.HEART, heartColor: H.RAINBOW },
@@ -18,7 +18,7 @@ describe('effective cheer summaries', () => {
         { color: H.RAINBOW, count: 1 },
       ],
       judgmentHearts: [
-        { color: H.GRAY, count: 1 },
+        { color: H.ORANGE, count: 1 },
         { color: H.RAINBOW, count: 1 },
       ],
       drawBonus: 1,
@@ -56,7 +56,7 @@ describe('effective cheer summaries', () => {
 });
 
 describe('live Heart display and judgment totals', () => {
-  it('displays both ordinary and cheer ORANGE, but converts only cheer markers for the verdict', () => {
+  it('uses both ordinary and cheer ORANGE to satisfy orange requirements', () => {
     const totals = summarizeLiveHearts(new Map([[H.ORANGE, 1]]), [
       calculateCheerEffects([{ effect: B.HEART, heartColor: H.ORANGE }]),
     ]);
@@ -64,8 +64,8 @@ describe('live Heart display and judgment totals', () => {
     expect(totals.bladeHearts.get(H.GRAY)).toBe(0);
     expect(totals.totalHearts.get(H.ORANGE)).toBe(2);
     expect(totals.totalHearts.get(H.GRAY)).toBe(0);
-    expect(totals.judgmentHearts.get(H.ORANGE)).toBe(1);
-    expect(totals.judgmentHearts.get(H.GRAY)).toBe(1);
+    expect(totals.judgmentHearts.get(H.ORANGE)).toBe(2);
+    expect(totals.judgmentHearts.get(H.GRAY)).toBe(0);
     const preview = (colorRequirements: Partial<Record<H, number>>) =>
       buildLiveJudgmentPreview({
         liveCards: [
@@ -80,7 +80,7 @@ describe('live Heart display and judgment totals', () => {
         cheerScoreBonus: 0,
         effectScoreBonus: 0,
       });
-    expect(preview({ ORANGE: 2 }).status).toBe('FAILURE');
+    expect(preview({ ORANGE: 2 }).status).toBe('SUCCESS');
     expect(preview({ ORANGE: 1, GRAY: 1 }).status).toBe('SUCCESS');
     expect(preview({ RED: 1, GRAY: 1 }).status).toBe('FAILURE');
   });
@@ -97,9 +97,9 @@ describe('live Heart display and judgment totals', () => {
       [{ color: H.ORANGE, count: 1 }]
     );
     expect(totals.totalHearts.get(H.ORANGE)).toBe(4);
-    expect(totals.judgmentHearts.get(H.ORANGE)).toBe(3);
+    expect(totals.judgmentHearts.get(H.ORANGE)).toBe(4);
     expect(totals.totalHearts.get(H.GRAY)).toBe(1);
-    expect(totals.judgmentHearts.get(H.GRAY)).toBe(2);
+    expect(totals.judgmentHearts.get(H.GRAY)).toBe(1);
     expect(totals.totalHearts.get(H.RAINBOW)).toBe(1);
     expect(totals.judgmentHearts.get(H.RAINBOW)).toBe(1);
     expect([...totals.totalHearts.values()].reduce((sum, count) => sum + count, 0)).toBe(6);

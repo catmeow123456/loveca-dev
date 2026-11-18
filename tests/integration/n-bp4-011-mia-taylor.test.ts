@@ -92,7 +92,7 @@ function baseGame(sourceId = 'n-bp4-011-source'): {
 }
 
 function addCards(game: GameState, cards: readonly ReturnType<typeof createCardInstance>[]) {
-  return registerCards(game, cards);
+  return registerCards(game, [...cards]);
 }
 
 function withPlayerZones(
@@ -203,6 +203,17 @@ describe('PL!N-bp4-011 Mia Taylor live-start and live-success workflow', () => {
       HeartColor.PURPLE,
     ]);
     expect(state.activeEffect?.selectableOptions).toBeUndefined();
+    expect(
+      confirmActiveEffectStep(
+        state,
+        PLAYER1,
+        state.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        HeartColor.ORANGE
+      )
+    ).toBe(state);
 
     state = chooseHeart(state, HeartColor.GREEN);
     expect(state.activeEffect).toBeNull();
@@ -307,6 +318,7 @@ describe('PL!N-bp4-011 Mia Taylor live-start and live-success workflow', () => {
           entry.event.fromZone === ZoneType.MAIN_DECK &&
           entry.event.toZone === ZoneType.WAITING_ROOM &&
           'cardInstanceIds' in entry.event &&
+          entry.event.cardInstanceIds !== undefined &&
           entry.event.cardInstanceIds.length === 5 &&
           entry.event.cardInstanceIds.every((cardId, index) => cardId === milledCardIds[index])
       )

@@ -489,6 +489,9 @@ export function calculateTotalHearts(memberData: MemberCardData): number {
  */
 export function getHeartCountByColor(memberData: MemberCardData, color: HeartColor): number {
   return memberData.hearts
-    .filter((heart) => heart.color === color || heart.color === HeartColor.RAINBOW)
+    .filter(
+      (heart) =>
+        heart.color === color || (color !== HeartColor.ORANGE && heart.color === HeartColor.RAINBOW)
+    )
     .reduce((sum, heart) => sum + heart.count, 0);
 }

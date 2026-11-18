@@ -13,8 +13,6 @@ import {
   getCopyableOnEnterDefinitions,
   getCurrentTemporaryOnEnterAbilityGrants,
   getTemporaryOnEnterAbilityInvocation,
-  getHostEnterStageEventIds,
-  getHostEnterStageMetadata,
 } from '../../src/application/card-effects/runtime/temporary-on-enter-ability-grants';
 import { getStageMemberDelegatableOnEnterDefinitions } from '../../src/application/card-effects/runtime/delegatable-definitions';
 import {
@@ -139,8 +137,8 @@ function delegate(game: GameState) {
         mandatory: true,
         timingId: TriggerCondition.ON_ENTER_STAGE,
         sourceSlot: SlotPosition.CENTER,
-        eventIds: getHostEnterStageEventIds(game, 'actor'),
-        metadata: getHostEnterStageMetadata(game, 'actor'),
+        eventIds: [],
+        metadata: { noEnterStageEvent: true },
         onEnterInvocation: getTemporaryOnEnterAbilityInvocation(game, P1, 'actor', ABILITY),
       },
     ],
@@ -152,9 +150,9 @@ describe('PL!HS-bp8-011 费用4 大泽瑠璃乃 / 吟子真实复制增量', () 
     for (const code of ['PL!HS-bp8-011-N', 'PL!HS-bp8-011-SEC'])
       expect(getCopyableOnEnterDefinitions(code).map((d) => d.abilityId)).toEqual([ABILITY]);
   });
-  it('uses the real cost17 recipient and its entry history for free and later ordinary invocation', () => {
+  it('retains the real cost17 recipient and grant without reusing its earlier relay for either invocation', () => {
     let game = gain(setup(10));
-    expect(game.activeEffect?.abilityId).toBe(ABILITY);
+    expect(game.activeEffect).toBeNull();
     expect(game.players[0].waitingRoom.cardIds).toContain('template');
     expect(getCurrentTemporaryOnEnterAbilityGrants(game, P1, 'actor')).toEqual([
       expect.objectContaining({
@@ -171,12 +169,12 @@ describe('PL!HS-bp8-011 费用4 大泽瑠璃乃 / 吟子真实复制增量', () 
       }).map((d) => d.abilityId)
     ).toContain(ABILITY);
     game = settle(game);
-    expect(game.players[0].hand.cardIds).toEqual(['target-1']);
+    expect(game.players[0].hand.cardIds).toEqual([]);
     game = rehydrateAuthorityGameState(
       serializeReplayPayload(game, 'AUTHORITY_GAME_STATE', GAME_STATE_SCHEMA_VERSION)
     );
     game = settle(delegate(game));
-    expect(game.players[0].hand.cardIds).toEqual(['target-1', 'target-2']);
+    expect(game.players[0].hand.cardIds).toEqual([]);
     expect(
       game.actionHistory.filter((a) => a.type === 'PAY_COST' && a.payload.abilityId === ABILITY)
     ).toEqual([]);
@@ -184,7 +182,7 @@ describe('PL!HS-bp8-011 费用4 大泽瑠璃乃 / 吟子真实复制增量', () 
       game.eventLog.filter(({ event }) => event.eventType === TriggerCondition.ON_ENTER_STAGE)
     ).toHaveLength(1);
   });
-  it.each([null, 17, 18])(
+  it.each([null, 10, 17, 18])(
     'does not invent or weaken the recipient relay condition for captured cost %s',
     (cost) => {
       let game = gain(setup(cost));

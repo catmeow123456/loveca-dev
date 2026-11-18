@@ -1,6 +1,6 @@
 import { SealedBuilder, SealedRematchControls } from '@/components/casual-table/SealedBuilder';
 import { SealedFormatLabel } from '@/components/casual-table/SealedFormatLabel';
-import { SEALED_BP7_DECK_NAME } from '@game/shared/sealed-format';
+import { SEALED_BP8_DECK_NAME } from '@game/shared/sealed-format';
 import { HEXTECH_DEFINITIONS } from '@game/domain/hextech/catalog';
 import { HextechPool } from '@/components/hextech/HextechPool';
 import type { CasualFormat } from '@game/online/casual-table-types';
@@ -119,7 +119,7 @@ const names = {
 };
 const formatNames: Record<CasualFormat, string> = {
   CONSTRUCTED: '自由构筑',
-  SEALED_BP7: '开盒战',
+  SEALED_BP8: '开盒战',
   HEXTECH: '海克斯',
 };
 const duration = (since: number, now: number) => {
@@ -175,7 +175,7 @@ export function CasualLobbyPage({
   const [flow, setFlow] = useState<Flow | null>(null);
   const selectionMode = flow?.kind === 'JOIN' ? flow.row!.ruleMode : ruleMode;
   const selectionFormat = flow?.kind === 'JOIN' ? flow.row!.format : format;
-  const sealedSelection = selectionFormat === 'SEALED_BP7';
+  const sealedSelection = selectionFormat === 'SEALED_BP8';
   const hextechSelection = selectionFormat === 'HEXTECH';
   const lastDeck = readLastUsedDeckId(casualDeckPreferenceKey(userId, selectionMode));
   const pointTable = useDeckPointTableRules();
@@ -794,7 +794,7 @@ export function CasualLobbyPage({
                       aria-label="复制邀请"
                       onClick={() =>
                         void copy(
-                          `${table.format === 'SEALED_BP7' ? SEALED_BP7_DECK_NAME : table.format === 'HEXTECH' ? '海克斯对战（PT 不限）' : `${casualRuleName(table.ruleMode)}${table.ruleMode === 'UNLIMITED' ? '（PT 不限）' : ''}`} · 房间 ${table.roomCode}\n${window.location.origin}/?page=battle-lobby&room=${table.roomCode}`,
+                          `${table.format === 'SEALED_BP8' ? SEALED_BP8_DECK_NAME : table.format === 'HEXTECH' ? '海克斯对战（PT 不限）' : `${casualRuleName(table.ruleMode)}${table.ruleMode === 'UNLIMITED' ? '（PT 不限）' : ''}`} · 房间 ${table.roomCode}\n${window.location.origin}/?page=battle-lobby&room=${table.roomCode}`,
                           'invite'
                         )
                       }
@@ -842,7 +842,7 @@ export function CasualLobbyPage({
                 {table.state !== 'BUILDING' && (
                   <div className="casual-current-deck">
                     <p className="casual-muted">
-                      {table.format === 'SEALED_BP7' ? (
+                      {table.format === 'SEALED_BP8' ? (
                         <SealedFormatLabel />
                       ) : (
                         <>
@@ -850,7 +850,7 @@ export function CasualLobbyPage({
                           {table.ownDeck?.name}
                         </>
                       )}
-                      {table.ownDeck && table.format !== 'SEALED_BP7' && (
+                      {table.ownDeck && table.format !== 'SEALED_BP8' && (
                         <>
                           {' '}
                           ·{' '}
@@ -878,7 +878,7 @@ export function CasualLobbyPage({
                         </>
                       )}
                     </p>
-                    {table.state === 'WAITING' && table.format !== 'SEALED_BP7' && (
+                    {table.state === 'WAITING' && table.format !== 'SEALED_BP8' && (
                       <ActionButton
                         variant="ghost"
                         className="casual-current-deck-change"
@@ -923,10 +923,10 @@ export function CasualLobbyPage({
                   )}
                   {activeRuntime && (
                     <>
-                      {ended && table.format === 'SEALED_BP7' && (
+                      {ended && table.format === 'SEALED_BP8' && (
                         <SealedRematchControls table={table} userId={userId} now={now} />
                       )}
-                      {ended && table.format !== 'SEALED_BP7' && table.canRematch && !rematch && (
+                      {ended && table.format !== 'SEALED_BP8' && table.canRematch && !rematch && (
                         <button
                           className="button-primary"
                           disabled={busy}
@@ -1287,7 +1287,7 @@ export function CasualLobbyPage({
                             {prioritizedFormat === row.format && (
                               <span className="sr-only">优先显示：</span>
                             )}
-                            {row.format === 'SEALED_BP7' ? (
+                            {row.format === 'SEALED_BP8' ? (
                               <SealedFormatLabel />
                             ) : (
                               formatNames[row.format]
@@ -1533,7 +1533,7 @@ export function CasualLobbyPage({
                             disabled={Boolean(snapshot?.unavailableReason)}
                             onClick={() => open('JOIN', preview)}
                           >
-                            {preview.format === 'SEALED_BP7' ? '加入开盒战' : '选择卡组并加入'}
+                            {preview.format === 'SEALED_BP8' ? '加入开盒战' : '选择卡组并加入'}
                           </button>
                         ) : preview.spectatorViews.length ? (
                           <button

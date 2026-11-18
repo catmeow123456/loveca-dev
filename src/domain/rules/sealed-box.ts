@@ -2,11 +2,11 @@ import type { AnyCardData } from '../entities/card.js';
 import type { DeckConfig } from '../../application/game-service.js';
 import { CardType } from '../../shared/types/enums.js';
 import { getBaseCardCode } from '../../shared/utils/card-code.js';
-import { SEALED_BP7_PRODUCT_LABEL } from '../../shared/sealed-format.js';
+import { SEALED_BP8_PRODUCT_LABEL } from '../../shared/sealed-format.js';
 
-// These identify collation probabilities, not different snapshot schemas.
-export const SEALED_BOX_VERSION = 'BP7_SIMULATED_V2';
-export const SEALED_BOX_VERSIONS = ['BP7_SIMULATED_V1', SEALED_BOX_VERSION] as const;
+// Identifies the product pool and simulated collation parameters; snapshot shape is unchanged.
+export const SEALED_BOX_VERSION = 'BP8_SIMULATED_V1';
+export const SEALED_BOX_VERSIONS = [SEALED_BOX_VERSION] as const;
 export const SEALED_TREASURE_ONE_IN = 60;
 export const SEALED_BUILDING_MS = 15 * 60 * 1000;
 export const SEALED_RARITY_ODDS = {
@@ -56,16 +56,16 @@ export function treasurePackIndices(pool: SealedPool): number[] {
   });
 }
 
-export function isBp7Product(card: AnyCardData): boolean {
+export function isBp8Product(card: AnyCardData): boolean {
   return (
-    card.productCode?.toUpperCase() === 'BP07' ||
-    card.productCode?.toUpperCase() === 'BP7' ||
-    /MELLOWMOMENT/i.test((card.product ?? '').replace(/\s/g, ''))
+    card.productCode?.toUpperCase() === 'BP08' ||
+    card.productCode?.toUpperCase() === 'BP8' ||
+    /まじかる[♡♥]とり[～〜~]と/u.test((card.product ?? '').replace(/\s/g, ''))
   );
 }
 
 /** randomInt is server-owned and exclusive of its upper bound. */
-export function generateBp7Box(
+export function generateBp8Box(
   cards: readonly AnyCardData[],
   randomInt: (upper: number) => number
 ): SealedPool {
@@ -86,7 +86,7 @@ export function generateBp7Box(
   };
   for (const card of cards) {
     const rare = card.rare?.normalize('NFKC').toUpperCase();
-    if (!isBp7Product(card) || !rare || types[rare] !== card.cardType) continue;
+    if (!isBp8Product(card) || !rare || types[rare] !== card.cardType) continue;
     const bucket = buckets.get(rare) ?? new Map<string, AnyCardData[]>();
     const base = getBaseCardCode(card.cardCode);
     bucket.set(base, [...(bucket.get(base) ?? []), card]);
@@ -94,7 +94,7 @@ export function generateBp7Box(
   }
   for (const rare of Object.keys(types)) {
     if (!buckets.get(rare)?.size)
-      throw new SealedBoxError(`${SEALED_BP7_PRODUCT_LABEL}卡池缺少 ${rare}，暂时无法开盒`);
+      throw new SealedBoxError(`${SEALED_BP8_PRODUCT_LABEL}卡池缺少 ${rare}，暂时无法开盒`);
   }
   const basicEnergy = cards.find(
     (card) => card.cardCode === 'LL-E-001-SD' && card.cardType === CardType.ENERGY
@@ -106,7 +106,7 @@ export function generateBp7Box(
       ([base]) => types[rare] !== CardType.LIVE || (liveCounts.get(base) ?? 0) < 4
     );
     if (!candidates.length)
-      throw new SealedBoxError(`${SEALED_BP7_PRODUCT_LABEL} Live 卡池不足以生成合法卡组`);
+      throw new SealedBoxError(`${SEALED_BP8_PRODUCT_LABEL} Live 卡池不足以生成合法卡组`);
     const [base, prints] = candidates[randomInt(candidates.length)];
     const card = prints[randomInt(prints.length)];
     if (card.cardType === CardType.LIVE) liveCounts.set(base, (liveCounts.get(base) ?? 0) + 1);
@@ -141,7 +141,7 @@ export function generateBp7Box(
         !energies.length
       )
         throw new SealedBoxError(
-          `${SEALED_BP7_PRODUCT_LABEL}宝藏包缺少 ${prints[0].name} 的完整配套卡牌`
+          `${SEALED_BP8_PRODUCT_LABEL}宝藏包缺少 ${prints[0].name} 的完整配套卡牌`
         );
       const families = characters.get(name) ?? [];
       families.push({ members: memberPools as AnyCardData[][], energies });

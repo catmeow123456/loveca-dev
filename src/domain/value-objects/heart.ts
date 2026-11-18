@@ -197,7 +197,7 @@ export class HeartPool {
    * 1. 对于每个非灰色心音符，提供的该颜色 Heart >= 需求数量
    * 2. 提供的 Heart 总数 >= 所有心音符需求数量总和
    *
-   * Rainbow Heart 可以视为任意颜色
+   * Rainbow Heart 可以代替六种普通颜色，但不能代替 ORANGE
    */
   canSatisfy(requirement: HeartRequirement): boolean {
     const allocation = this.allocateForRequirement(requirement);
@@ -297,7 +297,9 @@ export class HeartPool {
 
       for (const candidate of candidates.values()) {
         const maxUsed = Math.min(available, totalToConsume - candidate.usedNonRainbowCount);
-        for (let used = 0; used <= maxUsed; used++) {
+        // ALL 不能支付橙色需求，因此必须先使用足额的原色橙心。
+        const minUsed = color === HeartColor.ORANGE ? required : 0;
+        for (let used = minUsed; used <= maxUsed; used++) {
           const usedNonRainbowCount = candidate.usedNonRainbowCount + used;
           const rainbowDeficit = candidate.rainbowDeficit + Math.max(0, required - used);
           const usedCounts = new Map(candidate.usedCounts);
@@ -540,7 +542,7 @@ export function calculateHeartDeficit(
   let specificRequiredTotal = 0;
   let consumedNonRainbow = 0;
 
-  // 指定颜色优先使用同色 Heart，再使用 Rainbow/All；GRAY 不可补指定颜色。
+  // 指定颜色先使用同色 Heart；ALL 只能补六种普通颜色，不能补 ORANGE。
   for (const [color, required] of requirement.colorRequirements) {
     if (color === HeartColor.RAINBOW || color === HeartColor.GRAY) {
       continue;
@@ -548,7 +550,7 @@ export function calculateHeartDeficit(
     specificRequiredTotal += required;
     const normalUsed = Math.min(pool.getColorCount(color), required);
     const rainbowNeeded = required - normalUsed;
-    const rainbowUsed = Math.min(remainingRainbow, rainbowNeeded);
+    const rainbowUsed = color === HeartColor.ORANGE ? 0 : Math.min(remainingRainbow, rainbowNeeded);
     const missing = rainbowNeeded - rainbowUsed;
     consumedNonRainbow += normalUsed;
     remainingRainbow -= rainbowUsed;

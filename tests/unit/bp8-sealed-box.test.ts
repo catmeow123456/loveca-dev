@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  generateBp7Box,
+  generateBp8Box,
   buildSealedDeck,
   validateSealedDraft,
   treasurePackIndices,
@@ -10,12 +10,12 @@ import { CardType } from '../../src/shared/types/enums';
 import { getBaseCardCode } from '../../src/shared/utils/card-code';
 import { sealedCards, seededRandom } from '../helpers/sealed-cards';
 
-describe('BP7 simulated collation', () => {
+describe('BP8 simulated collation', () => {
   it('draws one treasure pack in exactly one of sixty box-level outcomes', () => {
     const seen: number[] = [];
     for (let roll = 0; roll < 60; roll++) {
       let lotteryCalls = 0;
-      const pool = generateBp7Box(sealedCards(), (upper) => {
+      const pool = generateBp8Box(sealedCards(), (upper) => {
         if (upper === 60) {
           lotteryCalls++;
           return roll;
@@ -28,7 +28,7 @@ describe('BP7 simulated collation', () => {
     expect(seen).toEqual([0]);
   });
   it('keeps a character family together and permits three energies alongside ordinary upgrades', () => {
-    const pool = generateBp7Box(sealedCards(), () => 0);
+    const pool = generateBp8Box(sealedCards(), () => 0);
     expect(treasurePackIndices(pool)).toEqual([0]);
     expect(pool.packs[0].map((card) => card.rare)).toEqual(['R+', 'P', 'P+', 'SEC', 'SECE']);
     expect(new Set(pool.packs[0].map((card) => card.name)).size).toBe(1);
@@ -50,7 +50,7 @@ describe('BP7 simulated collation', () => {
       for (let pack = 0; pack < 10; pack++) {
         let pickedCharacter = false;
         let tenCalls = 0;
-        const pool = generateBp7Box(sealedCards(), (upper) => {
+        const pool = generateBp8Box(sealedCards(), (upper) => {
           if (upper === 10000) return 9999;
           if (upper === 60) return 0;
           if (upper === 4 && !pickedCharacter) {
@@ -67,12 +67,12 @@ describe('BP7 simulated collation', () => {
     }
   });
   it('rejects an incomplete or wrong-character treasure family without cross-product fallback', () => {
-    const missing = sealedCards().filter((card) => card.cardCode !== 'PL!N-bp7-001-P+');
-    expect(() => generateBp7Box(missing, () => 0)).toThrow('完整配套');
+    const missing = sealedCards().filter((card) => card.cardCode !== 'PL!N-bp8-001-P+');
+    expect(() => generateBp8Box(missing, () => 0)).toThrow('完整配套');
     const wrong = sealedCards().map((card) =>
       card.rare === 'SECE' ? { ...card, name: '其他角色' } : card
     );
-    expect(() => generateBp7Box(wrong, () => 0)).toThrow('完整配套');
+    expect(() => generateBp8Box(wrong, () => 0)).toThrow('完整配套');
   });
   it('matches full-width rarities and spacing without conflating empty Japanese names', () => {
     const cards = sealedCards().map((card) => ({
@@ -82,7 +82,7 @@ describe('BP7 simulated collation', () => {
       rare: card.rare?.replace('+', '＋'),
       cardCode: card.cardCode.replace('+', '＋'),
     }));
-    const pool = generateBp7Box(cards, () => 0);
+    const pool = generateBp8Box(cards, () => 0);
     expect(treasurePackIndices(pool)).toEqual([0]);
     expect(new Set(pool.packs[0].map((card) => card.name.replace(/\s/g, ''))).size).toBe(1);
   });
@@ -98,7 +98,7 @@ describe('BP7 simulated collation', () => {
     'keeps independent category boundaries for rolls %i/%i/%i with treasure roll %i',
     (member, live, energy, treasure) => {
       const rolls = [member, live, energy];
-      const cards = generateBp7Box(sealedCards(), (upper) =>
+      const cards = generateBp8Box(sealedCards(), (upper) =>
         upper === 10000 ? rolls.shift()! : upper === SEALED_TREASURE_ONE_IN ? treasure : 0
       ).packs.flat();
       expect(cards.filter((c) => c.rare === 'P+')).toHaveLength(
@@ -127,8 +127,8 @@ describe('BP7 simulated collation', () => {
     const cards = sealedCards();
     const extra = { ...cards.find((c) => c.rare === 'P')!, imageFilename: 'alternate-print.png' };
     for (let seed = 0; seed < 100; seed++) {
-      const original = generateBp7Box(cards, seededRandom(seed));
-      const withPrint = generateBp7Box([...cards, extra], seededRandom(seed));
+      const original = generateBp8Box(cards, seededRandom(seed));
+      const withPrint = generateBp8Box([...cards, extra], seededRandom(seed));
       expect(withPrint.packs.flat().map((c) => getBaseCardCode(c.cardCode))).toEqual(
         original.packs.flat().map((c) => getBaseCardCode(c.cardCode))
       );
@@ -137,7 +137,7 @@ describe('BP7 simulated collation', () => {
   it('preserves box/pack/type guarantees across seeds, including rare replacement combinations', () => {
     const seen = new Set<string>();
     for (let seed = 0; seed < 500; seed++) {
-      const pool = generateBp7Box(sealedCards(), seededRandom(seed));
+      const pool = generateBp8Box(sealedCards(), seededRandom(seed));
       const cards = pool.packs.flat();
       expect(pool.packs).toHaveLength(10);
       const treasure = treasurePackIndices(pool);
@@ -178,13 +178,13 @@ describe('BP7 simulated collation', () => {
     [2000, null],
   ])('uses exact member probability boundary %s', (roll, rare) => {
     let ordinal = 0;
-    const cards = generateBp7Box(sealedCards(), (upper) =>
+    const cards = generateBp8Box(sealedCards(), (upper) =>
       upper === 10000 ? (ordinal++ === 0 ? roll : 9999) : upper === SEALED_TREASURE_ONE_IN ? 1 : 0
     ).packs.flat();
     expect(cards.find((c) => ['P+', 'SEC'].includes(c.rare!))?.rare ?? null).toBe(rare);
   });
-  it('retains ordinary PE with bonus energy and includes BP7 old-number SECL reprints', () => {
-    const cards = generateBp7Box(sealedCards(), (upper) =>
+  it('retains ordinary PE with bonus energy and includes BP8 old-number SECL reprints', () => {
+    const cards = generateBp8Box(sealedCards(), (upper) =>
       upper === SEALED_TREASURE_ONE_IN ? 1 : 0
     ).packs.flat();
     expect(cards.filter((c) => c.cardType === CardType.MEMBER)).toHaveLength(42);
@@ -194,10 +194,10 @@ describe('BP7 simulated collation', () => {
   });
   it('does not supplement a missing bucket from another product', () => {
     const cards = sealedCards().map((c) => (c.rare === 'SEC' ? { ...c, product: 'OTHER' } : c));
-    expect(() => generateBp7Box(cards, (upper) => upper - 1)).toThrow('SEC');
+    expect(() => generateBp8Box(cards, (upper) => upper - 1)).toThrow('SEC');
   });
   it('rejects unavailable copies, non-members and incomplete decks without limiting member duplicates to four', () => {
-    const pool = generateBp7Box(sealedCards(), (upper) => (upper === 10000 ? 9999 : 0));
+    const pool = generateBp8Box(sealedCards(), (upper) => (upper === 10000 ? 9999 : 0));
     const indices = pool.packs
       .flat()
       .flatMap((c, index) => (c.cardType === CardType.MEMBER ? [index] : []))

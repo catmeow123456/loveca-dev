@@ -6,17 +6,17 @@ import type {
   CasualRuleMode,
 } from '../../online/casual-table-types.js';
 
-export const SEALED_ENVIRONMENT_ID = 'CASUAL_SEALED_BP7_V1';
+export const SEALED_ENVIRONMENT_ID = 'CASUAL_SEALED_BP8_V1';
 export const HEXTECH_ENVIRONMENT_ID = 'CASUAL_HEXTECH_V1';
 export function casualFormat(environmentId: string): CasualFormat {
-  if (environmentId === SEALED_ENVIRONMENT_ID) return 'SEALED_BP7';
+  if (environmentId === SEALED_ENVIRONMENT_ID) return 'SEALED_BP8';
   if (environmentId === HEXTECH_ENVIRONMENT_ID) return 'HEXTECH';
   casualRuleMode(environmentId);
   return 'CONSTRUCTED';
 }
 export function casualEnvironment(ruleMode: CasualRuleMode, format: CasualFormat): string {
   if (format === 'HEXTECH') return HEXTECH_ENVIRONMENT_ID;
-  return format === 'SEALED_BP7' ? SEALED_ENVIRONMENT_ID : CASUAL_ENVIRONMENTS[ruleMode];
+  return format === 'SEALED_BP8' ? SEALED_ENVIRONMENT_ID : CASUAL_ENVIRONMENTS[ruleMode];
 }
 export const CASUAL_ENVIRONMENT_ID = 'CASUAL_TABLE_V1';
 export const CASUAL_ENVIRONMENTS: Record<CasualRuleMode, string> = {
@@ -107,7 +107,7 @@ export async function readCasualLobby(
   format?: CasualFormat
 ): Promise<CasualLobbyRow[]> {
   const formats: CasualFormat[] =
-    ruleMode === 'UNLIMITED' ? ['CONSTRUCTED', 'SEALED_BP7', 'HEXTECH'] : ['CONSTRUCTED'];
+    ruleMode === 'UNLIMITED' ? ['CONSTRUCTED', 'SEALED_BP8', 'HEXTECH'] : ['CONSTRUCTED'];
   const environments = formats
     .filter((entry) => !format || entry === format)
     .map((entry) => casualEnvironment(ruleMode, entry));

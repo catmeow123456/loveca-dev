@@ -212,10 +212,14 @@ function runThroughRecovery(existingGrayAndAll: boolean) {
     judged.gameState.liveResolution.playerLiveJudgmentHearts
       .get(P1)
       ?.some((heart) => heart.color === HeartColor.ORANGE)
-  ).toBe(false);
+  ).toBe(true);
+  expect(judged.gameState.liveResolution.playerLiveJudgmentHearts.get(P1)).toContainEqual({
+    color: HeartColor.ORANGE,
+    count: existingGrayAndAll ? 4 : 6,
+  });
   expect(judged.gameState.liveResolution.playerLiveJudgmentHearts.get(P1)).toContainEqual({
     color: HeartColor.GRAY,
-    count: existingGrayAndAll ? 12 : 13,
+    count: existingGrayAndAll ? 8 : 7,
   });
   const successWindow = service.processAction(
     judged.gameState,

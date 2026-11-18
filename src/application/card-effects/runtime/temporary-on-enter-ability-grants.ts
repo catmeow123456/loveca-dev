@@ -1,4 +1,3 @@
-import type { EnterStageEvent } from '../../../domain/events/game-events.js';
 import { isMemberCardData } from '../../../domain/entities/card.js';
 import {
   getCardById,
@@ -9,7 +8,7 @@ import {
   type TemporaryOnEnterAbilityGrant,
 } from '../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../domain/entities/player.js';
-import { TriggerCondition, ZoneType } from '../../../shared/types/enums.js';
+import { TriggerCondition } from '../../../shared/types/enums.js';
 import {
   CardAbilityCategory,
   CardAbilitySourceZone,
@@ -90,37 +89,6 @@ export function getTemporaryOnEnterAbilityInvocation(
         definitionSourceCardCode: grant.definitionSourceCardCode,
         waiveActivationCosts: false,
         grantId: grant.grantId,
-      }
-    : undefined;
-}
-
-/** Reuse facts from the host's actual entry; no synthetic ON_ENTER event is emitted. */
-export function getHostEnterStageEventIds(game: GameState, hostCardId: string): readonly string[] {
-  const entry = [...game.eventLog]
-    .reverse()
-    .find(
-      ({ event }) =>
-        event.eventType === TriggerCondition.ON_ENTER_STAGE &&
-        event.cardInstanceId === hostCardId &&
-        event.fromZone !== ZoneType.MEMBER_SLOT
-    );
-  return entry ? [entry.event.eventId] : [];
-}
-
-/** Trigger-dependent predicates receive the host's actual historical entry facts. */
-export function getHostEnterStageMetadata(
-  game: GameState,
-  hostCardId: string
-): PendingAbilityState['metadata'] {
-  const ids = getHostEnterStageEventIds(game, hostCardId);
-  const event = game.eventLog.find((entry) => ids.includes(entry.event.eventId))?.event as
-    EnterStageEvent | undefined;
-  return event
-    ? {
-        fromZone: event.fromZone,
-        replacedMemberCardId: event.replacedMemberCardId,
-        replacedMemberEffectiveCost: event.replacedMemberEffectiveCost,
-        relayReplacements: event.relayReplacements,
       }
     : undefined;
 }

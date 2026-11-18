@@ -1,18 +1,18 @@
 import { expect, test, type Page } from '@playwright/test';
 import { prepareVisualPage } from '../visual/support/mockApp';
-import { generateBp7Box, treasurePackIndices } from '../../../src/domain/rules/sealed-box';
+import { generateBp8Box, treasurePackIndices } from '../../../src/domain/rules/sealed-box';
 import { sealedCards } from '../../../tests/helpers/sealed-cards';
 import { BladeHeartEffect, CardType, HeartColor } from '../../../src/shared/types/enums';
 import type { CasualTableOwnView } from '../../../src/online/casual-table-types';
 
 async function setup(page: Page, theme: 'light' | 'dark') {
   await prepareVisualPage(page, theme, true);
-  const pool = generateBp7Box(sealedCards(), () => 0);
+  const pool = generateBp8Box(sealedCards(), () => 0);
   let table: CasualTableOwnView = {
     tableId: 'sealed-statistics',
     roundId: 'round-one',
     revision: 1,
-    format: 'SEALED_BP7',
+    format: 'SEALED_BP8',
     ruleMode: 'UNLIMITED',
     roomCode: 'BOX060',
     discoverability: 'PUBLIC',

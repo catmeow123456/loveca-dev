@@ -15,6 +15,7 @@ import {
   createCardInstance,
   createHeartRequirement,
   type MemberCardData,
+  type LiveCardData,
 } from '../../src/domain/entities/card';
 import {
   createGameState,
@@ -59,41 +60,42 @@ function setup(
   expect(data.cost).toBeGreaterThan(0);
   const source = createCardInstance(data, P1, 'actor');
   // All other objects are explicitly synthetic, to control selector boundaries without guessing source export fields.
-  const member = (id: string, cost = 13, owner = P1) =>
-    createCardInstance(
-      {
-        cardCode: `SYNTHETIC-${id}`,
-        name: `合成${id}`,
-        cardType: CardType.MEMBER,
-        cost,
-        blade: 1,
-        hearts: [
-          HeartColor.PINK,
-          HeartColor.RED,
-          HeartColor.YELLOW,
-          HeartColor.GREEN,
-          HeartColor.BLUE,
-          HeartColor.PURPLE,
-        ].map((color) => ({ color, count: 1 })),
-        groupNames: ['蓮ノ空'],
-        unitName: 'スリーズブーケ',
-      },
-      owner,
-      id
-    );
-  const live = (id: string) =>
-    createCardInstance(
-      {
-        cardCode: `SYNTHETIC-${id}`,
-        name: `合成${id}`,
-        cardType: CardType.LIVE,
-        score: 3,
-        requirements: createHeartRequirement({ [entry.abilityId === IDs.HS_BP8_007_ON_ENTER_LOOK_TOP_FIVE_PURPLE_REQUIREMENT_LIVE_ABILITY_ID ? HeartColor.PURPLE : HeartColor.GREEN]: 1 }),
-        groupNames: ['蓮ノ空'],
-      },
-      P1,
-      id
-    );
+  const member = (id: string, cost = 13, owner = P1) => {
+    const memberData: MemberCardData = {
+      cardCode: `SYNTHETIC-${id}`,
+      name: `合成${id}`,
+      cardType: CardType.MEMBER,
+      cost,
+      blade: 1,
+      hearts: [
+        HeartColor.PINK,
+        HeartColor.RED,
+        HeartColor.YELLOW,
+        HeartColor.GREEN,
+        HeartColor.BLUE,
+        HeartColor.PURPLE,
+      ].map((color) => ({ color, count: 1 })),
+      groupNames: ['蓮ノ空'],
+      unitName: 'スリーズブーケ',
+    };
+    return createCardInstance(memberData, owner, id);
+  };
+  const live = (id: string) => {
+    const liveData: LiveCardData = {
+      cardCode: `SYNTHETIC-${id}`,
+      name: `合成${id}`,
+      cardType: CardType.LIVE,
+      score: 3,
+      requirements: createHeartRequirement({
+        [entry.abilityId ===
+        IDs.HS_BP8_007_ON_ENTER_LOOK_TOP_FIVE_PURPLE_REQUIREMENT_LIVE_ABILITY_ID
+          ? HeartColor.PURPLE
+          : HeartColor.GREEN]: 1,
+      }),
+      groupNames: ['蓮ノ空'],
+    };
+    return createCardInstance(liveData, P1, id);
+  };
   const hand = Array.from({ length: options.handCount ?? 3 }, (_, i) => member(`hand-${i}`));
   const waiting = Array.from({ length: 10 }, (_, i) =>
     i < 5 ? member(`waiting-${i}`, 2) : live(`waiting-${i}`)
@@ -102,7 +104,8 @@ function setup(
     options.deckLive !== false &&
     (entry.abilityId === IDs.HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID ||
       entry.abilityId === IDs.BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID ||
-      entry.abilityId === IDs.HS_BP8_007_ON_ENTER_LOOK_TOP_FIVE_PURPLE_REQUIREMENT_LIVE_ABILITY_ID) &&
+      entry.abilityId ===
+        IDs.HS_BP8_007_ON_ENTER_LOOK_TOP_FIVE_PURPLE_REQUIREMENT_LIVE_ABILITY_ID) &&
     i === 0
       ? live(`deck-${i}`)
       : member(`deck-${i}`)
@@ -169,7 +172,10 @@ function setup(
     timingId: TriggerCondition.ON_ENTER_STAGE,
     eventIds: [],
     sourceSlot: SlotPosition.CENTER,
-    metadata: { fromZone: options.fromZone ?? ZoneType.WAITING_ROOM },
+    metadata:
+      mode === 'NATIVE'
+        ? { fromZone: options.fromZone ?? ZoneType.WAITING_ROOM }
+        : { noEnterStageEvent: true },
     ...(mode === 'NATIVE'
       ? {}
       : {
@@ -250,7 +256,9 @@ function outcome(game: GameState, abilityId: string) {
 const RESOURCE_RESULTS: Readonly<
   Record<string, { normal: readonly number[]; free?: readonly number[] }>
 > = {
-  [IDs.HS_BP8_007_ON_ENTER_LOOK_TOP_FIVE_PURPLE_REQUIREMENT_LIVE_ABILITY_ID]: { normal: [4, 15, 14] },
+  [IDs.HS_BP8_007_ON_ENTER_LOOK_TOP_FIVE_PURPLE_REQUIREMENT_LIVE_ABILITY_ID]: {
+    normal: [4, 15, 14],
+  },
   [IDs.HS_BP8_015_ON_ENTER_WAIT_LOOK_TOP_TWO_ARRANGE_ABILITY_ID]: { normal: [3, 19, 11] },
   [IDs.GENERIC_DISCARD_LOOK_TOP_ABILITY_ID]: { normal: [3, 17, 13], free: [4, 17, 12] },
   [IDs.BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID]: { normal: [3, 15, 15], free: [4, 15, 14] },
@@ -298,7 +306,7 @@ const RESOURCE_RESULTS: Readonly<
     free: [4, 20, 9],
   },
 };
-function assertConcreteResult(game: GameState, entry: Case, free: boolean) {
+function assertConcreteResult(game: GameState, entry: Case, free: boolean, invoked = false) {
   const expected = RESOURCE_RESULTS[entry.abilityId];
   let resources = free ? (expected.free ?? expected.normal) : expected.normal;
   if (entry.code === 'PL!HS-bp2-010-N') resources = free ? [4, 15, 14] : [3, 15, 15];
@@ -316,7 +324,10 @@ function assertConcreteResult(game: GameState, entry: Case, free: boolean) {
     [IDs.HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID]: HeartColor.BLUE,
     [IDs.HS_PR_038_ON_ENTER_NON_HAND_GAIN_PURPLE_HEART_ABILITY_ID]: HeartColor.PURPLE,
   };
-  if (heartColors[entry.abilityId])
+  const entryConditionUnavailable =
+    invoked && entry.abilityId === IDs.HS_PR_038_ON_ENTER_NON_HAND_GAIN_PURPLE_HEART_ABILITY_ID;
+  if (entryConditionUnavailable) expect(modifier).toBeUndefined();
+  if (heartColors[entry.abilityId] && !entryConditionUnavailable)
     expect(modifier).toMatchObject({
       kind: 'HEART',
       sourceCardId: 'actor',
@@ -343,7 +354,7 @@ function assertConcreteResult(game: GameState, entry: Case, free: boolean) {
     const actual = getMemberEffectiveHeartIcons(game, P1, 'actor')
       .filter((heart) => heart.color === color)
       .reduce((sum, heart) => sum + heart.count, 0);
-    expect(actual).toBe(printed + 1);
+    expect(actual).toBe(printed + (entryConditionUnavailable ? 0 : 1));
   }
   if (
     [
@@ -383,13 +394,14 @@ function assertConcreteResult(game: GameState, entry: Case, free: boolean) {
 
 describe('shared ON_ENTER native/template identity and real host source', () => {
   it.each(CASES)(
-    '$code $abilityId resolves identically on a native source and a granted host paying normal costs',
+    '$code $abilityId preserves native effects and invoked host identity without borrowing entry facts',
     (entry) => {
       const native = settle(setup(entry, 'NATIVE'));
       const host = settle(setup(entry, 'HOST'));
       assertConcreteResult(native, entry, false);
-      assertConcreteResult(host, entry, false);
-      expect(outcome(host, entry.abilityId)).toEqual(outcome(native, entry.abilityId));
+      assertConcreteResult(host, entry, false, true);
+      if (entry.abilityId !== IDs.HS_PR_038_ON_ENTER_NON_HAND_GAIN_PURPLE_HEART_ABILITY_ID)
+        expect(outcome(host, entry.abilityId)).toEqual(outcome(native, entry.abilityId));
       const resolves = host.actionHistory.filter(
         (action) =>
           action.type === 'RESOLVE_ABILITY' && action.payload.abilityId === entry.abilityId
@@ -402,7 +414,7 @@ describe('shared ON_ENTER native/template identity and real host source', () => 
     '$code $abilityId supports the initial waived-cost invocation without inventing paid actions',
     (entry) => {
       const done = settle(setup(entry, 'FREE'));
-      assertConcreteResult(done, entry, true);
+      assertConcreteResult(done, entry, true, true);
       expect(
         done.actionHistory.filter(
           (action) => action.type === 'PAY_COST' && action.payload.abilityId === entry.abilityId
@@ -564,18 +576,15 @@ describe('shared ON_ENTER native/template identity and real host source', () => 
     ]) {
       const entry = CASES.find(({ abilityId }) => abilityId === ability)!;
       let game = setup(entry, 'FREE');
-      const miss = createCardInstance(
-        {
-          cardCode: 'SYNTHETIC-COLOR-MISS',
-          name: '合成无指定色成员',
-          cardType: CardType.MEMBER,
-          cost: 3,
-          blade: 0,
-          hearts: [],
-        },
-        P1,
-        'color-miss'
-      );
+      const missData: MemberCardData = {
+        cardCode: 'SYNTHETIC-COLOR-MISS',
+        name: '合成无指定色成员',
+        cardType: CardType.MEMBER,
+        cost: 3,
+        blade: 0,
+        hearts: [],
+      };
+      const miss = createCardInstance(missData, P1, 'color-miss');
       game = registerCards(game, [miss]);
       game = updatePlayer(game, P1, (p) => ({
         ...p,
@@ -656,14 +665,18 @@ describe('shared ON_ENTER native/template identity and real host source', () => 
     expect(skipped.players[0].hand.cardIds).toEqual(['hand-0', 'hand-1', 'hand-2']);
     expect(skipped.eventLog).toEqual([]);
   });
-  it('the copied non-HAND entry condition belongs to the host entry, even with costs waived', () => {
+  it('a non-HAND entry condition applies to the actual native entry and is not satisfied by invocation', () => {
     const entry = CASES.find(
       ({ abilityId }) => abilityId === IDs.HS_PR_038_ON_ENTER_NON_HAND_GAIN_PURPLE_HEART_ABILITY_ID
     )!;
     expect(
       settle(setup(entry, 'FREE', { fromZone: ZoneType.HAND })).liveResolution.liveModifiers
     ).toEqual([]);
-    const nonHand = settle(setup(entry, 'FREE', { fromZone: ZoneType.WAITING_ROOM }));
+    for (const mode of ['HOST', 'FREE'] as const)
+      expect(
+        settle(setup(entry, mode, { fromZone: ZoneType.WAITING_ROOM })).liveResolution.liveModifiers
+      ).toEqual([]);
+    const nonHand = settle(setup(entry, 'NATIVE', { fromZone: ZoneType.WAITING_ROOM }));
     expect(nonHand.liveResolution.liveModifiers).toContainEqual(
       expect.objectContaining({
         sourceCardId: 'actor',

@@ -1,4 +1,4 @@
-import { SEALED_BP7_PRODUCT_LABEL, SEALED_MODE_NAME } from '@game/shared/sealed-format';
+import { SEALED_BP8_PRODUCT_LABEL, SEALED_MODE_NAME } from '@game/shared/sealed-format';
 
 export function SealedFormatLabel({ suffix = '' }: { suffix?: string }) {
   return (
@@ -7,7 +7,7 @@ export function SealedFormatLabel({ suffix = '' }: { suffix?: string }) {
         {SEALED_MODE_NAME}
         {suffix}
       </span>{' '}
-      <span className="sealed-product-tag">{SEALED_BP7_PRODUCT_LABEL}</span>
+      <span className="sealed-product-tag">{SEALED_BP8_PRODUCT_LABEL}</span>
     </span>
   );
 }

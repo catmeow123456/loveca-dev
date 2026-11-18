@@ -25,9 +25,9 @@
 
 ## 颜色与必要 Heart
 
-- GRAY 是实际提供的无色 Heart，只计总数、不补指定色；RAINBOW 仍是可代任意色的 All Heart，不能把无色判心写成 RAINBOW。
+- GRAY 是实际提供的无色 Heart，只计总数、不补指定色；RAINBOW 是可代普通六色的 All Heart，不能把无色判心写成 RAINBOW。
 - 必要无色 Heart 的既有结构化投影可使用 RAINBOW/泛用总数语义，规则层也规范化 GRAY 需求。必要 Heart 增减复用 `applyHeartRequirementModifiers`，保留 RAINBOW 条目与 `totalRequired` 两种需求形状。
-- ORANGE 保留独立颜色身份，数据的 `orange` 原样映射。按 2026-11-10 用户确认的临时口径，橙判心仅在声援 HEART 贡献层按一个 GRAY 计入，不能抵指定色或当作 ALL；普通成员 ORANGE HEART 不转换。卡文条件、有效判心及所有展示仍识别 ORANGE，包括飞行动画、卡下贡献图标和图形／文本统计；判定预览及动画成功提示使用单独的规则贡献计数，不能将显示计数直接用于判定，也不能把普通成员橙心一并转灰。不能在卡牌数据或查询入口全局改成 GRAY。旧卡文本明确的六色/固定颜色集合必须显式列举，不因枚举新增 GRAY/ORANGE 自动扩大；此临时口径不代表官方橙判心规则已公布。
+- ORANGE 保留独立颜色身份，数据的 `orange` 原样映射。依据官方 2026-11-11 Q283–Q286 与综合规则 1.09，橙判心贡献1个 ORANGE，可支付橙色或无色需求；ALL 只可替代桃、红、黄、绿、蓝、紫六色，不能补橙色，「任意 Heart 颜色」也不含橙色。成员 Heart、声援贡献、预览与动画成功判定统一复用 HeartPool 分配；橙色展示保持原样，不能全局改为 GRAY。剩余心偏好可优先保留用于无色需求的橙心，但不能用 ALL 换回已经支付橙色需求的橙心。旧卡明确的六色/固定颜色集合必须显式列举，不因枚举新增 GRAY/ORANGE 自动扩大。
 - 前端必要 Heart 修正投影可能以 `obj_<cardId>` 为 key，组件使用 raw cardId；维护判定预览时保留既有 raw/public key 读取语义，不能把此投影差异误当新增业务 fallback。
 - 颜色/需求变更覆盖指定色、无色、All、负修正及当前两种需求数据形状；固定颜色卡另测未列颜色不计入。
 
@@ -47,7 +47,7 @@
 - query 只读 GameState，不创建 activeEffect、不移动、不推进 pending；domain 不依赖 application，`src/application/effects/conditions.ts` 可作为 re-export 入口。复用 stage/zone selectors，不在单卡直接解释 eventLog、positionMovedThisTurn、groupName 等底层字段。
 - 团体用 `cardBelongsToGroup` / `groupAliasIs` 等身份 helper。小组优先 `unitAliasIs` 匹配结构化 unitName；卡文赋予“所有领域视为”身份时才使用适用的 `unitAliasOrTextAliasIs` 等入口。
 - 名称按卡牌拥有的全部结构化身份判断，组合卡同时具有各成员名。复用 `src/shared/utils/card-identity.ts` 及 selector 薄包装，不复制别名表或仅匹配主显示名；严格原名 `cardNameIs` 与别名 `cardNameAliasIs` 按卡文选择。
-- 不同名计数与命中某个名称是不同语义，使用各自 helper。回归见 `tests/unit/card-identity.test.ts` 及新增 query 的正反例。
+- 不同名计数与命中某个名称是不同语义，使用各自 helper。Q331 的 SUNNY DAY SONG 对选中 DUO 先固定一个成员姓名，再逐名统计对手；不同候选姓名影响结果时显示各项加刀数，默认预选最大项并保留手动改选与确认；同值直接结算，不能把目标全部姓名取并集排除对手。对手继续按结构化“持有该姓名”判断，此裁定不扩为全局 DUO 身份规则。回归见 `tests/unit/card-identity.test.ts` 及新增 query 的正反例。
 
 ## 登场费用
 

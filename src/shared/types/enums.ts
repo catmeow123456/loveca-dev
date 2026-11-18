@@ -44,7 +44,7 @@ export enum HeartColor {
    */
   GRAY = 'GRAY',
   /**
-   * 万能色 - 可视为任意颜色
+   * All Heart - 可代替桃、红、黄、绿、蓝、紫，不能代替橙色
    * 参考规则 2.1.1.3 及 8.3.15.1.1
    */
   RAINBOW = 'RAINBOW',

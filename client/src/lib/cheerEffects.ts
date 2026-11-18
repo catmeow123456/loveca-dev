@@ -2,7 +2,7 @@ import { BladeHeartEffect, HeartColor } from '@game/shared/types/enums';
 import { getCheerHeartContributionColor } from '@game/shared/utils/cheer-hearts';
 import type { ViewBladeHeartItem } from '@game/online/types';
 
-/** Keep effective marker colors for display and derive their separate judgment contribution. */
+/** Use effective marker colors for both display and judgment contribution. */
 export function calculateCheerEffects(bladeHearts?: readonly ViewBladeHeartItem[]): {
   penLightHearts: { color: HeartColor; count: number }[];
   judgmentHearts: { color: HeartColor; count: number }[];
@@ -24,7 +24,7 @@ export function calculateCheerEffects(bladeHearts?: readonly ViewBladeHeartItem[
   return { penLightHearts, judgmentHearts, drawBonus, scoreBonus };
 }
 
-/** Only cheer markers use the provisional ORANGE contribution rule; other Hearts keep their color. */
+/** Aggregate member, cheer and bonus Hearts without changing their color identities. */
 export function summarizeLiveHearts(
   memberHearts: ReadonlyMap<HeartColor, number>,
   cheers: readonly ReturnType<typeof calculateCheerEffects>[],

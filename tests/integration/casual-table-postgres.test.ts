@@ -32,7 +32,7 @@ import {
 } from '../../src/server/services/online-room-service';
 
 const databaseUrl = process.env.CASUAL_TABLE_TEST_DATABASE_URL;
-const users = Array.from({ length: 5 }, () => randomUUID());
+const users: string[] = Array.from({ length: 5 }, () => randomUUID());
 const decks = users.map(() => randomUUID());
 const rules = toDeckPointTableRules({
   version: 'test',
@@ -163,6 +163,9 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
         new URL('../../drizzle/0048_add_hextech_casual_format.sql', import.meta.url),
         'utf8'
       )
+    );
+    await database.query(
+      await readFile(new URL('../../drizzle/0049_switch_sealed_to_bp8.sql', import.meta.url), 'utf8')
     );
   });
   afterAll(async () => {
@@ -1159,12 +1162,12 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
         const format: CasualFormat =
           ruleMode === 'NORMAL'
             ? 'CONSTRUCTED'
-            : (['CONSTRUCTED', 'SEALED_BP7', 'HEXTECH'] as const)[index % 3];
+            : (['CONSTRUCTED', 'SEALED_BP8', 'HEXTECH'] as const)[index % 3];
         await service.create(userId, {
           format,
           ruleMode,
           requestId: randomUUID(),
-          ...(format === 'SEALED_BP7' ? {} : { deckId }),
+          ...(format === 'SEALED_BP8' ? {} : { deckId }),
           spectatorEnabled: false,
           discoverability: 'PUBLIC',
           note: '',
@@ -1188,7 +1191,7 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
         await expect(
           service.list(users[0], {
             ...query,
-            preferredFormat: 'SEALED_BP7',
+            preferredFormat: 'SEALED_BP8',
             cursor: first.nextCursor!,
           })
         ).rejects.toMatchObject({ code: 'CASUAL_CURSOR_EXPIRED' });
@@ -1212,7 +1215,7 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
       discoverability: 'PUBLIC',
     });
     const sealed = await service.create(users[2], {
-      format: 'SEALED_BP7',
+      format: 'SEALED_BP8',
       ruleMode: 'UNLIMITED',
       requestId: randomUUID(),
       spectatorEnabled: false,
@@ -1226,7 +1229,7 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
       discoverability: 'PUBLIC',
     });
     const ids = [constructed.tableId, sealed.tableId, hextech.tableId].sort();
-    for (const preferredFormat of [undefined, 'CONSTRUCTED', 'SEALED_BP7', 'HEXTECH'] as const) {
+    for (const preferredFormat of [undefined, 'CONSTRUCTED', 'SEALED_BP8', 'HEXTECH'] as const) {
       const lobby = await service.list(users[4], { ruleMode: 'UNLIMITED', preferredFormat });
       expect(lobby.rooms.map((room) => room.tableId).sort()).toEqual(ids);
       expect(lobby.counts).toEqual({ waiting: 3, preparing: 0, playing: 0 });
@@ -2005,7 +2008,7 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     expect((await service.getCurrent(users[0])).table).toBeNull();
   });
   const sealedEntry = (): CasualTableEntryInput => ({
-    format: 'SEALED_BP7',
+    format: 'SEALED_BP8',
     ruleMode: 'UNLIMITED',
     requestId: randomUUID(),
     spectatorEnabled: false,
@@ -2060,12 +2063,12 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     expect((await current(0)).sealedPool).toEqual(saved.sealedPool);
     expect((await service.confirm(users[0], building)).sealedPool).toEqual(saved.sealedPool);
     expect(
-      (await service.list(users[3], { ruleMode: 'UNLIMITED', format: 'SEALED_BP7' })).rooms.map(
+      (await service.list(users[3], { ruleMode: 'UNLIMITED', format: 'SEALED_BP8' })).rooms.map(
         (r) => r.tableId
       )
     ).toEqual([building.tableId]);
     expect(
-      JSON.stringify(await service.list(users[3], { ruleMode: 'UNLIMITED', format: 'SEALED_BP7' }))
+      JSON.stringify(await service.list(users[3], { ruleMode: 'UNLIMITED', format: 'SEALED_BP8' }))
     ).not.toContain('sealedPool');
   });
   it('restores treasure and judgment data from frozen private pools without loading the catalog', async () => {
@@ -2098,24 +2101,17 @@ describe.skipIf(!databaseUrl)('CasualTableService PostgreSQL admission', () => {
     });
     expect((await current(0)).sealedPool).toEqual(saved.sealedPool);
     const publicView = JSON.stringify(
-      await service.list(users[2], { format: 'SEALED_BP7', ruleMode: 'UNLIMITED' })
+      await service.list(users[2], { format: 'SEALED_BP8', ruleMode: 'UNLIMITED' })
     );
     expect(publicView).not.toContain('treasurePackIndices');
     expect(publicView).not.toContain('bladeHearts');
   });
-  it('keeps V1 collation provenance and saved cards in the unchanged pool schema', async () => {
-    service = newService({ randomInt: (upper) => (upper === 10000 ? 9999 : upper === 60 ? 1 : 0) });
+  it('rejects a retired BP7 pool in a new BP8 room', async () => {
     await sealedBuilding();
     await database.query(
       `UPDATE casual_table_seats SET sealed_pool = jsonb_set(sealed_pool, '{pool,version}', '"BP7_SIMULATED_V1"')`
     );
-    const saved = await selectSealed(0);
-    expect(saved.sealedPool!.version).toBe('BP7_SIMULATED_V1');
-    expect(saved.sealedPool!.treasurePackIndices).toEqual([]);
-    service = newService({
-      loadSealedCards: () => Promise.reject(new Error('must not regenerate')),
-    });
-    expect((await current(0)).sealedPool).toEqual(saved.sealedPool);
+    await expect(current(0)).rejects.toThrow();
   });
   it('rejects invalid/stale selections, locks ready drafts and boots a half-deck match once', async () => {
     const building = await sealedBuilding();

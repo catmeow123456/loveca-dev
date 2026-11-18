@@ -24,7 +24,7 @@ test('娱乐房间统一展示，玩法标签只置顶强调，加入其他类�
   });
   const rooms = [
     room('CONSTRUCTED', '自由构筑房主', 'FREE123'),
-    room('SEALED_BP7', '开盒房主', 'BOX123'),
+    room('SEALED_BP8', '开盒房主', 'BOX123'),
     room('HEXTECH', '海克斯房主', 'HEX123'),
   ];
   const queries: URLSearchParams[] = [];
@@ -120,7 +120,7 @@ test('娱乐房间统一展示，玩法标签只置顶强调，加入其他类�
   expect(joins).toEqual([
     expect.objectContaining({
       target: expect.objectContaining({ tableId: 'table-BOX123' }),
-      entry: expect.objectContaining({ format: 'SEALED_BP7', ruleMode: 'UNLIMITED' }),
+      entry: expect.objectContaining({ format: 'SEALED_BP8', ruleMode: 'UNLIMITED' }),
     }),
   ]);
   expect((joins[0] as { entry: object }).entry).not.toHaveProperty('deckId');

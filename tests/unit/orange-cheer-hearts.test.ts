@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createCardInstance,
   createHeartRequirement,
+  getHeartCountByColor,
   type BladeHearts,
   type LiveCardData,
   type MemberCardData,
@@ -13,6 +14,7 @@ import {
   getMemberEffectiveHeartIcons,
 } from '../../src/domain/rules/live-modifiers';
 import { LiveResolver } from '../../src/domain/rules/live-resolver';
+import { calculateHeartDeficit, HeartPool } from '../../src/domain/value-objects/heart';
 import { BladeHeartEffect, CardType, HeartColor, SlotPosition } from '../../src/shared/types/enums';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 
@@ -31,13 +33,15 @@ function member(id: string, cost: number, bladeHearts?: BladeHearts) {
   return createCardInstance(data, 'p1', id);
 }
 
-describe('orange cheer marker identity and colorless contribution', () => {
-  it('preserves ORANGE markers but contributes only GRAY, separately from ALL and ordinary member ORANGE', () => {
+// Comprehensive Rules 1.09 (2026-11-11), 2.1.1.3 and 2.1.3:
+// ALL substitutes only the six ordinary colors; blade HEARTs retain their Heart identity.
+describe('official orange Heart and cheer rules', () => {
+  it('keeps ORANGE markers and Hearts for orange or generic requirements, preserving ordinary member ORANGE', () => {
     const resolver = new LiveResolver();
     const result = resolver.processCheer([{ cardId: 'orange', bladeHearts: orange }]);
     expect(result.bladeHearts).toEqual(orange);
-    expect(result.bonusHearts.getColorCount(HeartColor.GRAY)).toBe(1);
-    expect(result.bonusHearts.getColorCount(HeartColor.ORANGE)).toBe(0);
+    expect(result.bonusHearts.getColorCount(HeartColor.GRAY)).toBe(0);
+    expect(result.bonusHearts.getColorCount(HeartColor.ORANGE)).toBe(1);
     expect(result.bonusHearts.getRainbowCount()).toBe(0);
     const requirement = (color: HeartColor) => ({
       cardId: color,
@@ -49,7 +53,14 @@ describe('orange cheer marker identity and colorless contribution', () => {
         requirements: createHeartRequirement({ [color]: 1 }),
       },
     });
-    for (const color of [HeartColor.PINK, HeartColor.ORANGE]) {
+    for (const color of [
+      HeartColor.PINK,
+      HeartColor.RED,
+      HeartColor.YELLOW,
+      HeartColor.GREEN,
+      HeartColor.BLUE,
+      HeartColor.PURPLE,
+    ]) {
       const performance = resolver.performLive(
         'p1',
         [],
@@ -58,14 +69,17 @@ describe('orange cheer marker identity and colorless contribution', () => {
       );
       expect(performance.liveJudgments[0].isSuccess).toBe(false);
     }
-    expect(
-      resolver.performLive(
+    for (const color of [HeartColor.ORANGE, HeartColor.RAINBOW, HeartColor.GRAY]) {
+      const performance = resolver.performLive(
         'p1',
         [],
-        [requirement(HeartColor.RAINBOW)],
+        [requirement(color)],
         [{ cardId: 'orange', bladeHearts: orange }]
-      ).liveJudgments[0].isSuccess
-    ).toBe(true);
+      );
+      expect(performance.liveJudgments[0].isSuccess).toBe(true);
+      expect(performance.liveJudgmentHearts).toEqual([{ color: HeartColor.ORANGE, count: 1 }]);
+      expect(performance.remainingHearts).toEqual([]);
+    }
     const ordinary = member('ordinary', 1);
     const game = updatePlayer(
       registerCards(createGameState('normal-orange', 'p1', 'P1', 'p2', 'P2'), [ordinary]),
@@ -86,6 +100,95 @@ describe('orange cheer marker identity and colorless contribution', () => {
         []
       ).liveJudgments[0].isSuccess
     ).toBe(true);
+  });
+
+  it('never substitutes ALL for ORANGE, including deficits and member color queries', () => {
+    const allPool = HeartPool.fromHeartIcons([{ color: HeartColor.RAINBOW, count: 8 }]);
+    const orangeRequirement = createHeartRequirement({ [HeartColor.ORANGE]: 1 });
+    expect(allPool.canSatisfy(orangeRequirement)).toBe(false);
+    expect(allPool.allocateForRequirement(orangeRequirement)).toBeNull();
+    expect(allPool.consume(orangeRequirement)).toBeNull();
+    expect(calculateHeartDeficit(allPool, orangeRequirement)).toEqual(
+      new Map([[HeartColor.ORANGE, 1]])
+    );
+    for (const color of [
+      HeartColor.PINK,
+      HeartColor.RED,
+      HeartColor.YELLOW,
+      HeartColor.GREEN,
+      HeartColor.BLUE,
+      HeartColor.PURPLE,
+    ]) {
+      expect(allPool.canSatisfy(createHeartRequirement({ [color]: 1 }))).toBe(true);
+    }
+    const orangeAndAll: MemberCardData = {
+      cardType: CardType.MEMBER,
+      cardCode: 'orange-all',
+      name: 'orange-all',
+      cost: 1,
+      blade: 0,
+      hearts: [
+        { color: HeartColor.ORANGE, count: 1 },
+        { color: HeartColor.RAINBOW, count: 2 },
+      ],
+    };
+    expect(getHeartCountByColor(orangeAndAll, HeartColor.ORANGE)).toBe(1);
+    expect(getHeartCountByColor(orangeAndAll, HeartColor.RED)).toBe(2);
+    const resolver = new LiveResolver();
+    const result = resolver.performLive(
+      'p1',
+      [],
+      [
+        {
+          cardId: 'orange-live',
+          data: {
+            cardType: CardType.LIVE,
+            cardCode: 'orange-live',
+            name: 'orange-live',
+            score: 1,
+            requirements: orangeRequirement,
+          },
+        },
+      ],
+      [
+        {
+          cardId: 'all',
+          bladeHearts: [{ effect: BladeHeartEffect.HEART, heartColor: HeartColor.RAINBOW }],
+        },
+      ]
+    );
+    expect(result.liveJudgments[0].isSuccess).toBe(false);
+    expect(result.totalScore).toBe(0);
+  });
+
+  it('allocates ALL to ordinary colors or generic demand and preserves exact orange leftovers only when legal', () => {
+    const pool = HeartPool.fromHeartIcons([
+      { color: HeartColor.ORANGE, count: 1 },
+      { color: HeartColor.RAINBOW, count: 2 },
+    ]);
+    const preferences = { remainingHeartPreferences: [{ color: HeartColor.ORANGE, minCount: 1 }] };
+    const generic = createHeartRequirement({ [HeartColor.GRAY]: 1 });
+    expect(pool.consume(generic, preferences)?.toArray()).toEqual([
+      { color: HeartColor.ORANGE, count: 1 },
+      { color: HeartColor.RAINBOW, count: 1 },
+    ]);
+    const orangeAndRed = createHeartRequirement({ [HeartColor.ORANGE]: 1, [HeartColor.RED]: 1 });
+    expect(pool.allocateForRequirement(orangeAndRed, preferences)).toEqual(
+      new Map([
+        [HeartColor.RED, { normal: 0, rainbow: 1 }],
+        [HeartColor.ORANGE, { normal: 1, rainbow: 0 }],
+      ])
+    );
+    expect(pool.consume(orangeAndRed, preferences)?.toArray()).toEqual([
+      { color: HeartColor.RAINBOW, count: 1 },
+    ]);
+    const missingOrange = createHeartRequirement({
+      [HeartColor.ORANGE]: 2,
+      [HeartColor.RED]: 1,
+      [HeartColor.GRAY]: 1,
+    });
+    expect(pool.consume(missingOrange, preferences)).toBeNull();
+    expect(calculateHeartDeficit(pool, missingOrange)).toEqual(new Map([[HeartColor.ORANGE, 1]]));
   });
 
   it('grants exactly one effective marker to absent/empty low-cost member lists, preserving other markers and owners', () => {

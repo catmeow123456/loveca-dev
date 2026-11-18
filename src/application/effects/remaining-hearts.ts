@@ -58,7 +58,13 @@ export function rebalanceRemainingHeartColorForPlayer(
   const remainingColorCountBefore = countHeartsByColor(remainingHearts, color);
   const remainingRainbowCountBefore = countHeartsByColor(remainingHearts, HeartColor.RAINBOW);
   const neededColorCount = Math.max(0, minCount - remainingColorCountBefore);
-  if (neededColorCount === 0 || remainingRainbowCountBefore === 0 || color === HeartColor.RAINBOW) {
+  // 此兼容路径通过 ALL 替换已消耗的指定色；ALL 不能替换 ORANGE。
+  if (
+    neededColorCount === 0 ||
+    remainingRainbowCountBefore === 0 ||
+    color === HeartColor.RAINBOW ||
+    color === HeartColor.ORANGE
+  ) {
     return {
       gameState: game,
       rebalancedCount: 0,

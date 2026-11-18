@@ -672,6 +672,10 @@ export function projectPlayerViewState(
         selectableOptions: game.activeEffect.effectChoice
           ? undefined
           : game.activeEffect.selectableOptions,
+        defaultSelectedOptionId:
+          !game.activeEffect.effectChoice && game.activeEffect.awaitingPlayerId === viewerPlayerId
+            ? game.activeEffect.defaultSelectedOptionId
+            : undefined,
         effectChoice: game.activeEffect.effectChoice
           ? {
               mode: game.activeEffect.effectChoice.mode,

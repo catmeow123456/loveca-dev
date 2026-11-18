@@ -1,13 +1,13 @@
-# 开盒战 · 七弹
+# 开盒战 · 八弹
 
-> 类型：专题说明。范围：娱乐模式的七弹（BP7）模拟开盒、房间组牌、半副规则与迁移。
+> 类型：专题说明。范围：娱乐模式的八弹（BP8）模拟开盒、房间组牌、半副规则与迁移。
 > 状态：本地实现与验证；生产迁移、发布和部署需另行执行。
 
 ## 玩家流程
 
-在对战大厅选择「娱乐模式 → 开盒战」，当前卡池以独立标签「七弹」显示，可以随机找对手、创建房间或输入房间码。与自由构筑分开匹配，不需要账号卡组，不使用 PT 上限。双方确认入桌后开始共用的 15 分钟倒计时，服务端同时生成两盒并保存。
+在对战大厅选择「娱乐模式 → 开盒战」，当前卡池以独立标签「八弹」显示，可以随机找对手、创建房间或输入房间码。与自由构筑分开匹配，不需要账号卡组，不使用 PT 上限。双方确认入桌后开始共用的 15 分钟倒计时，服务端同时生成两盒并保存。
 
-玩法名称固定为「开盒战」，卡池标签按商品命名：普通 BP 扩展包使用中文序号加「弹」（如 BP7 → 七弹）；团体高级包使用「团体简称＋高＋阿拉伯数字序号」（如 μ's 的 PL!-pb2 → 缪高2）。显示名称集中于 `src/shared/sealed-format.ts`，内部格式标识、商品归属和卡号保持原编码；目前仅支持七弹卡池。
+玩法名称固定为「开盒战」，卡池标签按商品命名：普通 BP 扩展包使用中文序号加「弹」（如 BP8 → 八弹）；团体高级包使用「团体简称＋高＋阿拉伯数字序号」（如 μ's 的 PL!-pb2 → 缪高2）。显示名称集中于 `src/shared/sealed-format.ts`，内部格式使用 SEALED_BP8，商品归属与卡号使用原编码；目前新房间仅支持八弹卡池。
 
 每盒 10 包，每包 5 张。逐包打开和全部打开只揭示既有结果；刷新、断线或重复请求不会重抽。选出 24 张成员，盒内 6 张 Live 全部固定加入，1～3 张能量加基础能量补足 12 张（普通盒为 1～2 张）。同卡号成员可以超过 4 张，但不能超过本盒实际数量。草稿自动保存在房间中；准备后锁定自己的构筑，对手尚未准备时可取消准备。双方准备后进入猜拳、先后手和原有对战流程。
 
@@ -21,7 +21,7 @@
 
 ## 模拟盒配
 
-[BP7 官方商品规格](https://llofficial-cardgame.com/products/bp07_mellowmoment/)为 10 包 × 5 张。以下盒配是本项目的模拟参数，**不是官方封入概率**。参数集中于 `src/domain/rules/sealed-box.ts`，新生成牌池的配置版本为 `BP7_SIMULATED_V2`。`version` 标记封入参数，V1/V2 使用完全相同的冻结牌池结构；已生成的 V1 牌池继续按保存结果使用，不重抽、不修改卡牌或版本。本次不增加持久字段，不需要数据库或历史快照迁移。
+每盒 10 包 × 5 张，沿用既有模拟盒配参数，**不是官方封入概率**。参数集中于 `src/domain/rules/sealed-box.ts`，新生成牌池版本为 `BP8_SIMULATED_V1`。本次切换商品卡池，半副构筑、概率与宝藏包规则不变。旧七弹房间须在部署前结束并关闭，运行时不再接受旧房间格式；历史对局使用原冻结卡组和规则，不重抽或改写。
 
 基础配置为 N×20、R×10、P×9、R+×4、L×6、PE×1，即 43 成员、6 Live、1 能量。
 
@@ -37,15 +37,15 @@
 
 每盒独立进行一次 `randomInt(60) === 0` 抽取，概率严格为 **1/60（约 1.667%）**，长期平均六十盒一包，不提供保底。一盒最多一包，等概率放在十包之一，不能按每包 1/60 抽取。与普通成员、Live、能量高罕三个类别独立，特殊封入会提高整体高罕出现率。
 
-宝藏包的五张为同角色 **R+、P、P+、SEC、SECE**；四张成员使用同一基础卡号的对应罕度，能量按角色匹配。先等概率选角色，再选成员基础卡号和印刷版本，不让多图增加角色权重。七弹现有 11 名角色具备完整组合；需要的角色配套缺失时明确报错，不跨商品补卡。
+宝藏包的五张为同角色 **R+、P、P+、SEC、SECE**；四张成员使用同一基础卡号的对应罕度，能量按角色匹配。先等概率选角色，再选成员基础卡号和印刷版本，不让多图增加角色权重。11 月 16 日导出中的八弹现有 10 名角色具备完整组合；需要的角色配套缺失时明确报错，不跨商品补卡。
 
 生成特殊盒时预留 `N×2、R×1、P×1、R+×1` 五个位替换为宝藏包，保留全部 6 张 Live、普通 PE 和已经抽中的普通高罕。其余九包各有 2 N、1 R，特殊包不受这个限制。每盒总数保持 50，宝藏盒为 42 成员＋6 Live＋2 能量，叠加原有额外能量时为 41 成员＋6 Live＋3 能量；能量组仍补足 12 张。
 
 开包前不提示尚未揭示的宝藏包；逐包或全部打开后显示提示并可查看五张卡。特殊包位置由冻结后的五张组合推导，不新增持久标记；仅在本人牌池响应提供，公共大厅和对手响应不包含。刷新、原池再战不重抽；双方同意重新开盒才生成新结果。
 
-官方确认存在五张同角色、多张烫金的「[推し活応援パック](https://llofficial-cardgame.com/products/next-step/)」，但上述五罕组合及 1/60 概率是本项目模拟规则，并非官方公布的七弹封入保证。[七弹商品说明](https://llofficial-cardgame.com/products/bp07_mellowmoment/)提到的整包 SEC、PE+、LLE 等其他特殊封入不在本次实现范围。
+上述五罕组合及 1/60 概率继续使用本项目模拟规则，不代表官方八弹封入保证。
 
-候选池来自已发布卡牌，按 BP7 商品归属、牌型和罕度筛选；商品代码 BP07/BP7 或 MELLOW MOMENT 商品名均可识别，包含沿用旧弹卡号的 BP7 再录卡。每种罕度先等概率选基础卡号，再选印刷版本，成员允许重复，Live 基础卡号每盒至多 4 张。不保证团体或费用分布。任何必需罕度或基础能量缺失都会明确报错，不跨弹补卡。随机源仅在服务端使用，房间保存冻结后的卡牌数据、图片文件名、分包顺序和配置版本。
+候选池来自已发布卡牌，按 BP8 商品归属、牌型和罕度筛选；商品代码 BP08/BP8 或「まじかる♡とり～と」 商品名均可识别，包含沿用旧弹卡号的 BP8 再录卡。每种罕度先等概率选基础卡号，再选印刷版本，成员允许重复，Live 基础卡号每盒至多 4 张。不保证团体或费用分布。任何必需罕度或基础能量缺失都会明确报错，不跨弹补卡。随机源仅在服务端使用，房间保存冻结后的卡牌数据、图片文件名、分包顺序和配置版本。
 
 ## 对战规则与隐私
 
@@ -53,11 +53,17 @@
 
 先将 Live 印刷必要心按原总数转为灰心，再应用通常的卡效增减。卡效额外增加的彩色需求保留颜色，按[官方 1BOX 规则说明](https://llofficial-cardgame.com/news/1box-0712/)处理。权威判定、共享卡效条件、玩家投影和判定预览读取该规则；全局卡牌原始数据与原始卡面不改写。其余起手、换牌、能量、回收等继续使用现有引擎。
 
-`CasualFormat` 独立于 PT 规则参数。持久化环境 ID 为 `CASUAL_SEALED_BP7_V1`，既有 `CASUAL_TABLE_V1` / `CASUAL_UNLIMITED_PT_V1` 明确映射为自由构筑。组牌状态为 `BUILDING`，数据库事务沿用大厅 admission 锁；轮次、草稿版本、持有数量与准备状态均由服务端检查。重复确认不重复开盒，重复准备不重复启动比赛。
+`CasualFormat` 独立于 PT 规则参数。持久化环境 ID 为 `CASUAL_SEALED_BP8_V1`，既有 `CASUAL_TABLE_V1` / `CASUAL_UNLIMITED_PT_V1` 明确映射为自由构筑。组牌状态为 `BUILDING`，数据库事务沿用大厅 admission 锁；轮次、草稿版本、持有数量与准备状态均由服务端检查。重复确认不重复开盒，重复准备不重复启动比赛。
 
 只有本人房间响应包含本人的完整牌池和草稿；大厅、对手及观战投影不包含这些私密字段。历史冻结实际使用的 30＋12 张卡组和权威规则集，不附带未入选牌池。准备中的数据库记录可恢复原池与剩余期限；进入对局后的恢复继续遵循现有联机运行时与 checkpoint 生命周期。
 
-## 数据迁移
+## 八弹切换与上线
+
+使用指定 `cards_export_2026-11-16.json` 固化 170 张八弹印刷及 1 张基础能量的本地夹具，覆盖全部必需罕度和 10 组宝藏配套。导出仍有 DRAFT 记录；夹具包含它们用于离线验证，服务端继续只读已发布卡牌，上线后正常发布所需卡牌，发布齐全后才能开盒，不跨弹补齐或绕过状态。
+
+按 [八弹切换迁移说明](../../drizzle/migration-notes/switch-sealed-to-bp8.md) 先结束并关闭七弹房间、释放参与占用，备份并停写后执行 `0049_switch_sealed_to_bp8.sql`。迁移遇到未关闭旧房间或残留占用会报错，不自动关房或删牌池；关闭的旧房间保留原环境 ID，约束禁止其重新活跃。新请求仅接受 `SEALED_BP8`；历史对局和 checkpoint 无需转换。
+
+## 首次引入开盒规则时的历史迁移
 
 升级必须使用显式迁移，不能依赖运行时补规则字段。普通旧房间保留原环境 ID，迁移扩展状态约束并增加私有牌池、草稿版本和再战邀请字段。
 
@@ -88,16 +94,16 @@
 单元测试覆盖盒配、概率边界、合法构筑、灰心与彩色增减的实际结算、两首胜利、同分及 checkpoint。PostgreSQL 集成测试使用随机独立 schema，覆盖匹配隔离、重复请求、并发准备、重连、超时、退出、再战、私密投影以及迁移 dry-run / 原子回滚。
 
 ```bash
-pnpm test:run tests/unit/bp7-sealed-box.test.ts tests/unit/bp7-sealed-rules.test.ts tests/unit/live-judgment-settlement.test.ts tests/unit/live-judgment-preview.test.ts tests/unit/replay-payload-serialization.test.ts tests/unit/casual-table-runtime.test.ts
+pnpm test:run tests/unit/bp8-sealed-box.test.ts tests/unit/bp8-sealed-export.test.ts tests/unit/bp8-sealed-migration.test.ts tests/unit/bp7-sealed-rules.test.ts tests/unit/live-judgment-settlement.test.ts tests/unit/live-judgment-preview.test.ts tests/unit/replay-payload-serialization.test.ts tests/unit/casual-table-runtime.test.ts
 CASUAL_TABLE_TEST_DATABASE_URL='<仅本地测试 PostgreSQL>' pnpm test:run tests/integration/casual-table-postgres.test.ts tests/integration/casual-tables-route.test.ts tests/integration/bp7-checkpoint-migration-postgres.test.ts
 ```
 
-真实双浏览器测试为 `client/tests/e2e/bp7-sealed-real.spec.ts`。仅对独立本地测试库启用；需已执行完整结构迁移、装载 BP7 测试卡池及基础能量，并有当前积分表供平台公共初始化使用。测试会通过普通注册接口创建 `bp7_browser_1/2` 测试玩家，无账号卡组写入。使用独立端口启动前后端后：
+真实双浏览器测试为 `client/tests/e2e/bp8-sealed-real.spec.ts`。仅对独立本地测试库启用；需已执行完整结构迁移、装载 BP8 测试卡池及基础能量，并有当前积分表供平台公共初始化使用。测试会通过普通注册接口创建 `bp8_browser_1/2` 测试玩家，无账号卡组写入。使用独立端口启动前后端后：
 
 ```bash
-RUN_BP7_REAL=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:5187 BP7_TEST_API_URL=http://127.0.0.1:3019 pnpm --dir client exec playwright test tests/e2e/bp7-sealed-real.spec.ts --project=tablet-1024x768 --workers=1
+RUN_BP8_REAL=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:5187 BP8_TEST_API_URL=http://127.0.0.1:3019 pnpm --dir client exec playwright test tests/e2e/bp8-sealed-real.spec.ts --project=tablet-1024x768 --workers=1
 ```
 
-设置 `BP7_TEST_DATABASE_URL` 为同一独立本地测试库（库名必须以 `bp7_browser_` 开头），还可运行随机匹配与期限取消的浏览器测试；测试仅提前该测试房间的截止时间，并检查没有新增对局记录。
+设置 `BP8_TEST_DATABASE_URL` 为同一独立本地测试库（库名必须以 `bp8_browser_` 开头），还可运行随机匹配与期限取消的浏览器测试；测试仅提前该测试房间的截止时间，并检查没有新增对局记录。
 
 同一测试使用 1440×1000 桌面和 390×844 手机会话，验证房间码、逐包/全部打开、组牌、取消准备、刷新恢复、猜拳、换牌、原池再战及重开。图片与交互截图属于本地验证证据，不纳入提交；生产卡牌/图片是否齐全及生产发布不在此测试授权范围内。

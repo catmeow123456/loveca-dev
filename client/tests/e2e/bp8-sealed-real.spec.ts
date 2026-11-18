@@ -2,16 +2,16 @@ import { expect, test, type Page, type APIRequestContext } from '@playwright/tes
 import process from 'node:process';
 import pg from 'pg';
 
-// Opt-in: use an isolated local database with BP7 fixtures and two ordinary test users.
+// Opt-in: use an isolated local database with BP8 fixtures and two ordinary test users.
 // Never points at production, creates account decks, or calls administrator endpoints.
-test.skip(process.env.RUN_BP7_REAL !== '1', 'Requires an isolated BP7 local test server');
+test.skip(process.env.RUN_BP8_REAL !== '1', 'Requires an isolated BP8 local test server');
 test.setTimeout(180_000);
 test.describe.configure({ mode: 'serial' });
-const api = process.env.BP7_TEST_API_URL ?? 'http://127.0.0.1:3019';
-const password = 'bp7_browser_test_password';
+const api = process.env.BP8_TEST_API_URL ?? 'http://127.0.0.1:3019';
+const password = 'bp8_browser_test_password';
 
 async function fixtureUser(request: APIRequestContext, index: number) {
-  const username = `bp7_browser_${index}`;
+  const username = `bp8_browser_${index}`;
   let response = await request.post(`${api}/api/auth/login`, {
     data: { usernameOrEmail: username, password },
   });
@@ -37,7 +37,7 @@ async function login(page: Page, username: string) {
   await page.getByRole('button', { name: '登录', exact: true }).click();
   await expect(page.getByRole('heading', { name: '对战大厅', exact: true })).toBeVisible();
   await page.getByRole('radio', { name: /PT 不限/ }).check();
-  await page.getByRole('button', { name: '开盒战 七弹', exact: true }).click();
+  await page.getByRole('button', { name: '开盒战 八弹', exact: true }).click();
 }
 async function selectMembers(page: Page) {
   for (let i = 0; i < 24; i++)
@@ -437,13 +437,13 @@ test('random matchmaking cancels both builders at the shared deadline without cr
   baseURL,
   request,
 }) => {
-  const databaseUrl = process.env.BP7_TEST_DATABASE_URL;
+  const databaseUrl = process.env.BP8_TEST_DATABASE_URL;
   test.skip(
     !databaseUrl,
-    'Deadline simulation requires an explicit isolated bp7_browser_* database'
+    'Deadline simulation requires an explicit isolated bp8_browser_* database'
   );
   expect(new URL(databaseUrl!).hostname).toMatch(/^(127\.0\.0\.1|localhost)$/);
-  expect(new URL(databaseUrl!).pathname).toMatch(/^\/bp7_browser_[a-z0-9_]+$/);
+  expect(new URL(databaseUrl!).pathname).toMatch(/^\/bp8_browser_[a-z0-9_]+$/);
   expect(new URL(baseURL!).hostname).toMatch(/^(127\.0\.0\.1|localhost)$/);
   expect(new URL(api).hostname).toMatch(/^(127\.0\.0\.1|localhost)$/);
   const users = [await fixtureUser(request, 1), await fixtureUser(request, 2)];

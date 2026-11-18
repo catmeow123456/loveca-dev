@@ -700,6 +700,20 @@ export function useBattleInteractionController({
   const activeEffectInteractionKey = activeEffect
     ? `${matchView?.matchId}:${viewerSeat}:${buildActiveEffectInteractionKey(activeEffect)}`
     : null;
+  const [activeEffectOptionSelection, setActiveEffectOptionSelection] = useKeyedState<
+    string | null
+  >(
+    JSON.stringify([
+      activeEffectInteractionKey,
+      activeEffect?.selectableOptions,
+      activeEffect?.defaultSelectedOptionId,
+    ]),
+    activeEffect?.selectableOptions?.some(
+      (option) => option.id === activeEffect.defaultSelectedOptionId
+    )
+      ? (activeEffect.defaultSelectedOptionId ?? null)
+      : null
+  );
   const selectionContext = activeEffect
     ? JSON.stringify([
         matchView?.matchId,
@@ -980,6 +994,12 @@ export function useBattleInteractionController({
     activeEffectOrderedSelection.every((cardId) => activeEffectSelectableCardIds.includes(cardId));
   const activeEffectSelectableSlots = activeEffect?.selectableSlots ?? [];
   const activeEffectSelectableOptions = activeEffect?.selectableOptions ?? [];
+  const activeEffectUsesOptionDraft = activeEffect?.defaultSelectedOptionId !== undefined;
+  const activeEffectSelectedOptionId = activeEffectSelectableOptions.some(
+    (option) => option.id === activeEffectOptionSelection
+  )
+    ? activeEffectOptionSelection
+    : null;
   const activeEffectChoice = activeEffect?.effectChoice ?? null;
   const showActiveEffectChoicePanel = shouldMountEffectChoicePanel(
     activeEffect,
@@ -2574,6 +2594,9 @@ export function useBattleInteractionController({
     isPublicEffectChoiceAutoAdvance,
     activeEffectUsesCardOptionSelection,
     activeEffectSelectedCardId,
+    activeEffectUsesOptionDraft,
+    activeEffectSelectedOptionId,
+    setActiveEffectOptionSelection,
     canConfirmActiveEffectChoice,
     confirmEffectChoice,
     setActiveEffectChoiceSelection,
@@ -2786,6 +2809,9 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
     isPublicEffectChoiceAutoAdvance,
     activeEffectUsesCardOptionSelection,
     activeEffectSelectedCardId,
+    activeEffectUsesOptionDraft,
+    activeEffectSelectedOptionId,
+    setActiveEffectOptionSelection,
     canConfirmActiveEffectChoice,
     confirmEffectChoice,
     setActiveEffectChoiceSelection,
@@ -3844,11 +3870,19 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                     options={activeEffectSelectableOptions.map((option) => ({
                       id: option.id,
                       text: option.label,
+                      selected:
+                        activeEffectUsesOptionDraft && canConfirmActiveEffect
+                          ? option.id === activeEffectSelectedOptionId
+                          : undefined,
                       disabled:
                         !canConfirmActiveEffect ||
                         (activeEffectUsesCardOptionSelection && !activeEffectSelectedCardId),
                     }))}
-                    onSelect={(optionId) =>
+                    onSelect={(optionId) => {
+                      if (activeEffectUsesOptionDraft) {
+                        setActiveEffectOptionSelection(optionId);
+                        return;
+                      }
                       confirmEffectStep(
                         activeEffect.id,
                         activeEffectUsesCardOptionSelection
@@ -3857,8 +3891,8 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                         undefined,
                         undefined,
                         optionId
-                      )
-                    }
+                      );
+                    }}
                   />
                 </div>
               )}
@@ -3895,6 +3929,29 @@ export const GameBoard = memo(function GameBoard(props: GameBoardProps) {
                   }
                   onSkip={() => confirmEffectStep(activeEffect.id, null)}
                 />
+              )}
+              {showLegacyActiveEffectControls && activeEffectUsesOptionDraft && (
+                <button
+                  type="button"
+                  disabled={
+                    !canConfirmActiveEffect ||
+                    !activeEffectSelectedOptionId ||
+                    (activeEffectUsesCardOptionSelection && !activeEffectSelectedCardId)
+                  }
+                  onClick={() => {
+                    if (!activeEffectSelectedOptionId) return;
+                    confirmEffectStep(
+                      activeEffect.id,
+                      activeEffectUsesCardOptionSelection ? activeEffectSelectedCardId : undefined,
+                      undefined,
+                      undefined,
+                      activeEffectSelectedOptionId
+                    );
+                  }}
+                  className="button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <CardEffectText as="span" text={activeEffect.confirmSelectionLabel ?? '确认'} />
+                </button>
               )}
               {showLegacyActiveEffectControls &&
                 activeEffect.canSkipSelection &&

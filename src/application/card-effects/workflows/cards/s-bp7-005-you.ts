@@ -1,9 +1,5 @@
 import { getStageMemberLifecycleId } from '../../runtime/ability-source-lifecycle.js';
-import {
-  getTemporaryOnEnterAbilityInvocation,
-  getHostEnterStageEventIds,
-  getHostEnterStageMetadata,
-} from '../../runtime/temporary-on-enter-ability-grants.js';
+import { getTemporaryOnEnterAbilityInvocation } from '../../runtime/temporary-on-enter-ability-grants.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
@@ -13,7 +9,13 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { CardType, GamePhase, SlotPosition, TriggerCondition, ZoneType } from '../../../../shared/types/enums.js';
+import {
+  CardType,
+  GamePhase,
+  SlotPosition,
+  TriggerCondition,
+  ZoneType,
+} from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import type { CardAbilityDefinition } from '../../ability-definition-types.js';
@@ -30,7 +32,10 @@ import {
   discardHandCardsToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
-import { getSourceMemberSlot } from '../../runtime/source-member.js';
+import {
+  getSourceMemberSlot,
+  isCurrentStageMemberAbilitySource,
+} from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -71,21 +76,13 @@ export function registerSBp7005YouWorkflowHandlers(deps: {
     S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,
     ENTER_SELECT_MEMBER,
     (game, input, context) =>
-      selectOnEnterMember(
-        game,
-        input.selectedCardId ?? null,
-        context.continuePendingCardEffects
-      )
+      selectOnEnterMember(game, input.selectedCardId ?? null, context.continuePendingCardEffects)
   );
   registerActiveEffectStepHandler(
     S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,
     ENTER_SELECT_HOST,
     (game, input, context) =>
-      finishOnEnterHost(
-        game,
-        input.selectedCardId ?? null,
-        context.continuePendingCardEffects
-      )
+      finishOnEnterHost(game, input.selectedCardId ?? null, context.continuePendingCardEffects)
   );
 
   registerActivatedAbilityHandler(
@@ -110,7 +107,8 @@ export function registerSBp7005YouWorkflowHandlers(deps: {
       selectOtherMember(
         game,
         input.selectedCardId ?? null,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        context.delegatePendingAbility
       )
   );
   registerActiveEffectStepHandler(
@@ -121,7 +119,8 @@ export function registerSBp7005YouWorkflowHandlers(deps: {
         game,
         input.selectedOptionId ?? null,
         true,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        context.delegatePendingAbility
       )
   );
   registerActiveEffectStepHandler(
@@ -132,7 +131,8 @@ export function registerSBp7005YouWorkflowHandlers(deps: {
         game,
         input.selectedOptionId ?? null,
         false,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        context.delegatePendingAbility
       )
   );
   registerActiveEffectStepHandler(
@@ -202,7 +202,8 @@ function selectOnEnterMember(
     effect.stepId !== ENTER_SELECT_MEMBER ||
     !selectedCardId ||
     effect.selectableCardIds?.includes(selectedCardId) !== true
-  ) return game;
+  )
+    return game;
   if (!getWaitingMemberIds(game, effect.controllerId).includes(selectedCardId)) {
     return finishActiveNoop(game, effect, continuePendingCardEffects, 'WAITING_MEMBER_STALE');
   }
@@ -226,7 +227,12 @@ function selectOnEnterMember(
     },
     'RESOLVE_ABILITY',
     effect.controllerId,
-    { abilityId: effect.abilityId, sourceCardId: effect.sourceCardId, step: 'SELECT_WAITING_MEMBER', selectedCardId }
+    {
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'SELECT_WAITING_MEMBER',
+      selectedCardId,
+    }
   );
 }
 
@@ -237,28 +243,39 @@ function finishOnEnterHost(
 ): GameState {
   const effect = game.activeEffect;
   const selectedMemberCardId = getStringMetadata(effect, 'selectedWaitingMemberCardId');
-  if (!effect || effect.stepId !== ENTER_SELECT_HOST || !hostCardId || !selectedMemberCardId) return game;
-  const host = getStageHosts(game, effect.controllerId).find((candidate) => candidate.cardId === hostCardId);
-  const selectedStillValid = getWaitingMemberIds(game, effect.controllerId).includes(selectedMemberCardId);
-  const result = host && selectedStillValid
-    ? stackMemberCardBelowStageMember(game, {
-        playerId: effect.controllerId,
-        sourceZone: ZoneType.WAITING_ROOM,
-        movedCardId: selectedMemberCardId,
-        hostCardId,
-        targetSlot: host.slot,
-      })
-    : null;
+  if (!effect || effect.stepId !== ENTER_SELECT_HOST || !hostCardId || !selectedMemberCardId)
+    return game;
+  const host = getStageHosts(game, effect.controllerId).find(
+    (candidate) => candidate.cardId === hostCardId
+  );
+  const selectedStillValid = getWaitingMemberIds(game, effect.controllerId).includes(
+    selectedMemberCardId
+  );
+  const result =
+    host && selectedStillValid
+      ? stackMemberCardBelowStageMember(game, {
+          playerId: effect.controllerId,
+          sourceZone: ZoneType.WAITING_ROOM,
+          movedCardId: selectedMemberCardId,
+          hostCardId,
+          targetSlot: host.slot,
+        })
+      : null;
   return continuePendingCardEffects(
-    addAction({ ...(result?.gameState ?? game), activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: result ? 'STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER' : 'SELECTED_MEMBER_OR_HOST_STALE',
-      stackedCardId: result?.movedCardId ?? null,
-      hostCardId,
-      targetSlot: host?.slot ?? null,
-    }),
+    addAction(
+      { ...(result?.gameState ?? game), activeEffect: null },
+      'RESOLVE_ABILITY',
+      effect.controllerId,
+      {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: result ? 'STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER' : 'SELECTED_MEMBER_OR_HOST_STALE',
+        stackedCardId: result?.movedCardId ?? null,
+        hostCardId,
+        targetSlot: host?.slot ?? null,
+      }
+    ),
     effect.metadata?.orderedResolution === true
   );
 }
@@ -267,7 +284,7 @@ function startActivated(game: GameState, playerId: string, sourceCardId: string)
   const player = getPlayerById(game, playerId);
   const source = getCardById(game, sourceCardId);
   const sourceDefinitions = getStageOnEnterDefinitions(game, playerId, sourceCardId);
-  const targets = getOtherDelegatableAqoursMembers(game, playerId, sourceCardId);
+  const targets = getOtherAqoursMembers(game, playerId, sourceCardId);
   if (
     game.activeEffect ||
     game.currentPhase !== GamePhase.MAIN_PHASE ||
@@ -280,7 +297,8 @@ function startActivated(game: GameState, playerId: string, sourceCardId: string)
     player.hand.cardIds.length < 2 ||
     sourceDefinitions.length === 0 ||
     targets.length === 0
-  ) return game;
+  )
+    return game;
 
   return {
     ...game,
@@ -289,7 +307,9 @@ function startActivated(game: GameState, playerId: string, sourceCardId: string)
       abilityId: S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID,
       sourceCardId,
       controllerId: playerId,
-      effectText: getAbilityEffectText(S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID),
+      effectText: getAbilityEffectText(
+        S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID
+      ),
       stepId: ACT_DISCARD_TWO,
       stepText: '请选择2张手牌放置入休息室。',
       awaitingPlayerId: playerId,
@@ -332,13 +352,13 @@ function payDiscardTwo(
     sourceCardId: effect.sourceCardId,
     discardedCardIds: discardResult.discardedCardIds,
   });
-  const targets = getOtherDelegatableAqoursMembers(state, player.id, effect.sourceCardId);
+  const targets = getOtherAqoursMembers(state, player.id, effect.sourceCardId);
   if (targets.length === 0) {
     return continuePendingCardEffects(
       addAction({ ...state, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
         abilityId: effect.abilityId,
         sourceCardId: effect.sourceCardId,
-        step: 'PAID_NO_OTHER_DELEGATABLE_AQOURS_MEMBER',
+        step: 'PAID_NO_OTHER_AQOURS_MEMBER',
         discardedCardIds: discardResult.discardedCardIds,
       }),
       false
@@ -350,7 +370,7 @@ function payDiscardTwo(
       activeEffect: {
         ...effect,
         stepId: ACT_SELECT_OTHER,
-        stepText: '请选择自己舞台上的另1名拥有可发动【登场】能力的『Aqours』成员。',
+        stepText: '请选择自己舞台上的另1名『Aqours』成员。',
         selectableCardIds: targets.map((target) => target.cardId),
         selectableCardVisibility: 'PUBLIC',
         selectableCardMode: 'SINGLE',
@@ -363,52 +383,90 @@ function payDiscardTwo(
     },
     'RESOLVE_ABILITY',
     player.id,
-    { abilityId: effect.abilityId, sourceCardId: effect.sourceCardId, step: 'PAY_DISCARD_TWO', discardedCardIds: discardResult.discardedCardIds }
+    {
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'PAY_DISCARD_TWO',
+      discardedCardIds: discardResult.discardedCardIds,
+    }
   );
 }
 
 function selectOtherMember(
   game: GameState,
   targetCardId: string | null,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  delegatePendingAbility: Parameters<typeof startDelegatedAbilitySequence>[2]
 ): GameState {
   const effect = game.activeEffect;
-  if (!effect || effect.stepId !== ACT_SELECT_OTHER || !targetCardId || effect.selectableCardIds?.includes(targetCardId) !== true) return game;
-  const target = getOtherDelegatableAqoursMembers(game, effect.controllerId, effect.sourceCardId)
-    .find((candidate) => candidate.cardId === targetCardId);
-  const sourceDefinitions = getStageOnEnterDefinitions(game, effect.controllerId, effect.sourceCardId);
+  if (
+    !effect ||
+    effect.stepId !== ACT_SELECT_OTHER ||
+    !targetCardId ||
+    effect.selectableCardIds?.includes(targetCardId) !== true
+  )
+    return game;
+  const target = getOtherAqoursMembers(game, effect.controllerId, effect.sourceCardId).find(
+    (candidate) => candidate.cardId === targetCardId
+  );
+  const sourceDefinitions = getStageOnEnterDefinitions(
+    game,
+    effect.controllerId,
+    effect.sourceCardId
+  );
   if (!target || sourceDefinitions.length === 0) {
-    return finishActiveNoop(game, effect, continuePendingCardEffects, 'PAID_TARGET_OR_SOURCE_ABILITY_STALE');
+    return finishActiveNoop(
+      game,
+      effect,
+      continuePendingCardEffects,
+      'PAID_TARGET_OR_SOURCE_ABILITY_STALE'
+    );
   }
   const nextEffect = {
     ...effect,
     metadata: {
       ...effect.metadata,
       targetCardId,
+      targetLifecycleId: getStageMemberLifecycleId(game, targetCardId),
       sourceAbilityIds: sourceDefinitions.map((definition) => definition.abilityId),
       targetAbilityIds: target.definitions.map((definition) => definition.abilityId),
     },
   };
-  return advanceAbilitySelection(game, nextEffect);
+  return advanceAbilitySelection(
+    game,
+    nextEffect,
+    continuePendingCardEffects,
+    delegatePendingAbility
+  );
 }
 
 function selectDelegatedAbility(
   game: GameState,
   abilityId: string | null,
   sourceSelection: boolean,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  delegatePendingAbility: Parameters<typeof startDelegatedAbilitySequence>[2]
 ): GameState {
   const effect = game.activeEffect;
   const expectedStep = sourceSelection ? ACT_SELECT_SOURCE_ABILITY : ACT_SELECT_TARGET_ABILITY;
   if (!effect || effect.stepId !== expectedStep || !abilityId) return game;
-  const sourceDefinitions = getStageOnEnterDefinitions(game, effect.controllerId, effect.sourceCardId);
+  const sourceDefinitions = getStageOnEnterDefinitions(
+    game,
+    effect.controllerId,
+    effect.sourceCardId
+  );
   const targetCardId = getStringMetadata(effect, 'targetCardId');
   const targetDefinitions = targetCardId
     ? getStageOnEnterDefinitions(game, effect.controllerId, targetCardId)
     : [];
   const definitions = sourceSelection ? sourceDefinitions : targetDefinitions;
   if (!definitions.some((definition) => definition.abilityId === abilityId)) {
-    return finishActiveNoop(game, effect, continuePendingCardEffects, 'PAID_SELECTED_ABILITY_STALE');
+    return finishActiveNoop(
+      game,
+      effect,
+      continuePendingCardEffects,
+      'PAID_SELECTED_ABILITY_STALE'
+    );
   }
   const nextEffect: ActiveEffectState = {
     ...effect,
@@ -419,19 +477,46 @@ function selectDelegatedAbility(
         : { selectedTargetAbilityId: abilityId }),
     },
   };
-  return advanceAbilitySelection(game, nextEffect);
+  return advanceAbilitySelection(
+    game,
+    nextEffect,
+    continuePendingCardEffects,
+    delegatePendingAbility
+  );
 }
 
-function advanceAbilitySelection(game: GameState, effect: ActiveEffectState): GameState {
-  const sourceDefinitions = getStageOnEnterDefinitions(game, effect.controllerId, effect.sourceCardId);
+function advanceAbilitySelection(
+  game: GameState,
+  effect: ActiveEffectState,
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  delegatePendingAbility: Parameters<typeof startDelegatedAbilitySequence>[2]
+): GameState {
+  const sourceDefinitions = getStageOnEnterDefinitions(
+    game,
+    effect.controllerId,
+    effect.sourceCardId
+  );
   const targetCardId = getStringMetadata(effect, 'targetCardId');
   const targetDefinitions = targetCardId
     ? getStageOnEnterDefinitions(game, effect.controllerId, targetCardId)
     : [];
   let selectedSourceAbilityId = getStringMetadata(effect, 'selectedSourceAbilityId');
   let selectedTargetAbilityId = getStringMetadata(effect, 'selectedTargetAbilityId');
-  if (!selectedSourceAbilityId && sourceDefinitions.length === 1) selectedSourceAbilityId = sourceDefinitions[0].abilityId;
-  if (!selectedTargetAbilityId && targetDefinitions.length === 1) selectedTargetAbilityId = targetDefinitions[0].abilityId;
+  if (!selectedSourceAbilityId && sourceDefinitions.length === 1)
+    selectedSourceAbilityId = sourceDefinitions[0].abilityId;
+  if (!selectedTargetAbilityId && targetDefinitions.length === 1)
+    selectedTargetAbilityId = targetDefinitions[0].abilityId;
+
+  // A chosen member without ON_ENTER contributes no child; resolve the source alone.
+  if (selectedSourceAbilityId && targetDefinitions.length === 0) {
+    return invokeSelectedOnEnterAbilities(
+      game,
+      { ...effect, metadata: { ...effect.metadata, selectedSourceAbilityId } },
+      SOURCE_FIRST,
+      continuePendingCardEffects,
+      delegatePendingAbility
+    );
+  }
 
   let stepId = ACT_SELECT_ORDER;
   let stepText = '请选择两项【登场】能力的处理顺序。';
@@ -469,7 +554,12 @@ function advanceAbilitySelection(game: GameState, effect: ActiveEffectState): Ga
     },
     'RESOLVE_ABILITY',
     effect.controllerId,
-    { abilityId: effect.abilityId, sourceCardId: effect.sourceCardId, step: 'ADVANCE_DELEGATED_ABILITY_SELECTION', nextStepId: stepId }
+    {
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'ADVANCE_DELEGATED_ABILITY_SELECTION',
+      nextStepId: stepId,
+    }
   );
 }
 
@@ -480,18 +570,73 @@ function startSelectedSequence(
   delegatePendingAbility: Parameters<typeof startDelegatedAbilitySequence>[2]
 ): GameState {
   const effect = game.activeEffect;
-  if (!effect || effect.stepId !== ACT_SELECT_ORDER || (order !== SOURCE_FIRST && order !== TARGET_FIRST)) return game;
+  if (
+    !effect ||
+    effect.stepId !== ACT_SELECT_ORDER ||
+    (order !== SOURCE_FIRST && order !== TARGET_FIRST)
+  )
+    return game;
+  return invokeSelectedOnEnterAbilities(
+    game,
+    effect,
+    order,
+    continuePendingCardEffects,
+    delegatePendingAbility
+  );
+}
+
+function invokeSelectedOnEnterAbilities(
+  game: GameState,
+  effect: ActiveEffectState,
+  order: string,
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  delegatePendingAbility: Parameters<typeof startDelegatedAbilitySequence>[2]
+): GameState {
   const targetCardId = getStringMetadata(effect, 'targetCardId');
   const sourceAbilityId = getStringMetadata(effect, 'selectedSourceAbilityId');
   const targetAbilityId = getStringMetadata(effect, 'selectedTargetAbilityId');
   const sourceSlot = getSourceMemberSlot(game, effect.controllerId, effect.sourceCardId);
-  const targetSlot = targetCardId ? getSourceMemberSlot(game, effect.controllerId, targetCardId) : null;
-  if (!targetCardId || !sourceAbilityId || !targetAbilityId || sourceSlot === null || targetSlot === null) {
-    return finishActiveNoop(game, effect, continuePendingCardEffects, 'PAID_SEQUENCE_SELECTION_STALE');
+  const targetSlot = targetCardId
+    ? getSourceMemberSlot(game, effect.controllerId, targetCardId)
+    : null;
+  if (
+    !targetCardId ||
+    !sourceAbilityId ||
+    !isCurrentStageMemberAbilitySource(game, effect) ||
+    getStringMetadata(effect, 'targetLifecycleId') !==
+      getStageMemberLifecycleId(game, targetCardId) ||
+    sourceSlot === null ||
+    targetSlot === null ||
+    !getStageOnEnterDefinitions(game, effect.controllerId, effect.sourceCardId).some(
+      (definition) => definition.abilityId === sourceAbilityId
+    ) ||
+    (targetAbilityId !== null &&
+      !getStageOnEnterDefinitions(game, effect.controllerId, targetCardId).some(
+        (definition) => definition.abilityId === targetAbilityId
+      ))
+  ) {
+    return finishActiveNoop(
+      game,
+      effect,
+      continuePendingCardEffects,
+      'PAID_SEQUENCE_SELECTION_STALE'
+    );
   }
-  const sourceAbility = createSyntheticOnEnter(game, effect, effect.sourceCardId, sourceSlot, sourceAbilityId);
-  const targetAbility = createSyntheticOnEnter(game, effect, targetCardId, targetSlot, targetAbilityId);
-  const abilities = order === SOURCE_FIRST ? [sourceAbility, targetAbility] : [targetAbility, sourceAbility];
+  const sourceAbility = createInvokedOnEnter(
+    game,
+    effect,
+    effect.sourceCardId,
+    sourceSlot,
+    sourceAbilityId
+  );
+  const targetAbility = targetAbilityId
+    ? createInvokedOnEnter(game, effect, targetCardId, targetSlot, targetAbilityId)
+    : null;
+  const abilities = targetAbility
+    ? order === SOURCE_FIRST
+      ? [sourceAbility, targetAbility]
+      : [targetAbility, sourceAbility]
+    : [sourceAbility];
   const state = addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
     abilityId: effect.abilityId,
     sourceCardId: effect.sourceCardId,
@@ -516,7 +661,7 @@ function startSelectedSequence(
   );
 }
 
-function createSyntheticOnEnter(
+function createInvokedOnEnter(
   game: GameState,
   effect: ActiveEffectState,
   sourceCardId: string,
@@ -538,12 +683,10 @@ function createSyntheticOnEnter(
     controllerId: effect.controllerId,
     mandatory: true,
     timingId: TriggerCondition.ON_ENTER_STAGE,
-    eventIds: onEnterInvocation
-      ? getHostEnterStageEventIds(game, sourceCardId)
-      : [`delegated-on-enter:${effect.id}:${sourceCardId}:${abilityId}`],
+    // Neither native nor granted invocation is a new stage-entry event.
+    eventIds: [],
     sourceSlot,
     metadata: {
-      ...(onEnterInvocation ? getHostEnterStageMetadata(game, sourceCardId) : {}),
       delegatedByAbilityId: effect.abilityId,
       delegatedBySourceCardId: effect.sourceCardId,
       delegatedOnEnterFromStage: true,
@@ -567,12 +710,12 @@ function getStageOnEnterDefinitions(
   });
 }
 
-function getOtherDelegatableAqoursMembers(game: GameState, playerId: string, sourceCardId: string) {
+function getOtherAqoursMembers(game: GameState, playerId: string, sourceCardId: string) {
   return getStageHosts(game, playerId).flatMap((host) => {
     if (host.cardId === sourceCardId) return [];
     const card = getCardById(game, host.cardId);
     const definitions = getStageOnEnterDefinitions(game, playerId, host.cardId);
-    return card && aqoursSelector(card) && definitions.length > 0 ? [{ ...host, definitions }] : [];
+    return card && aqoursSelector(card) ? [{ ...host, definitions }] : [];
   });
 }
 
@@ -582,16 +725,20 @@ function getStageHosts(game: GameState, playerId: string) {
   return STAGE_SLOTS.flatMap((slot) => {
     const cardId = player.memberSlots.slots[slot];
     const card = cardId ? getCardById(game, cardId) : null;
-    return cardId && card?.ownerId === playerId && isMemberCardData(card.data) ? [{ cardId, slot }] : [];
+    return cardId && card?.ownerId === playerId && isMemberCardData(card.data)
+      ? [{ cardId, slot }]
+      : [];
   });
 }
 
 function getWaitingMemberIds(game: GameState, playerId: string): readonly string[] {
   const player = getPlayerById(game, playerId);
-  return player?.waitingRoom.cardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return !!card && card.ownerId === playerId && memberSelector(card);
-  }) ?? [];
+  return (
+    player?.waitingRoom.cardIds.filter((cardId) => {
+      const card = getCardById(game, cardId);
+      return !!card && card.ownerId === playerId && memberSelector(card);
+    }) ?? []
+  );
 }
 
 function finishPendingNoop(
@@ -602,12 +749,17 @@ function finishPendingNoop(
   step: string
 ): GameState {
   return continuePendingCardEffects(
-    addAction({ ...game, pendingAbilities: game.pendingAbilities.filter((item) => item.id !== ability.id) }, 'RESOLVE_ABILITY', ability.controllerId, {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step,
-    }),
+    addAction(
+      { ...game, pendingAbilities: game.pendingAbilities.filter((item) => item.id !== ability.id) },
+      'RESOLVE_ABILITY',
+      ability.controllerId,
+      {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step,
+      }
+    ),
     orderedResolution
   );
 }

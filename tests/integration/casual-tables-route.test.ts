@@ -211,9 +211,9 @@ describe('casual table HTTP contract', () => {
     expect(service.spectate).not.toHaveBeenCalled();
   });
   it('accepts sealed entries without account decks and rejects mixed format parameters', async () => {
-    service.findOpponent.mockResolvedValue({ state: 'WAITING', format: 'SEALED_BP7' });
+    service.findOpponent.mockResolvedValue({ state: 'WAITING', format: 'SEALED_BP8' });
     const sealed = {
-      format: 'SEALED_BP7',
+      format: 'SEALED_BP8',
       ruleMode: 'UNLIMITED',
       requestId: entry.requestId,
       spectatorEnabled: false,
