@@ -1,0 +1,469 @@
+[
+  {
+    "cardCode": "PL!HS-PR-044-PR",
+    "cardType": "MEMBER",
+    "nameJp": "徒町小鈴",
+    "nameCn": "徒町小铃",
+    "workNames": null,
+    "groupNames": [
+      "蓮ノ空"
+    ],
+    "unitName": "「DOLLCHESTRA」",
+    "unitNameRaw": "DOLLCHESTRA",
+    "cost": 4,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【常時】自分のステージにコスト１３以上のメンバーがいるかぎり、このメンバーの元々持つ[ブレード]の数は３つになる。",
+    "cardTextCn": "【常时】只要自己的舞台上存在费用大于等于１３的成员，此成员原本持有的[ブレード]的数量变为３。",
+    "rare": "PR",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!S-pb2-002-PP",
+    "cardType": "MEMBER",
+    "nameJp": "桜内梨子",
+    "nameCn": "樱内梨子",
+    "workNames": null,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「GuiltyKiss」",
+    "unitNameRaw": "Guilty Kiss",
+    "cost": 7,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【起動】【ターン１回】控え室にある『Aqours』のライブカードを２枚まで好きな順番でデッキの下に置く：これによりデッキに置かれたカード１枚につき、エネルギーを１枚アクティブにする。",
+    "cardTextCn": "【起动】【１回合１次】将存在于休息室的至多２张『Aqours』的LIVE卡按任意顺序放置于卡组底：每有１张因此放置于卡组的卡片，将１张能量变为活跃状态。",
+    "rare": "PP",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!S-pb2-004-PP",
+    "cardType": "MEMBER",
+    "nameJp": "黒澤ダイヤ",
+    "nameCn": "黑泽黛雅",
+    "workNames": null,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「AZALEA」",
+    "unitNameRaw": "AZALEA",
+    "cost": 11,
+    "blade": 5,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "GREEN"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【ライブ成功時】自分のステージにいる『Aqours』のメンバー１人を選ぶ。そのメンバーが持つハートの中で最も数が多い色１つの数と等しい枚数だけ、自分のデッキの上からカードを見る。その中からカードを１枚手札に加える。残りを控え室に置く。",
+    "cardTextCn": "【LIVE成功时】选择１名存在于自己的舞台的『Aqours』的成员。检视自己的卡组顶，等同于该成员持有的HEART中数量最多的１种颜色的HEART的数量的张数的卡片。可以将其中的１张卡片加入手牌。其余的放置入休息室。",
+    "rare": "PP",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!S-pb2-006-PP",
+    "cardType": "MEMBER",
+    "nameJp": "津島善子",
+    "nameCn": "津岛善子",
+    "workNames": null,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「GuiltyKiss」",
+    "unitNameRaw": "Guilty Kiss",
+    "cost": 11,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 3
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】相手の手札の枚数が６枚以上ある場合、相手は手札を２枚好きな順番でデッキの上か下に置く。（上と下に分けて置くことはできない。）",
+    "cardTextCn": "【登场】对方的手牌的张数大于等于６张的场合，对方将２张手牌按任意顺序放置于卡组顶或卡组底。（不能分开放在卡组顶和卡组底。）",
+    "rare": "PP",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!S-pb2-014-P+",
+    "cardType": "MEMBER",
+    "nameJp": "渡辺曜",
+    "nameCn": "渡边曜",
+    "workNames": null,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「CYaRon！」",
+    "unitNameRaw": "CYaRon！",
+    "cost": 5,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】自分のステージにほかの『CYaRon！』のメンバーがいる場合、自分と相手はそれぞれ、自身のエネルギーデッキから、エネルギーカードを１枚ウェイト状態で置く。",
+    "cardTextCn": "【登场】自己的舞台上存在其他的『CYaRon！』的成员的场合，自己和对方分别，从自身的能量卡组，将１张能量卡以待机状态放置入能量区。",
+    "rare": "P+",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!S-pb2-015-P+",
+    "cardType": "MEMBER",
+    "nameJp": "津島善子",
+    "nameCn": "津岛善子",
+    "workNames": null,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「GuiltyKiss」",
+    "unitNameRaw": "Guilty Kiss",
+    "cost": 4,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】自分のステージにいるほかの『Guilty Kiss』のメンバー１人につき、自分のデッキの上からカードを２枚見る。その中から１枚を手札に加える。残りを控え室に置く。",
+    "cardTextCn": "【登场】自己的舞台上每存在１名其他的『Guilty Kiss』的成员，检视自己的卡组顶的２张卡片。将其中的１张卡片加入手牌。其余的放置入休息室。",
+    "rare": "P+",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!S-pb2-019-N",
+    "cardType": "MEMBER",
+    "nameJp": "高海千歌",
+    "nameCn": "高海千歌",
+    "workNames": null,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「CYaRon！」",
+    "unitNameRaw": "CYaRon！",
+    "cost": 17,
+    "blade": 8,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 3
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】相手はカードを２枚引く。その後、ライブ終了時まで、[赤ハート][赤ハート][赤ハート]を得る。",
+    "cardTextCn": "【登场】对方抽２张卡。此后，LIVE结束时为止，获得[赤ハート][赤ハート][赤ハート]。",
+    "rare": "N",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!S-pb2-021-N",
+    "cardType": "MEMBER",
+    "nameJp": "松浦果南",
+    "nameCn": "松浦果南",
+    "workNames": null,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「AZALEA」",
+    "unitNameRaw": "AZALEA",
+    "cost": 5,
+    "blade": 0,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【常時】自分のステージにいる『AZALEA』のメンバーが持つハートに、[緑ハート]が合計１０以上あるかぎり、[ブレード][ブレード]を得る。\n\n【起動】【ターン１回】手札を１枚控え室に置く：ライブ終了時まで、このメンバーが元々持つハートはすべて[緑ハート]になる。",
+    "cardTextCn": "【常时】只要存在于自己的舞台的『AZALEA』的成员持有的HEART中，[緑ハート]合计大于等于１０个，获得[ブレード][ブレード]。\n\n【起动】【１回合１次】将１张手牌放置入休息室：LIVE结束时为止，此成员原本持有的HEART全部变为[緑ハート]。",
+    "rare": "N",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!S-pb2-022-N",
+    "cardType": "MEMBER",
+    "nameJp": "黒澤ダイヤ",
+    "nameCn": "黑泽黛雅",
+    "workNames": null,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「AZALEA」",
+    "unitNameRaw": "AZALEA",
+    "cost": 2,
+    "blade": 1,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RED"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【起動】このメンバーをステージから控え室に置く：自分の控え室からメンバーカードを１枚手札に加える。",
+    "cardTextCn": "【起动】将此成员从舞台放置入休息室：从自己的休息室将１张成员卡加入手牌。",
+    "rare": "N",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!S-pb2-026-N",
+    "cardType": "MEMBER",
+    "nameJp": "小原鞠莉",
+    "nameCn": "小原鞠莉",
+    "workNames": null,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「GuiltyKiss」",
+    "unitNameRaw": "Guilty Kiss",
+    "cost": 4,
+    "blade": 2,
+    "hearts": [
+      {
+        "color": "BLUE",
+        "count": 1
+      }
+    ],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "BLUE"
+      }
+    ],
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】控え室から名前の異なる『Guilty Kiss』のメンバーカード３枚を好きな順番でデッキの下に置いてもよい：相手のステージにいる元々持つ[ブレード]の数が２つ以下のメンバー１人をウェイトにする。（ウェイト状態のメンバーが持つ[ブレード]は、エネルギーを公開する枚数を増やさない。）",
+    "cardTextCn": "【登场】可以将存在于休息室的３张名称各不相同的『Guilty Kiss』的成员卡按任意顺序放置于卡组底：将存在于对方的舞台的１名原本持有的[ブレード]的数量小于等于２的成员变为待机状态。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）",
+    "rare": "N",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!S-pb2-038-L",
+    "cardType": "LIVE",
+    "nameJp": "Aqours☆HEROES",
+    "nameCn": "Aqours☆HEROES",
+    "workNames": null,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 3,
+    "requirements": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      },
+      {
+        "color": "RAINBOW",
+        "count": 1
+      }
+    ],
+    "cardTextJp": "【ライブ成功時】エールにより公開された自分のカードの中に、『Aqours』のライブカードがある場合、カードを１枚引く。ブレードハートを持たない『Aqours』のメンバーカードが２枚以上ある場合、このカードのスコアを＋１する。",
+    "cardTextCn": "【LIVE成功时】因声援被公开的自己的卡片中，存在『Aqours』的LIVE卡的场合，抽１张卡。存在大于等于２名不持有BLADE HEART的『Aqours』的成员卡的场合，此卡的分数＋１。",
+    "rare": "L",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!S-pb2-039-L",
+    "cardType": "LIVE",
+    "nameJp": "ホップ・ステップ・ワーイ！",
+    "nameCn": "跳·跃·欢呼！",
+    "workNames": null,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": null,
+    "unitNameRaw": null,
+    "cost": null,
+    "blade": null,
+    "hearts": [],
+    "bladeHearts": [
+      {
+        "effect": "HEART",
+        "heartColor": "RAINBOW"
+      }
+    ],
+    "score": 4,
+    "requirements": [
+      {
+        "color": "RED",
+        "count": 1
+      },
+      {
+        "color": "GREEN",
+        "count": 1
+      },
+      {
+        "color": "BLUE",
+        "count": 1
+      },
+      {
+        "color": "RAINBOW",
+        "count": 7
+      }
+    ],
+    "cardTextJp": "【ライブ成功時】自分のステージに同じユニット名を持つ『Aqours』のメンバーが３人いる場合、カードを１枚引く。それらのメンバーの名前がそれぞれ異なる場合、さらに自分の控え室から『Aqours』のカードを１枚手札に加える。",
+    "cardTextCn": "【LIVE成功时】自己的舞台上存在３名持有相同UNIT名的『Aqours』的成员的场合，抽１张卡。那些成员的名称各不相同的场合，再从自己的休息室将１张『Aqours』的卡片加入手牌。",
+    "rare": "L",
+    "status": "DRAFT"
+  },
+  {
+    "cardCode": "PL!S-bp7-005-SEC",
+    "cardType": "MEMBER",
+    "nameJp": "渡辺曜",
+    "nameCn": "渡边曜",
+    "workNames": null,
+    "groupNames": [
+      "Aqours"
+    ],
+    "unitName": "「CYaRon！」",
+    "unitNameRaw": "CYaRon！",
+    "cost": 15,
+    "blade": 6,
+    "hearts": [
+      {
+        "color": "RED",
+        "count": 2
+      },
+      {
+        "color": "GREEN",
+        "count": 2
+      },
+      {
+        "color": "BLUE",
+        "count": 2
+      }
+    ],
+    "bladeHearts": null,
+    "score": null,
+    "requirements": [],
+    "cardTextJp": "【登場】自分の控え室にあるメンバーカード1枚を、自分のステージにいるメンバー1人の下に置く。 \n\n【常時】自分のステージにいる、メンバーカードが下に置かれている『Aqours』のメンバーは、[ブレード]を得る。 \n\n【起動】【センター】【ターン1回】手札を2枚控え室に置く：このメンバーと自分のステージにいるほかの『Aqours』のメンバー1人を選ぶ。それらが持つ【登場】能力それぞれ1つを発動させる。",
+    "cardTextCn": "【登场】将存在于自己的休息室的1张成员卡，放置于存在于自己的舞台的1名成员的下方。 \n\n【常时】存在于自己的舞台的，下方放置有成员卡的『Aqours』的成员，获得[ブレード]。 \n\n【起动】【中央】【1回合1次】将2张手牌放置入休息室：选择此成员和存在于自己的舞台的1名其他的『Aqours』的成员。将其持有的【登场】能力分别发动1个。",
+    "rare": "SEC",
+    "status": "PUBLISHED"
+  }
+]

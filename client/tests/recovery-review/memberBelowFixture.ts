@@ -1,6 +1,6 @@
 import { prepareCheer, cheerReviewStore } from './cheerFixture';
-import { createCardInstance, isMemberCardData } from '@game/domain/entities/card';
-import { registerCards, updatePlayer, type GameState } from '@game/domain/entities/game';
+import { createCardInstance, isLiveCardData, isMemberCardData } from '@game/domain/entities/card';
+import { registerCards, updatePlayer } from '@game/domain/entities/game';
 import { addMemberBelowMember, placeCardInSlot } from '@game/domain/entities/zone';
 import { EffectWindowType, GamePhase, SlotPosition, SubPhase } from '@game/shared/types/enums';
 
@@ -12,9 +12,12 @@ export function prepareMemberBelow(count = 2) {
   const original = state.cardRegistry.get('member-yellow')!.data;
   if (!isMemberCardData(original)) throw new Error('Expected member fixture');
   const data = { ...original, nameCn: original.name };
-  store.loadCardData([...store.cardDataRegistry.values(), data]);
+  const originalLive = state.cardRegistry.get('live-0')!.data;
+  if (!isLiveCardData(originalLive)) throw new Error('Expected LIVE fixture');
+  const live = { ...originalLive, nameCn: originalLive.name };
+  store.loadCardData([...store.cardDataRegistry.values(), data, live]);
   const below = Array.from({ length: count }, (_, i) =>
-    createCardInstance(data, 'p1', `below-${i}`)
+    createCardInstance(i === 1 ? live : data, 'p1', `below-${i}`)
   );
   const opponent = createCardInstance(data, 'p2', 'opponent-stage');
   const opponentBelow = createCardInstance(data, 'p2', 'opponent-below');

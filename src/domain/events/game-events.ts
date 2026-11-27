@@ -310,6 +310,7 @@ const REVEALED_CHEER_DESTINATION_ZONES = {
   MAIN_DECK_TOP: ZoneType.MAIN_DECK,
   MAIN_DECK_BOTTOM: ZoneType.MAIN_DECK,
   WAITING_ROOM: ZoneType.WAITING_ROOM,
+  MEMBER_SLOT: ZoneType.MEMBER_SLOT,
 } as const;
 
 export type RevealedCheerCardDestination = keyof typeof REVEALED_CHEER_DESTINATION_ZONES;

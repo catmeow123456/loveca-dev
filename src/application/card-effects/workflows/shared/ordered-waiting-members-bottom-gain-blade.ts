@@ -55,6 +55,7 @@ interface Config {
   readonly movementIsCost: boolean;
   readonly confirmNoTarget?: boolean;
   readonly autoSubmitSingleSelection?: boolean;
+  readonly privateDeckOrder?: boolean;
 }
 const CONFIGS: readonly Config[] = [
   {
@@ -96,6 +97,7 @@ const CONFIGS: readonly Config[] = [
       ) >= 12,
     blade: 3,
     movementIsCost: true,
+    privateDeckOrder: true,
   },
 ];
 
@@ -179,6 +181,7 @@ function startSelection(
           source: 'WAITING_ROOM',
           destination: 'MAIN_DECK_BOTTOM',
           ordered: config.count > 1,
+          privateOrder: config.privateDeckOrder === true,
         },
         orderedResolution,
         candidateCardIds,
@@ -305,6 +308,9 @@ function finishSelection(
       step: 'BOTTOM_MEMBERS_GAIN_BLADE',
       selectedCardIds: moveResult.selectedCardIds,
       movedCardIds: moveResult.movedCardIds,
+      ...(config.privateDeckOrder && moveResult.movedCardIds.length > 1
+        ? { privateMainDeckOrderCardIds: moveResult.movedCardIds }
+        : {}),
       rewardConditionMet,
       bladeBonus: bladeResult?.bladeBonus ?? 0,
     }),

@@ -2294,3 +2294,42 @@ export const PL_BP8_023_LIVE_START_LOW_COST_NO_BLADE_HEART_GAIN_ORANGE_ABILITY_I
 
 export const PL_BP8_023_LIVE_SUCCESS_SIX_ORANGE_CHEER_SCORE_ABILITY_ID =
   'PL!-bp8-023:live-success-six-orange-cheer-score';
+
+export const S_PB2_001_AUTO_STACK_AQOURS_LIVE_ABILITY_ID =
+  'PL!S-pb2-001:auto-stack-aqours-live';
+export const S_PB2_001_LIVE_START_RETURN_AQOURS_LIVES_ABILITY_ID =
+  'PL!S-pb2-001:live-start-return-aqours-lives';
+export const S_PB2_002_ACTIVATED_BOTTOM_AQOURS_LIVES_ACTIVATE_ENERGY_ABILITY_ID =
+  'PL!S-pb2-002:activated-bottom-aqours-lives-activate-energy';
+export const S_PB2_006_ON_ENTER_OPPONENT_HAND_TWO_TO_DECK_EDGE_ABILITY_ID =
+  'PL!S-pb2-006:on-enter-opponent-hand-two-to-deck-edge';
+export const S_PB2_026_ON_ENTER_BOTTOM_THREE_GUILTY_KISS_WAIT_OPPONENT_ABILITY_ID =
+  'PL!S-pb2-026:on-enter-bottom-three-guilty-kiss-wait-opponent';
+export const S_PB2_007_LIVE_SUCCESS_PLAY_CHEER_MEMBER_ABILITY_ID =
+  'PL!S-pb2-007:live-success-play-cheer-member';
+export const S_PB2_016_ON_ENTER_AZALEA_GREEN_PLACE_ENERGY_ABILITY_ID =
+  'PL!S-pb2-016:on-enter-azalea-green-place-energy';
+export const HS_PR_044_CONTINUOUS_HIGH_COST_STAGE_ORIGINAL_BLADE_THREE_ABILITY_ID =
+  'PL!HS-PR-044:continuous-high-cost-stage-original-blade-three';
+export const S_PB2_021_CONTINUOUS_AZALEA_GREEN_TEN_GAIN_BLADE_ABILITY_ID =
+  'PL!S-pb2-021:continuous-azalea-green-ten-gain-blade';
+export const S_PB2_021_ACTIVATED_DISCARD_REPLACE_ORIGINAL_HEARTS_GREEN_ABILITY_ID =
+  'PL!S-pb2-021:activated-discard-replace-original-hearts-green';
+export const S_PB2_014_ON_ENTER_OTHER_CYARON_BOTH_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!S-pb2-014:on-enter-other-cyaron-both-place-waiting-energy';
+export const S_PB2_019_ON_ENTER_OPPONENT_DRAW_TWO_GAIN_RED_HEARTS_ABILITY_ID =
+  'PL!S-pb2-019:on-enter-opponent-draw-two-gain-red-hearts';
+export const S_PB2_032_ON_ENTER_DISCARD_LOOK_TOP_AQOURS_MEMBER_ABILITY_ID =
+  'PL!S-pb2-032:on-enter-discard-look-top-aqours-member';
+export const S_PB2_036_LIVE_SUCCESS_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID =
+  'PL!S-pb2-036:live-success-draw-one-place-hand-bottom';
+export const S_PB2_004_LIVE_SUCCESS_LOOK_TOP_BY_MEMBER_HEART_COLOR_ABILITY_ID =
+  'PL!S-pb2-004:live-success-look-top-by-member-heart-color';
+export const S_PB2_015_ON_ENTER_LOOK_TOP_BY_OTHER_GUILTY_KISS_ABILITY_ID =
+  'PL!S-pb2-015:on-enter-look-top-by-other-guilty-kiss';
+export const S_PB2_038_LIVE_SUCCESS_AQOURS_CHEER_DRAW_AND_SCORE_ABILITY_ID =
+  'PL!S-pb2-038:live-success-aqours-cheer-draw-and-score';
+export const S_PB2_039_LIVE_SUCCESS_SAME_AQOURS_UNIT_DRAW_AND_RECOVER_ABILITY_ID =
+  'PL!S-pb2-039:live-success-same-aqours-unit-draw-and-recover';
+export const PL_PR_027_ON_ENTER_RECOVER_CARD_IF_SUCCESS_SCORE_ELEVEN_ABILITY_ID =
+  'PL!-PR-027:on-enter-recover-card-if-success-score-eleven';

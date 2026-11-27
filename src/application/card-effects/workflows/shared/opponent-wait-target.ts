@@ -10,7 +10,6 @@ import {
 import {
   collectLiveModifiers,
   getMemberEffectiveHeartIcons,
-  getMemberOriginalBladeCount,
 } from '../../../../domain/rules/live-modifiers.js';
 import { getMemberEffectiveCost } from '../../../../domain/rules/member-effective-cost.js';
 import { addMemberActivePhaseSkip } from '../../../../domain/rules/member-active-skips.js';
@@ -79,6 +78,7 @@ import {
 } from '../../../effects/stage-member-target-selection.js';
 import {
   getStageMemberCardIdsMatching,
+  memberOriginalBladeLte,
   memberOriginalHeartLte,
   type StageMemberStatePredicate,
 } from '../../../effects/stage-targets.js';
@@ -129,7 +129,7 @@ interface OpponentWaitTargetWorkflowConfig {
   readonly confirmNoTargetWithRealtimeText?: boolean;
   readonly skipNextActivePhase?: boolean;
   readonly consumeStaleSelectionAsNoOp?: boolean;
-  readonly trackTargetLifecycle?: boolean;
+  readonly trackTargetLifecycle?: true | 'allow-missing-snapshot';
 }
 
 const lowCostOpponentMemberSelector = and(typeIs(CardType.MEMBER), costLte(9));
@@ -149,8 +149,7 @@ const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[
     stepText: '请选择对方舞台上1名原本持有的[ブレード]数量小于等于2的成员变为待机状态。',
     selectionLabel: '选择要变为待机状态的成员',
     selector: typeIs(CardType.MEMBER),
-    statePredicate: (game, playerId, cardId) =>
-      getMemberOriginalBladeCount(game, playerId, cardId) <= 2,
+    statePredicate: memberOriginalBladeLte(2),
     startActionStep: 'START_SELECT_OPPONENT_ORIGINAL_BLADE_TWO_MEMBER',
     trackTargetLifecycle: true,
     consumeStaleSelectionAsNoOp: true,
@@ -164,8 +163,7 @@ const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[
     stepText: '请选择对方舞台上1名原本持有的[ブレード]数量小于等于3的成员变为待机状态。',
     selectionLabel: '选择要变为待机状态的成员',
     selector: typeIs(CardType.MEMBER),
-    statePredicate: (game, playerId, cardId) =>
-      getMemberOriginalBladeCount(game, playerId, cardId) <= 3,
+    statePredicate: memberOriginalBladeLte(3),
     minSuccessfulLiveScore: 6,
     startActionStep: 'START_SELECT_OPPONENT_ORIGINAL_BLADE_THREE_MEMBER',
     trackTargetLifecycle: true,
@@ -182,8 +180,7 @@ const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[
     stepText: '请选择对方舞台上1名原本持有的[ブレード]数量小于等于2的成员变为待机状态。',
     selectionLabel: '选择要变为待机状态的成员',
     selector: typeIs(CardType.MEMBER),
-    statePredicate: (game, playerId, cardId) =>
-      getMemberOriginalBladeCount(game, playerId, cardId) <= 2,
+    statePredicate: memberOriginalBladeLte(2),
     allOwnStageMembersGroupAlias: "μ's",
     startActionStep: 'START_SELECT_OPPONENT_LOW_ORIGINAL_BLADE_MEMBER',
     trackTargetLifecycle: true,
@@ -227,8 +224,11 @@ const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[
     stepId: PL_PB1_009_SELECT_OPPONENT_ORIGINAL_BLADE_ONE_MEMBER_STEP_ID,
     stepText: '请选择对方舞台上1名原本持有的[BLADE]数量小于等于1的成员变为待机状态。',
     selectionLabel: '选择对方舞台上原本[BLADE]小于等于1的成员',
-    selector: memberPrintedBladeLte(1),
+    selector: typeIs(CardType.MEMBER),
+    statePredicate: memberOriginalBladeLte(1),
     startActionStep: 'START_SELECT_OPPONENT_ORIGINAL_BLADE_ONE_MEMBER',
+    trackTargetLifecycle: 'allow-missing-snapshot',
+    consumeStaleSelectionAsNoOp: true,
   },
   {
     abilityId: HS_PB1_010_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
@@ -399,8 +399,11 @@ const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[
     stepId: SP_BP7_009_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER_STEP_ID,
     stepText: '请选择对方舞台上1名原本持有的[BLADE]数量小于等于2的成员变为待机状态。',
     selectionLabel: '选择对方舞台上原本[BLADE]小于等于2的成员',
-    selector: memberPrintedBladeLte(2),
+    selector: typeIs(CardType.MEMBER),
+    statePredicate: memberOriginalBladeLte(2),
     startActionStep: 'START_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER',
+    trackTargetLifecycle: 'allow-missing-snapshot',
+    consumeStaleSelectionAsNoOp: true,
   },
   ...[
     N_SD2_013_ON_ENTER_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
@@ -413,9 +416,12 @@ const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[
         stepId: N_SD2_013_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER_STEP_ID,
         stepText: '请选择对方舞台上1名原本持有的[BLADE]数量小于等于2的成员变为待机状态。',
         selectionLabel: '选择对方舞台上原本[BLADE]小于等于2的成员',
-        selector: memberPrintedBladeLte(2),
+        selector: typeIs(CardType.MEMBER),
+        statePredicate: memberOriginalBladeLte(2),
         startActionStep: 'START_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER',
         allOwnStageMembersGroupAlias: '虹ヶ咲',
+        trackTargetLifecycle: 'allow-missing-snapshot',
+        consumeStaleSelectionAsNoOp: true,
       }) satisfies OpponentWaitTargetWorkflowConfig
   ),
 ];
@@ -802,6 +808,13 @@ function finishOpponentWaitTargetWorkflow(
     config.statePredicate
   );
   const ownStageIds = getStageMemberCardIdsMatching(game, player.id, typeIs(CardType.MEMBER));
+  const targetLifecycles = effect.metadata?.targetLifecycles as
+    | Readonly<Record<string, string>>
+    | undefined;
+  const targetLifecycleMatches =
+    !config.trackTargetLifecycle ||
+    (config.trackTargetLifecycle === 'allow-missing-snapshot' && targetLifecycles === undefined) ||
+    targetLifecycles?.[selectedCardId] === getStageMemberLifecycleId(game, selectedCardId);
   const unitConditionStillMet =
     config.allOwnStageMembersUnitAlias === undefined ||
     (ownStageIds.length > 0 &&
@@ -820,10 +833,7 @@ function finishOpponentWaitTargetWorkflow(
           const card = game.cardRegistry.get(cardId);
           return card !== undefined && groupAliasIs(config.allOwnStageMembersGroupAlias!)(card);
         }))) &&
-    (!config.trackTargetLifecycle ||
-      (effect.metadata?.targetLifecycles as Readonly<Record<string, string>> | undefined)?.[
-        selectedCardId
-      ] === getStageMemberLifecycleId(game, selectedCardId)) &&
+    targetLifecycleMatches &&
     currentTargetState !== undefined &&
     currentTargetState.orientation !== targetMetadata.targetOrientation &&
     currentMatchingTargetIds.includes(selectedCardId);

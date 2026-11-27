@@ -1,24 +1,26 @@
 import { getCardActiveEffect } from '../../../../domain/entities/game.js';
-import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
   getCardById,
   getOpponent,
   getPlayerById,
+  type ActiveEffectState,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
+import { getMemberOriginalBladeCount } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
-import { and, groupAliasIs, typeIs, type CardSelector } from '../../../effects/card-selectors.js';
+import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import {
   createStageMemberOrientationTargetSelection,
   resolveStageMemberOrientationTargetSelection,
 } from '../../../effects/stage-member-target-selection.js';
-import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
+import { memberOriginalBladeLte } from '../../../effects/stage-targets.js';
 import {
   SP_PB2_009_LIVE_START_WAIT_LIELLA_MEMBER_WAIT_OPPONENT_LOWER_PRINTED_BLADE_ABILITY_ID,
   SP_PB2_009_ON_ENTER_WAIT_LIELLA_MEMBER_WAIT_OPPONENT_LOWER_PRINTED_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
+import { getStageMemberLifecycleId } from '../../runtime/ability-source-lifecycle.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
@@ -39,7 +41,8 @@ const SP_PB2_009_ABILITY_IDS = [
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
 
-const liellaMemberSelector = and(typeIs(CardType.MEMBER), groupAliasIs('Liella!'));
+const memberSelector = typeIs(CardType.MEMBER);
+const liellaMemberSelector = and(memberSelector, groupAliasIs('Liella!'));
 
 export function registerSpPb2009NatsumiWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
@@ -92,7 +95,7 @@ function startSpPb2009NatsumiWorkflow(
       '可以将自己舞台上的1名『Liella!』成员变为待机状态。若如此做，将按该成员原本 BLADE 选择对方成员变为待机状态。',
     awaitingPlayerId: player.id,
     targetPlayerId: player.id,
-    selector: createPlayableLiellaMemberSelector(game, opponent.id),
+    selector: liellaMemberSelector,
     targetOrientation: OrientationState.WAITING,
     selectionLabel: '选择要变为待机状态的 Liella! 成员',
     orderedResolution,
@@ -124,7 +127,7 @@ function startSpPb2009NatsumiWorkflow(
     ability,
     playerId: player.id,
     activeEffect: {
-      ...targetSelection.activeEffect,
+      ...trackWaitTargetLifecycles(game, targetSelection.activeEffect),
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
     },
@@ -176,16 +179,23 @@ function finishSelectLiellaMemberToWait(
   }
 
   const waitedCard = getCardById(game, selectedCardId);
-  const waitedPrintedBlade =
-    waitedCard !== null && isMemberCardData(waitedCard.data) ? waitedCard.data.blade : null;
-  if (waitedPrintedBlade === null) {
+  if (
+    !waitedCard ||
+    !liellaMemberSelector(waitedCard) ||
+    !isSameWaitTarget(game, effect, selectedCardId)
+  ) {
     return game;
   }
 
   const orientationChange = resolveStageMemberOrientationTargetSelection(game, effect, selectedCardId);
-  if (!orientationChange) {
+  if (!orientationChange?.changed) {
     return game;
   }
+  const originalBladeAfterPayment = getMemberOriginalBladeCount(
+    orientationChange.gameState,
+    player.id,
+    selectedCardId
+  );
 
   const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
     game,
@@ -206,7 +216,8 @@ function finishSelectLiellaMemberToWait(
             sourceCardId: effect.sourceCardId,
             step: 'WAIT_LIELLA_MEMBER',
             waitedLiellaMemberId: selectedCardId,
-            waitedLiellaPrintedBlade: waitedPrintedBlade,
+            // Preserve the historical payload field for the original BLADE used at payment.
+            waitedLiellaPrintedBlade: originalBladeAfterPayment,
             previousOrientation: result.previousOrientation,
             nextOrientation: result.nextOrientation,
           }
@@ -215,12 +226,25 @@ function finishSelectLiellaMemberToWait(
   );
 
   const nextState = stateWithMemberStateTriggers.gameState;
-  const opponentTargetIds = getOpponentLowerPrintedBladeTargetIds(
-    nextState,
-    opponentPlayerId,
-    waitedPrintedBlade
-  );
-  if (opponentTargetIds.length === 0) {
+  const opponentSelection = createStageMemberOrientationTargetSelection(nextState, {
+    ability: effect,
+    effectText: effect.effectText,
+    stepId: SELECT_OPPONENT_MEMBER_STEP_ID,
+    stepText:
+      '请选择对方舞台上1名原本 BLADE 比待机的 Liella! 成员少2个以上的成员变为待机状态。',
+    awaitingPlayerId: player.id,
+    targetPlayerId: opponentPlayerId,
+    selector: memberSelector,
+    statePredicate: memberOriginalBladeLte(originalBladeAfterPayment - 2),
+    targetOrientation: OrientationState.WAITING,
+    selectionLabel: '选择对方原本 BLADE 较少的成员',
+    orderedResolution: effect.metadata?.orderedResolution === true,
+    metadata: {
+      waitedLiellaMemberId: selectedCardId,
+      waitedLiellaPrintedBlade: originalBladeAfterPayment,
+    },
+  });
+  if (opponentSelection.activeEffect === null) {
     return continuePendingCardEffects(
       addAction(nextState, 'RESOLVE_ABILITY', player.id, {
         pendingAbilityId: effect.id,
@@ -228,7 +252,7 @@ function finishSelectLiellaMemberToWait(
         sourceCardId: effect.sourceCardId,
         step: 'SKIP_NO_OPPONENT_TARGET_AFTER_WAIT_LIELLA_MEMBER',
         waitedLiellaMemberId: selectedCardId,
-        waitedLiellaPrintedBlade: waitedPrintedBlade,
+        waitedLiellaPrintedBlade: originalBladeAfterPayment,
         opponentPlayerId,
       }),
       effect.metadata?.orderedResolution === true
@@ -238,26 +262,8 @@ function finishSelectLiellaMemberToWait(
   return {
     ...nextState,
     activeEffect: {
-      id: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      controllerId: effect.controllerId,
-      effectText: effect.effectText,
-      stepId: SELECT_OPPONENT_MEMBER_STEP_ID,
-      stepText:
-        '请选择对方舞台上1名原本 BLADE 比待机的 Liella! 成员少2个以上的成员变为待机状态。',
-      awaitingPlayerId: player.id,
-      selectableCardIds: opponentTargetIds,
+      ...trackWaitTargetLifecycles(nextState, opponentSelection.activeEffect),
       selectableCardVisibility: 'PUBLIC',
-      selectionLabel: '选择对方原本 BLADE 较少的成员',
-      metadata: {
-        orderedResolution: effect.metadata?.orderedResolution === true,
-        stageMemberOrientationTarget: true,
-        targetPlayerId: opponentPlayerId,
-        targetOrientation: OrientationState.WAITING,
-        waitedLiellaMemberId: selectedCardId,
-        waitedLiellaPrintedBlade: waitedPrintedBlade,
-      },
     },
   };
 }
@@ -278,8 +284,16 @@ function finishSelectOpponentMemberToWait(
     return game;
   }
 
-  const orientationChange = resolveStageMemberOrientationTargetSelection(game, effect, selectedCardId);
-  if (!orientationChange) {
+  const targetPlayerId = effect.metadata?.targetPlayerId;
+  const originalBladeAtPayment = effect.metadata?.waitedLiellaPrintedBlade;
+  const orientationChange =
+    typeof targetPlayerId === 'string' &&
+    typeof originalBladeAtPayment === 'number' &&
+    isSameWaitTarget(game, effect, selectedCardId) &&
+    getMemberOriginalBladeCount(game, targetPlayerId, selectedCardId) <= originalBladeAtPayment - 2
+      ? resolveStageMemberOrientationTargetSelection(game, effect, selectedCardId)
+      : null;
+  if (!orientationChange?.changed) {
     return continuePendingCardEffects(
       addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
         pendingAbilityId: effect.id,
@@ -329,38 +343,28 @@ function finishSelectOpponentMemberToWait(
   );
 }
 
-function createPlayableLiellaMemberSelector(
+function trackWaitTargetLifecycles(
   game: GameState,
-  opponentPlayerId: string
-): CardSelector {
-  return (card) => {
-    if (!liellaMemberSelector(card) || !isMemberCardData(card.data)) {
-      return false;
-    }
-    return getOpponentLowerPrintedBladeTargetIds(game, opponentPlayerId, card.data.blade).length > 0;
+  effect: ActiveEffectState
+): ActiveEffectState {
+  return {
+    ...effect,
+    metadata: {
+      ...effect.metadata,
+      targetLifecycles: Object.fromEntries(
+        (effect.selectableCardIds ?? []).map((id) => [id, getStageMemberLifecycleId(game, id)])
+      ),
+    },
   };
 }
 
-function getOpponentLowerPrintedBladeTargetIds(
+function isSameWaitTarget(
   game: GameState,
-  opponentPlayerId: string,
-  waitedPrintedBlade: number
-): readonly string[] {
-  const maxOpponentPrintedBlade = waitedPrintedBlade - 2;
-  if (maxOpponentPrintedBlade < 0) {
-    return [];
-  }
-  const opponent = getPlayerById(game, opponentPlayerId);
-  if (!opponent) {
-    return [];
-  }
-
-  return getStageMemberCardIdsMatching(game, opponentPlayerId, (card) => {
-    const orientation = opponent.memberSlots.cardStates.get(card.instanceId)?.orientation;
-    return (
-      orientation !== OrientationState.WAITING &&
-      isMemberCardData(card.data) &&
-      card.data.blade <= maxOpponentPrintedBlade
-    );
-  });
+  effect: ActiveEffectState,
+  cardId: string
+): boolean {
+  const lifecycles = effect.metadata?.targetLifecycles as
+    | Readonly<Record<string, string>>
+    | undefined;
+  return lifecycles === undefined || lifecycles[cardId] === getStageMemberLifecycleId(game, cardId);
 }

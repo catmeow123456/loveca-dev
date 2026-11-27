@@ -1,4 +1,25 @@
 import {
+  PL_PR_027_ON_ENTER_RECOVER_CARD_IF_SUCCESS_SCORE_ELEVEN_ABILITY_ID,
+  S_PB2_001_AUTO_STACK_AQOURS_LIVE_ABILITY_ID,
+  S_PB2_001_LIVE_START_RETURN_AQOURS_LIVES_ABILITY_ID,
+  S_PB2_002_ACTIVATED_BOTTOM_AQOURS_LIVES_ACTIVATE_ENERGY_ABILITY_ID,
+  S_PB2_006_ON_ENTER_OPPONENT_HAND_TWO_TO_DECK_EDGE_ABILITY_ID,
+  S_PB2_026_ON_ENTER_BOTTOM_THREE_GUILTY_KISS_WAIT_OPPONENT_ABILITY_ID,
+  S_PB2_007_LIVE_SUCCESS_PLAY_CHEER_MEMBER_ABILITY_ID,
+  S_PB2_016_ON_ENTER_AZALEA_GREEN_PLACE_ENERGY_ABILITY_ID,
+  HS_PR_044_CONTINUOUS_HIGH_COST_STAGE_ORIGINAL_BLADE_THREE_ABILITY_ID,
+  S_PB2_021_CONTINUOUS_AZALEA_GREEN_TEN_GAIN_BLADE_ABILITY_ID,
+  S_PB2_021_ACTIVATED_DISCARD_REPLACE_ORIGINAL_HEARTS_GREEN_ABILITY_ID,
+  S_PB2_014_ON_ENTER_OTHER_CYARON_BOTH_PLACE_WAITING_ENERGY_ABILITY_ID,
+  S_PB2_019_ON_ENTER_OPPONENT_DRAW_TWO_GAIN_RED_HEARTS_ABILITY_ID,
+  S_PB2_032_ON_ENTER_DISCARD_LOOK_TOP_AQOURS_MEMBER_ABILITY_ID,
+  S_PB2_036_LIVE_SUCCESS_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID,
+  S_PB2_004_LIVE_SUCCESS_LOOK_TOP_BY_MEMBER_HEART_COLOR_ABILITY_ID,
+  S_PB2_015_ON_ENTER_LOOK_TOP_BY_OTHER_GUILTY_KISS_ABILITY_ID,
+  S_PB2_038_LIVE_SUCCESS_AQOURS_CHEER_DRAW_AND_SCORE_ABILITY_ID,
+  S_PB2_039_LIVE_SUCCESS_SAME_AQOURS_UNIT_DRAW_AND_RECOVER_ABILITY_ID,
+} from '../ability-ids.js';
+import {
   PL_AD1_001_ON_ENTER_DISCARD_RECOVER_ALL_OR_ORANGE_LIVE_ABILITY_ID,
   PL_AD1_001_LIVE_START_WAITING_ORANGE_TO_FIFTH_ABILITY_ID,
   PL_AD1_004_LIVE_SUCCESS_ORANGE_CHEER_TO_HAND_ABILITY_ID,
@@ -3158,7 +3179,254 @@ export const PL_BP8_023_LIVE_START_LOW_COST_NO_BLADE_HEART_GAIN_ORANGE_EFFECT_TE
 export const PL_BP8_023_LIVE_SUCCESS_SIX_ORANGE_CHEER_SCORE_EFFECT_TEXT =
   '【LIVE成功时】因声援被公开的自己的卡片中存在大于等于6张持有[オレンジブレード]的卡片的场合，此卡的分数+2。';
 
+const S_PB2_001_AUTO_STACK_AQOURS_LIVE_TEXT =
+  '【自动】每当『Aqours』的LIVE卡从自己的LIVE卡区被放置入休息室时，可以将那张LIVE卡放置于此成员的下方。';
+const S_PB2_001_LIVE_START_RETURN_AQOURS_LIVES_TEXT =
+  '【LIVE开始时】将存在于此成员的下方的所有的『Aqours』的LIVE卡按任意顺序放置于卡组顶。LIVE结束时为止，每有１张因此放置于卡组的卡片，获得[ブレード]。';
+const S_PB2_002_ACTIVATED_BOTTOM_AQOURS_LIVES_ACTIVATE_ENERGY_TEXT =
+  '【起动】【１回合１次】将存在于休息室的至多２张『Aqours』的LIVE卡按任意顺序放置于卡组底：每有１张因此放置于卡组的卡片，将１张能量变为活跃状态。';
+const S_PB2_006_ON_ENTER_OPPONENT_HAND_TWO_TO_DECK_EDGE_TEXT =
+  '【登场】对方的手牌的张数大于等于６张的场合，对方将２张手牌按任意顺序放置于卡组顶或卡组底。（不能分开放在卡组顶和卡组底。）';
+const S_PB2_026_ON_ENTER_BOTTOM_THREE_GUILTY_KISS_WAIT_OPPONENT_TEXT =
+  '【登场】可以将存在于休息室的３张名称各不相同的『Guilty Kiss』的成员卡按任意顺序放置于卡组底：将存在于对方的舞台的１名原本持有的[ブレード]的数量小于等于２的成员变为待机状态。（待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。）';
+const S_PB2_007_LIVE_SUCCESS_PLAY_CHEER_MEMBER_TEXT =
+  '【LIVE成功时】因声援被公开的自己的卡片全部为『Aqours』的场合，可以将其中的１张费用小于等于２的成员卡，登场至不存在成员的区域。';
+const S_PB2_016_ON_ENTER_AZALEA_GREEN_PLACE_ENERGY_TEXT =
+  '【登场】存在于自己的舞台的『AZALEA』的成员持有的[緑ハート]合计大于等于5个的场合，从自己的能量卡组，将１张能量卡以待机状态放置入能量区。';
+const HS_PR_044_CONTINUOUS_HIGH_COST_STAGE_ORIGINAL_BLADE_THREE_TEXT =
+  '【常时】只要自己的舞台上存在费用大于等于１３的成员，此成员原本持有的[ブレード]的数量变为３。';
+const S_PB2_021_CONTINUOUS_AZALEA_GREEN_TEN_GAIN_BLADE_TEXT =
+  '【常时】只要存在于自己的舞台的『AZALEA』的成员持有的HEART中，[緑ハート]合计大于等于１０个，获得[ブレード][ブレード]。';
+const S_PB2_021_ACTIVATED_DISCARD_REPLACE_ORIGINAL_HEARTS_GREEN_TEXT =
+  '【起动】【１回合１次】将１张手牌放置入休息室：LIVE结束时为止，此成员原本持有的HEART全部变为[緑ハート]。';
+const S_PB2_014_ON_ENTER_OTHER_CYARON_BOTH_PLACE_WAITING_ENERGY_TEXT =
+  '【登场】自己的舞台上存在其他的『CYaRon！』的成员的场合，自己和对方分别，从自身的能量卡组，将１张能量卡以待机状态放置入能量区。';
+const S_PB2_019_ON_ENTER_OPPONENT_DRAW_TWO_GAIN_RED_HEARTS_TEXT =
+  '【登场】对方抽２张卡。此后，LIVE结束时为止，获得[赤ハート][赤ハート][赤ハート]。';
+const S_PB2_032_ON_ENTER_DISCARD_LOOK_TOP_AQOURS_MEMBER_TEXT =
+  '【登场】可以将１张手牌放置入休息室：检视自己的卡组顶的５张卡片。可以将其中的１张不持有BLADE HEART的『Aqours』的成员卡公开并加入手牌。其余的放置入休息室。';
+const S_PB2_036_LIVE_SUCCESS_DRAW_ONE_PLACE_HAND_BOTTOM_TEXT =
+  '【LIVE成功时】抽１张卡，将１张手牌放置于牌库底。';
+const S_PB2_004_LIVE_SUCCESS_LOOK_TOP_BY_MEMBER_HEART_COLOR_TEXT =
+  '【LIVE成功时】选择１名存在于自己的舞台的『Aqours』的成员。检视自己的卡组顶，等同于该成员持有的HEART中数量最多的１种颜色的HEART的数量的张数的卡片。将其中的１张卡片加入手牌。其余的放置入休息室。';
+const S_PB2_015_ON_ENTER_LOOK_TOP_BY_OTHER_GUILTY_KISS_TEXT =
+  '【登场】自己的舞台上每存在１名其他的『Guilty Kiss』的成员，检视自己的卡组顶的２张卡片。将其中的１张卡片加入手牌。其余的放置入休息室。';
+const S_PB2_038_LIVE_SUCCESS_AQOURS_CHEER_DRAW_AND_SCORE_TEXT =
+  '【LIVE成功时】因声援被公开的自己的卡片中，存在『Aqours』的LIVE卡的场合，抽１张卡。存在大于等于２名不持有BLADE HEART的『Aqours』的成员卡的场合，此卡的分数＋１。';
+const S_PB2_039_LIVE_SUCCESS_SAME_AQOURS_UNIT_DRAW_AND_RECOVER_TEXT =
+  '【LIVE成功时】自己的舞台上存在３名持有相同UNIT名的『Aqours』的成员的场合，抽１张卡。那些成员的名称各不相同的场合，再从自己的休息室将１张『Aqours』的卡片加入手牌。';
+const PL_PR_027_ON_ENTER_RECOVER_CARD_IF_SUCCESS_SCORE_ELEVEN_TEXT =
+  '【登场】存在于自己的成功LIVE卡区的卡片的分数合计大于等于１１的场合，从自己的休息室将１张卡片加入手牌。';
+
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
+  {
+    abilityId: PL_PR_027_ON_ENTER_RECOVER_CARD_IF_SUCCESS_SCORE_ELEVEN_ABILITY_ID,
+    baseCardCodes: ['PL!-PR-027'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    delegatedOnEnterFromWaitingRoomPolicy: { decision: 'ALLOW', reason: 'SOURCE_INDEPENDENT' },
+    queued: true,
+    implemented: true,
+    effectText: PL_PR_027_ON_ENTER_RECOVER_CARD_IF_SUCCESS_SCORE_ELEVEN_TEXT,
+  },
+  {
+    abilityId: S_PB2_001_AUTO_STACK_AQOURS_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-001'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_WAITING_ROOM,
+    triggerFromZones: [ZoneType.LIVE_ZONE],
+    triggerToZones: [ZoneType.WAITING_ROOM],
+    queued: true,
+    implemented: true,
+    effectText: S_PB2_001_AUTO_STACK_AQOURS_LIVE_TEXT,
+  },
+  {
+    abilityId: S_PB2_001_LIVE_START_RETURN_AQOURS_LIVES_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-001'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_PB2_001_LIVE_START_RETURN_AQOURS_LIVES_TEXT,
+  },
+  {
+    abilityId: S_PB2_002_ACTIVATED_BOTTOM_AQOURS_LIVES_ACTIVATE_ENERGY_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-002'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: S_PB2_002_ACTIVATED_BOTTOM_AQOURS_LIVES_ACTIVATE_ENERGY_TEXT,
+    activatedUi: {
+      abilityId: S_PB2_002_ACTIVATED_BOTTOM_AQOURS_LIVES_ACTIVATE_ENERGY_ABILITY_ID,
+      text: S_PB2_002_ACTIVATED_BOTTOM_AQOURS_LIVES_ACTIVATE_ENERGY_TEXT,
+      title: '将至多2张Aqours LIVE置底并活跃能量',
+    },
+  },
+  {
+    abilityId: S_PB2_006_ON_ENTER_OPPONENT_HAND_TWO_TO_DECK_EDGE_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-006'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    delegatedOnEnterFromWaitingRoomPolicy: { decision: 'ALLOW', reason: 'SOURCE_INDEPENDENT' },
+    queued: true,
+    implemented: true,
+    effectText: S_PB2_006_ON_ENTER_OPPONENT_HAND_TWO_TO_DECK_EDGE_TEXT,
+  },
+  {
+    abilityId: S_PB2_026_ON_ENTER_BOTTOM_THREE_GUILTY_KISS_WAIT_OPPONENT_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-026'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    delegatedOnEnterFromWaitingRoomPolicy: { decision: 'ALLOW', reason: 'PLAYER_RESOURCE_COST' },
+    queued: true,
+    implemented: true,
+    effectText: S_PB2_026_ON_ENTER_BOTTOM_THREE_GUILTY_KISS_WAIT_OPPONENT_TEXT,
+  },
+  {
+    abilityId: S_PB2_007_LIVE_SUCCESS_PLAY_CHEER_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-007'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_PB2_007_LIVE_SUCCESS_PLAY_CHEER_MEMBER_TEXT,
+  },
+  {
+    abilityId: S_PB2_016_ON_ENTER_AZALEA_GREEN_PLACE_ENERGY_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-016'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    delegatedOnEnterFromWaitingRoomPolicy: { decision: 'ALLOW', reason: 'SOURCE_INDEPENDENT' },
+    queued: true,
+    implemented: true,
+    effectText: S_PB2_016_ON_ENTER_AZALEA_GREEN_PLACE_ENERGY_TEXT,
+  },
+  {
+    abilityId: S_PB2_014_ON_ENTER_OTHER_CYARON_BOTH_PLACE_WAITING_ENERGY_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-014'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    delegatedOnEnterFromWaitingRoomPolicy: { decision: 'ALLOW', reason: 'SOURCE_INDEPENDENT' },
+    queued: true,
+    implemented: true,
+    effectText: S_PB2_014_ON_ENTER_OTHER_CYARON_BOTH_PLACE_WAITING_ENERGY_TEXT,
+  },
+  {
+    abilityId: S_PB2_019_ON_ENTER_OPPONENT_DRAW_TWO_GAIN_RED_HEARTS_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-019'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    delegatedOnEnterFromWaitingRoomPolicy: { decision: 'ALLOW', reason: 'SOURCE_INDEPENDENT' },
+    queued: true,
+    implemented: true,
+    effectText: S_PB2_019_ON_ENTER_OPPONENT_DRAW_TWO_GAIN_RED_HEARTS_TEXT,
+  },
+  {
+    abilityId: HS_PR_044_CONTINUOUS_HIGH_COST_STAGE_ORIGINAL_BLADE_THREE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-PR-044'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: HS_PR_044_CONTINUOUS_HIGH_COST_STAGE_ORIGINAL_BLADE_THREE_TEXT,
+  },
+  {
+    abilityId: S_PB2_021_CONTINUOUS_AZALEA_GREEN_TEN_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-021'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: S_PB2_021_CONTINUOUS_AZALEA_GREEN_TEN_GAIN_BLADE_TEXT,
+  },
+  {
+    abilityId: S_PB2_021_ACTIVATED_DISCARD_REPLACE_ORIGINAL_HEARTS_GREEN_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-021'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: S_PB2_021_ACTIVATED_DISCARD_REPLACE_ORIGINAL_HEARTS_GREEN_TEXT,
+    activatedUi: {
+      abilityId: S_PB2_021_ACTIVATED_DISCARD_REPLACE_ORIGINAL_HEARTS_GREEN_ABILITY_ID,
+      text: S_PB2_021_ACTIVATED_DISCARD_REPLACE_ORIGINAL_HEARTS_GREEN_TEXT,
+      title: '弃置1张手牌，使原本HEART变为[緑ハート]',
+    },
+  },
+  {
+    abilityId: S_PB2_032_ON_ENTER_DISCARD_LOOK_TOP_AQOURS_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-032'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    delegatedOnEnterFromWaitingRoomPolicy: { decision: 'ALLOW', reason: 'PLAYER_RESOURCE_COST' },
+    queued: true,
+    implemented: true,
+    effectText: S_PB2_032_ON_ENTER_DISCARD_LOOK_TOP_AQOURS_MEMBER_TEXT,
+  },
+  {
+    abilityId: S_PB2_036_LIVE_SUCCESS_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-036'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_PB2_036_LIVE_SUCCESS_DRAW_ONE_PLACE_HAND_BOTTOM_TEXT,
+  },
+  {
+    abilityId: S_PB2_004_LIVE_SUCCESS_LOOK_TOP_BY_MEMBER_HEART_COLOR_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-004'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_PB2_004_LIVE_SUCCESS_LOOK_TOP_BY_MEMBER_HEART_COLOR_TEXT,
+  },
+  {
+    abilityId: S_PB2_015_ON_ENTER_LOOK_TOP_BY_OTHER_GUILTY_KISS_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-015'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    delegatedOnEnterFromWaitingRoomPolicy: { decision: 'ALLOW', reason: 'SOURCE_INDEPENDENT' },
+    queued: true,
+    implemented: true,
+    effectText: S_PB2_015_ON_ENTER_LOOK_TOP_BY_OTHER_GUILTY_KISS_TEXT,
+  },
+  {
+    abilityId: S_PB2_038_LIVE_SUCCESS_AQOURS_CHEER_DRAW_AND_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-038'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_PB2_038_LIVE_SUCCESS_AQOURS_CHEER_DRAW_AND_SCORE_TEXT,
+  },
+  {
+    abilityId: S_PB2_039_LIVE_SUCCESS_SAME_AQOURS_UNIT_DRAW_AND_RECOVER_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb2-039'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_PB2_039_LIVE_SUCCESS_SAME_AQOURS_UNIT_DRAW_AND_RECOVER_TEXT,
+  },
   {
     abilityId: PL_AD1_001_ON_ENTER_DISCARD_RECOVER_ALL_OR_ORANGE_LIVE_ABILITY_ID,
     baseCardCodes: ['PL!-ad1-001'],
@@ -4146,7 +4414,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_CL1_009_ACTIVATED_SELF_SACRIFICE_RECOVER_MEMBER_ABILITY_ID,
-    baseCardCodes: ['PL!S-cl1-009'],
+    baseCardCodes: ['PL!S-cl1-009', 'PL!S-pb2-022'],
     category: CardAbilityCategory.ACTIVATED,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
@@ -4233,7 +4501,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: SP_PR_035_LIVE_SUCCESS_OPPONENT_TWELVE_CHEER_SCORE_ABILITY_ID,
-    baseCardCodes: ['PL!SP-PR-035'],
+    baseCardCodes: ['PL!SP-PR-035', 'PL!N-PR-039'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -4245,7 +4513,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_PR_043_LIVE_START_BOTTOM_TWO_MEMBERS_HEART_TWELVE_GAIN_BLADE_ABILITY_ID,
-    baseCardCodes: ['PL!HS-PR-043'],
+    baseCardCodes: ['PL!HS-PR-043', 'PL!N-PR-037'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -4305,7 +4573,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: SP_PR_034_AUTO_RELAY_LOW_COST_TARGET_GAIN_BLADE_ABILITY_ID,
-    baseCardCodes: ['PL!SP-PR-034'],
+    baseCardCodes: ['PL!SP-PR-034', 'PL!N-PR-038'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
@@ -6170,7 +6438,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: S_BP5_111_AUTO_EFFECT_TEXT,
     notes:
-      '单卡 workflow `s-bp5-111-seira.ts`；消费 pending eventIds 对应的 ON_MEMBER_SLOT_MOVED，且移动卡必须是此成员本身。目标为对方舞台当前非 WAITING、印刷 BLADE <=2 的成员，变 WAITING 走成员状态变化 trigger wrapper。',
+      '单卡 workflow `s-bp5-111-seira.ts`；消费 pending eventIds 对应的 ON_MEMBER_SLOT_MOVED，且移动卡必须是此成员本身。目标为对方舞台当前非 WAITING、原本 BLADE <=2 的成员，变 WAITING 走成员状态变化 trigger wrapper。',
   },
   {
     abilityId:
@@ -9663,7 +9931,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       reason: 'OTHER_STAGE_MEMBER_COST',
     },
     notes:
-      '单卡 workflow `sp-pb2-009-natsumi.ts`；可选将己方舞台1名当前非 WAITING 的 Liella! 成员变 WAITING，费用成员与对方目标阈值均按印刷 BLADE 计算。费用变 WAITING 走成员状态变化 trigger wrapper；支付后若对方目标消失不退费。',
+      '单卡 workflow `sp-pb2-009-natsumi.ts`；可选将己方舞台1名当前非 WAITING 的 Liella! 成员变 WAITING，待机走成员状态变化 trigger wrapper。待机后按双方原本 BLADE 的差值选对方目标，无目标时保留己方待机。',
   },
   {
     abilityId:
@@ -9676,7 +9944,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: SP_PB2_009_ON_ENTER_LIVE_START_EFFECT_TEXT,
     notes:
-      '复用 `sp-pb2-009-natsumi.ts` 同一两步 workflow；LIVE_START 段与登场段拆 abilityId，保留 timing/pending 语义。启动前要求存在可支付 Liella! 成员且按其印刷 BLADE 存在至少1名合法对方目标，否则 no-op 不开窗口。',
+      '复用 `sp-pb2-009-natsumi.ts` 同一两步 workflow；LIVE_START 段与登场段拆 abilityId，保留 timing/pending 语义。第一步可选择己方可待机的 Liella! 成员，第二步再检查对方的原本 BLADE。',
   },
   {
     abilityId: SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
@@ -9714,7 +9982,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     observerOnly: true,
     effectText: SP_PB2_011_AUTO_EFFECT_TEXT,
     notes:
-      '单卡 AUTO workflow `sp-pb2-011-tomari.ts`；只处理 pending eventIds 对应的权威 ON_MEMBER_SLOT_MOVED，要求自己舞台中心成员从 CENTER 移出。选项为来源 BLADE +2、对方印刷 BLADE<=2 非 WAITING 成员 WAITING、抽1；无合法对方目标时仍展示印刷的 WAIT 分支，但标记为当前不可选。',
+      '单卡 AUTO workflow `sp-pb2-011-tomari.ts`；只处理 pending eventIds 对应的权威 ON_MEMBER_SLOT_MOVED，要求自己舞台中心成员从 CENTER 移出。选项为来源 BLADE +2、对方原本 BLADE<=2 非 WAITING 成员 WAITING、抽1；无合法对方目标时仍展示印刷的 WAIT 分支，但标记为当前不可选。',
   },
   {
     abilityId: SP_PB2_011_LIVE_START_SELF_POSITION_CHANGE_ABILITY_ID,
@@ -11922,7 +12190,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: PL_PB1_009_WAIT_OPPONENT_EFFECT_TEXT,
-    notes: '复用 opponent-wait-target shared workflow 与 memberPrintedBladeLte(1)。',
+    notes: '复用 opponent-wait-target shared workflow 的原本 BLADE ≤1 门槛。',
   },
   {
     abilityId: PL_PB1_009_ON_ENTER_PREVENT_EFFECT_MEMBER_ACTIVATION_THIS_TURN_ABILITY_ID,
@@ -17300,7 +17568,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: SP_BP7_009_LIVE_START_EFFECT_TEXT,
     notes:
-      'shared opponent-wait-target；按印刷 BLADE<=2 选择当前非 WAITING 对方主舞台成员并走标准状态事件 wrapper。',
+      'shared opponent-wait-target；按原本 BLADE<=2 选择当前非 WAITING 对方主舞台成员并走标准状态事件 wrapper。',
   },
   {
     abilityId: SP_BP7_011_ON_ENTER_DISCARD_ALL_DRAW_SIX_ABILITY_ID,

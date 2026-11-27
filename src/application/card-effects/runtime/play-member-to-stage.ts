@@ -7,6 +7,7 @@ import {
   getPlayerById,
   updateInspectionZone,
   updatePlayer,
+  updateResolutionZone,
   type GameState,
 } from '../../../domain/entities/game.js';
 import type {
@@ -28,6 +29,7 @@ import {
   removeCardFromZone,
 } from '../../../domain/entities/zone.js';
 import { returnEnergyBelowMemberToEnergyDeckForPlayer } from '../../effects/energy-below.js';
+import { selectRevealedCheerCardIds } from '../../effects/cheer-selection.js';
 import { RuleActionType } from '../../../domain/rules/rule-actions.js';
 import { resolveMemberEntryOrientation } from '../../../domain/rules/member-entry-orientation.js';
 import {
@@ -42,7 +44,10 @@ export interface PlayMemberFromZoneToEmptySlotResult {
   readonly gameState: GameState;
   readonly playedCardId: string;
   readonly toSlot: SlotPosition;
+  readonly enterStageEvent: EnterStageEvent;
 }
+
+type EmptySlotPlaySource = ZoneType.HAND | ZoneType.INSPECTION_ZONE | ZoneType.RESOLUTION_ZONE;
 
 export interface PlayMemberFromZoneToStageSlotWithReplacementResult {
   readonly gameState: GameState;
@@ -283,7 +288,7 @@ export function playMemberFromZoneToEmptySlot(
   playerId: string,
   options: {
     readonly cardId: string;
-    readonly sourceZone: ZoneType.HAND | ZoneType.INSPECTION_ZONE;
+    readonly sourceZone: EmptySlotPlaySource;
     readonly toSlot: SlotPosition;
     readonly orientation?: OrientationState;
   }
@@ -309,53 +314,47 @@ export function playMemberFromZoneToEmptySlot(
     options.orientation ?? OrientationState.ACTIVE
   );
 
-  let state =
-    options.sourceZone === ZoneType.HAND
-      ? updatePlayer(game, player.id, (currentPlayer) => ({
-          ...currentPlayer,
-          hand: removeCardFromZone(currentPlayer.hand, options.cardId),
-          memberSlots: placeCardInSlot(currentPlayer.memberSlots, options.toSlot, options.cardId, {
-            orientation: entryOrientation,
-            face: FaceState.FACE_UP,
-          }),
-          movedToStageThisTurn: [...currentPlayer.movedToStageThisTurn, options.cardId],
-        }))
-      : updateInspectionZone(
-          updatePlayer(game, player.id, (currentPlayer) => ({
-            ...currentPlayer,
-            memberSlots: placeCardInSlot(
-              currentPlayer.memberSlots,
-              options.toSlot,
-              options.cardId,
-              {
-                orientation: entryOrientation,
-                face: FaceState.FACE_UP,
-              }
-            ),
-            movedToStageThisTurn: [...currentPlayer.movedToStageThisTurn, options.cardId],
-          })),
-          (zone) => ({
-            ...zone,
-            cardIds: zone.cardIds.filter((cardId) => cardId !== options.cardId),
-            revealedCardIds: zone.revealedCardIds.filter((cardId) => cardId !== options.cardId),
-          })
-        );
+  let state = updatePlayer(game, player.id, (currentPlayer) => ({
+    ...currentPlayer,
+    hand:
+      options.sourceZone === ZoneType.HAND
+        ? removeCardFromZone(currentPlayer.hand, options.cardId)
+        : currentPlayer.hand,
+    memberSlots: placeCardInSlot(currentPlayer.memberSlots, options.toSlot, options.cardId, {
+      orientation: entryOrientation,
+      face: FaceState.FACE_UP,
+    }),
+    movedToStageThisTurn: [...currentPlayer.movedToStageThisTurn, options.cardId],
+  }));
+  const removeFromSharedZone = <
+    Zone extends { readonly cardIds: readonly string[]; readonly revealedCardIds: readonly string[] },
+  >(
+    zone: Zone
+  ): Zone => ({
+    ...zone,
+    cardIds: zone.cardIds.filter((cardId) => cardId !== options.cardId),
+    revealedCardIds: zone.revealedCardIds.filter((cardId) => cardId !== options.cardId),
+  });
+  if (options.sourceZone === ZoneType.INSPECTION_ZONE) {
+    state = updateInspectionZone(state, removeFromSharedZone);
+  }
+  if (options.sourceZone === ZoneType.RESOLUTION_ZONE) {
+    state = updateResolutionZone(state, removeFromSharedZone);
+  }
 
-  state = emitGameEvent(
-    state,
-    createEnterStageEvent(
-      options.cardId,
-      options.sourceZone,
-      options.toSlot,
-      card.ownerId,
-      player.id
-    )
+  const enterStageEvent = createEnterStageEvent(
+    options.cardId,
+    options.sourceZone,
+    options.toSlot,
+    card.ownerId,
+    player.id
   );
 
   return {
-    gameState: state,
+    gameState: emitGameEvent(state, enterStageEvent),
     playedCardId: options.cardId,
     toSlot: options.toSlot,
+    enterStageEvent,
   };
 }
 
@@ -363,10 +362,13 @@ function isCardInSourceZone(
   game: GameState,
   playerId: string,
   cardId: string,
-  sourceZone: ZoneType.HAND | ZoneType.INSPECTION_ZONE
+  sourceZone: EmptySlotPlaySource
 ): boolean {
   if (sourceZone === ZoneType.INSPECTION_ZONE) {
     return game.inspectionZone.cardIds.includes(cardId);
+  }
+  if (sourceZone === ZoneType.RESOLUTION_ZONE) {
+    return selectRevealedCheerCardIds(game, playerId).includes(cardId);
   }
   return getPlayerById(game, playerId)?.hand.cardIds.includes(cardId) === true;
 }

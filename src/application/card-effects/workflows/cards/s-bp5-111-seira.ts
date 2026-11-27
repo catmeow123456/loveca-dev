@@ -9,6 +9,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import type { MemberSlotMovedEvent } from '../../../../domain/events/game-events.js';
+import { getMemberOriginalBladeCount } from '../../../../domain/rules/live-modifiers.js';
 import { OrientationState, TriggerCondition } from '../../../../shared/types/enums.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { resolveStageMemberOrientationTargetSelection } from '../../../effects/stage-member-target-selection.js';
@@ -106,7 +107,7 @@ function startSeiraMovedAuto(
     );
   }
 
-  const opponentTargetIds = getOpponentLowPrintedBladeTargetIds(game, opponent.id);
+  const opponentTargetIds = getOpponentLowOriginalBladeTargetIds(game, opponent.id);
   if (opponentTargetIds.length === 0) {
     return finishPendingAbility(
       game,
@@ -188,7 +189,10 @@ function finishSeiraOpponentWait(
 
   const targetPlayerId =
     typeof effect.metadata?.targetPlayerId === 'string' ? effect.metadata.targetPlayerId : null;
-  if (!targetPlayerId || !getOpponentLowPrintedBladeTargetIds(game, targetPlayerId).includes(selectedCardId)) {
+  if (
+    !targetPlayerId ||
+    !getOpponentLowOriginalBladeTargetIds(game, targetPlayerId).includes(selectedCardId)
+  ) {
     return finishActiveEffect(
       game,
       player.id,
@@ -323,7 +327,7 @@ function getPendingMoveEvent(
   return null;
 }
 
-function getOpponentLowPrintedBladeTargetIds(
+function getOpponentLowOriginalBladeTargetIds(
   game: GameState,
   opponentPlayerId: string
 ): readonly string[] {
@@ -336,7 +340,7 @@ function getOpponentLowPrintedBladeTargetIds(
     return (
       orientation !== OrientationState.WAITING &&
       isMemberCardData(card.data) &&
-      card.data.blade <= 2
+      getMemberOriginalBladeCount(game, opponentPlayerId, card.instanceId) <= 2
     );
   });
 }

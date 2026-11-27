@@ -26,20 +26,21 @@ test('member stack inspection is read-only, closable and follows the current sta
   await page.evaluate(async (path) => {
     const authPath = '/src/store/authStore.ts';
     const { useAuthStore } = await import(authPath);
-    useAuthStore.getState().enterOfflineMode('下方成员查看验收');
+    useAuthStore.getState().enterOfflineMode('下方卡牌查看验收');
     (await import(path)).prepareMemberBelow();
   }, fixture);
   const before = await page.evaluate(
     async (path) => (await import(path)).memberBelowOutcome(),
     fixture
   );
-  const button = page.getByRole('button', { name: /查看.*下方的2张成员卡/ });
+  const button = page.getByRole('button', { name: /查看.*下方的2张卡牌/ });
   await button.click();
-  const dialog = page.getByRole('dialog', { name: '下方成员', exact: true });
+  const dialog = page.getByRole('dialog', { name: '下方卡牌', exact: true });
   const cards = dialog.locator('[data-battle-ui-object-id]');
   await expect(cards).toHaveCount(2);
   await expect(cards.first()).toContainText('4 中须霞');
-  const close = dialog.getByRole('button', { name: '关闭下方成员' });
+  await expect(cards.nth(1)).toContainText('2 AOKUHARUKA');
+  const close = dialog.getByRole('button', { name: '关闭下方卡牌' });
   await expect(close).toBeFocused();
   await expect
     .poll(() =>
@@ -65,7 +66,7 @@ test('member stack inspection is read-only, closable and follows the current sta
   // Opponent's public stack is inspectable; their hidden hand is never listed.
   const mobile = (page.viewportSize()?.width ?? 1024) < 768;
   if (mobile) await page.getByRole('button', { name: '切换至 对方 视角', exact: true }).click();
-  await page.getByRole('button', { name: /查看.*下方的1张成员卡/ }).click();
+  await page.getByRole('button', { name: /查看.*下方的1张卡牌/ }).click();
   await expect(cards).toHaveCount(1);
   await expect(cards.first()).toHaveAttribute('data-battle-ui-object-id', 'opponent-below');
   await close.click();
@@ -76,7 +77,7 @@ test('member stack inspection is read-only, closable and follows the current sta
   await expect(button).toHaveCount(0);
   // Larger stacks remain scrollable on narrow screens; a new match closes the old view.
   await page.evaluate(async (path) => (await import(path)).prepareMemberBelow(12), fixture);
-  await page.getByRole('button', { name: /查看.*下方的12张成员卡/ }).click();
+  await page.getByRole('button', { name: /查看.*下方的12张卡牌/ }).click();
   await expect(cards).toHaveCount(12);
   await expect(close).toBeInViewport();
   await cards.last().scrollIntoViewIfNeeded();

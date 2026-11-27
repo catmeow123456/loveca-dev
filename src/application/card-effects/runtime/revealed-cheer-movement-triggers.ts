@@ -13,17 +13,23 @@ import {
   type RevealedCheerCardDestination,
   type RevealedCheerCardsMovedEvent,
 } from '../../../domain/events/game-events.js';
-import { TriggerCondition } from '../../../shared/types/enums.js';
+import { TriggerCondition, ZoneType, type SlotPosition } from '../../../shared/types/enums.js';
 import { CardAbilityCategory, CardAbilitySourceZone } from '../ability-definition-types.js';
 import { getCardAbilityDefinitionsForCardCode } from '../definitions/lookup.js';
 import {
   moveRevealedCheerCards,
   type MoveRevealedCheerCardsResult,
+  type RevealedCheerCardListDestination,
 } from '../../effects/cheer-selection.js';
 import { getAbilitySourceLifecycleId } from './ability-source-lifecycle.js';
 import { canUseAbilityThisTurn } from './ability-turn-limit.js';
 import { isCurrentLiveCardAbilitySource } from './source-live.js';
 import { markTriggerEventDispatched } from './trigger-event-dispatch.js';
+import {
+  playMemberFromZoneToEmptySlot,
+  type EnqueueCardEffectPlacementTriggers,
+  type PlayMemberFromZoneToEmptySlotResult,
+} from './play-member-to-stage.js';
 
 const TIMING = TriggerCondition.ON_REVEALED_CHEER_CARDS_MOVED;
 
@@ -37,7 +43,7 @@ export function moveRevealedCheerCardsAndEnqueueTriggers(
   game: GameState,
   playerId: string,
   cardIds: readonly string[],
-  destination: RevealedCheerCardDestination,
+  destination: RevealedCheerCardListDestination,
   effect: MovingCardEffect
 ): MoveRevealedCheerCardsResult | null {
   const result = moveRevealedCheerCards(game, playerId, cardIds, destination);
@@ -45,15 +51,62 @@ export function moveRevealedCheerCardsAndEnqueueTriggers(
     return result;
   }
 
-  const event = createRevealedCheerCardsMovedEvent(playerId, result.movedCardIds, destination, {
+  return {
+    ...result,
+    gameState: recordRevealedCheerMovement(
+      result.gameState,
+      playerId,
+      result.movedCardIds,
+      destination,
+      effect
+    ),
+  };
+}
+
+/** The entry and cheer movement describe the same completed placement. */
+export function playRevealedCheerMemberToEmptySlotAndEnqueueTriggers(
+  game: GameState,
+  effect: MovingCardEffect,
+  cardId: string,
+  slot: SlotPosition,
+  enqueue: EnqueueCardEffectPlacementTriggers
+): PlayMemberFromZoneToEmptySlotResult | null {
+  const placement = playMemberFromZoneToEmptySlot(game, effect.controllerId, {
+    cardId,
+    toSlot: slot,
+    sourceZone: ZoneType.RESOLUTION_ZONE,
+  });
+  if (!placement) return null;
+  const state = recordRevealedCheerMovement(
+    placement.gameState,
+    effect.controllerId,
+    [placement.playedCardId],
+    'MEMBER_SLOT',
+    effect
+  );
+  return {
+    ...placement,
+    gameState: enqueue(state, [TriggerCondition.ON_ENTER_STAGE], {
+      enterStageEvents: [placement.enterStageEvent],
+    }),
+  };
+}
+
+function recordRevealedCheerMovement(
+  game: GameState,
+  playerId: string,
+  cardIds: readonly string[],
+  destination: RevealedCheerCardDestination,
+  effect: MovingCardEffect
+): GameState {
+  const event = createRevealedCheerCardsMovedEvent(playerId, cardIds, destination, {
     kind: 'CARD_EFFECT',
     playerId: effect.controllerId,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
     pendingAbilityId: effect.id,
   });
-  const recorded = emitGameEvent(result.gameState, event);
-  return { ...result, gameState: enqueueMovementTriggers(recorded, event) };
+  return enqueueMovementTriggers(emitGameEvent(game, event), event);
 }
 
 function enqueueMovementTriggers(game: GameState, event: RevealedCheerCardsMovedEvent): GameState {

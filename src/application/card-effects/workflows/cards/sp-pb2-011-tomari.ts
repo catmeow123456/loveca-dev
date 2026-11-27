@@ -10,6 +10,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import type { MemberSlotMovedEvent } from '../../../../domain/events/game-events.js';
+import { getMemberOriginalBladeCount } from '../../../../domain/rules/live-modifiers.js';
 import { OrientationState, SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import {
@@ -202,7 +203,7 @@ function startSpPb2011TomariAutoWorkflow(
     );
   }
 
-  const opponentTargetIds = getOpponentLowPrintedBladeTargetIds(game, opponent.id);
+  const opponentTargetIds = getOpponentLowOriginalBladeTargetIds(game, opponent.id);
   const selectableOptions = [
     { id: GAIN_BLADE_OPTION_ID, label: 'BLADE +2' },
     ...(opponentTargetIds.length > 0
@@ -350,7 +351,7 @@ function finishSpPb2011TomariOption(
   const opponentPlayerId =
     typeof effect.metadata?.opponentPlayerId === 'string' ? effect.metadata.opponentPlayerId : null;
   const opponentTargetIds = opponentPlayerId
-    ? getOpponentLowPrintedBladeTargetIds(game, opponentPlayerId)
+    ? getOpponentLowOriginalBladeTargetIds(game, opponentPlayerId)
     : [];
   if (!opponentPlayerId || opponentTargetIds.length === 0) {
     const state = recordAbilityUseForContext({ ...game, activeEffect: null }, player.id, {
@@ -407,7 +408,13 @@ function finishSpPb2011TomariOpponentWait(
     return game;
   }
 
-  const orientationChange = resolveStageMemberOrientationTargetSelection(game, effect, selectedCardId);
+  const targetPlayerId =
+    typeof effect.metadata?.targetPlayerId === 'string' ? effect.metadata.targetPlayerId : null;
+  const orientationChange =
+    targetPlayerId &&
+    getOpponentLowOriginalBladeTargetIds(game, targetPlayerId).includes(selectedCardId)
+      ? resolveStageMemberOrientationTargetSelection(game, effect, selectedCardId)
+      : null;
   if (!orientationChange) {
     const state = recordAbilityUseForContext({ ...game, activeEffect: null }, player.id, {
       abilityId: effect.abilityId,
@@ -483,7 +490,7 @@ function getPendingMoveEvent(
   return null;
 }
 
-function getOpponentLowPrintedBladeTargetIds(
+function getOpponentLowOriginalBladeTargetIds(
   game: GameState,
   opponentPlayerId: string
 ): readonly string[] {
@@ -496,7 +503,7 @@ function getOpponentLowPrintedBladeTargetIds(
     return (
       orientation !== OrientationState.WAITING &&
       isMemberCardData(card.data) &&
-      card.data.blade <= 2
+      getMemberOriginalBladeCount(game, opponentPlayerId, card.instanceId) <= 2
     );
   });
 }

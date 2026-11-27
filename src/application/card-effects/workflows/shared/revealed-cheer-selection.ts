@@ -11,7 +11,6 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import type { RevealedCheerCardDestination } from '../../../../domain/events/game-events.js';
 import { TriggerCondition } from '../../../../shared/types/enums.js';
 import {
   and,
@@ -31,6 +30,7 @@ import {
   selectRevealedCheerCardIds,
   selectCurrentLiveRevealedCheerCardIds,
   type CheerCardPredicate,
+  type RevealedCheerCardListDestination,
 } from '../../../effects/cheer-selection.js';
 import {
   PL_PB2_037_LIVE_SUCCESS_SAME_UNIT_CHEER_MEMBER_TO_HAND_ABILITY_ID,
@@ -113,7 +113,7 @@ interface RevealedCheerSelectionWorkflowConfig {
   readonly selectionLabel: string;
   readonly predicate?: CheerCardPredicate;
   readonly predicateForState?: (game: GameState, playerId: string) => CheerCardPredicate;
-  readonly destination: RevealedCheerCardDestination;
+  readonly destination: RevealedCheerCardListDestination;
   readonly optional: boolean;
   readonly ordered?: boolean;
   readonly confirmWhenNoTargets?: boolean;
@@ -995,7 +995,7 @@ function isMultiSelectRevealedCheerConfig(config: RevealedCheerSelectionWorkflow
   return config.selectMin !== undefined || config.selectMax !== undefined;
 }
 
-function getEffectDestination(effect: ActiveEffectState): RevealedCheerCardDestination | null {
+function getEffectDestination(effect: ActiveEffectState): RevealedCheerCardListDestination | null {
   return effect.metadata?.destination === 'HAND' ||
     effect.metadata?.destination === 'MAIN_DECK_TOP' ||
     effect.metadata?.destination === 'MAIN_DECK_BOTTOM' ||
@@ -1005,7 +1005,7 @@ function getEffectDestination(effect: ActiveEffectState): RevealedCheerCardDesti
 }
 
 function getConfirmSelectionLabel(
-  destination: RevealedCheerCardDestination,
+  destination: RevealedCheerCardListDestination,
   ordered = false
 ): string {
   if (destination === 'HAND') {

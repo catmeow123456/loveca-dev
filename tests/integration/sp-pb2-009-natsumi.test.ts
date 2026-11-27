@@ -58,6 +58,7 @@ function setupState(options: {
   readonly lowOpponentBlade?: number;
   readonly lowOpponentOrientation?: OrientationState;
   readonly sourceBlade?: number;
+  readonly sourceOrientation?: OrientationState;
 } = {}): {
   readonly game: GameState;
   readonly sourceId: string;
@@ -107,7 +108,7 @@ function setupState(options: {
         SlotPosition.CENTER,
         source.instanceId,
         {
-          orientation: OrientationState.ACTIVE,
+          orientation: options.sourceOrientation ?? OrientationState.ACTIVE,
           face: FaceState.FACE_UP,
         }
       ),
@@ -178,8 +179,8 @@ function resolveTwoStepWait(
   return state;
 }
 
-describe('PL!SP-pb2-009 Natsumi wait Liella member then opponent lower printed BLADE', () => {
-  it('on enter waits an own Liella member, then waits an opponent member by printed BLADE threshold', () => {
+describe('PL!SP-pb2-009 Natsumi wait Liella member then opponent lower original BLADE', () => {
+  it('on enter waits an own Liella member, then waits an opponent member by original BLADE threshold', () => {
     const scenario = setupState();
     const started = startAbility(
       scenario.game,
@@ -188,7 +189,7 @@ describe('PL!SP-pb2-009 Natsumi wait Liella member then opponent lower printed B
       TriggerCondition.ON_ENTER_STAGE
     );
 
-    expect(started.activeEffect?.selectableCardIds).toEqual([scenario.ownPayId]);
+    expect(started.activeEffect?.selectableCardIds).toEqual([scenario.ownPayId, scenario.sourceId]);
     const state = resolveTwoStepWait(started, scenario.ownPayId, scenario.lowOpponentId);
 
     expect(state.players[0].memberSlots.cardStates.get(scenario.ownPayId)?.orientation).toBe(
@@ -250,8 +251,11 @@ describe('PL!SP-pb2-009 Natsumi wait Liella member then opponent lower printed B
     );
   });
 
-  it('does not open a window without an own non-WAITING Liella member or opponent match', () => {
-    const noLiella = setupState({ ownPayOrientation: OrientationState.WAITING });
+  it('offers its own wait payment even when the opponent has no matching member', () => {
+    const noLiella = setupState({
+      ownPayOrientation: OrientationState.WAITING,
+      sourceOrientation: OrientationState.WAITING,
+    });
     const noLiellaStarted = startAbility(
       noLiella.game,
       SP_PB2_009_ON_ENTER_WAIT_LIELLA_MEMBER_WAIT_OPPONENT_LOWER_PRINTED_BLADE_ABILITY_ID,
@@ -267,10 +271,20 @@ describe('PL!SP-pb2-009 Natsumi wait Liella member then opponent lower printed B
       noOpponentMatch.sourceId,
       TriggerCondition.ON_ENTER_STAGE
     );
-    expect(noOpponentStarted.activeEffect).toBeNull();
+    expect(noOpponentStarted.activeEffect?.selectableCardIds).toContain(noOpponentMatch.ownPayId);
+    const paid = confirmActiveEffectStep(
+      noOpponentStarted,
+      PLAYER1,
+      noOpponentStarted.activeEffect!.id,
+      noOpponentMatch.ownPayId
+    );
+    expect(paid.activeEffect).toBeNull();
+    expect(paid.players[0].memberSlots.cardStates.get(noOpponentMatch.ownPayId)?.orientation).toBe(
+      OrientationState.WAITING
+    );
   });
 
-  it('uses printed BLADE and ignores BLADE modifiers when checking opponent threshold', () => {
+  it('uses original BLADE and ignores normal BLADE bonuses when checking opponent threshold', () => {
     const scenario = setupState({ ownPayBlade: 2, lowOpponentBlade: 1 });
     const modified = addLiveModifier(scenario.game, {
       kind: 'BLADE',
@@ -288,31 +302,40 @@ describe('PL!SP-pb2-009 Natsumi wait Liella member then opponent lower printed B
       TriggerCondition.ON_ENTER_STAGE
     );
 
-    expect(state.activeEffect).toBeNull();
-    expect(state.players[0].memberSlots.cardStates.get(scenario.ownPayId)?.orientation).toBe(
-      OrientationState.ACTIVE
+    expect(state.activeEffect?.selectableCardIds).toContain(scenario.ownPayId);
+    const paid = confirmActiveEffectStep(
+      state,
+      PLAYER1,
+      state.activeEffect!.id,
+      scenario.ownPayId
+    );
+    expect(paid.activeEffect).toBeNull();
+    expect(paid.players[0].memberSlots.cardStates.get(scenario.ownPayId)?.orientation).toBe(
+      OrientationState.WAITING
     );
   });
 
   it('does not allow already WAITING own or opponent members', () => {
     const ownWaiting = setupState({ ownPayOrientation: OrientationState.WAITING });
-    expect(
-      startAbility(
-        ownWaiting.game,
-        SP_PB2_009_ON_ENTER_WAIT_LIELLA_MEMBER_WAIT_OPPONENT_LOWER_PRINTED_BLADE_ABILITY_ID,
-        ownWaiting.sourceId,
-        TriggerCondition.ON_ENTER_STAGE
-      ).activeEffect
-    ).toBeNull();
+    const waitingStarted = startAbility(
+      ownWaiting.game,
+      SP_PB2_009_ON_ENTER_WAIT_LIELLA_MEMBER_WAIT_OPPONENT_LOWER_PRINTED_BLADE_ABILITY_ID,
+      ownWaiting.sourceId,
+      TriggerCondition.ON_ENTER_STAGE
+    );
+    expect(waitingStarted.activeEffect?.selectableCardIds).toEqual([ownWaiting.sourceId]);
 
     const opponentWaiting = setupState({ lowOpponentOrientation: OrientationState.WAITING });
+    const started = startAbility(
+      opponentWaiting.game,
+      SP_PB2_009_ON_ENTER_WAIT_LIELLA_MEMBER_WAIT_OPPONENT_LOWER_PRINTED_BLADE_ABILITY_ID,
+      opponentWaiting.sourceId,
+      TriggerCondition.ON_ENTER_STAGE
+    );
+    expect(started.activeEffect?.selectableCardIds).toContain(opponentWaiting.ownPayId);
     expect(
-      startAbility(
-        opponentWaiting.game,
-        SP_PB2_009_ON_ENTER_WAIT_LIELLA_MEMBER_WAIT_OPPONENT_LOWER_PRINTED_BLADE_ABILITY_ID,
-        opponentWaiting.sourceId,
-        TriggerCondition.ON_ENTER_STAGE
-      ).activeEffect
+      confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id, opponentWaiting.ownPayId)
+        .activeEffect
     ).toBeNull();
   });
 });

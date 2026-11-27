@@ -262,9 +262,13 @@ function executeSubPhaseAutoAction(
       if (
         state.players.every((candidate) => state.liveSetCompletedPlayers.includes(candidate.id))
       ) {
+        const movedCardIds: string[] = [];
         for (const candidate of state.players) {
-          state = liveProhibitedPlayerLiveZoneToWaitingRoom(state, candidate.id);
+          const cleared = liveProhibitedPlayerLiveZoneToWaitingRoom(state, candidate.id);
+          if (cleared !== state) movedCardIds.push(...candidate.liveZone.cardIds);
+          state = cleared;
         }
+        state = ctx.resolveLiveZoneToWaitingRoomTriggers(state, movedCardIds);
       }
       return state;
     }

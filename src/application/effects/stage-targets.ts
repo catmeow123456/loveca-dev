@@ -2,7 +2,7 @@ import type { CardInstance } from '../../domain/entities/card.js';
 import { isMemberCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
 import { getCardById, getPlayerById } from '../../domain/entities/game.js';
-import { getMemberOriginalHeartCount } from '../../domain/rules/live-modifiers.js';
+import { getMemberOriginalBladeCount, getMemberOriginalHeartCount } from '../../domain/rules/live-modifiers.js';
 import { findMemberSlot } from '../../domain/entities/player.js';
 import { OrientationState, SlotPosition } from '../../shared/types/enums.js';
 import type { CardSelector } from './card-selectors.js';
@@ -14,6 +14,11 @@ export type StageMemberStatePredicate = (
   playerId: string,
   cardId: string
 ) => boolean;
+
+export function memberOriginalBladeLte(maxBlade: number): StageMemberStatePredicate {
+  return (game, playerId, cardId) =>
+    getMemberOriginalBladeCount(game, playerId, cardId) <= maxBlade;
+}
 
 export function memberOriginalHeartLte(maxHeart: number): StageMemberStatePredicate {
   return (game, playerId, cardId) =>

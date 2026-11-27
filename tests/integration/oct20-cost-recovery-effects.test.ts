@@ -227,7 +227,9 @@ describe('October 20 cost/recovery source registration and exact text', () => {
         const definitions = getCardAbilityDefinitionsForCardCode(code);
         expect(definitions.map(({ abilityId }) => abilityId)).toEqual([...ids]);
         definitions.forEach((definition, index) => {
-          expect(definition.baseCardCodes).toEqual([base]);
+          expect(definition.baseCardCodes).toEqual(
+            definition.abilityId === RUBY ? [base, 'PL!S-pb2-022'] : [base]
+          );
           expect(definition.effectText).toBe(paragraphs[index]);
           if (definition.activatedUi) expect(definition.activatedUi.text).toBe(paragraphs[index]);
         });

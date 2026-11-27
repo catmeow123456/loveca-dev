@@ -588,6 +588,20 @@ export class GameService {
     };
   }
 
+  resumeReadyLiveSet(game: GameState): GameOperationResult {
+    if (
+      game.isEnded ||
+      game.currentPhase !== GamePhase.LIVE_SET_PHASE ||
+      game.currentSubPhase !== SubPhase.NONE ||
+      !game.players.every((player) => game.liveSetCompletedPlayers.includes(player.id)) ||
+      hasPendingAbilityOrChoice(game)
+    ) {
+      return { success: true, gameState: game };
+    }
+
+    return this.dispatchEvents(game, [GameEventType.ADVANCE_PHASE]);
+  }
+
   resolveReadyScoreConfirm(game: GameState): GameOperationResult {
     if (
       game.currentPhase !== GamePhase.LIVE_RESULT_PHASE ||

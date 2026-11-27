@@ -6,6 +6,7 @@ import {
   CardAbilitySourceZone,
 } from '../../src/application/card-effects/ability-definition-types';
 import { VALID_RARITIES } from '../../src/shared/utils/card-code';
+import { november20SharedPrBases } from '../helpers/november-20-draft-effects';
 
 const TARGET_BASES = [
   'PL!-bp8-012',
@@ -45,6 +46,7 @@ describe('October 20 authorized 19 cards / 22 full ability paragraphs', () => {
         .split(/\n\n+/)
         .map((paragraph) => paragraph.trim());
       const native = getCardAbilityDefinitionsForCardCode(row.cardCode);
+      const expectedBases = november20SharedPrBases.find(([older]) => older === base) ?? [base];
       expect(native).toHaveLength(expected.length);
       expect(native.map(({ effectText }) => effectText)).toEqual(expected);
       for (const rarity of VALID_RARITIES) {
@@ -53,7 +55,7 @@ describe('October 20 authorized 19 cards / 22 full ability paragraphs', () => {
           native.map(({ abilityId }) => abilityId)
         );
         definitions.forEach((definition, index) => {
-          expect(definition.baseCardCodes).toEqual([base]);
+          expect(definition.baseCardCodes).toEqual(expectedBases);
           expect(definition.cardCodes).toBeUndefined();
           expect(definition.implemented).toBe(true);
           expect(definition.effectText).toBe(expected[index]);

@@ -1268,7 +1268,7 @@ export const PlayerArea = memo(function PlayerArea({
                   <CardDetailPressTarget
                     cardId={memberCard?.instanceId ?? null}
                     disabled={!memberCard}
-                    title={`堆叠成员 #${originalIndex + 1}（可拖走）`}
+                    title={`下方卡牌 #${originalIndex + 1}（可拖走）`}
                     className={cn(
                       'battle-card-face w-full h-full overflow-hidden shadow-md cursor-grab active:cursor-grabbing',
                       isDragging
@@ -1278,10 +1278,10 @@ export const PlayerArea = memo(function PlayerArea({
                     )}
                   >
                     {imagePath ? (
-                      <img src={imagePath} alt="堆叠成员" className="w-full h-full object-cover" />
+                      <img src={imagePath} alt="下方卡牌" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-xs text-white/70">
-                        M
+                        {memberCard && isLiveCardData(memberCard.cardData) ? 'LIVE' : 'M'}
                       </div>
                     )}
                   </CardDetailPressTarget>

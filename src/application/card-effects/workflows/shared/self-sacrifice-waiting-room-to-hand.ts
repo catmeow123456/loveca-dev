@@ -130,7 +130,9 @@ const SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly SelfSacrificeWaiti
     },
     {
       abilityId: S_CL1_009_ACTIVATED_SELF_SACRIFICE_RECOVER_MEMBER_ABILITY_ID,
-      expectedBaseCardCodes: ['PL!S-cl1-009'],
+      expectedBaseCardCodes: getCardAbilityBaseCardCodes(
+        S_CL1_009_ACTIVATED_SELF_SACRIFICE_RECOVER_MEMBER_ABILITY_ID
+      ),
       stepId: 'S_CL1_009_SELECT_WAITING_ROOM_MEMBER',
       selectablePredicate: typeIs(CardType.MEMBER),
       selectionRequiredWhenHasTargets: true,
