@@ -89,6 +89,15 @@ import {
 } from './card-effects/runtime/granted-member-below-abilities.js';
 import { registerLlBp8001NicoAiSerasWorkflowHandlers } from './card-effects/workflows/cards/ll-bp8-001-nico-ai-seras.js';
 import { registerSPb2000KananMariWorkflowHandlers } from './card-effects/workflows/cards/s-pb2-000-kanan-mari.js';
+import { registerSPb2007HanamaruWorkflowHandlers } from './card-effects/workflows/cards/s-pb2-007-hanamaru.js';
+import { registerSPb2016HanamaruWorkflowHandlers } from './card-effects/workflows/cards/s-pb2-016-hanamaru.js';
+import { registerSPb2021KananWorkflowHandlers } from './card-effects/workflows/cards/s-pb2-021-kanan.js';
+import { registerSPb2014YouWorkflowHandlers } from './card-effects/workflows/cards/s-pb2-014-you.js';
+import { registerSPb2019ChikaWorkflowHandlers } from './card-effects/workflows/cards/s-pb2-019-chika.js';
+import { registerSPb2004DiaWorkflowHandlers } from './card-effects/workflows/cards/s-pb2-004-dia.js';
+import { registerSPb2015YoshikoWorkflowHandlers } from './card-effects/workflows/cards/s-pb2-015-yoshiko.js';
+import { registerSPb2038AqoursHeroesWorkflowHandlers } from './card-effects/workflows/cards/s-pb2-038-aqours-heroes.js';
+import { registerSPb2039HopStepWaiWorkflowHandlers } from './card-effects/workflows/cards/s-pb2-039-hop-step-wai.js';
 import {
   and,
   costGte,
@@ -135,6 +144,7 @@ import { enqueueStateTriggeredCardEffects } from './card-effects/runtime/state-t
 import { resolvePendingAbilityStarterWithRegistry } from './card-effects/runtime/starter-registry.js';
 import { resolveFirstNonActionablePendingAbilityWithRegistry } from './card-effects/runtime/pending-ability-preflight.js';
 import { getPendingOrderOptionHintWithRegistry } from './card-effects/runtime/pending-order-option-hints.js';
+import { getEnterWaitingRoomAbilityTriggers } from './card-effects/runtime/enter-waiting-room-triggers.js';
 import { resolveActiveEffectStepWithRegistry } from './card-effects/runtime/step-registry.js';
 import { advanceDelegatedAbilitySequence } from './card-effects/runtime/delegated-ability-sequence.js';
 import {
@@ -245,6 +255,10 @@ import { registerSFutureWaterBatch3WorkflowHandlers } from './card-effects/workf
 import { registerLiveSuccessEnergyDifferenceScoreWorkflowHandlers } from './card-effects/workflows/shared/live-success-energy-difference-score.js';
 import { registerAqoursHeartScoreBonusesWorkflowHandlers } from './card-effects/workflows/shared/aqours-heart-score-bonuses.js';
 import { registerSFutureWaterFinalWorkflowHandlers } from './card-effects/workflows/cards/s-bp6-002-riko.js';
+import { registerSPb2001ChikaWorkflowHandlers } from './card-effects/workflows/cards/s-pb2-001-chika.js';
+import { registerSPb2002RikoWorkflowHandlers } from './card-effects/workflows/cards/s-pb2-002-riko.js';
+import { registerSPb2006YoshikoWorkflowHandlers } from './card-effects/workflows/cards/s-pb2-006-yoshiko.js';
+import { registerSPb2026MariWorkflowHandlers } from './card-effects/workflows/cards/s-pb2-026-mari.js';
 import { registerHsBp5003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-003-rurino.js';
 import { registerHsBp5002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-002-sayaka.js';
 import { registerHsBp5005KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-005-kosuzu.js';
@@ -982,6 +996,10 @@ registerSFutureWaterBatch2LiveStartWorkflowHandlers();
 registerSFutureWaterBatch3WorkflowHandlers();
 registerLiveSuccessEnergyDifferenceScoreWorkflowHandlers();
 registerSFutureWaterFinalWorkflowHandlers();
+registerSPb2001ChikaWorkflowHandlers();
+registerSPb2002RikoWorkflowHandlers();
+registerSPb2006YoshikoWorkflowHandlers();
+registerSPb2026MariWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerDiscardLookTopSelectToHandWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp5003KotoriWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp6024SuccessReplacementWorkflowHandlers();
@@ -1281,6 +1299,15 @@ registerLlBp6001KotoriDiaKosuzuWorkflowHandlers({ enqueueTriggeredCardEffects })
 registerLlBp4001EliKarinRenWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLlBp8001NicoAiSerasWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSPb2000KananMariWorkflowHandlers();
+registerSPb2007HanamaruWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSPb2016HanamaruWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSPb2021KananWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSPb2014YouWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSPb2019ChikaWorkflowHandlers();
+registerSPb2004DiaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSPb2015YoshikoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSPb2038AqoursHeroesWorkflowHandlers();
+registerSPb2039HopStepWaiWorkflowHandlers();
 registerPlBp3001HonokaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlBp3022YumeNoTobiraWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp3028TsunagaruConnectWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -1888,63 +1915,64 @@ function enqueueSingleEnterWaitingRoomCardEffect(
       continue;
     }
 
-    const pendingAbilityId = `${abilityId}:${source.sourceCardId}:${source.event.eventId}`;
-    if (hasAbilityInstance(state, pendingAbilityId)) {
-      continue;
+    for (const trigger of getEnterWaitingRoomAbilityTriggers(state, abilityId, source.event)) {
+      state = enqueueWaitingRoomAbilityTrigger(state, source, abilityId, trigger);
     }
-
-    const movedCardIds = source.event.cardInstanceIds ?? [source.event.cardInstanceId];
-    const pendingAbility: PendingAbilityState = {
-      id: pendingAbilityId,
-      abilityId,
-      sourceCardId: source.sourceCardId,
-      controllerId: source.controllerId,
-      mandatory: true,
-      timingId: TriggerCondition.ON_ENTER_WAITING_ROOM,
-      eventIds: [source.event.eventId],
-      ...(source.sourceSlot !== undefined ? { sourceSlot: source.sourceSlot } : {}),
-      metadata: {
-        movedCardIds,
-        fromZone: source.event.fromZone,
-        toZone: source.event.toZone,
-        ...(source.event.cause
-          ? {
-              causedByPlayerId: source.event.cause.playerId,
-              causedBySourceCardId: source.event.cause.sourceCardId,
-              causedByAbilityId: source.event.cause.abilityId ?? null,
-              causedByPendingAbilityId: source.event.cause.pendingAbilityId ?? null,
-            }
-          : {}),
-      },
-    };
-
-    state = recordTriggeredAbility(
-      {
-        ...state,
-        pendingAbilities: appendTriggeredAbility(state, pendingAbility),
-      },
-      'TRIGGER_ABILITY',
-      pendingAbility.controllerId,
-      {
-        pendingAbilityId,
-        abilityId: pendingAbility.abilityId,
-        sourceCardId: source.sourceCardId,
-        timingId: pendingAbility.timingId,
-        ...(source.sourceSlot !== undefined ? { sourceSlot: source.sourceSlot } : {}),
-        movedCardIds,
-        ...(source.event.cause
-          ? {
-              causedByPlayerId: source.event.cause.playerId,
-              causedBySourceCardId: source.event.cause.sourceCardId,
-              causedByAbilityId: source.event.cause.abilityId ?? null,
-              causedByPendingAbilityId: source.event.cause.pendingAbilityId ?? null,
-            }
-          : {}),
-      }
-    );
   }
 
   return state;
+}
+
+function enqueueWaitingRoomAbilityTrigger(
+  game: GameState,
+  source: EnterWaitingRoomAbilitySource,
+  abilityId: string,
+  trigger: { readonly movedCardIds: readonly string[]; readonly cardId?: string }
+): GameState {
+  const { cause, eventId, fromZone, toZone } = source.event;
+  const pendingAbilityId = [abilityId, source.sourceCardId, eventId, trigger.cardId]
+    .filter((id) => id !== undefined)
+    .join(':');
+  if (hasAbilityInstance(game, pendingAbilityId)) {
+    return game;
+  }
+
+  const movementFacts = {
+    movedCardIds: trigger.movedCardIds,
+    ...(cause
+      ? {
+          causedByPlayerId: cause.playerId,
+          causedBySourceCardId: cause.sourceCardId,
+          causedByAbilityId: cause.abilityId ?? null,
+          causedByPendingAbilityId: cause.pendingAbilityId ?? null,
+        }
+      : {}),
+  };
+  const pendingAbility: PendingAbilityState = {
+    id: pendingAbilityId,
+    abilityId,
+    sourceCardId: source.sourceCardId,
+    controllerId: source.controllerId,
+    mandatory: true,
+    timingId: TriggerCondition.ON_ENTER_WAITING_ROOM,
+    eventIds: [eventId],
+    ...(source.sourceSlot !== undefined ? { sourceSlot: source.sourceSlot } : {}),
+    metadata: { ...movementFacts, fromZone, toZone },
+  };
+
+  return recordTriggeredAbility(
+    { ...game, pendingAbilities: appendTriggeredAbility(game, pendingAbility) },
+    'TRIGGER_ABILITY',
+    pendingAbility.controllerId,
+    {
+      pendingAbilityId,
+      abilityId,
+      sourceCardId: source.sourceCardId,
+      timingId: pendingAbility.timingId,
+      ...(source.sourceSlot !== undefined ? { sourceSlot: source.sourceSlot } : {}),
+      ...movementFacts,
+    }
+  );
 }
 
 function doesEnterWaitingRoomEventSatisfyAbilityDefinition(

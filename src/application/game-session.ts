@@ -1282,19 +1282,22 @@ export class GameSession {
       return;
     }
 
-    this.resolveReadyScoreConfirm();
+    this.resumeReadyLiveTransitions();
     this.autoAdvance(this.authorityState);
     this.runModeAutomationLoop(triggerPlayerId);
   }
 
-  private resolveReadyScoreConfirm(): void {
+  private resumeReadyLiveTransitions(): void {
     if (!this.authorityState) {
       return;
     }
 
-    const result = this.gameService.resolveReadyScoreConfirm(this.authorityState);
+    const result =
+      this.authorityState.currentPhase === GamePhase.LIVE_SET_PHASE
+        ? this.gameService.resumeReadyLiveSet(this.authorityState)
+        : this.gameService.resolveReadyScoreConfirm(this.authorityState);
     if (!result.success) {
-      console.warn('[GameSession] 分数确认恢复失败:', result.error);
+      console.warn('[GameSession] LIVE 阶段恢复失败:', result.error);
       return;
     }
 
@@ -1375,7 +1378,7 @@ export class GameSession {
       action,
       playerId: actorPlayerId,
     });
-    this.resolveReadyScoreConfirm();
+    this.resumeReadyLiveTransitions();
     this.autoAdvance(this.authorityState);
 
     return true;
@@ -1438,7 +1441,7 @@ export class GameSession {
       sealedAuditRecords: result.sealedAuditRecords,
     });
     this.recordCommand(recordedCommand, 'ACCEPTED');
-    this.resolveReadyScoreConfirm();
+    this.resumeReadyLiveTransitions();
     this.autoAdvance(this.authorityState);
     return true;
   }
@@ -6020,6 +6023,16 @@ function buildDerivedPublicEvents(
     ...nextState.cardRegistry.keys(),
   ]);
   const moveEventCardIds = new Set<string>();
+  const privateDeckOrderCardIds = new Set<string>();
+  for (const action of nextState.actionHistory.slice(previousState.actionHistory.length)) {
+    if (action.type !== 'RESOLVE_ABILITY' && action.type !== 'PAY_COST') continue;
+    const cardIds = action.payload.privateMainDeckOrderCardIds;
+    if (Array.isArray(cardIds)) {
+      for (const cardId of cardIds) {
+        if (typeof cardId === 'string') privateDeckOrderCardIds.add(cardId);
+      }
+    }
+  }
 
   for (const cardId of candidateCardIds) {
     const previousLocation = locateCardForSystemEvent(previousState, cardId);
@@ -6035,7 +6048,10 @@ function buildDerivedPublicEvents(
     events.push(
       buildCardMovedPublicEvent(previousState, nextState, options.actorSeat, cardId, {
         from: sanitizeSystemZoneRef(previousLocation),
-        to: sanitizeSystemZoneRef(nextLocation),
+        to:
+          nextLocation.ref.zone === ZoneType.MAIN_DECK && privateDeckOrderCardIds.has(cardId)
+            ? { zone: ZoneType.MAIN_DECK, ownerSeat: nextLocation.ref.ownerSeat }
+            : sanitizeSystemZoneRef(nextLocation),
         source: options.source,
       })
     );
@@ -6452,6 +6468,16 @@ function locateCardForSystemEvent(state: GameState, cardId: string): EventCardLo
           slot,
           overlayIndex,
         });
+      }
+
+      const stackedIndex = player.memberSlots.memberBelow?.[slot]?.indexOf(cardId) ?? -1;
+      if (stackedIndex >= 0 && state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE) {
+        return createEventCardLocation(
+          createOwnedZoneRef(ZoneType.MEMBER_SLOT, seat, {
+            slot,
+            overlayIndex: player.memberSlots.energyBelow[slot].length + stackedIndex,
+          })
+        );
       }
     }
   }

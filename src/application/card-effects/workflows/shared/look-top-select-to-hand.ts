@@ -852,6 +852,63 @@ function finishOptionalSourceOrientationLookTopWorkflow(
   );
 }
 
+export function startPrivateLookTopTakeOneWorkflow(
+  game: GameState,
+  ability: LookTopSelectToHandAbilityContext,
+  config: {
+    readonly topCount: number;
+    readonly selectStepId: string;
+    readonly sourceActionLabel: '登场' | 'LIVE成功';
+    readonly startActionPayload?: Readonly<Record<string, unknown>>;
+  },
+  options: LookTopSelectToHandWorkflowOptions
+): GameState {
+  if (config.topCount === 0) {
+    const state = {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+    };
+    return options.continuePendingCardEffects(
+      addAction(state, 'RESOLVE_ABILITY', ability.controllerId, {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: 'NO_CARDS_TO_INSPECT',
+        ...config.startActionPayload,
+      }),
+      options.orderedResolution === true
+    );
+  }
+
+  return startLookTopSelectToHandWorkflow(
+    game,
+    ability,
+    {
+      effectText: getAbilityEffectText(ability.abilityId),
+      topCount: config.topCount,
+      selector: () => true,
+      countRule: { exactCount: 1 },
+      revealSelectedBeforeHand: false,
+      selectStepId: config.selectStepId,
+      selectStepText: '请选择1张检视的卡加入手牌。其余卡片放置入休息室。',
+      noTargetStepText: '没有可加入手牌的卡。',
+      selectionLabel: '选择要加入手牌的卡',
+      confirmSelectionLabel: '加入手牌',
+      clampExactCountToInspectedCount: true,
+      startActionPayload: config.startActionPayload,
+      finishActionStep: 'TAKE_ONE_REST_TO_WAITING_ROOM',
+      includeInspectedCardIdsInFinishAction: true,
+      publicEffectSummaryContext: {
+        effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+        sourceActionLabel: config.sourceActionLabel,
+        inspectSourceZone: ZoneType.MAIN_DECK,
+        requestedInspectCount: config.topCount,
+      },
+    },
+    options
+  );
+}
+
 export function startLookTopSelectToHandWorkflow(
   game: GameState,
   ability: LookTopSelectToHandAbilityContext,

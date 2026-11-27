@@ -31,6 +31,7 @@ export type PublicCardSelectionDestination =
   | 'MAIN_DECK_POSITION_4'
   | 'MAIN_DECK_POSITION_5'
   | 'LIVE_ZONE'
+  | 'MEMBER_SLOT'
   | 'WAITING_ROOM';
 
 export type PublicCardSelectionSource = 'WAITING_ROOM' | 'REVEALED_CHEER' | 'REVEALED_INSPECTION';
@@ -39,6 +40,7 @@ export interface PublicCardSelectionConfirmationConfig {
   readonly destination: PublicCardSelectionDestination;
   readonly source?: PublicCardSelectionSource;
   readonly ordered?: boolean;
+  readonly privateOrder?: boolean;
   readonly sourcePlayerId?: string;
   readonly stepText?: string;
   readonly distinctGroupAssignment?: boolean;
@@ -89,6 +91,7 @@ export function getPublicCardSelectionConfirmationConfig(
     destination !== 'MAIN_DECK_POSITION_4' &&
     destination !== 'MAIN_DECK_POSITION_5' &&
     destination !== 'LIVE_ZONE' &&
+    destination !== 'MEMBER_SLOT' &&
     destination !== 'WAITING_ROOM'
   ) {
     return null;
@@ -126,6 +129,7 @@ export function getPublicCardSelectionConfirmationConfig(
     destination,
     source: source ?? 'WAITING_ROOM',
     ordered: candidate.ordered === true,
+    privateOrder: candidate.privateOrder === true,
     sourcePlayerId:
       typeof candidate.sourcePlayerId === 'string' ? candidate.sourcePlayerId : undefined,
     stepText: typeof candidate.stepText === 'string' ? candidate.stepText : undefined,
@@ -188,7 +192,8 @@ export function createPublicCardSelectionConfirmationWindowForCardIds(
   ) {
     return null;
   }
-  const copy = getConfirmationCopy(config);
+  const publicOrder = config.ordered === true && config.privateOrder !== true;
+  const copy = getConfirmationCopy(config.destination, publicOrder);
   const continuation: PublicCardSelectionConfirmationContinuation = {
     originalEffect:
       config.source === 'REVEALED_INSPECTION'
@@ -214,8 +219,8 @@ export function createPublicCardSelectionConfirmationWindowForCardIds(
       stepId: PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
       stepText: config.stepText ?? copy.stepText,
       awaitingPlayerId: originalEffect.awaitingPlayerId,
-      revealedCardIds: selectedCardIds,
-      publicCardSelectionOrdered: config.ordered === true,
+      revealedCardIds: config.privateOrder ? [...selectedCardIds].sort() : selectedCardIds,
+      publicCardSelectionOrdered: publicOrder,
       metadata: {
         publicCardSelectionConfirmationContinuation: continuation,
       },
@@ -386,17 +391,17 @@ function getSelectedCardIds(input: ActiveEffectStepHandlerInput): readonly strin
   return input.selectedCardId ? [input.selectedCardId] : [];
 }
 
-function getConfirmationCopy(config: PublicCardSelectionConfirmationConfig): {
+function getConfirmationCopy(destination: PublicCardSelectionDestination, publicOrder: boolean): {
   readonly stepText: string;
 } {
-  switch (config.destination) {
+  switch (destination) {
     case 'HAND':
       return {
         stepText: '已选择的卡牌已向双方公开，即将自动加入手牌。',
       };
     case 'MAIN_DECK_BOTTOM':
       return {
-        stepText: config.ordered
+        stepText: publicOrder
           ? '已选择的卡牌及放置顺序已向双方公开。'
           : '已选择的卡牌已向双方公开。',
       };
@@ -410,7 +415,7 @@ function getConfirmationCopy(config: PublicCardSelectionConfirmationConfig): {
       };
     case 'MAIN_DECK_TOP':
       return {
-        stepText: config.ordered
+        stepText: publicOrder
           ? '已选择的卡牌及放置顺序已向双方公开。'
           : '已选择的卡牌已向双方公开。',
       };
@@ -421,6 +426,10 @@ function getConfirmationCopy(config: PublicCardSelectionConfirmationConfig): {
     case 'LIVE_ZONE':
       return {
         stepText: '已选择的LIVE卡已向双方公开，即将自动正面放置入LIVE卡区。',
+      };
+    case 'MEMBER_SLOT':
+      return {
+        stepText: '展示结束后，为所选成员确定登场的空成员区。',
       };
   }
 }

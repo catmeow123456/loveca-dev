@@ -21,6 +21,7 @@ import {
   LL_BP1_001_ON_ENTER_RECOVER_MEMBER_ABILITY_ID,
   N_BP7_002_ON_ENTER_THREE_QU4RTZ_RECOVER_CARD_ABILITY_ID,
   N_BP7_014_AUTO_LEAVE_STAGE_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+  PL_PR_027_ON_ENTER_RECOVER_CARD_IF_SUCCESS_SCORE_ELEVEN_ABILITY_ID,
   PL_S_PB1_001_ON_ENTER_OPPONENT_HAND_TWO_MORE_RECOVER_LIVE_ABILITY_ID,
   PR_018_ON_ENTER_RECOVER_HIGH_SCORE_LIVE_ABILITY_ID,
   SP_BP1_007_ON_ENTER_ENERGY_ELEVEN_RECOVER_LIVE_ABILITY_ID,
@@ -42,7 +43,10 @@ import {
   typeIs,
   unitAliasIs,
 } from '../../../effects/card-selectors.js';
-import { countSuccessfulLiveCards } from '../../../effects/conditions.js';
+import {
+  countSuccessfulLiveCards,
+  successLiveScoreForCardEffectAtLeast,
+} from '../../../effects/conditions.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import {
   createWaitingRoomToHandEffectState,
@@ -88,7 +92,7 @@ export interface WaitingRoomToHandWorkflowConfig {
   readonly selectionLabel?: string;
   readonly confirmSelectionLabel?: string;
   readonly selectionRequiredWhenHasTargets?: boolean;
-  readonly canStart?: (game: GameState, playerId: string) => boolean;
+  readonly canStart?: (game: GameState, playerId: string, sourceCardId: string) => boolean;
   readonly conditionNotMetActionStep?: string;
   readonly noCandidatesActionStep?: string;
   readonly confirmNoCandidates?: boolean;
@@ -190,6 +194,21 @@ const WAITING_ROOM_TO_HAND_WORKFLOWS: readonly RegisteredWaitingRoomToHandWorkfl
     selectionRequiredWhenHasTargets: true,
   },
   {
+    abilityId: PL_PR_027_ON_ENTER_RECOVER_CARD_IF_SUCCESS_SCORE_ELEVEN_ABILITY_ID,
+    stepId: 'PL_PR_027_SELECT_WAITING_ROOM_CARD',
+    stepText: '请选择自己的休息室中1张卡片加入手牌。',
+    selectionLabel: '选择要加入手牌的卡',
+    confirmSelectionLabel: '加入手牌',
+    canStart: (game, playerId, sourceCardId) =>
+      successLiveScoreForCardEffectAtLeast(game, playerId, sourceCardId, [playerId], 11),
+    conditionNotMetActionStep: 'SUCCESS_SCORE_BELOW_ELEVEN',
+    noCandidatesActionStep: 'NO_WAITING_ROOM_CARD_TARGET',
+    candidateBuilder: (game, playerId) => selectWaitingRoomCardIds(game, playerId, () => true),
+    countRule: { exactCount: 1 },
+    optional: false,
+    trackWaitingRoomTargetLifecycle: true,
+  },
+  {
     abilityId: PL_S_PB1_001_ON_ENTER_OPPONENT_HAND_TWO_MORE_RECOVER_LIVE_ABILITY_ID,
     stepId: PL_S_PB1_001_SELECT_WAITING_ROOM_LIVE_STEP_ID,
     stepText: '请选择自己休息室中1张LIVE卡加入手牌。',
@@ -284,7 +303,7 @@ export function registerWaitingRoomToHandWorkflowHandlers(): void {
         return game;
       }
       const orderedResolution = options.orderedResolution === true;
-      if (config.canStart && !config.canStart(game, player.id)) {
+      if (config.canStart && !config.canStart(game, player.id, ability.sourceCardId)) {
         return consumeWaitingRoomToHandPending(
           game,
           ability,

@@ -4,8 +4,12 @@ import {
   getPlayerById,
   type GameState,
 } from '../../../../domain/entities/game.js';
-import { S_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID } from '../../ability-ids.js';
+import {
+  S_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID,
+  S_PB2_036_LIVE_SUCCESS_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID,
+} from '../../ability-ids.js';
 import { drawCardsForPlayer, moveHandCardToDeckBottomForPlayer } from '../../runtime/actions.js';
+import { queryCardSelection } from '../../runtime/selection-query.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -15,21 +19,26 @@ const SELECT_HAND_TO_BOTTOM_STEP_ID = 'S_SELECT_HAND_CARD_TO_DECK_BOTTOM_AFTER_D
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 export function registerDrawOnePlaceHandBottomWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
+  for (const abilityId of [
     S_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID,
-    (game, ability, options) =>
+    S_PB2_036_LIVE_SUCCESS_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID,
+  ]) {
+    registerPendingAbilityStarterHandler(abilityId, (game, ability, options) =>
       startDrawOnePlaceHandBottomWorkflow(game, ability, options.orderedResolution === true)
-  );
-  registerActiveEffectStepHandler(
-    S_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID,
-    SELECT_HAND_TO_BOTTOM_STEP_ID,
-    (game, input, context) =>
-      finishDrawOnePlaceHandBottomWorkflow(
-        game,
-        input.selectedCardId ?? null,
-        context.continuePendingCardEffects
-      )
-  );
+    );
+    registerActiveEffectStepHandler(
+      abilityId,
+      SELECT_HAND_TO_BOTTOM_STEP_ID,
+      (game, input, context) =>
+        finishDrawOnePlaceHandBottomWorkflow(
+          game,
+          abilityId,
+          input.selectedCardId ?? null,
+          context.continuePendingCardEffects
+        ),
+      queryCardSelection
+    );
+  }
 }
 
 function startDrawOnePlaceHandBottomWorkflow(
@@ -70,17 +79,17 @@ function startDrawOnePlaceHandBottomWorkflow(
         abilityId: ability.abilityId,
         sourceCardId: ability.sourceCardId,
         controllerId: ability.controllerId,
-        effectText: getAbilityEffectText(S_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID),
+        effectText: getAbilityEffectText(ability.abilityId),
         stepId: SELECT_HAND_TO_BOTTOM_STEP_ID,
         stepText:
           selectableCardIds.length > 0
-            ? '请选择1张手牌放置到卡组底。'
-            : '没有可放置到卡组底的手牌。确认后继续。',
+            ? '请选择1张手牌放置于卡组底。'
+            : '没有可放置于卡组底的手牌。确认后继续。',
         awaitingPlayerId: player.id,
         selectableCardIds,
         selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
-        selectionLabel: '选择要放置到卡组底的手牌',
-        confirmSelectionLabel: '放置到卡组底',
+        selectionLabel: '选择要放置于卡组底的手牌',
+        confirmSelectionLabel: '放置于卡组底',
         canSkipSelection: selectableCardIds.length === 0,
         skipSelectionLabel: selectableCardIds.length === 0 ? '确认' : undefined,
         metadata: {
@@ -104,11 +113,12 @@ function startDrawOnePlaceHandBottomWorkflow(
 
 function finishDrawOnePlaceHandBottomWorkflow(
   game: GameState,
+  abilityId: string,
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = getCardActiveEffect(game);
-  if (!effect || effect.abilityId !== S_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID) {
+  if (!effect || effect.abilityId !== abilityId) {
     return game;
   }
 

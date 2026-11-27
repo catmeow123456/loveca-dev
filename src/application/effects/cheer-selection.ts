@@ -79,6 +79,8 @@ export interface MoveRevealedCheerCardsResult {
   readonly movedCardIds: readonly string[];
 }
 
+export type RevealedCheerCardListDestination = Exclude<RevealedCheerCardDestination, 'MEMBER_SLOT'>;
+
 export interface DistinctCheerHeartColorAssignment {
   readonly color: HeartColor;
   readonly cardId: string;
@@ -427,7 +429,7 @@ export function moveRevealedCheerCards(
   game: GameState,
   playerId: string,
   cardIds: readonly string[],
-  destination: RevealedCheerCardDestination
+  destination: RevealedCheerCardListDestination
 ): MoveRevealedCheerCardsResult | null {
   const player = getPlayerById(game, playerId);
   if (!player) {

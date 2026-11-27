@@ -17,6 +17,35 @@ export type EnqueueTriggeredCardEffectsForEnterWaitingRoom = (
   }
 ) => GameState;
 
+type EnterWaitingRoomCardTriggerFilter = (
+  game: GameState,
+  event: EnterWaitingRoomEvent,
+  cardId: string
+) => boolean;
+
+const perCardTriggerFilters = new Map<string, EnterWaitingRoomCardTriggerFilter>();
+
+export function registerEnterWaitingRoomPerCardTrigger(
+  abilityId: string,
+  filter: EnterWaitingRoomCardTriggerFilter
+): void {
+  perCardTriggerFilters.set(abilityId, filter);
+}
+
+export function getEnterWaitingRoomAbilityTriggers(
+  game: GameState,
+  abilityId: string,
+  event: EnterWaitingRoomEvent
+): readonly { readonly movedCardIds: readonly string[]; readonly cardId?: string }[] {
+  const movedCardIds = event.cardInstanceIds ?? [event.cardInstanceId];
+  const perCardFilter = perCardTriggerFilters.get(abilityId);
+  return perCardFilter
+    ? [...new Set(movedCardIds)]
+        .filter((cardId) => perCardFilter(game, event, cardId))
+        .map((cardId) => ({ movedCardIds: [cardId], cardId }))
+    : [{ movedCardIds }];
+}
+
 export function enqueueEnterWaitingRoomTriggersFromDiscardResult(
   game: GameState,
   discardResult: Pick<DiscardHandCardsToWaitingRoomResult, 'enterWaitingRoomEvent'>,

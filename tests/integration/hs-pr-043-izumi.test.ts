@@ -154,7 +154,8 @@ describe('PL!HS-PR-043 费用7「桂城泉」', () => {
       ).success
     ).toBe(true);
     const reveal = session.state!.activeEffect!;
-    expect(reveal.publicCardSelectionOrdered).toBe(true);
+    expect(reveal.publicCardSelectionOrdered).toBe(false);
+    expect(reveal.revealedCardIds).toEqual(['a', 'b']);
     for (const player of [P1, P2])
       expect(
         projectPlayerViewState(session.state!, player).objects[createPublicObjectId('a')].surface

@@ -1113,6 +1113,18 @@ export function moveHandCardsToDeckTopForPlayer(
   selectedCardIds: readonly string[],
   options: MoveHandCardsToDeckTopForPlayerOptions
 ): MoveHandCardsToDeckTopForPlayerResult | null {
+  return moveHandCardsToDeckEdgeForPlayer(game, playerId, selectedCardIds, {
+    ...options,
+    position: 'TOP',
+  });
+}
+
+export function moveHandCardsToDeckEdgeForPlayer(
+  game: GameState,
+  playerId: string,
+  selectedCardIds: readonly string[],
+  options: MoveHandCardsToDeckTopForPlayerOptions & { readonly position: 'TOP' | 'BOTTOM' }
+): MoveHandCardsToDeckTopForPlayerResult | null {
   const player = getPlayerById(game, playerId);
   const exactCount = Math.floor(options.exactCount);
   const uniqueSelectedCardIds = new Set(selectedCardIds);
@@ -1147,7 +1159,10 @@ export function moveHandCardsToDeckTopForPlayer(
     },
     mainDeck: {
       ...currentPlayer.mainDeck,
-      cardIds: [...selectedCardIds, ...currentPlayer.mainDeck.cardIds],
+      cardIds:
+        options.position === 'TOP'
+          ? [...selectedCardIds, ...currentPlayer.mainDeck.cardIds]
+          : [...currentPlayer.mainDeck.cardIds, ...selectedCardIds],
     },
   }));
 

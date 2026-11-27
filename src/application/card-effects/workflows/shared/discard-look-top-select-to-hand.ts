@@ -28,6 +28,7 @@ import {
   N_SD2_014_ON_ENTER_DISCARD_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID,
   PL_N_BP3_012_ON_ENTER_DISCARD_LOOK_TOP_NIJIGASAKI_CARD_ABILITY_ID,
   PL_BP5_014_ON_ENTER_DISCARD_LOOK_TOP_BLUE_OR_PURPLE_HEART_MEMBER_ABILITY_ID,
+  S_PB2_032_ON_ENTER_DISCARD_LOOK_TOP_AQOURS_MEMBER_ABILITY_ID,
   SP_BP7_018_ON_ENTER_DISCARD_LIVE_LOOK_TOP_FIVE_TAKE_ONE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
@@ -96,6 +97,7 @@ const DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS: readonly {
   readonly topCount: number;
   readonly memberOnly?: boolean;
   readonly noBladeHeartOnly?: boolean;
+  readonly canDiscardSourceCard?: boolean;
   readonly publicSelectorLabel?: string;
   readonly effectTextAbilityId?: string;
 }[] = [
@@ -116,6 +118,17 @@ const DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS: readonly {
     selectorKind: 'GROUP',
     topCount: 6,
     memberOnly: true,
+  },
+  {
+    baseCardCode: 'PL!S-pb2-032',
+    alias: 'Aqours',
+    selectorKind: 'GROUP',
+    topCount: 5,
+    memberOnly: true,
+    noBladeHeartOnly: true,
+    canDiscardSourceCard: true,
+    publicSelectorLabel: 'Aqours',
+    effectTextAbilityId: S_PB2_032_ON_ENTER_DISCARD_LOOK_TOP_AQOURS_MEMBER_ABILITY_ID,
   },
   {
     baseCardCode: 'PL!-bp6-004',
@@ -225,6 +238,7 @@ export function registerDiscardLookTopSelectToHandWorkflowHandlers(deps: {
     N_BP7_018_ON_ENTER_DISCARD_LOOK_TOP_FIVE_NO_BLADE_NIJIGASAKI_MEMBER_ABILITY_ID,
     N_SD2_012_ON_ENTER_DISCARD_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID,
     N_SD2_014_ON_ENTER_DISCARD_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID,
+    S_PB2_032_ON_ENTER_DISCARD_LOOK_TOP_AQOURS_MEMBER_ABILITY_ID,
     SP_BP7_018_ON_ENTER_DISCARD_LIVE_LOOK_TOP_FIVE_TAKE_ONE_ABILITY_ID,
   ]) {
     registerPendingAbilityStarterHandler(abilityId, (game, ability, options, context) =>
@@ -291,8 +305,9 @@ function startDiscardLookTopSelectToHandWorkflow(
   }
 
   const cardCode = getAbilityTemplateCardCode(game, ability) ?? sourceCard.data.cardCode;
+  const aliasCardConfig = getDiscardLookTopAliasCardConfig(cardCode);
   const selectableCardIds = player.hand.cardIds.filter((cardId) => {
-    if (cardId === ability.sourceCardId) {
+    if (cardId === ability.sourceCardId && aliasCardConfig?.canDiscardSourceCard !== true) {
       return false;
     }
     if (!isSpBp7018DiscardLiveLookTopFiveCard(cardCode)) {
@@ -302,7 +317,6 @@ function startDiscardLookTopSelectToHandWorkflow(
     return card !== null && isLiveCardData(card.data);
   });
   const selectableCardType = getDiscardLookTopSelectableCardType(cardCode);
-  const aliasCardConfig = getDiscardLookTopAliasCardConfig(cardCode);
   const printedHeartCountConfig = getDiscardLookTopPrintedHeartCountCardConfig(cardCode);
   const metadata: DiscardLookTopMetadata = {
     topCount: getDiscardLookTopCount(cardCode),
@@ -468,6 +482,11 @@ function createLookTopConfig(
   effectText: string,
   metadata: DiscardLookTopMetadata
 ): LookTopSelectToHandWorkflowConfig {
+  const isAqoursWithoutBladeHeart =
+    metadata.cardSelectorAlias === 'Aqours' && metadata.noBladeHeartOnly;
+  const groupMemberText = isAqoursWithoutBladeHeart
+    ? '不持有BLADE HEART的Aqours成员卡'
+    : `${metadata.cardSelectorAlias}成员卡`;
   return {
     effectText,
     topCount: metadata.topCount,
@@ -494,7 +513,7 @@ function createLookTopConfig(
             ? '请选择其中1张LIVE卡加入手牌，其余放置入休息室。'
             : metadata.cardSelectorAlias && metadata.memberOnly
               ? metadata.cardSelectorAlias === 'Aqours'
-                ? '请选择至多1张Aqours成员卡公开并加入手牌，其余放置入休息室。'
+                ? `请选择至多1张${groupMemberText}公开并加入手牌，其余放置入休息室。`
                 : `请选择其中1张${metadata.cardSelectorAlias}的成员卡加入手牌，其余放置入休息室。`
               : metadata.cardSelectorAlias
                 ? `请选择其中1张${metadata.cardSelectorAlias}的卡加入手牌，其余放置入休息室。`
@@ -510,7 +529,7 @@ function createLookTopConfig(
           : metadata.liveOnly
             ? '没有可加入手牌的LIVE卡。确认后其余卡片放置入休息室。'
             : metadata.cardSelectorAlias && metadata.memberOnly
-              ? `没有可加入手牌的${metadata.cardSelectorAlias}成员卡。确认后其余卡片放置入休息室。`
+              ? `没有可加入手牌的${groupMemberText}。确认后其余卡片放置入休息室。`
               : metadata.cardSelectorAlias
                 ? `没有可加入手牌的${metadata.cardSelectorAlias}的卡。确认后其余卡片放置入休息室。`
                 : metadata.memberOnly
@@ -547,7 +566,9 @@ function createLookTopConfig(
       (metadata.cardSelectorAlias === 'Aqours' && metadata.memberOnly)
         ? '全部放置入休息室'
         : '不加入',
-    revealStepText: effectText,
+    revealStepText: isAqoursWithoutBladeHeart
+      ? '已公开所选Aqours成员卡。展示结束后加入手牌，其余检视牌放置入休息室。'
+      : effectText,
     revealActionStep: 'REVEAL_SELECTED',
   };
 }

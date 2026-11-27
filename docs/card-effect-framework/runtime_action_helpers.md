@@ -271,6 +271,7 @@ Current boundary:
 - `moveRevealedCheerCards` 只负责把已重校验的当前声援可移动卡放入 `HAND` / `MAIN_DECK_TOP` / `MAIN_DECK_BOTTOM` / `WAITING_ROOM`，不创建 UI、deadline、turn1 或追加声援；这条移动边界不代表整个 `effects/cheer-selection.ts` 只有移动职责。
 - 玩家从声援处理区确定具体卡牌后，原 workflow 必须先通过 `runtime/public-card-selection-confirmation.ts` 展示；展示期间卡仍在 resolution zone，不记录 turn1、不追加声援、不推进 pending。
 - 条件查询的 `CheerEvent.revealedCardIds` 是历史事实；公开窗口和实际移动用的是当前声援 ID 中仍在 resolution zone 且 revealed 的交集，两者不可混用。
+- `playRevealedCheerMemberToEmptySlotAndEnqueueTriggers` 接收已经公开确认的成员和空槽，重验可移动声援与空槽，使用普通卡效登场规则从处理区登场。成功后记录一次 `ON_ENTER_STAGE` 和一次目的地为 `MEMBER_SLOT` 的 `ON_REVEALED_CHEER_CARDS_MOVED`，两组待机进入统一调度。
 - 参照本次声援卡的 BLADE HEART 时，先用 `selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts` 取得 event-inclusive 的逐卡有效判心。该查询会应用当前 LIVE 的颜色替换 modifier；除非卡文明示参照原本/印刷信息，workflow 不得直接扫描 `card.data.bladeHearts`。
 - 上层只需要颜色并集时使用 `collectCurrentLiveRevealedCheerBladeHeartColors`；需要不同卡分别承担指定颜色时使用 `evaluateDistinctCheerCardsCoverHeartColors`；检查有效 ALL 等其他形状时，从逐卡有效判心做窄聚合，不要改变“不同卡覆盖”的既有语义。
 
@@ -325,8 +326,9 @@ Current boundary:
 
 - source/destination 固定为 `WAITING_ROOM -> MAIN_DECK_BOTTOM`。
 - 按 `selectedCardIds` 的顺序追加到主卡组底；`mainDeck.cardIds[0]` 仍是卡组顶。
+- 对于按任意顺序置底的休息室费用，`publicCardSelectionConfirmation.privateOrder` 让双方看见选中卡的身份，实际顺序保存在权威状态。近江彼方、桂城泉、樱内梨子和小原鞠莉均使用这个选项。多张置底时，公开移动按 `PAY_COST` 或 `RESOLVE_ABILITY` 的 `privateMainDeckOrderCardIds` 隐藏新牌顶索引。
 - `selectedCardIds=[]` 是 no-op，返回原 `gameState`。
-- 真实非空移动只写一条 grouped `ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK`，destination 为 `BOTTOM`；生产 workflow 必须调用 `moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers`。
+- 真实非空移动只写一条 `ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK`，destination 为 `BOTTOM`。普通效果使用 `moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers`。梨子和鞠莉的 `payPrivateOrderedWaitingRoomBottomCost` 在同一次移动后先记录已付费用，再派发该事件。梨子明确选择零张时仍可发动，产生费用及次数记录，只有实际移动的卡才参与奖励。
 - 不洗切、不扫描成员/LIVE 等 selector；候选筛选、activeEffect、pending continue 与 action payload 都由 caller 负责。
 - 不替代 `shuffleWaitingRoomCardsToDeckBottomForPlayer`；需要“洗切后置底”的卡效继续使用 shuffle helper。
 - 不作为万能 `moveAnyZoneToAnyZone`。
@@ -400,7 +402,7 @@ Current boundary:
 - 按 `selectedCardIds` 的顺序放到主卡组顶；`mainDeck.cardIds[0]` 仍是卡组顶。
 - 当前只覆盖 exact count，多选顺序由 workflow/activeEffect 负责。
 - 不洗切、不扫描 selector、不创建 activeEffect、不写 action、不推进 pending。
-- 目前真实样本是 `PL!N-bp4-031` 抽 3 后强制选择 3 张当前手牌回顶。
+- `moveHandCardsToDeckEdgeForPlayer` 接受整组共用的 `TOP` 或 `BOTTOM`，第一张选择的卡总在第二张上方。旧置顶调用通过 `moveHandCardsToDeckTopForPlayer` 复用该实现。费用11「津岛善子」让对方自行选择牌库一端并排列两张私密手牌。
 
 ## Member-Below Stack Helper Parameters
 
@@ -437,6 +439,12 @@ Current boundary:
 `runtime/inspection-member-below.ts` 服务 `LL-bp8-001` 的检视后叠卡。只接收当前己方主卡组检视区中已按卡文公开的 MEMBER，校验区域 owner、卡牌 owner、顶层宿主与重复叠卡后，直接从 inspection 移入宿主下方。不能绕经休息室，不制造入休息室或登场事件。
 
 候选、宿主规则对象生命周期、仅选中卡的公开与 Public Reveal Dwell 由单卡 workflow 管理；到期重验同一宿主实例，槽位内移动允许继续，离场重登不继承旧叠卡。余下检视牌通过既有 `moveInspectedCardsToWaitingRoomAndEnqueueTriggers` 成组移动并派发一次实际事件，最后统一 continuation。无目标或不选择仍完成私密检视；下方卡叠入后按现有投影对双方公开。
+
+### 将休息室的 LIVE 叠入成员下方及从下方置顶
+
+`registerEnterWaitingRoomPerCardTrigger` 让声明“每当一张”的能力从一次成组入休息室事件按实际符合条件的卡分别待机。每项绑定原事件、来源及该张卡。其他能力仍一次处理整组。`stackWaitingRoomLiveBelowStageMember` 将己方休息室的 LIVE 叠入舞台宿主的公开下方区域，能量继续使用独立的 `energyBelow`。
+
+`moveLivesBelowStageMemberToDeckTop` 按给定顺序整体移动，返回实际置顶的卡，列表首张成为下一张抽牌。千歌根据返回数量给来源成员增加 BLADE。多张排序时，结算记录标记需保密的牌顶顺序，公开移动事件只展示目的区域。
 
 ### `moveCardsBelowSourceMemberToWaitingRoomAndEnqueueTriggers`
 

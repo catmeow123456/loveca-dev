@@ -110,6 +110,10 @@ export type ContinuousLiveModifierVisibility =
     };
 
 const PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY = { kind: 'PUBLIC' } as const;
+const HS_PR_044_KOSUZU_BASE_CARD_CODE = 'PL!HS-PR-044';
+const S_PB2_021_KANAN_BASE_CARD_CODE = 'PL!S-pb2-021';
+const S_PB2_021_CONTINUOUS_AZALEA_GREEN_TEN_GAIN_BLADE_ABILITY_ID =
+  'PL!S-pb2-021:continuous-azalea-green-ten-gain-blade';
 const SELF_LIVE_ZONE_CONTENTS_VISIBILITY = {
   kind: 'PLAYER_LIVE_ZONE_CONTENTS',
   player: 'SELF',
@@ -2185,7 +2189,8 @@ function getRequirementModifiers(
 }
 
 export function collectLiveModifiers(game: GameState): readonly LiveModifierState[] {
-  return [...game.liveResolution.liveModifiers, ...collectContinuousLiveModifiers(game)];
+  const modifiers = [...game.liveResolution.liveModifiers, ...collectContinuousLiveModifiers(game)];
+  return [...modifiers, ...collectAzaleaGreenHeartBladeModifiers(game, modifiers)];
 }
 
 /** Read-only registry projection used by governance tests and architecture audits. */
@@ -2196,6 +2201,10 @@ export function getContinuousLiveModifierVisibilityDeclarations(): readonly {
   return [
     ...CONTINUOUS_LIVE_MODIFIER_DEFINITIONS,
     ...LIVE_CARD_ZONE_CONTINUOUS_LIVE_MODIFIER_DEFINITIONS,
+    {
+      baseCardCodes: [HS_PR_044_KOSUZU_BASE_CARD_CODE, S_PB2_021_KANAN_BASE_CARD_CODE],
+      visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    },
   ].map(({ baseCardCodes, visibility }) => ({
     baseCardCodes,
     visibility,
@@ -3389,7 +3398,8 @@ function hasAtLeastDifferentEffectiveCostStageMembers(
 function hasOwnStageMemberWithEffectiveCostAtLeast(
   game: GameState,
   playerId: string,
-  minCost: number
+  minCost: number,
+  liveModifiers: readonly LiveModifierState[] = game.liveResolution.liveModifiers
 ): boolean {
   const player = game.players.find((candidate) => candidate.id === playerId);
   if (!player) {
@@ -3404,8 +3414,9 @@ function hasOwnStageMemberWithEffectiveCostAtLeast(
     const card = getCardById(game, cardId);
     return (
       card !== null &&
+      card.ownerId === playerId &&
       isMemberCardData(card.data) &&
-      getMemberEffectiveCost(game, playerId, cardId) >= minCost
+      getMemberEffectiveCost(game, playerId, cardId, liveModifiers) >= minCost
     );
   });
 }
@@ -4378,12 +4389,7 @@ export function getMemberEffectiveBladeCount(
     )
     .reduce((total, modifier) => total + modifier.countDelta, 0);
 
-  const replacement = getLatestMemberOriginalBladeReplacementModifier(
-    playerId,
-    sourceCardId,
-    liveModifiers
-  );
-  const originalBladeCount = replacement ? replacement.count : sourceCard.data.blade;
+  const originalBladeCount = getMemberOriginalBladeCount(game, playerId, sourceCardId, liveModifiers);
 
   return Math.max(0, originalBladeCount + modifierBladeCount);
 }
@@ -4404,7 +4410,18 @@ export function getMemberOriginalBladeCount(
     sourceCardId,
     liveModifiers
   );
-  return Math.max(0, replacement ? replacement.count : sourceCard.data.blade);
+  // A later fixed replacement on this stage object takes precedence over its
+  // continuous replacement. Ordinary BLADE deltas are applied by the caller.
+  if (replacement) return Math.max(0, replacement.count);
+  if (
+    cardCodeMatchesBase(sourceCard.data.cardCode, HS_PR_044_KOSUZU_BASE_CARD_CODE) &&
+    isOwnTopLevelStageMember(game, playerId, sourceCardId) &&
+    !isCardAbilitySuppressedByDarkHextech(game, sourceCardId) &&
+    hasOwnStageMemberWithEffectiveCostAtLeast(game, playerId, 13, liveModifiers)
+  ) {
+    return 3;
+  }
+  return Math.max(0, sourceCard.data.blade);
 }
 
 export function getMemberEffectiveHeartIcons(
@@ -4421,6 +4438,62 @@ export function getMemberEffectiveHeartIcons(
   return collectMemberHeartContributions(game, playerId, sourceCardId, liveModifiers).flatMap(
     (contribution) => contribution.amounts
   );
+}
+
+export function getAzaleaGreenHeartTotal(
+  game: GameState,
+  playerId: string,
+  liveModifiers: readonly LiveModifierState[]
+): number {
+  const player = getPlayerById(game, playerId);
+  if (!player) return 0;
+
+  return getAllMemberCardIds(player.memberSlots)
+    .filter((cardId) => {
+      const card = getCardById(game, cardId);
+      return (
+        card !== null &&
+        card.ownerId === playerId &&
+        isMemberCardData(card.data) &&
+        cardBelongsToUnit(card.data, 'AZALEA')
+      );
+    })
+    .flatMap((cardId) => getMemberEffectiveHeartIcons(game, playerId, cardId, liveModifiers))
+    .filter((heart) => heart.color === HeartColor.GREEN)
+    .reduce((total, heart) => total + heart.count, 0);
+}
+
+function collectAzaleaGreenHeartBladeModifiers(
+  game: GameState,
+  liveModifiers: readonly LiveModifierState[]
+): readonly LiveModifierState[] {
+  return game.players.flatMap((player) => {
+    const sources = getAllMemberCardIds(player.memberSlots).filter((cardId) => {
+      const card = getCardById(game, cardId);
+      return (
+        card !== null &&
+        card.ownerId === player.id &&
+        isMemberCardData(card.data) &&
+        cardCodeMatchesBase(card.data.cardCode, S_PB2_021_KANAN_BASE_CARD_CODE) &&
+        !isCardAbilitySuppressedByDarkHextech(game, cardId)
+      );
+    });
+    // This dependency reads every Heart contribution after ordinary collection.
+    // Its BLADE-only result cannot change the Heart threshold.
+    if (sources.length === 0 || getAzaleaGreenHeartTotal(game, player.id, liveModifiers) < 10) {
+      return [];
+    }
+
+    return sources.flatMap((sourceCardId) => {
+      const modifier = createBladeLiveModifierForSourceMember(game, {
+        playerId: player.id,
+        sourceCardId,
+        abilityId: S_PB2_021_CONTINUOUS_AZALEA_GREEN_TEN_GAIN_BLADE_ABILITY_ID,
+        countDelta: 2,
+      });
+      return modifier ? [modifier] : [];
+    });
+  });
 }
 
 /** Stable stage rules-object identity used only to bind fixed Heart contributions. */

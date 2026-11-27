@@ -96,6 +96,14 @@ const THREE_NAME_MEMBER_CASES = [
 ] as const;
 
 describe('card identity helpers', () => {
+  it('matches the printed Guilty Kiss name to the exported unit identity', () => {
+    expect(cardBelongsToUnit({ unitName: '「GuiltyKiss」' }, 'Guilty Kiss')).toBe(true);
+    expect(
+      cardsShareUnitIdentity({ unitName: 'Guilty Kiss' }, { unitName: '「GuiltyKiss」' })
+    ).toBe(true);
+    expect(cardBelongsToUnit({ unitName: 'Guilty Kiss extra' }, 'GuiltyKiss')).toBe(false);
+  });
+
   it('matches the exported lilywhite identity with the printed lily white spelling', () => {
     expect(cardBelongsToUnit({ unitName: '「lilywhite」' }, 'lily white')).toBe(true);
     expect(cardBelongsToUnit({ unitName: '『lily white』' }, 'lilywhite')).toBe(true);

@@ -652,6 +652,7 @@ function normalizeStructuredUnitName(value: string | undefined): string {
   const normalizedValue = normalizeGroupIdentityText(value);
   // 官方印刷为 lily white，当前结构化导出为「lilywhite」；两者是同一小队。
   if (normalizedValue === 'lily white') return 'lilywhite';
+  if (normalizedValue === 'guilty kiss') return 'guiltykiss';
   const hasunosoraIdentity = HASUNOSORA_UNIT_IDENTITIES.find((identity) =>
     identity.aliases.some((alias) => normalizeGroupIdentityText(alias) === normalizedValue)
   );
