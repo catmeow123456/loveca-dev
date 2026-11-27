@@ -29,6 +29,7 @@ const TARGET_BASES = [
   'PL!S-cl1-007',
   'PL!SP-PR-034',
 ] as const;
+const SHARED_BASES = [...november20SharedPrBases, ['PL!S-cl1-009', 'PL!S-pb2-022']];
 const rows = Object.values(sourceRows);
 function fixture(base: string) {
   const row = rows.find((row) => row.cardCode.startsWith(`${base}-`));
@@ -46,7 +47,7 @@ describe('October 20 authorized 19 cards / 22 full ability paragraphs', () => {
         .split(/\n\n+/)
         .map((paragraph) => paragraph.trim());
       const native = getCardAbilityDefinitionsForCardCode(row.cardCode);
-      const expectedBases = november20SharedPrBases.find(([older]) => older === base) ?? [base];
+      const expectedBases = SHARED_BASES.find(([older]) => older === base) ?? [base];
       expect(native).toHaveLength(expected.length);
       expect(native.map(({ effectText }) => effectText)).toEqual(expected);
       for (const rarity of VALID_RARITIES) {
